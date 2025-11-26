@@ -1081,18 +1081,15 @@ static void prt_blind(void)
  */
 static void prt_confused(void)
 {
-    sdl_story_font_enable();
+    /* Clear the area first (story font has variable widths) */
+    Term_erase(COL_CONFUSED, ROW_CONFUSED, 8);
 
     if (p_ptr->confused)
     {
+        sdl_story_font_enable();
         c_put_str(TERM_ORANGE, "Confused", ROW_CONFUSED, COL_CONFUSED);
+        sdl_story_font_disable();
     }
-    else
-    {
-        put_str("        ", ROW_CONFUSED, COL_CONFUSED);
-    }
-
-    sdl_story_font_disable();
 }
 
 /*
@@ -1100,18 +1097,15 @@ static void prt_confused(void)
  */
 static void prt_afraid(void)
 {
-    sdl_story_font_enable();
+    /* Clear the area first (story font has variable widths) */
+    Term_erase(COL_AFRAID, ROW_AFRAID, 6);
 
     if (p_ptr->afraid)
     {
+        sdl_story_font_enable();
         c_put_str(TERM_ORANGE, "Afraid", ROW_AFRAID, COL_AFRAID);
+        sdl_story_font_disable();
     }
-    else
-    {
-        put_str("      ", ROW_AFRAID, COL_AFRAID);
-    }
-
-    sdl_story_font_disable();
 }
 
 /*
@@ -1130,36 +1124,32 @@ static void prt_cut(void)
     if (p_ptr->poisoned)
         r--;
 
-    put_str("            ", ROW_CUT - 1, COL_CUT);
-
-    sdl_story_font_enable();
+    /* Clear both possible rows (story font has variable widths) */
+    Term_erase(COL_CUT, ROW_CUT - 1, 12);
+    Term_erase(COL_CUT, ROW_CUT, 12);
 
     if (c > 100)
     {
+        sdl_story_font_enable();
         c_put_str(TERM_RED, "Mortal wound", r, COL_CUT);
+        sdl_story_font_disable();
     }
     else if (c > 20)
     {
-        c_put_str(TERM_RED, "Bleeding ", r, COL_CUT);
-        sdl_story_font_disable();
-        sprintf(num_buf, "%-2d", c);
-        c_put_str(TERM_RED, num_buf, r, COL_CUT + 9);
         sdl_story_font_enable();
+        c_put_str(TERM_RED, "Bleeding", r, COL_CUT);
+        sdl_story_font_disable();
+        sprintf(num_buf, " %-2d", c);
+        c_put_str(TERM_RED, num_buf, r, COL_CUT + 8);
     }
     else if (c > 0)
     {
-        c_put_str(TERM_L_RED, "Bleeding ", r, COL_CUT);
-        sdl_story_font_disable();
-        sprintf(num_buf, "%-2d", c);
-        c_put_str(TERM_L_RED, num_buf, r, COL_CUT + 9);
         sdl_story_font_enable();
+        c_put_str(TERM_L_RED, "Bleeding", r, COL_CUT);
+        sdl_story_font_disable();
+        sprintf(num_buf, " %-2d", c);
+        c_put_str(TERM_L_RED, num_buf, r, COL_CUT + 8);
     }
-    else
-    {
-        put_str("            ", r, COL_CUT);
-    }
-
-    sdl_story_font_disable();
 }
 
 /*
@@ -1170,30 +1160,25 @@ static void prt_poisoned(void)
     int p = p_ptr->poisoned;
     char num_buf[8];
 
-    sdl_story_font_enable();
+    /* Clear the area first (story font has variable widths) */
+    Term_erase(COL_POISONED, ROW_POISONED, 12);
 
     if (p > 20)
     {
-        c_put_str(TERM_L_GREEN, "Poisoned ", ROW_POISONED, COL_POISONED);
-        sdl_story_font_disable();
-        sprintf(num_buf, "%-3d", p);
-        c_put_str(TERM_L_GREEN, num_buf, ROW_POISONED, COL_POISONED + 9);
         sdl_story_font_enable();
+        c_put_str(TERM_L_GREEN, "Poisoned", ROW_POISONED, COL_POISONED);
+        sdl_story_font_disable();
+        sprintf(num_buf, " %-3d", p);
+        c_put_str(TERM_L_GREEN, num_buf, ROW_POISONED, COL_POISONED + 8);
     }
     else if (p > 0)
     {
-        c_put_str(TERM_GREEN, "Poisoned ", ROW_POISONED, COL_POISONED);
-        sdl_story_font_disable();
-        sprintf(num_buf, "%-3d", p);
-        c_put_str(TERM_GREEN, num_buf, ROW_POISONED, COL_POISONED + 9);
         sdl_story_font_enable();
+        c_put_str(TERM_GREEN, "Poisoned", ROW_POISONED, COL_POISONED);
+        sdl_story_font_disable();
+        sprintf(num_buf, " %-3d", p);
+        c_put_str(TERM_GREEN, num_buf, ROW_POISONED, COL_POISONED + 8);
     }
-    else
-    {
-        put_str("            ", ROW_POISONED, COL_POISONED);
-    }
-
-    sdl_story_font_disable();
 }
 
 /*
@@ -1320,15 +1305,19 @@ static void prt_state(void)
     /* Nothing interesting */
     else
     {
-        SDL_strlcpy(text, "          ", sizeof(text));
+        text[0] = '\0';
     }
 
-    sdl_story_font_enable();
+    /* Clear the area first (story font has variable widths) */
+    Term_erase(COL_STATE, ROW_STATE, 10);
 
-    /* Display the info (or blanks) */
-    c_put_str(attr, text, ROW_STATE, COL_STATE);
-
-    sdl_story_font_disable();
+    /* Display the info if any */
+    if (text[0])
+    {
+        sdl_story_font_enable();
+        c_put_str(attr, text, ROW_STATE, COL_STATE);
+        sdl_story_font_disable();
+    }
 }
 
 /*
@@ -1355,12 +1344,16 @@ static void prt_speed(void)
         sprintf(buf, "Slow");
     }
 
-    sdl_story_font_enable();
+    /* Clear the area first (story font has variable widths) */
+    Term_erase(COL_SPEED, ROW_SPEED, 4);
 
-    /* Display the speed */
-    c_put_str(attr, format("%-4s", buf), ROW_SPEED, COL_SPEED);
-
-    sdl_story_font_disable();
+    /* Display the speed if not normal */
+    if (buf[0])
+    {
+        sdl_story_font_enable();
+        c_put_str(attr, buf, ROW_SPEED, COL_SPEED);
+        sdl_story_font_disable();
+    }
 }
 
 /*
@@ -1368,52 +1361,54 @@ static void prt_speed(void)
  */
 static void prt_terrain(void)
 {
-    sdl_story_font_enable();
+    /* Clear the area first (story font has variable widths) */
+    Term_erase(COL_TERRAIN, ROW_TERRAIN, 8);
 
     if (cave_pit_bold(p_ptr->py, p_ptr->px))
     {
+        sdl_story_font_enable();
         c_put_str(TERM_ORANGE, "Pit", ROW_TERRAIN, COL_TERRAIN);
+        sdl_story_font_disable();
     }
     else if (cave_feat[p_ptr->py][p_ptr->px] == FEAT_TRAP_WEB)
     {
+        sdl_story_font_enable();
         c_put_str(TERM_ORANGE, "Web", ROW_TERRAIN, COL_TERRAIN);
+        sdl_story_font_disable();
     }
     else if (cave_feat[p_ptr->py][p_ptr->px] == FEAT_SUNLIGHT)
     {
+        sdl_story_font_enable();
         c_put_str(TERM_YELLOW, "Sunlight", ROW_TERRAIN, COL_TERRAIN);
+        sdl_story_font_disable();
     }
-    else
-    {
-        put_str("        ", ROW_TERRAIN, COL_TERRAIN);
-    }
-
-    sdl_story_font_disable();
 }
 
 static void prt_stun(void)
 {
     int s = p_ptr->stun;
 
-    sdl_story_font_enable();
+    /* Clear the area first (story font has variable widths) */
+    Term_erase(COL_STUN, ROW_STUN, 12);
 
     if (s > 100)
     {
-        c_put_str(TERM_RED, "Knocked out ", ROW_STUN, COL_STUN);
+        sdl_story_font_enable();
+        c_put_str(TERM_RED, "Knocked out", ROW_STUN, COL_STUN);
+        sdl_story_font_disable();
     }
     else if (s > 50)
     {
-        c_put_str(TERM_ORANGE, "Heavy stun  ", ROW_STUN, COL_STUN);
+        sdl_story_font_enable();
+        c_put_str(TERM_ORANGE, "Heavy stun", ROW_STUN, COL_STUN);
+        sdl_story_font_disable();
     }
     else if (s)
     {
-        c_put_str(TERM_ORANGE, "Stun        ", ROW_STUN, COL_STUN);
+        sdl_story_font_enable();
+        c_put_str(TERM_ORANGE, "Stun", ROW_STUN, COL_STUN);
+        sdl_story_font_disable();
     }
-    else
-    {
-        put_str("            ", ROW_STUN, COL_STUN);
-    }
-
-    sdl_story_font_disable();
 }
 
 /*
