@@ -710,6 +710,7 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3)
     {
         good[gc++] = (format(
             "can be thrown effectively (%d squares)", throwing_range(o_ptr)));
+        good[gc++] = "can be placed in quiver (passive abilities remain active for 2nd quiver)";
     }
 
     /* Collect stuff which can't be categorized */

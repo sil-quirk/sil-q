@@ -3172,10 +3172,13 @@ void apply_magic(object_type* o_ptr, int lev, bool okay, bool good, bool great,
             // throwing items always have typical weight to help with stacking
             o_ptr->weight = k_info[o_ptr->k_idx].weight;
 
-            // and often come in multiples
+            // often come in multiples, but limited to quiver stack size
             if (one_in_(2))
             {
-                o_ptr->number = rand_range(2, 5);
+                int stack_limit = object_stack_limit(o_ptr);
+                int max_spawn = (stack_limit < 5) ? stack_limit : 5;
+                int min_spawn = (max_spawn < 2) ? 1 : 2;
+                o_ptr->number = rand_range(min_spawn, max_spawn);
             }
         }
 
@@ -5349,6 +5352,7 @@ bool inven_carry_okay(const object_type* o_ptr)
             return (true);
     }
 
+    /* Throwing weapons can combine with similar items in quiver */
     if (player_can_treat_as_throwing(o_ptr))
     {
         for (j = INVEN_QUIVER1; j <= INVEN_QUIVER2; j++)
@@ -5356,11 +5360,12 @@ bool inven_carry_okay(const object_type* o_ptr)
             object_type* j_ptr = &inventory[j];
 
             if (!j_ptr->k_idx)
-                return (true);
+                continue;
 
             if (object_similar(j_ptr, o_ptr))
                 return (true);
         }
+        /* No similar items - will fall through to pack check below */
     }
 
     if (!inventory_type_slot_available(o_ptr, true))
@@ -5558,6 +5563,35 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
 
             return (-1);
         }
+    }
+
+    /* Handle throwing weapons - try to combine with existing in quiver first */
+    if (player_can_treat_as_throwing(o_ptr))
+    {
+        /* Check for combining with existing throwing weapons in quiver */
+        for (j = INVEN_QUIVER1; j <= INVEN_QUIVER2; j++)
+        {
+            j_ptr = &inventory[j];
+
+            if (!j_ptr->k_idx)
+                continue;
+
+            if (object_similar(j_ptr, o_ptr))
+            {
+                object_absorb(j_ptr, o_ptr);
+                p_ptr->window |= (PW_INVEN | PW_EQUIP);
+
+                if (o_ptr->number == 0)
+                    return (j);
+                
+                /* Partial absorption - show message and continue to pack */
+                char j_name[80];
+                object_desc(j_name, sizeof(j_name), j_ptr, true, 3);
+                msg_format("You combine some with %s (%c).", j_name, index_to_label(j));
+                break;
+            }
+        }
+        /* Any overflow will fall through to pack handling below */
     }
 
     /* Check for combining */
