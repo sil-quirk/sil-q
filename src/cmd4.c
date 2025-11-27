@@ -444,6 +444,9 @@ void do_cmd_character_sheet(void)
         if (ch == 'i')
         {
             gain_skills();
+            /* Force redraw after skill changes */
+            p_ptr->redraw |= (PR_BASIC | PR_EXTRA | PR_EXP);
+            handle_stuff();
         }
 
         /* Show notes */
@@ -468,6 +471,9 @@ void do_cmd_character_sheet(void)
         else if ((ch == 'a') || (ch == '\t'))
         {
             (void)do_cmd_ability_screen();
+            /* Force redraw after ability changes */
+            p_ptr->redraw |= (PR_BASIC | PR_EXTRA | PR_EXP);
+            handle_stuff();
         }
 
         /* File dump */
@@ -6748,15 +6754,20 @@ int artefact_menu_aux(int* highlight)
         Term_putstr(COL_SMT2, i + 2, -1, TERM_WHITE, buf);
     }
 
-    // display the categories for abilities
+    // display the categories for abilities (skip Special abilities - S_SPC)
+    int display_idx = 0;
     for (i = 0; i < S_MAX; i++)
     {
+        /* Skip Special abilities - they cannot be smithed onto items */
+        if (i == S_SPC) continue;
+        
         strnfmt(
-            buf, 80, "%c) %s", (char)'a' + MAX_CATS + i, skill_names_full[i]);
-        Term_putstr(COL_SMT2, i + MAX_CATS + 2, -1, TERM_WHITE, buf);
+            buf, 80, "%c) %s", (char)'a' + MAX_CATS + display_idx, skill_names_full[i]);
+        Term_putstr(COL_SMT2, display_idx + MAX_CATS + 2, -1, TERM_WHITE, buf);
+        display_idx++;
     }
 
-    num = MAX_CATS + S_MAX + 1;
+    num = MAX_CATS + display_idx + 1;
 
     // Menu item for naming artefacts
     strnfmt(buf, 80, "%c) %s", (char)'a' + num - 1, "Name Artefact");
@@ -6883,12 +6894,15 @@ void artefact_menu(void)
     // prepare the artefact and object for modification
     prepare_artefact();
 
+    /* Number of skill categories displayed (S_MAX minus Special abilities) */
+    int num_skills = S_MAX - 1;
+
     /* Process Events until menu is abandoned */
     while (!leave_menu)
     {
         choice = artefact_menu_aux(&highlight);
 
-        if (choice == MAX_CATS + S_MAX + 1)
+        if (choice == MAX_CATS + num_skills + 1)
         {
             rename_artefact();
         }

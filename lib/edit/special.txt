@@ -273,7 +273,7 @@ T:21:8:8
 T:22:4:4
 T:22:12:99
 T:23:17:25
-B:0/5
+B:0/6
 
 
 # Warhammers, battle-axes, great-axes
@@ -287,7 +287,7 @@ T:21:8:8
 T:22:4:4
 T:22:12:99
 T:23:21:25
-B:0/8
+B:0/9
 F:AGGRAVATE | LIGHT_CURSE
 
 
@@ -316,9 +316,9 @@ F:STEALTH
 
 N:35:of Accompaniment
 W:0:1:4:2000
-C:0:0:0:2:0:0:0
+C:0:0:0:0:0:2:0:0
 T:23:4:4
-B:0/11
+B:0/12
 
 
 # Spears only
@@ -374,7 +374,7 @@ N:41:of Piercing
 W:4:8:0:10000
 C:0:0:1:0:0:0:0
 T:22:1:4
-B:0/6
+B:0/7
 
 
 # Warhammers, hand and battle axes, curved swords, longswords

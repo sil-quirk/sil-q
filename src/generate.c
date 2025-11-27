@@ -1203,6 +1203,55 @@ static void seed_prefab_anchors(void)
         placed, target, attempts, p_ptr->depth);
 }
 
+/* Scatter quartz veins around CA blob edges to give a natural cave-like appearance.
+ * Converts some wall tiles adjacent to floors into quartz veins. */
+static void scatter_quartz_veins_in_bounds(int y1, int y2, int x1, int x2)
+{
+    int vein_count = 0;
+    
+    /* Iterate over the bounds and convert some adjacent-to-floor walls to quartz */
+    for (int gy = y1 - 1; gy <= y2 + 1; ++gy)
+    {
+        for (int gx = x1 - 1; gx <= x2 + 1; ++gx)
+        {
+            if (!in_bounds_fully(gy, gx))
+                continue;
+            
+            /* Only consider granite walls */
+            int feat = cave_feat[gy][gx];
+            if (feat < FEAT_WALL_EXTRA || feat > FEAT_WALL_SOLID)
+                continue;
+            
+            /* Check if adjacent to at least one floor tile */
+            bool adj_floor = false;
+            for (int dy = -1; dy <= 1 && !adj_floor; ++dy)
+            {
+                for (int dx = -1; dx <= 1 && !adj_floor; ++dx)
+                {
+                    if (dy == 0 && dx == 0)
+                        continue;
+                    int ny = gy + dy, nx = gx + dx;
+                    if (in_bounds_fully(ny, nx) && cave_floor_bold(ny, nx))
+                        adj_floor = true;
+                }
+            }
+            
+            /* If adjacent to floor, ~30% chance to become quartz vein */
+            if (adj_floor && (rand_int(100) < 30))
+            {
+                cave_set_feat(gy, gx, FEAT_QUARTZ);
+                vein_count++;
+            }
+        }
+    }
+    
+    if (vein_count > 0)
+    {
+        log_trace("scatter_quartz_veins: placed %d veins in bounds (%d,%d)-(%d,%d)",
+                  vein_count, y1, x1, y2, x2);
+    }
+}
+
 /* Carve a small cellular-automata style blob and register it as an anchor */
 static bool carve_ca_blob_anchor(void)
 {
@@ -1410,6 +1459,9 @@ static bool carve_ca_blob_anchor(void)
     dun->is_quest[idx] = false;
     mark_room_anchor_meta(idx, LAYOUT_ANCHOR_CA_BLOB, one_in_(3));
 
+    /* Scatter quartz veins around the cave walls for natural appearance */
+    scatter_quartz_veins_in_bounds(min_y, max_y, min_x, max_x);
+
     log_trace("CA blob anchor: carved floor_count=%d bounds=(%d,%d)-(%d,%d) center=(%d,%d)",
         floor_count, min_y, min_x, max_y, max_x, cy, cx);
     return true;
@@ -1596,6 +1648,10 @@ static bool carve_ca_blob_anchor_bounds(int y_min, int y_max, int x_min, int x_m
     dun->kind[idx] = ROOM_KIND_CLASSIC;
     dun->is_quest[idx] = false;
     mark_room_anchor_meta(idx, LAYOUT_ANCHOR_CA_BLOB, one_in_(4));
+
+    /* Scatter quartz veins around the cave walls for natural appearance */
+    scatter_quartz_veins_in_bounds(min_y, max_y, min_x, max_x);
+
     log_trace("CA blob (bounded) anchor: bounds=(%d,%d)-(%d,%d) center=(%d,%d) floors=%d", min_y, min_x, max_y, max_x, cy, cx, floor_count);
     return true;
 }
@@ -1991,32 +2047,66 @@ static void apply_quadrant_generation_modes(void)
                       dun->cent_n, room_capacity_limit());
             break;
         }
-        /* Calculate partition boundaries based on grid size */
+        /* Calculate partition boundaries based on grid size.
+         * Use overlapping boundaries to avoid visible seams between partitions.
+         * Each partition extends to include the boundary line with its neighbor. */
         int row = pi / grid_size;
         int col = pi % grid_size;
         
-        int y1 = 1 + (row * p_ptr->cur_map_hgt / grid_size);
-        int y2 = ((row + 1) * p_ptr->cur_map_hgt / grid_size) - 1;
-        int x1 = 1 + (col * p_ptr->cur_map_wid / grid_size);
-        int x2 = ((col + 1) * p_ptr->cur_map_wid / grid_size) - 1;
+        /* Calculate boundaries with overlap: later partitions overwrite edges */
+        int y1 = (row * p_ptr->cur_map_hgt / grid_size);
+        int y2 = ((row + 1) * p_ptr->cur_map_hgt / grid_size);
+        int x1 = (col * p_ptr->cur_map_wid / grid_size);
+        int x2 = ((col + 1) * p_ptr->cur_map_wid / grid_size);
+        
+        /* Ensure we don't go out of bounds */
+        if (y1 < 1) y1 = 1;
+        if (x1 < 1) x1 = 1;
+        if (y2 >= p_ptr->cur_map_hgt - 1) y2 = p_ptr->cur_map_hgt - 2;
+        if (x2 >= p_ptr->cur_map_wid - 1) x2 = p_ptr->cur_map_wid - 2;
+        
         quadrant_mode_t mode = modes[pi];
         int style_idx = partition_styles[pi];
         density_level_t density = densities[pi];
-        
-        /* Clamp boundaries to valid range */
-        if (y2 >= p_ptr->cur_map_hgt - 1) y2 = p_ptr->cur_map_hgt - 2;
-        if (x2 >= p_ptr->cur_map_wid - 1) x2 = p_ptr->cur_map_wid - 2;
 
-        /* Apply the partition's visual style to its granite walls */
+        /* Apply the partition's visual style to its granite walls.
+         * Use a jagged/organic boundary instead of a straight line by
+         * randomizing whether edge tiles get styled (creating a natural blend). */
         if (style_idx >= 0)
         {
+            /* Calculate the boundary threshold for organic edge blending.
+             * Tiles within 'blend_zone' of the edge have a chance to not be styled,
+             * allowing neighbor partition's style to show through. */
+            int blend_zone = 3;  /* How many tiles wide the transition zone is */
+            
             for (int y = y1; y <= y2; ++y)
             {
                 for (int x = x1; x <= x2; ++x)
                 {
-                    if (cave_feat[y][x] == FEAT_WALL_EXTRA)
+                    if (cave_feat[y][x] != FEAT_WALL_EXTRA)
+                        continue;
+                    
+                    /* Calculate distance from each edge */
+                    int dist_top = y - y1;
+                    int dist_bot = y2 - y;
+                    int dist_left = x - x1;
+                    int dist_right = x2 - x;
+                    int dist_edge = MIN(MIN(dist_top, dist_bot), MIN(dist_left, dist_right));
+                    
+                    /* Tiles well inside the partition always get styled */
+                    if (dist_edge >= blend_zone)
                     {
                         cave_set_feat_with_color(y, x, FEAT_WALL_EXTRA, style_idx);
+                    }
+                    else
+                    {
+                        /* Edge tiles: probability decreases as we approach boundary.
+                         * dist_edge=0 -> 20% chance, dist_edge=2 -> 87% chance */
+                        int chance = 20 + (dist_edge * 67 / blend_zone);
+                        if (rand_int(100) < chance)
+                        {
+                            cave_set_feat_with_color(y, x, FEAT_WALL_EXTRA, style_idx);
+                        }
                     }
                 }
             }
@@ -4404,18 +4494,46 @@ static bool connect_rooms_stairs(void)
 
     /* Last resort: forcibly connect distinct pieces by digging a straight corridor
      * ignoring tunnel safety checks (but respecting permanent walls). This handles
-     * adjacent-but-unconnected rooms/vaults seen on dense maps. */
+     * adjacent-but-unconnected rooms/vaults seen on dense maps.
+     * IMPROVED: Instead of picking random pairs, find the NEAREST pair of rooms
+     * from different pieces to minimize ugly cross-map tunnels. */
     if (pieces > 1)
     {
         for (int attempt = 0; attempt < 50 && pieces > 1; ++attempt)
         {
-            int a = rand_int(dun->cent_n);
-            int b = rand_int(dun->cent_n);
-            if (a == b || dun->piece[a] == dun->piece[b])
-                continue;
+            /* Find the nearest pair of rooms from different pieces */
+            int best_a = -1, best_b = -1;
+            int best_dist = 999999;
+            
+            for (int ra = 0; ra < dun->cent_n; ++ra)
+            {
+                for (int rb = ra + 1; rb < dun->cent_n; ++rb)
+                {
+                    if (dun->piece[ra] == dun->piece[rb])
+                        continue;
+                    
+                    int dist = distance(dun->cent[ra].y, dun->cent[ra].x,
+                                        dun->cent[rb].y, dun->cent[rb].x);
+                    if (dist < best_dist)
+                    {
+                        best_dist = dist;
+                        best_a = ra;
+                        best_b = rb;
+                    }
+                }
+            }
+            
+            if (best_a < 0 || best_b < 0)
+                break;  /* No valid pair found */
+            
+            int a = best_a;
+            int b = best_b;
 
             int y0 = dun->cent[a].y, x0 = dun->cent[a].x;
             int y1 = dun->cent[b].y, x1 = dun->cent[b].x;
+
+            log_trace("force-connect: linking room %d (piece %d) to room %d (piece %d), dist=%d",
+                      a, dun->piece[a], b, dun->piece[b], best_dist);
 
             /* Bresenham carve that ignores h/v tunnel constraints */
             int dy = ABS(y1 - y0), sx = (x0 < x1) ? 1 : -1;
