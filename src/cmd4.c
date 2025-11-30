@@ -517,6 +517,10 @@ void do_cmd_character_sheet(void)
 
     /* Load screen */
     screen_load();
+
+    /* Force redraw after screen restore if skills/abilities were changed */
+    p_ptr->redraw |= (PR_BASIC | PR_EXTRA | PR_EXP);
+    handle_stuff();
 }
 
 #define COL_SKILL 2

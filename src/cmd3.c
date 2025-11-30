@@ -1647,6 +1647,15 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
 
     p_ptr->redraw |= (PR_EQUIPPY | PR_RESIST | PR_MAP | PR_QUIVER);
+
+    /* Update light display when wielding a light source */
+    if (slot == INVEN_LITE)
+    {
+        p_ptr->redraw |= (PR_LIGHT);
+    }
+
+    /* Force immediate sidebar update */
+    handle_stuff();
 }
 
 /*
@@ -1741,6 +1750,15 @@ void do_cmd_takeoff(object_type* default_o_ptr, int default_item)
     }
 
     p_ptr->redraw |= (PR_EQUIPPY | PR_RESIST | PR_MAP | PR_QUIVER);
+
+    /* Update light display when removing a light source */
+    if (item == INVEN_LITE)
+    {
+        p_ptr->redraw |= (PR_LIGHT);
+    }
+
+    /* Force immediate sidebar update */
+    handle_stuff();
 }
 
 /*
@@ -2994,6 +3012,9 @@ void do_cmd_refuel_lamp(object_type* default_o_ptr, int default_item)
     ident_on_wield(j_ptr);
 
     p_ptr->redraw |= (PR_LIGHT);
+
+    /* Force immediate sidebar update */
+    handle_stuff();
 }
 
 /*
@@ -3126,6 +3147,9 @@ void do_cmd_refuel_torch(
     ident_on_wield(j_ptr);
 
     p_ptr->redraw |= (PR_LIGHT);
+
+    /* Force immediate sidebar update */
+    handle_stuff();
 }
 
 /*
@@ -3188,18 +3212,22 @@ void do_cmd_target(void)
 }
 
 /*
- * Calculate the bounding box of explored areas
- * Returns true if any explored area found, false otherwise
+ * Calculate the bounding box of explored areas and detected monsters
+ * Returns true if any explored area or detected monster found, false otherwise
+ * 
+ * This function includes positions of monsters detected by items like the
+ * Gem of Foes (which have MFLAG_MARK set) in the scrollable bounds.
  */
 static bool get_explored_bounds(int* min_y, int* max_y, int* min_x, int* max_x)
 {
-    int y, x;
+    int y, x, i;
     
     *min_x = p_ptr->cur_map_wid;
     *max_x = 0;
     *min_y = p_ptr->cur_map_hgt;
     *max_y = 0;
 
+    /* Check explored grids */
     for (y = 0; y < p_ptr->cur_map_hgt; y++)
     {
         for (x = 0; x < p_ptr->cur_map_wid; x++)
@@ -3215,7 +3243,29 @@ static bool get_explored_bounds(int* min_y, int* max_y, int* min_x, int* max_x)
         }
     }
 
-    /* Check if any explored area was found */
+    /* Also include detected monsters (e.g., from Gem of Foes) */
+    for (i = 1; i < mon_max; i++)
+    {
+        monster_type* m_ptr = &mon_list[i];
+        
+        /* Skip dead monsters */
+        if (!m_ptr->r_idx)
+            continue;
+        
+        /* Check if monster is detected (MFLAG_MARK set by detection spells/items) */
+        if (m_ptr->mflag & (MFLAG_MARK))
+        {
+            int my = m_ptr->fy;
+            int mx = m_ptr->fx;
+            
+            if (mx < *min_x) *min_x = mx;
+            if (mx > *max_x) *max_x = mx;
+            if (my < *min_y) *min_y = my;
+            if (my > *max_y) *max_y = my;
+        }
+    }
+
+    /* Check if any explored area or detected monster was found */
     return (*min_x <= *max_x && *min_y <= *max_y);
 }
 

@@ -5352,20 +5352,36 @@ bool inven_carry_okay(const object_type* o_ptr)
             return (true);
     }
 
-    /* Throwing weapons can combine with similar items in quiver */
+    /* Throwing weapons can combine with similar items in quiver, 
+       or go back to their original empty quiver slot */
     if (player_can_treat_as_throwing(o_ptr))
     {
+        int empty_quiver = 0;
+        bool has_desired_slot = (o_ptr->pickup_slot == INVEN_QUIVER1) || 
+                                (o_ptr->pickup_slot == INVEN_QUIVER2);
+        
         for (j = INVEN_QUIVER1; j <= INVEN_QUIVER2; j++)
         {
             object_type* j_ptr = &inventory[j];
 
             if (!j_ptr->k_idx)
+            {
+                if (empty_quiver == 0)
+                    empty_quiver = j;
                 continue;
+            }
 
             if (object_similar(j_ptr, o_ptr))
                 return (true);
         }
-        /* No similar items - will fall through to pack check below */
+        
+        /* Thrown items can go back to an empty quiver slot */
+        if ((empty_quiver > 0) && o_ptr->pickup)
+            return (true);
+            
+        /* Or specifically to their original slot if it's empty */
+        if (has_desired_slot && (inventory[o_ptr->pickup_slot].k_idx == 0))
+            return (true);
     }
 
     if (!inventory_type_slot_available(o_ptr, true))
@@ -5460,8 +5476,9 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
     {
         object_type* d_ptr = &inventory[desired_slot];
         bool is_throwing = player_can_treat_as_throwing(o_ptr);
+        bool is_arrow = (o_ptr->tval == TV_ARROW);
 
-        if (is_throwing)
+        if (is_throwing || is_arrow)
         {
             if (d_ptr->k_idx == 0)
             {

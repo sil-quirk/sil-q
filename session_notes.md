@@ -1,5 +1,86 @@
 # Session Notes
 
+## 2025-11-30: Generation Algorithm Updates (Part 2)
+
+### Additional Changes Made
+
+#### 1. Level Size Increased
+- Base size increased from 4 to 6 blocks
+- Minimum level size increased from 6 to 8 blocks
+- Now generates larger, more explorable dungeons
+
+#### 2. New Partition Grid System
+Based on level size in blocks:
+- **8 blocks** → 6 partitions (3x2 or 2x3)
+- **9-10 blocks** → 9 partitions (3x3)
+- **11 blocks** → 12 partitions (3x4 or 4x3)
+- **12-13 blocks** → 16 partitions (4x4)
+- **14 blocks** → 20 partitions (5x4 or 4x5)
+- **15 blocks** → 25 partitions (5x5)
+
+#### 3. Debug Generation Logging
+- Added `DEBUG_GENERATION_LOG` define (set to 1 to enable)
+- When enabled, shows in-game messages:
+  - Map size, grid dimensions, partition count, room count
+  - Mode distribution (R=ROOMY, C=CAVEY, U=RUINED, L=LABYRINTH, H=CHASM, B=BIG_CAVE)
+
+#### 4. Inter-Partition Connectivity Fix
+- Added `ensure_partition_connectivity()` function
+- Scans partition boundaries for blocked connections
+- Carves small corridors at boundaries where floor exists on both sides but wall blocks connection
+- Called after `apply_quadrant_generation_modes()` in `cave_gen()`
+
+---
+
+## 2025-11-30: Generation Algorithm Updates (Part 1)
+
+### Changes Made
+
+#### 1. Room Saturation Loop Disabled
+- The main room-building loop in `cave_gen()` that saturated the map with random rooms has been disabled (`#if 0` wrapped)
+- Partition system now handles all room generation through `apply_quadrant_generation_modes()`
+
+#### 2. Post-Partition Seeders Disabled
+- `seed_ca_blob_anchors()` and `seed_bsp_slice_anchors()` calls after partitions disabled
+- These were duplicating work the partition system already does
+
+#### 3. Fixed Wall Handling for CA Blob and BSP Slice Rooms
+- Added `FEAT_WALL_OUTER` setting around floor tiles for all cave-type rooms:
+  - `carve_ca_blob_anchor()` 
+  - `carve_ca_blob_anchor_bounds()`
+  - `carve_bsp_slice_anchor()`
+  - `carve_bsp_slice_anchor_bounds()`
+- Tunnels now correctly connect to these room types via outer walls
+
+#### 4. Variable Tunnel Widths at Any Depth
+- Modified `choose_tunnel_profile()` to allow wider tunnels on any level
+- Early levels (depth < 7) now have occasional wide corridors (1-in-20 for grand, 1-in-16 for medium)
+- Deep levels have more frequent wide corridors
+- Probabilities scale with depth and style group
+
+#### 5. New Generation Mode: BIG_CAVE
+- Added `QUAD_MODE_BIG_CAVE` to the quadrant mode enum
+- Carves single large cavern filling 80-95% of partition bounds
+- Uses cellular automata with higher initial fill (55%) and more smoothing passes
+- Adds internal pillars for visual interest (~1 per 50 floor tiles)
+- Falls back to multiple CA blobs if partition is too small
+
+#### 6. Improved Labyrinth Mode
+- Added `carve_labyrinth_bounds()` function with true maze generation
+- Creates grid of corridors with 3-tile spacing
+- Blocks ~40-60% of intersections to create dead ends
+- Adds small chambers (3x3 or 3x5) at random intersections
+- Falls back to dense BSP slices if maze generation fails
+
+#### Mode Pool Updates
+- Both 4-partition and 9-partition levels now include `QUAD_MODE_BIG_CAVE` in the random pool
+- Updated `mode_str` array to include "BIG_CAVE" for logging
+
+### Build Status
+Build succeeded with warnings about unused functions (expected since seeders were disabled)
+
+---
+
 ## 2025-11-24: Corridor variety + width treatments
 - Added a tunnel profile picker (width 1/2/3 + treatment) gated by depth and style group; wide halls only roll past mid-depth (depth >= 10) with rarer odds otherwise.
 - Fixed tunnel thickening to widen perpendicular to travel (vertical tunnels carve x±1, horizontals carve y±1) so wide corridors now actually expand.
