@@ -31,6 +31,7 @@ add_executable(sil-more
     src/files.c
     src/format.c
     src/generate.c
+    src/gen-log.c
     src/init1.c
     src/init2.c
     src/load.c

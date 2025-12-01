@@ -18,6 +18,9 @@ Based on level size in blocks:
 - **14 blocks** → 20 partitions (5x4 or 4x5)
 - **15 blocks** → 25 partitions (5x5)
 
+### Anchor Connector Cleanup
+- Removed anchor-specific tunnel pass (neighbor pre-pass + anchor-to-anchor network) to avoid dead-end corridors from big caves/chasms; connectivity now relies on partition hubs and general room linking.
+
 #### 3. Debug Generation Logging
 - Added `DEBUG_GENERATION_LOG` define (set to 1 to enable)
 - When enabled, shows in-game messages:

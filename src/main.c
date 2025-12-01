@@ -11,6 +11,7 @@
 #include "angband.h"
 #include "externs.h"
 #include "log/bootstrap.h"
+#include "gen-log.h"
 
 /*
  * Some machines have a "main()" function in their "main-xxx.c" file,
@@ -242,6 +243,9 @@ int main(int argc, char* argv[])
     bool args = true;
     // Initialise logger in 'quiet' mode (don't write to stdout).
     init_logger(true, argv[0]);
+    
+    // Initialize dedicated generation log (generation.txt)
+    gen_log_init(argv[0]);
 
     /* Initialize character_icky to ensure it starts at 0 */
     character_icky = 0;
