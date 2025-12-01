@@ -1316,6 +1316,10 @@ static void apply_quadrant_generation_modes(void);
 static void ensure_partition_connectivity(void);
 static void repair_all_outer_walls(void);
 static bool carve_chasm_with_bridges(int y_min, int y_max, int x_min, int x_max);
+static int dungeon_pieces(void);
+static int partition_index_from_point(int y, int x, int rows, int cols);
+static int room_connection_degree(int room_idx);
+static bool connect_rooms_with_logging(int r1, int r2, const char *tag, bool allow_desperate);
 static bool connect_two_rooms(int r1, int r2, bool tentative, bool desperate);
 static bool compute_partition_bounds(int pi, int rows, int cols, int *y1, int *y2, int *x1, int *x2);
 static void connect_partition_hubs(void);
@@ -4172,8 +4176,220 @@ static void ensure_partition_connectivity(void)
     }
 }
 
-/* Add connective tissue between partitions by linking a representative room in each partition
- * to its right/down neighbors. This reduces very long single corridors that skip empty spaces. */
+typedef struct {
+    rectangle bounds;
+    coord center;
+    int rooms[CENT_MAX];
+    int room_count;
+    int hub_room;
+} partition_link_data_t;
+
+static int partition_index_from_point(int y, int x, int rows, int cols)
+{
+    if (rows <= 0 || cols <= 0) return -1;
+    int row = (y * rows) / p_ptr->cur_map_hgt;
+    int col = (x * cols) / p_ptr->cur_map_wid;
+    if (row < 0) row = 0; if (col < 0) col = 0;
+    if (row >= rows) row = rows - 1;
+    if (col >= cols) col = cols - 1;
+    return row * cols + col;
+}
+
+static int room_connection_degree(int room_idx)
+{
+    if (room_idx < 0 || room_idx >= dun->cent_n)
+        return 0;
+    int deg = 0;
+    for (int i = 0; i < dun->cent_n; ++i)
+    {
+        if (dun->connection[room_idx][i])
+            deg++;
+    }
+    return deg;
+}
+
+static bool connect_rooms_with_logging(int r1, int r2, const char *tag, bool allow_desperate)
+{
+    if (r1 < 0 || r2 < 0 || r1 == r2)
+        return false;
+
+    if (dun->connection[r1][r2])
+        return true;
+
+    bool ok = connect_two_rooms(r1, r2, true, false);
+    if (!ok && allow_desperate)
+        ok = connect_two_rooms(r1, r2, true, true);
+
+    if (ok && tag)
+    {
+        int dist = distance(dun->cent[r1].y, dun->cent[r1].x, dun->cent[r2].y, dun->cent[r2].x);
+        genlog_connect("%s: linked room %d -> %d (dist=%d)", tag, r1, r2, dist);
+    }
+    return ok;
+}
+
+static void seed_partition_adjacency(const int *room_to_part, int part_count, bool adj[25][25], int degree[25])
+{
+    for (int i = 0; i < part_count; ++i)
+        degree[i] = 0;
+
+    for (int i = 0; i < part_count; ++i)
+        for (int j = 0; j < part_count; ++j)
+            adj[i][j] = false;
+
+    for (int a = 0; a < dun->cent_n; ++a)
+    {
+        int pa = (a < CENT_MAX) ? room_to_part[a] : -1;
+        if (pa < 0 || pa >= part_count) continue;
+
+        for (int b = a + 1; b < dun->cent_n; ++b)
+        {
+            if (!dun->connection[a][b]) continue;
+            int pb = (b < CENT_MAX) ? room_to_part[b] : -1;
+            if (pb < 0 || pb >= part_count || pb == pa) continue;
+            if (!adj[pa][pb])
+            {
+                adj[pa][pb] = adj[pb][pa] = true;
+                degree[pa]++;
+                degree[pb]++;
+            }
+        }
+    }
+}
+
+static void mark_partition_edge(int p1, int p2, bool adj[25][25], int degree[25])
+{
+    if (p1 < 0 || p2 < 0 || p1 >= 25 || p2 >= 25 || p1 == p2)
+        return;
+    if (!adj[p1][p2])
+    {
+        adj[p1][p2] = adj[p2][p1] = true;
+        degree[p1]++;
+        degree[p2]++;
+    }
+}
+
+static int choose_partition_hub(const partition_link_data_t *part)
+{
+    int best = -1;
+    int best_rank = -1;
+    int best_area = -1;
+    int best_dist = 999999;
+
+    int limit = MIN(part->room_count, CENT_MAX);
+    for (int i = 0; i < limit; ++i)
+    {
+        int r = part->rooms[i];
+        int area = (dun->corner[r].y2 - dun->corner[r].y1 + 1) *
+                   (dun->corner[r].x2 - dun->corner[r].x1 + 1);
+        int dist = distance(dun->cent[r].y, dun->cent[r].x, part->center.y, part->center.x);
+        int rank = room_anchor_requires_neighbor[r] ? 2 :
+                   (room_anchor_kind[r] != LAYOUT_ANCHOR_NONE ? 1 : 0);
+
+        if (rank > best_rank ||
+            (rank == best_rank && area > best_area) ||
+            (rank == best_rank && area == best_area && dist < best_dist))
+        {
+            best = r;
+            best_rank = rank;
+            best_area = area;
+            best_dist = dist;
+        }
+    }
+    return best;
+}
+
+static int find_anchor_target(int src, const int *room_to_part, const bool *skip, int part_count)
+{
+    int src_part = (src >= 0 && src < CENT_MAX) ? room_to_part[src] : -1;
+    int src_piece = (src >= 0 && src < dun->cent_n) ? dun->piece[src] : -1;
+    int best = -1;
+    int best_tier = 10;
+    int best_dist = 999999;
+
+    for (int r = 0; r < dun->cent_n; ++r)
+    {
+        if (r == src) continue;
+        if (skip && skip[r]) continue;
+        if (dun->connection[src][r]) continue;
+
+        int tier = 2;
+        if (src_piece > 0 && dun->piece[r] > 0 && dun->piece[r] != src_piece)
+            tier = 0;
+        else if (room_to_part && r < CENT_MAX && room_to_part[r] != src_part)
+            tier = 1;
+
+        if (part_count > 0 && room_to_part && (room_to_part[r] < 0 || room_to_part[r] >= part_count))
+            continue;
+
+        int dist = distance(dun->cent[src].y, dun->cent[src].x, dun->cent[r].y, dun->cent[r].x);
+        if (tier < best_tier || (tier == best_tier && dist < best_dist))
+        {
+            best_tier = tier;
+            best_dist = dist;
+            best = r;
+        }
+    }
+    return best;
+}
+
+static void connect_anchor_backbone(const int *room_to_part, int part_count)
+{
+    if (layout_anchor_count <= 0 || dun->cent_n <= 0)
+        return;
+
+    (void)dungeon_pieces();
+
+    int anchors_linked = 0;
+    int anchors_considered = 0;
+
+    for (int i = 0; i < layout_anchor_count; ++i)
+    {
+        int r = layout_anchors[i].room_slot;
+        if (r < 0 || r >= dun->cent_n)
+            continue;
+
+        anchors_considered++;
+        int area = (dun->corner[r].y2 - dun->corner[r].y1 + 1) *
+                   (dun->corner[r].x2 - dun->corner[r].x1 + 1);
+        int target_degree = 1;
+        if (layout_anchors[i].requires_neighbor)
+            target_degree = 2;
+        if (area >= 600)
+            target_degree = MAX(target_degree, 2);
+        if (area >= 900)
+            target_degree = MAX(target_degree, 3);
+
+        int deg = room_connection_degree(r);
+        bool tried[CENT_MAX];
+        for (int t = 0; t < CENT_MAX; ++t) tried[t] = false;
+
+        int attempts = 0;
+        while (deg < target_degree && attempts < 8)
+        {
+            attempts++;
+            int target = find_anchor_target(r, room_to_part, tried, part_count);
+            if (target < 0)
+                break;
+
+            tried[target] = true;
+            if (connect_rooms_with_logging(r, target, "Anchor backbone", true))
+            {
+                anchors_linked++;
+                deg++;
+                (void)dungeon_pieces();
+            }
+        }
+    }
+
+    if (anchors_linked > 0)
+    {
+        genlog_connect("Anchor backbone: linked %d/%d anchors to reduce isolation", anchors_linked, anchors_considered);
+    }
+}
+
+/* Add connective tissue between partitions by linking a representative room in each partition,
+ * then ensure special anchors have multiple exits to avoid dead ends. */
 static void connect_partition_hubs(void)
 {
     int blocks = p_ptr->cur_map_hgt / PANEL_HGT;
@@ -4188,85 +4404,135 @@ static void connect_partition_hubs(void)
     if (count <= 1 || rows <= 0 || cols <= 0)
         return;
 
-    int rep_room[25];
-    for (int i = 0; i < 25; ++i) rep_room[i] = -1;
+    partition_link_data_t parts[25];
+    int room_to_part[CENT_MAX];
+    for (int i = 0; i < CENT_MAX; ++i) room_to_part[i] = -1;
 
-    /* Identify a representative room per partition: nearest to the partition center */
     for (int pi = 0; pi < count && pi < 25; ++pi)
     {
+        parts[pi].room_count = 0;
+        parts[pi].hub_room = -1;
         int y1, y2, x1, x2;
-        if (!compute_partition_bounds(pi, rows, cols, &y1, &y2, &x1, &x2))
-            continue;
-        int cy = (y1 + y2) / 2;
-        int cx = (x1 + x2) / 2;
-        int best = -1;
-        int best_dist = 99999;
-        for (int r = 0; r < dun->cent_n; ++r)
+        if (compute_partition_bounds(pi, rows, cols, &y1, &y2, &x1, &x2))
         {
-            int ry = dun->cent[r].y;
-            int rx = dun->cent[r].x;
-            if (ry < y1 || ry > y2 || rx < x1 || rx > x2)
-                continue;
-            int dist = distance(ry, rx, cy, cx);
-            if (dist < best_dist)
-            {
-                best_dist = dist;
-                best = r;
-            }
+            parts[pi].bounds.y1 = y1;
+            parts[pi].bounds.y2 = y2;
+            parts[pi].bounds.x1 = x1;
+            parts[pi].bounds.x2 = x2;
+            parts[pi].center.y = (y1 + y2) / 2;
+            parts[pi].center.x = (x1 + x2) / 2;
         }
-        rep_room[pi] = best;
     }
 
-    /* Connect right/down neighbors to avoid duplicate attempts */
+    for (int r = 0; r < dun->cent_n && r < CENT_MAX; ++r)
+    {
+        int pi = partition_index_from_point(dun->cent[r].y, dun->cent[r].x, rows, cols);
+        room_to_part[r] = pi;
+        if (pi < 0 || pi >= count || pi >= 25)
+            continue;
+        int idx = parts[pi].room_count++;
+        if (idx < CENT_MAX)
+            parts[pi].rooms[idx] = r;
+    }
+
+    for (int pi = 0; pi < count && pi < 25; ++pi)
+        parts[pi].hub_room = choose_partition_hub(&parts[pi]);
+
+    bool adj[25][25];
+    int degree[25];
+    seed_partition_adjacency(room_to_part, count, adj, degree);
+
     int links = 0;
     for (int row = 0; row < rows; ++row)
     {
         for (int col = 0; col < cols; ++col)
         {
             int idx = row * cols + col;
-            int r_here = (idx < 25) ? rep_room[idx] : -1;
-            if (r_here < 0)
+            int hub_here = (idx < 25) ? parts[idx].hub_room : -1;
+            if (hub_here < 0)
                 continue;
 
-            /* Right neighbor */
-            if (col + 1 < cols) {
+            if (col + 1 < cols)
+            {
                 int idx_r = row * cols + (col + 1);
-                int r_right = (idx_r < 25) ? rep_room[idx_r] : -1;
-                if (r_right >= 0 && !dun->connection[r_here][r_right]) {
-                    if (connect_two_rooms(r_here, r_right, true, false) ||
-                        connect_two_rooms(r_here, r_right, true, true)) {
-                        links++;
-                    }
+                int hub_right = parts[idx_r].hub_room;
+                if (hub_right >= 0 && connect_rooms_with_logging(hub_here, hub_right, "Partition backbone H", true))
+                {
+                    mark_partition_edge(idx, idx_r, adj, degree);
+                    links++;
                 }
             }
 
-            /* Down neighbor */
-            if (row + 1 < rows) {
+            if (row + 1 < rows)
+            {
                 int idx_d = (row + 1) * cols + col;
-                int r_down = (idx_d < 25) ? rep_room[idx_d] : -1;
-                if (r_down >= 0 && !dun->connection[r_here][r_down]) {
-                    if (connect_two_rooms(r_here, r_down, true, false) ||
-                        connect_two_rooms(r_here, r_down, true, true)) {
-                        links++;
-                    }
+                int hub_down = parts[idx_d].hub_room;
+                if (hub_down >= 0 && connect_rooms_with_logging(hub_here, hub_down, "Partition backbone V", true))
+                {
+                    mark_partition_edge(idx, idx_d, adj, degree);
+                    links++;
                 }
             }
-            
-            /* Diagonal neighbors for better connectivity across large grids */
-            if (col + 1 < cols && row + 1 < rows) {
+
+            if (col + 1 < cols && row + 1 < rows)
+            {
                 int idx_dr = (row + 1) * cols + (col + 1);
-                int r_diag = (idx_dr < 25) ? rep_room[idx_dr] : -1;
-                if (r_diag >= 0 && !dun->connection[r_here][r_diag]) {
-                    if (connect_two_rooms(r_here, r_diag, true, true)) {
-                        links++;
-                    }
+                int hub_diag = parts[idx_dr].hub_room;
+                if (hub_diag >= 0 && connect_rooms_with_logging(hub_here, hub_diag, "Partition backbone D", true))
+                {
+                    mark_partition_edge(idx, idx_dr, adj, degree);
+                    links++;
                 }
             }
         }
     }
 
+    int target_degree = (count >= 3) ? 2 : 1;
+    for (int pi = 0; pi < count && pi < 25; ++pi)
+    {
+        if (parts[pi].hub_room < 0)
+            continue;
+        if (degree[pi] >= target_degree)
+            continue;
+
+        int attempts = 0;
+        while (degree[pi] < target_degree && attempts < count)
+        {
+            attempts++;
+            int best = -1;
+            int best_dist = 999999;
+            for (int pj = 0; pj < count && pj < 25; ++pj)
+            {
+                if (pj == pi) continue;
+                if (parts[pj].hub_room < 0) continue;
+                if (adj[pi][pj]) continue;
+                int dist = distance(parts[pi].center.y, parts[pi].center.x, parts[pj].center.y, parts[pj].center.x);
+                if (dist < best_dist)
+                {
+                    best_dist = dist;
+                    best = pj;
+                }
+            }
+
+            if (best < 0)
+                break;
+
+            if (connect_rooms_with_logging(parts[pi].hub_room, parts[best].hub_room, "Partition backbone fill", true))
+            {
+                mark_partition_edge(pi, best, adj, degree);
+                links++;
+            }
+            else
+            {
+                adj[pi][best] = adj[best][pi] = true;
+            }
+        }
+    }
+
     if (links > 0)
-        log_trace("Partition hub pass: added %d inter-partition links (grid %dx%d)", links, rows, cols);
+        log_trace("Partition hub pass: added %d backbone links (grid %dx%d)", links, rows, cols);
+
+    connect_anchor_backbone(room_to_part, count);
 }
 
 /* Anchor-aware connector: link nearby anchors to reduce isolation without over-saturating tunnels. */
