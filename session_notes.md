@@ -6617,6 +6617,21 @@ User reported that while letters were enabled, the 'i' and 'e' keys were still s
 - Rescue tunneling now clamps endpoints a couple tiles inside the map boundary to avoid edge-hugging L-corridors that create dead ends on the outer rim.
 - Chasm generation no longer paints a continuous floor ring at the cave edge; replaced with sparse edge nubs tied to nearby platforms to remove the perimeter “shortcut” walkway.
 
+## Progress (Dec 2 - greater vault partition)
+- Removed the type6/7 -> type8 promotion path in `place_room_with_budget()` and silenced the now-unused depth parameter.
+- Added helpers to gate greater vault attempts off the minimum non-quest type8 depth and to detect interior partitions (non-border only).
+- Quadrant generation now rolls once per level for a dedicated interior partition (chance 1/eligible_count when depth is sufficient), reserves one slot for it, and attempts a bounded type8 placement there; if it fails or the area is reserved, the partition falls back to normal processing and the GV budget is zeroed.
+- Added logging for GV partition rolls and outcomes; build-cmake.bat completes (warnings unchanged in generate.c from preexisting unused helpers/params).
+
+## Progress (Dec 3 - GV logging and regen)
+- Generation log header now reports attempt numbers per depth (regen-friendly) and uses block counts on both axes; level counters no longer balloon on regen attempts.
+- Added partition-level genlog entries for greater-vault selection, reservation, success/failure, and stored map grid coordinates.
+- GV partitions are processed in pass 1 alongside other special modes; reserved partition attempts are retried on regeneration because budgets/selection reset each attempt.
+
+## Progress (Dec 3 - GV rarity gating)
+- GV reservation now depends on per-level rarity rolls across all eligible, unused type8 vaults (non-quest, depth-qualified); if none pass, no type8 budget is issued that level.
+- Partition reservation roll happens only after the rarity gate passes; genlog now reports depth, candidate count, pass/fail, and interior-partition selection details.
+
 
 
 

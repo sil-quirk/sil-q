@@ -1213,17 +1213,12 @@ static quadrant_mode_t pick_weighted_mode(const int *weights, int count)
     return QUAD_MODE_ROOMY;
 }
 
-/* Budget-aware placement helper with limited retries and optional GV promotion */
+/* Budget-aware placement helper with limited retries */
 static bool place_room_with_budget(int typ, int y1, int y2, int x1, int x2, int max_tries, int depth,
     int *budget_t6, int *budget_t7, int *budget_t8, int *used_t6, int *used_t7, int *used_t8)
 {
     int actual = typ;
-    /* Allow rare promotion of type6/7 to type8 on deep levels if budget remains */
-    if ((typ == 6 || typ == 7) && budget_t8 && *budget_t8 > 0 && depth >= 18) {
-        int upgrade_chance = MIN(45, 10 + depth); /* 10-45% depending on depth */
-        if (rand_int(100) < upgrade_chance)
-            actual = 8;
-    }
+    (void)depth; /* unused after removing GV promotion */
 
     if (actual == 8 && (!budget_t8 || *budget_t8 <= 0))
         actual = (budget_t7 && *budget_t7 > 0) ? 7 : ((budget_t6 && *budget_t6 > 0) ? 6 : 2);
@@ -3414,6 +3409,117 @@ static void place_rooms_randomized(int y1, int y2, int x1, int x2, int depth,
     }
 }
 
+/* Smallest depth at which a non-quest greater vault can appear */
+static int min_nonquest_gv_depth(void)
+{
+    static int cached_min_depth = -1;
+    if (cached_min_depth >= 0)
+        return cached_min_depth;
+
+    int min_depth = 127; /* high sentinel */
+    for (int i = 0; i < z_info->v_max; ++i)
+    {
+        vault_type *v_ptr = &v_info[i];
+        if (v_ptr->typ != 8)
+            continue;
+        if (v_ptr->flags & VLT_QUEST)
+            continue;
+        if (v_ptr->depth < min_depth)
+            min_depth = v_ptr->depth;
+    }
+
+    /* Fallback to old gating depth if no candidates are present */
+    if (min_depth == 127)
+        min_depth = 15;
+
+    cached_min_depth = min_depth;
+    return cached_min_depth;
+}
+
+/* Roll whether this level should reserve a greater vault slot based on vault rarities */
+static bool gv_level_roll_allows(int depth, int *out_candidates)
+{
+    int candidate_count = 0;
+    bool passed = false;
+
+    for (int i = 0; i < z_info->v_max; ++i)
+    {
+        vault_type *v_ptr = &v_info[i];
+        if (v_ptr->typ != 8) continue;
+        if (v_ptr->flags & VLT_QUEST) continue;
+        if (v_ptr->depth > depth) continue;
+
+        /* Skip already-used greater vaults to mirror build_type8 checks */
+        bool repeated = false;
+        for (int j = 0; j < MAX_GREATER_VAULTS; ++j)
+        {
+            if (p_ptr->greater_vaults[j] == i)
+            {
+                repeated = true;
+                break;
+            }
+        }
+        if (repeated) continue;
+
+        candidate_count++;
+        if (!passed && one_in_(v_ptr->rarity))
+        {
+            passed = true;
+        }
+    }
+
+    if (out_candidates) *out_candidates = candidate_count;
+
+    if (candidate_count == 0)
+    {
+        genlog_partition("GV roll: depth=%d -> no eligible type8 templates (used or quest-only)", depth);
+        return false;
+    }
+
+    if (passed)
+    {
+        genlog_partition("GV roll: depth=%d candidates=%d -> PASS (reserve GV this level)", depth, candidate_count);
+    }
+    else
+    {
+        genlog_partition("GV roll: depth=%d candidates=%d -> FAIL (no GV this level)", depth, candidate_count);
+    }
+
+    return passed;
+}
+
+/* Check whether a partition is fully interior (no map-border contact) */
+static bool partition_is_interior(int row, int col, int rows, int cols)
+{
+    return (row > 0) && (row < rows - 1) && (col > 0) && (col < cols - 1);
+}
+
+/* Try to drop a greater vault inside the provided partition bounds */
+static bool place_gv_in_partition(int y1, int y2, int x1, int x2, int *budget_t8, int *used_t8)
+{
+    if (!budget_t8 || *budget_t8 <= 0)
+        return false;
+
+    /* Can only have one greater vault per level */
+    if (g_vault_name[0] != '\0')
+        return false;
+
+    bool placed = false;
+    for (int attempt = 0; attempt < 3 && !placed; ++attempt)
+    {
+        placed = room_build_in_bounds(8, y1, y2, x1, x2);
+    }
+
+    if (placed)
+    {
+        (*budget_t8)--;
+        if (used_t8)
+            (*used_t8)++;
+    }
+
+    return placed;
+}
+
 /* Dynamic partition-based generation mix */
 static void apply_quadrant_generation_modes(void)
 {
@@ -3477,22 +3583,39 @@ static void apply_quadrant_generation_modes(void)
     quadrant_mode_t modes[25];
     int partition_styles[25];
     density_level_t densities[25];
+    int gv_partition = -1;
+    int gv_min_depth = min_nonquest_gv_depth();
+    int gv_candidate_count = 0;
+    bool gv_level_allowed = (depth >= gv_min_depth) && gv_level_roll_allows(depth, &gv_candidate_count);
+    if (!gv_level_allowed && depth < gv_min_depth) {
+        genlog_partition("GV roll: depth=%d below minimum %d -> no GV this level", depth, gv_min_depth);
+    }
 
     /* Depth-aware vault budgets (soft caps; clamped to remaining capacity) */
     /* BOOSTED: More rooms and vaults per partition for denser levels */
     int budget_t6 = MIN(room_capacity_limit(), MAX(20, partition_count * 3 + depth));
     int budget_t7 = (depth >= 4) ? MIN(room_capacity_limit(), MAX(6, partition_count + depth / 2)) : 0;
-    int budget_t8 = (depth >= 15) ? MIN(4, 1 + depth / 10) : 0;
+    int budget_t8 = gv_level_allowed ? 1 : 0;
     int capacity_remaining = room_capacity_limit() - dun->cent_n;
-    int budget_total = budget_t6 + budget_t7 + budget_t8;
-    if (budget_total > capacity_remaining && budget_total > 0) {
-        /* Scale budgets down to fit remaining slots */
-        budget_t6 = (budget_t6 * capacity_remaining) / budget_total;
-        budget_t7 = (budget_t7 * capacity_remaining) / budget_total;
-        budget_t8 = (budget_t8 * capacity_remaining) / budget_total;
-        if (budget_t6 + budget_t7 + budget_t8 < capacity_remaining) {
-            budget_t6 = MIN(capacity_remaining, budget_t6 + 1); /* keep at least one */
+    if (budget_t8 > capacity_remaining)
+        budget_t8 = capacity_remaining;
+
+    /* Reserve space for the dedicated GV attempt before scaling other budgets */
+    int capacity_for_regular = capacity_remaining - budget_t8;
+    if (capacity_for_regular < 0)
+        capacity_for_regular = 0;
+
+    int budget_total = budget_t6 + budget_t7;
+    if (budget_total > capacity_for_regular && budget_total > 0) {
+        /* Scale budgets down to fit remaining slots (GV slot already reserved) */
+        budget_t6 = (budget_t6 * capacity_for_regular) / budget_total;
+        budget_t7 = (budget_t7 * capacity_for_regular) / budget_total;
+        if (budget_t6 + budget_t7 < capacity_for_regular) {
+            budget_t6 = MIN(capacity_for_regular, budget_t6 + 1); /* keep at least one */
         }
+    } else if (capacity_for_regular == 0) {
+        budget_t6 = 0;
+        budget_t7 = 0;
     }
     
     /* Mode pool for random selection */
@@ -3563,10 +3686,49 @@ static void apply_quadrant_generation_modes(void)
             densities[i] = DENSITY_DENSE;
     }
     
+    /* Pre-roll for a dedicated greater vault partition (must be interior) */
+    if (budget_t8 > 0)
+    {
+        int gv_candidates[25];
+        int gv_interior_count = 0;
+        for (int row = 0; row < grid_rows; ++row)
+        {
+            for (int col = 0; col < grid_cols; ++col)
+            {
+                if (!partition_is_interior(row, col, grid_rows, grid_cols))
+                    continue;
+                int idx = row * grid_cols + col;
+                if (idx >= partition_count || gv_interior_count >= 25)
+                    continue;
+                gv_candidates[gv_interior_count++] = idx;
+            }
+        }
+
+        if (gv_interior_count > 0)
+        {
+            gv_partition = gv_candidates[rand_int(gv_interior_count)];
+            int gv_row = gv_partition / grid_cols;
+            int gv_col = gv_partition % grid_cols;
+            log_trace("Greater vault partition: %d interior options -> reserve partition %d (row=%d col=%d grid %dx%d)",
+                      gv_interior_count, gv_partition, gv_row, gv_col, grid_rows, grid_cols);
+            genlog_partition("GV partition reserved (rarity passed): depth=%d min_depth=%d interior=%d -> (%d,%d) idx=%d grid=%dx%d",
+                             depth, gv_min_depth, gv_interior_count, gv_row, gv_col, gv_partition, grid_rows, grid_cols);
+        }
+        else
+        {
+            log_trace("Greater vault partition: no eligible interior partitions for %dx%d grid",
+                      grid_rows, grid_cols);
+            genlog_partition("GV partition skipped: no interior partitions for grid %dx%d (depth=%d)", grid_rows, grid_cols, depth);
+            gv_partition = -1;
+            budget_t8 = 0; /* No dedicated slot this level */
+        }
+    }
+    
     /* Mode name strings for logging */
     const char *mode_str[] = {"ROOMY", "CAVEY", "RUINED", "LABYRINTH", "CHASM", "BIG_CAVE"};
     const char *density_str[] = {"SPARSE", "NORMAL", "DENSE"};
     int used_t6 = 0, used_t7 = 0, used_t8 = 0;
+    bool gv_partition_attempted = false;
     int partitions_skipped = 0;
     int skipped_soft_fill = 0;
     int skip_cap = MAX(2, partition_count / 5); /* cap outright skips to keep coverage */
@@ -3588,7 +3750,9 @@ static void apply_quadrant_generation_modes(void)
     for (int pi = 0; pi < partition_count; ++pi)
     {
         quadrant_mode_t mode = modes[pi];
-        if (mode != QUAD_MODE_LABYRINTH && mode != QUAD_MODE_CHASM && mode != QUAD_MODE_BIG_CAVE)
+        bool is_gv_partition = (pi == gv_partition);
+        bool is_special_mode = (mode == QUAD_MODE_LABYRINTH || mode == QUAD_MODE_CHASM || mode == QUAD_MODE_BIG_CAVE);
+        if (!is_gv_partition && !is_special_mode)
             continue;  /* Skip non-special modes for now */
 
         if (dun->cent_n >= room_capacity_limit())
@@ -3623,8 +3787,8 @@ static void apply_quadrant_generation_modes(void)
         int floor_pct = 0, icky_pct = 0;
         bool reserved = area_is_reserved_or_dense(y1, y2, x1, x2, &floor_pct, &icky_pct);
 
-        log_trace("Partition %d [%d,%d] (pass 1): mode=%s density=%s bounds=(%d,%d)-(%d,%d) area=%d floor=%d%% icky=%d%%",
-                  pi, row, col, mode_str[mode], density_str[density], y1, x1, y2, x2, area, floor_pct, icky_pct);
+        log_trace("Partition %d [%d,%d] (pass 1%s): mode=%s density=%s bounds=(%d,%d)-(%d,%d) area=%d floor=%d%% icky=%d%%",
+                  pi, row, col, is_gv_partition ? " GV" : "", mode_str[mode], density_str[density], y1, x1, y2, x2, area, floor_pct, icky_pct);
 
         if (reserved && partitions_skipped >= skip_cap) {
             /* Too many skips already: fall back to a light recipe instead of skipping */
@@ -3637,6 +3801,10 @@ static void apply_quadrant_generation_modes(void)
 
         if (reserved) {
             log_trace("Partition %d [%d,%d]: skipping (reserved/quest/icky overlap)", pi, row, col);
+            if (is_gv_partition) {
+                gv_partition = -1;
+                budget_t8 = 0;
+            }
             partitions_skipped++;
             continue;
         }
@@ -3674,6 +3842,30 @@ static void apply_quadrant_generation_modes(void)
                     }
                 }
             }
+        }
+
+        if (is_gv_partition)
+        {
+            gv_partition_attempted = true;
+            bool placed_gv = place_gv_in_partition(y1, y2, x1, x2, &budget_t8, &used_t8);
+            if (placed_gv)
+            {
+                log_trace("Partition %d [%d,%d]: placed greater vault within bounds (%d,%d)-(%d,%d)",
+                          pi, row, col, y1, x1, y2, x2);
+                genlog_partition("GV placed in partition [%d,%d] idx=%d bounds=(%d,%d)-(%d,%d) remaining_t8=%d",
+                                 row, col, pi, y1, x1, y2, x2, budget_t8);
+                partition_done[pi] = true;
+                continue;
+            }
+
+            log_trace("Partition %d [%d,%d]: greater vault placement failed, falling back to mode logic",
+                      pi, row, col);
+            genlog_partition("GV placement failed in partition [%d,%d] idx=%d bounds=(%d,%d)-(%d,%d); disabling GV for this attempt",
+                             row, col, pi, y1, x1, y2, x2);
+            gv_partition = -1;
+            budget_t8 = 0;
+            if (!is_special_mode)
+                continue;
         }
 
         /* PARTITION MODE TYPES:
@@ -3926,7 +4118,6 @@ static void apply_quadrant_generation_modes(void)
         if (x2 >= p_ptr->cur_map_wid - 1) x2 = p_ptr->cur_map_wid - 2;
         
         quadrant_mode_t mode = modes[pi];
-        int style_idx = partition_styles[pi];
         density_level_t density = densities[pi];
         int area = (y2 - y1 + 1) * (x2 - x1 + 1);
         int area_factor = MAX(1, MIN(3, (area + 1100) / 1200));
@@ -4038,6 +4229,8 @@ static void apply_quadrant_generation_modes(void)
               blocks, grid_rows, grid_cols, partition_count, dun->cent_n);
     log_debug("Partition budgets: used t6=%d/t7=%d/t8=%d remaining t6=%d t7=%d t8=%d skipped_parts=%d soft_fill=%d",
               used_t6, used_t7, used_t8, budget_t6, budget_t7, budget_t8, partitions_skipped, skipped_soft_fill);
+    log_trace("Greater vault partition summary: attempted=%s placed=%d",
+              gv_partition_attempted ? "yes" : "no", used_t8);
     
     /* Detailed generation log summary */
     genlog_summary("Partition phase complete: %d rooms from %d partitions (%d skipped, %d soft-fill skipped)",
@@ -9072,30 +9265,90 @@ static bool try_place_docked_vault(
                 place_closed_door(contact_y, contact_x);
             }
 
-            /* Carve through walls in the docked vault until we hit passable
-             * space. This prevents doors facing dead-end walls when the vault
-             * template has multiple wall layers on its edge. */
+            /* Carve through walls in BOTH vaults to ensure passability.
+             * We need to carve into the docked vault AND into the base vault,
+             * since either side may have thick walls at the contact point. */
             int dy = 0, dx = 0;
             if (dir == VAULT_DOCK_EAST) dx = 1;
             else if (dir == VAULT_DOCK_WEST) dx = -1;
             else if (dir == VAULT_DOCK_SOUTH) dy = 1;
             else dy = -1;
 
-            int carve_y = new_y;
-            int carve_x = new_x;
-            int max_carve = 4; /* Limit how deep we carve */
-            for (int c = 0; c < max_carve; ++c)
+            /* Carve in both directions from the door */
+            for (int side = 0; side < 2; ++side)
             {
-                int feat = cave_feat[carve_y][carve_x];
-                /* Stop if we hit floor, a door, or leave the vault area */
-                if (feat == FEAT_FLOOR || feature_is_any_door(feat))
-                    break;
-                if (!(cave_info[carve_y][carve_x] & CAVE_ICKY))
-                    break;
-                /* Carve this wall to floor */
-                cave_set_feat(carve_y, carve_x, FEAT_FLOOR);
-                carve_y += dy;
-                carve_x += dx;
+                int carve_dy, carve_dx, start_y, start_x;
+                
+                if (side == 0)
+                {
+                    /* Carve into the docked vault */
+                    carve_dy = dy;
+                    carve_dx = dx;
+                    start_y = new_y;
+                    start_x = new_x;
+                }
+                else
+                {
+                    /* Carve into the base vault (opposite direction) */
+                    carve_dy = -dy;
+                    carve_dx = -dx;
+                    start_y = contact_y - dy;
+                    start_x = contact_x - dx;
+                }
+                
+                int carve_y = start_y;
+                int carve_x = start_x;
+                int max_carve = 6;
+                bool found_floor = false;
+                
+                for (int c = 0; c < max_carve; ++c)
+                {
+                    int feat = cave_feat[carve_y][carve_x];
+                    if (feat == FEAT_FLOOR || feature_is_any_door(feat))
+                    {
+                        found_floor = true;
+                        break;
+                    }
+                    if (!(cave_info[carve_y][carve_x] & CAVE_ICKY))
+                        break;
+                    cave_set_feat(carve_y, carve_x, FEAT_FLOOR);
+                    carve_y += carve_dy;
+                    carve_x += carve_dx;
+                }
+                
+                /* If straight carve didn't find floor, search perpendicular */
+                if (!found_floor)
+                {
+                    int perp_dy = (carve_dy == 0) ? 1 : 0;
+                    int perp_dx = (carve_dx == 0) ? 1 : 0;
+                    int search_radius = 8;
+                    
+                    for (int sign = -1; sign <= 1; sign += 2)
+                    {
+                        for (int dist = 1; dist <= search_radius; ++dist)
+                        {
+                            int check_y = carve_y + sign * perp_dy * dist;
+                            int check_x = carve_x + sign * perp_dx * dist;
+                            
+                            if (!(cave_info[check_y][check_x] & CAVE_ICKY))
+                                break;
+                            
+                            int feat = cave_feat[check_y][check_x];
+                            if (feat == FEAT_FLOOR || feature_is_any_door(feat))
+                            {
+                                for (int d = 1; d < dist; ++d)
+                                {
+                                    int path_y = carve_y + sign * perp_dy * d;
+                                    int path_x = carve_x + sign * perp_dx * d;
+                                    cave_set_feat(path_y, path_x, FEAT_FLOOR);
+                                }
+                                found_floor = true;
+                                break;
+                            }
+                        }
+                        if (found_floor) break;
+                    }
+                }
             }
 
             good_item_flag = true;

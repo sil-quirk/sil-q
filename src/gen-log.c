@@ -16,6 +16,7 @@ int gen_log_level_count = 0;
 static int current_depth = 0;
 static int current_attempt = 0;
 static time_t level_start_time = 0;
+static int last_depth = -1;
 
 /* Store exe path for delayed initialization */
 static char stored_exe_path[1024] = {0};
@@ -164,22 +165,41 @@ void gen_log_level_start(int depth, int map_hgt, int map_wid)
 {
     time_t now;
     struct tm *timeinfo;
+    int blocks_h = 0;
+    int blocks_w = 0;
     
     if (!gen_log_file) return;
     
-    gen_log_level_count++;
+    /* Detect regeneration: same depth means another attempt */
+    if (depth != last_depth)
+    {
+        gen_log_level_count++;
+        current_attempt = 1;
+    }
+    else
+    {
+        current_attempt++;
+    }
     current_depth = depth;
-    current_attempt = 1;
+    last_depth = depth;
+
+    /* Derive block counts for better readability in the log */
+    if (PANEL_HGT > 0) blocks_h = map_hgt / PANEL_HGT;
+    if (PANEL_HGT > 0) blocks_w = map_wid / PANEL_HGT; /* square maps use PANEL_HGT for both axes */
+    if (blocks_h <= 0) blocks_h = 1;
+    if (blocks_w <= 0) blocks_w = 1;
+
     level_start_time = time(NULL);
     now = level_start_time;
     timeinfo = localtime(&now);
     
     fprintf(gen_log_file, "\n");
     fprintf(gen_log_file, "################################################################################\n");
-    fprintf(gen_log_file, "### LEVEL %d GENERATION START (level #%d this session)\n", depth, gen_log_level_count);
-    fprintf(gen_log_file, "### Time: %02d:%02d:%02d | Map size: %d x %d (%d blocks)\n",
+    fprintf(gen_log_file, "### LEVEL %d GENERATION START (level #%d this session, attempt #%d)\n",
+            depth, gen_log_level_count, current_attempt);
+    fprintf(gen_log_file, "### Time: %02d:%02d:%02d | Map size: %d x %d | Blocks: %d x %d (area %d)\n",
             timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec,
-            map_hgt, map_wid, map_hgt / 11);  /* PANEL_HGT = 11 */
+            map_hgt, map_wid, blocks_h, blocks_w, blocks_h * blocks_w);
     fprintf(gen_log_file, "################################################################################\n");
     fflush(gen_log_file);
 }
@@ -188,27 +208,28 @@ void gen_log_level_end(bool success, int rooms, int attempts)
 {
     time_t now;
     double elapsed;
+    int attempt_count;
     
     if (!gen_log_file) return;
+    (void)attempts;
     
     now = time(NULL);
     elapsed = difftime(now, level_start_time);
+    attempt_count = current_attempt;
     
     fprintf(gen_log_file, "--------------------------------------------------------------------------------\n");
     if (success)
     {
-        fprintf(gen_log_file, "### LEVEL %d COMPLETE: %d rooms, %d attempt(s), %.1f seconds\n",
-                current_depth, rooms, attempts, elapsed);
+        fprintf(gen_log_file, "### LEVEL %d COMPLETE: %d rooms, attempt #%d, %.1f seconds\n",
+                current_depth, rooms, attempt_count, elapsed);
     }
     else
     {
-        fprintf(gen_log_file, "### LEVEL %d FAILED after %d attempt(s), %.1f seconds - REGENERATING\n",
-                current_depth, attempts, elapsed);
+        fprintf(gen_log_file, "### LEVEL %d FAILED on attempt #%d, %.1f seconds - REGENERATING\n",
+                current_depth, attempt_count, elapsed);
     }
     fprintf(gen_log_file, "--------------------------------------------------------------------------------\n\n");
     fflush(gen_log_file);
-    
-    current_attempt++;
 }
 
 #else /* GENERATION_LOG_ENABLED == 0 */
