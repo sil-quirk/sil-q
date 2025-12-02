@@ -1317,6 +1317,7 @@ static void ensure_partition_connectivity(void);
 static void repair_all_outer_walls(void);
 static bool carve_chasm_with_bridges(int y_min, int y_max, int x_min, int x_max);
 static int dungeon_pieces(void);
+static void clamp_to_interior(int *y, int *x, int margin);
 static int partition_index_from_point(int y, int x, int rows, int cols);
 static int room_connection_degree(int room_idx);
 static bool connect_rooms_with_logging(int r1, int r2, const char *tag, bool allow_desperate);
@@ -2444,30 +2445,36 @@ static bool carve_chasm_with_bridges(int y_min, int y_max, int x_min, int x_max)
         }
     }
     
-    /* Add a floor border along the cave edge (1-2 tiles wide) */
+    /* Add sparse edge nubs instead of a full floor ring to avoid easy perimeter walkways */
     for (int ly = 0; ly < h; ++ly)
     {
         for (int lx = 0; lx < w; ++lx)
         {
             if (!is_cave[ly * w + lx]) continue;
-            
+
             /* Check if adjacent to non-cave (wall) */
             bool edge_of_cave = false;
-            for (int dy = -1; dy <= 1 && !edge_of_cave; ++dy)
+            int adj_platforms = 0;
+            for (int dy = -1; dy <= 1; ++dy)
             {
-                for (int dx = -1; dx <= 1 && !edge_of_cave; ++dx)
+                for (int dx = -1; dx <= 1; ++dx)
                 {
                     if (dy == 0 && dx == 0) continue;
                     int ny = ly + dy, nx = lx + dx;
                     if (ny < 0 || nx < 0 || ny >= h || nx >= w || !is_cave[ny * w + nx])
                         edge_of_cave = true;
+                    else if (is_platform[ny * w + nx])
+                        adj_platforms++;
                 }
             }
-            if (edge_of_cave)
+            /* Only add occasional nubs where platforms are already nearby to prevent a continuous ring */
+            if (edge_of_cave && !is_platform[ly * w + lx] && adj_platforms >= 2 && one_in_(4))
+            {
                 is_platform[ly * w + lx] = true;
+            }
         }
     }
-    
+
     /* Apply to cave: inside cave + platform = floor, inside cave + !platform = chasm */
     int floor_count = 0;
     int chasm_count = 0;
@@ -3304,6 +3311,44 @@ static bool room_build_in_bounds(int typ, int y1, int y2, int x1, int x2)
     }
 }
 
+/* Place rooms in randomized order within a partition */
+static void place_rooms_randomized(int y1, int y2, int x1, int x2, int depth,
+                                   int t1_count, int t2_count, int t6_count, int t7_count,
+                                   int *budget_t6, int *budget_t7, int *budget_t8,
+                                   int *used_t6, int *used_t7, int *used_t8)
+{
+    /* Build an array of all room placements needed */
+    int total = t1_count + t2_count + t6_count + t7_count;
+    if (total <= 0) return;
+    if (total > 50) total = 50;  /* Safety cap */
+    
+    int room_types[50];
+    int idx = 0;
+    for (int i = 0; i < t1_count && idx < 50; ++i) room_types[idx++] = 1;
+    for (int i = 0; i < t2_count && idx < 50; ++i) room_types[idx++] = 2;
+    for (int i = 0; i < t6_count && idx < 50; ++i) room_types[idx++] = 6;
+    for (int i = 0; i < t7_count && idx < 50; ++i) room_types[idx++] = 7;
+    
+    /* Fisher-Yates shuffle */
+    for (int i = total - 1; i > 0; --i)
+    {
+        int j = rand_int(i + 1);
+        int temp = room_types[i];
+        room_types[i] = room_types[j];
+        room_types[j] = temp;
+    }
+    
+    /* Place rooms in shuffled order */
+    for (int i = 0; i < total; ++i)
+    {
+        int typ = room_types[i];
+        int priority = (typ >= 6) ? 3 : 2;
+        place_room_with_budget(typ, y1, y2, x1, x2, priority, depth,
+                               budget_t6, budget_t7, budget_t8,
+                               used_t6, used_t7, used_t8);
+    }
+}
+
 /* Dynamic partition-based generation mix */
 static void apply_quadrant_generation_modes(void)
 {
@@ -3387,17 +3432,17 @@ static void apply_quadrant_generation_modes(void)
     
     /* Mode pool for random selection */
     int mode_weights[6];
-    mode_weights[QUAD_MODE_ROOMY]     = MAX(12, 34 - depth / 3);
+    mode_weights[QUAD_MODE_ROOMY]     = 25;                   /* Constant - always good chance */
     mode_weights[QUAD_MODE_CAVEY]     = 18 + blocks / 2;
-    mode_weights[QUAD_MODE_RUINED]    = 14 + depth / 4;      /* boost RUINED to appear more */
-    mode_weights[QUAD_MODE_LABYRINTH] = 10 + depth / 5;      /* slight boost */
+    mode_weights[QUAD_MODE_RUINED]    = 16;                   /* Constant - general purpose */
+    mode_weights[QUAD_MODE_LABYRINTH] = 10 + depth / 5;       /* slight boost */
     mode_weights[QUAD_MODE_CHASM]     = 10 + depth / 6 + blocks / 3; /* more CHASM */
     mode_weights[QUAD_MODE_BIG_CAVE]  = 9 + depth / 6 + blocks / 4;
     
     /* Guarantee minimum ROOMY and CAVEY partitions based on partition count */
     /* ROOMY provides reliable standard rooms that connect well */
-    int guaranteed_roomy = 2 + partition_count / 4;  /* At least 2 ROOMY, +1 per 4 partitions */
-    int guaranteed_cavey = 1 + partition_count / 6;  /* At least 1 CAVEY per 6 partitions */
+    int guaranteed_roomy = 1 + partition_count / 5;  /* At least 1 ROOMY, +1 per 5 partitions */
+    int guaranteed_cavey = partition_count / 8;      /* 0 for small, 1+ for larger */
     
     /* Initialize with guaranteed modes first */
     int idx = 0;
@@ -3592,36 +3637,30 @@ static void apply_quadrant_generation_modes(void)
                 scatter_quartz_veins_in_bounds(y1, y2, x1, x2);
                 
                 /* Caves with rooms scattered inside */
-                /* Sparse: T1=1 T2=1 T6=2 T7=1 | Normal: T1=1 T2=2 T6=2 T7=2 | Dense: T1=1 T2=3 T6=3 T7=2 */
-                int std_count = scaled_attempts(1, area_factor);
+                /* Sparse: T1=2 T2=1 T6=2 T7=0 | Normal: T1=2 T2=2 T6=2 T7=1 | Dense: T1=2 T2=3 T6=3 T7=1 */
+                int std_count = scaled_attempts(2, area_factor);
                 int cross_count = scaled_attempts((density == DENSITY_SPARSE) ? 1 : (density == DENSITY_DENSE) ? 3 : 2, area_factor);
                 int int_count = scaled_attempts((density == DENSITY_SPARSE) ? 2 : (density == DENSITY_DENSE) ? 3 : 2, area_factor);
-                int vault_count = scaled_attempts((density == DENSITY_SPARSE) ? 1 : 2, area_factor);
-                for (int r = 0; r < std_count; ++r)
-                    place_room_with_budget(1, y1, y2, x1, x2, 2, depth, &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
-                for (int r = 0; r < cross_count; ++r)
-                    place_room_with_budget(2, y1, y2, x1, x2, 3, depth, &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
-                for (int r = 0; r < int_count; ++r)
-                    place_room_with_budget(6, y1, y2, x1, x2, 3, depth, &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
-                for (int r = 0; r < vault_count; ++r)
-                    place_room_with_budget(7, y1, y2, x1, x2, 3, depth, &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
+                int vault_count = scaled_attempts((density == DENSITY_SPARSE) ? 0 : (density == DENSITY_DENSE) ? 1 : 1, area_factor);
+                place_rooms_randomized(y1, y2, x1, x2, depth, std_count, cross_count, int_count, vault_count,
+                                       &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
             }
             break;
         case QUAD_MODE_RUINED:
             {
                 /* Ancient carved passages with rubble and broken walls */
                 int area = (y2 - y1) * (x2 - x1);
-                int base_carves = 3 + area / 500;
-                int carve_count = (density == DENSITY_SPARSE) ? base_carves : 
+                int base_carves = 4 + area / 500;
+                int carve_count = (density == DENSITY_SPARSE) ? base_carves :
                                   (density == DENSITY_DENSE) ? base_carves + 4 : base_carves + 2;
                 if (carve_count > 10) carve_count = 10;
                 
                 for (int b = 0; b < carve_count; ++b)
                     carve_bsp_slice_anchor_bounds(y1, y2, x1, x2);
                 
-                /* Add rubble to carved floor tiles (10-20% based on density) */
-                int rubble_chance = (density == DENSITY_SPARSE) ? 8 : 
-                                    (density == DENSITY_DENSE) ? 18 : 12;
+                /* Add rubble to carved floor tiles (5-10-15% based on density) */
+                int rubble_chance = (density == DENSITY_SPARSE) ? 5 : 
+                                    (density == DENSITY_DENSE) ? 15 : 10;
                 for (int gy = y1; gy <= y2; ++gy)
                 {
                     for (int gx = x1; gx <= x2; ++gx)
@@ -3640,7 +3679,7 @@ static void apply_quadrant_generation_modes(void)
                     {
                         if (!in_bounds_fully(gy, gx)) continue;
                         if (cave_feat[gy][gx] != FEAT_WALL_OUTER) continue;
-                        if (one_in_(8))  /* 12.5% chance to break wall */
+                        if (rand_int(100) < 30)
                         {
                             cave_set_feat(gy, gx, FEAT_FLOOR);
                             cave_info[gy][gx] |= CAVE_ROOM;
@@ -3651,19 +3690,13 @@ static void apply_quadrant_generation_modes(void)
                 }
                 
                 /* Ruined passages with rooms and vaults */
-                /* Sparse: T1=1 T2=1 T6=2 T7=1 | Normal: T1=1 T2=1 T6=3 T7=2 | Dense: T1=1 T2=2 T6=4 T7=3 */
-                int std_count = scaled_attempts(1, area_factor);
+                /* Sparse: T1=1 T2=1 T6=1 T7=0 | Normal: T1=1 T2=1 T6=2 T7=1 | Dense: T1=2 T2=2 T6=3 T7=2 */
+                int std_count = scaled_attempts((density == DENSITY_SPARSE) ? 1 : (density == DENSITY_DENSE) ? 2 : 1, area_factor);
                 int cross_count = scaled_attempts((density == DENSITY_SPARSE) ? 1 : (density == DENSITY_DENSE) ? 2 : 1, area_factor);
-                int int_count = scaled_attempts((density == DENSITY_SPARSE) ? 2 : (density == DENSITY_DENSE) ? 4 : 3, area_factor);
-                int vault_count = scaled_attempts((density == DENSITY_SPARSE) ? 1 : (density == DENSITY_DENSE) ? 3 : 2, area_factor);
-                for (int r = 0; r < std_count; ++r)
-                    place_room_with_budget(1, y1, y2, x1, x2, 2, depth, &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
-                for (int r = 0; r < cross_count; ++r)
-                    place_room_with_budget(2, y1, y2, x1, x2, 3, depth, &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
-                for (int r = 0; r < int_count; ++r)
-                    place_room_with_budget(6, y1, y2, x1, x2, 3, depth, &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
-                for (int r = 0; r < vault_count; ++r)
-                    place_room_with_budget(7, y1, y2, x1, x2, 3, depth, &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
+                int int_count = scaled_attempts((density == DENSITY_SPARSE) ? 1 : (density == DENSITY_DENSE) ? 3 : 2, area_factor);
+                int vault_count = scaled_attempts((density == DENSITY_SPARSE) ? 0 : (density == DENSITY_DENSE) ? 2 : 1, area_factor);
+                place_rooms_randomized(y1, y2, x1, x2, depth, std_count, cross_count, int_count, vault_count,
+                                       &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
             }
             break;
         case QUAD_MODE_LABYRINTH:
@@ -3693,19 +3726,13 @@ static void apply_quadrant_generation_modes(void)
                 }
                 
                 /* Labyrinth with chambers and vaults */
-                /* Sparse: T1=1 T2=0 T6=2 T7=1 | Normal: T1=1 T2=1 T6=2 T7=1 | Dense: T1=1 T2=1 T6=3 T7=2 */
+                /* Sparse: T1=1 T2=0 T6=1 T7=0 | Normal: T1=1 T2=1 T6=1 T7=0 | Dense: T1=1 T2=1 T6=2 T7=1 */
                 int std_count = scaled_attempts(1, area_factor);
                 int cross_count = scaled_attempts((density == DENSITY_SPARSE) ? 0 : 1, area_factor);
-                int int_count = scaled_attempts((density == DENSITY_SPARSE) ? 2 : (density == DENSITY_DENSE) ? 3 : 2, area_factor);
-                int vault_count = scaled_attempts((density == DENSITY_SPARSE) ? 1 : (density == DENSITY_DENSE) ? 2 : 1, area_factor);
-                for (int r = 0; r < std_count; ++r)
-                    place_room_with_budget(1, y1, y2, x1, x2, 2, depth, &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
-                for (int r = 0; r < vault_count; ++r)
-                    place_room_with_budget(7, y1, y2, x1, x2, 3, depth, &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
-                for (int r = 0; r < cross_count; ++r)
-                    place_room_with_budget(2, y1, y2, x1, x2, 2, depth, &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
-                for (int r = 0; r < int_count; ++r)
-                    place_room_with_budget(6, y1, y2, x1, x2, 3, depth, &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
+                int int_count = scaled_attempts((density == DENSITY_SPARSE) ? 1 : (density == DENSITY_DENSE) ? 2 : 1, area_factor);
+                int vault_count = scaled_attempts((density == DENSITY_SPARSE) ? 0 : (density == DENSITY_DENSE) ? 1 : 0, area_factor);
+                place_rooms_randomized(y1, y2, x1, x2, depth, std_count, cross_count, int_count, vault_count,
+                                       &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
             }
             break;
         case QUAD_MODE_CHASM:
@@ -3766,30 +3793,21 @@ static void apply_quadrant_generation_modes(void)
                 /* Sparse: T1=1 T6=1 | Normal: T1=1 T6=1 | Dense: T1=1 T6=2 */
                 int std_count = scaled_attempts(1, area_factor);
                 int int_count = scaled_attempts((density == DENSITY_DENSE) ? 2 : 1, area_factor);
-                for (int r = 0; r < std_count; ++r)
-                    place_room_with_budget(1, y1, y2, x1, x2, 2, depth, &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
-                for (int r = 0; r < int_count; ++r)
-                    place_room_with_budget(6, y1, y2, x1, x2, 3, depth, &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
+                place_rooms_randomized(y1, y2, x1, x2, depth, std_count, 0, int_count, 0,
+                                       &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
             }
             break;
         case QUAD_MODE_ROOMY:
         default:
             {
                 /* Traditional dungeon - packed with rooms and vaults */
-                /* Sparse: T1=2 T2=2 T6=3 T7=2 | Normal: T1=3 T2=3 T6=4 T7=3 | Dense: T1=4 T2=4 T6=5 T7=4 */
+                /* Sparse: T1=2 T2=1 T6=2 T7=1 | Normal: T1=3 T2=2 T6=3 T7=2 | Dense: T1=4 T2=3 T6=4 T7=3 */
                 int std_count = scaled_attempts((density == DENSITY_SPARSE) ? 2 : (density == DENSITY_DENSE) ? 4 : 3, area_factor);
-                int cross_count = scaled_attempts((density == DENSITY_SPARSE) ? 2 : (density == DENSITY_DENSE) ? 4 : 3, area_factor);
-                int int_count = scaled_attempts((density == DENSITY_SPARSE) ? 3 : (density == DENSITY_DENSE) ? 5 : 4, area_factor);
-                int vault_count = scaled_attempts((density == DENSITY_SPARSE) ? 2 : (density == DENSITY_DENSE) ? 4 : 3, area_factor);
-                /* Shallow maps: prevent vault spam by switching to simple rooms after failures */
-                for (int r = 0; r < std_count; ++r)
-                    place_room_with_budget(1, y1, y2, x1, x2, 2, depth, &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
-                for (int r = 0; r < cross_count; ++r)
-                    place_room_with_budget(2, y1, y2, x1, x2, 2, depth, &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
-                for (int r = 0; r < int_count; ++r)
-                    place_room_with_budget(6, y1, y2, x1, x2, 3, depth, &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
-                for (int r = 0; r < vault_count; ++r)
-                    place_room_with_budget(7, y1, y2, x1, x2, 3, depth, &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
+                int cross_count = scaled_attempts((density == DENSITY_SPARSE) ? 1 : (density == DENSITY_DENSE) ? 3 : 2, area_factor);
+                int int_count = scaled_attempts((density == DENSITY_SPARSE) ? 2 : (density == DENSITY_DENSE) ? 4 : 3, area_factor);
+                int vault_count = scaled_attempts((density == DENSITY_SPARSE) ? 1 : (density == DENSITY_DENSE) ? 3 : 2, area_factor);
+                place_rooms_randomized(y1, y2, x1, x2, depth, std_count, cross_count, int_count, vault_count,
+                                       &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
             }
             break;
         }
@@ -3875,18 +3893,12 @@ static void apply_quadrant_generation_modes(void)
                 for (int b = 0; b < blob_count; ++b)
                     carve_ca_blob_anchor_bounds(y1, y2, x1, x2);
                 scatter_quartz_veins_in_bounds(y1, y2, x1, x2);
-                int std_count = scaled_attempts(1, area_factor);
-                int cross_count = scaled_attempts((density == DENSITY_DENSE) ? 2 : 1, area_factor);
-                int int_count = scaled_attempts(1, area_factor);
-                int vault_count = scaled_attempts((density == DENSITY_SPARSE) ? 0 : 1, area_factor);
-                for (int r = 0; r < std_count; ++r)
-                    place_room_with_budget(1, y1, y2, x1, x2, 2, depth, &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
-                for (int r = 0; r < cross_count; ++r)
-                    place_room_with_budget(2, y1, y2, x1, x2, 3, depth, &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
-                for (int r = 0; r < int_count; ++r)
-                    place_room_with_budget(6, y1, y2, x1, x2, 3, depth, &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
-                for (int r = 0; r < vault_count; ++r)
-                    place_room_with_budget(7, y1, y2, x1, x2, 3, depth, &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
+                int std_count = scaled_attempts(2, area_factor);
+                int cross_count = scaled_attempts((density == DENSITY_DENSE) ? 4 : (density == DENSITY_SPARSE) ? 2 : 3, area_factor);
+                int int_count = scaled_attempts((density == DENSITY_SPARSE) ? 1 : (density == DENSITY_DENSE) ? 2 : 1, area_factor);
+                int vault_count = scaled_attempts((density == DENSITY_SPARSE) ? 0 : (density == DENSITY_DENSE) ? 1 : 1, area_factor);
+                place_rooms_randomized(y1, y2, x1, x2, depth, std_count, cross_count, int_count, vault_count,
+                                       &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
             }
             break;
         case QUAD_MODE_RUINED:
@@ -3895,22 +3907,44 @@ static void apply_quadrant_generation_modes(void)
                 if (carve_count > 10) carve_count = 10;
                 for (int b = 0; b < carve_count; ++b)
                     carve_bsp_slice_anchor_bounds(y1, y2, x1, x2);
+                
+                /* Add rubble to carved floor tiles (5-10-15% based on density) */
+                int rubble_chance = (density == DENSITY_SPARSE) ? 5 : 
+                                    (density == DENSITY_DENSE) ? 15 : 10;
                 for (int gy = y1; gy <= y2; ++gy)
+                {
                     for (int gx = x1; gx <= x2; ++gx)
-                        if (cave_floor_bold(gy, gx) && one_in_(25))
+                    {
+                        if (!in_bounds_fully(gy, gx)) continue;
+                        if (!cave_floor_bold(gy, gx)) continue;
+                        if (rand_int(100) < rubble_chance)
                             cave_set_feat(gy, gx, FEAT_RUBBLE);
+                    }
+                }
+                
+                /* Add broken wall segments */
+                for (int gy = y1 + 2; gy <= y2 - 2; ++gy)
+                {
+                    for (int gx = x1 + 2; gx <= x2 - 2; ++gx)
+                    {
+                        if (!in_bounds_fully(gy, gx)) continue;
+                        if (cave_feat[gy][gx] != FEAT_WALL_OUTER) continue;
+                        if (rand_int(100) < 30)
+                        {
+                            cave_set_feat(gy, gx, FEAT_FLOOR);
+                            cave_info[gy][gx] |= CAVE_ROOM;
+                            if (one_in_(2))
+                                cave_set_feat(gy, gx, FEAT_RUBBLE);
+                        }
+                    }
+                }
+                
                 int std_count = scaled_attempts(1, area_factor);
                 int cross_count = scaled_attempts((density == DENSITY_SPARSE) ? 0 : 1, area_factor);
                 int int_count = scaled_attempts((density == DENSITY_DENSE) ? 2 : 1, area_factor);
-                int vault_count = scaled_attempts((density == DENSITY_DENSE) ? 2 : 1, area_factor);
-                for (int r = 0; r < std_count; ++r)
-                    place_room_with_budget(1, y1, y2, x1, x2, 2, depth, &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
-                for (int r = 0; r < cross_count; ++r)
-                    place_room_with_budget(2, y1, y2, x1, x2, 3, depth, &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
-                for (int r = 0; r < int_count; ++r)
-                    place_room_with_budget(6, y1, y2, x1, x2, 3, depth, &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
-                for (int r = 0; r < vault_count; ++r)
-                    place_room_with_budget(7, y1, y2, x1, x2, 3, depth, &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
+                int vault_count = scaled_attempts((density == DENSITY_DENSE) ? 1 : 0, area_factor);
+                place_rooms_randomized(y1, y2, x1, x2, depth, std_count, cross_count, int_count, vault_count,
+                                       &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
             }
             break;
         default:
@@ -3920,14 +3954,8 @@ static void apply_quadrant_generation_modes(void)
                 int cross_count = scaled_attempts((density == DENSITY_SPARSE) ? 1 : (density == DENSITY_DENSE) ? 3 : 2, area_factor);
                 int int_count = scaled_attempts((density == DENSITY_SPARSE) ? 2 : (density == DENSITY_DENSE) ? 4 : 3, area_factor);
                 int vault_count = scaled_attempts((density == DENSITY_SPARSE) ? 2 : (density == DENSITY_DENSE) ? 4 : 3, area_factor);
-                for (int r = 0; r < std_count; ++r)
-                    place_room_with_budget(1, y1, y2, x1, x2, 2, depth, &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
-                for (int r = 0; r < cross_count; ++r)
-                    place_room_with_budget(2, y1, y2, x1, x2, 2, depth, &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
-                for (int r = 0; r < int_count; ++r)
-                    place_room_with_budget(6, y1, y2, x1, x2, 3, depth, &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
-                for (int r = 0; r < vault_count; ++r)
-                    place_room_with_budget(7, y1, y2, x1, x2, 3, depth, &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
+                place_rooms_randomized(y1, y2, x1, x2, depth, std_count, cross_count, int_count, vault_count,
+                                       &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
             }
             break;
         }
@@ -6601,6 +6629,18 @@ static bool place_rubble_player(void)
     return (true);
 }
 
+/* Clamp a coordinate to stay inside the map by a small margin to avoid edge-digging. */
+static void clamp_to_interior(int *y, int *x, int margin)
+{
+    if (!y || !x) return;
+    if (*y < margin) *y = margin;
+    if (*x < margin) *x = margin;
+    if (*y > p_ptr->cur_map_hgt - margin - 1)
+        *y = p_ptr->cur_map_hgt - margin - 1;
+    if (*x > p_ptr->cur_map_wid - margin - 1)
+        *x = p_ptr->cur_map_wid - margin - 1;
+}
+
 /*
  *  Make sure that the level is sufficiently connected.
  */
@@ -6721,6 +6761,8 @@ bool check_connectivity(void)
         /* Dig an L-shaped orthogonal tunnel (no diagonal) between the two points.
          * Randomly choose whether to go horizontal-first or vertical-first. */
         int y0 = sample_y, x0 = sample_x, y1 = best_y, x1 = best_x;
+        clamp_to_interior(&y0, &x0, 2);
+        clamp_to_interior(&y1, &x1, 2);
         int cy = y0, cx = x0;
         bool horiz_first = one_in_(2);
         

@@ -6614,6 +6614,8 @@ User reported that while letters were enabled, the 'i' and 'e' keys were still s
 - Rebuilt the partition hub pass: map every room to its partition, pick a hub biased toward anchors/large rooms, connect H/V/diag neighbors, and top up partitions to a minimum external degree where space allows.
 - Added anchor backbone linking: anchors (prefabs, chasms, CA blobs, BSP slices) now demand multiple exits based on size/flags and link to other components/partitions before the rescue pass; connections are logged to `generation.txt`.
 - New helpers for partition indexing, connection degree, and adjacency seeding to support the backbone and log corridor additions without relying on late rescue tunnels.
+- Rescue tunneling now clamps endpoints a couple tiles inside the map boundary to avoid edge-hugging L-corridors that create dead ends on the outer rim.
+- Chasm generation no longer paints a continuous floor ring at the cave edge; replaced with sparse edge nubs tied to nearby platforms to remove the perimeter “shortcut” walkway.
 
 
 
