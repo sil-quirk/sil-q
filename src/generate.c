@@ -1042,6 +1042,9 @@ static int current_partition_rows = 0;
 static int current_partition_cols = 0;
 static int current_partition_count = 0;
 
+/* Track labyrinth partition count for boosting monsters and stairs in mazes */
+static int current_labyrinth_partitions = 0;
+
 static bool room_kind_is_vault(byte kind)
 {
     return (kind >= ROOM_KIND_INTERESTING);
@@ -2971,10 +2974,72 @@ static bool carve_labyrinth_bounds(int y_min, int y_max, int x_min, int x_max)
     dun->is_quest[idx] = false;
     mark_room_anchor_meta(idx, LAYOUT_ANCHOR_BSP_SLICE, false);
     
-    log_trace("Labyrinth anchor (organic): bounds=(%d,%d)-(%d,%d) center=(%d,%d) edge=%d floors=%d chambers=%d",
-        min_y, min_x, max_y, max_x, center_y, center_x, found_edge, floor_count, chamber_count);
-    genlog_anchor("LABYRINTH: bounds=(%d,%d)-(%d,%d), %d floor tiles, %d chambers",
-        min_y, min_x, max_y, max_x, floor_count, chamber_count);
+    /* === LABYRINTH MONSTER SPAWNING === */
+    /* Place monsters directly inside the labyrinth - scale with floor count */
+    /* Approximately 1 monster per 15 floor tiles */
+    int lab_monsters = floor_count / 15;
+    if (lab_monsters < 2) lab_monsters = 2;
+    if (lab_monsters > 8) lab_monsters = 8;
+    int monsters_placed = 0;
+    
+    for (int m = 0; m < lab_monsters; ++m)
+    {
+        for (int tries = 0; tries < 50; ++tries)
+        {
+            int my = rand_range(min_y, max_y);
+            int mx = rand_range(min_x, max_x);
+            if (!in_bounds_fully(my, mx)) continue;
+            if (!cave_floor_bold(my, mx)) continue;
+            if (cave_m_idx[my][mx] != 0) continue;  /* Already has monster */
+            if (cave_o_idx[my][mx] != 0) continue;  /* Has object */
+            
+            /* Place a monster (sleeping, grouped, not vault) */
+            if (place_monster(my, mx, true, true, false))
+            {
+                monsters_placed++;
+                break;
+            }
+        }
+    }
+    
+    /* === LABYRINTH STAIR PLACEMENT === */
+    /* Place 1-2 stairs inside the labyrinth for navigation */
+    int lab_stairs = 1 + (floor_count > 60 ? 1 : 0);
+    int stairs_placed = 0;
+    
+    for (int s = 0; s < lab_stairs; ++s)
+    {
+        for (int tries = 0; tries < 50; ++tries)
+        {
+            int sy = rand_range(min_y, max_y);
+            int sx = rand_range(min_x, max_x);
+            if (!in_bounds_fully(sy, sx)) continue;
+            if (!cave_naked_bold(sy, sx)) continue;
+            if (!cave_floor_bold(sy, sx)) continue;
+            
+            /* Avoid placing next to doors */
+            if (cave_feat[sy - 1][sx] == FEAT_DOOR_HEAD) continue;
+            if (cave_feat[sy + 1][sx] == FEAT_DOOR_HEAD) continue;
+            if (cave_feat[sy][sx - 1] == FEAT_DOOR_HEAD) continue;
+            if (cave_feat[sy][sx + 1] == FEAT_DOOR_HEAD) continue;
+            
+            /* Alternate between up and down stairs */
+            int feat = (s % 2 == 0) ? FEAT_MORE : FEAT_LESS;
+            
+            /* At surface, only down; at Morgoth depth, only up */
+            if (p_ptr->depth == 0) feat = FEAT_MORE;
+            else if (p_ptr->depth >= MORGOTH_DEPTH) feat = FEAT_LESS;
+            
+            cave_set_feat(sy, sx, feat);
+            stairs_placed++;
+            break;
+        }
+    }
+    
+    log_trace("Labyrinth anchor (organic): bounds=(%d,%d)-(%d,%d) center=(%d,%d) edge=%d floors=%d chambers=%d monsters=%d stairs=%d",
+        min_y, min_x, max_y, max_x, center_y, center_x, found_edge, floor_count, chamber_count, monsters_placed, stairs_placed);
+    genlog_anchor("LABYRINTH: bounds=(%d,%d)-(%d,%d), %d floor tiles, %d chambers, %d monsters, %d stairs",
+        min_y, min_x, max_y, max_x, floor_count, chamber_count, monsters_placed, stairs_placed);
     return true;
 }
 
@@ -3980,11 +4045,12 @@ static void apply_quadrant_generation_modes(void)
     genlog_summary("Room budgets - T6: %d used / T7: %d used / T8: %d used",
                    used_t6, used_t7, used_t8);
     
-    /* Log mode distribution */
+    /* Log mode distribution and persist labyrinth count for monster/stair bonuses */
     {
         int mode_counts[6] = {0};
         for (int mi = 0; mi < partition_count; ++mi)
             mode_counts[modes[mi]]++;
+        current_labyrinth_partitions = mode_counts[QUAD_MODE_LABYRINTH];
         genlog_partition("Mode distribution: ROOMY=%d CAVEY=%d RUINED=%d LABYRINTH=%d CHASM=%d BIG_CAVE=%d",
                          mode_counts[0], mode_counts[1], mode_counts[2],
                          mode_counts[3], mode_counts[4], mode_counts[5]);
@@ -7202,6 +7268,16 @@ static bool connect_rooms_stairs(void)
     if (stairs < 2) stairs = 2;   /* Minimum 2 */
     if (stairs > 8) stairs = 8;  /* Maximum 8 */
     
+    /* Labyrinth bonus: +1 stair per labyrinth partition (more escape routes in mazes) */
+    if (current_labyrinth_partitions > 0)
+    {
+        int stair_bonus = current_labyrinth_partitions;
+        stairs += stair_bonus;
+        if (stairs > 12) stairs = 12;  /* Cap at 12 total */
+        log_trace("Labyrinth stair bonus: +%d stairs from %d labyrinth partitions (total=%d)",
+                  stair_bonus, current_labyrinth_partitions, stairs);
+    }
+    
     log_trace("Map size %d leads to %d stairs each direction", map_size, stairs);
 
     /* Determine partition count for guaranteed stair placement */
@@ -8995,7 +9071,32 @@ static bool try_place_docked_vault(
             {
                 place_closed_door(contact_y, contact_x);
             }
-            cave_set_feat(new_y, new_x, FEAT_FLOOR);
+
+            /* Carve through walls in the docked vault until we hit passable
+             * space. This prevents doors facing dead-end walls when the vault
+             * template has multiple wall layers on its edge. */
+            int dy = 0, dx = 0;
+            if (dir == VAULT_DOCK_EAST) dx = 1;
+            else if (dir == VAULT_DOCK_WEST) dx = -1;
+            else if (dir == VAULT_DOCK_SOUTH) dy = 1;
+            else dy = -1;
+
+            int carve_y = new_y;
+            int carve_x = new_x;
+            int max_carve = 4; /* Limit how deep we carve */
+            for (int c = 0; c < max_carve; ++c)
+            {
+                int feat = cave_feat[carve_y][carve_x];
+                /* Stop if we hit floor, a door, or leave the vault area */
+                if (feat == FEAT_FLOOR || feature_is_any_door(feat))
+                    break;
+                if (!(cave_info[carve_y][carve_x] & CAVE_ICKY))
+                    break;
+                /* Carve this wall to floor */
+                cave_set_feat(carve_y, carve_x, FEAT_FLOOR);
+                carve_y += dy;
+                carve_x += dx;
+            }
 
             good_item_flag = true;
 
@@ -10044,6 +10145,9 @@ static bool cave_gen(void)
     int is_guaranteed_forge_level = false;
     bool duruin_bastion_forced = false;
     
+    /* Reset labyrinth partition counter for this level */
+    current_labyrinth_partitions = 0;
+    
     /* Reset quest vault monitoring variables for this level */
     qv_placed_this_level = false;
     qv_stored_y1 = qv_stored_x1 = qv_stored_y2 = qv_stored_x2 = -1;
@@ -10493,6 +10597,9 @@ static bool cave_gen(void)
         // pick some number of monsters (between 0.5 per room and 1 per room)
         mon_gen = (dun->cent_n + dieroll(dun->cent_n)) / 2;
     }
+
+    /* Note: Labyrinth monsters are now placed directly inside the labyrinth
+     * during carve_labyrinth_bounds() instead of as a global bonus */
 
         /* meta-run curse: more monsters */
     {
