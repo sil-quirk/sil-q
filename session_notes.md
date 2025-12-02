@@ -6637,3 +6637,9 @@ User reported that while letters were enabled, the 'i' and 'e' keys were still s
 
 
 
+
+## Morgoth level integration (current session)
+- Level 20 now uses the regular generator with a reserved central partition; type-9 throne room is forced there with no docked vault attachments and dedicated 3-wide north tunnels carved from the '$' markers.
+- Final levels scrub any down stairs after generation and skip the stair request so only the vault's built-in up stair remains; partition reserve prevents other content in the throne-room quadrant.
+- Entry prompt/truce moved to vault entry: descending no longer asks; entering the throne room shows the poetry+prompt, starts the truce, and leaving the vault breaks it with the usual reminder.
+

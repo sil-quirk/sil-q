@@ -1045,6 +1045,102 @@ static int current_partition_count = 0;
 /* Track labyrinth partition count for boosting monsters and stairs in mazes */
 static int current_labyrinth_partitions = 0;
 
+/* Morgoth throne room placement state for the current generation attempt */
+static bool morgoth_level_active = false;
+static bool morgoth_partition_reserved = false;
+static int morgoth_partition_index = -1;
+static rectangle morgoth_partition_bounds;
+static int morgoth_vault_center_y = 0;
+static int morgoth_vault_center_x = 0;
+
+static bool morgoth_region_active(void)
+{
+    return morgoth_level_active && morgoth_partition_reserved;
+}
+
+static bool coord_in_morgoth_region(int y, int x, int margin)
+{
+    if (!morgoth_region_active())
+        return false;
+
+    return (y >= morgoth_partition_bounds.y1 - margin)
+        && (y <= morgoth_partition_bounds.y2 + margin)
+        && (x >= morgoth_partition_bounds.x1 - margin)
+        && (x <= morgoth_partition_bounds.x2 + margin);
+}
+
+/* Axis-aligned segment vs. Morgoth region intersection */
+static bool morgoth_segment_blocked(int y1, int x1, int y2, int x2, int margin)
+{
+    if (!morgoth_region_active())
+        return false;
+
+    /* Quick reject if both points are completely outside in same half-plane */
+    if (y1 < morgoth_partition_bounds.y1 - margin && y2 < morgoth_partition_bounds.y1 - margin)
+        return false;
+    if (y1 > morgoth_partition_bounds.y2 + margin && y2 > morgoth_partition_bounds.y2 + margin)
+        return false;
+    if (x1 < morgoth_partition_bounds.x1 - margin && x2 < morgoth_partition_bounds.x1 - margin)
+        return false;
+    if (x1 > morgoth_partition_bounds.x2 + margin && x2 > morgoth_partition_bounds.x2 + margin)
+        return false;
+
+    /* Horizontal segment */
+    if (y1 == y2)
+    {
+        int y = y1;
+        int xa = MIN(x1, x2);
+        int xb = MAX(x1, x2);
+        int rx1 = morgoth_partition_bounds.x1 - margin;
+        int rx2 = morgoth_partition_bounds.x2 + margin;
+        int ry1 = morgoth_partition_bounds.y1 - margin;
+        int ry2 = morgoth_partition_bounds.y2 + margin;
+        if (y >= ry1 && y <= ry2 && xb >= rx1 && xa <= rx2)
+            return true;
+    }
+
+    /* Vertical segment */
+    if (x1 == x2)
+    {
+        int x = x1;
+        int ya = MIN(y1, y2);
+        int yb = MAX(y1, y2);
+        int rx1 = morgoth_partition_bounds.x1 - margin;
+        int rx2 = morgoth_partition_bounds.x2 + margin;
+        int ry1 = morgoth_partition_bounds.y1 - margin;
+        int ry2 = morgoth_partition_bounds.y2 + margin;
+        if (x >= rx1 && x <= rx2 && yb >= ry1 && ya <= ry2)
+            return true;
+    }
+
+    return false;
+}
+
+/* After placing Morgoth's vault, seal the rest of the reserved partition with permanent walls */
+static void seal_morgoth_partition(void)
+{
+    if (!morgoth_region_active())
+        return;
+
+    int y1 = morgoth_partition_bounds.y1;
+    int y2 = morgoth_partition_bounds.y2;
+    int x1 = morgoth_partition_bounds.x1;
+    int x2 = morgoth_partition_bounds.x2;
+
+    for (int y = y1; y <= y2; ++y)
+    {
+        for (int x = x1; x <= x2; ++x)
+        {
+            /* Preserve the vault area and entry tunnels we flagged as CAVE_G_VAULT */
+            if (cave_info[y][x] & CAVE_G_VAULT)
+                continue;
+
+            cave_set_feat(y, x, FEAT_WALL_PERM);
+            cave_info[y][x] &= ~(CAVE_ROOM | CAVE_ICKY);
+        }
+    }
+}
+
 static bool room_kind_is_vault(byte kind)
 {
     return (kind >= ROOM_KIND_INTERESTING);
@@ -1071,6 +1167,19 @@ static void remember_partition_grid(int rows, int cols, int count)
     current_partition_rows = rows;
     current_partition_cols = cols;
     current_partition_count = count;
+}
+
+static void reset_morgoth_layout_state(bool active)
+{
+    morgoth_level_active = active;
+    morgoth_partition_reserved = false;
+    morgoth_partition_index = -1;
+    morgoth_partition_bounds.y1 = 0;
+    morgoth_partition_bounds.y2 = 0;
+    morgoth_partition_bounds.x1 = 0;
+    morgoth_partition_bounds.x2 = 0;
+    morgoth_vault_center_y = 0;
+    morgoth_vault_center_x = 0;
 }
 
 static void fallback_partition_grid_from_blocks(int blocks, int *rows, int *cols)
@@ -3494,6 +3603,43 @@ static bool partition_is_interior(int row, int col, int rows, int cols)
     return (row > 0) && (row < rows - 1) && (col > 0) && (col < cols - 1);
 }
 
+/* Pick the partition whose centre is closest to the map centre, preferring interior slots */
+static int choose_central_partition_index(int rows, int cols)
+{
+    if (rows <= 0 || cols <= 0)
+        return -1;
+
+    int best_idx = -1;
+    int best_score = 1 << 30;
+    int map_cy = p_ptr->cur_map_hgt / 2;
+    int map_cx = p_ptr->cur_map_wid / 2;
+
+    for (int row = 0; row < rows; ++row)
+    {
+        for (int col = 0; col < cols; ++col)
+        {
+            int pi = row * cols + col;
+            int y1, y2, x1, x2;
+            if (!compute_partition_bounds(pi, rows, cols, &y1, &y2, &x1, &x2))
+                continue;
+
+            int cy = (y1 + y2) / 2;
+            int cx = (x1 + x2) / 2;
+            int dist = distance(map_cy, map_cx, cy, cx);
+            int penalty = partition_is_interior(row, col, rows, cols) ? 0 : 10000;
+            int score = dist + penalty;
+
+            if (score < best_score)
+            {
+                best_score = score;
+                best_idx = pi;
+            }
+        }
+    }
+
+    return best_idx;
+}
+
 /* Try to drop a greater vault inside the provided partition bounds */
 static bool place_gv_in_partition(int y1, int y2, int x1, int x2, int *budget_t8, int *used_t8)
 {
@@ -3590,12 +3736,20 @@ static void apply_quadrant_generation_modes(void)
     if (!gv_level_allowed && depth < gv_min_depth) {
         genlog_partition("GV roll: depth=%d below minimum %d -> no GV this level", depth, gv_min_depth);
     }
+    if (morgoth_level_active) {
+        gv_level_allowed = false; /* Morgoth's throne room replaces normal GVs */
+        morgoth_partition_index = choose_central_partition_index(grid_rows, grid_cols);
+        genlog_partition("Morgoth level: reserving central partition idx=%d (grid %dx%d)", morgoth_partition_index, grid_rows, grid_cols);
+    }
 
     /* Depth-aware vault budgets (soft caps; clamped to remaining capacity) */
     /* BOOSTED: More rooms and vaults per partition for denser levels */
     int budget_t6 = MIN(room_capacity_limit(), MAX(20, partition_count * 3 + depth));
     int budget_t7 = (depth >= 4) ? MIN(room_capacity_limit(), MAX(6, partition_count + depth / 2)) : 0;
     int budget_t8 = gv_level_allowed ? 1 : 0;
+    if (morgoth_level_active) {
+        budget_t8 = 0;
+    }
     int capacity_remaining = room_capacity_limit() - dun->cent_n;
     if (budget_t8 > capacity_remaining)
         budget_t8 = capacity_remaining;
@@ -3779,6 +3933,21 @@ static void apply_quadrant_generation_modes(void)
         if (y2 >= p_ptr->cur_map_hgt - 1) y2 = p_ptr->cur_map_hgt - 2;
         if (x2 >= p_ptr->cur_map_wid - 1) x2 = p_ptr->cur_map_wid - 2;
         
+        bool is_morgoth_partition = (morgoth_level_active && pi == morgoth_partition_index);
+        if (is_morgoth_partition)
+        {
+            morgoth_partition_bounds.y1 = y1;
+            morgoth_partition_bounds.y2 = y2;
+            morgoth_partition_bounds.x1 = x1;
+            morgoth_partition_bounds.x2 = x2;
+            morgoth_vault_center_y = (y1 + y2) / 2;
+            morgoth_vault_center_x = (x1 + x2) / 2;
+            morgoth_partition_reserved = true;
+            partition_done[pi] = true;
+            genlog_partition("Morgoth partition reserved at idx=%d bounds=(%d,%d)-(%d,%d)", pi, y1, x1, y2, x2);
+            continue;
+        }
+
         /* mode already declared at loop start for the continue check */
         int style_idx = partition_styles[pi];
         density_level_t density = densities[pi];
@@ -3924,6 +4093,7 @@ static void apply_quadrant_generation_modes(void)
                     {
                         if (!in_bounds_fully(gy, gx)) continue;
                         if (!cave_floor_bold(gy, gx)) continue;
+                        if (cave_info[gy][gx] & CAVE_G_VAULT) continue; /* preserve greater vaults only */
                         if (rand_int(100) < rubble_chance)
                             cave_set_feat(gy, gx, FEAT_RUBBLE);
                     }
@@ -3935,6 +4105,7 @@ static void apply_quadrant_generation_modes(void)
                     for (int gx = x1 + 2; gx <= x2 - 2; ++gx)
                     {
                         if (!in_bounds_fully(gy, gx)) continue;
+                        if (cave_info[gy][gx] & CAVE_G_VAULT) continue; /* preserve greater vaults only */
                         if (cave_feat[gy][gx] != FEAT_WALL_OUTER) continue;
                         if (rand_int(100) < 30)
                         {
@@ -4173,6 +4344,7 @@ static void apply_quadrant_generation_modes(void)
                     {
                         if (!in_bounds_fully(gy, gx)) continue;
                         if (!cave_floor_bold(gy, gx)) continue;
+                        if (cave_info[gy][gx] & CAVE_G_VAULT) continue; /* preserve greater vaults only */
                         if (rand_int(100) < rubble_chance)
                             cave_set_feat(gy, gx, FEAT_RUBBLE);
                     }
@@ -4184,6 +4356,7 @@ static void apply_quadrant_generation_modes(void)
                     for (int gx = x1 + 2; gx <= x2 - 2; ++gx)
                     {
                         if (!in_bounds_fully(gy, gx)) continue;
+                        if (cave_info[gy][gx] & CAVE_G_VAULT) continue; /* preserve greater vaults only */
                         if (cave_feat[gy][gx] != FEAT_WALL_OUTER) continue;
                         if (rand_int(100) < 30)
                         {
@@ -6423,6 +6596,7 @@ static bool connect_two_rooms(int r1, int r2, bool tentative, bool desperate)
     int r1y, r1x, r1y1, r1x1, r1y2, r1x2;
     int r2y, r2x, r2y1, r2x1, r2y2, r2x2;
     bool success;
+    int morgoth_margin = 1;
 
     /* Allow long corridor spans across 3x3 partitions on 15x15 block maps */
     int base_limit_x = MAX(50, (p_ptr->cur_map_wid * 2) / 3); /* ~110 on 165x165 */
@@ -6443,6 +6617,13 @@ static bool connect_two_rooms(int r1, int r2, bool tentative, bool desperate)
     r2x1 = dun->corner[r2].x1;
     r2y2 = dun->corner[r2].y2;
     r2x2 = dun->corner[r2].x2;
+
+    if (morgoth_region_active())
+    {
+        /* Skip any corridor that would cross the throne room partition */
+        if (morgoth_segment_blocked(r1y, r1x, r2y, r2x, morgoth_margin))
+            return false;
+    }
 
     /* if the rooms are too far apart, then just give up immediately */
     // look at total distance of room centres
@@ -6487,6 +6668,8 @@ static bool connect_two_rooms(int r1, int r2, bool tentative, bool desperate)
                         // crash:
                         // http://angband.oook.cz/ladder-show.php?id=13070
 
+        if (morgoth_segment_blocked(r1y, x, r2y, x, morgoth_margin))
+            return false;
         success = build_tunnel(r1, r2, r1y, x, r2y, x, tentative);
     }
     /* if horizontal overlap */
@@ -6497,6 +6680,8 @@ static bool connect_two_rooms(int r1, int r2, bool tentative, bool desperate)
                 r2y2)); // Sil-x: one of these two lines has somehow caused a
                         // crash
 
+        if (morgoth_segment_blocked(y, r1x, y, r2x, morgoth_margin))
+            return false;
         success = build_tunnel(r1, r2, y, r1x, y, r2x, tentative);
     }
 
@@ -6512,6 +6697,15 @@ static bool connect_two_rooms(int r1, int r2, bool tentative, bool desperate)
             return (false);
         if (MIN(ABS(r1y - r2y1), ABS(r1y - r2y2)) > distance_limity - 2)
             return (false);
+
+        if (morgoth_segment_blocked(r1y, r1x, r1y, r2x, morgoth_margin))
+            return false;
+        if (morgoth_segment_blocked(r1y, r2x, r2y, r2x, morgoth_margin))
+            return false;
+        if (morgoth_segment_blocked(r1y, r1x, r2y, r1x, morgoth_margin))
+            return false;
+        if (morgoth_segment_blocked(r2y, r1x, r2y, r2x, morgoth_margin))
+            return false;
 
         success = build_tunnel(r1, r2, r1y, r1x, r2y, r2x, tentative);
     }
@@ -6561,6 +6755,11 @@ static bool connect_room_to_corridor(int r)
                 success = false;
                 done = true;
             }
+            else if (coord_in_morgoth_region(y, x, 1))
+            {
+                success = false;
+                done = true;
+            }
 
             // it has intercepted a tunnel!
             else if ((cave_feat[y][x] == FEAT_FLOOR)
@@ -6602,6 +6801,11 @@ static bool connect_room_to_corridor(int r)
             // abort if the tunnel leaves the map or passes through a door
             if (!in_bounds(y, x) || (ABS(x - rx) > length)
                 || cave_any_closed_door_bold(y, x))
+            {
+                success = false;
+                done = true;
+            }
+            else if (coord_in_morgoth_region(y, x, 1))
             {
                 success = false;
                 done = true;
@@ -6984,6 +7188,7 @@ bool check_connectivity(void)
             {
                 if (!cave_access[yy][xx]) continue;
                 if (!player_passable(yy, xx, true)) continue;
+                if (coord_in_morgoth_region(yy, xx, 1)) continue;
                 int d = ABS(yy - sample_y) + ABS(xx - sample_x);
                 
                 /* Prefer connections of distance >= 4 to avoid short useless stubs */
@@ -7024,6 +7229,7 @@ bool check_connectivity(void)
         clamp_to_interior(&y1, &x1, 2);
         int cy = y0, cx = x0;
         bool horiz_first = one_in_(2);
+        bool path_ok = true;
         
         if (horiz_first)
         {
@@ -7031,6 +7237,11 @@ bool check_connectivity(void)
             int sx = (x0 < x1) ? 1 : -1;
             while (cx != x1)
             {
+                if (coord_in_morgoth_region(cy, cx, 1))
+                {
+                    path_ok = false;
+                    break;
+                }
                 if (in_bounds_fully(cy, cx) && cave_feat[cy][cx] != FEAT_WALL_PERM)
                 {
                     if (!cave_floor_bold(cy, cx))
@@ -7038,10 +7249,16 @@ bool check_connectivity(void)
                 }
                 cx += sx;
             }
+            if (!path_ok) continue;
             /* Vertical leg */
             int sy = (y0 < y1) ? 1 : -1;
             while (cy != y1)
             {
+                if (coord_in_morgoth_region(cy, cx, 1))
+                {
+                    path_ok = false;
+                    break;
+                }
                 if (in_bounds_fully(cy, cx) && cave_feat[cy][cx] != FEAT_WALL_PERM)
                 {
                     if (!cave_floor_bold(cy, cx))
@@ -7049,6 +7266,7 @@ bool check_connectivity(void)
                 }
                 cy += sy;
             }
+            if (!path_ok) continue;
         }
         else
         {
@@ -7056,6 +7274,11 @@ bool check_connectivity(void)
             int sy = (y0 < y1) ? 1 : -1;
             while (cy != y1)
             {
+                if (coord_in_morgoth_region(cy, cx, 1))
+                {
+                    path_ok = false;
+                    break;
+                }
                 if (in_bounds_fully(cy, cx) && cave_feat[cy][cx] != FEAT_WALL_PERM)
                 {
                     if (!cave_floor_bold(cy, cx))
@@ -7063,10 +7286,16 @@ bool check_connectivity(void)
                 }
                 cy += sy;
             }
+            if (!path_ok) continue;
             /* Horizontal leg */
             int sx = (x0 < x1) ? 1 : -1;
             while (cx != x1)
             {
+                if (coord_in_morgoth_region(cy, cx, 1))
+                {
+                    path_ok = false;
+                    break;
+                }
                 if (in_bounds_fully(cy, cx) && cave_feat[cy][cx] != FEAT_WALL_PERM)
                 {
                     if (!cave_floor_bold(cy, cx))
@@ -7074,6 +7303,7 @@ bool check_connectivity(void)
                 }
                 cx += sx;
             }
+            if (!path_ok) continue;
         }
         /* Final destination tile */
         if (in_bounds_fully(y1, x1) && cave_feat[y1][x1] != FEAT_WALL_PERM)
@@ -7096,6 +7326,11 @@ bool check_connectivity(void)
     for (y = 0; y < p_ptr->cur_map_hgt; y++)
         for (x = 0; x < p_ptr->cur_map_wid; x++)
             cave_access[y][x] = false;
+
+    if (p_ptr->depth >= MORGOTH_DEPTH)
+    {
+        return (true);
+    }
 
     if (p_ptr->create_stair == FEAT_MORE
         || p_ptr->create_stair == FEAT_MORE_SHAFT)
@@ -7154,6 +7389,7 @@ static bool connect_rooms_stairs(void)
     int initial_down = FEAT_MORE;
 
     bool joined;
+    bool no_down_stairs = (p_ptr->depth >= MORGOTH_DEPTH);
 
     /* Add backbone links across partition neighbors */
     connect_partition_hubs();
@@ -7345,6 +7581,8 @@ static bool connect_rooms_stairs(void)
                 {
                     if (!in_bounds_fully(leg_y, tx) || cave_feat[leg_y][tx] == FEAT_WALL_PERM)
                         valid = false;
+                    if (coord_in_morgoth_region(leg_y, tx, 1))
+                        valid = false;
                 }
                 
                 /* Check vertical leg */
@@ -7353,6 +7591,8 @@ static bool connect_rooms_stairs(void)
                 {
                     if (!in_bounds_fully(ty, leg_x) || cave_feat[ty][leg_x] == FEAT_WALL_PERM)
                         valid = false;
+                    if (coord_in_morgoth_region(ty, leg_x, 1))
+                        valid = false;
                 }
                 
                 if (valid)
@@ -7360,15 +7600,27 @@ static bool connect_rooms_stairs(void)
                     /* Carve horizontal leg */
                     for (int tx = min_x; tx <= max_x; ++tx)
                     {
+                        if (coord_in_morgoth_region(leg_y, tx, 1))
+                        {
+                            valid = false;
+                            break;
+                        }
                         if (!cave_floor_bold(leg_y, tx))
                             cave_set_feat(leg_y, tx, FEAT_FLOOR);
                     }
+                    if (!valid) continue;
                     /* Carve vertical leg */
                     for (int ty = min_y; ty <= max_y; ++ty)
                     {
+                        if (coord_in_morgoth_region(ty, leg_x, 1))
+                        {
+                            valid = false;
+                            break;
+                        }
                         if (!cave_floor_bold(ty, leg_x))
                             cave_set_feat(ty, leg_x, FEAT_FLOOR);
                     }
+                    if (!valid) continue;
                     
                     dun->connection[best_a][best_b] = true;
                     dun->connection[best_b][best_a] = true;
@@ -7432,8 +7684,14 @@ static bool connect_rooms_stairs(void)
             int dx = ABS(x1 - x0), sy = (y0 < y1) ? 1 : -1;
             int err = (dx > dy ? dx : -dy) / 2;
             int y = y0, x = x0;
+            bool aborted = false;
             while (true)
             {
+                if (coord_in_morgoth_region(y, x, 1))
+                {
+                    aborted = true;
+                    break;
+                }
                 if (in_bounds_fully(y, x) && cave_feat[y][x] != FEAT_WALL_PERM)
                 {
                     if (!cave_floor_bold(y, x))
@@ -7445,8 +7703,11 @@ static bool connect_rooms_stairs(void)
                 if (e2 < dy)  { err += dx; y += sy; }
             }
 
-            dun->connection[a][b] = dun->connection[b][a] = true;
-            pieces = dungeon_pieces();
+            if (!aborted)
+            {
+                dun->connection[a][b] = dun->connection[b][a] = true;
+                pieces = dungeon_pieces();
+            }
         }
 
         log_trace("connect_rooms_stairs: forced-connect phase reduced pieces to %d", pieces);
@@ -7496,24 +7757,27 @@ static bool connect_rooms_stairs(void)
         if (y2 >= p_ptr->cur_map_hgt - 1) y2 = p_ptr->cur_map_hgt - 2;
         if (x2 >= p_ptr->cur_map_wid - 1) x2 = p_ptr->cur_map_wid - 2;
         
-        /* Place one down stair in this partition */
-        for (int attempt = 0; attempt < 100; ++attempt)
+        /* Place one down stair in this partition (unless final level) */
+        if (!no_down_stairs)
         {
-            int yy = rand_range(y1, y2);
-            int xx = rand_range(x1, x2);
-            
-            if (cave_naked_bold(yy, xx) && cave_floor_bold(yy, xx) &&
-                cave_feat[yy - 1][xx] != FEAT_DOOR_HEAD &&
-                cave_feat[yy][xx - 1] != FEAT_DOOR_HEAD &&
-                cave_feat[yy + 1][xx] != FEAT_DOOR_HEAD &&
-                cave_feat[yy][xx + 1] != FEAT_DOOR_HEAD)
+            for (int attempt = 0; attempt < 100; ++attempt)
             {
-                int feat = (p_ptr->on_the_run) ? FEAT_MORE_SHAFT : 
-                          (down_placed == 0 || p_ptr->depth >= MORGOTH_DEPTH) ? FEAT_MORE : 
-                          choose_down_stairs();
-                cave_set_feat(yy, xx, feat);
-                down_placed++;
-                break;
+                int yy = rand_range(y1, y2);
+                int xx = rand_range(x1, x2);
+                
+                if (cave_naked_bold(yy, xx) && cave_floor_bold(yy, xx) &&
+                    cave_feat[yy - 1][xx] != FEAT_DOOR_HEAD &&
+                    cave_feat[yy][xx - 1] != FEAT_DOOR_HEAD &&
+                    cave_feat[yy + 1][xx] != FEAT_DOOR_HEAD &&
+                    cave_feat[yy][xx + 1] != FEAT_DOOR_HEAD)
+                {
+                    int feat = (p_ptr->on_the_run) ? FEAT_MORE_SHAFT : 
+                              (down_placed == 0 || p_ptr->depth >= MORGOTH_DEPTH) ? FEAT_MORE : 
+                              choose_down_stairs();
+                    cave_set_feat(yy, xx, feat);
+                    down_placed++;
+                    break;
+                }
             }
         }
         
@@ -7542,7 +7806,7 @@ static bool connect_rooms_stairs(void)
     log_trace("Guaranteed partition stairs: %d down, %d up placed", down_placed, up_placed);
 
     /* Second pass: place remaining stairs randomly across the map */
-    int down_remaining = stairs - down_placed;
+    int down_remaining = no_down_stairs ? 0 : (stairs - down_placed);
     int up_remaining = stairs - up_placed;
     
     /* Place remaining down stairs */
@@ -7554,6 +7818,9 @@ static bool connect_rooms_stairs(void)
     
     initial_down = p_ptr->on_the_run ? FEAT_MORE_SHAFT : FEAT_MORE;
     
+    if (no_down_stairs)
+        down_stairs = 0;
+
     if (down_stairs > 0 && !(alloc_stairs(initial_down, down_stairs)))
     {
         if (cheat_room)
@@ -9118,6 +9385,12 @@ static bool try_place_docked_vault(
         return false;
     }
 
+    /* Never dock Morgoth's throne room */
+    if (v_ptr->typ == 9)
+    {
+        return false;
+    }
+
     if (v_ptr->flags & (VLT_QUEST))
     {
         return false;
@@ -9133,7 +9406,7 @@ static bool try_place_docked_vault(
     int vault_count = 0;
     for (int i = 0; i < dun->cent_n; ++i)
     {
-        if (room_kind_is_vault(dun->kind[i]) && !dun->is_quest[i])
+        if (room_kind_is_vault(dun->kind[i]) && !dun->is_quest[i] && dun->kind[i] != 9)
         {
             vault_indices[vault_count++] = i;
         }
@@ -9794,7 +10067,7 @@ static bool build_type8(int y0, int x0)
 /*
  * Type 9 -- Morgoth's vault (see "vault.txt")
  */
-static bool build_type9(int y0, int x0)
+static bool build_type9(int y0, int x0, vault_type** used_vault)
 {
     vault_type* v_ptr;
     int tries = 0;
@@ -9818,6 +10091,9 @@ static bool build_type9(int y0, int x0)
         }
     }
 
+    if (used_vault)
+        *used_vault = v_ptr;
+
     /* Try building the vault */
     if (!build_vault(y0, x0, v_ptr, false))
     {
@@ -9834,6 +10110,104 @@ static bool build_type9(int y0, int x0)
     }
 
     return (true);
+}
+
+/* Carve two 3-wide tunnels from the north face of the throne room up toward the partition edge */
+static void carve_morgoth_entry_tunnels(const vault_type* v_ptr, int y0, int x0)
+{
+    if (!v_ptr)
+        return;
+
+    int top_y = y0 - v_ptr->hgt / 2;
+    int left_x = x0 - v_ptr->wid / 2;
+    int right_x = left_x + v_ptr->wid - 1;
+
+    /* Collect contiguous '$' runs on the top row (stored as FEAT_WALL_OUTER) */
+    int seg_start[4];
+    int seg_end[4];
+    int segs = 0;
+
+    for (int x = left_x; x <= right_x; x++)
+    {
+        if (cave_feat[top_y][x] == FEAT_WALL_OUTER)
+        {
+            if (segs == 0 || x != seg_end[segs - 1] + 1)
+            {
+                if (segs >= 4)
+                    break;
+                seg_start[segs] = seg_end[segs] = x;
+                segs++;
+            }
+            else
+            {
+                seg_end[segs - 1] = x;
+            }
+        }
+    }
+
+    if (segs == 0)
+        return;
+
+    int tunnel_limit = morgoth_partition_reserved ? morgoth_partition_bounds.y1 - 2 : top_y - 20;
+    if (tunnel_limit < 1)
+        tunnel_limit = 1;
+    if (tunnel_limit > top_y)
+        tunnel_limit = top_y;
+
+    for (int s = 0; s < segs; s++)
+    {
+        int center_x = (seg_start[s] + seg_end[s]) / 2;
+        int x1 = MAX(left_x + 1, center_x - 1);
+        int x2 = MIN(right_x - 1, center_x + 1);
+
+        for (int y = top_y; y >= tunnel_limit; y--)
+        {
+            bool joined_open_area = false;
+
+            for (int x = x1; x <= x2; x++)
+            {
+                if (!in_bounds_fully(y, x))
+                    continue;
+
+                if (cave_feat[y][x] == FEAT_WALL_PERM)
+                    continue;
+
+                if (cave_floor_bold(y, x) && !(cave_info[y][x] & CAVE_ICKY))
+                    joined_open_area = true;
+
+                cave_set_feat(y, x, FEAT_FLOOR);
+                cave_info[y][x] |= (CAVE_ROOM | CAVE_ICKY | CAVE_G_VAULT);
+            }
+
+            if (joined_open_area && y < top_y)
+                break;
+        }
+    }
+}
+
+/* Force-place Morgoth's throne room in the reserved central partition */
+static bool place_morgoth_throne_room(void)
+{
+    vault_type* v_ptr = NULL;
+
+    if (!morgoth_partition_reserved)
+    {
+        log_trace("Morgoth level: no reserved partition recorded for throne room placement");
+        return false;
+    }
+
+    int cy = (morgoth_vault_center_y > 0) ? morgoth_vault_center_y : p_ptr->cur_map_hgt / 2;
+    int cx = (morgoth_vault_center_x > 0) ? morgoth_vault_center_x : p_ptr->cur_map_wid / 2;
+
+    if (!build_type9(cy, cx, &v_ptr))
+    {
+        log_trace("Morgoth level: failed to build throne room at (%d,%d)", cy, cx);
+        return false;
+    }
+
+    carve_morgoth_entry_tunnels(v_ptr, cy, cx);
+    seal_morgoth_partition();
+    return true;
 }
 
 /*
@@ -10397,6 +10771,9 @@ static bool cave_gen(void)
 
     int is_guaranteed_forge_level = false;
     bool duruin_bastion_forced = false;
+    bool is_morgoth_level = (p_ptr->depth == MORGOTH_DEPTH);
+
+    reset_morgoth_layout_state(is_morgoth_level);
     
     /* Reset labyrinth partition counter for this level */
     current_labyrinth_partitions = 0;
@@ -10406,14 +10783,18 @@ static bool cave_gen(void)
     qv_stored_y1 = qv_stored_x1 = qv_stored_y2 = qv_stored_x2 = -1;
     
     /* Run quest lottery once per level to determine which quest (if any) gets this level */
-    run_quest_lottery();
+    if (is_morgoth_level) {
+        quest_lottery_winner = 0;
+    } else {
+        run_quest_lottery();
+    }
     
     /* Debug: Log entry into cave_gen */
     log_trace("cave_gen: Starting level generation (quest_vault_used=%s, lottery_winner=%d)", 
               p_ptr->quest_vault_used ? "true" : "false", quest_lottery_winner);
     
     /* Varda quest reserves the run to avoid other quest content until complete */
-    if (p_ptr->varda_quest >= VARDA_QUEST_ACTIVE && !p_ptr->quest_reserved[0]) {
+    if (!is_morgoth_level && p_ptr->varda_quest >= VARDA_QUEST_ACTIVE && !p_ptr->quest_reserved[0]) {
         p_ptr->quest_reserved[0] = 1;
         log_trace("Varda quest: === QUEST SLOT RESERVED === Active Varda quest reserves slot (state=%d)", p_ptr->varda_quest);
     }
@@ -10422,7 +10803,7 @@ static bool cave_gen(void)
               p_ptr->quest_reserved[0], p_ptr->varda_quest, quest_lottery_winner);
     
     /* Varda quest: flag forced bastion placement on first level deeper than 500ft */
-    if (p_ptr->varda_quest == VARDA_QUEST_ACTIVE && !p_ptr->varda_vault_placed && p_ptr->depth > 10) {
+    if (!is_morgoth_level && p_ptr->varda_quest == VARDA_QUEST_ACTIVE && !p_ptr->varda_vault_placed && p_ptr->depth > 10) {
         if (!p_ptr->varda_vault_ready) {
             log_trace("Varda quest: Crossing 500ft, setting bastion_ready at depth %d", p_ptr->depth);
         }
@@ -10543,124 +10924,127 @@ static bool cave_gen(void)
     log_trace("cave_gen: post guaranteed-forge path cent_n=%d", dun->cent_n);
     log_trace("cave_gen: post guaranteed-forge path cent_n=%d", dun->cent_n);
 
-    /* Quest vault determination - Allow re-placement during level regeneration */
-    log_trace("Quest vault: ENTERING quest vault logic check (quest_vault_used=%s, force_forge=%s, qv_placed_this_level=%s)", 
-              p_ptr->quest_vault_used ? "true" : "false", 
-              p_ptr->force_forge ? "true" : "false",
-              qv_placed_this_level ? "true" : "false");
-    log_trace("Quest vault: Starting quest vault check (quest_vault_used=%s, force_forge=%s)", 
-              p_ptr->quest_vault_used ? "true" : "false", 
-              p_ptr->force_forge ? "true" : "false");
-    
-    /* If Varda's quest is active and the bastion is due, force its placement first */
-    log_trace("Quest vault check: varda_vault_ready=%d, varda_quest=%d (ACTIVE=%d), varda_vault_placed=%d",
-              p_ptr->varda_vault_ready, p_ptr->varda_quest, VARDA_QUEST_ACTIVE, p_ptr->varda_vault_placed);
-    
-    if (p_ptr->varda_vault_ready && p_ptr->varda_quest == VARDA_QUEST_ACTIVE && !p_ptr->varda_vault_placed) {
-        log_trace("Quest vault: === DURUIN BASTION FORCE PLACEMENT === Starting at depth %d", p_ptr->depth);
-        if (!place_duruin_bastion()) {
-            log_trace("Quest vault: === DURUIN BASTION FAILED === Regenerating level");
-            return false;
-        }
-        log_trace("Quest vault: === DURUIN BASTION SUCCESS === Placed successfully");
-        duruin_bastion_forced = true;
-    } else if (p_ptr->varda_quest == VARDA_QUEST_ACTIVE) {
-        log_trace("Quest vault: Varda quest ACTIVE but bastion not ready (vault_ready=%d, vault_placed=%d)",
-                  p_ptr->varda_vault_ready, p_ptr->varda_vault_placed);
-    }
-              
-    /* QUEST VAULT REGENERATION FIX: Allow quest vault re-placement during regeneration */
-    /* Quest vaults can be placed if: */
-    /* 1. quest_vault_used is false (haven't successfully completed a quest vault this run), OR */
-    /* 2. We're in a regeneration scenario (quest vault was placed before but level failed) */
-    if (!p_ptr->quest_vault_used && !duruin_bastion_forced)
+    if (!is_morgoth_level)
     {
-        /* QUEST VAULT REGENERATION FIX: Remove the quest_vault_attempted_this_level check */
-        /* to allow quest vault re-placement during level regeneration */
+        /* Quest vault determination - Allow re-placement during level regeneration */
+        log_trace("Quest vault: ENTERING quest vault logic check (quest_vault_used=%s, force_forge=%s, qv_placed_this_level=%s)", 
+                  p_ptr->quest_vault_used ? "true" : "false", 
+                  p_ptr->force_forge ? "true" : "false",
+                  qv_placed_this_level ? "true" : "false");
+        log_trace("Quest vault: Starting quest vault check (quest_vault_used=%s, force_forge=%s)", 
+                  p_ptr->quest_vault_used ? "true" : "false", 
+                  p_ptr->force_forge ? "true" : "false");
         
-        /* Check if any quest is already active - ONE QUEST PER RUN ENFORCEMENT */
-        log_trace("Quest vault: Checking one-quest-per-run enforcement:");
-        log_trace("Quest vault:   quest_reserved[0]=%d (should block if 1)", p_ptr->quest_reserved[0]);
-        log_trace("Quest vault:   tulkas=%d, mandos=%d, aule=%d, varda=%d",
-                  p_ptr->tulkas_quest, p_ptr->mandos_quest, p_ptr->aule_quest, p_ptr->varda_quest);
+        /* If Varda's quest is active and the bastion is due, force its placement first */
+        log_trace("Quest vault check: varda_vault_ready=%d, varda_quest=%d (ACTIVE=%d), varda_vault_placed=%d",
+                  p_ptr->varda_vault_ready, p_ptr->varda_quest, VARDA_QUEST_ACTIVE, p_ptr->varda_vault_placed);
         
-        if (p_ptr->quest_reserved[0] || 
-            p_ptr->tulkas_quest != TULKAS_QUEST_NOT_STARTED ||
-            p_ptr->mandos_quest != MANDOS_QUEST_NOT_STARTED ||
-            p_ptr->aule_quest != AULE_QUEST_NOT_STARTED ||
-            p_ptr->varda_quest != VARDA_QUEST_NOT_STARTED) {
-            log_trace("Quest vault: === BLOCKED === Quest already active - one quest per run enforced (tulkas=%d, mandos=%d, aule=%d, varda=%d, reserved=%d)", 
-                     p_ptr->tulkas_quest, p_ptr->mandos_quest, p_ptr->aule_quest, p_ptr->varda_quest, p_ptr->quest_reserved[0]);
-            /* Don't place any quest vaults - skip to end */
-        } else {
-            int quest_vault_roll = dieroll(p_ptr->depth + 5);
-            log_trace("Quest vault: Level determination roll = %d", quest_vault_roll);
-
-            if (one_in_(5))
-            {
-                int bonus = dieroll(5);
-                quest_vault_roll += bonus;
-                log_trace("Quest vault: Bonus roll (+%d) = %d total", bonus, quest_vault_roll);
+        if (p_ptr->varda_vault_ready && p_ptr->varda_quest == VARDA_QUEST_ACTIVE && !p_ptr->varda_vault_placed) {
+            log_trace("Quest vault: === DURUIN BASTION FORCE PLACEMENT === Starting at depth %d", p_ptr->depth);
+            if (!place_duruin_bastion()) {
+                log_trace("Quest vault: === DURUIN BASTION FAILED === Regenerating level");
+                return false;
             }
-
-            bool quest_vault_placed = false;
+            log_trace("Quest vault: === DURUIN BASTION SUCCESS === Placed successfully");
+            duruin_bastion_forced = true;
+        } else if (p_ptr->varda_quest == VARDA_QUEST_ACTIVE) {
+            log_trace("Quest vault: Varda quest ACTIVE but bastion not ready (vault_ready=%d, vault_placed=%d)",
+                      p_ptr->varda_vault_ready, p_ptr->varda_vault_placed);
+        }
+                  
+        /* QUEST VAULT REGENERATION FIX: Allow quest vault re-placement during regeneration */
+        /* Quest vaults can be placed if: */
+        /* 1. quest_vault_used is false (haven't successfully completed a quest vault this run), OR */
+        /* 2. We're in a regeneration scenario (quest vault was placed before but level failed) */
+        if (!p_ptr->quest_vault_used && !duruin_bastion_forced)
+        {
+            /* QUEST VAULT REGENERATION FIX: Remove the quest_vault_attempted_this_level check */
+            /* to allow quest vault re-placement during level regeneration */
             
-            if (quest_vault_roll >= 18)
-            {
-                log_trace("Quest vault: Hit greater vault threshold (%d >= 18), trying quest vaults 8->7->6", quest_vault_roll);
-                quest_vault_placed = try_quest_vault_type(8) || try_quest_vault_type(7) || try_quest_vault_type(6);
-                
-                if (!quest_vault_placed) {
-                    log_trace("Quest vault: === FAILED TO PLACE REQUIRED QUEST VAULT === Regenerating level");
-                    return false; /* Force regeneration to guarantee quest vault spawns */
-                }
-            }
-            else if (quest_vault_roll >= 13)
-            {
-                log_trace("Quest vault: Hit lesser vault threshold (%d >= 13), trying quest vaults 7->6", quest_vault_roll);
-                quest_vault_placed = try_quest_vault_type(7) || try_quest_vault_type(6);
-                
-                if (!quest_vault_placed) {
-                    log_trace("Quest vault: === FAILED TO PLACE REQUIRED QUEST VAULT === Regenerating level");
-                    return false; /* Force regeneration to guarantee quest vault spawns */
-                }
-            }
-            else if (quest_vault_roll >= 8)
-            {
-                log_trace("Quest vault: Hit interesting room threshold (%d >= 8), trying quest vault 6", quest_vault_roll);
-                quest_vault_placed = try_quest_vault_type(6);
-                
-                if (!quest_vault_placed) {
-                    log_trace("Quest vault: === FAILED TO PLACE REQUIRED QUEST VAULT === Regenerating level");
-                    return false; /* Force regeneration to guarantee quest vault spawns */
-                }
-            }
-            else
-            {
-                log_trace("Quest vault: Roll too low (%d < 8), no quest vault this level", quest_vault_roll);
-            }
+            /* Check if any quest is already active - ONE QUEST PER RUN ENFORCEMENT */
+            log_trace("Quest vault: Checking one-quest-per-run enforcement:");
+            log_trace("Quest vault:   quest_reserved[0]=%d (should block if 1)", p_ptr->quest_reserved[0]);
+            log_trace("Quest vault:   tulkas=%d, mandos=%d, aule=%d, varda=%d",
+                      p_ptr->tulkas_quest, p_ptr->mandos_quest, p_ptr->aule_quest, p_ptr->varda_quest);
             
-            if (quest_vault_placed)
-            {
-                log_trace("Quest vault: Successfully placed quest vault, no more quest vaults this run");
-            }
-            else
-            {
-                log_trace("Quest vault: No quest vault placed this level");
+            if (p_ptr->quest_reserved[0] || 
+                p_ptr->tulkas_quest != TULKAS_QUEST_NOT_STARTED ||
+                p_ptr->mandos_quest != MANDOS_QUEST_NOT_STARTED ||
+                p_ptr->aule_quest != AULE_QUEST_NOT_STARTED ||
+                p_ptr->varda_quest != VARDA_QUEST_NOT_STARTED) {
+                log_trace("Quest vault: === BLOCKED === Quest already active - one quest per run enforced (tulkas=%d, mandos=%d, aule=%d, varda=%d, reserved=%d)", 
+                         p_ptr->tulkas_quest, p_ptr->mandos_quest, p_ptr->aule_quest, p_ptr->varda_quest, p_ptr->quest_reserved[0]);
+                /* Don't place any quest vaults - skip to end */
+            } else {
+                int quest_vault_roll = dieroll(p_ptr->depth + 5);
+                log_trace("Quest vault: Level determination roll = %d", quest_vault_roll);
+
+                if (one_in_(5))
+                {
+                    int bonus = dieroll(5);
+                    quest_vault_roll += bonus;
+                    log_trace("Quest vault: Bonus roll (+%d) = %d total", bonus, quest_vault_roll);
+                }
+
+                bool quest_vault_placed = false;
+                
+                if (quest_vault_roll >= 18)
+                {
+                    log_trace("Quest vault: Hit greater vault threshold (%d >= 18), trying quest vaults 8->7->6", quest_vault_roll);
+                    quest_vault_placed = try_quest_vault_type(8) || try_quest_vault_type(7) || try_quest_vault_type(6);
+                    
+                    if (!quest_vault_placed) {
+                        log_trace("Quest vault: === FAILED TO PLACE REQUIRED QUEST VAULT === Regenerating level");
+                        return false; /* Force regeneration to guarantee quest vault spawns */
+                    }
+                }
+                else if (quest_vault_roll >= 13)
+                {
+                    log_trace("Quest vault: Hit lesser vault threshold (%d >= 13), trying quest vaults 7->6", quest_vault_roll);
+                    quest_vault_placed = try_quest_vault_type(7) || try_quest_vault_type(6);
+                    
+                    if (!quest_vault_placed) {
+                        log_trace("Quest vault: === FAILED TO PLACE REQUIRED QUEST VAULT === Regenerating level");
+                        return false; /* Force regeneration to guarantee quest vault spawns */
+                    }
+                }
+                else if (quest_vault_roll >= 8)
+                {
+                    log_trace("Quest vault: Hit interesting room threshold (%d >= 8), trying quest vault 6", quest_vault_roll);
+                    quest_vault_placed = try_quest_vault_type(6);
+                    
+                    if (!quest_vault_placed) {
+                        log_trace("Quest vault: === FAILED TO PLACE REQUIRED QUEST VAULT === Regenerating level");
+                        return false; /* Force regeneration to guarantee quest vault spawns */
+                    }
+                }
+                else
+                {
+                    log_trace("Quest vault: Roll too low (%d < 8), no quest vault this level", quest_vault_roll);
+                }
+                
+                if (quest_vault_placed)
+                {
+                    log_trace("Quest vault: Successfully placed quest vault, no more quest vaults this run");
+                }
+                else
+                {
+                    log_trace("Quest vault: No quest vault placed this level");
+                }
             }
         }
-    }
-    else if (p_ptr->varda_quest >= VARDA_QUEST_ACTIVE)
-    {
-        log_trace("Quest vault: === VARDA QUEST BLOCKS === No other quest vaults allowed while Varda quest active (state=%d)", p_ptr->varda_quest);
-    }
-    else if (duruin_bastion_forced)
-    {
-        log_trace("Quest vault: Bastion already placed for Varda quest, skipping other quest vault attempts this level");
-    }
-    else
-    {
-        log_trace("Quest vault: Already used this run, skipping quest vault check (quest_vault_used=1)");
+        else if (p_ptr->varda_quest >= VARDA_QUEST_ACTIVE)
+        {
+            log_trace("Quest vault: === VARDA QUEST BLOCKS === No other quest vaults allowed while Varda quest active (state=%d)", p_ptr->varda_quest);
+        }
+        else if (duruin_bastion_forced)
+        {
+            log_trace("Quest vault: Bastion already placed for Varda quest, skipping other quest vault attempts this level");
+        }
+        else
+        {
+            log_trace("Quest vault: Already used this run, skipping quest vault check (quest_vault_used=1)");
+        }
     }
 
     /* Seed a handful of prefab anchors up front to diversify layout */
@@ -10671,6 +11055,16 @@ static bool cave_gen(void)
      * The corridor system and rescue tunnels handle connectivity instead. */
     /* Repair all outer walls - critical fix for tunnel connectivity after overlapping generation */
     repair_all_outer_walls();
+
+    /* Reserve and place Morgoth's throne room when generating the final level */
+    if (morgoth_level_active)
+    {
+        if (!morgoth_partition_reserved || !place_morgoth_throne_room())
+        {
+            log_trace("Morgoth level: throne room placement failed (reserved=%s)", morgoth_partition_reserved ? "true" : "false");
+            return false;
+        }
+    }
 
     /* Room saturation loop DISABLED - partition system handles room generation
      * The old approach saturated the map with random rooms which conflicted with
@@ -10820,6 +11214,21 @@ static bool cave_gen(void)
             }
         }
     squash_double_doors();
+
+    if (morgoth_level_active)
+    {
+        for (y = 0; y < p_ptr->cur_map_hgt; y++)
+        {
+            for (x = 0; x < p_ptr->cur_map_wid; x++)
+            {
+                if ((cave_feat[y][x] == FEAT_MORE)
+                    || (cave_feat[y][x] == FEAT_MORE_SHAFT))
+                {
+                    cave_set_feat(y, x, FEAT_LESS);
+                }
+            }
+        }
+    }
 
     /* DEBUGGING: Check if quest vault still exists after door randomization */
     check_quest_vault_integrity("AFTER_DOOR_RANDOMIZATION");
@@ -11472,7 +11881,7 @@ static void throne_gen(void)
     /*set the permanent walls*/
     set_perm_boundry();
 
-    build_type9(16, 38);
+    build_type9(16, 38, NULL);
 
     /* Find an up staircase */
     for (y = 0; y < p_ptr->cur_map_hgt; y++)
@@ -11595,6 +12004,7 @@ void unring_a_bell(void)
 void generate_cave(void)
 {
     int y, x, i;
+    bool is_morgoth_level = (p_ptr->depth == MORGOTH_DEPTH);
 
     log_info("generate_cave: Function entry - about to start");
     log_debug("generate_cave: Starting cave generation");
@@ -11610,6 +12020,9 @@ void generate_cave(void)
 
     /*allow uniques to be generated everywhere but in nests/pits*/
     allow_uniques = true;
+
+    /* Never carry the throne-room truce between levels */
+    p_ptr->truce = false;
 
     /* Restrict quest monsters from spawning outside their quest contexts */
     get_mon_num_hook = quest_monster_spawn_okay;
@@ -11759,15 +12172,6 @@ if (playerturn == 0) {
             p_ptr->create_stair = 0;
         }
 
-        /* Build Morgoth's throne room */
-        else if (p_ptr->depth == MORGOTH_DEPTH)
-        {
-            throne_gen();
-
-            /* Hack -- Clear stairs request */
-            p_ptr->create_stair = 0;
-        }
-
         /* Build a real level */
         else
         {
@@ -11775,6 +12179,11 @@ if (playerturn == 0) {
             if (cave_gen())
             {
                 okay = true;
+                if (is_morgoth_level)
+                {
+                    /* Use the built-in vault staircases only */
+                    p_ptr->create_stair = 0;
+                }
                 /* Check if quest vault was placed during this level generation */
                 if (qv_placed_this_level) {
                     quest_vault_placed_this_attempt = true;

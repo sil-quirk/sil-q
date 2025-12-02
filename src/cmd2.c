@@ -566,22 +566,6 @@ void do_cmd_go_down(void)
         new = p_ptr->depth + 1;
     }
 
-    // warn players if this could lead them to Morgoth's Throne Room
-    if (new == MORGOTH_DEPTH)
-    {
-        if (!p_ptr->on_the_run)
-        {
-            msg_print("From up this stair comes the harsh din of feasting in "
-                      "Morgoth's own "
-                      "hall.");
-            if (!get_check("Are you completely sure you wish to descend? "))
-            {
-                p_ptr->create_stair = false;
-                return;
-            }
-        }
-    }
-
     /* Hack -- take a turn */
     p_ptr->energy_use = 100;
 

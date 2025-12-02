@@ -25,6 +25,11 @@
 /* Countdown for forcing a redraw after showing the per-style banner */
 int g_banner_force_redraw_remaining = 0;
 
+/* Morgoth vault tracking variables - file scope for cross-function access */
+static int last_player_y = 0;
+static int last_player_x = 0;
+static bool was_in_morgoth_vault = false;
+
 static void snapshot_run_history(const char* reason)
 {
     if (!character_generated || !p_ptr || p_ptr->is_dead)
@@ -2247,25 +2252,72 @@ static void process_player(void)
 
         /*** Clean up ***/
 
+        bool in_morgoth_vault = (p_ptr->depth == MORGOTH_DEPTH)
+            && (cave_info[p_ptr->py][p_ptr->px] & (CAVE_G_VAULT));
+
         /* Check for greater vault squares */
         if ((cave_info[p_ptr->py][p_ptr->px] & (CAVE_G_VAULT))
-            && (g_vault_name[0] != '\0'))
+            && (g_vault_name[0] != '\0') && !was_in_morgoth_vault)
         {
-            char note[120];
-            char* fmt = "Entered %s";
+            bool clear_vault_name = true;
 
-            strnfmt(note, sizeof(note), fmt, g_vault_name);
-
-            do_cmd_note(note, p_ptr->depth);
-
-            // give a message unless it is the Gates or the Throne Room
-            if (p_ptr->depth > 0 && p_ptr->depth < 20)
+            if (in_morgoth_vault)
             {
-                msg_format("You have entered %s.", g_vault_name);
+                msg_print("From within you hear the harsh din of feasting in Morgoth's own hall.");
+                if (!get_check("Are you completely sure you wish to enter? "))
+                {
+                    clear_vault_name = false;
+
+                    if (in_bounds_fully(last_player_y, last_player_x))
+                    {
+                        p_ptr->py = last_player_y;
+                        p_ptr->px = last_player_x;
+                        p_ptr->update |= (PU_FORGET_VIEW | PU_UPDATE_VIEW | PU_PANEL);
+                        p_ptr->redraw |= (PR_MAP);
+                    }
+                }
+                else
+                {
+                    char note[120];
+                    strnfmt(note, sizeof(note), "Entered %s", g_vault_name);
+                    do_cmd_note(note, p_ptr->depth);
+
+                    pause_with_text(throne_poetry, 5, 13, NULL, 0);
+                    p_ptr->truce = true;
+                    msg_print("There is a strange tension in the air.");
+                    if (p_ptr->skill_use[S_PER] >= 15)
+                        msg_print("You feel that Morgoth's servants are reluctant to attack before he delivers judgment.");
+                }
+            }
+            else
+            {
+                char note[120];
+                strnfmt(note, sizeof(note), "Entered %s", g_vault_name);
+
+                do_cmd_note(note, p_ptr->depth);
+
+                // give a message unless it is the Gates or the Throne Room
+                if (p_ptr->depth > 0 && p_ptr->depth < 20)
+                {
+                    msg_format("You have entered %s.", g_vault_name);
+                }
             }
 
-            g_vault_name[0] = '\0';
+            if (clear_vault_name)
+                g_vault_name[0] = '\0';
         }
+
+        in_morgoth_vault = (p_ptr->depth == MORGOTH_DEPTH)
+            && (cave_info[p_ptr->py][p_ptr->px] & (CAVE_G_VAULT));
+
+        if (was_in_morgoth_vault && !in_morgoth_vault && p_ptr->truce)
+        {
+            break_truce(true);
+        }
+
+        was_in_morgoth_vault = in_morgoth_vault;
+        last_player_y = p_ptr->py;
+        last_player_x = p_ptr->px;
 
         /* Significant */
         if (p_ptr->energy_use)
@@ -3042,6 +3094,10 @@ static void dungeon(void)
             }
         }
     }
+
+    was_in_morgoth_vault = (p_ptr->depth == MORGOTH_DEPTH) && (cave_info[p_ptr->py][p_ptr->px] & CAVE_G_VAULT);
+    last_player_y = p_ptr->py;
+    last_player_x = p_ptr->px;
 
     log_info("Starting main dungeon loop for depth %d", p_ptr->depth);
 
