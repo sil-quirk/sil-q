@@ -1734,7 +1734,7 @@
 #define CAVE_OLD_VIEW 0x0800 /* was square in view last update? */
 #define CAVE_OLD_LIT 0x1000 /* was square lit last update? */
 #define CAVE_OLD_TORCH 0x2000 /* was square in torch radius last update? */
-#define CAVE_ATT2 0x4000 /* unused */
+#define CAVE_CHASM_AREA 0x4000 /* part of a chasm partition (for light penalty) */
 #define CAVE_ATT3 0x8000 /* unused */
 
 /*** Object flags ***/

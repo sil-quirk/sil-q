@@ -2542,6 +2542,53 @@ static bool twall(int y, int x)
     /* Quartz */
     if (cave_feat[y][x] >= FEAT_QUARTZ)
     {
+        /* Check for special drops from quartz in cave areas only */
+        /* Cave quartz veins are marked with CAVE_ROOM during generation */
+        /* Chance: 1% + depth/10, capped at 4%, requires depth 10+ */
+        int depth = p_ptr->depth;
+        bool in_cave = (cave_info[y][x] & CAVE_ROOM) != 0;
+        
+        int special_chance = 1 + (depth / 10);
+        if (special_chance > 4) special_chance = 4;
+        
+        if (in_cave && depth >= 10 && rand_int(100) < special_chance)
+        {
+            object_type object_type_body;
+            object_type *i_ptr = &object_type_body;
+            object_wipe(i_ptr);
+            
+            /* 30% chance mithril at depth 12+, otherwise try for gem */
+            bool try_mithril = (depth >= 12) && (rand_int(100) < 30);
+            
+            if (try_mithril)
+            {
+                /* Drop mithril */
+                s16b k_idx = lookup_kind(TV_METAL, SV_METAL_MITHRIL);
+                if (k_idx > 0)
+                {
+                    object_prep(i_ptr, k_idx);
+                    drop_near(i_ptr, -1, y, x);
+                    msg_print("You find a gleaming piece of mithril!");
+                }
+            }
+            else
+            {
+                /* Try to drop a gem */
+                int saved_object_level = object_level;
+                object_level = depth + rand_int(5);
+                if (make_object(i_ptr, false, false, DROP_TYPE_UNTHEMED))
+                {
+                    /* Only keep if it's actually a gem */
+                    if (i_ptr->tval == TV_GEM)
+                    {
+                        drop_near(i_ptr, -1, y, x);
+                        msg_print("A gem glitters in the rubble!");
+                    }
+                }
+                object_level = saved_object_level;
+            }
+        }
+        
         /* Leave a pile of rubble */
         cave_set_feat(y, x, FEAT_RUBBLE);
     }

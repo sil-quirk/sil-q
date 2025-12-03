@@ -1527,24 +1527,27 @@ static void scatter_quartz_veins_in_bounds(int y1, int y2, int x1, int x2)
             if (feat < FEAT_WALL_EXTRA || feat > FEAT_WALL_SOLID)
                 continue;
             
-            /* Check if adjacent to at least one floor tile */
-            bool adj_floor = false;
-            for (int dy = -1; dy <= 1 && !adj_floor; ++dy)
+            /* Check if adjacent to at least one cave floor tile (CAVE_ROOM) */
+            bool adj_cave_floor = false;
+            for (int dy = -1; dy <= 1 && !adj_cave_floor; ++dy)
             {
-                for (int dx = -1; dx <= 1 && !adj_floor; ++dx)
+                for (int dx = -1; dx <= 1 && !adj_cave_floor; ++dx)
                 {
                     if (dy == 0 && dx == 0)
                         continue;
                     int ny = gy + dy, nx = gx + dx;
-                    if (in_bounds_fully(ny, nx) && cave_floor_bold(ny, nx))
-                        adj_floor = true;
+                    if (in_bounds_fully(ny, nx) && cave_floor_bold(ny, nx)
+                        && (cave_info[ny][nx] & CAVE_ROOM))
+                        adj_cave_floor = true;
                 }
             }
             
-            /* If adjacent to floor, ~30% chance to become quartz vein */
-            if (adj_floor && (rand_int(100) < 30))
+            /* If adjacent to cave floor, ~30% chance to become quartz vein */
+            if (adj_cave_floor && (rand_int(100) < 30))
             {
                 cave_set_feat(gy, gx, FEAT_QUARTZ);
+                /* Mark as part of a room so tunneling can detect cave quartz */
+                cave_info[gy][gx] |= CAVE_ROOM;
                 vein_count++;
             }
         }
@@ -1554,6 +1557,60 @@ static void scatter_quartz_veins_in_bounds(int y1, int y2, int x1, int x2)
     {
         log_trace("scatter_quartz_veins: placed %d veins in bounds (%d,%d)-(%d,%d)",
                   vein_count, y1, x1, y2, x2);
+    }
+}
+
+/* Scatter mithril pieces in cave areas.
+ * Chance increases with depth. Only places items on empty floor tiles. */
+static void scatter_cave_gems_in_bounds(int y1, int y2, int x1, int x2, bool is_big_cave)
+{
+    int depth = p_ptr->depth;
+    int mithril_placed = 0;
+    
+    /* Mithril only appears at depth 12+ */
+    if (depth < 12) return;
+    
+    /* Only 1 mithril per cave area maximum */
+    int max_mithril = 1;
+    
+    /* Very low chance: 1% base + depth/20, capped at 3% */
+    /* This is checked once per cave area, not per tile */
+    int spawn_chance = 1 + (depth / 20);
+    if (spawn_chance > 3) spawn_chance = 3;
+    
+    /* Big caves have slightly better odds */
+    if (is_big_cave) spawn_chance += 1;
+    
+    /* Single roll to determine if this cave gets mithril */
+    if (rand_int(100) >= spawn_chance) return;
+    
+    /* Try to place the mithril on a random floor tile */
+    for (int attempt = 0; attempt < 50 && mithril_placed < max_mithril; ++attempt)
+    {
+        int gy = rand_range(y1, y2);
+        int gx = rand_range(x1, x2);
+        if (!in_bounds_fully(gy, gx)) continue;
+        if (!cave_floor_bold(gy, gx)) continue;
+        if (cave_o_idx[gy][gx] != 0) continue;  /* Already has object */
+        
+        /* Create mithril piece */
+        object_type object_type_body;
+        object_type *i_ptr = &object_type_body;
+        object_wipe(i_ptr);
+        
+        s16b k_idx = lookup_kind(TV_METAL, SV_METAL_MITHRIL);
+        if (k_idx > 0)
+        {
+            object_prep(i_ptr, k_idx);
+            drop_near(i_ptr, -1, gy, gx);
+            mithril_placed++;
+        }
+    }
+    
+    if (mithril_placed > 0)
+    {
+        log_trace("scatter_cave_mithril: placed %d mithril in bounds (%d,%d)-(%d,%d) depth=%d",
+                  mithril_placed, y1, x1, y2, x2, depth);
     }
 }
 
@@ -2334,6 +2391,7 @@ static bool carve_big_cave_bounds(int y_min, int y_max, int x_min, int x_max)
     mark_room_anchor_meta(idx, LAYOUT_ANCHOR_CA_BLOB, false);
     
     scatter_quartz_veins_in_bounds(min_y, max_y, min_x, max_x);
+    scatter_cave_gems_in_bounds(min_y, max_y, min_x, max_x, true);  /* Big cave gets extra gems */
     
     log_trace("Big cave anchor: bounds=(%d,%d)-(%d,%d) center=(%d,%d) edge=%d floors=%d pillars=%d",
         min_y, min_x, max_y, max_x, cy, cx, found_edge, floor_count, pillar_count);
@@ -2598,12 +2656,13 @@ static bool carve_chasm_with_bridges(int y_min, int y_max, int x_min, int x_max)
             if (is_platform[ly * w + lx])
             {
                 cave_set_feat(gy, gx, FEAT_FLOOR);
-                cave_info[gy][gx] |= CAVE_ROOM;
+                cave_info[gy][gx] |= CAVE_ROOM | CAVE_CHASM_AREA;
                 floor_count++;
             }
             else
             {
                 cave_set_feat(gy, gx, FEAT_CHASM);
+                cave_info[gy][gx] |= CAVE_CHASM_AREA;
                 chasm_count++;
             }
         }
@@ -3106,6 +3165,45 @@ static bool carve_labyrinth_bounds(int y_min, int y_max, int x_min, int x_max)
         }
     }
     
+    /* === LABYRINTH SKELETON SPAWNING === */
+    /* Place skeleton items in the labyrinth - those who got lost before you */
+    /* Scale with floor count: 1 skeleton per 25 floor tiles, min 2, max 6 */
+    int lab_skeletons = floor_count / 25;
+    if (lab_skeletons < 2) lab_skeletons = 2;
+    if (lab_skeletons > 6) lab_skeletons = 6;
+    int skeletons_placed = 0;
+    
+    for (int sk = 0; sk < lab_skeletons; ++sk)
+    {
+        for (int tries = 0; tries < 50; ++tries)
+        {
+            int sy = rand_range(min_y, max_y);
+            int sx = rand_range(min_x, max_x);
+            if (!in_bounds_fully(sy, sx)) continue;
+            if (!cave_floor_bold(sy, sx)) continue;
+            if (cave_o_idx[sy][sx] != 0) continue;  /* Already has object */
+            
+            /* Create and place a skeleton */
+            object_type object_type_body;
+            object_type *i_ptr = &object_type_body;
+            object_wipe(i_ptr);
+            
+            /* Mix of human and elf skeletons, more elves */
+            s16b k_idx;
+            if (one_in_(3))
+                k_idx = lookup_kind(TV_SKELETON, SV_SKELETON_HUMAN);
+            else
+                k_idx = lookup_kind(TV_SKELETON, SV_SKELETON_ELF);
+            
+            object_prep(i_ptr, k_idx);
+            i_ptr->pval = 1;  /* Skeleton level */
+            
+            drop_near(i_ptr, -1, sy, sx);
+            skeletons_placed++;
+            break;
+        }
+    }
+    
     /* === LABYRINTH STAIR PLACEMENT === */
     /* Place 1-2 stairs inside the labyrinth for navigation */
     int lab_stairs = 1 + (floor_count > 60 ? 1 : 0);
@@ -3140,10 +3238,10 @@ static bool carve_labyrinth_bounds(int y_min, int y_max, int x_min, int x_max)
         }
     }
     
-    log_trace("Labyrinth anchor (organic): bounds=(%d,%d)-(%d,%d) center=(%d,%d) edge=%d floors=%d chambers=%d monsters=%d stairs=%d",
-        min_y, min_x, max_y, max_x, center_y, center_x, found_edge, floor_count, chamber_count, monsters_placed, stairs_placed);
-    genlog_anchor("LABYRINTH: bounds=(%d,%d)-(%d,%d), %d floor tiles, %d chambers, %d monsters, %d stairs",
-        min_y, min_x, max_y, max_x, floor_count, chamber_count, monsters_placed, stairs_placed);
+    log_trace("Labyrinth anchor (organic): bounds=(%d,%d)-(%d,%d) center=(%d,%d) edge=%d floors=%d chambers=%d monsters=%d skeletons=%d stairs=%d",
+        min_y, min_x, max_y, max_x, center_y, center_x, found_edge, floor_count, chamber_count, monsters_placed, skeletons_placed, stairs_placed);
+    genlog_anchor("LABYRINTH: bounds=(%d,%d)-(%d,%d), %d floor tiles, %d chambers, %d monsters, %d skeletons, %d stairs",
+        min_y, min_x, max_y, max_x, floor_count, chamber_count, monsters_placed, skeletons_placed, stairs_placed);
     return true;
 }
 
@@ -4061,6 +4159,9 @@ static void apply_quadrant_generation_modes(void)
                 
                 /* Scatter quartz veins for natural cave look */
                 scatter_quartz_veins_in_bounds(y1, y2, x1, x2);
+                
+                /* Scatter gems and mithril in cave areas - normal cave bonus */
+                scatter_cave_gems_in_bounds(y1, y2, x1, x2, false);
                 
                 /* Caves with rooms scattered inside */
                 /* Sparse: T1=2 T2=1 T6=2 T7=0 | Normal: T1=2 T2=2 T6=2 T7=1 | Dense: T1=2 T2=3 T6=3 T7=1 */
