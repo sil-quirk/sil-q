@@ -3793,6 +3793,9 @@ PlayResult play_game(void)
     /* Flavor the objects */
     flavor_init();
 
+    /* Build or load the drop catalog (needs flavored kinds) */
+    drop_system_init();
+
     /* Reset visuals */
     reset_visuals(true);
 

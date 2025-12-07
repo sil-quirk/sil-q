@@ -477,7 +477,7 @@ def calculate_difficulty(art):
     # Artefact arrows are easier (halved)
     if art['tval'] == 17:  # Arrow
         dif = dif // 2
-    
+
     return dif
 
 

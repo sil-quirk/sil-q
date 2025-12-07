@@ -789,14 +789,8 @@ static s16b chest_check(int y, int x)
  */
 static void chest_death(int y, int x, s16b o_idx)
 {
-    int number, quality;
-
-    int i, failed;
-    int generated_an_item = false;
-    int original_object_level = object_level;
-
-    bool good, great;
-
+    int number;
+    bool generated_an_item = false;
     int chesttheme = 0;
 
     object_type* o_ptr;
@@ -808,15 +802,8 @@ static void chest_death(int y, int x, s16b o_idx)
     /* Get the chest */
     o_ptr = &o_list[o_idx];
 
-    /* Determine how much to drop (see above)
-     *
-     * Small chests get 2-3 objects */
-
-    number = rand_range(2, 3);
-
-    /* large chests get 4 */
-    if (o_ptr->sval >= SV_CHEST_MIN_LARGE)
-        number = 4;
+    /* Determine how much to drop (see above) */
+    number = (o_ptr->sval >= SV_CHEST_MIN_LARGE) ? 4 : rand_range(2, 3);
 
     /* Zero pval means empty chest */
     if (!o_ptr->pval)
@@ -826,19 +813,27 @@ static void chest_death(int y, int x, s16b o_idx)
     object_generation_mode = OB_GEN_MODE_CHEST;
 
     /* Determine the "value" of the items */
-    object_level = ABS(o_ptr->pval);
-
-    /*paranoia*/
-    if (object_level < 1)
-        object_level = 1;
+    int effective_depth = ABS(o_ptr->pval) + 4; /* all chests add 4 */
+    if (effective_depth < 1)
+        effective_depth = 1;
 
     /*the theme of the chest is created during object generation*/
     chesttheme = (o_ptr->xtra1);
 
     if (o_ptr->sval == SV_CHEST_PRESENT)
-    {
         number = 1;
-    }
+
+    /* Chest-specific difficulty bonus */
+    int chest_bonus = 0;
+    if ((o_ptr->sval == SV_CHEST_SMALL_WOODEN)
+        || (o_ptr->sval == SV_CHEST_LARGE_WOODEN))
+        chest_bonus = 2;
+    else if ((o_ptr->sval == SV_CHEST_SMALL_STEEL)
+        || (o_ptr->sval == SV_CHEST_LARGE_STEEL))
+        chest_bonus = 7;
+    else if ((o_ptr->sval == SV_CHEST_SMALL_JEWELLED)
+        || (o_ptr->sval == SV_CHEST_LARGE_JEWELLED))
+        chest_bonus = 15;
 
     /* Drop some objects (non-chests) */
     for (; number > 0; --number)
@@ -849,87 +844,16 @@ static void chest_death(int y, int x, s16b o_idx)
         /* Wipe the object */
         object_wipe(i_ptr);
 
-        /*used to determine quality of item, gets more likely
-         *to be great as you get deeper.
-         */
-        if (object_level > 0)
-            quality = dieroll(object_level);
-        else
-            quality = 0;
+        int droptype = chesttheme;
+        bool ok = drop_generate_object_with_bonus(
+            effective_depth, false, false, droptype, chest_bonus, i_ptr);
 
-        if ((o_ptr->sval == SV_CHEST_SMALL_STEEL)
-            || (o_ptr->sval == SV_CHEST_LARGE_STEEL))
+        if (ok)
         {
-            quality += 5;
-        }
-        if ((o_ptr->sval == SV_CHEST_SMALL_JEWELLED)
-            || (o_ptr->sval == SV_CHEST_LARGE_JEWELLED))
-        {
-            quality += 10;
-        }
-        if (o_ptr->sval == SV_CHEST_PRESENT)
-        {
-            quality += 20;
-        }
-
-        /* Regular objects in chests will become quite
-         * rare as depth approaches 1250'.
-         * All items with i > 10 are guaranteed good,
-         * all items with i > 15 are guaranteed great,
-         * all items with i > 20  get 4 chances
-         * to become an artefact.
-         * Chests should be extremely lucritive
-         * as a player approaches 1250'.
-         * For potions having the
-         * good and great flags checked increase the
-         * max object generation level, but have no
-         * other effect.  JG
-         */
-        if (quality <= 10)
-        {
-            good = false;
-            great = false;
-        }
-        else if (quality <= 15)
-        {
-            good = true;
-            great = false;
-        }
-        else if (quality <= 20)
-        {
-            good = false;
-            great = true;
-        }
-        else
-        {
-            good = true;
-            great = true;
-        }
-
-        i = 0;
-        failed = false;
-
-        while (!make_object(i_ptr, good, great, chesttheme))
-        {
-            i++;
-            if (i == 100)
-            {
-                failed = true;
-                break;
-            }
-            continue;
-        }
-
-        if (!failed)
-        {
-            /* Drop it in the dungeon */
             generated_an_item = true;
             drop_near(i_ptr, -1, y, x);
         }
     }
-
-    /* Reset the object level */
-    object_level = original_object_level;
 
     /* No longer opening a chest */
     object_generation_mode = OB_GEN_MODE_NORMAL;

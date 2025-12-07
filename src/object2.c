@@ -3892,166 +3892,20 @@ static bool kind_is_good(int k_idx)
  */
 bool make_object(object_type* j_ptr, bool good, bool great, int objecttype)
 {
-    int prob, base;
-    bool generated_special = false;
+    int depth = object_level;
+    if (!drop_generate_object(depth, good, great, objecttype, j_ptr))
+        return false;
 
-    /* Chance of "special object" */
-    prob = ((good || great) ? 10 : 1000);
-
-    /*better chance to check special artefacts if there is a jewelery theme*/
-    if (objecttype == DROP_TYPE_JEWELRY)
-        prob /= 2;
-
-    /* Base level for the object */
-    base = ((good || great) ? (object_level + 3) : object_level);
-
-    // There is a one in prob chance of generating a "special artefact", such as
-    // Barahir
-    if (one_in_(prob))
-    {
-        generated_special = make_artefact_special(j_ptr);
-    }
-
-    /* Attempt to generate a special artefact if prob = 0, or a normal object
-     * if not.
-     */
-    if (!generated_special)
-    {
-        int k_idx;
-
-        // unlike the others, this type can be overridden by 'great' and 'good'
-        if (objecttype == DROP_TYPE_NOT_DAMAGED)
-            get_obj_num_hook = kind_is_not_damaged;
-
-        /*
-         * Next check if it is a themed drop, and
-         * only include objects from a pre-set theme.  But, it can be
-         * called from anywhere.
-         * First check to skip all these checks when unnecessary.
-         */
-        if ((good) || (great) || (objecttype > DROP_TYPE_NOT_DAMAGED))
-        {
-            if (objecttype == DROP_TYPE_POTION)
-                get_obj_num_hook = kind_is_potion;
-            else if (objecttype == DROP_TYPE_STAFF)
-                get_obj_num_hook = kind_is_staff;
-            else if (objecttype == DROP_TYPE_SHIELD)
-                get_obj_num_hook = kind_is_shield;
-            else if (objecttype == DROP_TYPE_WEAPON)
-                get_obj_num_hook = kind_is_weapon;
-            else if (objecttype == DROP_TYPE_ARMOR)
-                get_obj_num_hook = kind_is_armor;
-            else if (objecttype == DROP_TYPE_BOOTS)
-                get_obj_num_hook = kind_is_boots;
-            else if (objecttype == DROP_TYPE_BOW)
-                get_obj_num_hook = kind_is_bow;
-            else if (objecttype == DROP_TYPE_CLOAK)
-                get_obj_num_hook = kind_is_cloak;
-            else if (objecttype == DROP_TYPE_GLOVES)
-                get_obj_num_hook = kind_is_gloves;
-            else if (objecttype == DROP_TYPE_EDGED)
-                get_obj_num_hook = kind_is_edged;
-            else if (objecttype == DROP_TYPE_POLEARM)
-                get_obj_num_hook = kind_is_polearm;
-            else if (objecttype == DROP_TYPE_HEADGEAR)
-                get_obj_num_hook = kind_is_headgear;
-            else if (objecttype == DROP_TYPE_JEWELRY)
-                get_obj_num_hook = kind_is_jewelry;
-            else if (objecttype == DROP_TYPE_CHEST)
-                get_obj_num_hook = kind_is_chest;
-            else if (objecttype == DROP_TYPE_DAMAGED)
-                get_obj_num_hook = kind_is_damaged_item;
-
-            /*
-             *	If it isn't a chest, check good and great flags.
-             *  They each now have their own templates.
-             */
-            else if (great)
-                get_obj_num_hook = kind_is_great;
-            else if (good)
-                get_obj_num_hook = kind_is_good;
-        }
-
-        /* Prepare allocation tabled*/
-        get_obj_num_prep();
-
-        /* Pick a random object */
-        k_idx = get_obj_num(base);
-
-        /* Clear restriction */
-        get_obj_num_hook = NULL;
-
-        /* Handle failure*/
-        if (!k_idx)
-            return (false);
-
-        /* Prepare the object */
-        object_prep(j_ptr, k_idx);
-    }
-
-    /* Hack -- generate multiple arrows or pieces of mithril */
-    switch (j_ptr->tval)
-    {
-    case TV_ARROW:
-    {
-        int depth_adjust = MORGOTH_DEPTH - p_ptr->depth;
-
-        object_type* q1_ptr = &inventory[INVEN_QUIVER1];
-        object_type* q2_ptr = &inventory[INVEN_QUIVER2];
-
-        j_ptr->number = 20 + damroll(1, 10 + depth_adjust);
-
-        if ((q1_ptr->number + q2_ptr->number) < 20)
-        {
-            j_ptr->number *= 2;
-        }
-
-        /* Cap arrows to the quiver limit of 48 */
-        if (j_ptr->number > 48)
-            j_ptr->number = 48;
-
-        break;
-    }
-
-    case TV_METAL:
-    {
-        j_ptr->number = damroll(2, 40);
-        break;
-    }
-    }
-
-    if (objecttype != DROP_TYPE_DAMAGED)
-    {
-        /* Apply magic (allow artefacts) */
-        if (generated_special)
-        {
-            // allow INSTA_ARTs
-            apply_magic(j_ptr, object_level, true, good, great, true);
-        }
-        else
-        {
-            // don't allow INSTA_ARTs
-            apply_magic(j_ptr, object_level, true, good, great, false);
-        }
-    }
-
-    // apply the autoinscription (if any)
-    apply_autoinscription(j_ptr);
-
-    /* Notice "okay" out-of-depth objects */
+    /* Rating boost for out-of-depth finds */
     if (!cursed_p(j_ptr) && !broken_p(j_ptr)
         && (k_info[j_ptr->k_idx].level > p_ptr->depth))
     {
-        /* Rating increase */
         rating += (k_info[j_ptr->k_idx].level - p_ptr->depth);
-
-        /* Cheat -- peek at items */
         if (cheat_peek)
             object_mention(j_ptr);
     }
 
-    /* Success */
-    return (true);
+    return true;
 }
 
 /*

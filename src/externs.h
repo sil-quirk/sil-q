@@ -871,6 +871,12 @@ extern void object_into_special(object_type* o_ptr, int lev, bool smithing);
 extern void check_artifact_visibility(void);
 extern void apply_magic(object_type* o_ptr, int lev, bool okay, bool good,
     bool great, bool allow_insta);
+extern void drop_system_init(void);
+extern bool drop_generate_object(int depth, bool good, bool great, int droptype,
+    object_type* out);
+extern bool drop_generate_object_with_bonus(
+    int depth, bool good, bool great, int droptype, int extra_bonus,
+    object_type* out);
 extern bool make_object(
     object_type* j_ptr, bool good, bool great, int objecttype);
 extern bool prep_object_theme(int themetype);

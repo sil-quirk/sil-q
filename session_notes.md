@@ -1,5 +1,19 @@
 # Session Notes
 
+## 2025-12-07: Drop System Fixes (Part 2)
+- **Fixed Difficulty Calculation**: Modified `smithing_difficulty_baseline` in `src/drop_system.c` to **stop stripping intrinsic flags** from base items and artefacts.
+    - Previously, `f1 &= ~(k_ptr->flags1)` removed all intrinsic properties, causing high-tier items (like Mithril weapons) and standalone artefacts (like Silmarils) to have artificially low difficulties (often just `Level/2`).
+    - This caused the drop system to see them as "trash" (Diff ~10-14) compared to the target difficulty at depth 20 (~21-30), leading to fallback behavior or inappropriate drops if they happened to fall into the low-end band.
+    - Now, the full value of intrinsic flags is included in the difficulty score.
+- **Updated Tunneling Calculation**: Changed `TR1_TUNNEL` difficulty to use absolute `pval` instead of `pval - k_ptr->pval`. This ensures items with base digging (like Mattocks) are valued correctly for their total digging power, not just the "added" power.
+- **Rebuilt**: Ran `build-cmake.bat`.
+
+## 2025-12-07: Drop System Fixes (Part 1)
+- Replaced drop catalog smithing baseline with a player-neutral clone of `cmd4.c::object_difficulty` (full `dif_mod` triangular costs, brand/slay specifics, minor-slot multiplier, base-flag stripping for non-jewelry) so catalog difficulties match the smithing formula / Python analyzer.
+- Drop generation now rolls the difficulty band once per request, reuses it across strict/relaxed/unthemed attempts, and logs every attempt to `generation.txt` (category, droptype, band, candidate counts, chosen entry metadata, fallback use).
+- Emergency fallback still picks depth-weighted eligible entries, but should no longer misfire because of under/over-costed items.
+- Rebuilt via `build-cmake.bat` (SDL3 target clean; unsignedness warning resolved).
+
 ## 2025-11-30: Generation Algorithm Updates (Part 2)
 
 ### Additional Changes Made
@@ -6643,3 +6657,11 @@ User reported that while letters were enabled, the 'i' and 'e' keys were still s
 - Final levels scrub any down stairs after generation and skip the stair request so only the vault's built-in up stair remains; partition reserve prevents other content in the throne-room quadrant.
 - Entry prompt/truce moved to vault entry: descending no longer asks; entering the throne room shows the poetry+prompt, starts the truce, and leaving the vault breaks it with the usual reminder.
 
+- 2025-12-04: Began planning drop system rewrite. Reviewed current generation in `src/object2.c` (`make_object`, `apply_magic`, `object_into_special`) and smithing difficulty in `src/cmd4.c::object_difficulty`. Flavor assignment happens in `dungeon.c` via `flavor_init()`, so ring/amulet entries need to align with runtime flavors. Supply buckets identified: potions (`TV_POTION`), herbs (`TV_FOOD` herb svals), gems (`TV_GEM`), staves (`TV_STAFF`/`TV_GEM` charges), normal arrows (`TV_ARROW`), torches/oil (`TV_LIGHT` torch/mallorn, `TV_FLASK`). Plan is to introduce a drop catalog (cached to a raw file keyed off edit txt mtimes) with neutral smithing difficulty per variant (base, ego, artefact, craftable lights), then swap `make_object`/`drop_loot` to new category/difficulty/rarity pipeline and update chest placement rules.
+- 2025-12-04: Implemented the new drop catalog/generator (`src/drop_system.c`, cached to `lib/data/drops.raw` after `flavor_init`). Catalog builds base/boosted variants, ego variants across their max bonus ranges, and artefacts with player-neutral smithing difficulty. `make_object` now delegates to the new generator; chest opening uses it with depth+4 plus wooden/steel/jewelled bonuses and the legacy theme droptypes. Chest placement per partition spec still pending.
+- 2025-12-07: Drop system fixes: allow NO_SMITHING bases to enter catalog (skip variants only), treat horns as supply, and remove unintended max-depth cap so low-level consumables remain eligible at deeper levels. Observed generation.txt showing empty supply pools at dlvl 19; changes target that.
+- 2025-12-07: Corrected drop max_depth handling: locale[] used as allocation weights, not hard caps; now max depth defaults to MORGOTH_DEPTH. Added catalog diagnostics logging counts per category/kind.
+- 2025-12-07: Increased drop difficulty scale (doubled final smithing difficulty) to align with depth*1.8 bands; updated Python sims (simulate_drops.py, calc_difficulty_distribution.py, calc_artefact_difficulty.py) accordingly.
+- 2025-12-07: Rebuilt drop catalog variant generation to use smithing caps (att/ds/evn/ps/pval) per cmd4.c; normal items enumerate full ranges, egos respect min/ max from special.txt and smithing bounds; removed temporary difficulty scaling so it matches object_difficulty.
+- 2025-12-07: Fixed drop selection buffer issues: enlarged per-group entry capacity (4096) with bounds checks; choose_group now allocates weights dynamically to avoid overflow when many groups are present.
+- 2025-12-07: Hardened grouping: build_groups now respects provided capacity; drop_group array allocated per cand_count to avoid overflow; reduces risk of crash when variant/group counts are large.
