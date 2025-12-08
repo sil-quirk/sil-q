@@ -125,13 +125,12 @@ static int min_locale_depth(const object_kind* k_ptr)
 static int max_locale_depth(const object_kind* k_ptr)
 {
     /*
-     * Locale entries describe where an item is *allocated*, not the deepest
-     * level it can ever appear. We do not want to clamp drops to that range,
-     * so keep the effective max depth wide open unless a caller provides an
-     * explicit cap (e.g., ego max_level).
+     * CRITICAL: Return 0 to indicate NO max depth restriction.
+     * The locale array indicates where items spawn naturally via allocation,
+     * but the drop system should NOT be limited by these depths.
      */
     (void)k_ptr;
-    return MORGOTH_DEPTH;
+    return 0;
 }
 
 /* Baseline smithing difficulty (player-neutral). */
@@ -1094,6 +1093,23 @@ static int supply_entry_weight(const drop_entry* e, int depth)
     return w;
 }
 
+static const char* drop_category_name(drop_category cat)
+{
+    switch (cat)
+    {
+    case DROP_CAT_WEAPON:
+        return "weapon";
+    case DROP_CAT_ARMOR:
+        return "armor";
+    case DROP_CAT_JEWELRY:
+        return "jewelry";
+    case DROP_CAT_SUPPLY:
+        return "supply";
+    default:
+        return "unknown";
+    }
+}
+
 /* Category roll: defaults 25/25/25/25 */
 static drop_category roll_category(void)
 {
@@ -1152,26 +1168,53 @@ static bool collect_candidate_entries(
     drop_entry* buf = mem_alloc_array(g_drop_count, drop_entry);
     size_t count = 0;
     int depth = req->depth;
+    
+    /* DEBUG: Count what filters are rejecting items */
+    int filter_artifact = 0, filter_droptype = 0, filter_category = 0;
+    int filter_maxdepth = 0, filter_difficulty = 0, filter_total = 0;
 
     for (size_t i = 0; i < g_drop_count; i++)
     {
         drop_entry e = g_drop_entries[i];
+        filter_total++;
 
         if (e.group_kind == DROP_GROUP_ARTIFACT)
         {
             artefact_type* a_ptr = &a_info[e.group_id];
-            if (a_ptr->cur_num)
-                continue; /* already generated */
+            /* Skip if already created OR already seen by player */
+            if (a_ptr->cur_num || a_ptr->seen) {
+                filter_artifact++;
+                continue;
+            }
+            /* Skip monster-specific automatic drop artefacts (indexes 20+, weapons/armor only)
+             * Jewelry artefacts (1-19) have INSTA_ART for flavor system but should still drop normally */
+            if ((a_ptr->flags3 & TR3_INSTA_ART) && e.group_id >= 20) {
+                filter_artifact++;
+                continue;
+            }
         }
 
-        if (!droptype_matches(req, &e))
+        if (!droptype_matches(req, &e)) {
+            filter_droptype++;
             continue;
+        }
 
-        if (e.category != req->cat)
+        if (e.category != req->cat) {
+            filter_category++;
             continue;
+        }
 
-        if (depth > e.max_depth)
+        /* Only apply max_depth filter if explicitly set (non-zero) */
+        if (e.max_depth > 0 && depth > e.max_depth) {
+            filter_maxdepth++;
+            /* DEBUG: Log first few maxdepth rejections */
+            if (filter_maxdepth <= 3 && gen_log_initialized && depth >= 19) {
+                gen_log_write("DROP_MAXDEPTH_REJECT",
+                    "depth=%d item_maxdepth=%d k_idx=%d group_kind=%d",
+                    depth, e.max_depth, e.obj.k_idx, e.group_kind);
+            }
             continue;
+        }
 
         int effective_dif = e.difficulty;
         if (depth < e.min_depth)
@@ -1183,14 +1226,48 @@ static bool collect_candidate_entries(
             continue;
         }
 
-        if (!relaxed && (effective_dif < req->lower || effective_dif > req->upper))
+        if (!relaxed && (effective_dif < req->lower || effective_dif > req->upper)) {
+            filter_difficulty++;
             continue;
+        }
 
         buf[count++] = e;
+    }
+    
+    /* DEBUG: Log filtering stats */
+    if (gen_log_initialized && depth >= 19)
+    {
+        gen_log_write("DROP_FILTER",
+            "depth=%d cat=%s relaxed=%s total=%d artifact_used=%d droptype=%d "
+            "category=%d maxdepth=%d difficulty=%d passed=%zu",
+            depth, drop_category_name(req->cat), relaxed ? "yes" : "no",
+            filter_total, filter_artifact, filter_droptype, filter_category,
+            filter_maxdepth, filter_difficulty, count);
     }
 
     *out = buf;
     *out_count = count;
+
+    if (gen_log_initialized && count > 0)
+    {
+        /* Log first few candidates for debugging */
+        int samples = (count < 5) ? count : 5;
+        for (int i = 0; i < samples; i++)
+        {
+            drop_entry* e = &buf[i];
+            int effective_dif = e->difficulty;
+            if (depth < e->min_depth)
+                effective_dif += 2 * (e->min_depth - depth);
+            
+            gen_log_write("DROP_CANDIDATE",
+                "relaxed=%s k_idx=%d cat=%s group_kind=%d group_id=%d "
+                "base_dif=%d eff_dif=%d min_depth=%d max_depth=%d rarity=%d",
+                relaxed ? "yes" : "no", e->obj.k_idx,
+                drop_category_name(e->category), e->group_kind, e->group_id,
+                e->difficulty, effective_dif, e->min_depth, e->max_depth, e->rarity);
+        }
+    }
+
     return (count > 0);
 }
 
@@ -1268,6 +1345,24 @@ static drop_group* choose_group(drop_group* groups, int group_count)
             break;
         }
     }
+
+    if (gen_log_initialized)
+    {
+        /* Log group selection details */
+        int samples = (group_count < 10) ? group_count : 10;
+        for (int i = 0; i < samples; i++)
+        {
+            gen_log_write("DROP_GROUP",
+                "idx=%d kind=%d group_id=%d rarity=%d weight=%d total=%d "
+                "entries=%d chosen=%s",
+                i, groups[i].kind, groups[i].group_id,
+                group_rarity(&groups[i]), weights[i], total,
+                groups[i].entry_count, (i == chosen) ? "YES" : "no");
+        }
+        gen_log_write("DROP_GROUP_PICK",
+            "pick=%d total=%d chosen_idx=%d", pick, total, chosen);
+    }
+
     mem_free_null(weights);
     return &groups[chosen];
 }
@@ -1278,7 +1373,19 @@ static drop_entry* choose_entry_from_group(drop_entry* entries,
     if (grp->entry_count <= 0)
         return NULL;
     int pick = rand_int(grp->entry_count);
-    return &entries[grp->entry_indices[pick]];
+    drop_entry* chosen = &entries[grp->entry_indices[pick]];
+
+    if (gen_log_initialized)
+    {
+        gen_log_write("DROP_ITEM_SELECT",
+            "group_kind=%d group_id=%d entry_count=%d pick=%d "
+            "k_idx=%d att=%d ds=%d evn=%d ps=%d",
+            grp->kind, grp->group_id, grp->entry_count, pick,
+            chosen->obj.k_idx, chosen->obj.att, chosen->obj.ds,
+            chosen->obj.evn, chosen->obj.ps);
+    }
+
+    return chosen;
 }
 
 static drop_entry* choose_supply_entry(drop_entry* entries, size_t count,
@@ -1344,23 +1451,6 @@ static drop_entry* choose_supply_entry(drop_entry* entries, size_t count,
     return bucket[chosen_gid][bucket_counts[chosen_gid] - 1];
 }
 
-static const char* drop_category_name(drop_category cat)
-{
-    switch (cat)
-    {
-    case DROP_CAT_WEAPON:
-        return "weapon";
-    case DROP_CAT_ARMOR:
-        return "armor";
-    case DROP_CAT_JEWELRY:
-        return "jewelry";
-    case DROP_CAT_SUPPLY:
-        return "supply";
-    default:
-        return "unknown";
-    }
-}
-
 static void log_drop_attempt(const drop_request* req, size_t strict_count,
     size_t relaxed_count, const drop_entry* chosen, bool used_relaxed,
     bool fallback)
@@ -1401,6 +1491,95 @@ static void log_drop_attempt(const drop_request* req, size_t strict_count,
         chosen ? chosen->rarity : 0, group_kind);
 }
 
+/*
+ * Generate a chest according to game design specifications:
+ * - 50/50 chance small or large
+ * - 50% wooden (+2 difficulty), 35% steel (+7 difficulty), 15% jewelled (+15 difficulty)  
+ * - Chests add 4 levels to depth for drop calculation
+ */
+static bool generate_chest(int depth, object_type* out)
+{
+    /* Chest svals based on defines.h:
+     * Small: 1=wooden, 2=steel, 3=jewelled
+     * Large: 11=wooden, 12=steel, 13=jewelled
+     */
+    
+    /* 50/50 chance for small vs large */
+    bool is_large = one_in_(2);
+    int base_sval = is_large ? 11 : 1;
+    
+    /* Determine material: 50% wood, 35% steel, 15% jewelled */
+    int material_roll = rand_int(100);  /* 0-99 */
+    int material_offset;
+    int difficulty_bonus;
+    
+    if (material_roll < 50)
+    {
+        /* Wooden chest: 0-49 = 50% */
+        material_offset = 0;
+        difficulty_bonus = 2;
+    }
+    else if (material_roll < 85)
+    {
+        /* Steel chest: 50-84 = 35% */
+        material_offset = 1;
+        difficulty_bonus = 7;
+    }
+    else
+    {
+        /* Jewelled chest: 85-99 = 15% */
+        material_offset = 2;
+        difficulty_bonus = 15;
+    }
+    
+    int chest_sval = base_sval + material_offset;
+    
+    /* Look up the chest k_idx by tval=TV_CHEST and sval */
+    int k_idx = lookup_kind(TV_CHEST, chest_sval);
+    if (!k_idx)
+    {
+        if (gen_log_initialized)
+            gen_log_write("CHEST_ERROR", "Failed to find chest k_idx for sval=%d", chest_sval);
+        return false;
+    }
+    
+    /* Create the chest object */
+    object_prep(out, k_idx);
+    
+    /* Set chest level (pval) = depth + 4 as per specification */
+    out->pval = depth + 4;
+    if (out->pval > 25)
+        out->pval = 25;
+    if (out->pval < 1)
+        out->pval = 1;
+    
+    /* Set chest theme for contents (matching logic from object2.c) */
+    int theme_roll = rand_int(100);
+    if (theme_roll < 5)
+        out->xtra1 = 1;  /* CHEST_ARMOUR */
+    else if (theme_roll < 10)
+        out->xtra1 = 2;  /* CHEST_WEAPONS */
+    else if (theme_roll < 15)
+        out->xtra1 = 3;  /* CHEST_POTIONS */
+    else if (theme_roll < 20)
+        out->xtra1 = 4;  /* CHEST_STAVES */
+    else if (theme_roll < 25)
+        out->xtra1 = 5;  /* CHEST_JEWELLERY */
+    else
+        out->xtra1 = 0;  /* CHEST_MIXED = default */
+    
+    if (gen_log_initialized)
+    {
+        gen_log_write("CHEST_GENERATED",
+            "depth=%d size=%s material=%s difficulty_bonus=%d chest_level=%d sval=%d",
+            depth, is_large ? "large" : "small",
+            material_offset == 0 ? "wooden" : (material_offset == 1 ? "steel" : "jewelled"),
+            difficulty_bonus, out->pval, chest_sval);
+    }
+    
+    return true;
+}
+
 bool drop_generate_object(int depth, bool good, bool great, int droptype,
     object_type* out)
 {
@@ -1411,6 +1590,12 @@ bool drop_generate_object(int depth, bool good, bool great, int droptype,
 bool drop_generate_object_with_bonus(int depth, bool good, bool great,
     int droptype, int extra_bonus, object_type* out)
 {
+    /* Handle chest generation specially */
+    if (droptype == DROP_TYPE_CHEST)
+    {
+        return generate_chest(depth, out);
+    }
+    
     drop_request req;
     req.depth = depth;
     req.difficulty_bonus = extra_bonus;
@@ -1420,10 +1605,23 @@ bool drop_generate_object_with_bonus(int depth, bool good, bool great,
         req.difficulty_bonus += 15;
     req.is_supply = false;
     req.droptype = droptype;
-    req.base_roll = MAX(
-        0, (int)(1.8 * depth) + MIN(dieroll(30), dieroll(30)) - 25 + req.difficulty_bonus);
+    int roll1 = dieroll(30);
+    int roll2 = dieroll(30);
+    int min_roll = MIN(roll1, roll2);
+    int base_calc = (int)(1.8 * depth) + min_roll - 25;
+    req.base_roll = MAX(0, base_calc + req.difficulty_bonus);
     req.lower = req.base_roll - 2;
     req.upper = req.base_roll + 2;
+
+    if (gen_log_initialized)
+    {
+        gen_log_write("DROP_TARGET",
+            "depth=%d good=%s great=%s bonus=%d roll1=%d roll2=%d min=%d "
+            "base_calc=%d target=%d band=%d..%d",
+            depth, good ? "yes" : "no", great ? "yes" : "no",
+            req.difficulty_bonus, roll1, roll2, min_roll,
+            base_calc, req.base_roll, req.lower, req.upper);
+    }
 
     /* Map droptype to category if provided */
     switch (droptype)
@@ -1466,16 +1664,14 @@ bool drop_generate_object_with_bonus(int depth, bool good, bool great,
     bool attempted_fallback = false;
     drop_entry* chosen = NULL;
 
-    for (int attempt = 0; attempt < 2 && !chosen; attempt++)
+    /* Try widening difficulty bands if strict fails */
+    for (int attempt = 0; attempt < 5 && !chosen; attempt++)
     {
-        if (attempt == 1)
+        if (attempt > 0)
         {
-            if (droptype == DROP_TYPE_UNTHEMED)
-                break;
-            attempted_fallback = true;
-            req.droptype = DROP_TYPE_UNTHEMED;
-            req.cat = roll_category();
-            req.is_supply = (req.cat == DROP_CAT_SUPPLY);
+            /* Widen the band by 1 each attempt */
+            req.lower = req.base_roll - 2 - attempt;
+            req.upper = req.base_roll + 2 + attempt;
         }
 
         mem_free_null(candidates);
@@ -1532,35 +1728,12 @@ bool drop_generate_object_with_bonus(int depth, bool good, bool great,
 
     bool ok = (chosen != NULL);
 
-    /* As a final safety, pick any eligible entry if still nothing */
-    if (!ok)
+    /* No fallback - if we can't find anything after widening bands, just fail */
+    if (!ok && gen_log_initialized)
     {
-        int best_weight = 0;
-        drop_entry* fallback = NULL;
-        for (size_t i = 0; i < g_drop_count; i++)
-        {
-            drop_entry* e = &g_drop_entries[i];
-            if (e->group_kind == DROP_GROUP_ARTIFACT)
-            {
-                artefact_type* a_ptr = &a_info[e->group_id];
-                if (a_ptr->cur_num)
-                    continue;
-            }
-            if (!droptype_matches(&req, e))
-                continue;
-            int w = 100 - ABS(e->min_depth - depth) * 2;
-            if (w < 1)
-                w = 1;
-            if (w > best_weight || (w == best_weight && one_in_(2)))
-            {
-                best_weight = w;
-                fallback = e;
-            }
-        }
-        chosen = fallback;
-        ok = (chosen != NULL);
-        log_drop_attempt(&req, strict_count, relaxed_count, chosen, used_relaxed,
-            true);
+        gen_log_write("DROP_FAILED",
+            "depth=%d cat=%d droptype=%d target=%d - no valid items after 5 attempts",
+            depth, req.cat, droptype, req.base_roll);
     }
 
     if (ok)

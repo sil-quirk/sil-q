@@ -385,6 +385,7 @@ void player_wipe(void)
 
         a_ptr->cur_num = 0;
         a_ptr->found_num = 0;
+        a_ptr->seen = 0;
     }
     
     /* Initialize Valar artifact reservation array */

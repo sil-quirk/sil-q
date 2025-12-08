@@ -1703,6 +1703,7 @@ static bool wr_savefile(void)
         artefact_type* a_ptr = &a_info[i];
         wr_byte(a_ptr->cur_num);
         wr_byte(a_ptr->found_num);
+        wr_byte(a_ptr->seen);
     }
 
     /* Write the "extra" information */

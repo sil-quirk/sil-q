@@ -3764,6 +3764,38 @@ static bool place_gv_in_partition(int y1, int y2, int x1, int x2, int *budget_t8
     return placed;
 }
 
+/* Place a chest in a random floor location within partition bounds */
+static void place_chest_in_partition(int y1, int y2, int x1, int x2)
+{
+    int attempts = 0;
+    int max_attempts = 100;
+    
+    while (attempts < max_attempts)
+    {
+        int cy = rand_range(y1 + 1, y2 - 1);
+        int cx = rand_range(x1 + 1, x2 - 1);
+        
+        if (!in_bounds_fully(cy, cx))
+        {
+            attempts++;
+            continue;
+        }
+        
+        /* Must be floor, not occupied, and not in a vault */
+        if (cave_floor_bold(cy, cx) && !cave_o_idx[cy][cx] && 
+            !(cave_info[cy][cx] & CAVE_G_VAULT))
+        {
+            place_object(cy, cx, false, false, DROP_TYPE_CHEST);
+            genlog_anchor("Placed chest in partition at (%d,%d)", cy, cx);
+            return;
+        }
+        
+        attempts++;
+    }
+    
+    genlog_anchor("Failed to place chest in partition after %d attempts", max_attempts);
+}
+
 /* Dynamic partition-based generation mix */
 static void apply_quadrant_generation_modes(void)
 {
@@ -4262,12 +4294,17 @@ static void apply_quadrant_generation_modes(void)
                 int vault_count = scaled_attempts((density == DENSITY_SPARSE) ? 0 : (density == DENSITY_DENSE) ? 1 : 0, area_factor);
                 place_rooms_randomized(y1, y2, x1, x2, depth, std_count, cross_count, int_count, vault_count,
                                        &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
+                
+                /* Place 1 chest in labyrinth partition ONLY if it actually carved */
+                if (carved)
+                    place_chest_in_partition(y1, y2, x1, x2);
             }
             break;
         case QUAD_MODE_CHASM:
             {
                 /* Chasm with platforms connected by bridges - no additional rooms */
-                if (!carve_chasm_with_bridges(y1, y2, x1, x2))
+                bool chasm_carved = carve_chasm_with_bridges(y1, y2, x1, x2);
+                if (!chasm_carved)
                 {
                     /* Fallback: use CA blobs if chasm fails */
                     int blob_count = (density == DENSITY_SPARSE) ? 2 : (density == DENSITY_DENSE) ? 4 : 3;
@@ -4275,6 +4312,10 @@ static void apply_quadrant_generation_modes(void)
                         carve_ca_blob_anchor_bounds(y1, y2, x1, x2);
                 }
                 /* No rooms - the chasm IS the feature */
+                
+                /* Place 1 chest in chasm partition ONLY if it actually carved */
+                if (chasm_carved)
+                    place_chest_in_partition(y1, y2, x1, x2);
             }
             break;
         case QUAD_MODE_BIG_CAVE:

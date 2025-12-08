@@ -567,17 +567,19 @@ def calculate_special_item_difficulty(tval: int, sval: int, att_bonus: int,
     return dif
 
 
-def roll_target_difficulty(depth: int, quality: str = 'normal') -> float:
+def roll_target_difficulty(depth: int, quality: str = 'normal', verbose: bool = False) -> tuple:
     """
     Roll target difficulty for item drop.
-    Formula: max(0, 1.8 * depth + min(1d30, 1d30) - 25)
+    Formula: max(0, 1.8 * depth + min(1d30, 1d30) - 25 + bonus)
     Plus bonuses: +7 for good, +15 for great
     Result is clamped to minimum of 0.
+    
+    Returns: (target, roll1, roll2, min_roll, base_calc, bonus)
     """
     base = 1.8 * depth
     roll1 = random.randint(1, 30)
     roll2 = random.randint(1, 30)
-    roll = min(roll1, roll2)
+    min_roll = min(roll1, roll2)
     
     bonus = 0
     if quality == 'good':
@@ -585,7 +587,16 @@ def roll_target_difficulty(depth: int, quality: str = 'normal') -> float:
     elif quality == 'great':
         bonus = 15
     
-    return max(0, base + roll - 25 + bonus)
+    base_calc = int(base) + min_roll - 25
+    target = max(0, base_calc + bonus)
+    
+    if verbose:
+        print(f"DROP_TARGET: depth={depth} good={'yes' if quality == 'good' else 'no'} "
+              f"great={'yes' if quality == 'great' else 'no'} bonus={bonus} "
+              f"roll1={roll1} roll2={roll2} min={min_roll} base_calc={base_calc} "
+              f"target={target} band={target-2}..{target+2}")
+    
+    return target, roll1, roll2, min_roll, base_calc, bonus
 
 
 def apply_depth_penalty(items: List[ItemVariant], current_depth: int) -> List[Tuple[ItemVariant, int]]:
@@ -611,10 +622,23 @@ def apply_depth_penalty(items: List[ItemVariant], current_depth: int) -> List[Tu
 
 
 def filter_by_difficulty_band(items: List[Tuple[ItemVariant, int]], 
-                               target: int, band: int = 2) -> List[ItemVariant]:
+                               target: int, band: int = 2, verbose: bool = False) -> List[ItemVariant]:
     """Filter items to those within target +/- band difficulty."""
-    return [item for item, adj_diff in items 
+    result = [item for item, adj_diff in items 
             if target - band <= adj_diff <= target + band]
+    
+    if verbose and len(result) > 0:
+        # Log first few candidates
+        samples = min(5, len(result))
+        for i in range(samples):
+            item = result[i]
+            adj_diff = next(d for it, d in items if it == item)
+            print(f"DROP_CANDIDATE: relaxed={'yes' if band > 2 else 'no'} "
+                  f"group_name={item.group_name[:30]} group_type={item.group_type} "
+                  f"base_dif={item.difficulty} eff_dif={adj_diff} "
+                  f"min_depth={item.min_depth} max_depth={item.max_depth} rarity={item.rarity}")
+    
+    return result
 
 
 def group_items(items: List[ItemVariant]) -> Dict[str, List[ItemVariant]]:
@@ -637,10 +661,11 @@ def get_group_rarity(items: List[ItemVariant]) -> int:
     return items[0].rarity
 
 
-def rarity_roll(groups: Dict[str, List[ItemVariant]]) -> Optional[str]:
+def rarity_roll(groups: Dict[str, List[ItemVariant]], verbose: bool = False) -> Optional[str]:
     """
     Perform rarity-weighted random selection of a group.
     Uses inverse rarity weighting (lower rarity = more common).
+    Formula matches C code: weight = max(1, 100 // max(1, rarity))
     """
     if not groups:
         return None
@@ -658,15 +683,29 @@ def rarity_roll(groups: Dict[str, List[ItemVariant]]) -> Optional[str]:
     
     # Weighted random selection
     total = sum(weights)
-    r = random.randint(1, total)
+    r = random.randint(0, total - 1)  # Match C's rand_int(total) which returns 0..total-1
     
     cumulative = 0
+    chosen_idx = len(group_names) - 1
     for i, weight in enumerate(weights):
         cumulative += weight
-        if r <= cumulative:
-            return group_names[i]
+        if r < cumulative:
+            chosen_idx = i
+            break
     
-    return group_names[-1]
+    if verbose:
+        # Log group selection details (first 10 groups)
+        samples = min(10, len(group_names))
+        for i in range(samples):
+            group = groups[group_names[i]]
+            kind = 0 if group[0].group_type == 'normal' else (1 if group[0].group_type == 'special' else 2)
+            rarity = get_group_rarity(group)
+            print(f"DROP_GROUP: idx={i} kind={kind} rarity={rarity} "
+                  f"weight={weights[i]} total={total} entries={len(group)} "
+                  f"chosen={'YES' if i == chosen_idx else 'no'}")
+        print(f"DROP_GROUP_PICK: pick={r} total={total} chosen_idx={chosen_idx}")
+    
+    return group_names[chosen_idx]
 
 
 def select_item_from_group(group: List[ItemVariant]) -> ItemVariant:
@@ -674,35 +713,47 @@ def select_item_from_group(group: List[ItemVariant]) -> ItemVariant:
     return random.choice(group)
 
 
-def simulate_drop(items: List[ItemVariant], depth: int, quality: str = 'normal') -> Optional[ItemVariant]:
-    """Simulate a single item drop."""
+def simulate_drop(items: List[ItemVariant], depth: int, quality: str = 'normal', verbose: bool = False) -> Optional[ItemVariant]:
+    """Simulate a single item drop with optional detailed logging."""
     # 1. Roll target difficulty
-    target = roll_target_difficulty(depth, quality)
+    target, roll1, roll2, min_roll, base_calc, bonus = roll_target_difficulty(depth, quality, verbose)
     
     # 2. Apply depth penalties and filter
     adjusted = apply_depth_penalty(items, depth)
     
-    # 3. Filter by difficulty band, expanding if no items found
-    band = 2  # Start with +/- 2
-    eligible = []
-    while not eligible and band <= 30:  # Expand up to +/- 30
-        eligible = filter_by_difficulty_band(adjusted, target, band)
-        if not eligible:
-            band += 1
+    # 3. Filter by difficulty band (strict mode: +/- 2)
+    band = 2
+    eligible = filter_by_difficulty_band(adjusted, target, band, verbose)
+    strict_count = len(eligible)
+    used_relaxed = False
+    
+    # 4. If no items found in strict mode, use relaxed mode (all items regardless of band)
+    if not eligible:
+        eligible = [item for item, adj_diff in adjusted]  # All items, ignoring difficulty band
+        used_relaxed = True
+        if verbose:
+            print(f"DROP_RELAXED: strict_count=0 relaxed_count={len(eligible)} used_relaxed=yes")
     
     if not eligible:
         return None
     
-    # 4. Group items
+    # 5. Group items
     groups = group_items(eligible)
     
-    # 5. Rarity roll to select group
-    selected_group_name = rarity_roll(groups)
+    # 6. Rarity roll to select group
+    selected_group_name = rarity_roll(groups, verbose)
     if not selected_group_name:
         return None
     
-    # 6. Select random item from group
-    return select_item_from_group(groups[selected_group_name])
+    # 7. Select random item from group
+    selected_item = select_item_from_group(groups[selected_group_name])
+    
+    if verbose:
+        print(f"DROP_ITEM_SELECT: group_name={selected_group_name[:40]} "
+              f"group_type={selected_item.group_type} entry_count={len(groups[selected_group_name])} "
+              f"difficulty={selected_item.difficulty} rarity={selected_item.rarity}")
+    
+    return selected_item
 
 
 def parse_special_with_rarity(filepath: str) -> List[dict]:
@@ -939,8 +990,14 @@ def build_item_table_v2(artefact_file: str, special_file: str) -> List[ItemVaria
 
 
 def run_simulation(items: List[ItemVariant], depths: List[int], 
-                   normal_count: int, good_count: int, great_count: int):
-    """Run simulations and print results."""
+                   normal_count: int, good_count: int, great_count: int,
+                   verbose: bool = False, verbose_samples: int = 3):
+    """Run simulations and print results. 
+    
+    Args:
+        verbose: If True, print detailed logs for first few drops at each depth
+        verbose_samples: Number of drops to log in detail per depth
+    """
     
     print("=" * 100)
     print("ITEM DROP SIMULATION RESULTS")
@@ -961,7 +1018,6 @@ def run_simulation(items: List[ItemVariant], depths: List[int],
         base_diff = 1.8 * depth - 25
         min_roll = 1
         max_roll = 30
-        avg_roll = 7.5  # Approximate average of min(1d30, 1d30)
         
         print(f"Base difficulty formula: max(0, 1.8*{depth} + min(1d30,1d30) - 25)")
         print(f"Expected range: {max(0, base_diff + min_roll):.1f} to {max(0, base_diff + max_roll):.1f}")
@@ -972,16 +1028,29 @@ def run_simulation(items: List[ItemVariant], depths: List[int],
         all_drops = []
         no_drop_count = 0
         
+        # Track which drops get verbose logging
+        drop_counter = 0
+        
         # Run all simulations
         for quality, count in [('normal', normal_count - good_count - great_count),
                                 ('good', good_count),
                                 ('great', great_count)]:
             for _ in range(count):
-                item = simulate_drop(items, depth, quality)
+                # Enable verbose logging for first few drops
+                do_verbose = verbose and drop_counter < verbose_samples
+                if do_verbose:
+                    print(f"\n--- Verbose Drop #{drop_counter + 1} (quality={quality}) ---")
+                
+                item = simulate_drop(items, depth, quality, verbose=do_verbose)
+                drop_counter += 1
+                
                 if item:
                     all_drops.append((item, quality))
                 else:
                     no_drop_count += 1
+        
+        if verbose and verbose_samples > 0:
+            print(f"\n--- End of verbose logging (showed {min(verbose_samples, drop_counter)} drops) ---\n")
         
         # Count by group
         group_counts = defaultdict(lambda: {'count': 0, 'normal': 0, 'good': 0, 'great': 0, 'item': None})
@@ -1018,6 +1087,15 @@ def run_simulation(items: List[ItemVariant], depths: List[int],
 
 
 def main():
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Simulate the new item drop system for Sil-More')
+    parser.add_argument('-v', '--verbose', action='store_true',
+                        help='Enable detailed logging for first few drops')
+    parser.add_argument('-s', '--samples', type=int, default=3,
+                        help='Number of drops to log in detail per depth (default: 3)')
+    args = parser.parse_args()
+    
     # Find data files
     possible_base_paths = [
         os.path.join(script_dir, '..'),
@@ -1047,7 +1125,8 @@ def main():
     # Run simulations for different depths
     # 100 drops per depth: 80 normal, 10 good, 10 great
     depths = [1, 5, 10, 15, 20, 25]
-    run_simulation(items, depths, normal_count=100, good_count=10, great_count=10)
+    run_simulation(items, depths, normal_count=100, good_count=10, great_count=10,
+                   verbose=args.verbose, verbose_samples=args.samples)
 
 
 if __name__ == '__main__':

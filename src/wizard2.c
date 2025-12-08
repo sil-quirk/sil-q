@@ -20,6 +20,7 @@
  */
 static void do_cmd_debug_complete_quest(void);
 static void do_cmd_debug_orome_status(void);
+static void do_cmd_debug_identify_all_items(void);
 
 /*
  * Display the dungeon light levels.
@@ -2031,6 +2032,51 @@ static void do_cmd_debug_orome_status(void)
 }
 
 /*
+ * Identify all items on the dungeon floor
+ */
+static void do_cmd_debug_identify_all_items(void)
+{
+    int i;
+    int count = 0;
+    
+    /* Iterate through all floor objects */
+    for (i = 1; i < o_max; i++)
+    {
+        object_type* o_ptr = &o_list[i];
+        
+        /* Skip dead objects */
+        if (!o_ptr->k_idx)
+            continue;
+        
+        /* Skip held objects (in monster inventory) */
+        if (o_ptr->held_m_idx)
+            continue;
+        
+        /* Identify the object */
+        object_aware(o_ptr);
+        object_known(o_ptr);
+        
+        count++;
+    }
+    
+    /* Report result */
+    if (count > 0)
+    {
+        msg_format("Identified %d item%s on the dungeon floor.", count, (count != 1) ? "s" : "");
+    }
+    else
+    {
+        msg_print("No items found on the dungeon floor.");
+    }
+    
+    /* Redraw map to show identified items */
+    p_ptr->redraw |= (PR_MAP);
+    
+    /* Window stuff */
+    p_ptr->window |= (PW_INVEN | PW_EQUIP);
+}
+
+/*
  * Ask for and parse a "debug command"
  *
  * The "p_ptr->command_arg" may have been set.
@@ -2149,6 +2195,13 @@ void do_cmd_debug(void)
     case 'i':
     {
         (void)ident_spell(true);
+        break;
+    }
+
+    /* Identify all floor items */
+    case 'I':
+    {
+        do_cmd_debug_identify_all_items();
         break;
     }
 

@@ -3131,12 +3131,6 @@ void apply_magic(object_type* o_ptr, int lev, bool okay, bool good, bool great,
         return;
     }
 
-    if (k_ptr->flags3 & (TR3_MORE_SPECIAL))
-    {
-        if (percent_chance(50))
-            special = true;
-    }
-
     /* Apply magic */
     switch (o_ptr->tval)
     {

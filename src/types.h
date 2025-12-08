@@ -266,6 +266,7 @@ struct artefact_type
     byte cur_num; /* Number created (0 or 1) */
     byte found_num; /* Number found (0 or 1) */
     byte max_num; /* Unused (should be "1") */
+    byte seen; /* Seen by player (within 22 tile radius) */
 
     byte activation; /* Activation to use */
     u16b time; /* Activation time */
