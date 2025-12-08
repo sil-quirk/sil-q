@@ -492,10 +492,6 @@ static void add_drop_entry(const object_type* proto, drop_category cat,
     if ((k_ptr->flags3 & TR3_INSTA_ART) && group_kind != DROP_GROUP_ARTIFACT)
         return;
 
-    /* Do not attach egos to NO_SMITHING templates */
-    if ((k_ptr->flags3 & TR3_NO_SMITHING) && group_kind == DROP_GROUP_EGO)
-        return;
-
     if (g_drop_count + 1 > g_drop_capacity)
     {
         size_t new_cap = (g_drop_capacity == 0) ? 1024 : g_drop_capacity * 2;
@@ -549,9 +545,6 @@ static void build_normal_variants(int k_idx)
     drop_category cat = drop_category_for_kind(k_ptr);
     if (cat == DROP_CAT_MAX)
         return;
-
-    /* Items marked NO_SMITHING still drop, but without smithing variants */
-    bool no_smith = (k_ptr->flags3 & TR3_NO_SMITHING);
 
     object_type base;
     object_prep(&base, k_idx);
@@ -657,17 +650,11 @@ static void build_normal_variants(int k_idx)
                         v.pval = pval;
                         add_drop_entry(&v, cat, DROP_GROUP_NORMAL, k_idx, 1,
                             min_depth, max_depth);
-                        if (no_smith)
-                            goto done_variants;
                     }
                 }
             }
         }
     }
-
-done_variants:
-    if (no_smith)
-        return;
 }
 
 /* Build variants for ego items over applicable base kinds. */
@@ -688,7 +675,7 @@ static void build_ego_variants(int e_idx)
                 continue;
             if (k_ptr->sval < e_ptr->min_sval[t] || k_ptr->sval > e_ptr->max_sval[t])
                 continue;
-            if (k_ptr->flags3 & (TR3_INSTA_ART | TR3_NO_SMITHING))
+            if (k_ptr->flags3 & TR3_INSTA_ART)
                 continue;
 
             drop_category cat = drop_category_for_kind(k_ptr);
@@ -1033,6 +1020,7 @@ typedef struct
     int base_roll;
     int lower;
     int upper;
+    bool allow_artefacts; /* whether artefacts can be selected */
 } drop_request;
 
 typedef struct
@@ -1180,6 +1168,12 @@ static bool collect_candidate_entries(
 
         if (e.group_kind == DROP_GROUP_ARTIFACT)
         {
+            /* Skip artefacts if not allowed by the drop request */
+            if (!req->allow_artefacts) {
+                filter_artifact++;
+                continue;
+            }
+            
             artefact_type* a_ptr = &a_info[e.group_id];
             /* Skip if already created OR already seen by player */
             if (a_ptr->cur_num || a_ptr->seen) {
@@ -1581,14 +1575,14 @@ static bool generate_chest(int depth, object_type* out)
 }
 
 bool drop_generate_object(int depth, bool good, bool great, int droptype,
-    object_type* out)
+    bool allow_artefacts, object_type* out)
 {
     return drop_generate_object_with_bonus(depth, good, great, droptype, 0,
-        out);
+        allow_artefacts, out);
 }
 
 bool drop_generate_object_with_bonus(int depth, bool good, bool great,
-    int droptype, int extra_bonus, object_type* out)
+    int droptype, int extra_bonus, bool allow_artefacts, object_type* out)
 {
     /* Handle chest generation specially */
     if (droptype == DROP_TYPE_CHEST)
@@ -1605,6 +1599,7 @@ bool drop_generate_object_with_bonus(int depth, bool good, bool great,
         req.difficulty_bonus += 15;
     req.is_supply = false;
     req.droptype = droptype;
+    req.allow_artefacts = allow_artefacts;
     int roll1 = dieroll(30);
     int roll2 = dieroll(30);
     int min_roll = MIN(roll1, roll2);

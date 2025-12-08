@@ -3188,12 +3188,17 @@ static bool carve_labyrinth_bounds(int y_min, int y_max, int x_min, int x_max)
             object_type *i_ptr = &object_type_body;
             object_wipe(i_ptr);
             
-            /* Mix of human and elf skeletons, more elves */
+            /* Mix of human/elf/orc skeletons: favor human+elf, orcs rare in labyrinth */
             s16b k_idx;
-            if (one_in_(3))
-                k_idx = lookup_kind(TV_SKELETON, SV_SKELETON_HUMAN);
-            else
-                k_idx = lookup_kind(TV_SKELETON, SV_SKELETON_ELF);
+            {
+                int roll = rand_int(100); /* 0-99 */
+                if (roll < 30) /* 30% */
+                    k_idx = lookup_kind(TV_SKELETON, SV_SKELETON_HUMAN);
+                else if (roll < 90) /* 60% */
+                    k_idx = lookup_kind(TV_SKELETON, SV_SKELETON_ELF);
+                else /* 10% */
+                    k_idx = lookup_kind(TV_SKELETON, SV_SKELETON_ORC);
+            }
             
             object_prep(i_ptr, k_idx);
             i_ptr->pval = 1;  /* Skeleton level */
@@ -3781,11 +3786,11 @@ static void place_chest_in_partition(int y1, int y2, int x1, int x2)
             continue;
         }
         
-        /* Must be floor, not occupied, and not in a vault */
-        if (cave_floor_bold(cy, cx) && !cave_o_idx[cy][cx] && 
+        /* Must be floor (not chasm), not occupied, and not in a vault */
+        if (cave_empty_bold(cy, cx) && !cave_o_idx[cy][cx] && 
             !(cave_info[cy][cx] & CAVE_G_VAULT))
         {
-            place_object(cy, cx, false, false, DROP_TYPE_CHEST);
+            place_object(cy, cx, false, false, DROP_TYPE_CHEST, true);
             genlog_anchor("Placed chest in partition at (%d,%d)", cy, cx);
             return;
         }
@@ -4205,61 +4210,6 @@ static void apply_quadrant_generation_modes(void)
                                        &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
             }
             break;
-        case QUAD_MODE_RUINED:
-            {
-                /* Ancient carved passages with rubble and broken walls */
-                int area = (y2 - y1) * (x2 - x1);
-                int base_carves = 4 + area / 500;
-                int carve_count = (density == DENSITY_SPARSE) ? base_carves :
-                                  (density == DENSITY_DENSE) ? base_carves + 4 : base_carves + 2;
-                if (carve_count > 10) carve_count = 10;
-                
-                for (int b = 0; b < carve_count; ++b)
-                    carve_bsp_slice_anchor_bounds(y1, y2, x1, x2);
-                
-                /* Add rubble to carved floor tiles (5-10-15% based on density) */
-                int rubble_chance = (density == DENSITY_SPARSE) ? 5 : 
-                                    (density == DENSITY_DENSE) ? 15 : 10;
-                for (int gy = y1; gy <= y2; ++gy)
-                {
-                    for (int gx = x1; gx <= x2; ++gx)
-                    {
-                        if (!in_bounds_fully(gy, gx)) continue;
-                        if (!cave_floor_bold(gy, gx)) continue;
-                        if (cave_info[gy][gx] & CAVE_G_VAULT) continue; /* preserve greater vaults only */
-                        if (rand_int(100) < rubble_chance)
-                            cave_set_feat(gy, gx, FEAT_RUBBLE);
-                    }
-                }
-                
-                /* Add broken wall segments (convert some outer walls to floor with rubble) */
-                for (int gy = y1 + 2; gy <= y2 - 2; ++gy)
-                {
-                    for (int gx = x1 + 2; gx <= x2 - 2; ++gx)
-                    {
-                        if (!in_bounds_fully(gy, gx)) continue;
-                        if (cave_info[gy][gx] & CAVE_G_VAULT) continue; /* preserve greater vaults only */
-                        if (cave_feat[gy][gx] != FEAT_WALL_OUTER) continue;
-                        if (rand_int(100) < 30)
-                        {
-                            cave_set_feat(gy, gx, FEAT_FLOOR);
-                            cave_info[gy][gx] |= CAVE_ROOM;
-                            if (one_in_(2))
-                                cave_set_feat(gy, gx, FEAT_RUBBLE);
-                        }
-                    }
-                }
-                
-                /* Ruined passages with rooms and vaults */
-                /* Sparse: T1=1 T2=1 T6=1 T7=0 | Normal: T1=1 T2=1 T6=2 T7=1 | Dense: T1=2 T2=2 T6=3 T7=2 */
-                int std_count = scaled_attempts((density == DENSITY_SPARSE) ? 1 : (density == DENSITY_DENSE) ? 2 : 1, area_factor);
-                int cross_count = scaled_attempts((density == DENSITY_SPARSE) ? 1 : (density == DENSITY_DENSE) ? 2 : 1, area_factor);
-                int int_count = scaled_attempts((density == DENSITY_SPARSE) ? 1 : (density == DENSITY_DENSE) ? 3 : 2, area_factor);
-                int vault_count = scaled_attempts((density == DENSITY_SPARSE) ? 0 : (density == DENSITY_DENSE) ? 2 : 1, area_factor);
-                place_rooms_randomized(y1, y2, x1, x2, depth, std_count, cross_count, int_count, vault_count,
-                                       &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
-            }
-            break;
         case QUAD_MODE_LABYRINTH:
             {
                 /* Maze corridors - oppressive, fewer rooms */
@@ -4516,6 +4466,70 @@ static void apply_quadrant_generation_modes(void)
                 int vault_count = scaled_attempts((density == DENSITY_DENSE) ? 1 : 0, area_factor);
                 place_rooms_randomized(y1, y2, x1, x2, depth, std_count, cross_count, int_count, vault_count,
                                        &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
+                
+                /* === RUINED SKELETON SPAWNING === */
+                /* After rubble and rooms are created, spawn skeleton items.
+                 * Use floor_count / 15, clamp 3..10 (denser than labyrinth).
+                 */
+                {
+                    int floor_count = 0;
+                    for (int gy = y1; gy <= y2; ++gy)
+                    {
+                        for (int gx = x1; gx <= x2; ++gx)
+                        {
+                            if (!in_bounds_fully(gy, gx)) continue;
+                            if (!cave_floor_bold(gy, gx)) continue;
+                            if (cave_info[gy][gx] & CAVE_G_VAULT) continue; /* preserve vaults */
+                            floor_count++;
+                        }
+                    }
+
+                    int ru_skeletons = floor_count / 15;
+                    if (ru_skeletons < 3) ru_skeletons = 3;
+                    if (ru_skeletons > 10) ru_skeletons = 10;
+                    
+                    genlog_anchor("RUINED partition bounds=(%d,%d)-(%d,%d) floor_count=%d target_skeletons=%d",
+                                  y1, x1, y2, x2, floor_count, ru_skeletons);
+
+                    int skeletons_placed = 0;
+                    for (int sk = 0; sk < ru_skeletons; ++sk)
+                    {
+                        for (int tries = 0; tries < 50; ++tries)
+                        {
+                            int sy = rand_range(y1, y2);
+                            int sx = rand_range(x1, x2);
+                            if (!in_bounds_fully(sy, sx)) continue;
+                            if (!cave_floor_bold(sy, sx)) continue;
+                            /* Don't bury skeletons under rubble */
+                            if (cave_feat[sy][sx] == FEAT_RUBBLE) continue;
+                            if (cave_o_idx[sy][sx] != 0) continue;  /* Already has object */
+
+                            object_type object_type_body;
+                            object_type *i_ptr = &object_type_body;
+                            object_wipe(i_ptr);
+
+                            s16b k_idx;
+                            int roll = rand_int(100);
+                            if (roll < 60) /* 60% orc */
+                                k_idx = lookup_kind(TV_SKELETON, SV_SKELETON_ORC);
+                            else if (roll < 80) /* 20% human */
+                                k_idx = lookup_kind(TV_SKELETON, SV_SKELETON_HUMAN);
+                            else /* 20% elf */
+                                k_idx = lookup_kind(TV_SKELETON, SV_SKELETON_ELF);
+
+                            object_prep(i_ptr, k_idx);
+                            i_ptr->pval = 1;  /* Skeleton level */
+
+                            drop_near(i_ptr, -1, sy, sx);
+                            skeletons_placed++;
+                            break;
+                        }
+                    }
+
+                    if (skeletons_placed > 0)
+                        genlog_anchor("RUINED partition: placed %d skeletons in bounds (%d,%d)-(%d,%d)",
+                                      skeletons_placed, y1, x1, y2, x2);
+                }
             }
             break;
         default:
@@ -5666,7 +5680,7 @@ static void alloc_object(int set, int typ, int num, bool out_of_sight)
 
         case ALLOC_TYP_OBJECT:
         {
-            place_object(y, x, false, false, DROP_TYPE_UNTHEMED);
+            place_object(y, x, false, false, DROP_TYPE_UNTHEMED, false);
             break;
         }
         }
@@ -8219,7 +8233,7 @@ static bool build_type2(int y0, int x0)
                     cave_set_feat(y, x, FEAT_WALL_INNER);
                 }
             }
-            place_object(y0, x0, false, false, DROP_TYPE_CHEST);
+            place_object(y0, x0, false, false, DROP_TYPE_CHEST, true);
         }
         break;
     }
@@ -8733,7 +8747,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             case '*':
             {
                 object_level = p_ptr->depth + dieroll(4);
-                place_object(y, x, false, false, DROP_TYPE_NOT_DAMAGED);
+                place_object(y, x, false, false, DROP_TYPE_NOT_DAMAGED, true);
                 object_level = original_object_level;
                 break;
             }
@@ -8742,7 +8756,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             case '&':
             {
                 object_level = p_ptr->depth + dieroll(4);
-                place_object(y, x, true, false, DROP_TYPE_NOT_DAMAGED);
+                place_object(y, x, true, false, DROP_TYPE_NOT_DAMAGED, true);
                 object_level = original_object_level;
                 break;
             }
@@ -8756,7 +8770,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                     object_level = p_ptr->depth + 4;
                 ;
 
-                place_object(y, x, false, false, DROP_TYPE_CHEST);
+                place_object(y, x, false, false, DROP_TYPE_CHEST, true);
                 object_level = original_object_level;
                 break;
             }
@@ -8807,7 +8821,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 if (r >= 2)
                 {
                     object_level = p_ptr->depth + 1;
-                    place_object(y, x, false, false, DROP_TYPE_UNTHEMED);
+                    place_object(y, x, false, false, DROP_TYPE_UNTHEMED, true);
                     object_level = original_object_level;
                 }
                 break;
@@ -11425,16 +11439,19 @@ static bool cave_gen(void)
         return (false);
     }
 
-    /* Put some objects in rooms */
-    obj_room_gen = 3 * mon_gen / 4;
+    /* Put some objects in rooms (new ratio: 1/2 of mon_gen) */
+    /* Previously used 3/4; user requested 1/2 */
+    obj_room_gen = mon_gen / 2;
     if (obj_room_gen > 0)
     {
         // currently ignoring the above...
         alloc_object(ALLOC_SET_ROOM, ALLOC_TYP_OBJECT, obj_room_gen, false);
+        log_trace("Room objects: placed %d objects in rooms", obj_room_gen);
     }
 
-    /* Put some objects in corridors (especially for labyrinth/maze levels) */
-    int obj_corr_gen = mon_gen / 3;  /* ~33% of monster count */
+    /* Put some objects in corridors (new ratio: 1/4 of mon_gen) */
+    /* Previously used 1/3; user requested 1/4 */
+    int obj_corr_gen = mon_gen / 4;  /* ~25% of monster count */
     if (obj_corr_gen > 0)
     {
         alloc_object(ALLOC_SET_CORR, ALLOC_TYP_OBJECT, obj_corr_gen, false);

@@ -1,5 +1,113 @@
 # Session Notes
 
+## 2025-12-08: Artefact depth & rarity quick analysis
+
+I parsed `lib/edit/artefact.txt` and extracted all W: lines (depth:rarity:weight:cost) to get a concise overview of artefact depth and rarity across the file. A compact CSV `artefacts_W_summary.csv` has been saved at the repository root for further inspection.
+
+- Total artefact entries in file: 122
+- Artefacts with a W: (depth/rarity) entry: 105
+- Depths: min=0, max=23, mean≈12.2, median=12
+- Rarities: min=1, max=40, mean≈15.1, median=15
+
+Most common depths (top 5): 20 (16 entries), 8 (13), 12 (12), 14 (10), 10 (9)
+
+Most common rarities (top 5): 20 (30 entries), 10 (21), 15 (13), 12 (11), 1 (10)
+
+Notable observations:
+
+- Depth 23 contains only a single artefact (N=138, Thuringwethil) with rarity=1.
+- Depth 20 is heavily represented (16 artefacts) and includes many special Morgoth/INSTA_ART artefacts with rarity 1 (very rare), as well as some high-cost unique items.
+- Rarity=1 appears across both mid/late depth artefacts and the Morgoth set — these represent the most restrictive / rare drops.
+
+How to use the CSV: open `artefacts_W_summary.csv` (columns: idx,name,depth,rarity) to filter or chart distributions.
+
+### Additional outputs (detailed analysis)
+
+- Full parsed CSV: `scripts/output/artefacts_full.csv` (idx,name,tval,sval,depth,rarity)
+- Aggregated by tval CSV: `scripts/output/artefacts_by_tval.csv`
+- Text summary: `scripts/output/artefacts_summary.txt`
+- Plots: `scripts/output/plots/depth_hist.png`, `scripts/output/plots/rarity_hist.png`, `scripts/output/plots/depth_vs_rarity_scatter.png`
+- Short report: `scripts/output/artefacts_report.md`
+
+## 2025-12-08: Special items (special.txt) depth & rarity analysis
+
+I parsed `lib/edit/special.txt` and generated CSVs and plots summarizing `W:` allocations (depth, rarity, max_depth, cost) and `T:` mapping to base tvals.
+
+- Total special entries in file: 73
+- Entries with `W:` (depth/rarity) present: 73 (all)
+- Depths: min=0, max=20, mean≈3.92, median=2
+- Rarities: min=1, max=20, mean≈4.51, median=4
+
+Most common depths: 0 (35 entries), 10 (9), 4 (8), 6 (5), 2 & 12 (4 each)
+
+Most common rarities: 1 (21 entries), 4 (19), 2 (9), 6 (8), 10 (6)
+
+Outputs generated:
+
+- scripts/output/specials_full.csv — full parsed table (idx,name,tvals,depth,rarity,max_depth,cost)
+- scripts/output/specials_by_tval.csv — aggregated per-tval stats
+- scripts/output/specials_summary.txt — numeric summary
+- plots: scripts/output/plots_specials/* (depth/rarity histograms, depth vs rarity scatter)
+
+Notes: many specials are concentrated at depth 0 (early game); rarities skew low (lots of 1/4 entries) — consider distribution adjustments if you want a flatter spread.
+
+
+## 2025-12-08: Restrict Artefacts to Monster/Vault/Chest Drops Only
+
+### User Request
+Prevent artefacts from appearing in normal floor/corridor generation. They should only drop from:
+- Monsters (via `drop_loot()`)
+- Vaults (special room drops)
+- Chests
+
+### Implementation
+
+#### 1. Added `allow_artefacts` flag to `drop_request` structure
+- File: `src/drop_system.c`
+- Added boolean field to control whether artefacts can be selected during drop generation
+
+#### 2. Updated artefact filtering logic
+- File: `src/drop_system.c`, function `collect_candidate_entries()`
+- Added early check: if `!req->allow_artefacts`, skip all artefact candidates
+- Preserves existing checks for already-created artefacts and monster-specific INSTA_ART items
+
+#### 3. Updated drop generation API
+- Files: `src/drop_system.c`, `src/externs.h`
+- Added `bool allow_artefacts` parameter to:
+  - `drop_generate_object()`
+  - `drop_generate_object_with_bonus()`
+- `make_object()` now calls with `true` (allows artefacts by default for monster drops)
+
+#### 4. Updated `place_object()` function
+- Files: `src/object2.c`, `src/externs.h`
+- Added `bool allow_artefacts` parameter
+- Now calls `drop_generate_object()` directly instead of `make_object()` to pass the flag through
+
+#### 5. Updated all call sites in `generate.c`
+- **Floor/corridor drops** (disallow artefacts):
+  - Line 5669: `ALLOC_TYP_OBJECT` - random object placement in corridors/rooms → `false`
+  
+- **Vault/chest drops** (allow artefacts):
+  - Line 3788: Chest in partition → `true`
+  - Line 8222: Vault chest → `true`
+  - Line 8736: Vault object ('*' symbol) → `true`
+  - Line 8745: Vault good object ('&' symbol) → `true`
+  - Line 8759: Vault chest ('~' symbol) → `true`
+  - Line 8810: Vault random drop ('?' symbol) → `true`
+
+#### 6. Updated chest opening
+- File: `src/cmd2.c`
+- Chest contents generation now passes `true` to allow artefacts
+
+### Testing Notes
+- Build completed successfully
+- Monster drops via `make_object()` default to allowing artefacts (correct behavior)
+- Floor/corridor generation explicitly disallows artefacts
+- Vaults and chests explicitly allow artefacts
+- All pre-existing artefact filtering logic (seen, created, INSTA_ART) remains intact
+
+---
+
 ## 2025-12-08: INSTA_ART Artefact Generation Bug Fix
 
 ### The Problem

@@ -873,17 +873,18 @@ extern void apply_magic(object_type* o_ptr, int lev, bool okay, bool good,
     bool great, bool allow_insta);
 extern void drop_system_init(void);
 extern bool drop_generate_object(int depth, bool good, bool great, int droptype,
-    object_type* out);
+    bool allow_artefacts, object_type* out);
 extern bool drop_generate_object_with_bonus(
     int depth, bool good, bool great, int droptype, int extra_bonus,
-    object_type* out);
+    bool allow_artefacts, object_type* out);
 extern bool make_object(
     object_type* j_ptr, bool good, bool great, int objecttype);
 extern bool prep_object_theme(int themetype);
 extern s16b floor_carry(int y, int x, object_type* j_ptr);
 extern void drop_near(object_type* j_ptr, int chance, int y, int x);
 extern void acquirement(int y1, int x1, int num, bool great);
-extern void place_object(int y, int x, bool good, bool great, int droptype);
+extern void place_object(int y, int x, bool good, bool great, int droptype,
+    bool allow_artefacts);
 extern void place_trap(int y, int x);
 extern void reveal_trap(int y, int x);
 extern void place_secret_door(int y, int x);

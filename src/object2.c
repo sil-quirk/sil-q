@@ -3887,7 +3887,7 @@ static bool kind_is_good(int k_idx)
 bool make_object(object_type* j_ptr, bool good, bool great, int objecttype)
 {
     int depth = object_level;
-    if (!drop_generate_object(depth, good, great, objecttype, j_ptr))
+    if (!drop_generate_object(depth, good, great, objecttype, true, j_ptr))
         return false;
 
     /* Rating boost for out-of-depth finds */
@@ -4425,7 +4425,8 @@ void acquirement(int y1, int x1, int num, bool great)
 /*
  * Attempt to place an object (normal or good/great) at the given location.
  */
-void place_object(int y, int x, bool good, bool great, int droptype)
+void place_object(int y, int x, bool good, bool great, int droptype,
+    bool allow_artefacts)
 {
     object_type* i_ptr;
     object_type object_type_body;
@@ -4445,7 +4446,8 @@ void place_object(int y, int x, bool good, bool great, int droptype)
     object_wipe(i_ptr);
 
     /* Make an object (if possible) */
-    while (!make_object(i_ptr, good, great, droptype))
+    int depth = object_level;
+    while (!drop_generate_object(depth, good, great, droptype, allow_artefacts, i_ptr))
         continue;
 
     /* Give it to the floor */

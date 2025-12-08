@@ -846,7 +846,7 @@ static void chest_death(int y, int x, s16b o_idx)
 
         int droptype = chesttheme;
         bool ok = drop_generate_object_with_bonus(
-            effective_depth, false, false, droptype, chest_bonus, i_ptr);
+            effective_depth, false, false, droptype, chest_bonus, true, i_ptr);
 
         if (ok)
         {
