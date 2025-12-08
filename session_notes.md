@@ -1,5 +1,62 @@
 # Session Notes
 
+## 2025-12-08: Fix partition mode updates when fallback generation occurs
+
+### Problem
+When partition generation failed and fell back to different generation methods, the partition mode was not updated. This caused incorrect drop profiles:
+- LABYRINTH partition fails → falls back to BSP slices, but still uses LABYRINTH drops (jewelry/supplies only)
+- CHASM partition fails → falls back to CA blobs, but still uses CHASM drops (default profile)
+- BIG_CAVE partition fails → falls back to CA blobs, but still uses BIG_CAVE drops (half drop rate)
+- Any partition with no rooms → falls back to simple rooms, but keeps original partition drops
+
+### Solution
+Update `current_partition_modes[pi]` when fallback generation occurs:
+1. **LABYRINTH fallback to BSP slices** → update mode to `QUAD_MODE_RUINED`
+2. **CHASM fallback to CA blobs** → update mode to `QUAD_MODE_CAVEY`
+3. **BIG_CAVE fallback to CA blobs** → update mode to `QUAD_MODE_CAVEY`
+4. **General fallback to simple rooms** → update mode to `QUAD_MODE_ROOMY`
+
+### Implementation
+Added partition mode updates in `src/generate.c` at each fallback point:
+- Line ~4430: LABYRINTH → RUINED fallback
+- Line ~4472: CHASM → CAVEY fallback
+- Line ~4492: BIG_CAVE → CAVEY fallback
+- Line ~4768: General → ROOMY fallback
+
+### Result
+Drop profiles now correctly match what was actually generated, not what was originally intended. Fallback partitions get appropriate loot for their actual generation method.
+
+## 2025-12-08: Partition-specific drops based on room type
+
+### Problem
+Previously, drop profiles were determined solely by partition mode (ROOMY, CAVEY, RUINED, etc.). This meant:
+- In a CAVEY partition with regular rooms inside, those rooms got CAVEY drop profile (no floor drops)
+- CA_BLOB areas in any partition always got the partition's drop profile, not CAVEY-specific drops
+- Fallback rooms kept their partition's drop profile instead of appropriate room-type drops
+
+### Solution
+Implemented room-type-aware drop profile selection:
+1. **CA_BLOB rooms** (cellular automata caves) → use CAVEY drop profile
+2. **Regular rooms** (standard dungeon rooms with CAVE_ROOM flag) → use ROOMY drop profile
+3. **Corridors and other areas** → fall back to partition mode's drop profile
+
+### Implementation Details
+- Added `room_index_for_point(y, x)` helper to find which room contains a point
+- Added `drop_mode_for_point(y, x)` that checks:
+  - If point is in a CA_BLOB room (`LAYOUT_ANCHOR_CA_BLOB`) → return `QUAD_MODE_CAVEY`
+  - If point is in a regular room (has `CAVE_ROOM` flag) → return `QUAD_MODE_ROOMY`
+  - Otherwise → return partition mode via `partition_mode_for_point()`
+- Updated `alloc_object()` to use `drop_mode_for_point()` instead of `partition_mode_for_point()`
+
+### Files Changed
+- `src/generate.c`: Added helper functions and updated drop profile logic
+
+### Result
+- CA_BLOB areas now consistently use CAVEY drops regardless of their partition
+- Regular rooms now consistently use ROOMY drops regardless of their partition
+- Fallback rooms get appropriate drops based on their room type
+- Partition-specific profiles (LABYRINTH, RUINED, BIG_CAVE) still apply to their respective areas
+
 ## 2025-12-08: Artefact depth & rarity quick analysis
 
 I parsed `lib/edit/artefact.txt` and extracted all W: lines (depth:rarity:weight:cost) to get a concise overview of artefact depth and rarity across the file. A compact CSV `artefacts_W_summary.csv` has been saved at the repository root for further inspection.

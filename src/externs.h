@@ -871,12 +871,31 @@ extern void object_into_special(object_type* o_ptr, int lev, bool smithing);
 extern void check_artifact_visibility(void);
 extern void apply_magic(object_type* o_ptr, int lev, bool okay, bool good,
     bool great, bool allow_insta);
+#ifndef DROP_PROFILE_T_DEFINED
+#define DROP_PROFILE_T_DEFINED
+typedef struct
+{
+    int weight_weapon;
+    int weight_armor;
+    int weight_jewelry;
+    int weight_supply;
+    int supply_potion;
+    int supply_herb;
+    int supply_gem;
+    int supply_staff;
+    int supply_misc;
+} drop_profile;
+#endif
+extern void drop_profile_default(drop_profile* profile);
 extern void drop_system_init(void);
 extern bool drop_generate_object(int depth, bool good, bool great, int droptype,
     bool allow_artefacts, object_type* out);
 extern bool drop_generate_object_with_bonus(
     int depth, bool good, bool great, int droptype, int extra_bonus,
     bool allow_artefacts, object_type* out);
+extern bool drop_generate_object_profiled(int depth, bool good, bool great,
+    int droptype, int extra_bonus, bool allow_artefacts,
+    const drop_profile* profile, object_type* out);
 extern bool make_object(
     object_type* j_ptr, bool good, bool great, int objecttype);
 extern bool prep_object_theme(int themetype);

@@ -60,6 +60,25 @@ typedef struct
     u32b count;
 } drop_raw_header;
 
+#define DROP_DEFAULT_CAT_WEIGHT 25
+#define DROP_DEFAULT_SUPPLY_WEIGHT 1
+
+void drop_profile_default(drop_profile* profile)
+{
+    if (!profile)
+        return;
+
+    profile->weight_weapon = DROP_DEFAULT_CAT_WEIGHT;
+    profile->weight_armor = DROP_DEFAULT_CAT_WEIGHT;
+    profile->weight_jewelry = DROP_DEFAULT_CAT_WEIGHT;
+    profile->weight_supply = DROP_DEFAULT_CAT_WEIGHT;
+    profile->supply_potion = DROP_DEFAULT_SUPPLY_WEIGHT;
+    profile->supply_herb = DROP_DEFAULT_SUPPLY_WEIGHT;
+    profile->supply_gem = DROP_DEFAULT_SUPPLY_WEIGHT;
+    profile->supply_staff = DROP_DEFAULT_SUPPLY_WEIGHT;
+    profile->supply_misc = DROP_DEFAULT_SUPPLY_WEIGHT;
+}
+
 /* ------------------------------------------------------------------------ */
 /* Helpers                                                                  */
 /* ------------------------------------------------------------------------ */
@@ -69,8 +88,8 @@ static drop_category drop_category_for_kind(const object_kind* k_ptr)
     switch (k_ptr->tval)
     {
     case TV_ARROW:
-        return (k_ptr->sval == SV_NORMAL_ARROW) ? DROP_CAT_SUPPLY
-                                                : DROP_CAT_WEAPON;
+        /* Base category is weapon (for ego arrows); normal arrows overridden to supply in add_drop_entry */
+        return DROP_CAT_WEAPON;
     case TV_SWORD:
     case TV_HAFTED:
     case TV_POLEARM:
@@ -92,7 +111,8 @@ static drop_category drop_category_for_kind(const object_kind* k_ptr)
     case TV_LIGHT:
         if (k_ptr->sval == SV_LIGHT_TORCH || k_ptr->sval == SV_LIGHT_MALLORN)
             return DROP_CAT_SUPPLY;
-        else if (k_ptr->sval == 1 || k_ptr->sval == 2 || k_ptr->sval == 8)
+        else if (k_ptr->sval == SV_LIGHT_LANTERN || k_ptr->sval == SV_LIGHT_LESSER_JEWEL
+            || k_ptr->sval == SV_LIGHT_FEANORIAN || k_ptr->sval == SV_LIGHT_SILMARIL)
             return DROP_CAT_JEWELRY;
         else
             return DROP_CAT_MAX;
@@ -491,6 +511,17 @@ static void add_drop_entry(const object_type* proto, drop_category cat,
     /* Never allow INSTA_ART templates except as true artefacts */
     if ((k_ptr->flags3 & TR3_INSTA_ART) && group_kind != DROP_GROUP_ARTIFACT)
         return;
+
+    /* Override category: simple items go to supply, ego/artifact versions go to their proper category */
+    if (group_kind == DROP_GROUP_NORMAL)
+    {
+        /* Simple brass lamps and lesser jewels → supply (egos stay jewelry) */
+        if (k_ptr->tval == TV_LIGHT && (k_ptr->sval == SV_LIGHT_LANTERN || k_ptr->sval == SV_LIGHT_LESSER_JEWEL))
+            cat = DROP_CAT_SUPPLY;
+        /* Simple arrows → supply (egos go to weapon) */
+        else if (k_ptr->tval == TV_ARROW)
+            cat = DROP_CAT_SUPPLY;
+    }
 
     if (g_drop_count + 1 > g_drop_capacity)
     {
@@ -955,12 +986,23 @@ void drop_system_init(void)
     char raw_path[1024];
     char txt_path[1024];
     path_build(raw_path, sizeof(raw_path), ANGBAND_DIR_DATA, format("%s.raw", DROP_RAW_FILE));
+    
+    log_debug("drop_system_init: Checking modification times for drops.raw");
+    log_debug("drop_system_init: raw_path='%s'", raw_path);
+    
     path_build(txt_path, sizeof(txt_path), ANGBAND_DIR_EDIT, "object.txt");
+    log_debug("drop_system_init: checking against '%s'", txt_path);
     bool need_rebuild = check_modification_date_sdl(raw_path, txt_path) != 0;
+    
     path_build(txt_path, sizeof(txt_path), ANGBAND_DIR_EDIT, "special.txt");
+    log_debug("drop_system_init: checking against '%s'", txt_path);
     need_rebuild |= (check_modification_date_sdl(raw_path, txt_path) != 0);
+    
     path_build(txt_path, sizeof(txt_path), ANGBAND_DIR_EDIT, "artifact.txt");
+    log_debug("drop_system_init: checking against '%s'", txt_path);
     need_rebuild |= (check_modification_date_sdl(raw_path, txt_path) != 0);
+    
+    log_debug("drop_system_init: need_rebuild=%d", need_rebuild);
 #else
     bool need_rebuild = true;
 #endif
@@ -1010,6 +1052,16 @@ void drop_system_init(void)
 /* Selection logic                                                          */
 /* ------------------------------------------------------------------------ */
 
+typedef enum
+{
+    DROP_SUPPLY_POTION = 0,
+    DROP_SUPPLY_HERB = 1,
+    DROP_SUPPLY_GEM = 2,
+    DROP_SUPPLY_STAFF = 3,
+    DROP_SUPPLY_MISC = 4,
+    DROP_SUPPLY_GROUP_MAX = 5
+} drop_supply_group_id;
+
 typedef struct
 {
     drop_category cat;
@@ -1021,6 +1073,8 @@ typedef struct
     int lower;
     int upper;
     bool allow_artefacts; /* whether artefacts can be selected */
+    int cat_weights[DROP_CAT_MAX];
+    int supply_weights[DROP_SUPPLY_GROUP_MAX];
 } drop_request;
 
 typedef struct
@@ -1032,16 +1086,32 @@ typedef struct
     int rarity;
 } drop_group;
 
-/* supply grouping */
-typedef enum
+static void drop_request_set_default_weights(drop_request* req)
 {
-    DROP_SUPPLY_POTION = 0,
-    DROP_SUPPLY_HERB = 1,
-    DROP_SUPPLY_GEM = 2,
-    DROP_SUPPLY_STAFF = 3,
-    DROP_SUPPLY_MISC = 4,
-    DROP_SUPPLY_GROUP_MAX = 5
-} drop_supply_group_id;
+    for (int i = 0; i < DROP_CAT_MAX; ++i)
+        req->cat_weights[i] = DROP_DEFAULT_CAT_WEIGHT;
+    for (int i = 0; i < DROP_SUPPLY_GROUP_MAX; ++i)
+        req->supply_weights[i] = DROP_DEFAULT_SUPPLY_WEIGHT;
+}
+
+static void drop_request_apply_profile(
+    drop_request* req, const drop_profile* profile)
+{
+    drop_request_set_default_weights(req);
+    if (!profile)
+        return;
+
+    req->cat_weights[DROP_CAT_WEAPON] = MAX(0, profile->weight_weapon);
+    req->cat_weights[DROP_CAT_ARMOR] = MAX(0, profile->weight_armor);
+    req->cat_weights[DROP_CAT_JEWELRY] = MAX(0, profile->weight_jewelry);
+    req->cat_weights[DROP_CAT_SUPPLY] = MAX(0, profile->weight_supply);
+
+    req->supply_weights[DROP_SUPPLY_POTION] = MAX(0, profile->supply_potion);
+    req->supply_weights[DROP_SUPPLY_HERB] = MAX(0, profile->supply_herb);
+    req->supply_weights[DROP_SUPPLY_GEM] = MAX(0, profile->supply_gem);
+    req->supply_weights[DROP_SUPPLY_STAFF] = MAX(0, profile->supply_staff);
+    req->supply_weights[DROP_SUPPLY_MISC] = MAX(0, profile->supply_misc);
+}
 
 static drop_supply_group_id supply_group_for_entry(const drop_entry* e)
 {
@@ -1062,12 +1132,6 @@ static drop_supply_group_id supply_group_for_entry(const drop_entry* e)
     default:
         return DROP_SUPPLY_MISC;
     }
-}
-
-static int supply_group_weight(drop_supply_group_id id)
-{
-    (void)id;
-    return 1; /* baseline equal weights; tweakable */
 }
 
 static int supply_entry_weight(const drop_entry* e, int depth)
@@ -1099,15 +1163,37 @@ static const char* drop_category_name(drop_category cat)
 }
 
 /* Category roll: defaults 25/25/25/25 */
-static drop_category roll_category(void)
+static drop_category roll_category(const drop_request* req)
 {
-    int roll = rand_int(100);
-    if (roll < 25)
-        return DROP_CAT_WEAPON;
-    if (roll < 50)
-        return DROP_CAT_ARMOR;
-    if (roll < 75)
-        return DROP_CAT_JEWELRY;
+    int weights[DROP_CAT_MAX];
+    int total = 0;
+    for (int i = 0; i < DROP_CAT_MAX; ++i)
+    {
+        weights[i] = DROP_DEFAULT_CAT_WEIGHT;
+        if (req)
+            weights[i] = req->cat_weights[i];
+        if (weights[i] < 0)
+            weights[i] = 0;
+        total += weights[i];
+    }
+
+    /* Fallback to equal weights if everything is disabled */
+    if (total <= 0)
+    {
+        for (int i = 0; i < DROP_CAT_MAX; ++i)
+            weights[i] = DROP_DEFAULT_CAT_WEIGHT;
+        total = DROP_DEFAULT_CAT_WEIGHT * DROP_CAT_MAX;
+    }
+
+    int roll = rand_int(total);
+    int accum = 0;
+    for (int i = 0; i < DROP_CAT_MAX; ++i)
+    {
+        accum += weights[i];
+        if (roll < accum)
+            return (drop_category)i;
+    }
+
     return DROP_CAT_SUPPLY;
 }
 
@@ -1383,7 +1469,7 @@ static drop_entry* choose_entry_from_group(drop_entry* entries,
 }
 
 static drop_entry* choose_supply_entry(drop_entry* entries, size_t count,
-    int depth)
+    int depth, const drop_request* req)
 {
     drop_entry* bucket[DROP_SUPPLY_GROUP_MAX][1024];
     int bucket_counts[DROP_SUPPLY_GROUP_MAX] = { 0 };
@@ -1402,7 +1488,9 @@ static drop_entry* choose_supply_entry(drop_entry* entries, size_t count,
     {
         if (bucket_counts[gid] == 0)
             continue;
-        int w = supply_group_weight((drop_supply_group_id)gid);
+        int w = (req) ? req->supply_weights[gid] : DROP_DEFAULT_SUPPLY_WEIGHT;
+        if (w <= 0)
+            continue;
         bucket_weights[gid] = w;
         total_group_weight += w;
     }
@@ -1577,12 +1665,13 @@ static bool generate_chest(int depth, object_type* out)
 bool drop_generate_object(int depth, bool good, bool great, int droptype,
     bool allow_artefacts, object_type* out)
 {
-    return drop_generate_object_with_bonus(depth, good, great, droptype, 0,
-        allow_artefacts, out);
+    return drop_generate_object_profiled(
+        depth, good, great, droptype, 0, allow_artefacts, NULL, out);
 }
 
-bool drop_generate_object_with_bonus(int depth, bool good, bool great,
-    int droptype, int extra_bonus, bool allow_artefacts, object_type* out)
+static bool drop_generate_object_internal(int depth, bool good, bool great,
+    int droptype, int extra_bonus, bool allow_artefacts,
+    const drop_profile* profile, object_type* out)
 {
     /* Handle chest generation specially */
     if (droptype == DROP_TYPE_CHEST)
@@ -1591,6 +1680,7 @@ bool drop_generate_object_with_bonus(int depth, bool good, bool great,
     }
     
     drop_request req;
+    drop_request_apply_profile(&req, profile);
     req.depth = depth;
     req.difficulty_bonus = extra_bonus;
     if (good)
@@ -1645,7 +1735,7 @@ bool drop_generate_object_with_bonus(int depth, bool good, bool great,
         req.is_supply = true;
         break;
     default:
-        req.cat = roll_category();
+        req.cat = roll_category(&req);
         break;
     }
     if (req.cat == DROP_CAT_SUPPLY)
@@ -1659,7 +1749,7 @@ bool drop_generate_object_with_bonus(int depth, bool good, bool great,
     bool attempted_fallback = false;
     drop_entry* chosen = NULL;
 
-    /* Try widening difficulty bands if strict fails */
+    /* Try widening difficulty bands across 5 attempts */
     for (int attempt = 0; attempt < 5 && !chosen; attempt++)
     {
         if (attempt > 0)
@@ -1676,6 +1766,7 @@ bool drop_generate_object_with_bonus(int depth, bool good, bool great,
         relaxed_count = 0;
         used_relaxed = false;
 
+        /* Always use strict filtering - never fall back to relaxed mode */
         if (collect_candidate_entries(&req, false, &candidates, &cand_count))
         {
             strict_count = cand_count;
@@ -1683,25 +1774,15 @@ bool drop_generate_object_with_bonus(int depth, bool good, bool great,
         else
         {
             strict_count = cand_count;
-            mem_free_null(candidates);
-            candidates = NULL;
-            cand_count = 0;
-            if (collect_candidate_entries(&req, true, &candidates, &cand_count))
-            {
-                relaxed_count = cand_count;
-                used_relaxed = true;
-            }
-            else
-            {
-                relaxed_count = cand_count;
-            }
+            /* No candidates found with this band width - continue to next attempt */
+            continue;
         }
 
         if (cand_count > 0)
         {
             if (req.is_supply || req.cat == DROP_CAT_SUPPLY)
             {
-                chosen = choose_supply_entry(candidates, cand_count, depth);
+                chosen = choose_supply_entry(candidates, cand_count, depth, &req);
             }
             else
             {
@@ -1753,4 +1834,20 @@ bool drop_generate_object_with_bonus(int depth, bool good, bool great,
 
     mem_free_null(candidates);
     return ok;
+}
+
+bool drop_generate_object_with_bonus(int depth, bool good, bool great,
+    int droptype, int extra_bonus, bool allow_artefacts, object_type* out)
+{
+    return drop_generate_object_internal(
+        depth, good, great, droptype, extra_bonus, allow_artefacts, NULL, out);
+}
+
+bool drop_generate_object_profiled(int depth, bool good, bool great,
+    int droptype, int extra_bonus, bool allow_artefacts,
+    const drop_profile* profile, object_type* out)
+{
+    return drop_generate_object_internal(
+        depth, good, great, droptype, extra_bonus, allow_artefacts, profile,
+        out);
 }
