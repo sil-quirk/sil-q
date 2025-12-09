@@ -59,7 +59,7 @@ static bool object_is_truly_two_handed(const object_type* o_ptr)
                 || (o_ptr->sval == SV_GREAT_AXE);
         case TV_SWORD:
             return (o_ptr->sval == SV_GREAT_SWORD)
-                || (o_ptr->sval == SV_MITHRIL_GREAT_SWORD);
+                || (o_ptr->sval == SV_STAR_IRON_GREAT_SWORD);
         default:
             break;
     }

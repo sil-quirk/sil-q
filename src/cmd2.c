@@ -3115,25 +3115,40 @@ static bool twall(int y, int x)
     /* Quartz */
     if (cave_feat[y][x] >= FEAT_QUARTZ)
     {
-        /* Check for special drops from quartz in cave areas only */
-        /* Cave quartz veins are marked with CAVE_ROOM during generation */
+        /* Check for special drops from quartz in cave or chasm areas only */
+        /* Quartz veins in caves are marked with CAVE_ROOM; chasms add CAVE_CHASM_AREA */
         /* Chance: 1% + depth/10, capped at 4%, requires depth 10+ */
         int depth = p_ptr->depth;
         bool in_cave = (cave_info[y][x] & CAVE_ROOM) != 0;
+        bool in_chasm_area = (cave_info[y][x] & CAVE_CHASM_AREA) != 0;
+        bool allow_mithril = in_cave && !in_chasm_area;
+        bool allow_star_iron = in_chasm_area;
         
         int special_chance = 1 + (depth / 10);
         if (special_chance > 4) special_chance = 4;
         
-        if (in_cave && depth >= 10 && rand_int(100) < special_chance)
+        if ((in_cave || in_chasm_area) && depth >= 10 && rand_int(100) < special_chance)
         {
             object_type object_type_body;
             object_type *i_ptr = &object_type_body;
             object_wipe(i_ptr);
             
-            /* 30% chance mithril at depth 12+, otherwise try for gem */
-            bool try_mithril = (depth >= 12) && (rand_int(100) < 30);
+            /* 30% chance for metal at depth 12+, otherwise try for gem */
+            bool try_star_iron = allow_star_iron && (depth >= 12) && (rand_int(100) < 30);
+            bool try_mithril = allow_mithril && (depth >= 12) && (rand_int(100) < 30);
             
-            if (try_mithril)
+            if (try_star_iron)
+            {
+                /* Drop star iron */
+                s16b k_idx = lookup_kind(TV_METAL, SV_METAL_STAR_IRON);
+                if (k_idx > 0)
+                {
+                    object_prep(i_ptr, k_idx);
+                    drop_near(i_ptr, -1, y, x);
+                    msg_print("You find a jagged shard of star iron!");
+                }
+            }
+            else if (try_mithril)
             {
                 /* Drop mithril */
                 s16b k_idx = lookup_kind(TV_METAL, SV_METAL_MITHRIL);

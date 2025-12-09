@@ -7193,3 +7193,9 @@ User reported that while letters were enabled, the 'i' and 'e' keys were still s
 - Added `level_layout_info` exposure with partition counts and dominant kind via `level_layout_info_current` in `src/generate.c`, plus a per-level reset hook for skeleton notes.
 - Skeleton searches now roll for note events with per-skeleton chances/weights; notes use `pause_with_text` and surface vault/partition/size intel with a map-area-based cap (`src/cmd2.c`).
 - Level generation calls `skeleton_note_level_reset` so caps refresh per floor; `build-cmake.bat` standard+portable build succeeds.
+
+## Smithing alloy + star iron (current session)
+- Added star iron metal (`SV_METAL_STAR_IRON`, `TR3_STAR_IRON`) with a new piece item; Star-Iron Greatsword now tagged STAR_IRON. Chasm partitions scatter star iron pieces on platforms and mark quartz with `CAVE_CHASM_AREA` for star-iron mining; cave quartz logic now checks chasm vs cave to keep mithril separate.
+- Introduced Alloy mastery (`SMT_ALLOY_MASTERY`, ability id 128) gating mithril/star-iron crafting and alloy use. Smithing costs track star iron; both metals now show in smithing cost display and affordability.
+- Smithing Numbers menu gains alloy toggles (cycle mithril/star iron/none, clear). Applying an alloy adds a free stat (+1 att / +1 evn for mithril; +1 ds / +1 ps for star iron) without raising smithing difficulty but consumes 25% item weight in the chosen metal; alloy state is backed up/restored with smithing objects.
+- `build-cmake.bat` run completed (standard build) with existing warnings only.

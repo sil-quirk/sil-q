@@ -538,6 +538,12 @@ N:127:Grace
 I:6:7:10
 D:You gain a point of grace, inspired as by the touch of Varda upon the works of the Eldar.
 
+N:128:Alloy mastery
+I:6:8:6
+D:Blending mithril or star iron into your work, you can alloy items with these rare metals, gaining their bonuses without increasing smithing difficulty and unlocking the ability to forge mithril or star-iron gear.
+T:21:8:8   # Hafted (War Hammer only)
+T:31:0:99  # Gloves
+
 # Song ---------------------------------------------
 
 N:140:Song of Elbereth

@@ -56,7 +56,7 @@ static bool sword_is_great(const object_type* weapon)
     switch (weapon->sval)
     {
     case SV_GREAT_SWORD:
-    case SV_MITHRIL_GREAT_SWORD:
+    case SV_STAR_IRON_GREAT_SWORD:
         return true;
     default:
         return false;

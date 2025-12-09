@@ -1603,7 +1603,7 @@ static void seed_prefab_anchors(void)
 
 /* Scatter quartz veins around CA blob edges to give a natural cave-like appearance.
  * Converts some wall tiles adjacent to floors into quartz veins. */
-static void scatter_quartz_veins_in_bounds(int y1, int y2, int x1, int x2)
+static void scatter_quartz_veins_in_bounds(int y1, int y2, int x1, int x2, u16b info_flag)
 {
     int vein_count = 0;
     
@@ -1640,7 +1640,7 @@ static void scatter_quartz_veins_in_bounds(int y1, int y2, int x1, int x2)
             {
                 cave_set_feat(gy, gx, FEAT_QUARTZ);
                 /* Mark as part of a room so tunneling can detect cave quartz */
-                cave_info[gy][gx] |= CAVE_ROOM;
+                cave_info[gy][gx] |= (CAVE_ROOM | info_flag);
                 vein_count++;
             }
         }
@@ -1783,6 +1783,61 @@ static void scatter_cave_gems_in_bounds(int y1, int y2, int x1, int x2, bool is_
     {
         log_trace("scatter_cave_mithril: mithril=%d gems=%d bounds (%d,%d)-(%d,%d) depth=%d",
                   mithril_placed, gem_placed, y1, x1, y2, x2, depth);
+    }
+}
+
+/* Scatter star-iron pieces across chasm partitions (on floor tiles only). */
+static void scatter_chasm_star_iron_in_bounds(int y1, int y2, int x1, int x2)
+{
+    int depth = p_ptr->depth;
+    if (depth < 8)
+        return;
+
+    int area = (y2 - y1 + 1) * (x2 - x1 + 1);
+    int size_factor = MAX(1, area / 500);
+    if (size_factor > 4) size_factor = 4;
+
+    /* Up to 3 chunks, scaled by partition size */
+    int max_chunks = MIN(3, 1 + (size_factor + 1) / 2);
+
+    /* Depth-scaled chance, mirroring mithril cave logic */
+    int spawn_chance = 10 + (depth / 6) + 4 * (size_factor - 1);
+    int spawn_cap = 40;
+    if (spawn_chance > spawn_cap)
+        spawn_chance = spawn_cap;
+
+    int placed = 0;
+    bool try_star = (rand_int(100) < spawn_chance);
+    for (int attempt = 0; try_star && attempt < 60 && placed < max_chunks; ++attempt)
+    {
+        int gy = rand_range(y1, y2);
+        int gx = rand_range(x1, x2);
+        if (!in_bounds_fully(gy, gx))
+            continue;
+        if (!cave_floor_bold(gy, gx))
+            continue;
+        /* Only drop inside the chasm partition */
+        if (!(cave_info[gy][gx] & CAVE_CHASM_AREA))
+            continue;
+        if (cave_o_idx[gy][gx] != 0)
+            continue;
+
+        s16b k_idx = lookup_kind(TV_METAL, SV_METAL_STAR_IRON);
+        if (k_idx <= 0)
+            break;
+
+        object_type object_type_body;
+        object_type *i_ptr = &object_type_body;
+        object_wipe(i_ptr);
+        object_prep(i_ptr, k_idx);
+        drop_near(i_ptr, -1, gy, gx);
+        placed++;
+    }
+
+    if (placed > 0)
+    {
+        log_trace("scatter_chasm_star_iron: pieces=%d bounds (%d,%d)-(%d,%d) depth=%d",
+                  placed, y1, x1, y2, x2, depth);
     }
 }
 
@@ -2026,7 +2081,7 @@ static bool carve_ca_blob_anchor(void)
     mark_room_anchor_meta(idx, LAYOUT_ANCHOR_CA_BLOB, one_in_(3));
 
     /* Scatter quartz veins around the cave walls for natural appearance */
-    scatter_quartz_veins_in_bounds(min_y, max_y, min_x, max_x);
+    scatter_quartz_veins_in_bounds(min_y, max_y, min_x, max_x, 0);
 
     log_trace("CA blob anchor: carved floor_count=%d bounds=(%d,%d)-(%d,%d) center=(%d,%d)",
         floor_count, min_y, min_x, max_y, max_x, cy, cx);
@@ -2276,7 +2331,7 @@ static bool carve_ca_blob_anchor_bounds(int y_min, int y_max, int x_min, int x_m
     mark_room_anchor_meta(idx, LAYOUT_ANCHOR_CA_BLOB, one_in_(4));
 
     /* Scatter quartz veins around the cave walls for natural appearance */
-    scatter_quartz_veins_in_bounds(min_y, max_y, min_x, max_x);
+    scatter_quartz_veins_in_bounds(min_y, max_y, min_x, max_x, 0);
 
     log_trace("CA blob (bounded) anchor: bounds=(%d,%d)-(%d,%d) center=(%d,%d) floors=%d", min_y, min_x, max_y, max_x, cy, cx, floor_count);
     return true;
@@ -2562,7 +2617,7 @@ static bool carve_big_cave_bounds(int y_min, int y_max, int x_min, int x_max)
     dun->is_quest[idx] = false;
     mark_room_anchor_meta(idx, LAYOUT_ANCHOR_CA_BLOB, false);
     
-    scatter_quartz_veins_in_bounds(min_y, max_y, min_x, max_x);
+    scatter_quartz_veins_in_bounds(min_y, max_y, min_x, max_x, 0);
     /* Treat the big cave as a few merged blobs for loot scaling */
     scatter_cave_gems_in_bounds(min_y, max_y, min_x, max_x, true, 3);  /* Big cave gets extra gems */
     
@@ -4401,7 +4456,7 @@ static void apply_quadrant_generation_modes(void)
                         carved_blobs++;
                 
                 /* Scatter quartz veins for natural cave look */
-                scatter_quartz_veins_in_bounds(y1, y2, x1, x2);
+                scatter_quartz_veins_in_bounds(y1, y2, x1, x2, 0);
                 
                 /* Scatter gems and mithril in cave areas - normal cave bonus */
                 int blob_for_loot = (carved_blobs > 0) ? carved_blobs : blob_target;
@@ -4475,7 +4530,13 @@ static void apply_quadrant_generation_modes(void)
                 
                 /* Place 1 chest in chasm partition ONLY if it actually carved */
                 if (chasm_carved)
+                {
+                    /* Veins in chasm walls for mining (tagged for star-iron drops) */
+                    scatter_quartz_veins_in_bounds(y1, y2, x1, x2, CAVE_CHASM_AREA);
+                    /* Scatter rare star-iron pieces onto platforms */
+                    scatter_chasm_star_iron_in_bounds(y1, y2, x1, x2);
                     place_chest_in_partition(y1, y2, x1, x2, false);
+                }
             }
             break;
         case QUAD_MODE_BIG_CAVE:
@@ -4494,7 +4555,7 @@ static void apply_quadrant_generation_modes(void)
                 }
                 
                 /* Add quartz veins for natural cave look */
-                scatter_quartz_veins_in_bounds(y1, y2, x1, x2);
+                scatter_quartz_veins_in_bounds(y1, y2, x1, x2, 0);
                 
                 /* Add internal pillars/boulders for visual interest (density-scaled) */
                 int pillar_target = (density == DENSITY_SPARSE) ? 3 : 
@@ -4628,7 +4689,7 @@ static void apply_quadrant_generation_modes(void)
                 for (int b = 0; b < blob_target; ++b)
                     if (carve_ca_blob_anchor_bounds(y1, y2, x1, x2))
                         carved_blobs++;
-                scatter_quartz_veins_in_bounds(y1, y2, x1, x2);
+                scatter_quartz_veins_in_bounds(y1, y2, x1, x2, 0);
                 int blob_for_loot = (carved_blobs > 0) ? carved_blobs : blob_target;
                 scatter_cave_gems_in_bounds(y1, y2, x1, x2, false, blob_for_loot);
                 int std_count = scaled_attempts(2, area_factor);

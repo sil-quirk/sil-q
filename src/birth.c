@@ -127,6 +127,7 @@ static const char *character_ability_names[S_MAX][ABILITIES_MAX] =
         [SMT_EXPERTISE]     = "Expertise",
         [SMT_ARTEFACT]      = "Artifice",
         [SMT_MASTERPIECE]   = "Masterpiece",
+        [SMT_ALLOY_MASTERY] = "Alloy mastery",
         [SMT_GRA]           = NULL,
     },
     [S_SNG] = {

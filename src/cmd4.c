@@ -2946,6 +2946,26 @@ object_type* smith2_o_ptr = &smith2_o_body;
 object_type smith3_o_body;
 object_type* smith3_o_ptr = &smith3_o_body;
 
+typedef enum
+{
+    SMITH_ALLOY_NONE = 0,
+    SMITH_ALLOY_MITHRIL,
+    SMITH_ALLOY_STAR_IRON,
+} smith_alloy_type;
+
+typedef struct
+{
+    smith_alloy_type type;
+    byte bonus_att;
+    byte bonus_ds;
+    byte bonus_evn;
+    byte bonus_ps;
+} smith_alloy_state;
+
+static smith_alloy_state smith_alloy;
+static smith_alloy_state smith2_alloy;
+static smith_alloy_state smith3_alloy;
+
 // artefact being created
 #define smith_a_name (z_info->art_self_made_max - 1)
 #define smith_a_ptr (&a_info[smith_a_name])
@@ -2966,6 +2986,10 @@ typedef struct smithing_cost_type
     int exp;
     int smt;
     int mithril;
+    int star_iron;
+    int alloy_weight;
+    int alloy_metal;
+    int alloy_mastery;
     int uses;
     int drain;
     int weaponsmith;
@@ -3004,8 +3028,10 @@ smithing_cost_type smithing_cost;
 #define SMT_NUM_MENU_D_PVAL 10
 #define SMT_NUM_MENU_I_WGT 11
 #define SMT_NUM_MENU_D_WGT 12
+#define SMT_NUM_MENU_ALLOY_CYCLE 13
+#define SMT_NUM_MENU_ALLOY_CLEAR 14
 
-#define SMT_NUM_MENU_MAX 12
+#define SMT_NUM_MENU_MAX 14
 
 #define COL_SMT1 2
 #define COL_SMT2 16
@@ -3034,6 +3060,101 @@ static const smithing_tval_desc smithing_tvals[MAX_SMITHING_TVALS] = {
     { CAT_ARMOUR, TV_GLOVES, "Gloves" },
     { CAT_ARMOUR, TV_BOOTS, "Boots" },
 };
+
+static void smith_clear_alloy_state(smith_alloy_state* state)
+{
+    state->type = SMITH_ALLOY_NONE;
+    state->bonus_att = 0;
+    state->bonus_ds = 0;
+    state->bonus_evn = 0;
+    state->bonus_ps = 0;
+}
+
+static void smith_remove_alloy_bonus(object_type* o_ptr, smith_alloy_state* state)
+{
+    if (!state)
+        return;
+
+    if (state->type != SMITH_ALLOY_NONE && o_ptr && o_ptr->k_idx)
+    {
+        o_ptr->att -= state->bonus_att;
+        if (o_ptr->ds >= state->bonus_ds)
+            o_ptr->ds -= state->bonus_ds;
+        else
+            o_ptr->ds = 0;
+        o_ptr->evn -= state->bonus_evn;
+        if (o_ptr->ps >= state->bonus_ps)
+            o_ptr->ps -= state->bonus_ps;
+        else
+            o_ptr->ps = 0;
+    }
+
+    smith_clear_alloy_state(state);
+}
+
+static int smith_item_category(const object_type* o_ptr)
+{
+    if (!o_ptr)
+        return -1;
+
+    for (int i = 0; i < MAX_SMITHING_TVALS; i++)
+    {
+        if (smithing_tvals[i].tval == o_ptr->tval)
+            return smithing_tvals[i].category;
+    }
+
+    return -1;
+}
+
+static bool smith_alloy_applicable(const object_type* o_ptr)
+{
+    int cat = smith_item_category(o_ptr);
+    return (cat == CAT_WEAPON) || (cat == CAT_ARMOUR);
+}
+
+static bool smith_apply_alloy(object_type* o_ptr, smith_alloy_state* state, smith_alloy_type new_type)
+{
+    if (!o_ptr || !state)
+        return false;
+
+    smith_remove_alloy_bonus(o_ptr, state);
+
+    if (new_type == SMITH_ALLOY_NONE)
+        return true;
+
+    int cat = smith_item_category(o_ptr);
+    if (cat == CAT_WEAPON)
+    {
+        if (new_type == SMITH_ALLOY_MITHRIL)
+            state->bonus_att = 1;
+        else if (new_type == SMITH_ALLOY_STAR_IRON)
+            state->bonus_ds = 1;
+    }
+    else if (cat == CAT_ARMOUR)
+    {
+        if (new_type == SMITH_ALLOY_MITHRIL)
+            state->bonus_evn = 1;
+        else if (new_type == SMITH_ALLOY_STAR_IRON)
+            state->bonus_ps = 1;
+    }
+    else
+    {
+        return false;
+    }
+
+    o_ptr->att += state->bonus_att;
+    o_ptr->ds += state->bonus_ds;
+    o_ptr->evn += state->bonus_evn;
+    o_ptr->ps += state->bonus_ps;
+    state->type = new_type;
+    return true;
+}
+
+static int smith_alloy_weight_required(const object_type* o_ptr)
+{
+    int total_weight = o_ptr->weight * ((o_ptr->number > 0) ? o_ptr->number : 1);
+    return (total_weight + 3) / 4;
+}
 
 /*
  * A structure to hold a flag and its smithing category
@@ -3873,7 +3994,7 @@ int mithril_items_carried(void)
     return (number);
 }
 
-int mithril_carried(void)
+static int metal_carried(byte sval)
 {
     int w = 0;
     int item;
@@ -3882,7 +4003,7 @@ int mithril_carried(void)
     {
         object_type* o_ptr = &inventory[item];
 
-        if ((o_ptr->tval == TV_METAL) && (o_ptr->sval == SV_METAL_MITHRIL))
+        if ((o_ptr->tval == TV_METAL) && (o_ptr->sval == sval))
         {
             w += o_ptr->number;
         }
@@ -3891,34 +4012,43 @@ int mithril_carried(void)
     return (w);
 }
 
-void use_mithril(int cost)
+int mithril_carried(void)
+{
+    return metal_carried(SV_METAL_MITHRIL);
+}
+
+int star_iron_carried(void)
+{
+    return metal_carried(SV_METAL_STAR_IRON);
+}
+
+static void use_metal(byte sval, int cost)
 {
     int item;
 
-    for (item = INVEN_WIELD - 1; item >= 0; item--)
+    for (item = INVEN_WIELD - 1; item >= 0 && cost > 0; item--)
     {
         object_type* o_ptr = &inventory[item];
 
-        if ((o_ptr->tval == TV_METAL) && (o_ptr->sval == SV_METAL_MITHRIL))
+        if ((o_ptr->tval == TV_METAL) && (o_ptr->sval == sval))
         {
-            if (o_ptr->number >= cost)
-            {
-                inven_item_increase(item, -cost);
-                inven_item_describe(item);
-                inven_item_optimize(item);
-                return;
-            }
-            else
-            {
-                cost -= o_ptr->number;
-                inven_item_increase(item, -o_ptr->number);
-                inven_item_describe(item);
-                inven_item_optimize(item);
-            }
+            int use = MIN(o_ptr->number, cost);
+            inven_item_increase(item, -use);
+            inven_item_describe(item);
+            inven_item_optimize(item);
+            cost -= use;
         }
     }
+}
 
-    return;
+void use_mithril(int cost)
+{
+    use_metal(SV_METAL_MITHRIL, cost);
+}
+
+void use_star_iron(int cost)
+{
+    use_metal(SV_METAL_STAR_IRON, cost);
 }
 
 /*
@@ -4001,6 +4131,10 @@ int object_difficulty(object_type* o_ptr)
     smithing_cost.gra = 0;
     smithing_cost.exp = 0;
     smithing_cost.mithril = 0;
+    smithing_cost.star_iron = 0;
+    smithing_cost.alloy_weight = 0;
+    smithing_cost.alloy_metal = SMITH_ALLOY_NONE;
+    smithing_cost.alloy_mastery = 0;
     smithing_cost.uses = 1;
     smithing_cost.drain = 0;
     smithing_cost.weaponsmith = 0;
@@ -4011,6 +4145,10 @@ int object_difficulty(object_type* o_ptr)
 
     // extract object flags
     object_flags(o_ptr, &f1, &f2, &f3);
+    int att_base = o_ptr->att - smith_alloy.bonus_att;
+    int evn_base = o_ptr->evn - smith_alloy.bonus_evn;
+    int ds_base = o_ptr->ds - smith_alloy.bonus_ds;
+    int ps_base = o_ptr->ps - smith_alloy.bonus_ps;
 
     /* ------------------------------------------------------------------
      *  GAMIL character bonus
@@ -4100,7 +4238,7 @@ int object_difficulty(object_type* o_ptr)
     dif_inc += (weight_factor - 100) / 20;
 
     // attack bonus
-    x = o_ptr->att - k_ptr->att;
+    x = att_base - k_ptr->att;
 
     // special costs for attack bonus for arrows
     if ((o_ptr->tval == TV_ARROW) && (x > 0))
@@ -4126,20 +4264,21 @@ int object_difficulty(object_type* o_ptr)
     }
 
     // evasion bonus
-    x = o_ptr->evn - k_ptr->evn;
+    x = evn_base - k_ptr->evn;
     dif_mod(x, 6, &dif_inc);
     if (x > 0)
         dif_inc -= 1;
 
     // damage bonus
-    x = (o_ptr->ds - k_ptr->ds);
+    x = (ds_base - k_ptr->ds);
     // dd used to be a factor here, but a shortsword is far more breakable than
     // a great axe adjusted to make >1 damage sides expensive to smith
     dif_mod(x, 3 * x + 2, &dif_inc);
 
     // protection bonus
     base = (k_ptr->ps > 0) ? ((k_ptr->ps + 1) * k_ptr->pd) : 0;
-    new = (o_ptr->ps > 0) ? ((o_ptr->ps + 1) * o_ptr->pd) : 0;
+    int ps_calc = (ps_base > 0) ? ps_base : 0;
+    new = (ps_calc > 0) ? ((ps_calc + 1) * o_ptr->pd) : 0;
     x = new - base;
 
     // special costs for protection sides on hauberks and rings
@@ -4548,6 +4687,24 @@ int object_difficulty(object_type* o_ptr)
     {
         smithing_cost.mithril += o_ptr->weight;
     }
+    // Star iron
+    if (k_ptr->flags3 & TR3_STAR_IRON)
+    {
+        smithing_cost.star_iron += o_ptr->weight;
+    }
+
+    /* Optional alloy bonus */
+    if (smith_alloy.type != SMITH_ALLOY_NONE)
+    {
+        int alloy_weight = smith_alloy_weight_required(o_ptr);
+        smithing_cost.alloy_weight = alloy_weight;
+        smithing_cost.alloy_metal = smith_alloy.type;
+
+        if (smith_alloy.type == SMITH_ALLOY_MITHRIL)
+            smithing_cost.mithril += alloy_weight;
+        else if (smith_alloy.type == SMITH_ALLOY_STAR_IRON)
+            smithing_cost.star_iron += alloy_weight;
+    }
 
    /* Gamil character bonus � override normal mithril cost */
   if ((c_info[p_ptr->pcharacter].flags_u & UNQ_SMT_GAMIL)      /* you�re Gamil */
@@ -4601,12 +4758,11 @@ int object_difficulty(object_type* o_ptr)
         }
     }
 
+    bool needs_alloy_mastery = ((k_ptr->flags3 & (TR3_MITHRIL | TR3_STAR_IRON)) != 0)
+        || (smith_alloy.type != SMITH_ALLOY_NONE);
+
     // determine which additional smithing abilities would be required
-    for (i = 0; i < MAX_SMITHING_TVALS; i++)
-    {
-        if (smithing_tvals[i].tval == smith_o_ptr->tval)
-            cat = smithing_tvals[i].category;
-    }
+    cat = smith_item_category(smith_o_ptr);
     if ((cat == CAT_WEAPON) && !p_ptr->active_ability[S_SMT][SMT_WEAPONSMITH])
     {
         smithing_cost.weaponsmith = 1;
@@ -4626,6 +4782,10 @@ int object_difficulty(object_type* o_ptr)
     if (smith_o_ptr->name2 && !p_ptr->active_ability[S_SMT][SMT_ENCHANTMENT])
     {
         smithing_cost.enchantment = 1;
+    }
+    if (needs_alloy_mastery && !p_ptr->active_ability[S_SMT][SMT_ALLOY_MASTERY])
+    {
+        smithing_cost.alloy_mastery = 1;
     }
     if (p_ptr->active_ability[S_SMT][SMT_EXPERTISE])
     {
@@ -4813,6 +4973,12 @@ void prt_object_difficulty(void)
         Term_putstr(COL_SMT4 + 2, 10 + costs, -1, TERM_RED, "Artifice");
         costs++;
     }
+    if (smithing_cost.alloy_mastery)
+    {
+        Term_putstr(
+            COL_SMT4 + 2, 10 + costs, -1, TERM_RED, "Alloy Mastery");
+        costs++;
+    }
     if (smithing_cost.uses > 0)
     {
         if (forge_uses(p_ptr->py, p_ptr->px) >= smithing_cost.uses)
@@ -4866,6 +5032,22 @@ void prt_object_difficulty(void)
         }
         sprintf(buf, "%d.%d lb Mithril", smithing_cost.mithril / 10,
             smithing_cost.mithril % 10);
+        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
+        costs++;
+    }
+    if (smithing_cost.star_iron > 0)
+    {
+        if (smithing_cost.star_iron <= star_iron_carried())
+        {
+            attr = TERM_SLATE;
+        }
+        else
+        {
+            attr = TERM_L_DARK;
+            affordable = false;
+        }
+        sprintf(buf, "%d.%d lb Star Iron", smithing_cost.star_iron / 10,
+            smithing_cost.star_iron % 10);
         Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
         costs++;
     }
@@ -5014,12 +5196,15 @@ bool affordable(object_type* o_ptr)
     if ((smithing_cost.mithril > 0)
         && (smithing_cost.mithril > mithril_carried()))
         can_afford = false;
+    if ((smithing_cost.star_iron > 0)
+        && (smithing_cost.star_iron > star_iron_carried()))
+        can_afford = false;
     if (forge_uses(p_ptr->py, p_ptr->px) < smithing_cost.uses)
         can_afford = false;
 
     if (smithing_cost.weaponsmith || smithing_cost.armoursmith
         || smithing_cost.jeweller || smithing_cost.enchantment
-        || smithing_cost.artifice)
+        || smithing_cost.artifice || smithing_cost.alloy_mastery)
         can_afford = false;
 
     return (can_afford);
@@ -5044,6 +5229,8 @@ void pay_costs()
         p_ptr->new_exp -= smithing_cost.exp;
     if (smithing_cost.mithril > 0)
         use_mithril(smithing_cost.mithril);
+    if (smithing_cost.star_iron > 0)
+        use_star_iron(smithing_cost.star_iron);
     if (smithing_cost.uses > 0)
         cave_feat[p_ptr->py][p_ptr->px] -= smithing_cost.uses;
     if (smithing_cost.drain > 0)
@@ -5092,6 +5279,7 @@ void create_base_object(int tval, int sval)
 {
     /* Wipe the object */
     object_wipe(smith_o_ptr);
+    smith_clear_alloy_state(&smith_alloy);
 
     /* Prepare the item */
     object_prep(smith_o_ptr, lookup_kind(tval, sval));
@@ -5273,6 +5461,7 @@ bool create_sval_menu(int tval)
         {
             /* Wipe the object */
             object_wipe(smith_o_ptr);
+            smith_clear_alloy_state(&smith_alloy);
 
             leave_menu = true;
         }
@@ -5304,6 +5493,7 @@ int create_tval_menu_aux(int* highlight)
 
     /* Wipe the smithing object */
     object_wipe(smith_o_ptr);
+    smith_clear_alloy_state(&smith_alloy);
 
     for (i = 0; i < MAX_SMITHING_TVALS; i++)
     {
@@ -5493,6 +5683,34 @@ void modify_numbers(int choice)
     case SMT_NUM_MENU_D_WGT:
         smith_o_ptr->weight -= 5;
         break;
+    case SMT_NUM_MENU_ALLOY_CYCLE:
+    {
+        if (!p_ptr->active_ability[S_SMT][SMT_ALLOY_MASTERY])
+        {
+            bell("You need Alloy mastery to do that.");
+            break;
+        }
+        if (!smith_alloy_applicable(smith_o_ptr))
+        {
+            bell("Alloying only applies to weapons and armour.");
+            smith_remove_alloy_bonus(smith_o_ptr, &smith_alloy);
+            break;
+        }
+
+        smith_alloy_type next = SMITH_ALLOY_NONE;
+        if (smith_alloy.type == SMITH_ALLOY_NONE)
+            next = SMITH_ALLOY_MITHRIL;
+        else if (smith_alloy.type == SMITH_ALLOY_MITHRIL)
+            next = SMITH_ALLOY_STAR_IRON;
+        else
+            next = SMITH_ALLOY_NONE;
+
+        smith_apply_alloy(smith_o_ptr, &smith_alloy, next);
+        break;
+    }
+    case SMT_NUM_MENU_ALLOY_CLEAR:
+        smith_remove_alloy_bonus(smith_o_ptr, &smith_alloy);
+        break;
     }
 
     return;
@@ -5508,7 +5726,7 @@ int numbers_menu_aux(int* highlight)
     char buf[80];
     byte attr[SMT_NUM_MENU_MAX];
     bool valid[SMT_NUM_MENU_MAX];
-    bool can_afford[SMT_NUM_MENU_MAX];
+    bool can_afford[SMT_NUM_MENU_MAX] = { false };
 
     // clear the right of the screen
     wipe_screen_from(COL_SMT2);
@@ -5533,11 +5751,23 @@ int numbers_menu_aux(int* highlight)
         = wgt_valid() && ((smith_o_ptr->weight + 5) <= wgt_max());
     valid[SMT_NUM_MENU_D_WGT - 1]
         = wgt_valid() && ((smith_o_ptr->weight - 5) >= wgt_min());
+    bool alloy_applicable = smith_alloy_applicable(smith_o_ptr);
+    bool has_alloy_mastery = p_ptr->active_ability[S_SMT][SMT_ALLOY_MASTERY];
+    valid[SMT_NUM_MENU_ALLOY_CYCLE - 1] = alloy_applicable && has_alloy_mastery;
+    valid[SMT_NUM_MENU_ALLOY_CLEAR - 1] = (smith_alloy.type != SMITH_ALLOY_NONE);
 
     // retrieve a super backup of the object
     object_copy(smith3_o_ptr, smith_o_ptr);
+    smith3_alloy = smith_alloy;
     for (i = 0; i < SMT_NUM_MENU_MAX; i++)
     {
+        if ((i == SMT_NUM_MENU_ALLOY_CYCLE - 1)
+            || (i == SMT_NUM_MENU_ALLOY_CLEAR - 1))
+        {
+            can_afford[i] = valid[i];
+            attr[i] = valid[i] ? TERM_WHITE : TERM_L_DARK;
+            continue;
+        }
         if (valid[i])
         {
             modify_numbers(i + 1);
@@ -5545,6 +5775,7 @@ int numbers_menu_aux(int* highlight)
 
             // retrieve a super backup of the object
             object_copy(smith_o_ptr, smith3_o_ptr);
+            smith_alloy = smith3_alloy;
         }
 
         attr[i] = valid[i] ? (can_afford[i] ? TERM_WHITE : TERM_SLATE)
@@ -5575,6 +5806,10 @@ int numbers_menu_aux(int* highlight)
         COL_SMT2, 12, -1, attr[SMT_NUM_MENU_I_WGT - 1], "k) increase weight");
     Term_putstr(
         COL_SMT2, 13, -1, attr[SMT_NUM_MENU_D_WGT - 1], "l) decrease weight");
+    Term_putstr(COL_SMT2, 14, -1, attr[SMT_NUM_MENU_ALLOY_CYCLE - 1],
+        "m) cycle alloy (none/mithril/star iron)");
+    Term_putstr(COL_SMT2, 15, -1, attr[SMT_NUM_MENU_ALLOY_CLEAR - 1],
+        "n) remove alloy bonus");
 
     // highlight the label
     strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
@@ -5698,6 +5933,7 @@ void create_special(int name2)
 {
     // retrieve a backup of the object
     object_copy(smith_o_ptr, smith2_o_ptr);
+    smith_alloy = smith2_alloy;
 
     // set its 'special' name to reflect the chosen type
     smith_o_ptr->name2 = name2;
@@ -5939,6 +6175,7 @@ void prepare_artefact(void)
 
     // retrieve a backup of the object
     object_copy(smith_o_ptr, smith2_o_ptr);
+    smith_alloy = smith2_alloy;
 
     // set its 'artefact' name to reflect the chosen type
     smith_o_ptr->name1 = smith_a_name;
@@ -6887,12 +7124,14 @@ void artefact_menu(void)
         {
             create_base_object(TV_RING, SV_RING_SELF_MADE);
             object_copy(smith2_o_ptr, smith_o_ptr);
+            smith2_alloy = smith_alloy;
             smith2_o_ptr->pd = 1;
         }
         if (smith_o_ptr->tval == TV_AMULET)
         {
             create_base_object(TV_AMULET, SV_AMULET_SELF_MADE);
             object_copy(smith2_o_ptr, smith_o_ptr);
+            smith2_alloy = smith_alloy;
         }
     }
 
@@ -7345,12 +7584,14 @@ void do_cmd_smithing_screen(void)
 
         // and backup the smithing item
         object_copy(smith2_o_ptr, smith_o_ptr);
+        smith2_alloy = smith_alloy;
     }
 
     // otherwise wipe the smithing item
     else
     {
         object_wipe(smith_o_ptr);
+        smith_clear_alloy_state(&smith_alloy);
     }
 
     /* Process Events until "Return to Game" is selected */
@@ -7370,6 +7611,7 @@ void do_cmd_smithing_screen(void)
 
             // backup the smithing object
             object_copy(smith2_o_ptr, smith_o_ptr);
+            smith2_alloy = smith_alloy;
 
             break;
         }
@@ -7384,6 +7626,7 @@ void do_cmd_smithing_screen(void)
                 {
                     // restore the smithing object
                     object_copy(smith_o_ptr, smith2_o_ptr);
+                    smith_alloy = smith2_alloy;
                 }
             }
             else
@@ -7420,6 +7663,7 @@ void do_cmd_smithing_screen(void)
 
                 // backup the smithing object
                 object_copy(smith2_o_ptr, smith_o_ptr);
+                smith2_alloy = smith_alloy;
             }
             else
             {
@@ -7524,6 +7768,7 @@ void do_cmd_smithing_screen(void)
         {
             /* Wipe the smithing object */
             object_wipe(smith_o_ptr);
+            smith_clear_alloy_state(&smith_alloy);
         }
 
         // Hack: flag that we are done with smithing
@@ -7645,6 +7890,7 @@ void create_smithing_item(void)
 
     // Wipe the smithing object
     object_wipe(smith_o_ptr);
+    smith_clear_alloy_state(&smith_alloy);
 }
 
 #define MAIN_MENU_RETURN 1
