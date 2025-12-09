@@ -1130,6 +1130,10 @@ errr parse_z_info(char* buf, header* head)
     {
         z_info->style_max = (u16b)atoi(buf + 4);
     }
+    else if (buf[2] == 'X')
+    {
+        z_info->skeleton_note_max = (u16b)atoi(buf + 4);
+    }
     else
     {
         /* Oops */
@@ -3052,6 +3056,176 @@ errr parse_n_info(char* buf, header* head)
         /* Oops */
         return (PARSE_ERROR_UNDEFINED_DIRECTIVE);
     }
+}
+
+static byte skeleton_note_parse_sval_token(const char* tok, bool* ok)
+{
+    if (ok)
+        *ok = false;
+    if (!tok || !*tok)
+        return 0;
+    if (streq(tok, "ELF"))
+    {
+        if (ok) *ok = true;
+        return SV_SKELETON_ELF;
+    }
+    if (streq(tok, "HUMAN"))
+    {
+        if (ok) *ok = true;
+        return SV_SKELETON_HUMAN;
+    }
+    if (streq(tok, "ORC"))
+    {
+        if (ok) *ok = true;
+        return SV_SKELETON_ORC;
+    }
+    if (streq(tok, "ANY"))
+    {
+        if (ok) *ok = true;
+        return 0;
+    }
+    return 0;
+}
+
+static byte skeleton_note_parse_hint_token(const char* tok)
+{
+    if (!tok)
+        return SKEL_HINT_NONE;
+    if (streq(tok, "GREAT_VAULT"))
+        return SKEL_HINT_GREAT_VAULT;
+    if (streq(tok, "VAULT_ARTIFACT"))
+        return SKEL_HINT_VAULT_ARTIFACT;
+    if (streq(tok, "DOMINANT"))
+        return SKEL_HINT_DOMINANT_PARTITION;
+    if (streq(tok, "PARTITION"))
+        return SKEL_HINT_PARTITION_PRESENCE;
+    if (streq(tok, "SIZE"))
+        return SKEL_HINT_LEVEL_SIZE;
+    return SKEL_HINT_NONE;
+}
+
+/*
+ * Parse skeleton_note.txt
+ *
+ * Formats:
+ *   O:<SVAL>:<weight>:<text>
+ *   C:<SVAL>:<weight>:<text>
+ *   M:<SVAL>:<HINT>:<weight>:<text>
+ *
+ * SVAL may be ELF/HUMAN/ORC/ANY
+ * HINT may be GREAT_VAULT/VAULT_ARTIFACT/DOMINANT/PARTITION/SIZE
+ * Weight is optional (defaults to 100) and clamped to a byte.
+ */
+errr parse_skeleton_note_info(char* buf, header* head)
+{
+    static int next_idx = 0;
+    skeleton_note_role role = SKELETON_NOTE_ROLE_NONE;
+    char buf_copy[1024];
+
+    strnfmt(buf_copy, sizeof(buf_copy), "%s", buf);
+
+    /* Reset per-file */
+    if (error_idx < 0)
+        next_idx = 0;
+
+    if (!buf[0] || buf[0] == '#')
+        return 0;
+
+    if (buf[0] == 'O')
+        role = SKELETON_NOTE_ROLE_OPENING;
+    else if (buf[0] == 'C')
+        role = SKELETON_NOTE_ROLE_SIGNOFF;
+    else if (buf[0] == 'M')
+        role = SKELETON_NOTE_ROLE_HINT;
+    else
+        return PARSE_ERROR_UNDEFINED_DIRECTIVE;
+
+    if (next_idx >= head->info_num)
+        return PARSE_ERROR_TOO_MANY_ENTRIES;
+
+    skeleton_note_template* note = (skeleton_note_template*)head->info_ptr + next_idx;
+
+    char* cursor = buf + 2;
+    char* sval_tok = cursor;
+    char* sep = strchr(cursor, ':');
+    if (!sep)
+    {
+        log_error("skeleton_note.txt: missing sval separator on line %d (buf='%s')",
+            error_line, buf_copy);
+        return PARSE_ERROR_GENERIC;
+    }
+    *sep = '\0';
+    cursor = sep + 1;
+
+    bool valid_sval = false;
+    byte sval = skeleton_note_parse_sval_token(sval_tok, &valid_sval);
+    if (!valid_sval)
+    {
+        log_error("skeleton_note.txt: invalid sval '%s' on line %d (buf='%s')",
+            sval_tok, error_line, buf_copy);
+        return PARSE_ERROR_GENERIC;
+    }
+
+    byte hint = SKEL_HINT_NONE;
+    if (role == SKELETON_NOTE_ROLE_HINT)
+    {
+        char* hint_tok = cursor;
+        sep = strchr(cursor, ':');
+        if (!sep)
+        {
+            log_error("skeleton_note.txt: missing hint separator on line %d (buf='%s')",
+                error_line, buf_copy);
+            return PARSE_ERROR_GENERIC;
+        }
+        *sep = '\0';
+        cursor = sep + 1;
+        hint = skeleton_note_parse_hint_token(hint_tok);
+        if (hint == SKEL_HINT_NONE)
+        {
+            log_error("skeleton_note.txt: invalid hint '%s' on line %d (buf='%s')",
+                hint_tok, error_line, buf_copy);
+            return PARSE_ERROR_INVALID_FLAG;
+        }
+    }
+
+    long weight = 100;
+    sep = strchr(cursor, ':');
+    if (sep)
+    {
+        *sep = '\0';
+        weight = atol(cursor);
+        cursor = sep + 1;
+    }
+    else
+    {
+        cursor = cursor;
+    }
+
+    if (weight < 0 || weight > 255)
+    {
+        log_error("skeleton_note.txt: weight out of bounds (%ld) on line %d (buf='%s')",
+            weight, error_line, buf_copy);
+        return PARSE_ERROR_OUT_OF_BOUNDS;
+    }
+
+    if (!cursor || cursor[0] == '\0')
+    {
+        log_error("skeleton_note.txt: missing text payload on line %d (buf='%s')",
+            error_line, buf_copy);
+        return PARSE_ERROR_GENERIC;
+    }
+
+    note->sval = sval;
+    note->hint = hint;
+    note->role = role;
+    note->weight = (byte)weight;
+
+    if (!add_text(&note->text, head, cursor))
+        return PARSE_ERROR_OUT_OF_MEMORY;
+
+    next_idx++;
+    error_idx = next_idx;
+    return 0;
 }
 
 /*

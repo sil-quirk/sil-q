@@ -1050,16 +1050,6 @@ static bool generate_poor_quality_object(object_type* o_ptr)
     return search_failed;
 }
 
-typedef enum skeleton_hint_kind {
-    SKEL_HINT_NONE = 0,
-    SKEL_HINT_GREAT_VAULT,
-    SKEL_HINT_VAULT_ARTIFACT,
-    SKEL_HINT_DOMINANT_PARTITION,
-    SKEL_HINT_PARTITION_PRESENCE,
-    SKEL_HINT_LEVEL_SIZE,
-    SKEL_HINT_MAX
-} skeleton_hint_kind;
-
 typedef struct skeleton_note_profile {
     int note_chance;
     int weight_scale[SKEL_HINT_MAX];
@@ -1071,13 +1061,72 @@ typedef struct skeleton_note_state {
     int notes_shown;
     int map_wid;
     int map_hgt;
+    byte hint_used_mask;
+    byte seen_count;
+    s16b seen_ids[SKELETON_NOTE_SEEN_MAX];
 } skeleton_note_state;
 
-static skeleton_note_state g_skeleton_note_state = { -1, 0, 0, 0, 0 };
+static skeleton_note_state g_skeleton_note_state = { -1, 0, 0, 0, 0, 0, 0, {0} };
+static int g_skeleton_note_entry_count = -1;
 static const int skeleton_hint_base_weight[SKEL_HINT_MAX]
     = {0, 80, 60, 45, 35, 25};
 
 static void skeleton_note_ensure_level_state(void);
+static bool skeleton_note_has_unseen_template(
+    byte sval, skeleton_note_role role, skeleton_hint_kind hint);
+static void skeleton_note_recount_templates(void)
+{
+    g_skeleton_note_entry_count = 0;
+
+    if (!skeleton_note_info || !z_info)
+        return;
+
+    for (int i = 0; i < z_info->skeleton_note_max; ++i)
+    {
+        skeleton_note_template* t = &skeleton_note_info[i];
+        if (t->role == SKELETON_NOTE_ROLE_NONE)
+            continue;
+        if (t->text == 0 || t->weight == 0)
+            continue;
+        g_skeleton_note_entry_count++;
+    }
+}
+
+static int skeleton_note_entry_count(void)
+{
+    if (g_skeleton_note_entry_count < 0)
+        skeleton_note_recount_templates();
+    return g_skeleton_note_entry_count;
+}
+
+static void skeleton_note_reset_seen(void)
+{
+    g_skeleton_note_state.hint_used_mask = 0;
+    g_skeleton_note_state.seen_count = 0;
+    for (int i = 0; i < SKELETON_NOTE_SEEN_MAX; ++i)
+        g_skeleton_note_state.seen_ids[i] = -1;
+}
+
+static bool skeleton_note_seen_id(s16b id)
+{
+    for (int i = 0; i < g_skeleton_note_state.seen_count; ++i)
+    {
+        if (g_skeleton_note_state.seen_ids[i] == id)
+            return true;
+    }
+    return false;
+}
+
+static void skeleton_note_record_seen(s16b id)
+{
+    if (id < 0)
+        return;
+    if (skeleton_note_seen_id(id))
+        return;
+    if (g_skeleton_note_state.seen_count >= SKELETON_NOTE_SEEN_MAX)
+        return;
+    g_skeleton_note_state.seen_ids[g_skeleton_note_state.seen_count++] = id;
+}
 
 static int skeleton_note_size_bucket(const level_layout_info* layout)
 {
@@ -1179,6 +1228,36 @@ static const char* size_word_for_bucket(int bucket)
     }
 }
 
+static const char* skeleton_note_fallback_opening(byte sval)
+{
+    switch (sval)
+    {
+    case SV_SKELETON_ELF:
+        return "Flowing script, penned in calmer hours:";
+    case SV_SKELETON_HUMAN:
+        return "A hurried note from steadier hands:";
+    case SV_SKELETON_ORC:
+        return "Jagged scrawl on greasy hide:";
+    default:
+        return "A brittle note clutched by the bones:";
+    }
+}
+
+static const char* skeleton_note_fallback_signoff(byte sval)
+{
+    switch (sval)
+    {
+    case SV_SKELETON_ELF:
+        return "If you endure, tread softly.";
+    case SV_SKELETON_HUMAN:
+        return "Maybe you'll fare better.";
+    case SV_SKELETON_ORC:
+        return "Take what we couldn't.";
+    default:
+        return "";
+    }
+}
+
 static bool level_has_greater_vault(void)
 {
     for (int y = 0; y < p_ptr->cur_map_hgt; ++y)
@@ -1222,6 +1301,8 @@ void skeleton_note_level_reset(void)
     g_skeleton_note_state.map_hgt = layout.map_hgt;
     g_skeleton_note_state.note_cap = skeleton_note_cap_from_layout(&layout);
     g_skeleton_note_state.notes_shown = 0;
+    skeleton_note_reset_seen();
+    g_skeleton_note_entry_count = -1;
 
     if (g_skeleton_note_state.note_cap < 1)
         g_skeleton_note_state.note_cap = 1;
@@ -1237,28 +1318,87 @@ static void skeleton_note_ensure_level_state(void)
     }
 }
 
+void skeleton_note_get_state(skeleton_note_state_save* out)
+{
+    if (!out)
+        return;
+    skeleton_note_ensure_level_state();
+    out->level_depth = (s16b)g_skeleton_note_state.level_depth;
+    out->note_cap = (s16b)g_skeleton_note_state.note_cap;
+    out->notes_shown = (s16b)g_skeleton_note_state.notes_shown;
+    out->map_wid = (s16b)g_skeleton_note_state.map_wid;
+    out->map_hgt = (s16b)g_skeleton_note_state.map_hgt;
+    out->hint_used_mask = g_skeleton_note_state.hint_used_mask;
+    out->seen_count = g_skeleton_note_state.seen_count;
+    for (int i = 0; i < SKELETON_NOTE_SEEN_MAX; ++i)
+        out->seen_ids[i] = g_skeleton_note_state.seen_ids[i];
+}
+
+void skeleton_note_set_state(const skeleton_note_state_save* in)
+{
+    skeleton_note_reset_seen();
+    if (!in)
+    {
+        skeleton_note_level_reset();
+        return;
+    }
+    g_skeleton_note_state.level_depth = in->level_depth;
+    g_skeleton_note_state.note_cap = (in->note_cap > 0) ? in->note_cap : 1;
+    g_skeleton_note_state.notes_shown = (in->notes_shown >= 0)
+        ? in->notes_shown
+        : 0;
+    g_skeleton_note_state.map_wid
+        = (in->map_wid > 0) ? in->map_wid : p_ptr->cur_map_wid;
+    g_skeleton_note_state.map_hgt
+        = (in->map_hgt > 0) ? in->map_hgt : p_ptr->cur_map_hgt;
+    g_skeleton_note_state.hint_used_mask
+        = in->hint_used_mask & ((1 << SKEL_HINT_MAX) - 1);
+    g_skeleton_note_state.seen_count = MIN(in->seen_count, SKELETON_NOTE_SEEN_MAX);
+    for (int i = 0; i < SKELETON_NOTE_SEEN_MAX; ++i)
+        g_skeleton_note_state.seen_ids[i] = in->seen_ids[i];
+    if (g_skeleton_note_state.notes_shown > g_skeleton_note_state.note_cap)
+        g_skeleton_note_state.notes_shown = g_skeleton_note_state.note_cap;
+}
+
 static bool skeleton_hint_available(skeleton_hint_kind kind,
     const level_layout_info* layout, bool vault_present,
-    bool vault_artifact)
+    bool vault_artifact, byte sval)
 {
+    bool ok = false;
+
     switch (kind)
     {
     case SKEL_HINT_GREAT_VAULT:
-        return vault_present;
+        ok = vault_present;
+        break;
     case SKEL_HINT_VAULT_ARTIFACT:
-        return vault_artifact;
+        ok = vault_artifact;
+        break;
     case SKEL_HINT_DOMINANT_PARTITION:
-        return layout && layout->partition_count > 0
+        ok = layout && layout->partition_count > 0
             && layout->dominant_kind != LEVEL_PART_NONE;
+        break;
     case SKEL_HINT_PARTITION_PRESENCE:
-        return layout
+        ok = layout
             && (layout->labyrinth_parts > 0 || layout->big_cave_parts > 0
                 || layout->chasm_parts > 0);
+        break;
     case SKEL_HINT_LEVEL_SIZE:
-        return layout != NULL;
+        ok = (layout != NULL);
+        break;
     default:
-        return false;
+        ok = false;
+        break;
     }
+
+    if (!ok)
+        return false;
+
+    if (!skeleton_note_has_unseen_template(
+            sval, SKELETON_NOTE_ROLE_HINT, kind))
+        return false;
+
+    return true;
 }
 
 static level_partition_kind skeleton_pick_partition_presence(
@@ -1287,15 +1427,20 @@ static level_partition_kind skeleton_pick_partition_presence(
 
 static skeleton_hint_kind skeleton_note_choose_hint(
     const skeleton_note_profile* profile, const level_layout_info* layout,
-    bool vault_present, bool vault_artifact)
+    bool vault_present, bool vault_artifact, byte sval)
 {
     int weights[SKEL_HINT_MAX] = {0};
     int total = 0;
+    byte used_mask = g_skeleton_note_state.hint_used_mask;
 
     for (int k = 1; k < SKEL_HINT_MAX; ++k)
     {
         skeleton_hint_kind kind = (skeleton_hint_kind)k;
-        if (!skeleton_hint_available(kind, layout, vault_present, vault_artifact))
+        if (used_mask & (1 << k))
+            continue;
+
+        if (!skeleton_hint_available(
+                kind, layout, vault_present, vault_artifact, sval))
             continue;
 
         int base = skeleton_hint_base_weight[k];
@@ -1330,114 +1475,139 @@ static skeleton_hint_kind skeleton_note_choose_hint(
     return SKEL_HINT_NONE;
 }
 
-static const char* skeleton_note_opening(byte sval)
+static bool skeleton_note_has_unseen_template(
+    byte sval, skeleton_note_role role, skeleton_hint_kind hint)
 {
-    switch (sval)
+    if (!skeleton_note_info || !z_info)
+        return false;
+
+    for (int i = 0; i < z_info->skeleton_note_max; ++i)
     {
-    case SV_SKELETON_ELF:
-        return "Flowing script, penned in calmer hours:";
-    case SV_SKELETON_HUMAN:
-        return "A hurried note from steadier hands:";
-    case SV_SKELETON_ORC:
-        return "Jagged scrawl on greasy hide:";
-    default:
-        return "A brittle note clutched by the bones:";
+        skeleton_note_template* t = &skeleton_note_info[i];
+        if (t->role != role || t->weight == 0 || t->text == 0)
+            continue;
+        if (t->sval && t->sval != sval)
+            continue;
+        if (role == SKELETON_NOTE_ROLE_HINT && t->hint != hint)
+            continue;
+        if (!skeleton_note_seen_id((s16b)i))
+            return true;
     }
+    return false;
 }
 
-static const char* skeleton_note_signoff(byte sval)
+static s16b skeleton_note_pick_entry(
+    byte sval, skeleton_note_role role, skeleton_hint_kind hint)
 {
-    switch (sval)
+    if (!skeleton_note_info || !z_info)
+        return -1;
+
+    int total = 0;
+    int max = z_info->skeleton_note_max;
+    for (int i = 0; i < max; ++i)
     {
-    case SV_SKELETON_ELF:
-        return "If you endure, tread softly.";
-    case SV_SKELETON_HUMAN:
-        return "Maybe you'll fare better.";
-    case SV_SKELETON_ORC:
-        return "Take what we couldn't.";
-    default:
-        return "";
+        skeleton_note_template* t = &skeleton_note_info[i];
+        if (t->role != role || t->weight == 0 || t->text == 0)
+            continue;
+        if (t->sval && t->sval != sval)
+            continue;
+        if (role == SKELETON_NOTE_ROLE_HINT && t->hint != hint)
+            continue;
+        if (skeleton_note_seen_id((s16b)i))
+            continue;
+        total += t->weight;
     }
+
+    if (total <= 0)
+        return -1;
+
+    int roll = rand_int(total);
+    for (int i = 0; i < max; ++i)
+    {
+        skeleton_note_template* t = &skeleton_note_info[i];
+        if (t->role != role || t->weight == 0 || t->text == 0)
+            continue;
+        if (t->sval && t->sval != sval)
+            continue;
+        if (role == SKELETON_NOTE_ROLE_HINT && t->hint != hint)
+            continue;
+        if (skeleton_note_seen_id((s16b)i))
+            continue;
+        if (roll < t->weight)
+            return (s16b)i;
+        roll -= t->weight;
+    }
+
+    return -1;
 }
 
-static void skeleton_note_build_lines(skeleton_hint_kind hint, byte sval,
+static void skeleton_note_expand_template(const char* tpl,
     const level_layout_info* layout, level_partition_kind presence_kind,
-    bool vault_artifact, char lines[][100])
+    char* out, size_t out_sz)
 {
-    const char* opening = skeleton_note_opening(sval);
-    const char* closing = skeleton_note_signoff(sval);
+    const char* part = partition_label(presence_kind);
+    const char* size_word
+        = size_word_for_bucket(layout ? skeleton_note_size_bucket(layout) : 0);
+    int width = layout ? layout->map_wid : 0;
+    int height = layout ? layout->map_hgt : 0;
+
+    size_t w = 0;
+    const char* p = tpl ? tpl : "";
+    while (*p && w + 1 < out_sz)
+    {
+        if (*p == '{')
+        {
+            if (strncmp(p, "{PART}", 6) == 0)
+            {
+                w += strnfmt(out + w, out_sz - w, "%s", part);
+                p += 6;
+                continue;
+            }
+            if (strncmp(p, "{SIZEWORD}", 10) == 0)
+            {
+                w += strnfmt(out + w, out_sz - w, "%s", size_word);
+                p += 10;
+                continue;
+            }
+            if (strncmp(p, "{WIDTH}", 7) == 0)
+            {
+                w += strnfmt(out + w, out_sz - w, "%d", width);
+                p += 7;
+                continue;
+            }
+            if (strncmp(p, "{HEIGHT}", 8) == 0)
+            {
+                w += strnfmt(out + w, out_sz - w, "%d", height);
+                p += 8;
+                continue;
+            }
+        }
+        out[w++] = *p++;
+    }
+    out[w] = '\0';
+}
+
+static void skeleton_note_build_lines(const char* opening, const char* core,
+    const char* closing, const level_layout_info* layout,
+    level_partition_kind presence_kind, char lines[][100])
+{
     int idx = 0;
+    if (opening && opening[0])
+        strnfmt(lines[idx++], 100, "%s", opening);
 
-    strnfmt(lines[idx++], 100, "%s", opening);
+    skeleton_note_expand_template(core, layout, presence_kind, lines[idx++], 100);
 
-    switch (hint)
-    {
-    case SKEL_HINT_GREAT_VAULT:
-        if (sval == SV_SKELETON_ORC)
-            strnfmt(lines[idx++], 100, "%s", "Big stone vault on this level. Traps chewed us up.");
-        else if (sval == SV_SKELETON_ELF)
-            strnfmt(lines[idx++], 100, "%s", "I passed a great vault; its wards hummed and would not yield.");
-        else
-            strnfmt(lines[idx++], 100, "%s", "There's a great vault here. Doors held when I tried them.");
-        break;
-    case SKEL_HINT_VAULT_ARTIFACT:
-        if (sval == SV_SKELETON_ORC)
-            strnfmt(lines[idx++], 100, "%s", "Saw bright plunder locked in the vault. Need more blades.");
-        else if (sval == SV_SKELETON_ELF)
-            strnfmt(lines[idx++], 100, "%s", "Through the seal I glimpsed a relic still gleaming inside.");
-        else
-            strnfmt(lines[idx++], 100, "%s", "A strange artefact lies in that vault; I lacked tools for it.");
-        break;
-    case SKEL_HINT_DOMINANT_PARTITION:
-    {
-        const char* label = partition_label(layout ? layout->dominant_kind : LEVEL_PART_NONE);
-        if (sval == SV_SKELETON_ORC)
-            strnfmt(lines[idx++], 100, "Most of this floor is just %s. Good ground for an ambush.", label);
-        else if (sval == SV_SKELETON_ELF)
-            strnfmt(lines[idx++], 100, "This depth is mostly %s; follow the pattern and you live.", label);
-        else
-            strnfmt(lines[idx++], 100, "Expect mostly %s here. I kept seeing the same paths.", label);
-        break;
-    }
-    case SKEL_HINT_PARTITION_PRESENCE:
-    {
-        const char* label = partition_label(presence_kind);
-        if (sval == SV_SKELETON_ORC)
-            strnfmt(lines[idx++], 100, "Watch for %s. Bad place to run when you bleed.", label);
-        else if (sval == SV_SKELETON_ELF)
-            strnfmt(lines[idx++], 100, "There is %s ahead; its echo carried far.", label);
-        else
-            strnfmt(lines[idx++], 100, "Found %s on this level. Nearly lost my way there.", label);
-        break;
-    }
-    case SKEL_HINT_LEVEL_SIZE:
-    {
-        int bucket = skeleton_note_size_bucket(layout);
-        const char* size_word = size_word_for_bucket(bucket);
-        if (sval == SV_SKELETON_ELF)
-            strnfmt(lines[idx++], 100, "This floor felt %s, stretching roughly %d by %d steps.", size_word,
-                layout ? layout->map_wid : 0, layout ? layout->map_hgt : 0);
-        else if (sval == SV_SKELETON_ORC)
-            strnfmt(lines[idx++], 100, "Floor's %s, long as %d by %d paces. Pack enough torches.", size_word,
-                layout ? layout->map_wid : 0, layout ? layout->map_hgt : 0);
-        else
-            strnfmt(lines[idx++], 100, "It's a %s floor here, about %d by %d strides wide.", size_word,
-                layout ? layout->map_wid : 0, layout ? layout->map_hgt : 0);
-        break;
-    }
-    default:
-        break;
-    }
-
-    if (closing[0] != '\0')
+    if (closing && closing[0])
         strnfmt(lines[idx++], 100, "%s", closing);
 
     lines[idx][0] = '\0';
-    (void)vault_artifact; /* flavour-only parameter */
 }
 
 static void skeleton_note_maybe_show(byte sval)
 {
+    if (skeleton_note_entry_count() == 0)
+        return;
+
     skeleton_note_ensure_level_state();
 
     if (g_skeleton_note_state.note_cap <= 0
@@ -1460,9 +1630,10 @@ static void skeleton_note_maybe_show(byte sval)
     bool artifact_in_vault = vault_present && vault_has_ground_artifact();
 
     skeleton_hint_kind hint = skeleton_note_choose_hint(
-        &profile, &layout, vault_present, artifact_in_vault);
+        &profile, &layout, vault_present, artifact_in_vault, sval);
     if (hint == SKEL_HINT_NONE)
         return;
+    g_skeleton_note_state.hint_used_mask |= (1 << hint);
 
     level_partition_kind focus_part = LEVEL_PART_NONE;
     if (hint == SKEL_HINT_PARTITION_PRESENCE)
@@ -1470,11 +1641,57 @@ static void skeleton_note_maybe_show(byte sval)
     else if (hint == SKEL_HINT_DOMINANT_PARTITION)
         focus_part = layout.dominant_kind;
 
+    s16b opening_id = skeleton_note_pick_entry(
+        sval, SKELETON_NOTE_ROLE_OPENING, SKEL_HINT_NONE);
+    s16b note_id = skeleton_note_pick_entry(
+        sval, SKELETON_NOTE_ROLE_HINT, hint);
+    s16b signoff_id = skeleton_note_pick_entry(
+        sval, SKELETON_NOTE_ROLE_SIGNOFF, SKEL_HINT_NONE);
+
+    const char* opening = opening_id >= 0
+        ? (skeleton_note_text + skeleton_note_info[opening_id].text)
+        : skeleton_note_fallback_opening(sval);
+    const char* body = note_id >= 0
+        ? (skeleton_note_text + skeleton_note_info[note_id].text)
+        : NULL;
+    const char* signoff = signoff_id >= 0
+        ? (skeleton_note_text + skeleton_note_info[signoff_id].text)
+        : skeleton_note_fallback_signoff(sval);
+
+    /* Fallback for missing template */
+    if (!body)
+    {
+        switch (hint)
+        {
+        case SKEL_HINT_GREAT_VAULT:
+            body = "A vaulted hall is sealed nearby; my tools failed it.";
+            break;
+        case SKEL_HINT_VAULT_ARTIFACT:
+            body = "Something rare glitters in that warded chamber.";
+            break;
+        case SKEL_HINT_DOMINANT_PARTITION:
+            body = "The layout repeats here—watch the pattern.";
+            break;
+        case SKEL_HINT_PARTITION_PRESENCE:
+            body = "There is a strange section ahead; tread carefully.";
+            break;
+        case SKEL_HINT_LEVEL_SIZE:
+            body = "This floor sprawls farther than expected.";
+            break;
+        default:
+            body = "Bones clutch a faded scrap of text.";
+            break;
+        }
+    }
+
     char note_lines[6][100];
     skeleton_note_build_lines(
-        hint, sval, &layout, focus_part, artifact_in_vault, note_lines);
+        opening, body, signoff, &layout, focus_part, note_lines);
     pause_with_text(note_lines, 4, 8, NULL, 0);
     g_skeleton_note_state.notes_shown++;
+    skeleton_note_record_seen(opening_id);
+    skeleton_note_record_seen(note_id);
+    skeleton_note_record_seen(signoff_id);
 }
 
 /*

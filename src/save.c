@@ -1252,6 +1252,22 @@ static void wr_extra(void)
     /* Older versions (<=0.8.5) had no quest block; do not write marker */
 #endif
 
+    /* Skeleton note state (per-level tutorial-style messages) */
+    {
+        skeleton_note_state_save sn_state;
+        skeleton_note_get_state(&sn_state);
+        wr_byte(0x52);
+        wr_s16b(sn_state.level_depth);
+        wr_s16b(sn_state.note_cap);
+        wr_s16b(sn_state.notes_shown);
+        wr_s16b(sn_state.map_wid);
+        wr_s16b(sn_state.map_hgt);
+        wr_byte(sn_state.hint_used_mask);
+        wr_byte(sn_state.seen_count);
+        for (i = 0; i < SKELETON_NOTE_SEEN_MAX; i++)
+            wr_s16b(sn_state.seen_ids[i]);
+    }
+
     wr_s32b(min_depth_counter);
     log_info("SAVE: min_depth_counter=%d, current depth=%d, calculated min_depth()=%d", 
              min_depth_counter, p_ptr->depth, min_depth());

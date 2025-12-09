@@ -829,6 +829,7 @@ header quest_head;
 header oath_head;
 header n_head;
 header style_head;
+header skeleton_note_head;
 
 /*** Initialize from binary image files ***/
 
@@ -886,6 +887,7 @@ static errr init_info_raw(SDL_IOStream* fd, header* head)
 /* local forward */
 static errr init_rt_info(void);
 static errr init_style_info(void);
+static errr init_skeleton_note_info(void);
 /* From init1.c */
 
 /*
@@ -924,6 +926,8 @@ static void display_parse_error(cptr filename, errr err, cptr buf)
     msg_format("Error at line %d of '%s.txt'.", error_line, filename);
     msg_format("Record %d contains a '%s' error.", error_idx, oops);
     msg_format("Parsing '%s'.", buf);
+    log_error("Parse error in %s.txt at line %d (record %d): %s | buf='%s'",
+        filename, error_line, error_idx, oops, buf);
     message_flush();
 
     /* Quit */
@@ -1666,6 +1670,32 @@ static errr init_flavor_info(void)
 }
 
 /*
+ * Initialize skeleton note templates
+ */
+static errr init_skeleton_note_info(void)
+{
+    errr err;
+
+    if (z_info && z_info->skeleton_note_max <= 0)
+        z_info->skeleton_note_max = 64;
+
+    init_header(
+        &skeleton_note_head, z_info->skeleton_note_max,
+        sizeof(skeleton_note_template));
+
+#ifdef ALLOW_TEMPLATES
+    skeleton_note_head.parse_info_txt = parse_skeleton_note_info;
+#endif /* ALLOW_TEMPLATES */
+
+    err = init_info("skeleton_note", &skeleton_note_head);
+
+    skeleton_note_info = (skeleton_note_template*)skeleton_note_head.info_ptr;
+    skeleton_note_text = skeleton_note_head.text_ptr;
+
+    return (err);
+}
+
+/*
  * Initialize the "quest_info" array
  */
 static errr init_quest_info(void)
@@ -1888,6 +1918,8 @@ extern void re_init_some_things(void)
         quit("Cannot initialize objects");
     if (init_flavor_info())
         quit("Cannot initialize flavors");
+    if (init_skeleton_note_info())
+        quit("Cannot initialize skeleton notes");
     if (init_e_info())
         quit("Cannot initialize special items");
 }
@@ -2576,6 +2608,11 @@ void init_angband(void)
     if (init_flavor_info())
         quit("Cannot initialize flavors");
 
+    /* Initialize skeleton note templates */
+    note("[Initializing arrays... (skeleton notes)]");
+    if (init_skeleton_note_info())
+        quit("Cannot initialize skeleton notes");
+
     /* Initialize quest info */
     note("[Initializing arrays... (quests)]");
     if (init_quest_info())
@@ -2762,6 +2799,7 @@ void cleanup_angband(void)
     free_info(&z_head);
     free_info(&n_head);
     free_info(&style_head);
+    free_info(&skeleton_note_head);
 
     /* Note: format() now uses a static buffer, no cleanup needed */
 

@@ -1,0 +1,58 @@
+# Skeleton note text
+#
+# Format:
+# O:<SVAL>:<weight>:<text>      (opening line)
+# C:<SVAL>:<weight>:<text>      (closing line)
+# M:<SVAL>:<HINT>:<weight>:<text> (main hint line)
+#   SVAL: ELF | HUMAN | ORC | ANY
+#   HINT: GREAT_VAULT | VAULT_ARTIFACT | DOMINANT | PARTITION | SIZE
+# Tokens: {PART} {SIZEWORD} {WIDTH} {HEIGHT}
+
+V:0.9.1
+
+# Openings
+O:ELF:100:Flowing script, penned in calmer hours:
+O:HUMAN:100:A hurried note from steadier hands:
+O:ORC:100:Jagged scrawl on greasy hide:
+
+# Signoffs
+C:ELF:100:If you endure, tread softly.
+C:HUMAN:100:Maybe you'll fare better.
+C:ORC:100:Take what we couldn't.
+
+# Great vault present
+M:ELF:GREAT_VAULT:120:I passed a great vault; its wards hummed and would not yield.
+M:ELF:GREAT_VAULT:90:A sealed hall lies below--my picks rang and failed.
+M:HUMAN:GREAT_VAULT:100:There's a great vault here. Doors held when I tried them.
+M:HUMAN:GREAT_VAULT:90:Found a vault of stone; never found the way inside.
+M:ORC:GREAT_VAULT:110:Big stone vault on this level. Traps chewed us up.
+M:ORC:GREAT_VAULT:90:Vault ahead--too many runes, too much blood.
+
+# Artefact in vault
+M:ELF:VAULT_ARTIFACT:110:Through the seal I glimpsed a relic still gleaming inside.
+M:HUMAN:VAULT_ARTIFACT:100:A strange artefact lies in that vault; I lacked tools for it.
+M:ORC:VAULT_ARTIFACT:110:Saw bright plunder locked in the vault. Need more blades.
+M:ELF:VAULT_ARTIFACT:90:Light caught on something rare within the warded room.
+M:HUMAN:VAULT_ARTIFACT:90:A glow inside the vault--looked like true craft, not trinkets.
+M:ORC:VAULT_ARTIFACT:90:Glittering prize in the vault. Runes bite fingers.
+
+# Dominant partition type
+M:ELF:DOMINANT:120:This depth is mostly {PART}; follow the pattern and you live.
+M:HUMAN:DOMINANT:110:Expect mostly {PART} here. I kept seeing the same paths.
+M:ORC:DOMINANT:90:Most of this floor is just {PART}. Good ground for an ambush.
+
+# Presence of special partitions
+M:ELF:PARTITION:110:There is {PART} ahead; its echo carried far.
+M:ELF:PARTITION:90:Heard the wind from {PART}; tread with care there.
+M:HUMAN:PARTITION:110:Found {PART} on this level. Nearly lost my way there.
+M:HUMAN:PARTITION:90:{PART} cut the passages up; torches die fast inside.
+M:ORC:PARTITION:110:Watch for {PART}. Bad place to run when you bleed.
+M:ORC:PARTITION:90:{PART} ahead--bad footing, worse smell.
+
+# Level size
+M:ELF:SIZE:110:This floor felt {SIZEWORD}, stretching roughly {WIDTH} by {HEIGHT} steps.
+M:ELF:SIZE:90:Long walks here--about {WIDTH} by {HEIGHT} strides of stone.
+M:HUMAN:SIZE:110:It's a {SIZEWORD} floor here, about {WIDTH} by {HEIGHT} strides wide.
+M:HUMAN:SIZE:90:Level runs near {WIDTH} by {HEIGHT}; pack enough light.
+M:ORC:SIZE:110:Floor's {SIZEWORD}, long as {WIDTH} by {HEIGHT} paces. Pack torches.
+M:ORC:SIZE:90:Plenty of ground--{WIDTH} by {HEIGHT} steps if you live to count them.

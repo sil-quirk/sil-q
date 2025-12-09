@@ -84,6 +84,8 @@ static bool savefile_has_song_duels = false;
 static bool savefile_has_ability_timeline = false;
 static bool savefile_has_varda_quest = false;
 static bool savefile_has_artifact_seen = false;
+static bool savefile_has_skeleton_notes = false;
+static bool savefile_has_skeleton_hint_mask = false;
 
 /* Version comparison helpers: update these when bumping savefile semantics. */
 static int savefile_version_compare(byte major, byte minor, byte patch, byte extra)
@@ -1414,6 +1416,36 @@ static errr rd_extra(void)
         p_ptr->quest_reserved[0] = 1;
     }
 
+    /* Skeleton note state (per-level tutorial-style messages) */
+    if (savefile_has_skeleton_notes)
+    {
+        byte marker = 0;
+        rd_byte(&marker);
+        if (marker != 0x52)
+        {
+            note(format("Invalid skeleton note marker 0x%02X", marker));
+            return (-1);
+        }
+        skeleton_note_state_save sn_state;
+        rd_s16b(&sn_state.level_depth);
+        rd_s16b(&sn_state.note_cap);
+        rd_s16b(&sn_state.notes_shown);
+        rd_s16b(&sn_state.map_wid);
+        rd_s16b(&sn_state.map_hgt);
+        if (savefile_has_skeleton_hint_mask)
+            rd_byte(&sn_state.hint_used_mask);
+        else
+            sn_state.hint_used_mask = 0;
+        rd_byte(&sn_state.seen_count);
+        for (int i = 0; i < SKELETON_NOTE_SEEN_MAX; ++i)
+            rd_s16b(&sn_state.seen_ids[i]);
+        skeleton_note_set_state(&sn_state);
+    }
+    else
+    {
+        skeleton_note_set_state(NULL);
+    }
+
     /* Min depth counter */
     rd_s32b(&min_depth_counter);
     log_info("LOAD: min_depth_counter=%d, calculated min_depth()=%d", min_depth_counter, min_depth());
@@ -2291,6 +2323,9 @@ static errr rd_savefile_new_aux(void)
     savefile_has_song_duels = savefile_version_at_least(0, 9, 0, 5);
     savefile_has_ability_timeline = savefile_version_at_least(0, 9, 1, 1);
     savefile_has_artifact_seen = savefile_version_at_least(0, 9, 1, 4);
+    savefile_has_skeleton_notes = savefile_version_at_least(0, 9, 1, 5);
+    savefile_has_skeleton_hint_mask = savefile_version_at_least(0, 9, 1, 6);
+    savefile_has_skeleton_hint_mask = savefile_version_at_least(0, 9, 1, 6);
 
     /* Reset load byte offset counter */
     load_byte_offset = 0;
@@ -2747,6 +2782,8 @@ bool load_player(void)
             savefile_has_ability_timeline = savefile_version_at_least(0, 9, 1, 1);
             savefile_has_varda_quest = savefile_version_at_least(0, 9, 1, 3);
             savefile_has_artifact_seen = savefile_version_at_least(0, 9, 1, 4);
+            savefile_has_skeleton_notes = savefile_version_at_least(0, 9, 1, 5);
+            savefile_has_skeleton_hint_mask = savefile_version_at_least(0, 9, 1, 6);
         }
 
         load_byte_offset = 0; /* reset counter before decoding stream */

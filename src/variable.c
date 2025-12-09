@@ -604,6 +604,8 @@ bool* valar_reserved_artifacts;
 names_type* n_info;
 style_type* style_info;
 char* style_name;
+skeleton_note_template* skeleton_note_info;
+char* skeleton_note_text;
 
 /*
  * The special item arrays

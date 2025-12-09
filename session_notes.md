@@ -1,5 +1,15 @@
 # Session Notes
 
+## 2025-12-09: Skeleton note drops, flavour file, save cap
+
+- Added skeleton note templates to new data file `lib/edit/skeleton_note.txt` with weighted openings/notes/signoffs keyed by role (opening/note/signoff) and hint kind (size, partition presence/dominant, vault presence, vault artefact); hooked into raw parsing with new `M:X` limit entry for `skeleton_note_max` and new maxima field.
+- Skeleton note generation in `src/cmd2.c` now tracks per-level cap (based on map size), avoids repeated templates via a seen-id ring (cap 8), supports per-sval weights, and builds lines via template expansion; added fallback lines for missing data.
+- Added persistence for the skeleton note state in saves (`skeleton_note_state_save`), version bump to 0.9.1.5, load-time compatibility that resets state for older saves, and accessors to save/load the seen list, note counts, and map dims.
+- New parser support (`parse_skeleton_note_info` in `init1.c`, wiring in `init2.c`/`init.h`) plus globals in `variable.c`/`externs.h`; max limit set in `lib/edit/limits.txt`.
+- Build-cmake.bat now succeeds after de-duplicating the skeleton note save struct declaration in `src/externs.h` and adding a forward declaration for `skeleton_note_has_unseen_template`.
+- Added version header `V:0.9.1` to `lib/edit/skeleton_note.txt`, normalized em dashes to ASCII, and rebuilt successfully to clear the obsolete-file parse error seen at runtime.
+- Enforced one-per-kind hints for skeleton notes (tracks hint_used_mask, saved/loaded) to avoid repeating the same information; bumped version_extra to 0.9.1.6 and updated save/load/write of the new hint mask, with detailed parse-error logging in `parse_skeleton_note_info`.
+
 ## 2025-12-08: Fix partition mode updates when fallback generation occurs
 
 ### Problem

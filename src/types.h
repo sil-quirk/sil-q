@@ -90,6 +90,7 @@ typedef struct autoinscription autoinscription;
 typedef struct style_type style_type;
 typedef struct quest_type quest_type;
 typedef struct oath_type oath_type;
+typedef struct skeleton_note_template skeleton_note_template;
 
 /**** Available structs ****/
 
@@ -126,6 +127,33 @@ struct maxima
     u16b art_self_made_max; /* Max number of self-made artefacts */
     u16b rt_max;           /* ↑ total run-type records                         */
     u16b style_max;        /* Max size for "style_info[]" */
+    u16b skeleton_note_max; /* Max size for skeleton note templates */
+};
+
+typedef enum skeleton_note_role {
+    SKELETON_NOTE_ROLE_NONE = 0,
+    SKELETON_NOTE_ROLE_OPENING = 1,
+    SKELETON_NOTE_ROLE_SIGNOFF = 2,
+    SKELETON_NOTE_ROLE_HINT = 3
+} skeleton_note_role;
+
+typedef enum skeleton_hint_kind {
+    SKEL_HINT_NONE = 0,
+    SKEL_HINT_GREAT_VAULT,
+    SKEL_HINT_VAULT_ARTIFACT,
+    SKEL_HINT_DOMINANT_PARTITION,
+    SKEL_HINT_PARTITION_PRESENCE,
+    SKEL_HINT_LEVEL_SIZE,
+    SKEL_HINT_MAX
+} skeleton_hint_kind;
+
+struct skeleton_note_template
+{
+    byte sval;   /* Skeleton sval */
+    byte hint;   /* skeleton_hint_kind or 0 for openings/signoffs */
+    byte role;   /* skeleton_note_role */
+    byte weight; /* Selection weight */
+    u32b text;   /* Text offset */
 };
 
 /*

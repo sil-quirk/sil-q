@@ -56,6 +56,22 @@ typedef struct
 } level_layout_info;
 #endif
 
+#ifndef SKELETON_NOTE_STATE_SAVE_DEFINED
+#define SKELETON_NOTE_STATE_SAVE_DEFINED
+#define SKELETON_NOTE_SEEN_MAX 8
+
+typedef struct skeleton_note_state_save {
+    s16b level_depth;
+    s16b note_cap;
+    s16b notes_shown;
+    s16b map_wid;
+    s16b map_hgt;
+    byte hint_used_mask;
+    byte seen_count;
+    s16b seen_ids[SKELETON_NOTE_SEEN_MAX];
+} skeleton_note_state_save;
+#endif
+
 /* tables.c */
 extern const s16b ddd[9];
 extern const s16b ddx[10];
@@ -254,6 +270,8 @@ extern char* flavor_name;
 extern char* flavor_text;
 extern names_type* n_info;
 extern style_type* style_info;
+extern skeleton_note_template* skeleton_note_info;
+extern char* skeleton_note_text;
 /* Default vein tile accessors (defined in init1.c) */
 byte get_default_vein_row(void);
 byte get_default_vein_col(void);
@@ -713,6 +731,8 @@ extern byte get_nest_theme(int nestlevel);
 extern byte get_pit_theme(int pitlevel);
 extern void level_layout_info_current(level_layout_info* out);
 extern void skeleton_note_level_reset(void);
+extern void skeleton_note_get_state(skeleton_note_state_save* out);
+extern void skeleton_note_set_state(const skeleton_note_state_save* in);
 extern void generate_cave(void);
 
 #ifdef ALLOW_DEBUG
@@ -938,6 +958,7 @@ extern void place_trap(int y, int x);
 extern void reveal_trap(int y, int x);
 extern void place_secret_door(int y, int x);
 extern void place_closed_door(int y, int x);
+
 extern void place_random_door(int y, int x);
 extern void place_forge(int y, int x);
 extern void inven_item_charges(int item);
