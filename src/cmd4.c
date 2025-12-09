@@ -5753,6 +5753,9 @@ int numbers_menu_aux(int* highlight)
         = wgt_valid() && ((smith_o_ptr->weight - 5) >= wgt_min());
     bool alloy_applicable = smith_alloy_applicable(smith_o_ptr);
     bool has_alloy_mastery = p_ptr->active_ability[S_SMT][SMT_ALLOY_MASTERY];
+    int alloy_weight = alloy_applicable ? smith_alloy_weight_required(smith_o_ptr) : 0;
+    int mithril_have = mithril_carried();
+    int star_iron_have = star_iron_carried();
     valid[SMT_NUM_MENU_ALLOY_CYCLE - 1] = alloy_applicable && has_alloy_mastery;
     valid[SMT_NUM_MENU_ALLOY_CLEAR - 1] = (smith_alloy.type != SMITH_ALLOY_NONE);
 
@@ -5765,7 +5768,16 @@ int numbers_menu_aux(int* highlight)
             || (i == SMT_NUM_MENU_ALLOY_CLEAR - 1))
         {
             can_afford[i] = valid[i];
-            attr[i] = valid[i] ? TERM_WHITE : TERM_L_DARK;
+            if (i == SMT_NUM_MENU_ALLOY_CYCLE - 1 && valid[i])
+            {
+                bool has_any_metal = (mithril_have >= alloy_weight)
+                    || (star_iron_have >= alloy_weight);
+                attr[i] = has_any_metal ? TERM_WHITE : TERM_SLATE;
+            }
+            else
+            {
+                attr[i] = valid[i] ? TERM_WHITE : TERM_L_DARK;
+            }
             continue;
         }
         if (valid[i])
@@ -5810,6 +5822,32 @@ int numbers_menu_aux(int* highlight)
         "m) cycle alloy (none/mithril/star iron)");
     Term_putstr(COL_SMT2, 15, -1, attr[SMT_NUM_MENU_ALLOY_CLEAR - 1],
         "n) remove alloy bonus");
+    if (alloy_applicable)
+    {
+        byte info_attr = has_alloy_mastery ? TERM_SLATE : TERM_L_DARK;
+        if (!has_alloy_mastery)
+        {
+            strnfmt(buf, 80, "Alloy needs %d.%d lb metal (requires Alloy mastery)",
+                alloy_weight / 10, alloy_weight % 10);
+        }
+        else
+        {
+            if (smith_alloy.type == SMITH_ALLOY_MITHRIL)
+                info_attr = (mithril_have >= alloy_weight) ? TERM_SLATE : TERM_RED;
+            else if (smith_alloy.type == SMITH_ALLOY_STAR_IRON)
+                info_attr = (star_iron_have >= alloy_weight) ? TERM_SLATE : TERM_RED;
+            strnfmt(buf, 80,
+                "Alloy needs %d.%d lb (mithril %d.%d, star iron %d.%d)",
+                alloy_weight / 10, alloy_weight % 10, mithril_have / 10,
+                mithril_have % 10, star_iron_have / 10, star_iron_have % 10);
+        }
+        Term_putstr(COL_SMT2, 16, -1, info_attr, buf);
+    }
+    else if (!has_alloy_mastery)
+    {
+        Term_putstr(COL_SMT2, 16, -1, TERM_L_DARK,
+            "Alloy requires Alloy mastery.");
+    }
 
     // highlight the label
     strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);

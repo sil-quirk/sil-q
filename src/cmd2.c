@@ -3117,25 +3117,40 @@ static bool twall(int y, int x)
     {
         /* Check for special drops from quartz in cave or chasm areas only */
         /* Quartz veins in caves are marked with CAVE_ROOM; chasms add CAVE_CHASM_AREA */
-        /* Chance: 1% + depth/10, capped at 4%, requires depth 10+ */
+        /* Chance scales with depth; allow cave-adjacent quartz and tagged chasm veins */
         int depth = p_ptr->depth;
         bool in_cave = (cave_info[y][x] & CAVE_ROOM) != 0;
+        if (!in_cave)
+        {
+            /* Treat quartz abutting cave floors as part of the cave for drops */
+            for (int dy = -1; dy <= 1 && !in_cave; ++dy)
+            {
+                for (int dx = -1; dx <= 1 && !in_cave; ++dx)
+                {
+                    if (!dy && !dx) continue;
+                    int ny = y + dy, nx = x + dx;
+                    if (!in_bounds(ny, nx)) continue;
+                    if (cave_info[ny][nx] & CAVE_ROOM)
+                        in_cave = true;
+                }
+            }
+        }
         bool in_chasm_area = (cave_info[y][x] & CAVE_CHASM_AREA) != 0;
         bool allow_mithril = in_cave && !in_chasm_area;
         bool allow_star_iron = in_chasm_area;
         
-        int special_chance = 1 + (depth / 10);
-        if (special_chance > 4) special_chance = 4;
+        int special_chance = 3 + (depth / 6);
+        if (special_chance > 10) special_chance = 10;
         
-        if ((in_cave || in_chasm_area) && depth >= 10 && rand_int(100) < special_chance)
+        if ((allow_mithril || allow_star_iron) && depth >= 10 && rand_int(100) < special_chance)
         {
             object_type object_type_body;
             object_type *i_ptr = &object_type_body;
             object_wipe(i_ptr);
             
             /* 30% chance for metal at depth 12+, otherwise try for gem */
-            bool try_star_iron = allow_star_iron && (depth >= 12) && (rand_int(100) < 30);
-            bool try_mithril = allow_mithril && (depth >= 12) && (rand_int(100) < 30);
+            bool try_star_iron = allow_star_iron && (depth >= 12) && (rand_int(100) < 45);
+            bool try_mithril = allow_mithril && (depth >= 12) && (rand_int(100) < 45);
             
             if (try_star_iron)
             {

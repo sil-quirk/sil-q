@@ -1666,17 +1666,17 @@ static void scatter_cave_gems_in_bounds(int y1, int y2, int x1, int x2, bool is_
     
     if (allow_mithril)
     {
-        /* Up to 2 mithril chunks in small caves, 1 in big caves */
-        int max_mithril = is_big_cave ? 1 : MIN(3, 1 + (blob_factor + 1) / 2);
+        /* Up to 3 mithril chunks in small caves, 2 in big caves */
+        int max_mithril = is_big_cave ? 2 : MIN(3, 1 + (blob_factor + 1) / 2);
         
-        /* Higher chance: 10% base + depth/6, scaled by blob_factor, capped */
-        int spawn_chance = 10 + (depth / 6) + 4 * (blob_factor - 1);
-        int spawn_cap = is_big_cave ? 30 : 45;
+        /* Higher chance: 15% base + depth/5, scaled by blob_factor, capped */
+        int spawn_chance = 15 + (depth / 5) + 5 * (blob_factor - 1);
+        int spawn_cap = is_big_cave ? 45 : 60;
         if (spawn_chance > spawn_cap) spawn_chance = spawn_cap;
 
         /* Big caves have worse odds; regular caves keep the baseline */
         if (is_big_cave)
-            spawn_chance = MAX(1, spawn_chance - 1);
+            spawn_chance = MAX(1, spawn_chance - 2);
 
         bool try_mithril = (rand_int(100) < spawn_chance);
         
@@ -1705,10 +1705,10 @@ static void scatter_cave_gems_in_bounds(int y1, int y2, int x1, int x2, bool is_
     }
     
     /* Try to place up to 2 gem caches (rarer in big caves) - scale with blob count */
-    int gem_base_chance = is_big_cave ? 30 : 50;
-    int gem_chance = gem_base_chance + 5 * blob_bonus;
-    if (gem_chance > 85) gem_chance = 85;
-    int gem_targets = is_big_cave ? 1 : MIN(3, 1 + (blob_factor + 1) / 2);
+    int gem_base_chance = is_big_cave ? 45 : 60;
+    int gem_chance = gem_base_chance + 6 * blob_bonus;
+    if (gem_chance > 90) gem_chance = 90;
+    int gem_targets = is_big_cave ? 2 : MIN(3, 1 + (blob_factor + 1) / 2);
     int gems_tried = 0;
     while (gems_tried < gem_targets && rand_int(100) < gem_chance)
     {
@@ -1786,6 +1786,21 @@ static void scatter_cave_gems_in_bounds(int y1, int y2, int x1, int x2, bool is_
     }
 }
 
+static bool bounds_have_chasm_tag(int y1, int y2, int x1, int x2)
+{
+    for (int gy = y1; gy <= y2; ++gy)
+    {
+        for (int gx = x1; gx <= x2; ++gx)
+        {
+            if (!in_bounds_fully(gy, gx))
+                continue;
+            if (cave_floor_bold(gy, gx) && (cave_info[gy][gx] & CAVE_CHASM_AREA))
+                return true;
+        }
+    }
+    return false;
+}
+
 /* Scatter star-iron pieces across chasm partitions (on floor tiles only). */
 static void scatter_chasm_star_iron_in_bounds(int y1, int y2, int x1, int x2)
 {
@@ -1796,13 +1811,14 @@ static void scatter_chasm_star_iron_in_bounds(int y1, int y2, int x1, int x2)
     int area = (y2 - y1 + 1) * (x2 - x1 + 1);
     int size_factor = MAX(1, area / 500);
     if (size_factor > 4) size_factor = 4;
+    bool require_chasm_tag = bounds_have_chasm_tag(y1, y2, x1, x2);
 
-    /* Up to 3 chunks, scaled by partition size */
-    int max_chunks = MIN(3, 1 + (size_factor + 1) / 2);
+    /* Up to 4 chunks, scaled by partition size */
+    int max_chunks = MIN(4, 1 + size_factor);
 
     /* Depth-scaled chance, mirroring mithril cave logic */
-    int spawn_chance = 10 + (depth / 6) + 4 * (size_factor - 1);
-    int spawn_cap = 40;
+    int spawn_chance = 16 + (depth / 5) + 6 * (size_factor - 1);
+    int spawn_cap = 55;
     if (spawn_chance > spawn_cap)
         spawn_chance = spawn_cap;
 
@@ -1816,8 +1832,8 @@ static void scatter_chasm_star_iron_in_bounds(int y1, int y2, int x1, int x2)
             continue;
         if (!cave_floor_bold(gy, gx))
             continue;
-        /* Only drop inside the chasm partition */
-        if (!(cave_info[gy][gx] & CAVE_CHASM_AREA))
+        /* Only drop inside the chasm partition when tagged */
+        if (require_chasm_tag && !(cave_info[gy][gx] & CAVE_CHASM_AREA))
             continue;
         if (cave_o_idx[gy][gx] != 0)
             continue;
@@ -4527,35 +4543,42 @@ static void apply_quadrant_generation_modes(void)
                     /* Update partition mode to match fallback generation */
                     current_partition_modes[pi] = QUAD_MODE_CAVEY;
                 }
-                
+
+                /* Veins in chasm walls for mining (tagged for star-iron drops) */
+                scatter_quartz_veins_in_bounds(y1, y2, x1, x2, CAVE_CHASM_AREA);
+                /* Scatter rare star-iron pieces onto whatever ground exists */
+                scatter_chasm_star_iron_in_bounds(y1, y2, x1, x2);
+
                 /* Place 1 chest in chasm partition ONLY if it actually carved */
                 if (chasm_carved)
-                {
-                    /* Veins in chasm walls for mining (tagged for star-iron drops) */
-                    scatter_quartz_veins_in_bounds(y1, y2, x1, x2, CAVE_CHASM_AREA);
-                    /* Scatter rare star-iron pieces onto platforms */
-                    scatter_chasm_star_iron_in_bounds(y1, y2, x1, x2);
                     place_chest_in_partition(y1, y2, x1, x2, false);
-                }
             }
             break;
         case QUAD_MODE_BIG_CAVE:
             {
                 /* Single massive cavern - the cave IS the room */
                 bool carved = carve_big_cave_bounds(y1, y2, x1, x2);
+                int blob_count = 0;
+                int carved_blobs = 0;
                 if (!carved)
                 {
                     /* Fallback: many overlapping blobs */
-                    int blob_count = (density == DENSITY_SPARSE) ? 5 : 
-                                     (density == DENSITY_DENSE) ? 10 : 7;
+                    blob_count = (density == DENSITY_SPARSE) ? 5 : 
+                                 (density == DENSITY_DENSE) ? 10 : 7;
                     for (int b = 0; b < blob_count; ++b)
-                        carve_ca_blob_anchor_bounds(y1, y2, x1, x2);
+                        if (carve_ca_blob_anchor_bounds(y1, y2, x1, x2))
+                            carved_blobs++;
                     /* Update partition mode to match fallback generation */
                     current_partition_modes[pi] = QUAD_MODE_CAVEY;
                 }
                 
                 /* Add quartz veins for natural cave look */
                 scatter_quartz_veins_in_bounds(y1, y2, x1, x2, 0);
+                if (!carved)
+                {
+                    int blob_for_loot = (carved_blobs > 0) ? carved_blobs : blob_count;
+                    scatter_cave_gems_in_bounds(y1, y2, x1, x2, true, MAX(1, blob_for_loot));
+                }
                 
                 /* Add internal pillars/boulders for visual interest (density-scaled) */
                 int pillar_target = (density == DENSITY_SPARSE) ? 3 : 

@@ -7199,3 +7199,8 @@ User reported that while letters were enabled, the 'i' and 'e' keys were still s
 - Introduced Alloy mastery (`SMT_ALLOY_MASTERY`, ability id 128) gating mithril/star-iron crafting and alloy use. Smithing costs track star iron; both metals now show in smithing cost display and affordability.
 - Smithing Numbers menu gains alloy toggles (cycle mithril/star iron/none, clear). Applying an alloy adds a free stat (+1 att / +1 evn for mithril; +1 ds / +1 ps for star iron) without raising smithing difficulty but consumes 25% item weight in the chosen metal; alloy state is backed up/restored with smithing objects.
 - `build-cmake.bat` run completed (standard build) with existing warnings only.
+## 2025-12-10: Star-iron/mithril drops and alloy UX
+- Increased cave mithril/gem scatter (higher base/caps; big caves can drop two mithril) and made star-iron scatter depth/size weighted with up to four pieces; chasm fallbacks now tag quartz for CAVE_CHASM_AREA and still scatter star iron, and big-cave fallbacks run cave gem/mithril scatter.
+- Tunneling drops now count quartz adjacent to cave floors, use a higher per-vein roll, and try metals 45% of the time at depth 12+ (star iron only on chasm-tagged quartz).
+- Smithing alloy menu shows required metal weight (with your mithril/star-iron amounts), calls out missing Alloy mastery, and dims the cycle option when you lack both metals.
+- Build: build-cmake.bat (standard/portable) succeeds; only longstanding warnings remain.
