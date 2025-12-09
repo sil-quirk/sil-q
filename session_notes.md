@@ -7147,3 +7147,8 @@ User reported that while letters were enabled, the 'i' and 'e' keys were still s
 - 2025-12-07: Rebuilt drop catalog variant generation to use smithing caps (att/ds/evn/ps/pval) per cmd4.c; normal items enumerate full ranges, egos respect min/ max from special.txt and smithing bounds; removed temporary difficulty scaling so it matches object_difficulty.
 - 2025-12-07: Fixed drop selection buffer issues: enlarged per-group entry capacity (4096) with bounds checks; choose_group now allocates weights dynamically to avoid overflow when many groups are present.
 - 2025-12-07: Hardened grouping: build_groups now respects provided capacity; drop_group array allocated per cand_count to avoid overflow; reduces risk of crash when variant/group counts are large.
+
+## Skeleton note drops (current session)
+- Added `level_layout_info` exposure with partition counts and dominant kind via `level_layout_info_current` in `src/generate.c`, plus a per-level reset hook for skeleton notes.
+- Skeleton searches now roll for note events with per-skeleton chances/weights; notes use `pause_with_text` and surface vault/partition/size intel with a map-area-based cap (`src/cmd2.c`).
+- Level generation calls `skeleton_note_level_reset` so caps refresh per floor; `build-cmake.bat` standard+portable build succeeds.

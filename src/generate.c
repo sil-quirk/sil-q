@@ -5894,6 +5894,85 @@ static quadrant_mode_t drop_mode_for_point(int y, int x)
     return partition_mode_for_point(y, x);
 }
 
+static level_partition_kind partition_kind_from_mode(quadrant_mode_t mode)
+{
+    switch (mode)
+    {
+    case QUAD_MODE_ROOMY:
+        return LEVEL_PART_ROOMY;
+    case QUAD_MODE_CAVEY:
+        return LEVEL_PART_CAVEY;
+    case QUAD_MODE_RUINED:
+        return LEVEL_PART_RUINED;
+    case QUAD_MODE_LABYRINTH:
+        return LEVEL_PART_LABYRINTH;
+    case QUAD_MODE_CHASM:
+        return LEVEL_PART_CHASM;
+    case QUAD_MODE_BIG_CAVE:
+        return LEVEL_PART_BIG_CAVE;
+    default:
+        return LEVEL_PART_NONE;
+    }
+}
+
+void level_layout_info_current(level_layout_info* out)
+{
+    if (!out)
+        return;
+
+    memset(out, 0, sizeof(*out));
+
+    out->map_wid = p_ptr->cur_map_wid;
+    out->map_hgt = p_ptr->cur_map_hgt;
+    out->partition_rows = current_partition_rows;
+    out->partition_cols = current_partition_cols;
+    out->partition_count = current_partition_count;
+
+    int area_by_kind[LEVEL_PART_MAX] = {0};
+
+    for (int i = 0; i < current_partition_count; ++i)
+    {
+        level_partition_kind kind = partition_kind_from_mode(current_partition_modes[i]);
+        int y1 = 0, y2 = 0, x1 = 0, x2 = 0;
+        int area = 0;
+
+        if (compute_partition_bounds(
+                i, current_partition_rows, current_partition_cols, &y1, &y2, &x1, &x2))
+        {
+            area = (y2 - y1 + 1) * (x2 - x1 + 1);
+        }
+
+        if (kind == LEVEL_PART_LABYRINTH)
+            out->labyrinth_parts++;
+        else if (kind == LEVEL_PART_BIG_CAVE)
+            out->big_cave_parts++;
+        else if (kind == LEVEL_PART_CHASM)
+            out->chasm_parts++;
+
+        if (kind > LEVEL_PART_NONE && kind < LEVEL_PART_MAX)
+            area_by_kind[kind] += area;
+    }
+
+    const level_partition_kind preference[] = {LEVEL_PART_LABYRINTH,
+        LEVEL_PART_BIG_CAVE, LEVEL_PART_CHASM, LEVEL_PART_RUINED,
+        LEVEL_PART_CAVEY, LEVEL_PART_ROOMY};
+
+    int dominant_area = 0;
+    level_partition_kind dominant_kind = LEVEL_PART_NONE;
+    for (size_t i = 0; i < N_ELEMENTS(preference); ++i)
+    {
+        level_partition_kind kind = preference[i];
+        int area = area_by_kind[kind];
+        if (area > dominant_area)
+        {
+            dominant_area = area;
+            dominant_kind = kind;
+        }
+    }
+
+    out->dominant_kind = dominant_kind;
+}
+
 static partition_drop_profile partition_drop_profile_for_mode(quadrant_mode_t mode)
 {
     partition_drop_profile prof;
@@ -12855,6 +12934,9 @@ if (playerturn == 0) {
 
     /* Reset the number of traps on the level. */
     num_trap_on_level = 0;
+
+    /* Reset per-level skeleton note limits once the layout is finalized */
+    skeleton_note_level_reset();
 
     /* Note any forges generated -- have to do this here in case generation
      * fails earlier */

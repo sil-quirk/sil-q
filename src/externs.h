@@ -28,6 +28,34 @@ extern cptr macro_modifier_name[MAX_MACRO_MOD];
 extern cptr macro_trigger_name[MAX_MACRO_TRIGGER];
 extern cptr macro_trigger_keycode[2][MAX_MACRO_TRIGGER];
 
+#ifndef LEVEL_LAYOUT_INFO_DEFINED
+#define LEVEL_LAYOUT_INFO_DEFINED
+typedef enum
+{
+    LEVEL_PART_NONE = 0,
+    LEVEL_PART_ROOMY,
+    LEVEL_PART_CAVEY,
+    LEVEL_PART_RUINED,
+    LEVEL_PART_LABYRINTH,
+    LEVEL_PART_CHASM,
+    LEVEL_PART_BIG_CAVE,
+    LEVEL_PART_MAX
+} level_partition_kind;
+
+typedef struct
+{
+    int map_wid;
+    int map_hgt;
+    int partition_rows;
+    int partition_cols;
+    int partition_count;
+    int labyrinth_parts;
+    int big_cave_parts;
+    int chasm_parts;
+    level_partition_kind dominant_kind;
+} level_layout_info;
+#endif
+
 /* tables.c */
 extern const s16b ddd[9];
 extern const s16b ddx[10];
@@ -683,6 +711,8 @@ extern void place_monster_by_flag(
 extern void place_random_stairs(int y, int x);
 extern byte get_nest_theme(int nestlevel);
 extern byte get_pit_theme(int pitlevel);
+extern void level_layout_info_current(level_layout_info* out);
+extern void skeleton_note_level_reset(void);
 extern void generate_cave(void);
 
 #ifdef ALLOW_DEBUG

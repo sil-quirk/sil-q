@@ -1050,6 +1050,433 @@ static bool generate_poor_quality_object(object_type* o_ptr)
     return search_failed;
 }
 
+typedef enum skeleton_hint_kind {
+    SKEL_HINT_NONE = 0,
+    SKEL_HINT_GREAT_VAULT,
+    SKEL_HINT_VAULT_ARTIFACT,
+    SKEL_HINT_DOMINANT_PARTITION,
+    SKEL_HINT_PARTITION_PRESENCE,
+    SKEL_HINT_LEVEL_SIZE,
+    SKEL_HINT_MAX
+} skeleton_hint_kind;
+
+typedef struct skeleton_note_profile {
+    int note_chance;
+    int weight_scale[SKEL_HINT_MAX];
+} skeleton_note_profile;
+
+typedef struct skeleton_note_state {
+    int level_depth;
+    int note_cap;
+    int notes_shown;
+    int map_wid;
+    int map_hgt;
+} skeleton_note_state;
+
+static skeleton_note_state g_skeleton_note_state = { -1, 0, 0, 0, 0 };
+static const int skeleton_hint_base_weight[SKEL_HINT_MAX]
+    = {0, 80, 60, 45, 35, 25};
+
+static void skeleton_note_ensure_level_state(void);
+
+static int skeleton_note_size_bucket(const level_layout_info* layout)
+{
+    if (!layout)
+        return 0;
+
+    long area = (long)layout->map_wid * (long)layout->map_hgt;
+    if (area > 4300)
+        return 3;
+    if (area > 3600)
+        return 2;
+    if (area > 3000)
+        return 1;
+    return 0;
+}
+
+static int skeleton_note_cap_from_layout(const level_layout_info* layout)
+{
+    int bucket = skeleton_note_size_bucket(layout);
+    int cap = 1 + bucket;
+    if (cap < 1)
+        cap = 1;
+    if (cap > 4)
+        cap = 4;
+    return cap;
+}
+
+static skeleton_note_profile skeleton_note_profile_for_sval(byte sval)
+{
+    skeleton_note_profile prof;
+    memset(&prof, 0, sizeof(prof));
+
+    switch (sval)
+    {
+    case SV_SKELETON_ELF:
+        prof.note_chance = 55;
+        prof.weight_scale[SKEL_HINT_GREAT_VAULT] = 110;
+        prof.weight_scale[SKEL_HINT_VAULT_ARTIFACT] = 120;
+        prof.weight_scale[SKEL_HINT_DOMINANT_PARTITION] = 145;
+        prof.weight_scale[SKEL_HINT_PARTITION_PRESENCE] = 155;
+        prof.weight_scale[SKEL_HINT_LEVEL_SIZE] = 135;
+        break;
+    case SV_SKELETON_HUMAN:
+        prof.note_chance = 40;
+        prof.weight_scale[SKEL_HINT_GREAT_VAULT] = 120;
+        prof.weight_scale[SKEL_HINT_VAULT_ARTIFACT] = 105;
+        prof.weight_scale[SKEL_HINT_DOMINANT_PARTITION] = 110;
+        prof.weight_scale[SKEL_HINT_PARTITION_PRESENCE] = 95;
+        prof.weight_scale[SKEL_HINT_LEVEL_SIZE] = 100;
+        break;
+    case SV_SKELETON_ORC:
+        prof.note_chance = 25;
+        prof.weight_scale[SKEL_HINT_GREAT_VAULT] = 170;
+        prof.weight_scale[SKEL_HINT_VAULT_ARTIFACT] = 180;
+        prof.weight_scale[SKEL_HINT_DOMINANT_PARTITION] = 70;
+        prof.weight_scale[SKEL_HINT_PARTITION_PRESENCE] = 65;
+        prof.weight_scale[SKEL_HINT_LEVEL_SIZE] = 0;
+        break;
+    default:
+        break;
+    }
+
+    return prof;
+}
+
+static const char* partition_label(level_partition_kind kind)
+{
+    switch (kind)
+    {
+    case LEVEL_PART_LABYRINTH:
+        return "a labyrinth of stone";
+    case LEVEL_PART_BIG_CAVE:
+        return "a cavern-wide hollow";
+    case LEVEL_PART_CHASM:
+        return "a chasm and its bridges";
+    case LEVEL_PART_RUINED:
+        return "broken halls";
+    case LEVEL_PART_CAVEY:
+        return "twisting caves";
+    case LEVEL_PART_ROOMY:
+        return "ordered halls";
+    default:
+        return "scattered tunnels";
+    }
+}
+
+static const char* size_word_for_bucket(int bucket)
+{
+    switch (bucket)
+    {
+    case 0:
+        return "tight";
+    case 1:
+        return "wide";
+    case 2:
+        return "sprawling";
+    default:
+        return "vast";
+    }
+}
+
+static bool level_has_greater_vault(void)
+{
+    for (int y = 0; y < p_ptr->cur_map_hgt; ++y)
+    {
+        for (int x = 0; x < p_ptr->cur_map_wid; ++x)
+        {
+            if (cave_info[y][x] & CAVE_G_VAULT)
+                return true;
+        }
+    }
+    return false;
+}
+
+static bool vault_has_ground_artifact(void)
+{
+    for (int i = 1; i < o_max; i++)
+    {
+        object_type* o_ptr = &o_list[i];
+        if (!o_ptr->k_idx)
+            continue;
+        if (o_ptr->held_m_idx)
+            continue;
+        if (!o_ptr->name1)
+            continue;
+        if (o_ptr->iy >= p_ptr->cur_map_hgt || o_ptr->ix >= p_ptr->cur_map_wid)
+            continue;
+
+        if (cave_info[o_ptr->iy][o_ptr->ix] & CAVE_G_VAULT)
+            return true;
+    }
+    return false;
+}
+
+void skeleton_note_level_reset(void)
+{
+    level_layout_info layout;
+    level_layout_info_current(&layout);
+
+    g_skeleton_note_state.level_depth = p_ptr->depth;
+    g_skeleton_note_state.map_wid = layout.map_wid;
+    g_skeleton_note_state.map_hgt = layout.map_hgt;
+    g_skeleton_note_state.note_cap = skeleton_note_cap_from_layout(&layout);
+    g_skeleton_note_state.notes_shown = 0;
+
+    if (g_skeleton_note_state.note_cap < 1)
+        g_skeleton_note_state.note_cap = 1;
+}
+
+static void skeleton_note_ensure_level_state(void)
+{
+    if (g_skeleton_note_state.level_depth != p_ptr->depth
+        || g_skeleton_note_state.map_wid != p_ptr->cur_map_wid
+        || g_skeleton_note_state.map_hgt != p_ptr->cur_map_hgt)
+    {
+        skeleton_note_level_reset();
+    }
+}
+
+static bool skeleton_hint_available(skeleton_hint_kind kind,
+    const level_layout_info* layout, bool vault_present,
+    bool vault_artifact)
+{
+    switch (kind)
+    {
+    case SKEL_HINT_GREAT_VAULT:
+        return vault_present;
+    case SKEL_HINT_VAULT_ARTIFACT:
+        return vault_artifact;
+    case SKEL_HINT_DOMINANT_PARTITION:
+        return layout && layout->partition_count > 0
+            && layout->dominant_kind != LEVEL_PART_NONE;
+    case SKEL_HINT_PARTITION_PRESENCE:
+        return layout
+            && (layout->labyrinth_parts > 0 || layout->big_cave_parts > 0
+                || layout->chasm_parts > 0);
+    case SKEL_HINT_LEVEL_SIZE:
+        return layout != NULL;
+    default:
+        return false;
+    }
+}
+
+static level_partition_kind skeleton_pick_partition_presence(
+    const level_layout_info* layout)
+{
+    int weights[3] = {0};
+    if (layout)
+    {
+        weights[0] = layout->labyrinth_parts;
+        weights[1] = layout->big_cave_parts;
+        weights[2] = layout->chasm_parts;
+    }
+
+    int total = weights[0] + weights[1] + weights[2];
+    if (total <= 0)
+        return LEVEL_PART_NONE;
+
+    int roll = rand_int(total);
+    if (roll < weights[0])
+        return LEVEL_PART_LABYRINTH;
+    roll -= weights[0];
+    if (roll < weights[1])
+        return LEVEL_PART_BIG_CAVE;
+    return LEVEL_PART_CHASM;
+}
+
+static skeleton_hint_kind skeleton_note_choose_hint(
+    const skeleton_note_profile* profile, const level_layout_info* layout,
+    bool vault_present, bool vault_artifact)
+{
+    int weights[SKEL_HINT_MAX] = {0};
+    int total = 0;
+
+    for (int k = 1; k < SKEL_HINT_MAX; ++k)
+    {
+        skeleton_hint_kind kind = (skeleton_hint_kind)k;
+        if (!skeleton_hint_available(kind, layout, vault_present, vault_artifact))
+            continue;
+
+        int base = skeleton_hint_base_weight[k];
+        int scale = profile->weight_scale[k];
+
+        if (base <= 0 || scale <= 0)
+            continue;
+
+        int weight = (base * scale) / 100;
+        if (weight < 1)
+            weight = 1;
+
+        weights[k] = weight;
+        total += weight;
+    }
+
+    if (total <= 0)
+        return SKEL_HINT_NONE;
+
+    int roll = rand_int(total);
+    for (int k = 1; k < SKEL_HINT_MAX; ++k)
+    {
+        if (weights[k] == 0)
+            continue;
+
+        if (roll < weights[k])
+            return (skeleton_hint_kind)k;
+
+        roll -= weights[k];
+    }
+
+    return SKEL_HINT_NONE;
+}
+
+static const char* skeleton_note_opening(byte sval)
+{
+    switch (sval)
+    {
+    case SV_SKELETON_ELF:
+        return "Flowing script, penned in calmer hours:";
+    case SV_SKELETON_HUMAN:
+        return "A hurried note from steadier hands:";
+    case SV_SKELETON_ORC:
+        return "Jagged scrawl on greasy hide:";
+    default:
+        return "A brittle note clutched by the bones:";
+    }
+}
+
+static const char* skeleton_note_signoff(byte sval)
+{
+    switch (sval)
+    {
+    case SV_SKELETON_ELF:
+        return "If you endure, tread softly.";
+    case SV_SKELETON_HUMAN:
+        return "Maybe you'll fare better.";
+    case SV_SKELETON_ORC:
+        return "Take what we couldn't.";
+    default:
+        return "";
+    }
+}
+
+static void skeleton_note_build_lines(skeleton_hint_kind hint, byte sval,
+    const level_layout_info* layout, level_partition_kind presence_kind,
+    bool vault_artifact, char lines[][100])
+{
+    const char* opening = skeleton_note_opening(sval);
+    const char* closing = skeleton_note_signoff(sval);
+    int idx = 0;
+
+    strnfmt(lines[idx++], 100, "%s", opening);
+
+    switch (hint)
+    {
+    case SKEL_HINT_GREAT_VAULT:
+        if (sval == SV_SKELETON_ORC)
+            strnfmt(lines[idx++], 100, "%s", "Big stone vault on this level. Traps chewed us up.");
+        else if (sval == SV_SKELETON_ELF)
+            strnfmt(lines[idx++], 100, "%s", "I passed a great vault; its wards hummed and would not yield.");
+        else
+            strnfmt(lines[idx++], 100, "%s", "There's a great vault here. Doors held when I tried them.");
+        break;
+    case SKEL_HINT_VAULT_ARTIFACT:
+        if (sval == SV_SKELETON_ORC)
+            strnfmt(lines[idx++], 100, "%s", "Saw bright plunder locked in the vault. Need more blades.");
+        else if (sval == SV_SKELETON_ELF)
+            strnfmt(lines[idx++], 100, "%s", "Through the seal I glimpsed a relic still gleaming inside.");
+        else
+            strnfmt(lines[idx++], 100, "%s", "A strange artefact lies in that vault; I lacked tools for it.");
+        break;
+    case SKEL_HINT_DOMINANT_PARTITION:
+    {
+        const char* label = partition_label(layout ? layout->dominant_kind : LEVEL_PART_NONE);
+        if (sval == SV_SKELETON_ORC)
+            strnfmt(lines[idx++], 100, "Most of this floor is just %s. Good ground for an ambush.", label);
+        else if (sval == SV_SKELETON_ELF)
+            strnfmt(lines[idx++], 100, "This depth is mostly %s; follow the pattern and you live.", label);
+        else
+            strnfmt(lines[idx++], 100, "Expect mostly %s here. I kept seeing the same paths.", label);
+        break;
+    }
+    case SKEL_HINT_PARTITION_PRESENCE:
+    {
+        const char* label = partition_label(presence_kind);
+        if (sval == SV_SKELETON_ORC)
+            strnfmt(lines[idx++], 100, "Watch for %s. Bad place to run when you bleed.", label);
+        else if (sval == SV_SKELETON_ELF)
+            strnfmt(lines[idx++], 100, "There is %s ahead; its echo carried far.", label);
+        else
+            strnfmt(lines[idx++], 100, "Found %s on this level. Nearly lost my way there.", label);
+        break;
+    }
+    case SKEL_HINT_LEVEL_SIZE:
+    {
+        int bucket = skeleton_note_size_bucket(layout);
+        const char* size_word = size_word_for_bucket(bucket);
+        if (sval == SV_SKELETON_ELF)
+            strnfmt(lines[idx++], 100, "This floor felt %s, stretching roughly %d by %d steps.", size_word,
+                layout ? layout->map_wid : 0, layout ? layout->map_hgt : 0);
+        else if (sval == SV_SKELETON_ORC)
+            strnfmt(lines[idx++], 100, "Floor's %s, long as %d by %d paces. Pack enough torches.", size_word,
+                layout ? layout->map_wid : 0, layout ? layout->map_hgt : 0);
+        else
+            strnfmt(lines[idx++], 100, "It's a %s floor here, about %d by %d strides wide.", size_word,
+                layout ? layout->map_wid : 0, layout ? layout->map_hgt : 0);
+        break;
+    }
+    default:
+        break;
+    }
+
+    if (closing[0] != '\0')
+        strnfmt(lines[idx++], 100, "%s", closing);
+
+    lines[idx][0] = '\0';
+    (void)vault_artifact; /* flavour-only parameter */
+}
+
+static void skeleton_note_maybe_show(byte sval)
+{
+    skeleton_note_ensure_level_state();
+
+    if (g_skeleton_note_state.note_cap <= 0
+        || g_skeleton_note_state.notes_shown >= g_skeleton_note_state.note_cap)
+    {
+        return;
+    }
+
+    skeleton_note_profile profile = skeleton_note_profile_for_sval(sval);
+    if (profile.note_chance <= 0)
+        return;
+
+    if (!percent_chance(profile.note_chance))
+        return;
+
+    level_layout_info layout;
+    level_layout_info_current(&layout);
+
+    bool vault_present = level_has_greater_vault();
+    bool artifact_in_vault = vault_present && vault_has_ground_artifact();
+
+    skeleton_hint_kind hint = skeleton_note_choose_hint(
+        &profile, &layout, vault_present, artifact_in_vault);
+    if (hint == SKEL_HINT_NONE)
+        return;
+
+    level_partition_kind focus_part = LEVEL_PART_NONE;
+    if (hint == SKEL_HINT_PARTITION_PRESENCE)
+        focus_part = skeleton_pick_partition_presence(&layout);
+    else if (hint == SKEL_HINT_DOMINANT_PARTITION)
+        focus_part = layout.dominant_kind;
+
+    char note_lines[6][100];
+    skeleton_note_build_lines(
+        hint, sval, &layout, focus_part, artifact_in_vault, note_lines);
+    pause_with_text(note_lines, 4, 8, NULL, 0);
+    g_skeleton_note_state.notes_shown++;
+}
+
 /*
  * Attempt to search the given skeleton at the given location
  *
@@ -1060,6 +1487,9 @@ static void do_cmd_search_skeleton(int y, int x, s16b o_idx)
     bool search_failed = true;
     int drop_result = 0;
 
+    (void)y;
+    (void)x;
+
     object_generation_mode = OB_GEN_MODE_SKELETON;
     object_type* o_ptr = &o_list[o_idx];
 
@@ -1068,6 +1498,8 @@ static void do_cmd_search_skeleton(int y, int x, s16b o_idx)
     {
         return;
     }
+
+    skeleton_note_maybe_show(o_ptr->sval);
 
     object_type* i_ptr;
     object_type object_type_body;
