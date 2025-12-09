@@ -198,6 +198,11 @@
 #define MORGOTH_DEPTH 20
 
 /*
+ * Ego item indices for special handling
+ */
+#define EGO_FLICKERING_SHADOW 135  /* Jinx ego: of Flickering Shadow */
+
+/*
  * Depth-based wall graphics configuration
  */
 #define DEPTH_BASED_WALLS 1  /* Set to 0 to disable depth-based wall graphics */

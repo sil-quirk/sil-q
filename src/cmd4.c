@@ -4077,6 +4077,14 @@ int object_difficulty(object_type* o_ptr)
         if (k_ptr->flags1 & TR1_STL)
             f1 |= TR1_STL;
 
+        // need to add accuracy back in...
+        if (k_ptr->flags3 & TR3_ACCURATE)
+            f3 |= TR3_ACCURATE;
+
+        // need to add sharpness back in...
+        if (k_ptr->flags1 & (TR1_SHARPNESS | TR1_SHARPNESS2))
+            f1 |= (k_ptr->flags1 & (TR1_SHARPNESS | TR1_SHARPNESS2));
+
         // base item
         dif_inc += k_ptr->level / 2;
     }

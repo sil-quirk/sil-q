@@ -49,6 +49,12 @@ static drop_entry* g_drop_entries = NULL;
 static size_t g_drop_count = 0;
 static size_t g_drop_capacity = 0;
 
+/* Jinx egos are excluded from normal drops but applied probabilistically */
+static const s16b jinx_egos[] = {
+    EGO_FLICKERING_SHADOW,
+    -1  /* sentinel */
+};
+
 static const char* DROP_RAW_FILE = "drops";
 static const u32b DROP_RAW_MAGIC = 0x44525053; /* 'DRPS' */
 static const u32b DROP_RAW_VERSION = 1;
@@ -548,6 +554,17 @@ static void add_drop_entry(const object_type* proto, drop_category cat,
 }
 
 /* Apply ego flag data (abilities and curses) without randomness */
+/* Check if an ego is a jinx ego */
+static bool is_jinx_ego(int e_idx)
+{
+    for (int i = 0; jinx_egos[i] >= 0; i++)
+    {
+        if (jinx_egos[i] == e_idx)
+            return true;
+    }
+    return false;
+}
+
 static void apply_ego_static(object_type* o_ptr, ego_item_type* e_ptr)
 {
     // abilities
@@ -693,6 +710,10 @@ static void build_ego_variants(int e_idx)
 {
     ego_item_type* e_ptr = &e_info[e_idx];
     if (!e_ptr->tval[0])
+        return;
+    
+    /* Skip jinx egos - they are applied separately, not in normal drops */
+    if (is_jinx_ego(e_idx))
         return;
 
     for (int t = 0; t < EGO_TVALS_MAX; t++)
@@ -1574,6 +1595,78 @@ static void log_drop_attempt(const drop_request* req, size_t strict_count,
 }
 
 /*
+ * Apply jinx ego to normal items based on difficulty.
+ * Jinx probability is inversely proportional to item difficulty:
+ * - Easy items (low difficulty) have high jinx chance
+ * - Difficult items (high difficulty) have low jinx chance
+ * - Artefacts are never jinxed
+ * Returns true if jinx was applied.
+ */
+static bool try_apply_jinx(object_type* o_ptr, int depth)
+{
+    /* Never jinx artefacts */
+    if (o_ptr->name1)
+        return false;
+    
+    /* Only jinx normal items (not already ego items) */
+    if (o_ptr->name2)
+        return false;
+    
+    /* Calculate item difficulty */
+    int difficulty = smithing_difficulty_baseline(o_ptr);
+    
+    /* Base jinx probability: 10% at difficulty 0, scaling down */
+    /* Formula: max(1%, 10% - (difficulty / 10)) */
+    int base_prob = 1000; /* 10% in 0.1% units */
+    int diff_penalty = difficulty * 10; /* 1% per point of difficulty */
+    int jinx_prob = MAX(100, base_prob - diff_penalty); /* minimum 1% */
+    
+    /* Roll for jinx */
+    if (rand_int(10000) >= jinx_prob)
+        return false;
+    
+    /* Try each jinx ego to see if it applies to this item type */
+    for (int i = 0; jinx_egos[i] >= 0; i++)
+    {
+        int e_idx = jinx_egos[i];
+        ego_item_type* e_ptr = &e_info[e_idx];
+        
+        /* Check if this jinx ego applies to this object type */
+        bool matches = false;
+        for (int t = 0; t < EGO_TVALS_MAX && e_ptr->tval[t]; t++)
+        {
+            if (e_ptr->tval[t] == o_ptr->tval &&
+                o_ptr->sval >= e_ptr->min_sval[t] &&
+                o_ptr->sval <= e_ptr->max_sval[t])
+            {
+                matches = true;
+                break;
+            }
+        }
+        
+        if (matches)
+        {
+            /* Apply the jinx ego */
+            o_ptr->name2 = e_idx;
+            apply_ego_static(o_ptr, e_ptr);
+            
+            if (gen_log_initialized)
+            {
+                char oname[120];
+                object_desc(oname, sizeof(oname), o_ptr, false, 0);
+                gen_log_write("DROP_JINXED",
+                    "depth=%d dif=%d prob=%d.%02d%% obj=\"%s\"",
+                    depth, difficulty, jinx_prob / 100, jinx_prob % 100, oname);
+            }
+            
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+/*
  * Generate a chest according to game design specifications:
  * - 50/50 chance small or large
  * - 50% wooden (+2 difficulty), 35% steel (+7 difficulty), 15% jewelled (+15 difficulty)  
@@ -1816,6 +1909,10 @@ static bool drop_generate_object_internal(int depth, bool good, bool great,
     {
         object_wipe(out);
         object_copy(out, &chosen->obj);
+        
+        /* Try to apply jinx to normal items */
+        try_apply_jinx(out, depth);
+        
         if (chosen->group_kind == DROP_GROUP_ARTIFACT)
         {
             artefact_type* a_ptr = &a_info[chosen->group_id];

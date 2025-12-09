@@ -1,5 +1,36 @@
 # Session Notes
 
+## 2025-12-09: Jinx ego system (Flickering Shadow lanterns)
+
+### Implementation
+Implemented a jinx system where certain egos are excluded from normal drop pools and instead applied probabilistically to normal items after selection, with chance inversely proportional to item difficulty:
+
+1. **Jinx ego definition**:
+   - Added `EGO_FLICKERING_SHADOW` constant (135) to `src/defines.h`
+   - Created `jinx_egos[]` array in `src/drop_system.c` with sentinel-terminated list
+   - Added `is_jinx_ego()` helper to check if an ego is in the jinx list
+
+2. **Catalog exclusion**:
+   - Modified `build_ego_variants()` to skip jinx egos, preventing them from appearing in normal drop pools
+   - Jinx egos are not generated as regular drops
+
+3. **Jinx application system**:
+   - Created `try_apply_jinx()` function with probability formula:
+     - Base 10% chance at difficulty 0
+     - Reduces by 1% per difficulty point (difficulty / 10)
+     - Minimum 1% chance regardless of difficulty
+   - Never applies to artefacts (checks `o_ptr->name1`)
+   - Never applies to existing ego items (checks `o_ptr->name2`)
+   - Only applies jinx if tval/sval matches ego's requirements
+   - Logs jinxed items to generation log with difficulty and probability
+
+4. **Integration**:
+   - Added jinx check in `drop_generate_object_internal()` after `object_copy()` but before artefact handling
+   - Jinx is applied after normal item selection, maintaining proper generation flow
+
+### Result
+Flickering Shadow lanterns now appear only as jinxed normal lanterns, with higher probability on low-difficulty items and lower probability on high-difficulty items. System is extensible - additional jinx egos can be added to the `jinx_egos[]` array.
+
 ## 2025-12-09: Skeleton note drops, flavour file, save cap
 
 - Added skeleton note templates to new data file `lib/edit/skeleton_note.txt` with weighted openings/notes/signoffs keyed by role (opening/note/signoff) and hint kind (size, partition presence/dominant, vault presence, vault artefact); hooked into raw parsing with new `M:X` limit entry for `skeleton_note_max` and new maxima field.
