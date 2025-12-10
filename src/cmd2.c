@@ -3112,8 +3112,14 @@ static bool twall(int y, int x)
     // cave_info[y][x] &= ~(CAVE_MARK);
 
     /* Granite */
+    if (cave_feat[y][x] >= FEAT_WALL_EXTRA && cave_feat[y][x] <= FEAT_WALL_SOLID)
+    {
+        /* Regular granite walls - just convert to rubble, no special drops */
+        cave_set_feat(y, x, FEAT_RUBBLE);
+    }
+
     /* Quartz */
-    if (cave_feat[y][x] >= FEAT_QUARTZ)
+    else if (cave_feat[y][x] == FEAT_QUARTZ)
     {
         /* Check for special drops from quartz in cave or chasm areas only */
         /* Quartz veins in caves are marked with CAVE_ROOM; chasms add CAVE_CHASM_AREA */
@@ -3139,8 +3145,12 @@ static bool twall(int y, int x)
         bool allow_mithril = in_cave && !in_chasm_area;
         bool allow_star_iron = in_chasm_area;
         
-        int special_chance = 3 + (depth / 6);
-        if (special_chance > 10) special_chance = 10;
+        /* Base 10% chance at depth 10, scaling up to 25% at depth 20+ */
+        int special_chance = 10 + depth;
+        if (special_chance > 25) special_chance = 25;
+        
+        log_debug("twall: digging vein at (%d,%d) depth=%d cave_info=0x%04x in_cave=%d in_chasm=%d allow_mithril=%d allow_star_iron=%d special_chance=%d%%",
+                  y, x, depth, cave_info[y][x], in_cave, in_chasm_area, allow_mithril, allow_star_iron, special_chance);
         
         if ((allow_mithril || allow_star_iron) && depth >= 10 && rand_int(100) < special_chance)
         {
@@ -3148,9 +3158,13 @@ static bool twall(int y, int x)
             object_type *i_ptr = &object_type_body;
             object_wipe(i_ptr);
             
+            log_debug("twall: PASSED chance check! Attempting drop at depth=%d", depth);
+            
             /* 30% chance for metal at depth 12+, otherwise try for gem */
             bool try_star_iron = allow_star_iron && (depth >= 12) && (rand_int(100) < 45);
             bool try_mithril = allow_mithril && (depth >= 12) && (rand_int(100) < 45);
+            
+            log_debug("twall: try_star_iron=%d try_mithril=%d", try_star_iron, try_mithril);
             
             if (try_star_iron)
             {
@@ -3176,19 +3190,31 @@ static bool twall(int y, int x)
             }
             else
             {
-                /* Try to drop a gem */
-                int saved_object_level = object_level;
-                object_level = depth + rand_int(5);
-                if (make_object(i_ptr, false, false, DROP_TYPE_UNTHEMED))
+                /* Try to drop a gem using profiled generation to ensure we get a gem */
+                log_debug("twall: Attempting gem drop via profile");
+                drop_profile gem_profile;
+                drop_profile_default(&gem_profile);
+                gem_profile.weight_weapon = 0;
+                gem_profile.weight_armor = 0;
+                gem_profile.weight_jewelry = 0;
+                gem_profile.weight_supply = 120;
+                gem_profile.supply_potion = 0;
+                gem_profile.supply_herb = 0;
+                gem_profile.supply_gem = 50;
+                gem_profile.supply_staff = 0;
+                gem_profile.supply_misc = 0;
+
+                if (drop_generate_object_profiled(depth, false, false, DROP_TYPE_STAFF,
+                        0, false, &gem_profile, i_ptr))
                 {
-                    /* Only keep if it's actually a gem */
-                    if (i_ptr->tval == TV_GEM)
-                    {
-                        drop_near(i_ptr, -1, y, x);
-                        msg_print("A gem glitters in the rubble!");
-                    }
+                    log_debug("twall: gem generated successfully, tval=%d", i_ptr->tval);
+                    drop_near(i_ptr, -1, y, x);
+                    msg_print("A gem glitters in the rubble!");
                 }
-                object_level = saved_object_level;
+                else
+                {
+                    log_debug("twall: gem generation FAILED");
+                }
             }
         }
         

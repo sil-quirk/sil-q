@@ -218,7 +218,7 @@ F:INSTA_ART
 N:21:& Lesser Jewel~
 G:*:B
 I:39:2:0
-W:3:20:1:1000
+W:7:20:1:1000
 P:0:0d0:0:0d0:0
 A:3/20
 D:An enchanted glowing jewel, akin to a Silmaril, but much less
@@ -408,22 +408,22 @@ A:4/1:14/1
 F:TWO_HANDED
 
 
-N:69:& Mithril Longsword~
+N:69:& Elven Mithril Sword~
 G:|:B
 I:23:28:0
-W:5:0:20:5000
-P:1:2d5:1:0d0
+W:15:0:35:5000
+P:-1:3d4:1:0d0
 A:5/80:14/10
-F:IGNORE_ALL | MITHRIL
+F:IGNORE_ALL | MITHRIL | ACCURATE
 
 
-N:70:& Mithril Greatsword~
+N:70:& Star-Iron Greatsword~
 G:|:B
 I:23:30:0
-W:6:0:40:7000
+W:20:0:70:7000
 P:-2:3d6:1:0d0
 A:6/80:16/15
-F:IGNORE_ALL | TWO_HANDED | MITHRIL
+F:IGNORE_ALL | TWO_HANDED | STAR_IRON | SHARPNESS
 
 
 ##### Axes & Polearms #####
@@ -753,7 +753,7 @@ I:39:9:0
 W:25:0:1:100000
 P:0:0d0:0:0d0
 F:SEE_INVIS | SUST_GRA | EASY_KNOW
-F:IGNORE_ALL | NO_SMITHING
+F:IGNORE_ALL | NO_SMITHING | INSTA_ART
 D:You can equip it as a light source with a radius of 7 squares.
 D: It will shine forever.
 
@@ -2220,4 +2220,14 @@ D:40.
 # New items sometimes have to go down here if there were not enough
 # indices to fit them in the right place, since moving indices around
 # breaks savefile compatibility.
+
+N:491:& Piece~ of Star Iron
+G:~:B
+I:4:1:0
+W:20:5:1:120
+P:0:0d0:0:0d0
+A:20/15
+F:EASY_KNOW
+D:Dense fragments of metal fallen from the heights, stronger than common steel.
+D: They can be used at a forge to create or alloy star-iron items.
 

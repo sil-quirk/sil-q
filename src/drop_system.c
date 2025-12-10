@@ -42,7 +42,9 @@ typedef struct
     s16b difficulty; /* smithing difficulty (baseline, penalised separately) */
     s16b min_depth;
     s16b max_depth;
-    byte rarity; /* rarity for grouping (1 for normal, e_info/a_info rarity) */
+    byte num_allocations; /* number of depth/rarity allocation pairs */
+    byte alloc_depth[4]; /* depth thresholds where rarity increases */
+    byte alloc_rarity[4]; /* rarity added at each threshold */
 } drop_entry;
 
 static drop_entry* g_drop_entries = NULL;
@@ -509,8 +511,8 @@ static int smithing_difficulty_baseline(object_type* o_ptr)
 }
 
 static void add_drop_entry(const object_type* proto, drop_category cat,
-    drop_group_kind group_kind, int group_id, int rarity, int min_depth,
-    int max_depth)
+    drop_group_kind group_kind, int group_id, int min_depth, int max_depth,
+    const byte* alloc_depths, const byte* alloc_rarities, int num_allocs)
 {
     object_kind* k_ptr = &k_info[proto->k_idx];
 
@@ -547,9 +549,14 @@ static void add_drop_entry(const object_type* proto, drop_category cat,
     entry->category = cat;
     entry->group_kind = group_kind;
     entry->group_id = (s16b)group_id;
-    entry->rarity = (byte)rarity;
     entry->min_depth = (s16b)min_depth;
     entry->max_depth = (s16b)max_depth;
+    entry->num_allocations = (byte)num_allocs;
+    for (int i = 0; i < num_allocs && i < 4; i++)
+    {
+        entry->alloc_depth[i] = alloc_depths[i];
+        entry->alloc_rarity[i] = alloc_rarities[i];
+    }
     entry->difficulty = (s16b)smithing_difficulty_baseline(&entry->obj);
 }
 
@@ -600,6 +607,71 @@ static void build_normal_variants(int k_idx)
 
     int min_depth = min_locale_depth(k_ptr);
     int max_depth = max_locale_depth(k_ptr);
+    
+    /* Determine if this is a jewelry or supply item that should use A: field allocations */
+    bool use_locale_allocations = (cat == DROP_CAT_JEWELRY || cat == DROP_CAT_SUPPLY);
+    
+    /* For jewelry and supply items, create one entry per A: allocation pair */
+    if (use_locale_allocations)
+    {
+        /* Scan allocation pairs from A: field */
+        for (int i = 0; i < 4; i++)
+        {
+            if (k_ptr->chance[i])
+            {
+                int depth = k_ptr->locale[i];
+                int rarity = k_ptr->chance[i];
+                
+                object_type v = base;
+                v.pval = k_ptr->pval;
+                
+                /* For jewelry, treat as ego-like items with group_kind EGO */
+                byte depth_arr[1] = {(byte)depth};
+                byte rarity_arr[1] = {(byte)rarity};
+                if (cat == DROP_CAT_JEWELRY)
+                {
+                    add_drop_entry(&v, cat, DROP_GROUP_EGO, k_idx, depth, max_depth,
+                        depth_arr, rarity_arr, 1);
+                }
+                else
+                {
+                    /* Supply items remain normal but use A: rarity */
+                    add_drop_entry(&v, cat, DROP_GROUP_NORMAL, k_idx, depth, max_depth,
+                        depth_arr, rarity_arr, 1);
+                }
+            }
+        }
+        return;
+    }
+
+    /* For normal items (weapons/armor), collect all A: allocations.
+     * Rarity accumulates as you reach each depth threshold.
+     * Example: A:4/10:14/1 means rarity 10 from depth 4-13, rarity 11 from depth 14+
+     */
+    byte alloc_depths[4];
+    byte alloc_rarities[4];
+    int num_allocations = 0;
+    int effective_min_depth = min_depth;
+    
+    for (int i = 0; i < 4; i++)
+    {
+        if (k_ptr->chance[i])
+        {
+            alloc_depths[num_allocations] = (byte)k_ptr->locale[i];
+            alloc_rarities[num_allocations] = (byte)k_ptr->chance[i];
+            num_allocations++;
+            if (k_ptr->locale[i] < effective_min_depth)
+                effective_min_depth = k_ptr->locale[i];
+        }
+    }
+    
+    /* If no A: allocations, use default rarity of 1 */
+    if (num_allocations == 0)
+    {
+        alloc_depths[0] = (byte)effective_min_depth;
+        alloc_rarities[0] = 1;
+        num_allocations = 1;
+    }
 
     /* Smithing caps (no ego/artefact) taken from smithing menu logic */
     int att_min = k_ptr->att;
@@ -679,6 +751,7 @@ static void build_normal_variants(int k_idx)
     }
 
     // Variant list (all combinations within smithing caps)
+    // Use combined rarity and minimum depth for the entire item
     for (int att = att_min; att <= att_max; att++)
     {
         for (int ds = ds_min; ds <= ds_max; ds++)
@@ -696,8 +769,9 @@ static void build_normal_variants(int k_idx)
                         v.evn = evn;
                         v.ps = ps;
                         v.pval = pval;
-                        add_drop_entry(&v, cat, DROP_GROUP_NORMAL, k_idx, 1,
-                            min_depth, max_depth);
+                        add_drop_entry(&v, cat, DROP_GROUP_NORMAL, k_idx,
+                            effective_min_depth, max_depth,
+                            alloc_depths, alloc_rarities, num_allocations);
                     }
                 }
             }
@@ -740,10 +814,35 @@ static void build_ego_variants(int e_idx)
             base.name2 = e_idx;
             apply_ego_static(&base, e_ptr);
 
-            int min_depth = MAX(e_ptr->level, min_locale_depth(k_ptr));
+            /* Ego items: use ego W: depth for min_depth (for difficulty penalty) */
+            int min_depth = e_ptr->level;
             int max_depth = (e_ptr->max_level > 0) ? e_ptr->max_level
                                                    : max_locale_depth(k_ptr);
-            int rarity = (e_ptr->rarity > 0) ? e_ptr->rarity : 1;
+            
+            /* Collect base object A: allocations and multiply with ego rarity */
+            byte alloc_depths[4];
+            byte alloc_rarities[4];
+            int num_allocations = 0;
+            int ego_rarity = (e_ptr->rarity > 0) ? e_ptr->rarity : 1;
+            
+            for (int i = 0; i < 4; i++)
+            {
+                if (k_ptr->chance[i])
+                {
+                    alloc_depths[num_allocations] = (byte)k_ptr->locale[i];
+                    /* Multiply base rarity with ego rarity */
+                    alloc_rarities[num_allocations] = (byte)(k_ptr->chance[i] * ego_rarity);
+                    num_allocations++;
+                }
+            }
+            
+            /* If no A: allocations on base, use ego rarity at ego depth */
+            if (num_allocations == 0)
+            {
+                alloc_depths[0] = (byte)min_depth;
+                alloc_rarities[0] = (byte)ego_rarity;
+                num_allocations = 1;
+            }
 
             /* Smithing bounds with ego applied (match smithing UI logic) */
             int att_min = k_ptr->att + ((e_ptr->max_att > 0) ? 1 : 0);
@@ -846,6 +945,7 @@ static void build_ego_variants(int e_idx)
             if (pd_min > pd_max)
                 pd_min = pd_max;
 
+            /* Generate variants using combined rarity and effective min depth */
             for (int att = att_min; att <= att_max; att++)
             {
                 for (int ds = ds_min; ds <= ds_max; ds++)
@@ -854,7 +954,6 @@ static void build_ego_variants(int e_idx)
                     {
                         for (int ps = ps_min; ps <= ps_max; ps++)
                         {
-                            for (int pval = pval_min; pval <= pval_max; pval++)
                             for (int pval = pval_min;
                                  pval <= (pval_allowed ? pval_max : pval_min); pval++)
                             {
@@ -870,8 +969,9 @@ static void build_ego_variants(int e_idx)
                                         v.ps = ps;
                                         v.pd = pd;
                                         v.pval = pval;
-                                        add_drop_entry(&v, cat, DROP_GROUP_EGO,
-                                            e_idx, rarity, min_depth, max_depth);
+                                        add_drop_entry(&v, cat, DROP_GROUP_EGO, e_idx,
+                                            min_depth, max_depth,
+                                            alloc_depths, alloc_rarities, num_allocations);
                                     }
                                 }
                             }
@@ -919,8 +1019,10 @@ static void build_artifact_variants(int a_idx)
 
     int rarity = (a_ptr->rarity > 0) ? a_ptr->rarity : 1;
     int level = (a_ptr->level > 0) ? a_ptr->level : 1;
-    add_drop_entry(&v, cat, DROP_GROUP_ARTIFACT, a_idx, rarity, level,
-        MORGOTH_DEPTH);
+    byte depth_arr[1] = {(byte)level};
+    byte rarity_arr[1] = {(byte)rarity};
+    add_drop_entry(&v, cat, DROP_GROUP_ARTIFACT, a_idx, level, MORGOTH_DEPTH,
+        depth_arr, rarity_arr, 1);
 }
 
 static void clear_drop_entries(void)
@@ -1166,6 +1268,9 @@ static int supply_entry_weight(const drop_entry* e, int depth)
     return w;
 }
 
+/* Forward declarations */
+static int group_rarity_at_depth(const drop_entry* e, int depth);
+
 static const char* drop_category_name(drop_category cat)
 {
     switch (cat)
@@ -1359,24 +1464,36 @@ static bool collect_candidate_entries(
             int effective_dif = e->difficulty;
             if (depth < e->min_depth)
                 effective_dif += 2 * (e->min_depth - depth);
+            int accumulated_rarity = group_rarity_at_depth(e, depth);
             
             gen_log_write("DROP_CANDIDATE",
                 "relaxed=%s k_idx=%d cat=%s group_kind=%d group_id=%d "
-                "base_dif=%d eff_dif=%d min_depth=%d max_depth=%d rarity=%d",
+                "base_dif=%d eff_dif=%d min_depth=%d max_depth=%d rarity_at_depth=%d",
                 relaxed ? "yes" : "no", e->obj.k_idx,
                 drop_category_name(e->category), e->group_kind, e->group_id,
-                e->difficulty, effective_dif, e->min_depth, e->max_depth, e->rarity);
+                e->difficulty, effective_dif, e->min_depth, e->max_depth, accumulated_rarity);
         }
     }
 
     return (count > 0);
 }
 
-static int group_rarity(const drop_group* g)
+/* Calculate weight for a group at a specific depth.
+ * Weight accumulates: for each allocation where depth >= allocation_depth,
+ * add (100 / rarity) to the total weight.
+ */
+static int group_rarity_at_depth(const drop_entry* e, int depth)
 {
-    if (g->kind == DROP_GROUP_NORMAL)
-        return 1;
-    return (g->rarity > 0) ? g->rarity : 1;
+    int accumulated_weight = 0;
+    for (int i = 0; i < e->num_allocations; i++)
+    {
+        if (depth >= e->alloc_depth[i])
+        {
+            int rarity = e->alloc_rarity[i];
+            accumulated_weight += (100 / MAX(1, rarity));
+        }
+    }
+    return MAX(1, accumulated_weight);
 }
 
 static bool build_groups(drop_entry* entries, size_t count, drop_group* groups,
@@ -1406,7 +1523,6 @@ static bool build_groups(drop_entry* entries, size_t count, drop_group* groups,
             grp->kind = e->group_kind;
             grp->group_id = e->group_id;
             grp->entry_count = 0;
-            grp->rarity = e->rarity;
             grp->entry_indices[grp->entry_count++] = (s16b)i;
         }
     }
@@ -1414,7 +1530,7 @@ static bool build_groups(drop_entry* entries, size_t count, drop_group* groups,
     return (gcount > 0);
 }
 
-static drop_group* choose_group(drop_group* groups, int group_count)
+static drop_group* choose_group(drop_group* groups, int group_count, drop_entry* entries, int depth)
 {
     if (group_count <= 0)
         return NULL;
@@ -1424,8 +1540,9 @@ static drop_group* choose_group(drop_group* groups, int group_count)
     int total = 0;
     for (int i = 0; i < group_count; i++)
     {
-        int rarity = group_rarity(&groups[i]);
-        int w = MAX(1, 100 / MAX(1, rarity));
+        /* Use first entry in group to calculate depth-dependent weight */
+        int entry_idx = groups[i].entry_indices[0];
+        int w = group_rarity_at_depth(&entries[entry_idx], depth);
         weights[i] = w;
         total += w;
     }
@@ -1453,11 +1570,13 @@ static drop_group* choose_group(drop_group* groups, int group_count)
         int samples = (group_count < 10) ? group_count : 10;
         for (int i = 0; i < samples; i++)
         {
+            int entry_idx = groups[i].entry_indices[0];
+            int weight = group_rarity_at_depth(&entries[entry_idx], depth);
             gen_log_write("DROP_GROUP",
-                "idx=%d kind=%d group_id=%d rarity=%d weight=%d total=%d "
+                "idx=%d kind=%d group_id=%d weight=%d total=%d "
                 "entries=%d chosen=%s",
                 i, groups[i].kind, groups[i].group_id,
-                group_rarity(&groups[i]), weights[i], total,
+                weight, total,
                 groups[i].entry_count, (i == chosen) ? "YES" : "no");
         }
         gen_log_write("DROP_GROUP_PICK",
@@ -1583,7 +1702,7 @@ static void log_drop_attempt(const drop_request* req, size_t strict_count,
         "depth=%d cat=%s droptype=%d supply=%s roll=%d band=%d..%d bonus=%d "
         "strict=%zu relaxed=%zu used_relaxed=%s fallback=%s "
         "chosen_k=%d a_idx=%d e_idx=%d base_dif=%d eff_dif=%d min_depth=%d "
-        "max_depth=%d rarity=%d group_kind=%d",
+        "max_depth=%d rarity_at_depth=%d group_kind=%d",
         req->depth, drop_category_name(req->cat), req->droptype,
         req->is_supply ? "yes" : "no", req->base_roll, req->lower, req->upper,
         req->difficulty_bonus, strict_count, relaxed_count,
@@ -1591,7 +1710,7 @@ static void log_drop_attempt(const drop_request* req, size_t strict_count,
         chosen ? chosen->obj.k_idx : -1, a_idx, e_idx,
         chosen ? chosen->difficulty : -1, effective_dif,
         chosen ? chosen->min_depth : -1, chosen ? chosen->max_depth : -1,
-        chosen ? chosen->rarity : 0, group_kind);
+        chosen ? group_rarity_at_depth(chosen, req->depth) : 0, group_kind);
 }
 
 /*
@@ -1884,7 +2003,7 @@ static bool drop_generate_object_internal(int depth, bool good, bool great,
                 int group_count = group_cap;
                 if (build_groups(candidates, cand_count, groups, &group_count))
                 {
-                    drop_group* grp = choose_group(groups, group_count);
+                    drop_group* grp = choose_group(groups, group_count, candidates, depth);
                     chosen = choose_entry_from_group(candidates, grp);
                 }
                 mem_free_null(groups);

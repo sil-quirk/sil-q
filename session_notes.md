@@ -1,5 +1,99 @@
 # Session Notes
 
+# Session Notes
+
+# Session Notes
+
+## 2025-12-10: Drop System - A: Field Rarity Integration (FINAL)
+
+### Implementation: Depth-Dependent Accumulating Weight
+
+**Core Principle:** Item selection weight accumulates as dungeon depth increases. Each A: allocation adds `100 / rarity` to the weight when that depth threshold is reached.
+
+**How it works:**
+1. Each item stores multiple depth/rarity allocation pairs from A: field
+2. At any given depth: `weight = SUM of (100 / rarity) for all allocations where depth >= allocation_depth`
+3. Items become MORE common (higher total weight) as you go deeper and unlock new allocations
+
+**Example: Item with `A:4/10:14/1`**
+- Depth 0-3: Not available (below min_depth)
+- Depth 4-13: Weight = 100/10 = 10
+- Depth 14+: Weight = 100/10 + 100/1 = 10 + 100 = 110
+- **Result:** Item is MUCH more common at depth 14+ (11x more likely to be selected)
+
+**Example: Item with `A:4/1:14/10`**
+- Depth 4-13: Weight = 100/1 = 100
+- Depth 14+: Weight = 100/1 + 100/10 = 100 + 10 = 110
+- **Result:** Item becomes slightly more common at depth 14+ (10% increase)
+
+### Implementation Details:
+
+**Normal Items (weapons/armor):**
+- Stores all A: depth/rarity pairs in arrays
+- Weight calculation sums `100/rarity` for all applicable allocations
+- Minimum depth = lowest A: depth (for difficulty penalty only)
+- Example: Longsword `A:4/1:14/1` has min_depth=4, weights: 100@depth4-13, 200@depth14+
+
+**Ego Items:**
+- Each base A: rarity is **multiplied** by ego W: rarity BEFORE weight conversion
+- Minimum depth from **ego W: depth** (used for difficulty penalty calculation)
+- Per allocation: `ego_rarity = base_rarity × ego_W_rarity`, then weight accumulates via `100/ego_rarity`
+
+**Example: Longsword `A:4/1:14/1` + Protection `W:0:2`**
+- Allocations after multiplication: depth 4 rarity 2, depth 14 rarity 2
+- Depth 4-13: Weight = 100/2 = 50
+- Depth 14+: Weight = 100/2 + 100/2 = 50 + 50 = 100
+- Min depth for difficulty = 0 (from ego W:0:2)
+
+**Supply Items & Jewelry:**
+- Keep separate entries per A: allocation (different behavior)
+- Each allocation is an independent drop entry
+
+### Technical Changes:
+1. `drop_entry` structure now stores `alloc_depth[4]` and `alloc_rarity[4]` arrays
+2. `group_rarity_at_depth()` calculates accumulated weight by summing `100/rarity` for applicable allocations
+3. Ego items use ego W: depth for `min_depth` field (affects difficulty penalty)
+4. Weight is used directly for group selection (no further conversion)
+
+### Build Status
+✅ Compiled successfully with `build-cmake.bat`
+
+---
+
+## 2025-12-10: Drop System - A: Field Rarity Integration (phase 1)
+
+### Changes Made
+Updated the drop system to use `A:` field allocations from `object.txt` for supply items and jewelry:
+
+**Supply Items:**
+- Now create multiple drop entries, one per `A:` allocation pair (depth/rarity)
+- Each entry uses the rarity from the A: field (`k_ptr->chance[i]`)
+- Maintains `DROP_GROUP_NORMAL` classification
+- Replicates the old allocation system behavior where items appear at multiple depths with varying rarities
+
+**Jewelry (Rings & Amulets):**
+- Each jewelry kind treated as having "ego-like" status
+- Uses `DROP_GROUP_EGO` classification instead of `DROP_GROUP_NORMAL`
+- Rarity taken from A: field allocation (`k_ptr->chance[i]`)
+- Creates one entry per A: allocation pair
+- This allows jewelry items to have proper rarity weights in the drop system
+
+**Technical Details:**
+- Modified `build_normal_variants()` in `drop_system.c`
+- Added early return path for jewelry/supply items to process A: allocations
+- Supply items like arrows, herbs, potions, oils, lanterns now properly spawn with their intended depth/rarity distribution
+- Jewelry items like rings/amulets of Constitution, Grace, etc. now have meaningful rarity values instead of all being rarity 1
+
+### Rationale
+The old allocation system used the `A:` field to control item distribution across depths. The drop system was ignoring this for normal items (using rarity=1 for all) which meant:
+1. Supply items couldn't have depth-specific rarity tuning
+2. Jewelry had no rarity differentiation 
+3. Multiple depth allocations were lost
+
+This change restores the A: field semantics while maintaining the new drop system's difficulty-based selection.
+
+---
+
 ## 2025-12-09: Jinx ego system (Flickering Shadow lanterns)
 
 ### Implementation
