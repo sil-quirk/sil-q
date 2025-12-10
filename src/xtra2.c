@@ -2300,6 +2300,7 @@ void drop_loot(monster_type* m_ptr)
 
     /* Use the monster's level */
     object_level = r_ptr->level;
+    drop_quality quality = drop_quality_from_flags(good, great);
 
     /* Drop some objects */
     for (j = 0; j < number; j++)
@@ -2313,12 +2314,13 @@ void drop_loot(monster_type* m_ptr)
         /* Make Object */
         if (chest)
         {
-            if (!make_object(i_ptr, good, great, DROP_TYPE_CHEST))
+            if (!make_object(i_ptr, quality, DROP_TYPE_CHEST))
                 continue;
         }
 
         /* Make an object */
-        else if (!make_object(i_ptr, good, great, DROP_TYPE_NOT_DAMAGED))
+        else if (!make_object(
+                     i_ptr, quality, DROP_TYPE_NOT_DAMAGED))
             continue;
 
         /* Assume seen XXX XXX XXX */

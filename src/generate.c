@@ -1737,8 +1737,8 @@ static void scatter_cave_gems_in_bounds(int y1, int y2, int x1, int x2, bool is_
             gem_profile.supply_staff = 4;
             gem_profile.supply_misc = 2;
 
-            if (drop_generate_object_profiled(depth, false, false, DROP_TYPE_STAFF,
-                    0, false, &gem_profile, i_ptr))
+            if (drop_generate_object_profiled(depth, DROP_QUALITY_NORMAL,
+                    DROP_TYPE_STAFF, 0, false, &gem_profile, i_ptr))
             {
                 drop_near(i_ptr, -1, gy, gx);
                 gem_placed++;
@@ -4040,7 +4040,8 @@ static void place_chest_in_partition(
             object_wipe(i_ptr);
 
             int depth = p_ptr->depth;
-            if (!drop_generate_object(depth, false, false, DROP_TYPE_CHEST, true, i_ptr))
+            if (!drop_generate_object(
+                    depth, DROP_QUALITY_NORMAL, DROP_TYPE_CHEST, true, i_ptr))
             {
                 attempts++;
                 continue;
@@ -4048,9 +4049,14 @@ static void place_chest_in_partition(
 
             if (wooden_only && i_ptr->tval == TV_CHEST)
             {
-                bool is_large = (i_ptr->sval >= 11);
-                int wooden_sval = is_large ? 11 : 1;
-                int k_idx = lookup_kind(TV_CHEST, wooden_sval);
+                bool is_large = (i_ptr->sval >= SV_CHEST_MIN_LARGE);
+                bool use_steel = one_in_(4); /* 25% steel, otherwise wooden */
+                int wooden_sval =
+                    is_large ? SV_CHEST_LARGE_WOODEN : SV_CHEST_SMALL_WOODEN;
+                int steel_sval =
+                    is_large ? SV_CHEST_LARGE_STEEL : SV_CHEST_SMALL_STEEL;
+                int target_sval = use_steel ? steel_sval : wooden_sval;
+                int k_idx = lookup_kind(TV_CHEST, target_sval);
                 if (k_idx)
                 {
                     s16b old_pval = i_ptr->pval;
@@ -4612,7 +4618,7 @@ static void apply_quadrant_generation_modes(void)
                 place_rooms_randomized(y1, y2, x1, x2, depth, std_count, 0, int_count, 0,
                                        &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
 
-                /* Guarantee a single wooden chest in big caves */
+                /* Guarantee a single chest in big caves (75% wood, 25% steel) */
                 place_chest_in_partition(y1, y2, x1, x2, true);
             }
             break;
@@ -6126,7 +6132,7 @@ static void place_object_with_profile(
     int attempts = 0;
     const drop_profile* dp = (prof) ? &prof->profile : NULL;
 
-    while (!drop_generate_object_profiled(depth, false, false,
+    while (!drop_generate_object_profiled(depth, DROP_QUALITY_NORMAL,
                DROP_TYPE_UNTHEMED, 0, false, dp, i_ptr))
     {
         attempts++;
@@ -8766,7 +8772,8 @@ static bool build_type2(int y0, int x0)
                     cave_set_feat(y, x, FEAT_WALL_INNER);
                 }
             }
-            place_object(y0, x0, false, false, DROP_TYPE_CHEST, true);
+            place_object(
+                y0, x0, DROP_QUALITY_NORMAL, DROP_TYPE_CHEST, true);
         }
         break;
     }
@@ -9280,7 +9287,8 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             case '*':
             {
                 object_level = p_ptr->depth + dieroll(4);
-                place_object(y, x, false, false, DROP_TYPE_NOT_DAMAGED, true);
+                place_object(y, x, DROP_QUALITY_NORMAL,
+                    DROP_TYPE_NOT_DAMAGED, true);
                 object_level = original_object_level;
                 break;
             }
@@ -9289,7 +9297,8 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             case '&':
             {
                 object_level = p_ptr->depth + dieroll(4);
-                place_object(y, x, true, false, DROP_TYPE_NOT_DAMAGED, true);
+                place_object(
+                    y, x, DROP_QUALITY_GOOD, DROP_TYPE_NOT_DAMAGED, true);
                 object_level = original_object_level;
                 break;
             }
@@ -9303,7 +9312,8 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                     object_level = p_ptr->depth + 4;
                 ;
 
-                place_object(y, x, false, false, DROP_TYPE_CHEST, true);
+                place_object(
+                    y, x, DROP_QUALITY_NORMAL, DROP_TYPE_CHEST, true);
                 object_level = original_object_level;
                 break;
             }
@@ -9354,7 +9364,8 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 if (r >= 2)
                 {
                     object_level = p_ptr->depth + 1;
-                    place_object(y, x, false, false, DROP_TYPE_UNTHEMED, true);
+                    place_object(
+                        y, x, DROP_QUALITY_NORMAL, DROP_TYPE_UNTHEMED, true);
                     object_level = original_object_level;
                 }
                 break;

@@ -921,6 +921,19 @@ extern void object_into_special(object_type* o_ptr, int lev, bool smithing);
 extern void check_artifact_visibility(void);
 extern void apply_magic(object_type* o_ptr, int lev, bool okay, bool good,
     bool great, bool allow_insta);
+#ifndef DROP_QUALITY_T_DEFINED
+#define DROP_QUALITY_T_DEFINED
+typedef enum
+{
+    DROP_QUALITY_NORMAL = 0,
+    DROP_QUALITY_GOOD = 1,
+    DROP_QUALITY_GREAT = 2,
+    DROP_QUALITY_SUPERB = 3
+} drop_quality;
+#endif
+#define DROP_BONUS_GOOD 5
+#define DROP_BONUS_GREAT 10
+#define DROP_BONUS_SUPERB 15
 #ifndef DROP_PROFILE_T_DEFINED
 #define DROP_PROFILE_T_DEFINED
 typedef struct
@@ -936,23 +949,24 @@ typedef struct
     int supply_misc;
 } drop_profile;
 #endif
+extern drop_quality drop_quality_from_flags(bool good, bool great);
 extern void drop_profile_default(drop_profile* profile);
 extern void drop_system_init(void);
-extern bool drop_generate_object(int depth, bool good, bool great, int droptype,
+extern bool drop_generate_object(int depth, drop_quality quality, int droptype,
     bool allow_artefacts, object_type* out);
 extern bool drop_generate_object_with_bonus(
-    int depth, bool good, bool great, int droptype, int extra_bonus,
+    int depth, drop_quality quality, int droptype, int extra_bonus,
     bool allow_artefacts, object_type* out);
-extern bool drop_generate_object_profiled(int depth, bool good, bool great,
+extern bool drop_generate_object_profiled(int depth, drop_quality quality,
     int droptype, int extra_bonus, bool allow_artefacts,
     const drop_profile* profile, object_type* out);
 extern bool make_object(
-    object_type* j_ptr, bool good, bool great, int objecttype);
+    object_type* j_ptr, drop_quality quality, int objecttype);
 extern bool prep_object_theme(int themetype);
 extern s16b floor_carry(int y, int x, object_type* j_ptr);
 extern void drop_near(object_type* j_ptr, int chance, int y, int x);
-extern void acquirement(int y1, int x1, int num, bool great);
-extern void place_object(int y, int x, bool good, bool great, int droptype,
+extern void acquirement(int y1, int x1, int num, drop_quality quality);
+extern void place_object(int y, int x, drop_quality quality, int droptype,
     bool allow_artefacts);
 extern void place_trap(int y, int x);
 extern void reveal_trap(int y, int x);

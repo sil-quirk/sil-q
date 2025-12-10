@@ -7298,3 +7298,9 @@ User reported that while letters were enabled, the 'i' and 'e' keys were still s
 - Tunneling drops now count quartz adjacent to cave floors, use a higher per-vein roll, and try metals 45% of the time at depth 12+ (star iron only on chasm-tagged quartz).
 - Smithing alloy menu shows required metal weight (with your mithril/star-iron amounts), calls out missing Alloy mastery, and dims the cycle option when you lack both metals.
 - Build: build-cmake.bat (standard/portable) succeeds; only longstanding warnings remain.
+
+## 2025-12-10: Drop quality tiers and chest updates
+- Drop generation now uses a drop_quality enum (normal/good/great/superb with bonuses 0/5/10/15); updated drop_generate_object*, make_object, place_object, and acquirement signatures plus a drop_quality_from_flags helper for legacy bool inputs.
+- Chests map to the new tiers: wooden=good, steel=great, jewelled=superb; chest contents use quality instead of hardcoded bonuses, and chest generation logs quality using chest sval macros.
+- Big caves now guarantee a chest with a 75% wooden / 25% steel mix instead of forcing wooden-only spawns.
+- Data: refreshed chest note in lib/edit/object.txt; build-cmake.bat (standard) completes with existing warnings only.

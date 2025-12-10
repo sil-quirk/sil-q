@@ -846,8 +846,10 @@ static void wiz_statistics(object_type* o_ptr)
             /* Wipe the object */
             object_wipe(i_ptr);
 
+            drop_quality quality = drop_quality_from_flags(good, great);
+
             /* Create an object */
-            make_object(i_ptr, good, great, DROP_TYPE_UNTHEMED);
+            make_object(i_ptr, quality, DROP_TYPE_UNTHEMED);
 
             /* Mega-Hack -- allow multiple artefacts XXX XXX XXX */
             if (artefact_p(i_ptr))
@@ -2187,7 +2189,7 @@ void do_cmd_debug(void)
     {
         if (p_ptr->command_arg <= 0)
             p_ptr->command_arg = 1;
-        acquirement(py, px, p_ptr->command_arg, false);
+        acquirement(py, px, p_ptr->command_arg, DROP_QUALITY_GOOD);
         break;
     }
 
@@ -2314,7 +2316,7 @@ void do_cmd_debug(void)
     {
         if (p_ptr->command_arg <= 0)
             p_ptr->command_arg = 1;
-        acquirement(py, px, p_ptr->command_arg, true);
+        acquirement(py, px, p_ptr->command_arg, DROP_QUALITY_GREAT);
         break;
     }
 

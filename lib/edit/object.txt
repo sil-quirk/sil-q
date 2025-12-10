@@ -1406,7 +1406,7 @@ D:It reduces your grace by one point.
 ##### Chests #####
 
 # note that the steel and jewelled chests
-# give higher chances of good and great items
+# give higher chances of great and superb items
 
 N:372:& Small wooden chest~
 G:~:D1

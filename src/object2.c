@@ -3876,7 +3876,7 @@ static bool kind_is_good(int k_idx)
 }
 
 /*
- * Attempt to make an object (normal or good/great)
+ * Attempt to make an object (normal or weighted quality)
  *
  * This routine plays nasty games to generate the "special artefacts".
  *
@@ -3884,10 +3884,10 @@ static bool kind_is_good(int k_idx)
  *
  * We assume that the given object has been "wiped".
  */
-bool make_object(object_type* j_ptr, bool good, bool great, int objecttype)
+bool make_object(object_type* j_ptr, drop_quality quality, int objecttype)
 {
     int depth = object_level;
-    if (!drop_generate_object(depth, good, great, objecttype, true, j_ptr))
+    if (!drop_generate_object(depth, quality, objecttype, true, j_ptr))
         return false;
 
     /* Rating boost for out-of-depth finds */
@@ -4397,12 +4397,14 @@ void drop_near(object_type* j_ptr, int chance, int y, int x)
 }
 
 /*
- * Scatter some "great" objects near the player
+ * Scatter some weighted-quality objects near the player
  */
-void acquirement(int y1, int x1, int num, bool great)
+void acquirement(int y1, int x1, int num, drop_quality quality)
 {
     object_type* i_ptr;
     object_type object_type_body;
+    drop_quality spawn_quality =
+        (quality < DROP_QUALITY_GOOD) ? DROP_QUALITY_GOOD : quality;
 
     /* Acquirement */
     while (num--)
@@ -4413,8 +4415,8 @@ void acquirement(int y1, int x1, int num, bool great)
         /* Wipe the object */
         object_wipe(i_ptr);
 
-        /* Make a good (or great) object (if possible) */
-        if (!make_object(i_ptr, true, great, DROP_TYPE_NOT_DAMAGED))
+        /* Make a good-or-better object (if possible) */
+        if (!make_object(i_ptr, spawn_quality, DROP_TYPE_NOT_DAMAGED))
             continue;
 
         /* Drop the object */
@@ -4423,9 +4425,9 @@ void acquirement(int y1, int x1, int num, bool great)
 }
 
 /*
- * Attempt to place an object (normal or good/great) at the given location.
+ * Attempt to place an object (normal or weighted quality) at the given location.
  */
-void place_object(int y, int x, bool good, bool great, int droptype,
+void place_object(int y, int x, drop_quality quality, int droptype,
     bool allow_artefacts)
 {
     object_type* i_ptr;
@@ -4447,7 +4449,7 @@ void place_object(int y, int x, bool good, bool great, int droptype,
 
     /* Make an object (if possible) */
     int depth = object_level;
-    while (!drop_generate_object(depth, good, great, droptype, allow_artefacts, i_ptr))
+    while (!drop_generate_object(depth, quality, droptype, allow_artefacts, i_ptr))
         continue;
 
     /* Give it to the floor */

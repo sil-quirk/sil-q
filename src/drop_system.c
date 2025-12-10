@@ -68,6 +68,47 @@ typedef struct
     u32b count;
 } drop_raw_header;
 
+static const char* drop_quality_name(drop_quality quality)
+{
+    switch (quality)
+    {
+    case DROP_QUALITY_GOOD:
+        return "good";
+    case DROP_QUALITY_GREAT:
+        return "great";
+    case DROP_QUALITY_SUPERB:
+        return "superb";
+    case DROP_QUALITY_NORMAL:
+    default:
+        return "normal";
+    }
+}
+
+static int drop_quality_bonus(drop_quality quality)
+{
+    switch (quality)
+    {
+    case DROP_QUALITY_GOOD:
+        return DROP_BONUS_GOOD;
+    case DROP_QUALITY_GREAT:
+        return DROP_BONUS_GREAT;
+    case DROP_QUALITY_SUPERB:
+        return DROP_BONUS_SUPERB;
+    case DROP_QUALITY_NORMAL:
+    default:
+        return 0;
+    }
+}
+
+drop_quality drop_quality_from_flags(bool good, bool great)
+{
+    if (great)
+        return DROP_QUALITY_GREAT;
+    if (good)
+        return DROP_QUALITY_GOOD;
+    return DROP_QUALITY_NORMAL;
+}
+
 #define DROP_DEFAULT_CAT_WEIGHT 25
 #define DROP_DEFAULT_SUPPLY_WEIGHT 1
 
@@ -1788,45 +1829,45 @@ static bool try_apply_jinx(object_type* o_ptr, int depth)
 /*
  * Generate a chest according to game design specifications:
  * - 50/50 chance small or large
- * - 50% wooden (+2 difficulty), 35% steel (+7 difficulty), 15% jewelled (+15 difficulty)  
+ * - 50% wooden (good), 35% steel (great), 15% jewelled (superb)  
  * - Chests add 4 levels to depth for drop calculation
  */
 static bool generate_chest(int depth, object_type* out)
 {
-    /* Chest svals based on defines.h:
-     * Small: 1=wooden, 2=steel, 3=jewelled
-     * Large: 11=wooden, 12=steel, 13=jewelled
-     */
-    
     /* 50/50 chance for small vs large */
     bool is_large = one_in_(2);
-    int base_sval = is_large ? 11 : 1;
+    const int small_svals[] = {
+        SV_CHEST_SMALL_WOODEN, SV_CHEST_SMALL_STEEL, SV_CHEST_SMALL_JEWELLED};
+    const int large_svals[] = {
+        SV_CHEST_LARGE_WOODEN, SV_CHEST_LARGE_STEEL, SV_CHEST_LARGE_JEWELLED};
     
     /* Determine material: 50% wood, 35% steel, 15% jewelled */
     int material_roll = rand_int(100);  /* 0-99 */
-    int material_offset;
-    int difficulty_bonus;
+    int material_index;
+    drop_quality material_quality;
     
     if (material_roll < 50)
     {
         /* Wooden chest: 0-49 = 50% */
-        material_offset = 0;
-        difficulty_bonus = 2;
+        material_index = 0;
+        material_quality = DROP_QUALITY_GOOD;
     }
     else if (material_roll < 85)
     {
         /* Steel chest: 50-84 = 35% */
-        material_offset = 1;
-        difficulty_bonus = 7;
+        material_index = 1;
+        material_quality = DROP_QUALITY_GREAT;
     }
     else
     {
         /* Jewelled chest: 85-99 = 15% */
-        material_offset = 2;
-        difficulty_bonus = 15;
+        material_index = 2;
+        material_quality = DROP_QUALITY_SUPERB;
     }
     
-    int chest_sval = base_sval + material_offset;
+    int chest_sval = is_large ? large_svals[material_index]
+        : small_svals[material_index];
+    int difficulty_bonus = drop_quality_bonus(material_quality);
     
     /* Look up the chest k_idx by tval=TV_CHEST and sval */
     int k_idx = lookup_kind(TV_CHEST, chest_sval);
@@ -1865,23 +1906,24 @@ static bool generate_chest(int depth, object_type* out)
     if (gen_log_initialized)
     {
         gen_log_write("CHEST_GENERATED",
-            "depth=%d size=%s material=%s difficulty_bonus=%d chest_level=%d sval=%d",
+            "depth=%d size=%s material=%s quality=%s difficulty_bonus=%d chest_level=%d sval=%d",
             depth, is_large ? "large" : "small",
-            material_offset == 0 ? "wooden" : (material_offset == 1 ? "steel" : "jewelled"),
-            difficulty_bonus, out->pval, chest_sval);
+            material_index == 0 ? "wooden" : (material_index == 1 ? "steel" : "jewelled"),
+            drop_quality_name(material_quality), difficulty_bonus, out->pval,
+            chest_sval);
     }
     
     return true;
 }
 
-bool drop_generate_object(int depth, bool good, bool great, int droptype,
+bool drop_generate_object(int depth, drop_quality quality, int droptype,
     bool allow_artefacts, object_type* out)
 {
     return drop_generate_object_profiled(
-        depth, good, great, droptype, 0, allow_artefacts, NULL, out);
+        depth, quality, droptype, 0, allow_artefacts, NULL, out);
 }
 
-static bool drop_generate_object_internal(int depth, bool good, bool great,
+static bool drop_generate_object_internal(int depth, drop_quality quality,
     int droptype, int extra_bonus, bool allow_artefacts,
     const drop_profile* profile, object_type* out)
 {
@@ -1894,11 +1936,7 @@ static bool drop_generate_object_internal(int depth, bool good, bool great,
     drop_request req;
     drop_request_apply_profile(&req, profile);
     req.depth = depth;
-    req.difficulty_bonus = extra_bonus;
-    if (good)
-        req.difficulty_bonus += 7;
-    if (great)
-        req.difficulty_bonus += 15;
+    req.difficulty_bonus = extra_bonus + drop_quality_bonus(quality);
     req.is_supply = false;
     req.droptype = droptype;
     req.allow_artefacts = allow_artefacts;
@@ -1913,9 +1951,9 @@ static bool drop_generate_object_internal(int depth, bool good, bool great,
     if (gen_log_initialized)
     {
         gen_log_write("DROP_TARGET",
-            "depth=%d good=%s great=%s bonus=%d roll1=%d roll2=%d min=%d "
+            "depth=%d quality=%s bonus=%d roll1=%d roll2=%d min=%d "
             "base_calc=%d target=%d band=%d..%d",
-            depth, good ? "yes" : "no", great ? "yes" : "no",
+            depth, drop_quality_name(quality),
             req.difficulty_bonus, roll1, roll2, min_roll,
             base_calc, req.base_roll, req.lower, req.upper);
     }
@@ -2052,18 +2090,17 @@ static bool drop_generate_object_internal(int depth, bool good, bool great,
     return ok;
 }
 
-bool drop_generate_object_with_bonus(int depth, bool good, bool great,
+bool drop_generate_object_with_bonus(int depth, drop_quality quality,
     int droptype, int extra_bonus, bool allow_artefacts, object_type* out)
 {
     return drop_generate_object_internal(
-        depth, good, great, droptype, extra_bonus, allow_artefacts, NULL, out);
+        depth, quality, droptype, extra_bonus, allow_artefacts, NULL, out);
 }
 
-bool drop_generate_object_profiled(int depth, bool good, bool great,
+bool drop_generate_object_profiled(int depth, drop_quality quality,
     int droptype, int extra_bonus, bool allow_artefacts,
     const drop_profile* profile, object_type* out)
 {
     return drop_generate_object_internal(
-        depth, good, great, droptype, extra_bonus, allow_artefacts, profile,
-        out);
+        depth, quality, droptype, extra_bonus, allow_artefacts, profile, out);
 }

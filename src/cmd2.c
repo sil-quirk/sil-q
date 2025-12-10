@@ -824,16 +824,16 @@ static void chest_death(int y, int x, s16b o_idx)
         number = 1;
 
     /* Chest-specific difficulty bonus */
-    int chest_bonus = 0;
+    drop_quality chest_quality = DROP_QUALITY_NORMAL;
     if ((o_ptr->sval == SV_CHEST_SMALL_WOODEN)
         || (o_ptr->sval == SV_CHEST_LARGE_WOODEN))
-        chest_bonus = 2;
+        chest_quality = DROP_QUALITY_GOOD;
     else if ((o_ptr->sval == SV_CHEST_SMALL_STEEL)
         || (o_ptr->sval == SV_CHEST_LARGE_STEEL))
-        chest_bonus = 7;
+        chest_quality = DROP_QUALITY_GREAT;
     else if ((o_ptr->sval == SV_CHEST_SMALL_JEWELLED)
         || (o_ptr->sval == SV_CHEST_LARGE_JEWELLED))
-        chest_bonus = 15;
+        chest_quality = DROP_QUALITY_SUPERB;
 
     /* Drop some objects (non-chests) */
     for (; number > 0; --number)
@@ -846,7 +846,7 @@ static void chest_death(int y, int x, s16b o_idx)
 
         int droptype = chesttheme;
         bool ok = drop_generate_object_with_bonus(
-            effective_depth, false, false, droptype, chest_bonus, true, i_ptr);
+            effective_depth, chest_quality, droptype, 0, true, i_ptr);
 
         if (ok)
         {
@@ -1042,7 +1042,8 @@ static bool generate_poor_quality_object(object_type* o_ptr)
     }
     else
     {
-        search_failed = !make_object(o_ptr, false, false, DROP_TYPE_DAMAGED);
+        search_failed = !make_object(
+            o_ptr, DROP_QUALITY_NORMAL, DROP_TYPE_DAMAGED);
     }
 
     if (!search_failed)
@@ -1746,19 +1747,24 @@ static void do_cmd_search_skeleton(int y, int x, s16b o_idx)
         search_failed = false;
         break;
     case 5:
-        search_failed = !make_object(i_ptr, false, false, DROP_TYPE_BOW);
+        search_failed = !make_object(
+            i_ptr, DROP_QUALITY_NORMAL, DROP_TYPE_BOW);
         break;
     case 6:
-        search_failed = !make_object(i_ptr, false, false, DROP_TYPE_CLOAK);
+        search_failed = !make_object(
+            i_ptr, DROP_QUALITY_NORMAL, DROP_TYPE_CLOAK);
         break;
     case 7:
-        search_failed = !make_object(i_ptr, false, false, DROP_TYPE_BOOTS);
+        search_failed = !make_object(
+            i_ptr, DROP_QUALITY_NORMAL, DROP_TYPE_BOOTS);
         break;
     case 8:
-        search_failed = !make_object(i_ptr, false, false, DROP_TYPE_WEAPON);
+        search_failed = !make_object(
+            i_ptr, DROP_QUALITY_NORMAL, DROP_TYPE_WEAPON);
         break;
     case 9:
-        search_failed = !make_object(i_ptr, false, false, DROP_TYPE_GLOVES);
+        search_failed = !make_object(
+            i_ptr, DROP_QUALITY_NORMAL, DROP_TYPE_GLOVES);
         break;
     default:
         search_failed = generate_poor_quality_object(i_ptr);
@@ -3204,8 +3210,8 @@ static bool twall(int y, int x)
                 gem_profile.supply_staff = 0;
                 gem_profile.supply_misc = 0;
 
-                if (drop_generate_object_profiled(depth, false, false, DROP_TYPE_STAFF,
-                        0, false, &gem_profile, i_ptr))
+                if (drop_generate_object_profiled(depth, DROP_QUALITY_NORMAL,
+                        DROP_TYPE_STAFF, 0, false, &gem_profile, i_ptr))
                 {
                     log_debug("twall: gem generated successfully, tval=%d", i_ptr->tval);
                     drop_near(i_ptr, -1, y, x);
