@@ -790,6 +790,7 @@ F:LIGHT
 
 N:135:of Flickering Shadow
 W:0:1:11:0
+A:5/12:10/0
 C:0:0:0:0:0:0:0
 T:39:1:1
 F:DARKNESS | LIGHT_CURSE

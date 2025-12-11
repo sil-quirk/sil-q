@@ -3130,6 +3130,9 @@ static void calc_bonuses(void)
         /* Apply the bonus to hit */
         p_ptr->skill_equip_mod[S_MEL] += o_ptr->att;
         p_ptr->skill_equip_mod[S_ARC] += o_ptr->att;
+        
+        /* Apply the evasion bonus */
+        p_ptr->skill_equip_mod[S_EVN] += o_ptr->evn;
     }
 
     /* Clear the old item granted abilities */

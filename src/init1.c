@@ -2072,38 +2072,47 @@ errr parse_k_info(char* buf, header* head)
     /* Process 'A' for "Allocation" (one line only) */
     else if (buf[0] == 'A')
     {
-        int i;
-
         /* There better be a current k_ptr */
         if (!k_ptr)
             return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
-        /* XXX Simply read each number following a colon */
-        for (i = 0, s = buf + 1; s && (s[0] == ':') && s[1]; ++i)
+        /* Reset explicit allocation count */
+        k_ptr->alloc_count = 0;
+
+        /* Read each number following a colon */
+        for (s = buf + 1; s && (s[0] == ':') && s[1];)
         {
             /* Sanity check */
-            if (i > 3)
+            if (k_ptr->alloc_count > 3)
                 return (PARSE_ERROR_TOO_MANY_ALLOCATIONS);
 
-            /* Default chance */
-            k_ptr->chance[i] = 1;
-
-            /* Store the attack damage index */
-            k_ptr->locale[i] = atoi(s + 1);
+            int depth = atoi(s + 1);
+            int rarity = 1;
 
             /* Find the slash */
             t = strchr(s + 1, '/');
 
             /* Find the next colon */
-            s = strchr(s + 1, ':');
+            char* next = strchr(s + 1, ':');
 
             /* If the slash is "nearby", use it */
-            if (t && (!s || t < s))
-            {
-                int chance = atoi(t + 1);
-                if (chance > 0)
-                    k_ptr->chance[i] = chance;
-            }
+            if (t && (!next || t < next))
+                rarity = atoi(t + 1);
+
+            if (rarity < 0)
+                rarity = 0;
+
+            /* Store legacy locale/chance for compatibility */
+            k_ptr->locale[k_ptr->alloc_count] = (byte)depth;
+            k_ptr->chance[k_ptr->alloc_count] = (byte)rarity;
+
+            /* Store explicit allocation entries (supporting zero rarity) */
+            k_ptr->alloc_depth[k_ptr->alloc_count] = (byte)depth;
+            k_ptr->alloc_prob[k_ptr->alloc_count] = (byte)rarity;
+            k_ptr->alloc_count++;
+
+            /* Advance to next colon (if any) */
+            s = next;
         }
     }
 
@@ -3295,6 +3304,9 @@ errr parse_e_info(char* buf, header* head)
 
         /* Start with the first of the tval indices */
         cur_t = 0;
+
+        /* Reset allocation tracking */
+        e_ptr->alloc_count = 0;
     }
 
     /* Process 'W' for "More Info" (one line only) */
@@ -3318,6 +3330,38 @@ errr parse_e_info(char* buf, header* head)
         e_ptr->rarity = rarity;
         e_ptr->max_level = max_level;
         e_ptr->cost = cost;
+    }
+
+    /* Process 'A' for "Allocation" (one line only) */
+    else if (buf[0] == 'A')
+    {
+        /* There better be a current e_ptr */
+        if (!e_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Reset explicit allocation count */
+        e_ptr->alloc_count = 0;
+
+        for (s = buf + 1; s && (s[0] == ':') && s[1];)
+        {
+            if (e_ptr->alloc_count > 3)
+                return (PARSE_ERROR_TOO_MANY_ALLOCATIONS);
+
+            int depth = atoi(s + 1);
+            int rarity = 1;
+            t = strchr(s + 1, '/');
+            char* next = strchr(s + 1, ':');
+            if (t && (!next || t < next))
+                rarity = atoi(t + 1);
+            if (rarity < 0)
+                rarity = 0;
+
+            e_ptr->alloc_depth[e_ptr->alloc_count] = (byte)depth;
+            e_ptr->alloc_prob[e_ptr->alloc_count] = (byte)rarity;
+            e_ptr->alloc_count++;
+
+            s = next;
+        }
     }
 
     /* Process 'T' for "Types allowed" (up to three lines) */

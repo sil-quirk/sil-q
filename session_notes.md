@@ -1,5 +1,12 @@
 # Session Notes
 
+## 2026-02-12: Drop Rarity Refactor (step-based A:)
+- A: entries now set step rarity (last threshold <= depth); rarity 0 blocks selection and can close off deeper levels (cap max_depth). Default rarity is 1 if no A: is present.
+- Added explicit A: parsing for egos (special.txt) with stored alloc arrays; ego rarities multiply base rarities, and ego A depths set min_depth. Trailing zero on base+ego schedule enforces a spawn cap.
+- Supply items use the same A: weighting (with depth bias) but skip smithing difficulty; drop raw version bumped to force rebuild.
+- Jewelry/lanterns/horns are treated as jewelry category (no supply override), still grouped as EGO for drop grouping; jewelry now uses the normal variant builder instead of per-A entries.
+- Ego drop penalty depth now uses max(min base depth, min ego depth) to avoid under-penalising shallow egos on deep-only bases; lights/staves/gems regain runtime fuel/charges/stack rolls on generation (torches/lanterns no longer spawn empty; throwing items can spawn in small stacks again).
+
 # Session Notes
 
 # Session Notes

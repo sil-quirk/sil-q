@@ -725,7 +725,7 @@ G:~:U
 I:39:1:0
 W:5:0:30:35
 P:0:0d0:0:0d0:0
-A:5/2:9/1:13/1
+A:5/3:9/2:13/1:16/0
 D:You can equip it as a light source with a radius of 2 squares.
 D: It may also be used to fuel another lantern, up to a maximum of
 D: 7,000 turns of light.

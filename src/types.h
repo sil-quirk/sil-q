@@ -208,6 +208,9 @@ struct object_kind
 
     byte locale[4]; /* Allocation level(s) */
     byte chance[4]; /* Allocation chance(s) */
+    byte alloc_count; /* Number of explicit allocation entries (supports zero rarity) */
+    byte alloc_depth[4]; /* Allocation depth thresholds (from A: lines) */
+    byte alloc_prob[4]; /* Allocation rarity values (can be zero) */
 
     byte abilities; // Number of abilities
     byte skilltype[4]; // Skill-types for the granted abilities
@@ -325,6 +328,9 @@ struct ego_item_type
     byte level; /* Minimum level */
     byte max_level; /* Maximum level */
     byte rarity; /* Object rarity */
+    byte alloc_count; /* Number of explicit allocation entries (supports zero rarity) */
+    byte alloc_depth[4]; /* Allocation depth thresholds (from A: lines) */
+    byte alloc_prob[4]; /* Allocation rarity values (can be zero) */
 
     byte tval[EGO_TVALS_MAX]; /* Legal tval */
     byte min_sval[EGO_TVALS_MAX]; /* Minimum legal sval */

@@ -33,6 +33,8 @@ typedef enum
     DROP_GROUP_ARTIFACT = 2
 } drop_group_kind;
 
+#define DROP_ALLOC_MAX 8
+
 typedef struct
 {
     object_type obj; /* fully specified object template */
@@ -43,8 +45,8 @@ typedef struct
     s16b min_depth;
     s16b max_depth;
     byte num_allocations; /* number of depth/rarity allocation pairs */
-    byte alloc_depth[4]; /* depth thresholds where rarity increases */
-    byte alloc_rarity[4]; /* rarity added at each threshold */
+    byte alloc_depth[DROP_ALLOC_MAX]; /* depth thresholds where rarity changes */
+    byte alloc_rarity[DROP_ALLOC_MAX]; /* rarity value from this depth onward (0 allowed) */
 } drop_entry;
 
 static drop_entry* g_drop_entries = NULL;
@@ -53,13 +55,13 @@ static size_t g_drop_capacity = 0;
 
 /* Jinx egos are excluded from normal drops but applied probabilistically */
 static const s16b jinx_egos[] = {
-    EGO_FLICKERING_SHADOW,
+    /* EGO_FLICKERING_SHADOW,  -- temporarily disabled */
     -1  /* sentinel */
 };
 
 static const char* DROP_RAW_FILE = "drops";
 static const u32b DROP_RAW_MAGIC = 0x44525053; /* 'DRPS' */
-static const u32b DROP_RAW_VERSION = 1;
+static const u32b DROP_RAW_VERSION = 2;
 
 typedef struct
 {
@@ -166,7 +168,7 @@ static drop_category drop_category_for_kind(const object_kind* k_ptr)
         else
             return DROP_CAT_MAX;
     case TV_HORN:
-        return DROP_CAT_SUPPLY;
+        return DROP_CAT_JEWELRY;
     case TV_POTION:
     case TV_STAFF:
     case TV_GEM:
@@ -200,6 +202,296 @@ static int max_locale_depth(const object_kind* k_ptr)
      */
     (void)k_ptr;
     return 0;
+}
+
+static void sort_allocations(byte* depths, byte* rarities, int count)
+{
+    for (int i = 1; i < count; i++)
+    {
+        for (int j = i; j > 0; j--)
+        {
+            if (depths[j] < depths[j - 1])
+            {
+                byte tmp_d = depths[j];
+                byte tmp_r = rarities[j];
+                depths[j] = depths[j - 1];
+                rarities[j] = rarities[j - 1];
+                depths[j - 1] = tmp_d;
+                rarities[j - 1] = tmp_r;
+            }
+            else
+            {
+                break;
+            }
+        }
+    }
+}
+
+static int collect_kind_allocations(const object_kind* k_ptr, byte* depths, byte* rarities)
+{
+    int count = 0;
+
+    if (k_ptr->alloc_count > 0)
+    {
+        for (int i = 0; i < k_ptr->alloc_count && i < 4; i++)
+        {
+            depths[count] = k_ptr->alloc_depth[i];
+            rarities[count] = k_ptr->alloc_prob[i];
+            count++;
+        }
+    }
+    else
+    {
+        for (int i = 0; i < 4; i++)
+        {
+            if (k_ptr->chance[i])
+            {
+                depths[count] = k_ptr->locale[i];
+                rarities[count] = k_ptr->chance[i];
+                count++;
+            }
+        }
+    }
+
+    sort_allocations(depths, rarities, count);
+    return count;
+}
+
+static int collect_ego_allocations(const ego_item_type* e_ptr, byte* depths, byte* rarities)
+{
+    int count = 0;
+
+    if (e_ptr->alloc_count > 0)
+    {
+        for (int i = 0; i < e_ptr->alloc_count && i < 4; i++)
+        {
+            depths[count] = e_ptr->alloc_depth[i];
+            rarities[count] = e_ptr->alloc_prob[i];
+            count++;
+        }
+    }
+
+    sort_allocations(depths, rarities, count);
+    return count;
+}
+
+static int schedule_min_depth(const byte* depths, int count, int fallback)
+{
+    if (count <= 0)
+        return fallback;
+    int min_depth = depths[0];
+    for (int i = 1; i < count; i++)
+    {
+        if (depths[i] < min_depth)
+            min_depth = depths[i];
+    }
+    return (min_depth > 0) ? min_depth : fallback;
+}
+
+static int schedule_max_depth_cap(const byte* depths, const byte* rarities, int count)
+{
+    int last_positive = -1;
+    for (int i = 0; i < count; i++)
+    {
+        if (rarities[i] > 0)
+            last_positive = i;
+    }
+    if (last_positive >= 0 && last_positive + 1 < count && rarities[last_positive + 1] == 0)
+        return depths[last_positive + 1] - 1;
+    if (last_positive < 0)
+        return -1; /* all zero rarities */
+    return 0; /* no cap */
+}
+
+static int rarity_from_schedule(const byte* depths, const byte* rarities, int count,
+    int depth, int default_rarity)
+{
+    if (count <= 0)
+        return default_rarity;
+
+    int rarity = rarities[0];
+    for (int i = 1; i < count; i++)
+    {
+        if (depth >= depths[i])
+            rarity = rarities[i];
+        else
+            break;
+    }
+    return rarity;
+}
+
+static int combine_allocations(const byte* base_depths, const byte* base_rarities, int base_count,
+    const byte* ego_depths, const byte* ego_rarities, int ego_count,
+    byte* out_depths, byte* out_rarities)
+{
+    byte merged[DROP_ALLOC_MAX];
+    int merged_count = 0;
+
+    for (int i = 0; i < base_count && merged_count < DROP_ALLOC_MAX; i++)
+    {
+        bool exists = false;
+        for (int j = 0; j < merged_count; j++)
+        {
+            if (merged[j] == base_depths[i])
+            {
+                exists = true;
+                break;
+            }
+        }
+        if (!exists)
+            merged[merged_count++] = base_depths[i];
+    }
+
+    for (int i = 0; i < ego_count && merged_count < DROP_ALLOC_MAX; i++)
+    {
+        bool exists = false;
+        for (int j = 0; j < merged_count; j++)
+        {
+            if (merged[j] == ego_depths[i])
+            {
+                exists = true;
+                break;
+            }
+        }
+        if (!exists)
+            merged[merged_count++] = ego_depths[i];
+    }
+
+    for (int i = 0; i < merged_count; i++)
+    {
+        for (int j = i + 1; j < merged_count; j++)
+        {
+            if (merged[j] < merged[i])
+            {
+                byte tmp = merged[i];
+                merged[i] = merged[j];
+                merged[j] = tmp;
+            }
+        }
+    }
+
+    int out_count = 0;
+    for (int i = 0; i < merged_count && out_count < DROP_ALLOC_MAX; i++)
+    {
+        int depth = merged[i];
+        int base_r = rarity_from_schedule(base_depths, base_rarities, base_count, depth, 1);
+        int ego_r = rarity_from_schedule(ego_depths, ego_rarities, ego_count, depth, 1);
+        int combined = base_r * ego_r;
+        if (combined < 0)
+            combined = 0;
+        if (out_count == 0 || combined != out_rarities[out_count - 1])
+        {
+            out_depths[out_count] = (byte)depth;
+            out_rarities[out_count] = (byte)MIN(combined, 255);
+            out_count++;
+        }
+    }
+
+    return out_count;
+}
+
+/* Restore runtime quantities (fuel, charges, stacks) that were handled by apply_magic previously. */
+static void drop_apply_spawn_quantities(object_type* o_ptr)
+{
+    object_kind* k_ptr = &k_info[o_ptr->k_idx];
+
+    switch (o_ptr->tval)
+    {
+    case TV_LIGHT:
+    {
+        /* Only adjust empty/zero-fuel lights */
+        if (o_ptr->timeout <= 0)
+        {
+            if (o_ptr->sval == SV_LIGHT_TORCH)
+            {
+                o_ptr->timeout = one_in_(3) ? rand_range(500, 2000) : 2000;
+            }
+            else if (o_ptr->sval == SV_LIGHT_LANTERN)
+            {
+                o_ptr->timeout = one_in_(3) ? rand_range(500, 3000) : 3000;
+            }
+            else if (o_ptr->sval == SV_LIGHT_MALLORN)
+            {
+                o_ptr->timeout = one_in_(3) ? rand_range(20, 50) : 50;
+            }
+        }
+        break;
+    }
+    case TV_STAFF:
+    {
+        int mult = CHANNELING_CHARGE_MULTIPLIER;
+        switch (o_ptr->sval)
+        {
+        case SV_STAFF_SECRETS:
+        case SV_STAFF_IMPRISONMENT:
+        case SV_STAFF_FREEDOM:
+        case SV_STAFF_LIGHT:
+        case SV_STAFF_REVELATIONS:
+        case SV_STAFF_FOES:
+        case SV_STAFF_SLUMBER:
+        case SV_STAFF_MAJESTY:
+            o_ptr->pval = mult * damroll(4, 2);
+            break;
+        case SV_STAFF_SANCTITY:
+        case SV_STAFF_UNDERSTANDING:
+        case SV_STAFF_TREASURES:
+        case SV_STAFF_SELF_KNOWLEDGE:
+        case SV_STAFF_DISMAY:
+        case SV_STAFF_RECHARGING:
+            o_ptr->pval = mult * damroll(2, 2);
+            break;
+        case SV_STAFF_SUMMONING:
+            o_ptr->pval = mult * damroll(6, 2);
+            break;
+        default:
+            o_ptr->pval = mult * damroll(2, 2);
+            break;
+        }
+        break;
+    }
+    case TV_GEM:
+    {
+        int charges = 0;
+        switch (o_ptr->sval)
+        {
+        case SV_GEM_FREEDOM:
+        case SV_GEM_LIGHT:
+        case SV_GEM_REVELATIONS:
+        case SV_GEM_FOES:
+            charges = damroll(4, 2);
+            break;
+        case SV_GEM_SANCTITY:
+        case SV_GEM_UNDERSTANDING:
+        case SV_GEM_TREASURES:
+        case SV_GEM_SELF_KNOWLEDGE:
+        case SV_GEM_RECHARGING:
+        case SV_GEM_SHADOWS:
+            charges = damroll(2, 2);
+            break;
+        default:
+            charges = damroll(2, 2);
+            break;
+        }
+        o_ptr->number = charges;
+        o_ptr->pval = 0;
+        break;
+    }
+    default:
+        break;
+    }
+
+    /* Throwing weapons can spawn in small stacks and should use base weight for stacking. */
+    if ((k_ptr->flags3 & TR3_THROWING) && o_ptr->tval != TV_ARROW && !o_ptr->name1)
+    {
+        o_ptr->weight = k_ptr->weight;
+        if (one_in_(2))
+        {
+            int stack_limit = object_stack_limit(o_ptr);
+            int max_spawn = (stack_limit < 5) ? stack_limit : 5;
+            int min_spawn = (max_spawn < 2) ? 1 : 2;
+            o_ptr->number = rand_range(min_spawn, max_spawn);
+        }
+    }
 }
 
 /* Baseline smithing difficulty (player-neutral). */
@@ -561,16 +853,9 @@ static void add_drop_entry(const object_type* proto, drop_category cat,
     if ((k_ptr->flags3 & TR3_INSTA_ART) && group_kind != DROP_GROUP_ARTIFACT)
         return;
 
-    /* Override category: simple items go to supply, ego/artifact versions go to their proper category */
-    if (group_kind == DROP_GROUP_NORMAL)
-    {
-        /* Simple brass lamps and lesser jewels → supply (egos stay jewelry) */
-        if (k_ptr->tval == TV_LIGHT && (k_ptr->sval == SV_LIGHT_LANTERN || k_ptr->sval == SV_LIGHT_LESSER_JEWEL))
-            cat = DROP_CAT_SUPPLY;
-        /* Simple arrows → supply (egos go to weapon) */
-        else if (k_ptr->tval == TV_ARROW)
-            cat = DROP_CAT_SUPPLY;
-    }
+    /* Override category: simple arrows go to supply (egos go to weapon) */
+    if (group_kind == DROP_GROUP_NORMAL && k_ptr->tval == TV_ARROW)
+        cat = DROP_CAT_SUPPLY;
 
     if (g_drop_count + 1 > g_drop_capacity)
     {
@@ -592,13 +877,16 @@ static void add_drop_entry(const object_type* proto, drop_category cat,
     entry->group_id = (s16b)group_id;
     entry->min_depth = (s16b)min_depth;
     entry->max_depth = (s16b)max_depth;
-    entry->num_allocations = (byte)num_allocs;
-    for (int i = 0; i < num_allocs && i < 4; i++)
+    entry->num_allocations = (byte)MIN(num_allocs, DROP_ALLOC_MAX);
+    for (int i = 0; i < entry->num_allocations; i++)
     {
         entry->alloc_depth[i] = alloc_depths[i];
         entry->alloc_rarity[i] = alloc_rarities[i];
     }
-    entry->difficulty = (s16b)smithing_difficulty_baseline(&entry->obj);
+    if (cat == DROP_CAT_SUPPLY)
+        entry->difficulty = 0;
+    else
+        entry->difficulty = (s16b)smithing_difficulty_baseline(&entry->obj);
 }
 
 /* Apply ego flag data (abilities and curses) without randomness */
@@ -646,72 +934,47 @@ static void build_normal_variants(int k_idx)
     object_prep(&base, k_idx);
     base.weight = k_ptr->weight;
 
-    int min_depth = min_locale_depth(k_ptr);
-    int max_depth = max_locale_depth(k_ptr);
-    
-    /* Determine if this is a jewelry or supply item that should use A: field allocations */
-    bool use_locale_allocations = (cat == DROP_CAT_JEWELRY || cat == DROP_CAT_SUPPLY);
-    
-    /* For jewelry and supply items, create one entry per A: allocation pair */
-    if (use_locale_allocations)
-    {
-        /* Scan allocation pairs from A: field */
-        for (int i = 0; i < 4; i++)
-        {
-            if (k_ptr->chance[i])
-            {
-                int depth = k_ptr->locale[i];
-                int rarity = k_ptr->chance[i];
-                
-                object_type v = base;
-                v.pval = k_ptr->pval;
-                
-                /* For jewelry, treat as ego-like items with group_kind EGO */
-                byte depth_arr[1] = {(byte)depth};
-                byte rarity_arr[1] = {(byte)rarity};
-                if (cat == DROP_CAT_JEWELRY)
-                {
-                    add_drop_entry(&v, cat, DROP_GROUP_EGO, k_idx, depth, max_depth,
-                        depth_arr, rarity_arr, 1);
-                }
-                else
-                {
-                    /* Supply items remain normal but use A: rarity */
-                    add_drop_entry(&v, cat, DROP_GROUP_NORMAL, k_idx, depth, max_depth,
-                        depth_arr, rarity_arr, 1);
-                }
-            }
-        }
-        return;
-    }
-
-    /* For normal items (weapons/armor), collect all A: allocations.
-     * Rarity accumulates as you reach each depth threshold.
-     * Example: A:4/10:14/1 means rarity 10 from depth 4-13, rarity 11 from depth 14+
-     */
-    byte alloc_depths[4];
-    byte alloc_rarities[4];
-    int num_allocations = 0;
-    int effective_min_depth = min_depth;
-    
-    for (int i = 0; i < 4; i++)
-    {
-        if (k_ptr->chance[i])
-        {
-            alloc_depths[num_allocations] = (byte)k_ptr->locale[i];
-            alloc_rarities[num_allocations] = (byte)k_ptr->chance[i];
-            num_allocations++;
-            if (k_ptr->locale[i] < effective_min_depth)
-                effective_min_depth = k_ptr->locale[i];
-        }
-    }
-    
-    /* If no A: allocations, use default rarity of 1 */
+    byte alloc_depths[DROP_ALLOC_MAX];
+    byte alloc_rarities[DROP_ALLOC_MAX];
+    int num_allocations = collect_kind_allocations(k_ptr, alloc_depths, alloc_rarities);
+    int fallback_min = min_locale_depth(k_ptr);
+    if (fallback_min <= 0)
+        fallback_min = 1;
     if (num_allocations == 0)
     {
-        alloc_depths[0] = (byte)effective_min_depth;
+        alloc_depths[0] = (byte)fallback_min;
         alloc_rarities[0] = 1;
         num_allocations = 1;
+    }
+
+    bool has_positive_rarity = false;
+    for (int i = 0; i < num_allocations; i++)
+    {
+        if (alloc_rarities[i] > 0)
+        {
+            has_positive_rarity = true;
+            break;
+        }
+    }
+    int rarity_cap_depth = schedule_max_depth_cap(alloc_depths, alloc_rarities, num_allocations);
+    if (!has_positive_rarity && rarity_cap_depth < 0)
+        return; /* never spawns */
+
+    int min_depth = schedule_min_depth(alloc_depths, num_allocations, fallback_min);
+    int max_depth = max_locale_depth(k_ptr);
+    if (min_depth <= 0)
+        min_depth = 1;
+    if (rarity_cap_depth > 0 && (max_depth == 0 || rarity_cap_depth < max_depth))
+        max_depth = rarity_cap_depth;
+
+    drop_group_kind group_kind = (cat == DROP_CAT_JEWELRY) ? DROP_GROUP_EGO : DROP_GROUP_NORMAL;
+
+    /* Supply items: no smithing variants, use new allocation semantics */
+    if (cat == DROP_CAT_SUPPLY)
+    {
+        add_drop_entry(&base, cat, DROP_GROUP_NORMAL, k_idx, min_depth, max_depth,
+            alloc_depths, alloc_rarities, num_allocations);
+        return;
     }
 
     /* Smithing caps (no ego/artefact) taken from smithing menu logic */
@@ -810,8 +1073,8 @@ static void build_normal_variants(int k_idx)
                         v.evn = evn;
                         v.ps = ps;
                         v.pval = pval;
-                        add_drop_entry(&v, cat, DROP_GROUP_NORMAL, k_idx,
-                            effective_min_depth, max_depth,
+                        add_drop_entry(&v, cat, group_kind, k_idx,
+                            min_depth, max_depth,
                             alloc_depths, alloc_rarities, num_allocations);
                     }
                 }
@@ -856,34 +1119,70 @@ static void build_ego_variants(int e_idx)
             apply_ego_static(&base, e_ptr);
 
             /* Ego items: use ego W: depth for min_depth (for difficulty penalty) */
-            int min_depth = e_ptr->level;
+            int ego_fallback_depth = (e_ptr->level > 0) ? e_ptr->level : 1;
             int max_depth = (e_ptr->max_level > 0) ? e_ptr->max_level
                                                    : max_locale_depth(k_ptr);
-            
-            /* Collect base object A: allocations and multiply with ego rarity */
-            byte alloc_depths[4];
-            byte alloc_rarities[4];
-            int num_allocations = 0;
-            int ego_rarity = (e_ptr->rarity > 0) ? e_ptr->rarity : 1;
-            
-            for (int i = 0; i < 4; i++)
+
+            byte base_depths[DROP_ALLOC_MAX];
+            byte base_rarities[DROP_ALLOC_MAX];
+            int base_allocs = collect_kind_allocations(k_ptr, base_depths, base_rarities);
+            int base_fallback_depth = min_locale_depth(k_ptr);
+            if (base_fallback_depth <= 0)
+                base_fallback_depth = 1;
+            if (base_allocs == 0)
             {
-                if (k_ptr->chance[i])
+                base_depths[0] = (byte)base_fallback_depth;
+                base_rarities[0] = 1;
+                base_allocs = 1;
+            }
+
+            byte ego_depths[DROP_ALLOC_MAX];
+            byte ego_rarities[DROP_ALLOC_MAX];
+            int ego_allocs = collect_ego_allocations(e_ptr, ego_depths, ego_rarities);
+            int ego_default_rarity = (e_ptr->rarity > 0) ? e_ptr->rarity : 1;
+            if (ego_allocs == 0)
+            {
+                ego_depths[0] = (byte)ego_fallback_depth;
+                ego_rarities[0] = (byte)ego_default_rarity;
+                ego_allocs = 1;
+            }
+
+            byte alloc_depths[DROP_ALLOC_MAX];
+            byte alloc_rarities[DROP_ALLOC_MAX];
+            int num_allocations = combine_allocations(
+                base_depths, base_rarities, base_allocs,
+                ego_depths, ego_rarities, ego_allocs,
+                alloc_depths, alloc_rarities);
+
+            if (num_allocations == 0)
+                continue;
+
+            bool has_positive_rarity = false;
+            for (int i = 0; i < num_allocations; i++)
+            {
+                if (alloc_rarities[i] > 0)
                 {
-                    alloc_depths[num_allocations] = (byte)k_ptr->locale[i];
-                    /* Multiply base rarity with ego rarity */
-                    alloc_rarities[num_allocations] = (byte)(k_ptr->chance[i] * ego_rarity);
-                    num_allocations++;
+                    has_positive_rarity = true;
+                    break;
                 }
             }
-            
-            /* If no A: allocations on base, use ego rarity at ego depth */
-            if (num_allocations == 0)
+            if (!has_positive_rarity && num_allocations > 0
+                && schedule_max_depth_cap(alloc_depths, alloc_rarities, num_allocations) < 0)
             {
-                alloc_depths[0] = (byte)min_depth;
-                alloc_rarities[0] = (byte)ego_rarity;
-                num_allocations = 1;
+                continue;
             }
+
+            int base_min_depth = schedule_min_depth(base_depths, base_allocs, base_fallback_depth);
+            int min_depth = schedule_min_depth(ego_depths, ego_allocs, ego_fallback_depth);
+            if (base_min_depth <= 0)
+                base_min_depth = 1;
+            if (min_depth < base_min_depth)
+                min_depth = base_min_depth;
+            int rarity_cap_depth = schedule_max_depth_cap(alloc_depths, alloc_rarities, num_allocations);
+            if (min_depth <= 0)
+                min_depth = 1;
+            if (rarity_cap_depth > 0 && (max_depth == 0 || rarity_cap_depth < max_depth))
+                max_depth = rarity_cap_depth;
 
             /* Smithing bounds with ego applied (match smithing UI logic) */
             int att_min = k_ptr->att + ((e_ptr->max_att > 0) ? 1 : 0);
@@ -1310,6 +1609,7 @@ static int supply_entry_weight(const drop_entry* e, int depth)
 }
 
 /* Forward declarations */
+static int drop_entry_rarity_at_depth(const drop_entry* e, int depth);
 static int group_rarity_at_depth(const drop_entry* e, int depth);
 
 static const char* drop_category_name(drop_category cat)
@@ -1390,7 +1690,7 @@ static bool droptype_matches(const drop_request* req, const drop_entry* e)
         return (e->obj.tval == TV_HELM || e->obj.tval == TV_CROWN);
     case DROP_TYPE_JEWELRY:
         return (e->obj.tval == TV_RING || e->obj.tval == TV_AMULET
-            || e->obj.tval == TV_LIGHT);
+            || e->obj.tval == TV_LIGHT || e->obj.tval == TV_HORN);
     case DROP_TYPE_POTION:
         return e->obj.tval == TV_POTION;
     case DROP_TYPE_STAFF:
@@ -1463,6 +1763,10 @@ static bool collect_candidate_entries(
             continue;
         }
 
+        int rarity_weight = group_rarity_at_depth(&e, depth);
+        if (rarity_weight <= 0)
+            continue;
+
         int effective_dif = e.difficulty;
         if (depth < e.min_depth)
             effective_dif += 2 * (e.min_depth - depth);
@@ -1505,36 +1809,45 @@ static bool collect_candidate_entries(
             int effective_dif = e->difficulty;
             if (depth < e->min_depth)
                 effective_dif += 2 * (e->min_depth - depth);
-            int accumulated_rarity = group_rarity_at_depth(e, depth);
+            int rarity_at_depth = drop_entry_rarity_at_depth(e, depth);
+            int weight_at_depth = group_rarity_at_depth(e, depth);
             
             gen_log_write("DROP_CANDIDATE",
                 "relaxed=%s k_idx=%d cat=%s group_kind=%d group_id=%d "
-                "base_dif=%d eff_dif=%d min_depth=%d max_depth=%d rarity_at_depth=%d",
+                "base_dif=%d eff_dif=%d min_depth=%d max_depth=%d rarity_at_depth=%d weight=%d",
                 relaxed ? "yes" : "no", e->obj.k_idx,
                 drop_category_name(e->category), e->group_kind, e->group_id,
-                e->difficulty, effective_dif, e->min_depth, e->max_depth, accumulated_rarity);
+                e->difficulty, effective_dif, e->min_depth, e->max_depth,
+                rarity_at_depth, weight_at_depth);
         }
     }
 
     return (count > 0);
 }
 
-/* Calculate weight for a group at a specific depth.
- * Weight accumulates: for each allocation where depth >= allocation_depth,
- * add (100 / rarity) to the total weight.
- */
-static int group_rarity_at_depth(const drop_entry* e, int depth)
+/* Calculate weight for a group at a specific depth (step-based rarity). */
+static int drop_entry_rarity_at_depth(const drop_entry* e, int depth)
 {
-    int accumulated_weight = 0;
-    for (int i = 0; i < e->num_allocations; i++)
+    if (!e || e->num_allocations == 0)
+        return 1;
+
+    int rarity = e->alloc_rarity[0];
+    for (int i = 1; i < e->num_allocations; i++)
     {
         if (depth >= e->alloc_depth[i])
-        {
-            int rarity = e->alloc_rarity[i];
-            accumulated_weight += (100 / MAX(1, rarity));
-        }
+            rarity = e->alloc_rarity[i];
+        else
+            break;
     }
-    return MAX(1, accumulated_weight);
+    return rarity;
+}
+
+static int group_rarity_at_depth(const drop_entry* e, int depth)
+{
+    int rarity = drop_entry_rarity_at_depth(e, depth);
+    if (rarity <= 0)
+        return 0;
+    return MAX(1, 100 / rarity);
 }
 
 static bool build_groups(drop_entry* entries, size_t count, drop_group* groups,
@@ -1697,12 +2010,18 @@ static drop_entry* choose_supply_entry(drop_entry* entries, size_t count,
     for (int i = 0; i < bucket_counts[chosen_gid]; i++)
     {
         drop_entry* e = bucket[chosen_gid][i];
-        int w = supply_entry_weight(e, depth);
+        int rarity_weight = group_rarity_at_depth(e, depth);
+        if (rarity_weight <= 0)
+        {
+            item_weights[i] = 0;
+            continue;
+        }
+        int w = rarity_weight * supply_entry_weight(e, depth);
         item_weights[i] = w;
         total_item_weight += w;
     }
     if (total_item_weight <= 0)
-        return bucket[chosen_gid][0];
+        return NULL;
 
     int pick_item = rand_int(total_item_weight);
     for (int i = 0, acc = 0; i < bucket_counts[chosen_gid]; i++)
@@ -2069,6 +2388,9 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
         
         /* Try to apply jinx to normal items */
         try_apply_jinx(out, depth);
+
+        /* Restore runtime quantities (fuel/charges/stacks) that are not baked into templates */
+        drop_apply_spawn_quantities(out);
         
         if (chosen->group_kind == DROP_GROUP_ARTIFACT)
         {
