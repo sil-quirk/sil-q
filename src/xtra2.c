@@ -2298,8 +2298,10 @@ void drop_loot(monster_type* m_ptr)
         number--;
     }
 
-    /* Use the monster's level */
-    object_level = r_ptr->level;
+    /* Use the monster's level, but cap to dungeon depth so A: schedule gates
+     * are enforced by the current level (prevents early lantern/jewel drops). */
+    int depth_cap = (p_ptr->depth > 0) ? p_ptr->depth : 1;
+    object_level = MIN(r_ptr->level, depth_cap);
     drop_quality quality = drop_quality_from_flags(good, great);
 
     /* Drop some objects */
@@ -9230,7 +9232,6 @@ void grant_unique_bane_ability(void)
     p_ptr->update |= (PU_BONUS);
     handle_stuff();
 }
-
 
 
 

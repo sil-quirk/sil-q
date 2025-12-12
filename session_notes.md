@@ -1,6 +1,51 @@
 # Session Notes
 
+## 2025-12-11: Mithril Flags - Difficulty Calculation Fix
+
+### Issue
+Added flags to mithril objects in object.txt:
+- Mithril Corslet: `CHEAT_DEATH`
+- Mithril Shield: `DAMAGE_SIDES`
+- Elven Mithril Sword: `ACCURATE`
+- Mithril Helm: `RES_COLD`, `RES_FIRE`
+- Mithril Greaves: `ENCHANTABLE`, `STAND_FAST`
+- Mithril Gauntlets: `ENCHANTABLE`, `REGEN`
+
+Problem: These flags are on BASE items (k_ptr), not specials/artefacts. The object_difficulty() function in cmd4.c (line 4207-4209) subtracts all base flags to isolate special/artefact-only flags. This was removing mithril-specific flags, preventing them from contributing to difficulty calculation.
+
+### Solution
+Added code to restore mithril-specific flags after base subtraction in cmd4.c:
+- After `f1 &= ~(k_ptr->flags1)` etc. (line 4207-4209)
+- Added restoration for: `DAMAGE_SIDES`, `REGEN`, `RES_COLD`, `RES_FIRE`, `CHEAT_DEATH`, `STAND_FAST`, `ENCHANTABLE` (lines 4227-4241)
+- Follows existing pattern for `TUNNEL`, `STL`, `ACCURATE`, `SHARPNESS` flags
+
+### Flags Impact on Difficulty
+- `CHEAT_DEATH`: +13 difficulty
+- `DAMAGE_SIDES`: depends on pval, costs with base 18
+- `ACCURATE`: +15 difficulty
+- `RES_COLD`: +5 difficulty
+- `RES_FIRE`: +5 difficulty
+- `STAND_FAST`: +2 difficulty
+- `REGEN`: +4 difficulty
+- `ENCHANTABLE`: -30% slot multiplier (makes items easier to smith)
+
+### Build & Test
+- Rebuilt successfully with cmake
+- All mithril items now properly count their special flags toward difficulty
+- Python difficulty calculation script already handles all these flags correctly
+
 ## 2026-02-12: Drop Rarity Refactor (step-based A:)
+- A: entries now set step rarity (last threshold <= depth); rarity 0 blocks selection and can close off deeper levels (cap max_depth). Default rarity is 1 if no A: is present.
+- Added explicit A: parsing for egos (special.txt) with stored alloc arrays; ego rarities multiply base rarities, and ego A depths set min_depth. Trailing zero on base+ego schedule enforces a spawn cap.
+- Supply items use the same A: weighting (with depth bias) but skip smithing difficulty; drop raw version bumped to force rebuild.
+- Jewelry/lanterns/horns are treated as jewelry category (no supply override), still grouped as EGO for drop grouping; jewelry now uses the normal variant builder instead of per-A entries.
+- Ego drop penalty depth now uses max(min base depth, min ego depth) to avoid under-penalising shallow egos on deep-only bases; lights/staves/gems regain runtime fuel/charges/stack rolls on generation (torches/lanterns no longer spawn empty; throwing items can spawn in small stacks again).
+
+# Session Notes
+
+# Session Notes
+
+## 2025-12-10: Drop System - A: Field Rarity Integration (FINAL)
 - A: entries now set step rarity (last threshold <= depth); rarity 0 blocks selection and can close off deeper levels (cap max_depth). Default rarity is 1 if no A: is present.
 - Added explicit A: parsing for egos (special.txt) with stored alloc arrays; ego rarities multiply base rarities, and ego A depths set min_depth. Trailing zero on base+ego schedule enforces a spawn cap.
 - Supply items use the same A: weighting (with depth bias) but skip smithing difficulty; drop raw version bumped to force rebuild.

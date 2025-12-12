@@ -1747,10 +1747,11 @@ static void scatter_cave_gems_in_bounds(int y1, int y2, int x1, int x2, bool is_
         }
     }
 
-    /* Scatter torches; allow both cave sizes, more in small caves */
+    /* Scatter torches; both wooden and mallorn in small caves only, max 2 together */
+    if (!is_big_cave)
     {
-        int torch_chance = is_big_cave ? 20 : 35;
-        int torch_max = is_big_cave ? 2 : 3;
+        int torch_chance = 35;
+        int torch_max = 2;
         int torch_placed = 0;
         if (rand_int(100) < torch_chance)
         {
@@ -1762,7 +1763,9 @@ static void scatter_cave_gems_in_bounds(int y1, int y2, int x1, int x2, bool is_
                 if (!cave_floor_bold(gy, gx)) continue;
                 if (cave_o_idx[gy][gx] != 0) continue;
 
-                s16b k_idx = lookup_kind(TV_LIGHT, SV_LIGHT_TORCH);
+                /* Randomly choose between wooden and mallorn torches */
+                byte torch_sval = one_in_(2) ? SV_LIGHT_TORCH : SV_LIGHT_MALLORN;
+                s16b k_idx = lookup_kind(TV_LIGHT, torch_sval);
                 if (!k_idx) break;
 
                 object_type object_type_body;
@@ -6072,11 +6075,24 @@ static partition_drop_profile partition_drop_profile_for_mode(quadrant_mode_t mo
 
     switch (mode)
     {
+    case QUAD_MODE_ROOMY:
+        /* Default (ROOMY) — 40:30:10:20 */
+        prof.profile.weight_weapon = 40;
+        prof.profile.weight_armor = 30;
+        prof.profile.weight_jewelry = 10;
+        prof.profile.weight_supply = 20;
+        prof.profile.supply_potion = 1;
+        prof.profile.supply_herb = 1;
+        prof.profile.supply_gem = 1;
+        prof.profile.supply_staff = 1;
+        prof.profile.supply_misc = 1;
+        break;
     case QUAD_MODE_LABYRINTH:
+        /* LABYRINTH - 0:0:35:65 */
         prof.profile.weight_weapon = 0;
         prof.profile.weight_armor = 0;
-        prof.profile.weight_jewelry = 45;
-        prof.profile.weight_supply = 55;
+        prof.profile.weight_jewelry = 35;
+        prof.profile.weight_supply = 65;
         prof.profile.supply_potion = 15;
         prof.profile.supply_herb = 2;
         prof.profile.supply_gem = 2;
@@ -6084,11 +6100,12 @@ static partition_drop_profile partition_drop_profile_for_mode(quadrant_mode_t mo
         prof.profile.supply_misc = 5;
         break;
     case QUAD_MODE_RUINED:
+        /* RUINED 40:35:0:25 */
         prof.profile.weight_weapon = 40;
         prof.profile.weight_armor = 35;
         prof.profile.weight_jewelry = 0;
         prof.profile.weight_supply = 25;
-        prof.profile.supply_potion = 2;
+        prof.profile.supply_potion = 7;
         prof.profile.supply_herb = 2;
         prof.profile.supply_gem = 1;
         prof.profile.supply_staff = 3;
@@ -6098,16 +6115,29 @@ static partition_drop_profile partition_drop_profile_for_mode(quadrant_mode_t mo
         prof.allow_floor_drops = false;
         break;
     case QUAD_MODE_BIG_CAVE:
-        prof.reroll_chance = 50; /* Half the usual floor/corridor drops */
+        /* BIG_CAVE 20:20:15:45 (half usual drops) */
+        prof.reroll_chance = 50;
         prof.profile.weight_weapon = 20;
         prof.profile.weight_armor = 20;
         prof.profile.weight_jewelry = 15;
         prof.profile.weight_supply = 45;
-        prof.profile.supply_potion = 6;
-        prof.profile.supply_herb = 12; /* more herbs */
-        prof.profile.supply_gem = 1;   /* fewer gems */
-        prof.profile.supply_staff = 6;
-        prof.profile.supply_misc = 5;
+        prof.profile.supply_potion = 1;
+        prof.profile.supply_herb = 3;
+        prof.profile.supply_gem = 2;
+        prof.profile.supply_staff = 1;
+        prof.profile.supply_misc = 1;
+        break;
+    case QUAD_MODE_CHASM:
+        /* CHASM 40:30:20:10 */
+        prof.profile.weight_weapon = 40;
+        prof.profile.weight_armor = 30;
+        prof.profile.weight_jewelry = 20;
+        prof.profile.weight_supply = 10;
+        prof.profile.supply_potion = 1;
+        prof.profile.supply_herb = 1;
+        prof.profile.supply_gem = 1;
+        prof.profile.supply_staff = 1;
+        prof.profile.supply_misc = 1;
         break;
     default:
         break;
@@ -6116,8 +6146,20 @@ static partition_drop_profile partition_drop_profile_for_mode(quadrant_mode_t mo
     return prof;
 }
 
+static void place_object_with_profile_params(
+    int y, int x, drop_quality quality, int droptype, bool allow_artefacts,
+    const partition_drop_profile* prof);
+
 static void place_object_with_profile(
     int y, int x, const partition_drop_profile* prof)
+{
+    place_object_with_profile_params(
+        y, x, DROP_QUALITY_NORMAL, DROP_TYPE_UNTHEMED, false, prof);
+}
+
+static void place_object_with_profile_params(
+    int y, int x, drop_quality quality, int droptype, bool allow_artefacts,
+    const partition_drop_profile* prof)
 {
     if (!in_bounds(y, x))
         return;
@@ -6132,8 +6174,8 @@ static void place_object_with_profile(
     int attempts = 0;
     const drop_profile* dp = (prof) ? &prof->profile : NULL;
 
-    while (!drop_generate_object_profiled(depth, DROP_QUALITY_NORMAL,
-               DROP_TYPE_UNTHEMED, 0, false, dp, i_ptr))
+    while (!drop_generate_object_profiled(depth, quality,
+               droptype, 0, allow_artefacts, dp, i_ptr))
     {
         attempts++;
         if (attempts > 200)
@@ -9287,8 +9329,11 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             case '*':
             {
                 object_level = p_ptr->depth + dieroll(4);
-                place_object(y, x, DROP_QUALITY_NORMAL,
-                    DROP_TYPE_NOT_DAMAGED, true);
+                partition_drop_profile active_profile =
+                    partition_drop_profile_for_mode(drop_mode_for_point(y, x));
+                place_object_with_profile_params(
+                    y, x, DROP_QUALITY_NORMAL, DROP_TYPE_NOT_DAMAGED, true,
+                    &active_profile);
                 object_level = original_object_level;
                 break;
             }
@@ -9297,8 +9342,11 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             case '&':
             {
                 object_level = p_ptr->depth + dieroll(4);
-                place_object(
-                    y, x, DROP_QUALITY_GOOD, DROP_TYPE_NOT_DAMAGED, true);
+                partition_drop_profile active_profile =
+                    partition_drop_profile_for_mode(drop_mode_for_point(y, x));
+                place_object_with_profile_params(
+                    y, x, DROP_QUALITY_GOOD, DROP_TYPE_NOT_DAMAGED, true,
+                    &active_profile);
                 object_level = original_object_level;
                 break;
             }
@@ -9312,8 +9360,11 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                     object_level = p_ptr->depth + 4;
                 ;
 
-                place_object(
-                    y, x, DROP_QUALITY_NORMAL, DROP_TYPE_CHEST, true);
+                partition_drop_profile active_profile =
+                    partition_drop_profile_for_mode(drop_mode_for_point(y, x));
+                place_object_with_profile_params(
+                    y, x, DROP_QUALITY_NORMAL, DROP_TYPE_CHEST, true,
+                    &active_profile);
                 object_level = original_object_level;
                 break;
             }
@@ -9364,8 +9415,11 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 if (r >= 2)
                 {
                     object_level = p_ptr->depth + 1;
-                    place_object(
-                        y, x, DROP_QUALITY_NORMAL, DROP_TYPE_UNTHEMED, true);
+                    partition_drop_profile active_profile =
+                        partition_drop_profile_for_mode(drop_mode_for_point(y, x));
+                    place_object_with_profile_params(
+                        y, x, DROP_QUALITY_NORMAL, DROP_TYPE_UNTHEMED, true,
+                        &active_profile);
                     object_level = original_object_level;
                 }
                 break;
@@ -13048,4 +13102,3 @@ if (playerturn == 0) {
 
     // Valar quest doesn't provide map rewards like the old thrall quest
 }
-

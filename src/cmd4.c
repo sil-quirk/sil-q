@@ -4223,6 +4223,24 @@ int object_difficulty(object_type* o_ptr)
         if (k_ptr->flags1 & (TR1_SHARPNESS | TR1_SHARPNESS2))
             f1 |= (k_ptr->flags1 & (TR1_SHARPNESS | TR1_SHARPNESS2));
 
+        // need to add mithril-specific flags back in...
+        // These are flags that appear on base mithril items but should
+        // count toward difficulty as they are "special" properties
+        if (k_ptr->flags1 & TR1_DAMAGE_SIDES)
+            f1 |= TR1_DAMAGE_SIDES;
+        if (k_ptr->flags2 & TR2_REGEN)
+            f2 |= TR2_REGEN;
+        if (k_ptr->flags2 & TR2_RES_COLD)
+            f2 |= TR2_RES_COLD;
+        if (k_ptr->flags2 & TR2_RES_FIRE)
+            f2 |= TR2_RES_FIRE;
+        if (k_ptr->flags3 & TR3_CHEAT_DEATH)
+            f3 |= TR3_CHEAT_DEATH;
+        if (k_ptr->flags3 & TR3_STAND_FAST)
+            f3 |= TR3_STAND_FAST;
+        if (k_ptr->flags3 & TR3_ENCHANTABLE)
+            f3 |= TR3_ENCHANTABLE;
+
         // base item
         dif_inc += k_ptr->level / 2;
     }

@@ -218,9 +218,9 @@ F:INSTA_ART
 N:21:& Lesser Jewel~
 G:*:B
 I:39:2:0
-W:7:20:1:1000
+W:8:20:1:1000
 P:0:0d0:0:0d0:0
-A:3/20
+A:1/0:3/20
 D:An enchanted glowing jewel, akin to a Silmaril, but much less
 D: powerful.
 D: You can equip it as a light source with a radius of 1 square.
@@ -257,9 +257,9 @@ N:27:Galvorn Armour~
 G:(:D
 I:36:11:0
 W:17:0:70:200
-P:0:0d0:-1:1d8
+P:0:0d0:-1:1d9
 A:17/20:22/4
-F:IGNORE_ALL | NO_SMITHING
+F:IGNORE_ALL | NO_SMITHING | STAR_IRON
 D:A suit of armour made of galvorn: a strange shining black metal 
 D:so malleable that it is thin and supple, yet strong enough 
 D:to stop blade and dart.
@@ -288,10 +288,10 @@ D: It comes down to the thigh.
 N:38:& Mithril Corslet~
 G:[:B
 I:37:20:0
-W:7:0:150:7000
-P:0:0d0:-2:2d4
-A:7/80:15/10
-F:IGNORE_ALL | MITHRIL
+W:16:0:150:7000
+P:0:0d0:0:2d5
+A:14/0:16/10
+F:IGNORE_ALL | MITHRIL | CHEAT_DEATH
 D:A shirt of armour formed from linked rings.
 
 
@@ -345,11 +345,11 @@ A:6/1
 
 N:46:& Mithril Shield~
 G:):B
-I:34:10:0
-W:8:0:40:10000
-P:-1:0d0:0:1d6
-A:8/80:14/10
-F:IGNORE_ALL | MITHRIL
+I:34:10:1
+W:16:0:40:10000
+P:0:0d0:0:1d7
+A:14/0:16/10
+F:IGNORE_ALL | MITHRIL | DAMAGE_SIDES
 
 
 
@@ -562,10 +562,10 @@ D:A full faced helm, wrought in a fearsome visage.
 N:103:& Mithril Helm~
 G:]:B
 I:32:8:0
-W:7:0:35:500
-P:0:0d0:-1:1d3
-A:7/80:12/10
-F:IGNORE_ALL | MITHRIL
+W:14:0:35:500
+P:0:0d0:0:1d4
+A:10/0:14/10
+F:IGNORE_ALL | MITHRIL | RES_COLD | RES_FIRE
 
 
 N:104:& Crown~
@@ -672,10 +672,10 @@ F:IGNORE_FIRE
 N:124:& Pair~ of Mithril Greaves
 G:]:B
 I:30:3:0
-W:6:0:40:50
-P:0:0d0:0:1d2
-A:6/80:12/10
-F:IGNORE_ALL | MITHRIL
+W:14:0:40:50
+P:0:0d0:1:1d3
+A:10/0:14/10
+F:IGNORE_ALL | MITHRIL | ENCHANTABLE | STAND_FAST
 
 
 ##### Gloves #####
@@ -700,10 +700,10 @@ F:IGNORE_FIRE
 N:127:& Set~ of Mithril Gauntlets
 G:]:B
 I:31:3:0
-W:5:0:15:100
-P:0:0d0:0:1d1
-A:5/80:12/10
-F:IGNORE_ALL | MITHRIL
+W:12:0:15:100
+P:0:0d0:0:1d2
+A:10/0:12/10
+F:IGNORE_ALL | MITHRIL | ENCHANTABLE | REGEN
 
 
 ##### Light Sources #####
@@ -725,7 +725,7 @@ G:~:U
 I:39:1:0
 W:5:0:30:35
 P:0:0d0:0:0d0:0
-A:5/3:9/2:13/1:16/0
+A:1/0:5/3:13/1:16/0
 D:You can equip it as a light source with a radius of 2 squares.
 D: It may also be used to fuel another lantern, up to a maximum of
 D: 7,000 turns of light.
