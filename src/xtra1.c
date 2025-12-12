@@ -3701,6 +3701,9 @@ static void calc_bonuses(void)
     // add the weapon's attack mod
     p_ptr->skill_equip_mod[S_MEL] += o_ptr->att;
 
+    // add the weapon's evasion bonus (Parry ability grants this as extra bonus earlier)
+    p_ptr->skill_equip_mod[S_EVN] += o_ptr->evn;
+
     // attack bonuses for matched weapon types
     p_ptr->skill_misc_mod[S_MEL] += axe_bonus(o_ptr) + polearm_bonus(o_ptr);
 
@@ -3732,6 +3735,9 @@ static void calc_bonuses(void)
         o_ptr = &inventory[INVEN_ARM];
         p_ptr->offhand_mel_mod
             += o_ptr->att + axe_bonus(o_ptr) + polearm_bonus(o_ptr) - 3;
+
+        // add off-hand weapon's evasion bonus
+        p_ptr->skill_equip_mod[S_EVN] += o_ptr->evn;
 
         p_ptr->mdd2 = total_mdd(o_ptr);
         p_ptr->mds2 = total_mds(o_ptr, -3);

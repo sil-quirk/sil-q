@@ -2291,7 +2291,7 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     int roll2 = dieroll(30);
     int min_roll = MIN(roll1, roll2);
     int base_calc = (int)(1.8 * depth) + min_roll - 25;
-    req.base_roll = MAX(0, base_calc + req.difficulty_bonus);
+    req.base_roll = base_calc + req.difficulty_bonus;
     req.lower = req.base_roll - 2;
     req.upper = req.base_roll + 2;
 
