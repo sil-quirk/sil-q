@@ -61,7 +61,7 @@ static const s16b jinx_egos[] = {
 
 static const char* DROP_RAW_FILE = "drops";
 static const u32b DROP_RAW_MAGIC = 0x44525053; /* 'DRPS' */
-static const u32b DROP_RAW_VERSION = 3;
+static const u32b DROP_RAW_VERSION = 4;
 
 typedef struct
 {
@@ -1027,7 +1027,7 @@ static void build_normal_variants(int k_idx)
         if (k_ptr->sval == SV_RING_ACCURACY)
         {
             att_max = 4;
-            att_min = k_ptr->att;
+            att_min = 1;
         }
         else
         {
@@ -1036,7 +1036,7 @@ static void build_normal_variants(int k_idx)
         if (k_ptr->sval == SV_RING_EVASION)
         {
             evn_max = 4;
-            evn_min = k_ptr->evn;
+            evn_min = 1;
         }
         else
         {
@@ -1044,15 +1044,25 @@ static void build_normal_variants(int k_idx)
         }
         if (k_ptr->sval == SV_RING_PROTECTION)
         {
+            /* Protection rings are always 1dX (never 0dX). */
+            base.pd = 1;
             ps_max = 3;
             ps_min = 1;
         }
-        pval_max = 4; /* smithing caps ring/amulet pval at 4 */
-        pval_allowed = true;
+        if (pval_allowed)
+        {
+            if (pval_min < 1)
+                pval_min = 1;
+            pval_max = 4; /* smithing caps ring/amulet pval at 4 */
+        }
         break;
     case TV_AMULET:
-        pval_max = 4;
-        pval_allowed = true;
+        if (pval_allowed)
+        {
+            if (pval_min < 1)
+                pval_min = 1;
+            pval_max = 4; /* smithing caps ring/amulet pval at 4 */
+        }
         break;
     default:
         break;
@@ -1239,7 +1249,7 @@ static void build_ego_variants(int e_idx)
                 if (k_ptr->sval == SV_RING_ACCURACY)
                 {
                     att_max = 4;
-                    att_min = k_ptr->att;
+                    att_min = 1;
                 }
                 else
                 {
@@ -1248,7 +1258,7 @@ static void build_ego_variants(int e_idx)
                 if (k_ptr->sval == SV_RING_EVASION)
                 {
                     evn_max = 4;
-                    evn_min = k_ptr->evn + ((e_ptr->max_evn > 0) ? 1 : 0);
+                    evn_min = 1;
                 }
                 else
                 {
@@ -1256,15 +1266,40 @@ static void build_ego_variants(int e_idx)
                 }
                 if (k_ptr->sval == SV_RING_PROTECTION)
                 {
+                    /* Protection rings are always 1dX (never 0dX). */
+                    if (pd_min < 1)
+                        pd_min = 1;
+                    if (pd_max < 1)
+                        pd_max = 1;
                     ps_max = 3;
                     ps_min = 1;
                 }
-                pval_max = MIN(4, k_ptr->pval + e_ptr->max_pval);
-                pval_allowed = true;
+                if (pval_allowed)
+                {
+                    if (k_ptr->flags1 & TR1_PVAL_MASK)
+                    {
+                        if (pval_min < 1)
+                            pval_min = 1;
+                        if (pval_max < 4)
+                            pval_max = 4;
+                    }
+                    if (pval_max > 4)
+                        pval_max = 4;
+                }
                 break;
             case TV_AMULET:
-                pval_max = MIN(4, k_ptr->pval + e_ptr->max_pval);
-                pval_allowed = true;
+                if (pval_allowed)
+                {
+                    if (k_ptr->flags1 & TR1_PVAL_MASK)
+                    {
+                        if (pval_min < 1)
+                            pval_min = 1;
+                        if (pval_max < 4)
+                            pval_max = 4;
+                    }
+                    if (pval_max > 4)
+                        pval_max = 4;
+                }
                 break;
             default:
                 att_max = k_ptr->att + e_ptr->max_att;
@@ -2290,7 +2325,7 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     int roll1 = dieroll(30);
     int roll2 = dieroll(30);
     int min_roll = MIN(roll1, roll2);
-    int base_calc = (int)(1.8 * depth) + min_roll - 25;
+    int base_calc = (int)(1.70 * depth) + min_roll - 23;
     req.base_roll = base_calc + req.difficulty_bonus;
     req.lower = req.base_roll - 2;
     req.upper = req.base_roll + 2;

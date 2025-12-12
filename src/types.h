@@ -144,6 +144,8 @@ typedef enum skeleton_hint_kind {
     SKEL_HINT_DOMINANT_PARTITION,
     SKEL_HINT_PARTITION_PRESENCE,
     SKEL_HINT_LEVEL_SIZE,
+    SKEL_HINT_UNIQUE_MONSTER,
+    SKEL_HINT_TIP,
     SKEL_HINT_MAX
 } skeleton_hint_kind;
 

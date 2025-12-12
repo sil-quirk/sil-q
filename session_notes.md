@@ -1,5 +1,45 @@
 # Session Notes
 
+## 2025-12-12: Skeleton Note Updates
+- Rewrote `lib/edit/skeleton_note.txt` to feature more Tolkien-esque prose and increased variety for all races (Elf, Human, Orc) and categories (Openings, Signoffs, Great Vault, Artefact, Dominant Partition, Special Partition, Size).
+- Increased `M:X` (skeleton note template limit) in `lib/edit/limits.txt` from 64 to 128 to accommodate the expanded text set (currently ~84 entries).
+- Verified `SKELETON_NOTE_SEEN_MAX` (8) in `src/externs.h` is sufficient for recent-history tracking without code changes.
+- Rebuilt and deployed using `build-cmake.bat`.
+
+## 2025-12-12: Skeleton Note Updates (Part 5)
+- Increased `M:X` (skeleton note template limit) in `lib/edit/limits.txt` from 128 to 160 to accommodate the full set of 135 entries (96 standard + 39 tips).
+- Updated `src/init2.c` to default `skeleton_note_max` to 160 if `limits.txt` parsing fails.
+- Consolidated error logging in `display_parse_error` (`src/init2.c`) to a single, clear line in `log.txt` as requested.
+- Rebuilt and deployed using `build-cmake.bat`.
+
+## 2025-12-12: Skeleton Note Updates (Part 4)
+- Fixed "Too many entries" error on startup by increasing the default `skeleton_note_max` fallback in `src/init2.c` from 64 to 128. This ensures the game can handle the expanded note set even if `limits.txt` parsing fails or `limits.raw` is stale/missing.
+- Enhanced error logging in `display_parse_error` (`src/init2.c`) to explicitly log critical parse errors to `log.txt` with full context.
+- Added debug logging to `parse_z_info` (`src/init1.c`) and `init_skeleton_note_info` (`src/init2.c`) to trace `M:X` parsing and initialization.
+- Rebuilt and deployed using `build-cmake.bat`.
+
+## 2025-12-12: Skeleton Note Updates (Part 3)
+- Updated `lib/edit/skeleton_note.txt` with a comprehensive set of `TIP` entries derived directly from `lib/edit/object.txt` tutorial texts.
+- Extracted 13 distinct tips covering stats, skills, commands (look, examine, help, stairs), and stealth mechanics.
+- Adapted each tip into three racial variations (Elf, Human, Orc) to maintain immersion while providing clear gameplay advice.
+- Rebuilt and deployed using `build-cmake.bat`.
+
+## 2025-12-12: Skeleton Note Updates (Part 2)
+- Expanded `skeleton_note.txt` and the underlying system to support two new hint types: `UNIQUE` (unique monster presence) and `TIP` (gameplay tips for early levels).
+- Added `SKEL_HINT_UNIQUE_MONSTER` and `SKEL_HINT_TIP` to `skeleton_hint_kind` enum in `src/types.h`.
+- Updated `src/init1.c` to parse the new hint tokens.
+- Updated `src/cmd2.c` to:
+    - Handle availability and weighting for new hints (Tips only appear <= depth 7, with decreasing probability).
+    - Implement `{UNIQUE_TYPE}` token expansion by identifying the type of a unique monster on the level (Dragon, Demon, Orc, etc.).
+    - Add fallback texts for the new hints.
+- Rewrote `SIZE` hints in `skeleton_note.txt` to remove precise numbers (`{WIDTH}`, `{HEIGHT}`) and use descriptive "feelings".
+- Added `UNIQUE` and `TIP` entries to `skeleton_note.txt` for all races, adapting tutorial tips to be more immersive.
+
+## 2025-12-12: Drop System - Prevent Zero-Bonus Jewelry
+- `src/drop_system.c`: enforce non-zero bonuses for rings/amulets (Accuracy/Evasion min 1; Protection rings always `pd=1`; pval-based jewelry uses `pval>=1` and no longer generates meaningless `pval` variants for non-pval jewelry).
+- Bumped `DROP_RAW_VERSION` to 4 to force `drops.raw` regen.
+- Rebuilt successfully with `build-cmake.bat`.
+
 ## 2025-12-11: Mithril Flags - Difficulty Calculation Fix
 
 ### Issue

@@ -926,8 +926,10 @@ static void display_parse_error(cptr filename, errr err, cptr buf)
     msg_format("Error at line %d of '%s.txt'.", error_line, filename);
     msg_format("Record %d contains a '%s' error.", error_idx, oops);
     msg_format("Parsing '%s'.", buf);
-    log_error("Parse error in %s.txt at line %d (record %d): %s | buf='%s'",
-        filename, error_line, error_idx, oops, buf);
+    
+    /* Explicitly log the error to log.txt as requested (one line) */
+    log_error("CRITICAL PARSE ERROR: %s in %s.txt at line %d (record %d). Entry: '%s'", oops, filename, error_line, error_idx, buf);
+    
     message_flush();
 
     /* Quit */
@@ -1677,7 +1679,14 @@ static errr init_skeleton_note_info(void)
     errr err;
 
     if (z_info && z_info->skeleton_note_max <= 0)
-        z_info->skeleton_note_max = 64;
+    {
+        log_warn("skeleton_note_max not set in limits.txt (or 0), defaulting to 160");
+        z_info->skeleton_note_max = 160;
+    }
+    else
+    {
+        log_debug("skeleton_note_max initialized to %d", z_info->skeleton_note_max);
+    }
 
     init_header(
         &skeleton_note_head, z_info->skeleton_note_max,

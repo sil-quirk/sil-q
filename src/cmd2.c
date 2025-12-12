@@ -1070,7 +1070,7 @@ typedef struct skeleton_note_state {
 static skeleton_note_state g_skeleton_note_state = { -1, 0, 0, 0, 0, 0, 0, {0} };
 static int g_skeleton_note_entry_count = -1;
 static const int skeleton_hint_base_weight[SKEL_HINT_MAX]
-    = {0, 80, 60, 45, 35, 25};
+    = {0, 80, 60, 45, 35, 25, 70, 50};
 
 static void skeleton_note_ensure_level_state(void);
 static bool skeleton_note_has_unseen_template(
@@ -1159,6 +1159,10 @@ static skeleton_note_profile skeleton_note_profile_for_sval(byte sval)
 {
     skeleton_note_profile prof;
     memset(&prof, 0, sizeof(prof));
+    
+    /* Default all hint scales to 100 */
+    for (int i = 0; i < SKEL_HINT_MAX; ++i)
+        prof.weight_scale[i] = 100;
 
     switch (sval)
     {
@@ -1387,6 +1391,24 @@ static bool skeleton_hint_available(skeleton_hint_kind kind,
     case SKEL_HINT_LEVEL_SIZE:
         ok = (layout != NULL);
         break;
+    case SKEL_HINT_UNIQUE_MONSTER:
+    {
+        for (int i = 1; i < mon_max; i++)
+        {
+            monster_type *m_ptr = &mon_list[i];
+            if (!m_ptr->r_idx) continue;
+            monster_race *r_ptr = &r_info[m_ptr->r_idx];
+            if (r_ptr->flags1 & RF1_UNIQUE)
+            {
+                ok = true;
+                break;
+            }
+        }
+        break;
+    }
+    case SKEL_HINT_TIP:
+        ok = (p_ptr->depth <= 7);
+        break;
     default:
         ok = false;
         break;
@@ -1445,6 +1467,13 @@ static skeleton_hint_kind skeleton_note_choose_hint(
             continue;
 
         int base = skeleton_hint_base_weight[k];
+        
+        if (kind == SKEL_HINT_TIP)
+        {
+             if (p_ptr->depth > 7) base = 0;
+             else base = base * (7 - p_ptr->depth) / 6;
+        }
+
         int scale = profile->weight_scale[k];
 
         if (base <= 0 || scale <= 0)
@@ -1544,6 +1573,7 @@ static s16b skeleton_note_pick_entry(
 
 static void skeleton_note_expand_template(const char* tpl,
     const level_layout_info* layout, level_partition_kind presence_kind,
+    const char* unique_type,
     char* out, size_t out_sz)
 {
     const char* part = partition_label(presence_kind);
@@ -1582,6 +1612,12 @@ static void skeleton_note_expand_template(const char* tpl,
                 p += 8;
                 continue;
             }
+            if (strncmp(p, "{UNIQUE_TYPE}", 13) == 0)
+            {
+                w += strnfmt(out + w, out_sz - w, "%s", unique_type ? unique_type : "creature");
+                p += 13;
+                continue;
+            }
         }
         out[w++] = *p++;
     }
@@ -1590,18 +1626,36 @@ static void skeleton_note_expand_template(const char* tpl,
 
 static void skeleton_note_build_lines(const char* opening, const char* core,
     const char* closing, const level_layout_info* layout,
-    level_partition_kind presence_kind, char lines[][100])
+    level_partition_kind presence_kind, const char* unique_type, char lines[][100])
 {
     int idx = 0;
     if (opening && opening[0])
         strnfmt(lines[idx++], 100, "%s", opening);
 
-    skeleton_note_expand_template(core, layout, presence_kind, lines[idx++], 100);
+    skeleton_note_expand_template(core, layout, presence_kind, unique_type, lines[idx++], 100);
 
     if (closing && closing[0])
         strnfmt(lines[idx++], 100, "%s", closing);
 
     lines[idx][0] = '\0';
+}
+
+static const char* skeleton_get_unique_type_name(const monster_race* r_ptr)
+{
+    if (!r_ptr) return "creature";
+    
+    if (r_ptr->flags3 & RF3_DRAGON) return "dragon";
+    if (r_ptr->flags3 & RF3_RAUKO) return "demon";
+    if (r_ptr->flags3 & RF3_UNDEAD) return "spirit";
+    if (r_ptr->flags3 & RF3_ORC) return "orc";
+    if (r_ptr->flags3 & RF3_TROLL) return "troll";
+    if (r_ptr->flags3 & RF3_SPIDER) return "spider";
+    if (r_ptr->flags3 & RF3_WOLF) return "wolf";
+    if (r_ptr->d_char == 'C') return "hound";
+    if (r_ptr->flags3 & RF3_MAN) return "human";
+    if (r_ptr->flags3 & RF3_ELF) return "elf";
+    
+    return "horror";
 }
 
 static void skeleton_note_maybe_show(byte sval)
@@ -1634,7 +1688,31 @@ static void skeleton_note_maybe_show(byte sval)
         &profile, &layout, vault_present, artifact_in_vault, sval);
     if (hint == SKEL_HINT_NONE)
         return;
-    g_skeleton_note_state.hint_used_mask |= (1 << hint);
+    /* Don't mark TIP hints as used - they can repeat */
+    if (hint != SKEL_HINT_TIP)
+        g_skeleton_note_state.hint_used_mask |= (1 << hint);
+
+    const char* unique_type = NULL;
+    if (hint == SKEL_HINT_UNIQUE_MONSTER)
+    {
+        int candidates[100];
+        int n_candidates = 0;
+        for (int i = 1; i < mon_max; i++)
+        {
+            monster_type *m_ptr = &mon_list[i];
+            if (!m_ptr->r_idx) continue;
+            monster_race *r_ptr = &r_info[m_ptr->r_idx];
+            if (r_ptr->flags1 & RF1_UNIQUE)
+            {
+                if (n_candidates < 100) candidates[n_candidates++] = m_ptr->r_idx;
+            }
+        }
+        if (n_candidates > 0)
+        {
+            int r_idx = candidates[rand_int(n_candidates)];
+            unique_type = skeleton_get_unique_type_name(&r_info[r_idx]);
+        }
+    }
 
     level_partition_kind focus_part = LEVEL_PART_NONE;
     if (hint == SKEL_HINT_PARTITION_PRESENCE)
@@ -1679,6 +1757,12 @@ static void skeleton_note_maybe_show(byte sval)
         case SKEL_HINT_LEVEL_SIZE:
             body = "This floor sprawls farther than expected.";
             break;
+        case SKEL_HINT_UNIQUE_MONSTER:
+            body = "A terrible foe stalks these halls.";
+            break;
+        case SKEL_HINT_TIP:
+            body = "Watch your step in the dark.";
+            break;
         default:
             body = "Bones clutch a faded scrap of text.";
             break;
@@ -1687,7 +1771,7 @@ static void skeleton_note_maybe_show(byte sval)
 
     char note_lines[6][100];
     skeleton_note_build_lines(
-        opening, body, signoff, &layout, focus_part, note_lines);
+        opening, body, signoff, &layout, focus_part, unique_type, note_lines);
     pause_with_text(note_lines, 4, 8, NULL, 0);
     g_skeleton_note_state.notes_shown++;
     skeleton_note_record_seen(opening_id);

@@ -5,54 +5,214 @@
 # C:<SVAL>:<weight>:<text>      (closing line)
 # M:<SVAL>:<HINT>:<weight>:<text> (main hint line)
 #   SVAL: ELF | HUMAN | ORC | ANY
-#   HINT: GREAT_VAULT | VAULT_ARTIFACT | DOMINANT | PARTITION | SIZE
-# Tokens: {PART} {SIZEWORD} {WIDTH} {HEIGHT}
+#   HINT: GREAT_VAULT | VAULT_ARTIFACT | DOMINANT | PARTITION | SIZE | UNIQUE | TIP
+# Tokens: {PART} {SIZEWORD} {WIDTH} {HEIGHT} {UNIQUE_TYPE}
 
 V:0.9.1
 
-# Openings
-O:ELF:100:Flowing script, penned in calmer hours:
-O:HUMAN:100:A hurried note from steadier hands:
-O:ORC:100:Jagged scrawl on greasy hide:
+# --- Openings ---
 
-# Signoffs
-C:ELF:100:If you endure, tread softly.
-C:HUMAN:100:Maybe you'll fare better.
-C:ORC:100:Take what we couldn't.
+# Elf
+O:ELF:100:A leaf withers in the dark; read these final words:
+O:ELF:100:To those who follow the starlight into shadow:
+O:ELF:100:The song ends here, amidst the stone. Listen:
+O:ELF:100:By Elbereth, the darkness is too deep. Heed me:
 
-# Great vault present
-M:ELF:GREAT_VAULT:120:I passed a great vault; its wards hummed and would not yield.
-M:ELF:GREAT_VAULT:90:A sealed hall lies below--my picks rang and failed.
-M:HUMAN:GREAT_VAULT:100:There's a great vault here. Doors held when I tried them.
-M:HUMAN:GREAT_VAULT:90:Found a vault of stone; never found the way inside.
-M:ORC:GREAT_VAULT:110:Big stone vault on this level. Traps chewed us up.
-M:ORC:GREAT_VAULT:90:Vault ahead--too many runes, too much blood.
+# Human
+O:HUMAN:100:If you find this, I am gone. Heed my warning:
+O:HUMAN:100:My torch is dying. Listen to what I saw:
+O:HUMAN:100:May the Valar protect you. I leave this record:
+O:HUMAN:100:No way back now. Here is the truth of this place:
 
-# Artefact in vault
-M:ELF:VAULT_ARTIFACT:110:Through the seal I glimpsed a relic still gleaming inside.
-M:HUMAN:VAULT_ARTIFACT:100:A strange artefact lies in that vault; I lacked tools for it.
-M:ORC:VAULT_ARTIFACT:110:Saw bright plunder locked in the vault. Need more blades.
-M:ELF:VAULT_ARTIFACT:90:Light caught on something rare within the warded room.
-M:HUMAN:VAULT_ARTIFACT:90:A glow inside the vault--looked like true craft, not trinkets.
-M:ORC:VAULT_ARTIFACT:90:Glittering prize in the vault. Runes bite fingers.
+# Orc
+O:ORC:100:Boss dead. Me next. You read:
+O:ORC:100:Snaga wrote this. Good loot here:
+O:ORC:100:Curse the masters. Curse the dark. Look:
+O:ORC:100:Big trouble. Sharp teeth. Read fast:
 
-# Dominant partition type
-M:ELF:DOMINANT:120:This depth is mostly {PART}; follow the pattern and you live.
-M:HUMAN:DOMINANT:110:Expect mostly {PART} here. I kept seeing the same paths.
-M:ORC:DOMINANT:90:Most of this floor is just {PART}. Good ground for an ambush.
+# --- Signoffs ---
 
-# Presence of special partitions
-M:ELF:PARTITION:110:There is {PART} ahead; its echo carried far.
-M:ELF:PARTITION:90:Heard the wind from {PART}; tread with care there.
-M:HUMAN:PARTITION:110:Found {PART} on this level. Nearly lost my way there.
-M:HUMAN:PARTITION:90:{PART} cut the passages up; torches die fast inside.
-M:ORC:PARTITION:110:Watch for {PART}. Bad place to run when you bleed.
-M:ORC:PARTITION:90:{PART} ahead--bad footing, worse smell.
+# Elf
+C:ELF:100:May the stars shine upon your path, as they no longer shine on mine.
+C:ELF:100:Namárië. The silence takes me.
+C:ELF:100:Do not linger, lest you share my fate.
+C:ELF:100:The shadow falls. Fly, you fools!
 
-# Level size
-M:ELF:SIZE:110:This floor felt {SIZEWORD}, stretching roughly {WIDTH} by {HEIGHT} steps.
-M:ELF:SIZE:90:Long walks here--about {WIDTH} by {HEIGHT} strides of stone.
-M:HUMAN:SIZE:110:It's a {SIZEWORD} floor here, about {WIDTH} by {HEIGHT} strides wide.
-M:HUMAN:SIZE:90:Level runs near {WIDTH} by {HEIGHT}; pack enough light.
-M:ORC:SIZE:110:Floor's {SIZEWORD}, long as {WIDTH} by {HEIGHT} paces. Pack torches.
-M:ORC:SIZE:90:Plenty of ground--{WIDTH} by {HEIGHT} steps if you live to count them.
+# Human
+C:HUMAN:100:Gods speed you. I can go no further.
+C:HUMAN:100:Don't make my mistakes. Strike true.
+C:HUMAN:100:Avenge me.
+C:HUMAN:100:The light fails.
+
+# Orc
+C:ORC:100:Gaaah! They come!
+C:ORC:100:Stupid tunnels. Stupid death.
+C:ORC:100:Rot here like me.
+C:ORC:100:Run or die.
+
+# --- Great Vault Present ---
+
+# Elf
+M:ELF:GREAT_VAULT:100:A great treasury of old lies sealed nearby; the wards are strong.
+M:ELF:GREAT_VAULT:100:I felt the power of a great vault, ancient and terrible.
+M:ELF:GREAT_VAULT:100:Stone of the Elder Days bars the way to a great hall.
+M:ELF:GREAT_VAULT:100:A fortress of the Enemy lies within; a great vault unbreached.
+
+# Human
+M:HUMAN:GREAT_VAULT:100:Huge vault here. Couldn't scratch the doors.
+M:HUMAN:GREAT_VAULT:100:There's a fortress within the dungeon here. A great vault.
+M:HUMAN:GREAT_VAULT:100:Saw a massive gate. Must be a great vault behind it.
+M:HUMAN:GREAT_VAULT:100:Found a vault of black stone; never found the way inside.
+
+# Orc
+M:ORC:GREAT_VAULT:100:Big shiny place. Doors too hard. Boss mad.
+M:ORC:GREAT_VAULT:100:Great vault. Smell gold inside. Can't get in.
+M:ORC:GREAT_VAULT:100:Traps everywhere near the big stone room.
+M:ORC:GREAT_VAULT:100:Vault ahead. Too many runes, too much blood.
+
+# --- Artefact in Vault ---
+
+# Elf
+M:ELF:VAULT_ARTIFACT:100:A light of the Trees seemed to glimmer from within the vault.
+M:ELF:VAULT_ARTIFACT:100:Something of great power calls from behind the seals.
+M:ELF:VAULT_ARTIFACT:100:An heirloom of my kin lies waiting in the dark vault.
+M:ELF:VAULT_ARTIFACT:100:I sensed a relic of the First Age imprisoned therein.
+
+# Human
+M:HUMAN:VAULT_ARTIFACT:100:Saw a strange glow in the vault. Magic sword, maybe?
+M:HUMAN:VAULT_ARTIFACT:100:There's a treasure in there that doesn't look like gold.
+M:HUMAN:VAULT_ARTIFACT:100:Something legendary is locked in that vault.
+M:HUMAN:VAULT_ARTIFACT:100:A glow inside the vault--looked like true craft, not trinkets.
+
+# Orc
+M:ORC:VAULT_ARTIFACT:100:Shiny thing in vault. Want it. Want it!
+M:ORC:VAULT_ARTIFACT:100:Big magic weapon inside. Make me king if I had it.
+M:ORC:VAULT_ARTIFACT:100:Glows bright. Hurts eyes. Good loot in vault.
+M:ORC:VAULT_ARTIFACT:100:Glittering prize in the vault. Runes bite fingers.
+
+# --- Dominant Partition Type ---
+
+# Elf
+M:ELF:DOMINANT:100:This realm is shaped by {PART}; a monotonous despair.
+M:ELF:DOMINANT:100:Endless {PART} stretches before you here.
+M:ELF:DOMINANT:100:The builders favored {PART} in this deep place.
+M:ELF:DOMINANT:100:One wearies of the {PART} that fills this level.
+
+# Human
+M:HUMAN:DOMINANT:100:It's all {PART} down here. Easy to get lost.
+M:HUMAN:DOMINANT:100:Expect mostly {PART}. I've seen little else.
+M:HUMAN:DOMINANT:100:Nothing but {PART} for miles.
+M:HUMAN:DOMINANT:100:This depth is mostly {PART}; keep your bearings.
+
+# Orc
+M:ORC:DOMINANT:100:Too much {PART}. Hate this place.
+M:ORC:DOMINANT:100:All {PART}. Good for hiding, bad for running.
+M:ORC:DOMINANT:100:Stupid {PART} everywhere.
+M:ORC:DOMINANT:100:Most of this floor is just {PART}. Good for ambush.
+
+# --- Special Partitions ---
+
+# Elf
+M:ELF:PARTITION:100:I sensed the echo of {PART}; tread lightly.
+M:ELF:PARTITION:100:The air changes near the {PART}.
+M:ELF:PARTITION:100:Beware the {PART} that lies ahead.
+M:ELF:PARTITION:100:Heard the wind from {PART}; a cold breath.
+
+# Human
+M:HUMAN:PARTITION:100:Ran into some {PART}. Watch your step.
+M:HUMAN:PARTITION:100:There is {PART} on this level. Dangerous ground.
+M:HUMAN:PARTITION:100:Keep an eye out for {PART}.
+M:HUMAN:PARTITION:100:{PART} cut the passages up; torches die fast inside.
+
+# Orc
+M:ORC:PARTITION:100:Found {PART}. Nasty stuff.
+M:ORC:PARTITION:100:Don't go near {PART}. Things live there.
+M:ORC:PARTITION:100:Smell {PART}. Bad smell.
+M:ORC:PARTITION:100:Watch for {PART}. Bad place to bleed.
+
+# --- Level Size ---
+
+# Elf
+M:ELF:SIZE:100:The cavern is {SIZEWORD}, a vastness beyond measure.
+M:ELF:SIZE:100:We walked for hours; this dark hall is {SIZEWORD}.
+M:ELF:SIZE:100:A {SIZEWORD} expanse stretches into the gloom.
+M:ELF:SIZE:100:This floor felt {SIZEWORD}, echoing with our footsteps.
+
+# Human
+M:HUMAN:SIZE:100:It's a {SIZEWORD} floor here, easy to lose your way.
+M:HUMAN:SIZE:100:Big place. Feels {SIZEWORD}.
+M:HUMAN:SIZE:100:Map says it's {SIZEWORD}. It feels bigger.
+M:HUMAN:SIZE:100:Level runs {SIZEWORD}; pack enough light.
+
+# Orc
+M:ORC:SIZE:100:Big place. {SIZEWORD}. Feet hurt.
+M:ORC:SIZE:100:Floor is {SIZEWORD}. Too much walking.
+M:ORC:SIZE:100:Plenty of ground--{SIZEWORD} if you live.
+M:ORC:SIZE:100:Floor's {SIZEWORD}. Long paces.
+
+# --- Unique Monster ---
+
+# Elf
+M:ELF:UNIQUE:100:A {UNIQUE_TYPE} of great power rules this level; beware.
+M:ELF:UNIQUE:100:I sensed a {UNIQUE_TYPE} stalking the shadows.
+M:ELF:UNIQUE:100:Flee this place, for a {UNIQUE_TYPE} hunts here.
+M:ELF:UNIQUE:100:The malice of a {UNIQUE_TYPE} stains the air.
+
+# Human
+M:HUMAN:UNIQUE:100:Saw a {UNIQUE_TYPE}. Ran for my life.
+M:HUMAN:UNIQUE:100:There's a {UNIQUE_TYPE} down here. Don't be a hero.
+M:HUMAN:UNIQUE:100:Watch out! A {UNIQUE_TYPE} is looking for blood.
+M:HUMAN:UNIQUE:100:A {UNIQUE_TYPE} blocks the way. We are doomed.
+
+# Orc
+M:ORC:UNIQUE:100:Big {UNIQUE_TYPE} here. Scary.
+M:ORC:UNIQUE:100:{UNIQUE_TYPE} eat you. Run fast.
+M:ORC:UNIQUE:100:Boss says kill {UNIQUE_TYPE}. Boss stupid.
+M:ORC:UNIQUE:100:{UNIQUE_TYPE} coming! Hide!
+
+# --- Tips ---
+
+# Elf
+M:ELF:TIP:100:Strength lends power to the blow, adding sides to the die, yet it is bound by the weight of the blade.
+M:ELF:TIP:100:Only Constitution grants the vitality to endure; no other power governs your life's measure.
+M:ELF:TIP:100:Dexterity guides the hand and foot: in battle, in flight, and in the shadows.
+M:ELF:TIP:100:Grace opens the mind to craft and song, and strengthens the Voice against the dark.
+M:ELF:TIP:100:Wisdom grows not only from the kill, but from seeing new foes, learning of items, and descending deep.
+M:ELF:TIP:100:If the shapes of the world confuse your eye, look closely (l) to know them.
+M:ELF:TIP:100:To know the true nature of a thing, examine it (x) with care.
+M:ELF:TIP:100:If memory fails you in the dark, seek guidance (?) on the commands of old.
+M:ELF:TIP:100:To descend into the shadow or flee from it, stand upon the stair and command it (,).
+M:ELF:TIP:100:Strike the sleeper, for they are defenseless [-5]. The unwary are but half as hard to strike.
+M:ELF:TIP:100:To pass unseen is a great power. Avoid the foe, or grant them a silent death.
+M:ELF:TIP:100:Shadow and distance are your allies. Closed doors hide you; noise betrays you.
+M:ELF:TIP:100:Move with care (S) and silence, or remain still to fade from sight.
+
+# Human
+M:HUMAN:TIP:100:Stronger arms hit harder. You get more dice sides for Strength, but only if your weapon is heavy enough.
+M:HUMAN:TIP:100:Want more health? Boost Constitution. It's the only way to get tougher.
+M:HUMAN:TIP:100:Dexterity helps you hit, shoot, dodge, and sneak.
+M:HUMAN:TIP:100:Grace isn't just for show. It helps you see, craft, and sing songs of power.
+M:HUMAN:TIP:100:You learn by fighting, but also by finding new things and going deeper.
+M:HUMAN:TIP:100:Don't know what you're looking at? Look (l) closer.
+M:HUMAN:TIP:100:Check your gear. Examine (x) it well before you trust your life to it.
+M:HUMAN:TIP:100:If you get stuck, check the list of commands (?).
+M:HUMAN:TIP:100:Stairs are the only way out. Use them (,).
+M:HUMAN:TIP:100:Catch them sleeping for an easy hit [-5]. Even unwary foes dodge poorly.
+M:HUMAN:TIP:100:You don't have to fight everything. Sneak past, or kill them quietly.
+M:HUMAN:TIP:100:Keep doors closed and stay far away to stay hidden. Noise brings trouble.
+M:HUMAN:TIP:100:Creep slowly (S) if you don't want to be seen. Standing still helps too.
+
+# Orc
+M:ORC:TIP:100:Hit hard with Strength. Heavy weapon good. Light weapon waste strength.
+M:ORC:TIP:100:Constitution makes you tough. More meat, harder to kill.
+M:ORC:TIP:100:Be quick. Dexterity makes you stab better and not get hit.
+M:ORC:TIP:100:Grace helps you see traps and sing magic.
+M:ORC:TIP:100:Kill things to get strong. Go deep. Find loot.
+M:ORC:TIP:100:Look (l) before you leap. Or die.
+M:ORC:TIP:100:Check (x) the loot. Might be cursed. Might be good.
+M:ORC:TIP:100:Forget how to kill? Check the list (?).
+M:ORC:TIP:100:Go down. Go up. Use the stairs (,).
+M:ORC:TIP:100:Stab them while they sleep. Easy kill.
+M:ORC:TIP:100:Sneak up. Stab in back. Good fun.
+M:ORC:TIP:100:Shut door. Stay quiet. Don't let them see you.
+M:ORC:TIP:100:Go slow (S). Be quiet.

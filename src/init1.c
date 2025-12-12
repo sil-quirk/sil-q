@@ -1133,6 +1133,7 @@ errr parse_z_info(char* buf, header* head)
     else if (buf[2] == 'X')
     {
         z_info->skeleton_note_max = (u16b)atoi(buf + 4);
+        log_debug("Parsed skeleton_note_max (M:X): %d", z_info->skeleton_note_max);
     }
     else
     {
@@ -3110,6 +3111,10 @@ static byte skeleton_note_parse_hint_token(const char* tok)
         return SKEL_HINT_PARTITION_PRESENCE;
     if (streq(tok, "SIZE"))
         return SKEL_HINT_LEVEL_SIZE;
+    if (streq(tok, "UNIQUE"))
+        return SKEL_HINT_UNIQUE_MONSTER;
+    if (streq(tok, "TIP"))
+        return SKEL_HINT_TIP;
     return SKEL_HINT_NONE;
 }
 
