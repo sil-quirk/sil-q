@@ -783,7 +783,7 @@ G:":d
 I:40:2:0
 W:10:0:1:500
 P:0:0d0:0:0d0
-A:10/5
+A:9/5
 F:GRA | SUST_GRA
 
 
@@ -792,7 +792,7 @@ G:":d
 I:40:3:0
 W:12:0:1:600
 P:0:0d0:0:0d0
-A:8/3
+A:6/3
 F:REGEN | EASY_KNOW
 
 
@@ -801,7 +801,7 @@ G:":d
 I:40:4:0
 W:14:0:1:20000
 P:0:0d0:0:0d0
-A:6/3
+A:5/3
 F:SUST_CON
 F:SUST_GRA | SLOW_DIGEST | IGNORE_ALL
 F:EASY_KNOW
@@ -812,7 +812,7 @@ G:":d
 I:40:5:0
 W:16:0:1:30000
 P:0:0d0:0:0d0
-A:16/6
+A:15/6
 F:GRA | SUST_GRA | LIGHT
 
 
@@ -821,7 +821,7 @@ G:":d
 I:40:6:0
 W:9:0:1:0
 P:0:0d0:0:0d0
-A:9/3
+A:7/3
 F:HAUNTED | SEE_INVIS | EASY_KNOW
 
 
@@ -831,7 +831,7 @@ G:":d
 I:40:7:0
 W:4:0:1:0
 P:0:0d0:0:0d0
-A:10/20
+A:8/20
 F:PERCEPTION | RES_HALLU
 B:4/2
 
@@ -853,7 +853,7 @@ G:=:d
 I:45:1:0
 W:8:0:1:150
 P:0:0d0:0:0d0
-A:8/10
+A:6/10
 F:WILL | RES_FEAR | RES_CONFU
 
 
@@ -862,7 +862,7 @@ G:=:d
 I:45:2:0
 W:8:0:1:500
 P:0:0d0:0:0d0
-A:8/15
+A:6/15
 D:It helps you avoid your enemies' blows. 
 
 
@@ -871,7 +871,7 @@ G:=:d
 I:45:3:0
 W:7:0:1:500
 P:0:0d0:0:0d0
-A:7/4
+A:5/4
 D:It provides protection from damage. 
 
 
@@ -898,7 +898,7 @@ G:=:d
 I:45:6:0
 W:9:0:1:250
 P:0:0d0:0:0d0
-A:9/3
+A:8/3
 F:RES_FIRE | EASY_KNOW
 
 
@@ -907,7 +907,7 @@ G:=:d
 I:45:7:0
 W:10:0:1:250
 P:0:0d0:0:0d0
-A:10/3
+A:9/3
 F:RES_COLD | EASY_KNOW
 
 
@@ -916,7 +916,7 @@ G:=:d
 I:45:8:0
 W:12:0:1:500
 P:0:0d0:0:0d0
-A:12/15
+A:10/15
 D:It helps you hit your opponents. 
 
 
@@ -935,7 +935,7 @@ G:=:d
 I:45:10:0
 W:7:0:1:0
 P:0:0d0:0:0d0
-A:7/6
+A:5/6
 F:FEAR | EASY_KNOW | LIGHT_CURSE
 B:2/0
 
@@ -945,7 +945,7 @@ G:=:d
 I:45:11:0
 W:6:0:1:300
 P:0:0d0:0:0d0
-A:6/2
+A:5/2
 F:RES_STUN | SUST_STR | HUNGER | EASY_KNOW
 
 
@@ -954,7 +954,7 @@ G:=:d
 I:45:12:0
 W:6:0:1:1000
 P:0:0d0:0:0d0
-A:6/4
+A:5/4
 F:RES_POIS | EASY_KNOW
 
 

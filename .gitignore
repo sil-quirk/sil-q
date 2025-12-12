@@ -28,3 +28,4 @@ compile_commands.json
 /build-portable
 /build-standard
 /lib/xtra/sound/packs
+/scripts/output
