@@ -31,6 +31,51 @@ from calc_artefact_difficulty import (
 )
 
 
+def get_base_flags_for_jewelry(tval, sval):
+    """Get base flags for jewelry items from object.txt."""
+    # Amulets (tval 40)
+    amulet_flags = {
+        0: ['CHEAT_DEATH'],  # Last Chances
+        1: ['CON', 'SUST_CON'],  # Constitution
+        2: ['GRA', 'SUST_GRA'],  # Grace
+        3: ['REGEN'],  # Regeneration
+        4: ['SUST_CON', 'SUST_GRA', 'SLOW_DIGEST'],  # Preservation
+        5: ['GRA', 'SUST_GRA', 'LIGHT'],  # the Blessed Realm
+        6: ['HAUNTED', 'SEE_INVIS'],  # Haunted Dreams
+        7: ['PERCEPTION', 'RES_HALLU'],  # the Vigilant Eye (also has ability)
+    }
+    
+    # Rings (tval 45)
+    ring_flags = {
+        0: ['PERCEPTION'],  # Secrets (also has ability)
+        1: ['WILL', 'RES_FEAR', 'RES_CONFU'],  # Ered Luin
+        2: [],  # Evasion (evn bonus only)
+        3: [],  # Protection (ps bonus only)
+        4: ['STR', 'SUST_STR'],  # Strength
+        5: ['DEX', 'SUST_DEX'],  # Dexterity
+        6: ['RES_FIRE'],  # Frost
+        7: ['RES_COLD'],  # Warmth
+        8: [],  # Accuracy (att bonus only)
+        9: ['FREE_ACT'],  # Free Action
+    }
+    
+    if tval == 40:
+        return amulet_flags.get(sval, [])
+    elif tval == 45:
+        return ring_flags.get(sval, [])
+    return []
+
+
+def get_base_abilities_for_jewelry(tval, sval):
+    """Get base abilities count for jewelry items from object.txt."""
+    # These items have abilities in their base form
+    jewelry_abilities = {
+        (40, 7): 1,  # Vigilant Eye has ability 4/2 (Keen Senses)
+        (45, 0): 1,  # Secrets has ability 4/4 (Alchemy)
+    }
+    return jewelry_abilities.get((tval, sval), 0)
+
+
 # Base items that can be smithed (from object.txt, excluding NO_SMITHING and INSTA_ART items)
 # Format: (tval, sval, name)
 SMITHABLE_BASE_ITEMS = [
@@ -104,10 +149,32 @@ SMITHABLE_BASE_ITEMS = [
     # Arrows (tval 17)
     (17, 1, "Arrow"),
     
-    # Light sources (tval 39)
+    # Light sources (tval 39) - Torch (sval 0) has NO_SMITHING flag
     (39, 1, "Brass Lantern"),
     (39, 2, "Lesser Jewel"),
     (39, 8, "Feanorian Lamp"),
+    
+    # Amulets (tval 40)
+    (40, 0, "Last Chances"),
+    (40, 1, "Constitution"),
+    (40, 2, "Grace"),
+    (40, 3, "Regeneration"),
+    (40, 4, "Preservation"),
+    (40, 5, "the Blessed Realm"),
+    (40, 6, "Haunted Dreams"),
+    (40, 7, "the Vigilant Eye"),
+    
+    # Rings (tval 45)
+    (45, 0, "Secrets"),
+    (45, 1, "Ered Luin"),
+    (45, 2, "Evasion"),
+    (45, 3, "Protection"),
+    (45, 4, "Strength"),
+    (45, 5, "Dexterity"),
+    (45, 6, "Frost"),
+    (45, 7, "Warmth"),
+    (45, 8, "Accuracy"),
+    (45, 9, "Free Action"),
 ]
 
 
@@ -217,7 +284,10 @@ def get_smithing_limits(tval, sval, is_special=False, special=None):
             if special['max_att'] > 0:
                 att_min = base_att + 1
                 att_max = base_att + 1 + special['max_att']
-    else:  # Armor
+    elif tval == 45 and sval == 8:  # Ring of Accuracy (SV_RING_ACCURACY)
+        att_min = base_att
+        att_max = 4
+    else:  # Armor and other jewelry
         att_min = base_att
         att_max = min(0, base_att + 1)  # Armor att max is capped at 0
         if is_special and special and special['max_att'] > 0:
@@ -237,7 +307,7 @@ def get_smithing_limits(tval, sval, is_special=False, special=None):
     else:
         limits['ds'] = (0, 0)
     
-    # Evasion limits (armor only, plus special rings)
+    # Evasion limits (armor only, plus Ring of Evasion)
     if tval in [30, 31, 32, 33, 34, 35, 36, 37]:
         evn_min = base_evn
         evn_max = base_evn + 1
@@ -245,10 +315,14 @@ def get_smithing_limits(tval, sval, is_special=False, special=None):
             evn_min = base_evn + 1
             evn_max = base_evn + 1 + special['max_evn']
         limits['evn'] = (evn_min, evn_max)
+    elif tval == 45 and sval == 2:  # Ring of Evasion (SV_RING_EVASION)
+        evn_min = base_evn
+        evn_max = 4
+        limits['evn'] = (evn_min, evn_max)
     else:
         limits['evn'] = (base_evn, base_evn)
     
-    # Protection sides limits (armor only)
+    # Protection sides limits (armor only, plus Ring of Protection)
     if tval in [30, 31, 32, 33, 34, 36, 37]:
         base_ps_val = get_base_ps(tval, sval)
         # Cloaks and robes can't get extra protection
@@ -266,13 +340,21 @@ def get_smithing_limits(tval, sval, is_special=False, special=None):
             ps_min = base_ps_val + 1
             ps_max = ps_max + special['to_ps']
         limits['ps'] = (ps_min, ps_max)
+    elif tval == 45 and sval == 3:  # Ring of Protection (SV_RING_PROTECTION)
+        ps_min = 1
+        ps_max = 3
+        limits['ps'] = (ps_min, ps_max)
     elif tval == 35:  # Cloak has no protection
         limits['ps'] = (0, 0)
     else:
         limits['ps'] = (0, 0)
     
     # Pval limits
-    if is_special and special and special['max_pval'] > 0:
+    if tval == 45 or tval == 40:  # Rings and Amulets can have pval up to 4
+        pval_min = base_pval
+        pval_max = 4
+        limits['pval'] = (pval_min, pval_max)
+    elif is_special and special and special['max_pval'] > 0:
         pval_min = base_pval
         pval_max = base_pval + special['max_pval']
         limits['pval'] = (pval_min, pval_max)
@@ -360,9 +442,24 @@ def calculate_item_difficulty(tval, sval, att_bonus=0, ds_bonus=0, evn_bonus=0,
     base_pval = get_base_pval(tval, sval)
     
     # Base item level contribution
-    if tval not in [45, 40]:  # Not ring or amulet
+    # Jewelry (TV_LIGHT=39, TV_AMULET=40, TV_RING=45) does NOT add base level
+    if tval not in [39, 40, 45]:  # Not light, amulet, or ring
         dif_inc += base_level // 2
     
+    # For jewelry, get base flags and add them to the flag set
+    flags = set()
+    base_abilities = 0
+    if tval in [40, 45]:  # Amulets and Rings
+        base_jewelry_flags = get_base_flags_for_jewelry(tval, sval)
+        flags.update(base_jewelry_flags)
+        base_abilities = get_base_abilities_for_jewelry(tval, sval)
+    
+    # Add special flags if present
+    if special:
+        flags.update(special['flags'])
+        base_abilities += special.get('abilities', 0)
+    
+
     # Attack bonus contribution
     if att_bonus > 0:
         if tval == 17:  # Arrow
@@ -394,145 +491,143 @@ def calculate_item_difficulty(tval, sval, att_bonus=0, ds_bonus=0, evn_bonus=0,
     if prot_bonus > 0:
         if tval == 37 and sval == 6:  # Hauberk
             dif_inc += dif_mod_calc(prot_bonus, 1) + 2
+        elif tval == 45:  # Ring
+            dif_inc += dif_mod_calc(prot_bonus, 1) + 4
         else:
             dif_inc += dif_mod_calc(prot_bonus, 3)
     
-    # Special item flags
-    flags = set()
-    if special:
-        flags = set(special['flags'])
-        
-        # Slays
-        if 'SLAY_ORC' in flags:
-            dif_inc += 3
-        if 'SLAY_TROLL' in flags:
-            dif_inc += 3
-        if 'SLAY_WOLF' in flags:
-            dif_inc += 3
-        if 'SLAY_SPIDER' in flags:
-            dif_inc += 4
-        if 'SLAY_UNDEAD' in flags:
-            dif_inc += 3
-        if 'SLAY_RAUKO' in flags:
-            dif_inc += 4
-        if 'SLAY_DRAGON' in flags:
-            dif_inc += 4
-        if 'SLAY_MAN_OR_ELF' in flags:
-            dif_inc += 5
-        
-        # Brands
-        if 'BRAND_COLD' in flags:
-            dif_inc += 18
+    # Pval-dependent flags (use total pval including base)
+    total_pval = base_pval + pval_bonus
+    
+    if total_pval > 0:
+        if 'TUNNEL' in flags:
+            dif_inc += dif_mod_calc(pval_bonus, 8)
+        if 'DAMAGE_SIDES' in flags:
+            dif_inc += dif_mod_calc(total_pval, 18)
+        if 'STR' in flags:
+            dif_inc += dif_mod_calc(total_pval, 14)
+        if 'DEX' in flags:
+            dif_inc += dif_mod_calc(total_pval, 14)
+        if 'CON' in flags:
+            dif_inc += dif_mod_calc(total_pval, 14)
+        if 'GRA' in flags:
+            dif_inc += dif_mod_calc(total_pval, 14)
+        if 'ARCHERY' in flags or 'ARC' in flags:
+            dif_inc += dif_mod_calc(total_pval, 4)
+        if 'STEALTH' in flags or 'STL' in flags:
+            dif_inc += dif_mod_calc(total_pval, 4)
+        if 'PERCEPTION' in flags or 'PER' in flags:
+            dif_inc += dif_mod_calc(total_pval, 3)
+        if 'WILL' in flags or 'WIL' in flags:
+            dif_inc += dif_mod_calc(total_pval, 3)
+        if 'SONG' in flags or 'SNG' in flags:
+            dif_inc += dif_mod_calc(total_pval, 4)
+    
+    # Sustains
+    if 'SUST_STR' in flags:
+        dif_inc += 2
+    if 'SUST_DEX' in flags:
+        dif_inc += 2
+    if 'SUST_CON' in flags:
+        dif_inc += 2
+    if 'SUST_GRA' in flags:
+        dif_inc += 2
+    
+    # Abilities/misc
+    if 'SLOW_DIGEST' in flags:
+        dif_inc += 2
+    if 'RADIANCE' in flags:
+        dif_inc += 6
+    if 'LIGHT' in flags:
+        dif_inc += 8
+    if 'REGEN' in flags:
+        dif_inc += 4
+    if 'SEE_INVIS' in flags:
+        dif_inc += 4
+    if 'FREE_ACT' in flags:
+        dif_inc += 7
+    if 'SPEED' in flags:
+        dif_inc += 40
+    if 'CHEAT_DEATH' in flags:
+        dif_inc += 13
+    if 'STAND_FAST' in flags:
+        dif_inc += 2
+    if 'AVOID_TRAPS' in flags:
+        dif_inc += 6
+    if 'MEDIC' in flags:
+        dif_inc += 4
+    
+    # Resistances
+    if 'RES_COLD' in flags:
+        dif_inc += 5
+    if 'RES_FIRE' in flags:
+        dif_inc += 5
+    if 'RES_POIS' in flags:
+        dif_inc += 5
+    if 'RES_BLEED' in flags:
+        dif_inc += 1
+    if 'RES_BLIND' in flags:
+        dif_inc += 2
+    if 'RES_CONFU' in flags:
+        dif_inc += 2
+    if 'RES_STUN' in flags:
+        dif_inc += 2
+    if 'RES_FEAR' in flags:
+        dif_inc += 2
+    if 'RES_HALLU' in flags:
+        dif_inc += 1
+    
+    # Abilities from B: lines and base abilities
+    for _ in range(base_abilities):
+        avg_ability_level = 5
+        dif_inc += 5 + (avg_ability_level // 3)
+    
+    # Slays
+    if 'SLAY_ORC' in flags:
+        dif_inc += 3
+    if 'SLAY_TROLL' in flags:
+        dif_inc += 3
+    if 'SLAY_WOLF' in flags:
+        dif_inc += 3
+    if 'SLAY_SPIDER' in flags:
+        dif_inc += 4
+    if 'SLAY_UNDEAD' in flags:
+        dif_inc += 3
+    if 'SLAY_RAUKO' in flags:
+        dif_inc += 4
+    if 'SLAY_DRAGON' in flags:
+        dif_inc += 4
+    if 'SLAY_MAN_OR_ELF' in flags:
+        dif_inc += 5
+    
+    # Brands
+    if 'BRAND_COLD' in flags:
+        dif_inc += 18
+        brands += 1
+    if 'BRAND_FIRE' in flags:
+        dif_inc += 14
+        brands += 1
+    if 'BRAND_POIS' in flags:
+        if tval == 17:
+            dif_inc += 12
+        else:
+            dif_inc += 16
             brands += 1
-        if 'BRAND_FIRE' in flags:
-            dif_inc += 14
-            brands += 1
-        if 'BRAND_POIS' in flags:
-            if tval == 17:
-                dif_inc += 12
-            else:
-                dif_inc += 16
-                brands += 1
-        
-        if brands > 1:
-            dif_inc += (brands - 1) * 20
-        
-        # Sharpness
-        if 'SHARPNESS' in flags:
-            dif_inc += 14 if tval == 17 else 24
-        if 'SHARPNESS2' in flags:
-            dif_inc += 40
-        
-        # Other weapon flags
-        if 'VAMPIRIC' in flags:
-            dif_inc += 6
-        if 'ACCURATE' in flags:
-            dif_inc += 15
-        
-        # Pval-dependent flags
-        total_pval = base_pval + pval_bonus
-        if total_pval > 0:
-            if 'TUNNEL' in flags:
-                dif_inc += dif_mod_calc(pval_bonus, 8)
-            if 'DAMAGE_SIDES' in flags:
-                dif_inc += dif_mod_calc(total_pval, 18)
-            if 'STR' in flags:
-                dif_inc += dif_mod_calc(total_pval, 14)
-            if 'DEX' in flags:
-                dif_inc += dif_mod_calc(total_pval, 14)
-            if 'CON' in flags:
-                dif_inc += dif_mod_calc(total_pval, 14)
-            if 'GRA' in flags:
-                dif_inc += dif_mod_calc(total_pval, 14)
-            if 'ARCHERY' in flags or 'ARC' in flags:
-                dif_inc += dif_mod_calc(total_pval, 4)
-            if 'STEALTH' in flags or 'STL' in flags:
-                dif_inc += dif_mod_calc(total_pval, 4)
-            if 'PERCEPTION' in flags or 'PER' in flags:
-                dif_inc += dif_mod_calc(total_pval, 3)
-            if 'WILL' in flags or 'WIL' in flags:
-                dif_inc += dif_mod_calc(total_pval, 3)
-            if 'SONG' in flags or 'SNG' in flags:
-                dif_inc += dif_mod_calc(total_pval, 4)
-        
-        # Sustains
-        if 'SUST_STR' in flags:
-            dif_inc += 2
-        if 'SUST_DEX' in flags:
-            dif_inc += 2
-        if 'SUST_CON' in flags:
-            dif_inc += 2
-        if 'SUST_GRA' in flags:
-            dif_inc += 2
-        
-        # Abilities/misc
-        if 'SLOW_DIGEST' in flags:
-            dif_inc += 2
-        if 'RADIANCE' in flags:
-            dif_inc += 6
-        if 'LIGHT' in flags:
-            dif_inc += 8
-        if 'REGEN' in flags:
-            dif_inc += 4
-        if 'SEE_INVIS' in flags:
-            dif_inc += 4
-        if 'FREE_ACT' in flags:
-            dif_inc += 7
-        if 'SPEED' in flags:
-            dif_inc += 40
-        if 'CHEAT_DEATH' in flags:
-            dif_inc += 13
-        if 'STAND_FAST' in flags:
-            dif_inc += 2
-        if 'AVOID_TRAPS' in flags:
-            dif_inc += 6
-        if 'MEDIC' in flags:
-            dif_inc += 4
-        
-        # Resistances
-        if 'RES_COLD' in flags:
-            dif_inc += 5
-        if 'RES_FIRE' in flags:
-            dif_inc += 5
-        if 'RES_POIS' in flags:
-            dif_inc += 5
-        if 'RES_BLEED' in flags:
-            dif_inc += 1
-        if 'RES_BLIND' in flags:
-            dif_inc += 2
-        if 'RES_CONFU' in flags:
-            dif_inc += 2
-        if 'RES_STUN' in flags:
-            dif_inc += 2
-        if 'RES_FEAR' in flags:
-            dif_inc += 2
-        if 'RES_HALLU' in flags:
-            dif_inc += 1
-        
-        # Abilities from B: lines
-        for _ in range(special.get('abilities', 0)):
-            avg_ability_level = 5
-            dif_inc += 5 + (avg_ability_level // 3)
+    
+    if brands > 1:
+        dif_inc += (brands - 1) * 20
+    
+    # Sharpness
+    if 'SHARPNESS' in flags:
+        dif_inc += 14 if tval == 17 else 24
+    if 'SHARPNESS2' in flags:
+        dif_inc += 40
+    
+    # Other weapon flags
+    if 'VAMPIRIC' in flags:
+        dif_inc += 6
+    if 'ACCURATE' in flags:
+        dif_inc += 15
     
     # Calculate base difficulty
     dif = dif_inc
@@ -552,12 +647,35 @@ def calculate_item_difficulty(tval, sval, att_bonus=0, ds_bonus=0, evn_bonus=0,
     return dif
 
 
+def get_item_category(tval):
+    """Determine item category from tval."""
+    if tval in [17, 19, 23, 22, 21, 20]:  # Arrow, Bow, Sword, Polearm, Hafted, Digging
+        return 'Weapons'
+    elif tval in [30, 31, 32, 33, 34, 35, 36, 37]:  # Boots, Gloves, Helm, Crown, Shield, Cloak, Armor, Mail
+        return 'Armor'
+    elif tval in [40, 45]:  # Light, Ring, Amulet
+        return 'Jewelry'
+    elif tval in [39]:  # Light sources
+        return 'Jewelry'
+    else:
+        return 'Other'
+
+
 def enumerate_item_variants(tval, sval, name, specials):
     """
     Enumerate all possible smithable variants of a base item.
     Returns list of (difficulty, description) tuples.
     """
     variants = []
+
+
+def enumerate_item_variants(tval, sval, name, specials):
+    """
+    Enumerate all possible smithable variants of a base item.
+    Returns list of (difficulty, description, category) tuples.
+    """
+    variants = []
+    category = get_item_category(tval)
     
     # Get base limits for plain item
     limits = get_smithing_limits(tval, sval, is_special=False, special=None)
@@ -567,28 +685,32 @@ def enumerate_item_variants(tval, sval, name, specials):
     ds_range = range(limits['ds'][0], limits['ds'][1] + 1)
     evn_range = range(limits['evn'][0], limits['evn'][1] + 1)
     ps_range = range(limits['ps'][0], limits['ps'][1] + 1)
+    pval_range = range(limits['pval'][0], limits['pval'][1] + 1)
     
     base_att = get_base_att(tval, sval)
     base_ds = get_base_ds(tval, sval)
     base_evn = get_base_evn(tval, sval)
     base_ps = get_base_ps(tval, sval)
+    base_pval = get_base_pval(tval, sval)
     
     # Plain item variants
     for att in att_range:
         for ds in ds_range:
             for evn in evn_range:
                 for ps in ps_range:
-                    att_bonus = att - base_att
-                    ds_bonus = ds - base_ds
-                    evn_bonus = evn - base_evn
-                    ps_bonus = ps - base_ps
-                    
-                    dif = calculate_item_difficulty(
-                        tval, sval, att_bonus, ds_bonus, evn_bonus, ps_bonus, 0, None
-                    )
-                    
-                    desc = f"{name} (+{att},{ds}ds,[{evn}],{ps}ps)"
-                    variants.append((dif, desc, 'base'))
+                    for pval in pval_range:
+                        att_bonus = att - base_att
+                        ds_bonus = ds - base_ds
+                        evn_bonus = evn - base_evn
+                        ps_bonus = ps - base_ps
+                        pval_bonus = pval - base_pval
+                        
+                        dif = calculate_item_difficulty(
+                            tval, sval, att_bonus, ds_bonus, evn_bonus, ps_bonus, pval_bonus, None
+                        )
+                        
+                        desc = f"{name} (+{att},{ds}ds,[{evn}],{ps}ps,pval:{pval})"
+                        variants.append((dif, desc, category, 'base'))
     
     # Generate special item variants
     for special in specials:
@@ -626,7 +748,7 @@ def enumerate_item_variants(tval, sval, name, specials):
                             
                             item_type = 'cursed_special' if is_cursed else 'special'
                             desc = f"{name} {special['name']} (+{att},{ds}ds,[{evn}],{ps}ps,pval:{pval})"
-                            variants.append((dif, desc, item_type))
+                            variants.append((dif, desc, category, item_type))
     
     return variants
 
@@ -684,7 +806,14 @@ def main():
         'special_items': 0,
         'cursed_specials': 0,
         'artefact_names': [],
-        'sample_items': []
+        'sample_items': [],
+        'by_category': defaultdict(lambda: {
+            'artefacts': 0,
+            'base_items': 0,
+            'special_items': 0,
+            'cursed_specials': 0,
+            'sample_items': []
+        })
     })
     
     # Count artefacts
@@ -697,35 +826,37 @@ def main():
     total_base = 0
     total_special = 0
     total_cursed = 0
+    category_totals = defaultdict(lambda: {'base': 0, 'special': 0, 'cursed': 0})
     
     for tval, sval, name in SMITHABLE_BASE_ITEMS:
         variants = enumerate_item_variants(tval, sval, name, specials)
-        for dif, desc, item_type in variants:
+        for dif, desc, category, item_type in variants:
             if item_type == 'base':
                 difficulty_counts[dif]['base_items'] += 1
+                difficulty_counts[dif]['by_category'][category]['base_items'] += 1
                 total_base += 1
+                category_totals[category]['base'] += 1
             elif item_type == 'special':
                 difficulty_counts[dif]['special_items'] += 1
+                difficulty_counts[dif]['by_category'][category]['special_items'] += 1
                 total_special += 1
+                category_totals[category]['special'] += 1
             else:  # cursed_special
                 difficulty_counts[dif]['cursed_specials'] += 1
+                difficulty_counts[dif]['by_category'][category]['cursed_specials'] += 1
                 total_cursed += 1
+                category_totals[category]['cursed'] += 1
             
             # Store a few samples
             if len(difficulty_counts[dif]['sample_items']) < 3:
                 difficulty_counts[dif]['sample_items'].append(desc)
+            if len(difficulty_counts[dif]['by_category'][category]['sample_items']) < 2:
+                difficulty_counts[dif]['by_category'][category]['sample_items'].append(desc)
     
-    # Print results
-    print("=" * 100)
-    print("SMITHING DIFFICULTY DISTRIBUTION")
-    print("=" * 100)
     print()
-    print(f"Total artefacts: {len(artefacts)}")
-    print(f"Total base item variants: {total_base}")
-    print(f"Total special item variants: {total_special}")
-    print(f"Total cursed special variants: {total_cursed}")
-    print(f"Total smithable items: {total_base + total_special + total_cursed}")
-    print()
+    print("=" * 100)
+    print("BY DIFFICULTY (All Categories):")
+    print("=" * 100)
     
     # Print by difficulty
     print(f"{'Diff':>4} {'Artefacts':>10} {'Base':>8} {'Special':>10} {'Cursed':>8} {'Total':>8}  Samples/Artefacts")
@@ -750,9 +881,45 @@ def main():
     
     print()
     print("=" * 100)
+    print("BY CATEGORY:")
+    print("=" * 100)
+    print()
+    
+    # Print by category
+    for category in ['Weapons', 'Armor', 'Jewelry']:
+        if category not in category_totals:
+            continue
+        
+        print(f"\n{category.upper()}")
+        print("-" * 100)
+        print(f"{'Diff':>4} {'Artefacts':>10} {'Base':>8} {'Special':>10} {'Cursed':>8} {'Total':>8}")
+        print("-" * 100)
+        
+        for dif in sorted(difficulty_counts.keys()):
+            cat_data = difficulty_counts[dif]['by_category'][category]
+            total = cat_data['base_items'] + cat_data['special_items'] + cat_data['cursed_specials']
+            
+            if total + cat_data['artefacts'] == 0:
+                continue
+            
+            print(f"{dif:>4} {cat_data['artefacts']:>10} {cat_data['base_items']:>8} {cat_data['special_items']:>10} {cat_data['cursed_specials']:>8} {total:>8}")
+    
+    print()
+    print("=" * 100)
+    print("CATEGORY TOTALS:")
+    print("-" * 60)
+    
+    for category in ['Weapons', 'Armor', 'Jewelry']:
+        if category not in category_totals:
+            continue
+        totals = category_totals[category]
+        grand_total = totals['base'] + totals['special'] + totals['cursed']
+        print(f"{category:<15}: {totals['base']:>5} base + {totals['special']:>5} special + {totals['cursed']:>5} cursed = {grand_total:>5} total")
+    
+    print()
     
     # Summary by tiers
-    print("\nDIFFICULTY TIER SUMMARY:")
+    print("\nDIFFICULTY TIER SUMMARY (All Items):")
     print("-" * 60)
     tiers = [
         (0, 4, "Trivial (0-4)"),
@@ -776,16 +943,59 @@ def main():
     
     print()
     
+    # Summary by category and tier
+    print("\nDIFFICULTY TIER SUMMARY (By Category):")
+    print("-" * 100)
+    print()
+    
+    for category in ['Weapons', 'Armor', 'Jewelry']:
+        if category not in category_totals:
+            continue
+        
+        print(f"{category.upper()}:")
+        for low, high, label in tiers:
+            arts = sum(difficulty_counts[d]['by_category'][category]['artefacts'] for d in difficulty_counts if low <= d <= high)
+            base = sum(difficulty_counts[d]['by_category'][category]['base_items'] for d in difficulty_counts if low <= d <= high)
+            special = sum(difficulty_counts[d]['by_category'][category]['special_items'] for d in difficulty_counts if low <= d <= high)
+            cursed = sum(difficulty_counts[d]['by_category'][category]['cursed_specials'] for d in difficulty_counts if low <= d <= high)
+            total = base + special + cursed
+            if total + arts > 0:
+                print(f"  {label:<25}: {arts:>3} artefacts, {total:>5} craftable ({base} base + {special} special + {cursed} cursed)")
+        print()
+    
     # Export to CSV
     import csv
     csv_file = os.path.join(script_dir, 'difficulty_distribution.csv')
     with open(csv_file, 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
+        
+        # Write overall summary
+        writer.writerow(['OVERALL SUMMARY'])
         writer.writerow(['Difficulty', 'Artefacts', 'Base Items', 'Special Items', 'Cursed Specials', 'Total Craftable'])
         for dif in sorted(difficulty_counts.keys()):
             data = difficulty_counts[dif]
             total = data['base_items'] + data['special_items'] + data['cursed_specials']
             writer.writerow([dif, data['artefacts'], data['base_items'], data['special_items'], data['cursed_specials'], total])
+        
+        # Write category breakdowns
+        for category in ['Weapons', 'Armor', 'Jewelry']:
+            writer.writerow([])
+            writer.writerow([f'{category.upper()} BREAKDOWN'])
+            writer.writerow(['Difficulty', 'Artefacts', 'Base Items', 'Special Items', 'Cursed Specials', 'Total Craftable'])
+            
+            for dif in sorted(difficulty_counts.keys()):
+                cat_data = difficulty_counts[dif]['by_category'][category]
+                total = cat_data['base_items'] + cat_data['special_items'] + cat_data['cursed_specials']
+                writer.writerow([dif, cat_data['artefacts'], cat_data['base_items'], cat_data['special_items'], cat_data['cursed_specials'], total])
+        
+        # Write category totals summary
+        writer.writerow([])
+        writer.writerow(['CATEGORY TOTALS'])
+        writer.writerow(['Category', 'Base Items', 'Special Items', 'Cursed Specials', 'Total Craftable'])
+        for category in ['Weapons', 'Armor', 'Jewelry']:
+            totals = category_totals[category]
+            grand_total = totals['base'] + totals['special'] + totals['cursed']
+            writer.writerow([category, totals['base'], totals['special'], totals['cursed'], grand_total])
     
     print(f"Results exported to: {csv_file}")
     
