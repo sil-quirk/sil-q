@@ -198,6 +198,12 @@ This change restores the A: field semantics while maintaining the new drop syste
 
 ## 2025-12-09: Jinx ego system (Flickering Shadow lanterns)
 
+## 2025-12-13: Clean Build + Warning Cleanup
+- Ran clean SDL3 CMake builds via `build-cmake.bat` (standard + portable) and captured logs (`build-clean*.log`, `build-final.log`).
+- Fixed all compiler warnings (GCC 15.2) across the codebase: signed/unsigned range checks, unused vars/params, pointer-vs-int comparisons, implicit fallthrough, excess initializer entries, and const-correctness (`weapon_glows` now takes `const object_type*`).
+- Disabled several intentionally-unused/disabled generation helpers under `#if 0` to avoid `-Wunused-function` noise.
+- Final verification: `build-final.log` contains **0** `: warning:` lines.
+
 ### Implementation
 Implemented a jinx system where certain egos are excluded from normal drop pools and instead applied probabilistically to normal items after selection, with chance inversely proportional to item difficulty:
 

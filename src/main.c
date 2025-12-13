@@ -234,8 +234,6 @@ int main(int argc, char* argv[])
 
     bool done = false;
 
-    bool new_game = false;
-
     int show_score = 0;
 
     cptr mstr = NULL;
@@ -312,8 +310,6 @@ int main(int argc, char* argv[])
         case 'N':
         case 'n':
         {
-            new_game = true;
-
             // Sil-y:
             game_in_progress = true;
             break;
@@ -511,7 +507,6 @@ int main(int argc, char* argv[])
                 if (mn == NAV_QUIT) quit(NULL);          /* immediate exit   */
                 if (mn == NAV_OK) {                      /* play or load     */
                     game_in_progress = true;
-                    new_game        = start_new ? true : false;
                 }
                 /* NAV_BACK ⇒ redraw + loop again */
             }
@@ -520,10 +515,7 @@ int main(int argc, char* argv[])
         /* Handle pending events (most notably update) and flush input */
         Term_flush();
 
-        /*
-         * Play a game -- "new_game" is set by "new", "open" or the open
-         * document even handler as appropriate
-         */
+        /* Play a game */
         PlayResult pr = play_game();   /* play and capture result */
 
         // rerun the first initialization routine
@@ -546,7 +538,3 @@ int main(int argc, char* argv[])
     /* Exit */
     return (0);
 }
-
-
-
-

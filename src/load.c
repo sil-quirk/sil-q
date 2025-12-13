@@ -124,8 +124,10 @@ static bool savefile_version_supported(void)
     /* Enforce the minimum extra value for the current release series. */
     if (sf_major == VERSION_MAJOR && sf_minor == VERSION_MINOR && sf_patch == VERSION_PATCH)
     {
+#if MIN_VERSION_EXTRA > 0
         if (sf_extra < MIN_VERSION_EXTRA)
             return false;
+#endif
     }
 
     return true;
@@ -933,8 +935,8 @@ static void rd_options(void)
     rd_byte(&b);
     op_ptr->main_combat_rolls = b;
     /* Ensure it's in valid range */
-    if (op_ptr->main_combat_rolls < 0 || op_ptr->main_combat_rolls > 4)
-        op_ptr->main_combat_rolls = 1;
+    if (op_ptr->main_combat_rolls > 3)
+        op_ptr->main_combat_rolls = 0;
     /* Skip 7 remaining spare bytes */
     strip_bytes(7);
 
@@ -2971,7 +2973,6 @@ bool load_player(void)
     /* Oops */
     return (false);
 }
-
 
 
 

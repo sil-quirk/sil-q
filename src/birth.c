@@ -1449,14 +1449,14 @@ static void character_aux_hook(birth_menu c_str)
     int legend_row = 10; /* Row 10 as requested (moved up one row) */
     
     /* Count alive heroes by power level across ALL races */
-    int power_counts[5] = {0, 0, 0, 0, 0};  /* weak, average, powerful, very powerful, mighty */
+    int power_counts[4] = {0, 0, 0, 0};  /* weak, fair, strong, mighty (P:3/P:4) */
     for (int i = 0; i < z_info->c_max; i++)
     {
         /* Count only characters that are NOT dead (alive) */
         if (highscore_dead(c_name + c_info[i].name) == 0)  /* If NOT dead (alive) */
         {
             byte power = c_info[i].power;
-            if (power >= 0 && power <= 4)
+            if (power <= 4)
             {
                 if (power == 4)
                     power_counts[3]++;  /* P:4 counts toward "Mighty" (same group as P:3) */
@@ -1691,7 +1691,7 @@ NavResult character_creation(void)
     }
     
     /* Ensure main_combat_rolls has a valid value for existing saves */
-    if (op_ptr->main_combat_rolls < 0 || op_ptr->main_combat_rolls > 3)
+    if (op_ptr->main_combat_rolls > 3)
     {
         op_ptr->main_combat_rolls = 0;  /* Default to 0 lines */
     }
@@ -2713,7 +2713,6 @@ NavResult player_birth()
 
     return NAV_OK;
 }
-
 
 
 

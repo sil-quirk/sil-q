@@ -489,11 +489,11 @@ static bool tulkas_probability_roll(int depth, int quest_id) {
     bool won = (dice_roll == 0);  /* one_in_(N) succeeds when rand_int(N) == 0 */
     
     if (won) {
-        log_trace("Quest lottery: Tulkas WINS! (rolled %d, needed 0, chance was 1/%d = %.1f%%)", 
-                 dice_roll, tulkas_chance, 100.0f / tulkas_chance);
+        log_trace("Quest lottery: quest %d (Tulkas) WINS! (rolled %d, needed 0, chance was 1/%d = %.1f%%)",
+            quest_id, dice_roll, tulkas_chance, 100.0f / tulkas_chance);
     } else {
-        log_trace("Quest lottery: Tulkas roll failed (rolled %d, needed 0, chance was 1/%d = %.1f%%)", 
-                 dice_roll, tulkas_chance, 100.0f / tulkas_chance);
+        log_trace("Quest lottery: quest %d (Tulkas) roll failed (rolled %d, needed 0, chance was 1/%d = %.1f%%)",
+            quest_id, dice_roll, tulkas_chance, 100.0f / tulkas_chance);
     }
     
     return won;
@@ -518,16 +518,16 @@ static bool niena_probability_roll(int depth, int quest_id) {
         bool won = (dice_roll == 0);  /* one_in_(N) succeeds when rand_int(N) == 0 */
         
         if (won) {
-            log_trace("Quest lottery: Niena WINS! (rolled %d, needed 0, chance was 1/%d = %.1f%%)", 
-                     dice_roll, niena_chance, niena_probability * 100.0f);
+            log_trace("Quest lottery: quest %d (Niena) WINS! (rolled %d, needed 0, chance was 1/%d = %.1f%%)",
+                quest_id, dice_roll, niena_chance, niena_probability * 100.0f);
         } else {
-            log_trace("Quest lottery: Niena roll failed (rolled %d, needed 0, chance was 1/%d = %.1f%%)", 
-                     dice_roll, niena_chance, niena_probability * 100.0f);
+            log_trace("Quest lottery: quest %d (Niena) roll failed (rolled %d, needed 0, chance was 1/%d = %.1f%%)",
+                quest_id, dice_roll, niena_chance, niena_probability * 100.0f);
         }
         
         return won;
     } else {
-        log_trace("Quest lottery: Niena probability is 0%% at depth %d", depth);
+        log_trace("Quest lottery: quest %d (Niena) probability is 0%% at depth %d", quest_id, depth);
         return false;
     }
 }
@@ -1510,10 +1510,7 @@ static bool build_type7(int y0, int x0);
 static bool build_type8(int y0, int x0);
 static bool build_type2(int y0, int x0);
 static bool build_type1(int y0, int x0);
-static void seed_ca_blob_anchors(void);
-static void seed_bsp_slice_anchors(void);
 static void apply_quadrant_generation_modes(void);
-static void ensure_partition_connectivity(void);
 static void repair_all_outer_walls(void);
 static bool carve_chasm_with_bridges(int y_min, int y_max, int x_min, int x_max);
 static int dungeon_pieces(void);
@@ -1524,6 +1521,13 @@ static bool connect_rooms_with_logging(int r1, int r2, const char *tag, bool all
 static bool connect_two_rooms(int r1, int r2, bool tentative, bool desperate);
 static bool compute_partition_bounds(int pi, int rows, int cols, int *y1, int *y2, int *x1, int *x2);
 static void connect_partition_hubs(void);
+
+/* Disabled helpers kept for reference (see #if 0 blocks near usage sites). */
+#if 0
+static void seed_ca_blob_anchors(void);
+static void seed_bsp_slice_anchors(void);
+static void ensure_partition_connectivity(void);
+#endif
 
 /* Attempt to place a prefab vault/room as a generation anchor */
 static bool place_prefab_anchor_of_type(int typ, bool require_neighbor)
@@ -1856,6 +1860,7 @@ static void scatter_chasm_star_iron_in_bounds(int y1, int y2, int x1, int x2)
 }
 
 /* Carve a small cellular-automata style blob and register it as an anchor */
+#if 0
 static bool carve_ca_blob_anchor(void)
 {
     if (dun->cent_n >= room_capacity_limit())
@@ -2103,6 +2108,7 @@ static bool carve_ca_blob_anchor(void)
         floor_count, min_y, min_x, max_y, max_x, cy, cx);
     return true;
 }
+#endif
 
 /* Bounded version for quadrants */
 static bool carve_ca_blob_anchor_bounds(int y_min, int y_max, int x_min, int x_max)
@@ -3492,6 +3498,7 @@ static bool carve_labyrinth_bounds(int y_min, int y_max, int x_min, int x_max)
     return true;
 }
 
+#if 0
 /* Try to seed a few CA blob anchors in unused granite */
 static void seed_ca_blob_anchors(void)
 {
@@ -3508,8 +3515,10 @@ static void seed_ca_blob_anchors(void)
     }
     log_trace("CA blob seeding complete: placed=%d target=%d attempts=%d", placed, target, max_attempts);
 }
+#endif
 
 /* Carve a BSP-style sliced region into rooms-like rectangles and register anchor */
+#if 0
 static bool carve_bsp_slice_anchor(void)
 {
     if (dun->cent_n >= room_capacity_limit())
@@ -3653,6 +3662,7 @@ static bool carve_bsp_slice_anchor(void)
     return true;
     return true;
 }
+#endif
 
 static bool carve_bsp_slice_anchor_bounds(int y_min, int y_max, int x_min, int x_max)
 {
@@ -3788,6 +3798,7 @@ static bool carve_bsp_slice_anchor_bounds(int y_min, int y_max, int x_min, int x
     return true;
 }
 
+#if 0
 /* Try to seed BSP-sliced anchors in spare granite */
 static void seed_bsp_slice_anchors(void)
 {
@@ -3802,6 +3813,7 @@ static void seed_bsp_slice_anchors(void)
     }
     log_trace("BSP slice seeding complete: placed=%d target=%d", placed, target);
 }
+#endif
 
 /* Build a room within explicit bounds */
 static bool room_build_in_bounds(int typ, int y1, int y2, int x1, int x2)
@@ -4241,7 +4253,6 @@ static void apply_quadrant_generation_modes(void)
         /* Fixed density distribution: 30% sparse, 40% normal, 30% dense */
         int sparse_chance = 30;
         int normal_chance = 40;
-        int dense_chance = 30;
 
         int density_roll = rand_int(100);
         if (density_roll < sparse_chance)
@@ -4909,6 +4920,7 @@ static void apply_quadrant_generation_modes(void)
  * This helps when caves/labyrinths in adjacent partitions don't naturally connect.
  * IMPROVED: Now searches deeper into partitions (15 tiles) and carves longer corridors (8 tiles).
  * Also tries multiple x/y positions per boundary segment. */
+#if 0
 static void ensure_partition_connectivity(void)
 {
     int blocks = p_ptr->cur_map_hgt / PANEL_HGT;
@@ -5102,6 +5114,7 @@ static void ensure_partition_connectivity(void)
         genlog_connect("Partition connectivity: no new connections needed");
     }
 }
+#endif
 
 typedef struct {
     rectangle bounds;
@@ -5116,7 +5129,8 @@ static int partition_index_from_point(int y, int x, int rows, int cols)
     if (rows <= 0 || cols <= 0) return -1;
     int row = (y * rows) / p_ptr->cur_map_hgt;
     int col = (x * cols) / p_ptr->cur_map_wid;
-    if (row < 0) row = 0; if (col < 0) col = 0;
+    if (row < 0) row = 0;
+    if (col < 0) col = 0;
     if (row >= rows) row = rows - 1;
     if (col >= cols) col = cols - 1;
     return row * cols + col;
@@ -6994,7 +7008,9 @@ static tunnel_profile choose_tunnel_profile(bool tentative)
 
     /* On shallow branches, fall back to narrow connectors */
     if (tentative)
-        ; /* allow style variation even on tentative digs */
+    {
+        /* allow style variation even on tentative digs */
+    }
 
     int depth = p_ptr->depth;
     int sidx = styles_get_level_primary_style();
@@ -8114,8 +8130,6 @@ static bool connect_rooms_stairs(void)
     int corridor_attempts;
     int r1, r2, r_closest, d_closest, d;
     int pieces = 0;
-
-    int width;
     int stairs = 0;
     int initial_up = FEAT_LESS;
     int initial_down = FEAT_MORE;
@@ -8300,8 +8314,6 @@ static bool connect_rooms_stairs(void)
             for (int dir = 0; dir < 2 && !carved; ++dir)
             {
                 bool valid = true;
-                int corner_y = (dir == 0) ? y0 : y1;
-                int corner_x = (dir == 0) ? x1 : x0;
                 
                 /* Check if the L-path is carveable (no permanent walls) */
                 int min_x = MIN(x0, x1), max_x = MAX(x0, x1);
@@ -10990,6 +11002,7 @@ static bool build_type10(int y0, int x0)
 /*
  * Attempt to build a room of the given type at the given co-ordinates
  */
+#if 0
 static bool room_build(int typ)
 {
     int y, x;
@@ -11059,6 +11072,7 @@ static bool room_build(int typ)
     /* Success */
     return (true);
 }
+#endif
 
 /*
  * Try to place a quest vault of specified type using forced placement strategy
@@ -12611,6 +12625,7 @@ static void gates_gen(void)
 /*
  * Create the level containing Morgoth's throne room
  */
+#if 0
 static void throne_gen(void)
 {
     int y, x;
@@ -12675,6 +12690,7 @@ static void throne_gen(void)
     /* Place the player */
     player_place(py, px);
 }
+#endif
 
 /*
  * Dungeon generation can set some flags indicating that certain one-off

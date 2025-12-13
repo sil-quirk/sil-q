@@ -384,8 +384,6 @@ bool supplies_absorb_object(object_type* src)
     }
     else
     {
-        if (entry->obj.number > 255)
-            entry->obj.number = 255;
     }
     supplies_apply_auto_identification(&entry->obj);
     object_wipe(src);
@@ -852,6 +850,5 @@ int supplies_damage(int (*typ)(const object_type*), int perc, int resistance)
     /* Return the count */
     return (k);
 }
-
 
 

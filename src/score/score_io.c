@@ -69,8 +69,6 @@ bool scores_version_has_curses(const score_file_ctx* ctx)
     /* Compare version tuple: major.minor.patch.extra */
     if (ctx->version_major > 0)
         return true;
-    if (ctx->version_major < 0)
-        return false;
 
     if (ctx->version_minor > 9)
         return true;
@@ -79,8 +77,6 @@ bool scores_version_has_curses(const score_file_ctx* ctx)
 
     if (ctx->version_patch > 0)
         return true;
-    if (ctx->version_patch < 0)
-        return false;
 
     return (ctx->version_extra >= 6);
 }

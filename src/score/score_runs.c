@@ -575,7 +575,7 @@ static bool score_runs_write_record(SDL_IOStream* file,
         if (stats_count > 0) {
             size_t bytes = (size_t)stats_count * sizeof(score_run_stat_v1);
             if (!details->stats ||
-                SDL_WriteIO(file, details->stats, bytes) != (Sint64)bytes)
+                SDL_WriteIO(file, details->stats, bytes) != bytes)
                 return false;
         }
 
@@ -584,7 +584,7 @@ static bool score_runs_write_record(SDL_IOStream* file,
         if (skills_count > 0) {
             size_t bytes = (size_t)skills_count * sizeof(score_run_skill_v1);
             if (!details->skills ||
-                SDL_WriteIO(file, details->skills, bytes) != (Sint64)bytes)
+                SDL_WriteIO(file, details->skills, bytes) != bytes)
                 return false;
         }
 
@@ -593,7 +593,7 @@ static bool score_runs_write_record(SDL_IOStream* file,
         if (ability_count > 0) {
             size_t bytes = (size_t)ability_count * sizeof(score_run_ability_v1);
             if (!details->abilities ||
-                SDL_WriteIO(file, details->abilities, bytes) != (Sint64)bytes)
+                SDL_WriteIO(file, details->abilities, bytes) != bytes)
                 return false;
         }
 
@@ -602,7 +602,7 @@ static bool score_runs_write_record(SDL_IOStream* file,
         if (milestone_count > 0) {
             size_t bytes = (size_t)milestone_count * sizeof(score_run_milestone_v1);
             if (!details->milestones ||
-                SDL_WriteIO(file, details->milestones, bytes) != (Sint64)bytes)
+                SDL_WriteIO(file, details->milestones, bytes) != bytes)
                 return false;
         }
     }
@@ -611,7 +611,7 @@ static bool score_runs_write_record(SDL_IOStream* file,
         * sizeof(score_run_artefact_v1);
     if (artefact_bytes > 0 && details->artefacts) {
         if (SDL_WriteIO(file, details->artefacts, artefact_bytes)
-            != (Sint64)artefact_bytes)
+            != artefact_bytes)
             return false;
     } else if (artefact_bytes > 0) {
         return false;
@@ -621,7 +621,7 @@ static bool score_runs_write_record(SDL_IOStream* file,
         * sizeof(score_run_monster_v1);
     if (monster_bytes > 0 && details->monsters) {
         if (SDL_WriteIO(file, details->monsters, monster_bytes)
-            != (Sint64)monster_bytes)
+            != monster_bytes)
             return false;
     } else if (monster_bytes > 0) {
         return false;
@@ -1375,12 +1375,12 @@ static void score_runs_build_record(score_record_v1* rec,
     rec->run_flags = score_runs_run_flags();
     rec->race_id = (byte)(p_ptr->prace & 0xFF);
     rec->character_id = (byte)(p_ptr->pcharacter & 0xFF);
-    if (z_info && p_ptr->prace >= 0 && p_ptr->prace < z_info->p_max) {
+    if (z_info && p_ptr->prace < z_info->p_max) {
         rec->race_guid = p_info[p_ptr->prace].guid;
     } else {
         score_guid_clear(&rec->race_guid);
     }
-    if (z_info && p_ptr->pcharacter >= 0 && p_ptr->pcharacter < z_info->c_max) {
+    if (z_info && p_ptr->pcharacter < z_info->c_max) {
         rec->character_guid = c_info[p_ptr->pcharacter].guid;
     } else {
         score_guid_clear(&rec->character_guid);
@@ -1589,7 +1589,7 @@ bool score_runs_load_details(s64b detail_offset, score_run_detail_block* out)
             if (!out->stats)
                 goto done;
             size_t bytes = (size_t)stats_count * sizeof(score_run_stat_v1);
-            if (SDL_ReadIO(file, out->stats, bytes) != (Sint64)bytes)
+            if (SDL_ReadIO(file, out->stats, bytes) != bytes)
                 goto done;
         }
 
@@ -1601,7 +1601,7 @@ bool score_runs_load_details(s64b detail_offset, score_run_detail_block* out)
             if (!out->skills)
                 goto done;
             size_t bytes = (size_t)skills_count * sizeof(score_run_skill_v1);
-            if (SDL_ReadIO(file, out->skills, bytes) != (Sint64)bytes)
+            if (SDL_ReadIO(file, out->skills, bytes) != bytes)
                 goto done;
         }
 
@@ -1613,7 +1613,7 @@ bool score_runs_load_details(s64b detail_offset, score_run_detail_block* out)
             if (!out->abilities)
                 goto done;
             size_t bytes = (size_t)ability_count * sizeof(score_run_ability_v1);
-            if (SDL_ReadIO(file, out->abilities, bytes) != (Sint64)bytes)
+            if (SDL_ReadIO(file, out->abilities, bytes) != bytes)
                 goto done;
         }
 
@@ -1625,7 +1625,7 @@ bool score_runs_load_details(s64b detail_offset, score_run_detail_block* out)
             if (!out->milestones)
                 goto done;
             size_t bytes = (size_t)milestone_count * sizeof(score_run_milestone_v1);
-            if (SDL_ReadIO(file, out->milestones, bytes) != (Sint64)bytes)
+            if (SDL_ReadIO(file, out->milestones, bytes) != bytes)
                 goto done;
         }
     }
@@ -1634,7 +1634,7 @@ bool score_runs_load_details(s64b detail_offset, score_run_detail_block* out)
         * sizeof(score_run_artefact_v1);
     if (artefact_bytes > 0) {
         if (SDL_ReadIO(file, out->artefacts, artefact_bytes)
-            != (Sint64)artefact_bytes)
+            != artefact_bytes)
             goto done;
     }
 
@@ -1642,7 +1642,7 @@ bool score_runs_load_details(s64b detail_offset, score_run_detail_block* out)
         * sizeof(score_run_monster_v1);
     if (monster_bytes > 0) {
         if (SDL_ReadIO(file, out->monsters, monster_bytes)
-            != (Sint64)monster_bytes)
+            != monster_bytes)
             goto done;
     }
 
@@ -1668,6 +1668,5 @@ bool score_runs_snapshot_details(score_run_detail_block* out)
     u16b mon_cap = score_runs_choose_monster_capacity();
     return score_runs_build_details(out, art_cap, mon_cap);
 }
-
 
 

@@ -27,6 +27,7 @@
 #define SIL_USER_META_DIR "meta"
 #define SIL_USER_META_RUNS "metaruns"
 
+#ifndef SIL_USE_LOCAL_DATA
 static bool is_path_separator(char ch)
 {
 #ifdef WINDOWS
@@ -201,6 +202,8 @@ static bool has_valid_metarun_data(const char* meta_dir)
 
 static void seed_user_meta_from_install(const char* user_meta_dir, const char* user_metarun_dir)
 {
+    (void)user_metarun_dir;
+
     if (!user_meta_dir || !*user_meta_dir || !ANGBAND_DIR || !*ANGBAND_DIR)
         return;
 
@@ -513,6 +516,7 @@ static void migrate_legacy_metarun_layout(const char* meta_root, const char* met
         }
     }
 }
+#endif /* SIL_USE_LOCAL_DATA */
 
 /*
  * This file is used to initialize various variables and arrays for the
@@ -1135,7 +1139,7 @@ static errr init_info(cptr filename, header* head)
         fd = sdl_fopen(buf, "rb");
 
         /* Process existing "raw" file */
-        if (fd < 0)
+        if (!fd)
             quit(format("Cannot load '%s.raw' file.", filename));
 
         /* Attempt to parse the "raw" file */
@@ -2466,7 +2470,7 @@ void init_angband(void)
     fd = sdl_fopen(buf, "rb");
 
     /* Failure */
-    if (fd < 0)
+    if (!fd)
     {
         /* File type is "DATA" */
         FILE_TYPE(FILE_TYPE_DATA);
@@ -2828,8 +2832,6 @@ void cleanup_angband(void)
     str_free(ANGBAND_DIR_XTRA);
     str_free(ANGBAND_DIR_SCRIPT);
 }
-
-
 
 
 

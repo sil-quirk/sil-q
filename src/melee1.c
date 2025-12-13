@@ -114,6 +114,7 @@ int elem_bonus(int effect)
  */
 extern int protection_roll(int typ, bool melee)
 {
+    (void)melee;
     int i;
     object_type* o_ptr;
     int prt = 0;
@@ -195,6 +196,7 @@ extern int protection_roll(int typ, bool melee)
  */
 extern int p_min(int typ, bool melee)
 {
+    (void)melee;
     int i;
     object_type* o_ptr;
     int prt = 0;
@@ -264,6 +266,7 @@ extern int p_min(int typ, bool melee)
  */
 extern int p_max(int typ, bool melee)
 {
+    (void)melee;
     int i;
     object_type* o_ptr;
     int prt = 0;
@@ -4222,7 +4225,6 @@ void display_main_combat_rolls(void)
         draw_combat_roll_line(row, col_offset, &combat_rolls[round][idx]);
     }
 }
-
 
 
 

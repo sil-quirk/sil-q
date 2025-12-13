@@ -1130,6 +1130,7 @@ void show_scores_interactive_highlight(bool longscore, const high_score* entry)
         forced_highlight_active = false;
     }
 }
+#if 0
 static const char* score_run_killer_kind_label(score_killer_kind kind)
 {
     switch (kind) {
@@ -1141,6 +1142,7 @@ static const char* score_run_killer_kind_label(score_killer_kind kind)
     default: return "Unknown";
     }
 }
+#endif
 
 static const char* score_run_status_label(score_record_status status)
 {
@@ -1181,12 +1183,14 @@ static const char* run_history_race_name(byte idx)
         return "<unknown>";
     return p_name + p_info[idx].name;
 }
+#if 0
 static const char* run_history_character_name(byte idx)
 {
     if (!c_info || !c_name || !z_info || idx >= z_info->c_max)
         return "<unknown>";
     return c_name + c_info[idx].name;
 }
+#endif
 static const char* run_history_monster_name(u16b r_idx)
 {
     if (!r_info || !r_name || !z_info || r_idx == 0 || r_idx >= z_info->r_max)
@@ -1216,6 +1220,7 @@ static void run_history_format_timestamp(u32b utc, bool include_time,
         SDL_strlcpy(out, "----", out_len);
     }
 }
+#if 0
 static void run_history_format_flags(byte run_flags, char* out, size_t out_len)
 {
     if (!out || out_len == 0)
@@ -1245,6 +1250,7 @@ static void run_history_format_flags(byte run_flags, char* out, size_t out_len)
     if (first)
         SDL_strlcpy(out, "(none)", out_len);
 }
+#endif
 
 static int run_history_compare_date_desc(const void* a, const void* b)
 {
@@ -1598,14 +1604,15 @@ static void run_history_draw_panel_tabs(run_detail_panel active,
                                         const bool available[RUN_PANEL_COUNT])
 {
     int col = 0;
+    int active_idx = (int)active;
     for (int i = 0; i < RUN_PANEL_COUNT; i++) {
         char buffer[32];
         strnfmt(buffer, sizeof(buffer), "%s%s%s",
-            (i == active) ? "[" : " ",
+            (i == active_idx) ? "[" : " ",
             run_detail_panel_names[i],
-            (i == active) ? "]" : " ");
+            (i == active_idx) ? "]" : " ");
         byte color = available[i] ? TERM_L_WHITE : TERM_SLATE;
-        if (i == active)
+        if (i == active_idx)
             color = available[i] ? TERM_WHITE : TERM_SLATE;
         c_prt(color, buffer, 0, col);
         col += (int)strlen(buffer) + 1;

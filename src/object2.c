@@ -538,15 +538,16 @@ static bool kind_is_damaged_item(int k_idx)
     return k_ptr->flags3 & TR3_DAMAGED;
 }
 
+#if 0
 /*
  * Hack -- determine if a template is not a damaged item or skeleton
- *
  */
 static bool kind_is_not_damaged(int k_idx)
 {
     object_kind* k_ptr = &k_info[k_idx];
     return k_ptr->tval != TV_SKELETON && !kind_is_damaged_item(k_idx);
 }
+#endif
 
 /*
  * Deletes all objects at given location
@@ -1642,7 +1643,7 @@ bool object_similar(const object_type* o_ptr, const object_type* j_ptr)
         if (!object_known_p(o_ptr) || !object_known_p(j_ptr))
             return (false);
 
-        /* Fall through */
+        __attribute__((fallthrough));
     }
 
     /* Weapons and Armor */
@@ -1660,7 +1661,7 @@ bool object_similar(const object_type* o_ptr, const object_type* j_ptr)
     case TV_SOFT_ARMOR:
     case TV_MAIL:
     {
-        /* Fall Through */
+        __attribute__((fallthrough));
     }
 
     /* Missiles & most things from above */
@@ -2185,6 +2186,7 @@ static bool too_many_artefacts(void)
     return (false);
 }
 
+#if 0
 /*
  * Mega-Hack -- Attempt to create one of the "Special Objects".
  *
@@ -2271,6 +2273,7 @@ static bool make_artefact_special(object_type* o_ptr)
     /* Failure */
     return (false);
 }
+#endif
 
 /*
  * Attempt to change an object into an artefact
@@ -3024,8 +3027,6 @@ void apply_magic(object_type* o_ptr, int lev, bool okay, bool good, bool great,
     bool fine = false;
     bool special = false;
 
-    object_kind* k_ptr = &k_info[o_ptr->k_idx];
-
     /* Maximum "level" for various things */
     if (lev > MAX_DEPTH - 1)
         lev = MAX_DEPTH - 1;
@@ -3305,6 +3306,7 @@ void apply_magic(object_type* o_ptr, int lev, bool okay, bool good, bool great,
     }
 }
 
+#if 0
 /*
  * Hack -- determine if a template is "great".
  *
@@ -3355,7 +3357,9 @@ static bool kind_is_great(int k_idx)
     /* Assume not great */
     return (false);
 }
+#endif
 
+#if 0
 /*
  * Hack -- determine if a template is a chest.
  *
@@ -3380,6 +3384,7 @@ static bool kind_is_chest(int k_idx)
     /* Assume not chest */
     return (false);
 }
+#endif
 
 /*
  * Hack -- determine if a template is footwear.
@@ -3658,6 +3663,7 @@ static bool kind_is_weapon(int k_idx)
     return (false);
 }
 
+#if 0
 /*
  * Hack -- determine if a potion is good for a chest.
  * includes herb of restoring
@@ -3698,7 +3704,9 @@ static bool kind_is_potion(int k_idx)
     /* Assume not suitable */
     return (false);
 }
+#endif
 
+#if 0
 /*
  * Hack -- determine if a staff is good for a chest.
  *
@@ -3729,7 +3737,9 @@ static bool kind_is_staff(int k_idx)
     /* Assume not suitable for a chest */
     return (false);
 }
+#endif
 
+#if 0
 /*
  * Hack -- determine if a template is "jewelry for chests".
  *
@@ -3798,7 +3808,9 @@ static bool kind_is_jewelry(int k_idx)
     /* Assume not suitable for a chest */
     return (false);
 }
+#endif
 
+#if 0
 /*
  * Hack -- determine if a template is "good".
  *
@@ -3874,6 +3886,7 @@ static bool kind_is_good(int k_idx)
     /* Assume not good */
     return (false);
 }
+#endif
 
 /*
  * Attempt to make an object (normal or weighted quality)
@@ -6272,4 +6285,3 @@ void check_artifact_visibility(void)
     last_px = px;
     last_py = py;
 }
-

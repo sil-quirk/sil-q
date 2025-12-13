@@ -2355,7 +2355,7 @@ void screen_save(void)
         char buffer_content[256];
         byte* scr_story = Term->scr->story[0];
         int i;
-        int len = (Term->wid > 255) ? 255 : Term->wid;
+        int len = Term->wid;
         for (i = 0; i < len && i < 80; i++)
         {
             char c = Term->scr->c[0][i];
@@ -2401,7 +2401,7 @@ void screen_load(void)
         char buffer_content[256];
         byte* scr_story = Term->scr->story[0];
         int i;
-        int len = (Term->wid > 255) ? 255 : Term->wid;
+        int len = Term->wid;
         for (i = 0; i < len && i < 80; i++)
         {
             char c = Term->scr->c[0][i];
@@ -2454,7 +2454,7 @@ void c_prt(byte attr, cptr str, int row, int col)
             char buffer_content[256];
             byte* scr_story = Term->scr->story[0];
             int i;
-            int len = (Term->wid > 255) ? 255 : Term->wid;
+            int len = Term->wid;
             for (i = 0; i < len && i < 80; i++)
             {
                 char c = Term->scr->c[0][i];
@@ -2489,7 +2489,7 @@ void c_prt(byte attr, cptr str, int row, int col)
         char buffer_content[256];
         byte* scr_story = Term->scr->story[0];
         int i;
-        int len = (Term->wid > 255) ? 255 : Term->wid;
+        int len = Term->wid;
         for (i = 0; i < len && i < 80; i++)
         {
             char c = Term->scr->c[0][i];
@@ -3441,7 +3441,7 @@ bool get_check_oath_multiline(cptr prompt)
                 if (*desc_ptr == ' ') {
                     /* Potential break point */
                     if (line_len > 0 && line_len + 1 < max_width) {
-                        strncpy(line_buffer, line_start, line_len);
+                        memcpy(line_buffer, line_start, (size_t)line_len);
                         line_buffer[line_len] = '\0';
                     }
                 }
@@ -3461,7 +3461,7 @@ bool get_check_oath_multiline(cptr prompt)
             /* Copy the line */
             int actual_len = desc_ptr - line_start;
             if (actual_len > 79) actual_len = 79;
-            strncpy(line_buffer, line_start, actual_len);
+            memcpy(line_buffer, line_start, (size_t)actual_len);
             line_buffer[actual_len] = '\0';
             
             /* Remove trailing space */
@@ -4821,7 +4821,6 @@ int color_text_to_attr(cptr name)
     /* We can not find it */
     return (-1);
 }
-
 
 
 

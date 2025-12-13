@@ -2097,7 +2097,7 @@ int abilities_menu2(int skilltype, int* highlight)
             Term_putstr(COL_ABILITY, display_row, -1, TERM_L_BLUE, buf);
 
             // print the description of the highlighted ability
-            if (b_ptr->text >= 0)
+            /* (ability_type::text is an offset, so it's always non-negative) */
             {
                 /* Check if this is a broken oath ability and use Q: text instead */
                 char* description_text = NULL;
@@ -16582,7 +16582,6 @@ void show_unified_sidebar(unified_look_state* state)
     previous_line_count = current_line_count;
     log_trace("show_unified_sidebar: function complete, set previous_line_count=%d", previous_line_count);
 }
-
 
 
 

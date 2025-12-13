@@ -4505,6 +4505,7 @@ bool target_set_interactive(int mode, int range)
 
                 y = py;
                 x = px;
+                __attribute__((fallthrough));
             }
 
             case 'm':
@@ -4676,6 +4677,7 @@ bool target_set_interactive(int mode, int range)
 
                 y = py;
                 x = px;
+                __attribute__((fallthrough));
             }
 
             case 'a':
@@ -5955,7 +5957,7 @@ void apply_quest_rewards(int quest_idx)
     }
     
     /* Apply special ability */
-    if (q_ptr->ability_type > 0 && q_ptr->ability_id >= 0) {
+    if (q_ptr->ability_type > 0 && q_ptr->ability_id < ABILITIES_MAX) {
         /* ability_type 8 is the Special skill type (S_SPC) based on quest.txt */
         if (q_ptr->ability_type == 8) {
             /* Grant the special ability using the ability_id from quest.txt */
@@ -6440,10 +6442,10 @@ static void display_wrapped_text(int col, int *row, cptr text, byte color, int m
             
             log_trace("WRAP: word_len=%d, word_start=%d", word_len, word_start);
             
-            if (word_len > 0 && word_len < sizeof(word)) {
+            if (word_len > 0 && word_len < (int)sizeof(word)) {
                 /* Copy the word manually to avoid buffer issues */
                 int copy_len = word_len;
-                if (copy_len >= sizeof(word)) copy_len = sizeof(word) - 1;
+                if (copy_len >= (int)sizeof(word)) copy_len = (int)sizeof(word) - 1;
                 
                 /* Manual copy to avoid strncpy issues */
                 int j;
@@ -6721,7 +6723,7 @@ static cptr get_quest_reward_text(int quest_idx)
     }
     
     /* Check special abilities */
-    if (q_ptr->ability_type && q_ptr->ability_id >= 0) {
+    if (q_ptr->ability_type && q_ptr->ability_id < ABILITIES_MAX) {
         if (has_rewards) SDL_strlcat(reward_buf, "| ", sizeof(reward_buf));
         has_rewards = true;
         
@@ -9235,11 +9237,6 @@ void grant_unique_bane_ability(void)
     p_ptr->update |= (PU_BONUS);
     handle_stuff();
 }
-
-
-
-
-
 
 
 

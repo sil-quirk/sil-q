@@ -2792,8 +2792,7 @@ static void story_render_inventory_entry(int row, int base_col, int label_col,
     byte weight_attr, cptr label_text, byte label_attr, const object_type* o_ptr,
     bool highlight, int story_term_w)
 {
-    /* Always use 80 columns to match standard terminal layout */
-    int highlight_cols = 80;
+    int highlight_cols = (story_term_w > 0) ? story_term_w : 80;
     const int label_width = 6;
 
     Term_erase(base_col, row, 255);
@@ -2826,8 +2825,7 @@ static void story_render_equipment_entry(int row, int col, int slot, cptr prefix
     cptr weight_text, byte weight_attr, cptr label_text, byte label_attr,
     const object_type* o_ptr, bool highlight, int story_term_w)
 {
-    /* Always use 80 columns to match standard terminal layout */
-    int highlight_cols = 80;
+    int highlight_cols = (story_term_w > 0) ? story_term_w : 80;
     const int label_width = 6;
     int label_col = display_weights ? 78 : 71;
     bool has_object = (o_ptr && o_ptr->k_idx);
@@ -2868,8 +2866,7 @@ static void draw_equipment_story_rows(int col, int entry_count, int* out_index,
     int highlight_index, bool display_weights, int story_term_w)
 {
     int label_col_base = display_weights ? 78 : 71;
-    /* Always use 80 columns to match standard terminal layout */
-    int highlight_cols = 80;
+    int highlight_cols = (story_term_w > 0) ? story_term_w : 80;
     const int label_width = 6;
 
     log_trace("draw_equipment_story_rows: entry_count=%d, highlight_active=%d, highlight_index=%d",
@@ -6837,7 +6834,6 @@ bool player_can_treat_as_throwing(const object_type* o_ptr)
 
 #undef MAX_COMPARE_LINES
 #undef MAX_IDENT_ENTRIES
-
 
 
 

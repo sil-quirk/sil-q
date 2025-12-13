@@ -1289,7 +1289,7 @@ extern void window_stuff(void);
 extern void handle_stuff(void);
 extern int weight_limit(void);
 extern void calc_voice(void);
-extern bool weapon_glows(object_type* o_ptr);
+extern bool weapon_glows(const object_type* o_ptr);
 extern byte object_display_color(const object_type* o_ptr, byte base_color);
 extern void calc_torch(void);
 extern int ability_bonus(int skilltype, int abilitynum);
@@ -1499,7 +1499,6 @@ extern void sdl_story_font_set_grid(bool grid);
 extern bool sdl_is_story_font_grid(void);
 extern int sdl_story_font_text_width(cptr text, int len);
 extern int sdl_get_cell_width(void);
-
 
 
 

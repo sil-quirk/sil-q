@@ -231,6 +231,7 @@ void resize(const SDL_Rect* screen)
 
 static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
 {
+    (void)st;
     if (ev->type == SDL_EVENT_QUIT) {
         Term_keypress(27); // ESC or define a quit signal
     } else if (ev->type == SDL_EVENT_KEY_DOWN) {
@@ -1866,5 +1867,4 @@ static void sdl_render_story_text_grid(sdl_view* d, int x, int y, int n, const c
         SDL_DestroySurface(glyph_surface);
     }
 }
-
 

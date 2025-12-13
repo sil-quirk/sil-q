@@ -776,7 +776,7 @@ static void do_qual_squelch(void)
 #define AMULET_INDEX 19
     /* - open chest TVAL in defines*/
 
-    char squelch_str[7] = "NCVGWAO";
+    const char squelch_str[] = "NCVGWAO";
 
     int old_index = -1;
     int display_all = 1;
@@ -2017,7 +2017,6 @@ char* squelch_to_label(int squelch)
 
     return ("");
 }
-
 
 
 

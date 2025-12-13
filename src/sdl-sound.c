@@ -64,7 +64,6 @@ static char g_sound_config_path[1024]; /* Path to sound.json */
 static void sdl_sound_reset_bank(void);
 static bool sdl_sound_load_from_config(const struct sound_config* config);
 static bool sdl_sound_scan_folder(const char* folder_path, char files[][SDL_SOUND_NAME_LEN], int* file_count, int max_files);
-static char* sdl_sound_trim(char* text);
 static bool sdl_sound_is_audio_file(const char* filename);
 static void sdl_sound_build_path(const char* base_path, char* dst, size_t dst_len);
 static void sdl_sound_clear_streams(void);
@@ -340,18 +339,6 @@ static bool sdl_sound_track_stream(SDL_AudioStream* stream)
     return true;
 }
 
-static char* sdl_sound_trim(char* text)
-{
-    char* start = text;
-    while (*start && isspace((unsigned char)*start)) start++;
-    char* end = start + strlen(start);
-    while (end > start && isspace((unsigned char)*(end - 1))) {
-        end--;
-    }
-    *end = '\0';
-    return start;
-}
-
 static SDL_AudioFormat sdl_sound_parse_format(const char* format_str)
 {
     if (!format_str || !format_str[0]) {
@@ -605,7 +592,6 @@ void sdl_music_update(void)
     // Check and refill main music stream if needed
     if (sound_state.music_main_stream && sound_state.music_main_buffer) {
         int queued = SDL_GetAudioStreamQueued(sound_state.music_main_stream);
-        int available = SDL_GetAudioStreamAvailable(sound_state.music_main_stream);
         
         // Refill if stream is getting low (less than 0.5 seconds of audio)
         if (queued < (sound_state.device_spec.freq * sound_state.device_spec.channels * 2)) {
@@ -620,7 +606,6 @@ void sdl_music_update(void)
     // Check and refill ambient music stream if needed
     if (sound_state.music_ambient_stream && sound_state.music_ambient_buffer) {
         int queued = SDL_GetAudioStreamQueued(sound_state.music_ambient_stream);
-        int available = SDL_GetAudioStreamAvailable(sound_state.music_ambient_stream);
         
         // Refill if stream is getting low (less than 0.5 seconds of audio)
         if (queued < (sound_state.device_spec.freq * sound_state.device_spec.channels * 2)) {

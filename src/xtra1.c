@@ -2154,7 +2154,7 @@ int hate_level(int y, int x, int multiplier)
 /*
  * Determine whether a melee weapon is glowing in response to nearby enemies
  */
-bool weapon_glows(object_type* o_ptr)
+bool weapon_glows(const object_type* o_ptr)
 {
     int total_hate = 0;
     int i;
@@ -4531,7 +4531,6 @@ void handle_stuff(void)
 
     log_trace("handle_stuff: completed");
 }
-
 
 
 

@@ -2030,10 +2030,12 @@ bool save_player(void)
 
         /* Preserve old savefile if it exists */
         /* Check if old savefile exists first (important for first-time saves) */
+        bool had_old_savefile = false;
         SDL_IOStream* old_fd = sdl_fopen(savefile, "rb");
         if (old_fd)
         {
             /* Old file exists, close it and preserve it */
+            had_old_savefile = true;
             sdl_fclose(old_fd);
             log_debug("Old savefile exists, preserving it as .old");
             
@@ -2055,7 +2057,7 @@ bool save_player(void)
         {
             log_error("Failed to activate new savefile - attempting to restore old");
             /* Try to restore the old file if it existed */
-            if (old_fd >= 0)
+            if (had_old_savefile)
             {
                 fd_move(temp, savefile);
             }
@@ -2117,7 +2119,6 @@ bool save_player(void)
     }
     return (result);
 }
-
 
 
 

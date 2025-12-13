@@ -380,27 +380,6 @@ cptr option_text[OPT_MAX] = {
     "score_live", /* OPT_score_live */
     NULL, /* xxx */
     NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
     NULL /* xxx */
 };
 
@@ -641,11 +620,6 @@ cptr option_desc[OPT_MAX] = {
     "Score: Peek into something else", /* OPT_score_xtra */
     "Score: Know complete monster info", /* OPT_score_know */
     "Score: Allow player to avoid death", /* OPT_score_live */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -927,8 +901,6 @@ const bool option_norm[OPT_MAX] = {
     false, /* xxx */
     false, /* xxx */
     false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
     false /* xxx */
 };
 
@@ -1092,5 +1064,3 @@ byte spell_desire_RF4[32][2] = {
     { 0, 100 }, /* RF4_XXX31 */
     { 0, 100 } /* RF4_XXX32 */
 };
-
-
