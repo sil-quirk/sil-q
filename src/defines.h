@@ -201,6 +201,7 @@
  * Ego item indices for special handling
  */
 #define EGO_FLICKERING_SHADOW 135  /* Jinx ego: of Flickering Shadow */
+#define EGO_GRACE 75 /* Ego: of Grace (lesser jewels / mithril helms) */
 
 /*
  * Depth-based wall graphics configuration
@@ -1181,6 +1182,7 @@
 #define DROP_TYPE_DIGGING 16
 
 #define DROP_TYPE_DAMAGED 17
+#define DROP_TYPE_TORCHES 18
 
 /*** Object "tval" and "sval" codes ***/
 
@@ -3724,5 +3726,3 @@ extern metarun metar;      /* current run, defined in metarun.c */
 extern int     meta_fd;   /* open descriptor to meta.raw */
 
 #define STORY_PARTS   3
-
-

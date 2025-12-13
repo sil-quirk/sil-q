@@ -2278,14 +2278,17 @@ void drop_loot(monster_type* m_ptr)
         // Normally just go for a torch
         else
         {
-            /* Hack	-- Give the player an object */
-            /* Get the object_kind */
-            s16b k_idx = lookup_kind(TV_LIGHT, SV_LIGHT_TORCH);
-
-            /* Prepare the item */
-            object_prep(i_ptr, k_idx);
-
-            i_ptr->timeout = rand_range(500, 3000);
+            /* Use unified misc/torches drop logic (A: schedule gating + min-depth penalty). */
+            int depth_cap = (p_ptr->depth > 0) ? p_ptr->depth : 1;
+            int gen_depth = MIN(r_ptr->level, depth_cap);
+            if (!drop_generate_object(gen_depth, DROP_QUALITY_NORMAL, DROP_TYPE_TORCHES,
+                    false, i_ptr))
+            {
+                /* Fallback: always try to give a basic torch */
+                s16b k_idx = lookup_kind(TV_LIGHT, SV_LIGHT_TORCH);
+                object_prep(i_ptr, k_idx);
+                apply_magic(i_ptr, gen_depth, false, false, false, false);
+            }
         }
 
         /* Assume seen XXX XXX XXX */
@@ -9232,7 +9235,6 @@ void grant_unique_bane_ability(void)
     p_ptr->update |= (PU_BONUS);
     handle_stuff();
 }
-
 
 
 

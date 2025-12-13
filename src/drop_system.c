@@ -61,7 +61,7 @@ static const s16b jinx_egos[] = {
 
 static const char* DROP_RAW_FILE = "drops";
 static const u32b DROP_RAW_MAGIC = 0x44525053; /* 'DRPS' */
-static const u32b DROP_RAW_VERSION = 4;
+static const u32b DROP_RAW_VERSION = 6;
 
 typedef struct
 {
@@ -160,13 +160,13 @@ static drop_category drop_category_for_kind(const object_kind* k_ptr)
     case TV_AMULET:
         return DROP_CAT_JEWELRY;
     case TV_LIGHT:
-        if (k_ptr->sval == SV_LIGHT_TORCH || k_ptr->sval == SV_LIGHT_MALLORN)
-            return DROP_CAT_SUPPLY;
-        else if (k_ptr->sval == SV_LIGHT_LANTERN || k_ptr->sval == SV_LIGHT_LESSER_JEWEL
-            || k_ptr->sval == SV_LIGHT_FEANORIAN || k_ptr->sval == SV_LIGHT_SILMARIL)
+        /* All non-Feanorian light sources are treated as supply (misc/torches). */
+        if (k_ptr->sval == SV_LIGHT_FEANORIAN || k_ptr->sval == SV_LIGHT_SILMARIL)
             return DROP_CAT_JEWELRY;
-        else
-            return DROP_CAT_MAX;
+        if (k_ptr->sval == SV_LIGHT_TORCH || k_ptr->sval == SV_LIGHT_MALLORN
+            || k_ptr->sval == SV_LIGHT_LANTERN || k_ptr->sval == SV_LIGHT_LESSER_JEWEL)
+            return DROP_CAT_SUPPLY;
+        return DROP_CAT_MAX;
     case TV_HORN:
         return DROP_CAT_JEWELRY;
     case TV_POTION:
@@ -861,6 +861,13 @@ static void add_drop_entry(const object_type* proto, drop_category cat,
     if (group_kind == DROP_GROUP_NORMAL && k_ptr->tval == TV_ARROW)
         cat = DROP_CAT_SUPPLY;
 
+    /* Special case: Lesser Jewel of Grace stays in jewelry */
+    if (k_ptr->tval == TV_LIGHT && k_ptr->sval == SV_LIGHT_LESSER_JEWEL
+        && proto->name2 == EGO_GRACE)
+    {
+        cat = DROP_CAT_JEWELRY;
+    }
+
     if (g_drop_count + 1 > g_drop_capacity)
     {
         size_t new_cap = (g_drop_capacity == 0) ? 1024 : g_drop_capacity * 2;
@@ -1225,6 +1232,7 @@ static void build_ego_variants(int e_idx)
             case TV_BOW:
                 att_max = k_ptr->att + 1 + e_ptr->max_att;
                 ds_max = k_ptr->ds + 1 + e_ptr->to_ds;
+                evn_max = k_ptr->evn + e_ptr->max_evn;
                 break;
             case TV_BOOTS:
             case TV_GLOVES:
@@ -1735,6 +1743,10 @@ static bool droptype_matches(const drop_request* req, const drop_entry* e)
         return e->obj.tval == TV_POTION;
     case DROP_TYPE_STAFF:
         return (e->obj.tval == TV_STAFF || e->obj.tval == TV_GEM);
+    case DROP_TYPE_TORCHES:
+        return e->obj.tval == TV_LIGHT
+            && (e->obj.sval == SV_LIGHT_TORCH || e->obj.sval == SV_LIGHT_MALLORN
+                || e->obj.sval == SV_LIGHT_LANTERN || e->obj.sval == SV_LIGHT_LESSER_JEWEL);
     default:
         return true;
     }
@@ -2010,22 +2022,49 @@ static drop_entry* choose_entry_from_group(drop_entry* entries,
 static drop_entry* choose_supply_entry(drop_entry* entries, size_t count,
     int depth, const drop_request* req)
 {
-    drop_entry* bucket[DROP_SUPPLY_GROUP_MAX][1024];
-    int bucket_counts[DROP_SUPPLY_GROUP_MAX] = { 0 };
+    typedef struct
+    {
+        drop_entry** items;
+        int count;
+        int cap;
+    } supply_bucket;
+
+    supply_bucket buckets[DROP_SUPPLY_GROUP_MAX];
     int bucket_weights[DROP_SUPPLY_GROUP_MAX] = { 0 };
+    for (int gid = 0; gid < DROP_SUPPLY_GROUP_MAX; gid++)
+    {
+        buckets[gid].items = NULL;
+        buckets[gid].count = 0;
+        buckets[gid].cap = 0;
+    }
 
     for (size_t i = 0; i < count; i++)
     {
         drop_entry* e = &entries[i];
         drop_supply_group_id gid = supply_group_for_entry(e);
-        int idx = bucket_counts[gid]++;
-        bucket[gid][idx] = e;
+        supply_bucket* b = &buckets[gid];
+        if (b->count + 1 > b->cap)
+        {
+            int new_cap = (b->cap == 0) ? 64 : b->cap * 2;
+            if (new_cap < b->count + 1)
+                new_cap = b->count + 1;
+            drop_entry** new_items = (drop_entry**)SDL_realloc(b->items, new_cap * sizeof(*new_items));
+            if (!new_items)
+            {
+                for (int j = 0; j < DROP_SUPPLY_GROUP_MAX; j++)
+                    mem_free_null(buckets[j].items);
+                return NULL;
+            }
+            b->items = new_items;
+            b->cap = new_cap;
+        }
+        b->items[b->count++] = e;
     }
 
     int total_group_weight = 0;
     for (int gid = 0; gid < DROP_SUPPLY_GROUP_MAX; gid++)
     {
-        if (bucket_counts[gid] == 0)
+        if (buckets[gid].count == 0)
             continue;
         int w = (req) ? req->supply_weights[gid] : DROP_DEFAULT_SUPPLY_WEIGHT;
         if (w <= 0)
@@ -2034,13 +2073,17 @@ static drop_entry* choose_supply_entry(drop_entry* entries, size_t count,
         total_group_weight += w;
     }
     if (total_group_weight == 0)
+    {
+        for (int gid = 0; gid < DROP_SUPPLY_GROUP_MAX; gid++)
+            mem_free_null(buckets[gid].items);
         return NULL;
+    }
 
     int pick_group = rand_int(total_group_weight);
     int chosen_gid = DROP_SUPPLY_GROUP_MAX - 1;
     for (int gid = 0, acc = 0; gid < DROP_SUPPLY_GROUP_MAX; gid++)
     {
-        if (bucket_counts[gid] == 0)
+        if (buckets[gid].count == 0)
             continue;
         acc += bucket_weights[gid];
         if (pick_group < acc)
@@ -2050,11 +2093,19 @@ static drop_entry* choose_supply_entry(drop_entry* entries, size_t count,
         }
     }
 
-    int item_weights[256];
-    int total_item_weight = 0;
-    for (int i = 0; i < bucket_counts[chosen_gid]; i++)
+    supply_bucket* chosen_bucket = &buckets[chosen_gid];
+    int* item_weights = mem_alloc_array(chosen_bucket->count, int);
+    if (!item_weights)
     {
-        drop_entry* e = bucket[chosen_gid][i];
+        for (int gid = 0; gid < DROP_SUPPLY_GROUP_MAX; gid++)
+            mem_free_null(buckets[gid].items);
+        return NULL;
+    }
+
+    int total_item_weight = 0;
+    for (int i = 0; i < chosen_bucket->count; i++)
+    {
+        drop_entry* e = chosen_bucket->items[i];
         int rarity_weight = group_rarity_at_depth(e, depth);
         if (rarity_weight <= 0)
         {
@@ -2066,16 +2117,29 @@ static drop_entry* choose_supply_entry(drop_entry* entries, size_t count,
         total_item_weight += w;
     }
     if (total_item_weight <= 0)
+    {
+        mem_free_null(item_weights);
+        for (int gid = 0; gid < DROP_SUPPLY_GROUP_MAX; gid++)
+            mem_free_null(buckets[gid].items);
         return NULL;
+    }
 
     int pick_item = rand_int(total_item_weight);
-    for (int i = 0, acc = 0; i < bucket_counts[chosen_gid]; i++)
+    drop_entry* chosen = chosen_bucket->items[chosen_bucket->count - 1];
+    for (int i = 0, acc = 0; i < chosen_bucket->count; i++)
     {
         acc += item_weights[i];
         if (pick_item < acc)
-            return bucket[chosen_gid][i];
+        {
+            chosen = chosen_bucket->items[i];
+            break;
+        }
     }
-    return bucket[chosen_gid][bucket_counts[chosen_gid] - 1];
+
+    mem_free_null(item_weights);
+    for (int gid = 0; gid < DROP_SUPPLY_GROUP_MAX; gid++)
+        mem_free_null(buckets[gid].items);
+    return chosen;
 }
 
 static void log_drop_attempt(const drop_request* req, size_t strict_count,
@@ -2363,6 +2427,7 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
         break;
     case DROP_TYPE_POTION:
     case DROP_TYPE_STAFF:
+    case DROP_TYPE_TORCHES:
         req.cat = DROP_CAT_SUPPLY;
         req.is_supply = true;
         break;
@@ -2372,6 +2437,15 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     }
     if (req.cat == DROP_CAT_SUPPLY)
         req.is_supply = true;
+
+    if (droptype == DROP_TYPE_TORCHES)
+    {
+        req.supply_weights[DROP_SUPPLY_POTION] = 0;
+        req.supply_weights[DROP_SUPPLY_HERB] = 0;
+        req.supply_weights[DROP_SUPPLY_GEM] = 0;
+        req.supply_weights[DROP_SUPPLY_STAFF] = 0;
+        req.supply_weights[DROP_SUPPLY_MISC] = 100;
+    }
 
     drop_entry* candidates = NULL;
     size_t cand_count = 0;

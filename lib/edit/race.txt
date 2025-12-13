@@ -57,7 +57,7 @@ C:1|4|5|36|38|39|40|41|46
 F:SMT_AFFINITY | MEL_AFFINITY | WIL_AFFINITY | PER_AFFINITY | SNG_AFFINITY | CURSE
 E:39:0:3:3     # ~ Wooden Torches (3)
 E:80:37:3:3    # , Fragment of Lembas (3)
-E:23:7:1:1     # | Curved sword (1)
+E:23:10:1:1    # | Short sword (1)
 D:Proud-hearted sons of flame, heirs bound eternally by their father's 
 D:relentless Oath, pursuing stolen Jewels through ruin and despair. 
 D:Noble in pride yet shadowed by deeds darkened by betrayal and grief; 
@@ -76,7 +76,7 @@ C:2|6|7|10|11|31|43
 F:WIL_AFFINITY | MEL_AFFINITY | PER_AFFINITY | EVN_AFFINITY | ARC_AFFINITY | CURSE
 E:39:0:3:3     # ~ Wooden Torches (3)
 E:80:37:3:3    # , Fragment of Lembas (3)
-E:23:7:1:1     # | Curved sword (1)
+E:23:10:1:1    # | Short sword (1)
 D:Valiant and steadfast people, following Fingolfin’s bright banner 
 D:through cold Helcaraxe’s treacherous ice to realms darkened by war. 
 D:Their courage tested against Morgoth's might beneath northern skies, 
@@ -95,7 +95,7 @@ C:3|8|9|32|42|47|48|49
 F:SNG_AFFINITY | PER_AFFINITY | WIL_AFFINITY
 E:39:0:3:3     # ~ Wooden Torches (3)
 E:80:37:3:3    # , Fragment of Lembas (3)
-E:23:7:1:1     # | Curved sword (1)
+E:23:10:1:1    # | Short sword (1)
 D:Fair and wise, children of the gentle-hearted Finarfin, golden-haired, 
 D:guided by wisdom rather than wrath, yet sharing kin's tragic exile. 
 D:Builders of bright kingdoms soon to fall, guardians of ancient songs, 
@@ -114,7 +114,7 @@ C:12|13|14|15|16|17|33|34|35|37
 F:SNG_AFFINITY | PER_AFFINITY | WIL_AFFINITY | ARC_AFFINITY | SMT_AFFINITY
 E:39:0:3:3     # ~ Wooden Torches (3)
 E:80:37:3:3    # , Fragment of Lembas (3)
-E:23:7:1:1     # | Curved sword (1)
+E:23:10:1:1    # | Short sword (1)
 D:Grey-Elves, children of twilight, who lingered beneath starlit skies, 
 D:wandering forests under shadows of Beleriand, guarded by secrecy. 
 D:Melodious speech shaping beauty and sorrow into songs of twilight, 
@@ -133,7 +133,7 @@ C:18|19|20|21|22
 F:AXE_PROFICIENCY | ARC_PENALTY | SMT_AFFINITY | MEL_AFFINITY 
 E:39:0:3:3     # ~ Wooden Torches (3)
 E:80:35:5:5    # , Pieces of Dark Bread (5)
-E:23:7:1:1     # | Curved sword (1)
+E:23:4:1:1     # | Dagger (1)
 D:Hardy smith-folk dwelling beneath mountains, masters of stone and metal, 
 D:crafting marvels in deep halls, secretive yet fiercely loyal friends. 
 D:Hearts bound to treasures glittering beneath earth, pride and greed entwined, 
@@ -152,7 +152,7 @@ C:23|24|25|26|27|28|29|30|44|45
 F:MEL_AFFINITY | WIL_AFFINITY | GIFTERU
 E:39:0:3:3     # ~ Wooden Torches (3)
 E:80:35:5:5    # , Pieces of Dark Bread (5)
-E:23:7:1:1     # | Curved sword (1)
+E:23:4:1:1     # | Dagger (1)
 D:Mortal children, whose brief lives shine bravely amid shadows of Eldar; 
 D:their hearts bound fiercely to freedom, defying doom and dark despair. 
 D:Heroes born amid ruin, whose strength will challenge Morgoth's shadow, 

@@ -81,6 +81,16 @@ Added code to restore mithril-specific flags after base subtraction in cmd4.c:
 - Jewelry/lanterns/horns are treated as jewelry category (no supply override), still grouped as EGO for drop grouping; jewelry now uses the normal variant builder instead of per-A entries.
 - Ego drop penalty depth now uses max(min base depth, min ego depth) to avoid under-penalising shallow egos on deep-only bases; lights/staves/gems regain runtime fuel/charges/stack rolls on generation (torches/lanterns no longer spawn empty; throwing items can spawn in small stacks again).
 
+## 2025-12-12: Lights -> Misc/Torches + Auto-ID Fix
+- `src/drop_system.c`: lanterns + lesser jewels now generate as supply misc (torches group); Feanorian lamp stays jewelry; Lesser Jewel `EGO_GRACE` stays jewelry; bumped `DROP_RAW_VERSION` to 5.
+- `src/drop_system.c`: fixed potential overflow/crash in supply selection by removing fixed-size buckets in `choose_supply_entry()`.
+- `src/generate.c` + `src/xtra2.c`: replaced hardcoded torch drops with `DROP_TYPE_TORCHES` so placement uses the unified drop catalog rules.
+- `src/cmd1.c`: restored auto-identification when an ego/artefact increases a pval on a base that already has the same pval-flag (e.g. Shadow Cloak + extra stealth).
+
+## 2025-12-12: Weapon Ego Evasion Fixes
+- `src/drop_system.c`: fixed weapon ego variants ignoring `max_evn` (e.g. `(Defender)` now always spawns with its evasion bonus); bumped `DROP_RAW_VERSION` to 6.
+- `lib/edit/special.txt`: restored `of Accompaniment` to use `max_evn=2` and corrected the ability back to `B:0/11` (previously malformed/mis-shifted fields resulted in `+0` evasion).
+
 # Session Notes
 
 # Session Notes

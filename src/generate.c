@@ -1763,21 +1763,16 @@ static void scatter_cave_gems_in_bounds(int y1, int y2, int x1, int x2, bool is_
                 if (!cave_floor_bold(gy, gx)) continue;
                 if (cave_o_idx[gy][gx] != 0) continue;
 
-                /* Randomly choose between wooden and mallorn torches */
-                byte torch_sval = one_in_(2) ? SV_LIGHT_TORCH : SV_LIGHT_MALLORN;
-                s16b k_idx = lookup_kind(TV_LIGHT, torch_sval);
-                if (!k_idx) break;
-
                 object_type object_type_body;
                 object_type *i_ptr = &object_type_body;
                 object_wipe(i_ptr);
-                object_prep(i_ptr, k_idx);
-                apply_magic(i_ptr, depth, false, false, false, false);
-                if (i_ptr->timeout <= 0)
-                    i_ptr->timeout = rand_range(FUEL_TORCH / 2, FUEL_TORCH);
-                i_ptr->number = 1;
-                drop_near(i_ptr, -1, gy, gx);
-                torch_placed++;
+
+                if (drop_generate_object(depth, DROP_QUALITY_NORMAL, DROP_TYPE_TORCHES,
+                        false, i_ptr))
+                {
+                    drop_near(i_ptr, -1, gy, gx);
+                    torch_placed++;
+                }
             }
         }
     }
