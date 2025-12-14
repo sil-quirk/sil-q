@@ -95,6 +95,10 @@ static void sdl_story_font_reset_state(void);
 static void sdl_render_mono_text(sdl_view* d, int x, int y, int n, const char* s, SDL_Color col);
 static void sdl_render_story_text_free(sdl_view* d, int x, int y, int n, const char* s, SDL_Color col);
 static void sdl_render_story_text_grid(sdl_view* d, int x, int y, int n, const char* s, SDL_Color col);
+static int sdl_render_story_text_free_px(sdl_view* d, float x_px, int y, const char* s, int n, SDL_Color col,
+    float max_w_px);
+static void sdl_render_story_row_packed(sdl_view* d, int y, const byte* story_row, const char* row_chars,
+    const byte* row_attr);
 static void draw_cursor(int x, int y, bool big);
 static errr callback_sdl_curs(int x, int y);
 static errr callback_sdl_bigcurs(int x, int y);
@@ -651,6 +655,15 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
 
     if (story_mode) {
         if (story_row) {
+            /* Story "free" text must be pixel-packed across color runs.
+             * Rendering per-cell or per-run leaves large gaps with proportional fonts. */
+            if (row_chars && row_attr)
+            {
+                sdl_render_story_row_packed(d, y, story_row, row_chars, row_attr);
+                g_state.need_present = true;
+                return 0;
+            }
+
             int offset = 0;
             while (offset < n && (x + offset) < Term->wid) {
                 int term_col = x + offset;
@@ -1818,6 +1831,226 @@ static void sdl_render_story_text_free(sdl_view* d, int x, int y, int n, const c
     SDL_DestroySurface(text_surface);
 }
 
+static int sdl_render_story_text_free_px(sdl_view* d, float x_px, int y, const char* s, int n, SDL_Color col,
+    float max_w_px)
+{
+    if (!d || !g_state.story_font || !s || n <= 0)
+        return 0;
+
+    char text_buf[256];
+    int len = (n < 255) ? n : 255;
+    for (int i = 0; i < len; i++)
+    {
+        unsigned char ch = (unsigned char)s[i];
+        text_buf[i] = (ch ? (char)ch : ' ');
+    }
+    text_buf[len] = '\0';
+
+    SDL_Surface* text_surface = TTF_RenderText_Blended(g_state.story_font, text_buf, 0, col);
+    if (!text_surface)
+        return 0;
+
+    int adv_w_unscaled = 0;
+    TTF_MeasureString(g_state.story_font, text_buf, len, 0, &adv_w_unscaled, NULL);
+
+    float cell_h_f = (float)d->cell_h;
+    float surf_h_f = (float)text_surface->h;
+    float scale = (surf_h_f > 0.0f) ? (cell_h_f / surf_h_f) : 1.0f;
+    float advance_w = (float)adv_w_unscaled * scale;
+    float render_w = (float)text_surface->w * scale;
+
+    if (max_w_px > 0.0f && render_w > max_w_px)
+        render_w = max_w_px;
+    if (max_w_px > 0.0f && advance_w > max_w_px)
+        advance_w = max_w_px;
+
+    SDL_Texture* text_texture = SDL_CreateTextureFromSurface(g_state.renderer, text_surface);
+    if (text_texture)
+    {
+        SDL_FRect dst = {
+            x_px,
+            (float)(y * d->cell_h),
+            render_w,
+            cell_h_f
+        };
+
+        SDL_SetTextureBlendMode(text_texture, SDL_BLENDMODE_BLEND);
+        SDL_RenderTexture(g_state.renderer, text_texture, NULL, &dst);
+        SDL_DestroyTexture(text_texture);
+    }
+
+    SDL_DestroySurface(text_surface);
+    return (int)advance_w;
+}
+
+static bool sdl_story_cell_is_text(byte a, char c)
+{
+    unsigned char uc = (unsigned char)c;
+
+    /* High-bit attr/char pairs are tiles and are handled by pict hook. */
+    if ((a & 0x80) && (uc & 0x80))
+        return false;
+
+    /* Bigtile second cell. */
+    if (a == 255 && uc == 0xFF)
+        return false;
+
+    return true;
+}
+
+static void sdl_render_story_row_packed(sdl_view* d, int y, const byte* story_row, const char* row_chars,
+    const byte* row_attr)
+{
+    if (!d || !g_state.story_font || !Term || !story_row || !row_chars || !row_attr)
+        return;
+
+    const int wid = Term->wid;
+    const float cell_w_f = (float)d->cell_w;
+    const float cell_h_f = (float)d->cell_h;
+
+    int x = 0;
+    while (x < wid)
+    {
+        /* Skip non-text cells (tiles) entirely to avoid clearing/overdrawing them. */
+        if (!sdl_story_cell_is_text(row_attr[x], row_chars[x]))
+        {
+            x++;
+            continue;
+        }
+
+        byte flags = story_row[x];
+        bool use_story = (flags & STORY_FLAG_USE) != 0;
+        bool grid_align = (flags & STORY_FLAG_CELL_ALIGN) != 0;
+        byte attr = row_attr[x];
+
+        int run_start = x;
+
+        if (!use_story)
+        {
+            while (x < wid)
+            {
+                if (!sdl_story_cell_is_text(row_attr[x], row_chars[x]))
+                    break;
+                byte f = story_row[x];
+                if ((f & STORY_FLAG_USE) != 0)
+                    break;
+                if (row_attr[x] != attr)
+                    break;
+                x++;
+            }
+
+            int run_len = x - run_start;
+            SDL_FRect clear_rect = { run_start * cell_w_f, y * cell_h_f, run_len * cell_w_f, cell_h_f };
+            SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+            SDL_RenderFillRect(g_state.renderer, &clear_rect);
+
+            SDL_Color col = {
+                angband_color_table[attr][1],
+                angband_color_table[attr][2],
+                angband_color_table[attr][3],
+                255
+            };
+            sdl_render_mono_text(d, run_start, y, run_len, row_chars + run_start, col);
+            continue;
+        }
+
+        if (grid_align)
+        {
+            while (x < wid)
+            {
+                if (!sdl_story_cell_is_text(row_attr[x], row_chars[x]))
+                    break;
+                byte f = story_row[x];
+                if ((f & STORY_FLAG_USE) == 0)
+                    break;
+                if ((f & STORY_FLAG_CELL_ALIGN) == 0)
+                    break;
+                if (row_attr[x] != attr)
+                    break;
+                x++;
+            }
+
+            int run_len = x - run_start;
+            SDL_FRect clear_rect = { run_start * cell_w_f, y * cell_h_f, run_len * cell_w_f, cell_h_f };
+            SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+            SDL_RenderFillRect(g_state.renderer, &clear_rect);
+
+            SDL_Color col = {
+                angband_color_table[attr][1],
+                angband_color_table[attr][2],
+                angband_color_table[attr][3],
+                255
+            };
+            sdl_render_story_text_grid(d, run_start, y, run_len, row_chars + run_start, col);
+            continue;
+        }
+
+        /* Free story region: pack segments by measured pixel width (including spaces). */
+        while (x < wid)
+        {
+            if (!sdl_story_cell_is_text(row_attr[x], row_chars[x]))
+                break;
+            byte f = story_row[x];
+            if ((f & STORY_FLAG_USE) == 0)
+                break;
+            if ((f & STORY_FLAG_CELL_ALIGN) != 0)
+                break;
+            x++;
+        }
+
+        int region_start = run_start;
+        int region_end = x;
+        if (region_end <= region_start)
+            continue;
+
+        SDL_FRect clear_rect = { region_start * cell_w_f, y * cell_h_f, (region_end - region_start) * cell_w_f,
+            cell_h_f };
+        SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+        SDL_RenderFillRect(g_state.renderer, &clear_rect);
+
+        float px_cursor = region_start * cell_w_f;
+        float px_end = region_end * cell_w_f;
+
+        int seg = region_start;
+        while (seg < region_end)
+        {
+            if (!sdl_story_cell_is_text(row_attr[seg], row_chars[seg]))
+            {
+                seg++;
+                continue;
+            }
+
+            byte seg_attr = row_attr[seg];
+            int seg_end = seg + 1;
+            while (seg_end < region_end && sdl_story_cell_is_text(row_attr[seg_end], row_chars[seg_end])
+                && row_attr[seg_end] == seg_attr)
+            {
+                seg_end++;
+            }
+
+            int seg_len = seg_end - seg;
+            SDL_Color seg_col = {
+                angband_color_table[seg_attr][1],
+                angband_color_table[seg_attr][2],
+                angband_color_table[seg_attr][3],
+                255
+            };
+
+            float remaining = px_end - px_cursor;
+            if (remaining <= 0.0f)
+                break;
+
+            int consumed = sdl_render_story_text_free_px(d, px_cursor, y, row_chars + seg, seg_len, seg_col,
+                remaining);
+            if (consumed <= 0)
+                break;
+
+            px_cursor += (float)consumed;
+            seg = seg_end;
+        }
+    }
+}
+
 static void sdl_render_story_text_grid(sdl_view* d, int x, int y, int n, const char* s, SDL_Color col)
 {
     if (!d || !g_state.story_font || n <= 0)
@@ -1867,4 +2100,3 @@ static void sdl_render_story_text_grid(sdl_view* d, int x, int y, int n, const c
         SDL_DestroySurface(glyph_surface);
     }
 }
-

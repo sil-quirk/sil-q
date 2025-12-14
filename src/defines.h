@@ -2635,6 +2635,10 @@
 #define OPT_story_lists_equip 78
 #define OPT_display_hits 79
 #define OPT_story_character_sheet 80
+#define OPT_story_lists_inven_pane 81
+#define OPT_story_lists_equip_pane 82
+#define OPT_story_monster_desc 83
+#define OPT_story_monster_desc_pane 84
 // xxx
 // xxx
 // xxx
@@ -2773,6 +2777,10 @@
 #define story_display_lists op_ptr->opt[OPT_story_lists]
 #define story_inventory_lists op_ptr->opt[OPT_story_lists_inven]
 #define story_equipment_lists op_ptr->opt[OPT_story_lists_equip]
+#define story_inventory_lists_pane op_ptr->opt[OPT_story_lists_inven_pane]
+#define story_equipment_lists_pane op_ptr->opt[OPT_story_lists_equip_pane]
+#define story_monster_desc_main op_ptr->opt[OPT_story_monster_desc]
+#define story_monster_desc_pane op_ptr->opt[OPT_story_monster_desc_pane]
 #define display_hits op_ptr->opt[OPT_display_hits]
 #define story_character_sheet op_ptr->opt[OPT_story_character_sheet]
 // xxx

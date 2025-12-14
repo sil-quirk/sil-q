@@ -6,6 +6,11 @@
 - `src/cmd4.c`: unified sidebar object section applies the new category filter and shows the active filter in the OBJECTS header.
 - `src/object1.c`: `display_inven()` / `display_equip()` now use `object_display_color()` (and glow handling) to match main inventory/equipment coloring (artefacts, etc.).
 - `src/generate.c`: added `place_partition_extra_monsters()` post-pass to top up monsters in non-roomy partitions (big caves/chasm/cavey/ruined/labyrinth) based on non-icky floor area, avoiding vault concentration and initial LOS.
+- Story fonts (main vs panes):
+  - Added new options: `story_lists_inven_pane`, `story_lists_equip_pane`, `story_monster_desc`, `story_monster_desc_pane` (`src/defines.h`, `src/tables.c`).
+  - Implemented per-term story font push/pop (`src/ui/story_font.c`) and switched inventory/equipment displays to use it instead of global SDL enable/disable (`src/object1.c`).
+  - Monster recall (`screen_roff`/`display_roff`) now supports story font in both main window and `PW_MONSTER` pane (`src/monster1.c`); options menu triggers immediate pane redraws (`src/cmd4.c`).
+- Story font alignment: free-mode story text is now pixel-packed across colored runs (fixes gaps like numbers/keywords drifting far right in monster recall and other mixed-color story text) (`src/main-sdl.c`).
 - Build: `build-cmake.bat` successful (standard + portable SDL3 builds).
 
 ## 2025-12-12: Skeleton Note Updates

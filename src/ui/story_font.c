@@ -83,10 +83,56 @@ int count_wrapped_lines_story(cptr str, int wrap_cols, int indent)
     return lines;
 }
 
-bool story_inventory_enabled(void) { return story_inventory_lists; }
-bool story_equipment_enabled(void) { return story_equipment_lists; }
+static bool story_term_is_main(void)
+{
+    return (Term && term_screen && (Term == term_screen));
+}
+
+bool story_inventory_enabled(void)
+{
+    return story_term_is_main() ? story_inventory_lists : story_inventory_lists_pane;
+}
+
+bool story_equipment_enabled(void)
+{
+    return story_term_is_main() ? story_equipment_lists : story_equipment_lists_pane;
+}
+
 bool story_look_enabled(void) { return story_display_lists; }
 bool story_character_enabled(void) { return story_character_sheet; }
+
+bool story_monster_desc_enabled(void)
+{
+    return story_term_is_main() ? story_monster_desc_main : story_monster_desc_pane;
+}
+
+void story_font_term_push(bool active, bool grid, story_font_term_state* prev)
+{
+    if (!prev)
+        return;
+
+    prev->t = Term;
+    prev->active = (Term ? Term->story_font_active : false);
+    prev->grid = (Term ? Term->story_font_grid : false);
+
+    if (Term)
+    {
+        Term->story_font_active = active;
+        Term->story_font_grid = grid;
+    }
+}
+
+void story_font_term_pop(story_font_term_state* prev)
+{
+    if (!prev)
+        return;
+
+    if (prev->t && Term == prev->t)
+    {
+        Term->story_font_active = prev->active;
+        Term->story_font_grid = prev->grid;
+    }
+}
 
 void text_out_to_screen_story(byte a, cptr str)
 {
@@ -192,11 +238,12 @@ static void story_print_text_internal(int row, int col, int max_cols, byte attr,
         log_trace("story_print_text: text_out_indent (BEFORE)=%d, text_out_wrap (BEFORE)=%d", text_out_indent,
             text_out_wrap);
 
-        bool previous_grid = sdl_is_story_font_grid();
+        bool previous_grid = (Term ? Term->story_font_grid : false);
         bool restore_grid = false;
         if (force_grid != previous_grid)
         {
-            sdl_story_font_set_grid(force_grid);
+            if (Term)
+                Term->story_font_grid = force_grid;
             restore_grid = true;
         }
 
@@ -230,8 +277,8 @@ static void story_print_text_internal(int row, int col, int max_cols, byte attr,
         text_out_wrap = old_wrap;
         text_out_hook = old_hook;
 
-        if (restore_grid)
-            sdl_story_font_set_grid(previous_grid);
+        if (restore_grid && Term)
+            Term->story_font_grid = previous_grid;
         return;
     }
 
@@ -255,17 +302,10 @@ void story_print_mono(int row, int col, byte attr, cptr text)
     if (!text)
         text = "";
 
-    bool reenable_story = false;
-    if (sdl_is_story_font_enabled())
-    {
-        sdl_story_font_disable();
-        reenable_story = true;
-    }
-
+    story_font_term_state prev;
+    story_font_term_push(false, (Term ? Term->story_font_grid : false), &prev);
     c_put_str(attr, text, row, col);
-
-    if (reenable_story)
-        sdl_story_font_enable();
+    story_font_term_pop(&prev);
 }
 
 void story_fill_rect(int row, int col, int width_cols, byte attr)

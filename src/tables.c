@@ -228,10 +228,10 @@ cptr option_text[OPT_MAX] = {
     "story_lists_equip", /* OPT_story_lists_equip */
     "display_hits", /* OPT_display_hits */
     "story_character_sheet", /* OPT_story_character_sheet */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
+    "story_lists_inven_pane", /* OPT_story_lists_inven_pane */
+    "story_lists_equip_pane", /* OPT_story_lists_equip_pane */
+    "story_monster_desc", /* OPT_story_monster_desc */
+    "story_monster_desc_pane", /* OPT_story_monster_desc_pane */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -464,14 +464,14 @@ cptr option_desc[OPT_MAX] = {
     "Display artifacts in unique yellow color", /* OPT_artifact_unique_color */
     "Use the Escape key to access the main menu", /* OPT_easy_main_menu */
     "Render look/target lists with the story font", /* OPT_story_lists */
-    "Render the inventory menu with the story font", /* OPT_story_lists_inven */
-    "Render the equipment menu with the story font", /* OPT_story_lists_equip */
+    "Render the inventory menu in the main window with the story font", /* OPT_story_lists_inven */
+    "Render the equipment menu in the main window with the story font", /* OPT_story_lists_equip */
     "Display a mark when something gets hit", /* OPT_display_hits */
     "Render the character sheet with the story font", /* OPT_story_character_sheet */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
+    "Render the inventory pane with the story font", /* OPT_story_lists_inven_pane */
+    "Render the equipment pane with the story font", /* OPT_story_lists_equip_pane */
+    "Render monster descriptions in the main window with the story font", /* OPT_story_monster_desc */
+    "Render monster descriptions in the monster pane with the story font", /* OPT_story_monster_desc_pane */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -727,10 +727,10 @@ const bool option_norm[OPT_MAX] = {
     true, /* OPT_story_lists_equip */
     true, /* OPT_display_hits */
     true, /* OPT_story_character_sheet */
-    false, /* xxx */
-    false, /* OPT_display_wakings */
-    false, /* xxx */
-    false, /* xxx */
+    true, /* OPT_story_lists_inven_pane */
+    true, /* OPT_story_lists_equip_pane */
+    false, /* OPT_story_monster_desc */
+    false, /* OPT_story_monster_desc_pane */
     false, /* xxx */
     false, /* xxx */
     false, /* xxx */
@@ -936,12 +936,12 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
 
     /*** Display ***/
 
-    { OPT_auto_display_lists, OPT_story_lists, OPT_story_lists_inven, OPT_story_lists_equip,
-        OPT_story_character_sheet, OPT_artifact_unique_color, OPT_instant_run,
-        OPT_center_player, OPT_run_avoid_center, OPT_hilite_player,
+    { OPT_auto_display_lists, OPT_story_lists, OPT_story_lists_inven, OPT_story_lists_inven_pane,
+        OPT_story_lists_equip, OPT_story_lists_equip_pane, OPT_story_monster_desc,
+        OPT_story_monster_desc_pane, OPT_story_character_sheet, OPT_artifact_unique_color,
+        OPT_instant_run, OPT_center_player, OPT_run_avoid_center, OPT_hilite_player,
         OPT_hilite_target, OPT_hilite_unwary, OPT_solid_walls, OPT_hybrid_walls,
-        OPT_delay_factor, OPT_main_combat_rolls, OPT_NONE, OPT_NONE, OPT_NONE,
-        OPT_NONE },
+        OPT_delay_factor, OPT_main_combat_rolls },
 
     /*** Birth ***/
 

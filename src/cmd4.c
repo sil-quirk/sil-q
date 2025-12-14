@@ -36,6 +36,7 @@ extern struct sound_config g_sound_config;
 
 /* Option changes that affect list rendering should refresh subwindows immediately. */
 static void redraw_inven_equip_subwindows(void);
+static void redraw_monster_subwindows(void);
 
 /*
  *  Header and footer marker string for pref file dumps
@@ -8949,8 +8950,10 @@ extern void do_cmd_options_aux(int page, cptr info)
                 else
                 {
                     op_ptr->opt[opt[k]] = !op_ptr->opt[opt[k]];
-                    if (opt[k] == OPT_story_lists_inven || opt[k] == OPT_story_lists_equip)
+                    if (opt[k] == OPT_story_lists_inven_pane || opt[k] == OPT_story_lists_equip_pane)
                         redraw_inven_equip_subwindows();
+                    if (opt[k] == OPT_story_monster_desc_pane)
+                        redraw_monster_subwindows();
                 }
             }
             break;
@@ -9014,8 +9017,10 @@ extern void do_cmd_options_aux(int page, cptr info)
                 else
                 {
                     op_ptr->opt[opt[k]] = true;
-                    if (opt[k] == OPT_story_lists_inven || opt[k] == OPT_story_lists_equip)
+                    if (opt[k] == OPT_story_lists_inven_pane || opt[k] == OPT_story_lists_equip_pane)
                         redraw_inven_equip_subwindows();
+                    if (opt[k] == OPT_story_monster_desc_pane)
+                        redraw_monster_subwindows();
                 }
             }
             break;
@@ -9079,8 +9084,10 @@ extern void do_cmd_options_aux(int page, cptr info)
                 else
                 {
                     op_ptr->opt[opt[k]] = false;
-                    if (opt[k] == OPT_story_lists_inven || opt[k] == OPT_story_lists_equip)
+                    if (opt[k] == OPT_story_lists_inven_pane || opt[k] == OPT_story_lists_equip_pane)
                         redraw_inven_equip_subwindows();
+                    if (opt[k] == OPT_story_monster_desc_pane)
+                        redraw_monster_subwindows();
                 }
             }
             break;
@@ -15829,6 +15836,33 @@ static void redraw_inven_equip_subwindows(void)
     }
 }
 
+static void redraw_monster_subwindows(void)
+{
+    for (int j = 0; j < ANGBAND_TERM_MAX; j++)
+    {
+        term* old = Term;
+
+        if (!angband_term[j])
+            continue;
+
+        /* Don't overwrite the current options/menu term. */
+        if (angband_term[j] == old)
+            continue;
+
+        u32b flags = op_ptr->window_flag[j];
+        if (!(flags & (PW_MONSTER)))
+            continue;
+
+        Term_activate(angband_term[j]);
+
+        if (p_ptr->monster_race_idx)
+            display_roff(p_ptr->monster_race_idx, NULL);
+
+        Term_fresh();
+        Term_activate(old);
+    }
+}
+
 static void sidebar_trim_spaces(char* s)
 {
     if (!s) return;
@@ -16642,6 +16676,3 @@ void show_unified_sidebar(unified_look_state* state)
     previous_line_count = current_line_count;
     log_trace("show_unified_sidebar: function complete, set previous_line_count=%d", previous_line_count);
 }
-
-
-

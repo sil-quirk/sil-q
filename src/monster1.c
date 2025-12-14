@@ -1773,6 +1773,10 @@ void roff_top(int r_idx)
  */
 void screen_roff(int r_idx, const monster_type* m_ptr)
 {
+    bool use_story_font = story_monster_desc_enabled();
+    story_font_term_state story_state;
+    story_font_term_push(use_story_font, false, &story_state);
+
     /* Flush messages */
     message_flush();
 
@@ -1787,6 +1791,8 @@ void screen_roff(int r_idx, const monster_type* m_ptr)
 
     /* Describe monster */
     roff_top(r_idx);
+
+    story_font_term_pop(&story_state);
 }
 
 /*
@@ -1795,6 +1801,10 @@ void screen_roff(int r_idx, const monster_type* m_ptr)
 void display_roff(int r_idx, const monster_type* m_ptr)
 {
     int y;
+
+    bool use_story_font = story_monster_desc_enabled();
+    story_font_term_state story_state;
+    story_font_term_push(use_story_font, false, &story_state);
 
     /* Erase the window */
     for (y = 0; y < Term->hgt; y++)
@@ -1814,6 +1824,7 @@ void display_roff(int r_idx, const monster_type* m_ptr)
 
     /* Describe monster */
     roff_top(r_idx);
-}
 
+    story_font_term_pop(&story_state);
+}
 

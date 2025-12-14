@@ -2484,6 +2484,7 @@ void display_inven(void)
 
     byte attr;
     bool use_story_font = story_inventory_enabled();
+    story_font_term_state story_state;
 
     char tmp_val[80];
 
@@ -2496,8 +2497,7 @@ void display_inven(void)
     if (col < 0) col = 0;
     int offset = use_bigtile ? 6 : 5;
 
-    if (use_story_font)
-        sdl_story_font_enable();
+    story_font_term_push(use_story_font, false, &story_state);
 
     /* Find the "final" slot */
     for (i = 0; i < INVEN_PACK; i++)
@@ -2640,8 +2640,7 @@ void display_inven(void)
         }
     }
 
-    if (use_story_font)
-        sdl_story_font_disable();
+    story_font_term_pop(&story_state);
 }
 
 /*
@@ -2663,20 +2662,9 @@ void display_equip(void)
     if (col < 0) col = 0;
     int offset = use_bigtile ? 6 : 5;
 
-    log_debug("display_equip: CALLED - THIS IS THE WINDOW SYSTEM REDRAW");
-
     bool use_story_font = story_equipment_enabled();
-    log_debug("display_equip: story_equipment_enabled() = %d", use_story_font);
-    if (use_story_font)
-    {
-        log_debug("display_equip: Calling sdl_story_font_enable()");
-        sdl_story_font_enable();
-        log_debug("display_equip: Story font activated");
-    }
-    else
-    {
-        log_debug("display_equip: Story font DISABLED, will use mono");
-    }
+    story_font_term_state story_state;
+    story_font_term_push(use_story_font, false, &story_state);
 
     /* Display the equipment */
     for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
@@ -2684,11 +2672,6 @@ void display_equip(void)
         /* Examine the item */
         o_ptr = &inventory[i];
         
-        if (i == INVEN_WIELD || i == INVEN_BOW)
-        {
-            log_trace("display_equip: Row %d (slot %d), tval=%d", i - INVEN_WIELD, i, o_ptr->tval);
-        }
-
         /* Start with an empty "index" */
         tmp_val[0] = tmp_val[1] = tmp_val[2] = ' ';
         tmp_val[3] = '\0';
@@ -2719,10 +2702,6 @@ void display_equip(void)
         Term_erase(0, i - INVEN_WIELD, 255);
 
         /* Display the index (or blank space) */
-        if (i == INVEN_BOW)
-        {
-            log_trace("display_equip: Term_putstr at row %d: '%s'", i - INVEN_WIELD, tmp_val);
-        }
         if (use_story_font)
             story_print_text(i - INVEN_WIELD, 0, 3, attr, tmp_val);
         else
@@ -2776,10 +2755,6 @@ void display_equip(void)
             attr = object_display_color(o_ptr, tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
 
         /* Display the entry itself */
-        if (i == INVEN_BOW)
-        {
-            log_trace("display_equip: Term_putstr item at row %d, col %d: '%s'", i - INVEN_WIELD, offset, o_name);
-        }
         Term_putch(offset - 1, i - INVEN_WIELD, attr, ' ');
         if (use_story_font)
             story_print_text(i - INVEN_WIELD, offset, max_desc, attr, o_name);
@@ -2824,7 +2799,6 @@ void display_equip(void)
             Term_erase(col, text_row, 255);
             
             /* Render armour weight with story font using grid-aligned positioning */
-            log_debug("display_equip: Rendering armour weight with story font at rows %d/%d", total_row, text_row);
             story_print_text_grid(total_row, col, 8, TERM_L_DARK, "--------");
             strnfmt(tmp_val, sizeof(tmp_val), "armour: %3d.%1d lb",
                 armour_weight / 10, armour_weight % 10);
@@ -2855,14 +2829,7 @@ void display_equip(void)
         Term_erase(0, i, 255);
     }
 
-    if (use_story_font)
-    {
-        log_debug("display_equip: Calling sdl_story_font_disable()");
-        sdl_story_font_disable();
-        log_debug("display_equip: Story font disabled");
-    }
-    
-    log_debug("display_equip: EXITING");
+    story_font_term_pop(&story_state);
 }
 
 /*
@@ -3074,11 +3041,11 @@ void show_inven(void)
     char out_desc[24][80];
 
     bool use_story_font = story_inventory_enabled();
+    story_font_term_state story_state;
     int story_term_w = 0;
     story_inventory_list_active = use_story_font;
-    if (use_story_font)
-    {
-        sdl_story_font_enable();
+    story_font_term_push(use_story_font, false, &story_state);
+    if (use_story_font) {
         int story_term_h = 0;
         Term_get_size(&story_term_w, &story_term_h);
     }
@@ -3275,13 +3242,7 @@ void show_inven(void)
             prt("", j + 1, col);
     }
 
-    /* Disable story font after rendering to prevent it from leaking into other UI elements.
-     * get_item() will re-enable it on subsequent iterations if needed. */
-    if (use_story_font)
-    {
-        log_debug("show_inven: Disabling story font after rendering");
-        sdl_story_font_disable();
-    }
+    story_font_term_pop(&story_state);
 }
 
 /*
@@ -3304,20 +3265,14 @@ void show_equip(void)
 
     int armour_weight = 0;
 
-    log_trace("show_equip: CALLED from somewhere");
-
     bool use_story_font = story_equipment_enabled();
+    story_font_term_state story_state;
     int story_term_w = 0;
     story_equipment_list_active = use_story_font;
-    log_debug("show_equip: story_equipment_enabled() = %d, setting story_equipment_list_active = %d", 
-        use_story_font, use_story_font);
-    if (use_story_font)
-    {
-        log_debug("show_equip: Story font enabled, calling sdl_story_font_enable()");
-        sdl_story_font_enable();
+    story_font_term_push(use_story_font, false, &story_state);
+    if (use_story_font) {
         int story_term_h = 0;
         Term_get_size(&story_term_w, &story_term_h);
-        log_debug("show_equip: story_term_w = %d", story_term_w);
     }
     else
     {
@@ -3514,15 +3469,7 @@ void show_equip(void)
         }
     }
 
-    /* Disable story font after rendering to prevent it from leaking into other UI elements.
-     * get_item() will re-enable it on subsequent iterations if needed. */
-    if (use_story_font)
-    {
-        log_debug("show_equip: Disabling story font after rendering");
-        sdl_story_font_disable();
-    }
-    
-    log_trace("show_equip: EXITING");
+    story_font_term_pop(&story_state);
 }
 
 /*
@@ -4129,9 +4076,10 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         }
 #define DRAW_HIGHLIGHT_IF_STORY(code)                                               \
     if (highlight_story_font) {                                                     \
-        sdl_story_font_enable();                                                    \
+        story_font_term_state highlight_story_state;                                \
+        story_font_term_push(true, false, &highlight_story_state);                  \
         code;                                                                       \
-        sdl_story_font_disable();                                                   \
+        story_font_term_pop(&highlight_story_state);                                \
     } else
 /* Build mapping arrays for currently selected list when visible */                 \
 #define BUILD_VISIBLE_LIST()                                                         \
@@ -4488,18 +4436,20 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         /* Use story font for prompt if the current list has story font enabled */
         if ((p_ptr->command_wrk == (USE_INVEN) || p_ptr->command_wrk == (USE_FLOOR)) && story_inventory_list_active)
         {
-            sdl_story_font_enable();
+            story_font_term_state prompt_story_state;
+            story_font_term_push(true, false, &prompt_story_state);
             prt(tmp_val, 0, 0);
-            sdl_story_font_disable();
+            story_font_term_pop(&prompt_story_state);
         }
         else if (p_ptr->command_wrk == (USE_EQUIP) && story_equipment_list_active)
         {
-            sdl_story_font_enable();
+            story_font_term_state prompt_story_state;
+            story_font_term_push(true, false, &prompt_story_state);
             prt(tmp_val, 0, 0);
-            sdl_story_font_disable();
+            story_font_term_pop(&prompt_story_state);
         }
         else
-        prt(tmp_val, 0, 0);
+            prt(tmp_val, 0, 0);
 
     /* Draw current highlight overlay if any */
     DRAW_HIGHLIGHT();
@@ -5034,19 +4984,8 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         p_ptr->command_see = false;
     }
 
-    /* Disable story font if it was enabled by show_inven or show_equip */
-    if (story_inventory_list_active)
-    {
-        log_debug("get_item: Disabling inventory story font");
-        sdl_story_font_disable();
-        story_inventory_list_active = false;
-    }
-    if (story_equipment_list_active)
-    {
-        log_debug("get_item: Disabling equipment story font");
-        sdl_story_font_disable();
-        story_equipment_list_active = false;
-    }
+    story_inventory_list_active = false;
+    story_equipment_list_active = false;
 
     // Forget whether inventory or equipment was being examined
     p_ptr->command_wrk = 0;
@@ -5199,14 +5138,12 @@ void show_inven_enhanced(void)
     bool done = false;
     char out_val[160];
 
-    log_debug("show_inven_enhanced: Starting enhanced inventory display");
-
     bool use_story_font = story_inventory_enabled();
+    story_font_term_state story_state;
     int story_term_w = 0;
     story_inventory_list_active = use_story_font;
-    if (use_story_font)
-    {
-        sdl_story_font_enable();
+    story_font_term_push(use_story_font, false, &story_state);
+    if (use_story_font) {
         int story_term_h = 0;
         Term_get_size(&story_term_w, &story_term_h);
     }
@@ -6090,8 +6027,7 @@ void show_inven_enhanced(void)
         }
     }
     
-    if (use_story_font)
-        sdl_story_font_reset();
+    story_font_term_pop(&story_state);
     log_trace("show_inven_enhanced: Exiting, action=%d", enhanced_menu_action);
 }
 
@@ -6115,20 +6051,13 @@ void show_equip_enhanced(void)
         INVEN_BODY, INVEN_FEET, show_weights);
     
     bool use_story_font = story_equipment_enabled();
-    log_trace("show_equip_enhanced: story_equipment_enabled() = %d", use_story_font);
+    story_font_term_state story_state;
     int story_term_w = 0;
     story_equipment_list_active = use_story_font;
-    if (use_story_font)
-    {
-        log_trace("show_equip_enhanced: Enabling story font");
-        sdl_story_font_enable();
+    story_font_term_push(use_story_font, false, &story_state);
+    if (use_story_font) {
         int story_term_h = 0;
         Term_get_size(&story_term_w, &story_term_h);
-        log_trace("show_equip_enhanced: story_term_w = %d", story_term_w);
-    }
-    else
-    {
-        log_trace("show_equip_enhanced: Story font NOT enabled, using mono");
     }
 
     /* Variables exactly matching show_equip() */
@@ -6564,11 +6493,7 @@ void show_equip_enhanced(void)
         }
     }
     
-    if (use_story_font)
-    {
-        log_trace("show_equip_enhanced: Resetting story font");
-        sdl_story_font_reset();
-    }
+    story_font_term_pop(&story_state);
     log_trace("show_equip_enhanced: Exiting equipment enhanced menu, action=%d", enhanced_equip_action);
 }
 
