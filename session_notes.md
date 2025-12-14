@@ -1,5 +1,13 @@
 # Session Notes
 
+## 2025-12-14: Unified Look + Spawn Balancing
+- `src/object1.c`: mode-4 shortening now splits non-ego “X of Y” items (rings/potions/staves/gems/horns/herbs) so l-view names follow the same rule as ego items (e.g., “Ring Frost” instead of “Ring of Frost”).
+- `src/cmd3.c`: unified look now starts with cursor on the player (no auto-selection); list cycling begins only after `Tab`/`q`. Added object-category cycling on `o` and included marked objects in scroll bounds (treasure detection pans like foes) for both `l` and `L`.
+- `src/cmd4.c`: unified sidebar object section applies the new category filter and shows the active filter in the OBJECTS header.
+- `src/object1.c`: `display_inven()` / `display_equip()` now use `object_display_color()` (and glow handling) to match main inventory/equipment coloring (artefacts, etc.).
+- `src/generate.c`: added `place_partition_extra_monsters()` post-pass to top up monsters in non-roomy partitions (big caves/chasm/cavey/ruined/labyrinth) based on non-icky floor area, avoiding vault concentration and initial LOS.
+- Build: `build-cmake.bat` successful (standard + portable SDL3 builds).
+
 ## 2025-12-12: Skeleton Note Updates
 - Rewrote `lib/edit/skeleton_note.txt` to feature more Tolkien-esque prose and increased variety for all races (Elf, Human, Orc) and categories (Openings, Signoffs, Great Vault, Artefact, Dominant Partition, Special Partition, Size).
 - Increased `M:X` (skeleton note template limit) in `lib/edit/limits.txt` from 64 to 128 to accommodate the expanded text set (currently ~84 entries).

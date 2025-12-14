@@ -907,13 +907,60 @@ static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* 
 
     log_debug("mode4_shorten: lower='%s' has_ego=%d", lower, has_ego);
 
-    /* Only split on " of " if there's an ego enchantment */
+    /*
+     * Split on " of " to separate base type from qualifier:
+     * - Ego items: split on the LAST " of " (handles phrases like "Pair of Boots of Speed").
+     * - Non-ego items: split only when the word before "of" is a known base type
+     *   ("Ring of Frost", "Potion of Healing", etc), avoiding cases where "of"
+     *   is part of the base phrase.
+     */
     char* split_point = NULL;
     if (has_ego)
     {
         /* Find the LAST " of " - this should be the ego enchantment */
         for (char* search = lower; (search = strstr(search, " of ")) != NULL; ++search)
             split_point = search;
+    }
+    else
+    {
+        char* first_of = strstr(lower, " of ");
+        if (first_of)
+        {
+            size_t word_end = (size_t)(first_of - lower);
+            while (word_end > 0 && isspace((unsigned char)lower[word_end - 1]))
+                --word_end;
+
+            size_t word_start = word_end;
+            while (word_start > 0 && !isspace((unsigned char)lower[word_start - 1]))
+                --word_start;
+
+            char head_word[32];
+            size_t word_len = word_end - word_start;
+            if (word_len > 0 && word_len < sizeof(head_word))
+            {
+                memcpy(head_word, lower + word_start, word_len);
+                head_word[word_len] = '\0';
+
+                static const char* split_words[] = {
+                    "amulet", "amulets",
+                    "gem",    "gems",
+                    "herb",   "herbs",
+                    "horn",   "horns",
+                    "potion", "potions",
+                    "ring",   "rings",
+                    "staff",  "staves",
+                };
+
+                for (size_t i = 0; i < N_ELEMENTS(split_words); ++i)
+                {
+                    if (!strcmp(head_word, split_words[i]))
+                    {
+                        split_point = first_of;
+                        break;
+                    }
+                }
+            }
+        }
     }
 
     char first_part[256];
@@ -2436,6 +2483,7 @@ void display_inven(void)
     object_type* o_ptr;
 
     byte attr;
+    bool use_story_font = story_inventory_enabled();
 
     char tmp_val[80];
 
@@ -2443,9 +2491,13 @@ void display_inven(void)
 
     bool floor_item = false;
 
-    int w = MIN(Term->wid, 100);
+    int w = Term->wid;
     int col = w - 11;
+    if (col < 0) col = 0;
     int offset = use_bigtile ? 6 : 5;
+
+    if (use_story_font)
+        sdl_story_font_enable();
 
     /* Find the "final" slot */
     for (i = 0; i < INVEN_PACK; i++)
@@ -2480,6 +2532,7 @@ void display_inven(void)
 
         /* Start with an empty "index" */
         tmp_val[0] = tmp_val[1] = tmp_val[2] = ' ';
+        tmp_val[3] = '\0';
 
         /* Is this item "acceptable"? */
         if (item_tester_okay(o_ptr))
@@ -2522,8 +2575,14 @@ void display_inven(void)
         else
             attr = TERM_SLATE;
 
+        /* Clear the line first (story font needs a clean slate) */
+        Term_erase(0, i, 255);
+
         /* Display the index (or blank space) */
-        Term_putstr(0, i, 3, attr, tmp_val);
+        if (use_story_font)
+            story_print_text(i, 0, 3, attr, tmp_val);
+        else
+            Term_putstr(0, i, 3, attr, tmp_val);
 
         /* Display the symbol */
         Term_putch(3, i, object_attr(o_ptr), object_char(o_ptr));
@@ -2535,25 +2594,39 @@ void display_inven(void)
         /* Obtain an item description */
         object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
-        /* Obtain the length of the description */
-        n = strlen(o_name);
+        /* Truncate description so weights align cleanly */
+        int max_desc = w - offset - 1;
+        if (show_weights && col > offset)
+            max_desc = col - offset - 1;
+        if (max_desc < 1) max_desc = 1;
+        if (max_desc >= (int)sizeof(o_name)) max_desc = (int)sizeof(o_name) - 1;
+        o_name[max_desc] = '\0';
 
-        /* Get inventory color */
-        attr = tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+        /* Obtain the length of the description */
+        n = (int)strlen(o_name);
+
+        /* Get inventory color (match show_inven/show_equip scheme) */
+        if (weapon_glows(o_ptr))
+            attr = object_display_color(o_ptr, TERM_L_BLUE);
+        else
+            attr = object_display_color(o_ptr, tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
 
         /* Display the entry itself */
         Term_putch(offset - 1, i, attr, ' ');
-        Term_putstr(offset, i, n, attr, o_name);
-
-        /* Erase the rest of the line */
-        Term_erase(offset + n, i, 255);
+        if (use_story_font)
+            story_print_text(i, offset, max_desc, attr, o_name);
+        else
+            Term_putstr(offset, i, n, attr, o_name);
 
         /* Display the weight if needed */
         if (o_ptr->weight)
         {
             int wgt = o_ptr->weight * o_ptr->number;
             sprintf(tmp_val, "%3d.%1d lb", wgt / 10, wgt % 10);
-            Term_putstr(col, i, -1, attr, tmp_val);
+            if (use_story_font)
+                story_print_text_grid(i, col, 8, attr, tmp_val);
+            else
+                Term_putstr(col, i, -1, attr, tmp_val);
         }
     }
 
@@ -2566,6 +2639,9 @@ void display_inven(void)
             Term_erase(0, i, 255);
         }
     }
+
+    if (use_story_font)
+        sdl_story_font_disable();
 }
 
 /*
@@ -2582,8 +2658,9 @@ void display_equip(void)
 
     char o_name[80];
 
-    int w = MIN(Term->wid, 100);
+    int w = Term->wid;
     int col = w - 11;
+    if (col < 0) col = 0;
     int offset = use_bigtile ? 6 : 5;
 
     log_debug("display_equip: CALLED - THIS IS THE WINDOW SYSTEM REDRAW");
@@ -2614,6 +2691,7 @@ void display_equip(void)
 
         /* Start with an empty "index" */
         tmp_val[0] = tmp_val[1] = tmp_val[2] = ' ';
+        tmp_val[3] = '\0';
 
         /* Is this item "acceptable"? */
         if (item_tester_okay(o_ptr))
@@ -2637,12 +2715,18 @@ void display_equip(void)
         else
             attr = TERM_SLATE;
 
+        /* Clear the line first (story font needs a clean slate) */
+        Term_erase(0, i - INVEN_WIELD, 255);
+
         /* Display the index (or blank space) */
         if (i == INVEN_BOW)
         {
             log_trace("display_equip: Term_putstr at row %d: '%s'", i - INVEN_WIELD, tmp_val);
         }
-        Term_putstr(0, i - INVEN_WIELD, 3, attr, tmp_val);
+        if (use_story_font)
+            story_print_text(i - INVEN_WIELD, 0, 3, attr, tmp_val);
+        else
+            Term_putstr(0, i - INVEN_WIELD, 3, attr, tmp_val);
 
         /* Display the symbol */
         if (!o_ptr->tval)
@@ -2675,10 +2759,21 @@ void display_equip(void)
         }
 
         /* Obtain the length of the description */
-        n = strlen(o_name);
+        int max_desc = w - offset - 1;
+        if (show_weights && col > offset)
+            max_desc = col - offset - 1;
+        if (max_desc < 1) max_desc = 1;
+        if (max_desc >= (int)sizeof(o_name)) max_desc = (int)sizeof(o_name) - 1;
+        o_name[max_desc] = '\0';
+        n = (int)strlen(o_name);
 
-        /* Get inventory color */
-        attr = tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+        /* Get inventory color (match show_inven/show_equip scheme) */
+        if (!o_ptr->tval)
+            attr = TERM_L_DARK;
+        else if (weapon_glows(o_ptr))
+            attr = object_display_color(o_ptr, TERM_L_BLUE);
+        else
+            attr = object_display_color(o_ptr, tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
 
         /* Display the entry itself */
         if (i == INVEN_BOW)
@@ -2686,10 +2781,10 @@ void display_equip(void)
             log_trace("display_equip: Term_putstr item at row %d, col %d: '%s'", i - INVEN_WIELD, offset, o_name);
         }
         Term_putch(offset - 1, i - INVEN_WIELD, attr, ' ');
-        Term_putstr(offset, i - INVEN_WIELD, n, attr, o_name);
-
-        /* Erase the rest of the line */
-        Term_erase(offset + n, i - INVEN_WIELD, 255);
+        if (use_story_font)
+            story_print_text(i - INVEN_WIELD, offset, max_desc, attr, o_name);
+        else
+            Term_putstr(offset, i - INVEN_WIELD, n, attr, o_name);
 
         /* Display the weight (if needed) */
         if (o_ptr->weight)
@@ -2698,12 +2793,18 @@ void display_equip(void)
             sprintf(tmp_val, "%3d.%1d lb ", wgt / 10, wgt % 10);
             if ((i >= INVEN_BODY) && (i <= INVEN_FEET))
             {
-                Term_putstr(col, i - INVEN_WIELD, -1, TERM_SLATE, tmp_val);
+                if (use_story_font)
+                    story_print_text_grid(i - INVEN_WIELD, col, 8, TERM_SLATE, tmp_val);
+                else
+                    Term_putstr(col, i - INVEN_WIELD, -1, TERM_SLATE, tmp_val);
                 armour_weight += wgt;
             }
             else
             {
-                Term_putstr(col, i - INVEN_WIELD, -1, attr, tmp_val);
+                if (use_story_font)
+                    story_print_text_grid(i - INVEN_WIELD, col, 8, attr, tmp_val);
+                else
+                    Term_putstr(col, i - INVEN_WIELD, -1, attr, tmp_val);
             }
         }
 
@@ -2724,17 +2825,25 @@ void display_equip(void)
             
             /* Render armour weight with story font using grid-aligned positioning */
             log_debug("display_equip: Rendering armour weight with story font at rows %d/%d", total_row, text_row);
-            story_print_text_grid(total_row, 70, 8, TERM_L_DARK, "--------");
+            story_print_text_grid(total_row, col, 8, TERM_L_DARK, "--------");
             strnfmt(tmp_val, sizeof(tmp_val), "armour: %3d.%1d lb",
                 armour_weight / 10, armour_weight % 10);
-            story_print_text_grid(text_row, 62, 16, TERM_SLATE, tmp_val);
+            {
+                int armour_col = col - 8;
+                if (armour_col < 0) armour_col = 0;
+                story_print_text_grid(text_row, armour_col, 16, TERM_SLATE, tmp_val);
+            }
         }
         else
         {
             /* Mono font path */
             Term_putstr(col, total_row, -1, TERM_L_DARK, "--------");
             sprintf(tmp_val, "armour: %3d.%1d lb", armour_weight / 10, armour_weight % 10);
-            Term_putstr(col - 8, text_row, -1, TERM_SLATE, tmp_val);
+            {
+                int armour_col = col - 8;
+                if (armour_col < 0) armour_col = 0;
+                Term_putstr(armour_col, text_row, -1, TERM_SLATE, tmp_val);
+            }
         }
     }
 
@@ -6834,8 +6943,3 @@ bool player_can_treat_as_throwing(const object_type* o_ptr)
 
 #undef MAX_COMPARE_LINES
 #undef MAX_IDENT_ENTRIES
-
-
-
-
-

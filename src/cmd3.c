@@ -3212,11 +3212,12 @@ void do_cmd_target(void)
 }
 
 /*
- * Calculate the bounding box of explored areas and detected monsters
- * Returns true if any explored area or detected monster found, false otherwise
+ * Calculate the bounding box of explored areas, detected monsters, and detected objects.
+ * Returns true if any explored area or detected entity found, false otherwise
  * 
  * This function includes positions of monsters detected by items like the
- * Gem of Foes (which have MFLAG_MARK set) in the scrollable bounds.
+ * Gem of Foes (which have MFLAG_MARK set) in the scrollable bounds, and
+ * positions of marked objects (e.g., from Gem of Treasures / detection).
  */
 static bool get_explored_bounds(int* min_y, int* max_y, int* min_x, int* max_x)
 {
@@ -3265,7 +3266,35 @@ static bool get_explored_bounds(int* min_y, int* max_y, int* min_x, int* max_x)
         }
     }
 
-    /* Check if any explored area or detected monster was found */
+    /* Also include marked objects (e.g., from Gem of Treasures / object detection) */
+    for (i = 1; i < o_max; i++)
+    {
+        object_type* o_ptr = &o_list[i];
+
+        /* Skip dead objects */
+        if (!o_ptr->k_idx)
+            continue;
+
+        /* Skip held objects */
+        if (o_ptr->held_m_idx)
+            continue;
+
+        /* Only include marked (detected/memorized) objects */
+        if (!o_ptr->marked)
+            continue;
+
+        int oy = o_ptr->iy;
+        int ox = o_ptr->ix;
+        if (!in_bounds_fully(oy, ox))
+            continue;
+
+        if (ox < *min_x) *min_x = ox;
+        if (ox > *max_x) *max_x = ox;
+        if (oy < *min_y) *min_y = oy;
+        if (oy > *max_y) *max_y = oy;
+    }
+
+    /* Check if any explored area or detected entity was found */
     return (*min_x <= *max_x && *min_y <= *max_y);
 }
 
@@ -3309,6 +3338,12 @@ static int unified_sidebar_object_group(const object_type* o_ptr)
     case TV_SOFT_ARMOR:
     case TV_MAIL:
         return LOOK_GROUP_ARMOUR;
+
+    case TV_RING:
+    case TV_AMULET:
+    case TV_HORN:
+    case TV_STAFF:
+        return LOOK_GROUP_JEWELRY;
 
     case TV_EASTER:
         return LOOK_GROUP_HERBS;
@@ -3362,10 +3397,16 @@ static int unified_look_count_visible_entities(unified_look_state* state)
 
             object_type* o_ptr = &o_list[o_idx];
 
+            /* Only count marked (memorized) objects (matches sidebar display) */
+            if (!o_ptr->marked)
+                continue;
+
             if ((o_ptr->tval == TV_ARROW) && (o_ptr->number < 10))
                 continue;
 
             int group = unified_sidebar_object_group(o_ptr);
+            if (state->object_group_filter >= 0 && group != state->object_group_filter)
+                continue;
             if (state->limit_objects_top_five && group_counts[group] >= 5)
                 continue;
 
@@ -3375,6 +3416,47 @@ static int unified_look_count_visible_entities(unified_look_state* state)
     }
 
     return total_entities;
+}
+
+static int unified_look_count_visible_objects_for_group(unified_look_state* state, int group_filter)
+{
+    int total_objects = 0;
+    int i;
+
+    if (!state)
+        return 0;
+
+    int group_counts[LOOK_GROUP_COUNT] = {0};
+
+    get_sorted_target_list(TARGET_LIST_OBJECT, 0);
+
+    for (i = 0; i < temp_n; i++)
+    {
+        int o_idx = cave_o_idx[temp_y[i]][temp_x[i]];
+        if (!o_idx)
+            continue;
+
+        object_type* o_ptr = &o_list[o_idx];
+
+        /* Only count marked (memorized) objects (matches sidebar display) */
+        if (!o_ptr->marked)
+            continue;
+
+        if ((o_ptr->tval == TV_ARROW) && (o_ptr->number < 10))
+            continue;
+
+        int group = unified_sidebar_object_group(o_ptr);
+        if (group_filter >= 0 && group != group_filter)
+            continue;
+
+        if (state->limit_objects_top_five && group_counts[group] >= 5)
+            continue;
+
+        group_counts[group]++;
+        total_objects++;
+    }
+
+    return total_objects;
 }
 
 void do_cmd_unified_look(void)
@@ -3415,6 +3497,7 @@ void do_cmd_unified_look(void)
     state.selected_entity = -1;
     state.show_monsters = true;
     state.show_objects = true;
+    state.object_group_filter = -1;
     state.limit_objects_top_five = false;
     state.display_mode = 0; /* 0 = manual, 1 = entity */
     state.highlighted_y = -1;
@@ -3424,14 +3507,6 @@ void do_cmd_unified_look(void)
     state.look_mode = 0; /* 0 = normal unified look, 1 = L-style scrolling */
     state.current_square_entity = 0; /* 0 = monster, 1 = object */
     state.square_cycling_mode = false; /* Start in normal sidebar cycling mode */
-
-    int total_visible_entities = unified_look_count_visible_entities(&state);
-    if (total_visible_entities > 0)
-    {
-        state.in_sidebar_mode = true;
-        state.selected_entity = 0;
-        log_trace("Unified look: initial sidebar selection set to first entity");
-    }
     
     /* Track monster health at initial cursor position for left sidebar display */
     int initial_m_idx = cave_m_idx[state.cursor_y][state.cursor_x];
@@ -3585,17 +3660,17 @@ void do_cmd_unified_look(void)
                     if (state.look_mode == 0)
                     {
 #ifdef STEAMDECK_SUPPORT
-                        prt("[i/e]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [T]=Top5 [s]=Pan [ESC]", 0, 0);
+                        prt("[i/e]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Pan [ESC]", 0, 0);
 #else
-                        prt("[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [T]=Top5 [s]=Pan [ESC]", 0, 0);
+                        prt("[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Pan [ESC]", 0, 0);
 #endif
                     }
                     else
                     {
 #ifdef STEAMDECK_SUPPORT
-                        prt("[i/e]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [T]=Top5 [s]=Curs [ESC]", 0, 0);
+                        prt("[i/e]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Curs [ESC]", 0, 0);
 #else
-                        prt("[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [T]=Top5 [s]=Curs [ESC]", 0, 0);
+                        prt("[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Curs [ESC]", 0, 0);
 #endif
                     }
                 }
@@ -4467,19 +4542,85 @@ void do_cmd_unified_look(void)
             
             case 'o':
             {
-                log_trace("'o' key pressed - cycling object display");
-                /* Cycle objects: objects -> nothing -> objects */
-                if (state.show_objects)
+                log_trace("'o' key pressed - cycling object categories");
+
+                /* Cycle: all -> weapons -> armour -> artifacts -> herbs -> potions -> gems -> consumables -> other -> hidden */
+                static const int object_filter_cycle[] = {
+                    LOOK_GROUP_ARTIFACT,
+                    LOOK_GROUP_WEAPON,
+                    LOOK_GROUP_ARMOUR,
+                    LOOK_GROUP_JEWELRY,
+                    LOOK_GROUP_HERBS,
+                    LOOK_GROUP_POTIONS,
+                    LOOK_GROUP_GEMS,
+                    LOOK_GROUP_CONSUMABLE,
+                    LOOK_GROUP_OTHER,
+                };
+
+                if (!state.show_objects)
                 {
-                    /* From showing objects to hiding objects */
-                    state.show_objects = false;
-                    log_trace("Mode changed to: objects hidden");
+                    state.show_objects = true;
+                    state.object_group_filter = -1;
+                    log_trace("Object display: shown (ALL)");
+                }
+                else if (state.object_group_filter < 0)
+                {
+                    /* Skip empty categories */
+                    int next_group = -1;
+                    for (size_t idx = 0; idx < N_ELEMENTS(object_filter_cycle); ++idx)
+                    {
+                        int group = object_filter_cycle[idx];
+                        if (unified_look_count_visible_objects_for_group(&state, group) > 0)
+                        {
+                            next_group = group;
+                            break;
+                        }
+                    }
+
+                    if (next_group >= 0)
+                    {
+                        state.object_group_filter = next_group;
+                        log_trace("Object display: filtered (group=%d)", state.object_group_filter);
+                    }
+                    else
+                    {
+                        state.show_objects = false;
+                        state.object_group_filter = -1;
+                        log_trace("Object display: hidden (no non-empty categories)");
+                    }
                 }
                 else
                 {
-                    /* From hiding objects to showing objects */
-                    state.show_objects = true;
-                    log_trace("Mode changed to: objects shown");
+                    int next_group = -1;
+                    for (size_t idx = 0; idx < N_ELEMENTS(object_filter_cycle); ++idx)
+                    {
+                        if (object_filter_cycle[idx] != state.object_group_filter)
+                            continue;
+
+                        /* Skip empty categories */
+                        for (size_t j = idx + 1; j < N_ELEMENTS(object_filter_cycle); ++j)
+                        {
+                            int group = object_filter_cycle[j];
+                            if (unified_look_count_visible_objects_for_group(&state, group) > 0)
+                            {
+                                next_group = group;
+                                break;
+                            }
+                        }
+                        break;
+                    }
+
+                    if (next_group >= 0)
+                    {
+                        state.object_group_filter = next_group;
+                        log_trace("Object display: filtered (group=%d)", state.object_group_filter);
+                    }
+                    else
+                    {
+                        state.show_objects = false;
+                        state.object_group_filter = -1;
+                        log_trace("Object display: hidden");
+                    }
                 }
                 
                 /* Reset selection when changing display */
@@ -5229,8 +5370,3 @@ void do_cmd_query_symbol(void)
     /* Free the "who" array */
     who = mem_free(who);
 }
-
-
-
-
-

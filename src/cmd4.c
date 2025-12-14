@@ -34,6 +34,9 @@ extern struct sound_config g_sound_config;
 /*used for knowledge display*/
 #define BROWSER_ROWS 16
 
+/* Option changes that affect list rendering should refresh subwindows immediately. */
+static void redraw_inven_equip_subwindows(void);
+
 /*
  *  Header and footer marker string for pref file dumps
  */
@@ -8946,6 +8949,8 @@ extern void do_cmd_options_aux(int page, cptr info)
                 else
                 {
                     op_ptr->opt[opt[k]] = !op_ptr->opt[opt[k]];
+                    if (opt[k] == OPT_story_lists_inven || opt[k] == OPT_story_lists_equip)
+                        redraw_inven_equip_subwindows();
                 }
             }
             break;
@@ -9009,6 +9014,8 @@ extern void do_cmd_options_aux(int page, cptr info)
                 else
                 {
                     op_ptr->opt[opt[k]] = true;
+                    if (opt[k] == OPT_story_lists_inven || opt[k] == OPT_story_lists_equip)
+                        redraw_inven_equip_subwindows();
                 }
             }
             break;
@@ -9072,6 +9079,8 @@ extern void do_cmd_options_aux(int page, cptr info)
                 else
                 {
                     op_ptr->opt[opt[k]] = false;
+                    if (opt[k] == OPT_story_lists_inven || opt[k] == OPT_story_lists_equip)
+                        redraw_inven_equip_subwindows();
                 }
             }
             break;
@@ -15767,6 +15776,12 @@ static int unified_sidebar_object_group(const object_type* o_ptr)
     case TV_MAIL:
         return LOOK_GROUP_ARMOUR;
 
+    case TV_RING:
+    case TV_AMULET:
+    case TV_HORN:
+    case TV_STAFF:
+        return LOOK_GROUP_JEWELRY;
+
     case TV_EASTER:
         return LOOK_GROUP_HERBS;
 
@@ -15783,6 +15798,35 @@ static int unified_sidebar_object_group(const object_type* o_ptr)
     }
 
     return LOOK_GROUP_OTHER;
+}
+
+static void redraw_inven_equip_subwindows(void)
+{
+    for (int j = 0; j < ANGBAND_TERM_MAX; j++)
+    {
+        term* old = Term;
+
+        if (!angband_term[j])
+            continue;
+
+        /* Don't overwrite the current options/menu term. */
+        if (angband_term[j] == old)
+            continue;
+
+        u32b flags = op_ptr->window_flag[j];
+        if (!(flags & (PW_INVEN | PW_EQUIP)))
+            continue;
+
+        Term_activate(angband_term[j]);
+
+        if (flags & PW_INVEN)
+            display_inven();
+        if (flags & PW_EQUIP)
+            display_equip();
+
+        Term_fresh();
+        Term_activate(old);
+    }
 }
 
 static void sidebar_trim_spaces(char* s)
@@ -16312,7 +16356,24 @@ void show_unified_sidebar(unified_look_state* state)
     /* Show objects section */
     if (state->show_objects)
     {
-        c_put_str(TERM_WHITE, "OBJECTS:     ", line++, sidebar_col);  /* Odd length to keep sidebar width */
+        const char* filter_tag = "ALL";
+        switch (state->object_group_filter)
+        {
+        case LOOK_GROUP_ARTIFACT:   filter_tag = "ART"; break;
+        case LOOK_GROUP_WEAPON:     filter_tag = "WEAP"; break;
+        case LOOK_GROUP_ARMOUR:     filter_tag = "ARM"; break;
+        case LOOK_GROUP_JEWELRY:    filter_tag = "JEWL"; break;
+        case LOOK_GROUP_HERBS:      filter_tag = "HERB"; break;
+        case LOOK_GROUP_POTIONS:    filter_tag = "POT"; break;
+        case LOOK_GROUP_GEMS:       filter_tag = "GEM"; break;
+        case LOOK_GROUP_CONSUMABLE: filter_tag = "CONS"; break;
+        case LOOK_GROUP_OTHER:      filter_tag = "OTHER"; break;
+        default:                    filter_tag = "ALL"; break;
+        }
+
+        char header_buf[32];
+        strnfmt(header_buf, sizeof(header_buf), "OBJECTS: %s", filter_tag);
+        c_put_str(TERM_WHITE, header_buf, line++, sidebar_col);
         
         /* Get object list */
         get_sorted_target_list(TARGET_LIST_OBJECT, 0);
@@ -16359,6 +16420,8 @@ void show_unified_sidebar(unified_look_state* state)
             entry->difficulty = object_difficulty(o_ptr);
             entry->level = k_info[o_ptr->k_idx].level;
             entry->group = unified_sidebar_object_group(o_ptr);
+            if (state->object_group_filter >= 0 && entry->group != state->object_group_filter)
+                continue;
             entry->distance = distance(p_ptr->py, p_ptr->px, entry->y, entry->x);
             entry->original_index = i;
 
@@ -16375,41 +16438,32 @@ void show_unified_sidebar(unified_look_state* state)
                     should_swap = (b->group < a->group);
                 }
                 else {
-                    switch (a->group) {
-                    case LOOK_GROUP_ARTIFACT:
-                    case LOOK_GROUP_WEAPON:
-                    case LOOK_GROUP_ARMOUR:
+                    bool a_known = object_known_p(a->o_ptr) ? true : false;
+                    bool b_known = object_known_p(b->o_ptr) ? true : false;
+
+                    /* Identified items first; then difficulty for identified, proximity for unidentified */
+                    if (a_known != b_known)
+                    {
+                        should_swap = (b_known && !a_known);
+                    }
+                    else if (!a_known)
+                    {
+                        if (b->distance < a->distance)
+                            should_swap = true;
+                        else if ((b->distance == a->distance) && (b->original_index < a->original_index))
+                            should_swap = true;
+                    }
+                    else
+                    {
                         if (b->difficulty > a->difficulty)
                             should_swap = true;
-                        else if ((b->difficulty == a->difficulty) && (b->level > a->level))
+                        else if ((b->difficulty == a->difficulty) && (b->distance < a->distance))
                             should_swap = true;
-                        else if ((b->difficulty == a->difficulty) && (b->level == a->level)
-                                 && (b->distance < a->distance))
+                        else if ((b->difficulty == a->difficulty) && (b->distance == a->distance)
+                                 && (b->original_index < a->original_index))
                             should_swap = true;
-                        else if ((b->difficulty == a->difficulty) && (b->level == a->level)
-                                 && (b->distance == a->distance) && (b->original_index < a->original_index))
-                            should_swap = true;
-                        break;
-
-                    case LOOK_GROUP_HERBS:
-                    case LOOK_GROUP_POTIONS:
-                    case LOOK_GROUP_GEMS:
-                    case LOOK_GROUP_CONSUMABLE:
-                    case LOOK_GROUP_OTHER:
-                        if (b->level > a->level)
-                            should_swap = true;
-                        else if ((b->level == a->level) && (b->difficulty > a->difficulty))
-                            should_swap = true;
-                        else if ((b->level == a->level) && (b->difficulty == a->difficulty)
-                                 && (b->distance < a->distance))
-                            should_swap = true;
-                        else if ((b->level == a->level) && (b->difficulty == a->difficulty)
-                                 && (b->distance == a->distance) && (b->original_index < a->original_index))
-                            should_swap = true;
-                        break;
                     }
                 }
-
                 if (should_swap) {
                     sorted_object temp = objects[i];
                     objects[i] = objects[j];
@@ -16588,15 +16642,6 @@ void show_unified_sidebar(unified_look_state* state)
     previous_line_count = current_line_count;
     log_trace("show_unified_sidebar: function complete, set previous_line_count=%d", previous_line_count);
 }
-
-
-
-
-
-
-
-
-
 
 
 

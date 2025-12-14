@@ -1280,6 +1280,137 @@ static bool compute_partition_bounds(int pi, int rows, int cols, int *y1, int *y
     return true;
 }
 
+/* Extra monsters in non-roomy partitions (prevents huge caves/chasm/ruins from feeling empty). */
+static int partition_extra_monster_target(quadrant_mode_t mode, int floor_count)
+{
+    int target = 0;
+
+    switch (mode)
+    {
+    case QUAD_MODE_BIG_CAVE:
+        /* Big caves are huge: aim for a noticeable population. */
+        target = floor_count / 120;
+        if (target < 6) target = 6;
+        if (target > 20) target = 20;
+        break;
+    case QUAD_MODE_CHASM:
+        target = floor_count / 150;
+        if (target < 4) target = 4;
+        if (target > 16) target = 16;
+        break;
+    case QUAD_MODE_LABYRINTH:
+        /* Labyrinths already place some monsters during carving; top-up lightly. */
+        target = floor_count / 260;
+        if (target > 5) target = 5;
+        break;
+    case QUAD_MODE_CAVEY:
+        target = floor_count / 220;
+        if (target > 10) target = 10;
+        break;
+    case QUAD_MODE_RUINED:
+        target = floor_count / 260;
+        if (target > 10) target = 10;
+        break;
+    default:
+        target = 0;
+        break;
+    }
+
+    if (target <= 0)
+        return 0;
+
+    /* Gentle depth scaling (caps at +50%). */
+    int scale = 100 + MIN(50, p_ptr->depth * 2);
+    target = target * scale / 100;
+
+    return target;
+}
+
+static int place_partition_extra_monsters(void)
+{
+    if (morgoth_level_active)
+        return 0;
+
+    if (current_partition_count <= 0 || current_partition_rows <= 0 || current_partition_cols <= 0)
+        return 0;
+
+    int total_placed = 0;
+
+    for (int pi = 0; pi < current_partition_count; ++pi)
+    {
+        quadrant_mode_t mode = current_partition_modes[pi];
+        if (mode == QUAD_MODE_ROOMY)
+            continue;
+
+        int y1, y2, x1, x2;
+        if (!compute_partition_bounds(pi, current_partition_rows, current_partition_cols, &y1, &y2, &x1, &x2))
+            continue;
+
+        int floor_count = 0;
+        for (int y = y1; y <= y2; ++y)
+        {
+            for (int x = x1; x <= x2; ++x)
+            {
+                if (!in_bounds_fully(y, x))
+                    continue;
+
+                if (!cave_floor_bold(y, x))
+                    continue;
+
+                /* Don't bias further into vaults/quest areas. */
+                if (cave_info[y][x] & CAVE_ICKY)
+                    continue;
+
+                floor_count++;
+            }
+        }
+
+        int target = partition_extra_monster_target(mode, floor_count);
+        if (target <= 0)
+            continue;
+
+        /* Safety: never exceed 1 monster per ~20 floor tiles. */
+        int hard_cap = floor_count / 20;
+        if (hard_cap < 1) hard_cap = 1;
+        if (target > hard_cap)
+            target = hard_cap;
+
+        int placed = 0;
+        int attempts = target * 250;
+
+        for (int tries = 0; tries < attempts && placed < target; ++tries)
+        {
+            int y = rand_range(y1, y2);
+            int x = rand_range(x1, x2);
+
+            if (!in_bounds_fully(y, x))
+                continue;
+
+            if (cave_info[y][x] & CAVE_ICKY)
+                continue;
+
+            if (!cave_naked_bold(y, x))
+                continue;
+
+            /* Match alloc_monster() feel: don't spawn in the player's initial LOS. */
+            if (los(p_ptr->py, p_ptr->px, y, x))
+                continue;
+
+            /* Single monsters (no explicit group placement) to avoid runaway density. */
+            if (place_monster(y, x, true, false, false))
+            {
+                placed++;
+                total_placed++;
+            }
+        }
+
+        log_trace("Extra partition monsters: pi=%d mode=%d bounds=(%d,%d)-(%d,%d) floors=%d target=%d placed=%d",
+                  pi, mode, y1, x1, y2, x2, floor_count, target, placed);
+    }
+
+    return total_placed;
+}
+
 /* Gentle scaling helper: add ~50% per size tier (caps explosive growth) */
 static int scaled_attempts(int base, int area_factor)
 {
@@ -12092,6 +12223,11 @@ static bool cave_gen(void)
     {
         (void)alloc_monster(false, false);
     }
+
+    /* Top-up monsters in partitions that tend to have few room centers (big caves, chasms, etc). */
+    int extra_mon = place_partition_extra_monsters();
+    if (extra_mon > 0)
+        log_trace("Extra partition monsters placed: %d", extra_mon);
     
     /* Check for Varda quest spawning - lottery-based */
     log_trace("Varda spawn check: lottery_winner=%d (QUEST_ID_VARDA=%d), depth=%d, varda_quest=%d", 

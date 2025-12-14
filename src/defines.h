@@ -3692,6 +3692,7 @@ enum unified_sidebar_object_group {
     LOOK_GROUP_ARTIFACT = 0,
     LOOK_GROUP_WEAPON,
     LOOK_GROUP_ARMOUR,
+    LOOK_GROUP_JEWELRY,
     LOOK_GROUP_HERBS,
     LOOK_GROUP_POTIONS,
     LOOK_GROUP_GEMS,
@@ -3707,6 +3708,7 @@ typedef struct unified_look_state {
     int cursor_y, cursor_x;           /* Map cursor position */
     int selected_entity;              /* Currently highlighted sidebar entity (-1 if none) */
     bool show_monsters, show_objects; /* Sidebar visibility toggles */
+    int object_group_filter;          /* Object filter: -1=all, 0..LOOK_GROUP_COUNT-1=group */
     bool limit_objects_top_five;      /* Limit object groups to top five entries */
     int display_mode;                 /* Navigation mode (0=manual, 1=entity) */
     int highlighted_y, highlighted_x; /* Currently highlighted entity coordinates */
