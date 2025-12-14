@@ -6246,6 +6246,12 @@ static void alloc_object(int set, int typ, int num, bool out_of_sight)
             {
                 if (!active_profile.allow_floor_drops)
                     continue;
+
+                /* Reduce floor/corridor object scatter in ROOMY partitions by half. */
+                if (partition_mode_for_point(y, x) == QUAD_MODE_ROOMY
+                    && rand_int(100) < 50)
+                    continue;
+
                 if (active_profile.reroll_chance > 0
                     && rand_int(100) < active_profile.reroll_chance)
                     continue;
@@ -9353,6 +9359,19 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                     partition_drop_profile_for_mode(drop_mode_for_point(y, x));
                 place_object_with_profile_params(
                     y, x, DROP_QUALITY_GOOD, DROP_TYPE_NOT_DAMAGED, true,
+                    &active_profile);
+                object_level = original_object_level;
+                break;
+            }
+
+            /* A great object from 1-4 levels deeper */
+            case '!':
+            {
+                object_level = p_ptr->depth + dieroll(4);
+                partition_drop_profile active_profile =
+                    partition_drop_profile_for_mode(drop_mode_for_point(y, x));
+                place_object_with_profile_params(
+                    y, x, DROP_QUALITY_GREAT, DROP_TYPE_NOT_DAMAGED, true,
                     &active_profile);
                 object_level = original_object_level;
                 break;

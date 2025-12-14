@@ -3857,7 +3857,7 @@ void move_displayed_highlight(
     Term_putstr(col, new_highlight + 1, -1, TERM_L_BLUE, buf);
 }
 
-bool melt_mithril_item(int item_num)
+bool melt_metal_item(int item_num)
 {
     int number = 0;
     int item, i;
@@ -3869,8 +3869,8 @@ bool melt_mithril_item(int item_num)
 
         object_flags(o_ptr, &f1, &f2, &f3);
 
-        /* Skip mithril items that can't be melted (Gamil-forged) */
-        if ((f3 & TR3_MITHRIL) && !(o_ptr->ident & IDENT_CANT_MELT))
+        /* Skip metal items that can't be melted (Gamil-forged) */
+        if ((f3 & (TR3_MITHRIL | TR3_STAR_IRON)) && !(o_ptr->ident & IDENT_CANT_MELT))
         {
             number += 1;
         }
@@ -3911,12 +3911,19 @@ bool melt_mithril_item(int item_num)
                 int slot;
                 object_type* i_ptr;
                 object_type object_type_body;
+                int metal_sval;
+
+                // Determine which metal type to create
+                if (f3 & TR3_STAR_IRON)
+                    metal_sval = SV_METAL_STAR_IRON;
+                else
+                    metal_sval = SV_METAL_MITHRIL;
 
                 // Get local object
                 i_ptr = &object_type_body;
 
-                // Prepare the base object for the mithril
-                object_prep(i_ptr, lookup_kind(TV_METAL, SV_METAL_MITHRIL));
+                // Prepare the base object for the metal
+                object_prep(i_ptr, lookup_kind(TV_METAL, metal_sval));
 
                 // set the appropriate quantity
                 i_ptr->number = o_ptr->weight;
@@ -3941,9 +3948,9 @@ bool melt_mithril_item(int item_num)
                     // decrease the main stack
                     i_ptr->number -= 99;
 
-                    // Prepare the base object for the mithril
+                    // Prepare the base object for the metal
                     object_prep(
-                        i_ptr2, lookup_kind(TV_METAL, SV_METAL_MITHRIL));
+                        i_ptr2, lookup_kind(TV_METAL, metal_sval));
 
                     // increase the new stack
                     i_ptr2->number = 99;
@@ -7258,9 +7265,8 @@ int melt_menu_aux(int* highlight)
 
         object_flags(o_ptr, &f1, &f2, &f3);
         
-        /* ignore mithril items that carry the �can�t melt� tag         */
-        if ((f3 & TR3_MITHRIL) && !(o_ptr->ident & IDENT_CANT_MELT))
-
+        /* ignore metal items that carry the "can't melt" tag */
+        if ((f3 & (TR3_MITHRIL | TR3_STAR_IRON)) && !(o_ptr->ident & IDENT_CANT_MELT))
         {
             object_desc(desc, 80, o_ptr, false, 2);
             strnfmt(buf, 80, "%c) %s", (char)'a' + num, desc);
@@ -7338,7 +7344,7 @@ int melt_menu_aux(int* highlight)
 }
 
 /*
- * Produces the menu for melting down mithril items into pieces of mithril.
+ * Produces the menu for melting down mithril and star-iron items into their metal pieces.
  */
 void melt_menu(void)
 {
@@ -7357,7 +7363,7 @@ void melt_menu(void)
 
         if (choice >= 1)
         {
-            if (melt_mithril_item(choice))
+            if (melt_metal_item(choice))
             {
                 leave_menu = true;
             }

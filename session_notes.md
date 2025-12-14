@@ -7412,3 +7412,18 @@ User reported that while letters were enabled, the 'i' and 'e' keys were still s
 - Chests map to the new tiers: wooden=good, steel=great, jewelled=superb; chest contents use quality instead of hardcoded bonuses, and chest generation logs quality using chest sval macros.
 - Big caves now guarantee a chest with a 75% wooden / 25% steel mix instead of forcing wooden-only spawns.
 - Data: refreshed chest note in lib/edit/object.txt; build-cmake.bat (standard) completes with existing warnings only.
+
+## 2025-12-13: Drop system tweaks (artefacts, max depth, vault great, digging gems)
+- Artefacts now require `DROP_QUALITY_GREAT` or `DROP_QUALITY_SUPERB` (and `allow_artefacts=true`) to be eligible, preventing artefacts from normal/good floor/vault spawns while still allowing them from great/superb sources.
+- Interpreted trailing `A:.../0` allocation entries as an inclusive max-depth marker for the drop system; fixes low-depth damaged items (e.g. Broken Shield) appearing deep.
+- Vaults support a new `!` token for “great treasure +1 to +4 levels” (code support + legend entry).
+- ROOMY-partition floor/corridor object scatter is reduced by ~50% via an extra reroll gate.
+- Quartz-vein digging gem drops now force `number=1` for `TV_GEM` results.
+- Build: `build-cmake.bat` succeeds (standard + portable).
+
+## 2025-12-13: Chest depth fix + log clarity
+- Fixed chest contents depth being `+8` instead of `+4`: chest `pval` is now the generation depth, and opening still applies the existing `+4` content boost (`src/cmd2.c:816`).
+- Drop gen-log now prints `target=` (not `roll=`) for the computed difficulty target (the `min(d30,d30)` is already logged separately as `min=` in `DROP_TARGET`).
+- Fixed artefact catalog entries missing their `B:` abilities (and underestimating their difficulty bands as a result); drop catalog version bumped to force rebuild.
+- Load-time safety: artefacts missing `B:` abilities in saved items get them re-attached from `a_info[]`.
+- Fixed max-depth caps (`A:.../0`) getting lost when combining base+ego allocation schedules (e.g. “Broken Shield of Deflection” spawning deep); drop catalog version bumped to force rebuild.

@@ -70,6 +70,7 @@
 #     4 - monster +4 levels
 #     * - treasure +1 to +4 levels
 #     & - treasure +1 to +4 levels (good)
+#     ! - treasure +1 to +4 levels (great)
 #     ~ - a chest with +4 levels
 #     S - an elf skeleton
 #     ? - a monster +1 level and/or an item +1 level

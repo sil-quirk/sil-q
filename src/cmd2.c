@@ -3298,6 +3298,8 @@ static bool twall(int y, int x)
                         DROP_TYPE_STAFF, 0, false, &gem_profile, i_ptr))
                 {
                     log_debug("twall: gem generated successfully, tval=%d", i_ptr->tval);
+                    if (i_ptr->tval == TV_GEM)
+                        i_ptr->number = 1;
                     drop_near(i_ptr, -1, y, x);
                     msg_print("A gem glitters in the rubble!");
                 }
@@ -6566,7 +6568,6 @@ void do_cmd_throw_from_slot(int slot)
     throw_pending_slot = slot;
     do_cmd_throw(false);
 }
-
 
 
 

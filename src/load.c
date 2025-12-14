@@ -570,6 +570,28 @@ static errr rd_item(object_type* o_ptr)
         /* Get the new artefact weight */
         o_ptr->weight = a_ptr->weight;
 
+        /* Ensure artefact-granted abilities are present (some generators may omit them). */
+        for (int ai = 0; ai < a_ptr->abilities && o_ptr->abilities < (int)N_ELEMENTS(o_ptr->skilltype); ai++)
+        {
+            bool found = false;
+            for (int oi = 0; oi < o_ptr->abilities; oi++)
+            {
+                if (o_ptr->skilltype[oi] == a_ptr->skilltype[ai]
+                    && o_ptr->abilitynum[oi] == a_ptr->abilitynum[ai])
+                {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+            {
+                int idx = o_ptr->abilities;
+                o_ptr->skilltype[idx] = a_ptr->skilltype[ai];
+                o_ptr->abilitynum[idx] = a_ptr->abilitynum[ai];
+                o_ptr->abilities++;
+            }
+        }
+
         /* Hack -- extract the "broken" flag */
         if (!a_ptr->cost)
             o_ptr->ident |= (IDENT_BROKEN);
@@ -2973,7 +2995,6 @@ bool load_player(void)
     /* Oops */
     return (false);
 }
-
 
 
 

@@ -61,7 +61,7 @@ static const s16b jinx_egos[] = {
 
 static const char* DROP_RAW_FILE = "drops";
 static const u32b DROP_RAW_MAGIC = 0x44525053; /* 'DRPS' */
-static const u32b DROP_RAW_VERSION = 6;
+static const u32b DROP_RAW_VERSION = 9;
 
 typedef struct
 {
@@ -296,10 +296,18 @@ static int schedule_max_depth_cap(const byte* depths, const byte* rarities, int 
         if (rarities[i] > 0)
             last_positive = i;
     }
-    if (last_positive >= 0 && last_positive + 1 < count && rarities[last_positive + 1] == 0)
-        return depths[last_positive + 1] - 1;
+
     if (last_positive < 0)
         return -1; /* all zero rarities */
+
+    /* If the schedule transitions to zero after the last positive entry,
+     * treat that as an inclusive max-depth marker (i.e. cap at that depth). */
+    for (int i = last_positive + 1; i < count; i++)
+    {
+        if (rarities[i] == 0)
+            return depths[i];
+    }
+
     return 0; /* no cap */
 }
 
@@ -308,6 +316,11 @@ static int rarity_from_schedule(const byte* depths, const byte* rarities, int co
 {
     if (count <= 0)
         return default_rarity;
+
+    /* Trailing zero-rarity entries are treated as max-depth markers, not an
+     * in-band rarity override at that exact depth. */
+    while (count > 1 && rarities[count - 1] == 0)
+        count--;
 
     int first_depth = depths[0];
     if (first_depth > 0 && depth < first_depth)
@@ -328,11 +341,23 @@ static int combine_allocations(const byte* base_depths, const byte* base_raritie
     const byte* ego_depths, const byte* ego_rarities, int ego_count,
     byte* out_depths, byte* out_rarities)
 {
+    int base_cap = schedule_max_depth_cap(base_depths, base_rarities, base_count);
+    int ego_cap = schedule_max_depth_cap(ego_depths, ego_rarities, ego_count);
+    int combined_cap = 0;
+    if (base_cap > 0 && ego_cap > 0)
+        combined_cap = MIN(base_cap, ego_cap);
+    else if (base_cap > 0)
+        combined_cap = base_cap;
+    else if (ego_cap > 0)
+        combined_cap = ego_cap;
+
     byte merged[DROP_ALLOC_MAX];
     int merged_count = 0;
 
     for (int i = 0; i < base_count && merged_count < DROP_ALLOC_MAX; i++)
     {
+        if (combined_cap > 0 && base_depths[i] > combined_cap)
+            continue;
         bool exists = false;
         for (int j = 0; j < merged_count; j++)
         {
@@ -348,6 +373,8 @@ static int combine_allocations(const byte* base_depths, const byte* base_raritie
 
     for (int i = 0; i < ego_count && merged_count < DROP_ALLOC_MAX; i++)
     {
+        if (combined_cap > 0 && ego_depths[i] > combined_cap)
+            continue;
         bool exists = false;
         for (int j = 0; j < merged_count; j++)
         {
@@ -378,6 +405,8 @@ static int combine_allocations(const byte* base_depths, const byte* base_raritie
     for (int i = 0; i < merged_count && out_count < DROP_ALLOC_MAX; i++)
     {
         int depth = merged[i];
+        if (combined_cap > 0 && depth > combined_cap)
+            continue;
         int base_r = rarity_from_schedule(base_depths, base_rarities, base_count, depth, 1);
         int ego_r = rarity_from_schedule(ego_depths, ego_rarities, ego_count, depth, 1);
         int combined = base_r * ego_r;
@@ -389,6 +418,16 @@ static int combine_allocations(const byte* base_depths, const byte* base_raritie
             out_rarities[out_count] = (byte)MIN(combined, 255);
             out_count++;
         }
+    }
+
+    /* Preserve inclusive max-depth markers (A:.../0) so max_depth caps apply to combined entries.
+     * This intentionally allows duplicate depths (e.g. depth=6 rarity=X then depth=6 rarity=0),
+     * with the trailing 0 treated as a cap marker by schedule_max_depth_cap(). */
+    if (combined_cap > 0 && out_count < DROP_ALLOC_MAX)
+    {
+        out_depths[out_count] = (byte)combined_cap;
+        out_rarities[out_count] = 0;
+        out_count++;
     }
 
     return out_count;
@@ -1399,6 +1438,15 @@ static void build_artifact_variants(int a_idx)
     if (a_ptr->flags3 & (TR3_LIGHT_CURSE))
         v.ident |= (IDENT_CURSED);
 
+    /* Copy artefact-granted abilities (mirrors object_into_artefact()). */
+    for (int i = 0; i < a_ptr->abilities && v.abilities < (int)N_ELEMENTS(v.skilltype); i++)
+    {
+        int idx = v.abilities;
+        v.skilltype[idx] = a_ptr->skilltype[i];
+        v.abilitynum[idx] = a_ptr->abilitynum[i];
+        v.abilities++;
+    }
+
     object_kind* k_ptr = &k_info[k_idx];
     drop_category cat = drop_category_for_kind(k_ptr);
     if (cat == DROP_CAT_MAX)
@@ -1575,6 +1623,7 @@ typedef enum
 typedef struct
 {
     drop_category cat;
+    drop_quality quality;
     int depth;        /* Generation depth (object_level) */
     int legal_depth;  /* Depth cap for allocation legality */
     int difficulty_bonus;
@@ -1775,7 +1824,7 @@ static bool collect_candidate_entries(
         if (e.group_kind == DROP_GROUP_ARTIFACT)
         {
             /* Skip artefacts if not allowed by the drop request */
-            if (!req->allow_artefacts) {
+            if (!req->allow_artefacts || req->quality < DROP_QUALITY_GREAT) {
                 filter_artifact++;
                 continue;
             }
@@ -1884,12 +1933,16 @@ static int drop_entry_rarity_at_depth(const drop_entry* e, int depth)
     if (!e || e->num_allocations == 0)
         return 1;
 
+    int count = e->num_allocations;
+    while (count > 1 && e->alloc_rarity[count - 1] == 0)
+        count--;
+
     int first_depth = e->alloc_depth[0];
     if (first_depth > 0 && depth < first_depth)
         return 0;
 
     int rarity = e->alloc_rarity[0];
-    for (int i = 1; i < e->num_allocations; i++)
+    for (int i = 1; i < count; i++)
     {
         if (depth >= e->alloc_depth[i])
             rarity = e->alloc_rarity[i];
@@ -2168,7 +2221,7 @@ static void log_drop_attempt(const drop_request* req, size_t strict_count,
     }
 
     gen_log_write("DROP",
-        "depth=%d cat=%s droptype=%d supply=%s roll=%d band=%d..%d bonus=%d "
+        "depth=%d cat=%s droptype=%d supply=%s target=%d band=%d..%d bonus=%d "
         "strict=%zu relaxed=%zu used_relaxed=%s fallback=%s "
         "chosen_k=%d a_idx=%d e_idx=%d base_dif=%d eff_dif=%d min_depth=%d "
         "max_depth=%d rarity_at_depth=%d group_kind=%d",
@@ -2258,7 +2311,7 @@ static bool try_apply_jinx(object_type* o_ptr, int depth)
  * Generate a chest according to game design specifications:
  * - 50/50 chance small or large
  * - 50% wooden (good), 35% steel (great), 15% jewelled (superb)  
- * - Chests add 4 levels to depth for drop calculation
+ * - Chest contents add +4 levels when opened (handled in chest_death())
  */
 static bool generate_chest(int depth, object_type* out)
 {
@@ -2309,8 +2362,8 @@ static bool generate_chest(int depth, object_type* out)
     /* Create the chest object */
     object_prep(out, k_idx);
     
-    /* Set chest level (pval) = depth + 4 as per specification */
-    out->pval = depth + 4;
+    /* Set chest level (pval) at generation time; opening adds +4 for contents. */
+    out->pval = depth;
     if (out->pval > 25)
         out->pval = 25;
     if (out->pval < 1)
@@ -2358,15 +2411,7 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     /* Handle chest generation specially */
     if (droptype == DROP_TYPE_CHEST)
     {
-        /* Chests also respect legal depth cap */
-        int legal_depth = depth;
-        if (p_ptr)
-        {
-            int current_depth = (p_ptr->depth > 0) ? p_ptr->depth : 1;
-            if (legal_depth > current_depth)
-                legal_depth = current_depth;
-        }
-        return generate_chest(legal_depth, out);
+        return generate_chest(depth, out);
     }
     
     drop_request req;
@@ -2381,6 +2426,7 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     }
 
     req.depth = gen_depth;
+    req.quality = quality;
     req.legal_depth = legal_depth;
     req.difficulty_bonus = extra_bonus + drop_quality_bonus(quality);
     req.is_supply = false;
