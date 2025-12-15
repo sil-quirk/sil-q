@@ -11,6 +11,8 @@
   - Implemented per-term story font push/pop (`src/ui/story_font.c`) and switched inventory/equipment displays to use it instead of global SDL enable/disable (`src/object1.c`).
   - Monster recall (`screen_roff`/`display_roff`) now supports story font in both main window and `PW_MONSTER` pane (`src/monster1.c`); options menu triggers immediate pane redraws (`src/cmd4.c`).
 - Story font alignment: free-mode story text is now pixel-packed across colored runs (fixes gaps like numbers/keywords drifting far right in monster recall and other mixed-color story text) (`src/main-sdl.c`).
+- Story font wrapping: spaces are now measured in pixels (instead of assuming 1 cell wide), so lines wrap later and use more of the available width when story font is enabled (`src/ui/story_font.c`).
+- Monster recall wrapping: `screen_roff()` / `display_roff()` now set `text_out_wrap` to the current `Term` width (and restore it after), so story/mono recall can use wide windows instead of inheriting a stale ~80-col wrap (`src/monster1.c`).
 - Build: `build-cmake.bat` successful (standard + portable SDL3 builds).
 
 ## 2025-12-12: Skeleton Note Updates
@@ -7440,3 +7442,72 @@ User reported that while letters were enabled, the 'i' and 'e' keys were still s
 - Fixed artefact catalog entries missing their `B:` abilities (and underestimating their difficulty bands as a result); drop catalog version bumped to force rebuild.
 - Load-time safety: artefacts missing `B:` abilities in saved items get them re-attached from `a_info[]`.
 - Fixed max-depth caps (`A:.../0`) getting lost when combining base+ego allocation schedules (e.g. “Broken Shield of Deflection” spawning deep); drop catalog version bumped to force rebuild.
+
+
+## 2025-12-14: Updated calc_artefact_difficulty.py to match game logic
+
+Updated scripts/calc_artefact_difficulty.py to generate **all possible special item variants** matching the exact game logic from src/drop_system.c.
+
+### Key Improvements
+
+1. **Added object.txt parsing** - Now reads base item stats from lib/edit/object.txt
+2. **Added special variant generation** - Implements generate_special_variants() to mirror build_ego_variants() from drop_system.c (lines 1149-1410)
+3. **Generates all stat combinations** - Creates every possible variant within smithing caps for each special+base combination
+4. **Jewelry handling** - Properly handles rings and amulets with pval ranges 1-4
+5. **Accurate difficulty calculation** - Uses actual variant stats instead of just the max bonuses
+
+### Results
+- **1,297** special item variants generated (up from 73 template specials)
+- **105** artefacts (unchanged)
+- **1,402** total items in difficulty database
+
+The script now exactly mirrors the game's drop generation logic for all artefacts, special items (ego), and jewelry.
+
+
+## 2025-12-14: Fixed calc_artefact_difficulty.py - Removed INSTA_ART items
+
+**Issue 1 (Launch error):** Script was working fine, no error found.
+
+**Issue 2 (70 Ring of Protection variants):** Fixed. The issue was INSTA_ART items being included as base items. Rings and amulets in object.txt are all INSTA_ART templates (artefact-only). Real rings/amulets use flavor.txt for appearance only - they have no base items or special (ego) variants in the game.
+
+### Changes
+- Updated parse_object_file() to skip INSTA_ART items when building base item list
+- This removed 15 bogus ring/amulet base items (svals 30-32 for rings, 10-16 for amulets)
+
+### Final Results
+- **105** artefacts
+- **1,249** special variants (down from 1,297)
+- **1,354** total items
+
+Note: 'of Protection' has 70 variants correctly - it applies to shields (tval 34), boots (tval 30), soft armor (tval 36), and mail (tval 37) with different protection dice combinations.
+
+
+## 2025-12-14: Added normal item variants (rings & amulets)
+
+Updated calc_artefact_difficulty.py to generate all possible stat variants for normal items, including rings and amulets.
+
+### Changes
+- Added generate_normal_variants() function mirroring build_normal_variants() from drop_system.c
+- Rings generate variants with different pval/att/evn/protection combinations:
+  - Ring of Accuracy: att 1-4, pval 0-4
+  - Ring of Evasion: evn 1-4, pval 0-4
+  - Ring of Protection: pd=1, ps 1-3, pval 0-4
+  - Other rings: pval 0-4 if they have pval flags
+- Amulets generate variants with pval 0-4 if they have pval flags
+- Weapons and armor also generate all smithing cap variants
+
+### Final Results
+- **105** artefacts
+- **326** normal variants (including 37 rings + 20 amulets)
+- **1,249** special (ego) variants
+- **1,680** total items
+
+The script now fully matches the game's drop generation logic for all item types.
+
+## 2025-12-14: Drop band fallback + chest/ vault depth tweaks
+- `src/drop_system.c`: replaced band-widening retry loop with: skip if `upper<0`, then (partition-driven only) add W/A/J categories by partition weight (skipping zero-weight cats), then relax by decrementing `lower` until candidates exist.
+- `src/drop_system.c`: added `min_depth_penalty_depth` (separate from difficulty target depth) and new APIs `drop_generate_object_*_depths()` so depth boosts only reduce the min-depth penalty, not the `1.70*depth` target formula.
+- `src/cmd2.c`: chest opening now uses `+5` (was `+4`) as min-depth-penalty-only depth boost for contents.
+- `src/generate.c`: vault object tokens now use `1d5` (was `1d4`) depth boost as min-depth-penalty-only; vault chest token uses `+5` (was `+4`).
+- `src/drop_system.c`, `src/cmd2.c`: chests no longer store a theme; chest contents are generated as `DROP_TYPE_UNTHEMED` with the spawning partition’s profile weights.
+- `src/generate.c`, `src/xtra2.c`: chest `xtra1` now stores `0x80|level_partition_kind` where the chest was spawned (to avoid colliding with legacy chest themes), used at open time to pick the correct partition drop profile.

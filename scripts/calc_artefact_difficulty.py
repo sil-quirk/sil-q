@@ -134,15 +134,16 @@ def parse_special_file(filepath):
                 current = {
                     'idx': idx,
                     'name': name,
-                    'tval': 0,
-                    'sval': 0,
-                    'pval': 0,
-                    'att': 0,
-                    'evn': 0,
-                    'dd': 0,
-                    'ds': 0,
-                    'pd': 0,
-                    'ps': 0,
+                    'tvals': [],  # Can have multiple tval ranges
+                    'min_svals': [],
+                    'max_svals': [],
+                    'max_pval': 0,
+                    'max_att': 0,
+                    'max_evn': 0,
+                    'to_dd': 0,
+                    'to_ds': 0,
+                    'to_pd': 0,
+                    'to_ps': 0,
                     'abilities': 0,
                     'flags': [],
                     'depth': 0,
@@ -160,21 +161,21 @@ def parse_special_file(filepath):
             # When smithing, you get +1 to each stat if its max > 0
             elif line.startswith('C:') and current:
                 parts = line[2:].split(':')
-                current['att'] = int(parts[0]) if parts[0] else 0
-                current['dd'] = int(parts[1]) if parts[1] else 0
-                current['ds'] = int(parts[2]) if parts[2] else 0
-                current['evn'] = int(parts[3]) if parts[3] else 0
-                current['pd'] = int(parts[4]) if parts[4] else 0
-                current['ps'] = int(parts[5]) if parts[5] else 0
+                current['max_att'] = int(parts[0]) if parts[0] else 0
+                current['to_dd'] = int(parts[1]) if parts[1] else 0
+                current['to_ds'] = int(parts[2]) if parts[2] else 0
+                current['max_evn'] = int(parts[3]) if parts[3] else 0
+                current['to_pd'] = int(parts[4]) if parts[4] else 0
+                current['to_ps'] = int(parts[5]) if parts[5] else 0
                 if len(parts) > 6:
-                    current['pval'] = int(parts[6]) if parts[6] else 0
+                    current['max_pval'] = int(parts[6]) if parts[6] else 0
             
-            # Tval/sval range (we'll just use first one for base stats)
+            # Tval/sval range - can have multiple T: lines
             elif line.startswith('T:') and current:
-                if current['tval'] == 0:  # Only take first T: line
-                    parts = line[2:].split(':')
-                    current['tval'] = int(parts[0])
-                    current['sval'] = int(parts[1])  # min_sval
+                parts = line[2:].split(':')
+                current['tvals'].append(int(parts[0]))
+                current['min_svals'].append(int(parts[1]))
+                current['max_svals'].append(int(parts[2]) if len(parts) > 2 else int(parts[1]))
             
             # Abilities
             elif line.startswith('B:') and current:
@@ -200,11 +201,9 @@ def calculate_difficulty(art):
     Calculate smithing difficulty using the REAL formula from src/cmd4.c object_difficulty().
     This accounts for all flags, slays, brands, sharpness, etc.
     
-    For specials: When smithing, you get +1 to each stat if its max value > 0
-    (see object_into_special in object2.c lines 2933-2955)
-    
-    IMPORTANT: For specials, flags like STR use the BASE ITEM's pval, not the special's pval!
-    The special only adds the flag; the pval comes from the base item (e.g., Mattock has pval +2).
+    For normal items: Use the actual stats from the generated variant.
+    For specials: Use the actual stats from the generated variant.
+    For artefacts: Use the stats as-is from artefact.txt.
     """
     dif_inc = 0
     dif_dec = 0
@@ -215,48 +214,49 @@ def calculate_difficulty(art):
     tval = art['tval']
     sval = art['sval']
     is_special = (art['type'] == 'special')
-    base_pval = get_base_pval(tval, sval)
+    is_normal = (art['type'] == 'normal')
     
-    # For specials being smithed, convert max values to +1 bonuses
-    # The final stat = base_stat + smithed_bonus
-    if is_special:
-        # When smithing a special, you get +1 to each stat if max > 0, else 0
-        smithed_att_bonus = 1 if art['att'] > 0 else 0
-        smithed_evn_bonus = 1 if art['evn'] > 0 else 0
-        smithed_dd_bonus = 1 if art['dd'] > 0 else 0
-        smithed_ds_bonus = 1 if art['ds'] > 0 else 0
-        smithed_pd_bonus = 1 if art['pd'] > 0 else 0
-        smithed_ps_bonus = 1 if art['ps'] > 0 else 0
-        # Pval bonus from special (added to base)
-        smithed_pval_bonus = 1 if art['pval'] > 0 else 0
-        # Total pval = base + bonus from special
-        total_pval = base_pval + smithed_pval_bonus
+    # Get base item stats
+    if is_special or is_normal:
+        # For variants, we have base stats stored
+        base_att = art.get('base_att', 0)
+        base_evn = art.get('base_evn', 0)
+        base_ds = art.get('base_ds', 0)
+        base_ps = art.get('base_ps', 0)
+        base_pd = art.get('base_pd', 0)
+        base_dd = art.get('base_dd', 0)
+        base_pval = art.get('base_pval', 0)
+        base_level = art.get('base_level', 0)
+        base_prot = (base_ps + 1) * base_pd if base_ps > 0 else 0
     else:
-        # Artefacts use their actual values (these are totals, not bonuses)
-        smithed_att_bonus = art['att'] - get_base_att(tval, sval)
-        smithed_evn_bonus = art['evn'] - get_base_evn(tval, sval)
-        smithed_dd_bonus = art['dd']  # dd is usually just the bonus
-        smithed_ds_bonus = art['ds'] - get_base_ds(tval, sval)
-        smithed_pd_bonus = art['pd']  # pd is usually just the bonus
-        smithed_ps_bonus = art['ps']  # ps is usually just the bonus
-        total_pval = art['pval']
-        smithed_pval_bonus = art['pval'] - base_pval
+        # For artefacts, look up base stats
+        base_att = get_base_att(tval, sval)
+        base_evn = get_base_evn(tval, sval)
+        base_ds = get_base_ds(tval, sval)
+        base_pval = get_base_pval(tval, sval)
+        base_level = get_base_level(tval, sval)
+        base_prot = get_base_protection(tval, sval)
+    
+    # Calculate bonuses (difference from base)
+    smithed_att_bonus = art['att'] - base_att
+    smithed_evn_bonus = art['evn'] - base_evn
+    smithed_ds_bonus = art['ds'] - base_ds
+    smithed_pval_bonus = art['pval'] - base_pval
+    total_pval = art['pval']
+    
+    # For protection, calculate new_prot from variant's pd/ps
+    new_prot = (art['ps'] + 1) * art['pd'] if art['ps'] > 0 else 0
+    prot_bonus = new_prot - base_prot
+    # For protection, calculate new_prot from variant's pd/ps
+    new_prot = (art['ps'] + 1) * art['pd'] if art['ps'] > 0 else 0
+    prot_bonus = new_prot - base_prot
     
     # Base item level contribution (k_ptr->level / 2)
     # For non-jewelry items: dif_inc += k_ptr->level / 2
-    base_level = get_base_level(tval, sval)
     if tval not in [45, 40]:  # Not ring or amulet
         dif_inc += base_level // 2
     
-    # Get base item stats
-    base_att = get_base_att(tval, sval)
-    base_evn = get_base_evn(tval, sval)
-    base_ds = get_base_ds(tval, sval)
-    base_prot = get_base_protection(tval, sval)
-    
     # Attack bonus contribution (bonus above base)
-    # For specials, smithed_att_bonus is already the bonus (0 or 1)
-    # For artefacts, smithed_att_bonus is the total att minus base att
     att_bonus = smithed_att_bonus
     if att_bonus > 0:
         if tval == 17:  # Arrow - different formula
@@ -284,8 +284,6 @@ def calculate_difficulty(art):
         dif_inc += dif_mod_calc(ds_bonus, 3 * ds_bonus + 2)
     
     # Protection bonus
-    new_prot = (smithed_ps_bonus + 1) * smithed_pd_bonus if smithed_ps_bonus > 0 else 0
-    prot_bonus = new_prot - base_prot if not is_special else new_prot
     if prot_bonus > 0:
         if tval == 37 and sval == 6:  # Hauberk
             dif_inc += dif_mod_calc(prot_bonus, 1) + 2
@@ -747,6 +745,260 @@ def get_base_pval(tval, sval):
     return base_pval.get((tval, sval), 0)
 
 
+def parse_object_file(filepath):
+    """Parse object.txt to get all base item kinds with their stats."""
+    objects = []
+    current = None
+    
+    with open(filepath, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            
+            if not line or line.startswith('#'):
+                continue
+            
+            # New object entry
+            if line.startswith('N:'):
+                if current and 'INSTA_ART' not in current['flags']:
+                    # Skip INSTA_ART items - they're artefact-only templates
+                    objects.append(current)
+                parts = line[2:].split(':')
+                idx = int(parts[0])
+                name = ':'.join(parts[1:])
+                current = {
+                    'k_idx': idx,
+                    'name': name,
+                    'tval': 0,
+                    'sval': 0,
+                    'pval': 0,
+                    'att': 0,
+                    'evn': 0,
+                    'dd': 0,
+                    'ds': 0,
+                    'pd': 0,
+                    'ps': 0,
+                    'level': 0,
+                    'flags': [],
+                }
+            
+            # Item info (contains tval:sval:pval)
+            elif line.startswith('I:') and current:
+                parts = line[2:].split(':')
+                current['tval'] = int(parts[0])
+                current['sval'] = int(parts[1])
+                if len(parts) > 2 and parts[2]:
+                    current['pval'] = int(parts[2])
+            
+            # Weight/level info
+            elif line.startswith('W:') and current:
+                parts = line[2:].split(':')
+                current['level'] = int(parts[0])
+            
+            # Combat stats: att:dam_dice:evn:prot_dice
+            elif line.startswith('P:') and current:
+                parts = line[2:].split(':')
+                # Attack bonus
+                att_str = parts[0].replace('+', '').strip()
+                current['att'] = int(att_str) if att_str and att_str != '' else 0
+                
+                # Damage dice (XdY)
+                if len(parts) > 1 and 'd' in parts[1]:
+                    dam = parts[1].split('d')
+                    current['dd'] = int(dam[0])
+                    current['ds'] = int(dam[1])
+                
+                # Evasion bonus
+                if len(parts) > 2:
+                    evn_str = parts[2].replace('+', '').strip()
+                    current['evn'] = int(evn_str) if evn_str and evn_str != '' else 0
+                
+                # Protection dice (XdY)
+                if len(parts) > 3 and 'd' in parts[3]:
+                    prot_part = parts[3].split(':')[0]
+                    prot = prot_part.split('d')
+                    current['pd'] = int(prot[0])
+                    current['ps'] = int(prot[1])
+            
+            # Flags
+            elif line.startswith('F:') and current:
+                flags = [f.strip() for f in line[2:].split('|')]
+                current['flags'].extend(flags)
+    
+    if current and 'INSTA_ART' not in current['flags']:
+        objects.append(current)
+    
+    return objects
+
+
+def has_pval_mask(flags):
+    """Check if item has any pval-dependent flags (TR1_PVAL_MASK)."""
+    pval_flags = {'STR', 'DEX', 'CON', 'GRA', 'TUNNEL', 'STEALTH', 'PERCEPTION', 
+                  'WILL', 'SMITHING', 'SONG', 'ARCHERY', 'DAMAGE_SIDES',
+                  'STL', 'PER', 'WIL', 'SMT', 'SNG', 'ARC'}
+    return any(f in pval_flags for f in flags)
+
+
+def generate_special_variants(special, objects):
+    """
+    Generate all possible variants of a special item (ego) based on game logic.
+    Mirrors build_ego_variants() from drop_system.c lines 1149-1410.
+    """
+    variants = []
+    
+    # For each tval range in the special
+    for t_idx in range(len(special['tvals'])):
+        tval = special['tvals'][t_idx]
+        min_sval = special['min_svals'][t_idx]
+        max_sval = special['max_svals'][t_idx]
+        
+        # Find all base objects that match this tval/sval range
+        for obj in objects:
+            if obj['tval'] != tval:
+                continue
+            if obj['sval'] < min_sval or obj['sval'] > max_sval:
+                continue
+            
+            # Calculate stat ranges for this special + base combination
+            # (mirrors lines 1249-1374 in drop_system.c)
+            att_min = obj['att'] + (1 if special['max_att'] > 0 else 0)
+            att_max = obj['att']
+            ds_min = obj['ds'] + (1 if special['to_ds'] > 0 else 0)
+            ds_max = obj['ds']
+            evn_min = obj['evn'] + (1 if special['max_evn'] > 0 else 0)
+            evn_max = obj['evn']
+            ps_min = obj['ps'] + (1 if special['to_ps'] > 0 else 0)
+            ps_max = obj['ps']
+            pval_min = obj['pval'] + (1 if special['max_pval'] > 0 else 0)
+            pval_max = obj['pval'] + special['max_pval']
+            dd_min = obj['dd'] + (1 if special['to_dd'] > 0 else 0)
+            dd_max = obj['dd'] + special['to_dd']
+            pd_min = obj['pd'] + (1 if special['to_pd'] > 0 else 0)
+            pd_max = obj['pd'] + special['to_pd']
+            
+            # Check if pval is allowed (base has pval flags or pval != 0 or ego grants pval)
+            base_flags = set(obj['flags'])
+            pval_allowed = has_pval_mask(base_flags) or obj['pval'] != 0 or special['max_pval'] > 0
+            
+            # Apply item-specific smithing rules (lines 1265-1350)
+            if tval in [23, 22, 21, 20, 19]:  # Sword, Polearm, Hafted, Digging, Bow
+                att_max = obj['att'] + 1 + special['max_att']
+                ds_max = obj['ds'] + 1 + special['to_ds']
+                evn_max = obj['evn'] + special['max_evn']
+            elif tval in [30, 31, 32, 33, 34, 35, 36, 37]:  # Armor pieces
+                att_max = obj['att'] + 1 + special['max_att']
+                if att_max > 0:
+                    att_max = 0
+                evn_max = obj['evn'] + 1 + special['max_evn']
+                ps_max = obj['ps'] + 1 + special['to_ps']
+                # Cloaks and robes can't have protection
+                if tval == 35 or (tval == 36 and obj['sval'] == 2):  # SV_ROBE = 2
+                    ps_max = 0
+                # Long Corslet gets +2 ps
+                if tval == 37 and obj['sval'] == 7:  # SV_LONG_CORSLET = 7
+                    ps_max = obj['ps'] + 2 + special['to_ps']
+            elif tval == 45:  # Ring
+                if obj['sval'] == 30:  # SV_RING_ACCURACY
+                    att_max = 4
+                    att_min = 1
+                else:
+                    att_max = obj['att'] + special['max_att']
+                if obj['sval'] == 31:  # SV_RING_EVASION
+                    evn_max = 4
+                    evn_min = 1
+                else:
+                    evn_max = obj['evn'] + special['max_evn']
+                if obj['sval'] == 32:  # SV_RING_PROTECTION
+                    if pd_min < 1:
+                        pd_min = 1
+                    if pd_max < 1:
+                        pd_max = 1
+                    ps_max = 3
+                    ps_min = 1
+                if pval_allowed:
+                    # Merge base and ego pval flags to check
+                    combined_flags = base_flags | set(special['flags'])
+                    if has_pval_mask(combined_flags):
+                        if pval_min < 1:
+                            pval_min = 1
+                        if pval_max < 4:
+                            pval_max = 4
+                    if pval_max > 4:
+                        pval_max = 4
+            elif tval == 40:  # Amulet
+                if pval_allowed:
+                    combined_flags = base_flags | set(special['flags'])
+                    if has_pval_mask(combined_flags):
+                        if pval_min < 1:
+                            pval_min = 1
+                        if pval_max < 4:
+                            pval_max = 4
+                    if pval_max > 4:
+                        pval_max = 4
+            else:
+                att_max = obj['att'] + special['max_att']
+                ds_max = obj['ds'] + special['to_ds']
+                evn_max = obj['evn'] + special['max_evn']
+                ps_max = obj['ps'] + special['to_ps']
+            
+            # Clamp mins to maxs
+            if att_min > att_max:
+                att_min = att_max
+            if ds_min > ds_max:
+                ds_min = ds_max
+            if evn_min > evn_max:
+                evn_min = evn_max
+            if ps_min > ps_max:
+                ps_min = ps_max
+            if pval_min > pval_max:
+                pval_min = pval_max
+            if dd_min > dd_max:
+                dd_min = dd_max
+            if pd_min > pd_max:
+                pd_min = pd_max
+            
+            # Generate all combinations (lines 1377-1407)
+            for att in range(att_min, att_max + 1):
+                for ds in range(ds_min, ds_max + 1):
+                    for evn in range(evn_min, evn_max + 1):
+                        for ps in range(ps_min, ps_max + 1):
+                            pval_hi = pval_max if pval_allowed else pval_min
+                            for pval in range(pval_min, pval_hi + 1):
+                                for dd in range(dd_min, dd_max + 1):
+                                    for pd in range(pd_min, pd_max + 1):
+                                        variant = {
+                                            'type': 'special',
+                                            'special_idx': special['idx'],
+                                            'name': f"{special['name']} {obj['name']}",
+                                            'base_name': obj['name'],
+                                            'special_name': special['name'],
+                                            'tval': obj['tval'],
+                                            'sval': obj['sval'],
+                                            'att': att,
+                                            'ds': ds,
+                                            'dd': dd,
+                                            'evn': evn,
+                                            'ps': ps,
+                                            'pd': pd,
+                                            'pval': pval,
+                                            'abilities': special['abilities'],
+                                            'flags': special['flags'][:],  # Copy flags
+                                            'depth': special['depth'],
+                                            'rarity': special['rarity'],
+                                            # Store base stats for difficulty calculation
+                                            'base_att': obj['att'],
+                                            'base_evn': obj['evn'],
+                                            'base_ds': obj['ds'],
+                                            'base_ps': obj['ps'],
+                                            'base_pd': obj['pd'],
+                                            'base_dd': obj['dd'],
+                                            'base_pval': obj['pval'],
+                                            'base_level': obj['level'],
+                                        }
+                                        variants.append(variant)
+    
+    return variants
+
+
 def get_base_flags(tval, sval):
     """Get base flags for items from object.txt that should be subtracted."""
     # For non-jewelry items, base flags don't count toward difficulty
@@ -795,6 +1047,127 @@ def get_tval_name(tval):
         45: 'Ring',
     }
     return tval_names.get(tval, f'Unknown({tval})')
+
+
+def generate_normal_variants(objects):
+    """
+    Generate all possible variants of normal (non-ego, non-artefact) items.
+    Mirrors build_normal_variants() from drop_system.c lines 974-1144.
+    This includes rings and amulets with all stat combinations.
+    """
+    variants = []
+    
+    for obj in objects:
+        # Skip supplies (no smithing variants)
+        if obj['tval'] in [75, 70, 66, 80, 82]:  # Potion, Staff, Gem, Food, Flask
+            continue
+        
+        # Skip lights (handled differently)
+        if obj['tval'] == 39:  # Light
+            continue
+            
+        # Determine if pval is allowed
+        base_flags = set(obj['flags'])
+        pval_allowed = has_pval_mask(base_flags) or obj['pval'] != 0
+        
+        # Set up smithing caps based on item type
+        att_min = obj['att']
+        att_max = obj['att']
+        ds_min = obj['ds']
+        ds_max = obj['ds']
+        evn_min = obj['evn']
+        evn_max = obj['evn']
+        ps_min = obj['ps']
+        ps_max = obj['ps']
+        pval_min = obj['pval']
+        pval_max = obj['pval']
+        pd_min = obj['pd']
+        pd_max = obj['pd']
+        dd_min = obj['dd']
+        dd_max = obj['dd']
+        
+        tval = obj['tval']
+        sval = obj['sval']
+        
+        if tval in [23, 22, 21, 20, 19]:  # Sword, Polearm, Hafted, Digging, Bow
+            att_max = obj['att'] + 1
+            ds_max = obj['ds'] + 1
+        elif tval in [30, 31, 32, 33, 34, 35, 36, 37]:  # Armor pieces
+            att_max = obj['att'] + 1
+            if att_max > 0:
+                att_max = 0
+            evn_max = obj['evn'] + 1
+            ps_max = obj['ps'] + 1
+            if tval == 35 or (tval == 36 and sval == 2):  # Cloak or Robe
+                ps_max = 0
+            if tval == 37 and sval == 7:  # Long Corslet (SV_LONG_CORSLET = 7)
+                ps_max = obj['ps'] + 2
+        elif tval == 45:  # Ring
+            if sval == 8:  # SV_RING_ACCURACY
+                att_max = 4
+                att_min = 1
+            else:
+                att_max = obj['att']
+            if sval == 2:  # SV_RING_EVASION
+                evn_max = 4
+                evn_min = 1
+            else:
+                evn_max = obj['evn']
+            if sval == 3:  # SV_RING_PROTECTION
+                # Protection rings are always 1dX (never 0dX)
+                pd_min = 1
+                pd_max = 1
+                ps_max = 3
+                ps_min = 1
+            if pval_allowed:
+                if pval_min < 1:
+                    pval_min = 1
+                pval_max = 4  # smithing caps ring/amulet pval at 4
+        elif tval == 40:  # Amulet
+            if pval_allowed:
+                if pval_min < 1:
+                    pval_min = 1
+                pval_max = 4  # smithing caps ring/amulet pval at 4
+        
+        # Generate all combinations
+        for att in range(att_min, att_max + 1):
+            for ds in range(ds_min, ds_max + 1):
+                for evn in range(evn_min, evn_max + 1):
+                    for ps in range(ps_min, ps_max + 1):
+                        for dd in range(dd_min, dd_max + 1):
+                            for pd in range(pd_min, pd_max + 1):
+                                pval_hi = pval_max if pval_allowed else pval_min
+                                for pval in range(pval_min, pval_hi + 1):
+                                    variant = {
+                                        'type': 'normal',
+                                        'k_idx': obj['k_idx'],
+                                        'name': obj['name'],
+                                        'tval': obj['tval'],
+                                        'sval': obj['sval'],
+                                        'att': att,
+                                        'ds': ds,
+                                        'dd': dd,
+                                        'evn': evn,
+                                        'ps': ps,
+                                        'pd': pd,
+                                        'pval': pval,
+                                        'abilities': 0,
+                                        'flags': obj['flags'][:],
+                                        'depth': obj['level'],
+                                        'rarity': 1,  # Default rarity
+                                        # Store base stats for difficulty calculation
+                                        'base_att': obj['att'],
+                                        'base_evn': obj['evn'],
+                                        'base_ds': obj['ds'],
+                                        'base_ps': obj['ps'],
+                                        'base_pd': obj['pd'],
+                                        'base_dd': obj['dd'],
+                                        'base_pval': obj['pval'],
+                                        'base_level': obj['level'],
+                                    }
+                                    variants.append(variant)
+    
+    return variants
 
 
 def export_csv(items, output_file):
@@ -882,11 +1255,42 @@ def main():
             special_file = path
             break
     
+    # Find object.txt
+    object_paths = [
+        os.path.join(script_dir, '..', 'lib', 'edit', 'object.txt'),
+        os.path.join(script_dir, 'lib', 'edit', 'object.txt'),
+        r'c:\Users\efrem\Documents\GitHub\sil-qh\lib\edit\object.txt',
+    ]
+    
+    object_file = None
+    for path in object_paths:
+        if os.path.exists(path):
+            object_file = path
+            break
+    
     artefacts = parse_artefact_file(artefact_file)
-    specials = parse_special_file(special_file) if special_file else []
+    specials_raw = parse_special_file(special_file) if special_file else []
+    objects = parse_object_file(object_file) if object_file else []
     
     # Filter out "Ultimate" template artefacts (idx 182-198)
     artefacts = [a for a in artefacts if not (a['name'].startswith("'Ultimate") and a['idx'] >= 182)]
+    
+    # Generate all normal item variants (including rings/amulets)
+    print(f"Generating normal item variants from {len(objects)} base items...")
+    normals = generate_normal_variants(objects)
+    print(f"Total normal variants: {len(normals)}")
+    
+    # Generate all special item variants (matching game logic)
+    print(f"\nGenerating special item variants from {len(specials_raw)} special types and {len(objects)} base items...")
+    specials = []
+    for spec in specials_raw:
+        variants = generate_special_variants(spec, objects)
+        specials.extend(variants)
+        if variants:
+            print(f"  {spec['name']}: {len(variants)} variants")
+    
+    print(f"\nTotal special variants: {len(specials)}")
+    print(f"Total artefacts: {len(artefacts)}")
     
     # Calculate difficulties
     all_items = []
@@ -895,17 +1299,21 @@ def main():
         art['difficulty'] = calculate_difficulty(art)
         all_items.append(art)
     
+    for norm in normals:
+        norm['difficulty'] = calculate_difficulty(norm)
+        all_items.append(norm)
+    
     for spec in specials:
-        spec['type'] = 'special'
         spec['difficulty'] = calculate_difficulty(spec)
         all_items.append(spec)
     
     # CSV export mode
     if args.csv:
         count = export_csv(all_items, args.csv)
-        print(f"Exported {count} items to {args.csv}")
+        print(f"\nExported {count} items to {args.csv}")
         print(f"  Artefacts: {len(artefacts)}")
-        print(f"  Specials: {len(specials)}")
+        print(f"  Normal variants: {len(normals)}")
+        print(f"  Special variants: {len(specials)}")
         return
     
     # Sort by difficulty (descending)
@@ -930,8 +1338,9 @@ def main():
     ]
     for low, high, label in tiers:
         art_count = len([a for a in artefacts if low <= a['difficulty'] <= high])
+        norm_count = len([n for n in normals if low <= n['difficulty'] <= high])
         spec_count = len([s for s in specials if low <= s['difficulty'] <= high])
-        print(f"  {label}: {art_count} artefacts, {spec_count} specials")
+        print(f"  {label}: {art_count} artefacts, {norm_count} normals, {spec_count} specials")
     print()
     
     # Full listing sorted by difficulty
@@ -942,7 +1351,12 @@ def main():
     
     for item in items_by_diff:
         tval_name = get_tval_name(item['tval'])
-        item_type = 'ART' if item['type'] == 'artefact' else 'SPC'
+        if item['type'] == 'artefact':
+            item_type = 'ART'
+        elif item['type'] == 'special':
+            item_type = 'SPC'
+        else:
+            item_type = 'NRM'
         tval_name = f"{item_type}:{tval_name}"
         stats = []
         if item['att'] != 0 or item['dd'] > 0:
@@ -956,7 +1370,8 @@ def main():
         stats_str = ' '.join(stats)
         
         diff_plus_lvl = item['difficulty'] + item['depth']
-        print(f"{item['idx']:>4} {item['difficulty']:>4} {item['depth']:>3} {diff_plus_lvl:>4} {tval_name:<12} {item['name']:<35} {stats_str:<25}")
+        idx = item.get('idx', item.get('special_idx', item.get('k_idx', 0)))
+        print(f"{idx:>4} {item['difficulty']:>4} {item['depth']:>3} {diff_plus_lvl:>4} {tval_name:<12} {item['name']:<35} {stats_str:<25}")
     
     print()
     print("=" * 100)

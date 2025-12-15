@@ -791,7 +791,6 @@ static void chest_death(int y, int x, s16b o_idx)
 {
     int number;
     bool generated_an_item = false;
-    int chesttheme = 0;
 
     object_type* o_ptr;
 
@@ -813,12 +812,18 @@ static void chest_death(int y, int x, s16b o_idx)
     object_generation_mode = OB_GEN_MODE_CHEST;
 
     /* Determine the "value" of the items */
-    int effective_depth = ABS(o_ptr->pval) + 4; /* all chests add 4 */
-    if (effective_depth < 1)
-        effective_depth = 1;
+    int base_depth = ABS(o_ptr->pval);
+    if (base_depth < 1)
+        base_depth = 1;
+    int penalty_depth = base_depth + 5; /* all chests add 5 (min-depth penalty only) */
 
-    /*the theme of the chest is created during object generation*/
-    chesttheme = (o_ptr->xtra1);
+    level_partition_kind part_kind = LEVEL_PART_NONE;
+    if (o_ptr->xtra1 & 0x80)
+        part_kind = (level_partition_kind)(o_ptr->xtra1 & 0x7F);
+    if (part_kind <= LEVEL_PART_NONE || part_kind >= LEVEL_PART_MAX)
+        part_kind = level_partition_kind_for_point(y, x);
+    drop_profile part_profile;
+    drop_profile_for_partition_kind(part_kind, &part_profile);
 
     if (o_ptr->sval == SV_CHEST_PRESENT)
         number = 1;
@@ -844,9 +849,8 @@ static void chest_death(int y, int x, s16b o_idx)
         /* Wipe the object */
         object_wipe(i_ptr);
 
-        int droptype = chesttheme;
-        bool ok = drop_generate_object_with_bonus(
-            effective_depth, chest_quality, droptype, 0, true, i_ptr);
+        bool ok = drop_generate_object_profiled_depths(base_depth, penalty_depth,
+            chest_quality, DROP_TYPE_UNTHEMED, 0, true, &part_profile, i_ptr);
 
         if (ok)
         {
@@ -6568,6 +6572,3 @@ void do_cmd_throw_from_slot(int slot)
     throw_pending_slot = slot;
     do_cmd_throw(false);
 }
-
-
-

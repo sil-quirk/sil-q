@@ -4155,8 +4155,9 @@ static bool place_gv_in_partition(int y1, int y2, int x1, int x2, int *budget_t8
 }
 
 /* Place a chest in a random floor location within partition bounds */
+static drop_profile drop_profile_for_mode(quadrant_mode_t mode);
 static void place_chest_in_partition(
-    int y1, int y2, int x1, int x2, bool wooden_only)
+    int y1, int y2, int x1, int x2, bool wooden_only, quadrant_mode_t mode)
 {
     int attempts = 0;
     int max_attempts = 100;
@@ -4181,12 +4182,17 @@ static void place_chest_in_partition(
             object_wipe(i_ptr);
 
             int depth = p_ptr->depth;
-            if (!drop_generate_object(
-                    depth, DROP_QUALITY_NORMAL, DROP_TYPE_CHEST, true, i_ptr))
+            drop_profile active_profile = drop_profile_for_mode(mode);
+            if (!drop_generate_object_profiled(
+                    depth, DROP_QUALITY_NORMAL, DROP_TYPE_CHEST, 0, true,
+                    &active_profile, i_ptr))
             {
                 attempts++;
                 continue;
             }
+
+            if (i_ptr->tval == TV_CHEST)
+                i_ptr->xtra1 = (byte)(0x80 | (byte)level_partition_kind_for_point(cy, cx));
 
             if (wooden_only && i_ptr->tval == TV_CHEST)
             {
@@ -4673,7 +4679,7 @@ static void apply_quadrant_generation_modes(void)
                 
                 /* Place 1 chest in labyrinth partition ONLY if it actually carved */
                 if (carved)
-                    place_chest_in_partition(y1, y2, x1, x2, false);
+                    place_chest_in_partition(y1, y2, x1, x2, false, mode);
             }
             break;
         case QUAD_MODE_CHASM:
@@ -4697,7 +4703,7 @@ static void apply_quadrant_generation_modes(void)
 
                 /* Place 1 chest in chasm partition ONLY if it actually carved */
                 if (chasm_carved)
-                    place_chest_in_partition(y1, y2, x1, x2, false);
+                    place_chest_in_partition(y1, y2, x1, x2, false, mode);
             }
             break;
         case QUAD_MODE_BIG_CAVE:
@@ -4759,7 +4765,7 @@ static void apply_quadrant_generation_modes(void)
                                        &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
 
                 /* Guarantee a single chest in big caves (75% wood, 25% steel) */
-                place_chest_in_partition(y1, y2, x1, x2, true);
+                place_chest_in_partition(y1, y2, x1, x2, true, mode);
             }
             break;
         case QUAD_MODE_ROOMY:
@@ -6148,6 +6154,13 @@ static level_partition_kind partition_kind_from_mode(quadrant_mode_t mode)
     }
 }
 
+level_partition_kind level_partition_kind_for_point(int y, int x)
+{
+    /* Chests should follow the partition they spawned in (not room overrides). */
+    quadrant_mode_t mode = partition_mode_for_point(y, x);
+    return partition_kind_from_mode(mode);
+}
+
 void level_layout_info_current(level_layout_info* out)
 {
     if (!out)
@@ -6286,19 +6299,64 @@ static partition_drop_profile partition_drop_profile_for_mode(quadrant_mode_t mo
     return prof;
 }
 
+static drop_profile drop_profile_for_mode(quadrant_mode_t mode)
+{
+    partition_drop_profile prof = partition_drop_profile_for_mode(mode);
+    return prof.profile;
+}
+
+void drop_profile_for_partition_kind(level_partition_kind kind, drop_profile* out)
+{
+    if (!out)
+        return;
+
+    quadrant_mode_t mode = QUAD_MODE_ROOMY;
+    switch (kind)
+    {
+    case LEVEL_PART_ROOMY:
+        mode = QUAD_MODE_ROOMY;
+        break;
+    case LEVEL_PART_CAVEY:
+        mode = QUAD_MODE_CAVEY;
+        break;
+    case LEVEL_PART_RUINED:
+        mode = QUAD_MODE_RUINED;
+        break;
+    case LEVEL_PART_LABYRINTH:
+        mode = QUAD_MODE_LABYRINTH;
+        break;
+    case LEVEL_PART_CHASM:
+        mode = QUAD_MODE_CHASM;
+        break;
+    case LEVEL_PART_BIG_CAVE:
+        mode = QUAD_MODE_BIG_CAVE;
+        break;
+    case LEVEL_PART_NONE:
+    case LEVEL_PART_MAX:
+    default:
+        mode = QUAD_MODE_ROOMY;
+        break;
+    }
+
+    *out = drop_profile_for_mode(mode);
+}
+
 static void place_object_with_profile_params(
-    int y, int x, drop_quality quality, int droptype, bool allow_artefacts,
+    int y, int x, int base_depth, int min_depth_penalty_depth,
+    drop_quality quality, int droptype, bool allow_artefacts,
     const partition_drop_profile* prof);
 
 static void place_object_with_profile(
     int y, int x, const partition_drop_profile* prof)
 {
     place_object_with_profile_params(
-        y, x, DROP_QUALITY_NORMAL, DROP_TYPE_UNTHEMED, false, prof);
+        y, x, object_level, object_level, DROP_QUALITY_NORMAL, DROP_TYPE_UNTHEMED,
+        false, prof);
 }
 
 static void place_object_with_profile_params(
-    int y, int x, drop_quality quality, int droptype, bool allow_artefacts,
+    int y, int x, int base_depth, int min_depth_penalty_depth,
+    drop_quality quality, int droptype, bool allow_artefacts,
     const partition_drop_profile* prof)
 {
     if (!in_bounds(y, x))
@@ -6310,17 +6368,19 @@ static void place_object_with_profile_params(
     object_type* i_ptr = &object_type_body;
     object_wipe(i_ptr);
 
-    int depth = object_level;
     int attempts = 0;
     const drop_profile* dp = (prof) ? &prof->profile : NULL;
 
-    while (!drop_generate_object_profiled(depth, quality,
-               droptype, 0, allow_artefacts, dp, i_ptr))
+    while (!drop_generate_object_profiled_depths(base_depth, min_depth_penalty_depth,
+               quality, droptype, 0, allow_artefacts, dp, i_ptr))
     {
         attempts++;
         if (attempts > 200)
             return;
     }
+
+    if (i_ptr->tval == TV_CHEST)
+        i_ptr->xtra1 = (byte)(0x80 | (byte)level_partition_kind_for_point(y, x));
 
     if (!floor_carry(y, x, i_ptr))
     {
@@ -8958,8 +9018,12 @@ static bool build_type2(int y0, int x0)
                     cave_set_feat(y, x, FEAT_WALL_INNER);
                 }
             }
-            place_object(
-                y0, x0, DROP_QUALITY_NORMAL, DROP_TYPE_CHEST, true);
+            {
+                partition_drop_profile active_profile =
+                    partition_drop_profile_for_mode(drop_mode_for_point(y0, x0));
+                place_object_with_profile_params(y0, x0, object_level, object_level,
+                    DROP_QUALITY_NORMAL, DROP_TYPE_CHEST, true, &active_profile);
+            }
         }
         break;
     }
@@ -9098,7 +9162,6 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
     bool flip_h = false;
     int multiplier;
 
-    int original_object_level = object_level;
     int original_monster_level = monster_level;
 
     log_trace("build_vault: Building vault '%s' with color=%d at center (%d,%d), size %dx%d", 
@@ -9469,60 +9532,59 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 break;
             }
 
-            /* An object from 1-4 levels deeper */
+            /* An object from 1-5 levels deeper (min-depth penalty only) */
             case '*':
             {
-                object_level = p_ptr->depth + dieroll(4);
+                int base_depth = (p_ptr->depth > 0) ? p_ptr->depth : 1;
+                int penalty_depth = base_depth + dieroll(5);
                 partition_drop_profile active_profile =
                     partition_drop_profile_for_mode(drop_mode_for_point(y, x));
                 place_object_with_profile_params(
-                    y, x, DROP_QUALITY_NORMAL, DROP_TYPE_NOT_DAMAGED, true,
-                    &active_profile);
-                object_level = original_object_level;
+                    y, x, base_depth, penalty_depth, DROP_QUALITY_NORMAL,
+                    DROP_TYPE_NOT_DAMAGED, true, &active_profile);
                 break;
             }
 
-            /* A good object from 1-4 levels deeper */
+            /* A good object from 1-5 levels deeper (min-depth penalty only) */
             case '&':
             {
-                object_level = p_ptr->depth + dieroll(4);
+                int base_depth = (p_ptr->depth > 0) ? p_ptr->depth : 1;
+                int penalty_depth = base_depth + dieroll(5);
                 partition_drop_profile active_profile =
                     partition_drop_profile_for_mode(drop_mode_for_point(y, x));
                 place_object_with_profile_params(
-                    y, x, DROP_QUALITY_GOOD, DROP_TYPE_NOT_DAMAGED, true,
-                    &active_profile);
-                object_level = original_object_level;
+                    y, x, base_depth, penalty_depth, DROP_QUALITY_GOOD,
+                    DROP_TYPE_NOT_DAMAGED, true, &active_profile);
                 break;
             }
 
-            /* A great object from 1-4 levels deeper */
+            /* A great object from 1-5 levels deeper (min-depth penalty only) */
             case '!':
             {
-                object_level = p_ptr->depth + dieroll(4);
+                int base_depth = (p_ptr->depth > 0) ? p_ptr->depth : 1;
+                int penalty_depth = base_depth + dieroll(5);
                 partition_drop_profile active_profile =
                     partition_drop_profile_for_mode(drop_mode_for_point(y, x));
                 place_object_with_profile_params(
-                    y, x, DROP_QUALITY_GREAT, DROP_TYPE_NOT_DAMAGED, true,
-                    &active_profile);
-                object_level = original_object_level;
+                    y, x, base_depth, penalty_depth, DROP_QUALITY_GREAT,
+                    DROP_TYPE_NOT_DAMAGED, true, &active_profile);
                 break;
             }
 
-            /* A chest from 4 levels deeper */
+            /* A chest from 5 levels deeper */
             case '~':
             {
+                int chest_depth;
                 if (p_ptr->depth == 0)
-                    object_level = MORGOTH_DEPTH;
+                    chest_depth = MORGOTH_DEPTH;
                 else
-                    object_level = p_ptr->depth + 4;
-                ;
+                    chest_depth = p_ptr->depth + 5;
 
                 partition_drop_profile active_profile =
                     partition_drop_profile_for_mode(drop_mode_for_point(y, x));
                 place_object_with_profile_params(
-                    y, x, DROP_QUALITY_NORMAL, DROP_TYPE_CHEST, true,
-                    &active_profile);
-                object_level = original_object_level;
+                    y, x, chest_depth, chest_depth, DROP_QUALITY_NORMAL,
+                    DROP_TYPE_CHEST, true, &active_profile);
                 break;
             }
 
@@ -9571,13 +9633,13 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 }
                 if (r >= 2)
                 {
-                    object_level = p_ptr->depth + 1;
+                    int base_depth = (p_ptr->depth > 0) ? p_ptr->depth : 1;
+                    int penalty_depth = base_depth + 1;
                     partition_drop_profile active_profile =
                         partition_drop_profile_for_mode(drop_mode_for_point(y, x));
                     place_object_with_profile_params(
-                        y, x, DROP_QUALITY_NORMAL, DROP_TYPE_UNTHEMED, true,
-                        &active_profile);
-                    object_level = original_object_level;
+                        y, x, base_depth, penalty_depth, DROP_QUALITY_NORMAL,
+                        DROP_TYPE_UNTHEMED, true, &active_profile);
                 }
                 break;
             }

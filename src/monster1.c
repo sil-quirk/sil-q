@@ -1784,6 +1784,14 @@ void screen_roff(int r_idx, const monster_type* m_ptr)
     Term_erase(0, 1, 255);
 
     /* Output to the screen */
+    void (*old_hook)(byte, cptr) = text_out_hook;
+    int old_indent = text_out_indent;
+    int old_wrap = text_out_wrap;
+
+    int wid = 0, hgt = 0;
+    Term_get_size(&wid, &hgt);
+    text_out_indent = 0;
+    text_out_wrap = (wid > 2) ? (wid - 1) : 0;
     text_out_hook = text_out_to_screen;
 
     /* Recall monster */
@@ -1791,6 +1799,10 @@ void screen_roff(int r_idx, const monster_type* m_ptr)
 
     /* Describe monster */
     roff_top(r_idx);
+
+    text_out_hook = old_hook;
+    text_out_indent = old_indent;
+    text_out_wrap = old_wrap;
 
     story_font_term_pop(&story_state);
 }
@@ -1817,6 +1829,14 @@ void display_roff(int r_idx, const monster_type* m_ptr)
     Term_gotoxy(0, 1);
 
     /* Output to the screen */
+    void (*old_hook)(byte, cptr) = text_out_hook;
+    int old_indent = text_out_indent;
+    int old_wrap = text_out_wrap;
+
+    int wid = 0, hgt = 0;
+    Term_get_size(&wid, &hgt);
+    text_out_indent = 0;
+    text_out_wrap = (wid > 2) ? (wid - 1) : 0;
     text_out_hook = text_out_to_screen;
 
     /* Recall monster */
@@ -1825,6 +1845,9 @@ void display_roff(int r_idx, const monster_type* m_ptr)
     /* Describe monster */
     roff_top(r_idx);
 
+    text_out_hook = old_hook;
+    text_out_indent = old_indent;
+    text_out_wrap = old_wrap;
+
     story_font_term_pop(&story_state);
 }
-

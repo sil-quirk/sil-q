@@ -2321,6 +2321,8 @@ void drop_loot(monster_type* m_ptr)
         {
             if (!make_object(i_ptr, quality, DROP_TYPE_CHEST))
                 continue;
+            if (i_ptr->tval == TV_CHEST)
+                i_ptr->xtra1 = (byte)(0x80 | (byte)level_partition_kind_for_point(y, x));
         }
 
         /* Make an object */
@@ -9237,8 +9239,6 @@ void grant_unique_bane_ability(void)
     p_ptr->update |= (PU_BONUS);
     handle_stuff();
 }
-
-
 
 
 

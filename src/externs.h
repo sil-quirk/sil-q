@@ -730,6 +730,7 @@ extern void place_random_stairs(int y, int x);
 extern byte get_nest_theme(int nestlevel);
 extern byte get_pit_theme(int pitlevel);
 extern void level_layout_info_current(level_layout_info* out);
+extern level_partition_kind level_partition_kind_for_point(int y, int x);
 extern void skeleton_note_level_reset(void);
 extern void skeleton_note_get_state(skeleton_note_state_save* out);
 extern void skeleton_note_set_state(const skeleton_note_state_save* in);
@@ -949,6 +950,8 @@ typedef struct
     int supply_misc;
 } drop_profile;
 #endif
+extern void drop_profile_for_partition_kind(level_partition_kind kind,
+    drop_profile* out);
 extern drop_quality drop_quality_from_flags(bool good, bool great);
 extern void drop_profile_default(drop_profile* profile);
 extern void drop_system_init(void);
@@ -957,9 +960,16 @@ extern bool drop_generate_object(int depth, drop_quality quality, int droptype,
 extern bool drop_generate_object_with_bonus(
     int depth, drop_quality quality, int droptype, int extra_bonus,
     bool allow_artefacts, object_type* out);
+extern bool drop_generate_object_with_bonus_depths(
+    int depth, int min_depth_penalty_depth, drop_quality quality, int droptype,
+    int extra_bonus, bool allow_artefacts, object_type* out);
 extern bool drop_generate_object_profiled(int depth, drop_quality quality,
     int droptype, int extra_bonus, bool allow_artefacts,
     const drop_profile* profile, object_type* out);
+extern bool drop_generate_object_profiled_depths(int depth,
+    int min_depth_penalty_depth, drop_quality quality, int droptype,
+    int extra_bonus, bool allow_artefacts, const drop_profile* profile,
+    object_type* out);
 extern bool make_object(
     object_type* j_ptr, drop_quality quality, int objecttype);
 extern bool prep_object_theme(int themetype);
@@ -1499,6 +1509,3 @@ extern void sdl_story_font_set_grid(bool grid);
 extern bool sdl_is_story_font_grid(void);
 extern int sdl_story_font_text_width(cptr text, int len);
 extern int sdl_get_cell_width(void);
-
-
-
