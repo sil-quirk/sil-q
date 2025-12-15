@@ -122,20 +122,25 @@
 #define SCREEN_WID ((Term->wid - COL_MAP - 1) / (use_bigtile ? 2 : 1))
 
 /*
+ * Maximum level size in blocks (each block is PANEL_HGT x PANEL_WID_FIXED)
+ */
+#define MAX_LEVEL_BLOCKS 21
+
+/*
  * Number of grids in each dungeon (horizontally)
  * Must be a multiple of SCREEN_HGT
  * Must be less or equal to 256
- * Note: Now supports square levels up to 15*11 = 165
+ * Note: Now supports square levels up to MAX_LEVEL_BLOCKS*11 = 21*11 = 231
  */
-#define MAX_DUNGEON_HGT (15 * 11)
+#define MAX_DUNGEON_HGT (MAX_LEVEL_BLOCKS * 11)
 
 /*
  * Number of grids in each dungeon (vertically)
  * Must be a multiple of SCREEN_WID
  * Must be less or equal to 256
- * Note: Now supports square levels up to 15*11 = 165
+ * Note: Now supports square levels up to MAX_LEVEL_BLOCKS*11 = 21*11 = 231
  */
-#define MAX_DUNGEON_WID (15 * 11)
+#define MAX_DUNGEON_WID (MAX_LEVEL_BLOCKS * 11)
 
 /*
  * Max number of rooms in dungeon.
@@ -300,8 +305,9 @@
 /*
  * The maximum number of monsters that fit on one level.
  * Used to be in limits.txt but was needed for array indexing.
+ * Increased from 500 to 750 to support larger levels (up to 21x21 blocks = 231x231 grids)
  */
-#define MAX_MONSTERS 500
+#define MAX_MONSTERS 750
 
 /*
  * The maximum number of independent groups of wandering monsters on one level.

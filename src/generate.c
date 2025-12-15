@@ -1652,6 +1652,7 @@ static bool connect_rooms_with_logging(int r1, int r2, const char *tag, bool all
 static bool connect_two_rooms(int r1, int r2, bool tentative, bool desperate);
 static bool compute_partition_bounds(int pi, int rows, int cols, int *y1, int *y2, int *x1, int *x2);
 static void connect_partition_hubs(void);
+static bool feature_is_any_door(int feat);
 
 /* Disabled helpers kept for reference (see #if 0 blocks near usage sites). */
 #if 0
@@ -2507,11 +2508,11 @@ static bool carve_big_cave_bounds(int y_min, int y_max, int x_min, int x_max)
         return false;
     }
     
-    /* Use larger margins to leave room for other features in partition */
-    int margin_y1 = rand_range(4, MAX(8, avail_h / 3));
-    int margin_y2 = rand_range(4, MAX(8, avail_h / 3));
-    int margin_x1 = rand_range(4, MAX(8, avail_w / 3));
-    int margin_x2 = rand_range(4, MAX(8, avail_w / 3));
+    /* Use smaller margins to create larger, more expansive caves */
+    int margin_y1 = rand_range(2, MAX(4, avail_h / 5));
+    int margin_y2 = rand_range(2, MAX(4, avail_h / 5));
+    int margin_x1 = rand_range(2, MAX(4, avail_w / 5));
+    int margin_x2 = rand_range(2, MAX(4, avail_w / 5));
     int y1 = y_min + margin_y1;
     int x1 = x_min + margin_x1;
     int y2 = y_max - margin_y2;
@@ -2540,26 +2541,20 @@ static bool carve_big_cave_bounds(int y_min, int y_max, int x_min, int x_max)
         }
     }
     
-    /* Limit grid size */
-    if (h > 50 || w > 60)
-    {
-        h = MIN(h, 50);
-        w = MIN(w, 60);
-        y2 = y1 + h - 1;
-        x2 = x1 + w - 1;
-    }
+    /* Let caves grow to fill the partition without artificial size caps */
+    /* Removed h>50, w>60 limits for more expansive caves on larger levels */
     
     /* Use multiple overlapping CA blobs to create one large organic cave */
     /* This approach creates natural irregular shapes instead of rectangles */
     int floor_count = 0;
     int min_y = y2, max_y = y1, min_x = x2, max_x = x1;
     
-    /* Number of blob centers based on area */
-    int num_centers = 3 + (h * w) / 200;
-    if (num_centers > 8) num_centers = 8;
+    /* Number of blob centers based on area - more blobs for bigger caves */
+    int num_centers = 4 + (h * w) / 150;  /* Increased from 3 + area/200 */
+    if (num_centers > 12) num_centers = 12;  /* Raised cap from 8 to 12 */
     
     /* Generate random center points for blob nuclei */
-    int centers_y[8], centers_x[8];
+    int centers_y[12], centers_x[12];  /* Increased from 8 to 12 */
     for (int c = 0; c < num_centers; ++c)
     {
         centers_y[c] = rand_range(y1 + 2, y2 - 2);
@@ -2643,8 +2638,8 @@ static bool carve_big_cave_bounds(int y_min, int y_max, int x_min, int x_max)
                     if ((dy || dx) && in_bounds_fully(gy+dy, gx+dx) && !cave_floor_bold(gy+dy, gx+dx))
                         walls++;
             
-            /* Erode edge tiles randomly */
-            if (walls >= 3 && one_in_(3))
+            /* Erode edge tiles more aggressively for irregular cave-like edges */
+            if (walls >= 3 && rand_int(100) < 45)  /* Increased from one_in_(3) = 33% to 45% */
             {
                 cave_set_feat(gy, gx, FEAT_WALL_EXTRA);
                 cave_info[gy][gx] &= ~CAVE_ROOM;
@@ -3240,7 +3235,7 @@ static bool carve_chasm_with_bridges(int y_min, int y_max, int x_min, int x_max)
 }
 
 /* Carve a labyrinth-style maze with organic shape using cellular automata */
-static bool carve_labyrinth_bounds(int y_min, int y_max, int x_min, int x_max)
+static bool carve_labyrinth_bounds(int y_min, int y_max, int x_min, int x_max, density_level_t density)
 {
     if (dun->cent_n >= room_capacity_limit())
     {
@@ -3257,9 +3252,9 @@ static bool carve_labyrinth_bounds(int y_min, int y_max, int x_min, int x_max)
         return false;
     }
     
-    /* Use larger margins to leave room for other features in partition */
-    int margin_y = rand_range(4, MAX(6, avail_h / 4));
-    int margin_x = rand_range(4, MAX(6, avail_w / 4));
+    /* Use small margins to maximize labyrinth size while avoiding partition overlap */
+    int margin_y = rand_range(3, 5);
+    int margin_x = rand_range(3, 5);
     int y1 = y_min + margin_y;
     int x1 = x_min + margin_x;
     int y2 = y_max - margin_y;
@@ -3288,11 +3283,8 @@ static bool carve_labyrinth_bounds(int y_min, int y_max, int x_min, int x_max)
         }
     }
     
-    /* Use CA to create organic boundary mask */
-    if (h > 50) h = 50;
-    if (w > 60) w = 60;
-    y2 = y1 + h - 1;
-    x2 = x1 + w - 1;
+    /* Use CA to create organic boundary mask - no size caps, use full partition */
+    /* Note: h and w already set from margins above, keep them as-is */
     
     bool* mask = mem_alloc_array(h * w, bool);
     if (!mask) return false;
@@ -3333,7 +3325,8 @@ static bool carve_labyrinth_bounds(int y_min, int y_max, int x_min, int x_max)
     /* Carve corridors in a grid pattern, but only within the organic mask */
     int floor_count = 0;
     int min_y = y2, max_y = y1, min_x = x2, max_x = x1;
-    int corridor_spacing = 3;
+    /* Vary corridor spacing by density: sparse=4 (open), normal=3, dense=2 (tight maze) */
+    int corridor_spacing = (density == DENSITY_SPARSE) ? 4 : (density == DENSITY_DENSE) ? 2 : 3;
     
     /* Horizontal corridors */
     for (int ly = 1; ly < h - 1; ly += corridor_spacing)
@@ -4241,42 +4234,61 @@ static void apply_quadrant_generation_modes(void)
     /* Partition scaling - REDUCED partition counts for larger anchors.
      * Each partition should be at least ~40 tiles per side to fit big caves/chasms.
      * 
-     * Old scaling created 33x33 partitions on 15-block maps - too small for anchors
-     * that need 25+ effective space after margins.
+     * Target partition size: 40-50 tiles per side for optimal anchor fitting.
      * 
-     * New scaling:
-     * 8 blocks (88x88)   -> 4 partitions (2x2) = 44x44 each
-     * 9-10 blocks        -> 6 partitions (2x3 or 3x2) = ~44-50 each
-     * 11-12 blocks       -> 9 partitions (3x3) = ~40-44 each  
-     * 13-14 blocks       -> 12 partitions (3x4 or 4x3) = ~38-44 each
-     * 15+ blocks (165+)  -> 16 partitions (4x4) = ~41 each
+     * Scaling by level size:
+     *  8 blocks  ( 88x88)  -> 2x2 grid  (4 partitions)  = 44x44 per partition
+     *  9 blocks  ( 99x99)  -> 2x2 grid  (4 partitions)  = 49x49 per partition
+     * 10 blocks  (110x110) -> 2x3 grid  (6 partitions)  = 55x36 per partition
+     * 11 blocks  (121x121) -> 3x3 grid  (9 partitions)  = 40x40 per partition
+     * 12 blocks  (132x132) -> 3x3 grid  (9 partitions)  = 44x44 per partition
+     * 13 blocks  (143x143) -> 3x3 grid  (9 partitions)  = 47x47 per partition
+     * 14 blocks  (154x154) -> 3x4 grid (12 partitions)  = 51x38 per partition
+     * 15 blocks  (165x165) -> 4x4 grid (16 partitions)  = 41x41 per partition
+     * 16 blocks  (176x176) -> 4x4 grid (16 partitions)  = 44x44 per partition
+     * 17 blocks  (187x187) -> 5x4 grid (20 partitions)  = 46x46 per partition
+     * 18 blocks  (198x198) -> 5x4 grid (20 partitions)  = 49x49 per partition
+     * 19 blocks  (209x209) -> 5x4 grid (20 partitions)  = 52x52 per partition
+     * 20 blocks  (220x220) -> 5x4 grid (20 partitions)  = 55x55 per partition
+     * 21 blocks  (231x231) -> 5x5 grid (25 partitions)  = 46x46 per partition
      */
-    if (blocks <= 8)
+    if (blocks <= 9)
     {
         partition_count = 4;
         grid_rows = 2; grid_cols = 2;
     }
-    else if (blocks <= 10)
+    else if (blocks == 10)
     {
         partition_count = 6;
         if (one_in_(2)) { grid_rows = 3; grid_cols = 2; }
         else { grid_rows = 2; grid_cols = 3; }
     }
-    else if (blocks <= 12)
+    else if (blocks <= 13)
     {
         partition_count = 9;
         grid_rows = 3; grid_cols = 3;
     }
-    else if (blocks <= 14)
+    else if (blocks == 14)
     {
         partition_count = 12;
         if (one_in_(2)) { grid_rows = 3; grid_cols = 4; }
         else { grid_rows = 4; grid_cols = 3; }
     }
-    else  /* blocks >= 15 */
+    else if (blocks <= 16)
     {
         partition_count = 16;
         grid_rows = 4; grid_cols = 4;
+    }
+    else if (blocks <= 20)
+    {
+        partition_count = 20;
+        if (one_in_(2)) { grid_rows = 5; grid_cols = 4; }
+        else { grid_rows = 4; grid_cols = 5; }
+    }
+    else  /* blocks >= 21 */
+    {
+        partition_count = 25;
+        grid_rows = 5; grid_cols = 5;
     }
 
     remember_partition_grid(grid_rows, grid_cols, partition_count);
@@ -4643,7 +4655,7 @@ static void apply_quadrant_generation_modes(void)
         case QUAD_MODE_LABYRINTH:
             {
                 /* Maze corridors - oppressive, fewer rooms */
-                bool carved = carve_labyrinth_bounds(y1, y2, x1, x2);
+                bool carved = carve_labyrinth_bounds(y1, y2, x1, x2, density);
                 if (!carved)
                 {
                     /* Fallback: more BSP slices for maze-like feel */
@@ -5306,6 +5318,252 @@ static bool connect_rooms_with_logging(int r1, int r2, const char *tag, bool all
     return ok;
 }
 
+static bool is_big_partition_mode(quadrant_mode_t mode)
+{
+    return (mode == QUAD_MODE_LABYRINTH || mode == QUAD_MODE_BIG_CAVE || mode == QUAD_MODE_CHASM);
+}
+
+static bool big_partition_boundary_floor_ok(int y, int x)
+{
+    if (!in_bounds_fully(y, x))
+        return false;
+    if (!cave_floor_bold(y, x))
+        return false;
+    if (cave_feat[y][x] == FEAT_CHASM)
+        return false;
+    if (cave_info[y][x] & (CAVE_ICKY | CAVE_G_VAULT))
+        return false;
+    return true;
+}
+
+/* Fallback connector for adjacent big partitions.
+ * Standard tunnel rules often reject tunneling between open areas, so when
+ * two big partitions border each other we carve a straight "doorway" across
+ * their shared boundary, turning WALL_OUTER into doors and WALL_EXTRA into floor. */
+static bool carve_straight_big_partition_connector(
+    int y1, int x1, int y2, int x2, int r1, int r2)
+{
+    int dy = (y2 > y1) ? 1 : (y2 < y1) ? -1 : 0;
+    int dx = (x2 > x1) ? 1 : (x2 < x1) ? -1 : 0;
+
+    /* Must be a straight segment. */
+    if (!((dy == 0) ^ (dx == 0)))
+        return false;
+
+    if (morgoth_segment_blocked(y1, x1, y2, x2, 2))
+        return false;
+
+    bool carved = false;
+    int y = y1;
+    int x = x1;
+
+    for (;;)
+    {
+        if (!in_bounds_fully(y, x))
+            return false;
+
+        if (cave_info[y][x] & (CAVE_ICKY | CAVE_G_VAULT))
+            return false;
+
+        int feat = cave_feat[y][x];
+        if (feat == FEAT_WALL_PERM)
+            return false;
+
+        if (feat == FEAT_WALL_OUTER)
+        {
+            cave_set_feat(y, x, FEAT_DOOR_HEAD);
+            carved = true;
+        }
+        else if (feat == FEAT_WALL_EXTRA || feat == FEAT_CHASM)
+        {
+            cave_set_feat(y, x, FEAT_FLOOR);
+            cave_corridor1[y][x] = r1;
+            cave_corridor2[y][x] = r2;
+            carved = true;
+        }
+        else if ((feat >= FEAT_WALL_HEAD) && (feat <= FEAT_WALL_TAIL))
+        {
+            /* Don't carve through inner/solid room walls, rubble walls, etc. */
+            if (feat != FEAT_WALL_EXTRA)
+                return false;
+        }
+        else if (feature_is_any_door(feat) || feat == FEAT_FLOOR)
+        {
+            /* Already passable; keep it. */
+        }
+        else
+        {
+            /* Avoid unexpected terrain (stairs, traps, etc.) */
+            return false;
+        }
+
+        if (y == y2 && x == x2)
+            break;
+        y += dy;
+        x += dx;
+    }
+
+    return carved;
+}
+
+static bool connect_adjacent_big_partitions_by_boundary(
+    int pi_a, int pi_b, const rectangle *bounds_a, const rectangle *bounds_b,
+    int rows, int cols, int hub_a, int hub_b, bool vertical_boundary)
+{
+    const int SEARCH_DEPTH = 24;
+
+    if (hub_a < 0 || hub_b < 0)
+        return false;
+
+    if (!bounds_a || !bounds_b)
+        return false;
+
+    if (vertical_boundary)
+    {
+        /* A is left of B: boundary at the start column of B. */
+        int boundary_x = ((pi_b % cols) * p_ptr->cur_map_wid / cols);
+        int y_lo = MAX(bounds_a->y1, bounds_b->y1);
+        int y_hi = MIN(bounds_a->y2, bounds_b->y2);
+
+        boundary_x = MAX(1, MIN(p_ptr->cur_map_wid - 2, boundary_x));
+        if (y_hi - y_lo < 6)
+            return false;
+
+        int best_y = -1;
+        int best_left = -1;
+        int best_right = -1;
+        int best_len = 999999;
+
+        for (int y = y_lo + 2; y <= y_hi - 2; ++y)
+        {
+            int x_left = -1;
+            for (int dx = 1; dx <= SEARCH_DEPTH; ++dx)
+            {
+                int x = boundary_x - dx;
+                if (x < bounds_a->x1)
+                    break;
+                if (partition_index_from_point(y, x, rows, cols) != pi_a)
+                    continue;
+                if (big_partition_boundary_floor_ok(y, x))
+                {
+                    x_left = x;
+                    break;
+                }
+            }
+
+            int x_right = -1;
+            for (int dx = 0; dx <= SEARCH_DEPTH; ++dx)
+            {
+                int x = boundary_x + dx;
+                if (x > bounds_b->x2)
+                    break;
+                if (partition_index_from_point(y, x, rows, cols) != pi_b)
+                    continue;
+                if (big_partition_boundary_floor_ok(y, x))
+                {
+                    x_right = x;
+                    break;
+                }
+            }
+
+            if (x_left >= 0 && x_right >= 0 && x_left < x_right)
+            {
+                int len = x_right - x_left;
+                if (len < best_len || (len == best_len && one_in_(2)))
+                {
+                    best_len = len;
+                    best_y = y;
+                    best_left = x_left;
+                    best_right = x_right;
+                }
+            }
+        }
+
+        if (best_y < 0)
+            return false;
+
+        if (!carve_straight_big_partition_connector(best_y, best_left, best_y, best_right, hub_a, hub_b))
+            return false;
+
+        dun->connection[hub_a][hub_b] = true;
+        dun->connection[hub_b][hub_a] = true;
+        genlog_connect("Big partition boundary: carved H link rooms %d<->%d at y=%d x=%d..%d",
+            hub_a, hub_b, best_y, best_left, best_right);
+        return true;
+    }
+
+    /* Horizontal boundary: A is above B. */
+    int boundary_y = ((pi_b / cols) * p_ptr->cur_map_hgt / rows);
+    int x_lo = MAX(bounds_a->x1, bounds_b->x1);
+    int x_hi = MIN(bounds_a->x2, bounds_b->x2);
+
+    boundary_y = MAX(1, MIN(p_ptr->cur_map_hgt - 2, boundary_y));
+    if (x_hi - x_lo < 6)
+        return false;
+
+    int best_x = -1;
+    int best_up = -1;
+    int best_down = -1;
+    int best_len = 999999;
+
+    for (int x = x_lo + 2; x <= x_hi - 2; ++x)
+    {
+        int y_up = -1;
+        for (int dy = 1; dy <= SEARCH_DEPTH; ++dy)
+        {
+            int y = boundary_y - dy;
+            if (y < bounds_a->y1)
+                break;
+            if (partition_index_from_point(y, x, rows, cols) != pi_a)
+                continue;
+            if (big_partition_boundary_floor_ok(y, x))
+            {
+                y_up = y;
+                break;
+            }
+        }
+
+        int y_down = -1;
+        for (int dy = 0; dy <= SEARCH_DEPTH; ++dy)
+        {
+            int y = boundary_y + dy;
+            if (y > bounds_b->y2)
+                break;
+            if (partition_index_from_point(y, x, rows, cols) != pi_b)
+                continue;
+            if (big_partition_boundary_floor_ok(y, x))
+            {
+                y_down = y;
+                break;
+            }
+        }
+
+        if (y_up >= 0 && y_down >= 0 && y_up < y_down)
+        {
+            int len = y_down - y_up;
+            if (len < best_len || (len == best_len && one_in_(2)))
+            {
+                best_len = len;
+                best_x = x;
+                best_up = y_up;
+                best_down = y_down;
+            }
+        }
+    }
+
+    if (best_x < 0)
+        return false;
+
+    if (!carve_straight_big_partition_connector(best_up, best_x, best_down, best_x, hub_a, hub_b))
+        return false;
+
+    dun->connection[hub_a][hub_b] = true;
+    dun->connection[hub_b][hub_a] = true;
+    genlog_connect("Big partition boundary: carved V link rooms %d<->%d at x=%d y=%d..%d",
+        hub_a, hub_b, best_x, best_up, best_down);
+    return true;
+}
+
 static void seed_partition_adjacency(const int *room_to_part, int part_count, bool adj[25][25], int degree[25])
 {
     for (int i = 0; i < part_count; ++i)
@@ -5520,6 +5778,113 @@ static void connect_partition_hubs(void)
     int degree[25];
     seed_partition_adjacency(room_to_part, count, adj, degree);
 
+    /* Connect adjacent big partitions (labyrinth, big_cave, chasm) FIRST before regular backbone */
+    /* This ensures big partitions get priority connections to each other */
+    int big_links = 0;
+    int big_adjacencies_found = 0;
+    for (int row = 0; row < rows; ++row)
+    {
+        for (int col = 0; col < cols; ++col)
+        {
+            int idx = row * cols + col;
+            if (idx >= count || idx >= 25)
+                continue;
+            
+            quadrant_mode_t mode = current_partition_modes[idx];
+            bool is_big = is_big_partition_mode(mode);
+            if (!is_big)
+                continue;
+            
+            int hub_here = parts[idx].hub_room;
+            if (hub_here < 0)
+                continue;
+            
+            /* Check right neighbor */
+            if (col + 1 < cols)
+            {
+                int idx_r = row * cols + (col + 1);
+                if (idx_r < count && idx_r < 25)
+                {
+                    quadrant_mode_t mode_r = current_partition_modes[idx_r];
+                    bool is_big_r = is_big_partition_mode(mode_r);
+                    if (is_big_r && !adj[idx][idx_r])
+                    {
+                        big_adjacencies_found++;
+                        int hub_right = parts[idx_r].hub_room;
+                        bool ok = false;
+                        if (hub_right >= 0)
+                        {
+                            ok = connect_rooms_with_logging(hub_here, hub_right, "Big partition bridge H", true);
+                            if (!ok)
+                            {
+                                ok = connect_adjacent_big_partitions_by_boundary(
+                                    idx, idx_r, &parts[idx].bounds, &parts[idx_r].bounds,
+                                    rows, cols, hub_here, hub_right, true);
+                            }
+                        }
+
+                        if (ok)
+                        {
+                            mark_partition_edge(idx, idx_r, adj, degree);
+                            big_links++;
+                            genlog_connect("Big partition bridge: connected %s at [%d,%d] to %s at [%d,%d] (horizontal)",
+                                         mode == QUAD_MODE_LABYRINTH ? "LABYRINTH" : (mode == QUAD_MODE_BIG_CAVE ? "BIG_CAVE" : "CHASM"),
+                                         row, col,
+                                         mode_r == QUAD_MODE_LABYRINTH ? "LABYRINTH" : (mode_r == QUAD_MODE_BIG_CAVE ? "BIG_CAVE" : "CHASM"),
+                                         row, col + 1);
+                        }
+                    }
+                }
+            }
+            
+            /* Check down neighbor */
+            if (row + 1 < rows)
+            {
+                int idx_d = (row + 1) * cols + col;
+                if (idx_d < count && idx_d < 25)
+                {
+                    quadrant_mode_t mode_d = current_partition_modes[idx_d];
+                    bool is_big_d = is_big_partition_mode(mode_d);
+                    if (is_big_d && !adj[idx][idx_d])
+                    {
+                        big_adjacencies_found++;
+                        int hub_down = parts[idx_d].hub_room;
+                        bool ok = false;
+                        if (hub_down >= 0)
+                        {
+                            ok = connect_rooms_with_logging(hub_here, hub_down, "Big partition bridge V", true);
+                            if (!ok)
+                            {
+                                ok = connect_adjacent_big_partitions_by_boundary(
+                                    idx, idx_d, &parts[idx].bounds, &parts[idx_d].bounds,
+                                    rows, cols, hub_here, hub_down, false);
+                            }
+                        }
+
+                        if (ok)
+                        {
+                            mark_partition_edge(idx, idx_d, adj, degree);
+                            big_links++;
+                            genlog_connect("Big partition bridge: connected %s at [%d,%d] to %s at [%d,%d] (vertical)",
+                                         mode == QUAD_MODE_LABYRINTH ? "LABYRINTH" : (mode == QUAD_MODE_BIG_CAVE ? "BIG_CAVE" : "CHASM"),
+                                         row, col,
+                                         mode_d == QUAD_MODE_LABYRINTH ? "LABYRINTH" : (mode_d == QUAD_MODE_BIG_CAVE ? "BIG_CAVE" : "CHASM"),
+                                         row + 1, col);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    if (big_links > 0)
+    {
+        log_trace("Big partition bridges: added %d connections between adjacent labyrinths/caves/chasms (found %d adjacencies)", 
+                  big_links, big_adjacencies_found);
+        genlog_connect("Big partition bridges: connected %d pairs of adjacent big partitions", big_links);
+    }
+
+    /* Now run regular partition backbone connections */
     int links = 0;
     for (int row = 0; row < rows; ++row)
     {
@@ -8113,8 +8478,11 @@ bool check_connectivity(void)
         if (unreachable == 0)
             break;
 
-        /* Stop if we've tried too many rescues */
-        if (rescue_attempts++ >= 20)
+        /* Stop if we've tried too many rescues - scale with level size */
+        /* Larger levels need more rescue attempts: base 20 + (blocks-8)*2 */
+        int blocks = p_ptr->cur_map_hgt / PANEL_HGT;
+        int max_rescues = 20 + MAX(0, (blocks - 8) * 2);  /* 20 for 8 blocks, 46 for 21 blocks */
+        if (rescue_attempts++ >= max_rescues)
         {
             log_trace("check_connectivity: %d unreachable passable grids after %d rescues (first at %d,%d) -- FAILING",
                       unreachable, rescue_attempts, sample_y, sample_x);
@@ -11795,17 +12163,17 @@ static bool cave_gen(void)
     /* Generate square levels: 4*11 to 15*11 (44x44 to 165x165) */
     /* Probability increases with depth, larger sizes more probable */
     
-    // Base size: 6 blocks minimum (increased from 4)
+    // Base size: 9 blocks (increased from 7 for larger level sizes)
     // Size increases with depth, with bias toward larger sizes
     // Formula: Use multiple dice rolls and take the maximum (biases upward)
-    int base_size = 7;  // Increased from 4 for larger level sizes
+    int base_size = 9;  // Increased from 7 for larger starting levels
     int depth_factor = p_ptr->depth + dieroll(15);  // Higher ceiling (1-15)
     int bonus1 = depth_factor / 3;  // First roll
     int bonus2 = (p_ptr->depth + dieroll(12)) / 3;  // Second roll
     int depth_bonus = MAX(bonus1, bonus2);  // Take maximum (biases larger)
     
     l = base_size + depth_bonus;
-    if (l > 15) l = 15;  // Hard cap at 15 blocks (165x165)
+    if (l > MAX_LEVEL_BLOCKS) l = MAX_LEVEL_BLOCKS;  // Hard cap at MAX_LEVEL_BLOCKS
     if (l < 8) l = 8;    // Hard floor at 8 blocks (88x88)
 
     // Square levels: same dimension for both height and width

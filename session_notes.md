@@ -1,5 +1,10 @@
 # Session Notes
 
+## 2025-12-15: Big Partition Connectivity (Border Bridges)
+- `src/generate.c`: adjacent big partitions (LABYRINTH/BIG_CAVE/CHASM) now get a boundary-doorway fallback when standard `connect_two_rooms()` tunneling fails in open areas; digs a straight connector across the shared boundary (outer walls become doors, extra walls become floor) and marks the hub rooms connected.
+- Generation logging: new `[CONNECT] Big partition boundary:` entries record the carved connector coordinates (useful for debugging `generation.txt`).
+- Build: `build-cmake.bat` successful (SDL3 standard + portable).
+
 ## 2025-12-14: Unified Look + Spawn Balancing
 - `src/object1.c`: mode-4 shortening now splits non-ego “X of Y” items (rings/potions/staves/gems/horns/herbs) so l-view names follow the same rule as ego items (e.g., “Ring Frost” instead of “Ring of Frost”).
 - `src/cmd3.c`: unified look now starts with cursor on the player (no auto-selection); list cycling begins only after `Tab`/`q`. Added object-category cycling on `o` and included marked objects in scroll bounds (treasure detection pans like foes) for both `l` and `L`.

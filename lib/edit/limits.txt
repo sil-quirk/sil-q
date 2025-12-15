@@ -78,7 +78,8 @@ M:J:16
 M:L:310
 
 # Maximum number of objects on the level
-M:O:512
+# Increased from 512 to 768 for larger levels (up to 21 blocks)
+M:O:768
 
 # Number of Runtypes
 M:Y:4
