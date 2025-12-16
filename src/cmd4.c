@@ -6272,7 +6272,7 @@ bool applicable_flag(u32b f, int flagset, object_type* o_ptr)
     u32b f1, f2, f3;
 
     /* Telchar may always put SHARPNESS II on a melee weapon               */
-    if ((f == TR1_SHARPNESS2) &&
+    if ((flagset == 1) && (f == TR1_SHARPNESS2) &&
         (c_info[p_ptr->pcharacter].flags_u & UNQ_SMT_TELCHAR))
     {
         switch (smith_o_ptr->tval)                   /* any melee weapon   */
@@ -6385,10 +6385,11 @@ int artefact_flag_menu_aux(int category, int* highlight)
         if (category == smithing_flag_types[i].category)
         {
             /* Telchar-only: skip Sharpness2 if not in character Telchar */
-            if (smithing_flag_types[i].flag == TR1_SHARPNESS2 &&
+            if ((smithing_flag_types[i].flagset == 1) &&
+                (smithing_flag_types[i].flag == TR1_SHARPNESS2) &&
                 !(c_info[p_ptr->pcharacter].flags_u & UNQ_SMT_TELCHAR))
             {
-                /* don�t even consider it */
+                /* don't even consider it */
                 continue;
             }
             flag[num] = smithing_flag_types[i].flag;

@@ -1,5 +1,9 @@
 # Session Notes
 
+## 2025-12-16: Smithing flag menu (FREE_ACT visibility + robustness)
+- Fix: `TR1_SHARPNESS2` and `TR2_FREE_ACT` share the same bit value (`0x00080000`) in different flagsets; the Sharpness2 “Telchar-only” skip check now also checks `flagset==1` so it no longer hides `Free Action` in the misc menu.
+- Build: `build-cmake.bat` successful (SDL3 standard + portable).
+
 ## 2025-12-15: Big Partition Connectivity (Border Bridges)
 - `src/generate.c`: adjacent big partitions (LABYRINTH/BIG_CAVE/CHASM) now get a boundary-doorway fallback when standard `connect_two_rooms()` tunneling fails in open areas; digs a straight connector across the shared boundary (outer walls become doors, extra walls become floor) and marks the hub rooms connected.
 - Generation logging: new `[CONNECT] Big partition boundary:` entries record the carved connector coordinates (useful for debugging `generation.txt`).
