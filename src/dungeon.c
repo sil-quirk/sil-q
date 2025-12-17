@@ -30,6 +30,15 @@ static int last_player_y = 0;
 static int last_player_x = 0;
 static bool was_in_morgoth_vault = false;
 
+/* Track which big partitions have been entered on this level (max 25 partitions). */
+static u32b big_partition_seen_mask = 0;
+static int last_partition_pi = -1;
+static level_partition_kind last_partition_kind = LEVEL_PART_NONE;
+
+/* Track greater-vault encounter XP so repeated warning prompts can't be farmed. */
+static char greater_vault_xp_name[80] = "";
+static bool greater_vault_xp_awarded = false;
+
 static void snapshot_run_history(const char* reason)
 {
     if (!character_generated || !p_ptr || p_ptr->is_dead)
@@ -48,6 +57,107 @@ static void snapshot_run_history(const char* reason)
     } else if (reason) {
         log_trace("run snapshot recorded (%s)", reason);
     }
+}
+
+static void reset_level_entry_tracking(void)
+{
+    big_partition_seen_mask = 0;
+    g_labyrinth_view_active = false;
+    greater_vault_xp_name[0] = '\0';
+    greater_vault_xp_awarded = false;
+    last_partition_pi = -1;
+    last_partition_kind = LEVEL_PART_NONE;
+}
+
+static void update_labyrinth_view_state(bool handle_now)
+{
+    if (!p_ptr || p_ptr->is_dead)
+        return;
+
+    level_partition_kind kind = level_partition_kind_for_point(p_ptr->py, p_ptr->px);
+    bool want = (kind == LEVEL_PART_LABYRINTH);
+
+    if (want == g_labyrinth_view_active)
+        return;
+
+    g_labyrinth_view_active = want;
+
+    p_ptr->redraw |= (PR_MAP);
+    p_ptr->update |= (PU_FORGET_VIEW | PU_UPDATE_VIEW | PU_MONSTERS | PU_DISTANCE);
+
+    if (handle_now)
+        handle_stuff();
+}
+
+static bool is_big_partition_kind(level_partition_kind kind)
+{
+    return (kind == LEVEL_PART_LABYRINTH || kind == LEVEL_PART_BIG_CAVE
+        || kind == LEVEL_PART_CHASM);
+}
+
+static void big_partition_print_entry_message(level_partition_kind kind)
+{
+    switch (kind)
+    {
+    case LEVEL_PART_LABYRINTH:
+        msg_print("You enter a labyrinth of stone, and the ways grow treacherous.");
+        break;
+    case LEVEL_PART_BIG_CAVE:
+        msg_print("A great cavern opens before you, its roof lost in shadow.");
+        break;
+    case LEVEL_PART_CHASM:
+        msg_print("A vast darkness yawns in open space; only narrow bridges span the gulf.");
+        break;
+    default:
+        break;
+    }
+}
+
+static void maybe_award_big_partition_xp(int pi)
+{
+    if (pi < 0 || pi >= 25)
+        return;
+
+    u32b bit = (u32b)(1U << pi);
+    if (big_partition_seen_mask & bit)
+        return;
+
+    big_partition_seen_mask |= bit;
+    gain_exp(50);
+}
+
+static void handle_big_partition_entry(bool force_message)
+{
+    if (!p_ptr || p_ptr->is_dead)
+        return;
+
+    int pi = level_partition_index_for_point(p_ptr->py, p_ptr->px);
+    level_partition_kind kind = level_partition_kind_for_point(p_ptr->py, p_ptr->px);
+
+    bool is_big = is_big_partition_kind(kind);
+    bool was_big = is_big_partition_kind(last_partition_kind);
+
+    bool entered = false;
+    if (force_message)
+    {
+        entered = is_big;
+    }
+    else if (is_big)
+    {
+        if (!was_big)
+            entered = true;
+        else if (pi != last_partition_pi || kind != last_partition_kind)
+            entered = true;
+    }
+
+    if (entered)
+    {
+        big_partition_print_entry_message(kind);
+        maybe_award_big_partition_xp(pi);
+    }
+
+    last_partition_pi = pi;
+    last_partition_kind = kind;
 }
 
 /* True while the post-mortem spectator viewport is active. */
@@ -2303,6 +2413,10 @@ static void process_player(void)
 
         /*** Clean up ***/
 
+        /* Update labyrinth map restriction and partition-entry messages/XP. */
+        update_labyrinth_view_state(true);
+        handle_big_partition_entry(false);
+
         bool in_morgoth_vault = (p_ptr->depth == MORGOTH_DEPTH)
             && (cave_info[p_ptr->py][p_ptr->px] & (CAVE_G_VAULT));
 
@@ -2312,9 +2426,20 @@ static void process_player(void)
         {
             bool clear_vault_name = true;
 
+            if (strcmp(greater_vault_xp_name, g_vault_name) != 0)
+            {
+                SDL_strlcpy(greater_vault_xp_name, g_vault_name, sizeof(greater_vault_xp_name));
+                greater_vault_xp_awarded = false;
+            }
+
             if (in_morgoth_vault)
             {
                 msg_print("From within you hear the harsh din of feasting in Morgoth's own hall.");
+                if (!greater_vault_xp_awarded)
+                {
+                    gain_exp(100);
+                    greater_vault_xp_awarded = true;
+                }
                 if (!get_check("Are you completely sure you wish to enter? "))
                 {
                     clear_vault_name = false;
@@ -2351,11 +2476,20 @@ static void process_player(void)
                 if (p_ptr->depth > 0 && p_ptr->depth < 20)
                 {
                     msg_format("You have entered %s.", g_vault_name);
+                    if (!greater_vault_xp_awarded)
+                    {
+                        gain_exp(100);
+                        greater_vault_xp_awarded = true;
+                    }
                 }
             }
 
             if (clear_vault_name)
+            {
                 g_vault_name[0] = '\0';
+                greater_vault_xp_name[0] = '\0';
+                greater_vault_xp_awarded = false;
+            }
         }
 
         in_morgoth_vault = (p_ptr->depth == MORGOTH_DEPTH)
@@ -3007,6 +3141,9 @@ static void dungeon(void)
     log_debug("Flushing messages");
     message_flush();
 
+    /* Set labyrinth LOS-only map restriction before first draw. */
+    update_labyrinth_view_state(false);
+
     /* Hack -- Increase "xtra" depth */
     log_debug("Increasing character_xtra depth for display setup");
     character_xtra++;
@@ -3090,6 +3227,9 @@ static void dungeon(void)
     /* Refresh */
     log_debug("Final terminal refresh");
     Term_fresh();
+
+    /* Show big-partition entry message/XP after the initial draw so it can't be cleared by the setup flush. */
+    handle_big_partition_entry(true);
 
     log_info("Dungeon display setup completed successfully");
 
@@ -3878,6 +4018,7 @@ PlayResult play_game(void)
     if (!character_dungeon)
     {
         log_info("Generating initial dungeon level");
+        reset_level_entry_tracking();
         /* About to call generate_cave() function */
         generate_cave();
         log_debug("Initial dungeon level generated successfully");
@@ -4098,6 +4239,7 @@ PlayResult play_game(void)
 
         /* Make a new level */
         log_info("Generating new dungeon level at depth %d", p_ptr->depth);
+        reset_level_entry_tracking();
         generate_cave();
         log_debug("New dungeon level generated successfully");
     }
@@ -4125,7 +4267,3 @@ PlayResult play_game(void)
         return PLAY_DONE;
     }
 }
-
-
-
-

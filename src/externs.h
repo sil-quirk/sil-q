@@ -72,6 +72,17 @@ typedef struct skeleton_note_state_save {
 } skeleton_note_state_save;
 #endif
 
+#ifndef PARTITION_META_SAVE_DEFINED
+#define PARTITION_META_SAVE_DEFINED
+#define PARTITION_META_MAX 25
+typedef struct partition_meta_save {
+    s16b grid_rows;
+    s16b grid_cols;
+    s16b partition_count;
+    byte modes[PARTITION_META_MAX];
+} partition_meta_save;
+#endif
+
 /* tables.c */
 extern const s16b ddd[9];
 extern const s16b ddx[10];
@@ -333,6 +344,7 @@ extern byte bones_selector;
 extern int r_ghost;
 extern char ghost_name[80];
 extern char g_vault_name[80];
+extern bool g_labyrinth_view_active;
 extern bool skill_gain_in_progress;
 extern bool save_game_quietly;
 extern bool stop_stealth_mode;
@@ -731,6 +743,9 @@ extern byte get_nest_theme(int nestlevel);
 extern byte get_pit_theme(int pitlevel);
 extern void level_layout_info_current(level_layout_info* out);
 extern level_partition_kind level_partition_kind_for_point(int y, int x);
+extern int level_partition_index_for_point(int y, int x);
+extern void level_partition_meta_get(partition_meta_save* out);
+extern void level_partition_meta_set(const partition_meta_save* in);
 extern void skeleton_note_level_reset(void);
 extern void skeleton_note_get_state(skeleton_note_state_save* out);
 extern void skeleton_note_set_state(const skeleton_note_state_save* in);

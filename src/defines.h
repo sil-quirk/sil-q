@@ -60,7 +60,7 @@
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 9
 #define VERSION_PATCH 1
-#define VERSION_EXTRA 6   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
+#define VERSION_EXTRA 7   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
 /* Update MIN_VERSION_EXTRA whenever the savefile format changes. */
 #define MIN_VERSION_EXTRA 0  /* Accept earlier 0.9.1.x saves */
 
@@ -868,6 +868,7 @@
 #define OB_GEN_MODE_CHEST 11
 #define OB_GEN_MODE_SKELETON 12
 #define OB_GEN_MODE_RANDART 13
+#define OB_GEN_MODE_MONSTER_DROP 14
 
 #define CHEST_LEVEL 130
 #define SKELETON_LEVEL 131

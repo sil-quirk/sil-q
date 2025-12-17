@@ -1268,6 +1268,18 @@ static void wr_extra(void)
             wr_s16b(sn_state.seen_ids[i]);
     }
 
+    /* Partition generation metadata (grid + per-partition modes) */
+    {
+        partition_meta_save pm;
+        level_partition_meta_get(&pm);
+        wr_byte(0x53);
+        wr_s16b(pm.grid_rows);
+        wr_s16b(pm.grid_cols);
+        wr_s16b(pm.partition_count);
+        for (i = 0; i < PARTITION_META_MAX; ++i)
+            wr_byte(pm.modes[i]);
+    }
+
     wr_s32b(min_depth_counter);
     log_info("SAVE: min_depth_counter=%d, current depth=%d, calculated min_depth()=%d", 
              min_depth_counter, p_ptr->depth, min_depth());
@@ -2119,7 +2131,6 @@ bool save_player(void)
     }
     return (result);
 }
-
 
 
 

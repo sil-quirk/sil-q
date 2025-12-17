@@ -916,6 +916,11 @@ char ghost_string[80];
 char g_vault_name[80];
 
 /*
+ * While set, the map is drawn with memory hidden (like rage) for labyrinth partitions.
+ */
+bool g_labyrinth_view_active = false;
+
+/*
  * The metarun file descriptor, if available.
  */
 int meta_fd = -1;
@@ -924,7 +929,6 @@ int meta_fd = -1;
 metarun metar;
 
 runtype_type *runtype_info = NULL;   /* filled by init_rt_info() */
-
 
 
 

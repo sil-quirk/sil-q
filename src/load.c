@@ -86,6 +86,7 @@ static bool savefile_has_varda_quest = false;
 static bool savefile_has_artifact_seen = false;
 static bool savefile_has_skeleton_notes = false;
 static bool savefile_has_skeleton_hint_mask = false;
+static bool savefile_has_partition_meta = false;
 
 /* Version comparison helpers: update these when bumping savefile semantics. */
 static int savefile_version_compare(byte major, byte minor, byte patch, byte extra)
@@ -1470,6 +1471,28 @@ static errr rd_extra(void)
         skeleton_note_set_state(NULL);
     }
 
+    /* Partition generation metadata (grid + per-partition modes) */
+    if (savefile_has_partition_meta)
+    {
+        byte marker = 0;
+        rd_byte(&marker);
+        if (marker != 0x53)
+        {
+            note(format("Invalid partition meta marker 0x%02X", marker));
+            return (-1);
+        }
+
+        partition_meta_save pm;
+        memset(&pm, 0, sizeof(pm));
+        rd_s16b(&pm.grid_rows);
+        rd_s16b(&pm.grid_cols);
+        rd_s16b(&pm.partition_count);
+        for (int i = 0; i < PARTITION_META_MAX; ++i)
+            rd_byte(&pm.modes[i]);
+
+        level_partition_meta_set(&pm);
+    }
+
     /* Min depth counter */
     rd_s32b(&min_depth_counter);
     log_info("LOAD: min_depth_counter=%d, calculated min_depth()=%d", min_depth_counter, min_depth());
@@ -2350,6 +2373,7 @@ static errr rd_savefile_new_aux(void)
     savefile_has_skeleton_notes = savefile_version_at_least(0, 9, 1, 5);
     savefile_has_skeleton_hint_mask = savefile_version_at_least(0, 9, 1, 6);
     savefile_has_skeleton_hint_mask = savefile_version_at_least(0, 9, 1, 6);
+    savefile_has_partition_meta = savefile_version_at_least(0, 9, 1, 7);
 
     /* Reset load byte offset counter */
     load_byte_offset = 0;
@@ -2995,8 +3019,6 @@ bool load_player(void)
     /* Oops */
     return (false);
 }
-
-
 
 
 

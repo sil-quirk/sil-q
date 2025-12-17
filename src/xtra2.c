@@ -2307,6 +2307,9 @@ void drop_loot(monster_type* m_ptr)
     object_level = MIN(r_ptr->level, depth_cap);
     drop_quality quality = drop_quality_from_flags(good, great);
 
+    byte old_gen_mode = object_generation_mode;
+    object_generation_mode = OB_GEN_MODE_MONSTER_DROP;
+
     /* Drop some objects */
     for (j = 0; j < number; j++)
     {
@@ -2336,6 +2339,8 @@ void drop_loot(monster_type* m_ptr)
         /* Drop it in the dungeon */
         drop_near(i_ptr, -1, y, x);
     }
+
+    object_generation_mode = old_gen_mode;
 
     /* Reset the object level */
     object_level = original_object_level;
@@ -2661,7 +2666,7 @@ s32b adjusted_mon_exp(const monster_race* r_ptr, bool kill)
     {
         if (r_ptr->flags1 & RF1_UNIQUE)
         {
-            exp = mexp;
+            exp = mexp * 2;
         }
         else
         {
@@ -2677,7 +2682,7 @@ s32b adjusted_mon_exp(const monster_race* r_ptr, bool kill)
     {
         if (r_ptr->flags1 & RF1_UNIQUE)
         {
-            exp = mexp;
+            exp = mexp * 2;
         }
         else
         {
@@ -9239,6 +9244,4 @@ void grant_unique_bane_ability(void)
     p_ptr->update |= (PU_BONUS);
     handle_stuff();
 }
-
-
 

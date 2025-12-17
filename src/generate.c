@@ -2767,10 +2767,38 @@ static bool carve_big_cave_bounds(int y_min, int y_max, int x_min, int x_max)
     /* Treat the big cave as a few merged blobs for loot scaling */
     scatter_cave_gems_in_bounds(min_y, max_y, min_x, max_x, true, 3);  /* Big cave gets extra gems */
     
-    log_trace("Big cave anchor: bounds=(%d,%d)-(%d,%d) center=(%d,%d) edge=%d floors=%d pillars=%d",
-        min_y, min_x, max_y, max_x, cy, cx, found_edge, floor_count, pillar_count);
-    genlog_anchor("BIG_CAVE: bounds=(%d,%d)-(%d,%d), %d floor tiles, %d pillars",
-        min_y, min_x, max_y, max_x, floor_count, pillar_count);
+    /* === BIG CAVE MONSTER SPAWNING === */
+    /* Place monsters directly inside the big cave - scale with floor count */
+    /* Approximately 1 monster per 120 floor tiles (as per partition_extra_monster_target) */
+    int cave_monsters = floor_count / 120;
+    if (cave_monsters < 6) cave_monsters = 6;
+    if (cave_monsters > 20) cave_monsters = 20;
+    int monsters_placed = 0;
+    
+    for (int m = 0; m < cave_monsters; ++m)
+    {
+        for (int tries = 0; tries < 50; ++tries)
+        {
+            int my = rand_range(min_y, max_y);
+            int mx = rand_range(min_x, max_x);
+            if (!in_bounds_fully(my, mx)) continue;
+            if (!cave_floor_bold(my, mx)) continue;
+            if (cave_m_idx[my][mx] != 0) continue;  /* Already has monster */
+            if (cave_o_idx[my][mx] != 0) continue;  /* Has object */
+            
+            /* Place a monster (sleeping, no groups for big cave spread, not vault) */
+            if (place_monster(my, mx, true, false, false))
+            {
+                monsters_placed++;
+                break;
+            }
+        }
+    }
+    
+    log_trace("Big cave anchor: bounds=(%d,%d)-(%d,%d) center=(%d,%d) edge=%d floors=%d pillars=%d monsters=%d",
+        min_y, min_x, max_y, max_x, cy, cx, found_edge, floor_count, pillar_count, monsters_placed);
+    genlog_anchor("BIG_CAVE: bounds=(%d,%d)-(%d,%d), %d floor tiles, %d pillars, %d monsters",
+        min_y, min_x, max_y, max_x, floor_count, pillar_count, monsters_placed);
     return true;
 }
 
@@ -3227,10 +3255,48 @@ static bool carve_chasm_with_bridges(int y_min, int y_max, int x_min, int x_max)
     dun->is_quest[idx] = false;
     mark_room_anchor_meta(idx, LAYOUT_ANCHOR_CA_BLOB, false);
     
-    log_trace("Chasm organic: %d platforms, %d bridges, %d chasm tiles, floor=(%d,%d)-(%d,%d) center=(%d,%d)",
-        platforms_placed, bridges_built, chasm_count, floor_min_y, floor_min_x, floor_max_y, floor_max_x, cy, cx);
-    genlog_anchor("CHASM: %d platforms, %d bridges, %d chasm tiles at (%d,%d)-(%d,%d)",
-        platforms_placed, bridges_built, chasm_count, floor_min_y, floor_min_x, floor_max_y, floor_max_x);
+    /* === CHASM MONSTER SPAWNING === */
+    /* Place monsters on the platforms - count floor tiles first */
+    int chasm_floor_count = 0;
+    for (int gy = floor_min_y; gy <= floor_max_y; ++gy)
+    {
+        for (int gx = floor_min_x; gx <= floor_max_x; ++gx)
+        {
+            if (in_bounds_fully(gy, gx) && cave_floor_bold(gy, gx))
+                chasm_floor_count++;
+        }
+    }
+    
+    /* Approximately 1 monster per 150 floor tiles (as per partition_extra_monster_target) */
+    int chasm_monsters = chasm_floor_count / 150;
+    if (chasm_monsters < 4) chasm_monsters = 4;
+    if (chasm_monsters > 16) chasm_monsters = 16;
+    int monsters_placed = 0;
+    
+    for (int m = 0; m < chasm_monsters; ++m)
+    {
+        for (int tries = 0; tries < 50; ++tries)
+        {
+            int my = rand_range(floor_min_y, floor_max_y);
+            int mx = rand_range(floor_min_x, floor_max_x);
+            if (!in_bounds_fully(my, mx)) continue;
+            if (!cave_floor_bold(my, mx)) continue;
+            if (cave_m_idx[my][mx] != 0) continue;  /* Already has monster */
+            if (cave_o_idx[my][mx] != 0) continue;  /* Has object */
+            
+            /* Place a monster (sleeping, no groups for platform spread, not vault) */
+            if (place_monster(my, mx, true, false, false))
+            {
+                monsters_placed++;
+                break;
+            }
+        }
+    }
+    
+    log_trace("Chasm organic: %d platforms, %d bridges, %d chasm tiles, floor=(%d,%d)-(%d,%d) center=(%d,%d) monsters=%d",
+        platforms_placed, bridges_built, chasm_count, floor_min_y, floor_min_x, floor_max_y, floor_max_x, cy, cx, monsters_placed);
+    genlog_anchor("CHASM: %d platforms, %d bridges, %d chasm tiles at (%d,%d)-(%d,%d), %d monsters",
+        platforms_placed, bridges_built, chasm_count, floor_min_y, floor_min_x, floor_max_y, floor_max_x, monsters_placed);
     return true;
 }
 
@@ -4177,7 +4243,7 @@ static void place_chest_in_partition(
             int depth = p_ptr->depth;
             drop_profile active_profile = drop_profile_for_mode(mode);
             if (!drop_generate_object_profiled(
-                    depth, DROP_QUALITY_NORMAL, DROP_TYPE_CHEST, 0, true,
+                    depth, DROP_QUALITY_NORMAL, DROP_TYPE_CHEST, 0, false,
                     &active_profile, i_ptr))
             {
                 attempts++;
@@ -6457,6 +6523,188 @@ typedef struct partition_drop_profile {
 
 static quadrant_mode_t partition_mode_for_point(int y, int x)
 {
+    /* If we're on a loaded level (no generation metadata), infer a reasonable grid and
+     * classify big partitions so runtime systems (drops, UI messages) can work. */
+    if (current_partition_rows <= 0 || current_partition_cols <= 0 || current_partition_count <= 0)
+    {
+        /* Candidate grids matching apply_quadrant_generation_modes() (including its random-orientation cases). */
+        int blocks = (PANEL_HGT > 0) ? (p_ptr->cur_map_hgt / PANEL_HGT) : 0;
+        int grids[2][2] = {{0, 0}, {0, 0}};
+        int grid_count = 0;
+
+        if (blocks > 0)
+        {
+            if (blocks <= 9)
+            {
+                grids[0][0] = 2; grids[0][1] = 2; grid_count = 1;
+            }
+            else if (blocks == 10)
+            {
+                grids[0][0] = 3; grids[0][1] = 2;
+                grids[1][0] = 2; grids[1][1] = 3;
+                grid_count = 2;
+            }
+            else if (blocks <= 13)
+            {
+                grids[0][0] = 3; grids[0][1] = 3; grid_count = 1;
+            }
+            else if (blocks == 14)
+            {
+                grids[0][0] = 3; grids[0][1] = 4;
+                grids[1][0] = 4; grids[1][1] = 3;
+                grid_count = 2;
+            }
+            else if (blocks <= 16)
+            {
+                grids[0][0] = 4; grids[0][1] = 4; grid_count = 1;
+            }
+            else if (blocks <= 20)
+            {
+                grids[0][0] = 5; grids[0][1] = 4;
+                grids[1][0] = 4; grids[1][1] = 5;
+                grid_count = 2;
+            }
+            else
+            {
+                grids[0][0] = 5; grids[0][1] = 5; grid_count = 1;
+            }
+        }
+
+        int best_rows = 0, best_cols = 0;
+        int best_score = -1000000;
+        quadrant_mode_t best_modes[25];
+        memset(best_modes, 0, sizeof(best_modes));
+
+        for (int gi = 0; gi < grid_count; ++gi)
+        {
+            int rows = grids[gi][0];
+            int cols = grids[gi][1];
+            if (rows <= 0 || cols <= 0)
+                continue;
+
+            int count = rows * cols;
+            if (count <= 0 || count > 25)
+                continue;
+
+            quadrant_mode_t modes_tmp[25];
+            for (int i = 0; i < 25; ++i)
+                modes_tmp[i] = QUAD_MODE_ROOMY;
+
+            int chasm_parts = 0, labyrinth_parts = 0, cave_parts = 0;
+            int total_chasm_tiles = 0, max_chasm_tiles = 0;
+
+            for (int pi = 0; pi < count; ++pi)
+            {
+                int y1 = 0, y2 = 0, x1 = 0, x2 = 0;
+                if (!compute_partition_bounds(pi, rows, cols, &y1, &y2, &x1, &x2))
+                    continue;
+
+                int tiles = 0;
+                int open_tiles = 0;
+                int open_dead_ends = 0;
+                int open_wide = 0;
+                int open_corridor = 0;
+                int chasm_tiles = 0;
+
+                for (int yy = y1; yy <= y2; ++yy)
+                {
+                    for (int xx = x1; xx <= x2; ++xx)
+                    {
+                        if (!in_bounds_fully(yy, xx))
+                            continue;
+                        tiles++;
+
+                        if ((cave_info[yy][xx] & CAVE_CHASM_AREA) || (cave_feat[yy][xx] == FEAT_CHASM))
+                        {
+                            chasm_tiles++;
+                            continue;
+                        }
+
+                        if (!cave_floorlike_bold(yy, xx))
+                            continue;
+
+                        open_tiles++;
+
+                        int n = 0;
+                        if (in_bounds_fully(yy - 1, xx) && cave_floorlike_bold(yy - 1, xx) && cave_feat[yy - 1][xx] != FEAT_CHASM) n++;
+                        if (in_bounds_fully(yy + 1, xx) && cave_floorlike_bold(yy + 1, xx) && cave_feat[yy + 1][xx] != FEAT_CHASM) n++;
+                        if (in_bounds_fully(yy, xx - 1) && cave_floorlike_bold(yy, xx - 1) && cave_feat[yy][xx - 1] != FEAT_CHASM) n++;
+                        if (in_bounds_fully(yy, xx + 1) && cave_floorlike_bold(yy, xx + 1) && cave_feat[yy][xx + 1] != FEAT_CHASM) n++;
+
+                        if (n <= 1) open_dead_ends++;
+                        if (n >= 3) open_wide++;
+                        if (n == 2) open_corridor++;
+                    }
+                }
+
+                total_chasm_tiles += chasm_tiles;
+                if (chasm_tiles > max_chasm_tiles) max_chasm_tiles = chasm_tiles;
+
+                quadrant_mode_t picked = QUAD_MODE_ROOMY;
+
+                if (chasm_tiles > 0)
+                {
+                    picked = QUAD_MODE_CHASM;
+                    chasm_parts++;
+                }
+                else if (tiles > 0 && open_tiles > 0)
+                {
+                    int open_pct = (open_tiles * 100) / tiles;
+                    int wide_pct = (open_wide * 100) / open_tiles;
+                    int dead_pct = (open_dead_ends * 100) / open_tiles;
+                    int corridor_pct = (open_corridor * 100) / open_tiles;
+
+                    /* BIG_CAVE: lots of open area, many wide tiles (3-4 neighbors). */
+                    if (open_pct >= 38 && wide_pct >= 40)
+                    {
+                        picked = QUAD_MODE_BIG_CAVE;
+                        cave_parts++;
+                    }
+                    /* LABYRINTH: corridor-dominated maze with relatively few open 'wide' tiles. */
+                    else if (wide_pct <= 28 && corridor_pct >= 50 && dead_pct >= 8 && open_pct <= 55)
+                    {
+                        picked = QUAD_MODE_LABYRINTH;
+                        labyrinth_parts++;
+                    }
+                }
+
+                modes_tmp[pi] = picked;
+            }
+
+            /* Score grids that keep special features concentrated (avoid splitting a big area across partitions). */
+            int score = 0;
+            score -= (chasm_parts * 100);
+            score -= ((labyrinth_parts + cave_parts) * 20);
+            if (total_chasm_tiles > 0)
+                score += (max_chasm_tiles * 500) / total_chasm_tiles;
+
+            if (score > best_score)
+            {
+                best_score = score;
+                best_rows = rows;
+                best_cols = cols;
+                memcpy(best_modes, modes_tmp, sizeof(best_modes));
+            }
+        }
+
+        if (best_rows > 0 && best_cols > 0)
+        {
+            int count = best_rows * best_cols;
+            remember_partition_grid(best_rows, best_cols, count);
+            for (int i = 0; i < count; ++i)
+                current_partition_modes[i] = best_modes[i];
+            for (int i = count; i < 25; ++i)
+                current_partition_modes[i] = QUAD_MODE_ROOMY;
+
+            /* Densities are only used for generation decisions, so default to NORMAL. */
+            for (int i = 0; i < 25; ++i)
+                current_partition_densities[i] = DENSITY_NORMAL;
+
+            log_trace("Inferred partition grid for runtime: blocks=%d grid=%dx%d score=%d",
+                      blocks, best_rows, best_cols, best_score);
+        }
+    }
+
     int pi = partition_index_from_point(
         y, x, current_partition_rows, current_partition_cols);
     if (pi >= 0 && pi < current_partition_count)
@@ -6524,6 +6772,78 @@ level_partition_kind level_partition_kind_for_point(int y, int x)
     /* Chests should follow the partition they spawned in (not room overrides). */
     quadrant_mode_t mode = partition_mode_for_point(y, x);
     return partition_kind_from_mode(mode);
+}
+
+void level_partition_meta_get(partition_meta_save* out)
+{
+    if (!out)
+        return;
+
+    memset(out, 0, sizeof(*out));
+
+    /* Populate metadata if this is a loaded level. */
+    if (current_partition_rows <= 0 || current_partition_cols <= 0 || current_partition_count <= 0)
+        (void)partition_mode_for_point(p_ptr->py, p_ptr->px);
+
+    out->grid_rows = (s16b)current_partition_rows;
+    out->grid_cols = (s16b)current_partition_cols;
+    out->partition_count = (s16b)current_partition_count;
+
+    for (int i = 0; i < PARTITION_META_MAX; ++i)
+        out->modes[i] = (byte)current_partition_modes[i];
+}
+
+void level_partition_meta_set(const partition_meta_save* in)
+{
+    if (!in)
+        return;
+
+    int rows = in->grid_rows;
+    int cols = in->grid_cols;
+    int count = in->partition_count;
+
+    if (rows <= 0 || cols <= 0 || count <= 0 || count > PARTITION_META_MAX || rows * cols != count)
+    {
+        current_partition_rows = 0;
+        current_partition_cols = 0;
+        current_partition_count = 0;
+        for (int i = 0; i < PARTITION_META_MAX; ++i)
+        {
+            current_partition_modes[i] = QUAD_MODE_ROOMY;
+            current_partition_densities[i] = DENSITY_NORMAL;
+        }
+        return;
+    }
+
+    remember_partition_grid(rows, cols, count);
+    for (int i = 0; i < PARTITION_META_MAX; ++i)
+    {
+        quadrant_mode_t mode = QUAD_MODE_ROOMY;
+        if (i < count)
+        {
+            byte raw = in->modes[i];
+            if (raw <= QUAD_MODE_BIG_CAVE)
+                mode = (quadrant_mode_t)raw;
+        }
+        current_partition_modes[i] = mode;
+        current_partition_densities[i] = DENSITY_NORMAL;
+    }
+}
+
+int level_partition_index_for_point(int y, int x)
+{
+    /* Ensure partition metadata exists even for loaded levels. */
+    if (current_partition_rows <= 0 || current_partition_cols <= 0 || current_partition_count <= 0)
+        (void)partition_mode_for_point(y, x);
+
+    if (current_partition_rows <= 0 || current_partition_cols <= 0 || current_partition_count <= 0)
+        return -1;
+
+    int pi = partition_index_from_point(y, x, current_partition_rows, current_partition_cols);
+    if (pi < 0 || pi >= current_partition_count)
+        return -1;
+
+    return pi;
 }
 
 void level_layout_info_current(level_layout_info* out)
@@ -9390,7 +9710,7 @@ static bool build_type2(int y0, int x0)
                 partition_drop_profile active_profile =
                     partition_drop_profile_for_mode(drop_mode_for_point(y0, x0));
                 place_object_with_profile_params(y0, x0, object_level, object_level,
-                    DROP_QUALITY_NORMAL, DROP_TYPE_CHEST, true, &active_profile);
+                    DROP_QUALITY_NORMAL, DROP_TYPE_CHEST, false, &active_profile);
             }
         }
         break;
@@ -9909,7 +10229,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                     partition_drop_profile_for_mode(drop_mode_for_point(y, x));
                 place_object_with_profile_params(
                     y, x, base_depth, penalty_depth, DROP_QUALITY_NORMAL,
-                    DROP_TYPE_NOT_DAMAGED, true, &active_profile);
+                    DROP_TYPE_NOT_DAMAGED, false, &active_profile);
                 break;
             }
 
@@ -9922,7 +10242,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                     partition_drop_profile_for_mode(drop_mode_for_point(y, x));
                 place_object_with_profile_params(
                     y, x, base_depth, penalty_depth, DROP_QUALITY_GOOD,
-                    DROP_TYPE_NOT_DAMAGED, true, &active_profile);
+                    DROP_TYPE_NOT_DAMAGED, false, &active_profile);
                 break;
             }
 
@@ -9935,7 +10255,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                     partition_drop_profile_for_mode(drop_mode_for_point(y, x));
                 place_object_with_profile_params(
                     y, x, base_depth, penalty_depth, DROP_QUALITY_GREAT,
-                    DROP_TYPE_NOT_DAMAGED, true, &active_profile);
+                    DROP_TYPE_NOT_DAMAGED, false, &active_profile);
                 break;
             }
 
@@ -9952,7 +10272,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                     partition_drop_profile_for_mode(drop_mode_for_point(y, x));
                 place_object_with_profile_params(
                     y, x, chest_depth, chest_depth, DROP_QUALITY_NORMAL,
-                    DROP_TYPE_CHEST, true, &active_profile);
+                    DROP_TYPE_CHEST, false, &active_profile);
                 break;
             }
 
@@ -10007,7 +10327,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                         partition_drop_profile_for_mode(drop_mode_for_point(y, x));
                     place_object_with_profile_params(
                         y, x, base_depth, penalty_depth, DROP_QUALITY_NORMAL,
-                        DROP_TYPE_UNTHEMED, true, &active_profile);
+                        DROP_TYPE_UNTHEMED, false, &active_profile);
                 }
                 break;
             }
@@ -13534,8 +13854,7 @@ if (playerturn == 0) {
                 okay = true;
                 if (is_morgoth_level)
                 {
-                    /* Use the built-in vault staircases only */
-                    p_ptr->create_stair = 0;
+                    /* Depth 20 uses the partition system; keep entry stairs so the player can retreat. */
                 }
                 /* Check if quest vault was placed during this level generation */
                 if (qv_placed_this_level) {

@@ -1,8 +1,61 @@
 # Session Notes
 
+## 2025-12-17: Big Partition Messages (Per-Entry) + Artefact Spawn Restriction
+
+- `src/dungeon.c`: big partition flavor text now prints **each time you enter** LABYRINTH / BIG_CAVE / CHASM; `+50xp` is awarded **once per partition per level** (XP gating decoupled from message).
+- `src/generate.c`: vault map object tokens (`* & ! ?`) no longer allow artefacts; vault chests still work (and can still *contain* artefacts when opened).
+- `src/object2.c`, `src/xtra2.c`, `src/drop_system.c`, `src/defines.h`: artefacts can now only come from **chests** and **GOOD/GREAT/SUPERB monster drops** (no floor/vault spawns); implemented by gating artefact selection via `object_generation_mode` and lowering the quality threshold to `DROP_QUALITY_GOOD` when artefacts are allowed.
+- Build: `build-cmake.bat` successful (SDL3 standard + portable).
+
+## 2025-12-17: Fixed Monster Spawning in Big Caves and Chasms
+
+### Issue
+All monsters were spawning in the same location in big caves and chasms, instead of being spread throughout the carved area.
+
+### Root Cause
+- Big caves and chasms relied on partition-based monster spawning (`place_partition_extra_monsters()`)
+- This function used `compute_partition_bounds()` which returns the **grid partition bounds** (entire cell)
+- The actual carved cave/chasm bounds were smaller and stored in `dun->corner[]`, but this wasn't used
+- Result: monsters were placed using `rand_range(y1, y2)` where y1/y2 were partition bounds, not carved area bounds
+
+### Solution
+Added inline monster spawning directly within the carving functions for big caves and chasms, matching the pattern already used by labyrinths:
+
+**Big Caves** ([generate.c:2768](src/generate.c#L2768)):
+- Spawn ~1 monster per 120 floor tiles (min 6, max 20)
+- Use actual carved bounds: `rand_range(min_y, max_y)` and `rand_range(min_x, max_x)`
+- Place monsters during cave carving, not partition processing
+
+**Chasms** ([generate.c:3230](src/generate.c#L3230)):
+- Spawn ~1 monster per 150 floor tiles (min 4, max 16)
+- Use actual floor bounds: `rand_range(floor_min_y, floor_max_y)` and `rand_range(floor_min_x, floor_max_x)`
+- Place monsters on platforms after bridge creation
+
+**Labyrinths** (already working correctly):
+- Spawn ~1 monster per 15 floor tiles (min 2, max 8)
+- Use actual carved bounds
+
+### Testing
+Build completed successfully. Monsters should now spawn spread throughout big caves, chasms, and labyrinths using their actual carved floor bounds.
+
+---
+
 ## 2025-12-16: Smithing flag menu (FREE_ACT visibility + robustness)
 - Fix: `TR1_SHARPNESS2` and `TR2_FREE_ACT` share the same bit value (`0x00080000`) in different flagsets; the Sharpness2 “Telchar-only” skip check now also checks `flagset==1` so it no longer hides `Free Action` in the misc menu.
 - Build: `build-cmake.bat` successful (SDL3 standard + portable).
+
+## 2025-12-16: Partition Entry Flavor + XP Tweaks
+- Labyrinth partitions: map now hides memorized terrain outside LOS (rage-style visibility restriction, but no red/rage visuals) via `g_labyrinth_view_active` (`src/cave.c`, `src/dungeon.c`, `src/variable.c`, `src/externs.h`).
+- New entry messages: Tolkien-esque one-liners on first entry to each LABYRINTH / BIG_CAVE / CHASM partition; each grants `+50` XP once per partition per level (`src/dungeon.c`, `src/generate.c`).
+- Greater vault encounter: first message for a greater vault grants `+100` XP (guarded so repeated Morgoth prompt messages can’t be farmed) (`src/dungeon.c`).
+- Unique monsters: encounter/kill XP doubled by updating `adjusted_mon_exp()` (`src/xtra2.c`).
+- Build: `build-cmake.bat` successful (SDL3 standard + portable).
+
+### Follow-up: partition detection on loaded levels
+- Added runtime inference fallback when partition metadata is missing (e.g., loaded saves): picks the most plausible partition grid for the current map size and heuristically classifies CHASM / BIG_CAVE / LABYRINTH partitions from tile topology, enabling the entry messages + labyrinth LOS-only map behavior to trigger (`src/generate.c`).
+- Added savefile persistence for partition generation metadata (grid + per-partition modes) so loaded games no longer rely on inference (`src/save.c`, `src/load.c`, `src/generate.c`, `src/externs.h`); bumped `VERSION_EXTRA` to 7 (`src/defines.h`).
+- Fixed missing big-partition entry messages when starting inside a partition: messages were being cleared by the dungeon setup `message_flush()`, so the partition was marked “seen” without the player ever seeing the message; message display now happens after the initial draw (`src/dungeon.c`).
+- Restored entry stair creation on depth `MORGOTH_DEPTH` (20) by removing the stale “built-in stairs only” behavior from the old disabled `throne_gen` path (`src/generate.c`).
 
 ## 2025-12-15: Big Partition Connectivity (Border Bridges)
 - `src/generate.c`: adjacent big partitions (LABYRINTH/BIG_CAVE/CHASM) now get a boundary-doorway fallback when standard `connect_two_rooms()` tunneling fails in open areas; digs a straight connector across the shared boundary (outer walls become doors, extra walls become floor) and marks the hub rooms connected.

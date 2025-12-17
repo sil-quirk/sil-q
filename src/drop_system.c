@@ -1827,7 +1827,7 @@ static bool collect_candidate_entries(
         if (e.group_kind == DROP_GROUP_ARTIFACT)
         {
             /* Skip artefacts if not allowed by the drop request */
-            if (!req->allow_artefacts || req->quality < DROP_QUALITY_GREAT) {
+            if (!req->allow_artefacts || req->quality < DROP_QUALITY_GOOD) {
                 filter_artifact++;
                 continue;
             }
@@ -2475,11 +2475,11 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     req.is_supply = false;
     req.droptype = droptype;
     req.allow_artefacts = allow_artefacts;
-    /* New difficulty formula: 1.25*Depth - 24 + min(1d40,1d40) */
+    /* New difficulty formula: 1.25*Depth - 19 + min(1d40,1d40) */
     int roll1 = dieroll(40);
     int roll2 = dieroll(40);
     int min_roll = MIN(roll1, roll2);
-    int base_calc = (int)(1.25 * depth) - 24 + min_roll;
+    int base_calc = (int)(1.25 * depth) - 19 + min_roll;
     req.base_roll = base_calc + req.difficulty_bonus;
     req.lower = req.base_roll - 2;
     req.upper = req.base_roll + 2;

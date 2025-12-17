@@ -1453,9 +1453,11 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
     bool hide_square = false;
     bool rage_active = false;
 
-    // 'rage' effects...
-    if ((!p_ptr->is_dead) && p_ptr->rage && !(info & (CAVE_SEEN)))
+    // Hide memorized squares out of line of sight during rage, and while in labyrinth partitions.
+    if ((!p_ptr->is_dead) && (p_ptr->rage || g_labyrinth_view_active) && !(info & (CAVE_SEEN)))
         hide_square = true;
+
+    // 'rage' visuals (red filter, rage tiles, etc.) - labyrinth uses the hide-only behavior above.
     if ((!p_ptr->is_dead) && p_ptr->rage)
         rage_active = true;
 
@@ -5914,7 +5916,6 @@ void disturb(int stop_stealth, int unused_flag)
     /* Flush the input */
     flush();
 }
-
 
 
 

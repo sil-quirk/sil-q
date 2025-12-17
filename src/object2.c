@@ -3900,7 +3900,9 @@ static bool kind_is_good(int k_idx)
 bool make_object(object_type* j_ptr, drop_quality quality, int objecttype)
 {
     int depth = object_level;
-    if (!drop_generate_object(depth, quality, objecttype, true, j_ptr))
+    bool allow_artefacts = (object_generation_mode == OB_GEN_MODE_CHEST)
+        || (object_generation_mode == OB_GEN_MODE_MONSTER_DROP);
+    if (!drop_generate_object(depth, quality, objecttype, allow_artefacts, j_ptr))
         return false;
 
     /* Rating boost for out-of-depth finds */

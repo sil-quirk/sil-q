@@ -825,6 +825,9 @@ static void chest_death(int y, int x, s16b o_idx)
     drop_profile part_profile;
     drop_profile_for_partition_kind(part_kind, &part_profile);
 
+    /* Chests should not drop supply items */
+    part_profile.weight_supply = 0;
+
     if (o_ptr->sval == SV_CHEST_PRESENT)
         number = 1;
 
