@@ -87,6 +87,7 @@ static bool savefile_has_artifact_seen = false;
 static bool savefile_has_skeleton_notes = false;
 static bool savefile_has_skeleton_hint_mask = false;
 static bool savefile_has_partition_meta = false;
+static bool savefile_has_cave_info_hi = false;
 
 /* Version comparison helpers: update these when bumping savefile semantics. */
 static int savefile_version_compare(byte major, byte minor, byte patch, byte extra)
@@ -2005,7 +2006,59 @@ static errr rd_dungeon(void)
     }
     log_trace("[load:%06u] === END CAVE_INFO RLE ===", (unsigned)load_byte_offset);
 
-    /* No probe after cave_info in current format. */
+    /* Persisted high-bit cave_info flags (e.g. CAVE_CHASM_AREA).
+     *
+     * - New saves (0.9.1 extra>=8): mandatory block.
+     * - Older saves: no block. */
+    if (savefile_has_cave_info_hi)
+    {
+        const u16b CAVE_INFO_HI_MAGIC = 0xC1F0;
+        u16b magic = 0;
+        rd_u16b(&magic);
+        if (magic != CAVE_INFO_HI_MAGIC)
+        {
+            note(format("Invalid cave_info_hi marker 0x%04X", magic));
+            return (-1);
+        }
+
+        log_trace("[load:%06u] === BEGIN CAVE_INFO_HI RLE ===", (unsigned)load_byte_offset);
+        for (x = y = 0; y < p_ptr->cur_map_hgt;)
+        {
+            rd_byte(&count);
+            rd_byte(&tmp8u);
+
+            for (i = count; i > 0; i--)
+            {
+                cave_info[y][x] |= ((u16b)tmp8u) << 8;
+
+                if (++x >= p_ptr->cur_map_wid)
+                {
+                    x = 0;
+                    if (++y >= p_ptr->cur_map_hgt)
+                        break;
+                }
+            }
+        }
+        log_trace("[load:%06u] === END CAVE_INFO_HI RLE ===", (unsigned)load_byte_offset);
+    }
+
+    /* Ensure per-tile chasm partition tag exists across the entire partition bounds.
+     * Older saves (and some generation paths) may not have stored/covered this. */
+    {
+        level_layout_info layout;
+        level_layout_info_current(&layout);
+        if (layout.partition_count > 0)
+        {
+            for (int yy = 0; yy < p_ptr->cur_map_hgt; ++yy)
+            {
+                for (int xx = 0; xx < p_ptr->cur_map_wid; ++xx)
+                {
+                    if (level_partition_kind_for_point(yy, xx) == LEVEL_PART_CHASM)
+                        cave_info[yy][xx] |= CAVE_CHASM_AREA;
+                }
+            }
+        }
+    }
 
     /* Note: door-choices are only probed after cave_color for current saves. */
 
@@ -2374,6 +2427,7 @@ static errr rd_savefile_new_aux(void)
     savefile_has_skeleton_hint_mask = savefile_version_at_least(0, 9, 1, 6);
     savefile_has_skeleton_hint_mask = savefile_version_at_least(0, 9, 1, 6);
     savefile_has_partition_meta = savefile_version_at_least(0, 9, 1, 7);
+    savefile_has_cave_info_hi = savefile_version_at_least(0, 9, 1, 8);
 
     /* Reset load byte offset counter */
     load_byte_offset = 0;
@@ -2832,6 +2886,8 @@ bool load_player(void)
             savefile_has_artifact_seen = savefile_version_at_least(0, 9, 1, 4);
             savefile_has_skeleton_notes = savefile_version_at_least(0, 9, 1, 5);
             savefile_has_skeleton_hint_mask = savefile_version_at_least(0, 9, 1, 6);
+            savefile_has_partition_meta = savefile_version_at_least(0, 9, 1, 7);
+            savefile_has_cave_info_hi = savefile_version_at_least(0, 9, 1, 8);
         }
 
         load_byte_offset = 0; /* reset counter before decoding stream */
@@ -3019,8 +3075,3 @@ bool load_player(void)
     /* Oops */
     return (false);
 }
-
-
-
-
-

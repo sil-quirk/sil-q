@@ -421,6 +421,9 @@ static void song_duel_reduce_monster_hp(monster_type* m_ptr, int steps)
             monster_add_song_hp_loss(m_ptr, hp_loss);
 
         m_ptr->maxhp = new_maxhp;
+
+        /* Morgoth's anger state depends on current HP% (and maxHP can change here). */
+        maybe_update_morgoth_state_from_hp(m_ptr);
     }
 }
 
@@ -3908,6 +3911,9 @@ static bool project_m(
 
         /* Hurt the monster */
         m_ptr->hp -= dam;
+
+        if (dam > 0)
+            maybe_update_morgoth_state_from_hp(m_ptr);
 
         /* Dead monster */
         if (m_ptr->hp <= 0)

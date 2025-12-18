@@ -1393,8 +1393,10 @@ static void wr_notes(void)
 /*
  * The cave grid flags that get saved in the savefile
  */
-#define IMPORTANT_FLAGS                                                        \
+#define IMPORTANT_FLAGS_LO                                                     \
     (CAVE_MARK | CAVE_GLOW | CAVE_ICKY | CAVE_ROOM | CAVE_G_VAULT | CAVE_HIDDEN)
+#define IMPORTANT_FLAGS_HI (CAVE_CHASM_AREA)
+#define IMPORTANT_FLAGS_16 (IMPORTANT_FLAGS_LO | IMPORTANT_FLAGS_HI)
 
 /*
  * Write the current dungeon
@@ -1436,8 +1438,9 @@ static void wr_dungeon(void)
     {
         for (x = 0; x < p_ptr->cur_map_wid; x++)
         {
-            /* Extract the important cave_info flags */
-            tmp8u = (cave_info[y][x] & (IMPORTANT_FLAGS));
+            /* Extract the important cave_info flags (low byte only). */
+            u16b info = (u16b)(cave_info[y][x] & IMPORTANT_FLAGS_16);
+            tmp8u = (byte)(info & 0x00FF);
 
             /* If the run is broken, or too full, flush it */
             if ((tmp8u != prev_char) || (count == MAX_UCHAR))
@@ -1463,6 +1466,48 @@ static void wr_dungeon(void)
         wr_byte((byte)prev_char);
     }
     log_trace("[save:%06u] === END CAVE_INFO RLE ===", (unsigned)save_byte_offset);
+
+    /* Optional extension: save high-bit cave_info flags (e.g. CAVE_CHASM_AREA).
+     *
+     * This keeps the core cave_info RLE byte-sized for back-compat, while
+     * allowing persistence of any "important" flags in bits 8..15. */
+    log_trace("[save:%06u] === BEGIN CAVE_INFO_HI RLE ===", (unsigned)save_byte_offset);
+    {
+        const u16b CAVE_INFO_HI_MAGIC = 0xC1F0;
+
+        wr_u16b(CAVE_INFO_HI_MAGIC);
+
+        count = 0;
+        prev_char = 0;
+
+        for (y = 0; y < p_ptr->cur_map_hgt; y++)
+        {
+            for (x = 0; x < p_ptr->cur_map_wid; x++)
+            {
+                u16b info = (u16b)(cave_info[y][x] & IMPORTANT_FLAGS_16);
+                tmp8u = (byte)((info >> 8) & 0x00FF);
+
+                if ((tmp8u != prev_char) || (count == MAX_UCHAR))
+                {
+                    wr_byte((byte)count);
+                    wr_byte((byte)prev_char);
+                    prev_char = tmp8u;
+                    count = 1;
+                }
+                else
+                {
+                    count++;
+                }
+            }
+        }
+
+        if (count)
+        {
+            wr_byte((byte)count);
+            wr_byte((byte)prev_char);
+        }
+    }
+    log_trace("[save:%06u] === END CAVE_INFO_HI RLE ===", (unsigned)save_byte_offset);
 
     /*** Simple "Run-Length-Encoding" of cave_feat ***/
 
@@ -2131,7 +2176,6 @@ bool save_player(void)
     }
     return (result);
 }
-
 
 
 

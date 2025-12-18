@@ -94,7 +94,8 @@ static score_breakdown calculate_score_breakdown(const high_score* score)
     if (morgoth)
         base += 300;
 
-    if (escaped)
+    /* Morgoth victory should include the escape bonus as well. */
+    if (escaped || morgoth)
         base += 100;
 
     int character_index = parse_score_int(score->p_h, sizeof(score->p_h), -1);

@@ -4826,49 +4826,7 @@ static void process_monster(monster_type* m_ptr)
         m_ptr->mflag |= (MFLAG_ACTV);
 
     // do this before Mastery and Lorien effects kick in...
-    if (m_ptr->r_idx == R_IDX_MORGOTH
-        && health_level(m_ptr->hp, m_ptr->maxhp) <= HEALTH_WOUNDED
-        && p_ptr->morgoth_state < 2)
-    {
-        log_debug("process_monster: Morgoth WOUNDED (hp=%d/%d), calling anger_morgoth(2)",
-                 m_ptr->hp, m_ptr->maxhp);
-        msg_print("Morgoth grows angry.");
-        message_flush();
-        anger_morgoth(2);
-    }
-    else if (m_ptr->r_idx == R_IDX_MORGOTH
-        && health_level(m_ptr->hp, m_ptr->maxhp) <= HEALTH_BADLY_WOUNDED
-        && p_ptr->morgoth_state < 3)
-    {
-        log_debug("process_monster: Morgoth BADLY_WOUNDED (hp=%d/%d), calling anger_morgoth(3)",
-                 m_ptr->hp, m_ptr->maxhp);
-        msg_print("Morgoth unslings his mighty shield.");
-        message_flush();
-        anger_morgoth(3);
-    }
-    else if (m_ptr->r_idx == R_IDX_MORGOTH
-        && health_level(m_ptr->hp, m_ptr->maxhp) <= HEALTH_ALMOST_DEAD
-        && p_ptr->morgoth_state < 4)
-    {
-        log_debug("process_monster: Morgoth ALMOST_DEAD (hp=%d/%d), calling anger_morgoth(4)",
-                 m_ptr->hp, m_ptr->maxhp);
-        msg_print("Morgoth grows desperate.");
-        message_flush();
-        anger_morgoth(4);
-    }
-
-    if (m_ptr->r_idx == R_IDX_MORGOTH
-        && p_ptr->morgoth_state < 5
-        && m_ptr->maxhp > 0
-        && m_ptr->hp > 0
-        && ((long)m_ptr->hp * 10L) <= (long)m_ptr->maxhp)
-    {
-        log_debug("process_monster: Morgoth at 10%% health (hp=%d/%d), calling anger_morgoth(5)",
-                 m_ptr->hp, m_ptr->maxhp);
-        msg_print("Morgoth unleashes his final fury!");
-        message_flush();
-        anger_morgoth(5);
-    }
+    maybe_update_morgoth_state_from_hp(m_ptr);
 
     // assume we are not under the influence of the Song of Mastery
     m_ptr->skip_this_turn = false;

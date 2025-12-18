@@ -7,6 +7,14 @@
 - `src/object2.c`, `src/xtra2.c`, `src/drop_system.c`, `src/defines.h`: artefacts can now only come from **chests** and **GOOD/GREAT/SUPERB monster drops** (no floor/vault spawns); implemented by gating artefact selection via `object_generation_mode` and lowering the quality threshold to `DROP_QUALITY_GOOD` when artefacts are allowed.
 - Build: `build-cmake.bat` successful (SDL3 standard + portable).
 
+## 2025-12-17: Chasm Partition Light Penalty Applied to Bridges
+- `src/generate.c`: chasm-bridge floor tiles now also set `CAVE_CHASM_AREA`, so *all* tiles in a chasm partition (platforms, bridges, and chasm) get the intended light penalty (light `-3` effect).
+- Build: `build-cmake.bat` successful.
+
+## 2025-12-17: Chasm Visual Lighting (Tiles/ASCII)
+- `src/cave.c`: `FEAT_CHASM` now supports lit/dark tile variants, and ASCII chasm glyphs now darken correctly when `cave_light<=0` (previously exempted), so the chasm partition `-3` light penalty is visible on chasm tiles too.
+- Build: `build-cmake.bat` successful.
+
 ## 2025-12-17: Fixed Monster Spawning in Big Caves and Chasms
 
 ### Issue
@@ -7573,3 +7581,34 @@ The script now fully matches the game's drop generation logic for all item types
 - `src/generate.c`: vault object tokens now use `1d5` (was `1d4`) depth boost as min-depth-penalty-only; vault chest token uses `+5` (was `+4`).
 - `src/drop_system.c`, `src/cmd2.c`: chests no longer store a theme; chest contents are generated as `DROP_TYPE_UNTHEMED` with the spawning partition’s profile weights.
 - `src/generate.c`, `src/xtra2.c`: chest `xtra1` now stores `0x80|level_partition_kind` where the chest was spawned (to avoid colliding with legacy chest themes), used at open time to pick the correct partition drop profile.
+
+## 2025-12-17: Chasm partition light penalty fix
+- `src/save.c`, `src/load.c`: cave_info save format extended with optional `CAVE_INFO_HI_MAGIC` block to persist high-bit "important" flags (including `CAVE_CHASM_AREA`) while remaining backward-compatible with older saves.
+- `src/generate.c`, `src/load.c`: chasm partitions now tag `CAVE_CHASM_AREA` across the full partition bounds (so later digging/tunneling keeps the tag).
+- `src/cave.c`, `src/cmd2.c`: chasm behavior (light penalty, quartz drops) keys off `CAVE_CHASM_AREA` again as intended.
+
+## 2025-12-17: Save format gating for cave_info_hi
+- `src/defines.h`: bumped `VERSION_EXTRA` to `8` so older builds reject saves that include the new dungeon encoding.
+- `src/load.c`: `cave_info_hi` is mandatory for `sf_extra>=8`; for older save versions the loader assumes no hi-plane block (no probe/guess path).
+
+## 2025-12-17: Labyrinth/CA_BLOB no-perma-light
+- `src/generate.c`: clears `CAVE_GLOW` across all `QUAD_MODE_LABYRINTH` partition bounds and within all `LAYOUT_ANCHOR_CA_BLOB` room bounds so those areas always start unlit.
+
+## 2025-12-17: Persistent generation summary log
+- `src/gen-log.c`: added `generation-summary.txt` (append-only across launches) and write one tab-separated summary line per level-generation attempt with success/failure and failure reason.
+- `src/generate.c`: ensured forced-regeneration returns (quest vault placement, Varda/Niena/Oromë spawn fallbacks) log a failure reason and call `gen_log_level_end(false, ...)` before returning.
+
+## 2025-12-18: Generation log naming + connectivity fix
+- `src/gen-log.c`: log files now use `SDL_GetBasePath()` so names are consistently `generation.txt` and `generation-summary.txt` (fixes accidental `sil-more.exegeneration*.txt` filenames).
+- `src/generate.c`: fixed connectivity floodfill stability by making `player_passable()` reject out-of-bounds and replacing recursive `flood_access()` with an iterative queue-based floodfill; `check_connectivity()` no longer calls `player_passable()` on outer-wall coordinates.
+- `src/generate.c`: improved rescue-tunnel connectivity by sampling unreachable room centers, increasing the rescue cap for large levels, and logging a specific failure reason from inside `check_connectivity()` (so summary log shows something actionable).
+
+## 2025-12-18: Morgoth health-based anger state selection
+- `src/melee2.c`: fixed Morgoth state updates to select the strongest applicable anger level from current HP (prevents big hits from leaving him temporarily in a weaker state until later turns).
+- `src/xtra2.c`: recalculates/apply Morgoth anger state inside `mon_take_hit()` so multi-hit attacks immediately use the updated stats.
+- `src/xtra2.c`, `src/spells1.c`: centralized HP% thresholds (80/60/40/20) in `maybe_update_morgoth_state_from_hp()` and call it on maxHP changes (Song duel) and monster-vs-monster damage paths that bypass `mon_take_hit()`.
+
+## 2025-12-18: Halls of Mandos short score Morgoth victory text + scoring
+- `src/score/score_ui.c`: short layout now special-cases `morgoth_slain` entries to display "Victorious over Morgoth's illusion ..." instead of "Slain by ...".
+- `src/score/score_logic.c`: Morgoth victory now receives the escape bonus in scoring, in addition to the existing forced `3` Silmarils + full ascent (`depth_up = MORGOTH_DEPTH`).
+- `src/score/score_io.c`: blessing pool no longer counts `morgoth_slain` entries (Morgoth victory is not treated as a death for blessing economy).

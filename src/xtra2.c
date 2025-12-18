@@ -2383,8 +2383,8 @@ void anger_morgoth(int level)
     {
         r_ptr->evn = 20;
         r_ptr->blow[0].att = 20;
-        r_ptr->blow[0].dd = 6;
-        r_ptr->pd = 5;
+        r_ptr->blow[0].dd = 6; /* 6d10 */
+        r_ptr->pd = 5;        /* 5d4 */
         r_ptr->wil = 25;
         r_ptr->per = 10;
         r_ptr->light = 7;
@@ -2393,7 +2393,8 @@ void anger_morgoth(int level)
     /* State 1: Crown lost */
     if (level >= 1)
     {
-        r_ptr->evn = 22;
+        r_ptr->evn = 25;
+        r_ptr->pd = 6;        /* 6d4 */
         r_ptr->light = 0;
         r_ptr->per = 15;
         log_debug("anger_morgoth: applying state 1 changes - crown lost");
@@ -2403,38 +2404,42 @@ void anger_morgoth(int level)
     if (level >= 2)
     {
         r_ptr->blow[0].att = 30;
-        r_ptr->blow[0].dd = 7;
+        r_ptr->blow[0].dd = 7; /* 7d10 */
         r_ptr->wil = 30;
         r_ptr->per = 20;
-        r_ptr->evn = 25;
+        r_ptr->evn = 30;
+        r_ptr->pd = 7;        /* 7d4 */
         log_debug("anger_morgoth: applying state 2 changes - hurt or silmaril");
     }
     
-    /* State 3: Badly hurt or 2nd Silmaril */
+    /* State 3: Furious or 2nd Silmaril stolen */
     if (level >= 3)
     {
-        r_ptr->pd = 7;
+        r_ptr->pd = 8;        /* 8d4 */
+        r_ptr->evn = 35;
         r_ptr->wil = 35;
         r_ptr->per = 25;
-        log_debug("anger_morgoth: applying state 3 changes - badly hurt");
+        log_debug("anger_morgoth: applying state 3 changes - badly hurt/furious");
     }
     
-    /* State 4: Desperate or 3rd Silmaril */
+    /* State 4: Apoplectic or 3rd Silmaril stolen */
     if (level >= 4)
     {
-        r_ptr->evn = 30;
+        r_ptr->evn = 40;
+        r_ptr->pd = 9;        /* 9d4 */
         r_ptr->blow[0].att = 40;
-        r_ptr->blow[0].dd = 8;
+        r_ptr->blow[0].dd = 8; /* 8d10 */
         r_ptr->wil = 40;
         r_ptr->per = 30;
-        log_debug("anger_morgoth: applying state 4 changes - desperate");
+        log_debug("anger_morgoth: applying state 4 changes - desperate/apoplectic");
     }
 
-    /* State 5: Final Desperate (new strongest level) */
+    /* State 5: Desperate (final) */
     if (level >= 5)
     {
-        r_ptr->evn = 40;
-        r_ptr->pd = 9;
+        r_ptr->evn = 60;
+        r_ptr->pd = 12; 
+        r_ptr->ps = 5;      /* 12d5 */
         r_ptr->blow[0].att = 60;
         r_ptr->blow[0].dd = 10;
         r_ptr->blow[0].ds = 10; /* 10d10 */
@@ -2449,6 +2454,71 @@ void anger_morgoth(int level)
               r_ptr->blow[0].att, r_ptr->blow[0].dd, r_ptr->blow[0].ds,
               r_ptr->evn, r_ptr->pd, r_ptr->wil, r_ptr->per, r_ptr->light);
     log_debug("anger_morgoth: state successfully changed to %d", p_ptr->morgoth_state);
+}
+
+static int morgoth_hp_based_state(const monster_type* m_ptr)
+{
+    long hp;
+    long maxhp;
+
+    if (m_ptr == NULL)
+        return 0;
+
+    hp = (long)m_ptr->hp;
+    maxhp = (long)m_ptr->maxhp;
+
+    if (hp <= 0 || maxhp <= 0)
+        return 0;
+
+    /* HP thresholds (inclusive): 80/60/40/20% -> states 2/3/4/5 */
+    if ((hp * 100L) <= (maxhp * 20L))
+        return 5;
+    if ((hp * 100L) <= (maxhp * 40L))
+        return 4;
+    if ((hp * 100L) <= (maxhp * 60L))
+        return 3;
+    if ((hp * 100L) <= (maxhp * 80L))
+        return 2;
+
+    return 0;
+}
+
+void maybe_update_morgoth_state_from_hp(monster_type* m_ptr)
+{
+    int target_state;
+
+    if (m_ptr == NULL)
+        return;
+    if (m_ptr->r_idx != R_IDX_MORGOTH)
+        return;
+
+    target_state = morgoth_hp_based_state(m_ptr);
+    if (target_state <= 0)
+        return;
+
+    if (target_state <= p_ptr->morgoth_state)
+        return;
+
+    switch (target_state)
+    {
+    case 2:
+        msg_print("Morgoth grows angry.");
+        break;
+    case 3:
+        msg_print("Morgoth grows furious.");
+        break;
+    case 4:
+        msg_print("Morgoth grows apoplectic.");
+        break;
+    case 5:
+        msg_print("Morgoth grows desperate.");
+        break;
+    default:
+        break;
+    }
+
+    message_flush();
+    anger_morgoth(target_state);
 }
 
 /*
@@ -2719,6 +2789,9 @@ bool mon_take_hit(int m_idx, int dam, cptr note, int who)
 
     /* Hurt it */
     m_ptr->hp -= dam;
+
+    if (dam > 0)
+        maybe_update_morgoth_state_from_hp(m_ptr);
 
     /* It is dead now */
     if (m_ptr->hp <= 0)

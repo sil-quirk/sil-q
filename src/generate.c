@@ -1280,6 +1280,87 @@ static bool compute_partition_bounds(int pi, int rows, int cols, int *y1, int *y
     return true;
 }
 
+/* Ensure per-tile chasm partition tag is present across the entire partition bounds.
+ * This allows gameplay effects (e.g. light absorption) to key off CAVE_CHASM_AREA
+ * reliably, including on tiles later converted by digging/tunneling. */
+static void apply_chasm_partition_tags(void)
+{
+    if (current_partition_rows <= 0 || current_partition_cols <= 0 || current_partition_count <= 0)
+        return;
+
+    for (int pi = 0; pi < current_partition_count; ++pi)
+    {
+        if (current_partition_modes[pi] != QUAD_MODE_CHASM)
+            continue;
+
+        int y1 = 0, y2 = 0, x1 = 0, x2 = 0;
+        if (!compute_partition_bounds(pi, current_partition_rows, current_partition_cols, &y1, &y2, &x1, &x2))
+            continue;
+
+        for (int y = y1; y <= y2; ++y)
+        {
+            for (int x = x1; x <= x2; ++x)
+            {
+                if (!in_bounds(y, x))
+                    continue;
+                cave_info[y][x] |= CAVE_CHASM_AREA;
+            }
+        }
+    }
+}
+
+/* Gameplay lighting rules:
+ * - Labyrinth partitions are always dark (no permanent CAVE_GLOW).
+ * - CA_BLOB rooms ("caves") are always dark (no permanent CAVE_GLOW). */
+static void apply_partition_and_room_glow_rules(void)
+{
+    /* Labyrinth partitions: clear CAVE_GLOW across full partition bounds. */
+    if (current_partition_rows > 0 && current_partition_cols > 0 && current_partition_count > 0)
+    {
+        for (int pi = 0; pi < current_partition_count; ++pi)
+        {
+            if (current_partition_modes[pi] != QUAD_MODE_LABYRINTH)
+                continue;
+
+            int y1 = 0, y2 = 0, x1 = 0, x2 = 0;
+            if (!compute_partition_bounds(pi, current_partition_rows, current_partition_cols, &y1, &y2, &x1, &x2))
+                continue;
+
+            for (int y = y1; y <= y2; ++y)
+                for (int x = x1; x <= x2; ++x)
+                    cave_info[y][x] &= ~(CAVE_GLOW);
+        }
+    }
+
+    /* CA_BLOB rooms: clear CAVE_GLOW in room bounds (expanded by 1 to cover the
+     * typical outer wall ring used by rectangular room builders). */
+    for (int r = 0; r < dun->cent_n; ++r)
+    {
+        if (room_anchor_kind[r] != LAYOUT_ANCHOR_CA_BLOB)
+            continue;
+
+        int y1 = dun->corner[r].y1 - 1;
+        int y2 = dun->corner[r].y2 + 1;
+        int x1 = dun->corner[r].x1 - 1;
+        int x2 = dun->corner[r].x2 + 1;
+
+        if (y1 < 0) y1 = 0;
+        if (x1 < 0) x1 = 0;
+        if (y2 >= MAX_DUNGEON_HGT) y2 = MAX_DUNGEON_HGT - 1;
+        if (x2 >= MAX_DUNGEON_WID) x2 = MAX_DUNGEON_WID - 1;
+
+        for (int y = y1; y <= y2; ++y)
+        {
+            for (int x = x1; x <= x2; ++x)
+            {
+                if (!in_bounds(y, x))
+                    continue;
+                cave_info[y][x] &= ~(CAVE_GLOW);
+            }
+        }
+    }
+}
+
 /* Extra monsters in non-roomy partitions (prevents huge caves/chasm/ruins from feeling empty). */
 static int partition_extra_monster_target(quadrant_mode_t mode, int floor_count)
 {
@@ -3120,14 +3201,14 @@ static bool carve_chasm_with_bridges(int y_min, int y_max, int x_min, int x_max)
                 if (in_bounds_fully(sy, gx) && cave_feat[sy][gx] == FEAT_CHASM)
                 {
                     cave_set_feat(sy, gx, FEAT_FLOOR);
-                    cave_info[sy][gx] |= CAVE_ROOM;
+                    cave_info[sy][gx] |= CAVE_ROOM | CAVE_CHASM_AREA;
                 }
             int y_lo = MIN(sy, ey), y_hi = MAX(sy, ey);
             for (int gy = y_lo; gy <= y_hi; ++gy)
                 if (in_bounds_fully(gy, ex) && cave_feat[gy][ex] == FEAT_CHASM)
                 {
                     cave_set_feat(gy, ex, FEAT_FLOOR);
-                    cave_info[gy][ex] |= CAVE_ROOM;
+                    cave_info[gy][ex] |= CAVE_ROOM | CAVE_CHASM_AREA;
                 }
         }
         else
@@ -3137,14 +3218,14 @@ static bool carve_chasm_with_bridges(int y_min, int y_max, int x_min, int x_max)
                 if (in_bounds_fully(gy, sx) && cave_feat[gy][sx] == FEAT_CHASM)
                 {
                     cave_set_feat(gy, sx, FEAT_FLOOR);
-                    cave_info[gy][sx] |= CAVE_ROOM;
+                    cave_info[gy][sx] |= CAVE_ROOM | CAVE_CHASM_AREA;
                 }
             int x_lo = MIN(sx, ex), x_hi = MAX(sx, ex);
             for (int gx = x_lo; gx <= x_hi; ++gx)
                 if (in_bounds_fully(ey, gx) && cave_feat[ey][gx] == FEAT_CHASM)
                 {
                     cave_set_feat(ey, gx, FEAT_FLOOR);
-                    cave_info[ey][gx] |= CAVE_ROOM;
+                    cave_info[ey][gx] |= CAVE_ROOM | CAVE_CHASM_AREA;
                 }
         }
         
@@ -6170,6 +6251,8 @@ static int squash_double_doors(void)
 /* icky locations (inside vaults) are all considered passable.    */
 bool player_passable(int y, int x, bool ignore_rubble_and_chasms)
 {
+    if (!in_bounds_fully(y, x)) return false;
+
     byte feature = cave_feat[y][x];
     bool icky_interior = (cave_info[y][x] & (CAVE_ICKY))
         && (cave_info[y][x - 1] & (CAVE_ICKY))
@@ -6195,37 +6278,41 @@ void flood_access(int y, int x,
     int access_array[MAX_DUNGEON_HGT][MAX_DUNGEON_WID],
     bool ignore_rubble_and_chasms)
 {
-    /* first check the map bounds */
-    if ((y < 0) || (y > p_ptr->cur_map_hgt) || (x < 0)
-        || (x > p_ptr->cur_map_wid))
-        return;
+    static int queue[MAX_DUNGEON_HGT * MAX_DUNGEON_WID];
+    static const int ddy[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
+    static const int ddx[8] = {-1, 0, 1, -1, 1, -1, 0, 1};
+    int head = 0;
+    int tail = 0;
+
+    if (!in_bounds_fully(y, x)) return;
+    if (access_array[y][x]) return;
+    if (!player_passable(y, x, ignore_rubble_and_chasms)) return;
 
     access_array[y][x] = true;
-    if (player_passable(y - 1, x - 1, ignore_rubble_and_chasms)
-        && (access_array[y - 1][x - 1] == false))
-        flood_access(y - 1, x - 1, access_array, ignore_rubble_and_chasms);
-    if (player_passable(y - 1, x, ignore_rubble_and_chasms)
-        && (access_array[y - 1][x] == false))
-        flood_access(y - 1, x, access_array, ignore_rubble_and_chasms);
-    if (player_passable(y - 1, x + 1, ignore_rubble_and_chasms)
-        && (access_array[y - 1][x + 1] == false))
-        flood_access(y - 1, x + 1, access_array, ignore_rubble_and_chasms);
-    if (player_passable(y, x - 1, ignore_rubble_and_chasms)
-        && (access_array[y][x - 1] == false))
-        flood_access(y, x - 1, access_array, ignore_rubble_and_chasms);
-    if (player_passable(y, x + 1, ignore_rubble_and_chasms)
-        && (access_array[y][x + 1] == false))
-        flood_access(y, x + 1, access_array, ignore_rubble_and_chasms);
-    if (player_passable(y + 1, x - 1, ignore_rubble_and_chasms)
-        && (access_array[y + 1][x - 1] == false))
-        flood_access(y + 1, x - 1, access_array, ignore_rubble_and_chasms);
-    if (player_passable(y + 1, x, ignore_rubble_and_chasms)
-        && (access_array[y + 1][x] == false))
-        flood_access(y + 1, x, access_array, ignore_rubble_and_chasms);
-    if (player_passable(y + 1, x + 1, ignore_rubble_and_chasms)
-        && (access_array[y + 1][x + 1] == false))
-        flood_access(y + 1, x + 1, access_array, ignore_rubble_and_chasms);
-    return;
+    queue[tail++] = y * MAX_DUNGEON_WID + x;
+
+    while (head < tail)
+    {
+        int idx = queue[head++];
+        int cy = idx / MAX_DUNGEON_WID;
+        int cx = idx % MAX_DUNGEON_WID;
+
+        for (int d = 0; d < 8; ++d)
+        {
+            int ny = cy + ddy[d];
+            int nx = cx + ddx[d];
+
+            if (!in_bounds_fully(ny, nx)) continue;
+            if (access_array[ny][nx]) continue;
+            if (!player_passable(ny, nx, ignore_rubble_and_chasms)) continue;
+
+            access_array[ny][nx] = true;
+            if (tail < (int)N_ELEMENTS(queue))
+            {
+                queue[tail++] = ny * MAX_DUNGEON_WID + nx;
+            }
+        }
+    }
 }
 
 void label_rooms(void)
@@ -8783,8 +8870,8 @@ bool check_connectivity(void)
         flood_access(p_ptr->py, p_ptr->px, cave_access, true);
         int unreachable = 0;
         int sample_y = -1, sample_x = -1;
-        for (y = 0; y < p_ptr->cur_map_hgt; y++)
-            for (x = 0; x < p_ptr->cur_map_wid; x++)
+        for (y = 1; y < p_ptr->cur_map_hgt - 1; y++)
+            for (x = 1; x < p_ptr->cur_map_wid - 1; x++)
                 if (player_passable(y, x, true) && (cave_access[y][x] == false))
                 {
                     unreachable++;
@@ -8798,14 +8885,33 @@ bool check_connectivity(void)
         if (unreachable == 0)
             break;
 
+        /* Prefer sampling an unreachable room center to connect large components early. */
+        if (dun)
+        {
+            for (int i = 0; i < dun->cent_n; ++i)
+            {
+                int ry = dun->cent[i].y;
+                int rx = dun->cent[i].x;
+                if (!in_bounds_fully(ry, rx)) continue;
+                if (cave_access[ry][rx]) continue;
+                if (!player_passable(ry, rx, true)) continue;
+                sample_y = ry;
+                sample_x = rx;
+                break;
+            }
+        }
+
         /* Stop if we've tried too many rescues - scale with level size */
-        /* Larger levels need more rescue attempts: base 20 + (blocks-8)*2 */
+        /* Larger levels need more rescue attempts: base 20 + (blocks-8)*4 (and at least ~half room count). */
         int blocks = p_ptr->cur_map_hgt / PANEL_HGT;
-        int max_rescues = 20 + MAX(0, (blocks - 8) * 2);  /* 20 for 8 blocks, 46 for 21 blocks */
+        int max_rescues = 20 + MAX(0, (blocks - 8) * 4);  /* 20 for 8 blocks, 72 for 21 blocks */
+        if (dun) max_rescues = MAX(max_rescues, 20 + (dun->cent_n / 2));
         if (rescue_attempts++ >= max_rescues)
         {
             log_trace("check_connectivity: %d unreachable passable grids after %d rescues (first at %d,%d) -- FAILING",
                       unreachable, rescue_attempts, sample_y, sample_x);
+            genlog_fail("CONNECTIVITY FAILED: %d unreachable passable grids after %d rescues (max=%d), first at (%d,%d)",
+                        unreachable, rescue_attempts, max_rescues, sample_y, sample_x);
             return false;
         }
 
@@ -8852,6 +8958,8 @@ bool check_connectivity(void)
         if (best_y < 0 || best_x < 0)
         {
             log_trace("check_connectivity: no reachable target found for rescue (unreachable=%d)", unreachable);
+            genlog_fail("CONNECTIVITY FAILED: no reachable target found for rescue (unreachable=%d), sample=(%d,%d)",
+                        unreachable, sample_y, sample_x);
             return false;
         }
 
@@ -8985,6 +9093,7 @@ bool check_connectivity(void)
             }
         }
 
+    genlog_fail("CONNECTIVITY FAILED: player cannot reach down stairs without rubble/chasms");
     return (false);
 }
 
@@ -12486,10 +12595,11 @@ static bool cave_gen(void)
     // Base size: 9 blocks (increased from 7 for larger level sizes)
     // Size increases with depth, with bias toward larger sizes
     // Formula: Use multiple dice rolls and take the maximum (biases upward)
+    // Two independent uniform rolls: X1 = dieroll(17) (1..17), X2 = dieroll(14) (1..14)
     int base_size = 9;  // Increased from 7 for larger starting levels
-    int depth_factor = p_ptr->depth + dieroll(15);  // Higher ceiling (1-15)
-    int bonus1 = depth_factor / 3;  // First roll
-    int bonus2 = (p_ptr->depth + dieroll(12)) / 3;  // Second roll
+    int depth_factor = p_ptr->depth + dieroll(17);  // Higher ceiling (1-17)
+    int bonus1 = depth_factor / 3;  // First roll (uses X1)
+    int bonus2 = (p_ptr->depth + dieroll(14)) / 3;  // Second roll (uses X2)
     int depth_bonus = MAX(bonus1, bonus2);  // Take maximum (biases larger)
     
     l = base_size + depth_bonus;
@@ -12658,6 +12768,8 @@ static bool cave_gen(void)
                     
                     if (!quest_vault_placed) {
                         log_trace("Quest vault: === FAILED TO PLACE REQUIRED QUEST VAULT === Regenerating level");
+                        genlog_fail("QUEST VAULT FAILED: required (roll=%d >= 18), could not place type 8/7/6 - regenerating", quest_vault_roll);
+                        gen_log_level_end(false, dun->cent_n, 1);
                         return false; /* Force regeneration to guarantee quest vault spawns */
                     }
                 }
@@ -12668,6 +12780,8 @@ static bool cave_gen(void)
                     
                     if (!quest_vault_placed) {
                         log_trace("Quest vault: === FAILED TO PLACE REQUIRED QUEST VAULT === Regenerating level");
+                        genlog_fail("QUEST VAULT FAILED: required (roll=%d >= 13), could not place type 7/6 - regenerating", quest_vault_roll);
+                        gen_log_level_end(false, dun->cent_n, 1);
                         return false; /* Force regeneration to guarantee quest vault spawns */
                     }
                 }
@@ -12678,6 +12792,8 @@ static bool cave_gen(void)
                     
                     if (!quest_vault_placed) {
                         log_trace("Quest vault: === FAILED TO PLACE REQUIRED QUEST VAULT === Regenerating level");
+                        genlog_fail("QUEST VAULT FAILED: required (roll=%d >= 8), could not place type 6 - regenerating", quest_vault_roll);
+                        gen_log_level_end(false, dun->cent_n, 1);
                         return false; /* Force regeneration to guarantee quest vault spawns */
                     }
                 }
@@ -12941,7 +13057,6 @@ static bool cave_gen(void)
         if (p_ptr->force_forge)
             p_ptr->fixed_forge_count--;
         log_trace("Level generation failed: check_connectivity() returned false");
-        genlog_fail("CONNECTIVITY CHECK FAILED: level has unreachable areas (rooms=%d)", dun->cent_n);
         gen_log_level_end(false, dun->cent_n, 1);
         return (false);
     }
@@ -13060,6 +13175,8 @@ static bool cave_gen(void)
             if (!varda_spawned)
             {
                 log_trace("Varda spawn: === FAILED === Could not find valid sunlight tile after 120 attempts - REGENERATING LEVEL");
+                genlog_fail("VARDA SPAWN FAILED: could not find valid sunlight tile after 120 attempts - regenerating");
+                gen_log_level_end(false, dun->cent_n, 1);
                 return false; /* Force regeneration to honor 100% spawn guarantee */
             }
         }
@@ -13297,6 +13414,8 @@ static bool cave_gen(void)
             if (!niena_spawned)
             {
                 log_trace("Niena spawn: FAILED to spawn after all attempts - forcing regeneration");
+                genlog_fail("NIENA SPAWN FAILED: could not place monster after all attempts - regenerating");
+                gen_log_level_end(false, dun->cent_n, 1);
                 return false; /* Force regeneration */
             }
         }
@@ -13406,6 +13525,8 @@ static bool cave_gen(void)
             if (!orome_spawned)
             {
                 log_trace("Orom├½ spawn: FAILED - could not place monster after 150 attempts");
+                genlog_fail("OROME SPAWN FAILED: could not place monster after 150 attempts - regenerating");
+                gen_log_level_end(false, dun->cent_n, 1);
                 return false; /* Force regeneration */
             }
         }
@@ -14001,6 +14122,12 @@ if (playerturn == 0) {
 
     /* Reset per-level skeleton note limits once the layout is finalized */
     skeleton_note_level_reset();
+
+    /* Tag all tiles belonging to chasm partitions (whole partition bounds). */
+    apply_chasm_partition_tags();
+
+    /* Enforce partition/room lighting rules (e.g. labyrinth/CA_BLOB always dark). */
+    apply_partition_and_room_glow_rules();
 
     /* Note any forges generated -- have to do this here in case generation
      * fails earlier */

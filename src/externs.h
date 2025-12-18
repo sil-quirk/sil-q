@@ -1397,6 +1397,7 @@ extern void orome_quest_interaction(void);
 extern void check_orome_quest_interaction(void);
 extern void grant_unique_bane_ability(void);
 extern void anger_morgoth(int level);
+extern void maybe_update_morgoth_state_from_hp(monster_type* m_ptr);
 extern void monster_death(int m_idx);
 extern bool mon_take_hit(int m_idx, int dam, cptr note, int who);
 extern bool modify_panel(int wy, int wx);

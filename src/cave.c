@@ -3864,7 +3864,7 @@ void update_view(void)
                 cave_light[i][j] = 0;
             }
             
-            /* Chasm partition areas absorb light - apply -3 penalty */
+            /* Chasm partitions absorb light - apply -3 penalty */
             if (cave_info[i][j] & CAVE_CHASM_AREA)
             {
                 cave_light[i][j] -= 3;
@@ -5916,6 +5916,3 @@ void disturb(int stop_stealth, int unused_flag)
     /* Flush the input */
     flush();
 }
-
-
-

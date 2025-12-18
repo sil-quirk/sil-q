@@ -697,22 +697,17 @@ u32b score_sum_dead_points(void)
 
             bool alive_marker = streq(how_buf, "(alive and well)");
             bool escaped_marker = (entry.escaped[0] == 't');
+            bool morgoth_victory_marker = (entry.morgoth_slain[0] == 't');
 
             int points = score_points(&entry);
             if (points < 0) points = 0;
 
-            if (alive_marker || escaped_marker) {
+            /* Blessing pool should only reflect fallen heroes (deaths), not escapes or victories. */
+            if (alive_marker || escaped_marker || morgoth_victory_marker) {
                 continue;
             }
 
             u32b contribution = (u32b)points;
-            if (entry.morgoth_slain[0] == 't')
-            {
-                if (contribution > 0x7FFFFFFFU)
-                    contribution = 0xFFFFFFFFU;
-                else
-                    contribution *= 2;
-            }
 
             if (contribution > 0xFFFFFFFFU - total)
                 total = 0xFFFFFFFFU;

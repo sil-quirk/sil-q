@@ -521,6 +521,18 @@ static void display_single_score_short(byte attr, int place, int row, const high
         verdict = verdict_buf;
     } else if (streq(entry->how, "(alive and well)")) {
         verdict = "Alive";
+    } else if (morgoth) {
+        /* Morgoth victory is a special end state; avoid "Slain by ..." wording. */
+        if (indicators[0]) {
+            strnfmt(verdict_buf, sizeof(verdict_buf),
+                    "Victorious over Morgoth's illusion (%s) at %sft %s",
+                    entry->how, depth_commas, indicators);
+        } else {
+            strnfmt(verdict_buf, sizeof(verdict_buf),
+                    "Victorious over Morgoth's illusion (%s) at %sft",
+                    entry->how, depth_commas);
+        }
+        verdict = verdict_buf;
     } else {
         /* For deaths, include depth and indicators - keep ft visible */
         if (indicators[0]) {
