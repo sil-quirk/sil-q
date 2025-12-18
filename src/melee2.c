@@ -303,6 +303,7 @@ static void remove_invalid_spells(int m_idx, u32b* f4p)
 
     // no songs by Morgoth until uncrowned
     if ((m_ptr->r_idx == R_IDX_MORGOTH)
+        && !p_ptr->on_the_run
         && ((&a_info[ART_MORGOTH_3])->cur_num == 0))
     {
         f4 &= ~(RF4_SNG_MASK);
@@ -4729,12 +4730,17 @@ void wander(monster_type* m_ptr)
 
     // begin a song of piercing if possible
     // note that Morgoth must be uncrowned
-    if ((r_ptr->flags4 & (RF4_SNG_PIERCING)) && (m_ptr->song != SNG_PIERCING)
+    bool allow_piercing = true;
+    if (m_ptr->r_idx == R_IDX_MORGOTH)
+        allow_piercing = p_ptr->on_the_run
+            || ((&a_info[ART_MORGOTH_3])->cur_num == 1);
+
+    if (allow_piercing
+        && (r_ptr->flags4 & (RF4_SNG_PIERCING))
+        && (m_ptr->song != SNG_PIERCING)
         && (m_ptr->alertness < ALERTNESS_ALERT)
-        && (m_ptr->mana >= MON_MANA_COST)
-        && ((&a_info[ART_MORGOTH_3])->cur_num == 1))
+        && (m_ptr->mana >= MON_MANA_COST))
     {
-        // 96+17 is RF4_SNG_PIERCING
         make_attack_ranged(m_ptr, 96 + 19);
     }
 

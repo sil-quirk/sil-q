@@ -6025,6 +6025,17 @@ void move_player(int dir)
                 return;
         }
 
+        if ((p_ptr->depth == MORGOTH_DEPTH) && !p_ptr->morgoth_hall_entered
+            && (cave_info[y][x] & CAVE_G_VAULT))
+        {
+            if (!preconfirm_enter_morgoth_hall())
+            {
+                disturb(0, 0);
+                p_ptr->energy_use = 0;
+                return;
+            }
+        }
+
         /* Sound */
         sound(MSG_WALK);
 

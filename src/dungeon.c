@@ -29,6 +29,7 @@ int g_banner_force_redraw_remaining = 0;
 static int last_player_y = 0;
 static int last_player_x = 0;
 static bool was_in_morgoth_vault = false;
+static bool morgoth_entry_preconfirmed = false;
 
 /* Track which big partitions have been entered on this level (max 25 partitions). */
 static u32b big_partition_seen_mask = 0;
@@ -67,6 +68,114 @@ static void reset_level_entry_tracking(void)
     greater_vault_xp_awarded = false;
     last_partition_pi = -1;
     last_partition_kind = LEVEL_PART_NONE;
+}
+
+static bool confirm_enter_morgoth_hall(void)
+{
+    char ch;
+    int wid, hgt;
+
+    static const char* text[] = {
+        "Beyond this passage lies the black hall of Morgoth Bauglir,",
+        "the Dark Enemy, and the last of the Iron Hells.",
+        "",
+        "If you pass within, you may not return until you bear a Silmaril.",
+        "Steel yourself: to enter is to choose doom or glory.",
+        NULL,
+    };
+
+    /* Paranoia */
+    message_flush();
+
+    /* Get terminal size */
+    Term_get_size(&wid, &hgt);
+
+    /* Save screen */
+    screen_save();
+    Term_clear();
+
+    /* Title */
+    {
+        const char* title = "The Iron Gates of Angband";
+        int col = (wid - (int)strlen(title)) / 2;
+        if (col < 1)
+            col = 1;
+        Term_putstr(col, 2, -1, TERM_L_RED, title);
+    }
+
+    /* Body */
+    {
+        int row = 6;
+        for (int i = 0; text[i] && row < hgt - 5; ++i)
+        {
+            const char* line = text[i];
+            if (!line[0])
+            {
+                row++;
+                continue;
+            }
+
+            int len = (int)strlen(line);
+            int col = (wid - len) / 2;
+            if (col < 1)
+                col = 1;
+
+            byte attr = (i == 3) ? TERM_L_RED : TERM_WHITE;
+            Term_putstr(col, row, -1, attr, line);
+            row++;
+        }
+    }
+
+    /* Prompt */
+    {
+#ifdef STEAMDECK_SUPPORT
+        const char* prompt = "Enter Morgoth's hall? [y/n/space]";
+#else
+        const char* prompt = "Enter Morgoth's hall? [y/n]";
+#endif
+        int col = (wid - (int)strlen(prompt)) / 2;
+        if (col < 1)
+            col = 1;
+        Term_putstr(col, hgt - 3, -1, TERM_YELLOW, prompt);
+    }
+
+    /* Get an acceptable answer */
+    while (true)
+    {
+        ch = inkey();
+        if (quick_messages)
+            break;
+        if (ch == ESCAPE)
+            break;
+#ifdef STEAMDECK_SUPPORT
+        if (strchr("YyNn", ch) || ch == ' ')
+#else
+        if (strchr("YyNn", ch))
+#endif
+            break;
+        bell("Illegal response to a 'yes/no' question!");
+    }
+
+    /* Restore screen */
+    screen_load();
+
+    /* Normal negation */
+#ifdef STEAMDECK_SUPPORT
+    if ((ch != 'Y') && (ch != 'y') && (ch != ' '))
+#else
+    if ((ch != 'Y') && (ch != 'y'))
+#endif
+        return (false);
+
+    return (true);
+}
+
+bool preconfirm_enter_morgoth_hall(void)
+{
+    if (!confirm_enter_morgoth_hall())
+        return false;
+    morgoth_entry_preconfirmed = true;
+    return true;
 }
 
 static void update_labyrinth_view_state(bool handle_now)
@@ -2434,13 +2543,11 @@ static void process_player(void)
 
             if (in_morgoth_vault)
             {
-                msg_print("From within you hear the harsh din of feasting in Morgoth's own hall.");
-                if (!greater_vault_xp_awarded)
-                {
-                    gain_exp(100);
-                    greater_vault_xp_awarded = true;
-                }
-                if (!get_check("Are you completely sure you wish to enter? "))
+                bool allow_entry = morgoth_entry_preconfirmed;
+                if (!allow_entry)
+                    allow_entry = confirm_enter_morgoth_hall();
+
+                if (!allow_entry)
                 {
                     clear_vault_name = false;
 
@@ -2457,6 +2564,15 @@ static void process_player(void)
                     char note[120];
                     strnfmt(note, sizeof(note), "Entered %s", g_vault_name);
                     do_cmd_note(note, p_ptr->depth);
+
+                    p_ptr->morgoth_hall_entered = true;
+
+                    msg_print("From within you hear the harsh din of feasting in Morgoth's own hall.");
+                    if (!greater_vault_xp_awarded)
+                    {
+                        gain_exp(100);
+                        greater_vault_xp_awarded = true;
+                    }
 
                     pause_with_text(throne_poetry, 5, 13, NULL, 0);
                     p_ptr->truce = true;
@@ -2495,6 +2611,21 @@ static void process_player(void)
         in_morgoth_vault = (p_ptr->depth == MORGOTH_DEPTH)
             && (cave_info[p_ptr->py][p_ptr->px] & (CAVE_G_VAULT));
 
+        if (p_ptr->morgoth_hall_entered && was_in_morgoth_vault && !in_morgoth_vault
+            && (silmarils_possessed() == 0))
+        {
+            msg_print("The Shadow bars your way: you cannot flee without a Silmaril.");
+
+            if (in_bounds_fully(last_player_y, last_player_x))
+            {
+                p_ptr->py = last_player_y;
+                p_ptr->px = last_player_x;
+                p_ptr->update |= (PU_FORGET_VIEW | PU_UPDATE_VIEW | PU_PANEL);
+                p_ptr->redraw |= (PR_MAP);
+                in_morgoth_vault = true;
+            }
+        }
+
         if (was_in_morgoth_vault && !in_morgoth_vault && p_ptr->truce)
         {
             break_truce(true);
@@ -2503,6 +2634,7 @@ static void process_player(void)
         was_in_morgoth_vault = in_morgoth_vault;
         last_player_y = p_ptr->py;
         last_player_x = p_ptr->px;
+        morgoth_entry_preconfirmed = false;
 
         /* Significant */
         if (p_ptr->energy_use)
@@ -3287,6 +3419,11 @@ static void dungeon(void)
     }
 
     was_in_morgoth_vault = (p_ptr->depth == MORGOTH_DEPTH) && (cave_info[p_ptr->py][p_ptr->px] & CAVE_G_VAULT);
+    if ((p_ptr->depth == MORGOTH_DEPTH) && !p_ptr->morgoth_hall_entered
+        && (was_in_morgoth_vault || (silmarils_possessed() > 0)))
+    {
+        p_ptr->morgoth_hall_entered = true;
+    }
     last_player_y = p_ptr->py;
     last_player_x = p_ptr->px;
 
@@ -3488,6 +3625,8 @@ static void dungeon(void)
         p_ptr->energy += extract_energy[p_ptr->pspeed];
 
         /* Give energy to all monsters */
+        bool freeze_morgoth_vault = (p_ptr->depth == MORGOTH_DEPTH)
+            && !p_ptr->morgoth_hall_entered && (silmarils_possessed() == 0);
         for (i = mon_max - 1; i >= 1; i--)
         {
             /* Access the monster */
@@ -3496,6 +3635,14 @@ static void dungeon(void)
             /* Ignore "dead" monsters */
             if (!m_ptr->r_idx)
                 continue;
+
+            /* Keep Morgoth's hall frozen until the player enters it */
+            if (freeze_morgoth_vault
+                && (cave_info[m_ptr->fy][m_ptr->fx] & CAVE_G_VAULT))
+            {
+                m_ptr->energy = 0;
+                continue;
+            }
 
             /* Give this monster some energy */
             m_ptr->energy += extract_energy[m_ptr->mspeed];

@@ -1,5 +1,144 @@
 # Session Notes
 
+## 2025-12-18: Morgoth hall entry fixes
+- `src/generate.c`: added `connect_morgoth_entry_tunnels()` to extend tunnel heads beyond the sealed region so both corridors connect to the main level; called after tunnel generation.
+- `src/dungeon.c`: on declining the Morgoth hall prompt, restore position and force a redraw via `handle_stuff()` so the player does not appear to move into the hall.
+
+## 2025-12-18: Morgoth tunnel + on-the-run fixes
+- `src/generate.c`: replaced the tunnel extension with component-based BFS connections so each entry corridor independently links to open non-icky space (avoids dead-end wall joins).
+- `src/cmd1.c`, `src/dungeon.c`, `src/externs.h`: added pre-confirmation before stepping into Morgoth’s hall to prevent any movement when declining and avoid double prompts.
+- `src/generate.c`: made Morgoth spawn on-the-run more robust (empty-floor check, LOS fallback, bounds guard, failure log).
+- `src/melee2.c`: allow Morgoth’s song of piercing while on the run even if his crown hasn’t dropped; keep the original uncrowned gate otherwise.
+
+## 2025-12-18: Fixed Both Morgoth Entry Corridors
+
+### Issue
+Only one of the two parallel entry corridors connecting to Morgoth's vault was passable - the second corridor wasn't connecting to the main dungeon.
+
+### Root Cause
+In `carve_morgoth_entry_tunnels()`, when carving multiple tunnel segments, the function would stop ALL tunnels as soon as ANY tunnel found open floor:
+- The outer loop processes each segment (corridor) independently
+- Inner loop carves northward row by row for current segment
+- When ANY tile in ANY segment hit open floor, `joined_open_area = true`
+- The `if (joined_open_area) break;` would exit BOTH the current segment's carving AND prevent other segments from being carved
+
+Result: First corridor connects and stops both, second corridor never completes.
+
+### Solution
+Track each segment's connection status independently ([generate.c:11948](src/generate.c#L11948)):
+- Added `seg_joined[4]` array to track each corridor independently
+- Each segment checks its own join status: `if (seg_joined[s]) break;`
+- Only the specific segment that joins stops carving
+- Other segments continue until they also join or reach the limit
+- Changed flag from global `joined_open_area` to per-segment `this_seg_joined`
+
+Result: Both entry corridors now carve independently until each connects to the main dungeon, creating two parallel passable entrances as designed.
+
+Build: `build-cmake.bat` successful.
+
+---
+
+## 2025-12-18: Fixed Morgoth Entry Corridor Protection
+
+### Issue
+The two entry corridors connecting to Morgoth's vault were not passable - they appeared as walls instead of carved tunnels with doors.
+
+### Root Cause
+`seal_morgoth_partition()` calculated sealing bounds that didn't extend far enough north to protect the full tunnel area:
+- Tunnels are carved from vault northward to `morgoth_partition_bounds.y1 - 2`
+- But seal bounds were calculated as `MAX(morgoth_partition_bounds.y1, top_y - margin)`
+- This meant the seal started at the vault top (or partition edge), missing the tunnel area above
+- Other partitions could then overwrite the unprotected tunnel tiles with walls
+
+### Solution
+Extended sealing bounds to include full tunnel path ([generate.c:1131](src/generate.c#L1131)):
+- Calculate `tunnel_limit = morgoth_partition_bounds.y1 - 2` (same as carve function)
+- Set seal `y1 = MIN(morgoth_partition_bounds.y1, tunnel_limit)` to include tunnel area
+- Update `morgoth_partition_bounds.y1` to protect tunnels from other partition generation
+- Now permanent wall barrier extends from tunnel start all the way through vault
+
+Result: Both entry corridors are now properly protected and passable, maintaining the isolated partition design.
+
+Build: `build-cmake.bat` successful.
+
+---
+
+## 2025-12-18: Morgoth Vault Placed During Partition Generation
+
+### Issue
+Morgoth's throne room was being placed AFTER all other partitions were generated, allowing other rooms, vaults, and corridors to be placed in the same partition. This violated the design requirement that Morgoth's hall should be isolated in its own partition with only the carved entry tunnels as connections.
+
+### Root Cause
+The level generation sequence was:
+1. `apply_quadrant_generation_modes()` reserves Morgoth partition (sets flag and continues)
+2. All other partitions generate rooms, labyrinths, vaults, corridors
+3. `place_morgoth_throne_room()` builds vault and seals partition AFTER other generation
+
+Problem: By the time `seal_morgoth_partition()` converted walls to `FEAT_WALL_PERM`, other partitions had already placed content that overlapped into the Morgoth area.
+
+### Solution
+Moved Morgoth throne room placement into the partition reservation step ([generate.c:4675](src/generate.c#L4675)):
+- When Morgoth partition is detected during `apply_quadrant_generation_modes()`
+- Immediately call `build_type9()`, `carve_morgoth_entry_tunnels()`, and `seal_morgoth_partition()`
+- Creates permanent wall barrier BEFORE any other partition generation
+- Other partitions cannot place content in sealed area
+- Removed old `place_morgoth_throne_room()` function (now inline)
+- Added forward declarations for build_type9, carve_morgoth_entry_tunnels, seal_morgoth_partition
+
+Result: Morgoth's hall is now a truly isolated partition with only the two carved entry tunnels as connections.
+
+Build: `build-cmake.bat` successful.
+
+---
+
+## 2025-12-18: Fixed Morgoth Vault Connectivity Infinite Loop
+
+### Issue
+Level generation would hang in an infinite loop when creating depth 20 level with Morgoth's vault, repeatedly logging:
+```
+CONNECTIVITY FAILED: BFS rescue could not find reachable target from (x,y)
+```
+
+### Root Causes
+Two critical bugs working together:
+
+1. **`player_passable()` didn't recognize doors** ([generate.c:6265](src/generate.c#L6265))
+   - Doors (`FEAT_DOOR_HEAD` to `FEAT_DOOR_TAIL`) are in the wall feature range
+   - Function only checked for secret doors, rubble, and icky vault interiors
+   - Regular doors were treated as impassable walls
+   - This broke connectivity checking for Morgoth's entry tunnels (which have closed doors)
+
+2. **`seal_morgoth_partition()` trapped existing floors** ([generate.c:1131](src/generate.c#L1131))
+   - Converted ALL non-vault/non-tunnel tiles to `FEAT_WALL_PERM` in sealed region
+   - This included existing passable floors and corridors built before vault placement
+   - Created isolated pockets surrounded by permanent walls
+   - BFS rescue couldn't escape because permanent walls block traversal
+
+### Solution
+Two-part fix:
+
+1. **Added door recognition** to `player_passable()`:
+   ```c
+   || ((feature >= FEAT_DOOR_HEAD) && (feature <= FEAT_DOOR_TAIL))
+   ```
+   - Doors are now properly recognized as passable during connectivity checks
+   - Allows `flood_access()` to traverse through Morgoth's entry tunnel doors
+
+2. **Modified `seal_morgoth_partition()`** to preserve existing floors:
+   ```c
+   if (cave_floor_bold(y, x) || (cave_feat[y][x] >= FEAT_DOOR_HEAD && cave_feat[y][x] <= FEAT_DOOR_TAIL))
+       continue;
+   ```
+   - Only converts walls/granite to permanent walls
+   - Preserves existing passable floors, doors, and vault/tunnel tiles
+   - Prevents trapping unreachable areas behind permanent walls
+
+Also simplified rescue BFS to allow traversal through Morgoth regions and mark carved paths with `CAVE_MORGOTH_TUNNEL`.
+
+Build: `build-cmake.bat` successful.
+
+---
+
 ## 2025-12-17: Big Partition Messages (Per-Entry) + Artefact Spawn Restriction
 
 - `src/dungeon.c`: big partition flavor text now prints **each time you enter** LABYRINTH / BIG_CAVE / CHASM; `+50xp` is awarded **once per partition per level** (XP gating decoupled from message).
@@ -7612,3 +7751,11 @@ The script now fully matches the game's drop generation logic for all item types
 - `src/score/score_ui.c`: short layout now special-cases `morgoth_slain` entries to display "Victorious over Morgoth's illusion ..." instead of "Slain by ...".
 - `src/score/score_logic.c`: Morgoth victory now receives the escape bonus in scoring, in addition to the existing forced `3` Silmarils + full ascent (`depth_up = MORGOTH_DEPTH`).
 - `src/score/score_io.c`: blessing pool no longer counts `morgoth_slain` entries (Morgoth victory is not treated as a death for blessing economy).
+
+## 2025-12-18: Depth 20 normal + Morgoth hall (vault) restrictions
+- `src/types.h`, `src/save.c`, `src/load.c`: added `p_ptr->morgoth_hall_entered` persisted via the first of the existing 15 spare bytes in the savefile (backward-compatible default 0).
+- `src/cmd2.c`: `min_depth()` only clamps to `MORGOTH_DEPTH` after entering Morgoth's hall; `do_cmd_go_up()` no longer forces endgame behavior on depth 20 unless `min_depth()==MORGOTH_DEPTH`, and only sets `on_the_run` when leaving 1000ft with a Silmaril.
+- `src/dungeon.c`: added a full-screen Tolkien-style confirmation before entering Morgoth's hall; freezes monsters inside the hall until entry; blocks leaving the hall without a Silmaril.
+- `src/generate.c`, `src/defines.h`: entry tunnels are preserved with `CAVE_MORGOTH_TUNNEL` and the forced doors now sit in the vault wall (end of each of the two corridors), so the confirmation triggers exactly when stepping through those doors.
+- `src/generate.c`: fixed a build-breaking `auto ... -> bool` local helper by moving it to a proper `static` C helper (`connectivity_rescue_traversable()`), and reduced the Morgoth “no-go” region from the entire reserved partition to a small permanent-wall buffer around the vault to avoid repeated connectivity failures/regeneration loops on depth 20.
+- `src/generate.c`: fixed depth-20 regen loops caused by BFS rescue starting from a clamped coordinate (so it never actually connected the unreachable edge rooms) and by over-restricting vault walls; BFS rescue now starts from the actual unreachable tile, can dig through normal vault walls as needed, but still refuses to dig through Morgoth's vault walls (so entry stays via the forced doors).

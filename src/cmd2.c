@@ -31,8 +31,8 @@ int min_depth(void)
     if (min_depth_value > MORGOTH_DEPTH)
         min_depth_value = MORGOTH_DEPTH;
 
-    // can't leave the throne room
-    if (p_ptr->depth == MORGOTH_DEPTH)
+    // can't leave Morgoth's hall once entered
+    if ((p_ptr->depth == MORGOTH_DEPTH) && p_ptr->morgoth_hall_entered)
     {
         min_depth_value = MORGOTH_DEPTH;
     }
@@ -190,8 +190,13 @@ void do_cmd_go_up(void)
     // store the action type
     p_ptr->previous_action[0] = ACTION_MISC;
 
-    // Cannot flee Morgoth's throne room without a Silmaril
-    if ((p_ptr->depth == MORGOTH_DEPTH) && (silmarils_possessed() == 0))
+    /* Calculate the shallowest a player is allowed to go */
+    min = min_depth();
+
+    /* At 1000ft, once locked in (by time or by entering Morgoth's hall),
+     * you cannot retreat without a Silmaril. */
+    if ((p_ptr->depth == MORGOTH_DEPTH) && (min == MORGOTH_DEPTH)
+        && (silmarils_possessed() == 0))
     {
         msg_print("You enter a maze of staircases, but cannot find your way.");
 
@@ -205,7 +210,6 @@ void do_cmd_go_up(void)
         = (&f_info[cave_feat[p_ptr->py][p_ptr->px]])->d_attr;
 
     // calculate the new depth to arrive at
-    min = min_depth();
     if ((cave_feat[p_ptr->py][p_ptr->px] == FEAT_LESS_SHAFT)
         && (p_ptr->depth > 0))
     {
@@ -223,7 +227,8 @@ void do_cmd_go_up(void)
     }
 
     // deal with most cases where you can't find your way
-    if ((new < min) && (p_ptr->depth != MORGOTH_DEPTH))
+    if ((new < min)
+        && !((p_ptr->depth == MORGOTH_DEPTH) && (silmarils_possessed() > 0)))
     {
         message(MSG_STAIRS, 0,
             "You enter a maze of up staircases, but cannot find your way.");
@@ -285,7 +290,7 @@ void do_cmd_go_up(void)
             message(MSG_STAIRS, 0, "The divine light reveals the way.");
         }
 
-        if (p_ptr->depth == MORGOTH_DEPTH)
+        if ((p_ptr->depth == MORGOTH_DEPTH) && (silmarils_possessed() > 0))
         {
             if (!p_ptr->morgoth_slain)
             {

@@ -1115,6 +1115,7 @@ struct player_type
     char history[550]; /* Initial history */
 
     byte truce; /* Player will not be attacked initially at 1000ft */
+    byte morgoth_hall_entered; /* Player has entered Morgoth's hall */
     byte crown_hint; /* Player has been told about the Iron Crown */
     byte crown_shatter; /* DEPRECATED - kept for save compatibility */
     byte crown_shatter_sil2; /* Weapon shattered attempting 2nd Silmaril */

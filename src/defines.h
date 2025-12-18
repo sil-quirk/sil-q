@@ -1752,7 +1752,8 @@
 #define CAVE_OLD_LIT 0x1000 /* was square lit last update? */
 #define CAVE_OLD_TORCH 0x2000 /* was square in torch radius last update? */
 #define CAVE_CHASM_AREA 0x4000 /* part of a chasm partition (for light penalty) */
-#define CAVE_ATT3 0x8000 /* unused */
+/* Reserved per-tile marker: Morgoth hall approach tunnel (used to preserve carved entry tunnels). */
+#define CAVE_MORGOTH_TUNNEL 0x8000
 
 /*** Object flags ***/
 

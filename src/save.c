@@ -1100,7 +1100,7 @@ static void wr_extra(void)
     wr_byte(p_ptr->climbing);
 
     // 15 spare bytes (was 19, used 4 for song debuff counters)
-    wr_byte(0);
+    wr_byte(p_ptr->morgoth_hall_entered ? 1 : 0);
     wr_byte(0);
     wr_byte(0);
     wr_u32b(0L);

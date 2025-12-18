@@ -1252,7 +1252,12 @@ static errr rd_extra(void)
     rd_byte(&p_ptr->climbing);
 
     // 15 spare bytes (was 19, used 4)
-    strip_bytes(15);
+    {
+        byte morgoth_hall_entered = 0;
+        rd_byte(&morgoth_hall_entered);
+        p_ptr->morgoth_hall_entered = morgoth_hall_entered ? 1 : 0;
+        strip_bytes(14);
+    }
 
     /* Read item-quality squelch sub-menu */
     for (i = 0; i < SQUELCH_BYTES; i++)

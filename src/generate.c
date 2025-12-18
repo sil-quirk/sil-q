@@ -1125,23 +1125,48 @@ static bool morgoth_segment_blocked(int y1, int x1, int y2, int x2, int margin)
     return false;
 }
 
-/* After placing Morgoth's vault, seal the rest of the reserved partition with permanent walls */
-static void seal_morgoth_partition(void)
+/* After placing Morgoth's vault, seal a small buffer around it with permanent walls.
+ * This prevents accidental extra entrances while keeping the rest of the reserved
+ * partition traversable for normal dungeon connectivity. */
+static void seal_morgoth_partition(const vault_type* v_ptr, int y0, int x0)
 {
-    if (!morgoth_region_active())
+    if (!morgoth_region_active() || !v_ptr)
         return;
 
-    int y1 = morgoth_partition_bounds.y1;
-    int y2 = morgoth_partition_bounds.y2;
-    int x1 = morgoth_partition_bounds.x1;
-    int x2 = morgoth_partition_bounds.x2;
+    int top_y = y0 - v_ptr->hgt / 2;
+    int bot_y = top_y + v_ptr->hgt - 1;
+    int left_x = x0 - v_ptr->wid / 2;
+    int right_x = left_x + v_ptr->wid - 1;
+
+    /* Extend sealing bounds to include the full tunnel path northward.
+     * Tunnels are carved to partition_bounds.y1 - 2, so seal from there. */
+    int tunnel_limit = morgoth_partition_bounds.y1 - 2;
+    if (tunnel_limit < 1) tunnel_limit = 1;
+    
+    int margin = 4;
+    int y1 = MAX(1, MIN(morgoth_partition_bounds.y1, tunnel_limit));  /* Include tunnel area */
+    int y2 = MIN(morgoth_partition_bounds.y2, bot_y + margin);
+    int x1 = MAX(morgoth_partition_bounds.x1, left_x - margin);
+    int x2 = MIN(morgoth_partition_bounds.x2, right_x + margin);
+
+    /* Update the active Morgoth "no-go" bounds to protect the tunnels too. */
+    morgoth_partition_bounds.y1 = y1;
+    morgoth_partition_bounds.y2 = y2;
+    morgoth_partition_bounds.x1 = x1;
+    morgoth_partition_bounds.x2 = x2;
 
     for (int y = y1; y <= y2; ++y)
     {
         for (int x = x1; x <= x2; ++x)
         {
-            /* Preserve the vault area and entry tunnels we flagged as CAVE_G_VAULT */
-            if (cave_info[y][x] & CAVE_G_VAULT)
+            /* Preserve the vault area and any carved entry tunnels */
+            if (cave_info[y][x] & (CAVE_G_VAULT | CAVE_MORGOTH_TUNNEL))
+                continue;
+
+            /* Don't seal over existing passable floor - only convert walls/granite.
+             * This prevents trapping unreachable floor areas that were built before
+             * the vault placement. */
+            if (cave_floor_bold(y, x) || (cave_feat[y][x] >= FEAT_DOOR_HEAD && cave_feat[y][x] <= FEAT_DOOR_TAIL))
                 continue;
 
             cave_set_feat(y, x, FEAT_WALL_PERM);
@@ -1720,13 +1745,16 @@ static void layout_anchor_capture_existing_rooms(void)
 static bool build_type6(int y0, int x0, bool force_forge);
 static bool build_type7(int y0, int x0);
 static bool build_type8(int y0, int x0);
+static bool build_type9(int y0, int x0, vault_type** used_vault);
 static bool build_type2(int y0, int x0);
 static bool build_type1(int y0, int x0);
+static void carve_morgoth_entry_tunnels(const vault_type* v_ptr, int y0, int x0);
+static void connect_morgoth_entry_tunnels(void);
+static void seal_morgoth_partition(const vault_type* v_ptr, int y0, int x0);
 static void apply_quadrant_generation_modes(void);
 static void repair_all_outer_walls(void);
 static bool carve_chasm_with_bridges(int y_min, int y_max, int x_min, int x_max);
 static int dungeon_pieces(void);
-static void clamp_to_interior(int *y, int *x, int margin);
 static int partition_index_from_point(int y, int x, int rows, int cols);
 static int room_connection_degree(int room_idx);
 static bool connect_rooms_with_logging(int r1, int r2, const char *tag, bool allow_desperate);
@@ -4664,8 +4692,27 @@ static void apply_quadrant_generation_modes(void)
             morgoth_vault_center_y = (y1 + y2) / 2;
             morgoth_vault_center_x = (x1 + x2) / 2;
             morgoth_partition_reserved = true;
-            partition_done[pi] = true;
-            genlog_partition("Morgoth partition reserved at idx=%d bounds=(%d,%d)-(%d,%d)", pi, y1, x1, y2, x2);
+            
+            /* Place and seal Morgoth's throne room IMMEDIATELY to prevent other 
+             * partitions from placing content in this area. The permanent wall sealing
+             * must happen before any other room/corridor generation. */
+            vault_type* v_ptr = NULL;
+            int cy = morgoth_vault_center_y;
+            int cx = morgoth_vault_center_x;
+            
+            if (build_type9(cy, cx, &v_ptr))
+            {
+                carve_morgoth_entry_tunnels(v_ptr, cy, cx);
+                seal_morgoth_partition(v_ptr, cy, cx);
+                partition_done[pi] = true;
+                genlog_partition("Morgoth partition placed and sealed at idx=%d bounds=(%d,%d)-(%d,%d) center=(%d,%d)", 
+                                pi, y1, x1, y2, x2, cy, cx);
+            }
+            else
+            {
+                log_trace("Morgoth level: failed to build throne room at (%d,%d) in partition %d", cy, cx, pi);
+                morgoth_partition_reserved = false;  /* Allow fallback */
+            }
             continue;
         }
 
@@ -6267,6 +6314,7 @@ bool player_passable(int y, int x, bool ignore_rubble_and_chasms)
     else
     {
         return (feature == FEAT_SECRET)
+            || ((feature >= FEAT_DOOR_HEAD) && (feature <= FEAT_DOOR_TAIL))
             || ((feature == FEAT_RUBBLE) && ignore_rubble_and_chasms)
             || icky_interior;
     }
@@ -8809,16 +8857,32 @@ static bool place_rubble_player(void)
     return (true);
 }
 
-/* Clamp a coordinate to stay inside the map by a small margin to avoid edge-digging. */
-static void clamp_to_interior(int *y, int *x, int margin)
+static bool connectivity_rescue_traversable(int ry, int rx)
 {
-    if (!y || !x) return;
-    if (*y < margin) *y = margin;
-    if (*x < margin) *x = margin;
-    if (*y > p_ptr->cur_map_hgt - margin - 1)
-        *y = p_ptr->cur_map_hgt - margin - 1;
-    if (*x > p_ptr->cur_map_wid - margin - 1)
-        *x = p_ptr->cur_map_wid - margin - 1;
+    if (!in_bounds_fully(ry, rx))
+        return false;
+
+    if (cave_feat[ry][rx] == FEAT_WALL_PERM)
+        return false;
+
+    bool is_wall = (cave_feat[ry][rx] >= FEAT_WALL_HEAD)
+        && (cave_feat[ry][rx] <= FEAT_WALL_TAIL)
+        && (cave_feat[ry][rx] != FEAT_SECRET);
+
+    /* Never carve through Morgoth's vault walls: require using the forced doors. */
+    if (morgoth_level_active && (cave_info[ry][rx] & CAVE_G_VAULT) && is_wall)
+        return false;
+
+    /* Avoid carving new routes inside the sealed Morgoth region: only traverse
+     * existing vault/tunnel squares there (and don't cross permanent walls). */
+    if (coord_in_morgoth_region(ry, rx, 0)
+        && !(cave_info[ry][rx] & (CAVE_G_VAULT | CAVE_MORGOTH_TUNNEL))
+        && is_wall)
+    {
+        return false;
+    }
+
+    return true;
 }
 
 /*
@@ -8963,99 +9027,105 @@ bool check_connectivity(void)
             return false;
         }
 
-        /* Dig an L-shaped orthogonal tunnel (no diagonal) between the two points.
-         * Randomly choose whether to go horizontal-first or vertical-first. */
-        int y0 = sample_y, x0 = sample_x, y1 = best_y, x1 = best_x;
-        clamp_to_interior(&y0, &x0, 2);
-        clamp_to_interior(&y1, &x1, 2);
-        int cy = y0, cx = x0;
-        bool horiz_first = one_in_(2);
-        bool path_ok = true;
-        
-        if (horiz_first)
+        /* Dig a rescue tunnel using BFS so we can route around permanent-wall obstacles. */
         {
-            /* Horizontal leg first */
-            int sx = (x0 < x1) ? 1 : -1;
-            while (cx != x1)
+            static int prev[MAX_DUNGEON_HGT][MAX_DUNGEON_WID];
+            static int queue[MAX_DUNGEON_HGT * MAX_DUNGEON_WID];
+            int head = 0, tail = 0;
+            int found_y = -1, found_x = -1;
+
+            /* Init prev array for current map bounds */
+            for (int yy = 0; yy < p_ptr->cur_map_hgt; ++yy)
+                for (int xx = 0; xx < p_ptr->cur_map_wid; ++xx)
+                    prev[yy][xx] = -1;
+
+            int start_y = sample_y, start_x = sample_x;
+            int start_idx = start_y * MAX_DUNGEON_WID + start_x;
+            prev[start_y][start_x] = start_idx; /* self */
+            queue[tail++] = start_idx;
+
+            static const int ddy4[4] = {-1, 1, 0, 0};
+            static const int ddx4[4] = {0, 0, -1, 1};
+
+            while (head < tail)
             {
-                if (coord_in_morgoth_region(cy, cx, 1))
+                int cur = queue[head++];
+                int cy = cur / MAX_DUNGEON_WID;
+                int cx = cur % MAX_DUNGEON_WID;
+
+                for (int d = 0; d < 4; ++d)
                 {
-                    path_ok = false;
-                    break;
+                    int ny = cy + ddy4[d];
+                    int nx = cx + ddx4[d];
+                    if (!in_bounds_fully(ny, nx))
+                        continue;
+                    if (prev[ny][nx] != -1)
+                        continue;
+                    if (!connectivity_rescue_traversable(ny, nx))
+                        continue;
+
+                    int nidx = ny * MAX_DUNGEON_WID + nx;
+                    prev[ny][nx] = cur;
+                    if (tail < (int)N_ELEMENTS(queue))
+                        queue[tail++] = nidx;
+
+                    /* Found any reachable, passable tile */
+                    if (cave_access[ny][nx] && player_passable(ny, nx, true))
+                    {
+                        found_y = ny;
+                        found_x = nx;
+                        head = tail; /* break out */
+                        break;
+                    }
                 }
-                if (in_bounds_fully(cy, cx) && cave_feat[cy][cx] != FEAT_WALL_PERM)
-                {
-                    if (!cave_floor_bold(cy, cx))
-                        cave_set_feat(cy, cx, FEAT_FLOOR);
-                }
-                cx += sx;
             }
-            if (!path_ok) continue;
-            /* Vertical leg */
-            int sy = (y0 < y1) ? 1 : -1;
-            while (cy != y1)
+
+            if (found_y < 0 || found_x < 0)
             {
-                if (coord_in_morgoth_region(cy, cx, 1))
-                {
-                    path_ok = false;
-                    break;
-                }
-                if (in_bounds_fully(cy, cx) && cave_feat[cy][cx] != FEAT_WALL_PERM)
-                {
-                    if (!cave_floor_bold(cy, cx))
-                        cave_set_feat(cy, cx, FEAT_FLOOR);
-                }
-                cy += sy;
+                log_trace("check_connectivity: BFS rescue could not find a reachable target from (%d,%d)", sample_y, sample_x);
+                genlog_fail("CONNECTIVITY FAILED: BFS rescue could not find reachable target from (%d,%d)", sample_y, sample_x);
+                return false;
             }
-            if (!path_ok) continue;
+
+            /* Carve path from found target back to sample */
+            int carve_count = 0;
+            int cur = found_y * MAX_DUNGEON_WID + found_x;
+            int safety = 0;
+            while (safety++ < (int)N_ELEMENTS(queue))
+            {
+                int cy = cur / MAX_DUNGEON_WID;
+                int cx = cur % MAX_DUNGEON_WID;
+
+                if (cave_feat[cy][cx] != FEAT_WALL_PERM)
+                {
+                    bool in_morgoth = coord_in_morgoth_region(cy, cx, 0);
+                    bool allow_morgoth = (cave_info[cy][cx] & CAVE_MORGOTH_TUNNEL) != 0;
+
+                    if (!in_morgoth || allow_morgoth)
+                    {
+                        if (!cave_floor_bold(cy, cx) && (cave_feat[cy][cx] < FEAT_DOOR_HEAD || cave_feat[cy][cx] > FEAT_DOOR_TAIL))
+                        {
+                            cave_set_feat(cy, cx, FEAT_FLOOR);
+                            carve_count++;
+                        }
+                    }
+                }
+
+                if (cur == prev[start_y][start_x])
+                    break;
+                int p = prev[cy][cx];
+                if (p == cur)
+                    break;
+                cur = p;
+                if (cur == start_idx)
+                    break;
+            }
+
+            log_trace("check_connectivity: BFS rescue tunnel from (%d,%d) to reachable (%d,%d), carved=%d (unreachable=%d, attempt=%d)",
+                sample_y, sample_x, found_y, found_x, carve_count, unreachable, rescue_attempts);
+            genlog_connect("RESCUE TUNNEL: BFS from (%d,%d) to (%d,%d), carved=%d",
+                sample_y, sample_x, found_y, found_x, carve_count);
         }
-        else
-        {
-            /* Vertical leg first */
-            int sy = (y0 < y1) ? 1 : -1;
-            while (cy != y1)
-            {
-                if (coord_in_morgoth_region(cy, cx, 1))
-                {
-                    path_ok = false;
-                    break;
-                }
-                if (in_bounds_fully(cy, cx) && cave_feat[cy][cx] != FEAT_WALL_PERM)
-                {
-                    if (!cave_floor_bold(cy, cx))
-                        cave_set_feat(cy, cx, FEAT_FLOOR);
-                }
-                cy += sy;
-            }
-            if (!path_ok) continue;
-            /* Horizontal leg */
-            int sx = (x0 < x1) ? 1 : -1;
-            while (cx != x1)
-            {
-                if (coord_in_morgoth_region(cy, cx, 1))
-                {
-                    path_ok = false;
-                    break;
-                }
-                if (in_bounds_fully(cy, cx) && cave_feat[cy][cx] != FEAT_WALL_PERM)
-                {
-                    if (!cave_floor_bold(cy, cx))
-                        cave_set_feat(cy, cx, FEAT_FLOOR);
-                }
-                cx += sx;
-            }
-            if (!path_ok) continue;
-        }
-        /* Final destination tile */
-        if (in_bounds_fully(y1, x1) && cave_feat[y1][x1] != FEAT_WALL_PERM)
-        {
-            if (!cave_floor_bold(y1, x1))
-                cave_set_feat(y1, x1, FEAT_FLOOR);
-        }
-        log_trace("check_connectivity: dug L-shaped rescue tunnel from (%d,%d) to nearest reachable (%d,%d), dist=%d (unreachable=%d, attempt=%d)",
-                  sample_y, sample_x, best_y, best_x, best_d, unreachable, rescue_attempts);
-        genlog_connect("RESCUE TUNNEL: L-shaped from (%d,%d) to (%d,%d), dist=%d",
-                       sample_y, sample_x, best_y, best_x, best_d);
 
         /* Clear and loop to re-check connectivity */
         for (y = 0; y < p_ptr->cur_map_hgt; y++)
@@ -11924,60 +11994,269 @@ static void carve_morgoth_entry_tunnels(const vault_type* v_ptr, int y0, int x0)
     if (tunnel_limit > top_y)
         tunnel_limit = top_y;
 
+    /* Track which segments have joined independently */
+    bool seg_joined[4] = {false, false, false, false};
+
     for (int s = 0; s < segs; s++)
     {
-        int center_x = (seg_start[s] + seg_end[s]) / 2;
-        int x1 = MAX(left_x + 1, center_x - 1);
-        int x2 = MIN(right_x - 1, center_x + 1);
+        int x1 = seg_start[s];
+        int x2 = seg_end[s];
 
-        for (int y = top_y; y >= tunnel_limit; y--)
+        /* Place forced closed doors in the vault's outer wall (end of corridor) */
+        for (int x = x1; x <= x2; x++)
         {
-            bool joined_open_area = false;
+            if (!in_bounds_fully(top_y, x))
+                continue;
+            cave_set_feat(top_y, x, FEAT_DOOR_HEAD + 0x00);
+        }
+
+        /* Carve a tunnel northwards from just outside the doors */
+        for (int y = top_y - 1; y >= tunnel_limit; y--)
+        {
+            /* Skip if this segment already joined */
+            if (seg_joined[s])
+                break;
+
+            bool this_seg_joined = false;
 
             for (int x = x1; x <= x2; x++)
             {
                 if (!in_bounds_fully(y, x))
                     continue;
 
+                /* Stop this segment once it reaches existing open floor outside the reserved region */
+                if (!morgoth_region_active() || !coord_in_morgoth_region(y, x, 0))
+                {
+                    if (cave_floor_bold(y, x) && !(cave_info[y][x] & CAVE_ICKY))
+                    {
+                        this_seg_joined = true;
+                        continue;
+                    }
+                }
+
                 if (cave_feat[y][x] == FEAT_WALL_PERM)
                     continue;
 
-                if (cave_floor_bold(y, x) && !(cave_info[y][x] & CAVE_ICKY))
-                    joined_open_area = true;
-
                 cave_set_feat(y, x, FEAT_FLOOR);
-                cave_info[y][x] |= (CAVE_ROOM | CAVE_ICKY | CAVE_G_VAULT);
+                cave_info[y][x] &= ~(CAVE_G_VAULT | CAVE_ICKY);
+                cave_info[y][x] |= CAVE_MORGOTH_TUNNEL;
             }
 
-            if (joined_open_area && y < top_y)
+            if (this_seg_joined)
+            {
+                seg_joined[s] = true;
                 break;
+            }
         }
     }
 }
 
-/* Force-place Morgoth's throne room in the reserved central partition */
-static bool place_morgoth_throne_room(void)
+/* Extend the carved entry tunnels so both connect to the main level. */
+static bool morgoth_tunnel_traversable(int y, int x)
 {
-    vault_type* v_ptr = NULL;
-
-    if (!morgoth_partition_reserved)
-    {
-        log_trace("Morgoth level: no reserved partition recorded for throne room placement");
+    if (!in_bounds_fully(y, x))
         return false;
-    }
-
-    int cy = (morgoth_vault_center_y > 0) ? morgoth_vault_center_y : p_ptr->cur_map_hgt / 2;
-    int cx = (morgoth_vault_center_x > 0) ? morgoth_vault_center_x : p_ptr->cur_map_wid / 2;
-
-    if (!build_type9(cy, cx, &v_ptr))
-    {
-        log_trace("Morgoth level: failed to build throne room at (%d,%d)", cy, cx);
+    if (cave_feat[y][x] == FEAT_WALL_PERM)
         return false;
-    }
-
-    carve_morgoth_entry_tunnels(v_ptr, cy, cx);
-    seal_morgoth_partition();
+    if ((cave_info[y][x] & CAVE_ICKY) && !coord_in_morgoth_region(y, x, 0))
+        return false;
     return true;
+}
+
+static bool morgoth_tunnel_target(int y, int x)
+{
+    if (coord_in_morgoth_region(y, x, 0))
+        return false;
+    if (cave_info[y][x] & CAVE_ICKY)
+        return false;
+    return player_passable(y, x, true);
+}
+
+static void connect_morgoth_tunnel_component(int start_y, int start_x)
+{
+    static int prev[MAX_DUNGEON_HGT][MAX_DUNGEON_WID];
+    static int queue[MAX_DUNGEON_HGT * MAX_DUNGEON_WID];
+    int head = 0;
+    int tail = 0;
+    int found_y = -1;
+    int found_x = -1;
+
+    for (int y = 0; y < p_ptr->cur_map_hgt; ++y)
+        for (int x = 0; x < p_ptr->cur_map_wid; ++x)
+            prev[y][x] = -1;
+
+    int start_idx = start_y * MAX_DUNGEON_WID + start_x;
+    prev[start_y][start_x] = start_idx;
+    queue[tail++] = start_idx;
+
+    static const int ddy4[4] = {-1, 1, 0, 0};
+    static const int ddx4[4] = {0, 0, -1, 1};
+
+    while (head < tail)
+    {
+        int cur = queue[head++];
+        int cy = cur / MAX_DUNGEON_WID;
+        int cx = cur % MAX_DUNGEON_WID;
+
+        for (int d = 0; d < 4; ++d)
+        {
+            int ny = cy + ddy4[d];
+            int nx = cx + ddx4[d];
+            if (!in_bounds_fully(ny, nx))
+                continue;
+            if (prev[ny][nx] != -1)
+                continue;
+            if (!morgoth_tunnel_traversable(ny, nx))
+                continue;
+
+            int nidx = ny * MAX_DUNGEON_WID + nx;
+            prev[ny][nx] = cur;
+            if (tail < (int)N_ELEMENTS(queue))
+                queue[tail++] = nidx;
+
+            if (morgoth_tunnel_target(ny, nx))
+            {
+                found_y = ny;
+                found_x = nx;
+                head = tail;
+                break;
+            }
+        }
+    }
+
+    if (found_y < 0 || found_x < 0)
+        return;
+
+    int cur = found_y * MAX_DUNGEON_WID + found_x;
+    int safety = 0;
+    while (safety++ < (int)N_ELEMENTS(queue))
+    {
+        int cy = cur / MAX_DUNGEON_WID;
+        int cx = cur % MAX_DUNGEON_WID;
+
+        if (cave_feat[cy][cx] != FEAT_WALL_PERM)
+        {
+            if (!cave_floor_bold(cy, cx)
+                && (cave_feat[cy][cx] < FEAT_DOOR_HEAD
+                    || cave_feat[cy][cx] > FEAT_DOOR_TAIL))
+            {
+                cave_set_feat(cy, cx, FEAT_FLOOR);
+            }
+
+            if (coord_in_morgoth_region(cy, cx, 0))
+                cave_info[cy][cx] |= CAVE_MORGOTH_TUNNEL;
+        }
+
+        if (cur == prev[start_y][start_x])
+            break;
+        int p = prev[cy][cx];
+        if (p == cur)
+            break;
+        cur = p;
+        if (cur == start_idx)
+            break;
+    }
+}
+
+static void connect_morgoth_entry_tunnels(void)
+{
+    if (!morgoth_region_active())
+        return;
+
+    static bool visited[MAX_DUNGEON_HGT][MAX_DUNGEON_WID];
+    for (int y = 0; y < p_ptr->cur_map_hgt; ++y)
+        for (int x = 0; x < p_ptr->cur_map_wid; ++x)
+            visited[y][x] = false;
+
+    static int queue[MAX_DUNGEON_HGT * MAX_DUNGEON_WID];
+    static const int ddy4[4] = {-1, 1, 0, 0};
+    static const int ddx4[4] = {0, 0, -1, 1};
+
+    for (int y = 1; y < p_ptr->cur_map_hgt - 1; ++y)
+    {
+        for (int x = 1; x < p_ptr->cur_map_wid - 1; ++x)
+        {
+            if (!(cave_info[y][x] & CAVE_MORGOTH_TUNNEL))
+                continue;
+            if (visited[y][x])
+                continue;
+
+            int head = 0;
+            int tail = 0;
+            int min_y = y;
+            int min_x = x;
+            int max_x = x;
+            bool start_found = false;
+
+            int start_idx = y * MAX_DUNGEON_WID + x;
+            queue[tail++] = start_idx;
+            visited[y][x] = true;
+
+            while (head < tail)
+            {
+                int cur = queue[head++];
+                int cy = cur / MAX_DUNGEON_WID;
+                int cx = cur % MAX_DUNGEON_WID;
+
+                if (cy < min_y)
+                {
+                    min_y = cy;
+                    min_x = cx;
+                    max_x = cx;
+                    start_found = true;
+                }
+                else if (cy == min_y)
+                {
+                    if (!start_found)
+                    {
+                        min_x = cx;
+                        max_x = cx;
+                        start_found = true;
+                    }
+                    else
+                    {
+                        min_x = MIN(min_x, cx);
+                        max_x = MAX(max_x, cx);
+                    }
+                }
+
+                for (int d = 0; d < 4; ++d)
+                {
+                    int ny = cy + ddy4[d];
+                    int nx = cx + ddx4[d];
+                    if (!in_bounds_fully(ny, nx))
+                        continue;
+                    if (visited[ny][nx])
+                        continue;
+                    if (!(cave_info[ny][nx] & CAVE_MORGOTH_TUNNEL))
+                        continue;
+                    visited[ny][nx] = true;
+                    if (tail < (int)N_ELEMENTS(queue))
+                        queue[tail++] = ny * MAX_DUNGEON_WID + nx;
+                }
+            }
+
+            int start_y = min_y;
+            int start_x = (min_x + max_x) / 2;
+            if (!(cave_info[start_y][start_x] & CAVE_MORGOTH_TUNNEL))
+            {
+                bool found = false;
+                for (int tx = min_x; tx <= max_x; ++tx)
+                {
+                    if (cave_info[start_y][tx] & CAVE_MORGOTH_TUNNEL)
+                    {
+                        start_x = tx;
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found)
+                    start_x = x;
+            }
+
+            connect_morgoth_tunnel_component(start_y, start_x);
+        }
+    }
 }
 
 /*
@@ -12835,14 +13114,11 @@ static bool cave_gen(void)
     /* Repair all outer walls - critical fix for tunnel connectivity after overlapping generation */
     repair_all_outer_walls();
 
-    /* Reserve and place Morgoth's throne room when generating the final level */
-    if (morgoth_level_active)
+    /* Verify Morgoth's throne room was placed (should have been done in apply_quadrant_generation_modes) */
+    if (morgoth_level_active && !morgoth_partition_reserved)
     {
-        if (!morgoth_partition_reserved || !place_morgoth_throne_room())
-        {
-            log_trace("Morgoth level: throne room placement failed (reserved=%s)", morgoth_partition_reserved ? "true" : "false");
-            return false;
-        }
+        log_trace("Morgoth level: throne room was not placed during partition generation");
+        return false;
     }
 
     /* Room saturation loop DISABLED - partition system handles room generation
@@ -12978,6 +13254,9 @@ static bool cave_gen(void)
 
     /* DEBUGGING: Check if quest vault still exists after tunnel making */
     check_quest_vault_integrity("AFTER_TUNNEL_GENERATION");
+
+    if (morgoth_level_active)
+        connect_morgoth_entry_tunnels();
 
     /* randomise the doors (except those in vaults) */
     for (y = 0; y < p_ptr->cur_map_hgt; y++)
@@ -13541,32 +13820,67 @@ static bool cave_gen(void)
     // place Morgoth if on the run
     if (p_ptr->on_the_run && !p_ptr->morgoth_slain)
     {
+        bool placed = false;
+        int sils = silmarils_possessed();
+        int danger_factor = MAX(1, 6 - sils);
+
         /* simple way to place Morgoth */
-        for (i = 0; i <= 100; i++)
+        for (int pass = 0; pass < 2 && !placed; ++pass)
         {
-            int danger_factor = 6 - silmarils_possessed();
+            bool require_no_los = (pass == 0);
 
-            y = rand_int(p_ptr->cur_map_hgt);
-            x = rand_int(p_ptr->cur_map_wid);
-
-            // pull Morgoth's start toward the player more based on the
-            // silmarils the player has
-            if (p_ptr->px < x)
-                x -= 2 * ((x - p_ptr->px) / danger_factor);
-            if (p_ptr->px > x)
-                x += 2 * ((p_ptr->px - x) / danger_factor);
-            if (p_ptr->py < y)
-                y -= 2 * ((y - p_ptr->py) / danger_factor);
-            if (p_ptr->py > y)
-                y += 2 * ((p_ptr->py - y) / danger_factor);
-
-            if (cave_naked_bold(y, x) && !los(p_ptr->py, p_ptr->px, y, x)
-                && !(cave_info[y][x] & (CAVE_ICKY)))
+            for (i = 0; i <= 150; i++)
             {
-                place_monster_one(y, x, R_IDX_MORGOTH, false, true, NULL);
-                break;
+                y = rand_int(p_ptr->cur_map_hgt);
+                x = rand_int(p_ptr->cur_map_wid);
+
+                // pull Morgoth's start toward the player more based on the
+                // silmarils the player has
+                if (p_ptr->px < x)
+                    x -= 2 * ((x - p_ptr->px) / danger_factor);
+                if (p_ptr->px > x)
+                    x += 2 * ((p_ptr->px - x) / danger_factor);
+                if (p_ptr->py < y)
+                    y -= 2 * ((y - p_ptr->py) / danger_factor);
+                if (p_ptr->py > y)
+                    y += 2 * ((p_ptr->py - y) / danger_factor);
+
+                if (!in_bounds_fully(y, x))
+                    continue;
+                if (!cave_empty_bold(y, x))
+                    continue;
+                if (cave_info[y][x] & (CAVE_ICKY))
+                    continue;
+                if (require_no_los && los(p_ptr->py, p_ptr->px, y, x))
+                    continue;
+
+                if (place_monster_one(y, x, R_IDX_MORGOTH, false, true, NULL))
+                {
+                    placed = true;
+                    break;
+                }
             }
         }
+
+        if (!placed)
+        {
+            for (y = 1; y < p_ptr->cur_map_hgt - 1 && !placed; ++y)
+            {
+                for (x = 1; x < p_ptr->cur_map_wid - 1 && !placed; ++x)
+                {
+                    if (!cave_empty_bold(y, x))
+                        continue;
+                    if (cave_info[y][x] & (CAVE_ICKY))
+                        continue;
+
+                    if (place_monster_one(y, x, R_IDX_MORGOTH, false, true, NULL))
+                        placed = true;
+                }
+            }
+        }
+
+        if (!placed)
+            log_trace("Morgoth spawn: FAILED to place Morgoth while on the run (depth=%d)", p_ptr->depth);
     }
 
     p_ptr->force_forge = false;
