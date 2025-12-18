@@ -1,5 +1,8 @@
 # Session Notes
 
+## 2025-12-19: Kinslaying endgame selection fix
+- `src/files.c`: kinslayer selection now filters out dead/escaped heroes by scanning `scores.raw` before building race/character pools, preventing repeats; adds a small parser for score IDs and guards empty pools.
+
 ## 2025-12-18: Morgoth pursuit follow-up
 - `src/melee2.c`: Morgoth track detection now treats LOS/target or noise distance < 20 as "has track" so piercing starts when he cannot hear you.
 - `src/spells1.c`: successful song of piercing now sets Morgoth's target to the player's position so he resumes pursuit.

@@ -4731,6 +4731,15 @@ static int race_has_character(uint16_t race, uint16_t character)
     return (p_info[race].choice[word] & (1U << shift)) != 0U;
 }
 
+static int parse_score_id(const char field[3])
+{
+    if (!field)
+        return -1;
+    if (!isdigit((unsigned char)field[0]) || !isdigit((unsigned char)field[1]))
+        return -1;
+    return (field[0] - '0') * 10 + (field[1] - '0');
+}
+
 /* ------------------------------------------------------------------ */
 /* helper - build a dummy hi-score entry so we can immediately kill it */
 static void build_dummy_entry(high_score *e, uint16_t race, uint16_t character)
@@ -5767,6 +5776,30 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
 
     /* 5) Build list of races with eligible characters and apply weighted selection */
     
+    bool *hero_ineligible = calloc(z_info->c_max, sizeof(*hero_ineligible));
+    if (!hero_ineligible) {
+        safe_setuid_grab();
+        if (SDL_CloseIO(highscore_fd) != 0)
+            log_warn("fclose(highscore_fd) failed, errno=%d", errno);
+        safe_setuid_drop();
+        highscore_fd = NULL;
+        quit("Out of memory in kinslayer_try_kill()");
+    }
+
+    if (n_recs > 0 && highscore_seek(0) == 0) {
+        high_score entry;
+        for (int r = 0; r < n_recs; ++r) {
+            if (highscore_read(&entry)) break;
+            int character = parse_score_id(entry.p_h);
+            if (character < 0 || character >= (int)z_info->c_max)
+                continue;
+            bool escaped = (tolower((unsigned char)entry.escaped[0]) == 't');
+            bool dead = (strcmp(entry.how, "(alive and well)") != 0);
+            if (escaped || dead)
+                hero_ineligible[character] = true;
+        }
+    }
+
     /* 5.a) First pass: identify which races have eligible characters */
     uint16_t eligible_races[RACE_PRIORITIES];
     size_t eligible_count = 0;
@@ -5778,6 +5811,7 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
         bool has_eligible = false;
         for (uint16_t h = 0; h < z_info->c_max; ++h) {
             if (!race_has_character(race, h)) continue;
+            if (hero_ineligible[h]) continue;
             const char *hname = c_name + c_info[h].name;
             if (strcmp(hname, op_ptr->base_name) == 0) continue;
             has_eligible = true;
@@ -5795,6 +5829,7 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
     
     if (eligible_count == 0) {
         log_debug("No eligible races found - no kill performed");
+        free(hero_ineligible);
         safe_setuid_grab();
         if (SDL_CloseIO(highscore_fd) != 0)
             log_warn("fclose(highscore_fd) failed, errno=%d", errno);
@@ -5835,23 +5870,37 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
     /* Build pool of eligible characters for selected race */
     uint16_t *pool = malloc(z_info->c_max * sizeof *pool);
     if (!pool) {
+        free(hero_ineligible);
         SDL_CloseIO(highscore_fd);
         quit("Out of memory in kinslayer_try_kill()");
     }
     size_t pool_n = 0;
     for (uint16_t h = 0; h < z_info->c_max; ++h) {
         if (!race_has_character(race, h)) continue;
+        if (hero_ineligible[h]) continue;
         const char *hname = c_name + c_info[h].name;
         if (strcmp(hname, op_ptr->base_name) == 0) continue;
         pool[pool_n++] = h;
     }
     log_trace("race %u: %zu eligible characters", race, pool_n);
+    if (pool_n == 0) {
+        free(pool);
+        free(hero_ineligible);
+        safe_setuid_grab();
+        if (SDL_CloseIO(highscore_fd) != 0)
+            log_warn("fclose(highscore_fd) failed, errno=%d", errno);
+        safe_setuid_drop();
+        highscore_fd = NULL;
+        return NULL;
+    }
 
     /* 5.d) Pick one character */
     uint16_t character_sel = pool[rand_int((int)pool_n)];
     const char *hname = c_name + c_info[character_sel].name;
     free(pool);
     pool = NULL;
+    free(hero_ineligible);
+    hero_ineligible = NULL;
     log_info("Kinslayer selected character %u (%s) for elimination", character_sel, hname);
 
     /* 5.e) Scan for existing entry */
@@ -5875,6 +5924,7 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
             if (highscore_dead(entry.who)) {
                 log_debug("hero already dead - no kill performed");
                 if (pool) free(pool);
+                if (hero_ineligible) free(hero_ineligible);
                 safe_setuid_grab();
                 if (SDL_CloseIO(highscore_fd) != 0) {
                     log_warn("fclose(highscore_fd) failed, errno=%d", errno);
@@ -5887,6 +5937,7 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
             if (entry.escaped[0] == 't') {
                 log_debug("hero has escaped - no kill performed");
                 if (pool) free(pool);
+                if (hero_ineligible) free(hero_ineligible);
                 safe_setuid_grab();
                 if (SDL_CloseIO(highscore_fd) != 0) {
                     log_warn("fclose(highscore_fd) failed, errno=%d", errno);
@@ -5926,6 +5977,7 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
         SDL_strlcpy(killed_character, hname, sizeof killed_character);
 
         /* 7) Close the descriptor and reset before returning */
+        if (hero_ineligible) free(hero_ineligible);
         safe_setuid_grab();
         if (SDL_CloseIO(highscore_fd) != 0) {
             log_warn("fclose(highscore_fd) failed, errno=%d", errno);
