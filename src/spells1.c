@@ -5818,6 +5818,9 @@ void song_of_piercing(monster_type* m_ptr)
     {
         msg_print("You feel your mind laid bare before Morgoth's will.");
         set_alertness(m_ptr, MIN(result, ALERTNESS_VERY_ALERT));
+        /* Give Morgoth a fresh pursuit target after a successful piercing. */
+        m_ptr->target_y = p_ptr->py;
+        m_ptr->target_x = p_ptr->px;
     }
 
     else if (result > -5)

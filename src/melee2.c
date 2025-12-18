@@ -4772,6 +4772,34 @@ void wander(monster_type* m_ptr)
     process_move(m_ptr, ty, tx, bash);
 }
 
+static bool morgoth_has_player_track(const monster_type* m_ptr)
+{
+    if (los(p_ptr->py, p_ptr->px, m_ptr->fy, m_ptr->fx))
+        return true;
+    if (m_ptr->target_y && m_ptr->target_x)
+        return true;
+    /* Mirror the "can hear the player" activity threshold. */
+    return (flow_dist(FLOW_PLAYER_NOISE, m_ptr->fy, m_ptr->fx) < 20);
+}
+
+static void maybe_start_morgoth_piercing(monster_type* m_ptr)
+{
+    monster_race* r_ptr = &r_info[m_ptr->r_idx];
+
+    if (m_ptr->r_idx != R_IDX_MORGOTH || !p_ptr->on_the_run)
+        return;
+    if (!(r_ptr->flags4 & (RF4_SNG_PIERCING)))
+        return;
+    if (m_ptr->song != SNG_NOTHING)
+        return;
+    if (m_ptr->mana < MON_MANA_COST)
+        return;
+    if (morgoth_has_player_track(m_ptr))
+        return;
+
+    make_attack_ranged(m_ptr, 96 + 19);
+}
+
 int get_chance_of_ranged_attack(monster_type* m_ptr)
 {
     monster_race* r_ptr = &r_info[m_ptr->r_idx];
@@ -4864,9 +4892,21 @@ static void process_monster(monster_type* m_ptr)
         /* Get the monster name */
         monster_desc(m_name, sizeof(m_name), m_ptr, 0x80);
 
-        if ((m_ptr->mana == 0)
-            || ((m_ptr->song == SNG_PIERCING)
-                && (m_ptr->alertness >= ALERTNESS_ALERT)))
+        bool end_song = (m_ptr->mana == 0);
+        if (!end_song && (m_ptr->song == SNG_PIERCING))
+        {
+            if (m_ptr->r_idx == R_IDX_MORGOTH && p_ptr->on_the_run)
+            {
+                if (morgoth_has_player_track(m_ptr))
+                    end_song = true;
+            }
+            else if (m_ptr->alertness >= ALERTNESS_ALERT)
+            {
+                end_song = true;
+            }
+        }
+
+        if (end_song)
         {
             if (m_ptr->ml)
                 msg_format("%^s ends his song.", m_name);
@@ -4893,6 +4933,8 @@ static void process_monster(monster_type* m_ptr)
             }
         }
     }
+
+    maybe_start_morgoth_piercing(m_ptr);
 
     // need to update view if the monster affects light and is close enough
     if ((r_ptr->light != 0) && (m_ptr->cdis < MAX_SIGHT + ABS(r_ptr->light)))

@@ -1,4 +1,4 @@
-﻿/* File: generate.c */
+/* File: generate.c */
 
 /*
  * Copyright (c) 1997 Ben Harrison, James E. Wilson, Robert A. Koeneke
@@ -6630,7 +6630,7 @@ void place_item_randomly(int tval, int sval, bool close)
         int stacks = curse_flag_count_cur(CUR_FINDCURSE);
         if (stacks && wearable_p(i_ptr))
         {
-            int chance = 20 >> stacks;         /* base 1-in-20 ÔåÆ 1-in-10 ÔåÆ 1-in-5 */
+            int chance = 20 >> stacks;         /* base 1-in-20 Ã”Ã¥Ã† 1-in-10 Ã”Ã¥Ã† 1-in-5 */
             if (!chance || one_in_(chance))
                 add_random_curse(i_ptr);
         }
@@ -7049,7 +7049,7 @@ static partition_drop_profile partition_drop_profile_for_mode(quadrant_mode_t mo
     switch (mode)
     {
     case QUAD_MODE_ROOMY:
-        /* Default (ROOMY) — 40:30:10:20 */
+        /* Default (ROOMY) â€” 40:30:10:20 */
         prof.profile.weight_weapon = 40;
         prof.profile.weight_armor = 30;
         prof.profile.weight_jewelry = 10;
@@ -8745,7 +8745,7 @@ static int trap_placement_chance(int y, int x)
     /* extra traps from CUR_TRAPS */
     int bonus_traps = curse_flag_count_cur(CUR_TRAPS);
     if (bonus_traps)
-        chance += 10 * bonus_traps;   /* +10/20/30 ÔÇª on top of normal */
+        chance += 10 * bonus_traps;   /* +10/20/30 Ã”Ã‡Âª on top of normal */
 
     // extra chance of having a trap for certain squares inside rooms
     if (cave_clean_bold(y, x) && (cave_info[y][x] & (CAVE_ROOM)))
@@ -10095,7 +10095,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             }
         }
     } else {
-        /* No S: provided ÔÇö choose a random style from the depth-available list */
+        /* No S: provided Ã”Ã‡Ã¶ choose a random style from the depth-available list */
         int rs = styles_pick_random_from_level();
         if (rs >= 0) styles_add_vault_weight(rs, 1);
     }
@@ -13706,29 +13706,29 @@ static bool cave_gen(void)
         log_trace("Niena spawn: SKIPPED - did not win lottery (winner=%d)", quest_lottery_winner);
     }
 
-    /* Check for Orom├½ quest spawning - only if it won the lottery */
+    /* Check for Oromë quest spawning - only if it won the lottery */
     int orome_completions = metarun_quest_completion_count(METARUN_QUEST_OROME);
     bool orome_blocked = quest_metarun_blocked(QUEST_ID_OROME, METARUN_QUEST_OROME);
-    log_trace("Orom├½ spawn check: quest=%d, depth=%d, metarun_completions=%d, lottery_winner=%d, blocked=%s", 
+    log_trace("Oromë spawn check: quest=%d, depth=%d, metarun_completions=%d, lottery_winner=%d, blocked=%s", 
              p_ptr->orome_quest, p_ptr->depth, 
              orome_completions,
              quest_lottery_winner,
              orome_blocked ? "yes" : "no");
              
-    /* Only attempt Orom├½ spawning if it won the lottery and isn't blocked by metarun history */
+    /* Only attempt Oromë spawning if it won the lottery and isn't blocked by metarun history */
     if (orome_blocked) {
-        log_trace("Orom├½ spawn: blocked by metarun state (requires active oath or under cap)");
+        log_trace("Oromë spawn: blocked by metarun state (requires active oath or under cap)");
         quest_lottery_winner = 0; /* Treat level as quest-free if history blocks this quest */
-    } else if (quest_lottery_winner == 5) { /* Orom├½ is quest ID 5 */
-        log_trace("Orom├½ spawn: Orom├½ WON the lottery - attempting spawn");
+    } else if (quest_lottery_winner == 5) { /* Oromë is quest ID 5 */
+        log_trace("Oromë spawn: Oromë WON the lottery - attempting spawn");
         
-        /* Try to find a room to spawn Orom├½ in */
+        /* Try to find a room to spawn Oromë in */
         int attempts;
         bool orome_spawned = false;
         
-        log_trace("Orom├½ spawn: Lottery winner attempting placement at depth %d", p_ptr->depth);
+        log_trace("Oromë spawn: Lottery winner attempting placement at depth %d", p_ptr->depth);
         
-        /* Check if Orom├½ already exists on this level */
+        /* Check if Oromë already exists on this level */
         bool orome_exists = false;
         int j;
         for (j = 1; j < mon_max; j++)
@@ -13743,7 +13743,7 @@ static bool cave_gen(void)
         
         if (!orome_exists)
         {
-            /* Try to spawn Orom├½ near the player's starting room */
+            /* Try to spawn Oromë near the player's starting room */
             int player_y = p_ptr->py;
             int player_x = p_ptr->px;
             
@@ -13769,7 +13769,7 @@ static bool cave_gen(void)
                         p_ptr->orome_quest = OROME_QUEST_GIVER_PRESENT;
                         p_ptr->quest_reserved[0] = 1; /* Mark any quest spawned */
                         orome_spawned = true;
-                        log_trace("Orom├½ spawned near player at (%d, %d), player at (%d, %d), quest state: %d", 
+                        log_trace("Oromë spawned near player at (%d, %d), player at (%d, %d), quest state: %d", 
                                  try_y, try_x, player_y, player_x, p_ptr->orome_quest);
                     }
                 }
@@ -13794,7 +13794,7 @@ static bool cave_gen(void)
                             p_ptr->orome_quest = OROME_QUEST_GIVER_PRESENT;
                             p_ptr->quest_reserved[0] = 1; /* Mark any quest spawned */
                             orome_spawned = true;
-                            log_trace("Orom├½ spawned in fallback room at (%d, %d), quest state: %d", 
+                            log_trace("Oromë spawned in fallback room at (%d, %d), quest state: %d", 
                                      room_y, room_x, p_ptr->orome_quest);
                         }
                     }
@@ -13803,7 +13803,7 @@ static bool cave_gen(void)
             
             if (!orome_spawned)
             {
-                log_trace("Orom├½ spawn: FAILED - could not place monster after 150 attempts");
+                log_trace("Oromë spawn: FAILED - could not place monster after 150 attempts");
                 genlog_fail("OROME SPAWN FAILED: could not place monster after 150 attempts - regenerating");
                 gen_log_level_end(false, dun->cent_n, 1);
                 return false; /* Force regeneration */
@@ -13811,10 +13811,10 @@ static bool cave_gen(void)
         }
         else
         {
-            log_trace("Orom├½ already exists on level, skipping room spawn");
+            log_trace("Oromë already exists on level, skipping room spawn");
         }
     } else {
-        log_trace("Orom├½ spawn: SKIPPED - did not win lottery (winner=%d)", quest_lottery_winner);
+        log_trace("Oromë spawn: SKIPPED - did not win lottery (winner=%d)", quest_lottery_winner);
     }
 
     // place Morgoth if on the run
@@ -13822,28 +13822,28 @@ static bool cave_gen(void)
     {
         bool placed = false;
         int sils = silmarils_possessed();
-        int danger_factor = MAX(1, 6 - sils);
+        int max_dist = 50 - (sils * 8);
+        int min_dist = 8;
 
-        /* simple way to place Morgoth */
+        if (max_dist < min_dist + 2)
+            max_dist = min_dist + 2;
+
+        /* Prefer spawning within a chase radius scaled by Silmarils. */
         for (int pass = 0; pass < 2 && !placed; ++pass)
         {
             bool require_no_los = (pass == 0);
 
-            for (i = 0; i <= 150; i++)
+            for (i = 0; i <= 180; i++)
             {
-                y = rand_int(p_ptr->cur_map_hgt);
-                x = rand_int(p_ptr->cur_map_wid);
+                int dy = rand_range(-max_dist, max_dist);
+                int dx = rand_range(-max_dist, max_dist);
+                int dist = ABS(dy) + ABS(dx);
 
-                // pull Morgoth's start toward the player more based on the
-                // silmarils the player has
-                if (p_ptr->px < x)
-                    x -= 2 * ((x - p_ptr->px) / danger_factor);
-                if (p_ptr->px > x)
-                    x += 2 * ((p_ptr->px - x) / danger_factor);
-                if (p_ptr->py < y)
-                    y -= 2 * ((y - p_ptr->py) / danger_factor);
-                if (p_ptr->py > y)
-                    y += 2 * ((p_ptr->py - y) / danger_factor);
+                if (dist < min_dist || dist > max_dist)
+                    continue;
+
+                y = p_ptr->py + dy;
+                x = p_ptr->px + dx;
 
                 if (!in_bounds_fully(y, x))
                     continue;
@@ -13879,10 +13879,21 @@ static bool cave_gen(void)
             }
         }
 
-        if (!placed)
+        if (placed && cave_m_idx[y][x] > 0)
+        {
+            monster_type* m_ptr = &mon_list[cave_m_idx[y][x]];
+            if (m_ptr->r_idx == R_IDX_MORGOTH)
+            {
+                if (m_ptr->alertness < ALERTNESS_ALERT)
+                    m_ptr->alertness = ALERTNESS_ALERT;
+                m_ptr->min_range = 0;
+            }
+        }
+        else if (!placed)
+        {
             log_trace("Morgoth spawn: FAILED to place Morgoth while on the run (depth=%d)", p_ptr->depth);
+        }
     }
-
     p_ptr->force_forge = false;
 
     /* Level generation successful - log completion */

@@ -1,5 +1,10 @@
 # Session Notes
 
+## 2025-12-18: Morgoth pursuit follow-up
+- `src/melee2.c`: Morgoth track detection now treats LOS/target or noise distance < 20 as "has track" so piercing starts when he cannot hear you.
+- `src/spells1.c`: successful song of piercing now sets Morgoth's target to the player's position so he resumes pursuit.
+- `src/generate.c`: restored Orome quest strings after encoding corruption.
+
 ## 2025-12-18: Morgoth hall entry fixes
 - `src/generate.c`: added `connect_morgoth_entry_tunnels()` to extend tunnel heads beyond the sealed region so both corridors connect to the main level; called after tunnel generation.
 - `src/dungeon.c`: on declining the Morgoth hall prompt, restore position and force a redraw via `handle_stuff()` so the player does not appear to move into the hall.
