@@ -212,7 +212,26 @@ static void big_partition_print_entry_message(level_partition_kind kind)
         msg_print("You enter a labyrinth of stone, and the ways grow treacherous.");
         break;
     case LEVEL_PART_BIG_CAVE:
-        msg_print("A great cavern opens before you, its roof lost in shadow.");
+        {
+            big_cave_type_t cave_type = level_partition_big_cave_type_for_point(p_ptr->py, p_ptr->px);
+            msg_print("A great cavern opens before you, its roof lost in shadow.");
+            
+            switch (cave_type)
+            {
+            case BIG_CAVE_FIRE:
+                msg_print("The searing heat closes around you, and you feel your strength waning in this fiery furnace.");
+                break;
+            case BIG_CAVE_ICE:
+                msg_print("The bitter cold gnaws at your bones, and you shiver with the chill of this icy abyss.");
+                break;
+            case BIG_CAVE_POIS:
+                msg_print("A noxious miasma fills the air, and you feel the poison seeping into your lungs.");
+                break;
+            default:
+                msg_print("You feel yourself more vulnerable in this vast empty space.");
+                break;
+            }
+        }
         break;
     case LEVEL_PART_CHASM:
         msg_print("A vast darkness yawns in open space; only narrow bridges span the gulf.");

@@ -1278,6 +1278,8 @@ static void wr_extra(void)
         wr_s16b(pm.partition_count);
         for (i = 0; i < PARTITION_META_MAX; ++i)
             wr_byte(pm.modes[i]);
+        for (i = 0; i < PARTITION_META_MAX; ++i)
+            wr_byte(pm.big_cave_types[i]);
     }
 
     wr_s32b(min_depth_counter);

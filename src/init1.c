@@ -1499,6 +1499,42 @@ errr parse_style_info(char* buf, header* head)
 
 /* ====================  style-levels.txt parser  ===================== */
 
+static int parse_partition_style_kind(const char* tok)
+{
+    if (!tok) return -1;
+    if (SDL_strcasecmp(tok, "CA") == 0 || SDL_strcasecmp(tok, "CA_BLOB") == 0
+        || SDL_strcasecmp(tok, "CA_BLOBS") == 0)
+        return PART_STYLE_CA_BLOB;
+    if (SDL_strcasecmp(tok, "LAB") == 0 || SDL_strcasecmp(tok, "LABYRINTH") == 0)
+        return PART_STYLE_LABYRINTH;
+    if (SDL_strcasecmp(tok, "CHASM") == 0 || SDL_strcasecmp(tok, "CHASM_FLOOR") == 0)
+        return PART_STYLE_CHASM_FLOOR;
+    if (SDL_strcasecmp(tok, "CHASM_BRIDGE") == 0 || SDL_strcasecmp(tok, "CHASM_BRIDGES") == 0)
+        return PART_STYLE_CHASM_BRIDGE;
+    if (SDL_strcasecmp(tok, "BIG_ICE") == 0 || SDL_strcasecmp(tok, "BIG_CAVE_ICE") == 0
+        || SDL_strcasecmp(tok, "ICE") == 0)
+        return PART_STYLE_BIG_CAVE_ICE;
+    if (SDL_strcasecmp(tok, "BIG_FIRE") == 0 || SDL_strcasecmp(tok, "BIG_CAVE_FIRE") == 0
+        || SDL_strcasecmp(tok, "FIRE") == 0)
+        return PART_STYLE_BIG_CAVE_FIRE;
+    if (SDL_strcasecmp(tok, "BIG_POIS") == 0 || SDL_strcasecmp(tok, "BIG_CAVE_POIS") == 0
+        || SDL_strcasecmp(tok, "POIS") == 0 || SDL_strcasecmp(tok, "POISON") == 0)
+        return PART_STYLE_BIG_CAVE_POIS;
+    return -1;
+}
+
+static int parse_big_cave_weight_token(const char* tok)
+{
+    if (!tok) return BIG_CAVE_NONE;
+    if (SDL_strcasecmp(tok, "ICE") == 0 || SDL_strcasecmp(tok, "COLD") == 0)
+        return BIG_CAVE_ICE;
+    if (SDL_strcasecmp(tok, "FIRE") == 0)
+        return BIG_CAVE_FIRE;
+    if (SDL_strcasecmp(tok, "POIS") == 0 || SDL_strcasecmp(tok, "POISON") == 0)
+        return BIG_CAVE_POIS;
+    return BIG_CAVE_NONE;
+}
+
 errr parse_style_levels(char* buf, header* head)
 {
     (void)head; /* unused */
@@ -1507,6 +1543,8 @@ errr parse_style_levels(char* buf, header* head)
         styles_rules_clear();
         styles_vault_rules_clear();
         styles_default_vault_clear();
+        styles_partition_rules_clear();
+        big_cave_type_rules_clear();
     log_debug("parse_style_levels: Version header encountered, cleared existing rules");
         return 0;
     }
@@ -1558,6 +1596,104 @@ errr parse_style_levels(char* buf, header* head)
             log_debug("parse_style_levels: L:%d..%d with %d entries (first sidx=%d w=%d)",
                 min_d, max_d, n, sidx[0], wt[0]);
         }
+        return 0;
+    }
+    /* P:type:depth: sidx:weight ...  or  P:type:min:max: ... (partition styles) */
+    if (buf[0] == 'P')
+    {
+        int min_d = 0, max_d = 0;
+        char* s = strchr(buf + 2, ':');
+        if (!s) return PARSE_ERROR_GENERIC;
+        *s++ = '\0';
+        int kind = parse_partition_style_kind(buf + 2);
+        if (kind < 0) return PARSE_ERROR_GENERIC;
+
+        char* t = strchr(s, ':');
+        if (!t) return PARSE_ERROR_GENERIC;
+        *t++ = '\0';
+        min_d = atoi(s);
+        /* Decide if this is a range by checking for a ':' before any space after the first ':' */
+        char* first_space = strchr(t, ' ');
+        char* second_colon = strchr(t, ':');
+        char* list_start;
+        if (second_colon && (!first_space || second_colon < first_space)) {
+            /* Range form: P:type:min:max: ... */
+            *second_colon = '\0';
+            max_d = atoi(t);
+            list_start = second_colon + 1;
+        } else {
+            /* Exact form: P:type:depth: ... */
+            max_d = min_d;
+            list_start = t;
+        }
+
+        int sidx[64]; int wt[64]; int n = 0;
+        while (*list_start)
+        {
+            while (*list_start == ' ') list_start++;
+            if (!*list_start) break;
+            char* e = list_start; while (*e && *e != ' ') e++;
+            char hold = *e; if (*e) *e = '\0';
+            char* c = strchr(list_start, ':'); if (!c) { if (hold) *e = hold; break; }
+            *c = '\0';
+            int si = atoi(list_start); int w = atoi(c + 1);
+            if (si >= 0 && w > 0 && n < 64) { sidx[n] = si; wt[n] = w; n++; }
+            if (hold) { *e = hold; list_start = e + 1; } else break;
+        }
+        if (n > 0) {
+            if (min_d < 1) min_d = 1;
+            if (max_d > 31) max_d = 31;
+            for (int d = min_d; d <= max_d; ++d)
+                styles_add_partition_rule(d, kind, sidx, wt, n);
+            log_debug("parse_style_levels: P:kind=%d %d..%d with %d entries (first sidx=%d w=%d)",
+                kind, min_d, max_d, n, sidx[0], wt[0]);
+        }
+        return 0;
+    }
+    /* B:depth: ICE:w FIRE:w POIS:w  or  B:min:max: ... (big cave type weights) */
+    if (buf[0] == 'B')
+    {
+        int min_d = 0, max_d = 0;
+        char* s = strchr(buf + 2, ':');
+        if (!s) return PARSE_ERROR_GENERIC;
+        *s++ = '\0';
+        min_d = atoi(buf + 2);
+        char* first_space = strchr(s, ' ');
+        char* second_colon = strchr(s, ':');
+        char* list_start;
+        if (second_colon && (!first_space || second_colon < first_space)) {
+            *second_colon = '\0';
+            max_d = atoi(s);
+            list_start = second_colon + 1;
+        } else {
+            max_d = min_d;
+            list_start = s;
+        }
+
+        int ice_w = 0, fire_w = 0, pois_w = 0;
+        while (*list_start)
+        {
+            while (*list_start == ' ') list_start++;
+            if (!*list_start) break;
+            char* e = list_start; while (*e && *e != ' ') e++;
+            char hold = *e; if (*e) *e = '\0';
+            char* c = strchr(list_start, ':'); if (!c) { if (hold) *e = hold; break; }
+            *c = '\0';
+            int kind = parse_big_cave_weight_token(list_start);
+            int w = atoi(c + 1);
+            if (w < 0) w = 0;
+            if (kind == BIG_CAVE_ICE) ice_w = w;
+            else if (kind == BIG_CAVE_FIRE) fire_w = w;
+            else if (kind == BIG_CAVE_POIS) pois_w = w;
+            if (hold) { *e = hold; list_start = e + 1; } else break;
+        }
+
+        if (min_d < 1) min_d = 1;
+        if (max_d > 31) max_d = 31;
+        for (int d = min_d; d <= max_d; ++d)
+            big_cave_type_set_rule(d, ice_w, fire_w, pois_w);
+        log_debug("parse_style_levels: B:%d..%d ice=%d fire=%d pois=%d",
+            min_d, max_d, ice_w, fire_w, pois_w);
         return 0;
     }
     /* U:depth: sidx:weight ...   or   U:*: sidx:weight ... (default vault styles) */

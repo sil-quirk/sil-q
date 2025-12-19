@@ -3430,6 +3430,22 @@ static void calc_bonuses(void)
         log_trace("ABILITY DEBUG: Mandos' Doom NOT active - have_ability[S_SPC][SPC_MANDOS] = %d", p_ptr->have_ability[S_SPC][SPC_MANDOS]);
     }
 
+    /* Big cave environmental penalties: reduce key resistances while inside. */
+    {
+        big_cave_type_t cave_type = level_partition_big_cave_type_for_point(p_ptr->py, p_ptr->px);
+        if (cave_type != BIG_CAVE_NONE)
+        {
+            p_ptr->resist_fear -= 1;
+            p_ptr->resist_stun -= 1;
+            if (cave_type == BIG_CAVE_FIRE)
+                p_ptr->resist_fire -= 1;
+            else if (cave_type == BIG_CAVE_ICE)
+                p_ptr->resist_cold -= 1;
+            else if (cave_type == BIG_CAVE_POIS)
+                p_ptr->resist_pois -= 1;
+        }
+    }
+
     // Helper function to calculate total monsters seen across all races
     int total_monsters_seen = 0;
     int total_monsters_killed = 0;

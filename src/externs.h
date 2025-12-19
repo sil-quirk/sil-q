@@ -54,6 +54,27 @@ typedef struct
     int chasm_parts;
     level_partition_kind dominant_kind;
 } level_layout_info;
+
+typedef enum
+{
+    BIG_CAVE_NONE = 0,
+    BIG_CAVE_ICE,
+    BIG_CAVE_FIRE,
+    BIG_CAVE_POIS,
+    BIG_CAVE_TYPE_MAX
+} big_cave_type_t;
+
+typedef enum
+{
+    PART_STYLE_CA_BLOB = 0,
+    PART_STYLE_LABYRINTH,
+    PART_STYLE_CHASM_FLOOR,
+    PART_STYLE_CHASM_BRIDGE,
+    PART_STYLE_BIG_CAVE_ICE,
+    PART_STYLE_BIG_CAVE_FIRE,
+    PART_STYLE_BIG_CAVE_POIS,
+    PART_STYLE_MAX
+} partition_style_kind_t;
 #endif
 
 #ifndef SKELETON_NOTE_STATE_SAVE_DEFINED
@@ -80,6 +101,7 @@ typedef struct partition_meta_save {
     s16b grid_cols;
     s16b partition_count;
     byte modes[PARTITION_META_MAX];
+    byte big_cave_types[PARTITION_META_MAX];
 } partition_meta_save;
 #endif
 
@@ -419,6 +441,9 @@ extern void styles_apply_vault_list(const int* sidx, const int* weight, int coun
 extern void styles_vault_rules_clear(void);
 extern void styles_set_vault_rule(int depth, const int* sidx, const int* weight, int count);
 extern void styles_apply_vault_default_for_depth(int depth);
+extern void styles_partition_rules_clear(void);
+extern void styles_add_partition_rule(int depth, int kind, const int* sidx, const int* weight, int count);
+extern int styles_pick_partition_style(int depth, int kind);
 extern int styles_get_level_primary_style(void);
 extern int styles_get_vault_primary_style(void);
 extern void styles_select_vault_primary(void);
@@ -746,6 +771,11 @@ extern level_partition_kind level_partition_kind_for_point(int y, int x);
 extern int level_partition_index_for_point(int y, int x);
 extern void level_partition_meta_get(partition_meta_save* out);
 extern void level_partition_meta_set(const partition_meta_save* in);
+extern void big_cave_type_rules_clear(void);
+extern void big_cave_type_set_rule(int depth, int ice_weight, int fire_weight, int pois_weight);
+extern big_cave_type_t big_cave_type_pick_for_depth(int depth);
+extern big_cave_type_t level_partition_big_cave_type_for_point(int y, int x);
+extern big_cave_type_t level_partition_big_cave_type_for_index(int pi);
 extern void skeleton_note_level_reset(void);
 extern void skeleton_note_get_state(skeleton_note_state_save* out);
 extern void skeleton_note_set_state(const skeleton_note_state_save* in);

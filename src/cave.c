@@ -71,6 +71,8 @@ static int g_vault_avoid_style = -1;
 
 /* Level rules table (indexed by exact depth 0..31) */
 static style_weight_list g_level_rule[32];
+/* Per-depth partition style rules (by kind, indexed by exact depth 0..31) */
+static style_weight_list g_partition_rule[PART_STYLE_MAX][32];
 
 /* Helpers to mutate weight lists */
 static void styles_clear(style_weight_list* L)
@@ -111,6 +113,9 @@ void styles_vault_rules_clear(void);
 void styles_add_level_rule(int depth, int unused, const int* sidx, const int* weight, int count);
 void styles_set_vault_rule(int depth, const int* sidx, const int* weight, int count);
 void styles_default_vault_add(int sidx_or_star, int weight);
+void styles_partition_rules_clear(void);
+void styles_add_partition_rule(int depth, int kind, const int* sidx, const int* weight, int count);
+int styles_pick_partition_style(int depth, int kind);
 
 /* Backward-compatibility: reset any cached depth/style state between levels */
 void reset_depth_color_cache(void)
@@ -327,6 +332,60 @@ void styles_add_level_rule(int depth, int unused, const int* sidx, const int* we
         L->count++;
         if (wt > 0) L->total_weight += wt;
     }
+}
+
+void styles_partition_rules_clear(void)
+{
+    for (int k = 0; k < PART_STYLE_MAX; ++k) {
+        for (int d = 0; d < 32; ++d) {
+            g_partition_rule[k][d].count = 0;
+            g_partition_rule[k][d].total_weight = 0;
+        }
+    }
+}
+
+void styles_add_partition_rule(int depth, int kind, const int* sidx, const int* weight, int count)
+{
+    if (depth < 0 || depth >= 32) return;
+    if (kind < 0 || kind >= PART_STYLE_MAX) return;
+    style_weight_list* L = &g_partition_rule[kind][depth];
+    L->count = 0;
+    L->total_weight = 0;
+    if (!sidx || !weight || count <= 0) return;
+    for (int i = 0; i < count && i < 64; ++i) {
+        int si = sidx[i];
+        int wt = weight[i];
+        L->sidx[L->count] = si;
+        L->weight[L->count] = wt;
+        L->count++;
+        if (wt > 0) L->total_weight += wt;
+    }
+}
+
+int styles_pick_partition_style(int depth, int kind)
+{
+    if (depth < 0 || depth >= 32) return styles_pick_random_from_level();
+    if (kind < 0 || kind >= PART_STYLE_MAX) return styles_pick_random_from_level();
+
+    style_weight_list* R = &g_partition_rule[kind][depth];
+    if (R->count <= 0) return styles_pick_random_from_level();
+
+    /* Filter invalid styles into a temporary list. */
+    style_weight_list filtered;
+    styles_clear(&filtered);
+    for (int i = 0; i < R->count; ++i)
+        styles_add(&filtered, R->sidx[i], R->weight[i]);
+
+    if (filtered.count <= 0) return styles_pick_random_from_level();
+
+    int total = filtered.total_weight;
+    int r = rand_int(total);
+    int pick = filtered.sidx[0];
+    for (int i = 0; i < filtered.count; ++i) {
+        if (r < filtered.weight[i]) { pick = filtered.sidx[i]; break; }
+        r -= filtered.weight[i];
+    }
+    return pick;
 }
 
 /* Expose capacity for style choice arrays (for save/load) */

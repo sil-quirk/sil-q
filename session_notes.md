@@ -1,5 +1,12 @@
 # Session Notes
 
+## 2025-12-19: Partition styles + big cave types
+- `src/init1.c`, `src/cave.c`, `lib/edit/style-levels.txt`: added P: partition style rules and B: big cave type weights, with new partition style rule storage.
+- `src/generate.c`: per-partition style selection (CA/LAB/CHASM floor+bridge/BIG_CAVE types), style-aware carving, big cave type metadata, themed monster preferences, and chasm bridge styling.
+- `src/xtra1.c`: big cave resist penalties (fear/stun + element).
+- `src/externs.h`, `src/save.c`, `src/load.c`, `src/defines.h`: partition meta now saves big cave types; save version bump to `VERSION_EXTRA 9`.
+- Build: `build-cmake.bat` successful.
+
 ## 2025-12-19: Kinslaying endgame selection fix
 - `src/files.c`: kinslayer selection now filters out dead/escaped heroes by scanning `scores.raw` before building race/character pools, preventing repeats; adds a small parser for score IDs and guards empty pools.
 

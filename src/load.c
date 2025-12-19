@@ -87,6 +87,7 @@ static bool savefile_has_artifact_seen = false;
 static bool savefile_has_skeleton_notes = false;
 static bool savefile_has_skeleton_hint_mask = false;
 static bool savefile_has_partition_meta = false;
+static bool savefile_has_partition_meta_types = false;
 static bool savefile_has_cave_info_hi = false;
 
 /* Version comparison helpers: update these when bumping savefile semantics. */
@@ -1495,6 +1496,11 @@ static errr rd_extra(void)
         rd_s16b(&pm.partition_count);
         for (int i = 0; i < PARTITION_META_MAX; ++i)
             rd_byte(&pm.modes[i]);
+        if (savefile_has_partition_meta_types)
+        {
+            for (int i = 0; i < PARTITION_META_MAX; ++i)
+                rd_byte(&pm.big_cave_types[i]);
+        }
 
         level_partition_meta_set(&pm);
     }
@@ -2432,6 +2438,7 @@ static errr rd_savefile_new_aux(void)
     savefile_has_skeleton_hint_mask = savefile_version_at_least(0, 9, 1, 6);
     savefile_has_skeleton_hint_mask = savefile_version_at_least(0, 9, 1, 6);
     savefile_has_partition_meta = savefile_version_at_least(0, 9, 1, 7);
+    savefile_has_partition_meta_types = savefile_version_at_least(0, 9, 1, 9);
     savefile_has_cave_info_hi = savefile_version_at_least(0, 9, 1, 8);
 
     /* Reset load byte offset counter */
@@ -2892,6 +2899,7 @@ bool load_player(void)
             savefile_has_skeleton_notes = savefile_version_at_least(0, 9, 1, 5);
             savefile_has_skeleton_hint_mask = savefile_version_at_least(0, 9, 1, 6);
             savefile_has_partition_meta = savefile_version_at_least(0, 9, 1, 7);
+            savefile_has_partition_meta_types = savefile_version_at_least(0, 9, 1, 9);
             savefile_has_cave_info_hi = savefile_version_at_least(0, 9, 1, 8);
         }
 
