@@ -1,7 +1,15 @@
 #pragma once
 
 #include <stdbool.h>
+#include <SDL3/SDL_gamepad.h>
 #include "pane.h"
+
+#define GAMEPAD_TRIGGER_COUNT 2
+
+#define GAMEPAD_BIND_NONE -1
+#define GAMEPAD_BIND_SHIFT -2
+#define GAMEPAD_BIND_CTRL -3
+#define GAMEPAD_BIND_ALT -4
 
 // SDL-specific configuration structure
 struct sdl_config {
@@ -40,6 +48,17 @@ struct sdl_config {
     int story_hinting;         // TTF hinting mode: 0=normal, 1=light, 2=mono, 3=none, 4=light_subpixel
     bool story_kerning;        // Enable kerning (default: true)
     int story_outline;         // Outline width in pixels (0=none)
+
+    // Gamepad/controller settings
+    bool gamepad_enabled;                 // Enable gamepad input
+    bool gamepad_auto_mode;               // Auto-enable controller UI when gamepad is present/used
+    bool steamdeck_mode;                  // Force Steam Deck UI mode
+    bool gamepad_use_dpad;                // Use d-pad for movement
+    bool gamepad_use_left_stick;          // Use left stick for movement
+    int gamepad_deadzone;                 // Deadzone for analog sticks
+    int gamepad_trigger_threshold;        // Threshold to treat triggers as pressed
+    int gamepad_button_bindings[SDL_GAMEPAD_BUTTON_COUNT];
+    int gamepad_trigger_bindings[GAMEPAD_TRIGGER_COUNT];
 };
 
 // Load SDL configuration from JSON file
@@ -52,6 +71,9 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
 
 // Set default configuration values
 void sdl_config_set_defaults(struct sdl_config* config);
+
+// Set default gamepad bindings (does not touch other fields)
+void sdl_config_set_default_gamepad_bindings(struct sdl_config* config);
 
 // Set default configuration values based on screen resolution
 void sdl_config_set_defaults_for_resolution(struct sdl_config* config, 

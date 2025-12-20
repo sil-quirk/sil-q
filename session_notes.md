@@ -7774,3 +7774,21 @@ The script now fully matches the game's drop generation logic for all item types
 - `src/generate.c`, `src/defines.h`: entry tunnels are preserved with `CAVE_MORGOTH_TUNNEL` and the forced doors now sit in the vault wall (end of each of the two corridors), so the confirmation triggers exactly when stepping through those doors.
 - `src/generate.c`: fixed a build-breaking `auto ... -> bool` local helper by moving it to a proper `static` C helper (`connectivity_rescue_traversable()`), and reduced the Morgoth “no-go” region from the entire reserved partition to a small permanent-wall buffer around the vault to avoid repeated connectivity failures/regeneration loops on depth 20.
 - `src/generate.c`: fixed depth-20 regen loops caused by BFS rescue starting from a clamped coordinate (so it never actually connected the unreachable edge rooms) and by over-restricting vault walls; BFS rescue now starts from the actual unreachable tile, can dig through normal vault walls as needed, but still refuses to dig through Morgoth's vault walls (so entry stays via the forced doors).
+
+## 2025-12-19: Steam Deck native controller input
+- `src/main-sdl.c`, `src/sdl-config.{h,c}`: added SDL3 gamepad init + input handling (d-pad diagonals, left stick movement, trigger modifiers), persisted new `gamepad` settings + bindings in `sil_sdl.json`.
+- `src/cmd4.c`: added Controller Settings menu (toggles + button/trigger bindings, reset-to-defaults) and updated options menu ordering.
+- `src/util.c`, `src/dungeon.c`, `src/object1.c`, `src/cmd3.c`, `src/files.c`: replaced compile-time Steam Deck guards with runtime `steamdeck_controls_active()` and updated help text to point to in-game bindings.
+- Build: `build-cmake.bat` completed successfully (standard + portable SDL3 outputs).
+
+## 2025-12-20: D-pad diagonal merge
+- `src/main-sdl.c`: delay single-cardinal D-pad sends to merge quick diagonal presses into one input, with a short timeout and pending flush in the SDL event loop; clears pending state when D-pad/gamepad input is disabled.
+## 2025-12-20: D-pad diagonal release suppression
+- `src/main-sdl.c`: only schedule D-pad moves on button-down transitions (not release) and avoid flushing pending before queued events are processed, preventing diagonal+cardinal double-moves.
+## 2025-12-20: Left stick diagonal merge + single-pane frame
+- `src/main-sdl.c`: added left-stick pending state to merge diagonal moves like the D-pad and gated view frame rendering when only one pane is active.
+## 2025-12-20: Left stick diagonal release suppression
+- `src/main-sdl.c`: suppresses immediate cardinal moves when the stick transitions from a diagonal back to a straight direction, preventing diagonal+cardinal double steps on release.
+## 2025-12-20: Controller action-first rebinding
+- `src/main-sdl.c`, `src/externs.h`: added capture mode to read the next gamepad button/trigger for binding.
+- `src/cmd4.c`: rebuilt Controller Settings to list actions and bind them by pressing a gamepad button; includes action-to-button lookup, default reset per action, and modifier entries.

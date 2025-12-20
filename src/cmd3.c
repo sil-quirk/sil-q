@@ -3659,19 +3659,17 @@ void do_cmd_unified_look(void)
                     /* Display help text based on current mode */
                     if (state.look_mode == 0)
                     {
-#ifdef STEAMDECK_SUPPORT
-                        prt("[i/e]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Pan [ESC]", 0, 0);
-#else
-                        prt("[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Pan [ESC]", 0, 0);
-#endif
+                        if (steamdeck_controls_active())
+                            prt("[i/e]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Pan [ESC]", 0, 0);
+                        else
+                            prt("[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Pan [ESC]", 0, 0);
                     }
                     else
                     {
-#ifdef STEAMDECK_SUPPORT
-                        prt("[i/e]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Curs [ESC]", 0, 0);
-#else
-                        prt("[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Curs [ESC]", 0, 0);
-#endif
+                        if (steamdeck_controls_active())
+                            prt("[i/e]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Curs [ESC]", 0, 0);
+                        else
+                            prt("[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Curs [ESC]", 0, 0);
                     }
                 }
             }
@@ -3963,10 +3961,6 @@ void do_cmd_unified_look(void)
                 break;
             }
             
-#ifndef STEAMDECK_SUPPORT
-            case 'i':            /* Inventory */
-            case 'e':            /* Equipment */  
-#endif
             case '[':            /* View monsters */
             case ']':            /* View objects */
             case 'f':            /* Fire/Throw */
@@ -3991,6 +3985,7 @@ void do_cmd_unified_look(void)
             case '|':            /* Screenshots */
             case '~':            /* Various things */
             case '!':            /* OS command */
+command_key:
                 /* Clear any highlighting before exit */
                 if (state.highlighted_y >= 0 && state.highlighted_x >= 0)
                 {
@@ -4219,10 +4214,10 @@ void do_cmd_unified_look(void)
             }
             
             case '\t': /* Tab key */
-#ifdef STEAMDECK_SUPPORT
-            case 'i': /* I key - forward cycling (Steam Deck) */
-#endif
+            case 'i':  /* I key - forward cycling (Steam Deck) */
             {
+                if (query == 'i' && !steamdeck_controls_active())
+                    goto command_key;
                 log_trace("Tab key pressed - cycling entities");
                 
                 /* Global sidebar cycling only - no square cycling */
@@ -4257,10 +4252,10 @@ void do_cmd_unified_look(void)
             
             case '`': /* Backtick key - reverse Tab cycling */
             case 'q': /* Q key - reverse Tab cycling */
-#ifdef STEAMDECK_SUPPORT
             case 'e': /* E key - reverse Tab cycling (Steam Deck) */
-#endif
             {
+                if (query == 'e' && !steamdeck_controls_active())
+                    goto command_key;
                 log_trace("REVERSE CYCLING: Key handler reached - cycling entities backward");
                 
                 /* Global sidebar cycling only - no square cycling */

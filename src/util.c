@@ -3357,16 +3357,13 @@ bool get_check(cptr prompt)
     char ch;
 
     char buf[80];
+    bool steamdeck = steamdeck_controls_active();
 
     /* Paranoia XXX XXX XXX */
     message_flush();
 
     /* Hack -- Build a "useful" prompt */
-#ifdef STEAMDECK_SUPPORT
-    strnfmt(buf, 78, "%.70s[y/n/space] ", prompt);
-#else
-    strnfmt(buf, 78, "%.70s[y/n] ", prompt);
-#endif
+    strnfmt(buf, 78, "%.70s[y/n%s] ", prompt, steamdeck ? "/space" : "");
 
     /* Prompt for it */
     prt(buf, 0, 0);
@@ -3379,11 +3376,7 @@ bool get_check(cptr prompt)
             break;
         if (ch == ESCAPE)
             break;
-#ifdef STEAMDECK_SUPPORT
-        if (strchr("YyNn", ch) || ch == ' ')
-#else
-        if (strchr("YyNn", ch))
-#endif
+        if (strchr("YyNn", ch) || (steamdeck && ch == ' '))
             break;
         bell("Illegal response to a 'yes/no' question!");
     }
@@ -3392,11 +3385,7 @@ bool get_check(cptr prompt)
     prt("", 0, 0);
 
     /* Normal negation */
-#ifdef STEAMDECK_SUPPORT
-    if ((ch != 'Y') && (ch != 'y') && (ch != ' '))
-#else
-    if ((ch != 'Y') && (ch != 'y'))
-#endif
+    if ((ch != 'Y') && (ch != 'y') && !(steamdeck && ch == ' '))
         return (false);
 
     /* Success */

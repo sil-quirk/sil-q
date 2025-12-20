@@ -630,6 +630,80 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
     } else {
         log_warn("'panes' array not found in JSON");
     }
+
+    // Parse gamepad settings
+    cJSON* gamepad = cJSON_GetObjectItemCaseSensitive(root, "gamepad");
+    if (cJSON_IsObject(gamepad)) {
+        cJSON* item;
+
+        item = cJSON_GetObjectItemCaseSensitive(gamepad, "enabled");
+        if (cJSON_IsBool(item)) {
+            config->gamepad_enabled = cJSON_IsTrue(item);
+            log_debug("Loaded gamepad.enabled: %s", config->gamepad_enabled ? "true" : "false");
+        }
+
+        item = cJSON_GetObjectItemCaseSensitive(gamepad, "autoMode");
+        if (cJSON_IsBool(item)) {
+            config->gamepad_auto_mode = cJSON_IsTrue(item);
+            log_debug("Loaded gamepad.autoMode: %s", config->gamepad_auto_mode ? "true" : "false");
+        }
+
+        item = cJSON_GetObjectItemCaseSensitive(gamepad, "steamdeckMode");
+        if (cJSON_IsBool(item)) {
+            config->steamdeck_mode = cJSON_IsTrue(item);
+            log_debug("Loaded gamepad.steamdeckMode: %s", config->steamdeck_mode ? "true" : "false");
+        }
+
+        item = cJSON_GetObjectItemCaseSensitive(gamepad, "useDpad");
+        if (cJSON_IsBool(item)) {
+            config->gamepad_use_dpad = cJSON_IsTrue(item);
+            log_debug("Loaded gamepad.useDpad: %s", config->gamepad_use_dpad ? "true" : "false");
+        }
+
+        item = cJSON_GetObjectItemCaseSensitive(gamepad, "useLeftStick");
+        if (cJSON_IsBool(item)) {
+            config->gamepad_use_left_stick = cJSON_IsTrue(item);
+            log_debug("Loaded gamepad.useLeftStick: %s", config->gamepad_use_left_stick ? "true" : "false");
+        }
+
+        item = cJSON_GetObjectItemCaseSensitive(gamepad, "deadzone");
+        if (cJSON_IsNumber(item)) {
+            config->gamepad_deadzone = item->valueint;
+            log_debug("Loaded gamepad.deadzone: %d", config->gamepad_deadzone);
+        }
+
+        item = cJSON_GetObjectItemCaseSensitive(gamepad, "triggerThreshold");
+        if (cJSON_IsNumber(item)) {
+            config->gamepad_trigger_threshold = item->valueint;
+            log_debug("Loaded gamepad.triggerThreshold: %d", config->gamepad_trigger_threshold);
+        }
+
+        item = cJSON_GetObjectItemCaseSensitive(gamepad, "buttonBindings");
+        if (cJSON_IsArray(item)) {
+            int count = cJSON_GetArraySize(item);
+            for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT && i < count; i++) {
+                cJSON* binding = cJSON_GetArrayItem(item, i);
+                if (cJSON_IsNumber(binding)) {
+                    config->gamepad_button_bindings[i] = binding->valueint;
+                }
+            }
+            log_debug("Loaded gamepad.buttonBindings (%d entries)", count);
+        }
+
+        item = cJSON_GetObjectItemCaseSensitive(gamepad, "triggerBindings");
+        if (cJSON_IsArray(item)) {
+            int count = cJSON_GetArraySize(item);
+            for (int i = 0; i < GAMEPAD_TRIGGER_COUNT && i < count; i++) {
+                cJSON* binding = cJSON_GetArrayItem(item, i);
+                if (cJSON_IsNumber(binding)) {
+                    config->gamepad_trigger_bindings[i] = binding->valueint;
+                }
+            }
+            log_debug("Loaded gamepad.triggerBindings (%d entries)", count);
+        }
+    } else {
+        log_warn("'gamepad' object not found in JSON");
+    }
     
     cJSON_Delete(root);
     log_debug("Configuration loading complete. Total panes: %d", *pane_count);
@@ -723,6 +797,41 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     }
     
     cJSON_AddItemToObject(root, "panes", panes);
+
+    // Create gamepad settings object
+    {
+        cJSON* gamepad = cJSON_CreateObject();
+        if (gamepad) {
+            cJSON* bindings = NULL;
+            cJSON* triggers = NULL;
+
+            cJSON_AddBoolToObject(gamepad, "enabled", config->gamepad_enabled);
+            cJSON_AddBoolToObject(gamepad, "autoMode", config->gamepad_auto_mode);
+            cJSON_AddBoolToObject(gamepad, "steamdeckMode", config->steamdeck_mode);
+            cJSON_AddBoolToObject(gamepad, "useDpad", config->gamepad_use_dpad);
+            cJSON_AddBoolToObject(gamepad, "useLeftStick", config->gamepad_use_left_stick);
+            cJSON_AddNumberToObject(gamepad, "deadzone", config->gamepad_deadzone);
+            cJSON_AddNumberToObject(gamepad, "triggerThreshold", config->gamepad_trigger_threshold);
+
+            bindings = cJSON_CreateArray();
+            if (bindings) {
+                for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++) {
+                    cJSON_AddItemToArray(bindings, cJSON_CreateNumber(config->gamepad_button_bindings[i]));
+                }
+                cJSON_AddItemToObject(gamepad, "buttonBindings", bindings);
+            }
+
+            triggers = cJSON_CreateArray();
+            if (triggers) {
+                for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++) {
+                    cJSON_AddItemToArray(triggers, cJSON_CreateNumber(config->gamepad_trigger_bindings[i]));
+                }
+                cJSON_AddItemToObject(gamepad, "triggerBindings", triggers);
+            }
+
+            cJSON_AddItemToObject(root, "gamepad", gamepad);
+        }
+    }
     
     // Print to string and write to file
     char* json_string = cJSON_Print(root);
@@ -746,6 +855,35 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     cJSON_Delete(root);
     
     log_info("Saved SDL configuration to: %s", filename);
+}
+
+void sdl_config_set_default_gamepad_bindings(struct sdl_config* config)
+{
+    if (!config)
+        return;
+
+    for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++) {
+        config->gamepad_button_bindings[i] = GAMEPAD_BIND_NONE;
+    }
+    for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++) {
+        config->gamepad_trigger_bindings[i] = GAMEPAD_BIND_NONE;
+    }
+
+    config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_SOUTH] = ' ';
+    config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_EAST] = 'f';
+    config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_WEST] = 'u';
+    config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_NORTH] = 's';
+    config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_LEFT_SHOULDER] = 'e';
+    config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER] = 'i';
+    config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_START] = '\r';
+    config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_BACK] = ESCAPE;
+    config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_LEFT_PADDLE1] = 'l';
+    config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_LEFT_PADDLE2] = '\t';
+    config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1] = 'x';
+    config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2] = 'h';
+
+    config->gamepad_trigger_bindings[0] = GAMEPAD_BIND_SHIFT;
+    config->gamepad_trigger_bindings[1] = GAMEPAD_BIND_CTRL;
 }
 
 void sdl_config_set_defaults(struct sdl_config* config)
@@ -785,6 +923,16 @@ void sdl_config_set_defaults(struct sdl_config* config)
     config->story_hinting = 0;  // TTF_HINTING_NORMAL
     config->story_kerning = true;
     config->story_outline = 0;
+
+    // Default gamepad settings
+    config->gamepad_enabled = true;
+    config->gamepad_auto_mode = true;
+    config->steamdeck_mode = false;
+    config->gamepad_use_dpad = true;
+    config->gamepad_use_left_stick = true;
+    config->gamepad_deadzone = 12000;
+    config->gamepad_trigger_threshold = 16000;
+    sdl_config_set_default_gamepad_bindings(config);
 }
 
 void sdl_config_set_defaults_for_resolution(struct sdl_config* config, 

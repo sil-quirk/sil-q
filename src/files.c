@@ -3453,11 +3453,7 @@ bool show_file(cptr name, cptr what, int line)
     return (ch != '?');
 }
 
-#ifdef STEAMDECK_SUPPORT
 #define HELP_TOTAL_PAGES 8
-#else
-#define HELP_TOTAL_PAGES 7
-#endif
 
 /* Drop-in replacement for show_help_screen(int i)
  * Adds a tiny role-based colour shim for consistent, accessible styling.
@@ -4039,7 +4035,6 @@ void show_help_screen(int i)
         break;
     }
 
-#ifdef STEAMDECK_SUPPORT
     case 8:
     {
         /* SIL-MORE: HELP [8/8]: STEAM DECK CONTROLS */
@@ -4080,11 +4075,10 @@ void show_help_screen(int i)
         put_role(ROLE_KEY, "R5 (Back)", row, col); put_role(ROLE_BODY, " - Character sheet (h)", row, col + 16); row++;
         
         row += 2;
-        put_role(ROLE_SUBTLE, "Customize bindings via Steam Input settings.", row, 1);
+        put_role(ROLE_SUBTLE, "Customize bindings via Options -> Controller Settings.", row, 1);
         
         break;
     }
-#endif /* STEAMDECK_SUPPORT */
     }
 }
 

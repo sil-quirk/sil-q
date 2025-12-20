@@ -126,13 +126,13 @@ static bool confirm_enter_morgoth_hall(void)
         }
     }
 
+    bool steamdeck = steamdeck_controls_active();
+
     /* Prompt */
     {
-#ifdef STEAMDECK_SUPPORT
-        const char* prompt = "Enter Morgoth's hall? [y/n/space]";
-#else
-        const char* prompt = "Enter Morgoth's hall? [y/n]";
-#endif
+        const char* prompt = steamdeck
+            ? "Enter Morgoth's hall? [y/n/space]"
+            : "Enter Morgoth's hall? [y/n]";
         int col = (wid - (int)strlen(prompt)) / 2;
         if (col < 1)
             col = 1;
@@ -147,11 +147,7 @@ static bool confirm_enter_morgoth_hall(void)
             break;
         if (ch == ESCAPE)
             break;
-#ifdef STEAMDECK_SUPPORT
-        if (strchr("YyNn", ch) || ch == ' ')
-#else
-        if (strchr("YyNn", ch))
-#endif
+        if (strchr("YyNn", ch) || (steamdeck && ch == ' '))
             break;
         bell("Illegal response to a 'yes/no' question!");
     }
@@ -160,11 +156,7 @@ static bool confirm_enter_morgoth_hall(void)
     screen_load();
 
     /* Normal negation */
-#ifdef STEAMDECK_SUPPORT
-    if ((ch != 'Y') && (ch != 'y') && (ch != ' '))
-#else
-    if ((ch != 'Y') && (ch != 'y'))
-#endif
+    if ((ch != 'Y') && (ch != 'y') && !(steamdeck && ch == ' '))
         return (false);
 
     return (true);

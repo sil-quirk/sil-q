@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "sdl-config.h"
 #include "sound-config.h"
 #include "sdl-sound.h"
 
@@ -9578,12 +9579,14 @@ void do_cmd_pane_settings(void)
 }
 
 
+void do_cmd_controller_settings(void);
+
 int options_menu(int* highlight)
 {
     int ch;
-int options = 11; /* added sound option */
+    int options = 12; /* added controller option */
 #ifdef DEBUG_CURSES
-    options = 15;
+    options = 16;
 #endif
     if (p_ptr->noscore)    
         options++;
@@ -9593,30 +9596,32 @@ int options = 11; /* added sound option */
     Term_putstr(2, 3, -1, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
         "a) Set Keybinds");
     Term_putstr(2, 4, -1, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
-        "b) Pane Settings");
+        "b) Controller Settings");
     Term_putstr(2, 5, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
-        "c) Interface Options");
+        "c) Pane Settings");
     Term_putstr(2, 6, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
-        "d) Visual Options");
+        "d) Interface Options");
     Term_putstr(2, 7, -1, (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
-        "e) Sound Options");
+        "e) Visual Options");
     Term_putstr(2, 8, -1, (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
-        "f) Load a 'Pref' File");
+        "f) Sound Options");
     Term_putstr(2, 9, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
-        "g) Append Options to a 'Pref' File");
+        "g) Load a 'Pref' File");
     Term_putstr(2, 10, -1, (*highlight == 8) ? TERM_L_BLUE : TERM_WHITE,
-        "h) Set Macros");
+        "h) Append Options to a 'Pref' File");
     Term_putstr(2, 11, -1, (*highlight == 9) ? TERM_L_BLUE : TERM_WHITE,
-        "i) Set Colours");
+        "i) Set Macros");
     Term_putstr(2, 12, -1, (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
-        "j) Write a note");
+        "j) Set Colours");
     Term_putstr(2, 13, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
-        "k) Return to Game");
+        "k) Write a note");
+    Term_putstr(2, 14, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
+        "l) Return to Game");
 
     if (p_ptr->noscore)
     {
-        Term_putstr(2, 14, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
-            "l) Debugging Options");
+        Term_putstr(2, 15, -1, (*highlight == 13) ? TERM_L_BLUE : TERM_WHITE,
+            "m) Debugging Options");
     }
 
     /* Show product name and version on the bottom of the menu */
@@ -9697,18 +9702,24 @@ int options = 11; /* added sound option */
         return (10);
     }
 
-    if ((ch == 'k') || (ch == 'K') || (ch == ESCAPE) || (ch == 'q'))
+    if ((ch == 'k') || (ch == 'K'))
     {
-        /* Return to game (now letter 'k') */
         *highlight = 11;
         return (11);
     }
 
-    if (p_ptr->noscore && ((ch == 'l') || (ch == 'L')))
+    if ((ch == 'l') || (ch == 'L') || (ch == ESCAPE) || (ch == 'q'))
     {
-        /* Debugging options */
+        /* Return to game (now letter 'l') */
         *highlight = 12;
         return (12);
+    }
+
+    if (p_ptr->noscore && ((ch == 'm') || (ch == 'M')))
+    {
+        /* Debugging options */
+        *highlight = 13;
+        return (13);
     }
 
     /* Choose current  */
@@ -9775,36 +9786,42 @@ void do_cmd_options(void)
         }
         case 2:
         {
-            do_cmd_pane_settings();
+            do_cmd_controller_settings();
             Term_clear();
             break;
         }
         case 3:
         {
-            do_cmd_options_aux(INTERFACE_PAGE, "Interface Options");
+            do_cmd_pane_settings();
             Term_clear();
             break;
         }
         case 4:
         {
-            do_cmd_options_aux(VISUAL_PAGE, "Visual Options");
+            do_cmd_options_aux(INTERFACE_PAGE, "Interface Options");
             Term_clear();
             break;
         }
         case 5:
         {
-            do_cmd_options_aux(SOUND_PAGE, "Sound Options");
+            do_cmd_options_aux(VISUAL_PAGE, "Visual Options");
             Term_clear();
             break;
         }
         case 6:
+        {
+            do_cmd_options_aux(SOUND_PAGE, "Sound Options");
+            Term_clear();
+            break;
+        }
+        case 7:
         {
             /* Ask for and load a user pref file */
             do_cmd_pref_file_hack(12);
             Term_clear();
             break;
         }
-        case 7:
+        case 8:
         {
             /* Prompt */
             Term_putstr(2, 14, -1, TERM_SLATE, "(Escape to cancel)");
@@ -9837,32 +9854,32 @@ void do_cmd_options(void)
             Term_clear();
             break;
         }
-        case 8:
+        case 9:
         {
             do_cmd_macros();
             Term_clear();
             break;
         }
-        case 9:
+        case 10:
         {
             do_cmd_colors();
             Term_clear();
             break;
         }
-        case 10:
+        case 11:
         {
             do_cmd_note("", p_ptr->depth);
             Term_clear();
             break;
         }
-        case 11:
+        case 12:
         {
             /* Return to Game */
             return_to_game = true;
             Term_clear();
             break;
         }
-        case 12:
+        case 13:
         {
             /* Debugging Options (only reachable when p_ptr->noscore) */
             do_cmd_options_aux(DEBUG_PAGE, "Debugging Options");
@@ -10445,6 +10462,445 @@ void do_cmd_keybinds(void)
             }
         }
     }
+}
+
+typedef enum controller_entry_type {
+    CONTROLLER_ENTRY_TOGGLE = 0,
+    CONTROLLER_ENTRY_ACTION,
+} controller_entry_type;
+
+typedef enum controller_toggle_id {
+    CONTROLLER_TOGGLE_ENABLED = 0,
+    CONTROLLER_TOGGLE_AUTO_MODE,
+    CONTROLLER_TOGGLE_STEAMDECK_MODE,
+    CONTROLLER_TOGGLE_DPAD,
+    CONTROLLER_TOGGLE_LEFT_STICK,
+} controller_toggle_id;
+
+typedef struct controller_entry {
+    controller_entry_type type;
+    int id;
+    const char* label;
+} controller_entry;
+
+static const char* controller_gamepad_button_label(int button)
+{
+    switch (button) {
+    case SDL_GAMEPAD_BUTTON_SOUTH: return "A (South)";
+    case SDL_GAMEPAD_BUTTON_EAST: return "B (East)";
+    case SDL_GAMEPAD_BUTTON_WEST: return "X (West)";
+    case SDL_GAMEPAD_BUTTON_NORTH: return "Y (North)";
+    case SDL_GAMEPAD_BUTTON_LEFT_SHOULDER: return "L1 (Left Shoulder)";
+    case SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER: return "R1 (Right Shoulder)";
+    case SDL_GAMEPAD_BUTTON_LEFT_PADDLE1: return "L4 (Left Paddle 1)";
+    case SDL_GAMEPAD_BUTTON_LEFT_PADDLE2: return "L5 (Left Paddle 2)";
+    case SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1: return "R4 (Right Paddle 1)";
+    case SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2: return "R5 (Right Paddle 2)";
+    case SDL_GAMEPAD_BUTTON_START: return "Start (Menu)";
+    case SDL_GAMEPAD_BUTTON_BACK: return "Back (View)";
+    case SDL_GAMEPAD_BUTTON_LEFT_STICK: return "Left Stick Click";
+    case SDL_GAMEPAD_BUTTON_RIGHT_STICK: return "Right Stick Click";
+    case SDL_GAMEPAD_BUTTON_GUIDE: return "Guide (Steam)";
+    case SDL_GAMEPAD_BUTTON_TOUCHPAD: return "Touchpad Click";
+    case SDL_GAMEPAD_BUTTON_DPAD_UP: return "D-pad Up";
+    case SDL_GAMEPAD_BUTTON_DPAD_DOWN: return "D-pad Down";
+    case SDL_GAMEPAD_BUTTON_DPAD_LEFT: return "D-pad Left";
+    case SDL_GAMEPAD_BUTTON_DPAD_RIGHT: return "D-pad Right";
+    case SDL_GAMEPAD_BUTTON_MISC1: return "Misc1";
+    case SDL_GAMEPAD_BUTTON_MISC2: return "Misc2";
+    case SDL_GAMEPAD_BUTTON_MISC3: return "Misc3";
+    case SDL_GAMEPAD_BUTTON_MISC4: return "Misc4";
+    case SDL_GAMEPAD_BUTTON_MISC5: return "Misc5";
+    case SDL_GAMEPAD_BUTTON_MISC6: return "Misc6";
+    default: return "Unknown Button";
+    }
+}
+
+static const char* controller_gamepad_trigger_label(int index)
+{
+    if (index == 0)
+        return "L2 (Left Trigger)";
+    if (index == 1)
+        return "R2 (Right Trigger)";
+    return "Unknown Trigger";
+}
+
+static void controller_binding_label(int type, int id, char* buf, size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    if (type == GAMEPAD_CAPTURE_BUTTON) {
+        SDL_strlcpy(buf, controller_gamepad_button_label(id), buflen);
+    } else if (type == GAMEPAD_CAPTURE_TRIGGER) {
+        SDL_strlcpy(buf, controller_gamepad_trigger_label(id), buflen);
+    } else {
+        SDL_strlcpy(buf, "(unknown)", buflen);
+    }
+}
+
+static int controller_action_binding_count(int binding, int* out_type, int* out_id)
+{
+    int count = 0;
+
+    for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++) {
+        if (get_sdl_gamepad_button_binding(i) == binding) {
+            if (count == 0 && out_type && out_id) {
+                *out_type = GAMEPAD_CAPTURE_BUTTON;
+                *out_id = i;
+            }
+            count++;
+        }
+    }
+
+    for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++) {
+        if (get_sdl_gamepad_trigger_binding(i) == binding) {
+            if (count == 0 && out_type && out_id) {
+                *out_type = GAMEPAD_CAPTURE_TRIGGER;
+                *out_id = i;
+            }
+            count++;
+        }
+    }
+
+    return count;
+}
+
+static void controller_action_binding_label(int binding, char* buf, size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    int type = 0;
+    int id = 0;
+    int count = controller_action_binding_count(binding, &type, &id);
+    if (count <= 0) {
+        SDL_strlcpy(buf, "(unbound)", buflen);
+    } else if (count == 1) {
+        controller_binding_label(type, id, buf, buflen);
+    } else {
+        SDL_strlcpy(buf, "Multiple", buflen);
+    }
+}
+
+static void controller_entry_value(const controller_entry* entry, char* buf, size_t buflen)
+{
+    if (!entry || !buf || !buflen)
+        return;
+
+    switch (entry->type) {
+    case CONTROLLER_ENTRY_TOGGLE:
+        switch (entry->id) {
+        case CONTROLLER_TOGGLE_ENABLED:
+            SDL_strlcpy(buf, get_sdl_gamepad_enabled() ? "On" : "Off", buflen);
+            break;
+        case CONTROLLER_TOGGLE_AUTO_MODE:
+            SDL_strlcpy(buf, get_sdl_gamepad_auto_mode() ? "On" : "Off", buflen);
+            break;
+        case CONTROLLER_TOGGLE_STEAMDECK_MODE:
+            SDL_strlcpy(buf, get_sdl_steamdeck_mode() ? "On" : "Off", buflen);
+            break;
+        case CONTROLLER_TOGGLE_DPAD:
+            SDL_strlcpy(buf, get_sdl_gamepad_use_dpad() ? "On" : "Off", buflen);
+            break;
+        case CONTROLLER_TOGGLE_LEFT_STICK:
+            SDL_strlcpy(buf, get_sdl_gamepad_use_left_stick() ? "On" : "Off", buflen);
+            break;
+        default:
+            SDL_strlcpy(buf, "(unknown)", buflen);
+            break;
+        }
+        break;
+    case CONTROLLER_ENTRY_ACTION:
+        controller_action_binding_label(entry->id, buf, buflen);
+        break;
+    default:
+        SDL_strlcpy(buf, "(unknown)", buflen);
+        break;
+    }
+}
+
+static void controller_set_toggle(int toggle_id, bool value)
+{
+    switch (toggle_id) {
+    case CONTROLLER_TOGGLE_ENABLED:
+        set_sdl_gamepad_enabled(value);
+        break;
+    case CONTROLLER_TOGGLE_AUTO_MODE:
+        set_sdl_gamepad_auto_mode(value);
+        break;
+    case CONTROLLER_TOGGLE_STEAMDECK_MODE:
+        set_sdl_steamdeck_mode(value);
+        break;
+    case CONTROLLER_TOGGLE_DPAD:
+        set_sdl_gamepad_use_dpad(value);
+        break;
+    case CONTROLLER_TOGGLE_LEFT_STICK:
+        set_sdl_gamepad_use_left_stick(value);
+        break;
+    default:
+        break;
+    }
+}
+
+static void controller_clear_action_bindings(int binding, int skip_type, int skip_id)
+{
+    if (binding == GAMEPAD_BIND_NONE)
+        return;
+
+    for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++) {
+        if (get_sdl_gamepad_button_binding(i) == binding) {
+            if (skip_type == GAMEPAD_CAPTURE_BUTTON && skip_id == i)
+                continue;
+            set_sdl_gamepad_button_binding(i, GAMEPAD_BIND_NONE);
+        }
+    }
+
+    for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++) {
+        if (get_sdl_gamepad_trigger_binding(i) == binding) {
+            if (skip_type == GAMEPAD_CAPTURE_TRIGGER && skip_id == i)
+                continue;
+            set_sdl_gamepad_trigger_binding(i, GAMEPAD_BIND_NONE);
+        }
+    }
+}
+
+static void controller_assign_action_binding(int binding, int type, int id)
+{
+    controller_clear_action_bindings(binding, type, id);
+
+    if (type == GAMEPAD_CAPTURE_BUTTON) {
+        set_sdl_gamepad_button_binding(id, binding);
+    } else if (type == GAMEPAD_CAPTURE_TRIGGER) {
+        set_sdl_gamepad_trigger_binding(id, binding);
+    }
+}
+
+static bool controller_action_default_binding(int binding, int* out_type, int* out_id)
+{
+    for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++) {
+        if (get_sdl_gamepad_default_button_binding(i) == binding) {
+            if (out_type)
+                *out_type = GAMEPAD_CAPTURE_BUTTON;
+            if (out_id)
+                *out_id = i;
+            return true;
+        }
+    }
+
+    for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++) {
+        if (get_sdl_gamepad_default_trigger_binding(i) == binding) {
+            if (out_type)
+                *out_type = GAMEPAD_CAPTURE_TRIGGER;
+            if (out_id)
+                *out_id = i;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void do_cmd_controller_settings(void)
+{
+    bool done = false;
+    int highlight = 0;
+    int top = 0;
+    int term_w, term_h;
+    const int list_start_row = 5;
+
+    static const controller_entry entries[] = {
+        { CONTROLLER_ENTRY_TOGGLE, CONTROLLER_TOGGLE_ENABLED, "Controller Input" },
+        { CONTROLLER_ENTRY_TOGGLE, CONTROLLER_TOGGLE_AUTO_MODE, "Auto Controller Mode" },
+        { CONTROLLER_ENTRY_TOGGLE, CONTROLLER_TOGGLE_STEAMDECK_MODE, "Steam Deck UI Mode" },
+        { CONTROLLER_ENTRY_TOGGLE, CONTROLLER_TOGGLE_DPAD, "D-pad Movement" },
+        { CONTROLLER_ENTRY_TOGGLE, CONTROLLER_TOGGLE_LEFT_STICK, "Left Stick Movement" },
+        { CONTROLLER_ENTRY_ACTION, ' ', "Confirm (Space)" },
+        { CONTROLLER_ENTRY_ACTION, '\r', "Enter" },
+        { CONTROLLER_ENTRY_ACTION, ESCAPE, "Escape" },
+        { CONTROLLER_ENTRY_ACTION, '\t', "Abilities (Tab)" },
+        { CONTROLLER_ENTRY_ACTION, 'i', "Inventory" },
+        { CONTROLLER_ENTRY_ACTION, 'e', "Equipment" },
+        { CONTROLLER_ENTRY_ACTION, 'u', "Use item" },
+        { CONTROLLER_ENTRY_ACTION, 'x', "Examine item" },
+        { CONTROLLER_ENTRY_ACTION, 's', "Sing / change song" },
+        { CONTROLLER_ENTRY_ACTION, 'S', "Toggle stealth" },
+        { CONTROLLER_ENTRY_ACTION, 'h', "Character sheet" },
+        { CONTROLLER_ENTRY_ACTION, 'f', "Fire (primary)" },
+        { CONTROLLER_ENTRY_ACTION, 'F', "Fire (secondary)" },
+        { CONTROLLER_ENTRY_ACTION, 'l', "Look around" },
+        { CONTROLLER_ENTRY_ACTION, 'T', "Tunnel / dig" },
+        { CONTROLLER_ENTRY_ACTION, 'b', "Bash door" },
+        { CONTROLLER_ENTRY_ACTION, 'z', "Wait" },
+        { CONTROLLER_ENTRY_ACTION, 'j', "Supplies overview" },
+        { CONTROLLER_ENTRY_ACTION, '.', "Run" },
+        { CONTROLLER_ENTRY_ACTION, '/', "Alt action" },
+        { CONTROLLER_ENTRY_ACTION, 'w', "Wear / wield" },
+        { CONTROLLER_ENTRY_ACTION, 'r', "Remove equipment" },
+        { CONTROLLER_ENTRY_ACTION, 'd', "Drop item" },
+        { CONTROLLER_ENTRY_ACTION, 'k', "Destroy item" },
+        { CONTROLLER_ENTRY_ACTION, 'g', "Pick up items" },
+        { CONTROLLER_ENTRY_ACTION, 'Z', "Rest" },
+        { CONTROLLER_ENTRY_ACTION, 'o', "Open door / chest" },
+        { CONTROLLER_ENTRY_ACTION, 'c', "Close door" },
+        { CONTROLLER_ENTRY_ACTION, 'D', "Disarm trap / chest" },
+        { CONTROLLER_ENTRY_ACTION, 'X', "Exchange places" },
+        { CONTROLLER_ENTRY_ACTION, '-', "Fletch arrows" },
+        { CONTROLLER_ENTRY_ACTION, '{', "Inscribe item" },
+        { CONTROLLER_ENTRY_ACTION, 'a', "Activate staff" },
+        { CONTROLLER_ENTRY_ACTION, 'E', "Eat food" },
+        { CONTROLLER_ENTRY_ACTION, 't', "Throw item" },
+        { CONTROLLER_ENTRY_ACTION, 'p', "Blow horn" },
+        { CONTROLLER_ENTRY_ACTION, 'q', "Quaff potion" },
+        { CONTROLLER_ENTRY_ACTION, 'M', "View map" },
+        { CONTROLLER_ENTRY_ACTION, 'L', "Pan view" },
+        { CONTROLLER_ENTRY_ACTION, '0', "Smithing screen" },
+        { CONTROLLER_ENTRY_ACTION, '<', "Go upstairs" },
+        { CONTROLLER_ENTRY_ACTION, '>', "Go downstairs" },
+        { CONTROLLER_ENTRY_ACTION, 'm', "Main menu" },
+        { CONTROLLER_ENTRY_ACTION, '?', "Help" },
+        { CONTROLLER_ENTRY_ACTION, 'O', "Options menu" },
+        { CONTROLLER_ENTRY_ACTION, ':', "Take notes" },
+        { CONTROLLER_ENTRY_ACTION, '~', "Knowledge browser" },
+        { CONTROLLER_ENTRY_ACTION, '[', "Monster list" },
+        { CONTROLLER_ENTRY_ACTION, ']', "Object list" },
+        { CONTROLLER_ENTRY_ACTION, GAMEPAD_BIND_SHIFT, "Shift modifier" },
+        { CONTROLLER_ENTRY_ACTION, GAMEPAD_BIND_CTRL, "Ctrl modifier" },
+        { CONTROLLER_ENTRY_ACTION, GAMEPAD_BIND_ALT, "Alt modifier" },
+    };
+
+    int entry_count = (int)N_ELEMENTS(entries);
+
+    screen_save();
+
+    while (!done) {
+        char value_buf[64];
+        int row;
+
+        Term_get_size(&term_w, &term_h);
+        (void)term_w;
+        int visible_rows = term_h - list_start_row - 6;
+        if (visible_rows < 5)
+            visible_rows = 5;
+
+        if (highlight < 0)
+            highlight = 0;
+        if (highlight >= entry_count)
+            highlight = entry_count - 1;
+
+        if (top > highlight)
+            top = highlight;
+        if (top + visible_rows <= highlight)
+            top = highlight - visible_rows + 1;
+        if (top < 0)
+            top = 0;
+        if (entry_count > visible_rows) {
+            int max_top = entry_count - visible_rows;
+            if (top > max_top)
+                top = max_top;
+        } else {
+            top = 0;
+        }
+
+        Term_clear();
+        prt("Controller Settings", 1, 0);
+        prt("Arrow to navigate, Enter to bind, Escape to return", 2, 0);
+
+        for (int i = top; i < entry_count && i < top + visible_rows; i++) {
+            int entry_row = list_start_row + (i - top);
+            controller_entry_value(&entries[i], value_buf, sizeof(value_buf));
+
+            if (i == highlight) {
+                c_prt(TERM_L_BLUE, format("%-32s -> %s", entries[i].label, value_buf), entry_row, 2);
+            } else {
+                prt(format("%-32s -> %s", entries[i].label, value_buf), entry_row, 2);
+            }
+        }
+
+        for (row = list_start_row + (entry_count - top); row < list_start_row + visible_rows; row++) {
+            prt("                                        ", row, 2);
+        }
+
+        prt("Press 'r' to reset selected binding, 'R' to reset all bindings", list_start_row + visible_rows + 1, 2);
+        prt("Changes are saved on exit.", list_start_row + visible_rows + 2, 2);
+
+        char ch = inkey();
+
+        if (ch == ESCAPE || ch == 'q' || ch == 'Q') {
+            done = true;
+        } else if (ch == '8') {
+            highlight = (highlight + entry_count - 1) % entry_count;
+        } else if (ch == '2') {
+            highlight = (highlight + 1) % entry_count;
+        } else if (ch == 'r') {
+            if (entries[highlight].type == CONTROLLER_ENTRY_ACTION) {
+                int binding_type = 0;
+                int binding_id = 0;
+                if (controller_action_default_binding(entries[highlight].id, &binding_type, &binding_id)) {
+                    controller_assign_action_binding(entries[highlight].id, binding_type, binding_id);
+                    msg_print("Binding reset to default.");
+                } else {
+                    controller_clear_action_bindings(entries[highlight].id, -1, -1);
+                    msg_print("No default binding for action.");
+                }
+                message_flush();
+            }
+        } else if (ch == 'R') {
+            sdl_gamepad_reset_bindings_to_default();
+            msg_print("All bindings reset to defaults.");
+            message_flush();
+        } else if (ch == '\r' || ch == '\n' || ch == ' ') {
+            const controller_entry* entry = &entries[highlight];
+            int entry_row = list_start_row + (highlight - top);
+
+            if (entry->type == CONTROLLER_ENTRY_TOGGLE) {
+                char cur[16];
+                controller_entry_value(entry, cur, sizeof(cur));
+                controller_set_toggle(entry->id, streq(cur, "Off"));
+            } else {
+                char prompt[80];
+                int cap_type = 0;
+                int cap_id = 0;
+                prt("                                                                  ", entry_row, 2);
+                strnfmt(prompt, sizeof(prompt),
+                    "Press controller button for %s (Esc=cancel, Backspace=clear)",
+                    entry->label);
+                c_prt(TERM_YELLOW, prompt, entry_row, 2);
+                Term_fresh();
+
+                flush();
+                if (!sdl_gamepad_capture_begin()) {
+                    msg_print("No controller detected.");
+                    message_flush();
+                    continue;
+                }
+
+                bool waiting = true;
+                while (waiting) {
+                    if (sdl_gamepad_capture_poll(&cap_type, &cap_id)) {
+                        controller_assign_action_binding(entry->id, cap_type, cap_id);
+                        waiting = false;
+                        break;
+                    }
+
+                    inkey_scan = true;
+                    char choice = inkey();
+                    if (choice == ESCAPE) {
+                        sdl_gamepad_capture_cancel();
+                        waiting = false;
+                    } else if (choice == '\b' || choice == 127) {
+                        sdl_gamepad_capture_cancel();
+                        controller_clear_action_bindings(entry->id, -1, -1);
+                        waiting = false;
+                    } else if (choice == 0) {
+                        Term_xtra(TERM_XTRA_DELAY, 10);
+                    }
+                }
+            }
+        }
+    }
+
+    screen_load();
 }
 
 #ifdef ALLOW_MACROS

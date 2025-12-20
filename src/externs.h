@@ -1546,6 +1546,29 @@ extern bool get_sdl_enable_bottom_panes(void);
 extern void set_sdl_enable_bottom_panes(bool value);
 extern int get_sdl_max_scale(void);
 extern void sdl_apply_config(void);
+extern bool steamdeck_controls_active(void);
+extern bool get_sdl_gamepad_enabled(void);
+extern void set_sdl_gamepad_enabled(bool value);
+extern bool get_sdl_gamepad_auto_mode(void);
+extern void set_sdl_gamepad_auto_mode(bool value);
+extern bool get_sdl_steamdeck_mode(void);
+extern void set_sdl_steamdeck_mode(bool value);
+extern bool get_sdl_gamepad_use_dpad(void);
+extern void set_sdl_gamepad_use_dpad(bool value);
+extern bool get_sdl_gamepad_use_left_stick(void);
+extern void set_sdl_gamepad_use_left_stick(bool value);
+extern int get_sdl_gamepad_button_binding(int button);
+extern void set_sdl_gamepad_button_binding(int button, int binding);
+extern int get_sdl_gamepad_trigger_binding(int index);
+extern void set_sdl_gamepad_trigger_binding(int index, int binding);
+extern int get_sdl_gamepad_default_button_binding(int button);
+extern int get_sdl_gamepad_default_trigger_binding(int index);
+extern void sdl_gamepad_reset_bindings_to_default(void);
+#define GAMEPAD_CAPTURE_BUTTON 0
+#define GAMEPAD_CAPTURE_TRIGGER 1
+extern bool sdl_gamepad_capture_begin(void);
+extern void sdl_gamepad_capture_cancel(void);
+extern bool sdl_gamepad_capture_poll(int* out_type, int* out_id);
 
 /* SDL story font control (main-sdl.c) */
 extern void sdl_story_font_enable(void);
