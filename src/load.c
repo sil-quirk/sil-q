@@ -1860,14 +1860,23 @@ static errr rd_inventory(void)
                 count = supply.number;
             if (count < 0)
                 count = 0;
-            if (count > 255)
-                count = 255;
-            supply.number = (byte)count;
+
             supply.pval = 0;
-            if (count <= 0)
-                supply.ident |= IDENT_EMPTY;
-            else
-                supply.ident &= ~(IDENT_EMPTY);
+            supply.ident &= ~(IDENT_EMPTY);
+
+            int stack_limit = object_stack_limit(&supply);
+            while (count > 0)
+            {
+                int chunk = MIN(count, stack_limit);
+                if (chunk <= 0)
+                    break;
+                object_type part;
+                object_copy(&part, &supply);
+                part.number = (byte)chunk;
+                count -= chunk;
+                supplies_absorb_object(&part);
+            }
+            continue;
         }
 
         if (supply.k_idx)

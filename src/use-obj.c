@@ -463,7 +463,7 @@ static bool quaff_potion(object_type* o_ptr, bool* ident)
     return (true);
 }
 
-static bool use_staff(object_type* o_ptr, bool* ident)
+static bool use_staff_effects(object_type* o_ptr, bool* ident, bool alchemy_boost)
 {
     int k;
 
@@ -471,7 +471,7 @@ static bool use_staff(object_type* o_ptr, bool* ident)
 
     int will_score = p_ptr->skill_use[S_WIL];
 
-    /* Analyze the staff */
+    /* Analyze the staff-like effect */
     switch (o_ptr->sval)
     {
     case SV_STAFF_SECRETS:
@@ -534,7 +534,7 @@ static bool use_staff(object_type* o_ptr, bool* ident)
     {
         int radius = 10 + p_ptr->skill_use[S_WIL];
         /* Alchemy grants 1.5x range for gems */
-        if ((o_ptr->tval == TV_GEM) && p_ptr->active_ability[S_PER][PER_ALCHEMY])
+        if (alchemy_boost && p_ptr->active_ability[S_PER][PER_ALCHEMY])
             radius = (radius * 3) / 2;
         map_area_radius(radius);
         *ident = true;
@@ -545,7 +545,7 @@ static bool use_staff(object_type* o_ptr, bool* ident)
     {
         int radius = 10 + p_ptr->skill_use[S_WIL];
         /* Alchemy grants 1.5x range for gems */
-        if ((o_ptr->tval == TV_GEM) && p_ptr->active_ability[S_PER][PER_ALCHEMY])
+        if (alchemy_boost && p_ptr->active_ability[S_PER][PER_ALCHEMY])
             radius = (radius * 3) / 2;
         if (detect_objects_normal(radius))
             *ident = true;
@@ -556,7 +556,7 @@ static bool use_staff(object_type* o_ptr, bool* ident)
     {
         int radius = 10 + p_ptr->skill_use[S_WIL];
         /* Alchemy grants 1.5x range for gems */
-        if ((o_ptr->tval == TV_GEM) && p_ptr->active_ability[S_PER][PER_ALCHEMY])
+        if (alchemy_boost && p_ptr->active_ability[S_PER][PER_ALCHEMY])
             radius = (radius * 3) / 2;
         if (detect_monsters(radius))
             *ident = true;
@@ -667,6 +667,16 @@ static bool use_staff(object_type* o_ptr, bool* ident)
     }
 
     return (use_charge);
+}
+
+static bool use_staff(object_type* o_ptr, bool* ident)
+{
+    return use_staff_effects(o_ptr, ident, false);
+}
+
+static bool use_gem(object_type* o_ptr, bool* ident)
+{
+    return use_staff_effects(o_ptr, ident, true);
 }
 
 static bool play_instrument(object_type* o_ptr, bool* ident)
@@ -1465,9 +1475,14 @@ bool use_object(object_type* o_ptr, bool* ident)
     }
 
     case TV_STAFF:
-    case TV_GEM:
     {
         used = use_staff(o_ptr, ident);
+        break;
+    }
+
+    case TV_GEM:
+    {
+        used = use_gem(o_ptr, ident);
         break;
     }
 

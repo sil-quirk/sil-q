@@ -690,6 +690,7 @@ extern void display_koff(int k_idx);
 /* cmd6.c */
 extern void do_cmd_eat_food(object_type* default_o_ptr, int default_item);
 extern void do_cmd_quaff_potion(object_type* default_o_ptr, int default_item);
+extern void do_cmd_use_gem(object_type* default_o_ptr, int default_item);
 extern void do_cmd_activate_staff(object_type* default_o_ptr, int default_item);
 extern void do_cmd_play_instrument(
     object_type* default_o_ptr, int default_item);

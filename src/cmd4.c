@@ -124,8 +124,10 @@ static bool supplies_menu_use_entry(supply_list_entry* entry)
         do_cmd_quaff_potion(o_ptr, SUPPLIES_INDEX);
         break;
     case TV_STAFF:
-    case TV_GEM:
         do_cmd_activate_staff(o_ptr, SUPPLIES_INDEX);
+        break;
+    case TV_GEM:
+        do_cmd_use_gem(o_ptr, SUPPLIES_INDEX);
         break;
     default:
         supplies_end_action();
@@ -147,7 +149,7 @@ static bool supplies_menu_drop_entry(supply_list_entry* entry)
     if (!o_ptr || !o_ptr->k_idx)
         return false;
 
-    int max_amt = (o_ptr->tval == TV_GEM) ? supplies_entry_units(entry->supply_idx) : o_ptr->number;
+    int max_amt = o_ptr->number;
     if (max_amt <= 0)
         return false;
 
@@ -13889,7 +13891,7 @@ static void compute_supply_group_totals(int totals[SUPPLY_GROUP_MAX])
         else if (s_ptr->tval == TV_POTION)
             totals[SUPPLY_GROUP_POTIONS] += s_ptr->number;
         else if (s_ptr->tval == TV_GEM)
-            totals[SUPPLY_GROUP_GEMS] += supplies_entry_units(i);
+            totals[SUPPLY_GROUP_GEMS] += s_ptr->number;
     }
 }
 
@@ -13965,7 +13967,7 @@ static int collect_supply_entries(int group_idx, supply_list_entry entries[])
         if (!supply_item_matches(group_idx, s_ptr))
             continue;
 
-        int value = (s_ptr->tval == TV_GEM) ? supplies_entry_units(i) : s_ptr->number;
+        int value = s_ptr->number;
 
         for (j = 0; j < count; j++)
         {
@@ -15627,6 +15629,10 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                         break;
                     case TV_STAFF:
                         do_cmd_activate_staff(o_ptr, entry->item_idx);
+                        handled = true;
+                        break;
+                    case TV_GEM:
+                        do_cmd_use_gem(o_ptr, entry->item_idx);
                         handled = true;
                         break;
                     default:

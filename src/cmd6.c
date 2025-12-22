@@ -441,6 +441,12 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
     if (!o_ptr)
         return;
 
+    if (o_ptr->tval != TV_STAFF)
+    {
+        msg_print("You can only activate a staff.");
+        return;
+    }
+
     if (o_ptr->tval == TV_STAFF && o_ptr != &inventory[INVEN_STAFF])
     {
         object_type* wielded = &inventory[INVEN_STAFF];
@@ -496,39 +502,21 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
     /* Not identified yet */
     ident = false;
 
-    /* Notice empty staffs/gems */
-    if (o_ptr->tval == TV_STAFF)
+    /* Notice empty staffs */
+    if (o_ptr->pval < CHANNELING_CHARGE_MULTIPLIER)
     {
-        if (o_ptr->pval < CHANNELING_CHARGE_MULTIPLIER)
-        {
-            flush();
-            msg_print("The staff has no charges left.");
-            o_ptr->ident |= (IDENT_EMPTY);
-            p_ptr->notice |= (PN_COMBINE | PN_REORDER);
-            p_ptr->window |= (PW_INVEN);
-            return;
-        }
-    }
-    else if (o_ptr->tval == TV_GEM)
-    {
-        if (o_ptr->number <= 0)
-        {
-            flush();
-            msg_print("You have no gems left.");
-            o_ptr->ident |= (IDENT_EMPTY);
-            p_ptr->notice |= (PN_COMBINE | PN_REORDER);
-            p_ptr->window |= (PW_INVEN);
-            return;
-        }
+        flush();
+        msg_print("The staff has no charges left.");
+        o_ptr->ident |= (IDENT_EMPTY);
+        p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+        p_ptr->window |= (PW_INVEN);
+        return;
     }
 
     /* Sound */
-    if (o_ptr->tval == TV_GEM)
-        sound(MSG_USE_GEM);
-    else
-        sound(MSG_ZAP);
+    sound(MSG_ZAP);
 
-    /* Use the staff/gem */
+    /* Use the staff */
     use_charge = use_object(o_ptr, &ident);
 
     // Break the truce
@@ -554,18 +542,10 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
         return;
 
     /* Consume the item */
-    if (o_ptr->tval == TV_STAFF)
-    {
-        /* Staffs always expend their bundled charges */
-        o_ptr->pval -= CHANNELING_CHARGE_MULTIPLIER;
-        if (o_ptr->pval < 0)
-            o_ptr->pval = 0;
-    }
-    else if (o_ptr->tval == TV_GEM)
-    {
-        /* Gems are consumed whole - decrease number */
-        o_ptr->number--;
-    }
+    /* Staffs always expend their bundled charges */
+    o_ptr->pval -= CHANNELING_CHARGE_MULTIPLIER;
+    if (o_ptr->pval < 0)
+        o_ptr->pval = 0;
     // mark times used
     o_ptr->xtra1++;
 
@@ -580,6 +560,137 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
     else
     {
         floor_item_charges(0 - item);
+    }
+}
+
+/*
+ * Use a gem
+ *
+ * One gem is consumed on use.
+ */
+void do_cmd_use_gem(object_type* default_o_ptr, int default_item)
+{
+    int item;
+    bool ident;
+    object_type* o_ptr = NULL;
+    bool use_charge;
+
+    int supply_index = supplies_current_action();
+    bool from_supplies = (supply_index >= 0);
+    cptr q, s;
+
+    /* Use specified item if possible */
+    if (default_o_ptr != NULL)
+    {
+        o_ptr = default_o_ptr;
+        item = from_supplies ? SUPPLIES_INDEX : default_item;
+    }
+    /* Get an item */
+    else
+    {
+        /* Restrict choices to gems */
+        item_tester_tval = TV_GEM;
+
+        /* Get an item */
+        q = "Use which gem? ";
+        s = "You have no gems to use.";
+        supplies_set_pending_action(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_GEMS, true);
+        if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
+        {
+            supplies_clear_pending_action();
+            return;
+        }
+
+        if (item == SUPPLIES_INDEX)
+        {
+            supplies_clear_pending_action();
+            open_supplies_menu_with_context(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_GEMS, true, true);
+            return;
+        }
+
+        supplies_clear_pending_action();
+
+        /* Get the item (in the pack) */
+        if (item >= 0)
+        {
+            o_ptr = &inventory[item];
+        }
+
+        /* Get the item (on the floor) */
+        else
+        {
+            o_ptr = &o_list[0 - item];
+        }
+
+        from_supplies = false;
+        supply_index = -1;
+    }
+
+    if (!o_ptr)
+        return;
+
+    if (o_ptr->number <= 0)
+    {
+        msg_print("You have no gems left.");
+        return;
+    }
+
+    /* Sound */
+    sound(MSG_USE_GEM);
+
+    /* Take a turn */
+    p_ptr->energy_use = 100;
+
+    // store the action type
+    p_ptr->previous_action[0] = ACTION_MISC;
+
+    /* Not identified yet */
+    ident = false;
+
+    /* Use the gem */
+    use_charge = use_object(o_ptr, &ident);
+
+    // Break the truce
+    break_truce(false);
+
+    /* Combine / Reorder the pack (later) */
+    p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+
+    /* Tried the item */
+    object_tried(o_ptr);
+
+    /* An identification was made */
+    if (ident && !object_aware_p(o_ptr))
+    {
+        object_aware(o_ptr);
+    }
+
+    /* Window stuff */
+    p_ptr->window |= (PW_INVEN | PW_EQUIP);
+
+    /* Hack -- some uses are "free" */
+    if (!use_charge)
+        return;
+
+    /* Consume the item */
+    o_ptr->xtra1++;
+
+    if (from_supplies && supply_index >= 0)
+    {
+        supplies_consume_quantity(supply_index, 1);
+        supplies_refresh_entry(supply_index);
+    }
+    else if (item >= 0)
+    {
+        inven_item_increase(item, -1);
+        inven_item_describe(item);
+        inven_item_optimize(item);
+    }
+    else
+    {
+        floor_item_increase(0 - item, -1);
+        floor_item_describe(0 - item);
+        floor_item_optimize(0 - item);
     }
 }
 

@@ -7810,3 +7810,9 @@ The script now fully matches the game's drop generation logic for all item types
 
 ## 2025-12-22: Varda quest sunlight spawn fix
 - src/generate.c: replaced random Varda spawn attempts with a scan of valid sunlight tiles and a forced sunlit fallback near the player; ensure_sunlight_for_varda now guarantees an empty sunlight tile (patch + forced tile) to avoid regen loops.
+
+## 2025-12-22: Gems as normal items
+- src/cmd6.c, src/cmd3.c, src/cmd4.c, src/externs.h: added do_cmd_use_gem and routed gem use through it; staff activation is staff-only now.
+- src/use-obj.c, src/object2.c: gems stack like other consumables; gem usage split from staff logic and charges messaging is staff-only.
+- src/supplies.c, src/load.c: supplies treat gems like normal items (count/weight/consumption), with load handling legacy gem supply counts.
+- src/load.c: fix gem supply load loop to decrement count before absorb so object_wipe doesn't zero the remaining counter.
