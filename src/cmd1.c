@@ -1624,7 +1624,8 @@ extern void ident_on_wield(object_type* o_ptr)
     {
         if (object_aware_p(o_ptr))
         {
-            notice = true;
+            if (o_ptr->tval != TV_STAFF)
+                notice = true;
         }
         else if (o_ptr->att > 0)
         {

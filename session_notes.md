@@ -7816,3 +7816,5 @@ The script now fully matches the game's drop generation logic for all item types
 - src/use-obj.c, src/object2.c: gems stack like other consumables; gem usage split from staff logic and charges messaging is staff-only.
 - src/supplies.c, src/load.c: supplies treat gems like normal items (count/weight/consumption), with load handling legacy gem supply counts.
 - src/load.c: fix gem supply load loop to decrement count before absorb so object_wipe doesn't zero the remaining counter.
+- src/cmd4.c: refresh after supply use to avoid stale screen line when closing menu.
+- src/cmd1.c: prevent ident_on_wield from auto-identifying staves just because they're aware, keeping charges hidden unless identified.

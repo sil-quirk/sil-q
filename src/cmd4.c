@@ -15653,6 +15653,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 {
                     acted = true;
                     redraw = true;
+                    refresh_after_close = true;
                     if (hotkey_mode || forced_action == SUPPLY_MENU_ACTION_USE)
                         flag = true;
                 }
