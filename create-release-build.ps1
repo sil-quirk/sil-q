@@ -121,6 +121,20 @@ foreach ($folder in $libFoldersToCopy) {
         } elseif ($folder -eq "xtra") {
             # Special: xtra requires careful copying
             Copy-Item -Recurse $srcFolder $dstFolder -Force
+
+            # Remove 'packs' subfolders in sound (sound packs are not included in the release)
+            $soundPath = "$dstFolder/sound"
+            if (Test-Path $soundPath) {
+                $packs = Get-ChildItem -Path $soundPath -Directory -Recurse -Force | Where-Object { $_.Name -ieq "packs" }
+                if ($packs -and $packs.Count -gt 0) {
+                    foreach ($p in $packs) {
+                        Remove-Item -Recurse -Force $p.FullName
+                    }
+                    Write-Host "  [OK] lib/$folder (sound: removed 'packs' directories)"
+                } else {
+                    Write-Host "  [SKIP] lib/$folder/sound/packs (not found)"
+                }
+            }
             
             # Remove non-16x16.png files from graf subfolder
             $grafPath = "$dstFolder/graf"
@@ -205,7 +219,7 @@ $manifestText += "  pref/                      - Default preferences and keybind
 $manifestText += "  data/                      - Empty directory (for future use)`n"
 $manifestText += "  xtra/                      - Extended resources (fonts, sound, music, minimal graphics)`n"
 $manifestText += "    font/                    - Font files`n"
-$manifestText += "    sound/                   - Audio files`n"
+$manifestText += "    sound/                   - Audio files (sound packs excluded)`n"
 $manifestText += "    music/                   - Background music files`n"
 $manifestText += "    graf/                    - Graphics (only 16x16.png)`n"
 $manifestText += "  docs/                      - Documentation and manuals (6 files)`n"

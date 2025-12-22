@@ -13867,13 +13867,14 @@ static bool cave_gen(void)
                     int try_y = player_y + dy;
                     int try_x = player_x + dx;
                     
-                    /* Must be valid coordinates and a floor in the same room */
+                    /* Must be valid coordinates, floor in the same room, and not too close to player */
                     if (try_y > 0 && try_y < p_ptr->cur_map_hgt - 1 &&
                         try_x > 0 && try_x < p_ptr->cur_map_wid - 1 &&
                         cave_floor_bold(try_y, try_x) && 
                         (cave_info[try_y][try_x] & CAVE_ROOM) &&
                         !(cave_info[try_y][try_x] & CAVE_ICKY) &&
-                        cave_m_idx[try_y][try_x] == 0)
+                        cave_m_idx[try_y][try_x] == 0 &&
+                        distance(player_y, player_x, try_y, try_x) >= 2)
                     {
                         if (place_monster_one(try_y, try_x, R_IDX_TULKAS, true, true, NULL))
                         {
@@ -13994,13 +13995,15 @@ static bool cave_gen(void)
                     int try_y = player_y + dy;
                     int try_x = player_x + dx;
                     
-                    /* Must be valid coordinates and a floor in the same room */
+                    /* Must be valid coordinates, floor in the same room, and not too close to player */
                     if (try_y > 0 && try_y < p_ptr->cur_map_hgt - 1 &&
                         try_x > 0 && try_x < p_ptr->cur_map_wid - 1 &&
                         cave_floor_bold(try_y, try_x) && 
                         (cave_info[try_y][try_x] & CAVE_ROOM) &&
                         !(cave_info[try_y][try_x] & CAVE_ICKY) &&
-                        cave_m_idx[try_y][try_x] == 0)
+                        cave_m_idx[try_y][try_x] == 0 &&
+                        distance(player_y, player_x, try_y, try_x) >= 2 &&
+                        los(player_y, player_x, try_y, try_x))
                     {
                         if (place_monster_one(try_y, try_x, R_IDX_NIENA, true, true, NULL))
                         {
@@ -14113,13 +14116,15 @@ static bool cave_gen(void)
                 int try_y = player_y + dy;
                 int try_x = player_x + dx;
                 
-                /* Must be valid coordinates and a floor in the same room */
+                /* Must be valid coordinates, floor in the same room, and not too close to player */
                 if (try_y > 0 && try_y < p_ptr->cur_map_hgt - 1 &&
                     try_x > 0 && try_x < p_ptr->cur_map_wid - 1 &&
                     cave_floor_bold(try_y, try_x) && 
                     (cave_info[try_y][try_x] & CAVE_ROOM) &&
                     !(cave_info[try_y][try_x] & CAVE_ICKY) &&
-                    cave_m_idx[try_y][try_x] == 0)
+                    cave_m_idx[try_y][try_x] == 0 &&
+                    distance(player_y, player_x, try_y, try_x) >= 2 &&
+                    los(player_y, player_x, try_y, try_x))
                 {
                     if (place_monster_one(try_y, try_x, R_IDX_OROME, true, true, NULL))
                     {

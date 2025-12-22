@@ -407,40 +407,49 @@ void sdl_sound_reload(void)
     log_debug("Sound config: enabled=%d, device=%u", g_sound_config.enabled, sound_state.device);
     log_debug("Music paths: main='%s', ambient='%s'", sound_state.music_main_path, sound_state.music_ambient_path);
 
-    // Open audio device if not already open and sound is enabled
-    if (g_sound_config.enabled && !sound_state.device) {
-        log_debug("Opening audio device...");
-        SDL_AudioSpec desired;
-        SDL_zero(desired);
-        desired.freq = g_sound_config.sample_rate;
-        desired.format = sdl_sound_parse_format(g_sound_config.format);
-        desired.channels = g_sound_config.channels;
-
-        sound_state.device = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &desired);
+    // Handle audio device state based on enabled flag
+    if (g_sound_config.enabled) {
+        // Sound is enabled - ensure device is open
         if (!sound_state.device) {
-            log_warn("Failed to open audio device: %s", SDL_GetError());
-            return;
-        }
+            log_debug("Opening audio device...");
+            SDL_AudioSpec desired;
+            SDL_zero(desired);
+            desired.freq = g_sound_config.sample_rate;
+            desired.format = sdl_sound_parse_format(g_sound_config.format);
+            desired.channels = g_sound_config.channels;
 
-        // Get the actual device spec (SDL3 might adjust it)
-        if (!SDL_GetAudioDeviceFormat(sound_state.device, &sound_state.device_spec, NULL)) {
-            log_warn("Failed to get audio device format, using desired spec");
-            sound_state.device_spec = desired;
+            sound_state.device = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &desired);
+            if (!sound_state.device) {
+                log_warn("Failed to open audio device: %s", SDL_GetError());
+                return;
+            }
+
+            // Get the actual device spec (SDL3 might adjust it)
+            if (!SDL_GetAudioDeviceFormat(sound_state.device, &sound_state.device_spec, NULL)) {
+                log_warn("Failed to get audio device format, using desired spec");
+                sound_state.device_spec = desired;
+            }
+            
+            SDL_zero(sound_state.active_streams);
+            sound_state.music_main_buffer = NULL;
+            sound_state.music_main_length = 0;
+            sound_state.music_ambient_buffer = NULL;
+            sound_state.music_ambient_length = 0;
+            
+            log_info("Audio device opened (freq=%d, channels=%d, format=0x%x)",
+                     sound_state.device_spec.freq,
+                     sound_state.device_spec.channels,
+                     sound_state.device_spec.format);
         }
-        
-        SDL_zero(sound_state.active_streams);
-        sound_state.music_main_buffer = NULL;
-        sound_state.music_main_length = 0;
-        sound_state.music_ambient_buffer = NULL;
-        sound_state.music_ambient_length = 0;
-        
+        // Always resume device when sound is enabled (handles initial state and re-enable)
         SDL_ResumeAudioDevice(sound_state.device);
-        log_info("Audio device opened (freq=%d, channels=%d, format=0x%x)",
-                 sound_state.device_spec.freq,
-                 sound_state.device_spec.channels,
-                 sound_state.device_spec.format);
+        log_debug("Audio device resumed");
     } else {
-        log_debug("Skipping audio device init: enabled=%d, device=%u", g_sound_config.enabled, sound_state.device);
+        // Sound is disabled - pause device if open but don't close it
+        if (sound_state.device) {
+            SDL_PauseAudioDevice(sound_state.device);
+            log_debug("Audio device paused");
+        }
     }
 }
 

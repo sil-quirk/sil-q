@@ -3307,6 +3307,13 @@ static bool get_explored_bounds(int* min_y, int* max_y, int* min_x, int* max_x)
  */
 void do_cmd_look(void)
 {
+    /* Block when hallucinating */
+    if (p_ptr->image)
+    {
+        msg_print("Your vision is too distorted to examine things carefully.");
+        return;
+    }
+
     /* Use the new unified look system */
     do_cmd_unified_look();
 }
@@ -4924,6 +4931,13 @@ void do_cmd_locate(void)
     int min_y, max_y, min_x, max_x;
     int explored_min_wy, explored_max_wy;
     int explored_min_wx, explored_max_wx;
+
+    /* Block when hallucinating */
+    if (p_ptr->image)
+    {
+        msg_print("Your vision is too distorted to map your location.");
+        return;
+    }
 
     /* Clear entry level banner when using L command */
     if (g_banner_force_redraw_remaining > 0)

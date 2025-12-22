@@ -6663,6 +6663,24 @@ void artefact_flag_menu(int category)
 }
 
 /*
+ * Can this ability be applied to any item at all?
+ * Returns false for stat-only abilities like Grace/Strength/etc that have no valid item types.
+ */
+static bool ability_can_be_smithed(ability_type* b_ptr)
+{
+    int j;
+
+    /* Check if this ability has any valid item types defined */
+    for (j = 0; j < ABILITY_TVALS_MAX; j++)
+    {
+        if (b_ptr->tval[j] != 0)
+            return true;
+    }
+
+    return false;
+}
+
+/*
  * Does the given object type support the given ability type?
  */
 bool applicable_ability(ability_type* b_ptr, object_type* o_ptr)
@@ -6829,22 +6847,20 @@ int artefact_ability_menu_aux(int skill, int* highlight)
     wipe_screen_from(COL_SMT3);
 
     // list the abilities
-    for (i = 0; i < z_info->b_max - 1; i++)
+    for (i = 0; i < z_info->b_max; i++)
     {
         b_ptr = &b_info[i];
-        b2_ptr = &b_info[i + 1];
 
         /* Skip non-entries */
         if (!b_ptr->name)
             continue;
 
-        /* Skip entries where the next entry is not defined (to avoid the
-         * stat-improvements) */
-        if (!b2_ptr->name)
-            continue;
-
         /* Skip entries for the wrong skill type */
         if (b_ptr->skilltype != skill)
+            continue;
+
+        /* Skip abilities that can't be smithed onto any item (like Grace, stat improvements) */
+        if (!ability_can_be_smithed(b_ptr))
             continue;
 
         // Determine the appropriate colour
