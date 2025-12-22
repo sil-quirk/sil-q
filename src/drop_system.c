@@ -2475,7 +2475,7 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     req.is_supply = false;
     req.droptype = droptype;
     req.allow_artefacts = allow_artefacts;
-    /* New difficulty formula: 1.25*Depth - 19 + min(1d40,1d40) */
+    /* New difficulty formula: 1.25*Depth - 22 + min(1d40,1d40) */
     int roll1 = dieroll(40);
     int roll2 = dieroll(40);
     int min_roll = MIN(roll1, roll2);

@@ -7804,3 +7804,9 @@ The script now fully matches the game's drop generation logic for all item types
 ## 2025-12-20: Steam Deck metarun + scores prompts
 - `src/metarun.c`: story info (metarun stats) and blessing submenus now show Steam Deck button labels, map A/L1/B/X/Y/Back to actions, and add Back-cancel handling in submenus plus controller-friendly prompts in history/active effects (gated to Steam Deck UI only).
 - `src/score/score_ui.c`: Halls of Mandos scores footer/prompt now uses Steam Deck labels, maps X to layout toggle, and Back to exit (gated to Steam Deck UI only).
+
+## 2025-12-22: Steam Deck music path fix
+- lib/pref/sound.json: corrected default music paths to music/*.wav under lib/xtra/.
+
+## 2025-12-22: Varda quest sunlight spawn fix
+- src/generate.c: replaced random Varda spawn attempts with a scan of valid sunlight tiles and a forced sunlit fallback near the player; ensure_sunlight_for_varda now guarantees an empty sunlight tile (patch + forced tile) to avoid regen loops.

@@ -13027,45 +13027,135 @@ void make_patches_of_sunlight()
     }
 }
 
+static bool varda_sunlight_tile_ok(int y, int x, bool require_empty)
+{
+    if (!in_bounds_fully(y, x)) return false;
+    if (cave_feat[y][x] != FEAT_SUNLIGHT) return false;
+    if (!cave_floor_bold(y, x)) return false;
+    if (cave_info[y][x] & CAVE_ICKY) return false;
+    if (require_empty && cave_m_idx[y][x] != 0) return false;
+
+    return true;
+}
+
+static int pick_varda_sunlight_tile(int *out_y, int *out_x, int *out_total)
+{
+    int total = 0;
+    int empty = 0;
+    int pick_y = -1;
+    int pick_x = -1;
+
+    for (int y = 1; y < p_ptr->cur_map_hgt - 1; y++)
+    {
+        for (int x = 1; x < p_ptr->cur_map_wid - 1; x++)
+        {
+            if (!varda_sunlight_tile_ok(y, x, false)) continue;
+            total++;
+            if (cave_m_idx[y][x] != 0) continue;
+            empty++;
+            if (one_in_(empty)) {
+                pick_y = y;
+                pick_x = x;
+            }
+        }
+    }
+
+    if (out_total) *out_total = total;
+    if (empty > 0 && out_y && out_x) {
+        *out_y = pick_y;
+        *out_x = pick_x;
+    }
+
+    return empty;
+}
+
+static bool force_varda_sunlight_tile(int *out_y, int *out_x)
+{
+    int py = p_ptr->py;
+    int px = p_ptr->px;
+
+    for (int radius = 1; radius <= 8; radius++)
+    {
+        for (int y = py - radius; y <= py + radius; y++)
+        {
+            for (int x = px - radius; x <= px + radius; x++)
+            {
+                if (!in_bounds_fully(y, x)) continue;
+                if (cave_info[y][x] & CAVE_ICKY) continue;
+                if (!cave_empty_bold(y, x)) continue;
+                if (cave_feat[y][x] != FEAT_FLOOR && cave_feat[y][x] != FEAT_RAGE_FLOOR) continue;
+
+                cave_set_feat(y, x, FEAT_SUNLIGHT);
+                if (out_y) {
+                    *out_y = y;
+                    *out_x = x;
+                }
+                return true;
+            }
+        }
+    }
+
+    int count = 0;
+    int pick_y = -1;
+    int pick_x = -1;
+
+    for (int y = 1; y < p_ptr->cur_map_hgt - 1; y++)
+    {
+        for (int x = 1; x < p_ptr->cur_map_wid - 1; x++)
+        {
+            if (cave_info[y][x] & CAVE_ICKY) continue;
+            if (!cave_empty_bold(y, x)) continue;
+            if (cave_feat[y][x] != FEAT_FLOOR && cave_feat[y][x] != FEAT_RAGE_FLOOR) continue;
+
+            count++;
+            if (one_in_(count)) {
+                pick_y = y;
+                pick_x = x;
+            }
+        }
+    }
+
+    if (count == 0) return false;
+
+    cave_set_feat(pick_y, pick_x, FEAT_SUNLIGHT);
+    if (out_y) {
+        *out_y = pick_y;
+        *out_x = pick_x;
+    }
+
+    return true;
+}
+
 static void ensure_sunlight_for_varda(void)
 {
     /* Only relevant for the first few levels */
     if (p_ptr->depth > 3) return;
     
-    /* Check for valid sunlight spawn locations (sunlight on floor tiles) */
-    bool has_valid_sunlight = false;
-    for (int y = 1; y < p_ptr->cur_map_hgt - 1 && !has_valid_sunlight; y++) {
-        for (int x = 1; x < p_ptr->cur_map_wid - 1; x++) {
-            if (cave_feat[y][x] == FEAT_SUNLIGHT && 
-                cave_floor_bold(y, x) && 
-                !(cave_info[y][x] & CAVE_ICKY)) {
-                has_valid_sunlight = true;
-                break;
-            }
-        }
-    }
+    /* Check for valid sunlight spawn locations (sunlight on empty floor tiles) */
+    int total_sunlight = 0;
+    int empty_sunlight = pick_varda_sunlight_tile(NULL, NULL, &total_sunlight);
     
-    if (!has_valid_sunlight) {
-        log_trace("Varda spawn: No valid sunlight spawn locations detected, seeding patches");
+    if (empty_sunlight == 0) {
+        log_trace("Varda spawn: No valid sunlight spawn locations detected (total=%d), seeding patches", total_sunlight);
         make_patches_of_sunlight();
         
         /* Verify at least one valid location exists after patching */
-        bool verified = false;
-        for (int y = 1; y < p_ptr->cur_map_hgt - 1 && !verified; y++) {
-            for (int x = 1; x < p_ptr->cur_map_wid - 1; x++) {
-                if (cave_feat[y][x] == FEAT_SUNLIGHT && 
-                    cave_floor_bold(y, x) && 
-                    !(cave_info[y][x] & CAVE_ICKY)) {
-                    verified = true;
-                    log_trace("Varda spawn: Verified valid sunlight location at (%d,%d)", y, x);
-                    break;
-                }
-            }
-        }
+        total_sunlight = 0;
+        empty_sunlight = pick_varda_sunlight_tile(NULL, NULL, &total_sunlight);
         
-        if (!verified) {
-            log_trace("Varda spawn: WARNING - No valid sunlight locations after patching!");
+        if (empty_sunlight > 0) {
+            log_trace("Varda spawn: Verified sunlight after patching (total=%d, empty=%d)", total_sunlight, empty_sunlight);
+            return;
         }
+
+        int forced_y = -1;
+        int forced_x = -1;
+        if (force_varda_sunlight_tile(&forced_y, &forced_x)) {
+            log_trace("Varda spawn: Forced sunlight at (%d,%d) to guarantee spawn", forced_y, forced_x);
+            return;
+        }
+
+        log_trace("Varda spawn: WARNING - No valid sunlight locations after patching or forcing!");
     }
 }
 
@@ -13677,48 +13767,51 @@ static bool cave_gen(void)
         {
             log_trace("Varda spawn: No existing Varda found, attempting placement");
             bool varda_spawned = false;
-            int valid_attempts = 0;
-            int invalid_no_sunlight = 0;
-            int invalid_not_floor = 0;
-            int invalid_has_monster = 0;
-            int invalid_icky = 0;
-            
-            /* Prefer to spawn near the player start on a sunlit tile */
-            log_trace("Varda spawn: Starting placement attempts (max 120)");
-            for (int attempts = 0; attempts < 120 && !varda_spawned; attempts++)
-            {
-                int try_y = rand_int(p_ptr->cur_map_hgt);
-                int try_x = rand_int(p_ptr->cur_map_wid);
-                
-                if (try_y <= 0 || try_y >= p_ptr->cur_map_hgt - 1 ||
-                    try_x <= 0 || try_x >= p_ptr->cur_map_wid - 1)
-                    continue;
-                
-                if (cave_feat[try_y][try_x] != FEAT_SUNLIGHT) { invalid_no_sunlight++; continue; }
-                if (!cave_floor_bold(try_y, try_x)) { invalid_not_floor++; continue; }
-                if (cave_m_idx[try_y][try_x] != 0) { invalid_has_monster++; continue; }
-                if (cave_info[try_y][try_x] & CAVE_ICKY) { invalid_icky++; continue; }
-                
-                valid_attempts++;
-                
-                if (place_monster_one(try_y, try_x, R_IDX_VARDA, true, true, NULL))
-                {
-                    p_ptr->varda_quest = VARDA_QUEST_GIVER_PRESENT;
-                    p_ptr->quest_reserved[0] = 1; /* Mark any quest spawned */
-                    p_ptr->varda_level = p_ptr->depth;
-                    varda_spawned = true;
-                    log_trace("Varda spawn: === SUCCESS === Placed at (%d,%d) on sunlight tile", try_y, try_x);
-                    log_trace("Varda spawn: Quest state set to GIVER_PRESENT (%d), quest_reserved[0]=1", p_ptr->varda_quest);
+
+            int try_y = -1;
+            int try_x = -1;
+            int total_sunlight = 0;
+            int empty_sunlight = pick_varda_sunlight_tile(&try_y, &try_x, &total_sunlight);
+
+            log_trace("Varda spawn: Sunlight tiles total=%d, empty=%d", total_sunlight, empty_sunlight);
+
+            if (empty_sunlight == 0) {
+                log_trace("Varda spawn: No empty sunlight tiles available, forcing a sunlit tile");
+                if (force_varda_sunlight_tile(&try_y, &try_x)) {
+                    empty_sunlight = 1;
                 }
             }
-            
-            log_trace("Varda spawn: Placement attempts complete - valid=%d, no_sunlight=%d, not_floor=%d, has_monster=%d, icky=%d",
-                      valid_attempts, invalid_no_sunlight, invalid_not_floor, invalid_has_monster, invalid_icky);
+
+            if (empty_sunlight > 0) {
+                if (place_monster_one(try_y, try_x, R_IDX_VARDA, true, true, NULL)) {
+                    varda_spawned = true;
+                } else {
+                    log_trace("Varda spawn: Primary sunlight tile rejected, scanning for fallback");
+                    for (int y = 1; y < p_ptr->cur_map_hgt - 1 && !varda_spawned; y++) {
+                        for (int x = 1; x < p_ptr->cur_map_wid - 1 && !varda_spawned; x++) {
+                            if (!varda_sunlight_tile_ok(y, x, true)) continue;
+                            if (place_monster_one(y, x, R_IDX_VARDA, true, true, NULL)) {
+                                try_y = y;
+                                try_x = x;
+                                varda_spawned = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (varda_spawned) {
+                p_ptr->varda_quest = VARDA_QUEST_GIVER_PRESENT;
+                p_ptr->quest_reserved[0] = 1; /* Mark any quest spawned */
+                p_ptr->varda_level = p_ptr->depth;
+                log_trace("Varda spawn: === SUCCESS === Placed at (%d,%d) on sunlight tile", try_y, try_x);
+                log_trace("Varda spawn: Quest state set to GIVER_PRESENT (%d), quest_reserved[0]=1", p_ptr->varda_quest);
+            }
             
             if (!varda_spawned)
             {
-                log_trace("Varda spawn: === FAILED === Could not find valid sunlight tile after 120 attempts - REGENERATING LEVEL");
-                genlog_fail("VARDA SPAWN FAILED: could not find valid sunlight tile after 120 attempts - regenerating");
+                log_trace("Varda spawn: === FAILED === Could not find valid sunlight tile after forcing - REGENERATING LEVEL");
+                genlog_fail("VARDA SPAWN FAILED: could not find valid sunlight tile after forcing - regenerating");
                 gen_log_level_end(false, dun->cent_n, 1);
                 return false; /* Force regeneration to honor 100% spawn guarantee */
             }
