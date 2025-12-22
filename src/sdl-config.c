@@ -701,6 +701,43 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
             }
             log_debug("Loaded gamepad.triggerBindings (%d entries)", count);
         }
+
+        item = cJSON_GetObjectItemCaseSensitive(gamepad, "leftStickBindings");
+        if (cJSON_IsArray(item)) {
+            int count = cJSON_GetArraySize(item);
+            for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT && i < count; i++) {
+                cJSON* binding = cJSON_GetArrayItem(item, i);
+                if (cJSON_IsNumber(binding)) {
+                    config->gamepad_left_stick_bindings[i] = binding->valueint;
+                }
+            }
+            log_debug("Loaded gamepad.leftStickBindings (%d entries)", count);
+        }
+
+        item = cJSON_GetObjectItemCaseSensitive(gamepad, "rightStickBindings");
+        if (cJSON_IsArray(item)) {
+            int count = cJSON_GetArraySize(item);
+            for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT && i < count; i++) {
+                cJSON* binding = cJSON_GetArrayItem(item, i);
+                if (cJSON_IsNumber(binding)) {
+                    config->gamepad_right_stick_bindings[i] = binding->valueint;
+                }
+            }
+            log_debug("Loaded gamepad.rightStickBindings (%d entries)", count);
+        }
+
+        if (config->gamepad_use_dpad) {
+            config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_DPAD_UP] = GAMEPAD_BIND_NONE;
+            config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_DPAD_DOWN] = GAMEPAD_BIND_NONE;
+            config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_DPAD_LEFT] = GAMEPAD_BIND_NONE;
+            config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_DPAD_RIGHT] = GAMEPAD_BIND_NONE;
+        }
+
+        if (config->gamepad_use_left_stick) {
+            for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+                config->gamepad_left_stick_bindings[i] = GAMEPAD_BIND_NONE;
+            }
+        }
     } else {
         log_warn("'gamepad' object not found in JSON");
     }
@@ -804,6 +841,8 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
         if (gamepad) {
             cJSON* bindings = NULL;
             cJSON* triggers = NULL;
+            cJSON* left_stick = NULL;
+            cJSON* right_stick = NULL;
 
             cJSON_AddBoolToObject(gamepad, "enabled", config->gamepad_enabled);
             cJSON_AddBoolToObject(gamepad, "autoMode", config->gamepad_auto_mode);
@@ -827,6 +866,22 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
                     cJSON_AddItemToArray(triggers, cJSON_CreateNumber(config->gamepad_trigger_bindings[i]));
                 }
                 cJSON_AddItemToObject(gamepad, "triggerBindings", triggers);
+            }
+
+            left_stick = cJSON_CreateArray();
+            if (left_stick) {
+                for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+                    cJSON_AddItemToArray(left_stick, cJSON_CreateNumber(config->gamepad_left_stick_bindings[i]));
+                }
+                cJSON_AddItemToObject(gamepad, "leftStickBindings", left_stick);
+            }
+
+            right_stick = cJSON_CreateArray();
+            if (right_stick) {
+                for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+                    cJSON_AddItemToArray(right_stick, cJSON_CreateNumber(config->gamepad_right_stick_bindings[i]));
+                }
+                cJSON_AddItemToObject(gamepad, "rightStickBindings", right_stick);
             }
 
             cJSON_AddItemToObject(root, "gamepad", gamepad);
@@ -868,6 +923,10 @@ void sdl_config_set_default_gamepad_bindings(struct sdl_config* config)
     for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++) {
         config->gamepad_trigger_bindings[i] = GAMEPAD_BIND_NONE;
     }
+    for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+        config->gamepad_left_stick_bindings[i] = GAMEPAD_BIND_NONE;
+        config->gamepad_right_stick_bindings[i] = GAMEPAD_BIND_NONE;
+    }
 
     config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_SOUTH] = ' ';
     config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_EAST] = 'f';
@@ -875,12 +934,10 @@ void sdl_config_set_default_gamepad_bindings(struct sdl_config* config)
     config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_NORTH] = 's';
     config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_LEFT_SHOULDER] = 'e';
     config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER] = 'i';
-    config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_START] = '\r';
-    config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_BACK] = ESCAPE;
-    config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_LEFT_PADDLE1] = 'l';
-    config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_LEFT_PADDLE2] = '\t';
-    config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1] = 'x';
-    config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2] = 'h';
+    config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_START] = ESCAPE;
+    config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_BACK] = 'h';
+    config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_LEFT_STICK] = 'z';
+    config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_RIGHT_STICK] = 'j';
 
     config->gamepad_trigger_bindings[0] = GAMEPAD_BIND_SHIFT;
     config->gamepad_trigger_bindings[1] = GAMEPAD_BIND_CTRL;
@@ -986,6 +1043,11 @@ void sdl_config_set_defaults_for_resolution(struct sdl_config* config,
         log_info("Using generic defaults for %dx%d resolution", screen_width, screen_height);
         // The config already has base defaults from sdl_config_set_defaults()
         // pane_count is 0, so default_pane_config will be used by caller
+    }
+
+    if (screen_width == 1280 && screen_height == 800) {
+        config->steamdeck_mode = true;
+        log_info("Detected 1280x800 resolution - enabling Steam Deck UI mode by default");
     }
 }
 

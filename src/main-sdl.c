@@ -17,9 +17,12 @@
 
 const char help_sdl[] = "SDL3";
 
+static const char* const sdl_story_fallback_font = "lib/xtra/font/MarcellusSC-Regular.ttf";
+
 enum {
     TILE_SIZE = 16,
     MAX_TERM_DATA = 8,
+    MAX_STORY_FONT_CACHE = 4,
     MAX_PANE_CONFIGS = 8,
 };
 
@@ -48,6 +51,11 @@ const int default_pane_config_count = sizeof(default_pane_config) / sizeof(struc
 struct pane_config pane_config[MAX_PANE_CONFIGS];
 int pane_config_count = 0;
 
+typedef struct story_font_entry {
+    int pixel_height;
+    TTF_Font* font;
+} story_font_entry;
+
 typedef struct sdl_state {
     SDL_Window* window;
     SDL_Renderer* renderer;
@@ -59,7 +67,8 @@ typedef struct sdl_state {
     bool use_tiles;
     
     // Custom fonts
-    TTF_Font* story_font;      // Non-monospace font for story/narrative text
+    story_font_entry story_fonts[MAX_STORY_FONT_CACHE];
+    int story_font_count;
     int story_font_depth;      // Nesting counter for story font enable/disable
     bool story_font_grid;      // Whether queued story text should snap to cell grid
     
@@ -83,6 +92,7 @@ typedef struct sdl_view {
 enum {
     MAX_GAMEPADS = 4,
     DPAD_DIAGONAL_WINDOW_MS = 100,
+    SHOULDER_COMBO_WINDOW_MS = 150,
 };
 
 typedef struct gamepad_entry {
@@ -107,12 +117,21 @@ typedef struct gamepad_input_state {
     Sint16 left_x;
     Sint16 left_y;
     int left_dir;
+    int left_bind_dir;
     bool left_pending;
     int left_pending_dir;
     Uint64 left_pending_time;
     bool left_pending_shift;
     bool left_pending_ctrl;
     bool left_pending_alt;
+    Sint16 right_x;
+    Sint16 right_y;
+    int right_dir;
+    bool left_shoulder_down;
+    bool right_shoulder_down;
+    bool shoulder_pending;
+    int shoulder_pending_button;
+    Uint64 shoulder_pending_time;
     bool left_trigger_down;
     bool right_trigger_down;
     int shift_held;
@@ -126,6 +145,8 @@ static gamepad_input_state g_gamepad_state;
 static bool g_gamepad_auto_ui = false;
 static int g_default_gamepad_button_bindings[SDL_GAMEPAD_BUTTON_COUNT];
 static int g_default_gamepad_trigger_bindings[GAMEPAD_TRIGGER_COUNT];
+static int g_default_gamepad_left_stick_bindings[GAMEPAD_STICK_DIR_COUNT];
+static int g_default_gamepad_right_stick_bindings[GAMEPAD_STICK_DIR_COUNT];
 static bool g_default_gamepad_bindings_ready = false;
 static bool g_gamepad_capture_active = false;
 static bool g_gamepad_capture_ready = false;
@@ -135,6 +156,7 @@ static int g_gamepad_capture_id = 0;
 static sdl_view* sdl_view_from_term(term* t);
 static void sdl_view_destroy(sdl_view* d);
 void resize(const SDL_Rect* screen);
+bool steamdeck_controls_active(void);
 static void sdl_handle_event(sdl_state* st, const SDL_Event* ev);
 static void sdl_quit_hook(cptr str);
 static errr callback_sdl_xtra(int n, int v);
@@ -147,6 +169,7 @@ static void sdl_gamepad_open(SDL_JoystickID id);
 static void sdl_gamepad_close(SDL_JoystickID id);
 static void sdl_gamepad_mark_auto_ui(void);
 static int sdl_gamepad_axis_to_dir(Sint16 x, Sint16 y, int deadzone);
+static int sdl_gamepad_axis_to_cardinal_dir(Sint16 x, Sint16 y, int deadzone);
 static void sdl_gamepad_send_direction(int dir);
 static void sdl_gamepad_send_direction_mods(int dir, bool shift, bool ctrl, bool alt);
 static void sdl_gamepad_send_key(int key, bool use_macro_mods);
@@ -161,17 +184,26 @@ static bool sdl_gamepad_flush_pending_dpad(Uint64 now_ns, bool force);
 static void sdl_gamepad_clear_pending_left_stick(void);
 static void sdl_gamepad_set_pending_left_stick(int dir);
 static bool sdl_gamepad_flush_pending_left_stick(Uint64 now_ns, bool force);
+static void sdl_gamepad_clear_pending_shoulder(void);
+static void sdl_gamepad_set_pending_shoulder(int button);
+static bool sdl_gamepad_flush_pending_shoulder(Uint64 now_ns, bool force);
 static int sdl_gamepad_pending_timeout_ms(Uint64 now_ns);
 static void sdl_apply_story_font_state(bool active);
 static void sdl_apply_story_grid_state(bool grid);
 static void sdl_story_font_reset_state(void);
+static void sdl_story_font_cache_clear(void);
+static TTF_Font* sdl_story_font_for_height(int pixel_height);
+static TTF_Font* sdl_story_font_for_view(const sdl_view* d);
 static void sdl_render_mono_text(sdl_view* d, int x, int y, int n, const char* s, SDL_Color col);
-static void sdl_render_story_text_free(sdl_view* d, int x, int y, int n, const char* s, SDL_Color col);
-static void sdl_render_story_text_grid(sdl_view* d, int x, int y, int n, const char* s, SDL_Color col);
-static int sdl_render_story_text_free_px(sdl_view* d, float x_px, int y, const char* s, int n, SDL_Color col,
+static void sdl_render_story_text_free(sdl_view* d, TTF_Font* font, int x, int y, int n, const char* s,
+    SDL_Color col);
+static void sdl_render_story_text_grid(sdl_view* d, TTF_Font* font, int x, int y, int n, const char* s,
+    SDL_Color col);
+static int sdl_render_story_text_free_px(sdl_view* d, TTF_Font* font, float x_px, int y, const char* s, int n,
+    SDL_Color col,
     float max_w_px);
-static void sdl_render_story_row_packed(sdl_view* d, int y, const byte* story_row, const char* row_chars,
-    const byte* row_attr);
+static void sdl_render_story_row_packed(sdl_view* d, TTF_Font* font, int y, const byte* story_row,
+    const char* row_chars, const byte* row_attr);
 static void draw_cursor(int x, int y, bool big);
 static errr callback_sdl_curs(int x, int y);
 static errr callback_sdl_bigcurs(int x, int y);
@@ -368,6 +400,21 @@ static int sdl_gamepad_axis_to_dir(Sint16 x, Sint16 y, int deadzone)
     return 0;
 }
 
+static int sdl_gamepad_axis_to_cardinal_dir(Sint16 x, Sint16 y, int deadzone)
+{
+    int abs_x = abs(x);
+    int abs_y = abs(y);
+
+    if (abs_x < deadzone && abs_y < deadzone)
+        return -1;
+
+    if (abs_x >= abs_y) {
+        return (x >= 0) ? GAMEPAD_STICK_DIR_RIGHT : GAMEPAD_STICK_DIR_LEFT;
+    }
+
+    return (y >= 0) ? GAMEPAD_STICK_DIR_DOWN : GAMEPAD_STICK_DIR_UP;
+}
+
 static void sdl_gamepad_send_direction(int dir)
 {
     sdl_gamepad_send_direction_mods(dir, sdl_gamepad_shift_active(),
@@ -454,10 +501,57 @@ static bool sdl_gamepad_flush_pending_left_stick(Uint64 now_ns, bool force)
     return true;
 }
 
+static void sdl_gamepad_clear_pending_shoulder(void)
+{
+    g_gamepad_state.shoulder_pending = false;
+    g_gamepad_state.shoulder_pending_button = 0;
+    g_gamepad_state.shoulder_pending_time = 0;
+}
+
+static void sdl_gamepad_set_pending_shoulder(int button)
+{
+    g_gamepad_state.shoulder_pending = true;
+    g_gamepad_state.shoulder_pending_button = button;
+    g_gamepad_state.shoulder_pending_time = SDL_GetTicksNS();
+}
+
+static bool sdl_gamepad_flush_pending_shoulder(Uint64 now_ns, bool force)
+{
+    if (!g_gamepad_state.shoulder_pending)
+        return false;
+    if (!config.gamepad_enabled) {
+        sdl_gamepad_clear_pending_shoulder();
+        return false;
+    }
+
+    Uint64 window_ns = (Uint64)SHOULDER_COMBO_WINDOW_MS * 1000000ULL;
+    if (!force && now_ns - g_gamepad_state.shoulder_pending_time < window_ns)
+        return false;
+
+    int button = g_gamepad_state.shoulder_pending_button;
+    sdl_gamepad_clear_pending_shoulder();
+
+    if (button < 0 || button >= SDL_GAMEPAD_BUTTON_COUNT)
+        return true;
+
+    int binding = config.gamepad_button_bindings[button];
+    if (binding == GAMEPAD_BIND_NONE)
+        return true;
+
+    if (binding == GAMEPAD_BIND_SHIFT || binding == GAMEPAD_BIND_CTRL || binding == GAMEPAD_BIND_ALT) {
+        sdl_gamepad_apply_modifier(binding, true);
+    } else {
+        sdl_gamepad_send_key(binding, false);
+    }
+
+    return true;
+}
+
 static int sdl_gamepad_pending_timeout_ms(Uint64 now_ns)
 {
     int dpad_timeout = -1;
     int left_timeout = -1;
+    int shoulder_timeout = -1;
 
     if (g_gamepad_state.dpad_pending && config.gamepad_enabled && config.gamepad_use_dpad) {
         Uint64 window_ns = (Uint64)DPAD_DIAGONAL_WINDOW_MS * 1000000ULL;
@@ -485,11 +579,235 @@ static int sdl_gamepad_pending_timeout_ms(Uint64 now_ns)
         }
     }
 
-    if (dpad_timeout < 0)
+    if (g_gamepad_state.shoulder_pending && config.gamepad_enabled && steamdeck_controls_active()) {
+        Uint64 window_ns = (Uint64)SHOULDER_COMBO_WINDOW_MS * 1000000ULL;
+        Uint64 elapsed = now_ns - g_gamepad_state.shoulder_pending_time;
+        if (elapsed >= window_ns) {
+            shoulder_timeout = 0;
+        } else {
+            Uint64 remaining_ns = window_ns - elapsed;
+            shoulder_timeout = (int)(remaining_ns / 1000000ULL);
+            if (shoulder_timeout < 1)
+                shoulder_timeout = 1;
+        }
+    }
+
+    if (dpad_timeout < 0 && left_timeout < 0)
+        return shoulder_timeout;
+    if (dpad_timeout < 0 && shoulder_timeout < 0)
         return left_timeout;
-    if (left_timeout < 0)
+    if (left_timeout < 0 && shoulder_timeout < 0)
         return dpad_timeout;
-    return (dpad_timeout < left_timeout) ? dpad_timeout : left_timeout;
+    if (dpad_timeout < 0)
+        return (left_timeout < shoulder_timeout) ? left_timeout : shoulder_timeout;
+    if (left_timeout < 0)
+        return (dpad_timeout < shoulder_timeout) ? dpad_timeout : shoulder_timeout;
+    if (shoulder_timeout < 0)
+        return (dpad_timeout < left_timeout) ? dpad_timeout : left_timeout;
+    {
+        int min = dpad_timeout;
+        if (left_timeout < min)
+            min = left_timeout;
+        if (shoulder_timeout < min)
+            min = shoulder_timeout;
+        return min;
+    }
+}
+
+static const char* sdl_gamepad_button_label(int button)
+{
+    switch (button) {
+    case SDL_GAMEPAD_BUTTON_SOUTH: return "A (South)";
+    case SDL_GAMEPAD_BUTTON_EAST: return "B (East)";
+    case SDL_GAMEPAD_BUTTON_WEST: return "X (West)";
+    case SDL_GAMEPAD_BUTTON_NORTH: return "Y (North)";
+    case SDL_GAMEPAD_BUTTON_LEFT_SHOULDER: return "L1 (Left Shoulder)";
+    case SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER: return "R1 (Right Shoulder)";
+    case SDL_GAMEPAD_BUTTON_LEFT_PADDLE1: return "L4 (Left Paddle 1)";
+    case SDL_GAMEPAD_BUTTON_LEFT_PADDLE2: return "L5 (Left Paddle 2)";
+    case SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1: return "R4 (Right Paddle 1)";
+    case SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2: return "R5 (Right Paddle 2)";
+    case SDL_GAMEPAD_BUTTON_START: return "Start (Menu)";
+    case SDL_GAMEPAD_BUTTON_BACK: return "Back (View)";
+    case SDL_GAMEPAD_BUTTON_LEFT_STICK: return "Left Stick Click";
+    case SDL_GAMEPAD_BUTTON_RIGHT_STICK: return "Right Stick Click";
+    case SDL_GAMEPAD_BUTTON_GUIDE: return "Guide (Steam)";
+    case SDL_GAMEPAD_BUTTON_TOUCHPAD: return "Touchpad Click";
+    case SDL_GAMEPAD_BUTTON_DPAD_UP: return "D-pad Up";
+    case SDL_GAMEPAD_BUTTON_DPAD_DOWN: return "D-pad Down";
+    case SDL_GAMEPAD_BUTTON_DPAD_LEFT: return "D-pad Left";
+    case SDL_GAMEPAD_BUTTON_DPAD_RIGHT: return "D-pad Right";
+    case SDL_GAMEPAD_BUTTON_MISC1: return "Misc1";
+    case SDL_GAMEPAD_BUTTON_MISC2: return "Misc2";
+    case SDL_GAMEPAD_BUTTON_MISC3: return "Misc3";
+    case SDL_GAMEPAD_BUTTON_MISC4: return "Misc4";
+    case SDL_GAMEPAD_BUTTON_MISC5: return "Misc5";
+    case SDL_GAMEPAD_BUTTON_MISC6: return "Misc6";
+    default: return "Unknown Button";
+    }
+}
+
+static const char* sdl_gamepad_button_short_label(int button)
+{
+    switch (button) {
+    case SDL_GAMEPAD_BUTTON_SOUTH: return "A";
+    case SDL_GAMEPAD_BUTTON_EAST: return "B";
+    case SDL_GAMEPAD_BUTTON_WEST: return "X";
+    case SDL_GAMEPAD_BUTTON_NORTH: return "Y";
+    case SDL_GAMEPAD_BUTTON_LEFT_SHOULDER: return "L1";
+    case SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER: return "R1";
+    case SDL_GAMEPAD_BUTTON_LEFT_PADDLE1: return "L4";
+    case SDL_GAMEPAD_BUTTON_LEFT_PADDLE2: return "L5";
+    case SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1: return "R4";
+    case SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2: return "R5";
+    case SDL_GAMEPAD_BUTTON_START: return "Start";
+    case SDL_GAMEPAD_BUTTON_BACK: return "Back";
+    case SDL_GAMEPAD_BUTTON_LEFT_STICK: return "L3";
+    case SDL_GAMEPAD_BUTTON_RIGHT_STICK: return "R3";
+    case SDL_GAMEPAD_BUTTON_GUIDE: return "Guide";
+    case SDL_GAMEPAD_BUTTON_TOUCHPAD: return "Touchpad";
+    case SDL_GAMEPAD_BUTTON_DPAD_UP: return "D-Up";
+    case SDL_GAMEPAD_BUTTON_DPAD_DOWN: return "D-Down";
+    case SDL_GAMEPAD_BUTTON_DPAD_LEFT: return "D-Left";
+    case SDL_GAMEPAD_BUTTON_DPAD_RIGHT: return "D-Right";
+    case SDL_GAMEPAD_BUTTON_MISC1: return "Misc1";
+    case SDL_GAMEPAD_BUTTON_MISC2: return "Misc2";
+    case SDL_GAMEPAD_BUTTON_MISC3: return "Misc3";
+    case SDL_GAMEPAD_BUTTON_MISC4: return "Misc4";
+    case SDL_GAMEPAD_BUTTON_MISC5: return "Misc5";
+    case SDL_GAMEPAD_BUTTON_MISC6: return "Misc6";
+    default: return "?";
+    }
+}
+
+static const char* sdl_gamepad_trigger_label(int index)
+{
+    if (index == 0)
+        return "L2 (Left Trigger)";
+    if (index == 1)
+        return "R2 (Right Trigger)";
+    return "Unknown Trigger";
+}
+
+static const char* sdl_gamepad_trigger_short_label(int index)
+{
+    if (index == 0)
+        return "L2";
+    if (index == 1)
+        return "R2";
+    return "?";
+}
+
+static const char* sdl_gamepad_stick_dir_label(int type, int dir, bool short_label)
+{
+    const char* stick = (type == GAMEPAD_CAPTURE_RIGHT_STICK) ? "Right Stick" : "Left Stick";
+    const char* stick_short = (type == GAMEPAD_CAPTURE_RIGHT_STICK) ? "RS" : "LS";
+    const char* dir_label = "";
+    const char* dir_short = "";
+
+    switch (dir) {
+    case GAMEPAD_STICK_DIR_UP: dir_label = "Up"; dir_short = "Up"; break;
+    case GAMEPAD_STICK_DIR_DOWN: dir_label = "Down"; dir_short = "Down"; break;
+    case GAMEPAD_STICK_DIR_LEFT: dir_label = "Left"; dir_short = "Left"; break;
+    case GAMEPAD_STICK_DIR_RIGHT: dir_label = "Right"; dir_short = "Right"; break;
+    default: return short_label ? "?" : "Unknown Stick";
+    }
+
+    if (short_label)
+        return format("%s %s", stick_short, dir_short);
+    return format("%s %s", stick, dir_label);
+}
+
+static void sdl_gamepad_binding_label_ex(int type, int id, char* buf, size_t buflen, bool short_label)
+{
+    if (!buf || !buflen)
+        return;
+
+    if (type == GAMEPAD_CAPTURE_BUTTON) {
+        SDL_strlcpy(buf, short_label ? sdl_gamepad_button_short_label(id)
+                                     : sdl_gamepad_button_label(id), buflen);
+    } else if (type == GAMEPAD_CAPTURE_TRIGGER) {
+        SDL_strlcpy(buf, short_label ? sdl_gamepad_trigger_short_label(id)
+                                     : sdl_gamepad_trigger_label(id), buflen);
+    } else if (type == GAMEPAD_CAPTURE_LEFT_STICK || type == GAMEPAD_CAPTURE_RIGHT_STICK) {
+        SDL_strlcpy(buf, sdl_gamepad_stick_dir_label(type, id, short_label), buflen);
+    } else {
+        SDL_strlcpy(buf, "(unknown)", buflen);
+    }
+}
+
+static int sdl_gamepad_action_binding_count(int binding, int* out_type, int* out_id)
+{
+    int count = 0;
+
+    for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++) {
+        if (config.gamepad_button_bindings[i] == binding) {
+            if (count == 0 && out_type && out_id) {
+                *out_type = GAMEPAD_CAPTURE_BUTTON;
+                *out_id = i;
+            }
+            count++;
+        }
+    }
+
+    for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++) {
+        if (config.gamepad_trigger_bindings[i] == binding) {
+            if (count == 0 && out_type && out_id) {
+                *out_type = GAMEPAD_CAPTURE_TRIGGER;
+                *out_id = i;
+            }
+            count++;
+        }
+    }
+
+    for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+        if (config.gamepad_left_stick_bindings[i] == binding) {
+            if (count == 0 && out_type && out_id) {
+                *out_type = GAMEPAD_CAPTURE_LEFT_STICK;
+                *out_id = i;
+            }
+            count++;
+        }
+    }
+
+    for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+        if (config.gamepad_right_stick_bindings[i] == binding) {
+            if (count == 0 && out_type && out_id) {
+                *out_type = GAMEPAD_CAPTURE_RIGHT_STICK;
+                *out_id = i;
+            }
+            count++;
+        }
+    }
+
+    return count;
+}
+
+static void sdl_gamepad_action_binding_label_ex(int binding, char* buf, size_t buflen, bool short_label)
+{
+    if (!buf || !buflen)
+        return;
+
+    int type = 0;
+    int id = 0;
+    int count = sdl_gamepad_action_binding_count(binding, &type, &id);
+    if (count <= 0) {
+        SDL_strlcpy(buf, "(unbound)", buflen);
+    } else if (count == 1) {
+        sdl_gamepad_binding_label_ex(type, id, buf, buflen, short_label);
+    } else {
+        SDL_strlcpy(buf, "Multiple", buflen);
+    }
+}
+
+void sdl_gamepad_action_binding_label(int binding, char* buf, size_t buflen)
+{
+    sdl_gamepad_action_binding_label_ex(binding, buf, buflen, false);
+}
+
+void sdl_gamepad_action_binding_short_label(int binding, char* buf, size_t buflen)
+{
+    sdl_gamepad_action_binding_label_ex(binding, buf, buflen, true);
 }
 
 static void sdl_gamepad_handle_button(const SDL_GamepadButtonEvent* ev)
@@ -501,15 +819,15 @@ static void sdl_gamepad_handle_button(const SDL_GamepadButtonEvent* ev)
     bool down = ev->down;
 
     if (g_gamepad_capture_active && down) {
-        if (button != SDL_GAMEPAD_BUTTON_DPAD_UP && button != SDL_GAMEPAD_BUTTON_DPAD_DOWN
-            && button != SDL_GAMEPAD_BUTTON_DPAD_LEFT && button != SDL_GAMEPAD_BUTTON_DPAD_RIGHT) {
+        bool dpad_button = (button == SDL_GAMEPAD_BUTTON_DPAD_UP || button == SDL_GAMEPAD_BUTTON_DPAD_DOWN
+            || button == SDL_GAMEPAD_BUTTON_DPAD_LEFT || button == SDL_GAMEPAD_BUTTON_DPAD_RIGHT);
+        if (!dpad_button || !config.gamepad_use_dpad) {
             if (button >= 0 && button < SDL_GAMEPAD_BUTTON_COUNT) {
                 g_gamepad_capture_type = GAMEPAD_CAPTURE_BUTTON;
                 g_gamepad_capture_id = (int)button;
                 g_gamepad_capture_ready = true;
                 g_gamepad_capture_active = false;
             }
-            return;
         }
         return;
     }
@@ -571,6 +889,32 @@ static void sdl_gamepad_handle_button(const SDL_GamepadButtonEvent* ev)
         return;
     }
 
+    if (steamdeck_controls_active() &&
+        (button == SDL_GAMEPAD_BUTTON_LEFT_SHOULDER || button == SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER))
+    {
+        if (button >= 0 && button < SDL_GAMEPAD_BUTTON_COUNT) {
+            int binding = config.gamepad_button_bindings[button];
+            if (binding == GAMEPAD_BIND_SHIFT || binding == GAMEPAD_BIND_CTRL || binding == GAMEPAD_BIND_ALT) {
+                sdl_gamepad_apply_modifier(binding, down);
+                return;
+            }
+        }
+
+        if (down) {
+            if (g_gamepad_state.shoulder_pending &&
+                g_gamepad_state.shoulder_pending_button != (int)button) {
+                sdl_gamepad_clear_pending_shoulder();
+                sdl_gamepad_send_key('l', false);
+            } else {
+                sdl_gamepad_set_pending_shoulder((int)button);
+            }
+        } else if (g_gamepad_state.shoulder_pending &&
+                   g_gamepad_state.shoulder_pending_button == (int)button) {
+            sdl_gamepad_flush_pending_shoulder(SDL_GetTicksNS(), true);
+        }
+        return;
+    }
+
     if (button < 0 || button >= SDL_GAMEPAD_BUTTON_COUNT)
         return;
 
@@ -593,6 +937,46 @@ static void sdl_gamepad_handle_axis(const SDL_GamepadAxisEvent* ev)
         return;
 
     if (g_gamepad_capture_active) {
+        if (ev->axis == SDL_GAMEPAD_AXIS_LEFTX || ev->axis == SDL_GAMEPAD_AXIS_LEFTY) {
+            if (ev->axis == SDL_GAMEPAD_AXIS_LEFTX)
+                g_gamepad_state.left_x = ev->value;
+            else
+                g_gamepad_state.left_y = ev->value;
+
+            if (!config.gamepad_use_left_stick) {
+                int deadzone = config.gamepad_deadzone;
+                if (deadzone < 0)
+                    deadzone = 0;
+                int dir = sdl_gamepad_axis_to_cardinal_dir(g_gamepad_state.left_x, g_gamepad_state.left_y, deadzone);
+                if (dir >= 0) {
+                    g_gamepad_capture_type = GAMEPAD_CAPTURE_LEFT_STICK;
+                    g_gamepad_capture_id = dir;
+                    g_gamepad_capture_ready = true;
+                    g_gamepad_capture_active = false;
+                }
+            }
+            return;
+        }
+
+        if (ev->axis == SDL_GAMEPAD_AXIS_RIGHTX || ev->axis == SDL_GAMEPAD_AXIS_RIGHTY) {
+            if (ev->axis == SDL_GAMEPAD_AXIS_RIGHTX)
+                g_gamepad_state.right_x = ev->value;
+            else
+                g_gamepad_state.right_y = ev->value;
+
+            int deadzone = config.gamepad_deadzone;
+            if (deadzone < 0)
+                deadzone = 0;
+            int dir = sdl_gamepad_axis_to_cardinal_dir(g_gamepad_state.right_x, g_gamepad_state.right_y, deadzone);
+            if (dir >= 0) {
+                g_gamepad_capture_type = GAMEPAD_CAPTURE_RIGHT_STICK;
+                g_gamepad_capture_id = dir;
+                g_gamepad_capture_ready = true;
+                g_gamepad_capture_active = false;
+            }
+            return;
+        }
+
         if (ev->axis == SDL_GAMEPAD_AXIS_LEFT_TRIGGER || ev->axis == SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) {
             int threshold = config.gamepad_trigger_threshold;
             if (threshold < 0)
@@ -633,10 +1017,11 @@ static void sdl_gamepad_handle_axis(const SDL_GamepadAxisEvent* ev)
         else
             g_gamepad_state.left_y = ev->value;
 
+        int deadzone = config.gamepad_deadzone;
+        if (deadzone < 0)
+            deadzone = 0;
+
         if (config.gamepad_use_left_stick) {
-            int deadzone = config.gamepad_deadzone;
-            if (deadzone < 0)
-                deadzone = 0;
             int dir = sdl_gamepad_axis_to_dir(g_gamepad_state.left_x, g_gamepad_state.left_y, deadzone);
             int prev_dir = g_gamepad_state.left_dir;
             if (dir != prev_dir) {
@@ -654,6 +1039,61 @@ static void sdl_gamepad_handle_axis(const SDL_GamepadAxisEvent* ev)
                     if (g_gamepad_state.left_pending)
                         sdl_gamepad_flush_pending_left_stick(SDL_GetTicksNS(), true);
                     sdl_gamepad_set_pending_left_stick(dir);
+                }
+            }
+        } else {
+            int dir = sdl_gamepad_axis_to_cardinal_dir(g_gamepad_state.left_x, g_gamepad_state.left_y, deadzone);
+            int prev_dir = g_gamepad_state.left_bind_dir;
+            if (dir != prev_dir) {
+                if (prev_dir >= 0 && prev_dir < GAMEPAD_STICK_DIR_COUNT) {
+                    int prev_binding = config.gamepad_left_stick_bindings[prev_dir];
+                    if (prev_binding == GAMEPAD_BIND_SHIFT || prev_binding == GAMEPAD_BIND_CTRL || prev_binding == GAMEPAD_BIND_ALT) {
+                        sdl_gamepad_apply_modifier(prev_binding, false);
+                    }
+                }
+
+                g_gamepad_state.left_bind_dir = dir;
+
+                if (dir >= 0 && dir < GAMEPAD_STICK_DIR_COUNT) {
+                    int binding = config.gamepad_left_stick_bindings[dir];
+                    if (binding == GAMEPAD_BIND_SHIFT || binding == GAMEPAD_BIND_CTRL || binding == GAMEPAD_BIND_ALT) {
+                        sdl_gamepad_apply_modifier(binding, true);
+                    } else if (binding != GAMEPAD_BIND_NONE) {
+                        sdl_gamepad_send_key(binding, false);
+                    }
+                }
+            }
+        }
+        return;
+    }
+
+    if (ev->axis == SDL_GAMEPAD_AXIS_RIGHTX || ev->axis == SDL_GAMEPAD_AXIS_RIGHTY) {
+        if (ev->axis == SDL_GAMEPAD_AXIS_RIGHTX)
+            g_gamepad_state.right_x = ev->value;
+        else
+            g_gamepad_state.right_y = ev->value;
+
+        int deadzone = config.gamepad_deadzone;
+        if (deadzone < 0)
+            deadzone = 0;
+        int dir = sdl_gamepad_axis_to_cardinal_dir(g_gamepad_state.right_x, g_gamepad_state.right_y, deadzone);
+        int prev_dir = g_gamepad_state.right_dir;
+        if (dir != prev_dir) {
+            if (prev_dir >= 0 && prev_dir < GAMEPAD_STICK_DIR_COUNT) {
+                int prev_binding = config.gamepad_right_stick_bindings[prev_dir];
+                if (prev_binding == GAMEPAD_BIND_SHIFT || prev_binding == GAMEPAD_BIND_CTRL || prev_binding == GAMEPAD_BIND_ALT) {
+                    sdl_gamepad_apply_modifier(prev_binding, false);
+                }
+            }
+
+            g_gamepad_state.right_dir = dir;
+
+            if (dir >= 0 && dir < GAMEPAD_STICK_DIR_COUNT) {
+                int binding = config.gamepad_right_stick_bindings[dir];
+                if (binding == GAMEPAD_BIND_SHIFT || binding == GAMEPAD_BIND_CTRL || binding == GAMEPAD_BIND_ALT) {
+                    sdl_gamepad_apply_modifier(binding, true);
+                } else if (binding != GAMEPAD_BIND_NONE) {
+                    sdl_gamepad_send_key(binding, false);
                 }
             }
         }
@@ -753,6 +1193,9 @@ static void sdl_gamepad_handle_device(const SDL_GamepadDeviceEvent* ev)
 static void sdl_gamepad_init(void)
 {
     SDL_SetGamepadEventsEnabled(true);
+    g_gamepad_state.left_bind_dir = -1;
+    g_gamepad_state.right_dir = -1;
+    sdl_gamepad_clear_pending_shoulder();
 
     int count = 0;
     SDL_JoystickID* ids = SDL_GetGamepads(&count);
@@ -1045,6 +1488,7 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         if (scale != g_state.system_scale) {
             log_info("new system scale is %g", scale);
             g_state.system_scale = scale;
+            sdl_load_story_fonts();
             SDL_Rect window = { 0 };
             SDL_GetWindowSizeInPixels(g_state.window, &window.w, &window.h);
             log_debug("window size in pixels %dx%d", window.w, window.h);
@@ -1073,6 +1517,7 @@ static errr callback_sdl_xtra(int n, int v)
             Uint64 flush_ns = SDL_GetTicksNS();
             sdl_gamepad_flush_pending_dpad(flush_ns, false);
             sdl_gamepad_flush_pending_left_stick(flush_ns, false);
+            sdl_gamepad_flush_pending_shoulder(flush_ns, false);
             sdl_music_update(); /* Update music after handling event */
         } else {
             /* Non-blocking scan so animation loops (intro fades, etc.) keep running */
@@ -1085,6 +1530,7 @@ static errr callback_sdl_xtra(int n, int v)
             Uint64 flush_ns = SDL_GetTicksNS();
             sdl_gamepad_flush_pending_dpad(flush_ns, false);
             sdl_gamepad_flush_pending_left_stick(flush_ns, false);
+            sdl_gamepad_flush_pending_shoulder(flush_ns, false);
 
             /* Avoid pegging a CPU core when we're repeatedly asked to poll */
             if (!handled)
@@ -1229,12 +1675,14 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
         return 0;
     SDL_SetRenderTarget(g_state.renderer, d->canvas);
 
+    TTF_Font* story_font = sdl_story_font_for_view(d);
+
     // Check if any character in this chunk should use story font
     // First check the global chunk flag (for whole-line story rendering)
-    bool chunk_story_font = (Term && Term->story_chunk_active && g_state.story_font);
+    bool chunk_story_font = (Term && Term->story_chunk_active && story_font);
     
     // Also check per-character story font flags
-    if (!chunk_story_font && Term && Term->scr && g_state.story_font) {
+    if (!chunk_story_font && Term && Term->scr && story_font) {
         // Check if ANY character in this chunk (from x to x+n) has the story font flag
         // story is a byte** (2D array), so we need story[y] which gives us byte* for that row
         if (y >= 0 && y < Term->hgt && Term->scr->story && Term->scr->story[y]) {
@@ -1250,7 +1698,7 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
         }
     }
     
-    bool story_mode = (chunk_story_font && g_state.story_font);
+    bool story_mode = (chunk_story_font && story_font);
 
     if (!story_mode) {
         // Clear destination cell span so shorter/narrower glyphs don't leave leftovers
@@ -1294,7 +1742,7 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
               (void*)Term,
               (Term && Term->story_chunk_active) ? "true" : "false",
               g_state.story_font_depth,
-              (void*)g_state.story_font);
+              (void*)story_font);
 
     byte* story_row = NULL;
     char* row_chars = NULL;
@@ -1314,7 +1762,7 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
              * Rendering per-cell or per-run leaves large gaps with proportional fonts. */
             if (row_chars && row_attr)
             {
-                sdl_render_story_row_packed(d, y, story_row, row_chars, row_attr);
+                sdl_render_story_row_packed(d, story_font, y, story_row, row_chars, row_attr);
                 g_state.need_present = true;
                 return 0;
             }
@@ -1382,9 +1830,9 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
 
                 if (use_story) {
                     if (grid_align)
-                        sdl_render_story_text_grid(d, render_col, y, render_run, render_text, col);
+                        sdl_render_story_text_grid(d, story_font, render_col, y, render_run, render_text, col);
                     else
-                        sdl_render_story_text_free(d, render_col, y, render_run, render_text, col);
+                        sdl_render_story_text_free(d, story_font, render_col, y, render_run, render_text, col);
                 } else {
                     sdl_render_mono_text(d, render_col, y, render_run, render_text, col);
                 }
@@ -1400,7 +1848,7 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
             };
             SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
             SDL_RenderFillRect(g_state.renderer, &clear_rect);
-            sdl_render_story_text_free(d, x, y, n, s, col);
+            sdl_render_story_text_free(d, story_font, x, y, n, s, col);
         }
     } else {
         if (y == 1 || y == 2) {
@@ -1581,6 +2029,51 @@ static void sdl_apply_font_settings(TTF_Font* font, bool is_story_font)
         TTF_SetFontOutline(font, outline);
         log_debug("Applied %s font outline: %d", is_story_font ? "story" : "mono", outline);
     }
+}
+
+static void sdl_story_font_cache_clear(void)
+{
+    for (int i = 0; i < g_state.story_font_count; i++) {
+        if (g_state.story_fonts[i].font) {
+            TTF_CloseFont(g_state.story_fonts[i].font);
+            g_state.story_fonts[i].font = NULL;
+        }
+        g_state.story_fonts[i].pixel_height = 0;
+    }
+    g_state.story_font_count = 0;
+}
+
+static TTF_Font* sdl_story_font_for_height(int pixel_height)
+{
+    if (pixel_height <= 0)
+        return NULL;
+
+    for (int i = 0; i < g_state.story_font_count; i++) {
+        if (g_state.story_fonts[i].pixel_height == pixel_height)
+            return g_state.story_fonts[i].font;
+    }
+
+    if (g_state.story_font_count >= MAX_STORY_FONT_CACHE) {
+        log_warn("Story font cache full; reusing size %d", g_state.story_fonts[0].pixel_height);
+        return g_state.story_fonts[0].font;
+    }
+
+    const char* font_path = (config.story_font[0] != '\0') ? config.story_font : NULL;
+    TTF_Font* font = sdl_load_font_with_fallback(font_path, pixel_height, sdl_story_fallback_font);
+    if (!font)
+        return NULL;
+
+    g_state.story_fonts[g_state.story_font_count].pixel_height = pixel_height;
+    g_state.story_fonts[g_state.story_font_count].font = font;
+    g_state.story_font_count++;
+    return font;
+}
+
+static TTF_Font* sdl_story_font_for_view(const sdl_view* d)
+{
+    if (!d)
+        return NULL;
+    return sdl_story_font_for_height(d->cell_h);
 }
 
 // Loads TTF font with given size. Attempts to fit the font into a cell assming
@@ -1806,35 +2299,30 @@ static TTF_Font* sdl_load_font_with_fallback(const char* font_path, int font_siz
 }
 
 /*
- * Load story font from configuration
+ * Load story fonts from configuration for main/aux view sizes.
  * If no story font is set in the SDL settings (or the SDL JSON is missing),
  * fall back to MarcellusSC-Regular.ttf located in lib/xtra/font.
  */
 static void sdl_load_story_fonts(void)
 {
-    const char* default_font = "lib/xtra/font/MarcellusSC-Regular.ttf";
-    /* Use the auxiliary view font size scaled by the system scale so the
-     * story font matches the monospace/aux view appearance. Fall back to
-     * 32 if aux_view_font_size is invalid. */
-    int story_font_size = (config.aux_view_font_size > 0)
-                           ? g_state.system_scale * config.aux_view_font_size
-                           : 32;
+    int main_cell_h = config.main_view_scale * TILE_SIZE;
+    int aux_cell_h = (config.aux_view_font_size > 0)
+        ? (int)(g_state.system_scale * config.aux_view_font_size)
+        : main_cell_h;
     
-    log_info("Loading story font...");
+    log_info("Loading story fonts...");
     log_debug("Story font config: '%s'", config.story_font[0] != '\0' ? config.story_font : "(not set)");
+    log_debug("Story font sizes: main=%d aux=%d", main_cell_h, aux_cell_h);
     
-    // Load story font (or fallback to default)
-    g_state.story_font = sdl_load_font_with_fallback(
-        config.story_font[0] != '\0' ? config.story_font : NULL,
-        story_font_size,
-        default_font
-    );
+    sdl_story_font_cache_clear();
+    (void)sdl_story_font_for_height(main_cell_h);
+    (void)sdl_story_font_for_height(aux_cell_h);
     
     // Initialize flag to false
     g_state.story_font_depth = 0;
     if (Term) Term->story_font_active = false;
     
-    log_info("Story font loaded successfully");
+    log_info("Story fonts loaded successfully");
 }
 
 /*
@@ -1896,29 +2384,36 @@ void sdl_story_font_reset(void)
  */
 int sdl_story_font_text_width(cptr text, int len)
 {
-    if (!g_state.story_font || !text) {
+    if (!text)
         return 0;
+
+    sdl_view* d = NULL;
+    if (Term)
+        d = sdl_view_from_term(Term);
+    if (!d || !d->term_ready) {
+        if (g_views[0].term_ready)
+            d = &g_views[0];
     }
-    
+    if (!d)
+        return 0;
+
+    TTF_Font* font = sdl_story_font_for_view(d);
+    if (!font)
+        return 0;
+
     /* Measure the text width using SDL_ttf (unscaled) */
     int w = 0;
-    TTF_MeasureString(g_state.story_font, text, len, 0, &w, NULL);
-    
+    TTF_MeasureString(font, text, len, 0, &w, NULL);
+
     /* Apply the same scaling that's used when rendering */
-    if (g_views[0].term_ready && g_state.story_font) {
-        /* Get font metrics to determine rendered height */
-        int font_h = TTF_GetFontHeight(g_state.story_font);
-        if (font_h > 0) {
-            /* Calculate scaling factor (same as in callback_sdl_text) */
-            float cell_h_f = (float)g_views[0].cell_h;
-            float surf_h_f = (float)font_h;
-            float scale = cell_h_f / surf_h_f;
-            
-            /* Apply scaling to width */
-            w = (int)((float)w * scale);
-        }
+    int font_h = TTF_GetFontHeight(font);
+    if (font_h > 0) {
+        float cell_h_f = (float)d->cell_h;
+        float surf_h_f = (float)font_h;
+        float scale = cell_h_f / surf_h_f;
+        w = (int)((float)w * scale);
     }
-    
+
     return w;
 }
 
@@ -1945,11 +2440,8 @@ static void sdl_quit_hook(cptr str)
     // Close any open gamepads
     sdl_gamepad_shutdown();
     
-    // Clean up story font
-    if (g_state.story_font) {
-        TTF_CloseFont(g_state.story_font);
-        g_state.story_font = NULL;
-    }
+    // Clean up story fonts
+    sdl_story_font_cache_clear();
     
     // Only save if we have a valid window and config file path
     if (g_state.window && config_file_path[0] != '\0') {
@@ -2356,6 +2848,10 @@ static void sdl_gamepad_load_default_bindings(void)
         sizeof(g_default_gamepad_button_bindings));
     memcpy(g_default_gamepad_trigger_bindings, defaults.gamepad_trigger_bindings,
         sizeof(g_default_gamepad_trigger_bindings));
+    memcpy(g_default_gamepad_left_stick_bindings, defaults.gamepad_left_stick_bindings,
+        sizeof(g_default_gamepad_left_stick_bindings));
+    memcpy(g_default_gamepad_right_stick_bindings, defaults.gamepad_right_stick_bindings,
+        sizeof(g_default_gamepad_right_stick_bindings));
     g_default_gamepad_bindings_ready = true;
 }
 
@@ -2386,7 +2882,12 @@ void set_sdl_gamepad_enabled(bool value)
         g_gamepad_state.left_x = 0;
         g_gamepad_state.left_y = 0;
         g_gamepad_state.left_dir = 0;
+        g_gamepad_state.left_bind_dir = -1;
         sdl_gamepad_clear_pending_left_stick();
+        g_gamepad_state.right_x = 0;
+        g_gamepad_state.right_y = 0;
+        g_gamepad_state.right_dir = -1;
+        sdl_gamepad_clear_pending_shoulder();
         g_gamepad_state.left_trigger_down = false;
         g_gamepad_state.right_trigger_down = false;
         g_gamepad_state.shift_held = 0;
@@ -2423,7 +2924,12 @@ bool get_sdl_gamepad_use_dpad(void)
 void set_sdl_gamepad_use_dpad(bool value)
 {
     config.gamepad_use_dpad = value;
-    if (!value) {
+    if (value) {
+        config.gamepad_button_bindings[SDL_GAMEPAD_BUTTON_DPAD_UP] = GAMEPAD_BIND_NONE;
+        config.gamepad_button_bindings[SDL_GAMEPAD_BUTTON_DPAD_DOWN] = GAMEPAD_BIND_NONE;
+        config.gamepad_button_bindings[SDL_GAMEPAD_BUTTON_DPAD_LEFT] = GAMEPAD_BIND_NONE;
+        config.gamepad_button_bindings[SDL_GAMEPAD_BUTTON_DPAD_RIGHT] = GAMEPAD_BIND_NONE;
+    } else {
         g_gamepad_state.dpad_up = false;
         g_gamepad_state.dpad_down = false;
         g_gamepad_state.dpad_left = false;
@@ -2441,10 +2947,22 @@ bool get_sdl_gamepad_use_left_stick(void)
 void set_sdl_gamepad_use_left_stick(bool value)
 {
     config.gamepad_use_left_stick = value;
-    if (!value) {
+    if (value) {
+        if (g_gamepad_state.left_bind_dir >= 0 && g_gamepad_state.left_bind_dir < GAMEPAD_STICK_DIR_COUNT) {
+            int binding = config.gamepad_left_stick_bindings[g_gamepad_state.left_bind_dir];
+            if (binding == GAMEPAD_BIND_SHIFT || binding == GAMEPAD_BIND_CTRL || binding == GAMEPAD_BIND_ALT) {
+                sdl_gamepad_apply_modifier(binding, false);
+            }
+        }
+        g_gamepad_state.left_bind_dir = -1;
+        for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+            config.gamepad_left_stick_bindings[i] = GAMEPAD_BIND_NONE;
+        }
+    } else {
         g_gamepad_state.left_x = 0;
         g_gamepad_state.left_y = 0;
         g_gamepad_state.left_dir = 0;
+        g_gamepad_state.left_bind_dir = -1;
         sdl_gamepad_clear_pending_left_stick();
     }
 }
@@ -2477,6 +2995,34 @@ void set_sdl_gamepad_trigger_binding(int index, int binding)
     config.gamepad_trigger_bindings[index] = binding;
 }
 
+int get_sdl_gamepad_left_stick_binding(int dir)
+{
+    if (dir < 0 || dir >= GAMEPAD_STICK_DIR_COUNT)
+        return GAMEPAD_BIND_NONE;
+    return config.gamepad_left_stick_bindings[dir];
+}
+
+void set_sdl_gamepad_left_stick_binding(int dir, int binding)
+{
+    if (dir < 0 || dir >= GAMEPAD_STICK_DIR_COUNT)
+        return;
+    config.gamepad_left_stick_bindings[dir] = binding;
+}
+
+int get_sdl_gamepad_right_stick_binding(int dir)
+{
+    if (dir < 0 || dir >= GAMEPAD_STICK_DIR_COUNT)
+        return GAMEPAD_BIND_NONE;
+    return config.gamepad_right_stick_bindings[dir];
+}
+
+void set_sdl_gamepad_right_stick_binding(int dir, int binding)
+{
+    if (dir < 0 || dir >= GAMEPAD_STICK_DIR_COUNT)
+        return;
+    config.gamepad_right_stick_bindings[dir] = binding;
+}
+
 int get_sdl_gamepad_default_button_binding(int button)
 {
     if (button < 0 || button >= SDL_GAMEPAD_BUTTON_COUNT)
@@ -2491,6 +3037,22 @@ int get_sdl_gamepad_default_trigger_binding(int index)
         return GAMEPAD_BIND_NONE;
     sdl_gamepad_load_default_bindings();
     return g_default_gamepad_trigger_bindings[index];
+}
+
+int get_sdl_gamepad_default_left_stick_binding(int dir)
+{
+    if (dir < 0 || dir >= GAMEPAD_STICK_DIR_COUNT)
+        return GAMEPAD_BIND_NONE;
+    sdl_gamepad_load_default_bindings();
+    return g_default_gamepad_left_stick_bindings[dir];
+}
+
+int get_sdl_gamepad_default_right_stick_binding(int dir)
+{
+    if (dir < 0 || dir >= GAMEPAD_STICK_DIR_COUNT)
+        return GAMEPAD_BIND_NONE;
+    sdl_gamepad_load_default_bindings();
+    return g_default_gamepad_right_stick_bindings[dir];
 }
 
 void sdl_gamepad_reset_bindings_to_default(void)
@@ -2571,6 +3133,7 @@ void sdl_apply_config(void)
     int w, h;
     SDL_GetWindowSize(g_state.window, &w, &h);
     SDL_Rect screen = { 0, 0, w, h };
+    sdl_load_story_fonts();
     resize(&screen);
     
     // Redraw the screen to prevent black empty spaces
@@ -2649,9 +3212,10 @@ static void sdl_render_mono_text(sdl_view* d, int x, int y, int n, const char* s
     }
 }
 
-static void sdl_render_story_text_free(sdl_view* d, int x, int y, int n, const char* s, SDL_Color col)
+static void sdl_render_story_text_free(sdl_view* d, TTF_Font* font, int x, int y, int n, const char* s,
+    SDL_Color col)
 {
-    if (!d || !g_state.story_font || n <= 0)
+    if (!d || !font || n <= 0)
         return;
 
     char text_buf[256];
@@ -2659,7 +3223,7 @@ static void sdl_render_story_text_free(sdl_view* d, int x, int y, int n, const c
     memcpy(text_buf, s, len);
     text_buf[len] = '\0';
 
-    SDL_Surface* text_surface = TTF_RenderText_Blended(g_state.story_font, text_buf, 0, col);
+    SDL_Surface* text_surface = TTF_RenderText_Blended(font, text_buf, 0, col);
     if (!text_surface)
         return;
 
@@ -2687,10 +3251,10 @@ static void sdl_render_story_text_free(sdl_view* d, int x, int y, int n, const c
     SDL_DestroySurface(text_surface);
 }
 
-static int sdl_render_story_text_free_px(sdl_view* d, float x_px, int y, const char* s, int n, SDL_Color col,
-    float max_w_px)
+static int sdl_render_story_text_free_px(sdl_view* d, TTF_Font* font, float x_px, int y, const char* s, int n,
+    SDL_Color col, float max_w_px)
 {
-    if (!d || !g_state.story_font || !s || n <= 0)
+    if (!d || !font || !s || n <= 0)
         return 0;
 
     char text_buf[256];
@@ -2702,12 +3266,12 @@ static int sdl_render_story_text_free_px(sdl_view* d, float x_px, int y, const c
     }
     text_buf[len] = '\0';
 
-    SDL_Surface* text_surface = TTF_RenderText_Blended(g_state.story_font, text_buf, 0, col);
+    SDL_Surface* text_surface = TTF_RenderText_Blended(font, text_buf, 0, col);
     if (!text_surface)
         return 0;
 
     int adv_w_unscaled = 0;
-    TTF_MeasureString(g_state.story_font, text_buf, len, 0, &adv_w_unscaled, NULL);
+    TTF_MeasureString(font, text_buf, len, 0, &adv_w_unscaled, NULL);
 
     float cell_h_f = (float)d->cell_h;
     float surf_h_f = (float)text_surface->h;
@@ -2754,10 +3318,10 @@ static bool sdl_story_cell_is_text(byte a, char c)
     return true;
 }
 
-static void sdl_render_story_row_packed(sdl_view* d, int y, const byte* story_row, const char* row_chars,
-    const byte* row_attr)
+static void sdl_render_story_row_packed(sdl_view* d, TTF_Font* font, int y, const byte* story_row,
+    const char* row_chars, const byte* row_attr)
 {
-    if (!d || !g_state.story_font || !Term || !story_row || !row_chars || !row_attr)
+    if (!d || !font || !Term || !story_row || !row_chars || !row_attr)
         return;
 
     const int wid = Term->wid;
@@ -2837,7 +3401,7 @@ static void sdl_render_story_row_packed(sdl_view* d, int y, const byte* story_ro
                 angband_color_table[attr][3],
                 255
             };
-            sdl_render_story_text_grid(d, run_start, y, run_len, row_chars + run_start, col);
+            sdl_render_story_text_grid(d, font, run_start, y, run_len, row_chars + run_start, col);
             continue;
         }
 
@@ -2896,7 +3460,7 @@ static void sdl_render_story_row_packed(sdl_view* d, int y, const byte* story_ro
             if (remaining <= 0.0f)
                 break;
 
-            int consumed = sdl_render_story_text_free_px(d, px_cursor, y, row_chars + seg, seg_len, seg_col,
+            int consumed = sdl_render_story_text_free_px(d, font, px_cursor, y, row_chars + seg, seg_len, seg_col,
                 remaining);
             if (consumed <= 0)
                 break;
@@ -2907,9 +3471,10 @@ static void sdl_render_story_row_packed(sdl_view* d, int y, const byte* story_ro
     }
 }
 
-static void sdl_render_story_text_grid(sdl_view* d, int x, int y, int n, const char* s, SDL_Color col)
+static void sdl_render_story_text_grid(sdl_view* d, TTF_Font* font, int x, int y, int n, const char* s,
+    SDL_Color col)
 {
-    if (!d || !g_state.story_font || n <= 0)
+    if (!d || !font || n <= 0)
         return;
 
     float cell_w_f = (float)d->cell_w;
@@ -2921,7 +3486,7 @@ static void sdl_render_story_text_grid(sdl_view* d, int x, int y, int n, const c
             continue;
 
         char glyph_text[2] = { (char)ch, '\0' };
-        SDL_Surface* glyph_surface = TTF_RenderText_Blended(g_state.story_font, glyph_text, 0, col);
+        SDL_Surface* glyph_surface = TTF_RenderText_Blended(font, glyph_text, 0, col);
         if (!glyph_surface)
             continue;
 

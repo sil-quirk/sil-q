@@ -61,6 +61,16 @@ static int popcount32(u32b value)
     return count;
 }
 
+static void metarun_prompt_label(int binding, const char* fallback, char* buf, size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    sdl_gamepad_action_binding_short_label(binding, buf, buflen);
+    if (streq(buf, "(unbound)") || streq(buf, "Multiple"))
+        SDL_strlcpy(buf, fallback, buflen);
+}
+
 /* ----------------------- accessors --------------------------- */
 const metarun *metarun_current(void)
 {
@@ -2862,6 +2872,12 @@ static void show_all_active_curses(void)
 {
     int term_height, term_width;
     screen_save();
+    bool steamdeck = get_sdl_steamdeck_mode();
+    char accept_label[16] = "";
+
+    if (steamdeck) {
+        metarun_prompt_label(' ', "A", accept_label, sizeof(accept_label));
+    }
     
     /* Get actual terminal dimensions */
     Term_get_size(&term_width, &term_height);
@@ -2879,7 +2895,13 @@ static void show_all_active_curses(void)
         Term_clear();
         Term_putstr(2, 1, -1, TERM_YELLOW, "=== All Active Effects ===");
         Term_putstr(2, 3, -1, TERM_L_DARK, "No active curses or blessings");
-        Term_putstr(2, 5, -1, TERM_L_DARK, "Press any key to return.");
+        if (steamdeck) {
+            char hint_buf[64];
+            strnfmt(hint_buf, sizeof(hint_buf), "Press [%s] to return.", accept_label);
+            Term_putstr(2, 5, -1, TERM_L_DARK, hint_buf);
+        } else {
+            Term_putstr(2, 5, -1, TERM_L_DARK, "Press any key to return.");
+        }
         inkey();
         screen_load();
         return;
@@ -2970,11 +2992,21 @@ static void show_all_active_curses(void)
         
         /* Footer with navigation instructions */
         char footer_buf[100];
-        if (total_pages > 1) {
-            snprintf(footer_buf, sizeof footer_buf, 
-                     "Use arrows (left/right) to navigate. Any other key to return.");
+        if (steamdeck) {
+            if (total_pages > 1) {
+                snprintf(footer_buf, sizeof footer_buf,
+                         "D-pad left/right to navigate. [%s] return.", accept_label);
+            } else {
+                snprintf(footer_buf, sizeof footer_buf,
+                         "Press [%s] to return.", accept_label);
+            }
         } else {
-            SDL_strlcpy(footer_buf, "Press any key to return.", sizeof footer_buf);
+            if (total_pages > 1) {
+                snprintf(footer_buf, sizeof footer_buf, 
+                         "Use arrows (left/right) to navigate. Any other key to return.");
+            } else {
+                SDL_strlcpy(footer_buf, "Press any key to return.", sizeof footer_buf);
+            }
         }
         
         /* Ensure minimum 80 width for footer */
@@ -3062,6 +3094,14 @@ static bool blessing_remove_curse(char *result_msg, size_t msg_size, byte *resul
 
     int selected = 0;
     int choice = -1;
+    bool steamdeck = get_sdl_steamdeck_mode();
+    char accept_label[16] = "";
+    char back_label[16] = "";
+
+    if (steamdeck) {
+        metarun_prompt_label(' ', "A", accept_label, sizeof(accept_label));
+        metarun_prompt_label('h', "Back", back_label, sizeof(back_label));
+    }
     
     /* Setup text wrapping */
     text_out_hook = text_out_to_screen;
@@ -3116,12 +3156,19 @@ static bool blessing_remove_curse(char *result_msg, size_t msg_size, byte *resul
             }
         }
 
-        Term_putstr(2, line + 1, -1, TERM_L_DARK,
-                    "Arrows to navigate  Space/Enter accept  Letter select  Esc cancel");
+        if (steamdeck) {
+            char hint_buf[96];
+            strnfmt(hint_buf, sizeof(hint_buf),
+                    "D-pad to navigate  [%s] accept  [%s] cancel", accept_label, back_label);
+            Term_putstr(2, line + 1, -1, TERM_L_DARK, hint_buf);
+        } else {
+            Term_putstr(2, line + 1, -1, TERM_L_DARK,
+                        "Arrows to navigate  Space/Enter accept  Letter select  Esc cancel");
+        }
         char key = inkey();
         screen_load();
 
-        if (key == ESCAPE) {
+        if (key == ESCAPE || key == 'h' || key == 'H') {
             /* Reset text wrapping */
             text_out_wrap = 0;
             text_out_indent = 0;
@@ -3300,6 +3347,14 @@ static bool blessing_gain_minor(char *result_msg, size_t msg_size, byte *result_
 
     int selected = 0;
     int choice = -1;
+    bool steamdeck = get_sdl_steamdeck_mode();
+    char accept_label[16] = "";
+    char back_label[16] = "";
+
+    if (steamdeck) {
+        metarun_prompt_label(' ', "A", accept_label, sizeof(accept_label));
+        metarun_prompt_label('h', "Back", back_label, sizeof(back_label));
+    }
     while (choice < 0) {
         screen_save();
         Term_clear();
@@ -3335,12 +3390,19 @@ static bool blessing_gain_minor(char *result_msg, size_t msg_size, byte *result_
             }
         }
 
-        Term_putstr(2, line + 1, -1, TERM_L_DARK,
-                    "Arrows to navigate  Space/Enter accept  Letter select  Esc cancel");
+        if (steamdeck) {
+            char hint_buf[96];
+            strnfmt(hint_buf, sizeof(hint_buf),
+                    "D-pad to navigate  [%s] accept  [%s] cancel", accept_label, back_label);
+            Term_putstr(2, line + 1, -1, TERM_L_DARK, hint_buf);
+        } else {
+            Term_putstr(2, line + 1, -1, TERM_L_DARK,
+                        "Arrows to navigate  Space/Enter accept  Letter select  Esc cancel");
+        }
         char key = inkey();
         screen_load();
 
-        if (key == ESCAPE) {
+        if (key == ESCAPE || key == 'h' || key == 'H') {
             return false;
         } else if (key == '\r' || key == '\n' || key == ' ' || key == '6') {
             choice = selected;
@@ -3437,6 +3499,14 @@ static bool blessing_unlock_major(char *result_msg, size_t msg_size, byte *resul
     }
 
     int available = blessing_points_remaining();
+    bool steamdeck = get_sdl_steamdeck_mode();
+    char accept_label[16] = "";
+    char back_label[16] = "";
+
+    if (steamdeck) {
+        metarun_prompt_label(' ', "A", accept_label, sizeof(accept_label));
+        metarun_prompt_label('h', "Back", back_label, sizeof(back_label));
+    }
     
     /* Find first affordable option as initial selection */
     int selected = -1;
@@ -3510,13 +3580,20 @@ static bool blessing_unlock_major(char *result_msg, size_t msg_size, byte *resul
         snprintf(points_msg, sizeof points_msg, "Available blessing points: %d", available);
         Term_putstr(2, line++, -1, TERM_L_BLUE, points_msg);
         
-        Term_putstr(2, line + 1, -1, TERM_L_DARK,
-                    "Arrows to navigate  Space/Enter accept  Letter select  Esc cancel");
+        if (steamdeck) {
+            char hint_buf[96];
+            strnfmt(hint_buf, sizeof(hint_buf),
+                    "D-pad to navigate  [%s] accept  [%s] cancel", accept_label, back_label);
+            Term_putstr(2, line + 1, -1, TERM_L_DARK, hint_buf);
+        } else {
+            Term_putstr(2, line + 1, -1, TERM_L_DARK,
+                        "Arrows to navigate  Space/Enter accept  Letter select  Esc cancel");
+        }
 
         char key = inkey();
         screen_load();
 
-        if (key == ESCAPE) {
+        if (key == ESCAPE || key == 'h' || key == 'H') {
             return false;
         }
 
@@ -3597,6 +3674,14 @@ static void open_blessing_exchange(void)
     char status_msg[256] = "";
     byte status_attr = TERM_WHITE;
     bool clear_status_on_next_key = false;
+    bool steamdeck = get_sdl_steamdeck_mode();
+    char accept_label[16] = "";
+    char back_label[16] = "";
+
+    if (steamdeck) {
+        metarun_prompt_label(' ', "A", accept_label, sizeof(accept_label));
+        metarun_prompt_label('h', "Back", back_label, sizeof(back_label));
+    }
 
     while (!done) {
         compute_blessing_pool();
@@ -3674,7 +3759,15 @@ static void open_blessing_exchange(void)
         } else {
             Term_putstr(4,10, -1, TERM_L_DARK, "u) Unlock a major blessing (none available)");
         }
-        Term_putstr(2, 12, -1, TERM_L_DARK, "Arrows to navigate  Space/Enter accept  Letter select  ESC leave");
+        if (steamdeck) {
+            char hint_buf[96];
+            strnfmt(hint_buf, sizeof(hint_buf),
+                    "D-pad to navigate  [%s] accept  [%s] leave", accept_label, back_label);
+            Term_putstr(2, 12, -1, TERM_L_DARK, hint_buf);
+        } else {
+            Term_putstr(2, 12, -1, TERM_L_DARK,
+                        "Arrows to navigate  Space/Enter accept  Letter select  ESC leave");
+        }
         
         /* Display status message if present */
         if (status_msg[0] != '\0') {
@@ -3720,6 +3813,8 @@ static void open_blessing_exchange(void)
         switch (key) {
         case ESCAPE:
         case '4':
+        case 'h':
+        case 'H':
             done = true;
             break;
         case 'r':
@@ -3845,6 +3940,14 @@ static void adjust_blessing_threshold_menu(void)
     if (current_run < 0 || current_run >= metarun_max) return;
 
     metarun_blessing_threshold_mode current_mode = metarun_get_threshold_mode(&metar);
+    bool steamdeck = get_sdl_steamdeck_mode();
+    char accept_label[16] = "";
+    char back_label[16] = "";
+
+    if (steamdeck) {
+        metarun_prompt_label(' ', "A", accept_label, sizeof(accept_label));
+        metarun_prompt_label('h', "Back", back_label, sizeof(back_label));
+    }
     int selection = 0;
     for (int i = 0; i < option_count; i++) {
         if (order[i] == current_mode) {
@@ -3897,12 +4000,19 @@ static void adjust_blessing_threshold_menu(void)
             row++;
         }
 
-        Term_putstr(2, row + 1, -1, TERM_L_DARK,
-                    "Use arrows or a/b/c to choose. Enter accepts, Esc cancels.");
+        if (steamdeck) {
+            char hint_buf[96];
+            strnfmt(hint_buf, sizeof(hint_buf),
+                    "D-pad to choose  [%s] accept  [%s] cancel", accept_label, back_label);
+            Term_putstr(2, row + 1, -1, TERM_L_DARK, hint_buf);
+        } else {
+            Term_putstr(2, row + 1, -1, TERM_L_DARK,
+                        "Use arrows or a/b/c to choose. Enter accepts, Esc cancels.");
+        }
 
         char key = inkey();
 
-        if (key == ESCAPE) {
+        if (key == ESCAPE || key == 'h' || key == 'H') {
             break;
         } else if (key == '\r' || key == '\n' || key == ' ' || key == '6') {
             accepted = true;
@@ -3951,7 +4061,14 @@ static void adjust_blessing_threshold_menu(void)
             Term_putstr(2, 2, -1, TERM_L_DARK,
                         "Blessing threshold remains unchanged.");
         }
-        Term_putstr(2, 6, -1, TERM_L_DARK, "Press any key to continue.");
+        if (steamdeck) {
+            char hint_buf[64];
+            metarun_prompt_label(' ', "A", accept_label, sizeof(accept_label));
+            strnfmt(hint_buf, sizeof(hint_buf), "Press [%s] to continue.", accept_label);
+            Term_putstr(2, 6, -1, TERM_L_DARK, hint_buf);
+        } else {
+            Term_putstr(2, 6, -1, TERM_L_DARK, "Press any key to continue.");
+        }
         Term_fresh();
         (void)inkey();
     }
@@ -3974,7 +4091,14 @@ void print_metarun_stats(void)
         Term_clear();
         Term_putstr(2, 5, -1, TERM_RED, "Error: No metarun data available.");
         Term_putstr(2, 6, -1, TERM_L_WHITE, "Please start a new game first.");
-        Term_putstr(2, 8, -1, TERM_L_DARK, "Press any key to return.");
+        if (get_sdl_steamdeck_mode()) {
+            char label[16];
+            metarun_prompt_label(' ', "A", label, sizeof(label));
+            strnfmt(buf, sizeof(buf), "Press %s to return.", label);
+            Term_putstr(2, 8, -1, TERM_L_DARK, buf);
+        } else {
+            Term_putstr(2, 8, -1, TERM_L_DARK, "Press any key to return.");
+        }
         inkey();
         screen_load();
         return;
@@ -4021,6 +4145,22 @@ void print_metarun_stats(void)
     screen_save();
     Term_clear();
     Term_get_size(&term_width, &term_height);
+    bool steamdeck = get_sdl_steamdeck_mode();
+    char spend_label[16] = "";
+    char threshold_label[16] = "";
+    char diff_label[16] = "";
+    char full_label[16] = "";
+    char history_label[16] = "";
+    char back_label[16] = "";
+
+    if (steamdeck) {
+        metarun_prompt_label(' ', "A", spend_label, sizeof(spend_label));
+        metarun_prompt_label('f', "B", threshold_label, sizeof(threshold_label));
+        metarun_prompt_label('e', "L1", diff_label, sizeof(diff_label));
+        metarun_prompt_label('u', "X", full_label, sizeof(full_label));
+        metarun_prompt_label('s', "Y", history_label, sizeof(history_label));
+        metarun_prompt_label('h', "Back", back_label, sizeof(back_label));
+    }
     
     /* Ensure minimum 80 width for layout */
     int effective_width = (term_width < 80) ? 80 : term_width;
@@ -4067,8 +4207,13 @@ void print_metarun_stats(void)
              available_points, spent_points, earned_points);
     Term_putstr(col, row++, -1, blessing_attr, buf);
 
-    snprintf(buf, sizeof buf, "Blessing Pool  : %lu total (mode: %s, press 'f' to change)",
-             (unsigned long)total_pool, threshold_mode);
+    if (steamdeck) {
+        snprintf(buf, sizeof buf, "Blessing Pool  : %lu total (mode: %s, [%s] to change)",
+                 (unsigned long)total_pool, threshold_mode, threshold_label);
+    } else {
+        snprintf(buf, sizeof buf, "Blessing Pool  : %lu total (mode: %s, press 'f' to change)",
+                 (unsigned long)total_pool, threshold_mode);
+    }
     Term_putstr(col, row++, -1, TERM_WHITE, buf);
 
     Term_putstr(col, row++, -1, TERM_YELLOW, "Major Blessings:");
@@ -4114,8 +4259,13 @@ void print_metarun_stats(void)
         Term_putstr(col + 2, row++, -1, TERM_L_DARK, "None active");
     } else if (available_lines <= 0) {
         curses_truncated = true;
-        Term_putstr(col + 2, row++, -1, TERM_L_DARK,
-                    "List truncated - press 'u' to view all effects");
+        if (steamdeck) {
+            snprintf(buf, sizeof buf, "List truncated - press [%s] to view all effects", full_label);
+            Term_putstr(col + 2, row++, -1, TERM_L_DARK, buf);
+        } else {
+            Term_putstr(col + 2, row++, -1, TERM_L_DARK,
+                        "List truncated - press 'u' to view all effects");
+        }
     } else {
         int lines_remaining = available_lines;
         int entries_remaining = active_count;
@@ -4175,11 +4325,20 @@ void print_metarun_stats(void)
 
         if (curses_truncated && lines_remaining > 0) {
             if (entries_remaining > 0) {
-                snprintf(buf, sizeof buf, "... and %d more effect%s (press 'u' to view all)",
-                         entries_remaining, (entries_remaining == 1) ? "" : "s");
+                if (steamdeck) {
+                    snprintf(buf, sizeof buf, "... and %d more effect%s (press [%s] to view all)",
+                             entries_remaining, (entries_remaining == 1) ? "" : "s", full_label);
+                } else {
+                    snprintf(buf, sizeof buf, "... and %d more effect%s (press 'u' to view all)",
+                             entries_remaining, (entries_remaining == 1) ? "" : "s");
+                }
             } else {
-                SDL_strlcpy(buf, "List truncated - press 'u' to view all effects",
-                          sizeof buf);
+                if (steamdeck) {
+                    snprintf(buf, sizeof buf, "List truncated - press [%s] to view all effects", full_label);
+                } else {
+                    SDL_strlcpy(buf, "List truncated - press 'u' to view all effects",
+                              sizeof buf);
+                }
             }
             Term_putstr(col, row++, -1, TERM_L_DARK, buf);
         }
@@ -4190,7 +4349,13 @@ void print_metarun_stats(void)
     
     /* Pad to terminal width (minimum 80) */
     int target_width = (term_width > 80) ? term_width : 80;
-    snprintf(prompt_buf, sizeof prompt_buf, "%s", base_prompt);
+    if (steamdeck) {
+        strnfmt(prompt_buf, sizeof(prompt_buf),
+                "[%s] Blessings  [%s] Threshold  [%s] Difficulty  [%s] Full list  [%s] History  [%s] Back",
+                spend_label, threshold_label, diff_label, full_label, history_label, back_label);
+    } else {
+        snprintf(prompt_buf, sizeof prompt_buf, "%s", base_prompt);
+    }
     size_t plen = strlen(prompt_buf);
     
     if ((int)plen < target_width && plen + 2 < sizeof prompt_buf) {
@@ -4205,6 +4370,13 @@ void print_metarun_stats(void)
     Term_putstr(0, term_height - 1, -1, TERM_L_DARK, prompt_buf);
 
     char key = inkey();
+    if (steamdeck) {
+        if (key == ' ' || key == '\r' || key == '\n') {
+            key = 'b';
+        } else if (key == 'e' || key == 'E') {
+            key = 'c';
+        }
+    }
     if (key == 'b' || key == 'B') {
         screen_load();
         open_blessing_exchange();
@@ -4300,6 +4472,14 @@ static void choose_difficulty_menu(void)
     int max_difficulty = (runtype_info && z_info->rt_max > 0) ? z_info->rt_max - 1 : 0;
     
     screen_save();
+    bool steamdeck = get_sdl_steamdeck_mode();
+    char accept_label[16] = "";
+    char back_label[16] = "";
+
+    if (steamdeck) {
+        metarun_prompt_label(' ', "A", accept_label, sizeof(accept_label));
+        metarun_prompt_label('h', "Back", back_label, sizeof(back_label));
+    }
     
     while (true)
     {
@@ -4386,13 +4566,21 @@ static void choose_difficulty_menu(void)
         }
         
         /* Instructions */
-        Term_putstr(2, row + 1, -1, TERM_L_WHITE, "Arrows to navigate     Space/Enter Accept     Esc Cancel");
+        if (steamdeck) {
+            char hint_buf[96];
+            strnfmt(hint_buf, sizeof(hint_buf),
+                    "D-pad to navigate  [%s] accept  [%s] cancel", accept_label, back_label);
+            Term_putstr(2, row + 1, -1, TERM_L_WHITE, hint_buf);
+        } else {
+            Term_putstr(2, row + 1, -1, TERM_L_WHITE,
+                        "Arrows to navigate     Space/Enter Accept     Esc Cancel");
+        }
         
         /* Get input */
         char key = inkey();
         
         /* Handle input */
-        if (key == ESCAPE) 
+        if (key == ESCAPE || key == 'h' || key == 'H') 
         {
             screen_load();
             return;
@@ -4464,10 +4652,24 @@ static void choose_difficulty_menu(void)
             Term_putstr(2, 7, -1, TERM_WHITE, "If you increase the difficulty level, you will NOT be able to");
             Term_putstr(2, 8, -1, TERM_WHITE, "go back to an easier level for the rest of this story run.");
             Term_putstr(2, 10, -1, TERM_L_RED, "This change is PERMANENT for this meta-run!");
-            Term_putstr(2, 12, -1, TERM_L_WHITE, "Do you want to continue? (y/n)");
+            if (steamdeck) {
+                char prompt_buf[64];
+                strnfmt(prompt_buf, sizeof(prompt_buf),
+                        "Continue? [%s] yes  [%s] no", accept_label, back_label);
+                Term_putstr(2, 12, -1, TERM_L_WHITE, prompt_buf);
+            } else {
+                Term_putstr(2, 12, -1, TERM_L_WHITE, "Do you want to continue? (y/n)");
+            }
             
             char confirm = inkey();
             screen_load();
+
+            if (steamdeck) {
+                if (confirm == ' ' || confirm == '\r' || confirm == '\n')
+                    confirm = 'y';
+                else if (confirm == ESCAPE || confirm == 'h' || confirm == 'H')
+                    confirm = 'n';
+            }
             
             if (confirm != 'y' && confirm != 'Y') {
                 return; /* Cancel the change */
@@ -4536,6 +4738,12 @@ static void choose_difficulty_menu(void)
 void list_metaruns(void)
 {
     screen_save();
+    bool steamdeck = get_sdl_steamdeck_mode();
+    char accept_label[16] = "";
+
+    if (steamdeck) {
+        metarun_prompt_label(' ', "A", accept_label, sizeof(accept_label));
+    }
     Term_clear();
     c_prt(TERM_L_GREEN, "Meta-run history", 1, 2);
     c_put_str(TERM_L_DARK,
@@ -4588,7 +4796,13 @@ void list_metaruns(void)
                   row++, 2);
 
         if (row >= 23 && i+1 < metarun_max) {   /* page break */
-            c_put_str(TERM_L_DARK, "[more – any key]", 23, 2);
+            if (steamdeck) {
+                char hint_buf[64];
+                strnfmt(hint_buf, sizeof(hint_buf), "[more - press %s]", accept_label);
+                c_put_str(TERM_L_DARK, hint_buf, 23, 2);
+            } else {
+                c_put_str(TERM_L_DARK, "[more - any key]", 23, 2);
+            }
             inkey();  Term_clear();
             row = 4;
             c_prt(TERM_L_GREEN, "Meta-run history (cont.)", 1, 2);
@@ -4598,7 +4812,13 @@ void list_metaruns(void)
     }
 
     order = mem_free(order);
-    c_put_str(TERM_L_DARK, "Press any key to return.", row+1, 2);
+    if (steamdeck) {
+        char hint_buf[64];
+        strnfmt(hint_buf, sizeof(hint_buf), "Press %s to return.", accept_label);
+        c_put_str(TERM_L_DARK, hint_buf, row+1, 2);
+    } else {
+        c_put_str(TERM_L_DARK, "Press any key to return.", row+1, 2);
+    }
     inkey();
     screen_load();
 }

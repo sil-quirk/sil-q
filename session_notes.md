@@ -1,5 +1,12 @@
 # Session Notes
 
+## 2025-12-20: Steam Deck controller UX updates
+- `src/sdl-config.{h,c}`: added left/right stick directional bindings, updated defaults (Start->Esc, Back->h, L3 wait, R3 supplies), persisted new bindings in JSON, clear D-pad/left-stick bindings when movement is enabled, and auto-enable Steam Deck UI on first-run 1280x800.
+- `src/main-sdl.c`, `src/externs.h`: added stick-direction binding handling, D-pad capture gating, L1+R1 look combo with pending timeout, new binding label helpers, and getters/setters/defaults for stick bindings.
+- `src/cmd4.c`: controller settings prompts now controller-friendly (reset on X/Y, ESC-bound cancel), character sheet prompts/map for Steam Deck buttons.
+- `src/cmd3.c`: unified look prompts now show Steam Deck button labels; B/X map to target/object category in Steam Deck UI.
+- `src/files.c`: story display prompts use Steam Deck button labels for next/fast-forward/continue.
+
 ## 2025-12-19: Partition styles + big cave types
 - `src/init1.c`, `src/cave.c`, `lib/edit/style-levels.txt`: added P: partition style rules and B: big cave type weights, with new partition style rule storage.
 - `src/generate.c`: per-partition style selection (CA/LAB/CHASM floor+bridge/BIG_CAVE types), style-aware carving, big cave type metadata, themed monster preferences, and chasm bridge styling.
@@ -7792,3 +7799,8 @@ The script now fully matches the game's drop generation logic for all item types
 ## 2025-12-20: Controller action-first rebinding
 - `src/main-sdl.c`, `src/externs.h`: added capture mode to read the next gamepad button/trigger for binding.
 - `src/cmd4.c`: rebuilt Controller Settings to list actions and bind them by pressing a gamepad button; includes action-to-button lookup, default reset per action, and modifier entries.
+
+- SDL: cache story fonts per cell height (main/aux) and reload on config/scale changes to avoid blurry upscaling at low resolutions.
+## 2025-12-20: Steam Deck metarun + scores prompts
+- `src/metarun.c`: story info (metarun stats) and blessing submenus now show Steam Deck button labels, map A/L1/B/X/Y/Back to actions, and add Back-cancel handling in submenus plus controller-friendly prompts in history/active effects (gated to Steam Deck UI only).
+- `src/score/score_ui.c`: Halls of Mandos scores footer/prompt now uses Steam Deck labels, maps X to layout toggle, and Back to exit (gated to Steam Deck UI only).

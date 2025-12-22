@@ -3459,6 +3459,16 @@ static int unified_look_count_visible_objects_for_group(unified_look_state* stat
     return total_objects;
 }
 
+static void unified_look_prompt_label(int binding, const char* fallback, char* buf, size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    sdl_gamepad_action_binding_short_label(binding, buf, buflen);
+    if (streq(buf, "(unbound)") || streq(buf, "Multiple"))
+        SDL_strlcpy(buf, fallback, buflen);
+}
+
 void do_cmd_unified_look(void)
 {
     unified_look_state state;
@@ -3659,17 +3669,59 @@ void do_cmd_unified_look(void)
                     /* Display help text based on current mode */
                     if (state.look_mode == 0)
                     {
-                        if (steamdeck_controls_active())
-                            prt("[i/e]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Pan [ESC]", 0, 0);
-                        else
+                        if (steamdeck_controls_active()) {
+                            char prev_label[16];
+                            char next_label[16];
+                            char exam_label[16];
+                            char target_label[16];
+                            char obj_label[16];
+                            char pan_label[16];
+                            char back_label[16];
+                            char prompt_buf[160];
+
+                            unified_look_prompt_label('e', "L1", prev_label, sizeof(prev_label));
+                            unified_look_prompt_label('i', "R1", next_label, sizeof(next_label));
+                            unified_look_prompt_label(' ', "A", exam_label, sizeof(exam_label));
+                            unified_look_prompt_label('f', "B", target_label, sizeof(target_label));
+                            unified_look_prompt_label('u', "X", obj_label, sizeof(obj_label));
+                            unified_look_prompt_label('s', "Y", pan_label, sizeof(pan_label));
+                            unified_look_prompt_label(ESCAPE, "ESC", back_label, sizeof(back_label));
+
+                            strnfmt(prompt_buf, sizeof(prompt_buf),
+                                "[%s/%s]=Select [%s]=Exam [%s]=Target [%s]=Obj [%s]=Pan [%s]=Back",
+                                next_label, prev_label, exam_label, target_label, obj_label, pan_label, back_label);
+                            prt(prompt_buf, 0, 0);
+                        } else {
                             prt("[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Pan [ESC]", 0, 0);
+                        }
                     }
                     else
                     {
-                        if (steamdeck_controls_active())
-                            prt("[i/e]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Curs [ESC]", 0, 0);
-                        else
+                        if (steamdeck_controls_active()) {
+                            char prev_label[16];
+                            char next_label[16];
+                            char exam_label[16];
+                            char target_label[16];
+                            char obj_label[16];
+                            char cursor_label[16];
+                            char back_label[16];
+                            char prompt_buf[160];
+
+                            unified_look_prompt_label('e', "L1", prev_label, sizeof(prev_label));
+                            unified_look_prompt_label('i', "R1", next_label, sizeof(next_label));
+                            unified_look_prompt_label(' ', "A", exam_label, sizeof(exam_label));
+                            unified_look_prompt_label('f', "B", target_label, sizeof(target_label));
+                            unified_look_prompt_label('u', "X", obj_label, sizeof(obj_label));
+                            unified_look_prompt_label('s', "Y", cursor_label, sizeof(cursor_label));
+                            unified_look_prompt_label(ESCAPE, "ESC", back_label, sizeof(back_label));
+
+                            strnfmt(prompt_buf, sizeof(prompt_buf),
+                                "[%s/%s]=Select [%s]=Exam [%s]=Target [%s]=Obj [%s]=Curs [%s]=Back",
+                                next_label, prev_label, exam_label, target_label, obj_label, cursor_label, back_label);
+                            prt(prompt_buf, 0, 0);
+                        } else {
                             prt("[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Curs [ESC]", 0, 0);
+                        }
                     }
                 }
             }
@@ -3963,12 +4015,10 @@ void do_cmd_unified_look(void)
             
             case '[':            /* View monsters */
             case ']':            /* View objects */
-            case 'f':            /* Fire/Throw */
             case 'w':            /* Wield/Wear */
             case 'd':            /* Drop */
             case 'k':            /* Destroy */
             case 'r':            /* Read scroll */
-            case 'u':            /* Use staff */
             case 'a':            /* Activate */
             case 'z':            /* Zap rod */
             case '.':            /* Run */
@@ -4535,6 +4585,10 @@ command_key:
                 continue;
             }
             
+            case 'u':
+                if (!steamdeck_controls_active())
+                    goto command_key;
+                /* fallthrough */
             case 'o':
             {
                 log_trace("'o' key pressed - cycling object categories");
@@ -4680,6 +4734,10 @@ command_key:
                 continue;
             }
             
+            case 'f':
+                if (!steamdeck_controls_active())
+                    goto command_key;
+                /* fallthrough */
             case 't':
             {
                 /* Target monster at cursor position or selected position */

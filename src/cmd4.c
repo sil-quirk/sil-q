@@ -38,6 +38,7 @@ extern struct sound_config g_sound_config;
 /* Option changes that affect list rendering should refresh subwindows immediately. */
 static void redraw_inven_equip_subwindows(void);
 static void redraw_monster_subwindows(void);
+static void controller_prompt_label(int binding, const char* fallback, char* buf, size_t buflen);
 
 /*
  *  Header and footer marker string for pref file dumps
@@ -411,6 +412,8 @@ void do_cmd_character_sheet(void)
     /* Forever */
     while (1)
     {
+        bool steamdeck = steamdeck_controls_active();
+
         /* Display the player */
         display_player(mode);
 
@@ -422,12 +425,64 @@ void do_cmd_character_sheet(void)
         if (story_character_enabled()) {
             sdl_story_font_enable();
             /* Story font - use more spacing for readability */
-            Term_putstr(1, 23, -1, TERM_L_WHITE,
-                "n-notes     s-story     f-file     a-abilities     c-curses     i-increase     ?-help     ESC");
+            if (steamdeck) {
+                char notes_label[16];
+                char story_label[16];
+                char file_label[16];
+                char abilities_label[16];
+                char increase_label[16];
+                char back_label[16];
+                char prompt_buf[160];
+
+                controller_prompt_label(' ', "Space", notes_label, sizeof(notes_label));
+                controller_prompt_label('s', "s", story_label, sizeof(story_label));
+                controller_prompt_label('f', "f", file_label, sizeof(file_label));
+                controller_prompt_label('u', "u", abilities_label, sizeof(abilities_label));
+                controller_prompt_label('i', "i", increase_label, sizeof(increase_label));
+                controller_prompt_label('h', "h", back_label, sizeof(back_label));
+
+                strnfmt(prompt_buf, sizeof(prompt_buf),
+                    "%s-notes     %s-story     %s-file     %s-abilities     %s-increase     ?-help     %s-back",
+                    notes_label, story_label, file_label, abilities_label, increase_label, back_label);
+                Term_putstr(1, 23, -1, TERM_L_WHITE, prompt_buf);
+            } else {
+                Term_putstr(1, 23, -1, TERM_L_WHITE,
+#ifdef DEBUG_CURSES
+                    "n-notes     s-story     f-file     a-abilities     c-curses     i-increase     ?-help     ESC");
+#else
+                    "n-notes     s-story     f-file     a-abilities     i-increase     ?-help     ESC");
+#endif
+            }
         } else {
             /* Mono font - use less spacing for compact display */
-            Term_putstr(1, 23, -1, TERM_L_WHITE,
-                "n-notes  s-story  f-file  a-abilities  c-curses  i-increase  ?-help  ESC");
+            if (steamdeck) {
+                char notes_label[16];
+                char story_label[16];
+                char file_label[16];
+                char abilities_label[16];
+                char increase_label[16];
+                char back_label[16];
+                char prompt_buf[160];
+
+                controller_prompt_label(' ', "Space", notes_label, sizeof(notes_label));
+                controller_prompt_label('s', "s", story_label, sizeof(story_label));
+                controller_prompt_label('f', "f", file_label, sizeof(file_label));
+                controller_prompt_label('u', "u", abilities_label, sizeof(abilities_label));
+                controller_prompt_label('i', "i", increase_label, sizeof(increase_label));
+                controller_prompt_label('h', "h", back_label, sizeof(back_label));
+
+                strnfmt(prompt_buf, sizeof(prompt_buf),
+                    "%s-notes  %s-story  %s-file  %s-abilities  %s-increase  ?-help  %s-back",
+                    notes_label, story_label, file_label, abilities_label, increase_label, back_label);
+                Term_putstr(1, 23, -1, TERM_L_WHITE, prompt_buf);
+            } else {
+                Term_putstr(1, 23, -1, TERM_L_WHITE,
+#ifdef DEBUG_CURSES
+                    "n-notes  s-story  f-file  a-abilities  c-curses  i-increase  ?-help  ESC");
+#else
+                    "n-notes  s-story  f-file  a-abilities  i-increase  ?-help  ESC");
+#endif
+            }
         }
 
         Term_fresh();  /* Render commands */
@@ -440,7 +495,7 @@ void do_cmd_character_sheet(void)
         ch = inkey();
 
         /* Exit */
-        if (ch == ESCAPE)
+        if (ch == ESCAPE || (steamdeck && ch == 'h'))
             break;
         if ((ch == '\r') || (ch == '\n') || (ch == 'q') || (ch == 'Q'))
             break;
@@ -466,14 +521,16 @@ void do_cmd_character_sheet(void)
             print_metarun_stats();
         }
 
+#ifdef DEBUG_CURSES
         /* Curses Menu */
         else if (ch == 'c')
         {
             dbg_show_active_flags();
         }
+#endif
 
         /* Abilities */
-        else if ((ch == 'a') || (ch == '\t'))
+        else if ((ch == 'a') || (ch == '\t') || (steamdeck && ch == 'u'))
         {
             (void)do_cmd_ability_screen();
             /* Force redraw after ability changes */
@@ -10525,6 +10582,22 @@ static const char* controller_gamepad_trigger_label(int index)
     return "Unknown Trigger";
 }
 
+static const char* controller_gamepad_stick_dir_label(int type, int dir)
+{
+    const char* stick = (type == GAMEPAD_CAPTURE_RIGHT_STICK) ? "Right Stick" : "Left Stick";
+    const char* dir_label = NULL;
+
+    switch (dir) {
+    case GAMEPAD_STICK_DIR_UP: dir_label = "Up"; break;
+    case GAMEPAD_STICK_DIR_DOWN: dir_label = "Down"; break;
+    case GAMEPAD_STICK_DIR_LEFT: dir_label = "Left"; break;
+    case GAMEPAD_STICK_DIR_RIGHT: dir_label = "Right"; break;
+    default: dir_label = "Unknown"; break;
+    }
+
+    return format("%s %s", stick, dir_label);
+}
+
 static void controller_binding_label(int type, int id, char* buf, size_t buflen)
 {
     if (!buf || !buflen)
@@ -10534,6 +10607,8 @@ static void controller_binding_label(int type, int id, char* buf, size_t buflen)
         SDL_strlcpy(buf, controller_gamepad_button_label(id), buflen);
     } else if (type == GAMEPAD_CAPTURE_TRIGGER) {
         SDL_strlcpy(buf, controller_gamepad_trigger_label(id), buflen);
+    } else if (type == GAMEPAD_CAPTURE_LEFT_STICK || type == GAMEPAD_CAPTURE_RIGHT_STICK) {
+        SDL_strlcpy(buf, controller_gamepad_stick_dir_label(type, id), buflen);
     } else {
         SDL_strlcpy(buf, "(unknown)", buflen);
     }
@@ -10563,6 +10638,26 @@ static int controller_action_binding_count(int binding, int* out_type, int* out_
         }
     }
 
+    for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+        if (get_sdl_gamepad_left_stick_binding(i) == binding) {
+            if (count == 0 && out_type && out_id) {
+                *out_type = GAMEPAD_CAPTURE_LEFT_STICK;
+                *out_id = i;
+            }
+            count++;
+        }
+    }
+
+    for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+        if (get_sdl_gamepad_right_stick_binding(i) == binding) {
+            if (count == 0 && out_type && out_id) {
+                *out_type = GAMEPAD_CAPTURE_RIGHT_STICK;
+                *out_id = i;
+            }
+            count++;
+        }
+    }
+
     return count;
 }
 
@@ -10580,6 +10675,30 @@ static void controller_action_binding_label(int binding, char* buf, size_t bufle
         controller_binding_label(type, id, buf, buflen);
     } else {
         SDL_strlcpy(buf, "Multiple", buflen);
+    }
+}
+
+static bool controller_binding_matches_action(int binding, int type, int id)
+{
+    if (type == GAMEPAD_CAPTURE_BUTTON)
+        return get_sdl_gamepad_button_binding(id) == binding;
+    if (type == GAMEPAD_CAPTURE_TRIGGER)
+        return get_sdl_gamepad_trigger_binding(id) == binding;
+    if (type == GAMEPAD_CAPTURE_LEFT_STICK)
+        return get_sdl_gamepad_left_stick_binding(id) == binding;
+    if (type == GAMEPAD_CAPTURE_RIGHT_STICK)
+        return get_sdl_gamepad_right_stick_binding(id) == binding;
+    return false;
+}
+
+static void controller_prompt_label(int binding, const char* fallback, char* buf, size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    sdl_gamepad_action_binding_short_label(binding, buf, buflen);
+    if (streq(buf, "(unbound)") || streq(buf, "Multiple")) {
+        SDL_strlcpy(buf, fallback, buflen);
     }
 }
 
@@ -10663,6 +10782,22 @@ static void controller_clear_action_bindings(int binding, int skip_type, int ski
             set_sdl_gamepad_trigger_binding(i, GAMEPAD_BIND_NONE);
         }
     }
+
+    for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+        if (get_sdl_gamepad_left_stick_binding(i) == binding) {
+            if (skip_type == GAMEPAD_CAPTURE_LEFT_STICK && skip_id == i)
+                continue;
+            set_sdl_gamepad_left_stick_binding(i, GAMEPAD_BIND_NONE);
+        }
+    }
+
+    for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+        if (get_sdl_gamepad_right_stick_binding(i) == binding) {
+            if (skip_type == GAMEPAD_CAPTURE_RIGHT_STICK && skip_id == i)
+                continue;
+            set_sdl_gamepad_right_stick_binding(i, GAMEPAD_BIND_NONE);
+        }
+    }
 }
 
 static void controller_assign_action_binding(int binding, int type, int id)
@@ -10673,6 +10808,10 @@ static void controller_assign_action_binding(int binding, int type, int id)
         set_sdl_gamepad_button_binding(id, binding);
     } else if (type == GAMEPAD_CAPTURE_TRIGGER) {
         set_sdl_gamepad_trigger_binding(id, binding);
+    } else if (type == GAMEPAD_CAPTURE_LEFT_STICK) {
+        set_sdl_gamepad_left_stick_binding(id, binding);
+    } else if (type == GAMEPAD_CAPTURE_RIGHT_STICK) {
+        set_sdl_gamepad_right_stick_binding(id, binding);
     }
 }
 
@@ -10692,6 +10831,26 @@ static bool controller_action_default_binding(int binding, int* out_type, int* o
         if (get_sdl_gamepad_default_trigger_binding(i) == binding) {
             if (out_type)
                 *out_type = GAMEPAD_CAPTURE_TRIGGER;
+            if (out_id)
+                *out_id = i;
+            return true;
+        }
+    }
+
+    for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+        if (get_sdl_gamepad_default_left_stick_binding(i) == binding) {
+            if (out_type)
+                *out_type = GAMEPAD_CAPTURE_LEFT_STICK;
+            if (out_id)
+                *out_id = i;
+            return true;
+        }
+    }
+
+    for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+        if (get_sdl_gamepad_default_right_stick_binding(i) == binding) {
+            if (out_type)
+                *out_type = GAMEPAD_CAPTURE_RIGHT_STICK;
             if (out_id)
                 *out_id = i;
             return true;
@@ -10776,6 +10935,7 @@ void do_cmd_controller_settings(void)
     while (!done) {
         char value_buf[64];
         int row;
+        bool steamdeck = steamdeck_controls_active();
 
         Term_get_size(&term_w, &term_h);
         (void)term_w;
@@ -10804,7 +10964,15 @@ void do_cmd_controller_settings(void)
 
         Term_clear();
         prt("Controller Settings", 1, 0);
-        prt("Arrow to navigate, Enter to bind, Escape to return", 2, 0);
+        if (steamdeck) {
+            char confirm_label[16];
+            char esc_label[16];
+            controller_prompt_label(' ', "Space", confirm_label, sizeof(confirm_label));
+            controller_prompt_label(ESCAPE, "ESC", esc_label, sizeof(esc_label));
+            prt(format("Arrow to navigate, %s to bind, %s to return", confirm_label, esc_label), 2, 0);
+        } else {
+            prt("Arrow to navigate, Enter to bind, Escape to return", 2, 0);
+        }
 
         for (int i = top; i < entry_count && i < top + visible_rows; i++) {
             int entry_row = list_start_row + (i - top);
@@ -10821,7 +10989,16 @@ void do_cmd_controller_settings(void)
             prt("                                        ", row, 2);
         }
 
-        prt("Press 'r' to reset selected binding, 'R' to reset all bindings", list_start_row + visible_rows + 1, 2);
+        if (steamdeck) {
+            char reset_label[16];
+            char reset_all_label[16];
+            controller_prompt_label('u', "u", reset_label, sizeof(reset_label));
+            controller_prompt_label('s', "s", reset_all_label, sizeof(reset_all_label));
+            prt(format("Reset: [%s] selected, [%s] all", reset_label, reset_all_label),
+                list_start_row + visible_rows + 1, 2);
+        } else {
+            prt("Press 'r' to reset selected binding, 'R' to reset all bindings", list_start_row + visible_rows + 1, 2);
+        }
         prt("Changes are saved on exit.", list_start_row + visible_rows + 2, 2);
 
         char ch = inkey();
@@ -10832,7 +11009,7 @@ void do_cmd_controller_settings(void)
             highlight = (highlight + entry_count - 1) % entry_count;
         } else if (ch == '2') {
             highlight = (highlight + 1) % entry_count;
-        } else if (ch == 'r') {
+        } else if (ch == 'r' || (steamdeck && ch == 'u')) {
             if (entries[highlight].type == CONTROLLER_ENTRY_ACTION) {
                 int binding_type = 0;
                 int binding_id = 0;
@@ -10845,7 +11022,7 @@ void do_cmd_controller_settings(void)
                 }
                 message_flush();
             }
-        } else if (ch == 'R') {
+        } else if (ch == 'R' || (steamdeck && ch == 's')) {
             sdl_gamepad_reset_bindings_to_default();
             msg_print("All bindings reset to defaults.");
             message_flush();
@@ -10862,9 +11039,17 @@ void do_cmd_controller_settings(void)
                 int cap_type = 0;
                 int cap_id = 0;
                 prt("                                                                  ", entry_row, 2);
-                strnfmt(prompt, sizeof(prompt),
-                    "Press controller button for %s (Esc=cancel, Backspace=clear)",
-                    entry->label);
+                if (steamdeck) {
+                    char esc_label[16];
+                    controller_prompt_label(ESCAPE, "Esc", esc_label, sizeof(esc_label));
+                    strnfmt(prompt, sizeof(prompt),
+                        "Press controller button for %s (%s=cancel, Backspace=clear)",
+                        entry->label, esc_label);
+                } else {
+                    strnfmt(prompt, sizeof(prompt),
+                        "Press controller button for %s (Esc=cancel, Backspace=clear)",
+                        entry->label);
+                }
                 c_prt(TERM_YELLOW, prompt, entry_row, 2);
                 Term_fresh();
 
@@ -10878,6 +11063,11 @@ void do_cmd_controller_settings(void)
                 bool waiting = true;
                 while (waiting) {
                     if (sdl_gamepad_capture_poll(&cap_type, &cap_id)) {
+                        if (controller_binding_matches_action(ESCAPE, cap_type, cap_id)) {
+                            sdl_gamepad_capture_cancel();
+                            waiting = false;
+                            break;
+                        }
                         controller_assign_action_binding(entry->id, cap_type, cap_id);
                         waiting = false;
                         break;

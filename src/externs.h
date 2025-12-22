@@ -1561,11 +1561,21 @@ extern int get_sdl_gamepad_button_binding(int button);
 extern void set_sdl_gamepad_button_binding(int button, int binding);
 extern int get_sdl_gamepad_trigger_binding(int index);
 extern void set_sdl_gamepad_trigger_binding(int index, int binding);
+extern int get_sdl_gamepad_left_stick_binding(int dir);
+extern void set_sdl_gamepad_left_stick_binding(int dir, int binding);
+extern int get_sdl_gamepad_right_stick_binding(int dir);
+extern void set_sdl_gamepad_right_stick_binding(int dir, int binding);
 extern int get_sdl_gamepad_default_button_binding(int button);
 extern int get_sdl_gamepad_default_trigger_binding(int index);
+extern int get_sdl_gamepad_default_left_stick_binding(int dir);
+extern int get_sdl_gamepad_default_right_stick_binding(int dir);
 extern void sdl_gamepad_reset_bindings_to_default(void);
+extern void sdl_gamepad_action_binding_label(int binding, char* buf, size_t buflen);
+extern void sdl_gamepad_action_binding_short_label(int binding, char* buf, size_t buflen);
 #define GAMEPAD_CAPTURE_BUTTON 0
 #define GAMEPAD_CAPTURE_TRIGGER 1
+#define GAMEPAD_CAPTURE_LEFT_STICK 2
+#define GAMEPAD_CAPTURE_RIGHT_STICK 3
 extern bool sdl_gamepad_capture_begin(void);
 extern void sdl_gamepad_capture_cancel(void);
 extern bool sdl_gamepad_capture_poll(int* out_type, int* out_id);

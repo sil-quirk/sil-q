@@ -5178,6 +5178,33 @@ void print_fade_centered_at_row(cptr text, int row_start)
 /* -------------------------------------------------------------
  * print_story() - paging, subset & fade-in options
  * ----------------------------------------------------------- */
+static void story_prompt_label(int binding, const char* fallback, char* buf, size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    sdl_gamepad_action_binding_short_label(binding, buf, buflen);
+    if (streq(buf, "(unbound)") || streq(buf, "Multiple"))
+        SDL_strlcpy(buf, fallback, buflen);
+}
+
+static void story_print_hint(int indent, int h)
+{
+    if (steamdeck_controls_active()) {
+        char next_label[16];
+        char esc_label[16];
+        char prompt_buf[80];
+
+        story_prompt_label(' ', "A", next_label, sizeof(next_label));
+        story_prompt_label(ESCAPE, "ESC", esc_label, sizeof(esc_label));
+
+        strnfmt(prompt_buf, sizeof(prompt_buf), "[%s] next  *  [%s] fast forward", next_label, esc_label);
+        Term_putstr(indent, h - 1, -1, TERM_SLATE, prompt_buf);
+    } else {
+        Term_putstr(indent, h - 1, -1, TERM_SLATE, "[Enter] next  *  [Esc] fast forward");
+    }
+}
+
 void print_story(int last_parts, bool fade_in)
 {
     int wid, h;
@@ -5192,8 +5219,7 @@ void print_story(int last_parts, bool fade_in)
 
     /* Convenience macro to keep the bottom-line hint fresh */
 #define REDRAW_HINT() \
-    Term_putstr(indent, h - 1, -1, TERM_SLATE, \
-                "[Enter] next  *  [Esc] fast forward")
+    story_print_hint(indent, h)
 
     /* Build list of matching entries ------------------------ */
     int sils   = metar.silmarils;
@@ -5400,8 +5426,16 @@ void print_story(int last_parts, bool fade_in)
 
     /* Footer ------------------------------------------------ */
     Term_erase(0, h - 1, wid); /* clear bottom line entirely */
-    Term_putstr(indent, h - 1, -1, TERM_L_WHITE,
-                "[Press any key to continue]");
+    if (steamdeck_controls_active()) {
+        char next_label[16];
+        char prompt_buf[64];
+        story_prompt_label(' ', "A", next_label, sizeof(next_label));
+        strnfmt(prompt_buf, sizeof(prompt_buf), "[%s] continue", next_label);
+        Term_putstr(indent, h - 1, -1, TERM_L_WHITE, prompt_buf);
+    } else {
+        Term_putstr(indent, h - 1, -1, TERM_L_WHITE,
+                    "[Press any key to continue]");
+    }
     (void)inkey();
     
     /* Flush any queued keypresses that accumulated during the story */

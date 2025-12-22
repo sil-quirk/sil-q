@@ -106,6 +106,7 @@ if (-not (Test-Path $libPath)) {
 
 # Copy game data folders (with special handling for certain folders)
 $foldersCopied = 0
+$musicFilesCopied = 0
 foreach ($folder in $libFoldersToCopy) {
     $srcFolder = "lib/$folder"
     $dstFolder = "$libPath/$folder"
@@ -128,6 +129,16 @@ foreach ($folder in $libFoldersToCopy) {
                 $grafItems = (Get-ChildItem $grafPath -File | Measure-Object).Count
                 Write-Host "  [OK] lib/$folder (graf: $grafItems files, only 16x16.png kept)"
             }
+
+            # Count music files if present in xtra
+            $musicPath = "$dstFolder/music"
+            if (Test-Path $musicPath) {
+                $musicFilesCopied = (Get-ChildItem -Recurse $musicPath -File | Measure-Object).Count
+                Write-Host "  [OK] lib/$folder (music: $musicFilesCopied files)"
+            } else {
+                Write-Host "  [SKIP] lib/$folder/music (not found)"
+            }
+
             $itemCount = (Get-ChildItem -Recurse $dstFolder | Measure-Object).Count
             $foldersCopied++
             continue
@@ -192,9 +203,10 @@ $manifestText += "lib/`n"
 $manifestText += "  edit/                      - Game data definitions (20 .txt files, misc/ excluded)`n"
 $manifestText += "  pref/                      - Default preferences and keybinds (30 files)`n"
 $manifestText += "  data/                      - Empty directory (for future use)`n"
-$manifestText += "  xtra/                      - Extended resources (fonts, sound, minimal graphics)`n"
+$manifestText += "  xtra/                      - Extended resources (fonts, sound, music, minimal graphics)`n"
 $manifestText += "    font/                    - Font files`n"
 $manifestText += "    sound/                   - Audio files`n"
+$manifestText += "    music/                   - Background music files`n"
 $manifestText += "    graf/                    - Graphics (only 16x16.png)`n"
 $manifestText += "  docs/                      - Documentation and manuals (6 files)`n"
 $manifestText += "  apex/                      - Runtime data directory (EMPTY - for metarun data)`n"
@@ -242,6 +254,7 @@ Write-Host "Contents:" -ForegroundColor Yellow
 Write-Host "  - Executable: sil-more.exe"
 Write-Host "  - SDL3 Runtime: $copiedDlls DLLs"
 Write-Host "  - Game Data: $foldersCopied folders + empty directories"
+Write-Host "  - Music files: $musicFilesCopied files"
 if ($IncludeCoverArt) {
     Write-Host "  - CoverArt: Included"
 }

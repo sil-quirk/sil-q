@@ -112,6 +112,16 @@ static bool forced_highlight_active = false;
 static bool force_interactive_scores = false;
 static bool score_last_layout_short = true;
 
+static void score_prompt_label(int binding, const char* fallback, char* buf, size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    sdl_gamepad_action_binding_short_label(binding, buf, buflen);
+    if (streq(buf, "(unbound)") || streq(buf, "Multiple"))
+        SDL_strlcpy(buf, fallback, buflen);
+}
+
 typedef enum
 {
     SCORE_VIEW_ORDER_SCORE = 0,
@@ -871,13 +881,32 @@ extern void display_single_score(
 static char display_scores_pages(const high_score* entries, int count, int highlight_index,
                                  score_view_order order, bool detailed, int page_size)
 {
+    bool steamdeck = get_sdl_steamdeck_mode();
+    char order_label[16] = "";
+    char layout_label[16] = "";
+    char exit_label[16] = "";
+    char next_label[16] = "";
+
+    if (steamdeck) {
+        score_prompt_label('s', "Y", order_label, sizeof(order_label));
+        score_prompt_label('u', "X", layout_label, sizeof(layout_label));
+        score_prompt_label('h', "Back", exit_label, sizeof(exit_label));
+        score_prompt_label(' ', "A", next_label, sizeof(next_label));
+    }
+
     Term_clear();
 
     if (!entries || count <= 0)
     {
         c_put_str(TERM_L_BLUE, "               Halls of Mandos", 1, 0);
         c_put_str(TERM_SLATE, "No recorded heroes yet.", 3, 0);
-        Term_putstr(2, 23, -1, TERM_L_WHITE, "(press any key)");
+        if (steamdeck) {
+            char hint_buf[48];
+            strnfmt(hint_buf, sizeof(hint_buf), "(press %s)", next_label);
+            Term_putstr(2, 23, -1, TERM_L_WHITE, hint_buf);
+        } else {
+            Term_putstr(2, 23, -1, TERM_L_WHITE, "(press any key)");
+        }
         (void)inkey();
         return 0;
     }
@@ -929,12 +958,26 @@ static char display_scores_pages(const high_score* entries, int count, int highl
         bool has_more = (start_index + entries_per_page < count);
 
         char footer[80];
-        strnfmt(footer, sizeof(footer), "[S] Toggle order   [L] Layout   [ESC] Exit   (press any other key to %s)",
-                has_more ? "continue" : "close");
+        if (steamdeck) {
+            const char* action = has_more ? "Next" : "Close";
+            strnfmt(footer, sizeof(footer), "[%s] Order  [%s] Layout  [%s] Exit  [%s] %s",
+                    order_label, layout_label, exit_label, next_label, action);
+        } else {
+            strnfmt(footer, sizeof(footer),
+                    "[S] Toggle order   [L] Layout   [ESC] Exit   (press any other key to %s)",
+                    has_more ? "continue" : "close");
+        }
         Term_putstr(1, 23, -1, TERM_L_WHITE, footer);
 
         char ch = inkey();
         prt("", 23, 0);
+
+        if (steamdeck) {
+            if (ch == 'h' || ch == 'H')
+                return ESCAPE;
+            if (ch == 'u' || ch == 'U')
+                ch = 'l';
+        }
 
         if (ch == ESCAPE)
             return ESCAPE;

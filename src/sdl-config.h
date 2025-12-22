@@ -5,6 +5,12 @@
 #include "pane.h"
 
 #define GAMEPAD_TRIGGER_COUNT 2
+#define GAMEPAD_STICK_DIR_COUNT 4
+
+#define GAMEPAD_STICK_DIR_UP 0
+#define GAMEPAD_STICK_DIR_DOWN 1
+#define GAMEPAD_STICK_DIR_LEFT 2
+#define GAMEPAD_STICK_DIR_RIGHT 3
 
 #define GAMEPAD_BIND_NONE -1
 #define GAMEPAD_BIND_SHIFT -2
@@ -59,6 +65,8 @@ struct sdl_config {
     int gamepad_trigger_threshold;        // Threshold to treat triggers as pressed
     int gamepad_button_bindings[SDL_GAMEPAD_BUTTON_COUNT];
     int gamepad_trigger_bindings[GAMEPAD_TRIGGER_COUNT];
+    int gamepad_left_stick_bindings[GAMEPAD_STICK_DIR_COUNT];
+    int gamepad_right_stick_bindings[GAMEPAD_STICK_DIR_COUNT];
 };
 
 // Load SDL configuration from JSON file
