@@ -725,6 +725,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
     int hgt;
     byte attr;
     int cur = (def) ? def : 0;
+    bool steamdeck = steamdeck_controls_active();
 
     /* Autoselect if able */
     // if (num == 1) done = true;
@@ -817,7 +818,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
             quit(NULL);
 
         /* Hack - go back */
-        if ((c == ESCAPE) || (c == '4'))
+        if ((c == ESCAPE) || (c == '4') || (steamdeck && c == 'b'))
             return (INVALID_CHOICE);
 
         /* Make a choice */
@@ -1617,7 +1618,7 @@ NavResult character_creation(void)
         char prompt_buf[160];
 
         birth_prompt_label('r', "r", random_label, sizeof(random_label));
-        birth_prompt_label(ESCAPE, "Esc", back_label, sizeof(back_label));
+        birth_prompt_label('b', "b", back_label, sizeof(back_label));
         birth_prompt_label('o', "o", options_label, sizeof(options_label));
         birth_prompt_label('s', "s", scores_label, sizeof(scores_label));
         birth_prompt_label('?', "?", help_label, sizeof(help_label));
@@ -1977,12 +1978,29 @@ static NavResult select_oath(void)
         Term_putstr(2, 21, -1, TERM_SLATE, "Breaking an oath brings curse and shame.");
         
         /* Instructions at bottom with arrows */
-        Term_putstr(2, 23, -1, TERM_SLATE, "Arrows to Navigate     Enter/Space Accept     Esc Back");
+        if (steamdeck_controls_active()) {
+            char confirm_label[16];
+            char back_label[16];
+            char prompt_buf[160];
+
+            birth_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
+            birth_prompt_label('b', "b", back_label, sizeof(back_label));
+
+            strnfmt(prompt_buf, sizeof(prompt_buf),
+                "D-pad to Navigate     %s Accept     %s Back",
+                confirm_label, back_label);
+            Term_putstr(2, 23, -1, TERM_SLATE, prompt_buf);
+        } else {
+            Term_putstr(2, 23, -1, TERM_SLATE,
+                "Arrows to Navigate     Enter/Space Accept     Esc Back");
+        }
         
         /* Get input */
         char key = inkey();
         
         /* Handle input */
+        if (steamdeck_controls_active() && key == 'b')
+            return NAV_BACK; /* Go back to character creation */
         if (key == ESCAPE || key == 'q') {
             return NAV_BACK; /* Go back to character creation */
         }
@@ -2186,6 +2204,8 @@ static NavResult player_birth_aux_2(void)
     /* Interact */
     while (1)
     {
+        bool steamdeck = steamdeck_controls_active();
+
         /* Reset cost */
         cost = 0;
 
@@ -2285,8 +2305,24 @@ static NavResult player_birth_aux_2(void)
             sdl_story_font_enable();
         }
 
-        Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
-            "Arrows -allocate    ESC -back   ENTER -confirm   q -quit");
+        if (steamdeck) {
+            char confirm_label[16];
+            char back_label[16];
+            char quit_label[16];
+            char prompt_buf[160];
+
+            birth_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
+            birth_prompt_label('b', "b", back_label, sizeof(back_label));
+            birth_prompt_label('q', "q", quit_label, sizeof(quit_label));
+
+            strnfmt(prompt_buf, sizeof(prompt_buf),
+                "D-pad -allocate    %s-back   %s-confirm   %s-quit",
+                back_label, confirm_label, quit_label);
+            Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE, prompt_buf);
+        } else {
+            Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
+                "Arrows -allocate    ESC -back   ENTER -confirm   q -quit");
+        }
 
         if (story_character_enabled()) {
             sdl_story_font_disable();
@@ -2304,6 +2340,8 @@ static NavResult player_birth_aux_2(void)
         }
 
         /* Back to Character Selection */
+        if (steamdeck && ch == 'b')
+            ch = ESCAPE;
         if (ch == ESCAPE)
             return NAV_BACK;
 
@@ -2394,6 +2432,8 @@ extern NavResult gain_skills(void)
     /* Interact */
     while (1)
     {
+        bool steamdeck = steamdeck_controls_active();
+
         // reset the total cost
         total_cost = 0;
 
@@ -2520,8 +2560,24 @@ extern NavResult gain_skills(void)
             sdl_story_font_enable();
         }
 
-        Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
-            "Arrows -allocate      ESC -back     ENTER -confirm     q -quit");
+        if (steamdeck) {
+            char confirm_label[16];
+            char back_label[16];
+            char quit_label[16];
+            char prompt_buf[160];
+
+            birth_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
+            birth_prompt_label('b', "b", back_label, sizeof(back_label));
+            birth_prompt_label('q', "q", quit_label, sizeof(quit_label));
+
+            strnfmt(prompt_buf, sizeof(prompt_buf),
+                "D-pad -allocate      %s-back     %s-confirm     %s-quit",
+                back_label, confirm_label, quit_label);
+            Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE, prompt_buf);
+        } else {
+            Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
+                "Arrows -allocate      ESC -back     ENTER -confirm     q -quit");
+        }
 
         if (story_character_enabled()) {
             sdl_story_font_disable();
@@ -2552,6 +2608,8 @@ extern NavResult gain_skills(void)
         }
 
         /* Abort */
+        if (steamdeck && ch == 'b')
+            ch = ESCAPE;
         if (ch == ESCAPE)
         {
             p_ptr->new_exp = old_new_exp;

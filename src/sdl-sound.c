@@ -385,6 +385,8 @@ void sdl_sound_reload(void)
     
     // Load sound configuration from sound.json
     sound_config_load(g_sound_config_path, &g_sound_config);
+    /* Keep global sound toggle aligned with config for early startup. */
+    use_sound = g_sound_config.enabled;
     sound_state.bank_loaded = sdl_sound_load_from_config(&g_sound_config);
     
     // Copy group flags and volumes to sound_state

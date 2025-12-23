@@ -2493,7 +2493,7 @@ void display_character_tutorial(void)
                     cmd_row += 2;
                 }
 
-                Term_putstr(4, cmd_row += 2, -1, TERM_SLATE,
+                Term_putstr(4, cmd_row += 1, -1, TERM_SLATE,
                             "Bindings can be changed in Controller Settings.");
             } else {
                 /* Left column */
@@ -2565,7 +2565,7 @@ void display_character_tutorial(void)
             char next_label[16];
             char back_label[16];
             tutorial_prompt_label(' ', "A", next_label, sizeof(next_label));
-            tutorial_prompt_label(ESCAPE, "ESC", back_label, sizeof(back_label));
+            tutorial_prompt_label('b', "b", back_label, sizeof(back_label));
             if (stage > 0)
                 Term_putstr(8, 23, -1, TERM_SLATE, "(D-Left Previous)");
             if (stage < 3) {
@@ -2590,7 +2590,7 @@ void display_character_tutorial(void)
         ch = inkey();
         
         /* Handle navigation */
-        if (ch == ESCAPE)
+        if (ch == ESCAPE || (steamdeck && ch == 'b'))
         {
             /* Exit tutorial */
             break;
@@ -3708,6 +3708,15 @@ static void help_binding_action_label(int binding, char* buf, size_t buflen)
     case 'l':
         SDL_strlcpy(buf, "Look (l)", buflen);
         return;
+    case 'o':
+        SDL_strlcpy(buf, "Open (o)", buflen);
+        return;
+    case 'q':
+        SDL_strlcpy(buf, "Quaff (q)", buflen);
+        return;
+    case 'r':
+        SDL_strlcpy(buf, "Remove (r)", buflen);
+        return;
     case 'a':
         SDL_strlcpy(buf, "Activate (a)", buflen);
         return;
@@ -3791,6 +3800,15 @@ static void help_binding_action_short(int binding, char* buf, size_t buflen)
         return;
     case 'l':
         SDL_strlcpy(buf, "Look", buflen);
+        return;
+    case 'o':
+        SDL_strlcpy(buf, "Open", buflen);
+        return;
+    case 'q':
+        SDL_strlcpy(buf, "Quaff", buflen);
+        return;
+    case 'r':
+        SDL_strlcpy(buf, "Remove", buflen);
         return;
     case 'a':
         SDL_strlcpy(buf, "Activate", buflen);
@@ -4571,9 +4589,9 @@ void do_cmd_help(void)
                 char next_label[16];
                 char back_label[16];
                 help_prompt_label(' ', "A", next_label, sizeof(next_label));
-                help_prompt_label(ESCAPE, "ESC", back_label, sizeof(back_label));
+                help_prompt_label('b', "b", back_label, sizeof(back_label));
                 strnfmt(nav, sizeof(nav),
-                    "Navigation: D-pad left/right Prev/Next  [%s] Next  [%s] Quit",
+                    "Navigation: D-pad left/right Prev/Next  [%s] Next  [%s] Back",
                     next_label, back_label);
             } else {
                 strnfmt(nav, sizeof(nav),
@@ -4583,6 +4601,8 @@ void do_cmd_help(void)
             c_put_str(TERM_WHITE, nav, hgt - 1, 1);
         }
         ch = inkey();
+        if (steamdeck_controls_active() && ch == 'b')
+            ch = ESCAPE;
 
         /* Enhanced navigation */
         if (ch != EOF)

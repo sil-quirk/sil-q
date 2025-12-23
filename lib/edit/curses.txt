@@ -296,6 +296,7 @@ P:More monsters
 N:29:Voracious Curse
 S:0:0:0:0
 U:HUNGER
+V:HUNGER
 A:2/2
 D:A hollow gnaws within you, insatiable and relentless. Hunger stalks your every step, the emptiness a ceaseless torment.
 P:Digestion rate is increased
@@ -314,6 +315,7 @@ N:31:Curse of Craven Hearts
 S:0:0:0:0
 F:
 U:RES_FEAR_SHIFT
+V:RES_FEAR_SHIFT
 A:3/1
 D:An unseen whisper seeps through your heart, unraveling valor into trembling dread.
 P:Fear resistance -1
@@ -325,6 +327,7 @@ N:32:Curse of Shattered Poise
 S:0:0:0:0
 F:
 U:RES_STUN_SHIFT
+V:RES_STUN_SHIFT
 A:3/1
 D:Invisible tremors rattle your sinews; every impact lingers, stealing your balance.
 P:Stun resistance -1
@@ -336,6 +339,7 @@ N:33:Curse of Tangled Thoughts
 S:0:0:0:0
 F:
 U:RES_CONFU_SHIFT
+V:RES_CONFU_SHIFT
 A:3/1
 D:Your thoughts fray into knotted echoes; commands dissolve before they reach your hands.
 P:Confusion resistance -1
@@ -347,6 +351,7 @@ N:34:Curse of Fraying Visions
 S:0:0:0:0
 F:
 U:RES_HALLU_SHIFT
+V:RES_HALLU_SHIFT
 A:3/1
 D:Phantasms bloom along the edge of sight; reality blurs into mocking lights.
 P:Hallucination resistance -1
@@ -358,6 +363,7 @@ N:35:Curse of Withered Veins
 S:0:0:0:0
 F:
 U:RES_POIS_SHIFT
+V:RES_POIS_SHIFT
 A:3/1
 D:Your blood chills with stagnant venom; toxins linger eager for the kill.
 P:Poison resistance -1
@@ -369,6 +375,7 @@ N:36:Curse of Ashen Wards
 S:0:0:0:0
 F:
 U:RES_FIRE_SHIFT
+V:RES_FIRE_SHIFT
 A:2/1
 D:Scorching doubts thin your wards; every ember threatens to consume you.
 P:Fire resistance -1
@@ -380,6 +387,7 @@ N:37:Curse of Winter's Claim
 S:0:0:0:0
 F:
 U:RES_COLD_SHIFT
+V:RES_COLD_SHIFT
 A:2/1
 D:A creeping frost seeps into your bones; winter tides slip past your guard.
 P:Cold resistance -1
@@ -391,6 +399,7 @@ N:38:Curse of Blunted Fortune
 S:0:0:0:0
 F:
 U:MDS_SHIFT
+V:MDS_SHIFT
 A:1/1
 D:Your strikes hesitate at the final instant; keen edges dull against fate.
 P:Melee damage dice sides -1
@@ -410,6 +419,7 @@ N:40:Curse of Breached Bulwarks
 S:0:0:0:0
 F:
 U:ARMOR_SIDE_SHIFT
+V:ARMOR_SIDE_SHIFT
 A:1/1
 D:The plates of your armour gap and groan; protection thins where strikes fall.
 P:Protection dice sides -1

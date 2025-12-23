@@ -944,6 +944,10 @@ void sdl_config_set_default_gamepad_bindings(struct sdl_config* config)
     config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER] = 'i';
     config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_START] = ESCAPE;
     config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_BACK] = 'h';
+    config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_LEFT_PADDLE1] = 'r';
+    config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_LEFT_PADDLE2] = 'o';
+    config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1] = 'q';
+    config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2] = '?';
     config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_LEFT_STICK] = 'z';
     config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_RIGHT_STICK] = 'j';
 

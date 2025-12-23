@@ -442,7 +442,7 @@ void do_cmd_character_sheet(void)
                 controller_prompt_label('f', "f", file_label, sizeof(file_label));
                 controller_prompt_label('u', "u", abilities_label, sizeof(abilities_label));
                 controller_prompt_label('i', "i", increase_label, sizeof(increase_label));
-                controller_prompt_label('h', "h", back_label, sizeof(back_label));
+                controller_prompt_label('b', "b", back_label, sizeof(back_label));
                 controller_prompt_label('?', "?", help_label, sizeof(help_label));
 
                 strnfmt(prompt_buf, sizeof(prompt_buf),
@@ -474,7 +474,7 @@ void do_cmd_character_sheet(void)
                 controller_prompt_label('f', "f", file_label, sizeof(file_label));
                 controller_prompt_label('u', "u", abilities_label, sizeof(abilities_label));
                 controller_prompt_label('i', "i", increase_label, sizeof(increase_label));
-                controller_prompt_label('h', "h", back_label, sizeof(back_label));
+                controller_prompt_label('b', "b", back_label, sizeof(back_label));
                 controller_prompt_label('?', "?", help_label, sizeof(help_label));
 
                 strnfmt(prompt_buf, sizeof(prompt_buf),
@@ -501,7 +501,7 @@ void do_cmd_character_sheet(void)
         ch = inkey();
 
         /* Exit */
-        if (ch == ESCAPE || (steamdeck && ch == 'h'))
+        if (ch == ESCAPE || (steamdeck && (ch == 'b' || ch == 'h')))
             break;
         if ((ch == '\r') || (ch == '\n') || (ch == 'q') || (ch == 'Q'))
             break;
@@ -14650,8 +14650,8 @@ void do_cmd_knowledge_artefacts(void)
             char back_label[16];
             char prompt_buf[96];
 
-            controller_prompt_label('r', "r", recall_label, sizeof(recall_label));
-            controller_prompt_label(ESCAPE, "ESC", back_label, sizeof(back_label));
+            controller_prompt_label('x', "x", recall_label, sizeof(recall_label));
+            controller_prompt_label('b', "b", back_label, sizeof(back_label));
             strnfmt(prompt_buf, sizeof(prompt_buf),
                 "D-pad move  [%s] recall  [%s] back", recall_label, back_label);
             Term_putstr(1, 23, -1, TERM_L_DARK, prompt_buf);
@@ -14682,6 +14682,8 @@ void do_cmd_knowledge_artefacts(void)
         }
 
         ch = inkey();
+        if (steamdeck_controls_active() && ch == 'b')
+            ch = ESCAPE;
 
         switch (ch)
         {
@@ -14693,6 +14695,8 @@ void do_cmd_knowledge_artefacts(void)
 
         case 'R':
         case 'r':
+        case 'X':
+        case 'x':
         {
             /* Recall on screen */
             desc_art_fake(artefact_idx[artefact_cur]);
@@ -14993,19 +14997,19 @@ static void display_monster_list(int col, int row, int per_page,
     }
 
     /*Clear the monster count line*/
-    Term_erase(0, 23, 255);
+    Term_erase(0, 22, 255);
 
     if (monster_group_char[grp_cur] != (char*)-1L)
     {
         c_put_str(TERM_L_BLUE,
-            format("Total Creatures Slain: %d. ", slay_count), 23, col + 2);
+            format("Total Creatures Slain: %d. ", slay_count), 22, col + 2);
     }
     else
     {
         c_put_str(TERM_L_BLUE,
             format("Known Uniques: %d, Slain Uniques: %d.", known_uniques,
                 dead_uniques),
-            23, col + 2);
+            22, col + 2);
     }
 }
 
@@ -15119,8 +15123,8 @@ void do_cmd_knowledge_monsters(void)
             char back_label[16];
             char prompt_buf[96];
 
-            controller_prompt_label('r', "r", recall_label, sizeof(recall_label));
-            controller_prompt_label(ESCAPE, "ESC", back_label, sizeof(back_label));
+            controller_prompt_label('x', "x", recall_label, sizeof(recall_label));
+            controller_prompt_label('b', "b", back_label, sizeof(back_label));
             strnfmt(prompt_buf, sizeof(prompt_buf),
                 "D-pad move  [%s] recall  [%s] back", recall_label, back_label);
             Term_putstr(1, 23, -1, TERM_L_DARK, prompt_buf);
@@ -15144,6 +15148,8 @@ void do_cmd_knowledge_monsters(void)
         }
 
         ch = inkey();
+        if (steamdeck_controls_active() && ch == 'b')
+            ch = ESCAPE;
 
         switch (ch)
         {
@@ -15155,6 +15161,8 @@ void do_cmd_knowledge_monsters(void)
 
         case 'R':
         case 'r':
+        case 'X':
+        case 'x':
         {
             /* Recall on screen */
             if (mon_idx[mon_cur].r_idx)
@@ -15607,11 +15615,11 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             char back_label[16];
             char prompt_buf[160];
 
-            controller_prompt_label('r', "r", recall_label, sizeof(recall_label));
+            controller_prompt_label('x', "x", recall_label, sizeof(recall_label));
             controller_prompt_label('u', "u", use_label, sizeof(use_label));
             controller_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
             controller_prompt_label('d', "d", drop_label, sizeof(drop_label));
-            controller_prompt_label(ESCAPE, "ESC", back_label, sizeof(back_label));
+            controller_prompt_label('b', "b", back_label, sizeof(back_label));
 
             strnfmt(prompt_buf, sizeof(prompt_buf),
                 "D-pad move  [%s] recall  [%s/%s] use  [%s] drop  [%s] back",
@@ -15639,6 +15647,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             Term_gotoxy(0, 6 + (grp_cur - grp_top));
 
         char ch = inkey();
+        if (steamdeck_controls_active() && ch == 'b')
+            ch = ESCAPE;
 
         if ((ch == '\r' || ch == '\n') && column && entry_cnt)
         {
@@ -15930,8 +15940,8 @@ void do_cmd_knowledge_objects(void)
             char back_label[16];
             char prompt_buf[96];
 
-            controller_prompt_label('r', "r", recall_label, sizeof(recall_label));
-            controller_prompt_label(ESCAPE, "ESC", back_label, sizeof(back_label));
+            controller_prompt_label('x', "x", recall_label, sizeof(recall_label));
+            controller_prompt_label('b', "b", back_label, sizeof(back_label));
             strnfmt(prompt_buf, sizeof(prompt_buf),
                 "D-pad move  [%s] recall  [%s] back", recall_label, back_label);
             Term_putstr(1, 23, -1, TERM_L_DARK, prompt_buf);
@@ -15966,6 +15976,8 @@ void do_cmd_knowledge_objects(void)
         }
 
         ch = inkey();
+        if (steamdeck_controls_active() && ch == 'b')
+            ch = ESCAPE;
 
         switch (ch)
         {
@@ -15977,6 +15989,8 @@ void do_cmd_knowledge_objects(void)
 
         case 'R':
         case 'r':
+        case 'X':
+        case 'x':
         {
             object_list_entry* obj = &object_idx[object_cur];
             if (obj->type == OBJ_NORMAL && k_info[obj->idx].aware)

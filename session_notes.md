@@ -1,5 +1,13 @@
 # Session Notes
 
+## 2025-12-24: Blessing CUR flag fixes
+- `lib/edit/curses.txt`: added `V:` blessing CUR flags for hunger/resistance/armor side/melee damage shift entries so blessings apply their actual effects (fixes Tempered Bulwarks protection sides).
+
+## 2025-12-23: Steam Deck menu back/recall fixes
+- Character selection/stats/skills/oath prompts now show Steam Deck labels; b backs out and back handling added across those menus.
+- Knowledge/supply browsers now use RS Right (x) for recall with b-back; monster count line moved to row 22 to avoid prompt overlap.
+- Character sheet/help/tutorial prompts updated for b-back; tutorial footer spacing fixed; help bindings now label r/o/q actions.
+
 ## 2025-12-23: Steam Deck UI expansion + controller bindings
 - Added Steam Deck button prompts for character selection, help/tutorial, inventory/equipment top prompts, supply menu, and knowledge browsers (artefacts/objects/monsters/curses).
 - Added configurable L1+R1 combo binding plus new right-stick defaults (x/a/M/b) in SDL config and controller settings.
@@ -7904,3 +7912,7 @@ The script now fully matches the game's drop generation logic for all item types
 - src/load.c: fix gem supply load loop to decrement count before absorb so object_wipe doesn't zero the remaining counter.
 - src/cmd4.c: refresh after supply use to avoid stale screen line when closing menu.
 - src/cmd1.c: prevent ident_on_wield from auto-identifying staves just because they're aware, keeping charges hidden unless identified.
+
+## 2025-09-05
+- Sync use_sound with sound.json on sdl_sound_reload() so a fresh install honors enabled sounds without needing a toggle (fixes silent SFX on first run).
+
