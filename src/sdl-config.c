@@ -726,6 +726,12 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
             log_debug("Loaded gamepad.rightStickBindings (%d entries)", count);
         }
 
+        item = cJSON_GetObjectItemCaseSensitive(gamepad, "shoulderComboBinding");
+        if (cJSON_IsNumber(item)) {
+            config->gamepad_shoulder_combo_binding = item->valueint;
+            log_debug("Loaded gamepad.shoulderComboBinding: %d", config->gamepad_shoulder_combo_binding);
+        }
+
         if (config->gamepad_use_dpad) {
             config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_DPAD_UP] = GAMEPAD_BIND_NONE;
             config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_DPAD_DOWN] = GAMEPAD_BIND_NONE;
@@ -884,6 +890,8 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
                 cJSON_AddItemToObject(gamepad, "rightStickBindings", right_stick);
             }
 
+            cJSON_AddNumberToObject(gamepad, "shoulderComboBinding", config->gamepad_shoulder_combo_binding);
+
             cJSON_AddItemToObject(root, "gamepad", gamepad);
         }
     }
@@ -939,8 +947,15 @@ void sdl_config_set_default_gamepad_bindings(struct sdl_config* config)
     config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_LEFT_STICK] = 'z';
     config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_RIGHT_STICK] = 'j';
 
+    config->gamepad_right_stick_bindings[GAMEPAD_STICK_DIR_RIGHT] = 'x';
+    config->gamepad_right_stick_bindings[GAMEPAD_STICK_DIR_LEFT] = 'a';
+    config->gamepad_right_stick_bindings[GAMEPAD_STICK_DIR_UP] = 'M';
+    config->gamepad_right_stick_bindings[GAMEPAD_STICK_DIR_DOWN] = 'b';
+
     config->gamepad_trigger_bindings[0] = GAMEPAD_BIND_SHIFT;
     config->gamepad_trigger_bindings[1] = GAMEPAD_BIND_CTRL;
+
+    config->gamepad_shoulder_combo_binding = 'l';
 }
 
 void sdl_config_set_defaults(struct sdl_config* config)

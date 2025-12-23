@@ -702,6 +702,16 @@ Term_erase(TOTAL_AUX_COL, 0, 255);
     }
 }
 
+static void birth_prompt_label(int binding, const char* fallback, char* buf, size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    sdl_gamepad_action_binding_short_label(binding, buf, buflen);
+    if (streq(buf, "(unbound)") || streq(buf, "Multiple"))
+        SDL_strlcpy(buf, fallback, buflen);
+}
+
 /*
  * Generic "get choice from menu" function
  */
@@ -824,8 +834,8 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
             continue; /* Return to the selection loop after showing scores */
         }
         
-        // Show help: accept both 'h' and 'H'
-        if (c == 'h' || c == 'H')
+        // Show help: accept both 'h' and 'H', plus '?'
+        if (c == 'h' || c == 'H' || c == '?')
         {
             do_cmd_help();
             continue; /* Return to the selection loop after showing help */
@@ -1597,8 +1607,32 @@ NavResult character_creation(void)
     Term_putstr(
         QUESTION_COL, HEADER_ROW, -1, TERM_L_BLUE, "Character Selection:");
 
-    Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
-        "r -random    ESC -back   o -options   s -scores   h -help   q -quit");
+    if (steamdeck_controls_active()) {
+        char random_label[16];
+        char back_label[16];
+        char options_label[16];
+        char scores_label[16];
+        char help_label[16];
+        char quit_label[16];
+        char prompt_buf[160];
+
+        birth_prompt_label('r', "r", random_label, sizeof(random_label));
+        birth_prompt_label(ESCAPE, "Esc", back_label, sizeof(back_label));
+        birth_prompt_label('o', "o", options_label, sizeof(options_label));
+        birth_prompt_label('s', "s", scores_label, sizeof(scores_label));
+        birth_prompt_label('?', "?", help_label, sizeof(help_label));
+        if (streq(help_label, "?"))
+            birth_prompt_label('h', "h", help_label, sizeof(help_label));
+        birth_prompt_label('q', "q", quit_label, sizeof(quit_label));
+
+        strnfmt(prompt_buf, sizeof(prompt_buf),
+            "%s-random  %s-back  %s-options  %s-scores  %s-help  %s-quit",
+            random_label, back_label, options_label, scores_label, help_label, quit_label);
+        Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE, prompt_buf);
+    } else {
+        Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
+            "r -random    ESC -back   o -options   s -scores   h -help   q -quit");
+    }
 
     while (phase <= 2)
     {
@@ -1687,7 +1721,7 @@ NavResult character_creation(void)
     {
         op_ptr->hitpoint_warn = 3;
         op_ptr->delay_factor = 5;
-        op_ptr->main_combat_rolls = 0;  /* Default to 0 lines */
+        op_ptr->main_combat_rolls = get_sdl_steamdeck_mode() ? 2 : 0;
     }
     
     /* Ensure main_combat_rolls has a valid value for existing saves */

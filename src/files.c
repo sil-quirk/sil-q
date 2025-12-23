@@ -21,6 +21,7 @@
 #include "log/log.h"
 #include "metarun.h"
 #include "platform.h"
+#include "sdl-config.h"
 #include "z-term.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -1861,6 +1862,16 @@ static void display_player_flag_info(void)
  * Shows 4 stages explaining different parts of the character screen
  * with actual character data displayed
  */
+static void tutorial_prompt_label(int binding, const char* fallback, char* out, size_t out_size)
+{
+    if (!out || !out_size)
+        return;
+
+    sdl_gamepad_action_binding_short_label(binding, out, out_size);
+    if (streq(out, "(unbound)") || streq(out, "Multiple"))
+        SDL_strlcpy(out, fallback, out_size);
+}
+
 void display_character_tutorial(void)
 {
     int stage = 0;
@@ -1874,6 +1885,8 @@ void display_character_tutorial(void)
     {
         /* Clear screen */
         Term_clear();
+
+        bool steamdeck = steamdeck_controls_active();
         
         /* Stage header */
         Term_putstr(20, 0, -1, TERM_L_BLUE, 
@@ -2376,80 +2389,202 @@ void display_character_tutorial(void)
             row += 4;
             
             Term_putstr(2, row++, -1, TERM_SLATE, "Essential Controls:");
-            
+
             /* Two-column layout for commands */
             int cmd_row = row;
-            
-            /* Left column */
-            c_put_str(TERM_L_WHITE, "Numpad", cmd_row, 4);
-            Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Move/attack");
-            
-            c_put_str(TERM_L_WHITE, "Space", cmd_row, 4);
-            Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Pick up item");
-            
-            c_put_str(TERM_L_WHITE, "u", cmd_row, 4);
-            Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Use item");
-            
-            c_put_str(TERM_L_WHITE, "x", cmd_row, 4);
-            Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Examine item");
 
-            
-            c_put_str(TERM_L_WHITE, "i", cmd_row, 4);
-            Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Inventory");
-            
-            c_put_str(TERM_L_WHITE, "e", cmd_row, 4);
-            Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Equipment");
-            
-            c_put_str(TERM_L_WHITE, "l", cmd_row, 4);
-            Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Look menu");
-            
-            c_put_str(TERM_L_WHITE, "Ctrl", cmd_row, 4);
-            Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Bash, disarm, tunnel");
+            if (steamdeck) {
+                char confirm_label[16];
+                char use_label[16];
+                char examine_label[16];
+                char inven_label[16];
+                char equip_label[16];
+                char look_label[16];
+                char char_label[16];
+                char fire_label[16];
+                char sing_label[16];
+                char activate_label[16];
+                char map_label[16];
+                char bash_label[16];
+                char abilities_label[16];
+                char help_label[16];
+                char menu_label[16];
+                char shift_label[16];
+                char ctrl_label[16];
 
-            
-            /* Right column */
-            cmd_row = row;
-            
-            c_put_str(TERM_L_WHITE, "f/F", cmd_row, 42);
-            Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-fire (ranged attack)");
-            
-            c_put_str(TERM_L_WHITE, "s/S", cmd_row, 42);
-            Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Sing/Stealth");
-            
-            c_put_str(TERM_L_WHITE, "a", cmd_row, 42);
-            Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Activate stuff");
+                tutorial_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
+                tutorial_prompt_label('u', "X", use_label, sizeof(use_label));
+                tutorial_prompt_label('x', "RS Right", examine_label, sizeof(examine_label));
+                tutorial_prompt_label('i', "R1", inven_label, sizeof(inven_label));
+                tutorial_prompt_label('e', "L1", equip_label, sizeof(equip_label));
+                tutorial_prompt_label('l', "L1+R1", look_label, sizeof(look_label));
+                tutorial_prompt_label('h', "R5", char_label, sizeof(char_label));
+                tutorial_prompt_label('f', "B", fire_label, sizeof(fire_label));
+                tutorial_prompt_label('s', "Y", sing_label, sizeof(sing_label));
+                tutorial_prompt_label('a', "RS Left", activate_label, sizeof(activate_label));
+                tutorial_prompt_label('M', "RS Up", map_label, sizeof(map_label));
+                tutorial_prompt_label('b', "RS Down", bash_label, sizeof(bash_label));
+                tutorial_prompt_label('\t', "L5", abilities_label, sizeof(abilities_label));
+                tutorial_prompt_label('?', "?", help_label, sizeof(help_label));
+                tutorial_prompt_label('m', "Start", menu_label, sizeof(menu_label));
+                tutorial_prompt_label(GAMEPAD_BIND_SHIFT, "L2", shift_label, sizeof(shift_label));
+                tutorial_prompt_label(GAMEPAD_BIND_CTRL, "R2", ctrl_label, sizeof(ctrl_label));
 
-            c_put_str(TERM_L_WHITE, "c", cmd_row, 42);
-            Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Close door");
-            
-            c_put_str(TERM_L_WHITE, "h", cmd_row, 42);
-            Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Character screen");
-            
-            c_put_str(TERM_L_WHITE, "m", cmd_row, 42);
-            Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Main menu");
-            
-            c_put_str(TERM_L_WHITE, "Tab", cmd_row, 42);
-            Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Abilities menu");
-            
-            c_put_str(TERM_L_WHITE, "?", cmd_row, 42);
-            Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Help");
+                /* Left column */
+                c_put_str(TERM_L_WHITE, "D-pad/Left Stick", cmd_row, 4);
+                Term_putstr(22, cmd_row++, -1, TERM_SLATE, "-Move/attack");
 
-            Term_putstr(11, cmd_row+=2, -1, TERM_SLATE, "Keyboard shortcuts could be changed through user preference");
+                c_put_str(TERM_L_WHITE, confirm_label, cmd_row, 4);
+                Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Pick up item");
+
+                c_put_str(TERM_L_WHITE, use_label, cmd_row, 4);
+                Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Use item");
+
+                c_put_str(TERM_L_WHITE, examine_label, cmd_row, 4);
+                Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Examine item");
+
+                c_put_str(TERM_L_WHITE, inven_label, cmd_row, 4);
+                Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Inventory");
+
+                c_put_str(TERM_L_WHITE, equip_label, cmd_row, 4);
+                Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Equipment");
+
+                c_put_str(TERM_L_WHITE, look_label, cmd_row, 4);
+                Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Look menu");
+
+                c_put_str(TERM_L_WHITE, char_label, cmd_row, 4);
+                Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Character screen");
+
+                /* Right column */
+                cmd_row = row;
+
+                c_put_str(TERM_L_WHITE, fire_label, cmd_row, 42);
+                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Fire (primary)");
+
+                c_put_str(TERM_L_WHITE, sing_label, cmd_row, 42);
+                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Sing");
+
+                c_put_str(TERM_L_WHITE, activate_label, cmd_row, 42);
+                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Activate stuff");
+
+                c_put_str(TERM_L_WHITE, map_label, cmd_row, 42);
+                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Map");
+
+                c_put_str(TERM_L_WHITE, bash_label, cmd_row, 42);
+                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Bash");
+
+                c_put_str(TERM_L_WHITE, abilities_label, cmd_row, 42);
+                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Abilities menu");
+
+                c_put_str(TERM_L_WHITE, help_label, cmd_row, 42);
+                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Help");
+
+                c_put_str(TERM_L_WHITE, menu_label, cmd_row, 42);
+                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Main menu");
+
+                {
+                    char note_buf[120];
+                    strnfmt(note_buf, sizeof(note_buf),
+                            "Shift: %s+%s=Stealth, %s+%s=Second quiver",
+                            shift_label, sing_label, shift_label, fire_label);
+                    Term_putstr(4, cmd_row + 1, -1, TERM_SLATE, note_buf);
+                    strnfmt(note_buf, sizeof(note_buf), "Ctrl: %s+dir = Bash/Disarm/Tunnel", ctrl_label);
+                    Term_putstr(4, cmd_row + 2, -1, TERM_SLATE, note_buf);
+                    cmd_row += 2;
+                }
+
+                Term_putstr(4, cmd_row += 2, -1, TERM_SLATE,
+                            "Bindings can be changed in Controller Settings.");
+            } else {
+                /* Left column */
+                c_put_str(TERM_L_WHITE, "Numpad", cmd_row, 4);
+                Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Move/attack");
+
+                c_put_str(TERM_L_WHITE, "Space", cmd_row, 4);
+                Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Pick up item");
+
+                c_put_str(TERM_L_WHITE, "u", cmd_row, 4);
+                Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Use item");
+
+                c_put_str(TERM_L_WHITE, "x", cmd_row, 4);
+                Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Examine item");
+
+                c_put_str(TERM_L_WHITE, "i", cmd_row, 4);
+                Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Inventory");
+
+                c_put_str(TERM_L_WHITE, "e", cmd_row, 4);
+                Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Equipment");
+
+                c_put_str(TERM_L_WHITE, "l", cmd_row, 4);
+                Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Look menu");
+
+                c_put_str(TERM_L_WHITE, "Ctrl", cmd_row, 4);
+                Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Bash, disarm, tunnel");
+
+                /* Right column */
+                cmd_row = row;
+
+                c_put_str(TERM_L_WHITE, "f/F", cmd_row, 42);
+                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-fire (ranged attack)");
+
+                c_put_str(TERM_L_WHITE, "s/S", cmd_row, 42);
+                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Sing/Stealth");
+
+                c_put_str(TERM_L_WHITE, "a", cmd_row, 42);
+                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Activate stuff");
+
+                c_put_str(TERM_L_WHITE, "c", cmd_row, 42);
+                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Close door");
+
+                c_put_str(TERM_L_WHITE, "h", cmd_row, 42);
+                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Character screen");
+
+                c_put_str(TERM_L_WHITE, "m", cmd_row, 42);
+                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Main menu");
+
+                c_put_str(TERM_L_WHITE, "Tab", cmd_row, 42);
+                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Abilities menu");
+
+                c_put_str(TERM_L_WHITE, "?", cmd_row, 42);
+                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Help");
+
+                Term_putstr(11, cmd_row += 2, -1, TERM_SLATE, "Keyboard shortcuts could be changed through user preference");
+            }
 
             row = cmd_row;
         }
         
         /* Footer */
         if (stage < 3)
-            Term_putstr(18, 22, -1, TERM_YELLOW, "Use arrows or any key to navigate");
+            Term_putstr(18, 22, -1, TERM_YELLOW,
+                steamdeck ? "D-pad left/right to navigate" : "Use arrows or any key to navigate");
         else
             Term_putstr(26, 22, -1, TERM_L_GREEN, "Tutorial complete!");
-        
-        if (stage > 0)
-            Term_putstr(10, 23, -1, TERM_SLATE, "(4/<- Previous)");
-        if (stage < 3)
-            Term_putstr(53, 23, -1, TERM_SLATE, "(Next 6/->)");
-        Term_putstr(30, 23, -1, TERM_SLATE, "(ESC to exit)");
+
+        if (steamdeck) {
+            char next_label[16];
+            char back_label[16];
+            tutorial_prompt_label(' ', "A", next_label, sizeof(next_label));
+            tutorial_prompt_label(ESCAPE, "ESC", back_label, sizeof(back_label));
+            if (stage > 0)
+                Term_putstr(8, 23, -1, TERM_SLATE, "(D-Left Previous)");
+            if (stage < 3) {
+                char next_buf[32];
+                strnfmt(next_buf, sizeof(next_buf), "(%s Next)", next_label);
+                Term_putstr(52, 23, -1, TERM_SLATE, next_buf);
+            }
+            {
+                char exit_buf[32];
+                strnfmt(exit_buf, sizeof(exit_buf), "(%s to exit)", back_label);
+                Term_putstr(30, 23, -1, TERM_SLATE, exit_buf);
+            }
+        } else {
+            if (stage > 0)
+                Term_putstr(10, 23, -1, TERM_SLATE, "(4/<- Previous)");
+            if (stage < 3)
+                Term_putstr(53, 23, -1, TERM_SLATE, "(Next 6/->)");
+            Term_putstr(30, 23, -1, TERM_SLATE, "(ESC to exit)");
+        }
         
         /* Wait for any key press */
         ch = inkey();
@@ -3512,10 +3647,186 @@ static inline void put_role(color_role_t role, const char *s, int row, int col) 
     c_put_str(HELP_THEME[role], s, row, col);
 }
 
-/* Optional tiny helpers to reduce manual offsets when printing spans */
-static inline int put_then_advance(color_role_t role, const char *s, int row, int col) {
-    put_role(role, s, row, col);
-    return col + (int)strlen(s);
+
+static void help_binding_action_label(int binding, char* buf, size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    switch (binding) {
+    case GAMEPAD_BIND_NONE:
+        SDL_strlcpy(buf, "Unbound", buflen);
+        return;
+    case GAMEPAD_BIND_SHIFT:
+        SDL_strlcpy(buf, "Shift modifier", buflen);
+        return;
+    case GAMEPAD_BIND_CTRL:
+        SDL_strlcpy(buf, "Ctrl modifier", buflen);
+        return;
+    case GAMEPAD_BIND_ALT:
+        SDL_strlcpy(buf, "Alt modifier", buflen);
+        return;
+    case ' ':
+        SDL_strlcpy(buf, "Confirm (Space)", buflen);
+        return;
+    case '\r':
+        SDL_strlcpy(buf, "Enter", buflen);
+        return;
+    case ESCAPE:
+        SDL_strlcpy(buf, "Back (Esc)", buflen);
+        return;
+    case '\t':
+        SDL_strlcpy(buf, "Abilities (Tab)", buflen);
+        return;
+    case 'i':
+        SDL_strlcpy(buf, "Inventory (i)", buflen);
+        return;
+    case 'e':
+        SDL_strlcpy(buf, "Equipment (e)", buflen);
+        return;
+    case 'u':
+        SDL_strlcpy(buf, "Use item (u)", buflen);
+        return;
+    case 'x':
+        SDL_strlcpy(buf, "Examine item (x)", buflen);
+        return;
+    case 's':
+        SDL_strlcpy(buf, "Sing (s)", buflen);
+        return;
+    case 'S':
+        SDL_strlcpy(buf, "Stealth (S)", buflen);
+        return;
+    case 'f':
+        SDL_strlcpy(buf, "Fire (f)", buflen);
+        return;
+    case 'F':
+        SDL_strlcpy(buf, "Second quiver (F)", buflen);
+        return;
+    case 'h':
+        SDL_strlcpy(buf, "Character sheet (h)", buflen);
+        return;
+    case 'l':
+        SDL_strlcpy(buf, "Look (l)", buflen);
+        return;
+    case 'a':
+        SDL_strlcpy(buf, "Activate (a)", buflen);
+        return;
+    case 'M':
+        SDL_strlcpy(buf, "Map (M)", buflen);
+        return;
+    case 'b':
+        SDL_strlcpy(buf, "Bash (b)", buflen);
+        return;
+    case 'j':
+        SDL_strlcpy(buf, "Supplies (j)", buflen);
+        return;
+    case 'm':
+        SDL_strlcpy(buf, "Main menu (m)", buflen);
+        return;
+    case '?':
+        SDL_strlcpy(buf, "Help (?)", buflen);
+        return;
+    default:
+        if (binding >= 32 && binding <= 126)
+            strnfmt(buf, buflen, "Key '%c'", binding);
+        else
+            strnfmt(buf, buflen, "Key %d", binding);
+        return;
+    }
+}
+
+static void help_binding_action_short(int binding, char* buf, size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    switch (binding) {
+    case GAMEPAD_BIND_NONE:
+        SDL_strlcpy(buf, "Unbound", buflen);
+        return;
+    case GAMEPAD_BIND_SHIFT:
+        SDL_strlcpy(buf, "Shift", buflen);
+        return;
+    case GAMEPAD_BIND_CTRL:
+        SDL_strlcpy(buf, "Ctrl", buflen);
+        return;
+    case GAMEPAD_BIND_ALT:
+        SDL_strlcpy(buf, "Alt", buflen);
+        return;
+    case ' ':
+        SDL_strlcpy(buf, "Confirm", buflen);
+        return;
+    case ESCAPE:
+        SDL_strlcpy(buf, "Back", buflen);
+        return;
+    case '\t':
+        SDL_strlcpy(buf, "Abilities", buflen);
+        return;
+    case 'i':
+        SDL_strlcpy(buf, "Inventory", buflen);
+        return;
+    case 'e':
+        SDL_strlcpy(buf, "Equipment", buflen);
+        return;
+    case 'u':
+        SDL_strlcpy(buf, "Use", buflen);
+        return;
+    case 'x':
+        SDL_strlcpy(buf, "Examine", buflen);
+        return;
+    case 's':
+        SDL_strlcpy(buf, "Sing", buflen);
+        return;
+    case 'S':
+        SDL_strlcpy(buf, "Stealth", buflen);
+        return;
+    case 'f':
+        SDL_strlcpy(buf, "Fire", buflen);
+        return;
+    case 'F':
+        SDL_strlcpy(buf, "Second", buflen);
+        return;
+    case 'h':
+        SDL_strlcpy(buf, "Character", buflen);
+        return;
+    case 'l':
+        SDL_strlcpy(buf, "Look", buflen);
+        return;
+    case 'a':
+        SDL_strlcpy(buf, "Activate", buflen);
+        return;
+    case 'M':
+        SDL_strlcpy(buf, "Map", buflen);
+        return;
+    case 'b':
+        SDL_strlcpy(buf, "Bash", buflen);
+        return;
+    case 'j':
+        SDL_strlcpy(buf, "Supplies", buflen);
+        return;
+    case 'm':
+        SDL_strlcpy(buf, "Menu", buflen);
+        return;
+    case '?':
+        SDL_strlcpy(buf, "Help", buflen);
+        return;
+    default:
+        if (binding >= 32 && binding <= 126)
+            strnfmt(buf, buflen, "%c", binding);
+        else
+            strnfmt(buf, buflen, "%d", binding);
+        return;
+    }
+}
+
+static void help_prompt_label(int binding, const char* fallback, char* buf, size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    sdl_gamepad_action_binding_short_label(binding, buf, buflen);
+    if (streq(buf, "(unbound)") || streq(buf, "Multiple"))
+        SDL_strlcpy(buf, fallback, buflen);
 }
 
 /* -------- Help pages ----------------------------------------------------- */
@@ -4045,36 +4356,176 @@ void show_help_screen(int i)
 
         /* Movement and Action Controls */
         col = 1;
-        put_role(ROLE_ELEM_COLD, "D-pad: Up/Down/Left/Right", row, col); put_role(ROLE_BODY, " - Movement", row, col + 25); row++;
-        row++;
-        put_role(ROLE_GOOD, "A", row, col); put_role(ROLE_BODY, " Green - Space - Interact (,) - Pick up, stairs, forge", row, col + 2); row++;
-        put_role(ROLE_ELEM_COLD, "X", row, col); put_role(ROLE_BODY, " Blue  - Use object (u)", row, col + 2); row++;
-        put_role(ROLE_ELEM_FIRE, "Y", row, col); put_role(ROLE_BODY, " Yellow- Sing/stealth (s)", row, col + 2); row++;
-        put_role(ROLE_BAD, "B", row, col); put_role(ROLE_BODY, " Red   - Shoot bow (f)", row, col + 2); row++;
-        row++;
-        
-        /* Left side controls */
-        put_role(ROLE_SECTION, "LEFT SIDE CONTROLS", row, col); row += 2;
-        put_role(ROLE_KEY, "Left Stick", row, col); put_role(ROLE_BODY, " - Numpad", row, col + 15); row++;
-        put_role(ROLE_KEY, "Left Trackpad", row, col); put_role(ROLE_BODY, " - Numpad", row, col + 15); row++;
-        put_role(ROLE_UI, "Menu Button", row, col); put_role(ROLE_BODY, " - Enter", row, col + 15); row++;
-        put_role(ROLE_KEY, "L1 (Bumper)", row, col); put_role(ROLE_BODY, " - Equipped items (e)", row, col + 15); row++;
-        put_role(ROLE_KEY, "L2 (Trigger)", row, col); put_role(ROLE_BODY, " - Shift", row, col + 15); row++;
-        put_role(ROLE_KEY, "L4 (Back)", row, col); put_role(ROLE_BODY, " - Look (l)", row, col + 15); row++;
-        put_role(ROLE_KEY, "L5 (Back)", row, col); put_role(ROLE_BODY, " - Abilities (Tab)", row, col + 15); row++;
+        put_role(ROLE_SECTION, "MOVEMENT & ACTION", row, col); row += 2;
+        put_role(ROLE_KEY, "D-pad / Left Stick", row, col);
+        put_role(ROLE_BODY, " - Movement", row, col + 22); row++;
 
-        /* Right side controls */
-        col = 42; row = 9;
-        put_role(ROLE_SECTION, "RIGHT SIDE CONTROLS", row, col); row += 2;
-        put_role(ROLE_KEY, "Right Stick", row, col); put_role(ROLE_BODY, " - Letters", row, col + 16); row++;
-        put_role(ROLE_KEY, "Right Trackpad", row, col); put_role(ROLE_BODY, " - Useful letters", row, col + 16); row++;
-        put_role(ROLE_UI, "View Button", row, col); put_role(ROLE_BODY, " - Esc/Main Menu", row, col + 16); row++;
-        put_role(ROLE_KEY, "R1 (Bumper)", row, col); put_role(ROLE_BODY, " - Inventory (i)", row, col + 16); row++;
-        put_role(ROLE_KEY, "R2 (Trigger)", row, col); put_role(ROLE_BODY, " - Ctrl", row, col + 16); row++;
-        put_role(ROLE_KEY, "R4 (Back)", row, col); put_role(ROLE_BODY, " - Description (x)", row, col + 16); row++;
-        put_role(ROLE_KEY, "R5 (Back)", row, col); put_role(ROLE_BODY, " - Character sheet (h)", row, col + 16); row++;
-        
-        row += 2;
+        char action_buf[96];
+        int binding = 0;
+
+        binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_SOUTH);
+        help_binding_action_label(binding, action_buf, sizeof(action_buf));
+        put_role(ROLE_KEY, "A", row, col); put_role(ROLE_BODY, " - ", row, col + 2);
+        put_role(ROLE_BODY, action_buf, row, col + 5); row++;
+
+        binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_WEST);
+        help_binding_action_label(binding, action_buf, sizeof(action_buf));
+        put_role(ROLE_KEY, "X", row, col); put_role(ROLE_BODY, " - ", row, col + 2);
+        put_role(ROLE_BODY, action_buf, row, col + 5); row++;
+
+        binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_NORTH);
+        help_binding_action_label(binding, action_buf, sizeof(action_buf));
+        put_role(ROLE_KEY, "Y", row, col); put_role(ROLE_BODY, " - ", row, col + 2);
+        put_role(ROLE_BODY, action_buf, row, col + 5); row++;
+
+        binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_EAST);
+        help_binding_action_label(binding, action_buf, sizeof(action_buf));
+        put_role(ROLE_KEY, "B", row, col); put_role(ROLE_BODY, " - ", row, col + 2);
+        put_role(ROLE_BODY, action_buf, row, col + 5); row++;
+
+        {
+            char rs_up[24];
+            char rs_down[24];
+            char rs_left[24];
+            char rs_right[24];
+            char rs_line[120];
+            help_binding_action_short(get_sdl_gamepad_right_stick_binding(GAMEPAD_STICK_DIR_UP), rs_up, sizeof(rs_up));
+            help_binding_action_short(get_sdl_gamepad_right_stick_binding(GAMEPAD_STICK_DIR_DOWN), rs_down, sizeof(rs_down));
+            help_binding_action_short(get_sdl_gamepad_right_stick_binding(GAMEPAD_STICK_DIR_LEFT), rs_left, sizeof(rs_left));
+            help_binding_action_short(get_sdl_gamepad_right_stick_binding(GAMEPAD_STICK_DIR_RIGHT), rs_right, sizeof(rs_right));
+            strnfmt(rs_line, sizeof(rs_line), "Up:%s  Down:%s  Left:%s  Right:%s",
+                    rs_up, rs_down, rs_left, rs_right);
+            put_role(ROLE_KEY, "Right Stick", row, col);
+            put_role(ROLE_BODY, " - ", row, col + 11);
+            put_role(ROLE_BODY, rs_line, row, col + 14);
+            row++;
+        }
+
+        row += 1;
+
+        /* Left and right side controls */
+        int left_header_row = row;
+        int left_start_row = row + 2;
+        put_role(ROLE_SECTION, "LEFT SIDE CONTROLS", left_header_row, col);
+
+        row = left_start_row;
+        const char* input = NULL;
+        int text_col = 0;
+
+        binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_LEFT_SHOULDER);
+        help_binding_action_label(binding, action_buf, sizeof(action_buf));
+        input = "L1 (Bumper)";
+        put_role(ROLE_KEY, input, row, col);
+        text_col = col + (int)strlen(input);
+        put_role(ROLE_BODY, " - ", row, text_col);
+        put_role(ROLE_BODY, action_buf, row, text_col + 3); row++;
+
+        binding = get_sdl_gamepad_trigger_binding(0);
+        help_binding_action_label(binding, action_buf, sizeof(action_buf));
+        input = "L2 (Trigger)";
+        put_role(ROLE_KEY, input, row, col);
+        text_col = col + (int)strlen(input);
+        put_role(ROLE_BODY, " - ", row, text_col);
+        put_role(ROLE_BODY, action_buf, row, text_col + 3); row++;
+
+        binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_LEFT_PADDLE1);
+        help_binding_action_label(binding, action_buf, sizeof(action_buf));
+        input = "L4 (Back)";
+        put_role(ROLE_KEY, input, row, col);
+        text_col = col + (int)strlen(input);
+        put_role(ROLE_BODY, " - ", row, text_col);
+        put_role(ROLE_BODY, action_buf, row, text_col + 3); row++;
+
+        binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_LEFT_PADDLE2);
+        help_binding_action_label(binding, action_buf, sizeof(action_buf));
+        input = "L5 (Back)";
+        put_role(ROLE_KEY, input, row, col);
+        text_col = col + (int)strlen(input);
+        put_role(ROLE_BODY, " - ", row, text_col);
+        put_role(ROLE_BODY, action_buf, row, text_col + 3); row++;
+
+        binding = get_sdl_gamepad_shoulder_combo_binding();
+        help_binding_action_label(binding, action_buf, sizeof(action_buf));
+        input = "L1+R1 Combo";
+        put_role(ROLE_KEY, input, row, col);
+        text_col = col + (int)strlen(input);
+        put_role(ROLE_BODY, " - ", row, text_col);
+        put_role(ROLE_BODY, action_buf, row, text_col + 3); row++;
+
+        int left_end_row = row;
+
+        col = 42;
+        row = left_header_row;
+        put_role(ROLE_SECTION, "RIGHT SIDE CONTROLS", row, col);
+        row = left_start_row;
+
+        binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER);
+        help_binding_action_label(binding, action_buf, sizeof(action_buf));
+        input = "R1 (Bumper)";
+        put_role(ROLE_KEY, input, row, col);
+        text_col = col + (int)strlen(input);
+        put_role(ROLE_BODY, " - ", row, text_col);
+        put_role(ROLE_BODY, action_buf, row, text_col + 3); row++;
+
+        binding = get_sdl_gamepad_trigger_binding(1);
+        help_binding_action_label(binding, action_buf, sizeof(action_buf));
+        input = "R2 (Trigger)";
+        put_role(ROLE_KEY, input, row, col);
+        text_col = col + (int)strlen(input);
+        put_role(ROLE_BODY, " - ", row, text_col);
+        put_role(ROLE_BODY, action_buf, row, text_col + 3); row++;
+
+        binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1);
+        help_binding_action_label(binding, action_buf, sizeof(action_buf));
+        input = "R4 (Back)";
+        put_role(ROLE_KEY, input, row, col);
+        text_col = col + (int)strlen(input);
+        put_role(ROLE_BODY, " - ", row, text_col);
+        put_role(ROLE_BODY, action_buf, row, text_col + 3); row++;
+
+        binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2);
+        help_binding_action_label(binding, action_buf, sizeof(action_buf));
+        input = "R5 (Back)";
+        put_role(ROLE_KEY, input, row, col);
+        text_col = col + (int)strlen(input);
+        put_role(ROLE_BODY, " - ", row, text_col);
+        put_role(ROLE_BODY, action_buf, row, text_col + 3); row++;
+
+        binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_START);
+        help_binding_action_label(binding, action_buf, sizeof(action_buf));
+        input = "Start (Menu)";
+        put_role(ROLE_KEY, input, row, col);
+        text_col = col + (int)strlen(input);
+        put_role(ROLE_BODY, " - ", row, text_col);
+        put_role(ROLE_BODY, action_buf, row, text_col + 3); row++;
+
+        binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_BACK);
+        help_binding_action_label(binding, action_buf, sizeof(action_buf));
+        input = "Back (View)";
+        put_role(ROLE_KEY, input, row, col);
+        text_col = col + (int)strlen(input);
+        put_role(ROLE_BODY, " - ", row, text_col);
+        put_role(ROLE_BODY, action_buf, row, text_col + 3); row++;
+
+        int right_end_row = row;
+
+        row = (left_end_row > right_end_row) ? left_end_row : right_end_row;
+        row += 1;
+        {
+            char shift_label[16];
+            char sing_label[16];
+            char fire_label[16];
+            char note_buf[120];
+            help_prompt_label(GAMEPAD_BIND_SHIFT, "L2", shift_label, sizeof(shift_label));
+            help_prompt_label('s', "Y", sing_label, sizeof(sing_label));
+            help_prompt_label('f', "B", fire_label, sizeof(fire_label));
+            strnfmt(note_buf, sizeof(note_buf),
+                    "Shift: %s+%s=Stealth, %s+%s=Second quiver",
+                    shift_label, sing_label, shift_label, fire_label);
+            put_role(ROLE_SUBTLE, note_buf, row, 1);
+        }
+
+        row += 1;
         put_role(ROLE_SUBTLE, "Customize bindings via Options -> Controller Settings.", row, 1);
         
         break;
@@ -4116,9 +4567,19 @@ void do_cmd_help(void)
         /* Better navigation prompt */
         {
             char nav[128];
-            strnfmt(nav, sizeof(nav),
-                "Navigation: [<-/4] Prev  [->/6/Space] Next  [X+1-%d] Page  [Q/Esc] Quit",
-                HELP_TOTAL_PAGES);
+            if (steamdeck_controls_active()) {
+                char next_label[16];
+                char back_label[16];
+                help_prompt_label(' ', "A", next_label, sizeof(next_label));
+                help_prompt_label(ESCAPE, "ESC", back_label, sizeof(back_label));
+                strnfmt(nav, sizeof(nav),
+                    "Navigation: D-pad left/right Prev/Next  [%s] Next  [%s] Quit",
+                    next_label, back_label);
+            } else {
+                strnfmt(nav, sizeof(nav),
+                    "Navigation: [<-/4] Prev  [->/6/Space] Next  [X+1-%d] Page  [Q/Esc] Quit",
+                    HELP_TOTAL_PAGES);
+            }
             c_put_str(TERM_WHITE, nav, hgt - 1, 1);
         }
         ch = inkey();
@@ -7906,6 +8367,7 @@ void backup_and_clear_saves(void)
     
     log_trace("Folder-based backup process completed");
 }
+
 
 
 

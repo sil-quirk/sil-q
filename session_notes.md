@@ -1,5 +1,91 @@
 # Session Notes
 
+## 2025-12-23: Steam Deck UI expansion + controller bindings
+- Added Steam Deck button prompts for character selection, help/tutorial, inventory/equipment top prompts, supply menu, and knowledge browsers (artefacts/objects/monsters/curses).
+- Added configurable L1+R1 combo binding plus new right-stick defaults (x/a/M/b) in SDL config and controller settings.
+- Default main terminal combat roll lines now set to 2 on first-run Steam Deck detection (1280x800).
+
+## 2025-12-23: Fixed l-view crash with Varda - division by zero in HP display
+
+### Issue
+After fixing incomplete monster entries, the game still crashed when using l-view on Varda. The crash occurred during monster HP bar calculation in the unified look sidebar.
+
+### Root Cause
+The HP display code at [cmd4.c:16910](src/cmd4.c#L16910) performed division by `m_ptr->maxhp` without checking for zero:
+```c
+int hp_len = (8 * m_ptr->hp + m_ptr->maxhp - 1) / m_ptr->maxhp;
+```
+
+If a monster somehow has `maxhp == 0`, this causes division by zero and crashes. This can occur if:
+- Monster data is incomplete or malformed
+- Monster initialization fails
+- Special monsters like quest givers with unusual stats
+
+### Solution
+Added zero-check guard before division at [cmd4.c:16910](src/cmd4.c#L16910):
+```c
+int hp_len = 0;
+if (m_ptr->maxhp > 0) {
+    hp_len = (8 * m_ptr->hp + m_ptr->maxhp - 1) / m_ptr->maxhp;
+}
+```
+
+Also fixed unrelated build error: added missing `#include "sdl-config.h"` to [files.c](src/files.c#L24) for `GAMEPAD_BIND_SHIFT` and `GAMEPAD_BIND_CTRL` constants.
+
+### Previous Fixes in This Session
+1. **Monster stance initialization** ([monster2.c:2746](src/monster2.c#L2746)): Default to `STANCE_CONFIDENT`
+2. **Stance check in sidebar** ([cmd4.c:16914](src/cmd4.c#L16914)): Fallback color if `get_alertness_text()` fails
+3. **Complete Valar entries** ([monster.txt](lib/edit/monster.txt)): Added I:, A:, P: lines to Varda and 10 other Valar
+
+## 2025-12-23: Fixed incomplete Valar monster entries causing l-view crash
+
+### Issue
+The game crashed when using l-view on Varda and potentially other Valar. The previous fix addressed monster stance initialization, but the root cause was incomplete monster data entries.
+
+### Root Cause
+Varda and 10 other Valar entries (monsters 321-331, 333) in [monster.txt](lib/edit/monster.txt) were missing critical data fields:
+- `I:` line (basic info: speed, HP dice, AC, perception)
+- `A:` line (attack data - required even for NEVER_BLOW monsters)
+- `P:` line (protection/armor values)
+
+The game's monster initialization code expects these fields to be present for all monsters. Missing fields caused undefined behavior when the display code tried to access this data.
+
+### Solution
+Added complete `I:`, `A:`, and `P:` lines to all incomplete Valar entries:
+- **Quest givers**: Varda (321), plus verified Niena (6), Aule (19), Mandos (20), and Orome (332) were already complete
+- **Other Valar**: Ulmo (322), Aule (323), Yavanna (324), Mandos (325), Vaire (326), Lorien (327), Este (328), Nienna (329), Tulkas (330), Nessa (331), Vana (333)
+
+Used standard values for peaceful quest-giver types:
+- `I:2:26d4:0` (females) or `I:2:28d4:0` (males) - speed 2, HP, AC 0
+- `A:0:0:0:19` or `A:0:0:0:20` - placeholder attacks (never used due to NEVER_BLOW)
+- `P:[+0]` - no armor bonus
+
+Also retained the previous stance initialization fix in [monster2.c:2746](src/monster2.c#L2746) as a defensive measure.
+
+## 2025-12-23: Fixed l-view crash with Varda and uninitialized monster stance
+
+### Issue
+When using the unified look command (l-view) on Varda (or any newly spawned monster before it takes its first turn), the game would crash.
+
+### Root Cause
+Monsters are initialized with `memset(n_ptr, 0, sizeof(monster_type))` in [monster2.c:2626](src/monster2.c#L2626), which sets `stance` to 0. However:
+- Valid stance values are `STANCE_FLEEING (1)`, `STANCE_CONFIDENT (2)`, and `STANCE_AGGRESSIVE (3)` per [defines.h:2501](src/defines.h#L2501)
+- `calc_stance()` in [melee2.c:5677](src/melee2.c#L5677) is only called during monster AI processing
+- When `get_alertness_text()` encounters a monster with `stance == 0`, it returns `false` without setting the color parameter
+- The unified look sidebar code at [cmd4.c:16914](src/cmd4.c#L16914) didn't check the return value, leaving `morale_color` uninitialized and causing undefined behavior
+
+This particularly affected Varda because:
+- She has the `NEVER_MOVE` flag, so she may never take a turn to trigger `calc_stance()`
+- She spawns with the `PEACEFUL` flag, making her immediately visible without combat
+- Players would naturally use l-view to examine her, triggering the crash
+
+### Solution
+Applied two defensive fixes:
+1. **Initialize stance during monster placement** ([monster2.c:2746](src/monster2.c#L2746)): Set `n_ptr->stance = STANCE_CONFIDENT` as a sensible default before placing the monster
+2. **Add fallback in sidebar display** ([cmd4.c:16914](src/cmd4.c#L16914)): Check the return value of `get_alertness_text()` and use `TERM_WHITE` as a fallback color if the function returns `false`
+
+This ensures all monsters have a valid stance from creation and provides defensive handling for any edge cases.
+
 ## 2025-12-20: Steam Deck controller UX updates
 - `src/sdl-config.{h,c}`: added left/right stick directional bindings, updated defaults (Start->Esc, Back->h, L3 wait, R3 supplies), persisted new bindings in JSON, clear D-pad/left-stick bindings when movement is enabled, and auto-enable Steam Deck UI on first-run 1280x800.
 - `src/main-sdl.c`, `src/externs.h`: added stick-direction binding handling, D-pad capture gating, L1+R1 look combo with pending timeout, new binding label helpers, and getters/setters/defaults for stick bindings.

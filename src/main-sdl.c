@@ -147,6 +147,7 @@ static int g_default_gamepad_button_bindings[SDL_GAMEPAD_BUTTON_COUNT];
 static int g_default_gamepad_trigger_bindings[GAMEPAD_TRIGGER_COUNT];
 static int g_default_gamepad_left_stick_bindings[GAMEPAD_STICK_DIR_COUNT];
 static int g_default_gamepad_right_stick_bindings[GAMEPAD_STICK_DIR_COUNT];
+static int g_default_gamepad_shoulder_combo_binding = GAMEPAD_BIND_NONE;
 static bool g_default_gamepad_bindings_ready = false;
 static bool g_gamepad_capture_active = false;
 static bool g_gamepad_capture_ready = false;
@@ -353,6 +354,21 @@ static void sdl_gamepad_send_key(int key, bool use_macro_mods)
     } else {
         Term_keypress(key);
     }
+}
+
+static void sdl_gamepad_send_shoulder_combo(void)
+{
+    int binding = config.gamepad_shoulder_combo_binding;
+    if (binding == GAMEPAD_BIND_NONE)
+        return;
+
+    if (binding == GAMEPAD_BIND_SHIFT || binding == GAMEPAD_BIND_CTRL || binding == GAMEPAD_BIND_ALT) {
+        sdl_gamepad_apply_modifier(binding, true);
+        sdl_gamepad_apply_modifier(binding, false);
+        return;
+    }
+
+    sdl_gamepad_send_key(binding, false);
 }
 
 static void sdl_gamepad_send_direction_mods(int dir, bool shift, bool ctrl, bool alt)
@@ -731,6 +747,8 @@ static void sdl_gamepad_binding_label_ex(int type, int id, char* buf, size_t buf
                                      : sdl_gamepad_trigger_label(id), buflen);
     } else if (type == GAMEPAD_CAPTURE_LEFT_STICK || type == GAMEPAD_CAPTURE_RIGHT_STICK) {
         SDL_strlcpy(buf, sdl_gamepad_stick_dir_label(type, id, short_label), buflen);
+    } else if (type == GAMEPAD_CAPTURE_SHOULDER_COMBO) {
+        SDL_strlcpy(buf, short_label ? "L1+R1" : "L1+R1 Combo", buflen);
     } else {
         SDL_strlcpy(buf, "(unknown)", buflen);
     }
@@ -780,6 +798,14 @@ static int sdl_gamepad_action_binding_count(int binding, int* out_type, int* out
         }
     }
 
+    if (config.gamepad_shoulder_combo_binding == binding) {
+        if (count == 0 && out_type && out_id) {
+            *out_type = GAMEPAD_CAPTURE_SHOULDER_COMBO;
+            *out_id = 0;
+        }
+        count++;
+    }
+
     return count;
 }
 
@@ -818,15 +844,50 @@ static void sdl_gamepad_handle_button(const SDL_GamepadButtonEvent* ev)
     SDL_GamepadButton button = (SDL_GamepadButton)ev->button;
     bool down = ev->down;
 
-    if (g_gamepad_capture_active && down) {
-        bool dpad_button = (button == SDL_GAMEPAD_BUTTON_DPAD_UP || button == SDL_GAMEPAD_BUTTON_DPAD_DOWN
-            || button == SDL_GAMEPAD_BUTTON_DPAD_LEFT || button == SDL_GAMEPAD_BUTTON_DPAD_RIGHT);
-        if (!dpad_button || !config.gamepad_use_dpad) {
-            if (button >= 0 && button < SDL_GAMEPAD_BUTTON_COUNT) {
+    if (button == SDL_GAMEPAD_BUTTON_LEFT_SHOULDER) {
+        g_gamepad_state.left_shoulder_down = down;
+    } else if (button == SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER) {
+        g_gamepad_state.right_shoulder_down = down;
+    }
+
+    if (g_gamepad_capture_active) {
+        bool shoulder_button = (button == SDL_GAMEPAD_BUTTON_LEFT_SHOULDER
+            || button == SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER);
+        if (shoulder_button) {
+            if (down) {
+                if (g_gamepad_state.shoulder_pending &&
+                    g_gamepad_state.shoulder_pending_button != (int)button) {
+                    sdl_gamepad_clear_pending_shoulder();
+                    g_gamepad_capture_type = GAMEPAD_CAPTURE_SHOULDER_COMBO;
+                    g_gamepad_capture_id = 0;
+                    g_gamepad_capture_ready = true;
+                    g_gamepad_capture_active = false;
+                } else {
+                    g_gamepad_state.shoulder_pending = true;
+                    g_gamepad_state.shoulder_pending_button = (int)button;
+                    g_gamepad_state.shoulder_pending_time = SDL_GetTicksNS();
+                }
+            } else if (g_gamepad_state.shoulder_pending &&
+                       g_gamepad_state.shoulder_pending_button == (int)button) {
+                sdl_gamepad_clear_pending_shoulder();
                 g_gamepad_capture_type = GAMEPAD_CAPTURE_BUTTON;
                 g_gamepad_capture_id = (int)button;
                 g_gamepad_capture_ready = true;
                 g_gamepad_capture_active = false;
+            }
+            return;
+        }
+
+        if (down) {
+            bool dpad_button = (button == SDL_GAMEPAD_BUTTON_DPAD_UP || button == SDL_GAMEPAD_BUTTON_DPAD_DOWN
+                || button == SDL_GAMEPAD_BUTTON_DPAD_LEFT || button == SDL_GAMEPAD_BUTTON_DPAD_RIGHT);
+            if (!dpad_button || !config.gamepad_use_dpad) {
+                if (button >= 0 && button < SDL_GAMEPAD_BUTTON_COUNT) {
+                    g_gamepad_capture_type = GAMEPAD_CAPTURE_BUTTON;
+                    g_gamepad_capture_id = (int)button;
+                    g_gamepad_capture_ready = true;
+                    g_gamepad_capture_active = false;
+                }
             }
         }
         return;
@@ -904,7 +965,7 @@ static void sdl_gamepad_handle_button(const SDL_GamepadButtonEvent* ev)
             if (g_gamepad_state.shoulder_pending &&
                 g_gamepad_state.shoulder_pending_button != (int)button) {
                 sdl_gamepad_clear_pending_shoulder();
-                sdl_gamepad_send_key('l', false);
+                sdl_gamepad_send_shoulder_combo();
             } else {
                 sdl_gamepad_set_pending_shoulder((int)button);
             }
@@ -2852,6 +2913,7 @@ static void sdl_gamepad_load_default_bindings(void)
         sizeof(g_default_gamepad_left_stick_bindings));
     memcpy(g_default_gamepad_right_stick_bindings, defaults.gamepad_right_stick_bindings,
         sizeof(g_default_gamepad_right_stick_bindings));
+    g_default_gamepad_shoulder_combo_binding = defaults.gamepad_shoulder_combo_binding;
     g_default_gamepad_bindings_ready = true;
 }
 
@@ -3023,6 +3085,16 @@ void set_sdl_gamepad_right_stick_binding(int dir, int binding)
     config.gamepad_right_stick_bindings[dir] = binding;
 }
 
+int get_sdl_gamepad_shoulder_combo_binding(void)
+{
+    return config.gamepad_shoulder_combo_binding;
+}
+
+void set_sdl_gamepad_shoulder_combo_binding(int binding)
+{
+    config.gamepad_shoulder_combo_binding = binding;
+}
+
 int get_sdl_gamepad_default_button_binding(int button)
 {
     if (button < 0 || button >= SDL_GAMEPAD_BUTTON_COUNT)
@@ -3055,6 +3127,12 @@ int get_sdl_gamepad_default_right_stick_binding(int dir)
     return g_default_gamepad_right_stick_bindings[dir];
 }
 
+int get_sdl_gamepad_default_shoulder_combo_binding(void)
+{
+    sdl_gamepad_load_default_bindings();
+    return g_default_gamepad_shoulder_combo_binding;
+}
+
 void sdl_gamepad_reset_bindings_to_default(void)
 {
     sdl_config_set_default_gamepad_bindings(&config);
@@ -3071,6 +3149,7 @@ void sdl_gamepad_capture_cancel(void)
 {
     g_gamepad_capture_active = false;
     g_gamepad_capture_ready = false;
+    sdl_gamepad_clear_pending_shoulder();
 }
 
 bool sdl_gamepad_capture_poll(int* out_type, int* out_id)
@@ -3085,6 +3164,7 @@ bool sdl_gamepad_capture_poll(int* out_type, int* out_id)
 
     g_gamepad_capture_ready = false;
     g_gamepad_capture_active = false;
+    sdl_gamepad_clear_pending_shoulder();
     return true;
 }
 

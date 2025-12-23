@@ -2475,11 +2475,13 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     req.is_supply = false;
     req.droptype = droptype;
     req.allow_artefacts = allow_artefacts;
-    /* New difficulty formula: 1.25*Depth - 22 + min(1d40,1d40) */
-    int roll1 = dieroll(40);
-    int roll2 = dieroll(40);
+    /* New difficulty formula: 1.25*Depth - 19 + min(1d(25+3D/4),1d(25+3D/4)) */
+    int sides = 25 + (3 * depth) / 4;
+    if (sides < 1) sides = 1;
+    int roll1 = dieroll(sides);
+    int roll2 = dieroll(sides);
     int min_roll = MIN(roll1, roll2);
-    int base_calc = (int)(1.25 * depth) - 22 + min_roll;
+    int base_calc = (int)(1.25 * depth) - 19 + min_roll;
     req.base_roll = base_calc + req.difficulty_bonus;
     req.lower = req.base_roll - 2;
     req.upper = req.base_roll + 2;
@@ -2488,10 +2490,10 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     if (gen_log_initialized)
     {
         gen_log_write("DROP_TARGET",
-            "depth=%d quality=%s bonus=%d roll1=%d roll2=%d min=%d "
+            "depth=%d quality=%s bonus=%d sides=%d roll1=%d roll2=%d min=%d "
             "base_calc=%d target=%d band=%d..%d",
             depth, drop_quality_name(quality),
-            req.difficulty_bonus, roll1, roll2, min_roll,
+            req.difficulty_bonus, sides, roll1, roll2, min_roll,
             base_calc, req.base_roll, req.lower, req.upper);
     }
 

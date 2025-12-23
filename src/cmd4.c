@@ -434,6 +434,7 @@ void do_cmd_character_sheet(void)
                 char abilities_label[16];
                 char increase_label[16];
                 char back_label[16];
+                char help_label[16];
                 char prompt_buf[160];
 
                 controller_prompt_label(' ', "Space", notes_label, sizeof(notes_label));
@@ -442,10 +443,11 @@ void do_cmd_character_sheet(void)
                 controller_prompt_label('u', "u", abilities_label, sizeof(abilities_label));
                 controller_prompt_label('i', "i", increase_label, sizeof(increase_label));
                 controller_prompt_label('h', "h", back_label, sizeof(back_label));
+                controller_prompt_label('?', "?", help_label, sizeof(help_label));
 
                 strnfmt(prompt_buf, sizeof(prompt_buf),
-                    "%s-notes     %s-story     %s-file     %s-abilities     %s-increase     ?-help     %s-back",
-                    notes_label, story_label, file_label, abilities_label, increase_label, back_label);
+                    "%s-notes     %s-story     %s-file     %s-abilities     %s-increase     %s-help     %s-back",
+                    notes_label, story_label, file_label, abilities_label, increase_label, help_label, back_label);
                 Term_putstr(1, 23, -1, TERM_L_WHITE, prompt_buf);
             } else {
                 Term_putstr(1, 23, -1, TERM_L_WHITE,
@@ -464,6 +466,7 @@ void do_cmd_character_sheet(void)
                 char abilities_label[16];
                 char increase_label[16];
                 char back_label[16];
+                char help_label[16];
                 char prompt_buf[160];
 
                 controller_prompt_label(' ', "Space", notes_label, sizeof(notes_label));
@@ -472,10 +475,11 @@ void do_cmd_character_sheet(void)
                 controller_prompt_label('u', "u", abilities_label, sizeof(abilities_label));
                 controller_prompt_label('i', "i", increase_label, sizeof(increase_label));
                 controller_prompt_label('h', "h", back_label, sizeof(back_label));
+                controller_prompt_label('?', "?", help_label, sizeof(help_label));
 
                 strnfmt(prompt_buf, sizeof(prompt_buf),
-                    "%s-notes  %s-story  %s-file  %s-abilities  %s-increase  ?-help  %s-back",
-                    notes_label, story_label, file_label, abilities_label, increase_label, back_label);
+                    "%s-notes  %s-story  %s-file  %s-abilities  %s-increase  %s-help  %s-back",
+                    notes_label, story_label, file_label, abilities_label, increase_label, help_label, back_label);
                 Term_putstr(1, 23, -1, TERM_L_WHITE, prompt_buf);
             } else {
                 Term_putstr(1, 23, -1, TERM_L_WHITE,
@@ -10616,6 +10620,11 @@ static const char* controller_gamepad_stick_dir_label(int type, int dir)
     return format("%s %s", stick, dir_label);
 }
 
+static const char* controller_gamepad_combo_label(void)
+{
+    return "L1+R1 Combo";
+}
+
 static void controller_binding_label(int type, int id, char* buf, size_t buflen)
 {
     if (!buf || !buflen)
@@ -10627,6 +10636,8 @@ static void controller_binding_label(int type, int id, char* buf, size_t buflen)
         SDL_strlcpy(buf, controller_gamepad_trigger_label(id), buflen);
     } else if (type == GAMEPAD_CAPTURE_LEFT_STICK || type == GAMEPAD_CAPTURE_RIGHT_STICK) {
         SDL_strlcpy(buf, controller_gamepad_stick_dir_label(type, id), buflen);
+    } else if (type == GAMEPAD_CAPTURE_SHOULDER_COMBO) {
+        SDL_strlcpy(buf, controller_gamepad_combo_label(), buflen);
     } else {
         SDL_strlcpy(buf, "(unknown)", buflen);
     }
@@ -10676,6 +10687,14 @@ static int controller_action_binding_count(int binding, int* out_type, int* out_
         }
     }
 
+    if (get_sdl_gamepad_shoulder_combo_binding() == binding) {
+        if (count == 0 && out_type && out_id) {
+            *out_type = GAMEPAD_CAPTURE_SHOULDER_COMBO;
+            *out_id = 0;
+        }
+        count++;
+    }
+
     return count;
 }
 
@@ -10706,6 +10725,8 @@ static bool controller_binding_matches_action(int binding, int type, int id)
         return get_sdl_gamepad_left_stick_binding(id) == binding;
     if (type == GAMEPAD_CAPTURE_RIGHT_STICK)
         return get_sdl_gamepad_right_stick_binding(id) == binding;
+    if (type == GAMEPAD_CAPTURE_SHOULDER_COMBO)
+        return get_sdl_gamepad_shoulder_combo_binding() == binding;
     return false;
 }
 
@@ -10816,6 +10837,11 @@ static void controller_clear_action_bindings(int binding, int skip_type, int ski
             set_sdl_gamepad_right_stick_binding(i, GAMEPAD_BIND_NONE);
         }
     }
+
+    if (get_sdl_gamepad_shoulder_combo_binding() == binding) {
+        if (!(skip_type == GAMEPAD_CAPTURE_SHOULDER_COMBO))
+            set_sdl_gamepad_shoulder_combo_binding(GAMEPAD_BIND_NONE);
+    }
 }
 
 static void controller_assign_action_binding(int binding, int type, int id)
@@ -10830,6 +10856,8 @@ static void controller_assign_action_binding(int binding, int type, int id)
         set_sdl_gamepad_left_stick_binding(id, binding);
     } else if (type == GAMEPAD_CAPTURE_RIGHT_STICK) {
         set_sdl_gamepad_right_stick_binding(id, binding);
+    } else if (type == GAMEPAD_CAPTURE_SHOULDER_COMBO) {
+        set_sdl_gamepad_shoulder_combo_binding(binding);
     }
 }
 
@@ -10873,6 +10901,14 @@ static bool controller_action_default_binding(int binding, int* out_type, int* o
                 *out_id = i;
             return true;
         }
+    }
+
+    if (get_sdl_gamepad_default_shoulder_combo_binding() == binding) {
+        if (out_type)
+            *out_type = GAMEPAD_CAPTURE_SHOULDER_COMBO;
+        if (out_id)
+            *out_id = 0;
+        return true;
     }
 
     return false;
@@ -14609,10 +14645,22 @@ void do_cmd_knowledge_artefacts(void)
             max + 3, 6, BROWSER_ROWS, artefact_idx, artefact_cur, artefact_top);
 
         /* Prompt */
-        Term_putstr(1, 23, -1, TERM_SLATE, "<dir>   recall   ESC");
-        Term_putstr(1, 23, -1, TERM_L_WHITE, "<dir>");
-        Term_putstr(9, 23, -1, TERM_L_WHITE, "r");
-        Term_putstr(18, 23, -1, TERM_L_WHITE, "ESC");
+        if (steamdeck_controls_active()) {
+            char recall_label[16];
+            char back_label[16];
+            char prompt_buf[96];
+
+            controller_prompt_label('r', "r", recall_label, sizeof(recall_label));
+            controller_prompt_label(ESCAPE, "ESC", back_label, sizeof(back_label));
+            strnfmt(prompt_buf, sizeof(prompt_buf),
+                "D-pad move  [%s] recall  [%s] back", recall_label, back_label);
+            Term_putstr(1, 23, -1, TERM_L_DARK, prompt_buf);
+        } else {
+            Term_putstr(1, 23, -1, TERM_SLATE, "<dir>   recall   ESC");
+            Term_putstr(1, 23, -1, TERM_L_WHITE, "<dir>");
+            Term_putstr(9, 23, -1, TERM_L_WHITE, "r");
+            Term_putstr(18, 23, -1, TERM_L_WHITE, "ESC");
+        }
 
         /* The "current" object changed */
         if (artefact_old != artefact_idx[artefact_cur])
@@ -15066,10 +15114,22 @@ void do_cmd_knowledge_monsters(void)
         p_ptr->monster_race_idx = mon_idx[mon_cur].r_idx;
 
         /* Prompt */
-        Term_putstr(1, 23, -1, TERM_SLATE, "<dir>   recall   ESC");
-        Term_putstr(1, 23, -1, TERM_L_WHITE, "<dir>");
-        Term_putstr(9, 23, -1, TERM_L_WHITE, "r");
-        Term_putstr(18, 23, -1, TERM_L_WHITE, "ESC");
+        if (steamdeck_controls_active()) {
+            char recall_label[16];
+            char back_label[16];
+            char prompt_buf[96];
+
+            controller_prompt_label('r', "r", recall_label, sizeof(recall_label));
+            controller_prompt_label(ESCAPE, "ESC", back_label, sizeof(back_label));
+            strnfmt(prompt_buf, sizeof(prompt_buf),
+                "D-pad move  [%s] recall  [%s] back", recall_label, back_label);
+            Term_putstr(1, 23, -1, TERM_L_DARK, prompt_buf);
+        } else {
+            Term_putstr(1, 23, -1, TERM_SLATE, "<dir>   recall   ESC");
+            Term_putstr(1, 23, -1, TERM_L_WHITE, "<dir>");
+            Term_putstr(9, 23, -1, TERM_L_WHITE, "r");
+            Term_putstr(18, 23, -1, TERM_L_WHITE, "ESC");
+        }
 
         /* Hack -- handle stuff */
         handle_stuff();
@@ -15539,17 +15599,37 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 
         /* Bottom bar: grey text with white first letters */
         Term_erase(0, 23, 255);
-        c_put_str(TERM_L_WHITE, "<dir>", 23, 1);
-        c_put_str(TERM_L_DARK, "   ", 23, 6);
-        c_put_str(TERM_L_WHITE, "r", 23, 9);
-        c_put_str(TERM_L_DARK, "ecall   ", 23, 10);
-        c_put_str(TERM_L_WHITE, "u", 23, 18);
-        c_put_str(TERM_L_DARK, "/", 23, 19);
-        c_put_str(TERM_L_WHITE, "Space", 23, 20);
-        c_put_str(TERM_L_DARK, "   ", 23, 25);
-        c_put_str(TERM_L_WHITE, "d", 23, 28);
-        c_put_str(TERM_L_DARK, "rop   ", 23, 29);
-        c_put_str(TERM_L_WHITE, "ESC", 23, 37);
+        if (steamdeck_controls_active()) {
+            char recall_label[16];
+            char use_label[16];
+            char confirm_label[16];
+            char drop_label[16];
+            char back_label[16];
+            char prompt_buf[160];
+
+            controller_prompt_label('r', "r", recall_label, sizeof(recall_label));
+            controller_prompt_label('u', "u", use_label, sizeof(use_label));
+            controller_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
+            controller_prompt_label('d', "d", drop_label, sizeof(drop_label));
+            controller_prompt_label(ESCAPE, "ESC", back_label, sizeof(back_label));
+
+            strnfmt(prompt_buf, sizeof(prompt_buf),
+                "D-pad move  [%s] recall  [%s/%s] use  [%s] drop  [%s] back",
+                recall_label, use_label, confirm_label, drop_label, back_label);
+            Term_putstr(1, 23, -1, TERM_L_DARK, prompt_buf);
+        } else {
+            c_put_str(TERM_L_WHITE, "<dir>", 23, 1);
+            c_put_str(TERM_L_DARK, "   ", 23, 6);
+            c_put_str(TERM_L_WHITE, "r", 23, 9);
+            c_put_str(TERM_L_DARK, "ecall   ", 23, 10);
+            c_put_str(TERM_L_WHITE, "u", 23, 18);
+            c_put_str(TERM_L_DARK, "/", 23, 19);
+            c_put_str(TERM_L_WHITE, "Space", 23, 20);
+            c_put_str(TERM_L_DARK, "   ", 23, 25);
+            c_put_str(TERM_L_WHITE, "d", 23, 28);
+            c_put_str(TERM_L_DARK, "rop   ", 23, 29);
+            c_put_str(TERM_L_WHITE, "ESC", 23, 37);
+        }
 
         if (!column)
             Term_gotoxy(0, 6 + (grp_cur - grp_top));
@@ -15845,10 +15925,22 @@ void do_cmd_knowledge_objects(void)
             max + 3, 6, BROWSER_ROWS, object_idx, object_cur, object_top);
 
         /* Prompt */
-        Term_putstr(1, 23, -1, TERM_SLATE, "<dir>   recall   ESC");
-        Term_putstr(1, 23, -1, TERM_L_WHITE, "<dir>");
-        Term_putstr(9, 23, -1, TERM_L_WHITE, "r");
-        Term_putstr(18, 23, -1, TERM_L_WHITE, "ESC");
+        if (steamdeck_controls_active()) {
+            char recall_label[16];
+            char back_label[16];
+            char prompt_buf[96];
+
+            controller_prompt_label('r', "r", recall_label, sizeof(recall_label));
+            controller_prompt_label(ESCAPE, "ESC", back_label, sizeof(back_label));
+            strnfmt(prompt_buf, sizeof(prompt_buf),
+                "D-pad move  [%s] recall  [%s] back", recall_label, back_label);
+            Term_putstr(1, 23, -1, TERM_L_DARK, prompt_buf);
+        } else {
+            Term_putstr(1, 23, -1, TERM_SLATE, "<dir>   recall   ESC");
+            Term_putstr(1, 23, -1, TERM_L_WHITE, "<dir>");
+            Term_putstr(9, 23, -1, TERM_L_WHITE, "r");
+            Term_putstr(18, 23, -1, TERM_L_WHITE, "ESC");
+        }
 
         /* Mega Hack -- track this monster race */
         if (object_cnt)
@@ -16871,7 +16963,10 @@ void show_unified_sidebar(unified_look_state* state)
             monster_desc_race(m_name, sizeof(m_name), m_ptr->r_idx);
             
             /* Create HP bar with asterisks */
-            int hp_len = (8 * m_ptr->hp + m_ptr->maxhp - 1) / m_ptr->maxhp;
+            int hp_len = 0;
+            if (m_ptr->maxhp > 0) {
+                hp_len = (8 * m_ptr->hp + m_ptr->maxhp - 1) / m_ptr->maxhp;
+            }
             char hp_bar[10];
             
             /* Build health bar with status indicators */
@@ -16911,7 +17006,11 @@ void show_unified_sidebar(unified_look_state* state)
             {
                 /* Get proper morale display using alertness function */
                 char dummy_text[20];
-                get_alertness_text(m_ptr, sizeof(dummy_text), dummy_text, &morale_color);
+                if (!get_alertness_text(m_ptr, sizeof(dummy_text), dummy_text, &morale_color))
+                {
+                    /* Fallback if stance not initialized - use white and calculate from morale */
+                    morale_color = TERM_WHITE;
+                }
                 
                 /* Calculate morale number */
                 if (m_ptr->morale >= 0)

@@ -4828,6 +4828,12 @@ void show_known_curses_menu(void)
     int shown = 0;
     int row = 2;
     int id;
+    bool steamdeck = get_sdl_steamdeck_mode();
+    char accept_label[16] = "";
+
+    if (steamdeck) {
+        metarun_prompt_label(' ', "A", accept_label, sizeof(accept_label));
+    }
 
     /* Collect and count first */
     for (id = 0; id < (int)z_info->cu_max; id++)
@@ -4910,7 +4916,13 @@ void show_known_curses_menu(void)
         /* Page wrap (match self_knowledge style) */
         if (row >= 21)
         {
-            Term_putstr(1, row, -1, TERM_L_WHITE, "(press any key)");
+            if (steamdeck) {
+                char hint_buf[48];
+                strnfmt(hint_buf, sizeof(hint_buf), "(press %s)", accept_label);
+                Term_putstr(1, row, -1, TERM_L_WHITE, hint_buf);
+            } else {
+                Term_putstr(1, row, -1, TERM_L_WHITE, "(press any key)");
+            }
             (void)inkey();
             Term_clear();
             Term_putstr(1, 0, -1, TERM_L_WHITE + TERM_SHADE, "Known Curses:");
@@ -4918,7 +4930,13 @@ void show_known_curses_menu(void)
         }
     }
 
-    Term_putstr(1, row+1, -1, TERM_L_WHITE, "(press any key)");
+    if (steamdeck) {
+        char hint_buf[48];
+        strnfmt(hint_buf, sizeof(hint_buf), "(press %s)", accept_label);
+        Term_putstr(1, row + 1, -1, TERM_L_WHITE, hint_buf);
+    } else {
+        Term_putstr(1, row + 1, -1, TERM_L_WHITE, "(press any key)");
+    }
     (void)inkey();
     screen_load();
 }

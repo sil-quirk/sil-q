@@ -67,6 +67,7 @@ struct sdl_config {
     int gamepad_trigger_bindings[GAMEPAD_TRIGGER_COUNT];
     int gamepad_left_stick_bindings[GAMEPAD_STICK_DIR_COUNT];
     int gamepad_right_stick_bindings[GAMEPAD_STICK_DIR_COUNT];
+    int gamepad_shoulder_combo_binding;   // Binding for L1+R1 combo action
 };
 
 // Load SDL configuration from JSON file

@@ -2674,6 +2674,9 @@ N:321:Varda, Lady of the Stars
 Q:ec9302c493986510
 W:30:10
 G:V:w
+I:2:26d4:0
+A:0:0:0:19
+P:[+0]
 F:UNIQUE | FEMALE | NEVER_MOVE | SMART | PEACEFUL | NEVER_BLOW | SPECIAL_GEN
 D:Starlight gathers around the Lady of the Stars. Her gaze is patient and clear, weighing your worth before she speaks.
 
@@ -2682,6 +2685,9 @@ N:322:Ulmo, Lord of Waters
 Q:045023249116633b
 W:30:20
 G:V:b
+I:2:28d4:0
+A:0:0:0:20
+P:[+0]
 F:UNIQUE | MALE
 
 
@@ -2689,6 +2695,9 @@ N:323:Aule, the Smith
 Q:f9f0cfcfe57d8c11
 W:30:20
 G:V:r
+I:2:24d4:0
+A:0:0:0:18
+P:[+0]
 F:UNIQUE | MALE
 
 
@@ -2696,6 +2705,9 @@ N:324:Yavanna, the Giver of Fruits
 Q:1a5c2e4faddd1d12
 W:30:30
 G:V:G
+I:2:26d4:0
+A:0:0:0:19
+P:[+0]
 F:UNIQUE | FEMALE
 
 
@@ -2703,6 +2715,9 @@ N:325:Mandos, Doomsman of the Valar
 Q:ee2075ab9e9c60d5
 W:30:10
 G:V:D
+I:2:28d4:0
+A:0:0:0:20
+P:[+0]
 F:UNIQUE | MALE
 
 
@@ -2710,6 +2725,9 @@ N:326:Vaire, the Weaver
 Q:39e8eb043bd23cba
 W:30:40
 G:V:y
+I:2:26d4:0
+A:0:0:0:19
+P:[+0]
 F:UNIQUE | FEMALE
 
 
@@ -2717,6 +2735,9 @@ N:327:Lorien, Master of Dreams
 Q:aa454299f8645f26
 W:30:40
 G:V:r
+I:2:28d4:0
+A:0:0:0:20
+P:[+0]
 F:UNIQUE | MALE
 
 
@@ -2724,6 +2745,9 @@ N:328:Este, the Healer
 Q:8f666d01fd4b0153
 W:30:40
 G:V:s
+I:2:26d4:0
+A:0:0:0:19
+P:[+0]
 F:UNIQUE | FEMALE
 
 
@@ -2731,6 +2755,9 @@ N:329:Nienna, Lady of Mourning
 Q:2852f9b97cd0e31f
 W:30:40
 G:V:v1
+I:2:26d4:0
+A:0:0:0:19
+P:[+0]
 F:UNIQUE | FEMALE
 
 
@@ -2738,6 +2765,9 @@ N:330:Tulkas, the Valiant
 Q:38b433315d2b8f05
 W:30:10
 G:V:o
+I:2:28d4:0
+A:0:0:0:20
+P:[+0]
 F:UNIQUE | MALE
 
 
@@ -2745,6 +2775,9 @@ N:331:Nessa, the Dancer
 Q:bf33772ded8aa1f1
 W:30:40
 G:V:B
+I:2:26d4:0
+A:0:0:0:19
+P:[+0]
 F:UNIQUE | FEMALE
 
 
@@ -2766,6 +2799,9 @@ N:333:Vana, the Ever Young
 Q:a7aae65c73d7b551
 W:30:40
 G:V:W
+I:2:26d4:0
+A:0:0:0:19
+P:[+0]
 F:UNIQUE | FEMALE
 
 

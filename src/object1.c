@@ -20,6 +20,16 @@ static bool inventory_menu_include_equip = false;
 static bool story_inventory_list_active = false;
 static bool story_equipment_list_active = false;
 
+static void inventory_prompt_label(int binding, const char* fallback, char* buf, size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    sdl_gamepad_action_binding_short_label(binding, buf, buflen);
+    if (streq(buf, "(unbound)") || streq(buf, "Multiple"))
+        SDL_strlcpy(buf, fallback, buflen);
+}
+
 static void story_print_equipment_prefix(int row, int col, byte attr, cptr prefix)
 {
     const int prefix_core_width = 12;
@@ -5307,7 +5317,31 @@ void show_inven_enhanced(void)
     {
         /* Show the prompt - different text based on how menu was opened */
         extern char current_menu_command;
-        if (current_menu_command == 'u') {
+        bool steamdeck = steamdeck_controls_active();
+        if (steamdeck) {
+            char confirm_label[16];
+            char desc_label[16];
+            char cycle_label[16];
+
+            inventory_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
+            inventory_prompt_label('x', "RS Right", desc_label, sizeof(desc_label));
+
+            if (current_menu_command == 'u') {
+                inventory_prompt_label('u', "X", cycle_label, sizeof(cycle_label));
+                strnfmt(out_val, sizeof(out_val),
+                    "%s-use  %s-desc  <- drop  %s-cycle (Inventory)",
+                    confirm_label, desc_label, cycle_label);
+            } else if (current_menu_command == 'x') {
+                inventory_prompt_label('x', "RS Right", cycle_label, sizeof(cycle_label));
+                strnfmt(out_val, sizeof(out_val),
+                    "%s-examine  %s-desc  <- drop  %s-cycle (Inventory)",
+                    confirm_label, desc_label, cycle_label);
+            } else {
+                strnfmt(out_val, sizeof(out_val),
+                    "%s-use  %s-desc  <- drop (Inventory)",
+                    confirm_label, desc_label);
+            }
+        } else if (current_menu_command == 'u') {
             sprintf(out_val, "Space-Use, -> description, %c again-cycle  (Inventory)", current_menu_command);
         }
         else if (current_menu_command == 'x') {
@@ -5831,7 +5865,6 @@ void show_inven_enhanced(void)
             
         /* Handle cycling when the original command is pressed */
         case 'u':
-        case 'x':
             if (current_menu_command == which) {
                 /* Same command - cycle to equipment */
                 enhanced_menu_action = ENHANCED_ACTION_SWITCH;
@@ -5839,6 +5872,21 @@ void show_inven_enhanced(void)
                 done = true;
             }
             /* Different command does nothing */
+            break;
+
+        case 'x':
+            if (current_menu_command == which) {
+                /* Same command - cycle to equipment */
+                enhanced_menu_action = ENHANCED_ACTION_SWITCH;
+                log_trace("show_inven_enhanced: Command cycling (%c) - switching to equipment (action=1)", which);
+                done = true;
+            } else if (steamdeck_controls_active()) {
+                if (highlight_active && highlight_row >= 0 && highlight_row < k) {
+                    enhanced_menu_action = ENHANCED_ACTION_EXAMINE;
+                    enhanced_inventory_selected_item = out_index[highlight_row];
+                    done = true;
+                }
+            }
             break;
             
         /* Toggle keys - switch to equipment */
@@ -6208,7 +6256,31 @@ void show_equip_enhanced(void)
         
         /* Show the prompt - different text based on how menu was opened */
         extern char current_menu_command;
-        if (current_menu_command == 'u') {
+        bool steamdeck = steamdeck_controls_active();
+        if (steamdeck) {
+            char confirm_label[16];
+            char desc_label[16];
+            char cycle_label[16];
+
+            inventory_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
+            inventory_prompt_label('x', "RS Right", desc_label, sizeof(desc_label));
+
+            if (current_menu_command == 'u') {
+                inventory_prompt_label('u', "X", cycle_label, sizeof(cycle_label));
+                strnfmt(out_val, sizeof(out_val),
+                    "%s-remove  %s-desc  <- drop  %s-cycle (Equipment)",
+                    confirm_label, desc_label, cycle_label);
+            } else if (current_menu_command == 'x') {
+                inventory_prompt_label('x', "RS Right", cycle_label, sizeof(cycle_label));
+                strnfmt(out_val, sizeof(out_val),
+                    "%s-remove  %s-desc  <- drop  %s-cycle (Equipment)",
+                    confirm_label, desc_label, cycle_label);
+            } else {
+                strnfmt(out_val, sizeof(out_val),
+                    "%s-remove  %s-desc  <- drop (Equipment)",
+                    confirm_label, desc_label);
+            }
+        } else if (current_menu_command == 'u') {
             sprintf(out_val, "Space-Remove, %c again - cycle  (Equipment)", current_menu_command);
         }
         else if (current_menu_command == 'x') {
@@ -6350,7 +6422,6 @@ void show_equip_enhanced(void)
         
         /* Handle cycling when the original command is pressed */
         case 'u':
-        case 'x':
             if (current_menu_command == which) {
                 /* Same command - cycle to inventory */
                 enhanced_equip_action = ENHANCED_ACTION_SWITCH;
@@ -6358,6 +6429,21 @@ void show_equip_enhanced(void)
                 done = true;
             }
             /* Different command does nothing */
+            break;
+
+        case 'x':
+            if (current_menu_command == which) {
+                /* Same command - cycle to inventory */
+                enhanced_equip_action = ENHANCED_ACTION_SWITCH;
+                log_trace("show_equip_enhanced: Command cycling (%c) - switching to inventory (action=1)", which);
+                done = true;
+            } else if (steamdeck_controls_active()) {
+                if (highlight_active && highlight_index >= 0 && highlight_index < k) {
+                    enhanced_equip_action = ENHANCED_ACTION_EXAMINE;
+                    enhanced_equipment_selected_item = out_index[highlight_index];
+                    done = true;
+                }
+            }
             break;
         
         /* Toggle keys - switch to inventory */

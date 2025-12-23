@@ -2747,6 +2747,9 @@ bool place_monster_one(
     // Same as old FORCE_SLEEP flag, which is now the default behaviour
     n_ptr->energy = (byte)rand_int(10);
 
+    /* Initialize stance to STANCE_CONFIDENT as default */
+    n_ptr->stance = STANCE_CONFIDENT;
+
     /* Place the monster in the dungeon */
     if (!monster_place(y, x, n_ptr))
         return (false);
