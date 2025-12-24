@@ -3,6 +3,9 @@
 ## 2025-12-24: Resist identification ignores inactive quiver slots
 - `src/cmd1.c`: `ident_resist()` now skips `INVEN_QUIVER1` and only considers `INVEN_QUIVER2` when it holds a throwing-eligible item, matching `calc_bonuses` so passive quiver items no longer identify as if they provided resists.
 
+## 2025-12-24: Self knowledge ignores inactive quiver slots
+- `src/spells2.c`: `self_knowledge()` now skips `INVEN_QUIVER1` and only considers `INVEN_QUIVER2` when the item is throwing-eligible, matching `calc_bonuses` so passive quiver items no longer leak effects.
+
 ## 2025-12-24: Blessing CUR flag fixes
 - `lib/edit/curses.txt`: added `V:` blessing CUR flags for hunger/resistance/armor side/melee damage shift entries so blessings apply their actual effects (fixes Tempered Bulwarks protection sides).
 - `lib/edit/curses.txt`: added missing `V:` blessing CUR flags for weight/monster HP/monster skills/armor sides/light radius/light power so those blessings now apply.

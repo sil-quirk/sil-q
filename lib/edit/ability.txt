@@ -614,7 +614,7 @@ T:39:0:99  # Light Source
 N:148:Song of Revealing
 I:7:8:7
 P:7/2:7/7
-D:In piercing notes like those in Finrod's song of revealing and uncovering during his duel with Sauron, you chant to cut through shadow and deceit.
+D:Adapting the piercing notes of the song of wizardry—where Sauron sang of revealing and uncovering—you turn them against the darkness itself, chanting to cut through shadow and deceit.
 D:Revealing nearby monsters based on your Song skill, and permanently sensing all nearby items, as hidden truths emerge from the gloom.
 T:35:0:99  # Cloak
 T:20:0:99  # Shovels and Mattocks

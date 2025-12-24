@@ -438,6 +438,17 @@ void self_knowledge(void)
         if (!o_ptr->k_idx) continue;
         
         object_flags(o_ptr, &t1, &t2, &t3);
+
+        {
+            bool is_quiver1 = (k == INVEN_QUIVER1);
+            bool is_quiver2 = (k == INVEN_QUIVER2);
+            bool is_throwing_item = player_can_treat_as_throwing_flags(o_ptr, t3);
+
+            if (is_quiver1)
+                continue;
+            if (is_quiver2 && !is_throwing_item)
+                continue;
+        }
         f1 |= t1; f2 |= t2; f3 |= t3;
         
         if (t2 & TR2_LIGHT) light++;
