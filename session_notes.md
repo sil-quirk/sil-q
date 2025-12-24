@@ -7930,3 +7930,7 @@ The script now fully matches the game's drop generation logic for all item types
 - `src/cmd2.c`: Dailir no longer uses return-to-hand logic; it drops like other artifacts (unbreakable).
 - `lib/edit/artefact.txt`: removed the returning line from Dailir's description.
 
+
+## 2025-12-24: Chasm fall rules at depth 19/20
+- `src/cmd1.c`: chasm falls now cap at `MORGOTH_DEPTH`, depth 20 chasms are fatal, and chasm prompts warn about certain death on the final level.
+- `src/xtra2.c`, `src/monster2.c`: chasm fall damage uses one-floor dice at depth >= `MORGOTH_DEPTH - 1`.

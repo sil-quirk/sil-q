@@ -6840,12 +6840,19 @@ int artefact_ability_menu_aux(int skill, int* highlight)
     char ch;
     int i, num = 0;
     char buf[80];
-    bool ability_present[20] = { false };
-    bool ability_valid[20] = { false };
-    bool ability_affordable[20] = { false };
     ability_type* b_ptr;
-    ability_type* b2_ptr;
     byte attr;
+    
+    /* Allocate arrays dynamically based on actual max abilities */
+    bool* ability_present = mem_alloc_array(z_info->b_max, bool);
+    bool* ability_valid = mem_alloc_array(z_info->b_max, bool);
+    bool* ability_affordable = mem_alloc_array(z_info->b_max, bool);
+    int* ability_nums = mem_alloc_array(z_info->b_max, int);
+    
+    /* Initialize arrays to zero/false */
+    memset(ability_present, 0, z_info->b_max * sizeof(bool));
+    memset(ability_valid, 0, z_info->b_max * sizeof(bool));
+    memset(ability_affordable, 0, z_info->b_max * sizeof(bool));
 
     // clear the right of the screen
     wipe_screen_from(COL_SMT3);
@@ -6867,8 +6874,11 @@ int artefact_ability_menu_aux(int skill, int* highlight)
         if (!ability_can_be_smithed(b_ptr))
             continue;
 
+        // Store the mapping from display index to actual ability number
+        ability_nums[num] = b_ptr->abilitynum;
+
         // Determine the appropriate colour
-        if (has_ability(smith2_a_ptr, skill, num))
+        if (has_ability(smith2_a_ptr, skill, b_ptr->abilitynum))
         {
             ability_present[num] = true;
             ability_valid[num] = true;
@@ -6881,10 +6891,10 @@ int artefact_ability_menu_aux(int skill, int* highlight)
                 ability_valid[num] = true;
 
                 // add this flag to the dummy artefact under construction
-                add_artefact_ability(skill, num);
+                add_artefact_ability(skill, b_ptr->abilitynum);
 
                 // require that the ability was successfully added
-                if (has_ability(smith_a_ptr, skill, num))
+                if (has_ability(smith_a_ptr, skill, b_ptr->abilitynum))
                 {
                     // Check whether it is a valid choice for creating (needs to
                     // be affordable and successful)
@@ -6920,8 +6930,8 @@ int artefact_ability_menu_aux(int skill, int* highlight)
     strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
     Term_putstr(COL_SMT3, *highlight + 1, -1, TERM_L_BLUE, buf);
 
-    // add this ability to the dummy artefact under construction
-    add_artefact_ability(skill, *highlight - 1);
+    // add this ability to the dummy artefact under construction (use actual ability number)
+    add_artefact_ability(skill, ability_nums[*highlight - 1]);
 
     // display the object description
     prt_object_description();
@@ -6957,7 +6967,7 @@ int artefact_ability_menu_aux(int skill, int* highlight)
             {
                 // remove an ability if it already existed
                 if (ability_present[*highlight - 1])
-                    remove_artefact_ability(skill, *highlight - 1);
+                    remove_artefact_ability(skill, ability_nums[*highlight - 1]);
             }
             else
             {
@@ -6968,16 +6978,20 @@ int artefact_ability_menu_aux(int skill, int* highlight)
 
                 // remove an ability if it already existed
                 if (ability_present[*highlight - 1])
-                    remove_artefact_ability(skill, *highlight - 1);
+                    remove_artefact_ability(skill, ability_nums[*highlight - 1]);
 
                 // otherwise add it
                 else
-                    add_artefact_ability(skill, *highlight - 1);
+                    add_artefact_ability(skill, ability_nums[*highlight - 1]);
             }
 
             // backup the new artefact
             artefact_copy(smith2_a_ptr, smith_a_ptr);
 
+            mem_free(ability_present);
+            mem_free(ability_valid);
+            mem_free(ability_affordable);
+            mem_free(ability_nums);
             return (*highlight);
         }
         else
@@ -6993,11 +7007,15 @@ int artefact_ability_menu_aux(int skill, int* highlight)
         {
             // remove an ability if it already existed
             if (ability_present[*highlight - 1])
-                remove_artefact_ability(skill, *highlight - 1);
+                remove_artefact_ability(skill, ability_nums[*highlight - 1]);
 
             // backup the new artefact
             artefact_copy(smith2_a_ptr, smith_a_ptr);
 
+            mem_free(ability_present);
+            mem_free(ability_valid);
+            mem_free(ability_affordable);
+            mem_free(ability_nums);
             return (*highlight);
         }
         else
@@ -7011,13 +7029,17 @@ int artefact_ability_menu_aux(int skill, int* highlight)
     {
         // remove any tentatively-added ability from the object
         if (!ability_present[*highlight - 1])
-            remove_artefact_ability(skill, *highlight - 1);
+            remove_artefact_ability(skill, ability_nums[*highlight - 1]);
 
         // restore the backup artefact
         artefact_copy(smith_a_ptr, smith2_a_ptr);
 
         *highlight = -1;
 
+        mem_free(ability_present);
+        mem_free(ability_valid);
+        mem_free(ability_affordable);
+        mem_free(ability_nums);
         return (*highlight);
     }
 
@@ -7039,6 +7061,10 @@ int artefact_ability_menu_aux(int skill, int* highlight)
             *highlight = 1;
     }
 
+    mem_free(ability_present);
+    mem_free(ability_valid);
+    mem_free(ability_affordable);
+    mem_free(ability_nums);
     return (0);
 }
 

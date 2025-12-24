@@ -3690,23 +3690,38 @@ void hit_trap(int y, int x)
         // give several messages so the player has a chance to see it happen
         msg_print("You fall into the darkness!");
         message_flush();
-        msg_print("...and land somewhere deeper in the Iron Hells.");
-        message_flush();
+        if (p_ptr->depth >= MORGOTH_DEPTH)
+        {
+            msg_print("...and plunge into the abyss.");
+            message_flush();
 
-        // add to the notes file
-        do_cmd_note("Fell into a chasm", p_ptr->depth);
+            // add to the notes file
+            do_cmd_note("Fell into a chasm", p_ptr->depth);
 
-        // take some damage
-        falling_damage(false);
+            // chasms on the final level are fatal
+            killer_mark_other(SCORE_KILLER_FALL);
+            take_hit(p_ptr->chp + 1000, "falling into the abyss");
+        }
+        else
+        {
+            msg_print("...and land somewhere deeper in the Iron Hells.");
+            message_flush();
 
-        // make a note if the player loses a greater vault
-        note_lost_greater_vault();
+            // add to the notes file
+            do_cmd_note("Fell into a chasm", p_ptr->depth);
 
-        /* New depth */
-        p_ptr->depth = MIN(p_ptr->depth + 2, MORGOTH_DEPTH - 1);
+            // take some damage
+            falling_damage(false);
 
-        /* Leaving */
-        p_ptr->leaving = true;
+            // make a note if the player loses a greater vault
+            note_lost_greater_vault();
+
+            /* New depth */
+            p_ptr->depth = MIN(p_ptr->depth + 2, MORGOTH_DEPTH);
+
+            /* Leaving */
+            p_ptr->leaving = true;
+        }
 
         break;
     }
@@ -5878,9 +5893,18 @@ void move_player(int dir)
                         // confirm if the destination is in the chasm
                         else if (cave_feat[y_end][x_end] == FEAT_CHASM)
                         {
-                            strnfmt(prompt, sizeof(prompt),
-                                "Are you sure you wish to leap into the "
-                                "abyss? ");
+                            if (p_ptr->depth >= MORGOTH_DEPTH)
+                            {
+                                strnfmt(prompt, sizeof(prompt),
+                                    "Are you sure you wish to leap into the "
+                                    "abyss? You will surely die. ");
+                            }
+                            else
+                            {
+                                strnfmt(prompt, sizeof(prompt),
+                                    "Are you sure you wish to leap into the "
+                                    "abyss? ");
+                            }
                         }
 
                         // confirm if the destination has a visible monster
@@ -5958,7 +5982,11 @@ void move_player(int dir)
                     /* Flush input */
                     flush();
 
-                    if (!get_check("Step into the chasm? "))
+                    cptr prompt = "Step into the chasm? ";
+                    if (p_ptr->depth >= MORGOTH_DEPTH)
+                        prompt = "Step into the chasm? You will surely die. ";
+
+                    if (!get_check(prompt))
                     {
                         // don't take a turn...
                         p_ptr->energy_use = 0;

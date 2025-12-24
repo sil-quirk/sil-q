@@ -1950,7 +1950,7 @@ void m_fall_in_chasm(int fy, int fx)
         message_flush();
 
         // determine the falling damage
-        if (p_ptr->depth == MORGOTH_DEPTH - 2)
+        if (p_ptr->depth >= MORGOTH_DEPTH - 1)
             dice = 3; // only fall one floor in this case
         else
             dice = 6;

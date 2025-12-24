@@ -1716,7 +1716,7 @@ void falling_damage(bool stun)
 
     if (cave_feat[p_ptr->py][p_ptr->px] == FEAT_CHASM)
     {
-        if (p_ptr->depth == MORGOTH_DEPTH - 2)
+        if (p_ptr->depth >= MORGOTH_DEPTH - 1)
             dice = 3; // as this means you will only fall one floor
         else
             dice = 6;
