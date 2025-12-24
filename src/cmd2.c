@@ -5003,6 +5003,7 @@ void do_cmd_fire(int quiver)
     bool targets_remaining = false;
     bool deadly_hail_bonus = false;
     bool puncture = false;
+    bool returning_arrow = false;
 
     // Determine the projectile in the requested quiver
     if (quiver == 1)
@@ -5027,6 +5028,8 @@ void do_cmd_fire(int quiver)
             return;
         }
     }
+
+    returning_arrow = false;
 
     /* Determine whether the item should be thrown directly */
     object_flags(o_ptr, &f1, &f2, &f3);
@@ -5167,7 +5170,7 @@ void do_cmd_fire(int quiver)
         targets_remaining = false;
 
         /* Reduce and describe inventory */
-        if (item >= 0)
+        if (!returning_arrow && item >= 0)
         {
             inven_item_increase(item, -1);
             inven_item_describe(item);
@@ -5175,7 +5178,7 @@ void do_cmd_fire(int quiver)
         }
 
         /* Reduce and describe floor item */
-        else
+        else if (!returning_arrow)
         {
             floor_item_increase(0 - item, -1);
             floor_item_optimize(0 - item);
@@ -5661,7 +5664,8 @@ void do_cmd_fire(int quiver)
         break_truce(false);
 
         /* Drop (or break) near that location */
-        drop_near(i_ptr, breakage_chance(i_ptr, hit_wall), final_y, final_x);
+        if (!returning_arrow)
+            drop_near(i_ptr, breakage_chance(i_ptr, hit_wall), final_y, final_x);
     }
 
     /* Have to set this here as well, just in case... */

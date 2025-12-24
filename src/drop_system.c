@@ -2659,10 +2659,17 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
         }
         if (out->tval == TV_ARROW)
         {
-            int depth_adjust = MORGOTH_DEPTH - depth;
-            out->number = 20 + damroll(1, 10 + MAX(0, depth_adjust));
-            if (out->number > 48)
-                out->number = 48;
+            if (!artefact_p(out))
+            {
+                int depth_adjust = MORGOTH_DEPTH - depth;
+                out->number = 20 + damroll(1, 10 + MAX(0, depth_adjust));
+                if (out->number > 48)
+                    out->number = 48;
+            }
+            else
+            {
+                out->number = 1;
+            }
         }
         apply_autoinscription(out);
     }

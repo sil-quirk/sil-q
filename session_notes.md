@@ -7925,3 +7925,8 @@ The script now fully matches the game's drop generation logic for all item types
 ## 2025-09-05
 - Sync use_sound with sound.json on sdl_sound_reload() so a fresh install honors enabled sounds without needing a toggle (fixes silent SFX on first run).
 
+## 2025-12-24: Dailir arrow behavior
+- `src/drop_system.c`: keep artifact arrows single by skipping stack quantity rolls.
+- `src/cmd2.c`: Dailir no longer uses return-to-hand logic; it drops like other artifacts (unbreakable).
+- `lib/edit/artefact.txt`: removed the returning line from Dailir's description.
+
