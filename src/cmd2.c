@@ -6034,20 +6034,7 @@ void do_cmd_throw(bool automatic)
     else if (!get_aim_dir(&dir, tdis))
         return;
 
-    /* Take off equipment first */
     int original_slot = (item >= INVEN_WIELD) ? item : -1;
-
-    if (item >= INVEN_WIELD)
-    {
-        /* Take off first */
-        item = inven_takeoff(item, 1);
-
-        /* Get the original object */
-        if (item >= 0)
-            o_ptr = &inventory[item];
-        else
-            o_ptr = &o_list[0 - item];
-    }
 
     /* If we're throwing from equipment (including quivers), set redraw flag */
     bool throwing_from_equipment = (original_slot >= INVEN_WIELD);

@@ -1,5 +1,8 @@
 # Session Notes
 
+## 2025-12-25: Throwing no longer takes off equipment
+- `src/cmd2.c`: removed the `inven_takeoff()` step in `do_cmd_throw()` so throwing from quiver/equipment doesn't trip pack limits or drop items before the throw resolves; equipment stacks are reduced directly.
+
 ## 2025-12-24: Resist identification ignores inactive quiver slots
 - `src/cmd1.c`: `ident_resist()` now skips `INVEN_QUIVER1` and only considers `INVEN_QUIVER2` when it holds a throwing-eligible item, matching `calc_bonuses` so passive quiver items no longer identify as if they provided resists.
 
