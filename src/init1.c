@@ -5373,9 +5373,10 @@ errr parse_cu_info(char *buf, header *head)
         }
     }
     /* ------------------------------------------------------------ */
-    /* V: list of blessing CUR flags                                */
+    /* Y: list of blessing CUR flags                                */
     /* ------------------------------------------------------------ */
-    else if (buf[0] == 'V')
+    /* V: is reserved for version stamps in data files; do not use. */
+    else if (buf[0] == 'Y')
     {
         if (!cu_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
 

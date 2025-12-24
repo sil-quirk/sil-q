@@ -2605,6 +2605,8 @@ void init_angband(void)
     note("[Initializing arrays... (blessings)]");
     if (init_mb_info())
         quit("Cannot initialize major blessings");
+    /* Apply major blessing effects now that blessing data is loaded */
+    metarun_apply_runtime_effects();
 
     /* Initialize race info */
     note("[Initializing arrays... (races)]");

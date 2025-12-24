@@ -10,6 +10,7 @@
 
 
 # Version stamp (required)
+# Note: V: is reserved for version stamps only; use Y: for blessing CUR flags.
 
 V:0.9.1
 
@@ -153,6 +154,7 @@ P:Instead of choosing from curses, one is forced upon you.
 N:13:Burden of the Exile
 S:0:0:0:0
 U:WEAK
+Y:WEAK
 F:
 A:4/2
 D:A weary shadow follows you, pressing heavily upon your shoulders. Strength fades beneath the relentless weight of your own doom.
@@ -164,6 +166,7 @@ H:Weight limit increased by 20%
 N:14:Echoes of Anguish
 S:0:0:0:0
 U:MONSTERHP
+Y:MONSTERHP
 F:
 A:4/3
 D:Your foes rise, drawn from deeper shadows. Their vigor renewed by whispered malice, each battle longer, bloodier, and grimmer.
@@ -175,6 +178,7 @@ H:Ordinary monsters' HP decreased by 10%
 N:15:Doom of the Mighty
 S:0:0:0:0
 U:MONSTERHP_U
+Y:MONSTERHP_U
 F:
 A:3/3
 D:Named terrors regain ancient potency, their dark legends burn brighter. Heroes must now reckon with foes whose names echo louder in the dark.
@@ -186,6 +190,7 @@ H:Unique monsters' HP decreased by 10%
 N:16:Veil of Shadows
 S:0:0:0:0
 U:MON_STL
+Y:MON_STL
 F:
 A:4/3
 D:Enemies glide unseen, cloaked by unnatural shadows. Footfalls silent, menace concealed, until dread's blade is poised at your back.
@@ -197,6 +202,7 @@ H:Monster Stealth decreased by 2
 N:17:Lidless Gaze
 S:0:0:0:0
 U:MON_PER
+Y:MON_PER
 F:
 A:4/3
 D:No subtlety escapes the watchful darkness. Eyes hidden in gloom pierce your every attempt at secrecy, stripping away your refuge.
@@ -208,6 +214,7 @@ H:Monster Perception -2
 N:18:Iron Will of Morgoth
 S:0:0:0:0
 U:MON_WIL
+Y:MON_WIL
 F:
 A:4/3
 D:Darkness fortifies their resolve. Adversaries steel their minds, unyielding as stone, resisting your every subtlety and song.
@@ -227,6 +234,7 @@ P:Monster armour dice +1.
 N:20:Halls of Adamant
 S:0:0:0:0
 U:MON_ARM_SIDE
+Y:MON_ARM_SIDE
 F:
 A:3/3
 D:A fell enchantment coats your foes in armors forged in shadowed halls. Weapons chip against barriers tougher than mortal craft can break.
@@ -262,6 +270,7 @@ P:Spawned items have chance to be cursed.
 N:24:Twilight's Shroud
 S:0:0:0:0
 U:LIGHTR
+Y:LIGHTR
 A:1/2
 D:A shadow settles around you, dimming the circle of hope. The darkness looms closer, daring you to step into deeper gloom.
 P:Light radius −1
@@ -272,6 +281,7 @@ H:Light radius +1
 N:25:Waning of the Lamps
 S:0:0:0:0
 U:LIGHTP
+Y:LIGHTP
 A:1/2
 D:Light falters and flickers, drained by an unseen malice. Flames grow pale, barely holding back the encroaching night.
 P:Light Power -1
@@ -296,7 +306,7 @@ P:More monsters
 N:29:Voracious Curse
 S:0:0:0:0
 U:HUNGER
-V:HUNGER
+Y:HUNGER
 A:2/2
 D:A hollow gnaws within you, insatiable and relentless. Hunger stalks your every step, the emptiness a ceaseless torment.
 P:Digestion rate is increased
@@ -315,7 +325,7 @@ N:31:Curse of Craven Hearts
 S:0:0:0:0
 F:
 U:RES_FEAR_SHIFT
-V:RES_FEAR_SHIFT
+Y:RES_FEAR_SHIFT
 A:3/1
 D:An unseen whisper seeps through your heart, unraveling valor into trembling dread.
 P:Fear resistance -1
@@ -327,7 +337,7 @@ N:32:Curse of Shattered Poise
 S:0:0:0:0
 F:
 U:RES_STUN_SHIFT
-V:RES_STUN_SHIFT
+Y:RES_STUN_SHIFT
 A:3/1
 D:Invisible tremors rattle your sinews; every impact lingers, stealing your balance.
 P:Stun resistance -1
@@ -339,7 +349,7 @@ N:33:Curse of Tangled Thoughts
 S:0:0:0:0
 F:
 U:RES_CONFU_SHIFT
-V:RES_CONFU_SHIFT
+Y:RES_CONFU_SHIFT
 A:3/1
 D:Your thoughts fray into knotted echoes; commands dissolve before they reach your hands.
 P:Confusion resistance -1
@@ -351,7 +361,7 @@ N:34:Curse of Fraying Visions
 S:0:0:0:0
 F:
 U:RES_HALLU_SHIFT
-V:RES_HALLU_SHIFT
+Y:RES_HALLU_SHIFT
 A:3/1
 D:Phantasms bloom along the edge of sight; reality blurs into mocking lights.
 P:Hallucination resistance -1
@@ -363,7 +373,7 @@ N:35:Curse of Withered Veins
 S:0:0:0:0
 F:
 U:RES_POIS_SHIFT
-V:RES_POIS_SHIFT
+Y:RES_POIS_SHIFT
 A:3/1
 D:Your blood chills with stagnant venom; toxins linger eager for the kill.
 P:Poison resistance -1
@@ -375,7 +385,7 @@ N:36:Curse of Ashen Wards
 S:0:0:0:0
 F:
 U:RES_FIRE_SHIFT
-V:RES_FIRE_SHIFT
+Y:RES_FIRE_SHIFT
 A:2/1
 D:Scorching doubts thin your wards; every ember threatens to consume you.
 P:Fire resistance -1
@@ -387,7 +397,7 @@ N:37:Curse of Winter's Claim
 S:0:0:0:0
 F:
 U:RES_COLD_SHIFT
-V:RES_COLD_SHIFT
+Y:RES_COLD_SHIFT
 A:2/1
 D:A creeping frost seeps into your bones; winter tides slip past your guard.
 P:Cold resistance -1
@@ -399,7 +409,7 @@ N:38:Curse of Blunted Fortune
 S:0:0:0:0
 F:
 U:MDS_SHIFT
-V:MDS_SHIFT
+Y:MDS_SHIFT
 A:1/1
 D:Your strikes hesitate at the final instant; keen edges dull against fate.
 P:Melee damage dice sides -1
@@ -419,7 +429,7 @@ N:40:Curse of Breached Bulwarks
 S:0:0:0:0
 F:
 U:ARMOR_SIDE_SHIFT
-V:ARMOR_SIDE_SHIFT
+Y:ARMOR_SIDE_SHIFT
 A:1/1
 D:The plates of your armour gap and groan; protection thins where strikes fall.
 P:Protection dice sides -1

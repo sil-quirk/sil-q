@@ -1,7 +1,16 @@
 # Session Notes
 
+## 2025-12-24: Resist identification ignores inactive quiver slots
+- `src/cmd1.c`: `ident_resist()` now skips `INVEN_QUIVER1` and only considers `INVEN_QUIVER2` when it holds a throwing-eligible item, matching `calc_bonuses` so passive quiver items no longer identify as if they provided resists.
+
 ## 2025-12-24: Blessing CUR flag fixes
 - `lib/edit/curses.txt`: added `V:` blessing CUR flags for hunger/resistance/armor side/melee damage shift entries so blessings apply their actual effects (fixes Tempered Bulwarks protection sides).
+- `lib/edit/curses.txt`: added missing `V:` blessing CUR flags for weight/monster HP/monster skills/armor sides/light radius/light power so those blessings now apply.
+- `src/init1.c`: switched blessing CUR flags to `Y:`; `V:` is reserved for version stamps to prevent parse errors.
+- `lib/edit/curses.txt`: replaced blessing CUR flags from `V:` to `Y:` and documented the `V:` reservation.
+- `src/metarun.c`: avoid clearing major blessings before `z_info`/`mb_info` load, filter out undefined major blessing slots, and stop counting unknown entries.
+- `src/init2.c`: re-apply major blessing runtime effects after blessing data loads.
+- `src/birth.c`: starting artefact blessing now validates base kinds, falls back to higher-level artefacts if no low-level candidates, and reports failures instead of silently skipping.
 
 ## 2025-12-23: Steam Deck menu back/recall fixes
 - Character selection/stats/skills/oath prompts now show Steam Deck labels; b backs out and back handling added across those menus.

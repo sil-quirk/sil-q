@@ -602,33 +602,55 @@ static void give_start_items(const start_item *list)
 static void grant_starting_artifact(void)
 {
     int candidates[512];
+    int candidate_kinds[512];
     int count = 0;
+    int max_level = 10;
 
-    for (int i = 1; i < z_info->art_max && count < (int)N_ELEMENTS(candidates); i++) {
-        artefact_type *a_ptr = &a_info[i];
-        if (!a_ptr->name[0]) continue;
-        if (a_ptr->cur_num > 0) continue;
-        if (a_ptr->level > 10) continue;
-        if (valar_reserved_artifacts && valar_reserved_artifacts[i]) continue;
-        candidates[count++] = i;
+    for (int pass = 0; pass < 2; pass++) {
+        count = 0;
+        for (int i = 1; i < z_info->art_max && count < (int)N_ELEMENTS(candidates); i++) {
+            artefact_type *a_ptr = &a_info[i];
+            if (!a_ptr->name[0]) continue;
+            if (a_ptr->cur_num > 0) continue;
+            if (a_ptr->level > max_level) continue;
+            if (valar_reserved_artifacts && valar_reserved_artifacts[i]) continue;
+            int k_idx = lookup_kind(a_ptr->tval, a_ptr->sval);
+            if (!k_idx) continue;
+            candidates[count] = i;
+            candidate_kinds[count] = k_idx;
+            count++;
+        }
+
+        if (count > 0)
+            break;
+
+        max_level = MORGOTH_DEPTH;
     }
 
     if (count == 0) {
-        log_info("No early artefacts available for starting blessing.");
+        log_warn("No artefacts available for starting blessing.");
+        msg_print("No artefact could be granted.");
         return;
     }
 
-    int art_idx = candidates[rand_int(count)];
+    int pick = rand_int(count);
+    int art_idx = candidates[pick];
+    int k_idx = candidate_kinds[pick];
     artefact_type *a_ptr = &a_info[art_idx];
 
     object_type object_type_body;
     object_type *o_ptr = &object_type_body;
-    object_prep(o_ptr, lookup_kind(a_ptr->tval, a_ptr->sval));
+    object_prep(o_ptr, k_idx);
     o_ptr->name1 = art_idx;
     apply_magic(o_ptr, -1, true, true, true, true);
     object_aware(o_ptr);
     object_known(o_ptr);
-    (void)inven_carry(o_ptr, true);
+    int slot = inven_carry(o_ptr, true);
+    if (slot < 0) {
+        log_warn("Starting artefact could not be carried (idx=%d)", art_idx);
+        msg_print("You have no room for a starting artefact.");
+        return;
+    }
     a_ptr->cur_num = 1;
     if (valar_reserved_artifacts) valar_reserved_artifacts[art_idx] = true;
 

@@ -1697,6 +1697,17 @@ extern void ident_resist(u32b flag)
         /* Extract the item flags */
         object_flags(o_ptr, &f1, &f2, &f3);
 
+        {
+            bool is_quiver1 = (i == INVEN_QUIVER1);
+            bool is_quiver2 = (i == INVEN_QUIVER2);
+            bool is_throwing_item = player_can_treat_as_throwing_flags(o_ptr, f3);
+
+            if (is_quiver1)
+                continue;
+            if (is_quiver2 && !is_throwing_item)
+                continue;
+        }
+
         if (o_ptr->name1 || o_ptr->name2)
         {
             // For special items and artefacts, we need to ignore the flags that

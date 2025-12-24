@@ -253,20 +253,37 @@ static u16b major_blessing_mask(void)
 
 void metarun_sanitize_major_blessing_bits(metarun *m)
 {
-    if (!m) return;
+    if (!m || !z_info || !mb_info) return;
+
     u16b mask = major_blessing_mask();
     if (mask == 0) {
         m->major_blessings = 0;
-    } else {
-        m->major_blessings &= mask;
+        return;
     }
+
+    u16b defined_mask = 0;
+    int cap = major_blessing_capacity();
+    for (int i = 0; i < cap; i++) {
+        const major_blessing_type *def = &mb_info[i];
+        if (def->name)
+            defined_mask |= (1U << i);
+    }
+
+    if (defined_mask == 0) {
+        m->major_blessings = 0;
+        return;
+    }
+
+    m->major_blessings &= (mask & defined_mask);
 }
 
 static const major_blessing_type *major_blessing_def(int idx)
 {
     if (!mb_info || !z_info) return NULL;
     if (idx < 0 || idx >= (int)z_info->mb_max) return NULL;
-    return &mb_info[idx];
+    const major_blessing_type *def = &mb_info[idx];
+    if (!def->name) return NULL;
+    return def;
 }
 
 static cptr major_blessing_name_str(int idx)
@@ -1479,6 +1496,7 @@ bool metarun_has_major_blessing_index(int idx)
     if (idx < 0) return false;
     int cap = major_blessing_capacity();
     if (idx >= cap) return false;
+    if (!major_blessing_def(idx)) return false;
     return (metar.major_blessings & (1U << idx)) != 0;
 }
 
