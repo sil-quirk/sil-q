@@ -6865,7 +6865,7 @@ void sing_song_of_lorien(int score)
         }
 
         // adjust difficulty by the distance to the monster
-        if (c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_LUT) result = skill_check(PLAYER, 2*score,
+        if (c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_LUT) result = skill_check(PLAYER, (3*score)/2,
             resistance + 5 + flow_dist(FLOW_PLAYER_NOISE, m_ptr->fy, m_ptr->fx),
             m_ptr);
         else result = skill_check(PLAYER, score,

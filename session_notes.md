@@ -7953,3 +7953,6 @@ The script now fully matches the game's drop generation logic for all item types
 
 ## 2025-12-25: Aim dir target fallback
 - src/xtra2.c: ignore stored command_dir=5 when no valid target so get_aim_dir prompts instead of throwing at the player's square.
+
+## 2025-12-25: Auto-identify awareness fix
+- src/xtra1.c: auto-identify now calls ident when an item lacks awareness even if it is already marked known, so Jeweller reveals starting jewellery like Last Chances.

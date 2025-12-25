@@ -2631,7 +2631,8 @@ int ability_bonus(int skilltype, int abilitynum)
         }
         case SNG_MASTERY:
         {
-            bonus = ((c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_THINGOL) ? 2 : 1) * skill;
+            /* Thingol: Song of Mastery is 1.75x effective (7/4 as integer math) */
+            bonus = ((c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_THINGOL) ? (7 * skill) / 4 : skill);
             break;
         }
         case SNG_SHATTERING:
@@ -3985,13 +3986,11 @@ bool player_auto_identifies_object(const object_type* o_ptr)
  */
 void update_lore_aux(object_type* o_ptr)
 {
-    // identify seen items
-    if (!object_known_p(o_ptr))
+    // Identify items the player can auto-identify, even if only awareness is missing.
+    if (player_auto_identifies_object(o_ptr)
+        && (!object_known_p(o_ptr) || !object_aware_p(o_ptr)))
     {
-        if (player_auto_identifies_object(o_ptr))
-        {
-            ident(o_ptr);
-        }
+        ident(o_ptr);
     }
 
     // Mark new identified artefacts/specials and gain experience for them
