@@ -5315,6 +5315,8 @@ bool get_aim_dir(int* dp, int range)
 
     /* Global direction */
     dir = p_ptr->command_dir;
+    if ((dir == 5) && !target_okay(range))
+        dir = 0;
 
     /* Hack -- auto-target if requested */
     //	if (use_old_target && target_okay(range)) dir = 5;
