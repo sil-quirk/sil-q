@@ -265,6 +265,16 @@ void do_cmd_use_item_by_index(int item)
                 }
             }
 
+            if (o_ptr->tval == TV_FLASK && try_to_wield)
+            {
+                if ((l_ptr->tval != TV_LIGHT)
+                    || (l_ptr->sval != SV_LIGHT_LANTERN))
+                {
+                    msg_print("You are not wielding a lantern.");
+                }
+                try_to_wield = false;
+            }
+
             if (try_to_wield)
             {
                 log_debug("do_cmd_use_item_by_index: Calling do_cmd_wield with item=%d (o_ptr tval=%d)", item, o_ptr->tval);
@@ -969,6 +979,12 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
 
     /* Check the slot */
     slot = wield_slot(o_ptr);
+    if (slot < INVEN_WIELD || slot >= INVEN_TOTAL)
+    {
+        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+        msg_format("You cannot wear or wield %s.", o_name);
+        return;
+    }
 
     /* Ask for ring to replace */
     if ((o_ptr->tval == TV_RING) && inventory[INVEN_LEFT].k_idx

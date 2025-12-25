@@ -4,6 +4,9 @@
 - `src/spells1.c`: `GF_WEB` now only places webs on normal floors (or existing webs); non-floor features stay intact and show a fallback message.
 - `src/object2.c`: `inven_takeoff()` now avoids dropping items onto non-floor/non-sunlight tiles and prefers nearby floor squares.
 
+## 2025-12-25: Flask use guard
+- `src/cmd3.c`: prevent flasks from trying to wear/wield when no lantern is equipped (and avoid a misleading message when the player declines refuel); add slot validation in `do_cmd_wield()` to avoid invalid equips.
+
 ## 2025-12-25: Bash + Controlled Retreat + pit/web checks
 - `src/defines.h`: added `ACTION_BASH` to distinguish door bashing in action history.
 - `src/cmd1.c`: Controlled Retreat now treats bashing as movement for the "not moved last round" requirement.
