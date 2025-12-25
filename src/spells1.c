@@ -4401,16 +4401,33 @@ static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
 
         if (hit_result > 0)
         {
-            if (blind)
+            int feat = cave_feat[p_ptr->py][p_ptr->px];
+            bool can_web = (feat == FEAT_FLOOR || feat == FEAT_TRAP_WEB);
+
+            if (can_web)
             {
-                msg_print("Something sticky falls over you.");
+                if (blind)
+                {
+                    msg_print("Something sticky falls over you.");
+                }
+                else
+                {
+                    msg_print("You are enveloped in a thick web.");
+                }
+
+                cave_set_feat(p_ptr->py, p_ptr->px, FEAT_TRAP_WEB);
             }
             else
             {
-                msg_print("You are enveloped in a thick web.");
+                if (blind)
+                {
+                    msg_print("Something sticky splatters nearby.");
+                }
+                else
+                {
+                    msg_print("The web cannot take hold here.");
+                }
             }
-
-            cave_set_feat(p_ptr->py, p_ptr->px, FEAT_TRAP_WEB);
         }
 
         break;

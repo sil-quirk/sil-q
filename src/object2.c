@@ -5850,12 +5850,19 @@ s16b inven_takeoff(int item, int amt)
         msg_print("You have no room in your pack.");
     }
 
-    s16b o_idx = floor_carry(p_ptr->py, p_ptr->px, &drop_obj);
+    bool can_drop_here = (cave_feat[p_ptr->py][p_ptr->px] == FEAT_FLOOR
+        || cave_feat[p_ptr->py][p_ptr->px] == FEAT_SUNLIGHT);
+    s16b o_idx = 0;
 
-    if (o_idx > 0)
+    if (can_drop_here)
     {
-        msg_print("It lands at your feet.");
-        return (0 - o_idx);
+        o_idx = floor_carry(p_ptr->py, p_ptr->px, &drop_obj);
+
+        if (o_idx > 0)
+        {
+            msg_print("It lands at your feet.");
+            return (0 - o_idx);
+        }
     }
 
     for (int d = 0; d < 8; d++)
@@ -5866,7 +5873,8 @@ s16b inven_takeoff(int item, int amt)
         if (!in_bounds_fully(yy, xx))
             continue;
 
-        if (!cave_floor_bold(yy, xx))
+        if (cave_feat[yy][xx] != FEAT_FLOOR
+            && cave_feat[yy][xx] != FEAT_SUNLIGHT)
             continue;
 
         if (cave_o_idx[yy][xx] != 0)

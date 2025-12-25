@@ -2894,7 +2894,7 @@ static void show_all_active_curses(void)
     char accept_label[16] = "";
 
     if (steamdeck) {
-        metarun_prompt_label(' ', "A", accept_label, sizeof(accept_label));
+        metarun_prompt_label(steamdeck_confirm_key(), "A", accept_label, sizeof(accept_label));
     }
     
     /* Get actual terminal dimensions */
@@ -4099,7 +4099,7 @@ static void adjust_blessing_threshold_menu(void)
         }
         if (steamdeck) {
             char hint_buf[64];
-            metarun_prompt_label(' ', "A", accept_label, sizeof(accept_label));
+            metarun_prompt_label(steamdeck_confirm_key(), "A", accept_label, sizeof(accept_label));
             strnfmt(hint_buf, sizeof(hint_buf), "Press [%s] to continue.", accept_label);
             Term_putstr(2, 6, -1, TERM_L_DARK, hint_buf);
         } else {
@@ -4129,7 +4129,7 @@ void print_metarun_stats(void)
         Term_putstr(2, 6, -1, TERM_L_WHITE, "Please start a new game first.");
         if (get_sdl_steamdeck_mode()) {
             char label[16];
-            metarun_prompt_label(' ', "A", label, sizeof(label));
+            metarun_prompt_label(steamdeck_confirm_key(), "A", label, sizeof(label));
             strnfmt(buf, sizeof(buf), "Press %s to return.", label);
             Term_putstr(2, 8, -1, TERM_L_DARK, buf);
         } else {
@@ -4188,15 +4188,25 @@ void print_metarun_stats(void)
     char full_label[16] = "";
     char history_label[16] = "";
     char back_label[16] = "";
+    char continue_label[16] = "";
 
     if (steamdeck) {
-        /* Steam Deck UI: A=spend, X=full list, Y=history, B=back, RS Down=threshold, L1=difficulty */
-        metarun_prompt_label(steamdeck_confirm_key(), "A", spend_label, sizeof(spend_label));
-        metarun_prompt_label('f', "RS Down", threshold_label, sizeof(threshold_label));
-        metarun_prompt_label('e', "L1", diff_label, sizeof(diff_label));
-        metarun_prompt_label(steamdeck_alt_action_key(), "X", full_label, sizeof(full_label));
-        metarun_prompt_label(steamdeck_secondary_key(), "Y", history_label, sizeof(history_label));
-        metarun_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
+        /* Steam Deck UI: A=Continue, B=Back, X=Spend, Y=History, L1=Diff, R1=Threshold, Start=Full list */
+        int confirm_key = steamdeck_confirm_key();
+        int back_key = steamdeck_back_key();
+        int alt_key = steamdeck_alt_action_key();
+        int secondary_key = steamdeck_secondary_key();
+        int l1_key = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_LEFT_SHOULDER);
+        int r1_key = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER);
+        int start_key = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_START);
+
+        metarun_prompt_label(confirm_key, "A", continue_label, sizeof(continue_label));
+        metarun_prompt_label(back_key, "B", back_label, sizeof(back_label));
+        metarun_prompt_label(alt_key, "X", spend_label, sizeof(spend_label));
+        metarun_prompt_label(secondary_key, "Y", history_label, sizeof(history_label));
+        metarun_prompt_label(l1_key, "L1", diff_label, sizeof(diff_label));
+        metarun_prompt_label(r1_key, "R1", threshold_label, sizeof(threshold_label));
+        metarun_prompt_label(start_key, "Start", full_label, sizeof(full_label));
     }
     
     /* Ensure minimum 80 width for layout */
@@ -4388,8 +4398,8 @@ void print_metarun_stats(void)
     int target_width = (term_width > 80) ? term_width : 80;
     if (steamdeck) {
         strnfmt(prompt_buf, sizeof(prompt_buf),
-                "[%s] Blessings  [%s] Threshold  [%s] Difficulty  [%s] Full list  [%s] History  [%s] Back",
-                spend_label, threshold_label, diff_label, full_label, history_label, back_label);
+                "[%s] Blessings  [%s] Threshold  [%s] Difficulty  [%s] Full list  [%s] History",
+                spend_label, threshold_label, diff_label, full_label, history_label);
     } else {
         snprintf(prompt_buf, sizeof prompt_buf, "%s", base_prompt);
     }
@@ -4412,23 +4422,33 @@ void print_metarun_stats(void)
         int confirm_key = steamdeck_confirm_key();
         int alt_key = steamdeck_alt_action_key();
         int secondary_key = steamdeck_secondary_key();
+        int l1_key = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_LEFT_SHOULDER);
+        int r1_key = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER);
+        int start_key = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_START);
         
         if (key == back_key) {
-            /* B button = exit/back in Steam Deck mode */
+            /* B button = exit/back */
             screen_load();
             return;
         } else if (key == confirm_key || key == '\r' || key == '\n') {
-            /* A button = spend blessings */
-            key = 'b';
-        } else if (key == 'e' || key == 'E') {
-            /* L1 = difficulty */
-            key = 'c';
+            /* A button = continue (exit) */
+            screen_load();
+            return;
         } else if (key == alt_key) {
-            /* X button = full list */
-            key = 'u';
+            /* X button = spend blessings */
+            key = 'b';
         } else if (key == secondary_key) {
             /* Y button = history */
             key = 's';
+        } else if (key == l1_key) {
+            /* L1 = difficulty */
+            key = 'c';
+        } else if (key == r1_key) {
+            /* R1 = threshold */
+            key = 'f';
+        } else if (key == start_key) {
+            /* Start = full list */
+            key = 'u';
         }
     }
     if (key == 'b' || key == 'B') {

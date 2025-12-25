@@ -1,5 +1,9 @@
 # Session Notes
 
+## 2025-12-25: Web trap terrain safety + drop on forges/stairs
+- `src/spells1.c`: `GF_WEB` now only places webs on normal floors (or existing webs); non-floor features stay intact and show a fallback message.
+- `src/object2.c`: `inven_takeoff()` now avoids dropping items onto non-floor/non-sunlight tiles and prefers nearby floor squares.
+
 ## 2025-12-25: Bash + Controlled Retreat + pit/web checks
 - `src/defines.h`: added `ACTION_BASH` to distinguish door bashing in action history.
 - `src/cmd1.c`: Controlled Retreat now treats bashing as movement for the "not moved last round" requirement.
