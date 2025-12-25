@@ -394,6 +394,111 @@ static int remove_curse_aux(bool star_curse)
  */
 bool remove_curse(bool star_curse) { return (remove_curse_aux(star_curse)); }
 
+static void append_resist_name(char* buf, size_t buf_len, const char* name)
+{
+    if (buf[0] != '\0')
+        SDL_strlcat(buf, ", ", buf_len);
+    SDL_strlcat(buf, name, buf_len);
+}
+
+static void append_resist_entry(char* buf, size_t buf_len, const char* name,
+    int tier)
+{
+    if (tier <= 1) {
+        append_resist_name(buf, buf_len, name);
+        return;
+    }
+
+    char labeled[32];
+    strnfmt(labeled, sizeof(labeled), "%s (x%d)", name, tier);
+    append_resist_name(buf, buf_len, labeled);
+}
+
+static byte resist_color(const char* name)
+{
+    char base[32];
+    size_t i = 0;
+
+    while (name[i] && name[i] != ' ' && name[i] != '(' && i < sizeof(base) - 1) {
+        base[i] = name[i];
+        i++;
+    }
+    base[i] = '\0';
+
+    if (streq(base, "fire"))
+        return TERM_L_RED;
+    if (streq(base, "cold"))
+        return TERM_L_BLUE;
+    if (streq(base, "poison"))
+        return TERM_GREEN;
+    if (streq(base, "bleeding"))
+        return TERM_RED;
+    if (streq(base, "fear"))
+        return TERM_VIOLET;
+    if (streq(base, "blindness"))
+        return TERM_L_DARK;
+    if (streq(base, "confusion"))
+        return TERM_VIOLET;
+    if (streq(base, "stunning"))
+        return TERM_ORANGE;
+    if (streq(base, "hallucination"))
+        return TERM_VIOLET;
+
+    return TERM_WHITE;
+}
+
+static bool render_resistance_summary(const char* text)
+{
+    const char* prefix_resist = "You resist ";
+    const char* prefix_vuln = "You are vulnerable to ";
+    const char* prefix_none = "You do not resist ";
+    const char* prefix = NULL;
+
+    if (strncmp(text, prefix_resist, strlen(prefix_resist)) == 0)
+        prefix = prefix_resist;
+    else if (strncmp(text, prefix_vuln, strlen(prefix_vuln)) == 0)
+        prefix = prefix_vuln;
+    else if (strncmp(text, prefix_none, strlen(prefix_none)) == 0)
+        prefix = prefix_none;
+
+    if (!prefix)
+        return false;
+
+    const char* list = text + strlen(prefix);
+    if (!list[0])
+        return false;
+
+    text_out_hook = text_out_to_screen;
+    text_out_indent = 1;
+    text_out_wrap = Term->wid - 4;
+
+    text_out_c(TERM_WHITE, prefix);
+
+    const char* p = list;
+    while (*p)
+    {
+        const char* comma = strstr(p, ", ");
+        size_t len = comma ? (size_t)(comma - p) : strlen(p);
+        if (len > 0)
+        {
+            char token[32];
+            size_t cap = sizeof(token) - 1;
+            if (len > cap)
+                len = cap;
+            SDL_strlcpy(token, p, len + 1);
+            text_out_c(resist_color(token), token);
+        }
+
+        if (!comma)
+            break;
+
+        text_out(", ");
+        p = comma + 2;
+    }
+
+    return true;
+}
+
 /*
  * Hack -- acquire self knowledge
  *
@@ -533,6 +638,143 @@ void self_knowledge(void)
         strnfmt(s[i], 80, "You stand fast against your foes");
         strnfmt(t[i], 80, "(you cannot be moved by enemy abilities)");
         good[i] = true; i++;
+    }
+
+    if (p_ptr->see_inv > 0) {
+        strnfmt(s[i], 80, "You can see invisible creatures");
+        t[i][0] = '\0';
+        good[i] = true; i++;
+    }
+
+    if (p_ptr->free_act > 0) {
+        strnfmt(s[i], 80, "You move freely");
+        t[i][0] = '\0';
+        good[i] = true; i++;
+    }
+
+    if (p_ptr->regenerate > 0) {
+        strnfmt(s[i], 80, "You regenerate quickly");
+        t[i][0] = '\0';
+        good[i] = true; i++;
+    }
+
+    {
+        char resist_buf[200];
+        char no_resist_buf[200];
+        char vuln_buf[200];
+        int res;
+
+        resist_buf[0] = '\0';
+        no_resist_buf[0] = '\0';
+        vuln_buf[0] = '\0';
+
+        res = resist_fire();
+        if (res > 1) {
+            append_resist_entry(resist_buf, sizeof(resist_buf), "fire",
+                res - 1);
+        }
+        else if (res < 1) {
+            int tier = (-res) - 1;
+            if (tier < 1)
+                tier = 1;
+            append_resist_entry(vuln_buf, sizeof(vuln_buf), "fire", tier);
+        }
+        else
+            append_resist_name(no_resist_buf, sizeof(no_resist_buf), "fire");
+
+        res = resist_cold();
+        if (res > 1) {
+            append_resist_entry(resist_buf, sizeof(resist_buf), "cold",
+                res - 1);
+        }
+        else if (res < 1) {
+            int tier = (-res) - 1;
+            if (tier < 1)
+                tier = 1;
+            append_resist_entry(vuln_buf, sizeof(vuln_buf), "cold", tier);
+        }
+        else
+            append_resist_name(no_resist_buf, sizeof(no_resist_buf), "cold");
+
+        res = resist_pois();
+        if (res > 1) {
+            append_resist_entry(resist_buf, sizeof(resist_buf), "poison",
+                res - 1);
+        }
+        else if (res < 1) {
+            int tier = (-res) - 1;
+            if (tier < 1)
+                tier = 1;
+            append_resist_entry(vuln_buf, sizeof(vuln_buf), "poison", tier);
+        }
+        else
+            append_resist_name(no_resist_buf, sizeof(no_resist_buf), "poison");
+
+        res = p_ptr->resist_bleed;
+        if (res > 0)
+            append_resist_name(resist_buf, sizeof(resist_buf), "bleeding");
+        else if (res < 0)
+            append_resist_name(vuln_buf, sizeof(vuln_buf), "bleeding");
+        else
+            append_resist_name(no_resist_buf, sizeof(no_resist_buf), "bleeding");
+
+        res = p_ptr->resist_fear;
+        if (res > 0)
+            append_resist_name(resist_buf, sizeof(resist_buf), "fear");
+        else if (res < 0)
+            append_resist_name(vuln_buf, sizeof(vuln_buf), "fear");
+        else
+            append_resist_name(no_resist_buf, sizeof(no_resist_buf), "fear");
+
+        res = p_ptr->resist_blind;
+        if (res > 0)
+            append_resist_name(resist_buf, sizeof(resist_buf), "blindness");
+        else if (res < 0)
+            append_resist_name(vuln_buf, sizeof(vuln_buf), "blindness");
+        else
+            append_resist_name(no_resist_buf, sizeof(no_resist_buf), "blindness");
+
+        res = p_ptr->resist_confu;
+        if (res > 0)
+            append_resist_name(resist_buf, sizeof(resist_buf), "confusion");
+        else if (res < 0)
+            append_resist_name(vuln_buf, sizeof(vuln_buf), "confusion");
+        else
+            append_resist_name(no_resist_buf, sizeof(no_resist_buf), "confusion");
+
+        res = p_ptr->resist_stun;
+        if (res > 0)
+            append_resist_name(resist_buf, sizeof(resist_buf), "stunning");
+        else if (res < 0)
+            append_resist_name(vuln_buf, sizeof(vuln_buf), "stunning");
+        else
+            append_resist_name(no_resist_buf, sizeof(no_resist_buf), "stunning");
+
+        res = p_ptr->resist_hallu;
+        if (res > 0)
+            append_resist_name(resist_buf, sizeof(resist_buf), "hallucination");
+        else if (res < 0)
+            append_resist_name(vuln_buf, sizeof(vuln_buf), "hallucination");
+        else
+            append_resist_name(no_resist_buf, sizeof(no_resist_buf), "hallucination");
+
+        if (resist_buf[0] != '\0') {
+            strnfmt(s[i], 200, "You resist %s", resist_buf);
+            t[i][0] = '\0';
+            good[i] = true; i++;
+        }
+
+        if (vuln_buf[0] != '\0') {
+            strnfmt(s[i], 200, "You are vulnerable to %s", vuln_buf);
+            t[i][0] = '\0';
+            good[i] = false; i++;
+        }
+
+        if (no_resist_buf[0] != '\0') {
+            strnfmt(s[i], 200, "You do not resist %s", no_resist_buf);
+            t[i][0] = '\0';
+            good[i] = false; i++;
+        }
     }
 
     // Player state information
@@ -795,21 +1037,17 @@ void display_attributes(char s[][200], char t[][200], bool good[], int count)
         // Position cursor at start of line
         Term_gotoxy(1, line);
         
-        // Create combined text string to avoid wrapping issues between parts
-        char combined_text[200];
-        if (t[j][0] != '\0') {
-            snprintf(combined_text, sizeof(combined_text), "%s %s", s[j], t[j]);
+        if (t[j][0] == '\0' && render_resistance_summary(s[j])) {
+            /* handled by helper */
         } else {
-            snprintf(combined_text, sizeof(combined_text), "%s", s[j]);
-        }
-        
-        // Output main text in white
-        text_out_c(TERM_WHITE, s[j]);
-        
-        // Add detail text if it exists
-        if (t[j][0] != '\0') {
-            text_out(" ");  // Add space separator
-            text_out_c(good[j] ? TERM_GREEN : TERM_L_RED, t[j]);
+            // Output main text in white
+            text_out_c(TERM_WHITE, s[j]);
+
+            // Add detail text if it exists
+            if (t[j][0] != '\0') {
+                text_out(" ");  // Add space separator
+                text_out_c(good[j] ? TERM_GREEN : TERM_L_RED, t[j]);
+            }
         }
         
         // Get current cursor position after wrapping

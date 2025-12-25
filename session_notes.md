@@ -1,5 +1,11 @@
 # Session Notes
 
+## 2025-12-25: Self Knowledge trait coverage
+- `src/spells2.c`: Self Knowledge now reports core traits (see invisible/free action/regen) and summarizes resistances, including missing/vulnerable ones, to surface resistance holes before smithing.
+- `src/spells2.c`: Self Knowledge resistance summaries now color each element/condition name (fire/cold/poison/etc.) to match in-game palette.
+- `src/spells2.c`: Self Knowledge now shows resistance tiers for fire/cold/poison (e.g. x2/x3).
+- `src/spells2.c`: Fire/cold/poison tier display now uses base-1 for normal resist (x1) and scaled vulnerability tiers.
+
 ## 2025-12-25: Tulkas quest failure cleanup
 - `src/xtra2.c`: added silent quest-giver removal and reset Tulkas quest state when no valid target/reward is available, preventing repeated "no challenge" prompts.
 - `src/xtra2.c`: allow targeting uniques already present on the level and gate Tulkas eligibility when no valid target exists.
