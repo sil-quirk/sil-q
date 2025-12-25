@@ -1,5 +1,9 @@
 # Session Notes
 
+## 2025-12-25: Tulkas quest failure cleanup
+- `src/xtra2.c`: added silent quest-giver removal and reset Tulkas quest state when no valid target/reward is available, preventing repeated "no challenge" prompts.
+- `src/xtra2.c`: allow targeting uniques already present on the level and gate Tulkas eligibility when no valid target exists.
+
 ## 2025-12-25: Throwing no longer takes off equipment
 - `src/cmd2.c`: removed the `inven_takeoff()` step in `do_cmd_throw()` so throwing from quiver/equipment doesn't trip pack limits or drop items before the throw resolves; equipment stacks are reduced directly.
 

@@ -5778,6 +5778,33 @@ void pause_with_text(const char desc[][100], int row, int col,
 /*
  * Select a suitable unique monster for the Tulkas quest
  */
+static bool tulkas_target_valid(int r_idx, const monster_race* r_ptr, int depth)
+{
+    if (!r_ptr) return false;
+
+    if (!(r_ptr->flags1 & RF1_UNIQUE)) return false;
+    if (r_ptr->max_num <= 0) return false;
+    if (r_ptr->level < depth) return false;
+    if (r_ptr->level > MORGOTH_DEPTH) return false;
+    if (r_idx == R_IDX_TULKAS || r_idx == R_IDX_MORGOTH) return false;
+
+    return true;
+}
+
+static bool tulkas_has_valid_target(int depth)
+{
+    int i;
+
+    if (!z_info) return false;
+
+    for (i = 1; i < z_info->r_max; i++)
+    {
+        if (tulkas_target_valid(i, &r_info[i], depth)) return true;
+    }
+
+    return false;
+}
+
 static int select_tulkas_quest_target(void)
 {
     int i;
@@ -5803,15 +5830,9 @@ static int select_tulkas_quest_target(void)
             continue;
         }
         
-        /* Must be unique, alive (max_num > 0), not yet generated, and at appropriate depth */
+        /* Must be unique, alive (max_num > 0), and at appropriate depth */
         /* Exclude Tulkas himself and Morgoth from being targets */
-        if ((r_ptr->flags1 & RF1_UNIQUE) &&
-            (r_ptr->max_num > 0) &&  /* Unique is still alive (not killed yet) */
-            (r_ptr->cur_num == 0) &&  /* Unique hasn't been generated yet */
-            (r_ptr->level >= p_ptr->depth) &&
-            (r_ptr->level <= MORGOTH_DEPTH) &&
-            (i != R_IDX_TULKAS) &&
-            (i != R_IDX_MORGOTH))  /* Never make Morgoth a Tulkas quest target */
+        if (tulkas_target_valid(i, r_ptr, p_ptr->depth))
         {
             valid_targets[count] = i;
             count++;
@@ -6142,6 +6163,10 @@ bool check_quest_eligibility(int quest_idx, int depth)
         case 1: /* Tulkas */
             if (p_ptr->tulkas_quest != TULKAS_QUEST_NOT_STARTED) {
                 log_trace("Quest %d eligibility: TULKAS_ALREADY_STARTED = FAIL", quest_idx);
+                return false;
+            }
+            if (!tulkas_has_valid_target(depth)) {
+                log_trace("Quest %d eligibility: TULKAS_NO_TARGETS = FAIL (depth=%d)", quest_idx, depth);
                 return false;
             }
             break;
@@ -7529,6 +7554,33 @@ static void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byt
 }
 
 /*
+ * Remove quest giver monster by R_IDX without messaging
+ */
+static void remove_quest_giver_silent(int quest_giver_r_idx)
+{
+    int i;
+
+    log_trace("Attempting to remove quest giver silently with R_IDX: %d", quest_giver_r_idx);
+
+    for (i = 1; i < mon_max; i++)
+    {
+        monster_type *m_ptr = &mon_list[i];
+
+        /* Skip empty slots */
+        if (!m_ptr->r_idx) continue;
+
+        if (m_ptr->r_idx == quest_giver_r_idx)
+        {
+            log_trace("Found quest giver at (%d, %d), removing silently", m_ptr->fy, m_ptr->fx);
+            delete_monster_idx(i);
+            return;
+        }
+    }
+
+    log_trace("Quest giver with R_IDX %d not found on current level (silent remove)", quest_giver_r_idx);
+}
+
+/*
  * Remove quest giver monster by R_IDX
  */
 void remove_quest_giver(int quest_giver_r_idx)
@@ -7620,6 +7672,20 @@ bool spawn_quest_giver_near_player(int quest_giver_r_idx)
     return false;
 }
 
+static void tulkas_quest_decline(cptr message)
+{
+    if (message) {
+        msg_print(message);
+    }
+
+    p_ptr->tulkas_quest = TULKAS_QUEST_NOT_STARTED;
+    p_ptr->tulkas_target_r_idx = 0;
+    p_ptr->tulkas_prize_a_idx = 0;
+    p_ptr->tulkas_quest_complete = 0;
+
+    remove_quest_giver_silent(R_IDX_TULKAS);
+}
+
 /*
  * Handle Tulkas interaction
  */
@@ -7653,7 +7719,7 @@ void tulkas_quest_interaction(void)
         if (target_r_idx == 0 || target_r_idx >= z_info->r_max)
         {
             log_trace("Invalid target_r_idx: %d", target_r_idx);
-            msg_print("Tulkas nods thoughtfully and fades away, finding no worthy challenge for you at this time.");
+            tulkas_quest_decline("Tulkas nods thoughtfully and fades away, finding no worthy challenge for you at this time.");
             return;
         }
         
@@ -7661,7 +7727,7 @@ void tulkas_quest_interaction(void)
         if (target_r_idx <= 0 || target_r_idx >= z_info->r_max || r_ptr->name == 0)
         {
             log_trace("Invalid monster race data for r_idx: %d", target_r_idx);
-            msg_print("Tulkas nods thoughtfully and fades away, finding no worthy challenge for you at this time.");
+            tulkas_quest_decline("Tulkas nods thoughtfully and fades away, finding no worthy challenge for you at this time.");
             return;
         }
         
@@ -7669,9 +7735,7 @@ void tulkas_quest_interaction(void)
         if (r_ptr->max_num == 0)
         {
             log_trace("Target unique %d (%s) has already been killed (max_num=0)", target_r_idx, r_name + r_ptr->name);
-            msg_print("Tulkas frowns. 'The foe I had in mind has already fallen. Impressive, but I have no new challenge for you now.'");
-            /* Remove Tulkas since he has nothing to offer */
-            remove_quest_giver(R_IDX_TULKAS);
+            tulkas_quest_decline("Tulkas frowns. 'The foe I had in mind has already fallen. Impressive, but I have no new challenge for you now.'");
             return;
         }
         
@@ -7680,7 +7744,7 @@ void tulkas_quest_interaction(void)
         if (prize_a_idx == 0 || prize_a_idx >= z_info->art_max)
         {
             log_trace("Invalid prize_a_idx: %d", prize_a_idx);
-            msg_print("Tulkas frowns and fades away, having no suitable reward to offer.");
+            tulkas_quest_decline("Tulkas frowns and fades away, having no suitable reward to offer.");
             return;
         }
         
@@ -7688,7 +7752,7 @@ void tulkas_quest_interaction(void)
         if (prize_a_idx <= 0 || prize_a_idx >= z_info->art_max)
         {
             log_trace("Invalid artifact data for a_idx: %d", prize_a_idx);
-            msg_print("Tulkas frowns and fades away, having no suitable reward to offer.");
+            tulkas_quest_decline("Tulkas frowns and fades away, having no suitable reward to offer.");
             return;
         }
         
