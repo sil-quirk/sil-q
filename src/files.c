@@ -2418,12 +2418,12 @@ void display_character_tutorial(void)
                 tutorial_prompt_label('i', "R1", inven_label, sizeof(inven_label));
                 tutorial_prompt_label('e', "L1", equip_label, sizeof(equip_label));
                 tutorial_prompt_label('l', "L1+R1", look_label, sizeof(look_label));
-                tutorial_prompt_label('h', "R5", char_label, sizeof(char_label));
-                tutorial_prompt_label('f', "B", fire_label, sizeof(fire_label));
+                tutorial_prompt_label('h', "Back", char_label, sizeof(char_label));
+                tutorial_prompt_label('f', "RS Down", fire_label, sizeof(fire_label));
                 tutorial_prompt_label('s', "Y", sing_label, sizeof(sing_label));
                 tutorial_prompt_label('a', "RS Left", activate_label, sizeof(activate_label));
                 tutorial_prompt_label('M', "RS Up", map_label, sizeof(map_label));
-                tutorial_prompt_label('b', "RS Down", bash_label, sizeof(bash_label));
+                tutorial_prompt_label('b', "B", bash_label, sizeof(bash_label));
                 tutorial_prompt_label('\t', "L5", abilities_label, sizeof(abilities_label));
                 tutorial_prompt_label('?', "?", help_label, sizeof(help_label));
                 tutorial_prompt_label('m', "Start", menu_label, sizeof(menu_label));
@@ -2564,8 +2564,9 @@ void display_character_tutorial(void)
         if (steamdeck) {
             char next_label[16];
             char back_label[16];
-            tutorial_prompt_label(' ', "A", next_label, sizeof(next_label));
-            tutorial_prompt_label('b', "b", back_label, sizeof(back_label));
+            /* Steam Deck UI: A=next, B=exit */
+            tutorial_prompt_label(steamdeck_confirm_key(), "A", next_label, sizeof(next_label));
+            tutorial_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
             if (stage > 0)
                 Term_putstr(8, 23, -1, TERM_SLATE, "(D-Left Previous)");
             if (stage < 3) {
@@ -2589,8 +2590,8 @@ void display_character_tutorial(void)
         /* Wait for any key press */
         ch = inkey();
         
-        /* Handle navigation */
-        if (ch == ESCAPE || (steamdeck && ch == 'b'))
+        /* Handle navigation - B button (back) or ESC */
+        if (ch == ESCAPE || (steamdeck && ch == steamdeck_back_key()))
         {
             /* Exit tutorial */
             break;
@@ -2601,7 +2602,7 @@ void display_character_tutorial(void)
             if (stage > 0)
                 stage--;
         }
-        else if (ch == '6' || ch == ' ' || ch == '\r')
+        else if (ch == '6' || (steamdeck && ch == steamdeck_confirm_key()) || ch == '\r')
         {
             /* Go forward one stage (right arrow/numpad 6, space, enter) */
             if (stage < 3)

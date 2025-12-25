@@ -2333,12 +2333,13 @@ static NavResult player_birth_aux_2(void)
             char quit_label[16];
             char prompt_buf[160];
 
-            birth_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
-            birth_prompt_label('b', "b", back_label, sizeof(back_label));
-            birth_prompt_label('q', "q", quit_label, sizeof(quit_label));
+            /* Steam Deck UI: A=confirm, B=back, Start=quit */
+            birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
+            birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
+            birth_prompt_label('q', "Start", quit_label, sizeof(quit_label));
 
             strnfmt(prompt_buf, sizeof(prompt_buf),
-                "D-pad -allocate    %s-back   %s-confirm   %s-quit",
+                "D-pad allocate  %s back  %s confirm  %s quit",
                 back_label, confirm_label, quit_label);
             Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE, prompt_buf);
         } else {
@@ -2362,13 +2363,13 @@ static NavResult player_birth_aux_2(void)
         }
 
         /* Back to Character Selection */
-        if (steamdeck && ch == 'b')
+        if (steamdeck && ch == steamdeck_back_key())
             ch = ESCAPE;
         if (ch == ESCAPE)
             return NAV_BACK;
 
         /* Done */
-        if ((ch == '\r') || (ch == '\n') || (ch == ' '))
+        if ((ch == '\r') || (ch == '\n') || (steamdeck && ch == steamdeck_confirm_key()))
             return NAV_OK;
 
         /* Prev stat */
@@ -2588,8 +2589,9 @@ extern NavResult gain_skills(void)
             char quit_label[16];
             char prompt_buf[160];
 
-            birth_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
-            birth_prompt_label('b', "b", back_label, sizeof(back_label));
+            /* Steam Deck UI: A=confirm, B=back, Start=quit */
+            birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
+            birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
             birth_prompt_label('q', "q", quit_label, sizeof(quit_label));
 
             strnfmt(prompt_buf, sizeof(prompt_buf),
@@ -2623,14 +2625,14 @@ extern NavResult gain_skills(void)
         }
 
         /* Done */
-        if ((ch == '\r') || (ch == '\n') || (ch == ' '))
+        if ((ch == '\r') || (ch == '\n') || (steamdeck && ch == steamdeck_confirm_key()))
         {
             result = NAV_OK;
             break;
         }
 
         /* Abort */
-        if (steamdeck && ch == 'b')
+        if (steamdeck && ch == steamdeck_back_key())
             ch = ESCAPE;
         if (ch == ESCAPE)
         {

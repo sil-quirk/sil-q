@@ -1576,6 +1576,12 @@ extern int get_sdl_gamepad_default_shoulder_combo_binding(void);
 extern void sdl_gamepad_reset_bindings_to_default(void);
 extern void sdl_gamepad_action_binding_label(int binding, char* buf, size_t buflen);
 extern void sdl_gamepad_action_binding_short_label(int binding, char* buf, size_t buflen);
+/* Steam Deck UI menu helpers - get key bindings for menu actions */
+extern int steamdeck_back_key(void);      /* B button (EAST) - for back/quit */
+extern int steamdeck_confirm_key(void);   /* A button (SOUTH) - for confirm/ok */
+extern int steamdeck_info_key(void);      /* RS Right - for info/recall */
+extern int steamdeck_alt_action_key(void);/* X button (WEST) - for alternate action */
+extern int steamdeck_secondary_key(void); /* Y button (NORTH) - for secondary action */
 #define GAMEPAD_CAPTURE_BUTTON 0
 #define GAMEPAD_CAPTURE_TRIGGER 1
 #define GAMEPAD_CAPTURE_LEFT_STICK 2

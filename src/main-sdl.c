@@ -836,6 +836,37 @@ void sdl_gamepad_action_binding_short_label(int binding, char* buf, size_t bufle
     sdl_gamepad_action_binding_label_ex(binding, buf, buflen, true);
 }
 
+/* Steam Deck UI menu helpers - return key bindings for menu actions */
+int steamdeck_back_key(void)
+{
+    /* B button (EAST) - for back/quit in menus */
+    return get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_EAST);
+}
+
+int steamdeck_confirm_key(void)
+{
+    /* A button (SOUTH) - for confirm/ok in menus */
+    return get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_SOUTH);
+}
+
+int steamdeck_info_key(void)
+{
+    /* RS Right - for info/recall in menus */
+    return get_sdl_gamepad_right_stick_binding(GAMEPAD_STICK_DIR_RIGHT);
+}
+
+int steamdeck_alt_action_key(void)
+{
+    /* X button (WEST) - for alternate action in menus */
+    return get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_WEST);
+}
+
+int steamdeck_secondary_key(void)
+{
+    /* Y button (NORTH) - for secondary action in menus */
+    return get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_NORTH);
+}
+
 static void sdl_gamepad_handle_button(const SDL_GamepadButtonEvent* ev)
 {
     if (!ev)

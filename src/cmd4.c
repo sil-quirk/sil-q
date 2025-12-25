@@ -437,13 +437,14 @@ void do_cmd_character_sheet(void)
                 char help_label[16];
                 char prompt_buf[160];
 
-                controller_prompt_label(' ', "Space", notes_label, sizeof(notes_label));
-                controller_prompt_label('s', "s", story_label, sizeof(story_label));
-                controller_prompt_label('f', "f", file_label, sizeof(file_label));
-                controller_prompt_label('u', "u", abilities_label, sizeof(abilities_label));
-                controller_prompt_label('i', "i", increase_label, sizeof(increase_label));
-                controller_prompt_label('b', "b", back_label, sizeof(back_label));
-                controller_prompt_label('?', "?", help_label, sizeof(help_label));
+                /* Steam Deck UI: A=notes, Y=story, L1=file, X=abilities, R1=increase, RS Right=help, B=back */
+                controller_prompt_label(steamdeck_confirm_key(), "A", notes_label, sizeof(notes_label));
+                controller_prompt_label(steamdeck_secondary_key(), "Y", story_label, sizeof(story_label));
+                controller_prompt_label('e', "L1", file_label, sizeof(file_label));
+                controller_prompt_label(steamdeck_alt_action_key(), "X", abilities_label, sizeof(abilities_label));
+                controller_prompt_label('i', "R1", increase_label, sizeof(increase_label));
+                controller_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
+                controller_prompt_label(steamdeck_info_key(), "RS Right", help_label, sizeof(help_label));
 
                 strnfmt(prompt_buf, sizeof(prompt_buf),
                     "%s-notes     %s-story     %s-file     %s-abilities     %s-increase     %s-help     %s-back",
@@ -469,13 +470,14 @@ void do_cmd_character_sheet(void)
                 char help_label[16];
                 char prompt_buf[160];
 
-                controller_prompt_label(' ', "Space", notes_label, sizeof(notes_label));
-                controller_prompt_label('s', "s", story_label, sizeof(story_label));
-                controller_prompt_label('f', "f", file_label, sizeof(file_label));
-                controller_prompt_label('u', "u", abilities_label, sizeof(abilities_label));
-                controller_prompt_label('i', "i", increase_label, sizeof(increase_label));
-                controller_prompt_label('b', "b", back_label, sizeof(back_label));
-                controller_prompt_label('?', "?", help_label, sizeof(help_label));
+                /* Steam Deck UI: A=notes, Y=story, L1=file, X=abilities, R1=increase, RS Right=help, B=back */
+                controller_prompt_label(steamdeck_confirm_key(), "A", notes_label, sizeof(notes_label));
+                controller_prompt_label(steamdeck_secondary_key(), "Y", story_label, sizeof(story_label));
+                controller_prompt_label('e', "L1", file_label, sizeof(file_label));
+                controller_prompt_label(steamdeck_alt_action_key(), "X", abilities_label, sizeof(abilities_label));
+                controller_prompt_label('i', "R1", increase_label, sizeof(increase_label));
+                controller_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
+                controller_prompt_label(steamdeck_info_key(), "RS Right", help_label, sizeof(help_label));
 
                 strnfmt(prompt_buf, sizeof(prompt_buf),
                     "%s-notes  %s-story  %s-file  %s-abilities  %s-increase  %s-help  %s-back",
@@ -500,13 +502,13 @@ void do_cmd_character_sheet(void)
         /* Query */
         ch = inkey();
 
-        /* Exit */
-        if (ch == ESCAPE || (steamdeck && (ch == 'b' || ch == 'h')))
+        /* Exit - B button (back) or ESC */
+        if (ch == ESCAPE || (steamdeck && ch == steamdeck_back_key()))
             break;
         if ((ch == '\r') || (ch == '\n') || (ch == 'q') || (ch == 'Q'))
             break;
 
-        /* Increase skills */
+        /* Increase skills - 'i' or R1 */
         if (ch == 'i')
         {
             gain_skills();
@@ -515,14 +517,14 @@ void do_cmd_character_sheet(void)
             handle_stuff();
         }
 
-        /* Show notes */
-        else if ((ch == 'n') || (ch == ' '))
+        /* Show notes - 'n', Space, or A button */
+        else if ((ch == 'n') || (ch == ' ') || (steamdeck && ch == steamdeck_confirm_key()))
         {
             do_cmd_knowledge_notes();
         }
 
-        /* Change name */
-        else if (ch == 's')
+        /* Story stats - 's' or Y button */
+        else if (ch == 's' || (steamdeck && ch == steamdeck_secondary_key()))
         {
             print_metarun_stats();
         }
@@ -535,8 +537,8 @@ void do_cmd_character_sheet(void)
         }
 #endif
 
-        /* Abilities */
-        else if ((ch == 'a') || (ch == '\t') || (steamdeck && ch == 'u'))
+        /* Abilities - 'a', Tab, or X button */
+        else if ((ch == 'a') || (ch == '\t') || (steamdeck && ch == steamdeck_alt_action_key()))
         {
             (void)do_cmd_ability_screen();
             /* Force redraw after ability changes */
@@ -544,8 +546,8 @@ void do_cmd_character_sheet(void)
             handle_stuff();
         }
 
-        /* File dump */
-        else if (ch == 'f')
+        /* File dump - 'f' or L1 ('e') */
+        else if (ch == 'f' || (steamdeck && ch == 'e'))
         {
             char ftmp[80];
 
@@ -567,8 +569,8 @@ void do_cmd_character_sheet(void)
             }
         }
 
-        /* Tutorial */
-        else if (ch == '?')
+        /* Tutorial / Help - '?' or RS Right */
+        else if (ch == '?' || (steamdeck && ch == steamdeck_info_key()))
         {
             display_character_tutorial();
         }
@@ -11046,10 +11048,11 @@ void do_cmd_controller_settings(void)
         prt("Controller Settings", 1, 0);
         if (steamdeck) {
             char confirm_label[16];
-            char esc_label[16];
-            controller_prompt_label(' ', "Space", confirm_label, sizeof(confirm_label));
-            controller_prompt_label(ESCAPE, "ESC", esc_label, sizeof(esc_label));
-            prt(format("Arrow to navigate, %s to bind, %s to return", confirm_label, esc_label), 2, 0);
+            char back_label[16];
+            /* Steam Deck UI: A=bind, B=back */
+            controller_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
+            controller_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
+            prt(format("D-pad navigate  %s bind  %s back", confirm_label, back_label), 2, 0);
         } else {
             prt("Arrow to navigate, Enter to bind, Escape to return", 2, 0);
         }
@@ -11072,8 +11075,9 @@ void do_cmd_controller_settings(void)
         if (steamdeck) {
             char reset_label[16];
             char reset_all_label[16];
-            controller_prompt_label('u', "u", reset_label, sizeof(reset_label));
-            controller_prompt_label('s', "s", reset_all_label, sizeof(reset_all_label));
+            /* Steam Deck UI: X=reset selected, Y=reset all */
+            controller_prompt_label(steamdeck_alt_action_key(), "X", reset_label, sizeof(reset_label));
+            controller_prompt_label(steamdeck_secondary_key(), "Y", reset_all_label, sizeof(reset_all_label));
             prt(format("Reset: [%s] selected, [%s] all", reset_label, reset_all_label),
                 list_start_row + visible_rows + 1, 2);
         } else {
@@ -11083,13 +11087,13 @@ void do_cmd_controller_settings(void)
 
         char ch = inkey();
 
-        if (ch == ESCAPE || ch == 'q' || ch == 'Q') {
+        if (ch == ESCAPE || ch == 'q' || ch == 'Q' || (steamdeck && ch == steamdeck_back_key())) {
             done = true;
         } else if (ch == '8') {
             highlight = (highlight + entry_count - 1) % entry_count;
         } else if (ch == '2') {
             highlight = (highlight + 1) % entry_count;
-        } else if (ch == 'r' || (steamdeck && ch == 'u')) {
+        } else if (ch == 'r' || (steamdeck && ch == steamdeck_alt_action_key())) {
             if (entries[highlight].type == CONTROLLER_ENTRY_ACTION) {
                 int binding_type = 0;
                 int binding_id = 0;
@@ -11102,7 +11106,7 @@ void do_cmd_controller_settings(void)
                 }
                 message_flush();
             }
-        } else if (ch == 'R' || (steamdeck && ch == 's')) {
+        } else if (ch == 'R' || (steamdeck && ch == steamdeck_secondary_key())) {
             sdl_gamepad_reset_bindings_to_default();
             msg_print("All bindings reset to defaults.");
             message_flush();
@@ -11120,11 +11124,11 @@ void do_cmd_controller_settings(void)
                 int cap_id = 0;
                 prt("                                                                  ", entry_row, 2);
                 if (steamdeck) {
-                    char esc_label[16];
-                    controller_prompt_label(ESCAPE, "Esc", esc_label, sizeof(esc_label));
+                    char cancel_label[16];
+                    controller_prompt_label(steamdeck_back_key(), "B", cancel_label, sizeof(cancel_label));
                     strnfmt(prompt, sizeof(prompt),
-                        "Press controller button for %s (%s=cancel, Backspace=clear)",
-                        entry->label, esc_label);
+                        "Press controller button for %s  (%s=cancel)",
+                        entry->label, cancel_label);
                 } else {
                     strnfmt(prompt, sizeof(prompt),
                         "Press controller button for %s (Esc=cancel, Backspace=clear)",
@@ -14676,8 +14680,9 @@ void do_cmd_knowledge_artefacts(void)
             char back_label[16];
             char prompt_buf[96];
 
-            controller_prompt_label('x', "x", recall_label, sizeof(recall_label));
-            controller_prompt_label('b', "b", back_label, sizeof(back_label));
+            /* Steam Deck UI: RS Right=recall, B=back */
+            controller_prompt_label(steamdeck_info_key(), "RS Right", recall_label, sizeof(recall_label));
+            controller_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
             strnfmt(prompt_buf, sizeof(prompt_buf),
                 "D-pad move  [%s] recall  [%s] back", recall_label, back_label);
             Term_putstr(1, 23, -1, TERM_L_DARK, prompt_buf);
@@ -14708,7 +14713,7 @@ void do_cmd_knowledge_artefacts(void)
         }
 
         ch = inkey();
-        if (steamdeck_controls_active() && ch == 'b')
+        if (steamdeck_controls_active() && ch == steamdeck_back_key())
             ch = ESCAPE;
 
         switch (ch)
@@ -15149,8 +15154,9 @@ void do_cmd_knowledge_monsters(void)
             char back_label[16];
             char prompt_buf[96];
 
-            controller_prompt_label('x', "x", recall_label, sizeof(recall_label));
-            controller_prompt_label('b', "b", back_label, sizeof(back_label));
+            /* Steam Deck UI: RS Right=recall, B=back */
+            controller_prompt_label(steamdeck_info_key(), "RS Right", recall_label, sizeof(recall_label));
+            controller_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
             strnfmt(prompt_buf, sizeof(prompt_buf),
                 "D-pad move  [%s] recall  [%s] back", recall_label, back_label);
             Term_putstr(1, 23, -1, TERM_L_DARK, prompt_buf);
@@ -15174,7 +15180,7 @@ void do_cmd_knowledge_monsters(void)
         }
 
         ch = inkey();
-        if (steamdeck_controls_active() && ch == 'b')
+        if (steamdeck_controls_active() && ch == steamdeck_back_key())
             ch = ESCAPE;
 
         switch (ch)
@@ -15641,11 +15647,12 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             char back_label[16];
             char prompt_buf[160];
 
-            controller_prompt_label('x', "x", recall_label, sizeof(recall_label));
-            controller_prompt_label('u', "u", use_label, sizeof(use_label));
-            controller_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
+            /* Steam Deck UI: RS Right=recall, X=use, A=confirm, d=drop, B=back */
+            controller_prompt_label(steamdeck_info_key(), "RS Right", recall_label, sizeof(recall_label));
+            controller_prompt_label(steamdeck_alt_action_key(), "X", use_label, sizeof(use_label));
+            controller_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
             controller_prompt_label('d', "d", drop_label, sizeof(drop_label));
-            controller_prompt_label('b', "b", back_label, sizeof(back_label));
+            controller_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
 
             strnfmt(prompt_buf, sizeof(prompt_buf),
                 "D-pad move  [%s] recall  [%s/%s] use  [%s] drop  [%s] back",
@@ -15673,10 +15680,10 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             Term_gotoxy(0, 6 + (grp_cur - grp_top));
 
         char ch = inkey();
-        if (steamdeck_controls_active() && ch == 'b')
+        if (steamdeck_controls_active() && ch == steamdeck_back_key())
             ch = ESCAPE;
 
-        if ((ch == '\r' || ch == '\n') && column && entry_cnt)
+        if ((ch == '\r' || ch == '\n' || (steamdeck_controls_active() && ch == steamdeck_confirm_key())) && column && entry_cnt)
         {
             if (forced_action == SUPPLY_MENU_ACTION_USE)
                 ch = 'u';
@@ -15966,8 +15973,9 @@ void do_cmd_knowledge_objects(void)
             char back_label[16];
             char prompt_buf[96];
 
-            controller_prompt_label('x', "x", recall_label, sizeof(recall_label));
-            controller_prompt_label('b', "b", back_label, sizeof(back_label));
+            /* Steam Deck UI: RS Right=recall, B=back */
+            controller_prompt_label(steamdeck_info_key(), "RS Right", recall_label, sizeof(recall_label));
+            controller_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
             strnfmt(prompt_buf, sizeof(prompt_buf),
                 "D-pad move  [%s] recall  [%s] back", recall_label, back_label);
             Term_putstr(1, 23, -1, TERM_L_DARK, prompt_buf);
@@ -16002,7 +16010,7 @@ void do_cmd_knowledge_objects(void)
         }
 
         ch = inkey();
-        if (steamdeck_controls_active() && ch == 'b')
+        if (steamdeck_controls_active() && ch == steamdeck_back_key())
             ch = ESCAPE;
 
         switch (ch)

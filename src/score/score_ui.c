@@ -888,10 +888,11 @@ static char display_scores_pages(const high_score* entries, int count, int highl
     char next_label[16] = "";
 
     if (steamdeck) {
-        score_prompt_label('s', "Y", order_label, sizeof(order_label));
-        score_prompt_label('u', "X", layout_label, sizeof(layout_label));
-        score_prompt_label('h', "Back", exit_label, sizeof(exit_label));
-        score_prompt_label(' ', "A", next_label, sizeof(next_label));
+        /* Steam Deck UI: Y=order, X=layout, B=exit, A=next */
+        score_prompt_label(steamdeck_secondary_key(), "Y", order_label, sizeof(order_label));
+        score_prompt_label(steamdeck_alt_action_key(), "X", layout_label, sizeof(layout_label));
+        score_prompt_label(steamdeck_back_key(), "B", exit_label, sizeof(exit_label));
+        score_prompt_label(steamdeck_confirm_key(), "A", next_label, sizeof(next_label));
     }
 
     Term_clear();
@@ -973,10 +974,20 @@ static char display_scores_pages(const high_score* entries, int count, int highl
         prt("", 23, 0);
 
         if (steamdeck) {
-            if (ch == 'h' || ch == 'H')
-                return ESCAPE;
-            if (ch == 'u' || ch == 'U')
-                ch = 'l';
+            int back_key = steamdeck_back_key();
+            int confirm_key = steamdeck_confirm_key();
+            int alt_key = steamdeck_alt_action_key();
+            int secondary_key = steamdeck_secondary_key();
+            
+            if (ch == back_key)
+                return ESCAPE;  /* B = back */
+            if (ch == confirm_key || ch == '\r' || ch == '\n') {
+                if (!has_more) return 0;  /* A = continue/close */
+            }
+            if (ch == alt_key)
+                ch = 'l';  /* X = layout toggle */
+            if (ch == secondary_key)
+                ch = 's';  /* Y = order toggle */
         }
 
         if (ch == ESCAPE)

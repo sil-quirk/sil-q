@@ -3010,13 +3010,16 @@ static void show_all_active_curses(void)
         
         /* Footer with navigation instructions */
         char footer_buf[100];
+        char back_label[16] = "";
         if (steamdeck) {
+            /* Steam Deck UI: A=ok, B=back */
+            metarun_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
             if (total_pages > 1) {
                 snprintf(footer_buf, sizeof footer_buf,
-                         "D-pad left/right to navigate. [%s] return.", accept_label);
+                         "D-pad navigate  [%s] ok  [%s] back", accept_label, back_label);
             } else {
                 snprintf(footer_buf, sizeof footer_buf,
-                         "Press [%s] to return.", accept_label);
+                         "[%s] ok  [%s] back", accept_label, back_label);
             }
         } else {
             if (total_pages > 1) {
@@ -3047,8 +3050,14 @@ static void show_all_active_curses(void)
         } else if (total_pages > 1 && key == '4') {
             /* Previous page */
             current_page = (current_page + total_pages - 1) % total_pages;
-        } else {
-            /* Exit on any other key */
+        } else if (steamdeck && key == steamdeck_back_key()) {
+            /* B button = back in Steam Deck mode */
+            break;
+        } else if (steamdeck && (key == steamdeck_confirm_key() || key == '\r' || key == '\n')) {
+            /* A button = confirm/close in Steam Deck mode */
+            break;
+        } else if (!steamdeck) {
+            /* Exit on any key in non-Steam Deck mode */
             break;
         }
     }
@@ -3117,8 +3126,9 @@ static bool blessing_remove_curse(char *result_msg, size_t msg_size, byte *resul
     char back_label[16] = "";
 
     if (steamdeck) {
-        metarun_prompt_label(' ', "A", accept_label, sizeof(accept_label));
-        metarun_prompt_label('h', "Back", back_label, sizeof(back_label));
+        /* Steam Deck UI: A=accept, B=cancel */
+        metarun_prompt_label(steamdeck_confirm_key(), "A", accept_label, sizeof(accept_label));
+        metarun_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
     }
     
     /* Setup text wrapping */
@@ -3186,12 +3196,13 @@ static bool blessing_remove_curse(char *result_msg, size_t msg_size, byte *resul
         char key = inkey();
         screen_load();
 
-        if (key == ESCAPE || key == 'h' || key == 'H') {
+        /* Handle back/cancel - ESC or B button in Steam Deck mode */
+        if (key == ESCAPE || (steamdeck && key == steamdeck_back_key()) || (!steamdeck && (key == 'h' || key == 'H'))) {
             /* Reset text wrapping */
             text_out_wrap = 0;
             text_out_indent = 0;
             return false;
-        } else if (key == '\r' || key == '\n' || key == ' ' || key == '6') {
+        } else if (key == '\r' || key == '\n' || (steamdeck && key == steamdeck_confirm_key()) || key == '6') {
             choice = selected;
             break;
         } else if (key == '8' || key == 'k' || key == '-') {
@@ -3370,8 +3381,9 @@ static bool blessing_gain_minor(char *result_msg, size_t msg_size, byte *result_
     char back_label[16] = "";
 
     if (steamdeck) {
-        metarun_prompt_label(' ', "A", accept_label, sizeof(accept_label));
-        metarun_prompt_label('h', "Back", back_label, sizeof(back_label));
+        /* Steam Deck UI: A=accept, B=cancel */
+        metarun_prompt_label(steamdeck_confirm_key(), "A", accept_label, sizeof(accept_label));
+        metarun_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
     }
     while (choice < 0) {
         screen_save();
@@ -3420,9 +3432,10 @@ static bool blessing_gain_minor(char *result_msg, size_t msg_size, byte *result_
         char key = inkey();
         screen_load();
 
-        if (key == ESCAPE || key == 'h' || key == 'H') {
+        /* Handle back/cancel - ESC or B button in Steam Deck mode */
+        if (key == ESCAPE || (steamdeck && key == steamdeck_back_key()) || (!steamdeck && (key == 'h' || key == 'H'))) {
             return false;
-        } else if (key == '\r' || key == '\n' || key == ' ' || key == '6') {
+        } else if (key == '\r' || key == '\n' || (steamdeck && key == steamdeck_confirm_key()) || key == '6') {
             choice = selected;
             break;
         } else if (key == '8' || key == 'k' || key == '-') {
@@ -3522,8 +3535,9 @@ static bool blessing_unlock_major(char *result_msg, size_t msg_size, byte *resul
     char back_label[16] = "";
 
     if (steamdeck) {
-        metarun_prompt_label(' ', "A", accept_label, sizeof(accept_label));
-        metarun_prompt_label('h', "Back", back_label, sizeof(back_label));
+        /* Steam Deck UI: A=accept, B=cancel */
+        metarun_prompt_label(steamdeck_confirm_key(), "A", accept_label, sizeof(accept_label));
+        metarun_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
     }
     
     /* Find first affordable option as initial selection */
@@ -3611,11 +3625,12 @@ static bool blessing_unlock_major(char *result_msg, size_t msg_size, byte *resul
         char key = inkey();
         screen_load();
 
-        if (key == ESCAPE || key == 'h' || key == 'H') {
+        /* Handle back/cancel - ESC or B button in Steam Deck mode */
+        if (key == ESCAPE || (steamdeck && key == steamdeck_back_key()) || (!steamdeck && (key == 'h' || key == 'H'))) {
             return false;
         }
 
-        if (key == '\r' || key == '\n' || key == ' ' || key == '6') {
+        if (key == '\r' || key == '\n' || (steamdeck && key == steamdeck_confirm_key()) || key == '6') {
             key = options[selected].key;
         } else if (key == '8' || key == 'k' || key == '-') {
             /* Navigate up, skipping unaffordable options */
@@ -3697,8 +3712,9 @@ static void open_blessing_exchange(void)
     char back_label[16] = "";
 
     if (steamdeck) {
-        metarun_prompt_label(' ', "A", accept_label, sizeof(accept_label));
-        metarun_prompt_label('h', "Back", back_label, sizeof(back_label));
+        /* Steam Deck UI: A=accept, B=back */
+        metarun_prompt_label(steamdeck_confirm_key(), "A", accept_label, sizeof(accept_label));
+        metarun_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
     }
 
     while (!done) {
@@ -3821,20 +3837,20 @@ static void open_blessing_exchange(void)
                 break;
             } while (selected != start);
             continue;
-        } else if (key == '\r' || key == '\n' || key == ' ' || key == '6') {
-            /* Space/Enter activates highlighted option */
+        } else if (key == '\r' || key == '\n' || (steamdeck && key == steamdeck_confirm_key()) || key == '6') {
+            /* A button/Space/Enter activates highlighted option */
             if (selected == 0) key = 'r';
             else if (selected == 1) key = 'm';
             else if (selected == 2) key = 'u';
         }
 
-        switch (key) {
-        case ESCAPE:
-        case '4':
-        case 'h':
-        case 'H':
+        /* Handle back/cancel - ESC, B button in Steam Deck mode, or 'h' key */
+        if (key == ESCAPE || key == '4' || (steamdeck && key == steamdeck_back_key()) || (!steamdeck && (key == 'h' || key == 'H'))) {
             done = true;
-            break;
+            continue;
+        }
+
+        switch (key) {
         case 'r':
         case 'R':
             if (available < 1) {
@@ -3963,8 +3979,9 @@ static void adjust_blessing_threshold_menu(void)
     char back_label[16] = "";
 
     if (steamdeck) {
-        metarun_prompt_label(' ', "A", accept_label, sizeof(accept_label));
-        metarun_prompt_label('h', "Back", back_label, sizeof(back_label));
+        /* Steam Deck UI: A=accept, B=back */
+        metarun_prompt_label(steamdeck_confirm_key(), "A", accept_label, sizeof(accept_label));
+        metarun_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
     }
     int selection = 0;
     for (int i = 0; i < option_count; i++) {
@@ -4030,9 +4047,10 @@ static void adjust_blessing_threshold_menu(void)
 
         char key = inkey();
 
-        if (key == ESCAPE || key == 'h' || key == 'H') {
+        /* Handle back/cancel - ESC, B button in Steam Deck mode, or 'h' key */
+        if (key == ESCAPE || (steamdeck && key == steamdeck_back_key()) || (!steamdeck && (key == 'h' || key == 'H'))) {
             break;
-        } else if (key == '\r' || key == '\n' || key == ' ' || key == '6') {
+        } else if (key == '\r' || key == '\n' || (steamdeck && key == steamdeck_confirm_key()) || key == '6') {
             accepted = true;
             chosen_mode = order[selection];
             break;
@@ -4172,12 +4190,13 @@ void print_metarun_stats(void)
     char back_label[16] = "";
 
     if (steamdeck) {
-        metarun_prompt_label(' ', "A", spend_label, sizeof(spend_label));
-        metarun_prompt_label('f', "B", threshold_label, sizeof(threshold_label));
+        /* Steam Deck UI: A=spend, X=full list, Y=history, B=back, RS Down=threshold, L1=difficulty */
+        metarun_prompt_label(steamdeck_confirm_key(), "A", spend_label, sizeof(spend_label));
+        metarun_prompt_label('f', "RS Down", threshold_label, sizeof(threshold_label));
         metarun_prompt_label('e', "L1", diff_label, sizeof(diff_label));
-        metarun_prompt_label('u', "X", full_label, sizeof(full_label));
-        metarun_prompt_label('s', "Y", history_label, sizeof(history_label));
-        metarun_prompt_label('h', "Back", back_label, sizeof(back_label));
+        metarun_prompt_label(steamdeck_alt_action_key(), "X", full_label, sizeof(full_label));
+        metarun_prompt_label(steamdeck_secondary_key(), "Y", history_label, sizeof(history_label));
+        metarun_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
     }
     
     /* Ensure minimum 80 width for layout */
@@ -4389,10 +4408,27 @@ void print_metarun_stats(void)
 
     char key = inkey();
     if (steamdeck) {
-        if (key == ' ' || key == '\r' || key == '\n') {
+        int back_key = steamdeck_back_key();
+        int confirm_key = steamdeck_confirm_key();
+        int alt_key = steamdeck_alt_action_key();
+        int secondary_key = steamdeck_secondary_key();
+        
+        if (key == back_key) {
+            /* B button = exit/back in Steam Deck mode */
+            screen_load();
+            return;
+        } else if (key == confirm_key || key == '\r' || key == '\n') {
+            /* A button = spend blessings */
             key = 'b';
         } else if (key == 'e' || key == 'E') {
+            /* L1 = difficulty */
             key = 'c';
+        } else if (key == alt_key) {
+            /* X button = full list */
+            key = 'u';
+        } else if (key == secondary_key) {
+            /* Y button = history */
+            key = 's';
         }
     }
     if (key == 'b' || key == 'B') {
@@ -4495,8 +4531,9 @@ static void choose_difficulty_menu(void)
     char back_label[16] = "";
 
     if (steamdeck) {
-        metarun_prompt_label(' ', "A", accept_label, sizeof(accept_label));
-        metarun_prompt_label('h', "Back", back_label, sizeof(back_label));
+        /* Steam Deck UI: A=accept, B=back */
+        metarun_prompt_label(steamdeck_confirm_key(), "A", accept_label, sizeof(accept_label));
+        metarun_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
     }
     
     while (true)
@@ -4597,13 +4634,13 @@ static void choose_difficulty_menu(void)
         /* Get input */
         char key = inkey();
         
-        /* Handle input */
-        if (key == ESCAPE || key == 'h' || key == 'H') 
+        /* Handle back/cancel - ESC, B button in Steam Deck mode, or 'h' key */
+        if (key == ESCAPE || (steamdeck && key == steamdeck_back_key()) || (!steamdeck && (key == 'h' || key == 'H')))
         {
             screen_load();
             return;
         }
-        else if (key == '\r' || key == '\n' || key == ' ' || key == '6')  /* Enter/Space/6 key */
+        else if (key == '\r' || key == '\n' || (steamdeck && key == steamdeck_confirm_key()) || key == '6')  /* Enter/A button/6 key */
         {
             /* Check if trying to select a locked difficulty */
             if (choice < metar.max_difficulty_reached) {
@@ -4760,7 +4797,8 @@ void list_metaruns(void)
     char accept_label[16] = "";
 
     if (steamdeck) {
-        metarun_prompt_label(' ', "A", accept_label, sizeof(accept_label));
+        /* Steam Deck UI: A=ok */
+        metarun_prompt_label(steamdeck_confirm_key(), "A", accept_label, sizeof(accept_label));
     }
     Term_clear();
     c_prt(TERM_L_GREEN, "Meta-run history", 1, 2);
@@ -4850,7 +4888,8 @@ void show_known_curses_menu(void)
     char accept_label[16] = "";
 
     if (steamdeck) {
-        metarun_prompt_label(' ', "A", accept_label, sizeof(accept_label));
+        /* Steam Deck UI: A=ok */
+        metarun_prompt_label(steamdeck_confirm_key(), "A", accept_label, sizeof(accept_label));
     }
 
     /* Collect and count first */
