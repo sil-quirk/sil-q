@@ -5597,11 +5597,18 @@ void flanking_or_retreat(int y, int x)
 
     bool flanking = p_ptr->active_ability[S_EVN][EVN_FLANKING];
     bool controlled_retreat = false;
+    bool moved_last_turn = false;
+
+    if (((p_ptr->previous_action[1] >= 1) && (p_ptr->previous_action[1] <= 9)
+            && (p_ptr->previous_action[1] != 5))
+        || (p_ptr->previous_action[1] == ACTION_BASH))
+    {
+        moved_last_turn = true;
+    }
 
     // need to have the ability, and to have not moved last round
     if (p_ptr->active_ability[S_EVN][EVN_CONTROLLED_RETREAT]
-        && ((p_ptr->previous_action[1] > 9)
-            || (p_ptr->previous_action[1] == 5)))
+        && !moved_last_turn)
     {
         controlled_retreat = true;
     }

@@ -2353,6 +2353,21 @@ void drop_loot(monster_type* m_ptr)
     }
 }
 
+static const char morgoth_second_wind_text[][100]
+    = { { "I am the Elder King: Melkor, first and mightiest of all the Valar," },
+        { "who was before the world, and made it." },
+        { "The shadow of my purpose lies upon Arda, and all that is in it" },
+        { "bends slowly and surely to my will." },
+        { "Think not that I shall go down so easily, nor that your stroke is the end." },
+
+        { "" } };
+
+static void morgoth_second_wind_message(void)
+{
+    flush();
+    pause_with_text(morgoth_second_wind_text, 4, 8, NULL, 0);
+}
+
 /*
  * Makes Morgoth progressively more dangerous.
  */
@@ -2446,6 +2461,14 @@ void anger_morgoth(int level)
         r_ptr->wil = 50;
         r_ptr->per = 40;
         log_debug("anger_morgoth: applying state 5 changes - final desperate");
+    }
+
+    /* State 6: God (final desperate, but will and perception maxed) */
+    if (level >= 6)
+    {
+        r_ptr->wil = 100;
+        r_ptr->per = 100;
+        log_debug("anger_morgoth: applying state 6 changes - god");
     }
 
     p_ptr->morgoth_state = level;
@@ -2796,6 +2819,27 @@ bool mon_take_hit(int m_idx, int dam, cptr note, int who)
     /* It is dead now */
     if (m_ptr->hp <= 0)
     {
+        if (m_ptr->r_idx == R_IDX_MORGOTH && !p_ptr->morgoth_second_wind)
+        {
+            int restored = (int)((long)m_ptr->maxhp * 20L / 100L);
+
+            if (restored < 1)
+                restored = 1;
+
+            m_ptr->hp = restored;
+            p_ptr->morgoth_second_wind = 1;
+
+            log_info("Morgoth reached 0 HP; restoring to %d/%d and entering god state.", 
+                     m_ptr->hp, m_ptr->maxhp);
+            anger_morgoth(6);
+            morgoth_second_wind_message();
+            set_alertness(m_ptr, ALERTNESS_VERY_ALERT);
+            m_ptr->mflag |= (MFLAG_ACTV);
+            m_ptr->min_range = 0;
+
+            return (false);
+        }
+
         char m_name[80];
 
         /* Extract monster name */

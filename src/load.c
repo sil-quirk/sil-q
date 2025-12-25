@@ -1255,9 +1255,12 @@ static errr rd_extra(void)
     // 15 spare bytes (was 19, used 4)
     {
         byte morgoth_hall_entered = 0;
+        byte morgoth_second_wind = 0;
         rd_byte(&morgoth_hall_entered);
+        rd_byte(&morgoth_second_wind);
         p_ptr->morgoth_hall_entered = morgoth_hall_entered ? 1 : 0;
-        strip_bytes(14);
+        p_ptr->morgoth_second_wind = morgoth_second_wind ? 1 : 0;
+        strip_bytes(13);
     }
 
     /* Read item-quality squelch sub-menu */

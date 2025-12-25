@@ -454,6 +454,7 @@ void player_wipe(void)
 
     // Morgoth unhurt
     p_ptr->morgoth_state = 0;
+    p_ptr->morgoth_second_wind = 0;
 
     p_ptr->killed_enemy_with_arrow = false;
 

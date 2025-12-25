@@ -1123,6 +1123,7 @@ struct player_type
     byte cursed; /* Player has been cursed by taking a third Silmaril */
     byte on_the_run; /* Player is on the run from Angband */
     byte morgoth_slain; /* Player has slain Morgoth */
+    byte morgoth_second_wind; /* Morgoth revived once at 20% HP */
     byte morgoth_hits; /* Number of big hits against Morgoth */
     u16b escaped; /* Player has escaped Angband */
     u16b panic_save; /* Panic save */

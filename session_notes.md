@@ -1,5 +1,10 @@
 # Session Notes
 
+## 2025-12-25: Bash + Controlled Retreat + pit/web checks
+- `src/defines.h`: added `ACTION_BASH` to distinguish door bashing in action history.
+- `src/cmd1.c`: Controlled Retreat now treats bashing as movement for the "not moved last round" requirement.
+- `src/cmd2.c`: bashing records `ACTION_BASH` and enforces pit/web escape checks before door bashes (so you must escape before moving into the door square).
+
 ## 2025-12-25: Self Knowledge trait coverage
 - `src/spells2.c`: Self Knowledge now reports core traits (see invisible/free action/regen) and summarizes resistances, including missing/vulnerable ones, to surface resistance holes before smithing.
 - `src/spells2.c`: Self Knowledge resistance summaries now color each element/condition name (fire/cold/poison/etc.) to match in-game palette.
@@ -7956,3 +7961,9 @@ The script now fully matches the game's drop generation logic for all item types
 
 ## 2025-12-25: Auto-identify awareness fix
 - src/xtra1.c: auto-identify now calls ident when an item lacks awareness even if it is already marked known, so Jeweller reveals starting jewellery like Last Chances.
+
+## 2025-12-25: Morgoth second wind
+- src/xtra2.c: first Morgoth death now restores him to 20% HP, shows full-screen Melkor proclamation, and applies anger state 6 (will/per 100).
+- src/types.h: add morgoth_second_wind flag for the first-death revival.
+- src/birth.c, src/save.c, src/load.c: init/persist morgoth_second_wind using a spare save byte for compatibility.
+- build-cmake.bat: success (standard + portable builds).

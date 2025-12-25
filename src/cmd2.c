@@ -4075,6 +4075,52 @@ static bool do_cmd_bash_aux(int y, int x)
     if (!do_cmd_bash_test(y, x))
         return (false);
 
+    // store the action type
+    p_ptr->previous_action[0] = ACTION_BASH;
+
+    // It is hard to get out of a pit
+    if (cave_pit_bold(p_ptr->py, p_ptr->px))
+    {
+        int pit_difficulty;
+
+        if (cave_feat[p_ptr->py][p_ptr->px] == FEAT_TRAP_PIT)
+            pit_difficulty = 10;
+        else
+            pit_difficulty = 15;
+
+        /* Disturb the player */
+        disturb(0, 0);
+
+        if (check_hit(pit_difficulty, false))
+        {
+            msg_print("You try to climb out of the pit, but fail.");
+
+            /* Take a turn */
+            p_ptr->energy_use = 100;
+
+            // store the action type
+            p_ptr->previous_action[0] = ACTION_BASH;
+
+            return (false);
+        }
+        else
+        {
+            msg_print("You climb out of the pit.");
+        }
+    }
+
+    // It is hard to get out of a web
+    if (cave_feat[p_ptr->py][p_ptr->px] == FEAT_TRAP_WEB)
+    {
+        if (!break_free_of_web())
+        {
+            // store the action type
+            p_ptr->previous_action[0] = ACTION_BASH;
+
+            return (false);
+        }
+    }
+
     /* If it was actually a door */
     if (cave_known_closed_door_bold(y, x))
     {
@@ -4208,7 +4254,7 @@ void do_cmd_bash(void)
     p_ptr->energy_use = 100;
 
     // store the action type
-    p_ptr->previous_action[0] = ACTION_MISC;
+    p_ptr->previous_action[0] = ACTION_BASH;
 
     /* Apply confusion */
     if (confuse_dir(&dir))

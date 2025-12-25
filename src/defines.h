@@ -368,6 +368,7 @@
 // then possibly add more action types (such as melee, drink potion etc)
 #define ACTION_MISC 10
 #define ACTION_ARCHERY 11
+#define ACTION_BASH 12
 
 /*
  * OPTION: Maximum number of macros (see "util.c")
