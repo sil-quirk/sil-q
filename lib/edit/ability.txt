@@ -611,15 +611,7 @@ T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 T:39:0:99  # Light Source
 
-N:148:Song of Revealing
-I:7:8:7
-P:7/2:7/7
-D:Adapting the piercing notes of the song of wizardry—where Sauron sang of revealing and uncovering—you turn them against the darkness itself, chanting to cut through shadow and deceit.
-D:Revealing nearby monsters based on your Song skill, and permanently sensing all nearby items, as hidden truths emerge from the gloom.
-T:35:0:99  # Cloak
-T:20:0:99  # Shovels and Mattocks
-
-N:149:Woven Themes
+N:148:Woven Themes
 I:7:9:6
 #P:7/0:7/3
 D:Weaving themes as in the harmonious lays of Daeron the minstrel in Doriath, blending melodies into one, you learn to interlace a minor theme with your major song.
@@ -627,13 +619,21 @@ D:The second song wields power at half your Song score; certain harmonies may un
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
-N:150:Song of Slaying
+N:149:Song of Slaying
 I:7:10:6
 P:7/1:7/5
 D:In grim battle-hymns akin to the chants of the Edain warriors in the Nirnaeth Arnoediad, you sing of slaying, turning deep wounds mortal.
 D:When scoring a critical hit in melee, it slays the foe if their health is no more than twice your Song score, as fate seals the doom of the fallen.
 T:22:0:99  # Polearms and axes
 T:23:0:99  # Swords
+
+N:150:Song of Revealing
+I:7:8:7
+P:7/2:7/7
+D:Adapting the piercing notes of the song of wizardry—where Sauron sang of revealing and uncovering—you turn them against the darkness itself, chanting to cut through shadow and deceit.
+D:Revealing nearby monsters based on your Song skill, and permanently sensing all nearby items, as hidden truths emerge from the gloom.
+T:35:0:99  # Cloak
+T:20:0:99  # Shovels and Mattocks
 
 N:151:Song of Elveness
 I:7:11:7
@@ -741,4 +741,5 @@ D:Possessing Unique Bane, knowledge to exploit weaknesses as Beren learned the v
 N:169:Oath of Light
 I:8:9:0
 D:Swearing the Oath of Light, as those who keep Varda's stars burning in the depths, you refuse any gear that dims your glow. While the oath holds, your inner light shines two steps brighter.
+
 

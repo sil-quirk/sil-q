@@ -678,17 +678,9 @@ int abilities_in_skill(int skilltype)
     return (count);
 }
 
-bool prereqs(int skilltype, int abilitynum)
+static bool prereq_abilities_met(const ability_type* b_ptr)
 {
     int i;
-    ability_type* b_ptr;
-
-    b_ptr = &b_info[ability_index(skilltype, abilitynum)];
-
-    if (p_ptr->skill_base[skilltype] < b_ptr->level)
-    {
-        return (false);
-    }
 
     if (b_ptr->prereqs > 0 && !(p_ptr->active_ability[S_PER][PER_QUICK_STUDY]))
     {
@@ -702,6 +694,44 @@ bool prereqs(int skilltype, int abilitynum)
     }
 
     return (true);
+}
+
+bool prereqs(int skilltype, int abilitynum)
+{
+    ability_type* b_ptr;
+
+    b_ptr = &b_info[ability_index(skilltype, abilitynum)];
+
+    if (p_ptr->skill_base[skilltype] < b_ptr->level)
+    {
+        return (false);
+    }
+
+    return prereq_abilities_met(b_ptr);
+}
+
+static char song_menu_letter(int song_index)
+{
+    char letter = (char)('a' + song_index);
+
+    if (letter >= 's')
+        letter++;
+
+    return letter;
+}
+
+static int song_index_from_menu_letter(char letter)
+{
+    if (letter < 'a' || letter > 'z')
+        return -1;
+
+    if (letter == 's')
+        return -1;
+
+    if (letter > 's')
+        letter--;
+
+    return (int)(letter - 'a');
 }
 
 /*
@@ -767,7 +797,7 @@ void show_songs_with_highlight(int highlight)
         prt("", j + 2, col - 2);
 
         /* Prepare an index --(-- */
-        sprintf(tmp_val, "%c)", (char)('a' + i));
+        sprintf(tmp_val, "%c)", song_menu_letter(i));
 
         /* Clear the line with the (possibly indented) index */
         put_str(tmp_val, j + 2, col);
@@ -897,7 +927,7 @@ void do_cmd_change_song()
             if (p_ptr->active_ability[S_SNG][i])
             {
                 SDL_strlcat(out_val, ",", sizeof(out_val));
-                sprintf(tmp_val, "%c", (char)'a' + i);
+                sprintf(tmp_val, "%c", song_menu_letter(i));
 
                 /* Append */
                 SDL_strlcat(out_val, tmp_val, sizeof(out_val));
@@ -1179,10 +1209,10 @@ void do_cmd_change_song()
 
         default:
         {
-            if ((which >= 'a') && (which < 'a' + SNG_MAX))
+            song_choice = song_index_from_menu_letter(which);
+
+            if (song_choice >= 0 && song_choice < SNG_MAX)
             {
-                song_choice = (int)which - 'a';
-                
                 /* Skip Woven Themes (not a singable song) */
                 if (song_choice == SNG_WOVEN_THEMES || song_choice == SNG_GRA)
                 {
@@ -2686,7 +2716,11 @@ void do_cmd_ability_screen(void)
                             bell("This special ability cannot be purchased.");
                             continue;
                         }
-                        if (prereqs(skilltype, abilitynum))
+                        ability_type* b_ptr = &b_info[ability_index(skilltype, abilitynum)];
+                        bool has_skill_prereq = (p_ptr->skill_base[skilltype] >= b_ptr->level);
+                        bool has_ability_prereq = prereq_abilities_met(b_ptr);
+
+                        if (has_skill_prereq && has_ability_prereq)
                         {
                             // Normalize flag check to 0 or 1
                             int is_free = (c_info[p_ptr->pcharacter].flags & RHF_FREE) ? 1 : 0;
@@ -2890,7 +2924,10 @@ void do_cmd_ability_screen(void)
                         }
                         else
                         {
-                            bell("Insufficient prerequisites for ability!");
+                            if (!has_skill_prereq)
+                                bell("Insufficient skill points for ability!");
+                            else
+                                bell("Insufficient prerequisite abilities for ability!");
                         }
                     }
 

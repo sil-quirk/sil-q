@@ -12986,12 +12986,15 @@ void make_patch_of_sunlight(int y, int x)
         }
         if (floor > 6)
         {
-            if (cave_feat[y][x] == FEAT_FLOOR)
+            if (cave_feat[y][x] == FEAT_FLOOR
+                && !((y == p_ptr->py) && (x == p_ptr->px)))
                 cave_set_feat(y, x, FEAT_RUBBLE);
             for (n = (y - 1); n <= (y + 1); n++)
             {
                 for (m = (x - 1); m <= (x + 1); m++)
                 {
+                    if ((n == p_ptr->py) && (m == p_ptr->px))
+                        continue;
                     if ((cave_info[n][m] & CAVE_GLOW)
                         && cave_feat[n][m] == FEAT_FLOOR && one_in_(4))
                     {

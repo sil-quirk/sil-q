@@ -149,7 +149,7 @@ E:DEPTH_RANGE:1:3
 Y:1
 R:varda_quest
 M:METARUN_QUEST_VARDA
-P:LINEAR_INTERPOLATE:1.00:0.15:0:0
+P:LINEAR_INTERPOLATE:0.50:0.15:0:0
 S:0:0:0:0
 I:Starlight pierces the gloom, pooling into a calm presence before you. Varda the Kindler regards you with clear, patient eyes.
 I:

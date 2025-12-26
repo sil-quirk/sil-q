@@ -1,5 +1,17 @@
 # Session Notes
 
+## 2025-12-26: Song order cleanup
+- `lib/edit/ability.txt`: reordered Woven Themes/Song of Slaying ahead of Song of Revealing, renumbering N:148-150 to keep the ability list sequential and aligned with skill-point costs.
+
+## 2025-12-26: Song menu stop hotkey
+- `src/cmd4.c`: reserve `s` for stop singing and skip `s` in song letters, so Song of Contest no longer conflicts with the stop command.
+
+## 2025-12-26: Ability prerequisite feedback
+- `src/cmd4.c`: split skill-point and ability-prerequisite checks so the abilities menu reports the correct reason when a purchase is blocked.
+
+## 2025-12-25: Prevent first-level sunlight patches from placing rubble under player
+- `src/generate.c`: sunlight patch generation skips the player tile for rubble/sunlight placement.
+
 ## 2025-12-25: Web trap terrain safety + drop on forges/stairs
 - `src/spells1.c`: `GF_WEB` now only places webs on normal floors (or existing webs); non-floor features stay intact and show a fallback message.
 - `src/object2.c`: `inven_takeoff()` now avoids dropping items onto non-floor/non-sunlight tiles and prefers nearby floor squares.
