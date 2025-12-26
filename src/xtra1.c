@@ -472,6 +472,9 @@ static void prt_exp(void)
 
     attr = TERM_L_GREEN;
 
+    /* Clear the whole field so shorter values don't leave stale characters */
+    Term_erase(COL_EXP, ROW_EXP, 12);
+
     sdl_story_font_enable();
 
     /*Print experience label*/
@@ -497,6 +500,10 @@ static void prt_mel(void)
         && ((&inventory[INVEN_ARM])->tval != TV_SHIELD))
         mod = -1;
 
+    /* Clear both rows since melee can shift up/down and shrink in width */
+    Term_erase(COL_MEL, ROW_MEL - 1, 12);
+    Term_erase(COL_MEL, ROW_MEL, 12);
+
     /* Melee attacks */
     int meleeColour
         = p_ptr->active_ability[S_MEL][MEL_SMITE] ? TERM_L_RED : TERM_L_WHITE;
@@ -516,11 +523,6 @@ static void prt_mel(void)
             p_ptr->mds2);
         c_put_str(TERM_L_WHITE, buf, ROW_MEL, COL_MEL + 12 - strlen(buf));
     }
-    else
-    {
-        strnfmt(buf, sizeof(buf), "            ");
-        c_put_str(TERM_L_BLUE, buf, ROW_MEL - 1, 0);
-    }
 }
 
 /*
@@ -529,6 +531,9 @@ static void prt_mel(void)
 static void prt_arc(void)
 {
     char buf[32];
+
+    /* Clear the line so shorter values don't leave stale characters */
+    Term_erase(COL_ARC, ROW_ARC, 12);
 
     /* Range attacks */
     if ((&inventory[INVEN_BOW])->k_idx)
@@ -553,11 +558,7 @@ static void prt_arc(void)
             c_put_str(TERM_UMBER, buf, ROW_ARC, COL_ARC + 12 - strlen(buf));
         }
     }
-    else
-    {
-        strnfmt(buf, sizeof(buf), "            ");
-        c_put_str(TERM_L_BLUE, buf, ROW_ARC, 0);
-    }
+
 }
 
 /*
@@ -713,6 +714,9 @@ static void prt_quiver(void)
 static void prt_evn(void)
 {
     char buf[32];
+
+    /* Clear the line so shorter values don't leave stale characters */
+    Term_erase(COL_EVN, ROW_EVN, 12);
 
     // Toggle blocking on and off so we don't show the blocking value in
     // the armor total

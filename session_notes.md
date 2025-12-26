@@ -12,6 +12,11 @@
 ## 2025-12-26: Ability prerequisite feedback
 - `src/cmd4.c`: split skill-point and ability-prerequisite checks so the abilities menu reports the correct reason when a purchase is blocked.
 
+## 2025-12-26: Sidebar fields not clearing on shrink
+- Symptom: when a right-aligned sidebar value shrinks (eg `1,754` XP -> `254`), stale left-side characters remain until `Ctrl+R`.
+- Fix: `src/xtra1.c` now clears the fixed-width sidebar fields before repaint in `prt_exp()`, `prt_mel()`, `prt_arc()`, and `prt_evn()`.
+- Build: `build-cmake.bat` succeeds.
+
 ## 2025-12-25: Prevent first-level sunlight patches from placing rubble under player
 - `src/generate.c`: sunlight patch generation skips the player tile for rubble/sunlight placement.
 
@@ -7989,3 +7994,6 @@ The script now fully matches the game's drop generation logic for all item types
 - src/types.h: add morgoth_second_wind flag for the first-death revival.
 - src/birth.c, src/save.c, src/load.c: init/persist morgoth_second_wind using a spare save byte for compatibility.
 - build-cmake.bat: success (standard + portable builds).
+
+## 2025-12-26: Star iron pictogram
+- lib/pref/graf-new.prf: set `K:491` (Piece of Star Iron) to `0x93/0x85` (tileset row 19, col 5).
