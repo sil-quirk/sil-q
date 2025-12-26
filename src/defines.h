@@ -1241,6 +1241,8 @@
 #define SV_SKELETON_ORC 0 /*  */
 #define SV_SKELETON_HUMAN 1 /*  */
 #define SV_SKELETON_ELF 2 /*  */
+/* Special sval used by skeleton_note.txt templates (not a real object sval) */
+#define SV_SKELETON_NOTE_ANY 255 /* Wildcard */
 
 /* The "sval" codes for TV_METAL */
 #define SV_METAL_MITHRIL 0 /*  */

@@ -141,17 +141,25 @@ typedef enum skeleton_hint_kind {
     SKEL_HINT_NONE = 0,
     SKEL_HINT_GREAT_VAULT,
     SKEL_HINT_VAULT_ARTIFACT,
-    SKEL_HINT_DOMINANT_PARTITION,
+    SKEL_HINT_STAIRS,
     SKEL_HINT_PARTITION_PRESENCE,
-    SKEL_HINT_LEVEL_SIZE,
+    SKEL_HINT_FORGE,
     SKEL_HINT_UNIQUE_MONSTER,
     SKEL_HINT_TIP,
+    SKEL_HINT_LEVEL_SIZE,
+    SKEL_HINT_QUEST,
+    SKEL_HINT_PART_LABYRINTH,
+    SKEL_HINT_PART_CHASM,
+    SKEL_HINT_PART_CAVE,
+    SKEL_HINT_PART_CAVE_ICE,
+    SKEL_HINT_PART_CAVE_FIRE,
+    SKEL_HINT_PART_CAVE_POIS,
     SKEL_HINT_MAX
 } skeleton_hint_kind;
 
 struct skeleton_note_template
 {
-    byte sval;   /* Skeleton sval */
+    byte sval;   /* Skeleton sval (or SV_SKELETON_NOTE_ANY) */
     byte hint;   /* skeleton_hint_kind or 0 for openings/signoffs */
     byte role;   /* skeleton_note_role */
     byte weight; /* Selection weight */

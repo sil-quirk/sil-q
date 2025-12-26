@@ -3228,7 +3228,7 @@ static byte skeleton_note_parse_sval_token(const char* tok, bool* ok)
     if (streq(tok, "ANY"))
     {
         if (ok) *ok = true;
-        return 0;
+        return SV_SKELETON_NOTE_ANY;
     }
     return 0;
 }
@@ -3241,16 +3241,32 @@ static byte skeleton_note_parse_hint_token(const char* tok)
         return SKEL_HINT_GREAT_VAULT;
     if (streq(tok, "VAULT_ARTIFACT"))
         return SKEL_HINT_VAULT_ARTIFACT;
-    if (streq(tok, "DOMINANT"))
-        return SKEL_HINT_DOMINANT_PARTITION;
+    if (streq(tok, "STAIRS"))
+        return SKEL_HINT_STAIRS;
     if (streq(tok, "PARTITION"))
         return SKEL_HINT_PARTITION_PRESENCE;
-    if (streq(tok, "SIZE"))
-        return SKEL_HINT_LEVEL_SIZE;
+    if (streq(tok, "FORGE"))
+        return SKEL_HINT_FORGE;
     if (streq(tok, "UNIQUE"))
         return SKEL_HINT_UNIQUE_MONSTER;
     if (streq(tok, "TIP"))
         return SKEL_HINT_TIP;
+    if (streq(tok, "SIZE"))
+        return SKEL_HINT_LEVEL_SIZE;
+    if (streq(tok, "QUEST"))
+        return SKEL_HINT_QUEST;
+    if (streq(tok, "LABYRINTH"))
+        return SKEL_HINT_PART_LABYRINTH;
+    if (streq(tok, "CHASM"))
+        return SKEL_HINT_PART_CHASM;
+    if (streq(tok, "CAVE"))
+        return SKEL_HINT_PART_CAVE;
+    if (streq(tok, "CAVE_ICE"))
+        return SKEL_HINT_PART_CAVE_ICE;
+    if (streq(tok, "CAVE_FIRE"))
+        return SKEL_HINT_PART_CAVE_FIRE;
+    if (streq(tok, "CAVE_POIS"))
+        return SKEL_HINT_PART_CAVE_POIS;
     return SKEL_HINT_NONE;
 }
 
@@ -3263,7 +3279,7 @@ static byte skeleton_note_parse_hint_token(const char* tok)
  *   M:<SVAL>:<HINT>:<weight>:<text>
  *
  * SVAL may be ELF/HUMAN/ORC/ANY
- * HINT may be GREAT_VAULT/VAULT_ARTIFACT/DOMINANT/PARTITION/SIZE
+ * HINT may be GREAT_VAULT/VAULT_ARTIFACT/STAIRS/PARTITION/FORGE/UNIQUE/TIP/SIZE/QUEST/LABYRINTH/CHASM/CAVE/CAVE_ICE/CAVE_FIRE/CAVE_POIS
  * Weight is optional (defaults to 100) and clamped to a byte.
  */
 errr parse_skeleton_note_info(char* buf, header* head)

@@ -1,7 +1,10 @@
-# Session Notes
+# Session notes
 
-## 2025-12-26: Song order cleanup
-- `lib/edit/ability.txt`: reordered Woven Themes/Song of Slaying ahead of Song of Revealing, renumbering N:148-150 to keep the ability list sequential and aligned with skill-point costs.
+## Skeleton note story wrapping
+- Symptom: skeleton note lines duplicated or truncated when rendered with proportional story font.
+- Root cause: story-font renderer packs text only within contiguous `STORY_FLAG_USE` cells; if a line has fewer cells than its pixel width, the render clamps and appears cut/duplicated.
+- Fix: `src/cmd2.c` now wraps skeleton-note lines using story-font pixel measurements and pads each produced line with trailing spaces (up to wrap width) so enough story cells are flagged to cover the pixel width.
+- Build: `build-cmake.bat` succeeds (deployment copy of `sil-more-windows-sdl3/sil-more.exe` can fail if the exe is running).
 
 ## 2025-12-26: Song menu stop hotkey
 - `src/cmd4.c`: reserve `s` for stop singing and skip `s` in song letters, so Song of Contest no longer conflicts with the stop command.

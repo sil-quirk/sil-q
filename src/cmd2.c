@@ -1074,15 +1074,34 @@ typedef struct skeleton_note_state {
     int notes_shown;
     int map_wid;
     int map_hgt;
-    byte hint_used_mask;
+    u32b hint_used_mask;
     byte seen_count;
     s16b seen_ids[SKELETON_NOTE_SEEN_MAX];
 } skeleton_note_state;
 
+#define SKELETON_TIP_MAX_DEPTH 7
+
 static skeleton_note_state g_skeleton_note_state = { -1, 0, 0, 0, 0, 0, 0, {0} };
 static int g_skeleton_note_entry_count = -1;
 static const int skeleton_hint_base_weight[SKEL_HINT_MAX]
-    = {0, 80, 60, 45, 35, 25, 70, 50};
+    = {
+        0,  /* NONE */
+        75, /* GREAT_VAULT */
+        60, /* VAULT_ARTIFACT */
+        55, /* STAIRS */
+        0,  /* PARTITION_PRESENCE (deprecated) */
+        45, /* FORGE */
+        70, /* UNIQUE */
+        180, /* TIP */
+        35, /* SIZE */
+        90, /* QUEST */
+        40, /* PART_LABYRINTH */
+        40, /* PART_CHASM */
+        40, /* PART_CAVE */
+        40, /* PART_CAVE_ICE */
+        40, /* PART_CAVE_FIRE */
+        40  /* PART_CAVE_POIS */
+    };
 
 static void skeleton_note_ensure_level_state(void);
 static bool skeleton_note_has_unseen_template(
@@ -1114,7 +1133,6 @@ static int skeleton_note_entry_count(void)
 
 static void skeleton_note_reset_seen(void)
 {
-    g_skeleton_note_state.hint_used_mask = 0;
     g_skeleton_note_state.seen_count = 0;
     for (int i = 0; i < SKELETON_NOTE_SEEN_MAX; ++i)
         g_skeleton_note_state.seen_ids[i] = -1;
@@ -1136,9 +1154,17 @@ static void skeleton_note_record_seen(s16b id)
         return;
     if (skeleton_note_seen_id(id))
         return;
-    if (g_skeleton_note_state.seen_count >= SKELETON_NOTE_SEEN_MAX)
+
+    if (g_skeleton_note_state.seen_count < SKELETON_NOTE_SEEN_MAX)
+    {
+        g_skeleton_note_state.seen_ids[g_skeleton_note_state.seen_count++] = id;
         return;
-    g_skeleton_note_state.seen_ids[g_skeleton_note_state.seen_count++] = id;
+    }
+
+    /* Keep a simple rolling window to reduce repetition across levels. */
+    for (int i = 1; i < SKELETON_NOTE_SEEN_MAX; ++i)
+        g_skeleton_note_state.seen_ids[i - 1] = g_skeleton_note_state.seen_ids[i];
+    g_skeleton_note_state.seen_ids[SKELETON_NOTE_SEEN_MAX - 1] = id;
 }
 
 static int skeleton_note_size_bucket(const level_layout_info* layout)
@@ -1146,12 +1172,30 @@ static int skeleton_note_size_bucket(const level_layout_info* layout)
     if (!layout)
         return 0;
 
-    long area = (long)layout->map_wid * (long)layout->map_hgt;
-    if (area > 4300)
+    /*
+     * Size buckets for skeleton-note pacing and {SIZEWORD}.
+     *
+     * We base this on the current map's side length as a fraction of the
+     * maximum supported dungeon side (MAX_DUNGEON_*), so it continues to work
+     * even if the generator's exact size distribution changes.
+     *
+     * With current square levels (generate.c): 88..231 per side, these map to:
+     *   0: <  57% (<= 121)   "narrow"
+     *   1: <  76% (<= 165)   "broad"
+     *   2: <  90% (<= 198)   "sprawling"
+     *   3: >= 90% (>= 209)   "vast"
+     */
+    int side = MAX(layout->map_wid, layout->map_hgt);
+    int max_side = MAX(MAX_DUNGEON_WID, MAX_DUNGEON_HGT);
+    if (side <= 0 || max_side <= 0)
+        return 0;
+
+    int pct = (side * 100) / max_side;
+    if (pct >= 90)
         return 3;
-    if (area > 3600)
+    if (pct >= 76)
         return 2;
-    if (area > 3000)
+    if (pct >= 57)
         return 1;
     return 0;
 }
@@ -1182,25 +1226,49 @@ static skeleton_note_profile skeleton_note_profile_for_sval(byte sval)
         prof.note_chance = 55;
         prof.weight_scale[SKEL_HINT_GREAT_VAULT] = 110;
         prof.weight_scale[SKEL_HINT_VAULT_ARTIFACT] = 120;
-        prof.weight_scale[SKEL_HINT_DOMINANT_PARTITION] = 145;
-        prof.weight_scale[SKEL_HINT_PARTITION_PRESENCE] = 155;
-        prof.weight_scale[SKEL_HINT_LEVEL_SIZE] = 135;
+        prof.weight_scale[SKEL_HINT_STAIRS] = 90;
+        prof.weight_scale[SKEL_HINT_PARTITION_PRESENCE] = 0;
+        prof.weight_scale[SKEL_HINT_PART_LABYRINTH] = 155;
+        prof.weight_scale[SKEL_HINT_PART_CHASM] = 155;
+        prof.weight_scale[SKEL_HINT_PART_CAVE] = 155;
+        prof.weight_scale[SKEL_HINT_PART_CAVE_ICE] = 155;
+        prof.weight_scale[SKEL_HINT_PART_CAVE_FIRE] = 155;
+        prof.weight_scale[SKEL_HINT_PART_CAVE_POIS] = 155;
+        prof.weight_scale[SKEL_HINT_FORGE] = 110;
+        prof.weight_scale[SKEL_HINT_UNIQUE_MONSTER] = 120;
+        prof.weight_scale[SKEL_HINT_TIP] = 120;
         break;
     case SV_SKELETON_HUMAN:
         prof.note_chance = 40;
         prof.weight_scale[SKEL_HINT_GREAT_VAULT] = 120;
         prof.weight_scale[SKEL_HINT_VAULT_ARTIFACT] = 105;
-        prof.weight_scale[SKEL_HINT_DOMINANT_PARTITION] = 110;
-        prof.weight_scale[SKEL_HINT_PARTITION_PRESENCE] = 95;
-        prof.weight_scale[SKEL_HINT_LEVEL_SIZE] = 100;
+        prof.weight_scale[SKEL_HINT_STAIRS] = 140;
+        prof.weight_scale[SKEL_HINT_PARTITION_PRESENCE] = 0;
+        prof.weight_scale[SKEL_HINT_PART_LABYRINTH] = 95;
+        prof.weight_scale[SKEL_HINT_PART_CHASM] = 95;
+        prof.weight_scale[SKEL_HINT_PART_CAVE] = 95;
+        prof.weight_scale[SKEL_HINT_PART_CAVE_ICE] = 95;
+        prof.weight_scale[SKEL_HINT_PART_CAVE_FIRE] = 95;
+        prof.weight_scale[SKEL_HINT_PART_CAVE_POIS] = 95;
+        prof.weight_scale[SKEL_HINT_FORGE] = 120;
+        prof.weight_scale[SKEL_HINT_UNIQUE_MONSTER] = 120;
+        prof.weight_scale[SKEL_HINT_TIP] = 240;
         break;
     case SV_SKELETON_ORC:
         prof.note_chance = 25;
         prof.weight_scale[SKEL_HINT_GREAT_VAULT] = 170;
         prof.weight_scale[SKEL_HINT_VAULT_ARTIFACT] = 180;
-        prof.weight_scale[SKEL_HINT_DOMINANT_PARTITION] = 70;
-        prof.weight_scale[SKEL_HINT_PARTITION_PRESENCE] = 65;
-        prof.weight_scale[SKEL_HINT_LEVEL_SIZE] = 0;
+        prof.weight_scale[SKEL_HINT_STAIRS] = 120;
+        prof.weight_scale[SKEL_HINT_PARTITION_PRESENCE] = 0;
+        prof.weight_scale[SKEL_HINT_PART_LABYRINTH] = 65;
+        prof.weight_scale[SKEL_HINT_PART_CHASM] = 65;
+        prof.weight_scale[SKEL_HINT_PART_CAVE] = 65;
+        prof.weight_scale[SKEL_HINT_PART_CAVE_ICE] = 65;
+        prof.weight_scale[SKEL_HINT_PART_CAVE_FIRE] = 65;
+        prof.weight_scale[SKEL_HINT_PART_CAVE_POIS] = 65;
+        prof.weight_scale[SKEL_HINT_FORGE] = 160;
+        prof.weight_scale[SKEL_HINT_UNIQUE_MONSTER] = 90;
+        prof.weight_scale[SKEL_HINT_TIP] = 100;
         break;
     default:
         break;
@@ -1209,24 +1277,91 @@ static skeleton_note_profile skeleton_note_profile_for_sval(byte sval)
     return prof;
 }
 
-static const char* partition_label(level_partition_kind kind)
+static int skeleton_note_tip_override_chance(byte sval, int depth)
+{
+    if (depth < 1)
+        depth = 1;
+    if (depth > SKELETON_TIP_MAX_DEPTH)
+        return 0;
+
+    int t = SKELETON_TIP_MAX_DEPTH - depth; /* 0.. */
+    int chance = 0;
+    switch (sval)
+    {
+    case SV_SKELETON_HUMAN:
+        chance = 35 + t * 6;
+        break;
+    case SV_SKELETON_ELF:
+        chance = 25 + t * 5;
+        break;
+    case SV_SKELETON_ORC:
+        chance = 20 + t * 4;
+        break;
+    default:
+        chance = 0;
+        break;
+    }
+
+    if (chance > 90)
+        chance = 90;
+    if (chance < 0)
+        chance = 0;
+    return chance;
+}
+
+static const char* partition_label(level_partition_kind kind, big_cave_type_t cave_type)
 {
     switch (kind)
     {
     case LEVEL_PART_LABYRINTH:
-        return "a labyrinth of stone";
+        return "a maze of hewn stone";
     case LEVEL_PART_BIG_CAVE:
-        return "a cavern-wide hollow";
+        switch (cave_type)
+        {
+        case BIG_CAVE_ICE:
+            return "a vast ice cavern";
+        case BIG_CAVE_FIRE:
+            return "a vast cavern of fire";
+        case BIG_CAVE_POIS:
+            return "a cavern of poisonous vapours";
+        default:
+            return "a vast cavern";
+        }
     case LEVEL_PART_CHASM:
-        return "a chasm and its bridges";
+        return "a chasm with perilous bridges";
     case LEVEL_PART_RUINED:
-        return "broken halls";
+        return "ruined halls";
     case LEVEL_PART_CAVEY:
-        return "twisting caves";
+        return "natural caves";
     case LEVEL_PART_ROOMY:
-        return "ordered halls";
+        return "long halls of wrought stone";
     default:
-        return "scattered tunnels";
+        return "wandering tunnels";
+    }
+}
+
+static const char* partition_hazard_label(level_partition_kind kind, big_cave_type_t cave_type)
+{
+    switch (kind)
+    {
+    case LEVEL_PART_LABYRINTH:
+        return "its turns and dead ends will unmake your bearings";
+    case LEVEL_PART_CHASM:
+        return "bridges are narrow, and a single misstep is death";
+    case LEVEL_PART_BIG_CAVE:
+        switch (cave_type)
+        {
+        case BIG_CAVE_ICE:
+            return "the floor is slick and the cold bites";
+        case BIG_CAVE_FIRE:
+            return "the air burns and smoke chokes";
+        case BIG_CAVE_POIS:
+            return "green fumes cling low and sting the lungs";
+        default:
+            return "sound carries far, and there is little cover";
+        }
+    default:
+        return "";
     }
 }
 
@@ -1235,14 +1370,69 @@ static const char* size_word_for_bucket(int bucket)
     switch (bucket)
     {
     case 0:
-        return "tight";
+        return "narrow";
     case 1:
-        return "wide";
+        return "broad";
     case 2:
         return "sprawling";
     default:
         return "vast";
     }
+}
+
+static const char* skeleton_note_pick_size_word(const level_layout_info* layout)
+{
+    int actual = layout ? skeleton_note_size_bucket(layout) : 0;
+    if (actual < 0)
+        actual = 0;
+    if (actual > 3)
+        actual = 3;
+
+    int weights[4] = {0};
+    switch (actual)
+    {
+    case 0:
+        weights[0] = 70;
+        weights[1] = 20;
+        weights[2] = 8;
+        weights[3] = 2;
+        break;
+    case 1:
+        weights[0] = 15;
+        weights[1] = 55;
+        weights[2] = 25;
+        weights[3] = 5;
+        break;
+    case 2:
+        weights[0] = 5;
+        weights[1] = 20;
+        weights[2] = 55;
+        weights[3] = 20;
+        break;
+    default:
+        weights[0] = 2;
+        weights[1] = 8;
+        weights[2] = 25;
+        weights[3] = 65;
+        break;
+    }
+
+    int total = 0;
+    for (int i = 0; i < 4; ++i)
+        total += weights[i];
+
+    if (total <= 0)
+        return size_word_for_bucket(actual);
+
+    int roll = rand_int(total);
+    for (int i = 0; i < 4; ++i)
+    {
+        if (roll < weights[i])
+            return size_word_for_bucket(i);
+        roll -= weights[i];
+    }
+
+    return size_word_for_bucket(actual);
 }
 
 static const char* skeleton_note_fallback_opening(byte sval)
@@ -1308,6 +1498,151 @@ static bool vault_has_ground_artifact(void)
     return false;
 }
 
+static bool level_has_stairs_down(void)
+{
+    for (int y = 0; y < p_ptr->cur_map_hgt; ++y)
+    {
+        for (int x = 0; x < p_ptr->cur_map_wid; ++x)
+        {
+            int feat = cave_feat[y][x];
+            if (feat == FEAT_MORE || feat == FEAT_MORE_SHAFT)
+                return true;
+        }
+    }
+    return false;
+}
+
+static bool level_has_stairs_up(void)
+{
+    for (int y = 0; y < p_ptr->cur_map_hgt; ++y)
+    {
+        for (int x = 0; x < p_ptr->cur_map_wid; ++x)
+        {
+            int feat = cave_feat[y][x];
+            if (feat == FEAT_LESS || feat == FEAT_LESS_SHAFT)
+                return true;
+        }
+    }
+    return false;
+}
+
+static bool level_has_forge(void)
+{
+    for (int y = 0; y < p_ptr->cur_map_hgt; ++y)
+    {
+        for (int x = 0; x < p_ptr->cur_map_wid; ++x)
+        {
+            if (cave_forge_bold(y, x))
+                return true;
+        }
+    }
+    return false;
+}
+
+static bool skeleton_note_is_quest_giver_r_idx(int r_idx)
+{
+    switch (r_idx)
+    {
+    case R_IDX_TULKAS:
+    case R_IDX_AULE:
+    case R_IDX_MANDOS:
+    case R_IDX_NIENA:
+    case R_IDX_OROME:
+    case R_IDX_VARDA:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static const char* skeleton_note_quest_site_name(int r_idx)
+{
+    switch (r_idx)
+    {
+    case R_IDX_TULKAS:
+        return "a strong Power";
+    case R_IDX_AULE:
+        return "a smith of the West";
+    case R_IDX_MANDOS:
+        return "a doomsman in shadow";
+    case R_IDX_NIENA:
+        return "a lady of pity";
+    case R_IDX_OROME:
+        return "a hunter of the West";
+    case R_IDX_VARDA:
+        return "a lady of the stars";
+    case R_IDX_DURUIN:
+        return "a bastion of shadow";
+    default:
+        return "a Power";
+    }
+}
+
+static bool level_has_quest_giver(void)
+{
+    for (int i = 1; i < mon_max; i++)
+    {
+        monster_type* m_ptr = &mon_list[i];
+        if (!m_ptr->r_idx)
+            continue;
+        if (skeleton_note_is_quest_giver_r_idx(m_ptr->r_idx))
+            return true;
+    }
+    return false;
+}
+
+static bool level_has_quest_vault(void)
+{
+    if (p_ptr->aule_level == p_ptr->depth && p_ptr->aule_quest != AULE_QUEST_NOT_STARTED)
+        return true;
+    if (p_ptr->mandos_level == p_ptr->depth && p_ptr->mandos_quest != MANDOS_QUEST_NOT_STARTED)
+        return true;
+    if (p_ptr->varda_level == p_ptr->depth && p_ptr->varda_vault_placed)
+        return true;
+
+    /* Fallback: detect Duruin's bastion by its guardian. */
+    for (int i = 1; i < mon_max; i++)
+    {
+        monster_type* m_ptr = &mon_list[i];
+        if (!m_ptr->r_idx)
+            continue;
+        if (m_ptr->r_idx == R_IDX_DURUIN)
+            return true;
+    }
+
+    return false;
+}
+
+static void skeleton_note_big_cave_counts(
+    const level_layout_info* layout, int counts[BIG_CAVE_TYPE_MAX], int* out_none)
+{
+    for (int i = 0; i < BIG_CAVE_TYPE_MAX; ++i)
+        counts[i] = 0;
+
+    if (out_none)
+        *out_none = 0;
+
+    if (!layout || layout->partition_count <= 0 || layout->big_cave_parts <= 0)
+        return;
+
+    for (int pi = 0; pi < layout->partition_count; ++pi)
+    {
+        big_cave_type_t cave_type = level_partition_big_cave_type_for_index(pi);
+        if (cave_type > BIG_CAVE_NONE && cave_type < BIG_CAVE_TYPE_MAX)
+            counts[cave_type]++;
+    }
+
+    int typed = 0;
+    for (int t = 1; t < BIG_CAVE_TYPE_MAX; ++t)
+        typed += counts[t];
+
+    int none = layout->big_cave_parts - typed;
+    if (none < 0)
+        none = 0;
+    if (out_none)
+        *out_none = none;
+}
+
 void skeleton_note_level_reset(void)
 {
     level_layout_info layout;
@@ -1318,7 +1653,7 @@ void skeleton_note_level_reset(void)
     g_skeleton_note_state.map_hgt = layout.map_hgt;
     g_skeleton_note_state.note_cap = skeleton_note_cap_from_layout(&layout);
     g_skeleton_note_state.notes_shown = 0;
-    skeleton_note_reset_seen();
+    g_skeleton_note_state.hint_used_mask = 0;
     g_skeleton_note_entry_count = -1;
 
     if (g_skeleton_note_state.note_cap < 1)
@@ -1345,7 +1680,7 @@ void skeleton_note_get_state(skeleton_note_state_save* out)
     out->notes_shown = (s16b)g_skeleton_note_state.notes_shown;
     out->map_wid = (s16b)g_skeleton_note_state.map_wid;
     out->map_hgt = (s16b)g_skeleton_note_state.map_hgt;
-    out->hint_used_mask = g_skeleton_note_state.hint_used_mask;
+    out->hint_used_mask = (byte)(g_skeleton_note_state.hint_used_mask & 0xFF);
     out->seen_count = g_skeleton_note_state.seen_count;
     for (int i = 0; i < SKELETON_NOTE_SEEN_MAX; ++i)
         out->seen_ids[i] = g_skeleton_note_state.seen_ids[i];
@@ -1368,8 +1703,7 @@ void skeleton_note_set_state(const skeleton_note_state_save* in)
         = (in->map_wid > 0) ? in->map_wid : p_ptr->cur_map_wid;
     g_skeleton_note_state.map_hgt
         = (in->map_hgt > 0) ? in->map_hgt : p_ptr->cur_map_hgt;
-    g_skeleton_note_state.hint_used_mask
-        = in->hint_used_mask & ((1 << SKEL_HINT_MAX) - 1);
+    g_skeleton_note_state.hint_used_mask = (u32b)in->hint_used_mask;
     g_skeleton_note_state.seen_count = MIN(in->seen_count, SKELETON_NOTE_SEEN_MAX);
     for (int i = 0; i < SKELETON_NOTE_SEEN_MAX; ++i)
         g_skeleton_note_state.seen_ids[i] = in->seen_ids[i];
@@ -1391,17 +1725,14 @@ static bool skeleton_hint_available(skeleton_hint_kind kind,
     case SKEL_HINT_VAULT_ARTIFACT:
         ok = vault_artifact;
         break;
-    case SKEL_HINT_DOMINANT_PARTITION:
-        ok = layout && layout->partition_count > 0
-            && layout->dominant_kind != LEVEL_PART_NONE;
+    case SKEL_HINT_STAIRS:
+        ok = level_has_stairs_down() || level_has_stairs_up();
         break;
     case SKEL_HINT_PARTITION_PRESENCE:
-        ok = layout
-            && (layout->labyrinth_parts > 0 || layout->big_cave_parts > 0
-                || layout->chasm_parts > 0);
+        ok = false;
         break;
-    case SKEL_HINT_LEVEL_SIZE:
-        ok = (layout != NULL);
+    case SKEL_HINT_FORGE:
+        ok = level_has_forge();
         break;
     case SKEL_HINT_UNIQUE_MONSTER:
     {
@@ -1419,8 +1750,54 @@ static bool skeleton_hint_available(skeleton_hint_kind kind,
         break;
     }
     case SKEL_HINT_TIP:
-        ok = (p_ptr->depth <= 7);
+        ok = (p_ptr->depth <= SKELETON_TIP_MAX_DEPTH)
+            && (sval == SV_SKELETON_HUMAN || sval == SV_SKELETON_ELF
+                || sval == SV_SKELETON_ORC);
         break;
+    case SKEL_HINT_LEVEL_SIZE:
+        ok = (layout != NULL);
+        break;
+    case SKEL_HINT_QUEST:
+        ok = level_has_quest_giver() || level_has_quest_vault();
+        break;
+    case SKEL_HINT_PART_LABYRINTH:
+        ok = layout && (layout->labyrinth_parts > 0);
+        break;
+    case SKEL_HINT_PART_CHASM:
+        ok = layout && (layout->chasm_parts > 0);
+        break;
+    case SKEL_HINT_PART_CAVE:
+    {
+        int counts[BIG_CAVE_TYPE_MAX];
+        int none = 0;
+        skeleton_note_big_cave_counts(layout, counts, &none);
+        ok = (layout && none > 0);
+        break;
+    }
+    case SKEL_HINT_PART_CAVE_ICE:
+    {
+        int counts[BIG_CAVE_TYPE_MAX];
+        int none = 0;
+        skeleton_note_big_cave_counts(layout, counts, &none);
+        ok = (counts[BIG_CAVE_ICE] > 0);
+        break;
+    }
+    case SKEL_HINT_PART_CAVE_FIRE:
+    {
+        int counts[BIG_CAVE_TYPE_MAX];
+        int none = 0;
+        skeleton_note_big_cave_counts(layout, counts, &none);
+        ok = (counts[BIG_CAVE_FIRE] > 0);
+        break;
+    }
+    case SKEL_HINT_PART_CAVE_POIS:
+    {
+        int counts[BIG_CAVE_TYPE_MAX];
+        int none = 0;
+        skeleton_note_big_cave_counts(layout, counts, &none);
+        ok = (counts[BIG_CAVE_POIS] > 0);
+        break;
+    }
     default:
         ok = false;
         break;
@@ -1429,49 +1806,133 @@ static bool skeleton_hint_available(skeleton_hint_kind kind,
     if (!ok)
         return false;
 
-    if (!skeleton_note_has_unseen_template(
-            sval, SKELETON_NOTE_ROLE_HINT, kind))
-        return false;
+    /*
+     * Tutorial tips should be repeatable: don't hide them just because we've
+     * recently shown every TIP template.
+     */
+    if (kind != SKEL_HINT_TIP)
+    {
+        if (!skeleton_note_has_unseen_template(
+                sval, SKELETON_NOTE_ROLE_HINT, kind))
+            return false;
+    }
 
     return true;
 }
 
-static level_partition_kind skeleton_pick_partition_presence(
+typedef struct
+{
+    level_partition_kind kind;
+    big_cave_type_t big_cave_type;
+} skeleton_partition_focus;
+
+static skeleton_partition_focus skeleton_pick_partition_presence(
     const level_layout_info* layout)
 {
-    int weights[3] = {0};
-    if (layout)
+    skeleton_partition_focus focus;
+    focus.kind = LEVEL_PART_NONE;
+    focus.big_cave_type = BIG_CAVE_NONE;
+
+    if (!layout)
+        return focus;
+
+    int big_cave_counts[BIG_CAVE_TYPE_MAX] = {0};
+    for (int pi = 0; pi < layout->partition_count; ++pi)
     {
-        weights[0] = layout->labyrinth_parts;
-        weights[1] = layout->big_cave_parts;
-        weights[2] = layout->chasm_parts;
+        big_cave_type_t cave_type = level_partition_big_cave_type_for_index(pi);
+        if (cave_type > BIG_CAVE_NONE && cave_type < BIG_CAVE_TYPE_MAX)
+            big_cave_counts[cave_type]++;
     }
 
-    int total = weights[0] + weights[1] + weights[2];
+    int elemental = big_cave_counts[BIG_CAVE_ICE] + big_cave_counts[BIG_CAVE_FIRE]
+        + big_cave_counts[BIG_CAVE_POIS];
+    int big_none = layout->big_cave_parts - elemental;
+    if (big_none < 0)
+        big_none = 0;
+
+    struct {
+        level_partition_kind kind;
+        big_cave_type_t big_cave_type;
+        int weight;
+    } options[8];
+    int n_options = 0;
+
+    if (layout->labyrinth_parts > 0)
+    {
+        options[n_options].kind = LEVEL_PART_LABYRINTH;
+        options[n_options].big_cave_type = BIG_CAVE_NONE;
+        options[n_options].weight = layout->labyrinth_parts;
+        n_options++;
+    }
+    if (layout->chasm_parts > 0)
+    {
+        options[n_options].kind = LEVEL_PART_CHASM;
+        options[n_options].big_cave_type = BIG_CAVE_NONE;
+        options[n_options].weight = layout->chasm_parts;
+        n_options++;
+    }
+    if (big_none > 0)
+    {
+        options[n_options].kind = LEVEL_PART_BIG_CAVE;
+        options[n_options].big_cave_type = BIG_CAVE_NONE;
+        options[n_options].weight = big_none;
+        n_options++;
+    }
+    if (big_cave_counts[BIG_CAVE_ICE] > 0)
+    {
+        options[n_options].kind = LEVEL_PART_BIG_CAVE;
+        options[n_options].big_cave_type = BIG_CAVE_ICE;
+        options[n_options].weight = big_cave_counts[BIG_CAVE_ICE];
+        n_options++;
+    }
+    if (big_cave_counts[BIG_CAVE_FIRE] > 0)
+    {
+        options[n_options].kind = LEVEL_PART_BIG_CAVE;
+        options[n_options].big_cave_type = BIG_CAVE_FIRE;
+        options[n_options].weight = big_cave_counts[BIG_CAVE_FIRE];
+        n_options++;
+    }
+    if (big_cave_counts[BIG_CAVE_POIS] > 0)
+    {
+        options[n_options].kind = LEVEL_PART_BIG_CAVE;
+        options[n_options].big_cave_type = BIG_CAVE_POIS;
+        options[n_options].weight = big_cave_counts[BIG_CAVE_POIS];
+        n_options++;
+    }
+
+    int total = 0;
+    for (int i = 0; i < n_options; ++i)
+        total += options[i].weight;
+
     if (total <= 0)
-        return LEVEL_PART_NONE;
+        return focus;
 
     int roll = rand_int(total);
-    if (roll < weights[0])
-        return LEVEL_PART_LABYRINTH;
-    roll -= weights[0];
-    if (roll < weights[1])
-        return LEVEL_PART_BIG_CAVE;
-    return LEVEL_PART_CHASM;
+    for (int i = 0; i < n_options; ++i)
+    {
+        if (roll < options[i].weight)
+        {
+            focus.kind = options[i].kind;
+            focus.big_cave_type = options[i].big_cave_type;
+            return focus;
+        }
+        roll -= options[i].weight;
+    }
+
+    return focus;
 }
 
 static skeleton_hint_kind skeleton_note_choose_hint(
     const skeleton_note_profile* profile, const level_layout_info* layout,
-    bool vault_present, bool vault_artifact, byte sval)
+    bool vault_present, bool vault_artifact, byte sval, u32b used_mask)
 {
     int weights[SKEL_HINT_MAX] = {0};
     int total = 0;
-    byte used_mask = g_skeleton_note_state.hint_used_mask;
 
     for (int k = 1; k < SKEL_HINT_MAX; ++k)
     {
         skeleton_hint_kind kind = (skeleton_hint_kind)k;
-        if (used_mask & (1 << k))
+        if (used_mask & (1UL << k))
             continue;
 
         if (!skeleton_hint_available(
@@ -1482,8 +1943,15 @@ static skeleton_hint_kind skeleton_note_choose_hint(
         
         if (kind == SKEL_HINT_TIP)
         {
-             if (p_ptr->depth > 7) base = 0;
-             else base = base * (7 - p_ptr->depth) / 6;
+            int scaled = SKELETON_TIP_MAX_DEPTH + 1 - p_ptr->depth;
+            if (scaled <= 0)
+                base = 0;
+            else
+            {
+                if (scaled > SKELETON_TIP_MAX_DEPTH)
+                    scaled = SKELETON_TIP_MAX_DEPTH;
+                base = (base * scaled) / SKELETON_TIP_MAX_DEPTH;
+            }
         }
 
         int scale = profile->weight_scale[k];
@@ -1528,7 +1996,7 @@ static bool skeleton_note_has_unseen_template(
         skeleton_note_template* t = &skeleton_note_info[i];
         if (t->role != role || t->weight == 0 || t->text == 0)
             continue;
-        if (t->sval && t->sval != sval)
+        if (t->sval != SV_SKELETON_NOTE_ANY && t->sval != sval)
             continue;
         if (role == SKELETON_NOTE_ROLE_HINT && t->hint != hint)
             continue;
@@ -1538,8 +2006,8 @@ static bool skeleton_note_has_unseen_template(
     return false;
 }
 
-static s16b skeleton_note_pick_entry(
-    byte sval, skeleton_note_role role, skeleton_hint_kind hint)
+static s16b skeleton_note_pick_entry_internal(
+    byte sval, skeleton_note_role role, skeleton_hint_kind hint, bool allow_seen)
 {
     if (!skeleton_note_info || !z_info)
         return -1;
@@ -1551,11 +2019,11 @@ static s16b skeleton_note_pick_entry(
         skeleton_note_template* t = &skeleton_note_info[i];
         if (t->role != role || t->weight == 0 || t->text == 0)
             continue;
-        if (t->sval && t->sval != sval)
+        if (t->sval != SV_SKELETON_NOTE_ANY && t->sval != sval)
             continue;
         if (role == SKELETON_NOTE_ROLE_HINT && t->hint != hint)
             continue;
-        if (skeleton_note_seen_id((s16b)i))
+        if (!allow_seen && skeleton_note_seen_id((s16b)i))
             continue;
         total += t->weight;
     }
@@ -1569,11 +2037,11 @@ static s16b skeleton_note_pick_entry(
         skeleton_note_template* t = &skeleton_note_info[i];
         if (t->role != role || t->weight == 0 || t->text == 0)
             continue;
-        if (t->sval && t->sval != sval)
+        if (t->sval != SV_SKELETON_NOTE_ANY && t->sval != sval)
             continue;
         if (role == SKELETON_NOTE_ROLE_HINT && t->hint != hint)
             continue;
-        if (skeleton_note_seen_id((s16b)i))
+        if (!allow_seen && skeleton_note_seen_id((s16b)i))
             continue;
         if (roll < t->weight)
             return (s16b)i;
@@ -1583,16 +2051,316 @@ static s16b skeleton_note_pick_entry(
     return -1;
 }
 
+static s16b skeleton_note_pick_entry(
+    byte sval, skeleton_note_role role, skeleton_hint_kind hint)
+{
+    return skeleton_note_pick_entry_internal(sval, role, hint, false);
+}
+
+typedef struct skeleton_note_line
+{
+    const char* tpl;
+    level_partition_kind presence_kind;
+    big_cave_type_t big_cave_type;
+    const char* unique_type;
+    const char* dir;
+    const char* dist;
+    const char* site;
+    const char* size_word;
+} skeleton_note_line;
+
+static void skeleton_note_normalize_spaces(char* s)
+{
+    if (!s)
+        return;
+
+    /* Trim leading spaces */
+    char* p = s;
+    while (*p == ' ')
+        ++p;
+    if (p != s)
+        memmove(s, p, strlen(p) + 1);
+
+    /* Collapse multiple spaces */
+    char* r = s;
+    char* w = s;
+    bool prev_space = false;
+    while (*r)
+    {
+        if (*r == ' ')
+        {
+            if (!prev_space)
+                *w++ = ' ';
+            prev_space = true;
+        }
+        else
+        {
+            *w++ = *r;
+            prev_space = false;
+        }
+        ++r;
+    }
+    *w = '\0';
+
+    /* Trim trailing spaces */
+    size_t len = strlen(s);
+    while (len > 0 && s[len - 1] == ' ')
+        s[--len] = '\0';
+}
+
+static int skeleton_note_append_wrapped_segment_mono(
+    const char* seg, char lines[][100], int idx, int limit, int wrap)
+{
+    if (!seg || !seg[0] || limit <= idx)
+        return idx;
+
+    if (wrap < 10)
+        wrap = 10;
+    if (wrap > 95)
+        wrap = 95;
+
+    int len = (int)strlen(seg);
+    int pos = 0;
+    while (pos < len && idx < limit)
+    {
+        while (pos < len && seg[pos] == ' ')
+            pos++;
+        if (pos >= len)
+            break;
+
+        int remaining = len - pos;
+        int take = (remaining <= wrap) ? remaining : wrap;
+
+        if (remaining > wrap)
+        {
+            int end = pos + take;
+            int split = -1;
+            for (int j = end - 1; j > pos; --j)
+            {
+                if (seg[j] == ' ')
+                {
+                    split = j;
+                    break;
+                }
+            }
+            if (split > pos)
+                take = split - pos;
+        }
+
+        while (take > 0 && seg[pos + take - 1] == ' ')
+            take--;
+
+        if (take <= 0)
+            break;
+
+        strnfmt(lines[idx++], 100, "%.*s", take, seg + pos);
+        pos += take;
+    }
+
+    return idx;
+}
+
+static int skeleton_note_max_chars_fit_pixels(const char* text, int max_chars, int max_px, int cell_width)
+{
+    if (!text || max_chars <= 0)
+        return 0;
+
+    if (max_px <= 0 || cell_width <= 0)
+        return max_chars;
+
+    int lo = 1;
+    int hi = max_chars;
+    int best = 1;
+    while (lo <= hi)
+    {
+        int mid = (lo + hi) / 2;
+        int w = sdl_story_font_text_width(text, mid);
+        if (w <= 0)
+            w = mid * cell_width;
+
+        if (w <= max_px)
+        {
+            best = mid;
+            lo = mid + 1;
+        }
+        else
+        {
+            hi = mid - 1;
+        }
+    }
+
+    return best;
+}
+
+static void skeleton_note_pad_line_for_story(char line[100], int wrap_cols, int cell_width)
+{
+    if (!line || wrap_cols <= 0 || cell_width <= 0)
+        return;
+
+    int len = (int)strlen(line);
+    if (len <= 0)
+        return;
+
+    if (wrap_cols > 99)
+        wrap_cols = 99;
+
+    int px = sdl_story_font_text_width(line, len);
+    if (px <= 0)
+        px = len * cell_width;
+
+    int cells_needed = (px + cell_width - 1) / cell_width;
+    if (cells_needed < len)
+        cells_needed = len;
+
+    /* Safety margin for measurement/render mismatches. */
+    if (cells_needed < wrap_cols)
+        cells_needed++;
+
+    if (cells_needed > wrap_cols)
+        cells_needed = wrap_cols;
+
+    while (len < cells_needed && len < 99)
+        line[len++] = ' ';
+    line[len] = '\0';
+}
+
+static int skeleton_note_append_wrapped_segment_story(
+    const char* seg, char lines[][100], int idx, int limit, int wrap_cols)
+{
+    if (!seg || !seg[0] || limit <= idx)
+        return idx;
+
+    if (wrap_cols < 10)
+        wrap_cols = 10;
+    if (wrap_cols > 95)
+        wrap_cols = 95;
+
+    int cell_width = sdl_get_cell_width();
+    if (cell_width <= 0)
+        return skeleton_note_append_wrapped_segment_mono(seg, lines, idx, limit, wrap_cols);
+
+    int wrap_px = wrap_cols * cell_width;
+    int space_px = sdl_story_font_text_width(" ", 1);
+    if (space_px <= 0)
+        space_px = cell_width;
+
+    int max_line_chars = wrap_cols;
+    if (max_line_chars > 99)
+        max_line_chars = 99;
+
+    const char* s = seg;
+    while (*s && idx < limit)
+    {
+        while (*s == ' ')
+            s++;
+        if (!*s)
+            break;
+
+        char out[100];
+        int out_len = 0;
+        int line_px = 0;
+        bool first_word = true;
+
+        while (*s)
+        {
+            while (*s == ' ')
+                s++;
+            if (!*s)
+                break;
+
+            const char* word = s;
+            int word_len = 0;
+            while (word[word_len] && word[word_len] != ' ')
+                word_len++;
+
+            int word_px = sdl_story_font_text_width(word, word_len);
+            if (word_px <= 0)
+                word_px = word_len * cell_width;
+
+            int add_px = word_px + (first_word ? 0 : space_px);
+            int add_chars = word_len + (first_word ? 0 : 1);
+
+            if (!first_word && ((line_px + add_px) > wrap_px || (out_len + add_chars) > max_line_chars))
+                break;
+
+            if (first_word && (word_px > wrap_px || word_len > max_line_chars))
+            {
+                int remaining_chars = max_line_chars - out_len;
+                int max_chars = word_len;
+                if (max_chars > remaining_chars)
+                    max_chars = remaining_chars;
+                int fit = skeleton_note_max_chars_fit_pixels(word, max_chars, wrap_px, cell_width);
+                if (fit <= 0)
+                    fit = 1;
+                memcpy(out + out_len, word, fit);
+                out_len += fit;
+                out[out_len] = '\0';
+                s += fit;
+                break;
+            }
+
+            if (!first_word)
+            {
+                out[out_len++] = ' ';
+                line_px += space_px;
+            }
+
+            int copy = word_len;
+            if (copy > 99 - out_len)
+                copy = 99 - out_len;
+            if (copy > max_line_chars - out_len)
+                copy = max_line_chars - out_len;
+            memcpy(out + out_len, word, copy);
+            out_len += copy;
+            out[out_len] = '\0';
+            line_px += word_px;
+
+            s += word_len;
+            first_word = false;
+        }
+
+        if (out_len > 0)
+        {
+            strnfmt(lines[idx], 100, "%s", out);
+            skeleton_note_pad_line_for_story(lines[idx], wrap_cols, cell_width);
+            idx++;
+        }
+
+        while (*s == ' ')
+            s++;
+    }
+
+    return idx;
+}
+
+static int skeleton_note_append_wrapped_segment(
+    const char* seg, char lines[][100], int idx, int limit, int wrap_cols)
+{
+    if (!seg || !seg[0] || limit <= idx)
+        return idx;
+
+    if (sdl_story_font_text_width(" ", 1) > 0 && sdl_get_cell_width() > 0)
+        return skeleton_note_append_wrapped_segment_story(seg, lines, idx, limit, wrap_cols);
+
+    return skeleton_note_append_wrapped_segment_mono(seg, lines, idx, limit, wrap_cols);
+}
+
 static void skeleton_note_expand_template(const char* tpl,
     const level_layout_info* layout, level_partition_kind presence_kind,
-    const char* unique_type,
-    char* out, size_t out_sz)
+    big_cave_type_t big_cave_type, const char* unique_type, const char* dir,
+    const char* dist, const char* site, const char* size_word, char* out,
+    size_t out_sz)
 {
-    const char* part = partition_label(presence_kind);
-    const char* size_word
-        = size_word_for_bucket(layout ? skeleton_note_size_bucket(layout) : 0);
+    const char* part = partition_label(presence_kind, big_cave_type);
+    const char* part_hazard = partition_hazard_label(presence_kind, big_cave_type);
+    const char* size_word_text = size_word
+        ? size_word
+        : size_word_for_bucket(layout ? skeleton_note_size_bucket(layout) : 0);
     int width = layout ? layout->map_wid : 0;
     int height = layout ? layout->map_hgt : 0;
+    const char* dir_text = dir ? dir : "";
+    const char* dist_text = dist ? dist : "";
+    const char* site_text = site ? site : "";
 
     size_t w = 0;
     const char* p = tpl ? tpl : "";
@@ -1606,9 +2374,15 @@ static void skeleton_note_expand_template(const char* tpl,
                 p += 6;
                 continue;
             }
+            if (strncmp(p, "{PART_HAZARD}", 13) == 0)
+            {
+                w += strnfmt(out + w, out_sz - w, "%s", part_hazard);
+                p += 13;
+                continue;
+            }
             if (strncmp(p, "{SIZEWORD}", 10) == 0)
             {
-                w += strnfmt(out + w, out_sz - w, "%s", size_word);
+                w += strnfmt(out + w, out_sz - w, "%s", size_word_text);
                 p += 10;
                 continue;
             }
@@ -1630,24 +2404,123 @@ static void skeleton_note_expand_template(const char* tpl,
                 p += 13;
                 continue;
             }
+            if (strncmp(p, "{DIR}", 5) == 0)
+            {
+                w += strnfmt(out + w, out_sz - w, "%s", dir_text);
+                p += 5;
+                continue;
+            }
+            if (strncmp(p, "{DIST}", 6) == 0)
+            {
+                w += strnfmt(out + w, out_sz - w, "%s", dist_text);
+                p += 6;
+                continue;
+            }
+            if (strncmp(p, "{SITE}", 6) == 0)
+            {
+                w += strnfmt(out + w, out_sz - w, "%s", site_text);
+                p += 6;
+                continue;
+            }
         }
         out[w++] = *p++;
     }
     out[w] = '\0';
 }
 
-static void skeleton_note_build_lines(const char* opening, const char* core,
-    const char* closing, const level_layout_info* layout,
-    level_partition_kind presence_kind, const char* unique_type, char lines[][100])
+static int skeleton_note_append_expanded_lines(const skeleton_note_line* line,
+    const level_layout_info* layout, char lines[][100], int idx, int limit, int wrap)
 {
+    if (!line || !line->tpl || limit <= idx)
+        return idx;
+
+    char expanded[512];
+    skeleton_note_expand_template(line->tpl, layout, line->presence_kind,
+        line->big_cave_type, line->unique_type, line->dir, line->dist,
+        line->site, line->size_word, expanded, sizeof(expanded));
+
+    char* seg = expanded;
+    while (seg && *seg && idx < limit)
+    {
+        char* next = strchr(seg, '|');
+        if (next)
+        {
+            *next = '\0';
+            next++;
+        }
+
+        skeleton_note_normalize_spaces(seg);
+        if (seg[0])
+            idx = skeleton_note_append_wrapped_segment(seg, lines, idx, limit, wrap);
+
+        seg = next;
+    }
+
+    return idx;
+}
+
+static int skeleton_note_effective_wrap_width(int col)
+{
+    int wrap = 70;
+
+    if (Term && Term->wid > 0)
+    {
+        int avail = Term->wid - col - 1;
+        if (avail < wrap)
+            wrap = avail;
+    }
+
+    if (wrap < 10)
+        wrap = 10;
+    if (wrap > 95)
+        wrap = 95;
+
+    return wrap;
+}
+
+static int skeleton_note_append_wrapped_text(
+    const char* text, char lines[][100], int idx, int limit, int wrap)
+{
+    if (!text || !text[0] || limit <= idx)
+        return idx;
+
+    char expanded[512];
+    strnfmt(expanded, sizeof(expanded), "%s", text);
+
+    char* seg = expanded;
+    while (seg && *seg && idx < limit)
+    {
+        char* next = strchr(seg, '|');
+        if (next)
+        {
+            *next = '\0';
+            next++;
+        }
+
+        skeleton_note_normalize_spaces(seg);
+        if (seg[0])
+            idx = skeleton_note_append_wrapped_segment(seg, lines, idx, limit, wrap);
+
+        seg = next;
+    }
+
+    return idx;
+}
+
+static void skeleton_note_build_lines(const char* opening,
+    const skeleton_note_line* body_lines, int body_count, const char* closing,
+    const level_layout_info* layout, char lines[][100], int col)
+{
+    const int max_lines = 12; /* Reserve final slot for terminator */
+    int wrap = skeleton_note_effective_wrap_width(col);
+
     int idx = 0;
-    if (opening && opening[0])
-        strnfmt(lines[idx++], 100, "%s", opening);
+    idx = skeleton_note_append_wrapped_text(opening, lines, idx, max_lines, wrap);
 
-    skeleton_note_expand_template(core, layout, presence_kind, unique_type, lines[idx++], 100);
+    for (int i = 0; i < body_count && idx < max_lines; ++i)
+        idx = skeleton_note_append_expanded_lines(&body_lines[i], layout, lines, idx, max_lines, wrap);
 
-    if (closing && closing[0])
-        strnfmt(lines[idx++], 100, "%s", closing);
+    idx = skeleton_note_append_wrapped_text(closing, lines, idx, max_lines, wrap);
 
     lines[idx][0] = '\0';
 }
@@ -1666,22 +2539,395 @@ static const char* skeleton_get_unique_type_name(const monster_race* r_ptr)
     if (r_ptr->d_char == 'C') return "hound";
     if (r_ptr->flags3 & RF3_MAN) return "human";
     if (r_ptr->flags3 & RF3_ELF) return "elf";
-    
+
     return "horror";
 }
 
-static void skeleton_note_maybe_show(byte sval)
+static int skeleton_note_manhattan_dist(int y1, int x1, int y2, int x2)
+{
+    int dy = y1 - y2;
+    if (dy < 0)
+        dy = -dy;
+
+    int dx = x1 - x2;
+    if (dx < 0)
+        dx = -dx;
+
+    return dy + dx;
+}
+
+static const char* skeleton_note_direction_phrase(int from_y, int from_x, int to_y, int to_x)
+{
+    int dy = to_y - from_y;
+    int dx = to_x - from_x;
+
+    int sy = (dy > 0) ? 1 : ((dy < 0) ? -1 : 0);
+    int sx = (dx > 0) ? 1 : ((dx < 0) ? -1 : 0);
+
+    if (sy == 0 && sx == 0)
+        return "here";
+    if (sy < 0 && sx == 0)
+        return "to the north";
+    if (sy < 0 && sx > 0)
+        return "to the north-east";
+    if (sy == 0 && sx > 0)
+        return "to the east";
+    if (sy > 0 && sx > 0)
+        return "to the south-east";
+    if (sy > 0 && sx == 0)
+        return "to the south";
+    if (sy > 0 && sx < 0)
+        return "to the south-west";
+    if (sy == 0 && sx < 0)
+        return "to the west";
+    return "to the north-west";
+}
+
+static const char* skeleton_note_distance_phrase(int dist)
+{
+    if (dist <= 5)
+        return "very near";
+    if (dist <= 12)
+        return "not far";
+    if (dist <= 22)
+        return "some way";
+    return "far off";
+}
+
+static bool skeleton_note_find_nearest_stairs_kind(
+    bool want_down, int from_y, int from_x, int* out_y, int* out_x, int* out_feat, int* out_dist)
+{
+    int best_y = -1;
+    int best_x = -1;
+    int best_feat = 0;
+    int best_dist = 0;
+    int seen = 0;
+
+    for (int y = 0; y < p_ptr->cur_map_hgt; ++y)
+    {
+        for (int x = 0; x < p_ptr->cur_map_wid; ++x)
+        {
+            int feat = cave_feat[y][x];
+            bool ok = want_down ? (feat == FEAT_MORE || feat == FEAT_MORE_SHAFT)
+                                : (feat == FEAT_LESS || feat == FEAT_LESS_SHAFT);
+            if (!ok)
+                continue;
+
+            int dist = skeleton_note_manhattan_dist(from_y, from_x, y, x);
+            if (best_y < 0 || dist < best_dist)
+            {
+                best_y = y;
+                best_x = x;
+                best_feat = feat;
+                best_dist = dist;
+                seen = 1;
+                continue;
+            }
+
+            if (dist == best_dist)
+            {
+                ++seen;
+                if (one_in_(seen))
+                {
+                    best_y = y;
+                    best_x = x;
+                    best_feat = feat;
+                }
+            }
+        }
+    }
+
+    if (best_y < 0)
+        return false;
+
+    if (out_y) *out_y = best_y;
+    if (out_x) *out_x = best_x;
+    if (out_feat) *out_feat = best_feat;
+    if (out_dist) *out_dist = best_dist;
+    return true;
+}
+
+static bool skeleton_note_find_nearest_stairs(
+    byte sval, int from_y, int from_x, int* out_y, int* out_x, int* out_feat, int* out_dist)
+{
+    int prefer_down = 0;
+    switch (sval)
+    {
+    case SV_SKELETON_ORC:
+        prefer_down = 80;
+        break;
+    case SV_SKELETON_ELF:
+        prefer_down = 65;
+        break;
+    default:
+        prefer_down = 55;
+        break;
+    }
+
+    bool want_down = percent_chance(prefer_down);
+    if (want_down)
+    {
+        if (skeleton_note_find_nearest_stairs_kind(
+                true, from_y, from_x, out_y, out_x, out_feat, out_dist))
+            return true;
+        return skeleton_note_find_nearest_stairs_kind(
+            false, from_y, from_x, out_y, out_x, out_feat, out_dist);
+    }
+
+    if (skeleton_note_find_nearest_stairs_kind(
+            false, from_y, from_x, out_y, out_x, out_feat, out_dist))
+        return true;
+    return skeleton_note_find_nearest_stairs_kind(
+        true, from_y, from_x, out_y, out_x, out_feat, out_dist);
+}
+
+static bool skeleton_note_find_nearest_forge(
+    int from_y, int from_x, int* out_y, int* out_x, int* out_feat, int* out_dist)
+{
+    int best_y = -1;
+    int best_x = -1;
+    int best_feat = 0;
+    int best_dist = 0;
+    int seen = 0;
+
+    for (int y = 0; y < p_ptr->cur_map_hgt; ++y)
+    {
+        for (int x = 0; x < p_ptr->cur_map_wid; ++x)
+        {
+            if (!cave_forge_bold(y, x))
+                continue;
+
+            int feat = cave_feat[y][x];
+            int dist = skeleton_note_manhattan_dist(from_y, from_x, y, x);
+            if (best_y < 0 || dist < best_dist)
+            {
+                best_y = y;
+                best_x = x;
+                best_feat = feat;
+                best_dist = dist;
+                seen = 1;
+                continue;
+            }
+
+            if (dist == best_dist)
+            {
+                ++seen;
+                if (one_in_(seen))
+                {
+                    best_y = y;
+                    best_x = x;
+                    best_feat = feat;
+                }
+            }
+        }
+    }
+
+    if (best_y < 0)
+        return false;
+
+    if (out_y) *out_y = best_y;
+    if (out_x) *out_x = best_x;
+    if (out_feat) *out_feat = best_feat;
+    if (out_dist) *out_dist = best_dist;
+    return true;
+}
+
+static bool skeleton_note_find_nearest_quest_site(
+    int from_y, int from_x, int* out_y, int* out_x, int* out_dist, const char** out_site)
+{
+    int best_y = -1;
+    int best_x = -1;
+    int best_dist = 0;
+    const char* best_site = NULL;
+    int seen = 0;
+
+    for (int i = 1; i < mon_max; i++)
+    {
+        monster_type* m_ptr = &mon_list[i];
+        if (!m_ptr->r_idx)
+            continue;
+
+        int r_idx = m_ptr->r_idx;
+        if (!skeleton_note_is_quest_giver_r_idx(r_idx) && r_idx != R_IDX_DURUIN)
+            continue;
+
+        int dist = skeleton_note_manhattan_dist(from_y, from_x, m_ptr->fy, m_ptr->fx);
+        if (best_y < 0 || dist < best_dist)
+        {
+            best_y = m_ptr->fy;
+            best_x = m_ptr->fx;
+            best_dist = dist;
+            best_site = skeleton_note_quest_site_name(r_idx);
+            seen = 1;
+            continue;
+        }
+
+        if (dist == best_dist)
+        {
+            ++seen;
+            if (one_in_(seen))
+            {
+                best_y = m_ptr->fy;
+                best_x = m_ptr->fx;
+                best_site = skeleton_note_quest_site_name(r_idx);
+            }
+        }
+    }
+
+    if (p_ptr->aule_level == p_ptr->depth && p_ptr->aule_quest != AULE_QUEST_NOT_STARTED)
+    {
+        int y = p_ptr->aule_forge_y;
+        int x = p_ptr->aule_forge_x;
+        if (in_bounds(y, x) && cave_forge_bold(y, x))
+        {
+            int dist = skeleton_note_manhattan_dist(from_y, from_x, y, x);
+            if (best_y < 0 || dist < best_dist)
+            {
+                best_y = y;
+                best_x = x;
+                best_dist = dist;
+                best_site = "a forge of strange craft";
+                seen = 1;
+            }
+            else if (dist == best_dist)
+            {
+                ++seen;
+                if (one_in_(seen))
+                {
+                    best_y = y;
+                    best_x = x;
+                    best_site = "a forge of strange craft";
+                }
+            }
+        }
+    }
+
+    if (p_ptr->mandos_level == p_ptr->depth && p_ptr->mandos_quest != MANDOS_QUEST_NOT_STARTED)
+    {
+        int y = p_ptr->mandos_vault_y;
+        int x = p_ptr->mandos_vault_x;
+        if (in_bounds(y, x))
+        {
+            int dist = skeleton_note_manhattan_dist(from_y, from_x, y, x);
+            if (best_y < 0 || dist < best_dist)
+            {
+                best_y = y;
+                best_x = x;
+                best_dist = dist;
+                best_site = "a hall of doom";
+                seen = 1;
+            }
+            else if (dist == best_dist)
+            {
+                ++seen;
+                if (one_in_(seen))
+                {
+                    best_y = y;
+                    best_x = x;
+                    best_site = "a hall of doom";
+                }
+            }
+        }
+    }
+
+    if (best_y < 0)
+        return false;
+
+    if (out_y) *out_y = best_y;
+    if (out_x) *out_x = best_x;
+    if (out_dist) *out_dist = best_dist;
+    if (out_site) *out_site = best_site ? best_site : "a Power";
+    return true;
+}
+
+static const char* skeleton_note_stair_site(int feat)
+{
+    switch (feat)
+    {
+    case FEAT_MORE:
+        return "stair down";
+    case FEAT_MORE_SHAFT:
+        return "shaft down";
+    case FEAT_LESS:
+        return "stair up";
+    case FEAT_LESS_SHAFT:
+        return "shaft up";
+    default:
+        return "stairs";
+    }
+}
+
+static void skeleton_note_partition_meta_for_hint(
+    skeleton_hint_kind hint, level_partition_kind* out_kind, big_cave_type_t* out_type)
+{
+    if (out_kind)
+        *out_kind = LEVEL_PART_NONE;
+    if (out_type)
+        *out_type = BIG_CAVE_NONE;
+
+    switch (hint)
+    {
+    case SKEL_HINT_PART_LABYRINTH:
+        if (out_kind) *out_kind = LEVEL_PART_LABYRINTH;
+        break;
+    case SKEL_HINT_PART_CHASM:
+        if (out_kind) *out_kind = LEVEL_PART_CHASM;
+        break;
+    case SKEL_HINT_PART_CAVE:
+        if (out_kind) *out_kind = LEVEL_PART_BIG_CAVE;
+        break;
+    case SKEL_HINT_PART_CAVE_ICE:
+        if (out_kind) *out_kind = LEVEL_PART_BIG_CAVE;
+        if (out_type) *out_type = BIG_CAVE_ICE;
+        break;
+    case SKEL_HINT_PART_CAVE_FIRE:
+        if (out_kind) *out_kind = LEVEL_PART_BIG_CAVE;
+        if (out_type) *out_type = BIG_CAVE_FIRE;
+        break;
+    case SKEL_HINT_PART_CAVE_POIS:
+        if (out_kind) *out_kind = LEVEL_PART_BIG_CAVE;
+        if (out_type) *out_type = BIG_CAVE_POIS;
+        break;
+    default:
+        break;
+    }
+}
+
+static const char* skeleton_note_forge_site(int feat, char* buf, size_t buf_sz)
+{
+    if (feat >= FEAT_FORGE_UNIQUE_HEAD && feat <= FEAT_FORGE_UNIQUE_TAIL)
+    {
+        const char* raw = f_name + f_info[feat].name;
+        size_t w = 0;
+        while (raw[w] && w + 1 < buf_sz)
+        {
+            if (raw[w] == ' ' && raw[w + 1] == '(')
+                break;
+            buf[w] = raw[w];
+            w++;
+        }
+        buf[w] = '\0';
+        if (buf[0])
+            return buf;
+    }
+
+    if (feat >= FEAT_FORGE_GOOD_HEAD && feat <= FEAT_FORGE_GOOD_TAIL)
+        return "enchanted forge";
+
+    return "forge";
+}
+
+static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
 {
     if (skeleton_note_entry_count() == 0)
         return;
 
     skeleton_note_ensure_level_state();
 
-    if (g_skeleton_note_state.note_cap <= 0
-        || g_skeleton_note_state.notes_shown >= g_skeleton_note_state.note_cap)
-    {
+    if (g_skeleton_note_state.note_cap <= 0)
         return;
-    }
+
+    bool at_cap = (g_skeleton_note_state.notes_shown >= g_skeleton_note_state.note_cap);
 
     skeleton_note_profile profile = skeleton_note_profile_for_sval(sval);
     if (profile.note_chance <= 0)
@@ -1696,27 +2942,87 @@ static void skeleton_note_maybe_show(byte sval)
     bool vault_present = level_has_greater_vault();
     bool artifact_in_vault = vault_present && vault_has_ground_artifact();
 
-    skeleton_hint_kind hint = skeleton_note_choose_hint(
-        &profile, &layout, vault_present, artifact_in_vault, sval);
-    if (hint == SKEL_HINT_NONE)
+    u32b base_used_mask = g_skeleton_note_state.hint_used_mask;
+
+    skeleton_hint_kind hint1 = SKEL_HINT_NONE;
+    if (at_cap)
+    {
+        /* Tutorial notes should not be limited by the per-level cap. */
+        if (!skeleton_hint_available(
+                SKEL_HINT_TIP, &layout, vault_present, artifact_in_vault, sval))
+        {
+            return;
+        }
+        hint1 = SKEL_HINT_TIP;
+    }
+    else
+    {
+        bool can_tip = skeleton_hint_available(
+            SKEL_HINT_TIP, &layout, vault_present, artifact_in_vault, sval);
+        int tip_chance = skeleton_note_tip_override_chance(sval, p_ptr->depth);
+        if (can_tip && tip_chance > 0 && percent_chance(tip_chance))
+        {
+            hint1 = SKEL_HINT_TIP;
+        }
+        else
+        {
+            hint1 = skeleton_note_choose_hint(
+                &profile, &layout, vault_present, artifact_in_vault, sval, base_used_mask);
+        }
+    }
+    if (hint1 == SKEL_HINT_NONE)
         return;
-    /* Don't mark TIP hints as used - they can repeat */
-    if (hint != SKEL_HINT_TIP)
-        g_skeleton_note_state.hint_used_mask |= (1 << hint);
+
+    skeleton_hint_kind hint2 = SKEL_HINT_NONE;
+    if (hint1 != SKEL_HINT_TIP)
+    {
+        int size_bucket = skeleton_note_size_bucket(&layout);
+        int second_chance = 0;
+
+        switch (sval)
+        {
+        case SV_SKELETON_ELF:
+            second_chance = 50 + 10 * size_bucket;
+            break;
+        case SV_SKELETON_ORC:
+            second_chance = 30 + 5 * size_bucket;
+            break;
+        default:
+            second_chance = 45 + 10 * size_bucket;
+            break;
+        }
+
+        if (second_chance > 0 && percent_chance(second_chance))
+        {
+            u32b used_mask2 = base_used_mask;
+            used_mask2 |= (1UL << hint1);
+
+            hint2 = skeleton_note_choose_hint(
+                &profile, &layout, vault_present, artifact_in_vault, sval, used_mask2);
+        }
+    }
+
+    /* Don't mark TIP hints as used - they can repeat. */
+    if (hint1 != SKEL_HINT_TIP)
+        g_skeleton_note_state.hint_used_mask |= (1UL << hint1);
+    if (hint2 != SKEL_HINT_NONE && hint2 != SKEL_HINT_TIP)
+        g_skeleton_note_state.hint_used_mask |= (1UL << hint2);
 
     const char* unique_type = NULL;
-    if (hint == SKEL_HINT_UNIQUE_MONSTER)
+    if (hint1 == SKEL_HINT_UNIQUE_MONSTER || hint2 == SKEL_HINT_UNIQUE_MONSTER)
     {
         int candidates[100];
         int n_candidates = 0;
         for (int i = 1; i < mon_max; i++)
         {
-            monster_type *m_ptr = &mon_list[i];
-            if (!m_ptr->r_idx) continue;
-            monster_race *r_ptr = &r_info[m_ptr->r_idx];
+            monster_type* m_ptr = &mon_list[i];
+            if (!m_ptr->r_idx)
+                continue;
+            monster_race* r_ptr = &r_info[m_ptr->r_idx];
             if (r_ptr->flags1 & RF1_UNIQUE)
             {
-                if (n_candidates < 100) candidates[n_candidates++] = m_ptr->r_idx;
+                if (n_candidates < 100)
+                    candidates[n_candidates++] = m_ptr->r_idx;
             }
         }
         if (n_candidates > 0)
@@ -1726,68 +3032,187 @@ static void skeleton_note_maybe_show(byte sval)
         }
     }
 
-    level_partition_kind focus_part = LEVEL_PART_NONE;
-    if (hint == SKEL_HINT_PARTITION_PRESENCE)
+    skeleton_partition_focus focus_part;
+    focus_part.kind = LEVEL_PART_NONE;
+    focus_part.big_cave_type = BIG_CAVE_NONE;
+    if (hint1 == SKEL_HINT_PARTITION_PRESENCE
+        || hint2 == SKEL_HINT_PARTITION_PRESENCE)
+    {
         focus_part = skeleton_pick_partition_presence(&layout);
-    else if (hint == SKEL_HINT_DOMINANT_PARTITION)
-        focus_part = layout.dominant_kind;
+    }
 
     s16b opening_id = skeleton_note_pick_entry(
         sval, SKELETON_NOTE_ROLE_OPENING, SKEL_HINT_NONE);
-    s16b note_id = skeleton_note_pick_entry(
-        sval, SKELETON_NOTE_ROLE_HINT, hint);
     s16b signoff_id = skeleton_note_pick_entry(
         sval, SKELETON_NOTE_ROLE_SIGNOFF, SKEL_HINT_NONE);
 
     const char* opening = opening_id >= 0
         ? (skeleton_note_text + skeleton_note_info[opening_id].text)
         : skeleton_note_fallback_opening(sval);
-    const char* body = note_id >= 0
-        ? (skeleton_note_text + skeleton_note_info[note_id].text)
-        : NULL;
     const char* signoff = signoff_id >= 0
         ? (skeleton_note_text + skeleton_note_info[signoff_id].text)
         : skeleton_note_fallback_signoff(sval);
 
-    /* Fallback for missing template */
-    if (!body)
+    skeleton_note_line body_lines[2];
+    s16b body_ids[2] = {-1, -1};
+    int body_count = 0;
+
+    skeleton_hint_kind hints[2] = {hint1, hint2};
+    int hint_count = (hint2 != SKEL_HINT_NONE) ? 2 : 1;
+
+    char forge_site_buf[64];
+    forge_site_buf[0] = '\0';
+
+    for (int i = 0; i < hint_count; ++i)
     {
-        switch (hint)
+        skeleton_hint_kind hint = hints[i];
+        s16b note_id = skeleton_note_pick_entry(
+            sval, SKELETON_NOTE_ROLE_HINT, hint);
+        if (hint == SKEL_HINT_TIP && note_id < 0)
         {
-        case SKEL_HINT_GREAT_VAULT:
-            body = "A vaulted hall is sealed nearby; my tools failed it.";
-            break;
-        case SKEL_HINT_VAULT_ARTIFACT:
-            body = "Something rare glitters in that warded chamber.";
-            break;
-        case SKEL_HINT_DOMINANT_PARTITION:
-            body = "The layout repeats here—watch the pattern.";
-            break;
-        case SKEL_HINT_PARTITION_PRESENCE:
-            body = "There is a strange section ahead; tread carefully.";
-            break;
-        case SKEL_HINT_LEVEL_SIZE:
-            body = "This floor sprawls farther than expected.";
-            break;
-        case SKEL_HINT_UNIQUE_MONSTER:
-            body = "A terrible foe stalks these halls.";
-            break;
-        case SKEL_HINT_TIP:
-            body = "Watch your step in the dark.";
-            break;
-        default:
-            body = "Bones clutch a faded scrap of text.";
-            break;
+            note_id = skeleton_note_pick_entry_internal(
+                sval, SKELETON_NOTE_ROLE_HINT, hint, true);
         }
+
+        const char* tpl = (note_id >= 0)
+            ? (skeleton_note_text + skeleton_note_info[note_id].text)
+            : NULL;
+
+        if (!tpl)
+        {
+            switch (hint)
+            {
+            case SKEL_HINT_GREAT_VAULT:
+                tpl = "A gate of black stone stands somewhere on this level; the warding is unbroken.";
+                break;
+            case SKEL_HINT_VAULT_ARTIFACT:
+                tpl = "I saw a pale light behind sealed doors; some great work of craft lies within.";
+                break;
+            case SKEL_HINT_STAIRS:
+                tpl = "The {SITE} lies {DIST} {DIR}.";
+                break;
+            case SKEL_HINT_PARTITION_PRESENCE:
+                tpl = "Beware {PART}; {PART_HAZARD}.";
+                break;
+            case SKEL_HINT_PART_LABYRINTH:
+                tpl = "A maze of hewn stone lies here; its turns will unmake your bearings.";
+                break;
+            case SKEL_HINT_PART_CHASM:
+                tpl = "There is a chasm on this level. The dark below drinks both light and courage.";
+                break;
+            case SKEL_HINT_PART_CAVE:
+                tpl = "A great cavern opens on this floor. Sound carries far, and there is little cover.";
+                break;
+            case SKEL_HINT_PART_CAVE_ICE:
+                tpl = "A great ice cavern lies here. The cold bites, and the floor is slick.";
+                break;
+            case SKEL_HINT_PART_CAVE_FIRE:
+                tpl = "A cavern of fire lies here. The air burns and smoke chokes.";
+                break;
+            case SKEL_HINT_PART_CAVE_POIS:
+                tpl = "A cavern of poisonous vapours lies here. The reek clings low and stings the lungs.";
+                break;
+            case SKEL_HINT_FORGE:
+                tpl = "Smoke and hammer-sound: the {SITE} lies {DIST} {DIR}.";
+                break;
+            case SKEL_HINT_UNIQUE_MONSTER:
+                tpl = "A {UNIQUE_TYPE} walks these halls. Hide or flee.";
+                break;
+            case SKEL_HINT_TIP:
+                tpl = "In Angband, silence is life. Shut doors, walk softly, and do not let them hear you.";
+                break;
+            case SKEL_HINT_LEVEL_SIZE:
+                tpl = "This place is {SIZEWORD}; do not expect a short road to anywhere.";
+                break;
+            case SKEL_HINT_QUEST:
+                tpl = "A power stirs in these deeps; I saw {SITE} {DIST} {DIR}.";
+                break;
+            default:
+                tpl = "Bones clutch a faded scrap of text.";
+                break;
+            }
+        }
+
+        body_lines[body_count].tpl = tpl;
+        if (hint == SKEL_HINT_PARTITION_PRESENCE)
+        {
+            body_lines[body_count].presence_kind = focus_part.kind;
+            body_lines[body_count].big_cave_type = focus_part.big_cave_type;
+        }
+        else
+        {
+            skeleton_note_partition_meta_for_hint(
+                hint, &body_lines[body_count].presence_kind,
+                &body_lines[body_count].big_cave_type);
+        }
+        body_lines[body_count].unique_type
+            = (hint == SKEL_HINT_UNIQUE_MONSTER) ? unique_type : NULL;
+        body_lines[body_count].dir = NULL;
+        body_lines[body_count].dist = NULL;
+        body_lines[body_count].site = NULL;
+        body_lines[body_count].size_word = NULL;
+
+        if (hint == SKEL_HINT_STAIRS)
+        {
+            int ty = 0, tx = 0, feat = 0, dist = 0;
+            if (skeleton_note_find_nearest_stairs(
+                    sval, skel_y, skel_x, &ty, &tx, &feat, &dist))
+            {
+                body_lines[body_count].dir
+                    = skeleton_note_direction_phrase(skel_y, skel_x, ty, tx);
+                body_lines[body_count].dist = skeleton_note_distance_phrase(dist);
+                body_lines[body_count].site = skeleton_note_stair_site(feat);
+            }
+        }
+        else if (hint == SKEL_HINT_FORGE)
+        {
+            int ty = 0, tx = 0, feat = 0, dist = 0;
+            if (skeleton_note_find_nearest_forge(
+                    skel_y, skel_x, &ty, &tx, &feat, &dist))
+            {
+                body_lines[body_count].dir
+                    = skeleton_note_direction_phrase(skel_y, skel_x, ty, tx);
+                body_lines[body_count].dist = skeleton_note_distance_phrase(dist);
+                body_lines[body_count].site
+                    = skeleton_note_forge_site(feat, forge_site_buf, sizeof(forge_site_buf));
+            }
+        }
+        else if (hint == SKEL_HINT_LEVEL_SIZE)
+        {
+            body_lines[body_count].size_word = skeleton_note_pick_size_word(&layout);
+        }
+        else if (hint == SKEL_HINT_QUEST)
+        {
+            int ty = 0, tx = 0, dist = 0;
+            const char* site = NULL;
+            if (skeleton_note_find_nearest_quest_site(skel_y, skel_x, &ty, &tx, &dist, &site))
+            {
+                body_lines[body_count].dir
+                    = skeleton_note_direction_phrase(skel_y, skel_x, ty, tx);
+                body_lines[body_count].dist = skeleton_note_distance_phrase(dist);
+                body_lines[body_count].site = site;
+            }
+            else
+            {
+                body_lines[body_count].dist = "somewhere";
+                body_lines[body_count].dir = "on this level";
+                body_lines[body_count].site = "a warded place";
+            }
+        }
+
+        body_ids[body_count] = note_id;
+        body_count++;
     }
 
-    char note_lines[6][100];
+    char note_lines[16][100];
     skeleton_note_build_lines(
-        opening, body, signoff, &layout, focus_part, unique_type, note_lines);
+        opening, body_lines, body_count, signoff, &layout, note_lines, 8);
     pause_with_text(note_lines, 4, 8, NULL, 0);
-    g_skeleton_note_state.notes_shown++;
+    if (hint1 != SKEL_HINT_TIP)
+        g_skeleton_note_state.notes_shown++;
     skeleton_note_record_seen(opening_id);
-    skeleton_note_record_seen(note_id);
+    for (int i = 0; i < body_count; ++i)
+        skeleton_note_record_seen(body_ids[i]);
     skeleton_note_record_seen(signoff_id);
 }
 
@@ -1801,9 +3226,6 @@ static void do_cmd_search_skeleton(int y, int x, s16b o_idx)
     bool search_failed = true;
     int drop_result = 0;
 
-    (void)y;
-    (void)x;
-
     object_generation_mode = OB_GEN_MODE_SKELETON;
     object_type* o_ptr = &o_list[o_idx];
 
@@ -1813,7 +3235,7 @@ static void do_cmd_search_skeleton(int y, int x, s16b o_idx)
         return;
     }
 
-    skeleton_note_maybe_show(o_ptr->sval);
+    skeleton_note_maybe_show(o_ptr->sval, y, x);
 
     object_type* i_ptr;
     object_type object_type_body;

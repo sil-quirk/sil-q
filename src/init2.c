@@ -1684,8 +1684,8 @@ static errr init_skeleton_note_info(void)
 
     if (z_info && z_info->skeleton_note_max <= 0)
     {
-        log_warn("skeleton_note_max not set in limits.txt (or 0), defaulting to 160");
-        z_info->skeleton_note_max = 160;
+        log_warn("skeleton_note_max not set in limits.txt (or 0), defaulting to 420");
+        z_info->skeleton_note_max = 420;
     }
     else
     {

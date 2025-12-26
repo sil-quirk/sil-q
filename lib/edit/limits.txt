@@ -88,7 +88,7 @@ M:Y:4
 M:Z:62
 
 # Maximum number of skeleton note templates
-M:X:160
+M:X:420
 
 # Previously we had the maximum number of monsters on the level here
 # but it has been made into a compile-time #define
