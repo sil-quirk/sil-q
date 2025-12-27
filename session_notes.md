@@ -8011,3 +8011,5 @@ The script now fully matches the game's drop generation logic for all item types
 - `src/spells1.c`: combat roll dice for `GF_LIGHT` now record `ds = cave_light[y][x]` (the actual light-level sides used) so the shown dice match damage dealt.
 - `src/xtra1.c`, `src/externs.h`: added `song_effective_skill()` helper (minor theme penalty + silence dampening + woven synergy) and refactored `ability_bonus()` to use it.
 - `src/xtra1.c`: reduced woven synergy bonus from ~20% to ~10% of base Song skill.
+- `src/spells1.c`: `GF_LIGHT` resistance checks now use `dif >= 0` to identify Song of Trees (so low song scores still use song skill, not Will).
+- `src/spells1.c`: trolls killed by Song of Trees radiant damage now turn into `FEAT_RUBBLE` (Kemenrauko-style), unless on stairs.

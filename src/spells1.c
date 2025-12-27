@@ -3478,17 +3478,11 @@ static bool project_m(
                     int skill_to_use;
                     
                     /* Determine skill to use for resistance check */
-                    /* If ds > 10, it's likely a song score, otherwise use Will */
-                    if (ds > 10)
-                    {
-                        /* Song of Trees - ds contains song score */
-                        skill_to_use = ds;
-                    }
+                    /* If dif >= 0, this is Song of Trees (dif contains song score), otherwise use Will */
+                    if (dif >= 0)
+                        skill_to_use = dif;
                     else
-                    {
-                        /* Gem/Staff of Light - use player's Will skill */
                         skill_to_use = p_ptr->skill_use[S_WIL];
-                    }
                     
                     /* Get monster's Will resistance */
                     resistance = monster_skill(m_ptr, S_WIL);
@@ -3924,6 +3918,13 @@ static bool project_m(
         /* Dead monster */
         if (m_ptr->hp <= 0)
         {
+            /* Song of Trees: trolls slain by radiant light crumble into rubble (Kemenrauko-style). */
+            if ((typ == GF_LIGHT) && (who < 0) && (dif >= 0)
+                && (r_ptr->flags3 & RF3_TROLL) && !cave_stair_bold(y, x))
+            {
+                cave_set_feat(y, x, FEAT_RUBBLE);
+            }
+
             /* Generate treasure, etc */
             monster_death(cave_m_idx[y][x]);
 
@@ -6843,7 +6844,8 @@ void sing_song_of_trees(int score)
     int px = p_ptr->px;
     int rad = 1 + (score / 5); // Radius increases with song skill
     int dd = 1 + (score / 10); // Number of dice based on song skill
-    int ds = score;            // Dice sides based on song skill (used to identify Song vs Gem in GF_LIGHT handler)
+    int ds = score;            // Not used for GF_LIGHT damage; kept for debugging
+    int dif = score;           // Song score for GF_LIGHT resistance checks
     
     log_debug("sing_song_of_trees: score=%d rad=%d dd=%d ds=%d", score, rad, dd, ds);
     
@@ -6855,7 +6857,7 @@ void sing_song_of_trees(int score)
     /* IMPORTANT: Use uniform=true so dd doesn't decay with distance (damage is based on light_level at monster's position) */
     u32b flg = PROJECT_BOOM | PROJECT_KILL | PROJECT_PASS | PROJECT_HIDE;
     
-    (void)project(-1, rad, py, px, py, px, dd, ds, -1, GF_LIGHT, flg, 0, true);
+    (void)project(-1, rad, py, px, py, px, dd, ds, dif, GF_LIGHT, flg, 0, true);
 }
 
 void sing_song_of_lorien(int score)
