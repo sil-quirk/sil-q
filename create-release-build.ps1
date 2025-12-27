@@ -135,6 +135,20 @@ foreach ($folder in $libFoldersToCopy) {
                     Write-Host "  [SKIP] lib/$folder/sound/packs (not found)"
                 }
             }
+
+            # Remove .wav files from the *root* of the sound folder (keep sounds in subfolders)
+            $rootSoundPath = "$dstFolder/sound"
+            if (Test-Path $rootSoundPath) {
+                $wavFiles = Get-ChildItem -Path $rootSoundPath -File -Filter "*.wav" -ErrorAction SilentlyContinue
+                if ($wavFiles -and $wavFiles.Count -gt 0) {
+                    foreach ($wf in $wavFiles) {
+                        Remove-Item -Force $wf.FullName
+                    }
+                    Write-Host "  [OK] lib/$folder (sound: removed $($wavFiles.Count) .wav files from sound root)"
+                } else {
+                    Write-Host "  [SKIP] lib/$folder (sound: no .wav files at root)"
+                }
+            }
             
             # Remove non-16x16.png files from graf subfolder
             $grafPath = "$dstFolder/graf"
@@ -219,7 +233,7 @@ $manifestText += "  pref/                      - Default preferences and keybind
 $manifestText += "  data/                      - Empty directory (for future use)`n"
 $manifestText += "  xtra/                      - Extended resources (fonts, sound, music, minimal graphics)`n"
 $manifestText += "    font/                    - Font files`n"
-$manifestText += "    sound/                   - Audio files (sound packs excluded)`n"
+$manifestText += "    sound/                   - Audio files (sound packs excluded; root .wav files excluded)`n"
 $manifestText += "    music/                   - Background music files`n"
 $manifestText += "    graf/                    - Graphics (only 16x16.png)`n"
 $manifestText += "  docs/                      - Documentation and manuals (6 files)`n"

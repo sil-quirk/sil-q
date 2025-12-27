@@ -7997,3 +7997,11 @@ The script now fully matches the game's drop generation logic for all item types
 
 ## 2025-12-26: Star iron pictogram
 - lib/pref/graf-new.prf: set `K:491` (Piece of Star Iron) to `0x93/0x85` (tileset row 19, col 5).
+
+## 2025-12-26: Crash fix when escaping to the Gates (depth 0)
+- `src/generate.c`: make dungeon-generation state `dun` use file-scope storage (avoid dangling stack pointer) and reset generation metadata in `gates_gen()`; add a safe fallback if the Gates vault/stair placement fails instead of placing the player at (0,0).
+- build-cmake.bat: success (standard + portable builds).
+
+## 2025-12-27: Savefile load crash fix (player at 0,0 on depth 0)
+- `src/load.c`: treat out-of-bounds or boundary player coords in the dungeon header as repairable corruption; defer `player_place()` until after monsters load, enforce perma-wall boundary, and relocate player to a safe staircase/floor tile to prevent `update_view()` OOB crashes.
+- Verified by loading corrupted `Glorfindel` save (header `py=0,px=0` on `33x66` Gates); loader repairs to a valid interior grid and the game no longer crashes on load.

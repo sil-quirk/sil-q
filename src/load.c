@@ -1953,6 +1953,9 @@ static errr rd_dungeon(void)
     byte tmp8u;
 
     u16b limit;
+    bool defer_player_placement = false;
+    s16b header_py = 0;
+    s16b header_px = 0;
 
     log_debug("rd_dungeon: ENTRY");
     log_trace("[load:%06u] === BEGIN DUNGEON ===", (unsigned)load_byte_offset);
@@ -1969,6 +1972,8 @@ static errr rd_dungeon(void)
 
     log_debug("rd_dungeon: Read header - depth=%d, py=%d, px=%d, map=%dx%d", 
              depth, py, px, p_ptr->cur_map_hgt, p_ptr->cur_map_wid);
+    header_py = py;
+    header_px = px;
 
     /* Ignore illegal dungeons */
     if ((depth < 0) || (depth > MORGOTH_DEPTH))
@@ -1987,17 +1992,41 @@ static errr rd_dungeon(void)
         return (0);
     }
 
-    /* Ignore illegal dungeons */
-    if ((px < 0) || (px >= p_ptr->cur_map_wid) || (py < 0)
+    /* The savefile header's player position is used later for player placement.
+     *
+     * The FOV/view code assumes the player is fully inside the outer walls.
+     * If the save was written mid-crash/mid-transition, this can be (0,0) or
+     * otherwise unsafe, which would crash on the first update_view().
+     *
+     * Treat unsafe positions as "repairable corruption" and defer placement
+     * until after monsters are loaded, so we can pick an unoccupied grid. */
+    if ((px < 0) || (py < 0) || (px >= p_ptr->cur_map_wid)
         || (py >= p_ptr->cur_map_hgt))
     {
-        log_error("rd_dungeon: Illegal player location py=%d px=%d (map=%dx%d)", 
+        log_warn("rd_dungeon: Savefile has out-of-bounds player location py=%d px=%d (map=%dx%d); will repair",
                  py, px, p_ptr->cur_map_hgt, p_ptr->cur_map_wid);
-        note(format("Ignoring illegal player location (%d,%d).", py, px));
-        return (1);
+        defer_player_placement = true;
     }
-    
-    log_debug("rd_dungeon: Player position valid");
+    else if (!in_bounds_fully(py, px))
+    {
+        log_warn("rd_dungeon: Savefile has boundary player location py=%d px=%d (map=%dx%d); will repair",
+                 py, px, p_ptr->cur_map_hgt, p_ptr->cur_map_wid);
+        defer_player_placement = true;
+    }
+    else
+    {
+        log_debug("rd_dungeon: Player position valid");
+    }
+
+    /* Clear per-grid entity maps; savefiles store entities separately. */
+    for (y = 0; y < p_ptr->cur_map_hgt; ++y)
+    {
+        for (x = 0; x < p_ptr->cur_map_wid; ++x)
+        {
+            cave_o_idx[y][x] = 0;
+            cave_m_idx[y][x] = 0;
+        }
+    }
 
     /*** Run length decoding of cave_info ***/
 
@@ -2195,14 +2224,21 @@ static errr rd_dungeon(void)
     /* Load depth */
     p_ptr->depth = depth;
 
-    /* Place player in dungeon */
-    if (!player_place(py, px))
+    /* Place player in dungeon (unless we need to repair after loading monsters) */
+    if (!defer_player_placement)
     {
-        log_error("Failed to place player at (%d,%d) in dungeon (depth=%d, map=%dx%d)", py, px, depth, p_ptr->cur_map_hgt, p_ptr->cur_map_wid);
-        note(format("Cannot place player (%d,%d)!", py, px));
-        return (-1);
+        if (!player_place(py, px))
+        {
+            log_error("Failed to place player at (%d,%d) in dungeon (depth=%d, map=%dx%d)", py, px, depth, p_ptr->cur_map_hgt, p_ptr->cur_map_wid);
+            note(format("Cannot place player (%d,%d)!", py, px));
+            return (-1);
+        }
+        log_debug("Player placed successfully at (%d,%d)", py, px);
     }
-    log_debug("Player placed successfully at (%d,%d)", py, px);
+    else
+    {
+        note("Repairing invalid player location in savefile...");
+    }
 
     /*** Objects ***/
 
@@ -2347,6 +2383,159 @@ static errr rd_dungeon(void)
         }
     }
     log_trace("[load:%06u] === END MONSTERS ===", (unsigned)load_byte_offset);
+
+    /*** Player (repair path) ***/
+
+    if (defer_player_placement)
+    {
+        int ry = -1, rx = -1;
+        bool found = false;
+
+        /* Enforce a permanent wall boundary to keep view/FOV safe. */
+        if ((p_ptr->cur_map_hgt >= 2) && (p_ptr->cur_map_wid >= 2))
+        {
+            int yy, xx;
+            for (xx = 0; xx < p_ptr->cur_map_wid; ++xx)
+            {
+                cave_set_feat(0, xx, FEAT_WALL_PERM);
+                cave_set_feat(p_ptr->cur_map_hgt - 1, xx, FEAT_WALL_PERM);
+            }
+            for (yy = 0; yy < p_ptr->cur_map_hgt; ++yy)
+            {
+                cave_set_feat(yy, 0, FEAT_WALL_PERM);
+                cave_set_feat(yy, p_ptr->cur_map_wid - 1, FEAT_WALL_PERM);
+            }
+        }
+
+        /* Prefer a staircase for recovery. */
+        if (depth == 0)
+        {
+            for (y = 1; y < p_ptr->cur_map_hgt - 1 && !found; ++y)
+            {
+                for (x = 1; x < p_ptr->cur_map_wid - 1; ++x)
+                {
+                    if (cave_down_stairs_bold(y, x) && (cave_m_idx[y][x] == 0))
+                    {
+                        ry = y;
+                        rx = x;
+                        found = true;
+                        break;
+                    }
+                }
+            }
+        }
+        else
+        {
+            for (y = 1; y < p_ptr->cur_map_hgt - 1 && !found; ++y)
+            {
+                for (x = 1; x < p_ptr->cur_map_wid - 1; ++x)
+                {
+                    if (cave_up_stairs_bold(y, x) && (cave_m_idx[y][x] == 0))
+                    {
+                        ry = y;
+                        rx = x;
+                        found = true;
+                        break;
+                    }
+                }
+            }
+            for (y = 1; y < p_ptr->cur_map_hgt - 1 && !found; ++y)
+            {
+                for (x = 1; x < p_ptr->cur_map_wid - 1; ++x)
+                {
+                    if (cave_down_stairs_bold(y, x) && (cave_m_idx[y][x] == 0))
+                    {
+                        ry = y;
+                        rx = x;
+                        found = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        /* Fallback: any empty, non-chasm, unoccupied floor. */
+        if (!found)
+        {
+            for (y = 1; y < p_ptr->cur_map_hgt - 1 && !found; ++y)
+            {
+                for (x = 1; x < p_ptr->cur_map_wid - 1; ++x)
+                {
+                    if (cave_empty_bold(y, x))
+                    {
+                        ry = y;
+                        rx = x;
+                        found = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        /* Final fallback: clamp to center and search outward. */
+        if (!found)
+        {
+            int cy = p_ptr->cur_map_hgt / 2;
+            int cx = p_ptr->cur_map_wid / 2;
+            int max_r = MAX(p_ptr->cur_map_hgt, p_ptr->cur_map_wid);
+
+            if (cy < 1)
+                cy = 1;
+            if (cx < 1)
+                cx = 1;
+            if (cy > p_ptr->cur_map_hgt - 2)
+                cy = p_ptr->cur_map_hgt - 2;
+            if (cx > p_ptr->cur_map_wid - 2)
+                cx = p_ptr->cur_map_wid - 2;
+
+            for (int r = 0; (r <= max_r) && !found; ++r)
+            {
+                int y1 = cy - r;
+                int y2 = cy + r;
+                int x1 = cx - r;
+                int x2 = cx + r;
+
+                for (int yy = y1; (yy <= y2) && !found; ++yy)
+                {
+                    for (int xx = x1; xx <= x2; ++xx)
+                    {
+                        if (!in_bounds_fully(yy, xx))
+                            continue;
+                        if (cave_m_idx[yy][xx] != 0)
+                            continue;
+                        if (!cave_floor_bold(yy, xx))
+                            continue;
+                        if (cave_feat[yy][xx] == FEAT_CHASM)
+                            continue;
+                        ry = yy;
+                        rx = xx;
+                        found = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!found)
+        {
+            log_error("rd_dungeon: Could not repair player location (header py=%d px=%d, depth=%d, map=%dx%d)",
+                      header_py, header_px, depth, p_ptr->cur_map_hgt, p_ptr->cur_map_wid);
+            note("Savefile recovery failed (no safe grid found).");
+            return (-1);
+        }
+
+        /* Place the player now that the map and monsters are known. */
+        if (!player_place(ry, rx))
+        {
+            log_error("rd_dungeon: Failed to place repaired player at (%d,%d) (header py=%d px=%d, depth=%d)",
+                      ry, rx, header_py, header_px, depth);
+            note("Savefile recovery failed (cannot place player).");
+            return (-1);
+        }
+
+        log_warn("rd_dungeon: Repaired player location from (%d,%d) to (%d,%d) at depth %d",
+                 header_py, header_px, ry, rx, depth);
+    }
 
     /*** Holding ***/
 

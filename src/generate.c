@@ -977,7 +977,8 @@ struct dun_data
 /*
  * Dungeon generation data -- see "cave_gen()"
  */
-static dun_data* dun;
+static dun_data dun_body;
+static dun_data* dun = &dun_body;
 
 /*
  * Array[DUNGEON_HGT][DUNGEON_WID].
@@ -13164,8 +13165,6 @@ static void ensure_sunlight_for_varda(void)
 
 /*
  * Generate a new dungeon level
- *
- * Note that "dun_body" adds about 4000 bytes of memory to the stack.
  */
 static bool cave_gen(void)
 {
@@ -13218,11 +13217,7 @@ static bool cave_gen(void)
         p_ptr->varda_vault_ready = 1;
     }
     s16b mon_gen, obj_room_gen;
-
-    dun_data dun_body;
-
-    /* Global data */
-    dun = &dun_body;
+    memset(dun, 0, sizeof(*dun));
 
     /* Sil - determine the dungeon size */
     /* Generate square levels: 4*11 to 15*11 (44x44 to 165x165) */
@@ -14277,7 +14272,21 @@ static void gates_gen(void)
 {
     int y, x;
     int i;
-    int py = 0, px = 0;
+    int py = -1, px = -1;
+
+    memset(dun, 0, sizeof(*dun));
+    layout_anchor_reset();
+    reset_morgoth_layout_state(false);
+    current_partition_rows = 0;
+    current_partition_cols = 0;
+    current_partition_count = 0;
+    current_labyrinth_partitions = 0;
+    for (i = 0; i < PARTITION_META_MAX; ++i)
+    {
+        current_partition_modes[i] = QUAD_MODE_ROOMY;
+        current_partition_densities[i] = DENSITY_NORMAL;
+        current_partition_big_cave_types[i] = BIG_CAVE_NONE;
+    }
 
     /* Restrict to single-screen size */
     p_ptr->cur_map_hgt = (3 * PANEL_HGT);
@@ -14297,7 +14306,10 @@ static void gates_gen(void)
     /*set the permanent walls*/
     set_perm_boundry();
 
-    build_type10(17, 33);
+    if (!build_type10(17, 33))
+    {
+        log_error("gates_gen: failed to build Gates of Angband vault");
+    }
 
     /* Find an up staircase */
     for (y = 0; y < p_ptr->cur_map_hgt; y++)
@@ -14312,9 +14324,21 @@ static void gates_gen(void)
         }
     }
 
-    if ((py == 0) || (px == 0))
+    if ((py < 0) || (px < 0))
     {
         msg_format("Failed to find a down staircase in the gates level");
+        py = p_ptr->cur_map_hgt / 2;
+        px = p_ptr->cur_map_wid / 2;
+        for (y = py - 1; y <= py + 1; ++y)
+        {
+            for (x = px - 1; x <= px + 1; ++x)
+            {
+                if (!in_bounds(y, x))
+                    continue;
+                cave_set_feat(y, x, FEAT_FLOOR);
+            }
+        }
+        cave_set_feat(py, px, FEAT_MORE);
     }
 
     /* Delete any monster on the starting square */
