@@ -1630,7 +1630,29 @@ char* oath_reward[] = {
     "+2 Light Radius",
 };
 
-bool oath_invalid(int i) { return ((p_ptr->oaths_broken & oath_flag[i]) > 0); }
+static const char* oath_name_short(int oath_id)
+{
+    if (oath_id < 0 || oath_id >= (int)N_ELEMENTS(oath_name)) return "Unknown";
+    return oath_name[oath_id];
+}
+
+static const char* oath_desc2_short(int oath_id)
+{
+    if (oath_id < 0 || oath_id >= (int)N_ELEMENTS(oath_desc2)) return "";
+    return oath_desc2[oath_id];
+}
+
+static const char* oath_reward_short(int oath_id)
+{
+    if (oath_id < 0 || oath_id >= (int)N_ELEMENTS(oath_reward)) return "";
+    return oath_reward[oath_id];
+}
+
+bool oath_invalid(int i)
+{
+    if (i < 0 || i >= (int)N_ELEMENTS(oath_flag)) return false;
+    return ((p_ptr->oaths_broken & oath_flag[i]) > 0);
+}
 
 bool chosen_oath(int oath)
 {
@@ -1714,7 +1736,7 @@ int oath_menu(int* highlight)
 {
     int i, ch;
     int visible_count = 0;
-    /* Support up to 16 oaths without realloc; actual used = z_info->oath_max */
+    /* Support up to 16 oaths without realloc. */
     int visible_oaths[16]; // Map display letters to oath indices
     char buf[80];
     byte attr;
@@ -1736,9 +1758,11 @@ int oath_menu(int* highlight)
     // Title in the abilities column
     Term_putstr(COL_ABILITY, 2, -1, TERM_WHITE, "Oaths");
 
-    // Build visible oaths list and display them (1..z_info->oath_max-1)
-    for (i = 1; z_info && i < z_info->oath_max; i++)
+    // Build visible oaths list and display them (1..OATH_TYPES)
+    for (i = 1; i <= OATH_TYPES && i < (int)N_ELEMENTS(oath_name); i++)
     {
+        if (visible_count >= (int)N_ELEMENTS(visible_oaths)) break;
+
         // Map this visible oath to its position  
         visible_oaths[visible_count] = i;
         
@@ -1753,14 +1777,7 @@ int oath_menu(int* highlight)
         }
         
         // Format oath name with status indicator
-        if (oath_invalid(i))
-        {
-            strnfmt(buf, 80, "%c) %s", (char)'a' + visible_count, oath_name[i]);
-        }
-        else
-        {
-            strnfmt(buf, 80, "%c) %s", (char)'a' + visible_count, oath_name[i]);
-        }
+        strnfmt(buf, 80, "%c) %s", (char)'a' + visible_count, oath_name_short(i));
         
         // Display in abilities column with proper spacing
         Term_putstr(COL_ABILITY, 4 + visible_count, -1, attr, buf);
@@ -1805,7 +1822,7 @@ int oath_menu(int* highlight)
                 
                 strncpy(line1, quote, split_pos);
                 line1[split_pos] = '\0';
-                strcpy(line2, quote + split_pos + (quote[split_pos] == ' ' ? 1 : 0));
+                SDL_strlcpy(line2, quote + split_pos + (quote[split_pos] == ' ' ? 1 : 0), sizeof(line2));
                 
                 Term_putstr(COL_DESCRIPTION, 5, -1, TERM_SLATE, line1);
                 Term_putstr(COL_DESCRIPTION, 6, -1, TERM_SLATE, line2);
@@ -1818,7 +1835,8 @@ int oath_menu(int* highlight)
             // Oath vow
             Term_putstr(COL_DESCRIPTION, 8, -1, TERM_WHITE, "Vow:");
             // Wrap long vows
-            if (strlen(oath_desc1[oath_idx]) > 30)
+            if (oath_idx >= 0 && oath_idx < (int)N_ELEMENTS(oath_desc1)
+                && strlen(oath_desc1[oath_idx]) > 30)
             {
                 char vow_line1[35], vow_line2[35];
                 int vow_split = 30;
@@ -1827,23 +1845,24 @@ int oath_menu(int* highlight)
                 
                 strncpy(vow_line1, oath_desc1[oath_idx], vow_split);
                 vow_line1[vow_split] = '\0';
-                strcpy(vow_line2, oath_desc1[oath_idx] + vow_split + 1);
+                SDL_strlcpy(vow_line2, oath_desc1[oath_idx] + vow_split + 1, sizeof(vow_line2));
                 
                 Term_putstr(COL_DESCRIPTION, 9, -1, TERM_SLATE, vow_line1);
                 Term_putstr(COL_DESCRIPTION, 10, -1, TERM_SLATE, vow_line2);
             }
             else
             {
-                Term_putstr(COL_DESCRIPTION, 9, -1, TERM_SLATE, oath_desc1[oath_idx]);
+                const char* vow = (oath_idx >= 0 && oath_idx < (int)N_ELEMENTS(oath_desc1)) ? oath_desc1[oath_idx] : "";
+                Term_putstr(COL_DESCRIPTION, 9, -1, TERM_SLATE, vow);
             }
             
             // Restriction
             Term_putstr(COL_DESCRIPTION, 12, -1, TERM_L_RED, "Restriction:");
-            Term_putstr(COL_DESCRIPTION, 13, -1, TERM_L_RED, oath_desc2[oath_idx]);
+            Term_putstr(COL_DESCRIPTION, 13, -1, TERM_L_RED, oath_desc2_short(oath_idx));
             
             // Reward
             Term_putstr(COL_DESCRIPTION, 15, -1, TERM_L_GREEN, "Reward:");
-            Term_putstr(COL_DESCRIPTION, 16, -1, TERM_L_GREEN, oath_reward[oath_idx]);
+            Term_putstr(COL_DESCRIPTION, 16, -1, TERM_L_GREEN, oath_reward_short(oath_idx));
         }
         
         // Navigation instructions at bottom
@@ -1881,12 +1900,13 @@ int oath_menu(int* highlight)
     if ((ch == ESCAPE) || (ch == 'q') || (ch == '4'))
     {
         /* Return a sentinel that's outside valid oath indices */
-        return (z_info ? z_info->oath_max + 1 : OATH_TYPES + 1);
+        return OATH_TYPES + 1;
     }
 
     /* Enter or Space - select current highlighted oath */
     if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
     {
+        if (visible_count <= 0) return OATH_TYPES + 1;
         return visible_oaths[*highlight - 1]; // Return actual oath index
     }
 
@@ -2177,7 +2197,7 @@ int abilities_menu2(int skilltype, int* highlight)
             && (p_ptr->oath_type > 0))
         {
             strnfmt(buf, 80, "%c) %s: %s", (char)'a' + visible_count,
-                (b_name + b_ptr->name), oath_name[p_ptr->oath_type]);
+                (b_name + b_ptr->name), oath_name_short(p_ptr->oath_type));
         }
         else
         {
@@ -2462,7 +2482,7 @@ int abilities_menu2(int skilltype, int* highlight)
             {
                 Term_putstr(COL_DESCRIPTION, 10, -1, TERM_WHITE, "Oath:");
                 Term_putstr(COL_DESCRIPTION + 6, 10, -1, TERM_L_BLUE,
-                    oath_name[p_ptr->oath_type]);
+                    oath_name_short(p_ptr->oath_type));
 
                 /* Indent output by 2 character, and wrap at column 70 */
                 text_out_wrap = 79;
@@ -2471,7 +2491,7 @@ int abilities_menu2(int skilltype, int* highlight)
                 /* History */
                 Term_gotoxy(text_out_indent, 11);
                 strnfmt(buf, 80, "You have sworn not to %s.",
-                    oath_desc2[p_ptr->oath_type]);
+                    oath_desc2_short(p_ptr->oath_type));
                 text_out_to_screen(TERM_L_WHITE, buf);
 
                 /* Reset text_out() vars */
@@ -2483,7 +2503,7 @@ int abilities_menu2(int skilltype, int* highlight)
                         "You are an oathbreaker.");
                 else
                     Term_putstr(COL_DESCRIPTION, 14, -1, TERM_WHITE,
-                        format("Bonus: %s.", oath_reward[p_ptr->oath_type]));
+                        format("Bonus: %s.", oath_reward_short(p_ptr->oath_type)));
             }
             // if you have the unique bane special ability
             else if ((skilltype == S_SPC) && (b_ptr->abilitynum == SPC_UNIQUE_BANE))
@@ -2796,7 +2816,7 @@ void do_cmd_ability_screen(void)
                                         oathchoice = oath_menu(&highlight3);
 
                                         if ((oathchoice >= 1)
-                                            && (oathchoice <= (z_info ? z_info->oath_max - 1 : OATH_TYPES)))
+                                            && (oathchoice <= OATH_TYPES))
                                         {
                                             if (oath_invalid(oathchoice))
                                             {
@@ -2810,7 +2830,7 @@ void do_cmd_ability_screen(void)
                                                 return_to_abilities = true;
                                             }
                                         }
-                                        else if (oathchoice == (z_info ? z_info->oath_max + 1 : OATH_TYPES + 1))
+                                        else if (oathchoice == OATH_TYPES + 1)
                                         {
                                             return_to_abilities = true;
                                             return_to_skills = true;
@@ -2905,7 +2925,7 @@ void do_cmd_ability_screen(void)
                                                                skilltype,
                                                                abilitynum)])
                                                               ->name,
-                                                    oath_name[oathchoice]),
+                                                    oath_name_short(oathchoice)),
                                                 p_ptr->depth);
                                         }
 

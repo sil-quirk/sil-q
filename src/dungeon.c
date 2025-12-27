@@ -4025,8 +4025,23 @@ PlayResult play_game(void)
         process_player_name(true);  /* Update savefile path */
         log_debug("Player name set to: %s (character %d), savefile: %s", op_ptr->full_name, p_ptr->pcharacter, savefile);
 
-    /* Attempt to load (manual path) */
-    (void)load_player();
+        /* Attempt to load (manual path) */
+        (void)load_player();
+
+        /*
+         * If we loaded a dead character savefile, load_player() returns false but
+         * leaves p_ptr populated with the dead character's state. Starting a new
+         * character from that state can crash (notably in oath selection), so
+         * wipe the player again before continuing.
+         */
+        if (character_loaded_dead)
+        {
+            log_info("Loaded dead character from '%s' - wiping before new character birth",
+                savefile);
+            player_wipe();
+            character_loaded_dead = false;
+        }
+
         log_info(character_loaded ? "Character loaded" :
             (character_loaded_dead ? "Character loaded dead" : "Character creation started"));
 

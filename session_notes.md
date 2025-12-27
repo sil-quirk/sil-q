@@ -12,6 +12,9 @@
 ## 2025-12-26: Ability prerequisite feedback
 - `src/cmd4.c`: split skill-point and ability-prerequisite checks so the abilities menu reports the correct reason when a purchase is blocked.
 
+## 2025-12-27: Sunlight floor objects show in `]` list
+- `src/xtra2.c`: treat `FEAT_SUNLIGHT` like floor for object-interesting/lookup logic so marked objects on sunlight tiles appear in the `]` nearby objects list (and unified look “more”/object scan).
+
 ## 2025-12-26: Sidebar fields not clearing on shrink
 - Symptom: when a right-aligned sidebar value shrinks (eg `1,754` XP -> `254`), stale left-side characters remain until `Ctrl+R`.
 - Fix: `src/xtra1.c` now clears the fixed-width sidebar fields before repaint in `prt_exp()`, `prt_mel()`, `prt_arc()`, and `prt_evn()`.
@@ -8013,3 +8016,8 @@ The script now fully matches the game's drop generation logic for all item types
 - `src/xtra1.c`: reduced woven synergy bonus from ~20% to ~10% of base Song skill.
 - `src/spells1.c`: `GF_LIGHT` resistance checks now use `dif >= 0` to identify Song of Trees (so low song scores still use song skill, not Will).
 - `src/spells1.c`: trolls killed by Song of Trees radiant damage now turn into `FEAT_RUBBLE` (Kemenrauko-style), unless on stairs.
+
+## 2025-12-27: Oath of Light post-death crash fix
+- `src/dungeon.c`: if `load_player()` loads a dead character, immediately `player_wipe()` before `player_birth()` (prevents using dead-save state during oath selection).
+- `src/cmd4.c`: fix `oath_menu()`/ability display to only enumerate `OATH_TYPES`, add bounds-checked oath text helpers, and replace unsafe `strcpy()` in oath wrapping with `SDL_strlcpy()` (prevents OOB/overflow crashes).
+- build-cmake.bat: success (standard + portable builds).

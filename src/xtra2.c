@@ -2584,12 +2584,35 @@ void monster_death(int m_idx)
                      p_ptr->orome_wolves_killed, p_ptr->orome_spiders_killed, 
                      p_ptr->orome_serpents_killed, p_ptr->orome_vampires_killed);
         }
+        /* Spider check: exclude trivial 'hatchling' variants from the Oromë count */
         if (r_ptr->flags3 & RF3_SPIDER) {
-            p_ptr->orome_spiders_killed++;
-            target_killed = true;
-            log_trace("Oromë quest: Spider killed (wolves=%d, spiders=%d, serpents=%d, vampires=%d)", 
-                     p_ptr->orome_wolves_killed, p_ptr->orome_spiders_killed, 
-                     p_ptr->orome_serpents_killed, p_ptr->orome_vampires_killed);
+            bool is_hatchling = false;
+            if (r_ptr->name)
+            {
+                const char* rname = r_name + r_ptr->name;
+                /* Case-insensitive substring search for "hatchling" */
+                for (const char* p = rname; *p; p++)
+                {
+                    if (SDL_strncasecmp(p, "hatchling", 9) == 0)
+                    {
+                        is_hatchling = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!is_hatchling)
+            {
+                p_ptr->orome_spiders_killed++;
+                target_killed = true;
+                log_trace("Oromë quest: Spider killed (wolves=%d, spiders=%d, serpents=%d, vampires=%d)", 
+                         p_ptr->orome_wolves_killed, p_ptr->orome_spiders_killed, 
+                         p_ptr->orome_serpents_killed, p_ptr->orome_vampires_killed);
+            }
+            else
+            {
+                log_trace("Oromë quest: Spider hatchling excluded from spider count (name='%s')", (r_ptr->name ? (r_name + r_ptr->name) : "<unnamed>"));
+            }
         }
         if (r_ptr->flags3 & RF3_SERPENT) {
             p_ptr->orome_serpents_killed++;
@@ -3705,7 +3728,7 @@ static bool determine_location_is_interesting(int y, int x)
 
     /* Check for objects first (only shown when on floors, not when in rubble) */
     /* This is checked BEFORE monsters to prevent showing unmarked objects under detected monsters */
-    if (cave_floorlike_bold(y, x))
+    if (cave_floorlike_bold(y, x) || (cave_feat[y][x] == FEAT_SUNLIGHT))
     {
         /* Scan all objects in the grid */
         for (o_ptr = get_first_object(y, x); o_ptr;
@@ -4012,7 +4035,8 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info, bool us
                         }
 
                         // known objects on the floor
-                        else if (cave_floorlike_bold(y, x) && cave_o_idx[y][x]
+                        else if ((cave_floorlike_bold(y, x) || (cave_feat[y][x] == FEAT_SUNLIGHT))
+                            && cave_o_idx[y][x]
                             && (&o_list[cave_o_idx[y][x]])->marked)
                         {
                             show_more = true;
@@ -4176,7 +4200,7 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info, bool us
                 continue;
 
             /* Objects (only shown when on floors, not when in rubble) */
-            if (cave_floorlike_bold(y, x))
+            if (cave_floorlike_bold(y, x) || (cave_feat[y][x] == FEAT_SUNLIGHT))
             {
                 /* Describe it */
                 if (o_ptr->marked)
