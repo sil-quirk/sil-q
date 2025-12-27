@@ -1349,6 +1349,7 @@ extern void calc_voice(void);
 extern bool weapon_glows(const object_type* o_ptr);
 extern byte object_display_color(const object_type* o_ptr, byte base_color);
 extern void calc_torch(void);
+extern int song_effective_skill(int song);
 extern int ability_bonus(int skilltype, int abilitynum);
 extern int affinity_level(int skilltype);
 extern int minstrel_level(void);

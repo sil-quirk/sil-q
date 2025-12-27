@@ -3895,8 +3895,14 @@ static bool project_m(
     // update combat info
     if ((dam > 0) && m_ptr->ml)
     {
+        int combat_dd = dd;
+        int combat_ds = ds;
+
+        if (typ == GF_LIGHT)
+            combat_ds = cave_light[y][x];
+
         update_combat_rolls1b(who_ptr, m_ptr, who_vis);
-        update_combat_rolls2(dd, ds, dam, -1, -1, 0, 0, typ, false);
+        update_combat_rolls2(combat_dd, combat_ds, dam, -1, -1, 0, 0, typ, false);
     }
 
     /* If another monster did the damage, hurt the monster by hand */
@@ -7577,7 +7583,7 @@ void sing(void)
             if ((p_ptr->song_duration % 3) == type - 1)
                 cost += 1;
             
-            sing_song_of_trees(score);
+            sing_song_of_trees(song_effective_skill(song));
             
             break;
         }

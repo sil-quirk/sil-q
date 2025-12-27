@@ -8005,3 +8005,9 @@ The script now fully matches the game's drop generation logic for all item types
 ## 2025-12-27: Savefile load crash fix (player at 0,0 on depth 0)
 - `src/load.c`: treat out-of-bounds or boundary player coords in the dungeon header as repairable corruption; defer `player_place()` until after monsters load, enforce perma-wall boundary, and relocate player to a safe staircase/floor tile to prevent `update_view()` OOB crashes.
 - Verified by loading corrupted `Glorfindel` save (header `py=0,px=0` on `33x66` Gates); loader repairs to a valid interior grid and the game no longer crashes on load.
+
+## 2025-12-27: Song of the Trees dice display fix
+- `src/spells1.c`: Song of Trees now uses effective Song skill (`song_effective_skill()`) for its projection parameters (radius/dice/skill), instead of the light-radius bonus value.
+- `src/spells1.c`: combat roll dice for `GF_LIGHT` now record `ds = cave_light[y][x]` (the actual light-level sides used) so the shown dice match damage dealt.
+- `src/xtra1.c`, `src/externs.h`: added `song_effective_skill()` helper (minor theme penalty + silence dampening + woven synergy) and refactored `ability_bonus()` to use it.
+- `src/xtra1.c`: reduced woven synergy bonus from ~20% to ~10% of base Song skill.

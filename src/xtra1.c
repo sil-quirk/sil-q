@@ -2523,9 +2523,47 @@ static int song_synergy_bonus(byte abilitynum, int full_skill)
     if (!songs_are_synergy_pair(abilitynum, partner))
         return 0;
 
-    synergy = (full_skill + 2) / 5;
+    /* 10% of base song skill (integer math, rounded). */
+    synergy = (full_skill + 5) / 10;
 
     return synergy;
+}
+
+int song_effective_skill(int abilitynum)
+{
+    int skill = p_ptr->skill_use[S_SNG];
+    const int full_skill = skill;
+
+    // penalize minor themes - check if this ability is the minor theme
+    // UNLESS the character has the WOVEN_MASTER flag (Daeron)
+    if ((p_ptr->song2 == abilitynum) && (p_ptr->song1 != abilitynum))
+    {
+        if (!(c_info[p_ptr->pcharacter].flags_u & UNQ_WOVEN_MASTER))
+            skill /= 2;
+    }
+
+    // Song of Silence dampens other songs when woven together
+    // EXCEPT for Disguise and Lorien (its synergy pairs)
+    // This dampening is applied BEFORE synergy bonus
+    if (singing(SNG_SILENCE) && (abilitynum != SNG_SILENCE)
+        && (abilitynum != SNG_DISGUISE) && (abilitynum != SNG_LORIEN))
+    {
+        // Calculate Silence bonus directly to avoid recursion
+        int silence_skill = p_ptr->skill_use[S_SNG] / 2;
+        int silence_penalty = silence_skill / 2;
+        skill -= silence_penalty;
+        if (skill < 0)
+            skill = 0;
+    }
+
+    // woven theme synergy pairs grant an extra 20% of base song skill
+    skill += song_synergy_bonus(abilitynum, full_skill);
+
+    // effective skill is never negative
+    if (skill < 0)
+        skill = 0;
+
+    return skill;
 }
 
 int ability_bonus(int skilltype, int abilitynum)
@@ -2535,31 +2573,7 @@ int ability_bonus(int skilltype, int abilitynum)
 
     if (skilltype == S_SNG)
     {
-        const int full_skill = skill;
-
-        // penalize minor themes - check if this ability is the minor theme
-        // UNLESS the character has the WOVEN_MASTER flag (Daeron)
-        if ((p_ptr->song2 == abilitynum) && (p_ptr->song1 != abilitynum))
-        {
-            if (!(c_info[p_ptr->pcharacter].flags_u & UNQ_WOVEN_MASTER))
-                skill /= 2;
-        }
-
-        // Song of Silence dampens other songs when woven together
-        // EXCEPT for Disguise and Lorien (its synergy pairs)
-        // This dampening is applied BEFORE synergy bonus
-        if (singing(SNG_SILENCE) && (abilitynum != SNG_SILENCE)
-            && (abilitynum != SNG_DISGUISE) && (abilitynum != SNG_LORIEN))
-        {
-            // Calculate Silence bonus directly to avoid recursion
-            int silence_skill = p_ptr->skill_use[S_SNG] / 2;
-            int silence_penalty = silence_skill / 2;
-            skill -= silence_penalty;
-            if (skill < 0) skill = 0;
-        }
-
-        // woven theme synergy pairs grant an extra 20% of base song skill
-        skill += song_synergy_bonus(abilitynum, full_skill);
+        skill = song_effective_skill(abilitynum);
 
         switch (abilitynum)
         {
