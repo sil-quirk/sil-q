@@ -1,5 +1,10 @@
 # Session notes
 
+## 2025-12-28: Quiver 1 no auto-ident/abilities
+- Fix: equipping into `INVEN_QUIVER1` no longer runs `ident_on_wield()` or temporarily activates item-granted abilities; `INVEN_QUIVER2` only does so for throwing weapons.
+- File: `src/cmd3.c`.
+- Build: `build-cmake.bat` succeeds.
+
 ## 2025-12-28: Valor oath auto-attack safety + ranged prompts
 - New gameplay option `valorous_oath_auto_attack_safety` (default on) blocks automatic extra attacks from striking fleeing enemies while Oath of Valor is active.
 - Oath of Valor now breaks on any hit (not only on kill), including AoE effects.
