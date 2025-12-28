@@ -179,7 +179,7 @@ cptr option_text[OPT_MAX] = {
     NULL, /* xxx verify_special */
     NULL, /* xxx allow_quantity */
     NULL, /* xxx */
-    NULL, /* xxx auto_haggle */
+    "valorous_oath_auto_attack_safety", /* OPT_valorous_oath_auto_attack_safety */
     NULL, /* xxx auto_scum */
     NULL, /* xxx allow_themed_levels */
     NULL, /* xxx testing_carry */
@@ -419,7 +419,7 @@ cptr option_desc[OPT_MAX] = {
     NULL, /* xxx verify_special */
     NULL, /* xxx allow_quantity */
     NULL, /* xxx */
-    NULL, /* xxx auto_haggle */
+    "Disable automatic attacks that would strike fleeing enemies under Oath of Valor", /* OPT_valorous_oath_auto_attack_safety */
     NULL, /* xxx auto_scum */
     NULL, /* xxx allow_themed_levels */
     NULL, /* xxx testing_carry */
@@ -678,7 +678,7 @@ const bool option_norm[OPT_MAX] = {
     false, /* xxx verify_special */
     false, /* xxx allow_quantity */
     false, /* xxx */
-    false, /* xxx auto_haggle */
+    true, /* OPT_valorous_oath_auto_attack_safety */
     false, /* xxx auto_scum */
     false, /* xxx allow_themed_levels */
     false, /* xxx */
@@ -924,9 +924,10 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
 
     /*** Game-Play ***/
 
-    { OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+    { OPT_valorous_oath_auto_attack_safety, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_NONE, OPT_NONE },
 
     /*** Efficiency ***/
 

@@ -1,5 +1,12 @@
 # Session notes
 
+## 2025-12-28: Valor oath auto-attack safety + ranged prompts
+- New gameplay option `valorous_oath_auto_attack_safety` (default on) blocks automatic extra attacks from striking fleeing enemies while Oath of Valor is active.
+- Oath of Valor now breaks on any hit (not only on kill), including AoE effects.
+- Archery/throwing now prompt if a fleeing enemy is on the projectile path (directional or targeted).
+- Files: `src/defines.h`, `src/tables.c`, `src/cmd1.c`, `src/cmd2.c`, `src/monster2.c`, `src/melee1.c`, `src/melee2.c`, `src/spells1.c`.
+- Build: `build-cmake.bat` succeeds.
+
 ## Skeleton note story wrapping
 - Symptom: skeleton note lines duplicated or truncated when rendered with proportional story font.
 - Root cause: story-font renderer packs text only within contiguous `STORY_FLAG_USE` cells; if a line has fewer cells than its pixel width, the render clamps and appears cut/duplicated.
@@ -8020,4 +8027,13 @@ The script now fully matches the game's drop generation logic for all item types
 ## 2025-12-27: Oath of Light post-death crash fix
 - `src/dungeon.c`: if `load_player()` loads a dead character, immediately `player_wipe()` before `player_birth()` (prevents using dead-save state during oath selection).
 - `src/cmd4.c`: fix `oath_menu()`/ability display to only enumerate `OATH_TYPES`, add bounds-checked oath text helpers, and replace unsafe `strcpy()` in oath wrapping with `SDL_strlcpy()` (prevents OOB/overflow crashes).
+- build-cmake.bat: success (standard + portable builds).
+
+## 2025-12-27: Artefact base flags shown on examine
+- `src/object1.c`: fix `object_flags_known()` to include base `k_info` flags for artefacts (avoid overwriting base flags like `SHARPNESS` on star-iron/mithril bases).
+- build-cmake.bat: success (standard build).
+
+## 2025-12-27: Varda spawn reachability + adjacency fixes
+- `src/generate.c`: Varda now spawns only on `FEAT_SUNLIGHT` tiles that are reachable from the player without digging rubble/crossing chasms (`flood_access(..., false)`) and not adjacent to the player; forced sunlight fallback now picks a random rubble-free reachable floor tile and creates a small sunlight pool.
+- `src/xtra2.c`: scripted quest-giver spawns avoid adjacent placement (Varda/Niena); Varda scripted spawns now create a 3x3 sunlight pool around her.
 - build-cmake.bat: success (standard + portable builds).

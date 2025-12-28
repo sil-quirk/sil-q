@@ -469,8 +469,8 @@ static void object_flags_aux(
         /* Clear */
         (*f1) = (*f2) = (*f3) = 0L;
 
-        /* Must be identified */
-        if (!object_known_p(o_ptr))
+        /* Must be identified (or being listed in object knowledge) */
+        if (!object_known_p(o_ptr) && !(o_ptr->ident & IDENT_SPOIL))
             return;
     }
 
@@ -481,7 +481,8 @@ static void object_flags_aux(
     (*f2) = k_ptr->flags2;
     (*f3) = k_ptr->flags3;
 
-    if (mode == OBJECT_FLAGS_FULL)
+    /* Artefact flags add to the base object (never replace it) */
+    if ((mode == OBJECT_FLAGS_FULL) || (mode == OBJECT_FLAGS_KNOWN))
     {
         /* Artefact */
         if (o_ptr->name1)
@@ -502,32 +503,6 @@ static void object_flags_aux(
         (*f1) |= e_ptr->flags1;
         (*f2) |= e_ptr->flags2;
         (*f3) |= e_ptr->flags3;
-    }
-
-    if (mode == OBJECT_FLAGS_KNOWN)
-    {
-        /* Obvious artefact flags */
-        if (o_ptr->name1)
-        {
-            artefact_type* a_ptr = &a_info[o_ptr->name1];
-
-            /* Obvious flags (pval) */
-            (*f1) = (a_ptr->flags1 & (TR1_PVAL_MASK));
-            (*f3) = (a_ptr->flags3 & (TR3_IGNORE_MASK));
-        }
-    }
-
-    if (mode == OBJECT_FLAGS_KNOWN)
-    {
-        /* Artefact, *ID'ed or spoiled */
-        if (o_ptr->name1)
-        {
-            artefact_type* a_ptr = &a_info[o_ptr->name1];
-
-            (*f1) = a_ptr->flags1;
-            (*f2) = a_ptr->flags2;
-            (*f3) = a_ptr->flags3;
-        }
     }
 }
 

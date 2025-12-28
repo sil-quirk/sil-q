@@ -8334,6 +8334,19 @@ static bool grant_varda_reward(cptr* completion_texts, int completion_count)
     return true;
 }
 
+static void varda_make_light_pool(int y, int x)
+{
+    for (int ny = y - 1; ny <= y + 1; ny++) {
+        for (int nx = x - 1; nx <= x + 1; nx++) {
+            if (!in_bounds(ny, nx)) continue;
+            if (cave_info[ny][nx] & CAVE_ICKY) continue;
+            if (cave_feat[ny][nx] != FEAT_FLOOR && cave_feat[ny][nx] != FEAT_RAGE_FLOOR
+                && cave_feat[ny][nx] != FEAT_SUNLIGHT) continue;
+            cave_set_feat(ny, nx, FEAT_SUNLIGHT);
+        }
+    }
+}
+
 static void try_place_varda_near_player(void)
 {
     /* Avoid double-spawning */
@@ -8349,13 +8362,12 @@ static void try_place_varda_near_player(void)
         for (int x = p_ptr->px - 2; x <= p_ptr->px + 2; x++) {
             if (!in_bounds(y, x)) continue;
             if (y == p_ptr->py && x == p_ptr->px) continue;
+            if (distance(p_ptr->py, p_ptr->px, y, x) < 2) continue;
             if (!cave_floor_bold(y, x)) continue;
             if (cave_m_idx[y][x] != 0) continue;
 
             if (place_monster_one(y, x, R_IDX_VARDA, true, true, NULL)) {
-                if (cave_feat[y][x] == FEAT_FLOOR) {
-                    cave_set_feat(y, x, FEAT_SUNLIGHT);
-                }
+                varda_make_light_pool(y, x);
                 p_ptr->varda_level = p_ptr->depth;
                 log_trace("Varda reward: placed quest giver at (%d,%d)", y, x);
                 return;
@@ -9198,12 +9210,13 @@ void check_niena_quest_completion(void)
         
         for (attempts = 0; attempts < 20 && !niena_spawned; attempts++)
         {
-            int try_y = p_ptr->py + rand_range(-2, 2);
-            int try_x = p_ptr->px + rand_range(-2, 2);
+            int try_y = p_ptr->py + rand_range(-3, 3);
+            int try_x = p_ptr->px + rand_range(-3, 3);
             
             /* Must be valid coordinates and floor */
             if (in_bounds(try_y, try_x) && cave_floor_bold(try_y, try_x) && 
-                cave_m_idx[try_y][try_x] == 0)
+                cave_m_idx[try_y][try_x] == 0 &&
+                distance(p_ptr->py, p_ptr->px, try_y, try_x) >= 2)
             {
                 if (place_monster_one(try_y, try_x, R_IDX_NIENA, true, true, NULL))
                 {

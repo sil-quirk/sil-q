@@ -3979,19 +3979,14 @@ static bool project_m(
         /* Check for oath breaking before applying damage */
         if (who < 0 && dam > 0) // Player-caused damage
         {
-            /* Check valorous oath for AoE effects that might kill fleeing monsters */
-            if (m_ptr->stance == STANCE_FLEEING && m_ptr->ml && cowardly_attack(m_ptr))
+            /* All player-caused attacks break Valor on hit */
+            if (m_ptr->ml && cowardly_attack(m_ptr))
             {
-                /* Check if this AoE damage will kill the monster */
-                if (m_ptr->hp <= dam)
-                {
-                    /* AoE attack will kill fleeing enemy - break oath */
-                    do_cmd_note("Broke your oath through area attack that killed fleeing enemy", p_ptr->depth);
-                    apply_oath_breaking_curse(OATH_VALOROUS);
-                    p_ptr->oaths_broken |= OATH_VALOROUS_FLAG;
-                }
+                do_cmd_note("Broke your oath", p_ptr->depth);
+                apply_oath_breaking_curse(OATH_VALOROUS);
+                p_ptr->oaths_broken |= OATH_VALOROUS_FLAG;
             }
-            
+
             break_mercy_oath(m_ptr, dam);
         }
 

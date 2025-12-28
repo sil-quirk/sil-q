@@ -2600,6 +2600,8 @@
 // xxx verify_special
 // xxx allow_quantity
 // xxx
+/* Prevent automatic attacks from hitting fleeing enemies under Oath of Valor */
+#define OPT_valorous_oath_auto_attack_safety (OPT_GAME_PLAY + 0)
 // xxx auto_haggle
 // xxx auto_scum
 // xxx allow_themed_levels
@@ -2717,6 +2719,8 @@
 #define stop_singing_on_rest op_ptr->opt[OPT_stop_singing_on_rest]
 #define always_pickup false // Sil-x: removing this option for now
 #define forgo_attacking_unwary op_ptr->opt[OPT_forgo_attacking_unwary]
+#define valorous_oath_auto_attack_safety                                        \
+    op_ptr->opt[OPT_valorous_oath_auto_attack_safety]
 #define depth_in_feet op_ptr->opt[OPT_depth_in_feet]
 // xxx stack_force_notes
 // xxx stack_force_costs

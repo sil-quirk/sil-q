@@ -2107,9 +2107,18 @@ void monster_swap(int y1, int x1, int y2, int x2)
                     if ((distance(y1, x1, p_ptr->py, p_ptr->px) == 1)
                         && (distance(y2, x2, p_ptr->py, p_ptr->px) == 1))
                     {
-                        msg_format(
-                            "%^s moves through your zone of control.", m_name);
-                        py_attack_aux(y1, x1, ATT_ZONE_OF_CONTROL);
+                        if (valorous_oath_auto_attack_safety
+                            && chosen_oath(OATH_VALOROUS)
+                            && !oath_invalid(OATH_VALOROUS) && m_ptr->ml
+                            && (m_ptr->stance == STANCE_FLEEING))
+                        {
+                            msg_format("%^s moves through your zone of control, but you hold back.", m_name);
+                        }
+                        else
+                        {
+                            msg_format("%^s moves through your zone of control.", m_name);
+                            py_attack_aux(y1, x1, ATT_ZONE_OF_CONTROL);
+                        }
                     }
                 }
                 if (p_ptr->active_ability[S_STL][STL_OPPORTUNIST])
@@ -2117,8 +2126,18 @@ void monster_swap(int y1, int x1, int y2, int x2)
                     if ((distance(y1, x1, p_ptr->py, p_ptr->px) == 1)
                         && (distance(y2, x2, p_ptr->py, p_ptr->px) > 1))
                     {
-                        msg_format("%^s moves away from you.", m_name);
-                        py_attack_aux(y1, x1, ATT_OPPORTUNIST);
+                        if (valorous_oath_auto_attack_safety
+                            && chosen_oath(OATH_VALOROUS)
+                            && !oath_invalid(OATH_VALOROUS) && m_ptr->ml
+                            && (m_ptr->stance == STANCE_FLEEING))
+                        {
+                            msg_format("%^s moves away from you, but you hold back.", m_name);
+                        }
+                        else
+                        {
+                            msg_format("%^s moves away from you.", m_name);
+                            py_attack_aux(y1, x1, ATT_OPPORTUNIST);
+                        }
                     }
                 }
             }
@@ -2273,8 +2292,17 @@ void monster_swap(int y1, int x1, int y2, int x2)
                 /* Get the basic name of the object */
                 object_desc(o_name, sizeof(o_name), o_ptr, false, 0);
 
-                msg_format("%^s comes into reach of your %s.", m_name, o_name);
-                py_attack_aux(y2, x2, ATT_POLEARM);
+                if (valorous_oath_auto_attack_safety && chosen_oath(OATH_VALOROUS)
+                    && !oath_invalid(OATH_VALOROUS)
+                    && (m_ptr->stance == STANCE_FLEEING))
+                {
+                    msg_format("%^s comes into reach of your %s, but you hold back.", m_name, o_name);
+                }
+                else
+                {
+                    msg_format("%^s comes into reach of your %s.", m_name, o_name);
+                    py_attack_aux(y2, x2, ATT_POLEARM);
+                }
             }
         }
     }

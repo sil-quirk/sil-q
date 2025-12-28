@@ -3803,10 +3803,19 @@ void monster_exchange_places(monster_type* m_ptr)
     // attack of opportunity
     if (!p_ptr->afraid && !p_ptr->entranced && (p_ptr->stun <= 100))
     {
-        // this might be the most complicated auto-grammatical message in the
-        // game...
-        msg_format("You attack %s as %s slips past.", m_name2, m_name3);
-        py_attack_aux(m_ptr->fy, m_ptr->fx, ATT_OPPORTUNITY);
+        if (valorous_oath_auto_attack_safety && chosen_oath(OATH_VALOROUS)
+            && !oath_invalid(OATH_VALOROUS) && m_ptr->ml
+            && (m_ptr->stance == STANCE_FLEEING))
+        {
+            msg_format("You refuse to strike %s as it flees past.", m_name1);
+        }
+        else
+        {
+            // this might be the most complicated auto-grammatical message in the
+            // game...
+            msg_format("You attack %s as %s slips past.", m_name2, m_name3);
+            py_attack_aux(m_ptr->fy, m_ptr->fx, ATT_OPPORTUNITY);
+        }
     }
 
     // remember that the monster can do this

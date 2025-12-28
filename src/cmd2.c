@@ -1086,7 +1086,7 @@ static int g_skeleton_note_entry_count = -1;
 static const int skeleton_hint_base_weight[SKEL_HINT_MAX]
     = {
         0,  /* NONE */
-        75, /* GREAT_VAULT */
+        113, /* GREAT_VAULT (was 75 -> 1.5x rounded) */
         60, /* VAULT_ARTIFACT */
         55, /* STAIRS */
         0,  /* PARTITION_PRESENCE (deprecated) */
@@ -1094,7 +1094,7 @@ static const int skeleton_hint_base_weight[SKEL_HINT_MAX]
         70, /* UNIQUE */
         180, /* TIP */
         35, /* SIZE */
-        90, /* QUEST */
+        180, /* QUEST (doubled from 90) */
         40, /* PART_LABYRINTH */
         40, /* PART_CHASM */
         40, /* PART_CAVE */
@@ -6421,6 +6421,42 @@ void attacks_of_opportunity(int neutralized_y, int neutralized_x)
  * Note that when firing missiles, the launcher multiplier is applied
  * after all the bonuses are added in, making multipliers very useful.
  */
+static bool abort_for_valorous_ranged_path(int range, int ty, int tx)
+{
+    u16b path_g[256];
+    int path_n;
+    int ty2 = ty;
+    int tx2 = tx;
+
+    if (range <= 0)
+        return false;
+
+    if (!chosen_oath(OATH_VALOROUS) || oath_invalid(OATH_VALOROUS))
+        return false;
+
+    path_n = project_path(
+        path_g, range, p_ptr->py, p_ptr->px, &ty2, &tx2, PROJECT_THRU);
+
+    for (int i = 0; i < path_n; i++)
+    {
+        int y = GRID_Y(path_g[i]);
+        int x = GRID_X(path_g[i]);
+
+        /* Stop before hitting walls */
+        if (!cave_floor_bold(y, x))
+            break;
+
+        if (cave_m_idx[y][x] > 0)
+        {
+            monster_type* m_ptr = &mon_list[cave_m_idx[y][x]];
+            if (m_ptr->ml && (m_ptr->stance == STANCE_FLEEING))
+                return abort_for_valorous(m_ptr);
+        }
+    }
+
+    return false;
+}
+
 void do_cmd_fire(int quiver)
 {
     int dir, item;
@@ -6564,12 +6600,11 @@ void do_cmd_fire(int quiver)
         {
             return;
         }
-        
-        if (abort_for_valorous(m_ptr))
-        {
-            return;
-        }
     }
+
+    /* Warn before ranged attacks that might hit fleeing enemies (Oath of Valor) */
+    if (abort_for_valorous_ranged_path(tdis, ty, tx))
+        return;
 
     /* Get local object */
     i_ptr = &object_type_body;
@@ -7538,11 +7573,6 @@ void do_cmd_throw(bool automatic)
             {
                 return;
             }
-            
-            if (abort_for_valorous(target_m_ptr))
-            {
-                return;
-            }
         }
     }
 
@@ -7551,6 +7581,27 @@ void do_cmd_throw(bool automatic)
         ty = p_ptr->py;
         tx = p_ptr->px;
     }
+
+    /* Clamp directional throws to the actual range before indexing grids */
+    if ((dir != 5) && (dir != DIRECTION_UP) && (dir != DIRECTION_DOWN))
+    {
+        ty = p_ptr->py + tdis * ddy[dir];
+        tx = p_ptr->px + tdis * ddx[dir];
+
+        if (ty < 0)
+            ty = 0;
+        else if (ty >= p_ptr->cur_map_hgt)
+            ty = p_ptr->cur_map_hgt - 1;
+
+        if (tx < 0)
+            tx = 0;
+        else if (tx >= p_ptr->cur_map_wid)
+            tx = p_ptr->cur_map_wid - 1;
+    }
+
+    /* Warn before ranged attacks that might hit fleeing enemies (Oath of Valor) */
+    if (abort_for_valorous_ranged_path(tdis, ty, tx))
+        return;
 
     m_ptr = &mon_list[cave_m_idx[ty][tx]];
     r_ptr = &r_info[m_ptr->r_idx];

@@ -13042,12 +13042,61 @@ static bool varda_sunlight_tile_ok(int y, int x, bool require_empty)
     return true;
 }
 
-static int pick_varda_sunlight_tile(int *out_y, int *out_x, int *out_total)
+static void varda_make_sunlight_pool(int y, int x)
+{
+    for (int ny = y - 1; ny <= y + 1; ny++)
+    {
+        for (int nx = x - 1; nx <= x + 1; nx++)
+        {
+            if (!in_bounds_fully(ny, nx)) continue;
+            if (cave_info[ny][nx] & CAVE_ICKY) continue;
+            if (cave_feat[ny][nx] != FEAT_FLOOR && cave_feat[ny][nx] != FEAT_RAGE_FLOOR
+                && cave_feat[ny][nx] != FEAT_SUNLIGHT) continue;
+            cave_set_feat(ny, nx, FEAT_SUNLIGHT);
+        }
+    }
+}
+
+static bool varda_no_rubble_path_tile_ok(int y, int x,
+    int access[MAX_DUNGEON_HGT][MAX_DUNGEON_WID])
+{
+    if (!access[y][x]) return false;
+
+    /* Avoid spawning her adjacent to the player (quest can auto-trigger before encounter XP). */
+    if (distance(p_ptr->py, p_ptr->px, y, x) < 2) return false;
+
+    return true;
+}
+
+/*
+ * Pick a sunlight tile suitable for spawning Varda:
+ * - empty
+ * - reachable from the player without digging rubble / crossing chasms
+ * - not adjacent to the player
+ *
+ * Returns the number of spawnable sunlight tiles found (0 if none).
+ * Optionally returns:
+ * - total sunlight tiles (occupied or not)
+ * - empty sunlight tiles (regardless of reachability)
+ */
+static int pick_varda_sunlight_spawn_tile(int *out_y, int *out_x,
+    int *out_total_sunlight, int *out_empty_sunlight)
 {
     int total = 0;
     int empty = 0;
+    int spawnable = 0;
     int pick_y = -1;
     int pick_x = -1;
+
+    int access[MAX_DUNGEON_HGT][MAX_DUNGEON_WID];
+    for (int y = 0; y < p_ptr->cur_map_hgt; y++)
+    {
+        for (int x = 0; x < p_ptr->cur_map_wid; x++)
+        {
+            access[y][x] = false;
+        }
+    }
+    flood_access(p_ptr->py, p_ptr->px, access, false);
 
     for (int y = 1; y < p_ptr->cur_map_hgt - 1; y++)
     {
@@ -13055,59 +13104,51 @@ static int pick_varda_sunlight_tile(int *out_y, int *out_x, int *out_total)
         {
             if (!varda_sunlight_tile_ok(y, x, false)) continue;
             total++;
-            if (cave_m_idx[y][x] != 0) continue;
+
+            if (!varda_sunlight_tile_ok(y, x, true)) continue;
             empty++;
-            if (one_in_(empty)) {
+
+            if (!varda_no_rubble_path_tile_ok(y, x, access)) continue;
+            spawnable++;
+            if (one_in_(spawnable)) {
                 pick_y = y;
                 pick_x = x;
             }
         }
     }
 
-    if (out_total) *out_total = total;
-    if (empty > 0 && out_y && out_x) {
+    if (out_total_sunlight) *out_total_sunlight = total;
+    if (out_empty_sunlight) *out_empty_sunlight = empty;
+    if (spawnable > 0 && out_y && out_x) {
         *out_y = pick_y;
         *out_x = pick_x;
     }
 
-    return empty;
+    return spawnable;
 }
 
 static bool force_varda_sunlight_tile(int *out_y, int *out_x)
 {
-    int py = p_ptr->py;
-    int px = p_ptr->px;
-
-    for (int radius = 1; radius <= 8; radius++)
-    {
-        for (int y = py - radius; y <= py + radius; y++)
-        {
-            for (int x = px - radius; x <= px + radius; x++)
-            {
-                if (!in_bounds_fully(y, x)) continue;
-                if (cave_info[y][x] & CAVE_ICKY) continue;
-                if (!cave_empty_bold(y, x)) continue;
-                if (cave_feat[y][x] != FEAT_FLOOR && cave_feat[y][x] != FEAT_RAGE_FLOOR) continue;
-
-                cave_set_feat(y, x, FEAT_SUNLIGHT);
-                if (out_y) {
-                    *out_y = y;
-                    *out_x = x;
-                }
-                return true;
-            }
-        }
-    }
-
     int count = 0;
     int pick_y = -1;
     int pick_x = -1;
+
+    int access[MAX_DUNGEON_HGT][MAX_DUNGEON_WID];
+    for (int y = 0; y < p_ptr->cur_map_hgt; y++)
+    {
+        for (int x = 0; x < p_ptr->cur_map_wid; x++)
+        {
+            access[y][x] = false;
+        }
+    }
+    flood_access(p_ptr->py, p_ptr->px, access, false);
 
     for (int y = 1; y < p_ptr->cur_map_hgt - 1; y++)
     {
         for (int x = 1; x < p_ptr->cur_map_wid - 1; x++)
         {
             if (cave_info[y][x] & CAVE_ICKY) continue;
+            if (!varda_no_rubble_path_tile_ok(y, x, access)) continue;
             if (!cave_empty_bold(y, x)) continue;
             if (cave_feat[y][x] != FEAT_FLOOR && cave_feat[y][x] != FEAT_RAGE_FLOOR) continue;
 
@@ -13121,7 +13162,7 @@ static bool force_varda_sunlight_tile(int *out_y, int *out_x)
 
     if (count == 0) return false;
 
-    cave_set_feat(pick_y, pick_x, FEAT_SUNLIGHT);
+    varda_make_sunlight_pool(pick_y, pick_x);
     if (out_y) {
         *out_y = pick_y;
         *out_x = pick_x;
@@ -13135,20 +13176,24 @@ static void ensure_sunlight_for_varda(void)
     /* Only relevant for the first few levels */
     if (p_ptr->depth > 3) return;
     
-    /* Check for valid sunlight spawn locations (sunlight on empty floor tiles) */
+    /* Check for valid sunlight spawn locations */
     int total_sunlight = 0;
-    int empty_sunlight = pick_varda_sunlight_tile(NULL, NULL, &total_sunlight);
+    int empty_sunlight = 0;
+    int spawnable_sunlight = pick_varda_sunlight_spawn_tile(NULL, NULL, &total_sunlight, &empty_sunlight);
     
-    if (empty_sunlight == 0) {
-        log_trace("Varda spawn: No valid sunlight spawn locations detected (total=%d), seeding patches", total_sunlight);
+    if (spawnable_sunlight == 0) {
+        log_trace("Varda spawn: No valid sunlight spawn locations detected (total=%d, empty=%d), seeding patches",
+            total_sunlight, empty_sunlight);
         make_patches_of_sunlight();
         
         /* Verify at least one valid location exists after patching */
         total_sunlight = 0;
-        empty_sunlight = pick_varda_sunlight_tile(NULL, NULL, &total_sunlight);
+        empty_sunlight = 0;
+        spawnable_sunlight = pick_varda_sunlight_spawn_tile(NULL, NULL, &total_sunlight, &empty_sunlight);
         
-        if (empty_sunlight > 0) {
-            log_trace("Varda spawn: Verified sunlight after patching (total=%d, empty=%d)", total_sunlight, empty_sunlight);
+        if (spawnable_sunlight > 0) {
+            log_trace("Varda spawn: Verified sunlight after patching (total=%d, empty=%d, spawnable=%d)",
+                total_sunlight, empty_sunlight, spawnable_sunlight);
             return;
         }
 
@@ -13764,30 +13809,44 @@ static bool cave_gen(void)
         if (!varda_exists)
         {
             log_trace("Varda spawn: No existing Varda found, attempting placement");
-            bool varda_spawned = false;
+             bool varda_spawned = false;
 
-            int try_y = -1;
-            int try_x = -1;
-            int total_sunlight = 0;
-            int empty_sunlight = pick_varda_sunlight_tile(&try_y, &try_x, &total_sunlight);
+             int try_y = -1;
+             int try_x = -1;
+             int total_sunlight = 0;
+            int empty_sunlight = 0;
+            int spawnable_sunlight = pick_varda_sunlight_spawn_tile(&try_y, &try_x, &total_sunlight, &empty_sunlight);
 
-            log_trace("Varda spawn: Sunlight tiles total=%d, empty=%d", total_sunlight, empty_sunlight);
+            log_trace("Varda spawn: Sunlight tiles total=%d, empty=%d, spawnable=%d",
+                total_sunlight, empty_sunlight, spawnable_sunlight);
 
-            if (empty_sunlight == 0) {
-                log_trace("Varda spawn: No empty sunlight tiles available, forcing a sunlit tile");
+            if (spawnable_sunlight == 0) {
+                log_trace("Varda spawn: No spawnable sunlight tiles available, forcing a sunlit tile");
                 if (force_varda_sunlight_tile(&try_y, &try_x)) {
-                    empty_sunlight = 1;
+                    spawnable_sunlight = 1;
                 }
             }
 
-            if (empty_sunlight > 0) {
+            if (spawnable_sunlight > 0) {
                 if (place_monster_one(try_y, try_x, R_IDX_VARDA, true, true, NULL)) {
                     varda_spawned = true;
                 } else {
                     log_trace("Varda spawn: Primary sunlight tile rejected, scanning for fallback");
+
+                    int access[MAX_DUNGEON_HGT][MAX_DUNGEON_WID];
+                    for (int y = 0; y < p_ptr->cur_map_hgt; y++)
+                    {
+                        for (int x = 0; x < p_ptr->cur_map_wid; x++)
+                        {
+                            access[y][x] = false;
+                        }
+                    }
+                    flood_access(p_ptr->py, p_ptr->px, access, false);
+
                     for (int y = 1; y < p_ptr->cur_map_hgt - 1 && !varda_spawned; y++) {
                         for (int x = 1; x < p_ptr->cur_map_wid - 1 && !varda_spawned; x++) {
                             if (!varda_sunlight_tile_ok(y, x, true)) continue;
+                            if (!varda_no_rubble_path_tile_ok(y, x, access)) continue;
                             if (place_monster_one(y, x, R_IDX_VARDA, true, true, NULL)) {
                                 try_y = y;
                                 try_x = x;

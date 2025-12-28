@@ -15,6 +15,8 @@
 #include "metarun.h"
 #include <math.h>
 
+static bool valorous_oath_blocks_auto_attack(monster_type* m_ptr);
+
 static bool polearm_is_axe(const object_type* weapon)
 {
     if (!weapon)
@@ -4332,6 +4334,12 @@ void possible_follow_through(int fy, int fx, int attack_type)
                     && (!forgo_attacking_unwary
                         || (m_ptr->alertness >= ALERTNESS_ALERT)))
                 {
+                    if (valorous_oath_blocks_auto_attack(m_ptr))
+                    {
+                        msg_print("You stop your follow-through to avoid striking a fleeing foe.");
+                        return;
+                    }
+
                     msg_print("You continue your attack!");
                     py_attack_aux(y, x, ATT_FOLLOW_THROUGH);
                     return;
@@ -4552,6 +4560,20 @@ bool cowardly_attack(monster_type* m_ptr)
         && m_ptr->stance == STANCE_FLEEING);  /* Monster is fleeing in terror */
 }
 
+static bool valorous_oath_blocks_auto_attack(monster_type* m_ptr)
+{
+    if (!valorous_oath_auto_attack_safety)
+        return false;
+
+    if (!chosen_oath(OATH_VALOROUS) || oath_invalid(OATH_VALOROUS))
+        return false;
+
+    if (!m_ptr || !m_ptr->ml)
+        return false;
+
+    return (m_ptr->stance == STANCE_FLEEING);
+}
+
 bool abort_for_mercy(monster_type* m_ptr)
 {
     // Unseen enemies are okay to kill
@@ -4727,39 +4749,17 @@ void break_valorous_oath(monster_type* m_ptr, int damage, int attack_type, int d
     if (damage_source != -1)
         return;
 
-    if (damage > 0 && m_ptr->stance == STANCE_FLEEING)
-    {
-        if (cowardly_attack(m_ptr))
-        {
-            // For direct attacks, oath should only break if the warning was accepted
-            // For AoE attacks, break only if the attack actually kills the monster
-            if (is_aoe_attack_type(attack_type))
-            {
-                /* AoE attack - only break oath if the monster dies */
-                if (m_ptr->hp <= damage)
-                {
-                    /* AoE attack killed fleeing enemy - break oath immediately */
-                    do_cmd_note("Broke your oath through area attack that killed fleeing enemy", p_ptr->depth);
-                    
-                    /* Apply oath breaking consequences */
-                    apply_oath_breaking_curse(OATH_VALOROUS);
-                    p_ptr->oaths_broken |= OATH_VALOROUS_FLAG;
-                }
-                // If AoE attack doesn't kill, don't break oath
-            }
-            else
-            {
-                /* Direct attack - oath only breaks if warning was accepted
-                 * The warning is handled by abort_for_valorous() before we get here
-                 * If we reach this point for a direct attack, the player confirmed breaking the oath */
-                do_cmd_note("Broke your oath", p_ptr->depth);
-                
-                /* Apply oath breaking consequences */
-                apply_oath_breaking_curse(OATH_VALOROUS);
-                p_ptr->oaths_broken |= OATH_VALOROUS_FLAG;
-            }
-        }
-    }
+    /* All player-caused attacks break Valor on hit */
+    (void)attack_type;
+    if (damage <= 0)
+        return;
+
+    if (!cowardly_attack(m_ptr))
+        return;
+
+    do_cmd_note("Broke your oath", p_ptr->depth);
+    apply_oath_breaking_curse(OATH_VALOROUS);
+    p_ptr->oaths_broken |= OATH_VALOROUS_FLAG;
 }
 
 /*
@@ -5518,14 +5518,48 @@ void py_attack(int y, int x, int attack_type)
     log_trace("Whirlwind debug: rage=%d, whirlwind_possible=%d, open_squares=%d, adj_monsters=%d, afraid=%d", 
               p_ptr->rage, whirlwind_poss, open_squares, adjacent_monsters, p_ptr->afraid);
     
-    if ((p_ptr->rage || (whirlwind_poss && open_squares >= 5))
-        && (adjacent_monsters > 1) && !p_ptr->afraid)
+    bool do_rage_attack = p_ptr->rage && (adjacent_monsters > 1) && !p_ptr->afraid;
+    bool do_whirlwind_attack = !p_ptr->rage && whirlwind_poss
+        && (open_squares >= 5) && (adjacent_monsters > 1) && !p_ptr->afraid;
+
+    if (do_whirlwind_attack && valorous_oath_auto_attack_safety
+        && chosen_oath(OATH_VALOROUS) && !oath_invalid(OATH_VALOROUS))
+    {
+        for (int check_dir = 1; check_dir <= 9; check_dir++)
+        {
+            int cy, cx;
+            int m_idx;
+            monster_type* m_ptr;
+
+            if (check_dir == 5)
+                continue;
+
+            cy = p_ptr->py + ddy[check_dir];
+            cx = p_ptr->px + ddx[check_dir];
+            if (!in_bounds(cy, cx))
+                continue;
+
+            m_idx = cave_m_idx[cy][cx];
+            if (m_idx <= 0)
+                continue;
+
+            m_ptr = &mon_list[m_idx];
+            if (m_ptr->ml && (m_ptr->stance == STANCE_FLEEING))
+            {
+                msg_print("You hold back your whirlwind to avoid striking a fleeing foe.");
+                do_whirlwind_attack = false;
+                break;
+            }
+        }
+    }
+
+    if (do_rage_attack || do_whirlwind_attack)
     {
         int i;
         bool clockwise = one_in_(2);
 
         // message only for rage (too annoying otherwise)
-        if (p_ptr->rage)
+        if (do_rage_attack)
         {
             msg_print("You strike out at everything around you!");
         }
@@ -5549,7 +5583,7 @@ void py_attack(int y, int x, int attack_type)
             {
                 monster_type* m_ptr = &mon_list[cave_m_idx[yy][xx]];
 
-                if (p_ptr->rage)
+                if (do_rage_attack)
                 {
                     py_attack_aux(yy, xx, ATT_RAGE);
                 }
@@ -5633,6 +5667,12 @@ void flanking_or_retreat(int y, int x)
                 if (flanking && (distance(py, px, fy, fx) == 1)
                     && (distance(y, x, fy, fx) == 1))
                 {
+                    if (valorous_oath_blocks_auto_attack(m_ptr))
+                    {
+                        msg_print("You forgo a flanking attack to avoid striking a fleeing foe.");
+                        return;
+                    }
+
                     py_attack(fy, fx, ATT_FLANKING);
                     return;
                 }
@@ -5640,6 +5680,12 @@ void flanking_or_retreat(int y, int x)
                 if (controlled_retreat && (distance(py, px, fy, fx) == 1)
                     && (distance(y, x, fy, fx) > 1))
                 {
+                    if (valorous_oath_blocks_auto_attack(m_ptr))
+                    {
+                        msg_print("You forgo a controlled retreat attack to avoid striking a fleeing foe.");
+                        return;
+                    }
+
                     py_attack(fy, fx, ATT_CONTROLLED_RETREAT);
                     return;
                 }
@@ -5675,6 +5721,12 @@ void flanking_or_retreat(int y, int x)
                     if (flanking && (distance(py, px, fy, fx) == 1)
                         && (distance(y, x, fy, fx) == 1))
                     {
+                        if (valorous_oath_blocks_auto_attack(m_ptr))
+                        {
+                            msg_print("You forgo a flanking attack to avoid striking a fleeing foe.");
+                            return;
+                        }
+
                         py_attack(fy, fx, ATT_FLANKING);
                         return;
                     }
@@ -5682,6 +5734,12 @@ void flanking_or_retreat(int y, int x)
                     if (controlled_retreat && (distance(py, px, fy, fx) == 1)
                         && (distance(y, x, fy, fx) > 1))
                     {
+                        if (valorous_oath_blocks_auto_attack(m_ptr))
+                        {
+                            msg_print("You forgo a controlled retreat attack to avoid striking a fleeing foe.");
+                            return;
+                        }
+
                         py_attack(fy, fx, ATT_CONTROLLED_RETREAT);
                         return;
                     }

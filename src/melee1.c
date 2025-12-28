@@ -1982,9 +1982,19 @@ bool make_attack_normal(monster_type* m_ptr)
                                     - (((&inventory[INVEN_WIELD])->weight + 9)
                                         / 10)))
                         {
-                            msg_print("You riposte!");
-                            p_ptr->ripostes++;
-                            py_attack_aux(m_ptr->fy, m_ptr->fx, ATT_RIPOSTE);
+                            if (valorous_oath_auto_attack_safety
+                                && chosen_oath(OATH_VALOROUS)
+                                && !oath_invalid(OATH_VALOROUS) && m_ptr->ml
+                                && (m_ptr->stance == STANCE_FLEEING))
+                            {
+                                msg_print("You hold back your riposte to avoid striking a fleeing foe.");
+                            }
+                            else
+                            {
+                                msg_print("You riposte!");
+                                p_ptr->ripostes++;
+                                py_attack_aux(m_ptr->fy, m_ptr->fx, ATT_RIPOSTE);
+                            }
                         }
                     }
                 }
