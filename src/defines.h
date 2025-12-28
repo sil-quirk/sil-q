@@ -2887,6 +2887,7 @@
  *  Break things into pages
  */
 #define INTERFACE_PAGE 0
+#define GAMEPLAY_PAGE 2
 #define VISUAL_PAGE 4
 #define SOUND_PAGE 7
 #define CHALLENGE_PAGE 5

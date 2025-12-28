@@ -419,7 +419,7 @@ cptr option_desc[OPT_MAX] = {
     NULL, /* xxx verify_special */
     NULL, /* xxx allow_quantity */
     NULL, /* xxx */
-    "Disable automatic attacks that would strike fleeing enemies under Oath of Valor", /* OPT_valorous_oath_auto_attack_safety */
+    "Disable automatic attacks of fleeing enemies under Oath of Valor", /* OPT_valorous_oath_auto_attack_safety */
     NULL, /* xxx auto_scum */
     NULL, /* xxx allow_themed_levels */
     NULL, /* xxx testing_carry */
@@ -910,11 +910,11 @@ const bool option_norm[OPT_MAX] = {
 const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
     /*** User-Interface ***/
 
-    { OPT_forgo_attacking_unwary, OPT_stop_singing_on_rest, OPT_system_beep,
-        OPT_quick_messages, OPT_auto_more, OPT_easy_main_menu,
+    { OPT_system_beep, OPT_quick_messages, OPT_auto_more, OPT_easy_main_menu,
         OPT_hjkl_movement, OPT_angband_keyset, OPT_hitpoint_warning,
-        OPT_know_monster_info, OPT_disable_skeleton_note_tutorial, OPT_NONE, OPT_NONE, OPT_NONE,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
+        OPT_disable_skeleton_note_tutorial, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_NONE, OPT_NONE },
 
     /*** Disturbance ***/
 
@@ -924,10 +924,10 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
 
     /*** Game-Play ***/
 
-    { OPT_valorous_oath_auto_attack_safety, OPT_NONE, OPT_NONE, OPT_NONE,
+    { OPT_valorous_oath_auto_attack_safety, OPT_forgo_attacking_unwary,
+        OPT_stop_singing_on_rest, OPT_know_monster_info, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
-        OPT_NONE, OPT_NONE },
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Efficiency ***/
 

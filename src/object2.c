@@ -115,7 +115,7 @@ static bool get_inventory_limit_info(const object_type* o_ptr,
                 local_limit = 1;
                 break;
             case TV_SHIELD:
-                if (o_ptr->sval == SV_ROUND_SHIELD)
+                if (o_ptr->sval == SV_ROUND_SHIELD || o_ptr->sval == SV_BROKEN_SHIELD)
                 {
                     local_group = INV_LIMIT_ROUND_SHIELD;
                     local_limit = 1;

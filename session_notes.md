@@ -4,6 +4,7 @@
 - New gameplay option `valorous_oath_auto_attack_safety` (default on) blocks automatic extra attacks from striking fleeing enemies while Oath of Valor is active.
 - Oath of Valor now breaks on any hit (not only on kill), including AoE effects.
 - Archery/throwing now prompt if a fleeing enemy is on the projectile path (directional or targeted).
+- Options menu: added "Gameplay Options" entry (so the Game-Play option page is accessible) and placed it after Visual Options; moved several non-visual toggles onto it.
 - Files: `src/defines.h`, `src/tables.c`, `src/cmd1.c`, `src/cmd2.c`, `src/monster2.c`, `src/melee1.c`, `src/melee2.c`, `src/spells1.c`.
 - Build: `build-cmake.bat` succeeds.
 
