@@ -3371,6 +3371,10 @@ bool target_okay(int range)
     /* Accept some "location" targets */
     if (p_ptr->target_who == 0)
     {
+        /* Never "target" the player's own grid */
+        if ((p_ptr->target_row == p_ptr->py) && (p_ptr->target_col == p_ptr->px))
+            return (false);
+
         // reject things beyond range
         if ((range > 0)
             && (distance(
@@ -5385,6 +5389,8 @@ bool get_aim_dir(int* dp, int range)
     dir = p_ptr->command_dir;
     if ((dir == 5) && !target_okay(range))
         dir = 0;
+    if ((dir == DIRECTION_UP) || (dir == DIRECTION_DOWN))
+        dir = 0;
 
     /* Hack -- auto-target if requested */
     //	if (use_old_target && target_okay(range)) dir = 5;
@@ -5461,6 +5467,8 @@ bool get_aim_dir(int* dp, int range)
         default:
         {
             dir = target_dir(ch);
+            if ((dir == 5) && !target_okay(range))
+                dir = 0;
             break;
         }
         }

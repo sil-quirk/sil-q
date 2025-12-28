@@ -2652,6 +2652,7 @@
 #define OPT_story_lists_equip_pane 82
 #define OPT_story_monster_desc 83
 #define OPT_story_monster_desc_pane 84
+#define OPT_disable_skeleton_note_tutorial 85
 // xxx
 // xxx
 // xxx
@@ -2796,6 +2797,8 @@
 #define story_equipment_lists_pane op_ptr->opt[OPT_story_lists_equip_pane]
 #define story_monster_desc_main op_ptr->opt[OPT_story_monster_desc]
 #define story_monster_desc_pane op_ptr->opt[OPT_story_monster_desc_pane]
+#define disable_skeleton_note_tutorial                                           \
+    op_ptr->opt[OPT_disable_skeleton_note_tutorial]
 #define display_hits op_ptr->opt[OPT_display_hits]
 #define story_character_sheet op_ptr->opt[OPT_story_character_sheet]
 // xxx

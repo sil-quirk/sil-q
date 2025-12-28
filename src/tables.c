@@ -232,7 +232,7 @@ cptr option_text[OPT_MAX] = {
     "story_lists_equip_pane", /* OPT_story_lists_equip_pane */
     "story_monster_desc", /* OPT_story_monster_desc */
     "story_monster_desc_pane", /* OPT_story_monster_desc_pane */
-    NULL, /* xxx */
+    "disable_skeleton_note_tutorial", /* OPT_disable_skeleton_note_tutorial */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -472,7 +472,7 @@ cptr option_desc[OPT_MAX] = {
     "Render the equipment pane with the story font", /* OPT_story_lists_equip_pane */
     "Render monster descriptions in the main window with the story font", /* OPT_story_monster_desc */
     "Render monster descriptions in the monster pane with the story font", /* OPT_story_monster_desc_pane */
-    NULL, /* xxx */
+    "Disable tutorial messages in skeleton notes", /* OPT_disable_skeleton_note_tutorial */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -731,7 +731,7 @@ const bool option_norm[OPT_MAX] = {
     true, /* OPT_story_lists_equip_pane */
     false, /* OPT_story_monster_desc */
     false, /* OPT_story_monster_desc_pane */
-    false, /* xxx */
+    false, /* OPT_disable_skeleton_note_tutorial */
     false, /* xxx */
     false, /* xxx */
     false, /* xxx */
@@ -913,7 +913,7 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
     { OPT_forgo_attacking_unwary, OPT_stop_singing_on_rest, OPT_system_beep,
         OPT_quick_messages, OPT_auto_more, OPT_easy_main_menu,
         OPT_hjkl_movement, OPT_angband_keyset, OPT_hitpoint_warning,
-        OPT_know_monster_info, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_know_monster_info, OPT_disable_skeleton_note_tutorial, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Disturbance ***/

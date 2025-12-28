@@ -7,6 +7,12 @@
 - Files: `src/defines.h`, `src/tables.c`, `src/cmd1.c`, `src/cmd2.c`, `src/monster2.c`, `src/melee1.c`, `src/melee2.c`, `src/spells1.c`.
 - Build: `build-cmake.bat` succeeds.
 
+## 2025-12-28: Throw-from-quiver dropping at feet
+- Symptom: throwing weapons from quiver via `f` sometimes land on the player’s square instead of being thrown.
+- Likely cause: a “location target” on the player’s own grid was considered valid by `target_okay()`, so `get_aim_dir()` could return `dir == 5` and `do_cmd_throw()` would compute a zero-length `project_path()`.
+- Fix: `target_okay()` now rejects location targets on `(py, px)`; `get_aim_dir()` also rejects `dir == 5` when no valid target exists (and won’t auto-reuse `DIRECTION_UP/DOWN` from `p_ptr->command_dir`).
+- Files: `src/xtra2.c`.
+
 ## Skeleton note story wrapping
 - Symptom: skeleton note lines duplicated or truncated when rendered with proportional story font.
 - Root cause: story-font renderer packs text only within contiguous `STORY_FLAG_USE` cells; if a line has fewer cells than its pixel width, the render clamps and appears cut/duplicated.
@@ -8036,4 +8042,9 @@ The script now fully matches the game's drop generation logic for all item types
 ## 2025-12-27: Varda spawn reachability + adjacency fixes
 - `src/generate.c`: Varda now spawns only on `FEAT_SUNLIGHT` tiles that are reachable from the player without digging rubble/crossing chasms (`flood_access(..., false)`) and not adjacent to the player; forced sunlight fallback now picks a random rubble-free reachable floor tile and creates a small sunlight pool.
 - `src/xtra2.c`: scripted quest-giver spawns avoid adjacent placement (Varda/Niena); Varda scripted spawns now create a 3x3 sunlight pool around her.
+- build-cmake.bat: success (standard + portable builds).
+
+## 2025-12-28: Option to disable skeleton-note tutorial messages
+- `src/defines.h`, `src/tables.c`: add `disable_skeleton_note_tutorial` option (default off) and expose it on Interface options page.
+- `src/cmd2.c`: gate `SKEL_HINT_TIP` skeleton-note templates behind the new option.
 - build-cmake.bat: success (standard + portable builds).

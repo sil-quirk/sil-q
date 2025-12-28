@@ -1715,6 +1715,9 @@ static bool skeleton_hint_available(skeleton_hint_kind kind,
     const level_layout_info* layout, bool vault_present,
     bool vault_artifact, byte sval)
 {
+    if (kind == SKEL_HINT_TIP && disable_skeleton_note_tutorial)
+        return false;
+
     bool ok = false;
 
     switch (kind)
