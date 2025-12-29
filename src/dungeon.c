@@ -196,6 +196,11 @@ static bool is_big_partition_kind(level_partition_kind kind)
         || kind == LEVEL_PART_CHASM);
 }
 
+static bool is_small_cave_partition_kind(level_partition_kind kind)
+{
+    return (kind == LEVEL_PART_CAVEY);
+}
+
 static void big_partition_print_entry_message(level_partition_kind kind)
 {
     switch (kind)
@@ -233,6 +238,12 @@ static void big_partition_print_entry_message(level_partition_kind kind)
     }
 }
 
+static void small_cave_print_entry_message(void)
+{
+    msg_print("The air is close and frowsty; your flame burns ill in this little cave.");
+    msg_print("Here torch and lamp drink their fuel twice as fast.");
+}
+
 static void maybe_award_big_partition_xp(int pi)
 {
     if (pi < 0 || pi >= 25)
@@ -246,7 +257,7 @@ static void maybe_award_big_partition_xp(int pi)
     gain_exp(50);
 }
 
-static void handle_big_partition_entry(bool force_message)
+static void handle_partition_entry(bool force_message)
 {
     if (!p_ptr || p_ptr->is_dead)
         return;
@@ -256,24 +267,44 @@ static void handle_big_partition_entry(bool force_message)
 
     bool is_big = is_big_partition_kind(kind);
     bool was_big = is_big_partition_kind(last_partition_kind);
+    bool is_small_cave = is_small_cave_partition_kind(kind);
+    bool was_small_cave = is_small_cave_partition_kind(last_partition_kind);
 
-    bool entered = false;
+    bool entered_big = false;
     if (force_message)
     {
-        entered = is_big;
+        entered_big = is_big;
     }
     else if (is_big)
     {
         if (!was_big)
-            entered = true;
+            entered_big = true;
         else if (pi != last_partition_pi || kind != last_partition_kind)
-            entered = true;
+            entered_big = true;
     }
 
-    if (entered)
+    bool entered_small_cave = false;
+    if (force_message)
+    {
+        entered_small_cave = is_small_cave;
+    }
+    else if (is_small_cave)
+    {
+        if (!was_small_cave)
+            entered_small_cave = true;
+        else if (pi != last_partition_pi || kind != last_partition_kind)
+            entered_small_cave = true;
+    }
+
+    if (entered_big)
     {
         big_partition_print_entry_message(kind);
         maybe_award_big_partition_xp(pi);
+    }
+
+    if (entered_small_cave)
+    {
+        small_cave_print_entry_message();
     }
 
     last_partition_pi = pi;
@@ -924,7 +955,16 @@ static void process_world(void)
         if (o_ptr->timeout > 0)
         {
             /* Decrease life-span */
-            o_ptr->timeout--;
+            int fuel = 1;
+            if (fuelable_light_p(o_ptr)
+                && (level_partition_kind_for_point(p_ptr->py, p_ptr->px) == LEVEL_PART_CAVEY))
+            {
+                fuel = 2;
+            }
+
+            o_ptr->timeout -= fuel;
+            if (o_ptr->timeout < 0)
+                o_ptr->timeout = 0;
             p_ptr->redraw |= (PR_LIGHT);
 
             /* Hack -- notice interesting fuel steps */
@@ -2535,7 +2575,7 @@ static void process_player(void)
 
         /* Update labyrinth map restriction and partition-entry messages/XP. */
         update_labyrinth_view_state(true);
-        handle_big_partition_entry(false);
+        handle_partition_entry(false);
 
         bool in_morgoth_vault = (p_ptr->depth == MORGOTH_DEPTH)
             && (cave_info[p_ptr->py][p_ptr->px] & (CAVE_G_VAULT));
@@ -3371,8 +3411,8 @@ static void dungeon(void)
     log_debug("Final terminal refresh");
     Term_fresh();
 
-    /* Show big-partition entry message/XP after the initial draw so it can't be cleared by the setup flush. */
-    handle_big_partition_entry(true);
+    /* Show partition entry messages/XP after the initial draw so they can't be cleared by the setup flush. */
+    handle_partition_entry(true);
 
     log_info("Dungeon display setup completed successfully");
 
@@ -3974,18 +4014,19 @@ PlayResult play_game(void)
         SDL_strlcpy(op_ptr->base_name, "nameless", sizeof(op_ptr->base_name));
     }
 
-    if (metarun_created)        /* show only the first time ever */
+    if (metarun_created) /* show only the first time ever */
         print_story_intro();
     else
         print_metarun_stats();
 
-     /* New startup behavior: try to auto-load any alive character
-         lingering in the scorefile. If successful, skip character
-         selection and proceed directly. */
-     character_loaded = false;
-     character_loaded_dead = false;
-     bool autoloaded = autoload_alive_from_scores();
-     if (autoloaded && character_loaded) {
+    /* New startup behavior: try to auto-load any alive character
+     * lingering in the scorefile. If successful, skip character
+     * selection and proceed directly. */
+    character_loaded = false;
+    character_loaded_dead = false;
+    bool autoloaded = autoload_alive_from_scores();
+    if (autoloaded && character_loaded)
+    {
         log_info("Auto-loaded alive character from scores; skipping selection");
         new_game = false;
     }

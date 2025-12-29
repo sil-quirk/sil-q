@@ -61,7 +61,7 @@ static const s16b jinx_egos[] = {
 
 static const char* DROP_RAW_FILE = "drops";
 static const u32b DROP_RAW_MAGIC = 0x44525053; /* 'DRPS' */
-static const u32b DROP_RAW_VERSION = 9;
+static const u32b DROP_RAW_VERSION = 10;
 
 typedef struct
 {
@@ -447,7 +447,9 @@ static void drop_apply_spawn_quantities(object_type* o_ptr)
         {
             if (o_ptr->sval == SV_LIGHT_TORCH)
             {
-                o_ptr->timeout = one_in_(3) ? rand_range(500, 2000) : 2000;
+                int spawn_fuel = 1000;
+                int min_fuel = 250;
+                o_ptr->timeout = one_in_(3) ? rand_range(min_fuel, spawn_fuel) : spawn_fuel;
             }
             else if (o_ptr->sval == SV_LIGHT_LANTERN)
             {
@@ -1288,7 +1290,7 @@ static void build_ego_variants(int e_idx)
                 ps_max = k_ptr->ps + 1 + e_ptr->to_ps;
                 if ((k_ptr->tval == TV_CLOAK)
                     || (k_ptr->tval == TV_SOFT_ARMOR && k_ptr->sval == SV_ROBE))
-                    ps_max = 0;
+                    ps_max = k_ptr->ps + e_ptr->to_ps;
                 if (k_ptr->tval == TV_MAIL && k_ptr->sval == SV_LONG_CORSLET)
                     ps_max = k_ptr->ps + 2 + e_ptr->to_ps;
                 break;

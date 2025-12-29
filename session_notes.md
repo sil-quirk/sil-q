@@ -19,6 +19,17 @@
 - Fix: `target_okay()` now rejects location targets on `(py, px)`; `get_aim_dir()` also rejects `dir == 5` when no valid target exists (and won’t auto-reuse `DIRECTION_UP/DOWN` from `p_ptr->command_dir`).
 - Files: `src/xtra2.c`.
 
+## 2025-12-29: Throw-from-quiver target/direction drops
+- Fix: `do_cmd_throw()` now handles `dir == 5` targets robustly, properly distinguishes location vs monster targets, computes `project_path()` before consuming the thrown item, and avoids invalid `mon_list[]` indexing when the endpoint isn’t a monster.
+- File: `src/cmd2.c`.
+- Build: `build-cmake.bat` succeeds (standard deploy copy can fail if `sil-more.exe` is running).
+
+## 2025-12-29: Large-map `projectable()` overflow disables archery/screech
+- Symptom: on large levels, monsters that require `projectable()` (archers, Silent Watcher `SCREECH`, etc.) stop using those actions even with LOS/CAVE_FIRE.
+- Root cause: `project_path()` used signed `s16b` packed grid indices; `GRID(y,x)` overflows when `256*y+x > 32767`, so the endpoint grid never matches and `projectable()` returns `PROJECT_NO`.
+- Fix: use `u16b` for packed absolute grid indices in `project_path()` and decode endpoint coords using `int` locals.
+- File: `src/cave.c`.
+
 ## Skeleton note story wrapping
 - Symptom: skeleton note lines duplicated or truncated when rendered with proportional story font.
 - Root cause: story-font renderer packs text only within contiguous `STORY_FLAG_USE` cells; if a line has fewer cells than its pixel width, the render clamps and appears cut/duplicated.
@@ -8054,3 +8065,9 @@ The script now fully matches the game's drop generation logic for all item types
 - `src/defines.h`, `src/tables.c`: add `disable_skeleton_note_tutorial` option (default off) and expose it on Interface options page.
 - `src/cmd2.c`: gate `SKEL_HINT_TIP` skeleton-note templates behind the new option.
 - build-cmake.bat: success (standard + portable builds).
+
+## 2025-12-28: Small caves theming + stuffy light penalty
+- `src/dungeon.c`: entering `LEVEL_PART_CAVEY` prints a stuffy-atmosphere message; torches/lanterns burn 2 fuel/turn while in small caves.
+- `src/generate.c`, `src/object2.c`: small caves bias extra monsters toward spiders/wolves/bats/trolls; web traps are more common in cavey partitions (and small extra trap chance on cave floors at depth 8+).
+- `src/defines.h`, `lib/edit/object.txt`, `src/object2.c`, `src/drop_system.c`: keep wooden-torch max fuel at 3,000 but reduce spawned torch fuel to ~1,000.
+- build-cmake.bat: success (standard + portable builds; standard deployment copy may fail if `sil-more.exe` is running).

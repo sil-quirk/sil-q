@@ -2722,13 +2722,16 @@ static void a_m_aux_4(object_type* o_ptr, int level, bool fine, bool special)
         /* Hack -- Torches -- random fuel */
         if (o_ptr->sval == SV_LIGHT_TORCH)
         {
+            int spawn_fuel = 1000;
+            int min_fuel = 250;
+
             if (one_in_(3))
             {
-                o_ptr->timeout = rand_range(500, 2000);
+                o_ptr->timeout = rand_range(min_fuel, spawn_fuel);
             }
             else
             {
-                o_ptr->timeout = 2000;
+                o_ptr->timeout = spawn_fuel;
             }
         }
 
@@ -4491,11 +4494,17 @@ void place_trap(int y, int x)
     if (!cave_naked_bold(y, x))
         return;
 
+    bool prefer_web = (p_ptr->depth >= 8)
+        && (level_partition_kind_for_point(y, x) == LEVEL_PART_CAVEY);
+
     /* Pick a trap */
     while (1)
     {
         /* Hack -- pick a trap */
-        feat = rand_range(FEAT_TRAP_HEAD, FEAT_TRAP_TAIL);
+        if (prefer_web && (rand_int(100) < 45))
+            feat = FEAT_TRAP_WEB;
+        else
+            feat = rand_range(FEAT_TRAP_HEAD, FEAT_TRAP_TAIL);
 
         switch (feat)
         {

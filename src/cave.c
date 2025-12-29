@@ -5217,9 +5217,9 @@ int project_path(
     bool monster_in_way = false;
 
     /* Initial grid */
-    s16b g0 = GRID(y1, x1);
+    u16b g0 = (u16b)GRID(y1, x1);
 
-    s16b g;
+    u16b g;
 
     /* Pointer to vinfo data */
     vinfo_type* p;
@@ -5310,26 +5310,17 @@ int project_path(
     /* Scan the octant, find the grid corresponding to the end point */
     for (j = 1; j < VINFO_MAX_GRIDS; j++)
     {
-        s16b vy, vx;
+        int vy, vx;
 
         /* Point to this vinfo record */
         p = &vinfo[j];
 
         /* Extract grid value */
-        g = g0 + p->grid[octant];
+        g = (u16b)(g0 + p->grid[octant]);
 
         /* Get axis coordinates */
         vy = GRID_Y(g);
         vx = GRID_X(g);
-
-        /* Allow for negative values XXX XXX XXX */
-        if (vy > 256 * 127)
-            vy = vy - (256 * 256);
-        if (vx > x1 + 127)
-        {
-            vy++;
-            vx = vx - 256;
-        }
 
         /* Require that grid be correct */
         if ((vy != *y2) || (vx != *x2))
@@ -5365,7 +5356,7 @@ int project_path(
          * Extract grid value.  Use pointer shifting to get the
          * correct grid offset for this octant.
          */
-        g = g0 + *((s16b*)(((byte*)(p)) + (octant * 2)));
+        g = (u16b)(g0 + *((s16b*)(((byte*)(p)) + (octant * 2))));
 
         y = GRID_Y(g);
         x = GRID_X(g);

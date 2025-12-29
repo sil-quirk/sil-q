@@ -1463,8 +1463,8 @@ static int partition_extra_monster_target(quadrant_mode_t mode, int floor_count)
         if (target > 5) target = 5;
         break;
     case QUAD_MODE_CAVEY:
-        target = floor_count / 220;
-        if (target > 10) target = 10;
+        target = floor_count / 170;
+        if (target > 14) target = 14;
         break;
     case QUAD_MODE_RUINED:
         target = floor_count / 260;
@@ -1580,6 +1580,18 @@ static int place_partition_extra_monsters(void)
             {
                 if (rand_int(100) < 55)
                     placed_mon = place_monster_by_flag_try(y, x, 2, RF2_INVISIBLE, true, p_ptr->depth);
+            }
+            else if (mode == QUAD_MODE_CAVEY)
+            {
+                int pref_roll = rand_int(100);
+                if (pref_roll < 45)
+                    placed_mon = place_monster_by_letter_try(y, x, 'M', false, p_ptr->depth);
+                else if (pref_roll < 70)
+                    placed_mon = place_monster_by_letter_try(y, x, 'C', false, p_ptr->depth);
+                else if (pref_roll < 90)
+                    placed_mon = place_monster_by_letter_try(y, x, 'b', false, p_ptr->depth);
+                else
+                    placed_mon = place_monster_by_letter_try(y, x, 'T', false, p_ptr->depth);
             }
 
             if (!placed_mon)
@@ -8965,6 +8977,13 @@ static int trap_placement_chance(int y, int x)
             chance += 10;
         if (cave_impassable_bold(y, x - 1) && cave_impassable_bold(y, x + 1))
             chance += 10;
+    }
+
+    /* Small caves (CA-blob partitions): sprinkle a few extra traps on open cave floors. */
+    if (p_ptr->depth >= 8 && cave_clean_bold(y, x) && !(cave_info[y][x] & CAVE_ICKY)
+        && (level_partition_kind_for_point(y, x) == LEVEL_PART_CAVEY))
+    {
+        chance = MAX(chance, 2);
     }
 
     return (chance);

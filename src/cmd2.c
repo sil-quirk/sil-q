@@ -7558,20 +7558,31 @@ void do_cmd_throw(bool automatic)
     tx = p_ptr->px + 99 * ddx[dir];
 
     /* Check for "target request" */
-    if ((dir == 5) && target_okay(tdis))
+    if (dir == 5)
     {
+        log_debug("do_cmd_throw: dir=5, checking target_okay(tdis=%d)", tdis);
+        log_debug("do_cmd_throw: BEFORE target_okay: target_row=%d target_col=%d target_who=%d",
+            p_ptr->target_row, p_ptr->target_col, p_ptr->target_who);
+        
+        if (!target_okay(tdis))
+        {
+            msg_print("You have no target.");
+            return;
+        }
+
+        log_debug("do_cmd_throw: AFTER target_okay: target_row=%d target_col=%d target_who=%d",
+            p_ptr->target_row, p_ptr->target_col, p_ptr->target_who);
+
         ty = p_ptr->target_row;
         tx = p_ptr->target_col;
 
-        // targetting the square itself
-        if (cave_m_idx[y][x] == 0)
+        /* If we're targeting a location (not a monster), stop the throw there. */
+        spatial_target = (p_ptr->target_who == 0);
+
+        /* Oath of Mercy may block throwing at an explicit monster target. */
+        if (!spatial_target && (p_ptr->target_who > 0))
         {
-            spatial_target = true;
-        }
-        else
-        {
-            monster_type* target_m_ptr = &mon_list[cave_m_idx[ty][tx]];
-            
+            monster_type* target_m_ptr = &mon_list[p_ptr->target_who];
             if (abort_for_mercy(target_m_ptr))
             {
                 return;
@@ -7606,9 +7617,6 @@ void do_cmd_throw(bool automatic)
     if (abort_for_valorous_ranged_path(tdis, ty, tx))
         return;
 
-    m_ptr = &mon_list[cave_m_idx[ty][tx]];
-    r_ptr = &r_info[m_ptr->r_idx];
-
     /* Handle player fear */
     if (p_ptr->afraid)
     {
@@ -7619,18 +7627,56 @@ void do_cmd_throw(bool automatic)
         return;
     }
 
-    if (r_ptr->flags1 & (RF1_PEACEFUL))
+    if (cave_m_idx[ty][tx] > 0)
     {
-        char m_name[80];
-        monster_desc(m_name, sizeof(m_name), m_ptr, 0);
+        m_ptr = &mon_list[cave_m_idx[ty][tx]];
+        r_ptr = &r_info[m_ptr->r_idx];
 
-        msg_format("You stop before you hit %s.", m_name);
+        if (r_ptr->flags1 & (RF1_PEACEFUL))
+        {
+            char m_name[80];
+            monster_desc(m_name, sizeof(m_name), m_ptr, 0);
 
-        return;
+            msg_format("You stop before you hit %s.", m_name);
+
+            return;
+        }
+
+        if (abort_for_mercy(m_ptr))
+        {
+            return;
+        }
     }
 
-    if (abort_for_mercy(m_ptr))
+    /* Set dummy variables to pass to project_path (so it doesn't clobber the real ones). */
+    ty2 = ty;
+    tx2 = tx;
+
+    u32b path_flg = PROJECT_THRU;
+    if (spatial_target)
+        path_flg = 0;
+
+    /* DEBUG: Log throw parameters before path calculation */
+    log_debug("do_cmd_throw: dir=%d py=%d px=%d ty=%d tx=%d tdis=%d spatial=%d",
+        dir, p_ptr->py, p_ptr->px, ty, tx, tdis, spatial_target ? 1 : 0);
+
+    /* Calculate the path */
+    path_n = project_path(
+        path_g, tdis, p_ptr->py, p_ptr->px, &ty2, &tx2, path_flg);
+    path_n = ABS(path_n);
+
+    /* DEBUG: Log path result */
+    log_debug("do_cmd_throw: path_n=%d after project_path", path_n);
+    if (path_n > 0)
     {
+        log_debug("do_cmd_throw: first grid=(%d,%d) last grid=(%d,%d)",
+            GRID_Y(path_g[0]), GRID_X(path_g[0]),
+            GRID_Y(path_g[path_n-1]), GRID_X(path_g[path_n-1]));
+    }
+
+    if (path_n <= 0)
+    {
+        msg_print("You cannot throw there.");
         return;
     }
 
@@ -7700,24 +7746,6 @@ void do_cmd_throw(bool automatic)
     // store the action type
     p_ptr->previous_action[0] = ACTION_MISC;
 
-    // set dummy variables to pass to project_path (so it doesn't clobber the
-    // real ones)
-    ty2 = ty;
-    tx2 = tx;
-
-    if (spatial_target)
-    {
-        /* Calculate the path */
-        path_n = project_path(
-            path_g, tdis, p_ptr->py, p_ptr->px, &ty2, &tx2, PROJECT_THRU);
-    }
-    else
-    {
-        /* Calculate the path */
-        path_n
-            = project_path(path_g, tdis, p_ptr->py, p_ptr->px, &ty2, &tx2, 0);
-    }
-
     /* Hack -- Handle stuff */
     handle_stuff();
 
@@ -7727,10 +7755,14 @@ void do_cmd_throw(bool automatic)
         int ny = GRID_Y(path_g[i]);
         int nx = GRID_X(path_g[i]);
 
+        log_debug("do_cmd_throw: loop i=%d ny=%d nx=%d cave_floor=%d cave_m_idx=%d",
+            i, ny, nx, cave_floor_bold(ny, nx) ? 1 : 0, cave_m_idx[ny][nx]);
+
         /* Hack -- Stop before hitting walls */
         if (!cave_floor_bold(ny, nx))
         {
             hit_wall = true;
+            log_debug("do_cmd_throw: hit wall at i=%d, breaking loop before updating y,x");
 
             // Show collision
             /* Only do visuals if the player can "see" the missile */
@@ -8077,6 +8109,10 @@ void do_cmd_throw(bool automatic)
     /* throwing weapons have a lesser chance */
     if (treat_as_throwing)
         j /= 4;
+
+    /* DEBUG: Log final drop position */
+    log_debug("do_cmd_throw: dropping at y=%d x=%d (player at %d,%d) hit_body=%d",
+        y, x, p_ptr->py, p_ptr->px, hit_body ? 1 : 0);
 
     /* Drop (or break) near that location */
     drop_near(i_ptr, j, y, x);
