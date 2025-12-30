@@ -520,7 +520,8 @@ void id_known_specials(void)
         if (o_ptr->name2 && !object_known_p(o_ptr)
             && (e_info[o_ptr->name2].aware))
         {
-            ident(o_ptr);
+            if (!object_uses_smithing_difficulty(o_ptr))
+                ident(o_ptr);
         }
     }
     for (i = 0; i < INVEN_TOTAL; i++)
@@ -536,7 +537,8 @@ void id_known_specials(void)
         if (o_ptr->name2 && !object_known_p(o_ptr)
             && (e_info[o_ptr->name2].aware))
         {
-            ident(o_ptr);
+            if (!object_uses_smithing_difficulty(o_ptr))
+                ident(o_ptr);
         }
     }
 

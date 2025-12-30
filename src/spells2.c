@@ -1074,14 +1074,22 @@ void identify_revealed_items(bool identify[])
     for (int i = 0; i < INVEN_TOTAL; i++) {
         if (identify[i]) {
             object_type* o_ptr = &inventory[i];
-            if (!object_known_p(o_ptr)) {
+            if (object_uses_smithing_difficulty(o_ptr))
+            {
+                player_mark_object_experienced(o_ptr);
+                continue;
+            }
+
+            if (!object_known_p(o_ptr))
+            {
                 char o_short_name[80], o_full_name[80];
-                
+
                 object_desc(o_short_name, sizeof(o_short_name), o_ptr, false, 0);
                 ident(o_ptr);
                 object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
-                
-                msg_format("You realize that your %s is %s.", o_short_name, o_full_name);
+
+                msg_format(
+                    "You realize that your %s is %s.", o_short_name, o_full_name);
             }
         }
     }
@@ -1292,6 +1300,9 @@ bool detect_objects_normal(int radius)
 
         /* Hack -- memorize it */
         o_ptr->marked = true;
+
+        /* Detection reveals easy smithing items (no distance penalty). */
+        (void)player_auto_identify_smithing_object(o_ptr, true);
 
         /* Redraw */
         lite_spot(y, x);

@@ -479,6 +479,11 @@ extern void disturb(int stop_stealth, int unused_flag);
 extern void apply_oath_breaking_curse(int oath_type);
 extern void give_player_item(object_type * o_ptr);
 extern bool player_auto_identifies_object(const object_type* o_ptr);
+extern void player_mark_object_experienced(object_type* o_ptr);
+extern bool player_try_identify_smithing_object(
+    object_type* o_ptr, bool is_equipped, int bonus);
+extern bool player_auto_identify_smithing_object(
+    object_type* o_ptr, bool ignore_distance_penalty);
 extern bool graphics_are_ascii();
 extern void new_wandering_flow(monster_type* m_ptr, int y, int x);
 extern void new_wandering_destination(
@@ -913,6 +918,8 @@ extern void object_flags_known(
 extern void strip_name(char* buf, int k_idx);
 extern void object_desc(
     char* buf, size_t max, const object_type* o_ptr, int pref, int mode);
+extern void object_desc_floor(
+    char* buf, size_t max, const object_type* o_ptr, int pref, int mode);
 extern void object_desc_spoil(
     char* buf, size_t max, const object_type* o_ptr, int pref, int mode);
 extern void identify_random_gen(const object_type* o_ptr);
@@ -1000,6 +1007,8 @@ extern void drop_profile_for_partition_kind(level_partition_kind kind,
     drop_profile* out);
 extern drop_quality drop_quality_from_flags(bool good, bool great);
 extern void drop_profile_default(drop_profile* profile);
+extern bool object_uses_smithing_difficulty(const object_type* o_ptr);
+extern int object_smithing_difficulty(const object_type* o_ptr);
 extern void drop_system_init(void);
 extern bool drop_generate_object(int depth, drop_quality quality, int droptype,
     bool allow_artefacts, object_type* out);

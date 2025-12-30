@@ -1998,7 +1998,7 @@ void describe_floor_object(void)
 
     // generate the object's name
     o_ptr = &o_list[cave_o_idx[p_ptr->py][p_ptr->px]];
-    object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+    object_desc_floor(o_name, sizeof(o_name), o_ptr, true, 3);
 
     // skip 'nothings'
     if (!o_ptr->k_idx)

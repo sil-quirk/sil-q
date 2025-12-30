@@ -5062,7 +5062,7 @@ void floor_item_describe(int item)
     char o_name[80];
 
     /* Get a description */
-    object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+    object_desc_floor(o_name, sizeof(o_name), o_ptr, true, 3);
 
     /* Print a message */
     if (!p_ptr->blind)

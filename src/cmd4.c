@@ -17413,7 +17413,7 @@ void show_unified_sidebar(unified_look_state* state)
              * Mode 4 applies shortening logic that sidebar_compact_name expects.
              * Fixed mode 4 to never produce stats-only output.
              */
-            object_desc(o_name, sizeof(o_name), o_ptr, false, 4);
+            object_desc_floor(o_name, sizeof(o_name), o_ptr, false, 4);
 
             SDL_strlcpy(name_source, o_name, sizeof(name_source));
             /* Only show asterisk for artifacts that are identified */

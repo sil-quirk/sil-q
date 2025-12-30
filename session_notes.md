@@ -8071,3 +8071,13 @@ The script now fully matches the game's drop generation logic for all item types
 - `src/generate.c`, `src/object2.c`: small caves bias extra monsters toward spiders/wolves/bats/trolls; web traps are more common in cavey partitions (and small extra trap chance on cave floors at depth 8+).
 - `src/defines.h`, `lib/edit/object.txt`, `src/object2.c`, `src/drop_system.c`: keep wooden-torch max fuel at 3,000 but reduce spawned torch fuel to ~1,000.
 - build-cmake.bat: success (standard + portable builds; standard deployment copy may fail if `sil-more.exe` is running).
+
+## 2025-12-29: Smithing-difficulty identification overhaul
+- `src/defines.h`: add `IDENT_EXPERIENCED` flag (+5 identify bonus after experiencing effects).
+- `src/drop_system.c`, `src/externs.h`: expose `object_uses_smithing_difficulty()` + `object_smithing_difficulty()` for weapons/armour/jewellery (incl horns + some lights) using the drop baseline.
+- `src/xtra1.c`: new Per+Smt identification helpers (bonuses from abilities/context/known ego/experienced effects); auto-ID on sight uses `skill >= difficulty + 10` with distance penalty `min(10, dist/2)`.
+- `src/object1.c`, `src/cmd3.c`: opening item description attempts identification; floor item names hide combat stats until identified via `object_desc_floor()`.
+- `src/cmd4.c`, `src/xtra1.c`: unified-look sidebar uses `object_desc_floor()`; smithing-ID checks now emit `log_debug` traces and show an in-game message on successful identification.
+- `src/spells2.c`, `src/spells1.c`, `src/xtra1.c`: treasure detection + Song of Revealing auto-identify qualifying smithing items with no distance penalty and no +10 auto-ID margin.
+- `src/cmd1.c`, `src/cmd2.c`, `src/spells2.c`, `src/cmd6.c`, `src/use-obj.c`: replace “identify by use/wield” with `IDENT_EXPERIENCED` for smithing-difficulty items; gem of understanding still fully identifies; self knowledge gives +5 and tries equipped items.
+- build-cmake.bat: success (standard + portable builds).

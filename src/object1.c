@@ -1888,6 +1888,91 @@ object_desc_done:
 }
 
 /*
+ * Describe an item that is known to be lying on the floor.
+ *
+ * For smithing-difficulty items that have not been identified yet, suppress
+ * the combat stats in the short name display (e.g. show just "Short Sword").
+ */
+void object_desc_floor(
+    char* buf, size_t max, const object_type* o_ptr, int pref, int mode)
+{
+    const char* u;
+    const char* v;
+    char discount_buf[80];
+
+    bool aware;
+    bool known;
+
+    if (!o_ptr || !o_ptr->k_idx)
+    {
+        SDL_strlcpy(buf, "(nothing)", max);
+        return;
+    }
+
+    if (!object_uses_smithing_difficulty(o_ptr) || object_known_p(o_ptr))
+    {
+        object_desc(buf, max, o_ptr, pref, mode);
+        return;
+    }
+
+    /* Base name only (no combat stats). */
+    object_desc(buf, max, o_ptr, pref, 0);
+
+    /* Match object_desc() inscription behavior for mode 3+. */
+    if (mode < 3)
+        return;
+
+    aware = (object_aware_p(o_ptr) ? true : false);
+    known = (object_known_p(o_ptr) ? true : false);
+
+    if (o_ptr->obj_note)
+        u = quark_str(o_ptr->obj_note);
+    else
+        u = NULL;
+
+    v = NULL;
+    discount_buf[0] = '\0';
+
+    if (o_ptr->discount >= INSCRIP_NULL)
+    {
+        if ((o_ptr->discount != INSCRIP_AVERAGE)
+            && (o_ptr->discount != INSCRIP_GOOD_STRONG))
+        {
+            v = inscrip_text[o_ptr->discount - INSCRIP_NULL];
+        }
+    }
+    else if (cursed_p(o_ptr) && known)
+    {
+        v = "cursed";
+    }
+    else if (!known && (o_ptr->ident & (IDENT_EMPTY)))
+    {
+        v = "empty";
+    }
+    else if (!aware && object_tried_p(o_ptr))
+    {
+        v = "tried";
+    }
+    else if (o_ptr->discount > 0)
+    {
+        strnfmt(discount_buf, sizeof(discount_buf), "%d%% off", o_ptr->discount);
+        v = discount_buf;
+    }
+
+    if (u || v)
+    {
+        SDL_strlcat(buf, " {", max);
+        if (u)
+            SDL_strlcat(buf, u, max);
+        if (u && v)
+            SDL_strlcat(buf, ", ", max);
+        if (v)
+            SDL_strlcat(buf, v, max);
+        SDL_strlcat(buf, "}", max);
+    }
+}
+
+/*
  * Describe an item and pretend the item is fully known and has no flavor.
  */
 void object_desc_spoil(
@@ -3100,7 +3185,7 @@ void show_inven(void)
             continue;
 
         /* Describe the object */
-        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+        object_desc_floor(o_name, sizeof(o_name), o_ptr, true, 3);
 
         /* Hack -- enforce max length */
         o_name[lim] = '\0';
@@ -3635,7 +3720,10 @@ static bool verify_item(cptr prompt, int item)
     }
 
     /* Describe */
-    object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+    if (item < 0)
+        object_desc_floor(o_name, sizeof(o_name), o_ptr, true, 3);
+    else
+        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
     /* Prompt */
     strnfmt(out_val, sizeof(out_val), "%s %s? ", prompt, o_name);
@@ -4165,7 +4253,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         } else if (p_ptr->command_wrk == (USE_FLOOR)) {                             \
             for (int r=0;r<vis_floor_cnt;r++){                                      \
                 object_type* o_ptr=&o_list[floor_list[vis_floor[r]]];               \
-                object_desc(tmp, sizeof(tmp), o_ptr, true, 3);                      \
+                object_desc_floor(tmp, sizeof(tmp), o_ptr, true, 3);                \
                 tmp[lim]='\0';                                                     \
                 int l=strlen(tmp)+5 + (show_weights?9:0);                           \
                 if (l>len) len=l;                                                   \
@@ -4247,7 +4335,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             row = highlight_row; floor_slot = vis_floor[highlight_row];             \
             int obj_idx = floor_list[floor_slot];                                   \
             object_type* o_ptr=&o_list[obj_idx];                                    \
-            object_desc(tmp,sizeof(tmp),o_ptr,true,3); tmp[lim]='\0';               \
+            object_desc_floor(tmp,sizeof(tmp),o_ptr,true,3); tmp[lim]='\0';         \
             prt("", row+1, col);                                         \
             int label_col = show_weights ? 78 : 71;                                  \
             DRAW_HIGHLIGHT_IF_STORY({                                               \
@@ -5074,6 +5162,13 @@ void describe_item_with_comparisons(int item_index, bool include_comparisons)
     if (!base_obj->k_idx)
         return;
 
+    /* Opening an item description attempts smithing-difficulty identification. */
+    if (object_uses_smithing_difficulty(base_obj) && !object_known_p(base_obj))
+    {
+        bool is_equipped = (!is_floor && item_index >= INVEN_WIELD);
+        (void)player_try_identify_smithing_object(base_obj, is_equipped, 0);
+    }
+
     strnfmt(heading_texts[count], sizeof(heading_texts[count]), "%s:",
         is_floor ? "Selected item (floor)" : "Selected item");
     headings[count] = heading_texts[count];
@@ -5209,7 +5304,7 @@ void show_inven_enhanced(void)
             if (!item_tester_okay(o_ptr))
                 continue;
 
-            object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+            object_desc_floor(o_name, sizeof(o_name), o_ptr, true, 3);
             o_name[lim] = '\0';
 
             out_index[k] = 0 - floor_list[i];

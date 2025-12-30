@@ -4978,22 +4978,30 @@ static bool do_cmd_tunnel_aux(int y, int x)
         if (!object_known_p(digger_ptr) && (f1 & (TR1_TUNNEL)))
         {
             char o_short_name[80];
-            char o_full_name[80];
 
             /* Short, pre-identification object description */
             object_desc(
                 o_short_name, sizeof(o_short_name), digger_ptr, false, 0);
 
-            ident(digger_ptr);
-
-            /* Full object description */
-            object_desc(o_full_name, sizeof(o_full_name), digger_ptr, true, 3);
-
-            /* Print the messages */
             msg_format(
                 "You notice that your %s is especially suited to tunneling.",
                 o_short_name);
-            msg_format("You are wielding %s.", o_full_name);
+
+            if (object_uses_smithing_difficulty(digger_ptr))
+            {
+                player_mark_object_experienced(digger_ptr);
+            }
+            else
+            {
+                char o_full_name[80];
+
+                ident(digger_ptr);
+
+                /* Full object description */
+                object_desc(o_full_name, sizeof(o_full_name), digger_ptr, true, 3);
+
+                msg_format("You are wielding %s.", o_full_name);
+            }
         }
     }
 

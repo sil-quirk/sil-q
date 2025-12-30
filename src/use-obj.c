@@ -581,6 +581,29 @@ static bool use_staff_effects(object_type* o_ptr, bool* ident, bool alchemy_boos
     {
         msg_print("Your mind turns inward.");
         self_knowledge();
+
+        /* Gem/staff of self knowledge: attempt to identify equipped smithing items. */
+        for (int i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+        {
+            object_type* equip_ptr = &inventory[i];
+            if (!equip_ptr->k_idx)
+                continue;
+
+            u32b f1, f2, f3;
+            object_flags(equip_ptr, &f1, &f2, &f3);
+
+            bool is_quiver1 = (i == INVEN_QUIVER1);
+            bool is_quiver2 = (i == INVEN_QUIVER2);
+            bool is_throwing_item = player_can_treat_as_throwing_flags(equip_ptr, f3);
+
+            if (is_quiver1)
+                continue;
+            if (is_quiver2 && !is_throwing_item)
+                continue;
+
+            (void)player_try_identify_smithing_object(equip_ptr, true, 5);
+        }
+
         *ident = true;
         break;
     }

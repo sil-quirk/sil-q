@@ -589,7 +589,53 @@ static s16b neutral_wield_slot(const object_type* o_ptr)
     return -1;
 }
 
-static int smithing_difficulty_baseline(object_type* o_ptr)
+bool object_uses_smithing_difficulty(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    switch (o_ptr->tval)
+    {
+    case TV_ARROW:
+        /* Simple arrows are treated as supply; ego/artifact arrows use difficulty. */
+        return (o_ptr->name1 != 0) || (o_ptr->name2 != 0);
+
+    case TV_SWORD:
+    case TV_HAFTED:
+    case TV_POLEARM:
+    case TV_BOW:
+    case TV_DIGGING:
+        return true;
+
+    case TV_MAIL:
+    case TV_SOFT_ARMOR:
+    case TV_SHIELD:
+    case TV_CLOAK:
+    case TV_BOOTS:
+    case TV_GLOVES:
+    case TV_HELM:
+    case TV_CROWN:
+        return true;
+
+    case TV_RING:
+    case TV_AMULET:
+    case TV_HORN:
+        return true;
+
+    case TV_LIGHT:
+        /* Non-Feanorian lights are treated as supply, except Grace lesser jewels. */
+        if (o_ptr->sval == SV_LIGHT_FEANORIAN || o_ptr->sval == SV_LIGHT_SILMARIL)
+            return true;
+        if (o_ptr->sval == SV_LIGHT_LESSER_JEWEL && o_ptr->name2 == EGO_GRACE)
+            return true;
+        return false;
+
+    default:
+        return false;
+    }
+}
+
+static int smithing_difficulty_baseline(const object_type* o_ptr)
 {
     object_kind* k_ptr = &k_info[o_ptr->k_idx];
     int x, newv, base;
@@ -886,6 +932,14 @@ static int smithing_difficulty_baseline(object_type* o_ptr)
     if (dif > 255)
         dif = 255;
     return dif;
+}
+
+int object_smithing_difficulty(const object_type* o_ptr)
+{
+    if (!object_uses_smithing_difficulty(o_ptr))
+        return 0;
+
+    return smithing_difficulty_baseline(o_ptr);
 }
 
 static void add_drop_entry(const object_type* proto, drop_category cat,

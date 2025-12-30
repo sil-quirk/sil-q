@@ -835,7 +835,10 @@ void do_cmd_equip(void)
     case ENHANCED_ACTION_EXAMINE:
         log_trace("do_cmd_equip: Examining item %d", selected_index);
         if (selected_index >= INVEN_WIELD && selected_index < INVEN_TOTAL)
+        {
+            (void)player_try_identify_smithing_object(&inventory[selected_index], true, 0);
             object_info_screen(&inventory[selected_index]);
+        }
         break;
 
     case ENHANCED_ACTION_USE:
@@ -961,7 +964,7 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
         && (p_ptr->total_weight + o_ptr->weight > weight_limit() * 3 / 2))
     {
         /* Describe it */
-        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+        object_desc_floor(o_name, sizeof(o_name), o_ptr, true, 3);
 
         log_debug("do_cmd_wield: Floor item too heavy - total=%d + item=%d > limit=%d", 
             p_ptr->total_weight, o_ptr->weight, weight_limit() * 3 / 2);
@@ -981,7 +984,10 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     slot = wield_slot(o_ptr);
     if (slot < INVEN_WIELD || slot >= INVEN_TOTAL)
     {
-        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+        if (item < 0)
+            object_desc_floor(o_name, sizeof(o_name), o_ptr, true, 3);
+        else
+            object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
         msg_format("You cannot wear or wield %s.", o_name);
         return;
     }
@@ -2524,7 +2530,10 @@ void do_cmd_destroy(void)
     o_ptr->number = amt;
 
     /*now describe with correct amount*/
-    object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+    if (item < 0)
+        object_desc_floor(o_name, sizeof(o_name), o_ptr, true, 3);
+    else
+        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
     /*reverse the hack*/
     o_ptr->number = old_number;
@@ -2802,7 +2811,10 @@ void do_cmd_inscribe(void)
     }
 
     /* Describe the activity */
-    object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+    if (item < 0)
+        object_desc_floor(o_name, sizeof(o_name), o_ptr, true, 3);
+    else
+        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
     /* Message */
     msg_format("Inscribing %s.", o_name);
@@ -3690,7 +3702,7 @@ void do_cmd_unified_look(void)
                     char o_name[80];
                     
                     /* Get the object name with indefinite article */
-                    object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+                    object_desc_floor(o_name, sizeof(o_name), o_ptr, true, 3);
                     
                     /* Display "You see <object name>" in left sidebar */
                     strnfmt(out_val, sizeof(out_val), "You see %s.", o_name);

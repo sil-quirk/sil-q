@@ -3967,6 +3967,13 @@ bool player_auto_identifies_object(const object_type* o_ptr)
     if (!o_ptr || !o_ptr->k_idx)
         return false;
 
+    /*
+     * Smithing-difficulty items use the new identification rules and are never
+     * auto-identified by category abilities (Enchantment/Jeweller/etc.).
+     */
+    if (object_uses_smithing_difficulty(o_ptr))
+        return false;
+
     bool alchemy = p_ptr->active_ability[S_PER][PER_ALCHEMY]
         || p_ptr->have_ability[S_PER][PER_ALCHEMY];
     bool channeling = p_ptr->active_ability[S_WIL][WIL_CHANNELING]
@@ -3999,11 +4006,251 @@ bool player_auto_identifies_object(const object_type* o_ptr)
     return false;
 }
 
+static bool player_has_ability_bonus(int skilltype, int abilitynum)
+{
+    if (skilltype < 0 || skilltype >= S_MAX)
+        return false;
+    if (abilitynum < 0 || abilitynum >= ABILITIES_MAX)
+        return false;
+
+    return p_ptr->active_ability[skilltype][abilitynum]
+        || p_ptr->have_ability[skilltype][abilitynum];
+}
+
+typedef enum
+{
+    SMITH_ID_CAT_WEAPON = 0,
+    SMITH_ID_CAT_ARMOUR = 1,
+    SMITH_ID_CAT_JEWELLERY = 2,
+    SMITH_ID_CAT_OTHER = 3
+} smith_id_category;
+
+static smith_id_category smith_id_category_for_object(const object_type* o_ptr)
+{
+    if (!o_ptr)
+        return SMITH_ID_CAT_OTHER;
+
+    switch (o_ptr->tval)
+    {
+    case TV_ARROW:
+    case TV_BOW:
+    case TV_DIGGING:
+    case TV_HAFTED:
+    case TV_POLEARM:
+    case TV_SWORD:
+        return SMITH_ID_CAT_WEAPON;
+
+    case TV_MAIL:
+    case TV_SOFT_ARMOR:
+    case TV_SHIELD:
+    case TV_CLOAK:
+    case TV_BOOTS:
+    case TV_GLOVES:
+    case TV_HELM:
+    case TV_CROWN:
+        return SMITH_ID_CAT_ARMOUR;
+
+    case TV_RING:
+    case TV_AMULET:
+    case TV_LIGHT:
+    case TV_HORN:
+        return SMITH_ID_CAT_JEWELLERY;
+
+    default:
+        return SMITH_ID_CAT_OTHER;
+    }
+}
+
+static int smithing_ident_distance_penalty(const object_type* o_ptr)
+{
+    if (!o_ptr)
+        return 0;
+
+    int dist = distance(p_ptr->py, p_ptr->px, o_ptr->iy, o_ptr->ix);
+    int penalty = dist / 2;
+    if (penalty > 10)
+        penalty = 10;
+    if (penalty < 0)
+        penalty = 0;
+
+    log_debug(
+        "smithing-ident: distance penalty dist=%d penalty=%d player=(%d,%d) obj=(%d,%d)",
+        dist, penalty, p_ptr->py, p_ptr->px, o_ptr->iy, o_ptr->ix);
+
+    return penalty;
+}
+
+static int player_smithing_identify_skill(const object_type* o_ptr,
+    bool is_equipped, bool apply_distance_penalty, bool ignore_distance_penalty,
+    int bonus)
+{
+    int base_per = p_ptr->skill_use[S_PER];
+    int base_smt = p_ptr->skill_use[S_SMT];
+    int skill = base_per + base_smt;
+
+    int bonus_enchantment = player_has_ability_bonus(S_SMT, SMT_ENCHANTMENT) ? 5 : 0;
+    int bonus_artifice = player_has_ability_bonus(S_SMT, SMT_ARTEFACT) ? 7 : 0;
+    int bonus_curse_breaking = player_has_ability_bonus(S_WIL, WIL_CURSE_BREAKING) ? 7 : 0;
+    int bonus_quick_study = player_has_ability_bonus(S_PER, PER_QUICK_STUDY) ? 5 : 0;
+
+    int category_bonus = 0;
+    smith_id_category cat = smith_id_category_for_object(o_ptr);
+    if (cat == SMITH_ID_CAT_WEAPON && player_has_ability_bonus(S_SMT, SMT_WEAPONSMITH))
+        category_bonus = 5;
+    if (cat == SMITH_ID_CAT_ARMOUR && player_has_ability_bonus(S_SMT, SMT_ARMOURSMITH))
+        category_bonus = 5;
+    if (cat == SMITH_ID_CAT_JEWELLERY && player_has_ability_bonus(S_SMT, SMT_JEWELLER))
+        category_bonus = 5;
+
+    int bonus_equipped = is_equipped ? 5 : 0;
+    int bonus_experienced = (o_ptr && (o_ptr->ident & IDENT_EXPERIENCED)) ? 5 : 0;
+    int bonus_known_ego = (o_ptr && o_ptr->name2 && e_info[o_ptr->name2].aware) ? 5 : 0;
+    int distance_penalty = 0;
+
+    /* Ability bonuses */
+    skill += bonus_enchantment;
+    skill += bonus_artifice;
+    skill += bonus_curse_breaking;
+    skill += bonus_quick_study;
+
+    /* Category bonuses */
+    skill += category_bonus;
+
+    /* Context bonuses */
+    skill += bonus_equipped;
+    skill += bonus_experienced;
+    skill += bonus_known_ego;
+
+    skill += bonus;
+
+    if (apply_distance_penalty)
+    {
+        distance_penalty = smithing_ident_distance_penalty(o_ptr);
+        if (!ignore_distance_penalty)
+            skill -= distance_penalty;
+    }
+
+    if (skill < 0)
+        skill = 0;
+
+    log_debug(
+        "smithing-ident: skill calc k_idx=%d tval=%d sval=%d name1=%d name2=%d ident=0x%08X base(per=%d smt=%d) abil(enchant=%d artifice=%d cursebreak=%d quick=%d) cat=%d cat_bonus=%d ctx(equip=%d exp=%d ego=%d) bonus=%d dist(apply=%d ignore=%d pen=%d) => skill=%d",
+        o_ptr ? o_ptr->k_idx : 0,
+        o_ptr ? o_ptr->tval : 0,
+        o_ptr ? o_ptr->sval : 0,
+        o_ptr ? o_ptr->name1 : 0,
+        o_ptr ? o_ptr->name2 : 0,
+        (unsigned)(o_ptr ? o_ptr->ident : 0),
+        base_per, base_smt,
+        bonus_enchantment, bonus_artifice, bonus_curse_breaking, bonus_quick_study,
+        (int)cat, category_bonus,
+        bonus_equipped, bonus_experienced, bonus_known_ego,
+        bonus,
+        apply_distance_penalty ? 1 : 0, ignore_distance_penalty ? 1 : 0, distance_penalty,
+        skill);
+
+    return skill;
+}
+
+void player_mark_object_experienced(object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return;
+
+    if (o_ptr->ident & IDENT_EXPERIENCED)
+        return;
+
+    log_debug(
+        "smithing-ident: mark experienced k_idx=%d tval=%d sval=%d name1=%d name2=%d ident=0x%08X",
+        o_ptr->k_idx, o_ptr->tval, o_ptr->sval, o_ptr->name1, o_ptr->name2,
+        (unsigned)o_ptr->ident);
+
+    o_ptr->ident |= IDENT_EXPERIENCED;
+}
+
+bool player_try_identify_smithing_object(
+    object_type* o_ptr, bool is_equipped, int bonus)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+    if (!object_uses_smithing_difficulty(o_ptr))
+        return false;
+    if (object_known_p(o_ptr))
+        return false;
+
+    int skill = player_smithing_identify_skill(o_ptr, is_equipped, false, false, bonus);
+    int difficulty = object_smithing_difficulty(o_ptr);
+
+    int check = skill_check(PLAYER, skill, difficulty, NULL);
+    log_debug(
+        "smithing-ident: try check k_idx=%d tval=%d sval=%d name1=%d name2=%d is_equipped=%d bonus=%d skill=%d difficulty=%d result=%d",
+        o_ptr->k_idx, o_ptr->tval, o_ptr->sval, o_ptr->name1, o_ptr->name2,
+        is_equipped ? 1 : 0, bonus, skill, difficulty, check);
+
+    if (check > 0)
+    {
+        ident(o_ptr);
+        {
+            char o_name[80];
+            object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+            msg_format("You identify %s.", o_name);
+        }
+        return true;
+    }
+
+    return false;
+}
+
+bool player_auto_identify_smithing_object(
+    object_type* o_ptr, bool ignore_distance_penalty)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+    if (!object_uses_smithing_difficulty(o_ptr))
+        return false;
+    if (object_known_p(o_ptr))
+        return false;
+
+    int skill = player_smithing_identify_skill(
+        o_ptr, false, true, ignore_distance_penalty, 0);
+    int difficulty = object_smithing_difficulty(o_ptr);
+    int dist = distance(p_ptr->py, p_ptr->px, o_ptr->iy, o_ptr->ix);
+    int margin = (ignore_distance_penalty || (dist == 0)) ? 0 : 10;
+
+    log_debug(
+        "smithing-ident: auto check k_idx=%d tval=%d sval=%d name1=%d name2=%d skill=%d difficulty=%d margin=%d threshold=%d ignore_dist=%d obj=(%d,%d) player=(%d,%d)",
+        o_ptr->k_idx, o_ptr->tval, o_ptr->sval, o_ptr->name1, o_ptr->name2,
+        skill, difficulty, margin, difficulty + margin, ignore_distance_penalty ? 1 : 0,
+        o_ptr->iy, o_ptr->ix, p_ptr->py, p_ptr->px);
+
+    if (skill >= difficulty + margin)
+    {
+        ident(o_ptr);
+        {
+            char o_name[80];
+            object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+            if (dist > 1)
+                msg_format("You identify %s from afar.", o_name);
+            else
+                msg_format("You identify %s.", o_name);
+        }
+        return true;
+    }
+
+    return false;
+}
+
 /*
  * Helper function for update_lore()
  */
 void update_lore_aux(object_type* o_ptr)
 {
+    bool is_floor_object = (o_ptr >= o_list) && (o_ptr < (o_list + o_max));
+
+    /* Auto-identify easy smithing items when seen (distance penalty applies). */
+    if (is_floor_object)
+        player_auto_identify_smithing_object(o_ptr, false);
+
     // Identify items the player can auto-identify, even if only awareness is missing.
     if (player_auto_identifies_object(o_ptr)
         && (!object_known_p(o_ptr) || !object_aware_p(o_ptr)))

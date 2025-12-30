@@ -7311,6 +7311,9 @@ static void song_reveal_items(int range)
             marked_anything = true;
         }
 
+        /* Revelation reveals easy smithing items (no distance penalty). */
+        (void)player_auto_identify_smithing_object(o_ptr, true);
+
         lite_spot(y, x);
     }
 

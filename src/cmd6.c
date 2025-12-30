@@ -383,10 +383,17 @@ void do_cmd_play_instrument(object_type* default_o_ptr, int default_item)
     /* Tried the object */
     object_tried(o_ptr);
 
-    /* Successfully determined the object function */
-    if (ident && !object_aware_p(o_ptr))
+    /* Experiencing effects helps identify smithing-difficulty items, but does not auto-ID them. */
+    if (ident)
     {
-        object_aware(o_ptr);
+        if (object_uses_smithing_difficulty(o_ptr))
+        {
+            player_mark_object_experienced(o_ptr);
+        }
+        else if (!object_aware_p(o_ptr))
+        {
+            object_aware(o_ptr);
+        }
     }
 
     /* Window stuff */

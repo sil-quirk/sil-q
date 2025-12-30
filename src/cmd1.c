@@ -1658,14 +1658,21 @@ extern void ident_on_wield(object_type* o_ptr)
 
     if (notice)
     {
-        /* identify the object */
-        ident(o_ptr);
+        if (object_uses_smithing_difficulty(o_ptr))
+        {
+            player_mark_object_experienced(o_ptr);
+        }
+        else
+        {
+            /* identify the object */
+            ident(o_ptr);
 
-        /* Full object description */
-        object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
+            /* Full object description */
+            object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
 
-        /* Print the messages */
-        msg_format("You recognize it as %s.", o_full_name);
+            /* Print the messages */
+            msg_format("You recognize it as %s.", o_full_name);
+        }
     }
 
     return;
@@ -1835,15 +1842,23 @@ extern void ident_resist(u32b flag)
 
         if (notice)
         {
-            /* identify the object */
-            ident(o_ptr);
+            if (object_uses_smithing_difficulty(o_ptr))
+            {
+                player_mark_object_experienced(o_ptr);
+                msg_format("%s", effect_string);
+            }
+            else
+            {
+                /* identify the object */
+                ident(o_ptr);
 
-            /* Full object description */
-            object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
+                /* Full object description */
+                object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
 
-            /* Print the messages */
-            msg_format("%s", effect_string);
-            msg_format("You realize that it is %s.", o_full_name);
+                /* Print the messages */
+                msg_format("%s", effect_string);
+                msg_format("You realize that it is %s.", o_full_name);
+            }
 
             return;
         }
@@ -1909,16 +1924,24 @@ extern void ident_passive(void)
             /* Short, pre-identification object description */
             object_desc(o_short_name, sizeof(o_short_name), o_ptr, false, 0);
 
-            /* identify the object */
-            ident(o_ptr);
-
-            /* Full object description */
-            object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
-
             /* Print the messages */
             msg_format("%s", effect_string);
-            msg_format(
-                "You realize that your %s is %s.", o_short_name, o_full_name);
+
+            if (object_uses_smithing_difficulty(o_ptr))
+            {
+                player_mark_object_experienced(o_ptr);
+            }
+            else
+            {
+                /* identify the object */
+                ident(o_ptr);
+
+                /* Full object description */
+                object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
+
+                msg_format("You realize that your %s is %s.", o_short_name,
+                    o_full_name);
+            }
 
             return;
         }
@@ -1969,16 +1992,24 @@ extern void ident_see_invisible(const monster_type* m_ptr)
             /* Short, pre-identification object description */
             object_desc(o_short_name, sizeof(o_short_name), o_ptr, false, 0);
 
-            /* identify the object */
-            ident(o_ptr);
-
-            /* Full object description */
-            object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
-
             /* Print the messages */
             msg_format("You notice that you can see %s very clearly.", m_name);
-            msg_format(
-                "You realize that your %s is %s.", o_short_name, o_full_name);
+
+            if (object_uses_smithing_difficulty(o_ptr))
+            {
+                player_mark_object_experienced(o_ptr);
+            }
+            else
+            {
+                /* identify the object */
+                ident(o_ptr);
+
+                /* Full object description */
+                object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
+
+                msg_format("You realize that your %s is %s.", o_short_name,
+                    o_full_name);
+            }
 
             return;
         }
@@ -2025,16 +2056,24 @@ extern void ident_haunted(void)
             /* Short, pre-identification object description */
             object_desc(o_short_name, sizeof(o_short_name), o_ptr, false, 0);
 
-            /* identify the object */
-            ident(o_ptr);
-
-            /* Full object description */
-            object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
-
             /* Print the messages */
             msg_print("You notice that wraiths are being drawn to you.");
-            msg_format(
-                "You realize that your %s is %s.", o_short_name, o_full_name);
+
+            if (object_uses_smithing_difficulty(o_ptr))
+            {
+                player_mark_object_experienced(o_ptr);
+            }
+            else
+            {
+                /* identify the object */
+                ident(o_ptr);
+
+                /* Full object description */
+                object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
+
+                msg_format("You realize that your %s is %s.", o_short_name,
+                    o_full_name);
+            }
 
             return;
         }
@@ -2085,12 +2124,6 @@ void ident_hunger(void)
             /* Short, pre-identification object description */
             object_desc(o_short_name, sizeof(o_short_name), o_ptr, false, 0);
 
-            /* identify the object */
-            ident(o_ptr);
-
-            /* Full object description */
-            object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
-
             /* Print the messages */
             if (f2 & (TR2_HUNGER))
                 msg_print("You notice that you are growing hungry much faster "
@@ -2099,8 +2132,21 @@ void ident_hunger(void)
                 msg_print("You notice that you are growing hungry slower than "
                           "before.");
 
-            msg_format(
-                "You realize that your %s is %s.", o_short_name, o_full_name);
+            if (object_uses_smithing_difficulty(o_ptr))
+            {
+                player_mark_object_experienced(o_ptr);
+            }
+            else
+            {
+                /* identify the object */
+                ident(o_ptr);
+
+                /* Full object description */
+                object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
+
+                msg_format("You realize that your %s is %s.", o_short_name,
+                    o_full_name);
+            }
 
             return;
         }
@@ -2157,14 +2203,22 @@ extern void ident_f2(u32b flag, object_type* supplied_object)
         /* Short, pre-identification object description */
         object_desc(o_short_name, sizeof(o_short_name), o_ptr, false, 0);
 
-        /* identify the object */
-        ident(o_ptr);
+        if (object_uses_smithing_difficulty(o_ptr))
+        {
+            player_mark_object_experienced(o_ptr);
+            msg_format("You learn more about your %s.", o_short_name);
+        }
+        else
+        {
+            /* identify the object */
+            ident(o_ptr);
 
-        /* Full object description */
-        object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
+            /* Full object description */
+            object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
 
-        msg_format(
-            "You realize that your %s is %s.", o_short_name, o_full_name);
+            msg_format(
+                "You realize that your %s is %s.", o_short_name, o_full_name);
+        }
     }
 }
 
@@ -2216,14 +2270,22 @@ extern void ident_f3(u32b flag, object_type* supplied_object)
         /* Short, pre-identification object description */
         object_desc(o_short_name, sizeof(o_short_name), o_ptr, false, 0);
 
-        /* identify the object */
-        ident(o_ptr);
+        if (object_uses_smithing_difficulty(o_ptr))
+        {
+            player_mark_object_experienced(o_ptr);
+            msg_format("You learn more about your %s.", o_short_name);
+        }
+        else
+        {
+            /* identify the object */
+            ident(o_ptr);
 
-        /* Full object description */
-        object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
+            /* Full object description */
+            object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
 
-        msg_format(
-            "You realize that your %s is %s.", o_short_name, o_full_name);
+            msg_format(
+                "You realize that your %s is %s.", o_short_name, o_full_name);
+        }
     }
 }
 
@@ -2240,18 +2302,25 @@ void ident_weapon_by_use(
     /* Short, pre-identification object description */
     object_desc(o_short_name, sizeof(o_short_name), o_ptr, false, 0);
 
-    /* identify the object */
-    ident(o_ptr);
-
-    /* Full object description */
-    object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
-
     /* Description of the 'slay' */
     slay_desc(slay_description, flag, m_ptr);
 
     /* Print the messages */
     msg_format("Your %s %s.", o_short_name, slay_description);
-    msg_format("You recognize it as %s.", o_full_name);
+    if (object_uses_smithing_difficulty(o_ptr))
+    {
+        player_mark_object_experienced(o_ptr);
+    }
+    else
+    {
+        /* identify the object */
+        ident(o_ptr);
+
+        /* Full object description */
+        object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
+
+        msg_format("You recognize it as %s.", o_full_name);
+    }
 
     return;
 }
@@ -2272,32 +2341,40 @@ void ident_bow_arrow_by_use(object_type* j_ptr, object_type* i_ptr,
 
     if (arrow_flag)
     {
-        /* Identify the arrow and remaining arrows */
-        object_aware(i_ptr);
-        object_known(i_ptr);
-        object_aware(o_ptr);
-        object_known(o_ptr);
-
-        /* Apply an autoinscription, if necessary */
-        apply_autoinscription(i_ptr);
-        apply_autoinscription(o_ptr);
-
-        /* Recalculate bonuses */
-        p_ptr->update |= (PU_BONUS);
-
-        /* Combine / Reorder the pack (later) */
-        p_ptr->notice |= (PN_COMBINE | PN_REORDER);
-
-        /* Window stuff */
-        p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
-
-        /* Full arrow description */
-        object_desc(i_full_name, sizeof(i_full_name), i_ptr, true, 3);
-
         slay_desc(slay_description, arrow_flag, m_ptr);
 
         msg_format("Your %s %s.", i_short_name, slay_description);
-        msg_format("You recognize it as %s.", i_full_name);
+        if (object_uses_smithing_difficulty(i_ptr))
+        {
+            player_mark_object_experienced(i_ptr);
+            player_mark_object_experienced(o_ptr);
+        }
+        else
+        {
+            /* Identify the arrow and remaining arrows */
+            object_aware(i_ptr);
+            object_known(i_ptr);
+            object_aware(o_ptr);
+            object_known(o_ptr);
+
+            /* Apply an autoinscription, if necessary */
+            apply_autoinscription(i_ptr);
+            apply_autoinscription(o_ptr);
+
+            /* Recalculate bonuses */
+            p_ptr->update |= (PU_BONUS);
+
+            /* Combine / Reorder the pack (later) */
+            p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+
+            /* Window stuff */
+            p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
+
+            /* Full arrow description */
+            object_desc(i_full_name, sizeof(i_full_name), i_ptr, true, 3);
+
+            msg_format("You recognize it as %s.", i_full_name);
+        }
 
         // don't carry on to identify the bow on the same shot
         return;
@@ -2305,30 +2382,37 @@ void ident_bow_arrow_by_use(object_type* j_ptr, object_type* i_ptr,
 
     if (bow_flag)
     {
-        /* Identify the bow */
-        object_aware(j_ptr);
-        object_known(j_ptr);
-
-        /* Apply an autoinscription, if necessary */
-        apply_autoinscription(j_ptr);
-
-        /* Recalculate bonuses */
-        p_ptr->update |= (PU_BONUS);
-
-        /* Combine / Reorder the pack (later) */
-        p_ptr->notice |= (PN_COMBINE | PN_REORDER);
-
-        /* Window stuff */
-        p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
-
-        /* Full arrow description */
-        object_desc(j_full_name, sizeof(j_full_name), j_ptr, true, 3);
-
         slay_desc(slay_description, bow_flag, m_ptr);
 
         msg_format("Your shot %s.", slay_description);
-        msg_format(
-            "You recognize your %s to be %s.", j_short_name, j_full_name);
+        if (object_uses_smithing_difficulty(j_ptr))
+        {
+            player_mark_object_experienced(j_ptr);
+        }
+        else
+        {
+            /* Identify the bow */
+            object_aware(j_ptr);
+            object_known(j_ptr);
+
+            /* Apply an autoinscription, if necessary */
+            apply_autoinscription(j_ptr);
+
+            /* Recalculate bonuses */
+            p_ptr->update |= (PU_BONUS);
+
+            /* Combine / Reorder the pack (later) */
+            p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+
+            /* Window stuff */
+            p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
+
+            /* Full bow description */
+            object_desc(j_full_name, sizeof(j_full_name), j_ptr, true, 3);
+
+            msg_format("You recognize your %s to be %s.", j_short_name,
+                j_full_name);
+        }
     }
 
     return;

@@ -1959,7 +1959,7 @@ static errr callback_sdl_pict(int x, int y, int n, const byte* ap, const char* c
     sdl_view* d = sdl_view_from_term(Term);
     if (!d || !d->canvas)
         return 0;
-    log_trace("sdl3_pict stripe start: y=%d x=%d n=%d", y, x, n);
+    //log_trace("sdl3_pict stripe start: y=%d x=%d n=%d", y, x, n);
 
     SDL_SetRenderTarget(g_state.renderer, d->canvas);
     SDL_SetRenderClipRect(g_state.renderer, &(SDL_Rect){

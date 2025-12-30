@@ -1784,7 +1784,7 @@
 #define IDENT_ARTIFACT_SEEN 0x00000020 /* Artifact seen by player (prevents regeneration) */
 #define IDENT_CURSED 0x00000040 /* Item is temporarily cursed */
 #define IDENT_BROKEN 0x00000080 /* Item is permanently worthless */
-#define IDENT_UNUSED_XXXXX1XX 0x00000100 /* Unused */
+#define IDENT_EXPERIENCED 0x00000100 /* Item effects experienced (ident bonus) */
 #define IDENT_CANT_MELT 0x00000200 /* Gamil-forged mithril – must never be melted */
 #define IDENT_HIDE_CARRY                                                       \
     0x00000400 /* Don't reveal the object is being carried by a creature*/
