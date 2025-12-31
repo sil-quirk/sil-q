@@ -8081,3 +8081,8 @@ The script now fully matches the game's drop generation logic for all item types
 - `src/spells2.c`, `src/spells1.c`, `src/xtra1.c`: treasure detection + Song of Revealing auto-identify qualifying smithing items with no distance penalty and no +10 auto-ID margin.
 - `src/cmd1.c`, `src/cmd2.c`, `src/spells2.c`, `src/cmd6.c`, `src/use-obj.c`: replace “identify by use/wield” with `IDENT_EXPERIENCED` for smithing-difficulty items; gem of understanding still fully identifies; self knowledge gives +5 and tries equipped items.
 - build-cmake.bat: success (standard + portable builds).
+
+## 2025-12-30: Win7 minimize/restore can corrupt tile visuals (SDL3)
+- `src/main-sdl.c`: handle `SDL_EVENT_RENDER_*_RESET`/`SDL_EVENT_RENDER_DEVICE_LOST` + `SDL_EVENT_WINDOW_RESTORED` by reloading the tileset (device reset) and recreating render-target textures via `resize()` to force a full redraw.
+- `src/main-sdl.c`: fix tileset surface use-after-free and stop reading `SDL_Texture` internal `->w/->h` fields.
+- build-cmake.bat: success (standard + portable builds).

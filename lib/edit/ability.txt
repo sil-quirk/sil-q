@@ -352,7 +352,7 @@ D:You gain a point of dexterity, fleet and silent as the shadows of the Ents in 
 
 N:80:Quick Study
 I:4:0:1
-D:With the quick study of the lore-masters of Eregion, who unraveled many secrets before their fall, this allows you to take advanced abilities when you don't have the prerequisite abilities.
+D:With the quick study of the lore-masters of Eregion, who unraveled many secrets before their fall, this allows you to take advanced abilities when you don't have the prerequisite abilities. It also gives a modest bonus to identifying items.
 T:40:0:99  # Amulet
 
 N:81:Focused attack
@@ -417,7 +417,7 @@ D:You gain a point of grace, blessed as the favored of the Valar in the Undying 
 
 N:100:Curse Breaking
 I:5:0:1
-D:Breaking curses with the resolve that shattered the Doom of Mandos for some, this allows you to break the curses on items when you attempt to take them off.
+D:Breaking curses with the resolve that shattered the Doom of Mandos for some, this allows you to break the curses on items when you attempt to take them off. It also gives a significant bonus to identifying items, and helps especially when identifying cursed items.
 T:40:0:99  # Amulet
 T:32:0:99  # Helm
 T:45:0:99  # Ring
@@ -492,24 +492,24 @@ D:You gain a point of constitution, enduring as the pillars of Menegroth carved 
 
 N:120:Weaponsmith
 I:6:0:2
-D:Forging weapons in the tradition of the great smiths of Nogrod, who crafted Angrist for Curufin, this allows you to create weapons.
+D:Forging weapons in the tradition of the great smiths of Nogrod, who crafted Angrist for Curufin, this allows you to create weapons. It also gives a modest bonus to identifying weapons.
 T:21:8:8   # Hafted (War Hammer only)
 T:31:0:99  # Gloves
 
 N:121:Armoursmith
 I:6:1:3
-D:Crafting armour as the dwarves of Belegost made the dragon-helm for Azaghal, this allows you to create armour.
+D:Crafting armour as the dwarves of Belegost made the dragon-helm for Azaghal, this allows you to create armour. It also gives a modest bonus to identifying armour.
 T:21:8:8   # Hafted (War Hammer only)
 T:31:0:99  # Gloves
 
 N:122:Jeweller
 I:6:2:4
-D:Working jewels as Aule's pupils fashioned the Nauglamir in the caves of Narog, this allows you to create rings, amulets, horns and light sources and identify rings, amulets, horns and light sources you encounter.
+D:Working jewels as Aule's pupils fashioned the Nauglamir in the caves of Narog, this allows you to create rings, amulets, horns and light sources and identify rings, amulets, horns and light sources you encounter. It also gives a modest bonus to identifying jewellery.
 T:31:0:99  # Gloves
 
 N:123:Enchantment
 I:6:3:5
-D:Enchanting items with the artistry that imbued Narsil in the forges of Telchar, this allows you to create {special} items and determine what enchantments exist on items you encounter.
+D:Enchanting items with the artistry that imbued Narsil in the forges of Telchar, this allows you to create {special} items and determine what enchantments exist on items you encounter. It also gives a modest bonus to identifying items.
 T:21:8:8   # Hafted (War Hammer only)
 T:31:0:99  # Gloves
 
@@ -523,7 +523,7 @@ T:31:0:99  # Gloves
 N:125:Artifice
 I:6:5:7
 P:6/2:6/3
-D:Mastering artifice as Feanor did in creating the palantiri and silmarils, this allows you to create highly customised artifacts.
+D:Mastering artifice as Feanor did in creating the palantiri and silmarils, this allows you to create highly customised artifacts. It also gives a significant bonus to identifying items.
 T:21:8:8   # Hafted (War Hammer only)
 T:31:0:99  # Gloves
 

@@ -4107,6 +4107,15 @@ static int player_smithing_identify_skill(const object_type* o_ptr,
     int bonus_known_ego = (o_ptr && o_ptr->name2 && e_info[o_ptr->name2].aware) ? 5 : 0;
     int distance_penalty = 0;
 
+    /* Cursed items impose an identification penalty unless the player has Curse Breaking */
+    int curse_penalty = 0;
+    bool has_curse_breaking = player_has_ability_bonus(S_WIL, WIL_CURSE_BREAKING) ? true : false;
+    if (o_ptr && cursed_p(o_ptr) && !has_curse_breaking)
+    {
+        curse_penalty = -5;
+        skill += curse_penalty;
+    }
+
     /* Ability bonuses */
     skill += bonus_enchantment;
     skill += bonus_artifice;
@@ -4134,7 +4143,7 @@ static int player_smithing_identify_skill(const object_type* o_ptr,
         skill = 0;
 
     log_debug(
-        "smithing-ident: skill calc k_idx=%d tval=%d sval=%d name1=%d name2=%d ident=0x%08X base(per=%d smt=%d) abil(enchant=%d artifice=%d cursebreak=%d quick=%d) cat=%d cat_bonus=%d ctx(equip=%d exp=%d ego=%d) bonus=%d dist(apply=%d ignore=%d pen=%d) => skill=%d",
+        "smithing-ident: skill calc k_idx=%d tval=%d sval=%d name1=%d name2=%d ident=0x%08X base(per=%d smt=%d) abil(enchant=%d artifice=%d cursebreak=%d quick=%d) cat=%d cat_bonus=%d ctx(equip=%d exp=%d ego=%d) bonus=%d dist(apply=%d ignore=%d pen=%d curse_penalty=%d) => skill=%d",
         o_ptr ? o_ptr->k_idx : 0,
         o_ptr ? o_ptr->tval : 0,
         o_ptr ? o_ptr->sval : 0,
@@ -4146,7 +4155,7 @@ static int player_smithing_identify_skill(const object_type* o_ptr,
         (int)cat, category_bonus,
         bonus_equipped, bonus_experienced, bonus_known_ego,
         bonus,
-        apply_distance_penalty ? 1 : 0, ignore_distance_penalty ? 1 : 0, distance_penalty,
+        apply_distance_penalty ? 1 : 0, ignore_distance_penalty ? 1 : 0, distance_penalty, curse_penalty,
         skill);
 
     return skill;
@@ -4215,7 +4224,8 @@ bool player_auto_identify_smithing_object(
         o_ptr, false, true, ignore_distance_penalty, 0);
     int difficulty = object_smithing_difficulty(o_ptr);
     int dist = distance(p_ptr->py, p_ptr->px, o_ptr->iy, o_ptr->ix);
-    int margin = (ignore_distance_penalty || (dist == 0)) ? 0 : 10;
+    /* Reduce the auto-identify distant margin from 10 to 5 */
+    int margin = (ignore_distance_penalty || (dist == 0)) ? 0 : 5;
 
     log_debug(
         "smithing-ident: auto check k_idx=%d tval=%d sval=%d name1=%d name2=%d skill=%d difficulty=%d margin=%d threshold=%d ignore_dist=%d obj=(%d,%d) player=(%d,%d)",
