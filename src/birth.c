@@ -102,7 +102,7 @@ static const char *character_ability_names[S_MAX][ABILITIES_MAX] =
         [PER_ALCHEMY]        = "Alchemy",
         [PER_BANE]           = "Bane",
         [PER_OUTWIT]         = "Outwit",
-        [PER_LISTEN]         = "Listen",
+        [PER_LISTEN]         = "Resonance",
         [PER_MASTER_HUNTER]  = "Master Hunter",
         [PER_GRA]            = NULL,
     },

@@ -395,10 +395,10 @@ T:32:0:99  # Helm
 T:39:0:99  # Light Source
 T:40:0:99  # Amulet
 
-N:87:Listen
+N:87:Resonance
 I:4:7:8
 P:4/2
-D:Listening intently as Melian hearkened to the whispers of the world in her Girdle about Doriath, this gives you a chance each turn to detect enemies that you cannot see (including around corners and through doors).
+D:Attuning your senses to the hidden resonance of the world, as Melian hearkened to the whispers within her Girdle, you perceive the subtle vibrations of all things. Each turn, you may detect unseen enemies, and your ear for the resonance of crafted forms—hollows, tensions, and faint magical harmonics—doubles your Perception skill when identifying items.
 T:32:0:99  # Helm
 
 N:88:Master Hunter

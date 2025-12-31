@@ -4085,8 +4085,17 @@ static int player_smithing_identify_skill(const object_type* o_ptr,
     int bonus)
 {
     int base_per = p_ptr->skill_use[S_PER];
+
+    /* Resonance doubles Perception for identification */
+    if (player_has_ability_bonus(S_PER, PER_LISTEN))
+    {
+        base_per *= 2;
+    }
+
     int base_smt = p_ptr->skill_use[S_SMT];
-    int skill = base_per + base_smt;
+    /* Basis for identification skill checks: start at -5 */
+    int basis = -5;
+    int skill = base_per + base_smt + basis;
 
     int bonus_enchantment = player_has_ability_bonus(S_SMT, SMT_ENCHANTMENT) ? 5 : 0;
     int bonus_artifice = player_has_ability_bonus(S_SMT, SMT_ARTEFACT) ? 7 : 0;
@@ -4138,9 +4147,6 @@ static int player_smithing_identify_skill(const object_type* o_ptr,
         if (!ignore_distance_penalty)
             skill -= distance_penalty;
     }
-
-    if (skill < 0)
-        skill = 0;
 
     log_debug(
         "smithing-ident: skill calc k_idx=%d tval=%d sval=%d name1=%d name2=%d ident=0x%08X base(per=%d smt=%d) abil(enchant=%d artifice=%d cursebreak=%d quick=%d) cat=%d cat_bonus=%d ctx(equip=%d exp=%d ego=%d) bonus=%d dist(apply=%d ignore=%d pen=%d curse_penalty=%d) => skill=%d",
