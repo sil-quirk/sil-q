@@ -2176,6 +2176,12 @@ void drop_loot(monster_type* m_ptr)
             // create the Iron Crown of Morgoth
             create_chosen_artefact(ART_MORGOTH_3, y, x, true);
         }
+        // Drop Calris from Gothmog
+        else if (m_ptr->r_idx == R_IDX_GOTHMOG)
+        {
+            // create the Greatsword 'Calris'
+            create_chosen_artefact(ART_CALRIS, y, x, false);
+        }
         // Drop Galvorn Armour of Maeglin
         else if (r_ptr->d_char == '@')
         {

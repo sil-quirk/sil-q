@@ -4093,8 +4093,8 @@ static int player_smithing_identify_skill(const object_type* o_ptr,
     }
 
     int base_smt = p_ptr->skill_use[S_SMT];
-    /* Basis for identification skill checks: start at -5 */
-    int basis = -5;
+    /* Basis for identification skill checks: start at -3 */
+    int basis = -3;
     int skill = base_per + base_smt + basis;
 
     int bonus_enchantment = player_has_ability_bonus(S_SMT, SMT_ENCHANTMENT) ? 5 : 0;
@@ -4113,8 +4113,20 @@ static int player_smithing_identify_skill(const object_type* o_ptr,
 
     int bonus_equipped = is_equipped ? 5 : 0;
     int bonus_experienced = (o_ptr && (o_ptr->ident & IDENT_EXPERIENCED)) ? 5 : 0;
-    int bonus_known_ego = (o_ptr && o_ptr->name2 && e_info[o_ptr->name2].aware) ? 5 : 0;
+    int bonus_known_ego = (o_ptr && o_ptr->name2 && e_info[o_ptr->name2].aware) ? 7 : 0;
     int distance_penalty = 0;
+
+    /* EASY_ID/DIF_ID flags affect identification skill */
+    int bonus_easy_id = 0;
+    if (o_ptr)
+    {
+        u32b f1, f2, f3;
+        object_flags(o_ptr, &f1, &f2, &f3);
+        if (f3 & TR3_EASY_ID)
+            bonus_easy_id = 7;
+        else if (f3 & TR3_DIF_ID)
+            bonus_easy_id = -7;
+    }
 
     /* Cursed items impose an identification penalty unless the player has Curse Breaking */
     int curse_penalty = 0;
@@ -4138,6 +4150,9 @@ static int player_smithing_identify_skill(const object_type* o_ptr,
     skill += bonus_equipped;
     skill += bonus_experienced;
     skill += bonus_known_ego;
+
+    /* Item identification flags */
+    skill += bonus_easy_id;
 
     skill += bonus;
 
@@ -4173,13 +4188,18 @@ void player_mark_object_experienced(object_type* o_ptr)
         return;
 
     if (o_ptr->ident & IDENT_EXPERIENCED)
+    {
+        /* Ensure legacy/edge cases still keep floor combat stats visible. */
+        o_ptr->ident |= IDENT_HANDLED;
         return;
+    }
 
     log_debug(
         "smithing-ident: mark experienced k_idx=%d tval=%d sval=%d name1=%d name2=%d ident=0x%08X",
         o_ptr->k_idx, o_ptr->tval, o_ptr->sval, o_ptr->name1, o_ptr->name2,
         (unsigned)o_ptr->ident);
 
+    o_ptr->ident |= IDENT_HANDLED;
     o_ptr->ident |= IDENT_EXPERIENCED;
 }
 

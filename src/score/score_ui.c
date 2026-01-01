@@ -734,14 +734,36 @@ extern void display_single_score(
         }
     }
 
-    if (place == 0)
-        strnfmt(out_val, sizeof(out_val), "     %5s ft  %s%s  [%s pts]",
-                depth_commas, the_score->who,
-                c_name + c_info[ph].alt_name, score_commas);
-    else
-        strnfmt(out_val, sizeof(out_val), "%3d. %5s ft  %s%s  [%s pts]",
-                place, depth_commas, the_score->who,
-                c_name + c_info[ph].alt_name, score_commas);
+    /* Build a fixed-width prefix so the name column is aligned for all entries */
+    {
+        char prefix[32];
+        if (the_score->escaped[0] == 't')
+        {
+            if (place == 0)
+                strnfmt(prefix, sizeof(prefix), "     escaped  ");
+            else
+                strnfmt(prefix, sizeof(prefix), "%3d. escaped  ", place);
+        }
+        else
+        {
+            if (place == 0)
+                strnfmt(prefix, sizeof(prefix), "     %5s ft  ", depth_commas);
+            else
+                strnfmt(prefix, sizeof(prefix), "%3d. %5s ft  ", place, depth_commas);
+        }
+
+        /* Pad the prefix to a fixed width (15 chars) to guarantee the name column */
+        while ((int)strlen(prefix) < 15)
+        {
+            SDL_strlcat(prefix, " ", sizeof(prefix));
+        }
+        /* Truncate if somehow longer */
+        prefix[15] = '\0';
+
+        /* Now build the line with the fixed prefix */
+        strnfmt(out_val, sizeof(out_val), "%s%s%s  [%s pts]",
+                prefix, the_score->who, c_name + c_info[ph].alt_name, score_commas);
+    }
 
     /* Add curse text to string (we'll display it in color later by finding it) */
     size_t pre_curse_len = strlen(out_val);
@@ -857,10 +879,6 @@ extern void display_single_score(
     }
 
     /* Print symbols for silmarils / slaying Morgoth */
-    if (the_score->escaped[0] == 't')
-    {
-        c_put_str(attr, "  escaped", row + 3, col + 4);
-    }
     if (the_score->silmarils[0] == '1')
     {
         c_put_str(attr, "         *", row + 5, col);

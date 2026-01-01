@@ -1,5 +1,11 @@
 # Session notes
 
+## 2026-01-01: 950' treated as normal level
+- Fix: `SV_HORN_BLASTING` used downward at 950' (depth `MORGOTH_DEPTH - 1`) now drops the player to 1000' instead of failing with “Cracks spread across the floor, but it holds firm.”
+- Fix: chasms are allowed again at 950' (procedural placement, vault templates, and terrain-changing effects); still disallowed at 1000'.
+- Files: `src/use-obj.c`, `src/generate.c`, `src/spells2.c`.
+- Build: `build-cmake.bat` succeeds.
+
 ## 2025-12-28: Quiver 1 no auto-ident/abilities
 - Fix: equipping into `INVEN_QUIVER1` no longer runs `ident_on_wield()` or temporarily activates item-granted abilities; `INVEN_QUIVER2` only does so for throwing weapons.
 - File: `src/cmd3.c`.

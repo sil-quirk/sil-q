@@ -980,11 +980,13 @@ static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* 
 
     if (first_part[0])
     {
-        log_debug("mode4_shorten: extracting last word from first_part='%s'", first_part);
-        
+        log_debug("mode4_shorten: extracting last words from first_part='%s'", first_part);
+
         char* cursor = first_part;
-        char* chosen = first_part;
-        size_t chosen_len = strlen(first_part);
+        char* last_start = NULL;
+        size_t last_len = 0;
+        char* prev_start = NULL;
+        size_t prev_len = 0;
 
         while (*cursor)
         {
@@ -1003,19 +1005,63 @@ static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* 
             }
 
             size_t word_len = (size_t)(cursor - word_start);
-            if (has_alpha)
+            if (has_alpha && word_len > 0)
             {
-                chosen = word_start;
-                chosen_len = word_len;
-                log_debug("mode4_shorten: found word at offset %td len=%zu", word_start - first_part, word_len);
+                prev_start = last_start;
+                prev_len = last_len;
+                last_start = word_start;
+                last_len = word_len;
+                log_debug("mode4_shorten: found alpha word at offset %td len=%zu", word_start - first_part, word_len);
             }
         }
 
-        if (chosen_len > 0 && chosen_len < sizeof(short_first))
+        bool use_prev = false;
+        if (apply_rules && last_start && last_len > 0 && prev_start && prev_len > 0)
         {
-            memcpy(short_first, chosen, chosen_len);
-            short_first[chosen_len] = '\0';
-            log_debug("mode4_shorten: short_first='%s'", short_first);
+            char prev_word[32];
+            size_t copy_len = prev_len;
+            if (copy_len >= sizeof(prev_word))
+                copy_len = sizeof(prev_word) - 1;
+            memcpy(prev_word, prev_start, copy_len);
+            prev_word[copy_len] = '\0';
+
+            for (size_t k = 0; prev_word[k]; ++k)
+                prev_word[k] = (char)tolower((unsigned char)prev_word[k]);
+
+            if (strcmp(prev_word, "of") && strcmp(prev_word, "a")
+                && strcmp(prev_word, "an") && strcmp(prev_word, "the")
+                && strcmp(prev_word, "and"))
+            {
+                use_prev = true;
+            }
+        }
+
+        if (last_start && last_len > 0)
+        {
+            size_t out = 0;
+
+            if (use_prev)
+            {
+                size_t take_prev = prev_len;
+                if (take_prev >= sizeof(short_first))
+                    take_prev = sizeof(short_first) - 1;
+                memcpy(short_first + out, prev_start, take_prev);
+                out += take_prev;
+
+                if (out + 1 < sizeof(short_first))
+                    short_first[out++] = ' ';
+            }
+
+            size_t remaining = sizeof(short_first) - 1 - out;
+            size_t take_last = last_len;
+            if (take_last > remaining)
+                take_last = remaining;
+            memcpy(short_first + out, last_start, take_last);
+            out += take_last;
+
+            short_first[out] = '\0';
+            object_desc_trim_spaces(short_first);
+            log_debug("mode4_shorten: short_first='%s' (use_prev=%d)", short_first, use_prev ? 1 : 0);
         }
     }
 
@@ -1890,8 +1936,9 @@ object_desc_done:
 /*
  * Describe an item that is known to be lying on the floor.
  *
- * For smithing-difficulty items that have not been identified yet, suppress
- * the combat stats in the short name display (e.g. show just "Short Sword").
+ * For smithing-difficulty items that have not been identified yet (and have
+ * not been handled by the player), suppress the combat stats in the short
+ * name display (e.g. show just "Short Sword").
  */
 void object_desc_floor(
     char* buf, size_t max, const object_type* o_ptr, int pref, int mode)
@@ -1909,7 +1956,8 @@ void object_desc_floor(
         return;
     }
 
-    if (!object_uses_smithing_difficulty(o_ptr) || object_known_p(o_ptr))
+    if (!object_uses_smithing_difficulty(o_ptr) || object_known_p(o_ptr)
+        || (o_ptr->ident & IDENT_HANDLED))
     {
         object_desc(buf, max, o_ptr, pref, mode);
         return;

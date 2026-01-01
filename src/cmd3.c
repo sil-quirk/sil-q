@@ -1561,6 +1561,9 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
                   slot, o_ptr->k_idx, o_ptr->name2);
     }
 
+    /* Once the player has equipped an item, remember its combat stats forever. */
+    o_ptr->ident |= (IDENT_HANDLED);
+
     /* Increment the equip counter by hand */
     if (!combine)
         p_ptr->equip_cnt++;

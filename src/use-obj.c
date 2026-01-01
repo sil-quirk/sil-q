@@ -914,7 +914,7 @@ static bool play_instrument(object_type* o_ptr, bool* ident)
             // skill check of Will vs 10
             if (skill_check(PLAYER, will_score, 10, NULL) > 0)
             {
-                if (p_ptr->depth < (MORGOTH_DEPTH - 1))
+                if (p_ptr->depth < MORGOTH_DEPTH)
                 {
                     // Store information for the combat rolls window
                     combat_roll_special_char = object_char(o_ptr);

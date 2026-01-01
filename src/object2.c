@@ -1841,6 +1841,12 @@ void object_absorb(object_type* o_ptr, object_type* j_ptr)
     if (object_known_p(o_ptr))
         object_known(j_ptr);
 
+    /* Blend "handled" status (combat stats stay visible after dropping). */
+    if (j_ptr->ident & IDENT_HANDLED)
+        o_ptr->ident |= IDENT_HANDLED;
+    if (o_ptr->ident & IDENT_HANDLED)
+        j_ptr->ident |= IDENT_HANDLED;
+
     /* Hack -- Blend "notes" */
     if (j_ptr->obj_note != 0)
         o_ptr->obj_note = j_ptr->obj_note;
@@ -5346,6 +5352,7 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
                 d_ptr->number = placed;
                 d_ptr->pickup = false;
                 d_ptr->pickup_slot = -1;
+                d_ptr->ident |= IDENT_HANDLED;
                 o_ptr->number -= placed;
                 o_ptr->pickup = false;
                 o_ptr->pickup_slot = -1;
@@ -5362,6 +5369,7 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
                 object_absorb(d_ptr, o_ptr);
                 d_ptr->pickup = false;
                 d_ptr->pickup_slot = -1;
+                d_ptr->ident |= IDENT_HANDLED;
                 o_ptr->pickup = false;
                 o_ptr->pickup_slot = -1;
                 p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
@@ -5397,6 +5405,7 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
             {
                 /* Combine the items */
                 object_absorb(j_ptr, o_ptr);
+                j_ptr->ident |= IDENT_HANDLED;
 
                 /* Window stuff */
                 p_ptr->window |= (PW_INVEN);
@@ -5454,6 +5463,7 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
             if (object_similar(j_ptr, o_ptr))
             {
                 object_absorb(j_ptr, o_ptr);
+                j_ptr->ident |= IDENT_HANDLED;
                 p_ptr->window |= (PW_INVEN | PW_EQUIP);
 
                 if (o_ptr->number == 0)
@@ -5486,6 +5496,7 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
         {
             /* Combine the items */
             object_absorb(j_ptr, o_ptr);
+            j_ptr->ident |= IDENT_HANDLED;
 
             /* Recalculate bonuses */
             p_ptr->update |= (PU_BONUS);
@@ -5658,6 +5669,7 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
 
     /* Get the new object */
     j_ptr = &inventory[i];
+    j_ptr->ident |= IDENT_HANDLED;
 
     int limit = object_stack_limit(j_ptr);
     if (j_ptr->number > limit)

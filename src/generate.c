@@ -7734,7 +7734,7 @@ static void build_chasms(void)
         * (p_ptr->cur_map_wid / PANEL_WID_FIXED);
 
     // determine whether to add chasms, and how many
-    if ((p_ptr->depth > 2) && (p_ptr->depth < MORGOTH_DEPTH - 1)
+    if ((p_ptr->depth > 2) && (p_ptr->depth < MORGOTH_DEPTH)
         && percent_chance(p_ptr->depth + 30))
     {
         // add some chasms
@@ -10259,8 +10259,8 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 return (false);
             }
 
-            // chasms can't occur at 950 ft
-            if ((*t == '7') && (p_ptr->depth >= MORGOTH_DEPTH - 1))
+            // chasms can't occur at 1000 ft
+            if ((*t == '7') && (p_ptr->depth >= MORGOTH_DEPTH))
             {
                 return (false);
             }

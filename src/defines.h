@@ -1147,6 +1147,7 @@
 
 #define ART_MAEGLIN 32
 #define ART_GLEND 74
+#define ART_CALRIS 76
 #define ART_DELMERETH 84
 #define ART_BOLDOG 86
 #define ART_DRAUGLUIN 137
@@ -1788,7 +1789,8 @@
 #define IDENT_CANT_MELT 0x00000200 /* Gamil-forged mithril – must never be melted */
 #define IDENT_HIDE_CARRY                                                       \
     0x00000400 /* Don't reveal the object is being carried by a creature*/
-#define IDENT_UNUSED_XXXXX8XX 0x00000800 /* Unused */
+#define IDENT_HANDLED                                                          \
+    0x00000800 /* Item has been handled by the player (show combat stats on floor) */
 #define IDENT_UNUSED_XXXX1XXX 0x00001000 /* Unused */
 #define IDENT_UNUSED_XXXX2XXX 0x00002000 /* Unused */
 #define IDENT_UNUSED_XXXX4XXX 0x00004000 /* Unused */
@@ -1931,8 +1933,8 @@
 #define TR3_AVOID_TRAPS 0x00000020L /* Do not trigger traps */
 #define TR3_MEDIC 0x00000040L /* xxx */
 #define TR3_STAR_IRON 0x00000080L /* Item made out of star iron */
-#define TR3_TR3XXX7 0x00000100L /* xxx */
-#define TR3_TR3XXX8 0x00000200L /* xxx */
+#define TR3_EASY_ID 0x00000100L /* Item is easier to identify (-7 to ID cost) */
+#define TR3_DIF_ID 0x00000200L /* Item is harder to identify (+7 to ID cost) */
 #define TR3_TR3XXX9 0x00000400L /* xxx */
 #define TR3_TR3XX10 0x00000800L /* xxx */
 #define TR3_NO_SMITHING 0x00001000L /* Item cannot be made with smithing */

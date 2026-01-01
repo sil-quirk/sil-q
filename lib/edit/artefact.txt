@@ -478,7 +478,7 @@ W:15:1:70:45000
 P:0:0d0:1:1d8
 F:DEX | RES_POIS
 F:HUNGER
-F:INSTA_ART
+F:EASY_ID | INSTA_ART
 D:Supple but harder than serpent-scale, this shining black
 D: armour was wrought years ago by the master smith Eol,
 D: and given as a gift to his son, Maeglin.
@@ -899,7 +899,7 @@ I:23:25:1
 W:12:1:120:100000
 P:-1:3d6:1:0d0
 F:STR | SUST_STR
-F:INSTA_ART
+F:EASY_ID | INSTA_ART
 D:The long deadly blade of Nan, the Giant.
 
 
@@ -918,6 +918,7 @@ D:A shining greatsword, inlaid with runes of silver.
 ## The Greatsword 'Calris'
 ## from Iron Crown Enterprises (originally)
 ## and one of the most interesting artefacts in (the game) Angband
+## (automatic drop -- don't move)
 
 N:76:'Calris'
 Q:beae903f6ce4c39a
@@ -927,6 +928,7 @@ W:15:15:110:100000
 P:-5:3d7:1:0d0
 F:CON | BRAND_FIRE | LIGHT
 F:VUL_COLD | LIGHT_CURSE
+F:EASY_ID | INSTA_ART
 D:A cruel and heavy blade, wreathed in undying flames. It was originally
 D: forged for the great Valarauko, Gothmog, to break any dissension amongst
 D: the hosts of Morgoth.
@@ -1003,10 +1005,10 @@ Q:7c7e9467ef42e721
 G:/:s
 I:22:1:0
 W:8:1:50:30000
-P:0:1d12:0:0d0
+P:1:1d11:0:0d0
 F:RES_FEAR | SLAY_WOLF
 F:THROWING
-F:INSTA_ART
+F:EASY_ID | INSTA_ART
 D:The iron spear of Boldog, a fierce captain of the orcs.
 
 
@@ -1392,7 +1394,7 @@ W:20:1:130:500000
 P:-3:0d0:-3:1d4
 B:3/0
 F:STEALTH
-F:INSTA_ART
+F:EASY_ID | INSTA_ART
 D:The coat of Draugluin, sire of werewolves. If you cast this
 D: over yourself you may deceive some of the enemy's servants.
 
@@ -1409,7 +1411,7 @@ W:23:1:50:500000
 P:-1:0d0:+2:0d0
 B:3/0
 F:STEALTH
-F:INSTA_ART
+F:EASY_ID | INSTA_ART
 D:With its great black wings, might this remnant of the vampire
 D: let you pass as a messenger journeying to Morgoth?
 
