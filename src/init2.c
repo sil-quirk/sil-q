@@ -1935,6 +1935,9 @@ extern void re_init_some_things(void)
         quit("Cannot initialize skeleton notes");
     if (init_e_info())
         quit("Cannot initialize special items");
+    /* Oath of Light crash guard: ensure oath text/info tables are fresh between games */
+    if (init_oath_info())
+        quit("Cannot initialize oaths");
 }
 
 /*

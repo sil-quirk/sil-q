@@ -3455,6 +3455,9 @@ static bool project_m(
     /* Lite, but only hurts susceptible creatures */
     case GF_LIGHT:
     {
+        /* Default: no damage (GF_LIGHT only hurts specific monsters) */
+        dam = 0;
+
         // Must make sure it is viewable (passwall was only used to guarantee
         // wall lighting)
         if (cave_info[y][x] & (CAVE_VIEW))

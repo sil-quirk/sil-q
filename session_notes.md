@@ -1,5 +1,10 @@
 # Session notes
 
+## 2026-01-01: Song of the Trees no longer damages out-of-view monsters
+- Root cause: `GF_LIGHT` only recalculated damage when the target grid had `CAVE_VIEW`; otherwise it left the precomputed `project()` damage intact, so unseen monsters could take unintended damage.
+- Fix: default `GF_LIGHT` damage to `0` and only apply damage for `RF3_HURT_LITE` monsters in view.
+- File: `src/spells1.c`.
+
 ## 2026-01-01: Melt menu works for star-iron items
 - Fix: smithing "Melt" is enabled when carrying meltable mithril or star-iron items (not mithril-only), and the UI text now mentions both metals.
 - Files: `src/cmd4.c`, `src/cmd3.c`.
@@ -8116,4 +8121,9 @@ The script now fully matches the game's drop generation logic for all item types
 ## 2026-01-01: Fix crash on repeat Varda quest accept/complete (invalid free)
 - `src/xtra2.c`: `free_quest_texts()` now takes a `count` and frees only those entries; fixes OOB reads/invalid frees when `prepend_repeat_context()` returns a smaller array on repeat attempts.
 - `src/externs.h`: update `free_quest_texts` declaration; update all call sites to pass `text_count`/`completion_count`.
+- build-cmake.bat: success (standard + portable builds).
+
+## 2026-01-01: Oath of Light post-death crash (between-games hygiene)
+- `src/init2.c`: reload `oath_info` in `re_init_some_things()` so post-run state cannot retain corrupted oath tables (targets crash when selecting Oath of Light after a previous Oath-of-Light death without restarting).
+- `src/birth.c`: add bounds checks when granting the oath reward ability (A: field) to avoid OOB writes if oath data is ever corrupted.
 - build-cmake.bat: success (standard + portable builds).

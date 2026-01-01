@@ -2119,13 +2119,22 @@ static NavResult select_oath(void)
             int skill_category = oath_ptr->reward_type;
             int ability_id = oath_ptr->reward_value;
             
-            /* Grant the ability specified in oath.txt */
-            p_ptr->have_ability[skill_category][ability_id] = true;
-            p_ptr->innate_ability[skill_category][ability_id] = true;
-            p_ptr->active_ability[skill_category][ability_id] = true;
-            
-            log_debug("Granted oath %d abilities from data: skill=%d, ability=%d", 
-                      choice, skill_category, ability_id);
+            if (skill_category >= 0 && skill_category < S_MAX
+                && ability_id >= 0 && ability_id < ABILITIES_MAX)
+            {
+                /* Grant the ability specified in oath.txt */
+                p_ptr->have_ability[skill_category][ability_id] = true;
+                p_ptr->innate_ability[skill_category][ability_id] = true;
+                p_ptr->active_ability[skill_category][ability_id] = true;
+
+                log_debug("Granted oath %d abilities from data: skill=%d, ability=%d",
+                          choice, skill_category, ability_id);
+            }
+            else
+            {
+                log_warn("Oath %d ability out of bounds: skill=%d (max %d), ability=%d (max %d)",
+                         choice, skill_category, S_MAX - 1, ability_id, ABILITIES_MAX - 1);
+            }
         }
         else
         {
