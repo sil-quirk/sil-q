@@ -2778,8 +2778,8 @@ void earthquake(int cy, int cx, int pit_y, int pit_x, int r, int who)
                 int armor_dice_base = r_ptr->pd - m_ptr->song_armor_dice_penalty;
                 if (armor_dice_base < 0)
                     armor_dice_base = 0;
-                int armor_dice = armor_dice_base + curse_flag_count_cur(CUR_MON_ARM_DICE);
-                int armor_sides = monster_base_armour_sides(m_ptr) + curse_flag_count_cur(CUR_MON_ARM_SIDE);
+                int armor_dice = armor_dice_base + curse_flag_delta_cur(CUR_MON_ARM_DICE);
+                int armor_sides = monster_base_armour_sides(m_ptr) + curse_flag_delta_cur(CUR_MON_ARM_SIDE);
                 if (armor_dice < 0) armor_dice = 0;
                 if (armor_sides < 1) armor_sides = 1;
                 prt = damroll(armor_dice, armor_sides);

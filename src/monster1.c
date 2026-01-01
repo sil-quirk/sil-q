@@ -1237,12 +1237,12 @@ static void describe_monster_toughness(
             int base_dice = r_ptr->pd - m_ptr->song_armor_dice_penalty;
             if (base_dice < 0)
                 base_dice = 0;
-            prot_dice = base_dice + curse_flag_count_cur(CUR_MON_ARM_DICE);
+            prot_dice = base_dice + curse_flag_delta_cur(CUR_MON_ARM_DICE);
             if (prot_dice < 0)
                 prot_dice = 0;
 
             int base_sides = monster_base_armour_sides(live);
-            base_sides += curse_flag_count_cur(CUR_MON_ARM_SIDE);
+            base_sides += curse_flag_delta_cur(CUR_MON_ARM_SIDE);
             if (base_sides < 0)
                 base_sides = 0;
             prot_sides = base_sides;

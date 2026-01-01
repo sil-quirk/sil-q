@@ -218,10 +218,10 @@ Y:MON_WIL
 F:
 A:4/3
 D:Darkness fortifies their resolve. Adversaries steel their minds, unyielding as stone, resisting your every subtlety and song.
-P:Monster Will -2.
+P:Monster Will +2.
 B:Blessing of Shattered Resolve
 E:Their wills crumble; defiance turns to doubt and fear.
-H:Monster Will +2
+H:Monster Will -2
 
 N:19:Scales of Anfauglith
 S:0:0:0:0

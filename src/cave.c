@@ -4379,8 +4379,8 @@ void update_view(void)
      *   of −5 (same as full darkness elsewhere in the engine).
      * ------------------------------------------------------------ */
     {
-        int dark_stacks = curse_flag_count_cur(CUR_LIGHTP);
-        if (dark_stacks)
+        int dark_delta = curse_flag_delta_cur(CUR_LIGHTP);
+        if (dark_delta)
         {
             int i, g, y, x;
 
@@ -4391,7 +4391,7 @@ void update_view(void)
                 y = GRID_Y(g);            /* unpack coordinates     */
                 x = GRID_X(g);
 
-                cave_light[y][x] -= dark_stacks;
+                cave_light[y][x] -= dark_delta;
                 if (cave_light[y][x] < -5) cave_light[y][x] = -5;
             }
         }

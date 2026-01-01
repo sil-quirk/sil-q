@@ -1225,16 +1225,16 @@ int monster_skill(monster_type* m_ptr, int skill_type)
     case S_STL:
         skill = r_ptr->stl;
         skill -= m_ptr->song_stealth_penalty;
-        skill += 2 * curse_flag_count_cur(CUR_MON_STL);   /* +/-2 Stl per stack */
+        skill += 2 * curse_flag_delta_cur(CUR_MON_STL);   /* +/-2 Stl per stack */
         break;
     case S_PER:
         skill = r_ptr->per;
-        skill += 2 * curse_flag_count_cur(CUR_MON_PER);   /* +/-2 Per per stack */
+        skill += 2 * curse_flag_delta_cur(CUR_MON_PER);   /* +/-2 Per per stack */
         break;
     case S_WIL:
         skill = r_ptr->wil;
         skill -= m_ptr->song_will_penalty;
-        skill += 2 * curse_flag_count_cur(CUR_MON_WIL);   /* +/-2 Wil per stack */
+        skill += 2 * curse_flag_delta_cur(CUR_MON_WIL);   /* +/-2 Wil per stack */
         break;
     case S_SMT:
         msg_debug("Can't determine the monster's Smithing score.");
@@ -2723,7 +2723,7 @@ bool place_monster_one(
 
         /* Apply unique‐HP curses/blessings: +20% curse, -10% blessing per stack */
         {
-            int stacks = curse_flag_count_cur(CUR_U_MON_HP);
+            int stacks = curse_flag_delta_cur(CUR_U_MON_HP);
             if (stacks > 0) {
                 /* Curse: +20% per stack */
                 n_ptr->maxhp = (n_ptr->maxhp * (100 + 20 * stacks)) / 100;
@@ -2740,7 +2740,7 @@ bool place_monster_one(
 
         /* Apply normal‐HP curses/blessings: +20% curse, -10% blessing per stack */
         {
-            int stacks = curse_flag_count_cur(CUR_MON_HP);
+            int stacks = curse_flag_delta_cur(CUR_MON_HP);
             if (stacks > 0) {
                 /* Curse: +20% per stack */
                 n_ptr->maxhp = (n_ptr->maxhp * (100 + 20 * stacks)) / 100;

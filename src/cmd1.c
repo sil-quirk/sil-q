@@ -4786,7 +4786,8 @@ void apply_oath_breaking_curse(int oath_id)
         log_trace("Applied chosen curse %d for breaking oath", chosen_curse);
     } else {
         /* Fallback to random curse if UI failed */
-        int selected_curse = rand_int(32);
+        int selected_curse = 0;
+        if (z_info && z_info->cu_max > 0) selected_curse = rand_int(z_info->cu_max);
         add_curse_stack(selected_curse);
         log_trace("Applied fallback random curse %d for breaking oath", selected_curse);
     }
@@ -5184,8 +5185,8 @@ void py_attack_aux(int y, int x, int attack_type)
             int armor_dice_base = r_ptr->pd - m_ptr->song_armor_dice_penalty;
             if (armor_dice_base < 0)
                 armor_dice_base = 0;
-            int armor_dice = armor_dice_base + curse_flag_count_cur(CUR_MON_ARM_DICE);
-            int armor_sides = monster_base_armour_sides(m_ptr) + curse_flag_count_cur(CUR_MON_ARM_SIDE);
+            int armor_dice = armor_dice_base + curse_flag_delta_cur(CUR_MON_ARM_DICE);
+            int armor_sides = monster_base_armour_sides(m_ptr) + curse_flag_delta_cur(CUR_MON_ARM_SIDE);
             if (armor_dice < 0) armor_dice = 0;
             if (armor_sides < 1) armor_sides = 1;
             prt = damroll(armor_dice, armor_sides);

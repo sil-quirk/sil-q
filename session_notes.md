@@ -1,5 +1,20 @@
 # Session notes
 
+## 2026-01-01: Multiple CUR-flag blessings were applying as curses
+- Root cause: several systems used `curse_flag_count_cur()` (always non-negative) but then treated the result as signed; blessings were ignored or inverted.
+- Fix: switch those systems to `curse_flag_delta_cur()` so CUR-flag blessings subtract while curses add (per-flag intent).
+- Affected blessings now correct: weight limit (WEAK), digestion/hunger (HUNGER), monster HP (MONSTERHP/MONSTERHP_U), monster skills (MON_STL/MON_PER/MON_WIL), and monster protection sides (MON_ARM_SIDE).
+- Data fix: `lib/edit/curses.txt` had Iron Will of Morgoth power text inverted (+2 should be curse, -2 blessing).
+- Misc: `any_curse_flag_active()` is now curse-only (ignores blessings) and oath-break fallback curse pick uses `z_info->cu_max` (not hard-coded 32).
+- Fix: curse selection weighting no longer casts signed stacks to `byte` (blessings could underflow and distort weights); now uses `CURSE_CURSE_STACK()` in `weighted_random_curse()`.
+- Files: `src/xtra1.c`, `src/monster2.c`, `src/cmd1.c`, `src/cmd2.c`, `src/spells2.c`, `src/monster1.c`, `src/metarun.c`, `lib/edit/curses.txt`.
+- Build: `build-cmake.bat` succeeds.
+
+## 2026-01-01: Light radius/light power blessings apply with correct sign
+- Fix: meta-run blessings that affect light now use signed `curse_flag_delta_cur()` so blessings increase (and curses decrease) `p_ptr->cur_light` and `cave_light[][]` as intended.
+- Symptom fixed: Oath of Light (+2) + Blessing of Radiant Dawn (+1) now yields +3 light radius (instead of net +1).
+- Files: `src/xtra1.c`, `src/cave.c`.
+
 ## 2026-01-01: 950' treated as normal level
 - Fix: `SV_HORN_BLASTING` used downward at 950' (depth `MORGOTH_DEPTH - 1`) now drops the player to 1000' instead of failing with “Cracks spread across the floor, but it holds firm.”
 - Fix: chasms are allowed again at 950' (procedural placement, vault templates, and terrain-changing effects); still disallowed at 1000'.

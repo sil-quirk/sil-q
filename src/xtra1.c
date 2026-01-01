@@ -2399,7 +2399,7 @@ void calc_torch(void)
 
     /* Apply light radius curses/blessings */
     {
-        int r = curse_flag_count_cur(CUR_LIGHTR);
+        int r = curse_flag_delta_cur(CUR_LIGHTR);
 
         /* radius penalty/bonus: +/-1 per stack, never below zero */
         if (r != 0)
@@ -2704,15 +2704,12 @@ int weight_limit(void)
         }
     }
 
-    /* CUR_WEAK curse reduces weight limit by 20% per stack */
-    /* Blessing increases weight limit by 20% per stack */
-    int weak_stacks = curse_flag_count_cur(CUR_WEAK);
-    if (weak_stacks > 0) {
-        /* Curse: reduce by 20% per stack */
-        for (i = 0; i < weak_stacks; i++) limit *= 0.8;
-    } else if (weak_stacks < 0) {
-        /* Blessing: increase by 20% per stack */
-        for (i = 0; i < -weak_stacks; i++) limit *= 1.2;
+    /* CUR_WEAK: curse reduces weight limit by 20% per stack; blessing increases by 20% per stack */
+    int weak_delta = curse_flag_delta_cur(CUR_WEAK);
+    if (weak_delta > 0) {
+        for (i = 0; i < weak_delta; i++) limit = limit * 8 / 10;
+    } else if (weak_delta < 0) {
+        for (i = 0; i < -weak_delta; i++) limit = limit * 12 / 10;
     }
 
     /* Return the result */
@@ -3407,7 +3404,7 @@ static void calc_bonuses(void)
 
     /* CUR_HUNGER curse/blessing: curse increases hunger, blessing decreases it */
     {
-        int h = curse_flag_count_cur(CUR_HUNGER);
+        int h = curse_flag_delta_cur(CUR_HUNGER);
         if (h != 0) p_ptr->hunger += h;
     }
 

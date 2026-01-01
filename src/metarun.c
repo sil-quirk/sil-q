@@ -1438,8 +1438,14 @@ int metarun_alive_count_cached(void)
 
 int any_curse_flag_active(u32b flag)
 {
-    /* Intended for CUR flags such as CUR_NOCHOICE. */
-    return (curse_flag_count_cur(flag) > 0);
+    /* Intended for CUR flags such as CUR_NOCHOICE (curse-only, not blessings). */
+    if (!z_info || !cu_info) return 0;
+    int count = 0;
+    for (int id = 0; id < z_info->cu_max; id++) {
+        int stacks = CURSE_GET(id);
+        if (stacks > 0 && (cu_info[id].flags_u & flag)) count += stacks;
+    }
+    return count;
 }
 
 /* ---------------------------------------------------------------
@@ -1612,12 +1618,12 @@ static int weighted_random_curse(void)
         if (w > w_max) w_max = w;
     }
 
-    /* Pass 2 – sum effective weights */
+    /* Pass 2 — sum effective weights */
     for (int i = 0; i < z_info->cu_max; i++)
     {
         if (!cu_info[i].name) continue;          /* ← unused slot */
         byte w   = cu_info[i].weight ? cu_info[i].weight : 1;
-        byte cnt = CURSE_GET(i);
+        int  cnt = CURSE_CURSE_STACK(i);
         byte cap = cu_info[i].max_stacks;
         if (cap && cnt >= cap) continue;           /* cap reached */
 
@@ -1633,13 +1639,13 @@ static int weighted_random_curse(void)
 
     if (!total) return rng_int(z_info->cu_max);    /* safety net */
 
-    /* Pass 3 – roulette wheel */
+    /* Pass 3 — roulette wheel */
     long pick = rng_int(total), run = 0;
     for (int i = 0; i < z_info->cu_max; i++)
     {
         if (!cu_info[i].name) continue;          /* ← unused slot */
         byte w   = cu_info[i].weight ? cu_info[i].weight : 1;
-        byte cnt = CURSE_GET(i);
+        int  cnt = CURSE_CURSE_STACK(i);
         byte cap = cu_info[i].max_stacks;
         if (cap && cnt >= cap) continue;
 
@@ -1662,7 +1668,7 @@ void add_curse_stack(int idx)
 {
     /* respect per-curse stack cap */
     if (cu_info[idx].max_stacks &&
-        CURSE_GET(idx) >= cu_info[idx].max_stacks)
+        CURSE_CURSE_STACK(idx) >= cu_info[idx].max_stacks)
     {
         log_debug("Curse %d (%s) already at max stacks", idx, cu_name + cu_info[idx].name);
         return;
@@ -1690,7 +1696,7 @@ int menu_choose_one_curse(int n)
                 if (pick[i] == pick[j]) { dup = true; break; }
             
             byte cap = cu_info[pick[i]].max_stacks;
-            if (cap && CURSE_GET(pick[i]) >= cap) { dup = true; continue; }
+            if (cap && CURSE_CURSE_STACK(pick[i]) >= cap) { dup = true; continue; }
 
         } while (dup);
     }
