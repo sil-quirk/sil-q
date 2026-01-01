@@ -1,5 +1,10 @@
 # Session notes
 
+## 2026-01-01: Melt menu works for star-iron items
+- Fix: smithing "Melt" is enabled when carrying meltable mithril or star-iron items (not mithril-only), and the UI text now mentions both metals.
+- Files: `src/cmd4.c`, `src/cmd3.c`.
+- Build: `build-cmake.bat` succeeds.
+
 ## 2026-01-01: Multiple CUR-flag blessings were applying as curses
 - Root cause: several systems used `curse_flag_count_cur()` (always non-negative) but then treated the result as signed; blessings were ignored or inverted.
 - Fix: switch those systems to `curse_flag_delta_cur()` so CUR-flag blessings subtract while curses add (per-flag intent).
@@ -8106,4 +8111,9 @@ The script now fully matches the game's drop generation logic for all item types
 ## 2025-12-30: Win7 minimize/restore can corrupt tile visuals (SDL3)
 - `src/main-sdl.c`: handle `SDL_EVENT_RENDER_*_RESET`/`SDL_EVENT_RENDER_DEVICE_LOST` + `SDL_EVENT_WINDOW_RESTORED` by reloading the tileset (device reset) and recreating render-target textures via `resize()` to force a full redraw.
 - `src/main-sdl.c`: fix tileset surface use-after-free and stop reading `SDL_Texture` internal `->w/->h` fields.
+- build-cmake.bat: success (standard + portable builds).
+
+## 2026-01-01: Fix crash on repeat Varda quest accept/complete (invalid free)
+- `src/xtra2.c`: `free_quest_texts()` now takes a `count` and frees only those entries; fixes OOB reads/invalid frees when `prepend_repeat_context()` returns a smaller array on repeat attempts.
+- `src/externs.h`: update `free_quest_texts` declaration; update all call sites to pass `text_count`/`completion_count`.
 - build-cmake.bat: success (standard + portable builds).

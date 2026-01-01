@@ -4106,7 +4106,7 @@ bool melt_metal_item(int item_num)
     return (false);
 }
 
-int mithril_items_carried(void)
+static int meltable_metal_items_carried(void)
 {
     int number = 0;
     int item;
@@ -4118,8 +4118,9 @@ int mithril_items_carried(void)
 
         object_flags(o_ptr, &f1, &f2, &f3);
 
-        /* Only count mithril items that can be melted (exclude Gamil-forged) */
-        if ((f3 & TR3_MITHRIL) && !(o_ptr->ident & IDENT_CANT_MELT))
+        /* Only count metal items that can be melted (exclude Gamil-forged) */
+        if ((f3 & (TR3_MITHRIL | TR3_STAR_IRON))
+            && !(o_ptr->ident & IDENT_CANT_MELT))
         {
             number += 1;
         }
@@ -7587,7 +7588,7 @@ int smithing_menu_aux(int* highlight)
             < z_info->art_self_made_max - z_info->art_rand_max - 2);
     valid[SMT_MENU_NUMBERS - 1] = (smith_o_ptr->tval != 0);
     valid[SMT_MENU_MELT - 1]
-        = mithril_items_carried() && cave_forge_bold(p_ptr->py, p_ptr->px);
+        = meltable_metal_items_carried() && cave_forge_bold(p_ptr->py, p_ptr->px);
     valid[SMT_MENU_ACCEPT - 1] = affordable(smith_o_ptr)
         && cave_forge_bold(p_ptr->py, p_ptr->px)
         && (forge_uses(p_ptr->py, p_ptr->px) > 0);
@@ -7668,7 +7669,9 @@ int smithing_menu_aux(int* highlight)
     case SMT_MENU_MELT:
     {
         Term_putstr(COL_SMT2 + 2, 2, -1, TERM_SLATE,
-            "Choose a mithril item to melt down.");
+            "Choose a mithril or star-iron item");
+        Term_putstr(
+            COL_SMT2 + 2, 3, -1, TERM_SLATE, "to melt down.");
         break;
     }
     case SMT_MENU_ACCEPT:
@@ -7905,7 +7908,7 @@ void do_cmd_smithing_screen(void)
         }
         case SMT_MENU_MELT:
         {
-            if (mithril_items_carried())
+            if (meltable_metal_items_carried())
             {
                 // this is not a resumption of smithing an item
                 p_ptr->smithing_leftover = 0;
@@ -7914,7 +7917,7 @@ void do_cmd_smithing_screen(void)
             }
             else
             {
-                bell("You don't have any mithril items.");
+                bell("You don't have any mithril or star-iron items.");
             }
 
             break;

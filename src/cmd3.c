@@ -310,7 +310,7 @@ void do_cmd_use_item_by_index(int item)
     }
     case TV_METAL:
     {
-        msg_print("To melt down pieces of mithril, take them to a forge and "
+        msg_print("To smith with mithril or star-iron, take them to a forge and "
                   "type (,).");
         break;
     }

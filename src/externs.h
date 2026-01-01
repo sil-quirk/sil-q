@@ -1415,7 +1415,7 @@ extern bool check_quest_eligibility(int quest_idx, int depth);
 extern void do_cmd_quest_status(void);
 extern cptr* extract_quest_init_texts(int quest_idx, int* count);
 extern cptr* extract_quest_completion_texts(int quest_idx, int* count);
-extern void free_quest_texts(cptr* texts);
+extern void free_quest_texts(cptr* texts, int count);
 extern void tulkas_quest_interaction(void);
 extern void check_tulkas_quest_interaction(void);
 extern void check_tulkas_quest_completion(int r_idx);

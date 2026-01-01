@@ -6343,7 +6343,8 @@ cptr* extract_quest_init_texts(int quest_idx, int* count)
     int len;
     
     /* Initialize count */
-    *count = 0;
+    if (count) *count = 0;
+    else return NULL;
     
     /* Validate quest index */
     if (quest_idx <= 0 || quest_idx >= z_info->quest_max) return NULL;
@@ -6414,7 +6415,8 @@ cptr* extract_quest_completion_texts(int quest_idx, int* count)
     int len;
     
     /* Initialize count */
-    *count = 0;
+    if (count) *count = 0;
+    else return NULL;
     
     /* Validate quest index */
     if (quest_idx <= 0 || quest_idx >= z_info->quest_max) return NULL;
@@ -6499,6 +6501,7 @@ static cptr* prepend_repeat_context(int quest_idx, cptr* texts, int* count, bool
             (previous == 1 ? "" : "s"));
 
     cptr* new_texts = mem_alloc_array(*count + 1, cptr);
+    if (!new_texts) return texts;
     new_texts[0] = str_dup(repeat_line);
     for (int i = 0; i < *count; i++) new_texts[i + 1] = texts[i];
     mem_free_null(texts); /* free only the array container; strings move to new_texts */
@@ -6949,20 +6952,19 @@ static cptr get_quest_reward_text(int quest_idx)
 /*
  * Free quest text array returned by extract functions
  */
-void free_quest_texts(cptr* texts)
+void free_quest_texts(cptr* texts, int count)
 {
-    int i;
-    
     if (!texts) return;
-    
-    /* Free individual strings */
-    for (i = 0; i < 20; i++) { /* Same max as in extract functions */
+
+    if (count < 0) count = 0;
+    if (count > 50) count = 50; /* hard cap safety */
+
+    for (int i = 0; i < count; i++) {
         if (texts[i]) {
             str_free((char*)texts[i]);
         }
     }
-    
-    /* Free the array */
+
     mem_free_null(texts);
 }
 
@@ -7919,7 +7921,7 @@ void tulkas_quest_interaction(void)
                 if (processed_texts[i]) str_free((char*)processed_texts[i]);
             }
             mem_free_null(processed_texts);
-            free_quest_texts(init_texts);
+            free_quest_texts(init_texts, text_count);
         } else {
             /* Fallback to simple message if text extraction fails */
             msg_print("Tulkas the Strong speaks of a great quest, but the words are lost in thunder.");
@@ -7974,7 +7976,7 @@ void tulkas_quest_interaction(void)
         if (completion_texts && completion_count > 0) {
             /* Display typewriter completion dialog */
             quest_typewriter_menu("Quest Complete: Tulkas Rewards Your Valor", completion_texts, completion_count, TERM_L_GREEN, TERM_WHITE);
-            free_quest_texts(completion_texts);
+            free_quest_texts(completion_texts, completion_count);
         } else {
             /* Fallback to simple message if text extraction fails */
             cptr fallback_texts[] = {
@@ -8425,7 +8427,7 @@ void varda_quest_interaction(void)
         init_texts = prepend_repeat_context(QUEST_ID_VARDA, init_texts, &text_count, false);
         if (init_texts && text_count > 0) {
             quest_typewriter_menu("Varda, Lady of the Stars", init_texts, text_count, TERM_WHITE, TERM_L_BLUE);
-            free_quest_texts(init_texts);
+            free_quest_texts(init_texts, text_count);
         } else {
             cptr fallback[] = {
                 "Varda's voice is clear as starlight:",
@@ -8461,7 +8463,7 @@ void varda_quest_interaction(void)
         bool rewarded = grant_varda_reward(texts_to_use, text_count);
         
         if (completion_texts) {
-            free_quest_texts(completion_texts);
+            free_quest_texts(completion_texts, completion_count);
         }
         
         if (rewarded) {
@@ -8636,7 +8638,7 @@ void aule_quest_interaction(void)
         
         if (init_texts && text_count > 0) {
             quest_typewriter_menu("Aule the Smith", init_texts, text_count, TERM_YELLOW, TERM_WHITE);
-            free_quest_texts(init_texts);
+            free_quest_texts(init_texts, text_count);
         } else {
             /* Fallback to simple message if text extraction fails */
             cptr fallback_texts[] = {
@@ -8663,7 +8665,7 @@ void aule_quest_interaction(void)
         
         if (completion_texts && completion_count > 0) {
             quest_typewriter_menu("Quest Complete!", completion_texts, completion_count, TERM_L_GREEN, TERM_WHITE);
-            free_quest_texts(completion_texts);
+            free_quest_texts(completion_texts, completion_count);
         } else {
             /* Fallback to simple message if text extraction fails */
             cptr fallback_texts[] = {
@@ -8766,7 +8768,7 @@ void mandos_quest_interaction(void)
         
         if (init_texts && text_count > 0) {
             quest_typewriter_menu("Mandos the Doomsman", init_texts, text_count, TERM_L_DARK, TERM_WHITE);
-            free_quest_texts(init_texts);
+            free_quest_texts(init_texts, text_count);
         } else {
             /* Fallback to simple message if text extraction fails */
             cptr fallback_texts[] = {
@@ -8792,7 +8794,7 @@ void mandos_quest_interaction(void)
             
             if (completion_texts && completion_count > 0) {
                 quest_typewriter_menu("Justice Served", completion_texts, completion_count, TERM_L_GREEN, TERM_WHITE);
-                free_quest_texts(completion_texts);
+                free_quest_texts(completion_texts, completion_count);
             } else {
                 /* Fallback to simple message if text extraction fails */
                 cptr fallback_texts[] = {
@@ -8825,7 +8827,7 @@ void mandos_quest_interaction(void)
         
         if (completion_texts && completion_count > 0) {
             quest_typewriter_menu("Quest Reward", completion_texts, completion_count, TERM_L_GREEN, TERM_WHITE);
-            free_quest_texts(completion_texts);
+            free_quest_texts(completion_texts, completion_count);
         } else {
             /* Fallback to simple message if text extraction fails */
             cptr fallback_texts[] = {
@@ -9020,7 +9022,7 @@ void niena_quest_interaction(void)
         
         if (init_texts && text_count > 0) {
             quest_typewriter_menu("Niena, Lady of Pity", init_texts, text_count, TERM_L_BLUE, TERM_WHITE);
-            free_quest_texts(init_texts);
+            free_quest_texts(init_texts, text_count);
         } else {
             /* Fallback to simple message if text extraction fails */
             cptr fallback_texts[] = {
@@ -9082,7 +9084,7 @@ void niena_quest_interaction(void)
             
             if (completion_texts && completion_count > 0) {
                 quest_typewriter_menu("Niena, Lady of Pity", completion_texts, completion_count, TERM_L_BLUE, TERM_WHITE);
-                free_quest_texts(completion_texts);
+                free_quest_texts(completion_texts, completion_count);
             } else {
                 /* Fallback to simple message if text extraction fails */
                 cptr fallback_texts[] = {
@@ -9106,7 +9108,7 @@ void niena_quest_interaction(void)
                 /* Use alternate completion text if available */
                 cptr alt_texts[] = {completion_texts[1]};
                 quest_typewriter_menu("Niena, Lady of Pity", alt_texts, 1, TERM_L_BLUE, TERM_WHITE);
-                free_quest_texts(completion_texts);
+                free_quest_texts(completion_texts, completion_count);
             } else {
                 /* Fallback to simple message if text extraction fails */
                 cptr fallback_texts[] = {
@@ -9279,7 +9281,7 @@ void orome_quest_interaction(void)
         
         if (init_texts && text_count > 0) {
             quest_typewriter_menu("Oromë the Huntsman", init_texts, text_count, TERM_GREEN, TERM_WHITE);
-            free_quest_texts(init_texts);
+            free_quest_texts(init_texts, text_count);
         } else {
             /* Fallback to simple message if text extraction fails */
             cptr fallback_texts[] = {
@@ -9338,7 +9340,7 @@ void orome_quest_interaction(void)
         
         if (completion_texts && completion_count > 0) {
             quest_typewriter_menu("Oromë the Huntsman", completion_texts, completion_count, TERM_GREEN, TERM_WHITE);
-            free_quest_texts(completion_texts);
+            free_quest_texts(completion_texts, completion_count);
         } else {
             /* Fallback to simple message if text extraction fails */
             cptr fallback_texts[] = {
