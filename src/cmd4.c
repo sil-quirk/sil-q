@@ -8150,9 +8150,11 @@ void create_smithing_item(void)
 #define MAIN_MENU_HELP 20
 #define MAIN_MENU_STORY 21
 
-#define MAIN_MENU_MAX 18
+#define MAIN_MENU_MAX 19
 
 #define COL_MAIN 29
+
+static void do_cmd_hint_messages(void);
 
 /*
  * Performs the interface and selection work for the main menu.
@@ -8163,8 +8165,8 @@ int main_menu_aux(int* highlight)
     int i;
     bool death_view = death_spectator_active();
 
-    if (death_view && (*highlight >= 15) && (*highlight <= 17))
-        *highlight = 18;
+    if (death_view && (*highlight >= 16) && (*highlight <= 18))
+        *highlight = 19;
 
     for (i = 0; i < MAIN_MENU_MAX + 3; i++)
     {
@@ -8195,24 +8197,26 @@ int main_menu_aux(int* highlight)
     Term_putstr(COL_MAIN, 12, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
         "Combat history       (x)");
     Term_putstr(COL_MAIN, 13, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
-        "The story so far     (y)");
+        "Hint messages        (i)");
     Term_putstr(COL_MAIN, 14, -1, (*highlight == 13) ? TERM_L_BLUE : TERM_WHITE,
-        "Options and misc     (o)");
+        "The story so far     (y)");
     Term_putstr(COL_MAIN, 15, -1, (*highlight == 14) ? TERM_L_BLUE : TERM_WHITE,
+        "Options and misc     (o)");
+    Term_putstr(COL_MAIN, 16, -1, (*highlight == 15) ? TERM_L_BLUE : TERM_WHITE,
         "Help                 (h)");
     byte suicide_color = death_view ? TERM_L_DARK
-        : ((*highlight == 15) ? TERM_L_BLUE : TERM_WHITE);
-    Term_putstr(COL_MAIN, 16, -1, suicide_color,
+        : ((*highlight == 16) ? TERM_L_BLUE : TERM_WHITE);
+    Term_putstr(COL_MAIN, 17, -1, suicide_color,
         "Suicide              (k)");
     byte save_color = death_view ? TERM_L_DARK
-        : ((*highlight == 16) ? TERM_L_BLUE : TERM_WHITE);
-    Term_putstr(COL_MAIN, 17, -1, save_color,
+        : ((*highlight == 17) ? TERM_L_BLUE : TERM_WHITE);
+    Term_putstr(COL_MAIN, 18, -1, save_color,
         "Save                 (s)");
     byte quit_color = death_view ? TERM_L_DARK
-        : ((*highlight == 17) ? TERM_L_BLUE : TERM_WHITE);
-    Term_putstr(COL_MAIN, 18, -1, quit_color,
+        : ((*highlight == 18) ? TERM_L_BLUE : TERM_WHITE);
+    Term_putstr(COL_MAIN, 19, -1, quit_color,
         "Quit with save       (q)");
-    Term_putstr(COL_MAIN, 19, -1, (*highlight == 18) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(COL_MAIN, 20, -1, (*highlight == 19) ? TERM_L_BLUE : TERM_WHITE,
         "Return to game       (r)");
 
     /* Flush the prompt */
@@ -8262,38 +8266,41 @@ int main_menu_aux(int* highlight)
     case 'x':
         *highlight = 11;
         return (*highlight); // Combat history
-    case 'y':
+    case 'i':
         *highlight = 12;
+        return (*highlight); // Hint messages
+    case 'y':
+        *highlight = 13;
         return (*highlight); // The story so far
     case 'o':
-        *highlight = 13;
+        *highlight = 14;
         return (*highlight); // Options and misc
     case 'h':
-        *highlight = 14;
+        *highlight = 15;
         return (*highlight); // Help
     case 'k':
         if (death_view) {
             msg_print("You can no longer take that action.");
             break;
         }
-        *highlight = 15;
+        *highlight = 16;
         return (*highlight); // Suicide
     case 's':
         if (death_view) {
             msg_print("You can no longer take that action.");
             break;
         }
-        *highlight = 16;
+        *highlight = 17;
         return (*highlight); // Save
     case 'q':
         if (death_view) {
             msg_print("You can no longer take that action.");
             break;
         }
-        *highlight = 17;
+        *highlight = 18;
         return (*highlight); // Quit with save
     case 'r':
-        *highlight = 18;
+        *highlight = 19;
         return (*highlight); // Return to game
     }
 
@@ -8310,7 +8317,7 @@ int main_menu_aux(int* highlight)
             (*highlight)--;
         else if (*highlight == 1)
             *highlight = MAIN_MENU_MAX;
-        while (death_view && (*highlight >= 15) && (*highlight <= 17))
+        while (death_view && (*highlight >= 16) && (*highlight <= 18))
         {
             if (*highlight > 1)
                 (*highlight)--;
@@ -8326,7 +8333,7 @@ int main_menu_aux(int* highlight)
             (*highlight)++;
         else if (*highlight == MAIN_MENU_MAX)
             *highlight = 1;
-        while (death_view && (*highlight >= 15) && (*highlight <= 17))
+        while (death_view && (*highlight >= 16) && (*highlight <= 18))
         {
             if (*highlight < MAIN_MENU_MAX)
                 (*highlight)++;
@@ -8368,7 +8375,7 @@ void do_cmd_main_menu(void)
     {
         actiontype = main_menu_aux(&highlight);
 
-        if (death_spectator_active() && (actiontype >= 15) && (actiontype <= 17))
+        if (death_spectator_active() && (actiontype >= 16) && (actiontype <= 18))
         {
             msg_print("You can no longer take that action.");
             continue;
@@ -8444,7 +8451,13 @@ void do_cmd_main_menu(void)
             leave_menu = true;
             break;
         }
-        case 12: // The story so far (y)
+        case 12: // Hint messages (i)
+        {
+            do_cmd_hint_messages();
+            leave_menu = true;
+            break;
+        }
+        case 13: // The story so far (y)
         {
             /* Save screen before showing story */
             screen_save();
@@ -8454,31 +8467,31 @@ void do_cmd_main_menu(void)
             leave_menu = true;
             break;
         }
-        case 13: // Options and misc (o)
+        case 14: // Options and misc (o)
         {
             do_cmd_options();
             leave_menu = true;
             break;
         }
-        case 14: // Help (h)
+        case 15: // Help (h)
         {
             do_cmd_help();
             leave_menu = true;
             break;
         }
-        case 15: // Suicide (k)
+        case 16: // Suicide (k)
         {
             do_cmd_suicide();
             leave_menu = true;
             break;
         }
-        case 16: // Save (s)
+        case 17: // Save (s)
         {
             do_cmd_save_game();
             leave_menu = true;
             break;
         }
-        case 17: // Quit with save (q)
+        case 18: // Quit with save (q)
         {
             do_cmd_save_game();
 
@@ -8493,7 +8506,7 @@ void do_cmd_main_menu(void)
             leave_menu = true;
             break;
         }
-        case 18: // Return to game (r)
+        case 19: // Return to game (r)
         {
             leave_menu = true;
             break;
@@ -8523,6 +8536,122 @@ void do_cmd_message_one(void)
 {
     /* Recall one message XXX XXX XXX */
     c_prt(message_color(0), format("> %s", message_str(0)), 0, 0);
+}
+
+static void do_cmd_hint_messages(void)
+{
+    char ch;
+
+    int wid, hgt;
+
+    /* Clear any active banner before opening hint messages */
+    extern int g_banner_force_redraw_remaining;
+    if (g_banner_force_redraw_remaining > 0) {
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
+    }
+
+    hint_messages_ensure_level_state();
+
+    int n = (int)hint_messages_count_for_save();
+    if (n <= 0)
+    {
+        msg_print("You recall no hint messages on this level.");
+        return;
+    }
+
+    int sel = 0;
+    int top = 0;
+
+    Term_get_size(&wid, &hgt);
+
+    /* Save screen */
+    screen_save();
+
+    while (1)
+    {
+        Term_clear();
+
+        int rows = hgt - 4;
+        if (rows < 1)
+            rows = 1;
+
+        if (sel < 0)
+            sel = 0;
+        if (sel >= n)
+            sel = n - 1;
+
+        if (sel < top)
+            top = sel;
+        if (sel >= top + rows)
+            top = sel - rows + 1;
+        if (top < 0)
+            top = 0;
+        if (top > n - rows)
+            top = n - rows;
+        if (top < 0)
+            top = 0;
+
+        prt(format("Hint Messages (%d)", n), 0, 0);
+        prt("[Press '8'/'2' to move, Enter to read, or ESCAPE]", hgt - 1, 0);
+
+        for (int row = 0; row < rows && top + row < n; ++row)
+        {
+            int idx = top + row;
+            byte attr = (idx == sel) ? TERM_L_BLUE : TERM_WHITE;
+
+            const char* preview = "";
+            byte line_count = hint_messages_message_line_count(idx);
+            for (int li = 0; li < line_count; ++li)
+            {
+                const char* s = hint_messages_message_line(idx, li);
+                if (s && s[0])
+                {
+                    preview = s;
+                    break;
+                }
+            }
+
+            char buf[256];
+            strnfmt(buf, sizeof(buf), "%2d) %s", idx + 1, preview);
+            Term_putstr(0, 2 + row, -1, attr, buf);
+        }
+
+        Term_fresh();
+        ch = inkey();
+
+        if (ch == ESCAPE)
+            break;
+
+        if (ch == '8')
+        {
+            sel = (sel > 0) ? (sel - 1) : (n - 1);
+            continue;
+        }
+
+        if (ch == '2')
+        {
+            sel = (sel + 1 < n) ? (sel + 1) : 0;
+            continue;
+        }
+
+        if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
+        {
+            char lines[17][100];
+            byte line_count = hint_messages_message_line_count(sel);
+            int keep = (line_count > 16) ? 16 : line_count;
+            for (int li = 0; li < keep; ++li)
+                strnfmt(lines[li], sizeof(lines[li]), "%s", hint_messages_message_line(sel, li));
+            lines[keep][0] = '\0';
+            pause_with_text(lines, 4, 8, NULL, 0);
+            continue;
+        }
+
+        bell(NULL);
+    }
+
+    /* Load screen */
+    screen_load();
 }
 
 /*

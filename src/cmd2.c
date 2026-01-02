@@ -1079,6 +1079,20 @@ typedef struct skeleton_note_state {
     s16b seen_ids[SKELETON_NOTE_SEEN_MAX];
 } skeleton_note_state;
 
+#define HINT_MESSAGE_MAX 32
+#define HINT_MESSAGE_LINES_MAX 16
+
+typedef struct hint_message_state {
+    s16b level_depth;
+    s16b map_wid;
+    s16b map_hgt;
+    byte message_count;
+    byte line_counts[HINT_MESSAGE_MAX];
+    char lines[HINT_MESSAGE_MAX][HINT_MESSAGE_LINES_MAX][100];
+} hint_message_state;
+
+static hint_message_state g_hint_message_state = { -1, 0, 0, 0, {0}, {{{0}}} };
+
 #define SKELETON_TIP_MAX_DEPTH 7
 
 static skeleton_note_state g_skeleton_note_state = { -1, 0, 0, 0, 0, 0, 0, {0} };
@@ -1100,12 +1114,21 @@ static const int skeleton_hint_base_weight[SKEL_HINT_MAX]
         40, /* PART_CAVE */
         40, /* PART_CAVE_ICE */
         40, /* PART_CAVE_FIRE */
-        40  /* PART_CAVE_POIS */
+        40, /* PART_CAVE_POIS */
+        35, /* PART_ROOMY */
+        35, /* PART_RUINED */
+        35  /* PART_CAVEY */
     };
 
 static void skeleton_note_ensure_level_state(void);
 static bool skeleton_note_has_unseen_template(
     byte sval, skeleton_note_role role, skeleton_hint_kind hint);
+static int skeleton_note_manhattan_dist(int y1, int x1, int y2, int x2);
+static const char* skeleton_note_direction_phrase(int from_y, int from_x, int to_y, int to_x);
+static const char* skeleton_note_distance_phrase(int dist);
+static int skeleton_note_effective_wrap_width(int col);
+static int skeleton_note_append_wrapped_text(
+    const char* text, char lines[][100], int idx, int limit, int wrap);
 static void skeleton_note_recount_templates(void)
 {
     g_skeleton_note_entry_count = 0;
@@ -1208,7 +1231,7 @@ static int skeleton_note_cap_from_layout(const level_layout_info* layout)
         cap = 1;
     if (cap > 4)
         cap = 4;
-    return cap;
+    return 10*cap;
 }
 
 static skeleton_note_profile skeleton_note_profile_for_sval(byte sval)
@@ -1223,7 +1246,7 @@ static skeleton_note_profile skeleton_note_profile_for_sval(byte sval)
     switch (sval)
     {
     case SV_SKELETON_ELF:
-        prof.note_chance = 55;
+        prof.note_chance = 83;
         prof.weight_scale[SKEL_HINT_GREAT_VAULT] = 110;
         prof.weight_scale[SKEL_HINT_VAULT_ARTIFACT] = 120;
         prof.weight_scale[SKEL_HINT_STAIRS] = 90;
@@ -1239,7 +1262,7 @@ static skeleton_note_profile skeleton_note_profile_for_sval(byte sval)
         prof.weight_scale[SKEL_HINT_TIP] = 120;
         break;
     case SV_SKELETON_HUMAN:
-        prof.note_chance = 40;
+        prof.note_chance = 60;
         prof.weight_scale[SKEL_HINT_GREAT_VAULT] = 120;
         prof.weight_scale[SKEL_HINT_VAULT_ARTIFACT] = 105;
         prof.weight_scale[SKEL_HINT_STAIRS] = 140;
@@ -1255,7 +1278,7 @@ static skeleton_note_profile skeleton_note_profile_for_sval(byte sval)
         prof.weight_scale[SKEL_HINT_TIP] = 240;
         break;
     case SV_SKELETON_ORC:
-        prof.note_chance = 25;
+        prof.note_chance = 38;
         prof.weight_scale[SKEL_HINT_GREAT_VAULT] = 170;
         prof.weight_scale[SKEL_HINT_VAULT_ARTIFACT] = 180;
         prof.weight_scale[SKEL_HINT_STAIRS] = 120;
@@ -1465,6 +1488,122 @@ static const char* skeleton_note_fallback_signoff(byte sval)
     }
 }
 
+static void hint_messages_clear_for_level(s16b level_depth, s16b map_wid, s16b map_hgt)
+{
+    g_hint_message_state.level_depth = level_depth;
+    g_hint_message_state.map_wid = map_wid;
+    g_hint_message_state.map_hgt = map_hgt;
+    g_hint_message_state.message_count = 0;
+    for (int i = 0; i < HINT_MESSAGE_MAX; ++i)
+        g_hint_message_state.line_counts[i] = 0;
+}
+
+static void hint_messages_push_internal(const char lines[][100], int line_count)
+{
+    if (line_count <= 0)
+        return;
+    if (line_count > HINT_MESSAGE_LINES_MAX)
+        line_count = HINT_MESSAGE_LINES_MAX;
+
+    int slot = g_hint_message_state.message_count;
+    if (slot >= HINT_MESSAGE_MAX)
+    {
+        for (int i = 1; i < HINT_MESSAGE_MAX; ++i)
+        {
+            g_hint_message_state.line_counts[i - 1] = g_hint_message_state.line_counts[i];
+            for (int j = 0; j < HINT_MESSAGE_LINES_MAX; ++j)
+                strnfmt(g_hint_message_state.lines[i - 1][j], 100, "%s", g_hint_message_state.lines[i][j]);
+        }
+        slot = HINT_MESSAGE_MAX - 1;
+    }
+    else
+    {
+        g_hint_message_state.message_count++;
+    }
+
+    g_hint_message_state.line_counts[slot] = (byte)line_count;
+    for (int i = 0; i < line_count; ++i)
+        strnfmt(g_hint_message_state.lines[slot][i], 100, "%s", lines[i]);
+    for (int i = line_count; i < HINT_MESSAGE_LINES_MAX; ++i)
+        g_hint_message_state.lines[slot][i][0] = '\0';
+}
+
+void hint_messages_level_reset(void)
+{
+    hint_messages_clear_for_level(p_ptr->depth, p_ptr->cur_map_wid, p_ptr->cur_map_hgt);
+}
+
+void hint_messages_ensure_level_state(void)
+{
+    if (g_hint_message_state.level_depth != p_ptr->depth
+        || g_hint_message_state.map_wid != p_ptr->cur_map_wid
+        || g_hint_message_state.map_hgt != p_ptr->cur_map_hgt)
+    {
+        hint_messages_level_reset();
+    }
+}
+
+byte hint_messages_count_for_save(void)
+{
+    hint_messages_ensure_level_state();
+    return g_hint_message_state.message_count;
+}
+
+s16b hint_messages_level_depth_for_save(void)
+{
+    hint_messages_ensure_level_state();
+    return g_hint_message_state.level_depth;
+}
+
+s16b hint_messages_map_wid_for_save(void)
+{
+    hint_messages_ensure_level_state();
+    return g_hint_message_state.map_wid;
+}
+
+s16b hint_messages_map_hgt_for_save(void)
+{
+    hint_messages_ensure_level_state();
+    return g_hint_message_state.map_hgt;
+}
+
+byte hint_messages_message_line_count(int index)
+{
+    if (index < 0 || index >= g_hint_message_state.message_count)
+        return 0;
+    return g_hint_message_state.line_counts[index];
+}
+
+const char* hint_messages_message_line(int index, int line)
+{
+    if (index < 0 || index >= g_hint_message_state.message_count)
+        return "";
+    if (line < 0 || line >= g_hint_message_state.line_counts[index])
+        return "";
+    return g_hint_message_state.lines[index][line];
+}
+
+void hint_messages_clear_for_load(s16b level_depth, s16b map_wid, s16b map_hgt)
+{
+    hint_messages_clear_for_level(level_depth, map_wid, map_hgt);
+}
+
+void hint_messages_add_for_load(const char lines[][100], int line_count)
+{
+    hint_messages_push_internal(lines, line_count);
+}
+
+void hint_messages_add_note_lines(const char note_lines[][100])
+{
+    hint_messages_ensure_level_state();
+
+    int line_count = 0;
+    while (line_count < HINT_MESSAGE_LINES_MAX && note_lines[line_count][0])
+        line_count++;
+
+    hint_messages_push_internal(note_lines, line_count);
+}
+
 static bool level_has_greater_vault(void)
 {
     for (int y = 0; y < p_ptr->cur_map_hgt; ++y)
@@ -1533,6 +1672,19 @@ static bool level_has_forge(void)
         for (int x = 0; x < p_ptr->cur_map_wid; ++x)
         {
             if (cave_forge_bold(y, x))
+                return true;
+        }
+    }
+    return false;
+}
+
+static bool level_has_partition_kind(level_partition_kind kind)
+{
+    for (int y = 0; y < p_ptr->cur_map_hgt; ++y)
+    {
+        for (int x = 0; x < p_ptr->cur_map_wid; ++x)
+        {
+            if (level_partition_kind_for_point(y, x) == kind)
                 return true;
         }
     }
@@ -1658,6 +1810,8 @@ void skeleton_note_level_reset(void)
 
     if (g_skeleton_note_state.note_cap < 1)
         g_skeleton_note_state.note_cap = 1;
+
+    hint_messages_level_reset();
 }
 
 static void skeleton_note_ensure_level_state(void)
@@ -1801,6 +1955,15 @@ static bool skeleton_hint_available(skeleton_hint_kind kind,
         ok = (counts[BIG_CAVE_POIS] > 0);
         break;
     }
+    case SKEL_HINT_PART_ROOMY:
+        ok = level_has_partition_kind(LEVEL_PART_ROOMY);
+        break;
+    case SKEL_HINT_PART_RUINED:
+        ok = level_has_partition_kind(LEVEL_PART_RUINED);
+        break;
+    case SKEL_HINT_PART_CAVEY:
+        ok = level_has_partition_kind(LEVEL_PART_CAVEY);
+        break;
     default:
         ok = false;
         break;
@@ -2843,6 +3006,207 @@ static bool skeleton_note_find_nearest_quest_site(
     return true;
 }
 
+static bool skeleton_note_find_nearest_great_vault(
+    int from_y, int from_x, int* out_y, int* out_x, int* out_dist)
+{
+    int best_y = -1;
+    int best_x = -1;
+    int best_dist = 0;
+    int seen = 0;
+
+    for (int y = 0; y < p_ptr->cur_map_hgt; ++y)
+    {
+        for (int x = 0; x < p_ptr->cur_map_wid; ++x)
+        {
+            if (!(cave_info[y][x] & CAVE_G_VAULT))
+                continue;
+
+            int dist = skeleton_note_manhattan_dist(from_y, from_x, y, x);
+            if (best_y < 0 || dist < best_dist)
+            {
+                best_y = y;
+                best_x = x;
+                best_dist = dist;
+                seen = 1;
+                continue;
+            }
+
+            if (dist == best_dist)
+            {
+                ++seen;
+                if (one_in_(seen))
+                {
+                    best_y = y;
+                    best_x = x;
+                }
+            }
+        }
+    }
+
+    if (best_y < 0)
+        return false;
+
+    if (out_y) *out_y = best_y;
+    if (out_x) *out_x = best_x;
+    if (out_dist) *out_dist = best_dist;
+    return true;
+}
+
+static bool skeleton_note_find_nearest_vault_artifact(
+    int from_y, int from_x, int* out_y, int* out_x, int* out_dist)
+{
+    int best_y = -1;
+    int best_x = -1;
+    int best_dist = 0;
+    int seen = 0;
+
+    for (int i = 1; i < o_max; i++)
+    {
+        object_type* o_ptr = &o_list[i];
+        if (!o_ptr->k_idx)
+            continue;
+        if (o_ptr->held_m_idx)
+            continue;
+        if (!o_ptr->name1)
+            continue;
+        if (o_ptr->iy >= p_ptr->cur_map_hgt || o_ptr->ix >= p_ptr->cur_map_wid)
+            continue;
+
+        if (!(cave_info[o_ptr->iy][o_ptr->ix] & CAVE_G_VAULT))
+            continue;
+
+        int dist = skeleton_note_manhattan_dist(from_y, from_x, o_ptr->iy, o_ptr->ix);
+        if (best_y < 0 || dist < best_dist)
+        {
+            best_y = o_ptr->iy;
+            best_x = o_ptr->ix;
+            best_dist = dist;
+            seen = 1;
+            continue;
+        }
+
+        if (dist == best_dist)
+        {
+            ++seen;
+            if (one_in_(seen))
+            {
+                best_y = o_ptr->iy;
+                best_x = o_ptr->ix;
+            }
+        }
+    }
+
+    if (best_y < 0)
+        return false;
+
+    if (out_y) *out_y = best_y;
+    if (out_x) *out_x = best_x;
+    if (out_dist) *out_dist = best_dist;
+    return true;
+}
+
+static bool skeleton_note_find_nearest_unique(
+    int from_y, int from_x, int* out_r_idx, int* out_y, int* out_x, int* out_dist)
+{
+    int best_r_idx = 0;
+    int best_y = -1;
+    int best_x = -1;
+    int best_dist = 0;
+    int seen = 0;
+
+    for (int i = 1; i < mon_max; i++)
+    {
+        monster_type* m_ptr = &mon_list[i];
+        if (!m_ptr->r_idx)
+            continue;
+        monster_race* r_ptr = &r_info[m_ptr->r_idx];
+        if (!(r_ptr->flags1 & RF1_UNIQUE))
+            continue;
+
+        int dist = skeleton_note_manhattan_dist(from_y, from_x, m_ptr->fy, m_ptr->fx);
+        if (best_y < 0 || dist < best_dist)
+        {
+            best_r_idx = m_ptr->r_idx;
+            best_y = m_ptr->fy;
+            best_x = m_ptr->fx;
+            best_dist = dist;
+            seen = 1;
+            continue;
+        }
+
+        if (dist == best_dist)
+        {
+            ++seen;
+            if (one_in_(seen))
+            {
+                best_r_idx = m_ptr->r_idx;
+                best_y = m_ptr->fy;
+                best_x = m_ptr->fx;
+            }
+        }
+    }
+
+    if (best_y < 0)
+        return false;
+
+    if (out_r_idx) *out_r_idx = best_r_idx;
+    if (out_y) *out_y = best_y;
+    if (out_x) *out_x = best_x;
+    if (out_dist) *out_dist = best_dist;
+    return true;
+}
+
+static bool skeleton_note_find_nearest_partition_site(level_partition_kind kind,
+    big_cave_type_t cave_type, int from_y, int from_x, int* out_y, int* out_x, int* out_dist)
+{
+    int best_y = -1;
+    int best_x = -1;
+    int best_dist = 0;
+    int seen = 0;
+
+    for (int y = 0; y < p_ptr->cur_map_hgt; ++y)
+    {
+        for (int x = 0; x < p_ptr->cur_map_wid; ++x)
+        {
+            if (level_partition_kind_for_point(y, x) != kind)
+                continue;
+            if (kind == LEVEL_PART_BIG_CAVE)
+            {
+                if (level_partition_big_cave_type_for_point(y, x) != cave_type)
+                    continue;
+            }
+
+            int dist = skeleton_note_manhattan_dist(from_y, from_x, y, x);
+            if (best_y < 0 || dist < best_dist)
+            {
+                best_y = y;
+                best_x = x;
+                best_dist = dist;
+                seen = 1;
+                continue;
+            }
+
+            if (dist == best_dist)
+            {
+                ++seen;
+                if (one_in_(seen))
+                {
+                    best_y = y;
+                    best_x = x;
+                }
+            }
+        }
+    }
+
+    if (best_y < 0)
+        return false;
+
+    if (out_y) *out_y = best_y;
+    if (out_x) *out_x = best_x;
+    if (out_dist) *out_dist = best_dist;
+    return true;
+}
+
 static const char* skeleton_note_stair_site(int feat)
 {
     switch (feat)
@@ -2890,6 +3254,15 @@ static void skeleton_note_partition_meta_for_hint(
     case SKEL_HINT_PART_CAVE_POIS:
         if (out_kind) *out_kind = LEVEL_PART_BIG_CAVE;
         if (out_type) *out_type = BIG_CAVE_POIS;
+        break;
+    case SKEL_HINT_PART_ROOMY:
+        if (out_kind) *out_kind = LEVEL_PART_ROOMY;
+        break;
+    case SKEL_HINT_PART_RUINED:
+        if (out_kind) *out_kind = LEVEL_PART_RUINED;
+        break;
+    case SKEL_HINT_PART_CAVEY:
+        if (out_kind) *out_kind = LEVEL_PART_CAVEY;
         break;
     default:
         break;
@@ -3012,26 +3385,17 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
         g_skeleton_note_state.hint_used_mask |= (1UL << hint2);
 
     const char* unique_type = NULL;
+    int unique_y = 0;
+    int unique_x = 0;
+    int unique_dist = 0;
+    bool unique_found = false;
     if (hint1 == SKEL_HINT_UNIQUE_MONSTER || hint2 == SKEL_HINT_UNIQUE_MONSTER)
     {
-        int candidates[100];
-        int n_candidates = 0;
-        for (int i = 1; i < mon_max; i++)
+        int r_idx = 0;
+        if (skeleton_note_find_nearest_unique(skel_y, skel_x, &r_idx, &unique_y, &unique_x, &unique_dist))
         {
-            monster_type* m_ptr = &mon_list[i];
-            if (!m_ptr->r_idx)
-                continue;
-            monster_race* r_ptr = &r_info[m_ptr->r_idx];
-            if (r_ptr->flags1 & RF1_UNIQUE)
-            {
-                if (n_candidates < 100)
-                    candidates[n_candidates++] = m_ptr->r_idx;
-            }
-        }
-        if (n_candidates > 0)
-        {
-            int r_idx = candidates[rand_int(n_candidates)];
             unique_type = skeleton_get_unique_type_name(&r_info[r_idx]);
+            unique_found = true;
         }
     }
 
@@ -3202,6 +3566,68 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
                 body_lines[body_count].site = "a warded place";
             }
         }
+        else if (hint == SKEL_HINT_GREAT_VAULT)
+        {
+            int ty = 0, tx = 0, dist = 0;
+            if (skeleton_note_find_nearest_great_vault(skel_y, skel_x, &ty, &tx, &dist))
+            {
+                body_lines[body_count].dir
+                    = skeleton_note_direction_phrase(skel_y, skel_x, ty, tx);
+                body_lines[body_count].dist = skeleton_note_distance_phrase(dist);
+            }
+            else
+            {
+                body_lines[body_count].dist = "somewhere";
+                body_lines[body_count].dir = "on this level";
+            }
+        }
+        else if (hint == SKEL_HINT_VAULT_ARTIFACT)
+        {
+            int ty = 0, tx = 0, dist = 0;
+            if (skeleton_note_find_nearest_vault_artifact(skel_y, skel_x, &ty, &tx, &dist))
+            {
+                body_lines[body_count].dir
+                    = skeleton_note_direction_phrase(skel_y, skel_x, ty, tx);
+                body_lines[body_count].dist = skeleton_note_distance_phrase(dist);
+            }
+            else
+            {
+                body_lines[body_count].dist = "somewhere";
+                body_lines[body_count].dir = "on this level";
+            }
+        }
+        else if (hint == SKEL_HINT_UNIQUE_MONSTER)
+        {
+            if (unique_found)
+            {
+                body_lines[body_count].dir = skeleton_note_direction_phrase(
+                    skel_y, skel_x, unique_y, unique_x);
+                body_lines[body_count].dist = skeleton_note_distance_phrase(unique_dist);
+            }
+            else
+            {
+                body_lines[body_count].dist = "somewhere";
+                body_lines[body_count].dir = "on this level";
+            }
+        }
+        else if (body_lines[body_count].presence_kind != LEVEL_PART_NONE)
+        {
+            int ty = 0, tx = 0, dist = 0;
+            if (skeleton_note_find_nearest_partition_site(
+                    body_lines[body_count].presence_kind,
+                    body_lines[body_count].big_cave_type,
+                    skel_y, skel_x, &ty, &tx, &dist))
+            {
+                body_lines[body_count].dir
+                    = skeleton_note_direction_phrase(skel_y, skel_x, ty, tx);
+                body_lines[body_count].dist = skeleton_note_distance_phrase(dist);
+            }
+            else
+            {
+                body_lines[body_count].dist = "somewhere";
+                body_lines[body_count].dir = "on this level";
+            }
+        }
 
         body_ids[body_count] = note_id;
         body_count++;
@@ -3210,6 +3636,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
     char note_lines[16][100];
     skeleton_note_build_lines(
         opening, body_lines, body_count, signoff, &layout, note_lines, 8);
+    hint_messages_add_note_lines(note_lines);
     pause_with_text(note_lines, 4, 8, NULL, 0);
     if (hint1 != SKEL_HINT_TIP)
         g_skeleton_note_state.notes_shown++;

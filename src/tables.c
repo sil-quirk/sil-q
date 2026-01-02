@@ -233,8 +233,8 @@ cptr option_text[OPT_MAX] = {
     "story_monster_desc", /* OPT_story_monster_desc */
     "story_monster_desc_pane", /* OPT_story_monster_desc_pane */
     "disable_skeleton_note_tutorial", /* OPT_disable_skeleton_note_tutorial */
-    NULL, /* xxx */
-    NULL, /* xxx */
+    "smaller_level_size", /* OPT_smaller_level_size */
+    "more_stairs", /* OPT_more_stairs */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -473,8 +473,8 @@ cptr option_desc[OPT_MAX] = {
     "Render monster descriptions in the main window with the story font", /* OPT_story_monster_desc */
     "Render monster descriptions in the monster pane with the story font", /* OPT_story_monster_desc_pane */
     "Disable tutorial messages in skeleton notes", /* OPT_disable_skeleton_note_tutorial */
-    NULL, /* xxx */
-    NULL, /* xxx */
+    "Smaller level size (3 blocks smaller, min 6)", /* OPT_smaller_level_size */
+    "More stairs (50% more; double max)", /* OPT_more_stairs */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -732,8 +732,8 @@ const bool option_norm[OPT_MAX] = {
     false, /* OPT_story_monster_desc */
     false, /* OPT_story_monster_desc_pane */
     false, /* OPT_disable_skeleton_note_tutorial */
-    false, /* xxx */
-    false, /* xxx */
+    false, /* OPT_smaller_level_size */
+    false, /* OPT_more_stairs */
     false, /* xxx */
     false, /* xxx */
     false, /* xxx */
@@ -912,7 +912,7 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
 
     { OPT_system_beep, OPT_quick_messages, OPT_auto_more, OPT_easy_main_menu,
         OPT_hjkl_movement, OPT_angband_keyset, OPT_hitpoint_warning,
-        OPT_disable_skeleton_note_tutorial, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE },
 
@@ -925,9 +925,10 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
     /*** Game-Play ***/
 
     { OPT_valorous_oath_auto_attack_safety, OPT_forgo_attacking_unwary,
-        OPT_stop_singing_on_rest, OPT_know_monster_info, OPT_NONE, OPT_NONE,
+        OPT_stop_singing_on_rest, OPT_know_monster_info, OPT_smaller_level_size,
+        OPT_more_stairs, OPT_disable_skeleton_note_tutorial, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Efficiency ***/
 

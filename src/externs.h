@@ -785,6 +785,17 @@ extern big_cave_type_t level_partition_big_cave_type_for_index(int pi);
 extern void skeleton_note_level_reset(void);
 extern void skeleton_note_get_state(skeleton_note_state_save* out);
 extern void skeleton_note_set_state(const skeleton_note_state_save* in);
+extern void hint_messages_level_reset(void);
+extern void hint_messages_ensure_level_state(void);
+extern byte hint_messages_count_for_save(void);
+extern s16b hint_messages_level_depth_for_save(void);
+extern s16b hint_messages_map_wid_for_save(void);
+extern s16b hint_messages_map_hgt_for_save(void);
+extern byte hint_messages_message_line_count(int index);
+extern const char* hint_messages_message_line(int index, int line);
+extern void hint_messages_clear_for_load(s16b level_depth, s16b map_wid, s16b map_hgt);
+extern void hint_messages_add_for_load(const char lines[][100], int line_count);
+extern void hint_messages_add_note_lines(const char note_lines[][100]);
 extern void generate_cave(void);
 
 #ifdef ALLOW_DEBUG

@@ -2761,6 +2761,6 @@ bool drop_generate_object_profiled_depths(int depth, int min_depth_penalty_depth
     drop_quality quality, int droptype, int extra_bonus, bool allow_artefacts,
     const drop_profile* profile, object_type* out)
 {
-    return drop_generate_object_internal(depth, min_depth_penalty_depth, quality,
+    return drop_generate_object_internal(depth, quality, min_depth_penalty_depth,
         droptype, extra_bonus, allow_artefacts, profile, out);
 }

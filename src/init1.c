@@ -3267,6 +3267,12 @@ static byte skeleton_note_parse_hint_token(const char* tok)
         return SKEL_HINT_PART_CAVE_FIRE;
     if (streq(tok, "CAVE_POIS"))
         return SKEL_HINT_PART_CAVE_POIS;
+    if (streq(tok, "ROOMY"))
+        return SKEL_HINT_PART_ROOMY;
+    if (streq(tok, "RUINED"))
+        return SKEL_HINT_PART_RUINED;
+    if (streq(tok, "CAVEY"))
+        return SKEL_HINT_PART_CAVEY;
     return SKEL_HINT_NONE;
 }
 
@@ -3279,7 +3285,7 @@ static byte skeleton_note_parse_hint_token(const char* tok)
  *   M:<SVAL>:<HINT>:<weight>:<text>
  *
  * SVAL may be ELF/HUMAN/ORC/ANY
- * HINT may be GREAT_VAULT/VAULT_ARTIFACT/STAIRS/PARTITION/FORGE/UNIQUE/TIP/SIZE/QUEST/LABYRINTH/CHASM/CAVE/CAVE_ICE/CAVE_FIRE/CAVE_POIS
+ * HINT may be GREAT_VAULT/VAULT_ARTIFACT/STAIRS/PARTITION/FORGE/UNIQUE/TIP/SIZE/QUEST/LABYRINTH/CHASM/CAVE/CAVE_ICE/CAVE_FIRE/CAVE_POIS/ROOMY/RUINED/CAVEY
  * Weight is optional (defaults to 100) and clamped to a byte.
  */
 errr parse_skeleton_note_info(char* buf, header* head)

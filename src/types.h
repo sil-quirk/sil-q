@@ -154,6 +154,9 @@ typedef enum skeleton_hint_kind {
     SKEL_HINT_PART_CAVE_ICE,
     SKEL_HINT_PART_CAVE_FIRE,
     SKEL_HINT_PART_CAVE_POIS,
+    SKEL_HINT_PART_ROOMY,
+    SKEL_HINT_PART_RUINED,
+    SKEL_HINT_PART_CAVEY,
     SKEL_HINT_MAX
 } skeleton_hint_kind;
 

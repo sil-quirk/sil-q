@@ -1282,6 +1282,24 @@ static void wr_extra(void)
             wr_byte(pm.big_cave_types[i]);
     }
 
+    /* Hint message log (per-level skeleton note archive) */
+    {
+        wr_byte(0x54);
+        wr_s16b(hint_messages_level_depth_for_save());
+        wr_s16b(hint_messages_map_wid_for_save());
+        wr_s16b(hint_messages_map_hgt_for_save());
+
+        byte count = hint_messages_count_for_save();
+        wr_byte(count);
+        for (i = 0; i < count; ++i)
+        {
+            byte line_count = hint_messages_message_line_count(i);
+            wr_byte(line_count);
+            for (int li = 0; li < line_count; ++li)
+                wr_string(hint_messages_message_line(i, li));
+        }
+    }
+
     wr_s32b(min_depth_counter);
     log_info("SAVE: min_depth_counter=%d, current depth=%d, calculated min_depth()=%d", 
              min_depth_counter, p_ptr->depth, min_depth());

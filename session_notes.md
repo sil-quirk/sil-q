@@ -1,5 +1,20 @@
 # Session notes
 
+## 2026-01-02: New gameplay settings (smaller levels, more stairs) + moved skeleton tutorial toggle
+- Added gameplay options: `smaller_level_size` (-3 blocks, min 6) and `more_stairs` (+50% stairs, max doubled).
+- Moved `disable_skeleton_note_tutorial` from Interface to Gameplay options page.
+- Partition/stair placement: fixed guaranteed stair partitioning to handle small maps (66/77) and corrected fallback partition grid mapping.
+- Files: `src/generate.c`, `src/tables.c`, `src/defines.h`.
+- Build: `build-cmake.bat` succeeds.
+
+## 2026-01-02: Tolkienistic hint messages + per-level hint log + main menu entry
+- Skeleton note hints are fully data-driven via `lib/edit/skeleton_note.txt` templates (including `{DIR}`/`{DIST}` for location hints).
+- Big/small partition hints add short Tolkienistic loot-bias guidance (labyrinth/chasm/big caves + `ROOMY`/`RUINED`/`CAVEY` variants).
+- Added per-level hint log: stores only revealed (shown) skeleton note messages.
+- Added main menu entry: `Hint messages (i)` to browse/read the stored hints for the current level.
+- Savefile: added hint-log block marker `0x54` and bumped version to `0.9.1.10` (`VERSION_EXTRA=10`).
+- Files: `lib/edit/skeleton_note.txt`, `src/cmd2.c`, `src/cmd4.c`, `src/save.c`, `src/load.c`, `src/init1.c`, `src/types.h`, `src/externs.h`, `src/defines.h`.
+
 ## 2026-01-01: New imprisonment trap (locks doors in LOS)
 - Added `FEAT_TRAP_IMPRISONMENT` (`0x1D`) and extended `FEAT_TRAP_TAIL` to include it.
 - Trap triggers `lock_doors_radius(y, x, 3, 10 + depth/2)` when stepped on (doors in radius; staff remains LOS-based).

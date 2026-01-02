@@ -52,15 +52,15 @@
 // #define STEAMDECK_SUPPORT
 
 /* Formalized new fork versioning (canonical source for all modules) */
-#define VERSION_STRING "0.9.1.5"
+#define VERSION_STRING "0.9.1.10"
 /*
- * Version components (0.9.1.5).  All on-disk formats (saves, scores, metaruns)
+ * Version components (0.9.1.10).  All on-disk formats (saves, scores, metaruns)
  * MUST match these values; never bump individual subsystems independently.
  */
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 9
 #define VERSION_PATCH 1
-#define VERSION_EXTRA 9   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
+#define VERSION_EXTRA 10   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
 /* Update MIN_VERSION_EXTRA whenever the savefile format changes. */
 #define MIN_VERSION_EXTRA 0  /* Accept earlier 0.9.1.x saves */
 
@@ -2656,6 +2656,8 @@
 #define OPT_story_monster_desc 83
 #define OPT_story_monster_desc_pane 84
 #define OPT_disable_skeleton_note_tutorial 85
+#define OPT_smaller_level_size 86
+#define OPT_more_stairs 87
 // xxx
 // xxx
 // xxx
@@ -2802,6 +2804,8 @@
 #define story_monster_desc_pane op_ptr->opt[OPT_story_monster_desc_pane]
 #define disable_skeleton_note_tutorial                                           \
     op_ptr->opt[OPT_disable_skeleton_note_tutorial]
+#define smaller_level_size op_ptr->opt[OPT_smaller_level_size]
+#define more_stairs op_ptr->opt[OPT_more_stairs]
 #define display_hits op_ptr->opt[OPT_display_hits]
 #define story_character_sheet op_ptr->opt[OPT_story_character_sheet]
 // xxx

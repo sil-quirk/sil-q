@@ -89,6 +89,7 @@ static bool savefile_has_skeleton_hint_mask = false;
 static bool savefile_has_partition_meta = false;
 static bool savefile_has_partition_meta_types = false;
 static bool savefile_has_cave_info_hi = false;
+static bool savefile_has_hint_messages = false;
 
 /* Version comparison helpers: update these when bumping savefile semantics. */
 static int savefile_version_compare(byte major, byte minor, byte patch, byte extra)
@@ -1508,6 +1509,55 @@ static errr rd_extra(void)
         level_partition_meta_set(&pm);
     }
 
+    /* Hint message log (per-level skeleton note archive) */
+    if (savefile_has_hint_messages)
+    {
+        byte marker = 0;
+        rd_byte(&marker);
+        if (marker != 0x54)
+        {
+            note(format("Invalid hint message marker 0x%02X", marker));
+            return (-1);
+        }
+
+        s16b level_depth = 0;
+        s16b map_wid = 0;
+        s16b map_hgt = 0;
+        rd_s16b(&level_depth);
+        rd_s16b(&map_wid);
+        rd_s16b(&map_hgt);
+
+        byte count = 0;
+        rd_byte(&count);
+
+        hint_messages_clear_for_load(level_depth, map_wid, map_hgt);
+
+        for (int mi = 0; mi < count; ++mi)
+        {
+            byte line_count = 0;
+            rd_byte(&line_count);
+
+            char lines[16][100];
+            int keep = (line_count > 16) ? 16 : line_count;
+            for (int li = 0; li < keep; ++li)
+                rd_string(lines[li], sizeof(lines[li]));
+            for (int li = keep; li < 16; ++li)
+                lines[li][0] = '\0';
+
+            for (int li = keep; li < line_count; ++li)
+            {
+                char discard[100];
+                rd_string(discard, sizeof(discard));
+            }
+
+            hint_messages_add_for_load(lines, keep);
+        }
+    }
+    else
+    {
+        hint_messages_level_reset();
+    }
+
     /* Min depth counter */
     rd_s32b(&min_depth_counter);
     log_info("LOAD: min_depth_counter=%d, calculated min_depth()=%d", min_depth_counter, min_depth());
@@ -2641,6 +2691,7 @@ static errr rd_savefile_new_aux(void)
     savefile_has_partition_meta = savefile_version_at_least(0, 9, 1, 7);
     savefile_has_partition_meta_types = savefile_version_at_least(0, 9, 1, 9);
     savefile_has_cave_info_hi = savefile_version_at_least(0, 9, 1, 8);
+    savefile_has_hint_messages = savefile_version_at_least(0, 9, 1, 10);
 
     /* Reset load byte offset counter */
     load_byte_offset = 0;
@@ -3102,6 +3153,7 @@ bool load_player(void)
             savefile_has_partition_meta = savefile_version_at_least(0, 9, 1, 7);
             savefile_has_partition_meta_types = savefile_version_at_least(0, 9, 1, 9);
             savefile_has_cave_info_hi = savefile_version_at_least(0, 9, 1, 8);
+            savefile_has_hint_messages = savefile_version_at_least(0, 9, 1, 10);
         }
 
         load_byte_offset = 0; /* reset counter before decoding stream */

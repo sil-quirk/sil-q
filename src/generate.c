@@ -1288,15 +1288,17 @@ static void reset_morgoth_layout_state(bool active)
 static void fallback_partition_grid_from_blocks(int blocks, int *rows, int *cols)
 {
     /* Mirror the choices in apply_quadrant_generation_modes but without randomness */
-    if (blocks <= 8) {
+    if (blocks <= 9) {
+        *rows = 2; *cols = 2;
+    } else if (blocks == 10) {
         *rows = 3; *cols = 2;
-    } else if (blocks <= 10) {
-        *rows = 3; *cols = 3;
-    } else if (blocks == 11) {
-        *rows = 4; *cols = 3;
     } else if (blocks <= 13) {
-        *rows = 4; *cols = 4;
+        *rows = 3; *cols = 3;
     } else if (blocks == 14) {
+        *rows = 3; *cols = 4;
+    } else if (blocks <= 16) {
+        *rows = 4; *cols = 4;
+    } else if (blocks <= 20) {
         *rows = 5; *cols = 4;
     } else {
         *rows = 5; *cols = 5;
@@ -4526,13 +4528,15 @@ static void apply_quadrant_generation_modes(void)
     /* Partition scaling - REDUCED partition counts for larger anchors.
      * Each partition should be at least ~40 tiles per side to fit big caves/chasms.
      * 
-     * Target partition size: 40-50 tiles per side for optimal anchor fitting.
-     * 
-     * Scaling by level size:
-     *  8 blocks  ( 88x88)  -> 2x2 grid  (4 partitions)  = 44x44 per partition
-     *  9 blocks  ( 99x99)  -> 2x2 grid  (4 partitions)  = 49x49 per partition
-     * 10 blocks  (110x110) -> 2x3 grid  (6 partitions)  = 55x36 per partition
-     * 11 blocks  (121x121) -> 3x3 grid  (9 partitions)  = 40x40 per partition
+      * Target partition size: 40-50 tiles per side for optimal anchor fitting.
+      * 
+      * Scaling by level size:
+      *  6 blocks  ( 66x66)  -> 2x2 grid  (4 partitions)  = 33x33 per partition
+      *  7 blocks  ( 77x77)  -> 2x2 grid  (4 partitions)  = 38x38 per partition
+      *  8 blocks  ( 88x88)  -> 2x2 grid  (4 partitions)  = 44x44 per partition
+      *  9 blocks  ( 99x99)  -> 2x2 grid  (4 partitions)  = 49x49 per partition
+      * 10 blocks  (110x110) -> 2x3 grid  (6 partitions)  = 55x36 per partition
+      * 11 blocks  (121x121) -> 3x3 grid  (9 partitions)  = 40x40 per partition
      * 12 blocks  (132x132) -> 3x3 grid  (9 partitions)  = 44x44 per partition
      * 13 blocks  (143x143) -> 3x3 grid  (9 partitions)  = 47x47 per partition
      * 14 blocks  (154x154) -> 3x4 grid (12 partitions)  = 51x38 per partition
@@ -9731,24 +9735,48 @@ static bool connect_rooms_stairs(void)
     /* Calculate number of stairs based on map size: 2 for 66x66, 8 for 165x165 */
     /* Linear interpolation: stairs = 2 + (size - 66) * (8 - 2) / (165 - 66) */
     int map_size = (p_ptr->cur_map_hgt + p_ptr->cur_map_wid) / 2;  /* Average dimension */
+    int stairs_max_base = 8;
+    int stairs_max_total = 12;
+    if (more_stairs)
+    {
+        stairs_max_base *= 2;
+        stairs_max_total *= 2;
+    }
     stairs = 2 + ((map_size - 66) * 6) / 99;  /* 6 = (8-2), 99 = (165-66) */
     if (stairs < 2) stairs = 2;   /* Minimum 2 */
-    if (stairs > 8) stairs = 8;  /* Maximum 8 */
+    if (stairs > stairs_max_base) stairs = stairs_max_base;  /* Maximum 8 (or doubled) */
     
     /* Labyrinth bonus: +1 stair per labyrinth partition (more escape routes in mazes) */
     if (current_labyrinth_partitions > 0)
     {
         int stair_bonus = current_labyrinth_partitions;
         stairs += stair_bonus;
-        if (stairs > 12) stairs = 12;  /* Cap at 12 total */
         log_trace("Labyrinth stair bonus: +%d stairs from %d labyrinth partitions (total=%d)",
                   stair_bonus, current_labyrinth_partitions, stairs);
     }
+
+    if (more_stairs)
+    {
+        stairs += (stairs + 1) / 2; /* +50% (rounded up) */
+    }
+    if (stairs > stairs_max_total) stairs = stairs_max_total;
     
     log_trace("Map size %d leads to %d stairs each direction", map_size, stairs);
 
     /* Determine partition count for guaranteed stair placement */
     int partition_count = (map_size <= 80) ? 2 : 3;  /* Reduced from 4/9 to match lower stair count */
+    int grid_rows = 1;
+    int grid_cols = partition_count;
+    if (partition_count == 4)
+    {
+        grid_rows = 2;
+        grid_cols = 2;
+    }
+    else if (partition_count == 9)
+    {
+        grid_rows = 3;
+        grid_cols = 3;
+    }
 
     /* Place guaranteed stairs: at least one up and one down per partition */
     int down_placed = 0;
@@ -9757,14 +9785,13 @@ static bool connect_rooms_stairs(void)
     /* First pass: place one of each type per partition */
     for (int pi = 0; pi < partition_count; ++pi)
     {
-        int grid_size = (partition_count == 4) ? 2 : 3;
-        int row = pi / grid_size;
-        int col = pi % grid_size;
+        int row = pi / grid_cols;
+        int col = pi % grid_cols;
         
-        int y1 = 1 + (row * p_ptr->cur_map_hgt / grid_size);
-        int y2 = ((row + 1) * p_ptr->cur_map_hgt / grid_size) - 1;
-        int x1 = 1 + (col * p_ptr->cur_map_wid / grid_size);
-        int x2 = ((col + 1) * p_ptr->cur_map_wid / grid_size) - 1;
+        int y1 = 1 + (row * p_ptr->cur_map_hgt / grid_rows);
+        int y2 = ((row + 1) * p_ptr->cur_map_hgt / grid_rows) - 1;
+        int x1 = 1 + (col * p_ptr->cur_map_wid / grid_cols);
+        int x2 = ((col + 1) * p_ptr->cur_map_wid / grid_cols) - 1;
         
         /* Clamp boundaries */
         if (y2 >= p_ptr->cur_map_hgt - 1) y2 = p_ptr->cur_map_hgt - 2;
@@ -13300,6 +13327,12 @@ static bool cave_gen(void)
     l = base_size + depth_bonus;
     if (l > MAX_LEVEL_BLOCKS) l = MAX_LEVEL_BLOCKS;  // Hard cap at MAX_LEVEL_BLOCKS
     if (l < 8) l = 8;    // Hard floor at 8 blocks (88x88)
+
+    if (smaller_level_size)
+    {
+        l -= 3;
+        if (l < 6) l = 6; /* Allow 6x6 and 7x7 block maps */
+    }
 
     // Square levels: same dimension for both height and width
     p_ptr->cur_map_hgt = l * (PANEL_HGT);
