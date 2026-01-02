@@ -1,5 +1,12 @@
 # Session notes
 
+## 2026-01-02: Tunneling supply group + A: schedule soft min-depth
+- Drop system: `TV_DIGGING` shovels/mattocks are supply-only (tunneling); ego/artefact digging tools are forced back to weapons; bumped `drops.raw` version to rebuild.
+- Fixed A: allocation behavior in drop system: below the first A-depth, items no longer hard-fail unless the first rarity is `0` (e.g. `A:1/0:...` still gates); supplies use the existing min-depth weighting for “early but rarer” spawns.
+- Small caves: torch scatter now has a 5% chance to generate a digging tool (fallbacks back to torch if the digging roll fails).
+- Files: `src/drop_system.c`, `src/generate.c`.
+- Build: `build-cmake.bat` succeeds.
+
 ## 2026-01-02: New gameplay settings (smaller levels, more stairs) + moved skeleton tutorial toggle
 - Added gameplay options: `smaller_level_size` (-3 blocks, min 6) and `more_stairs` (+50% stairs, max doubled).
 - Moved `disable_skeleton_note_tutorial` from Interface to Gameplay options page.

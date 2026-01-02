@@ -61,7 +61,7 @@ static const s16b jinx_egos[] = {
 
 static const char* DROP_RAW_FILE = "drops";
 static const u32b DROP_RAW_MAGIC = 0x44525053; /* 'DRPS' */
-static const u32b DROP_RAW_VERSION = 10;
+static const u32b DROP_RAW_VERSION = 12;
 
 typedef struct
 {
@@ -128,6 +128,7 @@ void drop_profile_default(drop_profile* profile)
     profile->supply_gem = DROP_DEFAULT_SUPPLY_WEIGHT;
     profile->supply_staff = DROP_DEFAULT_SUPPLY_WEIGHT;
     profile->supply_misc = DROP_DEFAULT_SUPPLY_WEIGHT;
+    profile->supply_tunneling = 0; /* Disabled by default */
 }
 
 /* ------------------------------------------------------------------------ */
@@ -145,7 +146,6 @@ static drop_category drop_category_for_kind(const object_kind* k_ptr)
     case TV_HAFTED:
     case TV_POLEARM:
     case TV_BOW:
-    case TV_DIGGING:
         return DROP_CAT_WEAPON;
     case TV_MAIL:
     case TV_SOFT_ARMOR:
@@ -167,6 +167,11 @@ static drop_category drop_category_for_kind(const object_kind* k_ptr)
             || k_ptr->sval == SV_LIGHT_LANTERN || k_ptr->sval == SV_LIGHT_LESSER_JEWEL)
             return DROP_CAT_SUPPLY;
         return DROP_CAT_MAX;
+    case TV_DIGGING:
+        /* Simple shovels/mattocks go to supply (tunneling); egos stay in weapon via add_drop_entry */
+        if (k_ptr->sval == SV_SHOVEL || k_ptr->sval == SV_MATTOCK)
+            return DROP_CAT_SUPPLY;
+        return DROP_CAT_WEAPON;
     case TV_HORN:
         return DROP_CAT_JEWELRY;
     case TV_POTION:
@@ -321,10 +326,6 @@ static int rarity_from_schedule(const byte* depths, const byte* rarities, int co
      * in-band rarity override at that exact depth. */
     while (count > 1 && rarities[count - 1] == 0)
         count--;
-
-    int first_depth = depths[0];
-    if (first_depth > 0 && depth < first_depth)
-        return 0;
 
     int rarity = rarities[0];
     for (int i = 1; i < count; i++)
@@ -955,6 +956,14 @@ static void add_drop_entry(const object_type* proto, drop_category cat,
     /* Override category: simple arrows go to supply (egos go to weapon) */
     if (group_kind == DROP_GROUP_NORMAL && k_ptr->tval == TV_ARROW)
         cat = DROP_CAT_SUPPLY;
+
+    /* Override category: ego digging tools go to weapon (normals stay in supply) */
+    if (group_kind == DROP_GROUP_EGO && k_ptr->tval == TV_DIGGING)
+        cat = DROP_CAT_WEAPON;
+
+    /* Override category: artefact digging tools go to weapon (simple tools are supply-only) */
+    if (group_kind == DROP_GROUP_ARTIFACT && k_ptr->tval == TV_DIGGING)
+        cat = DROP_CAT_WEAPON;
 
     /* Special case: Lesser Jewel of Grace stays in jewelry */
     if (k_ptr->tval == TV_LIGHT && k_ptr->sval == SV_LIGHT_LESSER_JEWEL
@@ -1673,7 +1682,8 @@ typedef enum
     DROP_SUPPLY_GEM = 2,
     DROP_SUPPLY_STAFF = 3,
     DROP_SUPPLY_MISC = 4,
-    DROP_SUPPLY_GROUP_MAX = 5
+    DROP_SUPPLY_TUNNELING = 5,
+    DROP_SUPPLY_GROUP_MAX = 6
 } drop_supply_group_id;
 
 typedef struct
@@ -1729,6 +1739,7 @@ static void drop_request_apply_profile(
     req->supply_weights[DROP_SUPPLY_GEM] = MAX(0, profile->supply_gem);
     req->supply_weights[DROP_SUPPLY_STAFF] = MAX(0, profile->supply_staff);
     req->supply_weights[DROP_SUPPLY_MISC] = MAX(0, profile->supply_misc);
+    req->supply_weights[DROP_SUPPLY_TUNNELING] = MAX(0, profile->supply_tunneling);
 }
 
 static drop_supply_group_id supply_group_for_entry(const drop_entry* e)
@@ -1743,6 +1754,8 @@ static drop_supply_group_id supply_group_for_entry(const drop_entry* e)
         return DROP_SUPPLY_GEM;
     case TV_STAFF:
         return DROP_SUPPLY_STAFF;
+    case TV_DIGGING:
+        return DROP_SUPPLY_TUNNELING;
     case TV_ARROW:
     case TV_LIGHT:
     case TV_FLASK:
@@ -1995,10 +2008,6 @@ static int drop_entry_rarity_at_depth(const drop_entry* e, int depth)
     int count = e->num_allocations;
     while (count > 1 && e->alloc_rarity[count - 1] == 0)
         count--;
-
-    int first_depth = e->alloc_depth[0];
-    if (first_depth > 0 && depth < first_depth)
-        return 0;
 
     int rarity = e->alloc_rarity[0];
     for (int i = 1; i < count; i++)
@@ -2560,8 +2569,11 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     case DROP_TYPE_EDGED:
     case DROP_TYPE_POLEARM:
     case DROP_TYPE_BOW:
-    case DROP_TYPE_DIGGING:
         req.cat = DROP_CAT_WEAPON;
+        break;
+    case DROP_TYPE_DIGGING:
+        req.cat = DROP_CAT_SUPPLY;
+        req.is_supply = true;
         break;
     case DROP_TYPE_ARMOR:
     case DROP_TYPE_SHIELD:
@@ -2597,6 +2609,17 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
         req.supply_weights[DROP_SUPPLY_GEM] = 0;
         req.supply_weights[DROP_SUPPLY_STAFF] = 0;
         req.supply_weights[DROP_SUPPLY_MISC] = 100;
+        req.supply_weights[DROP_SUPPLY_TUNNELING] = 0;
+    }
+
+    if (droptype == DROP_TYPE_DIGGING)
+    {
+        req.supply_weights[DROP_SUPPLY_POTION] = 0;
+        req.supply_weights[DROP_SUPPLY_HERB] = 0;
+        req.supply_weights[DROP_SUPPLY_GEM] = 0;
+        req.supply_weights[DROP_SUPPLY_STAFF] = 0;
+        req.supply_weights[DROP_SUPPLY_MISC] = 0;
+        req.supply_weights[DROP_SUPPLY_TUNNELING] = 100;
     }
 
     drop_entry* candidates = NULL;

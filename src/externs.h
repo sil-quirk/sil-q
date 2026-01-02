@@ -1012,6 +1012,7 @@ typedef struct
     int supply_gem;
     int supply_staff;
     int supply_misc;
+    int supply_tunneling;
 } drop_profile;
 #endif
 extern void drop_profile_for_partition_kind(level_partition_kind kind,

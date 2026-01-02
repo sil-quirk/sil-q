@@ -2110,8 +2110,12 @@ static void scatter_cave_gems_in_bounds(int y1, int y2, int x1, int x2, bool is_
                 object_type *i_ptr = &object_type_body;
                 object_wipe(i_ptr);
 
-                if (drop_generate_object(depth, DROP_QUALITY_NORMAL, DROP_TYPE_TORCHES,
-                        false, i_ptr))
+                /* 5% chance to drop a digging tool instead of a torch */
+                int droptype = (rand_int(100) < 5) ? DROP_TYPE_DIGGING : DROP_TYPE_TORCHES;
+                if (drop_generate_object(depth, DROP_QUALITY_NORMAL, droptype, false, i_ptr)
+                    || (droptype == DROP_TYPE_DIGGING
+                        && drop_generate_object(depth, DROP_QUALITY_NORMAL, DROP_TYPE_TORCHES,
+                            false, i_ptr)))
                 {
                     drop_near(i_ptr, -1, gy, gx);
                     torch_placed++;
@@ -7285,6 +7289,7 @@ static partition_drop_profile partition_drop_profile_for_mode(quadrant_mode_t mo
         prof.profile.supply_gem = 1;
         prof.profile.supply_staff = 3;
         prof.profile.supply_misc = 20; /* torches, horns, arrows */
+        prof.profile.supply_tunneling = 2; /* small chance for shovels/mattocks */
         break;
     case QUAD_MODE_CAVEY:
         prof.allow_floor_drops = false;
