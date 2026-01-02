@@ -5301,6 +5301,11 @@ static bool do_cmd_disarm_aux(int y, int x)
         power = 1;
         break;
     }
+    case FEAT_TRAP_IMPRISONMENT:
+    {
+        power = 4;
+        break;
+    }
     }
 
     // Base difficulty is the trap power

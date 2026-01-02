@@ -1,5 +1,13 @@
 # Session notes
 
+## 2026-01-01: New imprisonment trap (locks doors in LOS)
+- Added `FEAT_TRAP_IMPRISONMENT` (`0x1D`) and extended `FEAT_TRAP_TAIL` to include it.
+- Trap triggers `lock_doors_radius(y, x, 3, 10 + depth/2)` when stepped on (doors in radius; staff remains LOS-based).
+- Data/tiles: `lib/edit/terrain.txt` entry `N:29`, and `lib/pref/graf-new.prf` maps it to tiles row 19 col 6 (darkened via +1 col -> 19,7).
+- Added disarm power and dungeon placement rules (depth 6+, 50% rarity).
+- Fix: trap tiles now use the dark variant when memorized but out of view (Microchasm graphics), not only when unlit/blind.
+- Build: `build-cmake.bat` succeeds.
+
 ## 2026-01-01: Song of the Trees no longer damages out-of-view monsters
 - Root cause: `GF_LIGHT` only recalculated damage when the target grid had `CAVE_VIEW`; otherwise it left the precomputed `project()` damage intact, so unseen monsters could take unintended damage.
 - Fix: default `GF_LIGHT` damage to `0` and only apply damage for `RF3_HURT_LITE` monsters in view.

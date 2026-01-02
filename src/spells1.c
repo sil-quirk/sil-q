@@ -2519,6 +2519,31 @@ bool lock_door(int y, int x, int power)
     return (obvious);
 }
 
+bool lock_doors_radius(int y0, int x0, int radius, int power)
+{
+    bool obvious = false;
+
+    if (radius < 0)
+        return false;
+
+    for (int y = y0 - radius; y <= y0 + radius; y++)
+    {
+        for (int x = x0 - radius; x <= x0 + radius; x++)
+        {
+            if (!in_bounds_fully(y, x))
+                continue;
+
+            if (distance(y0, x0, y, x) > radius)
+                continue;
+
+            if (lock_door(y, x, power))
+                obvious = true;
+        }
+    }
+
+    return obvious;
+}
+
 /*
  * We are called from "project()" to "damage" terrain features
  *

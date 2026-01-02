@@ -1092,7 +1092,7 @@
 
 /* Traps */
 #define FEAT_TRAP_HEAD 0x10
-#define FEAT_TRAP_TAIL 0x1C
+#define FEAT_TRAP_TAIL 0x1D
 
 #define FEAT_TRAP_false_FLOOR 0x10
 #define FEAT_TRAP_PIT 0x11
@@ -1107,6 +1107,7 @@
 #define FEAT_TRAP_WEB 0x1A
 #define FEAT_TRAP_DEADFALL 0x1B
 #define FEAT_TRAP_ACID 0x1C
+#define FEAT_TRAP_IMPRISONMENT 0x1D
 
 /* Doors (well, obvious closed doors) */
 #define FEAT_DOOR_HEAD 0x20

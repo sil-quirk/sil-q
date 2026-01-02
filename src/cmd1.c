@@ -4032,6 +4032,14 @@ void hit_trap(int y, int x)
         break;
     }
 
+    case FEAT_TRAP_IMPRISONMENT:
+    {
+        msg_print("Words of imprisonment echo through the halls!");
+        (void)lock_doors_radius(y, x, 10, 10 + (p_ptr->depth / 2));
+
+        break;
+    }
+
     case FEAT_TRAP_ALARM:
     {
         if (singing(SNG_SILENCE))

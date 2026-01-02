@@ -4672,6 +4672,7 @@ int object_difficulty(object_type* o_ptr)
     if (f3 & TR3_CHEAT_DEATH)
     {
         dif_inc += 13;
+        smithing_cost.con += 1;
     }
     if (f3 & TR3_STAND_FAST)
     {

@@ -187,10 +187,10 @@ G:^:r
 N:28:discoloured spot
 G:^:u
 
-# 0x1D --> unused
+# 0x1D --> visible trap -- imprisonment
 
-N:29: unused
-G:1:s
+N:29:imprisonment trap
+G:^:v
 
 # 0x1E --> unused
 

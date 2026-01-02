@@ -1169,6 +1169,7 @@ extern bool sleep_monsters(int power);
 extern bool destroy_traps(int power);
 extern bool open_doors(int power);
 extern bool lock_doors(int power);
+extern bool lock_doors_radius(int y, int x, int radius, int power);
 extern bool turn_undead(int dd, int ds, int power);
 extern bool dispel_undead(int dd, int ds);
 extern void wake_all_monsters(int who);

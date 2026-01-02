@@ -4640,6 +4640,18 @@ void place_trap(int y, int x)
                 continue;
             break;
         }
+        case FEAT_TRAP_IMPRISONMENT:
+        {
+            // 6-
+            if (p_ptr->depth < 6)
+                continue;
+
+            // skip half the time as they are otherwise too common
+            if (one_in_(2))
+                continue;
+
+            break;
+        }
         }
 
         /* Done */

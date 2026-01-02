@@ -1122,7 +1122,10 @@ static void special_lighting_wall(byte* a, char* c, int feat, int info, int ligh
         }
         break;
     case GRAPHICS_MICROCHASM:
-        if (feat_supports_lighting(feat) && is_dark)
+        if (feat_supports_lighting(feat)
+            && (is_dark
+                || (((feat >= FEAT_TRAP_HEAD) && (feat <= FEAT_TRAP_TAIL))
+                    && !(info & (CAVE_SEEN)))))
         {
             /* use darker tile variant */
             *c += 1;
