@@ -797,6 +797,10 @@ static void scan_artifacts_near_player(void)
             /* Skip out of bounds */
             if (!in_bounds(y, x))
                 continue;
+
+            /* Only consider grids the player can actually see */
+            if (!player_can_see_bold(y, x))
+                continue;
             
             /* Check for objects at this location */
             s16b this_o_idx = cave_o_idx[y][x];
@@ -806,9 +810,10 @@ static void scan_artifacts_near_player(void)
                 object_type* o_ptr = &o_list[this_o_idx];
                 
                 /* If this is an artifact that hasn't been marked seen yet */
-                if (o_ptr->name1 && !a_info[o_ptr->name1].seen)
+                if (o_ptr->name1
+                    && !(a_info[o_ptr->name1].seen & ART_SEEN_PHYSICAL))
                 {
-                    a_info[o_ptr->name1].seen = 1;
+                    a_info[o_ptr->name1].seen |= ART_SEEN_PHYSICAL;
                     
                     /* Optional: log for debugging */
                     if (cheat_peek)

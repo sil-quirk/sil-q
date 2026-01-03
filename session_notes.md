@@ -1,8 +1,21 @@
 # Session notes
 
+## 2026-01-03: Thrall mini-quests + artifact lore reveal fixes
+- Thrall pits: `z` token now spawns alert thralls (quest givers) at **5%** (was 50%); dejected thralls remain 95%.
+- Thrall quest completion now accepts items from both pack and **supplies cache** (herbs/potions), and consumes stacks via `inven_item_increase()`/`supplies_consume_quantity()`.
+- Artifact lore reward now marks a random unrevealed artefact as **quest-revealed** (knowledge menu) and offers an immediate recall screen; prints up to 3 quoted lore lines.
+- Knowledge: Enchantment no longer grants global artefact spoiler access; artefacts appear when found, cheat/wizard, or quest-revealed.
+- Artefact `a_info[].seen` is now treated as a bitfield (`ART_SEEN_PHYSICAL` vs `ART_SEEN_REVEALED`); drop filter only blocks physical-seen artefacts; visibility marking now requires `player_can_see_bold()`.
+- Fix: `drop_generate_object_profiled_depths()` argument order corrected.
+- Chests: generate contents at `base_depth+5` and apply min-depth penalties using that same effective depth (fixes mismatched content depth vs penalty depth).
+- Fix: corrected argument order in `drop_generate_object_*()` wrappers to match `drop_generate_object_internal(depth, quality, min_depth_penalty_depth, ...)`.
+- Thrall dialog: replaced bare quest text with short Tolkienistic request/thanks lines; repair reward lets the player choose which broken item to mend and applies the base-stat delta from broken->normal kinds.
+- Files: `src/generate.c`, `src/thrall_quest.c`, `src/thrall_quest.h`, `src/cmd4.c`, `src/dungeon.c`, `src/drop_system.c`, `src/defines.h`, `src/types.h`.
+- Build: `build-cmake.bat` succeeds.
+
 ## 2026-01-02: Tunneling supply group + A: schedule soft min-depth
 - Drop system: `TV_DIGGING` shovels/mattocks are supply-only (tunneling); ego/artefact digging tools are forced back to weapons; bumped `drops.raw` version to rebuild.
-- Fixed A: allocation behavior in drop system: below the first A-depth, items no longer hard-fail unless the first rarity is `0` (e.g. `A:1/0:...` still gates); supplies use the existing min-depth weighting for “early but rarer” spawns.
+- Fixed A: allocation behavior in drop system: below the first A-depth, items no longer hard-fail unless the first rarity is `0` (e.g. `A:1/0:...` still gates); supplies use the existing min-depth weighting for "early but rarer" spawns.
 - Small caves: torch scatter now has a 5% chance to generate a digging tool (fallbacks back to torch if the digging roll fails).
 - Files: `src/drop_system.c`, `src/generate.c`.
 - Build: `build-cmake.bat` succeeds.
@@ -8156,4 +8169,11 @@ The script now fully matches the game's drop generation logic for all item types
 ## 2026-01-01: Oath of Light post-death crash (between-games hygiene)
 - `src/init2.c`: reload `oath_info` in `re_init_some_things()` so post-run state cannot retain corrupted oath tables (targets crash when selecting Oath of Light after a previous Oath-of-Light death without restarting).
 - `src/birth.c`: add bounds checks when granting the oath reward ability (A: field) to avoid OOB writes if oath data is ever corrupted.
+- build-cmake.bat: success (standard + portable builds).
+
+## 2026-01-03: Logging volume reduction + safety cap
+- `src/log/bootstrap.c`: default `SIL_LOG_LEVEL` is now `INFO` (was effectively `TRACE`); adds `SIL_LOG_MAX_MB` (default `64`, `0` = unlimited).
+- `src/log/log.c`, `src/log/log.h`: add `log_add_fp_capped()` and close/free capped file sinks on exit.
+- `src/xtra2.c`: remove ultra-spammy per-character WRAP/PLACEHOLDER trace logging (keeps a single WARN on safety break).
+- `src/main-sdl.c`, `src/xtra1.c`, `src/cmd2.c`, `src/cmd4.c`, `src/cave.c`: move high-frequency `log_debug`/`log_info` lines down to `TRACE`/`DEBUG`; fix missing format argument in `do_cmd_throw` wall-collision log.
 - build-cmake.bat: success (standard + portable builds).

@@ -1288,6 +1288,10 @@ void object_desc(
         if (artefact_p(o_ptr) && aware)
             break;
 
+        /* Hack -- Known ego items */
+        if (o_ptr->name2 && known)
+            break;
+
         /* Color the object */
         modstr = flavor_text + flavor_info[k_ptr->flavor].text;
         if (aware)
@@ -1302,6 +1306,10 @@ void object_desc(
     {
         /* Hack -- Known artefacts */
         if (artefact_p(o_ptr) && aware)
+            break;
+
+        /* Hack -- Known ego items */
+        if (o_ptr->name2 && known)
             break;
 
         /* Color the object */

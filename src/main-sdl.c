@@ -1782,7 +1782,7 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
             for (int i = 0; i < n && (x + i) < Term->wid; i++) {
                 if (Term->scr->story[y][x + i]) {
                     chunk_story_font = true;
-                    log_debug("callback_sdl_text: Using story font based on per-char flag at y=%d x=%d (chunk starts at x=%d)", 
+                    log_trace("callback_sdl_text: Using story font based on per-char flag at y=%d x=%d (chunk starts at x=%d)",
                               y, x + i, x);
                     break;
                 }
@@ -1818,13 +1818,13 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
     
     // Special logging for line 0 (top description line in unified look)
     if (y == 0) {
-        log_debug("callback_sdl_text ROW 0: x=%d n=%d chunk_story=%d text='%.*s'", 
+        log_trace("callback_sdl_text ROW 0: x=%d n=%d chunk_story=%d text='%.*s'",
                   x, n, chunk_story_font, n, s);
     }
     
     // Special logging for the shooting row (y=1 when 0-indexed, or the second row)
     if (y == 1 || y == 2) {
-        log_debug("callback_sdl_text ROW %d: chunk_story=%d chunk_active=%d",
+        log_trace("callback_sdl_text ROW %d: chunk_story=%d chunk_active=%d",
                   y, chunk_story_font,
                   (Term && Term->story_chunk_active) ? 1 : 0);
     }
@@ -1944,7 +1944,7 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
         }
     } else {
         if (y == 1 || y == 2) {
-            log_debug("callback_sdl_text: USING MONO FONT for row %d: '%.30s'", y, s);
+            log_trace("callback_sdl_text: USING MONO FONT for row %d: '%.30s'", y, s);
         }
         sdl_render_mono_text(d, x, y, n, s, col);
     }

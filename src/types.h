@@ -310,7 +310,7 @@ struct artefact_type
     byte cur_num; /* Number created (0 or 1) */
     byte found_num; /* Number found (0 or 1) */
     byte max_num; /* Unused (should be "1") */
-    byte seen; /* Seen by player (within 22 tile radius) */
+    byte seen; /* Seen flags (ART_SEEN_*) */
 
     byte activation; /* Activation to use */
     u16b time; /* Activation time */
@@ -686,6 +686,10 @@ struct monster_type
 
     byte previous_action[ACTION_MAX]; /* What the monster did on its previous
                                          turns */
+
+    /* Thrall quest system */
+    byte thrall_quest_item; /* Item the thrall wants: 0=none, 1=shovel, 2=lantern, 3=herb, 4=mallorn, 5=healing potion */
+    byte thrall_quest_completed; /* 1 if the thrall's quest has been completed */
 };
 
 /*

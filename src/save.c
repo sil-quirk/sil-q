@@ -639,6 +639,10 @@ static void wr_monster(const monster_type* m_ptr)
     wr_byte(m_ptr->shatter_padding[0]);
     wr_byte(m_ptr->shatter_padding[1]);
     wr_byte(m_ptr->shatter_padding[2]);
+
+    /* Thrall quest data */
+    wr_byte(m_ptr->thrall_quest_item);
+    wr_byte(m_ptr->thrall_quest_completed);
 }
 
 /*

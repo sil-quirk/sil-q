@@ -10794,8 +10794,29 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             case 'z':
             {
                 /* Randomly spawn human or elf thrall */
-                int thrall_r_idx = one_in_(2) ? R_IDX_HUMAN_THRALL : R_IDX_ELF_THRALL;
+                /* 5% chance for alert thrall (with quest), 95% for dejected thrall */
+                int thrall_r_idx;
+                if (one_in_(20))
+                {
+                    /* Alert thrall with quest */
+                    thrall_r_idx = one_in_(2) ? R_IDX_ALERT_HUMAN_THRALL : R_IDX_ALERT_ELF_THRALL;
+                }
+                else
+                {
+                    /* Dejected thrall (no quest) */
+                    thrall_r_idx = one_in_(2) ? R_IDX_HUMAN_THRALL : R_IDX_ELF_THRALL;
+                }
                 place_monster_one(y, x, thrall_r_idx, true, true, NULL);
+                
+                /* Initialize quest for alert thralls */
+                if (thrall_r_idx == R_IDX_ALERT_HUMAN_THRALL || thrall_r_idx == R_IDX_ALERT_ELF_THRALL)
+                {
+                    int m_idx = cave_m_idx[y][x];
+                    if (m_idx > 0)
+                    {
+                        init_thrall_quest(&mon_list[m_idx]);
+                    }
+                }
                 break;
             }
 

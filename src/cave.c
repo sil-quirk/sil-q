@@ -126,7 +126,7 @@ void reset_depth_color_cache(void)
     g_level_primary_style = -1;
     g_vault_primary_style = -1;
     g_vault_avoid_style = -1;
-    log_info("reset_depth_color_cache: cleared style lists and selections");
+    log_debug("reset_depth_color_cache: cleared style lists and selections");
 }
 
 /* Initialize the level style weights: use matching rule, else default to all */
@@ -141,7 +141,7 @@ void styles_init_for_level(void)
         /* Reset per-style variant picks */
         for (int i = 0; i < 64; ++i) { g_level_floor_choice[i] = 0; g_level_door_choice[i] = 0; }
         /* No need to randomize variants; keep first variant for cohesion */
-        log_info("styles_init_for_level: depth=0 forced style 13 as primary");
+        log_debug("styles_init_for_level: depth=0 forced style 13 as primary");
         styles_log_list("styles_init_for_level list", &g_level_styles);
         return;
     }
@@ -187,7 +187,7 @@ void styles_init_for_level(void)
         }
     }
 
-    log_info("styles_init_for_level: depth=%d initialized %d styles (total_weight=%d) primary=%d",
+    log_debug("styles_init_for_level: depth=%d initialized %d styles (total_weight=%d) primary=%d",
         p_ptr->depth, g_level_styles.count, g_level_styles.total_weight, g_level_primary_style);
     styles_log_list("styles_init_for_level list", &g_level_styles);
 }
@@ -210,7 +210,7 @@ void styles_begin_vault(int extra_sidx, int extra_weight)
     /* Optionally add one more style */
     if (extra_sidx >= 0 && extra_weight > 0) styles_add(&g_vault_styles, extra_sidx, extra_weight);
     g_active_styles = &g_vault_styles;
-    log_info("styles_begin_vault: active styles=%d (extra=%d, w=%d)",
+    log_debug("styles_begin_vault: active styles=%d (extra=%d, w=%d)",
         g_vault_styles.count, extra_sidx, extra_weight);
     styles_log_list("styles_begin_vault list", &g_vault_styles);
 }
@@ -461,7 +461,7 @@ void styles_select_vault_primary(void)
 {
     if (g_vault_styles.count <= 0) {
         g_vault_primary_style = g_level_primary_style;
-        log_info("styles_select_vault_primary: no vault list, defaulting to level primary=%d", g_level_primary_style);
+        log_debug("styles_select_vault_primary: no vault list, defaulting to level primary=%d", g_level_primary_style);
         return;
     }
     int total = 0;
@@ -479,7 +479,7 @@ void styles_select_vault_primary(void)
         r -= g_vault_styles.weight[i];
     }
     g_vault_primary_style = pick;
-    log_info("styles_select_vault_primary: selected vault primary=%d from %d entries (total=%d, avoid=%d)",
+    log_debug("styles_select_vault_primary: selected vault primary=%d from %d entries (total=%d, avoid=%d)",
         g_vault_primary_style, g_vault_styles.count, g_vault_styles.total_weight, g_vault_avoid_style);
     styles_log_list("styles_select_vault_primary list", &g_vault_styles);
 }

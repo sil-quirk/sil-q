@@ -820,7 +820,14 @@ static void chest_death(int y, int x, s16b o_idx)
     int base_depth = ABS(o_ptr->pval);
     if (base_depth < 1)
         base_depth = 1;
-    int penalty_depth = base_depth + 5; /* all chests add 5 (min-depth penalty only) */
+
+    /* Chest contents are generated at +5 levels above the chest's stored depth. */
+    int gen_depth = base_depth + 5;
+
+    /* Min-depth penalties should be based on player's actual dungeon depth + 5,
+     * not the chest's stored depth. This prevents "deep" chests from bypassing
+     * the depth penalty on items that are normally too deep for the player. */
+    int penalty_depth = p_ptr->depth + 5;
 
     level_partition_kind part_kind = LEVEL_PART_NONE;
     if (o_ptr->xtra1 & 0x80)
@@ -857,7 +864,7 @@ static void chest_death(int y, int x, s16b o_idx)
         /* Wipe the object */
         object_wipe(i_ptr);
 
-        bool ok = drop_generate_object_profiled_depths(base_depth, penalty_depth,
+        bool ok = drop_generate_object_profiled_depths(gen_depth, penalty_depth,
             chest_quality, DROP_TYPE_UNTHEMED, 0, true, &part_profile, i_ptr);
 
         if (ok)
@@ -8195,14 +8202,14 @@ void do_cmd_throw(bool automatic)
         int ny = GRID_Y(path_g[i]);
         int nx = GRID_X(path_g[i]);
 
-        log_debug("do_cmd_throw: loop i=%d ny=%d nx=%d cave_floor=%d cave_m_idx=%d",
+        log_trace("do_cmd_throw: loop i=%d ny=%d nx=%d cave_floor=%d cave_m_idx=%d",
             i, ny, nx, cave_floor_bold(ny, nx) ? 1 : 0, cave_m_idx[ny][nx]);
 
         /* Hack -- Stop before hitting walls */
         if (!cave_floor_bold(ny, nx))
         {
             hit_wall = true;
-            log_debug("do_cmd_throw: hit wall at i=%d, breaking loop before updating y,x");
+            log_trace("do_cmd_throw: hit wall at i=%d, breaking loop before updating y,x", i);
 
             // Show collision
             /* Only do visuals if the player can "see" the missile */

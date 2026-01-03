@@ -6605,34 +6605,23 @@ static void display_wrapped_text(int col, int *row, cptr text, byte color, int m
     int i = 0;
     int loop_count = 0; /* Safety counter for this function call */
     
-    log_trace("WRAP: Entry - text='%s', max_width=%d, effective_width=%d, text_len=%d", 
-              text ? text : "NULL", max_width, effective_width, text_len);
-    
     if (effective_width < 20) effective_width = 20; /* Minimum width */
     
     line_buf[0] = '\0';
     
-    log_trace("WRAP: Starting main loop, i=%d, text_len=%d", i, text_len);
-    
     while (i <= text_len) {
-        log_trace("WRAP: Loop iteration i=%d, text_len=%d, char='%c', loop_count=%d", 
-                  i, text_len, i < text_len ? text[i] : '\0', loop_count);
-        
         /* Safety check to prevent infinite loop */
         loop_count++;
         if (loop_count > 1000) {
-            log_trace("WRAP: SAFETY BREAK - loop_count exceeded 1000, breaking out");
+            log_warn("display_wrapped_text: safety break, possible infinite loop (text_len=%d, i=%d)", text_len, i);
             break;
         }
         
         /* End of string or found a space */
         if (i == text_len || text[i] == ' ') {
-            log_trace("WRAP: Found word boundary at i=%d", i);
             /* Extract the current word */
             int word_len = i - word_start;
             char word[128];
-            
-            log_trace("WRAP: word_len=%d, word_start=%d", word_len, word_start);
             
             if (word_len > 0 && word_len < (int)sizeof(word)) {
                 /* Copy the word manually to avoid buffer issues */
@@ -6646,16 +6635,11 @@ static void display_wrapped_text(int col, int *row, cptr text, byte color, int m
                 }
                 word[copy_len] = '\0';
                 
-                log_trace("WRAP: Extracted word='%s', length=%d", word, copy_len);
-                
                 /* Check if adding this word would exceed the line width */
                 int new_line_len = line_pos + (line_pos > 0 ? 1 : 0) + copy_len;
                 
-                log_trace("WRAP: new_line_len=%d, effective_width=%d, line_pos=%d", new_line_len, effective_width, line_pos);
-                
                 if (new_line_len > effective_width && line_pos > 0) {
                     /* Output current line and start new line with this word */
-                    log_trace("WRAP: Outputting line: '%s'", line_buf);
                     Term_putstr(col + 2, (*row)++, -1, color, line_buf);
                     
                     /* Check if the word itself is too long for a line */
@@ -6677,7 +6661,6 @@ static void display_wrapped_text(int col, int *row, cptr text, byte color, int m
                             chunk[k] = '\0';
                             
                             /* Output this chunk */
-                            log_trace("WRAP: Outputting long word chunk: '%s'", chunk);
                             Term_putstr(col + 2, (*row)++, -1, color, chunk);
                             word_pos += chunk_len;
                         }
@@ -6690,41 +6673,31 @@ static void display_wrapped_text(int col, int *row, cptr text, byte color, int m
                         SDL_strlcpy(line_buf, word, sizeof(line_buf));
                         line_pos = copy_len;
                     }
-                    log_trace("WRAP: Started new line with word='%s', line_pos=%d", word, line_pos);
                 } else {
                     /* Add word to current line */
                     if (line_pos > 0) {
                         SDL_strlcat(line_buf, " ", sizeof(line_buf));
                         line_pos++;
-                        log_trace("WRAP: Added space, line_pos now=%d", line_pos);
                     }
                     SDL_strlcat(line_buf, word, sizeof(line_buf));
                     line_pos += copy_len;
-                    log_trace("WRAP: Added word to line, line_buf='%s', line_pos=%d", line_buf, line_pos);
                 }
             }
             
             /* Skip spaces and move to next word */
-            log_trace("WRAP: Skipping spaces starting at i=%d", i);
             while (i < text_len && text[i] == ' ') {
                 i++;
-                log_trace("WRAP: Skipped space, i now=%d", i);
             }
             word_start = i;
-            log_trace("WRAP: Set word_start=%d", word_start);
         } else {
             i++;
-            log_trace("WRAP: Advanced i to %d", i);
         }
     }
     
     /* Output any remaining text in the buffer */
     if (line_pos > 0) {
-        log_trace("WRAP: Outputting final line: '%s'", line_buf);
         Term_putstr(col + 2, (*row)++, -1, color, line_buf);
     }
-    
-    log_trace("WRAP: Function completed");
 }
 
 /*
@@ -6754,26 +6727,17 @@ static char* my_strstr(const char* haystack, const char* needle)
 static cptr process_quest_placeholders(cptr text, int quest_idx)
 {
     static char processed_buf[256];
-    
-    log_trace("PLACEHOLDER: Entry - text='%s', quest_idx=%d", text ? text : "NULL", quest_idx);
-    
+
     if (!text) {
-        log_trace("PLACEHOLDER: text is NULL, returning empty string");
         return "";
     }
-    
-    log_trace("PLACEHOLDER: Copying text to buffer");
+
     SDL_strlcpy(processed_buf, text, sizeof(processed_buf));
-    log_trace("PLACEHOLDER: Buffer copied: '%s'", processed_buf);
     
     if (quest_idx == QUEST_ID_TULKAS) {
-        log_trace("PLACEHOLDER: Processing Tulkas quest placeholders");
         /* Replace [monster name] with actual monster name */
-        log_trace("PLACEHOLDER: Looking for [monster name] placeholder");
         char* monster_pos = my_strstr(processed_buf, "[monster name]");
-        log_trace("PLACEHOLDER: my_strstr returned: %p", monster_pos);
         if (monster_pos && p_ptr->tulkas_target_r_idx > 0 && p_ptr->tulkas_target_r_idx < z_info->r_max) {
-            log_trace("PLACEHOLDER: Found monster placeholder, r_idx=%d", p_ptr->tulkas_target_r_idx);
             monster_race* r_ptr = &r_info[p_ptr->tulkas_target_r_idx];
             char before[128], after[128];
             int before_len = monster_pos - processed_buf;
@@ -7448,7 +7412,7 @@ void do_cmd_quest_status(void)
  * Quest typewriter menu function - displays quest dialog with typewriter effect
  * Based on print_story_intro() style
  */
-static void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byte title_color, byte text_color)
+void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byte title_color, byte text_color)
 {
     int wid, h;
     const int indent = 2;

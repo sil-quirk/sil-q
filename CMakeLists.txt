@@ -48,6 +48,7 @@ add_executable(sil-more
     src/object1.c
     src/object2.c
     src/drop_system.c
+    src/thrall_quest.c
     src/player/killer.c
     src/pane.c
     src/randart.c

@@ -1903,7 +1903,7 @@ static bool collect_candidate_entries(
             
             artefact_type* a_ptr = &a_info[e.group_id];
             /* Skip if already created OR already seen by player */
-            if (a_ptr->cur_num || a_ptr->seen) {
+            if (a_ptr->cur_num || (a_ptr->seen & ART_SEEN_PHYSICAL)) {
                 filter_artifact++;
                 continue;
             }
@@ -2435,7 +2435,7 @@ static bool generate_chest(int depth, const drop_profile* profile, object_type* 
     /* Create the chest object */
     object_prep(out, k_idx);
     
-    /* Set chest level (pval) at generation time; opening adds +4 for contents. */
+    /* Set chest level (pval) at generation time; opening generates contents at +5. */
     out->pval = depth;
     if (out->pval > 25)
         out->pval = 25;
@@ -2761,7 +2761,7 @@ bool drop_generate_object_with_bonus(int depth, drop_quality quality,
     int droptype, int extra_bonus, bool allow_artefacts, object_type* out)
 {
     return drop_generate_object_internal(
-        depth, depth, quality, droptype, extra_bonus, allow_artefacts, NULL, out);
+        depth, quality, depth, droptype, extra_bonus, allow_artefacts, NULL, out);
 }
 
 bool drop_generate_object_profiled(int depth, drop_quality quality,
@@ -2769,14 +2769,14 @@ bool drop_generate_object_profiled(int depth, drop_quality quality,
     const drop_profile* profile, object_type* out)
 {
     return drop_generate_object_internal(
-        depth, depth, quality, droptype, extra_bonus, allow_artefacts, profile, out);
+        depth, quality, depth, droptype, extra_bonus, allow_artefacts, profile, out);
 }
 
 bool drop_generate_object_with_bonus_depths(int depth, int min_depth_penalty_depth,
     drop_quality quality, int droptype, int extra_bonus, bool allow_artefacts,
     object_type* out)
 {
-    return drop_generate_object_internal(depth, min_depth_penalty_depth, quality,
+    return drop_generate_object_internal(depth, quality, min_depth_penalty_depth,
         droptype, extra_bonus, allow_artefacts, NULL, out);
 }
 

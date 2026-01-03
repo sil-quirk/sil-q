@@ -52,15 +52,15 @@
 // #define STEAMDECK_SUPPORT
 
 /* Formalized new fork versioning (canonical source for all modules) */
-#define VERSION_STRING "0.9.1.10"
+#define VERSION_STRING "0.9.1.11"
 /*
- * Version components (0.9.1.10).  All on-disk formats (saves, scores, metaruns)
+ * Version components (0.9.1.11).  All on-disk formats (saves, scores, metaruns)
  * MUST match these values; never bump individual subsystems independently.
  */
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 9
 #define VERSION_PATCH 1
-#define VERSION_EXTRA 10   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
+#define VERSION_EXTRA 11   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
 /* Update MIN_VERSION_EXTRA whenever the savefile format changes. */
 #define MIN_VERSION_EXTRA 0  /* Accept earlier 0.9.1.x saves */
 
@@ -284,6 +284,25 @@
 
 #define O_IDX_HERB_RAGE 380
 #define O_IDX_HERB_TERROR 382
+
+/*
+ * Thrall quest item types
+ */
+#define THRALL_QUEST_NONE 0
+#define THRALL_QUEST_SHOVEL 1
+#define THRALL_QUEST_LANTERN 2
+#define THRALL_QUEST_HERB_HEALING 3
+#define THRALL_QUEST_MALLORN 4
+#define THRALL_QUEST_POTION_HEALING 5
+#define THRALL_QUEST_MAX 6
+
+/*
+ * Artefact "seen" flags (a_info[].seen).
+ *
+ * This is stored in the savefile as a byte, so treat it as a bitfield.
+ */
+#define ART_SEEN_PHYSICAL 0x01 /* Player has actually seen the artefact */
+#define ART_SEEN_REVEALED 0x02 /* Revealed via lore/quests (knowledge menu) */
 
 /*
  * Maximum size of the "view" array (see "cave.c")

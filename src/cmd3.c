@@ -1568,6 +1568,32 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     if (!combine)
         p_ptr->equip_cnt++;
 
+    /* Attempt identification immediately upon equipping (before printing message) */
+    {
+        bool slot_is_quiver1 = (slot == INVEN_QUIVER1);
+        bool slot_is_quiver2 = (slot == INVEN_QUIVER2);
+        bool quiver2_grants_bonuses = slot_is_quiver2 && is_throwing;
+        bool apply_wield_effects
+            = !slot_is_quiver1 && (!slot_is_quiver2 || quiver2_grants_bonuses);
+
+        if (apply_wield_effects)
+        {
+            ident_on_wield(o_ptr);
+
+            // activate all of its new abilities
+            for (i = 0; i < o_ptr->abilities; i++)
+            {
+                if (!p_ptr->have_ability[o_ptr->skilltype[i]][o_ptr->abilitynum[i]])
+                {
+                    p_ptr->have_ability[o_ptr->skilltype[i]][o_ptr->abilitynum[i]]
+                        = true;
+                    p_ptr->active_ability[o_ptr->skilltype[i]][o_ptr->abilitynum[i]]
+                        = true;
+                }
+            }
+        }
+    }
+
     /* Where is the item now */
     if ((slot == INVEN_WIELD)
         || ((slot == INVEN_ARM) && (o_ptr->tval != TV_SHIELD)))
@@ -1650,31 +1676,6 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
         /* Message */
         msg_format(
             "You are no longer able to wield your %s as effectively.", o_name);
-    }
-
-    {
-        bool slot_is_quiver1 = (slot == INVEN_QUIVER1);
-        bool slot_is_quiver2 = (slot == INVEN_QUIVER2);
-        bool quiver2_grants_bonuses = slot_is_quiver2 && is_throwing;
-        bool apply_wield_effects
-            = !slot_is_quiver1 && (!slot_is_quiver2 || quiver2_grants_bonuses);
-
-        if (apply_wield_effects)
-        {
-            ident_on_wield(o_ptr);
-
-            // activate all of its new abilities
-            for (i = 0; i < o_ptr->abilities; i++)
-            {
-                if (!p_ptr->have_ability[o_ptr->skilltype[i]][o_ptr->abilitynum[i]])
-                {
-                    p_ptr->have_ability[o_ptr->skilltype[i]][o_ptr->abilitynum[i]]
-                        = true;
-                    p_ptr->active_ability[o_ptr->skilltype[i]][o_ptr->abilitynum[i]]
-                        = true;
-                }
-            }
-        }
     }
 
     /* Recalculate bonuses */

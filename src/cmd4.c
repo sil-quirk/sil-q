@@ -14021,7 +14021,7 @@ static int collect_artefacts(int grp_cur, int object_idx[])
 {
     int i, object_cnt = 0;
     bool* okay;
-    bool know_all = cheat_know || p_ptr->active_ability[S_SMT][SMT_ENCHANTMENT];
+    bool know_all = cheat_know;
 
     /* Get a list of x_char in this group */
     byte group_tval = object_group_tval[grp_cur];
@@ -14034,6 +14034,7 @@ static int collect_artefacts(int grp_cur, int object_idx[])
     for (i = 0; i < z_info->art_max; i++)
     {
         artefact_type* a_ptr = &a_info[i];
+        bool revealed = (a_ptr->seen & ART_SEEN_REVEALED) != 0;
 
         /*start with false*/
         okay[i] = false;
@@ -14042,13 +14043,13 @@ static int collect_artefacts(int grp_cur, int object_idx[])
         if (a_ptr->tval + a_ptr->sval == 0)
             continue;
 
-        /* Skip "unfound" artefacts, unless in wizard mode or with Enchantment
-         * or cheating */
-        if (!know_all && !p_ptr->wizard && !a_ptr->found_num)
+        /* Skip "unfound" artefacts, unless in wizard mode, cheating,
+         * or revealed via quests/lore. */
+        if (!know_all && !p_ptr->wizard && !a_ptr->found_num && !revealed)
             continue;
 
-        /* Skip "ungenerated" artefacts, unless with Lore Mastery or cheating */
-        if (!know_all && !a_ptr->cur_num)
+        /* Skip "ungenerated" artefacts, unless cheating or quest-revealed. */
+        if (!know_all && !revealed && !a_ptr->cur_num)
             continue;
 
         /* Skip the later versions of the Iron Crown */
@@ -16930,7 +16931,7 @@ static int sidebar_find_stats_pos(const char* s)
      */
     if (first_stats_pos == 0)
     {
-        log_debug("sidebar_find_stats_pos: stats at position 0 for '%s' - treating as name", s);
+        log_trace("sidebar_find_stats_pos: stats at position 0 for '%s' - treating as name", s);
         return -1;
     }
     
@@ -16947,25 +16948,25 @@ static void sidebar_compact_name(const char* src, int max_len, char* dest, size_
     int src_len = (int)strlen(src);
     if (max_len < 1)
     {
-        log_debug("sidebar_compact_name: max_len < 1 for src='%s'", src);
+        log_trace("sidebar_compact_name: max_len < 1 for src='%s'", src);
         return;
     }
 
     if (src_len <= max_len)
     {
         strnfmt(dest, dest_sz, "%s", src);
-        log_debug("sidebar_compact_name: no shortening needed src='%s' len=%d max=%d", src, src_len, max_len);
+        log_trace("sidebar_compact_name: no shortening needed src='%s' len=%d max=%d", src, src_len, max_len);
         return;
     }
 
     int stats_pos = sidebar_find_stats_pos(src);
-    log_debug("sidebar_compact_name: shortening src='%s' len=%d max=%d stats_pos=%d", src, src_len, max_len, stats_pos);
+    log_trace("sidebar_compact_name: shortening src='%s' len=%d max=%d stats_pos=%d", src, src_len, max_len, stats_pos);
 
     if (stats_pos < 0)
     {
         strnfmt(dest, dest_sz, "%.*s", max_len, src);
         sidebar_trim_spaces(dest);
-        log_debug("sidebar_compact_name: no stats segment, result='%s'", dest);
+        log_trace("sidebar_compact_name: no stats segment, result='%s'", dest);
         return;
     }
 
@@ -17003,7 +17004,7 @@ static void sidebar_compact_name(const char* src, int max_len, char* dest, size_
             strnfmt(dest, dest_sz, "%s", stats_truncated);
         }
         sidebar_trim_spaces(dest);
-        log_debug("sidebar_compact_name: long stats, showing truncated name+stats result='%s'", dest);
+        log_trace("sidebar_compact_name: long stats, showing truncated name+stats result='%s'", dest);
         return;
     }
 
@@ -17129,7 +17130,7 @@ static void sidebar_compact_name(const char* src, int max_len, char* dest, size_
 
     SDL_strlcat(dest, src + stats_pos, dest_sz);
     sidebar_trim_spaces(dest);
-    log_debug("sidebar_compact_name: combined result='%s'", dest);
+    log_trace("sidebar_compact_name: combined result='%s'", dest);
 }
 
 /*
@@ -17589,7 +17590,7 @@ void show_unified_sidebar(unified_look_state* state)
             int final_name_len = (int)strlen(display_name);
             int original_name_len = (int)strlen(name_source);
             bool shortened = (original_name_len != final_name_len) || (original_name_len > max_name_len);
-            log_debug("sidebar object: idx=%d name='%s' compact='%s' color=%d orig_len=%d compact_len=%d max_len=%d name_col=%d weight_len=%d shortened=%d",
+            log_trace("sidebar object: idx=%d name='%s' compact='%s' color=%d orig_len=%d compact_len=%d max_len=%d name_col=%d weight_len=%d shortened=%d",
                 entry->o_idx, name_source, display_name, base_color, original_name_len, final_name_len, max_name_len, name_col, weight_len, shortened ? 1 : 0);
 
             if (use_bigtile)

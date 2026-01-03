@@ -1037,6 +1037,18 @@ extern bool drop_generate_object_profiled_depths(int depth,
     int min_depth_penalty_depth, drop_quality quality, int droptype,
     int extra_bonus, bool allow_artefacts, const drop_profile* profile,
     object_type* out);
+
+/* thrall_quest.c */
+extern bool is_alert_thrall(monster_type* m_ptr);
+extern void init_thrall_quest(monster_type* m_ptr);
+extern cptr get_thrall_quest_item_name(byte quest_item);
+extern int player_has_thrall_quest_item(byte quest_item);
+extern bool handle_thrall_interaction(monster_type* m_ptr);
+extern void complete_thrall_quest(monster_type* m_ptr, int item_slot);
+extern int find_broken_item_to_upgrade(void);
+extern bool upgrade_broken_item(int slot);
+extern bool reveal_random_artifact(void);
+
 extern bool make_object(
     object_type* j_ptr, drop_quality quality, int objecttype);
 extern bool prep_object_theme(int themetype);
@@ -1429,6 +1441,7 @@ extern void do_cmd_quest_status(void);
 extern cptr* extract_quest_init_texts(int quest_idx, int* count);
 extern cptr* extract_quest_completion_texts(int quest_idx, int* count);
 extern void free_quest_texts(cptr* texts, int count);
+extern void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byte title_color, byte text_color);
 extern void tulkas_quest_interaction(void);
 extern void check_tulkas_quest_interaction(void);
 extern void check_tulkas_quest_completion(int r_idx);

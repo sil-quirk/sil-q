@@ -4947,8 +4947,15 @@ void py_attack_aux(int y, int x, int attack_type)
     {
         if (attack_type == ATT_MAIN)
         {
-            // Alert thralls are peaceful but no longer have quest interactions
-            msg_format("You stop before you bump into %s.", m_name);
+            /* Handle alert thrall quest interaction */
+            if (is_alert_thrall(m_ptr))
+            {
+                handle_thrall_interaction(m_ptr);
+            }
+            else
+            {
+                msg_format("You stop before you bump into %s.", m_name);
+            }
         }
 
         abort_attack = true;

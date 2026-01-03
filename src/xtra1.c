@@ -4429,7 +4429,7 @@ void update_stuff(void)
         return;
     }
 
-    log_debug("update_stuff: processing updates 0x%08X", p_ptr->update);
+    log_trace("update_stuff: processing updates 0x%08X", p_ptr->update);
 
     if (p_ptr->update & (PU_BONUS))
     {
@@ -4469,14 +4469,14 @@ void update_stuff(void)
     if (p_ptr->update & (PU_FORGET_VIEW))
     {
         p_ptr->update &= ~(PU_FORGET_VIEW);
-        log_debug("update_stuff: forgetting view");
+        log_trace("update_stuff: forgetting view");
         forget_view();
     }
 
     if (p_ptr->update & (PU_UPDATE_VIEW))
     {
         p_ptr->update &= ~(PU_UPDATE_VIEW);
-        log_debug("update_stuff: updating view");
+        log_trace("update_stuff: updating view");
         update_view();
         
         /* Check artifact visibility after view update */
@@ -4487,7 +4487,7 @@ void update_stuff(void)
     {
         p_ptr->update &= ~(PU_DISTANCE);
         p_ptr->update &= ~(PU_MONSTERS);
-        log_debug("update_stuff: updating distances and monsters");
+        log_trace("update_stuff: updating distances and monsters");
         update_monsters(true);
     }
 
@@ -4540,7 +4540,7 @@ void redraw_stuff(void)
     if (p_ptr->redraw & (PR_MAP))
     {
         p_ptr->redraw &= ~(PR_MAP);
-        log_debug("redraw_stuff: redrawing map");
+        log_trace("redraw_stuff: redrawing map");
         prt_map();
     }
 
@@ -4745,7 +4745,7 @@ void window_stuff(void)
         return;
     }
 
-    log_debug("window_stuff: processing windows 0x%08X", p_ptr->window);
+    log_trace("window_stuff: processing windows 0x%08X", p_ptr->window);
 
     /* Scan windows */
     for (j = 0; j < ANGBAND_TERM_MAX; j++)
@@ -4782,10 +4782,10 @@ void window_stuff(void)
     /* Display equipment */
     if (p_ptr->window & (PW_EQUIP))
     {
-        log_debug("window_stuff: PW_EQUIP flag set, calling fix_equip()");
+        log_trace("window_stuff: PW_EQUIP flag set, calling fix_equip()");
         p_ptr->window &= ~(PW_EQUIP);
         fix_equip();
-        log_debug("window_stuff: fix_equip() completed");
+        log_trace("window_stuff: fix_equip() completed");
         
         /* Also trigger quiver redraw since quiver is part of equipment */
         p_ptr->redraw |= (PR_QUIVER);
