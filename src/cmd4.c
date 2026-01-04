@@ -3235,8 +3235,37 @@ static int smith_item_category(const object_type* o_ptr)
 
 static bool smith_alloy_applicable(const object_type* o_ptr)
 {
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
     int cat = smith_item_category(o_ptr);
-    return (cat == CAT_WEAPON) || (cat == CAT_ARMOUR);
+    if ((cat != CAT_WEAPON) && (cat != CAT_ARMOUR))
+        return false;
+
+    /* Cannot alloy items that are already made of special metal */
+    object_kind* k_ptr = &k_info[o_ptr->k_idx];
+    if (k_ptr->flags3 & (TR3_MITHRIL | TR3_STAR_IRON))
+        return false;
+
+    /* Armour: only major metal pieces */
+    if (cat == CAT_ARMOUR)
+    {
+        switch (o_ptr->tval)
+        {
+        case TV_MAIL:
+        case TV_SHIELD:
+        case TV_HELM:
+            return true;
+        default:
+            return false;
+        }
+    }
+
+    /* Weapons: exclude quarterstaves (wooden) */
+    if ((o_ptr->tval == TV_HAFTED) && (o_ptr->sval == SV_QUARTERSTAFF))
+        return false;
+
+    return true;
 }
 
 static bool smith_apply_alloy(object_type* o_ptr, smith_alloy_state* state, smith_alloy_type new_type)
@@ -3248,6 +3277,9 @@ static bool smith_apply_alloy(object_type* o_ptr, smith_alloy_state* state, smit
 
     if (new_type == SMITH_ALLOY_NONE)
         return true;
+
+    if (!smith_alloy_applicable(o_ptr))
+        return false;
 
     int cat = smith_item_category(o_ptr);
     if (cat == CAT_WEAPON)
@@ -4280,10 +4312,19 @@ int object_difficulty(object_type* o_ptr)
 
     // extract object flags
     object_flags(o_ptr, &f1, &f2, &f3);
-    int att_base = o_ptr->att - smith_alloy.bonus_att;
-    int evn_base = o_ptr->evn - smith_alloy.bonus_evn;
-    int ds_base = o_ptr->ds - smith_alloy.bonus_ds;
-    int ps_base = o_ptr->ps - smith_alloy.bonus_ps;
+    int att_base = o_ptr->att;
+    int evn_base = o_ptr->evn;
+    int ds_base = o_ptr->ds;
+    int ps_base = o_ptr->ps;
+
+    /* When smithing, ignore the optional alloy bonus for difficulty/costs. */
+    if (o_ptr == smith_o_ptr)
+    {
+        att_base -= smith_alloy.bonus_att;
+        evn_base -= smith_alloy.bonus_evn;
+        ds_base -= smith_alloy.bonus_ds;
+        ps_base -= smith_alloy.bonus_ps;
+    }
 
     /* ------------------------------------------------------------------
      *  GAMIL character bonus
@@ -5846,7 +5887,7 @@ void modify_numbers(int choice)
         }
         if (!smith_alloy_applicable(smith_o_ptr))
         {
-            bell("Alloying only applies to weapons and armour.");
+            bell("Alloying doesn't apply to this item.");
             smith_remove_alloy_bonus(smith_o_ptr, &smith_alloy);
             break;
         }

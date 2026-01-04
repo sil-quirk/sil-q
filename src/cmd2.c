@@ -821,13 +821,12 @@ static void chest_death(int y, int x, s16b o_idx)
     if (base_depth < 1)
         base_depth = 1;
 
-    /* Chest contents are generated at +5 levels above the chest's stored depth. */
-    int gen_depth = base_depth + 5;
+    /* Chest contents are generated at the chest's stored depth. */
+    int gen_depth = base_depth;
 
-    /* Min-depth penalties should be based on player's actual dungeon depth + 5,
-     * not the chest's stored depth. This prevents "deep" chests from bypassing
-     * the depth penalty on items that are normally too deep for the player. */
-    int penalty_depth = p_ptr->depth + 5;
+    /* Min-depth penalties are reduced by +5 from the chest level, so items
+     * appearing below their minimum depth have less penalty. */
+    int penalty_depth = base_depth + 5;
 
     level_partition_kind part_kind = LEVEL_PART_NONE;
     if (o_ptr->xtra1 & 0x80)

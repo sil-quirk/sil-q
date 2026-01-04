@@ -540,7 +540,7 @@ D:You gain a point of grace, inspired as by the touch of Varda upon the works of
 
 N:128:Alloy mastery
 I:6:8:6
-D:Blending mithril or star iron into your work, you can alloy items with these rare metals, gaining their bonuses without increasing smithing difficulty and unlocking the ability to forge mithril or star-iron gear.
+D:Blending mithril or star iron into your work, you can alloy weapons and major metal armour with these rare metals, gaining their bonuses without increasing smithing difficulty and unlocking the ability to forge mithril or star-iron gear.
 T:21:8:8   # Hafted (War Hammer only)
 T:31:0:99  # Gloves
 

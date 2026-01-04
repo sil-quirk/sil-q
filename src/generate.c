@@ -4448,7 +4448,7 @@ static bool place_gv_in_partition(int y1, int y2, int x1, int x2, int *budget_t8
 /* Place a chest in a random floor location within partition bounds */
 static drop_profile drop_profile_for_mode(quadrant_mode_t mode);
 static void place_chest_in_partition(
-    int y1, int y2, int x1, int x2, bool wooden_only, quadrant_mode_t mode)
+    int y1, int y2, int x1, int x2, bool wooden_only, bool force_large, quadrant_mode_t mode)
 {
     int attempts = 0;
     int max_attempts = 100;
@@ -4503,6 +4503,32 @@ static void place_chest_in_partition(
                     i_ptr->pval = old_pval;
                     i_ptr->xtra1 = old_xtra1;
                     apply_autoinscription(i_ptr);
+                }
+            }
+
+            if (force_large && i_ptr->tval == TV_CHEST)
+            {
+                /* Force large chest variant (preserve material) */
+                int target_sval = -1;
+                if (i_ptr->sval == SV_CHEST_SMALL_WOODEN)
+                    target_sval = SV_CHEST_LARGE_WOODEN;
+                else if (i_ptr->sval == SV_CHEST_SMALL_STEEL)
+                    target_sval = SV_CHEST_LARGE_STEEL;
+                else if (i_ptr->sval == SV_CHEST_SMALL_JEWELLED)
+                    target_sval = SV_CHEST_LARGE_JEWELLED;
+                
+                if (target_sval > 0)
+                {
+                    int k_idx = lookup_kind(TV_CHEST, target_sval);
+                    if (k_idx)
+                    {
+                        s16b old_pval = i_ptr->pval;
+                        byte old_xtra1 = i_ptr->xtra1;
+                        object_prep(i_ptr, k_idx);
+                        i_ptr->pval = old_pval;
+                        i_ptr->xtra1 = old_xtra1;
+                        apply_autoinscription(i_ptr);
+                    }
                 }
             }
 
@@ -5012,7 +5038,7 @@ static void apply_quadrant_generation_modes(void)
                 
                 /* Place 1 chest in labyrinth partition ONLY if it actually carved */
                 if (carved)
-                    place_chest_in_partition(y1, y2, x1, x2, false, mode);
+                    place_chest_in_partition(y1, y2, x1, x2, false, false, mode);
             }
             break;
         case QUAD_MODE_CHASM:
@@ -5040,9 +5066,12 @@ static void apply_quadrant_generation_modes(void)
                 /* Scatter rare star-iron pieces onto whatever ground exists */
                 scatter_chasm_star_iron_in_bounds(y1, y2, x1, x2);
 
-                /* Place 1 chest in chasm partition ONLY if it actually carved */
+                /* Place 2 guaranteed chests in chasm partition ONLY if it actually carved */
                 if (chasm_carved)
-                    place_chest_in_partition(y1, y2, x1, x2, false, mode);
+                {
+                    place_chest_in_partition(y1, y2, x1, x2, false, false, mode);
+                    place_chest_in_partition(y1, y2, x1, x2, false, false, mode);
+                }
             }
             break;
         case QUAD_MODE_BIG_CAVE:
@@ -5108,8 +5137,8 @@ static void apply_quadrant_generation_modes(void)
                 place_rooms_randomized(y1, y2, x1, x2, depth, std_count, 0, int_count, 0,
                                        &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
 
-                /* Guarantee a single chest in big caves (75% wood, 25% steel) */
-                place_chest_in_partition(y1, y2, x1, x2, true, mode);
+                /* Guarantee a large chest in big caves (material varies) */
+                place_chest_in_partition(y1, y2, x1, x2, false, true, mode);
             }
             break;
         case QUAD_MODE_ROOMY:

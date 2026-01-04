@@ -1648,7 +1648,7 @@ P:0:0d0:0:0d0
 A:15/20
 F:EASY_KNOW
 D:Small shining pieces of true silver. They can be used at a forge
-D: to create mithril items.
+D: to create or alloy mithril items.
 
 
 #### Out of place ####
