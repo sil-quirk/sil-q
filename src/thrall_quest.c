@@ -20,7 +20,8 @@ static const int human_thrall_weights[THRALL_QUEST_MAX] = {
     25,  /* LANTERN - humans want better light */
     20,  /* HERB_HEALING - basic healing */
     10,  /* MALLORN - less common request */
-    15   /* POTION_HEALING - more valuable healing */
+    15,  /* POTION_HEALING - more valuable healing */
+    25   /* DAGGER - humans need basic weapons */
 };
 
 static const int elf_thrall_weights[THRALL_QUEST_MAX] = {
@@ -29,7 +30,8 @@ static const int elf_thrall_weights[THRALL_QUEST_MAX] = {
     20,  /* LANTERN - practical light */
     25,  /* HERB_HEALING - elves like herbs */
     25,  /* MALLORN - elves love mallorn wood */
-    15   /* POTION_HEALING - healing is valued */
+    15,  /* POTION_HEALING - healing is valued */
+    20   /* DAGGER - elves appreciate fine blades */
 };
 
 /*
@@ -200,6 +202,7 @@ cptr get_thrall_quest_item_name(byte quest_item)
         case THRALL_QUEST_HERB_HEALING:   return "an identified herb of healing";
         case THRALL_QUEST_MALLORN:        return "a mallorn torch";
         case THRALL_QUEST_POTION_HEALING: return "a potion of healing";
+        case THRALL_QUEST_DAGGER:         return "a dagger";
         default:                          return "something";
     }
 }
@@ -228,6 +231,9 @@ static bool item_matches_quest(object_type* o_ptr, byte quest_item)
             
         case THRALL_QUEST_POTION_HEALING:
             return (o_ptr->tval == TV_POTION && o_ptr->sval == SV_POTION_HEALING);
+            
+        case THRALL_QUEST_DAGGER:
+            return (o_ptr->tval == TV_SWORD && o_ptr->sval == SV_DAGGER);
             
         default:
             return false;
@@ -306,6 +312,10 @@ int find_broken_item_to_upgrade(void)
  */
 static s16b get_upgrade_kind(object_type* o_ptr)
 {
+    /* Paranoia */
+    if (!o_ptr)
+        return 0;
+
     /* Rusty Helm -> Helm */
     if (o_ptr->tval == TV_HELM && o_ptr->sval == SV_RUSTY_HELM)
     {
@@ -317,11 +327,59 @@ static s16b get_upgrade_kind(object_type* o_ptr)
     {
         return lookup_kind(TV_BOOTS, SV_PAIR_OF_LEATHER_BOOTS);
     }
+
+    /* Dented Greaves -> Greaves */
+    if (o_ptr->tval == TV_BOOTS && o_ptr->sval == SV_PAIR_OF_DENTED_GREAVES)
+    {
+        return lookup_kind(TV_BOOTS, SV_PAIR_OF_STEEL_GREAVES);
+    }
     
     /* Broken Shield -> Round Shield */
     if (o_ptr->tval == TV_SHIELD && o_ptr->sval == SV_BROKEN_SHIELD)
     {
         return lookup_kind(TV_SHIELD, SV_ROUND_SHIELD);
+    }
+
+    /* Chipped Dagger -> Dagger */
+    if (o_ptr->tval == TV_SWORD && o_ptr->sval == SV_CHIPPED_DAGGER)
+    {
+        return lookup_kind(TV_SWORD, SV_DAGGER);
+    }
+
+    /* Bent Shortsword -> Shortsword */
+    if (o_ptr->tval == TV_SWORD && o_ptr->sval == SV_BENT_SHORT_SWORD)
+    {
+        return lookup_kind(TV_SWORD, SV_SHORT_SWORD);
+    }
+
+    /* Splintered Spear -> Spear */
+    if (o_ptr->tval == TV_POLEARM && o_ptr->sval == SV_SPLINTERED_SPEAR)
+    {
+        return lookup_kind(TV_POLEARM, SV_SPEAR);
+    }
+
+    /* Warped Shortbow -> Shortbow */
+    if (o_ptr->tval == TV_BOW && o_ptr->sval == SV_WARPED_SHORT_BOW)
+    {
+        return lookup_kind(TV_BOW, SV_SHORT_BOW);
+    }
+
+    /* Torn Cloak -> Cloak */
+    if (o_ptr->tval == TV_CLOAK && o_ptr->sval == SV_TORN_CLOAK)
+    {
+        return lookup_kind(TV_CLOAK, SV_CLOAK);
+    }
+
+    /* Cracked Gauntlets -> Gauntlets */
+    if (o_ptr->tval == TV_GLOVES && o_ptr->sval == SV_SET_OF_CRACKED_GAUNTLETS)
+    {
+        return lookup_kind(TV_GLOVES, SV_SET_OF_GAUNTLETS);
+    }
+
+    /* Dented Mail Corslet -> Mail Corslet */
+    if (o_ptr->tval == TV_MAIL && o_ptr->sval == SV_DENTED_MAIL_CORSLET)
+    {
+        return lookup_kind(TV_MAIL, SV_MAIL_CORSLET);
     }
     
     return 0;
@@ -371,7 +429,9 @@ bool upgrade_broken_item(int slot)
     s16b new_k_idx;
     char old_name[80];
     char new_name[80];
+    int att, evn, pval;
     int dd, ds, pd, ps;
+    int att_delta, evn_delta, pval_delta;
     int dd_delta, ds_delta, pd_delta, ps_delta;
     
     /* Paranoia */
@@ -389,11 +449,17 @@ bool upgrade_broken_item(int slot)
     new_k_ptr = &k_info[new_k_idx];
 
     /* Keep current values, then add base delta after changing kind */
+    att = o_ptr->att;
+    evn = o_ptr->evn;
+    pval = o_ptr->pval;
     dd = o_ptr->dd;
     ds = o_ptr->ds;
     pd = o_ptr->pd;
     ps = o_ptr->ps;
 
+    att_delta = (int)new_k_ptr->att - (int)old_k_ptr->att;
+    evn_delta = (int)new_k_ptr->evn - (int)old_k_ptr->evn;
+    pval_delta = (int)new_k_ptr->pval - (int)old_k_ptr->pval;
     dd_delta = (int)new_k_ptr->dd - (int)old_k_ptr->dd;
     ds_delta = (int)new_k_ptr->ds - (int)old_k_ptr->ds;
     pd_delta = (int)new_k_ptr->pd - (int)old_k_ptr->pd;
@@ -408,6 +474,9 @@ bool upgrade_broken_item(int slot)
     o_ptr->sval = new_k_ptr->sval;
     
     /* Increase basic stats by the base delta between broken and real items */
+    o_ptr->att = (s16b)MIN(32767, MAX(-32768, att + att_delta));
+    o_ptr->evn = (s16b)MIN(32767, MAX(-32768, evn + evn_delta));
+    o_ptr->pval = (s16b)MIN(32767, MAX(-32768, pval + pval_delta));
     o_ptr->dd = (byte)MIN(255, MAX(0, dd + dd_delta));
     o_ptr->ds = (byte)MIN(255, MAX(0, ds + ds_delta));
     o_ptr->pd = (byte)MIN(255, MAX(0, pd + pd_delta));

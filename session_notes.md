@@ -8177,3 +8177,21 @@ The script now fully matches the game's drop generation logic for all item types
 - `src/xtra2.c`: remove ultra-spammy per-character WRAP/PLACEHOLDER trace logging (keeps a single WARN on safety break).
 - `src/main-sdl.c`, `src/xtra1.c`, `src/cmd2.c`, `src/cmd4.c`, `src/cave.c`: move high-frequency `log_debug`/`log_info` lines down to `TRACE`/`DEBUG`; fix missing format argument in `do_cmd_throw` wall-collision log.
 - build-cmake.bat: success (standard + portable builds).
+
+## 2026-01-04: Thrall quest repair + more damaged item kinds
+- `lib/edit/object.txt`: add 7 new `DAMAGED` item kinds (weapons/armor) to expand repair targets and skeleton loot variety.
+- `src/defines.h`: add new `SV_*` constants for the new damaged item svals.
+- `src/thrall_quest.c`: extend damaged→normal upgrade mapping; fix repair to apply base deltas to `att`/`evn`/`pval` (not just dice).
+- `src/drop_system.c`: implement `DROP_TYPE_DAMAGED` / `DROP_TYPE_NOT_DAMAGED` filtering so damaged items generate only when requested.
+- `lib/edit/artefact.txt`: move `'Thorn'` from depth 0 to 7 to prevent ultra-early vampiric/poison artefact spikes.
+- `lib/pref/graf-new.prf`: map new damaged kinds (`K:423..430`) to the same tiles as their repaired counterparts.
+- build-cmake.bat: success (standard + portable builds).
+
+## 2026-01-05 Loot tweaks (DROP_SUPERB + dragon hoards)
+- Added monster flag `DROP_SUPERB` (reuses former `RF2XXX6` bit) and parser support; monster drops can now use `DROP_QUALITY_SUPERB` (+15 difficulty).
+- Monster drop logic/recall updated: superb > great > good; recall text shows "superb".
+- Vault `!` now spawns great items (+10) with artefacts allowed and strongly biased (10x artefact group weight) via `drop_generate_object_profiled_depths_biased()`.
+- Data tweaks:
+  - `lib/edit/monster.txt`: Morgoth -> `DROP_SUPERB`; Shelob -> `DROP_2D2 | DROP_GOOD`; Ungoliant -> `DROP_2D2 | DROP_GREAT`; Draugluin -> `DROP_GOOD`; Thuringwethil -> `DROP_GREAT`; Gothmog -> `DROP_CHOSEN` (enables Calris auto-drop).
+  - `lib/edit/vault.txt`: added `!` placements in dragon vaults (Dragon Lairs, Dragon Island, Draconic Caves, Dragons' Run, Glaurung hoard).
+- Build: `build-cmake.bat` OK (one pre-existing unused-parameter warning in `generate.c`).

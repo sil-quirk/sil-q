@@ -1692,6 +1692,70 @@ P:-1:0d0:0:1d2
 A:1/1:6/0
 F:DAMAGED | NO_SMITHING
 
+N:423:& Chipped Dagger~
+G:|:s
+I:23:1:0
+W:1:0:5:5
+P:-1:1d4:0:0d0
+A:1/1:8/0
+F:DAMAGED | NO_SMITHING | THROWING | MORE_SPECIAL
+
+N:424:& Bent Shortsword~
+G:|:s
+I:23:9:0
+W:1:0:20:30
+P:-1:1d6:0:0d0
+A:1/1:8/0
+F:DAMAGED | NO_SMITHING
+
+N:425:& Splintered Spear~
+G:/:s
+I:22:3:0
+W:1:0:30:20
+P:-1:1d7:0:0d0
+A:1/1:8/0
+F:DAMAGED | NO_SMITHING | THROWING | HAND_AND_A_HALF | POLEARM
+
+N:426:& Warped Shortbow~
+G:}:s
+I:19:11:0
+W:1:0:15:20
+P:-1:1d6:0:0d0
+A:1/2:8/0
+F:DAMAGED | NO_SMITHING
+
+N:427:& Torn Cloak~
+G:(:s
+I:35:0:0
+W:1:0:20:1
+P:0:0d0:0:1d0
+A:1/1:10/0
+F:DAMAGED | NO_SMITHING
+
+N:428:& Set~ of Cracked Gauntlets
+G:]:s
+I:31:4:0
+W:1:0:30:10
+P:-2:0d0:-1:1d0
+A:2/2:12/0
+F:DAMAGED | NO_SMITHING | IGNORE_FIRE
+
+N:429:& Pair~ of Dented Greaves
+G:]:s
+I:30:5:0
+W:2:0:80:5
+P:0:0d0:-2:1d1
+A:2/2:12/0
+F:DAMAGED | NO_SMITHING | IGNORE_FIRE
+
+N:430:& Dented Mail Corslet~
+G:[:s
+I:37:3:0
+W:3:0:270:200
+P:-2:0d0:-4:2d3
+A:4/8:18/0
+F:DAMAGED | NO_SMITHING
+
 N:451:& Note~
 G:~:W1
 I:2:1:0

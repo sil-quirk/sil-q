@@ -688,7 +688,7 @@ struct monster_type
                                          turns */
 
     /* Thrall quest system */
-    byte thrall_quest_item; /* Item the thrall wants: 0=none, 1=shovel, 2=lantern, 3=herb, 4=mallorn, 5=healing potion */
+    byte thrall_quest_item; /* Item the thrall wants: 0=none, 1=shovel, 2=lantern, 3=herb, 4=mallorn, 5=healing potion, 6=dagger */
     byte thrall_quest_completed; /* 1 if the thrall's quest has been completed */
 };
 

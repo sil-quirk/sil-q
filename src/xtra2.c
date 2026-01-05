@@ -2106,6 +2106,7 @@ void drop_loot(monster_type* m_ptr)
     bool chest = (r_ptr->flags1 & (RF1_DROP_CHEST)) ? true : false;
     bool good = false;
     bool great = false;
+    bool superb = false;
 
     object_type* i_ptr;
     object_type object_type_body;
@@ -2119,6 +2120,10 @@ void drop_loot(monster_type* m_ptr)
     if (r_ptr->flags1 & (RF1_DROP_GREAT))
     {
         great = true;
+    }
+    if (r_ptr->flags2 & (RF2_DROP_SUPERB))
+    {
+        superb = true;
     }
 
     /* Get the location */
@@ -2311,7 +2316,7 @@ void drop_loot(monster_type* m_ptr)
      * are enforced by the current level (prevents early lantern/jewel drops). */
     int depth_cap = (p_ptr->depth > 0) ? p_ptr->depth : 1;
     object_level = MIN(r_ptr->level, depth_cap);
-    drop_quality quality = drop_quality_from_flags(good, great);
+    drop_quality quality = drop_quality_from_flags(good, great, superb);
 
     byte old_gen_mode = object_generation_mode;
     object_generation_mode = OB_GEN_MODE_MONSTER_DROP;

@@ -294,7 +294,13 @@
 #define THRALL_QUEST_HERB_HEALING 3
 #define THRALL_QUEST_MALLORN 4
 #define THRALL_QUEST_POTION_HEALING 5
-#define THRALL_QUEST_MAX 6
+#define THRALL_QUEST_DAGGER 6
+#define THRALL_QUEST_CLOAK 7
+#define THRALL_QUEST_BOOTS 8
+#define THRALL_QUEST_HERB_SUSTENANCE 9
+#define THRALL_QUEST_HERB_RESTORATION 10
+#define THRALL_QUEST_POTION_CLARITY 11
+#define THRALL_QUEST_MAX 12
 
 /*
  * Artefact "seen" flags (a_info[].seen).
@@ -1273,6 +1279,7 @@
 #define SV_NORMAL_ARROW 1 /*  */
 
 /* The "sval" codes for TV_BOW (note information in "sval") */
+#define SV_WARPED_SHORT_BOW 11 /*  */
 #define SV_SHORT_BOW 12 /*  */
 #define SV_LONG_BOW 13 /*  */
 #define SV_DH_LONG_BOW 14 /*  */
@@ -1289,6 +1296,7 @@
 /* The "sval" values for TV_POLEARM */
 #define SV_SPEAR 1 /* 1d9 */
 #define SV_GREAT_SPEAR 2 /* 1d13 */
+#define SV_SPLINTERED_SPEAR 3 /* 1d7 */
 #define SV_GLAIVE 4 /* 2d9 */
 #define SV_HAND_AXE 11 /* 4d2 */
 #define SV_BATTLE_AXE 12 /* 3d4 */
@@ -1296,8 +1304,10 @@
 
 /* The "sval" codes for TV_SWORD */
 
+#define SV_CHIPPED_DAGGER 1 /* 1d4 */
 #define SV_DAGGER 4 /* 1d5 */
 #define SV_CURVED_SWORD 7 /* 2d5 */
+#define SV_BENT_SHORT_SWORD 9 /* 1d6 */
 #define SV_SHORT_SWORD 10 /* 1d7 */
 #define SV_LONG_SWORD 17 /* 2d5 */
 #define SV_BASTARD_SWORD 21 /* 3d3 */
@@ -1326,8 +1336,10 @@
 #define SV_PAIR_OF_STEEL_GREAVES 2
 #define SV_PAIR_OF_MITHRIL_GREAVES 3
 #define SV_PAIR_OF_SHABBY_BOOTS 4
+#define SV_PAIR_OF_DENTED_GREAVES 5
 
 /* The "sval" codes for TV_CLOAK */
+#define SV_TORN_CLOAK 0
 #define SV_CLOAK 1
 #define SV_SHADOW_CLOAK 6
 
@@ -1337,6 +1349,7 @@
 /* The "sval" codes for TV_GLOVES */
 #define SV_SET_OF_LEATHER_GLOVES 1
 #define SV_SET_OF_GAUNTLETS 2
+#define SV_SET_OF_CRACKED_GAUNTLETS 4
 
 /* The "sval" codes for TV_SOFT_ARMOR */
 #define SV_ROBE 2
@@ -1345,6 +1358,7 @@
 #define SV_ARMOUR_OF_GALVORN 11
 
 /* The "sval" codes for TV_MAIL */
+#define SV_DENTED_MAIL_CORSLET 3
 #define SV_MAIL_CORSLET 4
 #define SV_LONG_CORSLET 6
 #define SV_MITHRIL_CORSLET 20
@@ -2367,7 +2381,8 @@
 #define RF2_KILL_BODY 0x00200000 /* Monster can kill monsters */
 #define RF2_TAKE_ITEM 0x00400000 /* Monster can pick up items */
 #define RF2_KILL_ITEM 0x00800000 /* Monster can crush items */
-#define RF2_RF2XXX6 0x01000000 /* (?) */
+#define RF2_DROP_SUPERB 0x01000000 /* Drop superb items (difficulty +15) */
+#define RF2_RF2XXX6 RF2_DROP_SUPERB /* (unused) */
 #define RF2_LOW_MANA_RUN 0x02000000 /* Runs away/teleports when low on mana */
 #define RF2_CHARGE 0x04000000 /* Has the Ability: Charge */
 #define RF2_ELFBANE 0x08000000 /* Has the Ability: Bane (Elves) */

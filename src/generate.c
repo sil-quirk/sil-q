@@ -4453,6 +4453,17 @@ static void place_chest_in_partition(
     int attempts = 0;
     int max_attempts = 100;
     
+    /* Set chest generation context based on mode and parameters */
+    /* Mode-specific size distribution: labyrinth = 70/30, others = 50/50 */
+    if (mode == QUAD_MODE_LABYRINTH)
+        drop_set_chest_mode(1);  /* 70% small, 30% large */
+    else
+        drop_set_chest_mode(0);  /* 50/50 default */
+    
+    /* Vault type is 0 for partitions (default 50/35/15 distribution) */
+    /* wooden_only param is deprecated but kept for compatibility */
+    drop_set_chest_vault_type(0);
+    
     while (attempts < max_attempts)
     {
         int cy = rand_range(y1 + 1, y2 - 1);
@@ -4485,27 +4496,7 @@ static void place_chest_in_partition(
             if (i_ptr->tval == TV_CHEST)
                 i_ptr->xtra1 = (byte)(0x80 | (byte)level_partition_kind_for_point(cy, cx));
 
-            if (wooden_only && i_ptr->tval == TV_CHEST)
-            {
-                bool is_large = (i_ptr->sval >= SV_CHEST_MIN_LARGE);
-                bool use_steel = one_in_(4); /* 25% steel, otherwise wooden */
-                int wooden_sval =
-                    is_large ? SV_CHEST_LARGE_WOODEN : SV_CHEST_SMALL_WOODEN;
-                int steel_sval =
-                    is_large ? SV_CHEST_LARGE_STEEL : SV_CHEST_SMALL_STEEL;
-                int target_sval = use_steel ? steel_sval : wooden_sval;
-                int k_idx = lookup_kind(TV_CHEST, target_sval);
-                if (k_idx)
-                {
-                    s16b old_pval = i_ptr->pval;
-                    byte old_xtra1 = i_ptr->xtra1;
-                    object_prep(i_ptr, k_idx);
-                    i_ptr->pval = old_pval;
-                    i_ptr->xtra1 = old_xtra1;
-                    apply_autoinscription(i_ptr);
-                }
-            }
-
+            /* Force large chest if requested (for big caves) */
             if (force_large && i_ptr->tval == TV_CHEST)
             {
                 /* Force large chest variant (preserve material) */
@@ -7400,6 +7391,7 @@ void drop_profile_for_partition_kind(level_partition_kind kind, drop_profile* ou
 static void place_object_with_profile_params(
     int y, int x, int base_depth, int min_depth_penalty_depth,
     drop_quality quality, int droptype, bool allow_artefacts,
+    int artefact_weight_multiplier,
     const partition_drop_profile* prof);
 
 static void place_object_with_profile(
@@ -7407,12 +7399,13 @@ static void place_object_with_profile(
 {
     place_object_with_profile_params(
         y, x, object_level, object_level, DROP_QUALITY_NORMAL, DROP_TYPE_UNTHEMED,
-        false, prof);
+        false, 1, prof);
 }
 
 static void place_object_with_profile_params(
     int y, int x, int base_depth, int min_depth_penalty_depth,
     drop_quality quality, int droptype, bool allow_artefacts,
+    int artefact_weight_multiplier,
     const partition_drop_profile* prof)
 {
     if (!in_bounds(y, x))
@@ -7427,8 +7420,9 @@ static void place_object_with_profile_params(
     int attempts = 0;
     const drop_profile* dp = (prof) ? &prof->profile : NULL;
 
-    while (!drop_generate_object_profiled_depths(base_depth, min_depth_penalty_depth,
-               quality, droptype, 0, allow_artefacts, dp, i_ptr))
+    while (!drop_generate_object_profiled_depths_biased(base_depth,
+               min_depth_penalty_depth, quality, droptype, 0, allow_artefacts,
+               artefact_weight_multiplier, dp, i_ptr))
     {
         attempts++;
         if (attempts > 200)
@@ -10155,7 +10149,7 @@ static bool build_type2(int y0, int x0)
                 partition_drop_profile active_profile =
                     partition_drop_profile_for_mode(drop_mode_for_point(y0, x0));
                 place_object_with_profile_params(y0, x0, object_level, object_level,
-                    DROP_QUALITY_NORMAL, DROP_TYPE_CHEST, false, &active_profile);
+                    DROP_QUALITY_NORMAL, DROP_TYPE_CHEST, false, 1, &active_profile);
             }
         }
         break;
@@ -10674,7 +10668,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                     partition_drop_profile_for_mode(drop_mode_for_point(y, x));
                 place_object_with_profile_params(
                     y, x, base_depth, penalty_depth, DROP_QUALITY_NORMAL,
-                    DROP_TYPE_NOT_DAMAGED, false, &active_profile);
+                    DROP_TYPE_NOT_DAMAGED, false, 1, &active_profile);
                 break;
             }
 
@@ -10687,7 +10681,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                     partition_drop_profile_for_mode(drop_mode_for_point(y, x));
                 place_object_with_profile_params(
                     y, x, base_depth, penalty_depth, DROP_QUALITY_GOOD,
-                    DROP_TYPE_NOT_DAMAGED, false, &active_profile);
+                    DROP_TYPE_NOT_DAMAGED, false, 1, &active_profile);
                 break;
             }
 
@@ -10700,7 +10694,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                     partition_drop_profile_for_mode(drop_mode_for_point(y, x));
                 place_object_with_profile_params(
                     y, x, base_depth, penalty_depth, DROP_QUALITY_GREAT,
-                    DROP_TYPE_NOT_DAMAGED, false, &active_profile);
+                    DROP_TYPE_NOT_DAMAGED, true, 10, &active_profile);
                 break;
             }
 
@@ -10713,11 +10707,14 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 else
                     chest_depth = p_ptr->depth + 5;
 
+                /* Set vault type context for chest material distribution */
+                drop_set_chest_vault_type(v_ptr->typ);
+                
                 partition_drop_profile active_profile =
                     partition_drop_profile_for_mode(drop_mode_for_point(y, x));
                 place_object_with_profile_params(
                     y, x, chest_depth, chest_depth, DROP_QUALITY_NORMAL,
-                    DROP_TYPE_CHEST, false, &active_profile);
+                    DROP_TYPE_CHEST, false, 1, &active_profile);
                 break;
             }
 
@@ -10772,7 +10769,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                         partition_drop_profile_for_mode(drop_mode_for_point(y, x));
                     place_object_with_profile_params(
                         y, x, base_depth, penalty_depth, DROP_QUALITY_NORMAL,
-                        DROP_TYPE_UNTHEMED, false, &active_profile);
+                        DROP_TYPE_UNTHEMED, false, 1, &active_profile);
                 }
                 break;
             }

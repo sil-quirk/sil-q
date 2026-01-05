@@ -846,7 +846,7 @@ static void wiz_statistics(object_type* o_ptr)
             /* Wipe the object */
             object_wipe(i_ptr);
 
-            drop_quality quality = drop_quality_from_flags(good, great);
+            drop_quality quality = drop_quality_from_flags(good, great, false);
 
             /* Create an object */
             make_object(i_ptr, quality, DROP_TYPE_UNTHEMED);

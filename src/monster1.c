@@ -328,6 +328,13 @@ static void describe_monster_drop(int r_idx, const monster_lore* l_ptr)
             sin = false;
         }
 
+        /* Superb (no "n" needed) */
+        else if (l_ptr->flags2 & RF2_DROP_SUPERB)
+        {
+            p = " superb";
+            sin = false;
+        }
+
         /* Great */
         else if (l_ptr->flags1 & RF1_DROP_GREAT)
         {

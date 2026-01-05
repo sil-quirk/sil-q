@@ -517,6 +517,30 @@ K:421:0x82/0x95
 # Broken Shield
 K:422:0x8B/0x9C
 
+# Chipped Dagger
+K:423:0x86/0x80
+
+# Bent Shortsword
+K:424:0x86/0x82
+
+# Splintered Spear
+K:425:0x86/0x89
+
+# Warped Shortbow
+K:426:0x85/0x9D
+
+# Torn Cloak
+K:427:0x85/0x82
+
+# Set~ of Cracked Gauntlets
+K:428:0x85/0x95
+
+# Pair~ of Dented Greaves
+K:429:0x85/0x8A
+
+# Dented Mail Corslet
+K:430:0x85/0x8F
+
 ##### Monster attr/char definitions #####
 
 # player (Feanorians)

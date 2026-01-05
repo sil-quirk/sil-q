@@ -713,7 +713,7 @@ D:'...the knife of the north, in Nogrod smithied.'
 N:53:'Thorn'
 Q:9e3a620a7a6e9e64
 I:23:4:2
-W:0:20:5:5000
+W:7:20:5:5000
 P:0:1d6:0:0d0
 F:THROWING
 F:BRAND_POIS | STEALTH | VAMPIRIC | HUNGER

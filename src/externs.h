@@ -1017,7 +1017,7 @@ typedef struct
 #endif
 extern void drop_profile_for_partition_kind(level_partition_kind kind,
     drop_profile* out);
-extern drop_quality drop_quality_from_flags(bool good, bool great);
+extern drop_quality drop_quality_from_flags(bool good, bool great, bool superb);
 extern void drop_profile_default(drop_profile* profile);
 extern bool object_uses_smithing_difficulty(const object_type* o_ptr);
 extern int object_smithing_difficulty(const object_type* o_ptr);
@@ -1037,6 +1037,12 @@ extern bool drop_generate_object_profiled_depths(int depth,
     int min_depth_penalty_depth, drop_quality quality, int droptype,
     int extra_bonus, bool allow_artefacts, const drop_profile* profile,
     object_type* out);
+extern bool drop_generate_object_profiled_depths_biased(int depth,
+    int min_depth_penalty_depth, drop_quality quality, int droptype,
+    int extra_bonus, bool allow_artefacts, int artefact_weight_multiplier,
+    const drop_profile* profile, object_type* out);
+extern void drop_set_chest_vault_type(int vault_type);
+extern void drop_set_chest_mode(int mode);
 
 /* thrall_quest.c */
 extern bool is_alert_thrall(monster_type* m_ptr);

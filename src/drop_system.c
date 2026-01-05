@@ -102,8 +102,10 @@ static int drop_quality_bonus(drop_quality quality)
     }
 }
 
-drop_quality drop_quality_from_flags(bool good, bool great)
+drop_quality drop_quality_from_flags(bool good, bool great, bool superb)
 {
+    if (superb)
+        return DROP_QUALITY_SUPERB;
     if (great)
         return DROP_QUALITY_GREAT;
     if (good)
@@ -1701,6 +1703,7 @@ typedef struct
     int lower;
     int upper;
     bool allow_artefacts; /* whether artefacts can be selected */
+    int artefact_weight_multiplier; /* group weight multiplier for artefacts */
     int cat_weights[DROP_CAT_MAX];
     int supply_weights[DROP_SUPPLY_GROUP_MAX];
 } drop_request;
@@ -1836,6 +1839,10 @@ static bool droptype_matches(const drop_request* req, const drop_entry* e)
 {
     switch (req->droptype)
     {
+    case DROP_TYPE_NOT_DAMAGED:
+        return (k_info[e->obj.k_idx].flags3 & TR3_DAMAGED) == 0;
+    case DROP_TYPE_DAMAGED:
+        return (k_info[e->obj.k_idx].flags3 & TR3_DAMAGED) != 0;
     case DROP_TYPE_EDGED:
         return e->obj.tval == TV_SWORD;
     case DROP_TYPE_POLEARM:
@@ -2062,7 +2069,8 @@ static bool build_groups(drop_entry* entries, size_t count, drop_group* groups,
     return (gcount > 0);
 }
 
-static drop_group* choose_group(drop_group* groups, int group_count, drop_entry* entries, int depth)
+static drop_group* choose_group(drop_group* groups, int group_count,
+    drop_entry* entries, int depth, const drop_request* req)
 {
     if (group_count <= 0)
         return NULL;
@@ -2075,6 +2083,11 @@ static drop_group* choose_group(drop_group* groups, int group_count, drop_entry*
         /* Use first entry in group to calculate depth-dependent weight */
         int entry_idx = groups[i].entry_indices[0];
         int w = group_rarity_at_depth(&entries[entry_idx], depth);
+        if (req && groups[i].kind == DROP_GROUP_ARTIFACT
+            && req->artefact_weight_multiplier > 1)
+        {
+            w *= req->artefact_weight_multiplier;
+        }
         weights[i] = w;
         total += w;
     }
@@ -2104,6 +2117,11 @@ static drop_group* choose_group(drop_group* groups, int group_count, drop_entry*
         {
             int entry_idx = groups[i].entry_indices[0];
             int weight = group_rarity_at_depth(&entries[entry_idx], depth);
+            if (req && groups[i].kind == DROP_GROUP_ARTIFACT
+                && req->artefact_weight_multiplier > 1)
+            {
+                weight *= req->artefact_weight_multiplier;
+            }
             gen_log_write("DROP_GROUP",
                 "idx=%d kind=%d group_id=%d weight=%d total=%d "
                 "entries=%d chosen=%s",
@@ -2381,42 +2399,80 @@ static bool try_apply_jinx(object_type* o_ptr, int depth)
 }
 
 /*
+ * Global chest generation context - set by callers (generate.c) before chest generation.
+ * Reset to defaults after each generation.
+ */
+static int g_chest_vault_type = 0;  /* 0=default/partition, 6=type6 vault, 7=type7, 8+=type8+ */
+static int g_chest_mode = 0;        /* 0=default 50/50, 1=labyrinth 70/30 small/large */
+
+/*
  * Generate a chest according to game design specifications:
- * - 50/50 chance small or large
- * - 50% wooden (good), 35% steel (great), 15% jewelled (superb)  
- * - Chest contents add +5 levels when opened (handled in chest_death())
+ * Material distribution controlled by g_chest_vault_type:
+ *   - Type 6 vaults: 100% wooden
+ *   - Type 7 vaults: 65% wooden, 35% steel
+ *   - Type 8+ vaults and default: 50% wooden, 35% steel, 15% jewelled
+ * Size distribution controlled by g_chest_mode:
+ *   - Mode 0 (default): 50/50 small or large
+ *   - Mode 1 (labyrinth): 70% small, 30% large
+ * Chest contents add +5 levels when opened (handled in chest_death())
  */
 static bool generate_chest(int depth, const drop_profile* profile, object_type* out)
 {
-    /* 50/50 chance for small vs large */
-    bool is_large = one_in_(2);
+    /* Size distribution based on mode */
+    bool is_large;
+    if (g_chest_mode == 1)  /* Labyrinth: 70% small, 30% large */
+        is_large = (rand_int(100) < 30);
+    else  /* Default: 50/50 */
+        is_large = one_in_(2);
+    
     const int small_svals[] = {
         SV_CHEST_SMALL_WOODEN, SV_CHEST_SMALL_STEEL, SV_CHEST_SMALL_JEWELLED};
     const int large_svals[] = {
         SV_CHEST_LARGE_WOODEN, SV_CHEST_LARGE_STEEL, SV_CHEST_LARGE_JEWELLED};
     
-    /* Determine material: 50% wood, 35% steel, 15% jewelled */
+    /* Determine material based on vault type context */
     int material_roll = rand_int(100);  /* 0-99 */
     int material_index;
     drop_quality material_quality;
     
-    if (material_roll < 50)
+    if (g_chest_vault_type == 6)  /* Type 6 vault: wooden only */
     {
-        /* Wooden chest: 0-49 = 50% */
         material_index = 0;
         material_quality = DROP_QUALITY_GOOD;
     }
-    else if (material_roll < 85)
+    else if (g_chest_vault_type == 7)  /* Type 7 vault: 65% wooden, 35% steel */
     {
-        /* Steel chest: 50-84 = 35% */
-        material_index = 1;
-        material_quality = DROP_QUALITY_GREAT;
+        if (material_roll < 65)
+        {
+            material_index = 0;
+            material_quality = DROP_QUALITY_GOOD;
+        }
+        else
+        {
+            material_index = 1;
+            material_quality = DROP_QUALITY_GREAT;
+        }
     }
-    else
+    else  /* Type 8+ vaults and default partitions: 50% wooden, 35% steel, 15% jewelled */
     {
-        /* Jewelled chest: 85-99 = 15% */
-        material_index = 2;
-        material_quality = DROP_QUALITY_SUPERB;
+        if (material_roll < 50)
+        {
+            /* Wooden chest: 0-49 = 50% */
+            material_index = 0;
+            material_quality = DROP_QUALITY_GOOD;
+        }
+        else if (material_roll < 85)
+        {
+            /* Steel chest: 50-84 = 35% */
+            material_index = 1;
+            material_quality = DROP_QUALITY_GREAT;
+        }
+        else
+        {
+            /* Jewelled chest: 85-99 = 15% */
+            material_index = 2;
+            material_quality = DROP_QUALITY_SUPERB;
+        }
     }
     
     int chest_sval = is_large ? large_svals[material_index]
@@ -2449,14 +2505,36 @@ static bool generate_chest(int depth, const drop_profile* profile, object_type* 
     if (gen_log_initialized)
     {
         gen_log_write("CHEST_GENERATED",
-            "depth=%d size=%s material=%s quality=%s difficulty_bonus=%d chest_level=%d sval=%d",
-            depth, is_large ? "large" : "small",
+            "depth=%d vault_type=%d mode=%d size=%s material=%s quality=%s difficulty_bonus=%d chest_level=%d sval=%d",
+            depth, g_chest_vault_type, g_chest_mode, is_large ? "large" : "small",
             material_index == 0 ? "wooden" : (material_index == 1 ? "steel" : "jewelled"),
             drop_quality_name(material_quality), difficulty_bonus, out->pval,
             chest_sval);
     }
     
+    /* Reset context to defaults after generation */
+    g_chest_vault_type = 0;
+    g_chest_mode = 0;
+    
     return true;
+}
+
+/*
+ * Set chest generation context for vault-specific material distributions.
+ * vault_type: 0=default/partition, 6=type6 (wooden only), 7=type7 (65/35), 8+=type8+ (50/35/15)
+ */
+void drop_set_chest_vault_type(int vault_type)
+{
+    g_chest_vault_type = vault_type;
+}
+
+/*
+ * Set chest generation context for mode-specific size distributions.
+ * mode: 0=default 50/50, 1=labyrinth 70/30 small/large
+ */
+void drop_set_chest_mode(int mode)
+{
+    g_chest_mode = mode;
 }
 
 bool drop_generate_object(int depth, drop_quality quality, int droptype,
@@ -2497,7 +2575,7 @@ static drop_entry* drop_try_pick(drop_request* req, int legal_depth,
             int group_count = group_cap;
             if (build_groups(*candidates, *cand_count, groups, &group_count))
             {
-                drop_group* grp = choose_group(groups, group_count, *candidates, legal_depth);
+                drop_group* grp = choose_group(groups, group_count, *candidates, legal_depth, req);
                 chosen = choose_entry_from_group(*candidates, grp);
             }
             mem_free_null(groups);
@@ -2510,7 +2588,7 @@ static drop_entry* drop_try_pick(drop_request* req, int legal_depth,
 
 static bool drop_generate_object_internal(int depth, drop_quality quality,
     int min_depth_penalty_depth, int droptype, int extra_bonus, bool allow_artefacts,
-    const drop_profile* profile, object_type* out)
+    int artefact_weight_multiplier, const drop_profile* profile, object_type* out)
 {
     if (min_depth_penalty_depth < 1)
         min_depth_penalty_depth = 1;
@@ -2540,13 +2618,20 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     req.is_supply = false;
     req.droptype = droptype;
     req.allow_artefacts = allow_artefacts;
+    req.artefact_weight_multiplier
+        = (allow_artefacts && artefact_weight_multiplier > 1)
+        ? artefact_weight_multiplier
+        : 1;
+    if (req.artefact_weight_multiplier > 100)
+        req.artefact_weight_multiplier = 100;
     /* New difficulty formula: 1.25*Depth - 19 + min(1d(25+3D/4),1d(25+3D/4)) */
-    int sides = 25 + (3 * depth) / 4;
+    /* Use legal_depth (actual dungeon depth) for difficulty, NOT chest bonus depth */
+    int sides = 25 + (3 * legal_depth) / 4;
     if (sides < 1) sides = 1;
     int roll1 = dieroll(sides);
     int roll2 = dieroll(sides);
     int min_roll = MIN(roll1, roll2);
-    int base_calc = (int)(1.25 * depth) - 19 + min_roll;
+    int base_calc = (int)(1.25 * legal_depth) - 19 + min_roll;
     req.base_roll = base_calc + req.difficulty_bonus;
     req.lower = req.base_roll - 2;
     req.upper = req.base_roll + 2;
@@ -2555,9 +2640,9 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     if (gen_log_initialized)
     {
         gen_log_write("DROP_TARGET",
-            "depth=%d quality=%s bonus=%d sides=%d roll1=%d roll2=%d min=%d "
+            "depth=%d legal_depth=%d min_penalty_depth=%d quality=%s bonus=%d sides=%d roll1=%d roll2=%d min=%d "
             "base_calc=%d target=%d band=%d..%d",
-            depth, drop_quality_name(quality),
+            depth, legal_depth, min_depth_penalty_depth, drop_quality_name(quality),
             req.difficulty_bonus, sides, roll1, roll2, min_roll,
             base_calc, req.base_roll, req.lower, req.upper);
     }
@@ -2591,6 +2676,11 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     case DROP_TYPE_TORCHES:
         req.cat = DROP_CAT_SUPPLY;
         req.is_supply = true;
+        break;
+    case DROP_TYPE_DAMAGED:
+        /* Damaged items can be weapons or armor; never roll supply for this request. */
+        req.cat = DROP_CAT_ARMOR;
+        req.cat_mask = (1U << DROP_CAT_WEAPON) | (1U << DROP_CAT_ARMOR);
         break;
     default:
         req.cat = roll_category(&req);
@@ -2657,6 +2747,8 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     case DROP_TYPE_POTION:
     case DROP_TYPE_STAFF:
     case DROP_TYPE_TORCHES:
+    case DROP_TYPE_NOT_DAMAGED:
+    case DROP_TYPE_DAMAGED:
         partition_driven_cat = false;
         break;
     default:
@@ -2761,7 +2853,7 @@ bool drop_generate_object_with_bonus(int depth, drop_quality quality,
     int droptype, int extra_bonus, bool allow_artefacts, object_type* out)
 {
     return drop_generate_object_internal(
-        depth, quality, depth, droptype, extra_bonus, allow_artefacts, NULL, out);
+        depth, quality, depth, droptype, extra_bonus, allow_artefacts, 1, NULL, out);
 }
 
 bool drop_generate_object_profiled(int depth, drop_quality quality,
@@ -2769,7 +2861,7 @@ bool drop_generate_object_profiled(int depth, drop_quality quality,
     const drop_profile* profile, object_type* out)
 {
     return drop_generate_object_internal(
-        depth, quality, depth, droptype, extra_bonus, allow_artefacts, profile, out);
+        depth, quality, depth, droptype, extra_bonus, allow_artefacts, 1, profile, out);
 }
 
 bool drop_generate_object_with_bonus_depths(int depth, int min_depth_penalty_depth,
@@ -2777,7 +2869,7 @@ bool drop_generate_object_with_bonus_depths(int depth, int min_depth_penalty_dep
     object_type* out)
 {
     return drop_generate_object_internal(depth, quality, min_depth_penalty_depth,
-        droptype, extra_bonus, allow_artefacts, NULL, out);
+        droptype, extra_bonus, allow_artefacts, 1, NULL, out);
 }
 
 bool drop_generate_object_profiled_depths(int depth, int min_depth_penalty_depth,
@@ -2785,5 +2877,15 @@ bool drop_generate_object_profiled_depths(int depth, int min_depth_penalty_depth
     const drop_profile* profile, object_type* out)
 {
     return drop_generate_object_internal(depth, quality, min_depth_penalty_depth,
-        droptype, extra_bonus, allow_artefacts, profile, out);
+        droptype, extra_bonus, allow_artefacts, 1, profile, out);
+}
+
+bool drop_generate_object_profiled_depths_biased(int depth,
+    int min_depth_penalty_depth, drop_quality quality, int droptype, int extra_bonus,
+    bool allow_artefacts, int artefact_weight_multiplier,
+    const drop_profile* profile, object_type* out)
+{
+    return drop_generate_object_internal(depth, quality, min_depth_penalty_depth,
+        droptype, extra_bonus, allow_artefacts, artefact_weight_multiplier, profile,
+        out);
 }

@@ -1187,13 +1187,15 @@ void lore_treasure(int m_idx, int num_item)
     if (num_item > l_ptr->drop_item)
         l_ptr->drop_item = num_item;
 
-    /* Hack -- memorize the good/great flags */
+    /* Hack -- memorize the chest/good/great/superb flags */
     if (r_ptr->flags1 & (RF1_DROP_CHEST))
         l_ptr->flags1 |= (RF1_DROP_CHEST);
     if (r_ptr->flags1 & (RF1_DROP_GOOD))
         l_ptr->flags1 |= (RF1_DROP_GOOD);
     if (r_ptr->flags1 & (RF1_DROP_GREAT))
         l_ptr->flags1 |= (RF1_DROP_GREAT);
+    if (r_ptr->flags2 & (RF2_DROP_SUPERB))
+        l_ptr->flags2 |= (RF2_DROP_SUPERB);
 
     /* Update monster recall window */
     if (p_ptr->monster_race_idx == m_ptr->r_idx)
