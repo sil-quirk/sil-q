@@ -1,5 +1,11 @@
 # Session notes
 
+## 2026-01-05: Thrall quest dialog reasons + elf/human weighting
+- Thrall quest request/pre-give dialogs now include **item-specific reasons** (why the thrall needs the requested item) for all quest items.
+- Refreshed thrall quest text to be less generic and more Tolkienistic across requests, rewards (restoration/knowledge), and repeat/decline responses.
+- Rebalanced quest item selection weights so **human thralls** more often ask for tools/food/light, while **elven thralls** more often ask for mallorn light, stealth gear, and mind/strength aid.
+- Build: `build-cmake.bat` succeeds.
+
 ## 2026-01-03: Thrall mini-quests + artifact lore reveal fixes
 - Thrall pits: `z` token now spawns alert thralls (quest givers) at **5%** (was 50%); dejected thralls remain 95%.
 - Thrall quest completion now accepts items from both pack and **supplies cache** (herbs/potions), and consumes stacks via `inven_item_increase()`/`supplies_consume_quantity()`.

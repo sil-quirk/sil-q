@@ -16,29 +16,34 @@
  */
 static const int human_thrall_weights[THRALL_QUEST_MAX] = {
     0,   /* NONE - not used */
-    30,  /* SHOVEL - humans need to dig */
-    25,  /* LANTERN - humans want better light */
-    20,  /* HERB_HEALING - basic healing */
-    10,  /* MALLORN - less common request */
-    15,  /* POTION_HEALING - more valuable healing */
-    25   /* DAGGER - humans need basic weapons */
+    32,  /* SHOVEL - tools to pry/delve */
+    26,  /* LANTERN - light against the dark */
+    18,  /* HERB_HEALING - common healing */
+    6,   /* MALLORN - rarer, but prized */
+    10,  /* POTION_HEALING - valuable healing */
+    24,  /* DAGGER - last defence, cut bonds */
+    18,  /* CLOAK - warmth and concealment */
+    22,  /* BOOTS - escape over stone */
+    30,  /* HERB_SUSTENANCE - hunger is a chain */
+    12,  /* HERB_RESTORATION - recover strength */
+    16   /* POTION_CLARITY - endure fear and glamour */
 };
 
 static const int elf_thrall_weights[THRALL_QUEST_MAX] = {
     0,   /* NONE - not used */
-    15,  /* SHOVEL - elves less interested */
-    20,  /* LANTERN - practical light */
-    25,  /* HERB_HEALING - elves like herbs */
-    25,  /* MALLORN - elves love mallorn wood */
-    15,  /* POTION_HEALING - healing is valued */
-    20   /* DAGGER - elves appreciate fine blades */
+    8,   /* SHOVEL - seldom asked of the Eldar */
+    18,  /* LANTERN - practical light */
+    26,  /* HERB_HEALING - lore of herbs */
+    32,  /* MALLORN - light of fair make */
+    10,  /* POTION_HEALING - costly draughts */
+    18,  /* DAGGER - keen blade, cut bonds */
+    26,  /* CLOAK - to move unseen */
+    24,  /* BOOTS - to tread in silence */
+    6,   /* HERB_SUSTENANCE - still needed in torment */
+    18,  /* HERB_RESTORATION - recover spirit/strength */
+    14   /* POTION_CLARITY - lift veils from the mind */
 };
 
-/*
- * Probability of each reward type
- * 60% chance to upgrade a broken item (if player has one)
- * 40% chance to reveal artifact knowledge
- */
 /*
  * Probability of each reward type
  * 60% chance to upgrade a broken item (if player has one)
@@ -50,28 +55,38 @@ static const int elf_thrall_weights[THRALL_QUEST_MAX] = {
  * Tolkienistic texts for thrall interactions
  */
 static const char* human_request_text = 
-    "The shadows here are deep, and hope is a rare guest in these halls. Yet, I see a glimmer of light in your eyes, stranger.\n"
+    "The shadows here are deep, and hope is a rare guest in these halls. Yet I see a glimmer of light in your eyes, stranger.\n"
     "\n"
-    "I am bound to this darkness, but perhaps you are not. If you possess a heart that still knows pity, I beg a small boon of you.\n"
+    "I am bound to this darkness, but perhaps you are not. If your heart still knows pity, I beg a small boon of you.\n"
     "\n"
-    "I have need of %s. It is a small thing to one such as you, but to me, it would be a treasure beyond price.\n"
+    "Bring me %s.\n"
     "\n"
-    "Grant me this, and I shall share what little aid I can offer.";
+    "%s\n"
+    "\n"
+    "Grant me this, and I shall share what little aid I can still offer.";
 
 static const char* elf_request_text = 
-    "Ai! A star in the darkness! Do my eyes deceive me, or do I see one of the Free Peoples walking these accursed paths?\n"
+    "Ai! A star in the darkness! Do my eyes deceive me, or do I look upon one of the Free Peoples walking these accursed paths?\n"
     "\n"
-    "I am weary, kinsman, weary beyond the counting of years. The shadow lies heavy upon my fea.\n"
+    "I am weary, kinsman, weary beyond the counting of years. The Shadow lies heavy upon my fëa.\n"
     "\n"
-    "Yet, if you would show mercy to one who has lost all, bring me %s. In return, I shall speak to you of ancient works and secrets long forgotten by the world above.";
+    "Yet, if you would show mercy to one who has lost all, bring me %s.\n"
+    "\n"
+    "%s\n"
+    "\n"
+    "In return, I shall speak to you of ancient works and secrets long forgotten by the world above.";
 
 static const char* human_pre_give_text = 
     "You return... and I see you bear the burden I spoke of. Can it be true? Have you brought %s to this wretched place?\n"
+    "\n"
+    "%s\n"
     "\n"
     "If you would part with it, my gratitude would be boundless.";
 
 static const char* elf_pre_give_text = 
     "You have returned, and the light of the stars seems to follow you. And... yes, I sense you carry %s.\n"
+    "\n"
+    "%s\n"
     "\n"
     "Is it for me? Will you grant this kindness to a fading spirit?";
 
@@ -80,26 +95,93 @@ static const char* human_thanks_text =
     "\n"
     "My thanks, stranger. You have done a kinder deed than you know. May your courage not fail you in the trials to come.\n"
     "\n"
-    "Take this, and may it serve you better than it served me.";
+    "In payment, such as I can make, I will give you what craft or lore I have not forgotten.";
 
 static const char* elf_thanks_text = 
     "Elen sila lumenn' omentielvo! You have my deepest thanks.\n"
     "\n"
     "Long have I lacked such kindness in this forsaken place. May the stars shine upon your road, and may your hand be swift and your heart steadfast.\n"
     "\n"
-    "Listen now, and I shall share with you the lore of old.";
+    "In return I will share with you what lore and craft remain to me, dim though my memory has become in these pits.";
+
+static cptr get_thrall_quest_reason(monster_type* m_ptr, byte quest_item)
+{
+    bool is_elf = (m_ptr && (m_ptr->r_idx == R_IDX_ALERT_ELF_THRALL));
+
+    switch (quest_item)
+    {
+        case THRALL_QUEST_SHOVEL:
+            return is_elf
+                ? "With it I could scrape away the slag and filth about my chain-bolt, and perhaps find some hidden weakness in the stone."
+                : "With it I might loosen the stones about my fetter, and dig a little hollow wherein to hide myself when the guards are hunting.";
+
+        case THRALL_QUEST_LANTERN:
+            return is_elf
+                ? "With it I may read the ways of these tunnels and avoid the pits and runes that the Orcs forget, for the dark here is a snare."
+                : "With it I could steal through the blackness when the fires are quenched, and not stumble into chasms or the lash of the watch.";
+
+        case THRALL_QUEST_HERB_HEALING:
+            return is_elf
+                ? "With it the smarting of wounds may be eased, that my hands do not tremble and my thoughts do not wander into madness."
+                : "With it I could bind up the sores of the whip and the iron, and drive away the fever that has been set upon me.";
+
+        case THRALL_QUEST_MALLORN:
+            return is_elf
+                ? "With it I would set a clean light against the Shadow; the wood of mallorn remembers the West, and darkness draws back from such flame."
+                : "With it I would keep a true flame beside me, for the strange glamour of this place hates a light that is not of their making.";
+
+        case THRALL_QUEST_POTION_HEALING:
+            return is_elf
+                ? "With it a hurt that has gone black with poison may yet be cleansed, and my strength saved from a slow fading."
+                : "With it a wound that will not close may be stayed, and I might live to see another hour unchained of pain.";
+
+        case THRALL_QUEST_DAGGER:
+            return is_elf
+                ? "With it I would not strike at the innocent, but keep a last defence, and a blade to cut cord or chain when a slender hope arises."
+                : "With it I could sever rope or leather, and if the worst befall, keep one sharp edge between myself and the tormentors.";
+
+        case THRALL_QUEST_CLOAK:
+            return is_elf
+                ? "With it I might move as once I moved beneath leaves and stars, unseen of captains and their hounds, and so slip from bondage for a time."
+                : "With it I could hide from the eye and the cold, for these deep ways gnaw at bone and the overseers see all who stand bare.";
+
+        case THRALL_QUEST_BOOTS:
+            return is_elf
+                ? "With them I may tread in silence again, and not wake the watchers when I must pass between shadowed doors."
+                : "With them my feet would not bleed upon the stone, and if a door is left unbarred I could run before the cry is raised.";
+
+        case THRALL_QUEST_HERB_SUSTENANCE:
+            return is_elf
+                ? "With it I can endure the long watches when no crust is thrown to us, for even the Eldar are not beyond hunger in these pits."
+                : "With it I could master hunger for a while, and not be driven to folly when they starve us to obedience.";
+
+        case THRALL_QUEST_HERB_RESTORATION:
+            return is_elf
+                ? "With it the strength that has been drained by torment may be rekindled, and I may remember myself for a little while."
+                : "With it I might recover what the Dark has stolen from my limbs, and stand straighter beneath their burden.";
+
+        case THRALL_QUEST_POTION_CLARITY:
+            return is_elf
+                ? "With it the veils upon my mind may be lifted, and the dreams they weave may be scattered like mist before the morning."
+                : "With it I could cast out the madness of fear and whispering shadows, and think clearly when the hour of choice comes.";
+
+        default:
+            return "With it I might yet endure a little longer, and do some small good before all light is quenched.";
+    }
+}
 
 static void show_thrall_dialog(monster_type* m_ptr, const char* fmt_text)
 {
-    char text_buf[1024];
+    char text_buf[2048];
     cptr texts[1];
     cptr title;
     byte title_color;
     
     cptr item_name = get_thrall_quest_item_name(m_ptr->thrall_quest_item);
+    cptr reason = get_thrall_quest_reason(m_ptr, m_ptr->thrall_quest_item);
     
     /* Format the text with item name */
-    strnfmt(text_buf, sizeof(text_buf), fmt_text, item_name);
+    strnfmt(text_buf, sizeof(text_buf), fmt_text, item_name, reason);
     
     texts[0] = text_buf;
     
@@ -197,13 +279,18 @@ cptr get_thrall_quest_item_name(byte quest_item)
 {
     switch (quest_item)
     {
-        case THRALL_QUEST_SHOVEL:         return "a shovel";
-        case THRALL_QUEST_LANTERN:        return "a brass lantern";
-        case THRALL_QUEST_HERB_HEALING:   return "an identified herb of healing";
-        case THRALL_QUEST_MALLORN:        return "a mallorn torch";
-        case THRALL_QUEST_POTION_HEALING: return "a potion of healing";
-        case THRALL_QUEST_DAGGER:         return "a dagger";
-        default:                          return "something";
+        case THRALL_QUEST_SHOVEL:            return "a shovel";
+        case THRALL_QUEST_LANTERN:           return "a brass lantern";
+        case THRALL_QUEST_HERB_HEALING:      return "an identified herb of healing";
+        case THRALL_QUEST_MALLORN:           return "a mallorn torch";
+        case THRALL_QUEST_POTION_HEALING:    return "a potion of healing";
+        case THRALL_QUEST_DAGGER:            return "a dagger";
+        case THRALL_QUEST_CLOAK:             return "a cloak";
+        case THRALL_QUEST_BOOTS:             return "a pair of boots";
+        case THRALL_QUEST_HERB_SUSTENANCE:   return "an identified herb of sustenance";
+        case THRALL_QUEST_HERB_RESTORATION:  return "an identified herb of restoration";
+        case THRALL_QUEST_POTION_CLARITY:    return "a potion of clarity";
+        default:                             return "something";
     }
 }
 
@@ -234,6 +321,25 @@ static bool item_matches_quest(object_type* o_ptr, byte quest_item)
             
         case THRALL_QUEST_DAGGER:
             return (o_ptr->tval == TV_SWORD && o_ptr->sval == SV_DAGGER);
+
+        case THRALL_QUEST_CLOAK:
+            return (o_ptr->tval == TV_CLOAK && o_ptr->sval == SV_CLOAK);
+
+        case THRALL_QUEST_BOOTS:
+            return (o_ptr->tval == TV_BOOTS && o_ptr->sval == SV_PAIR_OF_LEATHER_BOOTS);
+
+        case THRALL_QUEST_HERB_SUSTENANCE:
+            return (o_ptr->tval == TV_FOOD && 
+                    o_ptr->sval == SV_FOOD_SUSTENANCE &&
+                    object_aware_p(o_ptr));
+
+        case THRALL_QUEST_HERB_RESTORATION:
+            return (o_ptr->tval == TV_FOOD && 
+                    o_ptr->sval == SV_FOOD_RESTORATION &&
+                    object_aware_p(o_ptr));
+
+        case THRALL_QUEST_POTION_CLARITY:
+            return (o_ptr->tval == TV_POTION && o_ptr->sval == SV_POTION_CLARITY);
             
         default:
             return false;
@@ -494,9 +600,9 @@ bool upgrade_broken_item(int slot)
     /* Message */
     char dialog_text[1024];
     strnfmt(dialog_text, sizeof(dialog_text),
-        "The thrall takes your %s and works upon it with surprising skill, murmuring words of power.\n\n"
-        "A light shines from the object...\n\n"
-        "It transforms into %s!", old_name, new_name);
+        "The thrall takes your %s in scarred hands, and his fingers move with an old, half-forgotten surety.\n\n"
+        "He murmurs words under his breath, and a pale light kindles along the metal...\n\n"
+        "It is remade as %s!", old_name, new_name);
         
     cptr texts[1] = { dialog_text };
     quest_typewriter_menu("Restoration", texts, 1, TERM_YELLOW, TERM_WHITE);
@@ -553,7 +659,7 @@ bool reveal_random_artifact(void)
     /* No unknown artifacts */
     if (count == 0)
     {
-        msg_print("The thrall has nothing more to tell you of artefacts.");
+        msg_print("The thrall lowers his eyes. \"All the tales I remember are spent; in these pits, even memory is made a slave.\"");
         return false;
     }
     
@@ -645,8 +751,8 @@ bool reveal_random_artifact(void)
         }
     }
     
-    strnfmt(dialog_text, sizeof(dialog_text), 
-        "The thrall whispers ancient knowledge to you...\n\n"
+    strnfmt(dialog_text, sizeof(dialog_text),
+        "The thrall leans close and speaks in a voice scarcely more than breath.\n\n"
         "You learn of %s!\n\n"
         "%s", o_name, quote_text);
         
@@ -727,8 +833,8 @@ void complete_thrall_quest(monster_type* m_ptr, int item_slot)
     {
         char dialog_text[1024];
         strnfmt(dialog_text, sizeof(dialog_text), 
-            "%^s examines your gear with a knowing eye.\n\n"
-            "\"I see broken steel that remembers its former glory. Shall I attempt to restore it?\"", m_name);
+            "%^s regards your gear with a craftsman's gaze.\n\n"
+            "\"I have seen steel marred in the deeps and mended again. Will you suffer me to set my hands to it?\"", m_name);
         cptr texts[1] = { dialog_text };
         quest_typewriter_menu("Offer of Restoration", texts, 1, TERM_YELLOW, TERM_WHITE);
 
@@ -778,7 +884,7 @@ bool handle_thrall_interaction(monster_type* m_ptr)
     /* Quest already completed */
     if (m_ptr->thrall_quest_completed)
     {
-        msg_format("%^s looks upon you with gratitude.", m_name);
+        msg_format("%^s inclines the head, and though no words are spoken, gratitude is plain in hollow eyes.", m_name);
         return true;
     }
     
@@ -806,7 +912,7 @@ bool handle_thrall_interaction(monster_type* m_ptr)
         }
         else
         {
-            msg_format("%^s looks disappointed.", m_name);
+            msg_format("%^s sinks back into the shadows, and the light in those eyes grows dim.", m_name);
         }
     }
     else

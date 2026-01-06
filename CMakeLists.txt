@@ -1,5 +1,10 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.18)
 project(sil-more C)
+
+# Project language standard
+set(CMAKE_C_STANDARD 17)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS OFF)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -96,7 +101,10 @@ target_include_directories(log PUBLIC src/log)
 
 # add_executable(sil-more ${SIL_MORE_SOURCES})
 
-target_compile_options(sil-more PUBLIC -Wall -Wextra -std=c11)
+target_compile_options(sil-more PRIVATE
+  $<$<C_COMPILER_ID:GNU,Clang,AppleClang>:-Wall -Wextra>
+  $<$<C_COMPILER_ID:MSVC>:/W4>
+)
 target_include_directories(sil-more PRIVATE src)
 if(MINGW)
   target_link_options(sil-more PRIVATE -mwindows)
