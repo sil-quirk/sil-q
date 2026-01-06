@@ -60,7 +60,7 @@
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 9
 #define VERSION_PATCH 1
-#define VERSION_EXTRA 11   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
+#define VERSION_EXTRA 12   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
 /* Update MIN_VERSION_EXTRA whenever the savefile format changes. */
 #define MIN_VERSION_EXTRA 0  /* Accept earlier 0.9.1.x saves */
 
@@ -2079,7 +2079,7 @@
 #define RHF_TREACHERY 0x00400000L
 #define RHF_FREE 0x00800000L
 #define RHF_MOR_CURSE 0x01000000L
-#define RHF_RHFXXX26 0x02000000L
+#define RHF_KHELED_ZARAM 0x02000000L
 #define RHF_RHFXXX27 0x04000000L
 #define RHF_RHFXXX28 0x08000000L
 #define RHF_RHFXXX29 0x10000000L

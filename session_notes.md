@@ -1,5 +1,13 @@
 # Session notes
 
+## 2026-01-06: Fixed thrall quest dialog flow + save compatibility
+- Fixed thrall quest interaction: now always shows the initial request dialog on first encounter, even if player already has the requested item.
+- Added `thrall_quest_requested` flag to track whether the first dialog has been shown.
+- Logic: first bump shows request dialog -> subsequent bumps with item show pre-give dialog -> without item repeats request.
+- Fixed save compatibility: bumped `VERSION_EXTRA` to 12 and added proper version checking (`savefile_has_thrall_quest_requested`) so old saves (0.9.1.11) load correctly without the new field.
+- Files: `src/types.h`, `src/thrall_quest.c`, `src/save.c`, `src/load.c`, `src/defines.h`.
+- Build: `build-cmake.bat` succeeds.
+
 ## 2026-01-05: Thrall quest dialog reasons + elf/human weighting
 - Thrall quest request/pre-give dialogs now include **item-specific reasons** (why the thrall needs the requested item) for all quest items.
 - Refreshed thrall quest text to be less generic and more Tolkienistic across requests, rewards (restoration/knowledge), and repeat/decline responses.

@@ -57,7 +57,8 @@ flag_name info_flags_desc[] = {
 { "You get more complex curses", RHF, RHF_CURSE }, 
 { "Can steal a Silmaril in the end", RHF, RHF_TREACHERY },
 { "Decreased ability price", RHF, RHF_FREE }, 
-{ "Encounter more dangerous creatures", RHF, RHF_MOR_CURSE }
+{ "Encounter more dangerous creatures", RHF, RHF_MOR_CURSE },
+{ "Kheled-zaram gives +30 bonus to identification", RHF, RHF_KHELED_ZARAM }
 };
 
 const size_t info_flags_desc_n = sizeof(info_flags_desc) / sizeof(info_flags_desc[0]);

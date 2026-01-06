@@ -642,6 +642,7 @@ static void wr_monster(const monster_type* m_ptr)
 
     /* Thrall quest data */
     wr_byte(m_ptr->thrall_quest_item);
+    wr_byte(m_ptr->thrall_quest_requested);
     wr_byte(m_ptr->thrall_quest_completed);
 }
 

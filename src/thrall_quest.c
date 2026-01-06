@@ -888,6 +888,14 @@ bool handle_thrall_interaction(monster_type* m_ptr)
         return true;
     }
     
+    /* If this is the first time showing the request, always show the initial request dialog */
+    if (!m_ptr->thrall_quest_requested)
+    {
+        thrall_request_dialog(m_ptr);
+        m_ptr->thrall_quest_requested = 1;
+        return true;
+    }
+    
     /* Check if player has the item */
     item_slot = player_has_thrall_quest_item(m_ptr->thrall_quest_item);
     
@@ -917,7 +925,7 @@ bool handle_thrall_interaction(monster_type* m_ptr)
     }
     else
     {
-        /* Player doesn't have the item - make the request */
+        /* Player doesn't have the item - repeat the request */
         thrall_request_dialog(m_ptr);
     }
     

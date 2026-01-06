@@ -91,6 +91,7 @@ static bool savefile_has_partition_meta_types = false;
 static bool savefile_has_cave_info_hi = false;
 static bool savefile_has_hint_messages = false;
 static bool savefile_has_thrall_quest = false;
+static bool savefile_has_thrall_quest_requested = false;
 
 /* Version comparison helpers: update these when bumping savefile semantics. */
 static int savefile_version_compare(byte major, byte minor, byte patch, byte extra)
@@ -752,11 +753,20 @@ static void rd_monster(monster_type* m_ptr)
     if (savefile_has_thrall_quest)
     {
         rd_byte(&m_ptr->thrall_quest_item);
+        if (savefile_has_thrall_quest_requested)
+        {
+            rd_byte(&m_ptr->thrall_quest_requested);
+        }
+        else
+        {
+            m_ptr->thrall_quest_requested = 0;
+        }
         rd_byte(&m_ptr->thrall_quest_completed);
     }
     else
     {
         m_ptr->thrall_quest_item = THRALL_QUEST_NONE;
+        m_ptr->thrall_quest_requested = 0;
         m_ptr->thrall_quest_completed = 0;
     }
 }
@@ -2706,6 +2716,7 @@ static errr rd_savefile_new_aux(void)
     savefile_has_cave_info_hi = savefile_version_at_least(0, 9, 1, 8);
     savefile_has_hint_messages = savefile_version_at_least(0, 9, 1, 10);
     savefile_has_thrall_quest = savefile_version_at_least(0, 9, 1, 11);
+    savefile_has_thrall_quest_requested = savefile_version_at_least(0, 9, 1, 12);
 
     /* Reset load byte offset counter */
     load_byte_offset = 0;

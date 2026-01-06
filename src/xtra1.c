@@ -4139,6 +4139,8 @@ static int player_smithing_identify_skill(const object_type* o_ptr,
     skill += bonus_artifice;
     skill += bonus_curse_breaking;
     skill += bonus_quick_study;
+    if (current_character_profile && (current_character_profile->flags & RHF_KHELED_ZARAM))
+        skill += 30;
 
     /* Category bonuses */
     skill += category_bonus;

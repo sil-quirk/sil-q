@@ -16097,7 +16097,6 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 
     mem_free_null(entries);
     screen_load();
-    Term_erase(0, 23, 255);
 
     if (refresh_after_close)
     {

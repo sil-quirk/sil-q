@@ -619,3 +619,14 @@ S:0:1:1:1
 C:3:3  # Exchange places
 P:1
 D:Cautious son of Finarfin, reluctant king of Nargothrond's hidden caverns, whose prudence guarded realms against shadow yet faltered before doom. Heart bound by wisdom and sorrow, guiding kin through peril unseen, foreshadowing tragic fall amid dragon's flame and mortal hero's curse. His legacy whispers of quiet strength yielding to fate's inexorable tide, remembered in lament as guardian fallen, halls crumbling beneath weight of prophecy; Orodreth, wi se lord whose caution could not avert sorrowful end.
+
+# Durin—Father of Dwarves; smith/will/perception, identification bonus.
+N:50:Durin
+Q:9597e1744dda4bbd
+A:, the Deathless
+B:You wake alone—Father of Dwarves, first to wake, builder of Khazad-dûm.
+F:SMT_AFFINITY | PER_AFFINITY | WIL_AFFINITY | MEL_AFFINITY | GIFTERU | KHELED_ZARAM | SNG_PENALTY | STL_PENALTY
+S:3:1:3:1
+C:0:7:6:2:6:4:6:5 # Impale Jeweller Expertise Artifice
+P:3
+D:The Eldest of the Seven Fathers of the Dwarves, who woke first under Mount Gundabad before the rising of the Sun and Moon. He wandered long until he found the Mirrormere, Kheled-zaram, and saw a crown of stars reflected in its depths. There he founded Khazad-dûm, the greatest of dwarven mansions. Known as the Deathless, for he lived long and his line endured, reincarnating his spirit in his descendants. Bearer of the Kheled-zaram's vision, his eyes see deep into the roots of the world and the secrets of craft.
