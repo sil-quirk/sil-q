@@ -88,31 +88,31 @@ M:ORC:GREAT_VAULT:100:Great gate {DIST} {DIR}. Need magic or numbers.
 M:ORC:GREAT_VAULT:100:Heard clink of gold {DIST} {DIR}. Wall not break.
 M:ORC:GREAT_VAULT:100:Don't touch black door {DIST} {DIR}. It hurts.
 
-# --- Artefact in Vault ---
+# --- Hoard Treasure (Beasts Hoarding Wealth) ---
 
 # Elf
-M:ELF:VAULT_ARTIFACT:100:A light like star-glass glimmered behind the sealed gate {DIST} {DIR}; something of the Elder Days lies there.
-M:ELF:VAULT_ARTIFACT:100:In the warded chamber {DIST} {DIR} I glimpsed a blade that drank the torchlight.
-M:ELF:VAULT_ARTIFACT:100:There is a treasure not of gold behind the runes {DIST} {DIR}--my heart knew it.
-M:ELF:VAULT_ARTIFACT:100:If you breach the sealed hall {DIST} {DIR}, seek the lone gleam within; it is worth songs.
-M:ELF:VAULT_ARTIFACT:100:Something of true craft shines within that warded place {DIST} {DIR}. It is not coin.
-M:ELF:VAULT_ARTIFACT:100:I sensed an heirloom of old wars imprisoned behind the stone {DIST} {DIR}. It called to me.
+M:ELF:VAULT_ARTIFACT:100:I heard the clink of a hoard {DIST} {DIR}; it lies in {SITE}.
+M:ELF:VAULT_ARTIFACT:100:Greed has pooled {DIST} {DIR}; {SITE} is its basin.
+M:ELF:VAULT_ARTIFACT:100:A pale gleam waits {DIST} {DIR}, in {SITE}; I dared not take it.
+M:ELF:VAULT_ARTIFACT:100:Seek {SITE} {DIST} {DIR}; there is treasure there, and death besides.
+M:ELF:VAULT_ARTIFACT:100:I saw gold piled high {DIST} {DIR}, in {SITE}, and shadows moving upon it.
+M:ELF:VAULT_ARTIFACT:100:If you hunger for great craft, go {DIST} {DIR} to {SITE} and risk the guardian.
 
 # Human
-M:HUMAN:VAULT_ARTIFACT:100:Saw a strange glow behind the vault door {DIST} {DIR}. Not like coin.
-M:HUMAN:VAULT_ARTIFACT:100:Something in there felt old {DIST} {DIR}, like it was watching.
-M:HUMAN:VAULT_ARTIFACT:100:I swear there's a weapon or jewel in that sealed place {DIST} {DIR}.
-M:HUMAN:VAULT_ARTIFACT:100:A cold light in the vault {DIST} {DIR}--if you can breach it, take it.
-M:HUMAN:VAULT_ARTIFACT:100:The vault holds a single bright thing {DIST} {DIR}. It made my skin prickle.
-M:HUMAN:VAULT_ARTIFACT:100:If you see a sealed gate {DIST} {DIR} and a light that doesn't flicker, that's no common treasure.
+M:HUMAN:VAULT_ARTIFACT:100:There's a hoard {DIST} {DIR}, in {SITE}. I couldn't get near it.
+M:HUMAN:VAULT_ARTIFACT:100:If you find {SITE} {DIST} {DIR}, steel yourself: the treasure is real.
+M:HUMAN:VAULT_ARTIFACT:100:I saw a heap of riches {DIST} {DIR}, in {SITE}. Something was guarding it.
+M:HUMAN:VAULT_ARTIFACT:100:The air reeks of greed {DIST} {DIR}. That's where {SITE} is.
+M:HUMAN:VAULT_ARTIFACT:100:If you want the best loot on this level, look {DIST} {DIR} for {SITE}.
+M:HUMAN:VAULT_ARTIFACT:100:I heard coin shifting {DIST} {DIR}, in {SITE}. Don't go alone.
 
 # Orc
-M:ORC:VAULT_ARTIFACT:100:Shiny thing in sealed room {DIST} {DIR}. Makes skin itch.
-M:ORC:VAULT_ARTIFACT:100:Magic loot behind big door {DIST} {DIR}. Not for snaga.
-M:ORC:VAULT_ARTIFACT:100:Something bright in there {DIST} {DIR}. Want it. Can't reach.
-M:ORC:VAULT_ARTIFACT:100:Vault prize {DIST} {DIR}. Worth dying? Maybe.
-M:ORC:VAULT_ARTIFACT:100:Light in vault {DIST} {DIR} hurts eyes. Still want.
-M:ORC:VAULT_ARTIFACT:100:If you crack the seals {DIST} {DIR}, grab bright thing and run.
+M:ORC:VAULT_ARTIFACT:100:Hoard {DIST} {DIR}. In {SITE}. Big beast.
+M:ORC:VAULT_ARTIFACT:100:Shiny pile {DIST} {DIR} in {SITE}. Don't wake it.
+M:ORC:VAULT_ARTIFACT:100:{SITE} {DIST} {DIR}. Lots of gold. Bad smell.
+M:ORC:VAULT_ARTIFACT:100:If you go {DIST} {DIR} to {SITE}, grab loot fast and run.
+M:ORC:VAULT_ARTIFACT:100:Heard coins move {DIST} {DIR}. {SITE}. Not safe.
+M:ORC:VAULT_ARTIFACT:100:Boss wanted {SITE}. It is {DIST} {DIR}. I say no.
 
 # --- Stairs ---
 

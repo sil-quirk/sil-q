@@ -1825,7 +1825,8 @@
     0x00000400 /* Don't reveal the object is being carried by a creature*/
 #define IDENT_HANDLED                                                          \
     0x00000800 /* Item has been handled by the player (show combat stats on floor) */
-#define IDENT_UNUSED_XXXX1XXX 0x00001000 /* Unused */
+#define IDENT_HOARD_DROP                                                       \
+    0x00001000 /* Generated as hoard-drop treasure (vault '!' token) */
 #define IDENT_UNUSED_XXXX2XXX 0x00002000 /* Unused */
 #define IDENT_UNUSED_XXXX4XXX 0x00004000 /* Unused */
 #define IDENT_UNUSED_XXXX8XXX 0x00008000 /* Unused */

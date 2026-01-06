@@ -1623,7 +1623,7 @@ static bool level_has_greater_vault(void)
     return false;
 }
 
-static bool vault_has_ground_artifact(void)
+static bool level_has_hoard_drop(void)
 {
     for (int i = 1; i < o_max; i++)
     {
@@ -1632,13 +1632,12 @@ static bool vault_has_ground_artifact(void)
             continue;
         if (o_ptr->held_m_idx)
             continue;
-        if (!o_ptr->name1)
+        if (!(o_ptr->ident & IDENT_HOARD_DROP))
             continue;
         if (o_ptr->iy >= p_ptr->cur_map_hgt || o_ptr->ix >= p_ptr->cur_map_wid)
             continue;
 
-        if (cave_info[o_ptr->iy][o_ptr->ix] & CAVE_G_VAULT)
-            return true;
+        return true;
     }
     return false;
 }
@@ -1873,7 +1872,7 @@ void skeleton_note_set_state(const skeleton_note_state_save* in)
 
 static bool skeleton_hint_available(skeleton_hint_kind kind,
     const level_layout_info* layout, bool vault_present,
-    bool vault_artifact, byte sval)
+    bool hoard_drop_present, byte sval)
 {
     if (kind == SKEL_HINT_TIP && disable_skeleton_note_tutorial)
         return false;
@@ -1886,7 +1885,7 @@ static bool skeleton_hint_available(skeleton_hint_kind kind,
         ok = vault_present;
         break;
     case SKEL_HINT_VAULT_ARTIFACT:
-        ok = vault_artifact;
+        ok = hoard_drop_present;
         break;
     case SKEL_HINT_STAIRS:
         ok = level_has_stairs_down() || level_has_stairs_up();
@@ -2096,7 +2095,7 @@ static skeleton_partition_focus skeleton_pick_partition_presence(
 
 static skeleton_hint_kind skeleton_note_choose_hint(
     const skeleton_note_profile* profile, const level_layout_info* layout,
-    bool vault_present, bool vault_artifact, byte sval, u32b used_mask)
+    bool vault_present, bool hoard_drop_present, byte sval, u32b used_mask)
 {
     int weights[SKEL_HINT_MAX] = {0};
     int total = 0;
@@ -2108,7 +2107,7 @@ static skeleton_hint_kind skeleton_note_choose_hint(
             continue;
 
         if (!skeleton_hint_available(
-                kind, layout, vault_present, vault_artifact, sval))
+                kind, layout, vault_present, hoard_drop_present, sval))
             continue;
 
         int base = skeleton_hint_base_weight[k];
@@ -3058,12 +3057,25 @@ static bool skeleton_note_find_nearest_great_vault(
     return true;
 }
 
-static bool skeleton_note_find_nearest_vault_artifact(
-    int from_y, int from_x, int* out_y, int* out_x, int* out_dist)
+static const char* skeleton_note_hoard_site_for_point(int y, int x)
+{
+    if (in_bounds_fully(y, x) && (cave_info[y][x] & CAVE_G_VAULT))
+    {
+        if (g_vault_name[0] != '\0')
+            return g_vault_name;
+        return "a great vault";
+    }
+
+    return "a dragon's hoard";
+}
+
+static bool skeleton_note_find_nearest_hoard_drop(
+    int from_y, int from_x, int* out_y, int* out_x, int* out_dist, const char** out_site)
 {
     int best_y = -1;
     int best_x = -1;
     int best_dist = 0;
+    const char* best_site = NULL;
     int seen = 0;
 
     for (int i = 1; i < o_max; i++)
@@ -3073,12 +3085,9 @@ static bool skeleton_note_find_nearest_vault_artifact(
             continue;
         if (o_ptr->held_m_idx)
             continue;
-        if (!o_ptr->name1)
+        if (!(o_ptr->ident & IDENT_HOARD_DROP))
             continue;
         if (o_ptr->iy >= p_ptr->cur_map_hgt || o_ptr->ix >= p_ptr->cur_map_wid)
-            continue;
-
-        if (!(cave_info[o_ptr->iy][o_ptr->ix] & CAVE_G_VAULT))
             continue;
 
         int dist = skeleton_note_manhattan_dist(from_y, from_x, o_ptr->iy, o_ptr->ix);
@@ -3087,6 +3096,7 @@ static bool skeleton_note_find_nearest_vault_artifact(
             best_y = o_ptr->iy;
             best_x = o_ptr->ix;
             best_dist = dist;
+            best_site = skeleton_note_hoard_site_for_point(best_y, best_x);
             seen = 1;
             continue;
         }
@@ -3098,6 +3108,7 @@ static bool skeleton_note_find_nearest_vault_artifact(
             {
                 best_y = o_ptr->iy;
                 best_x = o_ptr->ix;
+                best_site = skeleton_note_hoard_site_for_point(best_y, best_x);
             }
         }
     }
@@ -3108,6 +3119,7 @@ static bool skeleton_note_find_nearest_vault_artifact(
     if (out_y) *out_y = best_y;
     if (out_x) *out_x = best_x;
     if (out_dist) *out_dist = best_dist;
+    if (out_site) *out_site = best_site ? best_site : "a hoard";
     return true;
 }
 
@@ -3322,7 +3334,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
     level_layout_info_current(&layout);
 
     bool vault_present = level_has_greater_vault();
-    bool artifact_in_vault = vault_present && vault_has_ground_artifact();
+    bool hoard_drop_present = level_has_hoard_drop();
 
     u32b base_used_mask = g_skeleton_note_state.hint_used_mask;
 
@@ -3331,7 +3343,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
     {
         /* Tutorial notes should not be limited by the per-level cap. */
         if (!skeleton_hint_available(
-                SKEL_HINT_TIP, &layout, vault_present, artifact_in_vault, sval))
+                SKEL_HINT_TIP, &layout, vault_present, hoard_drop_present, sval))
         {
             return;
         }
@@ -3340,7 +3352,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
     else
     {
         bool can_tip = skeleton_hint_available(
-            SKEL_HINT_TIP, &layout, vault_present, artifact_in_vault, sval);
+            SKEL_HINT_TIP, &layout, vault_present, hoard_drop_present, sval);
         int tip_chance = skeleton_note_tip_override_chance(sval, p_ptr->depth);
         if (can_tip && tip_chance > 0 && percent_chance(tip_chance))
         {
@@ -3349,7 +3361,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
         else
         {
             hint1 = skeleton_note_choose_hint(
-                &profile, &layout, vault_present, artifact_in_vault, sval, base_used_mask);
+                &profile, &layout, vault_present, hoard_drop_present, sval, base_used_mask);
         }
     }
     if (hint1 == SKEL_HINT_NONE)
@@ -3380,7 +3392,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
             used_mask2 |= (1UL << hint1);
 
             hint2 = skeleton_note_choose_hint(
-                &profile, &layout, vault_present, artifact_in_vault, sval, used_mask2);
+                &profile, &layout, vault_present, hoard_drop_present, sval, used_mask2);
         }
     }
 
@@ -3459,7 +3471,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
                 tpl = "A gate of black stone stands somewhere on this level; the warding is unbroken.";
                 break;
             case SKEL_HINT_VAULT_ARTIFACT:
-                tpl = "I saw a pale light behind sealed doors; some great work of craft lies within.";
+                tpl = "There is a hoard in {SITE} {DIST} {DIR}.";
                 break;
             case SKEL_HINT_STAIRS:
                 tpl = "The {SITE} lies {DIST} {DIR}.";
@@ -3590,16 +3602,20 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
         else if (hint == SKEL_HINT_VAULT_ARTIFACT)
         {
             int ty = 0, tx = 0, dist = 0;
-            if (skeleton_note_find_nearest_vault_artifact(skel_y, skel_x, &ty, &tx, &dist))
+            const char* site = NULL;
+            if (skeleton_note_find_nearest_hoard_drop(
+                    skel_y, skel_x, &ty, &tx, &dist, &site))
             {
                 body_lines[body_count].dir
                     = skeleton_note_direction_phrase(skel_y, skel_x, ty, tx);
                 body_lines[body_count].dist = skeleton_note_distance_phrase(dist);
+                body_lines[body_count].site = site;
             }
             else
             {
                 body_lines[body_count].dist = "somewhere";
                 body_lines[body_count].dir = "on this level";
+                body_lines[body_count].site = "a hoard";
             }
         }
         else if (hint == SKEL_HINT_UNIQUE_MONSTER)

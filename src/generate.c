@@ -7391,7 +7391,7 @@ void drop_profile_for_partition_kind(level_partition_kind kind, drop_profile* ou
 static void place_object_with_profile_params(
     int y, int x, int base_depth, int min_depth_penalty_depth,
     drop_quality quality, int droptype, bool allow_artefacts,
-    int artefact_weight_multiplier,
+    int artefact_weight_multiplier, u32b extra_ident,
     const partition_drop_profile* prof);
 
 static void place_object_with_profile(
@@ -7399,13 +7399,13 @@ static void place_object_with_profile(
 {
     place_object_with_profile_params(
         y, x, object_level, object_level, DROP_QUALITY_NORMAL, DROP_TYPE_UNTHEMED,
-        false, 1, prof);
+        false, 1, 0, prof);
 }
 
 static void place_object_with_profile_params(
     int y, int x, int base_depth, int min_depth_penalty_depth,
     drop_quality quality, int droptype, bool allow_artefacts,
-    int artefact_weight_multiplier,
+    int artefact_weight_multiplier, u32b extra_ident,
     const partition_drop_profile* prof)
 {
     if (!in_bounds(y, x))
@@ -7431,6 +7431,8 @@ static void place_object_with_profile_params(
 
     if (i_ptr->tval == TV_CHEST)
         i_ptr->xtra1 = (byte)(0x80 | (byte)level_partition_kind_for_point(y, x));
+    if (extra_ident)
+        i_ptr->ident |= extra_ident;
 
     if (!floor_carry(y, x, i_ptr))
     {
@@ -10149,7 +10151,7 @@ static bool build_type2(int y0, int x0)
                 partition_drop_profile active_profile =
                     partition_drop_profile_for_mode(drop_mode_for_point(y0, x0));
                 place_object_with_profile_params(y0, x0, object_level, object_level,
-                    DROP_QUALITY_NORMAL, DROP_TYPE_CHEST, false, 1, &active_profile);
+                    DROP_QUALITY_NORMAL, DROP_TYPE_CHEST, false, 1, 0, &active_profile);
             }
         }
         break;
@@ -10668,7 +10670,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                     partition_drop_profile_for_mode(drop_mode_for_point(y, x));
                 place_object_with_profile_params(
                     y, x, base_depth, penalty_depth, DROP_QUALITY_NORMAL,
-                    DROP_TYPE_NOT_DAMAGED, false, 1, &active_profile);
+                    DROP_TYPE_NOT_DAMAGED, false, 1, 0, &active_profile);
                 break;
             }
 
@@ -10681,7 +10683,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                     partition_drop_profile_for_mode(drop_mode_for_point(y, x));
                 place_object_with_profile_params(
                     y, x, base_depth, penalty_depth, DROP_QUALITY_GOOD,
-                    DROP_TYPE_NOT_DAMAGED, false, 1, &active_profile);
+                    DROP_TYPE_NOT_DAMAGED, false, 1, 0, &active_profile);
                 break;
             }
 
@@ -10694,7 +10696,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                     partition_drop_profile_for_mode(drop_mode_for_point(y, x));
                 place_object_with_profile_params(
                     y, x, base_depth, penalty_depth, DROP_QUALITY_GREAT,
-                    DROP_TYPE_NOT_DAMAGED, true, 10, &active_profile);
+                    DROP_TYPE_NOT_DAMAGED, true, 10, IDENT_HOARD_DROP, &active_profile);
                 break;
             }
 
@@ -10714,7 +10716,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                     partition_drop_profile_for_mode(drop_mode_for_point(y, x));
                 place_object_with_profile_params(
                     y, x, chest_depth, chest_depth, DROP_QUALITY_NORMAL,
-                    DROP_TYPE_CHEST, false, 1, &active_profile);
+                    DROP_TYPE_CHEST, false, 1, 0, &active_profile);
                 break;
             }
 
@@ -10769,7 +10771,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                         partition_drop_profile_for_mode(drop_mode_for_point(y, x));
                     place_object_with_profile_params(
                         y, x, base_depth, penalty_depth, DROP_QUALITY_NORMAL,
-                        DROP_TYPE_UNTHEMED, false, 1, &active_profile);
+                        DROP_TYPE_UNTHEMED, false, 1, 0, &active_profile);
                 }
                 break;
             }
