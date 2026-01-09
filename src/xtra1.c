@@ -1130,7 +1130,8 @@ static void prt_cut(void)
 
     /* Clear both possible rows (story font has variable widths) */
     Term_erase(COL_CUT, ROW_CUT - 1, 12);
-    Term_erase(COL_CUT, ROW_CUT, 12);
+    if (!p_ptr->poisoned)
+        Term_erase(COL_CUT, ROW_CUT, 12);
 
     if (c > 100)
     {

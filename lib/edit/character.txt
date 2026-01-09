@@ -398,7 +398,7 @@ N:29:Tuor
 Q:372282fe5bf0b106
 A:, Messenger of Ulmo
 B:You carry tidings-messenger of Ulmo, bearer of destiny to Gondolin.
-F:EVN_AFFINITY | MEL_AFFINITY
+F:EVN_AFFINITY | MEL_AFFINITY | FREE
 U:WIL_TUOR
 S:1:1:2:2
 C:5:1  # Channeling # Focused Attack 4:1:
