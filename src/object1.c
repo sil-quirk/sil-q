@@ -328,16 +328,16 @@ byte object_display_color(const object_type* o_ptr, byte base_color)
 {
     byte color_to_use = base_color;
     
+    /* Bows are light umber by default, but allow artifact coloring to override */
+    if (o_ptr->tval == TV_BOW)
+    {
+        color_to_use = TERM_L_UMBER;
+    }
+
     /* Check for artifact-specific color (works in both modes) */
     if (o_ptr->name1 && a_info[o_ptr->name1].d_attr)
     {
         color_to_use = a_info[o_ptr->name1].d_attr;
-    }
-    
-    /* Bows are always light umber */
-    if (o_ptr->tval == TV_BOW)
-    {
-        return TERM_L_UMBER;
     }
     
     /* Apply special handling when artifact_unique_color option is enabled */
