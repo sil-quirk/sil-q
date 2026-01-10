@@ -319,6 +319,8 @@ void flavor_init(void)
     }
 }
 
+static bool object_is_unidentified_for_display(const object_type* o_ptr);
+
 /*
  * Get the display color for an object text, applying artifact shade if identified
  * This is used for TEXT color in inventory/equipment displays
@@ -326,6 +328,12 @@ void flavor_init(void)
  */
 byte object_display_color(const object_type* o_ptr, byte base_color)
 {
+    if (!o_ptr || !o_ptr->k_idx)
+        return base_color;
+
+    if (unidentified_items_slate && object_is_unidentified_for_display(o_ptr))
+        return TERM_SLATE;
+
     byte color_to_use = base_color;
     
     /* Bows are light umber by default, but allow artifact coloring to override */
@@ -363,6 +371,9 @@ byte object_display_color(const object_type* o_ptr, byte base_color)
             return MAKE_EXTENDED_COLOR(color_to_use, 3);
         }
     }
+
+    if (unidentified_items_slate && color_to_use == TERM_SLATE)
+        return TERM_WHITE;
     
     return color_to_use;
 }
@@ -1158,6 +1169,46 @@ static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* 
     log_debug("mode4_shorten: FINAL OUTPUT='%s'", rebuilt);
     SDL_strlcpy(buf, rebuilt, max);
 }
+
+static const char* object_desc_unidentified_inscription(int pref, int mode)
+{
+    if (mode >= 4)
+        return "?";
+    if (pref)
+        return "unknown";
+    return "not identified";
+}
+
+static bool object_is_unidentified_for_display(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    if (o_ptr->ident & IDENT_SPOIL)
+        return false;
+
+    if (!object_aware_p(o_ptr))
+        return true;
+
+    if (o_ptr->tval == TV_STAFF)
+        return !object_known_p(o_ptr);
+
+    if (object_uses_smithing_difficulty(o_ptr))
+        return !object_known_p(o_ptr);
+
+    return false;
+}
+
+static void object_desc_append_inscription(char* buf, size_t max, const char* tag)
+{
+    if (!tag || !tag[0] || !buf || max < 2)
+        return;
+
+    if (buf[0])
+        SDL_strlcat(buf, ", ", max);
+    SDL_strlcat(buf, tag, max);
+}
+
 void object_desc(
     char* buf, size_t max, const object_type* o_ptr, int pref, int mode)
 {
@@ -1186,6 +1237,7 @@ void object_desc(
     char c1 = '{', c2 = '}';
 
     char discount_buf[80];
+    char special_buf[80];
 
     char tmp_buf[128];
 
@@ -1843,7 +1895,17 @@ void object_desc(
         u = NULL;
     }
 
-    /* Use special inscription, if any */
+    special_buf[0] = '\0';
+    if (object_is_unidentified_for_display(o_ptr))
+    {
+        object_desc_append_inscription(
+            special_buf, sizeof(special_buf),
+            object_desc_unidentified_inscription(pref, mode));
+    }
+
+    v = NULL;
+    discount_buf[0] = '\0';
+
     if (o_ptr->discount >= INSCRIP_NULL)
     {
         if ((o_ptr->discount != INSCRIP_AVERAGE)
@@ -1851,31 +1913,19 @@ void object_desc(
         {
             v = inscrip_text[o_ptr->discount - INSCRIP_NULL];
         }
-        else
-        {
-            v = NULL;
-        }
     }
-
-    /* Use "cursed" if the item is known to be cursed */
     else if (cursed_p(o_ptr) && known)
     {
         v = "cursed";
     }
-
-    /* Hack -- Use "empty" for empty wands/staffs */
     else if (!known && (o_ptr->ident & (IDENT_EMPTY)))
     {
         v = "empty";
     }
-
-    /* Use "tried" if the object has been tested unsuccessfully */
     else if (!aware && object_tried_p(o_ptr))
     {
         v = "tried";
     }
-
-    /* Use the discount, if any */
     else if (o_ptr->discount > 0)
     {
         char* q = discount_buf;
@@ -1885,11 +1935,8 @@ void object_desc(
         v = discount_buf;
     }
 
-    /* Nothing */
-    else
-    {
-        v = NULL;
-    }
+    object_desc_append_inscription(special_buf, sizeof(special_buf), v);
+    v = special_buf[0] ? special_buf : NULL;
 
     /* Inscription */
     if (u || v)
@@ -1954,6 +2001,7 @@ void object_desc_floor(
     const char* u;
     const char* v;
     char discount_buf[80];
+    char special_buf[80];
 
     bool aware;
     bool known;
@@ -1986,6 +2034,14 @@ void object_desc_floor(
     else
         u = NULL;
 
+    special_buf[0] = '\0';
+    if (object_is_unidentified_for_display(o_ptr))
+    {
+        object_desc_append_inscription(
+            special_buf, sizeof(special_buf),
+            object_desc_unidentified_inscription(pref, mode));
+    }
+
     v = NULL;
     discount_buf[0] = '\0';
 
@@ -2014,6 +2070,9 @@ void object_desc_floor(
         strnfmt(discount_buf, sizeof(discount_buf), "%d%% off", o_ptr->discount);
         v = discount_buf;
     }
+
+    object_desc_append_inscription(special_buf, sizeof(special_buf), v);
+    v = special_buf[0] ? special_buf : NULL;
 
     if (u || v)
     {
@@ -6785,7 +6844,7 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
         {
             int o_idx = floor_list[i];
             object_type* o_ptr = &o_list[o_idx];
-            if (!o_ptr->k_idx || object_known_p(o_ptr))
+            if (!o_ptr->k_idx || !object_is_unidentified_for_display(o_ptr))
                 continue;
 
             ident_entry* entry = &entries[entry_count];
@@ -6818,7 +6877,7 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
     for (int i = 0; i < supply_count && entry_count < MAX_IDENT_ENTRIES; i++)
     {
         object_type* o_ptr = supplies_entry_at(i);
-        if (!o_ptr || !o_ptr->k_idx || object_known_p(o_ptr))
+        if (!o_ptr || !o_ptr->k_idx || !object_is_unidentified_for_display(o_ptr))
             continue;
 
         ident_entry* entry = &entries[entry_count];
@@ -6863,7 +6922,7 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
     for (int i = 0; i < INVEN_PACK && entry_count < MAX_IDENT_ENTRIES; i++)
     {
         object_type* o_ptr = &inventory[i];
-        if (!o_ptr->k_idx || object_known_p(o_ptr))
+        if (!o_ptr->k_idx || !object_is_unidentified_for_display(o_ptr))
             continue;
 
         ident_entry* entry = &entries[entry_count];
@@ -6894,7 +6953,7 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
     for (int i = INVEN_WIELD; i < INVEN_TOTAL && entry_count < MAX_IDENT_ENTRIES; i++)
     {
         object_type* o_ptr = &inventory[i];
-        if (!o_ptr->k_idx || object_known_p(o_ptr))
+        if (!o_ptr->k_idx || !object_is_unidentified_for_display(o_ptr))
             continue;
 
         ident_entry* entry = &entries[entry_count];

@@ -2693,6 +2693,7 @@
 #define OPT_disable_skeleton_note_tutorial 85
 #define OPT_smaller_level_size 86
 #define OPT_more_stairs 87
+#define OPT_unidentified_items_slate 88
 // xxx
 // xxx
 // xxx
@@ -2829,6 +2830,7 @@
 #define know_monster_info op_ptr->opt[OPT_know_monster_info]
 #define auto_display_lists op_ptr->opt[OPT_auto_display_lists]
 #define artifact_unique_color op_ptr->opt[OPT_artifact_unique_color]
+#define unidentified_items_slate op_ptr->opt[OPT_unidentified_items_slate]
 #define easy_main_menu op_ptr->opt[OPT_easy_main_menu]
 #define story_display_lists op_ptr->opt[OPT_story_lists]
 #define story_inventory_lists op_ptr->opt[OPT_story_lists_inven]
@@ -2930,6 +2932,7 @@
  */
 #define INTERFACE_PAGE 0
 #define GAMEPLAY_PAGE 2
+#define EFFICIENCY_PAGE 3
 #define VISUAL_PAGE 4
 #define SOUND_PAGE 7
 #define CHALLENGE_PAGE 5

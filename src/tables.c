@@ -235,7 +235,7 @@ cptr option_text[OPT_MAX] = {
     "disable_skeleton_note_tutorial", /* OPT_disable_skeleton_note_tutorial */
     "smaller_level_size", /* OPT_smaller_level_size */
     "more_stairs", /* OPT_more_stairs */
-    NULL, /* xxx */
+    "unidentified_items_slate", /* OPT_unidentified_items_slate */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -475,7 +475,7 @@ cptr option_desc[OPT_MAX] = {
     "Disable tutorial messages in skeleton notes", /* OPT_disable_skeleton_note_tutorial */
     "Smaller level size (3 blocks smaller, min 6)", /* OPT_smaller_level_size */
     "More stairs (50% more; double max)", /* OPT_more_stairs */
-    NULL, /* xxx */
+    "Show unidentified items in slate color", /* OPT_unidentified_items_slate */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -734,7 +734,7 @@ const bool option_norm[OPT_MAX] = {
     false, /* OPT_disable_skeleton_note_tutorial */
     false, /* OPT_smaller_level_size */
     false, /* OPT_more_stairs */
-    false, /* xxx */
+    true, /* OPT_unidentified_items_slate */
     false, /* xxx */
     false, /* xxx */
     false, /* xxx */
@@ -932,18 +932,19 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
 
     /*** Efficiency ***/
 
-    { OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+    { OPT_delay_factor, OPT_instant_run, OPT_center_player, OPT_run_avoid_center,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_NONE, OPT_NONE },
 
     /*** Display ***/
 
     { OPT_auto_display_lists, OPT_story_lists, OPT_story_lists_inven, OPT_story_lists_inven_pane,
         OPT_story_lists_equip, OPT_story_lists_equip_pane, OPT_story_monster_desc,
         OPT_story_monster_desc_pane, OPT_story_character_sheet, OPT_artifact_unique_color,
-        OPT_instant_run, OPT_center_player, OPT_run_avoid_center, OPT_hilite_player,
-        OPT_hilite_target, OPT_hilite_unwary, OPT_solid_walls, OPT_hybrid_walls,
-        OPT_delay_factor, OPT_main_combat_rolls },
+        OPT_hilite_player, OPT_hilite_target, OPT_hilite_unwary, OPT_solid_walls,
+        OPT_hybrid_walls, OPT_unidentified_items_slate, OPT_main_combat_rolls,
+        OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Birth ***/
 

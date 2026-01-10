@@ -9922,9 +9922,9 @@ void do_cmd_controller_settings(void);
 int options_menu(int* highlight)
 {
     int ch;
-    int options = 13; /* added gameplay option */
+    int options = 14; /* added efficiency option */
 #ifdef DEBUG_CURSES
-    options = 16;
+    options = 17;
 #endif
     if (p_ptr->noscore)    
         options++;
@@ -9940,28 +9940,30 @@ int options_menu(int* highlight)
     Term_putstr(2, 6, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
         "d) Interface Options");
     Term_putstr(2, 7, -1, (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
-        "e) Visual Options");
+        "e) Efficiency Options");
     Term_putstr(2, 8, -1, (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
-        "f) Gameplay Options");
+        "f) Visual Options");
     Term_putstr(2, 9, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
-        "g) Sound Options");
+        "g) Gameplay Options");
     Term_putstr(2, 10, -1, (*highlight == 8) ? TERM_L_BLUE : TERM_WHITE,
-        "h) Load a 'Pref' File");
+        "h) Sound Options");
     Term_putstr(2, 11, -1, (*highlight == 9) ? TERM_L_BLUE : TERM_WHITE,
-        "i) Append Options to a 'Pref' File");
+        "i) Load a 'Pref' File");
     Term_putstr(2, 12, -1, (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
-        "j) Set Macros");
+        "j) Append Options to a 'Pref' File");
     Term_putstr(2, 13, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
-        "k) Set Colours");
+        "k) Set Macros");
     Term_putstr(2, 14, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
-        "l) Write a note");
+        "l) Set Colours");
     Term_putstr(2, 15, -1, (*highlight == 13) ? TERM_L_BLUE : TERM_WHITE,
-        "m) Return to Game");
+        "m) Write a note");
+    Term_putstr(2, 16, -1, (*highlight == 14) ? TERM_L_BLUE : TERM_WHITE,
+        "n) Return to Game");
 
     if (p_ptr->noscore)
     {
-        Term_putstr(2, 16, -1, (*highlight == 14) ? TERM_L_BLUE : TERM_WHITE,
-            "n) Debugging Options");
+        Term_putstr(2, 17, -1, (*highlight == 15) ? TERM_L_BLUE : TERM_WHITE,
+            "o) Debugging Options");
     }
 
     /* Show product name and version on the bottom of the menu */
@@ -10054,18 +10056,24 @@ int options_menu(int* highlight)
         return (12);
     }
 
-    if ((ch == 'm') || (ch == 'M') || (ch == ESCAPE) || (ch == 'q'))
+    if ((ch == 'm') || (ch == 'M'))
     {
-        /* Return to game */
         *highlight = 13;
         return (13);
     }
 
-    if (p_ptr->noscore && ((ch == 'n') || (ch == 'N')))
+    if ((ch == 'n') || (ch == 'N') || (ch == ESCAPE) || (ch == 'q'))
     {
-        /* Debugging options */
+        /* Return to game */
         *highlight = 14;
         return (14);
+    }
+
+    if (p_ptr->noscore && ((ch == 'o') || (ch == 'O')))
+    {
+        /* Debugging options */
+        *highlight = 15;
+        return (15);
     }
 
     /* Choose current  */
@@ -10150,30 +10158,36 @@ void do_cmd_options(void)
         }
         case 5:
         {
-            do_cmd_options_aux(VISUAL_PAGE, "Visual Options");
+            do_cmd_options_aux(EFFICIENCY_PAGE, "Efficiency Options");
             Term_clear();
             break;
         }
         case 6:
         {
-            do_cmd_options_aux(GAMEPLAY_PAGE, "Gameplay Options");
+            do_cmd_options_aux(VISUAL_PAGE, "Visual Options");
             Term_clear();
             break;
         }
         case 7:
         {
-            do_cmd_options_aux(SOUND_PAGE, "Sound Options");
+            do_cmd_options_aux(GAMEPLAY_PAGE, "Gameplay Options");
             Term_clear();
             break;
         }
         case 8:
+        {
+            do_cmd_options_aux(SOUND_PAGE, "Sound Options");
+            Term_clear();
+            break;
+        }
+        case 9:
         {
             /* Ask for and load a user pref file */
             do_cmd_pref_file_hack(12);
             Term_clear();
             break;
         }
-        case 9:
+        case 10:
         {
             /* Prompt */
             Term_putstr(2, 14, -1, TERM_SLATE, "(Escape to cancel)");
@@ -10206,32 +10220,32 @@ void do_cmd_options(void)
             Term_clear();
             break;
         }
-        case 10:
+        case 11:
         {
             do_cmd_macros();
             Term_clear();
             break;
         }
-        case 11:
+        case 12:
         {
             do_cmd_colors();
             Term_clear();
             break;
         }
-        case 12:
+        case 13:
         {
             do_cmd_note("", p_ptr->depth);
             Term_clear();
             break;
         }
-        case 13:
+        case 14:
         {
             /* Return to Game */
             return_to_game = true;
             Term_clear();
             break;
         }
-        case 14:
+        case 15:
         {
             /* Debugging Options (only reachable when p_ptr->noscore) */
             do_cmd_options_aux(DEBUG_PAGE, "Debugging Options");

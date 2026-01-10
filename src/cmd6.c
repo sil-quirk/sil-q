@@ -11,6 +11,13 @@
 #include "angband.h"
 #include "externs.h"
 
+static void msg_print_object_identified(const object_type* o_ptr)
+{
+    char o_name[80];
+    object_desc(o_name, sizeof(o_name), o_ptr, true, 0);
+    msg_format("You identify %s.", o_name);
+}
+
 /*
  * This file includes code for eating food, drinking potions,
  * using staffs, playing instruments, and activating artefacts.
@@ -143,6 +150,7 @@ void do_cmd_eat_food(object_type* default_o_ptr, int default_item)
     if (ident && !object_aware_p(o_ptr))
     {
         object_aware(o_ptr);
+        msg_print_object_identified(o_ptr);
     }
 
     /* Window stuff */
@@ -282,6 +290,7 @@ void do_cmd_quaff_potion(object_type* default_o_ptr, int default_item)
     if (ident && !object_aware_p(o_ptr))
     {
         object_aware(o_ptr);
+        msg_print_object_identified(o_ptr);
     }
 
     /* Window stuff */
@@ -393,6 +402,7 @@ void do_cmd_play_instrument(object_type* default_o_ptr, int default_item)
         else if (!object_aware_p(o_ptr))
         {
             object_aware(o_ptr);
+            msg_print_object_identified(o_ptr);
         }
     }
 
@@ -539,6 +549,7 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
     if (ident && !object_aware_p(o_ptr))
     {
         object_aware(o_ptr);
+        msg_print_object_identified(o_ptr);
     }
 
     /* Window stuff */
@@ -670,6 +681,7 @@ void do_cmd_use_gem(object_type* default_o_ptr, int default_item)
     if (ident && !object_aware_p(o_ptr))
     {
         object_aware(o_ptr);
+        msg_print_object_identified(o_ptr);
     }
 
     /* Window stuff */
