@@ -32,7 +32,9 @@ High-signal repo guidance for coding agents (Codex CLI, Copilot, etc.). This is 
 ## Build & Run (Windows SDL3 - Recommended)
 Prereqs: MSYS2 MinGW64 at `C:\msys64` with `cmake` + SDL3 deps installed (the build script assumes this path).
 
-- Build both variants: `.\build-cmake.bat`
+- Build (recommended; use this first): `.\build-cmake.bat`
+  - This is the "known good" Windows/SDL3 path for this repo (sets up the toolchain, configures CMake, and stages runtime `lib/` data correctly).
+  - Avoid trying to build “directly with MinGW” (`gcc`, `mingw32-make`, ad-hoc include/library paths) unless you are explicitly debugging the build system; it’s easy to end up with the wrong generator/env and waste time.
   - Standard (per-user data): `build-standard/` -> `sil-more-windows-sdl3/`
   - Portable (local data under `lib/`): `build-portable/` -> `sil-more-windows-sdl3-portable/`
 - Incremental rebuild: `cmake --build build-standard --parallel`

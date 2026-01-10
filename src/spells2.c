@@ -1790,7 +1790,7 @@ bool item_tester_hook_recharge(const object_type* o_ptr)
 }
 
 /*
- * Recharge a staff from the pack or on the floor.
+ * Recharge a staff from the pack, equipment, or on the floor.
  *
  * Mage -- Recharge I --> recharge(5)
  * Mage -- Recharge II --> recharge(40)
@@ -1823,13 +1823,13 @@ bool recharge(int num)
 
     cptr q, s;
 
-    /* Only accept legal items, which are wands and staffs */
+    /* Only accept legal items, which are staffs */
     item_tester_hook = item_tester_hook_recharge;
 
     /* Get an item */
     q = "Recharge which staff? ";
     s = "You have nothing to recharge.";
-    if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
+    if (!get_item(&item, q, s, (USE_INVEN | USE_EQUIP | USE_FLOOR)))
         return (false);
 
     /* Get the item (in the pack) */
@@ -1866,7 +1866,7 @@ bool recharge(int num)
     p_ptr->notice |= (PN_COMBINE | PN_REORDER);
 
     /* Window stuff */
-    p_ptr->window |= (PW_INVEN);
+    p_ptr->window |= (PW_INVEN | PW_EQUIP);
 
     /* Something was done */
     return (true);

@@ -4712,6 +4712,21 @@ static void apply_quadrant_generation_modes(void)
     
     genlog_partition("Mode guarantees: %d ROOMY + %d CAVEY required, %d random",
                      guaranteed_roomy, guaranteed_cavey, partition_count - guaranteed_roomy - guaranteed_cavey);
+
+    /* Never allow Morgoth's throne-room partition to be a special-mode partition.
+     * Otherwise, environmental effects (labyrinth view loss, big cave penalties, etc.)
+     * can bleed into the endgame setpiece. */
+    if (morgoth_level_active && morgoth_partition_index >= 0 && morgoth_partition_index < partition_count)
+    {
+        if (modes[morgoth_partition_index] == QUAD_MODE_LABYRINTH
+            || modes[morgoth_partition_index] == QUAD_MODE_CHASM
+            || modes[morgoth_partition_index] == QUAD_MODE_BIG_CAVE)
+        {
+            log_trace("Morgoth level: forcing partition %d mode from %d to ROOMY",
+                      morgoth_partition_index, (int)modes[morgoth_partition_index]);
+        }
+        modes[morgoth_partition_index] = QUAD_MODE_ROOMY;
+    }
     
     /* Pick a random visual style and density for each partition */
     for (int i = 0; i < partition_count; ++i)
@@ -4769,6 +4784,8 @@ static void apply_quadrant_generation_modes(void)
     {
         int gv_candidates[25];
         int gv_interior_count = 0;
+        int gv_preferred[25];
+        int gv_preferred_count = 0;
         for (int row = 0; row < grid_rows; ++row)
         {
             for (int col = 0; col < grid_cols; ++col)
@@ -4779,18 +4796,33 @@ static void apply_quadrant_generation_modes(void)
                 if (idx >= partition_count || gv_interior_count >= 25)
                     continue;
                 gv_candidates[gv_interior_count++] = idx;
+
+                /* Prefer a non-special partition for greater vaults so their setpiece
+                 * effects don't overlap with LABYRINTH/CHASM/BIG_CAVE zones. */
+                quadrant_mode_t m = modes[idx];
+                if (m != QUAD_MODE_LABYRINTH && m != QUAD_MODE_CHASM && m != QUAD_MODE_BIG_CAVE)
+                {
+                    if (gv_preferred_count < 25)
+                        gv_preferred[gv_preferred_count++] = idx;
+                }
             }
         }
 
         if (gv_interior_count > 0)
         {
-            gv_partition = gv_candidates[rand_int(gv_interior_count)];
+            bool used_preferred = (gv_preferred_count > 0);
+            gv_partition = used_preferred
+                ? gv_preferred[rand_int(gv_preferred_count)]
+                : gv_candidates[rand_int(gv_interior_count)];
             int gv_row = gv_partition / grid_cols;
             int gv_col = gv_partition % grid_cols;
-            log_trace("Greater vault partition: %d interior options -> reserve partition %d (row=%d col=%d grid %dx%d)",
-                      gv_interior_count, gv_partition, gv_row, gv_col, grid_rows, grid_cols);
-            genlog_partition("GV partition reserved (rarity passed): depth=%d min_depth=%d interior=%d -> (%d,%d) idx=%d grid=%dx%d",
-                             depth, gv_min_depth, gv_interior_count, gv_row, gv_col, gv_partition, grid_rows, grid_cols);
+            log_trace("Greater vault partition: %d interior options (%d preferred) -> reserve partition %d (row=%d col=%d grid %dx%d%s)",
+                      gv_interior_count, gv_preferred_count, gv_partition, gv_row, gv_col,
+                      grid_rows, grid_cols, used_preferred ? "" : " fallback");
+            genlog_partition("GV partition reserved (rarity passed): depth=%d min_depth=%d interior=%d preferred=%d -> (%d,%d) idx=%d grid=%dx%d%s",
+                             depth, gv_min_depth, gv_interior_count, gv_preferred_count,
+                             gv_row, gv_col, gv_partition, grid_rows, grid_cols,
+                             used_preferred ? "" : " fallback");
         }
         else
         {
@@ -4829,8 +4861,9 @@ static void apply_quadrant_generation_modes(void)
     {
         quadrant_mode_t mode = modes[pi];
         bool is_gv_partition = (pi == gv_partition);
+        bool is_morgoth_partition = (morgoth_level_active && pi == morgoth_partition_index);
         bool is_special_mode = (mode == QUAD_MODE_LABYRINTH || mode == QUAD_MODE_CHASM || mode == QUAD_MODE_BIG_CAVE);
-        if (!is_gv_partition && !is_special_mode)
+        if (!is_gv_partition && !is_special_mode && !is_morgoth_partition)
             continue;  /* Skip non-special modes for now */
 
         if (dun->cent_n >= room_capacity_limit())
@@ -4857,7 +4890,6 @@ static void apply_quadrant_generation_modes(void)
         if (y2 >= p_ptr->cur_map_hgt - 1) y2 = p_ptr->cur_map_hgt - 2;
         if (x2 >= p_ptr->cur_map_wid - 1) x2 = p_ptr->cur_map_wid - 2;
         
-        bool is_morgoth_partition = (morgoth_level_active && pi == morgoth_partition_index);
         if (is_morgoth_partition)
         {
             morgoth_partition_bounds.y1 = y1;
@@ -7099,8 +7131,20 @@ static level_partition_kind partition_kind_from_mode(quadrant_mode_t mode)
     }
 }
 
+static bool suppress_partition_effects_for_point(int y, int x)
+{
+    if (!in_bounds_fully(y, x))
+        return false;
+    return (cave_info[y][x] & (CAVE_G_VAULT | CAVE_MORGOTH_TUNNEL)) != 0;
+}
+
 level_partition_kind level_partition_kind_for_point(int y, int x)
 {
+    /* Suppress partition effects (labyrinth memory loss, big-cave penalties, etc.)
+     * inside greater vault regions and Morgoth's entry tunnels. */
+    if (suppress_partition_effects_for_point(y, x))
+        return LEVEL_PART_ROOMY;
+
     /* Chests should follow the partition they spawned in (not room overrides). */
     quadrant_mode_t mode = partition_mode_for_point(y, x);
     return partition_kind_from_mode(mode);
@@ -7201,6 +7245,9 @@ big_cave_type_t level_partition_big_cave_type_for_index(int pi)
 
 big_cave_type_t level_partition_big_cave_type_for_point(int y, int x)
 {
+    if (suppress_partition_effects_for_point(y, x))
+        return BIG_CAVE_NONE;
+
     int pi = level_partition_index_for_point(y, x);
     if (pi < 0)
         return BIG_CAVE_NONE;
