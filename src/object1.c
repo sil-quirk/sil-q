@@ -308,7 +308,7 @@ void flavor_init(void)
             continue;
 
         /*No flavor yields aware*/
-        if (!k_ptr->flavor)
+        if (!k_ptr->flavor || (k_ptr->tval == TV_ARROW))
             k_ptr->aware = true;
 
         // Easter Eggs

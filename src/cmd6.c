@@ -471,30 +471,33 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
         /* Limit names so the prompt stays within 80 columns */
         char staff_name[80];
         char equipped_name[80];
-        char prompt[120];
+        char prompt[160];
         const char* source = from_supplies ? "your supplies" : (default_item >= 0 ? "your pack" : "the floor");
 
         object_desc(staff_name, sizeof(staff_name), o_ptr, true, 3);
 
         if (from_supplies)
         {
-            msg_print("You cannot use a staff from supplies. Move it to your pack and equip it first.");
+            msg_print("You cannot use a staff from supplies.");
+            msg_print("Move it to your pack and equip it first.");
             return;
         }
 
         if (wielded->k_idx)
         {
             object_desc(equipped_name, sizeof(equipped_name), wielded, true, 3);
+            msg_format("You cannot activate a staff from %s.", source);
             strnfmt(prompt, sizeof(prompt),
-                "You cannot use a staff from %s. Replace %.*s with %.*s?",
-                source, max_name_len, equipped_name, max_name_len, staff_name);
+                "Replace %.*s with %.*s?",
+                max_name_len, equipped_name, max_name_len, staff_name);
         }
         else
         {
             SDL_strlcpy(equipped_name, "no staff", sizeof(equipped_name));
+            msg_format("You cannot activate a staff from %s.", source);
             strnfmt(prompt, sizeof(prompt),
-                "You cannot use a staff from %s. Equip %.*s now?",
-                source, max_name_len, staff_name);
+                "Equip %.*s now?",
+                max_name_len, staff_name);
         }
 
         if (get_check(prompt))

@@ -321,7 +321,17 @@ void do_cmd_use_item_by_index(int item)
     }
     case TV_STAFF:
     {
-        do_cmd_activate_staff(o_ptr, item);
+        extern char current_menu_command;
+        /* If wielding ('w' command), equip the staff directly */
+        if (current_menu_command == 'w')
+        {
+            do_cmd_wield(o_ptr, item);
+        }
+        else
+        {
+            /* Otherwise, activate it (for 'u' command) */
+            do_cmd_activate_staff(o_ptr, item);
+        }
         break;
     }
     case TV_GEM:

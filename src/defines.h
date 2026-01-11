@@ -2983,7 +2983,12 @@
  */
 #define object_known_p(T)                                                      \
     (((T)->ident & (IDENT_KNOWN))                                              \
+        || (((T)->tval == TV_ARROW) && !(T)->name1                             \
+            && !(T)->name2                                                     \
+            && k_info[(T)->k_idx].aware)                                       \
         || ((k_info[(T)->k_idx].flags3 & (TR3_EASY_KNOW))                      \
+            && k_info[(T)->k_idx].aware)                                       \
+        || ((T)->name2 && (e_info[(T)->name2].flags3 & (TR3_EASY_KNOW))        \
             && k_info[(T)->k_idx].aware))
 
 /*
