@@ -6512,6 +6512,16 @@ bool enchant_menu(void)
 
     bool show_prefix_step =
         enchant_menu_has_applicable_affix(true) || (selected_prefix != 0);
+    bool show_suffix_step =
+        enchant_menu_has_applicable_affix(false) || (selected_suffix != 0);
+
+    if (!show_prefix_step && !show_suffix_step)
+    {
+        /* Nothing to select; bail out without changing the item. */
+        screen_load();
+        return false;
+    }
+
     bool selecting_prefix = show_prefix_step;
 
     /* Process events until menu is abandoned */
@@ -6533,7 +6543,15 @@ bool enchant_menu(void)
             {
                 selected_prefix = (int)object_ego_prefix(smith_o_ptr);
                 create_special(selected_prefix, selected_suffix);
-                selecting_prefix = false;
+
+                if (show_suffix_step)
+                {
+                    selecting_prefix = false;
+                    continue;
+                }
+
+                completed = true;
+                leave_menu = true;
                 continue;
             }
         }

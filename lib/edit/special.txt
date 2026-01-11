@@ -844,5 +844,50 @@ W:0:5:0:0
 C:0:0:0:0:0:0:0
 T:40:0:4
 T:40:6:99
-F:DARKNESS | VUL_FIRE | VUL_COLD | DIF_ID | LIGHT_CURSE
+A:1:0:13:5
+F:DARKNESS | VUL_FIRE | DIF_ID | LIGHT_CURSE
+
+
+##### Ring Prefixes #####
+
+
+# Rings only - cursed ring
+
+N:144:(Tainted)
+W:0:4:0:0
+C:0:0:0:0:0:0:0
+T:45:0:99
+A:1:0:13:5
+F:DANGER | HAUNTED | DIF_ID | LIGHT_CURSE 
+
+
+# Rings only - blessed ring (good prefix suggestion)
+# Excludes Cowardice (10) and Bauglir's Vanguard (11)
+
+N:145:(Blessed)
+W:0:6:0:2000
+C:0:0:0:0:0:0:1
+T:45:0:9
+T:45:12:99
+F:SONG | SUST_GRA
+
+
+##### Weapon Prefixes #####
+
+
+# Warhammers only
+
+N:146:(Weighted)
+W:4:5:0:1500
+C:-2:0:1:0:0:0:0
+T:21:8:8
+
+
+# Quarterstaves only
+
+N:147:(Resonant)
+W:6:6:0:3000
+C:0:0:0:0:0:0:2
+T:21:3:3
+F:SONG | SUST_GRA
 
