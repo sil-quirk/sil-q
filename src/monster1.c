@@ -1697,6 +1697,10 @@ void describe_monster(int r_idx, bool spoilers, const monster_type* m_ptr)
     if (!spoilers)
         describe_monster_kills(r_idx, &lore);
 
+    /* Describe experience */
+    if (!spoilers)
+        describe_monster_exp(r_idx, &lore);
+
     /* Monster description */
     describe_monster_desc(r_idx);
 
@@ -1717,10 +1721,6 @@ void describe_monster(int r_idx, bool spoilers, const monster_type* m_ptr)
 
     /* Describe the known skills */
     describe_monster_skills(r_idx, &lore, m_ptr);
-
-    /* Describe experience */
-    if (!spoilers)
-        describe_monster_exp(r_idx, &lore);
 
     /* Describe the monster drop */
     describe_monster_drop(r_idx, &lore);
