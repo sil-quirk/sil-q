@@ -86,6 +86,7 @@ static bool savefile_has_varda_quest = false;
 static bool savefile_has_artifact_seen = false;
 static bool savefile_has_skeleton_notes = false;
 static bool savefile_has_skeleton_hint_mask = false;
+static bool savefile_has_skeleton_hint_mask32 = false;
 static bool savefile_has_partition_meta = false;
 static bool savefile_has_partition_meta_types = false;
 static bool savefile_has_cave_info_hi = false;
@@ -1491,10 +1492,20 @@ static errr rd_extra(void)
         rd_s16b(&sn_state.notes_shown);
         rd_s16b(&sn_state.map_wid);
         rd_s16b(&sn_state.map_hgt);
-        if (savefile_has_skeleton_hint_mask)
-            rd_byte(&sn_state.hint_used_mask);
+        if (savefile_has_skeleton_hint_mask32)
+        {
+            rd_u32b(&sn_state.hint_used_mask);
+        }
+        else if (savefile_has_skeleton_hint_mask)
+        {
+            byte tmp_mask = 0;
+            rd_byte(&tmp_mask);
+            sn_state.hint_used_mask = tmp_mask;
+        }
         else
+        {
             sn_state.hint_used_mask = 0;
+        }
         rd_byte(&sn_state.seen_count);
         for (int i = 0; i < SKELETON_NOTE_SEEN_MAX; ++i)
             rd_s16b(&sn_state.seen_ids[i]);
@@ -2710,7 +2721,7 @@ static errr rd_savefile_new_aux(void)
     savefile_has_artifact_seen = savefile_version_at_least(0, 9, 1, 4);
     savefile_has_skeleton_notes = savefile_version_at_least(0, 9, 1, 5);
     savefile_has_skeleton_hint_mask = savefile_version_at_least(0, 9, 1, 6);
-    savefile_has_skeleton_hint_mask = savefile_version_at_least(0, 9, 1, 6);
+    savefile_has_skeleton_hint_mask32 = savefile_version_at_least(0, 9, 1, 13);
     savefile_has_partition_meta = savefile_version_at_least(0, 9, 1, 7);
     savefile_has_partition_meta_types = savefile_version_at_least(0, 9, 1, 9);
     savefile_has_cave_info_hi = savefile_version_at_least(0, 9, 1, 8);
@@ -3175,6 +3186,7 @@ bool load_player(void)
             savefile_has_artifact_seen = savefile_version_at_least(0, 9, 1, 4);
             savefile_has_skeleton_notes = savefile_version_at_least(0, 9, 1, 5);
             savefile_has_skeleton_hint_mask = savefile_version_at_least(0, 9, 1, 6);
+            savefile_has_skeleton_hint_mask32 = savefile_version_at_least(0, 9, 1, 13);
             savefile_has_partition_meta = savefile_version_at_least(0, 9, 1, 7);
             savefile_has_partition_meta_types = savefile_version_at_least(0, 9, 1, 9);
             savefile_has_cave_info_hi = savefile_version_at_least(0, 9, 1, 8);

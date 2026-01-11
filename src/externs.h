@@ -87,7 +87,7 @@ typedef struct skeleton_note_state_save {
     s16b notes_shown;
     s16b map_wid;
     s16b map_hgt;
-    byte hint_used_mask;
+    u32b hint_used_mask;
     byte seen_count;
     s16b seen_ids[SKELETON_NOTE_SEEN_MAX];
 } skeleton_note_state_save;

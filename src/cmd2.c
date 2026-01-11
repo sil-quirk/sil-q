@@ -1839,7 +1839,7 @@ void skeleton_note_get_state(skeleton_note_state_save* out)
     out->notes_shown = (s16b)g_skeleton_note_state.notes_shown;
     out->map_wid = (s16b)g_skeleton_note_state.map_wid;
     out->map_hgt = (s16b)g_skeleton_note_state.map_hgt;
-    out->hint_used_mask = (byte)(g_skeleton_note_state.hint_used_mask & 0xFF);
+    out->hint_used_mask = g_skeleton_note_state.hint_used_mask;
     out->seen_count = g_skeleton_note_state.seen_count;
     for (int i = 0; i < SKELETON_NOTE_SEEN_MAX; ++i)
         out->seen_ids[i] = g_skeleton_note_state.seen_ids[i];
@@ -3430,6 +3430,16 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
         sval, SKELETON_NOTE_ROLE_OPENING, SKEL_HINT_NONE);
     s16b signoff_id = skeleton_note_pick_entry(
         sval, SKELETON_NOTE_ROLE_SIGNOFF, SKEL_HINT_NONE);
+    if (opening_id < 0)
+    {
+        opening_id = skeleton_note_pick_entry_internal(
+            sval, SKELETON_NOTE_ROLE_OPENING, SKEL_HINT_NONE, true);
+    }
+    if (signoff_id < 0)
+    {
+        signoff_id = skeleton_note_pick_entry_internal(
+            sval, SKELETON_NOTE_ROLE_SIGNOFF, SKEL_HINT_NONE, true);
+    }
 
     const char* opening = opening_id >= 0
         ? (skeleton_note_text + skeleton_note_info[opening_id].text)
@@ -3453,7 +3463,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
         skeleton_hint_kind hint = hints[i];
         s16b note_id = skeleton_note_pick_entry(
             sval, SKELETON_NOTE_ROLE_HINT, hint);
-        if (hint == SKEL_HINT_TIP && note_id < 0)
+        if (note_id < 0)
         {
             note_id = skeleton_note_pick_entry_internal(
                 sval, SKELETON_NOTE_ROLE_HINT, hint, true);
@@ -3468,7 +3478,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
             switch (hint)
             {
             case SKEL_HINT_GREAT_VAULT:
-                tpl = "A gate of black stone stands somewhere on this level; the warding is unbroken.";
+                tpl = "A gate of black stone stands {DIST} {DIR}; the warding is unbroken.";
                 break;
             case SKEL_HINT_VAULT_ARTIFACT:
                 tpl = "There is a hoard in {SITE} {DIST} {DIR}.";
@@ -3477,31 +3487,31 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
                 tpl = "The {SITE} lies {DIST} {DIR}.";
                 break;
             case SKEL_HINT_PARTITION_PRESENCE:
-                tpl = "Beware {PART}; {PART_HAZARD}.";
+                tpl = "Beware {PART} {DIST} {DIR}; {PART_HAZARD}.";
                 break;
             case SKEL_HINT_PART_LABYRINTH:
-                tpl = "A maze of hewn stone lies here; its turns will unmake your bearings.";
+                tpl = "A maze of hewn stone lies {DIST} {DIR}; its turns will unmake your bearings.";
                 break;
             case SKEL_HINT_PART_CHASM:
-                tpl = "There is a chasm on this level. The dark below drinks both light and courage.";
+                tpl = "There is a chasm {DIST} {DIR}. The dark below drinks both light and courage.";
                 break;
             case SKEL_HINT_PART_CAVE:
-                tpl = "A great cavern opens on this floor. Sound carries far, and there is little cover.";
+                tpl = "A great cavern opens {DIST} {DIR}. Sound carries far, and there is little cover.";
                 break;
             case SKEL_HINT_PART_CAVE_ICE:
-                tpl = "A great ice cavern lies here. The cold bites, and the floor is slick.";
+                tpl = "A great ice cavern lies {DIST} {DIR}. The cold bites, and the floor is slick.";
                 break;
             case SKEL_HINT_PART_CAVE_FIRE:
-                tpl = "A cavern of fire lies here. The air burns and smoke chokes.";
+                tpl = "A cavern of fire lies {DIST} {DIR}. The air burns and smoke chokes.";
                 break;
             case SKEL_HINT_PART_CAVE_POIS:
-                tpl = "A cavern of poisonous vapours lies here. The reek clings low and stings the lungs.";
+                tpl = "A cavern of poisonous vapours lies {DIST} {DIR}. The reek clings low and stings the lungs.";
                 break;
             case SKEL_HINT_FORGE:
                 tpl = "Smoke and hammer-sound: the {SITE} lies {DIST} {DIR}.";
                 break;
             case SKEL_HINT_UNIQUE_MONSTER:
-                tpl = "A {UNIQUE_TYPE} walks these halls. Hide or flee.";
+                tpl = "A {UNIQUE_TYPE} walks these halls {DIST} {DIR}. Hide or flee.";
                 break;
             case SKEL_HINT_TIP:
                 tpl = "In Angband, silence is life. Shut doors, walk softly, and do not let them hear you.";

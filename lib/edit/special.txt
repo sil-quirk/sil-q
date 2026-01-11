@@ -149,7 +149,7 @@ W:1:1:0:0
 C:0:0:0:0:0:0:0
 T:36:0:99
 T:37:0:6
-F:VUL_POIS | DIF_ID
+F:VUL_POIS | DIF_ID | LIGHT_CURSE
 
 
 ##### Shields #####
@@ -185,7 +185,7 @@ N:15:of Wrath
 W:0:2:10:0
 C:0:0:0:0:0:0:0
 T:34:0:9
-F:AGGRAVATE | DIF_ID
+F:AGGRAVATE | DIF_ID | LIGHT_CURSE
 
 
 
@@ -567,7 +567,7 @@ N:86:of Winter's Chill
 W:0:5:0:0
 C:0:0:0:0:0:0:0
 T:35:0:99
-F:VUL_COLD | DIF_ID
+F:VUL_COLD | DIF_ID | LIGHT_CURSE
 
 
 N:87:of the Scarlet Heart
@@ -590,7 +590,7 @@ N:91:of Blackened Yew
 W:6:2:0:3000
 C:0:0:1:0:0:0:0
 T:19:13:13
-F:VUL_FIRE | EASY_KNOW
+F:VUL_FIRE | LIGHT_CURSE
 
 
 # Shortbows only
@@ -627,7 +627,7 @@ N:96:of the Falmari
 W:12:10:0:3000
 C:0:0:0:0:0:0:0
 T:19:0:99
-F:ACCURATE | EASY_KNOW
+F:ACCURATE
 
 
 ##### Arrows #####
@@ -706,7 +706,7 @@ N:116:of Treacherous Paths
 W:5:3:18:0
 C:0:0:0:0:0:0:0
 T:30:0:2
-F:DANGER
+F:DANGER | LIGHT_CURSE
 
 
 
