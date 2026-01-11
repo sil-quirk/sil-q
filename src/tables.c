@@ -236,7 +236,7 @@ cptr option_text[OPT_MAX] = {
     "smaller_level_size", /* OPT_smaller_level_size */
     "more_stairs", /* OPT_more_stairs */
     "unidentified_items_slate", /* OPT_unidentified_items_slate */
-    NULL, /* xxx */
+    "space_acts_as_comma", /* OPT_space_acts_as_comma */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -476,7 +476,7 @@ cptr option_desc[OPT_MAX] = {
     "Smaller level size (3 blocks smaller, min 6)", /* OPT_smaller_level_size */
     "More stairs (50% more; double max)", /* OPT_more_stairs */
     "Show unidentified items in slate color", /* OPT_unidentified_items_slate */
-    NULL, /* xxx */
+    "Space acts as comma (interact with square)", /* OPT_space_acts_as_comma */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -735,7 +735,7 @@ const bool option_norm[OPT_MAX] = {
     false, /* OPT_smaller_level_size */
     false, /* OPT_more_stairs */
     true, /* OPT_unidentified_items_slate */
-    false, /* xxx */
+    true, /* OPT_space_acts_as_comma */
     false, /* xxx */
     false, /* xxx */
     false, /* xxx */
@@ -911,8 +911,8 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
     /*** User-Interface ***/
 
     { OPT_system_beep, OPT_quick_messages, OPT_auto_more, OPT_easy_main_menu,
-        OPT_hjkl_movement, OPT_angband_keyset, OPT_hitpoint_warning,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_hjkl_movement, OPT_angband_keyset, OPT_space_acts_as_comma, OPT_hitpoint_warning,
+        OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE },
 

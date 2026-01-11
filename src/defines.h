@@ -2694,7 +2694,7 @@
 #define OPT_smaller_level_size 86
 #define OPT_more_stairs 87
 #define OPT_unidentified_items_slate 88
-// xxx
+#define OPT_space_acts_as_comma 89
 // xxx
 // xxx
 // xxx birth_point_based
@@ -2845,7 +2845,7 @@
 #define more_stairs op_ptr->opt[OPT_more_stairs]
 #define display_hits op_ptr->opt[OPT_display_hits]
 #define story_character_sheet op_ptr->opt[OPT_story_character_sheet]
-// xxx
+#define space_acts_as_comma op_ptr->opt[OPT_space_acts_as_comma]
 // xxx
 // xxx
 // xxx
