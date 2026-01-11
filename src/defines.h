@@ -52,17 +52,17 @@
 // #define STEAMDECK_SUPPORT
 
 /* Formalized new fork versioning (canonical source for all modules) */
-#define VERSION_STRING "0.9.1.11"
+#define VERSION_STRING "0.9.5.0"
 /*
- * Version components (0.9.1.11).  All on-disk formats (saves, scores, metaruns)
+ * Version components (0.9.5.0).  All on-disk formats (saves, scores, metaruns)
  * MUST match these values; never bump individual subsystems independently.
  */
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 9
-#define VERSION_PATCH 1
-#define VERSION_EXTRA 13   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
+#define VERSION_PATCH 5
+#define VERSION_EXTRA 0   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
 /* Update MIN_VERSION_EXTRA whenever the savefile format changes. */
-#define MIN_VERSION_EXTRA 0  /* Accept earlier 0.9.1.x saves */
+#define MIN_VERSION_EXTRA 0  /* Accept earlier 0.9.x saves */
 
 #define METAR_CURSE_SLOTS 64  /* Maximum number of distinct metarun curses supported */
 
@@ -2984,12 +2984,16 @@
 #define object_known_p(T)                                                      \
     (((T)->ident & (IDENT_KNOWN))                                              \
         || (((T)->tval == TV_ARROW) && !(T)->name1                             \
-            && !(T)->name2                                                     \
+            && !object_has_ego(T)                                              \
             && k_info[(T)->k_idx].aware)                                       \
         || ((k_info[(T)->k_idx].flags3 & (TR3_EASY_KNOW))                      \
             && k_info[(T)->k_idx].aware)                                       \
-        || ((T)->name2 && (e_info[(T)->name2].flags3 & (TR3_EASY_KNOW))        \
-            && k_info[(T)->k_idx].aware))
+        || (object_ego_suffix(T)                                               \
+               && (e_info[object_ego_suffix(T)].flags3 & (TR3_EASY_KNOW))      \
+               && k_info[(T)->k_idx].aware)                                    \
+        || (object_ego_prefix(T)                                               \
+               && (e_info[object_ego_prefix(T)].flags3 & (TR3_EASY_KNOW))      \
+               && k_info[(T)->k_idx].aware))
 
 /*
  * Return the "attr" for a given item.
@@ -3090,9 +3094,9 @@
 #define monster_attr(R) (graphics_are_ascii() ? (R)->d_attr : (R)->x_attr)
 
 /*
- * Ego-Items use the "name2" field
+ * Ego-Items use the "name2" field (suffix) and object->unused2 (prefix)
  */
-#define ego_item_p(T) ((T)->name2 ? true : false)
+#define ego_item_p(T) (object_has_ego(T) ? true : false)
 
 /*
  * Pseduo identified as {artefact}

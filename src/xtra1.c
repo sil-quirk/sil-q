@@ -4111,7 +4111,16 @@ static int player_smithing_identify_skill(const object_type* o_ptr,
 
     int bonus_equipped = is_equipped ? 3 : 0;
     int bonus_experienced = (o_ptr && (o_ptr->ident & IDENT_EXPERIENCED)) ? 5 : 0;
-    int bonus_known_ego = (o_ptr && o_ptr->name2 && !e_info[o_ptr->name2].aware) ? -5 : 0;
+    int bonus_known_ego = 0;
+    if (o_ptr)
+    {
+        byte ego_pfx = object_ego_prefix(o_ptr);
+        byte ego_sfx = object_ego_suffix(o_ptr);
+        if (ego_pfx && !e_info[ego_pfx].aware)
+            bonus_known_ego -= 5;
+        if (ego_sfx && !e_info[ego_sfx].aware)
+            bonus_known_ego -= 5;
+    }
     int distance_penalty = 0;
 
     /* EASY_ID/DIF_ID flags affect identification skill */
@@ -4164,12 +4173,13 @@ static int player_smithing_identify_skill(const object_type* o_ptr,
     }
 
     log_debug(
-        "smithing-ident: skill calc k_idx=%d tval=%d sval=%d name1=%d name2=%d ident=0x%08X base(per=%d smt=%d) abil(enchant=%d artifice=%d cursebreak=%d quick=%d) cat=%d cat_bonus=%d ctx(equip=%d exp=%d ego=%d) bonus=%d dist(apply=%d ignore=%d pen=%d curse_penalty=%d) => skill=%d",
+        "smithing-ident: skill calc k_idx=%d tval=%d sval=%d name1=%d ego_pfx=%d ego_sfx=%d ident=0x%08X base(per=%d smt=%d) abil(enchant=%d artifice=%d cursebreak=%d quick=%d) cat=%d cat_bonus=%d ctx(equip=%d exp=%d ego=%d) bonus=%d dist(apply=%d ignore=%d pen=%d curse_penalty=%d) => skill=%d",
         o_ptr ? o_ptr->k_idx : 0,
         o_ptr ? o_ptr->tval : 0,
         o_ptr ? o_ptr->sval : 0,
         o_ptr ? o_ptr->name1 : 0,
-        o_ptr ? o_ptr->name2 : 0,
+        o_ptr ? object_ego_prefix(o_ptr) : 0,
+        o_ptr ? object_ego_suffix(o_ptr) : 0,
         (unsigned)(o_ptr ? o_ptr->ident : 0),
         base_per, base_smt,
         bonus_enchantment, bonus_artifice, bonus_curse_breaking, bonus_quick_study,
@@ -4195,8 +4205,9 @@ void player_mark_object_experienced(object_type* o_ptr)
     }
 
     log_debug(
-        "smithing-ident: mark experienced k_idx=%d tval=%d sval=%d name1=%d name2=%d ident=0x%08X",
-        o_ptr->k_idx, o_ptr->tval, o_ptr->sval, o_ptr->name1, o_ptr->name2,
+        "smithing-ident: mark experienced k_idx=%d tval=%d sval=%d name1=%d ego_pfx=%d ego_sfx=%d ident=0x%08X",
+        o_ptr->k_idx, o_ptr->tval, o_ptr->sval, o_ptr->name1,
+        object_ego_prefix(o_ptr), object_ego_suffix(o_ptr),
         (unsigned)o_ptr->ident);
 
     o_ptr->ident |= IDENT_HANDLED;
@@ -4218,8 +4229,9 @@ bool player_try_identify_smithing_object(
 
     int check = skill_check(PLAYER, skill, difficulty, NULL);
     log_debug(
-        "smithing-ident: try check k_idx=%d tval=%d sval=%d name1=%d name2=%d is_equipped=%d bonus=%d skill=%d difficulty=%d result=%d",
-        o_ptr->k_idx, o_ptr->tval, o_ptr->sval, o_ptr->name1, o_ptr->name2,
+        "smithing-ident: try check k_idx=%d tval=%d sval=%d name1=%d ego_pfx=%d ego_sfx=%d is_equipped=%d bonus=%d skill=%d difficulty=%d result=%d",
+        o_ptr->k_idx, o_ptr->tval, o_ptr->sval, o_ptr->name1,
+        object_ego_prefix(o_ptr), object_ego_suffix(o_ptr),
         is_equipped ? 1 : 0, bonus, skill, difficulty, check);
 
     if (check > 0)
@@ -4254,8 +4266,9 @@ bool player_auto_identify_smithing_object(
     int margin = (ignore_distance_penalty || (dist == 0)) ? 0 : 5;
 
     log_debug(
-        "smithing-ident: auto check k_idx=%d tval=%d sval=%d name1=%d name2=%d skill=%d difficulty=%d margin=%d threshold=%d ignore_dist=%d obj=(%d,%d) player=(%d,%d)",
-        o_ptr->k_idx, o_ptr->tval, o_ptr->sval, o_ptr->name1, o_ptr->name2,
+        "smithing-ident: auto check k_idx=%d tval=%d sval=%d name1=%d ego_pfx=%d ego_sfx=%d skill=%d difficulty=%d margin=%d threshold=%d ignore_dist=%d obj=(%d,%d) player=(%d,%d)",
+        o_ptr->k_idx, o_ptr->tval, o_ptr->sval, o_ptr->name1,
+        object_ego_prefix(o_ptr), object_ego_suffix(o_ptr),
         skill, difficulty, margin, difficulty + margin, ignore_distance_penalty ? 1 : 0,
         o_ptr->iy, o_ptr->ix, p_ptr->py, p_ptr->px);
 
@@ -4340,20 +4353,34 @@ void update_lore_aux(object_type* o_ptr)
             }
         }
 
-        else if (o_ptr->name2)
+        else if (object_has_ego(o_ptr))
         {
-            int new_exp;
+            int new_exp = 0;
+            byte ego_pfx = object_ego_prefix(o_ptr);
+            byte ego_sfx = object_ego_suffix(o_ptr);
 
-            /* We now know about the special item type */
-            e_info[o_ptr->name2].everseen = true;
-
-            if (!(e_info[o_ptr->name2].aware))
+            if (ego_pfx)
             {
-                // mark
-                e_info[o_ptr->name2].aware = true;
+                e_info[ego_pfx].everseen = true;
+                if (!e_info[ego_pfx].aware)
+                {
+                    e_info[ego_pfx].aware = true;
+                    new_exp += 100;
+                }
+            }
 
-                // gain experience for identification
-                new_exp = 100;
+            if (ego_sfx && ego_sfx != ego_pfx)
+            {
+                e_info[ego_sfx].everseen = true;
+                if (!e_info[ego_sfx].aware)
+                {
+                    e_info[ego_sfx].aware = true;
+                    new_exp += 100;
+                }
+            }
+
+            if (new_exp > 0)
+            {
                 gain_exp(new_exp);
                 p_ptr->ident_exp += new_exp;
             }

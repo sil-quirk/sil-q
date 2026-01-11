@@ -4677,7 +4677,7 @@ static bool item_tester_hook_fletchery_source(const object_type* o_ptr)
 
     if (o_ptr->tval == TV_ARROW)
     {
-        if (o_ptr->name1 || o_ptr->name2 || o_ptr->att > 0)
+        if (o_ptr->name1 || object_has_ego(o_ptr) || o_ptr->att > 0)
             return false;
         return true;
     }
@@ -4685,14 +4685,14 @@ static bool item_tester_hook_fletchery_source(const object_type* o_ptr)
     if (o_ptr->tval == TV_LIGHT
         && (o_ptr->sval == SV_LIGHT_TORCH || o_ptr->sval == SV_LIGHT_MALLORN))
     {
-        if (o_ptr->name1 || o_ptr->name2)
+        if (o_ptr->name1 || object_has_ego(o_ptr))
             return false;
         return true;
     }
 
     if (o_ptr->tval == TV_STAFF)
     {
-        if (o_ptr->name1 || o_ptr->name2)
+        if (o_ptr->name1 || object_has_ego(o_ptr))
             return false;
         return true;
     }
@@ -6753,7 +6753,11 @@ bool do_radiance(int y, int x, const object_type* j_ptr)
     // determine if the bow has 'radiance'
     if (j_ptr->name1 && (a_info[j_ptr->name1].flags2 & (TR2_RADIANCE)))
         radiance = true;
-    if (j_ptr->name2 && (e_info[j_ptr->name2].flags2 & (TR2_RADIANCE)))
+    if (object_ego_prefix(j_ptr)
+        && (e_info[object_ego_prefix(j_ptr)].flags2 & (TR2_RADIANCE)))
+        radiance = true;
+    if (object_ego_suffix(j_ptr)
+        && (e_info[object_ego_suffix(j_ptr)].flags2 & (TR2_RADIANCE)))
         radiance = true;
 
     // If the bow has 'radiance' and the square is dark, then light it

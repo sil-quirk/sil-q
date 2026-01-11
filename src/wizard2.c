@@ -450,8 +450,9 @@ static void wiz_display_item(const object_type* o_ptr)
             o_ptr->evn, o_ptr->att),
         6, j);
 
-    prt(format("name1 = %-4d  name2 = %-4d  cost = %ld", o_ptr->name1,
-            o_ptr->name2, (long)object_value(o_ptr)),
+    prt(format("name1 = %-4d  egoP = %-4d  egoS = %-4d  cost = %ld", o_ptr->name1,
+            object_ego_prefix(o_ptr), object_ego_suffix(o_ptr),
+            (long)object_value(o_ptr)),
         7, j);
 
     prt(format("ident = %04x  timeout = %-d", o_ptr->ident, o_ptr->timeout), 8,
@@ -1384,7 +1385,7 @@ static void do_cmd_wiz_forget(void)
         case TV_BOOTS:
         case TV_LIGHT:
         {
-            if (!o_ptr->name1 && !o_ptr->name2)
+            if (!o_ptr->name1 && !object_has_ego(o_ptr))
             {
                 /* Identify it */
                 object_aware(o_ptr);
@@ -1438,7 +1439,7 @@ static void do_cmd_wiz_forget(void)
         case TV_BOOTS:
         case TV_LIGHT:
         {
-            if (!o_ptr->name1 && !o_ptr->name2)
+            if (!o_ptr->name1 && !object_has_ego(o_ptr))
             {
                 /* Identify it */
                 object_aware(o_ptr);

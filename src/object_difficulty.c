@@ -21,7 +21,8 @@ int object_difficulty(object_type* o_ptr)
 
     /* Ego / artifact amplify */
     if (o_ptr->name1) diff += 15; /* artifact */
-    if (o_ptr->name2) diff += 8;  /* ego */
+    if (object_ego_prefix(o_ptr)) diff += 8;
+    if (object_ego_suffix(o_ptr)) diff += 8;
 
     /* Cap very large values to avoid overflow */
     if (diff > 255) diff = 255;

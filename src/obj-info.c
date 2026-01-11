@@ -1382,12 +1382,24 @@ static bool screen_out_head(const object_type* o_ptr)
             has_description = true;
         }
 
-        /* Display an additional special item description */
-        if (o_ptr->name2 && object_known_p(o_ptr) && e_info[o_ptr->name2].text)
+        /* Display additional special item descriptions */
+        if (object_known_p(o_ptr))
         {
-            p_text_out("\n\n   ");
-            p_text_out(e_text + e_info[o_ptr->name2].text);
-            has_description = true;
+            byte ego_pfx = object_ego_prefix(o_ptr);
+            byte ego_sfx = object_ego_suffix(o_ptr);
+
+            if (ego_pfx && e_info[ego_pfx].text)
+            {
+                p_text_out("\n\n   ");
+                p_text_out(e_text + e_info[ego_pfx].text);
+                has_description = true;
+            }
+            if (ego_sfx && e_info[ego_sfx].text)
+            {
+                p_text_out("\n\n   ");
+                p_text_out(e_text + e_info[ego_sfx].text);
+                has_description = true;
+            }
         }
     }
 

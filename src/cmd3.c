@@ -1499,8 +1499,10 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     /* Decrease the item (from the pack) */
     if (item >= 0)
     {
-        log_debug("do_cmd_wield: Before decrease - item=%d, k_idx=%d, name2=%d, number=%d", 
-                  item, inventory[item].k_idx, inventory[item].name2, inventory[item].number);
+        log_debug(
+            "do_cmd_wield: Before decrease - item=%d, k_idx=%d, ego_pfx=%d, ego_sfx=%d, number=%d",
+            item, inventory[item].k_idx, object_ego_prefix(&inventory[item]),
+            object_ego_suffix(&inventory[item]), inventory[item].number);
         inven_item_increase(item, -quantity);
         inven_item_optimize(item);
         log_debug("do_cmd_wield: After optimize - item=%d, k_idx=%d", 
@@ -1517,14 +1519,15 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     /* Get the wield slot */
     o_ptr = &inventory[slot];
     
-    log_debug("do_cmd_wield: Wield slot %d - has k_idx=%d, name2=%d", 
-              slot, o_ptr->k_idx, o_ptr->name2);
+    log_debug("do_cmd_wield: Wield slot %d - has k_idx=%d, ego_pfx=%d, ego_sfx=%d",
+        slot, o_ptr->k_idx, object_ego_prefix(o_ptr), object_ego_suffix(o_ptr));
 
     /* Take off existing item */
     if (o_ptr->k_idx && !combine)
     {
-        log_debug("do_cmd_wield: Taking off existing item from slot %d - k_idx=%d, name2=%d", 
-                  slot, o_ptr->k_idx, o_ptr->name2);
+        log_debug(
+            "do_cmd_wield: Taking off existing item from slot %d - k_idx=%d, ego_pfx=%d, ego_sfx=%d",
+            slot, o_ptr->k_idx, object_ego_prefix(o_ptr), object_ego_suffix(o_ptr));
         /* Take off existing item */
         (void)inven_takeoff(slot, 255);
         
@@ -1555,8 +1558,10 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     /* Combine the new stuff into the equipment */
     if (combine)
     {
-        log_debug("do_cmd_wield: Combining - slot %d has k_idx=%d name2=%d, adding k_idx=%d name2=%d",
-                  slot, o_ptr->k_idx, o_ptr->name2, i_ptr->k_idx, i_ptr->name2);
+        log_debug(
+            "do_cmd_wield: Combining - slot %d has k_idx=%d ego_pfx=%d ego_sfx=%d, adding k_idx=%d ego_pfx=%d ego_sfx=%d",
+            slot, o_ptr->k_idx, object_ego_prefix(o_ptr), object_ego_suffix(o_ptr),
+            i_ptr->k_idx, object_ego_prefix(i_ptr), object_ego_suffix(i_ptr));
         msg_print(
             "You combine them with some that are already in your quiver.");
         object_absorb(o_ptr, i_ptr);
@@ -1564,11 +1569,13 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     /* Wear the new stuff */
     else
     {
-        log_debug("do_cmd_wield: Copying to slot %d - source k_idx=%d name2=%d",
-                  slot, i_ptr->k_idx, i_ptr->name2);
+        log_debug(
+            "do_cmd_wield: Copying to slot %d - source k_idx=%d ego_pfx=%d ego_sfx=%d",
+            slot, i_ptr->k_idx, object_ego_prefix(i_ptr), object_ego_suffix(i_ptr));
         object_copy(o_ptr, i_ptr);
-        log_debug("do_cmd_wield: After copy, slot %d now has k_idx=%d name2=%d",
-                  slot, o_ptr->k_idx, o_ptr->name2);
+        log_debug(
+            "do_cmd_wield: After copy, slot %d now has k_idx=%d ego_pfx=%d ego_sfx=%d",
+            slot, o_ptr->k_idx, object_ego_prefix(o_ptr), object_ego_suffix(o_ptr));
     }
 
     /* Once the player has equipped an item, remember its combat stats forever. */

@@ -506,14 +506,25 @@ static void object_flags_aux(
         }
     }
 
-    /* Ego-item */
-    if (o_ptr->name2)
+    /* Ego-items (prefix + suffix) */
     {
-        ego_item_type* e_ptr = &e_info[o_ptr->name2];
+        byte ego_prefix = object_ego_prefix(o_ptr);
+        if (ego_prefix)
+        {
+            ego_item_type* e_ptr = &e_info[ego_prefix];
+            (*f1) |= e_ptr->flags1;
+            (*f2) |= e_ptr->flags2;
+            (*f3) |= e_ptr->flags3;
+        }
 
-        (*f1) |= e_ptr->flags1;
-        (*f2) |= e_ptr->flags2;
-        (*f3) |= e_ptr->flags3;
+        byte ego_suffix = object_ego_suffix(o_ptr);
+        if (ego_suffix)
+        {
+            ego_item_type* e_ptr = &e_info[ego_suffix];
+            (*f1) |= e_ptr->flags1;
+            (*f2) |= e_ptr->flags2;
+            (*f3) |= e_ptr->flags3;
+        }
     }
 }
 
@@ -892,8 +903,8 @@ static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* 
 
     log_debug("mode4_shorten: processing 'of' pattern in base='%s'", base);
 
-    /* Determine if this item has an ego enchantment (e.g., "of Speed", "of Gondolin") */
-    bool has_ego = (o_ptr && o_ptr->name2);
+    /* Determine if this item has an ego suffix enchantment (e.g., "... of Speed") */
+    bool has_ego = (o_ptr && object_ego_suffix(o_ptr));
     
     char lower[256];
     size_t base_len = strlen(base);
@@ -1341,7 +1352,7 @@ void object_desc(
             break;
 
         /* Hack -- Known ego items */
-        if (o_ptr->name2 && known)
+        if (object_has_ego(o_ptr) && known)
             break;
 
         /* Color the object */
@@ -1361,7 +1372,7 @@ void object_desc(
             break;
 
         /* Hack -- Known ego items */
-        if (o_ptr->name2 && known)
+        if (object_has_ego(o_ptr) && known)
             break;
 
         /* Color the object */
@@ -1451,6 +1462,56 @@ void object_desc(
 
     /* Start dumping the result */
     t = b = tmp_buf;
+
+    /* Insert ego prefix into base name (after '& ' if present). */
+    char basenm_with_prefix[128];
+    basenm_with_prefix[0] = '\0';
+    if (known && object_ego_prefix(o_ptr))
+    {
+        ego_item_type* e_ptr = &e_info[object_ego_prefix(o_ptr)];
+        const char* raw = e_name + e_ptr->name;
+
+        char prefix_buf[80];
+        prefix_buf[0] = '\0';
+        if (raw && raw[0])
+        {
+            if (ego_name_is_prefix(raw))
+            {
+                size_t len = strlen(raw);
+                size_t copy_len = (len >= 2) ? (len - 2) : 0;
+                if (copy_len >= sizeof(prefix_buf))
+                    copy_len = sizeof(prefix_buf) - 1;
+                if (copy_len > 0)
+                {
+                    memcpy(prefix_buf, raw + 1, copy_len);
+                    prefix_buf[copy_len] = '\0';
+                }
+            }
+            else
+            {
+                SDL_strlcpy(prefix_buf, raw, sizeof(prefix_buf));
+            }
+        }
+
+        if (prefix_buf[0])
+        {
+            if (basenm[0] == '&' && basenm[1] == ' ')
+            {
+                SDL_strlcpy(basenm_with_prefix, "& ", sizeof(basenm_with_prefix));
+                SDL_strlcat(basenm_with_prefix, prefix_buf, sizeof(basenm_with_prefix));
+                SDL_strlcat(basenm_with_prefix, " ", sizeof(basenm_with_prefix));
+                SDL_strlcat(basenm_with_prefix, basenm + 2, sizeof(basenm_with_prefix));
+            }
+            else
+            {
+                SDL_strlcpy(basenm_with_prefix, prefix_buf, sizeof(basenm_with_prefix));
+                SDL_strlcat(basenm_with_prefix, " ", sizeof(basenm_with_prefix));
+                SDL_strlcat(basenm_with_prefix, basenm, sizeof(basenm_with_prefix));
+            }
+
+            basenm = basenm_with_prefix;
+        }
+    }
 
     /* Begin */
     s = basenm;
@@ -1598,11 +1659,10 @@ void object_desc(
             object_desc_str_macro(t, a_ptr->name);
         }
 
-        /* Grab any special item name */
-        else if (o_ptr->name2)
+        /* Grab any special item suffix name */
+        else if (object_ego_suffix(o_ptr))
         {
-            ego_item_type* e_ptr = &e_info[o_ptr->name2];
-
+            ego_item_type* e_ptr = &e_info[object_ego_suffix(o_ptr)];
             object_desc_chr_macro(t, ' ');
             object_desc_str_macro(t, (e_name + e_ptr->name));
         }

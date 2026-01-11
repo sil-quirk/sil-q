@@ -61,7 +61,7 @@ static const s16b jinx_egos[] = {
 
 static const char* DROP_RAW_FILE = "drops";
 static const u32b DROP_RAW_MAGIC = 0x44525053; /* 'DRPS' */
-static const u32b DROP_RAW_VERSION = 12;
+static const u32b DROP_RAW_VERSION = 13;
 
 typedef struct
 {
@@ -601,7 +601,7 @@ bool object_uses_smithing_difficulty(const object_type* o_ptr)
     {
     case TV_ARROW:
         /* Simple arrows are treated as supply; ego/artifact arrows use difficulty. */
-        return (o_ptr->name1 != 0) || (o_ptr->name2 != 0);
+        return (o_ptr->name1 != 0) || object_has_ego(o_ptr);
 
     case TV_SWORD:
     case TV_HAFTED:
@@ -629,7 +629,7 @@ bool object_uses_smithing_difficulty(const object_type* o_ptr)
         /* Non-Feanorian lights are treated as supply, except Grace lesser jewels. */
         if (o_ptr->sval == SV_LIGHT_FEANORIAN || o_ptr->sval == SV_LIGHT_SILMARIL)
             return true;
-        if (o_ptr->sval == SV_LIGHT_LESSER_JEWEL && o_ptr->name2 == EGO_GRACE)
+        if (o_ptr->sval == SV_LIGHT_LESSER_JEWEL && object_has_ego_idx(o_ptr, EGO_GRACE))
             return true;
         return false;
 
@@ -969,7 +969,7 @@ static void add_drop_entry(const object_type* proto, drop_category cat,
 
     /* Special case: Lesser Jewel of Grace stays in jewelry */
     if (k_ptr->tval == TV_LIGHT && k_ptr->sval == SV_LIGHT_LESSER_JEWEL
-        && proto->name2 == EGO_GRACE)
+        && object_has_ego_idx(proto, EGO_GRACE))
     {
         cat = DROP_CAT_JEWELRY;
     }
@@ -1021,18 +1021,43 @@ static bool is_jinx_ego(int e_idx)
 static void apply_ego_static(object_type* o_ptr, ego_item_type* e_ptr)
 {
     // abilities
-    for (int i = 0; i < e_ptr->abilities; i++)
+    for (int i = 0; i < e_ptr->abilities && o_ptr->abilities < (int)N_ELEMENTS(o_ptr->skilltype); i++)
     {
-        o_ptr->skilltype[i + o_ptr->abilities] = e_ptr->skilltype[i];
-        o_ptr->abilitynum[i + o_ptr->abilities] = e_ptr->abilitynum[i];
+        int idx = o_ptr->abilities;
+        o_ptr->skilltype[idx] = e_ptr->skilltype[i];
+        o_ptr->abilitynum[idx] = e_ptr->abilitynum[i];
+        o_ptr->abilities++;
     }
-    o_ptr->abilities += e_ptr->abilities;
 
     // cursed / broken flags
     if (!e_ptr->cost)
         o_ptr->ident |= (IDENT_BROKEN);
     if (e_ptr->flags3 & (TR3_LIGHT_CURSE))
         o_ptr->ident |= (IDENT_CURSED);
+}
+
+static bool ego_applies_to_kind(const ego_item_type* e_ptr, const object_kind* k_ptr)
+{
+    if (!e_ptr || !k_ptr)
+        return false;
+
+    for (int t = 0; t < EGO_TVALS_MAX; t++)
+    {
+        if (!e_ptr->tval[t])
+            continue;
+        if (k_ptr->tval != e_ptr->tval[t])
+            continue;
+        if (k_ptr->sval < e_ptr->min_sval[t] || k_ptr->sval > e_ptr->max_sval[t])
+            continue;
+        return true;
+    }
+
+    return false;
+}
+
+static int ego_combo_group_id(int prefix_idx, int suffix_idx)
+{
+    return ((prefix_idx & 0xFF) << 8) | (suffix_idx & 0xFF);
 }
 
 /* Build variants for a base object (normal item). */
@@ -1221,6 +1246,9 @@ static void build_ego_variants(int e_idx)
     if (is_jinx_ego(e_idx))
         return;
 
+    const char* ego_name = e_name + e_ptr->name;
+    bool is_prefix = ego_name_is_prefix(ego_name);
+
     for (int t = 0; t < EGO_TVALS_MAX; t++)
     {
         if (!e_ptr->tval[t])
@@ -1242,7 +1270,10 @@ static void build_ego_variants(int e_idx)
             object_type base;
             object_prep(&base, k_idx);
             base.weight = k_ptr->weight;
-            base.name2 = e_idx;
+            if (is_prefix)
+                object_set_ego_prefix(&base, e_idx);
+            else
+                object_set_ego_suffix(&base, e_idx);
             apply_ego_static(&base, e_ptr);
 
             /* Ego items: use ego W: depth for min_depth (for difficulty penalty) */
@@ -1476,6 +1507,316 @@ static void build_ego_variants(int e_idx)
     }
 }
 
+static void build_ego_combo_variants(int prefix_idx, int suffix_idx)
+{
+    if (prefix_idx <= 0 || suffix_idx <= 0)
+        return;
+    if (is_jinx_ego(prefix_idx) || is_jinx_ego(suffix_idx))
+        return;
+
+    ego_item_type* prefix_ptr = &e_info[prefix_idx];
+    ego_item_type* suffix_ptr = &e_info[suffix_idx];
+    if (!prefix_ptr->tval[0] || !suffix_ptr->tval[0])
+        return;
+
+    const char* prefix_name = e_name + prefix_ptr->name;
+    const char* suffix_name = e_name + suffix_ptr->name;
+    if (!ego_name_is_prefix(prefix_name) || ego_name_is_prefix(suffix_name))
+        return;
+
+    int group_id = ego_combo_group_id(prefix_idx, suffix_idx);
+
+    for (int k_idx = 1; k_idx < z_info->k_max; k_idx++)
+    {
+        object_kind* k_ptr = &k_info[k_idx];
+        if (k_ptr->flags3 & TR3_INSTA_ART)
+            continue;
+        if (!ego_applies_to_kind(prefix_ptr, k_ptr) || !ego_applies_to_kind(suffix_ptr, k_ptr))
+            continue;
+
+        drop_category cat = drop_category_for_kind(k_ptr);
+        if (cat == DROP_CAT_MAX)
+            continue;
+
+        object_type base;
+        object_prep(&base, k_idx);
+        base.weight = k_ptr->weight;
+        object_set_ego_prefix(&base, prefix_idx);
+        object_set_ego_suffix(&base, suffix_idx);
+        apply_ego_static(&base, prefix_ptr);
+        apply_ego_static(&base, suffix_ptr);
+
+        /* Max depth: apply the strictest max-level restriction among the two egos. */
+        int max_depth = max_locale_depth(k_ptr);
+        if (prefix_ptr->max_level > 0 && (max_depth == 0 || prefix_ptr->max_level < max_depth))
+            max_depth = prefix_ptr->max_level;
+        if (suffix_ptr->max_level > 0 && (max_depth == 0 || suffix_ptr->max_level < max_depth))
+            max_depth = suffix_ptr->max_level;
+
+        byte base_depths[DROP_ALLOC_MAX];
+        byte base_rarities[DROP_ALLOC_MAX];
+        int base_allocs = collect_kind_allocations(k_ptr, base_depths, base_rarities);
+        int base_fallback_depth = min_locale_depth(k_ptr);
+        if (base_fallback_depth <= 0)
+            base_fallback_depth = 1;
+        if (base_allocs == 0)
+        {
+            base_depths[0] = (byte)base_fallback_depth;
+            base_rarities[0] = 1;
+            base_allocs = 1;
+        }
+
+        int prefix_fallback_depth = (prefix_ptr->level > 0) ? prefix_ptr->level : 1;
+        int suffix_fallback_depth = (suffix_ptr->level > 0) ? suffix_ptr->level : 1;
+
+        byte prefix_depths[DROP_ALLOC_MAX];
+        byte prefix_rarities[DROP_ALLOC_MAX];
+        int prefix_allocs = collect_ego_allocations(prefix_ptr, prefix_depths, prefix_rarities);
+        int prefix_default_rarity = (prefix_ptr->rarity > 0) ? prefix_ptr->rarity : 1;
+        if (prefix_allocs == 0)
+        {
+            prefix_depths[0] = (byte)prefix_fallback_depth;
+            prefix_rarities[0] = (byte)prefix_default_rarity;
+            prefix_allocs = 1;
+        }
+
+        byte suffix_depths[DROP_ALLOC_MAX];
+        byte suffix_rarities[DROP_ALLOC_MAX];
+        int suffix_allocs = collect_ego_allocations(suffix_ptr, suffix_depths, suffix_rarities);
+        int suffix_default_rarity = (suffix_ptr->rarity > 0) ? suffix_ptr->rarity : 1;
+        if (suffix_allocs == 0)
+        {
+            suffix_depths[0] = (byte)suffix_fallback_depth;
+            suffix_rarities[0] = (byte)suffix_default_rarity;
+            suffix_allocs = 1;
+        }
+
+        byte tmp_depths[DROP_ALLOC_MAX];
+        byte tmp_rarities[DROP_ALLOC_MAX];
+        int tmp_allocs = combine_allocations(
+            base_depths, base_rarities, base_allocs,
+            prefix_depths, prefix_rarities, prefix_allocs,
+            tmp_depths, tmp_rarities);
+
+        byte alloc_depths[DROP_ALLOC_MAX];
+        byte alloc_rarities[DROP_ALLOC_MAX];
+        int num_allocations = combine_allocations(
+            tmp_depths, tmp_rarities, tmp_allocs,
+            suffix_depths, suffix_rarities, suffix_allocs,
+            alloc_depths, alloc_rarities);
+
+        if (num_allocations == 0)
+            continue;
+
+        bool has_positive_rarity = false;
+        for (int i = 0; i < num_allocations; i++)
+        {
+            if (alloc_rarities[i] > 0)
+            {
+                has_positive_rarity = true;
+                break;
+            }
+        }
+        if (!has_positive_rarity && num_allocations > 0
+            && schedule_max_depth_cap(alloc_depths, alloc_rarities, num_allocations) < 0)
+        {
+            continue;
+        }
+
+        int base_min_depth = schedule_min_depth(base_depths, base_allocs, base_fallback_depth);
+        int prefix_min_depth = schedule_min_depth(prefix_depths, prefix_allocs, prefix_fallback_depth);
+        int suffix_min_depth = schedule_min_depth(suffix_depths, suffix_allocs, suffix_fallback_depth);
+
+        if (base_min_depth <= 0)
+            base_min_depth = 1;
+        if (prefix_min_depth <= 0)
+            prefix_min_depth = 1;
+        if (suffix_min_depth <= 0)
+            suffix_min_depth = 1;
+
+        int min_depth = base_min_depth;
+        if (prefix_min_depth > min_depth)
+            min_depth = prefix_min_depth;
+        if (suffix_min_depth > min_depth)
+            min_depth = suffix_min_depth;
+
+        int rarity_cap_depth = schedule_max_depth_cap(alloc_depths, alloc_rarities, num_allocations);
+        if (min_depth <= 0)
+            min_depth = 1;
+        if (rarity_cap_depth > 0 && (max_depth == 0 || rarity_cap_depth < max_depth))
+            max_depth = rarity_cap_depth;
+
+        /* Combined ego numeric contributions */
+        int max_att_bonus = prefix_ptr->max_att + suffix_ptr->max_att;
+        int max_evn_bonus = prefix_ptr->max_evn + suffix_ptr->max_evn;
+        int to_dd_bonus = prefix_ptr->to_dd + suffix_ptr->to_dd;
+        int to_ds_bonus = prefix_ptr->to_ds + suffix_ptr->to_ds;
+        int to_pd_bonus = prefix_ptr->to_pd + suffix_ptr->to_pd;
+        int to_ps_bonus = prefix_ptr->to_ps + suffix_ptr->to_ps;
+        int max_pval_bonus = prefix_ptr->max_pval + suffix_ptr->max_pval;
+
+        int att_min = k_ptr->att + ((prefix_ptr->max_att > 0) ? 1 : 0) + ((suffix_ptr->max_att > 0) ? 1 : 0);
+        int att_max = k_ptr->att;
+        int ds_min = k_ptr->ds + ((prefix_ptr->to_ds > 0) ? 1 : 0) + ((suffix_ptr->to_ds > 0) ? 1 : 0);
+        int ds_max = k_ptr->ds;
+        int evn_min = k_ptr->evn + ((prefix_ptr->max_evn > 0) ? 1 : 0) + ((suffix_ptr->max_evn > 0) ? 1 : 0);
+        int evn_max = k_ptr->evn;
+        int ps_min = k_ptr->ps + ((prefix_ptr->to_ps > 0) ? 1 : 0) + ((suffix_ptr->to_ps > 0) ? 1 : 0);
+        int ps_max = k_ptr->ps;
+        int pval_min = k_ptr->pval + ((prefix_ptr->max_pval > 0) ? 1 : 0) + ((suffix_ptr->max_pval > 0) ? 1 : 0);
+        int pval_max = k_ptr->pval + max_pval_bonus;
+        int dd_min = k_ptr->dd + ((prefix_ptr->to_dd > 0) ? 1 : 0) + ((suffix_ptr->to_dd > 0) ? 1 : 0);
+        int dd_max = k_ptr->dd + to_dd_bonus;
+        int pd_min = k_ptr->pd + ((prefix_ptr->to_pd > 0) ? 1 : 0) + ((suffix_ptr->to_pd > 0) ? 1 : 0);
+        int pd_max = k_ptr->pd + to_pd_bonus;
+        bool pval_allowed = ((k_ptr->flags1 & TR1_PVAL_MASK) != 0)
+            || (k_ptr->pval != 0) || (max_pval_bonus > 0);
+
+        switch (k_ptr->tval)
+        {
+        case TV_SWORD:
+        case TV_POLEARM:
+        case TV_HAFTED:
+        case TV_DIGGING:
+        case TV_BOW:
+            att_max = k_ptr->att + 1 + max_att_bonus;
+            ds_max = k_ptr->ds + 1 + to_ds_bonus;
+            evn_max = k_ptr->evn + max_evn_bonus;
+            break;
+        case TV_BOOTS:
+        case TV_GLOVES:
+        case TV_HELM:
+        case TV_CROWN:
+        case TV_SHIELD:
+        case TV_CLOAK:
+        case TV_SOFT_ARMOR:
+        case TV_MAIL:
+            att_max = k_ptr->att + 1 + max_att_bonus;
+            if (att_max > 0)
+                att_max = 0;
+            evn_max = k_ptr->evn + 1 + max_evn_bonus;
+            ps_max = k_ptr->ps + 1 + to_ps_bonus;
+            if ((k_ptr->tval == TV_CLOAK)
+                || (k_ptr->tval == TV_SOFT_ARMOR && k_ptr->sval == SV_ROBE))
+                ps_max = k_ptr->ps + to_ps_bonus;
+            if (k_ptr->tval == TV_MAIL && k_ptr->sval == SV_LONG_CORSLET)
+                ps_max = k_ptr->ps + 2 + to_ps_bonus;
+            break;
+        case TV_RING:
+            if (k_ptr->sval == SV_RING_ACCURACY)
+            {
+                att_max = 4;
+                att_min = 1;
+            }
+            else
+            {
+                att_max = k_ptr->att + max_att_bonus;
+            }
+            if (k_ptr->sval == SV_RING_EVASION)
+            {
+                evn_max = 4;
+                evn_min = 1;
+            }
+            else
+            {
+                evn_max = k_ptr->evn + max_evn_bonus;
+            }
+            if (k_ptr->sval == SV_RING_PROTECTION)
+            {
+                /* Protection rings are always 1dX (never 0dX). */
+                if (pd_min < 1)
+                    pd_min = 1;
+                if (pd_max < 1)
+                    pd_max = 1;
+                ps_max = 3;
+                ps_min = 1;
+            }
+            if (pval_allowed)
+            {
+                if (k_ptr->flags1 & TR1_PVAL_MASK)
+                {
+                    if (pval_min < 1)
+                        pval_min = 1;
+                    if (pval_max < 4)
+                        pval_max = 4;
+                }
+                if (pval_max > 4)
+                    pval_max = 4;
+            }
+            break;
+        case TV_AMULET:
+            if (pval_allowed)
+            {
+                if (k_ptr->flags1 & TR1_PVAL_MASK)
+                {
+                    if (pval_min < 1)
+                        pval_min = 1;
+                    if (pval_max < 4)
+                        pval_max = 4;
+                }
+                if (pval_max > 4)
+                    pval_max = 4;
+            }
+            break;
+        default:
+            att_max = k_ptr->att + max_att_bonus;
+            ds_max = k_ptr->ds + to_ds_bonus;
+            evn_max = k_ptr->evn + max_evn_bonus;
+            ps_max = k_ptr->ps + to_ps_bonus;
+            break;
+        }
+
+        if (att_min > att_max)
+            att_min = att_max;
+        if (ds_min > ds_max)
+            ds_min = ds_max;
+        if (evn_min > evn_max)
+            evn_min = evn_max;
+        if (ps_min > ps_max)
+            ps_min = ps_max;
+        if (pval_min > pval_max)
+            pval_min = pval_max;
+        if (dd_min > dd_max)
+            dd_min = dd_max;
+        if (pd_min > pd_max)
+            pd_min = pd_max;
+
+        for (int att = att_min; att <= att_max; att++)
+        {
+            for (int ds = ds_min; ds <= ds_max; ds++)
+            {
+                for (int evn = evn_min; evn <= evn_max; evn++)
+                {
+                    for (int ps = ps_min; ps <= ps_max; ps++)
+                    {
+                        for (int pval = pval_min;
+                             pval <= (pval_allowed ? pval_max : pval_min); pval++)
+                        {
+                            for (int dd = dd_min; dd <= dd_max; dd++)
+                            {
+                                for (int pd = pd_min; pd <= pd_max; pd++)
+                                {
+                                    object_type v = base;
+                                    v.att = att;
+                                    v.ds = ds;
+                                    v.dd = dd;
+                                    v.evn = evn;
+                                    v.ps = ps;
+                                    v.pd = pd;
+                                    v.pval = pval;
+                                    add_drop_entry(&v, cat, DROP_GROUP_EGO, group_id,
+                                        min_depth, max_depth,
+                                        alloc_depths, alloc_rarities, num_allocations);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /* Build artefact entries (single variants). */
 static void build_artifact_variants(int a_idx)
 {
@@ -1648,6 +1989,27 @@ void drop_system_init(void)
     /* Ego items */
     for (int e_idx = 1; e_idx < z_info->e_max; e_idx++)
         build_ego_variants(e_idx);
+
+    /* Ego prefix+suffix combos */
+    for (int p_idx = 1; p_idx < z_info->e_max; p_idx++)
+    {
+        ego_item_type* p_ptr = &e_info[p_idx];
+        if (!p_ptr->tval[0] || is_jinx_ego(p_idx))
+            continue;
+        if (!ego_name_is_prefix(e_name + p_ptr->name))
+            continue;
+
+        for (int s_idx = 1; s_idx < z_info->e_max; s_idx++)
+        {
+            ego_item_type* s_ptr = &e_info[s_idx];
+            if (!s_ptr->tval[0] || is_jinx_ego(s_idx))
+                continue;
+            if (ego_name_is_prefix(e_name + s_ptr->name))
+                continue;
+
+            build_ego_combo_variants(p_idx, s_idx);
+        }
+    }
 
     /* Artefacts */
     for (int a_idx = 1; a_idx < z_info->art_max; a_idx++)
@@ -2341,7 +2703,7 @@ static bool try_apply_jinx(object_type* o_ptr, int depth)
         return false;
     
     /* Only jinx normal items (not already ego items) */
-    if (o_ptr->name2)
+    if (object_has_ego(o_ptr))
         return false;
     
     /* Calculate item difficulty */
@@ -2379,7 +2741,11 @@ static bool try_apply_jinx(object_type* o_ptr, int depth)
         if (matches)
         {
             /* Apply the jinx ego */
-            o_ptr->name2 = e_idx;
+            const char* raw = e_name + e_ptr->name;
+            if (ego_name_is_prefix(raw))
+                object_set_ego_prefix(o_ptr, e_idx);
+            else
+                object_set_ego_suffix(o_ptr, e_idx);
             apply_ego_static(o_ptr, e_ptr);
             
             if (gen_log_initialized)

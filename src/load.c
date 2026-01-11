@@ -497,7 +497,9 @@ static errr rd_item(object_type* o_ptr)
         o_ptr->weight = k_ptr->weight;
 
         /* Paranoia */
-        o_ptr->name1 = o_ptr->name2 = 0;
+        o_ptr->name1 = 0;
+        object_set_ego_suffix(o_ptr, 0);
+        object_set_ego_prefix(o_ptr, 0);
 
         /* All done */
         return (0);
@@ -533,23 +535,66 @@ static errr rd_item(object_type* o_ptr)
         }
     }
 
-    /* Paranoia */
-    if (o_ptr->name2)
+    /*
+     * Ego items
+     *
+     * - Prefix ego is stored in o_ptr->unused2 (see object_ego_prefix()).
+     * - Suffix ego is stored in o_ptr->name2 (see object_ego_suffix()).
+     *
+     * For compatibility with older saves (which only had one ego in name2),
+     * migrate prefix-type egos from suffix->prefix based on the ego name.
+     */
+    if (o_ptr->unused2 < 0 || o_ptr->unused2 > 255)
+        o_ptr->unused2 = 0;
+
+    if (object_ego_prefix(o_ptr))
     {
+        byte e_idx = object_ego_prefix(o_ptr);
         ego_item_type* e_ptr;
 
-        /* Paranoia */
-        if (o_ptr->name2 >= z_info->e_max)
+        if (e_idx >= z_info->e_max)
+        {
+            object_set_ego_prefix(o_ptr, 0);
+        }
+        else
+        {
+            e_ptr = &e_info[e_idx];
+            if (!e_ptr->name)
+            {
+                object_set_ego_prefix(o_ptr, 0);
+            }
+            else if (!ego_name_is_prefix(e_name + e_ptr->name))
+            {
+                /* Corrupted/legacy: move to suffix slot if possible. */
+                if (!object_ego_suffix(o_ptr))
+                    object_set_ego_suffix(o_ptr, e_idx);
+                object_set_ego_prefix(o_ptr, 0);
+            }
+        }
+    }
+
+    if (object_ego_suffix(o_ptr))
+    {
+        byte e_idx = object_ego_suffix(o_ptr);
+        ego_item_type* e_ptr;
+
+        if (e_idx >= z_info->e_max)
         {
             return (-1);
         }
 
-        /* Obtain the special item info */
-        e_ptr = &e_info[o_ptr->name2];
-
-        /* Verify that special item */
+        e_ptr = &e_info[e_idx];
         if (!e_ptr->name)
-            o_ptr->name2 = 0;
+        {
+            object_set_ego_suffix(o_ptr, 0);
+        }
+        else if (ego_name_is_prefix(e_name + e_ptr->name))
+        {
+            /* Legacy: prefix egos used to live in name2. */
+            if (!object_ego_prefix(o_ptr))
+                object_set_ego_prefix(o_ptr, e_idx);
+            object_set_ego_suffix(o_ptr, 0);
+        }
     }
 
     /* Hack -- extract the "broken" flag */
@@ -605,14 +650,15 @@ static errr rd_item(object_type* o_ptr)
     }
 
     /* Ego items */
-    if (o_ptr->name2)
+    if (object_ego_prefix(o_ptr))
     {
-        ego_item_type* e_ptr;
-
-        /* Obtain the special item info */
-        e_ptr = &e_info[o_ptr->name2];
-
-        /* Hack -- extract the "broken" flag */
+        ego_item_type* e_ptr = &e_info[object_ego_prefix(o_ptr)];
+        if (!e_ptr->cost)
+            o_ptr->ident |= (IDENT_BROKEN);
+    }
+    if (object_ego_suffix(o_ptr))
+    {
+        ego_item_type* e_ptr = &e_info[object_ego_suffix(o_ptr)];
         if (!e_ptr->cost)
             o_ptr->ident |= (IDENT_BROKEN);
     }

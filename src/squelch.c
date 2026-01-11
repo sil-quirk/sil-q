@@ -1569,9 +1569,19 @@ int squelch_itemp(object_type* o_ptr, byte feelings, bool fullid)
     result = SQUELCH_NO;
 
     /* Squelch some ego items if known */
-    if (fullid && (ego_item_p(o_ptr)) && (e_info[o_ptr->name2].squelch))
+    if (fullid && ego_item_p(o_ptr))
     {
-        return ((o_ptr->obj_note) ? SQUELCH_FAILED : SQUELCH_YES);
+        byte ego_pfx = object_ego_prefix(o_ptr);
+        byte ego_sfx = object_ego_suffix(o_ptr);
+        bool should_squelch = false;
+
+        if (ego_pfx && e_info[ego_pfx].squelch)
+            should_squelch = true;
+        if (ego_sfx && e_info[ego_sfx].squelch)
+            should_squelch = true;
+
+        if (should_squelch)
+            return ((o_ptr->obj_note) ? SQUELCH_FAILED : SQUELCH_YES);
     }
 
     /* Check to see if the object is eligible for squelching on id. */

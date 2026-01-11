@@ -1393,7 +1393,7 @@ bool detect_objects_magic(void)
         /* Artefacts, misc magic items, or ego items */
         if (artefact_p(o_ptr) || ego_item_p(o_ptr) || (tv == TV_AMULET)
             || (tv == TV_RING) || (tv == TV_STAFF) || (tv == TV_HORN)
-            || (tv == TV_POTION) || o_ptr->name2)
+            || (tv == TV_POTION))
         {
             /* Memorize the item */
             o_ptr->marked = true;
@@ -3514,7 +3514,7 @@ bool item_tester_hook_ordinary_ammo(const object_type* o_ptr)
     {
     case TV_ARROW:
     {
-        if (o_ptr->name1 || o_ptr->name2 || o_ptr->att > 0)
+        if (o_ptr->name1 || object_has_ego(o_ptr) || o_ptr->att > 0)
             return false;
         return true;
     }

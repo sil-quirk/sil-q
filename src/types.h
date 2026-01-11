@@ -561,7 +561,7 @@ struct object_type
     s16b weight; /* Item weight */
 
     byte name1; /* Artefact type, if any */
-    byte name2; /* Ego-Item type, if any */
+    byte name2; /* Ego suffix index, if any (see object_ego_suffix()) */
 
     byte pickup; /* Auto pick up this item next time it is stepped on */
     s16b pickup_slot; /* Preferred inventory slot when auto-picked */
@@ -591,8 +591,8 @@ struct object_type
                        // object base + 4 for special or artefact)
     byte abilitynum[8]; // Ability numbers for these
 
-    s32b unused1; // Room for expansion without breaking savefiles
-    s32b unused2; // Room for expansion without breaking savefiles
+    s32b unused1; // Smithing marker: 1=smithed by player, 0=found
+    s32b unused2; // Ego prefix index (0 = none); see object_ego_prefix()
     s32b unused3; // Room for expansion without breaking savefiles
     s32b unused4; // Room for expansion without breaking savefiles
 };

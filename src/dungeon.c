@@ -516,12 +516,23 @@ void id_known_specials(void)
         if (!o_ptr->k_idx)
             continue;
 
-        /* Automatically identify any special items you have seen before*/
-        if (o_ptr->name2 && !object_known_p(o_ptr)
-            && (e_info[o_ptr->name2].aware))
+        /* Automatically identify any special items you have seen before */
+        if (object_has_ego(o_ptr) && !object_known_p(o_ptr))
         {
+            bool all_aware = true;
+            byte ego_pfx = object_ego_prefix(o_ptr);
+            byte ego_sfx = object_ego_suffix(o_ptr);
+
+            if (ego_pfx && !e_info[ego_pfx].aware)
+                all_aware = false;
+            if (ego_sfx && !e_info[ego_sfx].aware)
+                all_aware = false;
+
             if (!object_uses_smithing_difficulty(o_ptr))
-                ident(o_ptr);
+            {
+                if (all_aware)
+                    ident(o_ptr);
+            }
         }
     }
     for (i = 0; i < INVEN_TOTAL; i++)
@@ -533,12 +544,23 @@ void id_known_specials(void)
         if (!o_ptr->k_idx)
             continue;
 
-        /* Automatically identify any special items you have seen before*/
-        if (o_ptr->name2 && !object_known_p(o_ptr)
-            && (e_info[o_ptr->name2].aware))
+        /* Automatically identify any special items you have seen before */
+        if (object_has_ego(o_ptr) && !object_known_p(o_ptr))
         {
+            bool all_aware = true;
+            byte ego_pfx = object_ego_prefix(o_ptr);
+            byte ego_sfx = object_ego_suffix(o_ptr);
+
+            if (ego_pfx && !e_info[ego_pfx].aware)
+                all_aware = false;
+            if (ego_sfx && !e_info[ego_sfx].aware)
+                all_aware = false;
+
             if (!object_uses_smithing_difficulty(o_ptr))
-                ident(o_ptr);
+            {
+                if (all_aware)
+                    ident(o_ptr);
+            }
         }
     }
 

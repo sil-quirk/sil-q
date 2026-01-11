@@ -1270,16 +1270,36 @@ extern void ident_on_wield(object_type* o_ptr)
 
     // identify the special item types that do nothing much
     // (since they have no hidden abilities, they must already be obvious)
-    if (o_ptr->name2)
+    if (object_has_ego(o_ptr))
     {
-        ego_item_type* e_ptr = &e_info[o_ptr->name2];
+        bool all_trivial = true;
+        byte ego_pfx = object_ego_prefix(o_ptr);
+        byte ego_sfx = object_ego_suffix(o_ptr);
 
-        if ((e_ptr->flags1 == 0L) && (e_ptr->flags2 == 0L)
-            && ((e_ptr->flags3 | (TR3_IGNORE_ALL)) == (TR3_IGNORE_ALL))
-            && (e_ptr->abilities == 0))
+        if (ego_pfx)
         {
-            notice = true;
+            ego_item_type* e_ptr = &e_info[ego_pfx];
+            if ((e_ptr->flags1 != 0L) || (e_ptr->flags2 != 0L)
+                || ((e_ptr->flags3 | (TR3_IGNORE_ALL)) != (TR3_IGNORE_ALL))
+                || (e_ptr->abilities != 0))
+            {
+                all_trivial = false;
+            }
         }
+
+        if (ego_sfx)
+        {
+            ego_item_type* e_ptr = &e_info[ego_sfx];
+            if ((e_ptr->flags1 != 0L) || (e_ptr->flags2 != 0L)
+                || ((e_ptr->flags3 | (TR3_IGNORE_ALL)) != (TR3_IGNORE_ALL))
+                || (e_ptr->abilities != 0))
+            {
+                all_trivial = false;
+            }
+        }
+
+        if (all_trivial)
+            notice = true;
     }
 
     // identify true sight if it cures blindness
@@ -1304,7 +1324,7 @@ extern void ident_on_wield(object_type* o_ptr)
         notice = true;
     }
 
-    if (o_ptr->name1 || o_ptr->name2)
+    if (o_ptr->name1 || object_has_ego(o_ptr))
     {
         // For special items and artefacts, we need to ignore the flags that are
         // basic to the object type and focus on the special/artefact ones. We
@@ -1590,11 +1610,18 @@ extern void ident_on_wield(object_type* o_ptr)
     }
 
     // identify the special item types that grant abilities
-    else if (o_ptr->name2)
+    else if (object_has_ego(o_ptr))
     {
-        ego_item_type* e_ptr = &e_info[o_ptr->name2];
+        byte ego_pfx = object_ego_prefix(o_ptr);
+        byte ego_sfx = object_ego_suffix(o_ptr);
 
-        if (e_ptr->abilities > 0)
+        ego_item_type* e_ptr = NULL;
+        if (ego_pfx && e_info[ego_pfx].abilities > 0)
+            e_ptr = &e_info[ego_pfx];
+        else if (ego_sfx && e_info[ego_sfx].abilities > 0)
+            e_ptr = &e_info[ego_sfx];
+
+        if (e_ptr && e_ptr->abilities > 0)
         {
             notice = true;
             msg_format("You have gained the ability '%s'.",
@@ -1717,7 +1744,7 @@ extern void ident_resist(u32b flag)
                 continue;
         }
 
-        if (o_ptr->name1 || o_ptr->name2)
+        if (o_ptr->name1 || object_has_ego(o_ptr))
         {
             // For special items and artefacts, we need to ignore the flags that
             // are basic to the object type and focus on the special/artefact

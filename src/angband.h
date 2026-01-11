@@ -92,6 +92,83 @@ static inline bool streq(const char* a, const char* b) {
     return (strcmp(a, b) == 0);
 }
 
+/* ------------------------------------------------------------------------ */
+/* Ego affix helpers                                                        */
+/* ------------------------------------------------------------------------ */
+
+/*
+ * Ego items now support a prefix and a suffix.
+ *
+ * Storage:
+ * - Suffix ego index is stored in object_type.name2 (legacy ego field).
+ * - Prefix ego index is stored in object_type.unused2 (reserved savefile field).
+ *
+ * Do not access these fields directly outside low-level helpers; use the
+ * accessors below to keep semantics consistent across the codebase.
+ */
+static inline byte object_ego_prefix(const object_type* o_ptr)
+{
+    if (!o_ptr)
+        return 0;
+    if (o_ptr->unused2 <= 0)
+        return 0;
+    if (o_ptr->unused2 > 255)
+        return 0;
+    return (byte)o_ptr->unused2;
+}
+
+static inline void object_set_ego_prefix(object_type* o_ptr, int e_idx)
+{
+    if (!o_ptr)
+        return;
+    if (e_idx <= 0)
+    {
+        o_ptr->unused2 = 0;
+        return;
+    }
+    o_ptr->unused2 = (s32b)(byte)e_idx;
+}
+
+static inline byte object_ego_suffix(const object_type* o_ptr)
+{
+    if (!o_ptr)
+        return 0;
+    return o_ptr->name2;
+}
+
+static inline void object_set_ego_suffix(object_type* o_ptr, int e_idx)
+{
+    if (!o_ptr)
+        return;
+    if (e_idx <= 0)
+    {
+        o_ptr->name2 = 0;
+        return;
+    }
+    o_ptr->name2 = (byte)e_idx;
+}
+
+static inline bool object_has_ego(const object_type* o_ptr)
+{
+    return object_ego_prefix(o_ptr) || object_ego_suffix(o_ptr);
+}
+
+static inline bool object_has_ego_idx(const object_type* o_ptr, int e_idx)
+{
+    if (!o_ptr || e_idx <= 0 || e_idx > 255)
+        return false;
+    return object_ego_prefix(o_ptr) == (byte)e_idx
+        || object_ego_suffix(o_ptr) == (byte)e_idx;
+}
+
+static inline bool ego_name_is_prefix(const char* name)
+{
+    if (!name || !name[0])
+        return false;
+    size_t len = strlen(name);
+    return (len >= 2 && name[0] == '(' && name[len - 1] == ')');
+}
+
 /* Check if string t is a prefix of string s */
 static inline bool prefix(const char* s, const char* t) {
     while (*t) {

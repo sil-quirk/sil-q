@@ -1334,17 +1334,26 @@ static s32b object_value_real(const object_type* o_ptr)
         value = a_ptr->cost;
     }
 
-    /* Ego-Item */
-    else if (o_ptr->name2)
+    /* Ego-Items (prefix and/or suffix) */
+    else if (object_has_ego(o_ptr))
     {
-        ego_item_type* e_ptr = &e_info[o_ptr->name2];
+        byte ego_prefix = object_ego_prefix(o_ptr);
+        if (ego_prefix)
+        {
+            ego_item_type* e_ptr = &e_info[ego_prefix];
+            if (!e_ptr->cost)
+                return (0L);
+            value += e_ptr->cost;
+        }
 
-        /* Hack -- "worthless" special items */
-        if (!e_ptr->cost)
-            return (0L);
-
-        /* Hack -- Reward the special item with a bonus */
-        value += e_ptr->cost;
+        byte ego_suffix = object_ego_suffix(o_ptr);
+        if (ego_suffix)
+        {
+            ego_item_type* e_ptr = &e_info[ego_suffix];
+            if (!e_ptr->cost)
+                return (0L);
+            value += e_ptr->cost;
+        }
     }
 
     /* Analyze pval bonus */
@@ -1698,13 +1707,15 @@ bool object_similar(const object_type* o_ptr, const object_type* j_ptr)
         if (o_ptr->name1 != j_ptr->name1)
             return (false);
 
-        log_debug("object_similar: checking lights - o_ptr name2=%d, j_ptr name2=%d",
-                  o_ptr->name2, j_ptr->name2);
+        log_debug("object_similar: checking egos - o_ptr prefix=%d suffix=%d, j_ptr prefix=%d suffix=%d",
+                  (int)object_ego_prefix(o_ptr), (int)object_ego_suffix(o_ptr),
+                  (int)object_ego_prefix(j_ptr), (int)object_ego_suffix(j_ptr));
 
-        /* Require identical "special item" names */
-        if (o_ptr->name2 != j_ptr->name2)
+        /* Require identical ego affixes */
+        if (object_ego_prefix(o_ptr) != object_ego_prefix(j_ptr)
+            || object_ego_suffix(o_ptr) != object_ego_suffix(j_ptr))
         {
-            log_debug("object_similar: DIFFERENT name2, returning false");
+            log_debug("object_similar: DIFFERENT egos, returning false");
             return (false);
         }
 
@@ -2065,7 +2076,7 @@ static int make_special_item(object_type* o_ptr, bool only_good)
     /* Fail if object already is ego or artefact */
     if (o_ptr->name1)
         return (false);
-    if (o_ptr->name2)
+    if (object_has_ego(o_ptr))
         return (false);
 
     level = object_level;
@@ -2170,7 +2181,14 @@ static int make_special_item(object_type* o_ptr, bool only_good)
 
     /* We have one */
     e_idx = (byte)table[i].index;
-    o_ptr->name2 = e_idx;
+    {
+        ego_item_type* chosen = &e_info[e_idx];
+        const char* raw = e_name + chosen->name;
+        if (ego_name_is_prefix(raw))
+            object_set_ego_prefix(o_ptr, e_idx);
+        else
+            object_set_ego_suffix(o_ptr, e_idx);
+    }
 
     return ((e_info[e_idx].flags3 & TR3_LIGHT_CURSE) ? -2 : 2);
 }
@@ -2906,7 +2924,6 @@ void object_into_artefact(object_type* o_ptr, artefact_type* a_ptr)
 
 void object_into_special(object_type* o_ptr, int lev, bool smithing)
 {
-    ego_item_type* e_ptr = &e_info[o_ptr->name2];
     u32b f1, f2, f3;
     int i;
 
@@ -2916,74 +2933,81 @@ void object_into_special(object_type* o_ptr, int lev, bool smithing)
     /* Examine the item */
     object_flags(o_ptr, &f1, &f2, &f3);
 
-    // add the abilities
-    for (i = 0; i < e_ptr->abilities; i++)
-    {
-        o_ptr->skilltype[i + o_ptr->abilities] = e_ptr->skilltype[i];
-        o_ptr->abilitynum[i + o_ptr->abilities] = e_ptr->abilitynum[i];
-    }
-    o_ptr->abilities += e_ptr->abilities;
-
-    /* Hack -- acquire "broken" flag */
-    if (!e_ptr->cost)
-        o_ptr->ident |= (IDENT_BROKEN);
-
-    /* Hack -- acquire "cursed" flag */
-    if (e_ptr->flags3 & (TR3_LIGHT_CURSE))
+    /* Ensure overall curse state is set before applying pval deltas. */
+    if (f3 & (TR3_LIGHT_CURSE))
         o_ptr->ident |= (IDENT_CURSED);
 
-    /* Hack -- apply extra bonuses if needed */
-    if (smithing)
+    /* Apply each ego present (prefix then suffix). */
+    byte ego_ids[2] = { object_ego_prefix(o_ptr), object_ego_suffix(o_ptr) };
+    for (int ego_slot = 0; ego_slot < 2; ego_slot++)
     {
-        /* Hack -- obtain bonuses */
-        if (e_ptr->max_att > 0)
-            o_ptr->att += 1;
-        if (e_ptr->max_evn > 0)
-            o_ptr->evn += 1;
-        if (e_ptr->to_dd > 0)
-            o_ptr->dd += 1;
-        if (e_ptr->to_ds > 0)
-            o_ptr->ds += 1;
-        if (e_ptr->to_pd > 0)
-            o_ptr->pd += 1;
-        if (e_ptr->to_ps > 0)
-            o_ptr->ps += 1;
+        byte e_idx = ego_ids[ego_slot];
+        if (!e_idx)
+            continue;
 
-        /* Hack -- obtain pval */
-        if (e_ptr->max_pval > 0)
+        ego_item_type* e_ptr = &e_info[e_idx];
+
+        /* Add the abilities (bounded by object ability storage). */
+        for (i = 0; i < e_ptr->abilities && o_ptr->abilities < (int)N_ELEMENTS(o_ptr->skilltype); i++)
         {
-            if (cursed_p(smith_o_ptr))
-                o_ptr->pval -= 1;
-            else
-                o_ptr->pval += 1;
+            int idx = o_ptr->abilities;
+            o_ptr->skilltype[idx] = e_ptr->skilltype[i];
+            o_ptr->abilitynum[idx] = e_ptr->abilitynum[i];
+            o_ptr->abilities++;
         }
-    }
-    else
-    {
-        /* Hack -- obtain bonuses */
-        if (e_ptr->max_att > 0)
-            o_ptr->att += dieroll(e_ptr->max_att);
-        if (e_ptr->max_evn > 0)
-            o_ptr->evn += dieroll(e_ptr->max_evn);
-        if (e_ptr->to_dd > 0)
-            o_ptr->dd += dieroll(e_ptr->to_dd);
-        if (e_ptr->to_ds > 0)
-            o_ptr->ds += dieroll(e_ptr->to_ds);
-        if (e_ptr->to_pd > 0)
-            o_ptr->pd += dieroll(e_ptr->to_pd);
-        if (e_ptr->to_ps > 0)
-            o_ptr->ps += dieroll(e_ptr->to_ps);
 
-        /* Hack -- obtain pval */
-        if (cursed_p(o_ptr))
+        /* Acquire "broken"/"cursed" flags. */
+        if (!e_ptr->cost)
+            o_ptr->ident |= (IDENT_BROKEN);
+        if (e_ptr->flags3 & (TR3_LIGHT_CURSE))
+            o_ptr->ident |= (IDENT_CURSED);
+
+        /* Apply numeric bonuses. */
+        if (smithing)
         {
+            if (e_ptr->max_att > 0)
+                o_ptr->att += 1;
+            if (e_ptr->max_evn > 0)
+                o_ptr->evn += 1;
+            if (e_ptr->to_dd > 0)
+                o_ptr->dd += 1;
+            if (e_ptr->to_ds > 0)
+                o_ptr->ds += 1;
+            if (e_ptr->to_pd > 0)
+                o_ptr->pd += 1;
+            if (e_ptr->to_ps > 0)
+                o_ptr->ps += 1;
+
             if (e_ptr->max_pval > 0)
-                o_ptr->pval -= dieroll(e_ptr->max_pval);
+            {
+                if (cursed_p(o_ptr))
+                    o_ptr->pval -= 1;
+                else
+                    o_ptr->pval += 1;
+            }
         }
         else
         {
+            if (e_ptr->max_att > 0)
+                o_ptr->att += dieroll(e_ptr->max_att);
+            if (e_ptr->max_evn > 0)
+                o_ptr->evn += dieroll(e_ptr->max_evn);
+            if (e_ptr->to_dd > 0)
+                o_ptr->dd += dieroll(e_ptr->to_dd);
+            if (e_ptr->to_ds > 0)
+                o_ptr->ds += dieroll(e_ptr->to_ds);
+            if (e_ptr->to_pd > 0)
+                o_ptr->pd += dieroll(e_ptr->to_pd);
+            if (e_ptr->to_ps > 0)
+                o_ptr->ps += dieroll(e_ptr->to_ps);
+
             if (e_ptr->max_pval > 0)
-                o_ptr->pval += dieroll(e_ptr->max_pval);
+            {
+                if (cursed_p(o_ptr))
+                    o_ptr->pval -= dieroll(e_ptr->max_pval);
+                else
+                    o_ptr->pval += dieroll(e_ptr->max_pval);
+            }
         }
     }
 
@@ -3266,7 +3290,7 @@ void apply_magic(object_type* o_ptr, int lev, bool okay, bool good, bool great,
     }
 
     /* Hack -- analyze special items */
-    if (o_ptr->name2)
+    if (object_has_ego(o_ptr))
     {
         // apply all the bonuses for the given special item type
         object_into_special(o_ptr, lev, false);
@@ -5836,16 +5860,16 @@ s16b inven_takeoff(int item, int amt)
     }
 
     /* Modify, Optimize */
-    log_debug("inven_takeoff: Before decrease - item=%d (k_idx=%d, name2=%d, number=%d)",
-              item, o_ptr->k_idx, o_ptr->name2, o_ptr->number);
-    log_debug("inven_takeoff: Taking off copy - k_idx=%d, name2=%d, number=%d",
-              i_ptr->k_idx, i_ptr->name2, i_ptr->number);
+    log_debug("inven_takeoff: Before decrease - item=%d (k_idx=%d, prefix=%d, suffix=%d, number=%d)",
+              item, o_ptr->k_idx, (int)object_ego_prefix(o_ptr), (int)object_ego_suffix(o_ptr), o_ptr->number);
+    log_debug("inven_takeoff: Taking off copy - k_idx=%d, prefix=%d, suffix=%d, number=%d",
+              i_ptr->k_idx, (int)object_ego_prefix(i_ptr), (int)object_ego_suffix(i_ptr), i_ptr->number);
     inven_item_increase(item, -amt);
     inven_item_optimize(item);
 
     /* Carry the object */
-    log_debug("inven_takeoff: Calling inven_carry with k_idx=%d, name2=%d", 
-              i_ptr->k_idx, i_ptr->name2);
+    log_debug("inven_takeoff: Calling inven_carry with k_idx=%d, prefix=%d, suffix=%d", 
+              i_ptr->k_idx, (int)object_ego_prefix(i_ptr), (int)object_ego_suffix(i_ptr));
     slot = inven_carry(i_ptr, false);
     log_debug("inven_takeoff: inven_carry returned slot=%d", slot);
 

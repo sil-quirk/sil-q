@@ -3446,14 +3446,73 @@ int att_valid(void)
     return (false);
 }
 
+static void smithing_ego_bonus_sums(const object_type* o_ptr,
+    int* max_att_sum, int* max_att_min_inc,
+    int* to_ds_sum, int* to_ds_min_inc,
+    int* max_evn_sum, int* max_evn_min_inc,
+    int* to_ps_sum, int* to_ps_min_inc,
+    int* max_pval_sum, int* max_pval_min_inc)
+{
+    if (max_att_sum) *max_att_sum = 0;
+    if (max_att_min_inc) *max_att_min_inc = 0;
+    if (to_ds_sum) *to_ds_sum = 0;
+    if (to_ds_min_inc) *to_ds_min_inc = 0;
+    if (max_evn_sum) *max_evn_sum = 0;
+    if (max_evn_min_inc) *max_evn_min_inc = 0;
+    if (to_ps_sum) *to_ps_sum = 0;
+    if (to_ps_min_inc) *to_ps_min_inc = 0;
+    if (max_pval_sum) *max_pval_sum = 0;
+    if (max_pval_min_inc) *max_pval_min_inc = 0;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return;
+
+    byte egos[2] = { object_ego_prefix(o_ptr), object_ego_suffix(o_ptr) };
+    for (int i = 0; i < 2; i++)
+    {
+        byte e_idx = egos[i];
+        if (!e_idx)
+            continue;
+
+        ego_item_type* e_ptr = &e_info[e_idx];
+        if (e_ptr->max_att > 0)
+        {
+            if (max_att_sum) *max_att_sum += e_ptr->max_att;
+            if (max_att_min_inc) (*max_att_min_inc)++;
+        }
+        if (e_ptr->to_ds > 0)
+        {
+            if (to_ds_sum) *to_ds_sum += e_ptr->to_ds;
+            if (to_ds_min_inc) (*to_ds_min_inc)++;
+        }
+        if (e_ptr->max_evn > 0)
+        {
+            if (max_evn_sum) *max_evn_sum += e_ptr->max_evn;
+            if (max_evn_min_inc) (*max_evn_min_inc)++;
+        }
+        if (e_ptr->to_ps > 0)
+        {
+            if (to_ps_sum) *to_ps_sum += e_ptr->to_ps;
+            if (to_ps_min_inc) (*to_ps_min_inc)++;
+        }
+        if (e_ptr->max_pval > 0)
+        {
+            if (max_pval_sum) *max_pval_sum += e_ptr->max_pval;
+            if (max_pval_min_inc) (*max_pval_min_inc)++;
+        }
+    }
+}
+
 /*
  * Determines the maximum legal attack bonus for an item.
  */
 int att_max()
 {
     object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
-    ego_item_type* e_ptr = &e_info[smith_o_ptr->name2];
     int att = 0;
+    int max_att_sum = 0;
+    smithing_ego_bonus_sums(
+        smith_o_ptr, &max_att_sum, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 
     switch (smith_o_ptr->tval)
     {
@@ -3462,8 +3521,7 @@ int att_max()
         att = 3;
         if (smith_o_ptr->name1)
             att += 8;
-        if (smith_o_ptr->name2)
-            att += e_ptr->max_att;
+        att += max_att_sum;
         break;
     }
     case TV_SWORD:
@@ -3473,8 +3531,7 @@ int att_max()
     case TV_BOW:
     {
         att = k_ptr->att + 1;
-        if (smith_o_ptr->name2)
-            att += e_ptr->max_att;
+        att += max_att_sum;
         if (smith_o_ptr->name1)
             att += 4;
         break;
@@ -3490,8 +3547,7 @@ int att_max()
         att = k_ptr->att + 1;
         if (att > 0)
             att = 0;
-        if (smith_o_ptr->name2)
-            att += e_ptr->max_att;
+        att += max_att_sum;
         if (smith_o_ptr->name1)
             att += 1;
         break;
@@ -3501,8 +3557,7 @@ int att_max()
         att = k_ptr->att + 1;
         if (att > 0)
             att = 0;
-        if (smith_o_ptr->name2)
-            att += e_ptr->max_att;
+        att += max_att_sum;
         if (smith_o_ptr->name1)
             att += 2;
         break;
@@ -3526,8 +3581,10 @@ int att_max()
 int att_min(void)
 {
     object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
-    ego_item_type* e_ptr = &e_info[smith_o_ptr->name2];
     int att = 0;
+    int max_att_min_inc = 0;
+    smithing_ego_bonus_sums(
+        smith_o_ptr, NULL, &max_att_min_inc, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 
     switch (smith_o_ptr->tval)
     {
@@ -3547,8 +3604,7 @@ int att_min(void)
     case TV_MAIL:
     {
         att = k_ptr->att;
-        if (smith_o_ptr->name2 && (e_ptr->max_att > 0))
-            att += 1;
+        att += max_att_min_inc;
         break;
     }
     case TV_RING:
@@ -3588,8 +3644,10 @@ int ds_valid(void)
 int ds_max()
 {
     object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
-    ego_item_type* e_ptr = &e_info[smith_o_ptr->name2];
     int ds = 0;
+    int to_ds_sum = 0;
+    smithing_ego_bonus_sums(
+        smith_o_ptr, NULL, NULL, &to_ds_sum, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 
     switch (smith_o_ptr->tval)
     {
@@ -3600,8 +3658,7 @@ int ds_max()
     case TV_BOW:
     {
         ds = k_ptr->ds + 1;
-        if (smith_o_ptr->name2)
-            ds += e_ptr->to_ds;
+        ds += to_ds_sum;
         if (smith_o_ptr->name1)
             ds += 2;
         break;
@@ -3617,8 +3674,10 @@ int ds_max()
 int ds_min(void)
 {
     object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
-    ego_item_type* e_ptr = &e_info[smith_o_ptr->name2];
     int ds = 0;
+    int to_ds_min_inc = 0;
+    smithing_ego_bonus_sums(
+        smith_o_ptr, NULL, NULL, NULL, &to_ds_min_inc, NULL, NULL, NULL, NULL, NULL, NULL);
 
     switch (smith_o_ptr->tval)
     {
@@ -3629,8 +3688,7 @@ int ds_min(void)
     case TV_BOW:
     {
         ds = k_ptr->ds;
-        if (smith_o_ptr->name2 && (e_ptr->to_ds > 0))
-            ds += 1;
+        ds += to_ds_min_inc;
         break;
     }
     }
@@ -3682,8 +3740,10 @@ int evn_valid(void)
 int evn_max()
 {
     object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
-    ego_item_type* e_ptr = &e_info[smith_o_ptr->name2];
     int evn = 0;
+    int max_evn_sum = 0;
+    smithing_ego_bonus_sums(
+        smith_o_ptr, NULL, NULL, NULL, NULL, &max_evn_sum, NULL, NULL, NULL, NULL, NULL);
 
     switch (smith_o_ptr->tval)
     {
@@ -3697,8 +3757,7 @@ int evn_max()
     case TV_MAIL:
     {
         evn = k_ptr->evn + 1;
-        if (smith_o_ptr->name2)
-            evn += e_ptr->max_evn;
+        evn += max_evn_sum;
         if (smith_o_ptr->name1)
             evn += 1;
         break;
@@ -3716,8 +3775,7 @@ int evn_max()
     default:
     {
         evn = k_ptr->evn;
-        if (smith_o_ptr->name2)
-            evn += e_ptr->max_evn;
+        evn += max_evn_sum;
         if (smith_o_ptr->name1)
             evn += 1;
     }
@@ -3732,8 +3790,10 @@ int evn_max()
 int evn_min(void)
 {
     object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
-    ego_item_type* e_ptr = &e_info[smith_o_ptr->name2];
     int evn = 0;
+    int max_evn_min_inc = 0;
+    smithing_ego_bonus_sums(
+        smith_o_ptr, NULL, NULL, NULL, NULL, NULL, &max_evn_min_inc, NULL, NULL, NULL, NULL);
 
     switch (smith_o_ptr->tval)
     {
@@ -3747,8 +3807,7 @@ int evn_min(void)
     case TV_MAIL:
     {
         evn = k_ptr->evn;
-        if (smith_o_ptr->name2 && (e_ptr->max_evn > 0))
-            evn += 1;
+        evn += max_evn_min_inc;
         break;
     }
 
@@ -3762,8 +3821,7 @@ int evn_min(void)
     default:
     {
         evn = k_ptr->evn;
-        if (smith_o_ptr->name2 && (e_ptr->max_evn > 0))
-            evn += 1;
+        evn += max_evn_min_inc;
     }
     }
 
@@ -3808,8 +3866,10 @@ int ps_valid(void)
 int ps_max()
 {
     object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
-    ego_item_type* e_ptr = &e_info[smith_o_ptr->name2];
     int ps = 0;
+    int to_ps_sum = 0;
+    smithing_ego_bonus_sums(
+        smith_o_ptr, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &to_ps_sum, NULL, NULL);
 
     switch (smith_o_ptr->tval)
     {
@@ -3837,8 +3897,7 @@ int ps_max()
             ps += 1;
         }
 
-        if (smith_o_ptr->name2)
-            ps += e_ptr->to_ps;
+        ps += to_ps_sum;
         if (smith_o_ptr->name1)
             ps += 2;
         break;
@@ -3863,8 +3922,10 @@ int ps_max()
 int ps_min(void)
 {
     object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
-    ego_item_type* e_ptr = &e_info[smith_o_ptr->name2];
     int ps = 0;
+    int to_ps_min_inc = 0;
+    smithing_ego_bonus_sums(
+        smith_o_ptr, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &to_ps_min_inc, NULL);
 
     switch (smith_o_ptr->tval)
     {
@@ -3878,8 +3939,7 @@ int ps_min(void)
     case TV_MAIL:
     {
         ps = k_ptr->ps;
-        if (smith_o_ptr->name2 && (e_ptr->to_ps > 0))
-            ps += 1;
+        ps += to_ps_min_inc;
         break;
     }
 
@@ -3912,11 +3972,14 @@ int pval_valid(void)
 int pval_max(void)
 {
     object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
-    ego_item_type* e_ptr = &e_info[smith_o_ptr->name2];
     u32b f1, f2, f3;
     int pval = 4;
+    int max_pval_sum = 0;
+    int max_pval_min_inc = 0;
 
     object_flags(smith_o_ptr, &f1, &f2, &f3);
+    smithing_ego_bonus_sums(
+        smith_o_ptr, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &max_pval_sum, &max_pval_min_inc);
 
     // start with the base pval
     pval = k_ptr->pval;
@@ -3933,18 +3996,14 @@ int pval_max(void)
         pval = 4;
     }
 
-    // special items have pvals that are limited by their 'special.txt' entries
-    if (smith_o_ptr->name2)
+    /* Ego items have pvals limited by their 'special.txt' entries. */
+    if (cursed_p(smith_o_ptr))
     {
-        if (cursed_p(smith_o_ptr))
-        {
-            if (e_ptr->max_pval > 0)
-                pval -= 1;
-        }
-        else
-        {
-            pval += e_ptr->max_pval;
-        }
+        pval -= max_pval_min_inc;
+    }
+    else
+    {
+        pval += max_pval_sum;
     }
 
     return (pval);
@@ -4974,7 +5033,7 @@ int object_difficulty(object_type* o_ptr)
     {
         smithing_cost.artifice = 1;
     }
-    if (smith_o_ptr->name2 && !p_ptr->active_ability[S_SMT][SMT_ENCHANTMENT])
+    if (object_has_ego(smith_o_ptr) && !p_ptr->active_ability[S_SMT][SMT_ENCHANTMENT])
     {
         smithing_cost.enchantment = 1;
     }
@@ -5453,7 +5512,7 @@ static byte smith_default_stack_size(const object_type* o_ptr)
     }
 
     bool is_artifact = (o_ptr->name1 != 0);
-    bool is_enchanted = (!is_artifact) && (o_ptr->name2 != 0);
+    bool is_enchanted = (!is_artifact) && object_has_ego(o_ptr);
 
     if (is_arrow)
     {
@@ -6129,7 +6188,7 @@ void numbers_menu(void)
 
     bool leave_menu = false;
 
-    if (smith_o_ptr->name2)
+    if (object_has_ego(smith_o_ptr))
         enchant_then_numbers = true;
 
     /* Save screen */
@@ -6162,26 +6221,58 @@ void numbers_menu(void)
     return;
 }
 
-void create_special(int name2)
+static void ego_name_for_enchant_menu(int e_idx, char* buf, size_t buflen)
 {
-    // retrieve a backup of the object
+    if (!buf || !buflen)
+        return;
+    buf[0] = '\0';
+    if (e_idx <= 0 || e_idx >= z_info->e_max)
+        return;
+
+    ego_item_type* e_ptr = &e_info[e_idx];
+    const char* raw = e_name + e_ptr->name;
+    if (!raw || !raw[0])
+        return;
+
+    if (ego_name_is_prefix(raw))
+    {
+        size_t len = strlen(raw);
+        size_t copy_len = (len >= 2) ? (len - 2) : 0;
+        if (copy_len >= buflen)
+            copy_len = buflen - 1;
+        if (copy_len > 0)
+        {
+            memcpy(buf, raw + 1, copy_len);
+            buf[copy_len] = '\0';
+        }
+        return;
+    }
+
+    SDL_strlcpy(buf, raw, buflen);
+}
+
+static void create_special(int ego_prefix, int ego_suffix)
+{
+    /* Retrieve a backup of the object */
     object_copy(smith_o_ptr, smith2_o_ptr);
     smith_alloy = smith2_alloy;
 
-    // set its 'special' name to reflect the chosen type
-    smith_o_ptr->name2 = name2;
+    /* Apply requested ego affixes */
+    object_set_ego_prefix(smith_o_ptr, ego_prefix);
+    object_set_ego_suffix(smith_o_ptr, ego_suffix);
 
-    // make it into that special type
-    object_into_special(smith_o_ptr, p_ptr->skill_use[S_SMT], true);
+    /* Apply ego bonuses */
+    if (object_has_ego(smith_o_ptr))
+        object_into_special(smith_o_ptr, p_ptr->skill_use[S_SMT], true);
 
-    // Re-evaluate stack size now that an enchantment is applied
+    /* Re-evaluate stack size now that an enchantment is applied */
     smith_o_ptr->number = smith_default_stack_size(smith_o_ptr);
 }
 
 /*
  * Performs the interface and selection work for the enchantment menu.
  */
-int enchant_menu_aux(int* highlight)
+static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix, bool selecting_prefix)
 {
     char ch;
     int i, j, num;
@@ -6197,6 +6288,11 @@ int enchant_menu_aux(int* highlight)
     {
         ego_item_type* e_ptr = &e_info[i];
         bool acceptable = false;
+
+        const char* raw_name = e_name + e_ptr->name;
+        bool is_prefix = ego_name_is_prefix(raw_name);
+        if (selecting_prefix != is_prefix)
+            continue;
 
         /* Don't create cursed */
         // if (e_ptr->flags3 & TR3_LIGHT_CURSE) continue;
@@ -6225,8 +6321,11 @@ int enchant_menu_aux(int* highlight)
 
         if (acceptable)
         {
-            // make a 'special' version of the object
-            create_special(i);
+            /* Make a preview 'special' version of the object */
+            if (selecting_prefix)
+                create_special(i, fixed_suffix);
+            else
+                create_special(fixed_prefix, i);
 
             // Check whether it is a valid choice for creating
             if (affordable(smith_o_ptr))
@@ -6239,7 +6338,9 @@ int enchant_menu_aux(int* highlight)
             }
 
             /* Print it */
-            strnfmt(buf, 80, "%c) %s", (char)'a' + num, e_name + e_ptr->name);
+            char ego_label[64];
+            ego_name_for_enchant_menu(i, ego_label, sizeof(ego_label));
+            strnfmt(buf, 80, "%c) %s", (char)'a' + num, ego_label);
             Term_putstr(COL_SMT2, num + 2, -1,
                 valid[num] ? TERM_WHITE : TERM_SLATE, buf);
 
@@ -6251,12 +6352,27 @@ int enchant_menu_aux(int* highlight)
         }
     }
 
+    if (num <= 0)
+    {
+        Term_putstr(COL_SMT2, 2, -1, TERM_SLATE,
+            selecting_prefix ? "(No prefix enchantments available)" : "(No suffix enchantments available)");
+        Term_fresh();
+        hide_cursor = true;
+        (void)inkey();
+        hide_cursor = false;
+        *highlight = -1;
+        return (*highlight);
+    }
+
     // highlight the label
     strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
     Term_putstr(COL_SMT2, *highlight + 1, -1, TERM_L_BLUE, buf);
 
-    // make a 'special' version of the object
-    create_special(choice[*highlight - 1]);
+    /* Make a preview 'special' version of the object */
+    if (selecting_prefix)
+        create_special(choice[*highlight - 1], fixed_suffix);
+    else
+        create_special(fixed_prefix, choice[*highlight - 1]);
 
     // display the object description
     prt_object_description();
@@ -6280,8 +6396,11 @@ int enchant_menu_aux(int* highlight)
     {
         *highlight = (int)ch - 'a' + 1;
 
-        // make a 'special' version of the object
-        create_special(choice[*highlight - 1]);
+        /* Make a preview 'special' version of the object */
+        if (selecting_prefix)
+            create_special(choice[*highlight - 1], fixed_suffix);
+        else
+            create_special(fixed_prefix, choice[*highlight - 1]);
 
         return (*highlight);
     }
@@ -6325,10 +6444,9 @@ int enchant_menu_aux(int* highlight)
  */
 bool enchant_menu(void)
 {
-    int choice = -1;
-    int highlight = 1;
+    int prefix_highlight = 1;
+    int suffix_highlight = 1;
 
-    bool leave_menu = false;
     bool completed = false;
 
     /* Save screen */
@@ -6338,21 +6456,22 @@ bool enchant_menu(void)
     smith_o_ptr->name1 = 0;
     smith2_o_ptr->name1 = 0;
 
-    /* Process Events until menu is abandoned */
-    while (!leave_menu)
-    {
-        choice = enchant_menu_aux(&highlight);
+    int selected_prefix = (int)object_ego_prefix(smith_o_ptr);
+    int selected_suffix = (int)object_ego_suffix(smith_o_ptr);
 
-        if (choice >= 1)
-        {
-            leave_menu = true;
-            completed = true;
-        }
-        else if (choice == -1)
-        {
-            leave_menu = true;
-        }
-    }
+    /* Select a prefix (optional) */
+    int prefix_choice = enchant_menu_aux(&prefix_highlight, 0, selected_suffix, true);
+    if (prefix_choice >= 1)
+        selected_prefix = (int)object_ego_prefix(smith_o_ptr);
+    create_special(selected_prefix, selected_suffix);
+
+    /* Select a suffix (optional) */
+    int suffix_choice = enchant_menu_aux(&suffix_highlight, selected_prefix, 0, false);
+    if (suffix_choice >= 1)
+        selected_suffix = (int)object_ego_suffix(smith_o_ptr);
+    create_special(selected_prefix, selected_suffix);
+
+    completed = (selected_prefix != 0) || (selected_suffix != 0);
 
     /* Load screen */
     screen_load();
@@ -7624,7 +7743,7 @@ int smithing_menu_aux(int* highlight)
         && (smith_o_ptr->tval != TV_HORN)
         && !((smith_o_ptr->tval == TV_DIGGING)
             && (smith_o_ptr->sval == SV_SHOVEL));
-    valid[SMT_MENU_ARTEFACT - 1] = (!smith_o_ptr->name2)
+    valid[SMT_MENU_ARTEFACT - 1] = (!object_has_ego(smith_o_ptr))
         && (smith_o_ptr->tval != 0) && (smith_o_ptr->tval != TV_HORN)
         && (p_ptr->self_made_arts
             < z_info->art_self_made_max - z_info->art_rand_max - 2);
@@ -7697,7 +7816,7 @@ int smithing_menu_aux(int* highlight)
     {
         Term_putstr(
             COL_SMT2 + 2, 2, -1, TERM_SLATE, "Design your own artefact.");
-        if (smith_o_ptr->name2)
+        if (object_has_ego(smith_o_ptr))
             Term_putstr(COL_SMT2 + 2, 4, -1, TERM_L_DARK,
                 "(not compatible with Enchant)");
         break;
