@@ -6269,6 +6269,37 @@ static void create_special(int ego_prefix, int ego_suffix)
     smith_o_ptr->number = smith_default_stack_size(smith_o_ptr);
 }
 
+static bool enchant_menu_has_applicable_affix(bool selecting_prefix)
+{
+    int i, j;
+
+    if (!smith_o_ptr || smith_o_ptr->tval == 0)
+        return false;
+
+    for (i = 1; i < z_info->e_max; i++)
+    {
+        ego_item_type* e_ptr = &e_info[i];
+        const char* raw_name = e_name + e_ptr->name;
+        bool is_prefix = ego_name_is_prefix(raw_name);
+        if (selecting_prefix != is_prefix)
+            continue;
+
+        for (j = 0; j < EGO_TVALS_MAX; j++)
+        {
+            if (smith_o_ptr->tval != e_ptr->tval[j])
+                continue;
+            if (smith_o_ptr->sval < e_ptr->min_sval[j])
+                continue;
+            if (smith_o_ptr->sval > e_ptr->max_sval[j])
+                continue;
+
+            return true;
+        }
+    }
+
+    return false;
+}
+
 /*
  * Performs the interface and selection work for the enchantment menu.
  */
@@ -6468,7 +6499,6 @@ bool enchant_menu(void)
 
     bool completed = false;
     bool leave_menu = false;
-    bool selecting_prefix = true;
 
     /* Save screen */
     screen_save();
@@ -6479,6 +6509,10 @@ bool enchant_menu(void)
 
     int selected_prefix = (int)object_ego_prefix(smith_o_ptr);
     int selected_suffix = (int)object_ego_suffix(smith_o_ptr);
+
+    bool show_prefix_step =
+        enchant_menu_has_applicable_affix(true) || (selected_prefix != 0);
+    bool selecting_prefix = show_prefix_step;
 
     /* Process events until menu is abandoned */
     while (!leave_menu)
@@ -6510,9 +6544,16 @@ bool enchant_menu(void)
 
             if (choice_idx == -1)
             {
-                /* Back to prefix selection */
-                create_special(selected_prefix, selected_suffix);
-                selecting_prefix = true;
+                if (show_prefix_step)
+                {
+                    /* Back to prefix selection */
+                    create_special(selected_prefix, selected_suffix);
+                    selecting_prefix = true;
+                    continue;
+                }
+
+                completed = false;
+                leave_menu = true;
                 continue;
             }
 
@@ -7793,7 +7834,6 @@ int smithing_menu_aux(int* highlight)
     valid[SMT_MENU_CREATE - 1] = true;
     valid[SMT_MENU_ENCHANT - 1] = (!smith_o_ptr->name1)
         && (!enchant_then_numbers) && (smith_o_ptr->tval != 0)
-        && (smith_o_ptr->tval != TV_RING) && (smith_o_ptr->tval != TV_AMULET)
         && (smith_o_ptr->tval != TV_HORN)
         && !((smith_o_ptr->tval == TV_DIGGING)
             && (smith_o_ptr->sval == SV_SHOVEL));

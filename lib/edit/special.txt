@@ -823,3 +823,26 @@ T:23:10:17
 T:22:1:2
 T:22:12:12
 
+
+##### Amulet Prefixes #####
+
+
+# Amulets (but not 'the Blessed Realm')
+
+N:142:(Starlit)
+W:0:8:0:3000
+C:0:0:0:0:0:0:0
+T:40:0:4
+T:40:6:99
+F:LIGHT | RES_HALLU | RES_BLIND
+
+
+# A cursed amulet that dims the wearer's light
+
+N:143:(Shadowed)
+W:0:5:0:0
+C:0:0:0:0:0:0:0
+T:40:0:4
+T:40:6:99
+F:DARKNESS | VUL_FIRE | VUL_COLD | DIF_ID | LIGHT_CURSE
+
