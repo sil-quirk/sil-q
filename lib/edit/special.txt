@@ -61,7 +61,7 @@ V:0.9.5
 
 # Includes shields and greaves
 
-N:1:of Protection
+N:1:(Protective)
 W:0:2:0:1000
 C:0:0:0:0:0:1:0
 T:34:0:99
@@ -71,7 +71,7 @@ T:37:0:99
 F:IGNORE_ALL
 
 
-N:2:of Venom's End
+N:2:(Venom-warding)
 W:0:2:0:1000
 C:0:0:0:0:0:0:0
 T:36:0:99
@@ -101,7 +101,7 @@ T:31:0:1
 F:FREE_ACT | IGNORE_ALL
 
 
-N:5:of Stealth
+N:5:(Stealthy)
 W:0:5:0:1000
 C:0:0:0:0:0:0:3
 T:36:0:99
@@ -144,7 +144,7 @@ F:RES_COLD | IGNORE_ALL
 ###
 
 
-N:9:of Blight
+N:9:(Blighted)
 W:1:1:0:0
 C:0:0:0:0:0:0:0
 T:36:0:99
@@ -155,14 +155,14 @@ F:VUL_POIS | DIF_ID | LIGHT_CURSE
 ##### Shields #####
 
 
-N:12:of Deflection
+N:12:(Deflecting)
 W:0:5:0:1000
 C:0:0:0:2:0:0:0
 T:34:0:99
 F:IGNORE_ALL
 
 
-N:13:of Frost
+N:13:(Frosted)
 W:10:1:0:1000
 C:0:0:0:0:0:0:0
 T:34:0:99
@@ -181,7 +181,7 @@ F:CHEAT_DEATH
 
 ###
 
-N:15:of Wrath
+N:15:(Wrathful)
 W:0:2:10:0
 C:0:0:0:0:0:0:0
 T:34:0:9
@@ -483,7 +483,7 @@ F:STR
 ##### Helms #####
 
 
-N:71:of Brilliance
+N:71:(Brilliant)
 W:0:5:0:1000
 C:0:0:0:0:0:0:0
 T:32:0:99
@@ -541,14 +541,14 @@ F:FEAR | DIF_ID
 
 
 
-N:82:of Stealth
+N:82:(Stealthy)
 W:0:2:0:1000
 C:0:0:0:0:0:0:3
 T:35:0:99
 F:STEALTH
 
 
-N:83:of Warmth
+N:83:(Warm)
 W:4:8:0:1000
 C:0:0:0:0:0:0:0
 T:35:0:99
@@ -563,7 +563,7 @@ F:SLOW_DIGEST
 
 ###
 
-N:86:of Winter's Chill
+N:86:(Chilling)
 W:0:5:0:0
 C:0:0:0:0:0:0:0
 T:35:0:99
@@ -586,7 +586,7 @@ F:RES_FEAR | SUST_GRA | IGNORE_ALL
 
 # Longbows only
 
-N:91:of Blackened Yew
+N:91:(Blackened Yew)
 W:6:2:0:3000
 C:0:0:1:0:0:0:0
 T:19:13:13
@@ -602,7 +602,7 @@ T:19:12:12
 F:RES_POIS | DANGER | AGGRAVATE | DIF_ID
 
 
-N:93:of Radiance
+N:93:(Radiant)
 W:6:4:0:1000
 C:0:0:0:0:0:0:0
 T:19:0:99
@@ -640,7 +640,7 @@ T:17:0:99
 F:BRAND_POIS
 
 
-N:102:of Piercing
+N:102:(Piercing)
 W:10:10:0:300
 C:0:0:0:0:0:0:0
 T:17:0:99
@@ -666,7 +666,7 @@ F:RADIANCE
 
 
 # boots only
-N:111:of Softest Tread
+N:111:(Silent)
 W:0:5:0:1000
 C:0:0:0:0:0:0:3
 T:30:1:1
@@ -715,7 +715,7 @@ F:DANGER | LIGHT_CURSE
 
 # gloves only
 
-N:120:of Archery
+N:120:(Archer's)
 W:2:2:0:1000
 C:0:0:0:0:0:0:3
 T:31:1:1
@@ -772,7 +772,7 @@ B:3/4
 ##### Light sources (but not torches) #####
 
 
-N:130:of Brightness
+N:130:(Bright)
 W:1:10:0:1000
 C:0:0:0:0:0:0:0
 T:39:1:2
@@ -788,7 +788,7 @@ F:LIGHT
 
 # Lanterns only
 
-N:135:of Flickering Shadow
+N:135:(Flickering)
 W:0:1:11:0
 A:5/12:10/0
 C:0:0:0:0:0:0:0
