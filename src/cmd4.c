@@ -6284,11 +6284,9 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix, 
     // clear the right of the screen
     wipe_screen_from(COL_SMT2);
 
-    /* Header / instructions */
-    Term_putstr(COL_SMT2, 0, -1, TERM_WHITE,
+    /* Header */
+    Term_putstr(COL_SMT2, 1, -1, TERM_WHITE,
         selecting_prefix ? "Select prefix:" : "Select suffix:");
-    Term_putstr(COL_SMT2, 1, -1, TERM_SLATE,
-        selecting_prefix ? "Enter=next, Esc=cancel" : "Enter=finish, Esc=back");
 
     /* Always allow selecting no affix */
     valid[entry_count] = true;

@@ -795,3 +795,31 @@ C:0:0:0:0:0:0:0
 T:39:1:1
 F:DARKNESS | LIGHT_CURSE
 
+
+
+##### Additional Weapon Prefixes #####
+
+
+# Curved swords, hand axes, bastard sword, great axe
+# Crude, brutal weapons with jagged edges (orcish/crude weapons)
+
+N:140:(Jagged)
+W:0:3:0:500
+C:0:0:1:0:0:0:0
+T:23:7:7
+T:22:11:11
+T:23:21:21
+T:22:13:13
+
+
+# Daggers, shortswords, longswords, spears, battle axe
+# Light, well-balanced blades for quick strikes (elven/refined weapons)
+
+N:141:(Nimble)
+W:0:4:0:2000
+C:1:0:0:0:0:0:0
+T:23:4:4
+T:23:10:17
+T:22:1:2
+T:22:12:12
+

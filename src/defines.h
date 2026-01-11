@@ -207,6 +207,8 @@
  */
 #define EGO_FLICKERING_SHADOW 135  /* Jinx ego: of Flickering Shadow */
 #define EGO_GRACE 75 /* Ego: of Grace (lesser jewels / mithril helms) */
+#define EGO_JAGGED 140 /* Prefix ego: (Jagged) - crude weapons */
+#define EGO_NIMBLE 141 /* Prefix ego: (Nimble) - refined weapons */
 
 /*
  * Depth-based wall graphics configuration
