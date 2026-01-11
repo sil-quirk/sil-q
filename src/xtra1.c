@@ -4111,7 +4111,7 @@ static int player_smithing_identify_skill(const object_type* o_ptr,
 
     int bonus_equipped = is_equipped ? 3 : 0;
     int bonus_experienced = (o_ptr && (o_ptr->ident & IDENT_EXPERIENCED)) ? 5 : 0;
-    int bonus_known_ego = (o_ptr && o_ptr->name2 && e_info[o_ptr->name2].aware) ? 5 : 0;
+    int bonus_known_ego = (o_ptr && o_ptr->name2 && !e_info[o_ptr->name2].aware) ? -5 : 0;
     int distance_penalty = 0;
 
     /* EASY_ID/DIF_ID flags affect identification skill */
