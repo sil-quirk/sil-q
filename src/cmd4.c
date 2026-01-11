@@ -6275,16 +6275,30 @@ static void create_special(int ego_prefix, int ego_suffix)
 static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix, bool selecting_prefix)
 {
     char ch;
-    int i, j, num;
+    int i, j;
+    int entry_count = 0;
     char buf[80];
-    bool valid[20];
-    int choice[20];
+    bool valid[26];
+    int choice[26];
 
     // clear the right of the screen
     wipe_screen_from(COL_SMT2);
 
+    /* Header / instructions */
+    Term_putstr(COL_SMT2, 0, -1, TERM_WHITE,
+        selecting_prefix ? "Select prefix:" : "Select suffix:");
+    Term_putstr(COL_SMT2, 1, -1, TERM_SLATE,
+        selecting_prefix ? "Enter=next, Esc=cancel" : "Enter=finish, Esc=back");
+
+    /* Always allow selecting no affix */
+    valid[entry_count] = true;
+    choice[entry_count] = 0;
+    strnfmt(buf, sizeof(buf), "%c) %s", (char)'a' + entry_count, "(none)");
+    Term_putstr(COL_SMT2, entry_count + 2, -1, TERM_WHITE, buf);
+    entry_count++;
+
     /* We have to search the whole special item list. */
-    for (num = 0, i = 1; i < z_info->e_max; i++)
+    for (i = 1; i < z_info->e_max && entry_count < (int)N_ELEMENTS(choice); i++)
     {
         ego_item_type* e_ptr = &e_info[i];
         bool acceptable = false;
@@ -6330,39 +6344,30 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix, 
             // Check whether it is a valid choice for creating
             if (affordable(smith_o_ptr))
             {
-                valid[num] = true;
+                valid[entry_count] = true;
             }
             else
             {
-                valid[num] = false;
+                valid[entry_count] = false;
             }
 
             /* Print it */
             char ego_label[64];
             ego_name_for_enchant_menu(i, ego_label, sizeof(ego_label));
-            strnfmt(buf, 80, "%c) %s", (char)'a' + num, ego_label);
-            Term_putstr(COL_SMT2, num + 2, -1,
-                valid[num] ? TERM_WHITE : TERM_SLATE, buf);
+            strnfmt(buf, sizeof(buf), "%c) %s", (char)'a' + entry_count, ego_label);
+            Term_putstr(COL_SMT2, entry_count + 2, -1,
+                valid[entry_count] ? TERM_WHITE : TERM_SLATE, buf);
 
             /* Remember the object index */
-            choice[num] = i;
+            choice[entry_count] = i;
 
             // count the applicable items
-            num++;
+            entry_count++;
         }
     }
 
-    if (num <= 0)
-    {
-        Term_putstr(COL_SMT2, 2, -1, TERM_SLATE,
-            selecting_prefix ? "(No prefix enchantments available)" : "(No suffix enchantments available)");
-        Term_fresh();
-        hide_cursor = true;
-        (void)inkey();
-        hide_cursor = false;
-        *highlight = -1;
-        return (*highlight);
-    }
+    if (*highlight < 1) *highlight = 1;
+    if (*highlight > entry_count) *highlight = entry_count;
 
     // highlight the label
     strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
@@ -6392,7 +6397,7 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix, 
     hide_cursor = false;
 
     /* Choose by letter */
-    if ((ch >= 'a') && (ch <= (char)'a' + num - 1))
+    if ((ch >= 'a') && (ch <= (char)'a' + entry_count - 1))
     {
         *highlight = (int)ch - 'a' + 1;
 
@@ -6406,33 +6411,49 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix, 
     }
 
     /* Choose current  */
-    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
+    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6')
+#ifdef ARROW_RIGHT
+        || (ch == ARROW_RIGHT)
+#endif
+        )
     {
         return (*highlight);
     }
 
     /* Exit */
-    if ((ch == '4') || (ch == ESCAPE))
+    if ((ch == '4') || (ch == ESCAPE)
+#ifdef ARROW_LEFT
+        || (ch == ARROW_LEFT)
+#endif
+        )
     {
         *highlight = -1;
         return (*highlight);
     }
 
     /* Prev item */
-    if (ch == '8')
+    if (ch == '8'
+#ifdef ARROW_UP
+        || (ch == ARROW_UP)
+#endif
+        )
     {
         if (*highlight > 1)
             (*highlight)--;
         else if (*highlight == 1)
-            *highlight = num;
+            *highlight = entry_count;
     }
 
     /* Next item */
-    if (ch == '2')
+    if (ch == '2'
+#ifdef ARROW_DOWN
+        || (ch == ARROW_DOWN)
+#endif
+        )
     {
-        if (*highlight < num)
+        if (*highlight < entry_count)
             (*highlight)++;
-        else if (*highlight == num)
+        else if (*highlight == entry_count)
             *highlight = 1;
     }
 
@@ -6448,6 +6469,8 @@ bool enchant_menu(void)
     int suffix_highlight = 1;
 
     bool completed = false;
+    bool leave_menu = false;
+    bool selecting_prefix = true;
 
     /* Save screen */
     screen_save();
@@ -6459,19 +6482,52 @@ bool enchant_menu(void)
     int selected_prefix = (int)object_ego_prefix(smith_o_ptr);
     int selected_suffix = (int)object_ego_suffix(smith_o_ptr);
 
-    /* Select a prefix (optional) */
-    int prefix_choice = enchant_menu_aux(&prefix_highlight, 0, selected_suffix, true);
-    if (prefix_choice >= 1)
-        selected_prefix = (int)object_ego_prefix(smith_o_ptr);
-    create_special(selected_prefix, selected_suffix);
+    /* Process events until menu is abandoned */
+    while (!leave_menu)
+    {
+        if (selecting_prefix)
+        {
+            int choice_idx = enchant_menu_aux(
+                &prefix_highlight, 0, selected_suffix, true);
 
-    /* Select a suffix (optional) */
-    int suffix_choice = enchant_menu_aux(&suffix_highlight, selected_prefix, 0, false);
-    if (suffix_choice >= 1)
-        selected_suffix = (int)object_ego_suffix(smith_o_ptr);
-    create_special(selected_prefix, selected_suffix);
+            if (choice_idx == -1)
+            {
+                completed = false;
+                leave_menu = true;
+                continue;
+            }
 
-    completed = (selected_prefix != 0) || (selected_suffix != 0);
+            if (choice_idx >= 1)
+            {
+                selected_prefix = (int)object_ego_prefix(smith_o_ptr);
+                create_special(selected_prefix, selected_suffix);
+                selecting_prefix = false;
+                continue;
+            }
+        }
+        else
+        {
+            int choice_idx = enchant_menu_aux(
+                &suffix_highlight, selected_prefix, 0, false);
+
+            if (choice_idx == -1)
+            {
+                /* Back to prefix selection */
+                create_special(selected_prefix, selected_suffix);
+                selecting_prefix = true;
+                continue;
+            }
+
+            if (choice_idx >= 1)
+            {
+                selected_suffix = (int)object_ego_suffix(smith_o_ptr);
+                create_special(selected_prefix, selected_suffix);
+                completed = true;
+                leave_menu = true;
+                continue;
+            }
+        }
+    }
 
     /* Load screen */
     screen_load();

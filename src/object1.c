@@ -901,6 +901,41 @@ static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* 
         return;
     }
 
+    /* Preserve ego prefix in shortened output (prefixes moved from "(Ego)" suffix to leading words). */
+    char ego_prefix_label[128];
+    ego_prefix_label[0] = '\0';
+    if (o_ptr && object_ego_prefix(o_ptr))
+    {
+        byte e_idx = object_ego_prefix(o_ptr);
+        if (e_idx > 0 && e_idx < z_info->e_max && e_info[e_idx].name)
+        {
+            const char* raw = e_name + e_info[e_idx].name;
+            if (ego_name_is_prefix(raw))
+            {
+                size_t raw_len = strlen(raw);
+                size_t copy_len = (raw_len >= 2) ? (raw_len - 2) : 0;
+                if (copy_len >= sizeof(ego_prefix_label))
+                    copy_len = sizeof(ego_prefix_label) - 1;
+                if (copy_len > 0)
+                {
+                    memcpy(ego_prefix_label, raw + 1, copy_len);
+                    ego_prefix_label[copy_len] = '\0';
+                    object_desc_trim_spaces(ego_prefix_label);
+                }
+            }
+        }
+    }
+    if (ego_prefix_label[0])
+    {
+        /* Only preserve the prefix when it is actually visible in the base name (avoid leaking unknown egos). */
+        size_t pre_len = strlen(ego_prefix_label);
+        if (strncmp(base, ego_prefix_label, pre_len) != 0
+            || (base[pre_len] && !isspace((unsigned char)base[pre_len])))
+        {
+            ego_prefix_label[0] = '\0';
+        }
+    }
+
     log_debug("mode4_shorten: processing 'of' pattern in base='%s'", base);
 
     /* Determine if this item has an ego suffix enchantment (e.g., "... of Speed") */
@@ -997,14 +1032,35 @@ static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* 
     
     log_debug("mode4_shorten: after trim - first='%s' second='%s'", first_part, second_part);
 
+    /* If we have a prefix ego, shorten the base type without dropping the prefix. */
+    char* first_part_for_short = first_part;
+    if (ego_prefix_label[0])
+    {
+        size_t pre_len = strlen(ego_prefix_label);
+        if (!strncmp(first_part_for_short, ego_prefix_label, pre_len))
+        {
+            char* p = first_part_for_short + pre_len;
+            if (*p == '\0')
+            {
+                first_part_for_short = p;
+            }
+            else if (isspace((unsigned char)*p))
+            {
+                while (*p && isspace((unsigned char)*p))
+                    ++p;
+                first_part_for_short = p;
+            }
+        }
+    }
+
     char short_first[128];
     short_first[0] = '\0';
 
-    if (first_part[0])
+    if (first_part_for_short[0])
     {
-        log_debug("mode4_shorten: extracting last words from first_part='%s'", first_part);
+        log_debug("mode4_shorten: extracting last words from first_part='%s'", first_part_for_short);
 
-        char* cursor = first_part;
+        char* cursor = first_part_for_short;
         char* last_start = NULL;
         size_t last_len = 0;
         char* prev_start = NULL;
@@ -1084,6 +1140,27 @@ static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* 
             short_first[out] = '\0';
             object_desc_trim_spaces(short_first);
             log_debug("mode4_shorten: short_first='%s' (use_prev=%d)", short_first, use_prev ? 1 : 0);
+        }
+    }
+
+    if (ego_prefix_label[0])
+    {
+        if (short_first[0] && !strncmp(short_first, ego_prefix_label, strlen(ego_prefix_label)))
+        {
+            /* Already includes prefix; do nothing. */
+        }
+        else
+        {
+            char with_prefix[128];
+            with_prefix[0] = '\0';
+            SDL_strlcpy(with_prefix, ego_prefix_label, sizeof(with_prefix));
+            if (short_first[0])
+            {
+                SDL_strlcat(with_prefix, " ", sizeof(with_prefix));
+                SDL_strlcat(with_prefix, short_first, sizeof(with_prefix));
+            }
+            SDL_strlcpy(short_first, with_prefix, sizeof(short_first));
+            object_desc_trim_spaces(short_first);
         }
     }
 
