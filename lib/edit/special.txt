@@ -422,6 +422,7 @@ W:0:5:0:2000
 C:0:0:0:0:0:0:0
 T:23:4:4
 T:22:11:11
+T:23:7:7
 F:BRAND_POIS
 
 
@@ -804,7 +805,7 @@ F:DARKNESS | LIGHT_CURSE
 # Crude, brutal weapons with jagged edges (orcish/crude weapons)
 
 N:140:(Jagged)
-W:0:3:0:500
+W:8:6:0:500
 C:0:0:1:0:0:0:0
 T:23:7:7
 T:22:11:11
@@ -816,7 +817,7 @@ T:22:13:13
 # Light, well-balanced blades for quick strikes (elven/refined weapons)
 
 N:141:(Nimble)
-W:0:4:0:2000
+W:8:6:0:2000
 C:1:0:0:0:0:0:0
 T:23:4:4
 T:23:10:17
@@ -865,7 +866,7 @@ F:DANGER | HAUNTED | DIF_ID | LIGHT_CURSE
 # Excludes Cowardice (10) and Bauglir's Vanguard (11)
 
 N:145:(Blessed)
-W:0:6:0:2000
+W:0:8:0:2000
 C:0:0:0:0:0:0:1
 T:45:0:9
 T:45:12:99
@@ -878,7 +879,7 @@ F:SONG | SUST_GRA
 # Warhammers only
 
 N:146:(Weighted)
-W:4:5:0:1500
+W:8:5:0:1500
 C:-2:0:1:0:0:0:0
 T:21:8:8
 
@@ -886,7 +887,7 @@ T:21:8:8
 # Quarterstaves only
 
 N:147:(Resonant)
-W:6:6:0:3000
+W:10:8:0:3000
 C:0:0:0:0:0:0:2
 T:21:3:3
 F:SONG | SUST_GRA
@@ -895,8 +896,43 @@ F:SONG | SUST_GRA
 # Warhammers only
 
 N:148:of the Unquenched Fire
-W:18:60:0:12000
+W:18:15:0:12000
 C:0:0:-1:0:0:0:3
 T:21:8:8
 F:SMITHING | WILL | BRAND_FIRE
+
+
+# Daggers and hand axes only
+# (ability 0/3 is Throwing)
+# The Gaurwaith were the outlaw band of Turin, living by their wits and weapons in the wild.
+
+N:149:of the Gaurwaith
+W:4:5:0:1500
+C:0:0:0:0:0:0:0
+T:23:4:4
+T:22:11:11
+B:0/3
+
+
+# Shortswords only
+# (ability 0/8 is Subtlety)
+# The Laiquendi of Ossiriand were masters of woodcraft and camouflage, striking unseen from the forests.
+
+N:150:of Ossiriand
+W:10:6:0:3000
+C:0:0:0:0:0:0:0
+T:23:10:10
+B:0/8
+
+
+# Quarterstaves only
+# (ability 5/1 is Channeling)
+# Tirion was the fair city of the Noldor in Aman, where great wisdom and lore were gathered.
+
+N:151:of Tirion
+W:12:8:0:4000
+C:0:0:0:0:0:0:1
+T:21:3:3
+B:5/1
+F:WILL
 

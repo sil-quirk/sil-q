@@ -210,6 +210,9 @@
 #define EGO_JAGGED 140 /* Prefix ego: (Jagged) - crude weapons */
 #define EGO_NIMBLE 141 /* Prefix ego: (Nimble) - refined weapons */
 #define EGO_UNQUENCHED_FIRE 148 /* Suffix ego: of the Unquenched Fire (War Hammer only) */
+#define EGO_GAURWAITH 149 /* Suffix ego: of the Gaurwaith (Throwing) */
+#define EGO_OSSIRIAND 150 /* Suffix ego: of Ossiriand (Subtlety) */
+#define EGO_TIRION 151 /* Suffix ego: of Tirion (Channeling) */
 
 /*
  * Depth-based wall graphics configuration
