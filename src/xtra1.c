@@ -1361,13 +1361,51 @@ static void prt_speed(void)
     }
 }
 
+static const char* partition_abbrev_for_point(int y, int x)
+{
+    switch (level_partition_kind_for_point(y, x))
+    {
+    case LEVEL_PART_ROOMY:
+        return "Room";
+    case LEVEL_PART_RUINED:
+        return "Ruin";
+    case LEVEL_PART_CAVEY:
+        return "Cave";
+    case LEVEL_PART_BIG_CAVE:
+        return "BigCa";
+    case LEVEL_PART_LABYRINTH:
+        return "Labir";
+    case LEVEL_PART_CHASM:
+        return "Chasm";
+    default:
+        return "";
+    }
+}
+
+static void prt_partition(void)
+{
+    if (!p_ptr)
+        return;
+
+    /* Clear the area first (story font has variable widths) */
+    Term_erase(COL_PARTITION, ROW_PARTITION, 5);
+
+    const char* label = partition_abbrev_for_point(p_ptr->py, p_ptr->px);
+    if (!label[0])
+        return;
+
+    sdl_story_font_enable();
+    c_put_str(TERM_WHITE, label, ROW_PARTITION, COL_PARTITION);
+    sdl_story_font_disable();
+}
+
 /*
  * Prints message regarding difficult terrain
  */
 static void prt_terrain(void)
 {
     /* Clear the area first (story font has variable widths) */
-    Term_erase(COL_TERRAIN, ROW_TERRAIN, 8);
+    Term_erase(COL_TERRAIN, ROW_TERRAIN, 5);
 
     if (cave_pit_bold(p_ptr->py, p_ptr->px))
     {
@@ -1384,9 +1422,11 @@ static void prt_terrain(void)
     else if (cave_feat[p_ptr->py][p_ptr->px] == FEAT_SUNLIGHT)
     {
         sdl_story_font_enable();
-        c_put_str(TERM_YELLOW, "Sunlight", ROW_TERRAIN, COL_TERRAIN);
+        c_put_str(TERM_YELLOW, "Sun", ROW_TERRAIN, COL_TERRAIN);
         sdl_story_font_disable();
     }
+
+    prt_partition();
 }
 
 static void prt_stun(void)

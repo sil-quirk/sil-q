@@ -887,7 +887,10 @@
 #define COL_SPEED 56 /* "Slow" or "Fast" */
 
 #define ROW_TERRAIN (Term->hgt - 1)
-#define COL_TERRAIN 61 /* "Web" or "Pit" or "Sunlight" */
+#define COL_TERRAIN 61 /* "Web" or "Pit" or "Sun" */
+
+#define ROW_PARTITION (Term->hgt - 1)
+#define COL_PARTITION 66 /* "Room"/"Ruin"/"Cave"/"BigCa"/"Labir"/"Chasm" */
 
 #define ROW_DEPTH (Term->hgt - 1)
 #define COL_DEPTH 72 /* "Lev NNN" / "NNNN ft" */

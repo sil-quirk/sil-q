@@ -988,7 +988,17 @@ static void process_world(void)
             if (fuelable_light_p(o_ptr)
                 && (level_partition_kind_for_point(p_ptr->py, p_ptr->px) == LEVEL_PART_CAVEY))
             {
-                fuel = 2;
+                /*
+                 * Small caves: double fuel drain only while standing in the actual
+                 * CA-blob cave area (not merely anywhere in the partition).
+                 *
+                 * CA blobs are generated as (dark) "room" grids; corridors/links are not.
+                 */
+                if ((cave_info[p_ptr->py][p_ptr->px] & (CAVE_ROOM)) &&
+                    !(cave_info[p_ptr->py][p_ptr->px] & (CAVE_GLOW)))
+                {
+                    fuel = 2;
+                }
             }
 
             o_ptr->timeout -= fuel;

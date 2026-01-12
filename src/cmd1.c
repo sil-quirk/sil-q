@@ -3064,12 +3064,6 @@ static bool prompt_replace_pack_item(const object_type* incoming)
             continue;
         }
 
-        if (cursed_p(drop_ptr))
-        {
-            msg_print("You cannot bear to part with it.");
-            continue;
-        }
-
         inven_drop(item, drop_ptr->number);
 
         /* Let inventory housekeeping run before we attempt the pickup again */
@@ -3341,9 +3335,6 @@ static bool item_tester_limit_group(const object_type* o_ptr)
     if (!o_ptr || !o_ptr->k_idx)
         return false;
 
-    if (cursed_p(o_ptr))
-        return false;
-
     if (replacement_filter_incoming
         && !pack_item_matches_replacement_type(replacement_filter_incoming, o_ptr))
         return false;
@@ -3364,9 +3355,6 @@ static bool pack_has_limit_candidates(const object_type* incoming)
             continue;
 
         if (!pack_item_matches_replacement_type(incoming, j_ptr))
-            continue;
-
-        if (cursed_p(j_ptr))
             continue;
 
         return true;
@@ -3433,12 +3421,6 @@ static bool prompt_replace_pack_item_limit(const object_type* incoming,
         if (!inven_carry_limit_can_replace(drop_ptr))
         {
             msg_print("That will not make enough room.");
-            continue;
-        }
-
-        if (cursed_p(drop_ptr))
-        {
-            msg_print("You cannot bear to part with it.");
             continue;
         }
 

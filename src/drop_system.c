@@ -787,7 +787,7 @@ static int smithing_difficulty_baseline(const object_type* o_ptr)
     /* pval-based bonuses */
     if (f1 & TR1_TUNNEL)
     {
-        x = o_ptr->pval;
+        x = o_ptr->pval - k_ptr->pval;
         drop_dif_mod(x, 8, &dif_inc);
     }
     if (o_ptr->pval != 0)
