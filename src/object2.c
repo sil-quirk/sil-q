@@ -2922,13 +2922,30 @@ void object_into_artefact(object_type* o_ptr, artefact_type* a_ptr)
         o_ptr->ident |= (IDENT_CURSED);
 }
 
+static void apply_delta_byte_clamped(byte* v, int delta)
+{
+    if (!v)
+        return;
+
+    int next = (int)(*v) + delta;
+    if (next < 0)
+        next = 0;
+    if (next > 255)
+        next = 255;
+    *v = (byte)next;
+}
+
 void object_into_special(object_type* o_ptr, int lev, bool smithing)
 {
     u32b f1, f2, f3;
     int i;
+    const object_kind* k_ptr = NULL;
 
     (void)
         lev; // Cast to soothe compilation warnings (currently unused variable)
+
+    if (o_ptr && o_ptr->k_idx)
+        k_ptr = &k_info[o_ptr->k_idx];
 
     /* Examine the item */
     object_flags(o_ptr, &f1, &f2, &f3);
@@ -2946,6 +2963,12 @@ void object_into_special(object_type* o_ptr, int lev, bool smithing)
             continue;
 
         ego_item_type* e_ptr = &e_info[e_idx];
+        int max_att = (int)(int8_t)e_ptr->max_att;
+        int to_dd = (int)(int8_t)e_ptr->to_dd;
+        int to_ds = (int)(int8_t)e_ptr->to_ds;
+        int max_evn = (int)(int8_t)e_ptr->max_evn;
+        int to_pd = (int)(int8_t)e_ptr->to_pd;
+        int to_ps = (int)(int8_t)e_ptr->to_ps;
 
         /* Add the abilities (bounded by object ability storage). */
         for (i = 0; i < e_ptr->abilities && o_ptr->abilities < (int)N_ELEMENTS(o_ptr->skilltype); i++)
@@ -2965,18 +2988,18 @@ void object_into_special(object_type* o_ptr, int lev, bool smithing)
         /* Apply numeric bonuses. */
         if (smithing)
         {
-            if (e_ptr->max_att > 0)
-                o_ptr->att += 1;
-            if (e_ptr->max_evn > 0)
-                o_ptr->evn += 1;
-            if (e_ptr->to_dd > 0)
-                o_ptr->dd += 1;
-            if (e_ptr->to_ds > 0)
-                o_ptr->ds += 1;
-            if (e_ptr->to_pd > 0)
-                o_ptr->pd += 1;
-            if (e_ptr->to_ps > 0)
-                o_ptr->ps += 1;
+            if (max_att)
+                o_ptr->att += (max_att > 0) ? 1 : -1;
+            if (max_evn)
+                o_ptr->evn += (max_evn > 0) ? 1 : -1;
+            if (to_dd)
+                apply_delta_byte_clamped(&o_ptr->dd, (to_dd > 0) ? 1 : -1);
+            if (to_ds)
+                apply_delta_byte_clamped(&o_ptr->ds, (to_ds > 0) ? 1 : -1);
+            if (to_pd)
+                apply_delta_byte_clamped(&o_ptr->pd, (to_pd > 0) ? 1 : -1);
+            if (to_ps)
+                apply_delta_byte_clamped(&o_ptr->ps, (to_ps > 0) ? 1 : -1);
 
             if (e_ptr->max_pval > 0)
             {
@@ -2988,18 +3011,18 @@ void object_into_special(object_type* o_ptr, int lev, bool smithing)
         }
         else
         {
-            if (e_ptr->max_att > 0)
-                o_ptr->att += dieroll(e_ptr->max_att);
-            if (e_ptr->max_evn > 0)
-                o_ptr->evn += dieroll(e_ptr->max_evn);
-            if (e_ptr->to_dd > 0)
-                o_ptr->dd += dieroll(e_ptr->to_dd);
-            if (e_ptr->to_ds > 0)
-                o_ptr->ds += dieroll(e_ptr->to_ds);
-            if (e_ptr->to_pd > 0)
-                o_ptr->pd += dieroll(e_ptr->to_pd);
-            if (e_ptr->to_ps > 0)
-                o_ptr->ps += dieroll(e_ptr->to_ps);
+            if (max_att)
+                o_ptr->att += (max_att > 0) ? dieroll(max_att) : -dieroll(-max_att);
+            if (max_evn)
+                o_ptr->evn += (max_evn > 0) ? dieroll(max_evn) : -dieroll(-max_evn);
+            if (to_dd)
+                apply_delta_byte_clamped(&o_ptr->dd, (to_dd > 0) ? dieroll(to_dd) : -dieroll(-to_dd));
+            if (to_ds)
+                apply_delta_byte_clamped(&o_ptr->ds, (to_ds > 0) ? dieroll(to_ds) : -dieroll(-to_ds));
+            if (to_pd)
+                apply_delta_byte_clamped(&o_ptr->pd, (to_pd > 0) ? dieroll(to_pd) : -dieroll(-to_pd));
+            if (to_ps)
+                apply_delta_byte_clamped(&o_ptr->ps, (to_ps > 0) ? dieroll(to_ps) : -dieroll(-to_ps));
 
             if (e_ptr->max_pval > 0)
             {
@@ -3008,6 +3031,39 @@ void object_into_special(object_type* o_ptr, int lev, bool smithing)
                 else
                     o_ptr->pval += dieroll(e_ptr->max_pval);
             }
+        }
+    }
+
+    /* Never allow invalid dice/sides on items that normally have them. */
+    if (k_ptr && k_ptr->dd > 0)
+    {
+        if (o_ptr->dd < 1)
+            o_ptr->dd = 1;
+
+        if (o_ptr->ds < 1)
+        {
+            int deficit = 1 - (int)o_ptr->ds;
+            o_ptr->ds = 1;
+            if ((int)o_ptr->dd > deficit)
+                o_ptr->dd = (byte)((int)o_ptr->dd - deficit);
+            else
+                o_ptr->dd = 1;
+        }
+    }
+
+    if (k_ptr && k_ptr->pd > 0)
+    {
+        if (o_ptr->pd < 1)
+            o_ptr->pd = 1;
+
+        if (o_ptr->ps < 1)
+        {
+            int deficit = 1 - (int)o_ptr->ps;
+            o_ptr->ps = 1;
+            if ((int)o_ptr->pd > deficit)
+                o_ptr->pd = (byte)((int)o_ptr->pd - deficit);
+            else
+                o_ptr->pd = 1;
         }
     }
 

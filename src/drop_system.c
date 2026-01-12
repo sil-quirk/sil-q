@@ -59,6 +59,18 @@ static const s16b jinx_egos[] = {
     -1  /* sentinel */
 };
 
+static int ego_s8(byte v)
+{
+    return (int)(int8_t)v;
+}
+
+static int smithing_step_from_ego_bonus(int bonus)
+{
+    if (bonus == 0)
+        return 0;
+    return (bonus > 0) ? 1 : -1;
+}
+
 static const char* DROP_RAW_FILE = "drops";
 static const u32b DROP_RAW_MAGIC = 0x44525053; /* 'DRPS' */
 static const u32b DROP_RAW_VERSION = 13;
@@ -1343,20 +1355,27 @@ static void build_ego_variants(int e_idx)
                 max_depth = rarity_cap_depth;
 
             /* Smithing bounds with ego applied (match smithing UI logic) */
-            int att_min = k_ptr->att + ((e_ptr->max_att > 0) ? 1 : 0);
+            int ego_max_att = ego_s8(e_ptr->max_att);
+            int ego_to_ds = ego_s8(e_ptr->to_ds);
+            int ego_max_evn = ego_s8(e_ptr->max_evn);
+            int ego_to_ps = ego_s8(e_ptr->to_ps);
+            int ego_to_dd = ego_s8(e_ptr->to_dd);
+            int ego_to_pd = ego_s8(e_ptr->to_pd);
+
+            int att_min = k_ptr->att + smithing_step_from_ego_bonus(ego_max_att);
             int att_max = k_ptr->att;
-            int ds_min = k_ptr->ds + ((e_ptr->to_ds > 0) ? 1 : 0);
+            int ds_min = k_ptr->ds + smithing_step_from_ego_bonus(ego_to_ds);
             int ds_max = k_ptr->ds;
-            int evn_min = k_ptr->evn + ((e_ptr->max_evn > 0) ? 1 : 0);
+            int evn_min = k_ptr->evn + smithing_step_from_ego_bonus(ego_max_evn);
             int evn_max = k_ptr->evn;
-            int ps_min = k_ptr->ps + ((e_ptr->to_ps > 0) ? 1 : 0);
+            int ps_min = k_ptr->ps + smithing_step_from_ego_bonus(ego_to_ps);
             int ps_max = k_ptr->ps;
             int pval_min = k_ptr->pval + ((e_ptr->max_pval > 0) ? 1 : 0);
             int pval_max = k_ptr->pval + e_ptr->max_pval;
-            int dd_min = k_ptr->dd + ((e_ptr->to_dd > 0) ? 1 : 0);
-            int dd_max = k_ptr->dd + e_ptr->to_dd;
-            int pd_min = k_ptr->pd + ((e_ptr->to_pd > 0) ? 1 : 0);
-            int pd_max = k_ptr->pd + e_ptr->to_pd;
+            int dd_min = k_ptr->dd + smithing_step_from_ego_bonus(ego_to_dd);
+            int dd_max = k_ptr->dd + ego_to_dd;
+            int pd_min = k_ptr->pd + smithing_step_from_ego_bonus(ego_to_pd);
+            int pd_max = k_ptr->pd + ego_to_pd;
             bool pval_allowed = ((k_ptr->flags1 & TR1_PVAL_MASK) != 0)
                 || (k_ptr->pval != 0) || (e_ptr->max_pval > 0);
 
@@ -1367,9 +1386,9 @@ static void build_ego_variants(int e_idx)
             case TV_HAFTED:
             case TV_DIGGING:
             case TV_BOW:
-                att_max = k_ptr->att + 1 + e_ptr->max_att;
-                ds_max = k_ptr->ds + 1 + e_ptr->to_ds;
-                evn_max = k_ptr->evn + e_ptr->max_evn;
+                att_max = k_ptr->att + 1 + ego_max_att;
+                ds_max = k_ptr->ds + 1 + ego_to_ds;
+                evn_max = k_ptr->evn + ego_max_evn;
                 break;
             case TV_BOOTS:
             case TV_GLOVES:
@@ -1379,16 +1398,16 @@ static void build_ego_variants(int e_idx)
             case TV_CLOAK:
             case TV_SOFT_ARMOR:
             case TV_MAIL:
-                att_max = k_ptr->att + 1 + e_ptr->max_att;
+                att_max = k_ptr->att + 1 + ego_max_att;
                 if (att_max > 0)
                     att_max = 0;
-                evn_max = k_ptr->evn + 1 + e_ptr->max_evn;
-                ps_max = k_ptr->ps + 1 + e_ptr->to_ps;
+                evn_max = k_ptr->evn + 1 + ego_max_evn;
+                ps_max = k_ptr->ps + 1 + ego_to_ps;
                 if ((k_ptr->tval == TV_CLOAK)
                     || (k_ptr->tval == TV_SOFT_ARMOR && k_ptr->sval == SV_ROBE))
-                    ps_max = k_ptr->ps + e_ptr->to_ps;
+                    ps_max = k_ptr->ps + ego_to_ps;
                 if (k_ptr->tval == TV_MAIL && k_ptr->sval == SV_LONG_CORSLET)
-                    ps_max = k_ptr->ps + 2 + e_ptr->to_ps;
+                    ps_max = k_ptr->ps + 2 + ego_to_ps;
                 break;
             case TV_RING:
                 if (k_ptr->sval == SV_RING_ACCURACY)
@@ -1398,7 +1417,7 @@ static void build_ego_variants(int e_idx)
                 }
                 else
                 {
-                    att_max = k_ptr->att + e_ptr->max_att;
+                    att_max = k_ptr->att + ego_max_att;
                 }
                 if (k_ptr->sval == SV_RING_EVASION)
                 {
@@ -1407,7 +1426,7 @@ static void build_ego_variants(int e_idx)
                 }
                 else
                 {
-                    evn_max = k_ptr->evn + e_ptr->max_evn;
+                    evn_max = k_ptr->evn + ego_max_evn;
                 }
                 if (k_ptr->sval == SV_RING_PROTECTION)
                 {
@@ -1447,12 +1466,29 @@ static void build_ego_variants(int e_idx)
                 }
                 break;
             default:
-                att_max = k_ptr->att + e_ptr->max_att;
-                ds_max = k_ptr->ds + e_ptr->to_ds;
-                evn_max = k_ptr->evn + e_ptr->max_evn;
-                ps_max = k_ptr->ps + e_ptr->to_ps;
+                att_max = k_ptr->att + ego_max_att;
+                ds_max = k_ptr->ds + ego_to_ds;
+                evn_max = k_ptr->evn + ego_max_evn;
+                ps_max = k_ptr->ps + ego_to_ps;
                 break;
             }
+
+            if (ds_min < 0)
+                ds_min = 0;
+            if (ds_max < 0)
+                ds_max = 0;
+            if (dd_min < 0)
+                dd_min = 0;
+            if (dd_max < 0)
+                dd_max = 0;
+            if (pd_min < 0)
+                pd_min = 0;
+            if (pd_max < 0)
+                pd_max = 0;
+            if (ps_min < 0)
+                ps_min = 0;
+            if (ps_max < 0)
+                ps_max = 0;
 
             if (att_min > att_max)
                 att_min = att_max;
@@ -1512,6 +1548,8 @@ static void build_ego_combo_variants(int prefix_idx, int suffix_idx)
     if (prefix_idx <= 0 || suffix_idx <= 0)
         return;
     if (is_jinx_ego(prefix_idx) || is_jinx_ego(suffix_idx))
+        return;
+    if (suffix_idx == EGO_UNQUENCHED_FIRE)
         return;
 
     ego_item_type* prefix_ptr = &e_info[prefix_idx];
@@ -1647,27 +1685,39 @@ static void build_ego_combo_variants(int prefix_idx, int suffix_idx)
             max_depth = rarity_cap_depth;
 
         /* Combined ego numeric contributions */
-        int max_att_bonus = prefix_ptr->max_att + suffix_ptr->max_att;
-        int max_evn_bonus = prefix_ptr->max_evn + suffix_ptr->max_evn;
-        int to_dd_bonus = prefix_ptr->to_dd + suffix_ptr->to_dd;
-        int to_ds_bonus = prefix_ptr->to_ds + suffix_ptr->to_ds;
-        int to_pd_bonus = prefix_ptr->to_pd + suffix_ptr->to_pd;
-        int to_ps_bonus = prefix_ptr->to_ps + suffix_ptr->to_ps;
+        int max_att_bonus = ego_s8(prefix_ptr->max_att) + ego_s8(suffix_ptr->max_att);
+        int max_evn_bonus = ego_s8(prefix_ptr->max_evn) + ego_s8(suffix_ptr->max_evn);
+        int to_dd_bonus = ego_s8(prefix_ptr->to_dd) + ego_s8(suffix_ptr->to_dd);
+        int to_ds_bonus = ego_s8(prefix_ptr->to_ds) + ego_s8(suffix_ptr->to_ds);
+        int to_pd_bonus = ego_s8(prefix_ptr->to_pd) + ego_s8(suffix_ptr->to_pd);
+        int to_ps_bonus = ego_s8(prefix_ptr->to_ps) + ego_s8(suffix_ptr->to_ps);
         int max_pval_bonus = prefix_ptr->max_pval + suffix_ptr->max_pval;
 
-        int att_min = k_ptr->att + ((prefix_ptr->max_att > 0) ? 1 : 0) + ((suffix_ptr->max_att > 0) ? 1 : 0);
+        int att_min = k_ptr->att
+            + smithing_step_from_ego_bonus(ego_s8(prefix_ptr->max_att))
+            + smithing_step_from_ego_bonus(ego_s8(suffix_ptr->max_att));
         int att_max = k_ptr->att;
-        int ds_min = k_ptr->ds + ((prefix_ptr->to_ds > 0) ? 1 : 0) + ((suffix_ptr->to_ds > 0) ? 1 : 0);
+        int ds_min = k_ptr->ds
+            + smithing_step_from_ego_bonus(ego_s8(prefix_ptr->to_ds))
+            + smithing_step_from_ego_bonus(ego_s8(suffix_ptr->to_ds));
         int ds_max = k_ptr->ds;
-        int evn_min = k_ptr->evn + ((prefix_ptr->max_evn > 0) ? 1 : 0) + ((suffix_ptr->max_evn > 0) ? 1 : 0);
+        int evn_min = k_ptr->evn
+            + smithing_step_from_ego_bonus(ego_s8(prefix_ptr->max_evn))
+            + smithing_step_from_ego_bonus(ego_s8(suffix_ptr->max_evn));
         int evn_max = k_ptr->evn;
-        int ps_min = k_ptr->ps + ((prefix_ptr->to_ps > 0) ? 1 : 0) + ((suffix_ptr->to_ps > 0) ? 1 : 0);
+        int ps_min = k_ptr->ps
+            + smithing_step_from_ego_bonus(ego_s8(prefix_ptr->to_ps))
+            + smithing_step_from_ego_bonus(ego_s8(suffix_ptr->to_ps));
         int ps_max = k_ptr->ps;
         int pval_min = k_ptr->pval + ((prefix_ptr->max_pval > 0) ? 1 : 0) + ((suffix_ptr->max_pval > 0) ? 1 : 0);
         int pval_max = k_ptr->pval + max_pval_bonus;
-        int dd_min = k_ptr->dd + ((prefix_ptr->to_dd > 0) ? 1 : 0) + ((suffix_ptr->to_dd > 0) ? 1 : 0);
+        int dd_min = k_ptr->dd
+            + smithing_step_from_ego_bonus(ego_s8(prefix_ptr->to_dd))
+            + smithing_step_from_ego_bonus(ego_s8(suffix_ptr->to_dd));
         int dd_max = k_ptr->dd + to_dd_bonus;
-        int pd_min = k_ptr->pd + ((prefix_ptr->to_pd > 0) ? 1 : 0) + ((suffix_ptr->to_pd > 0) ? 1 : 0);
+        int pd_min = k_ptr->pd
+            + smithing_step_from_ego_bonus(ego_s8(prefix_ptr->to_pd))
+            + smithing_step_from_ego_bonus(ego_s8(suffix_ptr->to_pd));
         int pd_max = k_ptr->pd + to_pd_bonus;
         bool pval_allowed = ((k_ptr->flags1 & TR1_PVAL_MASK) != 0)
             || (k_ptr->pval != 0) || (max_pval_bonus > 0);
@@ -1765,6 +1815,23 @@ static void build_ego_combo_variants(int prefix_idx, int suffix_idx)
             ps_max = k_ptr->ps + to_ps_bonus;
             break;
         }
+
+        if (ds_min < 0)
+            ds_min = 0;
+        if (ds_max < 0)
+            ds_max = 0;
+        if (dd_min < 0)
+            dd_min = 0;
+        if (dd_max < 0)
+            dd_max = 0;
+        if (pd_min < 0)
+            pd_min = 0;
+        if (pd_max < 0)
+            pd_max = 0;
+        if (ps_min < 0)
+            ps_min = 0;
+        if (ps_max < 0)
+            ps_max = 0;
 
         if (att_min > att_max)
             att_min = att_max;

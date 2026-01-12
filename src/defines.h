@@ -209,6 +209,7 @@
 #define EGO_GRACE 75 /* Ego: of Grace (lesser jewels / mithril helms) */
 #define EGO_JAGGED 140 /* Prefix ego: (Jagged) - crude weapons */
 #define EGO_NIMBLE 141 /* Prefix ego: (Nimble) - refined weapons */
+#define EGO_UNQUENCHED_FIRE 148 /* Suffix ego: of the Unquenched Fire (War Hammer only) */
 
 /*
  * Depth-based wall graphics configuration

@@ -3367,7 +3367,7 @@ static const smithing_flag_desc smithing_flag_types[] = { { CAT_STAT, TR1_STR,
     { CAT_STAT, TR1_NEG_GRA, 1, "Gra penalty" },
     { CAT_SKILL, TR1_ARC, 1, "Archery" }, { CAT_SKILL, TR1_STL, 1, "Stealth" },
     { CAT_SKILL, TR1_PER, 1, "Perception" }, { CAT_SKILL, TR1_WIL, 1, "Will" },
-    { CAT_SKILL, TR1_SNG, 1, "Song" },
+    { CAT_SKILL, TR1_SMT, 1, "Smithing" }, { CAT_SKILL, TR1_SNG, 1, "Song" },
     { CAT_MISC, TR1_DAMAGE_SIDES, 1, "Damage bonus" },
     { CAT_MISC, TR2_LIGHT, 2, "Light" },
     { CAT_MISC, TR2_SLOW_DIGEST, 2, "Sustenance" },
@@ -3475,26 +3475,36 @@ static void smithing_ego_bonus_sums(const object_type* o_ptr,
             continue;
 
         ego_item_type* e_ptr = &e_info[e_idx];
-        if (e_ptr->max_att > 0)
+        int max_att = (int)(int8_t)e_ptr->max_att;
+        int to_ds = (int)(int8_t)e_ptr->to_ds;
+        int max_evn = (int)(int8_t)e_ptr->max_evn;
+        int to_ps = (int)(int8_t)e_ptr->to_ps;
+
+        if (max_att)
         {
-            if (max_att_sum) *max_att_sum += e_ptr->max_att;
-            if (max_att_min_inc) (*max_att_min_inc)++;
+            if (max_att_sum) *max_att_sum += max_att;
+            if (max_att_min_inc)
+                (*max_att_min_inc) += (max_att > 0) ? 1 : -1;
         }
-        if (e_ptr->to_ds > 0)
+        if (to_ds)
         {
-            if (to_ds_sum) *to_ds_sum += e_ptr->to_ds;
-            if (to_ds_min_inc) (*to_ds_min_inc)++;
+            if (to_ds_sum) *to_ds_sum += to_ds;
+            if (to_ds_min_inc)
+                (*to_ds_min_inc) += (to_ds > 0) ? 1 : -1;
         }
-        if (e_ptr->max_evn > 0)
+        if (max_evn)
         {
-            if (max_evn_sum) *max_evn_sum += e_ptr->max_evn;
-            if (max_evn_min_inc) (*max_evn_min_inc)++;
+            if (max_evn_sum) *max_evn_sum += max_evn;
+            if (max_evn_min_inc)
+                (*max_evn_min_inc) += (max_evn > 0) ? 1 : -1;
         }
-        if (e_ptr->to_ps > 0)
+        if (to_ps)
         {
-            if (to_ps_sum) *to_ps_sum += e_ptr->to_ps;
-            if (to_ps_min_inc) (*to_ps_min_inc)++;
+            if (to_ps_sum) *to_ps_sum += to_ps;
+            if (to_ps_min_inc)
+                (*to_ps_min_inc) += (to_ps > 0) ? 1 : -1;
         }
+
         if (e_ptr->max_pval > 0)
         {
             if (max_pval_sum) *max_pval_sum += e_ptr->max_pval;
@@ -3692,6 +3702,10 @@ int ds_min(void)
         break;
     }
     }
+
+    /* Never allow weapons to reach 0-sided damage. */
+    if (k_ptr->dd > 0 && ds < 1)
+        ds = 1;
 
     return (ds);
 }
@@ -4689,6 +4703,10 @@ int object_difficulty(object_type* o_ptr)
         if (f1 & TR1_WIL)
         {
             dif_mod(x, 3, &dif_inc);
+        }
+        if (f1 & TR1_SMT)
+        {
+            dif_mod(x, 4, &dif_inc);
         }
         if (f1 & TR1_SNG)
         {
@@ -6257,6 +6275,10 @@ static void create_special(int ego_prefix, int ego_suffix)
     object_copy(smith_o_ptr, smith2_o_ptr);
     smith_alloy = smith2_alloy;
 
+    /* Suffix-only ego: cannot be combined with any prefix. */
+    if (ego_suffix == EGO_UNQUENCHED_FIRE)
+        ego_prefix = 0;
+
     /* Apply requested ego affixes */
     object_set_ego_prefix(smith_o_ptr, ego_prefix);
     object_set_ego_suffix(smith_o_ptr, ego_suffix);
@@ -6274,6 +6296,10 @@ static bool enchant_menu_has_applicable_affix(bool selecting_prefix)
     int i, j;
 
     if (!smith_o_ptr || smith_o_ptr->tval == 0)
+        return false;
+
+    /* Suffix-only ego: never allow any prefix when it's present. */
+    if (selecting_prefix && object_ego_suffix(smith_o_ptr) == EGO_UNQUENCHED_FIRE)
         return false;
 
     for (i = 1; i < z_info->e_max; i++)
@@ -6326,6 +6352,13 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix, 
     Term_putstr(COL_SMT2, entry_count + 2, -1, TERM_WHITE, buf);
     entry_count++;
 
+    /* Suffix-only ego: only allow "(none)" as the prefix choice. */
+    if (selecting_prefix && fixed_suffix == EGO_UNQUENCHED_FIRE)
+    {
+        Term_putstr(COL_SMT2, entry_count + 2, -1, TERM_SLATE,
+            "(no prefix allowed with this suffix)");
+    }
+
     /* We have to search the whole special item list. */
     for (i = 1; i < z_info->e_max && entry_count < (int)N_ELEMENTS(choice); i++)
     {
@@ -6335,6 +6368,12 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix, 
         const char* raw_name = e_name + e_ptr->name;
         bool is_prefix = ego_name_is_prefix(raw_name);
         if (selecting_prefix != is_prefix)
+            continue;
+
+        if (selecting_prefix && fixed_suffix == EGO_UNQUENCHED_FIRE)
+            continue;
+
+        if (!selecting_prefix && i == EGO_UNQUENCHED_FIRE && fixed_prefix != 0)
             continue;
 
         /* Don't create cursed */
@@ -6684,6 +6723,16 @@ bool applicable_flag(u32b f, int flagset, object_type* o_ptr)
     /* Extract the object flags */
     object_flags(o_ptr, &f1, &f2, &f3);
 
+    /* Warhammers-only: Smithing bonus requires Brand Fire on the same item. */
+    if ((flagset == 1) && (f == TR1_SMT))
+    {
+        if (o_ptr->tval != TV_HAFTED || o_ptr->sval != SV_WAR_HAMMER)
+            return false;
+        if (!(f1 & TR1_BRAND_FIRE))
+            return false;
+        return true;
+    }
+
     /* Go through the list of artefacts and see if the flag is applicable for
      * this type  */
     for (i = ART_ULTIMATE; i < z_info->art_norm_max; i++)
@@ -6757,6 +6806,10 @@ void remove_artefact_flag(u32b f, int flagset)
         smith_a_ptr->flags2 &= ~(f);
     if (flagset == 3)
         smith_a_ptr->flags3 &= ~(f);
+
+    /* Keep Smithing dependent on Brand Fire. */
+    if ((flagset == 1) && (f == TR1_BRAND_FIRE))
+        smith_a_ptr->flags1 &= ~(TR1_SMT);
 }
 
 /*

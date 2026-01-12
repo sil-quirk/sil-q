@@ -891,3 +891,12 @@ C:0:0:0:0:0:0:2
 T:21:3:3
 F:SONG | SUST_GRA
 
+
+# Warhammers only
+
+N:148:of the Unquenched Fire
+W:18:60:0:12000
+C:0:0:-1:0:0:0:3
+T:21:8:8
+F:SMITHING | WILL | BRAND_FIRE
+
