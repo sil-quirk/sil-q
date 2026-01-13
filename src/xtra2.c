@@ -8252,7 +8252,7 @@ static int prompt_varda_reward_choice_menu(const int* choices, int choice_count,
         
         /* Display controls */
         row = hgt - 2;
-        Term_putstr(2, row, -1, TERM_L_DARK, "Arrows navigate   'x' Inspect   Space/Enter accept   Letter select   ESC wait");
+        Term_putstr(2, row, -1, TERM_L_DARK, "Arrows navigate   'x' Inspect   Space/Enter accept   Letter select");
         
         /* Position cursor at selection */
         Term_gotoxy(2, 6 + text_count + 2 + selection);
@@ -8262,10 +8262,7 @@ static int prompt_varda_reward_choice_menu(const int* choices, int choice_count,
         char key = inkey();
         
         /* Handle input */
-        if (key == ESCAPE) {
-            screen_load();
-            return 0; /* Cancel */
-        } else if (key == '\r' || key == '\n' || key == ' ' || key == '6') {
+        if (key == '\r' || key == '\n' || key == ' ' || key == '6') {
             /* Accept current selection */
             selected_artifact = choices[selection];
             done = true;
