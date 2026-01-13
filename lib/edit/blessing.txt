@@ -10,11 +10,11 @@ E:SUPPLY_LIMIT
 S:Supplies weight bonus
 D:Increases the supplies cache limit to 50 lbs.
 M:You seal the Supply Covenant. Your caches can now carry far more weight.
-C:3
+C:2
 
 N:1:Artefact Patronage
 E:START_ARTIFACT
 S:Starting artefact boon
 D:Each new hero begins their tale carrying a gifted artefact.
 M:You earn Artefact Patronage. Future heroes will begin with a treasured gift.
-C:3
+C:2

@@ -1368,7 +1368,7 @@ D: to the hoards of Angband, you cannot say.
 
 ## The Shadow Cloak of Luthien
 ## 1st age
-## (ability 7/14 is Song of Lorien)
+## (ability 7/13 is Song of Disguise)
 
 N:134:of Luthien
 Q:c3b8dbdc3f360c7d
@@ -1376,7 +1376,7 @@ I:35:6:4
 W:13:10:10:45000
 P:0:0d0:4:0d0
 F:STEALTH | DARKNESS | SUST_GRA
-B:7/14
+B:7/13
 D:A shadowy cloak, woven from soft elven-hair.
 D: It was made by Luthien Tinuviel, the most
 D: beautiful being who ever knew death.

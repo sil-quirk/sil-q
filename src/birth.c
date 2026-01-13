@@ -39,6 +39,7 @@ extern void wipe_screen_from(int col);
 #define TOTAL_AUX_COL 35
 #define INVALID_CHOICE 255
 
+static int find_named_artifact_for_character(void);
 static void grant_starting_artifact(void);
 
 /* Character ability names */
@@ -600,43 +601,124 @@ static void give_start_items(const start_item *list)
     }
 }
 
+/*
+ * Find a named artifact matching the current character.
+ * Returns artifact index if found, otherwise 0.
+ * 
+ * Matches artifacts with "of {CharacterName}" in their name.
+ * For example: "Ring of Barahir" matches character "Barahir",
+ *              "Crown of Feanor" matches character "Feanor".
+ */
+static int find_named_artifact_for_character(void)
+{
+    character_profile *current_character_profile = &c_info[p_ptr->pcharacter];
+    const char *character_name = c_name + current_character_profile->name;
+    
+    /* Build pattern: "of {CharacterName}" */
+    char pattern[64];
+    char art_lower[MAX_LEN_ART_NAME];
+    char pattern_lower[64];
+    
+    strnfmt(pattern, sizeof(pattern), "of %s", character_name);
+    
+    /* Convert pattern to lowercase for case-insensitive comparison */
+    for (int i = 0; pattern[i] && i < (int)sizeof(pattern_lower) - 1; i++) {
+        pattern_lower[i] = tolower((unsigned char)pattern[i]);
+    }
+    pattern_lower[strlen(pattern)] = '\0';
+    
+    /* Search all artifacts for one matching this character's name */
+    for (int i = 1; i < z_info->art_max; i++) {
+        artefact_type *a_ptr = &a_info[i];
+        
+        /* Skip artifacts without names or already created */
+        if (!a_ptr->name[0]) continue;
+        if (a_ptr->cur_num > 0) continue;
+        
+        /* Convert artifact name to lowercase */
+        for (int j = 0; a_ptr->name[j] && j < MAX_LEN_ART_NAME - 1; j++) {
+            art_lower[j] = tolower((unsigned char)a_ptr->name[j]);
+        }
+        art_lower[strlen(a_ptr->name)] = '\0';
+        
+        /* Check if artifact name contains "of {CharacterName}" */
+        if (strstr(art_lower, pattern_lower)) {
+            /* Verify it's a valid base kind */
+            int k_idx = lookup_kind(a_ptr->tval, a_ptr->sval);
+            if (k_idx) {
+                log_info("Found named artifact for %s: %s (idx=%d)", 
+                         character_name, a_ptr->name, i);
+                return i;
+            }
+        }
+    }
+    
+    log_debug("No named artifact found for character: %s", character_name);
+    return 0;
+}
+
 static void grant_starting_artifact(void)
 {
-    int candidates[512];
-    int candidate_kinds[512];
-    int count = 0;
-    int max_level = 10;
+    int art_idx = 0;
+    int k_idx = 0;
+    
+    /* First, try to find a named artifact for this character */
+    art_idx = find_named_artifact_for_character();
+    
+    if (art_idx > 0) {
+        /* Found a named artifact - validate and grant it */
+        artefact_type *a_ptr = &a_info[art_idx];
+        k_idx = lookup_kind(a_ptr->tval, a_ptr->sval);
+        
+        if (!k_idx) {
+            log_warn("Named artifact has invalid base kind (idx=%d)", art_idx);
+            art_idx = 0;  /* Fall through to random selection */
+        } else if (valar_reserved_artifacts && valar_reserved_artifacts[art_idx]) {
+            log_info("Named artifact already reserved (idx=%d)", art_idx);
+            art_idx = 0;  /* Fall through to random selection */
+        }
+    }
+    
+    /* If no named artifact, use the original random selection logic */
+    if (art_idx == 0) {
+        int candidates[512];
+        int candidate_kinds[512];
+        int count = 0;
+        int max_level = 10;
 
-    for (int pass = 0; pass < 2; pass++) {
-        count = 0;
-        for (int i = 1; i < z_info->art_max && count < (int)N_ELEMENTS(candidates); i++) {
-            artefact_type *a_ptr = &a_info[i];
-            if (!a_ptr->name[0]) continue;
-            if (a_ptr->cur_num > 0) continue;
-            if (a_ptr->level > max_level) continue;
-            if (valar_reserved_artifacts && valar_reserved_artifacts[i]) continue;
-            int k_idx = lookup_kind(a_ptr->tval, a_ptr->sval);
-            if (!k_idx) continue;
-            candidates[count] = i;
-            candidate_kinds[count] = k_idx;
-            count++;
+        for (int pass = 0; pass < 2; pass++) {
+            count = 0;
+            for (int i = 1; i < z_info->art_max && count < (int)N_ELEMENTS(candidates); i++) {
+                artefact_type *a_ptr = &a_info[i];
+                if (!a_ptr->name[0]) continue;
+                if (a_ptr->cur_num > 0) continue;
+                if (a_ptr->level > max_level) continue;
+                if (valar_reserved_artifacts && valar_reserved_artifacts[i]) continue;
+                int k = lookup_kind(a_ptr->tval, a_ptr->sval);
+                if (!k) continue;
+                candidates[count] = i;
+                candidate_kinds[count] = k;
+                count++;
+            }
+
+            if (count > 0)
+                break;
+
+            max_level = MORGOTH_DEPTH;
         }
 
-        if (count > 0)
-            break;
+        if (count == 0) {
+            log_warn("No artefacts available for starting blessing.");
+            msg_print("No artefact could be granted.");
+            return;
+        }
 
-        max_level = MORGOTH_DEPTH;
+        int pick = rand_int(count);
+        art_idx = candidates[pick];
+        k_idx = candidate_kinds[pick];
     }
-
-    if (count == 0) {
-        log_warn("No artefacts available for starting blessing.");
-        msg_print("No artefact could be granted.");
-        return;
-    }
-
-    int pick = rand_int(count);
-    int art_idx = candidates[pick];
-    int k_idx = candidate_kinds[pick];
+    
+    /* Grant the selected artifact */
     artefact_type *a_ptr = &a_info[art_idx];
 
     object_type object_type_body;
