@@ -1461,8 +1461,8 @@ static int partition_extra_monster_target(quadrant_mode_t mode, int floor_count)
         break;
     case QUAD_MODE_LABYRINTH:
         /* Labyrinths already place some monsters during carving; top-up lightly. */
-        target = floor_count / 260;
-        if (target > 5) target = 5;
+        target = floor_count / 200;
+        if (target > 8) target = 8;
         break;
     case QUAD_MODE_CAVEY:
         target = floor_count / 170;
@@ -3805,9 +3805,9 @@ static bool carve_labyrinth_bounds(int y_min, int y_max, int x_min, int x_max,
     /* === LABYRINTH MONSTER SPAWNING === */
     /* Place monsters directly inside the labyrinth - scale with floor count */
     /* Approximately 1 monster per 15 floor tiles */
-    int lab_monsters = floor_count / 15;
-    if (lab_monsters < 2) lab_monsters = 2;
-    if (lab_monsters > 8) lab_monsters = 8;
+    int lab_monsters = floor_count / 12;
+    if (lab_monsters < 4) lab_monsters = 4;
+    if (lab_monsters > 24) lab_monsters = 24;
     int monsters_placed = 0;
     
     for (int m = 0; m < lab_monsters; ++m)
@@ -5312,6 +5312,13 @@ static void apply_quadrant_generation_modes(void)
             break;
         case QUAD_MODE_RUINED:
             {
+                int std_count = scaled_attempts(1, area_factor);
+                int cross_count = scaled_attempts((density == DENSITY_SPARSE) ? 0 : 1, area_factor);
+                int int_count = scaled_attempts((density == DENSITY_DENSE) ? 2 : 1, area_factor);
+                int vault_count = scaled_attempts((density == DENSITY_DENSE) ? 1 : 0, area_factor);
+                place_rooms_randomized(y1, y2, x1, x2, depth, std_count, cross_count, int_count, vault_count,
+                                       &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
+
                 int carve_count = 3 + (y2 - y1) * (x2 - x1) / 500;
                 if (carve_count > 10) carve_count = 10;
                 for (int b = 0; b < carve_count; ++b)
@@ -5349,13 +5356,6 @@ static void apply_quadrant_generation_modes(void)
                         }
                     }
                 }
-                
-                int std_count = scaled_attempts(1, area_factor);
-                int cross_count = scaled_attempts((density == DENSITY_SPARSE) ? 0 : 1, area_factor);
-                int int_count = scaled_attempts((density == DENSITY_DENSE) ? 2 : 1, area_factor);
-                int vault_count = scaled_attempts((density == DENSITY_DENSE) ? 1 : 0, area_factor);
-                place_rooms_randomized(y1, y2, x1, x2, depth, std_count, cross_count, int_count, vault_count,
-                                       &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
                 
                 /* === RUINED SKELETON SPAWNING === */
                 /* After rubble and rooms are created, spawn skeleton items.

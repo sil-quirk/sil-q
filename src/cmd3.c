@@ -1714,6 +1714,16 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
 
     /* Force immediate sidebar update */
     handle_stuff();
+
+    /*
+     * Smithing identification checks depend on the player's current effective
+     * skills, so retry now that equipped bonuses have been applied.
+     */
+    if (player_try_identify_smithing_object(o_ptr, true, 0))
+    {
+        /* Ensure the newly-identified item (and any resulting bonuses) display immediately. */
+        handle_stuff();
+    }
 }
 
 /*

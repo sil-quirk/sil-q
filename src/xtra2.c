@@ -8211,9 +8211,11 @@ static int prompt_varda_reward_choice_menu(const int* choices, int choice_count,
     bool done = false;
     int selected_artifact = 0;
     
+    /* Save screen once */
+    screen_save();
+
     while (!done) {
-        /* Save and clear screen */
-        screen_save();
+        /* Clear screen */
         Term_clear();
         
         /* Display title */
@@ -8225,7 +8227,7 @@ static int prompt_varda_reward_choice_menu(const int* choices, int choice_count,
         /* Display completion text */
         for (int i = 0; i < text_count && row < hgt - 10; i++) {
             if (completion_texts[i] && completion_texts[i][0] != '\0') {
-                Term_putstr(2, row++, -1, TERM_WHITE, completion_texts[i]);
+                display_wrapped_text(2, &row, completion_texts[i], TERM_WHITE, wid);
             } else {
                 row++; /* Empty line for paragraph break */
             }
@@ -8250,7 +8252,7 @@ static int prompt_varda_reward_choice_menu(const int* choices, int choice_count,
         
         /* Display controls */
         row = hgt - 2;
-        Term_putstr(2, row, -1, TERM_L_DARK, "Arrows navigate   Space/Enter accept   Letter select   ESC wait");
+        Term_putstr(2, row, -1, TERM_L_DARK, "Arrows navigate   'x' Inspect   Space/Enter accept   Letter select   ESC wait");
         
         /* Position cursor at selection */
         Term_gotoxy(2, 6 + text_count + 2 + selection);
@@ -8267,6 +8269,10 @@ static int prompt_varda_reward_choice_menu(const int* choices, int choice_count,
             /* Accept current selection */
             selected_artifact = choices[selection];
             done = true;
+        } else if (key == 'x' || key == 'X' || key == '?') {
+            /* Inspect selection */
+            Term_clear();
+            desc_art_fake(choices[selection]);
         } else if (key == '8' || key == 'k' || key == '-') {
             /* Move up */
             selection = (selection + choice_count - 1) % choice_count;

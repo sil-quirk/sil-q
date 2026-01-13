@@ -1634,6 +1634,8 @@ static bool level_has_hoard_drop(void)
             continue;
         if (!(o_ptr->ident & IDENT_HOARD_DROP))
             continue;
+        if (!o_ptr->name1)
+            continue;
         if (o_ptr->iy >= p_ptr->cur_map_hgt || o_ptr->ix >= p_ptr->cur_map_wid)
             continue;
 
@@ -3087,6 +3089,8 @@ static bool skeleton_note_find_nearest_hoard_drop(
             continue;
         if (!(o_ptr->ident & IDENT_HOARD_DROP))
             continue;
+        if (!o_ptr->name1)
+            continue;
         if (o_ptr->iy >= p_ptr->cur_map_hgt || o_ptr->ix >= p_ptr->cur_map_wid)
             continue;
 
@@ -3309,6 +3313,50 @@ static const char* skeleton_note_forge_site(int feat, char* buf, size_t buf_sz)
         return "enchanted forge";
 
     return "forge";
+}
+
+static const char* skeleton_hint_title(skeleton_hint_kind hint)
+{
+    switch (hint)
+    {
+    case SKEL_HINT_GREAT_VAULT:
+        return "Hint: Great Vault";
+    case SKEL_HINT_VAULT_ARTIFACT:
+        return "Hint: Dragon's Hoard";
+    case SKEL_HINT_STAIRS:
+        return "Hint: Stairs";
+    case SKEL_HINT_PARTITION_PRESENCE:
+        return "Hint: Layout";
+    case SKEL_HINT_FORGE:
+        return "Hint: Forge";
+    case SKEL_HINT_UNIQUE_MONSTER:
+        return "Hint: Unique Monster";
+    case SKEL_HINT_TIP:
+        return "Hint: Survival Tip";
+    case SKEL_HINT_LEVEL_SIZE:
+        return "Hint: Level Size";
+    case SKEL_HINT_QUEST:
+        return "Hint: Quest";
+    case SKEL_HINT_PART_LABYRINTH:
+        return "Hint: Labyrinth";
+    case SKEL_HINT_PART_CHASM:
+        return "Hint: Chasm";
+    case SKEL_HINT_PART_CAVE:
+    case SKEL_HINT_PART_CAVEY:
+        return "Hint: Caves";
+    case SKEL_HINT_PART_CAVE_ICE:
+        return "Hint: Ice Cave";
+    case SKEL_HINT_PART_CAVE_FIRE:
+        return "Hint: Fire Cave";
+    case SKEL_HINT_PART_CAVE_POIS:
+        return "Hint: Poison Cave";
+    case SKEL_HINT_PART_ROOMY:
+        return "Hint: Rooms";
+    case SKEL_HINT_PART_RUINED:
+        return "Hint: Ruins";
+    default:
+        return "Hint: Note";
+    }
 }
 
 static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
@@ -3668,6 +3716,24 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
     char note_lines[16][100];
     skeleton_note_build_lines(
         opening, body_lines, body_count, signoff, &layout, note_lines, 8);
+
+    /* Prepend title */
+    char title_buf[100];
+    if (hint2 != SKEL_HINT_NONE)
+    {
+        strnfmt(title_buf, sizeof(title_buf), "Hint: %s & %s",
+            skeleton_hint_title(hint1) + 6,
+            skeleton_hint_title(hint2) + 6);
+    }
+    else
+    {
+        strnfmt(title_buf, sizeof(title_buf), "%s", skeleton_hint_title(hint1));
+    }
+
+    for (int i = 14; i >= 0; --i)
+        strnfmt(note_lines[i+1], 100, "%s", note_lines[i]);
+    strnfmt(note_lines[0], 100, "%s", title_buf);
+
     hint_messages_add_note_lines(note_lines);
     pause_with_text(note_lines, 4, 8, NULL, 0);
     if (hint1 != SKEL_HINT_TIP)

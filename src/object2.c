@@ -4212,6 +4212,14 @@ void drop_near(object_type* j_ptr, int chance, int y, int x)
     bool flag = false;
 
     bool plural = false;
+    const bool is_silmaril = (j_ptr->tval == TV_LIGHT) && (j_ptr->sval == SV_LIGHT_SILMARIL);
+    const bool impact_is_floor =
+        (cave_feat[y][x] == FEAT_FLOOR) || (cave_feat[y][x] == FEAT_SUNLIGHT);
+    const bool force_place = artefact_p(j_ptr) || is_silmaril;
+    const bool try_hard_place = force_place || impact_is_floor;
+    const bool can_clobber = (j_ptr->name1 == ART_MORGOTH_3) || is_silmaril;
+    const int scan_radius = try_hard_place ? 10 : 4;
+    const int scan_dist2_max = (scan_radius * scan_radius) + 1;
 
     /* Extract plural */
     if (j_ptr->number != 1)
@@ -4248,10 +4256,10 @@ void drop_near(object_type* j_ptr, int chance, int y, int x)
     bx = x;
 
     /* Scan local grids */
-    for (dy = -4; dy <= 4; dy++)
+    for (dy = -scan_radius; dy <= scan_radius; dy++)
     {
         /* Scan local grids */
-        for (dx = -4; dx <= 4; dx++)
+        for (dx = -scan_radius; dx <= scan_radius; dx++)
         {
             bool comb = false;
             ////int path_n;
@@ -4263,7 +4271,7 @@ void drop_near(object_type* j_ptr, int chance, int y, int x)
             d = (dy * dy) + (dx * dx);
 
             /* Ignore distant grids */
-            if (d > 17)
+            if (d > scan_dist2_max)
                 continue;
 
             /* Location */
@@ -4353,8 +4361,7 @@ void drop_near(object_type* j_ptr, int chance, int y, int x)
     }
 
     /* Handle lack of space */
-    if (!flag && (j_ptr->name1 != ART_MORGOTH_3)
-        && ((j_ptr->tval != TV_LIGHT) || (j_ptr->sval != SV_LIGHT_SILMARIL)))
+    if (!flag && !try_hard_place)
     {
         /* Debug */
         if (p_ptr->wizard)
@@ -4364,9 +4371,8 @@ void drop_near(object_type* j_ptr, int chance, int y, int x)
         return;
     }
 
-    /* Prepared to clobber other items in order to place the crown or silmarils
-     */
-    for (i = 0; !flag; i++)
+    /* Don't silently lose items just because there is no nearby empty floor. */
+    for (i = 0; try_hard_place && !flag && (i < 20000); i++)
     {
         /* First try */
         if (i == 0)
@@ -4389,30 +4395,41 @@ void drop_near(object_type* j_ptr, int chance, int y, int x)
             tx = rand_int(p_ptr->cur_map_wid);
         }
 
+        /* Skip illegal grids */
+        if (!in_bounds_fully(ty, tx))
+            continue;
+
         /* Require floor space */
-        if (cave_feat[ty][tx] != FEAT_FLOOR)
+        if (cave_feat[ty][tx] != FEAT_FLOOR && cave_feat[ty][tx] != FEAT_SUNLIGHT)
+            continue;
+
+        /* Don't put things under peaceful monsters */
+        if (cave_m_idx[ty][tx] > 0 && !attacker_at(ty, tx))
             continue;
 
         /* Bounce to that location */
         by = ty;
         bx = tx;
 
-        // Clear it if needed
-        if (cave_o_idx[ty][tx] != 0)
+        // Clear it if needed (crown/silmarils only)
+        if (can_clobber && cave_o_idx[ty][tx] != 0)
         {
             object_type* o_ptr = &o_list[cave_o_idx[ty][tx]];
-            if (((o_ptr->name1 < ART_MORGOTH_0)
-                    || (o_ptr->name1 > ART_MORGOTH_3))
-                && ((o_ptr->tval != TV_LIGHT)
-                    || (o_ptr->sval != SV_LIGHT_SILMARIL)))
+            const bool o_is_silmaril =
+                (o_ptr->tval == TV_LIGHT) && (o_ptr->sval == SV_LIGHT_SILMARIL);
+            if (!artefact_p(o_ptr) && !o_is_silmaril)
             {
                 /* Delete the object */
                 delete_object_idx(cave_o_idx[ty][tx]);
             }
         }
 
+        /* Require an empty grid */
+        if (cave_o_idx[by][bx] != 0)
+            continue;
+
         /* Require floor space */
-        if (!cave_clean_bold(by, bx))
+        if (cave_feat[by][bx] != FEAT_FLOOR && cave_feat[by][bx] != FEAT_SUNLIGHT)
             continue;
 
         /* Okay */
