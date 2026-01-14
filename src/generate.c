@@ -1455,9 +1455,9 @@ static int partition_extra_monster_target(quadrant_mode_t mode, int floor_count)
         if (target > 35) target = 35;
         break;
     case QUAD_MODE_CHASM:
-        target = floor_count / 75;
-        if (target < 6) target = 6;
-        if (target > 25) target = 25;
+        target = floor_count / 50;
+        if (target < 8) target = 8;
+        if (target > 35) target = 35;
         break;
     case QUAD_MODE_LABYRINTH:
         /* Labyrinths already place some monsters during carving; boost extra spawns. */
@@ -3015,10 +3015,54 @@ static bool carve_big_cave_bounds(int y_min, int y_max, int x_min, int x_max,
         }
     }
     
-    log_trace("Big cave anchor: bounds=(%d,%d)-(%d,%d) center=(%d,%d) edge=%d floors=%d pillars=%d monsters=%d",
-        min_y, min_x, max_y, max_x, cy, cx, found_edge, floor_count, pillar_count, monsters_placed);
-    genlog_anchor("BIG_CAVE: bounds=(%d,%d)-(%d,%d), %d floor tiles, %d pillars, %d monsters",
-        min_y, min_x, max_y, max_x, floor_count, pillar_count, monsters_placed);
+    /* === BIG CAVE SKELETON SPAWNING === */
+    /* Place skeleton items in the big cave - remains of previous explorers */
+    /* Scale with floor count: 1 skeleton per 40 floor tiles, min 2, max 8 */
+    int cave_skeletons = floor_count / 40;
+    if (cave_skeletons < 2) cave_skeletons = 2;
+    if (cave_skeletons > 8) cave_skeletons = 8;
+    int skeletons_placed = 0;
+    
+    for (int sk = 0; sk < cave_skeletons; ++sk)
+    {
+        for (int tries = 0; tries < 50; ++tries)
+        {
+            int sy = rand_range(min_y, max_y);
+            int sx = rand_range(min_x, max_x);
+            if (!in_bounds_fully(sy, sx)) continue;
+            if (!cave_floor_bold(sy, sx)) continue;
+            if (cave_o_idx[sy][sx] != 0) continue;  /* Already has object */
+            
+            /* Create and place a skeleton */
+            object_type object_type_body;
+            object_type *i_ptr = &object_type_body;
+            object_wipe(i_ptr);
+            
+            /* Mix of human/elf/orc skeletons: balanced distribution for caves */
+            s16b k_idx;
+            {
+                int roll = rand_int(100); /* 0-99 */
+                if (roll < 35) /* 35% */
+                    k_idx = lookup_kind(TV_SKELETON, SV_SKELETON_HUMAN);
+                else if (roll < 70) /* 35% */
+                    k_idx = lookup_kind(TV_SKELETON, SV_SKELETON_ELF);
+                else /* 30% */
+                    k_idx = lookup_kind(TV_SKELETON, SV_SKELETON_ORC);
+            }
+            
+            object_prep(i_ptr, k_idx);
+            i_ptr->pval = 1;  /* Skeleton level */
+            
+            drop_near(i_ptr, -1, sy, sx);
+            skeletons_placed++;
+            break;
+        }
+    }
+    
+    log_trace("Big cave anchor: bounds=(%d,%d)-(%d,%d) center=(%d,%d) edge=%d floors=%d pillars=%d monsters=%d skeletons=%d",
+        min_y, min_x, max_y, max_x, cy, cx, found_edge, floor_count, pillar_count, monsters_placed, skeletons_placed);
+    genlog_anchor("BIG_CAVE: bounds=(%d,%d)-(%d,%d), %d floor tiles, %d pillars, %d monsters, %d skeletons",
+        min_y, min_x, max_y, max_x, floor_count, pillar_count, monsters_placed, skeletons_placed);
     return true;
 }
 
@@ -3488,10 +3532,10 @@ static bool carve_chasm_with_bridges(int y_min, int y_max, int x_min, int x_max,
         }
     }
     
-    /* Approximately 1 monster per 60 floor tiles (drastically increased) */
-    int chasm_monsters = chasm_floor_count / 60;
-    if (chasm_monsters < 6) chasm_monsters = 6;
-    if (chasm_monsters > 30) chasm_monsters = 30;
+    /* Approximately 1 monster per 35 floor tiles (even more) */
+    int chasm_monsters = chasm_floor_count / 35;
+    if (chasm_monsters < 10) chasm_monsters = 10;
+    if (chasm_monsters > 45) chasm_monsters = 45;
     int monsters_placed = 0;
     
     for (int m = 0; m < chasm_monsters; ++m)
