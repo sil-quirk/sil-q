@@ -1391,12 +1391,135 @@ int bane_bonus(monster_type* m_ptr)
     return (bonus);
 }
 
+/*
+ * Calculate bane bonus for a specific bane type.
+ * This is a helper function that can be used for both player bane and artifact bane.
+ */
+int bane_bonus_for_type(int bane_type_idx)
+{
+    int i = 2;
+    int bonus = 0;
+    int killed;
+
+    if (bane_type_idx <= 0 || bane_type_idx >= BANE_TYPES)
+        return 0;
+
+    killed = bane_type_killed(bane_type_idx);
+    while (i <= killed)
+    {
+        i *= 2;
+        bonus++;
+    }
+
+    return bonus;
+}
+
+/*
+ * Calculate bane bonus from artifact-granted Bane abilities.
+ * These use a pre-selected bane type from the artifact definition.
+ */
+int artifact_bane_bonus(monster_type* m_ptr)
+{
+    int bonus = 0;
+    int i, j;
+    monster_race* r_ptr;
+    object_type* o_ptr;
+
+    // paranoia
+    if (m_ptr == NULL)
+        return 0;
+
+    // entranced players don't get the bonus
+    if (p_ptr->entranced)
+        return 0;
+
+    // knocked out players don't get the bonus
+    if (p_ptr->stun > 100)
+        return 0;
+
+    r_ptr = &r_info[m_ptr->r_idx];
+
+    // Check all equipped items
+    for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+    {
+        o_ptr = &inventory[i];
+
+        // Skip empty slots
+        if (!o_ptr->k_idx)
+            continue;
+
+        // Check all abilities on this item
+        for (j = 0; j < o_ptr->abilities; j++)
+        {
+            // Is this a Bane ability with a pre-selected type?
+            if (o_ptr->skilltype[j] == S_PER && o_ptr->abilitynum[j] == PER_BANE
+                && o_ptr->bane_type[j] > 0)
+            {
+                // Skip if this matches the player's innate bane type
+                // (they already get bonus from innate, no stacking)
+                if (o_ptr->bane_type[j] == p_ptr->bane_type)
+                    continue;
+
+                // Does the monster match this bane type?
+                if (r_ptr->flags3 & bane_flag[o_ptr->bane_type[j]])
+                {
+                    int this_bonus = bane_bonus_for_type(o_ptr->bane_type[j]);
+                    if (this_bonus > bonus)
+                        bonus = this_bonus;
+                }
+            }
+        }
+    }
+
+    return bonus;
+}
+
 int spider_bane_bonus(void)
 {
     if (bane_flag[p_ptr->bane_type] == RF3_SPIDER)
         return (bane_bonus_aux());
     else
         return (0);
+}
+
+/*
+ * Calculate spider bane bonus from artifact-granted Bane abilities.
+ * Used for web-related difficulty checks.
+ */
+int artifact_spider_bane_bonus(void)
+{
+    int bonus = 0;
+    int i, j;
+    object_type* o_ptr;
+
+    // Check all equipped items
+    for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+    {
+        o_ptr = &inventory[i];
+
+        // Skip empty slots
+        if (!o_ptr->k_idx)
+            continue;
+
+        // Check all abilities on this item
+        for (j = 0; j < o_ptr->abilities; j++)
+        {
+            // Is this a Bane ability with Spider type? (Spider = 3)
+            if (o_ptr->skilltype[j] == S_PER && o_ptr->abilitynum[j] == PER_BANE
+                && bane_flag[o_ptr->bane_type[j]] == RF3_SPIDER)
+            {
+                // Skip if this matches the player's innate bane type
+                if (o_ptr->bane_type[j] == p_ptr->bane_type)
+                    continue;
+
+                int this_bonus = bane_bonus_for_type(o_ptr->bane_type[j]);
+                if (this_bonus > bonus)
+                    bonus = this_bonus;
+            }
+        }
+    }
+
+    return bonus;
 }
 
 int unique_bane_bonus(monster_type* m_ptr)
@@ -6693,9 +6816,10 @@ void prepare_artefact(void)
     {
         smith_o_ptr->skilltype[i] = smith_a_ptr->skilltype[i];
         smith_o_ptr->abilitynum[i] = smith_a_ptr->abilitynum[i];
+        smith_o_ptr->bane_type[i] = smith_a_ptr->bane_type[i];
     }
     smith_o_ptr->abilities = smith_a_ptr->abilities;
-    
+
     log_trace("Artifact preparation complete - %d abilities synchronized", smith_a_ptr->abilities);
 }
 
@@ -7141,6 +7265,7 @@ void add_artefact_ability(int skilltype, int abilitynum)
         {
             smith_a_ptr->skilltype[smith_a_ptr->abilities] = skilltype;
             smith_a_ptr->abilitynum[smith_a_ptr->abilities] = abilitynum;
+            smith_a_ptr->bane_type[smith_a_ptr->abilities] = 0; // Player-smithed banes use player choice
             smith_a_ptr->abilities++;
         }
     }
@@ -7151,6 +7276,7 @@ void add_artefact_ability(int skilltype, int abilitynum)
     {
         smith_o_ptr->skilltype[i] = smith_a_ptr->skilltype[i];
         smith_o_ptr->abilitynum[i] = smith_a_ptr->abilitynum[i];
+        smith_o_ptr->bane_type[i] = smith_a_ptr->bane_type[i];
     }
     smith_o_ptr->abilities = smith_a_ptr->abilities;
 }
@@ -7184,10 +7310,12 @@ void remove_artefact_ability(int skilltype, int abilitynum)
         {
             smith_a_ptr->skilltype[i] = smith_a_ptr->skilltype[i + 1];
             smith_a_ptr->abilitynum[i] = smith_a_ptr->abilitynum[i + 1];
+            smith_a_ptr->bane_type[i] = smith_a_ptr->bane_type[i + 1];
         }
 
         smith_a_ptr->skilltype[smith_a_ptr->abilities - 1] = 0;
         smith_a_ptr->abilitynum[smith_a_ptr->abilities - 1] = 0;
+        smith_a_ptr->bane_type[smith_a_ptr->abilities - 1] = 0;
 
         smith_a_ptr->abilities--;
     }
@@ -7198,6 +7326,7 @@ void remove_artefact_ability(int skilltype, int abilitynum)
     {
         smith_o_ptr->skilltype[i] = smith_a_ptr->skilltype[i];
         smith_o_ptr->abilitynum[i] = smith_a_ptr->abilitynum[i];
+        smith_o_ptr->bane_type[i] = smith_a_ptr->bane_type[i];
     }
     smith_o_ptr->abilities = smith_a_ptr->abilities;
 }
@@ -15014,6 +15143,7 @@ static bool prepare_fake_artefact(object_type* o_ptr, byte name1)
     {
         o_ptr->skilltype[i + o_ptr->abilities] = a_ptr->skilltype[i];
         o_ptr->abilitynum[i + o_ptr->abilities] = a_ptr->abilitynum[i];
+        o_ptr->bane_type[i + o_ptr->abilities] = a_ptr->bane_type[i];
     }
     o_ptr->abilities += a_ptr->abilities;
 

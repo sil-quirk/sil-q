@@ -763,6 +763,9 @@ int total_player_attack(monster_type* m_ptr, int base)
     // reward bane ability (if applicable)
     att += bane_bonus(m_ptr);
 
+    // reward artifact-granted bane (if applicable)
+    att += artifact_bane_bonus(m_ptr);
+
     // reward unique bane ability (if applicable)
     att += unique_bane_bonus(m_ptr);
 
@@ -805,6 +808,9 @@ int total_player_evasion(monster_type* m_ptr, bool archery)
 
     // reward successful use of the bane ability
     evn += bane_bonus(m_ptr);
+
+    // reward artifact-granted bane (if applicable)
+    evn += artifact_bane_bonus(m_ptr);
 
     // reward unique bane ability (if applicable)
     evn += unique_bane_bonus(m_ptr);
@@ -2864,7 +2870,10 @@ void search_square(int y, int x, int dist, int searching)
 
         // Spider bane bonus helps to find webs
         if (cave_feat[y][x] == FEAT_TRAP_WEB)
+        {
             difficulty -= spider_bane_bonus();
+            difficulty -= artifact_spider_bane_bonus();
+        }
 
         /* Sometimes, notice things */
         if (skill_check(PLAYER, score, difficulty, NULL) > 0)

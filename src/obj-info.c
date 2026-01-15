@@ -1026,6 +1026,7 @@ static bool describe_activation(const object_type* o_ptr, u32b f3)
 static bool describe_abilities(const object_type* o_ptr)
 {
     cptr ability[8];
+    static char ability_buf[8][80]; /* Static buffer for modified ability names */
     int ac = 0;
     ability_type* b_ptr;
     int i;
@@ -1039,7 +1040,20 @@ static bool describe_abilities(const object_type* o_ptr)
     {
         b_ptr
             = &b_info[ability_index(o_ptr->skilltype[i], o_ptr->abilitynum[i])];
-        ability[ac++] = b_name + b_ptr->name;
+
+        /* Check if this is a Bane ability with a specific type */
+        if (o_ptr->skilltype[i] == S_PER && o_ptr->abilitynum[i] == PER_BANE
+            && o_ptr->bane_type[i] > 0 && o_ptr->bane_type[i] < 9)
+        {
+            strnfmt(ability_buf[ac], 80, "%s-%s",
+                bane_name[o_ptr->bane_type[i]], b_name + b_ptr->name);
+            ability[ac] = ability_buf[ac];
+            ac++;
+        }
+        else
+        {
+            ability[ac++] = b_name + b_ptr->name;
+        }
     }
 
     /* Describe */

@@ -23,7 +23,7 @@ static int throw_pending_slot = THROW_PENDING_NONE;
  */
 int min_depth(void)
 {
-    int min_depth_value = min_depth_counter / 200000 + 1;
+    int min_depth_value = min_depth_counter / 180000 + 1;
 
     // bounds on the base
     if (min_depth_value < 1)
@@ -5691,6 +5691,7 @@ bool break_free_of_web(void)
 
     // Spider bane bonus helps
     difficulty -= spider_bane_bonus();
+    difficulty -= artifact_spider_bane_bonus();
 
     if (skill_check(PLAYER, score, difficulty, NULL) <= 0)
     {

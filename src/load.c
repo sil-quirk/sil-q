@@ -459,8 +459,11 @@ static errr rd_item(object_type* o_ptr)
     rd_s32b(&o_ptr->unused3);
     rd_s32b(&o_ptr->unused4);
 
-    // 8 spare bytes
-    strip_bytes(8);
+    // bane_type for each ability slot (8 bytes)
+    for (i = 0; i < 8; i++)
+    {
+        rd_byte(&o_ptr->bane_type[i]);
+    }
 
     /* Inscription */
     rd_string(buf, sizeof(buf));
@@ -632,6 +635,8 @@ static errr rd_item(object_type* o_ptr)
                     && o_ptr->abilitynum[oi] == a_ptr->abilitynum[ai])
                 {
                     found = true;
+                    /* Also copy bane_type if this is a Bane ability */
+                    o_ptr->bane_type[oi] = a_ptr->bane_type[ai];
                     break;
                 }
             }
@@ -640,6 +645,7 @@ static errr rd_item(object_type* o_ptr)
                 int idx = o_ptr->abilities;
                 o_ptr->skilltype[idx] = a_ptr->skilltype[ai];
                 o_ptr->abilitynum[idx] = a_ptr->abilitynum[ai];
+                o_ptr->bane_type[idx] = a_ptr->bane_type[ai];
                 o_ptr->abilities++;
             }
         }

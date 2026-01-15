@@ -334,6 +334,7 @@ bool make_fake_artefact(object_type* o_ptr, byte name1)
     {
         o_ptr->skilltype[i + o_ptr->abilities] = a_ptr->skilltype[i];
         o_ptr->abilitynum[i + o_ptr->abilities] = a_ptr->abilitynum[i];
+        o_ptr->bane_type[i + o_ptr->abilities] = a_ptr->bane_type[i];
     }
     o_ptr->abilities += a_ptr->abilities;
 

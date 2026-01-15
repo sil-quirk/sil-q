@@ -3058,9 +3058,12 @@ errr parse_a_info(char* buf, header* head)
     }
 
     /* Process 'B' for "aBilities" (one line only) */
+    /* Format: B:skilltype/abilitynum/banetype:skilltype/abilitynum/banetype:... */
+    /* The banetype is optional (defaults to 0 = player choice) */
     else if (buf[0] == 'B')
     {
         int i;
+        char* u;
 
         /* There better be a current a_ptr */
         if (!a_ptr)
@@ -3073,8 +3076,9 @@ errr parse_a_info(char* buf, header* head)
             if (i > 3)
                 return (PARSE_ERROR_TOO_MANY_ALLOCATIONS);
 
-            /* Default abilitynum */
+            /* Default abilitynum and bane_type */
             a_ptr->abilitynum[i] = 0;
+            a_ptr->bane_type[i] = 0;
 
             /* Store the skilltype */
             a_ptr->skilltype[i] = atoi(s + 1);
@@ -3082,7 +3086,7 @@ errr parse_a_info(char* buf, header* head)
             /* List this ability */
             a_ptr->abilities++;
 
-            /* Find the slash */
+            /* Find the first slash (abilitynum) */
             t = strchr(s + 1, '/');
 
             /* Find the next colon */
@@ -3094,6 +3098,15 @@ errr parse_a_info(char* buf, header* head)
                 int abilitynum = atoi(t + 1);
                 if (abilitynum > 0)
                     a_ptr->abilitynum[i] = abilitynum;
+
+                /* Look for a second slash (bane_type) */
+                u = strchr(t + 1, '/');
+                if (u && (!s || u < s))
+                {
+                    int banetype = atoi(u + 1);
+                    if (banetype > 0)
+                        a_ptr->bane_type[i] = banetype;
+                }
             }
         }
     }

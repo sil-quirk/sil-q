@@ -1780,7 +1780,7 @@ NavResult character_creation(void)
     }
 
     /* Clear the base values of the skills */
-    for (i = 0; i < A_MAX; i++)
+    for (i = 0; i < S_MAX; i++)
         p_ptr->skill_base[i] = 0;
 
     /* Clear the abilities and add bonus ability*/

@@ -1919,6 +1919,7 @@ static void build_artifact_variants(int a_idx)
         int idx = v.abilities;
         v.skilltype[idx] = a_ptr->skilltype[i];
         v.abilitynum[idx] = a_ptr->abilitynum[i];
+        v.bane_type[idx] = a_ptr->bane_type[i];
         v.abilities++;
     }
 

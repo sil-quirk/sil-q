@@ -5661,6 +5661,9 @@ void calc_morale(monster_type* m_ptr)
     if (p_ptr->active_ability[S_PER][PER_BANE])
         morale -= bane_bonus(m_ptr) * 10;
 
+    // reduce morale for artifact-granted bane
+    morale -= artifact_bane_bonus(m_ptr) * 10;
+
     // increase morale for the Elf-Bane ability
     morale += elf_bane_bonus(m_ptr) * 10;
 
@@ -6145,6 +6148,9 @@ void monster_perception(bool player_centered, bool main_roll, int difficulty)
             // deal with bane ability (theoretically should modify player roll,
             // but this is equivalent)
             m_perception -= bane_bonus(m_ptr);
+
+            // deal with artifact-granted bane
+            m_perception -= artifact_bane_bonus(m_ptr);
 
             // increase morale for the Elf-Bane ability
             m_perception += elf_bane_bonus(m_ptr);

@@ -2892,6 +2892,7 @@ void object_into_artefact(object_type* o_ptr, artefact_type* a_ptr)
     {
         o_ptr->skilltype[i + o_ptr->abilities] = a_ptr->skilltype[i];
         o_ptr->abilitynum[i + o_ptr->abilities] = a_ptr->abilitynum[i];
+        o_ptr->bane_type[i + o_ptr->abilities] = a_ptr->bane_type[i];
     }
     o_ptr->abilities += a_ptr->abilities;
 

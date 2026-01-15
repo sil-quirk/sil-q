@@ -322,6 +322,7 @@ struct artefact_type
     byte abilities; // Number of abilities
     byte skilltype[4]; // Skill-types for the granted abilities
     byte abilitynum[4]; // Ability numbers for these
+    byte bane_type[4]; // Bane type for each ability (0 = player choice)
 };
 
 /*
@@ -590,6 +591,7 @@ struct object_type
     byte skilltype[8]; // Skill-types for the granted abilities (8 = 4 for
                        // object base + 4 for special or artefact)
     byte abilitynum[8]; // Ability numbers for these
+    byte bane_type[8]; // Bane type for each ability (0 = player choice)
 
     s32b unused1; // Smithing marker: 1=smithed by player, 0=found
     s32b unused2; // Ego prefix index (0 = none); see object_ego_prefix()

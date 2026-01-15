@@ -542,9 +542,11 @@ static void wr_item(const object_type* o_ptr)
     wr_s32b(o_ptr->unused3);
     wr_s32b(o_ptr->unused4);
 
-    // 8 spare bytes
-    wr_u32b(0L);
-    wr_u32b(0L);
+    // bane_type for each ability slot (8 bytes)
+    for (i = 0; i < 8; i++)
+    {
+        wr_byte(o_ptr->bane_type[i]);
+    }
 
     /* Save the inscription (if any) */
     if (o_ptr->obj_note)

@@ -77,74 +77,74 @@
 # Silmaril in FA 465, so I'd like to keep roughly to this date.
 #
 # Elves
-# * Feanor		(crown - smithing, fire, will, aggravate)
-#   * Maedhros		(hauberk - combat bonuses, res fire, res poison)
-#                       (crown - will, Majesty, res fear, danger)
-#   * Maglor		(cloak - song, restore voice)
-#   * Celegorm		(bow - will, slay wolf/spider)
+# * Feanor		(crown - smithing, fire, will, aggravate) [Implemented]
+#   * Maedhros		(hauberk - combat bonuses, res fire, res poison) [Implemented]
+#                       (crown - will, Majesty, res fear, danger) [Implemented]
+#   * Maglor		(cloak - song, restore voice) [Implemented]
+#   * Celegorm		(bow - will, slay wolf/spider) [Implemented]
 #   * Caranthir		(leather - stealth, dark, rage)
-#   * Curufin		(helm - perception, stealth, will, res confusion)
-#     * Celebrimbor	(gloves - expertise, free action)
-#   * Amrod		(short sword - perception, stealth)
+#   * Curufin		(helm - perception, stealth, will, res confusion) [Implemented]
+#     * Celebrimbor	(gloves - expertise, free action) [Implemented]
+#   * Amrod		(short sword - perception, stealth) [Implemented]
 #   * Amras		
-# * Fingolfin		('ringil' - rcold, light) (shield - con, rfear)
-#   * Fingon		(corslet - resist fear, con)
-#     * Gil-galad	('aeglos' - cold)
-#   * Turgon		('glamdring' - will, slay orc/troll/rauko/dragon)
-#     * Idril		(robe - speed)	
-#       * Earendil	(elessar - con, regenerate, heal) (bow - dex, slay dragon)
-#   * Aredhel		(robe - sustain grace, free action, res dark)
-#     * Maeglin	        (galvorn armour - hunger, channelling, res poison)
+# * Fingolfin		('ringil' - rcold, light) (shield - con, rfear) [Both Implemented]
+#   * Fingon		(corslet - resist fear, con) [Implemented]
+#     * Gil-galad	('aeglos' - cold) [Implemented]
+#   * Turgon		('glamdring' - will, slay orc/troll/rauko/dragon) [Implemented]
+#     * Idril		(robe - speed)	[Implemented]
+#       * Earendil	(elessar - con, regenerate, heal) [Implemented] (bow - dex, slay dragon) [Bow implemented as 'of Avernien']
+#   * Aredhel		(robe - sustain grace, free action, res dark) [Implemented]
+#     * Maeglin	        (galvorn armour - hunger, channelling, res poison) [Implemented]
 # - Finarfin
-#   * Finrod		(boots - good evasion, free action)
-#   * Angrod		(helm - res cold, res fear, regen)
-#     * Orodreth	(greaves - dex, res fire)
-#   * Aegnor		(armour - concentration)
-#   * Galadriel
-# * Thingol		(cloak - grey, rfire, rcold, free act) (Aranruth - will, rfear, danger)
-#   * Luthien		(shadow cloak - res dark, sust gra, stealth)
+#   * Finrod		(boots - good evasion, free action) [Implemented]
+#   * Angrod		(helm - res cold, res fear, regen) [Implemented]
+#     * Orodreth	(greaves - dex, res fire) [Implemented]
+#   * Aegnor		(armour - concentration) [Implemented]
+#   * Galadriel     [Shortsword Implemented]
+# * Thingol		(cloak - grey, rfire, rcold, free act) (Aranruth - will, rfear, danger) [Both Implemented]
+#   * Luthien		(shadow cloak - res dark, sust gra, stealth) [Implemented]
 # * also...
-#   * Daeron		(? - song, hunger)
+#   * Daeron		(? - song, hunger) [Implemented]
 #   - Celeborn
-#   * Beleg		(Dailir - bonuses) (Belthronding - dex, stealth, shot)
-#   * Eol		('Ang' - sharpness, danger) ('Ang' - sharpness, hunger)
-#   * Ecthelion
-#   * Tinfang Gelion	(? - song)
+#   * Beleg		(Dailir - bonuses) (Belthronding - dex, stealth, shot) [Both Implemented]
+#   * Eol		('Ang' - sharpness, danger) ('Ang' - sharpness, hunger) [Anguirel Implemented]
+#   * Ecthelion     [Implemented]
+#   * Tinfang Gelion	(? - song) [Implemented]
 #
 # Men
-# * Beor		(studded leather - resist poison, resist dark)
-#   * Andreth           (robe - song, sust gra)
-#   * Beren		(dagmor - grace, res fear, res dark)
-#   * Barahir		(Ring - free action, res poison)
-#   * Bregolas		(Gauntlets - power, res cold)
-#   * Tuor		(Dramborleg - slay orc/troll/rauko)
+# * Beor		(studded leather - resist poison, resist dark) [Implemented]
+#   * Andreth           (robe - song, sust gra) [Implemented]
+#   * Beren		(dagmor - grace, res fear, res dark) [Implemented]
+#   * Barahir		(Ring - free action, res poison) [Implemented]
+#   * Bregolas		(Gauntlets - power, res cold) [Implemented]
+#   * Tuor		(Dramborleg - slay orc/troll/rauko) [Implemented]
 # - Marach
-#   * Hador		(shield - res cold, res lightning)
+#   * Hador		(shield - res cold, res lightning) [Implemented]
 #   * Hurin		(battle axe - con, will, resist fear, slay troll, rage)
-#     * Turin		(dragon helm - str, will, rfear, rstun) (Anglachel - sharp, danger)
+#     * Turin		(dragon helm - str, will, rfear, rstun) [Implemented] (Anglachel - sharp, danger)
 #   - Gloredhel
-# * Halmir		(staff - sustain str/con, res poison)
-# * Haldad		(leather armour - str, free act, res fear)
+# * Halmir		(staff - sustain str/con, res poison) [Implemented]
+# * Haldad		(leather armour - str, free act, res fear) [Implemented]
 #
 # Dwarves
 # * Azaghal		(dagger - slay dragon, res fear, res fire)
-# * Durin		(mail corslet - res fire, res cold, regenerate)
-# * Telchar		(hammer - smithing, sust str, res fire)
+# * Durin		(mail corslet - res fire, res cold, regenerate) [Implemented]
+# * Telchar		(hammer - smithing, sust str, res fire) [Implemented]
 #
 # Powers
-# * Melian
+# * Melian [Implemented]
 #
 # Places
-# * Sirion
-# * Taur-nu-fuin
-# * Belegost
-# * Nogrod		(great axe - slay orc/troll/rauko, res fire)
-# * Amon Rudh
+# * Sirion [Implemented]
+# * Taur-nu-fuin [Implemented]
+# * Belegost [Implemented]
+# * Nogrod		(great axe - slay orc/troll/rauko, res fire) [Implemented as 'of Dolmed']
+# * Amon Rudh [Implemented]
 # - Taur-im-Duinath
-# * Nargothrond
+# * Nargothrond [Implemented]
 # - Mithrim
-# * Brethil
-# - Ossiriand
+# * Brethil [Implemented]
+# * Ossiriand
 # - Gorgoroth
 # - Khazad-Dum
 #
@@ -577,9 +577,9 @@ D: many a blow that might cleave through a lesser suit.
 
 N:41:'Starlight'
 Q:7124e9ac2a2ee593
-I:37:20:1
+I:37:20:2
 W:16:10:120:50000
-P:0:0d0:-1:2d4
+P:0:0d0:0:2d5
 F:RES_FEAR | RES_BLIND
 F:PERCEPTION | SONG
 B:7/0
@@ -671,7 +671,7 @@ Q:24fd840a203880d2
 G:):w
 I:34:10:1
 W:18:12:30:25000
-P:0:0d0:1:1d6
+P:0:0d0:1:1d7
 F:LIGHT | GRA
 D:Shining like the full moon, this shield bears the device of
 D: the Blessed Realm. It gladdens your heart.
@@ -694,6 +694,50 @@ D: it conveys the same powers of endurance to its bearer.
 
 
 ##### Edged Weapons #####
+
+#Mablung’s Knife (the blade that opened Carcharoth)
+#Ability 4/6 Outwit
+
+N:49:of Mablung
+Q:5b3647df851ca660
+I:23:4:3
+W:6:10:5:25000
+P:+1:1d6:+1:0d0
+F:SLAY_WOLF | PERCEPTION
+B:4/6
+D:The hunting knife of Mablung of Doriath. With this blade he ripped open
+D: the belly of Carcharoth in the dark of the Wolf’s-belly, and the Silmaril
+D: was recovered from the beast. Its edge is pitiless against wolves, and
+D: it lends the keen-eyed focus of Doriath’s great hunter.
+
+# Azaghâl’s Dragonbane Knife.
+# The dagger with which King Azaghâl wounded Glaurung. Enchanted by the dwarves of Belegost, it protects against dragonfire and bites deep into dragon-flesh.
+N:50:of Azaghal
+Q:6b54c5d5947af589
+I:23:4:0
+W:14:10:5:25000
+P:0:1d7:0:0d0
+F:RES_FIRE | SLAY_DRAGON | SHARPNESS
+B:4/5/8
+D:A broad-bladed dagger of Dwarven make, blackened by dragon-blood. Azaghâl
+D: carried it beneath his mail, striking the first dragon a mortal wound.
+D: It confers its bearer the fire-hardiness and bitter wrath of Belegost.
+
+# Túrin’s Elf-wrought Knife (birthday-gift from Húrin)
+# Design: noble heirloom tool-weapon; survivability/utility over raw damage.
+# Ability 5/5 Indomitable
+
+N:51:of Turin
+Q:2e2f01e1c4bb7031
+I:23:4:3
+W:7:15:5:15000
+P:+1:1d6:0:0d0
+F:FREE_ACT | WILL
+B:5/5
+D:An Elf-wrought knife, finely balanced and keen. It was a birthday-gift
+D: that Húrin Thalion gave to his son Túrin, and Túrin bore it through
+D: many hard years. It lends steadiness of heart and a stubborn refusal
+D: to be ensnared or held.
 
 ## The Dagger of Nargil
 ## 1st age
@@ -763,6 +807,20 @@ F:VAMPIRIC | LIGHT_CURSE | WILL | PERCEPTION | NEG_CON | HUNGER
 D:A blood-red blade, slick to the touch. Gripping its haft dulls the
 D: wielder's senses and causes strange hungers to waken in them.
 
+# Mîm’s Long Knife (Poisoned Runes). 
+# A long knife of the Petty-dwarf Mîm, inscribed with toxic runes. It excels in secretive strikes. Cursed: once wielded, it’s difficult to discard, echoing Mîm’s treacherous doom.
+
+N:57:of Mim
+Q:630037a7078e37ca
+I:23:10:3
+W:10:10:20:30000
+P:+1:1d7:1:0d0
+F:BRAND_POIS | STEALTH | LIGHT_CURSE
+B:3/1
+D:A long, rune-etched knife taken from Mîm the Petty-dwarf. Its blade 
+D: exudes an eerie venom. It lies easily in hand and guides the eye in 
+D: darkness, but a subtle curse clings to it, binding it to its owner.
+
 ## The Shortsword of Amrod
 ## 1st age namesake
 
@@ -805,6 +863,34 @@ D: of the Noldor, in defence of her kinsfolk the Teleri
 D: when the Feanorians turned on them for their ships
 D: at far-off Alqualonde.
 
+# 'Sting' (Elven Knife of Gondolin)
+N:61:'Sting'
+Q:cee0841d40850850
+I:23:10:0
+W:12:20:20:40000
+P:+2:1d7:+2:0d0
+F:LIGHT | SLAY_ORC | SLAY_SPIDER | RES_POIS
+D:A bright long-knife of Gondolin, forged in the days when that hidden city
+D: still stood in glory. Its cold light kindles at the nearness of orc-kind,
+D: and its keen point is a bane to great spiders and crawling terrors.
+D: Though little is spoken of this blade in the songs of Beleriand, strange
+D: fate is woven about it, and it will yet play a part in tales unwritten.
+
+# Idril’s Sword (Guardian of Gondolin)
+# A graceful short sword borne by Idril Celebrindal during the Fall of Gondolin. It is light and protective, aiding in swift escapes. 
+# The blade carries an aura of royal Majesty (foes quail to attack the wielder). 
+# Special ability: Song of Elveness
+N:62:of Idril
+Q:6f68639f97c67e3a
+I:23:10:1
+W:14:20:15:25000
+P:0:1d7:+2:0d0
+B:7/11
+F:GRA | SUST_GRA | RES_FEAR | FREE_ACT
+D:A slender, gilded sword once wielded by Idril Celebrindal, the Princess 
+D: of Gondolin. Imbued with the grace of the Eldar, it lends courage and 
+D: authority to its bearer. Enemies shy from striking one who carries this 
+D: blade, and no snare or enchantment can easily hold them.
 
 ## The Longsword 'Orcrist'
 ## 1st age
@@ -862,16 +948,43 @@ D:The beautiful sword of Thingol, justly named 'King's Ire'.  You are
 D: filled with unshakeable confidence when you clasp its jeweled hilt.
 
 
-## The Bastard Sword 'Anguirel'
+## Star Iron GreatSword 'Anguirel'
 ## 1st age
+
+N:69:'Anglachel'
+Q:0f4f2f6c9a7c2a12
+G:|:D
+I:23:30:0
+W:16:10:50:130000
+P:1:3d6:1:0d0
+F:DANGER | TRAITOR | LIGHT_CURSE
+D:The black sword Anglachel, forged by Eöl of Nan Elmoth from star-iron.
+D: It was brought to Thingol in Doriath, and later borne by Beleg
+D: Cúthalion. Its edge is dreadful keen, and a cold will seems to wake
+D: when it is drawn. Many have found that mischance follows where this
+D: blade passes — as though it remembers every death it has dealt.
+
+# Gurthang (Black Sword of Túrin)
+N:70:'Gurthang'
+Q:9439894019d8ad49
+I:23:30:0
+W:22:10:50:80000
+P:1:3d6:1:0d0
+F:SLAY_DRAGON | RES_FEAR | VAMPIRIC | DANGER | HUNGER | LIGHT_CURSE | TRAITOR
+D:The sable sword reforged from Anglachel, wielded by Túrin. Its blade can 
+D: slice iron like parchment, and it drinks deeply of blood. A fell curse 
+D: lies upon it: once unsheathed, it must taste blood. The sword’s grim will 
+D: fills its master with fearless despair, drawing mighty foes nigh – and 
+D: giving strength to slay them.
 
 N:71:'Anguirel'
 Q:561e97194377c828
 G:|:D
-I:23:21:0
-W:15:15:50:100000
-P:1:3d4:1:0d0
-F:SHARPNESS | TRAITOR
+I:23:30:2
+W:16:15:50:100000
+P:1:3d6:1:0d0
+F:TRAITOR | STEALTH | PERCEPTION | LIGHT_CURSE
+B:3/4
 D:A bitter blade by brooding Eol forged,
 D: in secret made of metal from a star.
 
@@ -933,15 +1046,15 @@ D:A cruel and heavy blade, wreathed in undying flames. It was originally
 D: forged for the great Valarauko, Gothmog, to break any dissension amongst
 D: the hosts of Morgoth.
 
-
-## The Mithril Longsword 'Celeg Aithorn'
+# Elven Mithril Swords
+## The Mithril sword 'Celeg Aithorn'
 ## 1st age
 
 N:80:'Celeg Aithorn'
 Q:1bc2e7bebb53ce64
 I:23:28:0
 W:20:20:20:50000
-P:1:2d5:1:0d0
+P:1:3d4:1:0d0
 F:BRAND_ELEC | SHARPNESS
 D:'...the sweeping sickle of the slashing tempest,
 D: the lambent lightning's leaping falchion
@@ -955,7 +1068,7 @@ N:81:'Ringil'
 Q:60481d9734ec7f44
 I:23:28:1
 W:20:7:20:300000
-P:3:2d5:3:0d0
+P:2:3d4:3:0d0
 F:BRAND_COLD | LIGHT
 D:The weapon of Fingolfin, High King of the Noldor; it shines like a
 D: column of ice lit by light unquenchable.  Morgoth came but
@@ -964,14 +1077,13 @@ D: might should he face it again.
 
 
 ##
-## The Mithril Greatsword 'Ungoliant's Lament' 
-## - added because we lacked any artefact mithril greatswords
+## The Mithril Sword 'Ungoliant's Lament' 
 ##
 N:83:'Ungoliant's Lament'
 Q:42620c8e830db082
-I:23:30:0
+I:23:28:0
 W:12:20:40:30000
-P:-2:3d7:2:0d0
+P:0:3d5:2:0d0
 F:SLAY_SPIDER | LIGHT | FREE_ACT | RES_POIS
 D:A long and dimly glowing blade with a handle clad in red leather.
 D: Many spiders of the Ered Gorgoroth were slain by it in the days following
@@ -1057,7 +1169,7 @@ D: the Two Trees with wounds that would not heal.
 ## The Hand Axe 'Binahkram'
 ## Khuzdul - 'without name'. Haladin misunderstanding.
 
-N:92:'Binahkram'
+N:91:'Binahkram'
 Q:a629c29b94ad02eb
 I:22:11:1
 W:6:20:10:1000
@@ -1066,6 +1178,19 @@ F:CON | SLAY_ORC | SLAY_SPIDER
 D:A sharp and well-made axe with a sturdy haft. It was gifted to Haldan,
 D: Lord of the Men of Brethil, by the dwarves of the Blue Mountains.
 
+# The Axe of Durin 
+# The ancestral axe of Durin the Deathless, father of the Dwarves. It bestows the fortitude and courage of Durin’s line. 
+# Its bright head gleams in the dark halls, a comfort against fear.
+N:92:of Durin
+Q:cb741e5a68f137b7
+I:22:12:1
+W:13:30:45:105000
+P:-1:3d6:0:0d0
+F:STR | CON | RES_FEAR | LIGHT
+D:A mighty battle axe said to have belonged to Durin the Deathless. Its
+D: haft is carved with the symbols of the Seven Fathers. The axe feels 
+D: surprisingly light in hand. A sapphire set in its blade glows softly, 
+D: bolstering the hearts of those who delve in the deep.
 
 ## The Battle Axe 'Dramborleg'
 ## 1st age
@@ -1126,6 +1251,19 @@ D: piece of blackened steel. Engraved on the axehead are many tiny
 D: Dwarven runes recording the names of valiant fallen warriors of
 D: Belegost.
 
+# The Black Axe of Gothmog Special ability: Melee 0/9 "Whirlwind Attack"
+N:97:of Gothmog
+Q:0b69f9fcb6938709
+I:22:13:0
+W:20:1:90:120000
+P:-4:4d7:0:0d0
+B:0/9
+F:BRAND_FIRE | AGGRAVATE | LIGHT_CURSE
+F:VUL_COLD
+D:The immense, blackened steel axe of Gothmog, captain of Angband. Flames
+D: crawl along its edge. It strikes with such force that it can hew down 
+D: many foes in a single great sweep. The weapon burns with an evil will – 
+D: it rouses wrath and noise, and is loath to be put aside.
 
 ## The Glaive of Gaurin
 ## 1st age
@@ -1328,11 +1466,22 @@ Q:799e45f6a345a4eb
 G:]:w
 I:32:8:2
 W:16:12:40:25000
-P:1:0d0:-1:1d3
+P:1:0d0:0:1d4
 F:SONG | RES_FIRE | RES_FEAR
 B:7/12
 D:A beautiful helm, wrought of mithril and inlaid with white stones.
 D: It rises gracefully to a tall point as sharp as any spear. 
+
+
+N:124:of Vinyamar
+Q:6f708192a3b4c5d6
+I:32:6:3
+W:12:18:95:55000
+P:0:0d0:-1:1d5
+F:RES_FEAR | PERCEPTION
+D:The helm left by Turgon in Vinyamar for the messenger of Ulmo. Crowned by
+D:three swan's feathers, it greatens the heart and clarifies the purpose of
+D:the one who wears it.
 
 ##### Cloaks #####
 
@@ -1364,6 +1513,18 @@ P:0:0d0:2:0d0
 F:RES_FIRE | RES_COLD | FREE_ACT
 D:By what black treachery the fabled grey cloak of Elu Thingol has come
 D: to the hoards of Angband, you cannot say.
+
+N:133:of Ulmo
+Q:8192a3b4c5d6e7f8
+G:(:b
+I:35:6:3
+W:12:20:15:45000
+P:0:0d0:3:0d0
+F:STEALTH | RES_COLD | FREE_ACT
+B:7/8
+D:A shadowy cloak bestowed by the Lord of Waters upon Tuor amid the storm
+D:at Vinyamar's shore. It hides the wearer from foes, flowing like deep
+D:currents to shield from peril on perilous paths.
 
 
 ## The Shadow Cloak of Luthien
@@ -1473,6 +1634,20 @@ P:2:2d5:0:0d0
 F:FREE_ACT | ACCURATE
 D:A long slender bow, well worn at the notches, but supple
 D: to the touch and easy on the draw.
+
+# Longbow of the Heavenly Arch 
+
+N:147:of the Heavenly Arch
+Q:8c9a35404b9ef6bb
+I:19:13:1
+W:15:12:30:40000
+P:1:2d5:0:0d0
+F:DEX 
+D:A tall longbow of laminated wood, painted in many bright hues. The craft
+D: of Gondolin’s House of the Heavenly Arch went into this weapon – its
+D: pull is strong yet smooth. In hand it feels lively and obedient, as if
+D: it anticipates the archer’s fingers; the draw is quick, the aim steady,
+D: and each shot flies where a deft will sends it.
 
 
 ## The Dragon-horn Bow of Avernien
@@ -1655,7 +1830,7 @@ N:167:'Silverhand'
 Q:5ecfd5fa6ea58cc3
 I:31:3:1
 W:15:10:10:20000
-P:0:0d0:0:1d2
+P:0:0d0:0:1d3
 F:DEX
 B:6/2
 D:These wondrous gloves are as hard as iron, yet as
