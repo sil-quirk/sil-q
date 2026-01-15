@@ -1794,6 +1794,17 @@ extern void re_init_some_things(void)
     // wipe the whole player structure
     memset(p_ptr, 0, sizeof(player_type));
 
+    // reset global race/character profile pointers to valid defaults
+    // (p_ptr->prace and p_ptr->pcharacter are now 0 after memset)
+    rp_ptr = &p_info[0];
+    current_character_profile = &c_info[0];
+
+    // reset dungeon-related static state for new game
+    reset_dungeon_state();
+
+    // reset hint/skeleton note state for new game
+    reset_hint_skeleton_state();
+
     // clear some additional things
     savefile[0] = '\0';
     playerturn = 0;

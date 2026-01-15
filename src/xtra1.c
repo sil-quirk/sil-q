@@ -3510,11 +3510,11 @@ static void calc_bonuses(void)
     for (race_idx = 0; race_idx < z_info->r_max; race_idx++) {
         monster_race *r_ptr = &r_info[race_idx];
         monster_lore *l_ptr = &l_list[race_idx];
-        
+
         /* Skip non-monsters and unique monsters for mercy calculation */
         if (!r_ptr->name) continue;
         if (r_ptr->flags1 & RF1_UNIQUE) continue;
-        
+
         total_monsters_seen += l_ptr->psights;
         total_monsters_killed += l_ptr->pkills;
     }

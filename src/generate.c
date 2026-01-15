@@ -5743,6 +5743,7 @@ typedef struct {
 static int partition_index_from_point(int y, int x, int rows, int cols)
 {
     if (rows <= 0 || cols <= 0) return -1;
+    if (p_ptr->cur_map_hgt <= 0 || p_ptr->cur_map_wid <= 0) return -1;
     int row = (y * rows) / p_ptr->cur_map_hgt;
     int col = (x * cols) / p_ptr->cur_map_wid;
     if (row < 0) row = 0;

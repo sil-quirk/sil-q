@@ -1821,6 +1821,32 @@ void skeleton_note_level_reset(void)
     hint_messages_level_reset();
 }
 
+/*
+ * Reset hint/skeleton note state completely for a new game.
+ * Called from re_init_some_things() to ensure clean state
+ * when starting a new game after death without restarting the app.
+ */
+void reset_hint_skeleton_state(void)
+{
+    /* Reset hint message state to initial values */
+    g_hint_message_state.level_depth = -1;
+    g_hint_message_state.map_wid = 0;
+    g_hint_message_state.map_hgt = 0;
+    g_hint_message_state.message_count = 0;
+    for (int i = 0; i < HINT_MESSAGE_MAX; ++i)
+        g_hint_message_state.line_counts[i] = 0;
+
+    /* Reset skeleton note state to initial values */
+    g_skeleton_note_state.level_depth = -1;
+    g_skeleton_note_state.map_wid = 0;
+    g_skeleton_note_state.map_hgt = 0;
+    g_skeleton_note_state.note_cap = 0;
+    g_skeleton_note_state.notes_shown = 0;
+    g_skeleton_note_state.hint_used_mask = 0;
+    skeleton_note_reset_seen();
+    g_skeleton_note_entry_count = -1;
+}
+
 static void skeleton_note_ensure_level_state(void)
 {
     if (g_skeleton_note_state.level_depth != p_ptr->depth

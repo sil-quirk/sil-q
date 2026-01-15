@@ -715,6 +715,7 @@ extern void id_everything(void);
 extern PlayResult play_game(void);
 extern void death_spectator_view(void);
 extern bool death_spectator_active(void);
+extern void reset_dungeon_state(void);
 
 /* files.c */
 extern void safe_setuid_drop(void);
@@ -786,6 +787,7 @@ extern big_cave_type_t big_cave_type_pick_for_depth(int depth);
 extern big_cave_type_t level_partition_big_cave_type_for_point(int y, int x);
 extern big_cave_type_t level_partition_big_cave_type_for_index(int pi);
 extern void skeleton_note_level_reset(void);
+extern void reset_hint_skeleton_state(void);
 extern void skeleton_note_get_state(skeleton_note_state_save* out);
 extern void skeleton_note_set_state(const skeleton_note_state_save* in);
 extern void hint_messages_level_reset(void);

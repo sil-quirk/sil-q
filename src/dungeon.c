@@ -311,8 +311,36 @@ static void handle_partition_entry(bool force_message)
     last_partition_kind = kind;
 }
 
+/* Track last depth for music changes (moved from dungeon() for proper reset) */
+static int last_music_depth = -999;
+
+/* Track first entry to skip level sound (moved from dungeon() for proper reset) */
+static bool first_entry_to_dungeon = true;
+
 /* True while the post-mortem spectator viewport is active. */
 static bool death_spectator_mode = false;
+
+/*
+ * Reset all dungeon-related static state for a new game.
+ * Called from re_init_some_things() to ensure clean state
+ * when starting a new game after death without restarting the app.
+ */
+void reset_dungeon_state(void)
+{
+    /* Reset file-scope static variables */
+    last_player_y = 0;
+    last_player_x = 0;
+    was_in_morgoth_vault = false;
+    morgoth_entry_preconfirmed = false;
+    death_spectator_mode = false;
+
+    /* Reset music/sound tracking */
+    last_music_depth = -999;
+    first_entry_to_dungeon = true;
+
+    /* Reset level entry tracking */
+    reset_level_entry_tracking();
+}
 
 /* Forward declarations for spectator helpers. */
 static bool death_spectator_command_allowed(int command);
@@ -3233,16 +3261,14 @@ static void dungeon(void)
 {
     monster_type* m_ptr;
     int i;
-    static int last_music_depth = -999; /* Track last depth for music changes */
-    static bool first_entry = true; /* Track first entry to skip level sound */
 
     log_debug("Entering dungeon level %d", p_ptr->depth);
-    
+
     /* Play level transition sound (but not on first entry) */
-    if (!first_entry) {
+    if (!first_entry_to_dungeon) {
         sound(MSG_LEVEL);
     }
-    first_entry = false;
+    first_entry_to_dungeon = false;
     
     /* Handle music transitions based on depth changes */
     bool was_in_dungeon = (last_music_depth > 0);
@@ -4110,15 +4136,22 @@ PlayResult play_game(void)
 
         /*
          * If we loaded a dead character savefile, load_player() returns false but
-         * leaves p_ptr populated with the dead character's state. Starting a new
-         * character from that state can crash (notably in oath selection), so
-         * wipe the player again before continuing.
+         * leaves p_ptr populated with the dead character's state. We need to wipe
+         * and properly re-initialize for a fresh start with the same character type.
          */
         if (character_loaded_dead)
         {
-            log_info("Loaded dead character from '%s' - wiping before new character birth",
+            log_info("Loaded dead character from '%s' - wiping for fresh restart",
                 savefile);
+
+            /* Wipe player data - this will restore prace/pcharacter/stats from dead char */
             player_wipe();
+
+            /* Re-initialize global race/character pointers to match restored values */
+            rp_ptr = &p_info[p_ptr->prace];
+            current_character_profile = &c_info[p_ptr->pcharacter];
+
+            /* Clear the flag after wipe so subsequent code knows we're starting fresh */
             character_loaded_dead = false;
         }
 
