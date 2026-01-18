@@ -10427,7 +10427,7 @@ void place_monster_by_letter(
     {
         r_idx = get_mon_num(depth, false, true, true);
         r_ptr = &r_info[r_idx];
-        if ((r_ptr->d_char = c)
+        if ((r_ptr->d_char == c)
             && (allow_unique || !(r_ptr->flags1 & (RF1_UNIQUE))))
         {
             got_r_idx = true;
@@ -10508,7 +10508,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
 
     /* Begin the vault style context now that the vault is accepted */
     styles_begin_vault(-1, 0);
-    /* If vault has explicit style list, use it (support '*'=-1); else apply per-depth default */
+    /* If vault has explicit style list, use it (support '*'=-1, '$'=-2) */
     styles_reset_vault_weights();
     if (v_ptr->style_count > 0) {
         for (int si = 0; si < v_ptr->style_count; ++si) {
@@ -10527,7 +10527,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             }
         }
     } else {
-        /* No S: provided Ã”Ã‡Ã¶ choose a random style from the depth-available list */
+        /* No S: provided -- choose a random style from the depth-available list */
         int rs = styles_pick_random_from_level();
         if (rs >= 0) styles_add_vault_weight(rs, 1);
     }
@@ -11050,6 +11050,14 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             case 'T':
             {
                 place_vault_monster_token('T', y, x);
+                break;
+            }
+
+            /* Troll (any monster with RF3_TROLL) */
+            case 't':
+            {
+                place_monster_by_flag(
+                    y, x, 3, RF3_TROLL, true, p_ptr->depth + rand_range(1, 4));
                 break;
             }
 
