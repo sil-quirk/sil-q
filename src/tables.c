@@ -99,8 +99,8 @@ const s16b ddx_ddd[9] = { 0, 0, 1, -1, 1, -1, 1, -1, 0 };
 const s16b ddy_ddd[9] = { 1, -1, 0, 0, 1, 1, -1, -1, 0 };
 
 /*
- * Global array for converting numbers to uppercase hecidecimal digit
- * This array can also be used to convert a number to an octal digit
+ * Global array for converting numbers to uppercase hexadecimal digit
+ * This array can also be used to convert a number to an octal digit.
  */
 const char hexsym[16] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A',
     'B', 'C', 'D', 'E', 'F' };
