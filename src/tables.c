@@ -12,26 +12,95 @@
 
 /*
  * Global array for looping through the "keypad directions".
+ *
+ *    7 8 9     ^
+ *    4 5 6   <-.->
+ *    1 2 3     v
+ *
+ * - Elements 0-3 are for horizontal and vertical directions:
+ *    - down  (keypad 2)
+ *    - up    (keypad 8)
+ *    - right (keypad 6)
+ *    - left  (keypad 4)
+ * - Elements 4-7 are for diagonal directions:
+ *    - down-right (keypad 3)
+ *    - down-left  (keypad 1)
+ *    - up-right   (keypad 9)
+ *    - up-left    (keypad 7)
+ * - Element 8 (last) is for no direction:
+ *    - no direction (keypad 5), think: stand still
+ *
+ * Example: Get a random direction, excluding standing still.
+ *
+ *    dir = ddd[rand_int(8)];
+ *
+ * Example: Get a random horizontal or vertical direction (no diagonals, no
+ * standing still).
+ *
+ *    dir = ddd[rand_int(4)];
+ *
  */
 const s16b ddd[9] = { 2, 8, 6, 4, 3, 1, 9, 7, 5 };
 
 /*
- * Global arrays for converting "keypad direction" into "offsets".
+ * Global array for converting "keypad direction" into "offsets" for the x-axis
+ * (the horizontal part of a direction offset).
  */
 const s16b ddx[10] = { 0, -1, 0, 1, -1, 0, 1, -1, 0, 1 };
 
+/*
+ * Global array for converting "keypad direction" into "offsets" for the y-axis
+ * (the vertical part of a direction offset).
+ */
 const s16b ddy[10] = { 0, 1, 1, 1, 0, 0, 0, -1, -1, -1 };
 
 /*
- * Global arrays for optimizing "ddx[ddd[i]]" and "ddy[ddd[i]]".
+ * Global array for optimizing `ddx[ddd[i]]`.
+ *
+ * Based on the semantics of `ddd`, this array stores the corresponding
+ * direction offset on the x-axis, where:
+ *
+ *  0: no change horizontally
+ *  1: right
+ * -1: left
+ *
+ *  In "keypad" notation:
+ *
+ *    7 8 9   -1 0 1
+ *    4 5 6   -1 0 1
+ *    1 2 3   -1 0 1
+ *
+ * For example, the down-left direction corresponds to keypad 1, which has index
+ * 5 in `ddd`. This represents a direction combined of left (value of -1 at
+ * index 5 in `ddx_ddd`) plus down (value of 1 at index 5 in `ddy_ddd`).
  */
 const s16b ddx_ddd[9] = { 0, 0, 1, -1, 1, -1, 1, -1, 0 };
 
+/*
+ * Global array for optimizing `ddy[ddd[i]]`.
+ *
+ * Based on the semantics of `ddd`, this array stores the corresponding
+ * direction offset on the y-axis, where:
+ *
+ *  0: no change vertically
+ *  1: down
+ * -1: up
+ *
+ *  In "keypad" notation:
+ *
+ *    7 8 9   -1 -1 -1
+ *    4 5 6    0  0  0
+ *    1 2 3    1  1  1
+ *
+ * For example, the down-left direction corresponds to keypad 1, which has index
+ * 5 in `ddd`. This represents a direction combined of left (value of -1 at
+ * index 5 in `ddx_ddd`) plus down (value of 1 at index 5 in `ddy_ddd`).
+ */
 const s16b ddy_ddd[9] = { 1, -1, 0, 0, 1, 1, -1, -1, 0 };
 
 /*
- * Global array for converting numbers to uppercase hecidecimal digit
- * This array can also be used to convert a number to an octal digit
+ * Global array for converting numbers to uppercase hexadecimal digit
+ * This array can also be used to convert a number to an octal digit.
  */
 const char hexsym[16] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A',
     'B', 'C', 'D', 'E', 'F' };
