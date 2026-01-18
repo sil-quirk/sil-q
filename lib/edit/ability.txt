@@ -740,6 +740,6 @@ D:Possessing Unique Bane, knowledge to exploit weaknesses as Beren learned the v
 
 N:169:Oath of Light
 I:8:9:0
-D:Swearing the Oath of Light, as those who keep Varda's stars burning in the depths, you refuse any gear that dims your glow. While the oath holds, your inner light shines two steps brighter.
+D:Swearing the Oath of Light, as those who keep Varda's stars burning in the depths, you refuse any gear that dims your glow. While the oath holds, your inner light shines one step brighter.
 
 

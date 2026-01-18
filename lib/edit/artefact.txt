@@ -178,14 +178,13 @@ V:0.9.5
 
 ## The Ring of Barahir
 ## 1st age
-## (ability 7/3 is Song of Staunching)
 
 N:1:of Barahir
 Q:efacae2cc817eff9
-I:45:32:0
+I:45:32:1
 W:10:20:1:5000
 P:0:0d0:0:1d1
-F:FREE_ACT | RES_POIS | MEDIC
+F:FREE_ACT | RES_POIS | GRA | OATH_BOOST
 F:INSTA_ART
 B:7/3
 D:A ring shaped into twinned serpents with eyes of emerald meeting
@@ -217,7 +216,7 @@ D: Above all else, she is famed for her insight.
 
 N:3:of Tinfang Gelion
 Q:561368162725be61
-I:40:10:2
+I:40:10:3
 W:12:20:1:5000
 P:0:0d0:0:0d0
 F:SONG
@@ -233,10 +232,10 @@ D: great heroes and a desire to sing of their deeds.
 
 N:4:'Nimphelos'
 Q:f4a9bee9fc977959
-I:40:13:2
+I:40:13:1
 W:12:20:1:5000
-P:0:0d0:0:0d0
-F:GRA | SUST_GRA
+P:1:0d0:1:0d0
+F:GRA | SUST_GRA | DEX | SUST_DEX | SONG | ARCHERY
 F:INSTA_ART
 D:The greatest pearl from the Bay of Balar, its sheen was as starlight on the
 D: foam of the sea.  It was given to the chieftain of the Dwarves of Belegost
@@ -245,16 +244,16 @@ D: by Thingol Greycloak, King of Doriath.
 
 ## The Jewel 'Elessar' (amulet slot)
 ## 1st age
-## (ability 5/2 is Strength in Adversity)
+## (ability 7/3 is Song of Staunching)
 
 N:5:'Elessar'
 Q:9efe653a53f97ef7
 I:40:16:1
 W:14:20:1:7000
 P:0:0d0:0:0d0
-F:CON | REGEN
+F:CON | GRA | REGEN | MEDIC
 F:INSTA_ART
-B:5/2
+B:7/3
 D:A beautiful green jewel made by Enerdhil in the Hidden City.
 D: In it is trapped the light of the Sun, and any who look through it
 D: can see the withered and old as if they were young and supple once more.
@@ -263,12 +262,12 @@ D: can see the withered and old as if they were young and supple once more.
 ## The Necklace of the Dwarves (amulet slot)
 ## 1st age
 
-N:6:of the Dwarves
+N:6:'Nauglamir'
 Q:aa0b792d54a72992
 I:40:12:1
 W:16:30:1:10000
 P:0:0d0:0:0d0
-F:CON | GRA
+F:GRA | FREE_ACT | 
 F:INSTA_ART
 D:The Nauglamir; a carcanet of gold set with a multitude of shining gems
 D: of Valinor. It was made by the dwarves of Ered Luin for Finrod Felagund. 

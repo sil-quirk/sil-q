@@ -120,7 +120,7 @@ T:To bear starlight unsullied
 D:A vow to keep the Kindler's radiance clear, shunning any gear that drinks the light and clouds the path. You carry the stars within, refusing the tools of shadow.
 P:I swear to wear no shadowed gear that dims my light, and to keep the clear radiance of the stars upon my path.
 F:Wield or wear items that dim or curse your light
-R:+2 Light radius - Blessing of Varda's starlight
+R:+1 Light radius - Blessing of Varda's starlight
 A:8:9
 S:0:0:0:0
 B:Cannot equip items that bear DARKNESS or reduce light radius

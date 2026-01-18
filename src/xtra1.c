@@ -2329,6 +2329,46 @@ bool weapon_glows(const object_type* o_ptr)
     return (glows);
 }
 
+static bool player_has_equipped_flag3(u32b flag3)
+{
+    for (int i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+        if (!o_ptr->k_idx) continue;
+
+        u32b f1, f2, f3;
+        object_flags(o_ptr, &f1, &f2, &f3);
+        if (f3 & flag3) return true;
+    }
+
+    return false;
+}
+
+static int oath_special_ability_from_oath_num(int oath_num)
+{
+    switch (oath_num)
+    {
+        case OATH_MERCY: return SPC_OATH_MERCY;
+        case OATH_SILENCE: return SPC_OATH_SILENCE;
+        case OATH_IRON: return SPC_OATH_IRON;
+        case OATH_SMITH: return SPC_OATH_SMITH;
+        case OATH_VALOROUS: return SPC_OATH_VALOROUS;
+        case OATH_LIGHT: return SPC_OATH_LIGHT;
+        default: return -1;
+    }
+}
+
+static bool player_has_active_oath(void)
+{
+    if (p_ptr->oath_type <= 0) return false;
+    if (oath_invalid(p_ptr->oath_type)) return false;
+
+    int special_ability = oath_special_ability_from_oath_num(p_ptr->oath_type);
+    if (special_ability < 0) return false;
+
+    return p_ptr->active_ability[S_SPC][special_ability];
+}
+
 /*
  * Extract and set the current "lite radius"
  */
@@ -2338,9 +2378,16 @@ void calc_torch(void)
     object_type* o_ptr;
     u32b f1, f2, f3;
     int old_light;
+    bool has_oath_boost = false;
+    bool has_active_oath = false;
+    int oath_reward_mult = 1;
 
     /* Store old value */
     old_light = p_ptr->cur_light;
+
+    has_oath_boost = player_has_equipped_flag3(TR3_OATH_BOOST);
+    has_active_oath = player_has_active_oath();
+    oath_reward_mult = (has_oath_boost && has_active_oath) ? 2 : 1;
 
     /* Assume no light */
     p_ptr->cur_light = 0;
@@ -2431,7 +2478,12 @@ void calc_torch(void)
     /* Oath of Light reward */
     if (p_ptr->active_ability[S_SPC][SPC_OATH_LIGHT] && !oath_invalid(OATH_LIGHT))
     {
-        p_ptr->cur_light += 2;
+        p_ptr->cur_light += 1 * oath_reward_mult;
+    }
+    /* Ring of Barahir: +1 light when no oath is active */
+    else if (has_oath_boost && !has_active_oath)
+    {
+        p_ptr->cur_light += 1;
     }
 
     /* Update the visuals */
@@ -3270,6 +3322,7 @@ static void calc_bonuses(void)
 
     /* Oath bonuses (granted by special oath abilities, disabled if oath is broken) */
     /* Apply dynamic oath bonuses based on oath.txt data */
+    const bool has_oath_boost = player_has_equipped_flag3(TR3_OATH_BOOST);
     for (int oath_idx = 0; oath_idx < z_info->oath_max; oath_idx++)
     {
         oath_type *oath_ptr = &oath_info[oath_idx];
@@ -3277,34 +3330,25 @@ static void calc_bonuses(void)
         /* Check if player has this oath and it's not broken */
         if (oath_ptr->oath_num >= OATH_MERCY && oath_ptr->oath_num <= OATH_LIGHT)
         {
-            int special_ability = -1;
-            
-            /* Map oath number to special ability */
-            switch(oath_ptr->oath_num)
-            {
-                case OATH_IRON: special_ability = SPC_OATH_IRON; break;
-                case OATH_SILENCE: special_ability = SPC_OATH_SILENCE; break;
-                case OATH_MERCY: special_ability = SPC_OATH_MERCY; break;
-                case OATH_SMITH: special_ability = SPC_OATH_SMITH; break;
-                case OATH_VALOROUS: special_ability = SPC_OATH_VALOROUS; break;
-                case OATH_LIGHT: special_ability = SPC_OATH_LIGHT; break;
-            }
+            int special_ability = oath_special_ability_from_oath_num(oath_ptr->oath_num);
             
             /* Apply bonuses if player has oath and it's not broken */
             if (special_ability >= 0 && 
                 p_ptr->active_ability[S_SPC][special_ability] && 
                 !oath_invalid(oath_ptr->oath_num))
             {
+                int bonus_mult = (has_oath_boost && oath_ptr->oath_num == p_ptr->oath_type) ? 2 : 1;
+
                 /* Apply stat bonuses */
-                p_ptr->stat_misc_mod[A_STR] += oath_ptr->stat_bonuses[0];
-                p_ptr->stat_misc_mod[A_DEX] += oath_ptr->stat_bonuses[1];
-                p_ptr->stat_misc_mod[A_CON] += oath_ptr->stat_bonuses[2];
-                p_ptr->stat_misc_mod[A_GRA] += oath_ptr->stat_bonuses[3];
+                p_ptr->stat_misc_mod[A_STR] += oath_ptr->stat_bonuses[0] * bonus_mult;
+                p_ptr->stat_misc_mod[A_DEX] += oath_ptr->stat_bonuses[1] * bonus_mult;
+                p_ptr->stat_misc_mod[A_CON] += oath_ptr->stat_bonuses[2] * bonus_mult;
+                p_ptr->stat_misc_mod[A_GRA] += oath_ptr->stat_bonuses[3] * bonus_mult;
                 
                 /* Apply skill bonuses */
                 if (oath_ptr->skill_type > 0 && oath_ptr->skill_type < S_MAX)
                 {
-                    p_ptr->skill_misc_mod[oath_ptr->skill_type] += oath_ptr->skill_bonus;
+                    p_ptr->skill_misc_mod[oath_ptr->skill_type] += oath_ptr->skill_bonus * bonus_mult;
                 }
             }
         }

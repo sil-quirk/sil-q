@@ -6832,7 +6832,7 @@ static cptr get_quest_reward_text(int quest_idx)
     
     /* Varda reward description */
     if (quest_idx == QUEST_ID_VARDA) {
-        SDL_strlcpy(reward_buf, "Choose one radiant artefact and unlock the Oath of Light (+2 light radius)", sizeof(reward_buf));
+        SDL_strlcpy(reward_buf, "Choose one radiant artefact and unlock the Oath of Light (+1 light radius)", sizeof(reward_buf));
         return reward_buf;
     }
     

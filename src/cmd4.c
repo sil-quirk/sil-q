@@ -1750,7 +1750,7 @@ char* oath_reward[] = {
     "+2 Constitution",
     "+5 Smithing",
     "+1 Dexterity",
-    "+2 Light Radius",
+    "+1 Light Radius",
 };
 
 static const char* oath_name_short(int oath_id)

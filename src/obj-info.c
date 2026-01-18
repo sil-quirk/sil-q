@@ -737,6 +737,8 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3)
         good[gc++] = "lets you step on traps without triggering them";
     if (f3 & (TR3_MEDIC))
         good[gc++] = "increases the health you get from healing items";
+    if (f3 & (TR3_OATH_BOOST))
+        good[gc++] = "doubles the reward of your oath (or increases your light radius if oathless)";
 
     /* Describe */
     output_desc_list("It ", good, gc);
