@@ -2984,3 +2984,427 @@ D:###..q..#n.k#..q..###
 D:#####...##s##...#####
 D:#######.......#######
 D:##########$##########
+
+
+### New Lore-Friendly Vaults (First Age Themed) ###
+
+# Vault: Orc Armory
+# Lore: A small weapons cache where orcs store pilfered equipment and arm themselves for raids.
+N:462:Orc Armory
+X:6:3:8
+F:SURFACE
+D:$$$$$$$$$$$$$
+D:$....###....$
+D:$..?.#*#..o.$
+D:$....+#+....$
+D:$.o..#&#..o.$
+D:$....###....$
+D:$$$$$$$$$$$$$
+
+
+# Vault: Warg Breeding Pit
+# Lore: Where Morgoth's servants breed the great wolves, descendants of Draugluin.
+N:463:Warg Breeding Pit
+X:6:5:10
+D:$$$$$$$$$$$$$$$$$$
+D:$.####....####...$
+D:$.#cc+....+cc#.?.$
+D:$.####.cc.####...$
+D:$......cc......?.$
+D:$.####.cc.####...$
+D:$.#cc+....+cc#...$
+D:$.####....####...$
+D:$$$$$$$$$$$$$$$$$$
+
+
+# Vault: Draugluin's Kennel
+# Lore: A larger wolf den where the spawn of Draugluin, father of werewolves, are kept.
+N:464:Draugluin's Kennel
+X:7:8:5
+D:##########$##########
+D:#c.c#.........#c.c.##
+D:#...+....?....+.....#
+D:###+#####.#####.#+###
+D:#.......#c#c#.......$
+D:#cc..c..#...#.cc..c.$
+D:#.......#.3.#.......$
+D:###+####+...+####+###
+D:#.?..#.........#.*.##
+D:#c.c.+....?....+c.c.#
+D:######$$$$$$$$$######
+
+
+# Vault: Spider's Parlor
+# Lore: A web-choked chamber where Ungoliant's lesser spawn trap the unwary. Elf skeletons hang in webs.
+N:465:Spider's Parlor
+X:6:7:10
+S:52:1 54:1 55:1
+F:WEBS
+D:$$$$$$$$$$$$
+D:$...:.:....$
+D:$...M.S....$
+D:$.:..#..:..$
+D:$.S.#*#.M..$
+D:$.:..#..:..$
+D:$...S.M....$
+D:$...:.:....$
+D:$$$$$$$$$$$$
+
+
+# Vault: Barrow of the Fallen Lord
+# Lore: An ancient chieftain of Men who fell to Morgoth's service, now risen as a wight.
+N:466:Barrow of the Fallen Lord
+X:7:10:5
+D:##################
+D:#....W......W....#
+D:#...##########...#
+D:#...#&~!~&!*#...##
+D:$...#*!*!*!*#....#
+D:$...########...W.#
+D:$................$
+D:#.W...........W..#
+D:#...S.......S....#
+D:#####$$$$$$$######
+
+
+# Vault: Troll-hold
+# Lore: A cave where trolls rest during daylight hours, their hoard of stolen goods piled carelessly.
+N:467:Troll-hold
+X:7:12:5
+S:53:1 57:1 58:1
+D:###########$$$$
+D:#T..::..T#....$
+D:#...:....+....$
+D:###..0..###...$
+D:#...:....#T...$
+D:#T..&:&..#....$
+D:######+###....$
+D:$.............$
+D:$....?...?....$
+D:$.............$
+D:$$$$$$$$$$$$$$
+
+
+# Vault: The Silent Hall
+# Lore: A chamber of the watchers, unblinking horrors set by Morgoth to guard his treasures.
+N:468:The Silent Hall
+X:7:14:8
+F:NO_ROTATION
+D:$$$$$$$$$$$$$$$$$$$
+D:$......#...#......$
+D:$.H....#.!.#....H.$
+D:$......+...+......$
+D:$.##+###...###+##.$
+D:$...#.........#...$
+D:$.H.+....;....+.H.$
+D:$...#.........#...$
+D:$.##+###...###+##.$
+D:$......+...+......$
+D:$.H....#.&.#....H.$
+D:$......#...#......$
+D:$$$$$$$$$$$$$$$$$$$
+
+
+# Vault: Thrall Barracks
+# Lore: Cramped quarters where captive elves and men are kept before being sent to the mines.
+N:469:Thrall Barracks
+X:6:2:8
+F:SURFACE
+S:55:1 54:1 52:1
+D:##########$###
+D:#z.z#z.z#...##
+D:#...+...+.Z..$
+D:###+##+##....$
+D:#z.z#z.z#.Z..$
+D:#...+...+...##
+D:##########$###
+
+
+# Vault: Dragon's Antechamber
+# Lore: The outer chamber of a dragon's lair, littered with bones and scattered treasure.
+N:470:Dragon's Antechamber
+X:7:14:8
+D:################
+D:#:..:.:.:..::.##
+D:#..*..&..*....##
+D:#....#####s#####
+D:$....#*&!&*#d..#
+D:$..:.#&!!!&#...#
+D:$....#*&!&*#...#
+D:#....#####s#####
+D:#..*..&..*....##
+D:#:..:.:.:..::.##
+D:################
+
+
+# Vault: The Raukar Pit
+# Lore: A fiery pit where balrogs gather, their flames illuminating forges of dark iron.
+N:471:The Raukar Pit
+X:7:17:10
+S:25:1
+F:LIGHT
+D:####$$$$$$$####
+D:###...777...###
+D:##..77...77..##
+D:#..7..r..r7...$
+D:#.7....0....7.$
+D:#.7..r...r..7.$
+D:#..77...&.77..$
+D:##..77777..7.##
+D:###...!...7###
+D:####$$$$$$$####
+
+
+# Vault: Forges of Angband
+# Lore: Where weapons of war are beaten into shape by thralls and orc-smiths.
+N:472:Forges of Angband
+X:7:10:5
+S:51:1 53:1 57:1 58:1
+D:$$$$$$$$$$$$$$$$$$$
+D:$..#0#.....#0#....$
+D:$..###..z..###....$
+D:$......Z..Z.......$
+D:$.####.....####...$
+D:$.#&*+..0..+*&#...$
+D:$.####.....####...$
+D:$......Z..Z.......$
+D:$..###..z..###....$
+D:$..#0#.....#0#....$
+D:$$$$$$$$$$$$$$$$$$$
+
+
+# Vault: Orc Captain's Quarters
+# Lore: Personal chambers of an orc captain, with a chest of plundered treasure and guards at the door.
+N:473:Orc Captain's Quarters
+X:6:7:8
+D:############
+D:#O..#&~&#..#
+D:#...+..+...#
+D:####+##+####
+D:$..o....o..$
+D:$..........#
+D:#..o....o..#
+D:#####$$#####
+
+
+# Vault: The Chasm Bridge
+# Lore: A narrow bridge spanning a bottomless pit. Archers guard the far side.
+N:474:The Chasm Bridge
+X:6:8:8
+F:NO_ROTATION | LIGHT
+D:$$$$$$$$$$$$$$$$$$$$$
+D:$777777777777777777.$
+D:$77777..?..77777777.$
+D:$777............777.$
+D:$77....#####....a77.$
+D:$77....#*&#.....a77.$
+D:$777...#####...a777.$
+D:$77777.......77777a.$
+D:$777777777777777777.$
+D:$$$$$$$$$$$$$$$$$$$$$
+
+
+# Vault: Web-Choked Corridor
+# Lore: An old tunnel now claimed by spiders. Bones of those who wandered in hang from the ceiling.
+N:475:Web-Choked Corridor
+X:7:9:8
+S:52:1 54:1 55:1
+F:WEBS | NO_ROTATION
+D:$$$$$###############
+D:$....#S.:....:...M##
+D:$..M.s.....M......##
+D:$....#:..#####s#####
+D:$....#...#**.&#..M.#
+D:$..M.#.M.#.!.&#....#
+D:$....s...#**.&#.S..#
+D:$....#S.:##########$
+D:$....#.............$
+D:$$$$$##############$
+
+
+# Vault: Vampire's Crypt
+# Lore: A hidden crypt where vampires rest in ancient coffins. Glyphs suggest someone once tried to contain them.
+N:476:Vampire's Crypt
+X:7:15:10
+F:NO_ROTATION
+D:#############$##
+D:#v..#;.;.;#..v##
+D:#...+.....+...##
+D:#####+####+#####
+D:#..............$
+D:$......&.......$
+D:#..............$
+D:#####+####+#####
+D:#...+.....+...##
+D:#v..#;.!.;#..v##
+D:#############$##
+
+
+# Vault: Pit of Despair
+# Lore: Where thralls who displease their masters are cast. Some treasures fall with them, lost among the bones.
+N:477:Pit of Despair
+X:6:4:8
+F:SURFACE
+S:55:1 54:1
+D:$$$$$$$$$$$$
+D:$..........#
+D:$..######..$
+D:$..#7777#..$
+D:$.Z#7*z7#Z.$
+D:$..#7777#..$
+D:$..###+##..$
+D:$..........#
+D:$$$$$$$$$$$$
+
+
+### Greater Vaults (Type 8) and Additional Themes ###
+
+# Vault: The Isle of Werewolves (Greater Vault)
+# Lore: A recreation of Tol-in-Gaurhoth, Sauron's stronghold. Werewolves prowl the shadowed halls.
+N:478:The Isle of Werewolves
+X:8:13:3
+S:32:1
+F:NO_ROTATION
+D:###################################
+D:##.....##.........##ccc##.........#
+D:#..c....+....c....##...##...c.....#
+D:#.......##........s..3..s........##
+D:###s#####..###s####.....####s####.#
+D:#.......#..#.....##.c.c.##.....#..#
+D:#..c....+..+..c...+.....+...c..+..#
+D:#.......#..#.....##.c.c.##.....#..#
+D:###s#####..###s####..c..####s###..#
+D:#.......#..#.....##.....##.....#..#
+D:#..W....+..+..W...s..4..s...W..+..#
+D:#.......#..#.....##.....##.....#..#
+D:###s#####..###s####.....####s###..#
+D:#.......#..#c....##.c.c.##....c#..#
+D:#..c....+..+......+.....+......+..#
+D:#.......#..#.....##.c.c.##.....#..#
+D:###s#####..###s####.....####s####.#
+D:#.......##.......s..3..s........##
+D:#...c...+....c....##...##....c....#
+D:##.....##.........##+###.........##
+D:#####+####+##+####+.....+####s#####
+D:$.....................W...........$
+D:$..c..............c...............$
+D:$..........c.............c........$
+D:$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+
+
+# Vault: Crypt of the Noldor (Greater Vault)
+# Lore: A mass grave where fallen Noldor warriors were buried after the Dagor Bragollach.
+N:479:Crypt of the Noldor
+X:8:11:3
+F:NO_ROTATION
+D:###############################
+D:#S....#W..#....#....#..W#....S#
+D:#.....+...+....+....+...+.....#
+D:####+#####+####+####+#####+####
+D:#.............W..W............#
+D:#...S......S......S......S....#
+D:#..###....###....###....###...#
+D:#..#*#....#&#....#&#....#*#...#
+D:#..###....###....###....###...#
+D:#..............................#
+D:#+###########################s#
+D:#.............W..W............#
+D:#..............................#
+D:#...;........;..;........;....#
+D:#..............................#
+D:#.S....S....S....S....S....S..#
+D:#..##..##..##....##..##..##...#
+D:#..#!..#&..#*....#*..#&..#!...#
+D:#..##..##..##....##..##..##...#
+D:#.............++..............#
+D:##############$$##############
+
+
+# Vault: Sauron's Torture Chamber
+# Lore: A chamber where Gorthaur extracted secrets from captives.
+N:480:Sauron's Torture Chamber
+X:7:16:5
+S:32:1
+F:NO_ROTATION | TRAPS
+D:#####################
+D:#H..#^^^^^#^^^^^#..H#
+D:#...+.....+.....+...#
+D:#####+####+####+#####
+D:#v.........^.......v#
+D:#......z..^..z......#
+D:$......^..Z..^......$
+D:#......z..^..z......#
+D:#v.........^.......v#
+D:#####+####+####+#####
+D:#...+.....+.....+...#
+D:#H..#&.!.&#&.!.&#..H#
+D:#####################
+
+
+# Vault: The Shadow Halls
+# Lore: A corridor of endless darkness where shadows multiply and consume all light.
+N:481:The Shadow Halls
+X:7:12:5
+F:NO_ROTATION
+D:$$$$$$$$$$$$$$$$$$$$$$$$$
+D:$...#.....#.....#.....#.$
+D:$.1.+..W..+..W..+..W..+.$
+D:$...#.....#.....#.....#.$
+D:$###+#####+#####+#####+##
+D:$.......................$
+D:$......1.......1........$
+D:$.......................$
+D:$###+#####+#####+#####+##
+D:$...#.....#.....#.....#.$
+D:$.W.+..1..+..1..+..1..+.$
+D:$...#.&...#..!..#...&.#.$
+D:$$$$$$$$$$$$$$$$$$$$$$$$$
+
+
+# Vault: Barrow Downs (Greater Vault)
+# Lore: An ancient burial ground of mannish kings, now infested with wights.
+N:482:Barrow Downs
+X:8:10:3
+F:NO_ROTATION
+D:#################################
+D:##..........#.....#..........###
+D:#....W......+..W..+......W....##
+D:#...........#.....#...........##
+D:#..###..###.#######.###..###..##
+D:#..#*#..#&#.#.....#.#&#..#*#..##
+D:#..#W#..#W#.+..W..+.#W#..#W#..##
+D:#..###..###.#.....#.###..###..##
+D:#...........#.....#...........##
+D:##+########+#######+#+#######+##
+D:#...........:..W..:...........##
+D:#...S.....S.:.....:.S.....S...##
+D:#...........:.....:.........?.##
+D:#..###..###.###+###.###..###..##
+D:#..#&#..#!#.#.....#.#!#..#&#...#
+D:#..#W#..#W#.+..~..+.#W#..#W#...$
+D:#..###..###.#.....#.###..###...$
+D:#...........#.....#...........$
+D:#....W......+..W..+......W....$
+D:##..........#.....#...........$
+D:#################################
+
+
+# Vault: The Pit of Angband
+# Lore: One of the deepest pits where the most wretched prisoners are cast.
+N:483:The Pit of Angband
+X:7:18:5
+S:25:1
+F:LIGHT | NO_ROTATION
+D:$$$$$$$$$$$$$$$$$$$$$$$
+D:$.......r.....r.......$
+D:$..7777777777777777....$
+D:$..77...........77....$
+D:$..77.z.z...z.z.77....$
+D:$..77...Z...Z...77....$
+D:$..77.....0.....77..r.$
+D:$..77...Z...Z...77....$
+D:$..77.z.z...z.z.77....$
+D:$..77...........77....$
+D:$..7777777777777777....$
+D:$.......r.....r.......$
+D:$$$$$$$$$$$$$$$$$$$$$$$
