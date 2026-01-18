@@ -10833,6 +10833,10 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             /* An object from 1-5 levels deeper (min-depth penalty only) */
             case '*':
             {
+                /* Vault loot tuning: reduce item clutter by cutting mostly normal spawns */
+                if (!percent_chance(37))
+                    break;
+
                 int base_depth = (p_ptr->depth > 0) ? p_ptr->depth : 1;
                 int penalty_depth = base_depth + dieroll(5);
                 partition_drop_profile active_profile =
@@ -10934,6 +10938,10 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 }
                 if (r >= 2)
                 {
+                    /* Vault loot tuning: reduce item clutter by cutting mostly normal spawns */
+                    if (!percent_chance(37))
+                        break;
+
                     int base_depth = (p_ptr->depth > 0) ? p_ptr->depth : 1;
                     int penalty_depth = base_depth + 1;
                     partition_drop_profile active_profile =
@@ -14057,15 +14065,15 @@ static bool cave_gen(void)
     }
     
     /* Partition-specific item allocation rates:
-     * - Roomy: mon/4 rooms + mon/6 corridors (reduced from mon/2 + mon/4)
+     * - Roomy: mon/8 rooms + mon/12 corridors (reduced from mon/4 + mon/6)
      * - Cavey: mon/2 rooms + mon/4 corridors (caves already have extra gems/mithril)
      * - Ruined: mon/2 rooms + mon/4 corridors (ruins already have skeletons)
      * - Labyrinth: mon/2 rooms + mon/4 corridors
      * - Chasm: mon/2 rooms + mon/4 corridors
      * - Big Cave: mon/2 rooms + mon/4 corridors */
-    
-    int roomy_room_obj = roomy_mon / 4;
-    int roomy_corr_obj = roomy_mon / 6;
+     
+    int roomy_room_obj = roomy_mon / 8;
+    int roomy_corr_obj = roomy_mon / 12;
     int cavey_room_obj = cavey_mon / 2;
     int cavey_corr_obj = cavey_mon / 4;
     int ruined_room_obj = ruined_mon / 2;
