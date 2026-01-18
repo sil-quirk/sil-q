@@ -106,6 +106,7 @@ static vault_monster_spec vault_monster_table[] = {
     {'L', "d27e36edf5c2f432", 0, false, true, true},
     {'N', "f134bcd795c27d4f", 0, false, true, true},
     {'D', "3ab7e216cb871fec", 0, false, true, true},
+    {'K', "4da7998251196a35", 0, false, true, true}, /* Ancalagon the Black */
     {'R', "0e0f11695f8a443d", 0, false, true, true},
     {'U', "c2485b83ba33934d", 0, false, true, true},
     {'G', "7b038638b2981d20", 0, false, true, true},
@@ -11152,6 +11153,13 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             case 'D':
             {
                 place_vault_monster_token('D', y, x);
+                break;
+            }
+
+            /* Ancalagon the Black */
+            case 'K':
+            {
+                place_vault_monster_token('K', y, x);
                 break;
             }
 
