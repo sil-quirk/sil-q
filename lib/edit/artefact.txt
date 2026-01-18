@@ -1184,8 +1184,8 @@ D: Lord of the Men of Brethil, by the dwarves of the Blue Mountains.
 N:92:of Durin
 Q:cb741e5a68f137b7
 I:22:12:1
-W:13:30:45:105000
-P:-1:3d6:0:0d0
+W:16:30:45:105000
+P:-2:3d6:0:0d0
 F:STR | CON | RES_FEAR | LIGHT
 D:A mighty battle axe said to have belonged to Durin the Deathless. Its
 D: haft is carved with the symbols of the Seven Fathers. The axe feels 
@@ -1256,7 +1256,7 @@ N:97:of Gothmog
 Q:0b69f9fcb6938709
 I:22:13:0
 W:20:1:90:120000
-P:-4:4d7:0:0d0
+P:-4:4d6:0:0d0
 B:0/9
 F:BRAND_FIRE | AGGRAVATE | LIGHT_CURSE
 F:VUL_COLD
