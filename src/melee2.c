@@ -1123,10 +1123,11 @@ static bool get_move_wander(monster_type* m_ptr, int* ty, int* tx)
         else
         {
             /* Random direction */
-            d = ddd[rand_int(8)];
+            int idx = rand_int(8);
+            d = ddd[idx];
 
-            y = y1 + ddy_ddd[d];
-            x = x1 + ddx_ddd[d];
+            y = y1 + ddy_ddd[idx];
+            x = x1 + ddx_ddd[idx];
 
             /* Check Bounds */
             if (!in_bounds(y, x))
