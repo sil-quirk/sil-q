@@ -104,6 +104,14 @@ Added:
   "blank" color to denote color transparency, because the BMP format does not
   support transparency natively. The graphics rendering backends now
   automatically detect the transparency color via pixel (0,0).
+- Added a "minimum depth" field to the game HUD (partially fixes #82)
+  ([#132](https://github.com/sil-quirk/sil-q/pull/132)). To make room for this
+  change, the "current depth" field was moved from the last row in the bottom
+  right to the second-to-last row in the bottom left. The new "minimum depth"
+  field is placed in grey color in the last row, underneath "current depth".
+  Other bottom-row HUD fields like "Confused" and "Stun" where shifted to the
+  right. See [minimum depth
+  screenshot](https://github.com/sil-quirk/sil-q/pull/132#issue-3830778399).
 
 Changed:
 

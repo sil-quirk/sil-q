@@ -729,31 +729,34 @@
 #define COL_STEALTH 0 /* <stealth> */
 
 #define ROW_HUNGRY (Term->hgt - 1)
-#define COL_HUNGRY 0 /* "Starving" "Weak" / "Hungry" / "Full" */
+#define COL_HUNGRY 13 /* "Starving" "Weak" / "Hungry" / "Full" */
 
 #define ROW_BLIND (Term->hgt - 1)
-#define COL_BLIND 9 /* "Blind" */
+#define COL_BLIND 22 /* "Blind" */
 
 #define ROW_CONFUSED (Term->hgt - 1)
-#define COL_CONFUSED 15 /* "Confused" */
+#define COL_CONFUSED 28 /* "Confused" */
 
 #define ROW_STUN (Term->hgt - 1)
-#define COL_STUN 24 /* <stun> */
+#define COL_STUN 37 /* "Knocked out" / "Heavy stun" / "Stun" */
 
 #define ROW_AFRAID (Term->hgt - 1)
-#define COL_AFRAID 36 /* "Afraid" */
+#define COL_AFRAID 49 /* "Afraid" */
 
 #define ROW_STATE (Term->hgt - 1)
-#define COL_STATE 43 /* <state> */
+#define COL_STATE 56 /* <state> - e.g. "Stealth", "Entranced!", "Smithing" */
 
 #define ROW_SPEED (Term->hgt - 1)
-#define COL_SPEED 56 /* "Slow" or "Fast" */
+#define COL_SPEED 67 /* "Slow" or "Fast" */
 
 #define ROW_TERRAIN (Term->hgt - 1)
-#define COL_TERRAIN 61 /* "Web" or "Pit" or "Sunlight" */
+#define COL_TERRAIN 72 /* "Web" or "Pit" or "Sunlight" */
 
-#define ROW_DEPTH (Term->hgt - 1)
-#define COL_DEPTH 72 /* "Lev NNN" / "NNNN ft" */
+#define ROW_DEPTH (Term->hgt - 2)
+#define COL_DEPTH 0 /* "NNNN ft" (current depth) right-aligned in sidebar */
+
+#define ROW_MIN_DEPTH (Term->hgt - 1)
+#define COL_MIN_DEPTH 0 /* "min NNNN ft" right-aligned in sidebar */
 
 /*** General index values ***/
 

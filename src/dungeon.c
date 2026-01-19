@@ -2471,13 +2471,17 @@ static void process_player(void)
         }
     }
 
+    // Increment turn counter.
     playerturn++;
 
+    // Update minimum depth.
     depth_counter_increment = 85 - (playerturn / 850);
     depth_counter_increment += 3 * (p_ptr->depth - min_depth());
-
+    int old_min_depth = min_depth();
     min_depth_counter
         += depth_counter_increment > 0 ? depth_counter_increment : 0;
+    if (min_depth() != old_min_depth)
+        p_ptr->redraw |= (PR_DEPTH);
 
     /* Window stuff */
 
