@@ -1126,7 +1126,7 @@ static bool do_cmd_disarm_chest(s16b o_idx)
         msg_print("The chest is not trapped.");
     }
 
-    /* Success (get a lot of experience) */
+    /* Success */
     else if (result > 0)
     {
         msg_print("You have disarmed the chest.");
