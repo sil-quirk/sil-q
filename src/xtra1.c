@@ -527,11 +527,13 @@ static void prt_song(void)
 }
 
 /*
- * Prints depth in stat area
+ * Prints depth, min depth, and turn counter in stat area
  */
 static void prt_depth(void)
 {
-    char depths[32];
+    // 48 is sufficient for "1000 ft (min 1000 ft) turn 2147483647\0",
+    // which should be the longest string to be stored in the array.
+    char depths[48];
     s16b attr = TERM_WHITE;
 
     if (!p_ptr->depth)
@@ -540,7 +542,20 @@ static void prt_depth(void)
     }
     else
     {
-        sprintf(depths, "%d ft", p_ptr->depth * 50);
+        int cur_depth_ft = p_ptr->depth * 50;
+        int min_depth_ft = min_depth() * 50;
+        // Guard against turn counter overflows.
+        int playerturn_shown = playerturn < 0 ? INT32_MAX : playerturn;
+        if (show_turn_counter)
+        {
+            strnfmt(depths, sizeof(depths), "%d ft (min %d ft) turn %d",
+                cur_depth_ft, min_depth_ft, playerturn_shown);
+        }
+        else
+        {
+            strnfmt(depths, sizeof(depths), "%d ft (min %d ft)", cur_depth_ft,
+                min_depth_ft);
+        }
     }
 
     /* Get color of level based on feeling  -JSV- */
@@ -570,7 +585,7 @@ static void prt_depth(void)
             attr = TERM_BLUE;
     }
 
-    /* Right-Adjust the "depth", and clear old values */
+    /* Right-adjust the output, and clear old values. */
     c_prt(attr, format("%7s", depths), ROW_DEPTH, COL_DEPTH);
 }
 
@@ -2549,7 +2564,7 @@ static void calc_bonuses(void)
     if (p_ptr->active_ability[S_WIL][WIL_OATH])
     {
         if (chosen_oath(OATH_IRON) && !oath_invalid(OATH_IRON))
-            p_ptr->stat_misc_mod[A_CON]+=2;
+            p_ptr->stat_misc_mod[A_CON] += 2;
         else if (chosen_oath(OATH_SILENCE) && !oath_invalid(OATH_SILENCE))
             p_ptr->stat_misc_mod[A_STR]++;
         else if (chosen_oath(OATH_MERCY) && !oath_invalid(OATH_MERCY))

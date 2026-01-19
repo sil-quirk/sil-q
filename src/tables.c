@@ -333,7 +333,7 @@ cptr option_text[OPT_MAX] = {
     NULL, /* xxx verify_leave_quests*/
     NULL, /* xxx mark_squelch_items */
     "display_hits", /* OPT_display_hits */
-    NULL, /* xxx */
+    "show_turn_counter", /* OPT_show_turn_counter */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -594,7 +594,7 @@ cptr option_desc[OPT_MAX] = {
     NULL, /* xxx verify_leave_quest */
     NULL, /* xxx mark_squelch_items */
     "Display a mark when something gets hit", /* OPT_display_hits */
-    NULL, /* xxx */
+    "Display turn counter (forces screen redraw)", /* OPT_show_turn_counter */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -855,7 +855,7 @@ const bool option_norm[OPT_MAX] = {
     FALSE, /* xxx verify_quest_leave */
     FALSE, /* xxx mark_squelch_items */
     TRUE, /* OPT_display_hits */
-    FALSE, /* OPT_display_wakings */
+    FALSE, /* OPT_show_turn_counter */
     FALSE, /* xxx */
     FALSE, /* xxx */
     FALSE, /* xxx */
@@ -1067,11 +1067,11 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
 
     /*** Display ***/
 
-    { OPT_display_hits, OPT_auto_display_lists, OPT_instant_run,
-        OPT_center_player, OPT_run_avoid_center, OPT_hilite_player,
-        OPT_hilite_target, OPT_hilite_unwary, OPT_solid_walls, OPT_hybrid_walls,
-        OPT_delay_factor, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
+    { OPT_display_hits, OPT_show_turn_counter, OPT_auto_display_lists,
+        OPT_instant_run, OPT_center_player, OPT_run_avoid_center,
+        OPT_hilite_player, OPT_hilite_target, OPT_hilite_unwary,
+        OPT_solid_walls, OPT_hybrid_walls, OPT_delay_factor, OPT_NONE, OPT_NONE,
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Birth ***/
 

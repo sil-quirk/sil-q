@@ -2473,11 +2473,19 @@ static void process_player(void)
 
     playerturn++;
 
+    /* Redraw depth display if turn counter is shown, otherwise the turn counter
+     * information will become stale (i.e., not update in the UI) until the
+     * user manually forces a screen redraw with `Ctrl-r`. */
+    if (show_turn_counter)
+    {
+        p_ptr->redraw |= (PR_DEPTH);
+    }
+
     depth_counter_increment = 85 - (playerturn / 850);
     depth_counter_increment += 3 * (p_ptr->depth - min_depth());
 
-    min_depth_counter += depth_counter_increment > 0 ?
-        depth_counter_increment : 0;
+    min_depth_counter
+        += depth_counter_increment > 0 ? depth_counter_increment : 0;
 
     /* Window stuff */
 
