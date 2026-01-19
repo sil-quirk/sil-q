@@ -3099,7 +3099,6 @@ void do_cmd_alter(void)
     /* Search a skeleton */
     else if (skeleton_present)
     {
-        /* Disarm */
         do_cmd_search_skeleton(y, x, cave_o_idx[y][x]);
     }
 
