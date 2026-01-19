@@ -2446,19 +2446,30 @@ errr parse_v_info(char* buf, header* head)
     /* Process 'X' for "Extra info" (one line only) */
     else if (buf[0] == 'X')
     {
-        int typ, depth, rarity;
+        int typ, depth, rarity, max_depth;
+        int num_scanned;
 
         /* There better be a current v_ptr */
         if (!v_ptr)
             return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
-        /* Scan for the values */
-        if (3 != sscanf(buf + 2, "%d:%d:%d", &typ, &depth, &rarity))
+        /* Try to scan for 4 values (with max_depth) */
+        num_scanned = sscanf(buf + 2, "%d:%d:%d:%d", &typ, &depth, &rarity, &max_depth);
+
+        /* If that fails, try scanning for 3 values (backward compatibility) */
+        if (num_scanned == 3)
+        {
+            max_depth = 0; /* 0 = no maximum depth limit */
+        }
+        else if (num_scanned != 4)
+        {
             return (PARSE_ERROR_GENERIC);
+        }
 
         /* Save the values */
         v_ptr->typ = typ;
         v_ptr->depth = depth;
+        v_ptr->max_depth = max_depth;
         v_ptr->rarity = rarity;
         v_ptr->hgt = 0;
         v_ptr->wid = 0;

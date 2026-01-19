@@ -4381,6 +4381,7 @@ static bool gv_level_roll_allows(int depth, int *out_candidates)
         if (v_ptr->typ != 8) continue;
         if (v_ptr->flags & VLT_QUEST) continue;
         if (v_ptr->depth > depth) continue;
+        if (v_ptr->max_depth != 0 && depth > v_ptr->max_depth) continue;
 
         /* Skip already-used greater vaults to mirror build_type8 checks */
         bool repeated = false;
@@ -12187,6 +12188,7 @@ static bool build_type6(int y0, int x0, bool force_forge)
 
         /* Accept the first interesting room (but not quest vaults) */
         if ((v_ptr->typ == 6) && (v_ptr->depth <= p_ptr->depth)
+            && (v_ptr->max_depth == 0 || p_ptr->depth <= v_ptr->max_depth)
             && (one_in_(rarity)) && !(v_ptr->flags & VLT_QUEST))
             break;
 
@@ -12233,6 +12235,7 @@ static bool build_type7(int y0, int x0)
 
         /* Accept the first lesser vault (but not quest vaults) */
         if ((v_ptr->typ == 7) && (v_ptr->depth <= p_ptr->depth)
+            && (v_ptr->max_depth == 0 || p_ptr->depth <= v_ptr->max_depth)
             && (one_in_(v_ptr->rarity)) && !(v_ptr->flags & VLT_QUEST))
             break;
 
@@ -12324,6 +12327,7 @@ static bool build_type8(int y0, int x0)
 
         /* Accept the first greater vault (but not quest vaults) */
         if ((v_ptr->typ == 8) && (v_ptr->depth <= p_ptr->depth)
+            && (v_ptr->max_depth == 0 || p_ptr->depth <= v_ptr->max_depth)
             && (one_in_(v_ptr->rarity)) && !(v_ptr->flags & VLT_QUEST))
         {
             repeated = false;
@@ -12937,7 +12941,8 @@ static bool place_duruin_bastion(void)
         if (!(qv_ptr->flags & VLT_QUEST)) continue;
         if (!vault_template_has_duruin(qv_ptr)) continue;
         if (qv_ptr->depth > p_ptr->depth) continue;
-        
+        if (qv_ptr->max_depth != 0 && p_ptr->depth > qv_ptr->max_depth) continue;
+
         /* Found Duruin Bastion - attempt placement and return result */
         log_trace("Varda quest: Found Duruin Bastion vault at index %d: '%s', attempting placement", i, v_name + qv_ptr->name);
         log_trace("Varda quest: Vault details - typ=%d, hgt=%d, wid=%d, depth=%d, flags=0x%x", 
@@ -13008,6 +13013,7 @@ static bool try_quest_vault_type(int v_type)
         if (qv_ptr->typ != v_type) continue;
         if (!(qv_ptr->flags & VLT_QUEST)) continue;
         if (qv_ptr->depth > p_ptr->depth) continue;
+        if (qv_ptr->max_depth != 0 && p_ptr->depth > qv_ptr->max_depth) continue;
         if (vault_template_has_duruin(qv_ptr)) {
             log_trace("Quest vault: Skipping Duruin Bastion in generic placement path (quest-only)");
             continue;

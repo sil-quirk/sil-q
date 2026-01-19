@@ -900,6 +900,9 @@ def cmd_render(args: argparse.Namespace) -> int:
     out_dir = Path(args.out_dir) if args.out_dir else DEFAULT_OUT_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    # Add a --force flag to allow re-rendering everything when requested.
+    force = getattr(args, "force", False)
+
     for vault in selected_vaults:
         style_ids = _select_styles(
             args.styles or [],
@@ -908,6 +911,22 @@ def cmd_render(args: argparse.Namespace) -> int:
             level_rules=level_rules,
             depth_hint=args.depth,
         )
+
+        vault_slug = f"{vault.serial:03d}_{_slugify(vault.name)}"
+        vault_dir = out_dir / vault_slug
+        # If the vault directory exists and --force is not set, skip styles that already exist.
+        if vault_dir.exists() and not force:
+            existing_files = [p.name for p in vault_dir.iterdir() if p.is_file()]
+            existing_style_prefixes = {f"style{int(p.split("_")[0][5:]):02d}_" for p in existing_files if p.startswith("style") and "_" in p}
+            missing_style_ids = [sid for sid in style_ids if f"style{sid:02d}_" not in existing_style_prefixes]
+            if not missing_style_ids:
+                if not args.quiet:
+                    print(f"Skipping {vault_slug} (all styles present)")
+                continue
+            style_ids = missing_style_ids
+        else:
+            vault_dir.mkdir(parents=True, exist_ok=True)
+
         for style_id in style_ids:
             style = styles[style_id]
             image = render_vault_png(
@@ -923,11 +942,8 @@ def cmd_render(args: argparse.Namespace) -> int:
                 grid=args.grid,
                 font_path=Path(args.font) if args.font else None,
             )
-            vault_slug = f"{vault.serial:03d}_{_slugify(vault.name)}"
+
             style_slug = f"style{style.idx:02d}_{_slugify(style.name, max_len=32)}"
-            # Save each vault's images into its own subdirectory named after the vault slug
-            vault_dir = out_dir / vault_slug
-            vault_dir.mkdir(parents=True, exist_ok=True)
             out_path = vault_dir / f"{style_slug}.png"
             image.save(out_path)
             if not args.quiet:
@@ -1077,6 +1093,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     render_p.add_argument("--grid", action="store_true", help="Draw a faint grid between tiles")
     render_p.add_argument("--quiet", action="store_true", help="Suppress per-file output")
+    render_p.add_argument("--force", action="store_true", help="Re-render existing styles (overwrite)")
     render_p.set_defaults(func=cmd_render)
 
     sheet_p = sub.add_parser("sheet", help="Render a single vault across many styles into one PNG")

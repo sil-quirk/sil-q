@@ -497,6 +497,8 @@ struct vault_type
 
     byte depth; /* Vault rating */
 
+    byte max_depth; /* Maximum depth (0 = no limit) */
+
     byte rarity; /* Vault rarity */
 
     byte hgt; /* Vault height */
