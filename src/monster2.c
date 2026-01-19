@@ -1659,7 +1659,7 @@ void update_mon(int m_idx, bool full)
     for (int i = 0; i < RAND_DEG; i++)
     {
         tmp_rand_state[i] = Rand_state[i];
-        Rand_state[i] = playerturn * i * 15485863; // large prime
+        Rand_state[i] = (u32b)playerturn * i * 15485863UL; // large prime
     }
 
     listen(m_ptr);
