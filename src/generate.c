@@ -2138,7 +2138,17 @@ static bool build_type2(int y0, int x0)
 
     int light = FALSE;
 
-    /* Occasional light - always at level 1 through to never at Morgoth's level
+    /* Occasional light.
+     * Almost always (95%) at level 1 through to never (0%) at Morgoth's level.
+     *
+     * Dungeon level (depth)   Chance
+     * ------------------------------
+     *   1  -   50ft             95%
+     *   2  -  100ft             90%
+     *   3  -  150ft             85%
+     *  ...                      ...
+     *  19  -  950ft              5%
+     *  20  - 1000ft              0%
      */
     if (p_ptr->depth < dieroll(MORGOTH_DEPTH))
         light = TRUE;
