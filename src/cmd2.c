@@ -723,14 +723,11 @@ static void chest_death(int y, int x, s16b o_idx)
  * Exploding chest destroys contents (and traps).
  * Note that the chest itself is never destroyed.
  */
-static void chest_trap(int y, int x, s16b o_idx)
+static void chest_trap(s16b o_idx)
 {
     int trap, dam;
 
     object_type* o_ptr = &o_list[o_idx];
-
-    (void)x; // casting to soothe compilation warnings
-    (void)y;
 
     /* Ignore disarmed chests */
     if (o_ptr->pval <= 0)
@@ -1063,7 +1060,7 @@ static bool do_cmd_open_chest(int y, int x, s16b o_idx)
     if (flag)
     {
         /* Apply chest traps, if any */
-        chest_trap(y, x, o_idx);
+        chest_trap(o_idx);
 
         /* Let the Chest drop items */
         chest_death(y, x, o_idx);
@@ -1081,13 +1078,11 @@ static bool do_cmd_open_chest(int y, int x, s16b o_idx)
 }
 
 /*
- * Attempt to disarm the chest at the given location
+ * Attempt to disarm the chest.
  *
- * Assume there is no monster blocking the destination
- *
- * Returns TRUE if repeated commands may continue
+ * Returns TRUE if repeated commands may continue.
  */
-static bool do_cmd_disarm_chest(int y, int x, s16b o_idx)
+static bool do_cmd_disarm_chest(s16b o_idx)
 {
     int score, power, difficulty, result;
 
@@ -1131,7 +1126,7 @@ static bool do_cmd_disarm_chest(int y, int x, s16b o_idx)
         msg_print("The chest is not trapped.");
     }
 
-    /* Success (get a lot of experience) */
+    /* Success */
     else if (result > 0)
     {
         msg_print("You have disarmed the chest.");
@@ -1151,7 +1146,7 @@ static bool do_cmd_disarm_chest(int y, int x, s16b o_idx)
     else
     {
         msg_print("You set off a trap!");
-        chest_trap(y, x, o_idx);
+        chest_trap(o_idx);
     }
 
     /* Result */
@@ -2713,7 +2708,7 @@ void do_cmd_disarm(void)
     else if (o_idx)
     {
         /* Disarm the chest */
-        more = do_cmd_disarm_chest(y, x, o_idx);
+        more = do_cmd_disarm_chest(o_idx);
     }
 
     /* Disarm trap */
@@ -3086,7 +3081,7 @@ void do_cmd_alter(void)
     else if (chest_trap)
     {
         /* Disarm */
-        more = do_cmd_disarm_chest(y, x, cave_o_idx[y][x]);
+        more = do_cmd_disarm_chest(cave_o_idx[y][x]);
     }
 
     /* Open chest with no known traps */
@@ -3099,7 +3094,6 @@ void do_cmd_alter(void)
     /* Search a skeleton */
     else if (skeleton_present)
     {
-        /* Disarm */
         do_cmd_search_skeleton(y, x, cave_o_idx[y][x]);
     }
 

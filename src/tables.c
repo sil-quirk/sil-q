@@ -124,25 +124,65 @@ const byte extract_energy[8] = {
 };
 
 /*
- * Each chest has a certain set of traps, determined by pval
- * Each chest has a "pval" from 1 to the chest level (max 55)
- * If the "pval" is negative then the trap has been disarmed
- * The "pval" of a chest determines the quality of its treasure
- * Note that disarming a trap on a chest also removes the lock.
+ * Each chest has a certain set of traps, determined by its `pval`.
+ *
+ * `pval` has the following meanings:
+ *
+ * - 0: Chest is empty, but neither locked nor trapped. (It may have been locked
+ *   before, but has since been unlocked.)
+ * - 1..25: Chest level.
+ *          - Every such chest is locked and has treasure.
+ *          - Depending on the value of `chest_traps[pval]`, the locked chest
+ *            may also be trapped.
+ *          - If `chest_traps[pval] == 0`, then the chest has no traps at this
+ *            chest level.
+ *          - The higher the chest level, the better the treasure quality, the
+ *            more difficult it is to pick the chest's lock, and the more
+ *            difficult it is to disarm the chest's trap if it has any.
+ *          - The maximum chest level is 25, which is coupled with the array
+ *            size of `chest_traps[]`. To prevent out-of-bounds access, you must
+ *            never use a value larger than 25.
+ *          - The player can attempt to open (`o`) the chest to pick its lock,
+ *            but this would trigger the chest's trap, if any. Alternatively,
+ *            the player can first attempt to disarm (`/`) a chest (and thus its
+ *            trap); on success, the trap is disarmed and simultaneously the
+ *            chest is unlocked, too.
+ * - Negative values: The chest's trap has been disarmed (see implementation
+ *   note below). Disarming a trap on a chest also removes its lock. A chest
+ *   should never spawn with a negative value for pval.
+ *
+ * Implementation note (as of commit 114541b): When a trap is disarmed, its
+ * original pval is negated to mark it as such. For example, disarming a trapped
+ * chest with pval=7 changes its pval to -7. This is done to remember the
+ * chest's original chest level even after it has been disarmed (but unclear
+ * if this information is meaningfully used in the code).
  */
-
 const byte chest_traps[25 + 1] = {
-    0, /* 0 == empty */
-    (CHEST_GAS_CONF), (CHEST_GAS_CONF), (CHEST_GAS_STUN), 0, (CHEST_GAS_STUN),
-    (CHEST_GAS_POISON), (CHEST_GAS_POISON), 0, (CHEST_NEEDLE_ENTRANCE),
-    (CHEST_NEEDLE_ENTRANCE), (CHEST_NEEDLE_HALLU), 0, (CHEST_NEEDLE_HALLU),
-    (CHEST_NEEDLE_LOSE_STR), (CHEST_NEEDLE_LOSE_STR), 0,
+    0, /* 0 == no trap at this chest level */
+    (CHEST_GAS_CONF),
+    (CHEST_GAS_CONF),
+    (CHEST_GAS_STUN),
+    0,
+    (CHEST_GAS_STUN),
+    (CHEST_GAS_POISON),
+    (CHEST_GAS_POISON),
+    0,
+    (CHEST_NEEDLE_ENTRANCE),
+    (CHEST_NEEDLE_ENTRANCE),
+    (CHEST_NEEDLE_HALLU),
+    0,
+    (CHEST_NEEDLE_HALLU),
+    (CHEST_NEEDLE_LOSE_STR),
+    (CHEST_NEEDLE_LOSE_STR),
+    0,
     (CHEST_GAS_CONF | CHEST_NEEDLE_HALLU),
     (CHEST_GAS_CONF | CHEST_NEEDLE_HALLU),
-    (CHEST_GAS_STUN | CHEST_NEEDLE_LOSE_STR), 0,
+    (CHEST_GAS_STUN | CHEST_NEEDLE_LOSE_STR),
+    0,
     (CHEST_GAS_STUN | CHEST_NEEDLE_LOSE_STR),
     (CHEST_GAS_POISON | CHEST_NEEDLE_ENTRANCE),
-    (CHEST_GAS_POISON | CHEST_NEEDLE_ENTRANCE), 0,
+    (CHEST_GAS_POISON | CHEST_NEEDLE_ENTRANCE),
+    0,
     (CHEST_GAS_POISON | CHEST_NEEDLE_ENTRANCE), /* 25 == best */
 };
 

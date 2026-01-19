@@ -2581,8 +2581,8 @@ void search_square(int y, int x, int dist, int searching)
     // determine if a trap is present
     for (o_ptr = get_first_object(y, x); o_ptr; o_ptr = get_next_object(o_ptr))
     {
-        if ((o_ptr->tval == TV_CHEST) && chest_traps[o_ptr->pval]
-            && !object_known_p(o_ptr))
+        if ((o_ptr->tval == TV_CHEST) && (o_ptr->pval > 0)
+            && chest_traps[o_ptr->pval] && !object_known_p(o_ptr))
         {
             chest_trap_present = TRUE;
             chest_level = o_ptr->pval;
