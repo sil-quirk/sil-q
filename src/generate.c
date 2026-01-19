@@ -4492,7 +4492,7 @@ static bool place_gv_in_partition(int y1, int y2, int x1, int x2, int *budget_t8
 /* Place a chest in a random floor location within partition bounds */
 static drop_profile drop_profile_for_mode(quadrant_mode_t mode);
 static void place_chest_in_partition(
-    int y1, int y2, int x1, int x2, bool wooden_only, bool force_large, quadrant_mode_t mode)
+    int y1, int y2, int x1, int x2, bool force_large, quadrant_mode_t mode)
 {
     int attempts = 0;
     int max_attempts = 100;
@@ -4505,7 +4505,6 @@ static void place_chest_in_partition(
         drop_set_chest_mode(0);  /* 50/50 default */
     
     /* Vault type is 0 for partitions (default 50/35/15 distribution) */
-    /* wooden_only param is deprecated but kept for compatibility */
     drop_set_chest_vault_type(0);
     
     while (attempts < max_attempts)
@@ -5105,7 +5104,7 @@ static void apply_quadrant_generation_modes(void)
                 
                 /* Place 1 chest in labyrinth partition ONLY if it actually carved */
                 if (carved)
-                    place_chest_in_partition(y1, y2, x1, x2, false, false, mode);
+                    place_chest_in_partition(y1, y2, x1, x2, false, mode);
             }
             break;
         case QUAD_MODE_CHASM:
@@ -5136,8 +5135,8 @@ static void apply_quadrant_generation_modes(void)
                 /* Place 2 guaranteed chests in chasm partition ONLY if it actually carved */
                 if (chasm_carved)
                 {
-                    place_chest_in_partition(y1, y2, x1, x2, false, false, mode);
-                    place_chest_in_partition(y1, y2, x1, x2, false, false, mode);
+                    place_chest_in_partition(y1, y2, x1, x2, false, mode);
+                    place_chest_in_partition(y1, y2, x1, x2, false, mode);
                 }
             }
             break;
@@ -5205,7 +5204,7 @@ static void apply_quadrant_generation_modes(void)
                                        &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
 
                 /* Guarantee a large chest in big caves (material varies) */
-                place_chest_in_partition(y1, y2, x1, x2, false, true, mode);
+                place_chest_in_partition(y1, y2, x1, x2, true, mode);
             }
             break;
         case QUAD_MODE_ROOMY:

@@ -1405,7 +1405,7 @@ Q:fef42b5664300761
 I:32:5:0
 W:8:12:15:45000
 P:0:0d0:0:1d3
-F:TRAITOR | LIGHT_CURSE
+F:TRAITOR | LIGHT_CURSE | OATH_NEGATE
 B:5/8
 D:A helm wrought of grey metal and the dull bones of some forgotten
 D: orc who once raised his blade against his master.

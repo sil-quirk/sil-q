@@ -1981,7 +1981,8 @@
 #define TR3_DIF_ID 0x00000200L /* Item is harder to identify (+7 to ID cost) */
 #define TR3_TR3XXX9 0x00000400L /* Oath boost (doubles oath rewards; +1 light if oathless) */
 #define TR3_OATH_BOOST TR3_TR3XXX9
-#define TR3_TR3XX10 0x00000800L /* xxx */
+#define TR3_TR3XX10 0x00000800L /* Negates oath bonuses (even in inventory) */
+#define TR3_OATH_NEGATE TR3_TR3XX10
 #define TR3_NO_SMITHING 0x00001000L /* Item cannot be made with smithing */
 #define TR3_MITHRIL 0x00002000L /* Item made out of mithril */
 #define TR3_AXE 0x00004000L /* Item counts as an axe */

@@ -774,6 +774,8 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3)
         bad[bc++] = "draws wraiths to your level";
     if (f2 & (TR2_TRAITOR))
         bad[bc++] = "may betray you when you need it most";
+    if (f3 & (TR3_OATH_NEGATE))
+        bad[bc++] = "negates your oath bonuses (even when in inventory)";
 
     /* Deal with cursed stuff */
     if (cursed_p(o_ptr))

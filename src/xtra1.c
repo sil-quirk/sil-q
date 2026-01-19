@@ -2344,6 +2344,22 @@ static bool player_has_equipped_flag3(u32b flag3)
     return false;
 }
 
+static bool player_has_inventory_flag3(u32b flag3)
+{
+    /* Check entire inventory (pack + equipment) */
+    for (int i = 0; i < INVEN_TOTAL; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+        if (!o_ptr->k_idx) continue;
+
+        u32b f1, f2, f3;
+        object_flags(o_ptr, &f1, &f2, &f3);
+        if (f3 & flag3) return true;
+    }
+
+    return false;
+}
+
 static int oath_special_ability_from_oath_num(int oath_num)
 {
     switch (oath_num)
@@ -2385,9 +2401,10 @@ void calc_torch(void)
     /* Store old value */
     old_light = p_ptr->cur_light;
 
+    bool has_oath_negate = player_has_inventory_flag3(TR3_OATH_NEGATE);
     has_oath_boost = player_has_equipped_flag3(TR3_OATH_BOOST);
     has_active_oath = player_has_active_oath();
-    oath_reward_mult = (has_oath_boost && has_active_oath) ? 2 : 1;
+    oath_reward_mult = has_oath_negate ? 0 : ((has_oath_boost && has_active_oath) ? 2 : 1);
 
     /* Assume no light */
     p_ptr->cur_light = 0;
@@ -3322,33 +3339,39 @@ static void calc_bonuses(void)
 
     /* Oath bonuses (granted by special oath abilities, disabled if oath is broken) */
     /* Apply dynamic oath bonuses based on oath.txt data */
+    const bool has_oath_negate = player_has_inventory_flag3(TR3_OATH_NEGATE);
     const bool has_oath_boost = player_has_equipped_flag3(TR3_OATH_BOOST);
-    for (int oath_idx = 0; oath_idx < z_info->oath_max; oath_idx++)
-    {
-        oath_type *oath_ptr = &oath_info[oath_idx];
-        
-        /* Check if player has this oath and it's not broken */
-        if (oath_ptr->oath_num >= OATH_MERCY && oath_ptr->oath_num <= OATH_LIGHT)
-        {
-            int special_ability = oath_special_ability_from_oath_num(oath_ptr->oath_num);
-            
-            /* Apply bonuses if player has oath and it's not broken */
-            if (special_ability >= 0 && 
-                p_ptr->active_ability[S_SPC][special_ability] && 
-                !oath_invalid(oath_ptr->oath_num))
-            {
-                int bonus_mult = (has_oath_boost && oath_ptr->oath_num == p_ptr->oath_type) ? 2 : 1;
 
-                /* Apply stat bonuses */
-                p_ptr->stat_misc_mod[A_STR] += oath_ptr->stat_bonuses[0] * bonus_mult;
-                p_ptr->stat_misc_mod[A_DEX] += oath_ptr->stat_bonuses[1] * bonus_mult;
-                p_ptr->stat_misc_mod[A_CON] += oath_ptr->stat_bonuses[2] * bonus_mult;
-                p_ptr->stat_misc_mod[A_GRA] += oath_ptr->stat_bonuses[3] * bonus_mult;
-                
-                /* Apply skill bonuses */
-                if (oath_ptr->skill_type > 0 && oath_ptr->skill_type < S_MAX)
+    /* Only apply oath bonuses if not negated */
+    if (!has_oath_negate)
+    {
+        for (int oath_idx = 0; oath_idx < z_info->oath_max; oath_idx++)
+        {
+            oath_type *oath_ptr = &oath_info[oath_idx];
+
+            /* Check if player has this oath and it's not broken */
+            if (oath_ptr->oath_num >= OATH_MERCY && oath_ptr->oath_num <= OATH_LIGHT)
+            {
+                int special_ability = oath_special_ability_from_oath_num(oath_ptr->oath_num);
+
+                /* Apply bonuses if player has oath and it's not broken */
+                if (special_ability >= 0 &&
+                    p_ptr->active_ability[S_SPC][special_ability] &&
+                    !oath_invalid(oath_ptr->oath_num))
                 {
-                    p_ptr->skill_misc_mod[oath_ptr->skill_type] += oath_ptr->skill_bonus * bonus_mult;
+                    int bonus_mult = (has_oath_boost && oath_ptr->oath_num == p_ptr->oath_type) ? 2 : 1;
+
+                    /* Apply stat bonuses */
+                    p_ptr->stat_misc_mod[A_STR] += oath_ptr->stat_bonuses[0] * bonus_mult;
+                    p_ptr->stat_misc_mod[A_DEX] += oath_ptr->stat_bonuses[1] * bonus_mult;
+                    p_ptr->stat_misc_mod[A_CON] += oath_ptr->stat_bonuses[2] * bonus_mult;
+                    p_ptr->stat_misc_mod[A_GRA] += oath_ptr->stat_bonuses[3] * bonus_mult;
+
+                    /* Apply skill bonuses */
+                    if (oath_ptr->skill_type > 0 && oath_ptr->skill_type < S_MAX)
+                    {
+                        p_ptr->skill_misc_mod[oath_ptr->skill_type] += oath_ptr->skill_bonus * bonus_mult;
+                    }
                 }
             }
         }
