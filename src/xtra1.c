@@ -678,7 +678,7 @@ static void prt_cut(void)
 
     put_str("            ", ROW_CUT - 1, COL_CUT);
 
-    if (c > 100)
+    if (c >= 100)
     {
         c_put_str(TERM_RED, "Mortal wound", r, COL_CUT);
     }
