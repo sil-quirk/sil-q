@@ -263,7 +263,7 @@ Fixed:
 
 - many compilation warnings cleaned up
 
-## Sil-Q 1.4.0 (2018-06-27)
+## Sil-Q 1.4.0 (2018-06-27) - initial release of Sil-Q after forking from Sil
 
 - broke savefile compatibility
 
@@ -390,7 +390,7 @@ Fixed:
     - song of oaths (ebering-sil?)
     - typos and textual misdirections
 
-## Sil 1.3.0 (2017-10-02, initial import of Sil sources)
+## Sil 1.3.0 (2016-01-03)
 
 - broke savefile compatibility
   - sorry about this
@@ -447,7 +447,7 @@ Fixed:
     - crash on startup
     - requiring admin password sometimes when opening saved games
 
-## Sil 1.2.1
+## Sil 1.2.1 (release date unknown)
 
 - monster songs
   - made Morgoth's Song of Piercing a bit easier to resist (+5 bonus)
@@ -514,7 +514,7 @@ Fixed:
   - monsters that are frozen by song of mastery no longer get free attacks of any kind
   - can now automatically identify the Ring of Barahir (and perhaps others) by the Ability it grants
 
-## Sil 1.2.0
+## Sil 1.2.0 (release date unknown)
 
 - broke savefile compatibility
   - sorry about this
@@ -814,7 +814,7 @@ Fixed:
   - off-hand weapon weight was counting for heavy armour use (via mpa-sil)
   - Feanorian lamps and lesser jewels granting brightness now auto-identify properly
 
-## Sil 1.1.1
+## Sil 1.1.1 (release date unknown)
 
 - abilities
   - Stun has been removed
@@ -929,7 +929,7 @@ Fixed:
   - linux version
     - changing the fonts or gamma in the silx file should now work properly in X11
 
-## Sil 1.1.0
+## Sil 1.1.0 (release date unknown)
 
 - broke savefile compatibility
 
@@ -1207,7 +1207,7 @@ Fixed:
   - thanks also go to our wonderful beta test team
     - I have no idea how they played so many games so quickly
 
-## Sil 1.0.2
+## Sil 1.0.2 (release date unknown)
 
 - linux version
   - X11, GCU & CAP should work now
@@ -1310,7 +1310,7 @@ Fixed:
 - misc
   - interacting with your own square when there is nothing there no longer takes a turn
 
-## Sil 1.0.1
+## Sil 1.0.1 (release date unknown)
 
 - interface
   - corrected the keypad in the (?) screen
@@ -1380,3 +1380,7 @@ Fixed:
     - but it goes up the more you use the stairs in quick succession
     - attempts to stairscum will quickly lead to being injured on a level with no escape
     - we think this is pretty difficult to abuse..
+
+## Sil 1.0.0 (2012-01-03)
+
+See [early-changes.txt](early-changes.txt).
