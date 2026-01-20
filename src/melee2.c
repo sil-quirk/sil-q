@@ -1573,8 +1573,8 @@ static bool get_move_retreat(monster_type* m_ptr, int* ty, int* tx)
 
         // Compute score of the monster's current square.
         // Reward distance from player
-        int m_current_score =
-            distance_squared(m_ptr->fy, m_ptr->fx, p_ptr->py, p_ptr->px);
+        int m_current_score
+            = distance_squared(m_ptr->fy, m_ptr->fx, p_ptr->py, p_ptr->px);
         // Reward if the monster is already in a good ranged attack spot, where
         // "good" means:
         // 1. Can shoot at player from its current square (clear line of fire)
@@ -1643,10 +1643,11 @@ static bool get_move_retreat(monster_type* m_ptr, int* ty, int* tx)
 
             if (score > best_score)
             {
+                // Success! We found a non-adjacent square for the monster to
+                // retreat to that has a better score than its current square.
                 best_score = score;
                 best_y = y;
                 best_x = x;
-                // Not adjacent to the player, so it is acceptable.
                 acceptable = TRUE;
             }
         }
@@ -4417,7 +4418,7 @@ static void process_move(monster_type* m_ptr, int ty, int tx, bool bash)
 
             /* Scan all objects in the grid */
             for (this_o_idx = cave_o_idx[ny][nx]; this_o_idx;
-                 this_o_idx = next_o_idx)
+                this_o_idx = next_o_idx)
             {
                 object_type* o_ptr;
 
@@ -4867,7 +4868,7 @@ static void process_monster(monster_type* m_ptr)
     {
         int player_skill = damroll(2, 8) + ability_bonus(S_SNG, SNG_MASTERY);
         int enemy_skill = damroll(2, 10) + monster_skill(m_ptr, S_WIL)
-                    + flow_dist(FLOW_PLAYER_NOISE, m_ptr->fy, m_ptr->fx);
+            + flow_dist(FLOW_PLAYER_NOISE, m_ptr->fy, m_ptr->fx);
 
         if (skill_check(PLAYER, player_skill, enemy_skill, m_ptr) > 0)
         {
@@ -5607,7 +5608,7 @@ void calc_morale(monster_type* m_ptr)
     if (!(r_ptr->flags1 & (RF1_UNIQUE)))
     {
         for (this_o_idx = m_ptr->hold_o_idx; this_o_idx;
-             this_o_idx = next_o_idx)
+            this_o_idx = next_o_idx)
         {
             object_type* o_ptr;
 
