@@ -221,6 +221,7 @@ static void sdl_window_set_position(int x, int y);
 static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, int font_size, int scale, int margin);
 static void sdl_load_story_fonts(void);
 static TTF_Font* sdl_load_font_with_fallback(const char* font_path, int font_size, const char* fallback_path);
+static void sdl_handle_renderer_reset(void);
 
 static sdl_view* sdl_view_from_term(term* t)
 {
@@ -1396,6 +1397,63 @@ void resize(const SDL_Rect* screen)
     g_state.need_present = true;
 }
 
+/*
+ * Handle renderer device/targets reset.
+ * This can happen on NVIDIA when switching fullscreen modes,
+ * when the driver resets, or after sleep/wake cycles.
+ * We need to recreate all render targets (canvas textures).
+ */
+static void sdl_handle_renderer_reset(void)
+{
+    // Recreate all view canvases
+    for (int i = 0; i < MAX_TERM_DATA; i++) {
+        sdl_view* view = &g_views[i];
+        if (!view->term_ready)
+            continue;
+
+        // Destroy old canvas
+        if (view->canvas) {
+            SDL_DestroyTexture(view->canvas);
+            view->canvas = NULL;
+        }
+
+        // Recreate canvas texture
+        view->canvas = SDL_CreateTexture(g_state.renderer, SDL_PIXELFORMAT_RGBA8888,
+                                         SDL_TEXTUREACCESS_TARGET,
+                                         view->cols * view->cell_w,
+                                         view->rows * view->cell_h);
+        if (view->canvas) {
+            SDL_SetTextureBlendMode(view->canvas, SDL_BLENDMODE_NONE);
+            SDL_SetTextureScaleMode(view->canvas, SDL_SCALEMODE_NEAREST);
+            SDL_SetRenderTarget(g_state.renderer, view->canvas);
+            SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+            SDL_RenderClear(g_state.renderer);
+        } else {
+            log_error("Failed to recreate canvas for view %d: %s", i, SDL_GetError());
+        }
+    }
+
+    // Recreate tileset if using tiles
+    if (g_state.use_tiles && g_state.tileset) {
+        SDL_DestroyTexture(g_state.tileset);
+        g_state.tileset = NULL;
+
+        SDL_Surface* ts = IMG_Load("lib/xtra/graf/16x16.png");
+        if (ts) {
+            g_state.tileset = SDL_CreateTextureFromSurface(g_state.renderer, ts);
+            if (g_state.tileset) {
+                SDL_SetTextureScaleMode(g_state.tileset, SDL_SCALEMODE_NEAREST);
+                SDL_SetTextureBlendMode(g_state.tileset, SDL_BLENDMODE_BLEND);
+            }
+            SDL_DestroySurface(ts);
+        }
+    }
+
+    // Force a full redraw
+    g_state.need_present = true;
+    Term_redraw();
+}
+
 static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
 {
     (void)st;
@@ -1586,6 +1644,20 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
             log_debug("window size in pixels %dx%d", window.w, window.h);
             resize(&window);
         }
+    }
+    // Handle GPU reset events (commonly triggered by NVIDIA drivers on mode switches,
+    // driver updates, or sleep/wake cycles)
+    else if (ev->type == SDL_EVENT_RENDER_DEVICE_RESET ||
+             ev->type == SDL_EVENT_RENDER_TARGETS_RESET) {
+        log_warn("Renderer device/targets reset detected - recreating textures");
+        sdl_handle_renderer_reset();
+    }
+    // Handle window restored (after minimize/alt-tab on some systems)
+    else if (ev->type == SDL_EVENT_WINDOW_RESTORED ||
+             ev->type == SDL_EVENT_WINDOW_EXPOSED) {
+        log_debug("Window restored/exposed - forcing redraw");
+        g_state.need_present = true;
+        Term_redraw();
     }
 }
 
@@ -2271,6 +2343,13 @@ static void sdl_window_create(int window_width, int window_height, bool fullscre
         quit("could not create SDL window");
     }
 
+    // Enable V-SYNC for consistent frame timing across GPU vendors.
+    // Without V-SYNC, NVIDIA drivers may buffer commands and return immediately
+    // from SDL_RenderPresent(), causing timing-dependent rendering issues.
+    if (!SDL_SetRenderVSync(g_state.renderer, 1)) {
+        log_warn("Failed to enable V-SYNC: %s", SDL_GetError());
+    }
+
     if (fullscreen)
         SDL_HideCursor();
 
@@ -2891,7 +2970,58 @@ bool get_sdl_fullscreen(void)
 
 void set_sdl_fullscreen(bool value)
 {
+    if (config.fullscreen == value)
+        return;
+
     config.fullscreen = value;
+
+    // Apply fullscreen change immediately if window exists
+    if (g_state.window) {
+        if (value) {
+            // Going to fullscreen - save current windowed position/size for later restoration
+            SDL_GetWindowPosition(g_state.window, &config.window_x, &config.window_y);
+            SDL_GetWindowSize(g_state.window, &config.window_width, &config.window_height);
+            log_debug("Saving windowed position (%d, %d) and size (%dx%d) before fullscreen",
+                     config.window_x, config.window_y, config.window_width, config.window_height);
+
+            if (!SDL_SetWindowFullscreen(g_state.window, true)) {
+                log_error("Failed to enter fullscreen: %s", SDL_GetError());
+                config.fullscreen = false; // Revert on failure
+                return;
+            }
+            SDL_HideCursor();
+            log_info("Entered fullscreen mode");
+        } else {
+            // Going to windowed
+            if (!SDL_SetWindowFullscreen(g_state.window, false)) {
+                log_error("Failed to exit fullscreen: %s", SDL_GetError());
+                config.fullscreen = true; // Revert on failure
+                return;
+            }
+            SDL_ShowCursor();
+
+            // Restore saved window position and size
+            if (config.window_width > 0 && config.window_height > 0) {
+                SDL_SetWindowSize(g_state.window, config.window_width, config.window_height);
+                if (config.window_x >= 0 && config.window_y >= 0) {
+                    SDL_SetWindowPosition(g_state.window, config.window_x, config.window_y);
+                }
+                log_debug("Restored windowed position (%d, %d) and size (%dx%d)",
+                         config.window_x, config.window_y, config.window_width, config.window_height);
+            }
+            log_info("Exited fullscreen mode");
+        }
+
+        // Force a resize event to recalculate layouts
+        SDL_Rect window = { 0 };
+        SDL_GetWindowSizeInPixels(g_state.window, &window.w, &window.h);
+        sdl_load_story_fonts();
+        resize(&window);
+
+        // Redraw everything
+        g_state.need_present = true;
+        Term_redraw();
+    }
 }
 
 bool get_sdl_tiles(void)
