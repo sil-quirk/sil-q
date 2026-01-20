@@ -1,3 +1,55 @@
+- Sil-Q 1.6.0 --------------------------------------------------------------------------------------------
+
+Added:
+
+- macOS: Support retina display
+  ([#96](https://github.com/sil-quirk/sil-q/pull/96))
+
+Changed:
+
+
+- Updates to tiles
+  ([8c9cd7c](https://github.com/sil-quirk/sil-q/commit/8c9cd7c))
+- Updates to 1.5.0 PDF manual
+  ([8c9cd7c](https://github.com/sil-quirk/sil-q/commit/8c9cd7c))
+
+Fixed:
+
+- fix: prevent signed integer overflow in update_mon()
+  ([#131](https://github.com/sil-quirk/sil-q/pull/131))
+- fix: docs for lightning chance for cross-shaped rooms
+  ([#129](https://github.com/sil-quirk/sil-q/pull/129))
+- fix: out-of-bounds access when searching disarmed chests
+  ([#128](https://github.com/sil-quirk/sil-q/pull/128))
+- fix: show "Mortal wound" if a player's cuts are >= 100
+  ([#126](https://github.com/sil-quirk/sil-q/pull/126))
+- fix: out-of-bounds access in get_move_wander()
+  ([#125](https://github.com/sil-quirk/sil-q/pull/125))
+- macOS: cap window sizes so do not exceed z-term's limits
+  ([#123](https://github.com/sil-quirk/sil-q/pull/123))
+- MicroChasm's tiles: correct two potion flavor assignments
+  ([#119])(https://github.com/sil-quirk/sil-q/pull/119)
+- Call make_patches_of_sunlight() after placing player
+  ([#114](https://github.com/sil-quirk/sil-q/pull/114))
+- Fix for riposte not being added to monster lore
+  ([beb980b](https://github.com/sil-quirk/sil-q/commit/beb980b))
+- Fix for skeletons and chests not being searchable in dark corridors
+  ([e81113f](https://github.com/sil-quirk/sil-q/commit/e81113fe4c906480d21bb97b275ac818e2a09796)
+- macOS: only allow changing the graphics mode while waiting for a game command
+  or while on the splash screen
+  ([#103](https://github.com/sil-quirk/sil-q/pull/103))
+- In smithing add flag or ability menus for artefacts, don't add invalid option
+  if valid option is highlighted and a letter is pressed for an invalid option
+  ([#102](https://github.com/sil-quirk/sil-q/pull/102))
+- Fix typos in the tutorial notes
+  ([#101](https://github.com/sil-quirk/sil-q/pull/101))
+- Update the tiles for macOS to match the current 16x16.bmp
+  ([#99](https://github.com/sil-quirk/sil-q/pull/99))
+- Mac: only allow saving from the menu bar when the core game is waiting for a
+  player command
+  ([#99](https://github.com/sil-quirk/sil-q/pull/98))
+
+
 - Sil-Q 1.5.0 --------------------------------------------------------------------------------------------
 
 - Mac support greatly improved thanks to backwardsEric
