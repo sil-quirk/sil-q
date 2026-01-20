@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   build:
-    name: Linux Build
+    name: Linux Build (Ubuntu Latest)
     runs-on: ubuntu-latest
     steps:
       - name: Clone project
@@ -34,7 +34,7 @@ jobs:
           make -f Makefile.std -j$(nproc)
 
   release-build:
-    name: Linux Release Build
+    name: Linux Release Build (Ubuntu Latest)
     runs-on: ubuntu-latest
     steps:
       - name: Clone project
@@ -59,10 +59,10 @@ jobs:
           file sil
 
       - name: Create archive
-        run: zip -r Sil-Q-linux-x86_64.zip sil lib LICENSE.md README.md
+        run: zip -r Sil-Q-linux-ubuntu-x86_64.zip sil lib LICENSE.md README.md
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
-          name: Sil-Q-linux-x86_64.zip
-          path: Sil-Q-linux-x86_64.zip
+          name: Sil-Q-linux-ubuntu-x86_64.zip
+          path: Sil-Q-linux-ubuntu-x86_64.zip
