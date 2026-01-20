@@ -9,7 +9,9 @@
 CC = gcc
 WRES = windres
 LIBS = -s -mwindows -e _mainCRTStartup -lwinmm -lmsimg32
-CFLAGS = -Wall -O2 -fno-strength-reduce -DWINDOWS
+# OPT can be overridden, e.g.: make OPT="-O0 -DDEBUG"
+OPT ?= -O2
+CFLAGS = -Wall $(OPT) -fno-strength-reduce -DWINDOWS
 # `pe-i386`   - for i686 (32-bit), MINGW32
 # `pe-x86-64` - for x86_64 (64-bit), MINGW64
 PEFORMAT = pe-i386

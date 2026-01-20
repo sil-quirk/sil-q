@@ -52,3 +52,52 @@ jobs:
         run: |
           ls -la sil.exe
           file sil.exe
+
+  release-build:
+    name: Windows Release Build (${{ matrix.arch }})
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - msystem: MINGW32
+            arch: i686
+            gcc_pkg_prefix: mingw-w64-i686
+            peformat: pe-i386
+          - msystem: MINGW64
+            arch: x86_64
+            gcc_pkg_prefix: mingw-w64-x86_64
+            peformat: pe-x86-64
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{ matrix.msystem }}
+          install: ${{ matrix.gcc_pkg_prefix }}-gcc make zip
+
+      - name: Clone project
+        uses: actions/checkout@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build with release flags
+        run: |
+          cd src
+          make -f Makefile.cyg OPT="-O2" PEFORMAT=${{ matrix.peformat }}
+          mv sil.exe ../sil.exe
+
+      - name: Verify build
+        run: |
+          ls -la sil.exe
+          file sil.exe
+
+      - name: Create archive
+        run: zip -r Sil-Q-windows-${{ matrix.arch }}.zip sil.exe lib LICENSE.md README.md
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: Sil-Q-windows-${{ matrix.arch }}.zip
+          path: Sil-Q-windows-${{ matrix.arch }}.zip

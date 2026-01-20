@@ -10,6 +10,7 @@ all: install
 # settings
 CC = clang
 LD = ld
+# OPT can be overridden, e.g.: make OPT="-O0 -DDEBUG"
 OPT ?= -O2
 
 ARCHS = x86_64

@@ -32,3 +32,37 @@ jobs:
         run: |
           cd src
           make -f Makefile.std -j$(nproc)
+
+  release-build:
+    name: Linux Release Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone project
+        uses: actions/checkout@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        run: |
+          #sudo apt-get update
+          sudo apt-get install gcc libncursesw5-dev libx11-dev
+
+      - name: Build with release flags
+        run: |
+          cd src
+          make -f Makefile.std OPT="-O2" -j$(nproc)
+          mv sil ../sil
+
+      - name: Verify build
+        run: |
+          ls -la sil
+          file sil
+
+      - name: Create archive
+        run: zip -r Sil-Q-linux-x86_64.zip sil lib LICENSE.md README.md
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: Sil-Q-linux-x86_64.zip
+          path: Sil-Q-linux-x86_64.zip

@@ -33,10 +33,10 @@ jobs:
           # TODO: Add `-Werror` once all compiler warnings are fixed.
           env OPT="-Wall -O0" make -f Makefile.cocoa ARCHS="x86_64 arm64" -j$(sysctl -n hw.ncpu)
 
-  release-flags:
+  release-build:
     # NOTE: The macOS version mentioned here must match `DEPLOYMENT_TARGET`
     # defined in Makefile.cocoa.
-    name: Cocoa Release (macOS 10.5 and later)
+    name: Cocoa Release Build (macOS 10.5 and later)
     runs-on: macos-latest
     steps:
       - name: Clone project
@@ -44,8 +44,22 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build with flags used for release
+      - name: Build with release flags
         run: |
           cd src
           # TODO: Add `-Werror` once all compiler warnings are fixed.
-          env OPT="-O2 -DNDEBUG" make -f Makefile.cocoa ARCHS="x86_64 arm64" -j$(sysctl -n hw.ncpu)
+          env OPT="-O2" make -f Makefile.cocoa ARCHS="x86_64 arm64" -j$(sysctl -n hw.ncpu)
+
+      - name: Verify build
+        run: |
+          ls -la Sil.app
+          file Sil.app/Contents/MacOS/sil
+
+      - name: Create archive
+        run: zip -r Sil-Q-macos.zip Sil.app
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: Sil-Q-macos.zip
+          path: Sil-Q-macos.zip
