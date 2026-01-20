@@ -1569,21 +1569,27 @@ static bool get_move_retreat(monster_type* m_ptr, int* ty, int* tx)
     if (r_ptr->freq_ranged >= 50)
     {
         // int prev_cost = cave_cost[which_flow][m_ptr->fy][m_ptr->fx];
-        int start = rand_int(8);
-
         bool acceptable = FALSE;
-        int best_score = 0;
-        int best_y = m_ptr->fy;
-        int best_x = m_ptr->fx;
 
-        // Set up the 'score to beat' as the score for the monster's current
-        // square
-        int dist = distance_squared(m_ptr->fy, m_ptr->fx, p_ptr->py, p_ptr->px);
-        best_score += dist;
+        // Compute score of the monster's current square.
+        // Reward distance from player
+        int m_current_score =
+            distance_squared(m_ptr->fy, m_ptr->fx, p_ptr->py, p_ptr->px);
+        // Reward if the monster is already in a good ranged attack spot, where
+        // "good" means:
+        // 1. Can shoot at player from its current square (clear line of fire)
+        // 2. Is not adjacent to the player.
         if (projectable(
                 m_ptr->fy, m_ptr->fx, p_ptr->py, p_ptr->px, PROJECT_STOP)
             && (m_ptr->cdis > 1))
-            best_score += 100;
+            m_current_score += 100;
+
+        // Set the "score to beat" as the score of the monster's current square
+        int best_score = m_current_score;
+
+        // Set the "square to beat" as the monster's current square
+        int best_y = m_ptr->fy;
+        int best_x = m_ptr->fx;
 
         // the position is only acceptable if it is not adjacent to the player
         if (m_ptr->cdis > 1)
@@ -1596,15 +1602,16 @@ static bool get_move_retreat(monster_type* m_ptr, int* ty, int* tx)
         project_path_ignore_y = m_ptr->fy;
         project_path_ignore_x = m_ptr->fx;
 
-        /* Look for adjacent shooting places */
+        // Check the monster's adjacent squares to find a better square to where
+        // it could possibly retreat. Start checking from a randomly selected
+        // adjacent square.
+        int start = rand_int(8);
         for (i = start; i < 8 + start; i++)
         {
             int score = 0;
 
             y = m_ptr->fy + ddy_ddd[i % 8];
             x = m_ptr->fx + ddx_ddd[i % 8];
-
-            dist = distance_squared(y, x, p_ptr->py, p_ptr->px);
 
             /* Check Bounds */
             if (!in_bounds(y, x))
@@ -1623,6 +1630,7 @@ static bool get_move_retreat(monster_type* m_ptr, int* ty, int* tx)
                 continue;
 
             // reward distance from player
+            int dist = distance_squared(y, x, p_ptr->py, p_ptr->px);
             score += dist;
 
             /* reward having a shot at the player */
