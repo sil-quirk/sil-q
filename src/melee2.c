@@ -1630,12 +1630,11 @@ static bool get_move_retreat(monster_type* m_ptr, int* ty, int* tx)
                 continue;
 
             // reward distance from player
-            int dist = distance_squared(y, x, p_ptr->py, p_ptr->px);
-            score += dist;
+            score += distance_squared(y, x, p_ptr->py, p_ptr->px);
 
             /* reward having a shot at the player */
             if (projectable(y, x, p_ptr->py, p_ptr->px, PROJECT_STOP)
-                && (dist > 1))
+                && (distance(y, x, p_ptr->py, p_ptr->px) > 1))
                 score += 100;
 
             /* Penalize any grid that doesn't have a lower flow (noise) cost. */
