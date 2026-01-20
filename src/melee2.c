@@ -1573,12 +1573,12 @@ static bool get_move_retreat(monster_type* m_ptr, int* ty, int* tx)
 
         bool acceptable = FALSE;
         int best_score = 0;
-        int best_y = m_ptr->fy, best_x = m_ptr->fx;
-        int dist;
+        int best_y = m_ptr->fy;
+        int best_x = m_ptr->fx;
 
         // Set up the 'score to beat' as the score for the monster's current
         // square
-        dist = distance_squared(m_ptr->fy, m_ptr->fx, p_ptr->py, p_ptr->px);
+        int dist = distance_squared(m_ptr->fy, m_ptr->fx, p_ptr->py, p_ptr->px);
         best_score += dist;
         if (projectable(
                 m_ptr->fy, m_ptr->fx, p_ptr->py, p_ptr->px, PROJECT_STOP)
@@ -1622,9 +1622,6 @@ static bool get_move_retreat(monster_type* m_ptr, int* ty, int* tx)
             if (distance(y, x, p_ptr->py, p_ptr->px) == 1)
                 continue;
 
-            // any position non-adjacent to the player will be acceptable
-            acceptable = TRUE;
-
             // reward distance from player
             score += dist;
 
@@ -1642,6 +1639,8 @@ static bool get_move_retreat(monster_type* m_ptr, int* ty, int* tx)
                 best_score = score;
                 best_y = y;
                 best_x = x;
+                // Not adjacent to the player, so it is acceptable.
+                acceptable = TRUE;
             }
         }
 
@@ -1661,11 +1660,15 @@ static bool get_move_retreat(monster_type* m_ptr, int* ty, int* tx)
             return (TRUE);
         }
 
-        // Sil-y:
-        // This step is artificial stupidity for archers and other serious
-        // ranged weapon users. They only evade you properly near walls if they
-        // are: afraid or uniques or invisible Otherwise things are a bit too
-        // annoying
+        // Apply artificial stupidity to archers and other serious ranged weapon
+        // users.
+        //
+        // Unless these monsters are (1) afraid or (2) unique or (3) invisible,
+        // they will abort their retreat at this point. This is done so that
+        // ranged monsters are not kiting the player constantly (especially in
+        // corridors, near walls, or other places with constrained monster
+        // movement, where better "acceptable" squares are less likely to be
+        // found), which would be annoying for the player.
         else if ((m_ptr->stance != STANCE_FLEEING)
             && !(r_ptr->flags1 & (RF1_UNIQUE)) && m_ptr->ml)
         {
