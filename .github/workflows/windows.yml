@@ -23,10 +23,12 @@ jobs:
             arch: i686
             gcc_pkg_prefix: mingw-w64-i686
             peformat: pe-i386
-          - msystem: MINGW64
-            arch: x86_64
-            gcc_pkg_prefix: mingw-w64-x86_64
-            peformat: pe-x86-64
+            # FIX: Fix the x86_64 build. It builds, but sil.exe doesn't start.
+            #      Tested on Windows 11 64 bit.
+            #- msystem: MINGW64
+            #  arch: x86_64
+            #  gcc_pkg_prefix: mingw-w64-x86_64
+            #  peformat: pe-x86-64
     defaults:
       run:
         shell: msys2 {0}
@@ -63,10 +65,12 @@ jobs:
             arch: i686
             gcc_pkg_prefix: mingw-w64-i686
             peformat: pe-i386
-          - msystem: MINGW64
-            arch: x86_64
-            gcc_pkg_prefix: mingw-w64-x86_64
-            peformat: pe-x86-64
+            # FIX: Fix the x86_64 build. It builds, but sil.exe doesn't start.
+            #      Tested on Windows 11 64 bit.
+            #- msystem: MINGW64
+            #  arch: x86_64
+            #  gcc_pkg_prefix: mingw-w64-x86_64
+            #  peformat: pe-x86-64
     defaults:
       run:
         shell: msys2 {0}
