@@ -1,0 +1,43 @@
+name: Windows
+
+on:
+  push:
+    branches: [master]
+  # Skip Windows build for pull requests to save GitHub runner credits.
+  pull_request:
+
+# To cancel a currently running workflow from the same PR, branch, or tag
+# when a new workflow is triggered.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Windows Build (MSYS2 MinGW 32-bit)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW32
+          install: mingw-w64-i686-gcc make
+
+      - name: Clone project
+        uses: actions/checkout@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build
+        run: |
+          cd src
+          make -f Makefile.cyg
+          mv sil.exe ../sil.exe
+
+      - name: Verify build
+        run: |
+          ls -la sil.exe
+          file sil.exe
