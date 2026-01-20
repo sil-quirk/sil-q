@@ -1,0 +1,51 @@
+# Inspired by Angband's setup.
+# https://github.com/angband/angband/blob/master/.github/workflows/mac.yaml
+
+name: macOS
+
+on:
+  push:
+    branches: [master]
+  # Skip macOS build for pull requests to save GitHub runner credits.
+  pull_request:
+
+# To cancel a currently running workflow from the same PR, branch, or tag
+# when a new workflow is triggered.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # NOTE: The macOS version mentioned here must match `DEPLOYMENT_TARGET`
+    # defined in Makefile.cocoa.
+    name: Cocoa Build (macOS 10.5 and later)
+    runs-on: macos-latest
+    steps:
+      - name: Clone project
+        uses: actions/checkout@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build (x86_64 and arm64)
+        run: |
+          cd src
+          # TODO: Add `-Werror` once all compiler warnings are fixed.
+          env OPT="-Wall -O0" make -f Makefile.cocoa ARCHS="x86_64 arm64" -j$(sysctl -n hw.ncpu)
+
+  release-flags:
+    # NOTE: The macOS version mentioned here must match `DEPLOYMENT_TARGET`
+    # defined in Makefile.cocoa.
+    name: Cocoa Release (macOS 10.5 and later)
+    runs-on: macos-latest
+    steps:
+      - name: Clone project
+        uses: actions/checkout@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build with flags used for release
+        run: |
+          cd src
+          # TODO: Add `-Werror` once all compiler warnings are fixed.
+          env OPT="-O2 -DNDEBUG" make -f Makefile.cocoa ARCHS="x86_64 arm64" -j$(sysctl -n hw.ncpu)
