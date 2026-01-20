@@ -1,0 +1,34 @@
+name: Linux
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+# To cancel a currently running workflow from the same PR, branch, or tag
+# when a new workflow is triggered.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Linux Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone project
+        uses: actions/checkout@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        run: |
+          # TODO: Re-enable `apt-get update`, or wasteful/expensive?
+          #sudo apt-get update
+          sudo apt-get install gcc libncursesw5-dev libx11-dev
+
+      - name: Build with ncurses and X11 support
+        run: |
+          cd src
+          make -f Makefile.std -j$(nproc)
