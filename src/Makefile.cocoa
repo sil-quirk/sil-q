@@ -13,6 +13,10 @@ LD = ld
 # OPT can be overridden, e.g.: make OPT="-O0 -DDEBUG"
 OPT ?= -O2
 
+# x86_64 - for Intel machines (until 2020)
+# arm64  - for Apple Silicon machines with M1, M2, etc. (2020 - today)
+#
+# Use ARCHS='x86_64 arm64' to build for both.
 ARCHS = x86_64
 ARCHFLAGS = $(addprefix -arch ,$(ARCHS))
 WARNINGS = -W -Wall -Wno-unused-parameter -Wno-missing-field-initializers
