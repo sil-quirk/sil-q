@@ -739,6 +739,10 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3)
         good[gc++] = "increases the health you get from healing items";
     if (f3 & (TR3_OATH_BOOST))
         good[gc++] = "doubles the reward of your oath (or increases your light radius if oathless)";
+    if (f3 & (TR3_ARMOR_SHATTER))
+        good[gc++] = "can shatter the armor of your foes with each successful blow";
+    if (f3 & (TR3_WILL_DRAIN))
+        good[gc++] = "drains the will of your enemies when you strike them";
 
     /* Describe */
     output_desc_list("It ", good, gc);

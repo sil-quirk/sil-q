@@ -5373,6 +5373,69 @@ void py_attack_aux(int y, int x, int attack_type)
                 display_hit(y, x, net_dam, GF_HURT, fatal_blow);
             }
 
+            // Apply on-hit stat reduction effects (only if monster survived and took damage)
+            if (!fatal_blow && (net_dam > 0))
+            {
+                // Armor Shatter: Reduce monster armor protection sides
+                // Only applies to armored monsters (RF3_HAS_ARMOUR)
+                if ((f3 & (TR3_ARMOR_SHATTER)) && (r_ptr->flags3 & (RF3_HAS_ARMOUR)))
+                {
+                    // Skill check: attacker Melee vs defender Will
+                    int shatter_skill = p_ptr->skill_use[S_MEL];
+                    int resist_skill = monster_skill(m_ptr, S_WIL);
+
+                    if (skill_check(NULL, shatter_skill, resist_skill, m_ptr) > 0)
+                    {
+                        // Check if we can reduce further (can't reduce to 0)
+                        if (m_ptr->armor_ps_reduction < r_ptr->ps)
+                        {
+                            m_ptr->armor_ps_reduction++;
+
+                            if (m_ptr->ml)
+                            {
+                                char m_poss[80];
+                                monster_desc(m_poss, sizeof(m_poss), m_ptr, 0x22);
+                                msg_format("Your blow shatters %s armor!", m_poss);
+                            }
+
+                            // Identify the weapon
+                            if (!object_known_p(o_ptr))
+                            {
+                                ident_weapon_by_use(o_ptr, m_ptr, TR3_ARMOR_SHATTER);
+                            }
+                        }
+                    }
+                }
+
+                // Will Drain: Reduce monster Will
+                // Only applies to intelligent monsters (not mindless)
+                if ((f3 & (TR3_WILL_DRAIN)) && !(r_ptr->flags2 & (RF2_MINDLESS)))
+                {
+                    // Skill check: attacker Melee vs defender Will
+                    int drain_skill = p_ptr->skill_use[S_MEL];
+                    int resist_skill = monster_skill(m_ptr, S_WIL);
+
+                    if (skill_check(NULL, drain_skill, resist_skill, m_ptr) > 0)
+                    {
+                        // Reduce Will by 1
+                        m_ptr->song_will_penalty++;
+
+                        if (m_ptr->ml)
+                        {
+                            char m_poss[80];
+                            monster_desc(m_poss, sizeof(m_poss), m_ptr, 0x22);
+                            msg_format("You drain %s will!", m_poss);
+                        }
+
+                        // Identify the weapon
+                        if (!object_known_p(o_ptr))
+                        {
+                            ident_weapon_by_use(o_ptr, m_ptr, TR3_WILL_DRAIN);
+                        }
+                    }
+                }
+            }
+
             // if a slay was noticed, then identify the weapon
             if (noticed_flag)
             {

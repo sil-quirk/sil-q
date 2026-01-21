@@ -1981,7 +1981,7 @@
 #define TR3_DIF_ID 0x00000200L /* Item is harder to identify (+7 to ID cost) */
 #define TR3_TR3XXX9 0x00000400L /* Oath boost (doubles oath rewards; +1 light if oathless) */
 #define TR3_OATH_BOOST TR3_TR3XXX9
-#define TR3_TR3XX10 0x00000800L /* xxx */
+#define TR3_ARMOR_SHATTER 0x00000800L /* Shatters enemy armor on hit */
 #define TR3_NO_SMITHING 0x00001000L /* Item cannot be made with smithing */
 #define TR3_MITHRIL 0x00002000L /* Item made out of mithril */
 #define TR3_AXE 0x00004000L /* Item counts as an axe */
@@ -1998,7 +1998,7 @@
 #define TR3_EASY_KNOW 0x01000000L /* Item is known if aware */
 #define TR3_MORE_SPECIAL                                                       \
     0x02000000L /* Item has a better chance of being special */
-#define TR3_TR3XXX12 0x04000000L /* xxx */
+#define TR3_WILL_DRAIN 0x04000000L /* Drains enemy Will on hit */
 #define TR3_HAND_AND_A_HALF 0x08000000L /* Item is a hand and a half weapon */
 #define TR3_TWO_HANDED 0x10000000L /* Item is a two handed weapon */
 #define TR3_LIGHT_CURSE 0x20000000L /* Item has Light Curse */

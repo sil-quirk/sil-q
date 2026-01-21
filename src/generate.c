@@ -10927,6 +10927,64 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 break;
             }
 
+            /* A human skeleton */
+            case 'h':
+            {
+                object_type* i_ptr;
+                object_type object_type_body;
+                s16b k_idx;
+
+                /* Get local object */
+                i_ptr = &object_type_body;
+
+                /* Wipe the object */
+                object_wipe(i_ptr);
+
+                k_idx = lookup_kind(TV_SKELETON, SV_SKELETON_HUMAN);
+
+                /* Prepare the item */
+                object_prep(i_ptr, k_idx);
+
+                i_ptr->pval = 1;
+
+                /* Drop it in the dungeon */
+                drop_near(i_ptr, -1, y, x);
+                break;
+            }
+
+            /* An orc skeleton */
+            case 'e':
+            {
+                object_type* i_ptr;
+                object_type object_type_body;
+                s16b k_idx;
+
+                /* Get local object */
+                i_ptr = &object_type_body;
+
+                /* Wipe the object */
+                object_wipe(i_ptr);
+
+                k_idx = lookup_kind(TV_SKELETON, SV_SKELETON_ORC);
+
+                /* Prepare the item */
+                object_prep(i_ptr, k_idx);
+
+                i_ptr->pval = 1;
+
+                /* Drop it in the dungeon */
+                drop_near(i_ptr, -1, y, x);
+                break;
+            }
+
+            /* A web */
+            case 'w':
+            {
+                /* Place a web trap */
+                cave_set_feat(y, x, FEAT_TRAP_WEB);
+                break;
+            }
+
             /* Monster and/or object from 1 level deeper */
             case '?':
             {

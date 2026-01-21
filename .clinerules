@@ -1,0 +1,26 @@
+# Claude Code Agent Rules for Sil-More
+
+## CRITICAL: Read This First
+Before starting ANY work on this codebase, read `agents.md` in the repo root.
+
+## Active Plan
+If there's an active plan file in `.claude/plans/`, check with the user if you should continue from it.
+Current active plan: `artefact-enhancements.md` (artefact uniqueness & monster stat reduction)
+- Phase 2 ✅ COMPLETE: Monster stat reduction flags (ARMOR_SHATTER, WILL_DRAIN) implemented
+- Phase 3 PENDING: Add flags to specific artefacts in lib/edit/artefact.txt
+
+## Key Guidelines from agents.md:
+- **Build**: ALWAYS use `.\build-cmake.bat` (never ad-hoc gcc/make/MinGW commands)
+- **Incremental rebuild**: `cmake --build build-standard --parallel`
+- **New .c files**: Must start with `#include "angband.h"` and be added to CMakeLists.txt
+- **Data files**: Templates in `lib/edit/*.txt` compile to `ANGBAND_DIR_DATA`
+- **Documentation**: Maximum one working notes file per session: `session_notes.md`
+
+## Quick Reference:
+- Core game loop: `src/dungeon.c`, `src/generate.c`, `src/cave.c`
+- Player commands: `src/cmd1.c` through `src/cmd6.c`
+- Combat/monsters: `src/monster*.c`, `src/melee*.c`, `src/spells*.c`
+- Objects: `src/object*.c`, `src/obj-info.c`
+- Data templates: `lib/edit/*.txt` (monsters, vaults, objects, artefacts, etc.)
+
+Read the full `agents.md` for complete guidance on build workflow, data management, coding patterns, and subsystem architecture.
