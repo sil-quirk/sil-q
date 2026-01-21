@@ -1884,17 +1884,14 @@ static bool connect_rooms_stairs(void)
     // make some random connections between rooms so long as they don't
     // intersect things
 
-    switch (p_ptr->cur_map_hgt / PANEL_HGT)
-    {
-    case 3:
-        corridor_attempts = dun->cent_n * dun->cent_n;
-    case 4:
-        corridor_attempts = dun->cent_n * dun->cent_n * 2;
-    case 5:
-        corridor_attempts = dun->cent_n * dun->cent_n * 10;
-    default:
-        corridor_attempts = dun->cent_n * dun->cent_n * 10;
-    }
+    // Originally, the code used a `switch (p_ptr->cur_map_hgt / PANEL_HGT)`
+    // statement in an attempt to determine corridor attempts. But the switch
+    // did nothing, because it was missing `break` statements (see commit
+    // fd1a5e6).
+    // In 2026, the decision was made to solidify the actual behavior rather
+    // than to risk breaking (no pun intended) the level generation code
+    // unintentionally by fixing the switch statement.
+    corridor_attempts = dun->cent_n * dun->cent_n * 10;
 
     for (i = 0; i < corridor_attempts; i++)
     {
