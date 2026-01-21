@@ -390,7 +390,7 @@ Fixed:
     - song of oaths (ebering-sil?)
     - typos and textual misdirections
 
-## Sil 1.3.0 (2016-01-03)
+## Sil 1.3.0 (2016-01-04)
 
 - broke savefile compatibility
   - sorry about this
