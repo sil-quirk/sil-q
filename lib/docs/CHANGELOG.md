@@ -2,11 +2,12 @@
 
 ## Sil-Q 1.6.0-beta1 (unreleased)
 
-### Summary
+### Highlights
 
-TODO
+- macOS version supports Retina displays (thanks backwardsEric)
+- Many bug fixes
 
-### Breaking changes (if any)
+### Breaking changes
 
 - TODO (none thus far)
 
@@ -14,7 +15,7 @@ TODO
 
 - TODO (none thus far)
 
-### Detailed changes
+### Details
 
 Added:
 
@@ -64,12 +65,16 @@ Fixed:
 
 ## Sil-Q 1.5.0 (2022-01-03)
 
+### Highlights
+
 - Mac support greatly improved thanks to backwardsEric
 
 - Tiles are now supported on Linux, Windows and Mac
   - This uses a new tileset designed by MicroChasm
 
 - New manual by MicroChasm
+
+### Gameplay
 
 - Ability changes
   - Melee
@@ -141,7 +146,12 @@ Fixed:
   - 3 points for playing Naugrim or Sindar
   - 5 points for playing Edain
 
+### Documentation
+
 - Tutorial updated for Sil-Q abilities
+- New manual by MicroChasm
+
+### Bug fixes
 
 - Many many bugfixes
 
