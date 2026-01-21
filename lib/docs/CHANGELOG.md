@@ -1,6 +1,6 @@
 # Change Log
 
-## Sil-Q 1.6.0 [unreleased] (yyyy-mm-dd)
+## Sil-Q 1.6.0-beta1 (unreleased)
 
 ### Summary
 
