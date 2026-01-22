@@ -2,7 +2,8 @@ name: Windows
 
 on:
   push:
-    branches: [master]
+    branches:
+      - "**"
   # Skip Windows build for pull requests to save GitHub runner credits.
   pull_request:
 

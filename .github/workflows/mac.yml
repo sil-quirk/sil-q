@@ -5,7 +5,8 @@ name: macOS
 
 on:
   push:
-    branches: [master]
+    branches:
+      - "**"
   # Skip macOS build for pull requests to save GitHub runner credits.
   pull_request:
 
