@@ -94,11 +94,12 @@ jobs:
           ls -la sil.exe
           file sil.exe
 
-      - name: Create archive
-        run: zip -r Sil-Q-windows-${{ matrix.arch }}.zip sil.exe lib LICENSE.md README.md
-
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
-          name: Sil-Q-windows-${{ matrix.arch }}.zip
-          path: Sil-Q-windows-${{ matrix.arch }}.zip
+          name: Sil-Q-windows-${{ matrix.arch }}
+          path: |
+            sil.exe
+            lib
+            LICENSE.md
+            README.md

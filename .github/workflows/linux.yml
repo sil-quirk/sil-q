@@ -59,11 +59,12 @@ jobs:
           ls -la sil
           file sil
 
-      - name: Create archive
-        run: zip -r Sil-Q-linux-ubuntu-x86_64.zip sil lib LICENSE.md README.md
-
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
-          name: Sil-Q-linux-ubuntu-x86_64.zip
-          path: Sil-Q-linux-ubuntu-x86_64.zip
+          name: Sil-Q-linux-x86_64
+          path: |
+            sil
+            lib
+            LICENSE.md
+            README.md
