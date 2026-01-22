@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   build:
-    name: Linux Build (Ubuntu Latest)
+    name: Linux Build
     runs-on: ubuntu-latest
     steps:
       - name: Clone project
@@ -35,7 +35,7 @@ jobs:
           make -f Makefile.std -j$(nproc)
 
   release-build:
-    name: Linux Release Build (Ubuntu Latest)
+    name: Linux Release Build
     runs-on: ubuntu-latest
     steps:
       - name: Clone project
