@@ -33,7 +33,7 @@ LIBS = -framework Cocoa
 # TIP: To inspect what the target of a generated executable is, run `otool -l`
 # (Xcode) on the generated executable (such as `Sil.app/Contents/MacOS/sil`) and
 # look for the output related to the LC_VERSION_MIN_MACOSX load command.
-DEPLOYMENT_TARGET = MACOSX_DEPLOYMENT_TARGET=10.5
+DEPLOYMENT_TARGET = MACOSX_DEPLOYMENT_TARGET=10.6
 
 # Import user prefs
 # If you don't want to edit this file, put your module redefinitions

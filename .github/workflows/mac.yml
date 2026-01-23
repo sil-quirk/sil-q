@@ -20,7 +20,7 @@ jobs:
   build:
     # NOTE: The macOS version mentioned here must match `DEPLOYMENT_TARGET`
     # defined in Makefile.cocoa.
-    name: Cocoa Build (macOS 10.5 and later)
+    name: Cocoa Build (macOS 10.6 and later)
     runs-on: macos-latest
     steps:
       - name: Clone project
@@ -37,7 +37,7 @@ jobs:
   release-build:
     # NOTE: The macOS version mentioned here must match `DEPLOYMENT_TARGET`
     # defined in Makefile.cocoa.
-    name: Cocoa Release Build (macOS 10.5 and later)
+    name: Cocoa Release Build (macOS 10.6 and later)
     runs-on: macos-latest
     steps:
       - name: Clone project
