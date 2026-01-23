@@ -26,15 +26,13 @@ CFLAGS = -g -I. $(WARNINGS) $(OPT) -DMACH_O_CARBON -DCOCOA -DUSE_PRIVATE_SAVE_PA
 	-fno-stack-protector -mmacosx-version-min=10.6 $(ARCHFLAGS)
 LIBS = -framework Cocoa
 # Fix for bug #1663: Set the deployment target via environment variable
-# for the final link command. See http://grauonline.de/wordpress/?p=71
-# or http://stackoverflow.com/questions/5509885/creating-app-for-old-mac-from-new-mac-machine
+# for the final link command.
+# See http://grauonline.de/wordpress/?p=71 or
+# http://stackoverflow.com/questions/5509885/creating-app-for-old-mac-from-new-mac-machine
 #
-# NOTE: Recent versions of Xcode (as of 2026) do not support deployment targets
-# as old as macOS 10.5 old and silently use a more recent version as the
-# deployment target.
-# Running `otool -l` on the generated executable (such as
-# `Sil.app/Contents/MacOS/sil`) and looking for the output related to the
-# LC_VERSION_MIN_MACOSX load command will tell you what the executable targets.
+# TIP: To inspect what the target of a generated executable is, run `otool -l`
+# (Xcode) on the generated executable (such as `Sil.app/Contents/MacOS/sil`) and
+# look for the output related to the LC_VERSION_MIN_MACOSX load command.
 DEPLOYMENT_TARGET = MACOSX_DEPLOYMENT_TARGET=10.5
 
 # Import user prefs
