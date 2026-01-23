@@ -59,12 +59,19 @@ jobs:
           ls -la sil
           file sil
 
+      - name: Remove outdated PDF manuals
+        run: |
+          rm lib/docs/*.pdf
+
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
           name: Sil-Q-linux-x86_64
+          # IMPORTANT: Do NOT use quotes to escape spaces in filenames.
           path: |
             sil
             lib
             LICENSE.md
             README.md
+            Sil-Q v1.5.0.pdf
+
