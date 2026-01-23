@@ -1255,7 +1255,7 @@ extern void ident(object_type* o_ptr)
 
 extern void ident_on_wield(object_type* o_ptr)
 {
-    u32b f1, f2, f3;
+    u32b f1, f2, f3, f4;
     u32b orig_f1;
 
     bool notice = false;
@@ -1265,7 +1265,7 @@ extern void ident_on_wield(object_type* o_ptr)
     object_kind* k_ptr = &k_info[o_ptr->k_idx];
 
     /* Get the flags */
-    object_flags(o_ptr, &f1, &f2, &f3);
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
     orig_f1 = f1;
 
     // Ignore previously identified items
@@ -1287,6 +1287,7 @@ extern void ident_on_wield(object_type* o_ptr)
             ego_item_type* e_ptr = &e_info[ego_pfx];
             if ((e_ptr->flags1 != 0L) || (e_ptr->flags2 != 0L)
                 || ((e_ptr->flags3 | (TR3_IGNORE_ALL)) != (TR3_IGNORE_ALL))
+                || (e_ptr->flags4 != 0L)
                 || (e_ptr->abilities != 0))
             {
                 all_trivial = false;
@@ -1298,6 +1299,7 @@ extern void ident_on_wield(object_type* o_ptr)
             ego_item_type* e_ptr = &e_info[ego_sfx];
             if ((e_ptr->flags1 != 0L) || (e_ptr->flags2 != 0L)
                 || ((e_ptr->flags3 | (TR3_IGNORE_ALL)) != (TR3_IGNORE_ALL))
+                || (e_ptr->flags4 != 0L)
                 || (e_ptr->abilities != 0))
             {
                 all_trivial = false;
@@ -1352,7 +1354,12 @@ extern void ident_on_wield(object_type* o_ptr)
     if (f2 & (TR2_DARKNESS))
     {
         notice = true;
-        msg_print("It creates an unnatural darkness.");
+        msg_print("It shrouds you in darkness.");
+    }
+    else if (f4 & (TR4_UNLIGHT))
+    {
+        notice = true;
+        msg_print("It dims your light.");
     }
     else if (f2 & (TR2_LIGHT))
     {

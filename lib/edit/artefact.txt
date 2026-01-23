@@ -282,7 +282,7 @@ Q:d5699c25b01bbadc
 I:45:31:3
 W:12:18:1:10000
 P:0:0d0:0:0d0
-F:STEALTH | SONG | DARKNESS | TRAITOR | SEE_INVIS
+F:STEALTH | SONG | UNLIGHT | TRAITOR | SEE_INVIS
 F:INSTA_ART
 B:3/5
 D:This ring was wrought by Mairon under Melkor's tuition, while Mairon
@@ -1805,7 +1805,7 @@ Q:a744f49476fcf856
 I:31:2:1
 W:14:20:50:60000
 P:0:0d0:-1:2d1
-F:STR | DARKNESS
+F:STR | UNLIGHT
 B:0/2
 D:The brutal gauntlets forged by Morgoth for the great orc-chieftain Gorgdaz,
 D: who perished along with many of Morgoth's host at Dagor-nuin-Giliath.

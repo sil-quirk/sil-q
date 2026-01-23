@@ -699,7 +699,7 @@ static bool describe_sustains(const object_type* o_ptr, u32b f2)
  * Describe miscellaneous powers such as see invisible, free action,
  * permanent light, etc; also note curses and penalties.
  */
-static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3)
+static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3, u32b f4)
 {
     cptr good[7], bad[6];
     int gc = 0, bc = 0;
@@ -769,7 +769,9 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3)
     if (f2 & (TR2_HUNGER))
         bad[bc++] = "increases your hunger";
     if (f2 & (TR2_DARKNESS))
-        bad[bc++] = "creates an unnatural darkness";
+        bad[bc++] = "shrouds you in darkness (but concentrates your light)";
+    if (f4 & (TR4_UNLIGHT))
+        bad[bc++] = "dims your light";
     if (f2 & (TR2_SLOWNESS))
         bad[bc++] = "slows your movement";
     if (f2 & (TR2_AGGRAVATE))
@@ -1270,16 +1272,18 @@ static bool describe_weapon_damage(const object_type* o_ptr)
  */
 bool object_info_out(const object_type* o_ptr)
 {
-    u32b f1, f2, f3;
-    u32b ff1, ff2, ff3;
+    u32b f1, f2, f3, f4;
+    u32b ff1, ff2, ff3, ff4;
     bool something = false;
 
     /* Grab the object flags */
     object_info_out_flags(o_ptr, &f1, &f2, &f3);
+    /* Also grab f4 directly since object_info_out_flags doesn't support it yet */
+    object_flags4(o_ptr, &ff1, &ff2, &ff3, &f4);
 
     /* Hack - grab the ID-independent flags */
     /* Used to show handedness even when not ID'd */
-    object_flags(o_ptr, &ff1, &ff2, &ff3);
+    object_flags4(o_ptr, &ff1, &ff2, &ff3, &ff4);
 
     /* Describe the object */
     if (describe_stats(o_ptr, f1))
@@ -1300,7 +1304,7 @@ bool object_info_out(const object_type* o_ptr)
         something = true;
     if (describe_sustains(o_ptr, f2))
         something = true;
-    if (describe_misc_magic(o_ptr, f2, f3))
+    if (describe_misc_magic(o_ptr, f2, f3, f4))
         something = true;
     if (describe_activation(o_ptr, f3))
         something = true;

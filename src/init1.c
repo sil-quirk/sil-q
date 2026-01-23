@@ -79,15 +79,16 @@ static cptr r_info_blow_effect[] = { "", "HURT", "WOUND", "BATTER", "SHATTER",
 #define TR1 0
 #define TR2 1
 #define TR3 2
-#define RF1 3
-#define RF2 4
-#define RF3 5
-#define RF4 6
-#define RHF 7
-#define VLT 8
-#define CUR 9
-#define UNQ 10
-#define MAX_FLAG_SETS 11
+#define TR4 3
+#define RF1 4
+#define RF2 5
+#define RF3 6
+#define RF4 7
+#define RHF 8
+#define VLT 9
+#define CUR 10
+#define UNQ 11
+#define MAX_FLAG_SETS 12
 
 /*
  * Monster race flags for the race_info_flags1 structure
@@ -284,6 +285,11 @@ static flag_name info_flags[] = {
     { "PERMA_CURSE", TR3, TR3_PERMA_CURSE },
 
     { "IGNORE_ALL", TR3, TR3_IGNORE_ALL },
+
+    /*
+     * Object flags 4
+     */
+    { "UNLIGHT", TR4, TR4_UNLIGHT },
 
     /*
      * Race/Character flags
@@ -2034,6 +2040,7 @@ static errr grab_one_kind_flag(object_kind* ptr, cptr what)
     f[TR1] = &(ptr->flags1);
     f[TR2] = &(ptr->flags2);
     f[TR3] = &(ptr->flags3);
+    f[TR4] = &(ptr->flags4);
     return grab_one_flag(f, "object", what);
 }
 
@@ -2796,6 +2803,7 @@ static errr grab_one_artefact_flag(artefact_type* ptr, cptr what)
     f[TR1] = &(ptr->flags1);
     f[TR2] = &(ptr->flags2);
     f[TR3] = &(ptr->flags3);
+    f[TR4] = &(ptr->flags4);
     return grab_one_flag(f, "object", what);
 }
 
@@ -3436,6 +3444,7 @@ static bool grab_one_ego_item_flag(ego_item_type* ptr, cptr what)
     f[TR1] = &(ptr->flags1);
     f[TR2] = &(ptr->flags2);
     f[TR3] = &(ptr->flags3);
+    f[TR4] = &(ptr->flags4);
     return grab_one_flag(f, "object", what);
 }
 

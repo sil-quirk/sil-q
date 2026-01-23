@@ -2009,6 +2009,9 @@
 #define TR3_IGNORE_ALL                                                         \
     (TR3_IGNORE_ACID | TR3_IGNORE_ELEC | TR3_IGNORE_FIRE | TR3_IGNORE_COLD)
 
+/* Object flags set 4 */
+#define TR4_UNLIGHT     0x00000001L  /* Reduces light radius by 1 (no power bonus) */
+
 /*
  * Hack -- flag set 1 -- mask for "pval-dependant" flags.
  * Note that all "pval" dependant flags must be in "flags1".

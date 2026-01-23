@@ -8107,6 +8107,7 @@ static bool artefact_is_radiant_candidate(artefact_type* a_ptr)
     if (!a_ptr) return false;
     if (!(a_ptr->flags2 & (TR2_LIGHT | TR2_RADIANCE))) return false;
     if (a_ptr->flags2 & TR2_DARKNESS) return false;
+    if (a_ptr->flags4 & TR4_UNLIGHT) return false;
     if (a_ptr->flags3 & TR3_LIGHT_CURSE) return false;
     return true;
 }

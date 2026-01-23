@@ -929,8 +929,12 @@ extern void flavor_init(void);
 extern void reset_visuals(bool prefs);
 extern void object_flags(
     const object_type* o_ptr, u32b* f1, u32b* f2, u32b* f3);
+extern void object_flags4(
+    const object_type* o_ptr, u32b* f1, u32b* f2, u32b* f3, u32b* f4);
 extern void object_flags_known(
     const object_type* o_ptr, u32b* f1, u32b* f2, u32b* f3);
+extern void object_flags_known4(
+    const object_type* o_ptr, u32b* f1, u32b* f2, u32b* f3, u32b* f4);
 extern void strip_name(char* buf, int k_idx);
 extern void object_desc(
     char* buf, size_t max, const object_type* o_ptr, int pref, int mode);

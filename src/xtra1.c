@@ -2154,13 +2154,13 @@ static void calc_hitpoints(void)
 int light_up_to(int base_radius, object_type* o_ptr)
 {
     int radius = base_radius;
-    u32b f1, f2, f3;
+    u32b f1, f2, f3, f4;
 
     /* Extract the flags */
-    object_flags(o_ptr, &f1, &f2, &f3);
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
 
-    // Some lights flicker
-    if (f2 & (TR2_DARKNESS))
+    // Some lights flicker (DARKNESS and UNLIGHT items cause flickering)
+    if ((f2 & (TR2_DARKNESS)) || (f4 & (TR4_UNLIGHT)))
     {
         while ((radius > -2) && one_in_(3))
         {
@@ -2376,7 +2376,7 @@ void calc_torch(void)
 {
     int i;
     object_type* o_ptr;
-    u32b f1, f2, f3;
+    u32b f1, f2, f3, f4;
     int old_light;
     bool has_oath_boost = false;
     bool has_active_oath = false;
@@ -2402,7 +2402,7 @@ void calc_torch(void)
             continue;
 
         /* Extract the flags */
-        object_flags(o_ptr, &f1, &f2, &f3);
+        object_flags4(o_ptr, &f1, &f2, &f3, &f4);
 
         /* Does this item glow? */
         if ((f2 & TR2_LIGHT) && (i != INVEN_LITE))
@@ -2410,6 +2410,10 @@ void calc_torch(void)
 
         /* Does this item create darkness? */
         if ((f2 & TR2_DARKNESS) && (i != INVEN_LITE))
+            p_ptr->cur_light--;
+
+        /* Does this item create unlight? (dims light without power bonus) */
+        if ((f4 & TR4_UNLIGHT) && (i != INVEN_LITE))
             p_ptr->cur_light--;
 
         /* Examine actual light */
@@ -3307,10 +3311,10 @@ static void calc_bonuses(void)
         {
             object_type* o_ptr = &inventory[i];
             if (!o_ptr->k_idx) continue;
-            
-            u32b f1, f2, f3;
-            object_flags(o_ptr, &f1, &f2, &f3);
-            if ((f2 & TR2_DARKNESS) || (f3 & TR3_LIGHT_CURSE))
+
+            u32b f1, f2, f3, f4;
+            object_flags4(o_ptr, &f1, &f2, &f3, &f4);
+            if ((f2 & TR2_DARKNESS) || (f4 & TR4_UNLIGHT) || (f3 & TR3_LIGHT_CURSE))
             {
                 p_ptr->oaths_broken |= OATH_LIGHT_FLAG;
                 p_ptr->active_ability[S_SPC][SPC_OATH_LIGHT] = false;

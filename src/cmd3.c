@@ -926,7 +926,7 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     bool combine = false;
     bool is_throwing = false;
 
-    u32b f1, f2, f3;
+    u32b f1, f2, f3, f4;
 
     log_debug("do_cmd_wield: Called with default_o_ptr=%p, default_item=%d", (void*)default_o_ptr, default_item);
 
@@ -1437,8 +1437,8 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     /* Oath of Light: warn before equipping shadowed items */
     if (chosen_oath(OATH_LIGHT) && !oath_invalid(OATH_LIGHT))
     {
-        object_flags(o_ptr, &f1, &f2, &f3);
-        if ((f2 & TR2_DARKNESS) || (f3 & TR3_LIGHT_CURSE))
+        object_flags4(o_ptr, &f1, &f2, &f3, &f4);
+        if ((f2 & TR2_DARKNESS) || (f4 & TR4_UNLIGHT) || (f3 & TR3_LIGHT_CURSE))
         {
             char* prompt = oath_confirmation_prompt(OATH_LIGHT);
             if (!prompt || !prompt[0]) {
