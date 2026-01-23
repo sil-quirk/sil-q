@@ -3,19 +3,6 @@ terms of either the GNU General Public License as published by the Free
 Software Foundation, version 2, or the "Angband licence", shown below, with 
 some exceptions:
 
- * The SDL runtime libraries (if provided with your copy of the game) are under
-   the following licence:
-
-     The Simple DirectMedia Layer (SDL for short) is a cross-platfrom library
-     designed to make it easy to write multi-media software, such as games and
-     emulators.
-
-     The Simple DirectMedia Layer library source code is available from:
-     http://www.libsdl.org/
-
-     This library is distributed under the terms of the GNU LGPL license:
-     http://www.gnu.org/copyleft/lesser.html
-
  * Adam Bolt's (16x16) graphics may be redistributed and used for any purpose, 
    with or without modification.
 
