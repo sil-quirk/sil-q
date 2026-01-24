@@ -50,6 +50,86 @@ DEFAULT_OUT_DIR = REPO_ROOT / "scripts" / "output" / "vaultviz"
 
 _BASE_TERRAIN_SYMBOLS = {" ", ".", "#", "$", "%", "+", "s", ":", ",", ";", "<", ">", "0", "7"}
 
+# Vault symbol to tile coordinate mapping (row, col) for pictogram rendering
+# Coordinates are derived from graf-new.prf: (attr - 0x80, char - 0x80)
+VAULT_SYMBOL_TILES: dict[str, tuple[int, int]] = {
+    # Monsters (from graf-new.prf R: entries)
+    "o": (7, 30),   # Orc champion (R:81)
+    "O": (7, 31),   # Orc captain (R:91)
+    "f": (9, 21),   # Cat warrior (R:154)
+    "F": (9, 22),   # Cat assassin (R:175)
+    "t": (9, 13),   # Mountain troll (R:74)
+    "T": (9, 15),   # Troll guard (R:192)
+    "W": (7, 13),   # Barrow wight (R:112)
+    "z": (8, 1),    # Dejected human thrall (R:13)
+    "Z": (8, 0),    # Orc thrallmaster (R:15)
+    "@": (9, 8),    # Easterling spy (R:121)
+    "H": (6, 24),   # Silent watcher (R:203)
+    "c": (8, 18),   # Wolf/White wolf (R:52)
+    "v": (7, 15),   # Lesser vampire (R:174)
+    "r": (10, 4),   # Sulrauko (R:123) - representative raukar
+    "M": (7, 2),    # Brood spider (R:44) - representative spider
+    "d": (9, 30),   # Great cold-drake (R:202) - representative dragon
+    "y": (9, 29),   # Young cold-drake (R:164)
+    "Y": (9, 27),   # Young fire-drake (R:181)
+    "a": (7, 26),   # Orc archer (R:51)
+    "b": (7, 14),   # Twisted bat (R:104)
+
+    # Unique monsters
+    "A": (7, 19),   # Aldor, the Risen King (R:117)
+    "R": (10, 16),  # Gothmog, high Captain of Balrogs (R:241)
+    "U": (7, 0),    # Ungoliant, the Gloomweaver (R:242)
+    "D": (10, 3),   # Glaurung, the Deceiver (R:243)
+    "G": (10, 17),  # Gorthaur, Servant of Morgoth (R:244)
+    "V": (10, 18),  # Morgoth, Lord of Darkness (R:251)
+    "C": (8, 23),   # Carcharoth, the Jaws of Thirst (R:253)
+    "N": (10, 19),  # Mandos the Doomsman (R:20)
+    "P": (11, 8),   # Valar Projection - Nienna tile (R:6)
+
+    # Additional undocumented unique monsters
+    "K": (10, 2),   # Ancalagon the Black (R:233)
+    "B": (10, 10),  # Duruin, Least of the Balrogs (R:126)
+    "L": (10, 19),  # Aule the Smith (R:19)
+    "q": (7, 21),   # Whispering shadow (R:101)
+    "j": (7, 5),    # Shadow spider (R:132)
+    "k": (8, 12),   # Lurking horror (R:113)
+    "n": (6, 31),   # Nightthorn (R:72)
+    "g": (7, 10),   # Wraith - wight/wraith (R:183)
+
+    # Treasures - use small chests (will have 'T' overlay)
+    "*": (1, 0),    # Basic treasure -> Small wooden chest (K:372)
+    "&": (1, 2),    # Good treasure -> Small steel chest (K:373)
+    "!": (1, 4),    # Great treasure -> Small jewelled chest (K:374)
+
+    # Skeletons
+    "S": (3, 30),   # Elf skeleton (K:42)
+    "h": (3, 29),   # Human skeleton (K:41)
+    "e": (3, 28),   # Orc skeleton (K:40)
+
+    # Features
+    "^": (0, 17),   # Trap - pit (F:17)
+    "w": (0, 26),   # Web (F:26)
+
+    # Generic monster levels (use orc progression as representatives)
+    "1": (7, 27),   # Monster +1 -> Orc skirmisher (R:21)
+    "2": (7, 29),   # Monster +2 -> Orc soldier (R:41)
+    "3": (7, 28),   # Monster +3 -> Orc warrior (R:61)
+    "4": (7, 30),   # Monster +4 -> Orc champion (R:81)
+    "?": (7, 25),   # Monster/item +1 -> Orc scout (R:31)
+}
+
+# Chest tiles by vault type (for '~' symbol)
+VAULT_CHEST_TILES: dict[int, tuple[int, int]] = {
+    6: (1, 1),   # Type 6 (interesting room) -> Large wooden chest (K:375)
+    7: (1, 3),   # Type 7 (lesser vault) -> Large steel chest (K:376)
+    8: (1, 5),   # Type 8 (greater vault) -> Large jewelled chest (K:377)
+    9: (1, 5),   # Type 9 (Morgoth's vault) -> Large jewelled chest
+    10: (1, 5),  # Type 10 (Gates) -> Large jewelled chest
+}
+
+# Symbols that get a 'T' overlay to distinguish from actual chests
+_TREASURE_SYMBOLS = {"*", "&", "!"}
+
 
 @dataclass(frozen=True)
 class Vault:
@@ -807,7 +887,33 @@ def render_vault_png(
 
             image.paste(base, (px, py), base)
 
-            if should_draw_symbol(symbol):
+            # Render symbol as pictogram tile if available
+            symbol_tile_coord: Optional[tuple[int, int]] = None
+            if symbol == "~":
+                # Chest tile depends on vault type
+                symbol_tile_coord = VAULT_CHEST_TILES.get(vault.typ or 6, (1, 1))
+            elif symbol in VAULT_SYMBOL_TILES:
+                symbol_tile_coord = VAULT_SYMBOL_TILES[symbol]
+
+            if symbol_tile_coord is not None:
+                sym_row, sym_col = symbol_tile_coord
+                symbol_tile = atlas.get(sym_row, sym_col, scale)
+                image.alpha_composite(symbol_tile, (px, py))
+
+                # Add 't' overlay for treasure symbols to distinguish from actual chests
+                if symbol in _TREASURE_SYMBOLS:
+                    cx = px + tile_px // 2
+                    cy = py + tile_px // 2
+                    _draw_text_centered(
+                        draw,
+                        (cx, cy),
+                        "t",
+                        font=font,
+                        fill=(255, 255, 255, 255),
+                        outline=(0, 0, 0, 220),
+                    )
+            elif should_draw_symbol(symbol):
+                # Fallback to text rendering for symbols without tiles
                 cx = px + tile_px // 2
                 cy = py + tile_px // 2
                 _draw_text_centered(

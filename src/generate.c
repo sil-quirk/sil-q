@@ -11165,6 +11165,14 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 break;
             }
 
+            /* Wight/Wraith */
+            case 'g':
+            {
+                place_monster_by_letter(
+                    y, x, 'W', true, p_ptr->depth + rand_range(1, 4));
+                break;
+            }
+
                 /* Archer */
             case 'a':
             {
