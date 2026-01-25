@@ -51,6 +51,9 @@ jobs:
           # TODO: Add `-Werror` once all compiler warnings are fixed.
           env OPT="-O2" make -f Makefile.cocoa ARCHS="x86_64 arm64" -j$(sysctl -n hw.ncpu)
 
+      - name: Update version file with build information
+        run: bin/version.sh
+
       - name: Verify build
         run: |
           ls -la Sil.app
@@ -60,7 +63,7 @@ jobs:
       # top-level `Sil.app` folder. Without this folder, macOS will not
       # recognize the artifact as a valid macOS application.
       - name: Create archive
-        run: zip -r Sil-Q-macos.zip Sil.app "Sil-Q v1.5.0.pdf"
+        run: zip -r Sil-Q-macos.zip Sil.app Sil-Q-version.txt "Sil-Q v1.5.0.pdf"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6

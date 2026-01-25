@@ -1,0 +1,12 @@
+# File: Sil-Q-version.txt
+#
+# Description: Contains detailed version information for Sil-Q, which goes
+# beyond the in-game version information that the user can show via the `V`
+# keybind.
+#
+# NOTE: During a build via GitHub Actions, this file will be appended with
+#       additional information such as the exact git commit of the source code
+#       that was used to create the build artefacts. See `bin/version.sh`.
+#
+
+Sil-Q version: 1.6.0

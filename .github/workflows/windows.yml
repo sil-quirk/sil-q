@@ -89,6 +89,10 @@ jobs:
           make -f Makefile.cyg OPT="-O2" PEFORMAT=${{ matrix.peformat }}
           mv sil.exe ../sil.exe
 
+      - name: Update version file with build information
+        shell: bash
+        run: bin/version.sh
+
       - name: Verify build
         run: |
           ls -la sil.exe
@@ -108,4 +112,5 @@ jobs:
             lib
             LICENSE.md
             README.md
+            Sil-Q-version.txt
             Sil-Q v1.5.0.pdf
