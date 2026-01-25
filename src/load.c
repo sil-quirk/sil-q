@@ -94,6 +94,7 @@ static bool savefile_has_hint_messages = false;
 static bool savefile_has_thrall_quest = false;
 static bool savefile_has_thrall_quest_requested = false;
 static bool savefile_has_randart_flags4 = false;
+static bool savefile_has_item_bonuses = false;
 
 /* Version comparison helpers: update these when bumping savefile semantics. */
 static int savefile_version_compare(byte major, byte minor, byte patch, byte extra)
@@ -383,6 +384,102 @@ static void convert_old_staff_of_warding(object_type* o_ptr)
         o_ptr->ident |= IDENT_EMPTY;
     else
         o_ptr->ident &= ~(IDENT_EMPTY);
+
+    memset(o_ptr->stat_bonus, 0, sizeof(o_ptr->stat_bonus));
+    memset(o_ptr->skill_bonus, 0, sizeof(o_ptr->skill_bonus));
+}
+
+static void object_derive_stat_skill_bonuses_from_pval(object_type* o_ptr)
+{
+    if (!o_ptr)
+        return;
+
+    memset(o_ptr->stat_bonus, 0, sizeof(o_ptr->stat_bonus));
+    memset(o_ptr->skill_bonus, 0, sizeof(o_ptr->skill_bonus));
+
+    u32b f1, f2, f3;
+    object_flags(o_ptr, &f1, &f2, &f3);
+
+    if (f1 & TR1_STR)
+        o_ptr->stat_bonus[A_STR] += o_ptr->pval;
+    if (f1 & TR1_NEG_STR)
+        o_ptr->stat_bonus[A_STR] -= o_ptr->pval;
+
+    if (f1 & TR1_DEX)
+        o_ptr->stat_bonus[A_DEX] += o_ptr->pval;
+    if (f1 & TR1_NEG_DEX)
+        o_ptr->stat_bonus[A_DEX] -= o_ptr->pval;
+
+    if (f1 & TR1_CON)
+        o_ptr->stat_bonus[A_CON] += o_ptr->pval;
+    if (f1 & TR1_NEG_CON)
+        o_ptr->stat_bonus[A_CON] -= o_ptr->pval;
+
+    if (f1 & TR1_GRA)
+        o_ptr->stat_bonus[A_GRA] += o_ptr->pval;
+    if (f1 & TR1_NEG_GRA)
+        o_ptr->stat_bonus[A_GRA] -= o_ptr->pval;
+
+    if (f1 & TR1_MEL)
+        o_ptr->skill_bonus[S_MEL] += o_ptr->pval;
+    if (f1 & TR1_ARC)
+        o_ptr->skill_bonus[S_ARC] += o_ptr->pval;
+    if (f1 & TR1_STL)
+        o_ptr->skill_bonus[S_STL] += o_ptr->pval;
+    if (f1 & TR1_PER)
+        o_ptr->skill_bonus[S_PER] += o_ptr->pval;
+    if (f1 & TR1_WIL)
+        o_ptr->skill_bonus[S_WIL] += o_ptr->pval;
+    if (f1 & TR1_SMT)
+        o_ptr->skill_bonus[S_SMT] += o_ptr->pval;
+    if (f1 & TR1_SNG)
+        o_ptr->skill_bonus[S_SNG] += o_ptr->pval;
+}
+
+static void artefact_derive_stat_skill_bonuses_from_pval(artefact_type* a_ptr)
+{
+    if (!a_ptr)
+        return;
+
+    memset(a_ptr->stat_bonus, 0, sizeof(a_ptr->stat_bonus));
+    memset(a_ptr->skill_bonus, 0, sizeof(a_ptr->skill_bonus));
+    memset(a_ptr->stat_bonus_set, 0, sizeof(a_ptr->stat_bonus_set));
+    memset(a_ptr->skill_bonus_set, 0, sizeof(a_ptr->skill_bonus_set));
+
+    if (a_ptr->flags1 & TR1_STR)
+        a_ptr->stat_bonus[A_STR] += a_ptr->pval;
+    if (a_ptr->flags1 & TR1_NEG_STR)
+        a_ptr->stat_bonus[A_STR] -= a_ptr->pval;
+
+    if (a_ptr->flags1 & TR1_DEX)
+        a_ptr->stat_bonus[A_DEX] += a_ptr->pval;
+    if (a_ptr->flags1 & TR1_NEG_DEX)
+        a_ptr->stat_bonus[A_DEX] -= a_ptr->pval;
+
+    if (a_ptr->flags1 & TR1_CON)
+        a_ptr->stat_bonus[A_CON] += a_ptr->pval;
+    if (a_ptr->flags1 & TR1_NEG_CON)
+        a_ptr->stat_bonus[A_CON] -= a_ptr->pval;
+
+    if (a_ptr->flags1 & TR1_GRA)
+        a_ptr->stat_bonus[A_GRA] += a_ptr->pval;
+    if (a_ptr->flags1 & TR1_NEG_GRA)
+        a_ptr->stat_bonus[A_GRA] -= a_ptr->pval;
+
+    if (a_ptr->flags1 & TR1_MEL)
+        a_ptr->skill_bonus[S_MEL] += a_ptr->pval;
+    if (a_ptr->flags1 & TR1_ARC)
+        a_ptr->skill_bonus[S_ARC] += a_ptr->pval;
+    if (a_ptr->flags1 & TR1_STL)
+        a_ptr->skill_bonus[S_STL] += a_ptr->pval;
+    if (a_ptr->flags1 & TR1_PER)
+        a_ptr->skill_bonus[S_PER] += a_ptr->pval;
+    if (a_ptr->flags1 & TR1_WIL)
+        a_ptr->skill_bonus[S_WIL] += a_ptr->pval;
+    if (a_ptr->flags1 & TR1_SMT)
+        a_ptr->skill_bonus[S_SMT] += a_ptr->pval;
+    if (a_ptr->flags1 & TR1_SNG)
+        a_ptr->skill_bonus[S_SNG] += a_ptr->pval;
 }
 
 static errr rd_item(object_type* o_ptr)
@@ -464,6 +561,24 @@ static errr rd_item(object_type* o_ptr)
     for (i = 0; i < 8; i++)
     {
         rd_byte(&o_ptr->bane_type[i]);
+    }
+
+    /* Per-stat/skill modifiers */
+    if (savefile_has_item_bonuses)
+    {
+        for (i = 0; i < A_MAX; i++)
+        {
+            rd_s16b(&o_ptr->stat_bonus[i]);
+        }
+        for (i = 0; i < S_MAX; i++)
+        {
+            rd_s16b(&o_ptr->skill_bonus[i]);
+        }
+    }
+    else
+    {
+        memset(o_ptr->stat_bonus, 0, sizeof(o_ptr->stat_bonus));
+        memset(o_ptr->skill_bonus, 0, sizeof(o_ptr->skill_bonus));
     }
 
     /* Inscription */
@@ -671,6 +786,18 @@ static errr rd_item(object_type* o_ptr)
     }
 
     convert_old_staff_of_warding(o_ptr);
+
+    /* Back-compat: derive bonuses from pval+flags for older saves. */
+    if (o_ptr->name1)
+    {
+        artefact_type* a_ptr = &a_info[o_ptr->name1];
+        memcpy(o_ptr->stat_bonus, a_ptr->stat_bonus, sizeof(o_ptr->stat_bonus));
+        memcpy(o_ptr->skill_bonus, a_ptr->skill_bonus, sizeof(o_ptr->skill_bonus));
+    }
+    else if (!savefile_has_item_bonuses)
+    {
+        object_derive_stat_skill_bonuses_from_pval(o_ptr);
+    }
 
     /* Log staff loading for debugging disappearing staff bug */
     if (o_ptr->tval == TV_STAFF)
@@ -1718,6 +1845,10 @@ static errr rd_randarts(void)
             a_ptr->tval = 0;
             a_ptr->sval = 0;
             a_ptr->name[0] = '\0';
+            memset(a_ptr->stat_bonus, 0, sizeof(a_ptr->stat_bonus));
+            memset(a_ptr->skill_bonus, 0, sizeof(a_ptr->skill_bonus));
+            memset(a_ptr->stat_bonus_set, 0, sizeof(a_ptr->stat_bonus_set));
+            memset(a_ptr->skill_bonus_set, 0, sizeof(a_ptr->skill_bonus_set));
         }
 
         /* Read the artefacts */
@@ -1768,6 +1899,8 @@ static errr rd_randarts(void)
             rd_byte(&a_ptr->activation);
             rd_u16b(&a_ptr->time);
             rd_u16b(&a_ptr->randtime);
+
+            artefact_derive_stat_skill_bonuses_from_pval(a_ptr);
         }
     }
     else
@@ -2788,6 +2921,7 @@ static errr rd_savefile_new_aux(void)
     savefile_has_thrall_quest = savefile_version_at_least(0, 9, 1, 11);
     savefile_has_thrall_quest_requested = savefile_version_at_least(0, 9, 1, 12);
     savefile_has_randart_flags4 = savefile_version_at_least(0, 9, 5, 1);
+    savefile_has_item_bonuses = savefile_version_at_least(0, 9, 5, 2);
 
     /* Reset load byte offset counter */
     load_byte_offset = 0;
@@ -3253,6 +3387,7 @@ bool load_player(void)
             savefile_has_hint_messages = savefile_version_at_least(0, 9, 1, 10);
             savefile_has_thrall_quest = savefile_version_at_least(0, 9, 1, 11);
             savefile_has_randart_flags4 = savefile_version_at_least(0, 9, 5, 1);
+            savefile_has_item_bonuses = savefile_version_at_least(0, 9, 5, 2);
         }
 
         load_byte_offset = 0; /* reset counter before decoding stream */

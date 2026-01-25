@@ -548,6 +548,16 @@ static void wr_item(const object_type* o_ptr)
         wr_byte(o_ptr->bane_type[i]);
     }
 
+    /* Per-stat/skill modifiers */
+    for (i = 0; i < A_MAX; i++)
+    {
+        wr_s16b(o_ptr->stat_bonus[i]);
+    }
+    for (i = 0; i < S_MAX; i++)
+    {
+        wr_s16b(o_ptr->skill_bonus[i]);
+    }
+
     /* Save the inscription (if any) */
     if (o_ptr->obj_note)
     {

@@ -1347,8 +1347,50 @@ extern void ident_on_wield(object_type* o_ptr)
          * flag (e.g. Shadow Cloak has STEALTH), stripping base flags would hide
          * the effect and prevent auto-identification on wear.
          */
-        if (o_ptr->pval != k_ptr->pval)
-            f1 |= (orig_f1 & k_ptr->flags1 & TR1_PVAL_MASK);
+        {
+            u32b base_pval_flags = (orig_f1 & k_ptr->flags1);
+
+            if ((base_pval_flags & (TR1_TUNNEL | TR1_DAMAGE_SIDES))
+                && (o_ptr->pval != k_ptr->pval))
+            {
+                f1 |= (base_pval_flags & (TR1_TUNNEL | TR1_DAMAGE_SIDES));
+            }
+
+            if ((base_pval_flags & (TR1_STR | TR1_NEG_STR))
+                && (o_ptr->stat_bonus[A_STR] != k_ptr->stat_bonus[A_STR]))
+                f1 |= (base_pval_flags & (TR1_STR | TR1_NEG_STR));
+            if ((base_pval_flags & (TR1_DEX | TR1_NEG_DEX))
+                && (o_ptr->stat_bonus[A_DEX] != k_ptr->stat_bonus[A_DEX]))
+                f1 |= (base_pval_flags & (TR1_DEX | TR1_NEG_DEX));
+            if ((base_pval_flags & (TR1_CON | TR1_NEG_CON))
+                && (o_ptr->stat_bonus[A_CON] != k_ptr->stat_bonus[A_CON]))
+                f1 |= (base_pval_flags & (TR1_CON | TR1_NEG_CON));
+            if ((base_pval_flags & (TR1_GRA | TR1_NEG_GRA))
+                && (o_ptr->stat_bonus[A_GRA] != k_ptr->stat_bonus[A_GRA]))
+                f1 |= (base_pval_flags & (TR1_GRA | TR1_NEG_GRA));
+
+            if ((base_pval_flags & TR1_MEL)
+                && (o_ptr->skill_bonus[S_MEL] != k_ptr->skill_bonus[S_MEL]))
+                f1 |= (base_pval_flags & TR1_MEL);
+            if ((base_pval_flags & TR1_ARC)
+                && (o_ptr->skill_bonus[S_ARC] != k_ptr->skill_bonus[S_ARC]))
+                f1 |= (base_pval_flags & TR1_ARC);
+            if ((base_pval_flags & TR1_STL)
+                && (o_ptr->skill_bonus[S_STL] != k_ptr->skill_bonus[S_STL]))
+                f1 |= (base_pval_flags & TR1_STL);
+            if ((base_pval_flags & TR1_PER)
+                && (o_ptr->skill_bonus[S_PER] != k_ptr->skill_bonus[S_PER]))
+                f1 |= (base_pval_flags & TR1_PER);
+            if ((base_pval_flags & TR1_WIL)
+                && (o_ptr->skill_bonus[S_WIL] != k_ptr->skill_bonus[S_WIL]))
+                f1 |= (base_pval_flags & TR1_WIL);
+            if ((base_pval_flags & TR1_SMT)
+                && (o_ptr->skill_bonus[S_SMT] != k_ptr->skill_bonus[S_SMT]))
+                f1 |= (base_pval_flags & TR1_SMT);
+            if ((base_pval_flags & TR1_SNG)
+                && (o_ptr->skill_bonus[S_SNG] != k_ptr->skill_bonus[S_SNG]))
+                f1 |= (base_pval_flags & TR1_SNG);
+        }
     }
 
     if (f2 & (TR2_DARKNESS))
@@ -1406,7 +1448,7 @@ extern void ident_on_wield(object_type* o_ptr)
     }
     else if ((f1 & (TR1_STR)) || (f1 & (TR1_NEG_STR)))
     {
-        int bonus = (f1 & (TR1_STR)) ? o_ptr->pval : -(o_ptr->pval);
+        int bonus = o_ptr->stat_bonus[A_STR];
 
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
@@ -1426,7 +1468,7 @@ extern void ident_on_wield(object_type* o_ptr)
     }
     else if ((f1 & (TR1_DEX)) || (f1 & (TR1_NEG_DEX)))
     {
-        int bonus = (f1 & (TR1_DEX)) ? o_ptr->pval : -(o_ptr->pval);
+        int bonus = o_ptr->stat_bonus[A_DEX];
 
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
@@ -1446,7 +1488,7 @@ extern void ident_on_wield(object_type* o_ptr)
     }
     else if ((f1 & (TR1_CON)) || (f1 & (TR1_NEG_CON)))
     {
-        int bonus = (f1 & (TR1_CON)) ? o_ptr->pval : -(o_ptr->pval);
+        int bonus = o_ptr->stat_bonus[A_CON];
 
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
@@ -1466,7 +1508,7 @@ extern void ident_on_wield(object_type* o_ptr)
     }
     else if ((f1 & (TR1_GRA)) || (f1 & (TR1_NEG_GRA)))
     {
-        int bonus = (f1 & (TR1_GRA)) ? o_ptr->pval : -(o_ptr->pval);
+        int bonus = o_ptr->stat_bonus[A_GRA];
 
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
@@ -1486,17 +1528,19 @@ extern void ident_on_wield(object_type* o_ptr)
     }
     else if (f1 & (TR1_MEL))
     {
+        int bonus = o_ptr->skill_bonus[S_MEL];
+
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
         {
             notice = true;
         }
-        else if (o_ptr->pval > 0)
+        else if (bonus > 0)
         {
             notice = true;
             msg_print("You feel more in control of your weapon.");
         }
-        else if (o_ptr->pval < 0)
+        else if (bonus < 0)
         {
             notice = true;
             msg_print("You feel less in control of your weapon.");
@@ -1504,17 +1548,19 @@ extern void ident_on_wield(object_type* o_ptr)
     }
     else if (f1 & (TR1_ARC))
     {
+        int bonus = o_ptr->skill_bonus[S_ARC];
+
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
         {
             notice = true;
         }
-        else if (o_ptr->pval > 0)
+        else if (bonus > 0)
         {
             notice = true;
             msg_print("You feel more accurate at archery.");
         }
-        else if (o_ptr->pval < 0)
+        else if (bonus < 0)
         {
             notice = true;
             msg_print("You feel less accurate at archery.");
@@ -1522,17 +1568,19 @@ extern void ident_on_wield(object_type* o_ptr)
     }
     else if (f1 & (TR1_STL))
     {
+        int bonus = o_ptr->skill_bonus[S_STL];
+
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
         {
             notice = true;
         }
-        else if (o_ptr->pval > 0)
+        else if (bonus > 0)
         {
             notice = true;
             msg_print("Your movements become quieter.");
         }
-        else if (o_ptr->pval < 0)
+        else if (bonus < 0)
         {
             notice = true;
             msg_print("Your movements less quiet.");
@@ -1540,17 +1588,19 @@ extern void ident_on_wield(object_type* o_ptr)
     }
     else if (f1 & (TR1_PER))
     {
+        int bonus = o_ptr->skill_bonus[S_PER];
+
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
         {
             notice = true;
         }
-        else if (o_ptr->pval > 0)
+        else if (bonus > 0)
         {
             notice = true;
             msg_print("You feel more perceptive.");
         }
-        else if (o_ptr->pval < 0)
+        else if (bonus < 0)
         {
             notice = true;
             msg_print("You feel less perceptive.");
@@ -1558,17 +1608,19 @@ extern void ident_on_wield(object_type* o_ptr)
     }
     else if (f1 & (TR1_WIL))
     {
+        int bonus = o_ptr->skill_bonus[S_WIL];
+
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
         {
             notice = true;
         }
-        else if (o_ptr->pval > 0)
+        else if (bonus > 0)
         {
             notice = true;
             msg_print("You feel more firm of will.");
         }
-        else if (o_ptr->pval < 0)
+        else if (bonus < 0)
         {
             notice = true;
             msg_print("You feel less firm of will.");
@@ -1576,17 +1628,19 @@ extern void ident_on_wield(object_type* o_ptr)
     }
     else if (f1 & (TR1_SMT))
     {
+        int bonus = o_ptr->skill_bonus[S_SMT];
+
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
         {
             notice = true;
         }
-        else if (o_ptr->pval > 0)
+        else if (bonus > 0)
         {
             notice = true;
             msg_print("You feel a desire to craft things with your hands.");
         }
-        else if (o_ptr->pval < 0)
+        else if (bonus < 0)
         {
             notice = true;
             msg_print("You feel less able to craft things.");
@@ -1594,17 +1648,19 @@ extern void ident_on_wield(object_type* o_ptr)
     }
     else if (f1 & (TR1_SNG))
     {
+        int bonus = o_ptr->skill_bonus[S_SNG];
+
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
         {
             notice = true;
         }
-        else if (o_ptr->pval > 0)
+        else if (bonus > 0)
         {
             notice = true;
             msg_print("You are filled with inspiration.");
         }
-        else if (o_ptr->pval < 0)
+        else if (bonus < 0)
         {
             notice = true;
             msg_print("You feel a loss of inspiration.");

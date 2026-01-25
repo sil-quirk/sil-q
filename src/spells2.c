@@ -560,9 +560,9 @@ void self_knowledge(void)
         if (t2 & TR2_LIGHT) light++;
         if (t2 & TR2_DARKNESS) light--;
         if (t4 & TR4_UNLIGHT) light--;
-        if (t1 & TR1_MEL) mel += o_ptr->pval;
-        if (t1 & TR1_ARC) arc += o_ptr->pval;
-        if (t1 & TR1_STL) stl += o_ptr->pval;
+        if (t1 & TR1_MEL) mel += o_ptr->skill_bonus[S_MEL];
+        if (t1 & TR1_ARC) arc += o_ptr->skill_bonus[S_ARC];
+        if (t1 & TR1_STL) stl += o_ptr->skill_bonus[S_STL];
         if (t3 & TR3_MEDIC) medic++;
     }
 

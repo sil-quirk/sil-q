@@ -1381,43 +1381,31 @@ static s32b object_value_real(const object_type* o_ptr)
         if (o_ptr->pval < 0)
             return (0L);
 
-        /* No pval */
-        if (!o_ptr->pval)
-            break;
-
         /* Give credit for stat bonuses */
-        if (f1 & (TR1_STR))
-            value += (o_ptr->pval * 300L);
-        if (f1 & (TR1_DEX))
-            value += (o_ptr->pval * 300L);
-        if (f1 & (TR1_CON))
-            value += (o_ptr->pval * 300L);
-        if (f1 & (TR1_GRA))
-            value += (o_ptr->pval * 300L);
-        if (f1 & (TR1_NEG_STR))
-            value -= (o_ptr->pval * 300L);
-        if (f1 & (TR1_NEG_DEX))
-            value -= (o_ptr->pval * 300L);
-        if (f1 & (TR1_NEG_CON))
-            value -= (o_ptr->pval * 300L);
-        if (f1 & (TR1_NEG_GRA))
-            value -= (o_ptr->pval * 300L);
+        if (f1 & (TR1_STR | TR1_NEG_STR))
+            value += ((s32b)o_ptr->stat_bonus[A_STR] * 300L);
+        if (f1 & (TR1_DEX | TR1_NEG_DEX))
+            value += ((s32b)o_ptr->stat_bonus[A_DEX] * 300L);
+        if (f1 & (TR1_CON | TR1_NEG_CON))
+            value += ((s32b)o_ptr->stat_bonus[A_CON] * 300L);
+        if (f1 & (TR1_GRA | TR1_NEG_GRA))
+            value += ((s32b)o_ptr->stat_bonus[A_GRA] * 300L);
 
         /* Give credit for skills */
         if (f1 & (TR1_MEL))
-            value += (o_ptr->pval * 100L);
+            value += ((s32b)o_ptr->skill_bonus[S_MEL] * 100L);
         if (f1 & (TR1_ARC))
-            value += (o_ptr->pval * 100L);
+            value += ((s32b)o_ptr->skill_bonus[S_ARC] * 100L);
         if (f1 & (TR1_STL))
-            value += (o_ptr->pval * 100L);
+            value += ((s32b)o_ptr->skill_bonus[S_STL] * 100L);
         if (f1 & (TR1_PER))
-            value += (o_ptr->pval * 100L);
+            value += ((s32b)o_ptr->skill_bonus[S_PER] * 100L);
         if (f1 & (TR1_WIL))
-            value += (o_ptr->pval * 100L);
+            value += ((s32b)o_ptr->skill_bonus[S_WIL] * 100L);
         if (f1 & (TR1_SMT))
-            value += (o_ptr->pval * 100L);
+            value += ((s32b)o_ptr->skill_bonus[S_SMT] * 100L);
         if (f1 & (TR1_SNG))
-            value += (o_ptr->pval * 100L);
+            value += ((s32b)o_ptr->skill_bonus[S_SNG] * 100L);
 
         /* Give credit for tunneling */
         if (f1 & (TR1_TUNNEL))
@@ -1703,6 +1691,12 @@ bool object_similar(const object_type* o_ptr, const object_type* j_ptr)
         if (o_ptr->pval != j_ptr->pval)
             return (false);
 
+        /* Require identical per-stat/skill bonuses */
+        if (memcmp(o_ptr->stat_bonus, j_ptr->stat_bonus, sizeof(o_ptr->stat_bonus)) != 0)
+            return (false);
+        if (memcmp(o_ptr->skill_bonus, j_ptr->skill_bonus, sizeof(o_ptr->skill_bonus)) != 0)
+            return (false);
+
         /* Require identical "artefact" names */
         if (o_ptr->name1 != j_ptr->name1)
             return (false);
@@ -1957,6 +1951,12 @@ void object_prep(object_type* o_ptr, int k_idx)
 
     /* Default "pval" */
     o_ptr->pval = k_ptr->pval;
+
+    /* Per-stat/skill bonuses */
+    for (i = 0; i < A_MAX; i++)
+        o_ptr->stat_bonus[i] = k_ptr->stat_bonus[i];
+    for (i = 0; i < S_MAX; i++)
+        o_ptr->skill_bonus[i] = k_ptr->skill_bonus[i];
 
     /* Default number */
     o_ptr->number = 1;
@@ -2601,6 +2601,11 @@ static void a_m_aux_3(object_type* o_ptr, int level)
             /* Stat bonus */
             o_ptr->pval = (level + dieroll(15)) / 20;
 
+            if (o_ptr->sval == SV_RING_STR)
+                o_ptr->stat_bonus[A_STR] = o_ptr->pval;
+            else
+                o_ptr->stat_bonus[A_DEX] = o_ptr->pval;
+
             break;
         }
 
@@ -2666,6 +2671,8 @@ static void a_m_aux_3(object_type* o_ptr, int level)
                 o_ptr->pval = 1;
             }
 
+            o_ptr->skill_bonus[S_PER] = o_ptr->pval;
+
             break;
         }
 
@@ -2674,6 +2681,7 @@ static void a_m_aux_3(object_type* o_ptr, int level)
         {
             /* Bonus to will */
             o_ptr->pval = (level + dieroll(10)) / 20 + 1;
+            o_ptr->skill_bonus[S_WIL] = o_ptr->pval;
             break;
         }
 
@@ -2682,6 +2690,8 @@ static void a_m_aux_3(object_type* o_ptr, int level)
         {
             /* Bonus to stealth and archery */
             o_ptr->pval = 1;
+            o_ptr->skill_bonus[S_ARC] = o_ptr->pval;
+            o_ptr->skill_bonus[S_STL] = o_ptr->pval;
             break;
         }
         }
@@ -2701,6 +2711,11 @@ static void a_m_aux_3(object_type* o_ptr, int level)
             /* Stat bonus */
             o_ptr->pval = (level + dieroll(15)) / 20;
 
+            if (o_ptr->sval == SV_AMULET_CON)
+                o_ptr->stat_bonus[A_CON] = o_ptr->pval;
+            else
+                o_ptr->stat_bonus[A_GRA] = o_ptr->pval;
+
             break;
         }
 
@@ -2708,6 +2723,7 @@ static void a_m_aux_3(object_type* o_ptr, int level)
         case SV_AMULET_BLESSED_REALM:
         {
             o_ptr->pval = 1;
+            o_ptr->stat_bonus[A_GRA] = o_ptr->pval;
 
             break;
         }
@@ -2717,6 +2733,7 @@ static void a_m_aux_3(object_type* o_ptr, int level)
         {
             /* Bonus to perception */
             o_ptr->pval = (level + dieroll(10)) / 10 + 1;
+            o_ptr->skill_bonus[S_PER] = o_ptr->pval;
             break;
         }
         }
@@ -2879,6 +2896,10 @@ void object_into_artefact(object_type* o_ptr, artefact_type* a_ptr)
 
     /* Extract the other fields */
     o_ptr->pval = a_ptr->pval;
+    for (i = 0; i < A_MAX; i++)
+        o_ptr->stat_bonus[i] = a_ptr->stat_bonus[i];
+    for (i = 0; i < S_MAX; i++)
+        o_ptr->skill_bonus[i] = a_ptr->skill_bonus[i];
     o_ptr->att = a_ptr->att;
     o_ptr->dd = a_ptr->dd;
     o_ptr->ds = a_ptr->ds;
@@ -2964,6 +2985,7 @@ void object_into_special(object_type* o_ptr, int lev, bool smithing)
             continue;
 
         ego_item_type* e_ptr = &e_info[e_idx];
+        u32b ef1 = e_ptr->flags1;
         int max_att = (int)(int8_t)e_ptr->max_att;
         int to_dd = (int)(int8_t)e_ptr->to_dd;
         int to_ds = (int)(int8_t)e_ptr->to_ds;
@@ -3004,10 +3026,28 @@ void object_into_special(object_type* o_ptr, int lev, bool smithing)
 
             if (e_ptr->max_pval > 0)
             {
+                int delta = 1;
                 if (cursed_p(o_ptr))
-                    o_ptr->pval -= 1;
-                else
-                    o_ptr->pval += 1;
+                    delta = -delta;
+                o_ptr->pval += (s16b)delta;
+
+                /* Apply to pval-based stat/skill bonuses. */
+                if (f1 & TR1_STR) o_ptr->stat_bonus[A_STR] += (s16b)delta;
+                if (f1 & TR1_DEX) o_ptr->stat_bonus[A_DEX] += (s16b)delta;
+                if (f1 & TR1_CON) o_ptr->stat_bonus[A_CON] += (s16b)delta;
+                if (f1 & TR1_GRA) o_ptr->stat_bonus[A_GRA] += (s16b)delta;
+                if (f1 & TR1_NEG_STR) o_ptr->stat_bonus[A_STR] -= (s16b)delta;
+                if (f1 & TR1_NEG_DEX) o_ptr->stat_bonus[A_DEX] -= (s16b)delta;
+                if (f1 & TR1_NEG_CON) o_ptr->stat_bonus[A_CON] -= (s16b)delta;
+                if (f1 & TR1_NEG_GRA) o_ptr->stat_bonus[A_GRA] -= (s16b)delta;
+
+                if (f1 & TR1_MEL) o_ptr->skill_bonus[S_MEL] += (s16b)delta;
+                if (f1 & TR1_ARC) o_ptr->skill_bonus[S_ARC] += (s16b)delta;
+                if (f1 & TR1_STL) o_ptr->skill_bonus[S_STL] += (s16b)delta;
+                if (f1 & TR1_PER) o_ptr->skill_bonus[S_PER] += (s16b)delta;
+                if (f1 & TR1_WIL) o_ptr->skill_bonus[S_WIL] += (s16b)delta;
+                if (f1 & TR1_SMT) o_ptr->skill_bonus[S_SMT] += (s16b)delta;
+                if (f1 & TR1_SNG) o_ptr->skill_bonus[S_SNG] += (s16b)delta;
             }
         }
         else
@@ -3027,12 +3067,45 @@ void object_into_special(object_type* o_ptr, int lev, bool smithing)
 
             if (e_ptr->max_pval > 0)
             {
+                int delta = dieroll(e_ptr->max_pval);
                 if (cursed_p(o_ptr))
-                    o_ptr->pval -= dieroll(e_ptr->max_pval);
-                else
-                    o_ptr->pval += dieroll(e_ptr->max_pval);
+                    delta = -delta;
+                o_ptr->pval += (s16b)delta;
+
+                /* Apply to pval-based stat/skill bonuses. */
+                if (f1 & TR1_STR) o_ptr->stat_bonus[A_STR] += (s16b)delta;
+                if (f1 & TR1_DEX) o_ptr->stat_bonus[A_DEX] += (s16b)delta;
+                if (f1 & TR1_CON) o_ptr->stat_bonus[A_CON] += (s16b)delta;
+                if (f1 & TR1_GRA) o_ptr->stat_bonus[A_GRA] += (s16b)delta;
+                if (f1 & TR1_NEG_STR) o_ptr->stat_bonus[A_STR] -= (s16b)delta;
+                if (f1 & TR1_NEG_DEX) o_ptr->stat_bonus[A_DEX] -= (s16b)delta;
+                if (f1 & TR1_NEG_CON) o_ptr->stat_bonus[A_CON] -= (s16b)delta;
+                if (f1 & TR1_NEG_GRA) o_ptr->stat_bonus[A_GRA] -= (s16b)delta;
+
+                if (f1 & TR1_MEL) o_ptr->skill_bonus[S_MEL] += (s16b)delta;
+                if (f1 & TR1_ARC) o_ptr->skill_bonus[S_ARC] += (s16b)delta;
+                if (f1 & TR1_STL) o_ptr->skill_bonus[S_STL] += (s16b)delta;
+                if (f1 & TR1_PER) o_ptr->skill_bonus[S_PER] += (s16b)delta;
+                if (f1 & TR1_WIL) o_ptr->skill_bonus[S_WIL] += (s16b)delta;
+                if (f1 & TR1_SMT) o_ptr->skill_bonus[S_SMT] += (s16b)delta;
+                if (f1 & TR1_SNG) o_ptr->skill_bonus[S_SNG] += (s16b)delta;
             }
         }
+
+        /* Apply ego-specific stat/skill offsets. */
+        if (ef1 & (TR1_STR | TR1_NEG_STR)) o_ptr->stat_bonus[A_STR] += e_ptr->stat_bonus[A_STR];
+        if (ef1 & (TR1_DEX | TR1_NEG_DEX)) o_ptr->stat_bonus[A_DEX] += e_ptr->stat_bonus[A_DEX];
+        if (ef1 & (TR1_CON | TR1_NEG_CON)) o_ptr->stat_bonus[A_CON] += e_ptr->stat_bonus[A_CON];
+        if (ef1 & (TR1_GRA | TR1_NEG_GRA)) o_ptr->stat_bonus[A_GRA] += e_ptr->stat_bonus[A_GRA];
+
+        if (ef1 & TR1_MEL) o_ptr->skill_bonus[S_MEL] += e_ptr->skill_bonus[S_MEL];
+        if (ef1 & TR1_ARC) o_ptr->skill_bonus[S_ARC] += e_ptr->skill_bonus[S_ARC];
+        if (ef1 & TR1_STL) o_ptr->skill_bonus[S_STL] += e_ptr->skill_bonus[S_STL];
+        if (ef1 & TR1_PER) o_ptr->skill_bonus[S_PER] += e_ptr->skill_bonus[S_PER];
+        if (ef1 & TR1_WIL) o_ptr->skill_bonus[S_WIL] += e_ptr->skill_bonus[S_WIL];
+        if (ef1 & TR1_SMT) o_ptr->skill_bonus[S_SMT] += e_ptr->skill_bonus[S_SMT];
+        if (ef1 & TR1_SNG) o_ptr->skill_bonus[S_SNG] += e_ptr->skill_bonus[S_SNG];
+
     }
 
     /* Never allow invalid dice/sides on items that normally have them. */

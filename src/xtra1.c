@@ -3101,38 +3101,30 @@ static void calc_bonuses(void)
             continue;
 
         /* Affect stats */
-        if (f1 & (TR1_STR))
-            p_ptr->stat_equip_mod[A_STR] += o_ptr->pval;
-        if (f1 & (TR1_DEX))
-            p_ptr->stat_equip_mod[A_DEX] += o_ptr->pval;
-        if (f1 & (TR1_CON))
-            p_ptr->stat_equip_mod[A_CON] += o_ptr->pval;
-        if (f1 & (TR1_GRA))
-            p_ptr->stat_equip_mod[A_GRA] += o_ptr->pval;
-        if (f1 & (TR1_NEG_STR))
-            p_ptr->stat_equip_mod[A_STR] -= o_ptr->pval;
-        if (f1 & (TR1_NEG_DEX))
-            p_ptr->stat_equip_mod[A_DEX] -= o_ptr->pval;
-        if (f1 & (TR1_NEG_CON))
-            p_ptr->stat_equip_mod[A_CON] -= o_ptr->pval;
-        if (f1 & (TR1_NEG_GRA))
-            p_ptr->stat_equip_mod[A_GRA] -= o_ptr->pval;
+        if (f1 & (TR1_STR | TR1_NEG_STR))
+            p_ptr->stat_equip_mod[A_STR] += o_ptr->stat_bonus[A_STR];
+        if (f1 & (TR1_DEX | TR1_NEG_DEX))
+            p_ptr->stat_equip_mod[A_DEX] += o_ptr->stat_bonus[A_DEX];
+        if (f1 & (TR1_CON | TR1_NEG_CON))
+            p_ptr->stat_equip_mod[A_CON] += o_ptr->stat_bonus[A_CON];
+        if (f1 & (TR1_GRA | TR1_NEG_GRA))
+            p_ptr->stat_equip_mod[A_GRA] += o_ptr->stat_bonus[A_GRA];
 
         /* Affect skills */
         if (f1 & (TR1_MEL))
-            p_ptr->skill_equip_mod[S_MEL] += o_ptr->pval;
+            p_ptr->skill_equip_mod[S_MEL] += o_ptr->skill_bonus[S_MEL];
         if (f1 & (TR1_ARC))
-            p_ptr->skill_equip_mod[S_ARC] += o_ptr->pval;
+            p_ptr->skill_equip_mod[S_ARC] += o_ptr->skill_bonus[S_ARC];
         if (f1 & (TR1_STL))
-            p_ptr->skill_equip_mod[S_STL] += o_ptr->pval;
+            p_ptr->skill_equip_mod[S_STL] += o_ptr->skill_bonus[S_STL];
         if (f1 & (TR1_PER))
-            p_ptr->skill_equip_mod[S_PER] += o_ptr->pval;
+            p_ptr->skill_equip_mod[S_PER] += o_ptr->skill_bonus[S_PER];
         if (f1 & (TR1_WIL))
-            p_ptr->skill_equip_mod[S_WIL] += o_ptr->pval;
+            p_ptr->skill_equip_mod[S_WIL] += o_ptr->skill_bonus[S_WIL];
         if (f1 & (TR1_SMT))
-            p_ptr->skill_equip_mod[S_SMT] += o_ptr->pval;
+            p_ptr->skill_equip_mod[S_SMT] += o_ptr->skill_bonus[S_SMT];
         if (f1 & (TR1_SNG))
-            p_ptr->skill_equip_mod[S_SNG] += o_ptr->pval;
+            p_ptr->skill_equip_mod[S_SNG] += o_ptr->skill_bonus[S_SNG];
 
         /* Affect Damage Sides */
         if (f1 & (TR1_DAMAGE_SIDES))

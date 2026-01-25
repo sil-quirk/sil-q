@@ -2005,6 +2005,84 @@ void object_desc(
     /* Dump "pval" flags for wearable items */
     if (known && (f1 & (TR1_PVAL_MASK)))
     {
+        int best = 0;
+        int best_abs = 0;
+
+        if (f1 & (TR1_STR | TR1_NEG_STR))
+        {
+            int v = o_ptr->stat_bonus[A_STR];
+            int av = ABS(v);
+            if (av > best_abs) { best_abs = av; best = v; }
+        }
+        if (f1 & (TR1_DEX | TR1_NEG_DEX))
+        {
+            int v = o_ptr->stat_bonus[A_DEX];
+            int av = ABS(v);
+            if (av > best_abs) { best_abs = av; best = v; }
+        }
+        if (f1 & (TR1_CON | TR1_NEG_CON))
+        {
+            int v = o_ptr->stat_bonus[A_CON];
+            int av = ABS(v);
+            if (av > best_abs) { best_abs = av; best = v; }
+        }
+        if (f1 & (TR1_GRA | TR1_NEG_GRA))
+        {
+            int v = o_ptr->stat_bonus[A_GRA];
+            int av = ABS(v);
+            if (av > best_abs) { best_abs = av; best = v; }
+        }
+
+        if (f1 & TR1_MEL)
+        {
+            int v = o_ptr->skill_bonus[S_MEL];
+            int av = ABS(v);
+            if (av > best_abs) { best_abs = av; best = v; }
+        }
+        if (f1 & TR1_ARC)
+        {
+            int v = o_ptr->skill_bonus[S_ARC];
+            int av = ABS(v);
+            if (av > best_abs) { best_abs = av; best = v; }
+        }
+        if (f1 & TR1_STL)
+        {
+            int v = o_ptr->skill_bonus[S_STL];
+            int av = ABS(v);
+            if (av > best_abs) { best_abs = av; best = v; }
+        }
+        if (f1 & TR1_PER)
+        {
+            int v = o_ptr->skill_bonus[S_PER];
+            int av = ABS(v);
+            if (av > best_abs) { best_abs = av; best = v; }
+        }
+        if (f1 & TR1_WIL)
+        {
+            int v = o_ptr->skill_bonus[S_WIL];
+            int av = ABS(v);
+            if (av > best_abs) { best_abs = av; best = v; }
+        }
+        if (f1 & TR1_SMT)
+        {
+            int v = o_ptr->skill_bonus[S_SMT];
+            int av = ABS(v);
+            if (av > best_abs) { best_abs = av; best = v; }
+        }
+        if (f1 & TR1_SNG)
+        {
+            int v = o_ptr->skill_bonus[S_SNG];
+            int av = ABS(v);
+            if (av > best_abs) { best_abs = av; best = v; }
+        }
+
+        if (f1 & (TR1_TUNNEL | TR1_DAMAGE_SIDES))
+        {
+            int v = o_ptr->pval;
+            int av = ABS(v);
+            if (av > best_abs) { best_abs = av; best = v; }
+        }
+
         cptr tail = "";
         cptr tail2 = "";
 
@@ -2012,8 +2090,8 @@ void object_desc(
         object_desc_chr_macro(t, ' ');
         object_desc_chr_macro(t, a1);
 
-        /* Dump the "pval" itself */
-        object_desc_int_macro(t, o_ptr->pval);
+        /* Dump the best representative pval-style bonus. */
+        object_desc_int_macro(t, best);
 
         /* Add the descriptor */
         object_desc_str_macro(t, tail);

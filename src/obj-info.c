@@ -106,53 +106,27 @@ static void output_desc_list(cptr intro, cptr list[], int n)
  */
 static bool describe_stats(const object_type* o_ptr, u32b f1)
 {
-    cptr descs[A_MAX];
-    int cnt = 0;
-    int pval = (o_ptr->pval > 0 ? o_ptr->pval : -o_ptr->pval);
+    bool found = false;
 
-    /* Abort if the pval is zero */
-    // if (!pval) return (false);
+    (void)f1;
 
-    /* Collect stat bonuses */
-    if (f1 & (TR1_STR))
-        descs[cnt++] = stat_names_full[A_STR];
-    if (f1 & (TR1_DEX))
-        descs[cnt++] = stat_names_full[A_DEX];
-    if (f1 & (TR1_CON))
-        descs[cnt++] = stat_names_full[A_CON];
-    if (f1 & (TR1_GRA))
-        descs[cnt++] = stat_names_full[A_GRA];
-
-    /* Skip */
-    if (cnt == 0)
-        return (false);
-
-    /* Shorten to "all stats", if appropriate. */
-    if (cnt == A_MAX)
+    for (int stat = 0; stat < A_MAX; stat++)
     {
+        const int bonus = o_ptr->stat_bonus[stat];
+        if (bonus <= 0)
+            continue;
+
         p_text_out("It ");
-        p_text_out_c(o_ptr->pval >= 0 ? TERM_GREEN : TERM_L_RED,
-            (o_ptr->pval >= 0 ? "increases" : "decreases"));
-        p_text_out(" all your stats");
-    }
-    else
-    {
-        p_text_out("It ");
-        p_text_out_c(o_ptr->pval >= 0 ? TERM_GREEN : TERM_L_RED,
-            (o_ptr->pval >= 0 ? "increases" : "decreases"));
+        p_text_out_c(TERM_GREEN, "increases");
         p_text_out(" your ");
-
-        /* Output list */
-        output_list(descs, cnt);
+        p_text_out(stat_names_full[stat]);
+        p_text_out(" by ");
+        p_text_out_c(TERM_UMBER, format("%i", bonus));
+        p_text_out(".  ");
+        found = true;
     }
 
-    /* Output end */
-    p_text_out(" by ");
-    p_text_out_c(TERM_UMBER, format("%i", pval));
-    p_text_out(".  ");
-
-    /* We found something */
-    return (true);
+    return found;
 }
 
 /*
@@ -160,47 +134,27 @@ static bool describe_stats(const object_type* o_ptr, u32b f1)
  */
 static bool describe_neg_stats(const object_type* o_ptr, u32b f1)
 {
-    cptr descs[A_MAX];
-    int cnt = 0;
-    int pval = (o_ptr->pval > 0 ? o_ptr->pval : -o_ptr->pval);
+    bool found = false;
 
-    /* Abort if the pval is zero */
-    // if (!pval) return (false);
+    (void)f1;
 
-    /* Collect stat bonuses */
-    if (f1 & (TR1_NEG_STR))
-        descs[cnt++] = stat_names_full[A_STR];
-    if (f1 & (TR1_NEG_DEX))
-        descs[cnt++] = stat_names_full[A_DEX];
-    if (f1 & (TR1_NEG_CON))
-        descs[cnt++] = stat_names_full[A_CON];
-    if (f1 & (TR1_NEG_GRA))
-        descs[cnt++] = stat_names_full[A_GRA];
-
-    /* Skip */
-    if (cnt == 0)
-        return (false);
-
-    /* Shorten to "all stats", if appropriate. */
-    if (cnt == A_MAX)
+    for (int stat = 0; stat < A_MAX; stat++)
     {
-        p_text_out(format("It %s all your stats",
-            (o_ptr->pval < 0 ? "increases" : "decreases")));
-    }
-    else
-    {
-        p_text_out(format(
-            "It %s your ", (o_ptr->pval < 0 ? "increases" : "decreases")));
+        const int bonus = o_ptr->stat_bonus[stat];
+        if (bonus >= 0)
+            continue;
 
-        /* Output list */
-        output_list(descs, cnt);
+        p_text_out("It ");
+        p_text_out_c(TERM_L_RED, "decreases");
+        p_text_out(" your ");
+        p_text_out(stat_names_full[stat]);
+        p_text_out(" by ");
+        p_text_out_c(TERM_UMBER, format("%i", -bonus));
+        p_text_out(".  ");
+        found = true;
     }
 
-    /* Output end */
-    p_text_out(format(" by %i.  ", pval));
-
-    /* We found something */
-    return (true);
+    return found;
 }
 
 /*
@@ -208,50 +162,137 @@ static bool describe_neg_stats(const object_type* o_ptr, u32b f1)
  */
 static bool describe_secondary(const object_type* o_ptr, u32b f1)
 {
-    cptr descs[8];
-    int cnt = 0;
-    int pval = (o_ptr->pval > 0 ? o_ptr->pval : -o_ptr->pval);
+    bool found = false;
 
-    /* Collect */
-    if (f1 & (TR1_MEL))
-        descs[cnt++] = "melee";
-    if (f1 & (TR1_ARC))
-        descs[cnt++] = "archery";
-    if (f1 & (TR1_STL))
-        descs[cnt++] = "stealth";
-    if (f1 & (TR1_PER))
-        descs[cnt++] = "perception";
-    if (f1 & (TR1_WIL))
-        descs[cnt++] = "will";
-    if (f1 & (TR1_SMT))
-        descs[cnt++] = "smithing";
-    if (f1 & (TR1_SNG))
-        descs[cnt++] = "song";
-    if (f1 & (TR1_TUNNEL))
-        descs[cnt++] = "tunneling";
-    if (f1 & (TR1_DAMAGE_SIDES))
-        descs[cnt++] = "damage sides";
+    if (f1 & TR1_MEL)
+    {
+        int bonus = o_ptr->skill_bonus[S_MEL];
+        if (bonus != 0)
+        {
+            p_text_out("It ");
+            p_text_out_c(bonus > 0 ? TERM_GREEN : TERM_L_RED,
+                (bonus > 0 ? "improves" : "worsens"));
+            p_text_out(" your melee by ");
+            p_text_out_c(TERM_UMBER, format("%i", ABS(bonus)));
+            p_text_out(".  ");
+            found = true;
+        }
+    }
+    if (f1 & TR1_ARC)
+    {
+        int bonus = o_ptr->skill_bonus[S_ARC];
+        if (bonus != 0)
+        {
+            p_text_out("It ");
+            p_text_out_c(bonus > 0 ? TERM_GREEN : TERM_L_RED,
+                (bonus > 0 ? "improves" : "worsens"));
+            p_text_out(" your archery by ");
+            p_text_out_c(TERM_UMBER, format("%i", ABS(bonus)));
+            p_text_out(".  ");
+            found = true;
+        }
+    }
+    if (f1 & TR1_STL)
+    {
+        int bonus = o_ptr->skill_bonus[S_STL];
+        if (bonus != 0)
+        {
+            p_text_out("It ");
+            p_text_out_c(bonus > 0 ? TERM_GREEN : TERM_L_RED,
+                (bonus > 0 ? "improves" : "worsens"));
+            p_text_out(" your stealth by ");
+            p_text_out_c(TERM_UMBER, format("%i", ABS(bonus)));
+            p_text_out(".  ");
+            found = true;
+        }
+    }
+    if (f1 & TR1_PER)
+    {
+        int bonus = o_ptr->skill_bonus[S_PER];
+        if (bonus != 0)
+        {
+            p_text_out("It ");
+            p_text_out_c(bonus > 0 ? TERM_GREEN : TERM_L_RED,
+                (bonus > 0 ? "improves" : "worsens"));
+            p_text_out(" your perception by ");
+            p_text_out_c(TERM_UMBER, format("%i", ABS(bonus)));
+            p_text_out(".  ");
+            found = true;
+        }
+    }
+    if (f1 & TR1_WIL)
+    {
+        int bonus = o_ptr->skill_bonus[S_WIL];
+        if (bonus != 0)
+        {
+            p_text_out("It ");
+            p_text_out_c(bonus > 0 ? TERM_GREEN : TERM_L_RED,
+                (bonus > 0 ? "improves" : "worsens"));
+            p_text_out(" your will by ");
+            p_text_out_c(TERM_UMBER, format("%i", ABS(bonus)));
+            p_text_out(".  ");
+            found = true;
+        }
+    }
+    if (f1 & TR1_SMT)
+    {
+        int bonus = o_ptr->skill_bonus[S_SMT];
+        if (bonus != 0)
+        {
+            p_text_out("It ");
+            p_text_out_c(bonus > 0 ? TERM_GREEN : TERM_L_RED,
+                (bonus > 0 ? "improves" : "worsens"));
+            p_text_out(" your smithing by ");
+            p_text_out_c(TERM_UMBER, format("%i", ABS(bonus)));
+            p_text_out(".  ");
+            found = true;
+        }
+    }
+    if (f1 & TR1_SNG)
+    {
+        int bonus = o_ptr->skill_bonus[S_SNG];
+        if (bonus != 0)
+        {
+            p_text_out("It ");
+            p_text_out_c(bonus > 0 ? TERM_GREEN : TERM_L_RED,
+                (bonus > 0 ? "improves" : "worsens"));
+            p_text_out(" your song by ");
+            p_text_out_c(TERM_UMBER, format("%i", ABS(bonus)));
+            p_text_out(".  ");
+            found = true;
+        }
+    }
 
-    /* Skip */
-    if (!cnt)
-        return (false);
+    if (f1 & TR1_TUNNEL)
+    {
+        int bonus = o_ptr->pval;
+        if (bonus != 0)
+        {
+            p_text_out("It ");
+            p_text_out_c(bonus > 0 ? TERM_GREEN : TERM_L_RED,
+                (bonus > 0 ? "improves" : "worsens"));
+            p_text_out(" your tunneling by ");
+            p_text_out_c(TERM_UMBER, format("%i", ABS(bonus)));
+            p_text_out(".  ");
+            found = true;
+        }
+    }
+    if (f1 & TR1_DAMAGE_SIDES)
+    {
+        int bonus = o_ptr->pval;
+        if (bonus != 0)
+        {
+            p_text_out("It ");
+            p_text_out_c(bonus > 0 ? TERM_GREEN : TERM_L_RED,
+                (bonus > 0 ? "improves" : "worsens"));
+            p_text_out(" your damage sides by ");
+            p_text_out_c(TERM_UMBER, format("%i", ABS(bonus)));
+            p_text_out(".  ");
+            found = true;
+        }
+    }
 
-    /* Start */
-    p_text_out("It ");
-    p_text_out_c(o_ptr->pval >= 0 ? TERM_GREEN : TERM_L_RED,
-        (o_ptr->pval >= 0 ? "improves" : "worsens"));
-    p_text_out(" your ");
-
-    /* Output list */
-    output_list(descs, cnt);
-
-    /* Output end */
-    p_text_out(" by ");
-    p_text_out_c(TERM_UMBER, format("%i", pval));
-    p_text_out(".  ");
-
-    /* We found something */
-    return (true);
+    return found;
 }
 
 /*

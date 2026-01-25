@@ -1145,74 +1145,25 @@ s32b artefact_power(int a_idx)
         if (a_ptr->flags1 & TR1_TUNNEL)
             p += 1;
 
-        if (a_ptr->flags1 & TR1_STR)
-        {
-            p += 3 * a_ptr->pval;
-        }
-        if (a_ptr->flags1 & TR1_DEX)
-        {
-            p += 3 * a_ptr->pval;
-        }
-        if (a_ptr->flags1 & TR1_CON)
-        {
-            p += 4 * a_ptr->pval;
-        }
-        if (a_ptr->flags1 & TR1_GRA)
-        {
-            p += 4 * a_ptr->pval;
-        }
-        if (a_ptr->flags1 & TR1_NEG_STR)
-        {
-            p -= 3 * a_ptr->pval;
-        }
-        if (a_ptr->flags1 & TR1_NEG_DEX)
-        {
-            p -= 3 * a_ptr->pval;
-        }
-        if (a_ptr->flags1 & TR1_NEG_CON)
-        {
-            p -= 4 * a_ptr->pval;
-        }
-        if (a_ptr->flags1 & TR1_NEG_GRA)
-        {
-            p -= 4 * a_ptr->pval;
-        }
-        if (a_ptr->flags1 & TR1_MEL)
-        {
-            p += a_ptr->pval;
-        }
-        if (a_ptr->flags1 & TR1_ARC)
-        {
-            p += a_ptr->pval;
-        }
-        if (a_ptr->flags1 & TR1_STL)
-        {
-            p += a_ptr->pval;
-        }
-        if (a_ptr->flags1 & TR1_PER)
-        {
-            p += a_ptr->pval;
-        }
-        if (a_ptr->flags1 & TR1_WIL)
-        {
-            p += a_ptr->pval;
-        }
-        if (a_ptr->flags1 & TR1_SMT)
-        {
-            p += a_ptr->pval;
-        }
-        if (a_ptr->flags1 & TR1_SNG)
-        {
-            p += a_ptr->pval;
-        }
+        p += 3 * a_ptr->stat_bonus[A_STR];
+        p += 3 * a_ptr->stat_bonus[A_DEX];
+        p += 4 * a_ptr->stat_bonus[A_CON];
+        p += 4 * a_ptr->stat_bonus[A_GRA];
+
+        p += a_ptr->skill_bonus[S_MEL];
+        p += a_ptr->skill_bonus[S_ARC];
+        p += a_ptr->skill_bonus[S_STL];
+        p += a_ptr->skill_bonus[S_PER];
+        p += a_ptr->skill_bonus[S_WIL];
+        p += a_ptr->skill_bonus[S_SMT];
+        p += a_ptr->skill_bonus[S_SNG];
 
         /* Add extra power term if there are a lot of ability bonuses */
-        if (a_ptr->pval > 0)
         {
-            extra_stat_bonus += ((a_ptr->flags1 & TR1_STR) ? a_ptr->pval : 0);
-            extra_stat_bonus += ((a_ptr->flags1 & TR1_DEX) ? a_ptr->pval : 0);
-            extra_stat_bonus += ((a_ptr->flags1 & TR1_CON) ? a_ptr->pval : 0);
-            extra_stat_bonus += ((a_ptr->flags1 & TR1_GRA) ? a_ptr->pval : 0);
+            extra_stat_bonus += (a_ptr->stat_bonus[A_STR] > 0) ? a_ptr->stat_bonus[A_STR] : 0;
+            extra_stat_bonus += (a_ptr->stat_bonus[A_DEX] > 0) ? a_ptr->stat_bonus[A_DEX] : 0;
+            extra_stat_bonus += (a_ptr->stat_bonus[A_CON] > 0) ? a_ptr->stat_bonus[A_CON] : 0;
+            extra_stat_bonus += (a_ptr->stat_bonus[A_GRA] > 0) ? a_ptr->stat_bonus[A_GRA] : 0;
 
             if (extra_stat_bonus > 24)
             {
@@ -1228,28 +1179,18 @@ s32b artefact_power(int a_idx)
     }
     else if (a_ptr->pval < 0) /* hack: don't give large negatives */
     {
-        if (a_ptr->flags1 & TR1_STR)
-            p += 4 * a_ptr->pval;
-        if (a_ptr->flags1 & TR1_DEX)
-            p += 4 * a_ptr->pval;
-        if (a_ptr->flags1 & TR1_CON)
-            p += 4 * a_ptr->pval;
-        if (a_ptr->flags1 & TR1_GRA)
-            p += 4 * a_ptr->pval;
-        if (a_ptr->flags1 & TR1_MEL)
-            p += a_ptr->pval;
-        if (a_ptr->flags1 & TR1_ARC)
-            p += a_ptr->pval;
-        if (a_ptr->flags1 & TR1_STL)
-            p += a_ptr->pval;
-        if (a_ptr->flags1 & TR1_PER)
-            p += a_ptr->pval;
-        if (a_ptr->flags1 & TR1_WIL)
-            p += a_ptr->pval;
-        if (a_ptr->flags1 & TR1_SMT)
-            p += a_ptr->pval;
-        if (a_ptr->flags1 & TR1_SNG)
-            p += a_ptr->pval;
+        p += 4 * a_ptr->stat_bonus[A_STR];
+        p += 4 * a_ptr->stat_bonus[A_DEX];
+        p += 4 * a_ptr->stat_bonus[A_CON];
+        p += 4 * a_ptr->stat_bonus[A_GRA];
+
+        p += a_ptr->skill_bonus[S_MEL];
+        p += a_ptr->skill_bonus[S_ARC];
+        p += a_ptr->skill_bonus[S_STL];
+        p += a_ptr->skill_bonus[S_PER];
+        p += a_ptr->skill_bonus[S_WIL];
+        p += a_ptr->skill_bonus[S_SMT];
+        p += a_ptr->skill_bonus[S_SNG];
     }
 
     return (p);
@@ -1873,6 +1814,52 @@ static void add_to_ac(artefact_type* a_ptr, int fixed, int random)
     a_ptr->evn += (s16b)(fixed + rand_int(random));
 }
 
+static void artefact_apply_pval_stat_skill_bonuses(artefact_type* a_ptr)
+{
+    if (!a_ptr)
+        return;
+
+    for (int i = 0; i < A_MAX; i++)
+        a_ptr->stat_bonus[i] = 0;
+    for (int i = 0; i < S_MAX; i++)
+        a_ptr->skill_bonus[i] = 0;
+
+    const s16b pval = a_ptr->pval;
+
+    if (a_ptr->flags1 & TR1_STR)
+        a_ptr->stat_bonus[A_STR] += pval;
+    if (a_ptr->flags1 & TR1_DEX)
+        a_ptr->stat_bonus[A_DEX] += pval;
+    if (a_ptr->flags1 & TR1_CON)
+        a_ptr->stat_bonus[A_CON] += pval;
+    if (a_ptr->flags1 & TR1_GRA)
+        a_ptr->stat_bonus[A_GRA] += pval;
+
+    if (a_ptr->flags1 & TR1_NEG_STR)
+        a_ptr->stat_bonus[A_STR] -= pval;
+    if (a_ptr->flags1 & TR1_NEG_DEX)
+        a_ptr->stat_bonus[A_DEX] -= pval;
+    if (a_ptr->flags1 & TR1_NEG_CON)
+        a_ptr->stat_bonus[A_CON] -= pval;
+    if (a_ptr->flags1 & TR1_NEG_GRA)
+        a_ptr->stat_bonus[A_GRA] -= pval;
+
+    if (a_ptr->flags1 & TR1_MEL)
+        a_ptr->skill_bonus[S_MEL] += pval;
+    if (a_ptr->flags1 & TR1_ARC)
+        a_ptr->skill_bonus[S_ARC] += pval;
+    if (a_ptr->flags1 & TR1_STL)
+        a_ptr->skill_bonus[S_STL] += pval;
+    if (a_ptr->flags1 & TR1_PER)
+        a_ptr->skill_bonus[S_PER] += pval;
+    if (a_ptr->flags1 & TR1_WIL)
+        a_ptr->skill_bonus[S_WIL] += pval;
+    if (a_ptr->flags1 & TR1_SMT)
+        a_ptr->skill_bonus[S_SMT] += pval;
+    if (a_ptr->flags1 & TR1_SNG)
+        a_ptr->skill_bonus[S_SNG] += pval;
+}
+
 /*prepare a basic-non-magic artefact template based on the base object*/
 static void artefact_prep(s16b k_idx, int a_idx)
 {
@@ -1889,6 +1876,10 @@ static void artefact_prep(s16b k_idx, int a_idx)
     a_ptr->pd = k_ptr->pd;
     a_ptr->ps = k_ptr->ps;
     a_ptr->weight = k_ptr->weight;
+    for (int si = 0; si < A_MAX; si++)
+        a_ptr->stat_bonus[si] = k_ptr->stat_bonus[si];
+    for (int sk = 0; sk < S_MAX; sk++)
+        a_ptr->skill_bonus[sk] = k_ptr->skill_bonus[sk];
     a_ptr->flags1 = k_ptr->flags1;
     a_ptr->flags2 = k_ptr->flags2;
     a_ptr->flags3 = k_ptr->flags3;
@@ -3234,6 +3225,9 @@ bool make_one_randart(object_type* o_ptr, int art_power, bool tailored)
     /* Hack -- Mark the artefact as "created" */
     a_ptr->cur_num = 1;
     a_ptr->max_num = 1;
+
+    /* Keep stat/skill bonuses in sync with final pval/flags. */
+    artefact_apply_pval_stat_skill_bonuses(a_ptr);
 
     /*turn the object into an artefact*/
     object_into_artefact(o_ptr, a_ptr);

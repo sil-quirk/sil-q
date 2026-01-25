@@ -205,6 +205,12 @@ struct object_kind
 
     s16b pval; /* Object extra info */
 
+    /* Per-stat/skill modifiers (bonuses applied to player). */
+    s16b stat_bonus[A_MAX];
+    s16b skill_bonus[S_MAX];
+    bool stat_bonus_set[A_MAX];
+    bool skill_bonus_set[S_MAX];
+
     s16b att; /* Bonus to hit */
     s16b evn; /* Sil - Bonus to evasion */
 
@@ -291,6 +297,12 @@ struct artefact_type
 
     s16b pval; /* Artefact extra info */
 
+    /* Per-stat/skill modifiers (bonuses applied to player). */
+    s16b stat_bonus[A_MAX];
+    s16b skill_bonus[S_MAX];
+    bool stat_bonus_set[A_MAX];
+    bool skill_bonus_set[S_MAX];
+
     s16b att; /* Bonus to hit */
     s16b evn; /* Bonus to evasion */
 
@@ -364,6 +376,12 @@ struct ego_item_type
     byte to_pd; /* bonus protection dice */
     byte to_ps; /* bonus protection sides */
     byte max_pval; /* Maximum pval */
+
+    /* Per-stat/skill modifiers (bonuses applied to player). */
+    s16b stat_bonus[A_MAX];
+    s16b skill_bonus[S_MAX];
+    bool stat_bonus_set[A_MAX];
+    bool skill_bonus_set[S_MAX];
 
     bool aware; /* Has its type been detected this game? */
     bool everseen; /* Do not spoil squelch menus */
@@ -559,6 +577,10 @@ struct object_type
     byte sval; /* Item sub-type (from kind) */
 
     s16b pval; /* Item extra-parameter */
+
+    /* Per-stat/skill modifiers (bonuses applied to player). */
+    s16b stat_bonus[A_MAX];
+    s16b skill_bonus[S_MAX];
 
     byte discount; /* Discount (if any) */
 

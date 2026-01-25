@@ -2082,6 +2082,188 @@ static errr grab_one_blessing_unique_flag(curse_type *cu_ptr, cptr what)
     return grab_one_flag(f, "blessing unique", what);
 }
 
+/* --- object stat/skill bonus helpers ----------------------------- */
+
+static const u32b obj_stat_flag_pos[A_MAX] = { TR1_STR, TR1_DEX, TR1_CON, TR1_GRA };
+static const u32b obj_stat_flag_neg[A_MAX]
+    = { TR1_NEG_STR, TR1_NEG_DEX, TR1_NEG_CON, TR1_NEG_GRA };
+
+static const u32b obj_skill_flag[S_MAX] = {
+    [S_MEL] = TR1_MEL,
+    [S_ARC] = TR1_ARC,
+    [S_STL] = TR1_STL,
+    [S_PER] = TR1_PER,
+    [S_WIL] = TR1_WIL,
+    [S_SMT] = TR1_SMT,
+    [S_SNG] = TR1_SNG,
+};
+
+static bool parse_obj_bonus_token(
+    const char* token, bool* is_stat, int* index, bool* has_neg_prefix)
+{
+    if (!token || !token[0] || !is_stat || !index || !has_neg_prefix)
+        return false;
+
+    *has_neg_prefix = false;
+
+    const char* name = token;
+    if (strncmp(name, "NEG_", 4) == 0)
+    {
+        *has_neg_prefix = true;
+        name += 4;
+    }
+
+    if (streq(name, "STR"))
+    {
+        *is_stat = true;
+        *index = A_STR;
+        return true;
+    }
+    if (streq(name, "DEX"))
+    {
+        *is_stat = true;
+        *index = A_DEX;
+        return true;
+    }
+    if (streq(name, "CON"))
+    {
+        *is_stat = true;
+        *index = A_CON;
+        return true;
+    }
+    if (streq(name, "GRA"))
+    {
+        *is_stat = true;
+        *index = A_GRA;
+        return true;
+    }
+
+    if (*has_neg_prefix)
+        return false;
+
+    if (streq(name, "MELEE"))
+    {
+        *is_stat = false;
+        *index = S_MEL;
+        return true;
+    }
+    if (streq(name, "ARCHERY"))
+    {
+        *is_stat = false;
+        *index = S_ARC;
+        return true;
+    }
+    if (streq(name, "STEALTH"))
+    {
+        *is_stat = false;
+        *index = S_STL;
+        return true;
+    }
+    if (streq(name, "PERCEPTION"))
+    {
+        *is_stat = false;
+        *index = S_PER;
+        return true;
+    }
+    if (streq(name, "WILL"))
+    {
+        *is_stat = false;
+        *index = S_WIL;
+        return true;
+    }
+    if (streq(name, "SMITHING"))
+    {
+        *is_stat = false;
+        *index = S_SMT;
+        return true;
+    }
+    if (streq(name, "SONG"))
+    {
+        *is_stat = false;
+        *index = S_SNG;
+        return true;
+    }
+
+    return false;
+}
+
+static void apply_default_pval_bonuses(u32b flags1, s16b pval,
+    s16b stat_bonus[A_MAX], const bool stat_bonus_set[A_MAX],
+    s16b skill_bonus[S_MAX], const bool skill_bonus_set[S_MAX])
+{
+    for (int i = 0; i < A_MAX; i++)
+    {
+        if (stat_bonus_set && stat_bonus_set[i])
+            continue;
+
+        int bonus = 0;
+        if (flags1 & obj_stat_flag_pos[i])
+            bonus += pval;
+        if (flags1 & obj_stat_flag_neg[i])
+            bonus -= pval;
+        stat_bonus[i] = (s16b)bonus;
+    }
+
+    for (int i = 0; i < S_MAX; i++)
+    {
+        if (skill_bonus_set && skill_bonus_set[i])
+            continue;
+
+        const u32b flag = obj_skill_flag[i];
+        skill_bonus[i] = (flag && (flags1 & flag)) ? pval : 0;
+    }
+}
+
+static bool apply_obj_bonus_token(const char* token, int value,
+    u32b* flags1,
+    s16b stat_bonus[A_MAX], bool stat_bonus_set[A_MAX],
+    s16b skill_bonus[S_MAX], bool skill_bonus_set[S_MAX])
+{
+    if (!flags1 || !token)
+        return false;
+
+    bool is_stat = false;
+    int index = 0;
+    bool has_neg_prefix = false;
+
+    if (!parse_obj_bonus_token(token, &is_stat, &index, &has_neg_prefix))
+        return false;
+
+    int normalized = value;
+    if (has_neg_prefix && normalized > 0)
+        normalized = -normalized;
+
+    if (is_stat)
+    {
+        if (index < 0 || index >= A_MAX)
+            return false;
+
+        stat_bonus[index] = (s16b)normalized;
+        if (stat_bonus_set)
+            stat_bonus_set[index] = true;
+
+        *flags1 &= ~(obj_stat_flag_pos[index] | obj_stat_flag_neg[index]);
+        if (normalized >= 0)
+            *flags1 |= obj_stat_flag_pos[index];
+        else
+            *flags1 |= obj_stat_flag_neg[index];
+
+        return true;
+    }
+
+    if (index < 0 || index >= S_MAX)
+        return false;
+
+    skill_bonus[index] = (s16b)normalized;
+    if (skill_bonus_set)
+        skill_bonus_set[index] = true;
+
+    if (obj_skill_flag[index])
+        *flags1 |= obj_skill_flag[index];
+
+    return true;
+}
+
 /*
  * Initialize the "k_info" array, by parsing an ascii "template" file
  */
@@ -2131,6 +2313,18 @@ errr parse_k_info(char* buf, header* head)
         /* Store the name */
         if (!(k_ptr->name = add_name(head, s)))
             return (PARSE_ERROR_OUT_OF_MEMORY);
+
+        /* Reset per-stat/skill bonuses. */
+        for (int si = 0; si < A_MAX; si++)
+        {
+            k_ptr->stat_bonus[si] = 0;
+            k_ptr->stat_bonus_set[si] = false;
+        }
+        for (int sk = 0; sk < S_MAX; sk++)
+        {
+            k_ptr->skill_bonus[sk] = 0;
+            k_ptr->skill_bonus_set[sk] = false;
+        }
     }
 
     /* Process 'G' for "Graphics" (one line only) */
@@ -2195,6 +2389,38 @@ errr parse_k_info(char* buf, header* head)
         k_ptr->tval = tval;
         k_ptr->sval = sval;
         k_ptr->pval = pval;
+
+        apply_default_pval_bonuses(k_ptr->flags1, k_ptr->pval,
+            k_ptr->stat_bonus, k_ptr->stat_bonus_set,
+            k_ptr->skill_bonus, k_ptr->skill_bonus_set);
+    }
+
+    /* Process 'M' for per-stat/skill bonus overrides (one per line) */
+    else if (buf[0] == 'M')
+    {
+        /* There better be a current k_ptr */
+        if (!k_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        s = strchr(buf + 2, ':');
+        if (!s)
+            return (PARSE_ERROR_GENERIC);
+
+        *s++ = '\0';
+        cptr token = buf + 2;
+        int value = atoi(s);
+
+        if (!apply_obj_bonus_token(token, value,
+                &k_ptr->flags1,
+                k_ptr->stat_bonus, k_ptr->stat_bonus_set,
+                k_ptr->skill_bonus, k_ptr->skill_bonus_set))
+        {
+            return (PARSE_ERROR_GENERIC);
+        }
+
+        apply_default_pval_bonuses(k_ptr->flags1, k_ptr->pval,
+            k_ptr->stat_bonus, k_ptr->stat_bonus_set,
+            k_ptr->skill_bonus, k_ptr->skill_bonus_set);
     }
 
     /* Process 'W' for "More Info" (one line only) */
@@ -2317,6 +2543,10 @@ errr parse_k_info(char* buf, header* head)
             /* Start the next entry */
             s = t;
         }
+
+        apply_default_pval_bonuses(k_ptr->flags1, k_ptr->pval,
+            k_ptr->stat_bonus, k_ptr->stat_bonus_set,
+            k_ptr->skill_bonus, k_ptr->skill_bonus_set);
     }
 
     /* Process 'B' for "aBilities" (one line only) */
@@ -2889,6 +3119,18 @@ errr parse_a_info(char* buf, header* head)
         /* Sil-y: paranoia: make sure that the default values are 0 */
         a_ptr->d_attr = 0;
         a_ptr->d_char = 0;
+
+        /* Reset per-stat/skill bonuses. */
+        for (int si = 0; si < A_MAX; si++)
+        {
+            a_ptr->stat_bonus[si] = 0;
+            a_ptr->stat_bonus_set[si] = false;
+        }
+        for (int sk = 0; sk < S_MAX; sk++)
+        {
+            a_ptr->skill_bonus[sk] = 0;
+            a_ptr->skill_bonus_set[sk] = false;
+        }
     }
 
     /* Sil -- added this to allow for artefacts that look different to the base
@@ -2967,6 +3209,38 @@ errr parse_a_info(char* buf, header* head)
         a_ptr->tval = tval;
         a_ptr->sval = sval;
         a_ptr->pval = pval;
+
+        apply_default_pval_bonuses(a_ptr->flags1, a_ptr->pval,
+            a_ptr->stat_bonus, a_ptr->stat_bonus_set,
+            a_ptr->skill_bonus, a_ptr->skill_bonus_set);
+    }
+
+    /* Process 'M' for per-stat/skill bonus overrides (one per line) */
+    else if (buf[0] == 'M')
+    {
+        /* There better be a current a_ptr */
+        if (!a_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        s = strchr(buf + 2, ':');
+        if (!s)
+            return (PARSE_ERROR_GENERIC);
+
+        *s++ = '\0';
+        cptr token = buf + 2;
+        int value = atoi(s);
+
+        if (!apply_obj_bonus_token(token, value,
+                &a_ptr->flags1,
+                a_ptr->stat_bonus, a_ptr->stat_bonus_set,
+                a_ptr->skill_bonus, a_ptr->skill_bonus_set))
+        {
+            return (PARSE_ERROR_GENERIC);
+        }
+
+        apply_default_pval_bonuses(a_ptr->flags1, a_ptr->pval,
+            a_ptr->stat_bonus, a_ptr->stat_bonus_set,
+            a_ptr->skill_bonus, a_ptr->skill_bonus_set);
     }
 
     /* Process 'W' for "More Info" (one line only) */
@@ -3042,6 +3316,10 @@ errr parse_a_info(char* buf, header* head)
             /* Start the next entry */
             s = t;
         }
+
+        apply_default_pval_bonuses(a_ptr->flags1, a_ptr->pval,
+            a_ptr->stat_bonus, a_ptr->stat_bonus_set,
+            a_ptr->skill_bonus, a_ptr->skill_bonus_set);
     }
 
     /* Process 'A' for "Activation & time" */
@@ -3503,6 +3781,18 @@ errr parse_e_info(char* buf, header* head)
         if (!(e_ptr->name = add_name(head, s)))
             return (PARSE_ERROR_OUT_OF_MEMORY);
 
+        /* Reset per-stat/skill bonus offsets. */
+        for (int si = 0; si < A_MAX; si++)
+        {
+            e_ptr->stat_bonus[si] = 0;
+            e_ptr->stat_bonus_set[si] = false;
+        }
+        for (int sk = 0; sk < S_MAX; sk++)
+        {
+            e_ptr->skill_bonus[sk] = 0;
+            e_ptr->skill_bonus_set[sk] = false;
+        }
+
         /* Start with the first of the tval indices */
         cur_t = 0;
 
@@ -3613,6 +3903,30 @@ errr parse_e_info(char* buf, header* head)
         e_ptr->to_pd = to_pd;
         e_ptr->to_ps = to_ps;
         e_ptr->max_pval = pv;
+    }
+
+    /* Process 'M' for per-stat/skill bonus offsets (one per line) */
+    else if (buf[0] == 'M')
+    {
+        /* There better be a current e_ptr */
+        if (!e_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        s = strchr(buf + 2, ':');
+        if (!s)
+            return (PARSE_ERROR_GENERIC);
+
+        *s++ = '\0';
+        cptr token = buf + 2;
+        int value = atoi(s);
+
+        if (!apply_obj_bonus_token(token, value,
+                &e_ptr->flags1,
+                e_ptr->stat_bonus, e_ptr->stat_bonus_set,
+                e_ptr->skill_bonus, e_ptr->skill_bonus_set))
+        {
+            return (PARSE_ERROR_GENERIC);
+        }
     }
 
     /* Process 'B' for "aBilities" (one line only) */

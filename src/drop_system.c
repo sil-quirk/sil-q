@@ -790,41 +790,77 @@ static int smithing_difficulty_baseline(const object_type* o_ptr)
         x = o_ptr->pval - k_ptr->pval;
         drop_dif_mod(x, 8, &dif_inc);
     }
-    if (o_ptr->pval != 0)
     {
-        x = (o_ptr->pval > 0) ? o_ptr->pval : 0;
-
         if (f1 & TR1_DAMAGE_SIDES)
-            drop_dif_mod(x, 18, &dif_inc);
-        if (f1 & TR1_STR)
-            drop_dif_mod(x, 14, &dif_inc);
-        if (f1 & TR1_DEX)
-            drop_dif_mod(x, 14, &dif_inc);
-        if (f1 & TR1_CON)
-            drop_dif_mod(x, 14, &dif_inc);
-        if (f1 & TR1_GRA)
-            drop_dif_mod(x, 14, &dif_inc);
+        {
+            int v = o_ptr->pval;
+            if (v > 0)
+                drop_dif_mod(v, 18, &dif_inc);
+        }
+
+        if (f1 & (TR1_STR | TR1_NEG_STR))
+        {
+            int v = o_ptr->stat_bonus[A_STR];
+            if (v > 0)
+                drop_dif_mod(v, 14, &dif_inc);
+            else if (v < 0)
+                drop_dif_mod(-v, 12, &dif_inc);
+        }
+        if (f1 & (TR1_DEX | TR1_NEG_DEX))
+        {
+            int v = o_ptr->stat_bonus[A_DEX];
+            if (v > 0)
+                drop_dif_mod(v, 14, &dif_inc);
+            else if (v < 0)
+                drop_dif_mod(-v, 12, &dif_inc);
+        }
+        if (f1 & (TR1_CON | TR1_NEG_CON))
+        {
+            int v = o_ptr->stat_bonus[A_CON];
+            if (v > 0)
+                drop_dif_mod(v, 14, &dif_inc);
+            else if (v < 0)
+                drop_dif_mod(-v, 12, &dif_inc);
+        }
+        if (f1 & (TR1_GRA | TR1_NEG_GRA))
+        {
+            int v = o_ptr->stat_bonus[A_GRA];
+            if (v > 0)
+                drop_dif_mod(v, 14, &dif_inc);
+            else if (v < 0)
+                drop_dif_mod(-v, 12, &dif_inc);
+        }
+
         if (f1 & TR1_ARC)
-            drop_dif_mod(x, 4, &dif_inc);
+        {
+            int v = o_ptr->skill_bonus[S_ARC];
+            if (v > 0)
+                drop_dif_mod(v, 4, &dif_inc);
+        }
         if (f1 & TR1_STL)
-            drop_dif_mod(x, 4, &dif_inc);
+        {
+            int v = o_ptr->skill_bonus[S_STL];
+            if (v > 0)
+                drop_dif_mod(v, 4, &dif_inc);
+        }
         if (f1 & TR1_PER)
-            drop_dif_mod(x, 3, &dif_inc);
+        {
+            int v = o_ptr->skill_bonus[S_PER];
+            if (v > 0)
+                drop_dif_mod(v, 3, &dif_inc);
+        }
         if (f1 & TR1_WIL)
-            drop_dif_mod(x, 3, &dif_inc);
+        {
+            int v = o_ptr->skill_bonus[S_WIL];
+            if (v > 0)
+                drop_dif_mod(v, 3, &dif_inc);
+        }
         if (f1 & TR1_SNG)
-            drop_dif_mod(x, 4, &dif_inc);
-
-        x = (o_ptr->pval < 0) ? o_ptr->pval : 0;
-
-        if (f1 & TR1_NEG_STR)
-            drop_dif_mod(-x, 12, &dif_inc);
-        if (f1 & TR1_NEG_DEX)
-            drop_dif_mod(-x, 12, &dif_inc);
-        if (f1 & TR1_NEG_CON)
-            drop_dif_mod(-x, 12, &dif_inc);
-        if (f1 & TR1_NEG_GRA)
-            drop_dif_mod(-x, 12, &dif_inc);
+        {
+            int v = o_ptr->skill_bonus[S_SNG];
+            if (v > 0)
+                drop_dif_mod(v, 4, &dif_inc);
+        }
     }
 
     /* Sustains */
@@ -1032,6 +1068,8 @@ static bool is_jinx_ego(int e_idx)
 
 static void apply_ego_static(object_type* o_ptr, ego_item_type* e_ptr)
 {
+    u32b f1 = e_ptr->flags1;
+
     // abilities
     for (int i = 0; i < e_ptr->abilities && o_ptr->abilities < (int)N_ELEMENTS(o_ptr->skilltype); i++)
     {
@@ -1046,6 +1084,99 @@ static void apply_ego_static(object_type* o_ptr, ego_item_type* e_ptr)
         o_ptr->ident |= (IDENT_BROKEN);
     if (e_ptr->flags3 & (TR3_LIGHT_CURSE))
         o_ptr->ident |= (IDENT_CURSED);
+
+    /* Deterministic stat/skill bonus offsets. */
+    if (f1 & TR1_STR)
+    {
+        if (o_ptr->stat_bonus[A_STR] == 0)
+            o_ptr->stat_bonus[A_STR] = o_ptr->pval;
+        o_ptr->stat_bonus[A_STR] += e_ptr->stat_bonus[A_STR];
+    }
+    if (f1 & TR1_NEG_STR)
+    {
+        if (o_ptr->stat_bonus[A_STR] == 0)
+            o_ptr->stat_bonus[A_STR] = (s16b)-o_ptr->pval;
+        o_ptr->stat_bonus[A_STR] += e_ptr->stat_bonus[A_STR];
+    }
+    if (f1 & TR1_DEX)
+    {
+        if (o_ptr->stat_bonus[A_DEX] == 0)
+            o_ptr->stat_bonus[A_DEX] = o_ptr->pval;
+        o_ptr->stat_bonus[A_DEX] += e_ptr->stat_bonus[A_DEX];
+    }
+    if (f1 & TR1_NEG_DEX)
+    {
+        if (o_ptr->stat_bonus[A_DEX] == 0)
+            o_ptr->stat_bonus[A_DEX] = (s16b)-o_ptr->pval;
+        o_ptr->stat_bonus[A_DEX] += e_ptr->stat_bonus[A_DEX];
+    }
+    if (f1 & TR1_CON)
+    {
+        if (o_ptr->stat_bonus[A_CON] == 0)
+            o_ptr->stat_bonus[A_CON] = o_ptr->pval;
+        o_ptr->stat_bonus[A_CON] += e_ptr->stat_bonus[A_CON];
+    }
+    if (f1 & TR1_NEG_CON)
+    {
+        if (o_ptr->stat_bonus[A_CON] == 0)
+            o_ptr->stat_bonus[A_CON] = (s16b)-o_ptr->pval;
+        o_ptr->stat_bonus[A_CON] += e_ptr->stat_bonus[A_CON];
+    }
+    if (f1 & TR1_GRA)
+    {
+        if (o_ptr->stat_bonus[A_GRA] == 0)
+            o_ptr->stat_bonus[A_GRA] = o_ptr->pval;
+        o_ptr->stat_bonus[A_GRA] += e_ptr->stat_bonus[A_GRA];
+    }
+    if (f1 & TR1_NEG_GRA)
+    {
+        if (o_ptr->stat_bonus[A_GRA] == 0)
+            o_ptr->stat_bonus[A_GRA] = (s16b)-o_ptr->pval;
+        o_ptr->stat_bonus[A_GRA] += e_ptr->stat_bonus[A_GRA];
+    }
+
+    if (f1 & TR1_MEL)
+    {
+        if (o_ptr->skill_bonus[S_MEL] == 0)
+            o_ptr->skill_bonus[S_MEL] = o_ptr->pval;
+        o_ptr->skill_bonus[S_MEL] += e_ptr->skill_bonus[S_MEL];
+    }
+    if (f1 & TR1_ARC)
+    {
+        if (o_ptr->skill_bonus[S_ARC] == 0)
+            o_ptr->skill_bonus[S_ARC] = o_ptr->pval;
+        o_ptr->skill_bonus[S_ARC] += e_ptr->skill_bonus[S_ARC];
+    }
+    if (f1 & TR1_STL)
+    {
+        if (o_ptr->skill_bonus[S_STL] == 0)
+            o_ptr->skill_bonus[S_STL] = o_ptr->pval;
+        o_ptr->skill_bonus[S_STL] += e_ptr->skill_bonus[S_STL];
+    }
+    if (f1 & TR1_PER)
+    {
+        if (o_ptr->skill_bonus[S_PER] == 0)
+            o_ptr->skill_bonus[S_PER] = o_ptr->pval;
+        o_ptr->skill_bonus[S_PER] += e_ptr->skill_bonus[S_PER];
+    }
+    if (f1 & TR1_WIL)
+    {
+        if (o_ptr->skill_bonus[S_WIL] == 0)
+            o_ptr->skill_bonus[S_WIL] = o_ptr->pval;
+        o_ptr->skill_bonus[S_WIL] += e_ptr->skill_bonus[S_WIL];
+    }
+    if (f1 & TR1_SMT)
+    {
+        if (o_ptr->skill_bonus[S_SMT] == 0)
+            o_ptr->skill_bonus[S_SMT] = o_ptr->pval;
+        o_ptr->skill_bonus[S_SMT] += e_ptr->skill_bonus[S_SMT];
+    }
+    if (f1 & TR1_SNG)
+    {
+        if (o_ptr->skill_bonus[S_SNG] == 0)
+            o_ptr->skill_bonus[S_SNG] = o_ptr->pval;
+        o_ptr->skill_bonus[S_SNG] += e_ptr->skill_bonus[S_SNG];
+    }
 }
 
 static bool ego_applies_to_kind(const ego_item_type* e_ptr, const object_kind* k_ptr)
@@ -1232,11 +1363,34 @@ static void build_normal_variants(int k_idx)
                     for (int pval = pval_min; pval <= pval_hi; pval++)
                     {
                         object_type v = base;
+                        int delta = pval - base.pval;
                         v.att = att;
                         v.ds = ds;
                         v.evn = evn;
                         v.ps = ps;
                         v.pval = pval;
+
+                        if (delta != 0)
+                        {
+                            u32b kf1 = k_ptr->flags1;
+
+                            if (kf1 & TR1_STR) v.stat_bonus[A_STR] += (s16b)delta;
+                            if (kf1 & TR1_DEX) v.stat_bonus[A_DEX] += (s16b)delta;
+                            if (kf1 & TR1_CON) v.stat_bonus[A_CON] += (s16b)delta;
+                            if (kf1 & TR1_GRA) v.stat_bonus[A_GRA] += (s16b)delta;
+                            if (kf1 & TR1_NEG_STR) v.stat_bonus[A_STR] -= (s16b)delta;
+                            if (kf1 & TR1_NEG_DEX) v.stat_bonus[A_DEX] -= (s16b)delta;
+                            if (kf1 & TR1_NEG_CON) v.stat_bonus[A_CON] -= (s16b)delta;
+                            if (kf1 & TR1_NEG_GRA) v.stat_bonus[A_GRA] -= (s16b)delta;
+
+                            if (kf1 & TR1_MEL) v.skill_bonus[S_MEL] += (s16b)delta;
+                            if (kf1 & TR1_ARC) v.skill_bonus[S_ARC] += (s16b)delta;
+                            if (kf1 & TR1_STL) v.skill_bonus[S_STL] += (s16b)delta;
+                            if (kf1 & TR1_PER) v.skill_bonus[S_PER] += (s16b)delta;
+                            if (kf1 & TR1_WIL) v.skill_bonus[S_WIL] += (s16b)delta;
+                            if (kf1 & TR1_SMT) v.skill_bonus[S_SMT] += (s16b)delta;
+                            if (kf1 & TR1_SNG) v.skill_bonus[S_SNG] += (s16b)delta;
+                        }
                         add_drop_entry(&v, cat, group_kind, k_idx,
                             min_depth, max_depth,
                             alloc_depths, alloc_rarities, num_allocations);
@@ -1505,6 +1659,11 @@ static void build_ego_variants(int e_idx)
             if (pd_min > pd_max)
                 pd_min = pd_max;
 
+            u32b bf1, bf2, bf3;
+            object_flags(&base, &bf1, &bf2, &bf3);
+            (void)bf2;
+            (void)bf3;
+
             /* Generate variants using combined rarity and effective min depth */
             for (int att = att_min; att <= att_max; att++)
             {
@@ -1522,6 +1681,7 @@ static void build_ego_variants(int e_idx)
                                     for (int pd = pd_min; pd <= pd_max; pd++)
                                     {
                                         object_type v = base;
+                                        int delta = pval - base.pval;
                                         v.att = att;
                                         v.ds = ds;
                                         v.dd = dd;
@@ -1529,6 +1689,26 @@ static void build_ego_variants(int e_idx)
                                         v.ps = ps;
                                         v.pd = pd;
                                         v.pval = pval;
+
+                                        if (delta != 0)
+                                        {
+                                            if (bf1 & TR1_STR) v.stat_bonus[A_STR] += (s16b)delta;
+                                            if (bf1 & TR1_DEX) v.stat_bonus[A_DEX] += (s16b)delta;
+                                            if (bf1 & TR1_CON) v.stat_bonus[A_CON] += (s16b)delta;
+                                            if (bf1 & TR1_GRA) v.stat_bonus[A_GRA] += (s16b)delta;
+                                            if (bf1 & TR1_NEG_STR) v.stat_bonus[A_STR] -= (s16b)delta;
+                                            if (bf1 & TR1_NEG_DEX) v.stat_bonus[A_DEX] -= (s16b)delta;
+                                            if (bf1 & TR1_NEG_CON) v.stat_bonus[A_CON] -= (s16b)delta;
+                                            if (bf1 & TR1_NEG_GRA) v.stat_bonus[A_GRA] -= (s16b)delta;
+
+                                            if (bf1 & TR1_MEL) v.skill_bonus[S_MEL] += (s16b)delta;
+                                            if (bf1 & TR1_ARC) v.skill_bonus[S_ARC] += (s16b)delta;
+                                            if (bf1 & TR1_STL) v.skill_bonus[S_STL] += (s16b)delta;
+                                            if (bf1 & TR1_PER) v.skill_bonus[S_PER] += (s16b)delta;
+                                            if (bf1 & TR1_WIL) v.skill_bonus[S_WIL] += (s16b)delta;
+                                            if (bf1 & TR1_SMT) v.skill_bonus[S_SMT] += (s16b)delta;
+                                            if (bf1 & TR1_SNG) v.skill_bonus[S_SNG] += (s16b)delta;
+                                        }
                                         add_drop_entry(&v, cat, DROP_GROUP_EGO, e_idx,
                                             min_depth, max_depth,
                                             alloc_depths, alloc_rarities, num_allocations);
@@ -1848,6 +2028,11 @@ static void build_ego_combo_variants(int prefix_idx, int suffix_idx)
         if (pd_min > pd_max)
             pd_min = pd_max;
 
+        u32b bf1, bf2, bf3;
+        object_flags(&base, &bf1, &bf2, &bf3);
+        (void)bf2;
+        (void)bf3;
+
         for (int att = att_min; att <= att_max; att++)
         {
             for (int ds = ds_min; ds <= ds_max; ds++)
@@ -1864,6 +2049,7 @@ static void build_ego_combo_variants(int prefix_idx, int suffix_idx)
                                 for (int pd = pd_min; pd <= pd_max; pd++)
                                 {
                                     object_type v = base;
+                                    int delta = pval - base.pval;
                                     v.att = att;
                                     v.ds = ds;
                                     v.dd = dd;
@@ -1871,6 +2057,26 @@ static void build_ego_combo_variants(int prefix_idx, int suffix_idx)
                                     v.ps = ps;
                                     v.pd = pd;
                                     v.pval = pval;
+
+                                    if (delta != 0)
+                                    {
+                                        if (bf1 & TR1_STR) v.stat_bonus[A_STR] += (s16b)delta;
+                                        if (bf1 & TR1_DEX) v.stat_bonus[A_DEX] += (s16b)delta;
+                                        if (bf1 & TR1_CON) v.stat_bonus[A_CON] += (s16b)delta;
+                                        if (bf1 & TR1_GRA) v.stat_bonus[A_GRA] += (s16b)delta;
+                                        if (bf1 & TR1_NEG_STR) v.stat_bonus[A_STR] -= (s16b)delta;
+                                        if (bf1 & TR1_NEG_DEX) v.stat_bonus[A_DEX] -= (s16b)delta;
+                                        if (bf1 & TR1_NEG_CON) v.stat_bonus[A_CON] -= (s16b)delta;
+                                        if (bf1 & TR1_NEG_GRA) v.stat_bonus[A_GRA] -= (s16b)delta;
+
+                                        if (bf1 & TR1_MEL) v.skill_bonus[S_MEL] += (s16b)delta;
+                                        if (bf1 & TR1_ARC) v.skill_bonus[S_ARC] += (s16b)delta;
+                                        if (bf1 & TR1_STL) v.skill_bonus[S_STL] += (s16b)delta;
+                                        if (bf1 & TR1_PER) v.skill_bonus[S_PER] += (s16b)delta;
+                                        if (bf1 & TR1_WIL) v.skill_bonus[S_WIL] += (s16b)delta;
+                                        if (bf1 & TR1_SMT) v.skill_bonus[S_SMT] += (s16b)delta;
+                                        if (bf1 & TR1_SNG) v.skill_bonus[S_SNG] += (s16b)delta;
+                                    }
                                     add_drop_entry(&v, cat, DROP_GROUP_EGO, group_id,
                                         min_depth, max_depth,
                                         alloc_depths, alloc_rarities, num_allocations);
@@ -1900,6 +2106,10 @@ static void build_artifact_variants(int a_idx)
 
     /* Copy artefact stats */
     v.pval = a_ptr->pval;
+    for (int i = 0; i < A_MAX; i++)
+        v.stat_bonus[i] = a_ptr->stat_bonus[i];
+    for (int i = 0; i < S_MAX; i++)
+        v.skill_bonus[i] = a_ptr->skill_bonus[i];
     v.att = a_ptr->att;
     v.evn = a_ptr->evn;
     v.dd = a_ptr->dd;
