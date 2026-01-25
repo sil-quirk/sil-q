@@ -3322,8 +3322,9 @@ smithing_cost_type smithing_cost;
 #define SMT_NUM_MENU_D_WGT 12
 #define SMT_NUM_MENU_ALLOY_CYCLE 13
 #define SMT_NUM_MENU_ALLOY_CLEAR 14
+#define SMT_NUM_MENU_EDIT_BONUSES 15
 
-#define SMT_NUM_MENU_MAX 14
+#define SMT_NUM_MENU_MAX 15
 
 #define COL_SMT1 2
 #define COL_SMT2 16
@@ -6117,77 +6118,116 @@ static void smith_apply_stat_skill_flag_delta(object_type* o_ptr, u32b f1_before
         return;
 
     int pval = o_ptr->pval;
+    int pval_abs = ABS(pval);
 
-    if (!(f1_before & TR1_STR) && (f1_after & TR1_STR))
-        o_ptr->stat_bonus[A_STR] += pval;
-    if ((f1_before & TR1_STR) && !(f1_after & TR1_STR))
-        o_ptr->stat_bonus[A_STR] -= pval;
-    if (!(f1_before & TR1_NEG_STR) && (f1_after & TR1_NEG_STR))
-        o_ptr->stat_bonus[A_STR] -= pval;
-    if ((f1_before & TR1_NEG_STR) && !(f1_after & TR1_NEG_STR))
-        o_ptr->stat_bonus[A_STR] += pval;
+    bool before_str = (f1_before & (TR1_STR | TR1_NEG_STR)) != 0;
+    bool after_str = (f1_after & (TR1_STR | TR1_NEG_STR)) != 0;
+    if (!after_str)
+    {
+        o_ptr->stat_bonus[A_STR] = 0;
+    }
+    else if (!before_str)
+    {
+        o_ptr->stat_bonus[A_STR] = (f1_after & TR1_NEG_STR) ? -pval_abs : pval_abs;
+    }
+    if ((f1_after & TR1_STR) && !(f1_after & TR1_NEG_STR) && o_ptr->stat_bonus[A_STR] < 0)
+        o_ptr->stat_bonus[A_STR] = -o_ptr->stat_bonus[A_STR];
+    if ((f1_after & TR1_NEG_STR) && !(f1_after & TR1_STR) && o_ptr->stat_bonus[A_STR] > 0)
+        o_ptr->stat_bonus[A_STR] = -o_ptr->stat_bonus[A_STR];
 
-    if (!(f1_before & TR1_DEX) && (f1_after & TR1_DEX))
-        o_ptr->stat_bonus[A_DEX] += pval;
-    if ((f1_before & TR1_DEX) && !(f1_after & TR1_DEX))
-        o_ptr->stat_bonus[A_DEX] -= pval;
-    if (!(f1_before & TR1_NEG_DEX) && (f1_after & TR1_NEG_DEX))
-        o_ptr->stat_bonus[A_DEX] -= pval;
-    if ((f1_before & TR1_NEG_DEX) && !(f1_after & TR1_NEG_DEX))
-        o_ptr->stat_bonus[A_DEX] += pval;
+    bool before_dex = (f1_before & (TR1_DEX | TR1_NEG_DEX)) != 0;
+    bool after_dex = (f1_after & (TR1_DEX | TR1_NEG_DEX)) != 0;
+    if (!after_dex)
+    {
+        o_ptr->stat_bonus[A_DEX] = 0;
+    }
+    else if (!before_dex)
+    {
+        o_ptr->stat_bonus[A_DEX] = (f1_after & TR1_NEG_DEX) ? -pval_abs : pval_abs;
+    }
+    if ((f1_after & TR1_DEX) && !(f1_after & TR1_NEG_DEX) && o_ptr->stat_bonus[A_DEX] < 0)
+        o_ptr->stat_bonus[A_DEX] = -o_ptr->stat_bonus[A_DEX];
+    if ((f1_after & TR1_NEG_DEX) && !(f1_after & TR1_DEX) && o_ptr->stat_bonus[A_DEX] > 0)
+        o_ptr->stat_bonus[A_DEX] = -o_ptr->stat_bonus[A_DEX];
 
-    if (!(f1_before & TR1_CON) && (f1_after & TR1_CON))
-        o_ptr->stat_bonus[A_CON] += pval;
-    if ((f1_before & TR1_CON) && !(f1_after & TR1_CON))
-        o_ptr->stat_bonus[A_CON] -= pval;
-    if (!(f1_before & TR1_NEG_CON) && (f1_after & TR1_NEG_CON))
-        o_ptr->stat_bonus[A_CON] -= pval;
-    if ((f1_before & TR1_NEG_CON) && !(f1_after & TR1_NEG_CON))
-        o_ptr->stat_bonus[A_CON] += pval;
+    bool before_con = (f1_before & (TR1_CON | TR1_NEG_CON)) != 0;
+    bool after_con = (f1_after & (TR1_CON | TR1_NEG_CON)) != 0;
+    if (!after_con)
+    {
+        o_ptr->stat_bonus[A_CON] = 0;
+    }
+    else if (!before_con)
+    {
+        o_ptr->stat_bonus[A_CON] = (f1_after & TR1_NEG_CON) ? -pval_abs : pval_abs;
+    }
+    if ((f1_after & TR1_CON) && !(f1_after & TR1_NEG_CON) && o_ptr->stat_bonus[A_CON] < 0)
+        o_ptr->stat_bonus[A_CON] = -o_ptr->stat_bonus[A_CON];
+    if ((f1_after & TR1_NEG_CON) && !(f1_after & TR1_CON) && o_ptr->stat_bonus[A_CON] > 0)
+        o_ptr->stat_bonus[A_CON] = -o_ptr->stat_bonus[A_CON];
 
-    if (!(f1_before & TR1_GRA) && (f1_after & TR1_GRA))
-        o_ptr->stat_bonus[A_GRA] += pval;
-    if ((f1_before & TR1_GRA) && !(f1_after & TR1_GRA))
-        o_ptr->stat_bonus[A_GRA] -= pval;
-    if (!(f1_before & TR1_NEG_GRA) && (f1_after & TR1_NEG_GRA))
-        o_ptr->stat_bonus[A_GRA] -= pval;
-    if ((f1_before & TR1_NEG_GRA) && !(f1_after & TR1_NEG_GRA))
-        o_ptr->stat_bonus[A_GRA] += pval;
+    bool before_gra = (f1_before & (TR1_GRA | TR1_NEG_GRA)) != 0;
+    bool after_gra = (f1_after & (TR1_GRA | TR1_NEG_GRA)) != 0;
+    if (!after_gra)
+    {
+        o_ptr->stat_bonus[A_GRA] = 0;
+    }
+    else if (!before_gra)
+    {
+        o_ptr->stat_bonus[A_GRA] = (f1_after & TR1_NEG_GRA) ? -pval_abs : pval_abs;
+    }
+    if ((f1_after & TR1_GRA) && !(f1_after & TR1_NEG_GRA) && o_ptr->stat_bonus[A_GRA] < 0)
+        o_ptr->stat_bonus[A_GRA] = -o_ptr->stat_bonus[A_GRA];
+    if ((f1_after & TR1_NEG_GRA) && !(f1_after & TR1_GRA) && o_ptr->stat_bonus[A_GRA] > 0)
+        o_ptr->stat_bonus[A_GRA] = -o_ptr->stat_bonus[A_GRA];
 
-    if (!(f1_before & TR1_MEL) && (f1_after & TR1_MEL))
-        o_ptr->skill_bonus[S_MEL] += pval;
-    if ((f1_before & TR1_MEL) && !(f1_after & TR1_MEL))
-        o_ptr->skill_bonus[S_MEL] -= pval;
+    bool before_mel = (f1_before & TR1_MEL) != 0;
+    bool after_mel = (f1_after & TR1_MEL) != 0;
+    if (!after_mel)
+        o_ptr->skill_bonus[S_MEL] = 0;
+    else if (!before_mel)
+        o_ptr->skill_bonus[S_MEL] = pval;
 
-    if (!(f1_before & TR1_ARC) && (f1_after & TR1_ARC))
-        o_ptr->skill_bonus[S_ARC] += pval;
-    if ((f1_before & TR1_ARC) && !(f1_after & TR1_ARC))
-        o_ptr->skill_bonus[S_ARC] -= pval;
+    bool before_arc = (f1_before & TR1_ARC) != 0;
+    bool after_arc = (f1_after & TR1_ARC) != 0;
+    if (!after_arc)
+        o_ptr->skill_bonus[S_ARC] = 0;
+    else if (!before_arc)
+        o_ptr->skill_bonus[S_ARC] = pval;
 
-    if (!(f1_before & TR1_STL) && (f1_after & TR1_STL))
-        o_ptr->skill_bonus[S_STL] += pval;
-    if ((f1_before & TR1_STL) && !(f1_after & TR1_STL))
-        o_ptr->skill_bonus[S_STL] -= pval;
+    bool before_stl = (f1_before & TR1_STL) != 0;
+    bool after_stl = (f1_after & TR1_STL) != 0;
+    if (!after_stl)
+        o_ptr->skill_bonus[S_STL] = 0;
+    else if (!before_stl)
+        o_ptr->skill_bonus[S_STL] = pval;
 
-    if (!(f1_before & TR1_PER) && (f1_after & TR1_PER))
-        o_ptr->skill_bonus[S_PER] += pval;
-    if ((f1_before & TR1_PER) && !(f1_after & TR1_PER))
-        o_ptr->skill_bonus[S_PER] -= pval;
+    bool before_per = (f1_before & TR1_PER) != 0;
+    bool after_per = (f1_after & TR1_PER) != 0;
+    if (!after_per)
+        o_ptr->skill_bonus[S_PER] = 0;
+    else if (!before_per)
+        o_ptr->skill_bonus[S_PER] = pval;
 
-    if (!(f1_before & TR1_WIL) && (f1_after & TR1_WIL))
-        o_ptr->skill_bonus[S_WIL] += pval;
-    if ((f1_before & TR1_WIL) && !(f1_after & TR1_WIL))
-        o_ptr->skill_bonus[S_WIL] -= pval;
+    bool before_wil = (f1_before & TR1_WIL) != 0;
+    bool after_wil = (f1_after & TR1_WIL) != 0;
+    if (!after_wil)
+        o_ptr->skill_bonus[S_WIL] = 0;
+    else if (!before_wil)
+        o_ptr->skill_bonus[S_WIL] = pval;
 
-    if (!(f1_before & TR1_SMT) && (f1_after & TR1_SMT))
-        o_ptr->skill_bonus[S_SMT] += pval;
-    if ((f1_before & TR1_SMT) && !(f1_after & TR1_SMT))
-        o_ptr->skill_bonus[S_SMT] -= pval;
+    bool before_smt = (f1_before & TR1_SMT) != 0;
+    bool after_smt = (f1_after & TR1_SMT) != 0;
+    if (!after_smt)
+        o_ptr->skill_bonus[S_SMT] = 0;
+    else if (!before_smt)
+        o_ptr->skill_bonus[S_SMT] = pval;
 
-    if (!(f1_before & TR1_SNG) && (f1_after & TR1_SNG))
-        o_ptr->skill_bonus[S_SNG] += pval;
-    if ((f1_before & TR1_SNG) && !(f1_after & TR1_SNG))
-        o_ptr->skill_bonus[S_SNG] -= pval;
+    bool before_sng = (f1_before & TR1_SNG) != 0;
+    bool after_sng = (f1_after & TR1_SNG) != 0;
+    if (!after_sng)
+        o_ptr->skill_bonus[S_SNG] = 0;
+    else if (!before_sng)
+        o_ptr->skill_bonus[S_SNG] = pval;
 }
 
 void modify_numbers(int choice)
@@ -6288,6 +6328,8 @@ int numbers_menu_aux(int* highlight)
     // clear the right of the screen
     wipe_screen_from(COL_SMT2);
 
+    memset(valid, 0, sizeof(valid));
+
     valid[SMT_NUM_MENU_I_ATT - 1]
         = att_valid() && (smith_o_ptr->att < att_max());
     valid[SMT_NUM_MENU_D_ATT - 1]
@@ -6308,6 +6350,18 @@ int numbers_menu_aux(int* highlight)
         = wgt_valid() && ((smith_o_ptr->weight + 5) <= wgt_max());
     valid[SMT_NUM_MENU_D_WGT - 1]
         = wgt_valid() && ((smith_o_ptr->weight - 5) >= wgt_min());
+    {
+        u32b f1, f2, f3;
+        object_flags(smith_o_ptr, &f1, &f2, &f3);
+        valid[SMT_NUM_MENU_EDIT_BONUSES - 1] = (f1 & (TR1_STR | TR1_NEG_STR | TR1_DEX
+                                                     | TR1_NEG_DEX | TR1_CON
+                                                     | TR1_NEG_CON | TR1_GRA
+                                                     | TR1_NEG_GRA | TR1_MEL
+                                                     | TR1_ARC | TR1_STL
+                                                     | TR1_PER | TR1_WIL
+                                                     | TR1_SMT | TR1_SNG))
+            != 0;
+    }
     bool alloy_applicable = smith_alloy_applicable(smith_o_ptr);
     bool has_alloy_mastery = p_ptr->active_ability[S_SMT][SMT_ALLOY_MASTERY];
     int alloy_weight = alloy_applicable ? smith_alloy_weight_required(smith_o_ptr) : 0;
@@ -6379,6 +6433,8 @@ int numbers_menu_aux(int* highlight)
         "m) cycle alloy (none/mithril/star iron)");
     Term_putstr(COL_SMT2, 15, -1, attr[SMT_NUM_MENU_ALLOY_CLEAR - 1],
         "n) remove alloy bonus");
+    Term_putstr(COL_SMT2, 16, -1, attr[SMT_NUM_MENU_EDIT_BONUSES - 1],
+        "o) adjust stat/skill bonuses");
     if (alloy_applicable)
     {
         byte info_attr = has_alloy_mastery ? TERM_SLATE : TERM_L_DARK;
@@ -6398,11 +6454,11 @@ int numbers_menu_aux(int* highlight)
                 alloy_weight / 10, alloy_weight % 10, mithril_have / 10,
                 mithril_have % 10, star_iron_have / 10, star_iron_have % 10);
         }
-        Term_putstr(COL_SMT2, 16, -1, info_attr, buf);
+        Term_putstr(COL_SMT2, 17, -1, info_attr, buf);
     }
     else if (!has_alloy_mastery)
     {
-        Term_putstr(COL_SMT2, 16, -1, TERM_L_DARK,
+        Term_putstr(COL_SMT2, 17, -1, TERM_L_DARK,
             "Alloy requires Alloy mastery.");
     }
 
@@ -6436,7 +6492,7 @@ int numbers_menu_aux(int* highlight)
 
         // move the light blue highlight
         move_displayed_highlight(
-            old_highlight, attr[old_highlight], *highlight, COL_SMT2);
+            old_highlight, attr[old_highlight - 1], *highlight, COL_SMT2);
 
         if (valid[*highlight - 1])
             return (*highlight);
@@ -6481,6 +6537,270 @@ int numbers_menu_aux(int* highlight)
     return (0);
 }
 
+typedef enum
+{
+    SMT_BONUS_ENTRY_STAT = 0,
+    SMT_BONUS_ENTRY_SKILL = 1,
+} smith_bonus_entry_kind;
+
+typedef struct
+{
+    smith_bonus_entry_kind kind;
+    int index;
+    u32b flag_pos;
+    u32b flag_neg;
+    u32b flag;
+} smith_bonus_entry;
+
+static const char* smith_bonus_stat_name(int stat)
+{
+    switch (stat)
+    {
+    case A_STR:
+        return "Strength";
+    case A_DEX:
+        return "Dexterity";
+    case A_CON:
+        return "Constitution";
+    case A_GRA:
+        return "Grace";
+    default:
+        return "Unknown";
+    }
+}
+
+static int smith_collect_bonus_entries(smith_bonus_entry* entries, int max_entries)
+{
+    u32b f1, f2, f3;
+    int n = 0;
+
+    if (!entries || max_entries <= 0)
+        return 0;
+
+    object_flags(smith_o_ptr, &f1, &f2, &f3);
+
+    struct stat_flag_map
+    {
+        int stat;
+        u32b flag_pos;
+        u32b flag_neg;
+    };
+
+    static const struct stat_flag_map stat_flags[A_MAX] = {
+        { A_STR, TR1_STR, TR1_NEG_STR },
+        { A_DEX, TR1_DEX, TR1_NEG_DEX },
+        { A_CON, TR1_CON, TR1_NEG_CON },
+        { A_GRA, TR1_GRA, TR1_NEG_GRA },
+    };
+
+    for (int i = 0; i < A_MAX && n < max_entries; i++)
+    {
+        if ((f1 & (stat_flags[i].flag_pos | stat_flags[i].flag_neg)) == 0)
+            continue;
+
+        entries[n].kind = SMT_BONUS_ENTRY_STAT;
+        entries[n].index = stat_flags[i].stat;
+        entries[n].flag_pos = stat_flags[i].flag_pos;
+        entries[n].flag_neg = stat_flags[i].flag_neg;
+        entries[n].flag = 0;
+        n++;
+    }
+
+    struct skill_flag_map
+    {
+        int skill;
+        u32b flag;
+    };
+
+    static const struct skill_flag_map skill_flags[] = {
+        { S_MEL, TR1_MEL },
+        { S_ARC, TR1_ARC },
+        { S_STL, TR1_STL },
+        { S_PER, TR1_PER },
+        { S_WIL, TR1_WIL },
+        { S_SMT, TR1_SMT },
+        { S_SNG, TR1_SNG },
+    };
+
+    for (int i = 0; i < (int)N_ELEMENTS(skill_flags) && n < max_entries; i++)
+    {
+        if ((f1 & skill_flags[i].flag) == 0)
+            continue;
+
+        entries[n].kind = SMT_BONUS_ENTRY_SKILL;
+        entries[n].index = skill_flags[i].skill;
+        entries[n].flag_pos = 0;
+        entries[n].flag_neg = 0;
+        entries[n].flag = skill_flags[i].flag;
+        n++;
+    }
+
+    return n;
+}
+
+static bool smith_adjust_bonus_entry(const smith_bonus_entry* entry, int delta)
+{
+    int max_bonus = pval_max();
+    int min_bonus = 0;
+    int value = 0;
+
+    if (!entry || !smith_o_ptr || delta == 0)
+        return false;
+
+    if (entry->kind == SMT_BONUS_ENTRY_STAT)
+    {
+        u32b f1, f2, f3;
+        object_flags(smith_o_ptr, &f1, &f2, &f3);
+
+        bool has_pos = (f1 & entry->flag_pos) != 0;
+        bool has_neg = (f1 & entry->flag_neg) != 0;
+
+        if (has_pos && has_neg)
+        {
+            min_bonus = -max_bonus;
+        }
+        else if (has_neg)
+        {
+            min_bonus = -max_bonus;
+            max_bonus = 0;
+        }
+        else
+        {
+            min_bonus = 0;
+        }
+
+        value = smith_o_ptr->stat_bonus[entry->index];
+        int new_value = value + delta;
+        if (new_value < min_bonus || new_value > max_bonus)
+            return false;
+
+        smith_o_ptr->stat_bonus[entry->index] = new_value;
+        return true;
+    }
+
+    value = smith_o_ptr->skill_bonus[entry->index];
+    int new_value = value + delta;
+    if (new_value < 0 || new_value > max_bonus)
+        return false;
+    smith_o_ptr->skill_bonus[entry->index] = new_value;
+    return true;
+}
+
+static int smith_bonus_menu_aux(int* highlight)
+{
+    char ch;
+    char buf[80];
+    smith_bonus_entry entries[16];
+    int num = smith_collect_bonus_entries(entries, (int)N_ELEMENTS(entries));
+
+    wipe_screen_from(COL_SMT2);
+
+    Term_putstr(COL_SMT2, 1, -1, TERM_WHITE,
+        "Adjust stat/skill bonuses (+/- to change, ESC to return)");
+
+    if (num <= 0)
+    {
+        Term_putstr(COL_SMT2, 3, -1, TERM_L_DARK,
+            "(No stat/skill bonuses on this item.)");
+        Term_fresh();
+        hide_cursor = true;
+        (void)inkey();
+        hide_cursor = false;
+        return -1;
+    }
+
+    if (*highlight < 1)
+        *highlight = 1;
+    if (*highlight > num)
+        *highlight = num;
+
+    for (int i = 0; i < num; i++)
+    {
+        const char* name = (entries[i].kind == SMT_BONUS_ENTRY_STAT)
+            ? smith_bonus_stat_name(entries[i].index)
+            : skill_names_full[entries[i].index];
+        int value = (entries[i].kind == SMT_BONUS_ENTRY_STAT)
+            ? smith_o_ptr->stat_bonus[entries[i].index]
+            : smith_o_ptr->skill_bonus[entries[i].index];
+        strnfmt(buf, sizeof(buf), "%c) %-12s %+d", (char)'a' + i, name, value);
+        Term_putstr(COL_SMT2, i + 2, -1, TERM_WHITE, buf);
+    }
+
+    strnfmt(buf, sizeof(buf), "%c)", (char)'a' + *highlight - 1);
+    Term_putstr(COL_SMT2, *highlight + 1, -1, TERM_L_BLUE, buf);
+
+    prt_object_description();
+    prt_object_difficulty();
+
+    Term_fresh();
+    Term_gotoxy(2, 1 + *highlight);
+
+    hide_cursor = true;
+    ch = inkey();
+    hide_cursor = false;
+
+    if ((ch == '4') || (ch == ESCAPE))
+        return -1;
+
+    if ((ch >= 'a') && (ch <= (char)'a' + num - 1))
+    {
+        *highlight = (int)ch - 'a' + 1;
+        return 0;
+    }
+
+    if (ch == '8')
+    {
+        if (*highlight > 1)
+            (*highlight)--;
+        else
+            *highlight = num;
+        return 0;
+    }
+
+    if (ch == '2')
+    {
+        if (*highlight < num)
+            (*highlight)++;
+        else
+            *highlight = 1;
+        return 0;
+    }
+
+    if ((ch == '+') || (ch == '=') || (ch == '\r') || (ch == '\n') || (ch == ' ')
+        || (ch == '6'))
+    {
+        if (!smith_adjust_bonus_entry(&entries[*highlight - 1], 1))
+            bell("Invalid choice.");
+        return 0;
+    }
+
+    if ((ch == '-') || (ch == '_'))
+    {
+        if (!smith_adjust_bonus_entry(&entries[*highlight - 1], -1))
+            bell("Invalid choice.");
+        return 0;
+    }
+
+    return 0;
+}
+
+static void smith_bonus_menu(void)
+{
+    int highlight = 1;
+    bool leave_menu = false;
+
+    screen_save();
+
+    while (!leave_menu)
+    {
+        int choice = smith_bonus_menu_aux(&highlight);
+        if (choice == -1)
+            leave_menu = true;
+    }
+
+    screen_load();
+}
+
 /*
  * Displays a menu for modifying numerical bonuses and weight of an item.
  */
@@ -6512,7 +6832,10 @@ void numbers_menu(void)
 
         default:
         {
-            modify_numbers(choice);
+            if (choice == SMT_NUM_MENU_EDIT_BONUSES)
+                smith_bonus_menu();
+            else
+                modify_numbers(choice);
             break;
         }
         }

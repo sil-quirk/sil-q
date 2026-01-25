@@ -1374,6 +1374,15 @@ static void wr_randarts(void)
         wr_byte(a_ptr->activation);
         wr_u16b(a_ptr->time);
         wr_u16b(a_ptr->randtime);
+
+        for (int bi = 0; bi < A_MAX; bi++)
+            wr_s16b(a_ptr->stat_bonus[bi]);
+        for (int bi = 0; bi < S_MAX; bi++)
+            wr_s16b(a_ptr->skill_bonus[bi]);
+        for (int bi = 0; bi < A_MAX; bi++)
+            wr_byte(a_ptr->stat_bonus_set[bi] ? 1 : 0);
+        for (int bi = 0; bi < S_MAX; bi++)
+            wr_byte(a_ptr->skill_bonus_set[bi] ? 1 : 0);
     }
 }
 

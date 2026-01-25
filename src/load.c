@@ -95,6 +95,7 @@ static bool savefile_has_thrall_quest = false;
 static bool savefile_has_thrall_quest_requested = false;
 static bool savefile_has_randart_flags4 = false;
 static bool savefile_has_item_bonuses = false;
+static bool savefile_has_randart_bonuses = false;
 
 /* Version comparison helpers: update these when bumping savefile semantics. */
 static int savefile_version_compare(byte major, byte minor, byte patch, byte extra)
@@ -788,7 +789,7 @@ static errr rd_item(object_type* o_ptr)
     convert_old_staff_of_warding(o_ptr);
 
     /* Back-compat: derive bonuses from pval+flags for older saves. */
-    if (o_ptr->name1)
+    if (o_ptr->name1 && !savefile_has_item_bonuses)
     {
         artefact_type* a_ptr = &a_info[o_ptr->name1];
         memcpy(o_ptr->stat_bonus, a_ptr->stat_bonus, sizeof(o_ptr->stat_bonus));
@@ -1900,7 +1901,27 @@ static errr rd_randarts(void)
             rd_u16b(&a_ptr->time);
             rd_u16b(&a_ptr->randtime);
 
-            artefact_derive_stat_skill_bonuses_from_pval(a_ptr);
+            if (savefile_has_randart_bonuses)
+            {
+                for (int bi = 0; bi < A_MAX; bi++)
+                    rd_s16b(&a_ptr->stat_bonus[bi]);
+                for (int bi = 0; bi < S_MAX; bi++)
+                    rd_s16b(&a_ptr->skill_bonus[bi]);
+                for (int bi = 0; bi < A_MAX; bi++)
+                {
+                    rd_byte(&tmp8u);
+                    a_ptr->stat_bonus_set[bi] = tmp8u ? true : false;
+                }
+                for (int bi = 0; bi < S_MAX; bi++)
+                {
+                    rd_byte(&tmp8u);
+                    a_ptr->skill_bonus_set[bi] = tmp8u ? true : false;
+                }
+            }
+            else
+            {
+                artefact_derive_stat_skill_bonuses_from_pval(a_ptr);
+            }
         }
     }
     else
@@ -1941,6 +1962,18 @@ static errr rd_randarts(void)
             rd_byte(&tmp8u); /* a_ptr->activation */
             rd_u16b(&tmp16u); /* a_ptr->time */
             rd_u16b(&tmp16u); /* a_ptr->randtime */
+
+            if (savefile_has_randart_bonuses)
+            {
+                for (int bi = 0; bi < A_MAX; bi++)
+                    rd_s16b(&tmp16s);
+                for (int bi = 0; bi < S_MAX; bi++)
+                    rd_s16b(&tmp16s);
+                for (int bi = 0; bi < A_MAX; bi++)
+                    rd_byte(&tmp8u);
+                for (int bi = 0; bi < S_MAX; bi++)
+                    rd_byte(&tmp8u);
+            }
         }
     }
 
@@ -2922,6 +2955,7 @@ static errr rd_savefile_new_aux(void)
     savefile_has_thrall_quest_requested = savefile_version_at_least(0, 9, 1, 12);
     savefile_has_randart_flags4 = savefile_version_at_least(0, 9, 5, 1);
     savefile_has_item_bonuses = savefile_version_at_least(0, 9, 5, 2);
+    savefile_has_randart_bonuses = savefile_version_at_least(0, 9, 5, 3);
 
     /* Reset load byte offset counter */
     load_byte_offset = 0;
@@ -3388,6 +3422,7 @@ bool load_player(void)
             savefile_has_thrall_quest = savefile_version_at_least(0, 9, 1, 11);
             savefile_has_randart_flags4 = savefile_version_at_least(0, 9, 5, 1);
             savefile_has_item_bonuses = savefile_version_at_least(0, 9, 5, 2);
+            savefile_has_randart_bonuses = savefile_version_at_least(0, 9, 5, 3);
         }
 
         load_byte_offset = 0; /* reset counter before decoding stream */
