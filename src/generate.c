@@ -106,6 +106,7 @@ static vault_monster_spec vault_monster_table[] = {
     {'L', "d27e36edf5c2f432", 0, false, true, true},
     {'N', "f134bcd795c27d4f", 0, false, true, true},
     {'D', "3ab7e216cb871fec", 0, false, true, true},
+    {'K', "4da7998251196a35", 0, false, true, true}, /* Ancalagon the Black */
     {'R', "0e0f11695f8a443d", 0, false, true, true},
     {'U', "c2485b83ba33934d", 0, false, true, true},
     {'G', "7b038638b2981d20", 0, false, true, true},
@@ -4380,6 +4381,7 @@ static bool gv_level_roll_allows(int depth, int *out_candidates)
         if (v_ptr->typ != 8) continue;
         if (v_ptr->flags & VLT_QUEST) continue;
         if (v_ptr->depth > depth) continue;
+        if (v_ptr->max_depth != 0 && depth > v_ptr->max_depth) continue;
 
         /* Skip already-used greater vaults to mirror build_type8 checks */
         bool repeated = false;
@@ -10425,7 +10427,7 @@ void place_monster_by_letter(
     {
         r_idx = get_mon_num(depth, false, true, true);
         r_ptr = &r_info[r_idx];
-        if ((r_ptr->d_char = c)
+        if ((r_ptr->d_char == c)
             && (allow_unique || !(r_ptr->flags1 & (RF1_UNIQUE))))
         {
             got_r_idx = true;
@@ -10506,7 +10508,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
 
     /* Begin the vault style context now that the vault is accepted */
     styles_begin_vault(-1, 0);
-    /* If vault has explicit style list, use it (support '*'=-1); else apply per-depth default */
+    /* If vault has explicit style list, use it (support '*'=-1, '$'=-2) */
     styles_reset_vault_weights();
     if (v_ptr->style_count > 0) {
         for (int si = 0; si < v_ptr->style_count; ++si) {
@@ -10525,7 +10527,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             }
         }
     } else {
-        /* No S: provided Ã”Ã‡Ã¶ choose a random style from the depth-available list */
+        /* No S: provided -- choose a random style from the depth-available list */
         int rs = styles_pick_random_from_level();
         if (rs >= 0) styles_add_vault_weight(rs, 1);
     }
@@ -10924,6 +10926,64 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 break;
             }
 
+            /* A human skeleton */
+            case 'h':
+            {
+                object_type* i_ptr;
+                object_type object_type_body;
+                s16b k_idx;
+
+                /* Get local object */
+                i_ptr = &object_type_body;
+
+                /* Wipe the object */
+                object_wipe(i_ptr);
+
+                k_idx = lookup_kind(TV_SKELETON, SV_SKELETON_HUMAN);
+
+                /* Prepare the item */
+                object_prep(i_ptr, k_idx);
+
+                i_ptr->pval = 1;
+
+                /* Drop it in the dungeon */
+                drop_near(i_ptr, -1, y, x);
+                break;
+            }
+
+            /* An orc skeleton */
+            case 'e':
+            {
+                object_type* i_ptr;
+                object_type object_type_body;
+                s16b k_idx;
+
+                /* Get local object */
+                i_ptr = &object_type_body;
+
+                /* Wipe the object */
+                object_wipe(i_ptr);
+
+                k_idx = lookup_kind(TV_SKELETON, SV_SKELETON_ORC);
+
+                /* Prepare the item */
+                object_prep(i_ptr, k_idx);
+
+                i_ptr->pval = 1;
+
+                /* Drop it in the dungeon */
+                drop_near(i_ptr, -1, y, x);
+                break;
+            }
+
+            /* A web */
+            case 'w':
+            {
+                /* Place a web trap */
+                cave_set_feat(y, x, FEAT_TRAP_WEB);
+                break;
+            }
+
             /* Monster and/or object from 1 level deeper */
             case '?':
             {
@@ -11051,6 +11111,14 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 break;
             }
 
+            /* Troll (any monster with RF3_TROLL) */
+            case 't':
+            {
+                place_monster_by_flag(
+                    y, x, 3, RF3_TROLL, true, p_ptr->depth + rand_range(1, 4));
+                break;
+            }
+
             /* barrow wight */
             case 'W':
             {
@@ -11093,6 +11161,14 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             {
                 place_monster_by_letter(
                     y, x, 'v', true, p_ptr->depth + rand_range(1, 4));
+                break;
+            }
+
+            /* Wight/Wraith */
+            case 'g':
+            {
+                place_monster_by_letter(
+                    y, x, 'W', true, p_ptr->depth + rand_range(1, 4));
                 break;
             }
 
@@ -11151,6 +11227,13 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             case 'D':
             {
                 place_vault_monster_token('D', y, x);
+                break;
+            }
+
+            /* Ancalagon the Black */
+            case 'K':
+            {
+                place_vault_monster_token('K', y, x);
                 break;
             }
 
@@ -12170,6 +12253,7 @@ static bool build_type6(int y0, int x0, bool force_forge)
 
         /* Accept the first interesting room (but not quest vaults) */
         if ((v_ptr->typ == 6) && (v_ptr->depth <= p_ptr->depth)
+            && (v_ptr->max_depth == 0 || p_ptr->depth <= v_ptr->max_depth)
             && (one_in_(rarity)) && !(v_ptr->flags & VLT_QUEST))
             break;
 
@@ -12216,6 +12300,7 @@ static bool build_type7(int y0, int x0)
 
         /* Accept the first lesser vault (but not quest vaults) */
         if ((v_ptr->typ == 7) && (v_ptr->depth <= p_ptr->depth)
+            && (v_ptr->max_depth == 0 || p_ptr->depth <= v_ptr->max_depth)
             && (one_in_(v_ptr->rarity)) && !(v_ptr->flags & VLT_QUEST))
             break;
 
@@ -12307,6 +12392,7 @@ static bool build_type8(int y0, int x0)
 
         /* Accept the first greater vault (but not quest vaults) */
         if ((v_ptr->typ == 8) && (v_ptr->depth <= p_ptr->depth)
+            && (v_ptr->max_depth == 0 || p_ptr->depth <= v_ptr->max_depth)
             && (one_in_(v_ptr->rarity)) && !(v_ptr->flags & VLT_QUEST))
         {
             repeated = false;
@@ -12920,7 +13006,8 @@ static bool place_duruin_bastion(void)
         if (!(qv_ptr->flags & VLT_QUEST)) continue;
         if (!vault_template_has_duruin(qv_ptr)) continue;
         if (qv_ptr->depth > p_ptr->depth) continue;
-        
+        if (qv_ptr->max_depth != 0 && p_ptr->depth > qv_ptr->max_depth) continue;
+
         /* Found Duruin Bastion - attempt placement and return result */
         log_trace("Varda quest: Found Duruin Bastion vault at index %d: '%s', attempting placement", i, v_name + qv_ptr->name);
         log_trace("Varda quest: Vault details - typ=%d, hgt=%d, wid=%d, depth=%d, flags=0x%x", 
@@ -12991,6 +13078,7 @@ static bool try_quest_vault_type(int v_type)
         if (qv_ptr->typ != v_type) continue;
         if (!(qv_ptr->flags & VLT_QUEST)) continue;
         if (qv_ptr->depth > p_ptr->depth) continue;
+        if (qv_ptr->max_depth != 0 && p_ptr->depth > qv_ptr->max_depth) continue;
         if (vault_template_has_duruin(qv_ptr)) {
             log_trace("Quest vault: Skipping Duruin Bastion in generic placement path (quest-only)");
             continue;

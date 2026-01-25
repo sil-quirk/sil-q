@@ -38,8 +38,19 @@
 - Added gameplay options: `smaller_level_size` (-3 blocks, min 6) and `more_stairs` (+50% stairs, max doubled).
 - Moved `disable_skeleton_note_tutorial` from Interface to Gameplay options page.
 - Partition/stair placement: fixed guaranteed stair partitioning to handle small maps (66/77) and corrected fallback partition grid mapping.
-- Files: `src/generate.c`, `src/tables.c`, `src/defines.h`.
-- Build: `build-cmake.bat` succeeds.
+
+## 2026-01-18: Vault audit + mid-depth vault additions
+- Vault styling: `src/generate.c` `build_vault()` keeps the original behavior: when a vault has no `S:` style list, it picks a random style from the current level’s available styles.
+- Vault monster correctness: fixed `src/generate.c:place_monster_by_letter()` (was `=` instead of `==`), so vault tokens like `v` reliably place the intended monster letter.
+- Vault template fixes: repaired rectangularity/trailing-space issues and removed/relocated invalid door clusters so doors always separate two meaningful regions (no “doors to nowhere”).
+- Lore/depth polish in `lib/edit/vault.txt`: moved `N:476` (Vampire's Crypt) to depth 16; renamed `N:482` to `Barrows of the Edain`.
+- Added new lore-friendly vaults for sparse depths 15–17 (`N:484`..`N:489`) to improve variety and depth theming.
+- Validation: ran local scripts to confirm 0 failures for vault rectangularity, door-cluster validity, boundary entrances, size limits, and depth token constraints (`W` not below 14+, `7` not at depth 20).
+- Added vault troll token `t` (troll by flag, +1d4 levels); updated `N:288` (Troll Forge) and `N:467` (Troll-hold) to use it instead of `T` (troll guard).
+- Fixed `N:489` (Hall of Vampires) to avoid stacked door pairs.
+- Added `N:490` (The Iron Council, type8 depth16) to fill the 14–17 greater-vault gap.
+- Files: `lib/edit/vault.txt`, `src/generate.c`, `session_notes.md`.
+- Build: not run in this session.
 
 ## 2026-01-02: Tolkienistic hint messages + per-level hint log + main menu entry
 - Skeleton note hints are fully data-driven via `lib/edit/skeleton_note.txt` templates (including `{DIR}`/`{DIST}` for location hints).

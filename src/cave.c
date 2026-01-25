@@ -3935,16 +3935,35 @@ void update_view(void)
     }
 
     // Sil: update the light values with the torch/lantern light
+
+    /* Calculate DARKNESS bonus once (items give +1 light power each) */
+    int darkness_bonus = 0;
+    {
+        int slot;
+        for (slot = INVEN_WIELD; slot < INVEN_TOTAL; slot++)
+        {
+            object_type* o_ptr = &inventory[slot];
+            u32b f1, f2, f3;
+
+            if (!o_ptr->k_idx) continue;
+            if (slot == INVEN_LITE) continue;
+
+            object_flags(o_ptr, &f1, &f2, &f3);
+            if (f2 & TR2_DARKNESS)
+                darkness_bonus++;
+        }
+    }
+
     for (i = -player_rad; i <= player_rad; i++)
     {
         for (j = -player_rad; j <= player_rad; j++)
         {
             int dist = distance(0, 0, i, j);
-            int bonus_light = 0;
+            int bonus_light = darkness_bonus;
 
             if (p_ptr->active_ability[S_WIL][WIL_INNER_LIGHT])
             {
-                bonus_light = 2;
+                bonus_light += 2;
             }
             if (cave_feat[p_ptr->py][p_ptr->px] == FEAT_SUNLIGHT)
             {

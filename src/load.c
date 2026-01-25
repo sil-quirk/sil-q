@@ -1758,6 +1758,7 @@ static errr rd_randarts(void)
             rd_u32b(&a_ptr->flags1);
             rd_u32b(&a_ptr->flags2);
             rd_u32b(&a_ptr->flags3);
+            rd_u32b(&a_ptr->flags4);
             rd_byte(&a_ptr->level);
             rd_byte(&a_ptr->rarity);
             rd_byte(&a_ptr->activation);
@@ -1795,6 +1796,7 @@ static errr rd_randarts(void)
             rd_u32b(&tmp32u); /* a_ptr->flags1 */
             rd_u32b(&tmp32u); /* a_ptr->flags2 */
             rd_u32b(&tmp32u); /* a_ptr->flags3 */
+            rd_u32b(&tmp32u); /* a_ptr->flags4 */
             rd_byte(&tmp8u); /* a_ptr->level */
             rd_byte(&tmp8u); /* a_ptr->rarity */
 

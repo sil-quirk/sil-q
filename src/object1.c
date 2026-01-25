@@ -468,17 +468,17 @@ void reset_visuals(bool unused)
 #define OBJECT_FLAGS_KNOWN 2 /* Only flags known to the player */
 
 /*
- * Obtain the "flags" for an item
+ * Obtain the "flags" for an item (extended version with f4)
  */
 static void object_flags_aux(
-    int mode, const object_type* o_ptr, u32b* f1, u32b* f2, u32b* f3)
+    int mode, const object_type* o_ptr, u32b* f1, u32b* f2, u32b* f3, u32b* f4)
 {
     object_kind* k_ptr;
 
     if (mode == OBJECT_FLAGS_KNOWN)
     {
         /* Clear */
-        (*f1) = (*f2) = (*f3) = 0L;
+        (*f1) = (*f2) = (*f3) = (*f4) = 0L;
 
         /* Must be identified (or being listed in object knowledge) */
         if (!object_known_p(o_ptr) && !(o_ptr->ident & IDENT_SPOIL))
@@ -491,6 +491,7 @@ static void object_flags_aux(
     (*f1) = k_ptr->flags1;
     (*f2) = k_ptr->flags2;
     (*f3) = k_ptr->flags3;
+    (*f4) = k_ptr->flags4;
 
     /* Artefact flags add to the base object (never replace it) */
     if ((mode == OBJECT_FLAGS_FULL) || (mode == OBJECT_FLAGS_KNOWN))
@@ -503,6 +504,7 @@ static void object_flags_aux(
             (*f1) |= a_ptr->flags1;
             (*f2) |= a_ptr->flags2;
             (*f3) |= a_ptr->flags3;
+            (*f4) |= a_ptr->flags4;
         }
     }
 
@@ -515,6 +517,7 @@ static void object_flags_aux(
             (*f1) |= e_ptr->flags1;
             (*f2) |= e_ptr->flags2;
             (*f3) |= e_ptr->flags3;
+            (*f4) |= e_ptr->flags4;
         }
 
         byte ego_suffix = object_ego_suffix(o_ptr);
@@ -524,16 +527,26 @@ static void object_flags_aux(
             (*f1) |= e_ptr->flags1;
             (*f2) |= e_ptr->flags2;
             (*f3) |= e_ptr->flags3;
+            (*f4) |= e_ptr->flags4;
         }
     }
 }
 
 /*
- * Obtain the "flags" for an item
+ * Obtain the "flags" for an item (legacy 3-flag version)
  */
 void object_flags(const object_type* o_ptr, u32b* f1, u32b* f2, u32b* f3)
 {
-    object_flags_aux(OBJECT_FLAGS_FULL, o_ptr, f1, f2, f3);
+    u32b dummy_f4;
+    object_flags_aux(OBJECT_FLAGS_FULL, o_ptr, f1, f2, f3, &dummy_f4);
+}
+
+/*
+ * Obtain the "flags" for an item (extended version with f4)
+ */
+void object_flags4(const object_type* o_ptr, u32b* f1, u32b* f2, u32b* f3, u32b* f4)
+{
+    object_flags_aux(OBJECT_FLAGS_FULL, o_ptr, f1, f2, f3, f4);
 }
 
 /*
@@ -541,7 +554,16 @@ void object_flags(const object_type* o_ptr, u32b* f1, u32b* f2, u32b* f3)
  */
 void object_flags_known(const object_type* o_ptr, u32b* f1, u32b* f2, u32b* f3)
 {
-    object_flags_aux(OBJECT_FLAGS_KNOWN, o_ptr, f1, f2, f3);
+    u32b dummy_f4;
+    object_flags_aux(OBJECT_FLAGS_KNOWN, o_ptr, f1, f2, f3, &dummy_f4);
+}
+
+/*
+ * Obtain the "flags" for an item which are known to the player (extended)
+ */
+void object_flags_known4(const object_type* o_ptr, u32b* f1, u32b* f2, u32b* f3, u32b* f4)
+{
+    object_flags_aux(OBJECT_FLAGS_KNOWN, o_ptr, f1, f2, f3, f4);
 }
 
 /*

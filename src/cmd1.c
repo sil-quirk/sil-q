@@ -1255,7 +1255,7 @@ extern void ident(object_type* o_ptr)
 
 extern void ident_on_wield(object_type* o_ptr)
 {
-    u32b f1, f2, f3;
+    u32b f1, f2, f3, f4;
     u32b orig_f1;
 
     bool notice = false;
@@ -1265,7 +1265,7 @@ extern void ident_on_wield(object_type* o_ptr)
     object_kind* k_ptr = &k_info[o_ptr->k_idx];
 
     /* Get the flags */
-    object_flags(o_ptr, &f1, &f2, &f3);
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
     orig_f1 = f1;
 
     // Ignore previously identified items
@@ -1287,6 +1287,7 @@ extern void ident_on_wield(object_type* o_ptr)
             ego_item_type* e_ptr = &e_info[ego_pfx];
             if ((e_ptr->flags1 != 0L) || (e_ptr->flags2 != 0L)
                 || ((e_ptr->flags3 | (TR3_IGNORE_ALL)) != (TR3_IGNORE_ALL))
+                || (e_ptr->flags4 != 0L)
                 || (e_ptr->abilities != 0))
             {
                 all_trivial = false;
@@ -1298,6 +1299,7 @@ extern void ident_on_wield(object_type* o_ptr)
             ego_item_type* e_ptr = &e_info[ego_sfx];
             if ((e_ptr->flags1 != 0L) || (e_ptr->flags2 != 0L)
                 || ((e_ptr->flags3 | (TR3_IGNORE_ALL)) != (TR3_IGNORE_ALL))
+                || (e_ptr->flags4 != 0L)
                 || (e_ptr->abilities != 0))
             {
                 all_trivial = false;
@@ -1352,7 +1354,12 @@ extern void ident_on_wield(object_type* o_ptr)
     if (f2 & (TR2_DARKNESS))
     {
         notice = true;
-        msg_print("It creates an unnatural darkness.");
+        msg_print("It shrouds you in darkness.");
+    }
+    else if (f4 & (TR4_UNLIGHT))
+    {
+        notice = true;
+        msg_print("It dims your light.");
     }
     else if (f2 & (TR2_LIGHT))
     {
@@ -5371,6 +5378,69 @@ void py_attack_aux(int y, int x, int attack_type)
             else
             {
                 display_hit(y, x, net_dam, GF_HURT, fatal_blow);
+            }
+
+            // Apply on-hit stat reduction effects (only if monster survived and took damage)
+            if (!fatal_blow && (net_dam > 0))
+            {
+                // Armor Shatter: Reduce monster armor protection sides
+                // Only applies to armored monsters (RF3_HAS_ARMOUR)
+                if ((f3 & (TR3_ARMOR_SHATTER)) && (r_ptr->flags3 & (RF3_HAS_ARMOUR)))
+                {
+                    // Skill check: attacker Melee vs defender Will
+                    int shatter_skill = p_ptr->skill_use[S_MEL];
+                    int resist_skill = monster_skill(m_ptr, S_WIL);
+
+                    if (skill_check(NULL, shatter_skill, resist_skill, m_ptr) > 0)
+                    {
+                        // Check if we can reduce further (can't reduce to 0)
+                        if (m_ptr->armor_ps_reduction < r_ptr->ps)
+                        {
+                            m_ptr->armor_ps_reduction++;
+
+                            if (m_ptr->ml)
+                            {
+                                char m_poss[80];
+                                monster_desc(m_poss, sizeof(m_poss), m_ptr, 0x22);
+                                msg_format("Your blow shatters %s armor!", m_poss);
+                            }
+
+                            // Identify the weapon
+                            if (!object_known_p(o_ptr))
+                            {
+                                ident_weapon_by_use(o_ptr, m_ptr, TR3_ARMOR_SHATTER);
+                            }
+                        }
+                    }
+                }
+
+                // Will Drain: Reduce monster Will
+                // Only applies to intelligent monsters (not mindless)
+                if ((f3 & (TR3_WILL_DRAIN)) && !(r_ptr->flags2 & (RF2_MINDLESS)))
+                {
+                    // Skill check: attacker Melee vs defender Will
+                    int drain_skill = p_ptr->skill_use[S_MEL];
+                    int resist_skill = monster_skill(m_ptr, S_WIL);
+
+                    if (skill_check(NULL, drain_skill, resist_skill, m_ptr) > 0)
+                    {
+                        // Reduce Will by 1
+                        m_ptr->song_will_penalty++;
+
+                        if (m_ptr->ml)
+                        {
+                            char m_poss[80];
+                            monster_desc(m_poss, sizeof(m_poss), m_ptr, 0x22);
+                            msg_format("You drain %s will!", m_poss);
+                        }
+
+                        // Identify the weapon
+                        if (!object_known_p(o_ptr))
+                        {
+                            ident_weapon_by_use(o_ptr, m_ptr, TR3_WILL_DRAIN);
+                        }
+                    }
+                }
             }
 
             // if a slay was noticed, then identify the weapon

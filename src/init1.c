@@ -79,15 +79,16 @@ static cptr r_info_blow_effect[] = { "", "HURT", "WOUND", "BATTER", "SHATTER",
 #define TR1 0
 #define TR2 1
 #define TR3 2
-#define RF1 3
-#define RF2 4
-#define RF3 5
-#define RF4 6
-#define RHF 7
-#define VLT 8
-#define CUR 9
-#define UNQ 10
-#define MAX_FLAG_SETS 11
+#define TR4 3
+#define RF1 4
+#define RF2 5
+#define RF3 6
+#define RF4 7
+#define RHF 8
+#define VLT 9
+#define CUR 10
+#define UNQ 11
+#define MAX_FLAG_SETS 12
 
 /*
  * Monster race flags for the race_info_flags1 structure
@@ -277,7 +278,7 @@ static flag_name info_flags[] = {
     { "ENCHANTABLE", TR3, TR3_ENCHANTABLE }, { "ACTIVATE", TR3, TR3_ACTIVATE },
     { "INSTA_ART", TR3, TR3_INSTA_ART }, { "EASY_KNOW", TR3, TR3_EASY_KNOW },
     { "MORE_SPECIAL", TR3, TR3_MORE_SPECIAL },
-    { "TR3XXX12", TR3, TR3_TR3XXX12 },
+    { "WILL_DRAIN", TR3, TR3_WILL_DRAIN },
     { "HAND_AND_A_HALF", TR3, TR3_HAND_AND_A_HALF },
     { "TWO_HANDED", TR3, TR3_TWO_HANDED },
     { "LIGHT_CURSE", TR3, TR3_LIGHT_CURSE },
@@ -285,6 +286,12 @@ static flag_name info_flags[] = {
     { "PERMA_CURSE", TR3, TR3_PERMA_CURSE },
 
     { "IGNORE_ALL", TR3, TR3_IGNORE_ALL },
+
+    /*
+     * Object flags 4
+     */
+    { "UNLIGHT", TR4, TR4_UNLIGHT },
+    { "ARMOR_SHATTER", TR4, TR4_ARMOR_SHATTER },
 
     /*
      * Race/Character flags
@@ -2035,6 +2042,7 @@ static errr grab_one_kind_flag(object_kind* ptr, cptr what)
     f[TR1] = &(ptr->flags1);
     f[TR2] = &(ptr->flags2);
     f[TR3] = &(ptr->flags3);
+    f[TR4] = &(ptr->flags4);
     return grab_one_flag(f, "object", what);
 }
 
@@ -2447,19 +2455,30 @@ errr parse_v_info(char* buf, header* head)
     /* Process 'X' for "Extra info" (one line only) */
     else if (buf[0] == 'X')
     {
-        int typ, depth, rarity;
+        int typ, depth, rarity, max_depth;
+        int num_scanned;
 
         /* There better be a current v_ptr */
         if (!v_ptr)
             return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
-        /* Scan for the values */
-        if (3 != sscanf(buf + 2, "%d:%d:%d", &typ, &depth, &rarity))
+        /* Try to scan for 4 values (with max_depth) */
+        num_scanned = sscanf(buf + 2, "%d:%d:%d:%d", &typ, &depth, &rarity, &max_depth);
+
+        /* If that fails, try scanning for 3 values (backward compatibility) */
+        if (num_scanned == 3)
+        {
+            max_depth = 0; /* 0 = no maximum depth limit */
+        }
+        else if (num_scanned != 4)
+        {
             return (PARSE_ERROR_GENERIC);
+        }
 
         /* Save the values */
         v_ptr->typ = typ;
         v_ptr->depth = depth;
+        v_ptr->max_depth = max_depth;
         v_ptr->rarity = rarity;
         v_ptr->hgt = 0;
         v_ptr->wid = 0;
@@ -2786,6 +2805,7 @@ static errr grab_one_artefact_flag(artefact_type* ptr, cptr what)
     f[TR1] = &(ptr->flags1);
     f[TR2] = &(ptr->flags2);
     f[TR3] = &(ptr->flags3);
+    f[TR4] = &(ptr->flags4);
     return grab_one_flag(f, "object", what);
 }
 
@@ -3426,6 +3446,7 @@ static bool grab_one_ego_item_flag(ego_item_type* ptr, cptr what)
     f[TR1] = &(ptr->flags1);
     f[TR2] = &(ptr->flags2);
     f[TR3] = &(ptr->flags3);
+    f[TR4] = &(ptr->flags4);
     return grab_one_flag(f, "object", what);
 }
 

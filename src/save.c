@@ -1356,6 +1356,7 @@ static void wr_randarts(void)
         wr_u32b(a_ptr->flags1);
         wr_u32b(a_ptr->flags2);
         wr_u32b(a_ptr->flags3);
+        wr_u32b(a_ptr->flags4);
 
         wr_byte(a_ptr->level);
         wr_byte(a_ptr->rarity);

@@ -1999,7 +1999,7 @@
 #define TR3_EASY_KNOW 0x01000000L /* Item is known if aware */
 #define TR3_MORE_SPECIAL                                                       \
     0x02000000L /* Item has a better chance of being special */
-#define TR3_TR3XXX12 0x04000000L /* xxx */
+#define TR3_WILL_DRAIN 0x04000000L /* Drains enemy Will on hit */
 #define TR3_HAND_AND_A_HALF 0x08000000L /* Item is a hand and a half weapon */
 #define TR3_TWO_HANDED 0x10000000L /* Item is a two handed weapon */
 #define TR3_LIGHT_CURSE 0x20000000L /* Item has Light Curse */
@@ -2009,6 +2009,10 @@
 /*TR3 Uber-Flags*/
 #define TR3_IGNORE_ALL                                                         \
     (TR3_IGNORE_ACID | TR3_IGNORE_ELEC | TR3_IGNORE_FIRE | TR3_IGNORE_COLD)
+
+/* Object flags set 4 */
+#define TR4_UNLIGHT     0x00000001L  /* Reduces light radius by 1 (no power bonus) */
+#define TR4_ARMOR_SHATTER 0x00000002L /* Shatters enemy armor on hit */
 
 /*
  * Hack -- flag set 1 -- mask for "pval-dependant" flags.
