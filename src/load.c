@@ -93,6 +93,7 @@ static bool savefile_has_cave_info_hi = false;
 static bool savefile_has_hint_messages = false;
 static bool savefile_has_thrall_quest = false;
 static bool savefile_has_thrall_quest_requested = false;
+static bool savefile_has_randart_flags4 = false;
 
 /* Version comparison helpers: update these when bumping savefile semantics. */
 static int savefile_version_compare(byte major, byte minor, byte patch, byte extra)
@@ -1758,7 +1759,10 @@ static errr rd_randarts(void)
             rd_u32b(&a_ptr->flags1);
             rd_u32b(&a_ptr->flags2);
             rd_u32b(&a_ptr->flags3);
-            rd_u32b(&a_ptr->flags4);
+            if (savefile_has_randart_flags4)
+                rd_u32b(&a_ptr->flags4);
+            else
+                a_ptr->flags4 = 0;
             rd_byte(&a_ptr->level);
             rd_byte(&a_ptr->rarity);
             rd_byte(&a_ptr->activation);
@@ -1796,7 +1800,8 @@ static errr rd_randarts(void)
             rd_u32b(&tmp32u); /* a_ptr->flags1 */
             rd_u32b(&tmp32u); /* a_ptr->flags2 */
             rd_u32b(&tmp32u); /* a_ptr->flags3 */
-            rd_u32b(&tmp32u); /* a_ptr->flags4 */
+            if (savefile_has_randart_flags4)
+                rd_u32b(&tmp32u); /* a_ptr->flags4 */
             rd_byte(&tmp8u); /* a_ptr->level */
             rd_byte(&tmp8u); /* a_ptr->rarity */
 
@@ -2782,6 +2787,7 @@ static errr rd_savefile_new_aux(void)
     savefile_has_hint_messages = savefile_version_at_least(0, 9, 1, 10);
     savefile_has_thrall_quest = savefile_version_at_least(0, 9, 1, 11);
     savefile_has_thrall_quest_requested = savefile_version_at_least(0, 9, 1, 12);
+    savefile_has_randart_flags4 = savefile_version_at_least(0, 9, 5, 1);
 
     /* Reset load byte offset counter */
     load_byte_offset = 0;
@@ -3246,6 +3252,7 @@ bool load_player(void)
             savefile_has_cave_info_hi = savefile_version_at_least(0, 9, 1, 8);
             savefile_has_hint_messages = savefile_version_at_least(0, 9, 1, 10);
             savefile_has_thrall_quest = savefile_version_at_least(0, 9, 1, 11);
+            savefile_has_randart_flags4 = savefile_version_at_least(0, 9, 5, 1);
         }
 
         load_byte_offset = 0; /* reset counter before decoding stream */

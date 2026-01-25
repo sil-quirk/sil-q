@@ -4924,7 +4924,7 @@ void py_attack_aux(int y, int x, int attack_type)
     bool fatal_blow = false;
     bool smite = false;
 
-    u32b f1, f2, f3; // the weapon's flags
+    u32b f1, f2, f3, f4; // the weapon's flags
 
     u32b noticed_flag = 0; // if any slay is observed and the weapon thus
                            // identified it goes here
@@ -5068,7 +5068,7 @@ void py_attack_aux(int y, int x, int attack_type)
     mdd = p_ptr->mdd;
     mds = p_ptr->mds;
 
-    object_flags(o_ptr, &f1, &f2, &f3);
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
 
     // determine the base for the attack_mod
     attack_mod = p_ptr->skill_use[S_MEL];
@@ -5142,7 +5142,7 @@ void py_attack_aux(int y, int x, int attack_type)
             mds = p_ptr->mds2;
             o_ptr = &inventory[INVEN_ARM];
             weapon_weight = o_ptr->weight;
-            object_flags(o_ptr, &f1, &f2, &f3);
+            object_flags4(o_ptr, &f1, &f2, &f3, &f4);
         }
 
         // +3 Str/Dex on first blow when charging
@@ -5385,7 +5385,7 @@ void py_attack_aux(int y, int x, int attack_type)
             {
                 // Armor Shatter: Reduce monster armor protection sides
                 // Only applies to armored monsters (RF3_HAS_ARMOUR)
-                if ((f3 & (TR3_ARMOR_SHATTER)) && (r_ptr->flags3 & (RF3_HAS_ARMOUR)))
+                if ((f4 & (TR4_ARMOR_SHATTER)) && (r_ptr->flags3 & (RF3_HAS_ARMOUR)))
                 {
                     // Skill check: attacker Melee vs defender Will
                     int shatter_skill = p_ptr->skill_use[S_MEL];
@@ -5408,7 +5408,7 @@ void py_attack_aux(int y, int x, int attack_type)
                             // Identify the weapon
                             if (!object_known_p(o_ptr))
                             {
-                                ident_weapon_by_use(o_ptr, m_ptr, TR3_ARMOR_SHATTER);
+                                ident_weapon_by_use(o_ptr, m_ptr, TR4_ARMOR_SHATTER);
                             }
                         }
                     }
