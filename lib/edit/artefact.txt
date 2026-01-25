@@ -508,8 +508,8 @@ N:35:of Durin
 Q:882df4c55a64c16e
 I:37:4:0
 W:13:30:280:105000
-P:-1:0d0:-3:3d3
-F:RES_FIRE | RES_COLD | REGEN
+P:-1:0d0:-3:3d1
+F:RES_FIRE | RES_COLD | REGEN | DEPTH_SCALE_PS
 D:Durin was the father of the longbeards of Khazad-Dum,
 D: and his wealth almost without equal. This is one of his
 D: exquisite suits of mail, armour to protect a King.

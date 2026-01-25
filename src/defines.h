@@ -2013,6 +2013,7 @@
 /* Object flags set 4 */
 #define TR4_UNLIGHT     0x00000001L  /* Reduces light radius by 1 (no power bonus) */
 #define TR4_ARMOR_SHATTER 0x00000002L /* Shatters enemy armor on hit */
+#define TR4_DEPTH_SCALE_PS 0x00000004L /* Protection sides scale with depth */
 
 /*
  * Hack -- flag set 1 -- mask for "pval-dependant" flags.

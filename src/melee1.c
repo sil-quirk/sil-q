@@ -110,6 +110,26 @@ int elem_bonus(int effect)
 }
 
 /*
+ * Calculate effective protection sides accounting for depth-scaling
+ */
+static int effective_ps(const object_type* o_ptr)
+{
+    int ps = o_ptr->ps;
+    if (ps <= 0) return ps;
+
+    u32b f1, f2, f3, f4;
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
+
+    if (f4 & TR4_DEPTH_SCALE_PS)
+    {
+        int depth = p_ptr->depth;
+        if (depth < 0) depth = 0;
+        ps += depth / 5;
+    }
+    return ps;
+}
+
+/*
  * Roll the protection dice for all parts of the player's armour
  */
 extern int protection_roll(int typ, bool melee)
@@ -154,7 +174,7 @@ extern int protection_roll(int typ, bool melee)
                 }
                 if (o_ptr->pd > 0)
                 {
-                    int sides = o_ptr->ps;
+                    int sides = effective_ps(o_ptr);
                     if (side_shift && sides > 0) {
                         sides -= side_shift;
                         if (sides < 1) sides = 1;
@@ -171,7 +191,7 @@ extern int protection_roll(int typ, bool melee)
         {
             if (o_ptr->ps > 0)
             {
-                int sides = o_ptr->ps;
+                int sides = effective_ps(o_ptr);
                 if (side_shift && sides > 0) {
                     sides -= side_shift;
                     if (sides < 1) sides = 1;
@@ -306,7 +326,7 @@ extern int p_max(int typ, bool melee)
                 }
                 if (o_ptr->pd > 0)
                 {
-                    int sides = o_ptr->ps;
+                    int sides = effective_ps(o_ptr);
                     if (side_shift && sides > 0) {
                         sides -= side_shift;
                         if (sides < 1) sides = 1;
@@ -322,7 +342,7 @@ extern int p_max(int typ, bool melee)
         {
             if (o_ptr->ps > 0)
             {
-                int sides = o_ptr->ps;
+                int sides = effective_ps(o_ptr);
                 if (side_shift && sides > 0) {
                     sides -= side_shift;
                     if (sides < 1) sides = 1;
