@@ -77,4 +77,11 @@ jobs:
             README.md
             Sil-Q-version.txt
             Sil-Q v1.5.0.pdf
+          # Otherwise directories such as `lib/apex/` are excluded, which only
+          # contain a stub `.keepalive` file.  Without these pre-generated
+          # directories, the game will have problems at run-time.
+          #
+          # TODO: Update game logic to auto-create directories like `lib/apex`
+          #       if needed, then remove this workaround.
+          include-hidden-files: true
 
