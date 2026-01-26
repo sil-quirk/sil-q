@@ -188,10 +188,4 @@ dist: install
 
 	rm -rf disttemp*
 
-tests:
-	$(MAKE) -C tests all CFLAGS="-I.. $(CFLAGS)" LDFLAGS="$(LIBS)" DEFAULT_CONFIG_PATH=../lib
-
-test-clean:
-	$(MAKE) -C tests clean
-
 .PHONY : tests test-clean
