@@ -29,7 +29,7 @@ jobs:
       - name: Build with curses/ncurses support
         run: |
           cd src
-          make -f Makefile.std OPT="-O0 -g" -j$(sysctl -n hw.ncpu) CFLAGS="-Wall $(OPT) -DUSE_GCU" LIBS="-lcurses"
+          make -f Makefile.std -j$(sysctl -n hw.ncpu) CFLAGS="-Wall $(OPT) -DUSE_GCU" LIBS="-lcurses"
 
   release-build-console:
     name: Console (GCU) Release Build
@@ -43,7 +43,7 @@ jobs:
       - name: Build with with curses/ncurses support and release flags
         run: |
           cd src
-          make -f Makefile.std OPT="-O2" -j$(sysctl -n hw.ncpu) CFLAGS="-Wall $(OPT) -DUSE_GCU" LIBS="-lcurses"
+          make -f Makefile.std -j$(sysctl -n hw.ncpu) OPT="-O2" CFLAGS="-Wall $(OPT) -DUSE_GCU" LIBS="-lcurses"
           mv sil ../sil
 
       - name: Update version file with build information
@@ -90,7 +90,7 @@ jobs:
         run: |
           cd src
           # TODO: Add `-Werror` once all compiler warnings are fixed.
-          env OPT="-Wall -O0" make -f Makefile.cocoa ARCHS="x86_64 arm64" -j$(sysctl -n hw.ncpu)
+          make -f Makefile.cocoa -j$(sysctl -n hw.ncpu) ARCHS="x86_64 arm64"
 
   release-build:
     # NOTE: The macOS version mentioned here must match `DEPLOYMENT_TARGET`
@@ -107,7 +107,7 @@ jobs:
         run: |
           cd src
           # TODO: Add `-Werror` once all compiler warnings are fixed.
-          env OPT="-O2" make -f Makefile.cocoa ARCHS="x86_64 arm64" -j$(sysctl -n hw.ncpu)
+          make -f Makefile.cocoa -j$(sysctl -n hw.ncpu) ARCHS="x86_64 arm64" OPT="-O2"
 
       - name: Update version file with build information
         run: bin/version.sh

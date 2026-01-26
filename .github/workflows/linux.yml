@@ -49,7 +49,7 @@ jobs:
       - name: Build with release flags
         run: |
           cd src
-          make -f Makefile.std OPT="-O2" -j$(nproc)
+          make -f Makefile.std -j$(nproc) OPT="-O2"
           mv sil ../sil
 
       - name: Update version file with build information
