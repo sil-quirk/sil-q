@@ -112,8 +112,8 @@ CC = gcc
 ##
 ## Standard -- "main-x11.c" & "main-gcu.c"
 ##
-# OPT can be overridden, e.g.: make OPT="-O0 -DDEBUG"
-OPT ?= -O1 -g
+# OPT can be overridden, e.g.: make OPT="-O2 -DDEBUG"
+OPT ?= -O0 -g
 CFLAGS = -Wall -pipe $(OPT) -D"USE_X11" -D"USE_GCU"
 LIBS = -lX11 -lcurses
 

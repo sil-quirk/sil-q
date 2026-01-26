@@ -9,8 +9,8 @@
 CC = gcc
 WRES = windres
 LIBS = -s -mwindows -lwinmm -lmsimg32
-# OPT can be overridden, e.g.: make OPT="-O0 -DDEBUG"
-OPT ?= -O2
+# OPT can be overridden, e.g.: make OPT="-O2 -DDEBUG"
+OPT ?= -O0 -g
 CFLAGS = -Wall $(OPT) -fno-strength-reduce -DWINDOWS
 
 # pe-i386   - for i686 (32-bit) builds, MINGW32
