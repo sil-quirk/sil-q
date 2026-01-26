@@ -152,6 +152,9 @@ install: $(EXE) $(ICONFILES) $(PLIST)
 		$(PLIST) > $(APPCONT)/Info.plist
 
 	SetFile -a B $(APPBNDL)
+	xattr -rc $(APPBNDL)
+	dot_clean -m $(APPBNDL)
+	codesign --force --deep --sign - $(APPBNDL)
 
 
 vars:
