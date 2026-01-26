@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleExecutable</key>
-	<string>sil</string>
+	<string>$EXECUTABLE$</string>
 	<key>CFBundleDisplayName</key>
 	<string>Sil</string>
 	<key>CFBundleName</key>
