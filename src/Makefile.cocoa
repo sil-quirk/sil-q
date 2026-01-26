@@ -184,10 +184,10 @@ dist: install
 	# Include the top-level version file.
 	cp -p ../Sil-Q-version.txt disttemp
 
-	@-rm ../"$(PACKAGE_NAME)-osx.dmg"
+	@-rm ../"$(PACKAGE_NAME)-macos.dmg"
 
 	hdiutil create -quiet -fs HFS+ -volname $(PACKAGE_NAME) -srcfolder disttemp disttemp.dmg
-	hdiutil convert disttemp.dmg -quiet -format UDZO -imagekey zlib-level=6 -o ../"$(PACKAGE_NAME)-osx.dmg"
+	hdiutil convert disttemp.dmg -quiet -format UDZO -imagekey zlib-level=6 -o ../"$(PACKAGE_NAME)-macos.dmg"
 
 	rm -rf disttemp*
 
