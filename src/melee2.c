@@ -1569,21 +1569,27 @@ static bool get_move_retreat(monster_type* m_ptr, int* ty, int* tx)
     if (r_ptr->freq_ranged >= 50)
     {
         // int prev_cost = cave_cost[which_flow][m_ptr->fy][m_ptr->fx];
-        int start = rand_int(8);
-
         bool acceptable = FALSE;
-        int best_score = 0;
-        int best_y = m_ptr->fy, best_x = m_ptr->fx;
-        int dist;
 
-        // Set up the 'score to beat' as the score for the monster's current
-        // square
-        dist = distance_squared(m_ptr->fy, m_ptr->fx, p_ptr->py, p_ptr->px);
-        best_score += dist;
+        // Compute score of the monster's current square.
+        // Reward distance from player
+        int m_current_score
+            = distance_squared(m_ptr->fy, m_ptr->fx, p_ptr->py, p_ptr->px);
+        // Reward if the monster is already in a good ranged attack spot, where
+        // "good" means:
+        // 1. Can shoot at player from its current square (clear line of fire)
+        // 2. Is not adjacent to the player.
         if (projectable(
                 m_ptr->fy, m_ptr->fx, p_ptr->py, p_ptr->px, PROJECT_STOP)
             && (m_ptr->cdis > 1))
-            best_score += 100;
+            m_current_score += 100;
+
+        // Set the "score to beat" as the score of the monster's current square
+        int best_score = m_current_score;
+
+        // Set the "square to beat" as the monster's current square
+        int best_y = m_ptr->fy;
+        int best_x = m_ptr->fx;
 
         // the position is only acceptable if it is not adjacent to the player
         if (m_ptr->cdis > 1)
@@ -1596,15 +1602,16 @@ static bool get_move_retreat(monster_type* m_ptr, int* ty, int* tx)
         project_path_ignore_y = m_ptr->fy;
         project_path_ignore_x = m_ptr->fx;
 
-        /* Look for adjacent shooting places */
+        // Check the monster's adjacent squares to find a better square to where
+        // it could possibly retreat. Start checking from a randomly selected
+        // adjacent square.
+        int start = rand_int(8);
         for (i = start; i < 8 + start; i++)
         {
             int score = 0;
 
             y = m_ptr->fy + ddy_ddd[i % 8];
             x = m_ptr->fx + ddx_ddd[i % 8];
-
-            dist = distance_squared(y, x, p_ptr->py, p_ptr->px);
 
             /* Check Bounds */
             if (!in_bounds(y, x))
@@ -1622,15 +1629,12 @@ static bool get_move_retreat(monster_type* m_ptr, int* ty, int* tx)
             if (distance(y, x, p_ptr->py, p_ptr->px) == 1)
                 continue;
 
-            // any position non-adjacent to the player will be acceptable
-            acceptable = TRUE;
-
             // reward distance from player
-            score += dist;
+            score += distance_squared(y, x, p_ptr->py, p_ptr->px);
 
             /* reward having a shot at the player */
             if (projectable(y, x, p_ptr->py, p_ptr->px, PROJECT_STOP)
-                && (dist > 1))
+                && (distance(y, x, p_ptr->py, p_ptr->px) > 1))
                 score += 100;
 
             /* Penalize any grid that doesn't have a lower flow (noise) cost. */
@@ -1639,9 +1643,12 @@ static bool get_move_retreat(monster_type* m_ptr, int* ty, int* tx)
 
             if (score > best_score)
             {
+                // Success! We found a non-adjacent square for the monster to
+                // retreat to that has a better score than its current square.
                 best_score = score;
                 best_y = y;
                 best_x = x;
+                acceptable = TRUE;
             }
         }
 
@@ -1661,11 +1668,15 @@ static bool get_move_retreat(monster_type* m_ptr, int* ty, int* tx)
             return (TRUE);
         }
 
-        // Sil-y:
-        // This step is artificial stupidity for archers and other serious
-        // ranged weapon users. They only evade you properly near walls if they
-        // are: afraid or uniques or invisible Otherwise things are a bit too
-        // annoying
+        // Apply artificial stupidity to archers and other serious ranged weapon
+        // users.
+        //
+        // Unless these monsters are (1) afraid or (2) unique or (3) invisible,
+        // they will abort their retreat at this point. This is done so that
+        // ranged monsters are not kiting the player constantly (especially in
+        // corridors, near walls, or other places with constrained monster
+        // movement, where better "acceptable" squares are less likely to be
+        // found), which would be annoying for the player.
         else if ((m_ptr->stance != STANCE_FLEEING)
             && !(r_ptr->flags1 & (RF1_UNIQUE)) && m_ptr->ml)
         {
@@ -4407,7 +4418,7 @@ static void process_move(monster_type* m_ptr, int ty, int tx, bool bash)
 
             /* Scan all objects in the grid */
             for (this_o_idx = cave_o_idx[ny][nx]; this_o_idx;
-                 this_o_idx = next_o_idx)
+                this_o_idx = next_o_idx)
             {
                 object_type* o_ptr;
 
@@ -4857,7 +4868,7 @@ static void process_monster(monster_type* m_ptr)
     {
         int player_skill = damroll(2, 8) + ability_bonus(S_SNG, SNG_MASTERY);
         int enemy_skill = damroll(2, 10) + monster_skill(m_ptr, S_WIL)
-                    + flow_dist(FLOW_PLAYER_NOISE, m_ptr->fy, m_ptr->fx);
+            + flow_dist(FLOW_PLAYER_NOISE, m_ptr->fy, m_ptr->fx);
 
         if (skill_check(PLAYER, player_skill, enemy_skill, m_ptr) > 0)
         {
@@ -5597,7 +5608,7 @@ void calc_morale(monster_type* m_ptr)
     if (!(r_ptr->flags1 & (RF1_UNIQUE)))
     {
         for (this_o_idx = m_ptr->hold_o_idx; this_o_idx;
-             this_o_idx = next_o_idx)
+            this_o_idx = next_o_idx)
         {
             object_type* o_ptr;
 
