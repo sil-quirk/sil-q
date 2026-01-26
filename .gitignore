@@ -1,4 +1,6 @@
 *.o
+# Ignore any generated macOS .dmg files (from Makefile.cocoa's dist target)
+*.dmg
 *.raw
 # Ignore locally built `sil` binary.
 sil
