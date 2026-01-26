@@ -26,6 +26,8 @@
 	<string>$VERSION$</string>
 	<key>CGDisableCoalescedUpdates</key>
 	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>© $COPYRIGHT$</string>
 	<key>NSMainNibFile</key>
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>

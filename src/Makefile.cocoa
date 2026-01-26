@@ -147,8 +147,14 @@ install: $(EXE) $(ICONFILES) $(PLIST)
 	install -m 755 $(EXE) $(APPBIN)
 	install -m 644 $(ICONFILES) $(APPRES)
 	cp cocoa/en.lproj/MainMenu.nib $(APPRES)/en.lproj
-	sed -e 's/\$$VERSION\$$/$(VERSION)/' -e 's/\$$COPYRIGHT\$$/$(COPYRIGHT)/' \
-		-e 's/\$$NAME\$$/$(NAME)/' -e 's/\$$EXECUTABLE\$$/$(EXE)/' \
+	# Escape `&` in COPYRIGHT because a raw `&` in Info.plist (and thus in its
+	# template Sil-Cocoa.xml) will be treated as an entity reference by XML,
+	# which in turn will cause issues when using `codesign` later on to sign
+	# the app bundle.
+	sed -e 's/\$$VERSION\$$/$(VERSION)/' \
+		-e 's/\$$COPYRIGHT\$$/$(subst &,\&amp;,$(COPYRIGHT))/' \
+		-e 's/\$$NAME\$$/$(NAME)/' \
+		-e 's/\$$EXECUTABLE\$$/$(EXE)/' \
 		$(PLIST) > $(APPCONT)/Info.plist
 
 	SetFile -a B $(APPBNDL)
