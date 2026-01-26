@@ -186,7 +186,7 @@ dist: install
 
 	@-rm ../"$(PACKAGE_NAME)-macos.dmg"
 
-	hdiutil create -quiet -fs HFS+ -volname $(PACKAGE_NAME) -srcfolder disttemp disttemp.dmg
+	hdiutil create -quiet -fs APFS -volname $(PACKAGE_NAME) -srcfolder disttemp disttemp.dmg
 	hdiutil convert disttemp.dmg -quiet -format UDZO -imagekey zlib-level=6 -o ../"$(PACKAGE_NAME)-macos.dmg"
 
 	rm -rf disttemp*
