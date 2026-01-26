@@ -329,11 +329,14 @@ static errr init_info_raw(int fd, header* head)
     /* Accept the header */
     COPY(head, &test, header);
 
-    /* Allocate the "*_info" array */
-    C_MAKE(head->info_ptr, head->info_size, char);
+    if (head->info_size)
+    {
+        /* Allocate the "*_info" array */
+        C_MAKE(head->info_ptr, head->info_size, char);
 
-    /* Read the "*_info" array */
-    fd_read(fd, head->info_ptr, head->info_size);
+        /* Read the "*_info" array */
+        fd_read(fd, head->info_ptr, head->info_size);
+    }
 
     if (head->name_size)
     {
@@ -1129,10 +1132,13 @@ extern void re_init_some_things(void)
     op_ptr->window_flag[WINDOW_MONLIST] |= (PW_MONLIST);
 
     // re-initialize the objects and flavors
+    free_info(&k_head);
     if (init_k_info())
         quit("Cannot initialize objects");
+    free_info(&flavor_head);
     if (init_flavor_info())
         quit("Cannot initialize flavors");
+    free_info(&e_head);
     if (init_e_info())
         quit("Cannot initialize special items");
 }
