@@ -11,6 +11,71 @@ import os
 import sys
 
 
+BONUS_TOKEN_ALIASES = {
+    # Skills sometimes appear abbreviated in tools/scripts.
+    'ARC': 'ARCHERY',
+    'STL': 'STEALTH',
+    'PER': 'PERCEPTION',
+    'WIL': 'WILL',
+    'SMT': 'SMITHING',
+    'SNG': 'SONG',
+}
+
+STAT_TOKENS = ('STR', 'DEX', 'CON', 'GRA')
+SKILL_TOKENS = ('ARCHERY', 'STEALTH', 'PERCEPTION', 'WILL', 'SMITHING', 'SONG')
+
+
+def normalize_bonus_token(token: str) -> str:
+    t = token.strip().upper()
+    if t.startswith('NEG_'):
+        base = t[4:]
+        base = BONUS_TOKEN_ALIASES.get(base, base)
+        return f"NEG_{base}"
+    return BONUS_TOKEN_ALIASES.get(t, t)
+
+
+def compute_stat_skill_bonuses(flags: set, total_pval: int, overrides: dict | None):
+    """
+    Derive per-stat/per-skill bonus values from flags + pval and apply any M: overrides.
+
+    Mirrors the C logic added for per-stat/per-skill bonuses: defaults come from pval,
+    then M:<TOKEN>:<VALUE> can override individual stats/skills.
+    """
+    stat_bonus = {k: 0 for k in STAT_TOKENS}
+    skill_bonus = {k: 0 for k in SKILL_TOKENS}
+
+    flags_norm = {normalize_bonus_token(f) for f in flags}
+
+    # Defaults from flags and pval.
+    if total_pval != 0:
+        for stat in STAT_TOKENS:
+            if stat in flags_norm:
+                stat_bonus[stat] += total_pval
+            if f"NEG_{stat}" in flags_norm:
+                stat_bonus[stat] -= total_pval
+
+        for skill in SKILL_TOKENS:
+            if skill in flags_norm:
+                skill_bonus[skill] = total_pval
+
+    # Apply overrides (overwrite the derived value).
+    if overrides:
+        for raw_token, value in overrides.items():
+            token = normalize_bonus_token(raw_token)
+            normalized = int(value)
+            if token.startswith('NEG_') and normalized > 0:
+                normalized = -normalized
+
+            base = token[4:] if token.startswith('NEG_') else token
+
+            if base in stat_bonus:
+                stat_bonus[base] = normalized
+            elif base in skill_bonus:
+                skill_bonus[base] = normalized
+
+    return stat_bonus, skill_bonus
+
+
 def parse_artefact_file(filepath):
     """Parse artefact.txt and return list of artefact data."""
     artefacts = []
@@ -45,6 +110,7 @@ def parse_artefact_file(filepath):
                     'ps': 0,
                     'abilities': 0,
                     'flags': [],
+                    'bonus_overrides': {},
                     'depth': 0,
                     'rarity': 0,
                 }
@@ -103,6 +169,14 @@ def parse_artefact_file(filepath):
             elif line.startswith('F:') and current:
                 flags = [f.strip() for f in line[2:].split('|')]
                 current['flags'].extend(flags)
+
+            # Per-stat/per-skill overrides (M:<TOKEN>:<VALUE>)
+            elif line.startswith('M:') and current:
+                parts = line[2:].split(':')
+                if len(parts) >= 2:
+                    token = parts[0].strip()
+                    value = int(parts[1].strip())
+                    current['bonus_overrides'][token] = value
     
     # Don't forget the last artefact
     if current:
@@ -146,6 +220,7 @@ def parse_special_file(filepath):
                     'to_ps': 0,
                     'abilities': 0,
                     'flags': [],
+                    'bonus_overrides': {},
                     'depth': 0,
                     'rarity': 0,
                 }
@@ -188,6 +263,14 @@ def parse_special_file(filepath):
             elif line.startswith('F:') and current:
                 flags = [f.strip() for f in line[2:].split('|')]
                 current['flags'].extend(flags)
+
+            # Per-stat/per-skill overrides (M:<TOKEN>:<VALUE>)
+            elif line.startswith('M:') and current:
+                parts = line[2:].split(':')
+                if len(parts) >= 2:
+                    token = parts[0].strip()
+                    value = int(parts[1].strip())
+                    current['bonus_overrides'][token] = value
     
     # Don't forget the last special
     if current:
@@ -356,41 +439,44 @@ def calculate_difficulty(art):
         if pval_bonus > 0:
             dif_inc += dif_mod_calc(pval_bonus, 8)
     
-    # For stats and skills, use absolute pval (the total pval of the item)
-    x_abs = total_pval if total_pval > 0 else 0
-    if x_abs > 0:
-        if 'DAMAGE_SIDES' in flags:
-            dif_inc += dif_mod_calc(x_abs, 18)
-        if 'STR' in flags:
-            dif_inc += dif_mod_calc(x_abs, 14)
-        if 'DEX' in flags:
-            dif_inc += dif_mod_calc(x_abs, 14)
-        if 'CON' in flags:
-            dif_inc += dif_mod_calc(x_abs, 14)
-        if 'GRA' in flags:
-            dif_inc += dif_mod_calc(x_abs, 14)
-        if 'ARCHERY' in flags or 'ARC' in flags:
-            dif_inc += dif_mod_calc(x_abs, 4)
-        if 'STEALTH' in flags or 'STL' in flags:
-            dif_inc += dif_mod_calc(x_abs, 4)
-        if 'PERCEPTION' in flags or 'PER' in flags:
-            dif_inc += dif_mod_calc(x_abs, 3)
-        if 'WILL' in flags or 'WIL' in flags:
-            dif_inc += dif_mod_calc(x_abs, 3)
-        if 'SONG' in flags or 'SNG' in flags:
-            dif_inc += dif_mod_calc(x_abs, 4)
-    
-    # Negative pval penalties (reduce difficulty)
-    x_neg = -total_pval if total_pval < 0 else 0
-    if x_neg > 0:
-        if 'NEG_STR' in flags:
-            dif_inc += dif_mod_calc(x_neg, 12)
-        if 'NEG_DEX' in flags:
-            dif_inc += dif_mod_calc(x_neg, 12)
-        if 'NEG_CON' in flags:
-            dif_inc += dif_mod_calc(x_neg, 12)
-        if 'NEG_GRA' in flags:
-            dif_inc += dif_mod_calc(x_neg, 12)
+    # Per-stat/per-skill bonuses (no longer necessarily tied to a single pval).
+    overrides = art.get('bonus_overrides', None)
+    stat_bonus, skill_bonus = compute_stat_skill_bonuses(flags, total_pval, overrides)
+    art['stat_bonus'] = stat_bonus
+    art['skill_bonus'] = skill_bonus
+
+    if total_pval > 0 and 'DAMAGE_SIDES' in flags:
+        dif_inc += dif_mod_calc(total_pval, 18)
+
+    if stat_bonus['STR'] > 0:
+        dif_inc += dif_mod_calc(stat_bonus['STR'], 14)
+    if stat_bonus['DEX'] > 0:
+        dif_inc += dif_mod_calc(stat_bonus['DEX'], 14)
+    if stat_bonus['CON'] > 0:
+        dif_inc += dif_mod_calc(stat_bonus['CON'], 14)
+    if stat_bonus['GRA'] > 0:
+        dif_inc += dif_mod_calc(stat_bonus['GRA'], 14)
+
+    if skill_bonus['ARCHERY'] > 0:
+        dif_inc += dif_mod_calc(skill_bonus['ARCHERY'], 4)
+    if skill_bonus['STEALTH'] > 0:
+        dif_inc += dif_mod_calc(skill_bonus['STEALTH'], 4)
+    if skill_bonus['PERCEPTION'] > 0:
+        dif_inc += dif_mod_calc(skill_bonus['PERCEPTION'], 3)
+    if skill_bonus['WILL'] > 0:
+        dif_inc += dif_mod_calc(skill_bonus['WILL'], 3)
+    if skill_bonus['SMITHING'] > 0:
+        dif_inc += dif_mod_calc(skill_bonus['SMITHING'], 4)
+    if skill_bonus['SONG'] > 0:
+        dif_inc += dif_mod_calc(skill_bonus['SONG'], 4)
+
+    # Extra difficulty for multiple distinct stat/skill bonuses (first is "free").
+    stat_count = sum(1 for k in STAT_TOKENS if stat_bonus.get(k, 0) > 0)
+    skill_count = sum(1 for k in SKILL_TOKENS if skill_bonus.get(k, 0) > 0)
+    if stat_count > 1:
+        dif_inc += (stat_count - 1) * 7
+    if skill_count > 1:
+        dif_inc += (skill_count - 1) * 3
     
     # === SUSTAINS ===
     if 'SUST_STR' in flags:
@@ -1363,6 +1449,24 @@ def main():
             stats.append(f"+{item['att']},{item['dd']}d{item['ds']}")
         if item['evn'] != 0 or item['pd'] > 0:
             stats.append(f"+{item['evn']},{item['pd']}d{item['ps']}")
+        sb = item.get('stat_bonus', {})
+        kb = item.get('skill_bonus', {})
+        for key in STAT_TOKENS:
+            v = sb.get(key, 0)
+            if v != 0:
+                stats.append(f"{key}{v:+d}")
+        skill_abbr = {
+            'ARCHERY': 'ARC',
+            'STEALTH': 'STL',
+            'PERCEPTION': 'PER',
+            'WILL': 'WIL',
+            'SMITHING': 'SMT',
+            'SONG': 'SNG',
+        }
+        for key in SKILL_TOKENS:
+            v = kb.get(key, 0)
+            if v != 0:
+                stats.append(f"{skill_abbr.get(key, key)}{v:+d}")
         if item['pval'] != 0:
             stats.append(f"pval:{item['pval']}")
         if item['abilities'] > 0:
@@ -1406,8 +1510,9 @@ def main():
     print("  - Slays: +3-5 each (Spider/Rauko/Dragon +4, Man/Elf +5, others +3)")
     print("  - Brands: Cold +18, Fire +14, Poison +16 (+20 per extra brand)")
     print("  - Sharpness: +24 (arrows +14), Sharpness2: +40")
-    print("  - Stats (STR/DEX/CON/GRA): +14/pval")
-    print("  - Skills: Perception/Will +3/pval, Stealth/Song/Archery +4/pval")
+    print("  - Stats (STR/DEX/CON/GRA): +14 per stat bonus")
+    print("  - Skills: Perception/Will +3 per skill bonus, Stealth/Song/Archery/Smithing +4 per skill bonus")
+    print("  - Extra multi-bonus penalty: +7 per extra stat, +3 per extra skill")
     print("  - Sustains: +2 each")
     print("  - Resistances: Fire/Cold/Poison +5, Fear/Blind/Confu/Stun +2, Bleed/Hallu +1")
     print("  - Free Action: +7, Light: +8, Radiance: +6, Regen: +4, See Invis: +4")
@@ -1417,7 +1522,8 @@ def main():
     print("  - Artefact arrows: difficulty halved")
     print("=" * 110)
     print()
-    input("Press Enter to exit...")
+    if sys.stdin.isatty():
+        input("Press Enter to exit...")
 
 
 if __name__ == '__main__':

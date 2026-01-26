@@ -4890,6 +4890,42 @@ int object_difficulty(object_type* o_ptr)
         dif_mod(x, 4, &dif_inc);
     }
 
+    /*
+     * Extra difficulty for multiple distinct stat/skill bonuses.
+     * First bonus is "free" (already covered by the per-bonus scaling above).
+     */
+    {
+        int stat_count = 0;
+        int skill_count = 0;
+
+        if (o_ptr->stat_bonus[A_STR] > 0)
+            stat_count++;
+        if (o_ptr->stat_bonus[A_DEX] > 0)
+            stat_count++;
+        if (o_ptr->stat_bonus[A_CON] > 0)
+            stat_count++;
+        if (o_ptr->stat_bonus[A_GRA] > 0)
+            stat_count++;
+
+        if (o_ptr->skill_bonus[S_ARC] > 0)
+            skill_count++;
+        if (o_ptr->skill_bonus[S_STL] > 0)
+            skill_count++;
+        if (o_ptr->skill_bonus[S_PER] > 0)
+            skill_count++;
+        if (o_ptr->skill_bonus[S_WIL] > 0)
+            skill_count++;
+        if (o_ptr->skill_bonus[S_SMT] > 0)
+            skill_count++;
+        if (o_ptr->skill_bonus[S_SNG] > 0)
+            skill_count++;
+
+        if (stat_count > 1)
+            dif_inc += (stat_count - 1) * 7;
+        if (skill_count > 1)
+            dif_inc += (skill_count - 1) * 3;
+    }
+
     // Sustains
     if (f2 & TR2_SUST_STR)
     {
@@ -6376,7 +6412,8 @@ int numbers_menu_aux(int* highlight)
     for (i = 0; i < SMT_NUM_MENU_MAX; i++)
     {
         if ((i == SMT_NUM_MENU_ALLOY_CYCLE - 1)
-            || (i == SMT_NUM_MENU_ALLOY_CLEAR - 1))
+            || (i == SMT_NUM_MENU_ALLOY_CLEAR - 1)
+            || (i == SMT_NUM_MENU_EDIT_BONUSES - 1))
         {
             can_afford[i] = valid[i];
             if (i == SMT_NUM_MENU_ALLOY_CYCLE - 1 && valid[i])
@@ -6552,6 +6589,12 @@ typedef struct
     u32b flag;
 } smith_bonus_entry;
 
+typedef struct
+{
+    smith_bonus_entry entry;
+    int delta;
+} smith_bonus_action;
+
 static const char* smith_bonus_stat_name(int stat)
 {
     switch (stat)
@@ -6638,6 +6681,31 @@ static int smith_collect_bonus_entries(smith_bonus_entry* entries, int max_entri
     return n;
 }
 
+static int smith_collect_bonus_actions(smith_bonus_action* actions, int max_actions)
+{
+    smith_bonus_entry entries[16];
+    int entry_count = smith_collect_bonus_entries(entries, (int)N_ELEMENTS(entries));
+    int action_count = 0;
+
+    if (!actions || max_actions <= 0)
+        return 0;
+
+    for (int i = 0; i < entry_count && action_count < max_actions; i++)
+    {
+        actions[action_count].entry = entries[i];
+        actions[action_count].delta = 1;
+        action_count++;
+
+        if (action_count >= max_actions)
+            break;
+        actions[action_count].entry = entries[i];
+        actions[action_count].delta = -1;
+        action_count++;
+    }
+
+    return action_count;
+}
+
 static bool smith_adjust_bonus_entry(const smith_bonus_entry* entry, int delta)
 {
     int max_bonus = pval_max();
@@ -6690,13 +6758,19 @@ static int smith_bonus_menu_aux(int* highlight)
 {
     char ch;
     char buf[80];
-    smith_bonus_entry entries[16];
-    int num = smith_collect_bonus_entries(entries, (int)N_ELEMENTS(entries));
+    smith_bonus_action actions[26];
+    bool valid[26] = { false };
+    bool can_afford[26] = { false };
+    byte attr[26];
+    int num = smith_collect_bonus_actions(actions, (int)N_ELEMENTS(actions));
+    const int first_row = 2;
+    const int max_row = MAX_SMITHING_TVALS + 2;
+    const int max_visible = max_row - first_row + 1;
 
     wipe_screen_from(COL_SMT2);
 
     Term_putstr(COL_SMT2, 1, -1, TERM_WHITE,
-        "Adjust stat/skill bonuses (+/- to change, ESC to return)");
+        "Adjust stat/skill bonuses (ESC to return)");
 
     if (num <= 0)
     {
@@ -6714,26 +6788,71 @@ static int smith_bonus_menu_aux(int* highlight)
     if (*highlight > num)
         *highlight = num;
 
-    for (int i = 0; i < num; i++)
+    int top = 1;
+    if (num > max_visible)
     {
-        const char* name = (entries[i].kind == SMT_BONUS_ENTRY_STAT)
-            ? smith_bonus_stat_name(entries[i].index)
-            : skill_names_full[entries[i].index];
-        int value = (entries[i].kind == SMT_BONUS_ENTRY_STAT)
-            ? smith_o_ptr->stat_bonus[entries[i].index]
-            : smith_o_ptr->skill_bonus[entries[i].index];
-        strnfmt(buf, sizeof(buf), "%c) %-12s %+d", (char)'a' + i, name, value);
-        Term_putstr(COL_SMT2, i + 2, -1, TERM_WHITE, buf);
+        top = *highlight - max_visible / 2;
+        if (top < 1)
+            top = 1;
+        int max_top = num - max_visible + 1;
+        if (top > max_top)
+            top = max_top;
+
+        int end = top + max_visible - 1;
+        if (end > num)
+            end = num;
+        strnfmt(buf, sizeof(buf),
+            "Adjust stat/skill bonuses (ESC to return) [%d-%d/%d]", top, end,
+            num);
+        Term_putstr(COL_SMT2, 1, -1, TERM_WHITE, buf);
     }
 
+    object_type snapshot;
+    smith_alloy_state alloy_snapshot = smith_alloy;
+
+    for (int i = 0; i < num; i++)
+    {
+        object_copy(&snapshot, smith_o_ptr);
+
+        if (smith_adjust_bonus_entry(&actions[i].entry, actions[i].delta))
+        {
+            valid[i] = true;
+            can_afford[i] = affordable(smith_o_ptr);
+        }
+
+        object_copy(smith_o_ptr, &snapshot);
+        smith_alloy = alloy_snapshot;
+
+        attr[i] = valid[i] ? (can_afford[i] ? TERM_WHITE : TERM_SLATE)
+                           : TERM_L_DARK;
+
+        const char* name = (actions[i].entry.kind == SMT_BONUS_ENTRY_STAT)
+            ? smith_bonus_stat_name(actions[i].entry.index)
+            : skill_names_full[actions[i].entry.index];
+        int value = (actions[i].entry.kind == SMT_BONUS_ENTRY_STAT)
+            ? smith_o_ptr->stat_bonus[actions[i].entry.index]
+            : smith_o_ptr->skill_bonus[actions[i].entry.index];
+        const char* verb = (actions[i].delta > 0) ? "increase" : "decrease";
+
+        int entry_idx = i + 1;
+        int row = first_row + (entry_idx - top);
+        if (row >= first_row && row <= max_row)
+        {
+            strnfmt(buf, sizeof(buf), "%c) %s %-12s (%+d)", (char)'a' + i, verb,
+                name, value);
+            Term_putstr(COL_SMT2, row, -1, attr[i], buf);
+        }
+    }
+
+    int hl_row = first_row + (*highlight - top);
     strnfmt(buf, sizeof(buf), "%c)", (char)'a' + *highlight - 1);
-    Term_putstr(COL_SMT2, *highlight + 1, -1, TERM_L_BLUE, buf);
+    Term_putstr(COL_SMT2, hl_row, -1, TERM_L_BLUE, buf);
 
     prt_object_description();
     prt_object_difficulty();
 
     Term_fresh();
-    Term_gotoxy(2, 1 + *highlight);
+    Term_gotoxy(2, hl_row);
 
     hide_cursor = true;
     ch = inkey();
@@ -6744,8 +6863,15 @@ static int smith_bonus_menu_aux(int* highlight)
 
     if ((ch >= 'a') && (ch <= (char)'a' + num - 1))
     {
+        int old_highlight = *highlight;
+
         *highlight = (int)ch - 'a' + 1;
-        return 0;
+
+        if (valid[*highlight - 1])
+            return (*highlight);
+
+        *highlight = old_highlight;
+        bell("Invalid choice.");
     }
 
     if (ch == '8')
@@ -6766,18 +6892,11 @@ static int smith_bonus_menu_aux(int* highlight)
         return 0;
     }
 
-    if ((ch == '+') || (ch == '=') || (ch == '\r') || (ch == '\n') || (ch == ' ')
-        || (ch == '6'))
+    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
     {
-        if (!smith_adjust_bonus_entry(&entries[*highlight - 1], 1))
-            bell("Invalid choice.");
-        return 0;
-    }
-
-    if ((ch == '-') || (ch == '_'))
-    {
-        if (!smith_adjust_bonus_entry(&entries[*highlight - 1], -1))
-            bell("Invalid choice.");
+        if (valid[*highlight - 1])
+            return *highlight;
+        bell("Invalid choice.");
         return 0;
     }
 
@@ -6796,6 +6915,13 @@ static void smith_bonus_menu(void)
         int choice = smith_bonus_menu_aux(&highlight);
         if (choice == -1)
             leave_menu = true;
+        else if (choice >= 1)
+        {
+            smith_bonus_action actions[26];
+            int num = smith_collect_bonus_actions(actions, (int)N_ELEMENTS(actions));
+            if (choice <= num)
+                (void)smith_adjust_bonus_entry(&actions[choice - 1].entry, actions[choice - 1].delta);
+        }
     }
 
     screen_load();

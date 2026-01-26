@@ -855,12 +855,54 @@ static int smithing_difficulty_baseline(const object_type* o_ptr)
             if (v > 0)
                 drop_dif_mod(v, 3, &dif_inc);
         }
+        if (f1 & TR1_SMT)
+        {
+            int v = o_ptr->skill_bonus[S_SMT];
+            if (v > 0)
+                drop_dif_mod(v, 4, &dif_inc);
+        }
         if (f1 & TR1_SNG)
         {
             int v = o_ptr->skill_bonus[S_SNG];
             if (v > 0)
                 drop_dif_mod(v, 4, &dif_inc);
         }
+    }
+
+    /*
+     * Extra difficulty for multiple distinct stat/skill bonuses.
+     * First bonus is "free" (already covered by the per-bonus scaling above).
+     */
+    {
+        int stat_count = 0;
+        int skill_count = 0;
+
+        if ((f1 & TR1_STR) && o_ptr->stat_bonus[A_STR] > 0)
+            stat_count++;
+        if ((f1 & TR1_DEX) && o_ptr->stat_bonus[A_DEX] > 0)
+            stat_count++;
+        if ((f1 & TR1_CON) && o_ptr->stat_bonus[A_CON] > 0)
+            stat_count++;
+        if ((f1 & TR1_GRA) && o_ptr->stat_bonus[A_GRA] > 0)
+            stat_count++;
+
+        if ((f1 & TR1_ARC) && o_ptr->skill_bonus[S_ARC] > 0)
+            skill_count++;
+        if ((f1 & TR1_STL) && o_ptr->skill_bonus[S_STL] > 0)
+            skill_count++;
+        if ((f1 & TR1_PER) && o_ptr->skill_bonus[S_PER] > 0)
+            skill_count++;
+        if ((f1 & TR1_WIL) && o_ptr->skill_bonus[S_WIL] > 0)
+            skill_count++;
+        if ((f1 & TR1_SMT) && o_ptr->skill_bonus[S_SMT] > 0)
+            skill_count++;
+        if ((f1 & TR1_SNG) && o_ptr->skill_bonus[S_SNG] > 0)
+            skill_count++;
+
+        if (stat_count > 1)
+            dif_inc += (stat_count - 1) * 7;
+        if (skill_count > 1)
+            dif_inc += (skill_count - 1) * 3;
     }
 
     /* Sustains */

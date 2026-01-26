@@ -499,29 +499,54 @@ def calculate_item_difficulty(tval, sval, att_bonus=0, ds_bonus=0, evn_bonus=0,
     # Pval-dependent flags (use total pval including base)
     total_pval = base_pval + pval_bonus
     
+    if 'TUNNEL' in flags:
+        dif_inc += dif_mod_calc(pval_bonus, 8)
+
+    # Per-stat/per-skill bonuses (no longer necessarily tied to a single pval).
     if total_pval > 0:
-        if 'TUNNEL' in flags:
-            dif_inc += dif_mod_calc(pval_bonus, 8)
+        stat_count = 0
+        skill_count = 0
+
         if 'DAMAGE_SIDES' in flags:
             dif_inc += dif_mod_calc(total_pval, 18)
+
         if 'STR' in flags:
             dif_inc += dif_mod_calc(total_pval, 14)
+            stat_count += 1
         if 'DEX' in flags:
             dif_inc += dif_mod_calc(total_pval, 14)
+            stat_count += 1
         if 'CON' in flags:
             dif_inc += dif_mod_calc(total_pval, 14)
+            stat_count += 1
         if 'GRA' in flags:
             dif_inc += dif_mod_calc(total_pval, 14)
+            stat_count += 1
+
         if 'ARCHERY' in flags or 'ARC' in flags:
             dif_inc += dif_mod_calc(total_pval, 4)
+            skill_count += 1
         if 'STEALTH' in flags or 'STL' in flags:
             dif_inc += dif_mod_calc(total_pval, 4)
+            skill_count += 1
         if 'PERCEPTION' in flags or 'PER' in flags:
             dif_inc += dif_mod_calc(total_pval, 3)
+            skill_count += 1
         if 'WILL' in flags or 'WIL' in flags:
             dif_inc += dif_mod_calc(total_pval, 3)
+            skill_count += 1
+        if 'SMITHING' in flags or 'SMT' in flags:
+            dif_inc += dif_mod_calc(total_pval, 4)
+            skill_count += 1
         if 'SONG' in flags or 'SNG' in flags:
             dif_inc += dif_mod_calc(total_pval, 4)
+            skill_count += 1
+
+        # Extra difficulty for multiple distinct stat/skill bonuses (first is "free").
+        if stat_count > 1:
+            dif_inc += (stat_count - 1) * 7
+        if skill_count > 1:
+            dif_inc += (skill_count - 1) * 3
     
     # Sustains
     if 'SUST_STR' in flags:
