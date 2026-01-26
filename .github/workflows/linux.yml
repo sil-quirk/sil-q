@@ -59,6 +59,7 @@ jobs:
         run: |
           ls -la sil
           file sil
+          ./sil -h
 
       - name: Remove outdated PDF manuals
         run: |
