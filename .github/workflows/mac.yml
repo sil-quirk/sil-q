@@ -17,6 +17,57 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  build-console:
+    name: Console (GCU) Build
+    runs-on: macos-latest
+    steps:
+      - name: Clone project
+        uses: actions/checkout@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build with curses/ncurses support
+        run: |
+          cd src
+          make -f Makefile.std OPT="-O0 -g" -j$(sysctl -n hw.ncpu) CFLAGS="-Wall $(OPT) -DUSE_GCU" LIBS="-lcurses"
+
+  release-build-console:
+    name: Console (GCU) Release Build
+    runs-on: macos-latest
+    steps:
+      - name: Clone project
+        uses: actions/checkout@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build with with curses/ncurses support and release flags
+        run: |
+          cd src
+          make -f Makefile.std OPT="-O2" -j$(sysctl -n hw.ncpu) CFLAGS="-Wall $(OPT) -DUSE_GCU" LIBS="-lcurses"
+          mv sil ../sil
+
+      - name: Update version file with build information
+        run: bin/version.sh
+
+      - name: Verify build
+        run: |
+          ls -la sil
+          file sil
+          ./sil -h
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: Sil-Q-macos-console
+          # IMPORTANT: Do NOT use quotes to escape spaces in filenames.
+          path: |
+            sil
+            lib
+            LICENSE.md
+            README.md
+            Sil-Q-version.txt
+            Sil-Q v1.5.0.pdf
+
   build:
     # NOTE: The macOS version mentioned here must match `DEPLOYMENT_TARGET`
     # defined in Makefile.cocoa.
