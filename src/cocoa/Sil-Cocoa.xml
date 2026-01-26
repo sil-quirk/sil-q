@@ -7,9 +7,9 @@
 	<key>CFBundleExecutable</key>
 	<string>$EXECUTABLE$</string>
 	<key>CFBundleDisplayName</key>
-	<string>Sil</string>
+	<string>$NAME$</string>
 	<key>CFBundleName</key>
-	<string>Sil</string>
+	<string>$NAME$</string>
 	<key>CFBundleIconFile</key>
 	<string>Sil_Icons</string>
 	<key>CFBundleIdentifier</key>
