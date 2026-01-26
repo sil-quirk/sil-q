@@ -34,6 +34,19 @@ def normalize_bonus_token(token: str) -> str:
     return BONUS_TOKEN_ALIASES.get(t, t)
 
 
+def is_prefix_ego(name: str) -> bool:
+    """
+    Detect if an ego name is a prefix type.
+    Prefix ego names are wrapped in parentheses: (Protective), (Stealthy), etc.
+    Suffix ego names start with "of": of Nogrod, of Resilience, etc.
+
+    Matches the C code in angband.h ego_name_is_prefix().
+    """
+    if not name or len(name) < 2:
+        return False
+    return name[0] == '(' and name[-1] == ')'
+
+
 def compute_stat_skill_bonuses(flags: set, total_pval: int, overrides: dict | None):
     """
     Derive per-stat/per-skill bonus values from flags + pval and apply any M: overrides.
@@ -208,6 +221,7 @@ def parse_special_file(filepath):
                 current = {
                     'idx': idx,
                     'name': name,
+                    'is_prefix': is_prefix_ego(name),  # Track if this is a prefix or suffix ego
                     'tvals': [],  # Can have multiple tval ranges
                     'min_svals': [],
                     'max_svals': [],
@@ -538,7 +552,28 @@ def calculate_difficulty(art):
     # For artefacts, these penalties are NOT applied per the code:
     # if (!o_ptr->name1) { ... penalty flags ... }
     # So we skip dif_dec for artefacts
-    
+    if art['type'] != 'artefact':
+        if 'DANGER' in flags:
+            dif_dec += 5
+        if 'DARKNESS' in flags:
+            dif_dec += 3
+        if 'AGGRAVATE' in flags:
+            dif_dec += 3
+        if 'HAUNTED' in flags:
+            dif_dec += 5
+        if 'VUL_COLD' in flags:
+            dif_dec += 4
+        if 'VUL_FIRE' in flags:
+            dif_dec += 4
+        if 'VUL_POIS' in flags:
+            dif_dec += 4
+        if 'TRAITOR' in flags:
+            dif_dec += 2
+        if 'LIGHT_CURSE' in flags:
+            dif_dec += 2
+        if 'CUMBERSOME' in flags:
+            dif_dec += 3
+
     # === ABILITIES (granted abilities) ===
     # dif_inc += 5 + (level / 3) per ability
     # We approximate ability level as ~5 on average
@@ -671,8 +706,8 @@ def get_base_ds(tval, sval):
         (23, 17): 5,   # Longsword: 2d5
         (23, 21): 3,   # Bastard Sword: 3d3
         (23, 25): 5,   # Greatsword: 3d5
-        (23, 28): 5,   # Mithril Longsword: 2d5
-        (23, 30): 6,   # Mithril Greatsword: 3d6
+        (23, 28): 4,   # Elven Mithril Sword: 3d4
+        (23, 30): 6,   # Star-Iron Greatsword: 3d6
         # Polearms (tval 22)
         (22, 1): 9,    # Spear: 1d9
         (22, 2): 13,   # Great Spear: 1d13
@@ -703,23 +738,23 @@ def get_base_protection(tval, sval):
         # Boots (tval 30)
         (30, 1): 2,    # Boots: 1d1 -> (1+1)*1=2
         (30, 2): 3,    # Greaves: 1d2 -> (2+1)*1=3
-        (30, 3): 3,    # Mithril Greaves: 1d2 -> 3
+        (30, 3): 4,    # Mithril Greaves: 1d3 -> (3+1)*1=4
         # Gloves (tval 31)
         (31, 1): 0,    # Gloves: 1d0 -> 0
         (31, 2): 2,    # Gauntlets: 1d1 -> 2
-        (31, 3): 2,    # Mithril Gauntlets: 1d1 -> 2
+        (31, 3): 3,    # Mithril Gauntlets: 1d2 -> (2+1)*1=3
         # Helm (tval 32)
         (32, 5): 3,    # Helm: 1d2 -> 3
         (32, 6): 4,    # Great Helm: 1d3 -> 4
         (32, 7): 3,    # Dwarf Mask: 1d2 -> 3
-        (32, 8): 4,    # Mithril Helm: 1d3 -> 4
+        (32, 8): 5,    # Mithril Helm: 1d4 -> (4+1)*1=5
         # Crown (tval 33)
         (33, 11): 0,   # Crown: 1d0 -> 0
         (33, 50): 0,   # Morgoth Crown: 0d0 -> 0
         # Shield (tval 34)
         (34, 3): 4,    # Round Shield: 1d3 -> 4
         (34, 5): 7,    # Kite Shield: 1d6 -> 7
-        (34, 10): 7,   # Mithril Shield: 1d6 -> 7
+        (34, 10): 8,   # Mithril Shield: 1d7 -> (7+1)*1=8
         # Cloak (tval 35)
         (35, 1): 0,    # Cloak: 1d0 -> 0
         (35, 6): 0,    # Shadow Cloak: 1d0 -> 0
@@ -729,11 +764,11 @@ def get_base_protection(tval, sval):
         (36, 2): 0,    # Robe: 1d0 -> 0
         (36, 4): 5,    # Leather: 1d4 -> 5
         (36, 7): 7,    # Studded Leather: 1d6 -> 7
-        (36, 11): 9,   # Galvorn: 1d8 -> 9
+        (36, 11): 10,  # Galvorn: 1d9 -> (9+1)*1=10
         # Mail (tval 37)
         (37, 4): 10,   # Mail Corslet: 2d4 -> (4+1)*2=10
         (37, 6): 12,   # Hauberk: 2d5 -> (5+1)*2=12
-        (37, 20): 10,  # Mithril Corslet: 2d4 -> 10
+        (37, 20): 12,  # Mithril Corslet: 2d5 -> (5+1)*2=12
         # Ring (tval 45) - Ring of Barahir has 1d1
         (45, 32): 2,   # Ring: 1d1 -> 2
     }
@@ -750,8 +785,8 @@ def get_base_att(tval, sval):
         (23, 17): 0,   # Longsword
         (23, 21): -2,  # Bastard Sword
         (23, 25): -2,  # Greatsword
-        (23, 28): 1,   # Mithril Longsword
-        (23, 30): -2,  # Mithril Greatsword
+        (23, 28): -1,  # Elven Mithril Sword (3d4)
+        (23, 30): -2,  # Star-Iron Greatsword
         # Polearms (tval 22)
         (22, 1): 0,    # Spear
         (22, 2): 1,    # Great Spear
@@ -796,14 +831,15 @@ def get_base_evn(tval, sval):
         # Mail (tval 37)
         (37, 4): -3,   # Mail Corslet
         (37, 6): -4,   # Hauberk
-        (37, 20): -2,  # Mithril Corslet
+        (37, 20): 0,   # Mithril Corslet
         # Helm (tval 32)
         (32, 5): -1,   # Helm
         (32, 6): -2,   # Great Helm
         (32, 7): -2,   # Dwarf Mask
-        (32, 8): -1,   # Mithril Helm
+        (32, 8): 0,    # Mithril Helm
         # Boots (tval 30)
         (30, 2): -1,   # Greaves
+        (30, 3): 1,    # Mithril Greaves
         # Gloves (tval 31)
         (31, 2): -1,   # Gauntlets
         # Cloak (tval 35)
@@ -1057,6 +1093,7 @@ def generate_special_variants(special, objects):
                                             'name': f"{special['name']} {obj['name']}",
                                             'base_name': obj['name'],
                                             'special_name': special['name'],
+                                            'is_prefix': special.get('is_prefix', False),
                                             'tval': obj['tval'],
                                             'sval': obj['sval'],
                                             'att': att,
@@ -1082,6 +1119,108 @@ def generate_special_variants(special, objects):
                                         }
                                         variants.append(variant)
     
+    return variants
+
+
+def generate_dual_ego_variants(specials_raw, objects):
+    """
+    Generate variants where items have BOTH a prefix AND a suffix ego.
+    This matches the modern game mechanic where items can have dual egos.
+
+    For example: (Protective) Leather Armour of Brethil
+    """
+    variants = []
+
+    # Separate prefix and suffix specials
+    prefix_specials = [s for s in specials_raw if s.get('is_prefix', False)]
+    suffix_specials = [s for s in specials_raw if not s.get('is_prefix', False)]
+
+    # For each prefix+suffix combination
+    for prefix in prefix_specials:
+        for suffix in suffix_specials:
+            # Find base items that can have BOTH this prefix AND this suffix
+            for obj in objects:
+                # Skip supplies and lights
+                if obj['tval'] in [75, 70, 66, 80, 82, 39]:
+                    continue
+
+                # Check if prefix applies to this base item
+                prefix_applies = False
+                for t_idx in range(len(prefix['tvals'])):
+                    if obj['tval'] == prefix['tvals'][t_idx]:
+                        if prefix['min_svals'][t_idx] <= obj['sval'] <= prefix['max_svals'][t_idx]:
+                            prefix_applies = True
+                            break
+
+                if not prefix_applies:
+                    continue
+
+                # Check if suffix applies to this base item
+                suffix_applies = False
+                for t_idx in range(len(suffix['tvals'])):
+                    if obj['tval'] == suffix['tvals'][t_idx]:
+                        if suffix['min_svals'][t_idx] <= obj['sval'] <= suffix['max_svals'][t_idx]:
+                            suffix_applies = True
+                            break
+
+                if not suffix_applies:
+                    continue
+
+                # This base item can have both prefix and suffix
+                # Generate a representative variant (using max stats from both egos)
+
+                # Combine the bonuses from both egos
+                combined_max_att = prefix['max_att'] + suffix['max_att']
+                combined_to_ds = prefix['to_ds'] + suffix['to_ds']
+                combined_max_evn = prefix['max_evn'] + suffix['max_evn']
+                combined_to_ps = prefix['to_ps'] + suffix['to_ps']
+                combined_max_pval = prefix['max_pval'] + suffix['max_pval']
+                combined_to_dd = prefix['to_dd'] + suffix['to_dd']
+                combined_to_pd = prefix['to_pd'] + suffix['to_pd']
+
+                # Combined flags and abilities
+                combined_flags = prefix['flags'][:] + [f for f in suffix['flags'] if f not in prefix['flags']]
+                combined_abilities = prefix['abilities'] + suffix['abilities']
+
+                # Use higher depth/rarity
+                combined_depth = max(prefix['depth'], suffix['depth'])
+                combined_rarity = max(prefix['rarity'], suffix['rarity'])
+
+                # Generate a single "maximum" variant for this combination
+                variant = {
+                    'type': 'dual_ego',
+                    'prefix_idx': prefix['idx'],
+                    'suffix_idx': suffix['idx'],
+                    'name': f"{prefix['name']} {obj['name']} {suffix['name']}",
+                    'base_name': obj['name'],
+                    'prefix_name': prefix['name'],
+                    'suffix_name': suffix['name'],
+                    'is_prefix': False,  # dual ego is neither pure prefix nor suffix
+                    'tval': obj['tval'],
+                    'sval': obj['sval'],
+                    'att': obj['att'] + combined_max_att,
+                    'ds': obj['ds'] + combined_to_ds,
+                    'dd': obj['dd'] + combined_to_dd,
+                    'evn': obj['evn'] + combined_max_evn,
+                    'ps': obj['ps'] + combined_to_ps,
+                    'pd': obj['pd'] + combined_to_pd,
+                    'pval': obj['pval'] + combined_max_pval,
+                    'abilities': combined_abilities,
+                    'flags': combined_flags,
+                    'depth': combined_depth,
+                    'rarity': combined_rarity,
+                    # Store base stats for difficulty calculation
+                    'base_att': obj['att'],
+                    'base_evn': obj['evn'],
+                    'base_ds': obj['ds'],
+                    'base_ps': obj['ps'],
+                    'base_pd': obj['pd'],
+                    'base_dd': obj['dd'],
+                    'base_pval': obj['pval'],
+                    'base_level': obj['level'],
+                }
+                variants.append(variant)
+
     return variants
 
 
@@ -1376,23 +1515,36 @@ def main():
             print(f"  {spec['name']}: {len(variants)} variants")
     
     print(f"\nTotal special variants: {len(specials)}")
-    print(f"Total artefacts: {len(artefacts)}")
-    
+
+    # Generate dual-ego variants (prefix + suffix combinations)
+    print(f"\nGenerating dual-ego variants (prefix + suffix combinations)...")
+    prefix_count = len([s for s in specials_raw if s.get('is_prefix', False)])
+    suffix_count = len(specials_raw) - prefix_count
+    print(f"  Found {prefix_count} prefix egos and {suffix_count} suffix egos")
+    dual_egos = generate_dual_ego_variants(specials_raw, objects)
+    print(f"Total dual-ego variants: {len(dual_egos)}")
+
+    print(f"\nTotal artefacts: {len(artefacts)}")
+
     # Calculate difficulties
     all_items = []
     for art in artefacts:
         art['type'] = 'artefact'
         art['difficulty'] = calculate_difficulty(art)
         all_items.append(art)
-    
+
     for norm in normals:
         norm['difficulty'] = calculate_difficulty(norm)
         all_items.append(norm)
-    
+
     for spec in specials:
         spec['difficulty'] = calculate_difficulty(spec)
         all_items.append(spec)
-    
+
+    for dual in dual_egos:
+        dual['difficulty'] = calculate_difficulty(dual)
+        all_items.append(dual)
+
     # CSV export mode
     if args.csv:
         count = export_csv(all_items, args.csv)
@@ -1400,6 +1552,7 @@ def main():
         print(f"  Artefacts: {len(artefacts)}")
         print(f"  Normal variants: {len(normals)}")
         print(f"  Special variants: {len(specials)}")
+        print(f"  Dual-ego variants: {len(dual_egos)}")
         return
     
     # Sort by difficulty (descending)
@@ -1426,7 +1579,8 @@ def main():
         art_count = len([a for a in artefacts if low <= a['difficulty'] <= high])
         norm_count = len([n for n in normals if low <= n['difficulty'] <= high])
         spec_count = len([s for s in specials if low <= s['difficulty'] <= high])
-        print(f"  {label}: {art_count} artefacts, {norm_count} normals, {spec_count} specials")
+        dual_count = len([d for d in dual_egos if low <= d['difficulty'] <= high])
+        print(f"  {label}: {art_count} artefacts, {norm_count} normals, {spec_count} specials, {dual_count} dual-ego")
     print()
     
     # Full listing sorted by difficulty
@@ -1441,6 +1595,8 @@ def main():
             item_type = 'ART'
         elif item['type'] == 'special':
             item_type = 'SPC'
+        elif item['type'] == 'dual_ego':
+            item_type = 'DUO'
         else:
             item_type = 'NRM'
         tval_name = f"{item_type}:{tval_name}"

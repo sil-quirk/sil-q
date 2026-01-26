@@ -6176,30 +6176,48 @@ void monster_perception(bool player_centered, bool main_roll, int difficulty)
             if (los(m_ptr->fy, m_ptr->fx, p_ptr->py, p_ptr->px)
                 && (m_ptr->alertness >= ALERTNESS_UNWARY))
             {
-                int d, dir, y, x, open_squares = 0;
+                bool monster_sees_player = true;
 
-                // check adjacent squares for impassable squares
-                for (d = 0; d < 8; d++)
+                // Visual recognition check for intelligent monsters
+                if (visual_recognition && (r_ptr->flags2 & (RF2_SMART)))
                 {
-                    dir = cycle[d];
+                    // Disguise ability reduces monster's effective perception
+                    int per_divisor = p_ptr->active_ability[S_STL][STL_DISGUISE] ? 4 : 2;
 
-                    y = p_ptr->py + ddy[dir];
-                    x = p_ptr->px + ddx[dir];
+                    int vision_score = monster_skill(m_ptr, S_PER) / per_divisor
+                                     + p_ptr->cur_light
+                                     + ((cave_info[p_ptr->py][p_ptr->px] & (CAVE_GLOW)) ? 2 : 0);
 
-                    if (cave_floor_bold(y, x))
+                    monster_sees_player = (vision_score >= m_ptr->cdis);
+                }
+
+                if (monster_sees_player)
+                {
+                    int d, dir, y, x, open_squares = 0;
+
+                    // check adjacent squares for impassable squares
+                    for (d = 0; d < 8; d++)
                     {
-                        open_squares++;
-                    }
-                }
+                        dir = cycle[d];
 
-                // bonus reduced if the player has 'disguise'
-                if (p_ptr->active_ability[S_STL][STL_DISGUISE])
-                {
-                    m_perception += (open_squares + combat_sight_bonus) / 2;
-                }
-                else
-                {
-                    m_perception += open_squares + combat_sight_bonus;
+                        y = p_ptr->py + ddy[dir];
+                        x = p_ptr->px + ddx[dir];
+
+                        if (cave_floor_bold(y, x))
+                        {
+                            open_squares++;
+                        }
+                    }
+
+                    // bonus reduced if the player has 'disguise' (only with old behavior)
+                    if (!visual_recognition && p_ptr->active_ability[S_STL][STL_DISGUISE])
+                    {
+                        m_perception += (open_squares + combat_sight_bonus) / 2;
+                    }
+                    else
+                    {
+                        m_perception += open_squares + combat_sight_bonus;
+                    }
                 }
             }
 

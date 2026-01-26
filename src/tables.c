@@ -180,7 +180,7 @@ cptr option_text[OPT_MAX] = {
     NULL, /* xxx allow_quantity */
     NULL, /* xxx */
     "valorous_oath_auto_attack_safety", /* OPT_valorous_oath_auto_attack_safety */
-    NULL, /* xxx auto_scum */
+    "visual_recognition", /* OPT_visual_recognition */
     NULL, /* xxx allow_themed_levels */
     NULL, /* xxx testing_carry */
     NULL, /* xxx expand_look */
@@ -420,7 +420,7 @@ cptr option_desc[OPT_MAX] = {
     NULL, /* xxx allow_quantity */
     NULL, /* xxx */
     "Disable automatic attacks of fleeing enemies under Oath of Valor", /* OPT_valorous_oath_auto_attack_safety */
-    NULL, /* xxx auto_scum */
+    "Smart monsters need light to visually recognize you", /* OPT_visual_recognition */
     NULL, /* xxx allow_themed_levels */
     NULL, /* xxx testing_carry */
     NULL, /* xxx expand_look */
@@ -679,7 +679,7 @@ const bool option_norm[OPT_MAX] = {
     false, /* xxx allow_quantity */
     false, /* xxx */
     true, /* OPT_valorous_oath_auto_attack_safety */
-    false, /* xxx auto_scum */
+    true, /* OPT_visual_recognition */
     false, /* xxx allow_themed_levels */
     false, /* xxx */
     false, /* xxx expand_look */
@@ -926,9 +926,9 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
 
     { OPT_valorous_oath_auto_attack_safety, OPT_forgo_attacking_unwary,
         OPT_stop_singing_on_rest, OPT_know_monster_info, OPT_smaller_level_size,
-        OPT_more_stairs, OPT_disable_skeleton_note_tutorial, OPT_NONE, OPT_NONE,
+        OPT_more_stairs, OPT_disable_skeleton_note_tutorial, OPT_visual_recognition,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Efficiency ***/
 
