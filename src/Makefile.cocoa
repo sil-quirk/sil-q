@@ -179,6 +179,7 @@ dist: install
 	mkdir disttemp
 	cp -R -p "$(APPBNDL)" disttemp
 	SetFile -a B disttemp/$(APPNAME)
+	# Include any top-level PDF files, such as the Sil-Q PDF manual.
 	find .. -name '*.pdf' -depth 1 -print0 | xargs -0 -J % cp -p % disttemp
 
 	@-rm ../"$(PACKAGE_NAME)-osx.dmg"
