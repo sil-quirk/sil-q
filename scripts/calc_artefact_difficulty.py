@@ -24,6 +24,54 @@ BONUS_TOKEN_ALIASES = {
 STAT_TOKENS = ('STR', 'DEX', 'CON', 'GRA')
 SKILL_TOKENS = ('ARCHERY', 'STEALTH', 'PERCEPTION', 'WILL', 'SMITHING', 'SONG')
 
+# Global dictionary mapping (skill_number, ability_value) -> level
+# Populated by parse_ability_file()
+ABILITY_LEVELS = {}
+
+# Global dictionary mapping (tval, sval) -> object data (including weight)
+# Populated by populate_objects_dict()
+OBJECTS_BY_TYPE = {}
+
+
+def parse_ability_file(filepath):
+    """Parse ability.txt to get ability levels.
+
+    Format:
+        N: ability_number : ability_name
+        I: skill_number : ability_value : level_requirement
+
+    Returns dict mapping (skill_number, ability_value) -> level
+    """
+    global ABILITY_LEVELS
+    ABILITY_LEVELS = {}
+
+    current_ability_num = None
+
+    with open(filepath, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+
+            if not line or line.startswith('#'):
+                continue
+
+            if line.startswith('N:'):
+                parts = line[2:].split(':')
+                current_ability_num = int(parts[0])
+
+            elif line.startswith('I:') and current_ability_num is not None:
+                parts = line[2:].split(':')
+                skill_num = int(parts[0])
+                ability_val = int(parts[1])
+                level = int(parts[2])
+                ABILITY_LEVELS[(skill_num, ability_val)] = level
+
+    return ABILITY_LEVELS
+
+
+def get_ability_level(skill_num, ability_val):
+    """Get the level for an ability, defaulting to 5 if not found."""
+    return ABILITY_LEVELS.get((skill_num, ability_val), 5)
+
 
 def normalize_bonus_token(token: str) -> str:
     t = token.strip().upper()
@@ -121,13 +169,14 @@ def parse_artefact_file(filepath):
                     'ds': 0,
                     'pd': 0,
                     'ps': 0,
-                    'abilities': 0,
+                    'ability_list': [],  # List of (skill_num, ability_val) tuples
                     'flags': [],
                     'bonus_overrides': {},
                     'depth': 0,
                     'rarity': 0,
+                    'weight': 0,
                 }
-            
+
             # Item type info
             elif line.startswith('I:') and current:
                 parts = line[2:].split(':')
@@ -135,13 +184,15 @@ def parse_artefact_file(filepath):
                 current['sval'] = int(parts[1])
                 if len(parts) > 2:
                     current['pval'] = int(parts[2])
-            
-            # Depth/rarity info
+
+            # Depth/rarity/weight/cost info (W:depth:rarity:weight:cost)
             elif line.startswith('W:') and current:
                 parts = line[2:].split(':')
                 current['depth'] = int(parts[0])
                 current['rarity'] = int(parts[1])
-            
+                if len(parts) > 2:
+                    current['weight'] = int(parts[2])
+
             # Combat stats: att:dam_dice:evn:prot_dice
             elif line.startswith('P:') and current:
                 parts = line[2:].split(':')
@@ -174,9 +225,12 @@ def parse_artefact_file(filepath):
                 # B: lines should only contain ability pairs like 7/3 or 2/6:4/2
                 # Note: If flags appear here (like B:STR | RES_FEAR), that's a bug in artefact.txt
                 ability_pairs = abilities_str.split(':')
-                # Filter out empty strings and count valid ability pairs
-                valid_abilities = [a for a in ability_pairs if '/' in a]
-                current['abilities'] += len(valid_abilities)
+                for pair in ability_pairs:
+                    if '/' in pair:
+                        parts = pair.split('/')
+                        skill_num = int(parts[0])
+                        ability_val = int(parts[1])
+                        current['ability_list'].append((skill_num, ability_val))
             
             # Flags
             elif line.startswith('F:') and current:
@@ -232,7 +286,7 @@ def parse_special_file(filepath):
                     'to_ds': 0,
                     'to_pd': 0,
                     'to_ps': 0,
-                    'abilities': 0,
+                    'ability_list': [],  # List of (skill_num, ability_val) tuples
                     'flags': [],
                     'bonus_overrides': {},
                     'depth': 0,
@@ -266,12 +320,37 @@ def parse_special_file(filepath):
                 current['min_svals'].append(int(parts[1]))
                 current['max_svals'].append(int(parts[2]) if len(parts) > 2 else int(parts[1]))
             
-            # Abilities
+            # Abilities (A: line format in special.txt: A:count:skill:ability:level)
+            # Note: special.txt uses A: not B: for abilities, but we handle B: too for consistency
             elif line.startswith('B:') and current:
                 abilities_str = line[2:]
                 ability_pairs = abilities_str.split(':')
-                valid_abilities = [a for a in ability_pairs if '/' in a]
-                current['abilities'] += len(valid_abilities)
+                for pair in ability_pairs:
+                    if '/' in pair:
+                        parts = pair.split('/')
+                        skill_num = int(parts[0])
+                        ability_val = int(parts[1])
+                        current['ability_list'].append((skill_num, ability_val))
+
+            # A: line in special.txt has two formats:
+            # 1. A:count:skill:ability:level (grants abilities to item) - e.g., A:1:0:13:5
+            # 2. A:min/max:min/max:... (allocation ranges) - e.g., A:1/3:10/5:15/10
+            elif line.startswith('A:') and current:
+                parts = line[2:].split(':')
+                # Check if first part contains '/' - if so, it's allocation data, skip it
+                if '/' in parts[0]:
+                    continue  # Skip allocation lines
+                if len(parts) >= 4:
+                    # A:count:skill:ability:level
+                    try:
+                        count = int(parts[0])
+                        skill_num = int(parts[1])
+                        ability_val = int(parts[2])
+                        # level is in parts[3] but we get it from ability.txt
+                        for _ in range(count):
+                            current['ability_list'].append((skill_num, ability_val))
+                    except ValueError:
+                        pass  # Skip if parsing fails
             
             # Flags
             elif line.startswith('F:') and current:
@@ -312,7 +391,25 @@ def calculate_difficulty(art):
     sval = art['sval']
     is_special = (art['type'] == 'special')
     is_normal = (art['type'] == 'normal')
-    
+    is_dual_ego = (art['type'] == 'dual_ego')
+
+    # For non-jewelry special/dual-ego items, strip base flags and add back specific ones
+    # This mirrors cmd4.c lines 4618-4657
+    if (is_special or is_dual_ego) and tval not in [45, 40]:  # Not ring or amulet
+        # Get base item flags from the OBJECTS_BY_TYPE lookup
+        base_key = (tval, sval)
+        if base_key in OBJECTS_BY_TYPE:
+            base_obj_flags = set(OBJECTS_BY_TYPE[base_key].get('flags', []))
+            # Strip base item flags
+            flags = flags - base_obj_flags
+            # Add back specific flags that should always count
+            add_back_flags = {'TUNNEL', 'STL', 'STEALTH', 'ACCURATE', 'SHARPNESS', 'SHARPNESS2',
+                              'DAMAGE_SIDES', 'REGEN', 'RES_COLD', 'RES_FIRE',
+                              'CHEAT_DEATH', 'STAND_FAST', 'ENCHANTABLE'}
+            for flag in add_back_flags:
+                if flag in base_obj_flags:
+                    flags.add(flag)
+
     # Get base item stats
     if is_special or is_normal:
         # For variants, we have base stats stored
@@ -352,7 +449,24 @@ def calculate_difficulty(art):
     # For non-jewelry items: dif_inc += k_ptr->level / 2
     if tval not in [45, 40]:  # Not ring or amulet
         dif_inc += base_level // 2
-    
+
+    # Horn items add (level - 1) difficulty (cmd4.c:4593-4613)
+    if tval == 47:  # TV_HORN
+        dif_inc += base_level - 1
+
+    # Weight factor calculation (cmd4.c:4663-4671)
+    # Unusual weight items (lighter or heavier than base) get difficulty bonus
+    item_weight = art.get('weight', 0)
+    base_weight = get_base_weight(tval, sval)
+    if base_weight > 0:  # Only calculate if we have base weight data
+        if item_weight == 0:
+            weight_factor = 1100
+        elif item_weight > base_weight:
+            weight_factor = 100 * item_weight // base_weight
+        else:
+            weight_factor = 100 * base_weight // item_weight
+        dif_inc += (weight_factor - 100) // 20
+
     # Attack bonus contribution (bonus above base)
     att_bonus = smithed_att_bonus
     if att_bonus > 0:
@@ -420,8 +534,8 @@ def calculate_difficulty(art):
         else:
             dif_inc += 16
             brands += 1
-    if 'BRAND_ELEC' in flags:  # If exists
-        dif_inc += 18
+    if 'BRAND_ELEC' in flags:
+        dif_inc += 16  # No monsters have HURT_ELEC, same as poison
         brands += 1
     
     # Multiple brands penalty
@@ -438,9 +552,15 @@ def calculate_difficulty(art):
     # === OTHER WEAPON FLAGS ===
     if 'VAMPIRIC' in flags:
         dif_inc += 6
+    if 'WILL_DRAIN' in flags:
+        dif_inc += 8  # Like VAMPIRIC+2
     if 'ACCURATE' in flags:
         dif_inc += 15
-    
+    if 'ARMOR_SHATTER' in flags:
+        dif_inc += 15  # Like ACCURATE
+    if 'DEPTH_SCALE_PS' in flags:
+        dif_inc += 5  # Situational
+
     # === PVAL-DEPENDENT BONUSES ===
     # For specials: total_pval = base_pval + smithed bonus
     # For artefacts: total_pval = art['pval']
@@ -533,7 +653,9 @@ def calculate_difficulty(art):
         dif_inc += 5
     if 'RES_POIS' in flags:
         dif_inc += 5
-    
+    if 'RES_ELEC' in flags:
+        dif_inc += 5
+
     # === OTHER RESISTANCES ===
     if 'RES_BLEED' in flags:
         dif_inc += 1
@@ -556,7 +678,7 @@ def calculate_difficulty(art):
         if 'DANGER' in flags:
             dif_dec += 5
         if 'DARKNESS' in flags:
-            dif_dec += 3
+            dif_dec += 2  # Changed from 3
         if 'AGGRAVATE' in flags:
             dif_dec += 3
         if 'HAUNTED' in flags:
@@ -573,13 +695,26 @@ def calculate_difficulty(art):
             dif_dec += 2
         if 'CUMBERSOME' in flags:
             dif_dec += 3
+        if 'UNLIGHT' in flags:
+            dif_dec += 5  # Worse than DARKNESS - pure negative, no light bonus
+        if 'SLOWNESS' in flags:
+            dif_dec += 15
+        if 'HUNGER' in flags:
+            dif_dec += 3
+        if 'FEAR' in flags:  # Not RES_FEAR!
+            dif_dec += 5
+        if 'HEAVY_CURSE' in flags:
+            dif_dec += 4
+        if 'PERMA_CURSE' in flags:
+            dif_dec += 6
 
     # === ABILITIES (granted abilities) ===
     # dif_inc += 5 + (level / 3) per ability
-    # We approximate ability level as ~5 on average
-    for _ in range(art['abilities']):
-        avg_ability_level = 5
-        dif_inc += 5 + (avg_ability_level // 3)
+    # Uses actual ability levels from ability.txt
+    ability_list = art.get('ability_list', [])
+    for skill_num, ability_val in ability_list:
+        level = get_ability_level(skill_num, ability_val)
+        dif_inc += 5 + (level // 3)
     
     # Calculate base difficulty
     dif = dif_inc - dif_dec
@@ -589,12 +724,19 @@ def calculate_difficulty(art):
     slot = get_slot(art['tval'])
     if slot in ['ring', 'light', 'cloak', 'gloves', 'boots', 'arrow']:
         dif_mult += 20
-    
+
+    # === ENCHANTABILITY BONUS ===
+    # Items with ENCHANTABLE flag on base item get -30% difficulty
+    # Check base item flags for ENCHANTABLE
+    base_item_flags = get_base_flags(tval, sval)
+    if 'ENCHANTABLE' in base_item_flags:
+        dif_mult -= 30
+
     # Apply multiplier
     dif = dif * dif_mult // 100
     
-    # Artefact arrows are easier (halved)
-    if art['tval'] == 17:  # Arrow
+    # Artefact arrows are easier (halved) - only for actual artefacts, not ego arrows
+    if art['tval'] == 17 and art['type'] == 'artefact':  # Artefact arrows only
         dif = dif // 2
 
     return dif
@@ -900,6 +1042,7 @@ def parse_object_file(filepath):
                     'pd': 0,
                     'ps': 0,
                     'level': 0,
+                    'weight': 0,
                     'flags': [],
                 }
             
@@ -911,10 +1054,12 @@ def parse_object_file(filepath):
                 if len(parts) > 2 and parts[2]:
                     current['pval'] = int(parts[2])
             
-            # Weight/level info
+            # Weight/level info (W:level:unused:weight:cost)
             elif line.startswith('W:') and current:
                 parts = line[2:].split(':')
                 current['level'] = int(parts[0])
+                if len(parts) > 2:
+                    current['weight'] = int(parts[2])
             
             # Combat stats: att:dam_dice:evn:prot_dice
             elif line.startswith('P:') and current:
@@ -948,8 +1093,25 @@ def parse_object_file(filepath):
     
     if current and 'INSTA_ART' not in current['flags']:
         objects.append(current)
-    
+
     return objects
+
+
+def populate_objects_dict(objects):
+    """Populate global OBJECTS_BY_TYPE dictionary from parsed objects."""
+    global OBJECTS_BY_TYPE
+    OBJECTS_BY_TYPE = {}
+    for obj in objects:
+        key = (obj['tval'], obj['sval'])
+        OBJECTS_BY_TYPE[key] = obj
+
+
+def get_base_weight(tval, sval):
+    """Get base item weight from parsed object.txt data."""
+    key = (tval, sval)
+    if key in OBJECTS_BY_TYPE:
+        return OBJECTS_BY_TYPE[key].get('weight', 0)
+    return 0
 
 
 def has_pval_mask(flags):
@@ -1103,8 +1265,8 @@ def generate_special_variants(special, objects):
                                             'ps': ps,
                                             'pd': pd,
                                             'pval': pval,
-                                            'abilities': special['abilities'],
-                                            'flags': special['flags'][:],  # Copy flags
+                                            'ability_list': special['ability_list'][:],  # Copy ability list
+                                            'flags': obj['flags'][:] + [f for f in special['flags'] if f not in obj['flags']],  # Combine base + ego flags
                                             'depth': special['depth'],
                                             'rarity': special['rarity'],
                                             # Store base stats for difficulty calculation
@@ -1116,6 +1278,7 @@ def generate_special_variants(special, objects):
                                             'base_dd': obj['dd'],
                                             'base_pval': obj['pval'],
                                             'base_level': obj['level'],
+                                            'weight': obj.get('weight', 0),  # Inherit base item weight
                                         }
                                         variants.append(variant)
     
@@ -1180,7 +1343,7 @@ def generate_dual_ego_variants(specials_raw, objects):
 
                 # Combined flags and abilities
                 combined_flags = prefix['flags'][:] + [f for f in suffix['flags'] if f not in prefix['flags']]
-                combined_abilities = prefix['abilities'] + suffix['abilities']
+                combined_ability_list = prefix['ability_list'][:] + suffix['ability_list'][:]
 
                 # Use higher depth/rarity
                 combined_depth = max(prefix['depth'], suffix['depth'])
@@ -1205,7 +1368,7 @@ def generate_dual_ego_variants(specials_raw, objects):
                     'ps': obj['ps'] + combined_to_ps,
                     'pd': obj['pd'] + combined_to_pd,
                     'pval': obj['pval'] + combined_max_pval,
-                    'abilities': combined_abilities,
+                    'ability_list': combined_ability_list,
                     'flags': combined_flags,
                     'depth': combined_depth,
                     'rarity': combined_rarity,
@@ -1218,6 +1381,7 @@ def generate_dual_ego_variants(specials_raw, objects):
                     'base_dd': obj['dd'],
                     'base_pval': obj['pval'],
                     'base_level': obj['level'],
+                    'weight': obj.get('weight', 0),  # Inherit base item weight
                 }
                 variants.append(variant)
 
@@ -1232,6 +1396,11 @@ def get_base_flags(tval, sval):
         # Digging tools have TUNNEL flag
         (20, 1): {'TUNNEL'},  # Shovel
         (20, 3): {'TUNNEL'},  # Mattock
+        # Items with ENCHANTABLE flag (for -30% difficulty multiplier)
+        (36, 2): {'ENCHANTABLE'},  # Robe
+        (21, 3): {'ENCHANTABLE'},  # Quarterstaff
+        (30, 3): {'ENCHANTABLE', 'STAND_FAST'},  # Mithril Greaves
+        (31, 3): {'ENCHANTABLE', 'REGEN'},  # Mithril Gauntlets
     }
     return base_flags.get((tval, sval), set())
 
@@ -1376,7 +1545,7 @@ def generate_normal_variants(objects):
                                         'ps': ps,
                                         'pd': pd,
                                         'pval': pval,
-                                        'abilities': 0,
+                                        'ability_list': [],
                                         'flags': obj['flags'][:],
                                         'depth': obj['level'],
                                         'rarity': 1,  # Default rarity
@@ -1389,9 +1558,10 @@ def generate_normal_variants(objects):
                                         'base_dd': obj['dd'],
                                         'base_pval': obj['pval'],
                                         'base_level': obj['level'],
+                                        'weight': obj.get('weight', 0),  # Base item weight
                                     }
                                     variants.append(variant)
-    
+
     return variants
 
 
@@ -1441,8 +1611,10 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description='Calculate artefact/special smithing difficulty')
-    parser.add_argument('--csv', '-c', metavar='FILE', 
+    parser.add_argument('--csv', '-c', metavar='FILE',
                         help='Export results to CSV file')
+    parser.add_argument('--artefacts-only', '-a', action='store_true',
+                        help='Show only artefacts in output')
     args = parser.parse_args()
     
     # Try to determine script location, fallback to current working directory
@@ -1492,11 +1664,34 @@ def main():
         if os.path.exists(path):
             object_file = path
             break
-    
+
+    # Find ability.txt for ability levels
+    ability_paths = [
+        os.path.join(script_dir, '..', 'lib', 'edit', 'ability.txt'),
+        os.path.join(script_dir, 'lib', 'edit', 'ability.txt'),
+        r'c:\Users\efrem\Documents\GitHub\sil-qh\lib\edit\ability.txt',
+    ]
+
+    ability_file = None
+    for path in ability_paths:
+        if os.path.exists(path):
+            ability_file = path
+            break
+
+    # Parse ability.txt first to populate ABILITY_LEVELS
+    if ability_file:
+        parse_ability_file(ability_file)
+        print(f"Loaded {len(ABILITY_LEVELS)} ability levels from ability.txt")
+
     artefacts = parse_artefact_file(artefact_file)
     specials_raw = parse_special_file(special_file) if special_file else []
     objects = parse_object_file(object_file) if object_file else []
-    
+
+    # Populate global object lookup for weight calculations
+    if objects:
+        populate_objects_dict(objects)
+        print(f"Loaded {len(OBJECTS_BY_TYPE)} base item types for weight lookup")
+
     # Filter out "Ultimate" template artefacts (idx 182-198)
     artefacts = [a for a in artefacts if not (a['name'].startswith("'Ultimate") and a['idx'] >= 182)]
     
@@ -1544,6 +1739,14 @@ def main():
     for dual in dual_egos:
         dual['difficulty'] = calculate_difficulty(dual)
         all_items.append(dual)
+
+    # Filter to artefacts only if requested
+    if args.artefacts_only:
+        all_items = [item for item in all_items if item['type'] == 'artefact']
+        normals = []
+        specials = []
+        dual_egos = []
+        print(f"\n[--artefacts-only mode: showing only artefacts]")
 
     # CSV export mode
     if args.csv:
@@ -1625,8 +1828,9 @@ def main():
                 stats.append(f"{skill_abbr.get(key, key)}{v:+d}")
         if item['pval'] != 0:
             stats.append(f"pval:{item['pval']}")
-        if item['abilities'] > 0:
-            stats.append(f"abil:{item['abilities']}")
+        ability_count = len(item.get('ability_list', []))
+        if ability_count > 0:
+            stats.append(f"abil:{ability_count}")
         stats_str = ' '.join(stats)
         
         diff_plus_lvl = item['difficulty'] + item['depth']
@@ -1678,8 +1882,12 @@ def main():
     print("  - Artefact arrows: difficulty halved")
     print("=" * 110)
     print()
-    if sys.stdin.isatty():
-        input("Press Enter to exit...")
+    # Only prompt for input if running interactively on Windows terminal
+    if sys.stdin.isatty() and sys.stdout.isatty():
+        try:
+            input("Press Enter to exit...")
+        except EOFError:
+            pass
 
 
 if __name__ == '__main__':

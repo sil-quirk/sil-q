@@ -4522,7 +4522,7 @@ int object_difficulty(object_type* o_ptr)
     int dif_inc = 0;
     int dif_dec = 0;
     int weight_factor;
-    u32b f1, f2, f3;
+    u32b f1, f2, f3, f4;
     int brands = 0;
     int dif_mult = 100;
     int cat = 0; // default to soothe compilation warnings
@@ -4550,7 +4550,7 @@ int object_difficulty(object_type* o_ptr)
     smithing_cost.artifice = 0;
 
     // extract object flags
-    object_flags(o_ptr, &f1, &f2, &f3);
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
     int att_base = o_ptr->att;
     int evn_base = o_ptr->evn;
     int ds_base = o_ptr->ds;
@@ -4790,6 +4790,12 @@ int object_difficulty(object_type* o_ptr)
             brands++;
         }
     }
+    if (f1 & TR1_BRAND_ELEC)
+    {
+        dif_inc += 16;  // No monsters have HURT_ELEC, same as poison
+        smithing_cost.str += 2;
+        brands++;
+    }
     if (brands > 1)
     {
         dif_inc += (brands - 1) * 20;
@@ -4812,10 +4818,22 @@ int object_difficulty(object_type* o_ptr)
         dif_inc += 6;
         smithing_cost.str += 1;
     }
+    if (f3 & TR3_WILL_DRAIN)
+    {
+        dif_inc += 8;  // Like VAMPIRIC+2
+    }
     if (f3 & TR3_ACCURATE)
     {
         dif_inc += 15;
         smithing_cost.dex += 1;
+    }
+    if (f4 & TR4_ARMOR_SHATTER)
+    {
+        dif_inc += 15;  // Like ACCURATE
+    }
+    if (f4 & TR4_DEPTH_SCALE_PS)
+    {
+        dif_inc += 5;  // Situational
     }
 
     // pval dependent bonuses
@@ -5007,6 +5025,10 @@ int object_difficulty(object_type* o_ptr)
     {
         dif_inc += 5;
     }
+    if (f2 & TR2_RES_ELEC)
+    {
+        dif_inc += 5;
+    }
 
     // Other Resistances
     if (f2 & TR2_RES_BLEED)
@@ -5043,7 +5065,7 @@ int object_difficulty(object_type* o_ptr)
         } // only Danger counts
         if (f2 & TR2_DARKNESS)
         {
-            dif_dec += 3;
+            dif_dec += 2;  // Changed from 3
         }
         if (f2 & TR2_AGGRAVATE)
         {
@@ -5076,6 +5098,30 @@ int object_difficulty(object_type* o_ptr)
         if (f3 & TR3_CUMBERSOME)
         {
             dif_dec += 3;
+        }
+        if (f4 & TR4_UNLIGHT)
+        {
+            dif_dec += 5;  // Worse than DARKNESS - pure negative, no light bonus
+        }
+        if (f2 & TR2_SLOWNESS)
+        {
+            dif_dec += 15;
+        }
+        if (f2 & TR2_HUNGER)
+        {
+            dif_dec += 3;
+        }
+        if (f2 & TR2_FEAR)  // Not RES_FEAR!
+        {
+            dif_dec += 5;
+        }
+        if (f3 & TR3_HEAVY_CURSE)
+        {
+            dif_dec += 4;
+        }
+        if (f3 & TR3_PERMA_CURSE)
+        {
+            dif_dec += 6;
         }
     }
 
