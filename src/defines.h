@@ -742,7 +742,7 @@
 #define COL_TERRAIN 61 /* "Web" or "Pit" or "Sunlight" */
 
 #define ROW_DEPTH (Term->hgt - 1)
-#define COL_DEPTH 72 /* "Lev NNN" / "NNNN ft" */
+#define COL_DEPTH 72 /* "NNNN ft (min NNNN ft) turn NNNNNNNNNN" */
 
 /*** General index values ***/
 
@@ -2430,7 +2430,7 @@
 // xxx verify_leave_quest
 #define OPT_mark_squelch_items 76
 #define OPT_display_hits 77
-// xxx
+#define OPT_show_turn_counter 78
 // xxx
 // xxx
 // xxx
@@ -2566,7 +2566,7 @@
 #define auto_display_lists op_ptr->opt[OPT_auto_display_lists]
 #define easy_main_menu op_ptr->opt[OPT_easy_main_menu]
 #define display_hits op_ptr->opt[OPT_display_hits]
-// xxx
+#define show_turn_counter op_ptr->opt[OPT_show_turn_counter]
 // xxx
 // xxx
 // xxx
