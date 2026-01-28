@@ -3153,7 +3153,7 @@ static void handle_wm_paint(HWND hWnd)
     term_data* td;
 
     /* Acquire proper "term_data" info */
-    td = (term_data*)GetWindowLong(hWnd, 0);
+    td = (term_data*)GetWindowLongPtr(hWnd, 0);
 
     BeginPaint(hWnd, &ps);
 
@@ -3188,7 +3188,7 @@ static LRESULT FAR PASCAL AngbandWndProc(
     int i;
 
     /* Acquire proper "term_data" info */
-    td = (term_data*)GetWindowLong(hWnd, 0);
+    td = (term_data*)GetWindowLongPtr(hWnd, 0);
 
     /* Handle message */
     switch (uMsg)
@@ -3196,7 +3196,7 @@ static LRESULT FAR PASCAL AngbandWndProc(
     /* XXX XXX XXX */
     case WM_NCCREATE:
     {
-        SetWindowLong(hWnd, 0, (LONG)(my_td));
+        SetWindowLongPtr(hWnd, 0, (LONG_PTR)(my_td));
         break;
     }
 
@@ -3468,7 +3468,7 @@ static LRESULT FAR PASCAL AngbandListProc(
     int i;
 
     /* Acquire proper "term_data" info */
-    td = (term_data*)GetWindowLong(hWnd, 0);
+    td = (term_data*)GetWindowLongPtr(hWnd, 0);
 
     /* Process message */
     switch (uMsg)
@@ -3476,7 +3476,7 @@ static LRESULT FAR PASCAL AngbandListProc(
     /* XXX XXX XXX */
     case WM_NCCREATE:
     {
-        SetWindowLong(hWnd, 0, (LONG)(my_td));
+        SetWindowLongPtr(hWnd, 0, (LONG_PTR)(my_td));
         break;
     }
 
@@ -3970,7 +3970,7 @@ int FAR PASCAL WinMain(
         wc.style = CS_CLASSDC;
         wc.lpfnWndProc = AngbandWndProc;
         wc.cbClsExtra = 0;
-        wc.cbWndExtra = 4; /* one long pointer to term_data */
+        wc.cbWndExtra = sizeof(term_data*); /* one pointer to term_data */
         wc.hInstance = hInst;
         wc.hIcon = hIcon = LoadIcon(hInst, "ANGBAND");
         wc.hCursor = LoadCursor(NULL, IDC_ARROW);

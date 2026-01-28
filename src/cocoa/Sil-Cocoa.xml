@@ -5,11 +5,11 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleExecutable</key>
-	<string>sil</string>
+	<string>$EXECUTABLE$</string>
 	<key>CFBundleDisplayName</key>
-	<string>Sil</string>
+	<string>$NAME$</string>
 	<key>CFBundleName</key>
-	<string>Sil</string>
+	<string>$NAME$</string>
 	<key>CFBundleIconFile</key>
 	<string>Sil_Icons</string>
 	<key>CFBundleIdentifier</key>
@@ -26,6 +26,8 @@
 	<string>$VERSION$</string>
 	<key>CGDisableCoalescedUpdates</key>
 	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>© $COPYRIGHT$</string>
 	<key>NSMainNibFile</key>
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>

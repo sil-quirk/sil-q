@@ -491,9 +491,10 @@ int main(int argc, char* argv[])
             break;
         }
 
-        case 'V':
-        case 'v':
+        case 'A':
+        case 'a':
         {
+            // VERSION_NAME is defined apparently
             arg_sound = TRUE;
             break;
         }
@@ -559,6 +560,13 @@ int main(int argc, char* argv[])
             continue;
         }
 
+        case 'V':
+        case 'v':
+        {
+            printf("%s version %s\n", VERSION_NAME, VERSION_STRING);
+            quit(NULL);
+        }
+
         case '-':
         {
             argv[i] = argv[0];
@@ -576,7 +584,7 @@ int main(int argc, char* argv[])
             puts("  -n       Start a new character");
             puts("  -f       Request fiddle (verbose) mode");
             puts("  -w       Request wizard mode");
-            puts("  -v       Request sound mode");
+            puts("  -a       Request audio/sound mode");
             puts("  -g       Request graphics mode");
             puts("  -o       Request original keyset (default)");
             puts("  -r       Request rogue-like keyset");
@@ -584,12 +592,12 @@ int main(int argc, char* argv[])
             puts("  -u<who>  Use your <who> savefile");
             puts("  -d<def>  Define a 'lib' dir sub-path");
             puts("  -m<sys>  use Module <sys>, where <sys> can be:");
-
             /* Print the name and help for each available module */
             for (i = 0; i < (int)N_ELEMENTS(modules); i++)
             {
                 printf("     %s   %s\n", modules[i].name, modules[i].help);
             }
+            puts("  -v       Print Sil-Q version");
 
             /* Actually abort the process */
             quit(NULL);

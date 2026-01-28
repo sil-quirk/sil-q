@@ -9671,8 +9671,7 @@ void do_cmd_note(char* note, int what_depth)
 void do_cmd_version(void)
 {
     /* Silly message */
-    msg_format("You are playing %s %s.  Type '?' for more info.", VERSION_NAME,
-        VERSION_STRING);
+    msg_format("You are playing %s %s.", VERSION_NAME, VERSION_STRING);
 }
 
 /*

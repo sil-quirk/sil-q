@@ -1,8 +1,13 @@
 *.o
+# Ignore any generated macOS .dmg files (from Makefile.cocoa's dist target)
+*.dmg
 *.raw
 # Ignore locally built `sil` binary.
 sil
 src/sil
+src/sil.o.arm64
 src/sil.o.x86_64
 Sil.app
+# Same as `src/sil`
+sil
 .DS_Store

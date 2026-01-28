@@ -63,7 +63,7 @@ OBJS = \
 # Can add '-arch ppc' if needed
 
 CFLAGS = \
-	-Wall -Wextra -O0 -fpascal-strings -DMACH_O_CARBON -mmacosx-version-min=10.5 -arch i386
+	-Wall -Wextra -O0 -fpascal-strings -DMACH_O_CARBON -mmacosx-version-min=10.6 -arch i386
 LIBS = -framework CoreFoundation -framework QuickTime -framework Carbon
 
 

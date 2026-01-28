@@ -8,7 +8,7 @@
  * 1. Create a new Xcode project for a macOS App.
  * 2. You can set the "Product Name", "Team", "Organization Name",
  *    "Organization Identifier" as you wish.  Setting the product name to
- *    "sil" and the "Organization Identifier" to "net.amirrorclear" will
+ *    "sil" (or "Sil?") and the "Organization Identifier" to "net.amirrorclear" will
  *    match the bundle identifier used in the full builds for Sil.  Set
  *    "Language" to "Objective-C" and "User Interface" to "XIB".  Leave
  *    "Create Document-Based Application" and "Use Core Data" off.

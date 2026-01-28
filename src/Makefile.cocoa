@@ -10,8 +10,13 @@ all: install
 # settings
 CC = clang
 LD = ld
-OPT ?= -O2
+# OPT can be overridden, e.g.: make OPT="-O2 -DDEBUG"
+OPT ?= -O0 -g
 
+# x86_64 - for Intel machines (until 2020)
+# arm64  - for Apple Silicon machines with M1, M2, etc. (2020 - today)
+#
+# Use ARCHS='x86_64 arm64' to build for both.
 ARCHS = x86_64
 ARCHFLAGS = $(addprefix -arch ,$(ARCHS))
 WARNINGS = -W -Wall -Wno-unused-parameter -Wno-missing-field-initializers
@@ -21,9 +26,14 @@ CFLAGS = -g -I. $(WARNINGS) $(OPT) -DMACH_O_CARBON -DCOCOA -DUSE_PRIVATE_SAVE_PA
 	-fno-stack-protector -mmacosx-version-min=10.6 $(ARCHFLAGS)
 LIBS = -framework Cocoa
 # Fix for bug #1663: Set the deployment target via environment variable
-# for the final link command. See http://grauonline.de/wordpress/?p=71
-# or http://stackoverflow.com/questions/5509885/creating-app-for-old-mac-from-new-mac-machine
-DEPLOYMENT_TARGET = MACOSX_DEPLOYMENT_TARGET=10.5
+# for the final link command.
+# See http://grauonline.de/wordpress/?p=71 or
+# http://stackoverflow.com/questions/5509885/creating-app-for-old-mac-from-new-mac-machine
+#
+# TIP: To inspect what the target of a generated executable is, run `otool -l`
+# (Xcode) on the generated executable (such as `Sil.app/Contents/MacOS/sil`) and
+# look for the output related to the LC_VERSION_MIN_MACOSX load command.
+DEPLOYMENT_TARGET = MACOSX_DEPLOYMENT_TARGET=10.6
 
 # Import user prefs
 # If you don't want to edit this file, put your module redefinitions
@@ -137,11 +147,20 @@ install: $(EXE) $(ICONFILES) $(PLIST)
 	install -m 755 $(EXE) $(APPBIN)
 	install -m 644 $(ICONFILES) $(APPRES)
 	cp cocoa/en.lproj/MainMenu.nib $(APPRES)/en.lproj
-	sed -e 's/\$$VERSION\$$/$(VERSION)/' -e 's/\$$COPYRIGHT\$$/$(COPYRIGHT)/' \
-		-e 's/\$$NAME\$$/$(NAME)/' -e 's/\$$EXECUTABLE\$$/$(EXE)/' \
+	# Escape `&` in COPYRIGHT because a raw `&` in Info.plist (and thus in its
+	# template Sil-Cocoa.xml) will be treated as an entity reference by XML,
+	# which in turn will cause issues when using `codesign` later on to sign
+	# the app bundle.
+	sed -e 's/\$$VERSION\$$/$(VERSION)/' \
+		-e 's/\$$COPYRIGHT\$$/$(subst &,\&amp;,$(COPYRIGHT))/' \
+		-e 's/\$$NAME\$$/$(NAME)/' \
+		-e 's/\$$EXECUTABLE\$$/$(EXE)/' \
 		$(PLIST) > $(APPCONT)/Info.plist
 
 	SetFile -a B $(APPBNDL)
+	xattr -rc $(APPBNDL)
+	dot_clean -m $(APPBNDL)
+	codesign --force --deep --sign - $(APPBNDL)
 
 
 vars:
@@ -160,19 +179,16 @@ dist: install
 	mkdir disttemp
 	cp -R -p "$(APPBNDL)" disttemp
 	SetFile -a B disttemp/$(APPNAME)
+	# Include any top-level PDF files, such as the Sil-Q PDF manual.
 	find .. -name '*.pdf' -depth 1 -print0 | xargs -0 -J % cp -p % disttemp
+	# Include the top-level version file.
+	cp -p ../Sil-Q-version.txt disttemp
 
-	@-rm ../"$(PACKAGE_NAME)-osx.dmg"
+	@-rm ../"$(PACKAGE_NAME)-macos.dmg"
 
-	hdiutil create -quiet -fs HFS+ -volname $(PACKAGE_NAME) -srcfolder disttemp disttemp.dmg
-	hdiutil convert disttemp.dmg -quiet -format UDZO -imagekey zlib-level=6 -o ../"$(PACKAGE_NAME)-osx.dmg"
+	hdiutil create -quiet -fs APFS -volname $(PACKAGE_NAME) -srcfolder disttemp disttemp.dmg
+	hdiutil convert disttemp.dmg -quiet -format UDZO -imagekey zlib-level=6 -o ../"$(PACKAGE_NAME)-macos.dmg"
 
 	rm -rf disttemp*
-
-tests:
-	$(MAKE) -C tests all CFLAGS="-I.. $(CFLAGS)" LDFLAGS="$(LIBS)" DEFAULT_CONFIG_PATH=../lib
-
-test-clean:
-	$(MAKE) -C tests clean
 
 .PHONY : tests test-clean

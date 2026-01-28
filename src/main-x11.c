@@ -532,8 +532,10 @@ static errr Infowin_set_name(cptr name)
     char* bp = buf;
     my_strcpy(buf, name, sizeof(buf));
     st = XStringListToTextProperty(&bp, 1, &tp);
-    if (st)
+    if (st) {
         XSetWMName(Metadpy->dpy, Infowin->win, &tp);
+        XFree(tp.value);
+    }
     return (0);
 }
 
@@ -1323,7 +1325,7 @@ static errr Infofnt_text_non(int x, int y, cptr str, int len)
 /*
  * Hack -- cursor color
  */
-static infoclr* xor ;
+static infoclr* xor;
 
 /*
  * Actual color table
@@ -2463,6 +2465,7 @@ static errr term_data_init(term_data* td, int i)
     ch->res_class = res_class;
 
     XSetClassHint(Metadpy->dpy, Infowin->win, ch);
+    XFree(ch);
 
     /* Make Size Hints */
     sh = XAllocSizeHints();
@@ -2505,6 +2508,7 @@ static errr term_data_init(term_data* td, int i)
 
     /* Use the size hints */
     XSetWMNormalHints(Metadpy->dpy, Infowin->win, sh);
+    XFree(sh);
 
     /* Map the window */
     Infowin_map();

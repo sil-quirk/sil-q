@@ -1,0 +1,141 @@
+# Inspired by Angband's setup.
+# https://github.com/angband/angband/blob/master/.github/workflows/mac.yaml
+
+name: macOS
+
+on:
+  push:
+    branches:
+      - "**"
+  # Skip macOS build for pull requests to save GitHub runner credits.
+  pull_request:
+
+# To cancel a currently running workflow from the same PR, branch, or tag
+# when a new workflow is triggered.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-console:
+    name: Console (GCU) Build
+    runs-on: macos-latest
+    steps:
+      - name: Clone project
+        uses: actions/checkout@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build with curses/ncurses support
+        run: |
+          cd src
+          make -f Makefile.std -j$(sysctl -n hw.ncpu) CFLAGS="-Wall $(OPT) -DUSE_GCU" LIBS="-lcurses"
+
+  release-build-console:
+    name: Console (GCU) Release Build
+    runs-on: macos-latest
+    steps:
+      - name: Clone project
+        uses: actions/checkout@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build with with curses/ncurses support and release flags
+        run: |
+          cd src
+          make -f Makefile.std -j$(sysctl -n hw.ncpu) OPT="-O2" CFLAGS="-Wall $(OPT) -DUSE_GCU" LIBS="-lcurses"
+          mv sil ../sil
+
+      - name: Update version file with build information
+        run: bin/version.sh
+
+      - name: Verify build
+        run: |
+          ls -la sil
+          file sil
+          bin/smoke-tests.sh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: Sil-Q-macos-console
+          # IMPORTANT: Do NOT use quotes to escape spaces in filenames.
+          path: |
+            sil
+            silg
+            silx
+            lib
+            LICENSE.md
+            README.md
+            Sil-Q-version.txt
+            Sil-Q v1.5.0.pdf
+          # Otherwise directories such as `lib/apex/` are excluded, which only
+          # contain a stub `.keepalive` or `.gitignore` file.  Without these
+          # pre-generated directories, the game will have problems at run-time.
+          #
+          # TODO: Update game logic to auto-create directories like `lib/apex`
+          #       if needed, then remove this workaround.
+          include-hidden-files: true
+          if-no-files-found: error
+
+  build:
+    # NOTE: The macOS version mentioned here must match `DEPLOYMENT_TARGET`
+    # defined in Makefile.cocoa.
+    name: Cocoa Build (macOS 10.6 and later)
+    runs-on: macos-latest
+    steps:
+      - name: Clone project
+        uses: actions/checkout@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build (x86_64 and arm64)
+        run: |
+          cd src
+          # TODO: Add `-Werror` once all compiler warnings are fixed.
+          make -f Makefile.cocoa -j$(sysctl -n hw.ncpu) ARCHS="x86_64 arm64"
+
+  release-build:
+    # NOTE: The macOS version mentioned here must match `DEPLOYMENT_TARGET`
+    # defined in Makefile.cocoa.
+    name: Cocoa Release Build (macOS 10.6 and later)
+    runs-on: macos-latest
+    steps:
+      - name: Clone project
+        uses: actions/checkout@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build with release flags
+        run: |
+          cd src
+          # TODO: Add `-Werror` once all compiler warnings are fixed.
+          make -f Makefile.cocoa -j$(sysctl -n hw.ncpu) ARCHS="x86_64 arm64" OPT="-O2"
+
+      - name: Update version file with build information
+        run: bin/version.sh
+
+      - name: Verify build
+        run: |
+          ls -la Sil.app
+          file Sil.app/Contents/MacOS/sil
+
+      # This step is required for macOS so the resulting artifact contains a
+      # top-level `Sil.app` folder. Without this folder, macOS will not
+      # recognize the artifact as a valid macOS application.
+      - name: Create archive
+        run: zip -r Sil-Q-macos.zip Sil.app Sil-Q-version.txt "Sil-Q v1.5.0.pdf"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: Sil-Q-macos.zip
+          path: Sil-Q-macos.zip
+          # Otherwise directories such as `lib/apex/` are excluded, which only
+          # contain a stub `.keepalive` or `.gitignore` file.  Without these
+          # pre-generated directories, the game will have problems at run-time.
+          #
+          # TODO: Update game logic to auto-create directories like `lib/apex`
+          #       if needed, then remove this workaround.
+          include-hidden-files: true
+          if-no-files-found: error
