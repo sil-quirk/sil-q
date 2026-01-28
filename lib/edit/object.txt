@@ -11,6 +11,7 @@
 #
 # N: serial number : & object name~
 # G: symbol : color
+# T: tile row : tile column
 # I: tval : sval : pval
 # W: depth : rarity : weight : cost
 # P: plus to-hit : damage dice : plus to-evasion : protection dice
@@ -31,6 +32,9 @@
 #     W - Light Gray   v - Violet         y - Yellow        R - Light Red
 #     G - Light Green  B - Light Blue     U - Light Brown
 #     d - 'flavoured' items
+#
+# 'T' is for tile graphics - the row and column in the tileset atlas.
+#     Values are decimal 0-63. Used for graphical mode display.
 #
 # 'I' is for basic information. The tval is for the type of item, the
 #     sval identifies the subtype and the pval indicates the amount of
@@ -177,6 +181,7 @@ F:INSTA_ART
 
 N:10:& Ring~
 G:=:W
+T:11:29
 I:45:40:0
 W:1:0:1:1000
 P:0:0d0:0:0d0
@@ -187,6 +192,7 @@ F:INSTA_ART
 
 N:11:& Amulet~
 G:":W
+T:11:27
 I:40:40:0
 W:1:0:1:1000
 P:0:0d0:0:0d0
@@ -197,6 +203,7 @@ F:INSTA_ART
 
 N:19:& Mighty Hammer~
 G:\:D
+T:6:19
 I:21:50:0
 W:20:0:1000:1000
 P:-7:6d5:0:0d0
@@ -207,6 +214,7 @@ F:INSTA_ART | TWO_HANDED
 
 N:20:& Massive Iron Crown~
 G:]:D
+T:5:28
 I:33:50:0
 W:20:0:4000:1000
 P:0:0d0:0:0d0
@@ -217,6 +225,7 @@ F:INSTA_ART
 
 N:21:& Lesser Jewel~
 G:*:B
+T:2:27
 I:39:2:0
 W:8:20:1:1000
 P:0:0d0:0:0d0:0
@@ -230,6 +239,7 @@ D: It will shine forever.
 
 N:22:& Robe~
 G:(:b
+T:5:4
 I:36:2:0
 W:1:0:30:4
 P:0:0d0:1:1d0
@@ -239,6 +249,7 @@ F:ENCHANTABLE
 
 N:23:Leather Armour~
 G:(:U
+T:5:12
 I:36:4:0
 W:1:0:70:18
 P:0:0d0:-1:1d4
@@ -247,6 +258,7 @@ A:1/2
 
 N:26:Studded Leather~
 G:(:U1
+T:5:13
 I:36:7:0
 W:2:0:130:200
 P:0:0d0:-2:1d6
@@ -255,6 +267,7 @@ A:2/2
 
 N:27:Galvorn Armour~
 G:(:D
+T:9:17
 I:36:11:0
 W:17:0:70:200
 P:0:0d0:-1:1d9
@@ -267,6 +280,7 @@ D:to stop blade and dart.
 
 N:30:& Mail Corslet~
 G:[:W
+T:5:15
 I:37:4:0
 W:5:0:270:750
 P:-1:0d0:-3:2d4
@@ -277,6 +291,7 @@ D: It comes down to the waist.
 
 N:31:& Hauberk~
 G:[:s1
+T:5:14
 I:37:6:0
 W:7:0:350:900
 P:-2:0d0:-4:2d5
@@ -287,6 +302,7 @@ D: It comes down to the thigh.
 
 N:38:& Mithril Corslet~
 G:[:B
+T:5:16
 I:37:20:0
 W:16:0:150:7000
 P:0:0d0:0:2d5
@@ -300,6 +316,7 @@ D:A shirt of armour formed from linked rings.
 
 N:40:& Orc Skeleton~
 G:~:w
+T:3:28
 I:3:0:0
 W:1:1:130:0
 P:0:0d0:0:0d0
@@ -309,6 +326,7 @@ F:EASY_KNOW
 
 N:41:& Human Skeleton~
 G:~:w
+T:3:29
 I:3:1:0
 W:8:5:120:0
 P:0:0d0:0:0d0
@@ -318,6 +336,7 @@ F:EASY_KNOW
 
 N:42:& Elf Skeleton~
 G:~:w
+T:3:30
 I:3:2:0
 W:10:5:110:0
 P:0:0d0:0:0d0
@@ -329,6 +348,7 @@ F:EASY_KNOW
 
 N:43:& Round Shield~
 G:):s
+T:5:17
 I:34:3:0
 W:3:0:50:50
 P:0:0d0:0:1d3
@@ -337,6 +357,7 @@ A:3/2
 
 N:44:& Kite Shield~
 G:):W
+T:5:18
 I:34:5:0
 W:6:0:80:200
 P:-2:0d0:0:1d6
@@ -345,6 +366,7 @@ A:6/1
 
 N:46:& Mithril Shield~
 G:):B
+T:5:19
 I:34:10:1
 W:16:0:40:10000
 P:0:0d0:0:1d7
@@ -358,6 +380,7 @@ F:IGNORE_ALL | MITHRIL | DAMAGE_SIDES
 
 N:56:& Dagger~
 G:|:w
+T:6:0
 I:23:4:0
 W:1:0:5:10
 P:0:1d5:0:0d0
@@ -367,6 +390,7 @@ F:THROWING | MORE_SPECIAL
 
 N:57:& Curved Sword~
 G:|:s
+T:6:1
 I:23:7:0
 W:2:0:40:10
 P:-1:2d5:1:0d0
@@ -378,6 +402,7 @@ D: favoured by those of cowardly heart.
 
 N:60:& Shortsword~
 G:|:w
+T:6:2
 I:23:10:0
 W:1:0:20:90
 P:0:1d7:1:0d0
@@ -386,6 +411,7 @@ A:1/1:12/1
 
 N:64:& Longsword~
 G:|:W
+T:6:3
 I:23:17:0
 W:4:0:30:300
 P:0:2d5:1:0d0
@@ -394,6 +420,7 @@ A:4/1:14/1
 
 N:67:& Bastard Sword~
 G:|:W
+T:6:7
 I:23:21:0
 W:6:0:40:350
 P:-2:3d3:1:0d0
@@ -403,6 +430,7 @@ F:HAND_AND_A_HALF
 
 N:68:& Greatsword~
 G:|:W
+T:6:5
 I:23:25:0
 W:4:0:60:775
 P:-2:3d5:1:0d0
@@ -412,6 +440,7 @@ F:TWO_HANDED
 
 N:69:& Elven Mithril Sword~
 G:|:B
+T:6:4
 I:23:28:0
 W:15:0:35:5000
 P:-1:3d4:1:0d0
@@ -421,6 +450,7 @@ F:IGNORE_ALL | MITHRIL | ACCURATE
 
 N:70:& Star-Iron Greatsword~
 G:|:B
+T:6:6
 I:23:30:0
 W:20:0:70:7000
 P:-2:3d6:1:0d0
@@ -432,6 +462,7 @@ F:IGNORE_ALL | TWO_HANDED | STAR_IRON | SHARPNESS
 
 N:71:& Spear~
 G:/:U
+T:6:9
 I:22:1:0
 W:1:0:30:36
 P:0:1d9:0:0d0
@@ -441,6 +472,7 @@ F:THROWING | HAND_AND_A_HALF | POLEARM
 
 N:72:& Great Spear~
 G:/:u
+T:6:10
 I:22:2:0
 W:4:0:60:36
 P:1:1d13:1:0d0
@@ -450,6 +482,7 @@ F:TWO_HANDED | POLEARM
 
 N:74:& Glaive~
 G:/:s
+T:6:11
 I:22:4:0
 W:8:0:70:363
 P:-1:2d9:1:0d0
@@ -459,6 +492,7 @@ F:TWO_HANDED | POLEARM
 
 N:76:& Hand Axe~
 G:/:s
+T:6:13
 I:22:11:0
 W:2:0:10:150
 P:-1:4d2:0:0d0
@@ -468,6 +502,7 @@ F:AXE | THROWING
 
 N:77:& Battle Axe~
 G:/:s
+T:6:14
 I:22:12:0
 W:4:0:45:304
 P:-3:3d4:0:0d0
@@ -477,6 +512,7 @@ F:HAND_AND_A_HALF | AXE
 
 N:81:& Great Axe~
 G:/:s
+T:6:15
 I:22:13:0
 W:8:0:80:334
 P:-4:4d4:0:0d0
@@ -489,6 +525,7 @@ F:TWO_HANDED | AXE
 
 N:86:& Quarterstaff~
 G:\:U
+T:6:8
 I:21:3:0
 W:1:0:50:200
 P:0:2d5:2:0d0
@@ -498,6 +535,7 @@ F:TWO_HANDED | ENCHANTABLE | MORE_SPECIAL
 
 N:89:& War Hammer~
 G:\:D1
+T:6:12
 I:21:8:0
 W:6:0:50:225
 P:-2:4d1:0:0d0
@@ -510,6 +548,7 @@ F:HAND_AND_A_HALF
 
 N:96:& Shovel~
 G:\:s
+T:6:16
 I:20:1:1
 W:5:0:50:10
 P:-3:2d2:0:0d0
@@ -522,6 +561,7 @@ D:It can be equipped as a weapon and allows you to dig through rubble.
 
 N:98:& Mattock~
 G:\:D
+T:6:17
 I:20:3:2
 W:10:0:100:700
 P:-5:5d2:0:0d0
@@ -537,6 +577,7 @@ D: rubble or quartz.
 
 N:100:& Helm~
 G:]:s1
+T:5:23
 I:32:5:0
 W:3:0:50:75
 P:0:0d0:-1:1d2
@@ -545,6 +586,7 @@ A:3/1
 
 N:101:& Great Helm~
 G:]:W
+T:5:24
 I:32:6:0
 W:5:0:80:200
 P:0:0d0:-2:1d3
@@ -553,6 +595,7 @@ A:5/1
 
 N:102:& Dwarf Mask~
 G:]:s
+T:5:26
 I:32:7:0
 W:10:0:80:300
 P:0:0d0:-2:1d2
@@ -563,6 +606,7 @@ D:A full faced helm, wrought in a fearsome visage.
 
 N:103:& Mithril Helm~
 G:]:B
+T:5:25
 I:32:8:0
 W:14:0:35:500
 P:0:0d0:0:1d4
@@ -572,6 +616,7 @@ F:IGNORE_ALL | MITHRIL | RES_COLD | RES_FIRE
 
 N:104:& Crown~
 G:]:y
+T:1:9
 I:33:11:0
 W:7:0:30:1000
 P:0:0d0:0:1d0
@@ -582,6 +627,7 @@ F:INSTA_ART
 
 N:106:& Cloak~
 G:(:g
+T:5:2
 I:35:1:0
 W:2:0:20:3
 P:0:0d0:1:1d0
@@ -590,6 +636,7 @@ A:2/2:10/1
 
 N:107:& Shadow Cloak~
 G:(:D
+T:5:3
 I:35:6:2
 W:12:0:10:4000
 P:0:0d0:3:1d0
@@ -599,6 +646,7 @@ F:DARKNESS | STEALTH
 
 N:108:& Wolf-Hame~
 G:(:W
+T:11:7
 I:35:20:0
 W:20:0:130:1000
 P:-3:0d0:-3:1d6
@@ -607,6 +655,7 @@ F:INSTA_ART
 
 N:109:& Bat-Fell~
 G:(:D1
+T:6:18
 I:35:21:0
 W:23:0:50:1000
 P:-1:0d0:+2:0d0
@@ -617,6 +666,7 @@ F:INSTA_ART
 
 N:110:& Shortbow~
 G:}:u
+T:5:29
 I:19:12:0
 W:1:0:15:50
 P:0:1d7:0:0d0
@@ -625,6 +675,7 @@ A:1/1:11/1
 
 N:111:& Longbow~
 G:}:U
+T:5:30
 I:19:13:0
 W:6:0:30:120
 P:0:2d4:0:0d0
@@ -635,6 +686,7 @@ A:6/3:16/3
 
 N:112:& Dragon-horn Bow~
 G:}:U1
+T:5:31
 I:19:14:0
 W:15:0:45:500
 P:0:4d2:0:0d0
@@ -646,6 +698,7 @@ F:NO_SMITHING
 
 N:116:& Arrow~
 G:-:U
+T:5:27
 I:17:1:0
 W:1:0:1:1
 P:0:0d0:0:0d0
@@ -656,6 +709,7 @@ A:2/1:6/1:11/1:17/1
 
 N:122:& Pair~ of Boots
 G:]:U
+T:5:9
 I:30:1:0
 W:1:0:20:7
 P:0:0d0:0:1d1
@@ -664,6 +718,7 @@ A:1/2:10/1
 
 N:123:& Pair~ of Greaves
 G:]:s
+T:5:10
 I:30:2:0
 W:4:0:80:19
 P:0:0d0:-1:1d2
@@ -673,6 +728,7 @@ F:IGNORE_FIRE
 
 N:124:& Pair~ of Mithril Greaves
 G:]:B
+T:5:11
 I:30:3:0
 W:14:0:40:50
 P:0:0d0:1:1d3
@@ -684,6 +740,7 @@ F:IGNORE_ALL | MITHRIL | ENCHANTABLE | STAND_FAST
 
 N:125:& Set~ of Gloves
 G:]:U
+T:5:20
 I:31:1:0
 W:1:0:5:3
 P:0:0d0:0:1d0
@@ -692,6 +749,7 @@ A:1/4:10/2
 
 N:126:& Set~ of Gauntlets
 G:]:W
+T:5:21
 I:31:2:0
 W:3:0:30:35
 P:-1:0d0:0:1d1
@@ -701,6 +759,7 @@ F:IGNORE_FIRE
 
 N:127:& Set~ of Mithril Gauntlets
 G:]:B
+T:5:22
 I:31:3:0
 W:12:0:15:100
 P:0:0d0:0:1d2
@@ -712,6 +771,7 @@ F:IGNORE_ALL | MITHRIL | ENCHANTABLE | REGEN
 
 N:128:& Wooden Torch~
 G:~:u
+T:2:30
 I:39:0:0
 W:1:0:20:2
 P:0:0d0:0:0d0:0
@@ -724,6 +784,7 @@ D: maximum of 3,000 turns of light.
 
 N:129:& Brass Lantern~
 G:~:U
+T:2:29
 I:39:1:0
 W:5:0:30:35
 P:0:0d0:0:0d0:0
@@ -739,6 +800,7 @@ D: 7,000 turns of light.
 
 N:130:& Feanorian Lamp~
 G:~:B
+T:2:31
 I:39:8:0
 W:12:0:10:1000
 P:0:0d0:0:0d0:0
@@ -751,6 +813,7 @@ D: It will shine forever.
 
 N:131:& Silmaril~
 G:*:w
+T:12:16
 I:39:9:0
 W:25:0:1:100000
 P:0:0d0:0:0d0
@@ -1412,6 +1475,7 @@ D:It reduces your grace by one point.
 
 N:372:& Small wooden chest~
 G:~:D1
+T:1:0
 I:7:1:0
 W:5:0:200:20
 P:0:0d0:0:0d0
@@ -1420,6 +1484,7 @@ A:5/4
 
 N:373:& Small steel chest~
 G:~:s
+T:1:2
 I:7:2:0
 W:12:0:250:200
 P:0:0d0:0:0d0
@@ -1429,6 +1494,7 @@ F:IGNORE_ALL
 
 N:374:& Small jewelled chest~
 G:~:v1
+T:1:4
 I:7:3:0
 W:19:0:750:250
 P:0:0d0:0:0d0
@@ -1438,6 +1504,7 @@ F:IGNORE_ALL
 
 N:375:& Large wooden chest~
 G:~:u
+T:1:1
 I:7:11:0
 W:10:0:500:60
 P:0:0d0:0:0d0
@@ -1446,6 +1513,7 @@ A:10/8
 
 N:376:& Large steel chest~
 G:~:W
+T:1:3
 I:7:12:0
 W:17:0:750:250
 P:0:0d0:0:0d0
@@ -1455,6 +1523,7 @@ F:IGNORE_ALL
 
 N:377:& Large jewelled chest~
 G:~:v
+T:1:5
 I:7:13:0
 W:24:0:750:250
 P:0:0d0:0:0d0
@@ -1464,6 +1533,7 @@ F:IGNORE_ALL
 
 N:378:& Finely wrapped present~
 G:~:r
+T:1:6
 I:7:4:0
 W:25:0:100:250
 P:0:0d0:0:0d0
@@ -1599,6 +1669,7 @@ D: about 250 turns under normal conditions.
 
 N:399:& Piece~ of Dark Bread
 G:,:s
+T:5:5
 I:80:35:1500
 W:7:0:5:2
 P:0:0d0:0:0d0
@@ -1609,6 +1680,7 @@ D:It provides nourishment for about 1,500 turns under normal conditions.
 
 N:400:& Strip~ of Dried Meat
 G:,:u
+T:5:6
 I:80:36:2000
 W:10:0:10:3
 P:0:0d0:0:0d0
@@ -1619,6 +1691,7 @@ D:It provides nourishment for about 2,000 turns under normal conditions.
 
 N:401:& Fragment~ of Lembas
 G:,:y
+T:5:7
 I:80:37:3000
 W:7:0:1:10
 P:0:0d0:0:0d0
@@ -1633,6 +1706,7 @@ D: nourishment for about 3,000 turns under normal conditions.
 
 N:402:& Flask~ of oil
 G:!:y1
+T:5:8
 I:77:0:3000
 W:7:0:10:3
 P:0:0d0:0:0d0
@@ -1644,6 +1718,7 @@ D: up to a maximum of 7,000 turns of light.
 
 N:410:& Piece~ of Mithril
 G:~:B
+T:1:21
 I:4:0:0
 W:15:5:1:100
 P:0:0d0:0:0d0
@@ -1657,6 +1732,7 @@ D: to create or alloy mithril items.
 
 N:411:& Mallorn Torch~
 G:~:U
+T:11:31
 I:39:3:0
 W:1:0:10:2
 P:0:0d0:0:0d0:0
@@ -1672,6 +1748,7 @@ D: maximum of 100 turns of light.
 
 N:420:& Rusty Helm~
 G:]:s1
+T:2:20
 I:32:1:0
 W:1:0:50:15
 P:0:0d0:-1:1d1
@@ -1680,6 +1757,7 @@ F:DAMAGED | NO_SMITHING
 
 N:421:& Pair~ of Shabby Boots
 G:]:U
+T:2:21
 I:30:4:0
 W:1:0:20:7
 P:0:0d0:-1:1d1
@@ -1688,6 +1766,7 @@ F:DAMAGED | NO_SMITHING
 
 N:422:& Broken Shield~
 G:):s
+T:11:28
 I:34:1:0
 W:1:0:50:50
 P:-1:0d0:0:1d2
@@ -1696,6 +1775,7 @@ F:DAMAGED | NO_SMITHING
 
 N:423:& Chipped Dagger~
 G:|:s
+T:6:0
 I:23:1:0
 W:1:0:5:5
 P:-1:1d4:0:0d0
@@ -1704,6 +1784,7 @@ F:DAMAGED | NO_SMITHING | THROWING | MORE_SPECIAL
 
 N:424:& Bent Shortsword~
 G:|:s
+T:6:2
 I:23:9:0
 W:1:0:20:30
 P:-1:1d6:0:0d0
@@ -1712,6 +1793,7 @@ F:DAMAGED | NO_SMITHING
 
 N:425:& Splintered Spear~
 G:/:s
+T:6:9
 I:22:3:0
 W:1:0:30:20
 P:-1:1d7:0:0d0
@@ -1720,6 +1802,7 @@ F:DAMAGED | NO_SMITHING | THROWING | HAND_AND_A_HALF | POLEARM
 
 N:426:& Warped Shortbow~
 G:}:s
+T:5:29
 I:19:11:0
 W:1:0:15:20
 P:-1:1d6:0:0d0
@@ -1728,6 +1811,7 @@ F:DAMAGED | NO_SMITHING
 
 N:427:& Torn Cloak~
 G:(:s
+T:5:2
 I:35:0:0
 W:1:0:20:1
 P:0:0d0:0:1d0
@@ -1736,6 +1820,7 @@ F:DAMAGED | NO_SMITHING
 
 N:428:& Set~ of Cracked Gauntlets
 G:]:s
+T:5:21
 I:31:4:0
 W:1:0:30:10
 P:-2:0d0:-1:1d0
@@ -1744,6 +1829,7 @@ F:DAMAGED | NO_SMITHING | IGNORE_FIRE
 
 N:429:& Pair~ of Dented Greaves
 G:]:s
+T:5:10
 I:30:5:0
 W:2:0:80:5
 P:0:0d0:-2:1d1
@@ -1752,6 +1838,7 @@ F:DAMAGED | NO_SMITHING | IGNORE_FIRE
 
 N:430:& Dented Mail Corslet~
 G:[:s
+T:5:15
 I:37:3:0
 W:3:0:270:200
 P:-2:0d0:-4:2d3
@@ -1760,6 +1847,7 @@ F:DAMAGED | NO_SMITHING
 
 N:451:& Note~
 G:~:W1
+T:0:31
 I:2:1:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -1778,6 +1866,7 @@ D: (You may need to press Numlock if your keypad doesn't work).
 
 N:452:& Note~
 G:~:W1
+T:0:31
 I:2:2:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -1795,6 +1884,7 @@ D: use the / key instead.)
 
 N:453:& Note~
 G:~:W1
+T:0:31
 I:2:3:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -1809,6 +1899,7 @@ D: press (d).
 
 N:454:& Note~
 G:~:W1
+T:0:31
 I:2:4:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -1821,6 +1912,7 @@ D: by pressing (i).
 
 N:455:& Note~
 G:~:W1
+T:0:31
 I:2:5:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -1836,6 +1928,7 @@ D: You can also press (e) to view equipment.
 
 N:456:& Note~
 G:~:W1
+T:0:31
 I:2:6:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -1850,6 +1943,7 @@ D: If things start going badly, you can always retreat.
 
 N:457:& Note~
 G:~:W1
+T:0:31
 I:2:7:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -1863,6 +1957,7 @@ D: help you explore the rich tactical combat system in Sil.
 
 N:458:& Note~
 G:~:W1
+T:0:31
 I:2:8:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -1877,6 +1972,7 @@ D: (z) or (5). This might be useful after that fight.
 
 N:459:& Note~
 G:~:W1
+T:0:31
 I:2:9:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -1888,6 +1984,7 @@ D: using (f). Try this in the next room.
 
 N:460:& Note~
 G:~:W1
+T:0:31
 I:2:10:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -1900,6 +1997,7 @@ D: run around corners in corridors. Try it.
 
 N:461:& Note~
 G:~:W1
+T:0:31
 I:2:11:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -1911,6 +2009,7 @@ D: is a major theme in Sil.
 
 N:462:& Note~
 G:~:W1
+T:0:31
 I:2:12:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -1929,6 +2028,7 @@ D: try wielding it (u).
 
 N:463:& Note~
 G:~:W1
+T:0:31
 I:2:13:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -1946,6 +2046,7 @@ D: Which pieces of equipment are best will depend on the circumstances.
 
 N:464:& Note~
 G:~:W1
+T:0:31
 I:2:14:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -1958,6 +2059,7 @@ D: extra die of damage against orcs, making its 1d7 into 2d7: a large bonus.
 
 N:465:& Note~
 G:~:W1
+T:0:31
 I:2:15:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -1973,6 +2075,7 @@ D: use the / key instead.)
 
 N:466:& Note~
 G:~:W1
+T:0:31
 I:2:16:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -1985,6 +2088,7 @@ D: representing the average for the humans of this age (the Edain).
 
 N:467:& Note~
 G:~:W1
+T:0:31
 I:2:17:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -2001,6 +2105,7 @@ D: left of the screen too. Try switching weapons to see what happens.
 
 N:468:& Note~
 G:~:W1
+T:0:31
 I:2:18:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -2013,6 +2118,7 @@ D: get better at avoiding their attacks or absorbing the damage with armour.
 
 N:469:& Note~
 G:~:W1
+T:0:31
 I:2:19:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -2024,6 +2130,7 @@ D: Evasion, and Stealth.
 
 N:470:& Note~
 G:~:W1
+T:0:31
 I:2:20:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -2036,6 +2143,7 @@ D: a measure of how long you can keep singing a song of power.
 
 N:471:& Note~
 G:~:W1
+T:0:31
 I:2:21:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -2050,6 +2158,7 @@ D: key.
 
 N:472:& Note~
 G:~:W1
+T:0:31
 I:2:22:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -2062,6 +2171,7 @@ D: your Skills via the character sheet, but don't do so right now.
 
 N:473:& Note~
 G:~:W1
+T:0:31
 I:2:23:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -2072,6 +2182,7 @@ D: To find out, press (l), which allows you to look at objects.
 
 N:474:& Note~
 G:~:W1
+T:0:31
 I:2:24:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -2082,6 +2193,7 @@ D: what it does. You can find out more by pressing (x) to examine it.
 
 N:475:& Note~
 G:~:W1
+T:0:31
 I:2:25:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -2092,6 +2204,7 @@ D: You can see a list of all the key commands by pressing (?).
 
 N:476:& Note~
 G:~:W1
+T:0:31
 I:2:26:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -2107,6 +2220,7 @@ D: secret door to the south between the first room and this room.
 
 N:477:& Note~
 G:~:W1
+T:0:31
 I:2:27:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -2116,6 +2230,7 @@ D:To use the staircase, type (,) when standing on it.
 
 N:478:& Note~
 G:~:W1
+T:0:31
 I:2:28:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -2133,6 +2248,7 @@ D: careful.
 
 N:479:& Note~
 G:~:W1
+T:0:31
 I:2:29:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -2151,6 +2267,7 @@ D: involved in combat.
 
 N:480:& Note~
 G:~:W1
+T:0:31
 I:2:30:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -2163,6 +2280,7 @@ D: Orc soldiers. If not, don't despair -- stealth is not always easy.
 
 N:481:& Note~
 G:~:W1
+T:0:31
 I:2:31:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -2178,6 +2296,7 @@ D: main menu).
 
 N:482:& Note~
 G:~:W1
+T:0:31
 I:2:32:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -2192,6 +2311,7 @@ D: when you venture down into the depths, or you could become trapped.
 
 N:483:& Note~
 G:~:W1
+T:0:31
 I:2:33:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -2207,6 +2327,7 @@ D: singing.
 
 N:484:& Note~
 G:~:W1
+T:0:31
 I:2:34:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -2219,6 +2340,7 @@ D: This will help protect you from enemies that have fiery attacks.
 
 N:485:& Note~
 G:~:W1
+T:0:31
 I:2:35:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -2227,6 +2349,7 @@ D:When you have learnt about Song and Smithing, go through this door.
 
 N:486:& Note~
 G:~:W1
+T:0:31
 I:2:36:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -2237,6 +2360,7 @@ D: an Ability for the Smithing skill.
 
 N:487:& Note~
 G:~:W1
+T:0:31
 I:2:37:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -2252,6 +2376,7 @@ D: you have on Skills or Abilities.
 
 N:488:& Note~
 G:~:W1
+T:0:31
 I:2:38:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -2265,6 +2390,7 @@ D: challenge and reach the staircase, using it by pressing (,).
 
 N:489:& Note~
 G:~:W1
+T:0:31
 I:2:39:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -2274,6 +2400,7 @@ D:39.
 
 N:490:& Note~
 G:~:W1
+T:0:31
 I:2:40:0
 W:0:1:1:0
 P:0:0d0:0:0d0
@@ -2289,6 +2416,7 @@ D:40.
 
 N:491:& Piece~ of Star Iron
 G:~:B
+T:19:5
 I:4:1:0
 W:20:5:1:120
 P:0:0d0:0:0d0

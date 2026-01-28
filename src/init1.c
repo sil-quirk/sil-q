@@ -60,6 +60,36 @@ header rt_head;       /* the one and only definition */
 /*** Helper arrays for parsing ascii template files ***/
 
 /*
+ * Parse tile coordinates from "T:<row>:<col>" format
+ * Sets x_attr and x_char with TILE_FLAG (0x80) set
+ * Returns 0 on success, PARSE_ERROR_GENERIC on failure
+ */
+static errr parse_tile_line(const char* buf, byte* x_attr, char* x_char)
+{
+    int row, col;
+
+    /* Must start with "T:" */
+    if (buf[0] != 'T' || buf[1] != ':')
+        return PARSE_ERROR_GENERIC;
+
+    /* Parse row and column as decimal */
+    if (2 != sscanf(buf + 2, "%d:%d", &row, &col))
+        return PARSE_ERROR_GENERIC;
+
+    /* Validate range (0-63 for 6-bit index) */
+    if (row < 0 || row > 63)
+        return PARSE_ERROR_GENERIC;
+    if (col < 0 || col > 63)
+        return PARSE_ERROR_GENERIC;
+
+    /* Set values with TILE_FLAG (0x80) */
+    *x_attr = (byte)(0x80 | row);
+    *x_char = (char)(0x80 | col);
+
+    return 0;
+}
+
+/*
  * Monster Blow Methods
  */
 static cptr r_info_blow_method[]
@@ -1995,6 +2025,17 @@ errr parse_f_info(char* buf, header* head)
         f_ptr->d_char = d_char;
     }
 
+    /* Process 'T' for "Tile" graphics (one line only) */
+    else if (buf[0] == 'T')
+    {
+        /* There better be a current f_ptr */
+        if (!f_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Parse and set tile coordinates */
+        return parse_tile_line(buf, &f_ptr->x_attr, &f_ptr->x_char);
+    }
+
     else
     {
         /* Oops */
@@ -2371,6 +2412,17 @@ errr parse_k_info(char* buf, header* head)
         /* Save the values */
         k_ptr->d_attr = d_attr;
         k_ptr->d_char = d_char;
+    }
+
+    /* Process 'T' for "Tile" graphics (one line only) */
+    else if (buf[0] == 'T')
+    {
+        /* There better be a current k_ptr */
+        if (!k_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Parse and set tile coordinates */
+        return parse_tile_line(buf, &k_ptr->x_attr, &k_ptr->x_char);
     }
 
     /* Process 'I' for "Info" (one line only) */
@@ -4173,6 +4225,17 @@ errr parse_r_info(char* buf, header* head)
         /* Save the values */
         r_ptr->d_attr = d_attr;
         r_ptr->d_char = d_char;
+    }
+
+    /* Process 'T' for "Tile" graphics (one line only) */
+    else if (buf[0] == 'T')
+    {
+        /* There better be a current r_ptr */
+        if (!r_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Parse and set tile coordinates */
+        return parse_tile_line(buf, &r_ptr->x_attr, &r_ptr->x_char);
     }
 
     /* Process 'I' for "Info" (one line only) */
@@ -6014,6 +6077,17 @@ errr parse_flavor_info(char* buf, header* head)
         flavor_ptr->d_char = d_char;
     }
 
+    /* Process 'T' for "Tile" graphics (one line only) */
+    else if (buf[0] == 'T')
+    {
+        /* There better be a current flavor_ptr */
+        if (!flavor_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Parse and set tile coordinates */
+        return parse_tile_line(buf, &flavor_ptr->x_attr, &flavor_ptr->x_char);
+    }
+
     /* Process 'D' for "Description" */
     else if (buf[0] == 'D')
     {
@@ -6030,6 +6104,85 @@ errr parse_flavor_info(char* buf, header* head)
         /* Store the text */
         if (!add_text(&flavor_ptr->text, head, buf + 2))
             return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+
+    else
+    {
+        /* Oops */
+        return (PARSE_ERROR_UNDEFINED_DIRECTIVE);
+    }
+
+    /* Success */
+    return (0);
+}
+
+/*
+ * Initialize the "effect" arrays (misc_to_attr, misc_to_char),
+ * by parsing an ascii "template" file
+ */
+errr parse_effect_info(char* buf, header* head)
+{
+    int i;
+    char* s;
+
+    /* Current entry index */
+    static int effect_idx = -1;
+
+    /* Hack - Unused parameter */
+    (void)head;
+
+    /* Process 'V' for "Version" */
+    if (buf[0] == 'V')
+    {
+        return (0);
+    }
+
+    /* Process 'N' for "New/Number/Name" */
+    if (buf[0] == 'N')
+    {
+        /* Find the colon before the name */
+        s = strchr(buf + 2, ':');
+
+        /* Verify that colon */
+        if (!s)
+            return (PARSE_ERROR_GENERIC);
+
+        /* Nuke the colon, advance to the name */
+        *s++ = '\0';
+
+        /* Get the index */
+        i = atoi(buf + 2);
+
+        /* Verify information */
+        if (i < 0 || i >= 256)
+            return (PARSE_ERROR_GENERIC);
+
+        /* Save the index */
+        effect_idx = i;
+    }
+
+    /* Process 'T' for "Tile" graphics */
+    else if (buf[0] == 'T')
+    {
+        int row, col;
+
+        /* Must have a valid effect index */
+        if (effect_idx < 0)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Parse row and column */
+        if (2 != sscanf(buf + 2, "%d:%d", &row, &col))
+            return (PARSE_ERROR_GENERIC);
+
+        /* Validate range (0-63 for 6-bit index) */
+        if (row < 0 || row > 63)
+            return (PARSE_ERROR_GENERIC);
+        if (col < 0 || col > 63)
+            return (PARSE_ERROR_GENERIC);
+
+        /* Store in global arrays with TILE_FLAG (0x80) */
+        misc_to_attr[effect_idx] = (byte)(0x80 | row);
+        misc_to_char[effect_idx] = (char)(0x80 | col);
     }
 
     else

@@ -1676,6 +1676,33 @@ static errr init_flavor_info(void)
 }
 
 /*
+ * Initialize the special effect graphics (misc_to_attr, misc_to_char)
+ */
+static header effect_head;
+
+static errr init_effect_info(void)
+{
+    errr err;
+
+    /* Init the header - we use 256 as max since misc_to_attr/char are 256 elements */
+    /* info_size is 1 byte since we don't actually allocate a structure array */
+    init_header(&effect_head, 256, 1);
+
+#ifdef ALLOW_TEMPLATES
+
+    /* Save a pointer to the parsing function */
+    effect_head.parse_info_txt = parse_effect_info;
+
+#endif /* ALLOW_TEMPLATES */
+
+    err = init_info("effect", &effect_head);
+
+    /* No global variables to set - parse_effect_info populates misc_to_attr/char directly */
+
+    return (err);
+}
+
+/*
  * Initialize skeleton note templates
  */
 static errr init_skeleton_note_info(void)
@@ -1942,6 +1969,8 @@ extern void re_init_some_things(void)
         quit("Cannot initialize objects");
     if (init_flavor_info())
         quit("Cannot initialize flavors");
+    if (init_effect_info())
+        quit("Cannot initialize effects");
     if (init_skeleton_note_info())
         quit("Cannot initialize skeleton notes");
     if (init_e_info())
@@ -2636,6 +2665,11 @@ void init_angband(void)
     note("[Initializing arrays... (flavors)]");
     if (init_flavor_info())
         quit("Cannot initialize flavors");
+
+    /* Initialize special effect graphics */
+    note("[Initializing arrays... (effects)]");
+    if (init_effect_info())
+        quit("Cannot initialize effects");
 
     /* Initialize skeleton note templates */
     note("[Initializing arrays... (skeleton notes)]");

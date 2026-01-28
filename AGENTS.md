@@ -80,6 +80,7 @@ These templates drive gameplay content (monsters, vaults, objects, terrain, ques
 - Metaruns: `src/metarun.c` and metarun cleanup in `src/files.c`.
 - Score/DB layer: `src/score/` (see `docs/score_system_overhaul.md`).
 - Drop system: `src/drop_system.c` caches to `ANGBAND_DIR_DATA/drops.raw` and regenerates when relevant edit files change.
+  - **Smithing Difficulty Sync**: Changes to the difficulty calculation algorithm in `src/drop_system.c` MUST be synchronized with `scripts/calc_artefact_difficulty.py`. Both files implement the same `object_difficulty()` logic. When updating penalty flags, bonuses, or multipliers, update both files identically to keep the analysis tool in sync with the engine.
 - Combat history viewer: `src/melee1.c:do_cmd_combat_history()` (hooked from `src/cmd4.c`).
 - Unified look: `src/cmd3.c:do_cmd_unified_look()` and sidebar in `src/cmd4.c:show_unified_sidebar()`.
 

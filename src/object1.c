@@ -404,9 +404,12 @@ void reset_visuals(bool unused)
     {
         feature_type* f_ptr = &f_info[i];
 
-        /* Assume we will use the underlying values */
-        f_ptr->x_attr = f_ptr->d_attr;
-        f_ptr->x_char = f_ptr->d_char;
+        /* Only reset if no tile was specified in data file (T: line) */
+        if (!(f_ptr->x_attr & 0x80))
+        {
+            f_ptr->x_attr = f_ptr->d_attr;
+            f_ptr->x_char = f_ptr->d_char;
+        }
     }
 
     /* Extract default attr/char code for objects */
@@ -414,9 +417,12 @@ void reset_visuals(bool unused)
     {
         object_kind* k_ptr = &k_info[i];
 
-        /* Default attr/char */
-        k_ptr->x_attr = k_ptr->d_attr;
-        k_ptr->x_char = k_ptr->d_char;
+        /* Only reset if no tile was specified in data file (T: line) */
+        if (!(k_ptr->x_attr & 0x80))
+        {
+            k_ptr->x_attr = k_ptr->d_attr;
+            k_ptr->x_char = k_ptr->d_char;
+        }
     }
 
     /* Extract default attr/char code for monsters */
@@ -424,9 +430,12 @@ void reset_visuals(bool unused)
     {
         monster_race* r_ptr = &r_info[i];
 
-        /* Default attr/char */
-        r_ptr->x_attr = r_ptr->d_attr;
-        r_ptr->x_char = r_ptr->d_char;
+        /* Only reset if no tile was specified in data file (T: line) */
+        if (!(r_ptr->x_attr & 0x80))
+        {
+            r_ptr->x_attr = r_ptr->d_attr;
+            r_ptr->x_char = r_ptr->d_char;
+        }
     }
 
     /* Extract default attr/char code for flavors */
@@ -434,9 +443,12 @@ void reset_visuals(bool unused)
     {
         flavor_type* flavor_ptr = &flavor_info[i];
 
-        /* Default attr/char */
-        flavor_ptr->x_attr = flavor_ptr->d_attr;
-        flavor_ptr->x_char = flavor_ptr->d_char;
+        /* Only reset if no tile was specified in data file (T: line) */
+        if (!(flavor_ptr->x_attr & 0x80))
+        {
+            flavor_ptr->x_attr = flavor_ptr->d_attr;
+            flavor_ptr->x_char = flavor_ptr->d_char;
+        }
     }
 
     /* Extract attr/chars for inventory objects (by tval) */

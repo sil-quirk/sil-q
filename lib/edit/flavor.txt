@@ -10,6 +10,7 @@
 #
 # N: index : tval : sval
 # G: char : attr
+# T: tile row : tile column
 # D: text
 #
 # 'N' is for the serial number (which must increase for each
@@ -17,6 +18,9 @@
 #     sval (the subtype). (See object.txt)
 #
 # 'G' is for the graphics. (See object.txt)
+#
+# 'T' is for tile graphics - the row and column in the tileset atlas.
+#     Values are decimal 0-63. Used for graphical mode display.
 #
 # 'D' is for the name/description.
 
@@ -32,86 +36,107 @@ V:0.9.5
 # Fixed: The Ring of Barahir
 N:1:45:32
 G:=:g1
+T:6:20
 D:Serpentine
 
 N:2:45
 G:=:v1
+T:2:0
 D:Amethyst
 
 N:3:45
 G:=:G1
+T:2:1
 D:Beryl
 
 N:4:45
 G:=:r1
+T:2:2
 D:Bloodstone
 
 N:5:45
 G:=:w
+T:2:3
 D:Adamant
 
 N:6:45
 G:=:g
+T:2:4
 D:Emerald
 
 N:7:45
 G:=:r
+T:2:5
 D:Garnet
 
 N:8:45
 G:=:G
+T:2:6
 D:Jade
 
 N:9:45
 G:=:w
+T:2:7
 D:Marble
 
 N:10:45
 G:=:W
+T:2:8
 D:Moonstone
 
 N:11:45
 G:=:D
+T:2:9
 D:Onyx
 
 N:12:45
 G:=:W
+T:2:10
 D:Chalcedony
 
 N:13:45
 G:=:r1
+T:2:11
 D:Ruby
 
 N:14:45
 G:=:b
+T:2:12
 D:Sapphire
 
 N:15:45
 G:=:y
+T:2:13
 D:Topaz
 
 N:16:45
 G:=:b1
+T:2:14
 D:Turquoise
 
 N:17:45
 G:=:U
+T:2:15
 D:Bronze
 
 N:18:45
 G:=:y1
+T:2:16
 D:Golden
 
 N:19:45
 G:=:W
+T:2:17
 D:Silver
 
 N:20:45
 G:=:D
+T:2:18
 D:Jet
 
 N:21:45
 G:=:w
+T:2:19
 D:Pearl
 
 #N:20:45
@@ -125,64 +150,79 @@ D:Pearl
 # Fixed: The Pearl 'Nimphelos'
 N:41:40:13
 G:":w
+T:4:2
 D:Pearl
 
 # Fixed: The Jewel 'Elessar'
 N:42:40:16
 G:":g
+T:4:11
 D:Emerald
 
 # Fixed: The Necklace of the Dwarves
 N:43:40:12
 G:":y
+T:4:12
 D:Jewelled
 
 N:44:40
 G:":y
+T:4:9
 D:Amber
 
 N:45:40
 G:":U1
+T:4:14
 D:Driftwood
 
 N:46:40
 G:":o
+T:4:0
 D:Coral
 
 N:47:40
 G:":w
+T:4:4
 D:Ivory
 
 N:48:40
 G:":D
+T:4:5
 D:Obsidian
 
 N:49:40
 G:":U
+T:4:1
 D:Bronze
 
 N:50:40
 G:":y
+T:4:7
 D:Golden
 
 N:51:40
 G:":B
+T:4:13
 D:Crystal
 
 N:52:40
 G:":W
+T:4:3
 D:Silver
 
 N:53:40
 G:":W
+T:4:8
 D:Dragon Tooth
 
 N:54:40
 G:":r
+T:4:6
 D:Ruby
 
 N:55:40
 G:":B1
+T:4:10
 D:Sea Shell
 
 #N:56:40
@@ -194,188 +234,233 @@ D:Sea Shell
 
 N:68:55
 G:_:U
+T:4:15
 D:Aspen
 
 N:69:55
 G:_:w
+T:4:16
 D:Birch
 
 N:70:55
 G:_:D
+T:4:17
 D:Ebony
 
 N:71:55
 G:_:U1
+T:4:18
 D:Elm
 
 N:72:55
 G:_:u
+T:4:19
 D:Mahogany
 
 N:73:55
 G:_:U
+T:4:20
 D:Maple
 
 N:74:55
 G:_:D1
+T:4:21
 D:Oak
 
 N:75:55
 G:_:r
+T:4:22
 D:Rosewood
 
 N:76:55
 G:_:U1
+T:4:23
 D:Walnut
 
 N:77:55
 G:_:W
+T:4:24
 D:Silver
 
 N:78:55
 G:_:u
+T:4:25
 D:Runed
 
 N:79:55
 G:_:y
+T:4:26
 D:Golden
 
 N:80:55
 G:_:s
+T:4:27
 D:Ashen
 
 N:81:55
 G:_:U1
+T:4:28
 D:Gnarled
 
 N:82:55
 G:_:w
+T:4:29
 D:Ivory
 
 N:83:55
 G:_:U
+T:4:30
 D:Willow
 
 N:84:55
 G:_:u
+T:4:31
 D:Yew
 
 N:85:55
 G:_:U
+T:5:0
 D:Beech
 
 N:86:55
 G:_:u1
+T:5:1
 D:Twisted
 
 ##### Gems #####
 
 N:87:56
 G:*:W
+T:19:4
 D:Diamond
 
 N:88:56
 G:*:r
+T:1:22
 D:Ruby
 
 N:89:56
 G:*:b
+T:1:23
 D:Sapphire
 
 N:90:56
 G:*:g
+T:1:24
 D:Emerald
 
 N:91:56
 G:*:y
+T:1:25
 D:Topaz
 
 N:92:56
 G:*:v
+T:1:26
 D:Amethyst
 
 N:93:56
 G:*:o
+T:1:27
 D:Opal
 
 N:94:56
 G:*:U
+T:1:28
 D:Amber
 
 N:95:56
 G:*:w
+T:1:29
 D:Pearl
 
 N:96:56
 G:*:u
+T:1:30
 D:Garnet
 
 N:97:56
 G:*:G
+T:1:31
 D:Jade
 
 ##### Horns #####
 
 N:101:66
 G:?:W
+T:2:22
 D:Silver
 
 N:102:66
 G:?:U
+T:2:23
 D:Brazen
 
 N:103:66
 G:?:w
+T:2:24
 D:Ivory
 
 N:104:66
 G:?:W1
+T:2:25
 D:Tapered
 
 N:105:66
 G:?:U1
+T:2:26
 D:Engraved
 
 ##### Herbs #####
 
 N:121:80
 G:,:D
+T:1:10
 D:Black
 
 N:122:80
 G:,:g
+T:1:11
 D:Dark Green
 
 N:123:80
 G:,:y
+T:1:12
 D:Yellow
 
 N:124:80
 G:,:W
+T:1:13
 D:Grey
 
 N:125:80
 G:,:G
+T:1:14
 D:Pale Green
 
 N:126:80
 G:,:r
+T:1:16
 D:Russet
 
 N:127:80
 G:,:s
+T:1:15
 D:Thorny
 
 N:128:80
 G:,:U
+T:1:17
 D:Mottled
 
 N:129:80
 G:,:u
+T:1:18
 D:Wrinkled
 
 N:130:80
 G:,:w
+T:1:19
 D:Pale
 
 #N:131:80
@@ -384,42 +469,52 @@ D:Pale
 
 N:141:81
 G:,:r1
+T:1:23
 D:Bright Red
 
 N:142:81
 G:,:G
+T:1:24
 D:Bright Green
 
 N:143:81
 G:,:y1
+T:1:25
 D:Golden
 
 N:144:81
 G:,:B
+T:1:26
 D:Sky Blue
 
 N:145:81
 G:,:U
+T:1:27
 D:Copper
 
 N:146:81
 G:,:r
+T:1:28
 D:Ruby
 
 N:147:81
 G:,:v
+T:1:29
 D:Pink
 
 N:148:81
 G:,:o
+T:1:30
 D:Orange
 
 N:149:81
 G:,:v1
+T:1:31
 D:Violet
 
 N:150:81
 G:,:b1
+T:1:9
 D:Bright Blue
 
 
@@ -432,115 +527,143 @@ D:Bright Blue
 # Fixed: miruvor
 N:193:75:0
 G:!:W
+T:3:0
 D:Clear
 
 # Fixed: orcish liquor
 N:195:75:2
 G:!:u
+T:3:1
 D:Murky Brown
 
 # Fixed: Esgalduin
 N:196:75:3
 G:!:W1
+T:3:2
 D:Limpid
 
 N:197:75
 G:!:b
+T:3:3
 D:Dark Blue
 
 N:198:75
 G:!:b1
+T:3:4
 D:Brilliant Blue
 
 N:199:75
 G:!:D
+T:3:5
 D:Black
 
 N:200:75
 G:!:u
+T:3:6
 D:Brown
 
 N:201:75
 G:!:W
+T:3:7
 D:Sparkling
 
 N:202:75
 G:!:w
+T:3:8
 D:Milky White
 
 N:203:75
 G:!:U
+T:3:9
 D:Copper Speckled
 
 N:204:75
 G:!:r
+T:3:10
 D:Crimson
 
 N:205:75
 G:!:g
+T:3:11
 D:Green
 
 N:206:75
 G:!:g
+T:3:12
 D:Dark Green
 
 N:207:75
 G:!:s
+T:3:13
 D:Grey
 
 N:208:75
 G:!:G
+T:3:14
 D:Emerald
 
 N:209:75
 G:!:o
+T:3:15
 D:Bright Orange
 
 N:210:75
 G:!:G
+T:3:16
 D:Pale Green
 
 N:211:75
 G:!:s
+T:3:17
 D:Smoky
 
 N:212:75
 G:!:D
+T:3:18
 D:Dark
 
 N:213:75
 G:!:v1
+T:3:19
 D:Violet
 
 N:214:75
 G:!:r
+T:3:20
 D:Vermilion
 
 N:215:75
 G:!:y
+T:3:21
 D:Yellow
 
 N:216:75
 G:!:B
+T:3:22
 D:Sky Blue
 
 N:217:75
 G:!:v
+T:3:23
 D:Shimmering
 
 N:218:75
 G:!:w
+T:3:24
 D:Cloudy
 
 N:219:75
 G:!:y
+T:3:24
 D:Golden
 
 N:220:75
 G:!:b
+T:3:26
 D:Sparkling Blue
 
 N:221:75
 G:!:B
+T:3:27
 D:Azure
 

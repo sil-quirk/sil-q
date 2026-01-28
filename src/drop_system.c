@@ -959,30 +959,39 @@ static int smithing_difficulty_baseline(const object_type* o_ptr)
     if (f2 & TR2_RES_HALLU)
         dif_inc += 1;
 
-    /* Penalties (only for non-artefact) */
-    if (!o_ptr->name1)
-    {
-        if (f2 & TR2_DANGER)
-            dif_dec += 5;
-        if (f2 & TR2_DARKNESS)
-            dif_dec += 3;
-        if (f2 & TR2_AGGRAVATE)
-            dif_dec += 3;
-        if (f2 & TR2_HAUNTED)
-            dif_dec += 5;
-        if (f2 & TR2_VUL_COLD)
-            dif_dec += 4;
-        if (f2 & TR2_VUL_FIRE)
-            dif_dec += 4;
-        if (f2 & TR2_VUL_POIS)
-            dif_dec += 4;
-        if (f3 & TR2_TRAITOR)
-            dif_dec += 2;
-        if (f3 & TR3_LIGHT_CURSE)
-            dif_dec += 2;
-        if (f3 & TR3_CUMBERSOME)
-            dif_dec += 3;
-    }
+    /* Penalty flags - now apply to all items including artefacts */
+    if (f2 & TR2_DANGER)
+        dif_dec += 5;
+    if (f2 & TR2_DARKNESS)
+        dif_dec += 2;  /* Changed from 3 to match Python */
+    if (f2 & TR2_AGGRAVATE)
+        dif_dec += 3;
+    if (f2 & TR2_HAUNTED)
+        dif_dec += 5;
+    if (f2 & TR2_VUL_COLD)
+        dif_dec += 4;
+    if (f2 & TR2_VUL_FIRE)
+        dif_dec += 4;
+    if (f2 & TR2_VUL_POIS)
+        dif_dec += 4;
+    if (f3 & TR2_TRAITOR)
+        dif_dec += 2;
+    if (f3 & TR3_CUMBERSOME)
+        dif_dec += 3;
+    if (f2 & TR2_SLOWNESS)
+        dif_dec += 15;
+    if (f2 & TR2_HUNGER)
+        dif_dec += 3;
+    if (f2 & TR2_FEAR)
+        dif_dec += 5;
+
+    /* Curse penalties */
+    if (f3 & TR3_LIGHT_CURSE)
+        dif_dec += 3;
+    if (f3 & TR3_HEAVY_CURSE)
+        dif_dec += 4;
+    if (f3 & TR3_PERMA_CURSE)
+        dif_dec += 8;
 
     /* Abilities */
     for (int i = 0; i < o_ptr->abilities; i++)

@@ -141,6 +141,8 @@ def parse_artefact_file(filepath):
     """Parse artefact.txt and return list of artefact data."""
     artefacts = []
     current = None
+    sval_order = {}  # Track the order (tval, sval) pairs appear in the file
+    order_counter = 0
     
     with open(filepath, 'r', encoding='utf-8') as f:
         for line in f:
@@ -184,6 +186,11 @@ def parse_artefact_file(filepath):
                 current['sval'] = int(parts[1])
                 if len(parts) > 2:
                     current['pval'] = int(parts[2])
+                # Track the order this (tval, sval) appears
+                key = (current['tval'], current['sval'])
+                if key not in sval_order:
+                    sval_order[key] = order_counter
+                    order_counter += 1
 
             # Depth/rarity/weight/cost info (W:depth:rarity:weight:cost)
             elif line.startswith('W:') and current:
@@ -249,7 +256,7 @@ def parse_artefact_file(filepath):
     if current:
         artefacts.append(current)
     
-    return artefacts
+    return artefacts, sval_order
 
 
 def parse_special_file(filepath):
@@ -672,43 +679,42 @@ def calculate_difficulty(art):
     if 'RES_HALLU' in flags:
         dif_inc += 1
     
-    # === PENALTY FLAGS (reduce difficulty for non-artefacts, but artefacts don't benefit) ===
-    # For artefacts, these penalties are NOT applied per the code:
-    # if (!o_ptr->name1) { ... penalty flags ... }
-    # So we skip dif_dec for artefacts
-    if art['type'] != 'artefact':
-        if 'DANGER' in flags:
-            dif_dec += 5
-        if 'DARKNESS' in flags:
-            dif_dec += 2  # Changed from 3
-        if 'AGGRAVATE' in flags:
-            dif_dec += 3
-        if 'HAUNTED' in flags:
-            dif_dec += 5
-        if 'VUL_COLD' in flags:
-            dif_dec += 4
-        if 'VUL_FIRE' in flags:
-            dif_dec += 4
-        if 'VUL_POIS' in flags:
-            dif_dec += 4
-        if 'TRAITOR' in flags:
-            dif_dec += 2
-        if 'LIGHT_CURSE' in flags:
-            dif_dec += 2
-        if 'CUMBERSOME' in flags:
-            dif_dec += 3
-        if 'UNLIGHT' in flags:
-            dif_dec += 5  # Worse than DARKNESS - pure negative, no light bonus
-        if 'SLOWNESS' in flags:
-            dif_dec += 15
-        if 'HUNGER' in flags:
-            dif_dec += 3
-        if 'FEAR' in flags:  # Not RES_FEAR!
-            dif_dec += 5
-        if 'HEAVY_CURSE' in flags:
-            dif_dec += 4
-        if 'PERMA_CURSE' in flags:
-            dif_dec += 6
+    # === PENALTY FLAGS ===
+    # All penalty flags now apply to all items including artefacts
+    if 'DANGER' in flags:
+        dif_dec += 5
+    if 'DARKNESS' in flags:
+        dif_dec += 2  # Changed from 3
+    if 'AGGRAVATE' in flags:
+        dif_dec += 3
+    if 'HAUNTED' in flags:
+        dif_dec += 5
+    if 'VUL_COLD' in flags:
+        dif_dec += 4
+    if 'VUL_FIRE' in flags:
+        dif_dec += 4
+    if 'VUL_POIS' in flags:
+        dif_dec += 4
+    if 'TRAITOR' in flags:
+        dif_dec += 2
+    if 'CUMBERSOME' in flags:
+        dif_dec += 3
+    if 'UNLIGHT' in flags:
+        dif_dec += 5  # Worse than DARKNESS - pure negative, no light bonus
+    if 'SLOWNESS' in flags:
+        dif_dec += 15
+    if 'HUNGER' in flags:
+        dif_dec += 3
+    if 'FEAR' in flags:  # Not RES_FEAR!
+        dif_dec += 5
+    
+    # Curse penalties
+    if 'LIGHT_CURSE' in flags:
+        dif_dec += 3
+    if 'HEAVY_CURSE' in flags:
+        dif_dec += 4
+    if 'PERMA_CURSE' in flags:
+        dif_dec += 8
 
     # === ABILITIES (granted abilities) ===
     # dif_inc += 5 + (level / 3) per ability
@@ -1685,7 +1691,7 @@ def main():
         parse_ability_file(ability_file)
         print(f"Loaded {len(ABILITY_LEVELS)} ability levels from ability.txt")
 
-    artefacts = parse_artefact_file(artefact_file)
+    artefacts, sval_order = parse_artefact_file(artefact_file)
     specials_raw = parse_special_file(special_file) if special_file else []
     objects = parse_object_file(object_file) if object_file else []
 
@@ -1694,8 +1700,11 @@ def main():
         populate_objects_dict(objects)
         print(f"Loaded {len(OBJECTS_BY_TYPE)} base item types for weight lookup")
 
-    # Filter out "Ultimate" template artefacts (idx 182-198)
-    artefacts = [a for a in artefacts if not (a['name'].startswith("'Ultimate") and a['idx'] >= 182)]
+    # Filter out "Ultimate" template artefacts (idx 182-198) and Morgoth Crown (idx 175-178)
+    artefacts = [a for a in artefacts if not (
+        (a['name'].startswith("'Ultimate") and a['idx'] >= 182) or
+        a['idx'] in [175, 176, 177, 178]  # Morgoth Crown variants (with 0, 1, 2, 3 Silmarils)
+    )]
     
     # Generate all normal item variants (including rings/amulets)
     print(f"Generating normal item variants from {len(objects)} base items...")
@@ -1849,12 +1858,23 @@ def main():
     
     by_type = {}
     for art in artefacts:
+        key = (art['tval'], art['sval'])
         tval_name = get_tval_name(art['tval'])
         if tval_name not in by_type:
             by_type[tval_name] = []
         by_type[tval_name].append(art)
     
-    for tval_name in sorted(by_type.keys()):
+    # Sort by the order (tval, sval) first appeared in artefact.txt
+    # Get the minimum sval_order for each tval group
+    def get_tval_order(tval_name_key):
+        arts = by_type[tval_name_key]
+        if arts:
+            # Find the first appearance order of this tval
+            min_order = min(sval_order.get((art['tval'], art['sval']), float('inf')) for art in arts)
+            return min_order
+        return float('inf')
+    
+    for tval_name in sorted(by_type.keys(), key=get_tval_order):
         arts = sorted(by_type[tval_name], key=lambda x: x['difficulty'], reverse=True)
         avg_diff = sum(a['difficulty'] for a in arts) / len(arts)
         print(f"\n{tval_name} ({len(arts)} artefacts, avg diff: {avg_diff:.1f}):")

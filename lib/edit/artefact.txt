@@ -222,7 +222,7 @@ D: Above all else, she is famed for her insight.
 
 N:3:of Tinfang Gelion
 Q:561368162725be61
-I:30:10:4
+I:40:10:4
 W:12:20:1:5000
 P:0:0d0:0:0d0
 F:SONG
@@ -242,7 +242,7 @@ I:40:13:1
 W:12:20:1:5000
 P:0:0d0:0:0d0
 F:GRA | SUST_GRA | DEX | SUST_DEX
-M:SONG:3
+M:SONG:2
 F:INSTA_ART
 D:The greatest pearl from the Bay of Balar, its sheen was as starlight on the
 D: foam of the sea.  It was given to the chieftain of the Dwarves of Belegost
@@ -274,7 +274,7 @@ Q:aa0b792d54a72992
 I:40:12:2
 W:16:30:1:10000
 P:0:0d0:0:0d0
-F:GRA | FREE_ACT
+F:GRA
 M:DEX:1 
 F:INSTA_ART
 D:The Nauglamir; a carcanet of gold set with a multitude of shining gems
@@ -323,7 +323,7 @@ I:33:11:2
 W:20:20:35:300000
 P:0:0d0:0:1d1
 F:WILL | RES_FIRE | SEE_INVIS | LIGHT | SMITHING
-F:AGGRAVATE | INSTA_ART
+F:AGGRAVATE | INSTA_ART | PERMA_CURSE
 B:6/3:6/6
 D:The crown of Feanor, greatest of the Noldor. It is beautifully wrought
 D: with many shining jewels of Valinor, whose light is a challenge to those born

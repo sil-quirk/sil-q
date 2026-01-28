@@ -12,6 +12,7 @@
 # N: serial number : monster name
 # W: depth : rarity
 # G: symbol : color
+# T: tile row : tile column
 # I: speed : health : mana : light radius
 # A: sleepiness : perception : stealth : will
 # P: [evasion bonus, protection dice]
@@ -39,6 +40,10 @@
 #     Note that black is the same color as the screen background, and
 #     thus the monster will appear to be an empty black space if its
 #     color is d.
+#
+# 'T' is for tile graphics - the row and column in the tileset atlas.
+#     Values are decimal 0-63. Used for graphical mode display.
+#     If omitted, graphics mode uses the G: line ASCII character/color.
 #
 # 'I' is for information - speed, health, light radius in squares.
 #
@@ -296,37 +301,44 @@ V:0.9.5
 N:0:<player>
 Q:1aead53eb5309c89
 G:@:w
+T:13:0
 
 # Fingolfinrim
 N:1:<player>
 Q:79f0650ce08019e5
 G:@:w
+T:13:0
 
 # Finarfinrim
 N:2:<player>
 Q:cea57c1120996aff
 G:@:w
+T:13:0
 
 # Sindar
 N:3:<player>
 Q:cf01ee14a5d9b415
 G:@:w
+T:13:16
 
 # Naugrim
 N:4:<player>
 Q:52720c1b72cb58a3
 G:@:w
+T:14:0
 
 # Edain
 N:5:<player>
 Q:52f4c98622df395d
 G:@:w
+T:14:16
 
 # Niena quest giver - Mercy quest on maximum-size levels
 N:6:Niena, Lady of Pity
 Q:75d9fddef3d141f6
 W:6:1
 G:V:v
+T:11:8
 I:2:26d4:0:0
 A:0:0:0:19
 P:[+0]
@@ -348,6 +360,7 @@ N:11:Wolf
 Q:d589b743f32151d3
 W:1:1
 G:C:u
+T:8:17
 I:3:6d4:0
 A:20:2:3:1
 P:[+1,1d4]
@@ -360,6 +373,7 @@ N:12:Tanglethorn
 Q:7b4df3bcb689c212
 W:1:1
 G:&:s
+T:6:29
 I:2:4d4:0
 A:0:0:0:0
 P:[-5,1d4]
@@ -374,6 +388,7 @@ N:13:Dejected human thrall
 Q:cbb819a9cb63bbba
 W:1:0
 G:@:g
+T:8:1
 I:2:8d4:0
 A:60:1:0:1
 P:[+0]
@@ -386,6 +401,7 @@ N:14:Dejected elven thrall
 Q:9829bd03cfda98e7
 W:1:0
 G:@:g
+T:8:2
 I:2:10d4:0
 A:60:1:0:2
 P:[+0]
@@ -398,6 +414,7 @@ N:15:Orc thrallmaster
 Q:05f49e29acf49a93
 W:1:0
 G:o:g
+T:8:0
 I:2:6d4:0
 A:0:5:4:2
 P:[+8,1d4]
@@ -414,6 +431,7 @@ N:16:Alert human thrall
 Q:e3686753f2daff39
 W:1:0
 G:@:G
+T:12:26
 I:2:8d4:0
 A:0:10:0:1
 P:[+0]
@@ -426,6 +444,7 @@ N:17:Alert elven thrall
 Q:d69f1ff7b5fb7cba
 W:1:0
 G:@:G
+T:12:27
 I:2:10d4:0
 A:0:10:0:2
 P:[+0]
@@ -438,6 +457,7 @@ N:18:Tulkas Unclad
 Q:69835ccc69aa243a
 W:30:200
 G:V:v
+T:21:0
 I:2:20d4:0
 A:0:0:0:15
 P:[+0]
@@ -451,6 +471,7 @@ N:19:Aule the Smith
 Q:d27e36edf5c2f432
 W:30:200
 G:V:u
+T:10:19
 I:2:24d4:0
 A:0:0:0:18
 P:[+0]
@@ -464,6 +485,7 @@ N:20:Mandos the Doomsman
 Q:f134bcd795c27d4f
 W:30:200
 G:V:D
+T:10:19
 I:2:28d4:0
 A:0:0:0:20
 P:[+0]
@@ -478,6 +500,7 @@ N:21:Orc skirmisher
 Q:aebc036dc91edf62
 W:2:1
 G:o:u
+T:7:27
 I:2:7d4:0
 A:15:1:1:1
 P:[+3,1d4]
@@ -493,6 +516,7 @@ N:22:Grimhawk
 Q:e05375fdc831beaa
 W:2:2
 G:b:u
+T:6:26
 I:4:1d4:0
 A:5:4:4:1
 P:[+7]
@@ -505,6 +529,7 @@ N:23:Mewlip
 Q:315d21268dcdd817
 W:2:1
 G:H:u
+T:8:11
 I:3:5d4:0
 A:5:1:3:1
 P:[+1,2d4]
@@ -523,6 +548,7 @@ N:31:Orc scout
 Q:3db7e18811837249
 W:3:1
 G:o:D
+T:7:25
 I:2:6d4:0
 A:15:4:5:1
 P:[+4,1d4]
@@ -542,6 +568,7 @@ N:32:Spider hatchling
 Q:ddbfaed0110335da
 W:3:2
 G:m:U
+T:7:1
 I:2:1d4:0
 A:20:1:8:2
 P:[+5]
@@ -556,6 +583,7 @@ N:33:Blue serpent
 Q:857b7d44bce3788d
 W:3:2
 G:s:b
+T:8:24
 I:2:2d4:0
 A:15:1:3:1
 P:[+3,4d4]
@@ -574,6 +602,7 @@ N:41:Orc soldier
 Q:b7a6509ba8b8b7e9
 W:4:1
 G:o:s
+T:7:29
 I:2:8d4:0
 A:15:1:1:2
 P:[+3,2d4]
@@ -590,6 +619,7 @@ N:42:Madthorn
 Q:21ab339e3dd1af9d
 W:4:1
 G:&:y
+T:6:30
 I:2:8d4:0
 A:0:0:0:4
 P:[-5,2d4]
@@ -605,6 +635,7 @@ N:43:Gorcrow
 Q:913ee5f18d8f3786
 W:4:2
 G:b:D
+T:6:27
 I:4:1d4:0
 A:15:2:3:1
 P:[+9]
@@ -618,6 +649,7 @@ N:44:Brood spider
 Q:940b46dbe98fba40
 W:4:3
 G:M:U
+T:7:2
 I:1:14d4:0
 A:10:5:2:2
 P:[+6]
@@ -636,6 +668,7 @@ N:51:Orc archer
 Q:12288708ac66ebf8
 W:5:3
 G:o:U
+T:7:26
 I:2:7d4:0
 A:15:1:3:3
 P:[+4,1d4]
@@ -653,6 +686,7 @@ N:52:White wolf
 Q:d880813f941186df
 W:5:1
 G:C:w
+T:8:18
 I:3:8d4:0
 A:20:3:3:1
 P:[+6,1d4]
@@ -665,6 +699,7 @@ N:53:Red serpent
 Q:4aa1413e91b55a04
 W:5:2
 G:s:r
+T:8:25
 I:2:2d4:0
 A:15:1:3:2
 P:[+5,4d4]
@@ -681,6 +716,7 @@ N:54:Gorgol, the Butcher
 Q:333546bf2a893575
 W:5:10
 G:o:G
+T:8:3
 I:2:14d4:0
 A:15:2:1:6
 P:[+4,3d4]
@@ -700,6 +736,7 @@ N:61:Orc warrior
 Q:ef3c140d0bce7a2b
 W:6:1
 G:o:W
+T:7:28
 I:2:9d4:0
 A:15:2:1:4
 P:[+5,2d4]
@@ -716,6 +753,7 @@ N:62:Sword spider
 Q:48b96d75487ee896
 W:6:2
 G:M:s
+T:7:3
 I:3:12d4:0
 A:15:1:2:3
 P:[+7,1d4]
@@ -729,6 +767,7 @@ N:63:Crebain
 Q:3d83c70cae11e8a1
 W:6:2
 G:b:s
+T:6:28
 I:4:1d4:0
 A:15:6:4:2
 P:[+11]
@@ -743,6 +782,7 @@ N:64:Phantom
 Q:dc3a9fec7f8b557a
 W:6:3
 G:w:s
+T:7:24
 I:1:2d4:0
 A:0:8:3:8
 P:[+5]
@@ -763,6 +803,7 @@ N:71:Attercop
 Q:8087b3f084f094c2
 W:7:1
 G:m:D
+T:7:8
 I:3:3d4:0
 A:10:2:10:3
 P:[+10,1d4]
@@ -777,6 +818,7 @@ N:72:Nightthorn
 Q:7783062d13500802
 W:7:1
 G:&:D
+T:6:31
 I:2:8d4:-2
 A:0:0:0:5
 P:[-5,2d4]
@@ -790,6 +832,7 @@ N:73:Green serpent
 Q:77d0502d2be65e2d
 W:7:2
 G:s:g
+T:8:26
 I:2:2d4:0
 A:10:2:3:2
 P:[+7,4d4]
@@ -805,6 +848,7 @@ N:74:Mountain troll
 Q:949bb8a5ee1ce58f
 W:7:1
 G:T:W
+T:9:13
 I:2:14d4:0
 A:15:1:0:2
 P:[+3,2d4]
@@ -819,6 +863,7 @@ N:75:Tattered wight
 Q:8632cc4215700e14
 W:7:2
 G:W:D1
+T:7:11
 I:1:4d4:0
 A:10:6:5:5
 P:[+5,3d4]
@@ -837,6 +882,7 @@ N:76:Boldog, the Merciless
 Q:d41e3b6bfafb596f
 W:7:20
 G:o:y
+T:8:4
 I:2:15d4:0
 A:15:4:1:6
 P:[+6,3d4]
@@ -861,6 +907,7 @@ N:81:Orc champion
 Q:88ef7547642967b2
 W:8:2
 G:o:b
+T:7:30
 I:2:11d4:0
 A:15:3:1:5
 P:[+5,3d4]
@@ -876,6 +923,7 @@ N:82:Easterling warrior
 Q:0e401610ae33a21f
 W:8:2
 G:@:W
+T:9:6
 I:2:10d4:1
 A:15:3:1:7
 P:[+5,3d4]
@@ -894,6 +942,7 @@ N:83:Hummerhorn
 Q:b1f2cd42cff835c8
 W:8:3
 G:I:y
+T:8:9
 I:4:2d4:0
 A:5:3:1:5
 P:[+14]
@@ -906,6 +955,7 @@ N:84:Balcmeg, the Relentless
 Q:bf68d49c92c9d98c
 W:8:20
 G:o:o
+T:8:5
 I:2:17d4:0
 A:15:3:1:9
 P:[+6,5d4]
@@ -921,6 +971,7 @@ N:85:Lug, the Grotesque
 Q:f30bbaa9d32572af
 W:8:20
 G:o:v
+T:8:6
 I:2:10d4:0
 A:15:5:1:5
 P:[+17,2d4]
@@ -941,6 +992,7 @@ N:91:Orc captain
 Q:2c739cdb1be99f2c
 W:9:3
 G:o:r
+T:7:31
 I:2:10d4:0
 A:15:4:1:6
 P:[+7,3d4]
@@ -957,6 +1009,7 @@ N:92:Warg
 Q:03bc4a090682d59e
 W:9:1
 G:C:s
+T:8:19
 I:3:10d4:0
 A:20:6:4:6
 P:[+10,1d4]
@@ -969,6 +1022,7 @@ N:93:Grave wight
 Q:0b47bc4372b11e08
 W:9:2
 G:W:U
+T:7:12
 I:2:4d4:0
 A:10:6:5:6
 P:[+7,3d4]
@@ -987,6 +1041,7 @@ N:94:Dark serpent
 Q:6f0eb2fb7f702de2
 W:9:2
 G:s:v1
+T:8:27
 I:2:2d4:0
 A:10:4:3:3
 P:[+9,4d4]
@@ -1002,6 +1057,7 @@ N:95:Orcobal, Champion of the Orcs
 Q:8a1995b8587aa0a2
 W:9:15
 G:o:B
+T:8:7
 I:2:17d4:0
 A:15:5:1:8
 P:[+8,3d4]
@@ -1021,6 +1077,7 @@ N:101:Whispering shadow
 Q:ccff426ff2ef0318
 W:10:1
 G:w:D
+T:7:21
 I:1:6d4:-1
 A:10:3:5:5
 P:[+5]
@@ -1037,6 +1094,7 @@ N:102:Distended spider
 Q:3e116a9ee6cfa9d7
 W:10:1
 G:M:u
+T:7:4
 I:2:20d4:0
 A:15:4:3:5
 P:[+7]
@@ -1049,6 +1107,7 @@ N:103:Easterling archer
 Q:7ed54d5976d25b3e
 W:10:3
 G:@:u
+T:9:7
 I:2:9d4:1
 A:15:4:3:7
 P:[+9,2d4]
@@ -1068,6 +1127,7 @@ N:104:Twisted bat
 Q:594347e07e1d29ca
 W:10:4
 G:b:r
+T:7:14
 I:4:2d4:0
 A:15:7:4:4
 P:[+17,1d4]
@@ -1082,6 +1142,7 @@ N:105:Othrod, the Orc Lord
 Q:78d6c2d78e85ea3d
 W:10:10
 G:o:R
+T:8:8
 I:2:18d4:0
 A:15:6:1:9
 P:[+11,4d4]
@@ -1106,6 +1167,7 @@ N:111:Snow troll
 Q:cb874b1cadd2c23b
 W:11:1
 G:T:w
+T:9:12
 I:2:16d4:0
 A:15:2:0:3
 P:[+7,2d4]
@@ -1124,6 +1186,7 @@ N:112:Barrow wight
 Q:c92f7e02e189e1bd
 W:11:100
 G:W:W
+T:7:13
 I:2:4d4:0
 A:10:7:5:8
 P:[+8,3d4]
@@ -1142,6 +1205,7 @@ N:113:Lurking horror
 Q:d2d2f0b7edcf4cf6
 W:11:5
 G:H:D
+T:8:12
 I:2:10d4:-2
 A:1:7:3:9
 P:[+11,1d4]
@@ -1157,6 +1221,7 @@ N:114:Giant
 Q:a6ab3acc59fc624a
 W:11:1
 G:G:U
+T:9:18
 I:2:30d4:2
 A:15:1:0:7
 P:[+5,1d4]
@@ -1173,6 +1238,7 @@ N:115:Uldor, the Accursed
 Q:e7c39145ef0dc35d
 W:11:10
 G:@:U1
+T:9:9
 I:2:14d4:1
 A:15:6:1:11
 P:[+13,3d4]
@@ -1192,6 +1258,7 @@ N:117:Brodda, the Easterling Lord
 Q:ed37fc4fce32643f
 W:11:100
 G:W:R
+T:7:19
 I:2:8d4:0
 A:10:12:5:14
 P:[+8,3d4]
@@ -1218,6 +1285,7 @@ N:121:Easterling spy
 Q:4acd2c9fcc5cd6e5
 W:12:3
 G:@:D
+T:9:8
 I:2:8d4:1
 A:5:12:15:8
 P:[+13,1d4]
@@ -1237,6 +1305,7 @@ N:122:Shadow bat
 Q:49c20a164b23e753
 W:12:4
 G:b:D1
+T:8:10
 I:4:2d4:-2
 A:15:10:4:7
 P:[+19,1d4]
@@ -1249,6 +1318,7 @@ N:123:Sulrauko
 Q:1c6330b77b8028c2
 W:12:2
 G:R:W
+T:10:4
 I:2:5d4:0
 A:10:7:5:10
 P:[+14,2d4]
@@ -1263,6 +1333,7 @@ N:124:Fire-drake hatchling
 Q:d633995ddac90132
 W:12:6
 G:d:R
+T:9:26
 I:2:10d4:0
 A:30:5:2:9
 P:[+11,1d4]
@@ -1280,6 +1351,7 @@ N:125:Ulfang the Black
 Q:66eda88da3bb69b9
 W:12:10
 G:@:s
+T:9:10
 I:2:18d4:1
 A:15:6:1:11
 P:[+13,4d4]
@@ -1301,6 +1373,7 @@ N:126:Duruin, Least of the Balrogs
 Q:9c44dec3f9d6d14c
 W:12:30
 G:R:o
+T:10:10
 I:2:32d4:-3
 A:5:7:1:12
 P:[+13,4d4]
@@ -1326,6 +1399,7 @@ N:131:Werewolf
 Q:6853902a5ac58c5e
 W:13:1
 G:C:U
+T:8:20
 I:3:12d4:0
 A:15:9:7:9
 P:[+14,2d4]
@@ -1341,6 +1415,7 @@ N:132:Shadow spider
 Q:d5e4892102e9b48a
 W:13:1
 G:M:D
+T:7:5
 I:3:14d4:-2
 A:15:6:3:8
 P:[+10,1d4]
@@ -1354,6 +1429,7 @@ N:133:Shadow
 Q:6c92b6a7a9e4a63e
 W:13:3
 G:W:d
+T:7:23
 I:2:3d4:0
 A:0:6:10:8
 P:[+13,3d4]
@@ -1369,6 +1445,7 @@ N:134:Sapphire serpent
 Q:3ac6d80740b499ee
 W:13:3
 G:s:B
+T:8:28
 I:2:8d4:0
 A:15:6:3:6
 P:[+9,5d4]
@@ -1385,6 +1462,7 @@ N:135:Gilim, the Giant of Eruman
 Q:57efe839cfc78085
 W:13:10
 G:G:w
+T:9:19
 I:2:40d4:2
 A:15:5:0:10
 P:[+9,1d4]
@@ -1408,6 +1486,7 @@ N:141:Ruby serpent
 Q:dbd1952f883c9d41
 W:14:3
 G:s:R
+T:8:29
 I:2:8d4:0
 A:15:6:3:7
 P:[+10,5d4]
@@ -1424,6 +1503,7 @@ N:142:Creeping horror
 Q:54981cf971e538fc
 W:14:4
 G:H:g
+T:8:13
 I:1:14d4:-2
 A:10:8:5:11
 P:[+13,2d4]
@@ -1439,6 +1519,7 @@ N:143:Ringrauko
 Q:0d9a80e3fa33a2f2
 W:14:1
 G:R:B
+T:10:5
 I:2:10d4:0
 A:10:6:3:12
 P:[+14,2d4]
@@ -1455,6 +1536,7 @@ N:145:Delthaur, Balrog of Terror
 Q:04a01f92e1cf1e4c
 W:14:20
 G:R:g
+T:10:11
 I:2:36d4:-3
 A:5:7:1:14
 P:[+15,4d4]
@@ -1476,6 +1558,7 @@ N:146:Nan, the Giant
 Q:3de81cfd79cf3740
 W:14:30
 G:G:G
+T:9:20
 I:2:45d4:2
 A:15:5:0:11
 P:[+11,1d4]
@@ -1497,6 +1580,7 @@ N:151:Cave troll
 Q:53efd5c081c139df
 W:15:1
 G:T:u
+T:9:14
 I:2:18d4:0
 A:15:4:0:4
 P:[+11,2d4]
@@ -1513,6 +1597,7 @@ N:152:Emerald serpent
 Q:faca1dc7148f7d0b
 W:15:3
 G:s:G
+T:8:30
 I:2:8d4:0
 A:15:7:3:9
 P:[+11,5d4]
@@ -1530,6 +1615,7 @@ N:153:Oathwraith
 Q:f119b039c564429b
 W:15:6
 G:W:D
+T:7:20
 I:2:12d4:0
 A:10:11:10:10
 P:[+14,3d4]
@@ -1550,6 +1636,7 @@ N:154:Cat warrior
 Q:3c10b33361f6f136
 W:15:1
 G:f:U
+T:9:21
 I:3:8d4:0
 A:20:10:10:5
 P:[+15,1d4]
@@ -1570,6 +1657,7 @@ N:161:Amethyst serpent
 Q:15602c41302cc72c
 W:16:3
 G:s:v
+T:8:31
 I:2:8d4:-2
 A:15:7:3:9
 P:[+12,5d4]
@@ -1586,6 +1674,7 @@ N:162:Kemenrauko
 Q:6d237eb553034a0a
 W:16:2
 G:R:s
+T:10:6
 I:2:10d4:0
 A:10:6:0:14
 P:[+12,4d4]
@@ -1601,6 +1690,7 @@ N:163:Grotesque
 Q:41cd00dfc66f5220
 W:16:5
 G:H:W
+T:6:25
 I:4:10d4:0
 A:0:10:10:10
 P:[-5,8d4]
@@ -1624,6 +1714,7 @@ N:164:Young cold-drake
 Q:2f6ec4ab45007365
 W:16:6
 G:d:w
+T:9:29
 I:2:30d4:0
 A:30:8:2:13
 P:[+11,2d4]
@@ -1643,6 +1734,7 @@ N:165:Umuiyan, the Doorkeeper
 Q:8a374a2b19facb77
 W:16:15
 G:f:y
+T:9:23
 I:3:14d4:0
 A:20:13:10:8
 P:[+20,1d4]
@@ -1661,6 +1753,7 @@ N:166:Belegwath, Balrog of Shadow
 Q:bba0d000d9578563
 W:16:20
 G:R:v
+T:10:12
 I:2:36d4:-6
 A:5:9:1:15
 P:[+19,4d4]
@@ -1680,6 +1773,7 @@ N:167:Spectre
 Q:689e64a1f84df282
 W:16:6
 G:w:w
+T:7:22
 I:2:8d4:0
 A:10:12:8:12
 P:[+10]
@@ -1701,6 +1795,7 @@ N:171:Spider of Gorgoroth
 Q:bb6a0afb90bf789d
 W:17:1
 G:M:r
+T:7:6
 I:2:18d4:-1
 A:15:8:3:11
 P:[+14,1d4]
@@ -1717,6 +1812,7 @@ N:172:Greater werewolf
 Q:18a465a8fded0273
 W:17:1
 G:C:D1
+T:8:21
 I:3:14d4:0
 A:15:11:5:10
 P:[+18,2d4]
@@ -1731,6 +1827,7 @@ N:173:Adamant serpent
 Q:90409048a6b0dee0
 W:17:3
 G:s:w
+T:9:0
 I:2:8d4:0
 A:15:8:3:9
 P:[+13,5d4]
@@ -1747,6 +1844,7 @@ N:174:Lesser vampire
 Q:41d90b9e0df3798c
 W:17:1
 G:v:s
+T:7:15
 I:3:8d4:0
 A:20:9:7:11
 P:[+21,1d4]
@@ -1765,6 +1863,7 @@ N:175:Cat assassin
 Q:9a6fbc6e7b46f502
 W:17:3
 G:f:D
+T:9:22
 I:3:8d4:0
 A:5:12:15:5
 P:[+19,1d4]
@@ -1781,6 +1880,7 @@ N:176:Scatha the Worm
 Q:25d89441afca341a
 W:17:30
 G:d:B
+T:9:31
 I:2:38d4:0
 A:30:9:2:20
 P:[+14,2d4]
@@ -1802,6 +1902,7 @@ N:177:Oikeroi, Guard of Tevildo
 Q:dd75751a350323a0
 W:17:15
 G:f:o
+T:9:24
 I:3:20d4:0
 A:15:13:10:9
 P:[+21,1d4]
@@ -1821,6 +1922,7 @@ N:181:Young fire-drake
 Q:0af151dfe09fe455
 W:18:6
 G:d:r
+T:9:27
 I:2:30d4:0
 A:30:9:2:16
 P:[+13,2d4]
@@ -1844,6 +1946,7 @@ N:182:Darting horror
 Q:2d4cdde8b5b64d56
 W:18:5
 G:H:r
+T:8:14
 I:4:6d4:0
 A:10:14:3:14
 P:[+20,2d4]
@@ -1861,6 +1964,7 @@ N:183:Wraith
 Q:6607c32f97be3bc2
 W:18:4
 G:W:s
+T:7:10
 I:2:14d4:0
 A:10:15:15:15
 P:[+13,4d4]
@@ -1879,6 +1983,7 @@ N:184:Ururauko
 Q:0a03a1d09883f949
 W:18:1
 G:R:R
+T:10:7
 I:2:4d4:3
 A:10:8:2:14
 P:[+15,2d4]
@@ -1897,6 +2002,7 @@ N:185:Tevildo, Prince of Cats
 Q:fad36da2cdb9a6ef
 W:18:10
 G:f:u
+T:9:25
 I:3:16d4:0
 A:15:14:10:10
 P:[+24,1d4]
@@ -1915,6 +2021,7 @@ N:186:Turkano, Balrog of the Hosts
 Q:5dbb205e018a3e6a
 W:18:20
 G:R:b
+T:10:13
 I:2:44d4:-3
 A:5:9:1:19
 P:[+19,5d4]
@@ -1940,6 +2047,7 @@ N:191:Ancient sapphire serpent
 Q:a38ae09ae4e13831
 W:19:6
 G:S:B
+T:9:1
 I:2:10d4:0
 A:15:8:2:10
 P:[+15,6d4]
@@ -1958,6 +2066,7 @@ N:192:Troll guard
 Q:b39a82dfdc1c5ef9
 W:19:1
 G:T:s
+T:9:15
 I:2:20d4:0
 A:15:5:0:5
 P:[+14,3d4]
@@ -1975,6 +2084,7 @@ N:193:Vampire
 Q:a6dd7747bfd8b38d
 W:19:1
 G:v:W
+T:7:16
 I:3:10d4:0
 A:20:11:7:13
 P:[+24,1d4]
@@ -1989,6 +2099,7 @@ N:194:Nameless thing
 Q:ac318c9b872cf01b
 W:19:1
 G:N:s
+T:8:16
 I:1:70d4:0
 A:5:5:0:14
 P:[+7,6d4]
@@ -2004,6 +2115,7 @@ N:195:Smaug the Golden
 Q:0eb5a6c19e20c8c4
 W:19:30
 G:d:y1
+T:10:0
 I:3:35d4:0
 A:30:9:2:19
 P:[+16,2d4]
@@ -2024,6 +2136,7 @@ N:196:Maeglin, Betrayer of Gondolin
 Q:707ee98ab7f93af6
 W:19:100
 G:@:D1
+T:9:11
 I:2:18d4:2
 A:15:15:5:18
 P:[+23,5d4]
@@ -2048,6 +2161,7 @@ N:201:Ancient ruby serpent
 Q:662810867056dc21
 W:20:3
 G:S:R
+T:9:2
 I:2:10d4:0
 A:15:8:2:12
 P:[+16,6d4]
@@ -2065,6 +2179,7 @@ N:202:Great cold-drake
 Q:2c31b6feba73a132
 W:20:6
 G:D:W
+T:9:30
 I:2:50d4:0
 A:30:9:0:18
 P:[+13,2d4]
@@ -2085,6 +2200,7 @@ N:203:Silent watcher
 Q:c790972955718680
 W:20:10
 G:H:s
+T:6:24
 I:2:10d4:0
 A:5:0:20:15
 P:[-5,8d4]
@@ -2108,6 +2224,7 @@ N:204:Gwathrauko
 Q:7aea95599424e3b6
 W:20:4
 G:R:D
+T:10:8
 I:2:8d4:-3
 A:10:8:5:16
 P:[+18,3d4]
@@ -2122,6 +2239,7 @@ N:205:Draugluin, Sire of Werewolves
 Q:fc2ac65daee47c7a
 W:20:15
 G:C:W
+T:8:22
 I:3:25d4:0
 A:20:17:5:15
 P:[+24,3d4]
@@ -2141,6 +2259,7 @@ N:206:Vallach, Balrog of Sudden Flame
 Q:f960b4324c03fa54
 W:20:20
 G:R:y
+T:10:14
 I:3:44d4:-3
 A:5:12:1:19
 P:[+21,5d4]
@@ -2163,6 +2282,7 @@ N:211:Ancient spider
 Q:ccaa5a00f768feca
 W:21:3
 G:M:g
+T:7:7
 I:2:20d4:0
 A:15:8:3:16
 P:[+19,1d4]
@@ -2177,6 +2297,7 @@ N:212:Ancient emerald serpent
 Q:24762f636f8568b1
 W:21:3
 G:S:G
+T:9:3
 I:2:10d4:0
 A:15:9:2:13
 P:[+17,6d4]
@@ -2193,6 +2314,7 @@ N:213:Vampire lord
 Q:356607a1d590333b
 W:21:2
 G:v:v1
+T:7:17
 I:3:12d4:0
 A:20:11:7:15
 P:[+26,1d4]
@@ -2209,6 +2331,7 @@ N:214:Dagorhir, the Elfbane
 Q:5ebdcd9da7ef3d73
 W:21:15
 G:T:r
+T:9:16
 I:2:35d4:0
 A:15:6:0:10
 P:[+17,6d4]
@@ -2225,6 +2348,7 @@ N:215:Gostir, the Dread Glance
 Q:85e8d31f214e8586
 W:21:30
 G:D:B
+T:10:1
 I:2:60d4:0
 A:30:13:0:22
 P:[+17,3d4]
@@ -2246,6 +2370,7 @@ N:221:Ancient amethyst serpent
 Q:b4202acc055a8b04
 W:22:3
 G:S:v
+T:9:4
 I:2:10d4:-3
 A:15:10:2:14
 P:[+18,6d4]
@@ -2262,6 +2387,7 @@ N:222:Great fire-drake
 Q:0f141e8db8cbc8f6
 W:22:6
 G:D:r
+T:9:28
 I:2:50d4:0
 A:30:12:0:20
 P:[+14,2d4]
@@ -2282,6 +2408,7 @@ N:223:Hithrauko
 Q:2f73bb8e0f78b92e
 W:22:2
 G:R:B1
+T:10:9
 I:3:4d4:0
 A:10:9:3:18
 P:[+17,4d4]
@@ -2298,6 +2425,7 @@ N:224:Shelob, Spider of Darkness
 Q:5fb5b208d8946775
 W:22:30
 G:M:D1
+T:7:9
 I:2:25d4:-4
 A:20:8:3:16
 P:[+20,2d4]
@@ -2316,6 +2444,7 @@ N:225:Lungorthin, Lord of Balrogs
 Q:dd9a5db3ba5bb028
 W:22:20
 G:R:w
+T:10:15
 I:2:52d4:-3
 A:5:14:1:21
 P:[+23,5d4]
@@ -2340,6 +2469,7 @@ N:231:Ancient adamant serpent
 Q:a0102bf9689a132a
 W:23:3
 G:S:w
+T:9:5
 I:2:10d4:0
 A:15:10:2:14
 P:[+19,6d4]
@@ -2356,6 +2486,7 @@ N:232:Unrelenting horror
 Q:5244d72f7ce563a7
 W:23:2
 G:H:G1
+T:8:15
 I:1:100d4:0
 A:5:10:2:20
 P:[+11,3d4]
@@ -2374,6 +2505,7 @@ N:233:Ancalagon the Black
 Q:4da7998251196a35
 W:23:6
 G:d:D
+T:10:2
 I:3:40d4:0
 A:30:11:2:22
 P:[+17,2d4]
@@ -2396,6 +2528,7 @@ N:234:Thuringwethil, the Vampire Messenger
 Q:de682ee6b4e6d275
 W:23:3
 G:v:r
+T:7:18
 I:4:18d4:0
 A:10:15:7:20
 P:[+30,1d4]
@@ -2419,6 +2552,7 @@ N:241:Gothmog, High Captain of Balrogs
 Q:0e0f11695f8a443d
 W:24:3
 G:R:r
+T:10:16
 I:2:56d4:-3
 A:5:15:1:22
 P:[+25,7d4]
@@ -2442,6 +2576,7 @@ N:242:Ungoliant, the Gloomweaver
 Q:c2485b83ba33934d
 W:24:3
 G:M:D
+T:7:0
 I:2:40d4:-7
 A:20:8:3:24
 P:[+20,3d4]
@@ -2464,6 +2599,7 @@ N:243:Glaurung, the Deceiver
 Q:3ab7e216cb871fec
 W:24:3
 G:D:y1
+T:10:3
 I:2:60d4:0
 A:20:10:0:26
 P:[+16,2d4]
@@ -2488,6 +2624,7 @@ N:244:Gorthaur, Servant of Morgoth
 Q:7b038638b2981d20
 W:24:3
 G:C:u
+T:10:17
 I:3:30d4:0
 A:10:20:5:24
 P:[+31,3d4]
@@ -2525,6 +2662,7 @@ N:251:Morgoth, Lord of Darkness
 Q:58d8cf770bfcbe6f
 W:25:1
 G:V:D
+T:10:18
 I:2:160d4:7
 A:10:10:0:25
 P:[+20,5d4]
@@ -2558,6 +2696,7 @@ N:253:Carcharoth, the Jaws of Thirst
 Q:9cbdbb88fd4f59dc
 W:25:1
 G:C:r
+T:8:23
 I:4:35d4:0
 A:20:20:5:20
 P:[+30,2d4]
@@ -2606,6 +2745,7 @@ N:301:Feanor, High King of the Noldor
 Q:41c24a29269bd07d
 W:30:5
 G:@:b1
+T:10:19
 F:UNIQUE | MALE
 
 
@@ -2613,6 +2753,7 @@ N:302:Luthien Tinuviel
 Q:3ee15c4b2037e8bd
 W:30:5
 G:@:b
+T:11:8
 F:UNIQUE | FEMALE
 
 
@@ -2620,6 +2761,7 @@ N:303:Thingol, the Hidden King
 Q:9d35e7d65960ccc7
 W:30:5
 G:@:s
+T:10:19
 F:UNIQUE | MALE
 
 
@@ -2627,6 +2769,7 @@ N:304:Beren, Son of Barahir
 Q:f7585bb1d0a074c4
 W:30:5
 G:@:u
+T:10:19
 F:UNIQUE | MALE
 
 
@@ -2634,6 +2777,7 @@ N:305:Huan, Hound of Valinor
 Q:e33f8bcec5f30a15
 W:30:5
 G:C:y1
+T:11:12
 F:UNIQUE | MALE
 
 
@@ -2641,12 +2785,14 @@ N:306:Eagle of Manwe
 Q:eb1533adca491b39
 W:30:5
 G:b:y
+T:11:11
 
 
 N:307:Thorondor, King of Eagles
 Q:a30cb352d12ee09c
 W:30:10
 G:b:w
+T:11:11
 F:UNIQUE | MALE
 
 
@@ -2654,6 +2800,7 @@ N:308:Ent
 Q:3bb69eec340f762b
 W:30:10
 G:T:g
+T:11:9
 F:MALE
 
 
@@ -2661,6 +2808,7 @@ N:309:Ent-wife
 Q:76a1761f194b3173
 W:30:10
 G:T:g
+T:11:10
 F:FEMALE
 
 
@@ -2668,6 +2816,7 @@ N:320:Manwe, Lord of the Breath of Arda
 Q:fc2a4a94f736d78d
 W:30:10
 G:V:v
+T:10:19
 F:UNIQUE | MALE
 
 
@@ -2675,6 +2824,7 @@ N:321:Varda, Lady of the Stars
 Q:ec9302c493986510
 W:30:10
 G:V:w
+T:11:8
 I:2:26d4:0
 A:0:0:0:19
 P:[+0]
@@ -2686,6 +2836,7 @@ N:322:Ulmo, Lord of Waters
 Q:045023249116633b
 W:30:20
 G:V:b
+T:10:19
 I:2:28d4:0
 A:0:0:0:20
 P:[+0]
@@ -2696,6 +2847,7 @@ N:323:Aule, the Smith
 Q:f9f0cfcfe57d8c11
 W:30:20
 G:V:r
+T:10:19
 I:2:24d4:0
 A:0:0:0:18
 P:[+0]
@@ -2706,6 +2858,7 @@ N:324:Yavanna, the Giver of Fruits
 Q:1a5c2e4faddd1d12
 W:30:30
 G:V:G
+T:11:8
 I:2:26d4:0
 A:0:0:0:19
 P:[+0]
@@ -2716,6 +2869,7 @@ N:325:Mandos, Doomsman of the Valar
 Q:ee2075ab9e9c60d5
 W:30:10
 G:V:D
+T:10:19
 I:2:28d4:0
 A:0:0:0:20
 P:[+0]
@@ -2726,6 +2880,7 @@ N:326:Vaire, the Weaver
 Q:39e8eb043bd23cba
 W:30:40
 G:V:y
+T:11:8
 I:2:26d4:0
 A:0:0:0:19
 P:[+0]
@@ -2736,6 +2891,7 @@ N:327:Lorien, Master of Dreams
 Q:aa454299f8645f26
 W:30:40
 G:V:r
+T:10:19
 I:2:28d4:0
 A:0:0:0:20
 P:[+0]
@@ -2746,6 +2902,7 @@ N:328:Este, the Healer
 Q:8f666d01fd4b0153
 W:30:40
 G:V:s
+T:11:8
 I:2:26d4:0
 A:0:0:0:19
 P:[+0]
@@ -2756,6 +2913,7 @@ N:329:Nienna, Lady of Mourning
 Q:2852f9b97cd0e31f
 W:30:40
 G:V:v1
+T:11:8
 I:2:26d4:0
 A:0:0:0:19
 P:[+0]
@@ -2766,6 +2924,7 @@ N:330:Tulkas, the Valiant
 Q:38b433315d2b8f05
 W:30:10
 G:V:o
+T:21:0
 I:2:28d4:0
 A:0:0:0:20
 P:[+0]
@@ -2776,6 +2935,7 @@ N:331:Nessa, the Dancer
 Q:bf33772ded8aa1f1
 W:30:40
 G:V:B
+T:11:8
 I:2:26d4:0
 A:0:0:0:19
 P:[+0]
@@ -2786,6 +2946,7 @@ N:332:Orome, Lord of Forests
 Q:149cdbdfb191a42f
 W:30:40
 G:V:v1
+T:21:1
 I:2:26d4:0
 A:0:0:0:19
 P:[+0]
@@ -2800,6 +2961,7 @@ N:333:Vana, the Ever Young
 Q:a7aae65c73d7b551
 W:30:40
 G:V:W
+T:11:8
 I:2:26d4:0
 A:0:0:0:19
 P:[+0]
@@ -2824,6 +2986,7 @@ N:401:Melkor, Rightful Lord of Arda
 Q:d9c0fd3f58a53cec
 W:40:0
 G:V:w
+T:11:4
 F:UNIQUE | MALE
 D:Clothed in shining white, he appears as a beacon of
 D: hope and strength in this fallen world.
