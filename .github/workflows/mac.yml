@@ -62,6 +62,8 @@ jobs:
           # IMPORTANT: Do NOT use quotes to escape spaces in filenames.
           path: |
             sil
+            silg
+            silx
             lib
             LICENSE.md
             README.md
