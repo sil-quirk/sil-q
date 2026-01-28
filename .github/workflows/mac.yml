@@ -76,6 +76,7 @@ jobs:
           # TODO: Update game logic to auto-create directories like `lib/apex`
           #       if needed, then remove this workaround.
           include-hidden-files: true
+          if-no-files-found: error
 
   build:
     # NOTE: The macOS version mentioned here must match `DEPLOYMENT_TARGET`
@@ -137,3 +138,4 @@ jobs:
           # TODO: Update game logic to auto-create directories like `lib/apex`
           #       if needed, then remove this workaround.
           include-hidden-files: true
+          if-no-files-found: error
