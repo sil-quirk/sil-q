@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+#
+# File: version.sh
+#
+# Updates the top-level version file with additional information, such as the
+# current git hash.
 
 set -uo pipefail
 
