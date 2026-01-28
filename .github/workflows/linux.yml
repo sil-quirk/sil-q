@@ -58,7 +58,7 @@ jobs:
         run: |
           ls -la sil
           file sil
-          ./sil -h
+          bin/smoke-tests.sh
 
       - name: Remove outdated PDF manuals
         run: |
