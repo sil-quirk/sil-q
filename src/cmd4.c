@@ -4835,6 +4835,10 @@ int object_difficulty(object_type* o_ptr)
     {
         dif_inc += 5;  // Situational
     }
+    if (f4 & TR4_PAIRED)
+    {
+        dif_inc += 7;  // Paired weapon bonus
+    }
 
     // pval dependent bonuses
     if (f1 & TR1_TUNNEL)

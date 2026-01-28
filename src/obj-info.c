@@ -784,6 +784,8 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3, u32b
         good[gc++] = "can shatter the armor of your foes with each successful blow";
     if (f3 & (TR3_WILL_DRAIN))
         good[gc++] = "drains the will of your enemies when you strike them";
+    if (f4 & (TR4_PAIRED))
+        good[gc++] = "is part of a matched pair of weapons";
 
     /* Describe */
     output_desc_list("It ", good, gc);
@@ -828,7 +830,7 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3, u32b
     if (cursed_p(o_ptr))
     {
         if (f3 & (TR3_PERMA_CURSE))
-            bad[bc++] = "permanently cursed";
+            bad[bc++] = "bound by the Oath of Feanor (broken by a Silmaril)";
         else if (f3 & (TR3_HEAVY_CURSE))
             bad[bc++] = "heavily cursed";
         else if (object_known_p(o_ptr))
@@ -864,7 +866,7 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3, u32b
         int i;
         for (i = 0; i < bc; i++)
         {
-            if (strstr(bad[i], "cursed"))
+            if (strstr(bad[i], "cursed") || strstr(bad[i], "Oath of Feanor"))
             {
                 has_curse = true;
                 break;
@@ -885,14 +887,15 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3, u32b
                 }
                 
                 /* Color curse-related text in violet */
-                if (strstr(bad[i], "cursed"))
+                if (strstr(bad[i], "Oath of Feanor"))
                 {
-                    if (strstr(bad[i], "permanently"))
-                    {
-                        p_text_out("is ");
-                        p_text_out_c(TERM_VIOLET, "permanently cursed");
-                    }
-                    else if (strstr(bad[i], "heavily"))
+                    p_text_out("is ");
+                    p_text_out_c(TERM_VIOLET, "bound by the Oath of Feanor");
+                    p_text_out(" (broken by a Silmaril)");
+                }
+                else if (strstr(bad[i], "cursed"))
+                {
+                    if (strstr(bad[i], "heavily"))
                     {
                         p_text_out("is ");
                         p_text_out_c(TERM_VIOLET, "heavily cursed");

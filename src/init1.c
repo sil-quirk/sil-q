@@ -293,6 +293,7 @@ static flag_name info_flags[] = {
     { "UNLIGHT", TR4, TR4_UNLIGHT },
     { "ARMOR_SHATTER", TR4, TR4_ARMOR_SHATTER },
     { "DEPTH_SCALE_PS", TR4, TR4_DEPTH_SCALE_PS },
+    { "PAIRED", TR4, TR4_PAIRED },
 
     /*
      * Race/Character flags

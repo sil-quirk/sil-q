@@ -968,6 +968,7 @@ extern void toggle_inven_equip(void);
 extern bool get_item(int* cp, cptr pmt, cptr str, int mode);
 extern bool player_can_treat_as_throwing(const object_type* o_ptr);
 extern bool player_can_treat_as_throwing_flags(const object_type* o_ptr, u32b f3);
+extern int get_paired_artefact(int art_idx);
 
 /* object2.c */
 extern void excise_object_idx(int o_idx);

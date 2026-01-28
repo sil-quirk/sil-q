@@ -336,8 +336,9 @@ void uncurse_object(object_type* o_ptr)
 /*
  * Removes curses from items in inventory.
  *
- * Note that Items which are "Perma-Cursed" (The One Ring,
- * The Crown of Morgoth) can NEVER be uncursed.
+ * Note that Items bound by the Oath of Feanor (TR3_PERMA_CURSE)
+ * can NEVER be uncursed by normal means - only the holy light
+ * of a Silmaril can break such an oath.
  *
  * Note that if "all" is false, then Items which are
  * "Heavy-Cursed" (Mormegil, Calris, and Weapons of Morgul)
@@ -369,7 +370,7 @@ static int remove_curse_aux(bool star_curse)
         if (!star_curse && (f3 & (TR3_HEAVY_CURSE)))
             continue;
 
-        /* Perma-Cursed Items can NEVER be uncursed */
+        /* Items bound by the Oath of Feanor can only be freed by a Silmaril */
         if (f3 & (TR3_PERMA_CURSE))
             continue;
 

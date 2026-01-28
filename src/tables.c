@@ -237,7 +237,7 @@ cptr option_text[OPT_MAX] = {
     "more_stairs", /* OPT_more_stairs */
     "unidentified_items_slate", /* OPT_unidentified_items_slate */
     "space_acts_as_comma", /* OPT_space_acts_as_comma */
-    NULL, /* xxx */
+    "show_level_entry_banner", /* OPT_show_level_entry_banner */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -477,7 +477,7 @@ cptr option_desc[OPT_MAX] = {
     "More stairs (50% more; double max)", /* OPT_more_stairs */
     "Show unidentified items in slate color", /* OPT_unidentified_items_slate */
     "Space acts as comma (interact with square)", /* OPT_space_acts_as_comma */
-    NULL, /* xxx */
+    "Show poetic banner when entering a level", /* OPT_show_level_entry_banner */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -736,7 +736,7 @@ const bool option_norm[OPT_MAX] = {
     false, /* OPT_more_stairs */
     true, /* OPT_unidentified_items_slate */
     true, /* OPT_space_acts_as_comma */
-    false, /* xxx */
+    true, /* OPT_show_level_entry_banner */
     false, /* xxx */
     false, /* xxx */
     false, /* xxx */
@@ -944,7 +944,7 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
         OPT_story_monster_desc_pane, OPT_story_character_sheet, OPT_artifact_unique_color,
         OPT_hilite_player, OPT_hilite_target, OPT_hilite_unwary, OPT_solid_walls,
         OPT_hybrid_walls, OPT_unidentified_items_slate, OPT_main_combat_rolls,
-        OPT_NONE, OPT_NONE, OPT_NONE },
+        OPT_show_level_entry_banner, OPT_NONE, OPT_NONE },
 
     /*** Birth ***/
 

@@ -1275,6 +1275,27 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
         }
     }
 
+    // Check for paired weapons (e.g., Glamdring + Orcrist)
+    // Paired weapons can be wielded together without Two Weapon Fighting
+    bool paired_weapon_prompt = false;
+    if (o_ptr->name1 && inventory[INVEN_WIELD].k_idx)
+    {
+        int paired_idx = get_paired_artefact(o_ptr->name1);
+        if (paired_idx && inventory[INVEN_WIELD].name1 == paired_idx)
+        {
+            // The weapon we're trying to wield is paired with our main hand weapon
+            if (!(k_info[o_ptr->k_idx].flags3 & (TR3_TWO_HANDED))
+                && !(k_info[o_ptr->k_idx].flags3 & (TR3_HAND_AND_A_HALF)))
+            {
+                if (get_check("Wield alongside its mate in your off-hand? "))
+                {
+                    slot = INVEN_ARM;
+                    paired_weapon_prompt = true;
+                }
+            }
+        }
+    }
+
     // Ask about two weapon fighting if necessary
     for (i = 0; i < o_ptr->abilities; i++)
     {
@@ -1285,7 +1306,8 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
             grants_two_weapon = true;
         }
     }
-    if ((p_ptr->active_ability[S_MEL][MEL_TWO_WEAPON] || grants_two_weapon)
+    if (!paired_weapon_prompt
+        && (p_ptr->active_ability[S_MEL][MEL_TWO_WEAPON] || grants_two_weapon)
         && ((o_ptr->tval == TV_SWORD) || (o_ptr->tval == TV_POLEARM)
             || (o_ptr->tval == TV_HAFTED) || (o_ptr->tval == TV_DIGGING)))
     {
@@ -1683,6 +1705,36 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
 
         /* The object has been "sensed" */
         o_ptr->ident |= (IDENT_SENSE);
+    }
+
+    /* Silmaril breaks the Oath of Feanor (perma-curse) on all equipped items */
+    if ((o_ptr->tval == TV_LIGHT) && (o_ptr->sval == SV_LIGHT_SILMARIL))
+    {
+        int j;
+        bool oath_broken = false;
+
+        /* Check all equipped items for the Oath of Feanor (perma-curse) */
+        for (j = INVEN_WIELD; j < INVEN_TOTAL; j++)
+        {
+            object_type *eq_ptr = &inventory[j];
+            u32b eq_f1, eq_f2, eq_f3;
+
+            if (!eq_ptr->k_idx) continue;
+
+            object_flags(eq_ptr, &eq_f1, &eq_f2, &eq_f3);
+
+            if ((eq_f3 & TR3_PERMA_CURSE) && cursed_p(eq_ptr))
+            {
+                /* Break the curse - the light of the Silmaril overcomes the oath */
+                eq_ptr->ident &= ~IDENT_CURSED;
+                oath_broken = true;
+            }
+        }
+
+        if (oath_broken)
+        {
+            msg_print("The holy light of the Silmaril breaks the Oath of Feanor!");
+        }
     }
 
     if (weapon_less_effective)

@@ -3518,10 +3518,11 @@ static void dungeon(void)
     object_level = p_ptr->depth;
 
     /* Show per-style entry message now that the level is fully entered and drawn */
+    if (show_level_entry_banner)
     {
         extern int styles_get_level_primary_style(void);
         extern const char* styles_get_style_display(int sidx);
-    extern void print_fade_centered_at_row(cptr text, int row_start);
+        extern void print_fade_centered_at_row(cptr text, int row_start);
         int sidx = styles_get_level_primary_style();
         if (sidx >= 0) {
             const char* m = styles_get_style_display(sidx);

@@ -7328,6 +7328,21 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
     return true;
 }
 
+/*
+ * Returns the paired artefact index for a given artefact, or 0 if none.
+ * Paired weapons can be wielded together in main hand and off-hand
+ * without requiring Two Weapon Fighting and without off-hand penalties.
+ */
+int get_paired_artefact(int art_idx)
+{
+    switch (art_idx)
+    {
+        case ART_ORCRIST:  return ART_GLAMDRING;
+        case ART_GLAMDRING: return ART_ORCRIST;
+        default: return 0;
+    }
+}
+
 bool player_can_treat_as_throwing_flags(const object_type* o_ptr, u32b f3)
 {
     if (!o_ptr || !o_ptr->k_idx)

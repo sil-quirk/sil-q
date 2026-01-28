@@ -1181,6 +1181,8 @@
 /*** Important artefact indexes (see "lib/edit/artefact.txt") ***/
 
 #define ART_MAEGLIN 32
+#define ART_ORCRIST 64
+#define ART_GLAMDRING 65
 #define ART_GLEND 74
 #define ART_CALRIS 76
 #define ART_DELMERETH 84
@@ -2004,7 +2006,7 @@
 #define TR3_TWO_HANDED 0x10000000L /* Item is a two handed weapon */
 #define TR3_LIGHT_CURSE 0x20000000L /* Item has Light Curse */
 #define TR3_HEAVY_CURSE 0x40000000L /* Item has Heavy Curse */
-#define TR3_PERMA_CURSE 0x80000000L /* Item has Perma Curse */
+#define TR3_PERMA_CURSE 0x80000000L /* Item bound by Oath of Feanor (broken by Silmaril) */
 
 /*TR3 Uber-Flags*/
 #define TR3_IGNORE_ALL                                                         \
@@ -2014,6 +2016,7 @@
 #define TR4_UNLIGHT     0x00000001L  /* Reduces light radius by 1 (no power bonus) */
 #define TR4_ARMOR_SHATTER 0x00000002L /* Shatters enemy armor on hit */
 #define TR4_DEPTH_SCALE_PS 0x00000004L /* Protection sides scale with depth */
+#define TR4_PAIRED      0x00000008L /* Part of a matched weapon pair (no off-hand penalty) */
 
 /*
  * Hack -- flag set 1 -- mask for "pval-dependant" flags.
@@ -2713,7 +2716,7 @@
 #define OPT_more_stairs 87
 #define OPT_unidentified_items_slate 88
 #define OPT_space_acts_as_comma 89
-// xxx
+#define OPT_show_level_entry_banner 90
 // xxx
 // xxx birth_point_based
 // xxx birth_auto_roller
@@ -2865,8 +2868,7 @@
 #define display_hits op_ptr->opt[OPT_display_hits]
 #define story_character_sheet op_ptr->opt[OPT_story_character_sheet]
 #define space_acts_as_comma op_ptr->opt[OPT_space_acts_as_comma]
-// xxx
-// xxx
+#define show_level_entry_banner op_ptr->opt[OPT_show_level_entry_banner]
 // xxx
 // xxx birth_point_based
 // xxx birth_auto_roller

@@ -560,6 +560,8 @@ def calculate_difficulty(art):
         dif_inc += 15  # Like ACCURATE
     if 'DEPTH_SCALE_PS' in flags:
         dif_inc += 5  # Situational
+    if 'PAIRED' in flags:
+        dif_inc += 7  # Paired weapon bonus
 
     # === PVAL-DEPENDENT BONUSES ===
     # For specials: total_pval = base_pval + smithed bonus
@@ -766,8 +768,8 @@ def get_base_level(tval, sval):
         (23, 17): 4,   # Longsword
         (23, 21): 6,   # Bastard Sword
         (23, 25): 4,   # Greatsword
-        (23, 28): 5,   # Mithril Longsword
-        (23, 30): 6,   # Mithril Greatsword
+        (23, 28): 15,  # Elven Mithril Sword
+        (23, 30): 20,  # Star-Iron Greatsword
         # Polearms (tval 22)
         (22, 1): 1,    # Spear
         (22, 2): 4,    # Great Spear
@@ -791,23 +793,23 @@ def get_base_level(tval, sval):
         # Boots (tval 30)
         (30, 1): 1,    # Boots
         (30, 2): 4,    # Greaves
-        (30, 3): 6,    # Mithril Greaves
+        (30, 3): 14,   # Mithril Greaves
         # Gloves (tval 31)
         (31, 1): 1,    # Gloves
         (31, 2): 3,    # Gauntlets
-        (31, 3): 5,    # Mithril Gauntlets
+        (31, 3): 12,   # Mithril Gauntlets
         # Helm (tval 32)
         (32, 5): 3,    # Helm
         (32, 6): 5,    # Great Helm
         (32, 7): 10,   # Dwarf Mask
-        (32, 8): 7,    # Mithril Helm
+        (32, 8): 14,   # Mithril Helm
         # Crown (tval 33)
         (33, 11): 7,   # Crown
         (33, 50): 20,  # Morgoth Crown
         # Shield (tval 34)
         (34, 3): 3,    # Round Shield
         (34, 5): 6,    # Kite Shield
-        (34, 10): 8,   # Mithril Shield
+        (34, 10): 16,  # Mithril Shield
         # Cloak (tval 35)
         (35, 1): 2,    # Cloak
         (35, 6): 12,   # Shadow Cloak
@@ -821,7 +823,7 @@ def get_base_level(tval, sval):
         # Mail (tval 37)
         (37, 4): 5,    # Mail Corslet
         (37, 6): 7,    # Hauberk
-        (37, 20): 7,   # Mithril Corslet
+        (37, 20): 16,  # Mithril Corslet
         # Light (tval 39)
         (39, 2): 3,    # Lesser Jewel
         # Amulet (tval 40) - sval varies, default level

@@ -3857,7 +3857,18 @@ static void calc_bonuses(void)
         o_ptr, p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK] ? -3 : 0);
 
     // determine the off-hand melee score, damage and sides
-    if (p_ptr->active_ability[S_MEL][MEL_TWO_WEAPON]
+    // Check if we have paired weapons (e.g., Glamdring + Orcrist)
+    bool paired_offhand = false;
+    if (inventory[INVEN_WIELD].name1 && inventory[INVEN_ARM].name1)
+    {
+        int paired_idx = get_paired_artefact(inventory[INVEN_WIELD].name1);
+        if (paired_idx == inventory[INVEN_ARM].name1)
+        {
+            paired_offhand = true;
+        }
+    }
+
+    if ((p_ptr->active_ability[S_MEL][MEL_TWO_WEAPON] || paired_offhand)
         && (((&inventory[INVEN_ARM])->tval != TV_SHIELD)
             && ((&inventory[INVEN_ARM])->tval != 0)))
     {
@@ -3869,14 +3880,17 @@ static void calc_bonuses(void)
 
         // add off-hand specific bonuses
         o_ptr = &inventory[INVEN_ARM];
+        // Paired weapons have no off-hand attack penalty
+        int offhand_penalty = paired_offhand ? 0 : 3;
         p_ptr->offhand_mel_mod
-            += o_ptr->att + axe_bonus(o_ptr) + polearm_bonus(o_ptr) - 3;
+            += o_ptr->att + axe_bonus(o_ptr) + polearm_bonus(o_ptr) - offhand_penalty;
 
         // add off-hand weapon's evasion bonus
         p_ptr->skill_equip_mod[S_EVN] += o_ptr->evn;
 
         p_ptr->mdd2 = total_mdd(o_ptr);
-        p_ptr->mds2 = total_mds(o_ptr, -3);
+        // Paired weapons have no strength adjustment penalty
+        p_ptr->mds2 = total_mds(o_ptr, paired_offhand ? 0 : -3);
     }
 
     /* Meta-run curse adjusting melee damage sides */
