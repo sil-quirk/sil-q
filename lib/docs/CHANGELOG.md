@@ -9,7 +9,12 @@
 
 ### Breaking changes
 
-- TODO (none thus far)
+- For Linux and (non-Cocoa) macOS versions only:
+  The command line argument of the `sil` binary to "request sound mode" was
+  changed from `-v` to `-a` ("a" for "audio/sound"). Now, the `-v` command
+  prints the Sil-Q version information (example: "Sil-Q version 1.5.1"). This
+  breaking change does not affect the Windows and native macOS (Cocoa) versions,
+  because they never supported this functionality in the first place.
 
 ### Gameplay changes
 
