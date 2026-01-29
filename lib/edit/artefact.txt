@@ -638,7 +638,7 @@ D: as the stars of Varda twinkle in the night sky.
 N:42:of the Bloody Hand
 Q:95a76b3c41240652
 I:34:3:1
-W:6:8:60:25000
+W:8:8:60:25000
 P:0:0d0:0:1d5
 F:STR | DAMAGE_SIDES | TRAITOR
 D:An black shield with scalloped edges. It bears the
@@ -698,12 +698,12 @@ D: leader of the folk of Marach, and lord of Dor-lomin.
 N:46:of Fingolfin
 Q:4f697a66b227588e
 G:):b1
-I:34:5:1
-W:13:15:70:25000
-P:-2:0d0:0:1d8
-F:CON | SUST_CON | RES_FEAR
+I:34:5:2
+W:13:15:60:25000
+P:0:0d0:0:1d7
+F:DEX | LIGHT
 D:A shining blue shield, set with crystals. It was borne by
-D: Fingolfin, high-king of the Noldor.
+D: Fingolfin, high-king of the Noldor, who challenged Morgoth.
 
 
 ## The Mithril Shield of Valinor
@@ -713,7 +713,7 @@ N:47:of Valinor
 Q:24fd840a203880d2
 G:):w
 I:34:10:1
-W:18:12:30:25000
+W:16:12:30:25000
 P:0:0d0:1:1d7
 F:LIGHT | GRA
 D:Shining like the full moon, this shield bears the device of
@@ -722,14 +722,16 @@ D: the Blessed Realm. It gladdens your heart.
 
 ## The Kite Shield of the Swan
 ## 1st age (Vinyamar set)
+## 2/1 Blocking ability
 
 N:48:of the Swan
 Q:23b24536a89160b3
 G:):b
-I:34:5:4
+I:34:5:2
 W:10:15:70:25000
 P:-2:0d0:0:1d7
 F:WILL | SUST_CON | SUST_DEX
+B:2/1
 D:A long tapering shield of elven design, wrought of wood overlaid with plates
 D: of metal and bearing the design of a swan's wing on a blue field.
 D: Untarnished by long years waiting in Turgon's deserted halls of Vinyamar,

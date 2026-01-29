@@ -337,8 +337,9 @@
  * The maximum number of monsters that fit on one level.
  * Used to be in limits.txt but was needed for array indexing.
  * Increased from 500 to 750 to support larger levels (up to 21x21 blocks = 231x231 grids)
+ * Further increased to 1500 for more aggressive level generation
  */
-#define MAX_MONSTERS 750
+#define MAX_MONSTERS 1500
 
 /*
  * The maximum number of independent groups of wandering monsters on one level.

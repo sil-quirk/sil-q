@@ -8478,6 +8478,53 @@ static tunnel_profile choose_tunnel_profile(bool tentative)
     return profile;
 }
 
+static void apply_tunnel_niche_torch_glow(int niche_y, int niche_x, int front_dy, int front_dx)
+{
+    if (!in_bounds_fully(niche_y, niche_x))
+        return;
+
+    /* "Torch" effect (radius 1) biased into the corridor:
+     * - light the niche floor itself
+     * - light the two wall tiles flanking the niche (along the corridor axis)
+     * - light the 3 corridor floor tiles directly in front of the niche
+     */
+    int axis_dy = (front_dx != 0) ? 1 : 0;
+    int axis_dx = (front_dy != 0) ? 1 : 0;
+
+    if (cave_floor_bold(niche_y, niche_x)
+        && !(cave_info[niche_y][niche_x] & (CAVE_ROOM | CAVE_ICKY)))
+    {
+        cave_info[niche_y][niche_x] |= (CAVE_GLOW);
+    }
+
+    for (int i = -RADIUS_TORCH; i <= RADIUS_TORCH; i += 2 * RADIUS_TORCH)
+    {
+        int wy = niche_y + axis_dy * i;
+        int wx = niche_x + axis_dx * i;
+        if (!in_bounds_fully(wy, wx))
+            continue;
+        if (cave_info[wy][wx] & (CAVE_ROOM | CAVE_ICKY))
+            continue;
+        if (cave_wall_bold(wy, wx))
+            cave_info[wy][wx] |= (CAVE_GLOW);
+    }
+
+    int entry_y = niche_y + front_dy;
+    int entry_x = niche_x + front_dx;
+    for (int i = -RADIUS_TORCH; i <= RADIUS_TORCH; ++i)
+    {
+        int fy = entry_y + axis_dy * i;
+        int fx = entry_x + axis_dx * i;
+        if (!in_bounds_fully(fy, fx))
+            continue;
+        if (!cave_floor_bold(fy, fx))
+            continue;
+        if (cave_info[fy][fx] & (CAVE_ROOM | CAVE_ICKY))
+            continue;
+        cave_info[fy][fx] |= (CAVE_GLOW);
+    }
+}
+
 static void apply_v_tunnel_treatment(
     int r1, int r2, int y_lo, int y_hi, int x, bool widen_west, bool widen_east,
     const tunnel_profile* profile)
@@ -8509,6 +8556,9 @@ static void apply_v_tunnel_treatment(
                 cave_set_feat(y, nx, FEAT_FLOOR);
                 cave_corridor1[y][nx] = r1;
                 cave_corridor2[y][nx] = r2;
+
+                int dir = (side > 0) ? 1 : -1;
+                apply_tunnel_niche_torch_glow(y, nx, 0, -dir);
             }
             y += 3 + rand_int(3);
             side = -side; /* alternate sides */
@@ -8562,6 +8612,9 @@ static void apply_h_tunnel_treatment(
                 cave_set_feat(ny, x, FEAT_FLOOR);
                 cave_corridor1[ny][x] = r1;
                 cave_corridor2[ny][x] = r2;
+
+                int dir = (side > 0) ? 1 : -1;
+                apply_tunnel_niche_torch_glow(ny, x, -dir, 0);
             }
             x += 3 + rand_int(3);
             side = -side;

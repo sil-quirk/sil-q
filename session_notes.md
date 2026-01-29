@@ -8220,3 +8220,7 @@ The script now fully matches the game's drop generation logic for all item types
   - `lib/edit/monster.txt`: Morgoth -> `DROP_SUPERB`; Shelob -> `DROP_2D2 | DROP_GOOD`; Ungoliant -> `DROP_2D2 | DROP_GREAT`; Draugluin -> `DROP_GOOD`; Thuringwethil -> `DROP_GREAT`; Gothmog -> `DROP_CHOSEN` (enables Calris auto-drop).
   - `lib/edit/vault.txt`: added `!` placements in dragon vaults (Dragon Lairs, Dragon Island, Draconic Caves, Dragons' Run, Glaurung hoard).
 - Build: `build-cmake.bat` OK (one pre-existing unused-parameter warning in `generate.c`).
+
+## 2026-01-29: Light corridor alcoves like torches
+- `src/generate.c`: when carving tunnel side niches (alcoves), mark `CAVE_GLOW` on the niche + its two flanking walls + the 3 corridor floor tiles in front (torch-sized) to mimic wall torches.
+- Build: `cmake --build build-standard --parallel` and `cmake --build build-portable --parallel` OK.
