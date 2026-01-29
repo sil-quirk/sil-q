@@ -90,6 +90,17 @@ struct header
     parse_info_txt_func parse_info_txt;
 };
 
+/*
+ * Effect tile mapping (used by effect.txt / effect.raw)
+ *
+ * Stores the tile attr/char bytes directly (including TILE_FLAG).
+ */
+typedef struct effect_glyph
+{
+    byte a;
+    byte c;
+} effect_glyph;
+
 extern errr init_info_txt(
     SDL_IOStream* fp, char* buf, header* head, parse_info_txt_func parse_info_txt_line);
 

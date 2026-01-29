@@ -10394,6 +10394,8 @@ extern void do_cmd_options_aux(int page, cptr info)
                         redraw_inven_equip_subwindows();
                     if (opt[k] == OPT_story_monster_desc_pane)
                         redraw_monster_subwindows();
+                    if (opt[k] == OPT_stealth_vision || opt[k] == OPT_visual_recognition)
+                        p_ptr->redraw |= (PR_MAP);
                 }
             }
             break;
@@ -10461,6 +10463,8 @@ extern void do_cmd_options_aux(int page, cptr info)
                         redraw_inven_equip_subwindows();
                     if (opt[k] == OPT_story_monster_desc_pane)
                         redraw_monster_subwindows();
+                    if (opt[k] == OPT_stealth_vision || opt[k] == OPT_visual_recognition)
+                        p_ptr->redraw |= (PR_MAP);
                 }
             }
             break;
@@ -10528,6 +10532,8 @@ extern void do_cmd_options_aux(int page, cptr info)
                         redraw_inven_equip_subwindows();
                     if (opt[k] == OPT_story_monster_desc_pane)
                         redraw_monster_subwindows();
+                    if (opt[k] == OPT_stealth_vision || opt[k] == OPT_visual_recognition)
+                        p_ptr->redraw |= (PR_MAP);
                 }
             }
             break;

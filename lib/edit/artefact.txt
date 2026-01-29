@@ -218,7 +218,7 @@ D: Above all else, she is famed for her insight.
 
 ## The Amulet of Tinfang Gelion
 ## 1st age namesake
-## (ability 7/9 is Woven Themes)
+## (ability 7/11 is Song of Elveness)
 
 N:3:of Tinfang Gelion
 Q:561368162725be61
@@ -241,7 +241,7 @@ Q:f4a9bee9fc977959
 I:40:13:1
 W:12:20:1:5000
 P:0:0d0:0:0d0
-F:GRA | SUST_GRA | DEX | SUST_DEX
+F:GRA | DEX
 M:SONG:2
 F:INSTA_ART
 D:The greatest pearl from the Bay of Balar, its sheen was as starlight on the
@@ -319,7 +319,7 @@ D: music for breaking of the heart.'
 
 N:9:of Feanor
 Q:9c8638ee3bc2e0cd
-I:33:11:2
+I:33:11:3
 W:20:20:35:300000
 P:0:0d0:0:1d1
 F:WILL | RES_FIRE | SEE_INVIS | LIGHT | SMITHING
@@ -342,9 +342,8 @@ I:33:11:2
 W:8:20:30:30000
 P:0:0d0:0:1d1
 F:WILL | RES_FEAR
-F:DANGER | INSTA_ART
-M:CON:2
-B:5/9
+F:DANGER | INSTA_ART | PERMA_CURSE
+M:CON:3
 D:The crown of Maedhros, High King of the Noldor, who was captured by Morgoth
 D: when he went to parley with him and hung by his right hand from Thangorodrim
 D: for thirty years.
@@ -383,7 +382,7 @@ Q:61f2dc4d9b137f8d
 I:36:2:2
 W:4:10:30:25000
 P:0:0d0:2:1d0
-F:SONG | SUST_GRA
+F:SONG | SUST_GRA | PERCEPTION
 D:This robe was once worn by Andreth, wise-woman of Beor's House.
 D: It is a deep rich green and patterned with golden thread.
 
@@ -394,16 +393,17 @@ D: It is a deep rich green and patterned with golden thread.
 N:21:of Aredhel
 Q:69dffd266c3288b7
 G:(:w
-I:36:2:0
-W:6:10:30:25000
+I:36:2:1
+W:12:10:30:25000
 P:0:0d0:4:1d0
-F:FREE_ACT | SUST_GRA | DANGER
+F:FREE_ACT | GRA | DANGER
 D:The White Lady of the Noldor once wore this robe, cut of the
 D: finest white cloth and hemmed with silver thread.
 
 
 ## The Robe of Idril Celebrindal
 ## 1st age namesake
+#(ability 4/7 is Resonance)
 
 N:22:of Idril Celebrindal
 Q:e1ce1abd314a6676
@@ -411,6 +411,7 @@ I:36:2:3
 W:18:30:30:25000
 P:0:0d0:0:1d0
 F:SPEED | PERCEPTION
+B:4/7
 D:A robe of the only child of Turgon, and light of Gondolin.
 D: The soft folds of smooth cloth invigorate you and fill
 D: you with thoughts of the swift eagles of Manwe.
@@ -454,7 +455,7 @@ N:26:'Catskin'
 Q:3db8dce4573c9d47
 I:36:4:0
 W:10:12:50:45000
-P:0:0d0:1:1d4
+P:0:0d0:2:1d3
 B:2/6:4/2
 D:This leather looks strangely proportioned, but when you
 D: don it it fits perfectly. You feel a desire to hunt.
@@ -483,10 +484,10 @@ D: the heart in the dark places of the world.
 
 N:29:of Aegnor
 Q:dcae44eb6f2391eb
-I:36:7:1
-W:4:10:100:35000
+I:36:7:2
+W:8:10:100:35000
 P:1:0d0:0:1d6
-F:WILL
+F:WILL | ARCHERY
 B:4/3
 D:Crafted for Aegnor, a Noldorin prince who loved a mortal.
 D: It lends its wearer determination and sureness of heart.
@@ -500,9 +501,9 @@ N:32:of Maeglin
 Q:809256172b50901d
 I:36:11:1
 W:15:1:70:45000
-P:0:0d0:2:1d9
+P:0:0d0:1:1d10
 F:DEX | RES_POIS
-F:HUNGER
+F:HUNGER | LIGHT_CURSE 
 F:EASY_ID | INSTA_ART
 D:Supple but harder than serpent-scale, this shining black
 D: armour was wrought years ago by the master smith Eol,
@@ -532,8 +533,9 @@ N:35:of Durin
 Q:882df4c55a64c16e
 I:37:4:0
 W:13:30:280:105000
-P:-1:0d0:-3:3d1
+P:0:0d0:-2:3d1
 F:RES_FIRE | RES_COLD | REGEN | DEPTH_SCALE_PS
+F:INSTA_ART
 D:Durin was the father of the longbeards of Khazad-Dum,
 D: and his wealth almost without equal. This is one of his
 D: exquisite suits of mail, armour to protect a King.
@@ -544,10 +546,10 @@ D: exquisite suits of mail, armour to protect a King.
 
 N:36:of Maedhros
 Q:5003ac23ea4cf5ae
-I:37:6:1
+I:37:6:2
 W:13:12:330:105000
 P:-1:0d0:-3:2d6
-F:RES_FIRE | RES_POIS | CON
+F:RES_FIRE | RES_POIS | CON | PERMA_CURSE
 D:A suit of mail once worn by Maedhros, eldest son of Feanor.
 D: When he was taken into Angband by Morgoth's servants
 D: and hung by his right hand from Thangorodrim, his armour was
@@ -567,6 +569,20 @@ D:Hard are the people who live around the hill Amon
 D: Rudh, and hard is the armour they wear.
 
 
+## The Mithril Corslet of Finwë
+## 1st age (Valinor)
+
+N:38:of Finwe
+Q:d1921f00bca8218e
+I:37:20:3
+W:18:45:120:70000
+P:0:0d0:0:2d5
+F:GRA
+D:The shining mail of Finwe, first High King of the Noldor. Wrought in
+D: Valinor before the darkening of the world, it was stolen by the Dark
+D: Lord along with the Silmarils from the vaults of Formenos.
+
+
 ## The Mail Corslet of Gundor
 ## 1st age
 ## (ability 2/3 is Crowd Fighting)
@@ -575,7 +591,7 @@ N:39:of Gundor
 Q:e69bba03f7491ec1
 I:37:4:1
 W:5:30:350:25000
-P:-1:0d0:-1:2d4
+P:-1:0d0:-2:2d4
 F:STR
 B:2/3
 D:The mail of Gundor, son of Hador. It gives the wearer
@@ -584,13 +600,14 @@ D: strength to walk among a host of foes.
 
 ## The Hauberk of Nevrast
 ## 1st age (Vinyamar set)
-
+# Ability Heavy Armor Use 2:7
 N:40:of Nevrast
 Q:70695395df6f28ec
 I:37:6:0
 W:11:18:500:25000
 P:-2:0d0:-4:2d8
 F:SUST_GRA | SUST_STR
+B:2:7
 D:When Turgon departed Vinyamar in Nevrast, he left this armour, and
 D: strange destiny has led it far from those halls. Its is crafted with a
 D: double layer of mail, which makes it too heavy for many, but turns
@@ -602,7 +619,7 @@ D: many a blow that might cleave through a lesser suit.
 
 N:41:'Starlight'
 Q:7124e9ac2a2ee593
-I:37:20:2
+I:37:20:3
 W:16:10:120:50000
 P:0:0d0:0:2d5
 F:RES_FEAR | RES_BLIND
@@ -622,7 +639,7 @@ N:42:of the Bloody Hand
 Q:95a76b3c41240652
 I:34:3:1
 W:6:8:60:25000
-P:0:0d0:1:1d4
+P:0:0d0:0:1d5
 F:STR | DAMAGE_SIDES | TRAITOR
 D:An black shield with scalloped edges. It bears the
 D: emblem of a white hand dripping blood.
@@ -635,8 +652,9 @@ D: emblem of a white hand dripping blood.
 N:43:of Glorfindel
 Q:0458ebd0894d3b4e
 I:34:3:0
-W:8:20:60:25000
-P:0:0d0:1:1d4
+W:10:20:60:25000
+P:1:0d0:1:1d4
+F:CHEAT_DEATH
 B:0/4
 D:The shield of Glorfindel, a hero of Gondolin.
 D: He was ever at the front of battle, leading
@@ -666,10 +684,10 @@ D: with a wicked point.
 N:45:of Hador
 Q:e9bb5583356475c3
 G:):r
-I:34:5:0
-W:8:12:90:25000
-P:-1:0d0:0:1d6
-F:RES_FIRE | RES_COLD
+I:34:5:1
+W:8:12:110:25000
+P:-2:0d0:0:1d8
+F:RES_FIRE | RES_COLD | STR
 D:The famed shield of Hador 'Goldenhead', great
 D: leader of the folk of Marach, and lord of Dor-lomin.
 
@@ -983,7 +1001,7 @@ G:|:D
 I:23:30:0
 W:16:10:50:130000
 P:1:3d6:1:0d0
-F:DANGER | TRAITOR | LIGHT_CURSE
+F:DANGER | TRAITOR | LIGHT_CURSE | WILL_DRAIN
 D:The black sword Anglachel, forged by Eöl of Nan Elmoth from star-iron.
 D: It was brought to Thingol in Doriath, and later borne by Beleg
 D: Cúthalion. Its edge is dreadful keen, and a cold will seems to wake
@@ -996,7 +1014,7 @@ Q:9439894019d8ad49
 I:23:30:0
 W:22:10:50:80000
 P:1:3d6:1:0d0
-F:SLAY_DRAGON | RES_FEAR | VAMPIRIC | DANGER | HUNGER | LIGHT_CURSE | TRAITOR
+F:SLAY_DRAGON | RES_FEAR | VAMPIRIC | DANGER | HUNGER | LIGHT_CURSE | TRAITOR | WILL_DRAIN
 D:The sable sword reforged from Anglachel, wielded by Túrin. Its blade can 
 D: slice iron like parchment, and it drinks deeply of blood. A fell curse 
 D: lies upon it: once unsheathed, it must taste blood. The sword’s grim will 

@@ -67,6 +67,10 @@ T:12:11
 N:12:glow icon
 T:12:14
 
+# Seen icon - monster can see player overlay (stealth vision mode)
+N:13:seen icon
+T:12:30
+
 
 ##### Breath Effects #####
 # Base index 0x30 (48) + color offset

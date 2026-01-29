@@ -657,12 +657,12 @@ static int smithing_difficulty_baseline(const object_type* o_ptr)
     int dif_inc = 0;
     int dif_dec = 0;
     int weight_factor;
-    u32b f1, f2, f3;
+    u32b f1, f2, f3, f4;
     int brands = 0;
     int dif_mult = 100;
 
     /* Extract flags */
-    object_flags(o_ptr, &f1, &f2, &f3);
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
 
     /* Base handling for non-jewelry: add base level */
     if (o_ptr->tval != TV_RING && o_ptr->tval != TV_AMULET)
@@ -772,6 +772,11 @@ static int smithing_difficulty_baseline(const object_type* o_ptr)
             brands++;
         }
     }
+    if (f1 & TR1_BRAND_ELEC)
+    {
+        dif_inc += 16;  /* No monsters have HURT_ELEC, same as poison */
+        brands++;
+    }
     if (brands > 1)
         dif_inc += (brands - 1) * 20;
 
@@ -781,8 +786,16 @@ static int smithing_difficulty_baseline(const object_type* o_ptr)
         dif_inc += 40;
     if (f1 & TR1_VAMPIRIC)
         dif_inc += 6;
+    if (f3 & TR3_WILL_DRAIN)
+        dif_inc += 8;  /* Like VAMPIRIC+2 */
     if (f3 & TR3_ACCURATE)
         dif_inc += 15;
+    if (f4 & TR4_ARMOR_SHATTER)
+        dif_inc += 15;  /* Like ACCURATE */
+    if (f4 & TR4_DEPTH_SCALE_PS)
+        dif_inc += 5;  /* Situational */
+    if (f4 & TR4_PAIRED)
+        dif_inc += 7;  /* Paired weapon bonus */
 
     /* pval-based bonuses */
     if (f1 & TR1_TUNNEL)
@@ -945,6 +958,8 @@ static int smithing_difficulty_baseline(const object_type* o_ptr)
         dif_inc += 5;
     if (f2 & TR2_RES_POIS)
         dif_inc += 5;
+    if (f2 & TR2_RES_ELEC)
+        dif_inc += 5;
 
     if (f2 & TR2_RES_BLEED)
         dif_inc += 1;
@@ -978,6 +993,8 @@ static int smithing_difficulty_baseline(const object_type* o_ptr)
         dif_dec += 2;
     if (f3 & TR3_CUMBERSOME)
         dif_dec += 3;
+    if (f4 & TR4_UNLIGHT)
+        dif_dec += 5;  /* Worse than DARKNESS - pure negative, no light bonus */
     if (f2 & TR2_SLOWNESS)
         dif_dec += 15;
     if (f2 & TR2_HUNGER)

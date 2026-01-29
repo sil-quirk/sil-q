@@ -1684,9 +1684,8 @@ static errr init_effect_info(void)
 {
     errr err;
 
-    /* Init the header - we use 256 as max since misc_to_attr/char are 256 elements */
-    /* info_size is 1 byte since we don't actually allocate a structure array */
-    init_header(&effect_head, 256, 1);
+    /* Init the header - 256 entries map directly onto misc_to_attr/char */
+    init_header(&effect_head, 256, sizeof(effect_glyph));
 
 #ifdef ALLOW_TEMPLATES
 
@@ -1697,7 +1696,16 @@ static errr init_effect_info(void)
 
     err = init_info("effect", &effect_head);
 
-    /* No global variables to set - parse_effect_info populates misc_to_attr/char directly */
+    /* Populate the global misc_to_* tables from the loaded raw-backed data */
+    if (!err && effect_head.info_ptr)
+    {
+        const effect_glyph* glyphs = (const effect_glyph*)effect_head.info_ptr;
+        for (int i = 0; i < 256; i++)
+        {
+            misc_to_attr[i] = glyphs[i].a;
+            misc_to_char[i] = (char)glyphs[i].c;
+        }
+    }
 
     return (err);
 }

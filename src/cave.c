@@ -1488,6 +1488,44 @@ int player_tile_offset()
 
 #define GRAF_BROKEN_BONE 440
 
+static bool monster_can_see_player_for_stealth_vision(monster_type* m_ptr)
+{
+    if (!m_ptr || !m_ptr->r_idx)
+        return false;
+
+    /* Sleeping creatures cannot see */
+    if (m_ptr->alertness < ALERTNESS_UNWARY)
+        return false;
+
+    const monster_race* r_ptr = &r_info[m_ptr->r_idx];
+
+    /* Peaceful creatures don't matter for stealth vision */
+    if (r_ptr->flags1 & (RF1_PEACEFUL))
+        return false;
+
+    /* Shortsighted creatures can't see beyond 2 squares */
+    if ((r_ptr->flags2 & (RF2_SHORT_SIGHTED)) && (m_ptr->cdis > 2))
+        return false;
+
+    if (!los(m_ptr->fy, m_ptr->fx, p_ptr->py, p_ptr->px))
+        return false;
+
+    /* Visual recognition for intelligent monsters */
+    if (visual_recognition && (r_ptr->flags2 & (RF2_SMART)))
+    {
+        /* Disguise reduces monster's effective perception */
+        int per_divisor = p_ptr->active_ability[S_STL][STL_DISGUISE] ? 4 : 2;
+
+        int vision_score = monster_skill(m_ptr, S_PER) / per_divisor + p_ptr->cur_light
+            + ((cave_info[p_ptr->py][p_ptr->px] & (CAVE_GLOW)) ? 2 : 0);
+
+        if (vision_score < m_ptr->cdis)
+            return false;
+    }
+
+    return true;
+}
+
 void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
 {
     byte a = TERM_DARK; // these are defaults to soothe compilation warnings
@@ -1917,6 +1955,13 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
                 && m_ptr->alertness >= ALERTNESS_ALERT)
             {
                 c += GRAPHICS_ALERT_MASK;
+            }
+
+            /* Stealth vision overlay: indicate when this monster can see you. */
+            if (!graphics_are_ascii() && stealth_vision && tcp != cp
+                && monster_can_see_player_for_stealth_vision(m_ptr))
+            {
+                *tcp = (char)(((byte)(*tcp)) | GRAPHICS_SEEN_MASK);
             }
         }
     }

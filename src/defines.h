@@ -1092,6 +1092,7 @@
 #define ICON_UNKNOWN_ENEMY 0x0A
 #define ICON_ALERT 0x0B
 #define ICON_GLOW 0x0C
+#define ICON_MONSTER_SEES_PLAYER 0x0D
 
 /*** Feature Indexes (see "lib/edit/feature.txt") ***/
 
@@ -2661,6 +2662,8 @@
 #define OPT_valorous_oath_auto_attack_safety (OPT_GAME_PLAY + 0)
 /* Visual recognition: intelligent monsters need light to see player */
 #define OPT_visual_recognition (OPT_GAME_PLAY + 1)
+/* Stealth vision mode: show whether monsters can see you */
+#define OPT_stealth_vision (OPT_GAME_PLAY + 2)
 // xxx auto_haggle
 // xxx auto_scum
 // xxx allow_themed_levels
@@ -2785,6 +2788,7 @@
 #define valorous_oath_auto_attack_safety                                        \
     op_ptr->opt[OPT_valorous_oath_auto_attack_safety]
 #define visual_recognition op_ptr->opt[OPT_visual_recognition]
+#define stealth_vision op_ptr->opt[OPT_stealth_vision]
 #define depth_in_feet op_ptr->opt[OPT_depth_in_feet]
 // xxx stack_force_notes
 // xxx stack_force_costs
@@ -3509,6 +3513,8 @@
 
 /* mask on char */
 #define GRAPHICS_ALERT_MASK 0x40
+/* mask on terrain char (tcp): request stealth-vision overlay icon */
+#define GRAPHICS_SEEN_MASK GRAPHICS_ALERT_MASK
 #define TILE_FLAG 0x80
 #define TILE_INDEX_MASK 0x3F
 #define TILE_SET_INDEX(base, idx)                                             \

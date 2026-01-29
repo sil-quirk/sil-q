@@ -2059,6 +2059,7 @@ static errr callback_sdl_pict(int x, int y, int n, const byte* ap, const char* c
 
         bool glow = a & GRAPHICS_GLOW_MASK;
         bool alert = c & GRAPHICS_ALERT_MASK;
+        bool seen = tcp[i] & GRAPHICS_SEEN_MASK;
 
         /* Unconditionally clear the full (possibly 2-cell) destination area to avoid ghosting */
         SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
@@ -2071,9 +2072,13 @@ static errr callback_sdl_pict(int x, int y, int n, const byte* ap, const char* c
 
         /* Overlays (glow / alert) */
         if (glow) {
-            src.x = (0x7F & misc_to_char[ICON_GLOW]) * TILE_SIZE;
-            src.y = (0x7F & misc_to_attr[ICON_GLOW]) * TILE_SIZE;
-            SDL_RenderTexture(g_state.renderer, g_state.tileset, &src, &dst);
+            byte icon_a = misc_to_attr[ICON_GLOW];
+            byte icon_c = (byte)misc_to_char[ICON_GLOW];
+            if ((icon_a & TILE_FLAG) && (icon_c & TILE_FLAG)) {
+                src.x = (icon_c & 0x7F) * TILE_SIZE;
+                src.y = (icon_a & 0x7F) * TILE_SIZE;
+                SDL_RenderTexture(g_state.renderer, g_state.tileset, &src, &dst);
+            }
         }
 
         /* Draw base tile */
@@ -2081,10 +2086,24 @@ static errr callback_sdl_pict(int x, int y, int n, const byte* ap, const char* c
         src.y = (a & 0x3F) * TILE_SIZE;
         SDL_RenderTexture(g_state.renderer, g_state.tileset, &src, &dst);
 
+        if (seen) {
+            byte icon_a = misc_to_attr[ICON_MONSTER_SEES_PLAYER];
+            byte icon_c = (byte)misc_to_char[ICON_MONSTER_SEES_PLAYER];
+            if ((icon_a & TILE_FLAG) && (icon_c & TILE_FLAG)) {
+                src.x = (icon_c & 0x7F) * TILE_SIZE;
+                src.y = (icon_a & 0x7F) * TILE_SIZE;
+                SDL_RenderTexture(g_state.renderer, g_state.tileset, &src, &dst);
+            }
+        }
+
         if (alert) {
-            src.x = (0x7F & misc_to_char[ICON_ALERT]) * TILE_SIZE;
-            src.y = (0x7F & misc_to_attr[ICON_ALERT]) * TILE_SIZE;
-            SDL_RenderTexture(g_state.renderer, g_state.tileset, &src, &dst);
+            byte icon_a = misc_to_attr[ICON_ALERT];
+            byte icon_c = (byte)misc_to_char[ICON_ALERT];
+            if ((icon_a & TILE_FLAG) && (icon_c & TILE_FLAG)) {
+                src.x = (icon_c & 0x7F) * TILE_SIZE;
+                src.y = (icon_a & 0x7F) * TILE_SIZE;
+                SDL_RenderTexture(g_state.renderer, g_state.tileset, &src, &dst);
+            }
         }
     }
 

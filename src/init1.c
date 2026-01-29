@@ -6127,9 +6127,7 @@ errr parse_effect_info(char* buf, header* head)
 
     /* Current entry index */
     static int effect_idx = -1;
-
-    /* Hack - Unused parameter */
-    (void)head;
+    effect_glyph* glyphs = (effect_glyph*)head->info_ptr;
 
     /* Process 'V' for "Version" */
     if (buf[0] == 'V')
@@ -6180,9 +6178,14 @@ errr parse_effect_info(char* buf, header* head)
         if (col < 0 || col > 63)
             return (PARSE_ERROR_GENERIC);
 
-        /* Store in global arrays with TILE_FLAG (0x80) */
-        misc_to_attr[effect_idx] = (byte)(0x80 | row);
-        misc_to_char[effect_idx] = (char)(0x80 | col);
+        if (!glyphs)
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+
+        /* Store in the raw-backed table (and update globals) */
+        glyphs[effect_idx].a = (byte)(0x80 | row);
+        glyphs[effect_idx].c = (byte)(0x80 | col);
+        misc_to_attr[effect_idx] = glyphs[effect_idx].a;
+        misc_to_char[effect_idx] = (char)glyphs[effect_idx].c;
     }
 
     else
