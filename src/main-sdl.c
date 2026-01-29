@@ -2071,9 +2071,9 @@ static errr callback_sdl_pict(int x, int y, int n, const byte* ap, const char* c
         src.y = (tap[i] & 0x3F) * TILE_SIZE;
         SDL_RenderTexture(g_state.renderer, g_state.tileset, &src, &dst);
 
-        /* Traps are drawn as a middle layer (floor -> trap -> monster). When a
-         * visible creature is standing on a visible trap, inject the trap tile
-         * between the terrain underlay and the creature tile. */
+        /* Traps, stairs, shafts, forges, and sunlight are drawn as a middle layer (floor ->
+         * feature -> monster). When a visible creature is standing on a visible feature,
+         * inject the feature tile between the terrain underlay and the creature tile. */
         if (Term == term_screen) {
             int term_x = x + (i * (use_bigtile + 1));
             if (y >= ROW_MAP && term_x >= COL_MAP) {
@@ -2101,10 +2101,13 @@ static errr callback_sdl_pict(int x, int y, int n, const byte* ap, const char* c
                             byte feat = cave_feat[dy][dx];
                             feat = f_info[feat].mimic;
 
-                            if ((feat >= FEAT_TRAP_HEAD) && (feat <= FEAT_TRAP_TAIL)) {
+                            if (((feat >= FEAT_TRAP_HEAD) && (feat <= FEAT_TRAP_TAIL)) ||
+                                ((feat >= FEAT_STAIR_HEAD) && (feat <= FEAT_STAIR_TAIL)) ||
+                                ((feat >= FEAT_FORGE_HEAD) && (feat <= FEAT_FORGE_TAIL)) ||
+                                (feat == FEAT_SUNLIGHT)) {
                                 feature_type* f_ptr = &f_info[feat];
-                                byte trap_a = f_ptr->x_attr;
-                                char trap_c = f_ptr->x_char;
+                                byte feat_a = f_ptr->x_attr;
+                                char feat_c = f_ptr->x_char;
 
                                 if ((use_graphics == GRAPHICS_MICROCHASM)
                                     && feat_supports_lighting(feat)) {
@@ -2112,12 +2115,12 @@ static errr callback_sdl_pict(int x, int y, int n, const byte* ap, const char* c
                                         || ((cave_light[dy][dx] <= 0)
                                             && !(info & (CAVE_GLOW)));
                                     if (is_dark || !(info & (CAVE_SEEN))) {
-                                        trap_c += 1;
+                                        feat_c += 1;
                                     }
                                 }
 
-                                src.x = ((byte)trap_c & 0x3F) * TILE_SIZE;
-                                src.y = (trap_a & 0x3F) * TILE_SIZE;
+                                src.x = ((byte)feat_c & 0x3F) * TILE_SIZE;
+                                src.y = (feat_a & 0x3F) * TILE_SIZE;
                                 SDL_RenderTexture(g_state.renderer, g_state.tileset, &src, &dst);
                             }
                         }

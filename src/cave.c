@@ -1830,10 +1830,15 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
     byte terrain_a = a;
     char terrain_c = c;
 
-    /* Traps are drawn as a middle layer in the SDL renderer (floor -> trap -> monster).
-     * For transparency to work, use a floor tile as the terrain underlay when a trap is
-     * visible on this grid. */
-    if ((info & (CAVE_MARK)) && (feat >= FEAT_TRAP_HEAD) && (feat <= FEAT_TRAP_TAIL))
+    /* Traps, stairs, shafts, forges, sunlight, and rubble are drawn as a middle layer in
+     * the SDL renderer (floor -> feature -> monster). For transparency to work, use a
+     * floor tile as the terrain underlay when one of these features is visible. */
+    if ((info & (CAVE_MARK)) &&
+        (((feat >= FEAT_TRAP_HEAD) && (feat <= FEAT_TRAP_TAIL)) ||
+         ((feat >= FEAT_STAIR_HEAD) && (feat <= FEAT_STAIR_TAIL)) ||
+         ((feat >= FEAT_FORGE_HEAD) && (feat <= FEAT_FORGE_TAIL)) ||
+         (feat == FEAT_SUNLIGHT) ||
+         (feat == FEAT_RUBBLE)))
     {
         int floor_feat = FEAT_FLOOR;
         if (rage_active && !graphics_are_ascii())
