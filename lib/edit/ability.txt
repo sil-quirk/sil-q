@@ -387,6 +387,7 @@ T:45:0:99  # Ring
 N:85:Bane
 I:4:5:6
 D:Becoming the bane of foes as Anduril was to the servants of Sauron in later days, but akin to the grudges of the First Age, you receive a bonus to all skill rolls against a selected category of enemy. The bonus increases as you kill more.
+#Monster types: 1=Orc, 2=Wolf, 3=Spider, 4=Troll, 5=Wraith, 6=Rauko, 7=Serpent, 8=Dragon
 
 N:86:Outwit
 I:4:6:7

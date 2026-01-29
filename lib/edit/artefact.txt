@@ -914,12 +914,14 @@ D: when the Feanorians turned on them for their ships
 D: at far-off Alqualonde.
 
 # 'Sting' (Elven Knife of Gondolin)
+# 4/5/3 Spider Bane ability
 N:61:'Sting'
 Q:cee0841d40850850
 I:23:10:0
 W:12:20:15:40000
 P:+2:1d7:+2:0d0
-F:LIGHT | SLAY_ORC | SLAY_SPIDER | RES_POIS
+B:4/5/3
+F:SLAY_ORC | SLAY_SPIDER | RES_POIS | FREE_ACT
 D:A bright long-knife of Gondolin, forged in the days when that hidden city
 D: still stood in glory. Its cold light kindles at the nearness of orc-kind,
 D: and its keen point is a bane to great spiders and crawling terrors.
@@ -929,7 +931,7 @@ D: fate is woven about it, and it will yet play a part in tales unwritten.
 # Idril’s Sword (Guardian of Gondolin)
 # A graceful short sword borne by Idril Celebrindal during the Fall of Gondolin. It is light and protective, aiding in swift escapes. 
 # The blade carries an aura of royal Majesty (foes quail to attack the wielder). 
-# Special ability: Song of Elveness
+# Special ability: Song of Elveness 7/11 and Song of Freedom 7/3
 N:62:of Idril
 Q:6f68639f97c67e3a
 I:23:10:1
