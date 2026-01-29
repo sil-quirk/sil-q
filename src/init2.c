@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include "metarun.h"
 #include "score/score_guid.h"
+#include "item_set.h"
 
 #include "h-define.h"
 #include "init.h"
@@ -2604,6 +2605,38 @@ void init_angband(void)
     if (init_a_info())
         quit("Cannot initialize artefacts");
     ensure_artifact_guids();
+
+    /* Load item sets (data-driven bonuses + paired weapons) */
+    note("[Initializing arrays... (item sets)]");
+    {
+        SDL_IOStream* fp;
+        char path[1024];
+        char linebuf[1024];
+        header set_head;
+        errr err;
+
+        init_header(&set_head, 1, 1);
+        item_sets_reset();
+
+        path_build(path, sizeof(path), ANGBAND_DIR_EDIT, format("%s.txt", "set"));
+        fp = sdl_fopen(path, "r");
+        if (!fp)
+        {
+            log_warn("init_angband: No set.txt found at '%s' (item sets disabled)", path);
+        }
+        else
+        {
+            err = init_info_txt(fp, linebuf, &set_head, parse_set_info);
+            sdl_fclose(fp);
+
+            if (err)
+                display_parse_error("set", err, linebuf);
+
+            err = item_sets_finalize();
+            if (err)
+                display_parse_error("set", err, "set validation");
+        }
+    }
 
     /* Initialize special item info */
     note("[Initializing arrays... (special items)]");

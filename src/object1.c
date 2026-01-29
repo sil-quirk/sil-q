@@ -12,6 +12,7 @@
 #include "externs.h"
 #include "log/log.h"
 #include "supplies.h"
+#include "item_set.h"
 #include <ctype.h>
 #define ENHANCED_MAX_LIST 80
 #include <stddef.h>
@@ -7347,12 +7348,7 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
  */
 int get_paired_artefact(int art_idx)
 {
-    switch (art_idx)
-    {
-        case ART_ORCRIST:  return ART_GLAMDRING;
-        case ART_GLAMDRING: return ART_ORCRIST;
-        default: return 0;
-    }
+    return item_sets_get_paired_artefact(art_idx);
 }
 
 bool player_can_treat_as_throwing_flags(const object_type* o_ptr, u32b f3)

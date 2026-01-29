@@ -1,0 +1,48 @@
+# File: set.txt
+#
+# This file defines item sets. When all members of a set are equipped,
+# the set may grant stat/skill bonuses and/or special behaviours.
+#
+# Do not modify this file unless you know exactly what you are doing,
+# unless you wish to risk possible system crashes and broken savefiles.
+#
+#
+# === Understanding set.txt ===
+#
+# N: serial number : set name
+# Q: 16-digit (or longer) hexadecimal GUID identifying the set (optional)
+# A: artefact member reference
+#    - decimal artefact index (from artefact.txt N: field), e.g. A:64
+#    - hex GUID (from artefact.txt Q: field), e.g. A:5ee28c5262c0629d
+#      (If the GUID is digits-only, prefix with 0x to disambiguate from an index.)
+#    - quoted artefact name (matches artefact.txt N: name), e.g. A:'Orcrist'
+# F: set flags (separated by |)
+#    - PAIRED_WEAPONS: exactly 2 weapon artefacts; allows wielding both without
+#      the Two Weapon Fighting ability and removes off-hand penalties.
+# M: bonus token : value (applies when full set equipped)
+#    tokens: STR, DEX, CON, GRA, MEL|MELEE, ARC|ARCHERY, STL|STEALTH,
+#            PER|PERCEPTION, WIL|WILL, SMT|SMITHING, SNG|SONG
+#
+V:0.9.5
+
+
+#################################################################
+# Default item sets
+#################################################################
+
+
+## Orcrist and Glamdring (paired weapons)
+
+N:1:Orcrist and Glamdring
+F:PAIRED_WEAPONS
+A:5ee28c5262c0629d
+A:ace66e723fa1853c
+
+
+## Crown of Maedhros and Hauberk of Maedhros (+1 CON)
+
+N:2:Maedhros Regalia
+A:4dca93d7e5f9681f
+A:5003ac23ea4cf5ae
+M:CON:1
+

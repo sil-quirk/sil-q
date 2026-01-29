@@ -39,6 +39,7 @@ add_executable(sil-more
     src/gen-log.c
     src/init1.c
     src/init2.c
+    src/item_set.c
     src/load.c
     src/main.c
     src/main-sdl.c
