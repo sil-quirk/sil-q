@@ -593,25 +593,45 @@ def calculate_difficulty(art):
 
     if stat_bonus['STR'] > 0:
         dif_inc += dif_mod_calc(stat_bonus['STR'], 14)
+    elif stat_bonus['STR'] < 0:
+        dif_dec += dif_mod_calc(-stat_bonus['STR'], 10)
     if stat_bonus['DEX'] > 0:
         dif_inc += dif_mod_calc(stat_bonus['DEX'], 14)
+    elif stat_bonus['DEX'] < 0:
+        dif_dec += dif_mod_calc(-stat_bonus['DEX'], 10)
     if stat_bonus['CON'] > 0:
         dif_inc += dif_mod_calc(stat_bonus['CON'], 14)
+    elif stat_bonus['CON'] < 0:
+        dif_dec += dif_mod_calc(-stat_bonus['CON'], 10)
     if stat_bonus['GRA'] > 0:
         dif_inc += dif_mod_calc(stat_bonus['GRA'], 14)
+    elif stat_bonus['GRA'] < 0:
+        dif_dec += dif_mod_calc(-stat_bonus['GRA'], 10)
 
     if skill_bonus['ARCHERY'] > 0:
         dif_inc += dif_mod_calc(skill_bonus['ARCHERY'], 4)
+    elif skill_bonus['ARCHERY'] < 0:
+        dif_dec += dif_mod_calc(-skill_bonus['ARCHERY'], 3)
     if skill_bonus['STEALTH'] > 0:
         dif_inc += dif_mod_calc(skill_bonus['STEALTH'], 4)
+    elif skill_bonus['STEALTH'] < 0:
+        dif_dec += dif_mod_calc(-skill_bonus['STEALTH'], 3)
     if skill_bonus['PERCEPTION'] > 0:
         dif_inc += dif_mod_calc(skill_bonus['PERCEPTION'], 3)
+    elif skill_bonus['PERCEPTION'] < 0:
+        dif_dec += dif_mod_calc(-skill_bonus['PERCEPTION'], 2)
     if skill_bonus['WILL'] > 0:
         dif_inc += dif_mod_calc(skill_bonus['WILL'], 3)
+    elif skill_bonus['WILL'] < 0:
+        dif_dec += dif_mod_calc(-skill_bonus['WILL'], 2)
     if skill_bonus['SMITHING'] > 0:
         dif_inc += dif_mod_calc(skill_bonus['SMITHING'], 4)
+    elif skill_bonus['SMITHING'] < 0:
+        dif_dec += dif_mod_calc(-skill_bonus['SMITHING'], 3)
     if skill_bonus['SONG'] > 0:
         dif_inc += dif_mod_calc(skill_bonus['SONG'], 4)
+    elif skill_bonus['SONG'] < 0:
+        dif_dec += dif_mod_calc(-skill_bonus['SONG'], 3)
 
     # Extra difficulty for multiple distinct stat/skill bonuses (first is "free").
     stat_count = sum(1 for k in STAT_TOKENS if stat_bonus.get(k, 0) > 0)
@@ -1852,34 +1872,62 @@ def main():
     print("=" * 100)
     print()
     
-    # Group by item type
+    # Group by item type (tval) and subtype (sval)
     print("ARTEFACTS BY TYPE:")
     print("-" * 100)
-    
-    by_type = {}
-    for art in artefacts:
+
+    # Filter out sval 50 (special/placeholder items)
+    filtered_artefacts = [art for art in artefacts if art['sval'] != 50]
+
+    # Group by (tval, sval)
+    by_tval_sval = {}
+    for art in filtered_artefacts:
         key = (art['tval'], art['sval'])
-        tval_name = get_tval_name(art['tval'])
-        if tval_name not in by_type:
-            by_type[tval_name] = []
-        by_type[tval_name].append(art)
-    
+        if key not in by_tval_sval:
+            by_tval_sval[key] = []
+        by_tval_sval[key].append(art)
+
+    # Also group by tval for section headers
+    by_tval = {}
+    for (tval, sval), arts in by_tval_sval.items():
+        if tval not in by_tval:
+            by_tval[tval] = []
+        by_tval[tval].append((sval, arts))
+
     # Sort by the order (tval, sval) first appeared in artefact.txt
-    # Get the minimum sval_order for each tval group
-    def get_tval_order(tval_name_key):
-        arts = by_type[tval_name_key]
-        if arts:
-            # Find the first appearance order of this tval
-            min_order = min(sval_order.get((art['tval'], art['sval']), float('inf')) for art in arts)
+    def get_tval_order(tval_key):
+        sval_arts_list = by_tval[tval_key]
+        if sval_arts_list:
+            min_order = min(sval_order.get((tval_key, sval), float('inf')) for sval, _ in sval_arts_list)
             return min_order
         return float('inf')
-    
-    for tval_name in sorted(by_type.keys(), key=get_tval_order):
-        arts = sorted(by_type[tval_name], key=lambda x: x['difficulty'], reverse=True)
-        avg_diff = sum(a['difficulty'] for a in arts) / len(arts)
-        print(f"\n{tval_name} ({len(arts)} artefacts, avg diff: {avg_diff:.1f}):")
-        for art in arts:
-            print(f"  {art['difficulty']:>3}: {art['name']}")
+
+    def get_sval_order(tval, sval):
+        return sval_order.get((tval, sval), float('inf'))
+
+    for tval in sorted(by_tval.keys(), key=get_tval_order):
+        tval_name = get_tval_name(tval)
+        total_arts = sum(len(arts) for _, arts in by_tval[tval])
+        all_tval_arts = [art for _, arts in by_tval[tval] for art in arts]
+        avg_diff = sum(a['difficulty'] for a in all_tval_arts) / len(all_tval_arts)
+        print(f"\n{tval_name} ({total_arts} artefacts, avg diff: {avg_diff:.1f}):")
+
+        # For Rings and Amulets, don't group by sval - just list all artefacts
+        if tval in [45, 40]:  # Ring or Amulet
+            arts_sorted = sorted(all_tval_arts, key=lambda x: x['difficulty'], reverse=True)
+            for art in arts_sorted:
+                print(f"  {art['difficulty']:>3}: {art['name']}")
+        else:
+            # Sort svals by their order in artefact.txt
+            for sval, arts in sorted(by_tval[tval], key=lambda x: get_sval_order(tval, x[0])):
+                # Get base item name from OBJECTS_BY_TYPE, strip formatting chars (& and ~)
+                base_name = OBJECTS_BY_TYPE.get((tval, sval), {}).get('name', f'sval {sval}')
+                base_name = base_name.replace('&', '').replace('~', '').strip()
+                arts_sorted = sorted(arts, key=lambda x: x['difficulty'], reverse=True)
+                sval_avg = sum(a['difficulty'] for a in arts) / len(arts)
+                print(f"  {base_name} ({len(arts)}, avg: {sval_avg:.1f}):")
+                for art in arts_sorted:
+                    print(f"    {art['difficulty']:>3}: {art['name']}")
     
     print()
     print("=" * 110)

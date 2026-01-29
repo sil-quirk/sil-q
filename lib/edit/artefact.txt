@@ -741,26 +741,27 @@ D: it conveys the same powers of endurance to its bearer.
 ##### Edged Weapons #####
 
 #Mablung’s Knife (the blade that opened Carcharoth)
-#Ability 4/6 Outwit
+#Ability 4/5/2 Wolf bane
 
 N:49:of Mablung
 Q:5b3647df851ca660
-I:23:4:3
-W:6:10:5:25000
+I:23:4:2
+W:6:20:5:25000
 P:+1:1d6:+1:0d0
-F:SLAY_WOLF | PERCEPTION
-B:4/5/2:4/6
+F:SLAY_WOLF
+B:4/5/2
 D:The hunting knife of Mablung of Doriath. With this blade he ripped open
 D: the belly of Carcharoth in the dark of the Wolf's-belly, and the Silmaril
 D: was recovered from the beast. Its edge is pitiless against wolves, and
 D: it lends the keen-eyed focus of Doriath's great hunter.
 
+#4/5/8 Dragon Bane
 # Azaghâl’s Dragonbane Knife.
 # The dagger with which King Azaghâl wounded Glaurung. Enchanted by the dwarves of Belegost, it protects against dragonfire and bites deep into dragon-flesh.
 N:50:of Azaghal
 Q:6b54c5d5947af589
 I:23:4:0
-W:14:10:5:25000
+W:14:20:5:25000
 P:0:1d7:0:0d0
 F:RES_FIRE | SLAY_DRAGON | SHARPNESS
 B:4/5/8
@@ -768,7 +769,7 @@ D:A broad-bladed dagger of Dwarven make, blackened by dragon-blood. Azaghâl
 D: carried it beneath his mail, striking the first dragon a mortal wound.
 D: It confers its bearer the fire-hardiness and bitter wrath of Belegost.
 
-# Túrin’s Elf-wrought Knife (birthday-gift from Húrin)
+# Turin’s Elf-wrought Knife (birthday-gift from Hurin)
 # Design: noble heirloom tool-weapon; survivability/utility over raw damage.
 # Ability 5/5 Indomitable
 
@@ -776,11 +777,11 @@ N:51:of Turin
 Q:2e2f01e1c4bb7031
 I:23:4:3
 W:7:15:5:15000
-P:+1:1d6:0:0d0
+P:+1:1d5:0:0d0
 F:FREE_ACT | WILL
 B:5/5
 D:An Elf-wrought knife, finely balanced and keen. It was a birthday-gift
-D: that Húrin Thalion gave to his son Túrin, and Túrin bore it through
+D: that Hurin Thalion gave to his son Turin, and Turin bore it through
 D: many hard years. It lends steadiness of heart and a stubborn refusal
 D: to be ensnared or held.
 
@@ -790,7 +791,7 @@ D: to be ensnared or held.
 N:52:of Nargil
 Q:e1168ee12ae06dd3
 I:23:4:0
-W:7:20:5:50000
+W:10:20:5:50000
 P:5:1d5:0:0d0
 F:SHARPNESS
 F:THROWING
@@ -832,8 +833,8 @@ D: name: 'Iron Cleaver'.
 N:55:'Nakh'
 Q:7c59e46da39e038e
 I:23:7:2
-W:4:10:60:30000
-P:-1:2d5:1:0d0
+W:10:10:60:30000
+P:0:2d6:1:0d0
 F:STR | NEG_GRA | SLAY_MAN_OR_ELF | AGGRAVATE
 D:A dread black blade greatly famed among the orcs. Its cruel
 D: edge was forged in Orodruth long ere the Noldor came
@@ -847,8 +848,9 @@ N:56:'Agarlhang'
 Q:f743ec132ef30bd5
 I:23:7:-2
 W:8:10:60:30000
-P:-1:2d5:1:0d0
-F:VAMPIRIC | LIGHT_CURSE | WILL | PERCEPTION | NEG_CON | HUNGER
+P:0:2d5:1:0d0
+F:VAMPIRIC | LIGHT_CURSE | WILL | PERCEPTION | HUNGER
+M:CON:2
 D:A blood-red blade, slick to the touch. Gripping its haft dulls the
 D: wielder's senses and causes strange hungers to waken in them.
 
@@ -858,7 +860,7 @@ D: wielder's senses and causes strange hungers to waken in them.
 N:57:of Mim
 Q:630037a7078e37ca
 I:23:10:3
-W:10:10:20:30000
+W:10:10:15:30000
 P:+1:1d7:1:0d0
 F:BRAND_POIS | STEALTH | LIGHT_CURSE
 B:3/1
@@ -868,13 +870,15 @@ D: darkness, but a subtle curse clings to it, binding it to its owner.
 
 ## The Shortsword of Amrod
 ## 1st age namesake
+# Ability 1:5 Versatility
 
 N:58:of Amrod
 Q:70239c6076a16a6c
 I:23:10:2
 W:8:10:15:15000
 P:1:1d7:1:0d0
-F:STEALTH | PERCEPTION | FREE_ACT
+B:1:5
+F:STEALTH | PERCEPTION
 D:The hunting blade of Amrod, son of Feanor.
 D: When drawn from its sheath, the wielder's movements are
 D: reduced to a whisper and his senses sharpen.
@@ -886,7 +890,7 @@ D: reduced to a whisper and his senses sharpen.
 N:59:'Dagmor'
 Q:ccc03f8fe91d16f5
 I:23:10:1
-W:12:10:20:15000
+W:12:10:10:15000
 P:2:1d8:1:0d0
 F:RES_FEAR | GRA | LIGHT
 M:WILL:3
@@ -913,7 +917,7 @@ D: at far-off Alqualonde.
 N:61:'Sting'
 Q:cee0841d40850850
 I:23:10:0
-W:12:20:20:40000
+W:12:20:15:40000
 P:+2:1d7:+2:0d0
 F:LIGHT | SLAY_ORC | SLAY_SPIDER | RES_POIS
 D:A bright long-knife of Gondolin, forged in the days when that hidden city
@@ -1008,18 +1012,18 @@ P:1:3d6:1:0d0
 F:DANGER | TRAITOR | LIGHT_CURSE | WILL_DRAIN
 D:The black sword Anglachel, forged by Eöl of Nan Elmoth from star-iron.
 D: It was brought to Thingol in Doriath, and later borne by Beleg
-D: Cúthalion. Its edge is dreadful keen, and a cold will seems to wake
+D: Cuthalion. Its edge is dreadful keen, and a cold will seems to wake
 D: when it is drawn. Many have found that mischance follows where this
 D: blade passes — as though it remembers every death it has dealt.
 
-# Gurthang (Black Sword of Túrin)
+# Gurthang (Black Sword of Turin)
 N:70:'Gurthang'
 Q:9439894019d8ad49
 I:23:30:0
 W:22:10:50:80000
 P:1:3d6:1:0d0
 F:SLAY_DRAGON | RES_FEAR | VAMPIRIC | DANGER | HUNGER | LIGHT_CURSE | TRAITOR | WILL_DRAIN
-D:The sable sword reforged from Anglachel, wielded by Túrin. Its blade can 
+D:The sable sword reforged from Anglachel, wielded by Turin. Its blade can 
 D: slice iron like parchment, and it drinks deeply of blood. A fell curse 
 D: lies upon it: once unsheathed, it must taste blood. The sword’s grim will 
 D: fills its master with fearless despair, drawing mighty foes nigh – and 

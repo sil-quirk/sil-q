@@ -19,6 +19,7 @@ typedef enum item_set_flag
 {
     ITEM_SET_FLAG_NONE = 0,
     ITEM_SET_FLAG_PAIRED_WEAPONS = 1 << 0,
+    ITEM_SET_FLAG_WARDING_GIRDLE = 1 << 1,
 } item_set_flag;
 
 typedef struct item_set_type
@@ -94,6 +95,13 @@ static bool item_set_apply_flag(item_set_type* set, const char* token)
         || SDL_strcasecmp(token, "PAIRED") == 0)
     {
         set->flags |= ITEM_SET_FLAG_PAIRED_WEAPONS;
+        return true;
+    }
+
+    if (SDL_strcasecmp(token, "WARDING_GIRDLE") == 0
+        || SDL_strcasecmp(token, "GIRDLE_OF_MIRIAN") == 0)
+    {
+        set->flags |= ITEM_SET_FLAG_WARDING_GIRDLE;
         return true;
     }
 
@@ -640,4 +648,44 @@ void item_sets_apply_player_bonuses(void)
             p_ptr->skill_equip_mod[i] += set->skill_bonus[i];
         }
     }
+}
+
+static bool item_set_has_member(const item_set_type* set, int art_idx)
+{
+    if (!set || art_idx <= 0)
+        return false;
+
+    for (int i = 0; i < set->member_count; i++)
+    {
+        if (set->members[i] == art_idx)
+            return true;
+    }
+
+    return false;
+}
+
+bool item_sets_warding_girdle_active_for_artefact(int art_idx)
+{
+    if (!set_info || set_count <= 0)
+        return false;
+    if (art_idx <= 0)
+        return false;
+
+    for (int si = 0; si < set_count; si++)
+    {
+        const item_set_type* set = &set_info[si];
+        if (!set)
+            continue;
+
+        if (!(set->flags & ITEM_SET_FLAG_WARDING_GIRDLE))
+            continue;
+        if (!item_set_has_member(set, art_idx))
+            continue;
+        if (!item_set_is_complete(set))
+            continue;
+
+        return true;
+    }
+
+    return false;
 }

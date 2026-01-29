@@ -817,7 +817,7 @@ static int smithing_difficulty_baseline(const object_type* o_ptr)
             if (v > 0)
                 drop_dif_mod(v, 14, &dif_inc);
             else if (v < 0)
-                drop_dif_mod(-v, 12, &dif_inc);
+                drop_dif_mod(-v, 10, &dif_dec);
         }
         if (f1 & (TR1_DEX | TR1_NEG_DEX))
         {
@@ -825,7 +825,7 @@ static int smithing_difficulty_baseline(const object_type* o_ptr)
             if (v > 0)
                 drop_dif_mod(v, 14, &dif_inc);
             else if (v < 0)
-                drop_dif_mod(-v, 12, &dif_inc);
+                drop_dif_mod(-v, 10, &dif_dec);
         }
         if (f1 & (TR1_CON | TR1_NEG_CON))
         {
@@ -833,7 +833,7 @@ static int smithing_difficulty_baseline(const object_type* o_ptr)
             if (v > 0)
                 drop_dif_mod(v, 14, &dif_inc);
             else if (v < 0)
-                drop_dif_mod(-v, 12, &dif_inc);
+                drop_dif_mod(-v, 10, &dif_dec);
         }
         if (f1 & (TR1_GRA | TR1_NEG_GRA))
         {
@@ -841,7 +841,7 @@ static int smithing_difficulty_baseline(const object_type* o_ptr)
             if (v > 0)
                 drop_dif_mod(v, 14, &dif_inc);
             else if (v < 0)
-                drop_dif_mod(-v, 12, &dif_inc);
+                drop_dif_mod(-v, 10, &dif_dec);
         }
 
         if (f1 & TR1_ARC)
@@ -849,36 +849,48 @@ static int smithing_difficulty_baseline(const object_type* o_ptr)
             int v = o_ptr->skill_bonus[S_ARC];
             if (v > 0)
                 drop_dif_mod(v, 4, &dif_inc);
+            else if (v < 0)
+                drop_dif_mod(-v, 3, &dif_dec);
         }
         if (f1 & TR1_STL)
         {
             int v = o_ptr->skill_bonus[S_STL];
             if (v > 0)
                 drop_dif_mod(v, 4, &dif_inc);
+            else if (v < 0)
+                drop_dif_mod(-v, 3, &dif_dec);
         }
         if (f1 & TR1_PER)
         {
             int v = o_ptr->skill_bonus[S_PER];
             if (v > 0)
                 drop_dif_mod(v, 3, &dif_inc);
+            else if (v < 0)
+                drop_dif_mod(-v, 2, &dif_dec);
         }
         if (f1 & TR1_WIL)
         {
             int v = o_ptr->skill_bonus[S_WIL];
             if (v > 0)
                 drop_dif_mod(v, 3, &dif_inc);
+            else if (v < 0)
+                drop_dif_mod(-v, 2, &dif_dec);
         }
         if (f1 & TR1_SMT)
         {
             int v = o_ptr->skill_bonus[S_SMT];
             if (v > 0)
                 drop_dif_mod(v, 4, &dif_inc);
+            else if (v < 0)
+                drop_dif_mod(-v, 3, &dif_dec);
         }
         if (f1 & TR1_SNG)
         {
             int v = o_ptr->skill_bonus[S_SNG];
             if (v > 0)
                 drop_dif_mod(v, 4, &dif_inc);
+            else if (v < 0)
+                drop_dif_mod(-v, 3, &dif_dec);
         }
     }
 

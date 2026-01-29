@@ -10,6 +10,7 @@
 
 #include "angband.h"
 #include "externs.h"
+#include "item_set.h"
 #include "log/log.h"
 #include "player/killer.h"
 #include "metarun.h"
@@ -7029,6 +7030,49 @@ static bool abort_for_valorous_ranged_path(int range, int ty, int tx)
     return false;
 }
 
+static bool warding_girdle_can_place_glyph(int y, int x)
+{
+    if (!in_bounds_fully(y, x))
+        return false;
+    if ((y == p_ptr->py) && (x == p_ptr->px))
+        return false;
+    if (cave_m_idx[y][x] != 0)
+        return false;
+    if (!cave_clean_bold(y, x))
+        return false;
+
+    return true;
+}
+
+static void warding_girdle_spawn_glyphs(
+    int impact_y, int impact_x, int step_dy, int step_dx)
+{
+    if (step_dy == 0 && step_dx == 0)
+        return;
+
+    int pre_y = impact_y - step_dy;
+    int pre_x = impact_x - step_dx;
+    if (!warding_girdle_can_place_glyph(pre_y, pre_x))
+        return;
+
+    int perp_dy = step_dx;
+    int perp_dx = -step_dy;
+
+    cave_set_feat(pre_y, pre_x, FEAT_GLYPH);
+
+    int side1_y = pre_y + perp_dy;
+    int side1_x = pre_x + perp_dx;
+    if (warding_girdle_can_place_glyph(side1_y, side1_x))
+        cave_set_feat(side1_y, side1_x, FEAT_GLYPH);
+
+    int side2_y = pre_y - perp_dy;
+    int side2_x = pre_x - perp_dx;
+    if (warding_girdle_can_place_glyph(side2_y, side2_x))
+        cave_set_feat(side2_y, side2_x, FEAT_GLYPH);
+
+    msg_print("A warding girdle flares into being!");
+}
+
 void do_cmd_fire(int quiver)
 {
     int dir, item;
@@ -7080,6 +7124,7 @@ void do_cmd_fire(int quiver)
     bool deadly_hail_bonus = false;
     bool puncture = false;
     bool returning_arrow = false;
+    bool warding_girdle_active = false;
 
     // Determine the projectile in the requested quiver
     if (quiver == 1)
@@ -7194,6 +7239,10 @@ void do_cmd_fire(int quiver)
     i_ptr->pickup = true;
     i_ptr->pickup_slot = item;
 
+    /* Set bonus: warding girdle glyphs on impact */
+    warding_girdle_active
+        = item_sets_warding_girdle_active_for_artefact(i_ptr->name1);
+
     /* Sound */
     sound(MSG_SHOOT);
     if (use_sound) {
@@ -7235,9 +7284,12 @@ void do_cmd_fire(int quiver)
     {
         bool hit_wall = false;
         bool ghost_arrow = false;
+        bool warding_girdle_triggered = false;
         int missed_monsters = 0;
         int final_y = GRID_Y(path_g[path_n - 1]);
         int final_x = GRID_X(path_g[path_n - 1]);
+        int last_step_dy = 0;
+        int last_step_dx = 0;
 
         // abort the later shot(s) if there is no target on the trajectory
         if ((shot > 0) && !targets_remaining)
@@ -7267,6 +7319,11 @@ void do_cmd_fire(int quiver)
 
             int ny = GRID_Y(path_g[i]);
             int nx = GRID_X(path_g[i]);
+            int step_dy = ny - oy;
+            int step_dx = nx - ox;
+
+            last_step_dy = step_dy;
+            last_step_dx = step_dx;
 
             /* Hack -- Stop before hitting walls */
             if (!cave_floor_bold(ny, nx))
@@ -7279,6 +7336,12 @@ void do_cmd_fire(int quiver)
                     // record resting place of arrow
                     final_y = y;
                     final_x = x;
+
+                    if (warding_girdle_active && !warding_girdle_triggered)
+                    {
+                        warding_girdle_spawn_glyphs(ny, nx, step_dy, step_dx);
+                        warding_girdle_triggered = true;
+                    }
 
                     // Show collision
                     /* Only do visuals if the player can "see" the missile */
@@ -7693,6 +7756,13 @@ void do_cmd_fire(int quiver)
                     /* Stop looking if a monster was hit but not pierced */
                     if (!pierce)
                     {
+                        if (warding_girdle_active && !warding_girdle_triggered)
+                        {
+                            warding_girdle_spawn_glyphs(
+                                y, x, step_dy, step_dx);
+                            warding_girdle_triggered = true;
+                        }
+
                         // continue checking trajectory, but without affecting
                         // things
                         ghost_arrow = true;
@@ -7718,6 +7788,12 @@ void do_cmd_fire(int quiver)
                  * a penalty) */
                 missed_monsters++;
             }
+        }
+
+        if (warding_girdle_active && !warding_girdle_triggered)
+        {
+            warding_girdle_spawn_glyphs(y, x, last_step_dy, last_step_dx);
+            warding_girdle_triggered = true;
         }
 
         if (!object_known_p(j_ptr) && noticed_radiance)

@@ -19,6 +19,8 @@
 # F: set flags (separated by |)
 #    - PAIRED_WEAPONS: exactly 2 weapon artefacts; allows wielding both without
 #      the Two Weapon Fighting ability and removes off-hand penalties.
+#    - WARDING_GIRDLE: when firing a missile artefact that's part of a fully
+#      equipped set, spawn 3 glyphs of warding at the impact (1 square before).
 # M: bonus token : value (applies when full set equipped)
 #    tokens: STR, DEX, CON, GRA, MEL|MELEE, ARC|ARCHERY, STL|STEALTH,
 #            PER|PERCEPTION, WIL|WILL, SMT|SMITHING, SNG|SONG
@@ -46,3 +48,11 @@ A:4dca93d7e5f9681f
 A:5003ac23ea4cf5ae
 M:CON:1
 
+
+## Belthronding and Dailir (warding girdle on shot)
+
+N:3:Belthronding and Dailir
+Q:406e2bebdae3340c
+F:WARDING_GIRDLE
+A:792beedcd8af6104
+A:e8840ae097bbec79
