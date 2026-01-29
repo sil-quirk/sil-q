@@ -10394,7 +10394,8 @@ extern void do_cmd_options_aux(int page, cptr info)
                         redraw_inven_equip_subwindows();
                     if (opt[k] == OPT_story_monster_desc_pane)
                         redraw_monster_subwindows();
-                    if (opt[k] == OPT_stealth_vision || opt[k] == OPT_visual_recognition)
+                    if (opt[k] == OPT_stealth_vision || opt[k] == OPT_visual_recognition
+                        || opt[k] == OPT_sleep_icon)
                         p_ptr->redraw |= (PR_MAP);
                 }
             }
@@ -10463,7 +10464,8 @@ extern void do_cmd_options_aux(int page, cptr info)
                         redraw_inven_equip_subwindows();
                     if (opt[k] == OPT_story_monster_desc_pane)
                         redraw_monster_subwindows();
-                    if (opt[k] == OPT_stealth_vision || opt[k] == OPT_visual_recognition)
+                    if (opt[k] == OPT_stealth_vision || opt[k] == OPT_visual_recognition
+                        || opt[k] == OPT_sleep_icon)
                         p_ptr->redraw |= (PR_MAP);
                 }
             }
@@ -10532,7 +10534,8 @@ extern void do_cmd_options_aux(int page, cptr info)
                         redraw_inven_equip_subwindows();
                     if (opt[k] == OPT_story_monster_desc_pane)
                         redraw_monster_subwindows();
-                    if (opt[k] == OPT_stealth_vision || opt[k] == OPT_visual_recognition)
+                    if (opt[k] == OPT_stealth_vision || opt[k] == OPT_visual_recognition
+                        || opt[k] == OPT_sleep_icon)
                         p_ptr->redraw |= (PR_MAP);
                 }
             }
@@ -11028,7 +11031,7 @@ void do_cmd_controller_settings(void);
 int options_menu(int* highlight)
 {
     int ch;
-    int options = 14; /* added efficiency option */
+    int options = 15; /* added efficiency option */
 #ifdef DEBUG_CURSES
     options = 17;
 #endif
@@ -11050,25 +11053,27 @@ int options_menu(int* highlight)
     Term_putstr(2, 8, -1, (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
         "f) Visual Options");
     Term_putstr(2, 9, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
-        "g) Gameplay Options");
+        "t) Text Options");
     Term_putstr(2, 10, -1, (*highlight == 8) ? TERM_L_BLUE : TERM_WHITE,
-        "h) Sound Options");
+        "g) Gameplay Options");
     Term_putstr(2, 11, -1, (*highlight == 9) ? TERM_L_BLUE : TERM_WHITE,
-        "i) Load a 'Pref' File");
+        "h) Sound Options");
     Term_putstr(2, 12, -1, (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
-        "j) Append Options to a 'Pref' File");
+        "i) Load a 'Pref' File");
     Term_putstr(2, 13, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
-        "k) Set Macros");
+        "j) Append Options to a 'Pref' File");
     Term_putstr(2, 14, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
-        "l) Set Colours");
+        "k) Set Macros");
     Term_putstr(2, 15, -1, (*highlight == 13) ? TERM_L_BLUE : TERM_WHITE,
-        "m) Write a note");
+        "l) Set Colours");
     Term_putstr(2, 16, -1, (*highlight == 14) ? TERM_L_BLUE : TERM_WHITE,
+        "m) Write a note");
+    Term_putstr(2, 17, -1, (*highlight == 15) ? TERM_L_BLUE : TERM_WHITE,
         "n) Return to Game");
 
     if (p_ptr->noscore)
     {
-        Term_putstr(2, 17, -1, (*highlight == 15) ? TERM_L_BLUE : TERM_WHITE,
+        Term_putstr(2, 18, -1, (*highlight == 16) ? TERM_L_BLUE : TERM_WHITE,
             "o) Debugging Options");
     }
 
@@ -11076,7 +11081,7 @@ int options_menu(int* highlight)
     {
         char verbuf[128];
         strnfmt(verbuf, sizeof(verbuf), "%s %s", VERSION_NAME, VERSION_STRING);
-        Term_putstr(2, 18, -1, TERM_SLATE, verbuf);
+        Term_putstr(2, 19, -1, TERM_SLATE, verbuf);
     }
 
     /* Flush the prompt */
@@ -11126,60 +11131,66 @@ int options_menu(int* highlight)
         return (6);
     }
 
-    if ((ch == 'g') || (ch == 'G'))
+    if ((ch == 't') || (ch == 'T'))
     {
         *highlight = 7;
         return (7);
     }
 
-    if ((ch == 'h') || (ch == 'H'))
+    if ((ch == 'g') || (ch == 'G'))
     {
         *highlight = 8;
         return (8);
     }
 
-    if ((ch == 'i') || (ch == 'I'))
+    if ((ch == 'h') || (ch == 'H'))
     {
         *highlight = 9;
         return (9);
     }
 
-    if ((ch == 'j') || (ch == 'J'))
+    if ((ch == 'i') || (ch == 'I'))
     {
         *highlight = 10;
         return (10);
     }
 
-    if ((ch == 'k') || (ch == 'K'))
+    if ((ch == 'j') || (ch == 'J'))
     {
         *highlight = 11;
         return (11);
     }
 
-    if ((ch == 'l') || (ch == 'L'))
+    if ((ch == 'k') || (ch == 'K'))
     {
         *highlight = 12;
         return (12);
     }
 
-    if ((ch == 'm') || (ch == 'M'))
+    if ((ch == 'l') || (ch == 'L'))
     {
         *highlight = 13;
         return (13);
     }
 
+    if ((ch == 'm') || (ch == 'M'))
+    {
+        *highlight = 14;
+        return (14);
+    }
+
     if ((ch == 'n') || (ch == 'N') || (ch == ESCAPE) || (ch == 'q'))
     {
         /* Return to game */
-        *highlight = 14;
-        return (14);
+        *highlight = 15;
+        return (15);
     }
 
     if (p_ptr->noscore && ((ch == 'o') || (ch == 'O')))
     {
         /* Debugging options */
-        *highlight = 15;
-        return (15);
+        *highlight = 16;
+        return (16);
     }
 
     /* Choose current  */
@@ -11276,24 +11287,30 @@ void do_cmd_options(void)
         }
         case 7:
         {
-            do_cmd_options_aux(GAMEPLAY_PAGE, "Gameplay Options");
+            do_cmd_options_aux(TEXT_PAGE, "Text Options");
             Term_clear();
             break;
         }
         case 8:
         {
-            do_cmd_options_aux(SOUND_PAGE, "Sound Options");
+            do_cmd_options_aux(GAMEPLAY_PAGE, "Gameplay Options");
             Term_clear();
             break;
         }
         case 9:
+        {
+            do_cmd_options_aux(SOUND_PAGE, "Sound Options");
+            Term_clear();
+            break;
+        }
+        case 10:
         {
             /* Ask for and load a user pref file */
             do_cmd_pref_file_hack(12);
             Term_clear();
             break;
         }
-        case 10:
+        case 11:
         {
             /* Prompt */
             Term_putstr(2, 14, -1, TERM_SLATE, "(Escape to cancel)");
@@ -11326,32 +11343,32 @@ void do_cmd_options(void)
             Term_clear();
             break;
         }
-        case 11:
+        case 12:
         {
             do_cmd_macros();
             Term_clear();
             break;
         }
-        case 12:
+        case 13:
         {
             do_cmd_colors();
             Term_clear();
             break;
         }
-        case 13:
+        case 14:
         {
             do_cmd_note("", p_ptr->depth);
             Term_clear();
             break;
         }
-        case 14:
+        case 15:
         {
             /* Return to Game */
             return_to_game = true;
             Term_clear();
             break;
         }
-        case 15:
+        case 16:
         {
             /* Debugging Options (only reachable when p_ptr->noscore) */
             do_cmd_options_aux(DEBUG_PAGE, "Debugging Options");

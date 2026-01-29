@@ -182,7 +182,7 @@ cptr option_text[OPT_MAX] = {
     "valorous_oath_auto_attack_safety", /* OPT_valorous_oath_auto_attack_safety */
     "visual_recognition", /* OPT_visual_recognition */
     "stealth_vision", /* OPT_stealth_vision */
-    NULL, /* xxx testing_carry */
+    "sleep_icon", /* OPT_sleep_icon */
     NULL, /* xxx expand_look */
     NULL, /* xxx expand_list */
     NULL, /* xxx view_perma_grids */
@@ -422,7 +422,7 @@ cptr option_desc[OPT_MAX] = {
     "Disable automatic attacks of fleeing enemies under Oath of Valor", /* OPT_valorous_oath_auto_attack_safety */
     "Smart monsters need light to visually recognize you", /* OPT_visual_recognition */
     "Stealth vision mode: show when monsters can see you", /* OPT_stealth_vision */
-    NULL, /* xxx testing_carry */
+    "Show an overlay icon on sleeping monsters", /* OPT_sleep_icon */
     NULL, /* xxx expand_look */
     NULL, /* xxx expand_list */
     NULL, /* xxx view_perma_grids */
@@ -680,8 +680,8 @@ const bool option_norm[OPT_MAX] = {
     false, /* xxx */
     true, /* OPT_valorous_oath_auto_attack_safety */
     true, /* OPT_visual_recognition */
-    false, /* OPT_stealth_vision */
-    false, /* xxx */
+    true, /* OPT_stealth_vision */
+    true, /* OPT_sleep_icon */
     false, /* xxx expand_look */
     false, /* xxx expand_list */
     false, /* xxx view_perma_grids */
@@ -916,10 +916,11 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE },
 
-    /*** Disturbance ***/
+    /*** Text options ***/
 
-    { OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+    { OPT_story_lists, OPT_story_lists_inven, OPT_story_lists_inven_pane, OPT_story_lists_equip,
+        OPT_story_lists_equip_pane, OPT_story_monster_desc, OPT_story_monster_desc_pane,
+        OPT_story_character_sheet, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Game-Play ***/
@@ -927,7 +928,7 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
     { OPT_valorous_oath_auto_attack_safety, OPT_forgo_attacking_unwary,
         OPT_stop_singing_on_rest, OPT_know_monster_info, OPT_smaller_level_size,
         OPT_more_stairs, OPT_disable_skeleton_note_tutorial, OPT_visual_recognition,
-        OPT_stealth_vision, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Efficiency ***/
@@ -939,12 +940,10 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
 
     /*** Display ***/
 
-    { OPT_auto_display_lists, OPT_story_lists, OPT_story_lists_inven, OPT_story_lists_inven_pane,
-        OPT_story_lists_equip, OPT_story_lists_equip_pane, OPT_story_monster_desc,
-        OPT_story_monster_desc_pane, OPT_story_character_sheet, OPT_artifact_unique_color,
-        OPT_hilite_player, OPT_hilite_target, OPT_hilite_unwary, OPT_solid_walls,
-        OPT_hybrid_walls, OPT_unidentified_items_slate, OPT_main_combat_rolls,
-        OPT_show_level_entry_banner, OPT_NONE, OPT_NONE },
+    { OPT_auto_display_lists, OPT_artifact_unique_color, OPT_hilite_player, OPT_hilite_target,
+        OPT_hilite_unwary, OPT_solid_walls, OPT_hybrid_walls, OPT_unidentified_items_slate,
+        OPT_main_combat_rolls, OPT_show_level_entry_banner, OPT_stealth_vision, OPT_sleep_icon, OPT_NONE,
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Birth ***/
 

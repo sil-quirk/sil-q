@@ -652,7 +652,7 @@ D: emblem of a white hand dripping blood.
 N:43:of Glorfindel
 Q:0458ebd0894d3b4e
 I:34:3:0
-W:10:20:60:25000
+W:8:20:60:25000
 P:1:0d0:1:1d4
 F:CHEAT_DEATH
 B:0/4

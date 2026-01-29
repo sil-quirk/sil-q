@@ -71,6 +71,10 @@ T:12:14
 N:13:seen icon
 T:12:30
 
+# Sleep icon - sleeping monster overlay
+N:14:sleep icon
+T:19:8
+
 
 ##### Breath Effects #####
 # Base index 0x30 (48) + color offset

@@ -1093,6 +1093,7 @@
 #define ICON_ALERT 0x0B
 #define ICON_GLOW 0x0C
 #define ICON_MONSTER_SEES_PLAYER 0x0D
+#define ICON_SLEEPING 0x0E
 
 /*** Feature Indexes (see "lib/edit/feature.txt") ***/
 
@@ -2664,6 +2665,8 @@
 #define OPT_visual_recognition (OPT_GAME_PLAY + 1)
 /* Stealth vision mode: show whether monsters can see you */
 #define OPT_stealth_vision (OPT_GAME_PLAY + 2)
+/* Sleeping icon: show an overlay icon on sleeping monsters */
+#define OPT_sleep_icon (OPT_GAME_PLAY + 3)
 // xxx auto_haggle
 // xxx auto_scum
 // xxx allow_themed_levels
@@ -2789,6 +2792,7 @@
     op_ptr->opt[OPT_valorous_oath_auto_attack_safety]
 #define visual_recognition op_ptr->opt[OPT_visual_recognition]
 #define stealth_vision op_ptr->opt[OPT_stealth_vision]
+#define sleep_icon op_ptr->opt[OPT_sleep_icon]
 #define depth_in_feet op_ptr->opt[OPT_depth_in_feet]
 // xxx stack_force_notes
 // xxx stack_force_costs
@@ -2956,6 +2960,7 @@
  *  Break things into pages
  */
 #define INTERFACE_PAGE 0
+#define TEXT_PAGE 1
 #define GAMEPLAY_PAGE 2
 #define EFFICIENCY_PAGE 3
 #define VISUAL_PAGE 4
@@ -3515,6 +3520,8 @@
 #define GRAPHICS_ALERT_MASK 0x40
 /* mask on terrain char (tcp): request stealth-vision overlay icon */
 #define GRAPHICS_SEEN_MASK GRAPHICS_ALERT_MASK
+/* mask on terrain attr (tap): request sleeping overlay icon */
+#define GRAPHICS_SLEEP_MASK GRAPHICS_ALERT_MASK
 #define TILE_FLAG 0x80
 #define TILE_INDEX_MASK 0x3F
 #define TILE_SET_INDEX(base, idx)                                             \

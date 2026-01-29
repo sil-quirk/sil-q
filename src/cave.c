@@ -1827,8 +1827,28 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
     }
 
     /* Save the terrain info for the transparency effects */
-    (*tap) = a;
-    (*tcp) = c;
+    byte terrain_a = a;
+    char terrain_c = c;
+
+    /* Traps are drawn as a middle layer in the SDL renderer (floor -> trap -> monster).
+     * For transparency to work, use a floor tile as the terrain underlay when a trap is
+     * visible on this grid. */
+    if ((info & (CAVE_MARK)) && (feat >= FEAT_TRAP_HEAD) && (feat <= FEAT_TRAP_TAIL))
+    {
+        int floor_feat = FEAT_FLOOR;
+        if (rage_active && !graphics_are_ascii())
+            floor_feat = FEAT_RAGE_FLOOR;
+
+        feature_type* floor_ptr = &f_info[floor_feat];
+        terrain_a = floor_ptr->x_attr;
+        terrain_c = floor_ptr->x_char;
+
+        (void)apply_style_floor_graphics(y, x, floor_feat, info, &terrain_a, &terrain_c);
+        special_lighting_floor(&terrain_a, &terrain_c, info, cave_light[y][x]);
+    }
+
+    (*tap) = terrain_a;
+    (*tcp) = terrain_c;
 
     /* Objects (only shown when on floors, not when in rubble) */
     if (feat == FEAT_FLOOR || feat == FEAT_SUNLIGHT)
@@ -1955,6 +1975,13 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
                 && m_ptr->alertness >= ALERTNESS_ALERT)
             {
                 c += GRAPHICS_ALERT_MASK;
+            }
+
+            /* Sleeping overlay: indicate when this monster is asleep. */
+            if (!graphics_are_ascii() && sleep_icon && tap != ap
+                && m_ptr->alertness < ALERTNESS_UNWARY)
+            {
+                *tap = (byte)(((byte)(*tap)) | GRAPHICS_SLEEP_MASK);
             }
 
             /* Stealth vision overlay: indicate when this monster can see you. */

@@ -2060,6 +2060,7 @@ static errr callback_sdl_pict(int x, int y, int n, const byte* ap, const char* c
         bool glow = a & GRAPHICS_GLOW_MASK;
         bool alert = c & GRAPHICS_ALERT_MASK;
         bool seen = tcp[i] & GRAPHICS_SEEN_MASK;
+        bool sleep = tap[i] & GRAPHICS_SLEEP_MASK;
 
         /* Unconditionally clear the full (possibly 2-cell) destination area to avoid ghosting */
         SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
@@ -2069,6 +2070,61 @@ static errr callback_sdl_pict(int x, int y, int n, const byte* ap, const char* c
         src.x = (tcp[i] & 0x3F) * TILE_SIZE;
         src.y = (tap[i] & 0x3F) * TILE_SIZE;
         SDL_RenderTexture(g_state.renderer, g_state.tileset, &src, &dst);
+
+        /* Traps are drawn as a middle layer (floor -> trap -> monster). When a
+         * visible creature is standing on a visible trap, inject the trap tile
+         * between the terrain underlay and the creature tile. */
+        if (Term == term_screen) {
+            int term_x = x + (i * (use_bigtile + 1));
+            if (y >= ROW_MAP && term_x >= COL_MAP) {
+                int map_y = y - ROW_MAP;
+                int map_x = term_x - COL_MAP;
+                if (use_bigtile)
+                    map_x /= 2;
+
+                int dy = p_ptr->wy + map_y;
+                int dx = p_ptr->wx + map_x;
+
+                if ((dy >= 0) && (dx >= 0) && (dy < p_ptr->cur_map_hgt)
+                    && (dx < p_ptr->cur_map_wid)) {
+                    u16b info = cave_info[dy][dx];
+                    bool hide_square = (!p_ptr->is_dead)
+                        && (p_ptr->rage || g_labyrinth_view_active)
+                        && !(info & (CAVE_SEEN));
+
+                    if (!hide_square) {
+                        s16b m_idx = cave_m_idx[dy][dx];
+                        bool creature_visible = (m_idx < 0)
+                            || ((m_idx > 0) && mon_list[m_idx].ml);
+
+                        if (creature_visible && (info & (CAVE_MARK))) {
+                            byte feat = cave_feat[dy][dx];
+                            feat = f_info[feat].mimic;
+
+                            if ((feat >= FEAT_TRAP_HEAD) && (feat <= FEAT_TRAP_TAIL)) {
+                                feature_type* f_ptr = &f_info[feat];
+                                byte trap_a = f_ptr->x_attr;
+                                char trap_c = f_ptr->x_char;
+
+                                if ((use_graphics == GRAPHICS_MICROCHASM)
+                                    && feat_supports_lighting(feat)) {
+                                    bool is_dark = p_ptr->blind
+                                        || ((cave_light[dy][dx] <= 0)
+                                            && !(info & (CAVE_GLOW)));
+                                    if (is_dark || !(info & (CAVE_SEEN))) {
+                                        trap_c += 1;
+                                    }
+                                }
+
+                                src.x = ((byte)trap_c & 0x3F) * TILE_SIZE;
+                                src.y = (trap_a & 0x3F) * TILE_SIZE;
+                                SDL_RenderTexture(g_state.renderer, g_state.tileset, &src, &dst);
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         /* Overlays (glow / alert) */
         if (glow) {
@@ -2085,6 +2141,16 @@ static errr callback_sdl_pict(int x, int y, int n, const byte* ap, const char* c
         src.x = (c & 0x3F) * TILE_SIZE;
         src.y = (a & 0x3F) * TILE_SIZE;
         SDL_RenderTexture(g_state.renderer, g_state.tileset, &src, &dst);
+
+        if (sleep) {
+            byte icon_a = misc_to_attr[ICON_SLEEPING];
+            byte icon_c = (byte)misc_to_char[ICON_SLEEPING];
+            if ((icon_a & TILE_FLAG) && (icon_c & TILE_FLAG)) {
+                src.x = (icon_c & 0x7F) * TILE_SIZE;
+                src.y = (icon_a & 0x7F) * TILE_SIZE;
+                SDL_RenderTexture(g_state.renderer, g_state.tileset, &src, &dst);
+            }
+        }
 
         if (seen) {
             byte icon_a = misc_to_attr[ICON_MONSTER_SEES_PLAYER];
