@@ -2969,6 +2969,22 @@ void do_cmd_alter(void)
     bool chest_present = FALSE;
     bool skeleton_present = FALSE;
 
+    /*
+     * True if the square has a known chest or skeleton.
+     *
+     * Apparently, the visibility/lighting logic in the game can run into
+     * problems when the player is in tight spaces, like 1x2 or 2x1 caverns.
+     * In these situations the game might falsely believe that the player can't
+     * see an adjacent square, including "known" skeletons or chests (i.e.,
+     * those that the player successfully saw in a prior game turn). Because
+     * changing the overall visibility/lighting logic carries the risk of
+     * unwanted side-effects, we opted for special-casing known chests and
+     * skeletons instead.
+     *
+     * Details at https://github.com/sil-quirk/sil-q/issues/107
+     * */
+    bool has_known_searchable = FALSE;
+
     bool more = FALSE;
 
     /* Get a direction */
@@ -3021,6 +3037,8 @@ void do_cmd_alter(void)
         if (o_ptr->tval == TV_CHEST)
         {
             chest_present = TRUE;
+            if (o_ptr->marked)
+                has_known_searchable = TRUE;
 
             if ((o_ptr->pval > 0) && chest_traps[o_ptr->pval]
                 && object_known_p(o_ptr))
@@ -3029,6 +3047,8 @@ void do_cmd_alter(void)
         else if (o_ptr->tval == TV_SKELETON)
         {
             skeleton_present = TRUE;
+            if (o_ptr->marked)
+                has_known_searchable = TRUE;
         }
     }
 
@@ -3041,7 +3061,7 @@ void do_cmd_alter(void)
         py_attack(y, x, ATT_MAIN);
     }
     // deal with players who can't see the square
-    else if ((dir != 5) && !(is_marked || is_visible))
+    else if ((dir != 5) && !(is_marked || is_visible || has_known_searchable))
     {
         if (cave_floor_bold(y, x))
         {

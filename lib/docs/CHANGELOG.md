@@ -39,6 +39,9 @@ Changed:
 
 Fixed:
 
+- fix: correctly search skeletons and chests in tight spaces (fixes #107)
+  ([#146](https://github.com/sil-quirk/sil-q/pull/146))
+  - thanks @davidk64fnq and @joeljpa for reporting and helping to fix this issue
 - fix: memory leak in init_x11()
   ([#145](https://github.com/sil-quirk/sil-q/pull/145))
 - fix: prevent signed integer overflow in update_mon()
