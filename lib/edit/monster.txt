@@ -366,7 +366,8 @@ A:20:2:3:1
 P:[+1,1d4]
 B:BITE:WOUND:(+3,2d3)
 F:FRIENDS | RAND_25 | WOLF
-D:This ragged wolf is part of the orcish packs.
+D:A lean and hungry wolf, bred in the kennels of Angband to run with the
+D: orcish packs. Its yellow eyes gleam with feral cunning.
 
 
 N:12:Tanglethorn
@@ -522,7 +523,9 @@ A:5:4:4:1
 P:[+7]
 B:PECK:HURT:(+8,1d5)
 F:FLYING | RAND_50 | TERRITORIAL
-D:A hunting bird, beloved of the orcs, with iron barbs on its talons.
+D:A raptor bred in the eyries of Angband, favoured by the orc-scouts as
+D: a mount and messenger. Its talons are tipped with cruel iron barbs,
+D: and its keen eyes miss little that moves in the deep places below.
 
 
 N:23:Mewlip
@@ -538,8 +541,9 @@ F:DROP_100 | OPEN_DOOR | UNLOCK_DOOR | BASH_DOOR | SMART
 F:NO_FEAR
 S:SPELL_PCT_15
 S:DIM
-D:An evil swamp dwelling creature that feeds on the bones
-D: of those who draw near.
+D:Beyond the Merlock Mountains, beyond the marsh of Tode, live the Mewlips.
+D: These pale, spider-fingered creatures lurk in dark pools, feeding on the
+D: bones of unwary travelers. Their eyes gleam with hunger in the darkness.
 
 
 ##### 3 #####
@@ -641,8 +645,9 @@ A:15:2:3:1
 P:[+9]
 B:PECK:BLIND:(+10,1d5)
 F:FRIEND | FLYING | RAND_25
-D:A dark creature, related to the crow. It pecks at any exposed flesh,
-D: especially the face and eyes.
+D:A foul bird of Morgoth's making, bred alongside the Crebain to harry
+D: and torment his enemies. It strikes without hesitation at any exposed
+D: flesh, gouging at the face and eyes with cruel beak.
 
 
 N:44:Brood spider
@@ -692,7 +697,9 @@ A:20:3:3:1
 P:[+6,1d4]
 B:BITE:WOUND:(+8,2d4)
 F:FRIENDS | RAND_25 | WOLF | RES_COLD
-D:A large and fierce wolf from the northern wastes.
+D:A great white wolf from the frozen wastes north of Angband, where even
+D: orcs fear to tread. Its thick fur protects it from the bitter cold,
+D: and its jaws can crush bone.
 
 
 N:53:Red serpent
@@ -725,8 +732,10 @@ F:UNIQUE | MALE | ESCORT | SMART
 F:DROP_100 | DROP_GOOD | OPEN_DOOR | BASH_DOOR | ORC
 F:HURT_LITE | UNLOCK_DOOR
 S:SPELL_PCT_5 | POW_12 | RALLY
-D:A captain of an orcish band, Gorgol keeps his troop in
-D: order with displays of violence.
+D:Gorgol earned his title through the butchery of captives, a spectacle
+D: he uses to keep his warband in terror of his wrath. He is large for
+D: an orc-captain and wields a heavy cleaver stained dark with old blood.
+D: His pack follows him out of fear rather than loyalty.
 
 
 ##### 6 #####
@@ -759,8 +768,9 @@ A:15:1:2:3
 P:[+7,1d4]
 B:BITE:HURT:(+8,2d9)
 F:SPIDER | TERRITORIAL
-D:A giant black spider with sword-sharp mandibles.
-D: It skitters back and forth.
+D:A giant black spider with mandibles sharp as sword-blades, bred in
+D: the dark pits beneath Angband. It moves with unsettling speed, and
+D: its bite can shear through leather and flesh alike.
 
 
 N:63:Crebain
@@ -775,7 +785,9 @@ B:PECK:WOUND:(+12,1d5)
 F:FRIENDS | FLYING | RAND_25
 S:SPELL_PCT_15
 S:SHRIEK
-D:A type of crow, specially bred by the forces of evil as spies.
+D:Crebain are dark crows bred by Morgoth's servants as spies and scouts.
+D: Their harsh cries alert nearby enemies to your presence, and their
+D: keen eyes miss nothing that moves in the shadows below.
 
 
 N:64:Phantom
@@ -792,8 +804,10 @@ F:RAND_50 | UNDEAD | HURT_LITE | RES_COLD
 F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | FRIEND
 S:SPELL_PCT_50
 S:DIM
-D:A faded presence that perhaps once was man or elf,
-D: but is now an insubstantial thing of necromancy and shadow.
+D:A faded presence that perhaps once was man or elf, now bound to
+D: the world of shadow by Morgoth's necromancy. It moves unseen
+D: through the halls, and those who feel its touch are seized by a
+D: terror from which reason cannot free them.
 
 
 ##### 7 #####
@@ -810,8 +824,10 @@ P:[+10,1d4]
 B:BITE:ENTRANCE:(+6,1d8)
 F:SPIDER | RES_POIS | TERRITORIAL | FRIENDS | SMART
 S:SPELL_PCT_5 | POW_8 | THROW_WEB
-D:A spider as big as a dog, covered in thick bristles, with the light
-D: reflecting off its pale bulbous eyes.
+D:An attercop -- poison-spider, as the folk call it -- as big as a
+D: hound, covered in thick dark bristles. It spins webs of deathly
+D: silk to entangle the unwary, and its pale bulbous eyes gleam with
+D: a hunger that is almost knowing.
 
 
 N:72:Nightthorn
@@ -825,7 +841,10 @@ P:[-5,2d4]
 B:THORN:HURT:(+5,5d3)
 F:NEVER_MOVE | MINDLESS | HURT_FIRE
 F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | NO_CRIT
-D:This twisted plant drinks in the light from the air around.
+D:A twisted growth born of Morgoth's malice, this thorn-plant draws the
+D: very light from the air around it, leaving only cold darkness in
+D: its wake. It was first found creeping through the lightless halls
+D: of Angband, and has since spread its roots through many a cavern.
 
 
 N:73:Green serpent
@@ -856,7 +875,10 @@ B:HIT:BATTER:(+6,4d5)
 F:MALE | FRIEND | DROP_33 | REGENERATE | OPEN_DOOR
 F:BASH_DOOR | TROLL | HURT_LITE | SMART | NO_FEAR
 F:KNOCK_BACK
-D:A tall troll from the mountains of the north.
+D:A tall troll from the mountains north of Angband, where Morgoth's servants
+D: first bred their kind. Its hide is tough as stone and it fears nothing
+D: but the light of day, which would turn it back to the rock from whence
+D: it came.
 
 
 N:75:Tattered wight
@@ -894,8 +916,11 @@ F:DROP_1D2 | DROP_GOOD | DROP_CHOSEN
 F:HURT_LITE
 S:SPELL_PCT_15 | POW_11
 S:ARROW2
-D:A great captain of the orcs, who led many raids into the
-D: lands of the elves.
+D:One of the mightiest orc-captains to serve Morgoth, Boldog was sent
+D: with a host to break through the Girdle of Melian and seize Luthien
+D: Tinuviel for the Dark Lord. Though that errand failed, he has since
+D: led countless raids against the Eldar, earning his name through
+D: merciless slaughter of any who fall into his hands.
 
 
 ##### 8 #####
@@ -915,8 +940,11 @@ B:HIT:HURT:(+6,3d8)
 F:MALE | DROP_100 | OPEN_DOOR | BASH_DOOR
 F:ORC | HURT_LITE | SMART
 F:HAS_WEAPON | HAS_ARMOUR
-D:A champion of the orc hordes. He wears well-fitting armour and
-D: wields a battle axe.
+D:A champion risen from the brutal fighting-pits of Angband, where orcs
+D: prove themselves before Morgoth's captains. He bears scars from
+D: countless bouts and wears well-crafted armour, his battle axe
+D: notched and stained dark with the blood of his own kind as much
+D: as any foe.
 
 
 N:82:Easterling warrior
@@ -931,11 +959,10 @@ B:HIT:HURT:(+7,2d8)
 F:MAN | MALE | DROP_33 | OPEN_DOOR | BASH_DOOR | FRIENDS
 F:SMART
 F:FLANKING
-D:Yet neither by wolf, nor by Balrog, nor by Dragon, would
-D: Morgoth have achieved his end, but for the treachery of Men.
-D: He is of a people who have come recently to
-D: Beleriand out of the far east, and have fallen under
-D: Morgoth's sway.
+D:A warrior of the Easterlings, one of those peoples who crossed into
+D: Beleriand and swore oaths to the lords of the Eldar -- only to break
+D: them when Morgoth's promises proved sweeter. He fights with a crude
+D: blade and a shield, loyal now only to the Dark Lord.
 
 
 N:83:Hummerhorn
@@ -948,7 +975,10 @@ A:5:3:1:5
 P:[+14]
 B:STING:CONFUSE:(+13,1d7)
 F:FLYING | RAND_25 | RAND_50 | FRIENDS | TERRITORIAL
-D:A giant buzzing wasp, its stinger drips venom.
+D:A monstrous wasp, larger than any natural insect, bred in the poisoned
+D: pits beneath Angband. Its wings fill the air with a maddening drone,
+D: and the venom on its stinger can bring even the strong to confusion
+D: and despair.
 
 
 N:84:Balcmeg, the Relentless
@@ -962,9 +992,11 @@ P:[+6,5d4]
 B:HIT:HURT:(+8,3d8)
 F:UNIQUE | MALE | OPEN_DOOR | BASH_DOOR | SMART | ORC
 F:DROP_100 | UNIQUE_FRIEND | DROP_GOOD | HURT_LITE
-D:A huge champion of the orcs, clad in thick black armor
-D: and carrying a shield and much-notched axe. He is
-D: scarred of face and his eyes are small and baleful.
+D:A huge champion of the orcs, clad in thick black armour and
+D: bearing a shield and much-notched axe. Scarred and baleful,
+D: Balcmeg earned his name for the way he pursues his prey -- he
+D: never stops, never rests, and none who flee from him have ever
+D: reached safety. His warband follows him out of dread.
 
 
 N:85:Lug, the Grotesque
@@ -978,9 +1010,11 @@ P:[+17,2d4]
 B:HIT:HURT:(+16,1d7)
 F:UNIQUE | MALE | OPEN_DOOR | UNLOCK_DOOR | SMART | ORC
 F:DROP_100 | UNIQUE_FRIEND | DROP_GREAT | HURT_LITE | CRUEL_BLOW
-D:A small and exceptionally ugly orc, wearing dark leather
-D: and carrying a short broad blade which he tosses from
-D: one hand to the other with unsettling dexterity.
+D:A small and exceptionally ugly orc, the most twisted of Morgoth's
+D: mockeries. Despite his wretched appearance, Lug moves with a
+D: dexterity that belies his form, tossing his short broad blade
+D: from hand to hand. His strikes land in places that wound most
+D: deeply, and few survive his attentions long.
 
 
 ##### 9 #####
@@ -1001,8 +1035,10 @@ F:MALE | ESCORT | DROP_1D2 | OPEN_DOOR | BASH_DOOR
 F:ORC | HURT_LITE | SMART | UNLOCK_DOOR |
 F:HAS_WEAPON | HAS_ARMOUR
 S:SPELL_PCT_5 | POW_10 | RALLY
-D:An armoured orc that walks with confidence. His curved blade
-D: has many notches along its edge.
+D:An orc who has clawed his way to rank through blood and cunning.
+D: He walks with the confidence of one who has broken lesser orcs
+D: beneath his heel, and his much-notched blade speaks of battles
+D: won in the dark halls of Angband.
 
 
 N:92:Warg
@@ -1015,7 +1051,9 @@ A:20:6:4:6
 P:[+10,1d4]
 B:BITE:WOUND:(+12,2d5)
 F:FRIENDS | RAND_25 | BASH_DOOR | WOLF | SMART
-D:It is a great wolf with eyes full of cunning.
+D:A Warg, bred in the pits of Angband to be larger and more cunning than
+D: any natural wolf. They are used as mounts by orc-chieftains, and their
+D: keen intelligence makes them dangerous hunters.
 
 
 N:93:Grave wight
@@ -1033,8 +1071,10 @@ F:UNDEAD | HURT_LITE | RES_COLD | SMART | TERRITORIAL
 F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | RES_CRIT
 S:SPELL_PCT_20
 S:DARKNESS | SLOW
-D:It is a ghostly form, wrapped in a stained shroud.
-D: It protects that with which is was buried.
+D:A spirit bound still to the earth by Morgoth's necromancy, wrapped
+D: in a rotting shroud. It guards the treasures that were laid with
+D: it in the grave, and the touch of its withered hand saps the
+D: strength from living flesh.
 
 
 N:94:Dark serpent
@@ -1049,8 +1089,9 @@ B:BITE:HURT:(+10,2d8)
 F:SERPENT | RAND_50
 S:SPELL_PCT_20 | POW_2
 S:BRTH_DARK
-D:A snake the length of a man, with hard scales that
-D: reflect no light.
+D:A serpent wrought in Morgoth's darkness, its scales drinking all
+D: light that falls upon them. Where it passes the shadows deepen,
+D: and its breath carries a chill that chokes the spirit.
 
 
 N:95:Orcobal, Champion of the Orcs
@@ -1067,7 +1108,11 @@ F:DROP_1D2 | DROP_GOOD | OPEN_DOOR | BASH_DOOR | ORC
 F:HURT_LITE | SMART
 F:HAS_WEAPON | HAS_ARMOUR
 S:SPELL_PCT_5 | POW_14 | RALLY
-D:The chief champion of the orcs of Morgoth.
+D:Orcobal has risen through the ranks of Morgoth's orc-hosts by
+D: strength of arm and ruthless cunning. He bears scars from a hundred
+D: battles against the Eldar and commands the respect even of those
+D: captains who loathe him. His name is cursed in the songs of the Noldor,
+D: for he has slain many of their kin beneath the shadows of Thangorodrim.
 
 
 ##### 10 #####
@@ -1085,9 +1130,10 @@ B:TOUCH:DARK:(+6,2d6)
 F:RAND_25 | RAND_50 | FRIEND | MULTIPLY
 F:UNDEAD | HURT_LITE | RES_COLD | TERRITORIAL
 F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | RES_CRIT
-D:A flickering darkness, spreading through the halls.
-D: From its midst, you hear faint voices
-D: yearning, beckoning.
+D:A flickering darkness that spreads through the halls like a stain,
+D: multiplying as it feeds. From its midst you hear faint voices
+D: yearning, beckoning -- the whispers of those it has already
+D: consumed, calling others to join them in the cold.
 
 
 N:102:Distended spider
@@ -1100,7 +1146,9 @@ A:15:4:3:5
 P:[+7]
 B:BITE:POISON:(+9,2d11)
 F:SPIDER | RES_POIS | TERRITORIAL
-D:It is a vast spider whose bulbous body is bloated with poison.
+D:A monstrous spider of Ungoliant's brood, its swollen body distended
+D: with venom. A single bite can paralyze prey while its digestive
+D: fluids slowly dissolve the victim from within.
 
 
 N:103:Easterling archer
@@ -1116,11 +1164,10 @@ F:MAN | MALE | DROP_33 | OPEN_DOOR | BASH_DOOR | FRIEND
 F:SMART
 S:SPELL_PCT_75 | POW_11
 S:ARROW2
-D:Yet neither by wolf, nor by Balrog, nor by Dragon, would
-D: Morgoth have achieved his end, but for the treachery of Men.
-D: He is of a people who have come recently to
-D: Beleriand out of the far east, and have fallen under
-D: Morgoth's sway.
+D:An archer of the Easterling host, sworn to Morgoth's service. His
+D: people came to Beleriand under fair words, but their allegiance was
+D: bought with dark promises. He draws his bow with practiced ease,
+D: and his arrows have felled many an Elven lord from the shadows.
 
 
 N:104:Twisted bat
@@ -1133,9 +1180,10 @@ A:15:7:4:4
 P:[+17,1d4]
 B:BITE:LOSE_CON:(+15,2d5)
 F:FLYING | RAND_50 | TERRITORIAL 
-D:A fluttering bat the size of a large dog. Its head is
-D: misshapen out of any natural proportion, with long curving
-D: fangs hanging from its mouth.
+D:A bat warped beyond all natural shape by Morgoth's corruption.
+D: Its head is grotesquely misshapen, with long curving fangs that
+D: drain the very strength from the flesh they pierce. It moves
+D: with a speed that belies its broken form.
 
 
 N:105:Othrod, the Orc Lord
@@ -1153,9 +1201,11 @@ F:DROP_1D2 | DROP_GREAT | OPEN_DOOR | BASH_DOOR | ORC
 F:HURT_LITE | UNLOCK_DOOR
 F:HAS_WEAPON | HAS_ARMOUR
 S:SPELL_PCT_5 | POW_16 | RALLY
-D:The cruelty in the eyes of this massive orc belies
-D: the intelligence that has kept him a favourite
-D: of the black enemy for many years.
+D:An orc-lord of great cunning, who has served Morgoth long enough
+D: to have earned his master's favour. His massive frame is clad
+D: in heavy armour, and he wields both sword and whip with equal
+D: skill. His cruelty to subordinates and prisoners alike has
+D: earned him a feared name among the hosts of Angband.
 
 
 
@@ -1177,7 +1227,9 @@ F:MALE | FRIEND | DROP_33 | REGENERATE | OPEN_DOOR
 F:BASH_DOOR | TROLL | HURT_LITE | RES_COLD | HURT_FIRE
 F:SMART | NO_FEAR
 F:KNOCK_BACK
-D:He is a white troll with powerfully clawed hands.
+D:A snow troll from the frozen wastes of the far north. Its white hide
+D: blends with ice and snow, and its clawed hands can rend steel. The
+D: cold that would slay lesser creatures only makes it stronger.
 
 
 # need to leave Barrow wight at location 112
@@ -1197,8 +1249,10 @@ F:UNDEAD | HURT_LITE | RES_COLD | SMART | TERRITORIAL
 F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | RES_CRIT
 S:SPELL_PCT_20
 S:DARKNESS | SLOW
-D:This ghostly, shrouded form dwells within its burial
-D: chamber, unable to find release.
+D:A spirit chained to the earth by dark enchantment, unable to pass
+D: into the halls of Mandos. It haunts its burial chamber wrapped in
+D: tattered grave-cloths, and the cold that seeps from it is a
+D: cold of the soul, not merely of the flesh.
 
 
 N:113:Lurking horror
@@ -1213,8 +1267,10 @@ B:BITE:ENTRANCE:(+10,2d9)
 F:BASH_DOOR | SHORT_SIGHTED | NO_FEAR | HURT_LITE
 S:SPELL_PCT_15
 S:SCARE
-D:It waits for you in the ink-black of the dungeon.
-D: It seems to be made entirely of claws and of teeth.
+D:It waits in the deepest ink-black of the dungeon, patient and
+D: still, a thing of nothing but claws and teeth. When it strikes,
+D: its bite does not merely wound -- it holds fast, and the dread
+D: that pours from it can break the will of even the bravest.
 
 
 N:114:Giant
@@ -1230,8 +1286,10 @@ F:DROP_100 | OPEN_DOOR | BASH_DOOR | SMART
 F:HAS_WEAPON | HAS_ARMOUR
 S:SPELL_PCT_15 | POW_6
 S:BOULDER
-D:As tall as three men, this hulking opponent is crudely
-D: armed with a great club.
+D:A giant of Morgoth's hosts, as tall as three men and armed with a
+D: massive club. These brutes served the Dark Lord since before the
+D: rising of the Sun, and their strength is terrible to behold. They
+D: hurl great boulders at their foes from afar.
 
 
 N:115:Uldor, the Accursed
@@ -1248,8 +1306,11 @@ S:ARROW1
 F:UNIQUE | MAN | MALE | DROP_100 | ESCORT | SMART
 F:DROP_GOOD | OPEN_DOOR | BASH_DOOR | TAKE_ITEM | UNLOCK_DOOR
 F:CRIPPLING
-D:Son of Ulfang, the Black, and the leader in the treason against
-D: the elves in the Battle of Unnumbered Tears.
+D:Son of Ulfang the Black, Uldor led the Easterling treachery in the
+D: Nirnaeth Arnoediad. At the height of battle, when victory seemed within
+D: reach, his host turned upon the sons of Feanor. His betrayal doomed the
+D: Union of Maedhros and earned him eternal infamy. He was slain by Maglor,
+D: yet the curse upon his name endures: Uldor the Accursed.
 
 
 # need to leave Brodda at location 117
@@ -1294,11 +1355,10 @@ F:MAN | MALE | DROP_33 | OPEN_DOOR | UNLOCK_DOOR
 F:SMART
 S:SPELL_PCT_20 | POW_15
 S:ARROW1 | SHRIEK
-D:Yet neither by wolf, nor by Balrog, nor by Dragon, would
-D: Morgoth have achieved his end, but for the treachery of Men.
-D: He is of a people who have come recently to
-D: Beleriand out of the far east, and have fallen under
-D: Morgoth's sway.
+D:A spy of the Easterling host, clad in dark garb and armed for
+D: silent work. These treacherous Men were planted among the Eldar
+D: by Morgoth to whisper and report, and they have honed their craft
+D: to a dark perfection.
 
 
 N:122:Shadow bat
@@ -1311,7 +1371,10 @@ A:15:10:4:7
 P:[+19,1d4]
 B:BITE:HURT:(+17,2d5)
 F:FLYING | RAND_50 | TERRITORIAL | HURT_LITE
-D:A screeching flutter of darkness.
+D:A bat twisted by Morgoth's power into something feral and unnatural.
+D: Its wings are black as the void, and it hunts in the lightless
+D: deeps with a shriek that chills the blood. Even in darkness, it
+D: finds its prey with uncanny ease.
 
 
 N:123:Sulrauko
@@ -1326,7 +1389,9 @@ B:HIT:BATTER:(+14,3d5)
 F:BASH_DOOR | INVISIBLE | RES_CRIT | RES_POIS
 F:FLYING | RAND_50
 F:RAUKO | SMART
-D:A wind spirit, bent to Morgoth's will.
+D:A spirit of the winds that was seduced to Morgoth's service in the days
+D: before the Sun. It howls through the halls of Angband, invisible and
+D: swift, battering all who stand against its fell master.
 
 
 N:124:Fire-drake hatchling
@@ -1407,8 +1472,9 @@ B:CLAW:WOUND:(+16,3d5)
 B:BITE:POISON:(+13,2d9)
 F:RAND_25 | OPEN_DOOR | BASH_DOOR
 F:WOLF | FRIEND | SMART
-D:No mere wolf, some malevolent spirit lurks behind
-D: those glowing eyes.
+D:No mere wolf, but a foul spirit bound into wolf-form by Sauron's dark
+D: arts. These creatures served as guards and hunters on Tol-in-Gaurhoth,
+D: and their venom brings a slow and painful death.
 
 
 N:132:Shadow spider
@@ -1422,7 +1488,9 @@ P:[+10,1d4]
 B:BITE:BLIND:(+11,2d9)
 F:SPIDER | RES_POIS
 F:HURT_LITE | TERRITORIAL
-D:It is a great black spider wreathed in shadow.
+D:A great black spider wreathed in clinging shadow, kin to the spawn of
+D: Ungoliant. It lurks in darkness, and its bite can steal the light
+D: from your very eyes.
 
 
 N:133:Shadow
@@ -1454,8 +1522,9 @@ F:SERPENT | ATTR_MULTI | RAND_25
 F:RES_COLD | HURT_FIRE
 S:SPELL_PCT_20 | POW_6
 S:BRTH_COLD
-D:A great serpent with scales of gleaming sapphire.
-D: An icy chill surrounds it.
+D:A great serpent with scales of gleaming sapphire, ancient and terrible.
+D: An icy chill surrounds it, and where it passes the very air grows
+D: still and cold, as though winter itself had come to these dark halls.
 
 
 N:135:Gilim, the Giant of Eruman
@@ -1473,8 +1542,11 @@ F:RES_COLD
 F:UNIQUE | MALE | SMART
 S:SPELL_PCT_20 | POW_10
 S:BOULDER
-D:Known as the giant of winter and the northern reaches,
-D: he is tall even among giants, and his name is cursed in many lands.
+D:From Eruman, the dark and frozen lands south of Valinor, came Gilim
+D: in the days when Melkor first raised his banner. He is a giant of
+D: winter, and frost follows in his wake. His breath freezes the air,
+D: and his footfalls shake the stone. Long has he served the Dark Lord,
+D: and long shall his name be cursed by those who dwell in the North.
 
 
 
@@ -1495,8 +1567,9 @@ F:SERPENT | ATTR_MULTI | RAND_25
 F:RES_FIRE | HURT_COLD
 S:SPELL_PCT_20 | POW_6
 S:BRTH_FIRE
-D:A great serpent with scales of gleaming ruby.
-D: An intense heat radiates from it.
+D:A great serpent with scales of gleaming ruby, kin to the fire-drakes
+D: of old though it breathes no flame of its own. An intense heat
+D: radiates from its coils, and the stone beneath it cracks and warps.
 
 
 N:142:Creeping horror
@@ -1511,8 +1584,10 @@ B:CLAW:ACID:(+18,3d10)
 F:BASH_DOOR | NO_FEAR | HURT_LITE
 S:SPELL_PCT_15
 S:SCARE
-D:It slithers and crawls across the floor towards you.
-D: The thought of it catching you tears at your mind.
+D:It slithers and crawls across the floor towards you, low and fast,
+D: a thing of dread and corroding malice. Its claws dissolve flesh
+D: and stone alike, and the terror it exudes tears at the mind
+D: long before it ever reaches you.
 
 
 N:143:Ringrauko
@@ -1526,8 +1601,10 @@ P:[+14,2d4]
 B:HIT:COLD:(+15,2d8)
 F:BASH_DOOR | SMART
 F:RES_COLD | HURT_FIRE | RAUKO
-D:A chill hangs in the air around this figure which is
-D: almost that of a person. A cold gleaming blade is in its hand.
+D:One of the lesser spirits that fell with Morgoth, this Rauko has
+D: chosen the cold rather than the flame as its domain. A chill
+D: hangs heavy in the air around it, and the pale gleaming blade in
+D: its hand drinks the warmth from all it touches.
 
 
 # (Delthaur = abominable horror)
@@ -1549,9 +1626,11 @@ F:NO_FEAR | BASH_DOOR
 F:RAUKO | RES_FIRE | HURT_COLD
 S:SPELL_PCT_20
 S:SCARE
-D:Some have called the Balrogs 'Demons of Terror', but none
-D: inspires such fear as Delthaur. The very air around him
-D: is filled with menace.
+D:Some have called the Balrogs 'Demons of Terror', but none inspires
+D: such dread as Delthaur. His very presence fills the heart with
+D: nameless fear, and the bravest warriors have fled screaming at his
+D: approach. Even other Balrogs give him wide berth, for his malice
+D: is ancient and his hatred of all living things burns cold and deep.
 
 
 N:146:Nan, the Giant
@@ -1568,9 +1647,11 @@ F:HAS_WEAPON | HAS_ARMOUR
 F:UNIQUE | MALE | SMART
 S:SPELL_PCT_10 | POW_12
 S:BOULDER
-D:Known as the giant of summer and the south, he towers above you
-D: like a great tree. In his right hand, he holds the longest
-D: sword you have ever beheld.
+D:Brother to Gilim, Nan is the giant of summer and the southern lands.
+D: Where Gilim brings frost, Nan brings scorching heat and withering
+D: drought. He towers like a great tree, and in his right hand he bears
+D: the longest blade you have ever seen. Both brothers swore allegiance
+D: to Melkor when the world was young, and both have served him ever since.
 
 
 
@@ -1589,8 +1670,10 @@ B:BITE:WOUND:(+12,2d11)
 F:MALE | FRIEND | DROP_33 | REGENERATE | OPEN_DOOR
 F:BASH_DOOR | TROLL | HURT_LITE | SMART | NO_FEAR
 F:KNOCK_BACK
-D:A great brute of a troll, it seems to have come
-D: from the depths of the very earth.
+D:A troll bred in the deepest pits of Angband, where no light has
+D: ever reached. Its hide is grey as wet stone and its limbs are
+D: thick and powerful, shaped by ages in the crushing dark. It
+D: fears the light, and fights all the more savagely for that fear.
 
 
 N:152:Emerald serpent
@@ -1606,8 +1689,10 @@ F:SERPENT | ATTR_MULTI | RAND_25
 F:RES_POIS
 S:SPELL_PCT_20 | POW_6
 S:BRTH_POIS
-D:A great serpent with scales of gleaming emerald.
-D: Noxious vapours surround it.
+D:A great serpent with scales of gleaming emerald, bred in the poisoned
+D: depths where Morgoth's corruption seeps into the very earth. The
+D: noxious vapours that surround it can wither flesh before its fangs
+D: ever strike.
 
 
 # Can't move from idx 153, used by monster Song of Oaths
@@ -1625,8 +1710,10 @@ F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | RES_CRIT
 F:OPEN_DOOR
 S:SPELL_PCT_20
 S:HOLD
-D:A figure that seems made of void, its strangely human shape is cloaked
-D: in shadow.  It reaches out at you.
+D:The spirit of one who broke a sacred oath and was cursed to wander
+D: forever in darkness. This Oathwraith hungers endlessly for the warmth
+D: of the living, and its touch drains all vitality. It is drawn to those
+D: who have sworn vows, seeking to drag them down into its own damnation.
 
 
 
@@ -1644,10 +1731,10 @@ B:CLAW:WOUND:(+18,1d9)
 F:FRIENDS | OPEN_DOOR | UNLOCK_DOOR | BASH_DOOR | SMART
 F:DROP_33
 F:EXCHANGE_PLACES
-D:It is as though a great cat stood like a man.
-D: You cannot tell whether its long scything claws
-D: could be natural. It moves with astonishing
-D: speed and agility.
+D:One of the warriors of Tevildo's court, this great cat walks
+D: upright like a man, though no man could match its speed. Its
+D: long scything claws are weapons of terrible precision, and it
+D: moves with a fluid grace that makes it nearly impossible to track.
 
 
 ##### 16 #####
@@ -1666,8 +1753,10 @@ F:SERPENT | RAND_25
 F:HURT_LITE | ATTR_MULTI
 S:SPELL_PCT_20 | POW_6
 S:BRTH_DARK
-D:A great serpent with scales of darkly glinting amethyst.
-D: Shadows darken as it approaches.
+D:A great serpent with scales of darkly glinting amethyst. It moves
+D: through the halls wrapped in deepening shadow, and those who catch
+D: sight of it in the gloom often wish they had not, for darkness
+D: follows close behind.
 
 
 N:162:Kemenrauko
@@ -1682,8 +1771,9 @@ B:HIT:SHATTER:(+11,4d6)
 F:BASH_DOOR | TUNNEL_WALL | STONE | RAUKO | SMART
 F:RES_COLD | RES_FIRE
 F:RES_POIS | RES_CRIT
-D:It seems the very stone from which Angband is hewn
-D: now opposes you.
+D:A spirit of earth and stone, corrupted by Morgoth to serve as guardian
+D: of his deep halls. It moves through rock as easily as air, and its
+D: blows can shatter steel. The very foundations of Angband answer to its will.
 
 
 N:163:Grotesque
@@ -1725,9 +1815,11 @@ F:SMART | TERRITORIAL
 F:BASH_DOOR | DRAGON
 S:SPELL_PCT_20
 S:CONF | SCARE | HOLD
-D:Not all dragons have the gift of fire, but it is hardly
-D: needed -- the lashing tail, the great claws, the sharp
-D: teeth, and the mesmerising eyes...
+D:Not all dragons have the gift of fire, but none is needed here.
+D: The lashing tail, the great claws, the sharp teeth -- and above
+D: all, the mesmerising eyes. To meet its gaze is to feel one's
+D: will dissolve like mist, held fast in the thrall of a dragon's
+D: ancient and terrible mind.
 
 
 N:165:Umuiyan, the Doorkeeper
@@ -1743,8 +1835,11 @@ F:ESCORT | UNIQUE | MALE | OPEN_DOOR | BASH_DOOR | SMART
 F:DROP_100 | UNLOCK_DOOR | DROP_GOOD
 S:SPELL_PCT_60 | POW_21
 S:ARROW2
-D:This cat seems older than most, and more sly.
-D: He has long guarded the entrance to the fortress of Tevildo.
+D:Grizzled and cunning, Umuiyan has kept watch at the gates of Tevildo's
+D: fortress since the early days. None may pass without his leave, and
+D: his keen eyes miss nothing. Many a prisoner has been dragged past
+D: him into the dark halls within, never to emerge again. He delights
+D: in the slow torment of those who think themselves clever enough to slip by.
 
 
 # (Belegwath = mighty shadow)
@@ -1764,9 +1859,11 @@ F:DROP_1D2 | DROP_100 | DROP_GREAT
 F:HAS_WEAPON | HAS_ARMOUR
 F:NO_FEAR | BASH_DOOR
 F:RAUKO | RES_FIRE | HURT_COLD
-D:A fell fiery figure, great wings of shadow unfolding around
-D: him. For many of the Children of Iluvatar, this has been their
-D: final vision.
+D:Belegwath is wreathed in darkness deeper than the pits of Angband,
+D: yet within that shadow burns a terrible flame. His great wings of
+D: night unfold to blot out all light, and he moves through the halls
+D: like doom itself. For many of the Children of Iluvatar, this Mighty
+D: Shadow has been the last thing they ever beheld.
 
 
 N:167:Spectre
@@ -1783,8 +1880,10 @@ F:RAND_25
 F:UNDEAD | FRIENDS | RES_COLD | SMART | HURT_LITE
 F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | RES_CRIT
 F:PASS_WALL
-D:An insubstantial and ragged figure, scarcely to be seen.
-D: Its eyes form two dark pits in a ruined face.
+D:An insubstantial wraith, barely more than a shred of shadow given
+D: form. Its eyes are two dark pits in a ruined face, and the cold
+D: that emanates from it is a blight upon the living. It drifts
+D: through walls as though they were not there.
 
 
 
@@ -1820,7 +1919,9 @@ B:CLAW:WOUND:(+20,3d7)
 B:BITE:POISON:(+17,2d11)
 F:RAND_25 | OPEN_DOOR | BASH_DOOR
 F:WOLF | FRIEND | SMART
-D:It is a huge wolf with eyes that glow with manly intelligence.
+D:A monstrous werewolf of great size and cunning, perhaps once a mighty
+D: warrior before Sauron bound his spirit into wolf-form. Its eyes gleam
+D: with a terrible intelligence, and its fangs drip with deadly venom.
 
 
 N:173:Adamant serpent
@@ -1836,8 +1937,10 @@ F:SERPENT | ATTR_MULTI | RAND_25
 F:RES_FIRE | RES_COLD | RES_POIS
 S:SPELL_PCT_30 | POW_6
 S:BRTH_FIRE | BRTH_COLD | BRTH_POIS | BRTH_DARK
-D:A great serpent with scales of gleaming diamond.
-D: It sparkles with prismatic hues.
+D:A great serpent armoured in scales harder than any mortal stone,
+D: gleaming with prismatic hues as light catches their facets. It
+D: breathes fire, cold, poison, and shadow alike, and few living
+D: things can match its terrible versatility.
 
 
 N:174:Lesser vampire
@@ -1852,9 +1955,10 @@ B:CLAW:WOUND:(+22,3d5)
 B:BITE:LOSE_CON:(+17,2d7)
 F:FLYING | RAND_25 | OPEN_DOOR | UNLOCK_DOOR
 F:HURT_LITE | SMART
-D:It flits quickly back and forth, like a great bat,
-D: although surely no bat could harbour so much malice
-D: behind its eyes.
+D:A servant of Thuringwethil, it flits through the darkness on
+D: great bat-like wings, though no bat could harbour so much
+D: malice behind its eyes. Its bite drains the very life from
+D: its victims, leaving them cold and hollow.
 
 
 # need to leave Cat assassin at location 175
@@ -1872,8 +1976,10 @@ F:INVISIBLE | OPEN_DOOR | UNLOCK_DOOR | BASH_DOOR | SMART
 F:DROP_100 | FRIEND
 S:SPELL_PCT_50 | POW_23
 S:ARROW1
-D:Slinking in the shadows, this jet-black cat is hard
-D: to discern even as it fires its cruel bow.
+D:One of the silent hunters of Tevildo's court, this jet-black cat
+D: moves through shadow as though born of it. Unseen and patient,
+D: it looses its cruel arrows from the dark with the calm precision
+D: of one who has stalked and slain many times before.
 
 
 N:176:Scatha the Worm
@@ -1891,9 +1997,11 @@ F:DROP_2D2 | DROP_GOOD | SMART
 F:BASH_DOOR | DRAGON
 S:SPELL_PCT_15
 S:CONF | SCARE | HOLD
-D:A long and sinuous worm, coiling on the floor.
-D: His claws are sharp, and by some force,  cunning or
-D: treachery his hoard is large for a young worm.
+D:A young cold-drake, long and sinuous, coiling upon the stone floor.
+D: Scatha is cunning beyond his years, and has already begun to amass
+D: a hoard through theft and murder. His kind lack the fire of the
+D: Uruloki, but his claws are keen and his gaze holds a terrible power.
+D: One day he may crawl forth from Angband to trouble the world above.
 
 
 # only ever appears in the escort of Tevildo
@@ -1909,8 +2017,10 @@ P:[+21,1d4]
 B:CLAW:WOUND:(+30,1d11)
 F:UNIQUE | MALE | OPEN_DOOR | BASH_DOOR | SMART
 F:UNLOCK_DOOR | UNIQUE_FRIEND | DROP_1D2 | DROP_GOOD
-D:A fierce and warlike cat, thane of Tevildo
-D: and ever at his side.
+D:Chief among the thanes of Tevildo, Oikeroi is sworn to guard his
+D: master with fang and claw. He is cunning in the ways of ambush
+D: and has slain many who sought to challenge the Prince of Cats.
+D: His loyalty to Tevildo is absolute, born of both fear and dark devotion.
 
 
 ##### 18 #####
@@ -1954,10 +2064,11 @@ B:BITE:HALLU:(+22,2d9)
 F:BASH_DOOR | RAND_25 | NO_FEAR
 S:SPELL_PCT_15
 S:SCARE
-D:No larger than a wolf, but much swifter,
-D: it is hard to comprehend what evil thought
-D: first brought this into the world.
-D: You would prefer not to see it any closer.
+D:No larger than a wolf, but much swifter -- a blur of limbs and
+D: malice that is hard to comprehend. What evil thought first
+D: brought this into the world, none can say. Its bite does not
+D: merely wound; it fills the mind with visions so terrible that
+D: reason itself crumbles.
 
 
 N:183:Wraith
@@ -2010,9 +2121,11 @@ B:CLAW:WOUND:(+26,1d13)
 F:UNIQUE | MALE | OPEN_DOOR | BASH_DOOR | SMART
 F:UNLOCK_DOOR | UNIQUE_FRIEND | DROP_1D2 | DROP_GREAT
 F:CRUEL_BLOW | EXCHANGE_PLACES
-D:Renowned for his cruelty even among the cruel
-D: cat-people, is it a wonder that this fierce
-D: warrior is royalty?
+D:Tevildo is a mighty fay in the service of Melko, lord and master of
+D: all the cats. In his fortress he keeps many thralls in torment, and
+D: his hatred of the Hound of Valinor is legendary. His strength lies
+D: partly in a golden collar about his neck wherein a spell is locked,
+D: and while he wears it, none may defeat him.
 
 
 # (Turkano = powerful commander)
@@ -2032,10 +2145,11 @@ F:DROP_1D2 | DROP_100 | DROP_GREAT
 F:HAS_WEAPON | HAS_ARMOUR
 F:ESCORTS | NO_FEAR | BASH_DOOR
 F:RAUKO | RES_FIRE | HURT_COLD
-D:All of the Balrogs are held among the mighty of Angband and
-D: obeyed swiftly. But Turkano is a true battle-commander, 
-D: leading a host of Raukar to bring
-D: glory after glory for his fell master.
+D:A Balrog who has earned his rank not by terror alone, but by the
+D: winning of battles. Turkano commands a host of lesser Raukar with
+D: cold authority, and under his leadership they have broken armies
+D: of the Eldar upon the slopes of Thangorodrim. His sword burns
+D: with a flame older than the Sun.
 
 
 ##### 19 #####
@@ -2056,8 +2170,10 @@ F:SERPENT | ATTR_MULTI | RAND_25
 F:RES_COLD | HURT_FIRE
 S:SPELL_PCT_20 | POW_10
 S:BRTH_COLD
-D:A vast serpentine form encrusted with scales of sapphire.
-D: Frost covers it from head to tail.
+D:A vast serpent of ancient lineage, its body encrusted with scales
+D: of sapphire that gleam with an inner frost. It has dwelt in the
+D: deepest cold places of Angband since before the rising of the Sun,
+D: and its breath can freeze the air solid.
 
 
 # need to leave Troll guard at location 192
@@ -2075,9 +2191,11 @@ F:FRIENDS | DROP_33 | REGENERATE | NO_FEAR
 F:OPEN_DOOR | BASH_DOOR | TROLL | HURT_LITE | SMART
 F:KNOCK_BACK
 F:HAS_WEAPON | HAS_ARMOUR
-D:The very largest and toughest of the trolls are
-D: taken into the train of Gothmog. They are trained
-D: for war and given dark armour and great vicious weapons.
+D:The very largest and toughest of the trolls are chosen for the
+D: personal guard of Gothmog, High Captain of Angband. Drilled
+D: relentlessly for war, they wear armour wrought in the forges
+D: below and bear weapons that can shatter stone. Nothing short
+D: of death itself can stop them.
 
 
 N:193:Vampire
@@ -2092,7 +2210,9 @@ B:CLAW:WOUND:(+25,3d5)
 B:BITE:LOSE_STR_CON:(+20,2d9)
 F:FLYING | RAND_25 | OPEN_DOOR | UNLOCK_DOOR
 F:HURT_LITE | SMART
-D:A nightmarish bat-like form, the size of a man.
+D:A nightmarish creature of the vampire kindred, servants of Sauron who
+D: dwell in darkness. Its bat-like wings carry it silently through the
+D: halls, and its bite drains both strength and vitality from its victims.
 
 
 N:194:Nameless thing
@@ -2127,9 +2247,11 @@ F:BASH_DOOR | DRAGON
 F:RES_FIRE | HURT_COLD
 S:SPELL_PCT_20 | POW_22
 S:BRTH_FIRE | CONF | HOLD
-D:A dragon with the inquisitiveness of youth --
-D: but a young dragon is a deadly foe still, and
-D: this one flies through the dark halls on great wings.
+D:A fire-drake of surpassing greed even among his avaricious kind, Smaug
+D: already hoards treasures stolen from Morgoth's own vaults. Young and
+D: ambitious, his golden scales gleam in the darkness as he surveys all
+D: he considers rightfully his. In ages to come he may grow into something
+D: truly terrible, but even now he is a deadly foe.
 
 
 N:196:Maeglin, Betrayer of Gondolin
@@ -2144,11 +2266,12 @@ B:HIT:HURT:(+33,2d8)
 F:UNIQUE | ELF | MALE | DROP_1D2 | UNLOCK_DOOR | DROP_CHOSEN
 F:DROP_GREAT | OPEN_DOOR | BASH_DOOR | TAKE_ITEM | SMART
 F:RIPOSTE | CRUEL_BLOW
-D:Named "sharp-glance" by his father Eol, the dark elf. Maeglin
-D: was close in the counsels of Turgon, King of Gondolin, but
-D: betrayed him to the black enemy Morgoth Bauglir.
-D: Who can say what twist of fate has brought him at last
-D: to that dark king's deep halls?
+D:Son of Eol the Dark Elf and Aredhel of Gondolin, Maeglin rose high
+D: in the counsels of King Turgon. Yet his heart was consumed by
+D: forbidden desire for Idril Celebrindal, and when captured by Morgoth,
+D: he revealed the hidden location of Gondolin in exchange for promises
+D: of power and Idril as his bride. His treachery doomed the fairest of
+D: elven cities. The darkness in his heart has only deepened since.
 
 
 
@@ -2170,9 +2293,11 @@ F:SERPENT | ATTR_MULTI | RAND_25
 F:RES_FIRE | HURT_COLD
 S:SPELL_PCT_20 | POW_10
 S:BRTH_FIRE
-D:A vast serpentine form encrusted with scales of ruby.
-D: Wisps of smoke rise from its nostrils and the
-D: extreme heat surrounding it makes you gasp for breath.
+D:A vast serpent of ancient lineage, its body encrusted with scales
+D: of ruby that glow as though lit from within. Wisps of smoke rise
+D: from its nostrils, and the extreme heat surrounding it makes you
+D: gasp for breath. It has basked in Morgoth's furnaces since the
+D: world was young.
 
 
 N:202:Great cold-drake
@@ -2189,9 +2314,10 @@ F:DROP_2D2 | DROP_GOOD | SMART | TERRITORIAL
 F:BASH_DOOR | DRAGON
 S:SPELL_PCT_20
 S:CONF | SCARE | HOLD
-D:Dragons never stop growing, and may reach a dreadful size.
-D: The oldest of the dragons are both vast and cunning beyond
-D: the understanding of mortals.
+D:An ancient cold-drake of immense size, lacking the fire of the Uruloki
+D: but no less deadly for it. Its hypnotic gaze can freeze prey in place,
+D: and its claws and fangs have slain countless warriors. It has grown
+D: cunning beyond mortal understanding over long centuries of darkness.
 
 
 # need to leave Silent watcher at location 203
@@ -2231,8 +2357,10 @@ P:[+18,3d4]
 B:HIT:DARK:(+18,2d8)
 F:BASH_DOOR | SMART
 F:RAUKO | HURT_LITE
-D:A spirit of Darkness itself, it was easily swayed to Melkor's
-D: side when his black banner was raised in defiance of Iluvatar.
+D:A Rauko of shadow and darkness, among the first spirits to fall
+D: when Melkor raised his banner in defiance of Iluvatar. It moves
+D: through the halls like a creeping void, and its touch brings a
+D: darkness so deep that even torches cannot burn within it.
 
 
 N:205:Draugluin, Sire of Werewolves
@@ -2248,9 +2376,11 @@ B:BITE:POISON:(+23,2d13)
 F:UNIQUE | MALE | ESCORT | SMART
 F:RAND_25 | DROP_1D2 | DROP_CHOSEN
 F:OPEN_DOOR | BASH_DOOR | WOLF
-D:Draugluin provides Sauron with a fearsome personal guard.  He is an
-D: enormous wolf inhabited with a human spirit.  He is chief of all his
-D: kind.
+D:Sire of all werewolves, Draugluin was bred by Morgoth in the pits of
+D: Angband and given to Sauron as captain of his wolf-hosts. Upon the
+D: Isle of Werewolves he dwelt, greatest and most terrible of his kind,
+D: until Huan of Valinor overthrew him. Yet death could not hold him long
+D: in the service of the Dark Lord, and now he stalks these halls once more.
 
 
 # (Vallach = Powerful leaping flame)
@@ -2270,9 +2400,11 @@ F:DROP_1D2 | DROP_100 | DROP_GREAT
 F:HAS_WEAPON | HAS_ARMOUR
 F:NO_FEAR | BASH_DOOR
 F:RAUKO | RES_FIRE | HURT_COLD
-D:A huge man-like shape, cloaked in flame and darkness both. He swings
-D: a cruel fiery axe, and moves more swiftly than should be possible in
-D: such a being.
+D:Vallach was among the Balrogs who burst forth in the Dagor Bragollach,
+D: the Battle of Sudden Flame, when rivers of fire poured from Thangorodrim.
+D: He moves with terrifying speed, a huge shape cloaked in flame and shadow,
+D: his fiery axe cutting down all in his path before they can even raise
+D: their weapons in defense.
 
 
 ##### 21 #####
@@ -2289,8 +2421,10 @@ P:[+19,1d4]
 B:BITE:POISON:(+22,2d19)
 F:SMART
 F:BASH_DOOR | SPIDER | RES_POIS | TERRITORIAL
-D:One of the oldest of brood of Ungoliant, its huge bloated body
-D: drips with venom.
+D:One of the eldest surviving spawn of Ungoliant the Gloomweaver, this
+D: ancient spider has grown vast and cunning over countless years. Its
+D: bloated body drips with venom so potent that even dragons fear its
+D: bite. It has lurked in darkness since before the Sun first rose.
 
 
 N:212:Ancient emerald serpent
@@ -2306,8 +2440,10 @@ F:SERPENT | ATTR_MULTI | RAND_25
 F:RES_POIS
 S:SPELL_PCT_20 | POW_10
 S:BRTH_POIS
-D:A vast serpentine form encrusted with scales of emerald.
-D: It is enveloped in clouds of poisonous vapour.
+D:A vast serpent of ancient lineage, its body encrusted with scales
+D: of emerald that shimmer in the gloom. It is enveloped in clouds
+D: of poisonous vapour so thick that even breathing near it is
+D: enough to bring sickness and death.
 
 
 N:213:Vampire lord
@@ -2322,8 +2458,10 @@ B:CLAW:WOUND:(+29,3d7)
 B:BITE:LOSE_ALL:(+24,2d9)
 F:FLYING | OPEN_DOOR | BASH_DOOR | UNLOCK_DOOR | RAND_25
 F:SMART | HURT_LITE
-D:Like a graceful, humanoid bat. Its black eyes regard
-D: everything around it as prey.
+D:An ancient vampire of great power, graceful and terrible. Perhaps it
+D: once served Thuringwethil herself before she fell. Its black eyes
+D: regard all living things as prey, and its touch drains the very
+D: essence of life.
 
 
 
@@ -2339,8 +2477,11 @@ B:HIT:BATTER:(+17,4d10)
 F:UNIQUE | ESCORT | DROP_1D2 | DROP_GOOD | REGENERATE | NO_FEAR
 F:OPEN_DOOR | BASH_DOOR | TROLL | MALE | HURT_LITE | SMART
 F:ELFBANE | KNOCK_BACK
-D:A mountain of a troll, clad in rusted iron plates.
-D: He leads a patrol of the feared Troll Guard.
+D:Dagorhir towers above even the mightiest of trolls, clad in iron plates
+D: forged in the smithies of Angband. He earned the name Elfbane in the
+D: Nirnaeth Arnoediad, where his great hammer crushed countless sons of
+D: the Eldar. Now he leads patrols of the feared Troll Guard through
+D: the deep halls, and the sound of his tread brings dread to all who hear.
 
 
 
@@ -2359,8 +2500,11 @@ F:DROP_2D2 | DROP_GREAT | SMART
 F:BASH_DOOR | DRAGON
 S:SPELL_PCT_20
 S:CONF | SCARE | HOLD
-D:When the gaze of a worm is so deadly, what need
-D: has he fire?
+D:Among the cold-drakes of the North, Gostir is most feared for his
+D: terrible gaze. Those who meet his eyes are held fast as though
+D: bound by invisible chains, unable to flee as doom approaches.
+D: Though he lacks the fire of his kin, his hypnotic stare has
+D: claimed more victims than many a flame-breathing wyrm.
 
 
 ##### 22 #####
@@ -2379,8 +2523,10 @@ F:SERPENT | RAND_25
 F:HURT_LITE | ATTR_MULTI
 S:SPELL_PCT_20 | POW_10
 S:BRTH_DARK
-D:A vast serpentine form encrusted with scales of amethyst.
-D: It is wreathed in shadow.
+D:A vast serpent of ancient lineage, its body encrusted with scales
+D: of amethyst that seem to drink the little light that reaches these
+D: depths. It is wreathed in shadow so deep that even keen eyes
+D: struggle to make out its shape until it strikes.
 
 
 N:222:Great fire-drake
@@ -2398,10 +2544,10 @@ F:BASH_DOOR | DRAGON
 F:RES_FIRE | HURT_COLD
 S:SPELL_PCT_30 | POW_24
 S:BRTH_FIRE | HOLD | SCARE
-D:The oldest and largest drakes are likely to have accrued
-D: large hoards, for even in the pits of Angband, where
-D: the nightmarish teeth and claws might do not distinguish
-D: them, who could ever compare with the flames of a Dragon?
+D:A great Uruloki, fire-drake of Angband, grown vast and terrible over
+D: centuries of slaughter. Its breath is a torrent of flame that can melt
+D: stone, and its scales gleam like hot coals. It has amassed a hoard
+D: worthy of its terrible power, for who could ever challenge a Dragon?
 
 
 N:223:Hithrauko
@@ -2416,9 +2562,10 @@ B:ENGULF:HALLU:(+27,4d5)
 F:PASS_DOOR | INVISIBLE | RES_CRIT | RES_POIS
 F:FLYING | RAND_50
 F:RAUKO | SMART
-D:There are many smokes and strange airs in the depths
-D: of Angband, and not a few are unwholesome, but rarely
-D: do they move with such active malice...
+D:A Rauko of mist and poisoned air, one of the subtler servants of
+D: Morgoth. It drifts unseen through the halls of Angband, a
+D: creeping miasma of malice. Those it engulfs are filled with
+D: visions of such horror that their minds shatter like glass.
 
 
 N:224:Shelob, Spider of Darkness
@@ -2433,9 +2580,11 @@ B:BITE:ENTRANCE:(+25,2d15)
 F:UNIQUE | FEMALE | TERRITORIAL
 F:SMART | BASH_DOOR | SPIDER
 F:HURT_LITE | RES_POIS
-D:The line of Ungoliant seems to run true in this great
-D: spider, for the very dungeon around her is sucked
-D: of its light, that she takes to weave her deadly webs.
+D:Last and mightiest child of Ungoliant the Gloomweaver, Shelob has
+D: inherited her mother's insatiable hunger for light. The darkness
+D: deepens wherever she dwells, for she drinks in all radiance to spin
+D: her webs of shadow. She has grown vast and terrible in the deep places
+D: of Angband, and all lesser spiders pay her fearful homage.
 
 
 # The master of the guard in Angband
@@ -2457,9 +2606,11 @@ F:NO_FEAR | BASH_DOOR
 F:RAUKO | RES_FIRE | HURT_COLD
 S:SPELL_PCT_10 | POW_14
 S:BRTH_FIRE
-D:A massive form cloaked in flame.  Lungorthin stares balefully at you
-D: with eyes that smoulder.  The dungeon floor where he stands is
-D: scorched by the heat of his body.
+D:Second only to Gothmog among the Valaraukar, Lungorthin commands the
+D: guard of Angband itself. His massive form is cloaked in flame so
+D: intense that the very stone beneath his feet is scorched black. His
+D: smouldering eyes have witnessed the fall of countless heroes, and his
+D: fiery breath has consumed armies. Few have faced him and lived to speak of it.
 
 
 ##### 23 #####
@@ -2478,8 +2629,10 @@ F:SERPENT | ATTR_MULTI | RAND_25
 F:RES_FIRE | RES_COLD | RES_POIS
 S:SPELL_PCT_30 | POW_10
 S:BRTH_FIRE | BRTH_COLD | BRTH_POIS | BRTH_DARK
-D:A vast serpentine form encrusted with scales of adamant.
-D: Prismatic colours gleam in its scales. Few live to see another.
+D:A vast serpent of ancient lineage, armoured in scales of adamant
+D: that no blade may cut. Prismatic colours gleam and shift across
+D: its flanks, and it breathes the elemental fury of fire, cold,
+D: poison, and shadow. Few who have seen it have lived to speak of it.
 
 
 N:232:Unrelenting horror
@@ -2538,9 +2691,11 @@ F:UNIQUE | FEMALE
 F:DROP_2D2 | DROP_GREAT | DROP_CHOSEN | SMART
 F:FLYING | RAND_25 | OPEN_DOOR | UNLOCK_DOOR | BASH_DOOR
 F:HURT_LITE
-D:Chief messenger between Sauron and Morgoth, she is surely the most
-D: deadly of her vampire race.  At first she is charming to meet, but
-D: her wings and eyes give away her true form.
+D:Thuringwethil, Woman of Secret Shadow, serves as messenger between
+D: Sauron on Tol-in-Gaurhoth and Morgoth in Angband. She is the mightiest
+D: of vampires, cloaked in an iron-barbed bat-fell that grants her the
+D: power of flight. Her beauty is a mask for terrible hunger, and her
+D: claws have torn the throats of many who trusted her charming guise.
 
 
 ##### 24 #####
@@ -2611,10 +2766,12 @@ F:SMART | BASH_DOOR | TERRITORIAL
 F:DRAGON | RES_FIRE | HURT_COLD
 S:SPELL_PCT_45 | POW_28
 S:BRTH_FIRE | SCARE | HOLD | CONF
-D:Lo! the golden dragon of the God of Hell...
-D: Father and forefather to the other dragons, he is grown
-D: now to an enormous size, matched only by the size of the
-D: hoard he has gathered around him.
+D:Lo! the golden dragon of the God of Hell, Father of Dragons, first
+D: of the Uruloki to issue from Angband. Glaurung led the assault in
+D: the Dagor Bragollach and wrought ruin upon Nargothrond. His gaze
+D: can bind the will and cloud the memory, and through such dark arts
+D: he brought doom upon Turin Turambar and fair Nienor. His malice is
+D: matched only by his cunning, and his hoard is vast beyond measure.
 
 
 # need to leave Gorthaur at location 244
@@ -2637,11 +2794,11 @@ F:OPEN_DOOR | UNLOCK_DOOR | BASH_DOOR
 F:WOLF | ESCORT
 S:SPELL_PCT_25
 S:HOLD | SNG_OATHS
-D:He is Morgoth's most powerful servant, and marshals great
-D: forces of his own. Also known as Thu or Sauron, he is a
-D: powerful maia, able to take on many forms. He appears
-D: now before you as a great wolf with matted fur and glowing
-D: eyes.
+D:Greatest of Morgoth's servants, Gorthaur the Cruel was once a Maia of
+D: Aule before he was seduced by Melkor's power. Master of werewolves and
+D: lord of Tol-in-Gaurhoth, he is a sorcerer of terrible might. He takes
+D: many forms, and now appears as a great wolf, the mightiest of his kind
+D: save only Draugluin. His eyes burn with malice older than the Sun.
 
 
 

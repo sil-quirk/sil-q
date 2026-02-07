@@ -56,3 +56,35 @@ Q:406e2bebdae3340c
 F:WARDING_GIRDLE
 A:792beedcd8af6104
 A:e8840ae097bbec79
+
+
+## Amrod and Amras (paired weapons)
+
+N:4:Amrod and Amras
+Q:c72e9a56f18b3d02
+F:PAIRED_WEAPONS
+A:70239c6076a16a6c
+A:17173e277d13b237
+
+
+## Panoply of Earendil (6-piece war-gear set: +1 GRA, +1 WIL)
+
+N:5:Panoply of Earendil
+Q:e3a7b1d5f9c20486
+A:'Falchrist'
+A:'Tirthand'
+A:'Gilceleb'
+A:'Thoronthaul'
+A:'Mornpilin'
+A:'Amlugrist'
+M:GRA:1
+M:WIL:1
+
+
+## Treasures of Finwe (corslet and lamp: +1 GRA)
+
+N:6:Treasures of Finwe
+Q:f4c8e1a6d9b20573
+A:d1921f00bca8218e
+A:a7c3d925e8f14b62
+M:GRA:1

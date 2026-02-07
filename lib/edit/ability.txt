@@ -12,7 +12,8 @@
 # N: ability number : ability name
 # I: skill number : ability value : level requirement
 # P: prerequisite skill number / prerequisite ability value : ...
-# D: description
+# D: description (poetic/lore text)
+# E: effect (mechanical description)
 #
 # 'N' indicates the beginning of an entry. The serial number must
 #     increase for each new ability.
@@ -22,7 +23,9 @@
 #
 # 'P' is the prerequisite abilities if any
 #
-# 'D' is a textual description of the ability
+# 'D' is a poetic/lore description of the ability
+#
+# 'E' is a mechanical description of the ability's game effects
 
 
 
@@ -34,7 +37,8 @@ V:0.9.5
 
 N:0:Power
 I:0:0:1
-D:In the manner of the mighty warriors of the Noldor, whose blows felled orcs and trolls alike in the great battles of Beleriand, this ability grants a bonus of +1 damage sides to your melee attacks, though it renders critical hits more arduous to achieve, increasing the base required by 1.
+D:In the manner of the mighty warriors of the Noldor, whose blows felled orcs and trolls alike in the great battles of Beleriand. The hosts of Fingolfin struck with such force that shields splintered and helms were cloven, though such raw power left less room for the subtler arts of swordplay.
+E:+1 damage sides to melee attacks. Critical hit base increased by 1.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -42,7 +46,8 @@ T:31:0:99  # Gloves
 
 N:1:Finesse
 I:0:1:2
-D:Emulating the graceful swordplay of heroes like Fingolfin, who danced before Morgoth's mace in single combat upon the plains of Anfauglith, this lowers the base number needed to get critical hits with melee from 7 to 5.
+D:Emulating the graceful swordplay of heroes like Fingolfin, who danced before Morgoth's mace in single combat upon the plains of Anfauglith. His blade Ringil found every gap in the Dark Lord's iron crown, striking with precision born of ages of practice in the Blessed Realm.
+E:Melee critical hit base reduced from 7 to 5.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -50,7 +55,8 @@ T:31:0:99  # Gloves
 
 N:2:Knock Back
 I:0:2:3
-D:Like the thunderous charges of the Edain lords in the Nirnaeth Arnoediad, where foes were hurled aside in the press of battle, you have a chance to knock enemies back a square in melee depending upon your effective strength and your opponent's constitution.
+D:Like the thunderous charges of the Edain lords in the Nirnaeth Arnoediad, where foes were hurled aside in the press of battle. Huor and Hurin drove through the orcish ranks with such force that their enemies stumbled and fell back before them, unable to hold their ground against the fury of the Edain.
+E:Chance to knock enemies back one square in melee (your Strength vs their Constitution).
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -59,7 +65,8 @@ T:34:0:99  # Shields
 
 N:3:Throwing
 I:0:3:4
-D:Recalling the deadly casts of spears by the Sindar in the defense of Doriath's borders, this grants +1 attack when throwing weapons designed for it. Distance penalties are halved and thrown criticals are easier.
+D:Recalling the deadly casts of spears by the Sindar in the defense of Doriath's borders. The march-wardens of Thingol were trained to hurl their javelins with lethal accuracy across great distances, striking down intruders before they could set foot beneath the enchanted trees of Neldoreth.
+E:+1 attack when throwing. Distance penalties halved. Thrown criticals easier.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -67,13 +74,15 @@ T:31:0:99  # Gloves
 
 N:4:Polearm Mastery
 I:0:4:4
-D:Mastering the long-hafted weapons akin to those wielded by the guards of Gondolin in the Fall of the Hidden City, this gives you +2 to attack with polearms (spears & glaives) and lets you set them to receive free attacks on advancing enemies when you wait (z or 5). Also lets you treat great spears as throwing weapons.
+D:Mastering the long-hafted weapons akin to those wielded by the guards of Gondolin in the Fall of the Hidden City. The spearmen of Turgon's household held the bridges and narrow ways with their long reach, setting their weapons to receive the charging Balrogs and their orcish thralls.
+E:+2 attack with polearms. Set polearms to receive free attacks on advancing enemies when waiting (z/5). Great spears usable as throwing weapons.
 T:31:0:99  # Gloves
 #          # + all Polearms (hard coded)
 
 N:5:Charge
 I:0:5:5
-D:In the spirit of the heroic onslaughts of the Noldorin cavalry upon the fields of Ard-galen, when you attack an opponent immediately after moving towards it, your attack is calculated as if you had 3 points more strength and dexterity.
+D:In the spirit of the heroic onslaughts of the Noldorin cavalry upon the fields of Ard-galen. When the riders of Fingolfin swept down from Hithlum in the Dagor Aglareb, the momentum of their charge was irresistible, each warrior striking with the combined force of speed and fury.
+E:+3 Strength and Dexterity when attacking immediately after moving towards the target.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -83,7 +92,8 @@ T:34:0:99  # Shields
 N:6:Follow-Through
 I:0:6:6
 P:0/0:0/1
-D:As Beleg Strongbow cleaved through orcish ranks in the woods of Brethil, this allows you to continue your attack if you kill an opponent, moving onto the next adjacent enemy.
+D:As Beleg Cuthalion cleaved through orcish ranks in the woods of Brethil, his blade never pausing between foes. The great warriors of the First Age did not stop to savour a kill but carried the momentum of each stroke into the next, leaving a trail of fallen enemies in their wake.
+E:Continue attacking the next adjacent enemy after killing one.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -91,7 +101,8 @@ T:23:0:99  # Swords
 N:7:Impale
 I:0:7:7
 P:0/0:0/4
-D:Evoking the piercing thrusts that felled many a foe in the Dagor Bragollach, when using a polearm or greatsword you can strike through or past opponents to attack an opponent behind.
+D:Evoking the piercing thrusts that felled many a foe in the Dagor Bragollach. The spearmen of the Noldor learned to drive their weapons clean through one foe and into the next, for in the close press of battle upon the burning plains, the enemy stood so thick that a single thrust might wound two.
+E:Strike through opponents to hit an enemy behind them (polearms and greatswords only).
 T:23:25:25 # Greatswords
 T:23:30:30 # Mithril Greatswords
 T:22:0:4   # Polearms
@@ -100,7 +111,8 @@ T:31:0:99  # Gloves
 N:8:Subtlety
 I:0:8:8
 P:0/1
-D:With the subtle precision of the bladesmen of Nargothrond, hidden in their caverns, this lowers the base number needed to get critical hits with melee by 2 points, when you are using a one handed weapon with the other hand free.
+D:With the subtle precision of the bladesmen of Nargothrond, who practiced their art in the echoing caverns beside the Narog. Wielding a single blade with the off-hand free, they could weave and feint with such delicacy that their strikes found the smallest gaps in their opponents' defenses.
+E:Melee critical hit base reduced by 2 when wielding a one-handed weapon with the other hand free.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -109,7 +121,8 @@ T:31:0:99  # Gloves
 N:9:Whirlwind Attack
 I:0:9:9
 P:0/4:0/6
-D:Like the whirlwind of steel that was Turgon in the defense of Vinyamar, whenever you attack an enemy, you get a free attack on all other enemies adjacent to you. The original attack must be a regular, flanking or controlled retreat attack. Requires 5 continuous open adjacent squares.
+D:Like the whirlwind of steel that was Turgon in the defense of Vinyamar, when foes pressed in from all sides. The mightiest of the Noldor could hold a ring of enemies at bay, their blades striking in every direction with deadly arcs.
+E:Free attack on all adjacent enemies when you attack one. Requires 5 open adjacent squares. Also works with flanking or retreat attacks.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -118,7 +131,8 @@ T:31:0:99  # Gloves
 N:10:Zone of Control
 I:0:10:10
 P:0/1:0/4
-D:Commanding the battlefield as did the captains of the Union of Maedhros, you get a free attack whenever an opponent moves between two squares which are adjacent to you.
+D:Commanding the battlefield as did the captains of the Union of Maedhros, who held their ground with such authority that no foe dared move freely in their presence. Any servant of Morgoth who tried to slip past the watchful blade of a Noldorin captain earned a swift and punishing stroke.
+E:Free attack when an opponent moves between two squares adjacent to you.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -127,7 +141,8 @@ T:31:0:99  # Gloves
 N:11:Smite
 I:0:11:11
 P:0/2:0/5
-D:Delivering a smiting blow reminiscent of Ecthelion's fatal strike against Gothmog in the fountains of Gondolin, when using a two-handed weapon, the first main attack you make on your turn rolls the maximum possible damage to all opponents it hits. If you make such an attack, you lose a turn to recover.
+D:Delivering a smiting blow reminiscent of Ecthelion's fatal strike against Gothmog, Lord of Balrogs, in the fountains of Gondolin. Wielding a great weapon in both hands, the warrior gathers all their might into a single devastating blow that can shatter shields and break the will of the mightiest foes.
+E:First melee attack with a two-handed weapon deals maximum damage. Costs a turn to recover afterward.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -135,7 +150,8 @@ T:23:0:99  # Swords
 N:12:Two Weapon Fighting
 I:0:12:12
 P:0/1:2/2
-D:Wielding dual blades as did the twin warriors Amrod and Amras in the hunts of Ossiriand, this allows you to wield a one-handed weapon in your off-hand for an extra attack (calculated as if you had 3 points less strength and dexterity).
+D:Wielding dual blades as did the twin sons of Feanor, Amrod and Amras, in the hunts of Ossiriand. Fighting with a weapon in each hand was a rare art among the Eldar, for it demanded both the dexterity to strike with the off-hand and the strength to guide two blades at once through the fury of combat.
+E:Wield a one-handed weapon in off-hand for an extra attack at -3 Strength and Dexterity.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -144,7 +160,8 @@ T:31:0:99  # Gloves
 N:13:Rapid Attack
 I:0:13:13
 P:0/8:3/4
-D:Striking with the rapidity of Glorfindel's assault upon the Balrog at Cristhorn, this grants you an extra melee attack, but your attacks are calculated as if you had 3 points less strength and dexterity.
+D:Striking with the rapidity of Glorfindel's assault upon the Balrog at the fall of Gondolin, where his blade moved faster than mortal eyes could follow. Such speed comes at a cost, for to strike so swiftly one must sacrifice the full force behind each blow, trading power for a flurry of cuts.
+E:Extra melee attack at -3 Strength and Dexterity.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -152,70 +169,81 @@ T:31:0:99  # Gloves
 
 N:14:Strength
 I:0:14:20
-D:You gain a point of strength, fortified as were the sons of Feanor by their unyielding oaths in the halls of Tirion.
+D:Fortified in body as were the sons of Feanor by their unyielding oaths sworn in the halls of Tirion beneath the light of the Two Trees, their sinews hardened by ages of war across Beleriand.
+E:+1 Strength.
 
 
 # Archery ---------------------------------------------
 
 N:20:Rout
 I:1:0:2
-D:As the archers of Dorthonion rained death upon fleeing orcs after the Dagor Aglareb, firing at fleeing monsters is calculated as if you had 5 points more dexterity.
+D:As the archers of Dorthonion rained death upon fleeing orcs after the Dagor Aglareb, the Glorious Battle. When the servants of Morgoth broke and ran, the bowmen of Angrod and Aegnor pursued them with deadly volleys, for a fleeing foe presents an easy mark to the practiced eye.
+E:+5 Dexterity when firing at fleeing monsters.
 T:19:0:99  # Bows
 
 N:21:Fletchery
 I:1:1:3
-D:Crafting arrows with the skill of the Green-elves of Ossiriand, who fashioned shafts from the woods of their realm, this allows you to use the '-' command to give ordinary arrows a +3 bonus. Takes one turn for each arrow. You can also carve +3 arrows from wooden or mallorn torches (3 per torch). Staves can be shaped into six +3 arrows apiece.
+D:Crafting arrows with the skill of the Green-elves of Ossiriand, who fashioned shafts from the woods of their forested realm. The Laiquendi were renowned for the quality of their arrows, each one shaped with patient care from the straight-grained wood of birch and ash, fletched with feathers gathered from the banks of Gelion.
+E:Use '-' to craft ordinary arrows to +3 (one turn each). Carve 3 arrows from torches, 6 from staves.
 T:31:1:1   # Gloves (leather gloves only)
 T:45:0:99  # Ring
 
 N:22:Point Blank Archery
 I:1:2:4
-D:Loosing arrows at point-blank range as did the defenders of Menegroth in the Kinslaying, the monster you are firing at cannot get an attack of opportunity.
+D:Loosing arrows at point-blank range as did the defenders of Menegroth during the ruinous assault of the Dwarves of Nogrod. In the close confines of the Thousand Caves, the elven archers learned to fire even as their enemies bore down upon them, too swift to be struck before the arrow flew.
+E:No attack of opportunity from the target when firing at point blank.
 T:19:0:99  # Bows
 T:31:1:1   # Gloves (leather gloves only)
 
 N:23:Puncture
 I:1:3:5
-D:Piercing through armor as the arrows of Bard the Bowman felled Smaug in later ages, echoing the feats of First Age marksmen, whenever an enemy's armour roll would fully block your archery damage roll, you deal the enemy a flat five damage instead.
+D:In the manner of the keen-eyed archers of Hithlum, who could find the weakness in any armour. Even the iron-clad Uruk-hai of Angband were not proof against arrows loosed with such knowledge, for every coat of mail has its gaps, and every plate its seam, if one knows where to aim.
+E:Deal 5 flat damage when enemy armour would fully block your archery damage.
 T:19:0:99  # Bows
 T:31:1:1   # Gloves (leather gloves only)
 T:45:0:99  # Ring
 
 N:24:Ambush
 I:1:4:6
-D:Lying in ambush like the hidden bowmen of Thingol's march-wardens in the Girdle of Melian, this grants an additional critical damage die whenever you hit an unwary or sleeping monster with an arrow.
+D:Lying in ambush like the hidden bowmen of Thingol's march-wardens within the Girdle of Melian. Concealed among the roots of ancient beeches or behind moss-covered stones, they waited in perfect stillness until unwary foes wandered near, then struck with arrows that seemed to come from the forest itself.
+E:Extra critical damage die when hitting unwary or sleeping monsters with arrows.
 T:19:0:99  # Bows
 T:31:1:1   # Gloves (leather gloves only)
 T:35:0:99  # Cloak
 
 N:25:Versatility
 I:1:5:7
-D:Versatile in arms as was Turin Turambar, wielder of both bow and blade in the forests of Nargothrond, if you have more skill points in archery than in melee, you gain a bonus to melee of half the difference between them.
+D:Versatile in arms as was Turin Turambar, who bore both the great bow of Beleg and the black sword Gurthang in the forests about Nargothrond. The greatest warriors of the First Age disdained no weapon, and their skill with the bow lent sureness to their sword-arm, for a keen eye serves all forms of combat.
+E:Melee bonus of half (Archery - Melee) when Archery exceeds Melee.
 T:19:0:99  # Bows
 T:31:1:1   # Gloves (leather gloves only)
 
 N:26:Crippling Shot
 I:1:6:8
 P:1/3:1/4
-D:Inflicting crippling wounds akin to those dealt by the archers in the Battle under the Stars, your critical hits sometimes temporarily slow monsters (depending on the level of critical and the monster's Will).
+D:Inflicting crippling wounds akin to those dealt by the archers in the Dagor-nuin-Giliath, the Battle under the Stars, when the host of Feanor first assailed the armies of Morgoth. Their arrows struck at leg and sinew, leaving their enemies hobbled and slow, easy prey for the swords that followed.
+E:Critical hits may temporarily slow monsters (critical level vs monster's Will).
 T:19:0:99  # Bows
 
 N:27:Deadly Hail
 I:1:7:9
 P:1/0:1/3
-D:Unleashing a deadly hail of arrows as in the volleys that broke Glaurung's host at Tumhalad, arrows fired the turn after killing an enemy with an arrow do twice their normal damage.
+D:Unleashing a deadly hail of arrows as in the volleys that broke the host of orcs at the Dagor Aglareb. The bowmen of the Noldor could sustain a withering rate of fire, and the fall of one enemy only spurred them to loose again with greater fury, each arrow drawn and released with terrible swiftness.
+E:Arrows deal double damage the turn after killing an enemy with an arrow.
 T:19:0:99  # Bows
 T:31:1:1   # Gloves (leather gloves only)
 
 N:28:Dexterity
 I:1:8:10
-D:You gain a point of dexterity, swift and sure as the hands of Legolas in later tales, but rooted in the agility of First Age elven archers.
+D:Swift and sure of hand as the great archers of the Noldor who practiced their art beneath the light of the Two Trees in Aman, where their fingers first learned the song of the bowstring.
+E:+1 Dexterity.
 
 # Evasion ---------------------------------------------
 
 N:40:Dodging
 I:2:0:2
-D:Dodging blows with the nimbleness of the Laiquendi in the shadowed woods of Nan Elmoth, this gives you a +3 bonus to evasion if you moved on your last turn.
+D:Dodging blows with the nimbleness of the Laiquendi in the shadowed woods of Ossiriand. The Green-elves moved like wind through leaves, never still long enough for blade or claw to find them, their bodies weaving between the strokes of their slower foes.
+E:+3 evasion if you moved on your last turn.
 T:30:0:99  # Boots
 T:36:0:99  # Soft Armour
 T:35:0:99  # Cloak
@@ -223,12 +251,14 @@ T:45:0:99  # Ring
 
 N:41:Blocking
 I:2:1:3
-D:Blocking strikes steadfastly as the shields of the Falathrim held against the waves of foes at the Havens of Sirion, this doubles the protection roll for your shield against all attacks if you did not move on your last turn.
+D:Blocking strikes steadfastly as the shieldmen of the Falathrim held against the waves of foes at the Havens of the Falas. Cirdan's folk learned to plant their feet and set their shields like walls of iron, turning aside the blows of Morgoth's servants through sheer immovable resolve.
+E:Double shield protection if you did not move on your last turn.
 T:34:0:99  # Shields
 
 N:42:Parry
 I:2:2:4
-D:Parrying with the skill of the sword-masters of the Ñoldor in the training halls of Tirion, this doubles the evasion bonus granted by your primary melee weapon.
+D:Parrying with the skill of the sword-masters of the Noldor, who honed their art in the training halls of Tirion before the Darkening. They learned to use their blades not only for attack but as shields in themselves, catching and turning aside the enemy's steel with practiced ease.
+E:Double the evasion bonus from your primary melee weapon.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -236,7 +266,8 @@ T:31:0:99  # Gloves
 
 N:43:Crowd Fighting
 I:2:3:5
-D:Fighting amid crowds as did the warriors in the throng of the Battle of Unnumbered Tears, this halves the bonus opponents get for surrounding you.
+D:Fighting amid crowds as did the warriors in the desperate throng of the Nirnaeth Arnoediad, the Battle of Unnumbered Tears. When enemies pressed in from all sides, the veterans of that terrible day learned to move and fight in the crush, turning the close quarters against their encircling foes.
+E:Halves the surrounding bonus opponents get against you.
 T:31:0:99  # Gloves
 T:37:0:99  # Mail
 T:30:0:99  # Boots
@@ -244,33 +275,38 @@ T:32:0:99  # Helm
 
 N:44:Leaping
 I:2:4:6
-D:Leaping across perils as Beren vaulted over the chasms in his flight from Dorthonion, you can leap over a chasm or trap if you moved towards it the previous turn. (Roosts and webs are not leapable).
+D:Leaping across perils as Beren vaulted over the chasms in his desperate flight from Dorthonion after the Dagor Bragollach. With the momentum of a running start, a nimble warrior can clear gaps and hazards that would trap a more cautious soul, though not every obstacle yields to boldness alone.
+E:Leap over chasms and traps if you moved towards them last turn (not roosts or webs).
 T:30:0:99  # Boots
 T:21:3:3   # Quarterstaves
 
 N:45:Sprinting
 I:2:5:7
 P:2/0:2/4
-D:Sprinting with the endurance of the messengers who bore tidings across Beleriand, you start moving more quickly if you run four or more squares in roughly the same direction.
+D:Sprinting with the endurance of the messengers who bore tidings across Beleriand, running without rest from Hithlum to Nargothrond. Once their stride found its rhythm across open ground, they moved with the tireless speed of the Firstborn, their pace quickening with every stride.
+E:Increased speed after running 4+ squares in roughly the same direction.
 T:30:0:99  # Boots
 
 N:46:Flanking
 I:2:6:8
-D:Flanking foes cunningly as in the ambushes set by the outlaws of Gwindor's band, this gives you a free attack on an opponent if you step from a square which is adjacent to it, to another square which is adjacent to it.
+D:Flanking foes cunningly as in the ambushes set by the outlaws of Turin's band in the wild lands west of Doriath. Rather than meeting the enemy head-on, they circled to strike from unexpected angles, slipping past a foe's guard to deliver blows where they were least expected.
+E:Free attack on an opponent when stepping between two squares adjacent to it.
 T:30:0:99  # Boots
 T:36:0:99  # Soft Armour
 
 N:47:Heavy Armour Use
 I:2:7:9
 P:2/1:2/3
-D:Bearing heavy armour as did the dwarven allies of the Noldor, clad in mail forged in Belegost, this gives you [1dX] protection, where X is your total armour weight divided by 15 lbs.
+D:Bearing heavy armour as did the dwarven allies of the Noldor, clad in mail and plate forged in the great smithies of Belegost. The dwarves of the Blue Mountains were renowned for fighting unbowed beneath the weight of their war-harness, turning the sheer mass of their armour into a bulwark of protection.
+E:[1dX] extra protection, where X = total armour weight / 15 lbs.
 T:37:0:99  # Mail
 T:34:0:99  # Shields
 
 N:48:Riposte
 I:2:8:10
 P:2/2
-D:Riposting swiftly as Fingon did in his duels during the Siege of Angband, it gives you a free attack on an opponent who misses you by at least 10 + the weight of your weapon (only once per round).
+D:Riposting swiftly as Fingon did in his duels upon the plains beneath the Siege of Angband, where the High King's blade would answer every missed stroke with a punishing counter-thrust. To riposte demands patience and a keen eye, waiting for the enemy's weapon to overreach before answering with steel.
+E:Free attack when opponent misses by 10+ weapon weight (once per round).
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -279,7 +315,8 @@ T:31:0:99  # Gloves
 N:49:Controlled Retreat
 I:2:9:11
 P:2/0:2/1
-D:Executing a controlled retreat like the ordered withdrawal of the hosts of the West in the War of Wrath, this gives you a free attack on an opponent when you step away from it, but only if you did not move the previous round.
+D:Executing a controlled retreat like the ordered withdrawal of the rearguard of Gondolin during the city's fall. Turgon's captains did not flee blindly but gave ground in good order, each warrior turning to deliver a parting blow before stepping back, buying time with disciplined defiance.
+E:Free attack when stepping away from an opponent, if you did not move last round.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -288,13 +325,15 @@ T:30:0:99  # Boots
 
 N:50:Dexterity
 I:2:10:20
-D:You gain a point of dexterity, agile as the feet of Luthien dancing in the glades of Doriath.
+D:Agile as the feet of Luthien dancing in the starlit glades of Neldoreth, where she moved with a grace beyond the reach of mortal or elf, her every motion as fluid as the waters of Esgalduin.
+E:+1 Dexterity.
 
 # Stealth ---------------------------------------------
 
 N:60:Disguise
 I:3:0:3
-D:Donning disguise as Beren and Luthien cloaked themselves in the guises of wolf and bat to infiltrate Angband, this halves any bonuses that awake but unwary enemies have to notice you due to you being in their line of sight.
+D:Donning disguise as Beren and Luthien cloaked themselves in the guises of Draugluin the werewolf and Thuringwethil the vampire-bat to infiltrate Angband. Even among watchful enemies, those who know the art of concealment can dim their presence, becoming unremarkable to careless eyes.
+E:Halves line-of-sight detection bonus awake unwary enemies have against you.
 T:30:1:1   # Boots
 T:35:0:99  # Cloak
 T:36:0:99  # Soft Armour
@@ -302,7 +341,8 @@ T:45:0:99  # Ring
 
 N:61:Assassination
 I:3:1:4
-D:Striking from shadow in assassination as did the hidden daggers of the partisans in the leaguer of Angband, this gives you a melee bonus against non-alert creatures equal to your stealth score.
+D:Striking from the shadows as the guerrilla fighters of Barahir's outlaw band struck at Morgoth's servants in the highlands of Dorthonion. Those who move unseen learn to exploit the moment of surprise, for a blade guided by stealth finds its mark far more surely than one wielded in open combat.
+E:Melee bonus vs non-alert creatures equal to your Stealth score.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -311,7 +351,8 @@ T:31:0:99  # Gloves
 N:62:Cruel Blow
 I:3:2:5
 P:3/1
-D:Delivering a cruel blow that echoes the torturous strikes in the pits of Thangorodrim, your critical hits sometimes confuse monsters with the pain (depending on the level of critical and the monster's Will).
+D:Delivering a cruel blow that echoes the torments inflicted in the pits of Thangorodrim, where Morgoth's servants learned the darkest arts of pain. A well-placed strike to nerve or joint can leave a foe reeling and disoriented, their senses overwhelmed by agony.
+E:Critical hits may confuse monsters (critical level vs monster's Will).
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -320,7 +361,8 @@ T:31:0:99  # Gloves
 N:63:Exchange Places
 I:3:3:6
 P:3/0:2/3
-D:Exchanging places deftly as in the elusive maneuvers of the scouts in the March of Maedhros, this allows you to use the 'X' command to exchange places with an adjacent enemy (who gets a free attack on you as you pass).
+D:Exchanging places deftly as in the elusive maneuvers of the scouts who served in the March of Maedhros. These bold warriors learned to slip past an enemy with breathtaking agility, trading positions in a moment of daring that left their foe turned about and facing the wrong way.
+E:Use 'X' to swap positions with an adjacent enemy. They get a free attack as you pass.
 T:30:0:99  # Boots
 T:36:0:99  # Soft Armour
 T:40:0:99  # Amulet
@@ -328,7 +370,8 @@ T:40:0:99  # Amulet
 N:64:Opportunist
 I:3:4:7
 P:3/1:0/5
-D:Seizing opportunity as Gorlim the Unhappy betrayed his comrades under Sauron's guile, yet in reverse, you get a free attack whenever an adjacent opponent moves away from you.
+D:Seizing the moment of an enemy's withdrawal, as the hunters of the First Age learned to punish any foe who dared turn their back. When a servant of Morgoth sought to disengage or retreat, the opportunist's blade would find them before they could escape, making flight as perilous as battle.
+E:Free attack when an adjacent opponent moves away from you.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -337,7 +380,8 @@ T:31:0:99  # Gloves
 N:65:Vanish
 I:3:5:8
 P:3/0
-D:Vanishing into the mists as the remnants of the folk of Haleth faded into the wilds of Brethil, this gives a +10 stealth bonus towards making enemies become unwary when you are out of their line of sight.
+D:Vanishing into the shadows as the remnants of the Folk of Haleth faded into the deep woods of Brethil after the ruin of the Nirnaeth Arnoediad. Once beyond the sight of their pursuers, they could still themselves so completely that even keen-eyed hunters would lose their trail and abandon the chase.
+E:+10 stealth towards making enemies unwary when out of their line of sight.
 T:30:1:1   # Boots
 T:35:0:99  # Cloak
 T:36:0:99  # Soft Armour
@@ -346,18 +390,21 @@ T:45:0:99  # Ring
 N:66:Dexterity
 P:3/0:3/1
 I:3:6:11
-D:You gain a point of dexterity, fleet and silent as the shadows of the Ents in the forests ere the sun rose.
+D:Fleet and silent as the shadows that moved among the ancient forests of Beleriand before the rising of the Sun, when all the world lay under starlight and the Firstborn walked in silence upon the young earth.
+E:+1 Dexterity.
 
 # Perception ---------------------------------------------
 
 N:80:Quick Study
 I:4:0:1
-D:With the quick study of the lore-masters of Eregion, who unraveled many secrets before their fall, this allows you to take advanced abilities when you don't have the prerequisite abilities. It also gives a modest bonus to identifying items.
+D:With the quick understanding of the loremasters of Gondolin, who gathered and preserved the accumulated wisdom of the Noldor within the Hidden City. Their voracious study of all arts and sciences allowed them to grasp new disciplines swiftly, drawing connections that others would miss.
+E:Take advanced abilities without prerequisites. Modest bonus to identifying items.
 T:40:0:99  # Amulet
 
 N:81:Focused attack
 I:4:1:2
-D:Focusing your attack with the keen insight of the seers of the Teleri upon the shores of Alqualonde, this gives you a bonus of half your Perception score to your attacks if you passed the previous turn.
+D:Focusing your assault with the patient precision of a hawk circling above the fields of Ard-galen. The wisest warriors of the First Age knew that a moment of stillness and observation before striking could reveal openings invisible to the hasty eye, turning keen perception into deadly accuracy.
+E:+Perception/2 attack bonus if you passed the previous turn.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -366,32 +413,37 @@ T:19:0:99  # Bow
 
 N:82:Keen Senses
 I:4:2:3
-D:Sharpening keen senses as those of the eagles of Manwe who spied upon Morgoth from the peaks of Thangorodrim, this allows you to see enemies who are just beyond the edge of a pool of light, and gives a +5 bonus to spot 'invisible' creatures.
+D:Sharpening keen senses as those of the great eagles of Manwe who spied upon Morgoth's realm from the peaks of the Crissaegrim. With such awareness one perceives what others cannot: the faintest shadow at the edge of torchlight, the shimmer of creatures cloaked in enchantment.
+E:See enemies just beyond light's edge. +5 to spotting invisible creatures.
 T:32:0:99  # Helm
 T:39:0:99  # Light Source
 T:40:0:99  # Amulet
 
 N:83:Concentration
 I:4:3:4
-D:Maintaining concentration like the unyielding gaze of the Palantiri wielded by the kings of old, this gives you a +1 bonus to attack for every consecutive round spent attacking the same enemy (to a maximum of Perception/2).
+D:Maintaining the unwavering focus of Feanor as he labored upon the Silmarils, never lifting his gaze from his work until perfection was achieved. In battle, such single-minded attention upon a single foe reveals ever more of their weaknesses, each successive strike more sure than the last.
+E:+1 attack per consecutive round attacking the same enemy (max Perception/2).
 T:32:0:99  # Helm
 T:36:0:99  # Soft Armour
 T:40:0:99  # Amulet
 
 N:84:Alchemy
 I:4:4:5
-D:Mastering alchemy as Feanor wrought the Silmarils in the forges of Aman, this lets you determine the purpose of all herbs and potions you encounter, as well as staves and horns. Also increases the range of Gems of Revelation, Foes, and Treasures by 50%.
+D:Understanding the hidden properties of things as did the scholars of the Noldor in Tirion, who studied the nature of every herb and mineral beneath the light of Laurelin. Such knowledge reveals the purpose of elixirs and powders at a glance, and attunes the mind to the resonance of enchanted crystals.
+E:Auto-identify herbs, potions, staves, and horns. +50% range for Gems of Revelation, Foes, and Treasures.
 T:32:0:99  # Helm
 T:45:0:99  # Ring
 
 N:85:Bane
 I:4:5:6
-D:Becoming the bane of foes as Anduril was to the servants of Sauron in later days, but akin to the grudges of the First Age, you receive a bonus to all skill rolls against a selected category of enemy. The bonus increases as you kill more.
+D:Becoming the bane of a particular foe, as Fingon was to the orcs of Dor-lomin and Turin to the servants of Morgoth in the wild lands. Through long experience fighting a certain breed of enemy, one learns their every habit and weakness, becoming ever more deadly with each encounter.
+E:Bonus to all skill rolls vs a chosen enemy type. Bonus increases with kills.
 #Monster types: 1=Orc, 2=Wolf, 3=Spider, 4=Troll, 5=Wraith, 6=Rauko, 7=Serpent, 8=Dragon
 
 N:86:Outwit
 I:4:6:7
-D:Outwitting adversaries as Finrod Felagund discerned the disguises of Sauron upon Tol-in-Gaurhoth, whenever you receive a critical hit, make a Perception roll against the attacker's Perception. If you succeed, negate all critical damage.
+D:Outwitting adversaries as Finrod Felagund discerned the true nature of Sauron's disguises upon Tol-in-Gaurhoth. A warrior with such perceptive cunning can read the intent behind an enemy's most dangerous strike and twist aside at the last moment, turning what should have been a grievous wound into a glancing blow.
+E:When hit critically, roll Perception vs attacker's Perception to negate all critical damage.
 T:32:0:99  # Helm
 T:39:0:99  # Light Source
 T:40:0:99  # Amulet
@@ -399,26 +451,30 @@ T:40:0:99  # Amulet
 N:87:Resonance
 I:4:7:8
 P:4/2
-D:Attuning your senses to the hidden resonance of the world, as Melian hearkened to the whispers within her Girdle, you perceive the subtle vibrations of all things. Each turn, you may detect unseen enemies, and your ear for the resonance of crafted forms—hollows, tensions, and faint magical harmonics—doubles your Perception skill when identifying items.
+D:Attuning your senses to the hidden resonance of the world, as Melian the Maia hearkened to the deep whispers within her Girdle about Doriath. Such attentiveness perceives the subtle vibrations of all things: the footfall of an unseen enemy, the faint harmonic of enchantment.
+E:Detect unseen enemies each turn. Double Perception when identifying items.
 T:32:0:99  # Helm
 
 N:88:Master Hunter
 I:4:8:9
 P:4/3:4/5
-D:A master hunter like Celegorm and his hounds in the vales of Himlad, this gives you an attack bonus of +1 for each time you have killed an opponent of the same type (up to a maximum of Perception/2).
+D:A master hunter in the manner of Celegorm, who rode with Orome the Huntsman in the forests of Valinor and later hunted in the vales of Himlad with Huan at his side. Such a hunter knows the ways of their quarry intimately, and each kill deepens their understanding, making the next encounter swifter and more certain.
+E:+1 attack per previous kill of the same monster type (max Perception/2).
 T:32:0:99  # Helm
 T:30:0:99  # Boots
 T:19:0:99  # Bows
 
 N:89:Grace
 I:4:9:10
-D:You gain a point of grace, blessed as the favored of the Valar in the Undying Lands.
+D:Blessed as the favoured of the Valar in the Undying Lands, where Manwe's eagles bore tidings and the light of the Trees touched all things with grace beyond the measure of Middle-earth.
+E:+1 Grace.
 
 # Will ---------------------------------------------
 
 N:100:Curse Breaking
 I:5:0:1
-D:Breaking curses with the resolve that shattered the Doom of Mandos for some, this allows you to break the curses on items when you attempt to take them off. It also gives a significant bonus to identifying items, and helps especially when identifying cursed items.
+D:Breaking curses with the strength of will that enabled some of the Noldor to resist the Doom of Mandos. Such resolve shatters the dark enchantments laid upon objects by Morgoth's servants, and the struggle reveals much about the nature of all things touched by malice.
+E:Break curses on removal. Significant bonus to identifying items, especially cursed ones.
 T:40:0:99  # Amulet
 T:32:0:99  # Helm
 T:45:0:99  # Ring
@@ -426,13 +482,15 @@ T:34:0:99  # Shields
 
 N:101:Channeling
 I:5:1:2
-D:Channeling power as the Istari would in later ages, but reminiscent of the maiar spirits aiding the elves, you automatically recognise all staves and horns and can channel their charges safely.
+D:Channeling power as the Maiar once aided the Eldar in Valinor, guiding the flow of enchantment through crafted vessels. Those who master this art understand the inner workings of staves and horns instinctively, and can draw forth their power without risk of the wild discharges that imperil the untrained.
+E:Auto-identify staves and horns. Channel charges safely without risk.
 T:32:0:99  # Helm
 T:45:0:99  # Ring
 
 N:102:Strength in Adversity
 I:5:2:3
-D:Drawing strength in adversity as Beren did amidst the horrors of Nan Dungortheb, this gives you bonuses to Strength, Dexterity and Grace when seriously injured: +1 when less than or equal to 50% health, +3 when 25%.
+D:Drawing strength in adversity as Beren did amidst the horrors of Nan Dungortheb, where the spawn of Ungoliant assailed him and despair would have claimed a lesser soul. The bloodied warrior, driven to the brink, finds reserves of strength, agility, and resolve that are hidden in times of ease.
+E:+1 Str/Dex/Gra at 50% HP or below. +3 Str/Dex/Gra at 25% HP or below.
 T:32:0:99  # Helm
 T:36:0:99  # Soft Armour
 T:37:0:99  # Mail
@@ -441,7 +499,8 @@ T:39:0:99  # Light Source
 
 N:103:Formidable
 I:5:3:4
-D:Appearing formidable as Fingolfin before the gates of Angband, slaying enemies in melee scares all other enemies who see it. Enemies do not gain morale based on your injuries.
+D:Appearing formidable as Fingolfin before the gates of Angband, whose wrath was so terrible that the hosts of Morgoth fled before him as he rode alone across Anfauglith. When such a warrior slays a foe, the dread of their prowess spreads among all who witness it, and none can take heart from the warrior's wounds.
+E:Melee kills scare all visible enemies. Enemies ignore your injuries for morale purposes.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -450,98 +509,114 @@ T:34:0:99  # Shields
 
 N:104:Inner Light
 I:5:4:5
-D:Kindling an inner light as the phial of Galadriel held the light of Eärendil's star, drawn from the Silmaril, this increases the intensity of light within your light radius by 2 points (without increasing the radius).
+D:Kindling an inner light born of the spirit, as the Silmarils held within them the radiance of the Two Trees. The Noldor who dwelt long in the Blessed Realm carried an inner fire that could brighten the darkness about them, the light of Valinor shining through their very being.
+E:+2 light intensity within your light radius (no radius increase).
 T:32:0:99  # Helm
 T:39:0:99  # Light Source
 T:36:0:99  # Soft Armour
 
 N:105:Indomitable
 I:5:5:5
-D:Indomitable in spirit as Hurin Thalion who defied Morgoth in his captivity, this gives you resistance to fear, confusion, stunning, and hallucination. Slows hunger to one third the normal rate.
+D:Indomitable in spirit as Hurin Thalion, who alone of all the lords of Men defied Morgoth to his face and endured twenty-eight years of torment upon the heights of Thangorodrim without breaking. Such unconquerable will shields the mind from terror and bewilderment, and sustains the body far beyond its ordinary limits.
+E:Resist fear, confusion, stunning, and hallucination. Hunger reduced to 1/3 normal rate.
 T:40:0:99  # Amulet
 T:32:0:99  # Helm
 T:37:0:99  # Mail
 
 N:106:Oath
 I:5:6:6
-D:Swearing a great oath as did Feanor and his sons upon the shores of Losgar, binding their fates to the Silmarils, swear a great oath, and be rewarded for keeping it.
+D:Swearing a great oath as did Feanor and his sons upon Taniquetil, calling Manwe and Varda and the everlasting darkness upon themselves should they fail or falter. Such binding vows carry terrible power, granting strength to those who keep them and ruin to those who break their word.
+E:Swear a great oath for a reward. Breaking the oath has consequences.
 
 N:107:Poison Resistance
 I:5:7:7
-D:Resisting poison as the hardy folk of Haleth endured the venoms of Ungoliant's brood in the Ered Gorgoroth, this gives you resistance to poison.
+D:Resisting poison as the hardy Folk of Haleth endured the venoms of Ungoliant's spawn in the passes of the Ered Gorgoroth. Through strength of constitution or long exposure, the body learns to resist the corruption of venom that would fell a lesser soul.
+E:Grants resistance to poison.
 
 N:108:Vengeance
 I:5:8:8
 P:5/2
-D:Seeking vengeance with the fury of the Noldor after the Kinslaying at Alqualonde, when you are damaged in melee by an enemy, an additional damage die is added to your next successful strike. This effect does not stack.
+D:Seeking vengeance with the fury that drove the Noldor across the Grinding Ice after the Kinslaying at Alqualonde and the burning of the ships at Losgar. When wounded by a foe, that searing pain becomes fuel for a more devastating return stroke, the desire for retribution lending terrible force to the answering blow.
+E:+1 damage die on your next melee hit after being damaged in melee. Does not stack.
 T:40:0:99  # Amulet
 T:32:0:99  # Helm
 
 N:109:Majesty
 I:5:9:9
 P:5/0:5/4
-D:Exuding majesty as Thingol Greycloak in the halls of Menegroth, this lowers monster morale by half the difference between your Will and theirs.
+D:Exuding majesty as Thingol Greycloak did in the halls of Menegroth, he who was tallest and most lordly of all the Children of Iluvatar. The mere presence of one who carries such authority of spirit can quell the courage of lesser beings, their will to fight withering beneath an overwhelming regal bearing.
+E:Reduce enemy morale by half the difference between your Will and theirs.
 T:32:0:99  # Helm
 T:36:2:2   # Robe
 T:40:0:99  # Amulet
 
 N:110:Constitution
 I:5:10:12
-D:You gain a point of constitution, enduring as the pillars of Menegroth carved by the dwarves of old.
+D:Enduring as the great pillars of Menegroth carved by the dwarves of Belegost in ages past, which stood unshaken through war and sorrow until the very ruin of Doriath.
+E:+1 Constitution.
 
 # Smithing ---------------------------------------------
 
 N:120:Weaponsmith
 I:6:0:2
-D:Forging weapons in the tradition of the great smiths of Nogrod, who crafted Angrist for Curufin, this allows you to create weapons. It also gives a modest bonus to identifying weapons.
+D:Forging weapons in the tradition of the great smiths of Nogrod, who crafted the legendary knife Angrist that Curufin bore, its edge keen enough to cut iron as if it were green wood. To know the making of a weapon is also to understand its nature at a glance.
+E:Create weapons at the forge. Modest bonus to identifying weapons.
 T:21:8:8   # Hafted (War Hammer only)
 T:31:0:99  # Gloves
 
 N:121:Armoursmith
 I:6:1:3
-D:Crafting armour as the dwarves of Belegost made the dragon-helm for Azaghal, this allows you to create armour. It also gives a modest bonus to identifying armour.
+D:Crafting armour as the dwarves of Belegost fashioned the Dragon-helm of Dor-lomin for Azaghal their lord, whose coat of mail turned even the fire of Glaurung. To forge armour is to learn how each ring and plate bears the weight of a blow, knowledge that reveals the quality of any harness at a touch.
+E:Create armour at the forge. Modest bonus to identifying armour.
 T:21:8:8   # Hafted (War Hammer only)
 T:31:0:99  # Gloves
 
 N:122:Jeweller
 I:6:2:4
-D:Working jewels as Aule's pupils fashioned the Nauglamir in the caves of Narog, this allows you to create rings, amulets, horns and light sources and identify rings, amulets, horns and light sources you encounter. It also gives a modest bonus to identifying jewellery.
+D:Working gems and precious metals as the craftsmen of the Noldor fashioned the Nauglamir in the hidden workshops of Nargothrond. The jeweller's art encompasses not only rings and necklaces but also the shaping of crystals and light-bearing vessels, and one versed in this craft recognises such works at once.
+E:Create rings, amulets, horns, and light sources. Auto-identify them. Modest jewellery ID bonus.
 T:31:0:99  # Gloves
 
 N:123:Enchantment
 I:6:3:5
-D:Enchanting items with the artistry that imbued Narsil in the forges of Telchar, this allows you to create {special} items and determine what enchantments exist on items you encounter. It also gives a modest bonus to identifying items.
+D:Enchanting items with the artistry of Telchar of Nogrod, greatest of dwarven smiths, whose works were imbued with power beyond their mere substance. The enchanter weaves virtue into the very fabric of their creations, and can discern the enchantments hidden within the works of others.
+E:Create {special} items. Determine enchantments on items. Modest ID bonus.
 T:21:8:8   # Hafted (War Hammer only)
 T:31:0:99  # Gloves
 
 N:124:Expertise
 I:6:4:6
 P:6/3
-D:Attaining expertise like that of Celebrimbor in Eregion before the rings were forged, this reduces the time taken to forge an item by half and negates all experience and stat costs.
+D:Attaining the effortless mastery of Curufin, most skilled of the sons of Feanor in the crafts of hand, who could shape metal with a speed and ease that seemed almost careless. Such expertise allows the smith to work without waste, achieving in moments what lesser craftsmen labor over for hours.
+E:Halve forging time. Negate all experience and stat costs of smithing.
 T:21:8:8   # Hafted (War Hammer only)
 T:31:0:99  # Gloves
 
 N:125:Artifice
 I:6:5:7
 P:6/2:6/3
-D:Mastering artifice as Feanor did in creating the palantiri and silmarils, this allows you to create highly customised artifacts. It also gives a significant bonus to identifying items.
+D:Mastering the highest artifice as Feanor did when he created the Silmarils and the palantiri in the Blessed Realm, works so extraordinary that they could never be duplicated. Such mastery allows the creation of truly unique objects of power, and grants deep insight into the nature of all crafted things.
+E:Create highly customised artifacts. Significant bonus to identifying items.
 T:21:8:8   # Hafted (War Hammer only)
 T:31:0:99  # Gloves
 
 N:126:Masterpiece
 I:6:6:8
 P:6/3
-D:Crafting a masterpiece rivaling the works of the Gwaith-i-Mirdain, this allows you to create items that are more difficult than usual. Doing so drains your smithing skill for each excess point.
+D:Crafting a masterpiece that strains the very limits of skill, as the great works of the First Age were wrought only through tremendous sacrifice. The smith pours their very essence into the creation, achieving what should be impossible, though the effort leaves them diminished.
+E:Create items beyond normal difficulty limit. Drains Smithing skill per excess difficulty point.
 T:21:8:8   # Hafted (War Hammer only)
 T:31:0:99  # Gloves
 
 N:127:Grace
 I:6:7:10
-D:You gain a point of grace, inspired as by the touch of Varda upon the works of the Eldar.
+D:Inspired as by the touch of Varda Elentari upon the works of the Eldar, whose blessing hallowed the greatest creations of the Noldor in the years before the Darkening.
+E:+1 Grace.
 
 N:128:Alloy mastery
 I:6:8:6
-D:Blending mithril or star iron into your work, you can alloy weapons and major metal armour with these rare metals, gaining their bonuses without increasing smithing difficulty and unlocking the ability to forge mithril or star-iron gear.
+D:Blending rare metals as the cunning smiths of the First Age did, wedding mithril or star iron to common steel. The dwarves of the Blue Mountains guarded such secrets jealously, for weapons wrought with these metals possessed virtues beyond ordinary counterparts.
+E:Alloy weapons and armour with mithril or star iron at no extra cost. Forge mithril/star-iron gear.
 T:21:8:8   # Hafted (War Hammer only)
 T:31:0:99  # Gloves
 
@@ -549,16 +624,16 @@ T:31:0:99  # Gloves
 
 N:140:Song of Elbereth
 I:7:0:1
-D:In the ethereal strains of the Lay of Leithian, where Luthien invoked the stars, you chant a hymn to Varda, the Star-queen, whose name echoed terror through the halls of Angband, striking fear into the servants of the Enemy.
-D:Your song of reverence causes them to flee, as orcs scattered before the light of Eärendil. The power of the hymn also unnerves lesser foes, shaking their resolve and reducing their Will by your Song score divided by 5.
+D:In the ethereal strains of the Lay of Leithian, where Luthien invoked the stars, you chant a hymn to Varda, the Star-queen. Her name was the most feared word in all the pits of Angband, for the servants of Morgoth could not endure the memory of the holy light they had forsaken, and the mere sound of it drove them to flight.
+E:Causes enemies to flee. Reduces enemy Will by Song/5.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 T:39:0:99  # Light Source
 
 N:141:Song of Challenge
 I:7:1:1
-D:Echoing the bold verses of Fingolfin's challenge to Morgoth at the gates of Angband, as sung in ancient lays, you intone a defiant melody that enrages lesser foes, compelling them to attack recklessly like wolves driven mad.
-D:Their Will diminishes by your Song score divided by 4, and their caution fades, reducing their Stealth by the same amount, as shadows flee before the dawn.
+D:Echoing the bold verses of Fingolfin's challenge to Morgoth at the gates of Angband, as preserved in ancient lays. You intone a defiant melody that goads and enrages lesser foes, compelling them to abandon caution and throw themselves recklessly into battle like wolves driven mad by the sound of the hunter's horn.
+E:Reduces enemy Will and Stealth by Song/4 each. Enrages foes into reckless attacks.
 T:32:0:99  # Helm
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
@@ -566,31 +641,31 @@ T:23:0:99  # Swords
 
 N:142:Song of Delvings
 I:7:2:2
-D:In the deep, resonant chants reminiscent of the dwarven songs in the halls of Khazad-dûm, yet born of elven lore in Nargothrond's caverns, you weave a low melody that echoes the earth's hidden ways.
-D:The stone whispers its secrets, slowly revealing surrounding passages and chambers as the song expands from areas you have already explored, like roots delving into forgotten depths.
+D:In the deep, resonant chants born of the dwarven songs that echoed through the halls of Nogrod and Belegost in the Blue Mountains, adapted by the elven lorekeepers of Nargothrond's caverns. You weave a low melody that speaks to the stone itself, coaxing it to reveal the hidden ways that wind through the darkness below.
+E:Gradually reveals surrounding passages and chambers, expanding from explored areas.
 T:35:0:99  # Cloak
 T:20:0:99  # Shovels and Mattocks
 
 N:143:Song of Freedom
 I:7:3:2
-D:Drawing from the verses of escape in the Duel of Finrod and Sauron, where Felagund sang of snares eluded and chains that snap, you intone a melody of freedom and broken bonds.
-D:The song seeks out and undoes fetters of stone and mechanism, revealing hidden doors, disarming traps, and clearing rubble, while granting you freedom from effects that would slow your movement, as winds liberate the captive sea.
+D:Drawing from the verses of escape and defiance in the great Duel of Song between Finrod and Sauron upon Tol-in-Gaurhoth, where Felagund sang of snares eluded and chains that snap, of the wind unfettered upon the Western Sea and birds flying free above the towers of imprisonment.
+E:Reveals hidden doors, disarms traps, clears rubble. Grants freedom from slowing effects.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 T:21:3:3   # Quarterstaves
 
 N:144:Song of Silence
 I:7:4:3
-D:In the hushed tones akin to Luthien's enchantment that cloaked her passage through shadowed realms, you weave a blanket of quiet, muffling all sounds within its reach.
-D:Confounding the hearing of foes, making it harder for them to detect you or call allies, as whispers fade in the gloom of Nan Elmoth.
+D:In hushed tones akin to Luthien's enchantment that cloaked her passage through the shadowed realms between Doriath and Angband. You weave a blanket of quiet about yourself, muffling all sounds within its reach, so that the ears of your enemies are confounded and the darkness itself seems to swallow their cries.
+E:Muffles sounds, making it harder for enemies to detect you or call for allies.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 T:30:0:99  # Boots
 
 N:145:Song of Staunching
 I:7:5:3
-D:With gentle cadences echoing the healing laments sung by the elves of Tol Galen for the wounded of the wars, you compose a tune of renewal that closes wounds and staunches bleeding immediately.
-D:Greatly hastening natural healing, as rivers of life flow unhindered once more.
+D:With gentle cadences echoing the healing laments sung by the elves upon Tol Galen, the Green Isle in the River Adurant, where Beren and Luthien dwelt in peace after their return from death. Such melodies carry the memory of renewal and restoration, closing wounds and coaxing life back into weary flesh.
+E:Immediately staunches bleeding. Greatly hastens natural healing.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 T:45:0:99  # Ring
@@ -598,16 +673,16 @@ T:45:0:99  # Ring
 N:146:Song of Thresholds
 I:7:6:4
 #P:7/0:7/2
-D:Inspired by the warding spells in the Lay of Leithian, where doors barred the way in Tol-in-Gaurhoth, you sing of thresholds sealed against the foe.
-D:Doors closed under this melody become formidable barriers, sealed by your power, resisting the dark as Menegroth's gates held against invasion.
+D:Inspired by the warding spells woven into the great doors of Nargothrond, which Finrod raised by the counsel of Thingol to guard the hidden river-gate. You sing of thresholds sealed against the foe, and doors closed beneath this melody become impassable barriers, sealed by the power of your voice as surely as by bolts of dwarven iron.
+E:Closed doors become sealed barriers, resistant to enemies.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
 N:147:Song of the Trees
 I:7:7:5
 #P:7/0:7/5
-D:Evoking the radiant verses of the Two Trees in the songs of Valinor, as lamented in the Noldolante, you sing of Telperion and Laurelin's light.
-D:The song's brilliance increases your light radius by 1 for every 5 points of Song; creatures of darkness may be stunned or wounded, their resistance failing against your Will, as shadows recoiled from the Trees' bloom.
+D:Evoking the radiant verses that tell of the Two Trees of Valinor, Telperion the Silver and Laurelin the Gold, whose mingled light once illuminated the Blessed Realm before Morgoth and Ungoliant brought them to ruin. The memory of that holy radiance lives on in song, and its brilliance sears the creatures of darkness.
+E:+1 light radius per 5 Song points. Creatures of darkness may be stunned or wounded (vs Will).
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 T:39:0:99  # Light Source
@@ -615,32 +690,32 @@ T:39:0:99  # Light Source
 N:148:Woven Themes
 I:7:9:6
 #P:7/0:7/3
-D:Weaving themes as in the harmonious lays of Daeron the minstrel in Doriath, blending melodies into one, you learn to interlace a minor theme with your major song.
-D:The second song wields power at half your Song score; certain harmonies may unlock unexpected resonances, like echoes in the halls of Menegroth.
+D:Weaving themes as in the harmonious lays of Daeron the minstrel, greatest of all bards in Doriath, who could intertwine two melodies into one seamless tapestry of sound. As the Ainur wove many themes together in the Great Music before the World, so too can a skilled singer sustain a second song beneath the first, each reinforcing the other.
+E:Sing a minor theme alongside your major song at half Song score.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
 N:149:Song of Slaying
 I:7:10:6
 P:7/1:7/5
-D:In grim battle-hymns akin to the chants of the Edain warriors in the Nirnaeth Arnoediad, you sing of slaying, turning deep wounds mortal.
-D:When scoring a critical hit in melee, it slays the foe if their health is no more than twice your Song score, as fate seals the doom of the fallen.
+D:In grim battle-hymns akin to the chants of the Edain warriors in the Nirnaeth Arnoediad, where the sons of Hador sang as they fought and died in the rearguard of Turgon's retreat. This song carries the finality of death, and when a grievous wound is struck in time with its rhythm, the melody seals the doom of the fallen.
+E:Melee critical hits slay the foe if their HP is at most 2x your Song score.
 T:22:0:99  # Polearms and axes
 T:23:0:99  # Swords
 
 N:150:Song of Revealing
 I:7:8:7
 P:7/2:7/7
-D:Adapting the piercing notes of the song of wizardry—where Sauron sang of revealing and uncovering—you turn them against the darkness itself, chanting to cut through shadow and deceit.
-D:Revealing nearby monsters based on your Song skill, and permanently sensing all nearby items, as hidden truths emerge from the gloom.
+D:Adapting the piercing notes of the song of wizardry that Sauron wielded upon Tol-in-Gaurhoth, where he sang of revealing and uncovering, of treachery laid bare. You turn these themes against the darkness itself, chanting to cut through shadow and deceit, so that hidden things are brought to light and nothing may remain concealed.
+E:Reveal nearby monsters based on Song skill. Permanently sense nearby items.
 T:35:0:99  # Cloak
 T:20:0:99  # Shovels and Mattocks
 
 N:151:Song of Elveness
 I:7:11:7
 P:7/3:7/0
-D:Bringing forth the magic of Elvenesse, as in the sighs of the sea in the laments for the Kinslaying, you sing of Valinor's light and Elvenland's shores.
-D:Granting +1 Grace and improving Evasion by 1, plus 1 for every 7 points of Song, as the elder days' glory cloaks you.
+D:Bringing forth the ancient magic of the Blessed Realm, as in the laments for the Kinslaying upon the shores of Alqualonde, where grief and beauty were woven inseparably together. You sing of the ageless shores of Valinor and the starlit waters of Eldamar, and the grace of the Elder Days cloaks you like a shining mantle.
+E:+1 Grace. +1 Evasion, plus 1 per 7 Song points.
 T:32:0:99  # Helm
 T:34:0:99  # Shields
 T:35:0:99  # Cloak
@@ -649,8 +724,8 @@ T:45:0:99  # Ring
 N:152:Song of Staying
 I:7:12:7
 P:7/1:7/6
-D:Echoing Felagund's song of staying and resisting in his contest with Sauron, of strength like a tower and trust unbroken, you intone verses of resolve.
-D:Bolstering your Will by half your Song score and granting [2d2] protection against darkness, as unyielding as the walls of Gondolin.
+D:Echoing Felagund's song of staying and resisting in his great contest with Sauron, where he sang of trust unbroken and strength like a standing tower. Even as Sauron's power assailed him, Finrod's voice held firm, a bulwark of will against the tide of darkness, unyielding as the walls of Gondolin.
+E:+Song/2 to Will. [2d2] protection against darkness.
 T:32:0:99  # Helm
 T:34:0:99  # Shields
 T:35:0:99  # Cloak
@@ -659,53 +734,54 @@ T:45:0:99  # Ring
 N:153:Song of Disguise
 I:7:13:8
 P:7/4:7/3
-D:Weaving glamour as Luthien did in the Lay, passing unseen in forms of bat and wolf, you sing of subtle change and deception.
-D:Causing watchful foes to mistake you for their own, contesting their Perception and Will each round; should the glamour fail, they see truly, as illusions shatter like mist.
+D:Weaving glamour as Luthien did when she took the form of Thuringwethil and passed the gates of Angband unchallenged, her enchantment so complete that even the Wolves of Sauron took her for one of their own. Such a song wraps the singer in illusion, but watchful eyes may pierce the deception and see truly.
+E:Watchful foes mistake you for their own (your Song vs their Perception and Will each round).
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
 N:154:Song of Lorien
 I:7:14:8
 P:7/4:7/7
-D:In lulling airs reminiscent of Luthien's enchantment that cast Morgoth into slumber upon his throne, echoing the gardens of Lórien in Valinor, you sing of deep sleep.
-D:Gradually putting nearby opponents into slumber, as dreams enfold the weary world.
+D:In lulling airs like Luthien's enchantment that cast Morgoth himself into slumber upon his iron throne, weighed down by the Silmarils upon his crown. As the gardens of Lorien in Valinor bring rest and forgetfulness of care to all who walk among them, so this song enfolds the minds of those who hear it in heavy, inescapable drowsiness.
+E:Gradually puts nearby opponents to sleep.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
 N:155:Song of Shattering
 I:7:15:9
 P:7/10:7/12
-D:With discordant blasts like Luthien's song that brought down Tol-in-Gaurhoth's towers in ruin, you chant of breaking and sundering.
-D:Shattering weapons and armour of foes, weakening attacks and defenses, resisted by Will, as iron yields to fate's hammer.
+D:With discordant blasts like the song of power that Luthien raised before the towers of Tol-in-Gaurhoth, bringing walls crashing down in ruin. You chant of breaking and sundering, of iron rent and steel unmade, and the weapons and armour of your foes weaken beneath the assault of sound.
+E:Shatter enemy weapons and armour, weakening their attacks and defenses (resisted by Will).
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
 N:156:Song of Mastery
 I:7:16:10
 P:7/6:7/10
-D:Asserting dominion in commanding strains, as Sauron sought mastery in his duel with Finrod, yet turned to elven purpose, you weave a song of overwhelming power.
-D:Overwhelming enemies' minds, sometimes preventing movement or action, as wills bend before the melody's might.
+D:Asserting dominion in commanding strains as Morgoth himself bent the wills of his servants through the force of his terrible song. Yet this power may be turned to nobler ends, as Luthien's voice mastered even the Lord of Wolves. The song overwhelms the minds of lesser beings, binding their will and leaving them unable to act.
+E:May prevent enemy movement or action by overwhelming their minds.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
 N:157:Grace
 I:7:17:12
 P:7/0:7/11:7/12
-D:You gain a point of grace, uplifted as by the songs of the Ainur in the Music before the World.
+D:Uplifted as by the Great Music of the Ainur before the foundations of the World were laid, when Iluvatar revealed to them the themes of creation and each spirit contributed its voice to the Song that shaped all things.
+E:+1 Grace.
 
 N:158:Song of Contest
 I:7:18:12
 P:7/12:7/13:7/16
-D:In verses clashing as in the Duel between Finrod and Sauron, where songs swayed backwards and forwards—of wizardry and staying, of Elvenesse and darkness growing—you challenge a foe to a duel of voices.
-D:If their resolve falters, they suffer lasting penalties to Will, Stealth, Evasion, and Armour, as thunder rumbles and fires burn.
+D:In verses clashing as in the great Duel of Song between Finrod Felagund and Sauron upon Tol-in-Gaurhoth, where melodies of power swayed like the tides of battle. You challenge a foe to a contest of voices, and if their spirit falters, they are left diminished and shaken.
+E:Challenge a foe to a duel of voices. On failure, lasting penalties to their Will, Stealth, Evasion, and Armour.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
 N:159:Song of Lament
 I:7:19:15
 P:7/14:7/17
-D:Weaving a lament deep as Nienna's tears for the marring of Arda, or the sorrowful strains sung to Mandos for the slain, you burden a chosen foe with despair.
-D:Overwhelming their spirit, permanently reducing health, blow damage, and resolve, as captives mourn in Angband's depths.
+D:Weaving a lament as deep as the tears of Nienna for the marring of Arda, or the sorrowful strains of the Noldolante that Maglor composed for the fallen. You burden a chosen foe with the accumulated grief of ages, a weight of sorrow so great that it crushes their spirit and drains the vitality from their limbs.
+E:Permanently reduce a target's health, damage, and resolve.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
@@ -713,34 +789,44 @@ T:35:0:99  # Cloak
 
 N:160:Mandos' Doom
 I:8:0:0
-D:Bearing Mandos' Doom, the prophecy that shadowed the Noldor in their exile, yet granting unyielding resolve, this provides immunity to fear, hallucination, trance, rage, stun and confusion. Awarded by quest; cannot be purchased.
+D:Bearing the Doom of Mandos, the dread prophecy spoken upon the shores of Araman as the Noldor departed into exile. Though it foretold tears beyond measure, such a doom forges unbreakable resolve, for one already condemned cannot be shaken by lesser terrors.
+E:Immune to fear, hallucination, trance, rage, stun, and confusion. Quest reward.
 N:161:Aule's Forge
 I:8:1:0
-D:Harnessing Aule's Forge, the creative fire of the Smith of the Valar who shaped the dwarves in secret, this grants superior mastery at the forge: counts as Masterpiece with +2 extra difficulty allowance. Supersedes Masterpiece.
+D:Harnessing the creative fire of Aule the Smith, mightiest of craftsmen among the Valar, who shaped the substance of Arda itself and fashioned the Dwarves in secret beneath the mountains. His blessing upon a mortal smith grants mastery at the forge that surpasses all ordinary limits of skill.
+E:Counts as Masterpiece with +2 extra difficulty allowance. Supersedes Masterpiece. Quest reward.
 N:162:Oath of Mercy
 I:8:2:0
-D:Swearing the Oath of Mercy, akin to the compassion shown by Finrod to Beren in Nargothrond, this grants +1 Grace but breaks if you slay a helpless foe.
+D:Swearing the Oath of Mercy, akin to the compassion shown by Finrod Felagund when he befriended Beren in Nargothrond, honouring the bond between all free peoples. Those who vow to spare the helpless are touched by a gentle grace, but the oath is fragile and shatters if its keeper takes the life of a defenceless foe.
+E:+1 Grace. Breaks if you slay a helpless foe.
 N:163:Oath of Silence
 I:8:3:0
-D:Taking the Oath of Silence, as the vow of the warriors who spoke little amid the sorrows of Beleriand, this grants +1 Strength but breaks if you sing any song.
+D:Taking the Oath of Silence, a vow of grim resolve like those sworn by the warriors who endured the long marches across Beleriand without complaint or song, husbanding their strength in wordless determination. Such discipline hardens the body but demands that the voice be stilled entirely.
+E:+1 Strength. Breaks if you sing any song.
 N:164:Oath of Iron
 I:8:4:0
-D:Forging the Oath of Iron, unyielding as Feanor's vow to pursue the Silmarils across the seas, this grants +2 Constitution but breaks if you flee without one.
+D:Forging the Oath of Iron, unyielding as the vow of Feanor upon Taniquetil, who swore never to retreat or relent in his pursuit of the Silmarils. Those bound by this oath gain the endurance of the unyielding mountains, but must face every peril without flinching, for to flee is to break their word.
+E:+2 Constitution. Breaks if you flee without one.
 N:165:Niena's Gift of Mercy
 I:8:5:0
-D:Receiving Nienna's Gift of Mercy, the pity of the Vala who wept for the world's hurts, this enhances stealth proportional to mercy shown. Grants up to 10 stealth based on (seen-killed)/seen monsters. Awarded by quest; cannot be purchased.
+D:Receiving the Gift of Nienna, the Vala of compassion who wept for every hurt upon the world. Her tears bring wisdom and the quiet strength of pity. Those who show mercy move more gently, their footsteps lightened by the grace of choosing restraint over slaughter.
+E:Up to +10 stealth based on ratio of monsters spared: 10*(seen-killed)/seen. Quest reward.
 N:166:Oath of the Smith
 I:8:6:0
-D:Binding the Oath of the Smith, as the craftsmen of the Noldor pledged to their own works in Aman, this grants +5 Smithing skill but breaks if you pick up weapons or armor forged by others.
+D:Binding oneself by the Oath of the Smith, as the great craftsmen of the Noldor took pride only in works wrought by their own hands. Curufin and his followers scorned to bear weapons they had not forged themselves, and such dedication to one's own craft brings mastery beyond the reach of those who rely upon the works of others.
+E:+5 Smithing. Breaks if you pick up weapons or armour made by others.
 N:167:Oath of the Valorous Heart
 I:8:7:0
-D:Upholding the Oath of the Valorous Heart, the honor of heroes like Hurin who fought without quarter, this grants +1 Dexterity but breaks if you attack enemies fleeing in terror.
+D:Upholding the Oath of the Valorous Heart, the honour of heroes like Hurin Thalion who fought without quarter upon the field of the Nirnaeth. Such warriors scorn to strike at a fleeing foe, deeming it beneath their honour, and this code of valour lends swiftness to their arms against those who stand and fight.
+E:+1 Dexterity. Breaks if you attack fleeing enemies.
 N:168:Unique Bane
 I:8:8:0
-D:Possessing Unique Bane, knowledge to exploit weaknesses as Beren learned the vulnerabilities of Carcharoth, this grants +3 attack and evasion when fighting unique monsters. Awarded by quest; cannot be purchased.
+D:Possessing the hunter's knowledge to exploit the weaknesses of great and terrible foes, as Beren studied the habits of Carcharoth, the mightiest wolf that ever walked, before confronting him at the gates of Angband. Against such singular enemies, hard-won understanding becomes a weapon as sharp as any blade.
+E:+3 attack and evasion vs unique monsters. Quest reward.
 
 N:169:Oath of Light
 I:8:9:0
-D:Swearing the Oath of Light, as those who keep Varda's stars burning in the depths, you refuse any gear that dims your glow. While the oath holds, your inner light shines one step brighter.
+D:Swearing the Oath of Light, dedicating yourself to the memory of the Two Trees as those faithful Noldor who kept Varda's stars burning even in the deepest darkness of Angband. You refuse any gear that would dim your radiance, and while the oath endures, your inner fire burns brighter against the encroaching shadow.
+E:+1 inner light intensity. Breaks if you equip gear that reduces your light.
 
 
