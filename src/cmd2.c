@@ -121,8 +121,8 @@ void do_cmd_go_up(void)
         return;
     }
 
-    if (chosen_oath(OATH_IRON) && !oath_invalid(OATH_IRON) &&
-       (silmarils_possessed() == 0))
+    if (chosen_oath(OATH_IRON) && !oath_invalid(OATH_IRON)
+        && (silmarils_possessed() == 0))
     {
         if (get_check("Are you sure you wish to break your oath? "))
         {
@@ -278,7 +278,7 @@ void do_cmd_go_up(void)
             p_ptr->create_stair = FALSE;
 
             // go to a lower floor
-            new ++;
+            new++;
         }
     }
 
@@ -2982,7 +2982,7 @@ void do_cmd_alter(void)
      * skeletons instead.
      *
      * Details at https://github.com/sil-quirk/sil-q/issues/107
-     * */
+     */
     bool has_known_searchable = FALSE;
 
     bool more = FALSE;
