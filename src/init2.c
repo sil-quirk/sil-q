@@ -1374,6 +1374,21 @@ static void ensure_artifact_guids(void)
     }
 }
 
+static void ensure_artifact_spawn_numbers(void)
+{
+    if (!a_info || !z_info)
+        return;
+
+    for (int i = 0; i < z_info->art_max; i++)
+    {
+        artefact_type* a_ptr = &a_info[i];
+        if (!a_ptr)
+            continue;
+        if (a_ptr->spawn_num == 0)
+            a_ptr->spawn_num = 1;
+    }
+}
+
 /*
  * Initialize the "e_info" array
  */
@@ -2605,6 +2620,7 @@ void init_angband(void)
     if (init_a_info())
         quit("Cannot initialize artefacts");
     ensure_artifact_guids();
+    ensure_artifact_spawn_numbers();
 
     /* Load item sets (data-driven bonuses + paired weapons) */
     note("[Initializing arrays... (item sets)]");

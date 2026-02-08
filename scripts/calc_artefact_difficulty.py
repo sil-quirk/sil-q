@@ -400,13 +400,18 @@ def calculate_difficulty(art):
     is_normal = (art['type'] == 'normal')
     is_dual_ego = (art['type'] == 'dual_ego')
 
-    # For non-jewelry special/dual-ego items, strip base flags and add back specific ones
-    # This mirrors cmd4.c lines 4618-4657
-    if (is_special or is_dual_ego) and tval not in [45, 40]:  # Not ring or amulet
+    # For non-jewelry items (special/dual-ego/artefact), strip base flags and add back specific ones
+    # This mirrors smithing-difficulty.c lines 139-180
+    is_artefact = (art['type'] == 'artefact')
+    if (is_special or is_dual_ego or is_artefact) and tval not in [45, 40]:  # Not ring or amulet
         # Get base item flags from the OBJECTS_BY_TYPE lookup
         base_key = (tval, sval)
         if base_key in OBJECTS_BY_TYPE:
             base_obj_flags = set(OBJECTS_BY_TYPE[base_key].get('flags', []))
+            # For artefacts, ADD base flags first (special/ego already have them combined at line 1315)
+            # This mirrors how object_flags4() in C code combines base + artefact flags
+            if is_artefact:
+                flags = flags | base_obj_flags
             # Strip base item flags
             flags = flags - base_obj_flags
             # Add back specific flags that should always count
@@ -476,37 +481,37 @@ def calculate_difficulty(art):
 
     # Attack bonus contribution (bonus above base)
     att_bonus = smithed_att_bonus
-    if att_bonus > 0:
+    if att_bonus != 0:
         if tval == 17:  # Arrow - different formula
             dif_inc += dif_mod_calc(att_bonus, 5) // 2
         elif tval in [19, 23, 22, 21, 20]:  # Bow, Sword, Polearm, Hafted, Digging
             dif_inc += dif_mod_calc(att_bonus, 3)
         else:
             val = dif_mod_calc(att_bonus, 6)
-            if val > 0:
+            if att_bonus > 0:
                 val -= 1
             dif_inc += val
     
     # Evasion bonus (bonus above base): dif_mod(x, 6, &dif_inc); if (x > 0) dif_inc -= 1
     evn_bonus = smithed_evn_bonus
     if evn_bonus != 0:
-        val = dif_mod_calc(abs(evn_bonus), 6)
+        val = dif_mod_calc(evn_bonus, 6)
         if evn_bonus > 0:
             val -= 1
         dif_inc += val
     
     # Damage sides bonus: dif_mod(x, 3*x+2, &dif_inc)
     ds_bonus = smithed_ds_bonus
-    if ds_bonus > 0:
+    if ds_bonus != 0:
         # The formula is: dif_mod(x, 3*x+2) which means each ds costs more
         dif_inc += dif_mod_calc(ds_bonus, 3 * ds_bonus + 2)
     
     # Protection bonus
-    if prot_bonus > 0:
+    if prot_bonus != 0:
         if tval == 37 and sval == 6:  # Hauberk
-            dif_inc += dif_mod_calc(prot_bonus, 1) + 2
+            dif_inc += dif_mod_calc(prot_bonus, 1) + (2 if prot_bonus > 0 else 0)
         elif tval == 45:  # Ring
-            dif_inc += dif_mod_calc(prot_bonus, 1) + 4
+            dif_inc += dif_mod_calc(prot_bonus, 1) + (4 if prot_bonus > 0 else 0)
         else:
             dif_inc += dif_mod_calc(prot_bonus, 3)
     
@@ -568,7 +573,7 @@ def calculate_difficulty(art):
     if 'DEPTH_SCALE_PS' in flags:
         dif_inc += 5  # Situational
     if 'PAIRED' in flags:
-        dif_inc += 7  # Paired weapon bonus
+        dif_inc += 3  # Paired weapon bonus
 
     # === PVAL-DEPENDENT BONUSES ===
     # For specials: total_pval = base_pval + smithed bonus
@@ -674,6 +679,8 @@ def calculate_difficulty(art):
         dif_inc += 6
     if 'MEDIC' in flags:
         dif_inc += 4
+    if 'OATH_BOOST' in flags:
+        dif_inc += 5
     
     # === ELEMENTAL RESISTANCES ===
     if 'RES_COLD' in flags:
@@ -719,6 +726,8 @@ def calculate_difficulty(art):
         dif_dec += 2
     if 'CUMBERSOME' in flags:
         dif_dec += 3
+    if 'OATH_NEGATE' in flags:
+        dif_dec += 5
     if 'UNLIGHT' in flags:
         dif_dec += 5  # Worse than DARKNESS - pure negative, no light bonus
     if 'SLOWNESS' in flags:
@@ -754,10 +763,10 @@ def calculate_difficulty(art):
         dif_mult += 20
 
     # === ENCHANTABILITY BONUS ===
-    # Items with ENCHANTABLE flag on base item get -30% difficulty
-    # Check base item flags for ENCHANTABLE
+    # Items with ENCHANTABLE flag on base item OR artefact get -30% difficulty
+    # Check both base item flags and artefact's own flags
     base_item_flags = get_base_flags(tval, sval)
-    if 'ENCHANTABLE' in base_item_flags:
+    if 'ENCHANTABLE' in base_item_flags or 'ENCHANTABLE' in flags:
         dif_mult -= 30
 
     # Apply multiplier
@@ -773,14 +782,28 @@ def calculate_difficulty(art):
 def dif_mod_calc(value, positive_base):
     """
     Calculates difficulty modification using the triangular number formula.
-    From cmd4.c dif_mod():
+    From drop_system.c drop_dif_mod():
         int mod = 1 + ((positive_base - 1) / 5);
-        *dif_inc += positive_base * value + mod * (value * (value - 1) / 2)
+        if (value > 0)
+            *dif_inc += positive_base * value + mod * (value * (value - 1) / 2);
+        else if (value < 0) {
+            int abs_value = -value;
+            int negative_base = (positive_base + 1) / 2;
+            int negative_mod = 1 + ((negative_base - 1) / 5);
+            *dif_inc -= negative_base * abs_value + negative_mod * (abs_value * (abs_value - 1) / 2);
+        }
     """
-    if value <= 0:
+    if value > 0:
+        mod = 1 + ((positive_base - 1) // 5)
+        return positive_base * value + mod * (value * (value - 1) // 2)
+    elif value < 0:
+        # Negative values decrease difficulty, but by half as much as positives increase it
+        abs_value = -value
+        negative_base = (positive_base + 1) // 2  # Half the positive base, rounded up
+        negative_mod = 1 + ((negative_base - 1) // 5)
+        return -(negative_base * abs_value + negative_mod * (abs_value * (abs_value - 1) // 2))
+    else:
         return 0
-    mod = 1 + ((positive_base - 1) // 5)
-    return positive_base * value + mod * (value * (value - 1) // 2)
 
 
 def get_base_level(tval, sval):
@@ -1635,7 +1658,7 @@ def export_csv(items, output_file):
     return len(items_sorted)
 
 
-def main():
+def main(argv=None):
     import argparse
     
     parser = argparse.ArgumentParser(description='Calculate artefact/special smithing difficulty')
@@ -1643,7 +1666,7 @@ def main():
                         help='Export results to CSV file')
     parser.add_argument('--artefacts-only', '-a', action='store_true',
                         help='Show only artefacts in output')
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     
     # Try to determine script location, fallback to current working directory
     try:
@@ -1819,9 +1842,9 @@ def main():
     
     # Full listing sorted by difficulty
     print("FULL ITEM LIST (by Smithing Difficulty):")
-    print("-" * 110)
-    print(f"{'Idx':>4} {'Diff':>4} {'Lvl':>3} {'D+L':>4} {'Type':<12} {'Name':<35} {'Stats':<25}")
-    print("-" * 110)
+    print("-" * 120)
+    print(f"{'Idx':>4} {'Diff':>4} {'Lvl':>3} {'Rar':>3} {'D+L':>4} {'Type':<12} {'Name':<35} {'Stats':<25}")
+    print("-" * 120)
     
     for item in items_by_diff:
         tval_name = get_tval_name(item['tval'])
@@ -1866,15 +1889,16 @@ def main():
         
         diff_plus_lvl = item['difficulty'] + item['depth']
         idx = item.get('idx', item.get('special_idx', item.get('k_idx', 0)))
-        print(f"{idx:>4} {item['difficulty']:>4} {item['depth']:>3} {diff_plus_lvl:>4} {tval_name:<12} {item['name']:<35} {stats_str:<25}")
+        rarity = item.get('rarity', 0)
+        print(f"{idx:>4} {item['difficulty']:>4} {item['depth']:>3} {rarity:>3} {diff_plus_lvl:>4} {tval_name:<12} {item['name']:<35} {stats_str:<25}")
     
     print()
-    print("=" * 100)
+    print("=" * 120)
     print()
     
     # Group by item type (tval) and subtype (sval)
     print("ARTEFACTS BY TYPE:")
-    print("-" * 100)
+    print("-" * 120)
 
     # Filter out sval 50 (special/placeholder items)
     filtered_artefacts = [art for art in artefacts if art['sval'] != 50]
@@ -1916,7 +1940,8 @@ def main():
         if tval in [45, 40]:  # Ring or Amulet
             arts_sorted = sorted(all_tval_arts, key=lambda x: x['difficulty'], reverse=True)
             for art in arts_sorted:
-                print(f"  {art['difficulty']:>3}: {art['name']}")
+                rarity = art.get('rarity', 0)
+                print(f"  {art['difficulty']:>3}: {art['name']} (Lvl:{art['depth']:>2} Rar:{rarity:>2})")
         else:
             # Sort svals by their order in artefact.txt
             for sval, arts in sorted(by_tval[tval], key=lambda x: get_sval_order(tval, x[0])):
@@ -1927,10 +1952,11 @@ def main():
                 sval_avg = sum(a['difficulty'] for a in arts) / len(arts)
                 print(f"  {base_name} ({len(arts)}, avg: {sval_avg:.1f}):")
                 for art in arts_sorted:
-                    print(f"    {art['difficulty']:>3}: {art['name']}")
+                    rarity = art.get('rarity', 0)
+                    print(f"    {art['difficulty']:>3}: {art['name']} (Lvl:{art['depth']:>2} Rar:{rarity:>2})")
     
     print()
-    print("=" * 110)
+    print("=" * 120)
     print("DIFFICULTY FORMULA (from src/cmd4.c object_difficulty()):")
     print("  - Base item level / 2")
     print("  - Attack bonus: weapons +3/point, others +6/point")
@@ -1950,15 +1976,29 @@ def main():
     print("  - Abilities: +6 each (5 + level/3)")
     print("  - Minor slots (ring/cloak/gloves/boots/light/arrow): +20% multiplier")
     print("  - Artefact arrows: difficulty halved")
-    print("=" * 110)
+    print("=" * 120)
     print()
-    # Only prompt for input if running interactively on Windows terminal
-    if sys.stdin.isatty() and sys.stdout.isatty():
-        try:
-            input("Press Enter to exit...")
-        except EOFError:
-            pass
 
 
 if __name__ == '__main__':
-    main()
+    # Capture arguments on start to preserve them when rerunning
+    # Defaults to sys.argv[1:] if we pass None, but capturing explicit list is safer for reruns
+    current_argv = sys.argv[1:]
+    while True:
+        main(current_argv)
+        try:
+            # Flush to ensure prompt appears before waiting for input
+            sys.stdout.flush()
+            response = input("\nPress 'r' to rerun or Enter to exit: ").strip().lower()
+            if response != 'r':
+                break
+            # Clear screen before rerunning (works in most terminals; IDLE will just print separator)
+            if sys.platform == 'win32':
+                os.system('cls')
+            else:
+                os.system('clear')
+            print("\n" + "=" * 120)
+            print("RELOADING FILES...")
+            print("=" * 120 + "\n")
+        except (EOFError, KeyboardInterrupt, OSError):
+            break

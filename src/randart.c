@@ -3224,7 +3224,7 @@ bool make_one_randart(object_type* o_ptr, int art_power, bool tailored)
 
     /* Hack -- Mark the artefact as "created" */
     a_ptr->cur_num = 1;
-    a_ptr->max_num = 1;
+    a_ptr->spawn_num = 1;
 
     /* Keep stat/skill bonuses in sync with final pval/flags. */
     artefact_apply_pval_stat_skill_bonuses(a_ptr);

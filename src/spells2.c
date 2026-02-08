@@ -338,7 +338,7 @@ void uncurse_object(object_type* o_ptr)
  *
  * Note that Items bound by the Oath of Feanor (TR3_PERMA_CURSE)
  * can NEVER be uncursed by normal means - only the holy light
- * of a Silmaril can break such an oath.
+ * of items with the BREAKS_PERMA_CURSE flag can break such an oath.
  *
  * Note that if "all" is false, then Items which are
  * "Heavy-Cursed" (Mormegil, Calris, and Weapons of Morgul)

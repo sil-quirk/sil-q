@@ -557,9 +557,18 @@ static void drop_apply_spawn_quantities(object_type* o_ptr)
 /* Baseline smithing difficulty (player-neutral). */
 static void drop_dif_mod(int value, int positive_base, int* dif_inc)
 {
-    int mod = 1 + ((positive_base - 1) / 5);
     if (value > 0)
+    {
+        int mod = 1 + ((positive_base - 1) / 5);
         *dif_inc += positive_base * value + mod * (value * (value - 1) / 2);
+    }
+    else if (value < 0)
+    {
+        int abs_value = -value;
+        int negative_base = (positive_base + 1) / 2;
+        int negative_mod = 1 + ((negative_base - 1) / 5);
+        *dif_inc -= negative_base * abs_value + negative_mod * (abs_value * (abs_value - 1) / 2);
+    }
 }
 
 /* Slot determination without using inventory state (only for difficulty multiplier) */
@@ -795,7 +804,9 @@ static int smithing_difficulty_baseline(const object_type* o_ptr)
     if (f4 & TR4_DEPTH_SCALE_PS)
         dif_inc += 5;  /* Situational */
     if (f4 & TR4_PAIRED)
-        dif_inc += 7;  /* Paired weapon bonus */
+        dif_inc += 3;  /* Paired weapon bonus */
+    if (f4 & TR4_SUBTLETY_THROW)
+        dif_inc += 15;
 
     /* pval-based bonuses */
     if (f1 & TR1_TUNNEL)
@@ -1050,7 +1061,7 @@ static int smithing_difficulty_baseline(const object_type* o_ptr)
         break;
     }
 
-    if (k_ptr->flags3 & TR3_ENCHANTABLE)
+    if ((k_ptr->flags3 & TR3_ENCHANTABLE) || (f3 & TR3_ENCHANTABLE))
         dif_mult -= 30;
 
     dif = dif * dif_mult / 100;
@@ -2197,6 +2208,22 @@ static void build_artifact_variants(int a_idx)
     v.pd = a_ptr->pd;
     v.ps = a_ptr->ps;
     v.weight = a_ptr->weight;
+
+    /* For stackable artefacts (arrows, throwing weapons), use spawn_num */
+    {
+        object_kind* ak_ptr = &k_info[k_idx];
+        if ((v.tval == TV_ARROW) || (ak_ptr->flags3 & TR3_THROWING))
+        {
+            int desired = a_ptr->spawn_num ? (int)a_ptr->spawn_num : 1;
+            int limit = object_stack_limit(&v);
+            if (limit > 0 && desired > limit)
+                desired = limit;
+            if (desired < 1)
+                desired = 1;
+            v.number = (byte)desired;
+        }
+    }
+
     v.ident = 0;
     if (!a_ptr->cost)
         v.ident |= (IDENT_BROKEN);
@@ -3552,19 +3579,12 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
             if (!a_ptr->cur_num)
                 a_ptr->cur_num = 1;
         }
-        if (out->tval == TV_ARROW)
+        if (out->tval == TV_ARROW && !artefact_p(out))
         {
-            if (!artefact_p(out))
-            {
-                int depth_adjust = MORGOTH_DEPTH - depth;
-                out->number = 20 + damroll(1, 10 + MAX(0, depth_adjust));
-                if (out->number > 48)
-                    out->number = 48;
-            }
-            else
-            {
-                out->number = 1;
-            }
+            int depth_adjust = MORGOTH_DEPTH - depth;
+            out->number = 20 + damroll(1, 10 + MAX(0, depth_adjust));
+            if (out->number > 48)
+                out->number = 48;
         }
         apply_autoinscription(out);
     }

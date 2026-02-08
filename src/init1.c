@@ -324,6 +324,8 @@ static flag_name info_flags[] = {
     { "ARMOR_SHATTER", TR4, TR4_ARMOR_SHATTER },
     { "DEPTH_SCALE_PS", TR4, TR4_DEPTH_SCALE_PS },
     { "PAIRED", TR4, TR4_PAIRED },
+    { "SUBTLETY_THROW", TR4, TR4_SUBTLETY_THROW },
+    { "BREAKS_PERMA_CURSE", TR4, TR4_BREAKS_PERMA_CURSE },
 
     /*
      * Race/Character flags
@@ -3043,6 +3045,21 @@ errr parse_b_info(char* buf, header* head)
             return (PARSE_ERROR_OUT_OF_MEMORY);
     }
 
+    /* Process 'E' for "Effect" (mechanical description) */
+    else if (buf[0] == 'E')
+    {
+        /* There better be a current b_ptr */
+        if (!b_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Get the text */
+        s = buf + 2;
+
+        /* Store the effect text */
+        if (!add_text(&(b_ptr->effect), head, s))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+
     /* Process 'T' for "Types allowed" (up to five lines) */
     else if (buf[0] == 'T')
     {
@@ -3184,6 +3201,9 @@ errr parse_a_info(char* buf, header* head)
             a_ptr->skill_bonus[sk] = 0;
             a_ptr->skill_bonus_set[sk] = false;
         }
+
+        /* Default spawn stack size */
+        a_ptr->spawn_num = 1;
     }
 
     /* Sil -- added this to allow for artefacts that look different to the base
@@ -3243,6 +3263,23 @@ errr parse_a_info(char* buf, header* head)
             return (PARSE_ERROR_GENERIC);
 
         a_ptr->guid = score_guid_from_u64(guid);
+    }
+
+    /* Process 'S' for spawn stack size */
+    else if (buf[0] == 'S')
+    {
+        int spawn_num;
+
+        if (!a_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        if (1 != sscanf(buf + 2, "%d", &spawn_num))
+            return (PARSE_ERROR_GENERIC);
+
+        if (spawn_num < 1 || spawn_num > 255)
+            return (PARSE_ERROR_GENERIC);
+
+        a_ptr->spawn_num = (byte)spawn_num;
     }
 
     /* Process 'I' for "Info" (one line only) */

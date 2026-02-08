@@ -9,11 +9,6 @@
 #
 
 
-##### Standard font file #####
-
-%:font-xxx.prf
-
-
 ##### System Specific Subfiles #####
 
 # SDL is the only supported system - load graf-win.prf (which handles new tiles)

@@ -1184,6 +1184,7 @@
 /*** Important artefact indexes (see "lib/edit/artefact.txt") ***/
 
 #define ART_MAEGLIN 32
+#define ART_DURIN 35
 #define ART_ORCRIST 64
 #define ART_GLAMDRING 65
 #define ART_GLEND 74
@@ -2009,7 +2010,7 @@
 #define TR3_TWO_HANDED 0x10000000L /* Item is a two handed weapon */
 #define TR3_LIGHT_CURSE 0x20000000L /* Item has Light Curse */
 #define TR3_HEAVY_CURSE 0x40000000L /* Item has Heavy Curse */
-#define TR3_PERMA_CURSE 0x80000000L /* Item bound by Oath of Feanor (broken by Silmaril) */
+#define TR3_PERMA_CURSE 0x80000000L /* Item bound by Oath of Feanor (broken by items with BREAKS_PERMA_CURSE) */
 
 /*TR3 Uber-Flags*/
 #define TR3_IGNORE_ALL                                                         \
@@ -2020,6 +2021,8 @@
 #define TR4_ARMOR_SHATTER 0x00000002L /* Shatters enemy armor on hit */
 #define TR4_DEPTH_SCALE_PS 0x00000004L /* Protection sides scale with depth */
 #define TR4_PAIRED      0x00000008L /* Part of a matched weapon pair (no off-hand penalty) */
+#define TR4_SUBTLETY_THROW 0x00000010L /* Allows Subtlety ability to work when throwing this weapon */
+#define TR4_BREAKS_PERMA_CURSE 0x00000020L /* Can break items bound by Oath of Feanor (PERMA_CURSE) */
 
 /*
  * Hack -- flag set 1 -- mask for "pval-dependant" flags.
@@ -2724,7 +2727,7 @@
 #define OPT_unidentified_items_slate 88
 #define OPT_space_acts_as_comma 89
 #define OPT_show_level_entry_banner 90
-// xxx
+#define OPT_ability_desc_mode 91
 // xxx birth_point_based
 // xxx birth_auto_roller
 // xxx birth_maximize

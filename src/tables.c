@@ -238,7 +238,7 @@ cptr option_text[OPT_MAX] = {
     "unidentified_items_slate", /* OPT_unidentified_items_slate */
     "space_acts_as_comma", /* OPT_space_acts_as_comma */
     "show_level_entry_banner", /* OPT_show_level_entry_banner */
-    NULL, /* xxx */
+    "ability_desc_mode", /* OPT_ability_desc_mode */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -478,7 +478,7 @@ cptr option_desc[OPT_MAX] = {
     "Show unidentified items in slate color", /* OPT_unidentified_items_slate */
     "Space acts as comma (interact with square)", /* OPT_space_acts_as_comma */
     "Show poetic banner when entering a level", /* OPT_show_level_entry_banner */
-    NULL, /* xxx */
+    "Ability descriptions (0=lore+effect, 1=effect+lore, 2=effect only)", /* OPT_ability_desc_mode */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -737,7 +737,7 @@ const bool option_norm[OPT_MAX] = {
     true, /* OPT_unidentified_items_slate */
     true, /* OPT_space_acts_as_comma */
     true, /* OPT_show_level_entry_banner */
-    false, /* xxx */
+    false, /* OPT_ability_desc_mode (default 0 via byte field) */
     false, /* xxx */
     false, /* xxx */
     false, /* xxx */
@@ -942,8 +942,9 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
 
     { OPT_auto_display_lists, OPT_artifact_unique_color, OPT_hilite_player, OPT_hilite_target,
         OPT_hilite_unwary, OPT_solid_walls, OPT_hybrid_walls, OPT_unidentified_items_slate,
-        OPT_main_combat_rolls, OPT_show_level_entry_banner, OPT_stealth_vision, OPT_sleep_icon, OPT_NONE,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
+        OPT_main_combat_rolls, OPT_show_level_entry_banner, OPT_stealth_vision, OPT_sleep_icon,
+        OPT_ability_desc_mode, OPT_NONE,
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Birth ***/
 

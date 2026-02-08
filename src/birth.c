@@ -1828,12 +1828,19 @@ NavResult character_creation(void)
         op_ptr->hitpoint_warn = 3;
         op_ptr->delay_factor = 5;
         op_ptr->main_combat_rolls = get_sdl_steamdeck_mode() ? 2 : 0;
+        op_ptr->ability_desc_mode = 0;
     }
-    
+
     /* Ensure main_combat_rolls has a valid value for existing saves */
     if (op_ptr->main_combat_rolls > 3)
     {
         op_ptr->main_combat_rolls = 0;  /* Default to 0 lines */
+    }
+
+    /* Ensure ability_desc_mode has a valid value for existing saves */
+    if (op_ptr->ability_desc_mode > 2)
+    {
+        op_ptr->ability_desc_mode = 0;
     }
 
     /* reset squelch bits */

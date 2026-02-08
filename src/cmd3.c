@@ -1707,33 +1707,38 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
         o_ptr->ident |= (IDENT_SENSE);
     }
 
-    /* Silmaril breaks the Oath of Feanor (perma-curse) on all equipped items */
-    if ((o_ptr->tval == TV_LIGHT) && (o_ptr->sval == SV_LIGHT_SILMARIL))
+    /* Items with BREAKS_PERMA_CURSE can break the Oath of Feanor on all equipped items */
     {
-        int j;
-        bool oath_broken = false;
+        u32b o_f1, o_f2, o_f3, o_f4;
+        object_flags4(o_ptr, &o_f1, &o_f2, &o_f3, &o_f4);
 
-        /* Check all equipped items for the Oath of Feanor (perma-curse) */
-        for (j = INVEN_WIELD; j < INVEN_TOTAL; j++)
+        if (o_f4 & TR4_BREAKS_PERMA_CURSE)
         {
-            object_type *eq_ptr = &inventory[j];
-            u32b eq_f1, eq_f2, eq_f3;
+            int j;
+            bool oath_broken = false;
 
-            if (!eq_ptr->k_idx) continue;
-
-            object_flags(eq_ptr, &eq_f1, &eq_f2, &eq_f3);
-
-            if ((eq_f3 & TR3_PERMA_CURSE) && cursed_p(eq_ptr))
+            /* Check all equipped items for the Oath of Feanor (perma-curse) */
+            for (j = INVEN_WIELD; j < INVEN_TOTAL; j++)
             {
-                /* Break the curse - the light of the Silmaril overcomes the oath */
-                eq_ptr->ident &= ~IDENT_CURSED;
-                oath_broken = true;
-            }
-        }
+                object_type *eq_ptr = &inventory[j];
+                u32b eq_f1, eq_f2, eq_f3;
 
-        if (oath_broken)
-        {
-            msg_print("The holy light of the Silmaril breaks the Oath of Feanor!");
+                if (!eq_ptr->k_idx) continue;
+
+                object_flags(eq_ptr, &eq_f1, &eq_f2, &eq_f3);
+
+                if ((eq_f3 & TR3_PERMA_CURSE) && cursed_p(eq_ptr))
+                {
+                    /* Break the curse - the holy light overcomes the oath */
+                    eq_ptr->ident &= ~IDENT_CURSED;
+                    oath_broken = true;
+                }
+            }
+
+            if (oath_broken)
+            {
+                msg_print("The holy light breaks the Oath of Feanor!");
+            }
         }
     }
 

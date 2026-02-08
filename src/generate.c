@@ -11172,6 +11172,13 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 break;
             }
 
+            /* The Mail Corslet of Durin (INSTA_ART; vault-only) */
+            case 'u':
+            {
+                create_chosen_artefact(ART_DURIN, y, x, false);
+                break;
+            }
+
             /* barrow wight */
             case 'W':
             {
@@ -12443,10 +12450,18 @@ static bool build_type8(int y0, int x0)
         if ((tries < 1000) && !(v_ptr->flags & (VLT_TEST)))
             continue;
 
-        /* Accept the first greater vault (but not quest vaults) */
-        if ((v_ptr->typ == 8) && (v_ptr->depth <= p_ptr->depth)
-            && (v_ptr->max_depth == 0 || p_ptr->depth <= v_ptr->max_depth)
-            && (one_in_(v_ptr->rarity)) && !(v_ptr->flags & VLT_QUEST))
+        /* Surface vaults get exponentially rarer at depth */
+        {
+            int rarity = v_ptr->rarity;
+            if ((p_ptr->depth >= 6) && (v_ptr->flags & (VLT_SURFACE)))
+            {
+                rarity += (1 << p_ptr->depth);
+            }
+
+            /* Accept the first greater vault (but not quest vaults) */
+            if ((v_ptr->typ == 8) && (v_ptr->depth <= p_ptr->depth)
+                && (v_ptr->max_depth == 0 || p_ptr->depth <= v_ptr->max_depth)
+                && (one_in_(rarity)) && !(v_ptr->flags & VLT_QUEST))
         {
             repeated = false;
             for (i = 0; i < MAX_GREATER_VAULTS; i++)
@@ -12459,6 +12474,7 @@ static bool build_type8(int y0, int x0)
 
             if (!repeated)
                 found = true;
+            }
         }
 
         if (tries > 2000)

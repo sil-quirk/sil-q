@@ -2933,18 +2933,8 @@ static void calc_bonuses(void)
 
     int armour_weight = 0;
 
-    // Remove off-hand weapons if you cannot wield them (paired weapons are exempt)
-    bool paired_offhand_current = false;
-    if (inventory[INVEN_WIELD].name1 && inventory[INVEN_ARM].name1)
-    {
-        int paired_idx = get_paired_artefact(inventory[INVEN_WIELD].name1);
-        if (paired_idx == inventory[INVEN_ARM].name1)
-        {
-            paired_offhand_current = true;
-        }
-    }
-
-    if (!p_ptr->active_ability[S_MEL][MEL_TWO_WEAPON] && !paired_offhand_current)
+    // Remove off-hand weapons if you cannot wield them
+    if (!p_ptr->active_ability[S_MEL][MEL_TWO_WEAPON])
     {
         o_ptr = &inventory[INVEN_ARM];
 
@@ -3882,7 +3872,7 @@ static void calc_bonuses(void)
         }
     }
 
-    if ((p_ptr->active_ability[S_MEL][MEL_TWO_WEAPON] || paired_offhand)
+    if (p_ptr->active_ability[S_MEL][MEL_TWO_WEAPON]
         && (((&inventory[INVEN_ARM])->tval != TV_SHIELD)
             && ((&inventory[INVEN_ARM])->tval != 0)))
     {

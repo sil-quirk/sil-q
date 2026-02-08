@@ -262,7 +262,8 @@ struct object_kind
 struct ability_type
 {
     u32b name; /* Name (offset) */
-    u32b text; /* Text (offset) */
+    u32b text; /* Text (offset) - poetic/lore description */
+    u32b effect; /* Effect (offset) - mechanical effect description */
 
     byte skilltype; /* Skill type */
     byte abilitynum; /* Ability number within a skill */
@@ -284,7 +285,8 @@ struct ability_type
  * Note that the save-file only writes "cur_num" and "found_num" to the
  * savefile, except for the random artefacts
  *
- * Note that "max_num" is always "1" (if that artefact "exists")
+ * Note that "spawn_num" defaults to 1. For stackable artefacts (e.g. throwing
+ * weapons), it can be set higher to spawn as a small pack.
  */
 struct artefact_type
 {
@@ -323,7 +325,7 @@ struct artefact_type
 
     byte cur_num; /* Number created (0 or 1) */
     byte found_num; /* Number found (0 or 1) */
-    byte max_num; /* Unused (should be "1") */
+    byte spawn_num; /* Initial stack size when created (defaults to 1) */
     byte seen; /* Seen flags (ART_SEEN_*) */
 
     byte activation; /* Activation to use */
@@ -1032,6 +1034,7 @@ struct player_other
     byte delay_factor; /* Delay factor (0 to 9) */
 
     byte main_combat_rolls; /* Main terminal combat rolls (0-3) */
+    byte ability_desc_mode; /* Ability description display (0=D+E, 1=E+D, 2=E only) */
 };
 
 /*

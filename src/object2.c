@@ -2367,8 +2367,27 @@ static bool make_artefact(object_type* o_ptr, bool allow_insta)
         /* Mark the item as an artefact */
         o_ptr->name1 = i;
 
-        /* Paranoia -- no "plural" artefacts */
-        o_ptr->number = 1;
+        /* Set stack size for stackable artefacts (arrows, throwing weapons) */
+        {
+            const object_kind* k_ptr = (o_ptr->k_idx ? &k_info[o_ptr->k_idx] : NULL);
+            bool allow_stack = (o_ptr->tval == TV_ARROW)
+                || (k_ptr && (k_ptr->flags3 & TR3_THROWING));
+            if (allow_stack)
+            {
+                artefact_type* art_ptr = &a_info[i];
+                int desired = art_ptr->spawn_num ? (int)art_ptr->spawn_num : 1;
+                int limit = object_stack_limit(o_ptr);
+                if (limit > 0 && desired > limit)
+                    desired = limit;
+                if (desired < 1)
+                    desired = 1;
+                o_ptr->number = (byte)desired;
+            }
+            else if (o_ptr->number < 1)
+            {
+                o_ptr->number = 1;
+            }
+        }
 
         /* Success */
         return (true);

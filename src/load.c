@@ -1168,8 +1168,15 @@ static void rd_options(void)
     /* Ensure it's in valid range */
     if (op_ptr->main_combat_rolls > 3)
         op_ptr->main_combat_rolls = 0;
-    /* Skip 7 remaining spare bytes */
-    strip_bytes(7);
+
+    /* Read "ability_desc_mode" */
+    rd_byte(&b);
+    op_ptr->ability_desc_mode = b;
+    if (op_ptr->ability_desc_mode > 2)
+        op_ptr->ability_desc_mode = 0;
+
+    /* Skip 6 remaining spare bytes */
+    strip_bytes(6);
 
     /*** Normal Options ***/
 

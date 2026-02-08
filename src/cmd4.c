@@ -2432,9 +2432,34 @@ int abilities_menu2(int skilltype, int* highlight)
                 }
                 else
                 {
-                    /* Normal ability description in light white */
-                    text_out_to_screen(TERM_L_WHITE, b_text + b_ptr->text);
-                    
+                    /* Display ability description based on ability_desc_mode */
+                    const char *desc_text = (b_ptr->text) ? b_text + b_ptr->text : NULL;
+                    const char *effect_text = (b_ptr->effect) ? b_text + b_ptr->effect : NULL;
+                    bool has_desc = desc_text && desc_text[0];
+                    bool has_effect = effect_text && effect_text[0];
+
+                    switch (op_ptr->ability_desc_mode)
+                    {
+                    case 1: /* Effect first, then description */
+                        if (has_effect) text_out_to_screen(TERM_L_WHITE, effect_text);
+                        if (has_desc) {
+                            if (has_effect) text_out_to_screen(TERM_L_WHITE, "\n\n");
+                            text_out_to_screen(TERM_SLATE, desc_text);
+                        }
+                        break;
+                    case 2: /* Effect only */
+                        if (has_effect) text_out_to_screen(TERM_L_WHITE, effect_text);
+                        else if (has_desc) text_out_to_screen(TERM_L_WHITE, desc_text);
+                        break;
+                    default: /* 0: Description first, then effect */
+                        if (has_desc) text_out_to_screen(TERM_SLATE, desc_text);
+                        if (has_effect) {
+                            if (has_desc) text_out_to_screen(TERM_L_WHITE, "\n\n");
+                            text_out_to_screen(TERM_L_WHITE, effect_text);
+                        }
+                        break;
+                    }
+
                     /* For Nienna's Gift of Mercy, show current bonus */
                     if (skilltype == S_SPC && b_ptr->abilitynum == SPC_NIENA_MERCY && 
                         p_ptr->have_ability[S_SPC][SPC_NIENA_MERCY])
@@ -4837,7 +4862,11 @@ int object_difficulty(object_type* o_ptr)
     }
     if (f4 & TR4_PAIRED)
     {
-        dif_inc += 7;  // Paired weapon bonus
+        dif_inc += 3;  // Paired weapon bonus
+    }
+    if (f4 & TR4_SUBTLETY_THROW)
+    {
+        dif_inc += 15;
     }
 
     // pval dependent bonuses
@@ -5014,6 +5043,14 @@ int object_difficulty(object_type* o_ptr)
     if (f3 & TR3_MEDIC)
     {
         dif_inc += 4;
+    }
+    if (f3 & TR3_OATH_BOOST)
+    {
+        dif_inc += 5;
+    }
+    if (f3 & TR3_OATH_NEGATE)
+    {
+        dif_dec += 5;
     }
 
     // Elemental Resistances
@@ -7450,7 +7487,7 @@ void add_artefact_details(void)
 
     smith_a_ptr->cur_num = 1;
     smith_a_ptr->found_num = 1;
-    smith_a_ptr->max_num = 1;
+    smith_a_ptr->spawn_num = 1;
     smith_a_ptr->level = object_difficulty(smith_o_ptr);
     smith_a_ptr->rarity = 10;
 }
@@ -10272,6 +10309,19 @@ extern void do_cmd_options_aux(int page, cptr info)
                     "Main terminal combat roll lines (0=off, 1-4=lines)",
                     op_ptr->main_combat_rolls);
             }
+            else if (opt[i] == OPT_ability_desc_mode)
+            {
+                const char *mode_str;
+                switch (op_ptr->ability_desc_mode)
+                {
+                case 1:  mode_str = "1 (effect+lore)"; break;
+                case 2:  mode_str = "2 (effect only)"; break;
+                default: mode_str = "0 (lore+effect)"; break;
+                }
+                strnfmt(buf, sizeof(buf), "%-48s: %s",
+                    "Ability descriptions (0=lore+effect, 1=effect+lore, 2=effect)",
+                    mode_str);
+            }
             else
             {
                 strnfmt(buf, sizeof(buf), "%-48s: %s", option_desc[opt[i]],
@@ -10451,11 +10501,17 @@ extern void do_cmd_options_aux(int page, cptr info)
                     op_ptr->main_combat_rolls = (op_ptr->main_combat_rolls < 4)
                         ? op_ptr->main_combat_rolls + 1
                         : 4;
-                    
+
                     /* Clear all 4 lines and refresh display when option changes */
                     clear_main_combat_rolls_area();
                     display_main_combat_rolls();
                     p_ptr->redraw |= (PR_MAP);
+                }
+                else if (opt[k] == OPT_ability_desc_mode)
+                {
+                    op_ptr->ability_desc_mode = (op_ptr->ability_desc_mode < 2)
+                        ? op_ptr->ability_desc_mode + 1
+                        : 2;
                 }
                 else
                 {
@@ -10521,11 +10577,17 @@ extern void do_cmd_options_aux(int page, cptr info)
                     op_ptr->main_combat_rolls = (op_ptr->main_combat_rolls > 0)
                         ? op_ptr->main_combat_rolls - 1
                         : 0;
-                    
+
                     /* Clear all 4 lines and refresh display when option changes */
                     clear_main_combat_rolls_area();
                     display_main_combat_rolls();
                     p_ptr->redraw |= (PR_MAP);
+                }
+                else if (opt[k] == OPT_ability_desc_mode)
+                {
+                    op_ptr->ability_desc_mode = (op_ptr->ability_desc_mode > 0)
+                        ? op_ptr->ability_desc_mode - 1
+                        : 0;
                 }
                 else
                 {

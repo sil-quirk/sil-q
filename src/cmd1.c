@@ -1135,6 +1135,15 @@ int crit_bonus(int hit_result, int weight, const monster_race* r_ptr,
             && !thrown && (!two_handed_melee() || maedhros_hand_and_half) && !inventory[INVEN_ARM].k_idx)
             crit_seperation -= 20;
 
+        // Subtlety can work with throwing if the weapon has TR4_SUBTLETY_THROW flag
+        if ((skill_type == S_MEL) && thrown && o_ptr && p_ptr->active_ability[S_MEL][MEL_CONTROL])
+        {
+            u32b st_f1, st_f2, st_f3, st_f4;
+            object_flags4(o_ptr, &st_f1, &st_f2, &st_f3, &st_f4);
+            if (st_f4 & TR4_SUBTLETY_THROW)
+                crit_seperation -= 20;
+        }
+
         // Can have inferior criticals for melee
         if ((skill_type == S_MEL) && p_ptr->active_ability[S_MEL][MEL_POWER])
             crit_seperation += 10;

@@ -1712,7 +1712,7 @@ void object_desc(
         if (*s == '~')
         {
             /* Add a plural if needed */
-            if ((o_ptr->number != 1) && !(known && artefact_p(o_ptr)))
+            if (o_ptr->number != 1)
             {
                 char k = t[-1];
 

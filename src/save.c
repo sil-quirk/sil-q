@@ -899,8 +899,10 @@ static void wr_options(void)
     /* Write "main_combat_rolls" */
     wr_byte(op_ptr->main_combat_rolls);
 
-    // 7 spare bytes
-    wr_byte(0);
+    /* Write "ability_desc_mode" */
+    wr_byte(op_ptr->ability_desc_mode);
+
+    // 6 spare bytes
     wr_u32b(0L);
     wr_u16b(0);
 

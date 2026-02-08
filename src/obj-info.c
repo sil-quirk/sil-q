@@ -830,7 +830,7 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3, u32b
     if (cursed_p(o_ptr))
     {
         if (f3 & (TR3_PERMA_CURSE))
-            bad[bc++] = "bound by the Oath of Feanor (broken by a Silmaril)";
+            bad[bc++] = "bound by the Oath of Feanor (broken by holy light)";
         else if (f3 & (TR3_HEAVY_CURSE))
             bad[bc++] = "heavily cursed";
         else if (object_known_p(o_ptr))
@@ -891,7 +891,7 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3, u32b
                 {
                     p_text_out("is ");
                     p_text_out_c(TERM_VIOLET, "bound by the Oath of Feanor");
-                    p_text_out(" (broken by a Silmaril)");
+                    p_text_out(" (broken by holy light)");
                 }
                 else if (strstr(bad[i], "cursed"))
                 {
