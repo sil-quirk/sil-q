@@ -270,9 +270,6 @@ header c_head;
 /// entries.
 header h_head;
 
-/// @note Unused as of Feb 2026. Declared and freed but never initialized.
-header g_head;
-
 /// Header for the flavor array (flavor.txt), defining object flavor
 /// descriptions.
 header flavor_head;
@@ -1889,7 +1886,6 @@ void cleanup_angband(void)
 
     /* Free the info, name, and text arrays */
     free_info(&flavor_head);
-    free_info(&g_head);
     free_info(&b_head);
     free_info(&c_head);
     free_info(&p_head);
