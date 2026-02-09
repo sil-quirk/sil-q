@@ -3824,6 +3824,10 @@ void do_cmd_fire(int quiver)
     path_n = project_path(
         path_g, tdis, p_ptr->py, p_ptr->px, &ty2, &tx2, PROJECT_THRU);
 
+    // Abort when no valid path was found.
+    if (path_n <= 0)
+        return;
+
     /* Hack -- Handle stuff */
     handle_stuff();
 
