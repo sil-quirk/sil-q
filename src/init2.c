@@ -225,23 +225,63 @@ static cptr err_str[PARSE_ERROR_MAX] = {
 
 #endif /* ALLOW_TEMPLATES */
 
-/*
- * File headers
- */
+// File headers to make arrays of "things" from data files at `lib/edit/*.txt`.
+//
+// The `header` struct has a void pointer and some data on record size, layout,
+// and number of records. Headers represent different things, like races,
+// houses, vaults etc.
+//
+// An unused header therefore represents some type that isn't relevant to the
+// current iteration of the game.
+
+/// Header for the maxima array (limits.txt), defining array sizes and bounds.
 header z_head;
+
+/// Header for the vault array (vault.txt), defining vault layouts.
 header v_head;
+
+/// Header for the feature/terrain array (terrain.txt), defining dungeon
+/// features.
 header f_head;
+
+/// Header for the object kind array (object.txt), defining base object types.
 header k_head;
+
+/// Header for the ability array (ability.txt), defining player abilities.
 header b_head;
+
+/// Header for the artefact array (artefact.txt), defining unique artefacts.
 header a_head;
+
+/// Header for the ego/special item array (special.txt), defining ego item
+/// types.
 header e_head;
+
+/// Header for the monster race array (monster.txt), defining monster types.
 header r_head;
+
+/// Header for the player race array (race.txt), defining playable races.
 header p_head;
+
+/// Header for the player house array (house.txt), defining playable houses.
 header c_head;
+
+/// Header for the history array (history.txt), defining character background
+/// entries.
 header h_head;
+
+/// @note Unused as of Feb 2026. Declared and freed but never initialized.
 header g_head;
+
+/// Header for the flavor array (flavor.txt), defining object flavor
+/// descriptions.
 header flavor_head;
-header q_head; /* unused as of Jan 2026 */
+
+/// @note Unused as of Feb 2026.
+header q_head;
+
+/// Header for the random names array (names.txt), used by the random name
+/// generator.
 header n_head;
 
 /*** Initialize from binary image files ***/
