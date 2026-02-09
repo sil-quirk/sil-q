@@ -277,9 +277,6 @@ header g_head;
 /// descriptions.
 header flavor_head;
 
-/// @note Unused as of Feb 2026.
-header q_head;
-
 /// Header for the random names array (names.txt), used by the random name
 /// generator.
 header n_head;
