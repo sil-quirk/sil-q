@@ -20,7 +20,7 @@
  * originally much more interesting, but it was bastardized to keep this
  * file simple.
  *
- * The rest of this file is an implementation of "main-xxx.c" for X11.
+ * The rest of this file is an implementation of "main-*.c" for X11.
  *
  * Most of this file is by Ben Harrison (benh@phial.com).
  */

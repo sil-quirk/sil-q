@@ -11,7 +11,7 @@
 
 ##### Standard font file #####
 
-%:font-xxx.prf
+%:font-std.prf
 
 
 ##### System Specific Subfiles #####

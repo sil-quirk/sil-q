@@ -1590,7 +1590,7 @@ extern void display_introduction(void)
  * We load the default "user pref files" here in case any "color"
  * changes are needed before character creation.
  *
- * Note that the "graf-xxx.prf" file must be loaded separately,
+ * Note that the "graf-*.prf" file must be loaded separately,
  * if needed, in the first (?) pass through "TERM_XTRA_REACT".
  */
 void init_angband(void)

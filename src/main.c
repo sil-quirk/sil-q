@@ -11,7 +11,7 @@
 #include "angband.h"
 
 /*
- * Some machines have a "main()" function in their "main-xxx.c" file,
+ * Some machines have a "main()" function in their "main-*.c" file,
  * all the others use this file for their "main()" function.
  */
 

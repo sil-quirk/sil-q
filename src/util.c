@@ -1824,7 +1824,7 @@ static cptr inkey_next = NULL;
  * If "inkey_flag" is TRUE, then we will assume that we are waiting for a
  * normal command, and we will only show the cursor if "hilite_player" is
  * TRUE (or if the player is in a store), instead of always showing the
- * cursor.  The various "main-xxx.c" files should avoid saving the game
+ * cursor.  The various "main-*.c" files should avoid saving the game
  * in response to a "menu item" request unless "inkey_flag" is TRUE, to
  * prevent savefile corruption.
  *
@@ -1841,7 +1841,7 @@ static cptr inkey_next = NULL;
  * that their loss as normal keys will probably be noticed by nobody.  The
  * "ascii 30" key is used to indicate the "end" of a macro action, which
  * allows recursive macros to be avoided.  The "ascii 31" key is used by
- * some of the "main-xxx.c" files to introduce macro trigger sequences.
+ * some of the "main-*.c" files to introduce macro trigger sequences.
  *
  * Hack -- we use "ascii 29" (ctrl-right-bracket) as a special "magic" key,
  * which can be used to give a variety of "sub-commands" which can be used
@@ -1849,7 +1849,7 @@ static cptr inkey_next = NULL;
  * the current screen, to start/stop recording a macro action, etc.
  *
  * If "term_screen" is not active, we will make it active during this
- * function, so that the various "main-xxx.c" files can assume that input
+ * function, so that the various "main-*.c" files can assume that input
  * is only requested (via "Term_inkey()") when "term_screen" is active.
  *
  * Mega-Hack -- This function is used as the entry point for clearing the

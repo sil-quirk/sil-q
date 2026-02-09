@@ -2900,7 +2900,7 @@ static void death_knowledge(void)
  *
  * This function is called from a variety of entry points, since both
  * the standard "main.c" file, as well as several platform-specific
- * "main-xxx.c" files, call this function to start a new game with a
+ * "main-*.c" files, call this function to start a new game with a
  * new savefile, start a new game with an existing savefile, or resume
  * a saved game with an existing savefile.
  *

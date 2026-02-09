@@ -583,13 +583,13 @@ int project_path_ignore_x;
 
 /*
  * Hack -- The special Angband "System Suffix"
- * This variable is used to choose an appropriate "pref-xxx" file
+ * This variable is used to choose an appropriate "pref-*.prf" file
  */
 cptr ANGBAND_SYS = "xxx";
 
 /*
  * Hack -- The special Angband "Graphics Suffix"
- * This variable is used to choose an appropriate "graf-xxx" file
+ * This variable is used to choose an appropriate "graf-*.prf" file
  */
 cptr ANGBAND_GRAF = "old";
 
