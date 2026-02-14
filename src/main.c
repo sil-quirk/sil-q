@@ -496,7 +496,6 @@ int main(int argc, char* argv[])
             puts("  -f       Request fiddle (verbose) mode");
             puts("  -w       Request wizard mode");
             puts("  -a       Request audio/sound mode");
-            puts("  -g       Request graphics mode");
             puts("  -o       Request original keyset (default)");
             puts("  -r       Request rogue-like keyset");
             puts("  -s<num>  Show <num> high scores (default: 10)");

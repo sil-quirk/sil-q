@@ -2597,10 +2597,10 @@ static errr term_data_init(term_data* td, int i)
     return (0);
 }
 
-const char help_x11[] = "Basic X11, subopts -d<display> -n<windows>"
+const char help_x11[] = "X11, subopts -d<display> -n<windows>"
 #ifdef USE_GRAPHICS
                         " -s(moothRescale)"
-                        "\n           -b(Bigtile) -g(Graphics mode)"
+                        "\n           -b(Bigtile) -g(Tiles graphics) -c(Classic ASCII graphics)"
 #endif
     ;
 
@@ -2640,6 +2640,15 @@ errr init_x11(int argc, char** argv)
         if (prefix(argv[i], "-s"))
         {
             smoothRescaling = FALSE;
+            continue;
+        }
+
+        /* Default to tiles graphics */
+        arg_graphics = GRAPHICS_MICROCHASM;
+
+        if (prefix(argv[i], "-c"))
+        {
+            arg_graphics = GRAPHICS_NONE;
             continue;
         }
 

@@ -960,7 +960,7 @@ static void load_prefs(void)
 
     /* Extract the "arg_graphics" flag */
     arg_graphics
-        = GetPrivateProfileInt("Angband", "Graphics", GRAPHICS_NONE, ini_file);
+        = GetPrivateProfileInt("Angband", "Graphics", GRAPHICS_MICROCHASM, ini_file);
 
     /* Extract the "use_bigtile" flag */
     use_bigtile = GetPrivateProfileInt("Angband", "Bigtile", FALSE, ini_file);

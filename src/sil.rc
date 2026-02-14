@@ -44,8 +44,8 @@ ANGBAND MENU
 	{
 		POPUP "&Graphics"
 		{
-			MENUITEM "&None", 400
-			MENUITEM "&MicroChasm tiles", 402
+			MENUITEM "&Classic ASCII", 400
+			MENUITEM "&Tiles by MicroChasm", 402
 		}
 
 		MENUITEM "&Sound", 410

@@ -3887,7 +3887,7 @@ static void load_prefs()
                               [NSNumber numberWithFloat:FallbackFontSizeMain], @"FontSize-0",
                               [NSNumber numberWithInt:60], AngbandFrameRateDefaultsKey,
                               [NSNumber numberWithBool:YES], AngbandSoundDefaultsKey,
-                              [NSNumber numberWithInt:GRAPHICS_NONE], AngbandGraphicsDefaultsKey,
+                              [NSNumber numberWithInt:GRAPHICS_MICROCHASM], AngbandGraphicsDefaultsKey,
                               defaultTerms, AngbandTerminalsDefaultsKey,
                               nil];
     [defs registerDefaults:defaults];
@@ -5216,7 +5216,7 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
     NSMenuItem *item = [menu addItemWithTitle:@"Classic ASCII" action:action keyEquivalent:@""];
     [item setTag:GRAPHICS_NONE];
 
-    item = [menu addItemWithTitle:@"MicroChasm's Tiles" action:action keyEquivalent:@""];
+    item = [menu addItemWithTitle:@"Tiles by MicroChasm" action:action keyEquivalent:@""];
     [item setTag:GRAPHICS_MICROCHASM];
 }
 

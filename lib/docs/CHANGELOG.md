@@ -10,6 +10,21 @@
   The 32-bit version is now deprecated and intended only as a fallback option if
   players should experience bugs specific to the new 64-bit version. Once we are
   happy with 64-bit, the 32-bit variant will be removed in a future release.
+- Tiles graphics using the MicroChasm tileset are now the default for new Sil-Q
+  installations that have graphics enabled (Windows, macOS/Cocoa and Linux/X11).
+  The previous default was ASCII graphics (e.g., your player character was an
+  `@` symbol). Existing Sil-Q installations are not affected.
+  - Windows users: Like in previous versions, you can use the Windows
+    application menu to switch between Tiles and ASCII graphics. When `sil.exe`
+    is running, use the Windows application menu and go to `Options` >
+    `Graphics` and select `Tiles by MicroChasm` or `Classic ASCII`.
+  - macOS users: Like in previous versions, you can use the macOS application
+    menu to switch between Tiles and ASCII graphics. When `Sil.app` is running,
+    use the macOS menu bar and go to `Settings` > `Graphics` and select
+    `Tiles by MicroChasm` or `Classic ASCII`.
+  - Linux users: You can use the new `-c` sub-option to switch to Classic ASCII
+    graphics (example: `./sil -mx11  -- -c`) when using X11, or run the game
+    inside a terminal with ncurses (`./sil -mgcu`).
 - _Tiles graphics only_: When Morgoth loses his crown, his tile now reflects the
   loss. This should make it a bit more satisfying to achieve this milestone.
 - Many bug fixes
@@ -70,12 +85,18 @@ Added:
   which in turn helps us to reduce the necessary development time. These changes
   should not be visible to players, other than (hopefully!) reducing the number
   of bugs they might experience.
+- When compiled with X11 support, the `sil` binary for Linux and non-Cocoa macOS
+  has a new `-c` sub-option to use Classic ASCII graphics, similar to the
+  existing `-g` (now the default) sub-option to use Tiles graphics with the
+  MicroChasm tileset.
 - Use dedicated tile when Morgoth loses his crown (fixes #170)
   ([#172](https://github.com/sil-quirk/sil-q/pull/172))
   - thanks @MicroChasm for the suggestion
 
 Changed:
 
+- Set default graphics to MicroChasm's tileset instead of ASCII (fixes #153)
+  ([#176](https://github.com/sil-quirk/sil-q/pull/176))
 - Removed GTK support (fixes #177)
   ([#180](https://github.com/sil-quirk/sil-q/pull/180))
 - Updates to tiles and manual
