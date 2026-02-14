@@ -3124,9 +3124,12 @@
 #define MAX_MACRO_MOD 12
 
 /*
- * Available graphic modes
+ * Available graphic modes (e.g., for Windows, macOS Cocoa, X11)
  */
+/// Use Classic ASCII artwork (player is an `@` symbol) when graphics mode is
+/// enabled.
 #define GRAPHICS_NONE 0
+/// Use Tiles artwork (MicroChasm's tileset) when graphics mode is enabled.
 #define GRAPHICS_MICROCHASM 1
 #define GRAPHICS_PSEUDO 2
 
