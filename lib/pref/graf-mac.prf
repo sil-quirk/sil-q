@@ -7,7 +7,10 @@
 # See `src/files.c` for more information.
 #
 
-# Tiles graphics
+###############################################################################
+# Load the preferences for tiles graphics (if enabled)
+###############################################################################
 ?:[EQU $GRAF tiles]
 %:graf-tiles.prf
 
+?:1

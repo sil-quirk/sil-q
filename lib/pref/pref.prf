@@ -11,7 +11,7 @@
 # C: keyset : key
 #
 # There are 4 keysets (0, 1, 2, 3), representing the Sil-Q and Angband-style
-# sets without and with the hjkl movement.
+# keysets without and with the hjkl movement.
 #
 # When you press the 'key', the underlying 'action' is triggered.
 
