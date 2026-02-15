@@ -130,11 +130,6 @@ L:54:0x84/0x86
 # Sea Shell amulet
 L:55:0x84/0x8A
 
-#I believe that the mithril amulet is not used, even though it is in the flavor.txt file
-#it is set to error tile
-# Mithril amulet
-L:56:0x83/0x9F
-
 
 ###############################################################################
 # Staves
