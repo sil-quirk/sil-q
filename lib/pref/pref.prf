@@ -61,7 +61,7 @@ C:0:9
 
 
 ###############################################################################
-# hjkl movement keyset mappings (similar to vi/vim)
+# Sil-Q keyset mappings with hjkl movement
 ###############################################################################
 
 # Stay still (numerical)
