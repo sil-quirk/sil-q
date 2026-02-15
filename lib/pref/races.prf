@@ -1,7 +1,7 @@
 # File: races.prf
 
 #
-# This file loads specific race "sub-files" 
+# This file loads specific race "sub-files".
 #
 
 ?:[EQU $RACE Noldor]
