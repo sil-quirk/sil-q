@@ -7,14 +7,7 @@
 # See `src/files.c` for more information.
 #
 
-# Fonts
-%:font-x11.prf
-
-# Hack -- initialization
-?:[NOT [EQU $SYS xxx]]
-
 # Tiles graphics
 ?:[EQU $GRAF tiles]
 %:graf-tiles.prf
 
-?:1

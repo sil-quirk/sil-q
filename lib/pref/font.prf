@@ -22,19 +22,3 @@
 # Load the Shades
 %:shades.prf
 
-##### System Specific Subfiles #####
-
-?:[IOR [EQU $SYS x11] [EQU $SYS gtk]]
-%:font-x11.prf
-
-?:[EQU $SYS gcu]
-%:font-gcu.prf
-
-?:[EQU $SYS mac]
-%:font-mac.prf
-
-?:[EQU $SYS win]
-%:font-win.prf
-
-?:1
-
