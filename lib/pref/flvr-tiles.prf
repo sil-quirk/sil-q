@@ -17,9 +17,7 @@
 # Rings
 ###############################################################################
 
-#Serpentine ring may not be used, even though it is in the flavor.txt file
-#it is currently set to the pink error tile.
-# Serpentine
+# The Ring of Barahir
 L:1:0x86/0x94
 
 # Amethyst ring
