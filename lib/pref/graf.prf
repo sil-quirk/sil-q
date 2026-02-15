@@ -1,21 +1,21 @@
 # File: graf.prf
 
 #
-# This file defines special attr/char mappings for use in "graphics" mode
+# This file defines attr/char mappings for when graphics mode is enabled.
 #
-# This file includes, if appropriate, various "sub-files"
-#
-# See "lib/help/command.txt" and "src/files.c" for more information.
+# See `src/files.c` for more information.
 #
 
 
-##### Standard font file #####
-
+###############################################################################
+# Load the standard font file
+###############################################################################
 %:font-std.prf
 
 
-##### System Specific Subfiles #####
-
+###############################################################################
+# Load system-specific pref files
+###############################################################################
 ?:[EQU $SYS x11]
 %:graf-x11.prf
 

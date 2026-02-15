@@ -1,9 +1,12 @@
 # File: races.prf
 
 #
-# This file loads specific race "sub-files".
+# This file loads race-specific pref files.
 #
 
+###############################################################################
+# Load race-specific pref files
+###############################################################################
 ?:[EQU $RACE Noldor]
 %:noldor.prf
 
@@ -15,5 +18,6 @@
 
 ?:[EQU $RACE Edain]
 %:edain.prf
+
 ?:1
 

@@ -1,18 +1,20 @@
 # File: graf-x11.prf
 
-
-# Font stuff
-%:font-x11.prf
-
-# Color palette - Graphics
 #
-# [there used to be definitions for colours 16-31 here]
+# This file defines attr/char mappings for the X11 graphics backend (when the
+# game was compiled via `src/main-x11.c`).
+#
+# See `src/files.c` for more information.
+#
+
+# Fonts
+%:font-x11.prf
 
 # Hack -- initialization
 ?:[NOT [EQU $SYS xxx]]
 
-# New tiles
-?:[EQU $GRAF new]
-%:graf-new.prf
+# Tiles graphics
+?:[EQU $GRAF tiles]
+%:graf-tiles.prf
 
 ?:1

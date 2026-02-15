@@ -1,18 +1,22 @@
 # File: font-win.prf
 
-#
-# This file is used by Angband (when it was compiled using "main-win.c")
-# to specify simple attr/char remappings using a standard font, allowing
-# the use of special pseudo-graphic pictures for walls and such.
-#
-# Note that this file is extremely similar to the "font-ibm.prf" file,
-# but it uses different codes, since it uses the special pseudo-graphic
-# symbols defined in the "lib/xtra/font/*.FON" files, and there is only
-# one special wall type, so we have to use special "colors".
-#
+###
+### NOTE: The mappings in this file are currently disabled (commented out)
+###       because they did not work properly with the default 8x13 font on
+###       Windows Vista. It is unclear if this problem still exists in 2026+ for
+###       Windows 10 and/or Windows 11.
+###
 
-# Note that the special symbols are currently commented out because
-# they do not work properly on Vista with the default 8x13 font.
+#
+# This file defines attr/char mappings using a standard font for the Win32 API
+# graphics backend (when the game was compiled via `main-win.c`). This allows
+# the use of pseudo-graphic "pictures" for walls (normally `#`) and other game
+# entities.
+#
+# The pseudo-graphic symbols used here are defined in the `lib/xtra/font/*.fon`
+# files. There is only one special wall type, so we have to use special
+# "colors".
+#
 
 
 ### Terrain features ###

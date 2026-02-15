@@ -1,15 +1,23 @@
-# File: graf-new.prf
+# File: graf-tiles.prf
 
 #
-# This file defines special attr/char mappings for use in "graphics" mode
-# with the MicroChasm Tileset
+# This file defines tile mappings for most game entities for when graphics mode
+# is enabled and tiles graphics with the MicroChasm tileset are used.
+# Tile mappings for flavored objects/items are defined separately in
+# `flvr-tiles.prf`, which is included at the bottom of this file.
+#
+# Tile mappings assign game entities such as monsters to tiles in the MicroChasm
+# tileset image. For legacy reasons, these tile mappings are expressed as
+# attr/char mappings, which are interpreted as an index into the tileset image
+# (attr = y = column, char = x = row).
+#
+# The easiest way to understand and work with these tile mappings is
+# using `lib/xtra/graf/TilePicker.html` to visually explore the tileset.
 #
 
-#
-# See "lib/help/command.txt" and "src/files.c" for more information.
-#
-
-##### Special attr/char values #####
+###############################################################################
+# Specials
+###############################################################################
 
 ## # Digits - 0 - 9
 S:0x00:0x8C/0x80
@@ -85,7 +93,9 @@ S:0x50:0x83/0x9F
 S:0x51:0x83/0x9F
 
 
-##### Feature attr/char definitions #####
+###############################################################################
+# Features
+###############################################################################
 
 # nothing
 F:0:0x80/0x80
@@ -283,7 +293,10 @@ F:82:0x80/0x9D
 # down shaft
 F:83:0x80/0x9C
 
-##### Object attr/char definitions #####
+
+###############################################################################
+# Objects
+###############################################################################
 
 # & Ring (Self-Made)~
 K:10:0x8B/0x9D
@@ -313,7 +326,7 @@ K:26:0x85/0x8D
 # Hard Leather Armour~
 K:25:0x80/0x80
 
-# Galvorn Armour	
+# Galvorn Armour
 K:27:0x89/0x91
 
 # Mail Corslet~
@@ -514,7 +527,10 @@ K:421:0x82/0x95
 # Broken Shield
 K:422:0x8B/0x9C
 
-##### Monster attr/char definitions #####
+
+###############################################################################
+# Player
+###############################################################################
 
 # player (Noldor)
 R:0:0x8D/0x80
@@ -527,6 +543,11 @@ R:2:0x8E/0x80
 
 # player (Edain)
 R:3:0x8E/0x90
+
+
+###############################################################################
+# Monsters
+###############################################################################
 
 # Wolf
 R:11:0x88/0x91
@@ -850,7 +871,7 @@ R:212:0x89/0x83
 R:213:0x87/0x91
 
 # Dagorhir, the Elfbane
-R:214:0x89/0x90	
+R:214:0x89/0x90
 
 # Gostir, the Dread Glance
 R:215:0x8A/0x81
@@ -904,7 +925,10 @@ R:252:0x8C/0x91
 R:253:0x88/0x97
 
 
-##The rest of the tiles are hallucinations	
+###############################################################################
+# Hallucinations
+###############################################################################
+
 # Feanor, High King of the Noldor
 R:301:0x8A/0x93
 
@@ -977,6 +1001,11 @@ R:333:0x8B/0x88
 # Melkor, Rightful Lord of Arda
 R:401:0x8B/0x84
 
+
+###############################################################################
+# Notes (in-game notes, such as in the tutorial)
+###############################################################################
+
 # Notes
 K:451:0x80/0x9F
 K:452:0x80/0x9F
@@ -1019,6 +1048,11 @@ K:488:0x80/0x9F
 K:489:0x80/0x9F
 K:490:0x80/0x9F
 
+
+###############################################################################
+# Flavored objects
+###############################################################################
+
 # Load the flavored objects
-%:flvr-new.prf
+%:flvr-tiles.prf
 

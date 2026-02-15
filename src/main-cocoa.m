@@ -2910,7 +2910,7 @@ static errr Term_xtra_cocoa_react(void)
             use_graphics = arg_graphics;
             if (use_graphics) {
                 use_transparency = TRUE;
-                ANGBAND_GRAF = "new";
+                ANGBAND_GRAF = "tiles";
                 if (bigtiles_are_appropriate()) {
                     if (!use_bigtile) {
                         use_bigtile = TRUE;

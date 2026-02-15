@@ -1,11 +1,9 @@
 # File: user.prf
 
 #
-# This file defines "override" actions of various kinds
+# This file defines "override" actions of various kinds.
 #
-# This file includes, if appropriate, various "sub-files"
-#
-# See "lib/help/command.txt" and "src/files.c" for more information.
+# See `src/files.c` for more information.
 #
 
 
@@ -16,8 +14,9 @@
 #Y:rogue_like_commands
 
 
-##### System Specific Subfiles #####
-
+###############################################################################
+# Load system-specific pref files
+###############################################################################
 ?:[IOR [EQU $SYS x11] [EQU $SYS gtk]]
 %:user-x11.prf
 

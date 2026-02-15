@@ -3,10 +3,9 @@
 #
 # This file defines the default message colors.
 #
-# This file includes, if appropriate, various "sub-files".
+# See `src/files.c` for more information.
 #
-# See "lib/help/command.txt" and "src/files.c" for more information.
-#
+
 # Format:
 # M:<message-type>:<color>
 #

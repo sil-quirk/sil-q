@@ -1,17 +1,15 @@
 # File: pref-x11.prf
 
 #
-# This file provides some macros for use with versions of Angband compiled
-# using the "main-x11.c" file.
+# This file is included by the X11 port (when the game was compiled via
+# `src/main-x11.c`) to specify various "user preferences", including "macros".
 #
-# Note the use of "\a" (bell) to allow the macros to stop if the game is
-# not yet ready for a command.
+# Notes:
+# - Uses `\a` (bell) to allow the macros to stop if the game is not yet ready
+#   for a command.
+# - Uses `\\.` (for "run") and `\\+` (for "alter") to make sure that the macros
+#   will work regardless of the "keymap" being used.
 #
-# Note the use of "\\." (for "run") and "\\+" (for "alter"), to make sure
-# that the macros will work regardless of the "keymap" being used.
-#
-
-
 
 #
 # Macro Trigger configuration
@@ -294,7 +292,7 @@ P:\[KP_Page_Up]
 ###########################
 #
 # Shift Keypad -- Directed Running
-# 
+#
 # 789
 # 4 6  - these run in the specified direction
 # 123
@@ -378,7 +376,7 @@ P:\[Shift-KP_9]
 ###########################
 #
 # Option-Numkeys -- Directed firing from the 1st quiver
-# 
+#
 # 789
 # 4 6  - these fire in the specified direction
 # 123
@@ -436,7 +434,7 @@ P:\[alt-KP_Page_Up]
 ###########################
 #
 # Control-Keypad -- Interact with terrain in chosen direction
-# 
+#
 # 789
 # 456
 # 123

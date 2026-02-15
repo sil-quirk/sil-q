@@ -1268,7 +1268,7 @@ static bool init_graphics(void)
 
             name = "16X16.BMP";
 
-            ANGBAND_GRAF = "new";
+            ANGBAND_GRAF = "tiles";
 
             use_transparency = TRUE;
         }

@@ -1,7 +1,24 @@
-#Rings
+# File: flvr-tiles.prf
+
+#
+# This file defines tile mappings for flavored objects/items for when graphics
+# mode is enabled and tiles graphics with the MicroChasm tileset are used.
+#
+# Tile mappings assign game entities such as rings to tiles in the MicroChasm
+# tileset image. For legacy reasons, these tile mappings are expressed as
+# attr/char mappings, which are interpreted as an index into the tileset image
+# (attr = y = column, char = x = row).
+#
+# The easiest way to understand and work with these tile mappings is
+# using `lib/xtra/graf/TilePicker.html` to visually explore the tileset.
+#
+
+###############################################################################
+# Rings
+###############################################################################
 
 #Serpentine ring may not be used, even though it is in the flavor.txt file
-#it is currently set to the pink error tile. 
+#it is currently set to the pink error tile.
 # Serpentine
 L:1:0x86/0x94
 
@@ -66,7 +83,9 @@ L:20:0x82/0x92
 L:21:0x82/0x93
 
 
-#Amulets
+###############################################################################
+# Amulets
+###############################################################################
 
 # Pearl amulet
 L:41:0x84/0x82
@@ -113,14 +132,15 @@ L:54:0x84/0x86
 # Sea Shell amulet
 L:55:0x84/0x8A
 
-#################################v
 #I believe that the mithril amulet is not used, even though it is in the flavor.txt file
 #it is set to error tile
 # Mithril amulet
 L:56:0x83/0x9F
 
 
-#Staves
+###############################################################################
+# Staves
+###############################################################################
 
 # Aspen staff
 L:68:0x84/0x8F
@@ -180,7 +200,10 @@ L:85:0x85/0x80
 L:86:0x85/0x81
 
 
-#Horns
+###############################################################################
+# Horns
+###############################################################################
+
 # Silver horn
 L:101:0x82/0x96
 
@@ -196,7 +219,11 @@ L:104:0x82/0x99
 # Engraved horn
 L:105:0x82/0x9A
 
-#Herbs
+
+###############################################################################
+# Herbs
+###############################################################################
+
 # Black herb
 L:121:0x81/0x8A
 
@@ -231,7 +258,9 @@ L:130:0x81/0x93
 L:131:0x81/0x94
 
 
-#Easter Eggs
+###############################################################################
+# Easter Eggs
+###############################################################################
 
 # Bright Red easter egg
 L:141:0x81/0x96
@@ -263,7 +292,10 @@ L:149:0x81/0x9E
 # Bright Blue easter egg
 L:150:0x81/0x9F
 
-#Potions
+
+###############################################################################
+# Potions
+###############################################################################
 
 # Clear potion
 L:193:0x83/0x80

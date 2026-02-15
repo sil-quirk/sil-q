@@ -1,23 +1,23 @@
 # File: pref.prf
 
 #
-# This file defines "default" actions of various kinds
+# This file defines "default" actions of various kinds.
 #
-# This file includes, if appropriate, various "sub-files"
+# See `src/files.c` for more information.
 #
-# See "src/files.c" for more information.
-#
+
 # Keyset mappings take the form:
 # A: action
 # C: keyset : key
 #
-# There are 4 keysets (0, 1, 2, 3), representing the Sil and Angband-style sets
-#   without and with the hjkl movement
+# There are 4 keysets (0, 1, 2, 3), representing the Sil-Q and Angband-style
+# sets without and with the hjkl movement.
 #
-# When you press the 'key', the underlying 'action' is triggered. 
+# When you press the 'key', the underlying 'action' is triggered.
 
-
-##### Force certain options #####
+###############################################################################
+# Force certain options
+###############################################################################
 
 ## # Option -- Default to original commands
 ## X:hjkl_movement
@@ -26,7 +26,9 @@
 ## Y:hjkl_movement
 
 
-##### Sil Keyset Mappings #####
+###############################################################################
+# Sil-Q keyset mappings
+###############################################################################
 
 # Stay still (numerical)
 A:z
@@ -58,7 +60,9 @@ A:;9
 C:0:9
 
 
-##### hjkl Movement Keyset Mappings #####
+###############################################################################
+# hjkl movement keyset mappings (similar to vi/vim)
+###############################################################################
 
 # Stay still (numerical)
 A:z
@@ -140,7 +144,9 @@ A:L
 C:1:W
 
 
-##### Angband-like Keyset Mappings #####
+###############################################################################
+# Angband-like keyset mappings
+###############################################################################
 
 # Stay still (numerical)
 A:z
@@ -252,7 +258,10 @@ C:2:/
 A:A
 C:2:^t
 
-##### Angband-like Keyset Mappings with hjkl movement #####
+
+###############################################################################
+# Angband-like keyset mappings with hjkl movement
+###############################################################################
 
 # Stay still (numerical)
 A:z
@@ -402,11 +411,16 @@ C:3:/
 A:A
 C:3:^t
 
-# Message colors
+
+###############################################################################
+# Load message colors
+###############################################################################
 %:message.prf
 
-##### System Specific Subfiles #####
 
+###############################################################################
+# Load system-specific pref files
+###############################################################################
 ?:[IOR [EQU $SYS x11] [EQU $SYS gtk]]
 %:pref-x11.prf
 

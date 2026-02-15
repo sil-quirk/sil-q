@@ -1,24 +1,16 @@
 # File: pref-win.prf
 
 #
-# This file is used by Angband (when it was compiled using "main-win.c")
-# to specify various "user preferences", including "macros".
+# This file is included by the Windows port (when the game was compiled via
+# `src/main-win.c`) to specify various "user preferences", including "macros".
 #
 # This file defines some basic macros, which allow the use of the "keypad",
 # alone, and with the shift and/or control modifier keys.  All "special"
-# keys are translated by "main-ibm.c" (or "main-win.c") into special "macro
-# triggers" of the encoded form "^_MMMxSS\r", where the "modifier" flags are
-# stored in "MMM", and the two digit hexidecimal scan code of the keypress is
-# stored in "SS".
+# keys are translated by `main-win.c` into special "macro triggers" of the
+# encoded form `^_MMMxSS\r`, where the "modifier" flags are stored in `MMM`, and
+# the two digit hexidecimal scan code of the keypress is stored in `SS`.
 #
-# The "main-win.prf" file should not be using the final "control + keypad"
-# section in this file, it was created for "main-ibm.c" and "main-dos.c".
-#
-# The "main-win.prf" file may actually send the "ascii" equivalent of some
-# keypad keys after the keypad key itself, especially if "numlock" is down,
-# which may cause problems.  Or it may not, it is hard to tell.  This is bad.
-#
-# See "main-win.c" for more info.
+# See `src/main-win.c` for more information.
 #
 
 #

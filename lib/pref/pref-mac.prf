@@ -1,10 +1,12 @@
 # File: pref-mac.prf
 
 #
-# This file is included by "pref.prf" when "main-mac.c" is used.
+# This file is included by the macOS Cocoa port (when the game was compiled via
+# `src/main-cocoa.m`) to specify various "user preferences", including "macros".
 #
-# See "lib/help/command.txt" and "src/files.c" for more information.
+# See `src/main-cocoa.m` for more information.
 #
+
 #
 # Macro Trigger configuration
 #
@@ -130,7 +132,7 @@ P:^C
 ###########################
 #
 # Directed Walking
-# 
+#
 # 789
 # 4 6  - these walk in the specified direction
 # 123
@@ -175,7 +177,7 @@ P:\[KP_9]
 ###########################
 #
 # Shift-Direction -- Directed Running
-# 
+#
 # 789
 # 4 6  - these run in the specified direction
 # 123
@@ -217,7 +219,7 @@ P:\[shift-KP_9]
 ###########################
 #
 # Option-Direction -- Directed firing from the 1st quiver
-# 
+#
 # 789
 # 4 6  - these fire in the specified direction
 # 123
@@ -272,7 +274,7 @@ P:\[option-z]
 ###########################
 #
 # Control-Direction -- Interact with terrain in chosen direction
-# 
+#
 # 789
 # 456
 # 123

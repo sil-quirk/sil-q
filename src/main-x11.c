@@ -2778,7 +2778,7 @@ errr init_x11(int argc, char** argv)
 
             pict_wid = pict_hgt = 16;
 
-            ANGBAND_GRAF = "new";
+            ANGBAND_GRAF = "tiles";
         }
     }
 

@@ -1,9 +1,19 @@
 # File: graf-gcu.prf
 
 #
-# This file is used by Angband (when it was compiled using "main-gcu.c")
-# to specify simple attr/char remappings using the special Curses "ACS"
-# characters.
+# This file defines attr/char mappings for the GCU graphics backend (when the
+# game was compiled via `src/main-gcu.c`). GCU stands for "Generic Curses
+# Utility", i.e., curses/ncurses.
+#
+# The mappings defined in this file are eventually translated to Curses ACS
+# characters ("Alternative Character Set") at render-time.
+#
+# Example:
+#    The  mapping to `0xA3` has the high bit set, and `0xA3 & 0x7F = 0x23 = #`.
+#    The `#` character is subsequently mapped to ACS_CKBOARD at render-time as
+#    per `Term_text_gcu()` in `main-gcu.c`.
+#
+# See `src/main-gcu.c` and `src/files.c` for more information.
 #
 
 #

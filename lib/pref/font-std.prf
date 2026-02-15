@@ -1,14 +1,14 @@
 # File: font-std.prf
 
 #
-# This file defines special attr/char mappings for use in "text" mode
+# This file defines attr/char mappings for use in "text" mode.
 #
-# See "lib/help/command.txt" and "src/files.c" for more information.
+# See `src/files.c` for more information.
 #
 
-
-##### Special attr/char values #####
-
+###############################################################################
+# Specials
+###############################################################################
 
 ## # Unused (@)
 ## S:0x00:0x00/0x40
@@ -299,9 +299,9 @@ S:0xFE:0x0E/0x2C
 S:0xFF:0x0F/0x2C
 
 
-
-##### Default inventory object colors #####
-
+###############################################################################
+# Default inventory object colors
+###############################################################################
 
 # SKELETON
 E:1:0x01

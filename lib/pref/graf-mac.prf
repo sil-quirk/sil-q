@@ -1,13 +1,13 @@
 # File: graf-mac.prf
 
 #
-# This file defines special attr/char mappings for use in "graphics" mode
+# This file defines attr/char mappings for the macOS Cocoa graphics backend
+# (when the game was compiled via `src/main-cocoa.m`).
 #
-# See "lib/help/command.txt" and "src/files.c" for more information.
+# See `src/files.c` for more information.
 #
 
-
-# New tiles
-?:[EQU $GRAF new]
-%:graf-new.prf
+# Tiles graphics
+?:[EQU $GRAF tiles]
+%:graf-tiles.prf
 
