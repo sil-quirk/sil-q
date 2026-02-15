@@ -677,6 +677,27 @@
       .notes-list strong {
         color: var(--text-primary);
       }
+
+      .error-banner {
+        background: rgba(191, 95, 95, 0.15);
+        border: 1px solid var(--error);
+        border-radius: var(--radius);
+        padding: 0.75rem 1rem;
+        margin-bottom: 1.5rem;
+        color: var(--error);
+        font-size: 0.9rem;
+      }
+
+      .error-banner-title {
+        font-weight: 600;
+        margin-bottom: 0.3rem;
+      }
+
+      .error-banner-list {
+        margin: 0;
+        padding-left: 1.25rem;
+        font-size: 0.85rem;
+      }
     </style>
 
     <script>
@@ -753,6 +774,44 @@
       var lastLocalDefinesFile = null;
       var lastLocalEditFiles = null;
       var lastLocalPrfFiles = null;
+
+      // Track files that failed to load
+      var loadErrors = {};
+
+      function trackLoadError(fileName, category) {
+        loadErrors[fileName] = category;
+        updateErrorBanner();
+      }
+
+      function clearLoadError(fileName) {
+        delete loadErrors[fileName];
+        updateErrorBanner();
+      }
+
+      function clearLoadErrorsByCategory(category) {
+        var keys = Object.keys(loadErrors);
+        for (var i = 0; i < keys.length; i++) {
+          if (loadErrors[keys[i]] === category) {
+            delete loadErrors[keys[i]];
+          }
+        }
+        updateErrorBanner();
+      }
+
+      function updateErrorBanner() {
+        var banner = document.getElementById("errorBanner");
+        var list = document.getElementById("errorBannerList");
+        var keys = Object.keys(loadErrors);
+        if (keys.length === 0) {
+          banner.classList.add("hidden");
+          return;
+        }
+        var html = keys.map(function (name) {
+          return "<li>" + escapeHtml(name) + " (" + escapeHtml(loadErrors[name]) + ")</li>";
+        }).join("");
+        list.innerHTML = html;
+        banner.classList.remove("hidden");
+      }
 
       function handleFileSelect(event) {
         var file = event.target.files[0];
@@ -879,6 +938,7 @@
           return;
         }
 
+        clearLoadErrorsByCategory("type definitions");
         clearDefinesStatus();
         var fileName = getFileName(url);
         updateDefinesStatus(fileName, "loading", "remote", url);
@@ -891,11 +951,13 @@
           .then(function (content) {
             parseDefinesContent(content);
             updateDefinesStatus(fileName, "success", "remote", url);
+            clearLoadError(fileName);
             definesLoaded = true;
             chainToEntityFiles();
           })
           .catch(function (err) {
             updateDefinesStatus(fileName, "error", "remote", url);
+            trackLoadError(fileName, "type definitions");
             console.error("Failed to load " + fileName + ":", err);
             definesLoaded = true;
             chainToEntityFiles();
@@ -911,6 +973,7 @@
 
       // Load defines.h from local file
       function loadDefinesFromFile(file) {
+        clearLoadErrorsByCategory("type definitions");
         clearDefinesStatus();
         updateDefinesStatus(file.name, "loading", "local", file.name);
 
@@ -918,10 +981,12 @@
         reader.onload = function (e) {
           parseDefinesContent(e.target.result);
           updateDefinesStatus(file.name, "success", "local", file.name);
+          clearLoadError(file.name);
           definesLoaded = true;
         };
         reader.onerror = function () {
           updateDefinesStatus(file.name, "error", "local", file.name);
+          trackLoadError(file.name, "type definitions");
           definesLoaded = true;
         };
         reader.readAsText(file);
@@ -1113,6 +1178,7 @@
 
       // Load edit files from URL fields
       function loadEditFilesFromUrls() {
+        clearLoadErrorsByCategory("entity definitions");
         clearEditStatus();
         editFilesLoaded = 0;
         entityNames = { K: {}, R: {}, F: {}, L: {} };
@@ -1149,6 +1215,7 @@
                 parseEditFileContent(content, fileName, type);
               }
               updateEditStatus(fileName, "success", "remote", url);
+              clearLoadError(fileName);
               editFilesLoaded++;
               if (editFilesLoaded === editFilesToLoad) {
                 if (prfFilesMode === "remote") {
@@ -1158,6 +1225,7 @@
             })
             .catch(function (err) {
               updateEditStatus(fileName, "error", "remote", url);
+              trackLoadError(fileName, "entity definitions");
               editFilesLoaded++;
               console.error("Failed to load " + fileName + ":", err);
               if (editFilesLoaded === editFilesToLoad) {
@@ -1272,17 +1340,20 @@
           return;
         }
 
+        clearLoadErrorsByCategory("tileset image");
         setTilesetStatus("loading", "Loading...", "remote");
         loadedFileSources["tileset"] = url;
 
         var testImg = new Image();
         testImg.onload = function () {
           setTilesetStatus("success", "Loaded", "remote");
+          clearLoadError(getFileName(url));
           document.getElementById("txtImage").value = url;
           loadTilesetImage(url);
         };
         testImg.onerror = function () {
           setTilesetStatus("error", "Failed to load", "remote");
+          trackLoadError(getFileName(url), "tileset image");
           clearTilesetDisplay();
         };
         testImg.src = url;
@@ -1298,17 +1369,20 @@
 
       // Load tileset from file object (used by both initial load and reload)
       function loadTilesetFromFileObject(file) {
+        clearLoadErrorsByCategory("tileset image");
         setTilesetStatus("loading", "Loading...", "local");
         loadedFileSources["tileset"] = file.name;
 
         var reader = new FileReader();
         reader.onload = function (e) {
           setTilesetStatus("success", "Loaded", "local");
+          clearLoadError(file.name);
           document.getElementById("txtImage").value = file.name;
           loadTilesetImage(e.target.result);
         };
         reader.onerror = function () {
           setTilesetStatus("error", "Failed to load", "local");
+          trackLoadError(file.name, "tileset image");
           clearTilesetDisplay();
         };
         reader.readAsDataURL(file);
@@ -1355,6 +1429,7 @@
 
       // Load PRF files from URL fields
       function loadPrfFilesFromUrls() {
+        clearLoadErrorsByCategory("tile assignments");
         clearPrfStatus();
         prfEntities = [];
 
@@ -1385,11 +1460,13 @@
             .then(function (content) {
               parsePrfContent(content, fileName);
               updatePrfStatus(fileName, "success", "remote", url);
+              clearLoadError(fileName);
               addPlayerTileEntries();
               updateEntityList();
             })
             .catch(function (err) {
               updatePrfStatus(fileName, "error", "remote", url);
+              trackLoadError(fileName, "tile assignments");
               console.error("Failed to load " + fileName + ":", err);
             });
         });
@@ -1404,6 +1481,7 @@
 
       // Load local edit files from file picker
       function loadLocalEditFiles(files) {
+        clearLoadErrorsByCategory("entity definitions");
         clearEditStatus();
         entityNames = { K: {}, R: {}, F: {}, L: {} };
         editFilesLoaded = 0;
@@ -1421,10 +1499,12 @@
               parseEditFileContent(e.target.result, file.name, type);
             }
             updateEditStatus(file.name, "success", "local", file.name);
+            clearLoadError(file.name);
             editFilesLoaded++;
           };
           reader.onerror = function () {
             updateEditStatus(file.name, "error", "local", file.name);
+            trackLoadError(file.name, "entity definitions");
             editFilesLoaded++;
           };
           reader.readAsText(file);
@@ -1433,6 +1513,7 @@
 
       // Load local PRF files from file picker
       function loadLocalPrfFiles(files) {
+        clearLoadErrorsByCategory("tile assignments");
         clearPrfStatus();
         prfEntities = [];
 
@@ -1443,11 +1524,13 @@
           reader.onload = function (e) {
             parsePrfContent(e.target.result, file.name);
             updatePrfStatus(file.name, "success", "local", file.name);
+            clearLoadError(file.name);
             addPlayerTileEntries();
             updateEntityList();
           };
           reader.onerror = function () {
             updatePrfStatus(file.name, "error", "local", file.name);
+            trackLoadError(file.name, "tile assignments");
           };
           reader.readAsText(file);
         });
@@ -1952,6 +2035,12 @@
   <body>
     <div class="container">
       <h1>Sil-Q Tile Picker</h1>
+
+      <!-- Error banner (shown when any file fails to load) -->
+      <div id="errorBanner" class="error-banner hidden">
+        <div class="error-banner-title">Some files failed to load:</div>
+        <ul id="errorBannerList" class="error-banner-list"></ul>
+      </div>
 
       <!-- Hex coordinate search -->
       <div class="load-row search-row">
