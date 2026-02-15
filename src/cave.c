@@ -683,7 +683,7 @@ static void special_lighting_wall(byte* a, char* c, int feat, int info)
 /// @returns The tile offset [0..15] that determines the appropriate player tile
 /// to be rendered, where 0 is the respective race's first tile (out of a
 /// sequence of 16 tiles) as defined by the `R:0`, `R:1`, `R:2`, `R:3` lines in
-/// `lib/pref/graf-new.prf`.
+/// `lib/pref/graf-tiles.prf`.
 static int player_tile_offset(void)
 {
     object_type * main_wield_ptr = &inventory[INVEN_WIELD];

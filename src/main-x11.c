@@ -2252,7 +2252,7 @@ static void composite_image(
     // `xtra1.c`.
     //
     // ICON_GLOW is defined in `src/defines.h` and assigned to a tile via an
-    // `S:` line in `lib/pref/graf-new.prf`.
+    // `S:` line in `lib/pref/graf-tiles.prf`.
     //
     // Pixel offset for left edge of the glow icon within the tileset
     int glow_x = (0x7F & misc_to_char[ICON_GLOW]) * td->fnt->twid;
@@ -2263,7 +2263,7 @@ static void composite_image(
     // base tile.
     //
     // ICON_ALERT is defined in `src/defines.h` and assigned to a tile via an
-    // `S:` line in `lib/pref/graf-new.prf`.
+    // `S:` line in `lib/pref/graf-tiles.prf`.
     //
     // Pixel offset for left edge of the alert icon within the tileset
     int alert_x = (0x7F & misc_to_char[ICON_ALERT]) * td->fnt->twid;

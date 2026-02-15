@@ -119,7 +119,7 @@ struct maxima
 /// Information about terrain "features" (floors, walls, doors, traps, etc.).
 ///
 /// Tile assignments for features are set via `F:` lines in PRF files (e.g.,
-/// `lib/pref/graf-new.prf`), which override `x_attr` and `x_char`.
+/// `lib/pref/graf-tiles.prf`), which override `x_attr` and `x_char`.
 struct feature_type
 {
     u32b name; /* Name (offset) */

@@ -431,7 +431,7 @@ alloc_entry* alloc_race_table;
 /// Specify attr/char pairs for visual special effects.
 ///
 /// These are lookup tables for special/misc tile coordinates, populated by `S:`
-/// lines in PRF files like `graf-new.prf`. Each entry stores a tile row (in
+/// lines in PRF files like `graf-tiles.prf`. Each entry stores a tile row (in
 /// `misc_to_attr`) and column (in `misc_to_char`) in the tileset image, with
 /// the 0x80 graphics flag set on both bytes.
 ///
