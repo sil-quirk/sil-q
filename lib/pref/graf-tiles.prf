@@ -532,16 +532,34 @@ K:422:0x8B/0x9C
 # Player
 ###############################################################################
 
-# player (Noldor)
+# As of Feb 2026, each race has a set of 16 tiles to represent the player. The
+# tiles vary based on the player's skills (e.g., Melee vs. Archery) and
+# equipment (e.g., sword vs. axe). Based on the aforementioned data, the game
+# computes the offset of the appropriate tile out out of the set. The offset
+# values are consistent across the four races.
+#
+# Assumptions for the tileset image:
+# 1. A race's sequence of 16 tiles must be on the same row in the tileset and
+# in an uninterrupted sequence from 0, 1, ..., 15; i.e., a race's tiles must
+# be "next to each other".
+# 2. Each offset (such as 5) must represent the same player state (such as
+# "dual-wielding swords") across all four races, thus across all 4x 16 tiles.
+#
+# The `R:0`, `R:1`, `R:2`, and `R:3` records below define the starting tiles at
+# index 0 (first tile in the set of 16) for the respective races.
+#
+# See function `player_tile_offset()` in `src/cave.c` for more information.
+
+# Player (Noldor)
 R:0:0x8D/0x80
 
-# player (Sindar)
+# Player (Sindar)
 R:1:0x8D/0x90
 
-# player (Naugrim)
+# Player (Naugrim)
 R:2:0x8E/0x80
 
-# player (Edain)
+# Player (Edain)
 R:3:0x8E/0x90
 
 
