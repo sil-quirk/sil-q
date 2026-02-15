@@ -711,9 +711,9 @@
 
       // Tile assignment files
       var DEFAULT_PRF_URLS = [
-        GITHUB_BASE + "lib/pref/flvr-new.prf",
-        GITHUB_BASE + "lib/pref/graf-new.prf",
-        GITHUB_BASE + "lib/pref/xtra-new.prf",
+        GITHUB_BASE + "lib/pref/flvr-tiles.prf",
+        GITHUB_BASE + "lib/pref/graf-tiles.prf",
+        "", // 3rd slot empty
         "", // 4th slot empty
         "", // 5th slot empty
       ];
@@ -1081,9 +1081,9 @@
       // Reset tile assignment URLs to defaults and reload
       function resetPrfUrls() {
         var defaultPrfUrls = [
-          GITHUB_BASE + "lib/pref/flvr-new.prf",
-          GITHUB_BASE + "lib/pref/graf-new.prf",
-          GITHUB_BASE + "lib/pref/xtra-new.prf",
+          GITHUB_BASE + "lib/pref/flvr-tiles.prf",
+          GITHUB_BASE + "lib/pref/graf-tiles.prf",
+          "",
           "",
           "",
         ];
@@ -1511,7 +1511,7 @@
             continue;
           }
 
-          // Track conditional lines for xtra-new.prf
+          // Track conditional statements
           if (line.startsWith("?:")) {
             lastCondition = line;
             lastComment = ""; // Reset comment after condition
@@ -1535,13 +1535,6 @@
               // S: entries use the preceding comment as the name
               // Don't reset - consecutive S: entries share the same comment
               entityName = lastComment || "(special #" + id + ")";
-            } else if (fileName === "xtra-new.prf" && lastCondition) {
-              // For xtra-new.prf, extract class/race from condition
-              var classMatch = lastCondition.match(/\[EQU \$CLASS ([^\]]+)\]/i);
-              var raceMatch = lastCondition.match(/\[EQU \$RACE ([^\]]+)\]/i);
-              if (classMatch && raceMatch) {
-                entityName = raceMatch[1] + " " + classMatch[1];
-              }
             } else if (entityNames[prefix] && entityNames[prefix][id]) {
               // Look up from the parsed edit files
               var entityData = entityNames[prefix][id];
@@ -1572,9 +1565,6 @@
       }
 
       function getEntityType(prefix, fileName) {
-        if (fileName === "xtra-new.prf") {
-          return "Player";
-        }
         switch (prefix) {
           case "L":
             return "Flavor";
@@ -1611,7 +1601,7 @@
         "Bow (archery > melee)"
       ];
 
-      // Player race base tiles (from graf-new.prf R:0-R:3)
+      // Player race base tiles (from graf-tiles.prf R:0-R:3)
       var PLAYER_RACE_TILES = [
         { race: "Noldor", baseRow: 0x8D, baseCol: 0x80 },
         { race: "Sindar", baseRow: 0x8D, baseCol: 0x90 },
@@ -1634,7 +1624,7 @@
               type: "Monster",
               tval: null,
               hexCoords: hexCoords,
-              sourceFile: "graf-new.prf",
+              sourceFile: "graf-tiles.prf",
               race: raceInfo.race
             });
           }
@@ -1664,7 +1654,7 @@
         var playerEntries = generatePlayerTileEntries();
         // Remove all existing player tile entries to avoid duplicates
         prfEntities = prfEntities.filter(function(entity) {
-          if (entity.sourceFile === "graf-new.prf" && isPlayerTileCoord(entity.hexCoords)) {
+          if (entity.sourceFile === "graf-tiles.prf" && isPlayerTileCoord(entity.hexCoords)) {
             return false; // Remove this entry
           }
           return true;
@@ -2404,22 +2394,18 @@
               <input
                 id="prfUrl1"
                 type="text"
-                value="https://raw.githubusercontent.com/sil-quirk/sil-q/master/lib/pref/flvr-new.prf"
+                value="https://raw.githubusercontent.com/sil-quirk/sil-q/master/lib/pref/flvr-tiles.prf"
               >
             </div>
             <div class="url-field-row">
               <input
                 id="prfUrl2"
                 type="text"
-                value="https://raw.githubusercontent.com/sil-quirk/sil-q/master/lib/pref/graf-new.prf"
+                value="https://raw.githubusercontent.com/sil-quirk/sil-q/master/lib/pref/graf-tiles.prf"
               >
             </div>
             <div class="url-field-row">
-              <input
-                id="prfUrl3"
-                type="text"
-                value="https://raw.githubusercontent.com/sil-quirk/sil-q/master/lib/pref/xtra-new.prf"
-              >
+              <input id="prfUrl3" type="text" placeholder="(additional URL)">
             </div>
             <div class="url-field-row">
               <input id="prfUrl4" type="text" placeholder="(additional URL)">
@@ -2480,7 +2466,7 @@
             <strong>Player tiles</strong> — Each of the 4 playable races
             (Noldor, Sindar, Naugrim, Edain) has 16 tiles representing
             different equipment states. Only the base tile (offset 0) is
-            defined in <code>graf-new.prf</code> as <code>R:0</code> through
+            defined in <code>graf-tiles.prf</code> as <code>R:0</code> through
             <code>R:3</code>. The remaining 15 tiles per race are computed
             dynamically by adding an offset based on equipped weapons, as
             defined in <code>src/cave.c</code>, function
