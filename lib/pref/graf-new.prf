@@ -1019,10 +1019,6 @@ K:488:0x80/0x9F
 K:489:0x80/0x9F
 K:490:0x80/0x9F
 
-# Load the special player pictures
-%:xtra-new.prf
-
 # Load the flavored objects
 %:flvr-new.prf
-
 
