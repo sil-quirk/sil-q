@@ -45,6 +45,9 @@ jobs:
           file sil
           bin/smoke-tests.sh
 
+      - name: Validate data file for monsters
+        run: python3 bin/data-monster.py --validate
+
       - name: Verify tutorial savefile
         run: bin/verify-tutorial.sh
 

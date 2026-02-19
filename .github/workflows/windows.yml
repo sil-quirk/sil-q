@@ -44,7 +44,7 @@ jobs:
         uses: msys2/setup-msys2@v2
         with:
           msystem: ${{ matrix.msystem }}
-          install: ${{ matrix.gcc_pkg_prefix }}-gcc make zip
+          install: ${{ matrix.gcc_pkg_prefix }}-gcc ${{ matrix.gcc_pkg_prefix }}-python make zip
 
       - name: Clone project
         uses: actions/checkout@v6
@@ -64,6 +64,9 @@ jobs:
 
       - name: Verify tutorial savefile
         run: bin/verify-tutorial.sh
+
+      - name: Validate data file for monsters
+        run: python bin/data-monster.py --validate
 
       - name: Remove outdated PDF manuals
         run: |

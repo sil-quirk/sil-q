@@ -35,6 +35,9 @@ jobs:
       - name: Verify tutorial savefile
         run: bin/verify-tutorial.sh
 
+      - name: Validate data file for monsters
+        run: python3 bin/data-monster.py --validate
+
       - name: Create release archive
         if: inputs.version != ''
         run: |
