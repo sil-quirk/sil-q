@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+#
+# Format Markdown files
+#
+
+# shellcheck disable=SC2155
+readonly SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
+# shellcheck disable=SC2155
+readonly PROJECT_DIR=$(cd "$SCRIPT_DIR/.." && pwd -P)
+
+(cd "$PROJECT_DIR" && uv run mdformat .)

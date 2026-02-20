@@ -1,0 +1,64 @@
+# File: pyproject.toml
+#
+# Defines the Python environment for Sil-Q's Python-based developer tooling.
+# The actual game does not use Python.
+#
+
+[project]
+name = "sil-q"
+version = "1.5.1"
+description = "A free, single-player dungeon infiltration game"
+readme = "README.md"
+requires-python = ">=3.14.0"
+dependencies = []
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3 :: Only",
+]
+
+[project.urls]
+Repository = "https://github.com/sil-quirk/sil-q"
+Changelog = "https://github.com/sil-quirk/sil-q/blob/main/CHANGES.md"
+Releases = "https://github.com/sil-quirk/sil-q/releases"
+
+[dependency-groups]
+dev = ["mdformat>=1.0.0", "mdformat-gfm>=1.0.0"]
+
+[tool.basedpyright]
+# Use `type: ignore` instead of `pyright: ignore`.
+#
+# Otherwise we need both `type: ignore` and `pyright: ignore` in certain
+# situations, and we have not found a way to specify both at the same time.
+# https://docs.basedpyright.com/latest/configuration/config-files/#discouraged-settings
+enableTypeIgnoreComments = true
+
+# https://docs.astral.sh/ruff/configuration/
+[tool.ruff.format]
+# Enable auto-formatting of code examples in docstrings. Markdown,
+# reStructuredText code/literal blocks and doctests are all supported.
+docstring-code-format = true
+
+# https://docs.astral.sh/ruff/configuration/
+[tool.ruff.lint]
+# Enable import sorting.
+# https://github.com/astral-sh/ruff/issues/8926#issuecomment-2042243229
+extend-select = ["I"]
+
+# https://docs.astral.sh/ruff/configuration/
+[tool.ruff.lint.isort]
+# https://docs.astral.sh/ruff/settings/#lint_isort_known-first-party
+known-first-party = ["sil_q"] # our package name
+# https://docs.astral.sh/ruff/settings/#lint_isort_force-wrap-aliases
+force-wrap-aliases = true
+combine-as-imports = true # required for `force-wrap-aliases`
+
+# https://github.com/astral-sh/ty/blob/main/docs/reference/rules.md
+# https://github.com/astral-sh/ty/blob/main/docs/reference/configuration.md
+[tool.ty.rules]
+division-by-zero = "error"
+unused-ignore-comment = "ignore"

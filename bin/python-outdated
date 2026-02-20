@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+#
+# Print outdated Python dependencies.
+#
+
+echo "========================================================================"
+echo "Outdated Python dependencies"
+echo "========================================================================"
+echo
+
+uv tree --outdated --depth 1
+
+echo
+echo "========================================================================"
+echo "1. To update a Python dependency, you must run:"
+echo
+echo "    $ uv lock --upgrade-package MYPACKAGE"
+echo
+echo "   If you want to also update the version definition in pyproject.toml,"
+echo "   you must run:"
+echo
+echo "    $ uv add 'MYPACKAGE>=1.2.3' --upgrade-package MYPACKAGE"
+echo
+echo "2. Then sync the Python environment with the updated dependencies:"
+echo
+echo "    $ uv sync --locked --all-extras --dev"
+echo

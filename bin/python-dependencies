@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+#
+# Print Python dependency tree.
+#
+
+uv tree --depth 1

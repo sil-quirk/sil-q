@@ -1,0 +1,14 @@
+# File: mise.toml
+#
+# Configuration file for mise, see https://mise.jdx.dev/configuration.html
+#
+# Used for cross-platform managing of Python and uv, a package manager for
+# Python (https://docs.astral.sh/uv/).
+#
+
+[settings]
+# Tells mise to install the Python version defined in `.python-version`.
+idiomatic_version_file_enable_tools = ["python"]
+
+[tools]
+uv = "latest"

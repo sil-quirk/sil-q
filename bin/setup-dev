@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+#
+# File: setup-dev.sh
+#
+# Creates a local dev environment for Sil-Q.
+#
+# Supported platforms:
+# - macOS (with homebrew)
+# - Linux: Fedora and Debian/Ubuntu based distributions
+#
+
+set -euo pipefail
+
+###############################################################################
+# Helper functions
+###############################################################################
+
+# Detect operating system.
+#
+# - "Darwin" for macOS
+# - "Linux" for Debian, Fedora, etc.
+#
+# shellcheck disable=SC2155
+readonly OS="$(uname)"
+echo "Detected operating system: $OS"
+
+# Detect Linux distribution family.
+#
+# - "debian" for Debian, Ubuntu, etc.
+# - "fedora" for Fedora, RHEL, CentOS, etc.
+# - "unknown" for unknown or non-Linux
+LINUX_DISTRO="unknown"
+if [[ "$OS" = "Linux" ]]; then
+    if [[ -f /etc/os-release ]]; then
+        # shellcheck disable=SC1091
+        source /etc/os-release
+        case "$ID" in
+        debian | ubuntu | linuxmint | pop)
+            LINUX_DISTRO="debian"
+            ;;
+        fedora | rhel | centos | rocky | alma)
+            LINUX_DISTRO="fedora"
+            ;;
+        *)
+            # Check ID_LIKE as a fallback.
+            case "${ID_LIKE:-}" in
+            *debian* | *ubuntu*)
+                LINUX_DISTRO="debian"
+                ;;
+            *fedora* | *rhel*)
+                LINUX_DISTRO="fedora"
+                ;;
+            esac
+            ;;
+        esac
+    fi
+fi
+readonly LINUX_DISTRO
+if [[ "$OS" = "Linux" ]]; then
+    echo "Detected Linux distribution: $LINUX_DISTRO"
+fi
+
+###############################################################################
+# Install Sil-Q dev environment
+###############################################################################
+
+# Prepare package managers where needed
+if [[ "$OS" = "Darwin" ]]; then
+    echo "== Check for homebrew (macOS package manager) =="
+    if ! command -v brew &>/dev/null; then
+        echo "ERROR: 'brew' command not found. Is homebrew installed? (https://brew.sh)"
+        exit 1
+    fi
+fi
+
+# Install the dev toolchain for Sil-Q. Fortunately, all these packages are
+# provided out-of-the-box by the respective package managers for each platform.
+echo "== Installing dev toolchain for Sil-Q =="
+if [[ "$OS" = "Darwin" ]]; then
+    brew install ncurses
+elif [[ "$OS" = "Linux" && "$LINUX_DISTRO" = "fedora" ]]; then
+    sudo dnf install -y gcc make ncurses-devel libX11-devel
+elif [[ "$OS" = "Linux" && "$LINUX_DISTRO" = "debian" ]]; then
+    sudo apt-get install -y gcc make libncursesw5-dev libx11-dev
+elif [[ "$OS" = "Linux" ]]; then
+    echo "ERROR: Linux distribution '$LINUX_DISTRO' not supported"
+    exit 1
+else
+    echo "ERROR: OS '$OS' not supported"
+    exit 1
+fi
+
+echo "== Checking for mise (to manage Python) =="
+if ! command -v mise &>/dev/null; then
+    echo "WARNING: 'mise' command not found (https://mise.jdx.dev/)"
+
+    if [[ "$OS" = "Darwin" ]]; then
+        read -rp "Install mise via homebrew? [y/N] " answer
+        if [[ "${answer,,}" = "y" ]]; then
+            brew install mise
+        else
+            echo "ERROR: mise is required, please install it manually (https://mise.jdx.dev/)"
+            exit 1
+        fi
+    elif [[ "$OS" = "Linux" && "$LINUX_DISTRO" = "fedora" ]]; then
+        read -rp "Install mise for Fedora? [y/N] " answer
+        if [[ "${answer,,}" = "y" ]]; then
+            sudo dnf copr enable -y jdxcode/mise
+            sudo dnf install -y mise
+        else
+            echo "ERROR: mise is required, please install it manually (https://mise.jdx.dev/)"
+            exit 1
+        fi
+    elif [[ "$OS" = "Linux" && "$LINUX_DISTRO" = "debian" ]]; then
+        read -rp "Install mise for Debian/Ubuntu? [y/N] " answer
+        if [[ "${answer,,}" = "y" ]]; then
+            sudo apt update -y && sudo apt install -y curl
+            sudo install -dm 755 /etc/apt/keyrings
+            curl -fSs https://mise.jdx.dev/gpg-key.pub |
+                sudo tee /etc/apt/keyrings/mise-archive-keyring.asc 1>/dev/null
+            echo "deb [signed-by=/etc/apt/keyrings/mise-archive-keyring.asc] https://mise.jdx.dev/deb stable main" |
+                sudo tee /etc/apt/sources.list.d/mise.list
+            sudo apt update -y
+            sudo apt install -y mise
+        else
+            echo "ERROR: mise is required, please install it manually (https://mise.jdx.dev/)"
+            exit 1
+        fi
+    else
+        echo "ERROR: mise is required, please install it manually (https://mise.jdx.dev/)"
+        exit 1
+    fi
+fi
+
+# Trust the current folder for running mise commands.
+mise trust --quiet
+
+echo "== Installing/updating mise packages =="
+mise install
+
+echo "== Installing Python packages =="
+uv sync --locked --all-extras --dev

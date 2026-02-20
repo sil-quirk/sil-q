@@ -1,0 +1,8 @@
+# .mdformat.toml
+#
+# Configuration file for the mdformat Python package.
+# https://mdformat.readthedocs.io/
+#
+
+# Use consecutive numbering (1., 2., 3.) for lists.
+number = true

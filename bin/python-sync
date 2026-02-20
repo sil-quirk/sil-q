@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+#
+# Sync the Python environment according to the project definition in
+# pyproject.toml.
+#
+
+uv sync --locked --all-extras --dev

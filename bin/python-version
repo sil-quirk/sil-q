@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+#
+# Print versions related to the Python environment.
+#
+
+echo "Python project: $(uv version)"
+echo "Python version: $(uv run python --version)"
+echo "uv version    : $(uv --version)"

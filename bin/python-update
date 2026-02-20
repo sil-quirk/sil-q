@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+#
+# Update Python dependencies.
+#
+# Unfortunately, this script only explains how to do this manually, because
+# uv (as of Feb 2026) does not support an "update all packages to their latest
+# version"" feature:
+# - https://github.com/astral-sh/uv/issues/1419
+# - https://github.com/astral-sh/uv/issues/6794
+#
+
+echo "1. To update a Python dependency, you must run:"
+echo
+echo "    $ uv lock --upgrade-package MYPACKAGE"
+echo
+echo "   If you want to also update the version definition in pyproject.toml,"
+echo "   you must run:"
+echo
+echo "    $ uv add 'MYPACKAGE>=1.2.3' --upgrade-package MYPACKAGE"
+echo
+echo "2. Then sync the Python environment with the updated dependencies:"
+echo
+echo "    $ uv sync --locked --all-extras --dev"
+echo
