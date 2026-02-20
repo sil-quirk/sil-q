@@ -68,6 +68,9 @@ jobs:
       - name: Validate data file for monsters
         run: python bin/data-monster.py --validate
 
+      - name: Validate data file for objects
+        run: python bin/data-object.py --validate
+
       - name: Remove outdated PDF manuals
         run: |
           rm lib/docs/*.pdf
