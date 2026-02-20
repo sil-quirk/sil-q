@@ -14,7 +14,7 @@ than (e.g.) redistributing Microchasm's tiles under the GPL, or choosing to make
 a variant which is only under one of the Angband or GPL licences. This allows
 easier sharing of changes between variants.
 
----
+______________________________________________________________________
 
 ## Angband License
 
@@ -28,7 +28,7 @@ and not for profit purposes provided that this copyright and statement
 are included in all such copies. Other copyrights may also apply.
 ```
 
----
+______________________________________________________________________
 
 ## GNU General Public License (GPL)
 

@@ -84,8 +84,9 @@ $ ./sil
 > not being able to verify that the app is free of malware. In the dialog
 > window, click the button "Done" (not "Move to Trash"). Then go to your Mac's
 > `System Settings` > `Privacy & Security`, scroll all the way down to the
-> "Security" section, which will have an entry `"sil" was blocked to protect
-your Mac.`. Here, click on the button "Open Anyway" and confirm that you do
+> "Security" section, which will have an entry
+> "'sil' was blocked to protect your Mac.".
+> Here, click on the button "Open Anyway" and confirm that you do
 > want to launch Sil-Q. See [Safely open apps on your
 > Mac](https://support.apple.com/en-us/102445) in the macOS documentation.
 
