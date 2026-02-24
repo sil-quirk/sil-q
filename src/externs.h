@@ -177,6 +177,7 @@ extern bool inkey_scan;
 extern bool inkey_flag;
 extern bool hide_cursor;
 extern byte object_generation_mode;
+extern bool drop_allow_noble;
 extern bool shimmer_monsters;
 extern bool shimmer_objects;
 extern bool repair_mflag_mark;

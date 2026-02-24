@@ -1175,8 +1175,14 @@ static void rd_options(void)
     if (op_ptr->ability_desc_mode > 2)
         op_ptr->ability_desc_mode = 0;
 
-    /* Skip 6 remaining spare bytes */
-    strip_bytes(6);
+    /* Read "vault_drop_frequency" */
+    rd_byte(&b);
+    op_ptr->vault_drop_frequency = b;
+    if (op_ptr->vault_drop_frequency > VDF_MEAGER)
+        op_ptr->vault_drop_frequency = VDF_NORMAL;
+
+    /* Skip 5 remaining spare bytes */
+    strip_bytes(5);
 
     /*** Normal Options ***/
 

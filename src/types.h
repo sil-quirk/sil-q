@@ -736,9 +736,9 @@ struct alloc_entry
     s16b index; /* The actual index */
 
     byte level; /* Base dungeon level */
-    byte prob1; /* Probability, pass 1 */
-    byte prob2; /* Probability, pass 2 */
-    byte prob3; /* Probability, pass 3 */
+    u16b prob1; /* Probability, pass 1 */
+    u16b prob2; /* Probability, pass 2 */
+    u16b prob3; /* Probability, pass 3 */
 
     u16b total; /* Unused for now */
 };
@@ -1035,6 +1035,7 @@ struct player_other
 
     byte main_combat_rolls; /* Main terminal combat rolls (0-3) */
     byte ability_desc_mode; /* Ability description display (0=D+E, 1=E+D, 2=E only) */
+    byte vault_drop_frequency; /* Vault drop frequency mode (VDF_*) */
 };
 
 /*

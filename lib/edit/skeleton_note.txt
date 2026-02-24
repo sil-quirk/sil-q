@@ -19,6 +19,8 @@ O:ELF:100:I write by a dying light; remember what I learned:
 O:ELF:100:If this scrap endures, let it be a warning:
 O:ELF:100:In the name of Elbereth, read and be wary:
 O:ELF:100:The darkness grows. Hear me, before it takes all:
+O:ELF:100:I fell where many have fallen. Let my last breath serve you:
+O:ELF:100:These walls remember what the world forgets. So do I:
 
 # Human
 O:HUMAN:100:If you find these bones, listen:
@@ -27,6 +29,8 @@ O:HUMAN:100:For my kin, and any who come after:
 O:HUMAN:100:May the Valar forgive me. Take heed:
 O:HUMAN:100:I thought myself brave. I was wrong. Read:
 O:HUMAN:100:I leave this as warning, not as tale:
+O:HUMAN:100:The torch is almost gone. I write in ember-light:
+O:HUMAN:100:I counted my arrows. Then I counted my wounds. Hear this:
 
 # Orc
 O:ORC:100:Scratched on bone, for any snaga who lives:
@@ -35,6 +39,8 @@ O:ORC:100:Snaga marked this. Don't laugh:
 O:ORC:100:Blood on stone. Words still good:
 O:ORC:100:Boss gone. I'm next. You listen:
 O:ORC:100:If you can read, good. If not, too bad:
+O:ORC:100:Teeth broke on hard bread. Hand broke on wall. Listen:
+O:ORC:100:Dark ate my torch. I write by feel:
 
 # --- Signoffs ---
 
@@ -45,6 +51,8 @@ C:ELF:100:Go swiftly, while you yet may.
 C:ELF:100:If you endure, tread softly.
 C:ELF:100:Remember me only when you breathe free air.
 C:ELF:100:Let the stars be your counsel.
+C:ELF:100:The song fades. I hear only stone now.
+C:ELF:100:I go now where even memory cannot follow.
 
 # Human
 C:HUMAN:100:May you see the sun again.
@@ -53,6 +61,8 @@ C:HUMAN:100:Do not waste your strength in vain battles.
 C:HUMAN:100:If you live, tell my tale.
 C:HUMAN:100:May your hand be steady.
 C:HUMAN:100:Valar keep you.
+C:HUMAN:100:I had a name once. It doesn't matter now.
+C:HUMAN:100:The weight of stone above me feels almost kind.
 
 # Orc
 C:ORC:100:They come. I'm done.
@@ -61,6 +71,8 @@ C:ORC:100:Run. Run.
 C:ORC:100:Don't trust the dark.
 C:ORC:100:If you take my stuff, leave me a blade.
 C:ORC:100:Rot with me, or get out.
+C:ORC:100:Good blade. Bad luck. That's all.
+C:ORC:100:No more orders. No more running. Done.
 
 # --- Great Vault Present ---
 
@@ -79,6 +91,7 @@ M:HUMAN:GREAT_VAULT:100:I heard treasure behind thick stone {DIST} {DIR}, but th
 M:HUMAN:GREAT_VAULT:100:A gate of black stone stands {DIST} {DIR}. Don't waste time unless you're ready.
 M:HUMAN:GREAT_VAULT:100:There's a fortress built into this floor {DIST} {DIR}. The doors laughed at my strength.
 M:HUMAN:GREAT_VAULT:100:If you see walls that feel too straight and too clean {DIST} {DIR}, you've found the sealed hoard.
+M:HUMAN:GREAT_VAULT:100:The walls {DIST} {DIR} hum like a held breath. Whatever is behind them, it was meant to stay.
 
 # Orc
 M:ORC:GREAT_VAULT:100:Big door {DIST} {DIR}. Runes bite. No go.
@@ -97,6 +110,7 @@ M:ELF:VAULT_ARTIFACT:100:A pale gleam waits {DIST} {DIR}, in {SITE}; I dared not
 M:ELF:VAULT_ARTIFACT:100:Seek {SITE} {DIST} {DIR}; there is treasure there, and death besides.
 M:ELF:VAULT_ARTIFACT:100:I saw gold piled high {DIST} {DIR}, in {SITE}, and shadows moving upon it.
 M:ELF:VAULT_ARTIFACT:100:If you hunger for great craft, go {DIST} {DIR} to {SITE} and risk the guardian.
+M:ELF:VAULT_ARTIFACT:100:Something ancient gleams {DIST} {DIR}, in {SITE}; it called to me like a voice half-remembered.
 
 # Human
 M:HUMAN:VAULT_ARTIFACT:100:There's a hoard {DIST} {DIR}, in {SITE}. I couldn't get near it.
@@ -123,6 +137,7 @@ M:ELF:STAIRS:100:If you must flee or follow, the {SITE} lies {DIST} {DIR}.
 M:ELF:STAIRS:100:Seek the {SITE} {DIST} {DIR}; the air grows colder along that way.
 M:ELF:STAIRS:100:The {SITE} is {DIST} {DIR}. Do not let the Enemy herd you away from it.
 M:ELF:STAIRS:100:I stumbled upon the {SITE} {DIR}. It is {DIST}. Remember it.
+M:ELF:STAIRS:100:The {SITE} waits {DIST} {DIR}, patient as stone. It will outlast us all.
 
 # Human
 M:HUMAN:STAIRS:100:The {SITE} lies {DIST} {DIR}. I tried to reach it.
@@ -139,6 +154,7 @@ M:ORC:STAIRS:100:The {SITE} is {DIST} {DIR}. Follow wall. Don't get lost.
 M:ORC:STAIRS:100:Got turned around. {SITE} is {DIR}. It is {DIST}.
 M:ORC:STAIRS:100:If you run, run {DIR}. {SITE} is {DIST}.
 M:ORC:STAIRS:100:Stairs make sense. {SITE} is {DIST} {DIR}. Tunnels don't.
+M:ORC:STAIRS:100:{SITE} {DIST} {DIR}. I scratched arrow on wall. Follow it.
 
 # --- Forge Present ---
 
@@ -149,6 +165,7 @@ M:ELF:FORGE:100:Seek the {SITE} {DIR}; it is {DIST}. Craft may yet save you.
 M:ELF:FORGE:100:The {SITE} lies {DIST} {DIR}. If you have skill, make use of it.
 M:ELF:FORGE:100:I found the {SITE} {DIST} {DIR}, but had no time to set my hand to work.
 M:ELF:FORGE:100:Follow the scent of coal and iron: the {SITE} is {DIST} {DIR}.
+M:ELF:FORGE:100:The {SITE} still breathes {DIST} {DIR}, an old warmth amid cold malice. Tend it well.
 
 # Human
 M:HUMAN:FORGE:100:Found the {SITE} {DIST} {DIR}. If you can work iron, it's a blessing.
@@ -157,6 +174,7 @@ M:HUMAN:FORGE:100:Smoke in the air: the {SITE} is {DIST} {DIR}.
 M:HUMAN:FORGE:100:If you carry things worth reforging, the {SITE} is {DIST} {DIR}.
 M:HUMAN:FORGE:100:I heard hammer on anvil {DIR}. The {SITE} is {DIST}.
 M:HUMAN:FORGE:100:The {SITE} is {DIST} {DIR}. Be swift--fires do not wait.
+M:HUMAN:FORGE:100:I smelled iron and hope {DIR}; the {SITE} is {DIST}. My hands were too broken to use it.
 
 # Orc
 M:ORC:FORGE:100:Saw the {SITE} {DIST} {DIR}. Hot. Good.
@@ -248,6 +266,7 @@ M:ORC:LABYRINTH:100:In the maze, you hear steps behind you. Might be yours. Migh
 M:ORC:LABYRINTH:100:Don't chase in maze. You'll chase yourself. It lies {DIST} {DIR}; rings and trinkets are oft lost there.
 M:ORC:LABYRINTH:100:Boss sends snaga into maze. Boss keeps loot. It lies {DIST} {DIR}; rings and trinkets are oft lost there.
 M:ORC:LABYRINTH:100:If you smell blood in labyrinth, turn back. You won't find the way out. It lies {DIST} {DIR}; rings and trinkets are oft lost there.
+M:ORC:LABYRINTH:100:Marked walls with blood. Found same mark twice. It lies {DIST} {DIR}; rings and trinkets are oft lost there.
 
 # --- Chasm ---
 
@@ -260,6 +279,7 @@ M:ELF:CHASM:100:The chasm is a wound in the world. Keep your eyes on your feet, 
 M:ELF:CHASM:100:In the chasm-halls the darkness is thick. Torches seem small and far away. It lies {DIST} {DIR}; fallen arms and bright things are oft found by its edge.
 M:ELF:CHASM:100:If battle finds you by the chasm, give ground only with care. Pride will cast you down. It lies {DIST} {DIR}; fallen arms and bright things are oft found by its edge.
 M:ELF:CHASM:100:Stone pillars rise from the abyss like broken teeth. Do not think them friendly. It lies {DIST} {DIR}; fallen arms and bright things are oft found by its edge.
+M:ELF:CHASM:100:The abyss breathes cold air upward, as though the world is hollow beneath. It lies {DIST} {DIR}; fallen arms and bright things are oft found by its edge.
 
 # Human
 M:HUMAN:CHASM:100:There's a chasm on this level. One wrong step and you're gone. It lies {DIST} {DIR}; fallen arms and bright things are oft found by its edge.
@@ -270,6 +290,7 @@ M:HUMAN:CHASM:100:Watch your footing: narrow crossings, broken stone, and no roo
 M:HUMAN:CHASM:100:If you hear a stone fall, don't look down. Keep moving. It lies {DIST} {DIR}; fallen arms and bright things are oft found by its edge.
 M:HUMAN:CHASM:100:The chasm splits the level and makes retreat hard. Plan your way back. It lies {DIST} {DIR}; fallen arms and bright things are oft found by its edge.
 M:HUMAN:CHASM:100:Light behaves strangely near the gulf. Shadows look deeper than they are. It lies {DIST} {DIR}; fallen arms and bright things are oft found by its edge.
+M:HUMAN:CHASM:100:I dropped a stone and counted heartbeats. I stopped counting. It lies {DIST} {DIR}; fallen arms and bright things are oft found by its edge.
 
 # Orc
 M:ORC:CHASM:100:Big hole. Dark. Don't fall. It lies {DIST} {DIR}; fallen arms and bright things are oft found by its edge.
@@ -302,6 +323,7 @@ M:HUMAN:CAVE:100:If you have to fight, don't do it in the open cavern. Find ston
 M:HUMAN:CAVE:100:The cavern is too open for retreat. Keep to the edges. It lies {DIST} {DIR}; torches and provisions are oft scattered there.
 M:HUMAN:CAVE:100:In the big cavern, light feels thin. Shadows stretch a long way. It lies {DIST} {DIR}; torches and provisions are oft scattered there.
 M:HUMAN:CAVE:100:Crossing that cavern took more nerve than I had. Be ready before you step in. It lies {DIST} {DIR}; torches and provisions are oft scattered there.
+M:HUMAN:CAVE:100:I felt like an ant under a boot that hadn't fallen yet. It lies {DIST} {DIR}; torches and provisions are oft scattered there.
 
 # Orc
 M:ORC:CAVE:100:Big cave. No hiding. Bad. It lies {DIST} {DIR}; torches and provisions are oft scattered there.
@@ -324,6 +346,7 @@ M:ELF:CAVE_ICE:100:In the ice cave {DIST} {DIR}, torchlight wavers on crystal wa
 M:ELF:CAVE_ICE:100:If you must cross the frozen cavern {DIST} {DIR}, set each step as though upon glass. Supplies are oft cast aside there.
 M:ELF:CAVE_ICE:100:Even whispers carry in the cold cave {DIST} {DIR}. Be silent, and keep moving. Supplies are oft cast aside there.
 M:ELF:CAVE_ICE:100:I felt the chill before I saw the frost. The ice cavern is {DIST} {DIR}. Turn back, unless you are well-prepared. Supplies are oft cast aside there.
+M:ELF:CAVE_ICE:100:The ice cavern {DIST} {DIR} swallowed sound like snow swallows footsteps. I called out and heard nothing. Supplies are oft cast aside there.
 
 # Human
 M:HUMAN:CAVE_ICE:100:Found a huge ice cavern {DIST} {DIR}. The cold hit me like a wall. Supplies are oft cast aside there.
@@ -366,6 +389,7 @@ M:HUMAN:CAVE_FIRE:100:The air tastes like ash {DIST} {DIR}. If you're wounded, d
 M:HUMAN:CAVE_FIRE:100:If you see a red glow ahead {DIST} {DIR}, it's the fire cavern. Be ready before you enter. Supplies are oft cast aside there.
 M:HUMAN:CAVE_FIRE:100:I coughed the whole way through the fire cave {DIST} {DIR}. Not a place to fight. Supplies are oft cast aside there.
 M:HUMAN:CAVE_FIRE:100:The heat makes you careless {DIST} {DIR}. I almost paid for it. Keep your head. Supplies are oft cast aside there.
+M:HUMAN:CAVE_FIRE:100:The fire cave {DIST} {DIR} turned my shield-arm red. Even resting hurts in there. Supplies are oft cast aside there.
 
 # Orc
 M:ORC:CAVE_FIRE:100:Fire cave {DIST} {DIR}. Hot. Smoke. Bad lungs. Supplies are oft cast aside there.
@@ -408,6 +432,7 @@ M:ORC:CAVE_POIS:100:In the haze {DIST} {DIR} you can't see feet. Bad. Supplies a
 M:ORC:CAVE_POIS:100:Poison cave {DIST} {DIR} makes eyes water. Can't fight. Supplies are oft cast aside there.
 M:ORC:CAVE_POIS:100:If you smell rot {DIST} {DIR}, that's poison cave. Turn back. Supplies are oft cast aside there.
 M:ORC:CAVE_POIS:100:Boss says 'go' {DIST} {DIR}. Boss not the one choking. Supplies are oft cast aside there.
+M:ORC:CAVE_POIS:100:Green air {DIST} {DIR} tastes like licking copper. Lungs burn after. Supplies are oft cast aside there.
 
 # --- Unique Monster ---
 
@@ -418,6 +443,7 @@ M:ELF:UNIQUE:100:I saw a {UNIQUE_TYPE} moving in the dark {DIST} {DIR}--avoid it
 M:ELF:UNIQUE:100:This place has a master: a {UNIQUE_TYPE} is {DIST} {DIR}. Be silent, be swift.
 M:ELF:UNIQUE:100:The {UNIQUE_TYPE} knows these halls. You do not; it is {DIST} {DIR}.
 M:ELF:UNIQUE:100:If your torch gutters without wind, the {UNIQUE_TYPE} is near {DIST} {DIR}.
+M:ELF:UNIQUE:100:I felt its will before I heard its step; a {UNIQUE_TYPE} walks {DIST} {DIR}, and the shadows obey it.
 
 # Human
 M:HUMAN:UNIQUE:100:There's a {UNIQUE_TYPE} {DIST} {DIR}. Don't try to be a hero.
@@ -426,6 +452,7 @@ M:HUMAN:UNIQUE:100:If you hear something that sounds like it knows your name, th
 M:HUMAN:UNIQUE:100:A {UNIQUE_TYPE} rules this floor {DIST} {DIR}. I ran; you should too.
 M:HUMAN:UNIQUE:100:The {UNIQUE_TYPE} is on this level {DIST} {DIR}. Pick your fights, or pick your grave.
 M:HUMAN:UNIQUE:100:I watched a {UNIQUE_TYPE} {DIST} {DIR} tear through my company. Don't let it corner you.
+M:HUMAN:UNIQUE:100:The {UNIQUE_TYPE} {DIST} {DIR} moved like it owned the dark. Everything else got out of its way.
 
 # Orc
 M:ORC:UNIQUE:100:{UNIQUE_TYPE} {DIST} {DIR}. Big. Mean.
@@ -434,6 +461,7 @@ M:ORC:UNIQUE:100:{UNIQUE_TYPE} hunts {DIST} {DIR}. Hide.
 M:ORC:UNIQUE:100:Saw {UNIQUE_TYPE} {DIST} {DIR}. Almost died.
 M:ORC:UNIQUE:100:{UNIQUE_TYPE} on this floor {DIST} {DIR}. Don't make noise.
 M:ORC:UNIQUE:100:If you hear heavy steps {DIST} {DIR}, that's {UNIQUE_TYPE}. Get away.
+M:ORC:UNIQUE:100:Heard {UNIQUE_TYPE} breathing {DIST} {DIR}. Whole tunnel shook.
 
 # --- Level Size ---
 
@@ -444,6 +472,7 @@ M:ELF:SIZE:100:{SIZEWORD} halls and long shadows: keep your strength in reserve.
 M:ELF:SIZE:100:The stone stretches {SIZEWORD} about you. Mark your turns, or be lost.
 M:ELF:SIZE:100:It is a {SIZEWORD} floor; pace your light, and do not wander.
 M:ELF:SIZE:100:Even a clear path feels {SIZEWORD} here. Do not linger.
+M:ELF:SIZE:100:This floor stretches {SIZEWORD} as grief. Husband your light and your courage alike.
 
 # Human
 M:HUMAN:SIZE:100:This level is {SIZEWORD}. I couldn't cover it all.
@@ -500,6 +529,7 @@ M:ELF:TIP:100:Herbs are a small mercy in great darkness. Spend them only when no
 M:ELF:TIP:100:Songs are fair, but they carry. Sing only when you mean to be heard.
 M:ELF:TIP:100:The dungeons are vast, and the enemies are plenty. Let that not detract you from your ultimate goal.
 M:ELF:TIP:100:Look twice at pits and broken stone. Many in Angband die without ever meeting a blade.
+M:ELF:TIP:100:A door left ajar is a throat laid bare. Seal what you pass through.
 
 # Human
 M:HUMAN:TIP:100:In Angband, noise draws death. Shut doors behind you and keep your steps light.
@@ -512,6 +542,7 @@ M:HUMAN:TIP:100:If you are wounded, break line of sight and wait in silence. Let
 M:HUMAN:TIP:100:If you carry herbs, save them for the moments you cannot outrun.
 M:HUMAN:TIP:100:Songs hearten the spirit, but they also carry. Use them with care.
 M:HUMAN:TIP:100:If you are unsure of a thing in the dark, look again before you step forward.
+M:HUMAN:TIP:100:I've seen strong men die fighting what they could have walked around.
 M:HUMAN:TIP:100:The dungeons are vast, and the enemies are plenty. Let that not detract you from your ultimate goal.
 
 # Orc

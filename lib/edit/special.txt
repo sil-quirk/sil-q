@@ -12,7 +12,8 @@
 # N: serial number : special type
 # C: max att : plus damage dice : plus damage sides : max evn : 
 #    plus prot dice: plus prot sides : pval
-# W: depth : rarity : max_depth : cost
+# W: depth : rarity_percent : max_depth : cost
+# A: depth/rarity_percent : depth/rarity_percent : etc
 # T: tval : min_sval : max_sval
 # F: flag | flag | etc
 #
@@ -20,9 +21,15 @@
 #     increase for each new item.
 #
 # 'W' is for extra information. Depth is the depth the object is
-#     normally found at, rarity determines how common the object is,
-#     Max-depth is the deepest it can be generated and cost is the
-#     item's value (not really used much).
+#     normally found at, rarity_percent is the ego weighting percentage
+#     used when combining base-item and ego schedules, Max-depth is
+#     the deepest it can be generated and cost is the item's value
+#     (not really used much).
+#     If no A: line is present, this W: rarity_percent is used.
+
+# 'A' is for allocation - depth and rarity percent, in pairs. This
+#     allows depth-based rarity schedules for special items.
+#     Percentages may exceed 100 after runtime modifiers (e.g. MORE_SPECIAL).
 #
 # 'C' is for creation bonuses - maximum to-hit, to-dam, to-ac, and
 #     pval. Cursed special items will negate the given value.
@@ -62,7 +69,7 @@ V:0.9.5
 # Includes shields and greaves
 
 N:1:(Protective)
-W:0:2:0:1000
+W:0:50:0:1000
 C:0:0:0:0:0:1:0
 T:34:0:99
 T:30:2:99
@@ -72,7 +79,7 @@ F:IGNORE_ALL
 
 
 N:2:(Venom-warding)
-W:0:2:0:1000
+W:0:75:0:1000
 C:0:0:0:0:0:0:0
 T:36:0:99
 T:37:0:99
@@ -82,7 +89,7 @@ F:RES_POIS
 # Mithril and Galvorn
 
 N:3:of Resilience
-W:10:6:0:1000
+W:10:33:0:1000
 C:0:0:0:0:0:0:1
 T:36:11:11
 T:37:20:20
@@ -93,16 +100,16 @@ F:IGNORE_ALL
 # Leather armour, gloves and boots only
 
 N:4:of Brethil
-W:6:10:0:1000
+W:6:30:0:1000
 C:0:0:0:0:0:0:0
 T:36:4:7
 T:30:0:1
 T:31:0:1
-F:FREE_ACT | IGNORE_ALL
+F:FREE_ACT | IGNORE_ALL | NOBLE_ITEM
 
 
 N:5:(Stealthy)
-W:0:5:0:1000
+W:0:75:0:1000
 C:0:0:0:0:0:0:3
 T:36:0:99
 F:STEALTH
@@ -111,45 +118,45 @@ F:STEALTH
 # Shields, greaves and heavy armour
 
 N:6:of Nogrod
-W:0:4:0:1000
+W:0:50:0:1000
 C:0:0:0:0:0:0:0
 T:30:2:99
 T:34:0:99
 T:37:0:99
-F:SUST_STR | SUST_DEX | SUST_CON | SUST_GRA
+F:SUST_STR | SUST_DEX | SUST_CON | SUST_GRA | NOBLE_ITEM
 F:IGNORE_ALL
 
 
 # Greaves and heavy armour - iron only
 
 N:7:of the Iron Hills
-W:0:5:0:3000
+W:0:50:0:3000
 C:0:0:0:0:0:0:0
 T:30:2:2
 T:37:4:6
-F:STAND_FAST | RES_FEAR
+F:STAND_FAST | RES_FEAR | NOBLE_ITEM
 F:IGNORE_ALL
 
 
 # Gauntlets and greaves
 
 N:8:of Ladros
-W:8:10:0:1000
+W:8:80:0:1000
 C:0:0:0:0:0:0:0
 T:30:2:2
 T:31:2:2
-F:RES_COLD | IGNORE_ALL
+F:RES_COLD | IGNORE_ALL | NOBLE_ITEM
 
 
 ###
 
 
 N:9:(Blighted)
-W:1:1:0:0
+W:1:100:0:0
 C:0:0:0:0:0:0:0
 T:36:0:99
 T:37:0:6
-A:1/3:10/5:15/10
+A:1/100:10/75:15/35
 F:VUL_POIS | DIF_ID | LIGHT_CURSE
 
 
@@ -157,14 +164,14 @@ F:VUL_POIS | DIF_ID | LIGHT_CURSE
 
 
 N:12:(Deflecting)
-W:0:5:0:1000
+W:0:50:0:1000
 C:0:0:0:2:0:0:0
 T:34:0:99
 F:IGNORE_ALL
 
 
 N:13:(Frosted)
-W:10:1:0:1000
+W:10:80:0:1000
 C:0:0:0:0:0:0:0
 T:34:0:99
 F:RES_FIRE
@@ -177,16 +184,16 @@ N:14:with Many Runes
 W:20:20:0:1000
 C:0:0:0:0:0:0:0
 T:34:10:10
-F:CHEAT_DEATH
+F:CHEAT_DEATH | NOBLE_ITEM
 
 
 ###
 
 N:15:(Wrathful)
-W:0:2:10:0
+W:0:100:10:0
 C:0:0:0:0:0:0:0
 T:34:0:9
-A:2/7:10:10/15:15
+A:2/100:10:50/15:33
 F:AGGRAVATE | DIF_ID | LIGHT_CURSE
 
 
@@ -197,10 +204,10 @@ F:AGGRAVATE | DIF_ID | LIGHT_CURSE
 # Daggers
 
 N:20:of Cuivienen
-W:0:15:0:6000
+W:0:20:0:6000
 C:0:0:0:0:0:0:3
 T:23:4:4
-F:LIGHT | SUST_GRA | SUST_DEX | SONG
+F:LIGHT | SUST_GRA | SUST_DEX | SONG | NOBLE_ITEM
 
 
 # Includes arrows
@@ -214,7 +221,8 @@ T:22:1:4
 T:23:10:21
 T:17:0:99
 T:23:28:30
-F:SLAY_ORC | SLAY_TROLL
+A:1/60:10/0
+F:SLAY_ORC | SLAY_TROLL | NOBLE_ITEM
 
 # Includes arrows
 # Axes - Marchwardens of Doriath used them!
@@ -222,29 +230,29 @@ F:SLAY_ORC | SLAY_TROLL
 # Spears, great spears, glaives
 
 N:22:of Doriath
-W:2:4:0:2000
+W:2:60:0:2000
 C:0:0:0:0:0:0:0
 T:22:0:99
 T:23:10:21
 T:23:28:30
 T:17:0:99
-F:SLAY_SPIDER | SLAY_WOLF
+F:SLAY_SPIDER | SLAY_WOLF | NOBLE_ITEM
 
 # Shortswords, longswords, bastard swords
 # Spears, great spears, glaives, mithril swords
 
 N:23:of Nargothrond
-W:9:4:0:2000
+W:9:40:0:2000
 C:0:0:0:0:0:0:0
 T:22:1:4
 T:23:10:21
 T:23:28:30
-F:SLAY_RAUKO | SLAY_DRAGON
+F:SLAY_RAUKO | SLAY_DRAGON | NOBLE_ITEM
 
 # All melee weapons save daggers, curved swords, quarterstaffs
 
 N:24:of Final Rest
-W:7:6:0:2000
+W:7:30:0:2000
 C:0:0:0:0:0:0:0
 T:21:8:8
 T:22:0:99
@@ -255,12 +263,12 @@ F:SLAY_UNDEAD | FREE_ACT
 # Warhammers, axes, digging tools
 
 N:26:of the Firebeards
-W:4:8:0:2000
+W:4:80:0:2000
 C:0:0:0:0:0:0:0
 T:21:8:8
 T:22:11:13
 T:20:3:3
-F:REGEN | RES_FIRE
+F:REGEN | RES_FIRE | NOBLE_ITEM
 F:IGNORE_ALL
 
 
@@ -269,12 +277,13 @@ F:IGNORE_ALL
 # (ability 0/6 is Follow-Through)
 
 N:27:of Hador's House
-W:8:4:0:3000
+W:8:50:0:3000
 C:0:0:1:0:0:0:0
 T:21:8:8
 T:22:4:4
 T:22:12:99
 T:23:17:25
+F:NOBLE_ITEM
 B:0/6
 
 
@@ -283,7 +292,7 @@ B:0/6
 # (ability 0/9 is Whirlwind Attack)
 
 N:28:of Fury
-W:10:4:0:2000
+W:10:33:0:2000
 C:0:0:1:0:0:0:0
 T:21:8:8
 T:22:4:4
@@ -296,17 +305,17 @@ F:AGGRAVATE | LIGHT_CURSE
 # Swords only
 
 N:31:of the Feanorians
-W:12:10:0:1000
+W:12:50:0:1000
 C:0:0:0:0:0:0:1
 T:23:10:99
-F:GRA | DEX | DANGER
+F:GRA | DEX | DANGER | NOBLE_ITEM
 
 
 # Daggers and curved swords only
 # (ability 3/1 is Assassination)
 
 N:34:of Murder
-W:0:7:4:2000
+W:0:40:4:2000
 C:0:0:0:0:0:0:3
 T:23:4:7
 B:3/1
@@ -317,7 +326,7 @@ F:STEALTH
 # (ability 0/12 is Two Weapon Fighting)
 
 N:35:of Accompaniment
-W:0:7:4:2000
+W:0:50:4:2000
 C:0:0:0:2:0:0:0
 T:23:4:4
 B:0/12
@@ -326,35 +335,35 @@ B:0/12
 # Spears only
 
 N:36:of the Vanyar
-W:10:4:0:3000
+W:10:33:0:3000
 C:1:0:1:0:0:0:1
 T:22:1:2
-F:GRA | LIGHT
+F:GRA | LIGHT | NOBLE_ITEM
 
 
 # Quarterstaves only
 
 N:37:of Mithrim
-W:0:3:0:8000
+W:0:100:0:8000
 C:1:0:0:0:0:0:0
 T:21:3:3
-F:REGEN
+F:REGEN | NOBLE_ITEM
 
 
 # Quarterstaves only
 
 N:38:of the Helcaraxe
-W:2:6:0:8000
+W:2:100:0:8000
 C:0:0:0:0:0:0:1
 T:21:3:3
-F:CON | RES_COLD
+F:CON | RES_COLD | NOBLE_ITEM
 
 
 # Warhammers only
 # (ability 0/2 is Knock Back)
 
 N:39:of Battering
-W:0:2:0:2000
+W:0:75:0:2000
 C:0:0:0:0:0:0:0
 T:21:8:8
 B:0/2
@@ -363,7 +372,7 @@ B:0/2
 # Warhammers only
 
 N:40:of Crushing
-W:10:4:0:10000
+W:10:33:0:10000
 C:0:0:1:0:0:0:1
 T:21:8:8
 F:STR
@@ -373,7 +382,7 @@ F:STR
 # (ability 0/7 is Impale)
 
 N:41:of Piercing
-W:4:8:0:10000
+W:4:60:0:10000
 C:0:0:1:0:0:0:0
 T:22:1:4
 B:0/7
@@ -385,7 +394,7 @@ B:0/7
 # Curved swords, greatswords, battle axes, greataxes
 
 N:43:of Udun
-W:12:10:0:1000
+W:12:50:0:1000
 C:0:0:0:0:0:0:0
 T:23:7:7
 T:23:25:25
@@ -396,7 +405,7 @@ F:BRAND_FIRE | CUMBERSOME
 # Warhammers, curved swords, greatswords, axes
 
 N:44:of Thangorodrim
-W:2:6:0:1000
+W:2:40:0:1000
 C:0:0:1:0:0:0:1
 T:21:8:8
 T:23:7:7
@@ -408,7 +417,7 @@ F:CON | CUMBERSOME
 # Curved swords, greatswords, hand axes, battle axes, greataxes, glaives
 
 N:45:of Black Iron
-W:0:3:0:1000
+W:0:100:0:1000
 C:0:0:1:0:0:0:0
 T:23:7:7
 T:23:25:25
@@ -420,7 +429,7 @@ F:SLAY_MAN_OR_ELF | AGGRAVATE
 # Daggers and hand axes only
 
 N:46:(Poisoned)
-W:0:5:0:2000
+W:0:60:0:2000
 C:0:0:0:0:0:0:0
 T:23:4:4
 T:22:11:11
@@ -431,7 +440,7 @@ F:BRAND_POIS
 # All axes, spears, glaives, swords apart from curved blades, daggers
 
 N:47:(Balanced)
-W:14:20:0:1000
+W:14:30:0:1000
 C:0:0:0:0:0:0:0
 T:22:1:99
 T:23:4:4
@@ -442,7 +451,7 @@ F:ACCURATE
 # Non-curved swords and glaives
 
 N:48:(Defender)
-W:0:4:0:1000
+W:0:80:0:1000
 C:0:0:0:1:0:0:0
 T:22:4:4
 T:23:10:99
@@ -452,7 +461,7 @@ F:IGNORE_ALL
 # Glaives, great axes, curved swords, bastard swords
 
 N:49:(Vampiric)
-W:4:4:0:3000
+W:4:75:0:3000
 C:0:0:0:0:0:0:0
 T:22:4:4
 T:22:13:13
@@ -470,31 +479,31 @@ F:VAMPIRIC | HUNGER | LIGHT_CURSE
 ##### Digging Tools #####
 
 N:51:of Belegost
-W:0:7:0:1000
+W:0:33:0:1000
 C:0:0:0:0:0:0:1
 T:20:3:3
-F:TUNNEL
+F:TUNNEL | NOBLE_ITEM
 
 
 N:52:of the Longbeards
-W:0:20:4:1000
+W:0:33:4:1000
 C:0:0:0:0:0:0:0
 T:20:3:3
-F:STR
+F:STR | NOBLE_ITEM
 
 
 ##### Helms #####
 
 
 N:71:(Brilliant)
-W:0:5:0:1000
+W:0:50:0:1000
 C:0:0:0:0:0:0:0
 T:32:0:99
-F:LIGHT
+F:LIGHT | NOBLE_ITEM
 
 
 N:72:of Defiance
-W:0:3:0:2000
+W:0:75:0:2000
 C:0:0:0:0:0:0:3
 T:32:0:99
 F:WILL | RES_FEAR
@@ -503,7 +512,7 @@ F:WILL | RES_FEAR
 # Includes light sources
 
 N:73:of true Sight
-W:0:5:0:2000
+W:0:75:0:2000
 C:0:0:0:0:0:0:0
 T:32:0:99
 T:39:1:8
@@ -511,7 +520,7 @@ F:RES_BLIND | SEE_INVIS | RES_HALLU
 
 
 N:74:of Clarity
-W:0:3:0:2000
+W:0:75:0:2000
 C:0:0:0:0:0:0:0
 T:32:0:99
 F:RES_CONFU | RES_STUN | RES_HALLU
@@ -520,16 +529,16 @@ F:RES_CONFU | RES_STUN | RES_HALLU
 # mithril helms and lesser jewels
 
 N:75:of Grace
-W:0:10:0:3000
+W:0:20:0:3000
 C:0:0:0:0:0:0:1
 T:32:8:8
 T:39:2:2
-F:GRA
+F:GRA | NOBLE_ITEM
 
 ###
 
 N:80:of Terror
-W:0:4:0:3000
+W:0:100:0:3000
 C:0:0:0:0:0:0:0
 T:32:0:7
 F:FEAR | DIF_ID
@@ -545,21 +554,21 @@ F:FEAR | DIF_ID
 
 
 N:82:(Stealthy)
-W:0:2:0:1000
+W:0:50:0:1000
 C:0:0:0:0:0:0:3
 T:35:0:99
 F:STEALTH
 
 
 N:83:(Warm)
-W:4:8:0:1000
+W:4:80:0:1000
 C:0:0:0:0:0:0:0
 T:35:0:99
 F:RES_COLD
 
 
 N:84:of the Traveller
-W:0:3:0:1000
+W:0:90:0:1000
 C:0:0:0:0:0:0:0
 T:35:0:99
 F:SLOW_DIGEST
@@ -567,86 +576,86 @@ F:SLOW_DIGEST
 ###
 
 N:86:(Chilling)
-W:0:5:0:0
+W:0:100:0:0
 C:0:0:0:0:0:0:0
 T:35:0:99
-A:0/5:10/10:15/15
+A:1/75:10/50:15/33
 F:VUL_COLD | DIF_ID | LIGHT_CURSE
 
 
 N:87:of the Scarlet Heart
-W:0:4:0:1000
+W:0:50:0:1000
 C:0:0:0:0:0:0:0
 T:35:0:1
-F:RES_BLEED | SUST_CON | IGNORE_ALL
+F:RES_BLEED | SUST_CON | IGNORE_ALL | NOBLE_ITEM
 
 N:88:of the Golden Flower
-W:0:4:0:1000
+W:0:50:0:1000
 C:0:0:0:0:0:0:0
 T:35:0:1
-F:RES_FEAR | SUST_GRA | IGNORE_ALL
+F:RES_FEAR | SUST_GRA | IGNORE_ALL | NOBLE_ITEM
 
 ##### Bows #####
 
 # Longbows only
 
 N:91:(Blackened Yew)
-W:6:2:0:3000
+W:6:100:0:3000
 C:0:0:1:0:0:0:0
 T:19:13:13
-A:6/2:10/10:15/15
+A:6/100:10/50:15/20
 F:VUL_FIRE | LIGHT_CURSE
 
 
 # Shortbows only
 
 N:92:of Lammoth
-W:4:8:0:1000
+W:4:50:0:1000
 C:0:0:0:0:0:0:0
 T:19:12:12
 F:RES_POIS | DANGER | AGGRAVATE | DIF_ID
 
 
 N:93:(Radiant)
-W:6:4:0:1000
+W:6:33:0:1000
 C:0:0:0:0:0:0:0
 T:19:0:99
 F:RADIANCE
 
 
 N:94:of the Marchwardens
-W:6:4:0:1000
+W:6:75:0:1000
 C:0:0:0:0:0:0:0
 T:19:0:99
-F:SEE_INVIS | RES_FEAR
+F:SEE_INVIS | RES_FEAR | NOBLE_ITEM
 
 
 N:95:of Falas
-W:12:6:0:3000
+W:12:75:0:3000
 C:0:0:0:0:0:0:3
 T:19:0:99
-F:RES_COLD | PERCEPTION
+F:RES_COLD | PERCEPTION | NOBLE_ITEM
 
 
 N:96:of the Falmari
-W:12:10:0:3000
+W:12:40:0:3000
 C:0:0:0:0:0:0:0
 T:19:0:99
-F:ACCURATE
+F:ACCURATE | NOBLE_ITEM
 
 
 ##### Arrows #####
 
 
 N:101:(Poisoned)
-W:6:6:0:100
+W:6:30:0:100
 C:0:0:0:0:0:0:0
 T:17:0:99
 F:BRAND_POIS
 
 
 N:102:(Piercing)
-W:10:10:0:300
+W:10:15:0:300
 C:0:0:0:0:0:0:0
 T:17:0:99
 F:SHARPNESS
@@ -664,22 +673,22 @@ F:SHARPNESS
 # Mithril greaves only
 
 N:110:of Ithil's Light
-W:0:2:0:1000
+W:0:50:0:1000
 C:0:0:0:0:0:0:0
 T:30:3:3
-F:RADIANCE
+F:RADIANCE | NOBLE_ITEM
 
 
 # boots only
 N:111:(Silent)
-W:0:5:0:1000
+W:0:75:0:1000
 C:0:0:0:0:0:0:3
 T:30:1:1
 F:STEALTH
 
 
 N:112:of Snares Eluded
-W:10:6:0:1000
+W:10:40:0:1000
 C:0:0:0:0:0:0:0
 T:30:3:3
 F:AVOID_TRAPS | FREE_ACT
@@ -689,7 +698,7 @@ F:AVOID_TRAPS | FREE_ACT
 # (ability 2/5 is Sprinting)
 
 N:113:of Speed
-W:10:4:0:5000
+W:10:33:0:5000
 C:0:0:0:0:0:0:0
 T:30:1:1
 B:2/5
@@ -698,7 +707,7 @@ B:2/5
 # (ability 2/4 is Leaping)
 
 N:114:of Leaping
-W:7:4:0:4000
+W:7:33:0:4000
 C:0:0:0:0:0:0:0
 T:30:1:1
 B:2/4
@@ -711,7 +720,7 @@ N:116:of Treacherous Paths
 W:5:3:18:0
 C:0:0:0:0:0:0:0
 T:30:0:2
-A:5/3:10/7:15/10
+A:5/100:10/50:15/20
 F:DANGER | LIGHT_CURSE
 
 
@@ -722,39 +731,39 @@ F:DANGER | LIGHT_CURSE
 # gloves only
 
 N:120:(Archer's)
-W:2:2:0:1000
+W:2:50:0:1000
 C:0:0:0:0:0:0:3
 T:31:1:1
 F:ARCHERY
 
 
 N:121:of Lorellin
-W:0:4:0:1000
+W:0:75:0:1000
 C:0:0:0:0:0:0:0
 T:31:0:99
-F:MEDIC
+F:MEDIC | NOBLE_ITEM
 
 
 # (ability 2/2 is Parry)
 
 N:122:of Swordplay
-W:4:2:0:2000
+W:4:75:0:2000
 C:0:0:0:0:0:0:0
 T:31:0:99
 B:2/2
 
 
 N:123:of the Ironfists
-W:4:6:0:2000
+W:4:20:0:2000
 C:0:0:0:0:0:0:1
 T:31:2:2
-F:CON | NEG_DEX
+F:CON | NEG_DEX | NOBLE_ITEM
 
 
 # Mithril gauntlets only
 
 N:124:of Might
-W:10:4:0:3000
+W:10:20:0:3000
 C:0:0:0:0:0:0:1
 T:31:3:3
 F:STR
@@ -767,7 +776,7 @@ F:IGNORE_ALL
 # (ability 3/4 is Opportunist)
 
 N:126:of Treachery
-W:4:8:13:0
+W:4:50:13:0
 C:0:0:0:0:0:0:1
 T:31:0:2
 F:STR | LIGHT_CURSE
@@ -779,7 +788,7 @@ B:3/4
 
 
 N:130:(Bright)
-W:1:10:0:1000
+W:1:50:0:1000
 C:0:0:0:0:0:0:0
 T:39:1:2
 T:39:8:8
@@ -796,7 +805,7 @@ F:LIGHT
 
 N:135:(Flickering)
 W:0:1:11:0
-A:5/12:10/0
+A:5/100:10/0
 C:0:0:0:0:0:0:0
 T:39:1:1
 F:UNLIGHT | LIGHT_CURSE
@@ -810,7 +819,7 @@ F:UNLIGHT | LIGHT_CURSE
 # Crude, brutal weapons with jagged edges (orcish/crude weapons)
 
 N:140:(Jagged)
-W:8:6:0:500
+W:8:50:0:500
 C:0:0:1:0:0:0:0
 T:23:7:7
 T:22:11:11
@@ -822,35 +831,37 @@ T:22:13:13
 # Light, well-balanced blades for quick strikes (elven/refined weapons)
 
 N:141:(Nimble)
-W:8:6:0:2000
+W:8:50:0:2000
 C:1:0:0:0:0:0:0
 T:23:4:4
 T:23:10:17
 T:22:1:2
 T:22:12:12
+F:NOBLE_ITEM
 
 
 ##### Amulet Prefixes #####
 
 
-# Amulets (but not 'the Blessed Realm')
+# Only Blessed Realm (sval 5) and bad Morgoth amulets (Haunted Dreams 6, Slave Pits 8, Shadow 9, Orc-captain 10)
+# Excludes normal good amulets (0-4) and Vigilant Eye (7)
 
 N:142:(Starlit)
-W:0:8:0:3000
+W:0:30:0:3000
 C:0:0:0:0:0:0:0
-T:40:0:4
-T:40:6:99
-F:LIGHT | RES_HALLU | RES_BLIND
+T:40:5:6
+T:40:8:10
+F:LIGHT | RES_HALLU | RES_BLIND | NOBLE_ITEM
 
 
 # A cursed amulet that dims the wearer's light
 
 N:143:(Shadowed)
-W:0:5:0:0
+W:0:50:0:0
 C:0:0:0:0:0:0:0
 T:40:0:4
 T:40:6:99
-A:1:0:13:5
+A:1:0:13:50
 F:UNLIGHT | VUL_FIRE | DIF_ID | LIGHT_CURSE
 
 
@@ -863,19 +874,20 @@ N:144:(Tainted)
 W:0:4:0:0
 C:0:0:0:0:0:0:0
 T:45:0:99
-A:1:0:13:5
+A:1:0:13:50
 F:DANGER | HAUNTED | DIF_ID | LIGHT_CURSE 
 
 
 # Rings only - blessed ring (good prefix suggestion)
-# Excludes Cowardice (10) and Bauglir's Vanguard (11)
+# Excludes Cowardice (10), Bauglir's Vanguard (11), and bad Morgoth rings (Angband's Forge 13 through Fell Voices 19)
 
 N:145:(Blessed)
-W:0:8:0:2000
+W:0:30:0:2000
 C:0:0:0:0:0:0:1
 T:45:0:9
-T:45:12:99
-F:SONG | SUST_GRA
+T:45:12:12
+T:45:21:99
+F:SONG | SUST_GRA | NOBLE_ITEM
 
 
 ##### Weapon Prefixes #####
@@ -884,7 +896,7 @@ F:SONG | SUST_GRA
 # Warhammers only
 
 N:146:(Weighted)
-W:8:5:0:1500
+W:8:40:0:1500
 C:-2:0:1:0:0:0:0
 T:21:8:8
 
@@ -892,10 +904,10 @@ T:21:8:8
 # Quarterstaves only
 
 N:147:(Resonant)
-W:10:8:0:3000
+W:10:33:0:3000
 C:0:0:0:0:0:0:2
 T:21:3:3
-F:SONG | SUST_GRA
+F:SONG | SUST_GRA | NOBLE_ITEM
 
 
 # Warhammers only
@@ -912,7 +924,7 @@ F:SMITHING | WILL | BRAND_FIRE
 # The Gaurwaith were the outlaw band of Turin, living by their wits and weapons in the wild.
 
 N:149:of the Gaurwaith
-W:4:5:0:1500
+W:4:75:0:1500
 C:0:0:0:0:0:0:0
 T:23:4:4
 T:22:11:11
@@ -924,9 +936,10 @@ B:0/3
 # The Laiquendi of Ossiriand were masters of woodcraft and camouflage, striking unseen from the forests.
 
 N:150:of Ossiriand
-W:10:6:0:3000
+W:10:20:0:3000
 C:0:0:0:0:0:0:0
 T:23:10:10
+F:NOBLE_ITEM
 B:0/8
 
 
@@ -935,9 +948,9 @@ B:0/8
 # Tirion was the fair city of the Noldor in Aman, where great wisdom and lore were gathered.
 
 N:151:of Tirion
-W:12:8:0:4000
+W:12:30:0:4000
 C:0:0:0:0:0:0:1
 T:21:3:3
 B:5/1
-F:WILL
+F:WILL | NOBLE_ITEM
 

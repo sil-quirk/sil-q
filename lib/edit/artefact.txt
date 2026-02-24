@@ -16,7 +16,7 @@
 # S: spawn stack size (optional; default 1)
 # B: skilltype / abilitynum : ...
 # M: stat/skill bonus token : bonus value
-# W: depth : rarity : weight : cost
+# W: depth : rarity_weight : weight : cost
 # P: attack bonus : damage dice : evasion bonus : protection dice
 # F: flag | flag | etc
 # D: text
@@ -46,8 +46,9 @@
 #     Format: M:STAT_or_SKILL:value. As many M: lines may be used as needed.
 #
 # 'W' is for extra information. Depth is the depth the object is
-#     normally found at, rarity determines how common the object is,
-#     weight is in tenth-pounds and cost is the item's value.
+#     normally found at, rarity_weight determines how heavily it is
+#     weighted when eligible (higher means more common), weight is in
+#     tenth-pounds and cost is the item's value.
 #
 # 'P' is for power information. The item's bonuses to attack and
 #     evasion, as well as its damage and protection dice.
@@ -189,6 +190,8 @@ V:0.9.5
 ## The Ring of Barahir
 ## 1st age
 
+# Smithing difficulty: 43
+
 N:1:of Barahir
 Q:efacae2cc817eff9
 I:45:32:1
@@ -207,25 +210,29 @@ D: most faithful bond between Elves and Men in all the Elder Days.
 
 ## The Ring of Melian
 ## 1st age namesake
-## (ability 5/1 is Channeling)
+## (ability 5/1 is Channeling) 4/5/5 Wraith Bane
+
+# Smithing difficulty: 54
 
 N:2:of Melian
 Q:f380c9eec37c3007
 I:45:30:6
-W:14:30:1:50000
+W:14:20:1:50000
 P:0:0d0:0:0d0
 F:PERCEPTION
 F:INSTA_ART
 B:5/1:4/5/5
-D:A ring that once graced the hand of Melian, a Maia of Yavanna
-D: who dwelt with Thingol in Doriath. Her power wove the Girdle
-D: that kept the realm hidden from all evil. The ring holds an echo
-D: of her foresight, for she alone foresaw the doom of the Silmarils.
+D:A ring that once graced the hand of Melian, a Maia who dwelt in
+D: the gardens of Lorien before she came to Middle-earth and wedded
+D: Thingol in Doriath. Her power wove the Girdle that kept the realm
+D: hidden from all evil, and the ring holds an echo of her foresight.
 
 
 ## The Amulet of Tinfang Gelion
 ## 1st age namesake
 ## (ability 7/11 is Song of Elveness)
+
+# Smithing difficulty: 29
 
 N:3:of Tinfang Gelion
 Q:561368162725be61
@@ -237,12 +244,14 @@ F:INSTA_ART
 B:7/11
 D:A delicate necklace traced with intricate designs, once worn by
 D: Tinfang Gelion, the Piper, a mysterious spirit of the twilight woods.
-D: His flute-playing could bind even the nightingales to silence. To clasp
-D: this amulet fills the heart with memories of heroes and a yearning to sing.
+D: His flute-playing could bind even the nightingales to silence. To wear
+D: this amulet is to hear the echo of Elvish music and long for starlight.
 
 
 ## The Pearl 'Nimphelos' (amulet slot)
 ## 1st age
+
+# Smithing difficulty: 44
 
 N:4:'Nimphelos'
 Q:f4a9bee9fc977959
@@ -264,6 +273,8 @@ D: when the Falathrim sang beneath the stars.
 ## 1st age
 ## (ability 7/3 is Song of Staunching)
 
+# Smithing difficulty: 48
+
 N:5:'Elessar'
 Q:9efe653a53f97ef7
 I:40:16:1
@@ -283,6 +294,8 @@ D: yet to come.
 ## The Necklace of the Dwarves (amulet slot)
 ## 1st age
 
+# Smithing difficulty: 52
+
 N:6:'Nauglamir'
 Q:aa0b792d54a72992
 I:40:12:2
@@ -291,18 +304,20 @@ P:0:0d0:0:0d0
 F:GRA
 M:DEX:1 
 F:INSTA_ART
-D:The Nauglamír; a carcanet of gold set with a multitude of shining gems
-D: of Valinor. Made by the dwarves of Ered Luin for Finrod Felagund, it is
-D: the most renowned work of the Dwarves in the Elder Days, heavy with gold
-D: and bright with jewels, conferring a kingly grace. 
+D:The Nauglamir; a carcanet of gold set with a multitude of shining gems
+D: of Valinor, made by the Dwarves of Ered Luin for Finrod Felagund. It is
+D: the most renowned work of their craft in the Elder Days, and despite its
+D: weight of gold and jewels it lies upon the neck light as a strand of flax.
 
 ## The Ring of Mairon
 ## (ability 3/5 is Vanish)
 
+# Smithing difficulty: 44
+
 N:7:of Mairon
 Q:d5699c25b01bbadc
 I:45:31:3
-W:12:18:1:10000
+W:12:30:1:10000
 P:0:0d0:0:0d0
 F:STEALTH | SONG | UNLIGHT | TRAITOR | SEE_INVIS
 F:INSTA_ART
@@ -319,11 +334,13 @@ D: to wear it is to feel the cold cunning of the Enemy's chief servant.
 ## 1st age
 ## (ability 7/9 is Woven Themes)
 
+# Smithing difficulty: 40
+
 N:8:of Daeron
 Q:d62b22a1d37ec972
 G:]:g
 I:33:11:5
-W:14:30:5:600000
+W:14:20:5:600000
 P:0:0d0:0:1d0
 F:SONG | INSTA_ART
 B:7/9
@@ -337,6 +354,8 @@ D: music for breaking of the heart.'
 ## The Crown of Feanor
 ## (ability 6/3 is Enchantment)
 ## (ability 6/6 is Masterpiece)
+
+# Smithing difficulty: 59
 
 N:9:of Feanor
 Q:9c8638ee3bc2e0cd
@@ -356,10 +375,12 @@ D: well-bought.  For the price could be no other."
 
 ## The Crown of Maedhros
 
+# Smithing difficulty: 57
+
 N:10:of Maedhros
 Q:4dca93d7e5f9681f
 I:33:11:2
-W:8:20:30:30000
+W:8:25:30:30000
 P:0:0d0:0:1d1
 F:WILL | RES_FEAR
 F:DANGER | INSTA_ART | PERMA_CURSE
@@ -374,6 +395,8 @@ D: feels the full measure of his endurance.
 ## The Crown of Felagund
 ## 1st age
 ## (ability 7/18 is Song of Contest)
+
+# Smithing difficulty: 51
 
 N:11:of Felagund
 Q:9410717193cb5f59
@@ -403,42 +426,48 @@ D: It remembers his defiant song and stirs the same courage in its bearer.
 ## The Robe of Andreth
 ## 1st age
 
+# Smithing difficulty: 18
+
 N:20:of Andreth
 Q:61f2dc4d9b137f8d
 I:36:2:2
-W:4:10:30:25000
+W:4:35:30:25000
 P:0:0d0:2:1d0
 F:SONG | SUST_GRA | PERCEPTION
-D:This robe was once worn by Andreth the Wise, a mortal woman of Beor's
-D: House who debated with Finrod Felagund on the fate of Men and Elves.
-D: Though she loved Aegnor and was loved in return, they were sundered
-D: by the doom of their kinds. It is a deep rich green patterned with gold.
+D:A deep green robe patterned with gold, once worn by Andreth the Wise,
+D: a mortal woman of Beor's House who debated with Finrod Felagund on the
+D: fate of Men and Elves. Though she loved Aegnor and was loved in return,
+D: they were sundered by the doom of their kinds. It sharpens the senses.
 
 
 ## The Robe of Aredhel
 ## 1st age
 
+# Smithing difficulty: 27
+
 N:21:of Aredhel
 Q:69dffd266c3288b7
 G:(:w
 I:36:2:1
-W:12:10:30:25000
+W:12:30:30:25000
 P:0:0d0:4:1d0
 F:FREE_ACT | GRA | DANGER
 D:The White Lady of the Noldor once wore this robe, cut of the finest
 D: white cloth and hemmed with silver thread. Aredhel loved to ride and
-D: hunt in the wild lands, until she was ensnared by Eol the Dark Elf
-D: in the shadows of Nan Elmoth, and bore him Maeglin.
+D: hunt in the wild lands, and though Eol ensnared her in Nan Elmoth,
+D: the robe remembers her freedom and quickens the wearer's step.
 
 
 ## The Robe of Idril Celebrindal
 ## 1st age namesake
 #(ability 4/7 is Resonance)
 
+# Smithing difficulty: 39
+
 N:22:of Idril Celebrindal
 Q:e1ce1abd314a6676
 I:36:2:3
-W:18:30:30:25000
+W:18:10:30:25000
 P:0:0d0:0:1d0
 F:SPEED | PERCEPTION
 B:4/7
@@ -454,10 +483,12 @@ D: of Manwe, who watched over the Hidden City from afar.
 ## 1st age namesake
 ## (ability 3/3 is Exchange Places)
 
+# Smithing difficulty: 18
+
 N:24:of Gorlim
 Q:0c356c916543f02e
 I:36:4:0
-W:3:15:70:45000
+W:3:30:70:45000
 P:0:0d0:1:1d5
 F:FEAR
 B:3/3
@@ -473,26 +504,30 @@ D: slain, and this armour has been black with shame ever since.
 ## The Leather Armour of Haldad
 ## 1st age namesake
 
+# Smithing difficulty: 34
+
 N:25:of Haldad
 Q:7559ace339e7a494
 I:36:4:1
-W:6:10:40:45000
+W:6:35:40:45000
 P:0:0d0:0:1d5
 F:STR | RES_FEAR | FREE_ACT
 D:Leather armour worn by Haldad, chieftain of the Haladin and father of
 D: Haleth the Hunter. He fell defending his people when orcs besieged them
-D: in the stockade at the confluence of the Ascar and Gelion. His daughter
-D: took up his mantle and led her folk to safety in Brethil.
+D: in the stockade at the confluence of the Ascar and Gelion. Hardened by
+D: that desperate stand, it lends courage to those who must hold the line.
 
 
 ## The Leather Armour, 'Catskin'
 ## (ability 2/6 is Flanking)
 ## (ability 4/2 is Keen Senses)
 
+# Smithing difficulty: 36
+
 N:26:'Catskin'
 Q:3db8dce4573c9d47
 I:36:4:0
-W:10:12:50:45000
+W:10:30:50:45000
 P:0:0d0:2:1d3
 B:2/6:4/2
 D:Leather armour fashioned from the hide of some great hunting cat of the
@@ -506,10 +541,12 @@ D: a predator's desire to hunt awakening within.
 ## 1st age namesake
 ## (ability 5/4 is Inner Light)
 
+# Smithing difficulty: 19
+
 N:28:of Beor
 Q:0407dffb49b4a27d
 I:36:7:0
-W:8:20:120:35000
+W:8:30:120:35000
 P:0:0d0:-1:1d6
 F:RES_POIS | SUST_GRA
 B:5/4
@@ -525,10 +562,12 @@ D: in the dark places of the world.
 ## 1st age namesake
 ## (ability 4/3 is Concentration)
 
+# Smithing difficulty: 45
+
 N:29:of Aegnor
 Q:dcae44eb6f2391eb
 I:36:7:2
-W:8:10:100:35000
+W:8:30:100:35000
 P:1:0d0:0:1d6
 F:WILL | ARCHERY
 B:4/3
@@ -542,6 +581,8 @@ D: remained forever unfulfilled. This armour lends his fierce determination.
 ## The Galvorn Armour of Maeglin
 ## 1st age
 ## (automatic drop -- don't move)
+
+# Smithing difficulty: 37
 
 N:32:of Maeglin
 Q:809256172b50901d
@@ -566,6 +607,8 @@ D: one day doom the Hidden City.
 ## The Mail Corslet of Fingon
 ## 1st age namesake
 
+# Smithing difficulty: 52
+
 N:34:of Fingon
 Q:f07e8758fb5bdc60
 I:37:4:1
@@ -583,10 +626,12 @@ D: fills the wearer with the courage that defied Morgoth's shadow.
 ## The Mail Corslet of Durin
 ## 1st age namesake
 
+# Smithing difficulty: 12
+
 N:35:of Durin
 Q:882df4c55a64c16e
 I:37:4:0
-W:13:30:280:105000
+W:13:1:280:105000
 P:0:0d0:-2:3d1
 F:RES_FIRE | RES_COLD | REGEN | DEPTH_SCALE_PS
 F:INSTA_ART
@@ -601,10 +646,12 @@ D: the hurts of battle as Durin's line endures through the ages.
 ## The Hauberk of Maedhros
 ## 1st age namesake
 
+# Smithing difficulty: 43
+
 N:36:of Maedhros
 Q:5003ac23ea4cf5ae
 I:37:6:2
-W:13:12:330:105000
+W:13:20:330:105000
 P:-1:0d0:-3:2d6
 F:RES_FIRE | RES_POIS | CON | PERMA_CURSE
 D:A suit of mail once worn by Maedhros, eldest son of Feanor. Stripped from
@@ -617,10 +664,12 @@ D: the full measure of his endurance.
 ## The Hauberk of Amon Rudh
 ## 1st age namesake
 
+# Smithing difficulty: 24
+
 N:37:of Amon Rudh
 Q:baf073f28de85cee
 I:37:6:3
-W:13:10:300:25000
+W:13:30:300:25000
 P:-1:0d0:-3:2d6
 F:STAND_FAST | WILL
 D:A heavy coat of mail from the hill of Amon Rudh, where the Petty-dwarves
@@ -632,10 +681,12 @@ D: stubbornness of that doomed hill, where defiance outlasted hope.
 ## The Mithril Corslet of Finwe
 ## 1st age (Valinor)
 
+# Smithing difficulty: 50
+
 N:38:of Finwe
 Q:d1921f00bca8218e
-I:37:20:3
-W:18:45:150:70000
+I:37:15:3
+W:18:10:150:70000
 P:0:0d0:0:2d5
 F:GRA | ENCHANTABLE
 D:The shining mail of Finwë, first High King of the Noldor, wrought in
@@ -650,6 +701,8 @@ D: Shadow that claimed its bearer.
 ## 1st age
 ## (ability 2/3 is Crowd Fighting)
 
+# Smithing difficulty: 25
+
 N:39:of Gundor
 Q:e69bba03f7491ec1
 I:37:4:1
@@ -657,35 +710,40 @@ W:5:30:350:25000
 P:-1:0d0:-2:2d4
 F:STR
 B:2/3
-D:The mail of Gundor, eldest son of Hador Goldenhead, who fell defending
-D: his lord Fingolfin in the Dagor Bragollach. Though young, he fought
-D: among a host of enemies and slew many before he was overcome. This
-D: corslet grants strength to those who must stand against many foes.
+D:The mail of Gundor, eldest son of Hador Goldenhead, who fell alongside
+D: his father at Eithel Sirion defending the rearguard of Fingolfin in
+D: the Dagor Bragollach. Though young, he slew many before he was overcome.
+D: This corslet grants strength to those who must stand against many foes.
 
 
 ## The Hauberk of Nevrast
 ## 1st age (Vinyamar set)
 # Ability Heavy Armor Use 2:7
+
+# Smithing difficulty: 25
+
 N:40:of Nevrast
 Q:70695395df6f28ec
 I:37:6:0
-W:11:18:500:25000
+W:11:20:500:25000
 P:-2:0d0:-4:2d8
 F:SUST_GRA | SUST_STR
 B:2:7
 D:When Turgon departed Vinyamar in Nevrast, he left this armour, and
-D: strange destiny has led it far from those halls. Its is crafted with a
+D: strange destiny has led it far from those halls. It is crafted with a
 D: double layer of mail, which makes it too heavy for many, but turns
-D: many a blow that might cleave through a lesser suit.
+D: blows that might cleave through a lesser suit.
 
 
 ## The Mithril Corslet 'Starlight'
 ## (ability 7/0 is Song of Elbereth)
 
+# Smithing difficulty: 57
+
 N:41:'Starlight'
 Q:7124e9ac2a2ee593
 I:37:20:3
-W:16:10:120:50000
+W:16:30:120:50000
 P:0:0d0:0:2d5
 F:PERCEPTION | SONG
 B:7/0
@@ -702,10 +760,12 @@ D: close, this mail gleams with their remembered light.
 
 ## The Round Shield of the Bloody Hand
 
+# Smithing difficulty: 39
+
 N:42:of the Bloody Hand
 Q:95a76b3c41240652
 I:34:3:1
-W:8:8:60:25000
+W:8:35:60:25000
 P:0:0d0:0:1d5
 F:STR | DAMAGE_SIDES | TRAITOR
 D:A black shield with scalloped edges, bearing the emblem of a white hand
@@ -718,6 +778,8 @@ D: to it, for those who bore this sign thought nothing of betraying their own.
 ## The Round shield of Glorfindel
 ## 1st age namesake
 ## (ability 0/4 is Charge)
+
+# Smithing difficulty: 34
 
 N:43:of Glorfindel
 Q:0458ebd0894d3b4e
@@ -738,6 +800,8 @@ D: the Valar for his valour.
 ## Sindarin "shield-curse"
 ## (ability 5/0 is Curse Breaking)
 
+# Smithing difficulty: 19
+
 N:44:'Thandrach'
 Q:482251606c98fd7a
 I:34:3:2
@@ -756,11 +820,13 @@ D: one may break the chains that the Enemy lays upon the will.
 ## The Kite Shield of Hador
 ## 1st age namesake
 
+# Smithing difficulty: 41
+
 N:45:of Hador
 Q:e9bb5583356475c3
 G:):r
 I:34:5:1
-W:8:12:110:25000
+W:8:30:110:25000
 P:-2:0d0:0:1d8
 F:RES_FIRE | RES_COLD | STR
 D:The famed shield of Hador Goldenhead, Lord of Dor-lomin and greatest
@@ -772,11 +838,13 @@ D: withstood the fires of Angband and the bitter cold of the North.
 ## The Kite Shield of Fingolfin
 ## 1st age
 
+# Smithing difficulty: 59
+
 N:46:of Fingolfin
 Q:4f697a66b227588e
 G:):b1
 I:34:5:2
-W:13:15:60:25000
+W:13:20:60:25000
 P:0:0d0:0:1d7
 F:DEX | LIGHT
 D:A shining blue shield set with crystals, borne by Fingolfin, High King
@@ -789,11 +857,13 @@ D: and Morgoth went ever after halt of one foot from those wounds.
 ## 1st age namesake
 ## Ability 7/7 Song of Trees, 5/4 Inner Light
 
+# Smithing difficulty: 41
+
 N:47:of Valinor
 Q:24fd840a203880d2
 G:):w
 I:34:10:0
-W:16:12:40:25000
+W:16:25:40:25000
 P:0:0d0:1:1d7
 F:LIGHT
 B:7/7:5/4
@@ -807,11 +877,13 @@ D: feel the peace of the Undying Lands, and their hearts are gladdened.
 ## 1st age (Vinyamar set)
 ## 2/1 Blocking ability
 
+# Smithing difficulty: 29
+
 N:48:of the Swan
 Q:23b24536a89160b3
 G:):b
 I:34:5:2
-W:10:15:70:25000
+W:10:20:70:25000
 P:-2:0d0:0:1d7
 F:WILL | SUST_CON | SUST_DEX
 B:2/1
@@ -829,25 +901,29 @@ D: wearer endurance against the breaking of the heart.
 #Mablung’s Knife (the blade that opened Carcharoth)
 #Ability 4/5/2 Wolf bane
 
+# Smithing difficulty: 23
 N:49:of Mablung
 Q:5b3647df851ca660
 I:23:4:2
-W:6:20:5:25000
+W:6:30:5:25000
 P:+1:1d6:+1:0d0
 F:SLAY_WOLF
 B:4/5/2
-D:The hunting knife of Mablung of Doriath. With this blade he ripped open
-D: the belly of Carcharoth in the dark of the Wolf's-belly, and the Silmaril
-D: was recovered from the beast. Its edge is pitiless against wolves, and
-D: it lends the keen-eyed focus of Doriath's great hunter.
+D:The hunting knife of Mablung of Doriath, captain of Thingol's guard.
+D: After Carcharoth was slain in the Hunting of the Wolf, Mablung cut
+D: the Silmaril from the beast's belly with this blade. Its edge is
+D: pitiless against wolves, and it lends the keen-eyed focus of its master.
 
 #4/5/8 Dragon Bane
 # Azaghâl’s Dragonbane Knife.
 # The dagger with which King Azaghâl wounded Glaurung. Enchanted by the dwarves of Belegost, it protects against dragonfire and bites deep into dragon-flesh.
+
+# Smithing difficulty: 58
+
 N:50:of Azaghal
 Q:6b54c5d5947af589
 I:23:4:0
-W:14:20:5:25000
+W:14:25:5:25000
 P:0:1d7:0:0d0
 F:RES_FIRE | SLAY_DRAGON | SHARPNESS
 B:4/5/8
@@ -863,10 +939,12 @@ D: with dragon-blood and burns with the wrath of Belegost.
 # Design: noble heirloom tool-weapon; survivability/utility over raw damage.
 # Ability 5/5 Indomitable
 
+# Smithing difficulty: 28
+
 N:51:of Turin
 Q:2e2f01e1c4bb7031
 I:23:4:3
-W:7:15:5:15000
+W:7:30:5:15000
 P:+1:1d5:0:0d0
 F:FREE_ACT | WILL
 B:5/5
@@ -877,6 +955,8 @@ D: to be ensnared or held.
 
 ## The Dagger of Nargil
 ## 1st age
+
+# Smithing difficulty: 49
 
 N:52:of Nargil
 Q:e1168ee12ae06dd3
@@ -896,10 +976,12 @@ D: in the songs of those days.
 
 ## The Dagger 'Thorn'
 
+# Smithing difficulty: 33
+
 N:53:'Thorn'
 Q:9e3a620a7a6e9e64
 I:23:4:2
-W:7:20:5:5000
+W:7:30:5:5000
 P:0:1d6:0:0d0
 F:THROWING
 F:BRAND_POIS | STEALTH | VAMPIRIC | HUNGER
@@ -913,10 +995,12 @@ D: bear it grow pale and hungry, yet find their footsteps grow ever lighter.
 ## The Dagger 'Angrist'
 ## 1st age
 
+# Smithing difficulty: 40
+
 N:54:'Angrist'
 Q:ff06d6f02950e2c8
 I:23:4:0
-W:14:4:5:100000
+W:14:15:5:100000
 P:0:1d5:0:0d0
 F:SHARPNESS2
 F:THROWING
@@ -932,10 +1016,12 @@ D: and Morgoth stirred. Even broken, it remains peerless among daggers.
 # The Curved Sword 'Nakh'
 # - added since there were no artefact curved blades
 #
+# Smithing difficulty: 22
+
 N:55:'Nakh'
 Q:7c59e46da39e038e
 I:23:7:2
-W:10:10:60:30000
+W:10:40:60:30000
 P:0:2d6:1:0d0
 F:STR | NEG_GRA | SLAY_MAN_OR_ELF | AGGRAVATE
 D:A cruel curved blade of black iron, forged in the pits of Orodruth in the
@@ -948,10 +1034,12 @@ D: edge drains the wielder's spirit even as it grants fell strength.
 # The Curved Sword 'Agarlhang'
 # - Sindarin "blood-cutlass"
 #
+# Smithing difficulty: 27
+
 N:56:'Agarlhang'
 Q:f743ec132ef30bd5
 I:23:7:-2
-W:8:10:60:30000
+W:8:35:60:30000
 P:0:2d5:1:0d0
 F:VAMPIRIC | LIGHT_CURSE | WILL | PERCEPTION | HUNGER
 M:CON:2
@@ -965,10 +1053,12 @@ D: terrible hunger within them and clouds their mind with red thoughts.
 # Mîm’s Long Knife (Poisoned Runes). 
 # A long knife of the Petty-dwarf Mîm, inscribed with toxic runes. It excels in secretive strikes. Cursed: once wielded, it’s difficult to discard, echoing Mîm’s treacherous doom.
 
+# Smithing difficulty: 38
+
 N:57:of Mim
 Q:630037a7078e37ca
 I:23:10:3
-W:10:10:15:30000
+W:10:35:15:30000
 P:+1:1d7:1:0d0
 F:BRAND_POIS | STEALTH | LIGHT_CURSE
 B:3/1
@@ -983,10 +1073,12 @@ D: people and the treachery that brought their line to ruin.
 ## 1st age namesake
 # Ability 1:5 Versatility
 
+# Smithing difficulty: 26
+
 N:58:of Amrod
 Q:70239c6076a16a6c
 I:23:10:2
-W:8:10:15:15000
+W:8:30:15:15000
 P:1:1d7:1:0d0
 B:1:5
 F:STEALTH | PERCEPTION | PAIRED
@@ -1002,10 +1094,12 @@ D: the hunter's step.
 ## 1st age
 ## Moved to Long Sword
 
+# Smithing difficulty: 55
+
 N:59:'Dagmor'
 Q:ccc03f8fe91d16f5
 I:23:17:1
-W:12:10:15:15000
+W:12:25:15:15000
 P:2:2d6:1:0d0
 F:RES_FEAR | GRA | LIGHT
 M:WILL:3
@@ -1019,10 +1113,12 @@ D: Morgoth. It sheds a pale light that heartens the bearer in dark places.
 ## 1st age namesake
 ## (ability 2/8 is Riposte)
 
+# Smithing difficulty: 28
+
 N:60:of Galadriel
 Q:bdbfd7ba293cb847
 I:23:10:0
-W:9:30:20:30000
+W:9:25:20:30000
 P:0:1d8:3:0d0
 F:SUST_GRA
 B:2/8
@@ -1035,6 +1131,9 @@ D: of her own to rule. The blade remembers both her valour and her sorrow.
 
 # 'Sting' (Elven Knife of Gondolin)
 # 4/5/3 Spider Bane ability
+
+# Smithing difficulty: 44
+
 N:61:'Sting'
 Q:cee0841d40850850
 I:23:10:0
@@ -1052,6 +1151,9 @@ D: fate is woven about it, and it will yet play a part in tales unwritten.
 # A graceful short sword borne by Idril Celebrindal during the Fall of Gondolin. It is light and protective, aiding in swift escapes. 
 # The blade carries an aura of royal Majesty (foes quail to attack the wielder). 
 # Special ability: Song of Elveness 7/11 and Song of Freedom 7/3
+
+# Smithing difficulty: 43
+
 N:62:of Idril
 Q:6f68639f97c67e3a
 I:23:10:1
@@ -1059,20 +1161,22 @@ W:14:20:15:25000
 P:0:1d7:+2:0d0
 B:7/11:7/3
 F:GRA | SUST_GRA | RES_FEAR | FREE_ACT
-D:A slender, gilded sword once wielded by Idril Celebrindal, the Princess 
-D: of Gondolin. Imbued with the grace of the Eldar, it lends courage and 
-D: authority to its bearer. Enemies shy from striking one who carries this 
-D: blade, and no snare or enchantment can easily hold them.
+D:A slender, gilded sword once wielded by Idril Celebrindal, Princess of
+D: Gondolin. She alone foresaw the city's doom and prepared the secret way
+D: of escape. The blade gleams with golden light, lending courage and grace
+D: to its bearer, and no snare or enchantment can easily hold them.
 
 
 ## The Shortsword of Amras
 ## 1st age namesake
 # Ability 1/4 Ambush
 
+# Smithing difficulty: 33
+
 N:63:of Amras
 Q:17173e277d13b237
 I:23:10:2
-W:8:10:15:15000
+W:8:30:15:15000
 P:1:1d7:1:0d0
 B:1/4
 F:STEALTH | PERCEPTION | PAIRED
@@ -1085,6 +1189,8 @@ D: the mastery of two weapons, striking with the swift accord of the twins.
 
 ## The Longsword 'Orcrist'
 ## 1st age
+
+# Smithing difficulty: 39
 
 N:64:'Orcrist'
 Q:5ee28c5262c0629d
@@ -1104,6 +1210,8 @@ D: the lords of Gondolin bore them against the hosts of Morgoth.
 ## The Bastard Sword 'Glamdring'
 ## 1st age
 
+# Smithing difficulty: 48
+
 N:65:'Glamdring'
 Q:ace66e723fa1853c
 I:23:21:2
@@ -1120,6 +1228,8 @@ D: in the Elder Days.
 
 ## The Bastard Sword 'Narsil'
 ## 1st age
+
+# Smithing difficulty: 58
 
 N:66:'Narsil'
 Q:d318979631de5c94
@@ -1138,6 +1248,8 @@ D: written upon it than any tale of the Elder Days may tell.
 
 ## The Longsword 'Aranruth'
 ## 1st age
+
+# Smithing difficulty: 37
 
 N:67:'Aranruth'
 Q:84c03beca3481e17
@@ -1158,11 +1270,13 @@ D: draw peril as surely as it wards off fear.
 ## Star Iron GreatSword 'Anguirel'
 ## 1st age
 
+# Smithing difficulty: 45
+
 N:69:'Anglachel'
 Q:0f4f2f6c9a7c2a12
 G:|:D
 I:23:30:0
-W:18:10:50:130000
+W:18:20:50:130000
 P:0:3d6:1:0d0
 F:DANGER | TRAITOR | LIGHT_CURSE | WILL_DRAIN | SLAY_DRAGON 
 D:The black sword Anglachel, forged by Eol of Nan Elmoth from star-iron.
@@ -1172,10 +1286,12 @@ D: when it is drawn. Many have found that mischance follows where this
 D: blade passes — as though it remembers every death it has dealt.
 
 # Gurthang (Black Sword of Turin)
+# Smithing difficulty: 60
+
 N:70:'Gurthang'
 Q:9439894019d8ad49
 I:23:30:0
-W:20:10:50:80000
+W:20:15:50:80000
 P:0:3d7:1:0d0
 F:SLAY_DRAGON | VAMPIRIC | DANGER | HUNGER | LIGHT_CURSE | TRAITOR | WILL_DRAIN
 B:4/5/8
@@ -1185,11 +1301,13 @@ D: lies upon it: once unsheathed, it must taste blood. The sword’s grim will
 D: fills its master with fearless despair, drawing mighty foes nigh – and 
 D: giving strength to slay them.
 
+# Smithing difficulty: 59
+
 N:71:'Anguirel'
 Q:561e97194377c828
 G:|:D
 I:23:30:2
-W:18:15:50:100000
+W:18:20:50:100000
 P:0:3d6:1:0d0
 F:TRAITOR | STEALTH | PERCEPTION | LIGHT_CURSE | DANGER
 B:3/4
@@ -1203,6 +1321,8 @@ D: in secret made of metal from a star.
 
 ## The Bastard Sword 'Luinmegil'
 ## Sindarin: blue sword
+# Smithing difficulty: 35
+
 N:72:'Luinmegil'
 Q:17e64b10c6cadabb
 G:|:b
@@ -1223,6 +1343,8 @@ D: It strikes swift and true as the sea-birds of that coast.
 ## (automatic drop -- don't move)
 ## Ability Impale 0/7
 
+# Smithing difficulty: 38
+
 N:74:'Glend'
 Q:7ca60848c56a1766
 I:23:25:1
@@ -1241,10 +1363,12 @@ D: it cleaves through armour and bone alike, impaling foes upon its length.
 ## The Greatsword of Saithnar
 ## 1st age
 
+# Smithing difficulty: 28
+
 N:75:of Saithnar
 Q:45bcfed71908e92d
 I:23:25:0
-W:10:15:60:100000
+W:10:20:60:100000
 P:0:3d5:2:0d0
 F:SHARPNESS | SLAY_UNDEAD | HAUNTED | SEE_INVIS | ENCHANTABLE
 D:A greatsword borne by Saithnar, an Elf-lord of the host of Fingolfin who
@@ -1259,11 +1383,13 @@ D: visions of ancient battles and the faces of the restless dead.
 ## and one of the most interesting artefacts in (the game) Angband
 ## (automatic drop -- don't move)
 
+# Smithing difficulty: 68
+
 N:76:'Calris'
 Q:beae903f6ce4c39a
 G:|:r
 I:23:25:1
-W:20:15:110:100000
+W:20:1:110:100000
 P:-5:3d8:1:0d0
 F:CON | BRAND_FIRE | LIGHT
 F:VUL_COLD | LIGHT_CURSE
@@ -1279,10 +1405,12 @@ D: the Valaraukar themselves, cold-killing and terrible to behold.
 ## The Mithril sword 'Celeg Aithorn'
 ## 1st age
 
+# Smithing difficulty: 50
+
 N:80:'Celeg Aithorn'
 Q:1bc2e7bebb53ce64
 I:23:28:0
-W:20:50:20:50000
+W:20:8:20:50000
 P:1:3d4:1:0d0
 F:BRAND_ELEC | SHARPNESS | ENCHANTABLE
 D:A legendary blade of mithril, sung of in the ancient lays of Valinor.
@@ -1296,10 +1424,12 @@ D: leaping falchion, even Celeg Aithorn that shall cleave the world.'
 ## The Mithril Longsword 'Ringil'
 ## 1st age
 
+# Smithing difficulty: 49
+
 N:81:'Ringil'
 Q:60481d9734ec7f44
 I:23:28:1
-W:20:40:20:300000
+W:20:15:20:300000
 P:1:3d4:3:0d0
 F:BRAND_COLD | LIGHT | ENCHANTABLE
 D:The weapon of Fingolfin, High King of the Noldor, who rode alone to
@@ -1313,10 +1443,12 @@ D: bitter cold burns the servants of darkness.
 ##
 ## The Mithril Sword 'Ungoliant's Lament' 
 ##
+# Smithing difficulty: 57
+
 N:82:'Ungoliant's Lament'
 Q:42620c8e830db082
 I:23:28:0
-W:12:20:20:30000
+W:12:25:20:30000
 P:0:3d5:1:0d0
 F:SLAY_SPIDER | LIGHT | FREE_ACT | RES_POIS
 D:A long blade that glows with pale light, its hilt wrapped in red leather.
@@ -1333,6 +1465,8 @@ D: a bane to all who crawled forth from that lightless brood.
 ## The Great Spear of Ingwe
 ## 1st age - War of Wrath
 ## Wielded by Ingwion, son of Ingwe, leader of the Vanyar in the Host of Valinor
+
+# Smithing difficulty: 42
 
 N:83:of Ingwe
 Q:5500fcd97371611e
@@ -1351,10 +1485,12 @@ D: the dark towers of Thangorodrim.
 ## 1st age - Eol's poisoned javelin
 ## In the Silmarillion, Eol threw a poisoned javelin at Maeglin but struck Aredhel
 
+# Smithing difficulty: 23
+
 N:84:of Nan Elmoth
 Q:69606c66c1c7fa8c
 I:22:1:0
-W:14:25:15:45000
+W:14:15:15:45000
 P:2:1d8:0:0d0
 F:BRAND_POIS | THROWING | DARKNESS
 F:LIGHT_CURSE | SUBTLETY_THROW
@@ -1369,10 +1505,12 @@ D: that night. For this murder Eol was cast from Caragdur.
 ## The Spear 'Dugrakh'
 ## Ability Cruel blow 3/2
 
+# Smithing difficulty: 52
+
 N:85:'Dugrakh'
 Q:1df2f87f537baa23
 I:22:1:-1
-W:12:15:25:50000
+W:12:20:25:50000
 P:1:1d11:1:0d0
 F:SLAY_RAUKO | SLAY_MAN_OR_ELF | SEE_INVIS | FREE_ACT
 F:GRA | AGGRAVATE | THROWING | DARKNESS
@@ -1389,6 +1527,8 @@ D: no shadow, for darkness was bound into it at its forging.
 ## The Spear of Boldog
 ## 1st age
 ## (automatic drop -- don't move)
+
+# Smithing difficulty: 29
 
 N:86:of Boldog
 Q:7c7e9467ef42e721
@@ -1411,6 +1551,8 @@ D: remembering their dread captain's wrath.
 ## 1st or 2nd age (not mentioned before 2nd age)
 # 4/5/5 Wraith bane ability
 
+# Smithing difficulty: 49
+
 N:87:'Aeglos'
 Q:5593da7115696f45
 I:22:1:0
@@ -1431,13 +1573,15 @@ D: for its chill brings death to the undead and all fell spirits.
 ## 1st age - House of the Swallow (Nos Duilin)
 ## Forged for the swift warriors who poured missiles upon the Enemy's hosts
 
+# Smithing difficulty: 26
+
 N:88:'Tuilindor'
 Q:104c05d13dbd4f07
 I:22:1:1
 W:10:25:30:20000
 P:2:1d10:0:0d0
 F:DEX | THROWING
-B:3
+S:3
 D:A pack of three perfectly balanced throwing spears, crafted in the secret
 D: forges of Gondolin. They bear the emblem of a swallow in flight, the
 D: sigil of the House of the Swallow, whose lord Duilin was the swiftest of
@@ -1449,6 +1593,8 @@ D: rained death upon the encroaching dark.
 
 ## The Great Spear of Ogbar
 ## 1st age
+
+# Smithing difficulty: 44
 
 N:89:of Ogbar
 Q:54acb59fd73799c0
@@ -1467,11 +1613,13 @@ D: spawn of Ungoliant, and it pierces the thickest spider-hide with ease.
 ## The Great Spear of Melkor
 ## 1st age
 
+# Smithing difficulty: 57
+
 N:90:of Melkor
 Q:029f16601ad85d6e
 G:/:D
 I:22:2:-2
-W:20:40:80:100000
+W:20:8:80:100000
 P:2:1d16:1:0d0
 F:GRA | BRAND_POIS
 M:STR:2
@@ -1488,6 +1636,8 @@ D: feel the cold of the Unlight that once shrouded the land in darkness.
 
 ## The Hand Axe 'Binahkram'
 ## Khuzdul - 'without name'. Haladin misunderstanding.
+
+# Smithing difficulty: 30
 
 N:91:'Binahkram'
 Q:a629c29b94ad02eb
@@ -1506,10 +1656,12 @@ D: deep into orc-flesh and spider-hide alike.
 # The ancestral axe of Durin the Deathless, father of the Dwarves. It bestows the fortitude and courage of Durin’s line. 
 # Its bright head gleams in the dark halls, a comfort against fear.
 
+# Smithing difficulty: 50
+
 N:92:of Durin
 Q:cb741e5a68f137b7
 I:22:12:1
-W:18:30:60:105000
+W:18:10:60:105000
 P:-3:3d6:0:0d0
 F:STR | ACCURATE | MITHRIL
 D:The axe of Durin the Deathless, eldest of the Seven Fathers of the
@@ -1521,6 +1673,8 @@ D: light in hand and bolsters the hearts of those who delve deep.
 
 ## The Battle Axe 'Dramborleg'
 ## 1st age
+
+# Smithing difficulty: 48
 
 N:93:'Dramborleg'
 Q:4e03187e2cfedeeb
@@ -1538,10 +1692,12 @@ D: countless orcs and trolls defending Idril and his son Eärendil.
 ## The Battle Axe of Mothers' Woe
 ## 1st age
 
+# Smithing difficulty: 40
+
 N:94:of Mothers' Woe
 Q:230ed3b186a485d6
 I:22:12:2
-W:15:12:60:90000
+W:15:20:60:90000
 P:-3:3d5:0:0d0
 F:STR | HAUNTED | VAMPIRIC
 D:A dark axe with a wicked and hungry edge, forged in the deepest pits of
@@ -1555,10 +1711,12 @@ D: the slain — mothers weeping over fallen sons in the wars of Beleriand.
 ## The Great Axe of Dolmed
 ## 1st age namesake
 
+# Smithing difficulty: 53
+
 N:95:of Dolmed
 Q:804941f50768ee1b
 I:22:13:2
-W:18:15:110:150000
+W:18:25:110:150000
 P:-3:4d5:0:0d0
 F:SLAY_RAUKO
 F:STR | RES_FIRE
@@ -1573,10 +1731,12 @@ D: blood to face the Balrogs and their kin.
 ## Khuzdul 'that-which-is-written axe'
 ## (ability 5/8 is Vengeance)
 
+# Smithing difficulty: 29
+
 N:96:'Mazarbulbark'
 Q:5840dd2b984f8860
 I:22:13:3
-W:10:15:90:10000
+W:10:25:90:10000
 P:-3:4d4:0:0d0
 F:WILL | SLAY_TROLL
 B:5/8
@@ -1588,26 +1748,31 @@ D: from Angband. It is called 'Mazarbulbark' in the Dwarven tongue, meaning
 D: 'the axe that is written upon', and it fills its wielder with vengeance.
 
 # The Black Axe of Gothmog Special ability: Melee 0/9 "Whirlwind Attack"
+
+# Smithing difficulty: 59
+
 N:97:of Gothmog
 Q:0b69f9fcb6938709
 I:22:13:0
-W:20:40:100:120000
+W:20:8:100:120000
 P:-4:4d7:0:0d0
 B:0/9
 F:BRAND_FIRE | AGGRAVATE | LIGHT_CURSE
 F:VUL_COLD
-D:The immense, blackened steel axe of Gothmog, captain of Angband. Flames
-D: crawl along its edge. It strikes with such force that it can hew down 
-D: many foes in a single great sweep. The weapon burns with an evil will – 
-D: it rouses wrath and noise, and is loath to be put aside.
+D:The immense, blackened steel axe of Gothmog, Lord of Balrogs and High
+D: Captain of Angband. Flames crawl along its edge, and it strikes with
+D: such force that it can hew down many foes in a single sweep. The weapon
+D: burns with an evil will, rousing wrath and noise, loath to be put aside.
 
 ## The Hand Axe of Maeglin
 ## House of the Mole
 
+# Smithing difficulty: 45
+
 N:98:of Maeglin
 Q:541e02a07278fdc6
 I:22:11:1
-W:15:10:20:20000
+W:15:20:20:20000
 P:2:4d3:0:0d0
 F:SHARPNESS | TRAITOR | STAR_IRON | THROWING
 D:A sleek hand axe forged by Maeglin, Lord of the House of the Mole, who
@@ -1620,10 +1785,12 @@ D: promise of Idril. This axe remembers that treachery in its very edge.
 ## The Glaive of Gaurin
 ## 1st age
 
+# Smithing difficulty: 44
+
 N:99:of Gaurin
 Q:1f1d480a59061d97
 I:22:4:3
-W:14:30:80:50000
+W:14:12:80:50000
 P:-1:2d10:1:0d0
 F:TUNNEL | SHARPNESS | ENCHANTABLE
 D:A massive glaive forged by the Dwarves of the Blue Mountains in the years
@@ -1639,6 +1806,8 @@ D: whose gleaming stroke did rive the rocks of Rodrim's hall.'
 ## 1st age namesake
 ## (ability 3/4 is Opportunist)
 ## (ability 0/10 is Zone of Control)
+
+# Smithing difficulty: 27
 
 N:100:of the Sirion
 Q:c91ab059ea160d1a
@@ -1656,10 +1825,12 @@ D: blade flows around defences and strikes where foes least expect.
 ## The Glaive 'Celebrist'
 ## original to Sil
 
+# Smithing difficulty: 45
+
 N:101:'Celebrist'
 Q:3c148901d441f0ac
 I:22:4:1
-W:12:12:50:22000
+W:12:25:50:22000
 P:0:2d10:2:0d0
 F:DEX | FREE_ACT | NEG_CON | MITHRIL | ACCURATE
 D:A glaive of mithril upon a shaft of dark Nan Elmoth wood, forged by the
@@ -1677,10 +1848,12 @@ D: spirit bound within it feeds on the wielder's strength.
 ## 1st age namesake
 ## (ability 7/2 is Song of Freedom)
 
+# Smithing difficulty: 20
+
 N:104:of Halmir
 Q:12c70b837b72dc6c
 I:21:3:1
-W:1:10:40:250000
+W:1:35:40:250000
 P:0:2d5:3:0d0
 F:RES_POIS | WILL
 B:7/12:0/10
@@ -1695,10 +1868,12 @@ D: will against the Shadow.
 ## The Quarterstaff of Turgon
 ## 1st age
 
+# Smithing difficulty: 47
+
 N:105:of Turgon
 Q:b27bd25386ffd110
 I:21:3:3
-W:16:30:50:30000
+W:16:10:50:30000
 P:0:2d5:3:0d0
 F:WILL | GRA
 D:The staff of doom borne by Turgon, King of Gondolin, when he sat upon his
@@ -1712,6 +1887,8 @@ D: Hidden King who defied Morgoth until the very end.
 ## The War Hammer of Telchar
 ## 1st age namesake
 ## (ability 6/5 is Artifice)
+
+# Smithing difficulty: 38
 
 N:107:of Telchar
 Q:6dcfc128b65b235a
@@ -1730,17 +1907,19 @@ D: halls of the Dwarves.
 
 ## The War Hammer of Aule's Wrath
 
+# Smithing difficulty: 59
+
 N:108:of Aule's Wrath
 Q:64071707c6c71002
 I:21:8:2
 W:20:20:70:250000
 P:0:4d2:0:0d0
 F:STR | SLAY_RAUKO | DANGER | AGGRAVATE | ARMOR_SHATTER 
-D:The hammer carried by mighty Rog from Valinor and lost in the retreat
-D: that followed the Dagor Bragollach. Made by Aule in the days
-D: following the destruction of the Two Trees. It has a haft and head of
-D: black iron banded about with red gold and strikes with earth-shattering
-D: force, sundering armour and bone alike.
+D:A hammer wrought by Aulë himself in the days following the destruction
+D: of the Two Trees, and carried from Valinor by mighty Rog, Lord of the
+D: House of the Hammer of Wrath. It has a haft and head of black iron
+D: banded about with red gold and strikes with earth-shattering force,
+D: sundering armour and bone alike.
 
 
 ##### Digging Tools #####
@@ -1748,10 +1927,12 @@ D: force, sundering armour and bone alike.
 ## The Mattock 'Burkfelek'
 ## original to Sil
 
+# Smithing difficulty: 16
+
 N:114:'Burkfelek'
 Q:0e925d2e4ebc303e
 I:20:3:3
-W:35:8:110:30000
+W:35:15:110:30000
 P:-4:6d2:0:0d0
 F:TUNNEL
 D:A mighty Dwarven mattock forged by Gamil Zirak, master smith of Nogrod and
@@ -1768,10 +1949,12 @@ D: delved by this tool, and many the foes it has broken.
 ## The Helm of Angrod
 ## 7/8 Song of Revealing
 
+# Smithing difficulty: 25
+
 N:117:of Angrod
 Q:e5b985e791d87213
 I:32:5:0
-W:8:12:45:4500
+W:8:25:45:4500
 P:0:0d0:0:1d3
 B:7/8
 F:RES_COLD | REGEN
@@ -1785,26 +1968,30 @@ D: places and the courage needed to face the terror of Morgoth's flames.
 ## 1st age namesake
 ## (ability 3/1 is Assassination)
 
+# Smithing difficulty: 36
+
 N:118:of Curufin
 Q:da59d9a9973c610b
 I:32:5:4
-W:14:15:35:45000
+W:14:30:35:45000
 P:0:0d0:0:1d2
 F:STEALTH | DANGER | PERMA_CURSE
 M:SMITHING:1
 B:3/1:3/2
 D:A helm worn by Curufin, fifth son of Feanor and most like his father
 D: in skill of hand and cunning of mind. He was a master smith, yet his
-D: scheming brought ruin to Finrod's realm. The helm grants keen perception,
-D: but echoes of his treacherous counsel cling to it still.
+D: scheming brought ruin to Finrod's realm. The helm sharpens the wearer's
+D: craft and guile, but its treacherous whispers can never be silenced.
 
 ## The Helm of the Oathbreaker
 ## (ability 5/8 is Vengeance)
 
+# Smithing difficulty: 21
+
 N:119:of the Oathbreaker
 Q:fef42b5664300761
 I:32:5:0
-W:8:12:15:45000
+W:8:35:15:45000
 P:0:0d0:0:1d4
 F:TRAITOR | LIGHT_CURSE | OATH_NEGATE
 B:5/8
@@ -1818,10 +2005,12 @@ D: sway over one who wears it.
 ## The Great Helm of Dor-Lomin
 ## 1st age
 
+# Smithing difficulty: 57
+
 N:120:of Dor-Lomin
 Q:78709ce76f94ccd0
 I:32:6:2
-W:20:15:90:300000
+W:20:25:90:300000
 P:0:0d0:-1:1d4
 F:STR | RES_FEAR | RES_STUN
 M:WILL:3
@@ -1835,6 +2024,7 @@ D: the spirit of the great worm Glaurung looked out from its eyes.
 ## The Great Helm of Utumno
 ## age of the lamps namesake
 
+# Smithing difficulty: 28
 N:121:of Utumno
 Q:934b7cc796cf8d65
 G:]:D
@@ -1855,19 +2045,20 @@ D: and will, yet bends the wearer's purpose toward its first dark master.
 ## The Dwarf Mask of the Dwarrowdelf
 ## (ability 7/2 is Song of Delvings, 6/8 Alloy Mastery)
 
+# Smithing difficulty: 37
+
 N:122:of the Dwarrowdelf
 Q:44b1c756d39a54ba
 I:32:7:2
-W:10:10:70:6000
+W:10:20:70:6000
 P:0:0d0:-1:1d3
 F:WILL | MITHRIL
 B:6/8:7/2
-D:A great helm of Dwarvish make, wrought deep beneath the mountains in the
-D: style of Khazad-dum, with curving horns of black iron and a face-guard
-D: hammered into a stern and defiant visage. The Dwarves of Durin's folk
-D: crafted such masks in the deeps, for they were pride-stiff even when the
-D: darkness pressed close. When Morgoth's hosts descended upon Belegost, the
-D: Dwarven smiths sang songs of vengeance, and none fled.
+D:A great helm of Dwarvish make, wrought deep in Khazad-dum with curving
+D: horns of black iron and a face-guard hammered into a stern and defiant
+D: visage. The Dwarves of Durin's folk crafted such masks in the deeps, for
+D: they were pride-stiff even when the darkness pressed close. When the hosts
+D: of Angband marched south, the Dwarves donned such helms and none fled.
 
 
 ## Mithril Helm of Ecthelion
@@ -1875,11 +2066,13 @@ D: Dwarven smiths sang songs of vengeance, and none fled.
 ## added for Psi -- our first great smith
 ## (ability 7/12 is Song of Staying)
 
+# Smithing difficulty: 47
+
 N:123:of Ecthelion
 Q:799e45f6a345a4eb
 G:]:w
 I:32:8:2
-W:16:12:40:25000
+W:16:25:40:25000
 P:1:0d0:0:1d4
 F:SONG | RES_FEAR
 B:4/5/6:7/12
@@ -1891,10 +2084,12 @@ D: still echoes with the music of falling water.
 
 ## Ability 4/7 - Resonance
 
+# Smithing difficulty: 35
+
 N:124:of Vinyamar
 Q:6f708192a3b4c5d6
 I:32:6:3
-W:12:18:95:55000
+W:12:20:95:55000
 P:0:0d0:-1:1d5
 F:RES_FEAR | PERCEPTION
 B:4/7
@@ -1912,12 +2107,14 @@ D: for it was touched by the will of Ulmo himself.
 ## 1st age
 ## Part of the Panoply of Earendil
 
+# Smithing difficulty: 33
+
 N:125:'Falchrist'
 Q:7e3a91f4c6b20d58
-I:23:17:1
-W:18:20:30:50000
-P:1:2d6:1:0d0
-F:SLAY_DRAGON | RES_FEAR | LIGHT | WILL
+I:23:17:3
+W:14:20:30:50000
+P:1:2d6:2:0d0
+F:SLAY_DRAGON | RES_FEAR | WILL
 D:'His sword of steel was valiant.' A keen-edged longsword from the Havens
 D: of Sirion, whose name means 'Foam-cleaver' in the tongue of the Sindar.
 D: When Earendil armed himself for the great voyage, this was the blade
@@ -1931,32 +2128,37 @@ D: Ancalagon the Black above the towers of Thangorodrim.
 ## Part of the Panoply of Earendil
 ## 2/1 Blocking
 
+# Smithing difficulty: 54
+
 N:126:'Tirthand'
 Q:d4f8a2e1b9c37065
-I:34:5:1
-W:18:20:80:35000
+I:34:10:1
+W:16:20:80:35000
 P:0:0d0:0:1d7
-F:RES_BLEED | WILL
+F:RES_BLEED | WILL | MEDIC | REGEN
 B:2/1
 D:'His shining shield was scored with runes to ward all wounds and harm from
-D: him.' A kite shield of ancient make, its face inscribed with runes of
-D: warding wrought by the loremasters of the Havens of Sirion. Its name
-D: means 'Warding Shield' in the Sindarin tongue. The runes are words of
-D: staying and protection drawn from the deep lore the Noldor brought out
-D: of the West. Earendil bore it when he sailed in Vingilot to plead before
-D: the Valar.
+D: him.' A shield of mithril, the true silver, its face bright as starlight
+D: and inscribed with runes of warding by the loremasters of the Havens of
+D: Sirion. The mithril was brought from Khazad-dum, traded westward by the
+D: Dwarves through Ered Luin. Its name means 'Warding Shield' in Sindarin.
+D: The runes are words of staying and protection drawn from the deep lore
+D: the Noldor brought out of the West. Earendil bore it when he sailed in
+D: Vingilot to plead before the Valar.
 
 
 ## The Mithril Corslet 'Gilceleb' (Star-silver)
 ## 1st age
 ## Part of the Panoply of Earendil
 
+# Smithing difficulty: 54
+
 N:127:'Gilceleb'
 Q:b5e9d0c8a7f61324
 I:37:20:1
-W:18:20:150:55000
-P:0:0d0:0:2d5
-F:GRA | SUST_GRA | FREE_ACT
+W:15:20:150:55000
+P:0:0d0:0:2d6
+F:GRA | SUST_GRA | FREE_ACT | WILL
 D:'Of silver was his habergeon.' A corslet of mithril chain, the true silver
 D: of the Eldar, light and supple as water yet proof against any edge. Its
 D: rings shine like stars upon the sea, and the Eldar of Avernien named it
@@ -1968,15 +2170,17 @@ D: craft of both Gondolin and Doriath in its making.
 ## The Great Helm 'Thoronthaul' (Eagle-helm)
 ## 1st age
 ## Part of the Panoply of Earendil
-## 4/2 Keen Senses
+## 4/2 Keen Senses, 5/2 Strength in Adversity
+
+# Smithing difficulty: 39
 
 N:128:'Thoronthaul'
 Q:c6f2a3d9e8b40751
-I:32:6:1
-W:18:20:80:45000
+I:32:6:2
+W:12:20:80:45000
 P:0:0d0:-1:1d4
-F:RES_FEAR | PERCEPTION
-B:4/2
+F:PERCEPTION | WILL
+B:4/2:5/2
 D:'Of adamant his helmet tall, an eagle-plume upon his crest.' A great helm
 D: wrought of adamant, so hard that no blade could mar its surface. Upon its
 D: crest rises a plume fashioned in the likeness of an eagle's wing, in
@@ -1989,14 +2193,16 @@ D: servants of the Enemy quailed before its terrible visage.
 ## 1st age
 ## Part of the Panoply of Earendil
 
+# Smithing difficulty: 25
+
 N:129:'Mornpilin'
 Q:a8d1e5f3b7c29046
 G:-:D
-I:17:1:0
-S:6
-W:18:20:1:15000
-P:+4:0d0:0:0d0
-F:SLAY_DRAGON | SHARPNESS
+I:17:1:2
+S:24
+W:16:20:1:15000
+P:+5:0d0:0:0d0
+F:SLAY_DRAGON | SHARPNESS | WILL
 D:'His arrows shorn of ebony.' Arrows fashioned from the heartwood of
 D: ebony, black and heavy, shorn to a keen edge and fletched with dark
 D: feathers. The Eldar of the Havens called them 'Mornpilin', the Dark
@@ -2012,11 +2218,13 @@ D: brought ruin upon the dragon-host above Beleriand.
 ## 1st age namesake
 ## (ability 7/19 is Song of Lament)
 
+# Smithing difficulty: 27
+
 N:131:of Maglor
 Q:9f001e6ddf8f0db2
 G:(:b
 I:35:1:3
-W:15:30:20:35000
+W:15:10:20:35000
 P:0:0d0:2:0d0
 F:SONG | PERMA_CURSE
 B:7/19
@@ -2029,6 +2237,8 @@ D: the shores still, and his songs of sorrow echo in this garment.
 
 ## The Cloak of Thingol
 ## 1st age
+
+# Smithing difficulty: 45
 
 N:132:of Thingol
 Q:f223c5778091737b
@@ -2044,6 +2254,8 @@ D: music of Ulmo by the waters of Cuiviénen and was moved to a wonder none
 D: could match. How this cloak passed from Doriath into the wider world, none
 D: can say. It bears the silver-grey of the beech forests beneath the Girdle,
 D: and its folds ward against flame and frost alike.
+
+# Smithing difficulty: 56
 
 N:133:of Ulmo
 Q:8192a3b4c5d6e7f8
@@ -2065,23 +2277,27 @@ D: cold of deep places.
 ## 1st age
 ## (ability 7/13 is Song of Disguise)
 
+# Smithing difficulty: 50
+
 N:134:of Luthien
 Q:c3b8dbdc3f360c7d
 I:35:6:4
-W:13:10:10:45000
+W:13:25:10:45000
 P:0:0d0:4:0d0
 F:STEALTH | SUST_GRA
 B:7/13
 D:A shadowy cloak woven by Luthien Tinuviel from her own dark hair, which
 D: grew past her heels. With this garment and her enchanting song she cast
-D: Morgoth himself into slumber in the depths of Angband. She was the most
-D: beautiful being who ever knew death, for she chose mortality for love.
+D: Morgoth himself into slumber in the depths of Angband. Its folds deepen
+D: the shadows around the wearer and lull the watchful into sleep.
 
 
 ## The Wolf-Hame of Draugluin
 ## 1st age
 ## (automatic drop -- don't move)
 ## (ability 3/0 is Disguise)
+
+# Smithing difficulty: 36
 
 N:137:of Draugluin
 Q:08bf3f716e6bae68
@@ -2103,6 +2319,8 @@ D: gates of Angband, and its dread shape may still deceive the Enemy.
 ## (automatic drop -- don't move)
 ## (ability 3/0 is Disguise)
 
+# Smithing difficulty: 33
+
 N:138:of Thuringwethil
 Q:f807c25435fc4111
 I:35:21:2
@@ -2113,8 +2331,8 @@ F:STEALTH
 F:EASY_ID | INSTA_ART
 D:The winged cloak of Thuringwethil, the vampire-messenger of Sauron who
 D: flew between Angband and Tol-in-Gaurhoth. Luthien wore this fell garment
-D: to enter the throne room of Morgoth himself. With its great black wings,
-D: might it let you pass as a messenger journeying to the Dark Lord?
+D: to enter the throne room of Morgoth himself. Its great black wings still
+D: hold dark power, and servants of the Enemy may mistake its wearer for kin.
 
 
 ##### Bows #####
@@ -2122,27 +2340,31 @@ D: might it let you pass as a messenger journeying to the Dark Lord?
 ## The Shortbow of Celegorm
 ## (ability 1/3 is Ambush, 4/8 Master Hunter)
 
+# Smithing difficulty: 36
+
 N:142:of Celegorm
 Q:c0f5aa949a70ac3b
 I:19:12:-1
-W:10:15:20:9000
+W:10:25:20:9000
 P:2:1d9:0:0d0
 F:GRA | PERMA_CURSE | NEG_DEX
 B:1/3:4/8
 D:The bow of Celegorm the Fair, third son of Feanor, who in the days of
 D: Valinor hunted with Orome the Great. The Vala gifted him Huan, the
-D: Hound of Valinor. Though Celegorm's path led to darkness, this bow
-D: remembers the glory of those hunts beneath the light of the Trees.
+D: Hound of Valinor. But the Oath drove Celegorm to terrible deeds, and
+D: the bow clings to its bearer as the curse clung to him.
 
 
 ## The Shortbow 'Death's Sting'
 ## Original to Sil
 ## (ability 1/6 is Crippling Shot)
 
+# Smithing difficulty: 17
+
 N:143:'Death's Sting'
 Q:a5a2e301a3a95bc8
 I:19:12:0
-W:5:10:10:9000
+W:5:30:10:9000
 P:1:1d8:0:0d0
 B:1/6
 D:A shortbow crafted in Doriath by the hunters who served under Beleg
@@ -2156,6 +2378,8 @@ D: it 'Death's Sting' for the way its arrows found their mark unerringly.
 
 ## The Longbow 'Belthronding'
 ## 1st age
+
+# Smithing difficulty: 48
 
 N:145:'Belthronding'
 Q:792beedcd8af6104
@@ -2175,10 +2399,12 @@ D: own hand. When paired with Dailir, the bow's power awakens fully.
 ## Sindar "bent-wood"
 ## Original to Sil
 
+# Smithing difficulty: 39
+
 N:146:'Tawarcun'
 Q:aad12cd72387f68d
 I:19:13:0
-W:10:15:20:3500
+W:10:25:20:3500
 P:2:2d5:0:0d0
 F:FREE_ACT | ACCURATE
 D:A longbow of Sindarin craft, its name meaning 'Bent-wood' in that tongue.
@@ -2189,10 +2415,12 @@ D: arrows fly straight and swift, unhindered by enchantment or shadow.
 
 # Longbow of the Heavenly Arch 
 
+# Smithing difficulty: 33
+
 N:147:of the Heavenly Arch
 Q:8c9a35404b9ef6bb
 I:19:13:1
-W:15:20:30:40000
+W:15:25:30:40000
 P:1:2d5:0:0d0
 F:DEX | LIGHT
 D:A tall longbow painted in many bright hues, crafted by the House of the
@@ -2208,13 +2436,15 @@ D: steady, and each shot flies where a deft will sends it.
 ## Part of the Panoply of Earendil
 ## 4/5/8 Dragon Bane
 
+# Smithing difficulty: 53
+
 N:148:'Amlugrist'
 Q:4a5fc05927236048
-I:19:14:0
-W:20:20:50:35000
+I:19:14:2
+W:19:20:50:35000
 P:1:4d4:0:0d0
 B:4/5/8
-F:RADIANCE | RES_FEAR | RES_CONFU | RES_STUN | RES_HALLU | SLAY_DRAGON
+F:RADIANCE | RES_CONFU | RES_STUN | RES_HALLU | WILL
 D:'His bow was made of dragon-horn.' A great bow fashioned from the horn of
 D: a slain dragon in the Havens of Sirion, where the remnants of Gondolin
 D: and Doriath gathered after those realms fell. Its name means
@@ -2229,11 +2459,13 @@ D: it wards the mind against fear and confusion, a last gift of a dying age.
 ## The Arrow 'Dailir'
 ## 1st age
 
+# Smithing difficulty: 37
+
 N:150:'Dailir'
 Q:e8840ae097bbec79
 G:-:u
 I:17:1:0
-W:10:40:1:20000
+W:10:15:1:20000
 P:+12:0d0:0:0d0
 D:The unerring arrow of Beleg Cuthalion, greatest archer of the Sindar.
 D: 'Dailir' means 'the Returner', for this arrow would always be found
@@ -2243,6 +2475,8 @@ D: above all his arrows. When loosed from Belthronding, its power is greatest.
 ##### Boots #####
 
 ## The Pair of Boots of Finrod
+
+# Smithing difficulty: 52
 
 N:154:of Finrod
 Q:22a000d1c9cd4749
@@ -2261,10 +2495,12 @@ D: them pass through battle as a dance and slip free of any binding.
 ## The Pair of Boots of Taur-nu-fuin
 ## (ability 4/8 is Master Hunter)
 
+# Smithing difficulty: 38
+
 N:155:of Taur-nu-Fuin
 Q:5117e067a79503a3
 I:30:1:2
-W:12:15:20:25000
+W:12:25:20:25000
 P:0:0d0:1:1d1
 F:STEALTH | PERCEPTION
 B:4/8
@@ -2281,10 +2517,12 @@ D: carry some charm against the forest's spite.
 ## (ability 2/0 is Dodging)
 ## (ability 3/5 is Vanish)
 
+# Smithing difficulty: 25
+
 N:156:of the Mole
 Q:d16df76845463ad1
 I:30:1:0
-W:5:10:15:25000
+W:5:30:15:25000
 P:0:0d0:1:1d2
 B:3/5:2/0
 D:Boots bearing the insignia of the House of the Mole, whose lord was
@@ -2296,6 +2534,8 @@ D: moleskin, and their wearer moves silent as shadow through the deep.
 
 
 ## The Pair of Greaves of Orodreth
+
+# Smithing difficulty: 31
 
 N:158:of Orodreth
 Q:b652ae5e70d86207
@@ -2313,10 +2553,12 @@ D: of Dragons brought upon the Hidden Kingdom of the Narog.
 
 ## The Pair of Greaves of the Helcaraxe
 
+# Smithing difficulty: 32
+
 N:159:of the Helcaraxe
 Q:3e6e5a5754c18458
 I:30:2:0
-W:10:20:80:12000
+W:10:25:80:12000
 P:0:0d0:0:1d3
 F:RES_COLD | REGEN
 F:SUST_STR | SUST_CON | SUST_DEX | SUST_GRA
@@ -2331,10 +2573,12 @@ D: carry the endurance of that terrible journey.
 ## The Pair of Greaves of Caranthir
 ## (ability 0/5 is Charge)
 
+# Smithing difficulty: 36
+
 N:160:of Caranthir
 Q:7c3f4a89d2e617b5
 I:30:2:1
-W:10:15:80:30000
+W:10:25:80:30000
 P:0:0d0:-1:1d3
 F:STR | RES_FIRE
 B:0/5
@@ -2351,10 +2595,12 @@ D: something of his furious heat.
 ## The Set of Gloves of the Swallow
 ## (ability 1/1 is Fletchery)
 
+# Smithing difficulty: 24
+
 N:161:of the Swallow
 Q:b24231154ce8a61a
 I:31:1:2
-W:5:12:5:36000
+W:5:40:5:36000
 P:1:0d0:0:1d0
 F:ARCHERY
 B:1/1
@@ -2371,10 +2617,12 @@ D: the archer's hands and guide each shaft to its mark.
 ## 1st age namesake
 ## (ability 6/4 is Expertise)
 
+# Smithing difficulty: 19
+
 N:162:of Celebrimbor
 Q:3647fb472c02b95f
 I:31:1:2
-W:10:40:5:36000
+W:10:10:5:36000
 P:0:0d0:0:1d0
 B:6/4
 F:SMITHING
@@ -2389,10 +2637,12 @@ D: grant steady hands for the finest craft.
 ## The Set of Gloves of Rumil
 ## (ability 0/8 is Subtlety)
 
+# Smithing difficulty: 37
+
 N:163:of Rumil
 Q:5260771238db2cd0
 I:31:1:1
-W:14:25:5:36000
+W:14:22:5:36000
 P:0:0d0:0:1d0
 F:GRA | DEX | ENCHANTABLE
 B:0/8
@@ -2405,6 +2655,8 @@ D: lending precision and subtlety to the wearer's every motion.
 ## The Set of Gauntlets 'Azdulag'
 ## (ability 0/2 is Knockback)
 
+
+# Smithing difficulty: 31
 
 N:165:'Azdulag'
 Q:a744f49476fcf856
@@ -2423,10 +2675,12 @@ D: as if hungering for the darkness of the pits where they were forged.
 
 ## The Set of Gauntlets of Bregolas
 
+# Smithing difficulty: 48
+
 N:166:of Bregolas
 Q:3495ef72dbe6115a
 I:31:2:0
-W:12:10:60:40000
+W:12:30:60:40000
 P:2:0d0:1:1d2
 F:RES_COLD
 D:The fur-lined gauntlets of Bregolas, Lord of Ladros in Dorthonion and
@@ -2440,10 +2694,12 @@ D: against the bitter cold of Dorthonion's high places.
 ## The Mithril Gauntlets 'Silverhand'
 ## (ability 6/2 is Jeweller)
 
+# Smithing difficulty: 36
+
 N:167:'Silverhand'
 Q:5ecfd5fa6ea58cc3
 I:31:3:1
-W:15:15:10:20000
+W:15:20:10:20000
 P:1:0d0:0:1d2
 F:DEX | SMITHING
 B:6/2
@@ -2458,10 +2714,12 @@ D: fingers were made of living silver.
 ## The Set of Gauntlets of Caranthir
 ## (ability 0/0 is Power)
 
+# Smithing difficulty: 37
+
 N:168:of Caranthir
 Q:e91d2b56a8f03c47
 I:31:2:1
-W:10:15:50:35000
+W:10:25:50:35000
 P:0:0d0:-1:1d2
 F:STR | RES_FIRE
 B:0/0
@@ -2478,11 +2736,13 @@ D: and they burn with the heat of their master's unquenchable wrath.
 ## 1st age (Valinor)
 ## 5/4 Ability Inner Light
 
+# Smithing difficulty: 18
+
 N:170:of Miriel
 Q:81f61a429522d178
 G:*:o
 I:39:2:2
-W:1:15:1:10000
+W:1:20:1:10000
 P:0:0d0:0:0d0
 F:LIGHT
 B:5/4
@@ -2497,6 +2757,8 @@ D: of her hands and the light of the Trees under which she laboured.
 ## The Feanorian Lamp of Finwe
 ## 1st age (Valinor)
 
+# Smithing difficulty: 42
+
 N:171:of Finwe
 Q:a7c3d925e8f14b62
 G:~:B
@@ -2510,8 +2772,8 @@ D: Laurelin and Telperion, it was among the treasures kept at Formenos
 D: during Fëanor's exile. When Morgoth came with Ungoliant, Finwë fell
 D: defending his son's hoard, but this lamp escaped the Unlight. Its
 D: radiance pierces shadow and frees the bearer from ensnaring bonds,
-D: and its holy light can break the Oath of Feanor that binds cursed
-D: items.
+D: and its holy light unravels even the darkest curses laid upon the
+D: works of the Enemy.
 
 
 ##### Morgoth Artefacts #####
@@ -2589,6 +2851,7 @@ D: of the world. To cut a Silmaril from the crown, stand over it and press (k).
 ## 1st age
 ## (automatic drop -- don't move)
 
+# Smithing difficulty: 35
 N:179:'Grond'
 Q:6005d4f5148dcefc
 I:21:50:3

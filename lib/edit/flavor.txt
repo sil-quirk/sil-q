@@ -139,6 +139,26 @@ G:=:w
 T:2:19
 D:Pearl
 
+N:22:45
+G:=:s
+T:2:9
+D:Agate
+
+N:23:45
+G:=:o
+T:2:5
+D:Jasper
+
+N:24:45
+G:=:R
+T:2:11
+D:Carnelian
+
+N:25:45
+G:=:B
+T:2:14
+D:Zircon
+
 #N:20:45
 #G:=:B
 #D:Mithril
@@ -225,7 +245,12 @@ G:":B1
 T:4:10
 D:Sea Shell
 
-#N:56:40
+N:56:40
+G:":G
+T:4:11
+D:Malachite
+
+#N:57:40
 #G:":B
 #D:Mithril
 

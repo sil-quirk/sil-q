@@ -2200,8 +2200,8 @@ static errr init_alloc(void)
                 /* Extract the base level */
                 x = k_ptr->locale[j];
 
-                /* Extract the base probability */
-                p = (100 / k_ptr->chance[j]);
+                /* Extract the base probability (direct rarity weight) */
+                p = k_ptr->chance[j];
 
                 /* Skip entries preceding our locale */
                 y = (x > 0) ? num[x - 1] : 0;
@@ -2282,8 +2282,8 @@ static errr init_alloc(void)
             /* Extract the base level */
             x = r_ptr->level;
 
-            /* Extract the base probability */
-            p = (100 / r_ptr->rarity);
+            /* Extract the base probability (direct rarity weight) */
+            p = r_ptr->rarity;
 
             /* Skip entries preceding our locale */
             y = (x > 0) ? num[x - 1] : 0;
@@ -2360,8 +2360,8 @@ static errr init_alloc(void)
             /* Extract the base level */
             x = e_ptr->level;
 
-            /* Extract the base probability */
-            p = (100 / e_ptr->rarity);
+            /* Extract the base probability (direct rarity weight) */
+            p = e_ptr->rarity;
 
             /* Skip entries preceding our locale */
             y = (x > 0) ? num[x - 1] : 0;

@@ -424,8 +424,9 @@ B:WHIP:DISARM:(+8,1d4)
 F:MALE | OPEN_DOOR | BASH_DOOR | SPECIAL_GEN
 F:ORC | HURT_LITE | SMART | UNLOCK_DOOR | TERRITORIAL
 F:HAS_WEAPON | HAS_ARMOUR
-D:He is one of Morgoth's grim mockeries of the firstborn.
-D: Clad in tattered leather, he wields a cudgel and a whip.
+D:A brutish orc set to oversee the wretched thralls who labour
+D: in Morgoth's mines. He wields a cudgel and a whip with equal
+D: cruelty, and takes pleasure in the suffering of his charges.
 
 # Can't move from idx 16 for dungeon generation reasons
 N:16:Alert human thrall
@@ -509,8 +510,9 @@ B:HIT:HURT:(+2,2d6)
 F:MALE | DROP_33 | OPEN_DOOR
 F:ORC | HURT_LITE | SMART | FRIEND
 F:HAS_WEAPON | HAS_ARMOUR
-D:He is one of Morgoth's grim mockeries of the firstborn.
-D: He has little armour but carries a cruel blade.
+D:A wretched creature clad in scraps of leather, barely armed but vicious
+D: in its desperation. These lesser soldiers are sent ahead of the host to
+D: test defences and harry the unwary with their crude blades.
 
 
 N:22:Grimhawk
@@ -562,9 +564,10 @@ F:ORC | HURT_LITE | SMART
 F:HAS_WEAPON | HAS_ARMOUR
 S:SPELL_PCT_20
 S:SHRIEK
-D:He is one of Morgoth's grim mockeries of the firstborn.
-D: The miserable creature tries to stay away from you and
-D: attract attention. It has a crude spear.
+D:Quick-eyed and furtive, this orc moves through the dark tunnels with
+D: practised stealth, watching for intruders. If it spots you, it will
+D: shriek to alert every foul creature within earshot before slinking
+D: away into the shadows.
 
 
 # Can't move from idx 32, used by monster ability HATCH_SPIDER
@@ -596,8 +599,9 @@ F:SERPENT | RAND_50
 F:RES_COLD | HURT_FIRE
 S:SPELL_PCT_20 | POW_2
 S:BRTH_COLD
-D:A snake the length of a man, with hard blue scales.
-D: There is a chill in the air around it.
+D:A serpent the length of a man, armoured in hard blue scales that
+D: glitter like ice. A bitter chill clings to the air around it, and
+D: frost forms where its coils have rested on the stone.
 
 
 ##### 4 #####
@@ -683,8 +687,10 @@ F:ORC | HURT_LITE | SMART
 F:HAS_WEAPON | HAS_ARMOUR
 S:SPELL_PCT_75 | POW_6
 S:ARROW1
-D:He is one of Morgoth's grim mockeries of the firstborn.
-D: He carries a crude sword and bow.
+D:An orc trained in the use of the short bow, a weapon copied crudely from
+D: the Eldar. He looses his arrows from the safety of darkness, and though
+D: his aim lacks the grace of the firstborn, numbers and malice make up
+D: for what skill does not.
 
 
 N:52:White wolf
@@ -715,8 +721,9 @@ F:SERPENT | RAND_50
 F:RES_FIRE | HURT_COLD
 S:SPELL_PCT_20 | POW_2
 S:BRTH_FIRE
-D:A snake the length of a man, with hard red scales.
-D: The air around it shimmers with heat.
+D:A serpent the length of a man, clad in scales of dull red that
+D: radiate a fierce heat. The air around it shimmers and warps, and
+D: the stone beneath its belly is scorched dark where it has lain.
 
 
 N:54:Gorgol, the Butcher
@@ -754,8 +761,9 @@ F:MALE | DROP_33 | OPEN_DOOR | BASH_DOOR
 F:ORC | HURT_LITE | FRIEND | SMART
 F:HAS_WEAPON | HAS_ARMOUR
 F:CHARGE
-D:He is one of Morgoth's grim mockeries of the firstborn.
-D: He wears hardened leathers and runs towards you with axe in hand.
+D:Larger and more ferocious than the common orc, this warrior has
+D: survived the brutal training pits of Angband. He charges headlong
+D: into battle with a heavy axe, his snarl baring iron-capped teeth.
 
 
 N:62:Sword spider
@@ -805,9 +813,9 @@ F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | FRIEND
 S:SPELL_PCT_50
 S:DIM
 D:A faded presence that perhaps once was man or elf, now bound to
-D: the world of shadow by Morgoth's necromancy. It moves unseen
-D: through the halls, and those who feel its touch are seized by a
-D: terror from which reason cannot free them.
+D: the world of shadow by dark arts wrought in Morgoth's service.
+D: It moves unseen through the halls, and those who feel its touch
+D: are seized by a terror from which reason cannot free them.
 
 
 ##### 7 #####
@@ -859,8 +867,9 @@ B:BITE:HURT:(+8,2d7)
 F:SERPENT | RES_POIS | RAND_50
 S:SPELL_PCT_20 | POW_2
 S:BRTH_POIS
-D:A snake the length of a man, with hard green scales.
-D: It smells of decay.
+D:A serpent the length of a man, its mottled green scales slick
+D: with a foul secretion. A stench of corruption hangs about it,
+D: and the very air it breathes turns sickly and poisonous.
 
 
 N:74:Mountain troll
@@ -896,8 +905,11 @@ F:UNDEAD | HURT_LITE | RES_COLD | SMART | TERRITORIAL
 F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | RES_CRIT
 S:SPELL_PCT_20
 S:DARKNESS | SLOW
-D:It is a ghostly form, wrapped in a torn and faded shroud,
-D: its treasure long since been plundered.
+D:A wretched undead thing, wrapped in the remnants of a burial
+D: shroud long since rotted to rags. Whatever treasures were once
+D: laid with it in the earth have been stolen, and now it wanders
+D: the halls in hollow rage, grasping at the living with fingers
+D: that drain the nimbleness from flesh and bone.
 
 
 N:76:Boldog, the Merciless
@@ -1071,10 +1083,10 @@ F:UNDEAD | HURT_LITE | RES_COLD | SMART | TERRITORIAL
 F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | RES_CRIT
 S:SPELL_PCT_20
 S:DARKNESS | SLOW
-D:A spirit bound still to the earth by Morgoth's necromancy, wrapped
-D: in a rotting shroud. It guards the treasures that were laid with
-D: it in the grave, and the touch of its withered hand saps the
-D: strength from living flesh.
+D:A spirit bound still to the earth by necromancy wrought in
+D: Morgoth's service, wrapped in a rotting shroud. It guards the
+D: treasures that were laid with it in the grave, and the touch of
+D: its withered hand saps the strength from living flesh.
 
 
 N:94:Dark serpent
@@ -1407,9 +1419,11 @@ F:BASH_DOOR | DRAGON | RAND_25 | FRIEND | TERRITORIAL
 F:RES_FIRE | HURT_COLD
 S:SPELL_PCT_20 | POW_6
 S:BRTH_FIRE
-D:Not more than a few months old, this young dragon
-D: is already as big as a man, and has begun to use
-D: its fearsome breath.
+D:Barely hatched from the fire-pits where Morgoth breeds his wyrms,
+D: this young drake is already as large as a man. Thin wisps of
+D: smoke curl from its nostrils, and its scales still have the
+D: soft gleam of youth. Yet even now its breath carries flame enough
+D: to sear flesh from bone.
 
 
 N:125:Ulfang the Black
@@ -1425,9 +1439,11 @@ F:UNIQUE | MAN | MALE | DROP_2D2 | ESCORT | SMART
 F:DROP_GOOD | OPEN_DOOR | BASH_DOOR | TAKE_ITEM
 F:OPPORTUNIST
 S:SPELL_PCT_5 | POW_20 | RALLY
-D:Ulfang was a great leader of the Easterlings and led them in
-D: their treachery. He and his sons once openly swore allegiance
-D: to the High Elves, but were secretly in the pay of Morgoth.
+D:Ulfang the Black, chieftain of the Easterlings, swore false oaths
+D: of allegiance to the sons of Feanor while secretly in the pay of
+D: Morgoth. His treachery in the Nirnaeth Arnoediad shattered the
+D: Union of Maedhros and condemned countless Eldar and Edain to death
+D: or slavery. He is cunning and ruthless, and strikes at every opening.
 
 
 
@@ -1505,8 +1521,12 @@ B:TOUCH:DARK:(+16,2d5)
 F:INVISIBLE | RAND_25
 F:PASS_DOOR | UNDEAD | RES_COLD | HURT_LITE | SMART
 F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | RES_CRIT
-D:It seems nothing more than a patch of darkness in
-D: the room, and yet it stalks you.
+D:It appears as nothing more than a deepening of the darkness, a
+D: patch of shadow that moves against the feeble light. Yet something
+D: watches from within it, something that was perhaps once a living
+D: spirit before the dark craft of Morgoth's servants stripped it
+D: of all but malice and hunger. Its touch brings a darkness that
+D: no flame can dispel.
 
 
 N:134:Sapphire serpent
@@ -2085,9 +2105,12 @@ F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | RES_CRIT
 F:HURT_LITE | OPEN_DOOR
 S:SPELL_PCT_10
 S:HOLD | SLOW
-D:A mantled shape of void that was once perhaps man or elf,
-D: but through Morgoth's black arts walks as his servant. Noseless
-D: it scents the air, turning this way and that.
+D:A mantled shape of void that was once perhaps man or elf, now
+D: twisted beyond recognition by the necromancy of Gorthaur,
+D: greatest of Morgoth's servants. Noseless it scents the air,
+D: turning this way and that, drawn to the warmth of the living.
+D: Its touch brings a darkness that seeps into the very soul, and
+D: its will can hold a victim helpless as the grave.
 
 
 N:184:Ururauko
@@ -2101,11 +2124,10 @@ P:[+15,2d4]
 B:HIT:FIRE:(+26,4d8)
 F:BASH_DOOR | SMART
 F:RAUKO | RES_FIRE | HURT_COLD
-D:A form of pure flame, it is bright to look at and
-D: hard to tell the shape. A lesser relative, perhaps,
-D: of Arien, who guides the Sun, it was one of those who
-D: flocked to the banner of Melkor when the World was
-D: yet young.
+D:A spirit of fire given terrible form, blazing so fiercely that its
+D: shape is hard to discern. Like Arien who guides the Sun, it was
+D: once a spirit of flame, but it chose to follow Melkor when the
+D: World was young, and now its fire serves only to destroy.
 
 
 
@@ -2170,10 +2192,10 @@ F:SERPENT | ATTR_MULTI | RAND_25
 F:RES_COLD | HURT_FIRE
 S:SPELL_PCT_20 | POW_10
 S:BRTH_COLD
-D:A vast serpent of ancient lineage, its body encrusted with scales
-D: of sapphire that gleam with an inner frost. It has dwelt in the
-D: deepest cold places of Angband since before the rising of the Sun,
-D: and its breath can freeze the air solid.
+D:This great wyrm has coiled in the frozen depths of Angband since
+D: before the rising of the Sun. Its sapphire scales gleam with an
+D: inner frost, and the air crystallises around it in glittering motes.
+D: Its breath can freeze a warrior where he stands, armour and all.
 
 
 # need to leave Troll guard at location 192
@@ -2293,11 +2315,10 @@ F:SERPENT | ATTR_MULTI | RAND_25
 F:RES_FIRE | HURT_COLD
 S:SPELL_PCT_20 | POW_10
 S:BRTH_FIRE
-D:A vast serpent of ancient lineage, its body encrusted with scales
-D: of ruby that glow as though lit from within. Wisps of smoke rise
-D: from its nostrils, and the extreme heat surrounding it makes you
-D: gasp for breath. It has basked in Morgoth's furnaces since the
-D: world was young.
+D:Grown vast in the furnaces of Angband where it has basked since the
+D: world was young, this serpent's ruby scales glow as though lit from
+D: within. Wisps of smoke curl from its nostrils and the extreme heat
+D: it radiates makes the very air painful to breathe.
 
 
 N:202:Great cold-drake
@@ -2440,10 +2461,10 @@ F:SERPENT | ATTR_MULTI | RAND_25
 F:RES_POIS
 S:SPELL_PCT_20 | POW_10
 S:BRTH_POIS
-D:A vast serpent of ancient lineage, its body encrusted with scales
-D: of emerald that shimmer in the gloom. It is enveloped in clouds
-D: of poisonous vapour so thick that even breathing near it is
-D: enough to bring sickness and death.
+D:The largest of the venomous serpents bred in Angband's deepest pits,
+D: its emerald scales shimmer sickly in the gloom. It moves within a
+D: billowing cloud of poisonous vapour so thick that merely breathing
+D: near it can bring sickness and death.
 
 
 N:213:Vampire lord
@@ -2523,10 +2544,10 @@ F:SERPENT | RAND_25
 F:HURT_LITE | ATTR_MULTI
 S:SPELL_PCT_20 | POW_10
 S:BRTH_DARK
-D:A vast serpent of ancient lineage, its body encrusted with scales
-D: of amethyst that seem to drink the little light that reaches these
-D: depths. It is wreathed in shadow so deep that even keen eyes
-D: struggle to make out its shape until it strikes.
+D:Darkness clings to this ancient wyrm like a living shroud. Its
+D: amethyst scales seem to drink what little light reaches these depths,
+D: and the shadows deepen wherever it passes. Even keen eyes struggle
+D: to make out its true shape until its fangs are already upon you.
 
 
 N:222:Great fire-drake
@@ -2629,10 +2650,10 @@ F:SERPENT | ATTR_MULTI | RAND_25
 F:RES_FIRE | RES_COLD | RES_POIS
 S:SPELL_PCT_30 | POW_10
 S:BRTH_FIRE | BRTH_COLD | BRTH_POIS | BRTH_DARK
-D:A vast serpent of ancient lineage, armoured in scales of adamant
-D: that no blade may cut. Prismatic colours gleam and shift across
-D: its flanks, and it breathes the elemental fury of fire, cold,
-D: poison, and shadow. Few who have seen it have lived to speak of it.
+D:The mightiest of the great serpents, armoured in scales of adamant
+D: that no blade forged by mortal hands may cut. Prismatic colours
+D: gleam and shift across its flanks as it breathes forth fire, cold,
+D: poison, and shadow in turn. It is said to be as old as Angband itself.
 
 
 N:232:Unrelenting horror
@@ -2832,15 +2853,15 @@ F:SMART
 F:NO_FEAR
 S:SPELL_PCT_25
 S:EARTHQUAKE | SNG_BINDING | SNG_PIERCING
-D:He is the Master of the Pits of Angband. He rages with everlasting
-D: anger, seeking forever to dominate all that is light
-D: and good in the world. He is the origin of man's fear of darkness
-D: and created many foul creatures with his evil powers. Orcs, Dragons,
-D: and Trolls are his most foul corruptions, causing much pain and
-D: suffering in the world to please him. In his right hand he bears
-D: Grond, the mighty Hammer of the Underworld. His disgusting visage,
-D: twisted with evil, is crowned with iron, the three Silmarils forever
-D: burning him. You need to get to that crown.
+D:He is Morgoth Bauglir, the Black Enemy of the World, mightiest and
+D: most terrible of all beings in Arda. Once he was Melkor, greatest
+D: of the Ainur, but his pride and malice have diminished him, and now
+D: he rages with everlasting wrath upon his dark throne. In his right
+D: hand he bears Grond, the Hammer of the Underworld, and upon his
+D: iron crown blaze the three Silmarils, searing his brow with a pain
+D: he can neither endure nor release. He is the source of all shadow
+D: in the world, and the father of dragons, orcs, and every corruption
+D: that plagues the Children of Iluvatar.
 
 
 

@@ -1390,7 +1390,7 @@
 #define RADIUS_TORCH 1
 #define RADIUS_LESSER_JEWEL 1
 #define RADIUS_LANTERN 2
-#define RADIUS_MALLORN 3
+#define RADIUS_MALLORN 4
 #define RADIUS_FEANORIAN 4
 #define RADIUS_ARTEFACT 3
 #define RADIUS_SILMARIL 7
@@ -2004,7 +2004,7 @@
 #define TR3_INSTA_ART 0x00800000L /* Item makes an artefact */
 #define TR3_EASY_KNOW 0x01000000L /* Item is known if aware */
 #define TR3_MORE_SPECIAL                                                       \
-    0x02000000L /* Item has a better chance of being special */
+    0x02000000L /* Item boosts ego rarity weighting (+20) */
 #define TR3_WILL_DRAIN 0x04000000L /* Drains enemy Will on hit */
 #define TR3_HAND_AND_A_HALF 0x08000000L /* Item is a hand and a half weapon */
 #define TR3_TWO_HANDED 0x10000000L /* Item is a two handed weapon */
@@ -2023,6 +2023,8 @@
 #define TR4_PAIRED      0x00000008L /* Part of a matched weapon pair (no off-hand penalty) */
 #define TR4_SUBTLETY_THROW 0x00000010L /* Allows Subtlety ability to work when throwing this weapon */
 #define TR4_BREAKS_PERMA_CURSE 0x00000020L /* Can break items bound by Oath of Feanor (PERMA_CURSE) */
+#define TR4_LESS_SPECIAL    0x00000040L /* Item reduces ego rarity weighting (-20 flat) */
+#define TR4_NOBLE_ITEM      0x00000080L /* Item only drops from vault *&!~ tokens and chest contents */
 
 /*
  * Hack -- flag set 1 -- mask for "pval-dependant" flags.
@@ -2728,6 +2730,7 @@
 #define OPT_space_acts_as_comma 89
 #define OPT_show_level_entry_banner 90
 #define OPT_ability_desc_mode 91
+#define OPT_vault_drop_frequency 92
 // xxx birth_point_based
 // xxx birth_auto_roller
 // xxx birth_maximize
@@ -2881,6 +2884,14 @@
 #define story_character_sheet op_ptr->opt[OPT_story_character_sheet]
 #define space_acts_as_comma op_ptr->opt[OPT_space_acts_as_comma]
 #define show_level_entry_banner op_ptr->opt[OPT_show_level_entry_banner]
+
+/* Vault drop frequency modes */
+#define VDF_PLENTIFUL 0
+#define VDF_NORMAL 1
+#define VDF_MODEST 2
+#define VDF_SCARCE 3
+#define VDF_MEAGER 4
+
 // xxx
 // xxx birth_point_based
 // xxx birth_auto_roller

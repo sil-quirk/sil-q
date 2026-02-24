@@ -239,7 +239,7 @@ cptr option_text[OPT_MAX] = {
     "space_acts_as_comma", /* OPT_space_acts_as_comma */
     "show_level_entry_banner", /* OPT_show_level_entry_banner */
     "ability_desc_mode", /* OPT_ability_desc_mode */
-    NULL, /* xxx */
+    "vault_drop_frequency", /* OPT_vault_drop_frequency */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -479,7 +479,7 @@ cptr option_desc[OPT_MAX] = {
     "Space acts as comma (interact with square)", /* OPT_space_acts_as_comma */
     "Show poetic banner when entering a level", /* OPT_show_level_entry_banner */
     "Ability descriptions (0=lore+effect, 1=effect+lore, 2=effect only)", /* OPT_ability_desc_mode */
-    NULL, /* xxx */
+    "Vault drop frequency (0=Plentiful, 1=Normal, 2=Modest, 3=Scarce, 4=Meager)", /* OPT_vault_drop_frequency */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -738,7 +738,7 @@ const bool option_norm[OPT_MAX] = {
     true, /* OPT_space_acts_as_comma */
     true, /* OPT_show_level_entry_banner */
     false, /* OPT_ability_desc_mode (default 0 via byte field) */
-    false, /* xxx */
+    false, /* OPT_vault_drop_frequency (default 1 via byte field) */
     false, /* xxx */
     false, /* xxx */
     false, /* xxx */
@@ -928,7 +928,8 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
     { OPT_valorous_oath_auto_attack_safety, OPT_forgo_attacking_unwary,
         OPT_stop_singing_on_rest, OPT_know_monster_info, OPT_smaller_level_size,
         OPT_more_stairs, OPT_disable_skeleton_note_tutorial, OPT_visual_recognition,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_vault_drop_frequency,
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Efficiency ***/

@@ -10501,6 +10501,76 @@ void place_monster_by_letter(
 }
 
 /*
+ * Vault drop frequency gating — controls how many items spawn per vault symbol.
+ * Driven by op_ptr->vault_drop_frequency (VDF_PLENTIFUL..VDF_MEAGER).
+ */
+typedef enum vault_drop_gate_kind {
+    VDG_NORMAL = 0,
+    VDG_GOOD,
+    VDG_GREAT,
+    VDG_CHEST
+} vault_drop_gate_kind;
+
+static int vault_drop_gate_percent(vault_drop_gate_kind kind)
+{
+    switch (op_ptr->vault_drop_frequency)
+    {
+    case VDF_PLENTIFUL:
+        return 100;
+    case VDF_NORMAL:
+        switch (kind)
+        {
+        case VDG_NORMAL: return 40;
+        case VDG_GOOD:   return 66;
+        case VDG_GREAT:  return 100;
+        case VDG_CHEST:  return 100;
+        }
+        break;
+    case VDF_MODEST:
+        switch (kind)
+        {
+        case VDG_NORMAL: return 20;
+        case VDG_GOOD:   return 50;
+        case VDG_GREAT:  return 75;
+        case VDG_CHEST:  return 100;
+        }
+        break;
+    case VDF_SCARCE:
+        switch (kind)
+        {
+        case VDG_NORMAL: return 10;
+        case VDG_GOOD:   return 25;
+        case VDG_GREAT:  return 40;
+        case VDG_CHEST:  return 66;
+        }
+        break;
+    case VDF_MEAGER:
+        switch (kind)
+        {
+        case VDG_NORMAL: return 0;
+        case VDG_GOOD:   return 10;
+        case VDG_GREAT:  return 20;
+        case VDG_CHEST:  return 33;
+        }
+        break;
+    }
+
+    return 100;
+}
+
+static bool vault_drop_passes(vault_drop_gate_kind kind)
+{
+    int chance = vault_drop_gate_percent(kind);
+
+    if (chance <= 0)
+        return false;
+    if (chance >= 100)
+        return true;
+
+    return percent_chance(chance);
+}
+
+/*
  * Hack -- fill in "vault" rooms
  */
 static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
@@ -10887,49 +10957,64 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             /* An object from 1-5 levels deeper (min-depth penalty only) */
             case '*':
             {
-                /* Vault loot tuning: reduce item clutter by cutting mostly normal spawns */
-                if (!percent_chance(37))
+                /* Vault loot tuning: reduce item clutter based on drop frequency setting */
+                if (!vault_drop_passes(VDG_NORMAL))
                     break;
 
                 int base_depth = (p_ptr->depth > 0) ? p_ptr->depth : 1;
                 int penalty_depth = base_depth + dieroll(5);
                 partition_drop_profile active_profile =
                     partition_drop_profile_for_mode(drop_mode_for_point(y, x));
+                drop_allow_noble = true;
                 place_object_with_profile_params(
                     y, x, base_depth, penalty_depth, DROP_QUALITY_NORMAL,
                     DROP_TYPE_NOT_DAMAGED, false, 1, 0, &active_profile);
+                drop_allow_noble = false;
                 break;
             }
 
             /* A good object from 1-5 levels deeper (min-depth penalty only) */
             case '&':
             {
+                if (!vault_drop_passes(VDG_GOOD))
+                    break;
+
                 int base_depth = (p_ptr->depth > 0) ? p_ptr->depth : 1;
                 int penalty_depth = base_depth + dieroll(5);
                 partition_drop_profile active_profile =
                     partition_drop_profile_for_mode(drop_mode_for_point(y, x));
+                drop_allow_noble = true;
                 place_object_with_profile_params(
                     y, x, base_depth, penalty_depth, DROP_QUALITY_GOOD,
                     DROP_TYPE_NOT_DAMAGED, false, 1, 0, &active_profile);
+                drop_allow_noble = false;
                 break;
             }
 
             /* A great object from 1-5 levels deeper (min-depth penalty only) */
             case '!':
             {
+                if (!vault_drop_passes(VDG_GREAT))
+                    break;
+
                 int base_depth = (p_ptr->depth > 0) ? p_ptr->depth : 1;
                 int penalty_depth = base_depth + dieroll(5);
                 partition_drop_profile active_profile =
                     partition_drop_profile_for_mode(drop_mode_for_point(y, x));
+                drop_allow_noble = true;
                 place_object_with_profile_params(
                     y, x, base_depth, penalty_depth, DROP_QUALITY_GREAT,
                     DROP_TYPE_NOT_DAMAGED, true, 10, IDENT_HOARD_DROP, &active_profile);
+                drop_allow_noble = false;
                 break;
             }
 
             /* A chest from 5 levels deeper */
             case '~':
             {
+                if (!vault_drop_passes(VDG_CHEST))
+                    break;
+
                 int chest_depth;
                 if (p_ptr->depth == 0)
                     chest_depth = MORGOTH_DEPTH;
@@ -10941,9 +11026,11 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 
                 partition_drop_profile active_profile =
                     partition_drop_profile_for_mode(drop_mode_for_point(y, x));
+                drop_allow_noble = true;
                 place_object_with_profile_params(
                     y, x, chest_depth, chest_depth, DROP_QUALITY_NORMAL,
                     DROP_TYPE_CHEST, false, 1, 0, &active_profile);
+                drop_allow_noble = false;
                 break;
             }
 
@@ -11050,8 +11137,8 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 }
                 if (r >= 2)
                 {
-                    /* Vault loot tuning: reduce item clutter by cutting mostly normal spawns */
-                    if (!percent_chance(37))
+                    /* Vault loot tuning: reduce item clutter based on drop frequency setting */
+                    if (!vault_drop_passes(VDG_NORMAL))
                         break;
 
                     int base_depth = (p_ptr->depth > 0) ? p_ptr->depth : 1;
@@ -14240,6 +14327,38 @@ static bool cave_gen(void)
     int chasm_corr_obj = chasm_mon / 4;
     int big_cave_room_obj = big_cave_mon / 2;
     int big_cave_corr_obj = big_cave_mon / 4;
+
+    /* Scale floor/corridor item counts by vault drop frequency setting.
+     * VDF_NORMAL (default) = 100%, so behaviour is unchanged at that setting. */
+    {
+        int pct;
+        switch (op_ptr->vault_drop_frequency)
+        {
+        case VDF_PLENTIFUL: pct = 150; break;
+        case VDF_NORMAL:    pct = 100; break;
+        case VDF_MODEST:    pct =  67; break;
+        case VDF_SCARCE:    pct =  33; break;
+        case VDF_MEAGER:    pct =  10; break;
+        default:            pct = 100; break;
+        }
+        if (pct != 100)
+        {
+#define SCALE_OBJ(x) x = MAX(0, (x) * pct / 100)
+            SCALE_OBJ(roomy_room_obj);
+            SCALE_OBJ(roomy_corr_obj);
+            SCALE_OBJ(cavey_room_obj);
+            SCALE_OBJ(cavey_corr_obj);
+            SCALE_OBJ(ruined_room_obj);
+            SCALE_OBJ(ruined_corr_obj);
+            SCALE_OBJ(labyrinth_room_obj);
+            SCALE_OBJ(labyrinth_corr_obj);
+            SCALE_OBJ(chasm_room_obj);
+            SCALE_OBJ(chasm_corr_obj);
+            SCALE_OBJ(big_cave_room_obj);
+            SCALE_OBJ(big_cave_corr_obj);
+#undef SCALE_OBJ
+        }
+    }
     
     /* Total item counts for logging */
     obj_room_gen = roomy_room_obj + cavey_room_obj + ruined_room_obj + 

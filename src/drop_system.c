@@ -47,6 +47,7 @@ typedef struct
     byte num_allocations; /* number of depth/rarity allocation pairs */
     byte alloc_depth[DROP_ALLOC_MAX]; /* depth thresholds where rarity changes */
     byte alloc_rarity[DROP_ALLOC_MAX]; /* rarity value from this depth onward (0 allowed) */
+    bool noble; /* NOBLE_ITEM flag: only drops from vault *&!~ tokens and chest contents */
 } drop_entry;
 
 static drop_entry* g_drop_entries = NULL;
@@ -73,7 +74,7 @@ static int smithing_step_from_ego_bonus(int bonus)
 
 static const char* DROP_RAW_FILE = "drops";
 static const u32b DROP_RAW_MAGIC = 0x44525053; /* 'DRPS' */
-static const u32b DROP_RAW_VERSION = 13;
+static const u32b DROP_RAW_VERSION = 14;
 
 typedef struct
 {
@@ -1084,6 +1085,30 @@ int object_smithing_difficulty(const object_type* o_ptr)
     return smithing_difficulty_baseline(o_ptr);
 }
 
+static int more_special_rarity_bonus(int rarity_percent)
+{
+    if (rarity_percent <= 0)
+        return 0;
+
+    rarity_percent += 20;
+    if (rarity_percent > 255)
+        rarity_percent = 255;
+
+    return rarity_percent;
+}
+
+static int less_special_rarity_penalty(int rarity_percent)
+{
+    if (rarity_percent <= 0)
+        return 0;
+
+    rarity_percent -= 20;
+    if (rarity_percent < 0)
+        rarity_percent = 0;
+
+    return rarity_percent;
+}
+
 static void add_drop_entry(const object_type* proto, drop_category cat,
     drop_group_kind group_kind, int group_id, int min_depth, int max_depth,
     const byte* alloc_depths, const byte* alloc_rarities, int num_allocs)
@@ -1143,6 +1168,20 @@ static void add_drop_entry(const object_type* proto, drop_category cat,
         entry->difficulty = 0;
     else
         entry->difficulty = (s16b)smithing_difficulty_baseline(&entry->obj);
+
+    /* NOBLE_ITEM: item can only drop from vault *&!~ tokens and chest contents */
+    bool noble = (k_ptr->flags4 & TR4_NOBLE_ITEM) != 0;
+    /* Check ego suffix (name2) flags4 */
+    if (!noble && proto->name2 > 0 && (int)proto->name2 < z_info->e_max)
+        noble = (e_info[(int)proto->name2].flags4 & TR4_NOBLE_ITEM) != 0;
+    /* Check ego prefix (unused2) flags4 */
+    if (!noble && proto->unused2 > 0 && (int)proto->unused2 < z_info->e_max)
+        noble = (e_info[(int)proto->unused2].flags4 & TR4_NOBLE_ITEM) != 0;
+    /* Check artefact flags4 */
+    if (!noble && group_kind == DROP_GROUP_ARTIFACT
+        && group_id > 0 && group_id < z_info->art_max)
+        noble = (a_info[group_id].flags4 & TR4_NOBLE_ITEM) != 0;
+    entry->noble = noble;
 }
 
 /* Apply ego flag data (abilities and curses) without randomness */
@@ -1560,6 +1599,22 @@ static void build_ego_variants(int e_idx)
                 ego_depths[0] = (byte)ego_fallback_depth;
                 ego_rarities[0] = (byte)ego_default_rarity;
                 ego_allocs = 1;
+            }
+
+            /* MORE_SPECIAL: boost base item rarities by one tier (+20) so that
+               e.g. Dagger (85) becomes 100, grouping with Spear/Shortsword. */
+            if (k_ptr->flags3 & TR3_MORE_SPECIAL)
+            {
+                for (int i = 0; i < base_allocs; i++)
+                    base_rarities[i] = (byte)more_special_rarity_bonus(base_rarities[i]);
+            }
+
+            /* LESS_SPECIAL: reduce base item rarities by one tier (-20), making
+               ego combinations rarer. Bottoms out at 0. */
+            if (k_ptr->flags4 & TR4_LESS_SPECIAL)
+            {
+                for (int i = 0; i < base_allocs; i++)
+                    base_rarities[i] = (byte)less_special_rarity_penalty(base_rarities[i]);
             }
 
             byte alloc_depths[DROP_ALLOC_MAX];
@@ -2450,6 +2505,7 @@ typedef struct
     int lower;
     int upper;
     bool allow_artefacts; /* whether artefacts can be selected */
+    bool allow_noble; /* when false, NOBLE_ITEM entries are excluded */
     int artefact_weight_multiplier; /* group weight multiplier for artefacts */
     int cat_weights[DROP_CAT_MAX];
     int supply_weights[DROP_SUPPLY_GROUP_MAX];
@@ -2669,6 +2725,12 @@ static bool collect_candidate_entries(
             }
         }
 
+        /* NOBLE_ITEM: skip unless drop context explicitly allows noble entries,
+         * we are in a chest, or quality is at least GOOD (same gate as artefacts). */
+        if (e.noble && !req->allow_noble && object_generation_mode != OB_GEN_MODE_CHEST
+            && req->quality < DROP_QUALITY_GOOD)
+            continue;
+
         if (!droptype_matches(req, &e)) {
             filter_droptype++;
             continue;
@@ -2779,7 +2841,7 @@ static int group_rarity_at_depth(const drop_entry* e, int depth)
     int rarity = drop_entry_rarity_at_depth(e, depth);
     if (rarity <= 0)
         return 0;
-    return MAX(1, 100 / rarity);
+    return rarity;
 }
 
 static bool build_groups(drop_entry* entries, size_t count, drop_group* groups,
@@ -3369,6 +3431,7 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     req.is_supply = false;
     req.droptype = droptype;
     req.allow_artefacts = allow_artefacts;
+    req.allow_noble = drop_allow_noble;
     req.artefact_weight_multiplier
         = (allow_artefacts && artefact_weight_multiplier > 1)
         ? artefact_weight_multiplier

@@ -10322,6 +10322,16 @@ extern void do_cmd_options_aux(int page, cptr info)
                     "Ability descriptions (0=lore+effect, 1=effect+lore, 2=effect)",
                     mode_str);
             }
+            else if (opt[i] == OPT_vault_drop_frequency)
+            {
+                const char *vdf_names[] = { "Plentiful", "Normal", "Modest", "Scarce", "Meager" };
+                byte mode = op_ptr->vault_drop_frequency;
+                if (mode > VDF_MEAGER)
+                    mode = VDF_NORMAL;
+                strnfmt(buf, sizeof(buf), "%-48s: %s (%d)",
+                    "Vault drop frequency",
+                    vdf_names[mode], mode);
+            }
             else
             {
                 strnfmt(buf, sizeof(buf), "%-48s: %s", option_desc[opt[i]],
@@ -10513,6 +10523,13 @@ extern void do_cmd_options_aux(int page, cptr info)
                         ? op_ptr->ability_desc_mode + 1
                         : 2;
                 }
+                else if (opt[k] == OPT_vault_drop_frequency)
+                {
+                    op_ptr->vault_drop_frequency
+                        = (op_ptr->vault_drop_frequency < VDF_MEAGER)
+                        ? op_ptr->vault_drop_frequency + 1
+                        : VDF_MEAGER;
+                }
                 else
                 {
                     op_ptr->opt[opt[k]] = true;
@@ -10588,6 +10605,13 @@ extern void do_cmd_options_aux(int page, cptr info)
                     op_ptr->ability_desc_mode = (op_ptr->ability_desc_mode > 0)
                         ? op_ptr->ability_desc_mode - 1
                         : 0;
+                }
+                else if (opt[k] == OPT_vault_drop_frequency)
+                {
+                    op_ptr->vault_drop_frequency
+                        = (op_ptr->vault_drop_frequency > VDF_PLENTIFUL)
+                        ? op_ptr->vault_drop_frequency - 1
+                        : VDF_PLENTIFUL;
                 }
                 else
                 {

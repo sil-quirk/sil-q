@@ -3093,12 +3093,13 @@ static void calc_bonuses(void)
         bool is_quiver1 = (i == INVEN_QUIVER1);
         bool is_quiver2 = (i == INVEN_QUIVER2);
         bool is_throwing_item = player_can_treat_as_throwing_flags(o_ptr, f3);
+        bool is_arrow = (o_ptr->tval == TV_ARROW);
 
         bool throwing_quiver = is_quiver2 && is_throwing_item;
 
         if (is_quiver1)
             continue;
-        if (is_quiver2 && !is_throwing_item)
+        if (is_quiver2 && !is_throwing_item && !is_arrow)
             continue;
 
         /* Affect stats */

@@ -7359,10 +7359,7 @@ bool player_can_treat_as_throwing_flags(const object_type* o_ptr, u32b f3)
     if (f3 & TR3_THROWING)
         return true;
 
-    if (!p_ptr->active_ability[S_MEL][MEL_POLEARMS])
-        return false;
-
-    return (o_ptr->tval == TV_POLEARM) && (o_ptr->sval == SV_GREAT_SPEAR);
+    return false;
 }
 
 bool player_can_treat_as_throwing(const object_type* o_ptr)

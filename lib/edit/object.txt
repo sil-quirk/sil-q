@@ -13,9 +13,9 @@
 # G: symbol : color
 # T: tile row : tile column
 # I: tval : sval : pval
-# W: depth : rarity : weight : cost
+# W: depth : rarity_weight (legacy) : weight : cost
 # P: plus to-hit : damage dice : plus to-evasion : protection dice
-# A: depth/rarity : depth/rarity : etc
+# A: depth/rarity_weight : depth/rarity_weight : etc
 # F: flag | flag | etc
 # D: description
 #
@@ -43,19 +43,20 @@
 #
 # 'W' is for extra information. Depth is the depth the object is normally
 #     found at (and defines what 'level' the object is, when determining how easy 
-#     it is to use a wand, staff or rod, rarity determines how common the object
-#     is (currently unused, thanks to the A: allocation lines), weight is in
-#     tenth-pounds and cost is the item's base value.
+#     it is to use a wand, staff or rod). The second value is a legacy rarity
+#     weight field preserved for compatibility; object spawn weighting comes
+#     from the A: allocation lines. Weight is in tenth-pounds and cost is the
+#     item's base value.
 #
 # 'P' is for power information. The item's bonuses to attack and evasion
 #     as well as its damage and protection dice. Note that adding damage dice to
 #     armor won't aid your attacks, it will just set the damage done when it is thrown.
 #
-# 'A' is for allocation - depth and rarity, in pairs. This allows an
-#     item to have multiple natural depths and rarities. It is used to
-#     ensure that certain vital items such as food and identify scrolls
-#     are found throughout the dungeon. The 'allocation' depth need not
-#     match the depth as specified in the 'W:' line.
+# 'A' is for allocation - depth and rarity weight, in pairs. This allows
+#     an item to have multiple natural depths and rarity weights. It is
+#     used to ensure that certain vital items such as food and identify
+#     scrolls are found throughout the dungeon. The 'allocation' depth
+#     need not match the depth as specified in the 'W:' line.
 #
 # 'F' is for flags. These are fairly self-explanatory. As many F:
 #     lines may be used as are needed to specify all the flags and flags
@@ -229,7 +230,8 @@ T:2:27
 I:39:2:0
 W:8:20:1:1000
 P:0:0d0:0:0d0:0
-A:1/0:3/20
+A:1/0:3/40
+F:NOBLE_ITEM
 D:An enchanted glowing jewel, akin to a Silmaril, but much less
 D: powerful.
 D: You can equip it as a light source with a radius of 1 square.
@@ -243,8 +245,8 @@ T:5:4
 I:36:2:0
 W:1:0:30:4
 P:0:0d0:1:1d0
-A:3/2
-F:ENCHANTABLE
+A:3/60
+F:ENCHANTABLE | MORE_SPECIAL
 D:A robe of fine cloth, such as the loremasters and singers
 D: of the Elder Days wore. Its fabric can bear enchantment,
 D: and in skilled hands may be wrought with great power.
@@ -256,7 +258,7 @@ T:5:12
 I:36:4:0
 W:1:0:70:18
 P:0:0d0:-1:1d4
-A:1/2
+A:1/100
 D:Armour of tanned hide, the sort worn by the hunters and
 D: scouts who ranged the wilds of Beleriand in the wars
 D: against Morgoth.
@@ -268,7 +270,7 @@ T:5:13
 I:36:7:0
 W:2:0:130:200
 P:0:0d0:-2:1d6
-A:2/2
+A:2/80
 D:Leather armour fitted with studs of iron, offering greater
 D: protection than plain hide. Such armour was common among
 D: the soldiers of the Elder Days.
@@ -280,8 +282,8 @@ T:9:17
 I:36:11:0
 W:17:0:70:200
 P:0:0d0:-1:1d9
-A:17/20:22/4
-F:IGNORE_ALL | NO_SMITHING | STAR_IRON
+A:17/5:19/15
+F:IGNORE_ALL | NO_SMITHING | STAR_IRON | NOBLE_ITEM
 D:A suit of armour made of galvorn: a strange shining black metal 
 D:so malleable that it is thin and supple, yet strong enough 
 D:to stop blade and dart.
@@ -293,7 +295,7 @@ T:5:15
 I:37:4:0
 W:5:0:270:750
 P:-1:0d0:-3:2d4
-A:5/2:12/1:20/1
+A:7/60:15/80
 D:A shirt of armour formed from linked rings of forged iron,
 D: covering the torso down to the waist. The smiths of the Noldor
 D: and of the Dwarven cities forged such mail for the warriors who
@@ -307,7 +309,8 @@ T:5:14
 I:37:6:0
 W:7:0:350:900
 P:-2:0d0:-4:2d5
-A:7/3:17/2
+A:7/40:15/60
+F:MORE_SPECIAL
 D:A long shirt of linked rings reaching to the thigh and
 D: covering the arms, heavier than a corslet but offering
 D: greater protection. Such hauberks were worn by the great
@@ -321,8 +324,8 @@ T:5:16
 I:37:20:0
 W:16:0:150:7000
 P:0:0d0:0:2d5
-A:14/0:16/10
-F:IGNORE_ALL | MITHRIL | CHEAT_DEATH
+A:14/0:18/15
+F:IGNORE_ALL | MITHRIL | CHEAT_DEATH | NOBLE_ITEM
 D:A corslet of linked rings wrought from mithril, the true
 D: silver found in the deep mines of the Dwarves. Lighter than
 D: leather yet harder than any common steel, it turns aside
@@ -371,7 +374,7 @@ T:5:17
 I:34:3:0
 W:3:0:50:50
 P:0:0d0:0:1d3
-A:3/2
+A:3/100
 D:A shield of wood and hide, light enough to carry with ease.
 D: Such shields were borne by countless warriors in the long
 D: wars of Beleriand.
@@ -383,7 +386,7 @@ T:5:18
 I:34:5:0
 W:6:0:80:200
 P:-2:0d0:0:1d6
-A:6/1
+A:6/80
 D:A shield of wood banded with iron, tapering to a point at
 D: the base. It offers greater protection than a round shield,
 D: though it slows the arm somewhat.
@@ -395,8 +398,8 @@ T:5:19
 I:34:10:1
 W:16:0:40:10000
 P:0:0d0:0:1d7
-A:14/0:16/10
-F:IGNORE_ALL | MITHRIL | DAMAGE_SIDES
+A:14/0:16/15
+F:IGNORE_ALL | MITHRIL | DAMAGE_SIDES | NOBLE_ITEM
 D:A shield of mithril, true silver mined in the deep places
 D: of the earth by the Dwarves. Lighter than a shield of oak
 D: yet harder than iron, it gleams with a pale light. The
@@ -414,8 +417,8 @@ T:6:0
 I:23:4:0
 W:1:0:5:10
 P:0:1d5:0:0d0
-A:1/1:10/1
-F:THROWING | MORE_SPECIAL
+A:1/100
+F:THROWING
 D:A short blade, swift in the hand. Many a warrior in the
 D: Elder Days carried one at their hip alongside a longer
 D: weapon, for it served well in close quarters.
@@ -427,8 +430,8 @@ T:6:1
 I:23:7:0
 W:2:0:40:10
 P:-1:2d5:1:0d0
-A:2/2
-F:FEAR
+A:2/100
+F:FEAR | LESS_SPECIAL
 D:A crude blade of orcish make, its edge notched and its iron
 D: dark. The orcs of Morgoth favoured such curved swords, forged
 D: in the pits of Angband without art or care. It is a weapon
@@ -441,7 +444,7 @@ T:6:2
 I:23:10:0
 W:1:0:20:90
 P:0:1d7:1:0d0
-A:1/1:12/1
+A:1/100
 D:A light sword, swift and easy to wield. Such blades were
 D: carried by the scouts and rangers who roamed the wilds
 D: of Beleriand.
@@ -453,7 +456,7 @@ T:6:3
 I:23:17:0
 W:4:0:30:300
 P:0:2d5:1:0d0
-A:4/1:14/1
+A:4/80
 D:A sword of good length and balance, the workhorse of the
 D: warrior. Many of the heroes of the Elder Days wielded
 D: blades of this sort.
@@ -465,8 +468,8 @@ T:6:7
 I:23:21:0
 W:6:0:40:350
 P:-2:3d3:1:0d0
-A:6/2:14/2
-F:HAND_AND_A_HALF
+A:6/60
+F:HAND_AND_A_HALF | MORE_SPECIAL
 D:A sword that may be wielded with one hand or two, as
 D: circumstance demands. Favoured by warriors who wish to
 D: carry a shield when foes are many, and strike with full
@@ -479,8 +482,8 @@ T:6:5
 I:23:25:0
 W:4:0:60:775
 P:-2:3d5:1:0d0
-A:4/2:14/1
-F:TWO_HANDED
+A:4/60
+F:TWO_HANDED | MORE_SPECIAL
 D:A great two-handed sword, demanding strength to wield but
 D: terrible in its reach. Such weapons were rare even among
 D: the mighty lords of the Elder Days.
@@ -492,8 +495,8 @@ T:6:4
 I:23:28:0
 W:15:0:35:5000
 P:-1:3d4:1:0d0
-A:5/80:14/10
-F:IGNORE_ALL | MITHRIL | ACCURATE
+A:10:3:15/15
+F:IGNORE_ALL | MITHRIL | ACCURATE | NOBLE_ITEM
 D:A blade forged of mithril by the smiths of the Hidden
 D: Kingdoms, whose craft in the Elder Days surpassed all
 D: others in Middle-earth. It is slender and swift, bright
@@ -507,8 +510,8 @@ T:6:6
 I:23:30:0
 W:20:0:70:7000
 P:-2:3d6:1:0d0
-A:6/80:16/15
-F:IGNORE_ALL | TWO_HANDED | STAR_IRON | SHARPNESS
+A:12/3:17/15
+F:IGNORE_ALL | TWO_HANDED | STAR_IRON | SHARPNESS | NOBLE_ITEM
 D:A greatsword forged of star-iron, metal fallen from the
 D: heavens in ages past. Harder and keener than any ore of
 D: the earth, it was wrought by Elven-smiths into a weapon
@@ -524,8 +527,8 @@ T:6:9
 I:22:1:0
 W:1:0:30:36
 P:0:1d9:0:0d0
-A:1/1:10/4
-F:THROWING | HAND_AND_A_HALF | POLEARM
+A:1/100
+F:THROWING | HAND_AND_A_HALF | POLEARM | LESS_SPECIAL
 D:A spear of wood and iron, the weapon of choice for many
 D: of the warriors of Beleriand. The Noldor and the Edain
 D: alike carried spears into the wars against Morgoth.
@@ -537,8 +540,8 @@ T:6:10
 I:22:2:0
 W:4:0:60:36
 P:1:1d13:1:0d0
-A:4/2:12/4
-F:TWO_HANDED | POLEARM
+A:4/60
+F:TWO_HANDED | POLEARM 
 D:A great two-handed spear, longer and heavier than common.
 D: Its reach exceeds that of any other weapon, and a skilled
 D: wielder can keep foes at bay.
@@ -550,7 +553,7 @@ T:6:11
 I:22:4:0
 W:8:0:70:363
 P:-1:2d9:1:0d0
-A:8/2:16/2
+A:8/80
 F:TWO_HANDED | POLEARM
 D:A polearm with a broad sweeping blade, combining the reach
 D: of a spear with the cutting force of a sword. Such weapons
@@ -563,8 +566,8 @@ T:6:13
 I:22:11:0
 W:2:0:10:150
 P:-1:4d2:0:0d0
-A:2/4
-F:AXE | THROWING
+A:2/100
+F:AXE | THROWING | LESS_SPECIAL
 D:An axe light enough to be thrown, favoured by the Dwarves
 D: who bore them into battle alongside their heavier weapons.
 
@@ -575,7 +578,7 @@ T:6:14
 I:22:12:0
 W:4:0:45:304
 P:-3:3d4:0:0d0
-A:4/1:10/1
+A:4/80
 F:HAND_AND_A_HALF | AXE
 D:An axe of war, favoured above all by the Dwarves, who
 D: fought with fierce and stubborn determination against
@@ -588,7 +591,7 @@ T:6:15
 I:22:13:0
 W:8:0:80:334
 P:-4:4d4:0:0d0
-A:8/2:15/1
+A:8/60
 F:TWO_HANDED | AXE
 D:A great two-handed axe, the weapon of the Dwarves in their
 D: darkest hours. The smiths of Belegost and Nogrod forged
@@ -604,7 +607,7 @@ T:6:8
 I:21:3:0
 W:1:0:50:200
 P:0:2d5:2:0d0
-A:1/3
+A:1/60
 F:TWO_HANDED | ENCHANTABLE | MORE_SPECIAL
 D:A staff of seasoned wood, both tool and weapon. Among the
 D: Elves, such staves were sometimes borne by loremasters,
@@ -617,8 +620,8 @@ T:6:12
 I:21:8:0
 W:6:0:50:225
 P:-2:4d1:0:0d0
-A:4/3
-F:HAND_AND_A_HALF
+A:4/80
+F:HAND_AND_A_HALF | LESS_SPECIAL
 D:A hammer of war, beloved of the Dwarven smiths who turned
 D: their mastery of the forge to arms. The blow of such a
 D: weapon can crack armour and break bone.
@@ -633,8 +636,8 @@ T:6:16
 I:20:1:1
 W:5:0:50:10
 P:-3:2d2:0:0d0
-A:5/3:12/3
-F:TUNNEL | TWO_HANDED
+A:5/100
+F:TUNNEL | TWO_HANDED | LESS_SPECIAL
 D:A broad-bladed tool for shifting earth and rubble. Though no
 D: weapon of war, it serves well enough for those who must dig
 D: through cave-ins in the dark passages beneath Angband.
@@ -650,8 +653,8 @@ T:6:17
 I:20:3:2
 W:10:0:100:700
 P:-5:5d2:0:0d0
-A:10/3
-F:TUNNEL | TWO_HANDED
+A:10/60
+F:TUNNEL | TWO_HANDED | LESS_SPECIAL
 D:A heavy tool of the sort long wielded by the Dwarves, who
 D: used mattocks both in the mine and in battle. It can be
 D: equipped as a weapon and (usually) allows you to dig
@@ -668,7 +671,7 @@ T:5:23
 I:32:5:0
 W:3:0:50:75
 P:0:0d0:-1:1d2
-A:3/1
+A:3/100
 D:A helm of iron, affording protection to the head. Such
 D: helms were worn by the warriors of the Elder Days through
 D: the long wars against Morgoth.
@@ -680,7 +683,7 @@ T:5:24
 I:32:6:0
 W:5:0:80:200
 P:0:0d0:-2:1d3
-A:5/1
+A:5/60
 D:A great helm that covers the face, affording greater
 D: protection than a common helm. Such helms were fashioned
 D: by skilled smiths for the lords of war.
@@ -692,8 +695,8 @@ T:5:26
 I:32:7:0
 W:10:0:80:300
 P:0:0d0:-2:1d2
-A:10/8:16/8
-F:RES_FIRE
+A:10/40
+F:RES_FIRE | NOBLE_ITEM
 D:A full-faced helm wrought in a fearsome visage by the
 D: smiths of the Dwarves. The Dwarves fought ever in the
 D: forefront of battle against Morgoth's hosts, and their
@@ -707,8 +710,8 @@ T:5:25
 I:32:8:0
 W:14:0:35:500
 P:0:0d0:0:1d4
-A:10/0:14/10
-F:IGNORE_ALL | MITHRIL | RES_COLD | RES_FIRE
+A:10/0:14/15
+F:IGNORE_ALL | MITHRIL | RES_COLD | RES_FIRE | NOBLE_ITEM
 D:A helm of mithril, true silver from the deep mines of the
 D: Dwarves. Lighter than iron yet stronger, it gleams with a
 D: pale light that no shadow can dim. The cold and fire of
@@ -732,7 +735,7 @@ T:5:2
 I:35:1:0
 W:2:0:20:3
 P:0:0d0:1:1d0
-A:2/2:10/1
+A:2/60:10/100
 D:A cloak of woollen cloth, worn against the cold and damp
 D: of the deep places. Such garments were common among the
 D: wanderers of Beleriand.
@@ -744,8 +747,8 @@ T:5:3
 I:35:6:2
 W:12:0:10:4000
 P:0:0d0:3:1d0
-A:12/3
-F:DARKNESS | STEALTH
+A:12/15
+F:DARKNESS | STEALTH | NOBLE_ITEM
 D:A cloak woven of the deepest darkness, its fabric seeming
 D: to drink the light around it. It wraps the wearer in
 D: shadow, and in the lightless halls of Angband, one who
@@ -779,7 +782,7 @@ T:5:29
 I:19:12:0
 W:1:0:15:50
 P:0:1d7:0:0d0
-A:1/1:11/1
+A:1/100
 D:A bow of moderate power, suitable for hunting and
 D: skirmishing. Such bows were common among the scouts who
 D: ranged the wilds of Beleriand.
@@ -791,7 +794,8 @@ T:5:30
 I:19:13:0
 W:6:0:30:120
 P:0:2d4:0:0d0
-A:6/3:16/3
+A:6/60
+F:MORE_SPECIAL
 D:A longbow of greater range and power than a short bow.
 D: The Sindar of Doriath and the Green Elves of Ossiriand
 D: were renowned archers, and such bows were their favoured
@@ -806,8 +810,8 @@ T:5:31
 I:19:14:0
 W:15:0:45:500
 P:0:4d2:0:0d0
-A:15/6
-F:NO_SMITHING
+A:15/15
+F:NO_SMITHING | NOBLE_ITEM
 D:A bow fashioned from the horn of one of the great wyrms
 D: that served Morgoth in the Elder Days. The horn is harder
 D: than any wood and springs with a terrible strength,
@@ -823,7 +827,7 @@ T:5:27
 I:17:1:0
 W:1:0:1:1
 P:0:0d0:0:0d0
-A:2/1:6/1:11/1:17/1
+A:1/100
 D:A shaft of ash or birch tipped with forged iron. The archers
 D: of the Elder Days spent their arrows freely against Morgoth's
 D: hosts, and in the great battles of Beleriand the sky was
@@ -838,7 +842,8 @@ T:5:9
 I:30:1:0
 W:1:0:20:7
 P:0:0d0:0:1d1
-A:1/2:10/1
+A:1/100
+F:LESS_SPECIAL
 D:Sturdy boots of leather, suitable for long journeys
 D: through the wilds and the cold of the deep places.
 
@@ -849,7 +854,7 @@ T:5:10
 I:30:2:0
 W:4:0:80:19
 P:0:0d0:-1:1d2
-A:4/1:15/1
+A:4/80
 F:IGNORE_FIRE
 D:Greaves of leather and iron, protecting the lower legs.
 D: Their iron plates are hardened against flame, a necessity
@@ -862,7 +867,7 @@ T:5:11
 I:30:3:0
 W:14:0:40:50
 P:0:0d0:1:1d3
-A:10/0:14/10
+A:10/0:14/15
 F:IGNORE_ALL | MITHRIL | ENCHANTABLE | STAND_FAST
 D:Greaves of mithril, light as a thought yet harder than
 D: the deepest stone. They gleam with a pale silver radiance
@@ -878,7 +883,7 @@ T:5:20
 I:31:1:0
 W:1:0:5:3
 P:0:0d0:0:1d0
-A:1/4:10/2
+A:1/100
 D:A pair of light gloves of leather, keeping the hands warm
 D: and dry in the cold and damp of Angband's depths.
 
@@ -889,7 +894,7 @@ T:5:21
 I:31:2:0
 W:3:0:30:35
 P:-1:0d0:0:1d1
-A:3/1:11/1
+A:3/80
 F:IGNORE_FIRE
 D:Gauntlets of iron-banded leather, protecting the hands and
 D: forearms. They are hardened against flame, for those who
@@ -902,7 +907,7 @@ T:5:22
 I:31:3:0
 W:12:0:15:100
 P:0:0d0:0:1d2
-A:10/0:12/10
+A:10/0:12/15
 F:IGNORE_ALL | MITHRIL | ENCHANTABLE | REGEN
 D:Gauntlets of mithril, the true silver from the deep mines
 D: of the Dwarves. Light enough to preserve the deftness of
@@ -918,7 +923,7 @@ T:2:30
 I:39:0:0
 W:1:0:20:2
 P:0:0d0:0:0d0:0
-A:1/1:3/1
+A:1/100
 F:NO_SMITHING | EASY_KNOW
 D:A length of wood bound with pitch and cloth, giving off a
 D: smoky light. In the deep places of Angband, even such
@@ -934,7 +939,7 @@ T:2:29
 I:39:1:0
 W:5:0:30:35
 P:0:0d0:0:0d0:0
-A:1/0:5/3:13/1:16/0
+A:1/0:5/60:13/40:16/0
 D:A lantern of brass and glass, steadier and brighter than a
 D: torch. Such lanterns were carried by those who ventured into
 D: the deep places, where a reliable light could mean the
@@ -954,8 +959,8 @@ T:2:31
 I:39:8:0
 W:12:0:10:1000
 P:0:0d0:0:0d0:0
-A:12/8:18/4
-F:MITHRIL
+A:14/5:18/10
+F:MITHRIL | NOBLE_ITEM
 D:A lamp wrought in the manner of Feanor, the most gifted
 D: of all the smiths of the Noldor. It is set with lesser
 D: jewels that hold a captured radiance, and shines with a
@@ -991,8 +996,8 @@ G:":d
 I:40:0:0
 W:7:0:1:20
 P:0:0d0:0:0d0
-A:12/40
-F:CHEAT_DEATH | EASY_KNOW
+A:10/10
+F:CHEAT_DEATH | EASY_KNOW | NOBLE_ITEM
 D:An amulet wrought with an ancient blessing, said to turn
 D: aside even death itself at the very last hour. Such grace
 D: was rare in the Elder Days, when doom fell swiftly upon
@@ -1004,7 +1009,7 @@ G:":d
 I:40:1:0
 W:8:0:1:500
 P:0:0d0:0:0d0
-A:8/5
+A:8/15
 F:CON | SUST_CON
 D:An amulet wrought with the virtue of endurance. The wearer
 D: feels a deep-rooted vigour, as of the unyielding earth
@@ -1017,7 +1022,7 @@ G:":d
 I:40:2:0
 W:10:0:1:500
 P:0:0d0:0:0d0
-A:9/5
+A:9/15
 F:GRA | SUST_GRA
 D:An amulet touched with the blessing of the Valar. It
 D: heightens the wearer's grace of spirit, that inner light
@@ -1030,7 +1035,7 @@ G:":d
 I:40:3:0
 W:12:0:1:600
 P:0:0d0:0:0d0
-A:6/3
+A:6/40
 F:REGEN | EASY_KNOW
 D:An amulet of green and gold that quickens the mending of
 D: wounds. The wearer heals faster than nature would allow,
@@ -1042,7 +1047,7 @@ G:":d
 I:40:4:0
 W:14:0:1:20000
 P:0:0d0:0:0d0
-A:5/3
+A:5/40
 F:SUST_CON
 F:SUST_GRA | SLOW_DIGEST | IGNORE_ALL
 F:EASY_KNOW
@@ -1056,8 +1061,8 @@ G:":d
 I:40:5:0
 W:16:0:1:30000
 P:0:0d0:0:0d0
-A:15/6
-F:GRA | SUST_GRA | LIGHT
+A:15/15
+F:GRA | SUST_GRA | LIGHT | NOBLE_ITEM
 D:An amulet that glows with a faint warmth, as though touched
 D: by the light of the Blessed Realm beyond the Sea. Its wearer
 D: feels a gentle grace, as though the distant mercy of the
@@ -1069,8 +1074,8 @@ G:":d
 I:40:6:0
 W:9:0:1:0
 P:0:0d0:0:0d0
-A:7/3
-F:HAUNTED | SEE_INVIS | EASY_KNOW
+A:7/80
+F:HAUNTED | SEE_INVIS | EASY_KNOW | NO_SMITHING
 D:An amulet of dark iron, cold to the touch. It opens the
 D: wearer's sight to things hidden and unseen, but at a
 D: price: the dreams that come with it are not wholly of
@@ -1083,13 +1088,62 @@ G:":d
 I:40:7:0
 W:4:0:1:0
 P:0:0d0:0:0d0
-A:8/20
+A:8/40
 F:PERCEPTION | RES_HALLU
 B:4/2
 D:An amulet bearing the likeness of an open eye, that
 D: sharpens the wearer's sight and guards the mind against
 D: the illusions and trickery by which Morgoth's servants
 D: deceived.
+
+
+N:140:the Slave Pits
+G:":d
+I:40:8:0
+W:5:0:1:0
+P:0:0d0:0:0d0
+A:7/60
+F:CON | NEG_GRA | LIGHT_CURSE | EASY_KNOW | NO_SMITHING
+M:WILL:-2
+D:An amulet of dull grey metal, stamped with a brand of
+D: thralldom from Angband's slave-pits, where countless
+D: Elves and Men were broken to labour in the sunless
+D: dark. Those who survived were hardened beyond reckoning,
+D: their bodies inured to every suffering — yet their
+D: spirits were diminished, worn to shadow by years
+D: without hope or the memory of stars.
+
+
+N:141:the Shadow
+G:":d
+I:40:9:0
+W:6:0:1:100
+P:0:0d0:0:0d0
+A:6/80
+F:STEALTH | UNLIGHT | EASY_KNOW | NO_SMITHING
+D:An amulet of dull black stone, worn by the spies and
+D: scouts of Morgoth who crept through the passes of the
+D: Ered Gorgoroth under cover of night. The bearer moves
+D: as a shadow among shadows, silent and unseen — yet a
+D: faint dimming of the light clings ever to the wearer,
+D: as to all things that have dwelt too long in the
+D: service of the Enemy.
+
+
+N:142:the Orc-captain
+G:":d
+I:40:10:0
+W:7:0:1:0
+P:1:0d0:0:1d1
+A:7/70
+F:NEG_GRA | LIGHT_CURSE | EASY_KNOW | NO_SMITHING
+D:An amulet of tarnished bronze, bearing the angular mark
+D: of one of Morgoth's war-captains. It lends a dull
+D: readiness for war: the hand strikes surer, and the body
+D: is warded against common blows. Yet the spirit coarsens
+D: under its influence, for it was wrought for creatures
+D: whose makers had no thought of grace nor beauty.
+
 
 ##### Rings #####
 
@@ -1099,7 +1153,7 @@ G:=:d
 I:45:0:0
 W:15:0:1:500
 P:0:0d0:0:0d0
-A:15/30
+A:10/20
 F:PERCEPTION
 B:4/4
 D:A ring of dark gemstone that seems to hold whispers within
@@ -1113,8 +1167,8 @@ G:=:d
 I:45:1:0
 W:8:0:1:150
 P:0:0d0:0:0d0
-A:6/10
-F:WILL | RES_FEAR | RES_CONFU
+A:6/40
+F:WILL | RES_FEAR | RES_CONFU | NOBLE_ITEM
 D:A ring wrought in the fashion of the Dwarven-smiths of
 D: Ered Luin, the Blue Mountains, where the great cities
 D: of Belegost and Nogrod once stood. The Dwarves of those
@@ -1128,7 +1182,7 @@ G:=:d
 I:45:2:0
 W:8:0:1:500
 P:0:0d0:0:0d0
-A:6/15
+A:6/40
 D:A ring of subtle craft that quickens the wearer's instinct
 D: for danger. In battle, blows seem to pass a hair's breadth
 D: wide, guided aside by some unseen hand.
@@ -1139,7 +1193,7 @@ G:=:d
 I:45:3:0
 W:7:0:1:500
 P:0:0d0:0:0d0
-A:5/4
+A:5/60
 D:A ring set with an ancient ward that blunts the force of
 D: blows. The damage of fang and blade alike is lessened while
 D: it is worn.
@@ -1150,7 +1204,7 @@ G:=:d
 I:45:4:0
 W:9:0:1:500
 P:0:0d0:0:0d0
-A:9/25
+A:11/10
 F:STR | SUST_STR
 D:A ring wrought to fortify the sinews of its wearer. With it
 D: upon the hand, even a lesser warrior may strike with the force
@@ -1162,8 +1216,8 @@ G:=:d
 I:45:5:0
 W:10:0:1:500
 P:0:0d0:0:0d0
-A:10/25
-F:DEX | SUST_DEX
+A:12/15
+F:DEX | SUST_DEX | NOBLE_ITEM
 D:A ring of delicate craft that lends nimbleness to the wearer.
 D: The hand grows quick and sure, and the body answers the will
 D: with a swiftness beyond its wont.
@@ -1174,8 +1228,8 @@ G:=:d
 I:45:6:0
 W:9:0:1:250
 P:0:0d0:0:0d0
-A:8/3
-F:RES_FIRE | EASY_KNOW
+A:12/50
+F:RES_FIRE | EASY_KNOW | NOBLE_ITEM
 D:A ring of pale blue stone, cold as the winds of Himring.
 D: Its chill provides protection against the flames of
 D: the Enemy.
@@ -1186,8 +1240,8 @@ G:=:d
 I:45:7:0
 W:10:0:1:250
 P:0:0d0:0:0d0
-A:9/3
-F:RES_COLD | EASY_KNOW
+A:11/70
+F:RES_COLD | EASY_KNOW | NOBLE_ITEM
 D:A ring that glows with a gentle heat, as though it
 D: remembered the light of the Blessed Realm. Its warmth
 D: shields the wearer from the bitter cold of the north.
@@ -1198,7 +1252,7 @@ G:=:d
 I:45:8:0
 W:12:0:1:500
 P:0:0d0:0:0d0
-A:10/15
+A:10/40
 D:A ring that steadies the hand and sharpens the eye. In
 D: battle, the wearer's strikes fall true, finding the gaps
 D: in armour and guard with uncanny precision.
@@ -1209,7 +1263,7 @@ G:=:d
 I:45:9:0
 W:12:0:1:1500
 P:0:0d0:0:0d0
-A:12/3
+A:12/20
 F:FREE_ACT | EASY_KNOW
 D:A ring of curious craft that seems to loosen the bonds
 D: upon the wearer. In the Elder Days, many heroes were
@@ -1223,9 +1277,9 @@ G:=:d
 I:45:10:0
 W:7:0:1:0
 P:0:0d0:0:0d0
-A:5/6
-F:FEAR | EASY_KNOW | LIGHT_CURSE
-B:2/0
+A:5/100
+F:FEAR | EASY_KNOW | LIGHT_CURSE | NO_SMITHING
+B:2/80
 D:A ring of tarnished iron. It inflicts a creeping dread
 D: upon its wearer, driving them to flee from danger —
 D: though in their haste, they find themselves strangely
@@ -1237,8 +1291,8 @@ G:=:d
 I:45:11:0
 W:6:0:1:300
 P:0:0d0:0:0d0
-A:5/2
-F:RES_STUN | SUST_STR | HUNGER | EASY_KNOW
+A:5/100
+F:RES_STUN | SUST_STR | HUNGER | EASY_KNOW | NO_SMITHING
 D:A ring bearing the brand of Bauglir, a name of the Dark
 D: Lord. Said to have been worn by the captains of his
 D: vanguard, it grants a fierce and devouring strength, but
@@ -1251,12 +1305,119 @@ G:=:d
 I:45:12:0
 W:6:0:1:1000
 P:0:0d0:0:0d0
-A:5/4
+A:10/30
 F:RES_POIS | EASY_KNOW
 D:A ring set with a pale green stone that wards against the
 D: poisons of Morgoth's creatures — the bite of his wolves
 D: and the fangs of his spiders hold no power over one who
 D: wears it.
+
+
+N:163:Angband's Forge
+G:=:d
+I:45:13:0
+W:5:0:1:100
+P:0:0d0:0:0d0
+A:4/80
+F:RES_FIRE | VUL_COLD | EASY_KNOW | NO_SMITHING
+D:Forged in the ceaseless fires of Angband beneath the
+D: peaks of Thangorodrim, this ring of black iron shields
+D: its bearer from the fiercest flames. Yet it binds the
+D: wearer's flesh so deeply to the furnace that the mere
+D: touch of frost becomes a crippling agony, drawing the
+D: bitter cold of Utumno straight to their heart.
+
+
+N:164:the Deep Cold
+G:=:d
+I:45:14:0
+W:5:0:1:100
+P:0:0d0:0:0d0
+A:3/70
+F:RES_COLD | VUL_FIRE | EASY_KNOW | NO_SMITHING
+D:Hewn from pale stone as cold as the eternal ice that
+D: entombed the ruins of Utumno, this ring wards its
+D: bearer against the cruelest frosts of the North. Yet
+D: it plunges the wearer's blood into such an unnatural
+D: winter that the fires of Angband find them utterly
+D: defenseless, searing them with magnified fury.
+
+
+N:165:the Iron Fist
+G:=:d
+I:45:15:0
+W:6:0:1:0
+P:0:0d0:0:0d0
+A:8/60
+F:STR | NEG_GRA | LIGHT_CURSE | EASY_KNOW | NO_SMITHING
+M:PERCEPTION:-3
+D:A ring of crude iron, stamped with the rune of Angband.
+D: Orc-captains wore such rings to master their companies
+D: by brute force alone. The strength it grants is real
+D: enough — yet the spirit withers under its influence,
+D: for it was made without art and without love.
+
+
+N:166:the Watchful Slave
+G:=:d
+I:45:16:0
+W:4:0:1:0
+P:0:0d0:0:0d0
+A:4/100
+F:PERCEPTION | HUNGER | LIGHT_CURSE | EASY_KNOW | NO_SMITHING
+D:A ring set with a dim red stone, given to the thralls
+D: who kept watch in the dark passages of Angband for
+D: spies and intruders. It sharpens the senses beyond
+D: their wont — yet the hunger of the pits gnaws
+D: ceaselessly at the wearer, as it gnawed at those who
+D: first bore it in the darkness beneath the mountains.
+
+
+N:167:Venom
+G:=:d
+I:45:17:0
+W:4:0:1:0
+P:0:0d0:0:0d0
+A:1/100
+F:RES_POIS | FEAR | LIGHT_CURSE | EASY_KNOW | NO_SMITHING
+D:A crude ring of blackened bone, issued in great numbers
+D: to the thralls and lesser orcs who toiled in the
+D: breeding pits of Angband. It wards against the venom
+D: of the foul things that lurk in the dark, yet it was
+D: wrought with malice; it instills a craven fear in the
+D: wearer's heart, ensuring they remain ever subservient
+D: to the will of their cruel masters.
+
+
+N:168:Morgoth's Dominion
+G:=:d
+I:45:18:0
+W:12:0:1:300
+P:0:0d0:0:0d0
+A:10/30
+F:WILL | RES_FEAR | AGGRAVATE | LIGHT_CURSE | EASY_KNOW | NO_SMITHING
+D:A ring of cold iron, graven with runes of command in the
+D: Black Speech of Angband. The will of the Dark Lord
+D: echoes faintly within it — the wearer's resolve grows
+D: unyielding as stone, and fear itself recoils from them.
+D: Yet the ring's malice radiates outward like a burning
+D: brand, and all creatures nearby are roused to fury
+D: by its presence.
+
+
+N:169:Fell Voices
+G:=:d
+I:45:19:0
+W:7:0:1:0
+P:0:0d0:0:0d0
+A:12/20
+F:SONG | FEAR | HAUNTED | LIGHT_CURSE | EASY_KNOW | NO_SMITHING
+D:A ring of dark stone that hums with a low and ceaseless
+D: voice, as of fell chants sung in the deeps of Angband.
+D: The bearer's voice gains a strange and terrible power —
+D: yet the dead are drawn to the sound from the dark
+D: places, and a creeping dread follows wherever the ring
+D: is worn.
 
 
 ##
@@ -1268,7 +1429,7 @@ I:45:21:0
 W:8:0:1:1000
 P:0:0d0:0:0d0
 A:8/20
-F:STEALTH | ARCHERY | EASY_KNOW
+F:STEALTH | ARCHERY | EASY_KNOW | NOBLE_ITEM
 D:A ring of green and gold, fashioned in the manner of the
 D: Laiquendi, the Green Elves who dwelt in the deep woods
 D: of Ossiriand. It grants the quiet skill of the forest
@@ -1293,7 +1454,7 @@ G:_:d
 I:55:1:0
 W:6:0:50:400
 P:0:0d0:0:0d0
-A:5/3
+A:5/33
 D:A staff imbued with the power of binding, echoing the great
 D: doors and gates that were shut against Morgoth's hosts in
 D: the wars of Beleriand. It may shut and lock all doors in
@@ -1305,7 +1466,7 @@ G:*:d
 I:56:2:0
 W:9:0:5:400
 P:0:0d0:0:0d0
-A:6/4:12/2
+A:6/20:12/40
 D:A gem imbued with the power to undo locks and reveal what
 D: is hidden. It reveals doors and traps in line of sight
 D: and may open or destroy them.
@@ -1316,7 +1477,7 @@ G:*:d
 I:56:3:0
 W:2:0:5:250
 P:0:0d0:0:0d0
-A:3/2:9/4
+A:3/80
 D:A gem that holds a captured radiance, releasing it in a
 D: brilliant flash when called upon. It lights up an area
 D: with a radius of 7 squares, plus the entire room if you
@@ -1329,7 +1490,7 @@ G:*:d
 I:56:5:0
 W:6:0:5:400
 P:0:0d0:0:0d0
-A:4/2:10/4
+A:4/50
 D:A gem blessed with the virtue of cleansing, able to lift the
 D: taint of dark enchantments. It removes curses from the items
 D: in your possession.
@@ -1340,7 +1501,7 @@ G:*:d
 I:56:6:0
 W:10:0:5:400
 P:0:0d0:0:0d0
-A:8/2:14/1
+A:8/30
 D:A gem that reveals the hidden nature of things, granting
 D: knowledge as the loremasters of old possessed. It identifies
 D: an item. (This may be aborted without using up a charge.)
@@ -1351,7 +1512,7 @@ G:*:d
 I:56:7:0
 W:13:0:5:400
 P:0:0d0:0:0d0
-A:13/3
+A:13/20
 D:A gem that pierces the veil of darkness and stone, laying
 D: bare the paths around you. It reveals your surroundings.
 
@@ -1361,7 +1522,7 @@ G:*:d
 I:56:8:0
 W:13:0:5:400
 P:0:0d0:0:0d0
-A:13/6
+A:13/15
 D:A gem attuned to the works of craft, that senses the
 D: presence of wrought things near and far. It shows you the
 D: whereabouts of all items on the level.
@@ -1372,7 +1533,7 @@ G:*:d
 I:56:9:0
 W:13:0:5:400
 P:0:0d0:0:0d0
-A:6/4:14/2
+A:6/30
 D:A gem that senses the presence of living creatures, be they
 D: friend or foe. It shows you the whereabouts of all monsters
 D: on the level.
@@ -1383,7 +1544,7 @@ G:_:d
 I:55:10:0
 W:11:0:50:400
 P:0:0d0:0:0d0
-A:8/3:15/2
+A:8/30
 D:A staff bearing an enchantment of deep weariness, akin to
 D: the drowsing spells woven in the Elder Days. It causes a
 D: great weariness in all monsters in line of sight.
@@ -1394,7 +1555,7 @@ G:_:d
 I:55:11:0
 W:9:0:50:400
 P:0:0d0:0:0d0
-A:8/3:15/2
+A:8/30
 D:A staff that channels a commanding presence, echoing the
 D: terrible majesty of the great lords of the Elder Days.
 D: It causes fear in all monsters in line of sight.
@@ -1405,7 +1566,7 @@ G:*:d
 I:56:12:0
 W:7:0:5:400
 P:0:0d0:0:0d0
-A:2/3
+A:2/70
 D:A gem of inward sight, turning the bearer's perception
 D: upon themselves. It lets you know all of your status
 D: effects and also gives a slight chance to feel current
@@ -1417,7 +1578,7 @@ G:*:d
 I:56:13:0
 W:7:0:5:400
 P:0:0d0:0:0d0
-A:11/3
+A:11/50
 D:A gem imbued with the power of protection, in the manner
 D: of the ancient wards set upon the borders of Doriath.
 D: It can be used to create glyphs of warding, which your
@@ -1429,7 +1590,7 @@ G:_:d
 I:55:14:0
 W:13:0:50:400
 P:0:0d0:0:0d0
-A:6/3:11/2
+A:6/50
 D:A staff wrought with a bewildering enchantment that scatters
 D: the wits of those who face it. It confuses all monsters in
 D: line of sight.
@@ -1440,7 +1601,7 @@ G:*:d
 I:56:16:0
 W:11:0:5:400
 P:0:0d0:0:0d0
-A:11/12
+A:11/20
 D:A gem that can restore the fading power of enchanted staves,
 D: renewing their virtue. It allows you to partially recharge
 D: another staff.
@@ -1451,7 +1612,7 @@ G:_:d
 I:55:17:0
 W:7:0:50:0
 P:0:0d0:0:0d0
-A:3/3:12/2
+A:3/100
 D:A staff of fell purpose, its call drawing creatures from
 D: the shadows. It summons monsters to the stairs on the
 D: current level.
@@ -1462,7 +1623,7 @@ G:*:d
 I:56:18:0
 W:9:0:5:0
 P:0:0d0:0:0d0
-A:3/3
+A:3/100
 D:A gem of darkness that swallows light, as Ungoliant consumed
 D: the radiance of the Two Trees. It darkens an area with a
 D: radius of 7 squares, plus the entire room if you are
@@ -1476,7 +1637,7 @@ G:?:d
 I:66:0:0
 W:7:0:10:100
 P:0:0d0:0:0d0
-A:7/6
+A:7/50
 F:EASY_KNOW
 D:A horn whose dreadful note strikes fear into the hearts of
 D: those who hear it, as the horns of the Noldor once rang in
@@ -1489,7 +1650,7 @@ G:?:d
 I:66:1:0
 W:10:0:10:100
 P:0:0d0:0:0d0
-A:10/6
+A:10/30
 F:EASY_KNOW
 D:A horn whose blast rolls like thunder through the halls,
 D: dazing all who stand against you. Its sound stuns your
@@ -1501,7 +1662,7 @@ G:?:d
 I:66:2:0
 W:12:0:10:100
 P:0:0d0:0:0d0
-A:12/6
+A:12/30
 F:EASY_KNOW
 D:A horn whose mighty blast hurls foes back like a gale from
 D: the mountains. Its sound blows your enemies back.
@@ -1512,7 +1673,7 @@ G:?:d
 I:66:3:0
 W:13:0:10:100
 P:0:0d0:0:0d0
-A:13/6
+A:13/10
 F:EASY_KNOW
 D:A horn of terrible power, whose voice can crack the works
 D: of stone as the trumpets of the Valar shattered the pillars
@@ -1526,7 +1687,7 @@ G:?:d
 I:66:4:0
 W:7:0:10:0
 P:0:0d0:0:0d0
-A:7/12
+A:7/80
 F:EASY_KNOW
 D:A horn that draws the attention of all nearby, for good or
 D: ill. It rings out a challenge to your foes.
@@ -1540,7 +1701,7 @@ G:!:d
 I:75:0:100
 W:11:0:5:1000
 P:0:0d0:0:0d0
-A:11/2:17/2
+A:11/20
 F:EASY_KNOW
 D:A cordial of surpassing virtue, said to be in the manner
 D: of the healing drink of the Valar in the Blessed Realm.
@@ -1554,10 +1715,13 @@ G:!:d
 I:75:2:100
 W:3:0:5:100
 P:0:0d0:0:0d0
-A:3/1:7/1
+A:3/100
 F:EASY_KNOW
-D:It banishes all fear, cures a quarter of your health, and stuns you
-D: (for 2d4 turns).
+D:A foul brew distilled in the pits of Angband, thick and black
+D: and burning to the throat. The orcs of Morgoth drink it before
+D: battle to dull their pain and steel their craven hearts. It
+D: banishes all fear, cures a quarter of your health, and stuns
+D: you (for 2d4 turns).
 
 
 N:316:Esgalduin
@@ -1565,7 +1729,7 @@ G:!:d
 I:75:3:100
 W:4:0:5:200
 P:0:0d0:0:0d0
-A:4/3:12/6
+A:4/20
 F:EASY_KNOW
 D:A potion infused with the waters of the Esgalduin, a river
 D: that flows through the hidden realm of Doriath beneath
@@ -1579,7 +1743,7 @@ G:!:d
 I:75:4:100
 W:6:0:5:100
 P:0:0d0:0:0d0
-A:3/1:13/1
+A:3/75
 F:EASY_KNOW
 D:A draught that clears the mind, lifting the fog of
 D: bewilderment and the daze of stunned wits. It cures
@@ -1592,7 +1756,7 @@ G:!:d
 I:75:5:100
 W:9:0:5:300
 P:0:0d0:0:0d0
-A:9/1:15/1
+A:9/60
 F:EASY_KNOW
 D:A draught of potent healing, brewed with the virtue of
 D: herbs and ancient craft. It heals all cuts and restores
@@ -1604,7 +1768,7 @@ G:!:d
 I:75:6:100
 W:13:0:5:300
 P:0:0d0:0:0d0
-A:13/1
+A:13/60
 F:EASY_KNOW
 D:A draught that renews the power of song, restoring what
 D: weariness and sorrow have spent. It renews your voice.
@@ -1615,7 +1779,7 @@ G:!:d
 I:75:7:100
 W:5:0:5:100
 P:0:0d0:0:0d0
-A:5/1:15/1
+A:5/75
 F:EASY_KNOW
 D:A draught that opens the inner eye, granting sight beyond
 D: the deceptions of Morgoth's servants. It restores your
@@ -1629,7 +1793,7 @@ G:!:d
 I:75:8:100
 W:2:0:5:100
 P:0:0d0:0:0d0
-A:2/1:12/1
+A:2/75
 F:EASY_KNOW
 D:A draught brewed against the venoms of the Enemy's
 D: creatures. It cures any current poisoning.
@@ -1640,7 +1804,7 @@ G:!:d
 I:75:9:100
 W:5:0:5:200
 P:0:0d0:0:0d0
-A:5/1:15/1
+A:5/20
 F:EASY_KNOW
 D:A draught that hastens the body, lending a burst of speed
 D: to limb and sinew. It makes you move more quickly (+1 to
@@ -1652,7 +1816,7 @@ G:!:d
 I:75:10:100
 W:12:0:5:100
 P:0:0d0:0:0d0
-A:12/1:16/1
+A:12/50
 F:EASY_KNOW
 D:A draught that steels the body against the extremes of fire
 D: and cold. It grants you temporary resistance to fire and
@@ -1664,10 +1828,11 @@ G:!:d
 I:75:14:100
 W:6:0:5:200
 P:0:0d0:0:0d0
-A:6/2:12/2
+A:6/30
 F:EASY_KNOW
-D:It grants a bonus of +3 to strength for 20d4 turns,
-D: restoring strength in the process.
+D:A draught that quickens the sinews and fills the limbs with
+D: the vigour of youth renewed. It grants a bonus of +3 to
+D: strength for 20d4 turns, restoring strength in the process.
 
 
 N:328:Dexterity
@@ -1675,10 +1840,11 @@ G:!:d
 I:75:15:100
 W:7:0:5:200
 P:0:0d0:0:0d0
-A:7/2:13/2
+A:7/30
 F:EASY_KNOW
-D:It grants a bonus of +3 to dexterity for 20d4 turns,
-D: restoring dexterity in the process.
+D:A draught that sharpens the reflexes and lends a dancer's
+D: grace to hand and eye. It grants a bonus of +3 to dexterity
+D: for 20d4 turns, restoring dexterity in the process.
 
 
 N:329:Constitution
@@ -1686,9 +1852,11 @@ G:!:d
 I:75:16:100
 W:8:0:5:200
 P:0:0d0:0:0d0
-A:8/2:14/2
+A:8/30
 F:EASY_KNOW
-D:It grants a bonus of +3 to constitution for 20d4 turns,
+D:A draught that hardens the body against weariness and hurt,
+D: steeling flesh and bone as iron is tempered in the forge.
+D: It grants a bonus of +3 to constitution for 20d4 turns,
 D: restoring constitution in the process.
 
 
@@ -1697,10 +1865,12 @@ G:!:d
 I:75:17:100
 W:9:0:5:200
 P:0:0d0:0:0d0
-A:9/2:15/2
+A:9/30
 F:EASY_KNOW
-D:It grants a bonus of +3 to grace for 20d4 turns,
-D: restoring grace in the process.
+D:A draught imbued with the light of elder days, that kindles
+D: the spirit and deepens the bond between the drinker and the
+D: unseen currents of the world. It grants a bonus of +3 to
+D: grace for 20d4 turns, restoring grace in the process.
 
 ##
 
@@ -1710,7 +1880,7 @@ G:!:d
 I:75:22:100
 W:2:0:5:0
 P:0:0d0:0:0d0
-A:2/3
+A:2/60
 F:EASY_KNOW
 D:A draught tainted with a sluggish curse. It slows you down
 D: (-1 to speed) for 10d4 turns.
@@ -1721,7 +1891,7 @@ G:!:d
 I:75:23:100
 W:3:0:5:0
 P:0:0d0:0:0d0
-A:3/3
+A:3/90
 F:EASY_KNOW
 D:A draught laced with venom, deadly to the unwary. It causes
 D: 5d4 points of poison.
@@ -1732,7 +1902,7 @@ G:!:d
 I:75:24:100
 W:4:0:5:0
 P:0:0d0:0:0d0
-A:4/3
+A:4/40
 F:EASY_KNOW
 D:A draught cursed with the darkness of the Enemy. It induces
 D: blindness for 10d4 turns.
@@ -1743,7 +1913,7 @@ G:!:d
 I:75:25:100
 W:6:0:5:0
 P:0:0d0:0:0d0
-A:6/3
+A:6/100
 F:EASY_KNOW
 D:A draught that clouds the mind with bewilderment. It induces
 D: confusion for 5d4 turns.
@@ -1754,7 +1924,7 @@ G:!:d
 I:75:27:100
 W:9:0:5:0
 P:0:0d0:0:0d0
-A:9/3
+A:9/30
 F:EASY_KNOW
 D:A draught that numbs the limbs and dulls the reflexes. It
 D: reduces your dexterity by one point.
@@ -1765,7 +1935,7 @@ G:!:d
 I:75:29:100
 W:11:0:5:0
 P:0:0d0:0:0d0
-A:11/3
+A:11/30
 F:EASY_KNOW
 D:A draught that dims the spirit and severs the inner
 D: connection to the deeper currents of the world. It reduces
@@ -1854,13 +2024,15 @@ G:,:d
 I:80:0:250
 W:3:0:1:25
 P:0:0d0:0:0d0
-A:3/2:9/1:15/4
+A:3/50:9/75
 F:EASY_KNOW
-D:It sends you into a dark rage
-D: (+1 Str/Con, -1 Dex/Gra, special melee attack, resistance to fear)
-D: for 10d4 turns.
-D: Herbs provide nourishment for about 250
-D: turns under normal conditions. 
+D:A dark herb with jagged leaves, said to grow where the blood
+D: of the fallen has seeped into the earth. Those who eat of it
+D: are seized by a fury beyond reason, their strength swelling
+D: even as their judgment dims. It sends you into a dark rage
+D: (+1 Str/Con, -1 Dex/Gra, special melee attack, resistance
+D: to fear) for 10d4 turns. Herbs provide nourishment for about
+D: 250 turns under normal conditions.
 
 
 N:381:Sustenance
@@ -1868,10 +2040,13 @@ G:,:d
 I:80:1:0
 W:5:0:1:50
 P:0:0d0:0:0d0
-A:3/2:13/1
+A:3/50:13/75
 F:EASY_KNOW
-D:It provides nourishment for about 2000 turns
-D: under normal conditions. 
+D:A wholesome herb found in sheltered places, its leaves broad
+D: and green even in the deepest dark. The wanderers of
+D: Beleriand long relied upon such plants when other food could
+D: not be found. It provides nourishment for about 2,000 turns
+D: under normal conditions.
 
 # Do not move Herb of Terror from this location, used by quests.
 
@@ -1880,12 +2055,14 @@ G:,:d
 I:80:2:250
 W:3:0:1:10
 P:0:0d0:0:0d0
-A:3/2:6/2
+A:3/50
 F:EASY_KNOW
-D:It induces fear that lasts
+D:A pale herb that grows in shadow, whose bitter taste fills
+D: the heart with a nameless dread. Yet in that very fear the
+D: limbs find desperate swiftness. It induces fear that lasts
 D: for 10d4 turns and a burst of speed that lasts 5d4 turns.
-D: Herbs provide nourishment for about 250
-D: turns under normal conditions.
+D: Herbs provide nourishment for about 250 turns under normal
+D: conditions.
 
 
 N:383:Healing
@@ -1893,11 +2070,13 @@ G:,:d
 I:80:3:250
 W:7:0:1:75
 P:0:0d0:0:0d0
-A:7/2:17/2
+A:7/20
 F:EASY_KNOW
-D:It cures all cuts and heals half of your health.
-D:  Herbs provide nourishment for
-D: about 250 turns under normal conditions. 
+D:An herb of ancient virtue, long known to the healers of the
+D: Eldar. Its leaves, when eaten, close wounds and ease pain,
+D: mending what battle has broken. It cures all cuts and heals
+D: half of your health. Herbs provide nourishment for about 250
+D: turns under normal conditions.
 
 
 N:384:Restoration
@@ -1905,11 +2084,13 @@ G:,:d
 I:80:4:250
 W:5:0:1:1000
 P:0:0d0:0:0d0
-A:5/4:9/2:19/2
+A:5/40
 F:EASY_KNOW
-D:It restores all of your statistics by up to 3 points each. 
-D: Herbs provide nourishment for about 250 turns under normal
-D: conditions. 
+D:A rare herb prized above all others by the healers of the
+D: Elder Days, for it restores what has been diminished and
+D: renews what the Enemy's malice has drained. It restores all
+D: of your statistics by up to 3 points each. Herbs provide
+D: nourishment for about 250 turns under normal conditions.
 
 
 N:385:Emptiness
@@ -1917,9 +2098,12 @@ G:,:d
 I:80:5:0
 W:4:0:1:0
 P:0:0d0:0:0d0
-A:4/3
+A:4/70
 F:EASY_KNOW
-D:It makes you more hungry (by 1,000 turns under normal conditions). 
+D:A withered herb, dry and ashen, that grows in blighted soil
+D: where nothing wholesome takes root. It fills the belly with
+D: a gnawing hollowness, making you more hungry (by 1,000 turns
+D: under normal conditions).
 
 
 N:386:Visions
@@ -1927,12 +2111,15 @@ G:,:d
 I:80:6:250
 W:8:0:1:0
 P:0:0d0:0:0d0
-A:8/3
+A:8/50
 F:EASY_KNOW
-D:It causes you to hallucinate for 80d4 turns, but cures blindness in
-D: the process.
-D: Herbs provide nourishment for about 250
-D: turns under normal conditions.
+D:An herb of strange and perilous power, whose leaves shimmer
+D: with faint iridescence. Those who eat of it are plunged into
+D: waking dreams, seeing things that are not there — yet
+D: sometimes the veil of blindness is lifted thereby. It causes
+D: you to hallucinate for 80d4 turns, but cures blindness in
+D: the process. Herbs provide nourishment for about 250 turns
+D: under normal conditions.
 
 
 N:387:Entrancement
@@ -1940,11 +2127,13 @@ G:,:d
 I:80:7:250
 W:8:0:1:0
 P:0:0d0:0:0d0
-A:8/3
+A:8/50
 F:EASY_KNOW
-D:It induces a trance that lasts for 10d4 turns.
-D: Herbs provide nourishment for about 250 turns under
-D: normal conditions. 
+D:An herb whose sweet scent lulls the will and slows the mind,
+D: as though the eater were caught in one of the Enemy's lesser
+D: snares. It induces a trance that lasts for 10d4 turns. Herbs
+D: provide nourishment for about 250 turns under normal
+D: conditions.
 
 
 N:388:Weakness
@@ -1952,11 +2141,12 @@ G:,:d
 I:80:8:250
 W:8:0:1:0
 P:0:0d0:0:0d0
-A:8/3
+A:8/70
 F:EASY_KNOW
-D:It reduces your strength by one point.
-D: Herbs provide nourishment for about 250
-D: turns under normal conditions. 
+D:A bitter herb that saps the body's vigour, leaving the limbs
+D: heavy and the grip uncertain. It reduces your strength by
+D: one point. Herbs provide nourishment for about 250 turns
+D: under normal conditions.
 
 
 N:389:Sickness
@@ -1964,11 +2154,12 @@ G:,:d
 I:80:9:250
 W:8:0:1:0
 P:0:0d0:0:0d0
-A:8/3
+A:8/30
 F:EASY_KNOW
-D:It reduces your constitution by one point.
-D: Herbs provide nourishment for
-D: about 250 turns under normal conditions. 
+D:A sickly herb, spotted and foul, that gnaws at the body's
+D: endurance and leaves one vulnerable to further hardship. It
+D: reduces your constitution by one point. Herbs provide
+D: nourishment for about 250 turns under normal conditions.
 
 
 N:399:& Piece~ of Dark Bread
@@ -1977,9 +2168,13 @@ T:5:5
 I:80:35:1500
 W:7:0:5:2
 P:0:0d0:0:0d0
-A:7/2:13/1
+A:7/100
 F:EASY_KNOW
-D:It provides nourishment for about 1,500 turns under normal conditions. 
+D:Coarse bread baked for long keeping, dark and heavy. Such
+D: loaves sustained the soldiers and scouts who marched through
+D: the wild lands of Beleriand in the wars against Morgoth. It
+D: provides nourishment for about 1,500 turns under normal
+D: conditions.
 
 
 N:400:& Strip~ of Dried Meat
@@ -1988,9 +2183,13 @@ T:5:6
 I:80:36:2000
 W:10:0:10:3
 P:0:0d0:0:0d0
-A:10/4:16/1
+A:10/100
 F:EASY_KNOW
-D:It provides nourishment for about 2,000 turns under normal conditions. 
+D:Strips of meat dried and salted against the long marches of
+D: war. The Edain carried such provisions on the road, for in
+D: the wilds of Beleriand fresh food was seldom to be found. It
+D: provides nourishment for about 2,000 turns under normal
+D: conditions.
 
 
 N:401:& Fragment~ of Lembas
@@ -1999,10 +2198,14 @@ T:5:7
 I:80:37:3000
 W:7:0:1:10
 P:0:0d0:0:0d0
-A:7/4:18/2
+A:7/0:10/5
 F:EASY_KNOW
-D:It restores a point of grace if it has been drained.  It provides
-D: nourishment for about 3,000 turns under normal conditions. 
+D:The waybread of the Elves, wrapped in leaves of mallorn.
+D: Light and sustaining beyond the measure of common food, a
+D: single fragment can nourish a traveller through a long day's
+D: march. It restores a point of grace if it has been drained.
+D: It provides nourishment for about 3,000 turns under normal
+D: conditions.
 
 
 ##### Various #####
@@ -2014,10 +2217,13 @@ T:5:8
 I:77:0:3000
 W:7:0:10:3
 P:0:0d0:0:0d0
-A:7/2:13/1:19/1
+A:7/80
 F:EASY_KNOW
-D:It can be used to fuel a brass lantern with 3,000 turns of light,
-D: up to a maximum of 7,000 turns of light.
+D:A small flask of lamp oil, carried by those who venture into
+D: the lightless halls beneath Angband, where even Elven eyes
+D: find no gleam to guide them. It can be used to fuel a brass
+D: lantern with 3,000 turns of light, up to a maximum of 7,000
+D: turns of light.
 
 
 N:410:& Piece~ of Mithril
@@ -2026,10 +2232,14 @@ T:1:21
 I:4:0:0
 W:15:5:1:100
 P:0:0d0:0:0d0
-A:15/20
-F:EASY_KNOW
-D:Small shining pieces of true silver. They can be used at a forge
-D: to create or alloy mithril items.
+A:15/10
+F:EASY_KNOW | NOBLE_ITEM
+D:Small shining pieces of true silver, mined in the deep places
+D: of the earth by the Dwarves of Khazad-dum and Belegost.
+D: Mithril is prized above gold, for it may be beaten and
+D: wrought like copper yet shines like silver and never
+D: tarnishes. They can be used at a forge to create or alloy
+D: mithril items.
 
 
 #### Out of place ####
@@ -2040,10 +2250,13 @@ T:11:31
 I:39:3:0
 W:1:0:10:2
 P:0:0d0:0:0d0:0
-A:3/4:6/2
+A:3/0:6/20
 F:NO_SMITHING | EASY_KNOW
-D:The wood of the mallorn burns bright but briefly.
-D: You can equip it as a light source with a radius of 3 squares.
+D:A torch hewn from the wood of the mallorn, the golden trees
+D: that grow in the Blessed Realm and in the Elven havens of
+D: Middle-earth. Its flame burns with a warm, clear light,
+D: brighter than common wood, though it is quickly spent. You
+D: can equip it as a light source with a radius of 4 squares.
 D: It may also be used to fuel another wooden torch, up to a
 D: maximum of 100 turns of light.
 
@@ -2056,7 +2269,7 @@ T:2:20
 I:32:1:0
 W:1:0:50:15
 P:0:0d0:-1:1d1
-A:1/1:8/0
+A:1/100:10/0
 F:DAMAGED | NO_SMITHING
 D:A helm long abandoned in the deep places, its iron pitted
 D: with rust. It offers scant protection, but is better than
@@ -2068,7 +2281,7 @@ T:2:21
 I:30:4:0
 W:1:0:20:7
 P:0:0d0:-1:1d1
-A:1/1:8/0
+A:1/100:10/0
 F:DAMAGED | NO_SMITHING
 D:Boots worn thin by long use and hard roads, their soles
 D: cracked and their stitching frayed.
@@ -2079,7 +2292,7 @@ T:11:28
 I:34:1:0
 W:1:0:50:50
 P:-1:0d0:0:1d2
-A:1/1:8/0
+A:1/100:10/0
 F:DAMAGED | NO_SMITHING
 D:A shield cracked and splintered, perhaps by some great blow
 D: in a forgotten battle. It can still turn aside a glancing
@@ -2091,7 +2304,7 @@ T:6:0
 I:23:1:0
 W:1:0:5:5
 P:-1:1d4:0:0d0
-A:1/1:8/0
+A:1/100:10/0
 F:DAMAGED | NO_SMITHING | THROWING | MORE_SPECIAL
 D:A dagger whose edge is chipped and notched, diminished in
 D: both keenness and worth.
@@ -2102,7 +2315,7 @@ T:6:2
 I:23:9:0
 W:1:0:20:30
 P:-1:1d6:0:0d0
-A:1/1:8/0
+A:1/100:10/0
 F:DAMAGED | NO_SMITHING
 D:A shortsword whose blade has been bent, perhaps trodden
 D: underfoot in some ancient skirmish. It still cuts, but
@@ -2114,7 +2327,7 @@ T:6:9
 I:22:3:0
 W:1:0:30:20
 P:-1:1d7:0:0d0
-A:1/1:8/0
+A:1/100:10/0
 F:DAMAGED | NO_SMITHING | THROWING | HAND_AND_A_HALF | POLEARM
 D:A spear whose shaft is cracked and whose point is dulled,
 D: a relic of some forgotten fight in the deeps.
@@ -2125,7 +2338,7 @@ T:5:29
 I:19:11:0
 W:1:0:15:20
 P:-1:1d6:0:0d0
-A:1/2:8/0
+A:1/100:10/0
 F:DAMAGED | NO_SMITHING
 D:A shortbow whose limbs have warped from damp and neglect.
 D: Its aim suffers, but it can still loose an arrow.
@@ -2136,7 +2349,7 @@ T:5:2
 I:35:0:0
 W:1:0:20:1
 P:0:0d0:0:1d0
-A:1/1:8/0
+A:1/100:10/0
 F:DAMAGED | NO_SMITHING
 D:A cloak worn to tatters, offering little warmth and less
 D: concealment.
@@ -2147,7 +2360,7 @@ T:5:21
 I:31:4:0
 W:1:0:30:10
 P:-2:0d0:-1:1d0
-A:2/2:8/0
+A:2/100:10/0
 F:DAMAGED | NO_SMITHING | IGNORE_FIRE
 D:Gauntlets of battered leather and bent iron, their plates
 D: cracked and ill-fitting.
@@ -2158,7 +2371,7 @@ T:5:10
 I:30:5:0
 W:2:0:80:5
 P:0:0d0:-2:1d1
-A:2/2:8/0
+A:2/100:10/0
 F:DAMAGED | NO_SMITHING | IGNORE_FIRE
 D:Greaves hammered out of true by some past blow, their iron
 D: dented and their straps frayed.
@@ -2169,7 +2382,7 @@ T:5:15
 I:37:3:0
 W:3:0:270:200
 P:-2:0d0:-4:2d3
-A:4/8:8/0
+A:3/100:10/0
 F:DAMAGED | NO_SMITHING
 D:A corslet of mail whose rings are bent and broken in places,
 D: its protection much diminished.
@@ -2749,7 +2962,7 @@ T:19:5
 I:4:1:0
 W:20:5:1:120
 P:0:0d0:0:0d0
-A:20/15
+A:20/10
 F:EASY_KNOW
 D:Dense fragments of metal fallen from the heights, stronger than common steel.
 D: They can be used at a forge to create or alloy star-iron items.

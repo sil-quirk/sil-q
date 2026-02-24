@@ -75,7 +75,7 @@ T:31:0:99  # Gloves
 N:4:Polearm Mastery
 I:0:4:4
 D:Mastering the long-hafted weapons akin to those wielded by the guards of Gondolin in the Fall of the Hidden City. The spearmen of Turgon's household held the bridges and narrow ways with their long reach, setting their weapons to receive the charging Balrogs and their orcish thralls.
-E:+2 attack with polearms. Set polearms to receive free attacks on advancing enemies when waiting (z/5). Great spears usable as throwing weapons.
+E:+2 attack with polearms. Set polearms to receive free attacks on advancing enemies when waiting (z/5).
 T:31:0:99  # Gloves
 #          # + all Polearms (hard coded)
 

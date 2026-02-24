@@ -902,9 +902,12 @@ static void wr_options(void)
     /* Write "ability_desc_mode" */
     wr_byte(op_ptr->ability_desc_mode);
 
-    // 6 spare bytes
+    /* Write "vault_drop_frequency" */
+    wr_byte(op_ptr->vault_drop_frequency);
+
+    // 5 spare bytes
     wr_u32b(0L);
-    wr_u16b(0);
+    wr_byte(0);
 
     /*** Normal options ***/
 

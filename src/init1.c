@@ -326,6 +326,8 @@ static flag_name info_flags[] = {
     { "PAIRED", TR4, TR4_PAIRED },
     { "SUBTLETY_THROW", TR4, TR4_SUBTLETY_THROW },
     { "BREAKS_PERMA_CURSE", TR4, TR4_BREAKS_PERMA_CURSE },
+    { "LESS_SPECIAL", TR4, TR4_LESS_SPECIAL },
+    { "NOBLE_ITEM",   TR4, TR4_NOBLE_ITEM },
 
     /*
      * Race/Character flags

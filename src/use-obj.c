@@ -595,10 +595,11 @@ static bool use_staff_effects(object_type* o_ptr, bool* ident, bool alchemy_boos
             bool is_quiver1 = (i == INVEN_QUIVER1);
             bool is_quiver2 = (i == INVEN_QUIVER2);
             bool is_throwing_item = player_can_treat_as_throwing_flags(equip_ptr, f3);
+            bool is_arrow = (equip_ptr->tval == TV_ARROW);
 
             if (is_quiver1)
                 continue;
-            if (is_quiver2 && !is_throwing_item)
+            if (is_quiver2 && !is_throwing_item && !is_arrow)
                 continue;
 
             (void)player_try_identify_smithing_object(equip_ptr, true, 5);

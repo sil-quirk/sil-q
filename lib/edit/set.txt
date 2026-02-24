@@ -37,15 +37,19 @@ V:0.9.5
 
 N:1:Orcrist and Glamdring
 F:PAIRED_WEAPONS
-A:5ee28c5262c0629d
-A:ace66e723fa1853c
+A:5ee28c5262c0629d  
+# 'Orcrist'
+A:ace66e723fa1853c  
+# 'Glamdring'
 
 
 ## Crown of Maedhros and Hauberk of Maedhros (+1 CON)
 
 N:2:Maedhros Regalia
-A:4dca93d7e5f9681f
-A:5003ac23ea4cf5ae
+A:4dca93d7e5f9681f  
+# crown of Maedhros
+A:5003ac23ea4cf5ae  
+# hauberk of Maedhros
 M:CON:1
 
 
@@ -54,8 +58,10 @@ M:CON:1
 N:3:Belthronding and Dailir
 Q:406e2bebdae3340c
 F:WARDING_GIRDLE
-A:792beedcd8af6104
-A:e8840ae097bbec79
+A:792beedcd8af6104  
+# 'Belthronding'
+A:e8840ae097bbec79  
+# 'Dailir'
 
 
 ## Amrod and Amras (paired weapons)
@@ -63,28 +69,38 @@ A:e8840ae097bbec79
 N:4:Amrod and Amras
 Q:c72e9a56f18b3d02
 F:PAIRED_WEAPONS
-A:70239c6076a16a6c
-A:17173e277d13b237
+A:70239c6076a16a6c  
+# shortsword of Amrod
+A:17173e277d13b237  
+# shortsword of Amras
 
 
-## Panoply of Earendil (6-piece war-gear set: +1 GRA, +1 WIL)
+## Panoply of Earendil (6-piece war-gear set: +1 GRA, +5 WIL)
 
 N:5:Panoply of Earendil
 Q:e3a7b1d5f9c20486
-A:'Falchrist'
-A:'Tirthand'
-A:'Gilceleb'
-A:'Thoronthaul'
-A:'Mornpilin'
-A:'Amlugrist'
+A:7e3a91f4c6b20d58  
+# 'Falchrist'
+A:d4f8a2e1b9c37065  
+# 'Tirthand'
+A:b5e9d0c8a7f61324  
+# 'Gilceleb'
+A:c6f2a3d9e8b40751  
+# 'Thoronthaul'
+A:a8d1e5f3b7c29046  
+# 'Mornpilin'
+A:4a5fc05927236048  
+# 'Amlugrist'
 M:GRA:1
-M:WIL:1
+M:WIL:5
 
 
 ## Treasures of Finwe (corslet and lamp: +1 GRA)
 
 N:6:Treasures of Finwe
 Q:f4c8e1a6d9b20573
-A:d1921f00bca8218e
-A:a7c3d925e8f14b62
+A:d1921f00bca8218e  
+# corslet of Finwe
+A:a7c3d925e8f14b62  
+# lamp of Finwe
 M:GRA:1
