@@ -2383,6 +2383,12 @@ int abilities_menu2(int skilltype, int* highlight)
 
             // print the description of the highlighted ability
             /* (ability_type::text is an offset, so it's always non-negative) */
+            /* Determine compact mode from terminal height; use single newline between
+             * sections when space is tight, double newline when there is room. */
+            int term_hgt_ab = Term ? Term->hgt : 24;
+            bool compact_mode = (term_hgt_ab < 28);
+            const char *desc_sep = compact_mode ? "\n" : "\n\n";
+            int post_desc_row = 3; /* updated after description renders */
             {
                 /* Check if this is a broken oath ability and use Q: text instead */
                 char* description_text = NULL;
@@ -2443,7 +2449,7 @@ int abilities_menu2(int skilltype, int* highlight)
                     case 1: /* Effect first, then description */
                         if (has_effect) text_out_to_screen(TERM_L_WHITE, effect_text);
                         if (has_desc) {
-                            if (has_effect) text_out_to_screen(TERM_L_WHITE, "\n\n");
+                            if (has_effect) text_out_to_screen(TERM_L_WHITE, desc_sep);
                             text_out_to_screen(TERM_SLATE, desc_text);
                         }
                         break;
@@ -2454,7 +2460,7 @@ int abilities_menu2(int skilltype, int* highlight)
                     default: /* 0: Description first, then effect */
                         if (has_desc) text_out_to_screen(TERM_SLATE, desc_text);
                         if (has_effect) {
-                            if (has_desc) text_out_to_screen(TERM_L_WHITE, "\n\n");
+                            if (has_desc) text_out_to_screen(TERM_L_WHITE, desc_sep);
                             text_out_to_screen(TERM_L_WHITE, effect_text);
                         }
                         break;
@@ -2500,6 +2506,13 @@ int abilities_menu2(int skilltype, int* highlight)
                     }
                 }
 
+                /* Capture the row where description text ended for dynamic placement */
+                {
+                    int pdx;
+                    Term_locate(&pdx, &post_desc_row);
+                    if (pdx > text_out_indent) post_desc_row++;
+                }
+
                 /* Reset text_out() vars */
                 text_out_wrap = 0;
                 text_out_indent = 0;
@@ -2508,7 +2521,9 @@ int abilities_menu2(int skilltype, int* highlight)
             // print more info if you don't have the skill
             if (!p_ptr->have_ability[skilltype][b_ptr->abilitynum])
             {
-                int desc_row = 16;  /* Start prerequisites lower to give description more room (moved down 2 rows) */
+                /* Place prerequisites dynamically after description text */
+                int gap = compact_mode ? 1 : 2;
+                int desc_row = post_desc_row + gap;
                 
                 // print the prerequisites with color
                 Term_putstr(COL_DESCRIPTION, desc_row, -1, TERM_YELLOW, "Prerequisites:");
@@ -2654,24 +2669,28 @@ int abilities_menu2(int skilltype, int* highlight)
                 }
                 next_threshold = threshold;  // This is the next power of 2
                 
-                Term_putstr(COL_DESCRIPTION, 10, -1, TERM_WHITE,
+                /* Place bane stats dynamically after description text */
+                int bane_row = post_desc_row + (compact_mode ? 1 : 2);
+                Term_putstr(COL_DESCRIPTION, bane_row, -1, TERM_WHITE,
                     format("%s-Bane:", bane_name[p_ptr->bane_type]));
-                Term_putstr(COL_DESCRIPTION, 12, -1, TERM_WHITE,
+                Term_putstr(COL_DESCRIPTION, bane_row + 2, -1, TERM_WHITE,
                     format("  %d slain, giving a %+d bonus", killed, current_bonus));
                     
                 if (current_bonus == 0 && killed < 2) {
-                    Term_putstr(COL_DESCRIPTION, 13, -1, TERM_SLATE,
+                    Term_putstr(COL_DESCRIPTION, bane_row + 3, -1, TERM_SLATE,
                         format("  (next bonus at %d slain)", next_threshold));
                 } else if (next_threshold <= 64) {  // Don't show if threshold is too high
-                    Term_putstr(COL_DESCRIPTION, 13, -1, TERM_SLATE,
+                    Term_putstr(COL_DESCRIPTION, bane_row + 3, -1, TERM_SLATE,
                         format("  (next bonus at %d slain)", next_threshold));
                 }
             }
             else if ((skilltype == S_WIL) && (b_ptr->abilitynum == WIL_OATH)
                 && (p_ptr->oath_type > 0))
             {
-                Term_putstr(COL_DESCRIPTION, 10, -1, TERM_WHITE, "Oath:");
-                Term_putstr(COL_DESCRIPTION + 6, 10, -1, TERM_L_BLUE,
+                /* Place oath info dynamically after description text */
+                int oath_row = post_desc_row + (compact_mode ? 1 : 2);
+                Term_putstr(COL_DESCRIPTION, oath_row, -1, TERM_WHITE, "Oath:");
+                Term_putstr(COL_DESCRIPTION + 6, oath_row, -1, TERM_L_BLUE,
                     oath_name_short(p_ptr->oath_type));
 
                 /* Indent output by 2 character, and wrap at column 70 */
@@ -2679,7 +2698,7 @@ int abilities_menu2(int skilltype, int* highlight)
                 text_out_indent = COL_DESCRIPTION;
 
                 /* History */
-                Term_gotoxy(text_out_indent, 11);
+                Term_gotoxy(text_out_indent, oath_row + 1);
                 strnfmt(buf, 80, "You have sworn not to %s.",
                     oath_desc2_short(p_ptr->oath_type));
                 text_out_to_screen(TERM_L_WHITE, buf);
@@ -2689,10 +2708,10 @@ int abilities_menu2(int skilltype, int* highlight)
                 text_out_indent = 0;
 
                 if (oath_invalid(p_ptr->oath_type))
-                    Term_putstr(COL_DESCRIPTION, 14, -1, TERM_RED,
+                    Term_putstr(COL_DESCRIPTION, oath_row + 4, -1, TERM_RED,
                         "You are an oathbreaker.");
                 else
-                    Term_putstr(COL_DESCRIPTION, 14, -1, TERM_WHITE,
+                    Term_putstr(COL_DESCRIPTION, oath_row + 4, -1, TERM_WHITE,
                         format("Bonus: %s.", oath_reward_short(p_ptr->oath_type)));
             }
             // if you have the unique bane special ability
@@ -2717,16 +2736,18 @@ int abilities_menu2(int skilltype, int* highlight)
                     next_threshold = threshold;  // This is the next power of 2
                 }
                 
-                Term_putstr(COL_DESCRIPTION, 10, -1, TERM_WHITE, "Unique Bane:");
-                Term_putstr(COL_DESCRIPTION, 12, -1, TERM_WHITE,
+                /* Place unique bane stats dynamically after description text */
+                int ubane_row = post_desc_row + (compact_mode ? 1 : 2);
+                Term_putstr(COL_DESCRIPTION, ubane_row, -1, TERM_WHITE, "Unique Bane:");
+                Term_putstr(COL_DESCRIPTION, ubane_row + 2, -1, TERM_WHITE,
                     format("  %d uniques slain, giving a %+d bonus", 
                            uniques_killed, current_bonus));
                            
                 if (current_bonus == 0 && uniques_killed < 2) {
-                    Term_putstr(COL_DESCRIPTION, 13, -1, TERM_SLATE,
+                    Term_putstr(COL_DESCRIPTION, ubane_row + 3, -1, TERM_SLATE,
                         format("  (next bonus at %d uniques)", next_threshold));
                 } else if (next_threshold <= 64) {  // Don't show if threshold is too high
-                    Term_putstr(COL_DESCRIPTION, 13, -1, TERM_SLATE,
+                    Term_putstr(COL_DESCRIPTION, ubane_row + 3, -1, TERM_SLATE,
                         format("  (next bonus at %d uniques)", next_threshold));
                 }
             }

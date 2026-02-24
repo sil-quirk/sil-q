@@ -1450,28 +1450,32 @@ static int partition_extra_monster_target(quadrant_mode_t mode, int floor_count)
     switch (mode)
     {
     case QUAD_MODE_BIG_CAVE:
-        /* Big caves are huge: aim for a noticeable population. */
-        target = floor_count / 60;
-        if (target < 10) target = 10;
-        if (target > 35) target = 35;
+        /* Big caves are huge: aim for a noticeable population.
+         * Divisor lowered from 60 -> 45 to offset loss of group spawning. */
+        target = floor_count / 45;
+        if (target < 12) target = 12;
+        if (target > 40) target = 40;
         break;
     case QUAD_MODE_CHASM:
-        target = floor_count / 50;
-        if (target < 8) target = 8;
-        if (target > 35) target = 35;
+        /* grp=false: divisor tightened from 50->38 to compensate. */
+        target = floor_count / 38;
+        if (target < 10) target = 10;
+        if (target > 40) target = 40;
         break;
     case QUAD_MODE_LABYRINTH:
-        /* Labyrinths already place some monsters during carving; boost extra spawns. */
-        target = floor_count / 100;
-        if (target > 20) target = 20;
+        /* Labyrinths already place monsters during carving; mild boost for grp=false. */
+        target = floor_count / 80;
+        if (target > 25) target = 25;
         break;
     case QUAD_MODE_CAVEY:
-        target = floor_count / 170;
-        if (target > 14) target = 14;
+        /* grp=false: divisor tightened from 170->120. */
+        target = floor_count / 120;
+        if (target > 18) target = 18;
         break;
     case QUAD_MODE_RUINED:
-        target = floor_count / 260;
-        if (target > 10) target = 10;
+        /* grp=false: divisor tightened from 260->180. */
+        target = floor_count / 180;
+        if (target > 14) target = 14;
         break;
     default:
         target = 0;
@@ -14286,11 +14290,15 @@ static bool cave_gen(void)
     
     /* Calculate monsters per partition type (base rate: 0.5-1.0 per room) */
     int roomy_mon = (roomy_rooms + dieroll(roomy_rooms)) / 2;
-    int cavey_mon = (cavey_rooms + dieroll(cavey_rooms)) / 2;
-    int ruined_mon = (ruined_rooms + dieroll(ruined_rooms)) / 2;
-    int labyrinth_mon = (labyrinth_rooms + dieroll(labyrinth_rooms)) / 2;
-    int chasm_mon = (chasm_rooms + dieroll(chasm_rooms)) / 2;
-    int big_cave_mon = (big_cave_rooms + dieroll(big_cave_rooms)) / 2;
+    /* Non-ROOMY partitions use grp=false in alloc_monster (no BFS group spreading).
+     * Multiply their counts to compensate for the suppressed group spawning:
+     * chasm=x4 (very open platforms), cavey=x3 (open blobs), ruined=x2 (has walls),
+     * labyrinth=x2 (narrow but wall-constrained), big_cave=x5 (widest open). */
+    int cavey_mon    = ((cavey_rooms    + dieroll(MAX(1, cavey_rooms)))    / 2) * 3;
+    int ruined_mon   = ((ruined_rooms   + dieroll(MAX(1, ruined_rooms)))   / 2) * 2;
+    int labyrinth_mon = ((labyrinth_rooms + dieroll(MAX(1, labyrinth_rooms))) / 2) * 2;
+    int chasm_mon    = ((chasm_rooms    + dieroll(MAX(1, chasm_rooms)))    / 2) * 4;
+    int big_cave_mon = ((big_cave_rooms + dieroll(MAX(1, big_cave_rooms))) / 2) * 5;
     
     /* Apply meta-run curse to all partition types */
     {

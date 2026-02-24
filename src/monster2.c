@@ -3487,8 +3487,13 @@ bool alloc_monster(bool on_stairs, bool force_undead)
             return (false);
         }
 
-        /* Attempt to place the monster, allow groups */
-        if (place_monster(y, x, true, true, false))
+        /* In any non-ROOMY partition (big cave, chasm, cavey, ruined, labyrinth),
+         * suppress group spawning. BFS floods up to 18 monsters from one origin point;
+         * in open cave/chasm/blob floors this creates dense clusters. Each non-ROOMY
+         * partition compensates with a higher alloc_monster loop count instead. */
+        level_partition_kind pt_kind = level_partition_kind_for_point(y, x);
+        bool suppress_grp = (pt_kind != LEVEL_PART_ROOMY);
+        if (place_monster(y, x, true, !suppress_grp, false))
         {
             if ((cave_m_idx[y][x] > 0) && (&mon_list[cave_m_idx[y][x]])->ml)
                 return (true);

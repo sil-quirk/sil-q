@@ -843,14 +843,17 @@ F:NOBLE_ITEM
 ##### Amulet Prefixes #####
 
 
-# Only Blessed Realm (sval 5) and bad Morgoth amulets (Haunted Dreams 6, Slave Pits 8, Shadow 9, Orc-captain 10)
-# Excludes normal good amulets (0-4) and Vigilant Eye (7)
+# Good amulets only (Blessed Realm sval 5) and good rings only
+# Excludes all Morgoth-themed amulets (Haunted Dreams 6, Slave Pits 8, Shadow 9, Orc-captain 10)
+# Excludes Morgoth rings (Cowardice 10, Bauglir's Vanguard 11, Angband's Forge 13 through Fell Voices 19)
 
 N:142:(Starlit)
 W:0:30:0:3000
 C:0:0:0:0:0:0:0
-T:40:5:6
-T:40:8:10
+T:40:5:5
+T:45:0:9
+T:45:12:12
+T:45:21:99
 F:LIGHT | RES_HALLU | RES_BLIND | NOBLE_ITEM
 
 

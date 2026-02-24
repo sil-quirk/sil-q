@@ -1368,6 +1368,15 @@ bool object_info_out(const object_type* o_ptr)
     if (describe_weapon_damage(o_ptr))
         something = true;
 
+    /* Debug: show smithing difficulty if option is enabled */
+    if (op_ptr->opt[OPT_show_smithing_difficulty] && object_uses_smithing_difficulty(o_ptr))
+    {
+        int diff = object_smithing_difficulty(o_ptr);
+        new_paragraph = true;
+        p_text_out_c(TERM_SLATE, format("[Smithing difficulty: %d]", diff));
+        something = true;
+    }
+
     /* We are done. */
     return something;
 }

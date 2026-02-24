@@ -2731,6 +2731,7 @@
 #define OPT_show_level_entry_banner 90
 #define OPT_ability_desc_mode 91
 #define OPT_vault_drop_frequency 92
+#define OPT_show_smithing_difficulty 93
 // xxx birth_point_based
 // xxx birth_auto_roller
 // xxx birth_maximize
