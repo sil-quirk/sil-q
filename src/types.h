@@ -217,6 +217,15 @@ struct object_kind
     byte dd, ds; /* Damage dice/sides */
     byte pd, ps; /* Sil - Protection dice/sides */
 
+    /* Maximum values for drops/smithing (from R: lines in object.txt).
+     * Default = base value (no variation). Set by R: lines to allow a range.
+     * Minimums are always the base values above (att, ds, evn, ps, pval). */
+    s16b max_att; /* Maximum attack for drops/smithing */
+    byte max_ds;  /* Maximum damage sides for drops/smithing */
+    s16b max_evn; /* Maximum evasion for drops/smithing */
+    byte max_ps;  /* Maximum protection sides for drops/smithing */
+    s16b max_pval; /* Maximum pval for drops/smithing */
+
     s16b weight; /* Weight */
 
     s32b cost; /* Object "base cost" */

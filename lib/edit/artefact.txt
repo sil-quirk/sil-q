@@ -294,15 +294,15 @@ D: yet to come.
 ## The Necklace of the Dwarves (amulet slot)
 ## 1st age
 
-# Smithing difficulty: 52
+# Smithing difficulty: 46
 
 N:6:'Nauglamir'
 Q:aa0b792d54a72992
-I:40:12:2
+I:40:12:3
 W:16:30:1:10000
 P:0:0d0:0:0d0
-F:GRA
-M:DEX:1 
+F:GRA | FREE_ACT | ENCHANTABLE
+M:SMITHING:2
 F:INSTA_ART
 D:The Nauglamir; a carcanet of gold set with a multitude of shining gems
 D: of Valinor, made by the Dwarves of Ered Luin for Finrod Felagund. It is
@@ -685,8 +685,8 @@ D: stubbornness of that doomed hill, where defiance outlasted hope.
 
 N:38:of Finwe
 Q:d1921f00bca8218e
-I:37:15:3
-W:18:10:150:70000
+I:37:20:3
+W:18:12:150:70000
 P:0:0d0:0:2d5
 F:GRA | ENCHANTABLE
 D:The shining mail of Finwë, first High King of the Noldor, wrought in
@@ -1007,7 +1007,7 @@ F:THROWING
 D:Forged from meteoric iron by Telchar of Nogrod, this dagger slices through
 D: iron as easily as flesh, earning its name: 'Iron Cleaver'. Curufin bore it
 D: until Beren wrested it from him. In Angband, while Morgoth slumbered under
-D: Lúthien's enchantment, Beren cut a Silmaril from the Iron Crown with this
+D: Luthien's enchantment, Beren cut a Silmaril from the Iron Crown with this
 D: blade. When he reached for a second jewel, the knife snapped upon the crown
 D: and Morgoth stirred. Even broken, it remains peerless among daggers.
 
@@ -1064,7 +1064,7 @@ F:BRAND_POIS | STEALTH | LIGHT_CURSE
 B:3/1
 D:A rune-etched knife of Mîm, last of the Petty-dwarves who dwelt on Amon
 D: Rûdh. His folk were the first Dwarves to enter Beleriand, exiled by their
-D: own kin, and they hated all others. When Túrin sheltered with him, Mîm
+D: own kin, and they hated all others. When Turin sheltered with him, Mîm
 D: betrayed him to Morgoth's orcs for gold. The runes upon this blade exude
 D: venom, and a curse clings to it still - the bitterness of a diminished
 D: people and the treachery that brought their line to ruin.
@@ -1542,7 +1542,7 @@ F:EASY_ID | INSTA_ART
 D:The iron spear of Boldog, a name borne by the mightiest orc-captains of
 D: Angband. Some say 'Boldog' was a title given to fell spirits who took
 D: orc-shape to lead Morgoth's hosts. This one led raids against the marches
-D: of Doriath, hunting for Lúthien at his master's command. The spear is
+D: of Doriath, hunting for Luthien at his master's command. The spear is
 D: heavy and brutal, forged in the dark pits, and wolves flee before it
 D: remembering their dread captain's wrath.
 
@@ -2368,7 +2368,7 @@ W:5:30:10:9000
 P:1:1d8:0:0d0
 B:1/6
 D:A shortbow crafted in Doriath by the hunters who served under Beleg
-D: Cúthalion, the greatest archer of the Sindar. Though unadorned, its wood
+D: Cuthalion, the greatest archer of the Sindar. Though unadorned, its wood
 D: was cut from the heart of a yew that grew within the Girdle of Melian,
 D: where the Queen's power quickened all living things. When drawn, the
 D: archer's eye is guided as if by the foresight of the Maia herself, finding
@@ -2544,7 +2544,7 @@ W:10:20:70:12000
 P:0:0d0:0:1d2
 F:DEX | RES_FIRE
 D:Greaves forged for Orodreth, who became King of Nargothrond after Finrod
-D: Felagund perished in Tol-in-Gaurhoth. Túrin's counsel led his realm to
+D: Felagund perished in Tol-in-Gaurhoth. Turin's counsel led his realm to
 D: ruin, and Orodreth fell in the Battle of Tumhalad when Glaurung came
 D: against his host. These greaves were made to ward against dragonfire,
 D: though they could not save their bearer from the doom that the Father
@@ -2646,9 +2646,9 @@ W:14:22:5:36000
 P:0:0d0:0:1d0
 F:GRA | DEX | ENCHANTABLE
 B:0/8
-D:Gloves that once belonged to Rúmil, lore-master of Tirion in Valinor, who
+D:Gloves that once belonged to Rumil, lore-master of Tirion in Valinor, who
 D: first devised letters and writing among the Elves. Before even Feanor
-D: perfected the Tengwar, Rúmil created the Sarati to record the words and
+D: perfected the Tengwar, Rumil created the Sarati to record the words and
 D: wisdom of the Eldar. These gloves guided his hand in that delicate work,
 D: lending precision and subtlety to the wearer's every motion.
 

@@ -2447,6 +2447,9 @@ errr parse_k_info(char* buf, header* head)
         k_ptr->sval = sval;
         k_ptr->pval = pval;
 
+        /* Default max pval = base pval (no variation unless R: overrides) */
+        k_ptr->max_pval = pval;
+
         apply_default_pval_bonuses(k_ptr->flags1, k_ptr->pval,
             k_ptr->stat_bonus, k_ptr->stat_bonus_set,
             k_ptr->skill_bonus, k_ptr->skill_bonus_set);
@@ -2569,6 +2572,41 @@ errr parse_k_info(char* buf, header* head)
         k_ptr->evn = evn;
         k_ptr->pd = pd;
         k_ptr->ps = ps;
+
+        /* Default max values = base values (no variation unless R: overrides) */
+        k_ptr->max_att = att;
+        k_ptr->max_ds = ds;
+        k_ptr->max_evn = evn;
+        k_ptr->max_ps = ps;
+    }
+
+    /* Process 'R' for "Range" — smithing/drop maximums (one per line) */
+    else if (buf[0] == 'R')
+    {
+        /* There better be a current k_ptr */
+        if (!k_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        s = strchr(buf + 2, ':');
+        if (!s)
+            return (PARSE_ERROR_GENERIC);
+
+        *s++ = '\0';
+        cptr stat_name = buf + 2;
+        int value = atoi(s);
+
+        if (streq(stat_name, "ATT"))
+            k_ptr->max_att = (s16b)value;
+        else if (streq(stat_name, "DS"))
+            k_ptr->max_ds = (byte)value;
+        else if (streq(stat_name, "EVN"))
+            k_ptr->max_evn = (s16b)value;
+        else if (streq(stat_name, "PS"))
+            k_ptr->max_ps = (byte)value;
+        else if (streq(stat_name, "PVAL"))
+            k_ptr->max_pval = (s16b)value;
+        else
+            return (PARSE_ERROR_GENERIC);
     }
 
     /* Hack -- Process 'F' for flags */

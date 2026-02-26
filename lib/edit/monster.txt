@@ -1345,8 +1345,8 @@ F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | RES_CRIT
 S:SPELL_PCT_20
 S:SLOW | HOLD
 D:A cruel Easterling who ruled Dor-lomin with an iron fist after
-D: the Nirnaeth Arnoediad. He oppressed the people of Húrin's
-D: house and was foretold to die by Túrin's blade, but fate
+D: the Nirnaeth Arnoediad. He oppressed the people of Hurin's
+D: house and was foretold to die by Turin's blade, but fate
 D: has been altered. The dark power binds his spirit here still.
 
 

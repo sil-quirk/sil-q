@@ -3622,40 +3622,353 @@ static const smithing_flag_desc smithing_flag_types[] = { { CAT_STAT, TR1_STR,
     { CAT_RES, TR2_RES_HALLU, 2, "Resist Hallucination" }, { 0, 0, 0, "" } };
 
 /*
- * Determines whether the attack bonus of an item is eligible for modification.
+ * Artifice (custom artefact) bonus limits.
+ *
+ * When smithing a custom artefact, the item's max values from the R: line
+ * are extended by these per-category bonuses.  All artefact-specific limits
+ * live in this single table so they are easy to find and tune.
+ *
+ * 'bonus' fields are ADDED to the normal max (e.g. weapon att = max_att + 4).
+ * 'floor' fields set a MINIMUM artefact max (e.g. rings always reach att 4).
+ * The result is: artefact_max = max(normal_max + ego + bonus, floor).
  */
-int att_valid(void)
+
+/* Forward declarations for data-driven smithing limit functions */
+static void smithing_ego_bonus_sums(const object_type* o_ptr,
+    int* max_att_sum, int* max_att_min_inc,
+    int* to_ds_sum, int* to_ds_min_inc,
+    int* max_evn_sum, int* max_evn_min_inc,
+    int* to_ps_sum, int* to_ps_min_inc,
+    int* max_pval_sum, int* max_pval_min_inc);
+int att_max(void);
+int att_min(void);
+int ds_max(void);
+int ds_min(void);
+int evn_max(void);
+int evn_min(void);
+int ps_max(void);
+int ps_min(void);
+
+typedef struct
 {
-    switch (smith_o_ptr->tval)
+    int att_bonus;
+    int att_floor;   /* 0 = unused */
+    int ds_bonus;
+    int evn_bonus;
+    int evn_floor;   /* 0 = unused */
+    int ps_bonus;
+    int ps_floor;    /* 0 = unused */
+    int pval_bonus;
+} artifice_limits_t;
+
+/* Indexed by a small enum — looked up via artifice_bonus_for(). */
+enum {
+    ARTIFICE_ARROW,
+    ARTIFICE_MELEE,     /* sword, polearm, hafted */
+    ARTIFICE_BOW,
+    ARTIFICE_DIGGING,
+    ARTIFICE_ARMOR,
+    ARTIFICE_GLOVES,
+    ARTIFICE_RING,
+    ARTIFICE_AMULET,
+    ARTIFICE_DEFAULT,
+    ARTIFICE_MAX
+};
+
+static const artifice_limits_t artifice_table[ARTIFICE_MAX] = {
+    /*               att_b att_f ds_b evn_b evn_f ps_b ps_f pval_b */
+    /* ARROW   */  {  8,    0,    0,   0,    0,    0,   0,   0  },
+    /* MELEE   */  {  4,    0,    2,   1,    0,    0,   0,   4  },
+    /* BOW     */  {  4,    0,    2,   0,    0,    0,   0,   4  },
+    /* DIGGING */  {  4,    0,    2,   0,    0,    0,   0,   4  },
+    /* ARMOR   */  {  1,    0,    0,   1,    0,    2,   0,   4  },
+    /* GLOVES  */  {  2,    0,    0,   1,    0,    2,   0,   4  },
+    /* RING    */  {  0,    4,    0,   0,    4,    0,   3,   4  },
+    /* AMULET  */  {  0,    0,    0,   0,    0,    0,   0,   4  },
+    /* DEFAULT */  {  0,    0,    0,   0,    0,    0,   0,   4  },
+};
+
+static int artifice_category(const object_type* o_ptr)
+{
+    switch (o_ptr->tval)
     {
+    case TV_ARROW:      return ARTIFICE_ARROW;
     case TV_SWORD:
     case TV_POLEARM:
-    case TV_HAFTED:
-    case TV_DIGGING:
-    case TV_BOW:
-    case TV_ARROW:
+    case TV_HAFTED:     return ARTIFICE_MELEE;
+    case TV_BOW:        return ARTIFICE_BOW;
+    case TV_DIGGING:    return ARTIFICE_DIGGING;
+    case TV_GLOVES:     return ARTIFICE_GLOVES;
     case TV_BOOTS:
-    case TV_GLOVES:
     case TV_HELM:
     case TV_CROWN:
     case TV_SHIELD:
     case TV_CLOAK:
     case TV_SOFT_ARMOR:
-    case TV_MAIL:
+    case TV_MAIL:       return ARTIFICE_ARMOR;
+    case TV_RING:       return ARTIFICE_RING;
+    case TV_AMULET:     return ARTIFICE_AMULET;
+    default:            return ARTIFICE_DEFAULT;
+    }
+}
+
+static const artifice_limits_t* artifice_bonus_for(const object_type* o_ptr)
+{
+    return &artifice_table[artifice_category(o_ptr)];
+}
+
+/*
+ * Determines whether the attack bonus of an item is eligible for modification.
+ */
+int att_valid(void)
+{
+    return att_max() > att_min();
+}
+
+/*
+ * Determines the maximum legal attack bonus for an item.
+ * Uses data-driven max_att from object.txt R: lines, ego sums,
+ * and the artifice table for custom artefacts.
+ */
+int att_max()
+{
+    object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
+    int max_att_sum = 0;
+    smithing_ego_bonus_sums(
+        smith_o_ptr, &max_att_sum, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+
+    int att = k_ptr->max_att;
+    att += max_att_sum;
+
+    if (smith_o_ptr->name1)
     {
-        return (true);
+        const artifice_limits_t* al = artifice_bonus_for(smith_o_ptr);
+        att += al->att_bonus;
+        if (al->att_floor > att)
+            att = al->att_floor;
     }
 
-    case TV_RING:
+    return (att);
+}
+
+/*
+ * Determines the minimum legal attack bonus for an item.
+ */
+int att_min(void)
+{
+    object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
+    int max_att_min_inc = 0;
+    smithing_ego_bonus_sums(
+        smith_o_ptr, NULL, &max_att_min_inc, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+
+    int att = k_ptr->att;
+    att += max_att_min_inc;
+    return (att);
+}
+
+/*
+ * Determines whether the damage sides of an item is eligible for modification.
+ */
+int ds_valid(void)
+{
+    return ds_max() > ds_min();
+}
+
+/*
+ * Determines the maximum legal damage sides for an item.
+ */
+int ds_max()
+{
+    object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
+    int to_ds_sum = 0;
+    smithing_ego_bonus_sums(
+        smith_o_ptr, NULL, NULL, &to_ds_sum, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+
+    int ds = k_ptr->max_ds;
+    ds += to_ds_sum;
+
+    if (smith_o_ptr->name1)
     {
-        if (smith_o_ptr->sval == SV_RING_ACCURACY)
-            return (true);
-        if (smith_o_ptr->name1)
-            return (true);
-    }
+        const artifice_limits_t* al = artifice_bonus_for(smith_o_ptr);
+        ds += al->ds_bonus;
     }
 
-    return (false);
+    return (ds);
+}
+
+/*
+ * Determines the minimum legal damage sides for an item.
+ */
+int ds_min(void)
+{
+    object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
+    int to_ds_min_inc = 0;
+    smithing_ego_bonus_sums(
+        smith_o_ptr, NULL, NULL, NULL, &to_ds_min_inc, NULL, NULL, NULL, NULL, NULL, NULL);
+
+    int ds = k_ptr->ds;
+    ds += to_ds_min_inc;
+
+    /* Never allow weapons to reach 0-sided damage. */
+    if (k_ptr->dd > 0 && ds < 1)
+        ds = 1;
+
+    return (ds);
+}
+
+/*
+ * Determines whether the evasion bonus of an item is eligible for modification.
+ */
+int evn_valid(void)
+{
+    return evn_max() > evn_min();
+}
+
+/*
+ * Determines the maximum legal evasion bonus for an item.
+ */
+int evn_max()
+{
+    object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
+    int max_evn_sum = 0;
+    smithing_ego_bonus_sums(
+        smith_o_ptr, NULL, NULL, NULL, NULL, &max_evn_sum, NULL, NULL, NULL, NULL, NULL);
+
+    int evn = k_ptr->max_evn;
+    evn += max_evn_sum;
+
+    if (smith_o_ptr->name1)
+    {
+        const artifice_limits_t* al = artifice_bonus_for(smith_o_ptr);
+        evn += al->evn_bonus;
+        if (al->evn_floor > evn)
+            evn = al->evn_floor;
+    }
+
+    return (evn);
+}
+
+/*
+ * Determines the minimum legal evasion bonus for an item.
+ */
+int evn_min(void)
+{
+    object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
+    int max_evn_min_inc = 0;
+    smithing_ego_bonus_sums(
+        smith_o_ptr, NULL, NULL, NULL, NULL, NULL, &max_evn_min_inc, NULL, NULL, NULL, NULL);
+
+    int evn = k_ptr->evn;
+    evn += max_evn_min_inc;
+    return (evn);
+}
+
+/*
+ * Determines whether the protection sides of an item is eligible for
+ * modification.
+ */
+int ps_valid(void)
+{
+    return ps_max() > ps_min();
+}
+
+/*
+ * Determines the maximum legal protection sides for an item.
+ */
+int ps_max()
+{
+    object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
+    int to_ps_sum = 0;
+    smithing_ego_bonus_sums(
+        smith_o_ptr, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &to_ps_sum, NULL, NULL);
+
+    int ps = k_ptr->max_ps;
+    ps += to_ps_sum;
+
+    if (smith_o_ptr->name1)
+    {
+        const artifice_limits_t* al = artifice_bonus_for(smith_o_ptr);
+        ps += al->ps_bonus;
+        if (al->ps_floor > ps)
+            ps = al->ps_floor;
+    }
+
+    return (ps);
+}
+
+/*
+ * Determines the minimum legal protection sides for an item.
+ */
+int ps_min(void)
+{
+    object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
+    int to_ps_min_inc = 0;
+    smithing_ego_bonus_sums(
+        smith_o_ptr, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &to_ps_min_inc, NULL);
+
+    int ps = k_ptr->ps;
+    ps += to_ps_min_inc;
+    return (ps);
+}
+
+/*
+ * Determines whether the pval of an item is eligible for modification.
+ */
+int pval_valid(void)
+{
+    u32b f1, f2, f3;
+
+    object_flags(smith_o_ptr, &f1, &f2, &f3);
+
+    return (f1 & (TR1_PVAL_MASK));
+}
+
+/*
+ * Determines the maximum legal pval for an item.
+ * Uses data-driven max_pval from object.txt R: lines, ego sums,
+ * and the artifice table for custom artefacts.
+ */
+int pval_max(void)
+{
+    object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
+    u32b f1, f2, f3;
+    int max_pval_sum = 0;
+    int max_pval_min_inc = 0;
+
+    object_flags(smith_o_ptr, &f1, &f2, &f3);
+    smithing_ego_bonus_sums(
+        smith_o_ptr, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &max_pval_sum, &max_pval_min_inc);
+
+    /* Start with the data-driven max from R: line */
+    int pval = k_ptr->max_pval;
+
+    /* Artefact bonus from the centralized artifice table */
+    if (smith_o_ptr->name1)
+    {
+        const artifice_limits_t* al = artifice_bonus_for(smith_o_ptr);
+        pval += al->pval_bonus;
+    }
+
+    /* Ego items have pvals limited by their 'special.txt' C: entries. */
+    if (cursed_p(smith_o_ptr))
+    {
+        pval -= max_pval_min_inc;
+    }
+    else
+    {
+        pval += max_pval_sum;
+    }
+
+    return (pval);
+}
+
+/*
+ * Determines the minimum legal pval for an item.
+ */
+int pval_min(void)
+{
+    object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
+    return k_ptr->pval;
 }
 
 static void smithing_ego_bonus_sums(const object_type* o_ptr,
@@ -3723,525 +4036,6 @@ static void smithing_ego_bonus_sums(const object_type* o_ptr,
             if (max_pval_min_inc) (*max_pval_min_inc)++;
         }
     }
-}
-
-/*
- * Determines the maximum legal attack bonus for an item.
- */
-int att_max()
-{
-    object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
-    int att = 0;
-    int max_att_sum = 0;
-    smithing_ego_bonus_sums(
-        smith_o_ptr, &max_att_sum, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
-
-    switch (smith_o_ptr->tval)
-    {
-    case TV_ARROW:
-    {
-        att = 3;
-        if (smith_o_ptr->name1)
-            att += 8;
-        att += max_att_sum;
-        break;
-    }
-    case TV_SWORD:
-    case TV_POLEARM:
-    case TV_HAFTED:
-    case TV_DIGGING:
-    case TV_BOW:
-    {
-        att = k_ptr->att + 1;
-        att += max_att_sum;
-        if (smith_o_ptr->name1)
-            att += 4;
-        break;
-    }
-    case TV_BOOTS:
-    case TV_HELM:
-    case TV_CROWN:
-    case TV_SHIELD:
-    case TV_CLOAK:
-    case TV_SOFT_ARMOR:
-    case TV_MAIL:
-    {
-        att = k_ptr->att + 1;
-        if (att > 0)
-            att = 0;
-        att += max_att_sum;
-        if (smith_o_ptr->name1)
-            att += 1;
-        break;
-    }
-    case TV_GLOVES:
-    {
-        att = k_ptr->att + 1;
-        if (att > 0)
-            att = 0;
-        att += max_att_sum;
-        if (smith_o_ptr->name1)
-            att += 2;
-        break;
-    }
-    case TV_RING:
-    {
-        if (smith_o_ptr->sval == SV_RING_ACCURACY)
-            att = 4;
-        if (smith_o_ptr->name1)
-            att = 4;
-        break;
-    }
-    }
-
-    return (att);
-}
-
-/*
- * Determines the minimum legal attack bonus for an item.
- */
-int att_min(void)
-{
-    object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
-    int att = 0;
-    int max_att_min_inc = 0;
-    smithing_ego_bonus_sums(
-        smith_o_ptr, NULL, &max_att_min_inc, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
-
-    switch (smith_o_ptr->tval)
-    {
-    case TV_ARROW:
-    case TV_SWORD:
-    case TV_POLEARM:
-    case TV_HAFTED:
-    case TV_DIGGING:
-    case TV_BOW:
-    case TV_BOOTS:
-    case TV_GLOVES:
-    case TV_HELM:
-    case TV_CROWN:
-    case TV_SHIELD:
-    case TV_CLOAK:
-    case TV_SOFT_ARMOR:
-    case TV_MAIL:
-    {
-        att = k_ptr->att;
-        att += max_att_min_inc;
-        break;
-    }
-    case TV_RING:
-    {
-        if (smith_o_ptr->sval == SV_RING_ACCURACY)
-            att = 1;
-        break;
-    }
-    }
-
-    return (att);
-}
-
-/*
- * Determines whether the damage sides of an item is eligible for modification.
- */
-int ds_valid(void)
-{
-    switch (smith_o_ptr->tval)
-    {
-    case TV_SWORD:
-    case TV_POLEARM:
-    case TV_HAFTED:
-    case TV_DIGGING:
-    case TV_BOW:
-    {
-        return (true);
-    }
-    }
-
-    return (false);
-}
-
-/*
- * Determines the maximum legal damage sides for an item.
- */
-int ds_max()
-{
-    object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
-    int ds = 0;
-    int to_ds_sum = 0;
-    smithing_ego_bonus_sums(
-        smith_o_ptr, NULL, NULL, &to_ds_sum, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
-
-    switch (smith_o_ptr->tval)
-    {
-    case TV_SWORD:
-    case TV_POLEARM:
-    case TV_HAFTED:
-    case TV_DIGGING:
-    case TV_BOW:
-    {
-        ds = k_ptr->ds + 1;
-        ds += to_ds_sum;
-        if (smith_o_ptr->name1)
-            ds += 2;
-        break;
-    }
-    }
-
-    return (ds);
-}
-
-/*
- * Determines the minimum legal damage sides for an item.
- */
-int ds_min(void)
-{
-    object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
-    int ds = 0;
-    int to_ds_min_inc = 0;
-    smithing_ego_bonus_sums(
-        smith_o_ptr, NULL, NULL, NULL, &to_ds_min_inc, NULL, NULL, NULL, NULL, NULL, NULL);
-
-    switch (smith_o_ptr->tval)
-    {
-    case TV_SWORD:
-    case TV_POLEARM:
-    case TV_HAFTED:
-    case TV_DIGGING:
-    case TV_BOW:
-    {
-        ds = k_ptr->ds;
-        ds += to_ds_min_inc;
-        break;
-    }
-    }
-
-    /* Never allow weapons to reach 0-sided damage. */
-    if (k_ptr->dd > 0 && ds < 1)
-        ds = 1;
-
-    return (ds);
-}
-
-/*
- * Determines whether the evasion bonus of an item is eligible for modification.
- */
-int evn_valid(void)
-{
-    switch (smith_o_ptr->tval)
-    {
-    case TV_BOOTS:
-    case TV_GLOVES:
-    case TV_HELM:
-    case TV_CROWN:
-    case TV_SHIELD:
-    case TV_CLOAK:
-    case TV_SOFT_ARMOR:
-    case TV_MAIL:
-    {
-        return (true);
-    }
-
-    case TV_RING:
-    {
-        if (smith_o_ptr->sval == SV_RING_EVASION)
-            return (true);
-        if (smith_o_ptr->name1)
-            return (true);
-    }
-    }
-
-    if (smith_o_ptr->name1
-        && ((smith_o_ptr->tval == TV_SWORD) || (smith_o_ptr->tval == TV_POLEARM)
-            || (smith_o_ptr->tval == TV_HAFTED)))
-    {
-        return (true);
-    }
-
-    return (false);
-}
-
-/*
- * Determines the maximum legal evasion bonus for an item.
- */
-int evn_max()
-{
-    object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
-    int evn = 0;
-    int max_evn_sum = 0;
-    smithing_ego_bonus_sums(
-        smith_o_ptr, NULL, NULL, NULL, NULL, &max_evn_sum, NULL, NULL, NULL, NULL, NULL);
-
-    switch (smith_o_ptr->tval)
-    {
-    case TV_BOOTS:
-    case TV_GLOVES:
-    case TV_HELM:
-    case TV_CROWN:
-    case TV_SHIELD:
-    case TV_CLOAK:
-    case TV_SOFT_ARMOR:
-    case TV_MAIL:
-    {
-        evn = k_ptr->evn + 1;
-        evn += max_evn_sum;
-        if (smith_o_ptr->name1)
-            evn += 1;
-        break;
-    }
-
-    case TV_RING:
-    {
-        if (smith_o_ptr->sval == SV_RING_EVASION)
-            evn = 4;
-        if (smith_o_ptr->name1)
-            evn = 4;
-        break;
-    }
-
-    default:
-    {
-        evn = k_ptr->evn;
-        evn += max_evn_sum;
-        if (smith_o_ptr->name1)
-            evn += 1;
-    }
-    }
-
-    return (evn);
-}
-
-/*
- * Determines the minimum legal evasion bonus for an item.
- */
-int evn_min(void)
-{
-    object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
-    int evn = 0;
-    int max_evn_min_inc = 0;
-    smithing_ego_bonus_sums(
-        smith_o_ptr, NULL, NULL, NULL, NULL, NULL, &max_evn_min_inc, NULL, NULL, NULL, NULL);
-
-    switch (smith_o_ptr->tval)
-    {
-    case TV_BOOTS:
-    case TV_GLOVES:
-    case TV_HELM:
-    case TV_CROWN:
-    case TV_SHIELD:
-    case TV_CLOAK:
-    case TV_SOFT_ARMOR:
-    case TV_MAIL:
-    {
-        evn = k_ptr->evn;
-        evn += max_evn_min_inc;
-        break;
-    }
-
-    case TV_RING:
-    {
-        if (smith_o_ptr->sval == SV_RING_EVASION)
-            evn = 1;
-        break;
-    }
-
-    default:
-    {
-        evn = k_ptr->evn;
-        evn += max_evn_min_inc;
-    }
-    }
-
-    return (evn);
-}
-
-/*
- * Determines whether the protection sides of an item is eligible for
- * modification.
- */
-int ps_valid(void)
-{
-    switch (smith_o_ptr->tval)
-    {
-    case TV_BOOTS:
-    case TV_GLOVES:
-    case TV_HELM:
-    case TV_CROWN:
-    case TV_SHIELD:
-    case TV_CLOAK:
-    case TV_SOFT_ARMOR:
-    case TV_MAIL:
-    {
-        return (true);
-    }
-
-    case TV_RING:
-    {
-        if (smith_o_ptr->sval == SV_RING_PROTECTION)
-            return (true);
-        if (smith_o_ptr->name1)
-            return (true);
-    }
-    }
-
-    return (false);
-}
-
-/*
- * Determines the maximum legal protection sides for an item.
- */
-int ps_max()
-{
-    object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
-    int ps = 0;
-    int to_ps_sum = 0;
-    smithing_ego_bonus_sums(
-        smith_o_ptr, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &to_ps_sum, NULL, NULL);
-
-    switch (smith_o_ptr->tval)
-    {
-    case TV_BOOTS:
-    case TV_GLOVES:
-    case TV_HELM:
-    case TV_CROWN:
-    case TV_SHIELD:
-    case TV_CLOAK:
-    case TV_SOFT_ARMOR:
-    case TV_MAIL:
-    {
-        ps = k_ptr->ps + 1;
-
-        // cloaks and robes cannot get extra protection sides
-        if ((smith_o_ptr->tval == TV_CLOAK)
-            || ((smith_o_ptr->tval == TV_SOFT_ARMOR)
-                && (smith_o_ptr->sval == SV_ROBE)))
-        {
-            ps = 0;
-        }
-        if ((smith_o_ptr->tval == TV_MAIL)
-            && (smith_o_ptr->sval == SV_LONG_CORSLET))
-        {
-            ps += 1;
-        }
-
-        ps += to_ps_sum;
-        if (smith_o_ptr->name1)
-            ps += 2;
-        break;
-    }
-
-    case TV_RING:
-    {
-        if (smith_o_ptr->sval == SV_RING_PROTECTION)
-            ps = 3;
-        if (smith_o_ptr->name1)
-            ps = 3;
-        break;
-    }
-    }
-
-    return (ps);
-}
-
-/*
- * Determines the minimum legal protection sides for an item.
- */
-int ps_min(void)
-{
-    object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
-    int ps = 0;
-    int to_ps_min_inc = 0;
-    smithing_ego_bonus_sums(
-        smith_o_ptr, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &to_ps_min_inc, NULL);
-
-    switch (smith_o_ptr->tval)
-    {
-    case TV_BOOTS:
-    case TV_GLOVES:
-    case TV_HELM:
-    case TV_CROWN:
-    case TV_SHIELD:
-    case TV_CLOAK:
-    case TV_SOFT_ARMOR:
-    case TV_MAIL:
-    {
-        ps = k_ptr->ps;
-        ps += to_ps_min_inc;
-        break;
-    }
-
-    case TV_RING:
-    {
-        if (smith_o_ptr->sval == SV_RING_PROTECTION)
-            ps = 1;
-        break;
-    }
-    }
-
-    return (ps);
-}
-
-/*
- * Determines whether the pval of an item is eligible for modification.
- */
-int pval_valid(void)
-{
-    u32b f1, f2, f3;
-
-    object_flags(smith_o_ptr, &f1, &f2, &f3);
-
-    return (f1 & (TR1_PVAL_MASK));
-}
-
-/*
- * Determines the maximum legal pval for an item.
- */
-int pval_max(void)
-{
-    object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
-    u32b f1, f2, f3;
-    int pval = 4;
-    int max_pval_sum = 0;
-    int max_pval_min_inc = 0;
-
-    object_flags(smith_o_ptr, &f1, &f2, &f3);
-    smithing_ego_bonus_sums(
-        smith_o_ptr, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &max_pval_sum, &max_pval_min_inc);
-
-    // start with the base pval
-    pval = k_ptr->pval;
-
-    // artefacts have pvals that are mostly unlimited
-    if (smith_o_ptr->name1)
-    {
-        pval += 4;
-    }
-
-    // non-artefact rings and amulets have a maximum pval of 4
-    else if ((smith_o_ptr->tval == TV_RING) || (smith_o_ptr->tval == TV_AMULET))
-    {
-        pval = 4;
-    }
-
-    /* Ego items have pvals limited by their 'special.txt' entries. */
-    if (cursed_p(smith_o_ptr))
-    {
-        pval -= max_pval_min_inc;
-    }
-    else
-    {
-        pval += max_pval_sum;
-    }
-
-    return (pval);
-}
-
-/*
- * Determines the minimum legal pval for an item.
- */
-int pval_min(void)
-{
-    object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
-    return k_ptr->pval;
 }
 
 /*

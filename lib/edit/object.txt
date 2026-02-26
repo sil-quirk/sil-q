@@ -15,6 +15,7 @@
 # I: tval : sval : pval
 # W: depth : rarity_weight (legacy) : weight : cost
 # P: plus to-hit : damage dice : plus to-evasion : protection dice
+# R: STAT : max_value
 # A: depth/rarity_weight : depth/rarity_weight : etc
 # F: flag | flag | etc
 # D: description
@@ -37,9 +38,8 @@
 #     Values are decimal 0-63. Used for graphical mode display.
 #
 # 'I' is for basic information. The tval is for the type of item, the
-#     sval identifies the subtype and the pval indicates the amount of
-#     effect the item has, if applicable (a fixed value: variable pvals
-#     are currently hard-coded.) 
+#     sval identifies the subtype and the pval indicates the minimum
+#     effect the item has, if applicable. Use R:PVAL to set the maximum. 
 #
 # 'W' is for extra information. Depth is the depth the object is normally
 #     found at (and defines what 'level' the object is, when determining how easy 
@@ -51,6 +51,13 @@
 # 'P' is for power information. The item's bonuses to attack and evasion
 #     as well as its damage and protection dice. Note that adding damage dice to
 #     armor won't aid your attacks, it will just set the damage done when it is thrown.
+#     For items with variable stats, P: values are the MINIMUM (base).
+#
+# 'R' is for range maximums. Specifies the highest value a stat can reach
+#     on a non-artefact, non-ego item. STAT is one of: ATT (attack), DS
+#     (damage sides), EVN (evasion), PS (protection sides), PVAL. Multiple
+#     R: lines per item are allowed. If omitted, max defaults to the P:/I:
+#     base value (no variation). Artefact and ego bonuses stack on top.
 #
 # 'A' is for allocation - depth and rarity weight, in pairs. This allows
 #     an item to have multiple natural depths and rarity weights. It is
@@ -245,6 +252,7 @@ T:5:4
 I:36:2:0
 W:1:0:30:4
 P:0:0d0:1:1d0
+R:EVN:2
 A:3/60
 F:ENCHANTABLE | MORE_SPECIAL
 D:A robe of fine cloth, such as the loremasters and singers
@@ -258,6 +266,8 @@ T:5:12
 I:36:4:0
 W:1:0:70:18
 P:0:0d0:-1:1d4
+R:EVN:0
+R:PS:5
 A:1/100
 D:Armour of tanned hide, the sort worn by the hunters and
 D: scouts who ranged the wilds of Beleriand in the wars
@@ -270,6 +280,8 @@ T:5:13
 I:36:7:0
 W:2:0:130:200
 P:0:0d0:-2:1d6
+R:EVN:-1
+R:PS:7
 A:2/80
 D:Leather armour fitted with studs of iron, offering greater
 D: protection than plain hide. Such armour was common among
@@ -282,6 +294,8 @@ T:9:17
 I:36:11:0
 W:17:0:70:200
 P:0:0d0:-1:1d9
+R:EVN:0
+R:PS:10
 A:17/5:19/15
 F:IGNORE_ALL | NO_SMITHING | STAR_IRON | NOBLE_ITEM
 D:A suit of armour made of galvorn: a strange shining black metal 
@@ -295,6 +309,9 @@ T:5:15
 I:37:4:0
 W:5:0:270:750
 P:-1:0d0:-3:2d4
+R:ATT:0
+R:EVN:-2
+R:PS:5
 A:7/60:15/80
 D:A shirt of armour formed from linked rings of forged iron,
 D: covering the torso down to the waist. The smiths of the Noldor
@@ -309,6 +326,9 @@ T:5:14
 I:37:6:0
 W:7:0:350:900
 P:-2:0d0:-4:2d5
+R:ATT:-1
+R:EVN:-3
+R:PS:7
 A:7/40:15/60
 F:MORE_SPECIAL
 D:A long shirt of linked rings reaching to the thigh and
@@ -324,6 +344,8 @@ T:5:16
 I:37:20:0
 W:16:0:150:7000
 P:0:0d0:0:2d5
+R:EVN:1
+R:PS:6
 A:14/0:18/15
 F:IGNORE_ALL | MITHRIL | CHEAT_DEATH | NOBLE_ITEM
 D:A corslet of linked rings wrought from mithril, the true
@@ -374,6 +396,8 @@ T:5:17
 I:34:3:0
 W:3:0:50:50
 P:0:0d0:0:1d3
+R:EVN:1
+R:PS:4
 A:3/100
 D:A shield of wood and hide, light enough to carry with ease.
 D: Such shields were borne by countless warriors in the long
@@ -386,6 +410,9 @@ T:5:18
 I:34:5:0
 W:6:0:80:200
 P:-2:0d0:0:1d6
+R:ATT:-1
+R:EVN:1
+R:PS:7
 A:6/80
 D:A shield of wood banded with iron, tapering to a point at
 D: the base. It offers greater protection than a round shield,
@@ -398,6 +425,8 @@ T:5:19
 I:34:10:1
 W:16:0:40:10000
 P:0:0d0:0:1d7
+R:EVN:1
+R:PS:8
 A:14/0:16/15
 F:IGNORE_ALL | MITHRIL | DAMAGE_SIDES | NOBLE_ITEM
 D:A shield of mithril, true silver mined in the deep places
@@ -417,6 +446,8 @@ T:6:0
 I:23:4:0
 W:1:0:5:10
 P:0:1d5:0:0d0
+R:ATT:1
+R:DS:6
 A:1/100
 F:THROWING
 D:A short blade, swift in the hand. Many a warrior in the
@@ -430,6 +461,8 @@ T:6:1
 I:23:7:0
 W:2:0:40:10
 P:-1:2d5:1:0d0
+R:ATT:0
+R:DS:6
 A:2/100
 F:FEAR | LESS_SPECIAL
 D:A crude blade of orcish make, its edge notched and its iron
@@ -444,6 +477,8 @@ T:6:2
 I:23:10:0
 W:1:0:20:90
 P:0:1d7:1:0d0
+R:ATT:1
+R:DS:8
 A:1/100
 D:A light sword, swift and easy to wield. Such blades were
 D: carried by the scouts and rangers who roamed the wilds
@@ -456,6 +491,8 @@ T:6:3
 I:23:17:0
 W:4:0:30:300
 P:0:2d5:1:0d0
+R:ATT:1
+R:DS:6
 A:4/80
 D:A sword of good length and balance, the workhorse of the
 D: warrior. Many of the heroes of the Elder Days wielded
@@ -468,6 +505,8 @@ T:6:7
 I:23:21:0
 W:6:0:40:350
 P:-2:3d3:1:0d0
+R:ATT:-1
+R:DS:4
 A:6/60
 F:HAND_AND_A_HALF | MORE_SPECIAL
 D:A sword that may be wielded with one hand or two, as
@@ -482,6 +521,8 @@ T:6:5
 I:23:25:0
 W:4:0:60:775
 P:-2:3d5:1:0d0
+R:ATT:-1
+R:DS:6
 A:4/60
 F:TWO_HANDED | MORE_SPECIAL
 D:A great two-handed sword, demanding strength to wield but
@@ -495,6 +536,8 @@ T:6:4
 I:23:28:0
 W:15:0:35:5000
 P:-1:3d4:1:0d0
+R:ATT:0
+R:DS:5
 A:10:3:15/15
 F:IGNORE_ALL | MITHRIL | ACCURATE | NOBLE_ITEM
 D:A blade forged of mithril by the smiths of the Hidden
@@ -510,6 +553,8 @@ T:6:6
 I:23:30:0
 W:20:0:70:7000
 P:-2:3d6:1:0d0
+R:ATT:-1
+R:DS:7
 A:12/3:17/15
 F:IGNORE_ALL | TWO_HANDED | STAR_IRON | SHARPNESS | NOBLE_ITEM
 D:A greatsword forged of star-iron, metal fallen from the
@@ -527,6 +572,8 @@ T:6:9
 I:22:1:0
 W:1:0:30:36
 P:0:1d9:0:0d0
+R:ATT:1
+R:DS:10
 A:1/100
 F:THROWING | HAND_AND_A_HALF | POLEARM | LESS_SPECIAL
 D:A spear of wood and iron, the weapon of choice for many
@@ -540,8 +587,10 @@ T:6:10
 I:22:2:0
 W:4:0:60:36
 P:1:1d13:1:0d0
+R:ATT:2
+R:DS:14
 A:4/60
-F:TWO_HANDED | POLEARM 
+F:TWO_HANDED | POLEARM
 D:A great two-handed spear, longer and heavier than common.
 D: Its reach exceeds that of any other weapon, and a skilled
 D: wielder can keep foes at bay.
@@ -553,6 +602,8 @@ T:6:11
 I:22:4:0
 W:8:0:70:363
 P:-1:2d9:1:0d0
+R:ATT:0
+R:DS:10
 A:8/80
 F:TWO_HANDED | POLEARM
 D:A polearm with a broad sweeping blade, combining the reach
@@ -566,6 +617,8 @@ T:6:13
 I:22:11:0
 W:2:0:10:150
 P:-1:4d2:0:0d0
+R:ATT:0
+R:DS:3
 A:2/100
 F:AXE | THROWING | LESS_SPECIAL
 D:An axe light enough to be thrown, favoured by the Dwarves
@@ -578,6 +631,8 @@ T:6:14
 I:22:12:0
 W:4:0:45:304
 P:-3:3d4:0:0d0
+R:ATT:-2
+R:DS:5
 A:4/80
 F:HAND_AND_A_HALF | AXE
 D:An axe of war, favoured above all by the Dwarves, who
@@ -591,6 +646,8 @@ T:6:15
 I:22:13:0
 W:8:0:80:334
 P:-4:4d4:0:0d0
+R:ATT:-3
+R:DS:5
 A:8/60
 F:TWO_HANDED | AXE
 D:A great two-handed axe, the weapon of the Dwarves in their
@@ -607,6 +664,8 @@ T:6:8
 I:21:3:0
 W:1:0:50:200
 P:0:2d5:2:0d0
+R:ATT:1
+R:DS:6
 A:1/60
 F:TWO_HANDED | ENCHANTABLE | MORE_SPECIAL
 D:A staff of seasoned wood, both tool and weapon. Among the
@@ -620,6 +679,8 @@ T:6:12
 I:21:8:0
 W:6:0:50:225
 P:-2:4d1:0:0d0
+R:ATT:-1
+R:DS:2
 A:4/80
 F:HAND_AND_A_HALF | LESS_SPECIAL
 D:A hammer of war, beloved of the Dwarven smiths who turned
@@ -636,6 +697,8 @@ T:6:16
 I:20:1:1
 W:5:0:50:10
 P:-3:2d2:0:0d0
+R:ATT:-2
+R:DS:3
 A:5/100
 F:TUNNEL | TWO_HANDED | LESS_SPECIAL
 D:A broad-bladed tool for shifting earth and rubble. Though no
@@ -653,6 +716,8 @@ T:6:17
 I:20:3:2
 W:10:0:100:700
 P:-5:5d2:0:0d0
+R:ATT:-4
+R:DS:3
 A:10/60
 F:TUNNEL | TWO_HANDED | LESS_SPECIAL
 D:A heavy tool of the sort long wielded by the Dwarves, who
@@ -671,6 +736,8 @@ T:5:23
 I:32:5:0
 W:3:0:50:75
 P:0:0d0:-1:1d2
+R:EVN:0
+R:PS:3
 A:3/100
 D:A helm of iron, affording protection to the head. Such
 D: helms were worn by the warriors of the Elder Days through
@@ -683,6 +750,8 @@ T:5:24
 I:32:6:0
 W:5:0:80:200
 P:0:0d0:-2:1d3
+R:EVN:-1
+R:PS:4
 A:5/60
 D:A great helm that covers the face, affording greater
 D: protection than a common helm. Such helms were fashioned
@@ -695,6 +764,8 @@ T:5:26
 I:32:7:0
 W:10:0:80:300
 P:0:0d0:-2:1d2
+R:EVN:-1
+R:PS:3
 A:10/40
 F:RES_FIRE | NOBLE_ITEM
 D:A full-faced helm wrought in a fearsome visage by the
@@ -710,6 +781,8 @@ T:5:25
 I:32:8:0
 W:14:0:35:500
 P:0:0d0:0:1d4
+R:EVN:1
+R:PS:5
 A:10/0:14/15
 F:IGNORE_ALL | MITHRIL | RES_COLD | RES_FIRE | NOBLE_ITEM
 D:A helm of mithril, true silver from the deep mines of the
@@ -735,6 +808,7 @@ T:5:2
 I:35:1:0
 W:2:0:20:3
 P:0:0d0:1:1d0
+R:EVN:2
 A:2/60:10/100
 D:A cloak of woollen cloth, worn against the cold and damp
 D: of the deep places. Such garments were common among the
@@ -747,6 +821,7 @@ T:5:3
 I:35:6:2
 W:12:0:10:4000
 P:0:0d0:3:1d0
+R:EVN:4
 A:12/15
 F:DARKNESS | STEALTH | NOBLE_ITEM
 D:A cloak woven of the deepest darkness, its fabric seeming
@@ -782,6 +857,8 @@ T:5:29
 I:19:12:0
 W:1:0:15:50
 P:0:1d7:0:0d0
+R:ATT:1
+R:DS:8
 A:1/100
 D:A bow of moderate power, suitable for hunting and
 D: skirmishing. Such bows were common among the scouts who
@@ -794,6 +871,8 @@ T:5:30
 I:19:13:0
 W:6:0:30:120
 P:0:2d4:0:0d0
+R:ATT:1
+R:DS:5
 A:6/60
 F:MORE_SPECIAL
 D:A longbow of greater range and power than a short bow.
@@ -810,6 +889,8 @@ T:5:31
 I:19:14:0
 W:15:0:45:500
 P:0:4d2:0:0d0
+R:ATT:1
+R:DS:3
 A:15/15
 F:NO_SMITHING | NOBLE_ITEM
 D:A bow fashioned from the horn of one of the great wyrms
@@ -827,6 +908,7 @@ T:5:27
 I:17:1:0
 W:1:0:1:1
 P:0:0d0:0:0d0
+R:ATT:3
 A:1/100
 D:A shaft of ash or birch tipped with forged iron. The archers
 D: of the Elder Days spent their arrows freely against Morgoth's
@@ -842,6 +924,8 @@ T:5:9
 I:30:1:0
 W:1:0:20:7
 P:0:0d0:0:1d1
+R:EVN:1
+R:PS:2
 A:1/100
 F:LESS_SPECIAL
 D:Sturdy boots of leather, suitable for long journeys
@@ -854,6 +938,8 @@ T:5:10
 I:30:2:0
 W:4:0:80:19
 P:0:0d0:-1:1d2
+R:EVN:0
+R:PS:3
 A:4/80
 F:IGNORE_FIRE
 D:Greaves of leather and iron, protecting the lower legs.
@@ -867,6 +953,8 @@ T:5:11
 I:30:3:0
 W:14:0:40:50
 P:0:0d0:1:1d3
+R:EVN:2
+R:PS:4
 A:10/0:14/15
 F:IGNORE_ALL | MITHRIL | ENCHANTABLE | STAND_FAST
 D:Greaves of mithril, light as a thought yet harder than
@@ -883,6 +971,8 @@ T:5:20
 I:31:1:0
 W:1:0:5:3
 P:0:0d0:0:1d0
+R:EVN:1
+R:PS:1
 A:1/100
 D:A pair of light gloves of leather, keeping the hands warm
 D: and dry in the cold and damp of Angband's depths.
@@ -894,6 +984,9 @@ T:5:21
 I:31:2:0
 W:3:0:30:35
 P:-1:0d0:0:1d1
+R:ATT:0
+R:EVN:1
+R:PS:2
 A:3/80
 F:IGNORE_FIRE
 D:Gauntlets of iron-banded leather, protecting the hands and
@@ -907,6 +1000,8 @@ T:5:22
 I:31:3:0
 W:12:0:15:100
 P:0:0d0:0:1d2
+R:EVN:1
+R:PS:3
 A:10/0:12/15
 F:IGNORE_ALL | MITHRIL | ENCHANTABLE | REGEN
 D:Gauntlets of mithril, the true silver from the deep mines
@@ -1006,9 +1101,10 @@ D: the proud.
 
 N:133:Constitution
 G:":d
-I:40:1:0
+I:40:1:1
 W:8:0:1:500
 P:0:0d0:0:0d0
+R:PVAL:2
 A:8/15
 F:CON | SUST_CON
 D:An amulet wrought with the virtue of endurance. The wearer
@@ -1019,9 +1115,10 @@ D: strength.
 
 N:134:Grace
 G:":d
-I:40:2:0
+I:40:2:1
 W:10:0:1:500
 P:0:0d0:0:0d0
+R:PVAL:2
 A:9/15
 F:GRA | SUST_GRA
 D:An amulet touched with the blessing of the Valar. It
@@ -1056,17 +1153,18 @@ D: the wasting of body and spirit. It sustains health and
 D: grace alike, and slows the hunger of the road.
 
 
-N:137:the Blessed Realm
-G:":d
-I:40:5:0
-W:16:0:1:30000
-P:0:0d0:0:0d0
-A:15/15
-F:GRA | SUST_GRA | LIGHT | NOBLE_ITEM
-D:An amulet that glows with a faint warmth, as though touched
-D: by the light of the Blessed Realm beyond the Sea. Its wearer
-D: feels a gentle grace, as though the distant mercy of the
-D: Valar watched from the far shore.
+#N:137:the Blessed Realm
+#G:":d
+#I:40:5:2
+#W:16:0:1:30000
+#P:0:0d0:0:0d0
+#R:PVAL:3
+#A:15/15
+#F:GRA | SUST_GRA | LIGHT | NOBLE_ITEM
+#D:An amulet that glows with a faint warmth, as though touched
+#D: by the light of the Blessed Realm beyond the Sea. Its wearer
+#D: feels a gentle grace, as though the distant mercy of the
+#D: Valar watched from the far shore.
 
 
 N:138:Haunted Dreams
@@ -1085,9 +1183,10 @@ D: this world.
 # (ability 4/2 is Keen Senses)
 N:139:the Vigilant Eye
 G:":d
-I:40:7:0
+I:40:7:1
 W:4:0:1:0
 P:0:0d0:0:0d0
+R:PVAL:4
 A:8/40
 F:PERCEPTION | RES_HALLU
 B:4/2
@@ -1103,8 +1202,10 @@ I:40:8:0
 W:5:0:1:0
 P:0:0d0:0:0d0
 A:7/60
-F:CON | NEG_GRA | LIGHT_CURSE | EASY_KNOW | NO_SMITHING
+F:LIGHT_CURSE | EASY_KNOW | NO_SMITHING
 M:WILL:-2
+M:CON:1
+M:GRA:-2
 D:An amulet of dull grey metal, stamped with a brand of
 D: thralldom from Angband's slave-pits, where countless
 D: Elves and Men were broken to labour in the sunless
@@ -1116,9 +1217,10 @@ D: without hope or the memory of stars.
 
 N:141:the Shadow
 G:":d
-I:40:9:0
+I:40:9:1
 W:6:0:1:100
 P:0:0d0:0:0d0
+R:PVAL:4
 A:6/80
 F:STEALTH | UNLIGHT | EASY_KNOW | NO_SMITHING
 D:An amulet of dull black stone, worn by the spies and
@@ -1136,7 +1238,8 @@ I:40:10:0
 W:7:0:1:0
 P:1:0d0:0:1d1
 A:7/70
-F:NEG_GRA | LIGHT_CURSE | EASY_KNOW | NO_SMITHING
+F:LIGHT_CURSE | EASY_KNOW | NO_SMITHING
+M:GRA:-1
 D:An amulet of tarnished bronze, bearing the angular mark
 D: of one of Morgoth's war-captains. It lends a dull
 D: readiness for war: the hand strikes surer, and the body
@@ -1145,14 +1248,53 @@ D: under its influence, for it was wrought for creatures
 D: whose makers had no thought of grace nor beauty.
 
 
+N:143:the Earth-delver
+G:":d
+I:40:11:2
+W:10:0:1:2000
+P:0:0d0:0:0d0
+R:PVAL:3
+A:10/30
+F:CON | SUST_CON | RES_BLIND | NOBLE_ITEM
+D:Wrought by the deep-smiths of Nogrod for the gatharim,
+D: those few masters who dared the uttermost shafts
+D: beneath the Blue Mountains where no light had shone
+D: since the making of the world. It fills the body with
+D: the endurance of living stone and wards the eyes
+D: against the sudden blinding flare of subterranean fire
+D: and the sorcerous dark alike. Only a handful were ever
+D: made, for the craft was costly and the delvers who
+D: needed them fewer still.
+
+
+N:144:the Hidden Realm
+G:":d
+I:40:14:2
+W:12:0:1:2000
+P:0:0d0:0:0d0
+R:PVAL:3
+A:12/30
+F:GRA | SUST_GRA | RES_FEAR | NOBLE_ITEM
+D:Fashioned by the jewel-smiths of Gondolin, where the
+D: memory of Valinor was most perfectly preserved in
+D: Middle-earth. These were given to the very few captains
+D: whom Turgon sent beyond the Encircling Mountains on
+D: desperate errands: each held something of the peace of
+D: that hidden city, a light against the terror of the
+D: outer world. The wearer's spirit is deepened and
+D: brightened, and no dread of the Enemy can shake the
+D: heart while it is worn.
+
+
 ##### Rings #####
 
 # (ability 4/4 is Alchemy)
 N:150:Secrets
 G:=:d
-I:45:0:0
+I:45:0:1
 W:15:0:1:500
 P:0:0d0:0:0d0
+R:PVAL:3
 A:10/20
 F:PERCEPTION
 B:4/4
@@ -1164,9 +1306,10 @@ D: workings of the craft.
 
 N:151:Ered Luin
 G:=:d
-I:45:1:0
+I:45:1:1
 W:8:0:1:150
 P:0:0d0:0:0d0
+R:PVAL:3
 A:6/40
 F:WILL | RES_FEAR | RES_CONFU | NOBLE_ITEM
 D:A ring wrought in the fashion of the Dwarven-smiths of
@@ -1181,7 +1324,8 @@ N:152:Evasion
 G:=:d
 I:45:2:0
 W:8:0:1:500
-P:0:0d0:0:0d0
+P:0:0d0:1:0d0
+R:EVN:3
 A:6/40
 D:A ring of subtle craft that quickens the wearer's instinct
 D: for danger. In battle, blows seem to pass a hair's breadth
@@ -1192,7 +1336,8 @@ N:153:Protection
 G:=:d
 I:45:3:0
 W:7:0:1:500
-P:0:0d0:0:0d0
+P:0:0d0:0:1d1
+R:PS:3
 A:5/60
 D:A ring set with an ancient ward that blunts the force of
 D: blows. The damage of fang and blade alike is lessened while
@@ -1201,9 +1346,10 @@ D: it is worn.
 
 N:154:Strength
 G:=:d
-I:45:4:0
+I:45:4:1
 W:9:0:1:500
 P:0:0d0:0:0d0
+R:PVAL:2
 A:11/10
 F:STR | SUST_STR
 D:A ring wrought to fortify the sinews of its wearer. With it
@@ -1213,9 +1359,10 @@ D: of the mighty, and the weight of arms grows lighter.
 
 N:155:Dexterity
 G:=:d
-I:45:5:0
+I:45:5:1
 W:10:0:1:500
 P:0:0d0:0:0d0
+R:PVAL:2
 A:12/15
 F:DEX | SUST_DEX | NOBLE_ITEM
 D:A ring of delicate craft that lends nimbleness to the wearer.
@@ -1251,7 +1398,8 @@ N:158:Accuracy
 G:=:d
 I:45:8:0
 W:12:0:1:500
-P:0:0d0:0:0d0
+P:1:0d0:0:0d0
+R:ATT:3
 A:10/40
 D:A ring that steadies the hand and sharpens the eye. In
 D: battle, the wearer's strikes fall true, finding the gaps
@@ -1328,7 +1476,7 @@ D: touch of frost becomes a crippling agony, drawing the
 D: bitter cold of Utumno straight to their heart.
 
 
-N:164:the Deep Cold
+N:164:the Deep Cold of Utumno
 G:=:d
 I:45:14:0
 W:5:0:1:100
@@ -1349,8 +1497,10 @@ I:45:15:0
 W:6:0:1:0
 P:0:0d0:0:0d0
 A:8/60
-F:STR | NEG_GRA | LIGHT_CURSE | EASY_KNOW | NO_SMITHING
+F:LIGHT_CURSE | EASY_KNOW | NO_SMITHING
 M:PERCEPTION:-3
+M:STR:1
+M:GRA:-1
 D:A ring of crude iron, stamped with the rune of Angband.
 D: Orc-captains wore such rings to master their companies
 D: by brute force alone. The strength it grants is real
@@ -1360,11 +1510,12 @@ D: for it was made without art and without love.
 
 N:166:the Watchful Slave
 G:=:d
-I:45:16:0
+I:45:16:1
 W:4:0:1:0
 P:0:0d0:0:0d0
+R:PVAL:2
 A:4/100
-F:PERCEPTION | HUNGER | LIGHT_CURSE | EASY_KNOW | NO_SMITHING
+F:PERCEPTION | HUNGER | LIGHT_CURSE | EASY_KNOW | NO_SMITHING | FEAR
 D:A ring set with a dim red stone, given to the thralls
 D: who kept watch in the dark passages of Angband for
 D: spies and intruders. It sharpens the senses beyond
@@ -1391,9 +1542,10 @@ D: to the will of their cruel masters.
 
 N:168:Morgoth's Dominion
 G:=:d
-I:45:18:0
+I:45:18:1
 W:12:0:1:300
 P:0:0d0:0:0d0
+R:PVAL:2
 A:10/30
 F:WILL | RES_FEAR | AGGRAVATE | LIGHT_CURSE | EASY_KNOW | NO_SMITHING
 D:A ring of cold iron, graven with runes of command in the
@@ -1407,9 +1559,10 @@ D: by its presence.
 
 N:169:Fell Voices
 G:=:d
-I:45:19:0
+I:45:19:1
 W:7:0:1:0
 P:0:0d0:0:0d0
+R:PVAL:2
 A:12/20
 F:SONG | FEAR | HAUNTED | LIGHT_CURSE | EASY_KNOW | NO_SMITHING
 D:A ring of dark stone that hums with a low and ceaseless
@@ -1425,9 +1578,10 @@ D: is worn.
 
 N:171:the Laiquendi
 G:=:d
-I:45:21:0
+I:45:21:1
 W:8:0:1:1000
 P:0:0d0:0:0d0
+R:PVAL:3
 A:8/20
 F:STEALTH | ARCHERY | EASY_KNOW | NOBLE_ITEM
 D:A ring of green and gold, fashioned in the manner of the
@@ -1444,6 +1598,43 @@ D: hunters: swift of step and keen with the bow.
 #A:10/2
 #F:AGGRAVATE | EASY_KNOW
 
+
+N:173:the Keen Hand
+G:=:d
+I:45:22:2
+W:13:0:1:2000
+P:0:0d0:0:0d0
+R:PVAL:3
+A:14/30
+F:DEX | SUST_DEX | RES_CONFU | NOBLE_ITEM
+D:Wrought by Curufin son of Feanor, greatest smith among
+D: the living Noldor, for the hunters who guarded the Pass
+D: of Aglon under his brother Celegorm the Fair. Those
+D: scouts tracked Morgoth's servants through the tangled
+D: vales of Nan Dungortheb, where the brood of Ungoliant
+D: spun webs of bewilderment upon the unwary. The ring
+D: keeps hand and eye in perfect accord and the mind clear
+D: of all confusion, so that no sorcery may cloud the
+D: wearer's purpose.
+
+
+N:174:the Iron Guard
+G:=:d
+I:45:23:2
+W:12:0:1:2000
+P:0:0d0:0:0d0
+R:PVAL:3
+A:12/30
+F:STR | SUST_STR | RES_STUN | NOBLE_ITEM
+D:Forged by the war-smiths of Belegost for the chosen
+D: guard of Lord Azaghal, who alone among the Free Peoples
+D: could face the fire-drakes and hold their ground. Each
+D: ring was a mark of rank, given when a warrior was
+D: admitted to that grim company and reclaimed when he
+D: fell. It fills the arm with the strength of the
+D: mountains and steadies the senses against even the
+D: most crushing blow, so that the bearer may stand
+D: where others would be broken.
 
 
 ##### Staves #####
@@ -2269,6 +2460,8 @@ T:2:20
 I:32:1:0
 W:1:0:50:15
 P:0:0d0:-1:1d1
+R:EVN:0
+R:PS:2
 A:1/100:10/0
 F:DAMAGED | NO_SMITHING
 D:A helm long abandoned in the deep places, its iron pitted
@@ -2281,6 +2474,8 @@ T:2:21
 I:30:4:0
 W:1:0:20:7
 P:0:0d0:-1:1d1
+R:EVN:0
+R:PS:2
 A:1/100:10/0
 F:DAMAGED | NO_SMITHING
 D:Boots worn thin by long use and hard roads, their soles
@@ -2292,6 +2487,9 @@ T:11:28
 I:34:1:0
 W:1:0:50:50
 P:-1:0d0:0:1d2
+R:ATT:0
+R:EVN:1
+R:PS:3
 A:1/100:10/0
 F:DAMAGED | NO_SMITHING
 D:A shield cracked and splintered, perhaps by some great blow
@@ -2304,6 +2502,8 @@ T:6:0
 I:23:1:0
 W:1:0:5:5
 P:-1:1d4:0:0d0
+R:ATT:0
+R:DS:5
 A:1/100:10/0
 F:DAMAGED | NO_SMITHING | THROWING | MORE_SPECIAL
 D:A dagger whose edge is chipped and notched, diminished in
@@ -2315,6 +2515,8 @@ T:6:2
 I:23:9:0
 W:1:0:20:30
 P:-1:1d6:0:0d0
+R:ATT:0
+R:DS:7
 A:1/100:10/0
 F:DAMAGED | NO_SMITHING
 D:A shortsword whose blade has been bent, perhaps trodden
@@ -2327,6 +2529,8 @@ T:6:9
 I:22:3:0
 W:1:0:30:20
 P:-1:1d7:0:0d0
+R:ATT:0
+R:DS:8
 A:1/100:10/0
 F:DAMAGED | NO_SMITHING | THROWING | HAND_AND_A_HALF | POLEARM
 D:A spear whose shaft is cracked and whose point is dulled,
@@ -2338,6 +2542,8 @@ T:5:29
 I:19:11:0
 W:1:0:15:20
 P:-1:1d6:0:0d0
+R:ATT:0
+R:DS:7
 A:1/100:10/0
 F:DAMAGED | NO_SMITHING
 D:A shortbow whose limbs have warped from damp and neglect.
@@ -2349,6 +2555,7 @@ T:5:2
 I:35:0:0
 W:1:0:20:1
 P:0:0d0:0:1d0
+R:EVN:1
 A:1/100:10/0
 F:DAMAGED | NO_SMITHING
 D:A cloak worn to tatters, offering little warmth and less
@@ -2360,6 +2567,9 @@ T:5:21
 I:31:4:0
 W:1:0:30:10
 P:-2:0d0:-1:1d0
+R:ATT:-1
+R:EVN:0
+R:PS:1
 A:2/100:10/0
 F:DAMAGED | NO_SMITHING | IGNORE_FIRE
 D:Gauntlets of battered leather and bent iron, their plates
@@ -2371,6 +2581,8 @@ T:5:10
 I:30:5:0
 W:2:0:80:5
 P:0:0d0:-2:1d1
+R:EVN:-1
+R:PS:2
 A:2/100:10/0
 F:DAMAGED | NO_SMITHING | IGNORE_FIRE
 D:Greaves hammered out of true by some past blow, their iron
@@ -2382,6 +2594,9 @@ T:5:15
 I:37:3:0
 W:3:0:270:200
 P:-2:0d0:-4:2d3
+R:ATT:-1
+R:EVN:-3
+R:PS:4
 A:3/100:10/0
 F:DAMAGED | NO_SMITHING
 D:A corslet of mail whose rings are bent and broken in places,

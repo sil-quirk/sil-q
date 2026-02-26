@@ -1392,92 +1392,18 @@ static void build_normal_variants(int k_idx)
         return;
     }
 
-    /* Smithing caps (no ego/artefact) taken from smithing menu logic */
+    /* Ranges from data-driven R: lines in object.txt */
     int att_min = k_ptr->att;
-    int att_max = k_ptr->att;
+    int att_max = k_ptr->max_att;
     int ds_min = k_ptr->ds;
-    int ds_max = k_ptr->ds;
+    int ds_max = k_ptr->max_ds;
     int evn_min = k_ptr->evn;
-    int evn_max = k_ptr->evn;
+    int evn_max = k_ptr->max_evn;
     int ps_min = k_ptr->ps;
-    int ps_max = k_ptr->ps;
+    int ps_max = k_ptr->max_ps;
     int pval_min = k_ptr->pval;
-    int pval_max = k_ptr->pval;
+    int pval_max = k_ptr->max_pval;
     bool pval_allowed = (k_ptr->flags1 & TR1_PVAL_MASK) != 0 || k_ptr->pval != 0;
-
-    switch (k_ptr->tval)
-    {
-    case TV_SWORD:
-    case TV_POLEARM:
-    case TV_HAFTED:
-    case TV_DIGGING:
-    case TV_BOW:
-        att_max = k_ptr->att + 1;
-        ds_max = k_ptr->ds + 1;
-        break;
-    case TV_BOOTS:
-    case TV_GLOVES:
-    case TV_HELM:
-    case TV_CROWN:
-    case TV_SHIELD:
-    case TV_CLOAK:
-    case TV_SOFT_ARMOR:
-    case TV_MAIL:
-        att_max = k_ptr->att + 1;
-        if (att_max > 0)
-            att_max = 0;
-        evn_max = k_ptr->evn + 1;
-        ps_max = k_ptr->ps + 1;
-        if ((k_ptr->tval == TV_CLOAK)
-            || (k_ptr->tval == TV_SOFT_ARMOR && k_ptr->sval == SV_ROBE))
-            ps_max = 0;
-        if (k_ptr->tval == TV_MAIL && k_ptr->sval == SV_LONG_CORSLET)
-            ps_max = k_ptr->ps + 2;
-        break;
-    case TV_RING:
-        if (k_ptr->sval == SV_RING_ACCURACY)
-        {
-            att_max = 4;
-            att_min = 1;
-        }
-        else
-        {
-            att_max = k_ptr->att;
-        }
-        if (k_ptr->sval == SV_RING_EVASION)
-        {
-            evn_max = 4;
-            evn_min = 1;
-        }
-        else
-        {
-            evn_max = k_ptr->evn;
-        }
-        if (k_ptr->sval == SV_RING_PROTECTION)
-        {
-            /* Protection rings are always 1dX (never 0dX). */
-            base.pd = 1;
-            ps_max = 3;
-            ps_min = 1;
-        }
-        if (pval_allowed)
-        {
-            if (pval_min < 1)
-                pval_min = 1;
-            pval_max = 4; /* smithing caps ring/amulet pval at 4 */
-        }
-        break;
-    case TV_AMULET:
-        if (pval_allowed)
-        {
-            if (pval_min < 1)
-                pval_min = 1;
-            pval_max = 4; /* smithing caps ring/amulet pval at 4 */
-        }
-        break;
-    default:
-        break;
-    }
 
     // Variant list (all combinations within smithing caps)
     // Use combined rarity and minimum depth for the entire item
@@ -1654,7 +1580,7 @@ static void build_ego_variants(int e_idx)
             if (rarity_cap_depth > 0 && (max_depth == 0 || rarity_cap_depth < max_depth))
                 max_depth = rarity_cap_depth;
 
-            /* Smithing bounds with ego applied (match smithing UI logic) */
+            /* Ranges from data-driven R: lines + ego C: line contributions */
             int ego_max_att = ego_s8(e_ptr->max_att);
             int ego_to_ds = ego_s8(e_ptr->to_ds);
             int ego_max_evn = ego_s8(e_ptr->max_evn);
@@ -1663,115 +1589,21 @@ static void build_ego_variants(int e_idx)
             int ego_to_pd = ego_s8(e_ptr->to_pd);
 
             int att_min = k_ptr->att + smithing_step_from_ego_bonus(ego_max_att);
-            int att_max = k_ptr->att;
+            int att_max = k_ptr->max_att + ego_max_att;
             int ds_min = k_ptr->ds + smithing_step_from_ego_bonus(ego_to_ds);
-            int ds_max = k_ptr->ds;
+            int ds_max = k_ptr->max_ds + ego_to_ds;
             int evn_min = k_ptr->evn + smithing_step_from_ego_bonus(ego_max_evn);
-            int evn_max = k_ptr->evn;
+            int evn_max = k_ptr->max_evn + ego_max_evn;
             int ps_min = k_ptr->ps + smithing_step_from_ego_bonus(ego_to_ps);
-            int ps_max = k_ptr->ps;
+            int ps_max = k_ptr->max_ps + ego_to_ps;
             int pval_min = k_ptr->pval + ((e_ptr->max_pval > 0) ? 1 : 0);
-            int pval_max = k_ptr->pval + e_ptr->max_pval;
+            int pval_max = k_ptr->max_pval + e_ptr->max_pval;
             int dd_min = k_ptr->dd + smithing_step_from_ego_bonus(ego_to_dd);
             int dd_max = k_ptr->dd + ego_to_dd;
             int pd_min = k_ptr->pd + smithing_step_from_ego_bonus(ego_to_pd);
             int pd_max = k_ptr->pd + ego_to_pd;
             bool pval_allowed = ((k_ptr->flags1 & TR1_PVAL_MASK) != 0)
                 || (k_ptr->pval != 0) || (e_ptr->max_pval > 0);
-
-            switch (k_ptr->tval)
-            {
-            case TV_SWORD:
-            case TV_POLEARM:
-            case TV_HAFTED:
-            case TV_DIGGING:
-            case TV_BOW:
-                att_max = k_ptr->att + 1 + ego_max_att;
-                ds_max = k_ptr->ds + 1 + ego_to_ds;
-                evn_max = k_ptr->evn + ego_max_evn;
-                break;
-            case TV_BOOTS:
-            case TV_GLOVES:
-            case TV_HELM:
-            case TV_CROWN:
-            case TV_SHIELD:
-            case TV_CLOAK:
-            case TV_SOFT_ARMOR:
-            case TV_MAIL:
-                att_max = k_ptr->att + 1 + ego_max_att;
-                if (att_max > 0)
-                    att_max = 0;
-                evn_max = k_ptr->evn + 1 + ego_max_evn;
-                ps_max = k_ptr->ps + 1 + ego_to_ps;
-                if ((k_ptr->tval == TV_CLOAK)
-                    || (k_ptr->tval == TV_SOFT_ARMOR && k_ptr->sval == SV_ROBE))
-                    ps_max = k_ptr->ps + ego_to_ps;
-                if (k_ptr->tval == TV_MAIL && k_ptr->sval == SV_LONG_CORSLET)
-                    ps_max = k_ptr->ps + 2 + ego_to_ps;
-                break;
-            case TV_RING:
-                if (k_ptr->sval == SV_RING_ACCURACY)
-                {
-                    att_max = 4;
-                    att_min = 1;
-                }
-                else
-                {
-                    att_max = k_ptr->att + ego_max_att;
-                }
-                if (k_ptr->sval == SV_RING_EVASION)
-                {
-                    evn_max = 4;
-                    evn_min = 1;
-                }
-                else
-                {
-                    evn_max = k_ptr->evn + ego_max_evn;
-                }
-                if (k_ptr->sval == SV_RING_PROTECTION)
-                {
-                    /* Protection rings are always 1dX (never 0dX). */
-                    if (pd_min < 1)
-                        pd_min = 1;
-                    if (pd_max < 1)
-                        pd_max = 1;
-                    ps_max = 3;
-                    ps_min = 1;
-                }
-                if (pval_allowed)
-                {
-                    if (k_ptr->flags1 & TR1_PVAL_MASK)
-                    {
-                        if (pval_min < 1)
-                            pval_min = 1;
-                        if (pval_max < 4)
-                            pval_max = 4;
-                    }
-                    if (pval_max > 4)
-                        pval_max = 4;
-                }
-                break;
-            case TV_AMULET:
-                if (pval_allowed)
-                {
-                    if (k_ptr->flags1 & TR1_PVAL_MASK)
-                    {
-                        if (pval_min < 1)
-                            pval_min = 1;
-                        if (pval_max < 4)
-                            pval_max = 4;
-                    }
-                    if (pval_max > 4)
-                        pval_max = 4;
-                }
-                break;
-            default:
-                att_max = k_ptr->att + ego_max_att;
-                ds_max = k_ptr->ds + ego_to_ds;
-                evn_max = k_ptr->evn + ego_max_evn;
-                ps_max = k_ptr->ps + ego_to_ps;
-                break;
-            }
 
             if (ds_min < 0)
                 ds_min = 0;
@@ -2022,21 +1854,21 @@ static void build_ego_combo_variants(int prefix_idx, int suffix_idx)
         int att_min = k_ptr->att
             + smithing_step_from_ego_bonus(ego_s8(prefix_ptr->max_att))
             + smithing_step_from_ego_bonus(ego_s8(suffix_ptr->max_att));
-        int att_max = k_ptr->att;
+        int att_max = k_ptr->max_att + max_att_bonus;
         int ds_min = k_ptr->ds
             + smithing_step_from_ego_bonus(ego_s8(prefix_ptr->to_ds))
             + smithing_step_from_ego_bonus(ego_s8(suffix_ptr->to_ds));
-        int ds_max = k_ptr->ds;
+        int ds_max = k_ptr->max_ds + to_ds_bonus;
         int evn_min = k_ptr->evn
             + smithing_step_from_ego_bonus(ego_s8(prefix_ptr->max_evn))
             + smithing_step_from_ego_bonus(ego_s8(suffix_ptr->max_evn));
-        int evn_max = k_ptr->evn;
+        int evn_max = k_ptr->max_evn + max_evn_bonus;
         int ps_min = k_ptr->ps
             + smithing_step_from_ego_bonus(ego_s8(prefix_ptr->to_ps))
             + smithing_step_from_ego_bonus(ego_s8(suffix_ptr->to_ps));
-        int ps_max = k_ptr->ps;
+        int ps_max = k_ptr->max_ps + to_ps_bonus;
         int pval_min = k_ptr->pval + ((prefix_ptr->max_pval > 0) ? 1 : 0) + ((suffix_ptr->max_pval > 0) ? 1 : 0);
-        int pval_max = k_ptr->pval + max_pval_bonus;
+        int pval_max = k_ptr->max_pval + max_pval_bonus;
         int dd_min = k_ptr->dd
             + smithing_step_from_ego_bonus(ego_s8(prefix_ptr->to_dd))
             + smithing_step_from_ego_bonus(ego_s8(suffix_ptr->to_dd));
@@ -2047,100 +1879,6 @@ static void build_ego_combo_variants(int prefix_idx, int suffix_idx)
         int pd_max = k_ptr->pd + to_pd_bonus;
         bool pval_allowed = ((k_ptr->flags1 & TR1_PVAL_MASK) != 0)
             || (k_ptr->pval != 0) || (max_pval_bonus > 0);
-
-        switch (k_ptr->tval)
-        {
-        case TV_SWORD:
-        case TV_POLEARM:
-        case TV_HAFTED:
-        case TV_DIGGING:
-        case TV_BOW:
-            att_max = k_ptr->att + 1 + max_att_bonus;
-            ds_max = k_ptr->ds + 1 + to_ds_bonus;
-            evn_max = k_ptr->evn + max_evn_bonus;
-            break;
-        case TV_BOOTS:
-        case TV_GLOVES:
-        case TV_HELM:
-        case TV_CROWN:
-        case TV_SHIELD:
-        case TV_CLOAK:
-        case TV_SOFT_ARMOR:
-        case TV_MAIL:
-            att_max = k_ptr->att + 1 + max_att_bonus;
-            if (att_max > 0)
-                att_max = 0;
-            evn_max = k_ptr->evn + 1 + max_evn_bonus;
-            ps_max = k_ptr->ps + 1 + to_ps_bonus;
-            if ((k_ptr->tval == TV_CLOAK)
-                || (k_ptr->tval == TV_SOFT_ARMOR && k_ptr->sval == SV_ROBE))
-                ps_max = k_ptr->ps + to_ps_bonus;
-            if (k_ptr->tval == TV_MAIL && k_ptr->sval == SV_LONG_CORSLET)
-                ps_max = k_ptr->ps + 2 + to_ps_bonus;
-            break;
-        case TV_RING:
-            if (k_ptr->sval == SV_RING_ACCURACY)
-            {
-                att_max = 4;
-                att_min = 1;
-            }
-            else
-            {
-                att_max = k_ptr->att + max_att_bonus;
-            }
-            if (k_ptr->sval == SV_RING_EVASION)
-            {
-                evn_max = 4;
-                evn_min = 1;
-            }
-            else
-            {
-                evn_max = k_ptr->evn + max_evn_bonus;
-            }
-            if (k_ptr->sval == SV_RING_PROTECTION)
-            {
-                /* Protection rings are always 1dX (never 0dX). */
-                if (pd_min < 1)
-                    pd_min = 1;
-                if (pd_max < 1)
-                    pd_max = 1;
-                ps_max = 3;
-                ps_min = 1;
-            }
-            if (pval_allowed)
-            {
-                if (k_ptr->flags1 & TR1_PVAL_MASK)
-                {
-                    if (pval_min < 1)
-                        pval_min = 1;
-                    if (pval_max < 4)
-                        pval_max = 4;
-                }
-                if (pval_max > 4)
-                    pval_max = 4;
-            }
-            break;
-        case TV_AMULET:
-            if (pval_allowed)
-            {
-                if (k_ptr->flags1 & TR1_PVAL_MASK)
-                {
-                    if (pval_min < 1)
-                        pval_min = 1;
-                    if (pval_max < 4)
-                        pval_max = 4;
-                }
-                if (pval_max > 4)
-                    pval_max = 4;
-            }
-            break;
-        default:
-            att_max = k_ptr->att + max_att_bonus;
-            ds_max = k_ptr->ds + to_ds_bonus;
-            evn_max = k_ptr->evn + max_evn_bonus;
-            ps_max = k_ptr->ps + to_ps_bonus;
-            break;
-        }
 
         if (ds_min < 0)
             ds_min = 0;

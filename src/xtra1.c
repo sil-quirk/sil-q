@@ -2422,6 +2422,19 @@ void calc_torch(void)
         /* Extract the flags */
         object_flags4(o_ptr, &f1, &f2, &f3, &f4);
 
+        /* Skip quiver 1 entirely - it provides no bonuses */
+        if (i == INVEN_QUIVER1)
+            continue;
+
+        /* Skip quiver 2 unless item is an arrow or throwing item */
+        if (i == INVEN_QUIVER2)
+        {
+            bool is_throwing = player_can_treat_as_throwing_flags(o_ptr, f3);
+            bool is_arrow = (o_ptr->tval == TV_ARROW);
+            if (!is_throwing && !is_arrow)
+                continue;
+        }
+
         /* Does this item glow? */
         if ((f2 & TR2_LIGHT) && (i != INVEN_LITE))
             p_ptr->cur_light++;

@@ -39,7 +39,7 @@ A:8:2
 S:0:0:0:1
 B:Cannot attack creatures with RF3_MAN or RF3_ELF flags
 U:Complete the Quest of Nienna, Lady of Pity
-C:Your hand stays its course. The life before you is one of the Children of Ilúvatar. To strike them down is to stain your very soul and forsake the compassion you swore to uphold. Are you certain you wish to break your Oath of Mercy?
+C:Your hand stays its course. The life before you is one of the Children of Iluvatar. To strike them down is to stain your very soul and forsake the compassion you swore to uphold. Are you certain you wish to break your Oath of Mercy?
 M:The light of pity leaves your eyes, replaced by the shadow of wrath. The weight of this life taken settles upon you, a curse of your own making.
 E:The echo of your mercy is now a mockery. Your Oath of Mercy is forever broken, a testament to the compassion you have cast aside in this age.
 Q:You passed from the world, but the memory of your final deeds remains. You will be remembered as one who swore compassion, yet chose cruelty.

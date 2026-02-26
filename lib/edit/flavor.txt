@@ -159,6 +159,16 @@ G:=:B
 T:2:14
 D:Zircon
 
+N:26:45
+G:=:g
+T:2:4
+D:Alexandrite
+
+N:27:45
+G:=:D
+T:2:18
+D:Obsidian
+
 #N:20:45
 #G:=:B
 #D:Mithril
@@ -250,7 +260,17 @@ G:":G
 T:4:11
 D:Malachite
 
-#N:57:40
+N:57:40
+G:":u
+T:4:12
+D:Copper
+
+N:58:40
+G:":w
+T:4:2
+D:Bone
+
+#N:59:40
 #G:":B
 #D:Mithril
 

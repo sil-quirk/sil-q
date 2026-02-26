@@ -98,7 +98,7 @@ W:17:22
 F:23:0 23:18 23:12
 D:0:10 20:6 20:9 20:12 20:15 20:18
 M:The passage opens into a hall of polished green stone, carved with unsettling, serpentine patterns. This is no natural rock, but a substance born of alchemy and a dragon's thought.
-M:A faint, harmonious hum vibrates through the jade-like walls, a music that gnaws at your resolve. It is a song of enthrallment, a lure for the lost children of Húrin.
+M:A faint, harmonious hum vibrates through the jade-like walls, a music that gnaws at your resolve. It is a song of enthrallment, a lure for the lost children of Hurin.
 M:The elegance of the chamber is a lie, its beauty as cold and sharp as a shard of glass. It is the calculated perfection of the Serpent's gaze, mesmerizing and utterly deadly.
 N:9:Shadow0 #BigCrudeShadow 
 W:16:2
@@ -259,7 +259,7 @@ Y:18:12
 F:23:8 23:22
 D:0:10 20:6 20:9 20:12 20:15 20:18 
 M:You enter a hall of simple, deep purple bricks, the colour of twilight in a dying land. A profound sadness permeates the air, a sense of beauty lost forevermore.
-M:The silence here is heavy with memory, as if this place heard once a song of Lúthien Tinúviel. Now all that remains is a faded echo, a whisper of unbearable grief.
+M:The silence here is heavy with memory, as if this place heard once a song of Luthien Tinuviel. Now all that remains is a faded echo, a whisper of unbearable grief.
 M:The colour is that of the heather on the high moors under a bruised sky. It is a place of mourning for a world that has been broken beyond repair.
 N:29:Purple1 #FancyBricks
 W:17:0
