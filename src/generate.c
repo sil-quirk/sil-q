@@ -10506,7 +10506,7 @@ void place_monster_by_letter(
 
 /*
  * Vault drop frequency gating — controls how many items spawn per vault symbol.
- * Driven by op_ptr->vault_drop_frequency (VDF_PLENTIFUL..VDF_MEAGER).
+ * Driven by op_ptr->vault_drop_frequency (VDF_NORMAL..VDF_PLENTIFUL).
  */
 typedef enum vault_drop_gate_kind {
     VDG_NORMAL = 0,

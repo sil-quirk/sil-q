@@ -480,7 +480,7 @@ cptr option_desc[OPT_MAX] = {
     "Space acts as comma (interact with square)", /* OPT_space_acts_as_comma */
     "Show poetic banner when entering a level", /* OPT_show_level_entry_banner */
     "Ability descriptions (0=lore+effect, 1=effect+lore, 2=effect only)", /* OPT_ability_desc_mode */
-    "Vault drop frequency (0=Plentiful, 1=Normal, 2=Modest, 3=Scarce, 4=Meager)", /* OPT_vault_drop_frequency */
+    "Vault drop frequency (0=Normal, 1=Modest, 2=Scarce, 3=Meager, 4=Plentiful)", /* OPT_vault_drop_frequency */
     "Debug: Show smithing difficulty in item descriptions", /* OPT_show_smithing_difficulty */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -738,7 +738,7 @@ const bool option_norm[OPT_MAX] = {
     true, /* OPT_space_acts_as_comma */
     true, /* OPT_show_level_entry_banner */
     false, /* OPT_ability_desc_mode (default 0 via byte field) */
-    false, /* OPT_vault_drop_frequency (default 1 via byte field) */
+    false, /* OPT_vault_drop_frequency (default 0 via byte field) */
     false, /* OPT_show_smithing_difficulty */
     false, /* xxx */
     false, /* xxx */

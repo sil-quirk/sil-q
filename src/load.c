@@ -1178,7 +1178,7 @@ static void rd_options(void)
     /* Read "vault_drop_frequency" */
     rd_byte(&b);
     op_ptr->vault_drop_frequency = b;
-    if (op_ptr->vault_drop_frequency > VDF_MEAGER)
+    if (op_ptr->vault_drop_frequency > VDF_PLENTIFUL)
         op_ptr->vault_drop_frequency = VDF_NORMAL;
 
     /* Skip 5 remaining spare bytes */

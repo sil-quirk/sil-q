@@ -2887,11 +2887,11 @@
 #define show_level_entry_banner op_ptr->opt[OPT_show_level_entry_banner]
 
 /* Vault drop frequency modes */
-#define VDF_PLENTIFUL 0
-#define VDF_NORMAL 1
-#define VDF_MODEST 2
-#define VDF_SCARCE 3
-#define VDF_MEAGER 4
+#define VDF_NORMAL 0
+#define VDF_MODEST 1
+#define VDF_SCARCE 2
+#define VDF_MEAGER 3
+#define VDF_PLENTIFUL 4
 
 // xxx
 // xxx birth_point_based

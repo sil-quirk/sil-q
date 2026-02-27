@@ -1845,7 +1845,7 @@ NavResult character_creation(void)
     }
 
     /* Ensure vault_drop_frequency has a valid value for existing saves */
-    if (op_ptr->vault_drop_frequency > VDF_MEAGER)
+    if (op_ptr->vault_drop_frequency > VDF_PLENTIFUL)
     {
         op_ptr->vault_drop_frequency = VDF_NORMAL;
     }
