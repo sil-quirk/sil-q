@@ -1184,9 +1184,9 @@ D: this world.
 N:139:the Vigilant Eye
 G:":d
 I:40:7:1
-W:4:0:1:0
+W:4:0:1:1
 P:0:0d0:0:0d0
-R:PVAL:4
+R:PVAL:3
 A:8/40
 F:PERCEPTION | RES_HALLU
 B:4/2
@@ -1220,9 +1220,9 @@ G:":d
 I:40:9:1
 W:6:0:1:100
 P:0:0d0:0:0d0
-R:PVAL:4
+R:PVAL:2
 A:6/80
-F:STEALTH | UNLIGHT | EASY_KNOW | NO_SMITHING
+F:STEALTH | UNLIGHT | NO_SMITHING
 D:An amulet of dull black stone, worn by the spies and
 D: scouts of Morgoth who crept through the passes of the
 D: Ered Gorgoroth under cover of night. The bearer moves
@@ -1254,7 +1254,7 @@ I:40:11:2
 W:10:0:1:2000
 P:0:0d0:0:0d0
 R:PVAL:3
-A:10/30
+A:15/10
 F:CON | SUST_CON | RES_BLIND | NOBLE_ITEM
 D:Wrought by the deep-smiths of Nogrod for the gatharim,
 D: those few masters who dared the uttermost shafts
@@ -1273,7 +1273,7 @@ I:40:14:2
 W:12:0:1:2000
 P:0:0d0:0:0d0
 R:PVAL:3
-A:12/30
+A:15/10
 F:GRA | SUST_GRA | RES_FEAR | NOBLE_ITEM
 D:Fashioned by the jewel-smiths of Gondolin, where the
 D: memory of Valinor was most perfectly preserved in
@@ -1515,7 +1515,7 @@ W:4:0:1:0
 P:0:0d0:0:0d0
 R:PVAL:2
 A:4/100
-F:PERCEPTION | HUNGER | LIGHT_CURSE | EASY_KNOW | NO_SMITHING | FEAR
+F:PERCEPTION | HUNGER | LIGHT_CURSE | NO_SMITHING | FEAR
 D:A ring set with a dim red stone, given to the thralls
 D: who kept watch in the dark passages of Angband for
 D: spies and intruders. It sharpens the senses beyond
@@ -1547,7 +1547,7 @@ W:12:0:1:300
 P:0:0d0:0:0d0
 R:PVAL:2
 A:10/30
-F:WILL | RES_FEAR | AGGRAVATE | LIGHT_CURSE | EASY_KNOW | NO_SMITHING
+F:WILL | RES_FEAR | AGGRAVATE | LIGHT_CURSE | NO_SMITHING
 D:A ring of cold iron, graven with runes of command in the
 D: Black Speech of Angband. The will of the Dark Lord
 D: echoes faintly within it — the wearer's resolve grows
@@ -1564,7 +1564,7 @@ W:7:0:1:0
 P:0:0d0:0:0d0
 R:PVAL:2
 A:12/20
-F:SONG | FEAR | HAUNTED | LIGHT_CURSE | EASY_KNOW | NO_SMITHING
+F:SONG | FEAR | HAUNTED | LIGHT_CURSE | NO_SMITHING
 D:A ring of dark stone that hums with a low and ceaseless
 D: voice, as of fell chants sung in the deeps of Angband.
 D: The bearer's voice gains a strange and terrible power —
@@ -1605,7 +1605,7 @@ I:45:22:2
 W:13:0:1:2000
 P:0:0d0:0:0d0
 R:PVAL:3
-A:14/30
+A:15/10
 F:DEX | SUST_DEX | RES_CONFU | NOBLE_ITEM
 D:Wrought by Curufin son of Feanor, greatest smith among
 D: the living Noldor, for the hunters who guarded the Pass
@@ -1624,7 +1624,7 @@ I:45:23:2
 W:12:0:1:2000
 P:0:0d0:0:0d0
 R:PVAL:3
-A:12/30
+A:15/10
 F:STR | SUST_STR | RES_STUN | NOBLE_ITEM
 D:Forged by the war-smiths of Belegost for the chosen
 D: guard of Lord Azaghal, who alone among the Free Peoples
