@@ -288,6 +288,7 @@ def parse_special_file(filepath):
                     'min_svals': [],
                     'max_svals': [],
                     'max_pval': 0,
+                    'min_pval': 0,
                     'max_att': 0,
                     'max_evn': 0,
                     'to_dd': 0,
@@ -308,9 +309,10 @@ def parse_special_file(filepath):
                 current['depth'] = int(parts[0])
                 current['rarity'] = int(parts[1])
             
-            # Creation bonuses: C:max_att:+dd:+ds:max_evn:+pd:+ps:max_pval
+            # Creation bonuses: C:max_att:+dd:+ds:max_evn:+pd:+ps:max_pval[:min_pval]
             # These are MAXIMUM bonuses that get ADDED to the base item
             # When smithing, you get +1 to each stat if its max > 0
+            # Optional 8th field min_pval sets a minimum pval contribution for this ego
             elif line.startswith('C:') and current:
                 parts = line[2:].split(':')
                 current['max_att'] = int(parts[0]) if parts[0] else 0
@@ -321,6 +323,11 @@ def parse_special_file(filepath):
                 current['to_ps'] = int(parts[5]) if parts[5] else 0
                 if len(parts) > 6:
                     current['max_pval'] = int(parts[6]) if parts[6] else 0
+                if len(parts) > 7:
+                    current['min_pval'] = int(parts[7]) if parts[7] else 0
+                # If max_pval > 0 and min_pval is 0 (default), set min_pval to 1
+                if current['max_pval'] > 0 and current['min_pval'] == 0:
+                    current['min_pval'] = 1
             
             # Tval/sval range - can have multiple T: lines
             elif line.startswith('T:') and current:
@@ -1373,7 +1380,8 @@ def generate_special_variants(special, objects):
             evn_max = obj['max_evn'] + special['max_evn']
             ps_min = obj['ps'] + (1 if special['to_ps'] > 0 else 0)
             ps_max = obj['max_ps'] + special['to_ps']
-            pval_min = obj['pval'] + (1 if special['max_pval'] > 0 else 0)
+            pval_min_inc = special.get('min_pval', 0) if special.get('min_pval', 0) > 0 else (1 if special['max_pval'] > 0 else 0)
+            pval_min = obj['pval'] + pval_min_inc
             pval_max = obj['max_pval'] + special['max_pval']
             dd_min = obj['dd'] + (1 if special['to_dd'] > 0 else 0)
             dd_max = obj['dd'] + special['to_dd']

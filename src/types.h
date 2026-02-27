@@ -387,6 +387,7 @@ struct ego_item_type
     byte to_pd; /* bonus protection dice */
     byte to_ps; /* bonus protection sides */
     byte max_pval; /* Maximum pval */
+    byte min_pval; /* Minimum pval (0 = use default) */
 
     /* Per-stat/skill modifiers (bonuses applied to player). */
     s16b stat_bonus[A_MAX];

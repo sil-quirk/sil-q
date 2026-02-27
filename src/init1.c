@@ -4015,15 +4015,16 @@ errr parse_e_info(char* buf, header* head)
     else if (buf[0] == 'C')
     {
         int max_att, to_dd, to_ds, max_evn, to_pd, to_ps, pv;
+        int min_pv = 0;
 
         /* There better be a current e_ptr */
         if (!e_ptr)
             return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
-        /* Scan for the values */
-        if (7
-            != sscanf(buf + 2, "%d:%d:%d:%d:%d:%d:%d", &max_att, &to_dd, &to_ds,
-                &max_evn, &to_pd, &to_ps, &pv))
+        /* Scan for the values (8th field min_pval is optional) */
+        int fields = sscanf(buf + 2, "%d:%d:%d:%d:%d:%d:%d:%d", &max_att, &to_dd, &to_ds,
+            &max_evn, &to_pd, &to_ps, &pv, &min_pv);
+        if (fields < 7)
             return (PARSE_ERROR_GENERIC);
 
         e_ptr->max_att = max_att;
@@ -4033,6 +4034,11 @@ errr parse_e_info(char* buf, header* head)
         e_ptr->to_pd = to_pd;
         e_ptr->to_ps = to_ps;
         e_ptr->max_pval = pv;
+        e_ptr->min_pval = (byte)min_pv;
+
+        /* If ego grants pval (max_pval > 0) but min_pval is 0, default to 1 */
+        if (e_ptr->max_pval > 0 && e_ptr->min_pval == 0)
+            e_ptr->min_pval = 1;
     }
 
     /* Process 'M' for per-stat/skill bonus offsets (one per line) */

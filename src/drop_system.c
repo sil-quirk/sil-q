@@ -1596,7 +1596,9 @@ static void build_ego_variants(int e_idx)
             int evn_max = k_ptr->max_evn + ego_max_evn;
             int ps_min = k_ptr->ps + smithing_step_from_ego_bonus(ego_to_ps);
             int ps_max = k_ptr->max_ps + ego_to_ps;
-            int pval_min = k_ptr->pval + ((e_ptr->max_pval > 0) ? 1 : 0);
+            int ego_pval_min_inc = (e_ptr->min_pval > 0) ? e_ptr->min_pval
+                : ((e_ptr->max_pval > 0) ? 1 : 0);
+            int pval_min = k_ptr->pval + ego_pval_min_inc;
             int pval_max = k_ptr->max_pval + e_ptr->max_pval;
             int dd_min = k_ptr->dd + smithing_step_from_ego_bonus(ego_to_dd);
             int dd_max = k_ptr->dd + ego_to_dd;
@@ -1867,7 +1869,11 @@ static void build_ego_combo_variants(int prefix_idx, int suffix_idx)
             + smithing_step_from_ego_bonus(ego_s8(prefix_ptr->to_ps))
             + smithing_step_from_ego_bonus(ego_s8(suffix_ptr->to_ps));
         int ps_max = k_ptr->max_ps + to_ps_bonus;
-        int pval_min = k_ptr->pval + ((prefix_ptr->max_pval > 0) ? 1 : 0) + ((suffix_ptr->max_pval > 0) ? 1 : 0);
+        int prefix_pval_min_inc = (prefix_ptr->min_pval > 0) ? prefix_ptr->min_pval
+            : ((prefix_ptr->max_pval > 0) ? 1 : 0);
+        int suffix_pval_min_inc = (suffix_ptr->min_pval > 0) ? suffix_ptr->min_pval
+            : ((suffix_ptr->max_pval > 0) ? 1 : 0);
+        int pval_min = k_ptr->pval + prefix_pval_min_inc + suffix_pval_min_inc;
         int pval_max = k_ptr->max_pval + max_pval_bonus;
         int dd_min = k_ptr->dd
             + smithing_step_from_ego_bonus(ego_s8(prefix_ptr->to_dd))

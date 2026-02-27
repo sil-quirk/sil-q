@@ -3964,11 +3964,35 @@ int pval_max(void)
 
 /*
  * Determines the minimum legal pval for an item.
+ * Accounts for ego min_pval requirements from special.txt C: line.
  */
 int pval_min(void)
 {
     object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
-    return k_ptr->pval;
+    int base_min = k_ptr->pval;
+
+    /* Check both prefix and suffix egos for min_pval requirements */
+    byte egos[2] = { object_ego_prefix(smith_o_ptr), object_ego_suffix(smith_o_ptr) };
+    for (int i = 0; i < 2; i++)
+    {
+        byte e_idx = egos[i];
+        if (!e_idx)
+            continue;
+
+        ego_item_type* e_ptr = &e_info[e_idx];
+        if (e_ptr->min_pval > 0)
+        {
+            /* Ego requires a minimum pval contribution */
+            base_min += e_ptr->min_pval;
+        }
+        else if (e_ptr->max_pval > 0)
+        {
+            /* Default: at least +1 pval when ego grants pval */
+            base_min += 1;
+        }
+    }
+
+    return base_min;
 }
 
 static void smithing_ego_bonus_sums(const object_type* o_ptr,
@@ -4033,7 +4057,8 @@ static void smithing_ego_bonus_sums(const object_type* o_ptr,
         if (e_ptr->max_pval > 0)
         {
             if (max_pval_sum) *max_pval_sum += e_ptr->max_pval;
-            if (max_pval_min_inc) (*max_pval_min_inc)++;
+            if (max_pval_min_inc)
+                (*max_pval_min_inc) += (e_ptr->min_pval > 0) ? e_ptr->min_pval : 1;
         }
     }
 }

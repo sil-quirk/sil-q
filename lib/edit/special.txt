@@ -11,7 +11,7 @@
 #
 # N: serial number : special type
 # C: max att : plus damage dice : plus damage sides : max evn : 
-#    plus prot dice: plus prot sides : pval
+#    plus prot dice: plus prot sides : pval : min pval (optional)
 # W: depth : rarity_percent : max_depth : cost
 # A: depth/rarity_percent : depth/rarity_percent : etc
 # T: tval : min_sval : max_sval
@@ -33,6 +33,9 @@
 #
 # 'C' is for creation bonuses - maximum to-hit, to-dam, to-ac, and
 #     pval. Cursed special items will negate the given value.
+#     Optional min_pval sets the minimum pval this ego can have. If omitted
+#     and max_pval > 0, min_pval defaults to 1 (forbidding 0 pval items).
+#     Set min_pval to 0 explicitly to allow 0 pval items.
 #
 # 'F' is for flags. These are fairly self-explanatory. As many F:
 #     lines may be used as are needed to specify all the flags and flags
