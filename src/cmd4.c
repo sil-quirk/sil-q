@@ -6636,6 +6636,7 @@ static int smith_collect_bonus_actions(smith_bonus_action* actions, int max_acti
 static bool smith_adjust_bonus_entry(const smith_bonus_entry* entry, int delta)
 {
     int max_bonus = pval_max();
+    int floor_bonus = pval_min(); /* respect ego min_pval */
     int min_bonus = 0;
     int value = 0;
 
@@ -6661,7 +6662,8 @@ static bool smith_adjust_bonus_entry(const smith_bonus_entry* entry, int delta)
         }
         else
         {
-            min_bonus = 0;
+            /* Positive stat: honour ego min_pval as the lower bound */
+            min_bonus = floor_bonus;
         }
 
         value = smith_o_ptr->stat_bonus[entry->index];
@@ -6673,9 +6675,10 @@ static bool smith_adjust_bonus_entry(const smith_bonus_entry* entry, int delta)
         return true;
     }
 
+    /* Skill bonus: honour ego min_pval as the lower bound */
     value = smith_o_ptr->skill_bonus[entry->index];
     int new_value = value + delta;
-    if (new_value < 0 || new_value > max_bonus)
+    if (new_value < floor_bonus || new_value > max_bonus)
         return false;
     smith_o_ptr->skill_bonus[entry->index] = new_value;
     return true;
