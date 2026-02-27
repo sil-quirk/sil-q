@@ -1368,15 +1368,6 @@ bool object_info_out(const object_type* o_ptr)
     if (describe_weapon_damage(o_ptr))
         something = true;
 
-    /* Debug: show smithing difficulty if option is enabled */
-    if (op_ptr->opt[OPT_show_smithing_difficulty] && object_uses_smithing_difficulty(o_ptr))
-    {
-        int diff = object_smithing_difficulty(o_ptr);
-        new_paragraph = true;
-        p_text_out_c(TERM_SLATE, format("[Smithing difficulty: %d]", diff));
-        something = true;
-    }
-
     /* We are done. */
     return something;
 }
@@ -1435,6 +1426,15 @@ static bool screen_out_head(const object_type* o_ptr)
             strnfmt(weight_buf, sizeof(weight_buf), " %3d.%1d lb", total_weight / 10, total_weight % 10);
         }
         text_out_c(TERM_L_UMBER, weight_buf);
+    }
+
+    /* Debug: compact smithing difficulty + weight rarity */
+    if (op_ptr->opt[OPT_show_smithing_difficulty] && object_uses_smithing_difficulty(o_ptr))
+    {
+        int depth = (p_ptr && p_ptr->depth > 0) ? p_ptr->depth : 1;
+        int sd = object_smithing_difficulty(o_ptr);
+        int wr = object_weight_rarity(o_ptr, depth);
+        text_out_c(TERM_SLATE, format(" {%d,%d}", sd, wr));
     }
 
     log_trace("screen_out_head: After printing object name, cursor position: x=%d, y=%d", Term->scr->cx, Term->scr->cy);

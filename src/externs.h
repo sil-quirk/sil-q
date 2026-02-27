@@ -1032,6 +1032,7 @@ extern drop_quality drop_quality_from_flags(bool good, bool great, bool superb);
 extern void drop_profile_default(drop_profile* profile);
 extern bool object_uses_smithing_difficulty(const object_type* o_ptr);
 extern int object_smithing_difficulty(const object_type* o_ptr);
+extern int object_weight_rarity(const object_type* o_ptr, int depth);
 extern void drop_system_init(void);
 extern bool drop_generate_object(int depth, drop_quality quality, int droptype,
     bool allow_artefacts, object_type* out);

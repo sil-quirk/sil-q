@@ -74,7 +74,7 @@ static int smithing_step_from_ego_bonus(int bonus)
 
 static const char* DROP_RAW_FILE = "drops";
 static const u32b DROP_RAW_MAGIC = 0x44525053; /* 'DRPS' */
-static const u32b DROP_RAW_VERSION = 14;
+static const u32b DROP_RAW_VERSION = 15;
 
 typedef struct
 {
@@ -425,9 +425,11 @@ static int combine_allocations(const byte* base_depths, const byte* base_raritie
             continue;
         int base_r = rarity_from_schedule(base_depths, base_rarities, base_count, depth, 1);
         int ego_r = rarity_from_schedule(ego_depths, ego_rarities, ego_count, depth, 1);
-        int combined = base_r * ego_r;
-        if (combined < 0)
-            combined = 0;
+        /* Allocation weights are treated as 0-100-ish rarity/weight values.
+         * When combining base and ego schedules, scale back down so
+         * e.g. base=15 and ego=33 yields ~5, not 495 clamped to 255.
+         */
+        int combined = (base_r * ego_r) / 100;
         if (out_count == 0 || combined != out_rarities[out_count - 1])
         {
             out_depths[out_count] = (byte)depth;
@@ -2329,6 +2331,40 @@ static int supply_entry_weight(const drop_entry* e, int depth)
 /* Forward declarations */
 static int drop_entry_rarity_at_depth(const drop_entry* e, int depth);
 static int group_rarity_at_depth(const drop_entry* e, int depth);
+
+int object_weight_rarity(const object_type* o_ptr, int depth)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return 0;
+    if (depth < 1)
+        depth = 1;
+    if (!g_drop_entries || g_drop_count == 0)
+        return 0;
+
+    byte ego_prefix = object_ego_prefix(o_ptr);
+    byte ego_suffix = object_ego_suffix(o_ptr);
+
+    /* Match by base kind + artifact id + ego affixes.
+     * We intentionally ignore stat rolls because allocation schedule is shared
+     * across variants within the same kind+ego combo.
+     */
+    for (size_t i = 0; i < g_drop_count; i++)
+    {
+        const drop_entry* e = &g_drop_entries[i];
+        if (e->obj.k_idx != o_ptr->k_idx)
+            continue;
+        if (e->obj.name1 != o_ptr->name1)
+            continue;
+        if (object_ego_prefix(&e->obj) != ego_prefix)
+            continue;
+        if (object_ego_suffix(&e->obj) != ego_suffix)
+            continue;
+
+        return group_rarity_at_depth(e, depth);
+    }
+
+    return 0;
+}
 
 static const char* drop_category_name(drop_category cat)
 {
