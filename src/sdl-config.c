@@ -82,6 +82,10 @@ static const struct resolution_profile resolution_profiles[] = {
     { .width = 1280, .height = 800, .name = "1280x800 (WXGA)", .main_view_scale = 2, .aux_view_font_size = 16,
       .pane_count = 2, .panes = { { PANE_ROLLS, PLACE_BOTTOM, 2, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
     
+    // 1280x960
+    { .width = 1280, .height = 960, .name = "1280x960", .main_view_scale = 2, .aux_view_font_size = 16,
+      .pane_count = 2, .panes = { { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
     // 1280x1024 (SXGA)
     { .width = 1280, .height = 1024, .name = "1280x1024 (SXGA)", .main_view_scale = 2, .aux_view_font_size = 16,
       .pane_count = 2, .panes = { { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },

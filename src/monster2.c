@@ -1997,10 +1997,22 @@ void describe_floor_object(void)
 {
     object_type* o_ptr;
     char o_name[80];
+    char smith_buf[20];
 
     // generate the object's name
     o_ptr = &o_list[cave_o_idx[p_ptr->py][p_ptr->px]];
     object_desc_floor(o_name, sizeof(o_name), o_ptr, true, 3);
+
+    smith_buf[0] = '\0';
+    if (op_ptr->opt[OPT_show_smithing_difficulty_look]
+        && object_known_p(o_ptr)
+        && object_uses_smithing_difficulty(o_ptr))
+    {
+        int depth = (p_ptr && p_ptr->depth > 0) ? p_ptr->depth : 1;
+        int sd = object_smithing_difficulty(o_ptr);
+        int wr = object_weight_rarity(o_ptr, depth);
+        strnfmt(smith_buf, sizeof(smith_buf), " {%d,%d}", sd, wr);
+    }
 
     // skip 'nothings'
     if (!o_ptr->k_idx)
@@ -2028,7 +2040,8 @@ void describe_floor_object(void)
     {
         int wgt = o_ptr->weight * o_ptr->number;
         if (!p_ptr->blind)
-            msg_format("You see %s %d.%1d lb.", o_name, wgt / 10, wgt % 10);
+            msg_format("You see %s %d.%1d lb%s.", o_name, wgt / 10, wgt % 10,
+                smith_buf);
         else
             msg_format("Your feet strike against %s.", o_name);
 
@@ -2040,7 +2053,7 @@ void describe_floor_object(void)
     else
     {
         if (!p_ptr->blind)
-            msg_format("You see %s.", o_name);
+            msg_format("You see %s%s.", o_name, smith_buf);
         else
             msg_format("Your feet strike against %s.", o_name);
 

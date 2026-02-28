@@ -225,7 +225,16 @@ static void sdl_handle_renderer_reset(void);
 
 static sdl_view* sdl_view_from_term(term* t)
 {
-    return &g_views[(size_t)t->data];
+    if (!t)
+        return NULL;
+
+    size_t idx = (size_t)(uintptr_t)t->data;
+    if (idx >= MAX_TERM_DATA) {
+        log_warn("sdl_view_from_term: invalid term index %zu (max %d)", idx, MAX_TERM_DATA - 1);
+        return NULL;
+    }
+
+    return &g_views[idx];
 }
 
 /*
@@ -1711,6 +1720,8 @@ static errr callback_sdl_xtra(int n, int v)
         }
         return 0;
     case TERM_XTRA_CLEAR:
+        if (!d || !d->canvas)
+            return 0;
         SDL_SetRenderTarget(g_state.renderer, d->canvas);
         SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
         SDL_RenderClear(g_state.renderer);
@@ -1731,12 +1742,18 @@ static errr callback_sdl_xtra(int n, int v)
                 sdl_view* view = &g_views[i];
                 if (!view->canvas)
                     continue;
+                if (view->cols <= 0 || view->rows <= 0 || view->cell_w <= 0 || view->cell_h <= 0)
+                    continue;
                 // rect and margin are already in window coordinates, no scaling needed
+                float dst_w = (float)(view->cols * view->cell_w);
+                float dst_h = (float)(view->rows * view->cell_h);
+                if (dst_w <= 0.0f || dst_h <= 0.0f)
+                    continue;
                 SDL_RenderTexture(g_state.renderer, view->canvas, NULL, &(SDL_FRect){
                     .x = view->rect.x + view->margin_x,
                     .y = view->rect.y + view->margin_y,
-                    .w = view->canvas->w,
-                    .h = view->canvas->h,
+                    .w = dst_w,
+                    .h = dst_h,
                 });
                 if (active_views > 1) {
                     SDL_SetRenderDrawColor(g_state.renderer, 255, 255, 255, 128);
@@ -1750,8 +1767,10 @@ static errr callback_sdl_xtra(int n, int v)
                 }
             }
             SDL_RenderPresent(g_state.renderer);
-            SDL_FlushRenderer(g_state.renderer);
-            SDL_SetRenderTarget(g_state.renderer, d->canvas);
+            if (d && d->canvas)
+                SDL_SetRenderTarget(g_state.renderer, d->canvas);
+            else
+                SDL_SetRenderTarget(g_state.renderer, NULL);
             g_state.need_present = false;
         }
         return 0;
@@ -1792,7 +1811,11 @@ static errr callback_sdl_xtra(int n, int v)
 static void draw_cursor(int x, int y, bool big)
 {
     sdl_view* d = sdl_view_from_term(Term);
-    if (!d->canvas)
+    if (!d || !d->canvas)
+        return;
+    if (!Term)
+        return;
+    if (x < 0 || y < 0 || x >= Term->wid || y >= Term->hgt)
         return;
     SDL_SetRenderTarget(g_state.renderer, d->canvas);
     SDL_Rect clip = { x * d->cell_w, y * d->cell_h, d->cell_w * (big + 1), d->cell_h };
@@ -1819,7 +1842,13 @@ static errr callback_sdl_bigcurs(int x, int y)
 static errr callback_sdl_wipe(int x, int y, int n)
 {
     sdl_view* d = sdl_view_from_term(Term);
-    if (!d->canvas)
+    if (!d || !d->canvas || !Term || n <= 0)
+        return 0;
+    if (x < 0 || y < 0 || x >= Term->wid || y >= Term->hgt)
+        return 0;
+    if (x + n > Term->wid)
+        n = Term->wid - x;
+    if (n <= 0)
         return 0;
     SDL_SetRenderTarget(g_state.renderer, d->canvas);
     SDL_Rect clip = { x * d->cell_w, y * d->cell_h, n * d->cell_w, d->cell_h };
@@ -1835,7 +1864,13 @@ static errr callback_sdl_wipe(int x, int y, int n)
 static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
 {
     sdl_view* d = sdl_view_from_term(Term);
-    if (!d || !d->canvas)
+    if (!d || !d->canvas || !Term || !s || n <= 0)
+        return 0;
+    if (x < 0 || y < 0 || x >= Term->wid || y >= Term->hgt)
+        return 0;
+    if (x + n > Term->wid)
+        n = Term->wid - x;
+    if (n <= 0)
         return 0;
     SDL_SetRenderTarget(g_state.renderer, d->canvas);
 
@@ -2029,7 +2064,13 @@ static errr callback_sdl_pict(int x, int y, int n, const byte* ap, const char* c
                        const byte* tap, const char* tcp)
 {
     sdl_view* d = sdl_view_from_term(Term);
-    if (!d || !d->canvas)
+    if (!d || !d->canvas || !Term || !ap || !cp || !tap || !tcp || n <= 0)
+        return 0;
+    if (x < 0 || y < 0 || x >= Term->wid || y >= Term->hgt)
+        return 0;
+    if (x + n > Term->wid)
+        n = Term->wid - x;
+    if (n <= 0)
         return 0;
     //log_trace("sdl3_pict stripe start: y=%d x=%d n=%d", y, x, n);
 
@@ -2199,10 +2240,12 @@ static void callback_sdl_nuke() {
     // }
     if (d->font_atlas)
         SDL_DestroyTexture(d->font_atlas);
+    d->font_atlas = NULL;
     // if (d->tileset)
     //     SDL_DestroyTexture(d->tileset);
     if (d->canvas)
         SDL_DestroyTexture(d->canvas);
+    d->canvas = NULL;
     // if (d->renderer)
     //     SDL_DestroyRenderer(d->renderer);
     // if (d->window)
@@ -2238,8 +2281,7 @@ static errr sdl_view_link_term(sdl_view* d, int term_index)
     t->text_hook = callback_sdl_text;
     if (g_state.use_tiles)
         t->pict_hook = callback_sdl_pict;
-    size_t* view_index = (size_t*)&t->data;
-    *view_index = term_index;
+    t->data = (void*)(uintptr_t)term_index;
     angband_term[term_index] = t;
     d->term_ready = true;
     return 0;
@@ -2455,6 +2497,7 @@ static void sdl_window_create(int window_width, int window_height, bool fullscre
         SDL_Surface* ts = IMG_Load("lib/xtra/graf/16x16.png");
         if (ts) {
             log_debug("tileset loaded");
+            int tileset_width = ts->w;
             g_state.tileset = SDL_CreateTextureFromSurface(g_state.renderer, ts);
             SDL_DestroySurface(ts);
             if (!g_state.tileset) {
@@ -2463,7 +2506,7 @@ static void sdl_window_create(int window_width, int window_height, bool fullscre
             } else {
                 SDL_SetTextureScaleMode(g_state.tileset, SDL_SCALEMODE_NEAREST);
                 SDL_SetTextureBlendMode(g_state.tileset, SDL_BLENDMODE_BLEND);
-                g_state.tileset_cols = ts->w / TILE_SIZE;
+                g_state.tileset_cols = tileset_width / TILE_SIZE;
             }
         } else {
             log_error("Failed to load tileset PNG: %s", SDL_GetError());

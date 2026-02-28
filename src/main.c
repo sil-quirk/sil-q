@@ -239,8 +239,13 @@ int main(int argc, char* argv[])
     cptr mstr = NULL;
 
     bool args = true;
-    // Initialise logger in 'quiet' mode (don't write to stdout).
+    // Initialise logger in 'quiet' mode (don't write to stdout) on desktop.
+    // On Android, keep stdout enabled so diagnostics are visible in logcat.
+#ifdef __ANDROID__
+    init_logger(false, argv[0]);
+#else
     init_logger(true, argv[0]);
+#endif
     
     // Initialize dedicated generation log (generation.txt)
     gen_log_init(argv[0]);
@@ -538,3 +543,18 @@ int main(int argc, char* argv[])
     /* Exit */
     return (0);
 }
+
+/*
+ * Android/SDL entrypoint
+ *
+ * On Android, SDL's Java launcher calls SDL_main() in the native shared library.
+ * Keep the existing desktop main() behavior and provide SDL_main() only when
+ * building for Android.
+ */
+
+#ifdef __ANDROID__
+int SDL_main(int argc, char* argv[])
+{
+    return main(argc, argv);
+}
+#endif

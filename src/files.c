@@ -7571,6 +7571,12 @@ static void handle_signal_simple(int sig)
  */
 static void handle_signal_abort(int sig)
 {
+    char signal_text[64];
+    char panic_from[64];
+
+    strnfmt(signal_text, sizeof(signal_text), "signal %d", sig);
+    log_error("handle_signal_abort: received %s", signal_text);
+
     /* Disable handler */
     (void)(*signal_aux)(sig, SIG_IGN);
 
@@ -7585,6 +7591,10 @@ static void handle_signal_abort(int sig)
     Term_putstr(
         0, 23, -1, TERM_RED, "A gruesome software bug LEAPS out at you!");
 
+    /* Show and log the triggering signal */
+    Term_erase(0, 22, 255);
+    Term_putstr(0, 22, -1, TERM_RED, signal_text);
+
     /* Message */
     Term_putstr(45, 23, -1, TERM_RED, "Panic save...");
 
@@ -7595,7 +7605,8 @@ static void handle_signal_abort(int sig)
     p_ptr->panic_save = 1;
 
     /* Panic save */
-    SDL_strlcpy(p_ptr->died_from, "(panic save)", sizeof(p_ptr->died_from));
+    strnfmt(panic_from, sizeof(panic_from), "(panic save: %s)", signal_text);
+    SDL_strlcpy(p_ptr->died_from, panic_from, sizeof(p_ptr->died_from));
 
     /* Forbid suspend */
     signals_ignore_tstp();
@@ -7616,7 +7627,7 @@ static void handle_signal_abort(int sig)
     Term_fresh();
 
     /* Quit */
-    quit("software bug");
+    quit(format("software bug (%s)", signal_text));
 }
 
 /*
@@ -7658,6 +7669,11 @@ void signals_init(void)
 
 #ifdef SIGQUIT
     (void)(*signal_aux)(SIGQUIT, handle_signal_simple);
+#endif
+
+#ifdef __ANDROID__
+    log_warn("signals_init: Android fatal signal panic interception disabled");
+    return;
 #endif
 
 #ifdef SIGFPE

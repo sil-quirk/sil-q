@@ -27,7 +27,10 @@ compile_commands.json
 /sil-more-windows-sdl3-portable
 /build-portable
 /build-standard
+/build-android
 /lib/xtra/sound/packs
 /scripts/output
 /sil-more-0.91
 /.claude
+/.tools/gradle-8.2.1
+/android/app

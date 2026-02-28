@@ -3788,12 +3788,24 @@ void do_cmd_unified_look(void)
                 {
                     object_type* o_ptr = &o_list[cursor_o_idx];
                     char o_name[80];
+                    char smith_buf[20];
                     
                     /* Get the object name with indefinite article */
                     object_desc_floor(o_name, sizeof(o_name), o_ptr, true, 3);
+
+                    smith_buf[0] = '\0';
+                    if (op_ptr->opt[OPT_show_smithing_difficulty_look]
+                        && object_known_p(o_ptr)
+                        && object_uses_smithing_difficulty(o_ptr))
+                    {
+                        int depth = (p_ptr && p_ptr->depth > 0) ? p_ptr->depth : 1;
+                        int sd = object_smithing_difficulty(o_ptr);
+                        int wr = object_weight_rarity(o_ptr, depth);
+                        strnfmt(smith_buf, sizeof(smith_buf), " {%d,%d}", sd, wr);
+                    }
                     
                     /* Display "You see <object name>" in left sidebar */
-                    strnfmt(out_val, sizeof(out_val), "You see %s.", o_name);
+                    strnfmt(out_val, sizeof(out_val), "You see %s%s.", o_name, smith_buf);
                     prt(out_val, 0, 0);
                 }
                 else if (has_known_feature)

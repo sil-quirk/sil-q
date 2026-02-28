@@ -11,18 +11,51 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(LOG_MODE_TIMESTAMP "Create new log with timestamp each time" OFF)
 option(STEAMDECK_SUPPORT "Build for Steam Deck" OFF)
 option(SIL_USE_LOCAL_DATA "Store generated data inside the game directory (debug builds)" OFF)
+option(SIL_BUILD_WITH_SDL_SOURCES "Build SDL dependencies from source under external/ (useful for Android)" OFF)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE "Release")
 endif()
 
-find_package(SDL3 REQUIRED)
-find_package(SDL3_ttf REQUIRED)
-find_package(SDL3_image REQUIRED)
+if(ANDROID)
+  # Ensure Android logging symbols are resolvable for SDL and dependent shared libs.
+  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -llog")
+endif()
+
+if (SIL_BUILD_WITH_SDL_SOURCES)
+  set(SIL_EXTERNAL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external")
+
+  if (EXISTS "${SIL_EXTERNAL_DIR}/SDL/CMakeLists.txt")
+    add_subdirectory("${SIL_EXTERNAL_DIR}/SDL" "${CMAKE_BINARY_DIR}/_deps/SDL")
+  else()
+    message(FATAL_ERROR "SIL_BUILD_WITH_SDL_SOURCES=ON but external/SDL is missing. Clone SDL3 into external/SDL or disable SIL_BUILD_WITH_SDL_SOURCES.")
+  endif()
+
+  if (EXISTS "${SIL_EXTERNAL_DIR}/SDL_image/CMakeLists.txt")
+    add_subdirectory("${SIL_EXTERNAL_DIR}/SDL_image" "${CMAKE_BINARY_DIR}/_deps/SDL_image")
+  else()
+    message(FATAL_ERROR "SIL_BUILD_WITH_SDL_SOURCES=ON but external/SDL_image is missing. Clone SDL_image (for SDL3) into external/SDL_image or disable SIL_BUILD_WITH_SDL_SOURCES.")
+  endif()
+
+  if (EXISTS "${SIL_EXTERNAL_DIR}/SDL_ttf/CMakeLists.txt")
+    add_subdirectory("${SIL_EXTERNAL_DIR}/SDL_ttf" "${CMAKE_BINARY_DIR}/_deps/SDL_ttf")
+  else()
+    message(FATAL_ERROR "SIL_BUILD_WITH_SDL_SOURCES=ON but external/SDL_ttf is missing. Clone SDL_ttf (for SDL3) into external/SDL_ttf or disable SIL_BUILD_WITH_SDL_SOURCES.")
+  endif()
+
+  if (ANDROID AND TARGET SDL3-shared)
+    # Needed for __android_log_print / __android_log_write in SDL Android backend.
+    target_link_libraries(SDL3-shared PRIVATE log)
+  endif()
+else()
+  find_package(SDL3 REQUIRED)
+  find_package(SDL3_ttf REQUIRED)
+  find_package(SDL3_image REQUIRED)
+endif()
 
 add_subdirectory(src/log)
 
-add_executable(sil-more
+set(SIL_MORE_SOURCES
     src/birth.c
     src/cave.c
     src/cJSON.c
@@ -91,8 +124,19 @@ add_executable(sil-more
     src/support/strl.c
 )
 
+if(ANDROID)
+  add_library(sil-more SHARED ${SIL_MORE_SOURCES})
+else()
+  add_executable(sil-more ${SIL_MORE_SOURCES})
+endif()
+
+if(ANDROID)
+  # SDL's Android launcher expects libmain.so by convention.
+  set_target_properties(sil-more PROPERTIES OUTPUT_NAME "main")
+endif()
+
 # Include Windows resource (.rc) so the executable has an icon on Windows
-if(WIN32)
+if(WIN32 AND NOT ANDROID)
   # Prefer the .rc in src/icons which references the Sil.ico file present there.
   target_sources(sil-more PRIVATE ${CMAKE_SOURCE_DIR}/src/icons/sil.rc)
 endif()
@@ -106,6 +150,7 @@ target_compile_options(sil-more PRIVATE
   $<$<C_COMPILER_ID:GNU,Clang,AppleClang>:-Wall -Wextra>
   $<$<C_COMPILER_ID:MSVC>:/W4>
 )
+
 target_include_directories(sil-more PRIVATE src)
 if(MINGW)
   target_link_options(sil-more PRIVATE -mwindows)

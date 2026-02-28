@@ -6,6 +6,11 @@
 #include "log.h"
 #include <time.h>
 
+#ifdef __ANDROID__
+#include <SDL3/SDL_filesystem.h>
+#include <SDL3/SDL_system.h>
+#endif
+
 /*
  * Initialises logger. Opens `log.txt` file and sets log level for stdout and
  * file from `SIL_LOG_LEVEL` environment variable. The `quiet` argument disables
@@ -14,6 +19,10 @@
  */
 void init_logger(bool quiet, const char* exe_path)
 {
+#ifdef __ANDROID__
+    (void)exe_path;
+#endif
+
     const char* log_level_str = getenv("SIL_LOG_LEVEL");
     int level = LOG_TRACE; /* Default to DEBUG level */
     char log_path[1024];
@@ -35,6 +44,42 @@ void init_logger(bool quiet, const char* exe_path)
         }
     }
 
+    /* Build log file path */
+#ifdef __ANDROID__
+    {
+        bool built = false;
+
+        const char* internal = SDL_GetAndroidInternalStoragePath();
+        if (internal && internal[0])
+        {
+            built = path_build(log_path, sizeof(log_path), internal, "log.txt");
+        }
+
+        if (!built)
+        {
+            const char* tmpdir = getenv("TMPDIR");
+            if (tmpdir && tmpdir[0])
+            {
+                built = path_build(log_path, sizeof(log_path), tmpdir, "log.txt");
+            }
+        }
+
+        if (!built)
+        {
+            char* pref_path = SDL_GetPrefPath("Sil-QH", "sil-more");
+            if (pref_path)
+            {
+                built = path_build(log_path, sizeof(log_path), pref_path, "log.txt");
+                SDL_free(pref_path);
+            }
+        }
+
+        if (!built)
+        {
+            strcpy(log_path, "log.txt");
+        }
+    }
+#else
     /* Build log file path in same directory as executable */
     if (exe_path)
     {
@@ -88,15 +133,52 @@ void init_logger(bool quiet, const char* exe_path)
         strcpy(log_path, "log.txt");
 #endif
     }
+#endif
 
     /* Note: The log library uses standard FILE* for logging */
     char parsed_path[1024];
     if (!path_parse(parsed_path, sizeof(parsed_path), log_path))
+    {
+#ifdef __ANDROID__
+        log_add_fp(stdout, level);
+        log_set_level(level);
+        if (quiet) log_set_quiet(true);
+        log_warn("logger path parse failed, using stdout logging only");
+        return;
+#else
         quit("could not parse log path");
+#endif
+    }
     
+#ifdef __ANDROID__
+    {
+        char parent_dir[1024];
+        SDL_strlcpy(parent_dir, parsed_path, sizeof(parent_dir));
+        char* slash = strrchr(parent_dir, '/');
+        if (!slash)
+            slash = strrchr(parent_dir, '\\');
+        if (slash)
+        {
+            *slash = '\0';
+            if (parent_dir[0])
+                SDL_CreateDirectory(parent_dir);
+        }
+    }
+#endif
+
     FILE* log_file = fopen(parsed_path, "w");
     if (!log_file)
+    {
+#ifdef __ANDROID__
+        log_add_fp(stdout, level);
+        log_set_level(level);
+        if (quiet) log_set_quiet(true);
+        log_warn("could not open log file '%s', using stdout logging only", parsed_path);
+        return;
+#else
         quit("could not open log.txt for writing");
+#endif
+    }
     log_add_fp(log_file, level);
     log_set_level(level);
 

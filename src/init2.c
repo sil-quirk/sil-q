@@ -386,6 +386,47 @@ static void seed_user_saves_from_install(const char* user_save_dir)
     SDL_free(entries);
 }
 
+/* Copy a file using SDL IO streams (works with Android assets via SDL_IOFromFile). */
+static bool copy_file_io(const char* src, const char* dst)
+{
+    if (!src || !*src || !dst || !*dst)
+        return false;
+
+    SDL_IOStream* in = sdl_fopen(src, "rb");
+    if (!in)
+        return false;
+
+    SDL_IOStream* out = sdl_fopen(dst, "wb");
+    if (!out)
+    {
+        sdl_fclose(in);
+        return false;
+    }
+
+    bool ok = true;
+    char buf[8192];
+    for (;;)
+    {
+        size_t r = SDL_ReadIO(in, buf, sizeof(buf));
+        if (r == 0)
+            break;
+
+        size_t w = SDL_WriteIO(out, buf, r);
+        if (w != r)
+        {
+            ok = false;
+            break;
+        }
+    }
+
+    if (sdl_fclose(out) != 0)
+        ok = false;
+    if (sdl_fclose(in) != 0)
+        ok = false;
+
+    return ok;
+}
+
 static void seed_sound_config(const char* user_dir)
 {
     if (!user_dir || !*user_dir || !ANGBAND_DIR || !*ANGBAND_DIR)
@@ -416,21 +457,11 @@ static void seed_sound_config(const char* user_dir)
     if (!path_build(pref_sound_path, sizeof(pref_sound_path), ANGBAND_DIR_PREF, "sound.json"))
         return;
 
-    SDL_PathInfo info;
-    if (!SDL_GetPathInfo(pref_sound_path, &info) || info.type != SDL_PATHTYPE_FILE)
-    {
-        log_warn("init_file_paths: sound.json not found at '%s'", pref_sound_path);
-        return;
-    }
-
-    if (SDL_CopyFile(pref_sound_path, user_sound_path))
-    {
+    /* Prefer streaming copy so it can work when source lives in Android assets. */
+    if (copy_file_io(pref_sound_path, user_sound_path))
         log_info("init_file_paths: copied sound.json from lib/pref to user folder");
-    }
     else
-    {
-        log_warn("init_file_paths: failed to copy sound.json: %s", SDL_GetError());
-    }
+        log_warn("init_file_paths: failed to seed sound.json from '%s'", pref_sound_path);
 }
 
 static void migrate_legacy_metarun_layout(const char* meta_root, const char* metarun_dir)

@@ -56,7 +56,7 @@
  * Basically, SET_UID should *only* be set for "Unix" machines.
  */
 
-#ifndef WINDOWS
+#if !defined(WINDOWS) && !defined(__ANDROID__)
 #define SET_UID
 #endif
 

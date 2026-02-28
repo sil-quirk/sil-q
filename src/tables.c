@@ -482,7 +482,7 @@ cptr option_desc[OPT_MAX] = {
     "Ability descriptions (0=lore+effect, 1=effect+lore, 2=effect only)", /* OPT_ability_desc_mode */
     "Vault drop frequency (0=Normal, 1=Modest, 2=Scarce, 3=Meager, 4=Plentiful)", /* OPT_vault_drop_frequency */
     "Debug: Show {sd,wr} in item descriptions", /* OPT_show_smithing_difficulty */
-    "Debug: Show {sd,wr} in look (L) sidebar", /* OPT_show_smithing_difficulty_look */
+    "Debug: Show {sd,wr} in look (L) sidebar and message", /* OPT_show_smithing_difficulty_look */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
