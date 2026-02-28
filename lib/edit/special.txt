@@ -218,7 +218,7 @@ F:LIGHT | SUST_GRA | SUST_DEX | SONG | NOBLE_ITEM
 # Spears, great spears, glaives, mithril swords
 
 N:21:of Gondolin
-W:0:4:10:1000
+W:0:60:10:1000
 C:0:0:0:0:0:0:0
 T:22:1:4
 T:23:10:21
@@ -720,7 +720,7 @@ B:2/4
 
 
 N:116:of Treacherous Paths
-W:5:3:18:0
+W:5:50:18:0
 C:0:0:0:0:0:0:0
 T:30:0:2
 A:5/100:10/50:15/20
@@ -807,7 +807,7 @@ F:LIGHT
 # Lanterns only
 
 N:135:(Flickering)
-W:0:1:11:0
+W:0:100:11:0
 A:5/100:10/0
 C:0:0:0:0:0:0:0
 T:39:1:1
@@ -877,7 +877,7 @@ F:UNLIGHT | VUL_FIRE | DIF_ID | LIGHT_CURSE
 # Rings only - cursed ring
 
 N:144:(Tainted)
-W:0:4:0:0
+W:0:40:0:0
 C:0:0:0:0:0:0:0
 T:45:0:99
 A:1:0:13:50

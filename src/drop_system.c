@@ -74,7 +74,7 @@ static int smithing_step_from_ego_bonus(int bonus)
 
 static const char* DROP_RAW_FILE = "drops";
 static const u32b DROP_RAW_MAGIC = 0x44525053; /* 'DRPS' */
-static const u32b DROP_RAW_VERSION = 15;
+static const u32b DROP_RAW_VERSION = 16;
 
 typedef struct
 {
@@ -426,10 +426,14 @@ static int combine_allocations(const byte* base_depths, const byte* base_raritie
         int base_r = rarity_from_schedule(base_depths, base_rarities, base_count, depth, 1);
         int ego_r = rarity_from_schedule(ego_depths, ego_rarities, ego_count, depth, 1);
         /* Allocation weights are treated as 0-100-ish rarity/weight values.
-         * When combining base and ego schedules, scale back down so
-         * e.g. base=15 and ego=33 yields ~5, not 495 clamped to 255.
+         * When combining base and ego schedules, scale back down and round up
+         * so low-percentage egos don't truncate to zero (which would make
+         * valid combos impossible).
+         * e.g. base=15 and ego=33 yields 5 (rounded up from 4.95).
          */
-        int combined = (base_r * ego_r) / 100;
+        int combined = 0;
+        if (base_r > 0 && ego_r > 0)
+            combined = (base_r * ego_r + 99) / 100;
         if (out_count == 0 || combined != out_rarities[out_count - 1])
         {
             out_depths[out_count] = (byte)depth;

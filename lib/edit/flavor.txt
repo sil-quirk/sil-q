@@ -186,7 +186,7 @@ D:Pearl
 # Fixed: The Jewel 'Elessar'
 N:42:40:16
 G:":g
-T:4:11
+T:4:13
 D:Emerald
 
 # Fixed: The Necklace of the Dwarves
@@ -257,7 +257,7 @@ D:Sea Shell
 
 N:56:40
 G:":G
-T:4:11
+T:4:12
 D:Malachite
 
 N:57:40

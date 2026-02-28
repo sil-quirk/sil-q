@@ -18722,12 +18722,25 @@ void show_unified_sidebar(unified_look_state* state)
             char weight_buf[16];
             strnfmt(weight_buf, sizeof(weight_buf), " %d.%1d", weight_total / 10, weight_total % 10);
 
-            /* Calculate available width for name + weight */
+            char smith_buf[16];
+            smith_buf[0] = '\0';
+            if (op_ptr->opt[OPT_show_smithing_difficulty_look]
+                && object_known_p(o_ptr)
+                && object_uses_smithing_difficulty(o_ptr))
+            {
+                int depth = (p_ptr && p_ptr->depth > 0) ? p_ptr->depth : 1;
+                int sd = object_smithing_difficulty(o_ptr);
+                int wr = object_weight_rarity(o_ptr, depth);
+                strnfmt(smith_buf, sizeof(smith_buf), " {%d,%d}", sd, wr);
+            }
+
+            /* Calculate available width for name + weight (+ optional smithing debug) */
             int available_name_width = term_wid - name_col - 2; /* Leave some margin */
             if (available_name_width < 10) available_name_width = 10;
             
             int weight_len = (int)strlen(weight_buf);
-            int max_name_len = available_name_width - weight_len - 1; /* Reserve space for weight */
+            int smith_len = (int)strlen(smith_buf);
+            int max_name_len = available_name_width - weight_len - smith_len - 1; /* Reserve space for suffixes */
             if (max_name_len < 4) max_name_len = 4;
 
             char display_name[128];
@@ -18738,6 +18751,10 @@ void show_unified_sidebar(unified_look_state* state)
             
             /* Append weight right after name */
             SDL_strlcat(display_name, weight_buf, sizeof(display_name));
+
+            /* Append optional smithing debug right after weight */
+            if (smith_buf[0])
+                SDL_strlcat(display_name, smith_buf, sizeof(display_name));
             int final_name_len = (int)strlen(display_name);
             int original_name_len = (int)strlen(name_source);
             bool shortened = (original_name_len != final_name_len) || (original_name_len > max_name_len);

@@ -1,5 +1,10 @@
 # Session notes
 
+## 2026-02-27: Fix missing Malachite amulet tile
+- Fixed missing/blank tile for “Malachite amulet of Constitution” by remapping the amulet flavor tiles away from `T:4:11`.
+- Updated amulet flavor tiles in `lib/edit/flavor.txt`: `Emerald` now uses `T:4:13`, `Malachite` now uses `T:4:12` (tile reuse due to limited atlas space).
+- Rebuilt and redeployed with `build-cmake.bat` so deployments pick up the updated `lib/edit/flavor.txt`.
+
 ## 2026-01-06: Fixed thrall quest dialog flow + save compatibility
 - Fixed thrall quest interaction: now always shows the initial request dialog on first encounter, even if player already has the requested item.
 - Added `thrall_quest_requested` flag to track whether the first dialog has been shown.

@@ -1429,7 +1429,8 @@ static bool screen_out_head(const object_type* o_ptr)
     }
 
     /* Debug: compact smithing difficulty + weight rarity */
-    if (op_ptr->opt[OPT_show_smithing_difficulty] && object_uses_smithing_difficulty(o_ptr))
+    if (op_ptr->opt[OPT_show_smithing_difficulty] && object_known_p(o_ptr)
+        && object_uses_smithing_difficulty(o_ptr))
     {
         int depth = (p_ptr && p_ptr->depth > 0) ? p_ptr->depth : 1;
         int sd = object_smithing_difficulty(o_ptr);
