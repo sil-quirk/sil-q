@@ -9173,7 +9173,40 @@ void create_smithing_item(void)
 
 #define MAIN_MENU_MAX 19
 
-#define COL_MAIN 29
+static int main_menu_calc_width(void)
+{
+    /* Keep in sync with the strings printed in main_menu_aux(). */
+    static const char* lines[] = {
+        "Character sheet      (c)",
+        "Known artefacts      (a)",
+        "Known objects        (b)",
+        "Known monsters       (n)",
+        "Known curses         (u)",
+        "Quest status         (t)",
+        "Halls of Mandos      (d)",
+        "Run history          (v)",
+        "Map                  (m)",
+        "Log                  (l)",
+        "Combat history       (x)",
+        "Hint messages        (i)",
+        "The story so far     (y)",
+        "Options and misc     (o)",
+        "Help                 (h)",
+        "Suicide              (k)",
+        "Save                 (s)",
+        "Quit with save       (q)",
+        "Return to game       (r)",
+    };
+
+    int max_w = 0;
+    for (int i = 0; i < (int)(sizeof(lines) / sizeof(lines[0])); i++)
+    {
+        int w = (int)strlen(lines[i]);
+        if (w > max_w)
+            max_w = w;
+    }
+    return max_w;
+}
 
 static void do_cmd_hint_messages(void);
 
@@ -9186,65 +9219,119 @@ int main_menu_aux(int* highlight)
     int i;
     bool death_view = death_spectator_active();
 
+    int menu_w = main_menu_calc_width();
+    const int top_pad = 1;
+    const int bottom_pad = (Term && (Term->hgt == 20)) ? 0 : 1;
+    const int row_first = top_pad;
+    int menu_h = MAIN_MENU_MAX + top_pad + bottom_pad;
+    int col_main = 0;
+    int row_top = 0;
+    if (Term)
+    {
+        col_main = (Term->wid - menu_w) / 2;
+        if (col_main < 0)
+            col_main = 0;
+
+        /* Keep the menu fixed vertically: row 0 is message bar,
+         * row 1 is top border, row 2 starts entries. */
+        row_top = (Term->hgt > 1) ? 1 : 0;
+    }
+
     if (death_view && (*highlight >= 16) && (*highlight <= 18))
         *highlight = 19;
 
-    for (i = 0; i < MAIN_MENU_MAX + 3; i++)
+    for (i = 0; i < menu_h; i++)
     {
-        Term_putstr(
-            COL_MAIN - 2, i, -1, TERM_WHITE, "                           ");
+        int y = row_top + i;
+        if (!Term || y < 0 || y >= Term->hgt)
+            continue;
+
+        int clear_x = col_main - 2;
+        if (clear_x < 0)
+            clear_x = 0;
+        int clear_w = menu_w + 4;
+        if (clear_x + clear_w > Term->wid)
+            clear_w = Term->wid - clear_x;
+        if (clear_w > 0)
+            Term_erase(clear_x, y, clear_w);
     }
 
-    Term_putstr(COL_MAIN, 2, -1, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(col_main, row_top + row_first + 0, -1,
+        (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
         "Character sheet      (c)");
-    Term_putstr(COL_MAIN, 3, -1, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(col_main, row_top + row_first + 1, -1,
+        (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
         "Known artefacts      (a)");
-    Term_putstr(COL_MAIN, 4, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(col_main, row_top + row_first + 2, -1,
+        (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
         "Known objects        (b)");
-    Term_putstr(COL_MAIN, 5, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(col_main, row_top + row_first + 3, -1,
+        (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
         "Known monsters       (n)");
-    Term_putstr(COL_MAIN, 6, -1, (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(col_main, row_top + row_first + 4, -1,
+        (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
         "Known curses         (u)");
-    Term_putstr(COL_MAIN, 7, -1, (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(col_main, row_top + row_first + 5, -1,
+        (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
         "Quest status         (t)");
-    Term_putstr(COL_MAIN, 8, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(col_main, row_top + row_first + 6, -1,
+        (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
         "Halls of Mandos      (d)");
-    Term_putstr(COL_MAIN, 9, -1, (*highlight == 8) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(col_main, row_top + row_first + 7, -1,
+        (*highlight == 8) ? TERM_L_BLUE : TERM_WHITE,
         "Run history          (v)");
-    Term_putstr(COL_MAIN, 10, -1, (*highlight == 9) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(col_main, row_top + row_first + 8, -1,
+        (*highlight == 9) ? TERM_L_BLUE : TERM_WHITE,
         "Map                  (m)");
-    Term_putstr(COL_MAIN, 11, -1, (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(col_main, row_top + row_first + 9, -1,
+        (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
         "Log                  (l)");
-    Term_putstr(COL_MAIN, 12, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(col_main, row_top + row_first + 10, -1,
+        (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
         "Combat history       (x)");
-    Term_putstr(COL_MAIN, 13, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(col_main, row_top + row_first + 11, -1,
+        (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
         "Hint messages        (i)");
-    Term_putstr(COL_MAIN, 14, -1, (*highlight == 13) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(col_main, row_top + row_first + 12, -1,
+        (*highlight == 13) ? TERM_L_BLUE : TERM_WHITE,
         "The story so far     (y)");
-    Term_putstr(COL_MAIN, 15, -1, (*highlight == 14) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(col_main, row_top + row_first + 13, -1,
+        (*highlight == 14) ? TERM_L_BLUE : TERM_WHITE,
         "Options and misc     (o)");
-    Term_putstr(COL_MAIN, 16, -1, (*highlight == 15) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(col_main, row_top + row_first + 14, -1,
+        (*highlight == 15) ? TERM_L_BLUE : TERM_WHITE,
         "Help                 (h)");
     byte suicide_color = death_view ? TERM_L_DARK
         : ((*highlight == 16) ? TERM_L_BLUE : TERM_WHITE);
-    Term_putstr(COL_MAIN, 17, -1, suicide_color,
+    Term_putstr(col_main, row_top + row_first + 15, -1, suicide_color,
         "Suicide              (k)");
     byte save_color = death_view ? TERM_L_DARK
         : ((*highlight == 17) ? TERM_L_BLUE : TERM_WHITE);
-    Term_putstr(COL_MAIN, 18, -1, save_color,
+    Term_putstr(col_main, row_top + row_first + 16, -1, save_color,
         "Save                 (s)");
     byte quit_color = death_view ? TERM_L_DARK
         : ((*highlight == 18) ? TERM_L_BLUE : TERM_WHITE);
-    Term_putstr(COL_MAIN, 19, -1, quit_color,
+    Term_putstr(col_main, row_top + row_first + 17, -1, quit_color,
         "Quit with save       (q)");
-    Term_putstr(COL_MAIN, 20, -1, (*highlight == 19) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(col_main, row_top + row_first + 18, -1,
+        (*highlight == 19) ? TERM_L_BLUE : TERM_WHITE,
         "Return to game       (r)");
 
     /* Flush the prompt */
     Term_fresh();
 
     /* Place cursor at current choice */
-    Term_gotoxy(COL_MAIN, 1 + *highlight);
+    {
+        int cursor_y = row_top + row_first + (*highlight - 1);
+        if (Term)
+        {
+            if (cursor_y < 0)
+                cursor_y = 0;
+            if (cursor_y >= Term->hgt)
+                cursor_y = Term->hgt - 1;
+        }
+        Term_gotoxy(col_main, cursor_y);
+    }
 
     /* Get key (while allowing menu commands) */
     hide_cursor = true;

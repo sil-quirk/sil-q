@@ -4078,9 +4078,15 @@ PlayResult play_game(void)
         }
     }
 #else
-    if ((Term->hgt < 24) || (Term->wid < 80))
     {
-        quit("main window is too small");
+        const int min_hgt = 20;
+        const int min_wid = 50;
+        if ((Term->hgt < min_hgt) || (Term->wid < min_wid))
+        {
+            log_error("main window too small: %dx%d (need at least %dx%d)",
+                Term->wid, Term->hgt, min_wid, min_hgt);
+            quit("main window is too small");
+        }
     }
 #endif
 

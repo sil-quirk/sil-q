@@ -11,13 +11,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef _WIN32
-#include <windows.h>
-#else
-#include <dirent.h>
-#include <sys/stat.h>
-#endif
-
 #define SDL_SOUND_MAX_VARIANTS 64
 #define SDL_SOUND_NAME_LEN 256
 #define SDL_SOUND_MAX_ACTIVE_STREAMS 16
@@ -198,48 +191,39 @@ static bool sdl_sound_scan_folder(const char* folder_path, char files[][SDL_SOUN
     if (!folder_path || !folder_path[0]) {
         return false;
     }
-    
-#ifdef _WIN32
-    char search_path[1024];
-    strnfmt(search_path, sizeof(search_path), "%s\\*", folder_path);
-    
-    WIN32_FIND_DATAA find_data;
-    HANDLE h_find = FindFirstFileA(search_path, &find_data);
-    
-    if (h_find == INVALID_HANDLE_VALUE) {
+
+    int entry_count = 0;
+    char** entries = SDL_GlobDirectory(folder_path, NULL, 0, &entry_count);
+    if (!entries) {
         log_debug("Cannot open sound folder: %s", folder_path);
         return false;
     }
-    
-    do {
-        if (!(find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
-            if (sdl_sound_is_audio_file(find_data.cFileName) && *file_count < max_files) {
-                strnfmt(files[*file_count], SDL_SOUND_NAME_LEN, "%s\\%s", folder_path, find_data.cFileName);
-                (*file_count)++;
-            }
+
+    for (int i = 0; entries[i] && *file_count < max_files; i++) {
+        const char* entry_name = entries[i];
+        if (!entry_name || !entry_name[0] || streq(entry_name, ".") || streq(entry_name, "..")) {
+            continue;
         }
-    } while (FindNextFileA(h_find, &find_data) != 0);
-    
-    FindClose(h_find);
-#else
-    DIR* dir = opendir(folder_path);
-    if (!dir) {
-        log_debug("Cannot open sound folder: %s", folder_path);
-        return false;
-    }
-    
-    struct dirent* entry;
-    while ((entry = readdir(dir)) != NULL && *file_count < max_files) {
-        if (entry->d_type == DT_REG || entry->d_type == DT_UNKNOWN) {
-            if (sdl_sound_is_audio_file(entry->d_name)) {
-                strnfmt(files[*file_count], SDL_SOUND_NAME_LEN, "%s/%s", folder_path, entry->d_name);
-                (*file_count)++;
-            }
+
+        if (!sdl_sound_is_audio_file(entry_name)) {
+            continue;
         }
+
+        char candidate_path[1024];
+        if (!path_build(candidate_path, sizeof(candidate_path), folder_path, entry_name)) {
+            continue;
+        }
+
+        SDL_PathInfo info;
+        if (!SDL_GetPathInfo(candidate_path, &info) || info.type != SDL_PATHTYPE_FILE) {
+            continue;
+        }
+
+        SDL_strlcpy(files[*file_count], candidate_path, SDL_SOUND_NAME_LEN);
+        (*file_count)++;
     }
-    
-    closedir(dir);
-#endif
+
+    SDL_free(entries);
     
     log_debug("Scanned folder '%s': found %d audio file(s)", folder_path, *file_count);
     return *file_count > 0;

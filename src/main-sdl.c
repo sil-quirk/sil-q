@@ -1350,8 +1350,8 @@ void resize(const SDL_Rect* screen)
         int min_main_cols = ANDROID_MAIN_TERM_MIN_COLS;
         int min_main_rows = ANDROID_MAIN_TERM_MIN_ROWS;
 #else
-        int min_main_cols = 80;
-        int min_main_rows = 24;
+    int min_main_cols = 50;
+    int min_main_rows = 20;
 #endif
         log_debug("Cell dimensions: %dx%d (scale=%d, TILE_SIZE=%d)", cell_w, cell_h, config.main_view_scale, TILE_SIZE);
         // panes are already in window coordinate space, no need to multiply by system_scale
@@ -1417,6 +1417,16 @@ void resize(const SDL_Rect* screen)
     sdl_view_link_term(&g_views[0], 0);
 
     Term_activate(&g_views[0].t);
+
+    /* Ensure the dungeon panel still contains the player after a resize/scale
+     * change. Otherwise the player can end up off-screen until something else
+     * triggers PU_PANEL. */
+    if (character_dungeon && p_ptr)
+    {
+        p_ptr->update |= PU_PANEL;
+        p_ptr->redraw |= PR_MAP;
+    }
+
     // Don't strictly need this as `sdl_view_create` already sets this flag.
     g_state.need_present = true;
 }
@@ -2589,12 +2599,16 @@ static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, i
                  ANDROID_MAIN_TERM_MIN_COLS, ANDROID_MAIN_TERM_MIN_ROWS);
     }
 #endif
+    /* Center the cell grid inside the view rect.
+     * Do not force a minimum margin larger than the available slack; that can
+     * shift the term off-center and even partially off-screen. */
+    (void)margin;
     d->margin_x = (rect.w - d->cols * d->cell_w) / 2;
-    if (d->margin_x < margin)
-        d->margin_x = margin;
+    if (d->margin_x < 0)
+        d->margin_x = 0;
     d->margin_y = (rect.h - d->rows * d->cell_h) / 2;
-    if (d->margin_y < margin)
-        d->margin_y = margin;
+    if (d->margin_y < 0)
+        d->margin_y = 0;
     log_debug("view cols=%d rows=%d cell=(%d, %d) margin=(%d, %d)",
         d->cols, d->rows, d->cell_w, d->cell_h,
         d->margin_x, d->margin_y);
@@ -3542,7 +3556,7 @@ bool sdl_gamepad_capture_poll(int* out_type, int* out_id)
  * Calculate the maximum scale for the current window.
  * On Android this keeps at least ANDROID_MAIN_TERM_MIN_COLS x
  * ANDROID_MAIN_TERM_MIN_ROWS cells.
- * On other platforms this keeps at least 80x24.
+ * On other platforms this keeps at least 50x20.
  */
 int get_sdl_max_scale(void)
 {
@@ -3560,8 +3574,8 @@ int get_sdl_max_scale(void)
     int max_scale_h = h / ANDROID_MAIN_TERM_MIN_ROWS / TILE_SIZE;
     int max_scale = (max_scale_w < max_scale_h) ? max_scale_w : max_scale_h;
 #else
-    int max_scale_w = (w / 80) * 2 / TILE_SIZE;
-    int max_scale_h = h / 24 / TILE_SIZE;
+    int max_scale_w = (w / 50) * 2 / TILE_SIZE;
+    int max_scale_h = h / 20 / TILE_SIZE;
     int max_scale = (max_scale_w < max_scale_h) ? max_scale_w : max_scale_h;
 #endif
     

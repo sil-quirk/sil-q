@@ -3071,6 +3071,30 @@ void verify_panel(void)
     int wy = p_ptr->wy;
     int wx = p_ptr->wx;
 
+    bool compact_panel_y = (SCREEN_HGT < PANEL_HGT * 2);
+    bool compact_panel_x = (SCREEN_WID < PANEL_WID * 2);
+
+    int v_margin = compact_panel_y ? (SCREEN_HGT / 4) : 13;
+    int h_margin = compact_panel_x ? (SCREEN_WID / 4) : 17;
+
+    if (v_margin < 2)
+        v_margin = 2;
+    if (h_margin < 4)
+        h_margin = 4;
+
+    if (v_margin > (SCREEN_HGT - 1) / 2)
+        v_margin = (SCREEN_HGT - 1) / 2;
+    if (h_margin > (SCREEN_WID - 1) / 2)
+        h_margin = (SCREEN_WID - 1) / 2;
+
+    int v_step = compact_panel_y ? (SCREEN_HGT - 2 * v_margin) : PANEL_HGT;
+    int h_step = compact_panel_x ? (SCREEN_WID - 2 * h_margin) : PANEL_WID;
+
+    if (v_step < 1)
+        v_step = 1;
+    if (h_step < 1)
+        h_step = 1;
+
     /* Scroll screen vertically when off-center */
     if (center_player && (!p_ptr->running || !run_avoid_center))
     {
@@ -3083,10 +3107,20 @@ void verify_panel(void)
     // this doesn't do quite what it says on bigscreen
     // it can end up assymmetric up/down or l/r due to panels
 
-    /* Scroll screen vertically when 2 grids from top/bottom edge */
-    else if ((py < wy + 13) || (py >= wy + SCREEN_HGT - 13))
+    /* Scroll screen vertically when near top/bottom edge */
+    else if (py < wy + v_margin)
     {
-        wy = ((py - PANEL_HGT / 2) / PANEL_HGT) * PANEL_HGT;
+        if (compact_panel_y)
+            wy -= v_step;
+        else
+            wy = ((py - PANEL_HGT / 2) / PANEL_HGT) * PANEL_HGT;
+    }
+    else if (py >= wy + SCREEN_HGT - v_margin)
+    {
+        if (compact_panel_y)
+            wy += v_step;
+        else
+            wy = ((py - PANEL_HGT / 2) / PANEL_HGT) * PANEL_HGT;
     }
 
     /* Scroll screen horizontally when off-center */
@@ -3096,14 +3130,33 @@ void verify_panel(void)
         wx = px - SCREEN_WID / 2;
     }
 
-    /* Scroll screen horizontally when 4 grids from left/right edge */
-    else if ((px < wx + 17) || (px >= wx + SCREEN_WID - 17))
+    /* Scroll screen horizontally when near left/right edge */
+    else if (px < wx + h_margin)
     {
-        wx = ((px - PANEL_WID / 2) / PANEL_WID) * PANEL_WID;
+        if (compact_panel_x)
+            wx -= h_step;
+        else
+            wx = ((px - PANEL_WID / 2) / PANEL_WID) * PANEL_WID;
+    }
+    else if (px >= wx + SCREEN_WID - h_margin)
+    {
+        if (compact_panel_x)
+            wx += h_step;
+        else
+            wx = ((px - PANEL_WID / 2) / PANEL_WID) * PANEL_WID;
     }
 
     /* Scroll if needed */
-    if (modify_panel(wy, wx))
+    bool panel_changed = modify_panel(wy, wx);
+
+    /* Safety net: never allow the player to remain outside the visible panel. */
+    if (!panel_contains(py, px))
+    {
+        if (adjust_panel(py, px))
+            panel_changed = true;
+    }
+
+    if (panel_changed)
     {
         /* Optional disturb on "panel change" */
         if (!center_player)

@@ -812,6 +812,15 @@
  * That leaves a "border" around the "stat" values.
  */
 
+/*
+ * Main game screen layout
+ *
+ * Historically this UI assumed 80x24.
+ * For smaller terminals we switch to a compact row layout so the left panel
+ * fits in ~20 rows (while keeping the classic layout when there is room).
+ */
+#define SIL_UI_COMPACT_HEIGHT (Term && (Term->hgt < 24))
+
 #define ROW_NAME 1
 #define COL_NAME 0 /* <race name> */
 
@@ -821,46 +830,46 @@
 #define ROW_STAT 3
 #define COL_STAT 0 /* "xxx   xxxxxx" */
 
-#define ROW_EXP 8
+#define ROW_EXP (SIL_UI_COMPACT_HEIGHT ? 7 : 8)
 #define COL_EXP 0 /* "EXP xxxxxxxx" */
 
-#define ROW_HP 9
+#define ROW_HP (SIL_UI_COMPACT_HEIGHT ? 8 : 9)
 #define COL_HP 0 /* "HP xxxxxxxxx" */
 
-#define ROW_SP 10
+#define ROW_SP (SIL_UI_COMPACT_HEIGHT ? 9 : 10)
 #define COL_SP 0 /* "SP xxxxxxxxx" */
 
-#define ROW_LIGHT 11
+#define ROW_LIGHT (SIL_UI_COMPACT_HEIGHT ? 10 : 11)
 #define COL_LIGHT 0 /* Torch icon + fuel */
 
-#define ROW_EQUIPPY 13
+#define ROW_EQUIPPY (SIL_UI_COMPACT_HEIGHT ? 11 : 13)
 #define COL_EQUIPPY 0 /* equippy chars */
 
-#define ROW_MEL 13
+#define ROW_MEL (SIL_UI_COMPACT_HEIGHT ? 11 : 13)
 #define COL_MEL 0 /* "(+x, xdx)" */
 
-#define ROW_ARC 14
+#define ROW_ARC (SIL_UI_COMPACT_HEIGHT ? 12 : 14)
 #define COL_ARC 0 /* "(+x, xx)" */
 
-#define ROW_QUIVER 15
+#define ROW_QUIVER (SIL_UI_COMPACT_HEIGHT ? 13 : 15)
 #define COL_QUIVER 0 /* "current/max" quiver status */
 
-#define ROW_EVN 16
+#define ROW_EVN (SIL_UI_COMPACT_HEIGHT ? 14 : 16)
 #define COL_EVN 0 /* "[+x, x-x]" */
 
-#define ROW_RESIST 17
+#define ROW_RESIST (SIL_UI_COMPACT_HEIGHT ? 15 : 17)
 #define COL_RESIST 0 /* "Resistances " */
 
-#define ROW_INFO 17
+#define ROW_INFO (SIL_UI_COMPACT_HEIGHT ? 15 : 17)
 #define COL_INFO 0 /* "  ****----  " monster health bar*/
 
-#define ROW_CUT 20
+#define ROW_CUT (SIL_UI_COMPACT_HEIGHT ? 17 : 20)
 #define COL_CUT 0 /* "Bleeding XX" */
 
-#define ROW_POISONED 20
+#define ROW_POISONED (SIL_UI_COMPACT_HEIGHT ? 17 : 20)
 #define COL_POISONED 0 /* "Poisoned XX" */
 
-#define ROW_SONG 21
+#define ROW_SONG (SIL_UI_COMPACT_HEIGHT ? 18 : 21)
 #define COL_SONG 0 /* <song> */
 
 #define ROW_STEALTH 24

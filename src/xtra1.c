@@ -15,6 +15,19 @@
 #include "supplies.h"
 #include "item_set.h"
 
+static bool ui_compact_width(void)
+{
+    return (Term && (Term->wid < 80));
+}
+
+static bool ui_compact_height(void)
+{
+    return SIL_UI_COMPACT_HEIGHT;
+}
+
+static void prt_status_line_compact(void);
+static void prt_cut_poisoned_compact(void);
+
 static u32b ability_log_turn_value(void)
 {
     if (playerturn < 0)
@@ -946,20 +959,38 @@ static void prt_song(void)
 
     // wipe old songs
     put_str("             ", ROW_SONG, COL_SONG);
-    put_str("             ", ROW_SONG + 1, COL_SONG);
+    if (!ui_compact_height())
+        put_str("             ", ROW_SONG + 1, COL_SONG);
 
     sdl_story_font_enable();
 
-    // show the first song
-    if (p_ptr->song1 != SNG_NOTHING)
+    if (ui_compact_height())
     {
-        c_put_str(TERM_L_BLUE, song1_name + 8, ROW_SONG, COL_SONG);
-    }
+        /* Compact height: render a single combined song line. */
+        char buf[32] = "";
+        if (p_ptr->song1 != SNG_NOTHING && p_ptr->song2 != SNG_NOTHING)
+            strnfmt(buf, sizeof(buf), "%s+%s", song1_name + 8, song2_name + 8);
+        else if (p_ptr->song1 != SNG_NOTHING)
+            SDL_strlcpy(buf, song1_name + 8, sizeof(buf));
+        else if (p_ptr->song2 != SNG_NOTHING)
+            SDL_strlcpy(buf, song2_name + 8, sizeof(buf));
 
-    // show the second song
-    if (p_ptr->song2 != SNG_NOTHING)
+        if (buf[0])
+            c_put_str(TERM_L_BLUE, buf, ROW_SONG, COL_SONG);
+    }
+    else
     {
-        c_put_str(TERM_BLUE, song2_name + 8, ROW_SONG + 1, COL_SONG);
+        // show the first song
+        if (p_ptr->song1 != SNG_NOTHING)
+        {
+            c_put_str(TERM_L_BLUE, song1_name + 8, ROW_SONG, COL_SONG);
+        }
+
+        // show the second song
+        if (p_ptr->song2 != SNG_NOTHING)
+        {
+            c_put_str(TERM_BLUE, song2_name + 8, ROW_SONG + 1, COL_SONG);
+        }
     }
 
     sdl_story_font_disable();
@@ -970,6 +1001,12 @@ static void prt_song(void)
  */
 static void prt_depth(void)
 {
+    if (ui_compact_width())
+    {
+        prt_status_line_compact();
+        return;
+    }
+
     char depths[32];
     s16b attr = TERM_WHITE;
 
@@ -1022,6 +1059,12 @@ static void prt_depth(void)
  */
 static void prt_hunger(void)
 {
+    if (ui_compact_width())
+    {
+        prt_status_line_compact();
+        return;
+    }
+
     sdl_story_font_enable();
 
     /* Fainting / Starving */
@@ -1067,6 +1110,12 @@ static void prt_hunger(void)
  */
 static void prt_blind(void)
 {
+    if (ui_compact_width())
+    {
+        prt_status_line_compact();
+        return;
+    }
+
     sdl_story_font_enable();
 
     if (p_ptr->blind)
@@ -1086,6 +1135,12 @@ static void prt_blind(void)
  */
 static void prt_confused(void)
 {
+    if (ui_compact_width())
+    {
+        prt_status_line_compact();
+        return;
+    }
+
     /* Clear the area first (story font has variable widths) */
     Term_erase(COL_CONFUSED, ROW_CONFUSED, 8);
 
@@ -1102,6 +1157,12 @@ static void prt_confused(void)
  */
 static void prt_afraid(void)
 {
+    if (ui_compact_width())
+    {
+        prt_status_line_compact();
+        return;
+    }
+
     /* Clear the area first (story font has variable widths) */
     Term_erase(COL_AFRAID, ROW_AFRAID, 6);
 
@@ -1121,6 +1182,12 @@ static void prt_afraid(void)
 
 static void prt_cut(void)
 {
+    if (ui_compact_height())
+    {
+        prt_cut_poisoned_compact();
+        return;
+    }
+
     int c = p_ptr->cut;
     char num_buf[8];
 
@@ -1163,6 +1230,12 @@ static void prt_cut(void)
  */
 static void prt_poisoned(void)
 {
+    if (ui_compact_height())
+    {
+        prt_cut_poisoned_compact();
+        return;
+    }
+
     int p = p_ptr->poisoned;
     char num_buf[8];
 
@@ -1196,6 +1269,12 @@ static void prt_poisoned(void)
  */
 static void prt_state(void)
 {
+    if (ui_compact_width())
+    {
+        prt_status_line_compact();
+        return;
+    }
+
     byte attr = TERM_WHITE;
 
     char text[16];
@@ -1331,6 +1410,12 @@ static void prt_state(void)
  */
 static void prt_speed(void)
 {
+    if (ui_compact_width())
+    {
+        prt_status_line_compact();
+        return;
+    }
+
     int i = p_ptr->pspeed;
 
     byte attr = TERM_WHITE;
@@ -1385,6 +1470,12 @@ static const char* partition_abbrev_for_point(int y, int x)
 
 static void prt_partition(void)
 {
+    if (ui_compact_width())
+    {
+        prt_status_line_compact();
+        return;
+    }
+
     if (!p_ptr)
         return;
 
@@ -1405,6 +1496,12 @@ static void prt_partition(void)
  */
 static void prt_terrain(void)
 {
+    if (ui_compact_width())
+    {
+        prt_status_line_compact();
+        return;
+    }
+
     /* Clear the area first (story font has variable widths) */
     Term_erase(COL_TERRAIN, ROW_TERRAIN, 5);
 
@@ -1430,8 +1527,72 @@ static void prt_terrain(void)
     prt_partition();
 }
 
+static void prt_cut_poisoned_compact(void)
+{
+    if (!Term || !p_ptr)
+        return;
+
+    const int row = ROW_CUT;
+    const int col = COL_CUT;
+    const int width = 12;
+
+    Term_erase(col, row, width);
+
+    int x = col;
+
+    int c = p_ptr->cut;
+    int p = p_ptr->poisoned;
+
+    if (c > 0)
+    {
+        byte cut_attr = (c > 20) ? TERM_RED : TERM_L_RED;
+        char cut_buf[16];
+
+        if (c > 100)
+        {
+            cut_attr = TERM_RED;
+            SDL_strlcpy(cut_buf, "MW", sizeof(cut_buf));
+        }
+        else
+        {
+            strnfmt(cut_buf, sizeof(cut_buf), "Bld:%d", c);
+        }
+
+        int len = (int)strlen(cut_buf);
+        if (x + len > col + width)
+            len = (col + width) - x;
+        if (len > 0)
+            Term_putstr(x, row, len, cut_attr, cut_buf);
+        x += len;
+    }
+
+    if (p > 0 && x < col + width)
+    {
+        if (c > 0 && x < col + width)
+        {
+            Term_putstr(x, row, 1, TERM_WHITE, " ");
+            x++;
+        }
+
+        byte pois_attr = (p > 20) ? TERM_L_GREEN : TERM_GREEN;
+        char pois_buf[16];
+        strnfmt(pois_buf, sizeof(pois_buf), "Poi:%d", p);
+        int len = (int)strlen(pois_buf);
+        if (x + len > col + width)
+            len = (col + width) - x;
+        if (len > 0)
+            Term_putstr(x, row, len, pois_attr, pois_buf);
+    }
+}
+
 static void prt_stun(void)
 {
+    if (ui_compact_width())
+    {
+        prt_status_line_compact();
+        return;
+    }
+
     int s = p_ptr->stun;
 
     /* Clear the area first (story font has variable widths) */
@@ -1454,6 +1615,357 @@ static void prt_stun(void)
         sdl_story_font_enable();
         c_put_str(TERM_ORANGE, "Stun", ROW_STUN, COL_STUN);
         sdl_story_font_disable();
+    }
+}
+
+typedef struct {
+    const char* long_text;
+    const char* short_text;
+    byte attr;
+    bool required;
+} status_seg;
+
+static int status_line_len(const status_seg* segs, int count, bool use_long,
+                           const bool* include)
+{
+    int len = 0;
+    int shown = 0;
+    for (int i = 0; i < count; i++)
+    {
+        if (include && !include[i])
+            continue;
+        const char* t = use_long ? segs[i].long_text : segs[i].short_text;
+        if (!t || !t[0])
+            continue;
+        if (shown > 0)
+            len += 1;
+        len += (int)strlen(t);
+        shown++;
+    }
+    return len;
+}
+
+static byte status_depth_attr(void)
+{
+    s16b attr = TERM_WHITE;
+
+    if ((p_ptr->depth) && (do_feeling))
+    {
+        if (feeling == 1)
+            attr = TERM_VIOLET;
+        else if (feeling == 2)
+            attr = TERM_RED;
+        else if (feeling == 3)
+            attr = TERM_L_RED;
+        else if (feeling == 4)
+            attr = TERM_ORANGE;
+        else if (feeling == 5)
+            attr = TERM_ORANGE;
+        else if (feeling == 6)
+            attr = TERM_YELLOW;
+        else if (feeling == 7)
+            attr = TERM_YELLOW;
+        else if (feeling == 8)
+            attr = TERM_WHITE;
+        else if (feeling == 9)
+            attr = TERM_WHITE;
+        else if (feeling == 10)
+            attr = TERM_L_WHITE;
+        else if (feeling >= LEV_THEME_HEAD)
+            attr = TERM_BLUE;
+    }
+
+    return (byte)attr;
+}
+
+static bool status_state_text(char* out_long, size_t out_long_sz,
+                              char* out_short, size_t out_short_sz,
+                              byte* out_attr)
+{
+    if (!p_ptr)
+        return false;
+
+    out_long[0] = '\0';
+    out_short[0] = '\0';
+    if (out_attr)
+        *out_attr = TERM_WHITE;
+
+    if (p_ptr->entranced)
+    {
+        if (out_attr)
+            *out_attr = TERM_RED;
+        SDL_strlcpy(out_long, "Entranced", out_long_sz);
+        SDL_strlcpy(out_short, "En", out_short_sz);
+        return true;
+    }
+
+    if (p_ptr->smithing)
+    {
+        SDL_strlcpy(out_long, "Smithing", out_long_sz);
+        SDL_strlcpy(out_short, "Sm", out_short_sz);
+        return true;
+    }
+
+    if (p_ptr->fletching)
+    {
+        SDL_strlcpy(out_long, "Fletching", out_long_sz);
+        SDL_strlcpy(out_short, "Fl", out_short_sz);
+        return true;
+    }
+
+    if (p_ptr->rage)
+    {
+        if (out_attr)
+            *out_attr = TERM_RED;
+        SDL_strlcpy(out_long, "Rage", out_long_sz);
+        SDL_strlcpy(out_short, "Rg", out_short_sz);
+        return true;
+    }
+
+    if (p_ptr->resting)
+    {
+        int n = p_ptr->resting;
+        if (n == -1)
+        {
+            SDL_strlcpy(out_long, "Rest*", out_long_sz);
+            SDL_strlcpy(out_short, "R*", out_short_sz);
+        }
+        else if (n == -2)
+        {
+            SDL_strlcpy(out_long, "Rest&", out_long_sz);
+            SDL_strlcpy(out_short, "R&", out_short_sz);
+        }
+        else if (n >= 1000)
+        {
+            strnfmt(out_long, out_long_sz, "Rest %d", n);
+            strnfmt(out_short, out_short_sz, "R%dk", n / 1000);
+        }
+        else
+        {
+            strnfmt(out_long, out_long_sz, "Rest %d", n);
+            strnfmt(out_short, out_short_sz, "R%d", n);
+        }
+        return true;
+    }
+
+    if (p_ptr->command_rep)
+    {
+        strnfmt(out_long, out_long_sz, "Repeat %d", p_ptr->command_rep);
+        strnfmt(out_short, out_short_sz, "Rp%d", p_ptr->command_rep);
+        return true;
+    }
+
+    if (p_ptr->stealth_mode)
+    {
+        SDL_strlcpy(out_long, "Stealth", out_long_sz);
+        SDL_strlcpy(out_short, "St", out_short_sz);
+        return true;
+    }
+
+    return false;
+}
+
+static const char* status_partition_short(const char* long_label)
+{
+    if (!long_label || !long_label[0])
+        return "";
+    if (!strcmp(long_label, "Room"))
+        return "Rm";
+    if (!strcmp(long_label, "Ruin"))
+        return "Ru";
+    if (!strcmp(long_label, "Cave"))
+        return "Cv";
+    if (!strcmp(long_label, "BigCa"))
+        return "BC";
+    if (!strcmp(long_label, "Labir"))
+        return "Lb";
+    if (!strcmp(long_label, "Chasm"))
+        return "Ch";
+    return long_label;
+}
+
+static void prt_status_line_compact(void)
+{
+    if (!Term || !p_ptr)
+        return;
+
+    const int row = Term->hgt - 1;
+    if (row < 0)
+        return;
+
+    Term_erase(0, row, Term->wid);
+
+    status_seg segs[16];
+    int seg_count = 0;
+
+    char hunger_long[16] = "";
+    char hunger_short[8] = "";
+    byte hunger_attr = TERM_WHITE;
+
+    if (p_ptr->food < PY_FOOD_STARVE) {
+        SDL_strlcpy(hunger_long, "Starving", sizeof(hunger_long));
+        SDL_strlcpy(hunger_short, "St", sizeof(hunger_short));
+        hunger_attr = TERM_RED;
+    } else if (p_ptr->food < PY_FOOD_WEAK) {
+        SDL_strlcpy(hunger_long, "Weak", sizeof(hunger_long));
+        SDL_strlcpy(hunger_short, "Wk", sizeof(hunger_short));
+        hunger_attr = TERM_ORANGE;
+    } else if (p_ptr->food < PY_FOOD_ALERT) {
+        SDL_strlcpy(hunger_long, "Hungry", sizeof(hunger_long));
+        SDL_strlcpy(hunger_short, "Hu", sizeof(hunger_short));
+        hunger_attr = TERM_YELLOW;
+    } else if (p_ptr->food >= PY_FOOD_FULL) {
+        SDL_strlcpy(hunger_long, "Full", sizeof(hunger_long));
+        SDL_strlcpy(hunger_short, "Fu", sizeof(hunger_short));
+        hunger_attr = TERM_L_GREEN;
+    }
+
+    char stun_long[16] = "";
+    char stun_short[8] = "";
+    byte stun_attr = TERM_WHITE;
+    if (p_ptr->stun > 100) {
+        SDL_strlcpy(stun_long, "Knocked out", sizeof(stun_long));
+        SDL_strlcpy(stun_short, "KO", sizeof(stun_short));
+        stun_attr = TERM_RED;
+    } else if (p_ptr->stun > 50) {
+        SDL_strlcpy(stun_long, "Heavy stun", sizeof(stun_long));
+        SDL_strlcpy(stun_short, "HS", sizeof(stun_short));
+        stun_attr = TERM_ORANGE;
+    } else if (p_ptr->stun) {
+        SDL_strlcpy(stun_long, "Stun", sizeof(stun_long));
+        SDL_strlcpy(stun_short, "St", sizeof(stun_short));
+        stun_attr = TERM_ORANGE;
+    }
+
+    char state_long[24] = "";
+    char state_short[12] = "";
+    byte state_attr = TERM_WHITE;
+    (void)status_state_text(state_long, sizeof(state_long), state_short,
+        sizeof(state_short), &state_attr);
+
+    char speed_long[8] = "";
+    char speed_short[4] = "";
+    byte speed_attr = TERM_WHITE;
+    if (p_ptr->pspeed > 2) {
+        SDL_strlcpy(speed_long, "Fast", sizeof(speed_long));
+        SDL_strlcpy(speed_short, "Fa", sizeof(speed_short));
+        speed_attr = TERM_L_GREEN;
+    } else if (p_ptr->pspeed < 2) {
+        SDL_strlcpy(speed_long, "Slow", sizeof(speed_long));
+        SDL_strlcpy(speed_short, "Sl", sizeof(speed_short));
+        speed_attr = TERM_ORANGE;
+    }
+
+    char terrain_long[8] = "";
+    char terrain_short[4] = "";
+    byte terrain_attr = TERM_ORANGE;
+    if (cave_pit_bold(p_ptr->py, p_ptr->px)) {
+        SDL_strlcpy(terrain_long, "Pit", sizeof(terrain_long));
+        SDL_strlcpy(terrain_short, "Pt", sizeof(terrain_short));
+    } else if (cave_feat[p_ptr->py][p_ptr->px] == FEAT_TRAP_WEB) {
+        SDL_strlcpy(terrain_long, "Web", sizeof(terrain_long));
+        SDL_strlcpy(terrain_short, "Wb", sizeof(terrain_short));
+    } else if (cave_feat[p_ptr->py][p_ptr->px] == FEAT_SUNLIGHT) {
+        SDL_strlcpy(terrain_long, "Sun", sizeof(terrain_long));
+        SDL_strlcpy(terrain_short, "Sn", sizeof(terrain_short));
+        terrain_attr = TERM_YELLOW;
+    }
+
+    const char* part_long = partition_abbrev_for_point(p_ptr->py, p_ptr->px);
+    const char* part_short = status_partition_short(part_long);
+
+    char depth_long[16] = "";
+    char depth_short[16] = "";
+    int feet = p_ptr->depth * 50;
+    if (!p_ptr->depth) {
+        SDL_strlcpy(depth_long, "Surface", sizeof(depth_long));
+        SDL_strlcpy(depth_short, "0'", sizeof(depth_short));
+    } else {
+        strnfmt(depth_long, sizeof(depth_long), "%d ft", feet);
+        strnfmt(depth_short, sizeof(depth_short), "%d'", feet);
+    }
+    byte depth_attr = status_depth_attr();
+
+    #define ADD_SEG(LTXT, STXT, ATTR, REQ) \
+        do { \
+            if ((LTXT) && (LTXT)[0]) { \
+                segs[seg_count].long_text = (LTXT); \
+                segs[seg_count].short_text = ((STXT) && (STXT)[0]) ? (STXT) : (LTXT); \
+                segs[seg_count].attr = (ATTR); \
+                segs[seg_count].required = (REQ); \
+                seg_count++; \
+            } \
+        } while (0)
+
+    ADD_SEG(hunger_long, hunger_short, hunger_attr, true);
+    ADD_SEG(p_ptr->blind ? "Blind" : "", "Bl", TERM_ORANGE, true);
+    ADD_SEG(p_ptr->confused ? "Confused" : "", "Cn", TERM_ORANGE, true);
+    ADD_SEG(stun_long, stun_short, stun_attr, true);
+    ADD_SEG(p_ptr->afraid ? "Afraid" : "", "Af", TERM_ORANGE, true);
+    ADD_SEG(state_long, state_short, state_attr, false);
+    ADD_SEG(speed_long, speed_short, speed_attr, false);
+    ADD_SEG(terrain_long, terrain_short, terrain_attr, false);
+    ADD_SEG(part_long, part_short, TERM_WHITE, false);
+    ADD_SEG(depth_long, depth_short, depth_attr, true);
+
+    #undef ADD_SEG
+
+    int max_w = Term->wid;
+    if (max_w <= 0)
+        return;
+
+    bool include[16];
+    for (int i = 0; i < seg_count; i++)
+        include[i] = true;
+
+    bool use_long = (status_line_len(segs, seg_count, true, include) <= max_w);
+    if (!use_long)
+    {
+        while (status_line_len(segs, seg_count, false, include) > max_w)
+        {
+            bool dropped = false;
+            for (int i = seg_count - 1; i >= 0; i--)
+            {
+                if (!include[i])
+                    continue;
+                if (segs[i].required)
+                    continue;
+                include[i] = false;
+                dropped = true;
+                break;
+            }
+            if (!dropped)
+                break;
+        }
+    }
+
+    int x = 0;
+    bool first = true;
+    for (int i = 0; i < seg_count; i++)
+    {
+        if (!include[i])
+            continue;
+        const char* t = use_long ? segs[i].long_text : segs[i].short_text;
+        if (!t || !t[0])
+            continue;
+
+        if (!first)
+        {
+            if (x < max_w)
+                Term_putstr(x, row, 1, TERM_WHITE, " ");
+            x++;
+        }
+
+        int remaining = max_w - x;
+        if (remaining <= 0)
+            break;
+        int n = (int)strlen(t);
+        if (n > remaining)
+            n = remaining;
+        if (n > 0)
+            Term_putstr(x, row, n, segs[i].attr, t);
+        x += n;
+        first = false;
     }
 }
 
@@ -1746,6 +2258,15 @@ static void prt_frame_basic(void)
  */
 static void prt_frame_extra(void)
 {
+    if (ui_compact_width())
+    {
+        /* Compact width: bottom status is rendered as a single packed line. */
+        prt_poisoned();
+        prt_cut();
+        prt_status_line_compact();
+        return;
+    }
+
     /* Stun */
     prt_stun();
 
