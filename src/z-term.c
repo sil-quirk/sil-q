@@ -485,6 +485,11 @@ static errr Term_pict_hack(int x, int y, int n, const byte* ap, const char* cp,
  */
 void Term_queue_char(int x, int y, byte a, char c, byte ta, char tc)
 {
+    if (!Term || !Term->scr)
+        return;
+    if ((x < 0) || (x >= Term->wid) || (y < 0) || (y >= Term->hgt))
+        return;
+
     byte* scr_aa = Term->scr->a[y];
     char* scr_cc = Term->scr->c[y];
 
@@ -553,6 +558,30 @@ void Term_queue_char(int x, int y, byte a, char c, byte ta, char tc)
  */
 void Term_queue_chars(int x, int y, int n, byte a, cptr s)
 {
+    if (!Term || !Term->scr || !s || n <= 0)
+        return;
+    if ((y < 0) || (y >= Term->hgt))
+        return;
+
+    if (x < 0)
+    {
+        int skip = -x;
+        if (skip >= n)
+            return;
+        x = 0;
+        s += skip;
+        n -= skip;
+    }
+
+    if (x >= Term->wid)
+        return;
+
+    if (x + n > Term->wid)
+        n = Term->wid - x;
+
+    if (n <= 0)
+        return;
+
     int x1 = -1, x2 = -1;
 
     byte* scr_aa = Term->scr->a[y];

@@ -1,5 +1,14 @@
 # Session notes
 
+## 2026-03-01: Android main terminal width PoC at 50 cols + OOB safety guards
+- SDL Android main view now targets a fixed 50-column terminal in `src/main-sdl.c` (Android-only path in `sdl_view_create()`), with cell size derived from pane size and clamped to avoid zero/invalid dimensions.
+- Added defensive bounds checks in `src/z-term.c` for `Term_queue_char()` and `Term_queue_chars()` so out-of-range writes are ignored safely instead of indexing outside term buffers.
+- Follow-up crash fix: keep a safety-sized virtual main terminal (minimum 80x24) on Android while preserving 50-column-based cell sizing for larger tiles, so legacy 80x24 assumptions no longer crash when moving past the first screen.
+- Follow-up UX fix: removed virtual 80x24 viewport hack (which caused off-center map/player placement) and switched Android to integer scale-based layout with a minimum 50-column constraint; scale is now clamped by width to keep at least 50 columns and defaults to the highest such scale on first Android run (e.g. 1280-wide -> scale 3).
+- Follow-up UX fix 2: applied the same policy to height (minimum 20 rows) and to pane-fit checks, scale clamping, default scale selection, and max-scale calculation; Android now consistently enforces a minimum 50x20 viewport and no longer uses 80x24 assumptions for menu/game layout decisions.
+- Crash fix: `play_game()` in `src/dungeon.c` still had a hard 80x24 startup check and called `quit("main window is too small")` when moving from intro/main menu to gameplay; updated Android path to require 50x20 there as well so the second-screen transition no longer aborts.
+- Validation: `Build and Deploy` completed successfully; Android `build-android-apk.ps1 -Config Debug` completed successfully.
+
 ## 2026-03-01: Supply restricted to normal drops only
 - Enforced in `src/drop_system.c` that supply-category drops are disabled when quality is above normal (`GOOD`/`GREAT`/`SUPERB`) and whenever chest contents are being generated (`OB_GEN_MODE_CHEST`).
 - Added hard rejection for explicit supply-only droptypes (`DROP_TYPE_POTION`, `DROP_TYPE_STAFF`, `DROP_TYPE_TORCHES`, `DROP_TYPE_DIGGING`) under those non-normal/chest conditions.

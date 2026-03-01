@@ -26,6 +26,13 @@ enum {
     MAX_PANE_CONFIGS = 8,
 };
 
+#ifdef __ANDROID__
+enum {
+    ANDROID_MAIN_TERM_MIN_COLS = 50,
+    ANDROID_MAIN_TERM_MIN_ROWS = 20,
+};
+#endif
+
 // SDL configuration (loaded from INI file)
 struct sdl_config config;
 
@@ -1333,21 +1340,29 @@ void resize(const SDL_Rect* screen)
         log_debug("pane %d is at (%d, %d) size %dx%d", i, r->x, r->y, r->w, r->h);
     }
 
-    // Check whether after splitting the window the main view is larger than
-    // 80x24. If it isn't, remove panes along the corresponding axis (or axes).
+    // Check whether after splitting the window the main view meets minimum size.
+    // If it doesn't, remove panes along the corresponding axis (or axes).
     // Also remove panes if user has disabled them via settings.
     {
         int cell_w = config.main_view_scale * TILE_SIZE / 2;
         int cell_h = config.main_view_scale * TILE_SIZE;
+#ifdef __ANDROID__
+        int min_main_cols = ANDROID_MAIN_TERM_MIN_COLS;
+        int min_main_rows = ANDROID_MAIN_TERM_MIN_ROWS;
+#else
+        int min_main_cols = 80;
+        int min_main_rows = 24;
+#endif
         log_debug("Cell dimensions: %dx%d (scale=%d, TILE_SIZE=%d)", cell_w, cell_h, config.main_view_scale, TILE_SIZE);
         // panes are already in window coordinate space, no need to multiply by system_scale
         int cols = panes[PANE_MAIN].w / cell_w;
         int rows = panes[PANE_MAIN].h / cell_h;
-        log_debug("Main view: %dx%d pixels = %dx%d cells (minimum required: 80x24)", 
-                  panes[PANE_MAIN].w, panes[PANE_MAIN].h, cols, rows);
-        if (cols < 80 || !config.enable_right_panes) {
-            if (cols < 80) {
-                log_warn("main view too small, %d cols < 80 — removing right panes", cols);
+        log_debug("Main view: %dx%d pixels = %dx%d cells (minimum required: %dx%d)", 
+                  panes[PANE_MAIN].w, panes[PANE_MAIN].h, cols, rows,
+                  min_main_cols, min_main_rows);
+        if (cols < min_main_cols || !config.enable_right_panes) {
+            if (cols < min_main_cols) {
+                log_warn("main view too small, %d cols < %d — removing right panes", cols, min_main_cols);
             } else {
                 log_info("right panes disabled by user setting");
             }
@@ -1362,9 +1377,9 @@ void resize(const SDL_Rect* screen)
             log_debug("After removing right panes: main view width = %d, cols = %d", 
                       panes[PANE_MAIN].w, panes[PANE_MAIN].w / cell_w);
         }
-        if (rows < 24 || !config.enable_bottom_panes) {
-            if (rows < 24) {
-                log_warn("main view too small, %d rows < 24 — removing bottom panes", rows);
+        if (rows < min_main_rows || !config.enable_bottom_panes) {
+            if (rows < min_main_rows) {
+                log_warn("main view too small, %d rows < %d — removing bottom panes", rows, min_main_rows);
             } else {
                 log_info("bottom panes disabled by user setting");
             }
@@ -2521,8 +2536,36 @@ static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, i
 
     if (scale) {
         // Integer scaling mode.
+#ifdef __ANDROID__
+        int requested_scale = scale;
+        int max_scale_for_min_cols = (rect.w / ANDROID_MAIN_TERM_MIN_COLS) * 2 / TILE_SIZE;
+        int max_scale_for_min_rows = rect.h / ANDROID_MAIN_TERM_MIN_ROWS / TILE_SIZE;
+        int effective_scale = requested_scale;
+
+        if (max_scale_for_min_cols < 1)
+            max_scale_for_min_cols = 1;
+        if (max_scale_for_min_rows < 1)
+            max_scale_for_min_rows = 1;
+
+        int max_scale_for_min_size = max_scale_for_min_cols;
+        if (max_scale_for_min_rows < max_scale_for_min_size)
+            max_scale_for_min_size = max_scale_for_min_rows;
+
+        if (effective_scale > max_scale_for_min_size)
+            effective_scale = max_scale_for_min_size;
+
+        d->cell_w = effective_scale * TILE_SIZE / 2;
+        d->cell_h = effective_scale * TILE_SIZE;
+
+        if (effective_scale != requested_scale) {
+            log_info("Android main view scale clamped from %d to %d to keep >=%dx%d",
+                     requested_scale, effective_scale,
+                     ANDROID_MAIN_TERM_MIN_COLS, ANDROID_MAIN_TERM_MIN_ROWS);
+        }
+#else
         d->cell_w = scale * TILE_SIZE / 2;
         d->cell_h = scale * TILE_SIZE;
+#endif
     } else if (font_size) {
         // Non-integer scaling mode.
         d->cell_h = g_state.system_scale * font_size;
@@ -2539,6 +2582,13 @@ static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, i
     d->rect = rect;
     d->cols = rect.w / d->cell_w;
     d->rows = rect.h / d->cell_h;
+#ifdef __ANDROID__
+    if (scale) {
+        log_info("Android main view: scale=%d cell=(%d,%d) cols=%d rows=%d (min=%dx%d)",
+                 d->cell_h / TILE_SIZE, d->cell_w, d->cell_h, d->cols, d->rows,
+                 ANDROID_MAIN_TERM_MIN_COLS, ANDROID_MAIN_TERM_MIN_ROWS);
+    }
+#endif
     d->margin_x = (rect.w - d->cols * d->cell_w) / 2;
     if (d->margin_x < margin)
         d->margin_x = margin;
@@ -2889,6 +2939,34 @@ errr init_sdl(int argc, char **argv)
     log_debug("After command-line: scale=%d, font=%d, margin=%d, fullscreen=%d, tiles=%d",
               config.main_view_scale, config.aux_view_font_size, config.margin,
               config.fullscreen, config.tiles);
+
+#ifdef __ANDROID__
+    {
+        int android_max_scale_w = (screen_pixels_w / ANDROID_MAIN_TERM_MIN_COLS) * 2 / TILE_SIZE;
+        int android_max_scale_h = screen_pixels_h / ANDROID_MAIN_TERM_MIN_ROWS / TILE_SIZE;
+        int android_max_scale = android_max_scale_w;
+
+        if (android_max_scale_h < android_max_scale)
+            android_max_scale = android_max_scale_h;
+        if (android_max_scale < 1)
+            android_max_scale = 1;
+
+        if (!config_exists) {
+            if (config.main_view_scale != android_max_scale) {
+                log_info("Android default main_view_scale set to %d for >=%dx%d at %dx%d",
+                         android_max_scale,
+                         ANDROID_MAIN_TERM_MIN_COLS, ANDROID_MAIN_TERM_MIN_ROWS,
+                         screen_pixels_w, screen_pixels_h);
+            }
+            config.main_view_scale = android_max_scale;
+        } else if (config.main_view_scale > android_max_scale) {
+            log_info("Android main_view_scale clamped from %d to %d to keep >=%dx%d",
+                     config.main_view_scale, android_max_scale,
+                     ANDROID_MAIN_TERM_MIN_COLS, ANDROID_MAIN_TERM_MIN_ROWS);
+            config.main_view_scale = android_max_scale;
+        }
+    }
+#endif
     
     // Validate configuration
     if (config.main_view_scale <= 0) {
@@ -3461,8 +3539,10 @@ bool sdl_gamepad_capture_poll(int* out_type, int* out_id)
 }
 
 /*
- * Calculate the maximum scale that allows 80x24 main view.
- * Returns the maximum scale value that should be allowed.
+ * Calculate the maximum scale for the current window.
+ * On Android this keeps at least ANDROID_MAIN_TERM_MIN_COLS x
+ * ANDROID_MAIN_TERM_MIN_ROWS cells.
+ * On other platforms this keeps at least 80x24.
  */
 int get_sdl_max_scale(void)
 {
@@ -3472,21 +3552,24 @@ int get_sdl_max_scale(void)
     
     int w, h;
     SDL_GetWindowSize(g_state.window, &w, &h);
-    
-    // Calculate max scale based on 80 columns and 24 rows minimum
+
     // cell_w = scale * TILE_SIZE / 2, so scale = cell_w * 2 / TILE_SIZE
-    // cell_h = scale * TILE_SIZE, so scale = cell_h / TILE_SIZE
+    // cell_h = scale * TILE_SIZE
+#ifdef __ANDROID__
+    int max_scale_w = (w / ANDROID_MAIN_TERM_MIN_COLS) * 2 / TILE_SIZE;
+    int max_scale_h = h / ANDROID_MAIN_TERM_MIN_ROWS / TILE_SIZE;
+    int max_scale = (max_scale_w < max_scale_h) ? max_scale_w : max_scale_h;
+#else
     int max_scale_w = (w / 80) * 2 / TILE_SIZE;
     int max_scale_h = h / 24 / TILE_SIZE;
-    
     int max_scale = (max_scale_w < max_scale_h) ? max_scale_w : max_scale_h;
+#endif
     
     // Ensure at least 1, and cap at a reasonable maximum
     if (max_scale < 1) max_scale = 1;
     if (max_scale > 20) max_scale = 20;
     
-    log_debug("get_sdl_max_scale: window=%dx%d, max_scale_w=%d, max_scale_h=%d, max_scale=%d",
-              w, h, max_scale_w, max_scale_h, max_scale);
+    log_debug("get_sdl_max_scale: window=%dx%d max_scale=%d", w, h, max_scale);
     
     return max_scale;
 }

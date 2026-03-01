@@ -4066,10 +4066,23 @@ PlayResult play_game(void)
     Term_activate(term_screen);
 
     /* Verify minimum size */
+#ifdef __ANDROID__
+    {
+        const int min_hgt = 20;
+        const int min_wid = 50;
+        if ((Term->hgt < min_hgt) || (Term->wid < min_wid))
+        {
+            log_error("main window too small on Android: %dx%d (need at least %dx%d)",
+                Term->wid, Term->hgt, min_wid, min_hgt);
+            quit("main window is too small");
+        }
+    }
+#else
     if ((Term->hgt < 24) || (Term->wid < 80))
     {
         quit("main window is too small");
     }
+#endif
 
     /* Hack -- Turn off the cursor */
     (void)Term_set_cursor(false);
