@@ -5,7 +5,8 @@ This folder contains an Android Studio / Gradle project that builds Sil-More as 
 ## What this does
 
 - Builds the native code via **CMake + Android NDK**.
-- Packages the repo `lib/` directory into the APK as **assets** under `assets/lib/...`.
+- Packages game content from the repo `lib/` directory into APK **assets** under `assets/lib/...`.
+- Excludes runtime-state folders (`lib/save`, `lib/user`, `lib/apex`) so APKs never ship developer saves/metarun data.
 - Expects SDL's Android Java glue (e.g. `org.libsdl.app.SDLActivity`) to be available.
 
 ## Prereqs
@@ -72,4 +73,5 @@ Then launch from the device launcher.
 ## Notes
 
 - The game stores saves/config under the app's private storage via SDL user folders.
+- No savefiles are bundled in the APK; first launch starts with an empty save directory.
 - `sound.json` is seeded into the user folder on first run.

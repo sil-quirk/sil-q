@@ -8878,8 +8878,18 @@ void check_mandos_quest_interaction(void)
         
         if (in_bounds(y, x))
         {
-            monster_type* m_ptr = &mon_list[cave_m_idx[y][x]];
-            
+            s16b m_idx = cave_m_idx[y][x];
+
+            if (m_idx <= 0 || m_idx >= mon_max)
+                continue;
+
+            monster_type* m_ptr = &mon_list[m_idx];
+            if (!m_ptr)
+                continue;
+
+            if (m_ptr->r_idx <= 0 || m_ptr->r_idx >= z_info->r_max)
+                continue;
+
             if (m_ptr->r_idx == R_IDX_MANDOS)
             {
                 log_trace("Found Mandos, calling interaction (turn %d)", turn);

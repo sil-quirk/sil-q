@@ -308,7 +308,7 @@ F:AGGRAVATE | LIGHT_CURSE
 # Swords only
 
 N:31:of the Feanorians
-W:12:50:0:1000
+W:12:30:0:1000
 C:0:0:0:0:0:0:1
 T:23:10:99
 F:GRA | DEX | DANGER | NOBLE_ITEM
@@ -420,7 +420,7 @@ F:CON | CUMBERSOME
 # Curved swords, greatswords, hand axes, battle axes, greataxes, glaives
 
 N:45:of Black Iron
-W:0:100:0:1000
+W:0:90:0:1000
 C:0:0:1:0:0:0:0
 T:23:7:7
 T:23:25:25
@@ -846,17 +846,16 @@ F:NOBLE_ITEM
 ##### Amulet Prefixes #####
 
 
-# Good amulets only (Blessed Realm sval 5) and good rings only
-# Excludes all Morgoth-themed amulets (Haunted Dreams 6, Slave Pits 8, Shadow 9, Orc-captain 10)
-# Excludes Morgoth rings (Cowardice 10, Bauglir's Vanguard 11, Angband's Forge 13 through Fell Voices 19)
+# Good amulets only (object numbers 132–136, 139, 143–144)
+# Excludes Morgoth-themed amulets (Haunted Dreams 6, Slave Pits 8, Shadow 9, Orc-captain 10)
 
 N:142:(Starlit)
 W:0:30:0:3000
 C:0:0:0:0:0:0:0
-T:40:5:5
-T:45:0:9
-T:45:12:12
-T:45:21:99
+T:40:0:4
+T:40:7:7
+T:40:11:11
+T:40:14:14
 F:LIGHT | RES_HALLU | RES_BLIND | NOBLE_ITEM
 
 

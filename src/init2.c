@@ -131,6 +131,7 @@ static void seed_user_data_from_install(const char* user_data_dir)
     SDL_free(entries);
 }
 
+#ifndef __ANDROID__
 typedef bool (*version_check_fn)(const char* path);
 
 static void migrate_legacy_metarun_layout(const char* meta_root, const char* metarun_dir);
@@ -385,6 +386,7 @@ static void seed_user_saves_from_install(const char* user_save_dir)
 
     SDL_free(entries);
 }
+#endif
 
 /* Copy a file using SDL IO streams (works with Android assets via SDL_IOFromFile). */
 static bool copy_file_io(const char* src, const char* dst)
@@ -756,8 +758,10 @@ void init_file_paths(char* path)
 
     migrate_legacy_metarun_layout(meta_root, ANGBAND_DIR_METARUN);
     seed_user_data_from_install(ANGBAND_DIR_DATA);
+#ifndef __ANDROID__
     seed_user_meta_from_install(meta_root, ANGBAND_DIR_METARUN);
     seed_user_saves_from_install(ANGBAND_DIR_SAVE);
+#endif
     seed_sound_config(user_root);
 #endif /* SIL_USE_LOCAL_DATA */
 
@@ -2424,6 +2428,7 @@ static void note(cptr str)
     Term_erase(0, 23, 255);
     Term_putstr(20, 23, -1, TERM_SLATE, str);
     Term_fresh();
+    (void)Term_xtra(TERM_XTRA_EVENT, 0);
 }
 
 /*

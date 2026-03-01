@@ -1,5 +1,11 @@
 # Session notes
 
+## 2026-03-01: Supply restricted to normal drops only
+- Enforced in `src/drop_system.c` that supply-category drops are disabled when quality is above normal (`GOOD`/`GREAT`/`SUPERB`) and whenever chest contents are being generated (`OB_GEN_MODE_CHEST`).
+- Added hard rejection for explicit supply-only droptypes (`DROP_TYPE_POTION`, `DROP_TYPE_STAFF`, `DROP_TYPE_TORCHES`, `DROP_TYPE_DIGGING`) under those non-normal/chest conditions.
+- Added a safe fallback so if a profile would otherwise leave only supply enabled, non-supply category weights are restored to defaults (weapon/armor/jewelry) to keep generation viable.
+- Validation: `Build and Deploy` task completed and `src/drop_system.c` reports no editor errors.
+
 ## 2026-02-27: Fix missing Malachite amulet tile
 - Fixed missing/blank tile for “Malachite amulet of Constitution” by remapping the amulet flavor tiles away from `T:4:11`.
 - Updated amulet flavor tiles in `lib/edit/flavor.txt`: `Emerald` now uses `T:4:13`, `Malachite` now uses `T:4:12` (tile reuse due to limited atlas space).

@@ -3222,6 +3222,30 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
         : 1;
     if (req.artefact_weight_multiplier > 100)
         req.artefact_weight_multiplier = 100;
+
+    /* Supply is only allowed for normal-quality non-chest generation. */
+    bool disallow_supply = (quality > DROP_QUALITY_NORMAL)
+        || (object_generation_mode == OB_GEN_MODE_CHEST);
+    if (disallow_supply)
+    {
+        req.cat_weights[DROP_CAT_SUPPLY] = 0;
+        req.supply_weights[DROP_SUPPLY_POTION] = 0;
+        req.supply_weights[DROP_SUPPLY_HERB] = 0;
+        req.supply_weights[DROP_SUPPLY_GEM] = 0;
+        req.supply_weights[DROP_SUPPLY_STAFF] = 0;
+        req.supply_weights[DROP_SUPPLY_MISC] = 0;
+        req.supply_weights[DROP_SUPPLY_TUNNELING] = 0;
+
+        if (req.cat_weights[DROP_CAT_WEAPON] <= 0
+            && req.cat_weights[DROP_CAT_ARMOR] <= 0
+            && req.cat_weights[DROP_CAT_JEWELRY] <= 0)
+        {
+            req.cat_weights[DROP_CAT_WEAPON] = DROP_DEFAULT_CAT_WEIGHT;
+            req.cat_weights[DROP_CAT_ARMOR] = DROP_DEFAULT_CAT_WEIGHT;
+            req.cat_weights[DROP_CAT_JEWELRY] = DROP_DEFAULT_CAT_WEIGHT;
+        }
+    }
+
     /* New difficulty formula: 1.25*Depth - 19 + min(1d(25+3D/4),1d(25+3D/4)) */
     /* Use legal_depth (actual dungeon depth) for difficulty, NOT chest bonus depth */
     int sides = 25 + (3 * legal_depth) / 4;
@@ -3255,6 +3279,8 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
         req.cat = DROP_CAT_WEAPON;
         break;
     case DROP_TYPE_DIGGING:
+        if (disallow_supply)
+            return false;
         req.cat = DROP_CAT_SUPPLY;
         req.is_supply = true;
         break;
@@ -3272,6 +3298,8 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     case DROP_TYPE_POTION:
     case DROP_TYPE_STAFF:
     case DROP_TYPE_TORCHES:
+        if (disallow_supply)
+            return false;
         req.cat = DROP_CAT_SUPPLY;
         req.is_supply = true;
         break;

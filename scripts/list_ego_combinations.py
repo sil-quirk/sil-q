@@ -28,6 +28,13 @@ DROP_ALLOC_MAX = 8  # matches src/drop_system.c
 BASE_ALLOC_MAX = 4  # matches collect_kind_allocations()
 EGO_ALLOC_MAX = 4   # matches collect_ego_allocations()
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.dirname(SCRIPT_DIR)
+
+DEFAULT_OBJECT_TXT = os.path.join(REPO_ROOT, "lib", "edit", "object.txt")
+DEFAULT_SPECIAL_TXT = os.path.join(REPO_ROOT, "lib", "edit", "special.txt")
+DEFAULT_OUTPUT_CSV = os.path.join(REPO_ROOT, "scripts", "output", "ego_combinations.csv")
+
 _INT_RE = re.compile(r"-?\d+")
 
 
@@ -390,18 +397,18 @@ def main() -> None:
     )
     parser.add_argument(
         "--object-txt",
-        default=os.path.join("lib", "edit", "object.txt"),
-        help="Path to object.txt (default: lib/edit/object.txt)",
+        default=DEFAULT_OBJECT_TXT,
+        help="Path to object.txt (default: <repo>/lib/edit/object.txt)",
     )
     parser.add_argument(
         "--special-txt",
-        default=os.path.join("lib", "edit", "special.txt"),
-        help="Path to special.txt (default: lib/edit/special.txt)",
+        default=DEFAULT_SPECIAL_TXT,
+        help="Path to special.txt (default: <repo>/lib/edit/special.txt)",
     )
     parser.add_argument(
         "--out",
-        default=os.path.join("scripts", "output", "ego_combinations.csv"),
-        help="Output CSV path (default: scripts/output/ego_combinations.csv)",
+        default=DEFAULT_OUTPUT_CSV,
+        help="Output CSV path (default: <repo>/scripts/output/ego_combinations.csv)",
     )
     parser.add_argument(
         "--table",
@@ -424,8 +431,8 @@ def main() -> None:
     parser.add_argument(
         "--table-max-col-width",
         type=int,
-        default=20,
-        help="Max width for any printed table column; 0 disables truncation (default: 20)",
+        default=50,
+        help="Max width for any printed table column; 0 disables truncation (default: 50)",
     )
     parser.add_argument(
         "--table-all",
@@ -451,7 +458,7 @@ def main() -> None:
     egos = parse_special_txt(args.special_txt)
 
     # Filter to "real" kinds (must have tval/sval).
-    kinds = [k for k in kinds if k.tval is not None and k.sval is not None and not k.is_insta_art]
+    kinds = [k for k in kinds if k.tval is not None and k.sval is not None and not k.is_insta_art and "Note" not in k.name]
     egos = [e for e in egos if e.tval_ranges]
 
     out_dir = os.path.dirname(args.out)
@@ -459,6 +466,38 @@ def main() -> None:
         os.makedirs(out_dir, exist_ok=True)
 
     rows: List[dict] = []
+
+    # Base items without egos (will be sorted first per group later).
+    for kind in kinds:
+        base_pairs_orig = _base_schedule_for_kind(kind)
+
+        base_min = _schedule_min_depth([p.depth for p in base_pairs_orig], fallback=max(kind.level, 1))
+        min_depth = max(1, base_min)
+
+        base_depths = [p.depth for p in base_pairs_orig]
+        base_rarities = [p.rarity for p in base_pairs_orig]
+        rarity_cap = _schedule_max_depth_cap(base_depths, base_rarities)
+        max_depth = rarity_cap if rarity_cap > 0 else 0
+
+        rows.append(
+            {
+                "kind_idx": kind.idx,
+                "kind_name": kind.name,
+                "tval": kind.tval,
+                "sval": kind.sval,
+                "kind_more_special": int(kind.more_special),
+                "kind_less_special": int(kind.less_special),
+                "ego_prefix_idx": "",
+                "ego_prefix_name": "",
+                "ego_suffix_idx": "",
+                "ego_suffix_name": "",
+                "combined_alloc": _pairs_to_str(base_pairs_orig),
+                "min_depth": min_depth,
+                "max_depth": max_depth,
+                "base_alloc": _pairs_to_str(_sort_alloc_pairs(base_pairs_orig)),
+                "ego_alloc": "",
+            }
+        )
 
     # Single ego variants.
     for kind in kinds:
@@ -583,6 +622,14 @@ def main() -> None:
                             + _pairs_to_str(_sort_alloc_pairs(suffix_pairs)),
                         }
                     )
+
+    # Sort rows: group by kind_idx, with base item (no egos) first in each group.
+    rows.sort(key=lambda r: (
+        r["kind_idx"],
+        (r["ego_prefix_idx"] == "" and r["ego_suffix_idx"] == "") == False,  # False (base) sorts before True (ego variants)
+        int(r["ego_prefix_idx"]) if r["ego_prefix_idx"] else 0,
+        int(r["ego_suffix_idx"]) if r["ego_suffix_idx"] else 0,
+    ))
 
     fieldnames = [
         "kind_idx",
