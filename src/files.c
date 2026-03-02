@@ -3147,6 +3147,19 @@ static void display_player_compact_history_column(int row_start, int col, int wr
         sdl_story_font_disable();
 }
 
+static void display_player_compact_heading(cptr text, int row, int col)
+{
+    bool use_story = story_character_enabled();
+
+    if (use_story)
+        sdl_story_font_enable();
+
+    Term_putstr(col, row, -1, TERM_WHITE, text ? text : "");
+
+    if (use_story)
+        sdl_story_font_disable();
+}
+
 static void display_player_compact_description_and_flags(int row_start)
 {
     int wid = 80;
@@ -3323,7 +3336,7 @@ static void display_player_compact_attributes(int row_start, int max_cols)
     if (wid < 1) wid = 80;
     if (hgt < 1) hgt = 24;
 
-    c_put_str(TERM_WHITE, "Attributes", row++, col);
+    display_player_compact_heading("Attributes", row++, col);
 
     if (max_cols <= 0)
         max_cols = wid - col - COMPACT_RIGHT_PAD;
@@ -3456,7 +3469,7 @@ static void display_player_compact_attributes_and_skills(int row_start)
     if (side_by_side)
     {
         int row = row_start;
-        c_put_str(TERM_WHITE, "Skills", row++, col_skill);
+        display_player_compact_heading("Skills", row++, col_skill);
 
         for (int skill = 0; skill < S_MAX && row < hgt - 1; ++skill)
         {
@@ -3485,7 +3498,7 @@ static void display_player_compact_skills_list(int row_start)
     if (wid < 1) wid = 80;
     if (hgt < 1) hgt = 24;
 
-    c_put_str(TERM_WHITE, "Skills", row++, col);
+    display_player_compact_heading("Skills", row++, col);
 
     int max_cols = wid - col - COMPACT_RIGHT_PAD;
     if (max_cols < 10)

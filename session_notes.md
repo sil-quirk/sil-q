@@ -22,6 +22,10 @@
   - Added compact right-side padding so right columns/history no longer hug the screen edge (`src/files.c`).
   - Fixed hidden attribute values on the compact `stats+skills` tab by constraining attribute width in side-by-side mode, preventing overlap/erase by the skills column (`src/files.c`).
   - Unified right-column alignment by anchoring both compact summary right stats (`Exp/Burden/...`) and compact skills to the same computed right-column start (`src/files.c`).
+  - Compact `Attributes` and `Skills` headings now render in story font when character-sheet story font is enabled (`src/files.c`).
+  - Character-sheet bottom prompt now scales by terminal width (compact + regular, keyboard + Steam Deck variants) and clips safely to avoid overflow (`src/cmd4.c`).
+  - Bottom prompt was reworked to a dynamic token-fitting composer that preserves full-word, newcomer-friendly labels (no letter-only fallback) and fits as much as width allows (`src/cmd4.c`).
+  - Removed `4/6` page-switch hint from bottom prompt; compact page number is now shown in the top-right corner (`src/cmd4.c`).
   - Metarun stats screen (`print_metarun_stats()` in `src/metarun.c`) now renders responsively: preserves the existing layout at **>= 80x24**, and switches to a compact summary + tighter effects list + shortened prompt on smaller terminals.
   - Metarun stats now uses explicit compact tiers below full size: **medium** (`>=65x20`) keeps a richer compact view, while **minimum** (including width `50`) uses denser summary/effects lines and ultra-short prompts.
   - Metarun action prompt now packs dynamically by terminal width (long labels first, then shorter variants, then drops least-important actions only if needed) instead of fixed prompt states (`src/metarun.c`).

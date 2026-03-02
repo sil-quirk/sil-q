@@ -395,6 +395,150 @@ void do_cmd_redraw(void)
 /*
  * Hack -- character sheet
  */
+static void character_sheet_put_prompt_fit(int col, int row, int wid, byte attr, cptr text)
+{
+    char buf[256];
+    int max_len;
+
+    if (!text)
+        return;
+
+    if (wid < 1)
+        wid = 80;
+
+    max_len = wid - col - 1;
+    if (max_len < 1)
+        return;
+
+    SDL_strlcpy(buf, text, sizeof(buf));
+    if ((int)strlen(buf) > max_len)
+        buf[max_len] = '\0';
+
+    Term_putstr(col, row, -1, attr, buf);
+}
+
+static bool character_sheet_prompt_append(char* buf, size_t buflen, cptr token, int max_width)
+{
+    size_t cur_len;
+    size_t tok_len;
+    int sep = 0;
+
+    if (!buf || !buflen || !token || !token[0])
+        return true;
+
+    cur_len = strlen(buf);
+    tok_len = strlen(token);
+    if (cur_len > 0)
+        sep = 2;
+
+    if ((int)(cur_len + sep + tok_len) > max_width)
+        return false;
+
+    if (sep)
+        SDL_strlcat(buf, "  ", buflen);
+    SDL_strlcat(buf, token, buflen);
+    return true;
+}
+
+static void character_sheet_build_prompt(bool steamdeck, bool include_curses,
+    int wid, char* out, size_t outsz)
+{
+    int max_width;
+
+    if (!out || !outsz)
+        return;
+
+    out[0] = '\0';
+
+    if (wid < 1)
+        wid = 80;
+
+    max_width = wid - 2;
+    if (max_width < 1)
+        return;
+
+    if (steamdeck)
+    {
+        char notes_label[16], story_label[16], file_label[16];
+        char abilities_label[16], increase_label[16], help_label[16], back_label[16];
+        char token[7][64];
+
+        controller_prompt_label(steamdeck_confirm_key(), "A", notes_label, sizeof(notes_label));
+        controller_prompt_label(steamdeck_secondary_key(), "Y", story_label, sizeof(story_label));
+        controller_prompt_label('e', "L1", file_label, sizeof(file_label));
+        controller_prompt_label(steamdeck_alt_action_key(), "X", abilities_label, sizeof(abilities_label));
+        controller_prompt_label('i', "R1", increase_label, sizeof(increase_label));
+        controller_prompt_label(steamdeck_info_key(), "RS", help_label, sizeof(help_label));
+        controller_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
+
+        strnfmt(token[0], sizeof(token[0]), "%s abilities", abilities_label);
+        strnfmt(token[1], sizeof(token[1]), "%s increase", increase_label);
+        strnfmt(token[2], sizeof(token[2]), "%s help", help_label);
+        strnfmt(token[3], sizeof(token[3]), "%s back", back_label);
+        strnfmt(token[4], sizeof(token[4]), "%s notes", notes_label);
+        strnfmt(token[5], sizeof(token[5]), "%s story", story_label);
+        strnfmt(token[6], sizeof(token[6]), "%s file", file_label);
+
+        for (int i = 0; i < 4; i++)
+            (void)character_sheet_prompt_append(out, outsz, token[i], max_width);
+        for (int i = 4; i < 7; i++)
+            (void)character_sheet_prompt_append(out, outsz, token[i], max_width);
+    }
+    else
+    {
+        const char* essential[] = {
+            "a abilities", "i increase", "? help", "ESC back"
+        };
+        const char* optional[] = {
+            "n notes", "s story", "f file"
+        };
+
+        for (int i = 0; i < (int)(sizeof(essential) / sizeof(essential[0])); i++)
+            (void)character_sheet_prompt_append(out, outsz, essential[i], max_width);
+
+        if (include_curses)
+            (void)character_sheet_prompt_append(out, outsz, "c curses", max_width);
+
+        for (int i = 0; i < (int)(sizeof(optional) / sizeof(optional[0])); i++)
+            (void)character_sheet_prompt_append(out, outsz, optional[i], max_width);
+    }
+
+    if (!out[0])
+    {
+        if (steamdeck)
+            SDL_strlcpy(out, "B back", outsz);
+        else
+            SDL_strlcpy(out, "ESC back", outsz);
+    }
+}
+
+static void character_sheet_draw_page_indicator(int sheet_page, int compact_pages,
+    int wid, bool use_story_font)
+{
+    char page_buf[32];
+    int col;
+    int row = 1;
+
+    if (compact_pages <= 1)
+        return;
+
+    if (wid < 1)
+        wid = 80;
+
+    strnfmt(page_buf, sizeof(page_buf), "%d/%d", sheet_page + 1, compact_pages);
+    col = wid - (int)strlen(page_buf) - 1;
+    if (col < 0)
+        col = 0;
+
+    if (use_story_font)
+        sdl_story_font_enable();
+
+    Term_putstr(col, row, -1, TERM_SLATE, page_buf);
+
+    if (use_story_font)
+        sdl_story_font_disable();
+}
+
 void do_cmd_character_sheet(void)
 {
     char ch;
@@ -462,131 +606,27 @@ void do_cmd_character_sheet(void)
             prompt_row = 0;
         Term_erase(0, prompt_row, 255);
 
-        /* Prompt - render based on available width */
-        if (compact_sheet)
+        /* Prompt - dynamic, width-aware, and user-friendly for new players */
         {
-            char prompt_buf[200];
-            const char* page_name = "";
-
-            switch (sheet_page)
-            {
-            case 0: page_name = "desc+flags"; break;
-            case 1: page_name = "stats+skills"; break;
-            default: page_name = ""; break;
-            }
-
-            if (steamdeck)
-            {
-                char notes_label[16];
-                char story_label[16];
-                char abilities_label[16];
-                char increase_label[16];
-                char help_label[16];
-                char back_label[16];
-
-                controller_prompt_label(steamdeck_confirm_key(), "A", notes_label, sizeof(notes_label));
-                controller_prompt_label(steamdeck_secondary_key(), "Y", story_label, sizeof(story_label));
-                controller_prompt_label(steamdeck_alt_action_key(), "X", abilities_label, sizeof(abilities_label));
-                controller_prompt_label('i', "R1", increase_label, sizeof(increase_label));
-                controller_prompt_label(steamdeck_info_key(), "RS", help_label, sizeof(help_label));
-                controller_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
-
-                strnfmt(prompt_buf, sizeof(prompt_buf),
-                    "%s notes %s story %s abil %s inc %s help %s back",
-                    notes_label, story_label, abilities_label, increase_label, help_label, back_label);
-            }
-            else
-            {
+            char prompt_buf[256];
 #ifdef DEBUG_CURSES
-                strnfmt(prompt_buf, sizeof(prompt_buf),
-                    "n notes  s story  f file  a abil  c curses  i inc  ? help  ESC");
+            const bool include_curses = true;
 #else
-                strnfmt(prompt_buf, sizeof(prompt_buf),
-                    "n notes  s story  f file  a abil  i inc  ? help  ESC");
+            const bool include_curses = false;
 #endif
-            }
 
-            if (compact_pages > 1)
-            {
-                char page_buf[48];
-                strnfmt(page_buf, sizeof(page_buf), " | 4/6 %s %d/%d", page_name,
-                    sheet_page + 1, compact_pages);
-                SDL_strlcat(prompt_buf, page_buf, sizeof(prompt_buf));
-            }
+            character_sheet_build_prompt(steamdeck, include_curses, wid, prompt_buf, sizeof(prompt_buf));
 
             if (story_character_enabled())
                 sdl_story_font_enable();
-            Term_putstr(1, prompt_row, -1, TERM_L_WHITE, prompt_buf);
+
+            character_sheet_put_prompt_fit(1, prompt_row, wid, TERM_L_WHITE, prompt_buf);
+
+            character_sheet_draw_page_indicator(sheet_page, compact_pages, wid,
+                story_character_enabled());
+
             if (story_character_enabled())
                 sdl_story_font_disable();
-        }
-        else if (story_character_enabled()) {
-            sdl_story_font_enable();
-            /* Story font - use more spacing for readability */
-            if (steamdeck) {
-                char notes_label[16];
-                char story_label[16];
-                char file_label[16];
-                char abilities_label[16];
-                char increase_label[16];
-                char back_label[16];
-                char help_label[16];
-                char prompt_buf[160];
-
-                /* Steam Deck UI: A=notes, Y=story, L1=file, X=abilities, R1=increase, RS Right=help, B=back */
-                controller_prompt_label(steamdeck_confirm_key(), "A", notes_label, sizeof(notes_label));
-                controller_prompt_label(steamdeck_secondary_key(), "Y", story_label, sizeof(story_label));
-                controller_prompt_label('e', "L1", file_label, sizeof(file_label));
-                controller_prompt_label(steamdeck_alt_action_key(), "X", abilities_label, sizeof(abilities_label));
-                controller_prompt_label('i', "R1", increase_label, sizeof(increase_label));
-                controller_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
-                controller_prompt_label(steamdeck_info_key(), "RS Right", help_label, sizeof(help_label));
-
-                strnfmt(prompt_buf, sizeof(prompt_buf),
-                    "%s-notes     %s-story     %s-file     %s-abilities     %s-increase     %s-help     %s-back",
-                    notes_label, story_label, file_label, abilities_label, increase_label, help_label, back_label);
-                Term_putstr(1, prompt_row, -1, TERM_L_WHITE, prompt_buf);
-            } else {
-                Term_putstr(1, prompt_row, -1, TERM_L_WHITE,
-#ifdef DEBUG_CURSES
-                    "n-notes     s-story     f-file     a-abilities     c-curses     i-increase     ?-help     ESC");
-#else
-                    "n-notes     s-story     f-file     a-abilities     i-increase     ?-help     ESC");
-#endif
-            }
-        } else {
-            /* Mono font - use less spacing for compact display */
-            if (steamdeck) {
-                char notes_label[16];
-                char story_label[16];
-                char file_label[16];
-                char abilities_label[16];
-                char increase_label[16];
-                char back_label[16];
-                char help_label[16];
-                char prompt_buf[160];
-
-                /* Steam Deck UI: A=notes, Y=story, L1=file, X=abilities, R1=increase, RS Right=help, B=back */
-                controller_prompt_label(steamdeck_confirm_key(), "A", notes_label, sizeof(notes_label));
-                controller_prompt_label(steamdeck_secondary_key(), "Y", story_label, sizeof(story_label));
-                controller_prompt_label('e', "L1", file_label, sizeof(file_label));
-                controller_prompt_label(steamdeck_alt_action_key(), "X", abilities_label, sizeof(abilities_label));
-                controller_prompt_label('i', "R1", increase_label, sizeof(increase_label));
-                controller_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
-                controller_prompt_label(steamdeck_info_key(), "RS Right", help_label, sizeof(help_label));
-
-                strnfmt(prompt_buf, sizeof(prompt_buf),
-                    "%s-notes  %s-story  %s-file  %s-abilities  %s-increase  %s-help  %s-back",
-                    notes_label, story_label, file_label, abilities_label, increase_label, help_label, back_label);
-                Term_putstr(1, prompt_row, -1, TERM_L_WHITE, prompt_buf);
-            } else {
-                Term_putstr(1, prompt_row, -1, TERM_L_WHITE,
-#ifdef DEBUG_CURSES
-                    "n-notes  s-story  f-file  a-abilities  c-curses  i-increase  ?-help  ESC");
-#else
-                    "n-notes  s-story  f-file  a-abilities  i-increase  ?-help  ESC");
-#endif
-            }
         }
 
         Term_fresh();  /* Render commands */
