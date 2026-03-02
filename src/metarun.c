@@ -3954,6 +3954,257 @@ static void draw_blessing_meter(int col, int start_row, int height, u32b current
     Term_putstr(text_col, meter_end + 1, -1, TERM_L_BLUE, progress_buf);
 }
 
+static void metarun_truncate_for_width(char *buf, int max_width)
+{
+    if (!buf) return;
+    if (max_width <= 0) {
+        buf[0] = '\0';
+        return;
+    }
+
+    int len = (int)strlen(buf);
+    if (len <= max_width) return;
+
+    if (max_width >= 4) {
+        buf[max_width - 3] = '.';
+        buf[max_width - 2] = '.';
+        buf[max_width - 1] = '.';
+        buf[max_width] = '\0';
+    } else {
+        buf[max_width] = '\0';
+    }
+}
+
+static void metarun_put_prompt_line(int term_width, int term_height, byte attr, const char *text)
+{
+    if (term_width <= 0 || term_height <= 0) return;
+
+    char line[512];
+    int line_width = term_width;
+    if (line_width > (int)sizeof(line) - 1) line_width = (int)sizeof(line) - 1;
+
+    memset(line, ' ', line_width);
+    line[line_width] = '\0';
+
+    if (text && *text) {
+        size_t tlen = strlen(text);
+        if ((int)tlen > line_width) tlen = (size_t)line_width;
+        memcpy(line, text, tlen);
+    }
+
+    Term_putstr(0, term_height - 1, -1, attr, line);
+}
+
+typedef struct {
+    char variants[4][64];
+    int variant_count;
+    int variant_idx;
+    bool enabled;
+    int drop_priority;
+} metarun_prompt_action;
+
+static size_t metarun_render_action_prompt(const metarun_prompt_action *actions,
+                                           int action_count,
+                                           char *out,
+                                           size_t out_size)
+{
+    if (!out || out_size == 0) return 0;
+
+    out[0] = '\0';
+    bool first = true;
+
+    for (int i = 0; i < action_count; i++) {
+        if (!actions[i].enabled) continue;
+        if (actions[i].variant_idx < 0 || actions[i].variant_idx >= actions[i].variant_count) continue;
+
+        if (!first) SDL_strlcat(out, "  ", out_size);
+        SDL_strlcat(out, actions[i].variants[actions[i].variant_idx], out_size);
+        first = false;
+    }
+
+    return strlen(out);
+}
+
+static void metarun_build_action_prompt(int term_width,
+                                        bool steamdeck,
+                                        const char *spend_label,
+                                        const char *threshold_label,
+                                        const char *diff_label,
+                                        const char *full_label,
+                                        const char *history_label,
+                                        char *out,
+                                        size_t out_size)
+{
+    if (!out || out_size == 0) return;
+    out[0] = '\0';
+
+    const char *spend = (spend_label && *spend_label) ? spend_label : "X";
+    const char *thr = (threshold_label && *threshold_label) ? threshold_label : "R1";
+    const char *diff = (diff_label && *diff_label) ? diff_label : "L1";
+    const char *full = (full_label && *full_label) ? full_label : "Start";
+    const char *hist = (history_label && *history_label) ? history_label : "Y";
+
+    metarun_prompt_action actions[5];
+    memset(actions, 0, sizeof(actions));
+
+    for (int i = 0; i < 5; i++) {
+        actions[i].variant_count = 4;
+        actions[i].variant_idx = 0;
+        actions[i].enabled = true;
+    }
+
+    /* Lower number means dropped earlier if space is too tight. */
+    actions[0].drop_priority = 5; /* Blessings */
+    actions[1].drop_priority = 4; /* Threshold */
+    actions[2].drop_priority = 3; /* Difficulty */
+    actions[3].drop_priority = 2; /* Full list */
+    actions[4].drop_priority = 1; /* History */
+
+    if (steamdeck) {
+        strnfmt(actions[0].variants[0], sizeof(actions[0].variants[0]), "[%s] Spend blessings", spend);
+        strnfmt(actions[0].variants[1], sizeof(actions[0].variants[1]), "[%s] Blessings", spend);
+        strnfmt(actions[0].variants[2], sizeof(actions[0].variants[2]), "[%s] Bless", spend);
+        strnfmt(actions[0].variants[3], sizeof(actions[0].variants[3]), "[%s]", spend);
+
+        strnfmt(actions[1].variants[0], sizeof(actions[1].variants[0]), "[%s] Threshold", thr);
+        strnfmt(actions[1].variants[1], sizeof(actions[1].variants[1]), "[%s] Thresh", thr);
+        strnfmt(actions[1].variants[2], sizeof(actions[1].variants[2]), "[%s] Thr", thr);
+        strnfmt(actions[1].variants[3], sizeof(actions[1].variants[3]), "[%s]", thr);
+
+        strnfmt(actions[2].variants[0], sizeof(actions[2].variants[0]), "[%s] Difficulty", diff);
+        strnfmt(actions[2].variants[1], sizeof(actions[2].variants[1]), "[%s] Diff", diff);
+        strnfmt(actions[2].variants[2], sizeof(actions[2].variants[2]), "[%s] D", diff);
+        strnfmt(actions[2].variants[3], sizeof(actions[2].variants[3]), "[%s]", diff);
+
+        strnfmt(actions[3].variants[0], sizeof(actions[3].variants[0]), "[%s] Full list", full);
+        strnfmt(actions[3].variants[1], sizeof(actions[3].variants[1]), "[%s] List", full);
+        strnfmt(actions[3].variants[2], sizeof(actions[3].variants[2]), "[%s] L", full);
+        strnfmt(actions[3].variants[3], sizeof(actions[3].variants[3]), "[%s]", full);
+
+        strnfmt(actions[4].variants[0], sizeof(actions[4].variants[0]), "[%s] History", hist);
+        strnfmt(actions[4].variants[1], sizeof(actions[4].variants[1]), "[%s] Hist", hist);
+        strnfmt(actions[4].variants[2], sizeof(actions[4].variants[2]), "[%s] H", hist);
+        strnfmt(actions[4].variants[3], sizeof(actions[4].variants[3]), "[%s]", hist);
+    } else {
+        SDL_strlcpy(actions[0].variants[0], "[b] Spend blessings", sizeof(actions[0].variants[0]));
+        SDL_strlcpy(actions[0].variants[1], "[b] Blessings", sizeof(actions[0].variants[1]));
+        SDL_strlcpy(actions[0].variants[2], "[b] Bless", sizeof(actions[0].variants[2]));
+        SDL_strlcpy(actions[0].variants[3], "[b]", sizeof(actions[0].variants[3]));
+
+        SDL_strlcpy(actions[1].variants[0], "[f] Threshold", sizeof(actions[1].variants[0]));
+        SDL_strlcpy(actions[1].variants[1], "[f] Thresh", sizeof(actions[1].variants[1]));
+        SDL_strlcpy(actions[1].variants[2], "[f] Thr", sizeof(actions[1].variants[2]));
+        SDL_strlcpy(actions[1].variants[3], "[f]", sizeof(actions[1].variants[3]));
+
+        SDL_strlcpy(actions[2].variants[0], "[c] Difficulty", sizeof(actions[2].variants[0]));
+        SDL_strlcpy(actions[2].variants[1], "[c] Diff", sizeof(actions[2].variants[1]));
+        SDL_strlcpy(actions[2].variants[2], "[c] D", sizeof(actions[2].variants[2]));
+        SDL_strlcpy(actions[2].variants[3], "[c]", sizeof(actions[2].variants[3]));
+
+        SDL_strlcpy(actions[3].variants[0], "[u] Full list", sizeof(actions[3].variants[0]));
+        SDL_strlcpy(actions[3].variants[1], "[u] List", sizeof(actions[3].variants[1]));
+        SDL_strlcpy(actions[3].variants[2], "[u] L", sizeof(actions[3].variants[2]));
+        SDL_strlcpy(actions[3].variants[3], "[u]", sizeof(actions[3].variants[3]));
+
+        SDL_strlcpy(actions[4].variants[0], "[s] History", sizeof(actions[4].variants[0]));
+        SDL_strlcpy(actions[4].variants[1], "[s] Hist", sizeof(actions[4].variants[1]));
+        SDL_strlcpy(actions[4].variants[2], "[s] H", sizeof(actions[4].variants[2]));
+        SDL_strlcpy(actions[4].variants[3], "[s]", sizeof(actions[4].variants[3]));
+    }
+
+    for (;;) {
+        size_t len = metarun_render_action_prompt(actions, 5, out, out_size);
+        if ((int)len <= term_width) break;
+
+        int best_shrink = -1;
+        int best_save = 0;
+        for (int i = 0; i < 5; i++) {
+            if (!actions[i].enabled) continue;
+            if (actions[i].variant_idx + 1 >= actions[i].variant_count) continue;
+
+            int cur_len = (int)strlen(actions[i].variants[actions[i].variant_idx]);
+            int next_len = (int)strlen(actions[i].variants[actions[i].variant_idx + 1]);
+            int save = cur_len - next_len;
+            if (save > best_save) {
+                best_save = save;
+                best_shrink = i;
+            }
+        }
+
+        if (best_shrink >= 0) {
+            actions[best_shrink].variant_idx++;
+            continue;
+        }
+
+        int drop_idx = -1;
+        int drop_priority = INT_MAX;
+        for (int i = 0; i < 5; i++) {
+            if (!actions[i].enabled) continue;
+            if (actions[i].drop_priority < drop_priority) {
+                drop_priority = actions[i].drop_priority;
+                drop_idx = i;
+            }
+        }
+
+        if (drop_idx < 0) break;
+        actions[drop_idx].enabled = false;
+    }
+
+    if (out[0] == '\0') {
+        if (steamdeck) {
+            strnfmt(out, out_size, "[%s]", spend);
+        } else {
+            SDL_strlcpy(out, "[b]", out_size);
+        }
+    }
+}
+
+static void metarun_pick_best_variant(char *out,
+                                      size_t out_size,
+                                      int max_width,
+                                      const char *v1,
+                                      const char *v2,
+                                      const char *v3,
+                                      const char *v4)
+{
+    if (!out || out_size == 0) return;
+    out[0] = '\0';
+
+    const char *variants[4] = { v1, v2, v3, v4 };
+    const char *fallback = "";
+
+    for (int i = 0; i < 4; i++) {
+        const char *candidate = variants[i];
+        if (!candidate || !*candidate) continue;
+        fallback = candidate;
+        if ((int)strlen(candidate) <= max_width) {
+            SDL_strlcpy(out, candidate, out_size);
+            return;
+        }
+    }
+
+    SDL_strlcpy(out, fallback, out_size);
+    metarun_truncate_for_width(out, max_width);
+}
+
+static void metarun_put_adaptive_line(int col,
+                                      int *row,
+                                      int term_width,
+                                      byte attr,
+                                      const char *v1,
+                                      const char *v2,
+                                      const char *v3,
+                                      const char *v4)
+{
+    if (!row) return;
+    int max_width = term_width - col - 1;
+    if (max_width <= 0) return;
+
+    char line[256];
+    metarun_pick_best_variant(line, sizeof(line), max_width, v1, v2, v3, v4);
+    Term_putstr(col, (*row)++, -1, attr, line);
+}
+
 /*
  * Enhanced print_metarun_stats():
  * - Draws a bracketed progress bar for Silmarils using '*'
@@ -4214,213 +4465,446 @@ void print_metarun_stats(void)
         metarun_prompt_label(r1_key, "R1", threshold_label, sizeof(threshold_label));
         metarun_prompt_label(start_key, "Start", full_label, sizeof(full_label));
     }
-    
-    /* Ensure minimum 80 width for layout */
-    int effective_width = (term_width < 80) ? 80 : term_width;
-    
-    /* Calculate blessing meter position (right side) */
-    int meter_col = effective_width - 16;
-    if (meter_col < 60) meter_col = 60; /* Keep some space for main content */
-    int meter_height = (term_height > 20) ? 15 : (term_height - 5);
-    if (meter_height < 5) meter_height = 5;
 
-    /* Draw blessing meter on the right side */
-    u32b progress = remainder;
-    if (threshold == 0) threshold = 1;
-    draw_blessing_meter(meter_col, 2, meter_height, progress, threshold);
+    bool full_layout = (term_width >= 80 && term_height >= 24);
+    int meter_col = 0;
 
-    Term_putstr(col, row++, -1, TERM_YELLOW, "=== Current Story Statistics ===");
-
-    snprintf(buf, sizeof buf, "Run-ID         : %u", metar.id);
-    Term_putstr(col, row++, -1, TERM_WHITE, buf);
-
-    snprintf(buf, sizeof buf, "Difficulty     : %s", diff_name);
-    Term_putstr(col, row++, -1, TERM_L_BLUE, buf);
-
-    snprintf(buf, sizeof buf, "Meta Score     : %lu", (unsigned long)metar.score);
-    Term_putstr(col, row++, -1, TERM_WHITE, buf);
-
-    snprintf(buf, sizeof buf, "Best Run Score : %lu", (unsigned long)best_run);
-    Term_putstr(col, row++, -1, TERM_WHITE, buf);
-
-    snprintf(buf, sizeof buf, "Silmarils      : %-22s %2d / %d (remaining %d)",
-             sil_bar, metar.silmarils, win_goal, remaining_silmarils);
-    Term_putstr(col, row++, -1, TERM_WHITE, buf);
-
-    byte alive_attr = (alive < required_survivors) ? TERM_RED : TERM_L_GREEN;
-    snprintf(buf, sizeof buf, "Living Heroes  : %d (need >= %d)", alive, required_survivors);
-    Term_putstr(col, row++, -1, alive_attr, buf);
-
-    snprintf(buf, sizeof buf, "Deaths         : %-22s (%d total)",
-             death_marks, metar.deaths);
-    Term_putstr(col, row++, -1, TERM_WHITE, buf);
-
-    byte blessing_attr = (available_points > 0) ? TERM_L_GREEN : TERM_WHITE;
-    snprintf(buf, sizeof buf, "Blessing Points: %d available (%d spent / %d earned)",
-             available_points, spent_points, earned_points);
-    Term_putstr(col, row++, -1, blessing_attr, buf);
-
-    if (steamdeck) {
-        snprintf(buf, sizeof buf, "Blessing Pool  : %lu total (mode: %s, [%s] to change)",
-                 (unsigned long)total_pool, threshold_mode, threshold_label);
-    } else {
-        snprintf(buf, sizeof buf, "Blessing Pool  : %lu total (mode: %s, press 'f' to change)",
-                 (unsigned long)total_pool, threshold_mode);
-    }
-    Term_putstr(col, row++, -1, TERM_WHITE, buf);
-
-    Term_putstr(col, row++, -1, TERM_YELLOW, "Major Blessings:");
+    /* Count major blessings once (used by both layouts) */
     int unlocked_major = 0;
     int major_total = metarun_major_blessing_count();
     for (int i = 0; i < major_total; i++) {
-        if (!metarun_has_major_blessing_index(i)) continue;
-        unlocked_major++;
-        const char *name = major_blessing_name_str(i);
-        const char *desc = major_blessing_short_desc(i);
-        char desc_buf[80];
-        if (desc && *desc) {
-            SDL_strlcpy(desc_buf, desc, sizeof desc_buf);
-            char *nl = strchr(desc_buf, '\n');
-            if (nl) *nl = '\0';
-            snprintf(buf, sizeof buf, "  [X] %s (%s)", name, desc_buf);
-        } else {
-            snprintf(buf, sizeof buf, "  [X] %s", name);
-        }
-        Term_putstr(col, row++, -1, TERM_L_GREEN, buf);
-    }
-    if (unlocked_major == 0) {
-        Term_putstr(col + 2, row++, -1, TERM_L_DARK, "None unlocked yet");
+        if (metarun_has_major_blessing_index(i)) unlocked_major++;
     }
 
-    row++; /* spacing before lists */
+    if (full_layout) {
+        /* Calculate blessing meter position (right side) */
+        meter_col = term_width - 16;
+        if (meter_col < 60) meter_col = 60; /* Keep some space for main content */
+        if (meter_col > term_width - 13) meter_col = term_width - 13; /* "Blessing Pool" is 13 chars */
 
-    Term_putstr(col, row++, -1, TERM_YELLOW, "Active Curses & Blessings:");
+        int meter_height = 15;
+        int max_meter_height = term_height - 7;
+        if (max_meter_height < 5) max_meter_height = 5;
+        if (meter_height > max_meter_height) meter_height = max_meter_height;
 
-    /* Calculate max width for effect display (left side only, meter is separate) */
-    int max_display_width = (meter_col > 60) ? meter_col - 4 : 56;
-    
-    int available_lines = term_height - row - 2;
-    if (available_lines < 0) available_lines = 0;
+        /* Draw blessing meter on the right side */
+        draw_blessing_meter(meter_col, 2, meter_height, remainder, threshold);
 
-    int active_count = 0;
-    for (int id = 0; id < z_info->cu_max; id++) {
-        if (CURSE_GET(id) != 0) active_count++;
-    }
+        Term_putstr(col, row++, -1, TERM_YELLOW, "=== Current Story Statistics ===");
 
-    bool curses_truncated = false;
-    if (active_count == 0) {
-        Term_putstr(col + 2, row++, -1, TERM_L_DARK, "None active");
-    } else if (available_lines <= 0) {
-        curses_truncated = true;
+        snprintf(buf, sizeof buf, "Run-ID         : %u", metar.id);
+        Term_putstr(col, row++, -1, TERM_WHITE, buf);
+
+        snprintf(buf, sizeof buf, "Difficulty     : %s", diff_name);
+        Term_putstr(col, row++, -1, TERM_L_BLUE, buf);
+
+        snprintf(buf, sizeof buf, "Meta Score     : %lu", (unsigned long)metar.score);
+        Term_putstr(col, row++, -1, TERM_WHITE, buf);
+
+        snprintf(buf, sizeof buf, "Best Run Score : %lu", (unsigned long)best_run);
+        Term_putstr(col, row++, -1, TERM_WHITE, buf);
+
+        snprintf(buf, sizeof buf, "Silmarils      : %-22s %2d / %d (remaining %d)",
+                 sil_bar, metar.silmarils, win_goal, remaining_silmarils);
+        Term_putstr(col, row++, -1, TERM_WHITE, buf);
+
+        byte alive_attr = (alive < required_survivors) ? TERM_RED : TERM_L_GREEN;
+        snprintf(buf, sizeof buf, "Living Heroes  : %d (need >= %d)", alive, required_survivors);
+        Term_putstr(col, row++, -1, alive_attr, buf);
+
+        snprintf(buf, sizeof buf, "Deaths         : %-22s (%d total)",
+                 death_marks, metar.deaths);
+        Term_putstr(col, row++, -1, TERM_WHITE, buf);
+
+        byte blessing_attr = (available_points > 0) ? TERM_L_GREEN : TERM_WHITE;
+        snprintf(buf, sizeof buf, "Blessing Points: %d available (%d spent / %d earned)",
+                 available_points, spent_points, earned_points);
+        Term_putstr(col, row++, -1, blessing_attr, buf);
+
         if (steamdeck) {
-            snprintf(buf, sizeof buf, "List truncated - press [%s] to view all effects", full_label);
-            Term_putstr(col + 2, row++, -1, TERM_L_DARK, buf);
+            snprintf(buf, sizeof buf, "Blessing Pool  : %lu total (mode: %s, [%s] to change)",
+                     (unsigned long)total_pool, threshold_mode, threshold_label);
         } else {
-            Term_putstr(col + 2, row++, -1, TERM_L_DARK,
-                        "List truncated - press 'u' to view all effects");
+            snprintf(buf, sizeof buf, "Blessing Pool  : %lu total (mode: %s, press 'f' to change)",
+                     (unsigned long)total_pool, threshold_mode);
         }
-    } else {
-        int lines_remaining = available_lines;
-        int entries_remaining = active_count;
+        Term_putstr(col, row++, -1, TERM_WHITE, buf);
 
+        Term_putstr(col, row++, -1, TERM_YELLOW, "Major Blessings:");
+        for (int i = 0; i < major_total; i++) {
+            if (!metarun_has_major_blessing_index(i)) continue;
+            const char *name = major_blessing_name_str(i);
+            const char *desc = major_blessing_short_desc(i);
+            char desc_buf[80];
+            if (desc && *desc) {
+                SDL_strlcpy(desc_buf, desc, sizeof desc_buf);
+                char *nl = strchr(desc_buf, '\n');
+                if (nl) *nl = '\0';
+                snprintf(buf, sizeof buf, "  [X] %s (%s)", name, desc_buf);
+            } else {
+                snprintf(buf, sizeof buf, "  [X] %s", name);
+            }
+            Term_putstr(col, row++, -1, TERM_L_GREEN, buf);
+        }
+        if (unlocked_major == 0) {
+            Term_putstr(col + 2, row++, -1, TERM_L_DARK, "None unlocked yet");
+        }
+
+        row++; /* spacing before lists */
+
+        Term_putstr(col, row++, -1, TERM_YELLOW, "Active Curses & Blessings:");
+    } else {
+        int compact_width = term_width - col - 1;
+        if (compact_width < 10) compact_width = 10;
+        int summary_row_limit = term_height - 4;
+
+        metarun_put_adaptive_line(col, &row, term_width, TERM_YELLOW,
+                                  "=== Story Statistics ===",
+                                  "=== Story Stats ===",
+                                  "== Story Stats ==",
+                                  "== Stats ==");
+
+        char line1[192], line2[192], line3[192], line4[192];
+
+        if (row < summary_row_limit) {
+            strnfmt(line1, sizeof(line1), "Run-ID:%u  Difficulty:%s", metar.id, diff_name);
+            strnfmt(line2, sizeof(line2), "ID:%u  Difficulty:%s", metar.id, diff_name);
+            strnfmt(line3, sizeof(line3), "ID:%u  Diff:%s", metar.id, diff_name);
+            strnfmt(line4, sizeof(line4), "ID:%u %s", metar.id, diff_name);
+            metarun_put_adaptive_line(col, &row, term_width, TERM_L_BLUE, line1, line2, line3, line4);
+        }
+
+        if (row < summary_row_limit) {
+            strnfmt(line1, sizeof(line1), "Meta Score:%lu  Best Run:%lu", (unsigned long)metar.score, (unsigned long)best_run);
+            strnfmt(line2, sizeof(line2), "Meta:%lu  Best:%lu", (unsigned long)metar.score, (unsigned long)best_run);
+            strnfmt(line3, sizeof(line3), "Score:%lu  Best:%lu", (unsigned long)metar.score, (unsigned long)best_run);
+            strnfmt(line4, sizeof(line4), "M:%lu B:%lu", (unsigned long)metar.score, (unsigned long)best_run);
+            metarun_put_adaptive_line(col, &row, term_width, TERM_WHITE, line1, line2, line3, line4);
+        }
+
+        if (row < summary_row_limit) {
+            strnfmt(line1, sizeof(line1), "Silmarils:%d/%d (rem %d)  Alive:%d/%d", metar.silmarils, win_goal, remaining_silmarils, alive, required_survivors);
+            strnfmt(line2, sizeof(line2), "Sil:%d/%d rem %d  Alive:%d/%d", metar.silmarils, win_goal, remaining_silmarils, alive, required_survivors);
+            strnfmt(line3, sizeof(line3), "Sil:%d/%d  Alive:%d/%d", metar.silmarils, win_goal, alive, required_survivors);
+            strnfmt(line4, sizeof(line4), "S:%d/%d A:%d/%d", metar.silmarils, win_goal, alive, required_survivors);
+            byte sil_alive_attr = (alive < required_survivors) ? TERM_RED : TERM_L_GREEN;
+            metarun_put_adaptive_line(col, &row, term_width, sil_alive_attr, line1, line2, line3, line4);
+        }
+
+        if (row < summary_row_limit) {
+            strnfmt(line1, sizeof(line1), "Deaths:%d  Blessing Points:%d (%d/%d)", metar.deaths, available_points, spent_points, earned_points);
+            strnfmt(line2, sizeof(line2), "Deaths:%d  BPoints:%d (%d/%d)", metar.deaths, available_points, spent_points, earned_points);
+            strnfmt(line3, sizeof(line3), "Deaths:%d  BP:%d", metar.deaths, available_points);
+            strnfmt(line4, sizeof(line4), "D:%d BP:%d", metar.deaths, available_points);
+            byte bp_attr = (available_points > 0) ? TERM_L_GREEN : TERM_WHITE;
+            metarun_put_adaptive_line(col, &row, term_width, bp_attr, line1, line2, line3, line4);
+        }
+
+        if (row < summary_row_limit) {
+            if (steamdeck) {
+                strnfmt(line1, sizeof(line1), "Blessing Pool:%lu/%lu (%s, [%s] change)",
+                        (unsigned long)remainder, (unsigned long)threshold, threshold_mode, threshold_label);
+                strnfmt(line2, sizeof(line2), "Pool:%lu/%lu  %s  [%s]",
+                        (unsigned long)remainder, (unsigned long)threshold, threshold_mode, threshold_label);
+            } else {
+                strnfmt(line1, sizeof(line1), "Blessing Pool:%lu/%lu (%s, press 'f')",
+                        (unsigned long)remainder, (unsigned long)threshold, threshold_mode);
+                strnfmt(line2, sizeof(line2), "Pool:%lu/%lu  %s (f)",
+                        (unsigned long)remainder, (unsigned long)threshold, threshold_mode);
+            }
+            strnfmt(line3, sizeof(line3), "Pool:%lu/%lu  %s",
+                    (unsigned long)remainder, (unsigned long)threshold, threshold_mode);
+            strnfmt(line4, sizeof(line4), "P:%lu/%lu", (unsigned long)remainder, (unsigned long)threshold);
+            metarun_put_adaptive_line(col, &row, term_width, TERM_WHITE, line1, line2, line3, line4);
+        }
+
+        if (row < summary_row_limit) {
+            strnfmt(line1, sizeof(line1), "Major Blessings:%d", unlocked_major);
+            strnfmt(line2, sizeof(line2), "Major:%d", unlocked_major);
+            strnfmt(line3, sizeof(line3), "Major:%d", unlocked_major);
+            strnfmt(line4, sizeof(line4), "M:%d", unlocked_major);
+            metarun_put_adaptive_line(col, &row, term_width, TERM_YELLOW, line1, line2, line3, line4);
+        }
+
+        if (unlocked_major > 0 && row < summary_row_limit) {
+            char majors_line[192];
+            majors_line[0] = '\0';
+            SDL_strlcpy(majors_line, "  ", sizeof(majors_line));
+            bool first = true;
+            for (int i = 0; i < major_total; i++) {
+                if (!metarun_has_major_blessing_index(i)) continue;
+                const char *name = major_blessing_name_str(i);
+                char tmp[96];
+                if (first) {
+                    strnfmt(tmp, sizeof(tmp), "%s", name);
+                    first = false;
+                } else {
+                    strnfmt(tmp, sizeof(tmp), ", %s", name);
+                }
+                if ((int)strlen(majors_line) + (int)strlen(tmp) > compact_width) break;
+                SDL_strlcat(majors_line, tmp, sizeof(majors_line));
+            }
+            if (majors_line[2] != '\0') {
+                metarun_truncate_for_width(majors_line, compact_width);
+                Term_putstr(col, row++, -1, TERM_L_GREEN, majors_line);
+            }
+        }
+
+        if (row < term_height - 2) {
+            metarun_put_adaptive_line(col, &row, term_width, TERM_YELLOW,
+                                      "Active Curses & Blessings:",
+                                      "Curses & Blessings:",
+                                      "Effects:",
+                                      "Fx:");
+        }
+    }
+
+    if (full_layout) {
+        /* --- Full (>=80x24) layout: keep existing rendering exactly --- */
+
+        /* Calculate max width for effect display (left side only, meter is separate) */
+        int max_display_width = (meter_col > 60) ? meter_col - 4 : 56;
+
+        int available_lines = term_height - row - 2;
+        if (available_lines < 0) available_lines = 0;
+
+        int active_count = 0;
         for (int id = 0; id < z_info->cu_max; id++) {
-            int stacks = CURSE_GET(id);
-            if (!stacks) continue;
+            if (CURSE_GET(id) != 0) active_count++;
+        }
 
-            if (lines_remaining <= 0) {
-                curses_truncated = true;
-                break;
-            }
-
-            entries_remaining--;
-            bool is_blessing = (stacks < 0);
-            int magnitude = is_blessing ? -stacks : stacks;
-            cptr name = is_blessing ? blessing_display_name(id) : curse_display_name(id);
-            byte attr = is_blessing ? TERM_L_GREEN : TERM_RED;
-            bool seen = CURSE_SEEN(id);
-
-            const curse_type *cu = &cu_info[id];
-            cptr effect = NULL;
-            
-            /* Only show H:/P: effect if identified */
-            if (seen) {
-                effect = is_blessing
-                    ? (cu->blessing_power ? cu_text + cu->blessing_power : NULL)
-                    : (cu->power ? cu_text + cu->power : NULL);
-            }
-
-            /* Format with proper alignment - shorten type labels and move closer to left */
-            /* Use shortened labels: "Bless" and "Curse" instead of full words */
-            if (effect && *effect) {
-                snprintf(buf, sizeof buf, "  %-28s %-5s %d - %s", name,
-                         is_blessing ? "Bless" : "Curse", magnitude, effect);
+        bool curses_truncated = false;
+        if (active_count == 0) {
+            Term_putstr(col + 2, row++, -1, TERM_L_DARK, "None active");
+        } else if (available_lines <= 0) {
+            curses_truncated = true;
+            if (steamdeck) {
+                snprintf(buf, sizeof buf, "List truncated - press [%s] to view all effects", full_label);
+                Term_putstr(col + 2, row++, -1, TERM_L_DARK, buf);
             } else {
-                snprintf(buf, sizeof buf, "  %-28s %-5s %d", name,
-                         is_blessing ? "Bless" : "Curse", magnitude);
+                Term_putstr(col + 2, row++, -1, TERM_L_DARK,
+                            "List truncated - press 'u' to view all effects");
             }
-            
-            /* Truncate if too long */
-            if ((int)strlen(buf) > max_display_width) {
-                buf[max_display_width - 3] = '.';
-                buf[max_display_width - 2] = '.';
-                buf[max_display_width - 1] = '.';
-                buf[max_display_width] = '\0';
+        } else {
+            int lines_remaining = available_lines;
+            int entries_remaining = active_count;
+
+            for (int id = 0; id < z_info->cu_max; id++) {
+                int stacks = CURSE_GET(id);
+                if (!stacks) continue;
+
+                if (lines_remaining <= 0) {
+                    curses_truncated = true;
+                    break;
+                }
+
+                entries_remaining--;
+                bool is_blessing = (stacks < 0);
+                int magnitude = is_blessing ? -stacks : stacks;
+                cptr name = is_blessing ? blessing_display_name(id) : curse_display_name(id);
+                byte attr = is_blessing ? TERM_L_GREEN : TERM_RED;
+                bool seen = CURSE_SEEN(id);
+
+                const curse_type *cu = &cu_info[id];
+                cptr effect = NULL;
+
+                /* Only show H:/P: effect if identified */
+                if (seen) {
+                    effect = is_blessing
+                        ? (cu->blessing_power ? cu_text + cu->blessing_power : NULL)
+                        : (cu->power ? cu_text + cu->power : NULL);
+                }
+
+                /* Format with proper alignment - shorten type labels and move closer to left */
+                /* Use shortened labels: "Bless" and "Curse" instead of full words */
+                if (effect && *effect) {
+                    snprintf(buf, sizeof buf, "  %-28s %-5s %d - %s", name,
+                             is_blessing ? "Bless" : "Curse", magnitude, effect);
+                } else {
+                    snprintf(buf, sizeof buf, "  %-28s %-5s %d", name,
+                             is_blessing ? "Bless" : "Curse", magnitude);
+                }
+
+                /* Truncate if too long */
+                if ((int)strlen(buf) > max_display_width) {
+                    buf[max_display_width - 3] = '.';
+                    buf[max_display_width - 2] = '.';
+                    buf[max_display_width - 1] = '.';
+                    buf[max_display_width] = '\0';
+                }
+
+                Term_putstr(col, row++, -1, attr, buf);
+                lines_remaining--;
+
+                if (lines_remaining <= 0 && entries_remaining > 0) {
+                    curses_truncated = true;
+                    break;
+                }
             }
 
-            Term_putstr(col, row++, -1, attr, buf);
-            lines_remaining--;
-
-            if (lines_remaining <= 0 && entries_remaining > 0) {
-                curses_truncated = true;
-                break;
+            if (curses_truncated && lines_remaining > 0) {
+                if (entries_remaining > 0) {
+                    if (steamdeck) {
+                        snprintf(buf, sizeof buf, "... and %d more effect%s (press [%s] to view all)",
+                                 entries_remaining, (entries_remaining == 1) ? "" : "s", full_label);
+                    } else {
+                        snprintf(buf, sizeof buf, "... and %d more effect%s (press 'u' to view all)",
+                                 entries_remaining, (entries_remaining == 1) ? "" : "s");
+                    }
+                } else {
+                    if (steamdeck) {
+                        snprintf(buf, sizeof buf, "List truncated - press [%s] to view all effects", full_label);
+                    } else {
+                        SDL_strlcpy(buf, "List truncated - press 'u' to view all effects",
+                                  sizeof buf);
+                    }
+                }
+                Term_putstr(col, row++, -1, TERM_L_DARK, buf);
             }
         }
 
-        if (curses_truncated && lines_remaining > 0) {
-            if (entries_remaining > 0) {
-                if (steamdeck) {
-                    snprintf(buf, sizeof buf, "... and %d more effect%s (press [%s] to view all)",
-                             entries_remaining, (entries_remaining == 1) ? "" : "s", full_label);
-                } else {
-                    snprintf(buf, sizeof buf, "... and %d more effect%s (press 'u' to view all)",
-                             entries_remaining, (entries_remaining == 1) ? "" : "s");
-                }
-            } else {
-                if (steamdeck) {
-                    snprintf(buf, sizeof buf, "List truncated - press [%s] to view all effects", full_label);
-                } else {
-                    SDL_strlcpy(buf, "List truncated - press 'u' to view all effects",
-                              sizeof buf);
-                }
-            }
-            Term_putstr(col, row++, -1, TERM_L_DARK, buf);
-        }
-    }
-
-    char prompt_buf[160];
-    const char *base_prompt = "[b] Spend blessings  [f] Threshold  [c] Difficulty  [u] Full list  [s] History";
-    
-    /* Pad to terminal width (minimum 80) */
-    int target_width = (term_width > 80) ? term_width : 80;
-    if (steamdeck) {
-        strnfmt(prompt_buf, sizeof(prompt_buf),
-                "[%s] Blessings  [%s] Threshold  [%s] Difficulty  [%s] Full list  [%s] History",
-                spend_label, threshold_label, diff_label, full_label, history_label);
+        /* Prompt line (full): dynamically packed to width */
+        char prompt_buf[256];
+        metarun_build_action_prompt(term_width, steamdeck,
+                                    spend_label, threshold_label, diff_label,
+                                    full_label, history_label,
+                                    prompt_buf, sizeof(prompt_buf));
+        metarun_truncate_for_width(prompt_buf, term_width);
+        metarun_put_prompt_line(term_width, term_height, TERM_L_DARK, prompt_buf);
     } else {
-        snprintf(prompt_buf, sizeof prompt_buf, "%s", base_prompt);
-    }
-    size_t plen = strlen(prompt_buf);
-    
-    if ((int)plen < target_width && plen + 2 < sizeof prompt_buf) {
-        int pad_amount = target_width - (int)plen;
-        if (pad_amount > (int)(sizeof prompt_buf - plen - 1)) {
-            pad_amount = sizeof prompt_buf - plen - 1;
-        }
-        memset(prompt_buf + plen, ' ', pad_amount);
-        prompt_buf[plen + pad_amount] = '\0';
-    }
+        /* --- Compact layout --- */
+        int max_display_width = term_width - col - 1;
+        if (max_display_width < 10) max_display_width = 10;
+        if (max_display_width > (int)sizeof(buf) - 1) max_display_width = (int)sizeof(buf) - 1;
 
-    Term_putstr(0, term_height - 1, -1, TERM_L_DARK, prompt_buf);
+        int available_lines = term_height - row - 2;
+        if (available_lines < 0) available_lines = 0;
+
+        int active_count = 0;
+        for (int id = 0; id < z_info->cu_max; id++) {
+            if (CURSE_GET(id) != 0) active_count++;
+        }
+
+        bool curses_truncated = false;
+        if (active_count == 0) {
+            Term_putstr(col + 2, row++, -1, TERM_L_DARK, "None active");
+        } else if (available_lines <= 0) {
+            curses_truncated = true;
+            if (steamdeck) {
+                snprintf(buf, sizeof buf, "List truncated - press [%s] to view all effects", full_label);
+                metarun_truncate_for_width(buf, term_width - col - 1);
+                Term_putstr(col + 2, row++, -1, TERM_L_DARK, buf);
+            } else {
+                Term_putstr(col + 2, row++, -1, TERM_L_DARK,
+                            "List truncated - press 'u' to view all effects");
+            }
+        } else {
+            int lines_remaining = available_lines;
+            int entries_remaining = active_count;
+            bool show_effects = (max_display_width >= 36);
+            int value_width = 4;
+            int name_width = max_display_width - 2 - 1 - value_width; /* "  " + name + " " + value */
+            if (show_effects) {
+                int reserve_effect = max_display_width / 3;
+                if (reserve_effect < 10) reserve_effect = 10;
+                int with_effect = max_display_width - 2 - 1 - value_width - 3 - reserve_effect; /* " - " + effect */
+                if (with_effect >= 8) name_width = with_effect;
+            }
+            if (name_width > 26) name_width = 26;
+            if (name_width < 8) name_width = 8;
+
+            for (int id = 0; id < z_info->cu_max; id++) {
+                int stacks = CURSE_GET(id);
+                if (!stacks) continue;
+
+                if (lines_remaining <= 0) {
+                    curses_truncated = true;
+                    break;
+                }
+
+                entries_remaining--;
+                bool is_blessing = (stacks < 0);
+                int magnitude = is_blessing ? -stacks : stacks;
+                cptr name = is_blessing ? blessing_display_name(id) : curse_display_name(id);
+                byte attr = is_blessing ? TERM_L_GREEN : TERM_RED;
+                bool seen = CURSE_SEEN(id);
+
+                const curse_type *cu = &cu_info[id];
+                cptr effect = NULL;
+
+                if (seen && show_effects) {
+                    effect = is_blessing
+                        ? (cu->blessing_power ? cu_text + cu->blessing_power : NULL)
+                        : (cu->power ? cu_text + cu->power : NULL);
+                }
+
+                char sign = is_blessing ? '+' : '-';
+                char value_buf[16];
+                strnfmt(value_buf, sizeof(value_buf), "%c%d", sign, magnitude);
+
+                if (effect && *effect && show_effects) {
+                    snprintf(buf, sizeof buf, "  %-*.*s %*s - %s",
+                             name_width, name_width, name,
+                             value_width, value_buf, effect);
+                } else {
+                    snprintf(buf, sizeof buf, "  %-*.*s %*s",
+                             name_width, name_width, name,
+                             value_width, value_buf);
+                }
+
+                metarun_truncate_for_width(buf, max_display_width);
+                Term_putstr(col, row++, -1, attr, buf);
+                lines_remaining--;
+
+                if (lines_remaining <= 0 && entries_remaining > 0) {
+                    curses_truncated = true;
+                    break;
+                }
+            }
+
+            if (curses_truncated && lines_remaining > 0) {
+                char line1[160], line2[160], line3[160], line4[160];
+                if (entries_remaining > 0) {
+                    if (steamdeck) {
+                        snprintf(line1, sizeof line1, "... and %d more effects (press [%s] for full list)",
+                                 entries_remaining, full_label);
+                        snprintf(line2, sizeof line2, "... and %d more (press [%s] for list)",
+                                 entries_remaining, full_label);
+                        snprintf(line3, sizeof line3, "... %d more [%s]", entries_remaining, full_label);
+                        snprintf(line4, sizeof line4, "... %d more", entries_remaining);
+                    } else {
+                        snprintf(line1, sizeof line1, "... and %d more effects (press 'u' for full list)", entries_remaining);
+                        snprintf(line2, sizeof line2, "... and %d more (press 'u' for list)", entries_remaining);
+                        snprintf(line3, sizeof line3, "... %d more (u)", entries_remaining);
+                        snprintf(line4, sizeof line4, "... %d more", entries_remaining);
+                    }
+                } else {
+                    if (steamdeck) {
+                        snprintf(line1, sizeof line1, "List truncated - press [%s] to view all effects", full_label);
+                        snprintf(line2, sizeof line2, "List truncated - press [%s]", full_label);
+                        snprintf(line3, sizeof line3, "Truncated [%s]", full_label);
+                        SDL_strlcpy(line4, "Truncated", sizeof(line4));
+                    } else {
+                        SDL_strlcpy(line1, "List truncated - press 'u' to view all effects", sizeof(line1));
+                        SDL_strlcpy(line2, "List truncated - press 'u' for list", sizeof(line2));
+                        SDL_strlcpy(line3, "Truncated (u)", sizeof(line3));
+                        SDL_strlcpy(line4, "Truncated", sizeof(line4));
+                    }
+                }
+                metarun_pick_best_variant(buf, sizeof(buf), term_width - col - 1,
+                                          line1, line2, line3, line4);
+                Term_putstr(col, row++, -1, TERM_L_DARK, buf);
+            }
+        }
+
+        char prompt_buf[256];
+        metarun_build_action_prompt(term_width, steamdeck,
+                                    spend_label, threshold_label, diff_label,
+                                    full_label, history_label,
+                                    prompt_buf, sizeof(prompt_buf));
+        metarun_truncate_for_width(prompt_buf, term_width);
+        metarun_put_prompt_line(term_width, term_height, TERM_L_DARK, prompt_buf);
+    }
 
     char key = inkey();
     if (steamdeck) {

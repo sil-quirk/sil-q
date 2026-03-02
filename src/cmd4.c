@@ -400,13 +400,11 @@ void do_cmd_character_sheet(void)
     char ch;
 
     int mode = 0;
-    int sheet_page = 2;
+    int sheet_page = 1;
 
     enum {
-        CHAR_SHEET_MODE_COMPACT_OVERVIEW = 100,
-        CHAR_SHEET_MODE_COMPACT_STATS = 101,
-        CHAR_SHEET_MODE_COMPACT_SKILLS = 102,
-        CHAR_SHEET_MODE_COMPACT_HISTORY = 103,
+        CHAR_SHEET_MODE_COMPACT_DESC_FLAGS = 100,
+        CHAR_SHEET_MODE_COMPACT_STATS_SKILLS = 101,
     };
 
     /* Clear any active banner before opening character sheet */
@@ -436,7 +434,7 @@ void do_cmd_character_sheet(void)
             hgt = 24;
 
         compact_sheet = (wid < 80);
-        compact_pages = compact_sheet ? 4 : 1;
+        compact_pages = compact_sheet ? 2 : 1;
         if (sheet_page >= compact_pages)
             sheet_page = compact_pages - 1;
         if (sheet_page < 0)
@@ -446,11 +444,9 @@ void do_cmd_character_sheet(void)
         {
             switch (sheet_page)
             {
-            case 0: mode = CHAR_SHEET_MODE_COMPACT_OVERVIEW; break;
-            case 1: mode = CHAR_SHEET_MODE_COMPACT_STATS; break;
-            case 2: mode = CHAR_SHEET_MODE_COMPACT_SKILLS; break;
-            case 3: mode = CHAR_SHEET_MODE_COMPACT_HISTORY; break;
-            default: mode = CHAR_SHEET_MODE_COMPACT_OVERVIEW; break;
+            case 0: mode = CHAR_SHEET_MODE_COMPACT_DESC_FLAGS; break;
+            case 1: mode = CHAR_SHEET_MODE_COMPACT_STATS_SKILLS; break;
+            default: mode = CHAR_SHEET_MODE_COMPACT_DESC_FLAGS; break;
             }
         }
         else
@@ -474,10 +470,8 @@ void do_cmd_character_sheet(void)
 
             switch (sheet_page)
             {
-            case 0: page_name = "overview"; break;
-            case 1: page_name = "stats"; break;
-            case 2: page_name = "skills"; break;
-            case 3: page_name = "history"; break;
+            case 0: page_name = "desc+flags"; break;
+            case 1: page_name = "stats+skills"; break;
             default: page_name = ""; break;
             }
 
@@ -2236,7 +2230,7 @@ int abilities_menu1(int* highlight)
     char buf[80];
 
     // title
-    Term_putstr(COL_SKILL, 2, -1, TERM_WHITE, "Skills");
+    Term_putstr(COL_SKILL, 2, -1, TERM_WHITE, "Skills (i=increase)");
 
     // list the skills
     for (i = 0; i < options; i++)
@@ -2299,6 +2293,11 @@ int abilities_menu1(int* highlight)
         return (S_MAX + 1);  // Always return S_MAX + 1 to exit, regardless of options
     }
 
+    if (ch == 'i')
+    {
+        return (S_MAX + 2);
+    }
+
     /* Choose current  */
     if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
     {
@@ -2338,7 +2337,7 @@ int abilities_menu2(int skilltype, int* highlight)
     wipe_screen_from(COL_ABILITY);
 
     // abilities title with color
-    Term_putstr(COL_ABILITY, 1, -1, TERM_L_BLUE, "Abilities");
+    Term_putstr(COL_ABILITY, 1, -1, TERM_L_BLUE, "Abilities (i=skills)");
 
     // Add display counter for compact menu layout (avoids gaps from filtered abilities)
     int display_counter = 0;
@@ -2940,6 +2939,11 @@ int abilities_menu2(int skilltype, int* highlight)
         return (ABILITIES_MAX + 2);
     }
 
+    if (ch == 'i')
+    {
+        return (ABILITIES_MAX + 3);
+    }
+
     /* Choose current  */
     if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
     {
@@ -3034,8 +3038,22 @@ void do_cmd_ability_screen(void)
     /* Process Events until "Return to Game" is selected */
     while (!return_to_game)
     {
+        int menu1_choice;
+
         log_trace("ABILITY_SCREEN: Calling abilities_menu1 with highlight1=%d", highlight1);
-        skilltype = abilities_menu1(&highlight1) - 1;
+        menu1_choice = abilities_menu1(&highlight1);
+
+        if (menu1_choice == (S_MAX + 2))
+        {
+            log_trace("ABILITY_SCREEN: in-menu skill increase requested (menu1)");
+            (void)gain_skills();
+            p_ptr->redraw |= (PR_EXP | PR_BASIC);
+            p_ptr->update |= (PU_BONUS | PU_MANA);
+            handle_stuff();
+            continue;
+        }
+
+        skilltype = menu1_choice - 1;
 
         log_trace("ABILITY_SCREEN: abilities_menu1 returned skilltype=%d", skilltype);
 
@@ -3049,8 +3067,22 @@ void do_cmd_ability_screen(void)
             
             while (!return_to_skills)
             {
+                int menu2_choice;
+
                 log_trace("ABILITY_SCREEN: Calling abilities_menu2 for skilltype=%d with highlight2=%d", skilltype, highlight2);
-                abilitynum = abilities_menu2(skilltype, &highlight2) - 1;
+                menu2_choice = abilities_menu2(skilltype, &highlight2);
+
+                if (menu2_choice == (ABILITIES_MAX + 3))
+                {
+                    log_trace("ABILITY_SCREEN: in-menu skill increase requested (menu2)");
+                    (void)gain_skills();
+                    p_ptr->redraw |= (PR_EXP | PR_BASIC);
+                    p_ptr->update |= (PU_BONUS | PU_MANA);
+                    handle_stuff();
+                    continue;
+                }
+
+                abilitynum = menu2_choice - 1;
 
                 log_trace("ABILITY_SCREEN: abilities_menu2 returned abilitynum=%d", abilitynum);
 

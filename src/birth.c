@@ -2497,6 +2497,8 @@ static NavResult player_birth_aux_2(void)
         if (wid < 1) wid = 80;
         if (hgt < 1) hgt = 24;
         bool compact = (wid < 80);
+        int wide_offset = (wid > 80) ? (wid - 80) / 2 : 0;
+        int sheet_col = col + wide_offset;
 
         /* Reset cost */
         cost = 0;
@@ -2553,9 +2555,9 @@ static NavResult player_birth_aux_2(void)
             display_player(0);
 
             /* Display the costs header */
-            c_put_str(TERM_WHITE, "Points Left:", 0, col + 21);
+            c_put_str(TERM_WHITE, "Points Left:", 0, sheet_col + 21);
             strnfmt(buf, sizeof(buf), "%2d", MAX_COST - cost);
-            c_put_str(TERM_L_GREEN, buf, 0, col + 34);
+            c_put_str(TERM_L_GREEN, buf, 0, sheet_col + 34);
 
             /* Display the costs */
             for (i = 0; i < A_MAX; i++)
@@ -2564,28 +2566,41 @@ static NavResult player_birth_aux_2(void)
                 {
                     byte attr = TERM_L_BLUE;
 
-                    if (story_character_enabled()) {
+                    /* Match the character sheet label rendering: trim trailing spaces.
+                     * (stat_names[] include padding for mono layouts.) */
+                    const char* stat_label = (p_ptr->stat_drain[i] < 0) ? stat_names_reduced[i] : stat_names[i];
+                    char trimmed_label[32];
+                    SDL_strlcpy(trimmed_label, stat_label ? stat_label : "", sizeof(trimmed_label));
+                    int len = (int)strlen(trimmed_label);
+                    while (len > 0 && trimmed_label[len - 1] == ' ') {
+                        trimmed_label[--len] = '\0';
+                    }
+
+                    bool use_story = story_character_enabled();
+                    if (use_story) {
                         sdl_story_font_enable();
                     }
 
-                    c_put_str(attr, stat_names[i], row + i, col - 1);
+                    c_put_str(attr, trimmed_label, row + i, sheet_col - 1);
 
-                    sdl_story_font_disable();
+                    if (use_story) {
+                        sdl_story_font_disable();
+                    }
 
 #ifndef MONOCHROME_MODE
                     strnfmt(buf, sizeof(buf), "%4d", birth_stat_costs[stats[i] + 4]);
-                    c_put_str(attr, buf, row + i, col + 32);
+                    c_put_str(attr, buf, row + i, sheet_col + 32);
 #else
                     strnfmt(buf, sizeof(buf), "%4d*", birth_stat_costs[stats[i] + 4]);
-                    c_put_str(attr, buf, row + i, col + 32);
-                    c_put_str(attr, "*", row + i, col - 2);
+                    c_put_str(attr, buf, row + i, sheet_col + 32);
+                    c_put_str(attr, "*", row + i, sheet_col - 2);
 #endif
                 }
                 else
                 {
                     byte attr = TERM_L_WHITE;
                     strnfmt(buf, sizeof(buf), "%4d", birth_stat_costs[stats[i] + 4]);
-                    c_put_str(attr, buf, row + i, col + 32);
+                    c_put_str(attr, buf, row + i, sheet_col + 32);
                 }
             }
 
@@ -2761,6 +2776,8 @@ extern NavResult gain_skills(void)
         if (wid < 1) wid = 80;
         if (hgt < 1) hgt = 24;
         bool compact = (wid < 80);
+        int wide_offset = (wid > 80) ? (wid - 80) / 2 : 0;
+        int sheet_col = col + wide_offset;
 
         if (compact)
         {
@@ -2786,8 +2803,8 @@ extern NavResult gain_skills(void)
                     tab = 4;
 
                 strnfmt(buf, sizeof(buf), "%6d", p_ptr->new_exp);
-                c_put_str(TERM_L_GREEN, buf, row - 2, col + 30);
-                c_put_str(TERM_WHITE, "Points Left:", row - 2, col + 17 + tab);
+                c_put_str(TERM_L_GREEN, buf, row - 2, sheet_col + 30);
+                c_put_str(TERM_WHITE, "Points Left:", row - 2, sheet_col + 17 + tab);
             }
 
             /* Display the costs */
@@ -2800,23 +2817,26 @@ extern NavResult gain_skills(void)
                 {
                     byte attr = TERM_L_BLUE;
 
-                    if (story_character_enabled()) {
+                    bool use_story = story_character_enabled();
+                    if (use_story) {
                         sdl_story_font_enable();
                     }
 
-                    c_put_str(attr, skill_names_full[i], row + i, col - 1);
+                    c_put_str(attr, skill_names_full[i], row + i, sheet_col - 1);
 
-                    sdl_story_font_disable();
+                    if (use_story) {
+                        sdl_story_font_disable();
+                    }
 
 #ifndef MONOCHROME_MODE
                     strnfmt(buf, sizeof(buf), "%6d",
                         skill_cost(old_base[i], skill_gain[i]));
-                    c_put_str(attr, buf, row + i, col + 30);
+                    c_put_str(attr, buf, row + i, sheet_col + 30);
 #else
                     strnfmt(buf, sizeof(buf), "%6d*",
                         skill_cost(old_base[i], skill_gain[i]));
-                    c_put_str(attr, buf, row + i, col + 30);
-                    c_put_str(attr, "*", row + i, col - 2);
+                    c_put_str(attr, buf, row + i, sheet_col + 30);
+                    c_put_str(attr, "*", row + i, sheet_col - 2);
 #endif
                 }
                 else
@@ -2824,7 +2844,7 @@ extern NavResult gain_skills(void)
                     byte attr = TERM_L_WHITE;
                     strnfmt(buf, sizeof(buf), "%6d",
                         skill_cost(old_base[i], skill_gain[i]));
-                    c_put_str(attr, buf, row + i, col + 30);
+                    c_put_str(attr, buf, row + i, sheet_col + 30);
                 }
             }
 

@@ -9,6 +9,23 @@
 - Added wide-screen centering for character sheet columns in `src/files.c` so larger terminals keep the same layout but are positioned more naturally.
 - Character name line in the sheet now centers based on terminal width instead of using a fixed x-offset.
 - Validation: `Build and Deploy` task completed successfully after these changes.
+- Follow-up fixes:
+  - Birth allocation highlight now honors wide-screen centering offset and uses trimmed stat labels (no padded spaces) so the blue highlight matches the actual sheet labels (`src/birth.c`).
+  - Compact character sheet `stats` page now packs **Attributes + Skills** together when space permits (side-by-side when width allows; stacked fallback otherwise) (`src/files.c`).
+  - Compact skill lines render **labels in story font** and **numbers in monospace**, with pixel-width clamping to prevent proportional-font overflow artifacts (`src/files.c`).
+  - Compact character sheet now uses **2 tabs** on narrow screens: `desc+flags` and `stats+skills` (`src/cmd4.c`, `src/files.c`).
+  - The compact `desc+flags` tab now performs fit analysis (traits lines vs wrapped history lines) and automatically chooses side-by-side or stacked layout based on overflow (`src/files.c`).
+  - Ability screen now supports in-place skill spending with `i` (no need to exit to character sheet), and menu headers now show this hint (`src/cmd4.c`).
+  - Compact `desc+flags` side-by-side split now auto-sizes from the **current maximum flag label length** instead of a fixed column (`src/files.c`).
+  - Compact skill values now use explicit `total=base+mod` formatting when space allows, to align with attribute-style calculation display (`src/files.c`).
+  - Compact attributes now use the same line-style formatter as compact skills (uniform `total=base+mod` presentation where width permits), replacing the old spaced stat breakdown in this view (`src/files.c`).
+  - Added compact right-side padding so right columns/history no longer hug the screen edge (`src/files.c`).
+  - Fixed hidden attribute values on the compact `stats+skills` tab by constraining attribute width in side-by-side mode, preventing overlap/erase by the skills column (`src/files.c`).
+  - Unified right-column alignment by anchoring both compact summary right stats (`Exp/Burden/...`) and compact skills to the same computed right-column start (`src/files.c`).
+  - Metarun stats screen (`print_metarun_stats()` in `src/metarun.c`) now renders responsively: preserves the existing layout at **>= 80x24**, and switches to a compact summary + tighter effects list + shortened prompt on smaller terminals.
+  - Metarun stats now uses explicit compact tiers below full size: **medium** (`>=65x20`) keeps a richer compact view, while **minimum** (including width `50`) uses denser summary/effects lines and ultra-short prompts.
+  - Metarun action prompt now packs dynamically by terminal width (long labels first, then shorter variants, then drops least-important actions only if needed) instead of fixed prompt states (`src/metarun.c`).
+  - Metarun compact screen body now also scales dynamically line-by-line (title, summary rows, effects rows, truncation hints) using best-fit variants by available width/height, removing fixed medium/minimum menu state buckets (`src/metarun.c`).
 
 ## 2026-03-01: Android main terminal width PoC at 50 cols + OOB safety guards
 - SDL Android main view now targets a fixed 50-column terminal in `src/main-sdl.c` (Android-only path in `sdl_view_create()`), with cell size derived from pane size and clamped to avoid zero/invalid dimensions.
