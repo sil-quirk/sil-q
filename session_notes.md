@@ -7,6 +7,7 @@
 - Pagination uses the correct drawable body height (`hgt - 3`) and avoids orphaned titles by never ending a page on a heading row.
 - Dynamic help now also reflows recorded rows by current terminal width before pagination, so shrinking width (not just height) changes page count and fits more strings without clipping.
 - Removed forced no-wrap handling for combat formula rows in help; formulas now follow the same word-wrap rules as all other help lines.
+- Added handcrafted dynamic formatter for the page-3 combat formula block (semantic token groups, no mid-word breaks, and width-aware wrapping), while preserving the original fixed formula layout in exact `80x24` legacy mode.
 - Help navigation prompt and `x` page-jump now use runtime total pages; page-jump accepts typed numeric input via `askfor_aux()` (works when page count exceeds 9).
 - Validation: `cmake --build build-standard --parallel` completed successfully.
 

@@ -817,18 +817,114 @@ static void birth_prompt_label(int binding, const char* fallback, char* buf, siz
         SDL_strlcpy(buf, fallback, buflen);
 }
 
+static int character_choice_index_by_name(cptr choice_name)
+{
+    int character_idx;
+
+    if (!choice_name)
+        return -1;
+
+    for (character_idx = 0; character_idx < z_info->c_max; character_idx++)
+    {
+        if (!strcmp(choice_name, c_name + c_info[character_idx].name))
+            return character_idx;
+    }
+
+    return -1;
+}
+
+static bool character_description_has_room(void)
+{
+    int wid = 80;
+    int hgt = 24;
+    int min_description_rows = 8;
+
+    Term_get_size(&wid, &hgt);
+    if (hgt < 1)
+        hgt = 24;
+
+    return ((hgt - DESCRIPTION_ROW) >= min_description_rows);
+}
+
+static bool character_flags_need_compact_layout(void)
+{
+    int wid = 80;
+    int hgt = 24;
+    int min_flags_wid = TOTAL_AUX_COL + 21 + 20;
+
+    Term_get_size(&wid, &hgt);
+    (void)hgt;
+    if (wid < 1)
+        wid = 80;
+
+    return (wid < min_flags_wid);
+}
+
+static void display_character_description_screen(birth_menu choice)
+{
+    int wid = 80;
+    int hgt = 24;
+    int character_idx;
+    char full_name[64];
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1)
+        wid = 80;
+    if (hgt < 1)
+        hgt = 24;
+
+    character_idx = character_choice_index_by_name(choice.name);
+    if (character_idx >= 0)
+    {
+        strnfmt(full_name, sizeof(full_name), "%s%s",
+            c_name + c_info[character_idx].name,
+            c_name + c_info[character_idx].alt_name);
+    }
+    else
+    {
+        strnfmt(full_name, sizeof(full_name), "%s", choice.name ? choice.name : "");
+    }
+
+    screen_save();
+    Term_clear();
+
+    Term_putstr(2, 0, -1, TERM_L_BLUE, full_name);
+
+    if (choice.text && choice.text[0] && (hgt > 2))
+    {
+        text_out_wrap = wid - 1;
+        text_out_indent = 2;
+        Term_gotoxy(2, 2);
+        text_out_to_screen(TERM_WHITE, choice.text);
+        text_out_wrap = 0;
+        text_out_indent = 0;
+    }
+
+    if (hgt > 0)
+        Term_putstr(2, hgt - 1, -1, TERM_SLATE, "Press any key to return");
+
+    Term_fresh();
+    (void)inkey();
+
+    screen_load();
+}
+
 /*
  * Generic "get choice from menu" function
  */
 static int get_player_choice(birth_menu* choices, int num, int def, int col,
-    int wid, void (*hook)(birth_menu))
+    int wid, void (*hook)(birth_menu), bool allow_full_description_screen)
 {
     int top = 0, next;
     int i, dir;
     char c;
     bool done = false;
+    bool show_description;
+    bool compact_flags;
+    int prompt_row;
     int hgt;
     byte attr;
+    char prompt[160];
     int cur = (def) ? def : 0;
     bool steamdeck = steamdeck_controls_active();
 
@@ -880,16 +976,16 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
             Term_putstr(col, i + TABLE_ROW, wid, attr, name_part);
         }
 
-        Term_erase(0, DESCRIPTION_ROW + 0, 255);
-        Term_erase(0, DESCRIPTION_ROW + 1, 255);
-        Term_erase(0, DESCRIPTION_ROW + 2, 255);
-        Term_erase(0, DESCRIPTION_ROW + 3, 255);
-        Term_erase(0, DESCRIPTION_ROW + 4, 255);
-        Term_erase(0, DESCRIPTION_ROW + 5, 255);
-        Term_erase(0, DESCRIPTION_ROW + 6, 255);
-        Term_erase(0, DESCRIPTION_ROW + 7, 255);
+        for (i = DESCRIPTION_ROW; i < Term->hgt; i++)
+            Term_erase(0, i, 255);
 
-        if (choices[cur + top].text != NULL)
+        compact_flags = (allow_full_description_screen && character_flags_need_compact_layout());
+        show_description = (!compact_flags);
+
+        if (allow_full_description_screen)
+            show_description = (show_description && character_description_has_room());
+
+        if (show_description && choices[cur].text != NULL)
         {
             /* Indent output by 2 character, and wrap at column 79 */
             text_out_wrap = 79;
@@ -897,7 +993,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
 
             /* History */
             Term_gotoxy(text_out_indent, DESCRIPTION_ROW);
-            text_out_to_screen(TERM_WHITE, choices[cur + top].text);
+            text_out_to_screen(TERM_WHITE, choices[cur].text);
 
             /* Reset text_out() vars */
             text_out_wrap = 0;
@@ -910,6 +1006,20 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
         /* Display auxiliary information if any is available. */
         if (hook)
             hook(choices[cur]);
+
+        if (Term->hgt > 0)
+        {
+            prompt_row = Term->hgt - 1;
+            Term_erase(0, prompt_row, 255);
+
+            if (allow_full_description_screen)
+                strnfmt(prompt, sizeof(prompt), "ENTER select  f description  ESC back  r random");
+            else
+                strnfmt(prompt, sizeof(prompt), "ENTER select  ESC back  r random");
+
+            (void)steamdeck;
+            Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE, prompt);
+        }
 
         /* Move the cursor */
         put_str("", TABLE_ROW + cur - top, col);
@@ -945,6 +1055,12 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
         {
             do_cmd_help();
             continue; /* Return to the selection loop after showing help */
+        }
+
+        if (allow_full_description_screen && (c == 'f' || c == 'F'))
+        {
+            display_character_description_screen(choices[cur]);
+            continue;
         }
 
         /* Random choice */
@@ -1136,6 +1252,7 @@ static void print_rh_flags(int race, int character, int col, int row)
 {
     int flags_left  = 0;
     int flags_right = 0;
+    bool compact_layout = character_flags_need_compact_layout();
 
     byte attr_affinity = TERM_GREEN;
     byte attr_mastery  = TERM_L_GREEN;
@@ -1268,55 +1385,157 @@ static void print_rh_flags(int race, int character, int col, int row)
     HANDLE_UNIQUE("Doom of Mandos",   RHF_CURSE, TERM_UMBER,   1); // right
     HANDLE_UNIQUE("Morgoth Curse",   RHF_MOR_CURSE, TERM_UMBER,   1); // right
 
-    // Left column
-    for (int i = 0; i < unique_n; ++i)
-        if (unique_buf[i].side == 0)
-            Term_putstr(col, row + flags_left++, -1, unique_buf[i].col, unique_buf[i].txt);
-    for (int i = 0; i < mastery_n;  ++i)
-        Term_putstr(col, row + flags_left++, -1, mastery_buf[i].col, mastery_buf[i].txt);
-    for (int i = 0; i < affinity_n; ++i)
-        Term_putstr(col, row + flags_left++, -1, affinity_buf[i].col, affinity_buf[i].txt);
+    if (compact_layout)
+    {
+        int compact_row = DESCRIPTION_ROW;
+        int compact_available = Term->hgt - compact_row - 1;
+        int compact_col = 2;
+        int data_rows;
+        int col_gap = 2;
+        int col_wid;
+        bool use_two_columns = false;
+        char line_buf[64];
 
-    // Right column
-    for (int i = 0; i < unique_n; ++i)
-        if (unique_buf[i].side == 1)
-            Term_putstr(col_pen, row + flags_right++, -1, unique_buf[i].col, unique_buf[i].txt);
-    for (int i = 0; i < penalty_n; ++i)
-        Term_putstr(col_pen, row + flags_right++, -1, penalty_buf[i].col, penalty_buf[i].txt);
+        typedef struct {
+            cptr txt;
+            byte attr;
+        } compact_flag_line;
+
+        compact_flag_line compact_lines[64];
+        int compact_line_n = 0;
+        int max_line_len = 0;
+
+#define APPEND_COMPACT_LINE(text_value, color_value)                       \
+    do {                                                                    \
+        if ((text_value) && compact_line_n < (int)N_ELEMENTS(compact_lines)) \
+        {                                                                   \
+            compact_lines[compact_line_n].txt = (text_value);              \
+            compact_lines[compact_line_n].attr = (color_value);            \
+            if ((int)strlen(text_value) > max_line_len)                    \
+                max_line_len = (int)strlen(text_value);                    \
+            compact_line_n++;                                               \
+        }                                                                   \
+    } while (0)
+
+        for (int i = 0; i < unique_n; ++i)
+            if (unique_buf[i].side == 0)
+                APPEND_COMPACT_LINE(unique_buf[i].txt, unique_buf[i].col);
+        for (int i = 0; i < mastery_n; ++i)
+            APPEND_COMPACT_LINE(mastery_buf[i].txt, mastery_buf[i].col);
+        for (int i = 0; i < affinity_n; ++i)
+            APPEND_COMPACT_LINE(affinity_buf[i].txt, affinity_buf[i].col);
+        for (int i = 0; i < unique_n; ++i)
+            if (unique_buf[i].side == 1)
+                APPEND_COMPACT_LINE(unique_buf[i].txt, unique_buf[i].col);
+        for (int i = 0; i < penalty_n; ++i)
+            APPEND_COMPACT_LINE(penalty_buf[i].txt, penalty_buf[i].col);
+
+        if (compact_available > 0)
+            Term_putstr(compact_col, compact_row, -1, TERM_L_BLUE, "Character traits:");
+
+        data_rows = compact_available - 1;
+
+        col_wid = (Term->wid - compact_col - col_gap) / 2;
+        if (col_wid >= max_line_len)
+            use_two_columns = true;
+
+        if (data_rows > 0)
+        {
+            if (use_two_columns)
+            {
+                int col2 = compact_col + col_wid + col_gap;
+                int max_lines = data_rows * 2;
+                int draw_lines = (compact_line_n < max_lines) ? compact_line_n : max_lines;
+                int left_count = (draw_lines + 1) / 2;
+                int right_count = draw_lines - left_count;
+
+                for (int i = 0; i < left_count; ++i)
+                {
+                    strnfmt(line_buf, sizeof(line_buf), "%-*.*s", col_wid, col_wid,
+                        compact_lines[i].txt);
+                    Term_putstr(compact_col, compact_row + 1 + i, -1,
+                        compact_lines[i].attr, line_buf);
+                }
+
+                for (int i = 0; i < right_count; ++i)
+                {
+                    int idx = left_count + i;
+                    strnfmt(line_buf, sizeof(line_buf), "%-*.*s", col_wid, col_wid,
+                        compact_lines[idx].txt);
+                    Term_putstr(col2, compact_row + 1 + i, -1,
+                        compact_lines[idx].attr, line_buf);
+                }
+            }
+            else
+            {
+                int draw_lines = (compact_line_n < data_rows) ? compact_line_n : data_rows;
+
+                for (int i = 0; i < draw_lines; ++i)
+                {
+                    Term_putstr(compact_col, compact_row + 1 + i, -1,
+                        compact_lines[i].attr, compact_lines[i].txt);
+                }
+            }
+        }
+
+#undef APPEND_COMPACT_LINE
+    }
+    else
+    {
+        // Left column
+        for (int i = 0; i < unique_n; ++i)
+            if (unique_buf[i].side == 0)
+                Term_putstr(col, row + flags_left++, -1, unique_buf[i].col, unique_buf[i].txt);
+        for (int i = 0; i < mastery_n;  ++i)
+            Term_putstr(col, row + flags_left++, -1, mastery_buf[i].col, mastery_buf[i].txt);
+        for (int i = 0; i < affinity_n; ++i)
+            Term_putstr(col, row + flags_left++, -1, affinity_buf[i].col, affinity_buf[i].txt);
+
+        // Right column
+        for (int i = 0; i < unique_n; ++i)
+            if (unique_buf[i].side == 1)
+                Term_putstr(col_pen, row + flags_right++, -1, unique_buf[i].col, unique_buf[i].txt);
+        for (int i = 0; i < penalty_n; ++i)
+            Term_putstr(col_pen, row + flags_right++, -1, penalty_buf[i].col, penalty_buf[i].txt);
+    }
 
 #undef HANDLE_SKILL_EX
 #undef HANDLE_UNIQUE
+#undef HANDLE_UNIQUE_U
 
-Term_erase(col +7, row - 5, 30);
+if (!compact_layout)
+{
+    Term_erase(col +7, row - 5, 30);
 
 
 /* Display starting abilities */
-if (character && !(c_info[character].flags_u & UNQ_MIM))
-{
-    const int x     = col + 7;
-    const int y0    = row - 5;
-    const int width = 30;   /* how many cols to clear */
-
-    /* 1) clear out every possible line first */
-    for (int i = 0; i < CHARACTER_ABILITY_MAX - 3; i++)
+    if (character && !(c_info[character].flags_u & UNQ_MIM))
     {
-        Term_erase(x, y0 + i, width);
-    }
+        const int x     = col + 7;
+        const int y0    = row - 5;
+        const int width = 30;   /* how many cols to clear */
 
-    /* 2) now draw the actual list */
-    int y = y0;
-    for (int slot = 0; slot < CHARACTER_ABILITY_MAX; slot++)
-    {
-        int stat = c_info[character].a_adj[slot][0];
-        int abil = c_info[character].a_adj[slot][1];
-
-        if (stat < 0) break;
-
-        if (stat < S_MAX && abil < ABILITIES_MAX)
+        /* 1) clear out every possible line first */
+        for (int i = 0; i < CHARACTER_ABILITY_MAX - 3; i++)
         {
-            const char *name = character_ability_names[stat][abil];
-            if (name)
-                Term_putstr(x, y++, -1, TERM_YELLOW, name);
+            Term_erase(x, y0 + i, width);
+        }
+
+        /* 2) now draw the actual list */
+        int y = y0;
+        for (int slot = 0; slot < CHARACTER_ABILITY_MAX; slot++)
+        {
+            int stat = c_info[character].a_adj[slot][0];
+            int abil = c_info[character].a_adj[slot][1];
+
+            if (stat < 0) break;
+
+            if (stat < S_MAX && abil < ABILITIES_MAX)
+            {
+                const char *name = character_ability_names[stat][abil];
+                if (name)
+                    Term_putstr(x, y++, -1, TERM_YELLOW, name);
+            }
         }
     }
 }
@@ -1417,7 +1636,7 @@ static bool get_player_race(void)
     }
 
     race = get_player_choice(
-        races, z_info->p_max, p_ptr->prace, RACE_COL, 15, race_aux_hook);
+        races, z_info->p_max, p_ptr->prace, RACE_COL, 15, race_aux_hook, false);
 
     /* No selection? */
     if (race == INVALID_CHOICE)
@@ -1464,6 +1683,11 @@ static int is_set(int bit) {
 static void character_aux_hook(birth_menu c_str)
 {
     int character_idx, i, adj;
+    int term_wid = 80;
+    int term_hgt = 24;
+    int name_col;
+    int fallback_name_col;
+    bool aligned_name_fits;
     char s[128];
     byte attr;
 
@@ -1476,6 +1700,12 @@ static void character_aux_hook(birth_menu c_str)
 
     if (character_idx == z_info->c_max)
         return;
+
+    Term_get_size(&term_wid, &term_hgt);
+    if (term_wid < 1)
+        term_wid = 80;
+    if (term_hgt < 1)
+        term_hgt = 24;
 
     /* Clear the entire TOTAL_AUX_COL area FIRST before displaying new info */
     /* Clear from HEADER_ROW down but stop before DESCRIPTION_ROW to preserve history */
@@ -1554,8 +1784,17 @@ static void character_aux_hook(birth_menu c_str)
             break;         /* Default to average */
     }
     
-    Term_putstr(TOTAL_AUX_COL, HEADER_ROW, -1, TERM_L_BLUE, pretty_name);
-    Term_putstr(TOTAL_AUX_COL + strlen(pretty_name), HEADER_ROW, -1, star_attr, power_stars);
+    fallback_name_col = QUESTION_COL + (int)strlen("Character Selection:") + 1;
+    if (fallback_name_col < 0)
+        fallback_name_col = 0;
+    Term_erase(fallback_name_col, HEADER_ROW, 255);
+
+    aligned_name_fits =
+        (TOTAL_AUX_COL + (int)strlen(pretty_name) + (int)strlen(power_stars) < term_wid);
+    name_col = aligned_name_fits ? TOTAL_AUX_COL : fallback_name_col;
+
+    Term_putstr(name_col, HEADER_ROW, -1, TERM_L_BLUE, pretty_name);
+    Term_putstr(name_col + strlen(pretty_name), HEADER_ROW, -1, star_attr, power_stars);
     
     print_rh_flags(
         p_ptr->prace, character_idx, TOTAL_AUX_COL, TABLE_ROW + A_MAX + 1);
@@ -1647,7 +1886,7 @@ static bool get_character_profile(void)
     }
 
     character_choice = get_player_choice(
-        character_menu, character, previous_choice, CLASS_COL, 22, character_aux_hook);
+        character_menu, character, previous_choice, CLASS_COL, 22, character_aux_hook, true);
 
     /* No selection? */
     if (character_choice == INVALID_CHOICE)
@@ -1718,6 +1957,7 @@ NavResult character_creation(void)
         char back_label[16];
         char options_label[16];
         char scores_label[16];
+        char full_desc_label[16];
         char help_label[16];
         char quit_label[16];
         char prompt_buf[160];
@@ -1726,18 +1966,19 @@ NavResult character_creation(void)
         birth_prompt_label('b', "b", back_label, sizeof(back_label));
         birth_prompt_label('o', "o", options_label, sizeof(options_label));
         birth_prompt_label('s', "s", scores_label, sizeof(scores_label));
+        birth_prompt_label('f', "f", full_desc_label, sizeof(full_desc_label));
         birth_prompt_label('?', "?", help_label, sizeof(help_label));
         if (streq(help_label, "?"))
             birth_prompt_label('h', "h", help_label, sizeof(help_label));
         birth_prompt_label('q', "q", quit_label, sizeof(quit_label));
 
         strnfmt(prompt_buf, sizeof(prompt_buf),
-            "%s-random  %s-back  %s-options  %s-scores  %s-help  %s-quit",
-            random_label, back_label, options_label, scores_label, help_label, quit_label);
+            "%s-random  %s-back  %s-options  %s-scores  %s-description  %s-help  %s-quit",
+            random_label, back_label, options_label, scores_label, full_desc_label, help_label, quit_label);
         Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE, prompt_buf);
     } else {
         Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
-            "r -random    ESC -back   o -options   s -scores   h -help   q -quit");
+            "r -random   ESC -back   o -options   s -scores   f -description   h -help   q -quit");
     }
 
     while (phase <= 2)

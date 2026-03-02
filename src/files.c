@@ -4862,6 +4862,15 @@ typedef struct {
     byte attr;
 } help_style_t;
 
+typedef struct {
+    bool use_role;
+    color_role_t role;
+    byte attr;
+    const char* text;
+} help_piece_t;
+
+static int g_help_layout_wid = 80;
+
 static help_doc_cell_t g_help_doc_cells[HELP_DOC_MAX_ROWS][HELP_DOC_CANVAS_W];
 static int g_help_doc_row_max_col[HELP_DOC_MAX_ROWS];
 static help_wrap_line_t g_help_wrap_lines[HELP_DOC_MAX_WRAP_LINES];
@@ -4952,6 +4961,177 @@ static void help_emit_attr(byte attr, const char* s, int row, int col)
         help_doc_record_attr(attr, s, row, col);
     else
         c_put_str(attr, s, row, col);
+}
+
+static void help_emit_piece(const help_piece_t* piece, int row, int* col)
+{
+    int w;
+
+    if (!piece || !piece->text || !col)
+        return;
+
+    if (piece->use_role)
+        help_emit_role(piece->role, piece->text, row, *col);
+    else
+        help_emit_attr(piece->attr, piece->text, row, *col);
+
+    w = (int)strlen(piece->text);
+    *col += w;
+}
+
+static int help_draw_wrapped_pieces(
+    int row,
+    int col,
+    int content_w,
+    const char* prefix_first,
+    const char* prefix_cont,
+    const help_piece_t* pieces,
+    int piece_count)
+{
+    int idx = 0;
+    bool first = true;
+
+    if (!pieces || piece_count <= 0)
+        return row;
+
+    while (idx < piece_count)
+    {
+        const char* prefix = first ? prefix_first : prefix_cont;
+        int prefix_w = (int)strlen(prefix);
+        int avail = content_w - prefix_w;
+        int line_w = 0;
+        int end = idx;
+        int last_break = -1;
+
+        if (avail < 8)
+            avail = 8;
+
+        if (prefix_w > 0)
+            help_emit_role(ROLE_BODY, prefix, row, col);
+
+        while (end < piece_count)
+        {
+            int w = (int)strlen(pieces[end].text);
+            if ((line_w + w <= avail) || (line_w == 0))
+            {
+                const char* t = pieces[end].text;
+                int tlen = (int)strlen(t);
+                line_w += w;
+
+                if (tlen > 0)
+                {
+                    char last = t[tlen - 1];
+                    if (last == ' ' || last == ',' || last == ';' || last == ':' || last == '!' || last == ')')
+                        last_break = end;
+                }
+
+                end++;
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        {
+            int take_end;
+            int out_col = col + prefix_w;
+
+            if (end >= piece_count)
+                take_end = piece_count - 1;
+            else if (last_break >= idx)
+                take_end = last_break;
+            else if (end > idx)
+                take_end = end - 1;
+            else
+                take_end = idx;
+
+            for (int p = idx; p <= take_end; p++)
+                help_emit_piece(&pieces[p], row, &out_col);
+
+            idx = take_end + 1;
+            first = false;
+            row++;
+        }
+    }
+
+    return row;
+}
+
+static int help_draw_combat_formula_block(int row, int col)
+{
+    int content_w = g_help_layout_wid - 2;
+
+    static const help_piece_t line1[] = {
+        { true, ROLE_GOOD, 0, "(+16) 34" },
+        { true, ROLE_BAD, 0, " 20" },
+        { true, ROLE_BODY, 0, " 14 [+4] o" },
+        { true, ROLE_BODY, 0, "  ->  " },
+        { true, ROLE_GOOD, 0, "(4d7) 19" },
+        { true, ROLE_BODY, 0, " - " },
+        { true, ROLE_WARN, 0, "3" },
+        { true, ROLE_BODY, 0, " = " },
+        { true, ROLE_BAD, 0, "16" }
+    };
+
+    static const help_piece_t line2[] = {
+        { true, ROLE_GOOD, 0, "1d20+16=34" },
+        { true, ROLE_BODY, 0, " vs " },
+        { true, ROLE_BODY, 0, "1d20+4=14" },
+        { true, ROLE_BODY, 0, "  ->  " },
+        { true, ROLE_BODY, 0, "margin " },
+        { true, ROLE_BAD, 0, "20" },
+        { true, ROLE_BODY, 0, " = " },
+        { true, ROLE_BAD, 0, "double crit" },
+        { true, ROLE_BODY, 0, "!" }
+    };
+
+    static const help_piece_t line3[] = {
+        { true, ROLE_BODY, 0, "2d5 " },
+        { true, ROLE_BODY, 0, "+2 " },
+        { true, ROLE_BODY, 0, "(Str " },
+        { true, ROLE_BODY, 0, "3 " },
+        { true, ROLE_BODY, 0, "capped " },
+        { true, ROLE_BODY, 0, "by " },
+        { true, ROLE_BODY, 0, "2 " },
+        { true, ROLE_BODY, 0, "lb " },
+        { true, ROLE_BODY, 0, "= " },
+        { true, ROLE_BODY, 0, "2 " },
+        { true, ROLE_BODY, 0, "more " },
+        { true, ROLE_BODY, 0, "sides) " },
+        { true, ROLE_BODY, 0, "= " },
+        { true, ROLE_BODY, 0, "2d7," }
+    };
+
+    static const help_piece_t line4[] = {
+        { true, ROLE_BODY, 0, "+2d7 " },
+        { true, ROLE_BODY, 0, "(1d " },
+        { true, ROLE_BODY, 0, "per " },
+        { true, ROLE_BODY, 0, "7+weight " },
+        { true, ROLE_BODY, 0, "in " },
+        { true, ROLE_BODY, 0, "margin) " },
+        { true, ROLE_BODY, 0, "= " },
+        { true, ROLE_GOOD, 0, "4d7=19" },
+        { true, ROLE_BODY, 0, " - " },
+        { true, ROLE_WARN, 0, "2d4=3" },
+        { true, ROLE_BODY, 0, " = " },
+        { true, ROLE_BAD, 0, "16 dmg" },
+        { true, ROLE_BODY, 0, "!" }
+    };
+
+    if (content_w < 24)
+        content_w = 24;
+
+    row = help_draw_wrapped_pieces(row, col, content_w, "  @ ", "    ",
+        line1, N_ELEMENTS(line1));
+    row = help_draw_wrapped_pieces(row, col, content_w, "  Attack:  ", "           ",
+        line2, N_ELEMENTS(line2));
+    row = help_draw_wrapped_pieces(row, col, content_w, "  Damage:  ", "           ",
+        line3, N_ELEMENTS(line3));
+    row = help_draw_wrapped_pieces(row, col, content_w, "           ", "           ",
+        line4, N_ELEMENTS(line4));
+
+    return row;
 }
 
 static char help_doc_char_at(int row, int col)
@@ -5608,37 +5788,45 @@ static void show_help_screen_legacy(int i, bool include_header)
         row++;
         put_role(ROLE_BODY, "- Ex: You (Str 3, Melee 16, Longsword 2d5, 2.0 lb) vs Orc [+4, 2d4]:", row, col);
         row += 2;
-        put_role(ROLE_BODY, "  @ ", row, col);
-        put_role(ROLE_GOOD, "(+16) 34", row, col + 4);
-        put_role(ROLE_BAD, " 20", row, col + 12);
-        put_role(ROLE_BODY, "  14 [+4] o", row, col + 15);
-        put_role(ROLE_BODY, "  ->  ", row, col + 26);
-        put_role(ROLE_GOOD, "(4d7) 19", row, col + 32);
-        put_role(ROLE_BODY, " - ", row, col + 40);
-        put_role(ROLE_WARN, "3", row, col + 43);
-        put_role(ROLE_BODY, " = ", row, col + 44);
-        put_role(ROLE_BAD, "16", row, col + 47);
-        row ++;
-        put_role(ROLE_BODY, "  Attack:  ", row, col);
-        put_role(ROLE_GOOD, "1d20+16=34", row, col + 11);
-        put_role(ROLE_BODY, " vs ", row, col + 21);
-        put_role(ROLE_BODY, "1d20+4=14", row, col + 25);
-        put_role(ROLE_BODY, "  ->  margin ", row, col + 34);
-        put_role(ROLE_BAD, "20", row, col + 47);
-        put_role(ROLE_BODY, " = ", row, col + 49);
-        put_role(ROLE_BAD, "double crit", row, col + 52);
-        put_role(ROLE_BODY, "!", row, col + 63);
-        row++;
-        put_role(ROLE_BODY, "  Damage:  2d5 +2 (Str 3 capped by 2 lb = 2 more sides) = 2d7,", row, col);
-        row++;
-        put_role(ROLE_BODY, "           +2d7 (1d per 7+weight in margin) = ", row, col);
-        put_role(ROLE_GOOD, "4d7=19", row, col + 46);
-        put_role(ROLE_BODY, " - ", row, col + 52);
-        put_role(ROLE_WARN, "2d4=3", row, col + 55);
-        put_role(ROLE_BODY, " = ", row, col + 60);
-        put_role(ROLE_BAD, "16 dmg", row, col + 63);
-        put_role(ROLE_BODY, "!", row, col + 69);
-        row += 2;
+        if (include_header)
+        {
+            put_role(ROLE_BODY, "  @ ", row, col);
+            put_role(ROLE_GOOD, "(+16) 34", row, col + 4);
+            put_role(ROLE_BAD, " 20", row, col + 12);
+            put_role(ROLE_BODY, "  14 [+4] o", row, col + 15);
+            put_role(ROLE_BODY, "  ->  ", row, col + 26);
+            put_role(ROLE_GOOD, "(4d7) 19", row, col + 32);
+            put_role(ROLE_BODY, " - ", row, col + 40);
+            put_role(ROLE_WARN, "3", row, col + 43);
+            put_role(ROLE_BODY, " = ", row, col + 44);
+            put_role(ROLE_BAD, "16", row, col + 47);
+            row ++;
+            put_role(ROLE_BODY, "  Attack:  ", row, col);
+            put_role(ROLE_GOOD, "1d20+16=34", row, col + 11);
+            put_role(ROLE_BODY, " vs ", row, col + 21);
+            put_role(ROLE_BODY, "1d20+4=14", row, col + 25);
+            put_role(ROLE_BODY, "  ->  margin ", row, col + 34);
+            put_role(ROLE_BAD, "20", row, col + 47);
+            put_role(ROLE_BODY, " = ", row, col + 49);
+            put_role(ROLE_BAD, "double crit", row, col + 52);
+            put_role(ROLE_BODY, "!", row, col + 63);
+            row++;
+            put_role(ROLE_BODY, "  Damage:  2d5 +2 (Str 3 capped by 2 lb = 2 more sides) = 2d7,", row, col);
+            row++;
+            put_role(ROLE_BODY, "           +2d7 (1d per 7+weight in margin) = ", row, col);
+            put_role(ROLE_GOOD, "4d7=19", row, col + 46);
+            put_role(ROLE_BODY, " - ", row, col + 52);
+            put_role(ROLE_WARN, "2d4=3", row, col + 55);
+            put_role(ROLE_BODY, " = ", row, col + 60);
+            put_role(ROLE_BAD, "16 dmg", row, col + 63);
+            put_role(ROLE_BODY, "!", row, col + 69);
+            row += 2;
+        }
+        else
+        {
+            row = help_draw_combat_formula_block(row, col);
+            row += 1;
+        }
 
         help_emit_heading("EVASION VS ARMOUR", row, col); row++;
         put_role(ROLE_BODY, "- ", row, col);
@@ -6143,6 +6331,7 @@ void do_cmd_help(void)
 
         /* Get current terminal size before deciding layout */
         Term_get_size(&wid, &hgt);
+        g_help_layout_wid = wid;
         legacy = help_use_legacy_layout(wid, hgt);
 
         if (legacy)
