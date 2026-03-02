@@ -1,5 +1,15 @@
 # Session notes
 
+## 2026-03-02: Help menu adaptive pagination for small/large terminals
+- Updated `src/files.c` help flow to preserve the existing handcrafted 8-page layout exactly at `80x24`, while using a dynamic text-topic paginator on other terminal sizes.
+- For non-`80x24`, help now paginates the *existing handcrafted help renderer* by recording its draw operations into a single document and slicing it by terminal height.
+- This preserves the exact wording and per-word colouring of the legacy help; only page breaks (and therefore page count) change with terminal height.
+- Pagination uses the correct drawable body height (`hgt - 3`) and avoids orphaned titles by never ending a page on a heading row.
+- Dynamic help now also reflows recorded rows by current terminal width before pagination, so shrinking width (not just height) changes page count and fits more strings without clipping.
+- Removed forced no-wrap handling for combat formula rows in help; formulas now follow the same word-wrap rules as all other help lines.
+- Help navigation prompt and `x` page-jump now use runtime total pages; page-jump accepts typed numeric input via `askfor_aux()` (works when page count exceeds 9).
+- Validation: `cmake --build build-standard --parallel` completed successfully.
+
 ## 2026-03-02: Dynamic character sheet for narrow and wide screens
 - Reworked compact character sheet paging for narrow terminals in `src/cmd4.c`: when width is below 80, character sheet now uses 4 pages (`overview`, `stats`, `skills`, `history`) and supports page switching via `4/6` (or equivalent D-pad keys). Default compact page is `skills`.
 - Updated character sheet prompt row to use dynamic terminal height instead of hard-coded row 23, with a compact prompt variant + page name/indicator for small widths.

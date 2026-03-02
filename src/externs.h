@@ -729,6 +729,8 @@ extern errr check_time_init(void);
 extern void display_player_stat_info(int row, int col);
 extern void display_player_xtra_info(int mode);
 extern void display_player(int mode);
+extern void display_player_compact_stats_skills_highlighted(int selected_skill);
+extern void display_player_compact_stats_skills_highlighted_stat(int selected_stat);
 extern void display_character_tutorial(void);
 extern errr file_character(cptr name, bool full);
 extern bool show_buffer(cptr name, int line);

@@ -3160,6 +3160,8 @@ static void display_player_compact_heading(cptr text, int row, int col)
         sdl_story_font_disable();
 }
 
+static int compact_stat_highlight = -1;
+
 static void display_player_compact_description_and_flags(int row_start)
 {
     int wid = 80;
@@ -3271,6 +3273,7 @@ static void display_player_compact_attribute_line(int row, int col, int max_cols
     int end_col = col + max_cols - 1;
     int val_start = end_col - val_w + 1;
     int label_w = val_start - col;
+    byte line_attr = (stat == compact_stat_highlight) ? TERM_L_BLUE : TERM_WHITE;
     if (label_w < 1)
         label_w = 1;
 
@@ -3303,7 +3306,7 @@ static void display_player_compact_attribute_line(int row, int col, int max_cols
     if (story_character_enabled())
         sdl_story_font_enable();
 
-    Term_putstr(col, row, -1, TERM_WHITE, label_buf);
+    Term_putstr(col, row, -1, line_attr, label_buf);
 
     if (story_character_enabled())
         sdl_story_font_disable();
@@ -3322,7 +3325,8 @@ static void display_player_compact_attribute_line(int row, int col, int max_cols
         out_col = val_start;
 
     byte stat_color = (p_ptr->stat_drain[stat] < 0) ? TERM_YELLOW : TERM_L_GREEN;
-    Term_putstr(out_col, row, val_len, stat_color, val_text);
+    byte value_attr = (stat == compact_stat_highlight) ? TERM_L_BLUE : stat_color;
+    Term_putstr(out_col, row, val_len, value_attr, val_text);
 }
 
 static void display_player_compact_attributes(int row_start, int max_cols)
@@ -3351,6 +3355,7 @@ static void display_player_compact_attributes(int row_start, int max_cols)
 
 /* Forward declaration: used by combined compact pages. */
 static void display_player_compact_skills_list(int row_start);
+static int compact_skill_highlight = -1;
 
 static void display_player_compact_skill_line(int row, int col, int max_cols, int skill)
 {
@@ -3386,6 +3391,8 @@ static void display_player_compact_skill_line(int row, int col, int max_cols, in
     int end_col = col + max_cols - 1;
     int val_start = end_col - val_w + 1;
     int label_w = val_start - col;
+    byte line_attr = (skill == compact_skill_highlight) ? TERM_L_BLUE : TERM_WHITE;
+    byte value_attr = (skill == compact_skill_highlight) ? TERM_L_BLUE : TERM_L_GREEN;
     if (label_w < 1)
         label_w = 1;
 
@@ -3416,7 +3423,7 @@ static void display_player_compact_skill_line(int row, int col, int max_cols, in
     if (story_character_enabled())
         sdl_story_font_enable();
 
-    Term_putstr(col, row, -1, TERM_WHITE, label_buf);
+    Term_putstr(col, row, -1, line_attr, label_buf);
 
     if (story_character_enabled())
         sdl_story_font_disable();
@@ -3434,7 +3441,7 @@ static void display_player_compact_skill_line(int row, int col, int max_cols, in
     if (out_col < val_start)
         out_col = val_start;
 
-    Term_putstr(out_col, row, val_len, TERM_L_GREEN, val_text);
+    Term_putstr(out_col, row, val_len, value_attr, val_text);
 }
 
 static void display_player_compact_attributes_and_skills(int row_start)
@@ -3902,6 +3909,22 @@ void display_player(int mode)
     }
 
     sdl_story_font_reset();
+}
+
+void display_player_compact_stats_skills_highlighted(int selected_skill)
+{
+    compact_stat_highlight = -1;
+    compact_skill_highlight = selected_skill;
+    display_player(DISPLAY_PLAYER_MODE_COMPACT_STATS_SKILLS);
+    compact_skill_highlight = -1;
+}
+
+void display_player_compact_stats_skills_highlighted_stat(int selected_stat)
+{
+    compact_skill_highlight = -1;
+    compact_stat_highlight = selected_stat;
+    display_player(DISPLAY_PLAYER_MODE_COMPACT_STATS_SKILLS);
+    compact_stat_highlight = -1;
 }
 
 /*
@@ -4778,9 +4801,586 @@ static void help_prompt_label(int binding, const char* fallback, char* buf, size
         SDL_strlcpy(buf, fallback, buflen);
 }
 
+/* ------------------------------------------------------------------------
+ * Dynamic help pagination
+ *
+ * Requirement: keep the *existing* help text and colouring exactly the same.
+ * Only formatting (which strings appear on which page) should change.
+ *
+ * Approach: record the handcrafted legacy help rendering into a list of draw
+ * operations, stack all 8 pages into one document, then paginate that document
+ * by current terminal height.
+ */
+
+typedef struct {
+    bool use_role;
+    bool is_heading;
+    color_role_t role;
+    byte attr;
+    const char* text;
+    int y;
+    int x;
+} help_draw_op_t;
+
+#define HELP_DOC_MAX_OPS 8192
+#define HELP_DOC_MAX_ROWS 1024
+#define HELP_DOC_MAX_PAGES 256
+#define HELP_DOC_STRING_POOL_SIZE 65536
+#define HELP_DOC_CANVAS_W 192
+#define HELP_DOC_MAX_WRAP_LINES 8192
+
+static help_draw_op_t g_help_doc_ops[HELP_DOC_MAX_OPS];
+static int g_help_doc_ops_n = 0;
+
+static char g_help_doc_string_pool[HELP_DOC_STRING_POOL_SIZE];
+static size_t g_help_doc_string_pool_used = 0;
+
+static bool g_help_record_ops = false;
+static int g_help_record_base_y = 0;
+static int g_help_record_page_min_y = 0;
+static int g_help_record_page_max_y = 0;
+
+typedef struct {
+    bool used;
+    bool use_role;
+    color_role_t role;
+    byte attr;
+    char ch;
+} help_doc_cell_t;
+
+typedef struct {
+    int src_y;
+    int col_start;
+    int col_len;
+    bool is_blank;
+    bool is_heading;
+} help_wrap_line_t;
+
+typedef struct {
+    bool use_role;
+    color_role_t role;
+    byte attr;
+} help_style_t;
+
+static help_doc_cell_t g_help_doc_cells[HELP_DOC_MAX_ROWS][HELP_DOC_CANVAS_W];
+static int g_help_doc_row_max_col[HELP_DOC_MAX_ROWS];
+static help_wrap_line_t g_help_wrap_lines[HELP_DOC_MAX_WRAP_LINES];
+
+/* Forward declaration: used for recording. */
+static void show_help_screen_legacy(int i, bool include_header);
+
+static const char* help_doc_intern_string(const char* s)
+{
+    size_t len;
+    char* dst;
+
+    if (!s)
+        s = "";
+
+    len = strlen(s) + 1;
+    if (len > HELP_DOC_STRING_POOL_SIZE)
+        return s;
+
+    if (g_help_doc_string_pool_used + len > HELP_DOC_STRING_POOL_SIZE)
+        return s;
+
+    dst = g_help_doc_string_pool + g_help_doc_string_pool_used;
+    memcpy(dst, s, len);
+    g_help_doc_string_pool_used += len;
+    return dst;
+}
+
+static void help_doc_record_role(color_role_t role, const char* s, bool is_heading, int row, int col)
+{
+    if (g_help_doc_ops_n >= HELP_DOC_MAX_OPS)
+        return;
+
+    g_help_doc_ops[g_help_doc_ops_n].use_role = true;
+    g_help_doc_ops[g_help_doc_ops_n].is_heading = is_heading;
+    g_help_doc_ops[g_help_doc_ops_n].role = role;
+    g_help_doc_ops[g_help_doc_ops_n].attr = 0;
+    g_help_doc_ops[g_help_doc_ops_n].text = help_doc_intern_string(s);
+    g_help_doc_ops[g_help_doc_ops_n].y = g_help_record_base_y + row;
+    g_help_doc_ops[g_help_doc_ops_n].x = col;
+    g_help_doc_ops_n++;
+
+    if (g_help_record_page_min_y > g_help_record_base_y + row)
+        g_help_record_page_min_y = g_help_record_base_y + row;
+    if (g_help_record_page_max_y < g_help_record_base_y + row)
+        g_help_record_page_max_y = g_help_record_base_y + row;
+}
+
+static void help_doc_record_attr(byte attr, const char* s, int row, int col)
+{
+    if (g_help_doc_ops_n >= HELP_DOC_MAX_OPS)
+        return;
+
+    g_help_doc_ops[g_help_doc_ops_n].use_role = false;
+    g_help_doc_ops[g_help_doc_ops_n].is_heading = false;
+    g_help_doc_ops[g_help_doc_ops_n].role = ROLE_BODY;
+    g_help_doc_ops[g_help_doc_ops_n].attr = attr;
+    g_help_doc_ops[g_help_doc_ops_n].text = help_doc_intern_string(s);
+    g_help_doc_ops[g_help_doc_ops_n].y = g_help_record_base_y + row;
+    g_help_doc_ops[g_help_doc_ops_n].x = col;
+    g_help_doc_ops_n++;
+
+    if (g_help_record_page_min_y > g_help_record_base_y + row)
+        g_help_record_page_min_y = g_help_record_base_y + row;
+    if (g_help_record_page_max_y < g_help_record_base_y + row)
+        g_help_record_page_max_y = g_help_record_base_y + row;
+}
+
+static void help_emit_role(color_role_t role, const char* s, int row, int col)
+{
+    if (g_help_record_ops)
+        help_doc_record_role(role, s, false, row, col);
+    else
+        put_role(role, s, row, col);
+}
+
+static void help_emit_heading(const char* s, int row, int col)
+{
+    if (g_help_record_ops)
+        help_doc_record_role(ROLE_SECTION, s, true, row, col);
+    else
+        put_role(ROLE_SECTION, s, row, col);
+}
+
+static void help_emit_attr(byte attr, const char* s, int row, int col)
+{
+    if (g_help_record_ops)
+        help_doc_record_attr(attr, s, row, col);
+    else
+        c_put_str(attr, s, row, col);
+}
+
+static char help_doc_char_at(int row, int col)
+{
+    if (row < 0 || row >= HELP_DOC_MAX_ROWS || col < 0 || col >= HELP_DOC_CANVAS_W)
+        return ' ';
+
+    if (!g_help_doc_cells[row][col].used)
+        return ' ';
+
+    return g_help_doc_cells[row][col].ch;
+}
+
+static bool help_use_legacy_layout(int wid, int hgt)
+{
+    return (wid == 80) && (hgt == 24);
+}
+
+static int help_build_document_ops(int* out_doc_hgt, bool row_has_content[HELP_DOC_MAX_ROWS], bool row_has_heading[HELP_DOC_MAX_ROWS])
+{
+    int page;
+    int base_y = 0;
+    int start_op;
+    int end_op;
+    int shift;
+    int doc_max_y = -1;
+
+    g_help_doc_ops_n = 0;
+    g_help_doc_string_pool_used = 0;
+
+    for (page = 1; page <= HELP_TOTAL_PAGES; page++)
+    {
+        int op_idx;
+        int page_height;
+
+        g_help_record_ops = true;
+        g_help_record_base_y = base_y;
+        g_help_record_page_min_y = INT_MAX;
+        g_help_record_page_max_y = INT_MIN;
+
+        start_op = g_help_doc_ops_n;
+        show_help_screen_legacy(page, false);
+        end_op = g_help_doc_ops_n;
+
+        if (end_op <= start_op)
+            continue;
+
+        /* Normalize each recorded legacy page so it starts at y=base_y */
+        shift = g_help_record_page_min_y - base_y;
+        if (shift < 0)
+            shift = 0;
+        for (op_idx = start_op; op_idx < end_op; op_idx++)
+            g_help_doc_ops[op_idx].y -= shift;
+
+        page_height = (g_help_record_page_max_y - g_help_record_page_min_y + 1);
+        if (page_height < 1)
+            page_height = 1;
+
+        base_y += page_height + 1;
+    }
+
+    g_help_record_ops = false;
+
+    /* Build per-row markers */
+    for (int r = 0; r < HELP_DOC_MAX_ROWS; r++)
+    {
+        row_has_content[r] = false;
+        row_has_heading[r] = false;
+    }
+
+    for (int op = 0; op < g_help_doc_ops_n; op++)
+    {
+        int y = g_help_doc_ops[op].y;
+        if (y < 0 || y >= HELP_DOC_MAX_ROWS)
+            continue;
+        row_has_content[y] = true;
+        if (g_help_doc_ops[op].is_heading)
+            row_has_heading[y] = true;
+        if (y > doc_max_y)
+            doc_max_y = y;
+    }
+
+    if (doc_max_y < 0)
+        doc_max_y = 0;
+    if (out_doc_hgt)
+        *out_doc_hgt = doc_max_y + 1;
+
+    return g_help_doc_ops_n;
+}
+
+static void help_rasterize_document(int doc_hgt)
+{
+    int y;
+    int op;
+
+    for (y = 0; y < HELP_DOC_MAX_ROWS; y++)
+    {
+        g_help_doc_row_max_col[y] = -1;
+        memset(g_help_doc_cells[y], 0, sizeof(g_help_doc_cells[y]));
+    }
+
+    for (op = 0; op < g_help_doc_ops_n; op++)
+    {
+        const help_draw_op_t* src = &g_help_doc_ops[op];
+        int row = src->y;
+        int base_col = src->x - 1;
+        int len;
+
+        if (row < 0 || row >= HELP_DOC_MAX_ROWS || row >= doc_hgt)
+            continue;
+        if (!src->text)
+            continue;
+
+        len = (int)strlen(src->text);
+        for (int k = 0; k < len; k++)
+        {
+            int col = base_col + k;
+            help_doc_cell_t* cell;
+
+            if (col < 0 || col >= HELP_DOC_CANVAS_W)
+                continue;
+
+            cell = &g_help_doc_cells[row][col];
+            cell->used = true;
+            cell->use_role = src->use_role;
+            cell->role = src->role;
+            cell->attr = src->attr;
+            cell->ch = src->text[k];
+
+            if (col > g_help_doc_row_max_col[row])
+                g_help_doc_row_max_col[row] = col;
+        }
+    }
+}
+
+static int help_build_wrapped_lines(
+    int term_wid,
+    int doc_hgt,
+    const bool row_has_heading[HELP_DOC_MAX_ROWS],
+    help_wrap_line_t* lines,
+    int max_lines)
+{
+    int content_w = term_wid - 2;
+    int count = 0;
+
+    if (content_w < 10)
+        content_w = 10;
+
+    for (int y = 0; y < doc_hgt && y < HELP_DOC_MAX_ROWS; y++)
+    {
+        int row_len = g_help_doc_row_max_col[y] + 1;
+
+        while (row_len > 0 && help_doc_char_at(y, row_len - 1) == ' ')
+            row_len--;
+
+        if (row_len <= 0)
+        {
+            if (count >= max_lines)
+                break;
+            lines[count].src_y = y;
+            lines[count].col_start = 0;
+            lines[count].col_len = 0;
+            lines[count].is_blank = true;
+            lines[count].is_heading = false;
+            count++;
+            continue;
+        }
+
+        {
+            int start = 0;
+
+            while (start < row_len)
+            {
+                int remaining = row_len - start;
+                int len = remaining;
+
+                if (len > content_w)
+                {
+                    int break_col = -1;
+                    int scan_start = start + 1;
+                    int scan_end = start + content_w - 1;
+
+                    if (scan_end >= row_len)
+                        scan_end = row_len - 1;
+
+                    for (int c = scan_end; c >= scan_start; c--)
+                    {
+                        char ch = help_doc_char_at(y, c);
+                        if (ch == ' ' || ch == '\t')
+                        {
+                            break_col = c;
+                            break;
+                        }
+                    }
+
+                    if (break_col >= 0)
+                    {
+                        len = break_col - start + 1;
+                        while (len > 0)
+                        {
+                            char end_ch = help_doc_char_at(y, start + len - 1);
+                            if (end_ch != ' ' && end_ch != '\t')
+                                break;
+                            len--;
+                        }
+
+                        if (len <= 0)
+                        {
+                            start = break_col + 1;
+                            while (start < row_len)
+                            {
+                                char skip = help_doc_char_at(y, start);
+                                if (skip != ' ' && skip != '\t')
+                                    break;
+                                start++;
+                            }
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        len = content_w;
+                    }
+                }
+
+                if (count >= max_lines)
+                    break;
+
+                lines[count].src_y = y;
+                lines[count].col_start = start;
+                lines[count].col_len = len;
+                lines[count].is_blank = false;
+                lines[count].is_heading = (row_has_heading[y] && (start == 0));
+                count++;
+
+                start += len;
+                while (start < row_len)
+                {
+                    char skip = help_doc_char_at(y, start);
+                    if (skip != ' ' && skip != '\t')
+                        break;
+                    start++;
+                }
+            }
+
+            if (count >= max_lines)
+                break;
+        }
+    }
+
+    if (count < 1)
+    {
+        lines[0].src_y = 0;
+        lines[0].col_start = 0;
+        lines[0].col_len = 0;
+        lines[0].is_blank = true;
+        lines[0].is_heading = false;
+        count = 1;
+    }
+
+    return count;
+}
+
+static bool help_style_equal(help_style_t a, help_style_t b)
+{
+    return (a.use_role == b.use_role)
+        && (a.role == b.role)
+        && (a.attr == b.attr);
+}
+
+static void help_render_wrapped_line(const help_wrap_line_t* line, int screen_y, int term_wid)
+{
+    help_style_t current_style;
+    bool have_style = false;
+    int run_start = 0;
+    int run_len = 0;
+    char run_buf[HELP_DOC_CANVAS_W + 1];
+
+    int draw_len;
+
+    if (!line || line->is_blank || line->col_len <= 0)
+        return;
+
+    draw_len = line->col_len;
+    if (draw_len > term_wid - 1)
+        draw_len = term_wid - 1;
+    if (draw_len <= 0)
+        return;
+
+    for (int i = 0; i < draw_len; i++)
+    {
+        int src_col = line->col_start + i;
+        char ch = ' ';
+        help_style_t style;
+
+        style.use_role = true;
+        style.role = ROLE_BODY;
+        style.attr = 0;
+
+        if (src_col >= 0 && src_col < HELP_DOC_CANVAS_W)
+        {
+            const help_doc_cell_t* cell = &g_help_doc_cells[line->src_y][src_col];
+            if (cell->used)
+            {
+                ch = cell->ch;
+                style.use_role = cell->use_role;
+                style.role = cell->role;
+                style.attr = cell->attr;
+            }
+        }
+
+        if (!have_style)
+        {
+            current_style = style;
+            have_style = true;
+            run_start = i;
+            run_len = 0;
+        }
+        else if (!help_style_equal(current_style, style))
+        {
+            if (run_len > 0)
+            {
+                run_buf[run_len] = '\0';
+                if (current_style.use_role)
+                    put_role(current_style.role, run_buf, screen_y, 1 + run_start);
+                else
+                    c_put_str(current_style.attr, run_buf, screen_y, 1 + run_start);
+            }
+
+            current_style = style;
+            run_start = i;
+            run_len = 0;
+        }
+
+        run_buf[run_len++] = ch;
+    }
+
+    if (have_style && run_len > 0)
+    {
+        run_buf[run_len] = '\0';
+        if (current_style.use_role)
+            put_role(current_style.role, run_buf, screen_y, 1 + run_start);
+        else
+            c_put_str(current_style.attr, run_buf, screen_y, 1 + run_start);
+    }
+}
+
+static int help_dynamic_build_document_pages(
+    int term_hgt,
+    const help_wrap_line_t* lines,
+    int line_count,
+    int page_starts[HELP_DOC_MAX_PAGES],
+    int page_ends[HELP_DOC_MAX_PAGES])
+{
+    int capacity = term_hgt - 3;
+    int start = 0;
+    int page_count = 0;
+
+    if (capacity < 4)
+        capacity = 4;
+
+    while ((start < line_count) && (page_count < HELP_DOC_MAX_PAGES))
+    {
+        int end = start + capacity - 1;
+        if (end >= line_count)
+            end = line_count - 1;
+
+        while (end > start && lines[end].is_heading)
+        {
+            end--;
+        }
+
+        page_starts[page_count] = start;
+        page_ends[page_count] = end;
+        page_count++;
+
+        start = end + 1;
+    }
+
+    if (page_count < 1)
+    {
+        page_starts[0] = 0;
+        page_ends[0] = 0;
+        page_count = 1;
+    }
+
+    return page_count;
+}
+
+static void show_help_screen_dynamic_document(
+    int page,
+    int total_pages,
+    int term_wid,
+    int term_hgt,
+    const help_wrap_line_t* lines,
+    int line_start,
+    int line_end)
+{
+    char header[96];
+    const int col = 1;
+    const int top = 2;
+
+    strnfmt(header, sizeof(header),
+        "SIL-MORE: SHINING DARKNESS - HELP [%d/%d]",
+        page, total_pages);
+    put_role(ROLE_HEADER, header, 0, col);
+
+    for (int line_idx = line_start; line_idx <= line_end; line_idx++)
+    {
+        int screen_y = top + (line_idx - line_start);
+        if (screen_y < top || screen_y >= term_hgt - 1)
+            continue;
+
+        help_render_wrapped_line(&lines[line_idx], screen_y, term_wid);
+    }
+}
+
 /* -------- Help pages ----------------------------------------------------- */
 
-void show_help_screen(int i)
+/*
+ * NOTE: This function is used in two modes:
+ *  - Normal draw mode: g_help_record_ops=false (calls put_role/c_put_str)
+ *  - Record mode:      g_help_record_ops=true  (records ops, no drawing)
+ *
+ * We redirect put_role/c_put_str to record-aware emitters via macros.
+ */
+#define put_role help_emit_role
+#define c_put_str help_emit_attr
+static void show_help_screen_legacy(int i, bool include_header)
 {
     int row, col, col2;
     char page_header[96];
@@ -4791,11 +5391,14 @@ void show_help_screen(int i)
     {
         /* SIL-MORE: HELP [1/8]: GOAL & HEROES */
         row = 0; col = 1;
-        sprintf(page_header, "SIL-MORE: SHINING DARKNESS - HELP [%d/%d]: GOAL & HEROES", i, HELP_TOTAL_PAGES);
-        put_role(ROLE_HEADER, page_header, row, col);
+        if (include_header)
+        {
+            sprintf(page_header, "SIL-MORE: SHINING DARKNESS - HELP [%d/%d]: GOAL & HEROES", i, HELP_TOTAL_PAGES);
+            put_role(ROLE_HEADER, page_header, row, col);
+        }
         row += 2;
 
-        put_role(ROLE_SECTION, "GOAL", row, col); row++;
+        help_emit_heading("GOAL", row, col); row++;
         put_role(ROLE_BODY, "- Steal ", row, col);
         put_role(ROLE_TERM, "Silmarils", row, col + 8);
         put_role(ROLE_BODY, " across runs; the saga ends when you've taken ", row, col + 17);
@@ -4819,7 +5422,7 @@ void show_help_screen(int i)
         put_role(ROLE_BODY, ".", row, col + 73);
         row += 2;
 
-        put_role(ROLE_SECTION, "HEROES OF LEGEND", row, col); row++;
+        help_emit_heading("HEROES OF LEGEND", row, col); row++;
         put_role(ROLE_BODY, "- Choose a fixed hero: ", row, col);
         put_role(ROLE_TERM, "Feanor, Fingolfin, Beren, Luthien", row, col + 23);
         put_role(ROLE_BODY, ", and others.", row, col + 56);
@@ -4845,7 +5448,7 @@ void show_help_screen(int i)
         put_role(ROLE_BODY, "- Hint - The Stave of Self-Knowledge can show hidden traits.", row, col);
         row += 2;
 
-        put_role(ROLE_SECTION, "HELP FROM VALAR", row, col); row++;
+        help_emit_heading("HELP FROM VALAR", row, col); row++;
         put_role(ROLE_BODY, "- The ", row, col);
         put_role(ROLE_TERM, "Valar", row, col + 6);
         put_role(ROLE_BODY, " guide worthy heroes through ", row, col + 11);
@@ -4872,11 +5475,14 @@ void show_help_screen(int i)
     {
         /* SIL-MORE: HELP [2/8]: START & DEPTH */
         row = 0; col = 1;
-        sprintf(page_header, "SIL-MORE: SHINING DARKNESS - HELP [%d/%d]: START & DEPTH", i, HELP_TOTAL_PAGES);
-        put_role(ROLE_HEADER, page_header, row, col);
+        if (include_header)
+        {
+            sprintf(page_header, "SIL-MORE: SHINING DARKNESS - HELP [%d/%d]: START & DEPTH", i, HELP_TOTAL_PAGES);
+            put_role(ROLE_HEADER, page_header, row, col);
+        }
         row += 2;
 
-        put_role(ROLE_SECTION, "START", row, col); row++;
+        help_emit_heading("START", row, col); row++;
         put_role(ROLE_BODY, "- You begin with a ", row, col);
         put_role(ROLE_SUBTLE, "basic weapon", row, col + 19);
         put_role(ROLE_BODY, " and ", row, col + 31);
@@ -4890,7 +5496,7 @@ void show_help_screen(int i)
         put_role(ROLE_BODY, ".", row, col + 56);
         row += 2;
 
-        put_role(ROLE_SECTION, "DEPTH & ESCAPE", row, col); row++;
+        help_emit_heading("DEPTH & ESCAPE", row, col); row++;
         put_role(ROLE_BODY, "- Angband drags you down: your ", row, col);
         put_role(ROLE_TERM, "Minimum Depth", row, col + 31);
         put_role(ROLE_BODY, " rises as time passes.", row, col + 44);
@@ -4902,7 +5508,7 @@ void show_help_screen(int i)
         put_role(ROLE_BODY, "- Every lvl is generated anew-don't be afraid to climb back upstairs if stuck.", row, col);
         row += 2;
 
-        put_role(ROLE_SECTION, "ELEMENTS", row, col); row++;
+        help_emit_heading("ELEMENTS", row, col); row++;
         /* Fire */
         put_role(ROLE_BODY, "- ", row, col);
         put_role(ROLE_ELEM_FIRE, "Fire", row, col + 2);
@@ -4943,7 +5549,7 @@ void show_help_screen(int i)
         put_role(ROLE_BODY, "- Mixed elemental attacks will roll extra dice when you lack resistance.", row, col);
         row += 2;
 
-        put_role(ROLE_SECTION, "STATUS & MORALE", row, col); row++;
+        help_emit_heading("STATUS & MORALE", row, col); row++;
         put_role(ROLE_BODY, "- Foes are Asleep, Unwary, Alert; your noise sets the stage.", row, col);
         row++;
         put_role(ROLE_BODY, "- Stealth turns (S) and waiting are potent for slipping past sentries.", row, col);
@@ -4956,11 +5562,14 @@ void show_help_screen(int i)
     {
         /* SIL-MORE: HELP [3/8]: COMBAT & DEFENCE */
         row = 0; col = 1;
-        sprintf(page_header, "SIL-MORE: SHINING DARKNESS - HELP [%d/%d]: COMBAT & DEFENCE", i, HELP_TOTAL_PAGES);
-        put_role(ROLE_HEADER, page_header, row, col);
+        if (include_header)
+        {
+            sprintf(page_header, "SIL-MORE: SHINING DARKNESS - HELP [%d/%d]: COMBAT & DEFENCE", i, HELP_TOTAL_PAGES);
+            put_role(ROLE_HEADER, page_header, row, col);
+        }
         row += 2;
 
-        put_role(ROLE_SECTION, "COMBAT BASICS", row, col); row++;
+        help_emit_heading("COMBAT BASICS", row, col); row++;
         put_role(ROLE_BODY, "- Two opposed rolls decide hits: your Melee vs their ", row, col);
         put_role(ROLE_TERM, "Evasion", row, col + 53);
         put_role(ROLE_BODY, " (and vice versa).", row, col + 60);
@@ -4992,7 +5601,7 @@ void show_help_screen(int i)
         put_role(ROLE_BODY, " for extra hurt.", row, col + 39);
         row += 2;
 
-        put_role(ROLE_SECTION, "NUMBERS AT A GLANCE", row, col); row++;
+        help_emit_heading("NUMBERS AT A GLANCE", row, col); row++;
         put_role(ROLE_BODY, "- Weapons show (attack, damage). ", row, col);
         put_role(ROLE_TERM, "Armour", row, col + 33);
         put_role(ROLE_BODY, " shows [evasion, protection].", row, col + 39);
@@ -5031,7 +5640,7 @@ void show_help_screen(int i)
         put_role(ROLE_BODY, "!", row, col + 69);
         row += 2;
 
-        put_role(ROLE_SECTION, "EVASION VS ARMOUR", row, col); row++;
+        help_emit_heading("EVASION VS ARMOUR", row, col); row++;
         put_role(ROLE_BODY, "- ", row, col);
         put_role(ROLE_TERM, "Evasion", row, col + 2);
         put_role(ROLE_BODY, " helps you not be hit at all; it's reduced if surrounded.", row, col + 9);
@@ -5048,11 +5657,14 @@ void show_help_screen(int i)
     {
         /* SIL-MORE: HELP [4/8]: EARLY TIPS */
         row = 0; col = 1;
-        sprintf(page_header, "SIL-MORE: SHINING DARKNESS - HELP [%d/%d]: EARLY TIPS", i, HELP_TOTAL_PAGES);
-        put_role(ROLE_HEADER, page_header, row, col);
+        if (include_header)
+        {
+            sprintf(page_header, "SIL-MORE: SHINING DARKNESS - HELP [%d/%d]: EARLY TIPS", i, HELP_TOTAL_PAGES);
+            put_role(ROLE_HEADER, page_header, row, col);
+        }
         row += 2;
 
-        put_role(ROLE_SECTION, "CRAFT & GEAR", row, col); row++;
+        help_emit_heading("CRAFT & GEAR", row, col); row++;
         put_role(ROLE_BODY, "- Guaranteed ", row, col);
         put_role(ROLE_GOOD, "forges", row, col + 13);
         put_role(ROLE_BODY, " at 100', 300', and 500'-plan your craft route.", row, col + 19);
@@ -5060,7 +5672,7 @@ void show_help_screen(int i)
         put_role(ROLE_BODY, "- Find armour and a bow first; control fights before you win them.", row, col);
         row += 2;
 
-        put_role(ROLE_SECTION, "TACTICS", row, col); row++;
+        help_emit_heading("TACTICS", row, col); row++;
         put_role(ROLE_BODY, "- Do not rush: this is tactical. Lure, isolate, and retreat often.", row, col);
         row++;
         put_role(ROLE_BODY, "- Doors and corners are force multipliers-avoid being surrounded.", row, col);
@@ -5068,13 +5680,13 @@ void show_help_screen(int i)
         put_role(ROLE_BODY, "- Stairs are traffic-reset, ambush, or move on; do not loiter.", row, col);
         row += 2;
 
-        put_role(ROLE_SECTION, "ABILITIES", row, col); row++;
+        help_emit_heading("ABILITIES", row, col); row++;
         put_role(ROLE_BODY, "- Abilities matter: a single pick can flip a matchup.", row, col);
         row++;
         put_role(ROLE_BODY, "- Choose abilities that reinforce your plan: stealth, control, or brute force.", row, col);
         row += 2;
 
-        put_role(ROLE_SECTION, "TONE & APPROACH", row, col); row++;
+        help_emit_heading("TONE & APPROACH", row, col); row++;
         put_role(ROLE_BODY, "- ", row, col);
         put_role(ROLE_TERM, "Cunning", row, col + 2);
         put_role(ROLE_BODY, " over ", row, col + 9);
@@ -5108,11 +5720,14 @@ void show_help_screen(int i)
     case 5:
     {
         /* SIL-MORE: HELP [5/8]: MOVEMENT & MISCELLANEOUS */
-        sprintf(page_header, "HELP [%d/%d]: MOVEMENT & MISCELLANEOUS", i, HELP_TOTAL_PAGES);
-        put_role(ROLE_HEADER, page_header, 0, 1);
+        if (include_header)
+        {
+            sprintf(page_header, "HELP [%d/%d]: MOVEMENT & MISCELLANEOUS", i, HELP_TOTAL_PAGES);
+            put_role(ROLE_HEADER, page_header, 0, 1);
+        }
 
         row = 3; col = 3; col2 = col + 8;
-        put_role(ROLE_SECTION, "Movement etc", row - 2, col - 1);
+        help_emit_heading("Movement etc", row - 2, col - 1);
 
         put_role(ROLE_KEY,   "7 8 9", row, col);
         put_role(ROLE_SUBTLE," \\|/ ", row + 1, col);
@@ -5158,7 +5773,7 @@ void show_help_screen(int i)
         put_role(ROLE_KEY,    "Space", row, col + 33);
 
         row = 3; col = 52;
-        put_role(ROLE_SECTION, "Miscellaneous", row - 2, col);
+        help_emit_heading("Miscellaneous", row - 2, col);
 
         put_role(ROLE_KEY,  "f F", row, col - 1); put_role(ROLE_SUBTLE, "/", row, col); put_role(ROLE_SUBTLE, "fire from quiver 1/2", row, col + 3); row++;
         if (angband_keyset) put_role(ROLE_KEY, " a", row, col); else put_role(ROLE_KEY, " s", row, col); put_role(ROLE_SUBTLE, "sing", row, col + 3); row++;
@@ -5181,11 +5796,14 @@ void show_help_screen(int i)
     case 6:
     {
         /* SIL-MORE: HELP [6/8]: TERRAIN & ITEMS */
-        sprintf(page_header, "HELP [%d/%d]: TERRAIN & ITEMS", i, HELP_TOTAL_PAGES);
-        put_role(ROLE_HEADER, page_header, 0, 1);
+        if (include_header)
+        {
+            sprintf(page_header, "HELP [%d/%d]: TERRAIN & ITEMS", i, HELP_TOTAL_PAGES);
+            put_role(ROLE_HEADER, page_header, 0, 1);
+        }
 
         row = 3; col = 3;
-        put_role(ROLE_SECTION, "Terrain ", row - 2, col - 1);
+        help_emit_heading("Terrain ", row - 2, col - 1);
 
         /* Keep gameplay glyph colours as-is; only change the labels to ROLE_BODY */
         if (hybrid_walls) { c_put_str(TERM_L_WHITE + (MAX_COLORS * BG_DARK), "#", row, col); }
@@ -5205,7 +5823,7 @@ void show_help_screen(int i)
         c_put_str(TERM_L_WHITE, ".", row, col); put_role(ROLE_BODY, "empty floor", row, col + 2); row++;
 
         row = 3; col = 27;
-        put_role(ROLE_SECTION, "Items", row - 2, col - 1);
+        help_emit_heading("Items", row - 2, col - 1);
         c_put_str(TERM_L_WHITE, "| ", row, col); put_role(ROLE_BODY, "blades", row, col + 2); row++;
         c_put_str(TERM_SLATE, "/ ", row, col); put_role(ROLE_BODY, "axes & polearms", row, col + 2); row++;
         c_put_str(TERM_UMBER, "\\ ", row, col); put_role(ROLE_BODY, "blunt weapons", row, col + 2); row++;
@@ -5225,7 +5843,7 @@ void show_help_screen(int i)
         c_put_str(TERM_YELLOW, "! ", row, col); put_role(ROLE_BODY, "flasks of oil", row, col + 2); row++;
 
         row = 3; col = 52;
-        put_role(ROLE_SECTION, "Item Commands", row - 2, col - 1);
+        help_emit_heading("Item Commands", row - 2, col - 1);
         if (angband_keyset) put_role(ROLE_KEY, "U", row, col); else put_role(ROLE_KEY, "u", row, col); put_role(ROLE_UI, "use", row, col + 2); row++;
         put_role(ROLE_KEY, "d", row, col); put_role(ROLE_UI, "drop", row, col + 2); row++;
         if (angband_keyset) put_role(ROLE_KEY, "I", row, col); else put_role(ROLE_KEY, "x", row, col); put_role(ROLE_UI, "examine", row, col + 2); row++;
@@ -5239,11 +5857,14 @@ void show_help_screen(int i)
     case 7:
     {
         /* SIL-MORE: HELP [7/8]: ADVANCED COMMANDS */
-        sprintf(page_header, "HELP [%d/%d]: ADVANCED COMMANDS", i, HELP_TOTAL_PAGES);
-        put_role(ROLE_HEADER, page_header, 0, 1);
+        if (include_header)
+        {
+            sprintf(page_header, "HELP [%d/%d]: ADVANCED COMMANDS", i, HELP_TOTAL_PAGES);
+            put_role(ROLE_HEADER, page_header, 0, 1);
+        }
 
         row = 3; col = 3;
-        put_role(ROLE_SECTION, "Superfluous", row - 2, col - 1);
+        help_emit_heading("Superfluous", row - 2, col - 1);
 
         put_role(ROLE_KEY, "i", row, col); put_role(ROLE_UI,  "display inventory", row, col + 2); row++;
         put_role(ROLE_KEY, "e", row, col); put_role(ROLE_UI,  "display equipped items", row, col + 2); row += 2;
@@ -5265,7 +5886,7 @@ void show_help_screen(int i)
         put_role(ROLE_KEY, "0", row, col); put_role(ROLE_UI,  "forge an item", row, col + 2); row++;
 
         row = 3; col = 34;
-        put_role(ROLE_SECTION, "Advanced", row - 2, col);
+        help_emit_heading("Advanced", row - 2, col);
 
         put_role(ROLE_KEY,  " :", row, col); put_role(ROLE_UI,   "write a note", row, col + 3); row++;
         put_role(ROLE_KEY,  " )", row, col); put_role(ROLE_UI,   "save screen shot", row, col + 3); row += 2;
@@ -5277,7 +5898,7 @@ void show_help_screen(int i)
         put_role(ROLE_KEY,  " V", row, col); put_role(ROLE_UI,   "version information", row, col + 3); row++;
 
         row = 16; col = 35; col2 = 43;
-        put_role(ROLE_SECTION, "hjkl movement", row - 2, col - 1);
+        help_emit_heading("hjkl movement", row - 2, col - 1);
 
         put_role(ROLE_KEY,   "y k u", row, col);
         put_role(ROLE_SUBTLE," \\|/ ", row + 1, col);
@@ -5299,13 +5920,16 @@ void show_help_screen(int i)
     {
         /* SIL-MORE: HELP [8/8]: STEAM DECK CONTROLS */
         row = 0; col = 1;
-        sprintf(page_header, "SIL-MORE: SHINING DARKNESS - HELP [%d/%d]: STEAM DECK CONTROLS", i, HELP_TOTAL_PAGES);
-        put_role(ROLE_HEADER, page_header, row, col);
+        if (include_header)
+        {
+            sprintf(page_header, "SIL-MORE: SHINING DARKNESS - HELP [%d/%d]: STEAM DECK CONTROLS", i, HELP_TOTAL_PAGES);
+            put_role(ROLE_HEADER, page_header, row, col);
+        }
         row += 2;
 
         /* Movement and Action Controls */
         col = 1;
-        put_role(ROLE_SECTION, "MOVEMENT & ACTION", row, col); row += 2;
+        help_emit_heading("MOVEMENT & ACTION", row, col); row += 2;
         put_role(ROLE_KEY, "D-pad / Left Stick", row, col);
         put_role(ROLE_BODY, " - Movement", row, col + 22); row++;
 
@@ -5355,7 +5979,7 @@ void show_help_screen(int i)
         /* Left and right side controls */
         int left_header_row = row;
         int left_start_row = row + 2;
-        put_role(ROLE_SECTION, "LEFT SIDE CONTROLS", left_header_row, col);
+        help_emit_heading("LEFT SIDE CONTROLS", left_header_row, col);
 
         row = left_start_row;
         const char* input = NULL;
@@ -5405,7 +6029,7 @@ void show_help_screen(int i)
 
         col = 42;
         row = left_header_row;
-        put_role(ROLE_SECTION, "RIGHT SIDE CONTROLS", row, col);
+        help_emit_heading("RIGHT SIDE CONTROLS", row, col);
         row = left_start_row;
 
         binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER);
@@ -5482,6 +6106,9 @@ void show_help_screen(int i)
     }
 }
 
+#undef put_role
+#undef c_put_str
+
 
 
 /*
@@ -5491,6 +6118,11 @@ void do_cmd_help(void)
 {
     int i = 1;
     char ch;
+    bool row_has_content[HELP_DOC_MAX_ROWS];
+    bool row_has_heading[HELP_DOC_MAX_ROWS];
+    int page_starts[HELP_DOC_MAX_PAGES];
+    int page_ends[HELP_DOC_MAX_PAGES];
+    int doc_hgt = 0;
 
     /* Clear any active banner before opening help */
     extern int g_banner_force_redraw_remaining;
@@ -5505,14 +6137,62 @@ void do_cmd_help(void)
     /* Interact until done */
     while (1)
     {
+        int wid, hgt;
+        int total_pages;
+        bool legacy;
+
+        /* Get current terminal size before deciding layout */
+        Term_get_size(&wid, &hgt);
+        legacy = help_use_legacy_layout(wid, hgt);
+
+        if (legacy)
+        {
+            total_pages = HELP_TOTAL_PAGES;
+        }
+        else
+        {
+            int wrap_count;
+
+            /* Rebuild each time so controller bindings / options are current */
+            help_build_document_ops(&doc_hgt, row_has_content, row_has_heading);
+            help_rasterize_document(doc_hgt);
+            wrap_count = help_build_wrapped_lines(
+                wid,
+                doc_hgt,
+                row_has_heading,
+                g_help_wrap_lines,
+                HELP_DOC_MAX_WRAP_LINES);
+
+            total_pages = help_dynamic_build_document_pages(
+                hgt,
+                g_help_wrap_lines,
+                wrap_count,
+                page_starts,
+                page_ends);
+        }
+
+        if (total_pages < 1)
+            total_pages = 1;
+
+        if (i < 1)
+            i = 1;
+        if (i > total_pages)
+            i = total_pages;
+
         /* Clear screen */
         Term_clear();
 
-        show_help_screen(i);
-        int wid, hgt;
+        if (legacy)
+        {
+            show_help_screen_legacy(i, true);
+        }
+        else
+        {
+            int line_start = page_starts[i - 1];
+            int line_end = page_ends[i - 1];
+            show_help_screen_dynamic_document(i, total_pages, wid, hgt, g_help_wrap_lines, line_start, line_end);
+        }
 
-        // get current terminal size
-        Term_get_size(&wid, &hgt);
         /* Better navigation prompt */
         {
             char nav[128];
@@ -5527,7 +6207,7 @@ void do_cmd_help(void)
             } else {
                 strnfmt(nav, sizeof(nav),
                     "Navigation: [<-/4] Prev  [->/6/Space] Next  [X+1-%d] Page  [Q/Esc] Quit",
-                    HELP_TOTAL_PAGES);
+                    total_pages);
             }
             c_put_str(TERM_WHITE, nav, hgt - 1, 1);
         }
@@ -5558,19 +6238,17 @@ void do_cmd_help(void)
             /* Direct page navigation with 'x' prefix */
             else if (ch == 'x' || ch == 'X')
             {
-                /* Wait for second key */
                 char prompt[32];
-                sprintf(prompt, "Page (1-%d): ", HELP_TOTAL_PAGES);
-                c_put_str(TERM_YELLOW, prompt, 23, 60);
-                char ch2 = inkey();
-                if ((ch2 >= '1') && (ch2 <= ('0' + HELP_TOTAL_PAGES)))
+                char tmp[8];
+                strnfmt(prompt, sizeof(prompt), "Page (1-%d): ", total_pages);
+                prt(prompt, hgt - 1, 0);
+                SDL_strlcpy(tmp, "1", sizeof(tmp));
+                if (askfor_aux(tmp, sizeof(tmp)))
                 {
-                    int target = ch2 - '0';
-                    if (target <= HELP_TOTAL_PAGES)
+                    int target = atoi(tmp);
+                    if ((target >= 1) && (target <= total_pages))
                         i = target;
                 }
-                /* Clear the prompt */
-                c_put_str(TERM_L_WHITE, "                ", 23, 60);
             }
             /* Default: next page */
             else
@@ -5580,7 +6258,7 @@ void do_cmd_help(void)
         }
 
         /* Done */
-        if (i > HELP_TOTAL_PAGES)
+        if (i > total_pages)
             break;
 
         /* Flush messages */

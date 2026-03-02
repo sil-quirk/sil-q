@@ -2290,44 +2290,42 @@ static void birth_display_stats_allocation_compact(const int stats[A_MAX], int s
 {
     int wid = 80;
     int hgt = 24;
-    int row = 3;
-    char buf[80];
+    char buf[160];
+    char stat_buf[16];
+    int prompt_row;
+    int info_row;
 
     Term_get_size(&wid, &hgt);
     if (wid < 1) wid = 80;
     if (hgt < 1) hgt = 24;
 
-    clear_from(0);
-    birth_display_name_centered();
+    /* Reuse compact character-sheet stats+skills page with in-place highlighted selection. */
+    display_player_compact_stats_skills_highlighted_stat(selected);
 
-    /* Header */
-    strnfmt(buf, sizeof(buf), "Points left: %d", points_left);
-    c_put_str(TERM_L_GREEN, buf, 1, 1);
-    c_put_str(TERM_SLATE, "8/2 select, 4/6 adjust", 2, 1);
+    prompt_row = hgt - 1;
+    if (prompt_row < 0)
+        prompt_row = 0;
+    info_row = prompt_row - 1;
+    if (info_row < 0)
+        info_row = 0;
 
-    /* Stats list */
-    for (int i = 0; i < A_MAX && row < hgt - 2; i++)
-    {
-        byte attr = (i == selected) ? TERM_L_BLUE : TERM_WHITE;
-        char stat_buf[16];
-
-        cnv_stat(p_ptr->stat_use[i], stat_buf);
-        int cost = birth_stat_costs[stats[i] + 4];
-
-        strnfmt(buf, sizeof(buf), "%s: %s", stat_names[i], stat_buf);
-        if ((int)strlen(buf) > wid - 1 && wid > 1)
-            buf[wid - 1] = '\0';
-        c_put_str(attr, buf, row, 1);
-
-        strnfmt(buf, sizeof(buf), "%d", cost);
-        c_put_str(attr, buf, row, MAX(1, wid - (int)strlen(buf) - 1));
-
-        row++;
-    }
-
-    /* Prompt */
-    int prompt_row = hgt - 1;
+    Term_erase(0, info_row, 255);
     Term_erase(0, prompt_row, 255);
+
+    if (selected >= 0 && selected < A_MAX)
+    {
+        int cost = birth_stat_costs[stats[selected] + 4];
+        cnv_stat(p_ptr->stat_use[selected], stat_buf);
+
+        strnfmt(buf, sizeof(buf), "Selected: %s %s  Cost: %d  Left: %d",
+            stat_names_full[selected], stat_buf, cost, points_left);
+        c_put_str(TERM_L_BLUE, buf, info_row, 1);
+    }
+    else
+    {
+        strnfmt(buf, sizeof(buf), "Points left: %d", points_left);
+        c_put_str(TERM_L_GREEN, buf, info_row, 1);
+    }
 
     if (steamdeck)
     {
@@ -2339,14 +2337,71 @@ static void birth_display_stats_allocation_compact(const int stats[A_MAX], int s
         birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
         birth_prompt_label('q', "Start", quit_label, sizeof(quit_label));
 
-        strnfmt(buf, sizeof(buf), "%s back  %s ok  %s quit", back_label, confirm_label, quit_label);
+        strnfmt(buf, sizeof(buf), "D-pad alloc  %s back  %s ok  %s quit",
+            back_label, confirm_label, quit_label);
     }
     else
     {
-        strnfmt(buf, sizeof(buf), "ESC back  ENTER ok  q quit");
+        strnfmt(buf, sizeof(buf), "8/2 select  4/6 adjust  ESC back  ENTER ok  q quit");
     }
 
     c_put_str(TERM_SLATE, buf, prompt_row, 1);
+}
+
+static bool birth_show_compact_description_after_assignment(bool steamdeck)
+{
+    char ch;
+    char buf[160];
+
+    while (1)
+    {
+        int wid = 80;
+        int hgt = 24;
+        int prompt_row;
+
+        Term_get_size(&wid, &hgt);
+        if (wid < 1)
+            wid = 80;
+        if (hgt < 1)
+            hgt = 24;
+
+        display_player(100);
+
+        prompt_row = hgt - 1;
+        if (prompt_row < 0)
+            prompt_row = 0;
+        Term_erase(0, prompt_row, 255);
+
+        if (steamdeck)
+        {
+            char confirm_label[16];
+            char back_label[16];
+
+            birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
+            birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
+            strnfmt(buf, sizeof(buf), "%s back  %s continue", back_label, confirm_label);
+        }
+        else
+        {
+            strnfmt(buf, sizeof(buf), "ESC back to assignment  ENTER continue");
+        }
+
+        c_put_str(TERM_SLATE, buf, prompt_row, 1);
+
+        hide_cursor = true;
+        ch = inkey();
+        hide_cursor = false;
+
+        if (steamdeck && ch == steamdeck_back_key())
+            ch = ESCAPE;
+
+        if ((ch == ESCAPE) || (ch == '4') || (ch == 'q') || (ch == 'Q'))
+            return false;
+
+        if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6')
+            || (steamdeck && ch == steamdeck_confirm_key()))
+            return true;
+    }
 }
 
 static void birth_display_skill_allocation_compact(int selected_skill, const int old_base[S_MAX],
@@ -2354,44 +2409,43 @@ static void birth_display_skill_allocation_compact(int selected_skill, const int
 {
     int wid = 80;
     int hgt = 24;
-    int row = 3;
-    char buf[120];
+    char buf[160];
+    int prompt_row;
+    int info_row;
 
     Term_get_size(&wid, &hgt);
     if (wid < 1) wid = 80;
     if (hgt < 1) hgt = 24;
 
-    clear_from(0);
-    birth_display_name_centered();
+    /* Reuse compact character-sheet skills page with in-place highlighted selection. */
+    display_player_compact_stats_skills_highlighted(selected_skill);
 
-    strnfmt(buf, sizeof(buf), "Points left: %d", points_left);
-    c_put_str(TERM_L_GREEN, buf, 1, 1);
-    c_put_str(TERM_SLATE, "8/2 select, 4/6 adjust", 2, 1);
+    prompt_row = hgt - 1;
+    if (prompt_row < 0)
+        prompt_row = 0;
+    info_row = prompt_row - 1;
+    if (info_row < 0)
+        info_row = 0;
 
-    for (int s = 0; s < S_MAX && row < hgt - 2; s++)
+    Term_erase(0, info_row, 255);
+    Term_erase(0, prompt_row, 255);
+
+    if (selected_skill >= 0 && selected_skill < S_MAX && selected_skill != S_SPC)
     {
-        if (s == S_SPC)
-            continue;
-
-        byte attr = (s == selected_skill) ? TERM_L_BLUE : TERM_WHITE;
-        int base = old_base[s];
-        int gain = skill_gain[s];
+        int base = old_base[selected_skill];
+        int gain = skill_gain[selected_skill];
         int now = base + gain;
         int cost = skill_cost(base, gain);
 
-        strnfmt(buf, sizeof(buf), "%s %2d->%2d", skill_names_full[s], base, now);
-        if ((int)strlen(buf) > wid - 1 && wid > 1)
-            buf[wid - 1] = '\0';
-        c_put_str(attr, buf, row, 1);
-
-        strnfmt(buf, sizeof(buf), "%d", cost);
-        c_put_str(attr, buf, row, MAX(1, wid - (int)strlen(buf) - 1));
-
-        row++;
+        strnfmt(buf, sizeof(buf), "Selected: %s %2d->%2d  Cost: %d  Left: %d",
+            skill_names_full[selected_skill], base, now, cost, points_left);
+        c_put_str(TERM_L_BLUE, buf, info_row, 1);
     }
-
-    int prompt_row = hgt - 1;
-    Term_erase(0, prompt_row, 255);
+    else
+    {
+        strnfmt(buf, sizeof(buf), "Points left: %d", points_left);
+        c_put_str(TERM_L_GREEN, buf, info_row, 1);
+    }
 
     if (steamdeck)
     {
@@ -2403,11 +2457,12 @@ static void birth_display_skill_allocation_compact(int selected_skill, const int
         birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
         birth_prompt_label('q', "q", quit_label, sizeof(quit_label));
 
-        strnfmt(buf, sizeof(buf), "%s back  %s ok  %s quit", back_label, confirm_label, quit_label);
+        strnfmt(buf, sizeof(buf), "D-pad alloc  %s back  %s ok  %s quit",
+            back_label, confirm_label, quit_label);
     }
     else
     {
-        strnfmt(buf, sizeof(buf), "ESC back  ENTER ok  q quit");
+        strnfmt(buf, sizeof(buf), "8/2 select  4/6 adjust  ESC back  ENTER ok  q quit");
     }
 
     c_put_str(TERM_SLATE, buf, prompt_row, 1);
@@ -2898,6 +2953,11 @@ extern NavResult gain_skills(void)
         /* Done */
         if ((ch == '\r') || (ch == '\n') || (steamdeck && ch == steamdeck_confirm_key()))
         {
+            if (compact)
+            {
+                if (!birth_show_compact_description_after_assignment(steamdeck))
+                    continue;
+            }
             result = NAV_OK;
             break;
         }
