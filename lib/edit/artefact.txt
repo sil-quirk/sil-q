@@ -744,7 +744,7 @@ N:41:'Starlight'
 Q:7124e9ac2a2ee593
 I:37:20:3
 W:16:30:120:50000
-P:0:0d0:0:2d5
+P:0:0d0:-1:2d5
 F:PERCEPTION | SONG
 B:7/0
 D:This exquisite corslet was wrought in Gondolin by smiths who worked
@@ -2157,7 +2157,7 @@ N:127:'Gilceleb'
 Q:b5e9d0c8a7f61324
 I:37:20:1
 W:15:20:150:55000
-P:0:0d0:0:2d6
+P:0:0d0:-1:2d6
 F:GRA | SUST_GRA | FREE_ACT | WILL
 D:'Of silver was his habergeon.' A corslet of mithril chain, the true silver
 D: of the Eldar, light and supple as water yet proof against any edge. Its

@@ -2977,25 +2977,81 @@ extern NavResult initial_menu(bool *start_new)
 
     display_introduction();
 
-    /* wizard-mode resurrection warning — same left-margin as content */
-    if (arg_wizard)
-        Term_putstr(14, 17, -1, TERM_BLUE,
-            "Resurrecting a character is a form of cheating.");
-    else
-        Term_putstr(14, 17, 60, TERM_BLUE,
-            "                                                            ");
+    /*
+     * Welcome screen (minimum height support)
+     *
+     * The intro text is fixed-position; the menu block below must fit on
+     * small terminals (e.g. 20 rows).
+     *
+     * Fit rules (as requested):
+     *   1) Try to show all lines in order (starting from “string 0”).
+     *   2) If it doesn't fit, delete the empty line between separator and prompt.
+     *   3) If it still doesn't fit, delete the separator and place the prompt there.
+     *
+     * Other text remains unchanged (no rewording/compacting).
+     */
+    {
+        int wid, hgt;
+        Term_get_size(&wid, &hgt);
 
-    /* separator — left-aligned with content */
-    Term_putstr(14, 18, -1, TERM_L_DARK,
-        "- - - - - - - - - - - -");
+        const int x = 14;
+        const int base_row = 17; /* first row below the intro variants */
 
-    /* menu — left-aligned with content */
-    if (metarun_created == true)
-        Term_putstr(14, 20, -1, TERM_SLATE,
-            "[Space] Begin    [Q/Esc] Quit");
-    else
-        Term_putstr(14, 20, -1, TERM_SLATE,
-            "[Space] Continue  [Q/Esc] Quit");
+        const char *wizard_line =
+            arg_wizard
+                ? "Resurrecting a character is a form of cheating."
+                : "                                                            ";
+        const char *sep_line = "- - - - - - - - - - - -";
+
+        const char *menu_line =
+            (metarun_created == true)
+                ? "[Space] Begin    [Q/Esc] Quit"
+                : "[Space] Continue  [Q/Esc] Quit";
+
+        /* Build the line list in order. */
+        const char *lines[4];
+        byte attrs[4];
+        int n = 0;
+        lines[n] = wizard_line; attrs[n] = TERM_BLUE;   n++;
+        lines[n] = sep_line;    attrs[n] = TERM_L_DARK; n++;
+        lines[n] = "";          attrs[n] = TERM_SLATE;  n++; /* empty line between ---- and prompt */
+        lines[n] = menu_line;   attrs[n] = TERM_SLATE;  n++;
+
+        /* Decide which optional lines to drop based on available rows. */
+        int available = hgt - base_row;
+        bool drop_blank = (available < n);
+        bool drop_sep   = (available < (n - 1)); /* if even without blank, still too tight */
+
+        int row = base_row;
+
+        /* Wizard warning (or blank filler) */
+        if (row >= 0 && row < hgt)
+            Term_putstr(x, row, 60, TERM_BLUE, lines[0]);
+        row++;
+
+        if (!drop_sep)
+        {
+            if (row >= 0 && row < hgt)
+                Term_putstr(x, row, -1, TERM_L_DARK, lines[1]);
+            row++;
+
+            if (!drop_blank)
+            {
+                if (row >= 0 && row < hgt)
+                    Term_putstr(x, row, -1, TERM_SLATE, lines[2]);
+                row++;
+            }
+
+            if (row >= 0 && row < hgt)
+                Term_putstr(x, row, -1, TERM_SLATE, lines[3]);
+        }
+        else
+        {
+            /* Replace the separator with the prompt. */
+            if (row >= 0 && row < hgt)
+                Term_putstr(x, row, -1, TERM_SLATE, lines[3]);
+        }
+    }
 
     Term_fresh();
 

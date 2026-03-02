@@ -10944,7 +10944,7 @@ void do_cmd_pane_settings(void)
         Term_clear();
         
         /* Display title */
-        Term_putstr(2, 1, -1, TERM_L_BLUE, "SDL Pane Settings");
+        Term_putstr(2, 1, -1, TERM_WHITE, "SDL Pane Settings");
         
         /* Display current settings */
         char buf[80];
@@ -11018,9 +11018,6 @@ void do_cmd_pane_settings(void)
             Term_putstr(2, y++, -1, TERM_YELLOW, "Will be saved to your SDL config file on exit.");
         }
         Term_putstr(2, y++, -1, TERM_SLATE, "(direction keys to set, Return/Escape to accept)");
-        
-        /* Hilite current option */
-        move_cursor(3 + k, 52);
         
         /* Get key */
         hide_cursor = true;

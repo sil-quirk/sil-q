@@ -1,0 +1,88 @@
+plugins {
+    id 'com.android.application'
+}
+
+def repoRoot = rootProject.projectDir.parentFile
+def definesHeader = new File(repoRoot, 'src/defines.h')
+def versionMatcher = (definesHeader.text =~ /#define\s+VERSION_STRING\s+"([^"]+)"/)
+if (!versionMatcher.find()) {
+    throw new RuntimeException("Could not find VERSION_STRING in src/defines.h")
+}
+
+def gameVersion = versionMatcher.group(1)
+def gameVersionParts = gameVersion.tokenize('.').collect { it as int }
+while (gameVersionParts.size() < 4) {
+    gameVersionParts << 0
+}
+
+def gameVersionCode =
+        (gameVersionParts[0] * 1000000) +
+        (gameVersionParts[1] * 10000) +
+        (gameVersionParts[2] * 100) +
+        gameVersionParts[3]
+
+android {
+    namespace 'com.silqh.silmore'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.silqh.silmore'
+        minSdk 21
+        targetSdk 34
+        versionCode gameVersionCode
+        versionName gameVersion
+
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+
+        externalNativeBuild {
+            cmake {
+                arguments '-DSIL_BUILD_WITH_SDL_SOURCES=ON'
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+        }
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path file('src/main/cpp/CMakeLists.txt')
+        }
+    }
+
+    sourceSets {
+        main {
+            // Bundle game data as assets/lib/...
+            assets.srcDirs += [file("${buildDir}/generated/assets")]
+
+            // If you cloned SDL into external/SDL, include SDL's Android Java sources.
+            // This provides org.libsdl.app.SDLActivity.
+            java.srcDirs += [file("${rootProject.projectDir}/../external/SDL/android-project/app/src/main/java")]
+        }
+    }
+}
+
+tasks.register('syncGameAssets', Sync) {
+    def gameLibDir = new File(repoRoot, 'lib')
+    def outDir = new File(buildDir, 'generated/assets/lib')
+
+    from(gameLibDir) {
+        // Never package runtime state into the APK.
+        exclude 'save/**', 'save'
+        exclude 'user/**', 'user'
+        exclude 'apex/**', 'apex'
+    }
+    into(outDir)
+}
+
+tasks.named('preBuild') {
+    dependsOn(tasks.named('syncGameAssets'))
+}
