@@ -1599,6 +1599,8 @@ extern bool get_sdl_enable_right_panes(void);
 extern void set_sdl_enable_right_panes(bool value);
 extern bool get_sdl_enable_bottom_panes(void);
 extern void set_sdl_enable_bottom_panes(bool value);
+extern int  get_sdl_intro_style(void);
+extern void set_sdl_intro_style(int style);
 extern int get_sdl_max_scale(void);
 extern void sdl_apply_config(void);
 extern bool steamdeck_controls_active(void);

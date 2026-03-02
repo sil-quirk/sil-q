@@ -1046,6 +1046,7 @@ struct player_other
     byte main_combat_rolls; /* Main terminal combat rolls (0-3) */
     byte ability_desc_mode; /* Ability description display (0=D+E, 1=E+D, 2=E only) */
     byte vault_drop_frequency; /* Vault drop frequency mode (VDF_*) */
+    byte intro_style; /* Welcome screen variant (INTRO_STYLE_*) */
 };
 
 /*

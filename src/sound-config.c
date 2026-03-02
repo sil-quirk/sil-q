@@ -2,6 +2,7 @@
 
 #include "angband.h"
 #include "externs.h"
+#include "fs/io_sdl.h"
 #include "log/log.h"
 #include "cJSON.h"
 #include <stdio.h>
@@ -49,28 +50,41 @@ void sound_config_load(const char* filename, struct sound_config* config)
     }
     
     // Read file
-    FILE* f = fopen(filename, "r");
+    SDL_IOStream* f = sdl_fopen(filename, "rb");
     if (!f) {
         log_info("Sound config file not found: %s (creating with defaults)", filename);
         // Auto-create sound.json with defaults
         sound_config_save(filename, config);
         return;
     }
-    
-    fseek(f, 0, SEEK_END);
-    long length = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    
+
+    Sint64 file_size = SDL_GetIOSize(f);
+    if (file_size < 0) {
+        log_error("Failed to get sound config size: %s", filename);
+        sdl_fclose(f);
+        return;
+    }
+
+    if (file_size > 16 * 1024 * 1024) {
+        log_error("Sound config file too large: %s", filename);
+        sdl_fclose(f);
+        return;
+    }
+
+    size_t length = (size_t)file_size;
     char* buffer = (char*)malloc(length + 1);
     if (!buffer) {
-        fclose(f);
+        sdl_fclose(f);
         log_error("Failed to allocate memory for sound config");
         return;
     }
-    
-    size_t read = fread(buffer, 1, length, f);
+
+    size_t read = SDL_ReadIO(f, buffer, length);
+    if (read != length) {
+        log_warn("Sound config read truncated: %s (expected %zu, got %zu)", filename, length, read);
+    }
     buffer[read] = '\0';
-    fclose(f);
+    sdl_fclose(f);
     
     // Parse JSON
     cJSON* root = cJSON_Parse(buffer);
@@ -283,16 +297,24 @@ void sound_config_save(const char* filename, const struct sound_config* config)
         return;
     }
     
-    FILE* f = fopen(filename, "w");
+    SDL_IOStream* f = sdl_fopen(filename, "wb");
     if (!f) {
         log_error("Could not write sound config JSON file: %s", filename);
         cJSON_free(json_string);
         cJSON_Delete(root);
         return;
     }
-    
-    fputs(json_string, f);
-    fclose(f);
+
+    size_t json_len = strlen(json_string);
+    size_t written = SDL_WriteIO(f, json_string, json_len);
+    if (written != json_len) {
+        log_error("Failed writing sound config JSON file: %s", filename);
+        sdl_fclose(f);
+        cJSON_free(json_string);
+        cJSON_Delete(root);
+        return;
+    }
+    sdl_fclose(f);
     
     cJSON_free(json_string);
     cJSON_Delete(root);

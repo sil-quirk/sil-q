@@ -2454,33 +2454,182 @@ extern void display_introduction(void)
      (void)Term_get_cursor(&_saved_cursor_state);
      (void)Term_set_cursor(false);
 
-    Term_putstr(12, 1, -1, TERM_L_BLUE,
-        "    The world was young, the mountains green,            ");
-    Term_putstr(12, 2, -1, TERM_L_BLUE,
-        "       No stain yet on the moon was seen...              ");
+    /* Resolve intro style from setting. 0-4 = fixed, 5 = random. */
+    int intro_style;
+    if (op_ptr->intro_style == INTRO_STYLE_RANDOM)
+        intro_style = (int)(SDL_GetTicks() % 5u);  /* 0..4 */
+    else
+        intro_style = (int)op_ptr->intro_style;
 
-    Term_putstr(12, 5, -1, TERM_WHITE,
-        "Welcome to Sil-More, Shining Darkness                ");
-    Term_putstr(12, 6, -1, TERM_WHITE,
-        "  An adventure set in Middle-earth's mythic past,                    ");
-    Term_putstr(12, 7, -1, TERM_WHITE,
-        "    when the world still rang with elven song          ");
-    Term_putstr(12, 8, -1, TERM_WHITE,
-        "      and gleamed with dwarven mail.                   ");
+    switch (intro_style)
+    {
+    /* ===== Variant 0  "Flame Imperishable" (Ainulindale) =============== */
+    case 0:
+    default:
+        Term_putstr(14, 1, -1, TERM_L_BLUE,
+            "\"In the beginning Eru, the One,");
+        Term_putstr(14, 2, -1, TERM_L_BLUE,
+            "  made the Ainur of his thought;");
+        Term_putstr(14, 3, -1, TERM_L_BLUE,
+            "  and they sang, and he was glad.\"");
+        Term_putstr(34, 4, -1, TERM_SLATE,
+            "-- Ainulindale");
 
-    Term_putstr(12, 10, -1, TERM_YELLOW,
-        " A reimagining of the classic Sil experience,       ");
-    Term_putstr(12, 11, -1, TERM_YELLOW,
-        "   enriched by modern roguelike mechanics.                        ");
+        Term_putstr(22, 6, -1, TERM_WHITE,
+            "S I L - M O R E");
+        Term_putstr(20, 7, -1, TERM_L_BLUE,
+            "~ Shining  Darkness ~");
 
-    Term_putstr(12, 13, -1, TERM_WHITE,
-        "Walk the dark halls of Angband and slay creatures black and fell.");
-    Term_putstr(12, 14, -1, TERM_WHITE,
-        "  Wrest a shining Silmaril from Morgoth's iron crown.");
-    Term_putstr(12, 15, -1, TERM_WHITE,
-        "    Endure the curses of evil, guided by the wisdom of the Valar. ");
-    Term_putstr(12, 16, -1, TERM_WHITE,
-        "      And prove your right to live in the lands of Valinor.");
+        Term_putstr(14, 9, -1, TERM_WHITE,
+            "In the deeps of Angband, beyond");
+        Term_putstr(14, 10, -1, TERM_WHITE,
+            "gates of iron and pits of flame,");
+        Term_putstr(14, 11, -1, TERM_WHITE,
+            "Morgoth hoards the Silmarils --");
+        Term_putstr(14, 12, -1, TERM_WHITE,
+            "three jewels of living light.");
+
+        Term_putstr(14, 14, -1, TERM_YELLOW,
+            "Take up blade and burden. Descend.");
+        Term_putstr(14, 15, -1, TERM_YELLOW,
+            "Oaths, quests, blessings of the Valar");
+        Term_putstr(14, 16, -1, TERM_YELLOW,
+            "await in the First Age reborn.");
+        break;
+
+    /* ===== Variant 1  "Oath of Feanor" ================================= */
+    case 1:
+        Term_putstr(14, 1, -1, TERM_L_BLUE,
+            "\"Be he foe or friend,");
+        Term_putstr(14, 2, -1, TERM_L_BLUE,
+            "  be he foul or clean...");
+        Term_putstr(14, 3, -1, TERM_L_BLUE,
+            "  he shall defend, shall be held mine.\"");
+        Term_putstr(34, 4, -1, TERM_SLATE,
+            "-- Oath of Feanor");
+
+        Term_putstr(22, 6, -1, TERM_WHITE,
+            "S I L - M O R E");
+        Term_putstr(20, 7, -1, TERM_L_BLUE,
+            "~ Shining  Darkness ~");
+
+        Term_putstr(14, 9, -1, TERM_WHITE,
+            "In the pits beneath the mountains");
+        Term_putstr(14, 10, -1, TERM_WHITE,
+            "Morgoth broods upon his throne.");
+        Term_putstr(14, 11, -1, TERM_WHITE,
+            "Three jewels burn upon his crown --");
+        Term_putstr(14, 12, -1, TERM_WHITE,
+            "stolen light that is not his own.");
+
+        Term_putstr(14, 14, -1, TERM_YELLOW,
+            "Take up blade and burden. Descend.");
+        Term_putstr(14, 15, -1, TERM_YELLOW,
+            "Oaths, quests, blessings of the Valar");
+        Term_putstr(14, 16, -1, TERM_YELLOW,
+            "await in the First Age reborn.");
+        break;
+
+    /* ===== Variant 2  "Twilight of Valinor" (quote at end) ============= */
+    case 2:
+        Term_putstr(22, 1, -1, TERM_WHITE,
+            "S I L - M O R E");
+        Term_putstr(20, 2, -1, TERM_L_BLUE,
+            "~ Shining  Darkness ~");
+
+        Term_putstr(14, 4, -1, TERM_WHITE,
+            "Before the Sun and Moon were wrought");
+        Term_putstr(14, 5, -1, TERM_WHITE,
+            "the Eldar walked by starlight alone.");
+        Term_putstr(14, 6, -1, TERM_WHITE,
+            "Now shadow stirs beneath the earth");
+        Term_putstr(14, 7, -1, TERM_WHITE,
+            "where Morgoth sits upon his throne.");
+
+        Term_putstr(14, 9, -1, TERM_WHITE,
+            "Three jewels blaze upon his crown --");
+        Term_putstr(14, 10, -1, TERM_WHITE,
+            "stolen fire none may reclaim...");
+        Term_putstr(14, 11, -1, TERM_WHITE,
+            "unless one dares the iron dark");
+        Term_putstr(14, 12, -1, TERM_WHITE,
+            "and walks through everlasting flame.");
+
+        Term_putstr(14, 14, -1, TERM_L_BLUE,
+            "\"...and the light that blazed in them");
+        Term_putstr(14, 15, -1, TERM_L_BLUE,
+            "  no power could dim or mar.\"");
+        Term_putstr(34, 16, -1, TERM_SLATE,
+            "-- Of the Silmarils");
+        break;
+
+    /* ===== Variant 3  "Song of Luthien" ================================ */
+    case 3:
+        Term_putstr(14, 1, -1, TERM_L_BLUE,
+            "\"The leaves were long, the grass was green,");
+        Term_putstr(14, 2, -1, TERM_L_BLUE,
+            "  the hemlock-umbels tall and fair,");
+        Term_putstr(14, 3, -1, TERM_L_BLUE,
+            "  and in the glade a light was seen");
+        Term_putstr(14, 4, -1, TERM_L_BLUE,
+            "  of stars in shadow shimmering.\"");
+        Term_putstr(28, 5, -1, TERM_SLATE,
+            "-- Of Beren and Luthien");
+
+        Term_putstr(22, 7, -1, TERM_WHITE,
+            "S I L - M O R E");
+        Term_putstr(20, 8, -1, TERM_L_BLUE,
+            "~ Shining  Darkness ~");
+
+        Term_putstr(14, 10, -1, TERM_WHITE,
+            "Even in the deepest dark, a song");
+        Term_putstr(14, 11, -1, TERM_WHITE,
+            "may still undo the mightiest door.");
+        Term_putstr(14, 12, -1, TERM_WHITE,
+            "Dare the throne-hall of the Enemy");
+        Term_putstr(14, 13, -1, TERM_WHITE,
+            "and seize what Morgoth stole of old.");
+
+        Term_putstr(14, 15, -1, TERM_YELLOW,
+            "Oaths, quests, blessings of the Valar");
+        Term_putstr(14, 16, -1, TERM_YELLOW,
+            "await in the First Age reborn.");
+        break;
+
+    /* ===== Variant 4  "Words of Hurin" ================================= */
+    case 4:
+        Term_putstr(14, 1, -1, TERM_L_BLUE,
+            "\"The day shall come again when you");
+        Term_putstr(14, 2, -1, TERM_L_BLUE,
+            "  shall see the Sun once more.\"");
+        Term_putstr(34, 3, -1, TERM_SLATE,
+            "-- Words of Hurin");
+
+        Term_putstr(22, 5, -1, TERM_WHITE,
+            "S I L - M O R E");
+        Term_putstr(20, 6, -1, TERM_L_BLUE,
+            "~ Shining  Darkness ~");
+
+        Term_putstr(14, 8, -1, TERM_WHITE,
+            "No chain can hold a will unbroken.");
+        Term_putstr(14, 9, -1, TERM_WHITE,
+            "Though Morgoth's shadow covers all,");
+        Term_putstr(14, 10, -1, TERM_WHITE,
+            "the free may still defy the dark");
+        Term_putstr(14, 11, -1, TERM_WHITE,
+            "and wrest a jewel from his crown.");
+
+        Term_putstr(14, 13, -1, TERM_YELLOW,
+            "Take up blade and burden. Descend.");
+        Term_putstr(14, 14, -1, TERM_YELLOW,
+            "Oaths, quests, blessings of the Valar");
+        Term_putstr(14, 15, -1, TERM_YELLOW,
+            "await in the First Age reborn.");
+
+        Term_putstr(14, 16, -1, TERM_L_BLUE,
+            "\"Aure entuluva!\"");
+        break;
+    }
 
     /* Flush it */
     Term_fresh();
@@ -2828,28 +2977,25 @@ extern NavResult initial_menu(bool *start_new)
 
     display_introduction();
 
-    /* wizard-mode resurrection warning or blank it out */
+    /* wizard-mode resurrection warning — same left-margin as content */
     if (arg_wizard)
-        Term_putstr(15, 17, 80, TERM_BLUE,
+        Term_putstr(14, 17, -1, TERM_BLUE,
             "Resurrecting a character is a form of cheating.");
     else
-        Term_putstr(15, 17, 80, TERM_BLUE,
-            "                                                ");
+        Term_putstr(14, 17, 60, TERM_BLUE,
+            "                                                            ");
 
-    /* frame */
-    Term_putstr(12, 17, 60, TERM_L_DARK,
-        "______________________________________________________");
+    /* separator — left-aligned with content */
+    Term_putstr(14, 18, -1, TERM_L_DARK,
+        "- - - - - - - - - - - -");
 
-    /* menu lines (new order) */
+    /* menu — left-aligned with content */
     if (metarun_created == true)
-    Term_putstr(16, 19, 50, TERM_L_BLUE,
-        "Start your story (press space to continue)");
+        Term_putstr(14, 20, -1, TERM_SLATE,
+            "[Space] Begin    [Q/Esc] Quit");
     else
-    Term_putstr(16, 19, 50,TERM_L_BLUE,
-        "Continue your story (press space to continue)");
-
-    Term_putstr(25, 22, 30,TERM_WHITE,
-        "press q or ESC to exit");
+        Term_putstr(14, 20, -1, TERM_SLATE,
+            "[Space] Continue  [Q/Esc] Quit");
 
     Term_fresh();
 

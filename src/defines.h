@@ -2742,6 +2742,16 @@
 #define OPT_vault_drop_frequency 92
 #define OPT_show_smithing_difficulty 93
 #define OPT_show_smithing_difficulty_look 94
+#define OPT_intro_style 95
+
+/* Intro screen style constants */
+#define INTRO_STYLE_FLAME       0   /* Flame Imperishable (Ainulindale) */
+#define INTRO_STYLE_FEANOR      1   /* Oath of Feanor */
+#define INTRO_STYLE_TWILIGHT    2   /* Twilight of Valinor */
+#define INTRO_STYLE_LUTHIEN     3   /* Song of Luthien */
+#define INTRO_STYLE_HURIN       4   /* Words of Hurin */
+#define INTRO_STYLE_RANDOM      5   /* Random each launch */
+#define INTRO_STYLE_MAX         5   /* Highest fixed variant index (4) + 1 for random */
 // xxx birth_point_based
 // xxx birth_auto_roller
 // xxx birth_maximize

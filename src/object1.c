@@ -3290,12 +3290,62 @@ static int draw_item_tile(int x, int y, object_type* o_ptr)
     return x;
 }
 
+static int menu_term_width(void)
+{
+    if (Term && Term->wid > 0)
+        return Term->wid;
+
+    return 80;
+}
+
+static int menu_weight_col_for_width(int term_wid)
+{
+    int col = term_wid - 10;
+
+    if (col < 0)
+        col = 0;
+
+    return col;
+}
+
+static int menu_label_col_for_width(int term_wid, bool display_weights)
+{
+    int col = display_weights ? (term_wid - 2) : (term_wid - 9);
+
+    if (col < 0)
+        col = 0;
+
+    return col;
+}
+
+static int menu_center_col_for_len(int term_wid, int len)
+{
+    if (len >= term_wid)
+        return 0;
+
+    return (term_wid - len) / 2;
+}
+
+static int menu_desc_limit(int text_col, int label_col, int weight_col,
+    bool display_weights)
+{
+    int right_edge = display_weights ? weight_col : label_col;
+    int limit = right_edge - text_col;
+
+    if (limit < 1)
+        limit = 1;
+
+    return limit;
+}
+
 static void story_render_inventory_entry(int row, int base_col, int label_col,
     cptr desc, byte desc_attr, bool display_weights, cptr weight_text,
     byte weight_attr, cptr label_text, byte label_attr, const object_type* o_ptr,
     bool highlight, int story_term_w)
 {
-    int highlight_cols = (story_term_w > 0) ? story_term_w : 80;
+    int term_wid = (story_term_w > 0) ? story_term_w : menu_term_width();
+    int highlight_cols = term_wid;
+    int weight_col = display_weights ? MAX(0, label_col - 8) : label_col;
     const int label_width = 6;
 
     Term_erase(base_col, row, 255);
@@ -3306,17 +3356,17 @@ static void story_render_inventory_entry(int row, int base_col, int label_col,
     if (o_ptr && o_ptr->k_idx)
         text_col = draw_item_tile(base_col, row, (object_type*)o_ptr);
 
-    int desc_limit = (display_weights ? 70 : label_col) - text_col;
-    if (desc_limit < 1)
-        desc_limit = 1;
+    int desc_limit = menu_desc_limit(text_col, label_col, weight_col,
+        display_weights);
     story_print_text(row, text_col, desc_limit, desc_attr, desc);
 
     if (display_weights && weight_text && weight_text[0])
     {
-        int weight_width = label_col - 70;
+        int weight_width = label_col - weight_col;
         if (weight_width < 1)
             weight_width = 1;
-        story_print_text_grid(row, 70, weight_width, weight_attr, weight_text);
+        story_print_text_grid(row, weight_col, weight_width, weight_attr,
+            weight_text);
     }
 
     if (label_text && label_text[0])
@@ -3328,9 +3378,11 @@ static void story_render_equipment_entry(int row, int col, int slot, cptr prefix
     cptr weight_text, byte weight_attr, cptr label_text, byte label_attr,
     const object_type* o_ptr, bool highlight, int story_term_w)
 {
-    int highlight_cols = (story_term_w > 0) ? story_term_w : 80;
+    int term_wid = (story_term_w > 0) ? story_term_w : menu_term_width();
+    int highlight_cols = term_wid;
+    int label_col = menu_label_col_for_width(term_wid, display_weights);
+    int weight_col = menu_weight_col_for_width(term_wid);
     const int label_width = 6;
-    int label_col = display_weights ? 78 : 71;
     bool has_object = (o_ptr && o_ptr->k_idx);
 
     Term_erase(col, row, 255);
@@ -3343,9 +3395,8 @@ static void story_render_equipment_entry(int row, int col, int slot, cptr prefix
     if (has_object)
         text_col = draw_item_tile(col + 12 + 2, row, (object_type*)o_ptr);
 
-    int desc_limit = (display_weights ? 70 : label_col) - text_col;
-    if (desc_limit < 1)
-        desc_limit = 1;
+    int desc_limit = menu_desc_limit(text_col, label_col, weight_col,
+        display_weights);
 
     char combined_desc[160];
     story_prepare_equipment_desc(combined_desc, sizeof(combined_desc), desc,
@@ -3354,10 +3405,11 @@ static void story_render_equipment_entry(int row, int col, int slot, cptr prefix
 
     if (display_weights && weight_text && weight_text[0])
     {
-        int weight_width = label_col - 70;
+        int weight_width = label_col - weight_col;
         if (weight_width < 1)
             weight_width = 1;
-        story_print_text_grid(row, 70, weight_width, weight_attr, weight_text);
+        story_print_text_grid(row, weight_col, weight_width, weight_attr,
+            weight_text);
     }
 
     if (label_text && label_text[0])
@@ -3368,8 +3420,10 @@ static void draw_equipment_story_rows(int col, int entry_count, int* out_index,
     byte* out_color, char out_desc[][80], bool highlight_active,
     int highlight_index, bool display_weights, int story_term_w)
 {
-    int label_col_base = display_weights ? 78 : 71;
-    int highlight_cols = (story_term_w > 0) ? story_term_w : 80;
+    int term_wid = (story_term_w > 0) ? story_term_w : menu_term_width();
+    int label_col_base = menu_label_col_for_width(term_wid, display_weights);
+    int weight_col = menu_weight_col_for_width(term_wid);
+    int highlight_cols = term_wid;
     const int label_width = 6;
 
     log_trace("draw_equipment_story_rows: entry_count=%d, highlight_active=%d, highlight_index=%d",
@@ -3413,9 +3467,8 @@ static void draw_equipment_story_rows(int col, int entry_count, int* out_index,
         }
 
         int label_col = label_col_base;
-        int desc_limit = (display_weights ? 70 : label_col) - text_col;
-        if (desc_limit < 1)
-            desc_limit = 1;
+        int desc_limit = menu_desc_limit(text_col, label_col, weight_col,
+            display_weights);
 
         char combined_desc[160];
         story_prepare_equipment_desc(combined_desc, sizeof(combined_desc),
@@ -3430,11 +3483,12 @@ static void draw_equipment_story_rows(int col, int entry_count, int* out_index,
             int wgt = o_ptr->weight * o_ptr->number;
             char weight_buf[16];
             strnfmt(weight_buf, sizeof(weight_buf), "%2d.%1d lb", wgt / 10, wgt % 10);
-            int weight_width = label_col - 70;
+            int weight_width = label_col - weight_col;
             if (weight_width < 1)
                 weight_width = 1;
-            log_trace("draw_equipment_story_rows: Row %d - printing weight '%s' at col=%d width=%d", row, weight_buf, 70, weight_width);
-            story_print_text_grid(row, 70, weight_width, line_attr, weight_buf);
+            log_trace("draw_equipment_story_rows: Row %d - printing weight '%s' at col=%d width=%d", row, weight_buf, weight_col, weight_width);
+            story_print_text_grid(row, weight_col, weight_width, line_attr,
+                weight_buf);
         }
 
         char label_buf[8];
@@ -3456,6 +3510,10 @@ void show_inven(void)
 {
     int i, j, k, l, z = 0;
     int col, len, lim;
+    int term_wid = menu_term_width();
+    int term_hgt = (Term && Term->hgt > 0) ? Term->hgt : 24;
+    int weight_col = menu_weight_col_for_width(term_wid);
+    int label_col = menu_label_col_for_width(term_wid, show_weights);
 
     object_type* o_ptr;
 
@@ -3478,14 +3536,20 @@ void show_inven(void)
     }
 
     /* Default length */
-    len = 79 - 50;
+    len = 29;
 
     /* Maximum space allowed for descriptions */
-    lim = 79 - 3;
+    lim = term_wid - 3;
+
+    if (lim < 0)
+        lim = 0;
 
     /* Require space for weight (if needed) */
-    if (show_weights)
-        lim -= 9;
+    if (show_weights && lim > (weight_col - 1))
+        lim = weight_col - 1;
+
+    if (lim < 0)
+        lim = 0;
 
     bool include_supplies = !inventory_menu_include_equip && supplies_visible_for_current_filter();
 
@@ -3503,7 +3567,7 @@ void show_inven(void)
     }
 
     /* Avoid exceeding the available rows in the vanilla inventory view. */
-    int max_rows = (Term ? Term->hgt : 24) - 1;
+    int max_rows = term_hgt - 1;
     if (max_rows < 1)
         max_rows = INVEN_PACK;
     
@@ -3575,7 +3639,7 @@ void show_inven(void)
     }
 
     /* Find the column to start in */
-    col = (len > 76) ? 0 : (79 - len);
+    col = menu_center_col_for_len(term_wid, len);
 
     /* Output each entry */
     for (j = 0; j < k; j++)
@@ -3583,8 +3647,6 @@ void show_inven(void)
         int idx = out_index[j];
         bool is_supply = (idx == SUPPLIES_INDEX);
         object_type* cur_obj = is_supply ? NULL : &inventory[idx];
-        int label_col = show_weights ? 78 : 71;
-
         if (use_story_font)
         {
             char weight_buf[16];
@@ -3638,7 +3700,7 @@ void show_inven(void)
             else
                 wgt = cur_obj->weight * cur_obj->number;
             sprintf(tmp_val, "%3d.%1d lb", wgt / 10, wgt % 10);
-            c_put_str(out_color[j], tmp_val, j + 1, 70);
+            c_put_str(out_color[j], tmp_val, j + 1, weight_col);
         }
 
         /* Print the item letter at the end */
@@ -3661,7 +3723,7 @@ void show_inven(void)
     }
 
     /* Make a "shadow" below the list (only if needed) */
-    if (j && (j < 23))
+    if (j && (j < term_hgt - 1))
     {
         if (use_story_font)
             Term_erase(col, j + 1, 255);
@@ -3679,6 +3741,10 @@ void show_equip(void)
 {
     int i, j, k, l;
     int col, len, lim;
+    int term_wid = menu_term_width();
+    int term_hgt = (Term && Term->hgt > 0) ? Term->hgt : 24;
+    int weight_col = menu_weight_col_for_width(term_wid);
+    int label_col = menu_label_col_for_width(term_wid, show_weights);
 
     object_type* o_ptr;
 
@@ -3707,10 +3773,13 @@ void show_equip(void)
     }
 
     /* Default length */
-    len = 79 - 50;
+    len = 29;
 
     /* Maximum space allowed for descriptions */
-    lim = 79 - 3;
+    lim = term_wid - 3;
+
+    if (lim < 0)
+        lim = 0;
 
     /* Require space for labels */
     lim -= (14 + 2);
@@ -3718,6 +3787,9 @@ void show_equip(void)
     /* Require space for weight (if needed) */
     if (show_weights)
         lim -= 9;
+
+    if (lim < 0)
+        lim = 0;
 
     /* Scan the equipment list */
     for (k = 0, i = INVEN_WIELD; i < INVEN_TOTAL; i++)
@@ -3770,7 +3842,7 @@ void show_equip(void)
     }
 
     /* Hack -- Find a column to start in */
-    col = (len > 76) ? 0 : (79 - len);
+    col = menu_center_col_for_len(term_wid, len);
 
     /* Output each entry */
     for (j = 0; j < k; j++)
@@ -3790,8 +3862,6 @@ void show_equip(void)
 
         char label_buf[8];
         strnfmt(label_buf, sizeof(label_buf), " (%c)", index_to_label(i));
-        int label_col = show_weights ? 78 : 71;
-
         char weight_buf[16];
         cptr weight_ptr = NULL;
         byte weight_attr = out_color[j];
@@ -3838,9 +3908,9 @@ void show_equip(void)
         if (show_weights && o_ptr->weight)
         {
             if (weight_attr == TERM_SLATE)
-                c_put_str(TERM_SLATE, weight_buf, j + 1, 70);
+                c_put_str(TERM_SLATE, weight_buf, j + 1, weight_col);
             else
-                c_put_str(out_color[j], weight_buf, j + 1, 70);
+                c_put_str(out_color[j], weight_buf, j + 1, weight_col);
         }
 
         if (i == INVEN_QUIVER2)
@@ -3857,7 +3927,7 @@ void show_equip(void)
     log_trace("show_equip: Finished rendering all %d entries", k);
 
     /* Make a "shadow" below the list (only if needed) */
-    if (j && (j < 23))
+    if (j && (j < term_hgt - 1))
     {
         if (use_story_font)
             Term_erase(col, j + 1, 255);
@@ -3875,23 +3945,25 @@ void show_equip(void)
         {
             Term_erase(col, text_row, 255);
             Term_erase(col, total_row, 255);
-            story_print_text_grid(total_row, 70, 8, TERM_L_DARK, "--------");
+            story_print_text_grid(total_row, weight_col, 8, TERM_L_DARK,
+                "--------");
             strnfmt(tmp_val, sizeof(tmp_val), "armour: %3d.%1d lb",
                 armour_weight / 10, armour_weight % 10);
-            story_print_text_grid(text_row, 62, 16, TERM_SLATE, tmp_val);
-            if (j && (j + 3 < 23))
+            story_print_text_grid(text_row, MAX(0, weight_col - 8), 16,
+                TERM_SLATE, tmp_val);
+            if (j && (j + 3 < term_hgt - 1))
                 Term_erase(col, j + 3, 255);
         }
         else
         {
             /* Blank the line for the total */
             prt("", j + 2, col_total);
-            c_put_str(TERM_L_DARK, "--------", total_row, 70);
+            c_put_str(TERM_L_DARK, "--------", total_row, weight_col);
             sprintf(tmp_val, "armour: %3d.%1d lb", armour_weight / 10,
                 armour_weight % 10);
-            c_put_str(TERM_SLATE, tmp_val, text_row, 70 - 8);
+            c_put_str(TERM_SLATE, tmp_val, text_row, MAX(0, weight_col - 8));
             /* Make a new "shadow" below the list (only if needed) */
-            if (j && (j + 3 < 23))
+            if (j && (j + 3 < term_hgt - 1))
                 prt("", j + 3, col_total);
         }
     }
@@ -4578,13 +4650,17 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         if (!highlight_active || !p_ptr->command_see) break;                        \
         byte attr = TERM_L_BLUE;                                                    \
         int col = 0;                                                                \
-        int len = 79 - 50;                                                          \
-        int lim = 79 - 3;                                                           \
+        int term_wid = menu_term_width();                                           \
+        int weight_col = menu_weight_col_for_width(term_wid);                       \
+        int label_col_base = menu_label_col_for_width(term_wid, show_weights);      \
+        int len = 29;                                                                \
+        int lim = term_wid - 3;                                                     \
         char tmp[80];                                                               \
         DRAW_HIGHLIGHT_STORY_VARS()                                                 \
         DRAW_HIGHLIGHT_STORY_UPDATE()                                               \
-        if (show_weights) lim -= 9;                                                 \
+        if (show_weights && lim > (weight_col - 1)) lim = weight_col - 1;          \
         if (p_ptr->command_wrk == (USE_EQUIP)) { lim -= (14 + 2); }                 \
+        if (lim < 0) lim = 0;                                                       \
         /* Recompute layout length by scanning visible list */                     \
         if (p_ptr->command_wrk == (USE_INVEN)) {                                    \
             for (int r=0;r<vis_inven_cnt;r++){                                      \
@@ -4616,13 +4692,13 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                 if (l>len) len=l;                                                   \
             }                                                                       \
         }                                                                           \
-        col = (len > 76) ? 0 : (79 - len);                                          \
+        col = menu_center_col_for_len(term_wid, len);                               \
         /* Determine row and item */                                                \
         int row=-1; int item_index=0; int floor_slot=-1;                            \
         if (p_ptr->command_wrk == (USE_INVEN) && highlight_row < vis_inven_cnt) {   \
             row = highlight_row; item_index = vis_inven[highlight_row];             \
             prt("", row+1, col);                                         \
-            int label_col = show_weights ? 78 : 71;                                  \
+            int label_col = label_col_base;                                         \
             if (item_index == SUPPLIES_INDEX) {                                     \
                 char label = supplies_label_char();                                 \
                 int slot = supplies_virtual_slot();                                 \
@@ -4643,7 +4719,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                 })                                                                  \
                 {                                                                   \
                     c_put_str(attr,tmp,row+1,col);                                  \
-                    if (show_weights){ int wgt = supplies_total_weight(); char w[16]; strnfmt(w, sizeof(w), "%2d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,70);} \
+                    if (show_weights){ int wgt = supplies_total_weight(); char w[16]; strnfmt(w, sizeof(w), "%2d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,weight_col);} \
                     { char lab[8]; sprintf(lab, " (%c)", label); c_put_str(attr,lab,row+1,label_col); }\
                 }                                                                   \
             } else {                                                                \
@@ -4659,7 +4735,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                 {                                                                   \
                     int text_col = draw_item_tile(col, row+1, o_ptr);               \
                     c_put_str(attr,tmp,row+1,text_col);                             \
-                    if (show_weights){ int wgt= o_ptr->weight*o_ptr->number; char w[16]; strnfmt(w, sizeof(w), "%2d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,70);} \
+                    if (show_weights){ int wgt= o_ptr->weight*o_ptr->number; char w[16]; strnfmt(w, sizeof(w), "%2d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,weight_col);} \
                     { char lab[8]; sprintf(lab, " (%c)", index_to_label(item_index)); c_put_str(attr,lab,row+1,label_col); }\
                 }                                                                   \
             }                                                                       \
@@ -4684,8 +4760,8 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                   c_put_str(attr,usebuf,row+1,col);                                 \
                   int text_col = draw_item_tile(col+12+2, row+1, o_ptr);            \
                   c_put_str(attr,tmp,row+1,text_col);                               \
-                  if (show_weights && o_ptr->weight){ int wgt=o_ptr->weight*o_ptr->number; char w[16]; sprintf(w,"%2d.%1d lb",wgt/10,wgt%10); c_put_str(attr,w,row+1,70);} \
-                  { char lab[8]; sprintf(lab, " (%c)", index_to_label(item_index)); int label_col = show_weights ? 78 : 71; c_put_str(attr,lab,row+1,label_col); }\
+                  if (show_weights && o_ptr->weight){ int wgt=o_ptr->weight*o_ptr->number; char w[16]; sprintf(w,"%2d.%1d lb",wgt/10,wgt%10); c_put_str(attr,w,row+1,weight_col);} \
+                  { char lab[8]; sprintf(lab, " (%c)", index_to_label(item_index)); int label_col = label_col_base; c_put_str(attr,lab,row+1,label_col); }\
               }                                                                     \
             }                                                                       \
         } else if (p_ptr->command_wrk == (USE_FLOOR) && highlight_row < vis_floor_cnt){\
@@ -4694,7 +4770,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             object_type* o_ptr=&o_list[obj_idx];                                    \
             object_desc_floor(tmp,sizeof(tmp),o_ptr,true,3); tmp[lim]='\0';         \
             prt("", row+1, col);                                         \
-            int label_col = show_weights ? 78 : 71;                                  \
+            int label_col = label_col_base;                                         \
             DRAW_HIGHLIGHT_IF_STORY({                                               \
                 char lab[8]; sprintf(lab, "(%c)", index_to_label(floor_slot));      \
                 char wbuf[16]; cptr wptr = NULL;                                    \
@@ -4705,7 +4781,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             {                                                                       \
                 int text_col = draw_item_tile(col, row+1, o_ptr);                   \
                 c_put_str(attr,tmp,row+1,text_col);                                 \
-                if (show_weights){ int wgt=o_ptr->weight*o_ptr->number; char w[16]; strnfmt(w, sizeof(w), "%2d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,70);} \
+                if (show_weights){ int wgt=o_ptr->weight*o_ptr->number; char w[16]; strnfmt(w, sizeof(w), "%2d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,weight_col);} \
                 { char lab[8]; sprintf(lab, " (%c)", index_to_label(floor_slot)); c_put_str(attr,lab,row+1,label_col); }\
             }                                                                       \
         }                                                                           \
@@ -5588,6 +5664,10 @@ void show_inven_enhanced(void)
     /* Variables exactly matching show_inven() */
     int i, k, z;
     int col, len, lim;
+    int term_wid = menu_term_width();
+    int term_hgt = (Term && Term->hgt > 0) ? Term->hgt : 24;
+    int weight_col = menu_weight_col_for_width(term_wid);
+    int label_col_base = menu_label_col_for_width(term_wid, show_weights);
     int highlight_row = -1;
     bool highlight_active = false;
     int previous_total_rows = 0;
@@ -5613,13 +5693,18 @@ void show_inven_enhanced(void)
     bool out_is_supply[ENHANCED_MAX_LIST]; /* Track which entries are supply items */
     
     /* Default length (exactly like show_inven) */
-    len = 79 - 50;
+    len = 29;
     
     /* Maximum space allowed for descriptions (exactly like show_inven) */
-    lim = 79 - 3;
+    lim = term_wid - 3;
+    if (lim < 0)
+        lim = 0;
     
     /* Require space for weight if needed (exactly like show_inven) */
-    if (show_weights) lim -= 9;
+    if (show_weights && lim > (weight_col - 1))
+        lim = weight_col - 1;
+    if (lim < 0)
+        lim = 0;
     
     /* Scan floor items first to see if we have any */
     floor_num = scan_floor(floor_list, MAX_FLOOR_STACK, p_ptr->py, p_ptr->px, 0x00);
@@ -5729,7 +5814,7 @@ void show_inven_enhanced(void)
     }
 
     /* Find the column to start in (exactly like show_inven) */
-    col = (len > 76) ? 0 : (79 - len);
+    col = menu_center_col_for_len(term_wid, len);
     
     log_debug("show_inven_enhanced: k=%d items, len=%d, col=%d, story_term_w=%d", k, len, col, story_term_w);
     
@@ -5809,7 +5894,7 @@ void show_inven_enhanced(void)
         int redraw_y1 = -1, redraw_y2 = -1; /* aggregate redraw bounds */
         if (use_story_font && allow_compare && !first_render)
         {
-            int label_col_tmp = show_weights ? 78 : 71;
+            int label_col_tmp = label_col_base;
             const int label_width_tmp = 6;
             int max_print_col = label_col_tmp + label_width_tmp;
             int erase_w = (max_print_col > col) ? (max_print_col - col + 1) : 0;
@@ -5823,7 +5908,7 @@ void show_inven_enhanced(void)
                 {
                     int rr = base + r;
                     if (erase_w > 0) Term_erase(col, rr, erase_w);
-                    if (show_weights) Term_erase(70, rr, 9);
+                    if (show_weights) Term_erase(weight_col, rr, 9);
                     if (redraw_y1 < 0 || rr < redraw_y1) redraw_y1 = rr;
                     if (redraw_y2 < 0 || rr > redraw_y2) redraw_y2 = rr;
                 }
@@ -5836,7 +5921,7 @@ void show_inven_enhanced(void)
                 {
                     int rr = base + r;
                     if (erase_w > 0) Term_erase(col, rr, erase_w);
-                    if (show_weights) Term_erase(70, rr, 9);
+                    if (show_weights) Term_erase(weight_col, rr, 9);
                     if (redraw_y1 < 0 || rr < redraw_y1) redraw_y1 = rr;
                     if (redraw_y2 < 0 || rr > redraw_y2) redraw_y2 = rr;
                 }
@@ -5894,7 +5979,7 @@ void show_inven_enhanced(void)
                      * Use conservative limit to prevent overflow
                      * For story font, reduce by 20% to account for proportional spacing */
                     int text_start_col = col + 12 + 2 + 3;  /* +3 for tile worst case */
-                    int text_end_col = show_weights ? 70 : 71;
+                    int text_end_col = show_weights ? weight_col : label_col_base;
                     int compare_lim = text_end_col - text_start_col;
                     /* We'll enforce the exact visual width at render time; 
                        keep character truncation only as a hard ceiling */
@@ -5957,7 +6042,7 @@ void show_inven_enhanced(void)
             else if (!is_supply_item)
                 line_obj = &inventory[out_index[j]];
 
-            int label_col = show_weights ? 78 : 71;
+            int label_col = label_col_base;
 
             if (use_story_font)
             {
@@ -5971,8 +6056,7 @@ void show_inven_enhanced(void)
                 }
                 if (is_highlight)
                 {
-                    /* Always limit to 80 columns to match standard terminal layout */
-                    int highlight_cols = 80;
+                    int highlight_cols = term_wid;
                     story_fill_rect(row, col, highlight_cols - col, TERM_L_BLUE);
                 }
             }
@@ -5993,9 +6077,8 @@ void show_inven_enhanced(void)
 
             if (use_story_font)
             {
-                int desc_limit = (show_weights ? 70 : label_col) - text_col;
-                if (desc_limit < 1)
-                    desc_limit = 1;
+                int desc_limit = menu_desc_limit(text_col, label_col,
+                    weight_col, show_weights);
                 
                 /* Convert limit from mono columns to story font cells */
                 if (story_term_w > 80) {
@@ -6021,13 +6104,13 @@ void show_inven_enhanced(void)
                 strnfmt(tmp_val, sizeof(tmp_val), "%2d.%1d lb", wgt / 10, wgt % 10);
                 if (use_story_font)
                 {
-                    int weight_width = label_col - 70;
+                    int weight_width = label_col - weight_col;
                     if (weight_width < 1)
                         weight_width = 1;
-                    story_print_text_grid(row, 70, weight_width, line_attr, tmp_val);
+                    story_print_text_grid(row, weight_col, weight_width, line_attr, tmp_val);
                 }
                 else
-                    c_put_str(line_attr, tmp_val, row, 70);
+                    c_put_str(line_attr, tmp_val, row, weight_col);
             }
 
             /* Print the item letter at the end */
@@ -6111,7 +6194,7 @@ void show_inven_enhanced(void)
                     {
                         /* Bound the story-font rendering to the available grid width,
                            scaled to story cells, so we can safely show more text. */
-                        int text_end_col = show_weights ? 70 : label_col;
+                        int text_end_col = show_weights ? weight_col : label_col;
                         int desc_limit = text_end_col - compare_text_col;
                         if (desc_limit < 1) desc_limit = 1;
                         if (story_term_w > 80) desc_limit = (desc_limit * story_term_w) / 80;
@@ -6131,20 +6214,20 @@ void show_inven_enhanced(void)
                             strnfmt(tmp_val, sizeof(tmp_val), "%2d.%1d lb", compare_weight[idx] / 10, compare_weight[idx] % 10);
                             if (use_story_font)
                             {
-                                int compare_weight_width = label_col - 70;
+                                int compare_weight_width = label_col - weight_col;
                                 if (compare_weight_width < 1)
                                     compare_weight_width = 1;
-                                story_print_text_grid(compare_row, 70, compare_weight_width, compare_attr[idx], tmp_val);
+                                story_print_text_grid(compare_row, weight_col, compare_weight_width, compare_attr[idx], tmp_val);
                             }
                             else
-                                c_put_str(compare_attr[idx], tmp_val, compare_row, 70);
+                                c_put_str(compare_attr[idx], tmp_val, compare_row, weight_col);
                         }
                         else
                         {
                             if (use_story_font)
-                                Term_erase(70, compare_row, 9);
+                                Term_erase(weight_col, compare_row, 9);
                             else
-                                prt("", compare_row, 70);
+                                prt("", compare_row, weight_col);
                         }
                     }
 
@@ -6187,13 +6270,13 @@ void show_inven_enhanced(void)
             }
             if (redraw_y1 > 0 && redraw_y2 >= redraw_y1)
             {
-                int max_col = (show_weights ? 78 + 6 : 71 + 6);
+                int max_col = label_col_base + 6;
                 if (max_col > Term->wid - 1) max_col = Term->wid - 1;
                 Term_redraw_section(col, redraw_y1, max_col, redraw_y2);
             }
         }
 
-        if (total_rows && total_rows < 23)
+        if (total_rows && total_rows < term_hgt - 1)
         {
             if (use_story_font) {
                 int erase_w = 255;
@@ -6219,13 +6302,13 @@ void show_inven_enhanced(void)
                     }
                     Term_erase(col, clear_row, erase_w);
                     if (show_weights)
-                        Term_erase(70, clear_row, weight_erase_w);
+                        Term_erase(weight_col, clear_row, weight_erase_w);
                 }
                 else
                 {
                     prt("", clear_row, clear_col);
                     if (show_weights)
-                        prt("", clear_row, 70);
+                        prt("", clear_row, weight_col);
                 }
             }
         }
@@ -6532,6 +6615,10 @@ void show_equip_enhanced(void)
     /* Variables exactly matching show_equip() */
     int i, k, l;
     int col, len, lim;
+    int term_wid = menu_term_width();
+    int term_hgt = (Term && Term->hgt > 0) ? Term->hgt : 24;
+    int weight_col = menu_weight_col_for_width(term_wid);
+    int label_col_base = menu_label_col_for_width(term_wid, show_weights);
     int highlight_index = -1;  /* Index in the equipped items array */
     bool highlight_active = false;
     
@@ -6546,16 +6633,21 @@ void show_equip_enhanced(void)
     int armour_weight = 0;    /* Total armour weight */
     
     /* Default length (exactly like show_equip) */
-    len = 79 - 50;
+    len = 29;
     
     /* Maximum space allowed for descriptions (exactly like show_equip) */
-    lim = 79 - 3;
+    lim = term_wid - 3;
+    if (lim < 0)
+        lim = 0;
     
     /* Require space for labels (exactly like show_equip) */
     lim -= (14 + 2);
     
     /* Require space for weight if needed (exactly like show_equip) */
     if (show_weights) lim -= 9;
+
+    if (lim < 0)
+        lim = 0;
     
     /* Scan the equipment list - ONLY INCLUDE EQUIPPED ITEMS */
     log_debug("show_equip_enhanced: Starting equipment scan, show_weights=%d", show_weights);
@@ -6621,7 +6713,7 @@ void show_equip_enhanced(void)
     log_debug("show_equip_enhanced: Equipment scan complete, k=%d items, total armour_weight=%d", k, armour_weight);
     
     /* Find the column to start in (exactly like show_equip) */
-    col = (len > 76) ? 0 : (79 - len);
+    col = menu_center_col_for_len(term_wid, len);
     
     log_debug("show_equip_enhanced: k=%d equipped items, len=%d, col=%d", k, len, col);
     
@@ -6656,14 +6748,14 @@ void show_equip_enhanced(void)
                 Term_erase(col, text_row, 255);
                 
                 log_trace("show_equip_enhanced: Rendering armour weight total at rows %d/%d", total_row, text_row);
-                story_print_text_grid(total_row, 70, 8, TERM_L_DARK, "--------");
+                story_print_text_grid(total_row, weight_col, 8, TERM_L_DARK, "--------");
                 strnfmt(tmp_val, sizeof(tmp_val), "armour: %3d.%1d lb",
                     armour_weight / 10, armour_weight % 10);
                 log_debug("show_equip_enhanced: Armour weight text: '%s'", tmp_val);
-                story_print_text_grid(text_row, 62, 16, TERM_SLATE, tmp_val);
+                story_print_text_grid(text_row, MAX(0, weight_col - 8), 16, TERM_SLATE, tmp_val);
                 
                 /* Erase the shadow line below */
-                if (k && (k + 3 < 23))
+                if (k && (k + 3 < term_hgt - 1))
                 {
                     log_trace("show_equip_enhanced: Erasing shadow at row %d", k + 3);
                     Term_erase(0, k + 3, 255);
@@ -6780,7 +6872,7 @@ void show_equip_enhanced(void)
                 {
                     int wgt = o_ptr->weight * o_ptr->number;
                     sprintf(tmp_val, "%3d.%1d lb", wgt / 10, wgt % 10);
-                    c_put_str(TERM_L_BLUE, tmp_val, display_row, 70);
+                    c_put_str(TERM_L_BLUE, tmp_val, display_row, weight_col);
                 }
                 
                 if (highlighted_slot == INVEN_QUIVER2)
@@ -6792,7 +6884,7 @@ void show_equip_enhanced(void)
 
                 /* Print the item letter at the end with highlight */
                 sprintf(tmp_val, " (%c)", index_to_label(highlighted_slot));
-                int label_col = show_weights ? 78 : 71;
+                int label_col = label_col_base;
                 c_put_str(TERM_L_BLUE, tmp_val, display_row, label_col);
                 
                 log_debug("show_equip_enhanced: Drew highlight at display row %d, col %d", display_row, col);
@@ -7030,7 +7122,8 @@ static void build_ident_entry_label(int order, char out[6])
     out[2] = '\0';
 }
 
-static void draw_ident_line(const ident_entry* entry, int row, int col, bool highlight)
+static void draw_ident_line(const ident_entry* entry, int row, int col,
+    int weight_col, bool highlight)
 {
     byte attr = highlight ? TERM_L_BLUE : entry->color;
     byte label_attr = highlight ? TERM_L_BLUE : TERM_WHITE;
@@ -7061,7 +7154,7 @@ static void draw_ident_line(const ident_entry* entry, int row, int col, bool hig
         if (entry->o_ptr->weight || entry->type != IDENT_ENTRY_EQUIP)
         {
             strnfmt(weight_buf, sizeof(weight_buf), "%2d.%1d lb", wgt / 10, wgt % 10);
-            c_put_str(attr, weight_buf, row, 70);
+            c_put_str(attr, weight_buf, row, weight_col);
         }
     }
 }
@@ -7070,8 +7163,11 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
 {
     ident_entry entries[MAX_IDENT_ENTRIES];
     int entry_count = 0;
-    int len = 79 - 50;
-    const int base_lim = 79 - 3;
+    int term_wid = menu_term_width();
+    int term_hgt = (Term && Term->hgt > 0) ? Term->hgt : 24;
+    int weight_col = menu_weight_col_for_width(term_wid);
+    int len = 29;
+    const int base_lim = term_wid - 3;
     const int lim_no_weight = base_lim - (show_weights ? 9 : 0);
     int floor_list[MAX_FLOOR_STACK];
     int floor_num = 0;
@@ -7232,7 +7328,7 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
         return false;
     }
 
-    int col = (len > 76) ? 0 : (79 - len);
+    int col = menu_center_col_for_len(term_wid, len);
     int highlight = 0;
     bool done = false;
     bool success = false;
@@ -7240,10 +7336,10 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
     screen_save();
 
     int clear_start = (col > 1) ? (col - 2) : col;
-    int clear_width = 80 - clear_start;
+    int clear_width = term_wid - clear_start;
     if (clear_width < 0)
         clear_width = 0;
-    int base_rows = MIN(23, entry_count + 1);
+    int base_rows = MIN(term_hgt - 1, entry_count + 1);
     int rows_to_clear = base_rows;
 
     log_trace("display_unified_identify_menu: init clear entry_count=%d, start_col=%d, width=%d, rows=%d",
@@ -7253,12 +7349,12 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
     {
         Term_erase(0, 0, 255);
 
-        for (int row = 1; row <= rows_to_clear && row < 24; row++)
+        for (int row = 1; row <= rows_to_clear && row < term_hgt; row++)
         {
             Term_erase(clear_start, row, clear_width);
         }
         log_trace("display_unified_identify_menu: redraw cleared rows 1-%d from col %d width %d",
-            MIN(rows_to_clear, 23), clear_start, clear_width);
+            MIN(rows_to_clear, term_hgt - 1), clear_start, clear_width);
 
         char prompt[80];
         strnfmt(prompt, sizeof(prompt),
@@ -7267,10 +7363,11 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
 
         for (int i = 0; i < entry_count; i++)
         {
-            draw_ident_line(&entries[i], i + 1, col, (i == highlight));
+            draw_ident_line(&entries[i], i + 1, col, weight_col,
+                (i == highlight));
         }
 
-        if (entry_count && entry_count < 23)
+        if (entry_count && entry_count < term_hgt - 1)
             prt("", entry_count + 1, col);
 
         rows_to_clear = base_rows;

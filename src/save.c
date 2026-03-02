@@ -905,9 +905,11 @@ static void wr_options(void)
     /* Write "vault_drop_frequency" */
     wr_byte(op_ptr->vault_drop_frequency);
 
-    // 5 spare bytes
+    /* Write "intro_style" */
+    wr_byte(op_ptr->intro_style);
+
+    // 4 spare bytes
     wr_u32b(0L);
-    wr_byte(0);
 
     /*** Normal options ***/
 

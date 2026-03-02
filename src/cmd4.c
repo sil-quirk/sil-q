@@ -400,6 +400,14 @@ void do_cmd_character_sheet(void)
     char ch;
 
     int mode = 0;
+    int sheet_page = 2;
+
+    enum {
+        CHAR_SHEET_MODE_COMPACT_OVERVIEW = 100,
+        CHAR_SHEET_MODE_COMPACT_STATS = 101,
+        CHAR_SHEET_MODE_COMPACT_SKILLS = 102,
+        CHAR_SHEET_MODE_COMPACT_HISTORY = 103,
+    };
 
     /* Clear any active banner before opening character sheet */
     extern int g_banner_force_redraw_remaining;
@@ -414,17 +422,111 @@ void do_cmd_character_sheet(void)
     /* Forever */
     while (1)
     {
+        int wid = 80;
+        int hgt = 24;
+        int prompt_row;
+        bool compact_sheet;
+        int compact_pages;
         bool steamdeck = steamdeck_controls_active();
+
+        Term_get_size(&wid, &hgt);
+        if (wid < 1)
+            wid = 80;
+        if (hgt < 1)
+            hgt = 24;
+
+        compact_sheet = (wid < 80);
+        compact_pages = compact_sheet ? 4 : 1;
+        if (sheet_page >= compact_pages)
+            sheet_page = compact_pages - 1;
+        if (sheet_page < 0)
+            sheet_page = 0;
+
+        if (compact_sheet)
+        {
+            switch (sheet_page)
+            {
+            case 0: mode = CHAR_SHEET_MODE_COMPACT_OVERVIEW; break;
+            case 1: mode = CHAR_SHEET_MODE_COMPACT_STATS; break;
+            case 2: mode = CHAR_SHEET_MODE_COMPACT_SKILLS; break;
+            case 3: mode = CHAR_SHEET_MODE_COMPACT_HISTORY; break;
+            default: mode = CHAR_SHEET_MODE_COMPACT_OVERVIEW; break;
+            }
+        }
+        else
+        {
+            mode = 0;
+        }
 
         /* Display the player */
         display_player(mode);
 
-        /* Prompt - use monospace to ensure correct column alignment */
-        /* With story font, proportional widths make column positions unreliable */
-        
-        /* Print the full command menu in base color */
-        /* Prompt - render based on character sheet font setting */
-        if (story_character_enabled()) {
+        prompt_row = hgt - 1;
+        if (prompt_row < 0)
+            prompt_row = 0;
+        Term_erase(0, prompt_row, 255);
+
+        /* Prompt - render based on available width */
+        if (compact_sheet)
+        {
+            char prompt_buf[200];
+            const char* page_name = "";
+
+            switch (sheet_page)
+            {
+            case 0: page_name = "overview"; break;
+            case 1: page_name = "stats"; break;
+            case 2: page_name = "skills"; break;
+            case 3: page_name = "history"; break;
+            default: page_name = ""; break;
+            }
+
+            if (steamdeck)
+            {
+                char notes_label[16];
+                char story_label[16];
+                char abilities_label[16];
+                char increase_label[16];
+                char help_label[16];
+                char back_label[16];
+
+                controller_prompt_label(steamdeck_confirm_key(), "A", notes_label, sizeof(notes_label));
+                controller_prompt_label(steamdeck_secondary_key(), "Y", story_label, sizeof(story_label));
+                controller_prompt_label(steamdeck_alt_action_key(), "X", abilities_label, sizeof(abilities_label));
+                controller_prompt_label('i', "R1", increase_label, sizeof(increase_label));
+                controller_prompt_label(steamdeck_info_key(), "RS", help_label, sizeof(help_label));
+                controller_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
+
+                strnfmt(prompt_buf, sizeof(prompt_buf),
+                    "%s notes %s story %s abil %s inc %s help %s back",
+                    notes_label, story_label, abilities_label, increase_label, help_label, back_label);
+            }
+            else
+            {
+#ifdef DEBUG_CURSES
+                strnfmt(prompt_buf, sizeof(prompt_buf),
+                    "n notes  s story  f file  a abil  c curses  i inc  ? help  ESC");
+#else
+                strnfmt(prompt_buf, sizeof(prompt_buf),
+                    "n notes  s story  f file  a abil  i inc  ? help  ESC");
+#endif
+            }
+
+            if (compact_pages > 1)
+            {
+                char page_buf[48];
+                strnfmt(page_buf, sizeof(page_buf), " | 4/6 %s %d/%d", page_name,
+                    sheet_page + 1, compact_pages);
+                SDL_strlcat(prompt_buf, page_buf, sizeof(prompt_buf));
+            }
+
+            if (story_character_enabled())
+                sdl_story_font_enable();
+            Term_putstr(1, prompt_row, -1, TERM_L_WHITE, prompt_buf);
+            if (story_character_enabled())
+                sdl_story_font_disable();
+        }
+        else if (story_character_enabled()) {
             sdl_story_font_enable();
             /* Story font - use more spacing for readability */
             if (steamdeck) {
@@ -449,9 +551,9 @@ void do_cmd_character_sheet(void)
                 strnfmt(prompt_buf, sizeof(prompt_buf),
                     "%s-notes     %s-story     %s-file     %s-abilities     %s-increase     %s-help     %s-back",
                     notes_label, story_label, file_label, abilities_label, increase_label, help_label, back_label);
-                Term_putstr(1, 23, -1, TERM_L_WHITE, prompt_buf);
+                Term_putstr(1, prompt_row, -1, TERM_L_WHITE, prompt_buf);
             } else {
-                Term_putstr(1, 23, -1, TERM_L_WHITE,
+                Term_putstr(1, prompt_row, -1, TERM_L_WHITE,
 #ifdef DEBUG_CURSES
                     "n-notes     s-story     f-file     a-abilities     c-curses     i-increase     ?-help     ESC");
 #else
@@ -482,9 +584,9 @@ void do_cmd_character_sheet(void)
                 strnfmt(prompt_buf, sizeof(prompt_buf),
                     "%s-notes  %s-story  %s-file  %s-abilities  %s-increase  %s-help  %s-back",
                     notes_label, story_label, file_label, abilities_label, increase_label, help_label, back_label);
-                Term_putstr(1, 23, -1, TERM_L_WHITE, prompt_buf);
+                Term_putstr(1, prompt_row, -1, TERM_L_WHITE, prompt_buf);
             } else {
-                Term_putstr(1, 23, -1, TERM_L_WHITE,
+                Term_putstr(1, prompt_row, -1, TERM_L_WHITE,
 #ifdef DEBUG_CURSES
                     "n-notes  s-story  f-file  a-abilities  c-curses  i-increase  ?-help  ESC");
 #else
@@ -507,6 +609,20 @@ void do_cmd_character_sheet(void)
             break;
         if ((ch == '\r') || (ch == '\n') || (ch == 'q') || (ch == 'Q'))
             break;
+
+        if (compact_pages > 1)
+        {
+            if ((ch == '4') || (ch == '8'))
+            {
+                sheet_page = (sheet_page + compact_pages - 1) % compact_pages;
+                continue;
+            }
+            if ((ch == '6') || (ch == '2'))
+            {
+                sheet_page = (sheet_page + 1) % compact_pages;
+                continue;
+            }
+        }
 
         /* Increase skills - 'i' or R1 */
         if (ch == 'i')
@@ -9232,9 +9348,13 @@ int main_menu_aux(int* highlight)
         if (col_main < 0)
             col_main = 0;
 
-        /* Keep the menu fixed vertically: row 0 is message bar,
-         * row 1 is top border, row 2 starts entries. */
-        row_top = (Term->hgt > 1) ? 1 : 0;
+        /* Keep the menu fixed vertically.
+         * At height 20, start at row 0 so all menu rows fit.
+         * Otherwise keep row 0 for message bar and start menu at row 1. */
+        if (Term->hgt == 20)
+            row_top = 0;
+        else
+            row_top = (Term->hgt > 1) ? 1 : 0;
     }
 
     if (death_view && (*highlight >= 16) && (*highlight <= 18))
@@ -10262,6 +10382,18 @@ extern void do_cmd_options_aux(int page, cptr info)
                     "Vault drop frequency",
                     vdf_names[mode], mode);
             }
+            else if (opt[i] == OPT_intro_style)
+            {
+                const char *is_names[] = {
+                    "Flame Imperishable", "Oath of Feanor",
+                    "Twilight of Valinor", "Song of Luthien",
+                    "Words of Hurin", "Random"
+                };
+                byte m = op_ptr->intro_style;
+                if (m > INTRO_STYLE_RANDOM) m = INTRO_STYLE_FLAME;
+                strnfmt(buf, sizeof(buf), "%-48s: %s",
+                    "Welcome screen style", is_names[m]);
+            }
             else
             {
                 strnfmt(buf, sizeof(buf), "%-48s: %s", option_desc[opt[i]],
@@ -10377,6 +10509,14 @@ extern void do_cmd_options_aux(int page, cptr info)
                     else if (k == 11) sound_cfg->music_ambient_enabled = !sound_cfg->music_ambient_enabled;
                     /* Volume controls (5-9, 12-13) don't toggle */
                 }
+                else if (opt[k] == OPT_intro_style)
+                {
+                    /* Toggle cycles forward */
+                    op_ptr->intro_style
+                        = (op_ptr->intro_style < INTRO_STYLE_RANDOM)
+                        ? op_ptr->intro_style + 1
+                        : INTRO_STYLE_FLAME;
+                }
                 else
                 {
                     op_ptr->opt[opt[k]] = !op_ptr->opt[opt[k]];
@@ -10460,6 +10600,13 @@ extern void do_cmd_options_aux(int page, cptr info)
                         ? op_ptr->vault_drop_frequency + 1
                         : VDF_PLENTIFUL;
                 }
+                else if (opt[k] == OPT_intro_style)
+                {
+                    op_ptr->intro_style
+                        = (op_ptr->intro_style < INTRO_STYLE_RANDOM)
+                        ? op_ptr->intro_style + 1
+                        : INTRO_STYLE_RANDOM;
+                }
                 else
                 {
                     op_ptr->opt[opt[k]] = true;
@@ -10542,6 +10689,13 @@ extern void do_cmd_options_aux(int page, cptr info)
                         = (op_ptr->vault_drop_frequency > VDF_NORMAL)
                         ? op_ptr->vault_drop_frequency - 1
                         : VDF_NORMAL;
+                }
+                else if (opt[k] == OPT_intro_style)
+                {
+                    op_ptr->intro_style
+                        = (op_ptr->intro_style > INTRO_STYLE_FLAME)
+                        ? op_ptr->intro_style - 1
+                        : INTRO_STYLE_FLAME;
                 }
                 else
                 {
@@ -10702,7 +10856,7 @@ static errr option_dump(cptr fname)
 void do_cmd_pane_settings(void)
 {
     int k = 0;
-    int n = 9; /* Total number of options (not including save/quit) */
+    int n = 10; /* Total number of options */
     bool done = false;
     bool settings_changed = false;
     int dir;
@@ -10722,66 +10876,70 @@ void do_cmd_pane_settings(void)
         
         /* Display current settings */
         char buf[80];
-        int y = 3;
+        int y0 = 3;
         byte a;
-        
+
         /* Option 0: Main View Scale */
         a = (k == 0) ? TERM_L_BLUE : TERM_WHITE;
         strnfmt(buf, sizeof(buf), "%-48s: %d", "Main View Scale (1-max) [Alt++/-]", get_sdl_main_view_scale());
-        c_prt(a, buf, y++, 2);
-        
+        c_prt(a, buf, y0 + 0, 2);
+
         /* Option 1: Aux View Font Size */
         a = (k == 1) ? TERM_L_BLUE : TERM_WHITE;
         strnfmt(buf, sizeof(buf), "%-48s: %d", "Aux View Font Size (8-48)", get_sdl_aux_view_font_size());
-        c_prt(a, buf, y++, 2);
-        
+        c_prt(a, buf, y0 + 1, 2);
+
         /* Option 2: Margin */
         a = (k == 2) ? TERM_L_BLUE : TERM_WHITE;
         strnfmt(buf, sizeof(buf), "%-48s: %d", "Margin (0-20)", get_sdl_margin());
-        c_prt(a, buf, y++, 2);
-        
+        c_prt(a, buf, y0 + 2, 2);
+
         /* Option 3: Fullscreen */
         a = (k == 3) ? TERM_L_BLUE : TERM_WHITE;
         strnfmt(buf, sizeof(buf), "%-48s: %s", "Fullscreen", get_sdl_fullscreen() ? "yes" : "no ");
-        c_prt(a, buf, y++, 2);
-        
+        c_prt(a, buf, y0 + 3, 2);
+
         /* Option 4: Tiles */
         a = (k == 4) ? TERM_L_BLUE : TERM_WHITE;
         strnfmt(buf, sizeof(buf), "%-48s: %s", "Tiles", get_sdl_tiles() ? "yes" : "no ");
-        c_prt(a, buf, y++, 2);
-        
+        c_prt(a, buf, y0 + 4, 2);
+
         /* Option 5: Enable Right Panes */
         a = (k == 5) ? TERM_L_BLUE : TERM_WHITE;
         strnfmt(buf, sizeof(buf), "%-48s: %s", "Enable Right Panes [Alt+I]", get_sdl_enable_right_panes() ? "yes" : "no ");
-        c_prt(a, buf, y++, 2);
-        
+        c_prt(a, buf, y0 + 5, 2);
+
         /* Option 6: Enable Bottom Panes */
         a = (k == 6) ? TERM_L_BLUE : TERM_WHITE;
         strnfmt(buf, sizeof(buf), "%-48s: %s", "Enable Bottom Panes [Alt+L]", get_sdl_enable_bottom_panes() ? "yes" : "no ");
-        c_prt(a, buf, y++, 2);
-        
-        y++; /* Blank line */
-        
-        /* Option 7: View Pane Configuration */
-        a = (k == 5) ? TERM_L_BLUE : TERM_WHITE;
+        c_prt(a, buf, y0 + 6, 2);
+
+        /* Option 7: Intro Screen Style */
+        {
+            const char* style_name = "Flame Imperishable";
+            int style = get_sdl_intro_style();
+            if (style == -1) style_name = "Random";
+            else if (style == 1) style_name = "Oath of Feanor";
+            else if (style == 2) style_name = "Twilight of Valinor";
+            else if (style == 3) style_name = "Song of Luthien";
+            else if (style == 4) style_name = "Tears Unnumbered";
+
+            a = (k == 7) ? TERM_L_BLUE : TERM_WHITE;
+            strnfmt(buf, sizeof(buf), "%-48s: %s", "Intro Screen Style", style_name);
+            c_prt(a, buf, y0 + 7, 2);
+        }
+
+        /* Option 8: View Pane Configuration */
+        a = (k == 8) ? TERM_L_BLUE : TERM_WHITE;
         strnfmt(buf, sizeof(buf), "View Pane Configuration (%d panes)", get_pane_config_count());
-        c_prt(a, buf, y++, 2);
-        
-        y++; /* Blank line */
-        
-        /* Option 6: Save/Quit */
-        a = (k == 6) ? TERM_L_BLUE : TERM_WHITE;
-        if (settings_changed)
-        {
-            c_prt(a, "Save Changes and Return", y++, 2);
-        }
-        else
-        {
-            c_prt(a, "Return to Options Menu", y++, 2);
-        }
+        c_prt(a, buf, y0 + 8, 2);
+
+        /* Option 9: Save/Return */
+        a = (k == 9) ? TERM_L_BLUE : TERM_WHITE;
+        c_prt(a, settings_changed ? "Save Changes and Return" : "Return to Options Menu", y0 + 9, 2);
         
         /* Display help */
-        y = Term->hgt - 3;
+        int y = Term->hgt - 3;
         if (settings_changed)
         {
             Term_putstr(2, y++, -1, TERM_YELLOW, "Settings changed - changes take effect immediately.");
@@ -10790,7 +10948,7 @@ void do_cmd_pane_settings(void)
         Term_putstr(2, y++, -1, TERM_SLATE, "(direction keys to set, Return/Escape to accept)");
         
         /* Hilite current option */
-        move_cursor(k + 3, 52);
+        move_cursor(3 + k, 52);
         
         /* Get key */
         hide_cursor = true;
@@ -10863,7 +11021,18 @@ void do_cmd_pane_settings(void)
                 settings_changed = true;
                 sdl_apply_config();
             }
-            else if (k == 7) /* View Pane Configuration */
+            else if (k == 7) /* Intro Screen Style */
+            {
+                int style = get_sdl_intro_style();
+                if (style == -1) style = 0;
+                else {
+                    style++;
+                    if (style > 4) style = -1;
+                }
+                set_sdl_intro_style(style);
+                settings_changed = true;
+            }
+            else if (k == 8) /* View Pane Configuration */
             {
                 char pane_info[8192];
                 get_sdl_config_info(pane_info, sizeof(pane_info));
@@ -10892,7 +11061,7 @@ void do_cmd_pane_settings(void)
                 (void)inkey();
                 screen_load();
             }
-            else if (k == 8) /* Save/Return */
+            else if (k == 9) /* Save/Return */
             {
                 if (settings_changed)
                 {
@@ -10965,6 +11134,17 @@ void do_cmd_pane_settings(void)
                 settings_changed = true;
                 sdl_apply_config();
             }
+            else if (k == 7) /* Intro Screen Style */
+            {
+                int style = get_sdl_intro_style();
+                if (style == -1) style = 0;
+                else {
+                    style++;
+                    if (style > 4) style = -1;
+                }
+                set_sdl_intro_style(style);
+                settings_changed = true;
+            }
             break;
         }
         
@@ -11025,6 +11205,17 @@ void do_cmd_pane_settings(void)
                 set_sdl_enable_bottom_panes(false);
                 settings_changed = true;
                 sdl_apply_config();
+            }
+            else if (k == 7) /* Intro Screen Style */
+            {
+                int style = get_sdl_intro_style();
+                if (style == -1) style = 4;
+                else {
+                    style--;
+                    if (style < 0) style = -1;
+                }
+                set_sdl_intro_style(style);
+                settings_changed = true;
             }
             break;
         }

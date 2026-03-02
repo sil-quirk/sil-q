@@ -3607,6 +3607,29 @@ static void unified_look_prompt_label(int binding, const char* fallback, char* b
         SDL_strlcpy(buf, fallback, buflen);
 }
 
+static void unified_look_print_prompt(cptr full_text, cptr compact_text)
+{
+    int term_wid = (Term && Term->wid > 0) ? Term->wid : 80;
+    char buf[192];
+    cptr selected = full_text;
+
+    if (compact_text && term_wid < (int)strlen(full_text) + 1)
+        selected = compact_text;
+
+    SDL_strlcpy(buf, selected, sizeof(buf));
+
+    if ((int)strlen(buf) >= term_wid && term_wid > 4)
+    {
+        int cut = term_wid - 4;
+        if (cut < 0)
+            cut = 0;
+        buf[cut] = '\0';
+        SDL_strlcat(buf, "...", sizeof(buf));
+    }
+
+    prt(buf, 0, 0);
+}
+
 void do_cmd_unified_look(void)
 {
     unified_look_state state;
@@ -3840,9 +3863,12 @@ void do_cmd_unified_look(void)
                             strnfmt(prompt_buf, sizeof(prompt_buf),
                                 "[%s/%s]=Select [%s]=Exam [%s]=Target [%s]=Obj [%s]=Pan [%s]=Back",
                                 next_label, prev_label, exam_label, target_label, obj_label, pan_label, back_label);
-                            prt(prompt_buf, 0, 0);
+                            unified_look_print_prompt(prompt_buf,
+                                "[R1/L1] Sel [A] Exam [B] Targ [X] Obj [Y] Pan [ESC]");
                         } else {
-                            prt("[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Pan [ESC]", 0, 0);
+                            unified_look_print_prompt(
+                                "[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Pan [ESC]",
+                                "[Tab/q] Sel [Space] Exam [t] Targ [l] Disp [m] Mon [o] Obj [T] Top5 [s] Pan [ESC]");
                         }
                     }
                     else
@@ -3868,9 +3894,12 @@ void do_cmd_unified_look(void)
                             strnfmt(prompt_buf, sizeof(prompt_buf),
                                 "[%s/%s]=Select [%s]=Exam [%s]=Target [%s]=Obj [%s]=Curs [%s]=Back",
                                 next_label, prev_label, exam_label, target_label, obj_label, cursor_label, back_label);
-                            prt(prompt_buf, 0, 0);
+                            unified_look_print_prompt(prompt_buf,
+                                "[R1/L1] Sel [A] Exam [B] Targ [X] Obj [Y] Curs [ESC]");
                         } else {
-                            prt("[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Curs [ESC]", 0, 0);
+                            unified_look_print_prompt(
+                                "[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Curs [ESC]",
+                                "[Tab/q] Sel [Space] Exam [t] Targ [l] Disp [m] Mon [o] Obj [T] Top5 [s] Curs [ESC]");
                         }
                     }
                 }

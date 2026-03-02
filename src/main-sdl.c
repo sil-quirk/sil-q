@@ -3282,6 +3282,23 @@ void set_sdl_enable_bottom_panes(bool value)
     config.enable_bottom_panes = value;
 }
 
+/* Intro style: -1 = random (INTRO_STYLE_RANDOM), 0-4 = fixed variant. */
+int get_sdl_intro_style(void)
+{
+    if (!op_ptr) return 0;
+    return (op_ptr->intro_style == INTRO_STYLE_RANDOM)
+        ? -1
+        : (int)op_ptr->intro_style;
+}
+
+void set_sdl_intro_style(int style)
+{
+    if (!op_ptr) return;
+    op_ptr->intro_style = (style == -1)
+        ? INTRO_STYLE_RANDOM
+        : (byte)(style < 0 ? 0 : style > 4 ? 4 : style);
+}
+
 static void sdl_gamepad_load_default_bindings(void)
 {
     if (g_default_gamepad_bindings_ready)

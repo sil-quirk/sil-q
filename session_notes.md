@@ -1,5 +1,15 @@
 # Session notes
 
+## 2026-03-02: Dynamic character sheet for narrow and wide screens
+- Reworked compact character sheet paging for narrow terminals in `src/cmd4.c`: when width is below 80, character sheet now uses 4 pages (`overview`, `stats`, `skills`, `history`) and supports page switching via `4/6` (or equivalent D-pad keys). Default compact page is `skills`.
+- Updated character sheet prompt row to use dynamic terminal height instead of hard-coded row 23, with a compact prompt variant + page name/indicator for small widths.
+- Added compact render modes in `src/files.c` (`display_player()` modes 100-103) with a persistent “always visible” summary block (HP/Voice/combat + XP/depth/turn/light/burden) on every compact page.
+- Compact summary block now uses 2 columns when possible (>= 50 cols) and falls back to 1 column on very narrow widths.
+- Character creation: added dedicated compact UIs in `src/birth.c` for stat allocation and skill allocation so they no longer assume the 80-column character sheet layout.
+- Added wide-screen centering for character sheet columns in `src/files.c` so larger terminals keep the same layout but are positioned more naturally.
+- Character name line in the sheet now centers based on terminal width instead of using a fixed x-offset.
+- Validation: `Build and Deploy` task completed successfully after these changes.
+
 ## 2026-03-01: Android main terminal width PoC at 50 cols + OOB safety guards
 - SDL Android main view now targets a fixed 50-column terminal in `src/main-sdl.c` (Android-only path in `sdl_view_create()`), with cell size derived from pane size and clamped to avoid zero/invalid dimensions.
 - Added defensive bounds checks in `src/z-term.c` for `Term_queue_char()` and `Term_queue_chars()` so out-of-range writes are ignored safely instead of indexing outside term buffers.

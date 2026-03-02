@@ -2255,6 +2255,164 @@ static const int birth_stat_costs[11]
 
 #define MAX_COST 13
 
+/* Forward declaration: used by compact skill allocation rendering. */
+static int skill_cost(int base, int points);
+
+static void birth_display_name_centered(void)
+{
+    char name[80];
+    int wid = 80;
+    int hgt = 24;
+    int col = 0;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1) wid = 80;
+    (void)hgt;
+
+    if (p_ptr->oaths_broken)
+        strnfmt(name, sizeof(name), "%s the Oathbreaker", op_ptr->full_name);
+    else
+        strnfmt(name, sizeof(name), "%s%s", op_ptr->full_name,
+            c_name + current_character_profile->alt_name);
+
+    int name_len = (int)strlen(name);
+    if (name_len < wid)
+        col = (wid - name_len) / 2;
+    if (col < 0)
+        col = 0;
+
+    Term_erase(0, 0, 255);
+    c_put_str(p_ptr->oaths_broken ? TERM_RED : TERM_L_BLUE, name, 0, col);
+}
+
+static void birth_display_stats_allocation_compact(const int stats[A_MAX], int selected,
+    int points_left, bool steamdeck)
+{
+    int wid = 80;
+    int hgt = 24;
+    int row = 3;
+    char buf[80];
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1) wid = 80;
+    if (hgt < 1) hgt = 24;
+
+    clear_from(0);
+    birth_display_name_centered();
+
+    /* Header */
+    strnfmt(buf, sizeof(buf), "Points left: %d", points_left);
+    c_put_str(TERM_L_GREEN, buf, 1, 1);
+    c_put_str(TERM_SLATE, "8/2 select, 4/6 adjust", 2, 1);
+
+    /* Stats list */
+    for (int i = 0; i < A_MAX && row < hgt - 2; i++)
+    {
+        byte attr = (i == selected) ? TERM_L_BLUE : TERM_WHITE;
+        char stat_buf[16];
+
+        cnv_stat(p_ptr->stat_use[i], stat_buf);
+        int cost = birth_stat_costs[stats[i] + 4];
+
+        strnfmt(buf, sizeof(buf), "%s: %s", stat_names[i], stat_buf);
+        if ((int)strlen(buf) > wid - 1 && wid > 1)
+            buf[wid - 1] = '\0';
+        c_put_str(attr, buf, row, 1);
+
+        strnfmt(buf, sizeof(buf), "%d", cost);
+        c_put_str(attr, buf, row, MAX(1, wid - (int)strlen(buf) - 1));
+
+        row++;
+    }
+
+    /* Prompt */
+    int prompt_row = hgt - 1;
+    Term_erase(0, prompt_row, 255);
+
+    if (steamdeck)
+    {
+        char confirm_label[16];
+        char back_label[16];
+        char quit_label[16];
+
+        birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
+        birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
+        birth_prompt_label('q', "Start", quit_label, sizeof(quit_label));
+
+        strnfmt(buf, sizeof(buf), "%s back  %s ok  %s quit", back_label, confirm_label, quit_label);
+    }
+    else
+    {
+        strnfmt(buf, sizeof(buf), "ESC back  ENTER ok  q quit");
+    }
+
+    c_put_str(TERM_SLATE, buf, prompt_row, 1);
+}
+
+static void birth_display_skill_allocation_compact(int selected_skill, const int old_base[S_MAX],
+    const int skill_gain[S_MAX], int points_left, bool steamdeck)
+{
+    int wid = 80;
+    int hgt = 24;
+    int row = 3;
+    char buf[120];
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1) wid = 80;
+    if (hgt < 1) hgt = 24;
+
+    clear_from(0);
+    birth_display_name_centered();
+
+    strnfmt(buf, sizeof(buf), "Points left: %d", points_left);
+    c_put_str(TERM_L_GREEN, buf, 1, 1);
+    c_put_str(TERM_SLATE, "8/2 select, 4/6 adjust", 2, 1);
+
+    for (int s = 0; s < S_MAX && row < hgt - 2; s++)
+    {
+        if (s == S_SPC)
+            continue;
+
+        byte attr = (s == selected_skill) ? TERM_L_BLUE : TERM_WHITE;
+        int base = old_base[s];
+        int gain = skill_gain[s];
+        int now = base + gain;
+        int cost = skill_cost(base, gain);
+
+        strnfmt(buf, sizeof(buf), "%s %2d->%2d", skill_names_full[s], base, now);
+        if ((int)strlen(buf) > wid - 1 && wid > 1)
+            buf[wid - 1] = '\0';
+        c_put_str(attr, buf, row, 1);
+
+        strnfmt(buf, sizeof(buf), "%d", cost);
+        c_put_str(attr, buf, row, MAX(1, wid - (int)strlen(buf) - 1));
+
+        row++;
+    }
+
+    int prompt_row = hgt - 1;
+    Term_erase(0, prompt_row, 255);
+
+    if (steamdeck)
+    {
+        char confirm_label[16];
+        char back_label[16];
+        char quit_label[16];
+
+        birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
+        birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
+        birth_prompt_label('q', "q", quit_label, sizeof(quit_label));
+
+        strnfmt(buf, sizeof(buf), "%s back  %s ok  %s quit", back_label, confirm_label, quit_label);
+    }
+    else
+    {
+        strnfmt(buf, sizeof(buf), "ESC back  ENTER ok  q quit");
+    }
+
+    c_put_str(TERM_SLATE, buf, prompt_row, 1);
+}
+
 /*
  * Helper function for 'player_birth()'.
  */
@@ -2333,6 +2491,12 @@ static NavResult player_birth_aux_2(void)
     while (1)
     {
         bool steamdeck = steamdeck_controls_active();
+        int wid = 80;
+        int hgt = 24;
+        Term_get_size(&wid, &hgt);
+        if (wid < 1) wid = 80;
+        if (hgt < 1) hgt = 24;
+        bool compact = (wid < 80);
 
         /* Reset cost */
         cost = 0;
@@ -2379,82 +2543,80 @@ static NavResult player_birth_aux_2(void)
         calc_voice();
         p_ptr->csp = p_ptr->msp;
 
-        /* Display the player */
-        display_player(0);
-
-        /* Display the costs header */
-        c_put_str(TERM_WHITE, "Points Left:", 0, col + 21);
-        strnfmt(buf, sizeof(buf), "%2d", MAX_COST - cost);
-        c_put_str(TERM_L_GREEN, buf, 0, col + 34);
-
-        /* Display the costs */
-        for (i = 0; i < A_MAX; i++)
+        if (compact)
         {
-            if (i == stat)
+            birth_display_stats_allocation_compact(stats, stat, MAX_COST - cost, steamdeck);
+        }
+        else
+        {
+            /* Display the player */
+            display_player(0);
+
+            /* Display the costs header */
+            c_put_str(TERM_WHITE, "Points Left:", 0, col + 21);
+            strnfmt(buf, sizeof(buf), "%2d", MAX_COST - cost);
+            c_put_str(TERM_L_GREEN, buf, 0, col + 34);
+
+            /* Display the costs */
+            for (i = 0; i < A_MAX; i++)
             {
-                byte attr = TERM_L_BLUE;
-                
-                /* Enable story font for highlighted stat name (if enabled) */
-                if (story_character_enabled()) {
-                    sdl_story_font_enable();
-                }
-                
-                /* Highlight the stat name as well (at col-1 to match display_player position)
-                 * Use the abbreviated stat names (e.g. "Str") instead of the full names
-                 * ("strength") so the highlight matches the character-sheet layout.
-                 */
-                c_put_str(attr, stat_names[i], row + i, col - 1);
-                
-                /* Disable story font for numbers */
-                sdl_story_font_disable();
-                
+                if (i == stat)
+                {
+                    byte attr = TERM_L_BLUE;
+
+                    if (story_character_enabled()) {
+                        sdl_story_font_enable();
+                    }
+
+                    c_put_str(attr, stat_names[i], row + i, col - 1);
+
+                    sdl_story_font_disable();
+
 #ifndef MONOCHROME_MODE
-                strnfmt(
-                    buf, sizeof(buf), "%4d", birth_stat_costs[stats[i] + 4]);
-                c_put_str(attr, buf, row + i, col + 32);
+                    strnfmt(buf, sizeof(buf), "%4d", birth_stat_costs[stats[i] + 4]);
+                    c_put_str(attr, buf, row + i, col + 32);
 #else
-                strnfmt(
-                    buf, sizeof(buf), "%4d*", birth_stat_costs[stats[i] + 4]);
-                c_put_str(attr, buf, row + i, col + 32);
-                c_put_str(attr, "*", row + i, col - 2);
+                    strnfmt(buf, sizeof(buf), "%4d*", birth_stat_costs[stats[i] + 4]);
+                    c_put_str(attr, buf, row + i, col + 32);
+                    c_put_str(attr, "*", row + i, col - 2);
 #endif
+                }
+                else
+                {
+                    byte attr = TERM_L_WHITE;
+                    strnfmt(buf, sizeof(buf), "%4d", birth_stat_costs[stats[i] + 4]);
+                    c_put_str(attr, buf, row + i, col + 32);
+                }
             }
-            else
-            {
-                byte attr = TERM_L_WHITE;
-                strnfmt(
-                    buf, sizeof(buf), "%4d", birth_stat_costs[stats[i] + 4]);
-                c_put_str(attr, buf, row + i, col + 32);
+
+            /* Bottom bar follows character sheet font setting */
+            if (story_character_enabled()) {
+                sdl_story_font_enable();
             }
-        }
 
-        /* Bottom bar follows character sheet font setting */
-        if (story_character_enabled()) {
-            sdl_story_font_enable();
-        }
+            if (steamdeck) {
+                char confirm_label[16];
+                char back_label[16];
+                char quit_label[16];
+                char prompt_buf[160];
 
-        if (steamdeck) {
-            char confirm_label[16];
-            char back_label[16];
-            char quit_label[16];
-            char prompt_buf[160];
+                /* Steam Deck UI: A=confirm, B=back, Start=quit */
+                birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
+                birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
+                birth_prompt_label('q', "Start", quit_label, sizeof(quit_label));
 
-            /* Steam Deck UI: A=confirm, B=back, Start=quit */
-            birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
-            birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
-            birth_prompt_label('q', "Start", quit_label, sizeof(quit_label));
+                strnfmt(prompt_buf, sizeof(prompt_buf),
+                    "D-pad allocate  %s back  %s confirm  %s quit",
+                    back_label, confirm_label, quit_label);
+                Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE, prompt_buf);
+            } else {
+                Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
+                    "Arrows -allocate    ESC -back   ENTER -confirm   q -quit");
+            }
 
-            strnfmt(prompt_buf, sizeof(prompt_buf),
-                "D-pad allocate  %s back  %s confirm  %s quit",
-                back_label, confirm_label, quit_label);
-            Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE, prompt_buf);
-        } else {
-            Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
-                "Arrows -allocate    ESC -back   ENTER -confirm   q -quit");
-        }
-
-        if (story_character_enabled()) {
-            sdl_story_font_disable();
+            if (story_character_enabled()) {
+                sdl_story_font_disable();
+            }
         }
 
         /* Get key */
@@ -2563,154 +2725,137 @@ extern NavResult gain_skills(void)
     {
         bool steamdeck = steamdeck_controls_active();
 
-        // reset the total cost
+        /* Recompute points/costs and apply the temporary skill increases */
         total_cost = 0;
 
-        /* Process skills */
         for (i = 0; i < S_MAX; i++)
         {
             /* Skip Special abilities skill - not trainable */
             if (i == S_SPC) continue;
-            
-            /* Total cost */
             total_cost += skill_cost(old_base[i], skill_gain[i]);
         }
 
-        // set the new experience pool total
         p_ptr->new_exp = old_new_exp - total_cost;
 
-        /* Restrict cost */
         if (p_ptr->new_exp < 0)
         {
-            /* Warning */
             bell("Excessive skills!");
-
-            /* Reduce stat */
             skill_gain[skill]--;
-
-            /* Recompute costs */
             continue;
         }
 
-        /* Calculate the bonuses */
         p_ptr->update |= (PU_BONUS);
-
-        /* Set the redraw flag for everything */
         p_ptr->redraw |= (PR_EXP | PR_BASIC);
 
-        /* update the skills */
         for (i = 0; i < S_MAX; i++)
         {
-            /* Skip Special abilities skill - not trainable */
             if (i == S_SPC) continue;
-            
             p_ptr->skill_base[i] = old_base[i] + skill_gain[i];
         }
 
-        /* Update stuff */
         update_stuff();
 
-        /* Display the player */
-        display_player(0);
+        int wid = 80;
+        int hgt = 24;
+        Term_get_size(&wid, &hgt);
+        if (wid < 1) wid = 80;
+        if (hgt < 1) hgt = 24;
+        bool compact = (wid < 80);
 
-        /* Display the costs header */
-        if (!character_dungeon)
+        if (compact)
         {
-            if (p_ptr->new_exp >= 10000)
-                tab = 0;
-            else if (p_ptr->new_exp >= 1000)
-                tab = 1;
-            else if (p_ptr->new_exp >= 100)
-                tab = 2;
-            else if (p_ptr->new_exp >= 10)
-                tab = 3;
-            else
-                tab = 4;
-
-            strnfmt(buf, sizeof(buf), "%6d", p_ptr->new_exp);
-            c_put_str(TERM_L_GREEN, buf, row - 2, col + 30);
-            c_put_str(TERM_WHITE, "Points Left:", row - 2, col + 17 + tab);
+            birth_display_skill_allocation_compact(skill, old_base, skill_gain, p_ptr->new_exp, steamdeck);
         }
-
-        /* Display the costs */
-        for (i = 0; i < S_MAX; i++)
+        else
         {
-            /* Skip Special abilities skill - not trainable */
-            if (i == S_SPC) continue;
-            
-            if (i == skill)
+            /* Display the player */
+            display_player(0);
+
+            /* Display the costs header */
+            if (!character_dungeon)
             {
-                byte attr = TERM_L_BLUE;
-                
-                /* Enable story font for highlighted skill name (if enabled) */
-                if (story_character_enabled()) {
-                    sdl_story_font_enable();
-                }
-                
-                /* Highlight the skill name as well (at col-1 to match display_player position) */
-                c_put_str(attr, skill_names_full[i], row + i, col - 1);
-                
-                /* Disable story font for numbers */
-                sdl_story_font_disable();
-                
+                if (p_ptr->new_exp >= 10000)
+                    tab = 0;
+                else if (p_ptr->new_exp >= 1000)
+                    tab = 1;
+                else if (p_ptr->new_exp >= 100)
+                    tab = 2;
+                else if (p_ptr->new_exp >= 10)
+                    tab = 3;
+                else
+                    tab = 4;
+
+                strnfmt(buf, sizeof(buf), "%6d", p_ptr->new_exp);
+                c_put_str(TERM_L_GREEN, buf, row - 2, col + 30);
+                c_put_str(TERM_WHITE, "Points Left:", row - 2, col + 17 + tab);
+            }
+
+            /* Display the costs */
+            for (i = 0; i < S_MAX; i++)
+            {
+                /* Skip Special abilities skill - not trainable */
+                if (i == S_SPC) continue;
+
+                if (i == skill)
+                {
+                    byte attr = TERM_L_BLUE;
+
+                    if (story_character_enabled()) {
+                        sdl_story_font_enable();
+                    }
+
+                    c_put_str(attr, skill_names_full[i], row + i, col - 1);
+
+                    sdl_story_font_disable();
+
 #ifndef MONOCHROME_MODE
-                strnfmt(buf, sizeof(buf), "%6d",
-                    skill_cost(old_base[i], skill_gain[i]));
-                c_put_str(attr, buf, row + i, col + 30);
+                    strnfmt(buf, sizeof(buf), "%6d",
+                        skill_cost(old_base[i], skill_gain[i]));
+                    c_put_str(attr, buf, row + i, col + 30);
 #else
-                strnfmt(buf, sizeof(buf), "%6d*",
-                    skill_cost(old_base[i], skill_gain[i]));
-                c_put_str(attr, buf, row + i, col + 30);
-                c_put_str(attr, "*", row + i, col - 2);
+                    strnfmt(buf, sizeof(buf), "%6d*",
+                        skill_cost(old_base[i], skill_gain[i]));
+                    c_put_str(attr, buf, row + i, col + 30);
+                    c_put_str(attr, "*", row + i, col - 2);
 #endif
+                }
+                else
+                {
+                    byte attr = TERM_L_WHITE;
+                    strnfmt(buf, sizeof(buf), "%6d",
+                        skill_cost(old_base[i], skill_gain[i]));
+                    c_put_str(attr, buf, row + i, col + 30);
+                }
             }
-            else
-            {
-                byte attr = TERM_L_WHITE;
-                strnfmt(buf, sizeof(buf), "%6d",
-                    skill_cost(old_base[i], skill_gain[i]));
-                c_put_str(attr, buf, row + i, col + 30);
+
+            /* Bottom bar follows character sheet font setting */
+            if (story_character_enabled()) {
+                sdl_story_font_enable();
             }
-        }
 
-        // /* Special Prompt? */
-        // if (character_dungeon)
-        // {
-        //     Term_putstr(QUESTION_COL + 38 + 2, INSTRUCT_ROW + 1, -1, TERM_SLATE,
-        //         "ESC abort skill increases                  ");
+            if (steamdeck) {
+                char confirm_label[16];
+                char back_label[16];
+                char quit_label[16];
+                char prompt_buf[160];
 
-        //     /* Hack - highlight the key names */
-        //     Term_putstr(QUESTION_COL + 38 + 2, INSTRUCT_ROW + 1, -1,
-        //         TERM_L_WHITE, "ESC");
-        // }
+                /* Steam Deck UI: A=confirm, B=back, Start=quit */
+                birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
+                birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
+                birth_prompt_label('q', "q", quit_label, sizeof(quit_label));
 
-        /* Bottom bar follows character sheet font setting */
-        if (story_character_enabled()) {
-            sdl_story_font_enable();
-        }
+                strnfmt(prompt_buf, sizeof(prompt_buf),
+                    "D-pad -allocate      %s-back     %s-confirm     %s-quit",
+                    back_label, confirm_label, quit_label);
+                Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE, prompt_buf);
+            } else {
+                Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
+                    "Arrows -allocate      ESC -back     ENTER -confirm     q -quit");
+            }
 
-        if (steamdeck) {
-            char confirm_label[16];
-            char back_label[16];
-            char quit_label[16];
-            char prompt_buf[160];
-
-            /* Steam Deck UI: A=confirm, B=back, Start=quit */
-            birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
-            birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
-            birth_prompt_label('q', "q", quit_label, sizeof(quit_label));
-
-            strnfmt(prompt_buf, sizeof(prompt_buf),
-                "D-pad -allocate      %s-back     %s-confirm     %s-quit",
-                back_label, confirm_label, quit_label);
-            Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE, prompt_buf);
-        } else {
-            Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
-                "Arrows -allocate      ESC -back     ENTER -confirm     q -quit");
-        }
-
-        if (story_character_enabled()) {
-            sdl_story_font_disable();
+            if (story_character_enabled()) {
+                sdl_story_font_disable();
+            }
         }
 
         /* Get key */

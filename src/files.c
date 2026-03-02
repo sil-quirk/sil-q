@@ -1399,9 +1399,14 @@ static void put_single20_right(int x, int y,
 
 void display_player_xtra_info(int mode)
 {
-    const int col_stats = 1;     /* left stats column, width 20 */
-    const int col_flags = 23;    /* single flags column in the gap */
-    const int col_skills = 41;   /* skills unchanged */
+    int term_wid = 80;
+    int term_hgt = 24;
+    int wide_offset = 0;
+    int col_stats;
+    int col_flags;
+    int col_skills;
+    bool compact_overview = (mode == 100);
+    bool show_skills = !compact_overview;
 
     int row_stats = 2;
     int row_flags = 2;
@@ -1410,6 +1415,23 @@ void display_player_xtra_info(int mode)
     char cur[32], rhs[32], val[64], buf[160];
 
     byte history_attr = (mode == 2) ? TERM_YELLOW : TERM_WHITE;
+
+    Term_get_size(&term_wid, &term_hgt);
+    if (term_wid < 1)
+        term_wid = 80;
+    if (term_hgt < 1)
+        term_hgt = 24;
+    (void)term_hgt;
+
+    if (term_wid > 80)
+        wide_offset = (term_wid - 80) / 2;
+
+    col_stats = wide_offset + 1;
+    col_flags = wide_offset + 23;
+    col_skills = wide_offset + 41;
+
+    if (compact_overview)
+        col_flags = col_stats + 22;
 
     /* -------------------- STATS (col 1..20) ----------------------------- */
 
@@ -1642,12 +1664,15 @@ void display_player_xtra_info(int mode)
         sdl_story_font_disable();
     }
 
-    /* -------------------- SKILLS (unchanged position) ------------------- */
-    /* Skills will manage their own font switching */
-    for (skill = 0; skill < S_MAX; skill++) {
-        /* Skip Special abilities skill - not meant for display */
-        if (skill == S_SPC) continue;
-        display_skill(skill, 6 + skill, col_skills);
+    /* -------------------- SKILLS ---------------------------------------- */
+    if (show_skills)
+    {
+        /* Skills will manage their own font switching */
+        for (skill = 0; skill < S_MAX; skill++) {
+            /* Skip Special abilities skill - not meant for display */
+            if (skill == S_SPC) continue;
+            display_skill(skill, 6 + skill, col_skills);
+        }
     }
 
     /* -------------------- History (unchanged) --------------------------- */
@@ -1656,10 +1681,8 @@ void display_player_xtra_info(int mode)
     }
     
     /* Use full terminal width for history wrapping */
-    int wid, h;
-    Term_get_size(&wid, &h);
-    log_debug("Character history: terminal width=%d, using wrap=%d", wid, wid - 1);
-    text_out_wrap   = wid - 1;  /* Leave 1 column margin */
+    log_debug("Character history: terminal width=%d, using wrap=%d", term_wid, term_wid - 1);
+    text_out_wrap   = term_wid - 1;  /* Leave 1 column margin */
     text_out_indent = 1;
     Term_gotoxy(text_out_indent, 15);
     text_out_to_screen(history_attr, p_ptr->history);
@@ -2631,6 +2654,9 @@ static void display_player_misc_info(void)
 {
     /* Name */
     char name[40];
+    int wid = 80;
+    int hgt = 24;
+    int col = 20;
     
     if (story_character_enabled()) {
         sdl_story_font_enable();
@@ -2639,17 +2665,496 @@ static void display_player_misc_info(void)
     if (p_ptr->oaths_broken) {
         /* Show "the Oathbreaker" in red if any oath is broken */
         strnfmt(name, sizeof(name), "%s the Oathbreaker", op_ptr->full_name);
-        c_put_str(TERM_RED, name, 0, 20);
     } else {
         /* Normal display with character title */
         strnfmt(name, sizeof(name), "%s%s", op_ptr->full_name, c_name + current_character_profile->alt_name);
-        c_put_str(TERM_L_BLUE, name, 0, 20);
     }
+
+    Term_get_size(&wid, &hgt);
+    if (wid > 0)
+    {
+        int name_len = (int)strlen(name);
+        if (name_len < wid)
+            col = (wid - name_len) / 2;
+        if (col < 0)
+            col = 0;
+    }
+
+    if (p_ptr->oaths_broken)
+        c_put_str(TERM_RED, name, 0, col);
+    else
+        c_put_str(TERM_L_BLUE, name, 0, col);
     
     if (story_character_enabled()) {
         sdl_story_font_disable();
     }
 
+}
+
+static int display_player_compact_summary_block(int row_start)
+{
+    int wid = 80;
+    int hgt = 24;
+    Term_get_size(&wid, &hgt);
+    if (wid < 1) wid = 80;
+    if (hgt < 1) hgt = 24;
+
+    int row_l = row_start;
+    int row_r = row_start;
+    int col_l = 1;
+    int col_r = 1;
+    char cur[32], rhs[32], val[64], buf[160];
+
+    const bool two_col = (wid >= 50);
+
+        if (row_l < 0) row_l = 0;
+        if (row_r < 0) row_r = 0;
+
+        /* Single-column fallback for very narrow widths */
+        if (!two_col)
+        {
+        int row = row_start;
+        const int col = 1;
+
+        /* Health */
+        {
+            int chp = p_ptr->chp; if (chp > 999) chp = 999;
+            int mhp = p_ptr->mhp; if (mhp > 999) mhp = 999;
+            strnfmt(cur, sizeof(cur), "%d", chp);
+            strnfmt(rhs, sizeof(rhs), "%d", mhp);
+            put_pair20_right(col, row++,
+                     "Health",
+                     cur, 3, TERM_L_BLUE,
+                     '/', rhs, 3, TERM_L_BLUE);
+        }
+
+        /* Voice */
+        {
+            int csp = p_ptr->csp; if (csp > 999) csp = 999;
+            int msp = p_ptr->msp; if (msp > 999) msp = 999;
+            strnfmt(cur, sizeof(cur), "%d", csp);
+            strnfmt(rhs, sizeof(rhs), "%d", msp);
+            put_pair20_right(col, row++,
+                     "Voice",
+                     cur, 3, TERM_L_BLUE,
+                     '/', rhs, 3, TERM_L_BLUE);
+        }
+
+        /* Melee */
+        strnfmt(val, sizeof(val), "(%+d,%dd%d)",
+            p_ptr->skill_use[S_MEL], p_ptr->mdd, p_ptr->mds);
+        put_single20_right(col, row++,
+                   "Melee", val, 12, TERM_L_BLUE);
+
+        /* Offhand if present */
+        if (p_ptr->mds2 > 0)
+        {
+            strnfmt(val, sizeof(val), "(%+d,%dd%d)",
+                p_ptr->skill_use[S_MEL] + p_ptr->offhand_mel_mod,
+                p_ptr->mdd2, p_ptr->mds2);
+            put_single20_right(col, row++,
+                       "Offhand", val, 12, TERM_L_BLUE);
+        }
+
+        /* Bows */
+        strnfmt(val, sizeof(val), "(%+d,%dd%d)",
+            p_ptr->skill_use[S_ARC], p_ptr->add, p_ptr->ads);
+        put_single20_right(col, row++,
+                   "Bows", val, 12, TERM_L_BLUE);
+
+        /* Armor */
+        strnfmt(val, sizeof(val), "[%+d,%d-%d]",
+            p_ptr->skill_use[S_EVN], p_min(GF_HURT, true), p_max(GF_HURT, true));
+        put_single20_right(col, row++,
+                   "Armor", val, 12, TERM_L_BLUE);
+
+        /* Exp */
+        strnfmt(cur, sizeof(cur), "%ld", (long)p_ptr->new_exp);
+        strnfmt(rhs, sizeof(rhs), "%ld", (long)p_ptr->exp);
+        put_pair20_right(col, row++,
+                 "Exp",
+                 cur, 5, TERM_L_GREEN,
+                 '/', rhs, 6, TERM_L_GREEN);
+
+        /* Burden */
+        {
+            long cur_b = (long)(p_ptr->total_weight / 10L);
+            long max_b = (long)(weight_limit() / 10L);
+            strnfmt(cur, sizeof(cur), "%ld", cur_b);
+            strnfmt(rhs, sizeof(rhs), "%ld", max_b);
+            put_pair20_right(col, row++,
+                     "Burden",
+                     cur, 4, (cur_b <= max_b) ? TERM_L_GREEN : TERM_YELLOW,
+                     '/', rhs, 4, TERM_L_GREEN);
+        }
+
+        /* Depth c/m */
+        if (turn > 0)
+        {
+            long cur_d = (long)(p_ptr->depth * 50);
+            long min_d = (long)(min_depth() * 50);
+
+            if (cur_d > 1000) cur_d = 1000;
+            if (min_d > 1000) min_d = 1000;
+
+            strnfmt(cur, sizeof(cur), "%ld", cur_d);
+            strnfmt(rhs, sizeof(rhs), "%ld", min_d);
+            put_pair20_right(col, row++,
+                     "Depth c/m",
+                     cur, 4, (cur_d >= min_d) ? TERM_L_GREEN : TERM_YELLOW,
+                     '/', rhs, 4, TERM_L_GREEN);
+        }
+
+        /* Turn */
+        comma_number(buf, playerturn);
+        put_single20_right(col, row++,
+                   "Turn", buf, 12, TERM_L_GREEN);
+
+        /* Light */
+        strnfmt(val, sizeof(val), "%d", p_ptr->cur_light);
+        put_single20_right(col, row++,
+                   "Light", val, 2, TERM_L_GREEN);
+
+        /* Songs */
+        if (p_ptr->song1 != SNG_NOTHING) {
+            strnfmt(val, sizeof(val), "%s",
+                b_name + (&b_info[ability_index(S_SNG, p_ptr->song1)])->name);
+            put_single20_right(col, row++,
+                       "Song", val, 14, TERM_L_BLUE);
+        }
+        if (p_ptr->song2 != SNG_NOTHING) {
+            strnfmt(val, sizeof(val), "%s",
+                b_name + (&b_info[ability_index(S_SNG, p_ptr->song2)])->name);
+            put_single20_right(col, row++,
+                       "Song", val, 14, TERM_L_BLUE);
+        }
+
+        return row + 1;
+        }
+
+        /* Two-column summary */
+        col_r = wid - 20;
+
+    /* Health (left) */
+    {
+        int chp = p_ptr->chp; if (chp > 999) chp = 999;
+        int mhp = p_ptr->mhp; if (mhp > 999) mhp = 999;
+        strnfmt(cur, sizeof(cur), "%d", chp);
+        strnfmt(rhs, sizeof(rhs), "%d", mhp);
+        put_pair20_right(col_l, row_l++,
+                         "Health",
+                         cur, 3, TERM_L_BLUE,
+                         '/', rhs, 3, TERM_L_BLUE);
+    }
+
+    /* Voice (left) */
+    {
+        int csp = p_ptr->csp; if (csp > 999) csp = 999;
+        int msp = p_ptr->msp; if (msp > 999) msp = 999;
+        strnfmt(cur, sizeof(cur), "%d", csp);
+        strnfmt(rhs, sizeof(rhs), "%d", msp);
+        put_pair20_right(col_l, row_l++,
+                         "Voice",
+                         cur, 3, TERM_L_BLUE,
+                         '/', rhs, 3, TERM_L_BLUE);
+    }
+
+    /* Melee (left) */
+    strnfmt(val, sizeof(val), "(%+d,%dd%d)",
+            p_ptr->skill_use[S_MEL], p_ptr->mdd, p_ptr->mds);
+    put_single20_right(col_l, row_l++,
+                       "Melee", val, 12, TERM_L_BLUE);
+
+    /* Offhand if present (left) */
+    if (p_ptr->mds2 > 0)
+    {
+        strnfmt(val, sizeof(val), "(%+d,%dd%d)",
+                p_ptr->skill_use[S_MEL] + p_ptr->offhand_mel_mod,
+                p_ptr->mdd2, p_ptr->mds2);
+        put_single20_right(col_l, row_l++,
+                           "Offhand", val, 12, TERM_L_BLUE);
+    }
+
+    /* Bows (left) */
+    strnfmt(val, sizeof(val), "(%+d,%dd%d)",
+            p_ptr->skill_use[S_ARC], p_ptr->add, p_ptr->ads);
+    put_single20_right(col_l, row_l++,
+                       "Bows", val, 12, TERM_L_BLUE);
+
+    /* Armor (left) */
+    strnfmt(val, sizeof(val), "[%+d,%d-%d]",
+            p_ptr->skill_use[S_EVN], p_min(GF_HURT, true), p_max(GF_HURT, true));
+    put_single20_right(col_l, row_l++,
+                       "Armor", val, 12, TERM_L_BLUE);
+
+    /* Exp (right) */
+    strnfmt(cur, sizeof(cur), "%ld", (long)p_ptr->new_exp);
+    strnfmt(rhs, sizeof(rhs), "%ld", (long)p_ptr->exp);
+    put_pair20_right(col_r, row_r++,
+                     "Exp",
+                     cur, 5, TERM_L_GREEN,
+                     '/', rhs, 6, TERM_L_GREEN);
+
+    /* Burden (right) */
+    {
+        long cur_b = (long)(p_ptr->total_weight / 10L);
+        long max_b = (long)(weight_limit() / 10L);
+        strnfmt(cur, sizeof(cur), "%ld", cur_b);
+        strnfmt(rhs, sizeof(rhs), "%ld", max_b);
+        put_pair20_right(col_r, row_r++,
+                         "Burden",
+                         cur, 4, (cur_b <= max_b) ? TERM_L_GREEN : TERM_YELLOW,
+                         '/', rhs, 4, TERM_L_GREEN);
+    }
+
+    /* Depth c/m (right) */
+    if (turn > 0)
+    {
+        long cur_d = (long)(p_ptr->depth * 50);
+        long min_d = (long)(min_depth() * 50);
+
+        if (cur_d > 1000) cur_d = 1000;
+        if (min_d > 1000) min_d = 1000;
+
+        strnfmt(cur, sizeof(cur), "%ld", cur_d);
+        strnfmt(rhs, sizeof(rhs), "%ld", min_d);
+        put_pair20_right(col_r, row_r++,
+                         "Depth c/m",
+                         cur, 4, (cur_d >= min_d) ? TERM_L_GREEN : TERM_YELLOW,
+                         '/', rhs, 4, TERM_L_GREEN);
+    }
+
+    /* Turn (right) */
+    comma_number(buf, playerturn);
+    put_single20_right(col_r, row_r++,
+                       "Turn", buf, 12, TERM_L_GREEN);
+
+    /* Light (right) */
+    strnfmt(val, sizeof(val), "%d", p_ptr->cur_light);
+    put_single20_right(col_r, row_r++,
+                       "Light", val, 2, TERM_L_GREEN);
+
+    /* Songs (below whichever column is taller) */
+    {
+        int row_song = (row_l > row_r) ? row_l : row_r;
+
+        if (p_ptr->song1 != SNG_NOTHING) {
+            strnfmt(val, sizeof(val), "%s",
+                    b_name + (&b_info[ability_index(S_SNG, p_ptr->song1)])->name);
+            put_single20_right(col_l, row_song++,
+                               "Song", val, 14, TERM_L_BLUE);
+        }
+        if (p_ptr->song2 != SNG_NOTHING) {
+            strnfmt(val, sizeof(val), "%s",
+                    b_name + (&b_info[ability_index(S_SNG, p_ptr->song2)])->name);
+            put_single20_right(col_l, row_song++,
+                               "Song", val, 14, TERM_L_BLUE);
+        }
+
+        row_l = row_song;
+        row_r = row_song;
+    }
+
+    return ((row_l > row_r) ? row_l : row_r) + 1;
+}
+
+static void display_player_compact_traits(int row_start)
+{
+    int row = row_start;
+    int wid = 80;
+    int hgt = 24;
+    const int col = 1;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1) wid = 80;
+    if (hgt < 1) hgt = 24;
+
+    int race = p_ptr->prace;
+    int character = p_ptr->pcharacter;
+
+    byte attr_affinity   = TERM_GREEN;   /* AF */
+    byte attr_mastery    = TERM_L_GREEN; /* MA */
+    byte attr_penalty    = TERM_RED;     /* PE */
+    byte attr_gr_penalty = TERM_L_RED;   /* GP */
+
+    typedef struct {
+        const char *txt;
+        byte col;
+    } line_t;
+
+    line_t uniq_buf[32], ma_buf[16], af_buf[16], pen_buf[32];
+    int uniq_n = 0, ma_n = 0, af_n = 0, pen_n = 0;
+
+#define PUSH(arr, n, text, color) do { (arr)[(n)].txt = (text); (arr)[(n)++].col = (color); } while (0)
+
+#define HANDLE_SKILL_EX(LABEL, AFF_FLAG, PEN_FLAG)                                      \
+    do {                                                                                \
+        int score = 0;                                                                  \
+        if (p_info[race].flags      & (AFF_FLAG)) score++;                              \
+        if (c_info[character].flags & (AFF_FLAG)) score++;                              \
+        if ((PEN_FLAG) && (p_info[race].flags      & (PEN_FLAG))) score--;              \
+        if ((PEN_FLAG) && (c_info[character].flags & (PEN_FLAG))) score--;              \
+        score += curse_flag_count_rhf(AFF_FLAG);                                        \
+        if ((PEN_FLAG)) score -= curse_flag_count_rhf(PEN_FLAG);                        \
+        if (score >  2) score =  2;                                                     \
+        if (score < -2) score = -2;                                                     \
+        if (score ==  2)      PUSH(ma_buf,  ma_n,  LABEL "++", attr_mastery);          \
+        else if (score == 1)  PUSH(af_buf,  af_n,  LABEL "+ ", attr_affinity);         \
+        else if (score == -1) PUSH(pen_buf, pen_n, LABEL "- ", attr_penalty);          \
+        else if (score == -2) PUSH(pen_buf, pen_n, LABEL "--", attr_gr_penalty);       \
+    } while (0)
+
+#define HANDLE_UNIQUE(LABEL, FLAG, COLOR)                                               \
+    do {                                                                                \
+        if ((p_info[race].flags & (FLAG)) || (c_info[character].flags & (FLAG)))        \
+            PUSH(uniq_buf, uniq_n, (LABEL), (COLOR));                                   \
+    } while (0)
+
+#define HANDLE_UNIQUE_U(LABEL, FLAG, COLOR)                                             \
+    do {                                                                                \
+        if (c_info[character].flags_u & (FLAG))                                         \
+            PUSH(uniq_buf, uniq_n, (LABEL), (COLOR));                                   \
+    } while (0)
+
+    HANDLE_SKILL_EX("melee",      RHF_MEL_AFFINITY, RHF_MEL_PENALTY);
+    HANDLE_SKILL_EX("evasion",    RHF_EVN_AFFINITY, RHF_EVN_PENALTY);
+    HANDLE_SKILL_EX("stealth",    RHF_STL_AFFINITY, RHF_STL_PENALTY);
+    HANDLE_SKILL_EX("archery",    RHF_ARC_AFFINITY, RHF_ARC_PENALTY);
+    HANDLE_SKILL_EX("will",       RHF_WIL_AFFINITY, RHF_WIL_PENALTY);
+    HANDLE_SKILL_EX("perception", RHF_PER_AFFINITY, RHF_PER_PENALTY);
+    HANDLE_SKILL_EX("smithing",   RHF_SMT_AFFINITY, RHF_SMT_PENALTY);
+    HANDLE_SKILL_EX("song",       RHF_SNG_AFFINITY, RHF_SNG_PENALTY);
+    HANDLE_SKILL_EX("bow",        RHF_BOW_PROFICIENCY, 0);
+    HANDLE_SKILL_EX("axe",        RHF_AXE_PROFICIENCY, 0);
+
+    HANDLE_UNIQUE_U("Master Artisan",     UNQ_SMT_FEANOR,   TERM_VIOLET);
+    HANDLE_UNIQUE_U("Creator of Galvorn", UNQ_SMT_EOL,      TERM_VIOLET);
+    HANDLE_UNIQUE_U("Chosen of Ulmo",     UNQ_WIL_TUOR,     TERM_VIOLET);
+    HANDLE_UNIQUE_U("Indomitable Will",   UNQ_EARENDIL,     TERM_VIOLET);
+    HANDLE_UNIQUE_U("Orome Himself",      UNQ_WIL_FIN,      TERM_VIOLET);
+    HANDLE_UNIQUE_U("Songs of Power",     UNQ_SNG_FIN,      TERM_VIOLET);
+    HANDLE_UNIQUE_U("Elven Dance",        UNQ_SNG_LUT,      TERM_VIOLET);
+    HANDLE_UNIQUE_U("Girdle of Melian",   UNQ_SNG_MEL,      TERM_VIOLET);
+    HANDLE_UNIQUE_U("Creator of Angrist", UNQ_SMT_TELCHAR,  TERM_VIOLET);
+    HANDLE_UNIQUE_U("Old Master",         UNQ_SMT_GAMIL,    TERM_VIOLET);
+    HANDLE_UNIQUE_U("Ring Master",        UNQ_SMT_CELEBRIMBOR, TERM_VIOLET);
+    HANDLE_UNIQUE_U("Aure entuluva",      UNQ_SNG_HURIN,    TERM_VIOLET);
+    HANDLE_UNIQUE_U("Voice of the Girdle",UNQ_SNG_THINGOL,  TERM_VIOLET);
+    HANDLE_UNIQUE_U("Forgotten",          UNQ_MIM,          TERM_VIOLET);
+    HANDLE_UNIQUE_U("One Handed",         UNQ_MEL_MAEDHROS, TERM_VIOLET);
+    HANDLE_UNIQUE_U("Agarwaen",           UNQ_WIL_TURIN,    TERM_VIOLET);
+    HANDLE_UNIQUE_U("Shadow Walker",      UNQ_SNG_TURGON,   TERM_VIOLET);
+    HANDLE_UNIQUE("Gift of Eru",          RHF_GIFTERU,      TERM_VIOLET);
+    HANDLE_UNIQUE("Seafarer",             RHF_FREE,         TERM_VIOLET);
+
+    HANDLE_UNIQUE("Kinslayer",            RHF_KINSLAYER,    TERM_UMBER);
+    HANDLE_UNIQUE("Treacherous",          RHF_TREACHERY,    TERM_UMBER);
+    HANDLE_UNIQUE("Doom of Mandos",       RHF_CURSE,        TERM_UMBER);
+    HANDLE_UNIQUE("Morgoth Curse",        RHF_MOR_CURSE,    TERM_UMBER);
+
+    if (story_character_enabled())
+        sdl_story_font_enable();
+
+    for (int i = 0; i < uniq_n && row < hgt - 1; ++i)
+        Term_putstr(col, row++, -1, uniq_buf[i].col, uniq_buf[i].txt);
+    for (int i = 0; i < ma_n && row < hgt - 1; ++i)
+        Term_putstr(col, row++, -1, ma_buf[i].col, ma_buf[i].txt);
+    for (int i = 0; i < af_n && row < hgt - 1; ++i)
+        Term_putstr(col, row++, -1, af_buf[i].col, af_buf[i].txt);
+    for (int i = 0; i < pen_n && row < hgt - 1; ++i)
+        Term_putstr(col, row++, -1, pen_buf[i].col, pen_buf[i].txt);
+
+    if (story_character_enabled())
+        sdl_story_font_disable();
+
+#undef HANDLE_UNIQUE_U
+#undef HANDLE_UNIQUE
+#undef HANDLE_SKILL_EX
+#undef PUSH
+}
+
+static void display_player_compact_attributes(int row_start)
+{
+    int wid = 80;
+    int hgt = 24;
+    int row = row_start;
+    int col = 1;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1) wid = 80;
+    if (hgt < 1) hgt = 24;
+
+    (void)wid;
+
+    c_put_str(TERM_WHITE, "Attributes", row++, col);
+    display_player_stat_info(row, col);
+}
+
+static void display_player_compact_skills_list(int row_start)
+{
+    int wid = 80;
+    int hgt = 24;
+    int row = row_start;
+    int col = 1;
+    char buf[64];
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1) wid = 80;
+    if (hgt < 1) hgt = 24;
+
+    c_put_str(TERM_WHITE, "Skills", row++, col);
+
+    for (int skill = 0; skill < S_MAX && row < hgt - 1; skill++)
+    {
+        if (skill == S_SPC)
+            continue;
+
+        int use = p_ptr->skill_use[skill];
+        int base = p_ptr->skill_base[skill];
+        int mod = use - base;
+
+        const char* name = skill_names_full[skill];
+        if (!name) name = "";
+
+        if (mod != 0)
+            strnfmt(buf, sizeof(buf), "%s: %2d (%+d)", name, use, mod);
+        else
+            strnfmt(buf, sizeof(buf), "%s: %2d", name, use);
+
+        if ((int)strlen(buf) > wid - 2 && wid > 2)
+            buf[wid - 2] = '\0';
+
+        if (story_character_enabled())
+            sdl_story_font_enable();
+        Term_putstr(col, row++, -1, TERM_WHITE, buf);
+        if (story_character_enabled())
+            sdl_story_font_disable();
+    }
+}
+
+static void display_player_compact_history(int row_start)
+{
+    int wid = 80;
+    int hgt = 24;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1) wid = 80;
+    if (hgt < 1) hgt = 24;
+
+    if (story_character_enabled())
+        sdl_story_font_enable();
+
+    text_out_wrap = wid - 1;
+    text_out_indent = 1;
+    Term_gotoxy(text_out_indent, row_start);
+    text_out_to_screen(TERM_WHITE, p_ptr->history);
+    text_out_wrap = 0;
+    text_out_indent = 0;
+
+    Term_fresh();
+
+    if (story_character_enabled())
+        sdl_story_font_disable();
 }
 
 /*
@@ -2753,6 +3258,13 @@ void display_player_stat_info(int row, int col)
     /* Leave with story font disabled */
     sdl_story_font_disable();
 }
+
+enum {
+    DISPLAY_PLAYER_MODE_COMPACT_OVERVIEW = 100,
+    DISPLAY_PLAYER_MODE_COMPACT_STATS = 101,
+    DISPLAY_PLAYER_MODE_COMPACT_SKILLS = 102,
+    DISPLAY_PLAYER_MODE_COMPACT_HISTORY = 103,
+};
 
 /*
  * Special display, part 2c
@@ -2942,11 +3454,61 @@ static void display_player_sust_info(void)
  */
 void display_player(int mode)
 {
+    int wid = 80;
+    int hgt = 24;
+    int wide_offset = 0;
+    bool narrow = false;
+
+    Term_get_size(&wid, &hgt);
+    (void)hgt;
+    narrow = (wid > 0 && wid < 80);
+    if (wid > 80)
+        wide_offset = (wid - 80) / 2;
+
     /* Erase screen */
     clear_from(0);
 
+    if (narrow && (mode == 0))
+        mode = DISPLAY_PLAYER_MODE_COMPACT_SKILLS;
+
+    if (mode == DISPLAY_PLAYER_MODE_COMPACT_OVERVIEW)
+    {
+        display_player_misc_info();
+        int body_row = display_player_compact_summary_block(2);
+        display_player_compact_traits(body_row);
+        sdl_story_font_reset();
+        return;
+    }
+
+    if (mode == DISPLAY_PLAYER_MODE_COMPACT_STATS)
+    {
+        display_player_misc_info();
+        int body_row = display_player_compact_summary_block(2);
+        display_player_compact_attributes(body_row);
+        sdl_story_font_reset();
+        return;
+    }
+
+    if (mode == DISPLAY_PLAYER_MODE_COMPACT_SKILLS)
+    {
+        display_player_misc_info();
+        int body_row = display_player_compact_summary_block(2);
+        display_player_compact_skills_list(body_row);
+        sdl_story_font_reset();
+        return;
+    }
+
+    if (mode == DISPLAY_PLAYER_MODE_COMPACT_HISTORY)
+    {
+        display_player_misc_info();
+        int body_row = display_player_compact_summary_block(2);
+        display_player_compact_history(body_row);
+        sdl_story_font_reset();
+        return;
+    }
+
     /* All Modes Use Stat info */
-    display_player_stat_info(1, 41);
+    display_player_stat_info(1, 41 + wide_offset);
 
     if ((mode) < 2)
     {

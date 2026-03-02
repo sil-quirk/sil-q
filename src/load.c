@@ -1181,8 +1181,14 @@ static void rd_options(void)
     if (op_ptr->vault_drop_frequency > VDF_PLENTIFUL)
         op_ptr->vault_drop_frequency = VDF_NORMAL;
 
-    /* Skip 5 remaining spare bytes */
-    strip_bytes(5);
+    /* Read "intro_style" */
+    rd_byte(&b);
+    op_ptr->intro_style = b;
+    if (op_ptr->intro_style > INTRO_STYLE_RANDOM)
+        op_ptr->intro_style = INTRO_STYLE_FLAME;
+
+    /* Skip 4 remaining spare bytes */
+    strip_bytes(4);
 
     /*** Normal Options ***/
 

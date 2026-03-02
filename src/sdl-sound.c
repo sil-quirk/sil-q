@@ -59,10 +59,50 @@ static bool sdl_sound_load_from_config(const struct sound_config* config);
 static bool sdl_sound_scan_folder(const char* folder_path, char files[][SDL_SOUND_NAME_LEN], int* file_count, int max_files);
 static bool sdl_sound_is_audio_file(const char* filename);
 static void sdl_sound_build_path(const char* base_path, char* dst, size_t dst_len);
+static bool sdl_sound_has_any_events(const struct sound_config* config);
+static bool sdl_sound_load_default_config(struct sound_config* defaults);
+static void sdl_sound_fill_missing_events_from_defaults(struct sound_config* config);
 static void sdl_sound_clear_streams(void);
 static bool sdl_sound_track_stream(SDL_AudioStream* stream);
 static void sdl_sound_destroy_stream(SDL_AudioStream** stream);
 static void sdl_music_stop(SDL_AudioStream** stream_ptr);
+
+typedef struct {
+    char (*files)[SDL_SOUND_NAME_LEN];
+    int* file_count;
+    int max_files;
+} sound_scan_ctx;
+
+static SDL_EnumerationResult SDLCALL sdl_sound_scan_enum_cb(void* userdata, const char* dirname, const char* fname)
+{
+    sound_scan_ctx* ctx = (sound_scan_ctx*)userdata;
+    if (!ctx || !ctx->files || !ctx->file_count || !dirname || !fname) {
+        return SDL_ENUM_CONTINUE;
+    }
+
+    if (!fname[0] || streq(fname, ".") || streq(fname, "..")) {
+        return SDL_ENUM_CONTINUE;
+    }
+
+    if (!sdl_sound_is_audio_file(fname)) {
+        return SDL_ENUM_CONTINUE;
+    }
+
+    int idx = *ctx->file_count;
+    if (idx >= ctx->max_files) {
+        return SDL_ENUM_SUCCESS;
+    }
+
+    char candidate_path[1024];
+    candidate_path[0] = '\0';
+    SDL_strlcpy(candidate_path, dirname, sizeof(candidate_path));
+    SDL_strlcat(candidate_path, fname, sizeof(candidate_path));
+
+    SDL_strlcpy(ctx->files[idx], candidate_path, SDL_SOUND_NAME_LEN);
+    (*ctx->file_count)++;
+
+    return SDL_ENUM_CONTINUE;
+}
 
 static bool is_sound_enabled(int sound_idx)
 {
@@ -192,38 +232,15 @@ static bool sdl_sound_scan_folder(const char* folder_path, char files[][SDL_SOUN
         return false;
     }
 
-    int entry_count = 0;
-    char** entries = SDL_GlobDirectory(folder_path, NULL, 0, &entry_count);
-    if (!entries) {
+    sound_scan_ctx ctx;
+    ctx.files = files;
+    ctx.file_count = file_count;
+    ctx.max_files = max_files;
+
+    if (!SDL_EnumerateDirectory(folder_path, sdl_sound_scan_enum_cb, &ctx)) {
         log_debug("Cannot open sound folder: %s", folder_path);
         return false;
     }
-
-    for (int i = 0; entries[i] && *file_count < max_files; i++) {
-        const char* entry_name = entries[i];
-        if (!entry_name || !entry_name[0] || streq(entry_name, ".") || streq(entry_name, "..")) {
-            continue;
-        }
-
-        if (!sdl_sound_is_audio_file(entry_name)) {
-            continue;
-        }
-
-        char candidate_path[1024];
-        if (!path_build(candidate_path, sizeof(candidate_path), folder_path, entry_name)) {
-            continue;
-        }
-
-        SDL_PathInfo info;
-        if (!SDL_GetPathInfo(candidate_path, &info) || info.type != SDL_PATHTYPE_FILE) {
-            continue;
-        }
-
-        SDL_strlcpy(files[*file_count], candidate_path, SDL_SOUND_NAME_LEN);
-        (*file_count)++;
-    }
-
-    SDL_free(entries);
     
     log_debug("Scanned folder '%s': found %d audio file(s)", folder_path, *file_count);
     return *file_count > 0;
@@ -266,6 +283,70 @@ static bool sdl_sound_load_from_config(const struct sound_config* config)
     
     log_info("Loaded sound events: %d/%d", loaded_events, MSG_MAX);
     return loaded_events > 0;
+}
+
+static bool sdl_sound_has_any_events(const struct sound_config* config)
+{
+    if (!config) {
+        return false;
+    }
+
+    for (int i = 0; i < MSG_MAX; i++) {
+        if (config->events[i][0]) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static bool sdl_sound_load_default_config(struct sound_config* defaults)
+{
+    if (!defaults) {
+        return false;
+    }
+
+    if (!ANGBAND_DIR_PREF || !ANGBAND_DIR_PREF[0]) {
+        return false;
+    }
+
+    char defaults_path[1024];
+    if (!path_build(defaults_path, sizeof(defaults_path), ANGBAND_DIR_PREF, "sound.json")) {
+        return false;
+    }
+
+    if (streq(defaults_path, g_sound_config_path)) {
+        return false;
+    }
+
+    sound_config_load(defaults_path, defaults);
+    return sdl_sound_has_any_events(defaults);
+}
+
+static void sdl_sound_fill_missing_events_from_defaults(struct sound_config* config)
+{
+    if (!config || sdl_sound_has_any_events(config)) {
+        return;
+    }
+
+    struct sound_config defaults;
+    if (!sdl_sound_load_default_config(&defaults)) {
+        log_warn("Could not load default sound event mappings from pref/sound.json");
+        return;
+    }
+
+    int copied = 0;
+    for (int i = 0; i < MSG_MAX; i++) {
+        if (!config->events[i][0] && defaults.events[i][0]) {
+            SDL_strlcpy(config->events[i], defaults.events[i], sizeof(config->events[i]));
+            copied++;
+        }
+    }
+
+    if (copied > 0) {
+        log_info("Filled %d missing sound event mappings from defaults", copied);
+        sound_config_save(g_sound_config_path, config);
+    }
 }
 
 static void sdl_sound_destroy_stream(SDL_AudioStream** stream_ptr)
@@ -369,9 +450,36 @@ void sdl_sound_reload(void)
     
     // Load sound configuration from sound.json
     sound_config_load(g_sound_config_path, &g_sound_config);
+    sdl_sound_fill_missing_events_from_defaults(&g_sound_config);
     /* Keep global sound toggle aligned with config for early startup. */
     use_sound = g_sound_config.enabled;
     sound_state.bank_loaded = sdl_sound_load_from_config(&g_sound_config);
+
+    if (g_sound_config.enabled && !sound_state.bank_loaded) {
+        struct sound_config defaults;
+        if (sdl_sound_load_default_config(&defaults)) {
+            int replaced = 0;
+            for (int i = 0; i < MSG_MAX; i++) {
+                if (defaults.events[i][0] && !streq(g_sound_config.events[i], defaults.events[i])) {
+                    SDL_strlcpy(g_sound_config.events[i], defaults.events[i], sizeof(g_sound_config.events[i]));
+                    replaced++;
+                }
+            }
+
+            if (replaced > 0) {
+                log_warn("Retrying sound event load with %d default event path(s)", replaced);
+                sound_state.bank_loaded = sdl_sound_load_from_config(&g_sound_config);
+                if (sound_state.bank_loaded) {
+                    sound_config_save(g_sound_config_path, &g_sound_config);
+                    log_info("Recovered sound effect mappings from defaults");
+                }
+            }
+        }
+    }
+
+    if (g_sound_config.enabled && !sound_state.bank_loaded) {
+        log_warn("Sound enabled but no effect samples were loaded (check sound paths and asset packaging)");
+    }
     
     // Copy group flags and volumes to sound_state
     sound_state.enable_combat = g_sound_config.enable_combat;
