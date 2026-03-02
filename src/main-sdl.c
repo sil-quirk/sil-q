@@ -3097,12 +3097,19 @@ void get_sdl_config_info(char* buf, size_t size)
     offset += (size_t)strnfmt(buf + offset, size - offset, "Fullscreen: %s\n", config.fullscreen ? "Yes" : "No");
     offset += (size_t)strnfmt(buf + offset, size - offset, "Tiles: %s\n\n", config.tiles ? "Yes" : "No");
     
-    // Pane configurations
-    offset += (size_t)strnfmt(buf + offset, size - offset, "=== Pane Configuration ===\n");
-    offset += (size_t)strnfmt(buf + offset, size - offset, "Total Panes: %d\n\n", pane_config_count);
-    
+    // Pane configurations (supporting panes only)
+    offset += (size_t)strnfmt(buf + offset, size - offset, "=== Pane Configuration (Supporting Panes) ===\n");
+    int support_count = 0;
+    for (int i = 0; i < pane_config_count && i < MAX_PANE_CONFIGS; i++) {
+        if (pane_config[i].pane != PANE_MAIN)
+            support_count++;
+    }
+    offset += (size_t)strnfmt(buf + offset, size - offset, "Supporting Panes: %d\n\n", support_count);
+
     for (int i = 0; i < pane_config_count && i < MAX_PANE_CONFIGS; i++) {
         const struct pane_config* pc = &pane_config[i];
+        if (pc->pane == PANE_MAIN)
+            continue;
         const char* type_str = "UNKNOWN";
         const char* where_str = (pc->where == PLACE_BOTTOM) ? "BOTTOM" : "RIGHT";
         
@@ -3260,6 +3267,60 @@ void set_sdl_tiles(bool value)
 int get_pane_config_count(void)
 {
     return pane_config_count;
+}
+
+/*
+ * Accessors for the active pane configuration.
+ * These are used by the interactive pane settings menu (cmd4.c).
+ */
+int get_sdl_pane_type(int index)
+{
+    if (index < 0 || index >= pane_config_count)
+        return -1;
+    return (int)pane_config[index].pane;
+}
+
+int get_sdl_pane_where(int index)
+{
+    if (index < 0 || index >= pane_config_count)
+        return 0;
+    return (int)pane_config[index].where;
+}
+
+int get_sdl_pane_rows(int index)
+{
+    if (index < 0 || index >= pane_config_count)
+        return 0;
+    return pane_config[index].rect.rows;
+}
+
+int get_sdl_pane_cols(int index)
+{
+    if (index < 0 || index >= pane_config_count)
+        return 0;
+    return pane_config[index].rect.cols;
+}
+
+void set_sdl_pane_rows(int index, int rows)
+{
+    if (index < 0 || index >= pane_config_count)
+        return;
+    if (rows < 0)
+        rows = 0;
+    if (rows > 200)
+        rows = 200;
+    pane_config[index].rect.rows = rows;
+}
+
+void set_sdl_pane_cols(int index, int cols)
+{
+    if (index < 0 || index >= pane_config_count)
+        return;
+    if (cols < 0)
+        cols = 0;
+    if (cols > 200)
+        cols = 200;
+    pane_config[index].rect.cols = cols;
 }
 
 bool get_sdl_enable_right_panes(void)

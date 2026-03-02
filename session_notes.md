@@ -17,6 +17,13 @@
 - For very short screens (`<=20` rows) in compact-flags mode, the menu list reserves one extra row above `DESCRIPTION_ROW` to avoid overlap with the shifted trait block.
 - Validation: `Build and Deploy` task completed successfully.
 
+## 2026-03-02: Character tutorial responsive pages (min 50x20)
+- Refactored `display_character_tutorial()` in `src/files.c` to be terminal-size aware: dynamic page count, centered header/footer, word-wrapped paragraphs, and safe truncation for narrow widths.
+- Tutorial content is now split into multiple pages that fit down to a `50x20` terminal without clipping (core stats split, traits/controls auto-paginate).
+- Follow-up: skills, history, and the birth-only compact-screen page now paginate too (no more silent cutoff at 20 rows); history shows full text across pages.
+- When shown during birth (`playerturn == 0`), adds a final page explaining the compact stat/skill allocation screens and navigation.
+- Validation: `cmake --build build-standard --parallel` succeeded.
+
 ## 2026-03-02: Welcome screen unified origin + row-0 fallback
 - Welcome screen intro text and the menu/prompt block now share a single computed top-row origin in `src/init2.c` (intro + footer move together).
 - When the terminal height is too small for the legacy layout (e.g. 20 rows), the whole block starts at row 0 instead of row 1.

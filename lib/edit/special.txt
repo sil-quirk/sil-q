@@ -464,7 +464,7 @@ F:IGNORE_ALL
 # Glaives, great axes, curved swords, bastard swords
 
 N:49:(Vampiric)
-W:4:75:0:3000
+W:4:60:0:3000
 C:0:0:0:0:0:0:0
 T:22:4:4
 T:22:13:13

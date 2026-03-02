@@ -1280,14 +1280,6 @@ static void display_skill(int skill, int row, int col)
 
 /* ----- story-font aware helpers ---------------------------------------- */
 
-static void story_c_put_str_grid(byte attr, cptr text, int row, int col, int width)
-{
-    if (sdl_is_story_font_enabled())
-        story_print_text_grid(row, col, width, attr, text);
-    else
-        c_put_str(attr, text, row, col);
-}
-
 /* ===== 20-column, right-anchored stat lines ============================= */
 
 #define LINEW20 20
@@ -1904,755 +1896,1212 @@ static void tutorial_prompt_label(int binding, const char* fallback, char* out, 
         SDL_strlcpy(out, fallback, out_size);
 }
 
-void display_character_tutorial(void)
+static void tutorial_put_centered(int row, byte attr, const char* text)
 {
-    int stage = 0;
-    char ch;
-    char buf[160];
-    char cur[32], rhs[32];
-    int row;
-    
-    /* Display each stage */
-    while (1)
+    if (!text)
+        return;
+
+    int wid = 80;
+    int hgt = 24;
+    Term_get_size(&wid, &hgt);
+    if (wid < 1)
+        wid = 80;
+
+    int len = (int)strlen(text);
+    int col = 0;
+    if (len < wid)
+        col = (wid - len) / 2;
+    if (col < 0)
+        col = 0;
+
+    Term_putstr(col, row, -1, attr, text);
+}
+
+static int tutorial_put_trunc(int col, int row, int max_wid, byte attr, const char* text)
+{
+    if (!text || !text[0])
+        return 0;
+
+    if (max_wid < 4)
+        max_wid = 4;
+
+    size_t len = strlen(text);
+    if ((int)len <= max_wid)
     {
-        /* Clear screen */
-        Term_clear();
+        Term_putstr(col, row, -1, attr, text);
+        return 1;
+    }
 
-        bool steamdeck = steamdeck_controls_active();
-        
-        /* Stage header */
-        Term_putstr(20, 0, -1, TERM_L_BLUE, 
-            format("CHARACTER SCREEN TUTORIAL - STAGE %d/4", stage + 1));
-        
-        row = 2;
-        
-        /* Stage 1: Core Statistics (left column) */
-        if (stage == 0)
+    char buf[256];
+    if (max_wid >= (int)sizeof(buf))
+        max_wid = (int)sizeof(buf) - 1;
+
+    int keep = max_wid - 3;
+    if (keep < 0)
+        keep = 0;
+    SDL_strlcpy(buf, text, (size_t)keep + 1);
+    SDL_strlcat(buf, "...", sizeof(buf));
+    Term_putstr(col, row, -1, attr, buf);
+    return 1;
+}
+
+/* Word-wrap text and render it, respecting a bottom row limit. Returns number of lines written. */
+static int tutorial_put_wrapped_limited(
+    const char* text, int start_col, int start_row, int max_width, int max_row, byte color)
+{
+    if (!text || !text[0])
+        return 0;
+
+    int term_width = 80;
+    int term_height = 24;
+    Term_get_size(&term_width, &term_height);
+    if (term_width < 1)
+        term_width = 80;
+    if (term_height < 1)
+        term_height = 24;
+
+    if (max_width <= 0)
+        max_width = term_width - start_col - 1;
+    if (max_width < 10)
+        max_width = 10;
+
+    if (max_row <= 0 || max_row > term_height)
+        max_row = term_height;
+
+    char line_buf[512];
+    int row = start_row;
+    int line_pos = 0;
+    const char* p = text;
+
+    while (*p && row < max_row)
+    {
+        /* Skip leading spaces at the start of a line */
+        while (*p == ' ' && line_pos == 0)
+            p++;
+
+        /* Explicit newline */
+        if (*p == '\n')
         {
-            Term_putstr(2, row++, -1, TERM_WHITE, "CORE STATISTICS");
-            row++;
-            
-            /* Experience */
-            strnfmt(cur, sizeof(cur), "%ld", (long)p_ptr->new_exp);
-            strnfmt(rhs, sizeof(rhs), "%ld", (long)p_ptr->exp);
-            put_pair20_right(2, row, "Exp", 
-                cur, 6, TERM_L_GREEN, '/', rhs, 6, TERM_GREEN);
-            Term_putstr(24, row++, -1, TERM_SLATE, 
-                "-Experience: left/total, awarded for reaching depths,");
-            Term_putstr(24, row++, -1, TERM_SLATE, 
-                " identifying items and spotting and killing monsters");
-            
-            /* Burden */
+            line_buf[line_pos] = '\0';
+            if (line_pos > 0)
             {
-                long cur_wgt = p_ptr->total_weight / 10;
-                long max_wgt = weight_limit() / 10;
-                strnfmt(cur, sizeof(cur), "%ld", cur_wgt);
-                strnfmt(rhs, sizeof(rhs), "%ld", max_wgt);
-                put_pair20_right(2, row, "Burden",
-                    cur, 4, TERM_L_GREEN, '/', rhs, 4, TERM_GREEN);
-                Term_putstr(24, row++, -1, TERM_SLATE,
-                    "-Weight carried/max capacity (lbs)");
-            }
-            
-            /* Depth */
-            if (turn > 0)
-            {
-                long cur_d = p_ptr->depth * 50;
-                long min_d = min_depth() * 50;
-                strnfmt(cur, sizeof(cur), "%ld", cur_d);
-                strnfmt(rhs, sizeof(rhs), "%ld", min_d);
-                put_pair20_right(2, row, "Depth c/m",
-                    cur, 4, TERM_L_GREEN, '/', rhs, 4, TERM_GREEN);
-                Term_putstr(24, row++, -1, TERM_SLATE,
-                    "-Current level/minimum return depth, goes up with time");
-            }
-            
-            /* Turn */
-            comma_number(buf, playerturn);
-            put_single20_right(2, row, "Turn", buf, 12, TERM_L_GREEN);
-            Term_putstr(24, row++, -1, TERM_SLATE, "-Total current game turns");
-            
-            /* Light */
-            strnfmt(buf, sizeof(buf), "%d", p_ptr->cur_light);
-            put_single20_right(2, row, "Light", buf, 2, TERM_L_GREEN);
-            Term_putstr(24, row++, -1, TERM_SLATE, "-Your current light radius");
-            row++;
-            
-            /* Melee */
-            strnfmt(buf, sizeof(buf), "(%+d,%dd%d)",
-                p_ptr->skill_use[S_MEL], p_ptr->mdd, p_ptr->mds);
-            put_single20_right(2, row, "Melee", buf, 12, TERM_L_GREEN);
-            Term_putstr(24, row++, -1, TERM_SLATE, "-Main hand: (chance to hit, damage dice)");
-            
-            /* Bows */
-            strnfmt(buf, sizeof(buf), "(%+d,%dd%d)",
-                p_ptr->skill_use[S_ARC], p_ptr->add, p_ptr->ads);
-            put_single20_right(2, row, "Bows", buf, 12, TERM_L_GREEN);
-            Term_putstr(24, row++, -1, TERM_SLATE, "-Ranged:    (chance to hit, damage dice)");
-            
-            /* Armor */
-            strnfmt(buf, sizeof(buf), "[%+d,%d-%d]",
-                p_ptr->skill_use[S_EVN], p_min(GF_HURT, true), p_max(GF_HURT, true));
-            put_single20_right(2, row, "Armor", buf, 12, TERM_L_GREEN);
-            Term_putstr(24, row++, -1, TERM_SLATE, "-[evasion, protection]");
-            Term_putstr(24, row++, -1, TERM_SLATE, " [chance increase, damage absorption]");
-            
-            /* Health */
-            {
-                int cur_hp = MIN(p_ptr->chp, 999);
-                int max_hp = MIN(p_ptr->mhp, 999);
-                byte col = (p_ptr->chp >= p_ptr->mhp) ? TERM_L_GREEN : 
-                          (p_ptr->chp > p_ptr->mhp / 4) ? TERM_YELLOW : TERM_RED;
-                strnfmt(cur, sizeof(cur), "%d", cur_hp);
-                strnfmt(rhs, sizeof(rhs), "%d", max_hp);
-                put_pair20_right(2, row, "Health",
-                    cur, 3, col, '/', rhs, 3, TERM_GREEN);
-                Term_putstr(24, row++, -1, TERM_SLATE, "-Hit points:  current/maximum");
-            }
-            
-            /* Voice */
-            {
-                int cur_sp = MIN(p_ptr->csp, 999);
-                int max_sp = MIN(p_ptr->msp, 999);
-                byte col = (p_ptr->csp >= p_ptr->msp) ? TERM_L_GREEN :
-                          (p_ptr->csp > p_ptr->msp / 4) ? TERM_YELLOW : TERM_RED;
-                strnfmt(cur, sizeof(cur), "%d", cur_sp);
-                strnfmt(rhs, sizeof(rhs), "%d", max_sp);
-                put_pair20_right(2, row, "Voice",
-                    cur, 3, col, '/', rhs, 3, TERM_GREEN);
-                Term_putstr(24, row++, -1, TERM_SLATE, "-Song points: current/maximum");
-            }
-        }
-        
-        /* Stage 2: Attributes & Skills */
-        else if (stage == 1)
-        {
-            Term_putstr(2, row++, -1, TERM_WHITE, "ATTRIBUTES & SKILLS");
-            row++;
-            
-            Term_putstr(2, row++, -1, TERM_SLATE, "Attributes (Current = Base +equip +misc -drain):");
-            
-            /* Display stats with short names */
-            for (int stat = 0; stat < A_MAX; stat++)
-            {
-                int use = p_ptr->stat_use[stat];
-                int base = p_ptr->stat_base[stat];
-                int equip_mod = p_ptr->stat_equip_mod[stat];
-                int misc_mod = p_ptr->stat_misc_mod[stat];
-                int drain = p_ptr->stat_drain[stat];
-                
-                byte attr = (use == base) ? TERM_WHITE : 
-                           (use > base) ? TERM_L_GREEN : TERM_ORANGE;
-                
-                /* Use short names for display */
-                Term_putstr(4, row, -1, TERM_WHITE, stat_names[stat]);
-                
-                /* Show breakdown if there are any modifiers */
-                char value_buf[8];
-                strnfmt(value_buf, sizeof(value_buf), "%2d", use);
-
-                if (equip_mod != 0 || misc_mod != 0 || drain != 0)
-                {
-                    story_c_put_str_grid(attr, value_buf, row, 8, 2);
-                    story_c_put_str_grid(TERM_SLATE, "=", row, 11, 1);
-
-                    char base_buf[8];
-                    strnfmt(base_buf, sizeof(base_buf), "%2d", base);
-                    story_c_put_str_grid(TERM_WHITE, base_buf, row, 13, 2);
-
-                    int col_pos = 16;
-                    if (equip_mod != 0)
-                    {
-                        char mod_buf[8];
-                        strnfmt(mod_buf, sizeof(mod_buf), "%+d", equip_mod);
-                        story_c_put_str_grid(
-                            equip_mod > 0 ? TERM_L_GREEN : TERM_ORANGE,
-                            mod_buf, row, col_pos, 3);
-                        col_pos += 3;
-                    }
-                    if (misc_mod != 0)
-                    {
-                        char mod_buf[8];
-                        strnfmt(mod_buf, sizeof(mod_buf), "%+d", misc_mod);
-                        story_c_put_str_grid(
-                            misc_mod > 0 ? TERM_L_GREEN : TERM_ORANGE,
-                            mod_buf, row, col_pos, 3);
-                        col_pos += 3;
-                    }
-                    if (drain != 0)
-                    {
-                        char mod_buf[8];
-                        strnfmt(mod_buf, sizeof(mod_buf), "%+d", drain);
-                        story_c_put_str_grid(TERM_YELLOW, mod_buf, row, col_pos, 3);
-                        col_pos += 3;
-                    }
-                }
-                else
-                {
-                    /* No modifiers, just show the value */
-                    story_c_put_str_grid(attr, value_buf, row, 8, 2);
-                }
-                
-                /* Descriptions with full names - shortened to fit */
-                if (stat == A_STR)
-                    Term_putstr(28, row, -1, TERM_SLATE, "-Strength: melee dice & weight capacity");
-                else if (stat == A_DEX)
-                    Term_putstr(28, row, -1, TERM_SLATE, "-Dexterity: skill increase (mel, evn, arc, stl)");
-                else if (stat == A_CON)
-                    Term_putstr(28, row, -1, TERM_SLATE, "-Constitution: HP");
-                else if (stat == A_GRA)
-                    Term_putstr(28, row, -1, TERM_SLATE, "-Grace: skill increase (wil, per, sng, smt), voice");
-
+                Term_putstr(start_col, row, -1, color, line_buf);
                 row++;
             }
-            row++;
-            
-            Term_putstr(2, row++, -1, TERM_SLATE, "Skills: Total = Base +stat +equip +misc");
-            Term_putstr(2, row++, -1, TERM_SLATE, "(Base determines ability purchase cost)");
-            row++;
-            
-            /* Display all 8 skills with descriptions */
-            const char* skill_desc[S_MAX] = {
-                "-Melee combat chance to hit",      /* S_MEL */
-                "-Ranged attack chance to hit",     /* S_ARC */
-                "-Evade attack chance",     /* S_EVN */
-                "-Avoid detection",   /* S_STL */
-                "-Notice hidden",     /* S_PER */
-                "-Mental resistance",     /* S_WIL */
-                "-Craft items",       /* S_SMT */
-                "-Song power",        /* S_SNG */
-                ""                     /* S_SPC - skip */
-            };
-            
-            for (int skill = 0; skill < S_MAX; skill++)
-            {
-                /* Skip Special abilities skill */
-                if (skill == S_SPC) continue;
-                
-                /* Use full names for display */
-                Term_putstr(4, row, -1, TERM_WHITE, skill_names_full[skill]);
-                char total_buf[8];
-                strnfmt(total_buf, sizeof(total_buf), "%2d", p_ptr->skill_use[skill]);
-                story_c_put_str_grid(TERM_L_GREEN, total_buf, row, 16, 2);
-                story_c_put_str_grid(TERM_SLATE, "=", row, 19, 1);
-
-                char base_buf[8];
-                strnfmt(base_buf, sizeof(base_buf), "%2d", p_ptr->skill_base[skill]);
-                story_c_put_str_grid(TERM_GREEN, base_buf, row, 21, 2);
-                
-                int col_pos = 24;
-                if (p_ptr->skill_stat_mod[skill] != 0)
-                {
-                    char mod_buf[8];
-                    strnfmt(mod_buf, sizeof(mod_buf), "%+d", p_ptr->skill_stat_mod[skill]);
-                    story_c_put_str_grid(TERM_WHITE, mod_buf, row, col_pos, 3);
-                    col_pos += 3;
-                }
-                if (p_ptr->skill_equip_mod[skill] != 0)
-                {
-                    char mod_buf[8];
-                    strnfmt(mod_buf, sizeof(mod_buf), "%+d", p_ptr->skill_equip_mod[skill]);
-                    story_c_put_str_grid(TERM_WHITE, mod_buf, row, col_pos, 3);
-                    col_pos += 3;
-                }
-                if (p_ptr->skill_misc_mod[skill] != 0)
-                {
-                    char mod_buf[8];
-                    strnfmt(mod_buf, sizeof(mod_buf), "%+d", p_ptr->skill_misc_mod[skill]);
-                    story_c_put_str_grid(TERM_WHITE, mod_buf, row, col_pos, 3);
-                    col_pos += 3;
-                }
-                
-                /* Add description */
-                Term_putstr(36, row, -1, TERM_SLATE, skill_desc[skill]);
-                row++;
-            }
+            line_pos = 0;
+            p++;
+            continue;
         }
-        
-        /* Stage 3: Character Traits */
-        else if (stage == 2)
+
+        /* Wrap */
+        if (line_pos >= max_width)
         {
-            Term_putstr(2, row++, -1, TERM_WHITE, "CHARACTER TRAITS");
-            row++;
-            
-            /* Character name */
-            char name[40];
-            if (p_ptr->oaths_broken)
+            int wrap_pos = line_pos - 1;
+            while (wrap_pos > 0 && line_buf[wrap_pos] != ' ')
+                wrap_pos--;
+
+            if (wrap_pos > 0)
             {
-                strnfmt(name, sizeof(name), "%s the Oathbreaker", op_ptr->full_name);
-                c_put_str(TERM_RED, name, row++, 4);
+                line_buf[wrap_pos] = '\0';
+                Term_putstr(start_col, row, -1, color, line_buf);
+
+                int remaining = line_pos - wrap_pos - 1;
+                for (int i = 0; i < remaining; i++)
+                    line_buf[i] = line_buf[wrap_pos + 1 + i];
+                line_pos = remaining;
             }
             else
             {
-                strnfmt(name, sizeof(name), "%s%s", op_ptr->full_name, 
-                    c_name + current_character_profile->alt_name);
-                c_put_str(TERM_L_BLUE, name, row++, 4);
+                line_buf[line_pos] = '\0';
+                Term_putstr(start_col, row, -1, color, line_buf);
+                line_pos = 0;
             }
             row++;
-            
-            Term_putstr(2, row++, -1, TERM_SLATE, "Special Abilities & Modifiers:");
+            continue;
+        }
+
+        /* Add char */
+        if (line_pos < (int)sizeof(line_buf) - 2)
+            line_buf[line_pos++] = *p;
+        p++;
+    }
+
+    if (line_pos > 0 && row < max_row)
+    {
+        line_buf[line_pos] = '\0';
+        Term_putstr(start_col, row, -1, color, line_buf);
+        row++;
+    }
+
+    return row - start_row;
+}
+
+static int tutorial_count_wrapped_lines_ex(const char* text, int max_width, bool preserve_empty)
+{
+    if (!text || !text[0])
+        return 0;
+
+    if (max_width < 10)
+        max_width = 10;
+
+    char line_buf[512];
+    int line_pos = 0;
+    int count = 0;
+    const char* p = text;
+
+    while (*p)
+    {
+        while (*p == ' ' && line_pos == 0)
+            p++;
+
+        if (*p == '\n')
+        {
+            if (line_pos > 0 || preserve_empty)
+                count++;
+            line_pos = 0;
+            p++;
+            continue;
+        }
+
+        if (line_pos >= max_width)
+        {
+            int wrap_pos = line_pos - 1;
+            while (wrap_pos > 0 && line_buf[wrap_pos] != ' ')
+                wrap_pos--;
+
+            if (wrap_pos > 0)
+            {
+                int remaining = line_pos - wrap_pos - 1;
+                for (int i = 0; i < remaining; i++)
+                    line_buf[i] = line_buf[wrap_pos + 1 + i];
+                line_pos = remaining;
+            }
+            else
+            {
+                line_pos = 0;
+            }
+
+            count++;
+            continue;
+        }
+
+        if (line_pos < (int)sizeof(line_buf) - 2)
+            line_buf[line_pos++] = *p;
+        p++;
+    }
+
+    if (line_pos > 0)
+        count++;
+
+    return count;
+}
+
+static int tutorial_put_wrapped_slice_ex(
+    const char* text,
+    int start_col,
+    int start_row,
+    int max_width,
+    int max_row,
+    byte color,
+    int skip_lines,
+    int max_lines,
+    bool preserve_empty)
+{
+    if (!text || !text[0])
+        return 0;
+
+    if (skip_lines < 0)
+        skip_lines = 0;
+    if (max_lines < 1)
+        max_lines = 1;
+    if (max_width < 10)
+        max_width = 10;
+
+    char line_buf[512];
+    int row = start_row;
+    int line_pos = 0;
+    int line_index = 0;
+    int drawn = 0;
+    const char* p = text;
+
+    while (*p && row < max_row)
+    {
+        while (*p == ' ' && line_pos == 0)
+            p++;
+
+        if (*p == '\n')
+        {
+            bool have_line = (line_pos > 0) || preserve_empty;
+            if (have_line)
+            {
+                if (line_index >= skip_lines && drawn < max_lines)
+                {
+                    if (line_pos > 0)
+                    {
+                        line_buf[line_pos] = '\0';
+                        Term_putstr(start_col, row, -1, color, line_buf);
+                    }
+                    row++;
+                    drawn++;
+                    if (drawn >= max_lines || row >= max_row)
+                        break;
+                }
+                line_index++;
+            }
+            line_pos = 0;
+            p++;
+            continue;
+        }
+
+        if (line_pos >= max_width)
+        {
+            int wrap_pos = line_pos - 1;
+            while (wrap_pos > 0 && line_buf[wrap_pos] != ' ')
+                wrap_pos--;
+
+            if (line_index >= skip_lines && drawn < max_lines)
+            {
+                if (wrap_pos > 0)
+                    line_buf[wrap_pos] = '\0';
+                else
+                    line_buf[line_pos] = '\0';
+                if (line_buf[0])
+                    Term_putstr(start_col, row, -1, color, line_buf);
+                row++;
+                drawn++;
+                if (drawn >= max_lines || row >= max_row)
+                    break;
+            }
+
+            if (wrap_pos > 0)
+            {
+                int remaining = line_pos - wrap_pos - 1;
+                for (int i = 0; i < remaining; i++)
+                    line_buf[i] = line_buf[wrap_pos + 1 + i];
+                line_pos = remaining;
+            }
+            else
+            {
+                line_pos = 0;
+            }
+
+            line_index++;
+            continue;
+        }
+
+        if (line_pos < (int)sizeof(line_buf) - 2)
+            line_buf[line_pos++] = *p;
+        p++;
+    }
+
+    if (line_pos > 0 && row < max_row && drawn < max_lines)
+    {
+        if (line_index >= skip_lines)
+        {
+            line_buf[line_pos] = '\0';
+            Term_putstr(start_col, row, -1, color, line_buf);
             row++;
-            
-            /* Show color coding examples in compact format */
-            c_put_str(TERM_L_GREEN, "++", row, 4);
-            Term_putstr(8, row, -1, TERM_SLATE, "- Mastery  ");
-            c_put_str(TERM_GREEN, "+", row, 20);
-            Term_putstr(23, row++, -1, TERM_SLATE, "- Affinity");
-            
-            c_put_str(TERM_RED, "--", row, 4);
-            Term_putstr(8, row, -1, TERM_SLATE, "- Major penalty  ");
-            c_put_str(TERM_L_RED, "-", row, 26);
-            Term_putstr(29, row++, -1, TERM_SLATE, "- Minor penalty");
-            
-            c_put_str(TERM_VIOLET, "UNIQUE", row, 4);
-            Term_putstr(12, row++, -1, TERM_SLATE, "- Special abilities");
-            
-            c_put_str(TERM_UMBER, "CURSE", row, 4);
-            Term_putstr(12, row++, -1, TERM_SLATE, "- Character curses");
-            row++;
-            
-            /* Show ALL actual traits using the same logic as character sheet */
-            int race = p_ptr->prace;
-            int character = p_ptr->pcharacter;
-            
-            Term_putstr(2, row++, -1, TERM_SLATE, "Your current traits:");
-            
-            /* Use buffers to collect and organize traits */
-            typedef struct {
-                const char *txt;
-                byte col;
-            } trait_line_t;
-            
-            trait_line_t trait_uniq[32], trait_ma[16], trait_af[16], trait_pen[32];
-            int uniq_cnt = 0, ma_cnt = 0, af_cnt = 0, pen_cnt = 0;
-            
-            byte col_mastery = TERM_L_GREEN;
-            byte col_affinity = TERM_GREEN;
-            byte col_penalty = TERM_L_RED;
-            byte col_gr_penalty = TERM_RED;
-            
-#define PUSH_TRAIT(arr, n, text, color) do { (arr)[(n)].txt = (text); (arr)[(n)++].col = (color); } while (0)
+            drawn++;
+        }
+    }
+
+    return drawn;
+}
+
+typedef struct {
+    const char* txt;
+    byte col;
+} tutorial_trait_line;
+
+static int tutorial_collect_traits(tutorial_trait_line* out, int max_out)
+{
+    if (!out || max_out <= 0)
+        return 0;
+
+    int n = 0;
+    int race = p_ptr->prace;
+    int character = p_ptr->pcharacter;
+
+    byte col_mastery = TERM_L_GREEN;
+    byte col_affinity = TERM_GREEN;
+    byte col_penalty = TERM_L_RED;
+    byte col_gr_penalty = TERM_RED;
+
+    /* Skill affinity/penalty summary */
+#define PUSH_TRAIT(text_value, color_value) \
+    do { \
+        if ((text_value) && n < max_out) { out[n].txt = (text_value); out[n].col = (color_value); n++; } \
+    } while (0)
 
 #define CHECK_SKILL(LABEL, AFF_FLAG, PEN_FLAG) \
     do { \
         int sc = 0; \
         if (p_info[race].flags & (AFF_FLAG)) sc++; \
         if (c_info[character].flags & (AFF_FLAG)) sc++; \
-        if (p_info[race].flags & (PEN_FLAG)) sc--; \
-        if (c_info[character].flags & (PEN_FLAG)) sc--; \
+        if ((PEN_FLAG) && (p_info[race].flags & (PEN_FLAG))) sc--; \
+        if ((PEN_FLAG) && (c_info[character].flags & (PEN_FLAG))) sc--; \
         sc += curse_flag_count_rhf(AFF_FLAG); \
-        sc -= curse_flag_count_rhf(PEN_FLAG); \
+        if (PEN_FLAG) sc -= curse_flag_count_rhf(PEN_FLAG); \
         if (sc > 2) sc = 2; \
         if (sc < -2) sc = -2; \
-        if (sc == 2) PUSH_TRAIT(trait_ma, ma_cnt, LABEL "++", col_mastery); \
-        else if (sc == 1) PUSH_TRAIT(trait_af, af_cnt, LABEL "+", col_affinity); \
-        else if (sc == -1) PUSH_TRAIT(trait_pen, pen_cnt, LABEL "-", col_penalty); \
-        else if (sc == -2) PUSH_TRAIT(trait_pen, pen_cnt, LABEL "--", col_gr_penalty); \
+        if (sc == 2) PUSH_TRAIT(LABEL "++", col_mastery); \
+        else if (sc == 1) PUSH_TRAIT(LABEL "+", col_affinity); \
+        else if (sc == -1) PUSH_TRAIT(LABEL "-", col_penalty); \
+        else if (sc == -2) PUSH_TRAIT(LABEL "--", col_gr_penalty); \
     } while (0)
 
 #define CHECK_UNIQUE(LABEL, FLAG, COLOR) \
     do { \
         if ((p_info[race].flags & (FLAG)) || (c_info[character].flags & (FLAG))) \
-            PUSH_TRAIT(trait_uniq, uniq_cnt, (LABEL), (COLOR)); \
+            PUSH_TRAIT((LABEL), (COLOR)); \
     } while (0)
 
 #define CHECK_UNIQUE_U(LABEL, FLAG, COLOR) \
     do { \
         if (c_info[character].flags_u & (FLAG)) \
-            PUSH_TRAIT(trait_uniq, uniq_cnt, (LABEL), (COLOR)); \
+            PUSH_TRAIT((LABEL), (COLOR)); \
     } while (0)
 
-            /* Check all skills */
-            CHECK_SKILL("melee", RHF_MEL_AFFINITY, RHF_MEL_PENALTY);
-            CHECK_SKILL("evasion", RHF_EVN_AFFINITY, RHF_EVN_PENALTY);
-            CHECK_SKILL("stealth", RHF_STL_AFFINITY, RHF_STL_PENALTY);
-            CHECK_SKILL("archery", RHF_ARC_AFFINITY, RHF_ARC_PENALTY);
-            CHECK_SKILL("will", RHF_WIL_AFFINITY, RHF_WIL_PENALTY);
-            CHECK_SKILL("perception", RHF_PER_AFFINITY, RHF_PER_PENALTY);
-            CHECK_SKILL("smithing", RHF_SMT_AFFINITY, RHF_SMT_PENALTY);
-            CHECK_SKILL("song", RHF_SNG_AFFINITY, RHF_SNG_PENALTY);
-            CHECK_SKILL("bow", RHF_BOW_PROFICIENCY, 0);
-            CHECK_SKILL("axe", RHF_AXE_PROFICIENCY, 0);
-            
-            /* Check unique abilities */
-            CHECK_UNIQUE_U("Master Artisan", UNQ_SMT_FEANOR, TERM_VIOLET);
-            CHECK_UNIQUE_U("Creator of Galvorn", UNQ_SMT_EOL, TERM_VIOLET);
-            CHECK_UNIQUE_U("Chosen of Ulmo", UNQ_WIL_TUOR, TERM_VIOLET);
-            CHECK_UNIQUE_U("Indomitable Will", UNQ_EARENDIL, TERM_VIOLET);
-            CHECK_UNIQUE_U("Orome Himself", UNQ_WIL_FIN, TERM_VIOLET);
-            CHECK_UNIQUE_U("Songs of Power", UNQ_SNG_FIN, TERM_VIOLET);
-            CHECK_UNIQUE_U("Elven Dance", UNQ_SNG_LUT, TERM_VIOLET);
-            CHECK_UNIQUE_U("Girdle of Melian", UNQ_SNG_MEL, TERM_VIOLET);
-            CHECK_UNIQUE_U("Creator of Angrist", UNQ_SMT_TELCHAR, TERM_VIOLET);
-            CHECK_UNIQUE_U("Old Master", UNQ_SMT_GAMIL, TERM_VIOLET);
-            CHECK_UNIQUE_U("Ring Master", UNQ_SMT_CELEBRIMBOR, TERM_VIOLET);
-            CHECK_UNIQUE_U("Aure entuluva", UNQ_SNG_HURIN, TERM_VIOLET);
-            CHECK_UNIQUE_U("Voice of the Girdle", UNQ_SNG_THINGOL, TERM_VIOLET);
-            CHECK_UNIQUE_U("Forgotten", UNQ_MIM, TERM_VIOLET);
-            CHECK_UNIQUE_U("One Handed", UNQ_MEL_MAEDHROS, TERM_VIOLET);
-            CHECK_UNIQUE_U("Agarwaen", UNQ_WIL_TURIN, TERM_VIOLET);
-            CHECK_UNIQUE_U("Shadow Walker", UNQ_SNG_TURGON, TERM_VIOLET);
-            CHECK_UNIQUE_U("Minstrel", UNQ_MINSTREL, TERM_VIOLET);
-            CHECK_UNIQUE_U("Woven Master", UNQ_WOVEN_MASTER, TERM_VIOLET);
-            CHECK_UNIQUE("Gift of Eru", RHF_GIFTERU, TERM_VIOLET);
-            CHECK_UNIQUE("Seafarer", RHF_FREE, TERM_VIOLET);
-            
-            /* Check curses */
-            CHECK_UNIQUE("Kinslayer", RHF_KINSLAYER, TERM_UMBER);
-            CHECK_UNIQUE("Treacherous", RHF_TREACHERY, TERM_UMBER);
-            CHECK_UNIQUE("Doom of Mandos", RHF_CURSE, TERM_UMBER);
-            CHECK_UNIQUE("Morgoth Curse", RHF_MOR_CURSE, TERM_UMBER);
-            
-            /* Display in two columns: uniques -> masteries -> affinities -> penalties */
-            int total_traits = uniq_cnt + ma_cnt + af_cnt + pen_cnt;
-            
-            if (total_traits == 0)
-            {
-                Term_putstr(4, row++, -1, TERM_SLATE, "(No special traits)");
-            }
-            else
-            {
-                /* Two-column layout: col1 at x=4, col2 at x=42 */
-                int display_row = row;
-                int col1_items = 0;
-                int col2_items = 0;
-                
-                /* Count items for each column (try to balance) */
-                int half = (total_traits + 1) / 2;
-                
-                /* Display uniques */
-                for (int i = 0; i < uniq_cnt; ++i)
-                {
-                    if (col1_items < half)
-                    {
-                        c_put_str(trait_uniq[i].col, trait_uniq[i].txt, display_row++, 4);
-                        col1_items++;
-                    }
-                    else
-                    {
-                        c_put_str(trait_uniq[i].col, trait_uniq[i].txt, row + col2_items, 42);
-                        col2_items++;
-                    }
-                }
-                
-                /* Display masteries */
-                for (int i = 0; i < ma_cnt; ++i)
-                {
-                    if (col1_items < half)
-                    {
-                        c_put_str(trait_ma[i].col, trait_ma[i].txt, display_row++, 4);
-                        col1_items++;
-                    }
-                    else
-                    {
-                        c_put_str(trait_ma[i].col, trait_ma[i].txt, row + col2_items, 42);
-                        col2_items++;
-                    }
-                }
-                
-                /* Display affinities */
-                for (int i = 0; i < af_cnt; ++i)
-                {
-                    if (col1_items < half)
-                    {
-                        c_put_str(trait_af[i].col, trait_af[i].txt, display_row++, 4);
-                        col1_items++;
-                    }
-                    else
-                    {
-                        c_put_str(trait_af[i].col, trait_af[i].txt, row + col2_items, 42);
-                        col2_items++;
-                    }
-                }
-                
-                /* Display penalties */
-                for (int i = 0; i < pen_cnt; ++i)
-                {
-                    if (col1_items < half)
-                    {
-                        c_put_str(trait_pen[i].col, trait_pen[i].txt, display_row++, 4);
-                        col1_items++;
-                    }
-                    else
-                    {
-                        c_put_str(trait_pen[i].col, trait_pen[i].txt, row + col2_items, 42);
-                        col2_items++;
-                    }
-                }
-                
-                /* Advance row past all displayed items */
-                row = display_row;
-            }
-            
+    /* Affinities/penalties first so they appear early on very small screens. */
+    CHECK_SKILL("melee", RHF_MEL_AFFINITY, RHF_MEL_PENALTY);
+    CHECK_SKILL("evasion", RHF_EVN_AFFINITY, RHF_EVN_PENALTY);
+    CHECK_SKILL("stealth", RHF_STL_AFFINITY, RHF_STL_PENALTY);
+    CHECK_SKILL("archery", RHF_ARC_AFFINITY, RHF_ARC_PENALTY);
+    CHECK_SKILL("will", RHF_WIL_AFFINITY, RHF_WIL_PENALTY);
+    CHECK_SKILL("perception", RHF_PER_AFFINITY, RHF_PER_PENALTY);
+    CHECK_SKILL("smithing", RHF_SMT_AFFINITY, RHF_SMT_PENALTY);
+    CHECK_SKILL("song", RHF_SNG_AFFINITY, RHF_SNG_PENALTY);
+    CHECK_SKILL("bow", RHF_BOW_PROFICIENCY, 0);
+    CHECK_SKILL("axe", RHF_AXE_PROFICIENCY, 0);
+
+    /* Unique abilities */
+    CHECK_UNIQUE_U("Master Artisan", UNQ_SMT_FEANOR, TERM_VIOLET);
+    CHECK_UNIQUE_U("Creator of Galvorn", UNQ_SMT_EOL, TERM_VIOLET);
+    CHECK_UNIQUE_U("Chosen of Ulmo", UNQ_WIL_TUOR, TERM_VIOLET);
+    CHECK_UNIQUE_U("Indomitable Will", UNQ_EARENDIL, TERM_VIOLET);
+    CHECK_UNIQUE_U("Orome Himself", UNQ_WIL_FIN, TERM_VIOLET);
+    CHECK_UNIQUE_U("Songs of Power", UNQ_SNG_FIN, TERM_VIOLET);
+    CHECK_UNIQUE_U("Elven Dance", UNQ_SNG_LUT, TERM_VIOLET);
+    CHECK_UNIQUE_U("Girdle of Melian", UNQ_SNG_MEL, TERM_VIOLET);
+    CHECK_UNIQUE_U("Creator of Angrist", UNQ_SMT_TELCHAR, TERM_VIOLET);
+    CHECK_UNIQUE_U("Old Master", UNQ_SMT_GAMIL, TERM_VIOLET);
+    CHECK_UNIQUE_U("Ring Master", UNQ_SMT_CELEBRIMBOR, TERM_VIOLET);
+    CHECK_UNIQUE_U("Aure entuluva", UNQ_SNG_HURIN, TERM_VIOLET);
+    CHECK_UNIQUE_U("Voice of the Girdle", UNQ_SNG_THINGOL, TERM_VIOLET);
+    CHECK_UNIQUE_U("Forgotten", UNQ_MIM, TERM_VIOLET);
+    CHECK_UNIQUE_U("One Handed", UNQ_MEL_MAEDHROS, TERM_VIOLET);
+    CHECK_UNIQUE_U("Agarwaen", UNQ_WIL_TURIN, TERM_VIOLET);
+    CHECK_UNIQUE_U("Shadow Walker", UNQ_SNG_TURGON, TERM_VIOLET);
+    CHECK_UNIQUE_U("Minstrel", UNQ_MINSTREL, TERM_VIOLET);
+    CHECK_UNIQUE_U("Woven Master", UNQ_WOVEN_MASTER, TERM_VIOLET);
+    CHECK_UNIQUE("Gift of Eru", RHF_GIFTERU, TERM_VIOLET);
+    CHECK_UNIQUE("Seafarer", RHF_FREE, TERM_VIOLET);
+
+    /* Curses */
+    CHECK_UNIQUE("Kinslayer", RHF_KINSLAYER, TERM_UMBER);
+    CHECK_UNIQUE("Treacherous", RHF_TREACHERY, TERM_UMBER);
+    CHECK_UNIQUE("Doom of Mandos", RHF_CURSE, TERM_UMBER);
+    CHECK_UNIQUE("Morgoth Curse", RHF_MOR_CURSE, TERM_UMBER);
+
 #undef PUSH_TRAIT
 #undef CHECK_SKILL
 #undef CHECK_UNIQUE
 #undef CHECK_UNIQUE_U
-        }
-        
-        /* Stage 4: History & Most Important Game Controls */
-        else if (stage == 3)
+
+    return n;
+}
+
+void display_character_tutorial(void)
+{
+    int page = 0;
+    char ch;
+
+    /* On very small terminals we split into more pages. */
+    while (1)
+    {
+        int wid = 80;
+        int hgt = 24;
+        Term_get_size(&wid, &hgt);
+        if (wid < 1)
+            wid = 80;
+        if (hgt < 1)
+            hgt = 24;
+
+        bool steamdeck = steamdeck_controls_active();
+        bool birth_context = (playerturn == 0);
+
+        /* Layout: reserve bottom two rows for navigation. */
+        const int header_row = 0;
+        const int content_top = 2;
+        const int nav_row = hgt - 1;
+        const int hint_row = hgt - 2;
+        const int content_max_row = hint_row;
+
+        int text_col = 2;
+        int text_w = wid - text_col - 2;
+        if (text_w < 20)
+            text_w = 20;
+
+        int content_rows = content_max_row - content_top;
+        if (content_rows < 4)
+            content_rows = 4;
+
+        /* Build dynamic sections that can span multiple pages (traits, controls). */
+        tutorial_trait_line traits[160];
+        int trait_n = tutorial_collect_traits(traits, (int)N_ELEMENTS(traits));
+
+        /* Controls list (can paginate) */
+        typedef struct { const char* key; const char* desc; } ctl_line;
+        ctl_line controls[24];
+        int ctl_n = 0;
+        char ctl_bufs[24][24];
+        char ctl_note_bufs[4][128];
+        int ctl_note_n = 0;
+
+        if (steamdeck)
         {
-            Term_putstr(2, row++, -1, TERM_WHITE, "HISTORY & GAME CONTROLS");
-            row++;
-            
-            /* Display abbreviated history (3 lines max) */
-            Term_putstr(2, row++, -1, TERM_SLATE, "Your story:");
-            
-            text_out_wrap = 76;
-            text_out_indent = 4;
-            Term_gotoxy(text_out_indent, row);
-            
-            /* Truncate history for tutorial to fit in 3 lines */
-            char hist_preview[150];
-            SDL_strlcpy(hist_preview, p_ptr->history, sizeof(hist_preview));
-            if (strlen(p_ptr->history) > 140)
+            char confirm_label[16];
+            char use_label[16];
+            char examine_label[16];
+            char inven_label[16];
+            char equip_label[16];
+            char look_label[16];
+            char char_label[16];
+            char fire_label[16];
+            char sing_label[16];
+            char activate_label[16];
+            char map_label[16];
+            char bash_label[16];
+            char abilities_label[16];
+            char help_label[16];
+            char menu_label[16];
+            char shift_label[16];
+            char ctrl_label[16];
+
+            tutorial_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
+            tutorial_prompt_label('u', "X", use_label, sizeof(use_label));
+            tutorial_prompt_label('x', "RS Right", examine_label, sizeof(examine_label));
+            tutorial_prompt_label('i', "R1", inven_label, sizeof(inven_label));
+            tutorial_prompt_label('e', "L1", equip_label, sizeof(equip_label));
+            tutorial_prompt_label('l', "L1+R1", look_label, sizeof(look_label));
+            tutorial_prompt_label('h', "Back", char_label, sizeof(char_label));
+            tutorial_prompt_label('f', "RS Down", fire_label, sizeof(fire_label));
+            tutorial_prompt_label('s', "Y", sing_label, sizeof(sing_label));
+            tutorial_prompt_label('a', "RS Left", activate_label, sizeof(activate_label));
+            tutorial_prompt_label('M', "RS Up", map_label, sizeof(map_label));
+            tutorial_prompt_label('b', "B", bash_label, sizeof(bash_label));
+            tutorial_prompt_label('\t', "L5", abilities_label, sizeof(abilities_label));
+            tutorial_prompt_label('?', "?", help_label, sizeof(help_label));
+            tutorial_prompt_label('m', "Start", menu_label, sizeof(menu_label));
+            tutorial_prompt_label(GAMEPAD_BIND_SHIFT, "L2", shift_label, sizeof(shift_label));
+            tutorial_prompt_label(GAMEPAD_BIND_CTRL, "R2", ctrl_label, sizeof(ctrl_label));
+
+            /* Prefer short, single-line descriptions for tiny screens. */
+            if (ctl_n < (int)N_ELEMENTS(controls))
             {
-                hist_preview[137] = '.';
-                hist_preview[138] = '.';
-                hist_preview[139] = '.';
-                hist_preview[140] = '\0';
+                SDL_strlcpy(ctl_bufs[ctl_n], "D-pad/Stick", sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Move/attack" };
+                ctl_n++;
             }
-            text_out_to_screen(TERM_WHITE, hist_preview);
-            
-            text_out_wrap = 0;
-            text_out_indent = 0;
-            
-            row += 4;
-            
-            Term_putstr(2, row++, -1, TERM_SLATE, "Essential Controls:");
+            if (ctl_n < (int)N_ELEMENTS(controls))
+            {
+                SDL_strlcpy(ctl_bufs[ctl_n], confirm_label, sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Pick up" };
+                ctl_n++;
+            }
+            if (ctl_n < (int)N_ELEMENTS(controls))
+            {
+                SDL_strlcpy(ctl_bufs[ctl_n], use_label, sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Use item" };
+                ctl_n++;
+            }
+            if (ctl_n < (int)N_ELEMENTS(controls))
+            {
+                SDL_strlcpy(ctl_bufs[ctl_n], examine_label, sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Examine" };
+                ctl_n++;
+            }
+            if (ctl_n < (int)N_ELEMENTS(controls))
+            {
+                SDL_strlcpy(ctl_bufs[ctl_n], inven_label, sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Inventory" };
+                ctl_n++;
+            }
+            if (ctl_n < (int)N_ELEMENTS(controls))
+            {
+                SDL_strlcpy(ctl_bufs[ctl_n], equip_label, sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Equipment" };
+                ctl_n++;
+            }
+            if (ctl_n < (int)N_ELEMENTS(controls))
+            {
+                SDL_strlcpy(ctl_bufs[ctl_n], look_label, sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Look" };
+                ctl_n++;
+            }
+            if (ctl_n < (int)N_ELEMENTS(controls))
+            {
+                SDL_strlcpy(ctl_bufs[ctl_n], char_label, sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Character" };
+                ctl_n++;
+            }
+            if (ctl_n < (int)N_ELEMENTS(controls))
+            {
+                SDL_strlcpy(ctl_bufs[ctl_n], fire_label, sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Fire" };
+                ctl_n++;
+            }
+            if (ctl_n < (int)N_ELEMENTS(controls))
+            {
+                SDL_strlcpy(ctl_bufs[ctl_n], sing_label, sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Sing" };
+                ctl_n++;
+            }
+            if (ctl_n < (int)N_ELEMENTS(controls))
+            {
+                SDL_strlcpy(ctl_bufs[ctl_n], activate_label, sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Activate" };
+                ctl_n++;
+            }
+            if (ctl_n < (int)N_ELEMENTS(controls))
+            {
+                SDL_strlcpy(ctl_bufs[ctl_n], map_label, sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Map" };
+                ctl_n++;
+            }
+            if (ctl_n < (int)N_ELEMENTS(controls))
+            {
+                SDL_strlcpy(ctl_bufs[ctl_n], bash_label, sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Bash" };
+                ctl_n++;
+            }
+            if (ctl_n < (int)N_ELEMENTS(controls))
+            {
+                SDL_strlcpy(ctl_bufs[ctl_n], abilities_label, sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Abilities" };
+                ctl_n++;
+            }
+            if (ctl_n < (int)N_ELEMENTS(controls))
+            {
+                SDL_strlcpy(ctl_bufs[ctl_n], help_label, sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Help" };
+                ctl_n++;
+            }
+            if (ctl_n < (int)N_ELEMENTS(controls))
+            {
+                SDL_strlcpy(ctl_bufs[ctl_n], menu_label, sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Main menu" };
+                ctl_n++;
+            }
 
-            /* Two-column layout for commands */
-            int cmd_row = row;
+            /* Note lines (store in stable buffers for this loop iteration) */
+            if (ctl_n < (int)N_ELEMENTS(controls) && ctl_note_n < (int)N_ELEMENTS(ctl_note_bufs))
+            {
+                strnfmt(ctl_note_bufs[ctl_note_n], sizeof(ctl_note_bufs[ctl_note_n]),
+                        "Shift: %s+%s=Stealth, %s+%s=2nd quiver",
+                        shift_label, sing_label, shift_label, fire_label);
+                controls[ctl_n++] = (ctl_line){ NULL, ctl_note_bufs[ctl_note_n++] };
+            }
+            if (ctl_n < (int)N_ELEMENTS(controls) && ctl_note_n < (int)N_ELEMENTS(ctl_note_bufs))
+            {
+                strnfmt(ctl_note_bufs[ctl_note_n], sizeof(ctl_note_bufs[ctl_note_n]),
+                        "Ctrl: %s+dir = Bash/Disarm/Tunnel", ctrl_label);
+                controls[ctl_n++] = (ctl_line){ NULL, ctl_note_bufs[ctl_note_n++] };
+            }
+        }
+        else
+        {
+            controls[ctl_n++] = (ctl_line){ "Numpad", "Move/attack" };
+            controls[ctl_n++] = (ctl_line){ "Space", "Pick up" };
+            controls[ctl_n++] = (ctl_line){ "u", "Use item" };
+            controls[ctl_n++] = (ctl_line){ "x", "Examine" };
+            controls[ctl_n++] = (ctl_line){ "i", "Inventory" };
+            controls[ctl_n++] = (ctl_line){ "e", "Equipment" };
+            controls[ctl_n++] = (ctl_line){ "l", "Look" };
+            controls[ctl_n++] = (ctl_line){ "Ctrl+dir", "Bash/disarm/tunnel" };
+            controls[ctl_n++] = (ctl_line){ "f/F", "Fire" };
+            controls[ctl_n++] = (ctl_line){ "s/S", "Sing/Stealth" };
+            controls[ctl_n++] = (ctl_line){ "a", "Activate" };
+            controls[ctl_n++] = (ctl_line){ "c", "Close door" };
+            controls[ctl_n++] = (ctl_line){ "h", "Character" };
+            controls[ctl_n++] = (ctl_line){ "m", "Main menu" };
+            controls[ctl_n++] = (ctl_line){ "Tab", "Abilities" };
+            controls[ctl_n++] = (ctl_line){ "?", "Help" };
+            controls[ctl_n++] = (ctl_line){ NULL, "Shortcuts can be changed in user prefs." };
+        }
 
-            if (steamdeck) {
-                char confirm_label[16];
-                char use_label[16];
-                char examine_label[16];
-                char inven_label[16];
-                char equip_label[16];
-                char look_label[16];
-                char char_label[16];
-                char fire_label[16];
-                char sing_label[16];
-                char activate_label[16];
-                char map_label[16];
-                char bash_label[16];
-                char abilities_label[16];
-                char help_label[16];
-                char menu_label[16];
-                char shift_label[16];
-                char ctrl_label[16];
+        /* Compute how many list pages we need. */
+        int list_rows = content_max_row - (content_top + 2);
+        if (list_rows < 1)
+            list_rows = 1;
 
-                tutorial_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
-                tutorial_prompt_label('u', "X", use_label, sizeof(use_label));
-                tutorial_prompt_label('x', "RS Right", examine_label, sizeof(examine_label));
-                tutorial_prompt_label('i', "R1", inven_label, sizeof(inven_label));
-                tutorial_prompt_label('e', "L1", equip_label, sizeof(equip_label));
-                tutorial_prompt_label('l', "L1+R1", look_label, sizeof(look_label));
-                tutorial_prompt_label('h', "Back", char_label, sizeof(char_label));
-                tutorial_prompt_label('f', "RS Down", fire_label, sizeof(fire_label));
-                tutorial_prompt_label('s', "Y", sing_label, sizeof(sing_label));
-                tutorial_prompt_label('a', "RS Left", activate_label, sizeof(activate_label));
-                tutorial_prompt_label('M', "RS Up", map_label, sizeof(map_label));
-                tutorial_prompt_label('b', "B", bash_label, sizeof(bash_label));
-                tutorial_prompt_label('\t', "L5", abilities_label, sizeof(abilities_label));
-                tutorial_prompt_label('?', "?", help_label, sizeof(help_label));
-                tutorial_prompt_label('m', "Start", menu_label, sizeof(menu_label));
-                tutorial_prompt_label(GAMEPAD_BIND_SHIFT, "L2", shift_label, sizeof(shift_label));
-                tutorial_prompt_label(GAMEPAD_BIND_CTRL, "R2", ctrl_label, sizeof(ctrl_label));
+        bool two_col = (wid >= 74);
+        int trait_items_per_page = list_rows * (two_col ? 2 : 1);
+        if (trait_items_per_page < 1)
+            trait_items_per_page = 1;
+        int trait_pages = (trait_n <= 0) ? 1 : (trait_n + trait_items_per_page - 1) / trait_items_per_page;
 
-                /* Left column */
-                c_put_str(TERM_L_WHITE, "D-pad/Left Stick", cmd_row, 4);
-                Term_putstr(22, cmd_row++, -1, TERM_SLATE, "-Move/attack");
+        int ctl_items_per_page = list_rows * (two_col ? 2 : 1);
+        if (ctl_items_per_page < 1)
+            ctl_items_per_page = 1;
+        int ctl_pages = (ctl_n + ctl_items_per_page - 1) / ctl_items_per_page;
+        if (ctl_pages < 1)
+            ctl_pages = 1;
 
-                c_put_str(TERM_L_WHITE, confirm_label, cmd_row, 4);
-                Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Pick up item");
+        /* Skills pagination (avoid truncation at 20 rows) */
+        const char* skills_intro = "Total = Base + stat + equip + misc. Base affects ability purchase cost.";
+        const char* skill_desc[S_MAX] = {
+            "Melee chance to hit",
+            "Ranged chance to hit",
+            "Evade attacks",
+            "Avoid detection",
+            "Notice hidden",
+            "Mental resistance",
+            "Craft items",
+            "Song power",
+            ""
+        };
 
-                c_put_str(TERM_L_WHITE, use_label, cmd_row, 4);
-                Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Use item");
+        int skill_order[S_MAX];
+        int skill_count = 0;
+        for (int s = 0; s < S_MAX; s++)
+        {
+            if (s == S_SPC)
+                continue;
+            skill_order[skill_count++] = s;
+        }
 
-                c_put_str(TERM_L_WHITE, examine_label, cmd_row, 4);
-                Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Examine item");
+        int intro_lines = tutorial_count_wrapped_lines_ex(skills_intro, text_w, false);
+        int skills_cap_first = content_rows - (2 + intro_lines + 1);
+        int skills_cap_next = content_rows - 2;
+        if (skills_cap_first < 1)
+            skills_cap_first = 1;
+        if (skills_cap_next < 1)
+            skills_cap_next = 1;
 
-                c_put_str(TERM_L_WHITE, inven_label, cmd_row, 4);
-                Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Inventory");
+        int skill_page_starts[32];
+        int skill_page_ends[32];
+        int skill_pages = 0;
+        {
+            int cur = 0;
+            while (cur < skill_count && skill_pages < (int)N_ELEMENTS(skill_page_starts))
+            {
+                int cap = (skill_pages == 0) ? skills_cap_first : skills_cap_next;
+                int used = 0;
+                int start = cur;
 
-                c_put_str(TERM_L_WHITE, equip_label, cmd_row, 4);
-                Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Equipment");
-
-                c_put_str(TERM_L_WHITE, look_label, cmd_row, 4);
-                Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Look menu");
-
-                c_put_str(TERM_L_WHITE, char_label, cmd_row, 4);
-                Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Character screen");
-
-                /* Right column */
-                cmd_row = row;
-
-                c_put_str(TERM_L_WHITE, fire_label, cmd_row, 42);
-                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Fire (primary)");
-
-                c_put_str(TERM_L_WHITE, sing_label, cmd_row, 42);
-                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Sing");
-
-                c_put_str(TERM_L_WHITE, activate_label, cmd_row, 42);
-                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Activate stuff");
-
-                c_put_str(TERM_L_WHITE, map_label, cmd_row, 42);
-                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Map");
-
-                c_put_str(TERM_L_WHITE, bash_label, cmd_row, 42);
-                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Bash");
-
-                c_put_str(TERM_L_WHITE, abilities_label, cmd_row, 42);
-                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Abilities menu");
-
-                c_put_str(TERM_L_WHITE, help_label, cmd_row, 42);
-                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Help");
-
-                c_put_str(TERM_L_WHITE, menu_label, cmd_row, 42);
-                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Main menu");
-
+                while (cur < skill_count)
                 {
-                    char note_buf[120];
-                    strnfmt(note_buf, sizeof(note_buf),
-                            "Shift: %s+%s=Stealth, %s+%s=Second quiver",
-                            shift_label, sing_label, shift_label, fire_label);
-                    Term_putstr(4, cmd_row + 1, -1, TERM_SLATE, note_buf);
-                    strnfmt(note_buf, sizeof(note_buf), "Ctrl: %s+dir = Bash/Disarm/Tunnel", ctrl_label);
-                    Term_putstr(4, cmd_row + 2, -1, TERM_SLATE, note_buf);
-                    cmd_row += 2;
+                    int sid = skill_order[cur];
+                    int need = 1 + tutorial_count_wrapped_lines_ex(skill_desc[sid], text_w, false);
+                    if (need < 1)
+                        need = 1;
+                    if (used + need > cap && used > 0)
+                        break;
+                    used += need;
+                    cur++;
                 }
 
-                Term_putstr(4, cmd_row += 1, -1, TERM_SLATE,
-                            "Bindings can be changed in Controller Settings.");
-            } else {
-                /* Left column */
-                c_put_str(TERM_L_WHITE, "Numpad", cmd_row, 4);
-                Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Move/attack");
+                if (cur == start)
+                    cur++;
 
-                c_put_str(TERM_L_WHITE, "Space", cmd_row, 4);
-                Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Pick up item");
-
-                c_put_str(TERM_L_WHITE, "u", cmd_row, 4);
-                Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Use item");
-
-                c_put_str(TERM_L_WHITE, "x", cmd_row, 4);
-                Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Examine item");
-
-                c_put_str(TERM_L_WHITE, "i", cmd_row, 4);
-                Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Inventory");
-
-                c_put_str(TERM_L_WHITE, "e", cmd_row, 4);
-                Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Equipment");
-
-                c_put_str(TERM_L_WHITE, "l", cmd_row, 4);
-                Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Look menu");
-
-                c_put_str(TERM_L_WHITE, "Ctrl", cmd_row, 4);
-                Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Bash, disarm, tunnel");
-
-                /* Right column */
-                cmd_row = row;
-
-                c_put_str(TERM_L_WHITE, "f/F", cmd_row, 42);
-                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-fire (ranged attack)");
-
-                c_put_str(TERM_L_WHITE, "s/S", cmd_row, 42);
-                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Sing/Stealth");
-
-                c_put_str(TERM_L_WHITE, "a", cmd_row, 42);
-                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Activate stuff");
-
-                c_put_str(TERM_L_WHITE, "c", cmd_row, 42);
-                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Close door");
-
-                c_put_str(TERM_L_WHITE, "h", cmd_row, 42);
-                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Character screen");
-
-                c_put_str(TERM_L_WHITE, "m", cmd_row, 42);
-                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Main menu");
-
-                c_put_str(TERM_L_WHITE, "Tab", cmd_row, 42);
-                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Abilities menu");
-
-                c_put_str(TERM_L_WHITE, "?", cmd_row, 42);
-                Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Help");
-
-                Term_putstr(11, cmd_row += 2, -1, TERM_SLATE, "Keyboard shortcuts could be changed through user preference");
+                skill_page_starts[skill_pages] = start;
+                skill_page_ends[skill_pages] = cur;
+                skill_pages++;
             }
-
-            row = cmd_row;
         }
-        
-        /* Footer */
-        if (stage < 3)
-            Term_putstr(18, 22, -1, TERM_YELLOW,
-                steamdeck ? "D-pad left/right to navigate" : "Use arrows or any key to navigate");
-        else
-            Term_putstr(26, 22, -1, TERM_L_GREEN, "Tutorial complete!");
-
-        if (steamdeck) {
-            char next_label[16];
-            char back_label[16];
-            /* Steam Deck UI: A=next, B=exit */
-            tutorial_prompt_label(steamdeck_confirm_key(), "A", next_label, sizeof(next_label));
-            tutorial_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
-            if (stage > 0)
-                Term_putstr(8, 23, -1, TERM_SLATE, "(D-Left Previous)");
-            if (stage < 3) {
-                char next_buf[32];
-                strnfmt(next_buf, sizeof(next_buf), "(%s Next)", next_label);
-                Term_putstr(52, 23, -1, TERM_SLATE, next_buf);
-            }
-            {
-                char exit_buf[32];
-                strnfmt(exit_buf, sizeof(exit_buf), "(%s to exit)", back_label);
-                Term_putstr(30, 23, -1, TERM_SLATE, exit_buf);
-            }
-        } else {
-            if (stage > 0)
-                Term_putstr(10, 23, -1, TERM_SLATE, "(4/<- Previous)");
-            if (stage < 3)
-                Term_putstr(53, 23, -1, TERM_SLATE, "(Next 6/->)");
-            Term_putstr(30, 23, -1, TERM_SLATE, "(ESC to exit)");
-        }
-        
-        /* Wait for any key press */
-        ch = inkey();
-        
-        /* Handle navigation - B button (back) or ESC */
-        if (ch == ESCAPE || (steamdeck && ch == steamdeck_back_key()))
+        if (skill_pages < 1)
         {
-            /* Exit tutorial */
-            break;
+            skill_pages = 1;
+            skill_page_starts[0] = 0;
+            skill_page_ends[0] = 0;
         }
+
+        /* History pagination: show full history (no preview truncation). */
+        int history_cap = content_rows - 2;
+        if (history_cap < 1)
+            history_cap = 1;
+        int history_lines = tutorial_count_wrapped_lines_ex(p_ptr->history, text_w, true);
+        if (history_lines < 1)
+            history_lines = 1;
+        int history_pages = (history_lines + history_cap - 1) / history_cap;
+        if (history_pages < 1)
+            history_pages = 1;
+
+        /* Birth/compact-screen pagination */
+        char birth_text[1200];
+        int birth_pages = 0;
+        if (birth_context)
+        {
+            size_t off = 0;
+            off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
+                "On smaller displays the character creation screens use a compact layout. All information is still available; it is just rearranged.\n\n");
+            off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
+                "Character selection: use Up/Down to pick, and read the description/traits for the highlighted choice. On short screens, traits may be shown in a tighter, compact list.\n\n");
+            off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
+                "Stats allocation: select a stat, then adjust it. The display may reuse the compact Stats+Skills sheet with the current stat highlighted.\n\n");
+            off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
+                "Skills allocation works the same way (select a skill, then adjust).\n\n");
+
+            if (steamdeck)
+            {
+                char next_label[16];
+                char back_label[16];
+                tutorial_prompt_label(steamdeck_confirm_key(), "A", next_label, sizeof(next_label));
+                tutorial_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
+                off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
+                    "Navigation: D-pad Up/Down select, Left/Right adjust  [%s] confirm  [%s] back", next_label, back_label);
+            }
+            else
+            {
+                off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
+                    "Navigation: Up/Down selects; Left/Right adjusts; Enter/Space confirms; ESC goes back.");
+            }
+
+            int birth_cap = content_rows - 2;
+            if (birth_cap < 1)
+                birth_cap = 1;
+            int birth_lines = tutorial_count_wrapped_lines_ex(birth_text, text_w, true);
+            if (birth_lines < 1)
+                birth_lines = 1;
+            birth_pages = (birth_lines + birth_cap - 1) / birth_cap;
+            if (birth_pages < 1)
+                birth_pages = 1;
+        }
+
+        /* Fixed pages: core, attrs, skills (paged), traits legend, traits list (paged),
+         * history (paged), controls (paged), then optional birth/compact screens (paged). */
+        const int page_core_1 = 0;
+        const int page_core_2 = 1;
+        const int page_attrs = 2;
+        const int page_skills_start = 3;
+        const int page_traits_legend = page_skills_start + skill_pages;
+        const int page_traits_list_start = page_traits_legend + 1;
+        const int page_history_start = page_traits_list_start + trait_pages;
+        const int page_controls_start = page_history_start + history_pages;
+        const int page_birth_start = page_controls_start + ctl_pages;
+        const int total_pages = page_birth_start + (birth_context ? birth_pages : 0);
+
+        if (page < 0)
+            page = 0;
+        if (page >= total_pages)
+            page = total_pages - 1;
+
+        Term_clear();
+
+        /* Header */
+        {
+            char title[96];
+            strnfmt(title, sizeof(title), "TUTORIAL  %d/%d", page + 1, total_pages);
+            tutorial_put_centered(header_row, TERM_L_BLUE, title);
+        }
+
+        int row = content_top;
+
+        /* Render pages */
+        if (page == page_core_1)
+        {
+            Term_putstr(2, row++, -1, TERM_WHITE, "CORE STATISTICS (1/2)");
+            row++;
+            {
+                char buf[128];
+                strnfmt(buf, sizeof(buf), "Exp: %ld/%ld", (long)p_ptr->new_exp, (long)p_ptr->exp);
+                Term_putstr(2, row++, -1, TERM_L_GREEN, buf);
+                row += tutorial_put_wrapped_limited(
+                    "Awarded for depth progress, identifying items, spotting and killing monsters.",
+                    text_col, row, text_w, content_max_row, TERM_SLATE);
+
+                long cur_wgt = p_ptr->total_weight / 10;
+                long max_wgt = weight_limit() / 10;
+                strnfmt(buf, sizeof(buf), "Burden: %ld/%ld lbs", cur_wgt, max_wgt);
+                Term_putstr(2, row++, -1, TERM_L_GREEN, buf);
+                row += tutorial_put_wrapped_limited(
+                    "Weight carried / maximum capacity.",
+                    text_col, row, text_w, content_max_row, TERM_SLATE);
+
+                if (turn > 0)
+                {
+                    long cur_d = p_ptr->depth * 50;
+                    long min_d = min_depth() * 50;
+                    strnfmt(buf, sizeof(buf), "Depth: %ld/%ld", cur_d, min_d);
+                    Term_putstr(2, row++, -1, TERM_L_GREEN, buf);
+                    row += tutorial_put_wrapped_limited(
+                        "Current depth / minimum return depth (rises over time).",
+                        text_col, row, text_w, content_max_row, TERM_SLATE);
+                }
+
+                comma_number(buf, playerturn);
+                {
+                    char line[128];
+                    strnfmt(line, sizeof(line), "Turn: %s", buf);
+                    Term_putstr(2, row++, -1, TERM_L_GREEN, line);
+                }
+                row += tutorial_put_wrapped_limited(
+                    "Total game turns elapsed.",
+                    text_col, row, text_w, content_max_row, TERM_SLATE);
+
+                {
+                    char line[64];
+                    strnfmt(line, sizeof(line), "Light: %d", p_ptr->cur_light);
+                    Term_putstr(2, row++, -1, TERM_L_GREEN, line);
+                }
+                row += tutorial_put_wrapped_limited(
+                    "Current light radius.",
+                    text_col, row, text_w, content_max_row, TERM_SLATE);
+            }
+        }
+        else if (page == page_core_2)
+        {
+            Term_putstr(2, row++, -1, TERM_WHITE, "CORE STATISTICS (2/2)");
+            row++;
+            {
+                char buf[128];
+                strnfmt(buf, sizeof(buf), "Melee: (%+d,%dd%d)", p_ptr->skill_use[S_MEL], p_ptr->mdd, p_ptr->mds);
+                Term_putstr(2, row++, -1, TERM_L_GREEN, buf);
+                row += tutorial_put_wrapped_limited(
+                    "Main hand: (chance to hit, damage dice).",
+                    text_col, row, text_w, content_max_row, TERM_SLATE);
+
+                strnfmt(buf, sizeof(buf), "Bows:  (%+d,%dd%d)", p_ptr->skill_use[S_ARC], p_ptr->add, p_ptr->ads);
+                Term_putstr(2, row++, -1, TERM_L_GREEN, buf);
+                row += tutorial_put_wrapped_limited(
+                    "Ranged: (chance to hit, damage dice).",
+                    text_col, row, text_w, content_max_row, TERM_SLATE);
+
+                strnfmt(buf, sizeof(buf), "Armor: [%+d,%d-%d]", p_ptr->skill_use[S_EVN], p_min(GF_HURT, true), p_max(GF_HURT, true));
+                Term_putstr(2, row++, -1, TERM_L_GREEN, buf);
+                row += tutorial_put_wrapped_limited(
+                    "[evasion, protection] = hit-avoid chance and damage absorption.",
+                    text_col, row, text_w, content_max_row, TERM_SLATE);
+
+                {
+                    int cur_hp = MIN(p_ptr->chp, 999);
+                    int max_hp = MIN(p_ptr->mhp, 999);
+                    char line[64];
+                    byte col = (p_ptr->chp >= p_ptr->mhp) ? TERM_L_GREEN : (p_ptr->chp > p_ptr->mhp / 4) ? TERM_YELLOW : TERM_RED;
+                    strnfmt(line, sizeof(line), "Health: %d/%d", cur_hp, max_hp);
+                    Term_putstr(2, row++, -1, col, line);
+                }
+                row += tutorial_put_wrapped_limited(
+                    "Hit points: current / maximum.",
+                    text_col, row, text_w, content_max_row, TERM_SLATE);
+
+                {
+                    int cur_sp = MIN(p_ptr->csp, 999);
+                    int max_sp = MIN(p_ptr->msp, 999);
+                    char line[64];
+                    byte col = (p_ptr->csp >= p_ptr->msp) ? TERM_L_GREEN : (p_ptr->csp > p_ptr->msp / 4) ? TERM_YELLOW : TERM_RED;
+                    strnfmt(line, sizeof(line), "Voice:  %d/%d", cur_sp, max_sp);
+                    Term_putstr(2, row++, -1, col, line);
+                }
+                row += tutorial_put_wrapped_limited(
+                    "Song points: current / maximum.",
+                    text_col, row, text_w, content_max_row, TERM_SLATE);
+            }
+        }
+        else if (page == page_attrs)
+        {
+            Term_putstr(2, row++, -1, TERM_WHITE, "ATTRIBUTES");
+            row++;
+            row += tutorial_put_wrapped_limited(
+                "Current = Base + equip + misc - drain. Green = boosted, orange = reduced.",
+                text_col, row, text_w, content_max_row, TERM_SLATE);
+            row++;
+
+            for (int stat = 0; stat < A_MAX && row < content_max_row; stat++)
+            {
+                char line[96];
+                byte a = TERM_WHITE;
+                int use = p_ptr->stat_use[stat];
+                int base = p_ptr->stat_base[stat];
+                if (use > base) a = TERM_L_GREEN;
+                else if (use < base) a = TERM_ORANGE;
+                strnfmt(line, sizeof(line), "%s: %d", stat_names[stat], use);
+                Term_putstr(2, row++, -1, a, line);
+
+                const char* desc = NULL;
+                if (stat == A_STR) desc = "Strength: melee dice and weight capacity.";
+                else if (stat == A_DEX) desc = "Dexterity: melee/evasion/archery/stealth.";
+                else if (stat == A_CON) desc = "Constitution: hit points.";
+                else if (stat == A_GRA) desc = "Grace: will/perception/song/smithing and voice.";
+                row += tutorial_put_wrapped_limited(desc, text_col, row, text_w, content_max_row, TERM_SLATE);
+            }
+        }
+        else if (page >= page_skills_start && page < page_skills_start + skill_pages)
+        {
+            int sub = page - page_skills_start;
+            char heading[64];
+            if (skill_pages > 1)
+                strnfmt(heading, sizeof(heading), "SKILLS (%d/%d)", sub + 1, skill_pages);
+            else
+                SDL_strlcpy(heading, "SKILLS", sizeof(heading));
+
+            Term_putstr(2, row++, -1, TERM_WHITE, heading);
+            row++;
+
+            if (sub == 0)
+            {
+                row += tutorial_put_wrapped_limited(
+                    skills_intro,
+                    text_col, row, text_w, content_max_row, TERM_SLATE);
+                row++;
+            }
+
+            int start_idx = skill_page_starts[sub];
+            int end_idx = skill_page_ends[sub];
+            for (int i = start_idx; i < end_idx && row < content_max_row; i++)
+            {
+                int sid = skill_order[i];
+                char line[128];
+                strnfmt(line, sizeof(line), "%s: %d (base %d)",
+                        skill_names_full[sid], p_ptr->skill_use[sid], p_ptr->skill_base[sid]);
+                Term_putstr(2, row++, -1, TERM_L_GREEN, line);
+                row += tutorial_put_wrapped_limited(skill_desc[sid], text_col, row, text_w, content_max_row, TERM_SLATE);
+            }
+        }
+        else if (page == page_traits_legend)
+        {
+            Term_putstr(2, row++, -1, TERM_WHITE, "TRAITS LEGEND");
+            row++;
+
+            c_put_str(TERM_L_GREEN, "++", row, 2);
+            Term_putstr(6, row++, -1, TERM_SLATE, "Mastery");
+            c_put_str(TERM_GREEN, "+", row, 2);
+            Term_putstr(6, row++, -1, TERM_SLATE, "Affinity");
+            c_put_str(TERM_RED, "--", row, 2);
+            Term_putstr(6, row++, -1, TERM_SLATE, "Major penalty");
+            c_put_str(TERM_L_RED, "-", row, 2);
+            Term_putstr(6, row++, -1, TERM_SLATE, "Minor penalty");
+            c_put_str(TERM_VIOLET, "UNIQUE", row, 2);
+            Term_putstr(10, row++, -1, TERM_SLATE, "Special ability");
+            c_put_str(TERM_UMBER, "CURSE", row, 2);
+            Term_putstr(10, row++, -1, TERM_SLATE, "Character curse");
+            row++;
+
+            row += tutorial_put_wrapped_limited(
+                "Next page shows your current traits.",
+                text_col, row, text_w, content_max_row, TERM_SLATE);
+        }
+        else if (page >= page_traits_list_start && page < page_traits_list_start + trait_pages)
+        {
+            int sub = page - page_traits_list_start;
+            char heading[64];
+            strnfmt(heading, sizeof(heading), "YOUR TRAITS (%d/%d)", sub + 1, trait_pages);
+            Term_putstr(2, row++, -1, TERM_WHITE, heading);
+            row++;
+
+            if (trait_n <= 0)
+            {
+                Term_putstr(2, row++, -1, TERM_SLATE, "(No special traits)");
+            }
+            else
+            {
+                int start = sub * trait_items_per_page;
+                int end = start + trait_items_per_page;
+                if (start < 0) start = 0;
+                if (end > trait_n) end = trait_n;
+
+                int col1 = 2;
+                int gap = 2;
+                int colw = wid - 4;
+                int col2 = 2;
+                if (two_col)
+                {
+                    colw = (wid - 4 - gap) / 2;
+                    if (colw < 18)
+                        colw = 18;
+                    col2 = col1 + colw + gap;
+                }
+
+                int idx = start;
+                for (int r = 0; r < list_rows && row < content_max_row; r++)
+                {
+                    if (idx >= end)
+                        break;
+                    tutorial_put_trunc(col1, row, colw, traits[idx].col, traits[idx].txt);
+                    idx++;
+                    if (two_col && idx < end)
+                    {
+                        tutorial_put_trunc(col2, row, colw, traits[idx].col, traits[idx].txt);
+                        idx++;
+                    }
+                    row++;
+                }
+            }
+        }
+        else if (page >= page_history_start && page < page_history_start + history_pages)
+        {
+            int sub = page - page_history_start;
+            char heading[64];
+            if (history_pages > 1)
+                strnfmt(heading, sizeof(heading), "HISTORY (%d/%d)", sub + 1, history_pages);
+            else
+                SDL_strlcpy(heading, "HISTORY", sizeof(heading));
+
+            Term_putstr(2, row++, -1, TERM_WHITE, heading);
+            row++;
+
+            if (p_ptr->history[0])
+            {
+                int skip = sub * history_cap;
+                tutorial_put_wrapped_slice_ex(
+                    p_ptr->history,
+                    text_col,
+                    row,
+                    text_w,
+                    content_max_row,
+                    TERM_WHITE,
+                    skip,
+                    history_cap,
+                    true);
+            }
+            else
+            {
+                Term_putstr(2, row++, -1, TERM_SLATE, "(No history)");
+            }
+        }
+        else if (page >= page_controls_start && page < page_controls_start + ctl_pages)
+        {
+            int sub = page - page_controls_start;
+            char heading[64];
+            strnfmt(heading, sizeof(heading), "ESSENTIAL CONTROLS (%d/%d)", sub + 1, ctl_pages);
+            Term_putstr(2, row++, -1, TERM_WHITE, heading);
+            row++;
+
+            int start = sub * ctl_items_per_page;
+            int end = start + ctl_items_per_page;
+            if (start < 0) start = 0;
+            if (end > ctl_n) end = ctl_n;
+
+            int col1 = 2;
+            int gap = 2;
+            int colw = wid - 4;
+            int col2 = 2;
+            if (two_col)
+            {
+                colw = (wid - 4 - gap) / 2;
+                if (colw < 20)
+                    colw = 20;
+                col2 = col1 + colw + gap;
+            }
+
+            int idx = start;
+            for (int r = 0; r < list_rows && row < content_max_row; r++)
+            {
+                if (idx >= end)
+                    break;
+                {
+                    char line[128];
+                    if (controls[idx].key)
+                        strnfmt(line, sizeof(line), "%s - %s", controls[idx].key, controls[idx].desc);
+                    else
+                        SDL_strlcpy(line, controls[idx].desc, sizeof(line));
+                    tutorial_put_trunc(col1, row, colw, TERM_SLATE, line);
+                }
+                idx++;
+
+                if (two_col && idx < end)
+                {
+                    char line[128];
+                    if (controls[idx].key)
+                        strnfmt(line, sizeof(line), "%s - %s", controls[idx].key, controls[idx].desc);
+                    else
+                        SDL_strlcpy(line, controls[idx].desc, sizeof(line));
+                    tutorial_put_trunc(col2, row, colw, TERM_SLATE, line);
+                    idx++;
+                }
+                row++;
+            }
+        }
+        else if (birth_context && page >= page_birth_start && page < page_birth_start + birth_pages)
+        {
+            int sub = page - page_birth_start;
+            char heading[96];
+            if (birth_pages > 1)
+                strnfmt(heading, sizeof(heading), "CHARACTER CREATION (COMPACT) (%d/%d)", sub + 1, birth_pages);
+            else
+                SDL_strlcpy(heading, "CHARACTER CREATION (COMPACT SCREENS)", sizeof(heading));
+
+            Term_putstr(2, row++, -1, TERM_WHITE, heading);
+            row++;
+
+            {
+                int birth_cap = content_rows - 2;
+                int skip = sub * birth_cap;
+                tutorial_put_wrapped_slice_ex(
+                    birth_text,
+                    text_col,
+                    row,
+                    text_w,
+                    content_max_row,
+                    TERM_SLATE,
+                    skip,
+                    birth_cap,
+                    true);
+            }
+        }
+
+        /* Footer / navigation */
+        {
+            if (page == total_pages - 1)
+                tutorial_put_centered(hint_row, TERM_L_GREEN, "Tutorial complete!");
+            else
+                tutorial_put_centered(hint_row, TERM_YELLOW,
+                    steamdeck ? "D-pad left/right to navigate" : "Use left/right (or any key) to navigate");
+
+            if (steamdeck)
+            {
+                char next_label[16];
+                char back_label[16];
+                tutorial_prompt_label(steamdeck_confirm_key(), "A", next_label, sizeof(next_label));
+                tutorial_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
+
+                char nav[160];
+                if (page > 0)
+                    strnfmt(nav, sizeof(nav), "(D-Left Prev)   (%s Next)   (%s Exit)", next_label, back_label);
+                else
+                    strnfmt(nav, sizeof(nav), "(%s Next)   (%s Exit)", next_label, back_label);
+                tutorial_put_centered(nav_row, TERM_SLATE, nav);
+            }
+            else
+            {
+                char nav[160];
+                if (page > 0)
+                    strnfmt(nav, sizeof(nav), "(4/<- Prev)   (6/-> Next)   (ESC Exit)");
+                else
+                    strnfmt(nav, sizeof(nav), "(6/-> Next)   (ESC Exit)");
+                tutorial_put_centered(nav_row, TERM_SLATE, nav);
+            }
+        }
+
+        ch = inkey();
+        if (steamdeck && ch == steamdeck_back_key())
+            ch = ESCAPE;
+
+        if (ch == ESCAPE)
+            break;
         else if (ch == '4')
         {
-            /* Go back one stage (left arrow/numpad 4) */
-            if (stage > 0)
-                stage--;
+            if (page > 0)
+                page--;
         }
-        else if (ch == '6' || (steamdeck && ch == steamdeck_confirm_key()) || ch == '\r')
+        else if (ch == '6' || ch == ' ' || ch == '\r' || ch == '\n' || (steamdeck && ch == steamdeck_confirm_key()))
         {
-            /* Go forward one stage (right arrow/numpad 6, space, enter) */
-            if (stage < 3)
-                stage++;
+            if (page < total_pages - 1)
+                page++;
             else
-                break;  /* Exit on last stage */
+                break;
         }
         else
         {
-            /* Any other key advances */
-            if (stage < 3)
-                stage++;
+            /* Default: advance */
+            if (page < total_pages - 1)
+                page++;
             else
-                break;  /* Exit on last stage */
+                break;
         }
     }
-    
-    /* Clear screen before returning */
+
     Term_clear();
 }
 
@@ -4826,8 +5275,6 @@ typedef struct {
 #define HELP_DOC_MAX_ROWS 1024
 #define HELP_DOC_MAX_PAGES 256
 #define HELP_DOC_STRING_POOL_SIZE 65536
-#define HELP_DOC_CANVAS_W 192
-#define HELP_DOC_MAX_WRAP_LINES 8192
 
 static help_draw_op_t g_help_doc_ops[HELP_DOC_MAX_OPS];
 static int g_help_doc_ops_n = 0;
@@ -4839,41 +5286,6 @@ static bool g_help_record_ops = false;
 static int g_help_record_base_y = 0;
 static int g_help_record_page_min_y = 0;
 static int g_help_record_page_max_y = 0;
-
-typedef struct {
-    bool used;
-    bool use_role;
-    color_role_t role;
-    byte attr;
-    char ch;
-} help_doc_cell_t;
-
-typedef struct {
-    int src_y;
-    int col_start;
-    int col_len;
-    bool is_blank;
-    bool is_heading;
-} help_wrap_line_t;
-
-typedef struct {
-    bool use_role;
-    color_role_t role;
-    byte attr;
-} help_style_t;
-
-typedef struct {
-    bool use_role;
-    color_role_t role;
-    byte attr;
-    const char* text;
-} help_piece_t;
-
-static int g_help_layout_wid = 80;
-
-static help_doc_cell_t g_help_doc_cells[HELP_DOC_MAX_ROWS][HELP_DOC_CANVAS_W];
-static int g_help_doc_row_max_col[HELP_DOC_MAX_ROWS];
-static help_wrap_line_t g_help_wrap_lines[HELP_DOC_MAX_WRAP_LINES];
 
 /* Forward declaration: used for recording. */
 static void show_help_screen_legacy(int i, bool include_header);
@@ -4963,188 +5375,6 @@ static void help_emit_attr(byte attr, const char* s, int row, int col)
         c_put_str(attr, s, row, col);
 }
 
-static void help_emit_piece(const help_piece_t* piece, int row, int* col)
-{
-    int w;
-
-    if (!piece || !piece->text || !col)
-        return;
-
-    if (piece->use_role)
-        help_emit_role(piece->role, piece->text, row, *col);
-    else
-        help_emit_attr(piece->attr, piece->text, row, *col);
-
-    w = (int)strlen(piece->text);
-    *col += w;
-}
-
-static int help_draw_wrapped_pieces(
-    int row,
-    int col,
-    int content_w,
-    const char* prefix_first,
-    const char* prefix_cont,
-    const help_piece_t* pieces,
-    int piece_count)
-{
-    int idx = 0;
-    bool first = true;
-
-    if (!pieces || piece_count <= 0)
-        return row;
-
-    while (idx < piece_count)
-    {
-        const char* prefix = first ? prefix_first : prefix_cont;
-        int prefix_w = (int)strlen(prefix);
-        int avail = content_w - prefix_w;
-        int line_w = 0;
-        int end = idx;
-        int last_break = -1;
-
-        if (avail < 8)
-            avail = 8;
-
-        if (prefix_w > 0)
-            help_emit_role(ROLE_BODY, prefix, row, col);
-
-        while (end < piece_count)
-        {
-            int w = (int)strlen(pieces[end].text);
-            if ((line_w + w <= avail) || (line_w == 0))
-            {
-                const char* t = pieces[end].text;
-                int tlen = (int)strlen(t);
-                line_w += w;
-
-                if (tlen > 0)
-                {
-                    char last = t[tlen - 1];
-                    if (last == ' ' || last == ',' || last == ';' || last == ':' || last == '!' || last == ')')
-                        last_break = end;
-                }
-
-                end++;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        {
-            int take_end;
-            int out_col = col + prefix_w;
-
-            if (end >= piece_count)
-                take_end = piece_count - 1;
-            else if (last_break >= idx)
-                take_end = last_break;
-            else if (end > idx)
-                take_end = end - 1;
-            else
-                take_end = idx;
-
-            for (int p = idx; p <= take_end; p++)
-                help_emit_piece(&pieces[p], row, &out_col);
-
-            idx = take_end + 1;
-            first = false;
-            row++;
-        }
-    }
-
-    return row;
-}
-
-static int help_draw_combat_formula_block(int row, int col)
-{
-    int content_w = g_help_layout_wid - 2;
-
-    static const help_piece_t line1[] = {
-        { true, ROLE_GOOD, 0, "(+16) 34" },
-        { true, ROLE_BAD, 0, " 20" },
-        { true, ROLE_BODY, 0, " 14 [+4] o" },
-        { true, ROLE_BODY, 0, "  ->  " },
-        { true, ROLE_GOOD, 0, "(4d7) 19" },
-        { true, ROLE_BODY, 0, " - " },
-        { true, ROLE_WARN, 0, "3" },
-        { true, ROLE_BODY, 0, " = " },
-        { true, ROLE_BAD, 0, "16" }
-    };
-
-    static const help_piece_t line2[] = {
-        { true, ROLE_GOOD, 0, "1d20+16=34" },
-        { true, ROLE_BODY, 0, " vs " },
-        { true, ROLE_BODY, 0, "1d20+4=14" },
-        { true, ROLE_BODY, 0, "  ->  " },
-        { true, ROLE_BODY, 0, "margin " },
-        { true, ROLE_BAD, 0, "20" },
-        { true, ROLE_BODY, 0, " = " },
-        { true, ROLE_BAD, 0, "double crit" },
-        { true, ROLE_BODY, 0, "!" }
-    };
-
-    static const help_piece_t line3[] = {
-        { true, ROLE_BODY, 0, "2d5 " },
-        { true, ROLE_BODY, 0, "+2 " },
-        { true, ROLE_BODY, 0, "(Str " },
-        { true, ROLE_BODY, 0, "3 " },
-        { true, ROLE_BODY, 0, "capped " },
-        { true, ROLE_BODY, 0, "by " },
-        { true, ROLE_BODY, 0, "2 " },
-        { true, ROLE_BODY, 0, "lb " },
-        { true, ROLE_BODY, 0, "= " },
-        { true, ROLE_BODY, 0, "2 " },
-        { true, ROLE_BODY, 0, "more " },
-        { true, ROLE_BODY, 0, "sides) " },
-        { true, ROLE_BODY, 0, "= " },
-        { true, ROLE_BODY, 0, "2d7," }
-    };
-
-    static const help_piece_t line4[] = {
-        { true, ROLE_BODY, 0, "+2d7 " },
-        { true, ROLE_BODY, 0, "(1d " },
-        { true, ROLE_BODY, 0, "per " },
-        { true, ROLE_BODY, 0, "7+weight " },
-        { true, ROLE_BODY, 0, "in " },
-        { true, ROLE_BODY, 0, "margin) " },
-        { true, ROLE_BODY, 0, "= " },
-        { true, ROLE_GOOD, 0, "4d7=19" },
-        { true, ROLE_BODY, 0, " - " },
-        { true, ROLE_WARN, 0, "2d4=3" },
-        { true, ROLE_BODY, 0, " = " },
-        { true, ROLE_BAD, 0, "16 dmg" },
-        { true, ROLE_BODY, 0, "!" }
-    };
-
-    if (content_w < 24)
-        content_w = 24;
-
-    row = help_draw_wrapped_pieces(row, col, content_w, "  @ ", "    ",
-        line1, N_ELEMENTS(line1));
-    row = help_draw_wrapped_pieces(row, col, content_w, "  Attack:  ", "           ",
-        line2, N_ELEMENTS(line2));
-    row = help_draw_wrapped_pieces(row, col, content_w, "  Damage:  ", "           ",
-        line3, N_ELEMENTS(line3));
-    row = help_draw_wrapped_pieces(row, col, content_w, "           ", "           ",
-        line4, N_ELEMENTS(line4));
-
-    return row;
-}
-
-static char help_doc_char_at(int row, int col)
-{
-    if (row < 0 || row >= HELP_DOC_MAX_ROWS || col < 0 || col >= HELP_DOC_CANVAS_W)
-        return ' ';
-
-    if (!g_help_doc_cells[row][col].used)
-        return ' ';
-
-    return g_help_doc_cells[row][col].ch;
-}
-
 static bool help_use_legacy_layout(int wid, int hgt)
 {
     return (wid == 80) && (hgt == 24);
@@ -5222,293 +5452,53 @@ static int help_build_document_ops(int* out_doc_hgt, bool row_has_content[HELP_D
     return g_help_doc_ops_n;
 }
 
-static void help_rasterize_document(int doc_hgt)
-{
-    int y;
-    int op;
-
-    for (y = 0; y < HELP_DOC_MAX_ROWS; y++)
-    {
-        g_help_doc_row_max_col[y] = -1;
-        memset(g_help_doc_cells[y], 0, sizeof(g_help_doc_cells[y]));
-    }
-
-    for (op = 0; op < g_help_doc_ops_n; op++)
-    {
-        const help_draw_op_t* src = &g_help_doc_ops[op];
-        int row = src->y;
-        int base_col = src->x - 1;
-        int len;
-
-        if (row < 0 || row >= HELP_DOC_MAX_ROWS || row >= doc_hgt)
-            continue;
-        if (!src->text)
-            continue;
-
-        len = (int)strlen(src->text);
-        for (int k = 0; k < len; k++)
-        {
-            int col = base_col + k;
-            help_doc_cell_t* cell;
-
-            if (col < 0 || col >= HELP_DOC_CANVAS_W)
-                continue;
-
-            cell = &g_help_doc_cells[row][col];
-            cell->used = true;
-            cell->use_role = src->use_role;
-            cell->role = src->role;
-            cell->attr = src->attr;
-            cell->ch = src->text[k];
-
-            if (col > g_help_doc_row_max_col[row])
-                g_help_doc_row_max_col[row] = col;
-        }
-    }
-}
-
-static int help_build_wrapped_lines(
-    int term_wid,
-    int doc_hgt,
-    const bool row_has_heading[HELP_DOC_MAX_ROWS],
-    help_wrap_line_t* lines,
-    int max_lines)
-{
-    int content_w = term_wid - 2;
-    int count = 0;
-
-    if (content_w < 10)
-        content_w = 10;
-
-    for (int y = 0; y < doc_hgt && y < HELP_DOC_MAX_ROWS; y++)
-    {
-        int row_len = g_help_doc_row_max_col[y] + 1;
-
-        while (row_len > 0 && help_doc_char_at(y, row_len - 1) == ' ')
-            row_len--;
-
-        if (row_len <= 0)
-        {
-            if (count >= max_lines)
-                break;
-            lines[count].src_y = y;
-            lines[count].col_start = 0;
-            lines[count].col_len = 0;
-            lines[count].is_blank = true;
-            lines[count].is_heading = false;
-            count++;
-            continue;
-        }
-
-        {
-            int start = 0;
-
-            while (start < row_len)
-            {
-                int remaining = row_len - start;
-                int len = remaining;
-
-                if (len > content_w)
-                {
-                    int break_col = -1;
-                    int scan_start = start + 1;
-                    int scan_end = start + content_w - 1;
-
-                    if (scan_end >= row_len)
-                        scan_end = row_len - 1;
-
-                    for (int c = scan_end; c >= scan_start; c--)
-                    {
-                        char ch = help_doc_char_at(y, c);
-                        if (ch == ' ' || ch == '\t')
-                        {
-                            break_col = c;
-                            break;
-                        }
-                    }
-
-                    if (break_col >= 0)
-                    {
-                        len = break_col - start + 1;
-                        while (len > 0)
-                        {
-                            char end_ch = help_doc_char_at(y, start + len - 1);
-                            if (end_ch != ' ' && end_ch != '\t')
-                                break;
-                            len--;
-                        }
-
-                        if (len <= 0)
-                        {
-                            start = break_col + 1;
-                            while (start < row_len)
-                            {
-                                char skip = help_doc_char_at(y, start);
-                                if (skip != ' ' && skip != '\t')
-                                    break;
-                                start++;
-                            }
-                            continue;
-                        }
-                    }
-                    else
-                    {
-                        len = content_w;
-                    }
-                }
-
-                if (count >= max_lines)
-                    break;
-
-                lines[count].src_y = y;
-                lines[count].col_start = start;
-                lines[count].col_len = len;
-                lines[count].is_blank = false;
-                lines[count].is_heading = (row_has_heading[y] && (start == 0));
-                count++;
-
-                start += len;
-                while (start < row_len)
-                {
-                    char skip = help_doc_char_at(y, start);
-                    if (skip != ' ' && skip != '\t')
-                        break;
-                    start++;
-                }
-            }
-
-            if (count >= max_lines)
-                break;
-        }
-    }
-
-    if (count < 1)
-    {
-        lines[0].src_y = 0;
-        lines[0].col_start = 0;
-        lines[0].col_len = 0;
-        lines[0].is_blank = true;
-        lines[0].is_heading = false;
-        count = 1;
-    }
-
-    return count;
-}
-
-static bool help_style_equal(help_style_t a, help_style_t b)
-{
-    return (a.use_role == b.use_role)
-        && (a.role == b.role)
-        && (a.attr == b.attr);
-}
-
-static void help_render_wrapped_line(const help_wrap_line_t* line, int screen_y, int term_wid)
-{
-    help_style_t current_style;
-    bool have_style = false;
-    int run_start = 0;
-    int run_len = 0;
-    char run_buf[HELP_DOC_CANVAS_W + 1];
-
-    int draw_len;
-
-    if (!line || line->is_blank || line->col_len <= 0)
-        return;
-
-    draw_len = line->col_len;
-    if (draw_len > term_wid - 1)
-        draw_len = term_wid - 1;
-    if (draw_len <= 0)
-        return;
-
-    for (int i = 0; i < draw_len; i++)
-    {
-        int src_col = line->col_start + i;
-        char ch = ' ';
-        help_style_t style;
-
-        style.use_role = true;
-        style.role = ROLE_BODY;
-        style.attr = 0;
-
-        if (src_col >= 0 && src_col < HELP_DOC_CANVAS_W)
-        {
-            const help_doc_cell_t* cell = &g_help_doc_cells[line->src_y][src_col];
-            if (cell->used)
-            {
-                ch = cell->ch;
-                style.use_role = cell->use_role;
-                style.role = cell->role;
-                style.attr = cell->attr;
-            }
-        }
-
-        if (!have_style)
-        {
-            current_style = style;
-            have_style = true;
-            run_start = i;
-            run_len = 0;
-        }
-        else if (!help_style_equal(current_style, style))
-        {
-            if (run_len > 0)
-            {
-                run_buf[run_len] = '\0';
-                if (current_style.use_role)
-                    put_role(current_style.role, run_buf, screen_y, 1 + run_start);
-                else
-                    c_put_str(current_style.attr, run_buf, screen_y, 1 + run_start);
-            }
-
-            current_style = style;
-            run_start = i;
-            run_len = 0;
-        }
-
-        run_buf[run_len++] = ch;
-    }
-
-    if (have_style && run_len > 0)
-    {
-        run_buf[run_len] = '\0';
-        if (current_style.use_role)
-            put_role(current_style.role, run_buf, screen_y, 1 + run_start);
-        else
-            c_put_str(current_style.attr, run_buf, screen_y, 1 + run_start);
-    }
-}
-
 static int help_dynamic_build_document_pages(
     int term_hgt,
-    const help_wrap_line_t* lines,
-    int line_count,
+    int doc_hgt,
+    const bool row_has_content[HELP_DOC_MAX_ROWS],
+    const bool row_has_heading[HELP_DOC_MAX_ROWS],
     int page_starts[HELP_DOC_MAX_PAGES],
     int page_ends[HELP_DOC_MAX_PAGES])
 {
     int capacity = term_hgt - 3;
-    int start = 0;
+    int start_y = 0;
     int page_count = 0;
 
     if (capacity < 4)
         capacity = 4;
 
-    while ((start < line_count) && (page_count < HELP_DOC_MAX_PAGES))
+    while ((start_y < doc_hgt) && (page_count < HELP_DOC_MAX_PAGES))
     {
-        int end = start + capacity - 1;
-        if (end >= line_count)
-            end = line_count - 1;
+        int end_y = start_y + capacity - 1;
+        int last_content;
 
-        while (end > start && lines[end].is_heading)
+        if (end_y >= doc_hgt)
+            end_y = doc_hgt - 1;
+
+        /* Ensure we don't end on a heading row (titles must have text under them) */
+        last_content = end_y;
+        while (last_content >= start_y && !row_has_content[last_content])
+            last_content--;
+
+        while (last_content >= start_y && row_has_heading[last_content])
         {
-            end--;
+            end_y = last_content - 1;
+            if (end_y < start_y)
+            {
+                end_y = start_y;
+                break;
+            }
+
+            last_content = end_y;
+            while (last_content >= start_y && !row_has_content[last_content])
+                last_content--;
         }
 
-        page_starts[page_count] = start;
-        page_ends[page_count] = end;
+        page_starts[page_count] = start_y;
+        page_ends[page_count] = end_y;
         page_count++;
 
-        start = end + 1;
+        start_y = end_y + 1;
     }
 
     if (page_count < 1)
@@ -5524,11 +5514,9 @@ static int help_dynamic_build_document_pages(
 static void show_help_screen_dynamic_document(
     int page,
     int total_pages,
-    int term_wid,
     int term_hgt,
-    const help_wrap_line_t* lines,
-    int line_start,
-    int line_end)
+    int doc_start_y,
+    int doc_end_y)
 {
     char header[96];
     const int col = 1;
@@ -5539,13 +5527,23 @@ static void show_help_screen_dynamic_document(
         page, total_pages);
     put_role(ROLE_HEADER, header, 0, col);
 
-    for (int line_idx = line_start; line_idx <= line_end; line_idx++)
+    for (int op = 0; op < g_help_doc_ops_n; op++)
     {
-        int screen_y = top + (line_idx - line_start);
+        int y = g_help_doc_ops[op].y;
+        int x = g_help_doc_ops[op].x;
+        int screen_y;
+
+        if (y < doc_start_y || y > doc_end_y)
+            continue;
+
+        screen_y = top + (y - doc_start_y);
         if (screen_y < top || screen_y >= term_hgt - 1)
             continue;
 
-        help_render_wrapped_line(&lines[line_idx], screen_y, term_wid);
+        if (g_help_doc_ops[op].use_role)
+            put_role(g_help_doc_ops[op].role, g_help_doc_ops[op].text, screen_y, x);
+        else
+            c_put_str(g_help_doc_ops[op].attr, g_help_doc_ops[op].text, screen_y, x);
     }
 }
 
@@ -5788,45 +5786,37 @@ static void show_help_screen_legacy(int i, bool include_header)
         row++;
         put_role(ROLE_BODY, "- Ex: You (Str 3, Melee 16, Longsword 2d5, 2.0 lb) vs Orc [+4, 2d4]:", row, col);
         row += 2;
-        if (include_header)
-        {
-            put_role(ROLE_BODY, "  @ ", row, col);
-            put_role(ROLE_GOOD, "(+16) 34", row, col + 4);
-            put_role(ROLE_BAD, " 20", row, col + 12);
-            put_role(ROLE_BODY, "  14 [+4] o", row, col + 15);
-            put_role(ROLE_BODY, "  ->  ", row, col + 26);
-            put_role(ROLE_GOOD, "(4d7) 19", row, col + 32);
-            put_role(ROLE_BODY, " - ", row, col + 40);
-            put_role(ROLE_WARN, "3", row, col + 43);
-            put_role(ROLE_BODY, " = ", row, col + 44);
-            put_role(ROLE_BAD, "16", row, col + 47);
-            row ++;
-            put_role(ROLE_BODY, "  Attack:  ", row, col);
-            put_role(ROLE_GOOD, "1d20+16=34", row, col + 11);
-            put_role(ROLE_BODY, " vs ", row, col + 21);
-            put_role(ROLE_BODY, "1d20+4=14", row, col + 25);
-            put_role(ROLE_BODY, "  ->  margin ", row, col + 34);
-            put_role(ROLE_BAD, "20", row, col + 47);
-            put_role(ROLE_BODY, " = ", row, col + 49);
-            put_role(ROLE_BAD, "double crit", row, col + 52);
-            put_role(ROLE_BODY, "!", row, col + 63);
-            row++;
-            put_role(ROLE_BODY, "  Damage:  2d5 +2 (Str 3 capped by 2 lb = 2 more sides) = 2d7,", row, col);
-            row++;
-            put_role(ROLE_BODY, "           +2d7 (1d per 7+weight in margin) = ", row, col);
-            put_role(ROLE_GOOD, "4d7=19", row, col + 46);
-            put_role(ROLE_BODY, " - ", row, col + 52);
-            put_role(ROLE_WARN, "2d4=3", row, col + 55);
-            put_role(ROLE_BODY, " = ", row, col + 60);
-            put_role(ROLE_BAD, "16 dmg", row, col + 63);
-            put_role(ROLE_BODY, "!", row, col + 69);
-            row += 2;
-        }
-        else
-        {
-            row = help_draw_combat_formula_block(row, col);
-            row += 1;
-        }
+        put_role(ROLE_BODY, "  @ ", row, col);
+        put_role(ROLE_GOOD, "(+16) 34", row, col + 4);
+        put_role(ROLE_BAD, " 20", row, col + 12);
+        put_role(ROLE_BODY, "  14 [+4] o", row, col + 15);
+        put_role(ROLE_BODY, "  ->  ", row, col + 26);
+        put_role(ROLE_GOOD, "(4d7) 19", row, col + 32);
+        put_role(ROLE_BODY, " - ", row, col + 40);
+        put_role(ROLE_WARN, "3", row, col + 43);
+        put_role(ROLE_BODY, " = ", row, col + 44);
+        put_role(ROLE_BAD, "16", row, col + 47);
+        row ++;
+        put_role(ROLE_BODY, "  Attack:  ", row, col);
+        put_role(ROLE_GOOD, "1d20+16=34", row, col + 11);
+        put_role(ROLE_BODY, " vs ", row, col + 21);
+        put_role(ROLE_BODY, "1d20+4=14", row, col + 25);
+        put_role(ROLE_BODY, "  ->  margin ", row, col + 34);
+        put_role(ROLE_BAD, "20", row, col + 47);
+        put_role(ROLE_BODY, " = ", row, col + 49);
+        put_role(ROLE_BAD, "double crit", row, col + 52);
+        put_role(ROLE_BODY, "!", row, col + 63);
+        row++;
+        put_role(ROLE_BODY, "  Damage:  2d5 +2 (Str 3 capped by 2 lb = 2 more sides) = 2d7,", row, col);
+        row++;
+        put_role(ROLE_BODY, "           +2d7 (1d per 7+weight in margin) = ", row, col);
+        put_role(ROLE_GOOD, "4d7=19", row, col + 46);
+        put_role(ROLE_BODY, " - ", row, col + 52);
+        put_role(ROLE_WARN, "2d4=3", row, col + 55);
+        put_role(ROLE_BODY, " = ", row, col + 60);
+        put_role(ROLE_BAD, "16 dmg", row, col + 63);
+        put_role(ROLE_BODY, "!", row, col + 69);
+        row += 2;
 
         help_emit_heading("EVASION VS ARMOUR", row, col); row++;
         put_role(ROLE_BODY, "- ", row, col);
@@ -6331,7 +6321,6 @@ void do_cmd_help(void)
 
         /* Get current terminal size before deciding layout */
         Term_get_size(&wid, &hgt);
-        g_help_layout_wid = wid;
         legacy = help_use_legacy_layout(wid, hgt);
 
         if (legacy)
@@ -6340,22 +6329,13 @@ void do_cmd_help(void)
         }
         else
         {
-            int wrap_count;
-
             /* Rebuild each time so controller bindings / options are current */
             help_build_document_ops(&doc_hgt, row_has_content, row_has_heading);
-            help_rasterize_document(doc_hgt);
-            wrap_count = help_build_wrapped_lines(
-                wid,
-                doc_hgt,
-                row_has_heading,
-                g_help_wrap_lines,
-                HELP_DOC_MAX_WRAP_LINES);
-
             total_pages = help_dynamic_build_document_pages(
                 hgt,
-                g_help_wrap_lines,
-                wrap_count,
+                doc_hgt,
+                row_has_content,
+                row_has_heading,
                 page_starts,
                 page_ends);
         }
@@ -6377,9 +6357,9 @@ void do_cmd_help(void)
         }
         else
         {
-            int line_start = page_starts[i - 1];
-            int line_end = page_ends[i - 1];
-            show_help_screen_dynamic_document(i, total_pages, wid, hgt, g_help_wrap_lines, line_start, line_end);
+            int start_y = page_starts[i - 1];
+            int end_y = page_ends[i - 1];
+            show_help_screen_dynamic_document(i, total_pages, hgt, start_y, end_y);
         }
 
         /* Better navigation prompt */

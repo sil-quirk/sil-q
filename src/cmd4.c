@@ -10925,10 +10925,12 @@ static errr option_dump(cptr fname)
  * Display and manage SDL pane settings
  * Interactive menu to edit SDL configuration
  */
+static int get_supporting_pane_config_count(void);
+static void do_cmd_supporting_pane_layout_editor(bool* settings_changed);
 void do_cmd_pane_settings(void)
 {
     int k = 0;
-    int n = 10; /* Total number of options */
+    int n = 9; /* Total number of options */
     bool done = false;
     bool settings_changed = false;
     int dir;
@@ -10986,29 +10988,14 @@ void do_cmd_pane_settings(void)
         strnfmt(buf, sizeof(buf), "%-48s: %s", "Enable Bottom Panes [Alt+L]", get_sdl_enable_bottom_panes() ? "yes" : "no ");
         c_prt(a, buf, y0 + 6, 2);
 
-        /* Option 7: Intro Screen Style */
-        {
-            const char* style_name = "Flame Imperishable";
-            int style = get_sdl_intro_style();
-            if (style == -1) style_name = "Random";
-            else if (style == 1) style_name = "Oath of Feanor";
-            else if (style == 2) style_name = "Twilight of Valinor";
-            else if (style == 3) style_name = "Song of Luthien";
-            else if (style == 4) style_name = "Tears Unnumbered";
+        /* Option 7: View Pane Configuration (supporting panes only) */
+        a = (k == 7) ? TERM_L_BLUE : TERM_WHITE;
+        strnfmt(buf, sizeof(buf), "View Pane Configuration (%d panes)", get_supporting_pane_config_count());
+        c_prt(a, buf, y0 + 7, 2);
 
-            a = (k == 7) ? TERM_L_BLUE : TERM_WHITE;
-            strnfmt(buf, sizeof(buf), "%-48s: %s", "Intro Screen Style", style_name);
-            c_prt(a, buf, y0 + 7, 2);
-        }
-
-        /* Option 8: View Pane Configuration */
+        /* Option 8: Save/Return */
         a = (k == 8) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(buf, sizeof(buf), "View Pane Configuration (%d panes)", get_pane_config_count());
-        c_prt(a, buf, y0 + 8, 2);
-
-        /* Option 9: Save/Return */
-        a = (k == 9) ? TERM_L_BLUE : TERM_WHITE;
-        c_prt(a, settings_changed ? "Save Changes and Return" : "Return to Options Menu", y0 + 9, 2);
+        c_prt(a, settings_changed ? "Save Changes and Return" : "Return to Options Menu", y0 + 8, 2);
         
         /* Display help */
         int y = Term->hgt - 3;
@@ -11033,9 +11020,29 @@ void do_cmd_pane_settings(void)
         switch (ch)
         {
         case ESCAPE:
+        {
+            /* Exit without needing to navigate to the bottom */
+            if (settings_changed)
+            {
+                if (save_pane_config_to_json())
+                {
+                    msg_format("Settings saved to %s", config_label);
+                }
+            }
+            done = true;
+            break;
+        }
+
         case '\n':
         case '\r':
         {
+            /* Enter activates the current option for actions; otherwise accept/exit. */
+            if (k == 7) /* Supporting Pane Layout */
+            {
+                do_cmd_supporting_pane_layout_editor(&settings_changed);
+                break;
+            }
+
             /* Save if changed, then exit */
             if (settings_changed)
             {
@@ -11090,47 +11097,11 @@ void do_cmd_pane_settings(void)
                 settings_changed = true;
                 sdl_apply_config();
             }
-            else if (k == 7) /* Intro Screen Style */
+            else if (k == 7) /* Supporting Pane Layout */
             {
-                int style = get_sdl_intro_style();
-                if (style == -1) style = 0;
-                else {
-                    style++;
-                    if (style > 4) style = -1;
-                }
-                set_sdl_intro_style(style);
-                settings_changed = true;
+                do_cmd_supporting_pane_layout_editor(&settings_changed);
             }
-            else if (k == 8) /* View Pane Configuration */
-            {
-                char pane_info[8192];
-                get_sdl_config_info(pane_info, sizeof(pane_info));
-                
-                screen_save();
-                Term_clear();
-                Term_putstr(2, 1, -1, TERM_L_BLUE, "Pane Configuration Details");
-                Term_putstr(2, 2, -1, TERM_WHITE, "==========================");
-                
-                int py = 4;
-                char* pline = strtok(pane_info, "\n");
-                while (pline != NULL && py < Term->hgt - 3)
-                {
-                    byte color = TERM_WHITE;
-                    if (strstr(pline, "===") != NULL)
-                        color = TERM_YELLOW;
-                    else if (strstr(pline, "Pane ") == pline)
-                        color = TERM_L_GREEN;
-                    
-                    Term_putstr(2, py++, -1, color, pline);
-                    pline = strtok(NULL, "\n");
-                }
-                
-                Term_putstr(2, Term->hgt - 2, -1, TERM_SLATE, "Edit your SDL config file to change pane layout.");
-                Term_putstr(2, Term->hgt - 1, -1, TERM_L_BLUE, "Press any key to return...");
-                (void)inkey();
-                screen_load();
-            }
-            else if (k == 9) /* Save/Return */
+            else if (k == 8) /* Save/Return */
             {
                 if (settings_changed)
                 {
@@ -11203,17 +11174,6 @@ void do_cmd_pane_settings(void)
                 settings_changed = true;
                 sdl_apply_config();
             }
-            else if (k == 7) /* Intro Screen Style */
-            {
-                int style = get_sdl_intro_style();
-                if (style == -1) style = 0;
-                else {
-                    style++;
-                    if (style > 4) style = -1;
-                }
-                set_sdl_intro_style(style);
-                settings_changed = true;
-            }
             break;
         }
         
@@ -11275,17 +11235,6 @@ void do_cmd_pane_settings(void)
                 settings_changed = true;
                 sdl_apply_config();
             }
-            else if (k == 7) /* Intro Screen Style */
-            {
-                int style = get_sdl_intro_style();
-                if (style == -1) style = 4;
-                else {
-                    style--;
-                    if (style < 0) style = -1;
-                }
-                set_sdl_intro_style(style);
-                settings_changed = true;
-            }
             break;
         }
         
@@ -11298,6 +11247,338 @@ void do_cmd_pane_settings(void)
     }
     
     /* Restore screen */
+    screen_load();
+}
+
+
+static const char* pane_type_name(enum pane_type type)
+{
+    switch (type)
+    {
+    case PANE_MAIN: return "MAIN";
+    case PANE_INVENTORY: return "INVENTORY";
+    case PANE_WORN: return "WORN";
+    case PANE_ROLLS: return "ROLLS";
+    case PANE_INFO: return "INFO";
+    case PANE_CHARACTER: return "CHARACTER";
+    case PANE_LOG: return "LOG";
+    case PANE_MONSTERS: return "MONSTERS";
+    default: return "UNKNOWN";
+    }
+}
+
+static const char* pane_where_name(enum pane_placement where)
+{
+    switch (where)
+    {
+    case PLACE_RIGHT: return "RIGHT";
+    case PLACE_BOTTOM: return "BOTTOM";
+    default: return "?";
+    }
+}
+
+static int get_supporting_pane_config_count(void)
+{
+    int count = 0;
+    int total = get_pane_config_count();
+    for (int i = 0; i < total; i++)
+    {
+        enum pane_type type = (enum pane_type)get_sdl_pane_type(i);
+        if (type != PANE_MAIN)
+            count++;
+    }
+    return count;
+}
+
+static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
+{
+    enum { MAX_PANES_LOCAL = 8 };
+    int pane_indices[MAX_PANES_LOCAL];
+    int pane_count = 0;
+
+    int total = get_pane_config_count();
+    for (int i = 0; i < total && pane_count < MAX_PANES_LOCAL; i++)
+    {
+        enum pane_type type = (enum pane_type)get_sdl_pane_type(i);
+        if (type == PANE_MAIN)
+            continue;
+        pane_indices[pane_count++] = i;
+    }
+
+    /* Determine the “master” panes:
+     * - RIGHT: only the first RIGHT pane controls cols (shared width)
+     * - BOTTOM: only the first BOTTOM pane controls rows (shared height)
+     */
+    int right_master_idx = -1;
+    int bottom_master_idx = -1;
+    for (int i = 0; i < pane_count; i++)
+    {
+        int idx = pane_indices[i];
+        enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
+        if (where == PLACE_RIGHT && right_master_idx < 0)
+            right_master_idx = idx;
+        if (where == PLACE_BOTTOM && bottom_master_idx < 0)
+            bottom_master_idx = idx;
+    }
+
+    screen_save();
+
+    int sel = 0;
+    int field = 0; /* 0 = rows, 1 = cols */
+    bool done = false;
+    bool changed = false;
+    int dir;
+
+    if (pane_count <= 0)
+    {
+        Term_clear();
+        Term_putstr(2, 1, -1, TERM_L_BLUE, "Supporting Pane Layout");
+        Term_putstr(2, 3, -1, TERM_WHITE, "No supporting panes are configured.");
+        Term_putstr(2, Term->hgt - 1, -1, TERM_L_BLUE, "Press any key to return...");
+        Term_fresh();
+        (void)inkey();
+        screen_load();
+        return;
+    }
+
+    /* Enforce shared-axis rules by clearing non-master primary-axis sizes.
+     * This ensures they truly “do nothing” in the layout calculation.
+     */
+    for (int i = 0; i < pane_count; i++)
+    {
+        int idx = pane_indices[i];
+        enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
+        if (where == PLACE_RIGHT && idx != right_master_idx)
+        {
+            if (get_sdl_pane_cols(idx) != 0)
+            {
+                set_sdl_pane_cols(idx, 0);
+                changed = true;
+            }
+        }
+        else if (where == PLACE_BOTTOM && idx != bottom_master_idx)
+        {
+            if (get_sdl_pane_rows(idx) != 0)
+            {
+                set_sdl_pane_rows(idx, 0);
+                changed = true;
+            }
+        }
+    }
+    if (changed)
+        sdl_apply_config();
+
+    /* Keep the cursor on an editable field. */
+    {
+        int idx = pane_indices[sel];
+        enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
+        bool rows_locked = (where == PLACE_BOTTOM && idx != bottom_master_idx);
+        bool cols_locked = (where == PLACE_RIGHT && idx != right_master_idx);
+        if (field == 0 && rows_locked) field = 1;
+        if (field == 1 && cols_locked) field = 0;
+    }
+
+    while (!done)
+    {
+        Term_clear();
+        Term_putstr(2, 1, -1, TERM_L_BLUE, "Supporting Pane Layout");
+        Term_putstr(2, 2, -1, TERM_WHITE, "======================");
+
+        int y0 = 4;
+        int x_type = 2;
+        int x_where = 14;
+        int x_rows_label = 23;
+        int x_rows_value = 29;
+        int x_cols_label = 38;
+        int x_cols_value = 44;
+        for (int i = 0; i < pane_count && (y0 + i) < Term->hgt - 5; i++)
+        {
+            int idx = pane_indices[i];
+            enum pane_type type = (enum pane_type)get_sdl_pane_type(idx);
+            enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
+            int rows = get_sdl_pane_rows(idx);
+            int cols = get_sdl_pane_cols(idx);
+
+            byte a = (i == sel) ? TERM_L_BLUE : TERM_WHITE;
+            bool rows_locked = (where == PLACE_BOTTOM && idx != bottom_master_idx);
+            bool cols_locked = (where == PLACE_RIGHT && idx != right_master_idx);
+
+            /* Build fixed-width field strings for clean alignment.
+             * Each is exactly 5 chars: " %3d ", "[%3d]", or " --- ".
+             */
+            char rows_field[8];
+            char cols_field[8];
+            if (rows_locked)
+            {
+                int shared_rows = (bottom_master_idx >= 0) ? get_sdl_pane_rows(bottom_master_idx) : rows;
+                strnfmt(rows_field, sizeof(rows_field), " %3d ", shared_rows);
+            }
+            else if (i == sel && field == 0)
+                strnfmt(rows_field, sizeof(rows_field), "[%3d]", rows);
+            else
+                strnfmt(rows_field, sizeof(rows_field), " %3d ", rows);
+
+            if (cols_locked)
+            {
+                int shared_cols = (right_master_idx >= 0) ? get_sdl_pane_cols(right_master_idx) : cols;
+                strnfmt(cols_field, sizeof(cols_field), " %3d ", shared_cols);
+            }
+            else if (i == sel && field == 1)
+                strnfmt(cols_field, sizeof(cols_field), "[%3d]", cols);
+            else
+                strnfmt(cols_field, sizeof(cols_field), " %3d ", cols);
+
+            c_prt(a, pane_type_name(type), y0 + i, x_type);
+            c_prt(a, pane_where_name(where), y0 + i, x_where);
+            c_prt(a, "rows:", y0 + i, x_rows_label);
+            c_prt(a, rows_field, y0 + i, x_rows_value);
+            c_prt(a, "cols:", y0 + i, x_cols_label);
+            c_prt(a, cols_field, y0 + i, x_cols_value);
+        }
+
+        int y = Term->hgt - 4;
+        Term_putstr(2, y++, -1, TERM_SLATE, "Up/Down: select pane   Space: choose rows/cols");
+        Term_putstr(2, y++, -1, TERM_SLATE, "4/6 (or n/y): -/+ value   0: set to auto (0)");
+        Term_putstr(2, y++, -1, TERM_SLATE, "RIGHT: cols shared (edit first RIGHT)   BOTTOM: rows shared (edit first BOTTOM)");
+        Term_putstr(2, y++, -1, TERM_SLATE, "ESC/Enter: return (changes apply immediately)");
+
+        Term_fresh();
+
+        hide_cursor = true;
+        char ch = inkey();
+        hide_cursor = false;
+
+        dir = target_dir(ch);
+        if ((dir == 2) || (dir == 4) || (dir == 6) || (dir == 8))
+            ch = I2D(dir);
+
+        switch (ch)
+        {
+        case ESCAPE:
+        case '\n':
+        case '\r':
+            done = true;
+            break;
+
+        case ' ':
+        case 't':
+        case '5':
+            field = (field == 0) ? 1 : 0;
+            {
+                int idx = pane_indices[sel];
+                enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
+                bool rows_locked = (where == PLACE_BOTTOM && idx != bottom_master_idx);
+                bool cols_locked = (where == PLACE_RIGHT && idx != right_master_idx);
+                if (field == 0 && rows_locked) field = 1;
+                if (field == 1 && cols_locked) field = 0;
+            }
+            break;
+
+        case '-':
+        case '8':
+            sel = (pane_count + sel - 1) % pane_count;
+            {
+                int idx = pane_indices[sel];
+                enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
+                bool rows_locked = (where == PLACE_BOTTOM && idx != bottom_master_idx);
+                bool cols_locked = (where == PLACE_RIGHT && idx != right_master_idx);
+                if (field == 0 && rows_locked) field = 1;
+                if (field == 1 && cols_locked) field = 0;
+            }
+            break;
+
+        case '2':
+            sel = (sel + 1) % pane_count;
+            {
+                int idx = pane_indices[sel];
+                enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
+                bool rows_locked = (where == PLACE_BOTTOM && idx != bottom_master_idx);
+                bool cols_locked = (where == PLACE_RIGHT && idx != right_master_idx);
+                if (field == 0 && rows_locked) field = 1;
+                if (field == 1 && cols_locked) field = 0;
+            }
+            break;
+
+        case '0':
+        {
+            int idx = pane_indices[sel];
+            enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
+            bool rows_locked = (where == PLACE_BOTTOM && idx != bottom_master_idx);
+            bool cols_locked = (where == PLACE_RIGHT && idx != right_master_idx);
+            if (field == 0 && rows_locked)
+            {
+                bell("Rows are shared for bottom panes");
+                break;
+            }
+            if (field == 1 && cols_locked)
+            {
+                bell("Cols are shared for right panes");
+                break;
+            }
+            if (field == 0) set_sdl_pane_rows(idx, 0);
+            else set_sdl_pane_cols(idx, 0);
+            changed = true;
+            sdl_apply_config();
+            break;
+        }
+
+        case 'n':
+        case '4':
+        {
+            int idx = pane_indices[sel];
+            enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
+            bool rows_locked = (where == PLACE_BOTTOM && idx != bottom_master_idx);
+            bool cols_locked = (where == PLACE_RIGHT && idx != right_master_idx);
+            if (field == 0 && rows_locked)
+            {
+                bell("Rows are shared for bottom panes");
+                break;
+            }
+            if (field == 1 && cols_locked)
+            {
+                bell("Cols are shared for right panes");
+                break;
+            }
+            if (field == 0) set_sdl_pane_rows(idx, get_sdl_pane_rows(idx) - 1);
+            else set_sdl_pane_cols(idx, get_sdl_pane_cols(idx) - 1);
+            changed = true;
+            sdl_apply_config();
+            break;
+        }
+
+        case 'y':
+        case '6':
+        {
+            int idx = pane_indices[sel];
+            enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
+            bool rows_locked = (where == PLACE_BOTTOM && idx != bottom_master_idx);
+            bool cols_locked = (where == PLACE_RIGHT && idx != right_master_idx);
+            if (field == 0 && rows_locked)
+            {
+                bell("Rows are shared for bottom panes");
+                break;
+            }
+            if (field == 1 && cols_locked)
+            {
+                bell("Cols are shared for right panes");
+                break;
+            }
+            if (field == 0) set_sdl_pane_rows(idx, get_sdl_pane_rows(idx) + 1);
+            else set_sdl_pane_cols(idx, get_sdl_pane_cols(idx) + 1);
+            changed = true;
+            sdl_apply_config();
+            break;
+        }
+
+        default:
+            bell("Illegal command for pane layout editor!");
+            break;
+        }
+    }
+
+    if (changed && settings_changed)
+        *settings_changed = true;
+
     screen_load();
 }
 
