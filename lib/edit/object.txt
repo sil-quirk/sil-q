@@ -293,10 +293,10 @@ G:(:D
 T:9:17
 I:36:11:0
 W:17:0:70:200
-P:0:0d0:-1:1d9
+P:0:0d0:0:1d9
 R:EVN:0
 R:PS:10
-A:17/5:19/15
+A:15/5:18/15
 F:IGNORE_ALL | NO_SMITHING | STAR_IRON | NOBLE_ITEM
 D:A suit of armour made of galvorn: a strange shining black metal 
 D:so malleable that it is thin and supple, yet strong enough 
@@ -346,7 +346,7 @@ W:16:0:150:7000
 P:0:0d0:-1:2d5
 R:EVN:1
 R:PS:6
-A:14/0:18/15
+A:14/0:19/15
 F:IGNORE_ALL | MITHRIL | CHEAT_DEATH | NOBLE_ITEM
 D:A corslet of linked rings wrought from mithril, the true
 D: silver found in the deep mines of the Dwarves. Lighter than
@@ -427,7 +427,7 @@ W:16:0:40:10000
 P:0:0d0:0:1d7
 R:EVN:1
 R:PS:8
-A:14/0:16/15
+A:14/0:17/15
 F:IGNORE_ALL | MITHRIL | DAMAGE_SIDES | NOBLE_ITEM
 D:A shield of mithril, true silver mined in the deep places
 D: of the earth by the Dwarves. Lighter than a shield of oak
@@ -783,7 +783,7 @@ W:14:0:35:500
 P:0:0d0:0:1d4
 R:EVN:1
 R:PS:5
-A:10/0:14/15
+A:10/0:15/15
 F:IGNORE_ALL | MITHRIL | RES_COLD | RES_FIRE | NOBLE_ITEM
 D:A helm of mithril, true silver from the deep mines of the
 D: Dwarves. Lighter than iron yet stronger, it gleams with a
@@ -1002,7 +1002,7 @@ W:12:0:15:100
 P:0:0d0:0:1d2
 R:EVN:1
 R:PS:3
-A:10/0:12/15
+A:10/0:14/15
 F:IGNORE_ALL | MITHRIL | ENCHANTABLE | REGEN
 D:Gauntlets of mithril, the true silver from the deep mines
 D: of the Dwarves. Light enough to preserve the deftness of

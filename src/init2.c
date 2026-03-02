@@ -2442,17 +2442,28 @@ static void init_angband_aux(cptr why)
         "See the manual for more information."));
 }
 
+static void display_introduction_at_row(int first_row);
+
 extern void display_introduction(void)
 {
+    /* Wrapper: keep the default layout (first line at row 1). */
+    display_introduction_at_row(1);
+}
+
+static void display_introduction_at_row(int first_row)
+{
+    if (first_row < 0) first_row = 0;
+    const int y = first_row - 1; /* legacy intro rows start at 1 */
+
     /* Clear screen */
     Term_clear();
 
-     /* Hide the cursor for the intro screen while rendering. Do NOT
-         toggle the global hide_cursor here — callers (menus) should set
-         hide_cursor around any following input waits. */
-     bool _saved_cursor_state = false;
-     (void)Term_get_cursor(&_saved_cursor_state);
-     (void)Term_set_cursor(false);
+    /* Hide the cursor for the intro screen while rendering. Do NOT
+        toggle the global hide_cursor here — callers (menus) should set
+        hide_cursor around any following input waits. */
+    bool _saved_cursor_state = false;
+    (void)Term_get_cursor(&_saved_cursor_state);
+    (void)Term_set_cursor(false);
 
     /* Resolve intro style from setting. 0-4 = fixed, 5 = random. */
     int intro_style;
@@ -2466,167 +2477,167 @@ extern void display_introduction(void)
     /* ===== Variant 0  "Flame Imperishable" (Ainulindale) =============== */
     case 0:
     default:
-        Term_putstr(14, 1, -1, TERM_L_BLUE,
+        Term_putstr(14, y + 1, -1, TERM_L_BLUE,
             "\"In the beginning Eru, the One,");
-        Term_putstr(14, 2, -1, TERM_L_BLUE,
+        Term_putstr(14, y + 2, -1, TERM_L_BLUE,
             "  made the Ainur of his thought;");
-        Term_putstr(14, 3, -1, TERM_L_BLUE,
+        Term_putstr(14, y + 3, -1, TERM_L_BLUE,
             "  and they sang, and he was glad.\"");
-        Term_putstr(34, 4, -1, TERM_SLATE,
+        Term_putstr(34, y + 4, -1, TERM_SLATE,
             "-- Ainulindale");
 
-        Term_putstr(22, 6, -1, TERM_WHITE,
+        Term_putstr(22, y + 6, -1, TERM_WHITE,
             "S I L - M O R E");
-        Term_putstr(20, 7, -1, TERM_L_BLUE,
+        Term_putstr(20, y + 7, -1, TERM_L_BLUE,
             "~ Shining  Darkness ~");
 
-        Term_putstr(14, 9, -1, TERM_WHITE,
+        Term_putstr(14, y + 9, -1, TERM_WHITE,
             "In the deeps of Angband, beyond");
-        Term_putstr(14, 10, -1, TERM_WHITE,
+        Term_putstr(14, y + 10, -1, TERM_WHITE,
             "gates of iron and pits of flame,");
-        Term_putstr(14, 11, -1, TERM_WHITE,
+        Term_putstr(14, y + 11, -1, TERM_WHITE,
             "Morgoth hoards the Silmarils --");
-        Term_putstr(14, 12, -1, TERM_WHITE,
+        Term_putstr(14, y + 12, -1, TERM_WHITE,
             "three jewels of living light.");
 
-        Term_putstr(14, 14, -1, TERM_YELLOW,
+        Term_putstr(14, y + 14, -1, TERM_YELLOW,
             "Take up blade and burden. Descend.");
-        Term_putstr(14, 15, -1, TERM_YELLOW,
+        Term_putstr(14, y + 15, -1, TERM_YELLOW,
             "Oaths, quests, blessings of the Valar");
-        Term_putstr(14, 16, -1, TERM_YELLOW,
+        Term_putstr(14, y + 16, -1, TERM_YELLOW,
             "await in the First Age reborn.");
         break;
 
     /* ===== Variant 1  "Oath of Feanor" ================================= */
     case 1:
-        Term_putstr(14, 1, -1, TERM_L_BLUE,
+        Term_putstr(14, y + 1, -1, TERM_L_BLUE,
             "\"Be he foe or friend,");
-        Term_putstr(14, 2, -1, TERM_L_BLUE,
+        Term_putstr(14, y + 2, -1, TERM_L_BLUE,
             "  be he foul or clean...");
-        Term_putstr(14, 3, -1, TERM_L_BLUE,
+        Term_putstr(14, y + 3, -1, TERM_L_BLUE,
             "  he shall defend, shall be held mine.\"");
-        Term_putstr(34, 4, -1, TERM_SLATE,
+        Term_putstr(34, y + 4, -1, TERM_SLATE,
             "-- Oath of Feanor");
 
-        Term_putstr(22, 6, -1, TERM_WHITE,
+        Term_putstr(22, y + 6, -1, TERM_WHITE,
             "S I L - M O R E");
-        Term_putstr(20, 7, -1, TERM_L_BLUE,
+        Term_putstr(20, y + 7, -1, TERM_L_BLUE,
             "~ Shining  Darkness ~");
 
-        Term_putstr(14, 9, -1, TERM_WHITE,
+        Term_putstr(14, y + 9, -1, TERM_WHITE,
             "In the pits beneath the mountains");
-        Term_putstr(14, 10, -1, TERM_WHITE,
+        Term_putstr(14, y + 10, -1, TERM_WHITE,
             "Morgoth broods upon his throne.");
-        Term_putstr(14, 11, -1, TERM_WHITE,
+        Term_putstr(14, y + 11, -1, TERM_WHITE,
             "Three jewels burn upon his crown --");
-        Term_putstr(14, 12, -1, TERM_WHITE,
+        Term_putstr(14, y + 12, -1, TERM_WHITE,
             "stolen light that is not his own.");
 
-        Term_putstr(14, 14, -1, TERM_YELLOW,
+        Term_putstr(14, y + 14, -1, TERM_YELLOW,
             "Take up blade and burden. Descend.");
-        Term_putstr(14, 15, -1, TERM_YELLOW,
+        Term_putstr(14, y + 15, -1, TERM_YELLOW,
             "Oaths, quests, blessings of the Valar");
-        Term_putstr(14, 16, -1, TERM_YELLOW,
+        Term_putstr(14, y + 16, -1, TERM_YELLOW,
             "await in the First Age reborn.");
         break;
 
     /* ===== Variant 2  "Twilight of Valinor" (quote at end) ============= */
     case 2:
-        Term_putstr(22, 1, -1, TERM_WHITE,
+        Term_putstr(22, y + 1, -1, TERM_WHITE,
             "S I L - M O R E");
-        Term_putstr(20, 2, -1, TERM_L_BLUE,
+        Term_putstr(20, y + 2, -1, TERM_L_BLUE,
             "~ Shining  Darkness ~");
 
-        Term_putstr(14, 4, -1, TERM_WHITE,
+        Term_putstr(14, y + 4, -1, TERM_WHITE,
             "Before the Sun and Moon were wrought");
-        Term_putstr(14, 5, -1, TERM_WHITE,
+        Term_putstr(14, y + 5, -1, TERM_WHITE,
             "the Eldar walked by starlight alone.");
-        Term_putstr(14, 6, -1, TERM_WHITE,
+        Term_putstr(14, y + 6, -1, TERM_WHITE,
             "Now shadow stirs beneath the earth");
-        Term_putstr(14, 7, -1, TERM_WHITE,
+        Term_putstr(14, y + 7, -1, TERM_WHITE,
             "where Morgoth sits upon his throne.");
 
-        Term_putstr(14, 9, -1, TERM_WHITE,
+        Term_putstr(14, y + 9, -1, TERM_WHITE,
             "Three jewels blaze upon his crown --");
-        Term_putstr(14, 10, -1, TERM_WHITE,
+        Term_putstr(14, y + 10, -1, TERM_WHITE,
             "stolen fire none may reclaim...");
-        Term_putstr(14, 11, -1, TERM_WHITE,
+        Term_putstr(14, y + 11, -1, TERM_WHITE,
             "unless one dares the iron dark");
-        Term_putstr(14, 12, -1, TERM_WHITE,
+        Term_putstr(14, y + 12, -1, TERM_WHITE,
             "and walks through everlasting flame.");
 
-        Term_putstr(14, 14, -1, TERM_L_BLUE,
+        Term_putstr(14, y + 14, -1, TERM_L_BLUE,
             "\"...and the light that blazed in them");
-        Term_putstr(14, 15, -1, TERM_L_BLUE,
+        Term_putstr(14, y + 15, -1, TERM_L_BLUE,
             "  no power could dim or mar.\"");
-        Term_putstr(34, 16, -1, TERM_SLATE,
+        Term_putstr(34, y + 16, -1, TERM_SLATE,
             "-- Of the Silmarils");
         break;
 
     /* ===== Variant 3  "Song of Luthien" ================================ */
     case 3:
-        Term_putstr(14, 1, -1, TERM_L_BLUE,
+        Term_putstr(14, y + 1, -1, TERM_L_BLUE,
             "\"The leaves were long, the grass was green,");
-        Term_putstr(14, 2, -1, TERM_L_BLUE,
+        Term_putstr(14, y + 2, -1, TERM_L_BLUE,
             "  the hemlock-umbels tall and fair,");
-        Term_putstr(14, 3, -1, TERM_L_BLUE,
+        Term_putstr(14, y + 3, -1, TERM_L_BLUE,
             "  and in the glade a light was seen");
-        Term_putstr(14, 4, -1, TERM_L_BLUE,
+        Term_putstr(14, y + 4, -1, TERM_L_BLUE,
             "  of stars in shadow shimmering.\"");
-        Term_putstr(28, 5, -1, TERM_SLATE,
+        Term_putstr(28, y + 5, -1, TERM_SLATE,
             "-- Of Beren and Luthien");
 
-        Term_putstr(22, 7, -1, TERM_WHITE,
+        Term_putstr(22, y + 7, -1, TERM_WHITE,
             "S I L - M O R E");
-        Term_putstr(20, 8, -1, TERM_L_BLUE,
+        Term_putstr(20, y + 8, -1, TERM_L_BLUE,
             "~ Shining  Darkness ~");
 
-        Term_putstr(14, 10, -1, TERM_WHITE,
+        Term_putstr(14, y + 10, -1, TERM_WHITE,
             "Even in the deepest dark, a song");
-        Term_putstr(14, 11, -1, TERM_WHITE,
+        Term_putstr(14, y + 11, -1, TERM_WHITE,
             "may still undo the mightiest door.");
-        Term_putstr(14, 12, -1, TERM_WHITE,
+        Term_putstr(14, y + 12, -1, TERM_WHITE,
             "Dare the throne-hall of the Enemy");
-        Term_putstr(14, 13, -1, TERM_WHITE,
+        Term_putstr(14, y + 13, -1, TERM_WHITE,
             "and seize what Morgoth stole of old.");
 
-        Term_putstr(14, 15, -1, TERM_YELLOW,
+        Term_putstr(14, y + 15, -1, TERM_YELLOW,
             "Oaths, quests, blessings of the Valar");
-        Term_putstr(14, 16, -1, TERM_YELLOW,
+        Term_putstr(14, y + 16, -1, TERM_YELLOW,
             "await in the First Age reborn.");
         break;
 
     /* ===== Variant 4  "Words of Hurin" ================================= */
     case 4:
-        Term_putstr(14, 1, -1, TERM_L_BLUE,
+        Term_putstr(14, y + 1, -1, TERM_L_BLUE,
             "\"The day shall come again when you");
-        Term_putstr(14, 2, -1, TERM_L_BLUE,
+        Term_putstr(14, y + 2, -1, TERM_L_BLUE,
             "  shall see the Sun once more.\"");
-        Term_putstr(34, 3, -1, TERM_SLATE,
+        Term_putstr(34, y + 3, -1, TERM_SLATE,
             "-- Words of Hurin");
 
-        Term_putstr(22, 5, -1, TERM_WHITE,
+        Term_putstr(22, y + 5, -1, TERM_WHITE,
             "S I L - M O R E");
-        Term_putstr(20, 6, -1, TERM_L_BLUE,
+        Term_putstr(20, y + 6, -1, TERM_L_BLUE,
             "~ Shining  Darkness ~");
 
-        Term_putstr(14, 8, -1, TERM_WHITE,
+        Term_putstr(14, y + 8, -1, TERM_WHITE,
             "No chain can hold a will unbroken.");
-        Term_putstr(14, 9, -1, TERM_WHITE,
+        Term_putstr(14, y + 9, -1, TERM_WHITE,
             "Though Morgoth's shadow covers all,");
-        Term_putstr(14, 10, -1, TERM_WHITE,
+        Term_putstr(14, y + 10, -1, TERM_WHITE,
             "the free may still defy the dark");
-        Term_putstr(14, 11, -1, TERM_WHITE,
+        Term_putstr(14, y + 11, -1, TERM_WHITE,
             "and wrest a jewel from his crown.");
 
-        Term_putstr(14, 13, -1, TERM_YELLOW,
+        Term_putstr(14, y + 13, -1, TERM_YELLOW,
             "Take up blade and burden. Descend.");
-        Term_putstr(14, 14, -1, TERM_YELLOW,
+        Term_putstr(14, y + 14, -1, TERM_YELLOW,
             "Oaths, quests, blessings of the Valar");
-        Term_putstr(14, 15, -1, TERM_YELLOW,
+        Term_putstr(14, y + 15, -1, TERM_YELLOW,
             "await in the First Age reborn.");
 
-        Term_putstr(14, 16, -1, TERM_L_BLUE,
+        Term_putstr(14, y + 16, -1, TERM_L_BLUE,
             "\"Aure entuluva!\"");
         break;
     }
@@ -2975,7 +2986,15 @@ extern NavResult initial_menu(bool *start_new)
     bool intro_story_font = true;
     sdl_story_font_enable();
 
-    display_introduction();
+    int wid, hgt;
+    Term_get_size(&wid, &hgt);
+    (void)wid;
+
+    /* Build the welcome screen as a single layout block.
+     * Default keeps the legacy top margin (intro starts at row 1).
+     * If the terminal is too short for that, start at row 0. */
+    int intro_first_row = (hgt < 21) ? 0 : 1;
+    display_introduction_at_row(intro_first_row);
 
     /*
      * Welcome screen (minimum height support)
@@ -2991,11 +3010,8 @@ extern NavResult initial_menu(bool *start_new)
      * Other text remains unchanged (no rewording/compacting).
      */
     {
-        int wid, hgt;
-        Term_get_size(&wid, &hgt);
-
         const int x = 14;
-        const int base_row = 17; /* first row below the intro variants */
+        const int base_row = intro_first_row + 16; /* first row below the intro variants */
 
         const char *wizard_line =
             arg_wizard
@@ -3010,12 +3026,11 @@ extern NavResult initial_menu(bool *start_new)
 
         /* Build the line list in order. */
         const char *lines[4];
-        byte attrs[4];
         int n = 0;
-        lines[n] = wizard_line; attrs[n] = TERM_BLUE;   n++;
-        lines[n] = sep_line;    attrs[n] = TERM_L_DARK; n++;
-        lines[n] = "";          attrs[n] = TERM_SLATE;  n++; /* empty line between ---- and prompt */
-        lines[n] = menu_line;   attrs[n] = TERM_SLATE;  n++;
+        lines[n++] = wizard_line;
+        lines[n++] = sep_line;
+        lines[n++] = ""; /* empty line between ---- and prompt */
+        lines[n++] = menu_line;
 
         /* Decide which optional lines to drop based on available rows. */
         int available = hgt - base_row;

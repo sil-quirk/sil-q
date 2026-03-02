@@ -943,6 +943,25 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
     {
         hgt = Term->hgt - TABLE_ROW - 1;
 
+        /*
+         * If we're going to use a tighter, compact traits layout on very short
+         * screens, reserve one extra line above DESCRIPTION_ROW.
+         *
+         * This avoids the menu list occupying the same row we may use for
+         * compact trait output.
+         */
+        if (allow_full_description_screen)
+        {
+            bool compact_flags = character_flags_need_compact_layout();
+            bool very_short = (Term->hgt > 0) && (Term->hgt <= 20);
+            if (compact_flags && very_short)
+            {
+                int max_hgt = (DESCRIPTION_ROW - 2) - TABLE_ROW;
+                if (max_hgt < 0) max_hgt = 0;
+                if (hgt > max_hgt) hgt = max_hgt;
+            }
+        }
+
         /* Redraw the list */
         for (i = 0; ((i + top < num) && (i <= hgt)); i++)
         {
@@ -976,8 +995,18 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
             Term_putstr(col, i + TABLE_ROW, wid, attr, name_part);
         }
 
-        for (i = DESCRIPTION_ROW; i < Term->hgt; i++)
-            Term_erase(0, i, 255);
+        {
+            int clear_from_row = DESCRIPTION_ROW;
+            if (allow_full_description_screen)
+            {
+                bool compact_flags = character_flags_need_compact_layout();
+                bool very_short = (Term->hgt > 0) && (Term->hgt <= 20);
+                if (compact_flags && very_short)
+                    clear_from_row = DESCRIPTION_ROW - 1;
+            }
+            for (i = clear_from_row; i < Term->hgt; i++)
+                Term_erase(0, i, 255);
+        }
 
         compact_flags = (allow_full_description_screen && character_flags_need_compact_layout());
         show_description = (!compact_flags);
@@ -1388,12 +1417,11 @@ static void print_rh_flags(int race, int character, int col, int row)
     if (compact_layout)
     {
         int compact_row = DESCRIPTION_ROW;
-        int compact_available = Term->hgt - compact_row - 1;
         int compact_col = 2;
-        int data_rows;
         int col_gap = 2;
         int col_wid;
         bool use_two_columns = false;
+        int right_offset = 0; /* 0=normal, -1=right column starts on title row, -2=one row above */
         char line_buf[64];
 
         typedef struct {
@@ -1430,49 +1458,130 @@ static void print_rh_flags(int race, int character, int col, int row)
         for (int i = 0; i < penalty_n; ++i)
             APPEND_COMPACT_LINE(penalty_buf[i].txt, penalty_buf[i].col);
 
-        if (compact_available > 0)
-            Term_putstr(compact_col, compact_row, -1, TERM_L_BLUE, "Character traits:");
-
-        data_rows = compact_available - 1;
-
         col_wid = (Term->wid - compact_col - col_gap) / 2;
+        if (col_wid < 1)
+            col_wid = 1;
+
+        /* Default: only use two columns if everything fits without truncation. */
         if (col_wid >= max_line_len)
             use_two_columns = true;
 
-        if (data_rows > 0)
+        /*
+         * For short screens (<24 rows), try to guarantee at least 10 visible
+         * traits (or all traits if fewer than 10), but only apply compaction
+         * techniques if they are needed.
+         */
         {
+            const bool short_screen = (Term->hgt > 0) && (Term->hgt < 24);
+            const int target_traits = (compact_line_n < 10) ? compact_line_n : 10;
+            const int min_col_wid_for_forced_two_cols = 14;
+
+#define MAX0(v) ((v) > 0 ? (v) : 0)
+#define CAPACITY_ONE(_row) (MAX0(Term->hgt - ((_row) + 1) - 1))
+#define CAPACITY_TWO(_row, _roff) \
+    (MAX0(Term->hgt - ((_row) + 1) - 1) + MAX0(Term->hgt - ((_row) + 1 + (_roff)) - 1))
+
+            /* Helper: compute how many traits can be shown with given settings. */
+#define TRAIT_CAPACITY(_row, _pack_title, _two_cols) \
+    (((Term->hgt - (_row) - 1) <= 0) ? 0 : \
+      (((_pack_title) ? (Term->hgt - (_row) - 1) : (Term->hgt - (_row) - 2)) <= 0 ? 0 : \
+        (((_pack_title) ? (Term->hgt - (_row) - 1) : (Term->hgt - (_row) - 2)) * ((_two_cols) ? 2 : 1))))
+
+            int base_capacity = use_two_columns ? CAPACITY_TWO(compact_row, right_offset)
+                                               : CAPACITY_ONE(compact_row);
+
+            if (short_screen && (base_capacity < target_traits))
+            {
+                /* Step 1: move the "Character traits" title up by 1 row if needed. */
+                if (compact_row > 0)
+                    compact_row = DESCRIPTION_ROW - 1;
+
+                base_capacity = use_two_columns ? CAPACITY_TWO(compact_row, right_offset)
+                                               : CAPACITY_ONE(compact_row);
+
+                /* Step 2: if needed, allow two columns (may truncate) to reach the target. */
+                if ((base_capacity < target_traits) && !use_two_columns
+                    && (col_wid >= min_col_wid_for_forced_two_cols))
+                {
+                    use_two_columns = true;
+                    base_capacity = CAPACITY_TWO(compact_row, right_offset);
+                }
+
+                /* Step 3: start the *second* column on the title row. */
+                if ((base_capacity < target_traits) && use_two_columns)
+                {
+                    right_offset = -1;
+                    base_capacity = CAPACITY_TWO(compact_row, right_offset);
+                }
+
+                /* Step 4 (last resort): start the second column one row above the title. */
+                if ((base_capacity < target_traits) && use_two_columns && (compact_row > 0))
+                {
+                    right_offset = -2;
+                    base_capacity = CAPACITY_TWO(compact_row, right_offset);
+                }
+            }
+
+#undef CAPACITY_TWO
+#undef CAPACITY_ONE
+#undef MAX0
+        }
+
+        {
+            int compact_available = Term->hgt - compact_row - 1;
+
+            if ((compact_available > 0) && (Term->hgt > 0))
+                Term_putstr(compact_col, compact_row, -1, TERM_L_BLUE, "Character traits:");
+
             if (use_two_columns)
             {
                 int col2 = compact_col + col_wid + col_gap;
-                int max_lines = data_rows * 2;
+                int left_start = compact_row + 1;
+                int right_start = compact_row + 1 + right_offset;
+
+                int left_rows = Term->hgt - left_start - 1;
+                int right_rows = Term->hgt - right_start - 1;
+                if (left_rows < 0) left_rows = 0;
+                if (right_rows < 0) right_rows = 0;
+
+                int max_lines = left_rows + right_rows;
                 int draw_lines = (compact_line_n < max_lines) ? compact_line_n : max_lines;
+
                 int left_count = (draw_lines + 1) / 2;
+                if (left_count > left_rows) left_count = left_rows;
                 int right_count = draw_lines - left_count;
+                if (right_count > right_rows) right_count = right_rows;
+                if (left_count > left_rows) left_count = left_rows;
+                if (left_count > (draw_lines - right_count)) left_count = draw_lines - right_count;
+                draw_lines = left_count + right_count;
 
                 for (int i = 0; i < left_count; ++i)
                 {
+                    int y = left_start + i;
                     strnfmt(line_buf, sizeof(line_buf), "%-*.*s", col_wid, col_wid,
                         compact_lines[i].txt);
-                    Term_putstr(compact_col, compact_row + 1 + i, -1,
-                        compact_lines[i].attr, line_buf);
+                    Term_putstr(compact_col, y, -1, compact_lines[i].attr, line_buf);
                 }
 
                 for (int i = 0; i < right_count; ++i)
                 {
                     int idx = left_count + i;
+                    int y = right_start + i;
                     strnfmt(line_buf, sizeof(line_buf), "%-*.*s", col_wid, col_wid,
                         compact_lines[idx].txt);
-                    Term_putstr(col2, compact_row + 1 + i, -1,
-                        compact_lines[idx].attr, line_buf);
+                    Term_putstr(col2, y, -1, compact_lines[idx].attr, line_buf);
                 }
             }
             else
             {
-                int draw_lines = (compact_line_n < data_rows) ? compact_line_n : data_rows;
+                int start_row = compact_row + 1;
+                int rows = Term->hgt - start_row - 1;
+                if (rows < 0) rows = 0;
 
+                int draw_lines = (compact_line_n < rows) ? compact_line_n : rows;
                 for (int i = 0; i < draw_lines; ++i)
                 {
-                    Term_putstr(compact_col, compact_row + 1 + i, -1,
+                    Term_putstr(compact_col, start_row + i, -1,
                         compact_lines[i].attr, compact_lines[i].txt);
                 }
             }

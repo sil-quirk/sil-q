@@ -11,6 +11,17 @@
 - Help navigation prompt and `x` page-jump now use runtime total pages; page-jump accepts typed numeric input via `askfor_aux()` (works when page count exceeds 9).
 - Validation: `cmake --build build-standard --parallel` completed successfully.
 
+## 2026-03-02: Character selection traits on short terminals
+- Made compact trait rendering in `src/birth.c` height-aware so terminals with height `<24` can show at least 10 visible traits during character selection when available.
+- Compaction is applied only when needed: pack the first trait line onto the `"Character traits:"` row, allow the second column to start on that same row, and (only as a last resort on very short screens) shift the block up one row.
+- For very short screens (`<=20` rows) in compact-flags mode, the menu list reserves one extra row above `DESCRIPTION_ROW` to avoid overlap with the shifted trait block.
+- Validation: `Build and Deploy` task completed successfully.
+
+## 2026-03-02: Welcome screen unified origin + row-0 fallback
+- Welcome screen intro text and the menu/prompt block now share a single computed top-row origin in `src/init2.c` (intro + footer move together).
+- When the terminal height is too small for the legacy layout (e.g. 20 rows), the whole block starts at row 0 instead of row 1.
+- Validation: `Build and Deploy` task completed successfully.
+
 ## 2026-03-02: Dynamic character sheet for narrow and wide screens
 - Reworked compact character sheet paging for narrow terminals in `src/cmd4.c`: when width is below 80, character sheet now uses 4 pages (`overview`, `stats`, `skills`, `history`) and supports page switching via `4/6` (or equivalent D-pad keys). Default compact page is `skills`.
 - Updated character sheet prompt row to use dynamic terminal height instead of hard-coded row 23, with a compact prompt variant + page name/indicator for small widths.
