@@ -787,6 +787,34 @@ static s16b chest_check(int y, int x)
     return (0);
 }
 
+typedef enum
+{
+    CHEST_ALIGNMENT_STANDARD = 0,
+    CHEST_ALIGNMENT_NOBLE = 1,
+    CHEST_ALIGNMENT_EVIL = 2,
+    CHEST_ALIGNMENT_INVALID = 3
+} chest_alignment_type;
+
+static chest_alignment_type chest_item_alignment(const object_type* o_ptr)
+{
+    u32b f1, f2, f3, f4;
+    bool noble;
+    bool evil;
+
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
+    noble = (f4 & TR4_NOBLE_ITEM) != 0;
+    evil = (f4 & TR4_EVIL_ITEM) != 0;
+
+    if (noble && evil)
+        return CHEST_ALIGNMENT_INVALID;
+    if (noble)
+        return CHEST_ALIGNMENT_NOBLE;
+    if (evil)
+        return CHEST_ALIGNMENT_EVIL;
+
+    return CHEST_ALIGNMENT_STANDARD;
+}
+
 /*
  * Allocate objects upon opening a chest
  *
@@ -797,6 +825,7 @@ static void chest_death(int y, int x, s16b o_idx)
 {
     int number;
     bool generated_an_item = false;
+    chest_alignment_type chest_alignment = CHEST_ALIGNMENT_STANDARD;
 
     object_type* o_ptr;
 
@@ -858,19 +887,43 @@ static void chest_death(int y, int x, s16b o_idx)
     /* Drop some objects (non-chests) */
     for (; number > 0; --number)
     {
-        /* Get local object */
-        i_ptr = &object_type_body;
+        bool accepted = false;
 
-        /* Wipe the object */
-        object_wipe(i_ptr);
-
-        bool ok = drop_generate_object_profiled_depths(gen_depth, penalty_depth,
-            chest_quality, DROP_TYPE_UNTHEMED, 0, true, &part_profile, i_ptr);
-
-        if (ok)
+        for (int attempt = 0; attempt < 64 && !accepted; attempt++)
         {
+            /* Get local object */
+            i_ptr = &object_type_body;
+
+            /* Wipe the object */
+            object_wipe(i_ptr);
+
+            bool ok = drop_generate_object_profiled_depths(gen_depth, penalty_depth,
+                chest_quality, DROP_TYPE_UNTHEMED, 0, true, &part_profile, i_ptr);
+
+            if (!ok)
+                continue;
+
+            chest_alignment_type item_alignment = chest_item_alignment(i_ptr);
+
+            if (item_alignment == CHEST_ALIGNMENT_INVALID)
+                continue;
+
+            if (item_alignment == CHEST_ALIGNMENT_NOBLE
+                || item_alignment == CHEST_ALIGNMENT_EVIL)
+            {
+                if (chest_alignment == CHEST_ALIGNMENT_STANDARD)
+                {
+                    chest_alignment = item_alignment;
+                }
+                else if (chest_alignment != item_alignment)
+                {
+                    continue;
+                }
+            }
+
             generated_an_item = true;
             drop_near(i_ptr, -1, y, x);
+            accepted = true;
         }
     }
 

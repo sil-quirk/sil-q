@@ -42,7 +42,7 @@
 #     are separated by the '|' symbol.
 #
 # 'T' is for possible 'tval' and 'sval' values of the base-item.
-#     Up to four 'T' entries are possible for a single object. The
+#     Up to eight 'T' entries are possible for a single object. The
 #     special item can only be generated from items of this tval, with sval
 #     in the specified range.
 #
@@ -214,7 +214,7 @@ F:LIGHT | SUST_GRA | SUST_DEX | SONG | NOBLE_ITEM
 
 
 # Includes arrows
-# Shortswords, longswords, bastard swords
+# Shortswords, longswords, bastard swords, greatswords
 # Spears, great spears, glaives, mithril swords
 
 N:21:of Gondolin
@@ -222,6 +222,7 @@ W:0:60:10:1000
 C:0:0:0:0:0:0:0
 T:22:1:4
 T:23:10:21
+T:23:25:25
 T:17:0:99
 T:23:28:30
 A:1/60:10/0
@@ -229,7 +230,7 @@ F:SLAY_ORC | SLAY_TROLL | NOBLE_ITEM
 
 # Includes arrows
 # Axes - Marchwardens of Doriath used them!
-# Shortswords, longswords, bastard swords, mithril swords
+# Shortswords, longswords, bastard swords, greatswords, mithril swords
 # Spears, great spears, glaives
 
 N:22:of Doriath
@@ -237,11 +238,12 @@ W:2:60:0:2000
 C:0:0:0:0:0:0:0
 T:22:0:99
 T:23:10:21
+T:23:25:25
 T:23:28:30
 T:17:0:99
 F:SLAY_SPIDER | SLAY_WOLF | NOBLE_ITEM
 
-# Shortswords, longswords, bastard swords
+# Shortswords, longswords, bastard swords, greatswords
 # Spears, great spears, glaives, mithril swords
 
 N:23:of Nargothrond
@@ -249,6 +251,7 @@ W:9:40:0:2000
 C:0:0:0:0:0:0:0
 T:22:1:4
 T:23:10:21
+T:23:25:25
 T:23:28:30
 F:SLAY_RAUKO | SLAY_DRAGON | NOBLE_ITEM
 
@@ -314,15 +317,16 @@ T:23:10:99
 F:GRA | DEX | DANGER | NOBLE_ITEM
 
 
-# Daggers and curved swords only
+# Daggers, curved swords, and short swords only
 # (ability 3/1 is Assassination)
 
 N:34:of Murder
 W:0:40:4:2000
 C:0:0:0:0:0:0:3
 T:23:4:7
+T:23:10:10
 B:3/1
-F:STEALTH
+F:STEALTH | EVIL_ITEM
 
 
 # Daggers only
@@ -402,7 +406,7 @@ C:0:0:0:0:0:0:0
 T:23:7:7
 T:23:25:25
 T:22:12:13
-F:BRAND_FIRE | CUMBERSOME
+F:BRAND_FIRE | CUMBERSOME | EVIL_ITEM
 
 
 # Warhammers, curved swords, greatswords, axes
@@ -414,41 +418,45 @@ T:21:8:8
 T:23:7:7
 T:23:25:25
 T:22:11:99
-F:CON | CUMBERSOME
+F:CON | CUMBERSOME | EVIL_ITEM
 
 
-# Curved swords, greatswords, hand axes, battle axes, greataxes, glaives
+# Curved swords, short swords, greatswords, spears, hand axes, battle axes, greataxes, glaives
 
 N:45:of Black Iron
 W:0:90:0:1000
 C:0:0:1:0:0:0:0
 T:23:7:7
+T:23:10:10
 T:23:25:25
+T:22:1:1
 T:22:4:4
 T:22:11:13
-F:SLAY_MAN_OR_ELF | AGGRAVATE
+F:SLAY_MAN_OR_ELF | AGGRAVATE | EVIL_ITEM
 
 
-# Daggers and hand axes only
+# Daggers, curved swords, short swords, hand axes, and glaives
 
 N:46:(Poisoned)
 W:0:60:0:2000
 C:0:0:0:0:0:0:0
 T:23:4:4
+T:23:10:10
 T:22:11:11
 T:23:7:7
-F:BRAND_POIS
+T:22:4:4
+F:BRAND_POIS | EVIL_ITEM
 
 
-# All axes, spears, glaives, swords apart from curved blades, daggers
+# Daggers, shortswords, and hand axes only
 
 N:47:(Balanced)
 W:14:30:0:1000
 C:0:0:0:0:0:0:0
-T:22:1:99
 T:23:4:4
-T:23:10:99
-F:ACCURATE
+T:23:10:10
+T:22:11:11
+F:ACCURATE | NOBLE_ITEM
 
 
 # Non-curved swords and glaives
@@ -457,20 +465,17 @@ N:48:(Defender)
 W:0:80:0:1000
 C:0:0:0:1:0:0:0
 T:22:4:4
-T:23:10:99
-F:IGNORE_ALL
-
-
-# Glaives, great axes, curved swords, bastard swords
+ T:23:11:99
 
 N:49:(Vampiric)
 W:4:60:0:3000
 C:0:0:0:0:0:0:0
-T:22:4:4
+T:22:1:2
 T:22:13:13
+T:23:4:4
 T:23:7:7
-T:23:21:21
-F:VAMPIRIC | HUNGER | LIGHT_CURSE
+T:23:25:25
+F:VAMPIRIC | HUNGER | LIGHT_CURSE | EVIL_ITEM
 
 
 ###
@@ -499,7 +504,7 @@ F:STR | NOBLE_ITEM
 
 
 N:71:(Brilliant)
-W:0:50:0:1000
+W:0:60:0:1000
 C:0:0:0:0:0:0:0
 T:32:0:99
 F:LIGHT | NOBLE_ITEM
@@ -532,7 +537,7 @@ F:RES_CONFU | RES_STUN | RES_HALLU
 # mithril helms and lesser jewels
 
 N:75:of Grace
-W:0:20:0:3000
+W:0:25:0:3000
 C:0:0:0:0:0:0:1
 T:32:8:8
 T:39:2:2
@@ -541,10 +546,10 @@ F:GRA | NOBLE_ITEM
 ###
 
 N:80:of Terror
-W:0:100:0:3000
+W:0:60:0:3000
 C:0:0:0:0:0:0:0
 T:32:0:7
-F:FEAR | DIF_ID
+F:FEAR | DIF_ID | EVIL_ITEM
 
 
 # a helm that lowers perception?
@@ -583,7 +588,7 @@ W:0:100:0:0
 C:0:0:0:0:0:0:0
 T:35:0:99
 A:1/75:10/50:15/33
-F:VUL_COLD | DIF_ID | LIGHT_CURSE
+F:VUL_COLD | DIF_ID | LIGHT_CURSE | EVIL_ITEM
 
 
 N:87:of the Scarlet Heart
@@ -616,14 +621,14 @@ N:92:of Lammoth
 W:4:50:0:1000
 C:0:0:0:0:0:0:0
 T:19:12:12
-F:RES_POIS | DANGER | AGGRAVATE | DIF_ID
+F:RES_POIS | DANGER | AGGRAVATE | DIF_ID | EVIL_ITEM
 
 
 N:93:(Radiant)
 W:6:33:0:1000
 C:0:0:0:0:0:0:0
 T:19:0:99
-F:RADIANCE
+F:RADIANCE | NOBLE_ITEM
 
 
 N:94:of the Marchwardens
@@ -654,7 +659,7 @@ N:101:(Poisoned)
 W:6:30:0:100
 C:0:0:0:0:0:0:0
 T:17:0:99
-F:BRAND_POIS
+F:BRAND_POIS | EVIL_ITEM
 
 
 N:102:(Piercing)
@@ -724,7 +729,7 @@ W:5:50:18:0
 C:0:0:0:0:0:0:0
 T:30:0:2
 A:5/100:10/50:15/20
-F:DANGER | LIGHT_CURSE
+F:DANGER | LIGHT_CURSE | EVIL_ITEM
 
 
 
@@ -782,7 +787,7 @@ N:126:of Treachery
 W:4:50:13:0
 C:0:0:0:0:0:0:1
 T:31:0:2
-F:STR | LIGHT_CURSE
+F:STR | LIGHT_CURSE | EVIL_ITEM
 B:3/4
 
 
@@ -811,36 +816,44 @@ W:0:100:11:0
 A:5/100:10/0
 C:0:0:0:0:0:0:0
 T:39:1:1
-F:UNLIGHT | LIGHT_CURSE
+F:UNLIGHT | LIGHT_CURSE | EVIL_ITEM
 
 
 
 ##### Additional Weapon Prefixes #####
 
 
-# Curved swords, hand axes, bastard sword, great axe
+# Curved swords, bastard sword, great axe, glaive
 # Crude, brutal weapons with jagged edges (orcish/crude weapons)
 
 N:140:(Jagged)
 W:8:50:0:500
 C:0:0:1:0:0:0:0
 T:23:7:7
-T:22:11:11
+T:22:12:12
 T:23:21:21
 T:22:13:13
+T:22:4:4
+F:EVIL_ITEM
 
 
-# Daggers, shortswords, longswords, spears, battle axe
-# Light, well-balanced blades for quick strikes (elven/refined weapons)
+# Daggers, shortswords, longswords, bastard swords, mithril/Elven blades, star-iron greatswords,
+# spears, hand axes, battle axes
 
 N:141:(Nimble)
 W:8:50:0:2000
 C:1:0:0:0:0:0:0
 T:23:4:4
 T:23:10:17
-T:22:1:2
+T:23:21:21
+T:23:28:28
+T:23:30:30
+T:22:1:1
+T:22:2:2
+T:22:11:11
 T:22:12:12
 F:NOBLE_ITEM
+
 
 
 ##### Amulet Prefixes #####
@@ -898,12 +911,15 @@ F:SONG | SUST_GRA | NOBLE_ITEM
 ##### Weapon Prefixes #####
 
 
-# Warhammers only
+# Warhammers and heavy axes (hand, battle, great)
 
 N:146:(Weighted)
 W:8:40:0:1500
 C:-2:0:1:0:0:0:0
 T:21:8:8
+T:22:11:11
+T:22:12:12
+T:22:13:13
 
 
 # Quarterstaves only
@@ -932,6 +948,7 @@ N:149:of the Gaurwaith
 W:4:75:0:1500
 C:0:0:0:0:0:0:0
 T:23:4:4
+T:22:1:1
 T:22:11:11
 B:0/3
 

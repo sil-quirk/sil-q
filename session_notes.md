@@ -1,5 +1,47 @@
 # Session notes
 
+## 2026-03-03: Platform-specific auto pane minimums
+- Updated auto right/bottom pane fit checks in `src/main-sdl.c` (`resize()`): Android keeps compact minimum `50x20`, while non-Android now uses standard minimum `80x24`.
+- Scope is limited to automatic pane on/off decisions when main view would be too small after pane splits.
+- Validation: `cmake --build build-standard --parallel` completed successfully.
+
+## 2026-03-03: Weapon ego applicability tweaks
+- Updated weapon ego targeting rules in `lib/edit/special.txt` (which weapon kinds can roll which egos).
+
+| Request | Result | Where |
+|---|---|---|
+| Remove `Nimble` from Great Spear | Done (Nimble now only targets Spear, not Great Spear) | `N:141:(Nimble)` |
+| Add `Nimble` to Hand Axe | Done | `N:141:(Nimble)` |
+| Add `Balanced` to Battle Axe + Great Axe | Already true (Balanced targets all `tval 22` weapons) | `N:47:(Balanced)` |
+| Remove `Poisoned` from Battle Axe + Great Axe | Already true (Poisoned never targeted them) | `N:46:(Poisoned)` |
+| Add `Vampiric` to Greatsword | Done | `N:49:(Vampiric)` |
+| Add `Nimble` to Battle Axe | Already true | `N:141:(Nimble)` |
+| Remove `Balanced` from Elven Mithril Sword | Done (Balanced range now skips `sval 28`) | `N:47:(Balanced)` |
+| Add `Poisoned` to Spear | Done | `N:46:(Poisoned)` |
+| Remove `Nimble` from Greatsword | Done | `N:141:(Nimble)` |
+| Add `Vampiric` to Great Spear | Done | `N:49:(Vampiric)` |
+| Add `Jagged` to Battle Axe | Done | `N:140:(Jagged)` |
+| Add `Vampiric` to Daggers | Done | `N:49:(Vampiric)` |
+| Remove `Vampiric` from Bastard Sword | Done | `N:49:(Vampiric)` |
+| Remove `Defender` from Shortsword | Done | `N:48:(Defender)` |
+| Add Spear to 'of the Gaurwaith' prefix | Done | `N:149:of the Gaurwaith` |
+| Remove `Jagged` from Hand Axe | Done | `N:140:(Jagged)` |
+| Extend `Weighted` to Hand/Battle/Great axes | Done | `N:146:(Weighted)` |
+| Remove `Jagged` from Hand Axe | Done | `N:140:(Jagged)` |
+| Extend `Weighted` to Hand/Battle/Great axes | Done | `N:146:(Weighted)` |
+| Add `Nimble` to Great Spear | Done | `N:141:(Nimble)` |
+| Remove `Vampiric` from Glaive | Done | `N:49:(Vampiric)` |
+
+### Latest pass (current rules)
+
+| Request | Result | Where |
+|---|---|---|
+| Remove `Balanced` from all except Dagger, Shortsword, Hand Axe | Done | `N:47:(Balanced)` |
+| Add `Vampiric` to Spear and Great Spear | Done | `N:49:(Vampiric)` |
+| Remove `Vampiric` from Glaive | Done | `N:49:(Vampiric)` |
+| Add `Poisoned` to Glaive | Done | `N:46:(Poisoned)` |
+| Remove `Poisoned` from Spear | Done | `N:46:(Poisoned)` |
+
 ## 2026-03-02: Help menu adaptive pagination for small/large terminals
 - Updated `src/files.c` help flow to preserve the existing handcrafted 8-page layout exactly at `80x24`, while using a dynamic text-topic paginator on other terminal sizes.
 - For non-`80x24`, help now paginates the *existing handcrafted help renderer* by recording its draw operations into a single document and slicing it by terminal height.

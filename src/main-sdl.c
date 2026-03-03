@@ -1350,8 +1350,8 @@ void resize(const SDL_Rect* screen)
         int min_main_cols = ANDROID_MAIN_TERM_MIN_COLS;
         int min_main_rows = ANDROID_MAIN_TERM_MIN_ROWS;
 #else
-    int min_main_cols = 50;
-    int min_main_rows = 20;
+    int min_main_cols = 80;
+    int min_main_rows = 24;
 #endif
         log_debug("Cell dimensions: %dx%d (scale=%d, TILE_SIZE=%d)", cell_w, cell_h, config.main_view_scale, TILE_SIZE);
         // panes are already in window coordinate space, no need to multiply by system_scale

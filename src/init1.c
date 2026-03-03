@@ -328,6 +328,7 @@ static flag_name info_flags[] = {
     { "BREAKS_PERMA_CURSE", TR4, TR4_BREAKS_PERMA_CURSE },
     { "LESS_SPECIAL", TR4, TR4_LESS_SPECIAL },
     { "NOBLE_ITEM",   TR4, TR4_NOBLE_ITEM },
+    { "EVIL_ITEM",    TR4, TR4_EVIL_ITEM },
 
     /*
      * Race/Character flags
@@ -3985,7 +3986,7 @@ errr parse_e_info(char* buf, header* head)
         }
     }
 
-    /* Process 'T' for "Types allowed" (up to three lines) */
+    /* Process 'T' for "Types allowed" (up to EGO_TVALS_MAX lines) */
     else if (buf[0] == 'T')
     {
         int tval, sval1, sval2;
@@ -3998,6 +3999,10 @@ errr parse_e_info(char* buf, header* head)
         if (3 != sscanf(buf + 2, "%d:%d:%d", &tval, &sval1, &sval2))
             return (PARSE_ERROR_GENERIC);
 
+        /* Allow only a limited number of T: lines */
+        if (cur_t >= EGO_TVALS_MAX)
+            return (PARSE_ERROR_GENERIC);
+
         /* Save the values */
         e_ptr->tval[cur_t] = (byte)tval;
         e_ptr->min_sval[cur_t] = (byte)sval1;
@@ -4005,10 +4010,6 @@ errr parse_e_info(char* buf, header* head)
 
         /* Increase counter for 'possible tval' index */
         cur_t++;
-
-        /* Allow only a limited number of T: lines */
-        if (cur_t > EGO_TVALS_MAX)
-            return (PARSE_ERROR_GENERIC);
     }
 
     /* Hack -- Process 'C' for "creation" */

@@ -96,6 +96,24 @@ def is_prefix_ego(name: str) -> bool:
     return name[0] == '(' and name[-1] == ')'
 
 
+def has_alignment_conflict(*flag_collections) -> bool:
+    """Return True when NOBLE_ITEM and EVIL_ITEM appear across combined components."""
+    has_noble = False
+    has_evil = False
+
+    for flags in flag_collections:
+        if not flags:
+            continue
+        if 'NOBLE_ITEM' in flags:
+            has_noble = True
+        if 'EVIL_ITEM' in flags:
+            has_evil = True
+        if has_noble and has_evil:
+            return True
+
+    return False
+
+
 def compute_stat_skill_bonuses(flags: set, total_pval: int, overrides: dict | None):
     """
     Derive per-stat/per-skill bonus values from flags + pval and apply any M: overrides.
@@ -1369,6 +1387,8 @@ def generate_special_variants(special, objects):
                 continue
             if obj['sval'] < min_sval or obj['sval'] > max_sval:
                 continue
+            if has_alignment_conflict(obj.get('flags', []), special.get('flags', [])):
+                continue
             
             # Calculate stat ranges for this special + base combination
             # (mirrors build_ego_variants() in drop_system.c)
@@ -1496,6 +1516,12 @@ def generate_dual_ego_variants(specials_raw, objects):
     # For each prefix+suffix combination
     for prefix in prefix_specials:
         for suffix in suffix_specials:
+            # drop_system.c: build_ego_combo_variants() excludes suffix idx 148
+            if suffix.get('idx') == 148:
+                continue
+            if has_alignment_conflict(prefix.get('flags', []), suffix.get('flags', [])):
+                continue
+
             # Find base items that can have BOTH this prefix AND this suffix
             for obj in objects:
                 # Skip supplies and lights (TV_POTION=75, TV_STAFF=70, TV_GEM=56, TV_FOOD=80, TV_FLASK=77)
@@ -1522,6 +1548,10 @@ def generate_dual_ego_variants(specials_raw, objects):
                             break
 
                 if not suffix_applies:
+                    continue
+                if has_alignment_conflict(
+                    obj.get('flags', []), prefix.get('flags', []), suffix.get('flags', [])
+                ):
                     continue
 
                 # This base item can have both prefix and suffix

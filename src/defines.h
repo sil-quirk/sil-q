@@ -172,9 +172,7 @@
 /*
  * Number of tval/min-sval/max-sval slots per ego_item
  */
-
-// Sil-y: increaed this from 3 to 4. Should be fine...
-#define EGO_TVALS_MAX 4
+#define EGO_TVALS_MAX 8
 
 /*
  * Number of tval/min-sval/max-sval slots per ability
@@ -2034,6 +2032,7 @@
 #define TR4_BREAKS_PERMA_CURSE 0x00000020L /* Can break items bound by Oath of Feanor (PERMA_CURSE) */
 #define TR4_LESS_SPECIAL    0x00000040L /* Item reduces ego rarity weighting (-20 flat) */
 #define TR4_NOBLE_ITEM      0x00000080L /* Item only drops from vault *&!~ tokens and chest contents */
+#define TR4_EVIL_ITEM       0x00000100L /* Item belongs to evil alignment for ego/chest composition rules */
 
 /*
  * Hack -- flag set 1 -- mask for "pval-dependant" flags.

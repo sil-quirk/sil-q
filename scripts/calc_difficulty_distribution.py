@@ -26,9 +26,31 @@ sys.path.insert(0, script_dir)
 
 from calc_artefact_difficulty import (
     parse_artefact_file, parse_special_file, dif_mod_calc,
+    parse_object_file,
     get_base_level, get_base_ds, get_base_protection, get_base_att, get_base_evn,
     get_base_pval, get_slot, get_tval_name
 )
+
+
+BASE_ALIGNMENT_FLAGS = {}
+
+
+def has_alignment_conflict(*flag_collections):
+    """Return True when NOBLE_ITEM and EVIL_ITEM appear across combined components."""
+    has_noble = False
+    has_evil = False
+
+    for flags in flag_collections:
+        if not flags:
+            continue
+        if 'NOBLE_ITEM' in flags:
+            has_noble = True
+        if 'EVIL_ITEM' in flags:
+            has_evil = True
+        if has_noble and has_evil:
+            return True
+
+    return False
 
 
 def get_base_flags_for_jewelry(tval, sval):
@@ -717,6 +739,7 @@ def enumerate_item_variants(tval, sval, name, specials):
     base_evn = get_base_evn(tval, sval)
     base_ps = get_base_ps(tval, sval)
     base_pval = get_base_pval(tval, sval)
+    base_alignment_flags = BASE_ALIGNMENT_FLAGS.get((tval, sval), set())
     
     # Plain item variants
     for att in att_range:
@@ -740,6 +763,8 @@ def enumerate_item_variants(tval, sval, name, specials):
     # Generate special item variants
     for special in specials:
         if not special_applies_to_item(special, tval, sval):
+            continue
+        if has_alignment_conflict(base_alignment_flags, special['flags']):
             continue
         
         # Skip cursed specials for counting purposes (they're still craftable but usually not wanted)
@@ -779,6 +804,8 @@ def enumerate_item_variants(tval, sval, name, specials):
 
 
 def main():
+    global BASE_ALIGNMENT_FLAGS
+
     # Find data files
     try:
         script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -792,6 +819,10 @@ def main():
     special_paths = [
         os.path.join(script_dir, '..', 'lib', 'edit', 'special.txt'),
         r'c:\Users\efrem\Documents\GitHub\sil-qh\lib\edit\special.txt',
+    ]
+    object_paths = [
+        os.path.join(script_dir, '..', 'lib', 'edit', 'object.txt'),
+        r'c:\Users\efrem\Documents\GitHub\sil-qh\lib\edit\object.txt',
     ]
     
     artefact_file = None
@@ -810,6 +841,21 @@ def main():
         raise FileNotFoundError("Could not find artefact.txt")
     if not special_file:
         raise FileNotFoundError("Could not find special.txt")
+
+    object_file = None
+    for path in object_paths:
+        if os.path.exists(path):
+            object_file = path
+            break
+
+    if object_file:
+        object_rows = parse_object_file(object_file)
+        BASE_ALIGNMENT_FLAGS = {
+            (obj['tval'], obj['sval']): set(obj.get('flags', []))
+            for obj in object_rows
+        }
+    else:
+        BASE_ALIGNMENT_FLAGS = {}
     
     # Parse files
     artefacts = parse_artefact_file(artefact_file)

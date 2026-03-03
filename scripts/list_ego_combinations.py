@@ -35,6 +35,13 @@ DEFAULT_OBJECT_TXT = os.path.join(REPO_ROOT, "lib", "edit", "object.txt")
 DEFAULT_SPECIAL_TXT = os.path.join(REPO_ROOT, "lib", "edit", "special.txt")
 DEFAULT_OUTPUT_CSV = os.path.join(REPO_ROOT, "scripts", "output", "ego_combinations.csv")
 
+# tval groups from src/defines.h
+CATEGORY_TVALS: dict[str, set[int]] = {
+    "weapon": {19, 20, 21, 22, 23},
+    "jewelry": {40, 45},
+    "armor": {30, 31, 32, 33, 34, 35, 36, 37},
+}
+
 _INT_RE = re.compile(r"-?\d+")
 
 
@@ -185,6 +192,24 @@ def _pairs_to_str(pairs: Sequence[AllocPair]) -> str:
     return ":".join(f"{p.depth}/{p.rarity}" for p in pairs)
 
 
+def _parse_item_categories(raw_values: Optional[Sequence[str]]) -> set[str]:
+    if not raw_values:
+        return set()
+
+    selected: set[str] = set()
+    for raw_value in raw_values:
+        for part in raw_value.split(","):
+            category = part.strip().lower()
+            if not category:
+                continue
+            if category not in CATEGORY_TVALS:
+                valid = ", ".join(sorted(CATEGORY_TVALS.keys()))
+                raise ValueError(f"Invalid category '{category}'. Valid values: {valid}")
+            selected.add(category)
+
+    return selected
+
+
 @dataclass
 class ObjectKind:
     idx: int
@@ -217,6 +242,7 @@ class Ego:
     max_level: int = 0  # W: max_depth (0 means no cap)
     tval_ranges: List[Tuple[int, int, int]] = field(default_factory=list)  # (tval, min_sval, max_sval)
     alloc_pairs: List[AllocPair] = field(default_factory=list)
+    flags: set[str] = field(default_factory=set)
 
     @property
     def is_prefix(self) -> bool:
@@ -362,6 +388,14 @@ def parse_special_txt(path: str) -> List[Ego]:
                         pass
                 continue
 
+            if line.startswith("F:"):
+                payload = line[2:]
+                flags = [x.strip() for x in payload.split("|")]
+                for flag_name in flags:
+                    if flag_name:
+                        current.flags.add(flag_name)
+                continue
+
     if current is not None:
         egos.append(current)
 
@@ -389,6 +423,21 @@ def _schedule_has_any_spawn(pairs: Sequence[AllocPair]) -> bool:
     if any(r > 0 for r in rarities):
         return True
     return _schedule_max_depth_cap(depths, rarities) >= 0
+
+
+def _has_alignment_conflict(*flag_sets: Iterable[str]) -> bool:
+    has_noble = False
+    has_evil = False
+
+    for flags in flag_sets:
+        if "NOBLE_ITEM" in flags:
+            has_noble = True
+        if "EVIL_ITEM" in flags:
+            has_evil = True
+        if has_noble and has_evil:
+            return True
+
+    return False
 
 
 def main() -> None:
@@ -451,8 +500,24 @@ def main() -> None:
         action="store_false",
         help="Include combos where suffix ego idx == 148 (default: exclude; matches drop_system)",
     )
+    parser.add_argument(
+        "--item-category",
+        "--item-categories",
+        dest="item_categories",
+        nargs="+",
+        help=(
+            "Filter to item categories: weapon, jewelry, armor. "
+            "Can be provided multiple times and/or comma-separated, "
+            "e.g. --item-category weapon armor or --item-category weapon,jewelry"
+        ),
+    )
     parser.set_defaults(include_combos=True, exclude_unquenched_fire_combos=True, table=True)
     args = parser.parse_args()
+
+    try:
+        selected_categories = _parse_item_categories(args.item_categories)
+    except ValueError as e:
+        parser.error(str(e))
 
     kinds = parse_object_txt(args.object_txt)
     egos = parse_special_txt(args.special_txt)
@@ -460,6 +525,12 @@ def main() -> None:
     # Filter to "real" kinds (must have tval/sval).
     kinds = [k for k in kinds if k.tval is not None and k.sval is not None and not k.is_insta_art and "Note" not in k.name]
     egos = [e for e in egos if e.tval_ranges]
+
+    if selected_categories:
+        allowed_tvals: set[int] = set()
+        for category in selected_categories:
+            allowed_tvals.update(CATEGORY_TVALS[category])
+        kinds = [k for k in kinds if k.tval in allowed_tvals]
 
     out_dir = os.path.dirname(args.out)
     if out_dir:
@@ -505,6 +576,8 @@ def main() -> None:
 
         for ego in egos:
             if not ego.applies_to(kind):
+                continue
+            if _has_alignment_conflict(kind.flags, ego.flags):
                 continue
 
             ego_pairs = _ego_schedule_for_ego(ego)
@@ -565,6 +638,8 @@ def main() -> None:
             for prefix_ego in prefixes:
                 if not prefix_ego.applies_to(kind):
                     continue
+                if _has_alignment_conflict(kind.flags, prefix_ego.flags):
+                    continue
 
                 prefix_pairs = _ego_schedule_for_ego(prefix_ego)
                 tmp_pairs = _combine_allocations(base_pairs_orig, prefix_pairs)
@@ -575,6 +650,8 @@ def main() -> None:
                     if args.exclude_unquenched_fire_combos and suffix_ego.idx == 148:
                         continue
                     if not suffix_ego.applies_to(kind):
+                        continue
+                    if _has_alignment_conflict(kind.flags, prefix_ego.flags, suffix_ego.flags):
                         continue
 
                     suffix_pairs = _ego_schedule_for_ego(suffix_ego)

@@ -108,7 +108,7 @@ bool hide_cursor; /* See the "inkey()" function */
 
 byte object_generation_mode; /* Hack -- use different depth check, prevent
                                 embedded chests */
-bool drop_allow_noble; /* When true, NOBLE_ITEM flagged entries are eligible for selection */
+bool drop_allow_noble; /* When true, alignment-tagged (NOBLE/EVIL) entries are eligible for selection */
 
 bool shimmer_monsters; /* Hack -- optimize multi-hued monsters */
 bool shimmer_objects; /* Hack -- optimize multi-hued objects */

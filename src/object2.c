@@ -2070,6 +2070,7 @@ static int make_special_item(object_type* o_ptr, bool only_good)
     long value, total;
 
     ego_item_type* e_ptr;
+    object_kind* k_ptr = &k_info[o_ptr->k_idx];
 
     alloc_entry* table = alloc_ego_table;
 
@@ -2134,6 +2135,12 @@ static int make_special_item(object_type* o_ptr, bool only_good)
 
         /* If we force fine/special, don't useless */
         if (only_good && (e_ptr->cost == 0))
+            continue;
+
+        /* Don't mix opposing alignment flags on ego creations. */
+        if ((k_ptr->flags4 & TR4_NOBLE_ITEM) && (e_ptr->flags4 & TR4_EVIL_ITEM))
+            continue;
+        if ((k_ptr->flags4 & TR4_EVIL_ITEM) && (e_ptr->flags4 & TR4_NOBLE_ITEM))
             continue;
 
         /* Test if this is a legal special item type for this object */

@@ -445,6 +445,18 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
         } else {
             log_warn("tiles not found or not a boolean");
         }
+
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "enableRightPanes");
+        if (cJSON_IsBool(item)) {
+            config->enable_right_panes = cJSON_IsTrue(item);
+            log_debug("Loaded enableRightPanes: %s", config->enable_right_panes ? "true" : "false");
+        }
+
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "enableBottomPanes");
+        if (cJSON_IsBool(item)) {
+            config->enable_bottom_panes = cJSON_IsTrue(item);
+            log_debug("Loaded enableBottomPanes: %s", config->enable_bottom_panes ? "true" : "false");
+        }
         
         // Window position and size for windowed mode
         item = cJSON_GetObjectItemCaseSensitive(sdl, "windowX");
@@ -778,6 +790,8 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     cJSON_AddNumberToObject(sdl, "margin", config->margin);
     cJSON_AddBoolToObject(sdl, "fullscreen", config->fullscreen);
     cJSON_AddBoolToObject(sdl, "tiles", config->tiles);
+    cJSON_AddBoolToObject(sdl, "enableRightPanes", config->enable_right_panes);
+    cJSON_AddBoolToObject(sdl, "enableBottomPanes", config->enable_bottom_panes);
     
     // Save window position and size for windowed mode
     cJSON_AddNumberToObject(sdl, "windowX", config->window_x);

@@ -48,6 +48,7 @@ typedef struct
     byte alloc_depth[DROP_ALLOC_MAX]; /* depth thresholds where rarity changes */
     byte alloc_rarity[DROP_ALLOC_MAX]; /* rarity value from this depth onward (0 allowed) */
     bool noble; /* NOBLE_ITEM flag: only drops from vault *&!~ tokens and chest contents */
+    bool evil; /* EVIL_ITEM alignment flag used for ego/chest composition rules */
 } drop_entry;
 
 static drop_entry* g_drop_entries = NULL;
@@ -74,7 +75,7 @@ static int smithing_step_from_ego_bonus(int bonus)
 
 static const char* DROP_RAW_FILE = "drops";
 static const u32b DROP_RAW_MAGIC = 0x44525053; /* 'DRPS' */
-static const u32b DROP_RAW_VERSION = 16;
+static const u32b DROP_RAW_VERSION = 17;
 
 typedef struct
 {
@@ -1115,6 +1116,36 @@ static int less_special_rarity_penalty(int rarity_percent)
     return rarity_percent;
 }
 
+typedef enum
+{
+    DROP_ALIGNMENT_STANDARD = 0,
+    DROP_ALIGNMENT_NOBLE = 1,
+    DROP_ALIGNMENT_EVIL = 2
+} drop_alignment;
+
+static bool merge_drop_alignment_from_flags4(drop_alignment* alignment, u32b flags4)
+{
+    bool noble = (flags4 & TR4_NOBLE_ITEM) != 0;
+    bool evil = (flags4 & TR4_EVIL_ITEM) != 0;
+    drop_alignment item_alignment;
+
+    if (noble && evil)
+        return false;
+
+    if (!noble && !evil)
+        return true;
+
+    item_alignment = noble ? DROP_ALIGNMENT_NOBLE : DROP_ALIGNMENT_EVIL;
+
+    if (*alignment == DROP_ALIGNMENT_STANDARD || *alignment == item_alignment)
+    {
+        *alignment = item_alignment;
+        return true;
+    }
+
+    return false;
+}
+
 static void add_drop_entry(const object_type* proto, drop_category cat,
     drop_group_kind group_kind, int group_id, int min_depth, int max_depth,
     const byte* alloc_depths, const byte* alloc_rarities, int num_allocs)
@@ -1142,6 +1173,33 @@ static void add_drop_entry(const object_type* proto, drop_category cat,
         && object_has_ego_idx(proto, EGO_GRACE))
     {
         cat = DROP_CAT_JEWELRY;
+    }
+
+    drop_alignment alignment = DROP_ALIGNMENT_STANDARD;
+
+    if (!merge_drop_alignment_from_flags4(&alignment, k_ptr->flags4))
+        return;
+
+    /* Check ego suffix (name2) flags4 */
+    if (proto->name2 > 0 && (int)proto->name2 < z_info->e_max)
+    {
+        if (!merge_drop_alignment_from_flags4(&alignment, e_info[(int)proto->name2].flags4))
+            return;
+    }
+
+    /* Check ego prefix (unused2) flags4 */
+    if (proto->unused2 > 0 && (int)proto->unused2 < z_info->e_max)
+    {
+        if (!merge_drop_alignment_from_flags4(&alignment, e_info[(int)proto->unused2].flags4))
+            return;
+    }
+
+    /* Check artefact flags4 */
+    if (group_kind == DROP_GROUP_ARTIFACT
+        && group_id > 0 && group_id < z_info->art_max)
+    {
+        if (!merge_drop_alignment_from_flags4(&alignment, a_info[group_id].flags4))
+            return;
     }
 
     if (g_drop_count + 1 > g_drop_capacity)
@@ -1174,20 +1232,8 @@ static void add_drop_entry(const object_type* proto, drop_category cat,
         entry->difficulty = 0;
     else
         entry->difficulty = (s16b)smithing_difficulty_baseline(&entry->obj);
-
-    /* NOBLE_ITEM: item can only drop from vault *&!~ tokens and chest contents */
-    bool noble = (k_ptr->flags4 & TR4_NOBLE_ITEM) != 0;
-    /* Check ego suffix (name2) flags4 */
-    if (!noble && proto->name2 > 0 && (int)proto->name2 < z_info->e_max)
-        noble = (e_info[(int)proto->name2].flags4 & TR4_NOBLE_ITEM) != 0;
-    /* Check ego prefix (unused2) flags4 */
-    if (!noble && proto->unused2 > 0 && (int)proto->unused2 < z_info->e_max)
-        noble = (e_info[(int)proto->unused2].flags4 & TR4_NOBLE_ITEM) != 0;
-    /* Check artefact flags4 */
-    if (!noble && group_kind == DROP_GROUP_ARTIFACT
-        && group_id > 0 && group_id < z_info->art_max)
-        noble = (a_info[group_id].flags4 & TR4_NOBLE_ITEM) != 0;
-    entry->noble = noble;
+    entry->noble = (alignment == DROP_ALIGNMENT_NOBLE);
+    entry->evil = (alignment == DROP_ALIGNMENT_EVIL);
 }
 
 /* Apply ego flag data (abilities and curses) without randomness */
@@ -1728,6 +1774,11 @@ static void build_ego_combo_variants(int prefix_idx, int suffix_idx)
     if (!ego_name_is_prefix(prefix_name) || ego_name_is_prefix(suffix_name))
         return;
 
+    if ((prefix_ptr->flags4 & TR4_NOBLE_ITEM) && (suffix_ptr->flags4 & TR4_EVIL_ITEM))
+        return;
+    if ((prefix_ptr->flags4 & TR4_EVIL_ITEM) && (suffix_ptr->flags4 & TR4_NOBLE_ITEM))
+        return;
+
     int group_id = ego_combo_group_id(prefix_idx, suffix_idx);
 
     for (int k_idx = 1; k_idx < z_info->k_max; k_idx++)
@@ -2255,7 +2306,7 @@ typedef struct
     int lower;
     int upper;
     bool allow_artefacts; /* whether artefacts can be selected */
-    bool allow_noble; /* when false, NOBLE_ITEM entries are excluded */
+    bool allow_noble; /* when false, alignment-tagged entries are excluded */
     int artefact_weight_multiplier; /* group weight multiplier for artefacts */
     int cat_weights[DROP_CAT_MAX];
     int supply_weights[DROP_SUPPLY_GROUP_MAX];
@@ -2509,9 +2560,9 @@ static bool collect_candidate_entries(
             }
         }
 
-        /* NOBLE_ITEM: skip unless drop context explicitly allows noble entries,
-         * we are in a chest, or quality is at least GOOD (same gate as artefacts). */
-        if (e.noble && !req->allow_noble && object_generation_mode != OB_GEN_MODE_CHEST
+        /* Alignment-tagged items (NOBLE/EVIL): skip unless drop context explicitly
+         * allows them, we are in a chest, or quality is at least GOOD. */
+        if ((e.noble || e.evil) && !req->allow_noble && object_generation_mode != OB_GEN_MODE_CHEST
             && req->quality < DROP_QUALITY_GOOD)
             continue;
 
