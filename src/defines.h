@@ -2033,6 +2033,11 @@
 #define TR4_LESS_SPECIAL    0x00000040L /* Item reduces ego rarity weighting (-20 flat) */
 #define TR4_NOBLE_ITEM      0x00000080L /* Item only drops from vault *&!~ tokens and chest contents */
 #define TR4_EVIL_ITEM       0x00000100L /* Item belongs to evil alignment for ego/chest composition rules */
+#define TR4_SLAY_SERPENT    0x00000200L /* Weapon slays serpents */
+#define TR4_SLAY_VAMPIRE    0x00000400L /* Weapon slays vampires */
+#define TR4_SLAY_HORROR     0x00000800L /* Weapon slays horrors */
+#define TR4_SLAY_CAT        0x00001000L /* Weapon slays cats */
+#define TR4_SLAY_GIANT      0x00002000L /* Weapon slays giants */
 
 /*
  * Hack -- flag set 1 -- mask for "pval-dependant" flags.
@@ -2457,11 +2462,11 @@
 #define RF3_RES_COLD 0x00080000 /* Resist cold */
 #define RF3_RES_POIS 0x00100000 /* Resist poison */
 #define RF3_RF3XXX6 0x00200000 /* (?) */
-#define RF3_RES_NETHR 0x00400000 /* Resist nether a lot */
-#define RF3_RES_WATER 0x00800000 /* Resist water, move fast in water  */
-#define RF3_RES_PLAS 0x01000000 /* Resist plasma */
-#define RF3_RES_NEXUS 0x02000000 /* Resist nexus */
-#define RF3_RES_DISEN 0x04000000 /* Resist disenchantment */
+#define RF3_GIANT 0x00400000 /* Giant */
+#define RF3_CAT 0x00800000 /* Cat */
+#define RF3_HORROR 0x01000000 /* Horror (includes Nameless Things) */
+#define RF3_VAMPIRE 0x02000000 /* Vampire */
+#define RF3_RF3XXX7 0x04000000 /* (unused) */
 #define RF3_NO_SLOW 0x08000000 /* Cannot be slowed */
 #define RF3_NO_FEAR 0x10000000 /* Cannot be scared */
 #define RF3_NO_STUN 0x20000000 /* Cannot be stunned */
@@ -2471,8 +2476,7 @@
 /*TR3 uber-flags to cover multiple items*/
 #define RF3_RES_ELEM (RF3_RES_ELEC | RF3_RES_FIRE | RF3_RES_COLD | RF3_RES_POIS)
 #define RF3_RES_ALL                                                            \
-    (RF3_RES_ELEM | RF3_RES_PLAS | RF3_RES_NETHR | RF3_RES_NEXUS               \
-        | RF3_RES_DISEN | RF3_RES_WATER)
+    (RF3_RES_ELEM)
 #define RF3_NO_CHARM                                                           \
     (RF3_NO_FEAR | RF3_NO_STUN | RF3_NO_CONF | RF3_NO_SLEEP | RF3_NO_SLOW)
 
@@ -2528,7 +2532,8 @@
 
 #define RF3_RACE_MASK                                                          \
     (RF3_ORC | RF3_TROLL | RF3_SERPENT | RF3_DRAGON | RF3_RAUKO | RF3_UNDEAD   \
-        | RF3_SPIDER | RF3_WOLF | RF3_MAN | RF3_ELF)
+        | RF3_SPIDER | RF3_WOLF | RF3_MAN | RF3_ELF | RF3_GIANT | RF3_CAT      \
+        | RF3_HORROR | RF3_VAMPIRE)
 
 /*
  * Archery attacks

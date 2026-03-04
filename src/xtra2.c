@@ -1973,6 +1973,8 @@ bool similar_monsters(int m1y, int m1x, int m2y, int m2x)
         return (true);
     if ((r_ptr->flags3 & (RF3_SERPENT)) && (nr_ptr->flags3 & (RF3_SERPENT)))
         return (true);
+    if ((r_ptr->flags3 & (RF3_HORROR)) && (nr_ptr->flags3 & (RF3_HORROR)))
+        return (true);
 
     /*Not the same*/
     return (false);
@@ -2632,8 +2634,7 @@ void monster_death(int m_idx)
                      p_ptr->orome_wolves_killed, p_ptr->orome_spiders_killed, 
                      p_ptr->orome_serpents_killed, p_ptr->orome_vampires_killed);
         }
-        /* Vampires are identified by 'd_char' = 'v' */
-        if (r_ptr->d_char == 'v') {
+        if (r_ptr->flags3 & RF3_VAMPIRE) {
             p_ptr->orome_vampires_killed++;
             target_killed = true;
             log_trace("Oromë quest: Vampire killed (wolves=%d, spiders=%d, serpents=%d, vampires=%d)", 

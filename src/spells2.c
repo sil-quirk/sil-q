@@ -930,8 +930,8 @@ void analyze_weapon_properties(int* count, char s[][200], char t[][200], bool go
     object_type* o_ptr = &inventory[slot];
     if (!o_ptr->k_idx) return;
     
-    u32b f1, f2, f3;
-    object_flags(o_ptr, &f1, &f2, &f3);
+    u32b f1, f2, f3, f4;
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
     int i = *count;
     
     // Special attack bonuses
@@ -985,20 +985,39 @@ void analyze_weapon_properties(int* count, char s[][200], char t[][200], bool go
     }
 
     // Slay effects
-    const char* slay_names[] = {"orcs", "trolls", "wolves", "spiders", "raukar", "dragons", "the undead"};
-    u32b slay_flags[] = {TR1_SLAY_ORC, TR1_SLAY_TROLL, TR1_SLAY_WOLF, TR1_SLAY_SPIDER, 
-                         TR1_SLAY_RAUKO, TR1_SLAY_DRAGON, TR1_SLAY_UNDEAD};
-    
-    for (int sl = 0; sl < 7; sl++) {
-        if (f1 & slay_flags[sl]) {
+    typedef struct {
+        u32b flag;
+        int flagset;
+        const char* name;
+        bool use_effective;
+    } slay_attr_t;
+
+    const slay_attr_t slays[] = {
+        { TR1_SLAY_ORC, 1, "orcs", false },
+        { TR1_SLAY_TROLL, 1, "trolls", false },
+        { TR1_SLAY_WOLF, 1, "wolves", false },
+        { TR1_SLAY_SPIDER, 1, "spiders", false },
+        { TR1_SLAY_RAUKO, 1, "raukar", false },
+        { TR1_SLAY_DRAGON, 1, "dragons", false },
+        { TR1_SLAY_UNDEAD, 1, "the undead", true },
+        { TR4_SLAY_SERPENT, 4, "serpents", false },
+        { TR4_SLAY_VAMPIRE, 4, "vampires", false },
+        { TR4_SLAY_HORROR, 4, "horrors", true },
+        { TR4_SLAY_CAT, 4, "cats", false },
+        { TR4_SLAY_GIANT, 4, "giants", false },
+    };
+
+    for (size_t sl = 0; sl < (sizeof(slays) / sizeof(slays[0])); sl++) {
+        u32b flags = (slays[sl].flagset == 4) ? f4 : f1;
+        if (flags & slays[sl].flag) {
             identify[slot] = true;
             strnfmt(s[i], 200, "Your %s is especially %s against %s", weapon_name,
-                    (sl == 6) ? "effective" : "deadly", slay_names[sl]);
+                    slays[sl].use_effective ? "effective" : "deadly", slays[sl].name);
             strnfmt(t[i], 200, "(+1 damage die)");
             good[i] = true; i++;
         }
     }
-    
+
     if (f1 & TR1_SLAY_MAN_OR_ELF) {
         identify[slot] = true;
         strnfmt(s[i], 80, "Your %s is especially effective against men", weapon_name);

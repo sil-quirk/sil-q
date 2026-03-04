@@ -1512,13 +1512,14 @@ int elf_bane_bonus(monster_type* m_ptr)
     return (0);
 }
 
-#define BANE_TYPES 9
+#define BANE_TYPES 13
 
 static u32b bane_flag[] = { 0L, RF3_ORC, RF3_WOLF, RF3_SPIDER, RF3_TROLL,
-    RF3_UNDEAD, RF3_RAUKO, RF3_SERPENT, RF3_DRAGON };
+    RF3_UNDEAD, RF3_RAUKO, RF3_SERPENT, RF3_DRAGON, RF3_VAMPIRE,
+    RF3_HORROR, RF3_CAT, RF3_GIANT };
 
 char* bane_name[] = { "Nothing", "Orc", "Wolf", "Spider", "Troll", "Wraith",
-    "Rauko", "Serpent", "Dragon" };
+    "Rauko", "Serpent", "Dragon", "Vampire", "Horror", "Cat", "Giant" };
 
 int bane_type_killed(int i)
 {
@@ -3734,7 +3735,7 @@ typedef struct smithing_flag_cat
 
 #define MAX_CATS 7
 
-#define MAX_SMITHING_FLAGS (32 * 3)
+#define MAX_SMITHING_FLAGS (32 * 4)
 
 static const smithing_flag_cat smithing_flag_cats[]
     = { { CAT_STAT, "Stat bonuses" }, { CAT_SUST, "Sustains" },
@@ -3792,6 +3793,11 @@ static const smithing_flag_desc smithing_flag_types[] = { { CAT_STAT, TR1_STR,
     { CAT_SLAY, TR1_SLAY_UNDEAD, 1, "Slay Undead" },
     { CAT_SLAY, TR1_SLAY_RAUKO, 1, "Slay Rauko" },
     { CAT_SLAY, TR1_SLAY_DRAGON, 1, "Slay Dragon" },
+    { CAT_SLAY, TR4_SLAY_SERPENT, 4, "Slay Serpent" },
+    { CAT_SLAY, TR4_SLAY_VAMPIRE, 4, "Slay Vampire" },
+    { CAT_SLAY, TR4_SLAY_HORROR, 4, "Slay Horror" },
+    { CAT_SLAY, TR4_SLAY_CAT, 4, "Slay Cat" },
+    { CAT_SLAY, TR4_SLAY_GIANT, 4, "Slay Giant" },
     { CAT_SLAY, TR1_BRAND_COLD, 1, "Brand with Cold" },
     { CAT_SLAY, TR1_BRAND_FIRE, 1, "Brand with Fire" },
     { CAT_SLAY, TR1_BRAND_POIS, 1, "Brand with Poison" },
@@ -4674,6 +4680,7 @@ int object_difficulty(object_type* o_ptr)
         f1 &= ~(k_ptr->flags1);
         f2 &= ~(k_ptr->flags2);
         f3 &= ~(k_ptr->flags3);
+        f4 &= ~(k_ptr->flags4);
 
         // need to add tunneling back in...
         if (k_ptr->flags1 & TR1_TUNNEL)
@@ -4815,6 +4822,27 @@ int object_difficulty(object_type* o_ptr)
     if (f1 & TR1_SLAY_MAN_OR_ELF)
     {
         dif_inc += 5;
+    }
+
+    if (f4 & TR4_SLAY_SERPENT)
+    {
+        dif_inc += 4;
+    }
+    if (f4 & TR4_SLAY_VAMPIRE)
+    {
+        dif_inc += 4;
+    }
+    if (f4 & TR4_SLAY_HORROR)
+    {
+        dif_inc += 4;
+    }
+    if (f4 & TR4_SLAY_CAT)
+    {
+        dif_inc += 3;
+    }
+    if (f4 & TR4_SLAY_GIANT)
+    {
+        dif_inc += 3;
     }
 
     if (f1 & TR1_BRAND_COLD)
@@ -7565,7 +7593,7 @@ bool applicable_flag(u32b f, int flagset, object_type* o_ptr)
 {
     bool ok = false;
     int i;
-    u32b f1, f2, f3;
+    u32b f1, f2, f3, f4;
 
     /* Telchar may always put SHARPNESS II on a melee weapon               */
     if ((flagset == 1) && (f == TR1_SHARPNESS2) &&
@@ -7580,7 +7608,7 @@ bool applicable_flag(u32b f, int flagset, object_type* o_ptr)
     }
 
     /* Extract the object flags */
-    object_flags(o_ptr, &f1, &f2, &f3);
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
 
     /* Warhammers-only: Smithing bonus requires Brand Fire on the same item. */
     if ((flagset == 1) && (f == TR1_SMT))
@@ -7623,6 +7651,12 @@ bool applicable_flag(u32b f, int flagset, object_type* o_ptr)
                 ok = true;
             break;
         }
+        case 4:
+        {
+            if (a_ptr->flags4 & f)
+                ok = true;
+            break;
+        }
         }
     }
 
@@ -7651,6 +7685,8 @@ void add_artefact_flag(u32b f, int flagset)
         smith_a_ptr->flags2 |= f;
     if (flagset == 3)
         smith_a_ptr->flags3 |= f;
+    if (flagset == 4)
+        smith_a_ptr->flags4 |= f;
 
     object_flags(smith_o_ptr, &f1_after, &f2, &f3);
     smith_apply_stat_skill_flag_delta(smith_o_ptr, f1_before, f1_after);
@@ -7678,6 +7714,8 @@ void remove_artefact_flag(u32b f, int flagset)
         smith_a_ptr->flags2 &= ~(f);
     if (flagset == 3)
         smith_a_ptr->flags3 &= ~(f);
+    if (flagset == 4)
+        smith_a_ptr->flags4 &= ~(f);
 
     /* Keep Smithing dependent on Brand Fire. */
     if ((flagset == 1) && (f == TR1_BRAND_FIRE))
@@ -7723,7 +7761,8 @@ int artefact_flag_menu_aux(int category, int* highlight)
 
             if (((flagset[num] == 1) && (smith2_a_ptr->flags1 & flag[num]))
                 || ((flagset[num] == 2) && (smith2_a_ptr->flags2 & flag[num]))
-                || ((flagset[num] == 3) && (smith2_a_ptr->flags3 & flag[num])))
+                || ((flagset[num] == 3) && (smith2_a_ptr->flags3 & flag[num]))
+                || ((flagset[num] == 4) && (smith2_a_ptr->flags4 & flag[num])))
             {
                 flag_present[num] = true;
                 flag_valid[num] = true;

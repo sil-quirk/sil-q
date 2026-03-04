@@ -1224,6 +1224,13 @@ void slay_desc(char* description, u32b flag, const monster_type* m_ptr)
     case TR1_SLAY_MAN_OR_ELF:
         sprintf(description, "strikes truly");
         break;
+    case TR4_SLAY_SERPENT:
+    case TR4_SLAY_VAMPIRE:
+    case TR4_SLAY_HORROR:
+    case TR4_SLAY_CAT:
+    case TR4_SLAY_GIANT:
+        sprintf(description, "strikes truly");
+        break;
     case TR1_BRAND_ELEC:
         sprintf(description, "shocks %s with the force of lightning", m_name);
         break;
@@ -2560,10 +2567,10 @@ int slay_bonus(
     monster_race* r_ptr = &r_info[m_ptr->r_idx];
     monster_lore* l_ptr = &l_list[m_ptr->r_idx];
 
-    u32b f1, f2, f3;
+    u32b f1, f2, f3, f4;
 
     /* Extract the flags */
-    object_flags(o_ptr, &f1, &f2, &f3);
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
 
     /* Some "weapons" and "arrows" do extra damage */
     switch (o_ptr->tval)
@@ -2664,6 +2671,71 @@ int slay_bonus(
             slay_bonus_dice += 1;
 
             *noticed_flag = maybe_notice_slay(o_ptr, TR1_SLAY_DRAGON);
+        }
+
+        /* Slay Serpent */
+        if ((f4 & (TR4_SLAY_SERPENT)) && (r_ptr->flags3 & (RF3_SERPENT)))
+        {
+            if (m_ptr->ml)
+            {
+                l_ptr->flags3 |= (RF3_SERPENT);
+            }
+
+            slay_bonus_dice += 1;
+
+            *noticed_flag = maybe_notice_slay(o_ptr, TR4_SLAY_SERPENT);
+        }
+
+        /* Slay Vampire */
+        if ((f4 & (TR4_SLAY_VAMPIRE)) && (r_ptr->flags3 & (RF3_VAMPIRE)))
+        {
+            if (m_ptr->ml)
+            {
+                l_ptr->flags3 |= (RF3_VAMPIRE);
+            }
+
+            slay_bonus_dice += 1;
+
+            *noticed_flag = maybe_notice_slay(o_ptr, TR4_SLAY_VAMPIRE);
+        }
+
+        /* Slay Horror */
+        if ((f4 & (TR4_SLAY_HORROR)) && (r_ptr->flags3 & (RF3_HORROR)))
+        {
+            if (m_ptr->ml)
+            {
+                l_ptr->flags3 |= (RF3_HORROR);
+            }
+
+            slay_bonus_dice += 1;
+
+            *noticed_flag = maybe_notice_slay(o_ptr, TR4_SLAY_HORROR);
+        }
+
+        /* Slay Cat */
+        if ((f4 & (TR4_SLAY_CAT)) && (r_ptr->flags3 & (RF3_CAT)))
+        {
+            if (m_ptr->ml)
+            {
+                l_ptr->flags3 |= (RF3_CAT);
+            }
+
+            slay_bonus_dice += 1;
+
+            *noticed_flag = maybe_notice_slay(o_ptr, TR4_SLAY_CAT);
+        }
+
+        /* Slay Giant */
+        if ((f4 & (TR4_SLAY_GIANT)) && (r_ptr->flags3 & (RF3_GIANT)))
+        {
+            if (m_ptr->ml)
+            {
+                l_ptr->flags3 |= (RF3_GIANT);
+            }
+
+            slay_bonus_dice += 1;
+
+            *noticed_flag = maybe_notice_slay(o_ptr, TR4_SLAY_GIANT);
         }
 
         /* Slay Men and Elves */

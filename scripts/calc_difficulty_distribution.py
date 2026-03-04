@@ -646,6 +646,17 @@ def calculate_item_difficulty(tval, sval, att_bonus=0, ds_bonus=0, evn_bonus=0,
         dif_inc += 4
     if 'SLAY_MAN_OR_ELF' in flags:
         dif_inc += 5
+
+    if 'SLAY_SERPENT' in flags:
+        dif_inc += 4
+    if 'SLAY_VAMPIRE' in flags:
+        dif_inc += 4
+    if 'SLAY_HORROR' in flags:
+        dif_inc += 4
+    if 'SLAY_CAT' in flags:
+        dif_inc += 3
+    if 'SLAY_GIANT' in flags:
+        dif_inc += 3
     
     # Brands
     if 'BRAND_COLD' in flags:

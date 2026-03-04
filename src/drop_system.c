@@ -769,6 +769,17 @@ static int smithing_difficulty_baseline(const object_type* o_ptr)
     if (f1 & TR1_SLAY_MAN_OR_ELF)
         dif_inc += 5;
 
+    if (f4 & TR4_SLAY_SERPENT)
+        dif_inc += 4;
+    if (f4 & TR4_SLAY_VAMPIRE)
+        dif_inc += 4;
+    if (f4 & TR4_SLAY_HORROR)
+        dif_inc += 4;
+    if (f4 & TR4_SLAY_CAT)
+        dif_inc += 3;
+    if (f4 & TR4_SLAY_GIANT)
+        dif_inc += 3;
+
     if (f1 & TR1_BRAND_COLD)
     {
         dif_inc += 18;

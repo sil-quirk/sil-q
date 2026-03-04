@@ -1452,16 +1452,24 @@ static void describe_monster_movement(
         text_out_c(TERM_L_BLUE, " dragon");
     else if (l_ptr->flags3 & RF3_SERPENT)
         text_out_c(TERM_L_BLUE, " serpent");
+    else if (l_ptr->flags3 & RF3_VAMPIRE)
+        text_out_c(TERM_L_BLUE, " vampire");
     else if (l_ptr->flags3 & RF3_RAUKO)
         text_out_c(TERM_L_BLUE, " rauko");
     else if (l_ptr->flags3 & RF3_TROLL)
         text_out_c(TERM_L_BLUE, " troll");
     else if (l_ptr->flags3 & RF3_ORC)
         text_out_c(TERM_L_BLUE, " orc");
+    else if (l_ptr->flags3 & RF3_GIANT)
+        text_out_c(TERM_L_BLUE, " giant");
     else if (l_ptr->flags3 & RF3_WOLF)
         text_out_c(TERM_L_BLUE, " wolf");
     else if (l_ptr->flags3 & RF3_SPIDER)
         text_out_c(TERM_L_BLUE, " spider");
+    else if (l_ptr->flags3 & RF3_CAT)
+        text_out_c(TERM_L_BLUE, " cat");
+    else if (l_ptr->flags3 & RF3_HORROR)
+        text_out_c(TERM_L_BLUE, " horror");
     else if (l_ptr->flags3 & RF3_MAN)
         text_out_c(TERM_L_BLUE, " man");
     else if (l_ptr->flags3 & RF3_ELF)

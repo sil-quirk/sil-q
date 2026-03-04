@@ -298,9 +298,9 @@ static bool describe_secondary(const object_type* o_ptr, u32b f1)
 /*
  * Describe the special slays and executes of an item.
  */
-static bool describe_slay(const object_type* o_ptr, u32b f1)
+static bool describe_slay(const object_type* o_ptr, u32b f1, u32b f4)
 {
-    cptr slays[8];
+    cptr slays[16];
     int slcnt = 0;
 
     /* Unused parameter */
@@ -321,6 +321,16 @@ static bool describe_slay(const object_type* o_ptr, u32b f1)
         slays[slcnt++] = "raukar";
     if (f1 & (TR1_SLAY_UNDEAD))
         slays[slcnt++] = "undead";
+    if (f4 & (TR4_SLAY_SERPENT))
+        slays[slcnt++] = "serpents";
+    if (f4 & (TR4_SLAY_VAMPIRE))
+        slays[slcnt++] = "vampires";
+    if (f4 & (TR4_SLAY_HORROR))
+        slays[slcnt++] = "horrors";
+    if (f4 & (TR4_SLAY_CAT))
+        slays[slcnt++] = "cats";
+    if (f4 & (TR4_SLAY_GIANT))
+        slays[slcnt++] = "giants";
     if (f1 & (TR1_SLAY_MAN_OR_ELF))
     {
         slays[slcnt++] = "men";
@@ -1338,7 +1348,7 @@ bool object_info_out(const object_type* o_ptr)
         something = true;
     if (describe_secondary(o_ptr, f1))
         something = true;
-    if (describe_slay(o_ptr, f1))
+    if (describe_slay(o_ptr, f1, f4))
         something = true;
     if (describe_brand(o_ptr, f1))
         something = true;

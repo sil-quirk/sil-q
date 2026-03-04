@@ -2730,7 +2730,7 @@ bool weapon_glows(const object_type* o_ptr)
     int py = p_ptr->py; // player location
     int px = p_ptr->px;
     int y, x; // generic location
-    u32b f1, f2, f3;
+    u32b f1, f2, f3, f4;
     bool viewable = false;
 
     bool glows = false;
@@ -2776,7 +2776,7 @@ bool weapon_glows(const object_type* o_ptr)
     update_flow(iy, ix, FLOW_MONSTER_NOISE);
 
     /* Extract the flags */
-    object_flags(o_ptr, &f1, &f2, &f3);
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
 
     /* Add up the total of creatures vulnerable to the weapon's slays */
     for (i = 1; i < mon_max; i++)
@@ -2804,6 +2804,16 @@ bool weapon_glows(const object_type* o_ptr)
         if ((f1 & (TR1_SLAY_TROLL)) && (r_ptr->flags3 & (RF3_TROLL)))
             target = true;
         if ((f1 & (TR1_SLAY_DRAGON)) && (r_ptr->flags3 & (RF3_DRAGON)))
+            target = true;
+        if ((f4 & (TR4_SLAY_SERPENT)) && (r_ptr->flags3 & (RF3_SERPENT)))
+            target = true;
+        if ((f4 & (TR4_SLAY_VAMPIRE)) && (r_ptr->flags3 & (RF3_VAMPIRE)))
+            target = true;
+        if ((f4 & (TR4_SLAY_HORROR)) && (r_ptr->flags3 & (RF3_HORROR)))
+            target = true;
+        if ((f4 & (TR4_SLAY_CAT)) && (r_ptr->flags3 & (RF3_CAT)))
+            target = true;
+        if ((f4 & (TR4_SLAY_GIANT)) && (r_ptr->flags3 & (RF3_GIANT)))
             target = true;
         // No glow for Morgoth's weapons that slay men and elves
 

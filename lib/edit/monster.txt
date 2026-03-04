@@ -540,7 +540,7 @@ A:5:1:3:1
 P:[+1,2d4]
 B:CLAW:WOUND:(+6,2d4)
 F:DROP_100 | OPEN_DOOR | UNLOCK_DOOR | BASH_DOOR | SMART
-F:NO_FEAR
+F:NO_FEAR | HORROR
 S:SPELL_PCT_15
 S:DIM
 D:Beyond the Merlock Mountains, beyond the marsh of Tode, live the Mewlips.
@@ -1276,7 +1276,7 @@ I:2:10d4:-2
 A:1:7:3:9
 P:[+11,1d4]
 B:BITE:ENTRANCE:(+10,2d9)
-F:BASH_DOOR | SHORT_SIGHTED | NO_FEAR | HURT_LITE
+F:BASH_DOOR | SHORT_SIGHTED | NO_FEAR | HURT_LITE | HORROR
 S:SPELL_PCT_15
 S:SCARE
 D:It waits in the deepest ink-black of the dungeon, patient and
@@ -1295,7 +1295,7 @@ A:15:1:0:7
 P:[+5,1d4]
 B:HIT:HURT:(+6,4d9)
 F:DROP_100 | OPEN_DOOR | BASH_DOOR | SMART
-F:HAS_WEAPON | HAS_ARMOUR
+F:HAS_WEAPON | HAS_ARMOUR | GIANT
 S:SPELL_PCT_15 | POW_6
 S:BOULDER
 D:A giant of Morgoth's hosts, as tall as three men and armed with a
@@ -1559,7 +1559,7 @@ B:HIT:COLD:(+10,4d11)
 F:DROP_1D2 | DROP_GOOD | OPEN_DOOR | BASH_DOOR
 F:HAS_WEAPON | HAS_ARMOUR
 F:RES_COLD
-F:UNIQUE | MALE | SMART
+F:UNIQUE | MALE | SMART | GIANT
 S:SPELL_PCT_20 | POW_10
 S:BOULDER
 D:From Eruman, the dark and frozen lands south of Valinor, came Gilim
@@ -1601,7 +1601,7 @@ I:1:14d4:-2
 A:10:8:5:11
 P:[+13,2d4]
 B:CLAW:ACID:(+18,3d10)
-F:BASH_DOOR | NO_FEAR | HURT_LITE
+F:BASH_DOOR | NO_FEAR | HURT_LITE | HORROR
 S:SPELL_PCT_15
 S:SCARE
 D:It slithers and crawls across the floor towards you, low and fast,
@@ -1664,7 +1664,7 @@ P:[+11,1d4]
 B:HIT:HURT:(+15,3d15)
 F:DROP_1D2 | DROP_GOOD | DROP_CHOSEN | OPEN_DOOR | BASH_DOOR
 F:HAS_WEAPON | HAS_ARMOUR
-F:UNIQUE | MALE | SMART
+F:UNIQUE | MALE | SMART | GIANT
 S:SPELL_PCT_10 | POW_12
 S:BOULDER
 D:Brother to Gilim, Nan is the giant of summer and the southern lands.
@@ -1750,7 +1750,7 @@ P:[+15,1d4]
 B:CLAW:WOUND:(+18,1d9)
 F:FRIENDS | OPEN_DOOR | UNLOCK_DOOR | BASH_DOOR | SMART
 F:DROP_33
-F:EXCHANGE_PLACES
+F:EXCHANGE_PLACES | CAT
 D:One of the warriors of Tevildo's court, this great cat walks
 D: upright like a man, though no man could match its speed. Its
 D: long scything claws are weapons of terrible precision, and it
@@ -1807,7 +1807,7 @@ P:[-5,8d4]
 B:CLAW:WOUND:(+16,3d9)
 F:HIDDEN_MOVE | RES_COLD | RES_FIRE | STONE
 F:OPEN_DOOR | BASH_DOOR | MINDLESS
-F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | NO_CRIT
+F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | NO_CRIT | HORROR
 #D:A marble statue of a nightmare creature with claws like blades.
 D:'Huge shapes there stood like carven trolls
 D: enormous hewn of blasted rock
@@ -1852,7 +1852,7 @@ A:20:13:10:8
 P:[+20,1d4]
 B:CLAW:WOUND:(+25,1d11)
 F:ESCORT | UNIQUE | MALE | OPEN_DOOR | BASH_DOOR | SMART
-F:DROP_100 | UNLOCK_DOOR | DROP_GOOD
+F:DROP_100 | UNLOCK_DOOR | DROP_GOOD | CAT
 S:SPELL_PCT_60 | POW_21
 S:ARROW2
 D:Grizzled and cunning, Umuiyan has kept watch at the gates of Tevildo's
@@ -1974,7 +1974,7 @@ P:[+21,1d4]
 B:CLAW:WOUND:(+22,3d5)
 B:BITE:LOSE_CON:(+17,2d7)
 F:FLYING | RAND_25 | OPEN_DOOR | UNLOCK_DOOR
-F:HURT_LITE | SMART
+F:HURT_LITE | SMART | VAMPIRE
 D:A servant of Thuringwethil, it flits through the darkness on
 D: great bat-like wings, though no bat could harbour so much
 D: malice behind its eyes. Its bite drains the very life from
@@ -1993,7 +1993,7 @@ A:5:12:15:5
 P:[+19,1d4]
 B:CLAW:WOUND:(+20,1d11)
 F:INVISIBLE | OPEN_DOOR | UNLOCK_DOOR | BASH_DOOR | SMART
-F:DROP_100 | FRIEND
+F:DROP_100 | FRIEND | CAT
 S:SPELL_PCT_50 | POW_23
 S:ARROW1
 D:One of the silent hunters of Tevildo's court, this jet-black cat
@@ -2036,7 +2036,7 @@ A:15:13:10:9
 P:[+21,1d4]
 B:CLAW:WOUND:(+30,1d11)
 F:UNIQUE | MALE | OPEN_DOOR | BASH_DOOR | SMART
-F:UNLOCK_DOOR | UNIQUE_FRIEND | DROP_1D2 | DROP_GOOD
+F:UNLOCK_DOOR | UNIQUE_FRIEND | DROP_1D2 | DROP_GOOD | CAT
 D:Chief among the thanes of Tevildo, Oikeroi is sworn to guard his
 D: master with fang and claw. He is cunning in the ways of ambush
 D: and has slain many who sought to challenge the Prince of Cats.
@@ -2081,7 +2081,7 @@ I:4:6d4:0
 A:10:14:3:14
 P:[+20,2d4]
 B:BITE:HALLU:(+22,2d9)
-F:BASH_DOOR | RAND_25 | NO_FEAR
+F:BASH_DOOR | RAND_25 | NO_FEAR | HORROR
 S:SPELL_PCT_15
 S:SCARE
 D:No larger than a wolf, but much swifter -- a blur of limbs and
@@ -2142,7 +2142,7 @@ P:[+24,1d4]
 B:CLAW:WOUND:(+26,1d13)
 F:UNIQUE | MALE | OPEN_DOOR | BASH_DOOR | SMART
 F:UNLOCK_DOOR | UNIQUE_FRIEND | DROP_1D2 | DROP_GREAT
-F:CRUEL_BLOW | EXCHANGE_PLACES
+F:CRUEL_BLOW | EXCHANGE_PLACES | CAT
 D:Tevildo is a mighty fay in the service of Melko, lord and master of
 D: all the cats. In his fortress he keeps many thralls in torment, and
 D: his hatred of the Hound of Valinor is legendary. His strength lies
@@ -2231,7 +2231,7 @@ P:[+24,1d4]
 B:CLAW:WOUND:(+25,3d5)
 B:BITE:LOSE_STR_CON:(+20,2d9)
 F:FLYING | RAND_25 | OPEN_DOOR | UNLOCK_DOOR
-F:HURT_LITE | SMART
+F:HURT_LITE | SMART | VAMPIRE
 D:A nightmarish creature of the vampire kindred, servants of Sauron who
 D: dwell in darkness. Its bat-like wings carry it silently through the
 D: halls, and its bite drains both strength and vitality from its victims.
@@ -2247,7 +2247,7 @@ A:5:5:0:14
 P:[+7,6d4]
 B:CRUSH:ACID:(+17,5d10)
 F:BASH_DOOR | TUNNEL_WALL | REGENERATE | MINDLESS | TERRITORIAL
-F:RAND_25 | RAND_50 | FORCE_DEPTH
+F:RAND_25 | RAND_50 | FORCE_DEPTH | HORROR
 D:'Far, far below the deepest delvings of the Dwarves, the world is
 D: gnawed by nameless things...' It is as a vast grub,
 D: eating its way through the roots of the earth.
@@ -2353,7 +2353,7 @@ A:5:0:20:15
 P:[-5,8d4]
 F:NEVER_MOVE | RES_COLD | RES_FIRE
 F:STONE | SHORT_SIGHTED
-F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | NO_CRIT
+F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | NO_CRIT | HORROR
 S:SPELL_PCT_100
 S:SCREECH
 D:They were like great figures seated upon thrones.
@@ -2478,7 +2478,7 @@ P:[+26,1d4]
 B:CLAW:WOUND:(+29,3d7)
 B:BITE:LOSE_ALL:(+24,2d9)
 F:FLYING | OPEN_DOOR | BASH_DOOR | UNLOCK_DOOR | RAND_25
-F:SMART | HURT_LITE
+F:SMART | HURT_LITE | VAMPIRE
 D:An ancient vampire of great power, graceful and terrible. Perhaps it
 D: once served Thuringwethil herself before she fell. Its black eyes
 D: regard all living things as prey, and its touch drains the very
@@ -2665,7 +2665,7 @@ I:1:100d4:0
 A:5:10:2:20
 P:[+11,3d4]
 B:BITE:POISON:(+24,6d5)
-F:BASH_DOOR | REGENERATE | NO_FEAR
+F:BASH_DOOR | REGENERATE | NO_FEAR | HORROR
 S:SPELL_PCT_25
 S:SCARE
 D:You have no idea what could have created the creature
@@ -2711,7 +2711,7 @@ B:BITE:LOSE_ALL:(+29,2d9)
 F:UNIQUE | FEMALE
 F:DROP_2D2 | DROP_GREAT | DROP_CHOSEN | SMART
 F:FLYING | RAND_25 | OPEN_DOOR | UNLOCK_DOOR | BASH_DOOR
-F:HURT_LITE
+F:HURT_LITE | VAMPIRE
 D:Thuringwethil, Woman of Secret Shadow, serves as messenger between
 D: Sauron on Tol-in-Gaurhoth and Morgoth in Angband. She is the mightiest
 D: of vampires, cloaked in an iron-barbed bat-fell that grants her the
