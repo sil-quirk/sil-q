@@ -229,14 +229,14 @@ A:1/60:10/0
 F:SLAY_ORC | SLAY_TROLL | NOBLE_ITEM
 
 # Includes arrows
-# Axes - Marchwardens of Doriath used them!
+# Polearms (no axes)
 # Shortswords, longswords, bastard swords, greatswords, mithril swords
 # Spears, great spears, glaives
 
 N:22:of Doriath
 W:2:60:0:2000
 C:0:0:0:0:0:0:0
-T:22:0:99
+T:22:1:4
 T:23:10:21
 T:23:25:25
 T:23:28:30
@@ -255,15 +255,17 @@ T:23:25:25
 T:23:28:30
 F:SLAY_RAUKO | SLAY_DRAGON | NOBLE_ITEM
 
-# All melee weapons save daggers, curved swords, quarterstaffs
+# Mandos is keeper and judge of the dead; the spirits of slain Elves pass to his halls.
+# This ego is for weapons that lay the restless dead to rest.
+# All melee weapons save daggers, curved swords, quarterstaffs, and axes
 
-N:24:of Final Rest
+N:24:of the Halls of Mandos
 W:7:30:0:2000
 C:0:0:0:0:0:0:0
 T:21:8:8
-T:22:0:99
+T:22:1:4
 T:23:10:99
-F:SLAY_UNDEAD | FREE_ACT
+F:SLAY_UNDEAD | FREE_ACT | NOBLE
 
 
 # Warhammers, axes, digging tools
@@ -486,7 +488,7 @@ F:VAMPIRIC | HUNGER | LIGHT_CURSE | EVIL_ITEM
 
 ##### Digging Tools #####
 
-N:51:of Belegost
+N:51:of the Stone-hewers
 W:0:33:0:1000
 C:0:0:0:0:0:0:1
 T:20:3:3
@@ -615,7 +617,7 @@ W:6:100:0:3000
 C:0:0:1:0:0:0:0
 T:19:13:13
 A:6/100:10/50:15/20
-F:VUL_FIRE | LIGHT_CURSE
+F:VUL_FIRE | LIGHT_CURSE | EVIL_ITEM
 
 
 # Shortbows only
@@ -853,7 +855,7 @@ T:23:21:21
 T:23:28:30
 T:22:1:2
 T:22:11:12
-F:NOBLE_ITEM
+F:NOBLE_ITEM | NEG_WEIGHT
 
 
 
@@ -912,15 +914,17 @@ F:SONG | SUST_GRA | NOBLE_ITEM
 ##### Weapon Prefixes #####
 
 
-# Warhammers and heavy axes (hand, battle, great)
+# Warhammers, heavy axes (hand, battle, great) and mattocks
 
 N:146:(Weighted)
 W:8:40:0:1500
 C:-2:0:1:0:0:0:0
+T:20:3:3
 T:21:8:8
 T:22:11:11
 T:22:12:12
 T:22:13:13
+F:WEIGHT
 
 
 # Quarterstaves only
@@ -976,4 +980,81 @@ C:0:0:0:0:0:0:1
 T:21:3:3
 B:5/1
 F:WILL | NOBLE_ITEM
+
+
+##### New Weapon Suffixes #####
+
+
+# Warhammers, hand axes, battle-axes, great-axes
+
+N:152:of Belegost
+W:10:30:0:3000
+C:0:0:0:0:0:0:0
+T:21:8:8
+T:22:11:13
+F:SLAY_SERPENT | SLAY_DRAGON | NOBLE_ITEM
+
+
+# Warhammers, hand axes, battle-axes, great-axes
+
+N:153:of the Deeps of Nogrod
+W:8:30:0:3000
+C:0:0:0:0:0:0:0
+T:21:8:8
+T:22:11:13
+F:SLAY_SPIDER | SLAY_HORROR | NOBLE_ITEM
+
+
+# Warhammers, hand axes, battle-axes, great-axes
+
+N:154:of Aule's Warding
+W:12:25:0:3000
+C:0:0:0:0:0:0:0
+T:21:8:8
+T:22:11:13
+F:SLAY_UNDEAD | SLAY_VAMPIRE | NOBLE_ITEM
+
+
+##### New Armour Suffixes #####
+
+
+# Robes only
+
+N:155:of Elbereth
+W:10:20:0:5000
+C:0:0:0:0:0:0:0
+T:36:2:2
+B:7/0
+F:NOBLE_ITEM
+
+
+# Robes only
+
+N:156:of Tinuviel
+W:12:20:0:5000
+C:0:0:0:0:0:0:0
+T:36:2:2
+B:7/4
+F:NOBLE_ITEM
+
+
+# Leather Armour and Studded Leather
+
+N:157:of the Stone-singers
+W:8:25:0:4000
+C:0:0:0:0:0:0:0
+T:36:4:7
+B:7/2
+F:NOBLE_ITEM
+
+
+# Mail Corslet, Hauberk, Mithril Corslet (ring-mail forged by the smiths of Belegost)
+
+N:158:of Belegost's Ring-mail
+W:10:25:0:4000
+C:0:0:0:1:0:0:0
+T:37:4:4
+T:37:6:6
+T:37:20:20
+F:NOBLE_ITEM
 

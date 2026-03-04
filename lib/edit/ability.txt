@@ -628,6 +628,7 @@ D:In the ethereal strains of the Lay of Leithian, where Luthien invoked the star
 E:Causes enemies to flee. Reduces enemy Will by Song/5.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
+T:36:2:2   # Robe
 T:39:0:99  # Light Source
 
 N:141:Song of Challenge
@@ -644,6 +645,7 @@ I:7:2:2
 D:In the deep, resonant chants born of the dwarven songs that echoed through the halls of Nogrod and Belegost in the Blue Mountains, adapted by the elven lorekeepers of Nargothrond's caverns. You weave a low melody that speaks to the stone itself, coaxing it to reveal the hidden ways that wind through the darkness below.
 E:Gradually reveals surrounding passages and chambers, expanding from explored areas.
 T:35:0:99  # Cloak
+T:36:4:7   # Leather Armour and Studded Leather
 T:20:0:99  # Shovels and Mattocks
 
 N:143:Song of Freedom
@@ -660,6 +662,7 @@ D:In hushed tones akin to Luthien's enchantment that cloaked her passage through
 E:Muffles sounds, making it harder for enemies to detect you or call for allies.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
+T:36:2:2   # Robe
 T:30:0:99  # Boots
 
 N:145:Song of Staunching

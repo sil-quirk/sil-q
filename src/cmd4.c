@@ -4729,6 +4729,8 @@ int object_difficulty(object_type* o_ptr)
         weight_factor = 100 * k_ptr->weight / o_ptr->weight;
 
     dif_inc += (weight_factor - 100) / 20;
+    if (f4 & (TR4_WEIGHT | TR4_NEG_WEIGHT))
+        dif_inc += 5;
 
     // attack bonus
     x = att_base - k_ptr->att;

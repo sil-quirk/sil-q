@@ -505,6 +505,8 @@ def calculate_difficulty(art):
         else:
             weight_factor = 100 * base_weight // item_weight
         dif_inc += (weight_factor - 100) // 20
+    if 'WEIGHT' in flags or 'NEG_WEIGHT' in flags:
+        dif_inc += 5
 
     # Attack bonus contribution (bonus above base)
     att_bonus = smithed_att_bonus

@@ -2818,7 +2818,7 @@ static void apply_delta_byte_clamped(byte* v, int delta)
 
 void object_into_special(object_type* o_ptr, int lev, bool smithing)
 {
-    u32b f1, f2, f3;
+    u32b f1, f2, f3, f4;
     int i;
     const object_kind* k_ptr = NULL;
 
@@ -2829,7 +2829,7 @@ void object_into_special(object_type* o_ptr, int lev, bool smithing)
         k_ptr = &k_info[o_ptr->k_idx];
 
     /* Examine the item */
-    object_flags(o_ptr, &f1, &f2, &f3);
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
 
     /* Ensure overall curse state is set before applying pval deltas. */
     if (f3 & (TR3_LIGHT_CURSE))
@@ -2997,6 +2997,29 @@ void object_into_special(object_type* o_ptr, int lev, bool smithing)
                 o_ptr->pd = (byte)((int)o_ptr->pd - deficit);
             else
                 o_ptr->pd = 1;
+        }
+    }
+
+    /* Apply explicit weight flags relative to base kind weight. */
+    if (k_ptr && k_ptr->weight > 0)
+    {
+        int weight_adjust = 0;
+        int quarter_basis = div_round(k_ptr->weight, 4);
+
+        if (quarter_basis < 1)
+            quarter_basis = 1;
+
+        if ((f4 & TR4_WEIGHT) && !(f4 & TR4_NEG_WEIGHT))
+            weight_adjust = quarter_basis;
+        else if ((f4 & TR4_NEG_WEIGHT) && !(f4 & TR4_WEIGHT))
+            weight_adjust = -quarter_basis;
+
+        if (weight_adjust != 0)
+        {
+            int adjusted_weight = o_ptr->weight + weight_adjust;
+            if (adjusted_weight < 0)
+                adjusted_weight = 0;
+            o_ptr->weight = (s16b)adjusted_weight;
         }
     }
 

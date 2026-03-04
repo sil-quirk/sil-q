@@ -2038,6 +2038,8 @@
 #define TR4_SLAY_HORROR     0x00000800L /* Weapon slays horrors */
 #define TR4_SLAY_CAT        0x00001000L /* Weapon slays cats */
 #define TR4_SLAY_GIANT      0x00002000L /* Weapon slays giants */
+#define TR4_WEIGHT          0x00004000L /* Increases item weight by 25% of base weight */
+#define TR4_NEG_WEIGHT      0x00008000L /* Decreases item weight by 25% of base weight */
 
 /*
  * Hack -- flag set 1 -- mask for "pval-dependant" flags.

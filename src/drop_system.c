@@ -699,6 +699,8 @@ static int smithing_difficulty_baseline(const object_type* o_ptr)
     else
         weight_factor = 100 * k_ptr->weight / o_ptr->weight;
     dif_inc += (weight_factor - 100) / 20;
+    if (f4 & (TR4_WEIGHT | TR4_NEG_WEIGHT))
+        dif_inc += 5;
 
     /* Attack bonus */
     x = o_ptr->att - k_ptr->att;
