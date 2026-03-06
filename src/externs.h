@@ -987,6 +987,7 @@ extern s16b get_obj_num(int level);
 extern void object_known(object_type* o_ptr);
 extern void object_aware(object_type* o_ptr);
 extern void object_tried(object_type* o_ptr);
+extern bool object_has_ego_flag4(const object_type* o_ptr, u32b flag);
 extern s32b object_value(const object_type* o_ptr);
 extern bool object_similar(const object_type* o_ptr, const object_type* j_ptr);
 extern void object_absorb(object_type* o_ptr, object_type* j_ptr);
@@ -1065,7 +1066,9 @@ extern cptr get_thrall_quest_item_name(byte quest_item);
 extern int player_has_thrall_quest_item(byte quest_item);
 extern bool handle_thrall_interaction(monster_type* m_ptr);
 extern void complete_thrall_quest(monster_type* m_ptr, int item_slot);
+extern bool object_is_damaged_item(const object_type* o_ptr);
 extern int find_broken_item_to_upgrade(void);
+extern bool repair_damaged_item(int slot);
 extern bool upgrade_broken_item(int slot);
 extern bool reveal_random_artifact(void);
 
@@ -1277,6 +1280,7 @@ extern char* squelch_to_label(int squelch);
 
 /*use-obj.c*/
 extern bool use_object(object_type* o_ptr, bool* ident);
+extern bool use_sanctity_gem_on(object_type* target_o_ptr, bool* ident);
 
 /* util.c */
 

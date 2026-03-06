@@ -3539,9 +3539,10 @@ smithing_cost_type smithing_cost;
 #define SMT_MENU_ARTEFACT 3
 #define SMT_MENU_NUMBERS 4
 #define SMT_MENU_MELT 5
-#define SMT_MENU_ACCEPT 6
+#define SMT_MENU_REPAIR 6
+#define SMT_MENU_ACCEPT 7
 
-#define SMT_MENU_MAX 6
+#define SMT_MENU_MAX 7
 
 #define SMT_NUM_MENU_I_ATT 1
 #define SMT_NUM_MENU_D_ATT 2
@@ -8801,6 +8802,62 @@ void melt_menu(void)
     screen_load();
 }
 
+static bool smith_item_tester_hook_repairable(const object_type* o_ptr)
+{
+    return object_is_damaged_item(o_ptr);
+}
+
+static bool smith_repair_damaged_item(void)
+{
+    int slot = -1;
+    char o_name[80];
+
+    if (!cave_forge_bold(p_ptr->py, p_ptr->px))
+    {
+        msg_print("You can only repair items at a forge.");
+        return false;
+    }
+
+    if (forge_uses(p_ptr->py, p_ptr->px) <= 0)
+    {
+        msg_print("This forge has no resources left.");
+        return false;
+    }
+
+    if (!p_ptr->active_ability[S_SMT][SMT_REPAIR])
+    {
+        bell("You do not know how to repair damaged gear.");
+        return false;
+    }
+
+    item_tester_hook = smith_item_tester_hook_repairable;
+    if (!get_item(&slot, "Repair which item? ",
+            "You have nothing damaged to repair.", (USE_EQUIP | USE_INVEN)))
+    {
+        item_tester_hook = NULL;
+        return false;
+    }
+    item_tester_hook = NULL;
+
+    if (slot < 0)
+        return false;
+
+    if (!repair_damaged_item(slot))
+    {
+        bell("You cannot repair that item.");
+        return false;
+    }
+
+    cave_feat[p_ptr->py][p_ptr->px] -= 1;
+    lite_spot(p_ptr->py, p_ptr->px);
+
+    object_desc(o_name, sizeof(o_name), &inventory[slot], true, 0);
+    msg_format("You repair %s.", o_name);
+
+    p_ptr->redraw |= PR_BASIC;
+    return true;
+}
+
 /*
  * Performs the interface and selection work for the smithing screen.
  */
@@ -8840,6 +8897,11 @@ int smithing_menu_aux(int* highlight)
     valid[SMT_MENU_NUMBERS - 1] = (smith_o_ptr->tval != 0);
     valid[SMT_MENU_MELT - 1]
         = meltable_metal_items_carried() && cave_forge_bold(p_ptr->py, p_ptr->px);
+    valid[SMT_MENU_REPAIR - 1]
+        = cave_forge_bold(p_ptr->py, p_ptr->px)
+        && (forge_uses(p_ptr->py, p_ptr->px) > 0)
+        && p_ptr->active_ability[S_SMT][SMT_REPAIR]
+        && (find_broken_item_to_upgrade() >= 0);
     valid[SMT_MENU_ACCEPT - 1] = affordable(smith_o_ptr)
         && cave_forge_bold(p_ptr->py, p_ptr->px)
         && (forge_uses(p_ptr->py, p_ptr->px) > 0);
@@ -8864,16 +8926,19 @@ int smithing_menu_aux(int* highlight)
         valid[SMT_MENU_NUMBERS - 1] ? TERM_WHITE : TERM_L_DARK, "d) Numbers");
     Term_putstr(COL_SMT1, 6, -1,
         valid[SMT_MENU_MELT - 1] ? TERM_WHITE : TERM_L_DARK, "e) Melt");
+    valid_attr = p_ptr->active_ability[S_SMT][SMT_REPAIR] ? TERM_WHITE : TERM_RED;
+    Term_putstr(COL_SMT1, 7, -1,
+        valid[SMT_MENU_REPAIR - 1] ? valid_attr : TERM_L_DARK, "f) Repair");
 
     if (p_ptr->smithing_leftover == 0)
     {
-        Term_putstr(COL_SMT1, 7, -1,
-            valid[SMT_MENU_ACCEPT - 1] ? TERM_WHITE : TERM_L_DARK, "f) Accept");
+        Term_putstr(COL_SMT1, 8, -1,
+            valid[SMT_MENU_ACCEPT - 1] ? TERM_WHITE : TERM_L_DARK, "g) Accept");
     }
     else
     {
-        Term_putstr(COL_SMT1, 7, -1,
-            valid[SMT_MENU_ACCEPT - 1] ? TERM_WHITE : TERM_L_DARK, "f) Resume");
+        Term_putstr(COL_SMT1, 8, -1,
+            valid[SMT_MENU_ACCEPT - 1] ? TERM_WHITE : TERM_L_DARK, "g) Resume");
     }
 
     // display information about the selected item
@@ -8923,6 +8988,20 @@ int smithing_menu_aux(int* highlight)
             "Choose a mithril or star-iron item");
         Term_putstr(
             COL_SMT2 + 2, 3, -1, TERM_SLATE, "to melt down.");
+        break;
+    }
+    case SMT_MENU_REPAIR:
+    {
+        Term_putstr(COL_SMT2 + 2, 2, -1, TERM_SLATE,
+            "Repair a damaged item at the forge.");
+        Term_putstr(COL_SMT2 + 2, 3, -1, TERM_SLATE,
+            "This costs 1 forge use.");
+        if (!p_ptr->active_ability[S_SMT][SMT_REPAIR])
+            Term_putstr(COL_SMT2 + 2, 5, -1, TERM_L_DARK,
+                "(requires the Repair ability)");
+        else if (find_broken_item_to_upgrade() < 0)
+            Term_putstr(COL_SMT2 + 2, 5, -1, TERM_L_DARK,
+                "(you carry nothing damaged)");
         break;
     }
     case SMT_MENU_ACCEPT:
@@ -8982,7 +9061,7 @@ int smithing_menu_aux(int* highlight)
 
         // move the light blue highlight
         move_displayed_highlight(old_highlight,
-            valid[old_highlight] ? TERM_WHITE : TERM_L_DARK, *highlight,
+            valid[old_highlight - 1] ? TERM_WHITE : TERM_L_DARK, *highlight,
             COL_SMT1);
 
         if (valid[*highlight - 1])
@@ -9171,6 +9250,11 @@ void do_cmd_smithing_screen(void)
                 bell("You don't have any mithril or star-iron items.");
             }
 
+            break;
+        }
+        case SMT_MENU_REPAIR:
+        {
+            smith_repair_damaged_item();
             break;
         }
         case SMT_MENU_ACCEPT:

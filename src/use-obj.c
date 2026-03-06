@@ -32,6 +32,169 @@ int medicine_bonus(int original)
     return (original / 3) * bonus;
 }
 
+static bool jinx_ego_is_simple(const ego_item_type* e_ptr)
+{
+    if (!e_ptr)
+        return false;
+
+    if (e_ptr->abilities != 0)
+        return false;
+    if (e_ptr->flags1 != 0)
+        return false;
+    if ((int)(int8_t)e_ptr->max_att != 0 || (int)(int8_t)e_ptr->to_dd != 0
+        || (int)(int8_t)e_ptr->to_ds != 0 || (int)(int8_t)e_ptr->max_evn != 0
+        || (int)(int8_t)e_ptr->to_pd != 0 || (int)(int8_t)e_ptr->to_ps != 0)
+    {
+        return false;
+    }
+    if (e_ptr->max_pval != 0 || e_ptr->min_pval != 0)
+        return false;
+
+    for (int i = 0; i < A_MAX; i++)
+    {
+        if (e_ptr->stat_bonus_set[i] || e_ptr->stat_bonus[i] != 0)
+            return false;
+    }
+
+    for (int i = 0; i < S_MAX; i++)
+    {
+        if (e_ptr->skill_bonus_set[i] || e_ptr->skill_bonus[i] != 0)
+            return false;
+    }
+
+    return true;
+}
+
+static void refresh_broken_ident_for_sanctity(object_type* o_ptr)
+{
+    byte ego_prefix;
+    byte ego_suffix;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return;
+
+    o_ptr->ident &= ~(IDENT_BROKEN);
+
+    if (o_ptr->pval < 0 || k_info[o_ptr->k_idx].cost <= 0)
+        o_ptr->ident |= (IDENT_BROKEN);
+
+    if (o_ptr->name1 && a_info[o_ptr->name1].cost <= 0)
+        o_ptr->ident |= (IDENT_BROKEN);
+
+    ego_prefix = object_ego_prefix(o_ptr);
+    if (ego_prefix && e_info[ego_prefix].cost <= 0)
+        o_ptr->ident |= (IDENT_BROKEN);
+
+    ego_suffix = object_ego_suffix(o_ptr);
+    if (ego_suffix && e_info[ego_suffix].cost <= 0)
+        o_ptr->ident |= (IDENT_BROKEN);
+}
+
+static bool remove_jinx_ego_affix(object_type* o_ptr, bool is_prefix)
+{
+    byte e_idx;
+    ego_item_type* e_ptr;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    e_idx = is_prefix ? object_ego_prefix(o_ptr) : object_ego_suffix(o_ptr);
+    if (!e_idx)
+        return false;
+
+    e_ptr = &e_info[e_idx];
+    if (!(e_ptr->flags4 & TR4_JINX))
+        return false;
+    if (!jinx_ego_is_simple(e_ptr))
+        return false;
+
+    if (is_prefix)
+        object_set_ego_prefix(o_ptr, 0);
+    else
+        object_set_ego_suffix(o_ptr, 0);
+
+    refresh_broken_ident_for_sanctity(o_ptr);
+    return true;
+}
+
+static bool remove_jinx_egos(object_type* o_ptr)
+{
+    bool removed = false;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    if (object_ego_prefix(o_ptr)
+        && (e_info[object_ego_prefix(o_ptr)].flags4 & TR4_JINX))
+    {
+        removed |= remove_jinx_ego_affix(o_ptr, true);
+    }
+
+    if (object_ego_suffix(o_ptr)
+        && (e_info[object_ego_suffix(o_ptr)].flags4 & TR4_JINX))
+    {
+        removed |= remove_jinx_ego_affix(o_ptr, false);
+    }
+
+    return removed;
+}
+
+bool use_sanctity_gem_on(object_type* target_o_ptr, bool* ident)
+{
+    u32b f1, f2, f3;
+    bool removed_jinx = false;
+    bool removed_curse = false;
+    bool has_curse_breaking = p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING];
+    char target_name[80];
+
+    if (!target_o_ptr || !target_o_ptr->k_idx)
+        return false;
+
+    object_desc(target_name, sizeof(target_name), target_o_ptr, true, 0);
+
+    if (has_curse_breaking)
+        removed_jinx = remove_jinx_egos(target_o_ptr);
+
+    object_flags(target_o_ptr, &f1, &f2, &f3);
+    (void)f1;
+    (void)f2;
+
+    if (cursed_p(target_o_ptr) && !(f3 & (TR3_HEAVY_CURSE | TR3_PERMA_CURSE)))
+    {
+        uncurse_object(target_o_ptr);
+        removed_curse = true;
+    }
+
+    if (removed_jinx || removed_curse)
+    {
+        if (removed_jinx && removed_curse)
+            msg_format("%^s is cleansed.", target_name);
+        else if (removed_jinx)
+            msg_format("The jinx on %s is broken.", target_name);
+        else
+            msg_format("%^s is uncursed.", target_name);
+
+        if (ident)
+            *ident = true;
+
+        p_ptr->update |= (PU_BONUS);
+        p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
+
+        if (target_o_ptr == &inventory[INVEN_LITE])
+            p_ptr->redraw |= (PR_LIGHT);
+    }
+    else if (cursed_p(target_o_ptr))
+    {
+        msg_format("%^s resists the sanctity.", target_name);
+    }
+    else
+    {
+        msg_format("Nothing happens to %s.", target_name);
+    }
+
+    return true;
+}
+
 static bool eat_food(object_type* o_ptr, bool* ident)
 {
     // Easter Eggs

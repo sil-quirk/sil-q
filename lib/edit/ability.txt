@@ -474,7 +474,7 @@ E:+1 Grace.
 N:100:Curse Breaking
 I:5:0:1
 D:Breaking curses with the strength of will that enabled some of the Noldor to resist the Doom of Mandos. Such resolve shatters the dark enchantments laid upon objects by Morgoth's servants, and the struggle reveals much about the nature of all things touched by malice.
-E:Break curses on removal. Significant bonus to identifying items, especially cursed ones.
+E:Break curses on removal. Significant bonus to identifying items, especially cursed ones. Lets gems of Sanctity break jinxed egos.
 T:40:0:99  # Amulet
 T:32:0:99  # Helm
 T:45:0:99  # Ring
@@ -617,6 +617,13 @@ N:128:Alloy mastery
 I:6:8:6
 D:Blending rare metals as the cunning smiths of the First Age did, wedding mithril or star iron to common steel. The dwarves of the Blue Mountains guarded such secrets jealously, for weapons wrought with these metals possessed virtues beyond ordinary counterparts.
 E:Alloy weapons and armour with mithril or star iron at no extra cost. Forge mithril/star-iron gear.
+T:21:8:8   # Hafted (War Hammer only)
+T:31:0:99  # Gloves
+
+N:129:Repair
+I:6:9:5
+D:Restoring battered gear as the patient craftsmen of Nogrod straightened bent mail and reset cracked plates after hard-fought battles. A smith with this art can take what was marred in the deeps and make it whole again, if forge-fire and skill remain.
+E:Repair damaged items at a forge for 1 use.
 T:21:8:8   # Hafted (War Hammer only)
 T:31:0:99  # Gloves
 

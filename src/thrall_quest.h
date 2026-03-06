@@ -44,10 +44,20 @@ bool handle_thrall_interaction(monster_type* m_ptr);
 void complete_thrall_quest(monster_type* m_ptr, int item_slot);
 
 /*
+ * Check whether an object currently carries the DAMAGED flag.
+ */
+bool object_is_damaged_item(const object_type* o_ptr);
+
+/*
  * Find a broken item in player's inventory/equipment that can be upgraded
  * Returns the slot if found, -1 otherwise
  */
 int find_broken_item_to_upgrade(void);
+
+/*
+ * Repair a damaged item without showing the thrall reward presentation.
+ */
+bool repair_damaged_item(int slot);
 
 /*
  * Upgrade a broken item to its normal version, keeping special properties

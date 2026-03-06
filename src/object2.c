@@ -1520,6 +1520,25 @@ static s32b object_value_real(const object_type* o_ptr)
     return (value);
 }
 
+bool object_has_ego_flag4(const object_type* o_ptr, u32b flag)
+{
+    byte ego_prefix;
+    byte ego_suffix;
+
+    if (!o_ptr || !flag)
+        return false;
+
+    ego_prefix = object_ego_prefix(o_ptr);
+    if (ego_prefix && (e_info[ego_prefix].flags4 & flag))
+        return true;
+
+    ego_suffix = object_ego_suffix(o_ptr);
+    if (ego_suffix && (e_info[ego_suffix].flags4 & flag))
+        return true;
+
+    return false;
+}
+
 /*
  * Return the price of an item including plusses (and charges).
  *
@@ -2128,6 +2147,10 @@ static int make_special_item(object_type* o_ptr, bool only_good)
         /* Some special items can't be generated too deep */
         if ((e_ptr->max_level > 0) && (p_ptr->depth > e_ptr->max_level))
             continue;
+        if (e_ptr->flags3 & TR3_DAMAGED)
+            continue; /* Damaged prefixes are injected explicitly, never via generic ego rolls. */
+        if (e_ptr->flags4 & TR4_JINX)
+            continue; /* Jinx egos are injected separately, never via generic ego rolls. */
 
         /* If we force fine/special, don't create cursed */
         if (only_good && (e_ptr->flags3 & TR3_LIGHT_CURSE))

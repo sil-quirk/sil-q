@@ -161,7 +161,7 @@ T:36:0:10
 T:36:12:99
 T:37:0:6
 A:1/50:10/25:15/5
-F:VUL_POIS | DIF_ID | LIGHT_CURSE
+F:VUL_POIS | DIF_ID | LIGHT_CURSE | JINX
 
 
 N:10:(Blacked)
@@ -194,7 +194,7 @@ W:10:80:0:1000
 C:0:0:0:0:0:0:0
 T:34:0:99
 F:RES_FIRE
-F:IGNORE_ALL
+F:IGNORE_ALL | JINX
 
 
 # Mithril shields only
@@ -299,7 +299,7 @@ C:0:0:0:0:0:0:0
 T:21:8:8
 T:22:1:4
 T:23:10:99
-F:SLAY_UNDEAD | FREE_ACT | NOBLE
+F:SLAY_UNDEAD | FREE_ACT | NOBLE_ITEM
 
 
 # Warhammers, axes, digging tools
@@ -656,7 +656,7 @@ C:0:0:0:0:0:0:0
 T:35:0:99
 T:36:2:2
 A:1/75:10/50:15/33
-F:VUL_COLD | DIF_ID | LIGHT_CURSE | EVIL_ITEM
+F:VUL_COLD | DIF_ID | LIGHT_CURSE | EVIL_ITEM | JINX
 
 
 N:87:of the Scarlet Heart
@@ -945,7 +945,7 @@ W:0:100:11:0
 A:5/100:10/0
 C:0:0:0:0:0:0:0
 T:39:1:1
-F:UNLIGHT | LIGHT_CURSE | EVIL_ITEM
+F:UNLIGHT | LIGHT_CURSE | EVIL_ITEM | JINX
 
 
 
@@ -1315,4 +1315,107 @@ C:0:0:0:0:0:0:0
 T:39:8:8
 B:7/7
 F:NOBLE_ITEM
+
+
+##### Damaged Prefixes #####
+
+
+N:171:(Rusty)
+W:1:100:10:0
+C:0:0:0:0:0:-1:0
+T:32:5:5
+A:1/100:10/0
+F:DAMAGED | EASY_KNOW
+D:A once-stout helm fouled by rust and neglect, its rim eaten
+D: thin and its guard much reduced.
+
+
+N:172:(Shabby)
+W:1:100:10:0
+C:0:0:0:-1:0:0:0
+T:30:1:1
+A:1/100:10/0
+F:DAMAGED | EASY_KNOW
+D:Boots worn thin and loose, fit for the road only in dire need.
+
+
+N:173:(Broken)
+W:1:100:10:0
+C:-1:0:0:0:0:-1:0
+T:34:3:3
+A:1/100:10/0
+F:DAMAGED | EASY_KNOW
+D:A shield cracked and splintered by some heavy stroke of old.
+
+
+N:174:(Chipped)
+W:1:100:10:0
+C:-1:0:-1:0:0:0:0
+T:23:4:4
+A:1/100:10/0
+F:DAMAGED | EASY_KNOW
+D:A blade whose edge is nicked and worn, diminished in bite.
+
+
+N:175:(Bent)
+W:1:100:10:0
+C:-1:0:-1:-1:0:0:0
+T:23:10:10
+A:1/100:10/0
+F:DAMAGED | EASY_KNOW
+D:A shortsword gone slightly out of true, its point and balance both spoiled.
+
+
+N:176:(Splintered)
+W:1:100:10:0
+C:-1:0:-2:0:0:0:0
+T:22:1:1
+A:1/100:10/0
+F:DAMAGED | EASY_KNOW
+D:A spear with a cracked shaft and a dulled head, still serviceable but poor.
+
+
+N:177:(Warped)
+W:1:100:10:0
+C:-1:0:-1:0:0:0:0
+T:19:12:12
+A:1/100:10/0
+F:DAMAGED | EASY_KNOW
+D:A shortbow left damp and untended until its limbs have lost their true cast.
+
+
+N:178:(Torn)
+W:1:100:10:0
+C:0:0:0:-1:0:0:0
+T:35:1:1
+A:1/100:10/0
+F:DAMAGED | EASY_KNOW
+D:A cloak in tatters, frayed at hem and shoulder and of little aid in concealment.
+
+
+N:179:(Cracked)
+W:2:100:10:0
+C:-1:0:0:-1:0:-1:0
+T:31:2:2
+A:2/100:10/0
+F:DAMAGED | EASY_KNOW
+D:Gauntlets with split leather and bent iron plates that no longer sit cleanly.
+
+
+N:180:(Dented)
+W:2:100:10:0
+C:0:0:0:-1:0:-1:0
+T:30:2:2
+A:2/100:10/0
+F:DAMAGED | EASY_KNOW
+D:Greaves hammered out of shape, their plates caved and their straps strained.
+
+
+N:181:(Dented)
+W:3:100:10:0
+C:-1:0:0:-1:0:-1:0
+T:37:4:4
+A:3/100:10/0
+F:DAMAGED | EASY_KNOW
+D:A mail corslet with crushed rings and slack links, its defence much reduced.
 

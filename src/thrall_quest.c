@@ -6,6 +6,7 @@
 
 #include "angband.h"
 #include "externs.h"
+#include "log/log.h"
 #include "mem/alloc.h"
 #include "supplies.h"
 #include "thrall_quest.h"
@@ -387,28 +388,34 @@ int player_has_thrall_quest_item(byte quest_item)
  * Find a broken item in player's inventory/equipment that can be upgraded
  * Returns the slot if found, -1 otherwise
  */
+bool object_is_damaged_item(const object_type* o_ptr)
+{
+    u32b f1, f2, f3;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    object_flags(o_ptr, &f1, &f2, &f3);
+    return (f3 & TR3_DAMAGED) ? true : false;
+}
+
 int find_broken_item_to_upgrade(void)
 {
     int i;
-    
+
     /* Search inventory and equipment */
     for (i = 0; i < INVEN_TOTAL; i++)
     {
         object_type* o_ptr = &inventory[i];
-        object_kind* k_ptr;
-        
+
         /* Skip empty slots */
-        if (!o_ptr->k_idx) continue;
-        
-        k_ptr = &k_info[o_ptr->k_idx];
-        
-        /* Check if it's a damaged item */
-        if (k_ptr->flags3 & TR3_DAMAGED)
-        {
+        if (!o_ptr->k_idx)
+            continue;
+
+        if (object_is_damaged_item(o_ptr))
             return i;
-        }
     }
-    
+
     return -1;
 }
 
@@ -491,12 +498,112 @@ static s16b get_upgrade_kind(object_type* o_ptr)
     return 0;
 }
 
-static bool item_tester_hook_broken_item(const object_type* o_ptr)
+static int ego_bonus_s8(byte v)
 {
+    return (int)(int8_t)v;
+}
+
+static byte damaged_ego_index(const object_type* o_ptr, bool* is_prefix)
+{
+    byte e_idx;
+
+    if (is_prefix)
+        *is_prefix = false;
+
+    if (!o_ptr)
+        return 0;
+
+    e_idx = object_ego_prefix(o_ptr);
+    if (e_idx && (e_info[e_idx].flags3 & TR3_DAMAGED))
+    {
+        if (is_prefix)
+            *is_prefix = true;
+        return e_idx;
+    }
+
+    e_idx = object_ego_suffix(o_ptr);
+    if (e_idx && (e_info[e_idx].flags3 & TR3_DAMAGED))
+        return e_idx;
+
+    return 0;
+}
+
+static void refresh_broken_ident(object_type* o_ptr)
+{
+    byte ego_prefix;
+    byte ego_suffix;
+
     if (!o_ptr || !o_ptr->k_idx)
+        return;
+
+    o_ptr->ident &= ~(IDENT_BROKEN);
+
+    if (o_ptr->pval < 0 || k_info[o_ptr->k_idx].cost <= 0)
+        o_ptr->ident |= (IDENT_BROKEN);
+
+    if (o_ptr->name1 && a_info[o_ptr->name1].cost <= 0)
+        o_ptr->ident |= (IDENT_BROKEN);
+
+    ego_prefix = object_ego_prefix(o_ptr);
+    if (ego_prefix && e_info[ego_prefix].cost <= 0)
+        o_ptr->ident |= (IDENT_BROKEN);
+
+    ego_suffix = object_ego_suffix(o_ptr);
+    if (ego_suffix && e_info[ego_suffix].cost <= 0)
+        o_ptr->ident |= (IDENT_BROKEN);
+}
+
+static bool remove_damaged_ego(object_type* o_ptr)
+{
+    bool is_prefix = false;
+    byte e_idx = damaged_ego_index(o_ptr, &is_prefix);
+    ego_item_type* e_ptr;
+
+    if (!e_idx)
         return false;
 
-    return (k_info[o_ptr->k_idx].flags3 & TR3_DAMAGED) ? true : false;
+    e_ptr = &e_info[e_idx];
+
+    /*
+     * Repairable damage egos are intended to be fixed, deterministic penalties.
+     * If that ever changes, this removal logic must be updated to mirror it.
+     */
+    if (e_ptr->max_pval != 0 || e_ptr->min_pval != 0 || e_ptr->abilities != 0)
+    {
+        log_warn("remove_damaged_ego: unsupported damaged ego %d has pval/abilities", e_idx);
+        return false;
+    }
+
+    o_ptr->att = (s16b)MIN(32767, MAX(-32768, o_ptr->att - ego_bonus_s8(e_ptr->max_att)));
+    o_ptr->evn = (s16b)MIN(32767, MAX(-32768, o_ptr->evn - ego_bonus_s8(e_ptr->max_evn)));
+    o_ptr->dd = (byte)MIN(255, MAX(0, (int)o_ptr->dd - ego_bonus_s8(e_ptr->to_dd)));
+    o_ptr->ds = (byte)MIN(255, MAX(0, (int)o_ptr->ds - ego_bonus_s8(e_ptr->to_ds)));
+    o_ptr->pd = (byte)MIN(255, MAX(0, (int)o_ptr->pd - ego_bonus_s8(e_ptr->to_pd)));
+    o_ptr->ps = (byte)MIN(255, MAX(0, (int)o_ptr->ps - ego_bonus_s8(e_ptr->to_ps)));
+
+    for (int i = 0; i < A_MAX; i++)
+    {
+        if (e_ptr->stat_bonus_set[i] || e_ptr->stat_bonus[i] != 0)
+            o_ptr->stat_bonus[i] -= e_ptr->stat_bonus[i];
+    }
+    for (int i = 0; i < S_MAX; i++)
+    {
+        if (e_ptr->skill_bonus_set[i] || e_ptr->skill_bonus[i] != 0)
+            o_ptr->skill_bonus[i] -= e_ptr->skill_bonus[i];
+    }
+
+    if (is_prefix)
+        object_set_ego_prefix(o_ptr, 0);
+    else
+        object_set_ego_suffix(o_ptr, 0);
+
+    refresh_broken_ident(o_ptr);
+    return true;
+}
+
+static bool item_tester_hook_broken_item(const object_type* o_ptr)
+{
+    return object_is_damaged_item(o_ptr);
 }
 
 static bool choose_broken_item_to_upgrade(int* out_slot)
@@ -525,92 +632,129 @@ static bool choose_broken_item_to_upgrade(int* out_slot)
 }
 
 /*
- * Upgrade a broken item to its normal version, keeping special properties
+ * Repair a damaged item, either by removing its damaged ego prefix or
+ * by upgrading a legacy damaged base kind for old saves.
  */
-bool upgrade_broken_item(int slot)
+static bool repair_damaged_item_internal(int slot,
+    char* old_name, size_t old_name_size, char* new_name, size_t new_name_size)
 {
     object_type* o_ptr = &inventory[slot];
     object_kind* old_k_ptr;
     object_kind* new_k_ptr;
     s16b new_k_idx;
-    char old_name[80];
-    char new_name[80];
     int att, evn, pval;
     int dd, ds, pd, ps;
     int att_delta, evn_delta, pval_delta;
     int dd_delta, ds_delta, pd_delta, ps_delta;
-    
+
     /* Paranoia */
-    if (!o_ptr->k_idx) return false;
-    
+    if (!o_ptr->k_idx)
+        return false;
+
     old_k_ptr = &k_info[o_ptr->k_idx];
-    
+
     /* Must be damaged */
-    if (!(old_k_ptr->flags3 & TR3_DAMAGED)) return false;
-    
-    /* Get upgrade target */
-    new_k_idx = get_upgrade_kind(o_ptr);
-    if (!new_k_idx) return false;
-    
-    new_k_ptr = &k_info[new_k_idx];
+    if (!object_is_damaged_item(o_ptr))
+        return false;
 
-    /* Keep current values, then add base delta after changing kind */
-    att = o_ptr->att;
-    evn = o_ptr->evn;
-    pval = o_ptr->pval;
-    dd = o_ptr->dd;
-    ds = o_ptr->ds;
-    pd = o_ptr->pd;
-    ps = o_ptr->ps;
+    /* Remember old name before changing anything */
+    if (old_name && old_name_size > 0)
+        object_desc(old_name, old_name_size, o_ptr, true, 0);
 
-    att_delta = (int)new_k_ptr->att - (int)old_k_ptr->att;
-    evn_delta = (int)new_k_ptr->evn - (int)old_k_ptr->evn;
-    pval_delta = (int)new_k_ptr->pval - (int)old_k_ptr->pval;
-    dd_delta = (int)new_k_ptr->dd - (int)old_k_ptr->dd;
-    ds_delta = (int)new_k_ptr->ds - (int)old_k_ptr->ds;
-    pd_delta = (int)new_k_ptr->pd - (int)old_k_ptr->pd;
-    ps_delta = (int)new_k_ptr->ps - (int)old_k_ptr->ps;
-    
-    /* Remember old name */
-    object_desc(old_name, sizeof(old_name), o_ptr, true, 0);
-    
-    /* Upgrade the item - keep most properties, change kind */
-    o_ptr->k_idx = new_k_idx;
-    o_ptr->tval = new_k_ptr->tval;
-    o_ptr->sval = new_k_ptr->sval;
-    
-    /* Increase basic stats by the base delta between broken and real items */
-    o_ptr->att = (s16b)MIN(32767, MAX(-32768, att + att_delta));
-    o_ptr->evn = (s16b)MIN(32767, MAX(-32768, evn + evn_delta));
-    o_ptr->pval = (s16b)MIN(32767, MAX(-32768, pval + pval_delta));
-    o_ptr->dd = (byte)MIN(255, MAX(0, dd + dd_delta));
-    o_ptr->ds = (byte)MIN(255, MAX(0, ds + ds_delta));
-    o_ptr->pd = (byte)MIN(255, MAX(0, pd + pd_delta));
-    o_ptr->ps = (byte)MIN(255, MAX(0, ps + ps_delta));
-    
-    /* Update weight */
-    o_ptr->weight = new_k_ptr->weight;
-    
+    /* New-style damaged item: remove the damaged affix and keep the rest */
+    if (damaged_ego_index(o_ptr, NULL))
+    {
+        if (!remove_damaged_ego(o_ptr))
+            return false;
+    }
+    else
+    {
+        /* Legacy damaged base-kind fallback for older saves */
+        new_k_idx = get_upgrade_kind(o_ptr);
+        if (!new_k_idx)
+            return false;
+
+        new_k_ptr = &k_info[new_k_idx];
+
+        /* Keep current values, then add base delta after changing kind */
+        att = o_ptr->att;
+        evn = o_ptr->evn;
+        pval = o_ptr->pval;
+        dd = o_ptr->dd;
+        ds = o_ptr->ds;
+        pd = o_ptr->pd;
+        ps = o_ptr->ps;
+
+        att_delta = (int)new_k_ptr->att - (int)old_k_ptr->att;
+        evn_delta = (int)new_k_ptr->evn - (int)old_k_ptr->evn;
+        pval_delta = (int)new_k_ptr->pval - (int)old_k_ptr->pval;
+        dd_delta = (int)new_k_ptr->dd - (int)old_k_ptr->dd;
+        ds_delta = (int)new_k_ptr->ds - (int)old_k_ptr->ds;
+        pd_delta = (int)new_k_ptr->pd - (int)old_k_ptr->pd;
+        ps_delta = (int)new_k_ptr->ps - (int)old_k_ptr->ps;
+
+        /* Upgrade the item - keep most properties, change kind */
+        o_ptr->k_idx = new_k_idx;
+        o_ptr->tval = new_k_ptr->tval;
+        o_ptr->sval = new_k_ptr->sval;
+
+        /* Increase basic stats by the base delta between broken and real items */
+        o_ptr->att = (s16b)MIN(32767, MAX(-32768, att + att_delta));
+        o_ptr->evn = (s16b)MIN(32767, MAX(-32768, evn + evn_delta));
+        o_ptr->pval = (s16b)MIN(32767, MAX(-32768, pval + pval_delta));
+        o_ptr->dd = (byte)MIN(255, MAX(0, dd + dd_delta));
+        o_ptr->ds = (byte)MIN(255, MAX(0, ds + ds_delta));
+        o_ptr->pd = (byte)MIN(255, MAX(0, pd + pd_delta));
+        o_ptr->ps = (byte)MIN(255, MAX(0, ps + ps_delta));
+
+        /* Update weight */
+        o_ptr->weight = new_k_ptr->weight;
+        refresh_broken_ident(o_ptr);
+    }
+
+    object_aware(o_ptr);
     /* Mark as known */
     object_known(o_ptr);
-    
-    /* Get new name */
-    object_desc(new_name, sizeof(new_name), o_ptr, true, 0);
-    
-    /* Message */
-    char dialog_text[1024];
-    strnfmt(dialog_text, sizeof(dialog_text),
-        "The thrall takes your %s in scarred hands, and his fingers move with an old, half-forgotten surety.\n\n"
-        "He murmurs words under his breath, and a pale light kindles along the metal...\n\n"
-        "It is remade as %s!", old_name, new_name);
-        
-    cptr texts[1] = { dialog_text };
-    quest_typewriter_menu("Restoration", texts, 1, TERM_YELLOW, TERM_WHITE);
-    
+
+    if (new_name && new_name_size > 0)
+        object_desc(new_name, new_name_size, o_ptr, true, 0);
+
     /* Update display */
     p_ptr->update |= (PU_BONUS);
     p_ptr->window |= (PW_INVEN | PW_EQUIP);
-    
+
+    return true;
+}
+
+bool repair_damaged_item(int slot)
+{
+    return repair_damaged_item_internal(slot, NULL, 0, NULL, 0);
+}
+
+/*
+ * Upgrade a broken item to its normal version, keeping special properties
+ */
+bool upgrade_broken_item(int slot)
+{
+    char old_name[80];
+    char new_name[80];
+    char dialog_text[1024];
+
+    if (!repair_damaged_item_internal(
+            slot, old_name, sizeof(old_name), new_name, sizeof(new_name)))
+    {
+        return false;
+    }
+
+    strnfmt(dialog_text, sizeof(dialog_text),
+        "The thrall takes your %s in scarred hands, and his fingers move with an old, half-forgotten surety.\n\n"
+        "He murmurs words under his breath, and a pale light kindles along the metal...\n\n"
+        "It is remade as %s!",
+        old_name, new_name);
+
+    cptr texts[1] = { dialog_text };
+    quest_typewriter_menu("Restoration", texts, 1, TERM_YELLOW, TERM_WHITE);
+
     return true;
 }
 

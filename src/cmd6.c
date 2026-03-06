@@ -18,6 +18,56 @@ static void msg_print_object_identified(const object_type* o_ptr)
     msg_format("You identify %s.", o_name);
 }
 
+static const object_type* sanctity_target_excluded = NULL;
+
+static bool item_tester_hook_sanctity_target(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    if (o_ptr == sanctity_target_excluded)
+        return false;
+
+    if (cursed_p(o_ptr))
+        return true;
+
+    if (!object_known_p(o_ptr))
+        return true;
+
+    if (p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING]
+        && object_has_ego_flag4(o_ptr, TR4_JINX))
+    {
+        return true;
+    }
+
+    return false;
+}
+
+static object_type* choose_sanctity_target(const object_type* gem_o_ptr)
+{
+    int item;
+    object_type* target_o_ptr = NULL;
+
+    sanctity_target_excluded = gem_o_ptr;
+    item_tester_hook = item_tester_hook_sanctity_target;
+
+    if (!get_item(&item, "Cleanse which item? ",
+            "You have nothing suitable to cleanse.", (USE_EQUIP | USE_INVEN)))
+    {
+        item_tester_hook = NULL;
+        sanctity_target_excluded = NULL;
+        return NULL;
+    }
+
+    item_tester_hook = NULL;
+    sanctity_target_excluded = NULL;
+
+    if (item >= 0)
+        target_o_ptr = &inventory[item];
+
+    return target_o_ptr;
+}
+
 /*
  * This file includes code for eating food, drinking potions,
  * using staffs, playing instruments, and activating artefacts.
@@ -594,6 +644,7 @@ void do_cmd_use_gem(object_type* default_o_ptr, int default_item)
     int item;
     bool ident;
     object_type* o_ptr = NULL;
+    object_type* sanctity_target = NULL;
     bool use_charge;
 
     int supply_index = supplies_current_action();
@@ -656,6 +707,13 @@ void do_cmd_use_gem(object_type* default_o_ptr, int default_item)
         return;
     }
 
+    if (o_ptr->sval == SV_GEM_SANCTITY)
+    {
+        sanctity_target = choose_sanctity_target(o_ptr);
+        if (!sanctity_target)
+            return;
+    }
+
     /* Sound */
     sound(MSG_USE_GEM);
 
@@ -669,7 +727,10 @@ void do_cmd_use_gem(object_type* default_o_ptr, int default_item)
     ident = false;
 
     /* Use the gem */
-    use_charge = use_object(o_ptr, &ident);
+    if (o_ptr->sval == SV_GEM_SANCTITY)
+        use_charge = use_sanctity_gem_on(sanctity_target, &ident);
+    else
+        use_charge = use_object(o_ptr, &ident);
 
     // Break the truce
     break_truce(false);

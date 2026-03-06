@@ -7611,8 +7611,18 @@ static void alloc_object_in_partition(int set, int typ, int num, quadrant_mode_t
 
         case ALLOC_TYP_OBJECT:
         {
-            /* Place object with artefacts disabled for floor scatter */
-            place_object_with_profile(y, x, &active_profile);
+            /* Ruined partitions occasionally replace floor loot with damaged gear. */
+            if (target_mode == QUAD_MODE_RUINED && rand_int(100) < 20)
+            {
+                place_object_with_profile_params(
+                    y, x, object_level, object_level, DROP_QUALITY_NORMAL,
+                    DROP_TYPE_DAMAGED, false, 1, 0, &active_profile);
+            }
+            else
+            {
+                /* Place object with artefacts disabled for floor scatter */
+                place_object_with_profile(y, x, &active_profile);
+            }
             break;
         }
         }

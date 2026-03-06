@@ -1089,38 +1089,90 @@ static void chest_trap(int y, int x, s16b o_idx)
     }
 }
 
-static bool generate_poor_quality_object(object_type* o_ptr)
+static void prep_skeleton_food(object_type* o_ptr, byte skeleton_sval)
 {
-    bool search_failed = false;
-
-    int object_roll = dieroll(5);
-
-    if (object_roll == 1)
+    switch (skeleton_sval)
     {
-        object_prep(o_ptr, lookup_kind(TV_ARROW, SV_NORMAL_ARROW));
-    }
-    else if (object_roll == 2)
-    {
-        object_prep(o_ptr, lookup_kind(TV_LIGHT, SV_LIGHT_TORCH));
-        o_ptr->timeout = rand_range(400, 800);
-    }
-    else if (object_roll == 3)
-    {
-        object_prep(o_ptr, lookup_kind(TV_CLOAK, SV_CLOAK));
-    }
-    else if (object_roll == 4)
-    {
+    case SV_SKELETON_ELF:
+        object_prep(o_ptr, lookup_kind(TV_FOOD, SV_FOOD_LEMBAS));
+        break;
+    case SV_SKELETON_ORC:
         object_prep(o_ptr, lookup_kind(TV_FOOD, SV_FOOD_MEAT));
-    }
-    else
-    {
-        search_failed = !make_object(
-            o_ptr, DROP_QUALITY_NORMAL, DROP_TYPE_DAMAGED);
+        break;
+    case SV_SKELETON_HUMAN:
+    default:
+        object_prep(o_ptr, lookup_kind(TV_FOOD,
+            one_in_(2) ? SV_FOOD_BREAD : SV_FOOD_MEAT));
+        break;
     }
 
-    if (!search_failed)
-        object_known(o_ptr);
-    return search_failed;
+    object_known(o_ptr);
+}
+
+static void prep_skeleton_light(object_type* o_ptr, byte skeleton_sval)
+{
+    s16b k_idx;
+
+    switch (skeleton_sval)
+    {
+    case SV_SKELETON_ELF:
+        k_idx = one_in_(2)
+            ? lookup_kind(TV_LIGHT, SV_LIGHT_LANTERN)
+            : lookup_kind(TV_LIGHT, SV_LIGHT_MALLORN);
+        break;
+    case SV_SKELETON_ORC:
+        k_idx = one_in_(4)
+            ? lookup_kind(TV_LIGHT, SV_LIGHT_LANTERN)
+            : lookup_kind(TV_LIGHT, SV_LIGHT_TORCH);
+        break;
+    case SV_SKELETON_HUMAN:
+    default:
+        k_idx = one_in_(2)
+            ? lookup_kind(TV_LIGHT, SV_LIGHT_LANTERN)
+            : lookup_kind(TV_LIGHT, SV_LIGHT_TORCH);
+        break;
+    }
+
+    object_prep(o_ptr, k_idx);
+
+    if (o_ptr->sval == SV_LIGHT_TORCH)
+        o_ptr->timeout = one_in_(3) ? rand_range(250, 1000) : 1000;
+    else if (o_ptr->sval == SV_LIGHT_LANTERN)
+        o_ptr->timeout = one_in_(3) ? rand_range(500, 3000) : 3000;
+    else if (o_ptr->sval == SV_LIGHT_MALLORN)
+        o_ptr->timeout = one_in_(3) ? rand_range(20, 50) : 50;
+
+    object_known(o_ptr);
+}
+
+static bool skeleton_damaged_item_allowed(byte skeleton_sval, const object_type* o_ptr)
+{
+    chest_alignment_type alignment = chest_item_alignment(o_ptr);
+
+    if (alignment == CHEST_ALIGNMENT_INVALID)
+        return false;
+    if (skeleton_sval == SV_SKELETON_ELF && alignment == CHEST_ALIGNMENT_EVIL)
+        return false;
+    if (skeleton_sval == SV_SKELETON_ORC && alignment == CHEST_ALIGNMENT_NOBLE)
+        return false;
+
+    return true;
+}
+
+static bool generate_skeleton_damaged_item(object_type* o_ptr, byte skeleton_sval)
+{
+    for (int attempt = 0; attempt < 50; attempt++)
+    {
+        object_wipe(o_ptr);
+        if (!make_object(o_ptr, DROP_QUALITY_NORMAL, DROP_TYPE_DAMAGED))
+            return true;
+
+        if (skeleton_damaged_item_allowed(skeleton_sval, o_ptr))
+            return false;
+    }
+
+    object_wipe(o_ptr);
+    return true;
 }
 
 typedef struct skeleton_note_profile {
@@ -3832,9 +3884,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
 static void do_cmd_search_skeleton(int y, int x, s16b o_idx)
 {
     bool search_failed = true;
-    int drop_result = 0;
-
-    object_generation_mode = OB_GEN_MODE_SKELETON;
+    bool auto_carry_food = false;
     object_type* o_ptr = &o_list[o_idx];
 
     // Searched already
@@ -3843,57 +3893,34 @@ static void do_cmd_search_skeleton(int y, int x, s16b o_idx)
         return;
     }
 
+    object_generation_mode = OB_GEN_MODE_SKELETON;
+
     skeleton_note_maybe_show(o_ptr->sval, y, x);
 
     object_type* i_ptr;
     object_type object_type_body;
     i_ptr = &object_type_body;
 
-    switch (o_ptr->sval)
-    {
-    case SV_SKELETON_ELF:
-        drop_result = dieroll(10);
-        break;
-    case SV_SKELETON_HUMAN:
-        drop_result = dieroll(10) + 5;
-        break;
-    case SV_SKELETON_ORC:
-        drop_result = 10;
-        break;
-    }
+    int roll = rand_int(100);
 
-    switch (drop_result)
+    if (roll < 30)
     {
-    case 1:
-    case 2:
-    case 3:
-    case 4:
-        object_prep(i_ptr, lookup_kind(TV_LIGHT, SV_LIGHT_MALLORN));
-        i_ptr->timeout = rand_range(20, 50);
+        prep_skeleton_food(i_ptr, o_ptr->sval);
+        auto_carry_food = true;
         search_failed = false;
-        break;
-    case 5:
-        search_failed = !make_object(
-            i_ptr, DROP_QUALITY_NORMAL, DROP_TYPE_BOW);
-        break;
-    case 6:
-        search_failed = !make_object(
-            i_ptr, DROP_QUALITY_NORMAL, DROP_TYPE_CLOAK);
-        break;
-    case 7:
-        search_failed = !make_object(
-            i_ptr, DROP_QUALITY_NORMAL, DROP_TYPE_BOOTS);
-        break;
-    case 8:
-        search_failed = !make_object(
-            i_ptr, DROP_QUALITY_NORMAL, DROP_TYPE_WEAPON);
-        break;
-    case 9:
-        search_failed = !make_object(
-            i_ptr, DROP_QUALITY_NORMAL, DROP_TYPE_GLOVES);
-        break;
-    default:
-        search_failed = generate_poor_quality_object(i_ptr);
+    }
+    else if (roll < 60)
+    {
+        prep_skeleton_light(i_ptr, o_ptr->sval);
+        search_failed = false;
+    }
+    else if (roll < 80)
+    {
+        search_failed = generate_skeleton_damaged_item(i_ptr, o_ptr->sval);
+    }
+    else
+    {
+        search_failed = true;
     }
 
     o_ptr->pval = 0;
@@ -3908,7 +3935,8 @@ static void do_cmd_search_skeleton(int y, int x, s16b o_idx)
     {
         if (i_ptr->k_idx)
         {
-            msg_print("You find something among the bones!");
+            int slot = -1;
+            char o_name[80];
 
             if (i_ptr->tval != TV_ARROW)
             {
@@ -3920,33 +3948,36 @@ static void do_cmd_search_skeleton(int y, int x, s16b o_idx)
                 msg_format("You gather up %d arrows.", i_ptr->number);
             }
 
-            int slot;
-            char o_name[80];
+            object_desc(o_name, sizeof(o_name), i_ptr, true, 0);
 
-            /* Carry the object */
-            slot = inven_carry(i_ptr, true);
-
-            if (slot == SUPPLIES_INDEX)
+            if (auto_carry_food)
             {
-                object_desc(o_name, sizeof(o_name), i_ptr, true, 3);
-                char label = supplies_label_char();
-                if (!label)
-                    label = 'a';
-                msg_format("You add %s to your supplies (%c).", o_name, label);
+                slot = inven_carry(i_ptr, true);
+
+                if (slot == SUPPLIES_INDEX)
+                {
+                    char label = supplies_label_char();
+                    if (!label)
+                        label = 'a';
+                    msg_format("You recover %s and add it to your supplies (%c).", o_name, label);
+                }
+                else if (slot >= 0)
+                {
+                    msg_format("You recover %s (%c).", o_name, index_to_label(slot));
+                }
+                else
+                {
+                    msg_format("You recover %s from the bones.", o_name);
+                    drop_near(i_ptr, -1, y, x);
+                }
             }
-            else if (slot >= 0)
+            else
             {
-                /* Get the object again */
-                i_ptr = &inventory[slot];
-
-                /* Describe the object */
-                object_desc(o_name, sizeof(o_name), i_ptr, true, 3);
-
-                /* Message */
-                msg_format("You have %s (%c).", o_name, index_to_label(slot));
+                msg_format("You find %s among the bones.", o_name);
+                drop_near(i_ptr, -1, y, x);
             }
 
-            // Break the truce if creatures see
+            /* Break the truce if creatures see */
             break_truce(false);
         }
     }

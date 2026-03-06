@@ -629,6 +629,7 @@
 #define SMT_MASTERPIECE 6
 #define SMT_GRA 7
 #define SMT_ALLOY_MASTERY 8
+#define SMT_REPAIR 9
 
 /*
  * Songs
@@ -2040,6 +2041,7 @@
 #define TR4_SLAY_GIANT      0x00002000L /* Weapon slays giants */
 #define TR4_WEIGHT          0x00004000L /* Increases item weight by 25% of base weight */
 #define TR4_NEG_WEIGHT      0x00008000L /* Decreases item weight by 25% of base weight */
+#define TR4_JINX           0x00010000L /* Ego is a jinx affix applied outside normal ego generation */
 
 /*
  * Hack -- flag set 1 -- mask for "pval-dependant" flags.

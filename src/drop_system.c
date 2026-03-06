@@ -55,12 +55,6 @@ static drop_entry* g_drop_entries = NULL;
 static size_t g_drop_count = 0;
 static size_t g_drop_capacity = 0;
 
-/* Jinx egos are excluded from normal drops but applied probabilistically */
-static const s16b jinx_egos[] = {
-    /* EGO_FLICKERING_SHADOW,  -- temporarily disabled */
-    -1  /* sentinel */
-};
-
 static int ego_s8(byte v)
 {
     return (int)(int8_t)v;
@@ -73,9 +67,20 @@ static int smithing_step_from_ego_bonus(int bonus)
     return (bonus > 0) ? 1 : -1;
 }
 
+static bool drop_object_is_damaged(const object_type* o_ptr)
+{
+    u32b f1, f2, f3;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    object_flags(o_ptr, &f1, &f2, &f3);
+    return (f3 & TR3_DAMAGED) != 0;
+}
+
 static const char* DROP_RAW_FILE = "drops";
 static const u32b DROP_RAW_MAGIC = 0x44525053; /* 'DRPS' */
-static const u32b DROP_RAW_VERSION = 17;
+static const u32b DROP_RAW_VERSION = 18;
 
 typedef struct
 {
@@ -1253,12 +1258,8 @@ static void add_drop_entry(const object_type* proto, drop_category cat,
 /* Check if an ego is a jinx ego */
 static bool is_jinx_ego(int e_idx)
 {
-    for (int i = 0; jinx_egos[i] >= 0; i++)
-    {
-        if (jinx_egos[i] == e_idx)
-            return true;
-    }
-    return false;
+    return (e_idx > 0 && e_idx < z_info->e_max
+        && (e_info[e_idx].flags4 & TR4_JINX));
 }
 
 static void apply_ego_static(object_type* o_ptr, ego_item_type* e_ptr)
@@ -1405,6 +1406,8 @@ static void build_normal_variants(int k_idx)
     /* Skip pure artifact templates; they should only appear via artefact entries */
     if (k_ptr->flags3 & TR3_INSTA_ART)
         return;
+    if (k_ptr->flags3 & TR3_DAMAGED)
+        return; /* Legacy damaged base kinds are retained for save-compat only. */
 
     drop_category cat = drop_category_for_kind(k_ptr);
     if (cat == DROP_CAT_MAX)
@@ -1781,6 +1784,8 @@ static void build_ego_combo_variants(int prefix_idx, int suffix_idx)
     ego_item_type* suffix_ptr = &e_info[suffix_idx];
     if (!prefix_ptr->tval[0] || !suffix_ptr->tval[0])
         return;
+    if ((prefix_ptr->flags3 & TR3_DAMAGED) || (suffix_ptr->flags3 & TR3_DAMAGED))
+        return; /* Damaged items are single-prefix-only drops. */
 
     const char* prefix_name = e_name + prefix_ptr->name;
     const char* suffix_name = e_name + suffix_ptr->name;
@@ -2488,12 +2493,17 @@ static drop_category roll_category(const drop_request* req)
 
 static bool droptype_matches(const drop_request* req, const drop_entry* e)
 {
+    bool damaged = drop_object_is_damaged(&e->obj);
+
+    if (damaged && req->droptype != DROP_TYPE_DAMAGED)
+        return false;
+
     switch (req->droptype)
     {
     case DROP_TYPE_NOT_DAMAGED:
-        return (k_info[e->obj.k_idx].flags3 & TR3_DAMAGED) == 0;
+        return !damaged;
     case DROP_TYPE_DAMAGED:
-        return (k_info[e->obj.k_idx].flags3 & TR3_DAMAGED) != 0;
+        return damaged;
     case DROP_TYPE_EDGED:
         return e->obj.tval == TV_SWORD;
     case DROP_TYPE_POLEARM:
@@ -3014,11 +3024,13 @@ static bool try_apply_jinx(object_type* o_ptr, int depth)
     if (rand_int(10000) >= jinx_prob)
         return false;
     
-    /* Try each jinx ego to see if it applies to this item type */
-    for (int i = 0; jinx_egos[i] >= 0; i++)
+    /* Try each flagged jinx ego to see if it applies to this item type */
+    for (int e_idx = 1; e_idx < z_info->e_max; e_idx++)
     {
-        int e_idx = jinx_egos[i];
         ego_item_type* e_ptr = &e_info[e_idx];
+
+        if (!is_jinx_ego(e_idx))
+            continue;
         
         /* Check if this jinx ego applies to this object type */
         bool matches = false;
@@ -3511,6 +3523,12 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
 
         /* Restore runtime quantities (fuel/charges/stacks) that are not baked into templates */
         drop_apply_spawn_quantities(out);
+        if (drop_object_is_damaged(out))
+        {
+            /* Damage is visible wear-and-tear rather than hidden magic. */
+            object_aware(out);
+            object_known(out);
+        }
         
         if (chosen->group_kind == DROP_GROUP_ARTIFACT)
         {
