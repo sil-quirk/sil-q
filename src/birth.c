@@ -2180,6 +2180,8 @@ NavResult character_creation(void)
         op_ptr->main_combat_rolls = get_sdl_steamdeck_mode() ? 2 : 0;
         op_ptr->ability_desc_mode = 0;
         op_ptr->vault_drop_frequency = VDF_NORMAL;
+        op_ptr->level_entry_narrative_mode = LEVEL_ENTRY_NARRATIVE_BANNER_DELAY;
+        op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_MESSAGE;
     }
 
     /* Ensure main_combat_rolls has a valid value for existing saves */
@@ -2198,6 +2200,16 @@ NavResult character_creation(void)
     if (op_ptr->vault_drop_frequency > VDF_PLENTIFUL)
     {
         op_ptr->vault_drop_frequency = VDF_NORMAL;
+    }
+
+    if (op_ptr->level_entry_narrative_mode > LEVEL_ENTRY_NARRATIVE_OFF)
+    {
+        op_ptr->level_entry_narrative_mode = LEVEL_ENTRY_NARRATIVE_BANNER_DELAY;
+    }
+
+    if (op_ptr->partition_narrative_mode > PARTITION_NARRATIVE_OFF)
+    {
+        op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_MESSAGE;
     }
 
     /* reset squelch bits */

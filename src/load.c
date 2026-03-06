@@ -1187,8 +1187,28 @@ static void rd_options(void)
     if (op_ptr->intro_style > INTRO_STYLE_RANDOM)
         op_ptr->intro_style = INTRO_STYLE_FLAME;
 
-    /* Skip 4 remaining spare bytes */
-    strip_bytes(4);
+    if (savefile_version_at_least(0, 9, 5, 5))
+    {
+        rd_byte(&b);
+        op_ptr->level_entry_narrative_mode = b;
+        if (op_ptr->level_entry_narrative_mode > LEVEL_ENTRY_NARRATIVE_OFF)
+            op_ptr->level_entry_narrative_mode = LEVEL_ENTRY_NARRATIVE_BANNER_DELAY;
+
+        rd_byte(&b);
+        op_ptr->partition_narrative_mode = b;
+        if (op_ptr->partition_narrative_mode > PARTITION_NARRATIVE_OFF)
+            op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_MESSAGE;
+
+        /* Skip 2 remaining spare bytes */
+        strip_bytes(2);
+    }
+    else
+    {
+        /* Old savefiles used the boolean show_level_entry_banner option. */
+        op_ptr->level_entry_narrative_mode = LEVEL_ENTRY_NARRATIVE_BANNER_DELAY;
+        op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_MESSAGE;
+        strip_bytes(4);
+    }
 
     /*** Normal Options ***/
 
@@ -1227,6 +1247,16 @@ static void rd_options(void)
                 }
             }
         }
+    }
+
+    if (!savefile_version_at_least(0, 9, 5, 5))
+    {
+        op_ptr->level_entry_narrative_mode = op_ptr->opt[OPT_show_level_entry_banner]
+            ? LEVEL_ENTRY_NARRATIVE_BANNER_DELAY
+            : LEVEL_ENTRY_NARRATIVE_OFF;
+        op_ptr->partition_narrative_mode = op_ptr->opt[OPT_show_partition_narrative]
+            ? PARTITION_NARRATIVE_MESSAGE
+            : PARTITION_NARRATIVE_OFF;
     }
 
     /*** Window Options ***/

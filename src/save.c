@@ -908,8 +908,15 @@ static void wr_options(void)
     /* Write "intro_style" */
     wr_byte(op_ptr->intro_style);
 
-    // 4 spare bytes
-    wr_u32b(0L);
+    /* Write "level_entry_narrative_mode" */
+    wr_byte(op_ptr->level_entry_narrative_mode);
+
+    /* Write "partition_narrative_mode" */
+    wr_byte(op_ptr->partition_narrative_mode);
+
+    /* 2 remaining spare bytes */
+    wr_byte(0);
+    wr_byte(0);
 
     /*** Normal options ***/
 

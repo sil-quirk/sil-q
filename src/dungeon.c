@@ -36,6 +36,14 @@ static u32b big_partition_seen_mask = 0;
 static int last_partition_pi = -1;
 static level_partition_kind last_partition_kind = LEVEL_PART_NONE;
 
+/* Track which partitions have been narrated and the last narrated style. */
+static u32b partition_narrated_mask = 0;
+static int last_narrated_style_idx = -1;
+
+/* Forward declarations for partition kind helpers (defined later in file). */
+static bool is_big_partition_kind(level_partition_kind kind);
+static bool is_small_cave_partition_kind(level_partition_kind kind);
+
 /* Track greater-vault encounter XP so repeated warning prompts can't be farmed. */
 static char greater_vault_xp_name[80] = "";
 static bool greater_vault_xp_awarded = false;
@@ -68,6 +76,141 @@ static void reset_level_entry_tracking(void)
     greater_vault_xp_awarded = false;
     last_partition_pi = -1;
     last_partition_kind = LEVEL_PART_NONE;
+    partition_narrated_mask = 0;
+    last_narrated_style_idx = -1;
+}
+
+/*
+ * Transition templates for partition narrative.
+ * Each template takes (old_S, new_S) as %s arguments.
+ */
+static const char* transition_templates[] = {
+    "The %s gives way to %s.",
+    "You leave the %s behind; ahead lies %s.",
+    "The %s fades. Now %s surrounds you.",
+    "Gone is the %s. In its place, %s.",
+    "The %s recedes as %s closes around you.",
+};
+#define NUM_TRANSITION_TEMPLATES 5
+
+static const char* partition_structural_text(level_partition_kind kind)
+{
+    switch (kind)
+    {
+    case LEVEL_PART_LABYRINTH:
+        return "The passage splits and twists into a dark labyrinth.";
+    case LEVEL_PART_CHASM:
+        return "A vast darkness yawns below; only narrow bridges span the gulf.";
+    case LEVEL_PART_BIG_CAVE:
+        return "A great cavern opens before you, its roof lost in shadow.";
+    default:
+        return NULL;
+    }
+}
+
+static const char* big_cave_elemental_text(void)
+{
+    big_cave_type_t cave_type =
+        level_partition_big_cave_type_for_point(p_ptr->py, p_ptr->px);
+    switch (cave_type)
+    {
+    case BIG_CAVE_FIRE:
+        return "Searing heat closes around you, and you feel your strength waning.";
+    case BIG_CAVE_ICE:
+        return "Bitter cold gnaws at your bones, and you shiver with a deathly chill.";
+    case BIG_CAVE_POIS:
+        return "A noxious miasma fills the air, and poison seeps into your lungs.";
+    default:
+        return "You feel exposed and vulnerable in this vast empty space.";
+    }
+}
+
+static void append_narrative_piece(char* buf, size_t size, const char* text)
+{
+    if (!text || !text[0])
+        return;
+
+    if (buf[0])
+        SDL_strlcat(buf, " ", size);
+    SDL_strlcat(buf, text, size);
+}
+
+static void build_partition_narrative_text(int old_sidx, int new_sidx,
+    level_partition_kind kind, char* buf, size_t size)
+{
+    const char* structural = partition_structural_text(kind);
+    bool is_transition;
+
+    if (!buf || size == 0)
+        return;
+    buf[0] = '\0';
+
+    if (structural)
+    {
+        append_narrative_piece(buf, size, structural);
+        if (kind == LEVEL_PART_BIG_CAVE)
+        {
+            const char* elem = big_cave_elemental_text();
+            if (elem)
+                append_narrative_piece(buf, size, elem);
+        }
+    }
+
+    if (is_small_cave_partition_kind(kind))
+    {
+        append_narrative_piece(buf, size,
+            "The air grows close and frowsty in a cramped cave.");
+    }
+
+    is_transition = (old_sidx >= 0 && old_sidx != new_sidx);
+    if (is_transition)
+    {
+        const char* old_s = styles_get_style_short_desc(old_sidx);
+        const char* new_s = styles_get_style_short_desc(new_sidx);
+        if (old_s && new_s)
+        {
+            char transition_buf[256];
+            int tmpl = rand_int(NUM_TRANSITION_TEMPLATES);
+            strnfmt(transition_buf, sizeof(transition_buf),
+                transition_templates[tmpl], old_s, new_s);
+            append_narrative_piece(buf, size, transition_buf);
+        }
+        else
+        {
+            const char* m1 = styles_get_style_m1(new_sidx);
+            append_narrative_piece(buf, size, m1);
+        }
+    }
+    else
+    {
+        const char* m1 = styles_get_style_m1(new_sidx);
+        append_narrative_piece(buf, size, m1);
+    }
+
+    append_narrative_piece(buf, size, styles_get_style_m2(new_sidx));
+}
+
+static void display_partition_narrative(int old_sidx, int new_sidx,
+    level_partition_kind kind)
+{
+    char buf[1024];
+
+    build_partition_narrative_text(old_sidx, new_sidx, kind, buf, sizeof(buf));
+    if (buf[0])
+        msg_print(buf);
+}
+
+static void display_partition_narrative_banner(int old_sidx, int new_sidx,
+    level_partition_kind kind, bool line_delay)
+{
+    char buf[1024];
+
+    build_partition_narrative_text(old_sidx, new_sidx, kind, buf, sizeof(buf));
+    if (!buf[0])
+        return;
+
+    print_fade_centered_at_row(buf, 1, false, line_delay);
+    g_banner_force_redraw_remaining = 3;
 }
 
 static bool confirm_enter_morgoth_hall(void)
@@ -201,49 +344,6 @@ static bool is_small_cave_partition_kind(level_partition_kind kind)
     return (kind == LEVEL_PART_CAVEY);
 }
 
-static void big_partition_print_entry_message(level_partition_kind kind)
-{
-    switch (kind)
-    {
-    case LEVEL_PART_LABYRINTH:
-        msg_print("You enter a labyrinth of stone, and the ways grow treacherous.");
-        break;
-    case LEVEL_PART_BIG_CAVE:
-        {
-            big_cave_type_t cave_type = level_partition_big_cave_type_for_point(p_ptr->py, p_ptr->px);
-            msg_print("A great cavern opens before you, its roof lost in shadow.");
-            
-            switch (cave_type)
-            {
-            case BIG_CAVE_FIRE:
-                msg_print("The searing heat closes around you, and you feel your strength waning in this fiery furnace.");
-                break;
-            case BIG_CAVE_ICE:
-                msg_print("The bitter cold gnaws at your bones, and you shiver with the chill of this icy abyss.");
-                break;
-            case BIG_CAVE_POIS:
-                msg_print("A noxious miasma fills the air, and you feel the poison seeping into your lungs.");
-                break;
-            default:
-                msg_print("You feel yourself more vulnerable in this vast empty space.");
-                break;
-            }
-        }
-        break;
-    case LEVEL_PART_CHASM:
-        msg_print("A vast darkness yawns in open space; only narrow bridges span the gulf.");
-        break;
-    default:
-        break;
-    }
-}
-
-static void small_cave_print_entry_message(void)
-{
-    msg_print("The air is close and frowsty; your flame burns ill in this little cave.");
-    msg_print("Here torch and lamp drink their fuel twice as fast.");
-}
-
 static void maybe_award_big_partition_xp(int pi)
 {
     if (pi < 0 || pi >= 25)
@@ -257,19 +357,17 @@ static void maybe_award_big_partition_xp(int pi)
     gain_exp(50);
 }
 
-static void handle_partition_entry(bool force_message)
+static void handle_partition_entry(bool force_message, int narrative_mode)
 {
     if (!p_ptr || p_ptr->is_dead)
         return;
 
     int pi = level_partition_index_for_point(p_ptr->py, p_ptr->px);
     level_partition_kind kind = level_partition_kind_for_point(p_ptr->py, p_ptr->px);
+    int sidx = styles_decode_color_style(cave_color[p_ptr->py][p_ptr->px]);
 
     bool is_big = is_big_partition_kind(kind);
     bool was_big = is_big_partition_kind(last_partition_kind);
-    bool is_small_cave = is_small_cave_partition_kind(kind);
-    bool was_small_cave = is_small_cave_partition_kind(last_partition_kind);
-
     bool entered_big = false;
     if (force_message)
     {
@@ -283,28 +381,26 @@ static void handle_partition_entry(bool force_message)
             entered_big = true;
     }
 
-    bool entered_small_cave = false;
-    if (force_message)
-    {
-        entered_small_cave = is_small_cave;
-    }
-    else if (is_small_cave)
-    {
-        if (!was_small_cave)
-            entered_small_cave = true;
-        else if (pi != last_partition_pi || kind != last_partition_kind)
-            entered_small_cave = true;
-    }
-
     if (entered_big)
-    {
-        big_partition_print_entry_message(kind);
         maybe_award_big_partition_xp(pi);
-    }
 
-    if (entered_small_cave)
+    if ((pi >= 0) && (pi < 25) && (sidx >= 0))
     {
-        small_cave_print_entry_message();
+        u32b bit = (u32b)(1U << pi);
+        if (!(partition_narrated_mask & bit))
+        {
+            if (narrative_mode == PARTITION_NARRATIVE_BANNER)
+                display_partition_narrative_banner(
+                    last_narrated_style_idx, sidx, kind, false);
+            else if (narrative_mode == PARTITION_NARRATIVE_MESSAGE)
+                display_partition_narrative(last_narrated_style_idx, sidx, kind);
+
+            if (is_small_cave_partition_kind(kind))
+                msg_print("Here torch and lamp drink their fuel twice as fast.");
+
+            partition_narrated_mask |= bit;
+            last_narrated_style_idx = sidx;
+        }
     }
 
     last_partition_pi = pi;
@@ -2642,7 +2738,7 @@ static void process_player(void)
 
         /* Update labyrinth map restriction and partition-entry messages/XP. */
         update_labyrinth_view_state(true);
-        handle_partition_entry(false);
+        handle_partition_entry(false, op_ptr->partition_narrative_mode);
 
         bool in_morgoth_vault = (p_ptr->depth == MORGOTH_DEPTH)
             && (cave_info[p_ptr->py][p_ptr->px] & (CAVE_G_VAULT));
@@ -3477,7 +3573,12 @@ static void dungeon(void)
     Term_fresh();
 
     /* Show partition entry messages/XP after the initial draw so they can't be cleared by the setup flush. */
-    handle_partition_entry(true);
+    {
+        int entry_mode = PARTITION_NARRATIVE_OFF;
+        if (op_ptr->level_entry_narrative_mode == LEVEL_ENTRY_NARRATIVE_MESSAGE)
+            entry_mode = PARTITION_NARRATIVE_MESSAGE;
+        handle_partition_entry(true, entry_mode);
+    }
 
     log_info("Dungeon display setup completed successfully");
 
@@ -3517,21 +3618,18 @@ static void dungeon(void)
     /* Reset the object generation level */
     object_level = p_ptr->depth;
 
-    /* Show per-style entry message now that the level is fully entered and drawn */
-    if (show_level_entry_banner)
+    /* Show initial partition narrative according to the configured display mode. */
+    if ((op_ptr->level_entry_narrative_mode == LEVEL_ENTRY_NARRATIVE_BANNER_DELAY)
+        || (op_ptr->level_entry_narrative_mode == LEVEL_ENTRY_NARRATIVE_BANNER))
     {
-        extern int styles_get_level_primary_style(void);
-        extern const char* styles_get_style_display(int sidx);
-        extern void print_fade_centered_at_row(cptr text, int row_start);
-        int sidx = styles_get_level_primary_style();
-        if (sidx >= 0) {
-            const char* m = styles_get_style_display(sidx);
-            if (m && m[0]) {
-                /* second row (row index 1) */
-                print_fade_centered_at_row(m, 1);
-                /* After showing the banner, force a full redraw after 3 inputs */
-                g_banner_force_redraw_remaining = 3;
-            }
+        int spawn_sidx = styles_decode_color_style(cave_color[p_ptr->py][p_ptr->px]);
+        level_partition_kind spawn_kind =
+            level_partition_kind_for_point(p_ptr->py, p_ptr->px);
+        if (spawn_sidx >= 0) {
+            display_partition_narrative_banner(
+                -1, spawn_sidx, spawn_kind,
+                op_ptr->level_entry_narrative_mode
+                    == LEVEL_ENTRY_NARRATIVE_BANNER_DELAY);
         }
     }
 

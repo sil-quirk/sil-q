@@ -7323,15 +7323,16 @@ void print_fade_centered(cptr text)
 }
 
 /* -------------------------------------------------------------
- * Public helper: fade-in text at a row, left-aligned with indent
+ * Public helper: show banner text at a row, left-aligned with indent.
  *  - Starts at the provided row (no vertical centering)
  *  - Left aligned at column >= 14, and for each subsequent line
  *    indentation increases by 2 columns (14, 16, 18, ...)
  *  - Wraps dynamically per line width to ensure nothing is cut off
- *  - Adds a 500 ms delay between lines
- *  - Clears the printed region after a short hold to avoid artifacts
+ *  - Can either fade lines in or draw them immediately
+ *  - Optional line_delay adds the old staged banner pause between lines
  * ----------------------------------------------------------- */
-void print_fade_centered_at_row(cptr text, int row_start)
+void print_fade_centered_at_row(cptr text, int row_start, bool fade_in,
+    bool line_delay)
 {
     if (!text || !*text) return;
 
@@ -7416,15 +7417,22 @@ void print_fade_centered_at_row(cptr text, int row_start)
 
         if (linelen == 0) break; /* nothing collected */
 
-        /* Show this line directly in orange (no fade effect for level entry banners) */
-        c_put_str(TERM_ORANGE, buf, row_start + printed_lines, indent);
-        Term_fresh();
+        if (fade_in)
+        {
+            print_fade_line(buf, row_start + printed_lines, indent);
+        }
+        else
+        {
+            /* Show this line directly in orange. */
+            c_put_str(TERM_ORANGE, buf, row_start + printed_lines, indent);
+            Term_fresh();
+        }
 
     /* Tracking of per-line geometry removed (unused). */
         printed_lines++;
 
-        /* 700ms gap before next line if more text remains */
-        if (*p && (row_start + printed_lines) < h)
+        /* Add a small gap between wrapped lines for delayed banners only. */
+        if (!fade_in && line_delay && *p && (row_start + printed_lines) < h)
             Term_xtra(TERM_XTRA_DELAY, 800);
     }
 

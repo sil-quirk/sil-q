@@ -60,7 +60,7 @@
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 9
 #define VERSION_PATCH 5
-#define VERSION_EXTRA 3   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
+#define VERSION_EXTRA 5   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
 /* Update MIN_VERSION_EXTRA whenever the savefile format changes. */
 #define MIN_VERSION_EXTRA 0  /* Accept earlier 0.9.x saves */
 
@@ -2751,6 +2751,7 @@
 #define OPT_show_smithing_difficulty 93
 #define OPT_show_smithing_difficulty_look 94
 #define OPT_intro_style 95
+#define OPT_show_partition_narrative 96
 
 /* Intro screen style constants */
 #define INTRO_STYLE_FLAME       0   /* Flame Imperishable (Ainulindale) */
@@ -2912,7 +2913,16 @@
 #define display_hits op_ptr->opt[OPT_display_hits]
 #define story_character_sheet op_ptr->opt[OPT_story_character_sheet]
 #define space_acts_as_comma op_ptr->opt[OPT_space_acts_as_comma]
-#define show_level_entry_banner op_ptr->opt[OPT_show_level_entry_banner]
+/* Level entry narrative display modes. Keep 0 as banner for old save compatibility. */
+#define LEVEL_ENTRY_NARRATIVE_BANNER_DELAY    0
+#define LEVEL_ENTRY_NARRATIVE_BANNER          1
+#define LEVEL_ENTRY_NARRATIVE_MESSAGE         2
+#define LEVEL_ENTRY_NARRATIVE_OFF             3
+
+/* Partition transition narrative display modes. */
+#define PARTITION_NARRATIVE_BANNER            0
+#define PARTITION_NARRATIVE_MESSAGE           1
+#define PARTITION_NARRATIVE_OFF               2
 
 /* Vault drop frequency modes */
 #define VDF_NORMAL 0

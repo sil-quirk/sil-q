@@ -452,8 +452,11 @@ extern int styles_pick_random_from_level(void);
 extern int styles_decode_color_style(byte color_value);
 extern void styles_rules_clear(void);
 extern void styles_add_level_rule(int min_depth, int max_depth, const int* sidx, const int* weight, int count);
-/* Banner strings: from style.txt (per-style via M: lines only) */
+/* Narrative text: from style.txt (S:/M1:/M2: lines) */
 extern const char* styles_get_style_display(int sidx);
+extern const char* styles_get_style_short_desc(int sidx);
+extern const char* styles_get_style_m1(int sidx);
+extern const char* styles_get_style_m2(int sidx);
 /* After showing the per-style banner on level entry, count down user inputs
  * and force a full screen redraw when it reaches zero. */
 extern int g_banner_force_redraw_remaining;
@@ -462,7 +465,8 @@ extern void styles_clear_display_messages(void);
 extern int p_ptr_depth_proxy(void);
 extern void styles_set_loaded_level_primary(int sidx);
 extern void print_fade_centered(cptr text);
-extern void print_fade_centered_at_row(cptr text, int row_start);
+extern void print_fade_centered_at_row(cptr text, int row_start, bool fade_in,
+    bool line_delay);
 /* Persisted door-style variant choices for consistency across save/load */
 extern int styles_get_choice_capacity(void);
 extern void styles_copy_level_door_choices(byte* out_buf, int max_n);

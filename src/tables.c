@@ -237,13 +237,13 @@ cptr option_text[OPT_MAX] = {
     "more_stairs", /* OPT_more_stairs */
     "unidentified_items_slate", /* OPT_unidentified_items_slate */
     "space_acts_as_comma", /* OPT_space_acts_as_comma */
-    "show_level_entry_banner", /* OPT_show_level_entry_banner */
+    "level_entry_narrative_mode", /* OPT_show_level_entry_banner */
     "ability_desc_mode", /* OPT_ability_desc_mode */
     "vault_drop_frequency", /* OPT_vault_drop_frequency */
     "show_smithing_difficulty", /* OPT_show_smithing_difficulty */
     "show_smithing_difficulty_look", /* OPT_show_smithing_difficulty_look */
     NULL, /* xxx */
-    NULL, /* xxx */
+    "partition_narrative_mode", /* OPT_show_partition_narrative */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -478,13 +478,13 @@ cptr option_desc[OPT_MAX] = {
     "More stairs (50% more; double max)", /* OPT_more_stairs */
     "Show unidentified items in slate color", /* OPT_unidentified_items_slate */
     "Space acts as comma (interact with square)", /* OPT_space_acts_as_comma */
-    "Show poetic banner when entering a level", /* OPT_show_level_entry_banner */
+    "Level entry narrative (banner with delay/banner without delay/message/off)", /* OPT_show_level_entry_banner */
     "Ability descriptions (0=lore+effect, 1=effect+lore, 2=effect only)", /* OPT_ability_desc_mode */
     "Vault drop frequency (0=Normal, 1=Modest, 2=Scarce, 3=Meager, 4=Plentiful)", /* OPT_vault_drop_frequency */
     "Debug: Show {sd,wr} in item descriptions", /* OPT_show_smithing_difficulty */
     "Debug: Show {sd,wr} in look (L) sidebar and message", /* OPT_show_smithing_difficulty_look */
     "Welcome screen (0-4=fixed, 5=random)", /* OPT_intro_style */
-    NULL, /* xxx */
+    "Partition transition narrative (banner without delay/message/off)", /* OPT_show_partition_narrative */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -742,7 +742,7 @@ const bool option_norm[OPT_MAX] = {
     false, /* OPT_show_smithing_difficulty */
     false, /* OPT_show_smithing_difficulty_look */
     false, /* xxx */
-    false, /* xxx */
+    true, /* OPT_show_partition_narrative */
     false, /* xxx */
     false, /* xxx */
     false, /* xxx */
@@ -945,8 +945,9 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
         OPT_hilite_unwary, OPT_solid_walls, OPT_hybrid_walls, OPT_unidentified_items_slate,
         OPT_main_combat_rolls, OPT_show_level_entry_banner, OPT_stealth_vision, OPT_sleep_icon,
         OPT_ability_desc_mode, OPT_intro_style,
+        OPT_show_partition_narrative,
         OPT_show_smithing_difficulty, OPT_show_smithing_difficulty_look,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
+        OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Birth ***/
 

@@ -11256,6 +11256,31 @@ extern void do_cmd_options_aux(int page, cptr info)
                     "Main terminal combat roll lines (0=off, 1-4=lines)",
                     op_ptr->main_combat_rolls);
             }
+            else if (opt[i] == OPT_show_level_entry_banner)
+            {
+                const char *mode_str;
+                switch (op_ptr->level_entry_narrative_mode)
+                {
+                case LEVEL_ENTRY_NARRATIVE_BANNER:  mode_str = "Banner without delay"; break;
+                case LEVEL_ENTRY_NARRATIVE_MESSAGE: mode_str = "Message"; break;
+                case LEVEL_ENTRY_NARRATIVE_OFF:     mode_str = "Off"; break;
+                default:                            mode_str = "Banner with delay"; break;
+                }
+                strnfmt(buf, sizeof(buf), "%-48s: %s",
+                    "Level entry narrative", mode_str);
+            }
+            else if (opt[i] == OPT_show_partition_narrative)
+            {
+                const char *mode_str;
+                switch (op_ptr->partition_narrative_mode)
+                {
+                case PARTITION_NARRATIVE_BANNER:  mode_str = "Banner without delay"; break;
+                case PARTITION_NARRATIVE_OFF:     mode_str = "Off"; break;
+                default:                          mode_str = "Message"; break;
+                }
+                strnfmt(buf, sizeof(buf), "%-48s: %s",
+                    "Partition transition narrative", mode_str);
+            }
             else if (opt[i] == OPT_ability_desc_mode)
             {
                 const char *mode_str;
@@ -11406,6 +11431,20 @@ extern void do_cmd_options_aux(int page, cptr info)
                     else if (k == 11) sound_cfg->music_ambient_enabled = !sound_cfg->music_ambient_enabled;
                     /* Volume controls (5-9, 12-13) don't toggle */
                 }
+                else if (opt[k] == OPT_show_level_entry_banner)
+                {
+                    op_ptr->level_entry_narrative_mode =
+                        (op_ptr->level_entry_narrative_mode < LEVEL_ENTRY_NARRATIVE_OFF)
+                        ? op_ptr->level_entry_narrative_mode + 1
+                        : LEVEL_ENTRY_NARRATIVE_BANNER_DELAY;
+                }
+                else if (opt[k] == OPT_show_partition_narrative)
+                {
+                    op_ptr->partition_narrative_mode =
+                        (op_ptr->partition_narrative_mode < PARTITION_NARRATIVE_OFF)
+                        ? op_ptr->partition_narrative_mode + 1
+                        : PARTITION_NARRATIVE_BANNER;
+                }
                 else if (opt[k] == OPT_intro_style)
                 {
                     /* Toggle cycles forward */
@@ -11483,6 +11522,20 @@ extern void do_cmd_options_aux(int page, cptr info)
                     clear_main_combat_rolls_area();
                     display_main_combat_rolls();
                     p_ptr->redraw |= (PR_MAP);
+                }
+                else if (opt[k] == OPT_show_level_entry_banner)
+                {
+                    op_ptr->level_entry_narrative_mode =
+                        (op_ptr->level_entry_narrative_mode < LEVEL_ENTRY_NARRATIVE_OFF)
+                        ? op_ptr->level_entry_narrative_mode + 1
+                        : LEVEL_ENTRY_NARRATIVE_OFF;
+                }
+                else if (opt[k] == OPT_show_partition_narrative)
+                {
+                    op_ptr->partition_narrative_mode =
+                        (op_ptr->partition_narrative_mode < PARTITION_NARRATIVE_OFF)
+                        ? op_ptr->partition_narrative_mode + 1
+                        : PARTITION_NARRATIVE_OFF;
                 }
                 else if (opt[k] == OPT_ability_desc_mode)
                 {
@@ -11573,6 +11626,20 @@ extern void do_cmd_options_aux(int page, cptr info)
                     clear_main_combat_rolls_area();
                     display_main_combat_rolls();
                     p_ptr->redraw |= (PR_MAP);
+                }
+                else if (opt[k] == OPT_show_level_entry_banner)
+                {
+                    op_ptr->level_entry_narrative_mode =
+                        (op_ptr->level_entry_narrative_mode > LEVEL_ENTRY_NARRATIVE_BANNER_DELAY)
+                        ? op_ptr->level_entry_narrative_mode - 1
+                        : LEVEL_ENTRY_NARRATIVE_BANNER_DELAY;
+                }
+                else if (opt[k] == OPT_show_partition_narrative)
+                {
+                    op_ptr->partition_narrative_mode =
+                        (op_ptr->partition_narrative_mode > PARTITION_NARRATIVE_BANNER)
+                        ? op_ptr->partition_narrative_mode - 1
+                        : PARTITION_NARRATIVE_BANNER;
                 }
                 else if (opt[k] == OPT_ability_desc_mode)
                 {

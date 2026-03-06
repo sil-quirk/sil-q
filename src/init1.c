@@ -476,8 +476,10 @@ errr init_info_txt(
         if (!buf[0] || (buf[0] == '#'))
             continue;
 
-        /* Verify correct "colon" format */
-        if (buf[1] != ':')
+        /* Verify correct directive format.
+         * Most files use single-letter directives (X:), but some parsers
+         * also accept numbered forms like M1:/M2:. */
+        if ((buf[1] != ':') && (buf[2] != ':'))
             return (PARSE_ERROR_GENERIC);
 
         /* Hack -- Process 'V' for "Version" */
@@ -1417,7 +1419,10 @@ void get_overlay_key_rgb(byte* r, byte* g, byte* b);
 bool get_overlay_key_enabled(void) { return g_overlay_key_enabled; }
 void get_overlay_key_rgb(byte* r, byte* g, byte* b) { if (r) *r = g_overlay_key_r; if (g) *g = g_overlay_key_g; if (b) *b = g_overlay_key_b; }
 
-/* Forward decl for per-style message parser (M:) */
+/* Forward decls for narrative text parsers (S:/M1:/M2:/M:) */
+static errr parse_style_short_desc_line(char* buf);
+static errr parse_style_m1_line(char* buf);
+static errr parse_style_m2_line(char* buf);
 static errr parse_style_message_line(char* buf);
 
 errr parse_style_info(char* buf, header* head)
@@ -1542,10 +1547,27 @@ errr parse_style_info(char* buf, header* head)
         return 0;
     }
 
-    /* M: <text> — per-style message (banner) */
-    if (buf[0] == 'M')
+    /* S: <text> — short descriptor for transition composition */
+    if (buf[0] == 'S' && buf[1] == ':')
     {
-        /* Reuse the message parser; it uses error_idx as current style index */
+        return parse_style_short_desc_line(buf);
+    }
+
+    /* M1: <text> — physical entry description */
+    if (buf[0] == 'M' && buf[1] == '1' && buf[2] == ':')
+    {
+        return parse_style_m1_line(buf);
+    }
+
+    /* M2: <text> — lore/atmosphere */
+    if (buf[0] == 'M' && buf[1] == '2' && buf[2] == ':')
+    {
+        return parse_style_m2_line(buf);
+    }
+
+    /* M: <text> — legacy per-style message (treated as M1:) */
+    if (buf[0] == 'M' && buf[1] == ':')
+    {
         return parse_style_message_line(buf);
     }
 
@@ -1786,88 +1808,172 @@ errr parse_style_levels(char* buf, header* head)
     return 0;
 }
 
-/* ====================  style display strings (per-style M:)  ===================== */
+/* ====================  style narrative strings (S:/M1:/M2:)  ===================== */
 
-/* Per-style banner strings (by style index, allow multiple sayings) */
+/*
+ * Three-field narrative system per style:
+ *   S:  - Short descriptor tag (~3-8 words) for transition composition
+ *   M1: - Physical entry description (shown on fresh entry)
+ *   M2: - Lore/atmosphere (always shown)
+ *
+ * Legacy M: lines are treated as M1: for backward compatibility.
+ */
 #define MAX_STYLE_MSG 8
-static const char* g_style_display_text[128][MAX_STYLE_MSG];
-static byte  g_style_display_count[128];
+static const char* g_style_short_desc[128];
+static const char* g_style_m1_text[128][MAX_STYLE_MSG];
+static byte g_style_m1_count[128];
+static const char* g_style_m2_text[128][MAX_STYLE_MSG];
+static byte g_style_m2_count[128];
 
-/* Accessor for per-style banner */
-const char* styles_get_style_display(int sidx)
+/* Accessor: get short descriptor for transition composition */
+const char* styles_get_style_short_desc(int sidx)
 {
     if (sidx < 0 || sidx >= 128) return NULL;
-    byte n = g_style_display_count[sidx];
-    if (!n) return NULL;
-    int pick = (n == 1) ? 0 : rand_int(n);
-    return g_style_display_text[sidx][pick];
+    return g_style_short_desc[sidx];
 }
 
-/* Extend style.txt parser to support per-style messages via M: */
-/* In-record form:  M: <text>         (applies to current style error_idx) */
-/* Global form:     M:<idx>: <text>   (applies to the given style index)   */
-static errr parse_style_message_line(char* buf)
+/* Accessor: get random M1 (physical entry) */
+const char* styles_get_style_m1(int sidx)
 {
-    if (buf[0] != 'M') return PARSE_ERROR_UNDEFINED_DIRECTIVE;
-    char* s = NULL;
-    int idx = -1;
-    if (buf[1] == ':')
-    {
-        /* Could be M:<idx>: or M: <text> (no idx) */
-        char* p = buf + 2;
-        while (*p == ' ' || *p == '\t') p++;
-        if (*p >= '0' && *p <= '9')
-        {
-            /* M:<idx>:<text> */
-            char* c = strchr(p, ':'); if (!c) return PARSE_ERROR_GENERIC; *c++ = '\0';
-            idx = atoi(p);
-            s = c;
-        }
-        else
-        {
-            /* M: <text> (use current error_idx) */
-            idx = error_idx;
-            s = p;
-        }
-    }
-    else return PARSE_ERROR_GENERIC;
+    if (sidx < 0 || sidx >= 128) return NULL;
+    byte n = g_style_m1_count[sidx];
+    if (!n) return NULL;
+    int pick = (n == 1) ? 0 : rand_int(n);
+    return g_style_m1_text[sidx][pick];
+}
 
-    /* Trim leading spaces */
+/* Accessor: get random M2 (lore/atmosphere) */
+const char* styles_get_style_m2(int sidx)
+{
+    if (sidx < 0 || sidx >= 128) return NULL;
+    byte n = g_style_m2_count[sidx];
+    if (!n) return NULL;
+    int pick = (n == 1) ? 0 : rand_int(n);
+    return g_style_m2_text[sidx][pick];
+}
+
+/* Legacy accessor: compose M1+M2 for backward compat (level entry banner) */
+const char* styles_get_style_display(int sidx)
+{
+    return styles_get_style_m1(sidx);
+}
+
+/*
+ * Helper: trim a text line (leading/trailing whitespace, optional quotes,
+ * trailing #comment). Returns pointer into the buffer.
+ */
+static char* trim_narrative_text(char* s)
+{
     while (*s == ' ' || *s == '\t') s++;
-    /* Strip optional surrounding quotes */
     if (*s == '"' || *s == '\'') { char q = *s++; char* e = strrchr(s, q); if (e) *e = '\0'; }
-    /* Trim trailing comment */
     char* h = strchr(s, '#'); if (h) *h = '\0';
     for (char* t = s + strlen(s) - 1; t >= s && (*t == ' ' || *t == '\t' || *t == '\r' || *t == '\n'); --t) *t = '\0';
+    return s;
+}
 
-    if (idx < 0 || idx >= 128) return PARSE_ERROR_GENERIC;
-    if (g_style_display_count[idx] >= MAX_STYLE_MSG) {
-        log_debug("parse_style_message_line: style %d message list full, dropping: '%s'", idx, s);
-        return 0;
+/*
+ * Parse a narrative index from a line like "M1:<idx>: <text>" or "M1: <text>".
+ * The prefix has already been stripped; colon_start points at the first ':'.
+ */
+static int parse_narrative_idx(char* colon_start, char** out_text)
+{
+    if (*colon_start != ':') return -1;
+    char* p = colon_start + 1;
+    while (*p == ' ' || *p == '\t') p++;
+    if (*p >= '0' && *p <= '9')
+    {
+        char* c = strchr(p, ':');
+        if (!c) return -1;
+        *c++ = '\0';
+        *out_text = c;
+        return atoi(p);
     }
-    /* Append */
-    g_style_display_text[idx][g_style_display_count[idx]] = str_dup(s);
-    g_style_display_count[idx]++;
-    /* Removed excessive TRACE log that was generating 90+ messages per startup */
+    *out_text = p;
+    return error_idx;
+}
+
+static errr parse_style_short_desc_line(char* buf)
+{
+    char* text = NULL;
+    int idx = parse_narrative_idx(buf + 1, &text);
+    if (idx < 0 || idx >= 128 || !text) return PARSE_ERROR_GENERIC;
+    text = trim_narrative_text(text);
+    if (g_style_short_desc[idx]) str_free(g_style_short_desc[idx]);
+    g_style_short_desc[idx] = str_dup(text);
     return 0;
 }
 
-/* Clear all loaded per-style banner messages (free and NULL them). */
+static errr parse_style_m1_line(char* buf)
+{
+    char* text = NULL;
+    int idx = parse_narrative_idx(buf + 2, &text);
+    if (idx < 0 || idx >= 128 || !text) return PARSE_ERROR_GENERIC;
+    text = trim_narrative_text(text);
+    if (g_style_m1_count[idx] >= MAX_STYLE_MSG) {
+        log_debug("parse_style_m1_line: style %d M1 list full, dropping", idx);
+        return 0;
+    }
+    g_style_m1_text[idx][g_style_m1_count[idx]] = str_dup(text);
+    g_style_m1_count[idx]++;
+    return 0;
+}
+
+static errr parse_style_m2_line(char* buf)
+{
+    char* text = NULL;
+    int idx = parse_narrative_idx(buf + 2, &text);
+    if (idx < 0 || idx >= 128 || !text) return PARSE_ERROR_GENERIC;
+    text = trim_narrative_text(text);
+    if (g_style_m2_count[idx] >= MAX_STYLE_MSG) {
+        log_debug("parse_style_m2_line: style %d M2 list full, dropping", idx);
+        return 0;
+    }
+    g_style_m2_text[idx][g_style_m2_count[idx]] = str_dup(text);
+    g_style_m2_count[idx]++;
+    return 0;
+}
+
+static errr parse_style_message_line(char* buf)
+{
+    if (buf[0] != 'M') return PARSE_ERROR_UNDEFINED_DIRECTIVE;
+    char* text = NULL;
+    int idx = parse_narrative_idx(buf + 1, &text);
+    if (idx < 0 || idx >= 128 || !text) return PARSE_ERROR_GENERIC;
+    text = trim_narrative_text(text);
+    if (g_style_m1_count[idx] >= MAX_STYLE_MSG) {
+        log_debug("parse_style_message_line: style %d M1 list full, dropping (legacy M:)", idx);
+        return 0;
+    }
+    g_style_m1_text[idx][g_style_m1_count[idx]] = str_dup(text);
+    g_style_m1_count[idx]++;
+    return 0;
+}
+
+/* Clear all loaded per-style narrative messages (free and NULL them). */
 void styles_clear_display_messages(void)
 {
     for (int i = 0; i < 128; ++i)
     {
+        if (g_style_short_desc[i]) {
+            str_free(g_style_short_desc[i]);
+            g_style_short_desc[i] = NULL;
+        }
         for (int j = 0; j < MAX_STYLE_MSG; ++j) {
-            if (g_style_display_text[i][j]) {
-                str_free(g_style_display_text[i][j]);
-                g_style_display_text[i][j] = NULL;
+            if (g_style_m1_text[i][j]) {
+                str_free(g_style_m1_text[i][j]);
+                g_style_m1_text[i][j] = NULL;
+            }
+            if (g_style_m2_text[i][j]) {
+                str_free(g_style_m2_text[i][j]);
+                g_style_m2_text[i][j] = NULL;
             }
         }
-        g_style_display_count[i] = 0;
+        g_style_m1_count[i] = 0;
+        g_style_m2_count[i] = 0;
     }
 }
 
-/* Reload only M: lines from style.txt so banners are available even if RAW cache was used. */
+/* Reload S:/M1:/M2:/M: lines from style.txt so narratives are available even if RAW cache was used. */
 void styles_reload_messages_from_text(void)
 {
     char path[1024];
@@ -1889,36 +1995,46 @@ void styles_reload_messages_from_text(void)
         return;
     }
 
-    /* We need to maintain the current style index (error_idx) for in-record M: lines */
-    /* error_idx is the conventional global parser index in this translation unit */
+    /* We need to maintain the current style index (error_idx) for in-record lines */
     error_idx = -1;
 
     while (sdl_fgets(fp, buf, sizeof(buf)) == 0)
     {
-        /* Trim leading spaces */
         char* s = buf;
         while (*s == ' ' || *s == '\t') s++;
         if (*s == '\0' || *s == '#') continue;
         if (*s == 'N')
         {
-            /* N:<idx>:<name>  — capture idx to set error_idx */
             char* colon = strchr(s + 2, ':');
             if (!colon) continue;
             *colon = '\0';
-            int idx = atoi(s + 2);
-            error_idx = idx;
+            error_idx = atoi(s + 2);
             continue;
         }
-        if (*s == 'M')
+        if (s[0] == 'S' && s[1] == ':')
         {
-            /* Pass through to the same message parser to support both M:<idx>: and in-record M: */
+            (void)parse_style_short_desc_line(s);
+            continue;
+        }
+        if (s[0] == 'M' && s[1] == '1' && s[2] == ':')
+        {
+            (void)parse_style_m1_line(s);
+            continue;
+        }
+        if (s[0] == 'M' && s[1] == '2' && s[2] == ':')
+        {
+            (void)parse_style_m2_line(s);
+            continue;
+        }
+        if (s[0] == 'M' && s[1] == ':')
+        {
+            /* Legacy M: treated as M1: */
             (void)parse_style_message_line(s);
             continue;
         }
-        /* Ignore other lines */
     }
     sdl_fclose(fp);
-    log_info("styles_reload_messages_from_text: loaded per-style messages from text");
+    log_info("styles_reload_messages_from_text: loaded per-style narrative text");
 }
 
 
