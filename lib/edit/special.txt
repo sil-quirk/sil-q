@@ -1437,6 +1437,20 @@ F:DAMAGED | EASY_KNOW
 D:A mail corslet with crushed rings and slack links, its defence much reduced.
 
 
+##### Additional Armour Egos #####
+
+
+# Dwarf Mask only
+# (ability 5/3 is Formidable)
+
+N:182:of Broadbeams
+W:12:20:0:4000
+C:0:0:0:1:0:1:0
+T:32:7:7
+B:5/3
+F:NOBLE_ITEM
+
+
 # Mithril gauntlets only
 
 N:183:(Agile)
