@@ -139,12 +139,134 @@ static bool remove_jinx_egos(object_type* o_ptr)
     return removed;
 }
 
+static int sanctity_penalty_flags(u32b f2, u32b f3, u32b f4,
+    bool include_light_curse)
+{
+    int burden = 0;
+
+    if (f2 & TR2_DANGER)
+        burden += 5;
+    if (f2 & TR2_DARKNESS)
+        burden += 2;
+    if (f2 & TR2_AGGRAVATE)
+        burden += 3;
+    if (f2 & TR2_HAUNTED)
+        burden += 5;
+    if (f2 & TR2_VUL_COLD)
+        burden += 4;
+    if (f2 & TR2_VUL_FIRE)
+        burden += 4;
+    if (f2 & TR2_VUL_POIS)
+        burden += 4;
+    if (f3 & TR2_TRAITOR)
+        burden += 2;
+    if (include_light_curse && (f3 & TR3_LIGHT_CURSE))
+        burden += 2;
+    if (f3 & TR3_CUMBERSOME)
+        burden += 3;
+    if (f4 & TR4_UNLIGHT)
+        burden += 5;
+    if (f2 & TR2_SLOWNESS)
+        burden += 15;
+    if (f2 & TR2_HUNGER)
+        burden += 3;
+    if (f2 & TR2_FEAR)
+        burden += 5;
+    if (f3 & TR3_HEAVY_CURSE)
+        burden += 4;
+    if (f3 & TR3_PERMA_CURSE)
+        burden += 6;
+
+    return burden;
+}
+
+static int sanctity_slot_multiplier(const object_type* o_ptr)
+{
+    switch (wield_slot(o_ptr))
+    {
+        case INVEN_LEFT:
+        case INVEN_RIGHT:
+        case INVEN_LITE:
+        case INVEN_OUTER:
+        case INVEN_HANDS:
+        case INVEN_FEET:
+        case INVEN_QUIVER1:
+        case INVEN_QUIVER2:
+            return 120;
+
+        default:
+            return 100;
+    }
+}
+
+static int sanctity_check_burden(const object_type* o_ptr,
+    bool has_curse_breaking, bool* can_remove_light, bool* can_remove_jinx)
+{
+    object_type clean_copy;
+    u32b f1, f2, f3;
+    u32b clean_f1, clean_f2, clean_f3;
+    u32b clean_f4, f4;
+    int light_burden = 0;
+    int jinx_burden = 0;
+    int burden;
+
+    if (can_remove_light)
+        *can_remove_light = false;
+    if (can_remove_jinx)
+        *can_remove_jinx = false;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return 0;
+
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
+
+    if (can_remove_light)
+    {
+        *can_remove_light = cursed_p(o_ptr)
+            && !(f3 & (TR3_HEAVY_CURSE | TR3_PERMA_CURSE));
+    }
+    if (can_remove_jinx)
+        *can_remove_jinx = has_curse_breaking && object_has_ego_flag4(o_ptr, TR4_JINX);
+
+    if (!(can_remove_light && *can_remove_light)
+        && !(can_remove_jinx && *can_remove_jinx))
+    {
+        return 0;
+    }
+
+    object_copy(&clean_copy, o_ptr);
+
+    if (can_remove_jinx && *can_remove_jinx)
+        (void)remove_jinx_egos(&clean_copy);
+
+    object_flags4(&clean_copy, &clean_f1, &clean_f2, &clean_f3, &clean_f4);
+    (void)f1;
+    (void)clean_f1;
+
+    if (can_remove_light && *can_remove_light)
+        light_burden = 2;
+
+    jinx_burden = sanctity_penalty_flags(f2, f3, f4, false)
+        - sanctity_penalty_flags(clean_f2, clean_f3, clean_f4, false);
+    if (jinx_burden < 0)
+        jinx_burden = 0;
+
+    burden = light_burden + jinx_burden;
+    burden = burden * sanctity_slot_multiplier(o_ptr) / 100;
+
+    return burden;
+}
+
 bool use_sanctity_gem_on(object_type* target_o_ptr, bool* ident)
 {
-    u32b f1, f2, f3;
+    bool can_remove_light = false;
+    bool can_remove_jinx = false;
     bool removed_jinx = false;
     bool removed_curse = false;
     bool has_curse_breaking = p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING];
+    int burden;
+    int score;
+    int difficulty;
     char target_name[80];
 
     if (!target_o_ptr || !target_o_ptr->k_idx)
@@ -152,14 +274,33 @@ bool use_sanctity_gem_on(object_type* target_o_ptr, bool* ident)
 
     object_desc(target_name, sizeof(target_name), target_o_ptr, true, 0);
 
-    if (has_curse_breaking)
+    burden = sanctity_check_burden(target_o_ptr, has_curse_breaking,
+        &can_remove_light, &can_remove_jinx);
+
+    if (can_remove_light || can_remove_jinx)
+    {
+        score = p_ptr->skill_use[S_WIL] + (has_curse_breaking ? 7 : 0);
+        difficulty = 6 + burden;
+
+        if (skill_check(PLAYER, score, difficulty, NULL) <= 0)
+        {
+            msg_format("%^s resists the sanctity.", target_name);
+            return true;
+        }
+    }
+    else
+    {
+        if (cursed_p(target_o_ptr))
+            msg_format("%^s resists the sanctity.", target_name);
+        else
+            msg_format("Nothing happens to %s.", target_name);
+        return true;
+    }
+
+    if (can_remove_jinx)
         removed_jinx = remove_jinx_egos(target_o_ptr);
 
-    object_flags(target_o_ptr, &f1, &f2, &f3);
-    (void)f1;
-    (void)f2;
-
-    if (cursed_p(target_o_ptr) && !(f3 & (TR3_HEAVY_CURSE | TR3_PERMA_CURSE)))
+    if (can_remove_light)
     {
         uncurse_object(target_o_ptr);
         removed_curse = true;
@@ -182,10 +323,6 @@ bool use_sanctity_gem_on(object_type* target_o_ptr, bool* ident)
 
         if (target_o_ptr == &inventory[INVEN_LITE])
             p_ptr->redraw |= (PR_LIGHT);
-    }
-    else if (cursed_p(target_o_ptr))
-    {
-        msg_format("%^s resists the sanctity.", target_name);
     }
     else
     {

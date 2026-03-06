@@ -3590,6 +3590,8 @@ static const smithing_tval_desc smithing_tvals[MAX_SMITHING_TVALS] = {
     { CAT_ARMOUR, TV_BOOTS, "Boots" },
 };
 
+static bool object_has_evil_alignment(const object_type* o_ptr);
+
 static void smith_clear_alloy_state(smith_alloy_state* state)
 {
     state->type = SMITH_ALLOY_NONE;
@@ -3638,6 +3640,8 @@ static int smith_item_category(const object_type* o_ptr)
 static bool smith_alloy_applicable(const object_type* o_ptr)
 {
     if (!o_ptr || !o_ptr->k_idx)
+        return false;
+    if (object_has_evil_alignment(o_ptr))
         return false;
 
     int cat = smith_item_category(o_ptr);
@@ -5775,6 +5779,8 @@ bool affordable(object_type* o_ptr)
     // can't afford non-existant items
     if (o_ptr->tval == 0)
         return (false);
+    if (object_has_evil_alignment(o_ptr))
+        return (false);
 
     if (too_difficult(o_ptr))
         can_afford = false;
@@ -5847,6 +5853,378 @@ void pay_costs()
     p_ptr->update |= (PU_BONUS);
 
     /* Set the redraw flag for everything */
+    p_ptr->redraw |= (PR_EXP | PR_BASIC);
+}
+
+typedef struct reforge_preview_type
+{
+    int scaled_difficulty;
+    int raw_delta_difficulty;
+    int turns;
+    smithing_cost_type cost;
+    bool affordable;
+} reforge_preview_type;
+
+static void smithing_cost_reset_local(smithing_cost_type* cost)
+{
+    if (!cost)
+        return;
+
+    memset(cost, 0, sizeof(*cost));
+}
+
+static bool smith_has_category_ability(const object_type* o_ptr)
+{
+    int cat;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    cat = smith_item_category(o_ptr);
+    if ((cat == CAT_WEAPON) && !p_ptr->active_ability[S_SMT][SMT_WEAPONSMITH])
+        return false;
+    if ((cat == CAT_ARMOUR) && !p_ptr->active_ability[S_SMT][SMT_ARMOURSMITH])
+        return false;
+    if ((cat == CAT_JEWELRY) && !p_ptr->active_ability[S_SMT][SMT_JEWELLER])
+        return false;
+
+    return true;
+}
+
+static bool object_has_evil_alignment(const object_type* o_ptr)
+{
+    u32b f1, f2, f3, f4;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
+    (void)f1;
+    (void)f2;
+    (void)f3;
+    return (f4 & TR4_EVIL_ITEM) != 0;
+}
+
+static bool smith_has_alignment_conflict(const object_type* o_ptr,
+    int prefix_idx, int suffix_idx)
+{
+    u32b f1, f2, f3, f4;
+    bool has_noble;
+    bool has_evil;
+
+    if (!o_ptr)
+        return false;
+
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
+    (void)f1;
+    (void)f2;
+    (void)f3;
+
+    has_noble = ((f4 & TR4_NOBLE_ITEM) != 0);
+    has_evil = ((f4 & TR4_EVIL_ITEM) != 0);
+
+    if (prefix_idx > 0)
+    {
+        if (e_info[prefix_idx].flags4 & TR4_NOBLE_ITEM)
+            has_noble = true;
+        if (e_info[prefix_idx].flags4 & TR4_EVIL_ITEM)
+            has_evil = true;
+    }
+
+    if (suffix_idx > 0)
+    {
+        if (e_info[suffix_idx].flags4 & TR4_NOBLE_ITEM)
+            has_noble = true;
+        if (e_info[suffix_idx].flags4 & TR4_EVIL_ITEM)
+            has_evil = true;
+    }
+
+    return has_noble && has_evil;
+}
+
+static bool ego_prefix_can_apply_to_object(const object_type* o_ptr, int e_idx)
+{
+    int j;
+    ego_item_type* e_ptr;
+    const char* raw_name;
+
+    if (!o_ptr || !o_ptr->k_idx || e_idx <= 0 || e_idx >= z_info->e_max)
+        return false;
+
+    e_ptr = &e_info[e_idx];
+    raw_name = e_name + e_ptr->name;
+
+    if (!ego_name_is_prefix(raw_name))
+        return false;
+    if (e_ptr->flags3 & TR3_DAMAGED)
+        return false;
+    if (e_ptr->flags4 & TR4_JINX)
+        return false;
+    if (e_ptr->flags4 & TR4_EVIL_ITEM)
+        return false;
+    if (smith_has_alignment_conflict(o_ptr, e_idx, 0))
+        return false;
+
+    for (j = 0; j < EGO_TVALS_MAX; j++)
+    {
+        if (o_ptr->tval != e_ptr->tval[j])
+            continue;
+        if (o_ptr->sval < e_ptr->min_sval[j])
+            continue;
+        if (o_ptr->sval > e_ptr->max_sval[j])
+            continue;
+
+        return true;
+    }
+
+    return false;
+}
+
+static bool object_can_reforge_prefix(const object_type* o_ptr)
+{
+    int i;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+    if (o_ptr->name1)
+        return false;
+    if (object_is_damaged_item(o_ptr))
+        return false;
+    if (object_has_evil_alignment(o_ptr))
+        return false;
+    if (is_smithed_by_player(o_ptr))
+        return false;
+    if (object_ego_prefix(o_ptr))
+        return false;
+    if (object_ego_suffix(o_ptr) == EGO_UNQUENCHED_FIRE)
+        return false;
+    if (!smith_has_category_ability(o_ptr))
+        return false;
+
+    for (i = 1; i < z_info->e_max; i++)
+    {
+        if (ego_prefix_can_apply_to_object(o_ptr, i))
+            return true;
+    }
+
+    return false;
+}
+
+static int find_reforge_target_item(void)
+{
+    int i;
+
+    for (i = 0; i < INVEN_TOTAL; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+
+        if (!o_ptr->k_idx)
+            continue;
+        if (object_is_damaged_item(o_ptr) || object_can_reforge_prefix(o_ptr))
+            return i;
+    }
+
+    return -1;
+}
+
+static void smith_eval_object(const object_type* src, int* difficulty,
+    smithing_cost_type* cost_out)
+{
+    object_type smith_backup;
+    smith_alloy_state alloy_backup = smith_alloy;
+    smithing_cost_type smithing_cost_backup = smithing_cost;
+
+    if (!src || !src->k_idx)
+        return;
+
+    object_copy(&smith_backup, smith_o_ptr);
+    object_copy(smith_o_ptr, src);
+    smith_clear_alloy_state(&smith_alloy);
+
+    if (difficulty)
+        *difficulty = object_difficulty(smith_o_ptr);
+    else
+        (void)object_difficulty(smith_o_ptr);
+
+    if (cost_out)
+        *cost_out = smithing_cost;
+
+    object_copy(smith_o_ptr, &smith_backup);
+    smith_alloy = alloy_backup;
+    smithing_cost = smithing_cost_backup;
+}
+
+static bool smith_reforge_difficulty_affordable(int difficulty, int* drain_out)
+{
+    int effective_skill = p_ptr->skill_use[S_SMT] + forge_bonus(p_ptr->py, p_ptr->px);
+
+    if (drain_out)
+        *drain_out = 0;
+
+    if (p_ptr->have_ability[S_SPC][SPC_AULE])
+    {
+        int max_aule_difficulty = effective_skill + (p_ptr->skill_base[S_SMT] * 2);
+
+        if (difficulty <= effective_skill)
+            return true;
+        if (difficulty <= max_aule_difficulty)
+        {
+            if (drain_out)
+                *drain_out = (difficulty - effective_skill + 1) / 2;
+            return true;
+        }
+        if (drain_out)
+            *drain_out = p_ptr->skill_base[S_SMT] + (difficulty - max_aule_difficulty);
+        return false;
+    }
+
+    if (p_ptr->active_ability[S_SMT][SMT_MASTERPIECE])
+    {
+        int max_masterpiece_difficulty = effective_skill + p_ptr->skill_base[S_SMT];
+
+        if (difficulty <= effective_skill)
+            return true;
+        if (difficulty <= max_masterpiece_difficulty)
+        {
+            if (drain_out)
+                *drain_out = difficulty - effective_skill;
+            return true;
+        }
+        if (drain_out)
+            *drain_out = p_ptr->skill_base[S_SMT] + (difficulty - max_masterpiece_difficulty);
+        return false;
+    }
+
+    return (difficulty <= effective_skill);
+}
+
+static void smithing_cost_delta_positive(const smithing_cost_type* before,
+    const smithing_cost_type* after, smithing_cost_type* delta)
+{
+    smithing_cost_reset_local(delta);
+
+    if (!before || !after || !delta)
+        return;
+
+    delta->str = MAX(0, after->str - before->str);
+    delta->dex = MAX(0, after->dex - before->dex);
+    delta->con = MAX(0, after->con - before->con);
+    delta->gra = MAX(0, after->gra - before->gra);
+    delta->exp = MAX(0, after->exp - before->exp);
+    delta->mithril = MAX(0, after->mithril - before->mithril);
+    delta->star_iron = MAX(0, after->star_iron - before->star_iron);
+}
+
+static bool reforge_preview_build(const object_type* source, int prefix_idx,
+    reforge_preview_type* preview)
+{
+    int before_diff = 0;
+    int after_diff = 0;
+    int turn_multiplier = 10;
+    smithing_cost_type before_cost;
+    smithing_cost_type after_cost;
+
+    if (!source || !source->k_idx || !preview || prefix_idx <= 0)
+        return false;
+
+    memset(preview, 0, sizeof(*preview));
+    smithing_cost_reset_local(&before_cost);
+    smithing_cost_reset_local(&after_cost);
+
+    smith_eval_object(source, &before_diff, &before_cost);
+
+    object_copy(smith_o_ptr, source);
+    object_set_ego_prefix(smith_o_ptr, prefix_idx);
+    if (!object_apply_ego_affix(smith_o_ptr, prefix_idx, true))
+        return false;
+
+    smith_eval_object(smith_o_ptr, &after_diff, &after_cost);
+
+    preview->raw_delta_difficulty = MAX(0, after_diff - before_diff);
+    preview->scaled_difficulty = (preview->raw_delta_difficulty * 3 + 1) / 2;
+    smithing_cost_delta_positive(&before_cost, &after_cost, &preview->cost);
+    preview->cost.uses = 1;
+
+    preview->affordable
+        = smith_reforge_difficulty_affordable(
+            preview->scaled_difficulty, &preview->cost.drain);
+
+    if (p_ptr->active_ability[S_SMT][SMT_EXPERTISE])
+    {
+        preview->cost.str = 0;
+        preview->cost.dex = 0;
+        preview->cost.con = 0;
+        preview->cost.gra = 0;
+        preview->cost.exp = 0;
+        turn_multiplier /= 2;
+    }
+
+    if ((preview->cost.str > 0)
+        && (p_ptr->stat_base[A_STR] + p_ptr->stat_drain[A_STR]
+                - preview->cost.str
+            < -5))
+        preview->affordable = false;
+    if ((preview->cost.dex > 0)
+        && (p_ptr->stat_base[A_DEX] + p_ptr->stat_drain[A_DEX]
+                - preview->cost.dex
+            < -5))
+        preview->affordable = false;
+    if ((preview->cost.con > 0)
+        && (p_ptr->stat_base[A_CON] + p_ptr->stat_drain[A_CON]
+                - preview->cost.con
+            < -5))
+        preview->affordable = false;
+    if ((preview->cost.gra > 0)
+        && (p_ptr->stat_base[A_GRA] + p_ptr->stat_drain[A_GRA]
+                - preview->cost.gra
+            < -5))
+        preview->affordable = false;
+    if (preview->cost.exp > p_ptr->new_exp)
+        preview->affordable = false;
+    if ((preview->cost.mithril > 0)
+        && (preview->cost.mithril > mithril_carried()))
+        preview->affordable = false;
+    if ((preview->cost.star_iron > 0)
+        && (preview->cost.star_iron > star_iron_carried()))
+        preview->affordable = false;
+    if (forge_uses(p_ptr->py, p_ptr->px) < preview->cost.uses)
+        preview->affordable = false;
+    if ((preview->cost.drain > 0)
+        && (preview->cost.drain > p_ptr->skill_base[S_SMT]))
+        preview->affordable = false;
+
+    preview->turns = MAX(10, preview->scaled_difficulty * turn_multiplier);
+    return true;
+}
+
+static void pay_smithing_cost_struct(const smithing_cost_type* cost)
+{
+    if (!cost)
+        return;
+
+    if (cost->str > 0)
+        p_ptr->stat_drain[A_STR] -= cost->str;
+    if (cost->dex > 0)
+        p_ptr->stat_drain[A_DEX] -= cost->dex;
+    if (cost->con > 0)
+        p_ptr->stat_drain[A_CON] -= cost->con;
+    if (cost->gra > 0)
+        p_ptr->stat_drain[A_GRA] -= cost->gra;
+    if (cost->exp > 0)
+        p_ptr->new_exp -= cost->exp;
+    if (cost->mithril > 0)
+        use_mithril(cost->mithril);
+    if (cost->star_iron > 0)
+        use_star_iron(cost->star_iron);
+    if (cost->uses > 0)
+    {
+        cave_feat[p_ptr->py][p_ptr->px] -= cost->uses;
+        lite_spot(p_ptr->py, p_ptr->px);
+    }
+    if (cost->drain > 0)
+        p_ptr->skill_base[S_SMT] -= cost->drain;
+
+    p_ptr->update |= (PU_BONUS);
     p_ptr->redraw |= (PR_EXP | PR_BASIC);
 }
 
@@ -5930,6 +6308,8 @@ int create_sval_menu_aux(int tval, int* highlight)
         {
             /* Skip instant artefact item types */
             if (k_ptr->flags3 & (TR3_INSTA_ART))
+                continue;
+            if (k_ptr->flags4 & TR4_EVIL_ITEM)
                 continue;
 
             /* Skip certain item types that cannot be made */
@@ -7152,6 +7532,241 @@ static void ego_name_for_enchant_menu(int e_idx, char* buf, size_t buflen)
     SDL_strlcpy(buf, raw, buflen);
 }
 
+static void prt_reforge_preview(const reforge_preview_type* preview)
+{
+    char buf[80];
+    int costs = 0;
+    byte attr = TERM_SLATE;
+
+    wipe_screen_from(COL_SMT4);
+
+    if (!preview)
+        return;
+
+    if (!preview->affordable)
+        attr = TERM_L_DARK;
+
+    Term_putstr(COL_SMT4, 2, -1, attr, "Reforge Diff:");
+    strnfmt(buf, sizeof(buf), "%d", preview->scaled_difficulty);
+    Term_putstr(COL_SMT4 + 2, 4, -1, attr, buf);
+
+    strnfmt(buf, sizeof(buf), "(+%d raw)", preview->raw_delta_difficulty);
+    Term_putstr(COL_SMT4 + 5, 4, -1, TERM_L_DARK, buf);
+
+    Term_putstr(COL_SMT4, 8, -1,
+        preview->affordable ? TERM_SLATE : TERM_L_DARK, "Cost:");
+
+    if (preview->cost.uses > 0)
+    {
+        attr = (forge_uses(p_ptr->py, p_ptr->px) >= preview->cost.uses)
+            ? TERM_SLATE : TERM_L_DARK;
+        strnfmt(buf, sizeof(buf), "%d Use%s", preview->cost.uses,
+            (preview->cost.uses == 1) ? "" : "s");
+        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
+        costs++;
+    }
+    if (preview->cost.drain > 0)
+    {
+        attr = (preview->cost.drain <= p_ptr->skill_base[S_SMT])
+            ? TERM_BLUE : TERM_L_DARK;
+        strnfmt(buf, sizeof(buf), "%d Smithing", preview->cost.drain);
+        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
+        costs++;
+    }
+    if (preview->cost.mithril > 0)
+    {
+        attr = (preview->cost.mithril <= mithril_carried()) ? TERM_SLATE : TERM_L_DARK;
+        strnfmt(buf, sizeof(buf), "%d.%d lb Mithril",
+            preview->cost.mithril / 10, preview->cost.mithril % 10);
+        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
+        costs++;
+    }
+    if (preview->cost.star_iron > 0)
+    {
+        attr = (preview->cost.star_iron <= star_iron_carried()) ? TERM_SLATE : TERM_L_DARK;
+        strnfmt(buf, sizeof(buf), "%d.%d lb Star Iron",
+            preview->cost.star_iron / 10, preview->cost.star_iron % 10);
+        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
+        costs++;
+    }
+    if (preview->cost.str > 0)
+    {
+        attr = (p_ptr->stat_base[A_STR] + p_ptr->stat_drain[A_STR] - preview->cost.str >= -5)
+            ? TERM_SLATE : TERM_L_DARK;
+        strnfmt(buf, sizeof(buf), "%d Str", preview->cost.str);
+        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
+        costs++;
+    }
+    if (preview->cost.dex > 0)
+    {
+        attr = (p_ptr->stat_base[A_DEX] + p_ptr->stat_drain[A_DEX] - preview->cost.dex >= -5)
+            ? TERM_SLATE : TERM_L_DARK;
+        strnfmt(buf, sizeof(buf), "%d Dex", preview->cost.dex);
+        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
+        costs++;
+    }
+    if (preview->cost.con > 0)
+    {
+        attr = (p_ptr->stat_base[A_CON] + p_ptr->stat_drain[A_CON] - preview->cost.con >= -5)
+            ? TERM_SLATE : TERM_L_DARK;
+        strnfmt(buf, sizeof(buf), "%d Con", preview->cost.con);
+        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
+        costs++;
+    }
+    if (preview->cost.gra > 0)
+    {
+        attr = (p_ptr->stat_base[A_GRA] + p_ptr->stat_drain[A_GRA] - preview->cost.gra >= -5)
+            ? TERM_SLATE : TERM_L_DARK;
+        strnfmt(buf, sizeof(buf), "%d Gra", preview->cost.gra);
+        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
+        costs++;
+    }
+    if (preview->cost.exp > 0)
+    {
+        attr = (p_ptr->new_exp >= preview->cost.exp) ? TERM_SLATE : TERM_L_DARK;
+        strnfmt(buf, sizeof(buf), "%d Exp", preview->cost.exp);
+        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
+        costs++;
+    }
+
+    strnfmt(buf, sizeof(buf), "%d Turns", preview->turns);
+    Term_putstr(COL_SMT4 + 2, 10 + costs, -1, TERM_SLATE, buf);
+}
+
+static int reforge_prefix_menu(const object_type* source)
+{
+    char ch;
+    char buf[80];
+    int i;
+    int highlight = 1;
+    int entry_count = 0;
+    int choice[26];
+    bool valid[26];
+    reforge_preview_type previews[26];
+
+    if (!source || !source->k_idx)
+        return 0;
+
+    screen_save();
+
+    while (true)
+    {
+        wipe_screen_from(COL_SMT2);
+        Term_putstr(COL_SMT2, 1, -1, TERM_WHITE, "Select prefix:");
+
+        entry_count = 0;
+        memset(choice, 0, sizeof(choice));
+        memset(valid, 0, sizeof(valid));
+        memset(previews, 0, sizeof(previews));
+
+        for (i = 1; i < z_info->e_max && entry_count < (int)N_ELEMENTS(choice); i++)
+        {
+            char ego_label[64];
+
+            if (!ego_prefix_can_apply_to_object(source, i))
+                continue;
+            if (!reforge_preview_build(source, i, &previews[entry_count]))
+                continue;
+
+            valid[entry_count] = previews[entry_count].affordable;
+            choice[entry_count] = i;
+
+            ego_name_for_enchant_menu(i, ego_label, sizeof(ego_label));
+            strnfmt(buf, sizeof(buf), "%c) %s", (char)'a' + entry_count, ego_label);
+            Term_putstr(COL_SMT2, entry_count + 2, -1,
+                valid[entry_count] ? TERM_WHITE : TERM_L_DARK, buf);
+            entry_count++;
+        }
+
+        if (entry_count == 0)
+        {
+            Term_putstr(COL_SMT2, 3, -1, TERM_L_DARK,
+                "(No legal prefixes available.)");
+            Term_fresh();
+            hide_cursor = true;
+            (void)inkey();
+            hide_cursor = false;
+            screen_load();
+            return 0;
+        }
+
+        if (highlight < 1) highlight = 1;
+        if (highlight > entry_count) highlight = entry_count;
+
+        strnfmt(buf, sizeof(buf), "%c)", (char)'a' + highlight - 1);
+        Term_putstr(COL_SMT2, highlight + 1, -1, TERM_L_BLUE, buf);
+
+        (void)reforge_preview_build(source, choice[highlight - 1],
+            &previews[highlight - 1]);
+        prt_object_description();
+        prt_reforge_preview(&previews[highlight - 1]);
+
+        Term_fresh();
+        Term_gotoxy(14, 1 + highlight);
+
+        hide_cursor = true;
+        ch = inkey();
+        hide_cursor = false;
+
+        if ((ch >= 'a') && (ch <= (char)'a' + entry_count - 1))
+        {
+            highlight = (int)ch - 'a' + 1;
+            if (!valid[highlight - 1])
+                bell("You cannot afford that reforge.");
+            else
+            {
+                screen_load();
+                return choice[highlight - 1];
+            }
+        }
+        else if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6')
+#ifdef ARROW_RIGHT
+            || (ch == ARROW_RIGHT)
+#endif
+            )
+        {
+            if (!valid[highlight - 1])
+                bell("You cannot afford that reforge.");
+            else
+            {
+                screen_load();
+                return choice[highlight - 1];
+            }
+        }
+        else if ((ch == ESCAPE) || (ch == '4')
+#ifdef ARROW_LEFT
+            || (ch == ARROW_LEFT)
+#endif
+            )
+        {
+            screen_load();
+            return 0;
+        }
+        else if ((ch == '8')
+#ifdef ARROW_UP
+            || (ch == ARROW_UP)
+#endif
+            )
+        {
+            if (highlight > 1)
+                highlight--;
+            else
+                highlight = entry_count;
+        }
+        else if ((ch == '2')
+#ifdef ARROW_DOWN
+            || (ch == ARROW_DOWN)
+#endif
+            )
+        {
+            if (highlight < entry_count)
+                highlight++;
+            else
+                highlight = 1;
+        }
+    }
+}
+
 static void create_special(int ego_prefix, int ego_suffix)
 {
     /* Retrieve a backup of the object */
@@ -7180,6 +7795,8 @@ static bool enchant_menu_has_applicable_affix(bool selecting_prefix)
 
     if (!smith_o_ptr || smith_o_ptr->tval == 0)
         return false;
+    if (object_has_evil_alignment(smith_o_ptr))
+        return false;
 
     /* Suffix-only ego: never allow any prefix when it's present. */
     if (selecting_prefix && object_ego_suffix(smith_o_ptr) == EGO_UNQUENCHED_FIRE)
@@ -7191,6 +7808,8 @@ static bool enchant_menu_has_applicable_affix(bool selecting_prefix)
         const char* raw_name = e_name + e_ptr->name;
         bool is_prefix = ego_name_is_prefix(raw_name);
         if (selecting_prefix != is_prefix)
+            continue;
+        if (e_ptr->flags4 & TR4_EVIL_ITEM)
             continue;
 
         for (j = 0; j < EGO_TVALS_MAX; j++)
@@ -7257,6 +7876,8 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix, 
             continue;
 
         if (!selecting_prefix && i == EGO_UNQUENCHED_FIRE && fixed_prefix != 0)
+            continue;
+        if (e_ptr->flags4 & TR4_EVIL_ITEM)
             continue;
 
         /* Don't create cursed */
@@ -8802,19 +9423,25 @@ void melt_menu(void)
     screen_load();
 }
 
-static bool smith_item_tester_hook_repairable(const object_type* o_ptr)
+static bool smith_item_tester_hook_reforge_target(const object_type* o_ptr)
 {
-    return object_is_damaged_item(o_ptr);
+    return object_is_damaged_item(o_ptr) || object_can_reforge_prefix(o_ptr);
 }
 
-static bool smith_repair_damaged_item(void)
+static bool smith_reforge_item(void)
 {
     int slot = -1;
-    char o_name[80];
+    int prefix_idx = 0;
+    char old_name[80];
+    char new_name[80];
+    object_type smith_backup;
+    object_type smith2_backup;
+    smith_alloy_state alloy_backup = smith_alloy;
+    smith_alloy_state alloy2_backup = smith2_alloy;
 
     if (!cave_forge_bold(p_ptr->py, p_ptr->px))
     {
-        msg_print("You can only repair items at a forge.");
+        msg_print("You can only reforge items at a forge.");
         return false;
     }
 
@@ -8826,13 +9453,13 @@ static bool smith_repair_damaged_item(void)
 
     if (!p_ptr->active_ability[S_SMT][SMT_REPAIR])
     {
-        bell("You do not know how to repair damaged gear.");
+        bell("You do not know how to reforge gear.");
         return false;
     }
 
-    item_tester_hook = smith_item_tester_hook_repairable;
-    if (!get_item(&slot, "Repair which item? ",
-            "You have nothing damaged to repair.", (USE_EQUIP | USE_INVEN)))
+    item_tester_hook = smith_item_tester_hook_reforge_target;
+    if (!get_item(&slot, "Reforge which item? ",
+            "You have nothing to repair or reforge.", (USE_EQUIP | USE_INVEN)))
     {
         item_tester_hook = NULL;
         return false;
@@ -8842,17 +9469,88 @@ static bool smith_repair_damaged_item(void)
     if (slot < 0)
         return false;
 
-    if (!repair_damaged_item(slot))
+    object_copy(&smith_backup, smith_o_ptr);
+    object_copy(&smith2_backup, smith2_o_ptr);
+
+    if (object_is_damaged_item(&inventory[slot]))
     {
-        bell("You cannot repair that item.");
-        return false;
+        if (!repair_damaged_item(slot))
+        {
+            object_copy(smith_o_ptr, &smith_backup);
+            object_copy(smith2_o_ptr, &smith2_backup);
+            smith_alloy = alloy_backup;
+            smith2_alloy = alloy2_backup;
+            bell("You cannot repair that item.");
+            return false;
+        }
+
+        cave_feat[p_ptr->py][p_ptr->px] -= 1;
+        lite_spot(p_ptr->py, p_ptr->px);
+
+        object_desc(new_name, sizeof(new_name), &inventory[slot], true, 0);
+        msg_format("You repair %s.", new_name);
+    }
+    else
+    {
+        reforge_preview_type preview;
+
+        if (!object_can_reforge_prefix(&inventory[slot]))
+        {
+            object_copy(smith_o_ptr, &smith_backup);
+            object_copy(smith2_o_ptr, &smith2_backup);
+            smith_alloy = alloy_backup;
+            smith2_alloy = alloy2_backup;
+            bell("You cannot reforge that item.");
+            return false;
+        }
+
+        prefix_idx = reforge_prefix_menu(&inventory[slot]);
+        if (!prefix_idx)
+        {
+            object_copy(smith_o_ptr, &smith_backup);
+            object_copy(smith2_o_ptr, &smith2_backup);
+            smith_alloy = alloy_backup;
+            smith2_alloy = alloy2_backup;
+            return false;
+        }
+
+        if (!reforge_preview_build(&inventory[slot], prefix_idx, &preview)
+            || !preview.affordable)
+        {
+            object_copy(smith_o_ptr, &smith_backup);
+            object_copy(smith2_o_ptr, &smith2_backup);
+            smith_alloy = alloy_backup;
+            smith2_alloy = alloy2_backup;
+            bell("You cannot afford that reforge.");
+            return false;
+        }
+
+        object_desc(old_name, sizeof(old_name), &inventory[slot], true, 0);
+        object_set_ego_prefix(&inventory[slot], prefix_idx);
+        if (!object_apply_ego_affix(&inventory[slot], prefix_idx, true))
+        {
+            object_set_ego_prefix(&inventory[slot], 0);
+            object_copy(smith_o_ptr, &smith_backup);
+            object_copy(smith2_o_ptr, &smith2_backup);
+            smith_alloy = alloy_backup;
+            smith2_alloy = alloy2_backup;
+            bell("You cannot reforge that item.");
+            return false;
+        }
+
+        pay_smithing_cost_struct(&preview.cost);
+        inventory[slot].unused1 = 2;
+        object_aware(&inventory[slot]);
+        object_known(&inventory[slot]);
+        object_desc(new_name, sizeof(new_name), &inventory[slot], true, 0);
+        msg_format("You reforge %s into %s.", old_name, new_name);
+        p_ptr->window |= (PW_INVEN | PW_EQUIP);
     }
 
-    cave_feat[p_ptr->py][p_ptr->px] -= 1;
-    lite_spot(p_ptr->py, p_ptr->px);
-
-    object_desc(o_name, sizeof(o_name), &inventory[slot], true, 0);
-    msg_format("You repair %s.", o_name);
+    object_copy(smith_o_ptr, &smith_backup);
+    object_copy(smith2_o_ptr, &smith2_backup);
+    smith_alloy = alloy_backup;
+    smith2_alloy = alloy2_backup;
 
     p_ptr->redraw |= PR_BASIC;
     return true;
@@ -8901,7 +9599,7 @@ int smithing_menu_aux(int* highlight)
         = cave_forge_bold(p_ptr->py, p_ptr->px)
         && (forge_uses(p_ptr->py, p_ptr->px) > 0)
         && p_ptr->active_ability[S_SMT][SMT_REPAIR]
-        && (find_broken_item_to_upgrade() >= 0);
+        && (find_reforge_target_item() >= 0);
     valid[SMT_MENU_ACCEPT - 1] = affordable(smith_o_ptr)
         && cave_forge_bold(p_ptr->py, p_ptr->px)
         && (forge_uses(p_ptr->py, p_ptr->px) > 0);
@@ -8928,7 +9626,7 @@ int smithing_menu_aux(int* highlight)
         valid[SMT_MENU_MELT - 1] ? TERM_WHITE : TERM_L_DARK, "e) Melt");
     valid_attr = p_ptr->active_ability[S_SMT][SMT_REPAIR] ? TERM_WHITE : TERM_RED;
     Term_putstr(COL_SMT1, 7, -1,
-        valid[SMT_MENU_REPAIR - 1] ? valid_attr : TERM_L_DARK, "f) Repair");
+        valid[SMT_MENU_REPAIR - 1] ? valid_attr : TERM_L_DARK, "f) Reforge");
 
     if (p_ptr->smithing_leftover == 0)
     {
@@ -8993,15 +9691,17 @@ int smithing_menu_aux(int* highlight)
     case SMT_MENU_REPAIR:
     {
         Term_putstr(COL_SMT2 + 2, 2, -1, TERM_SLATE,
-            "Repair a damaged item at the forge.");
+            "Repair damaged gear or add a prefix");
         Term_putstr(COL_SMT2 + 2, 3, -1, TERM_SLATE,
-            "This costs 1 forge use.");
+            "to a found item at the forge.");
+        Term_putstr(COL_SMT2 + 2, 4, -1, TERM_SLATE,
+            "Reforging uses 1.5x the difficulty delta.");
         if (!p_ptr->active_ability[S_SMT][SMT_REPAIR])
             Term_putstr(COL_SMT2 + 2, 5, -1, TERM_L_DARK,
-                "(requires the Repair ability)");
-        else if (find_broken_item_to_upgrade() < 0)
+                "(requires the Reforging ability)");
+        else if (find_reforge_target_item() < 0)
             Term_putstr(COL_SMT2 + 2, 5, -1, TERM_L_DARK,
-                "(you carry nothing damaged)");
+                "(you carry nothing to reforge)");
         break;
     }
     case SMT_MENU_ACCEPT:
@@ -9254,7 +9954,7 @@ void do_cmd_smithing_screen(void)
         }
         case SMT_MENU_REPAIR:
         {
-            smith_repair_damaged_item();
+            smith_reforge_item();
             break;
         }
         case SMT_MENU_ACCEPT:

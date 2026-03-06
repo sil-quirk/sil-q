@@ -3169,7 +3169,7 @@ static bool pack_item_matches_replacement_type(const object_type* incoming,
 
 bool is_smithed_by_player(const object_type* o_ptr)
 {
-    return (o_ptr->unused1 == 1);
+    return (o_ptr->unused1 != 0);
 }
 
 /*

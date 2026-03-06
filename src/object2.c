@@ -1884,6 +1884,44 @@ void object_absorb(object_type* o_ptr, object_type* j_ptr)
         j_ptr->discount = o_ptr->discount;
 }
 
+static int object_weight_flag_adjustment(int base_weight, u32b flags4)
+{
+    int quarter_basis;
+
+    if (base_weight <= 0)
+        return 0;
+
+    quarter_basis = div_round(base_weight, 4);
+
+    /* Weight affixes should move the item by at least 0.5 lb. */
+    if (quarter_basis < 5)
+        quarter_basis = 5;
+
+    if ((flags4 & TR4_WEIGHT) && !(flags4 & TR4_NEG_WEIGHT))
+        return quarter_basis;
+
+    if ((flags4 & TR4_NEG_WEIGHT) && !(flags4 & TR4_WEIGHT))
+        return -quarter_basis;
+
+    return 0;
+}
+
+static void apply_object_weight_flags(object_type* o_ptr, int base_weight,
+    u32b flags4)
+{
+    int adjusted_weight;
+    int weight_adjust = object_weight_flag_adjustment(base_weight, flags4);
+
+    if (weight_adjust == 0)
+        return;
+
+    adjusted_weight = o_ptr->weight + weight_adjust;
+    if (adjusted_weight < 0)
+        adjusted_weight = 0;
+
+    o_ptr->weight = (s16b)adjusted_weight;
+}
+
 /*
  * Find the index of the object_kind with the given tval and sval
  */
@@ -2164,6 +2202,9 @@ static int make_special_item(object_type* o_ptr, bool only_good)
         if ((k_ptr->flags4 & TR4_NOBLE_ITEM) && (e_ptr->flags4 & TR4_EVIL_ITEM))
             continue;
         if ((k_ptr->flags4 & TR4_EVIL_ITEM) && (e_ptr->flags4 & TR4_NOBLE_ITEM))
+            continue;
+        if ((k_ptr->flags3 & (TR3_MITHRIL | TR3_STAR_IRON))
+            && (e_ptr->flags4 & TR4_EVIL_ITEM))
             continue;
 
         /* Test if this is a legal special item type for this object */
@@ -2839,6 +2880,179 @@ static void apply_delta_byte_clamped(byte* v, int delta)
     *v = (byte)next;
 }
 
+bool object_apply_ego_affix(object_type* o_ptr, int e_idx, bool smithing)
+{
+    const object_kind* k_ptr = NULL;
+    ego_item_type* e_ptr;
+    u32b ef1, ef3, ef4;
+    int i;
+    int max_att;
+    int to_dd;
+    int to_ds;
+    int max_evn;
+    int to_pd;
+    int to_ps;
+
+    if (!o_ptr || !o_ptr->k_idx || e_idx <= 0 || e_idx >= z_info->e_max)
+        return false;
+
+    k_ptr = &k_info[o_ptr->k_idx];
+    e_ptr = &e_info[e_idx];
+    ef1 = e_ptr->flags1;
+    ef3 = e_ptr->flags3;
+    ef4 = e_ptr->flags4;
+    max_att = (int)(int8_t)e_ptr->max_att;
+    to_dd = (int)(int8_t)e_ptr->to_dd;
+    to_ds = (int)(int8_t)e_ptr->to_ds;
+    max_evn = (int)(int8_t)e_ptr->max_evn;
+    to_pd = (int)(int8_t)e_ptr->to_pd;
+    to_ps = (int)(int8_t)e_ptr->to_ps;
+
+    for (i = 0; i < e_ptr->abilities && o_ptr->abilities < (int)N_ELEMENTS(o_ptr->skilltype); i++)
+    {
+        int idx = o_ptr->abilities;
+        o_ptr->skilltype[idx] = e_ptr->skilltype[i];
+        o_ptr->abilitynum[idx] = e_ptr->abilitynum[i];
+        o_ptr->abilities++;
+    }
+
+    if (!e_ptr->cost)
+        o_ptr->ident |= (IDENT_BROKEN);
+    if (ef3 & (TR3_LIGHT_CURSE))
+        o_ptr->ident |= (IDENT_CURSED);
+
+    if (smithing)
+    {
+        if (max_att)
+            o_ptr->att += (max_att > 0) ? 1 : -1;
+        if (max_evn)
+            o_ptr->evn += (max_evn > 0) ? 1 : -1;
+        if (to_dd)
+            apply_delta_byte_clamped(&o_ptr->dd, (to_dd > 0) ? 1 : -1);
+        if (to_ds)
+            apply_delta_byte_clamped(&o_ptr->ds, (to_ds > 0) ? 1 : -1);
+        if (to_pd)
+            apply_delta_byte_clamped(&o_ptr->pd, (to_pd > 0) ? 1 : -1);
+        if (to_ps)
+            apply_delta_byte_clamped(&o_ptr->ps, (to_ps > 0) ? 1 : -1);
+
+        if (e_ptr->max_pval > 0)
+        {
+            int delta = 1;
+            if (cursed_p(o_ptr))
+                delta = -delta;
+            o_ptr->pval += (s16b)delta;
+
+            if (ef1 & TR1_STR) o_ptr->stat_bonus[A_STR] += (s16b)delta;
+            if (ef1 & TR1_DEX) o_ptr->stat_bonus[A_DEX] += (s16b)delta;
+            if (ef1 & TR1_CON) o_ptr->stat_bonus[A_CON] += (s16b)delta;
+            if (ef1 & TR1_GRA) o_ptr->stat_bonus[A_GRA] += (s16b)delta;
+            if (ef1 & TR1_NEG_STR) o_ptr->stat_bonus[A_STR] -= (s16b)delta;
+            if (ef1 & TR1_NEG_DEX) o_ptr->stat_bonus[A_DEX] -= (s16b)delta;
+            if (ef1 & TR1_NEG_CON) o_ptr->stat_bonus[A_CON] -= (s16b)delta;
+            if (ef1 & TR1_NEG_GRA) o_ptr->stat_bonus[A_GRA] -= (s16b)delta;
+
+            if (ef1 & TR1_MEL) o_ptr->skill_bonus[S_MEL] += (s16b)delta;
+            if (ef1 & TR1_ARC) o_ptr->skill_bonus[S_ARC] += (s16b)delta;
+            if (ef1 & TR1_STL) o_ptr->skill_bonus[S_STL] += (s16b)delta;
+            if (ef1 & TR1_PER) o_ptr->skill_bonus[S_PER] += (s16b)delta;
+            if (ef1 & TR1_WIL) o_ptr->skill_bonus[S_WIL] += (s16b)delta;
+            if (ef1 & TR1_SMT) o_ptr->skill_bonus[S_SMT] += (s16b)delta;
+            if (ef1 & TR1_SNG) o_ptr->skill_bonus[S_SNG] += (s16b)delta;
+        }
+    }
+    else
+    {
+        if (max_att)
+            o_ptr->att += (max_att > 0) ? dieroll(max_att) : -dieroll(-max_att);
+        if (max_evn)
+            o_ptr->evn += (max_evn > 0) ? dieroll(max_evn) : -dieroll(-max_evn);
+        if (to_dd)
+            apply_delta_byte_clamped(&o_ptr->dd, (to_dd > 0) ? dieroll(to_dd) : -dieroll(-to_dd));
+        if (to_ds)
+            apply_delta_byte_clamped(&o_ptr->ds, (to_ds > 0) ? dieroll(to_ds) : -dieroll(-to_ds));
+        if (to_pd)
+            apply_delta_byte_clamped(&o_ptr->pd, (to_pd > 0) ? dieroll(to_pd) : -dieroll(-to_pd));
+        if (to_ps)
+            apply_delta_byte_clamped(&o_ptr->ps, (to_ps > 0) ? dieroll(to_ps) : -dieroll(-to_ps));
+
+        if (e_ptr->max_pval > 0)
+        {
+            int delta = dieroll(e_ptr->max_pval);
+            if (cursed_p(o_ptr))
+                delta = -delta;
+            o_ptr->pval += (s16b)delta;
+
+            if (ef1 & TR1_STR) o_ptr->stat_bonus[A_STR] += (s16b)delta;
+            if (ef1 & TR1_DEX) o_ptr->stat_bonus[A_DEX] += (s16b)delta;
+            if (ef1 & TR1_CON) o_ptr->stat_bonus[A_CON] += (s16b)delta;
+            if (ef1 & TR1_GRA) o_ptr->stat_bonus[A_GRA] += (s16b)delta;
+            if (ef1 & TR1_NEG_STR) o_ptr->stat_bonus[A_STR] -= (s16b)delta;
+            if (ef1 & TR1_NEG_DEX) o_ptr->stat_bonus[A_DEX] -= (s16b)delta;
+            if (ef1 & TR1_NEG_CON) o_ptr->stat_bonus[A_CON] -= (s16b)delta;
+            if (ef1 & TR1_NEG_GRA) o_ptr->stat_bonus[A_GRA] -= (s16b)delta;
+
+            if (ef1 & TR1_MEL) o_ptr->skill_bonus[S_MEL] += (s16b)delta;
+            if (ef1 & TR1_ARC) o_ptr->skill_bonus[S_ARC] += (s16b)delta;
+            if (ef1 & TR1_STL) o_ptr->skill_bonus[S_STL] += (s16b)delta;
+            if (ef1 & TR1_PER) o_ptr->skill_bonus[S_PER] += (s16b)delta;
+            if (ef1 & TR1_WIL) o_ptr->skill_bonus[S_WIL] += (s16b)delta;
+            if (ef1 & TR1_SMT) o_ptr->skill_bonus[S_SMT] += (s16b)delta;
+            if (ef1 & TR1_SNG) o_ptr->skill_bonus[S_SNG] += (s16b)delta;
+        }
+    }
+
+    if (ef1 & (TR1_STR | TR1_NEG_STR)) o_ptr->stat_bonus[A_STR] += e_ptr->stat_bonus[A_STR];
+    if (ef1 & (TR1_DEX | TR1_NEG_DEX)) o_ptr->stat_bonus[A_DEX] += e_ptr->stat_bonus[A_DEX];
+    if (ef1 & (TR1_CON | TR1_NEG_CON)) o_ptr->stat_bonus[A_CON] += e_ptr->stat_bonus[A_CON];
+    if (ef1 & (TR1_GRA | TR1_NEG_GRA)) o_ptr->stat_bonus[A_GRA] += e_ptr->stat_bonus[A_GRA];
+
+    if (ef1 & TR1_MEL) o_ptr->skill_bonus[S_MEL] += e_ptr->skill_bonus[S_MEL];
+    if (ef1 & TR1_ARC) o_ptr->skill_bonus[S_ARC] += e_ptr->skill_bonus[S_ARC];
+    if (ef1 & TR1_STL) o_ptr->skill_bonus[S_STL] += e_ptr->skill_bonus[S_STL];
+    if (ef1 & TR1_PER) o_ptr->skill_bonus[S_PER] += e_ptr->skill_bonus[S_PER];
+    if (ef1 & TR1_WIL) o_ptr->skill_bonus[S_WIL] += e_ptr->skill_bonus[S_WIL];
+    if (ef1 & TR1_SMT) o_ptr->skill_bonus[S_SMT] += e_ptr->skill_bonus[S_SMT];
+    if (ef1 & TR1_SNG) o_ptr->skill_bonus[S_SNG] += e_ptr->skill_bonus[S_SNG];
+
+    if (k_ptr->dd > 0)
+    {
+        if (o_ptr->dd < 1)
+            o_ptr->dd = 1;
+
+        if (o_ptr->ds < 1)
+        {
+            int deficit = 1 - (int)o_ptr->ds;
+            o_ptr->ds = 1;
+            if ((int)o_ptr->dd > deficit)
+                o_ptr->dd = (byte)((int)o_ptr->dd - deficit);
+            else
+                o_ptr->dd = 1;
+        }
+    }
+
+    if (k_ptr->pd > 0)
+    {
+        if (o_ptr->pd < 1)
+            o_ptr->pd = 1;
+
+        if (o_ptr->ps < 1)
+        {
+            int deficit = 1 - (int)o_ptr->ps;
+            o_ptr->ps = 1;
+            if ((int)o_ptr->pd > deficit)
+                o_ptr->pd = (byte)((int)o_ptr->pd - deficit);
+            else
+                o_ptr->pd = 1;
+        }
+    }
+
+    apply_object_weight_flags(o_ptr, k_ptr->weight, ef4);
+
+    pseudo_id(o_ptr);
+    return true;
+}
+
 void object_into_special(object_type* o_ptr, int lev, bool smithing)
 {
     u32b f1, f2, f3, f4;
@@ -3024,27 +3238,8 @@ void object_into_special(object_type* o_ptr, int lev, bool smithing)
     }
 
     /* Apply explicit weight flags relative to base kind weight. */
-    if (k_ptr && k_ptr->weight > 0)
-    {
-        int weight_adjust = 0;
-        int quarter_basis = div_round(k_ptr->weight, 4);
-
-        if (quarter_basis < 1)
-            quarter_basis = 1;
-
-        if ((f4 & TR4_WEIGHT) && !(f4 & TR4_NEG_WEIGHT))
-            weight_adjust = quarter_basis;
-        else if ((f4 & TR4_NEG_WEIGHT) && !(f4 & TR4_WEIGHT))
-            weight_adjust = -quarter_basis;
-
-        if (weight_adjust != 0)
-        {
-            int adjusted_weight = o_ptr->weight + weight_adjust;
-            if (adjusted_weight < 0)
-                adjusted_weight = 0;
-            o_ptr->weight = (s16b)adjusted_weight;
-        }
-    }
+    if (k_ptr)
+        apply_object_weight_flags(o_ptr, k_ptr->weight, f4);
 
     /* Cheat -- describe the item */
     if (cheat_peek)
@@ -3228,13 +3423,11 @@ void apply_magic(object_type* o_ptr, int lev, bool okay, bool good, bool great,
             a_m_aux_1(o_ptr, lev);
         }
 
-        // deal with throwing items
+        // Throwing weapons keep their rolled weight; a generated multi-item
+        // stack shares that one roll.
         if ((k_info[o_ptr->k_idx].flags3 & (TR3_THROWING))
             && !artefact_p(o_ptr))
         {
-            // throwing items always have typical weight to help with stacking
-            o_ptr->weight = k_info[o_ptr->k_idx].weight;
-
             // often come in multiples, but limited to quiver stack size
             if (one_in_(2))
             {

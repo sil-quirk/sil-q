@@ -1552,6 +1552,9 @@ static void build_ego_variants(int e_idx)
                 continue;
             if (k_ptr->flags3 & TR3_INSTA_ART)
                 continue;
+            if ((k_ptr->flags3 & (TR3_MITHRIL | TR3_STAR_IRON))
+                && (e_ptr->flags4 & TR4_EVIL_ITEM))
+                continue;
 
             drop_category cat = drop_category_for_kind(k_ptr);
             if (cat == DROP_CAT_MAX)
@@ -1805,6 +1808,10 @@ static void build_ego_combo_variants(int prefix_idx, int suffix_idx)
         if (k_ptr->flags3 & TR3_INSTA_ART)
             continue;
         if (!ego_applies_to_kind(prefix_ptr, k_ptr) || !ego_applies_to_kind(suffix_ptr, k_ptr))
+            continue;
+        if ((k_ptr->flags3 & (TR3_MITHRIL | TR3_STAR_IRON))
+            && ((prefix_ptr->flags4 & TR4_EVIL_ITEM)
+                || (suffix_ptr->flags4 & TR4_EVIL_ITEM)))
             continue;
 
         drop_category cat = drop_category_for_kind(k_ptr);

@@ -996,6 +996,7 @@ extern void object_wipe(object_type* o_ptr);
 extern void object_copy(object_type* o_ptr, const object_type* j_ptr);
 extern void object_prep(object_type* o_ptr, int k_idx);
 extern void object_into_artefact(object_type* o_ptr, artefact_type* a_ptr);
+extern bool object_apply_ego_affix(object_type* o_ptr, int e_idx, bool smithing);
 extern void object_into_special(object_type* o_ptr, int lev, bool smithing);
 extern void check_artifact_visibility(void);
 extern void apply_magic(object_type* o_ptr, int lev, bool okay, bool good,
@@ -1069,6 +1070,7 @@ extern void complete_thrall_quest(monster_type* m_ptr, int item_slot);
 extern bool object_is_damaged_item(const object_type* o_ptr);
 extern int find_broken_item_to_upgrade(void);
 extern bool repair_damaged_item(int slot);
+extern bool is_smithed_by_player(const object_type* o_ptr);
 extern bool upgrade_broken_item(int slot);
 extern bool reveal_random_artifact(void);
 

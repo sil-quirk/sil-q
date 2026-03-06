@@ -632,7 +632,7 @@ struct object_type
     byte abilitynum[8]; // Ability numbers for these
     byte bane_type[8]; // Bane type for each ability (0 = player choice)
 
-    s32b unused1; // Smithing marker: 1=smithed by player, 0=found
+    s32b unused1; // Smithing marker: 0=found, 1=forged by player, 2=reforged by player
     s32b unused2; // Ego prefix index (0 = none); see object_ego_prefix()
     s32b unused3; // Room for expansion without breaking savefiles
     s32b unused4; // Room for expansion without breaking savefiles

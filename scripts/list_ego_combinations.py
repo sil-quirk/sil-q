@@ -1258,6 +1258,10 @@ def _has_alignment_conflict(*flag_sets: Iterable[str]) -> bool:
     return False
 
 
+def _kind_uses_special_metal(kind: "ObjectKind") -> bool:
+    return "MITHRIL" in kind.flags or "STAR_IRON" in kind.flags
+
+
 def _ego_applies_to_kind(
     ego: "Ego",
     kind: "ObjectKind",
@@ -1441,6 +1445,8 @@ def main() -> None:
                 continue
             if _has_alignment_conflict(kind.flags, ego.flags):
                 continue
+            if _kind_uses_special_metal(kind) and "EVIL_ITEM" in ego.flags:
+                continue
 
             ego_pairs = _ego_schedule_for_ego(ego)
             stat_range = _single_ego_stat_range(kind, ego)
@@ -1525,6 +1531,10 @@ def main() -> None:
                     if not _ego_applies_to_kind(suffix_ego, kind, kinds_by_name):
                         continue
                     if _has_alignment_conflict(kind.flags, prefix_ego.flags, suffix_ego.flags):
+                        continue
+                    if _kind_uses_special_metal(kind) and (
+                        "EVIL_ITEM" in prefix_ego.flags or "EVIL_ITEM" in suffix_ego.flags
+                    ):
                         continue
 
                     suffix_pairs = _ego_schedule_for_ego(suffix_ego)
@@ -1703,11 +1713,17 @@ def _print_table(
     else:
         view = list(rows[:limit])
 
-    def cell_str(value: object) -> str:
+    # helper that formats a cell value; the `details` column is exempt from
+    # truncation so that users always see the entire summary string even when
+    # a global max_col_width is specified.
+    def cell_str(value: object, col: str) -> str:
         if value is None:
             s = ""
         else:
             s = str(value)
+        # don't truncate the details column
+        if col == "details":
+            return s
         if max_col_width > 0 and len(s) > max_col_width:
             if max_col_width <= 3:
                 return s[:max_col_width]
@@ -1720,7 +1736,7 @@ def _print_table(
 
     for r in view:
         for col in columns:
-            widths[col] = max(widths[col], len(cell_str(r.get(col, ""))))
+            widths[col] = max(widths[col], len(cell_str(r.get(col, ""), col)))
 
     header = " | ".join(col.ljust(widths[col]) for col in columns)
     sep = "-+-".join("-" * widths[col] for col in columns)
@@ -1728,7 +1744,7 @@ def _print_table(
     print(sep)
 
     for r in view:
-        line = " | ".join(cell_str(r.get(col, "")).ljust(widths[col]) for col in columns)
+        line = " | ".join(cell_str(r.get(col, ""), col).ljust(widths[col]) for col in columns)
         print(line)
 
     if limit is not None and len(rows) > len(view):

@@ -160,6 +160,9 @@ C:0:0:0:0:0:0:0
 T:36:0:10
 T:36:12:99
 T:37:0:6
+# can also appear on leather boots and gloves
+T:30:0:1
+T:31:0:1
 A:1/50:10/25:15/5
 F:VUL_POIS | DIF_ID | LIGHT_CURSE | JINX
 
@@ -168,6 +171,9 @@ N:10:(Blacked)
 W:4:80:0:800
 C:0:0:0:0:0:1:0
 T:36:4:7
+# also valid on leather boots and gloves
+T:30:0:1
+T:31:0:1
 F:VUL_FIRE | EVIL_ITEM
 
 
@@ -194,7 +200,7 @@ W:10:80:0:1000
 C:0:0:0:0:0:0:0
 T:34:0:99
 F:RES_FIRE
-F:IGNORE_ALL | JINX
+F:IGNORE_ALL
 
 
 # Mithril shields only
@@ -212,6 +218,8 @@ N:15:(Wrathful)
 W:0:100:10:0
 C:0:0:0:0:0:0:1:2
 T:34:0:9
+# also valid on helms (helm and great helm)
+T:32:5:6
 A:2/100:10:50/15:33
 F:AGGRAVATE | DIF_ID | LIGHT_CURSE | EVIL_ITEM | WILL
 
@@ -252,7 +260,7 @@ F:LIGHT | SUST_GRA | SUST_DEX | SONG | NOBLE_ITEM
 # Spears, great spears, glaives, mithril swords
 
 N:21:of Gondolin
-W:0:60:10:1000
+W:0:50:10:1000
 C:0:0:0:0:0:0:0
 T:22:1:4
 T:23:10:21
@@ -268,7 +276,7 @@ F:SLAY_ORC | SLAY_TROLL | NOBLE_ITEM
 # Spears, great spears, glaives
 
 N:22:of Doriath
-W:2:60:0:2000
+W:2:50:0:2000
 C:0:0:0:0:0:0:0
 T:22:1:4
 T:23:10:21
@@ -281,7 +289,7 @@ F:SLAY_SPIDER | SLAY_WOLF | NOBLE_ITEM
 # Spears, great spears, glaives, mithril swords
 
 N:23:of Nargothrond
-W:9:40:0:2000
+W:9:30:0:2000
 C:0:0:0:0:0:0:0
 T:22:1:4
 T:23:10:21
@@ -294,7 +302,7 @@ F:SLAY_RAUKO | SLAY_DRAGON | NOBLE_ITEM
 # All melee weapons save daggers, curved swords, quarterstaffs, and axes
 
 N:24:of the Halls of Mandos
-W:7:30:0:2000
+W:7:40:0:2000
 C:0:0:0:0:0:0:0
 T:21:8:8
 T:22:1:4
@@ -305,7 +313,7 @@ F:SLAY_UNDEAD | FREE_ACT | NOBLE_ITEM
 # Warhammers, axes, digging tools
 
 N:26:of the Firebeards
-W:4:80:0:2000
+W:4:70:0:2000
 C:0:0:0:0:0:0:0
 T:21:8:8
 T:22:11:13
@@ -334,7 +342,7 @@ B:0/6
 # (ability 0/9 is Whirlwind Attack)
 
 N:28:of Fury
-W:10:33:0:2000
+W:10:30:0:2000
 C:0:0:1:0:0:0:0
 T:21:8:8
 T:22:4:4
@@ -378,7 +386,7 @@ B:0/12
 # Spears only
 
 N:36:of the Vanyar
-W:10:33:0:3000
+W:10:30:0:3000
 C:1:0:1:0:0:0:1
 T:22:1:2
 F:GRA | LIGHT | NOBLE_ITEM
@@ -387,7 +395,7 @@ F:GRA | LIGHT | NOBLE_ITEM
 # Quarterstaves only
 
 N:37:of Mithrim
-W:0:100:0:8000
+W:0:80:0:8000
 C:1:0:0:0:0:0:0
 T:21:3:3
 F:REGEN | NOBLE_ITEM
@@ -396,7 +404,7 @@ F:REGEN | NOBLE_ITEM
 # Quarterstaves only
 
 N:38:of the Helcaraxe
-W:2:100:0:8000
+W:2:80:0:8000
 C:0:0:0:0:0:0:1
 T:21:3:3
 F:CON | RES_COLD | NOBLE_ITEM
@@ -432,7 +440,7 @@ B:0/7
 
 
 N:42:of Overseer
-W:6:40:0:1000
+W:1:80:0:1000
 C:0:0:0:0:0:0:0
 T:23:7:7
 T:23:10:10
@@ -472,7 +480,7 @@ F:CON | CUMBERSOME | EVIL_ITEM
 # Curved swords, short swords, greatswords, spears, hand axes, battle axes, greataxes, glaives
 
 N:45:of Black Iron
-W:0:90:0:1000
+W:0:80:0:1000
 C:0:0:1:0:0:0:0
 T:23:7:7
 T:23:10:10
@@ -535,14 +543,14 @@ F:VAMPIRIC | HUNGER | LIGHT_CURSE | EVIL_ITEM
 ##### Digging Tools #####
 
 N:51:of the Stone-hewers
-W:0:33:0:1000
+W:0:30:0:1000
 C:0:0:0:0:0:0:1
 T:20:3:3
 F:TUNNEL | NOBLE_ITEM
 
 
 N:52:of the Longbeards
-W:0:33:4:1000
+W:0:30:4:1000
 C:0:0:0:0:0:0:0
 T:20:3:3
 F:STR | NOBLE_ITEM
@@ -594,24 +602,24 @@ F:GRA | NOBLE_ITEM
 ###
 
 N:76:(Black-Visored)
-W:4:75:0:800
+W:2:80:0:800
 C:0:0:0:0:0:1:0
 T:32:5:6
 M:PERCEPTION:-2
-F:EVIL_ITEM
+F:EVIL_ITEM | NO_SMITHING
 
 
 N:77:(Spiked)
-W:2:75:0:600
+W:2:80:0:600
 C:0:0:0:0:0:1:0
 T:32:5:6
 T:34:3:3
-M:STEALTH:-3
-F:EVIL_ITEM
+M:STEALTH:-2
+F:EVIL_ITEM | NO_SMITHING
 
 
 N:80:of Snaga
-W:0:60:0:3000
+W:1:80:0:3000
 C:0:0:0:1:0:-1:0
 T:32:5:5
 F:FEAR | LIGHT_CURSE | EVIL_ITEM
@@ -627,7 +635,7 @@ F:FEAR | LIGHT_CURSE | EVIL_ITEM
 
 
 N:82:(Stealthy)
-W:0:50:0:1000
+W:1:50:0:1000
 C:0:0:0:0:0:0:3
 T:35:0:99
 F:STEALTH
@@ -655,8 +663,11 @@ W:0:100:0:0
 C:0:0:0:0:0:0:0
 T:35:0:99
 T:36:2:2
+# also valid on leather boots and gloves
+T:30:0:1
+T:31:0:1
 A:1/75:10/50:15/33
-F:VUL_COLD | DIF_ID | LIGHT_CURSE | EVIL_ITEM | JINX
+F:VUL_COLD | DIF_ID | LIGHT_CURSE | JINX
 
 
 N:87:of the Scarlet Heart
@@ -676,7 +687,7 @@ F:RES_FEAR | SUST_GRA | IGNORE_ALL | NOBLE_ITEM
 # Longbows only
 
 N:91:(Blackened Yew)
-W:6:100:0:3000
+W:6:80:0:3000
 C:0:0:1:0:0:0:0
 T:19:13:13
 A:6/100:10/50:15/20
@@ -686,7 +697,7 @@ F:VUL_FIRE | LIGHT_CURSE | EVIL_ITEM
 # Shortbows and longbows
 
 N:92:of Lammoth
-W:4:50:0:1000
+W:4:60:0:1000
 C:0:0:0:0:0:0:0
 T:19:12:13
 F:RES_POIS | DANGER | AGGRAVATE | DIF_ID | EVIL_ITEM
@@ -721,6 +732,7 @@ T:19:0:99
 F:ACCURATE | NOBLE_ITEM
 
 
+# (ability 1/2 is Point Blank Archery)
 N:97:of Menegroth
 W:6:40:0:3000
 C:0:0:0:0:0:0:0
@@ -729,8 +741,9 @@ B:1/2
 F:NOBLE_ITEM
 
 
+# (ability 1/0 is Rout)
 N:98:of Dagor Aglareb
-W:8:40:0:3000
+W:8:50:0:3000
 C:0:0:0:0:0:0:0
 T:19:13:13
 B:1/0
@@ -738,14 +751,14 @@ F:NOBLE_ITEM
 
 
 N:99:(Horn-backed)
-W:2:60:0:1500
+W:2:70:0:1500
 C:-1:0:1:0:0:0:0
 T:19:12:12
 F:DIF_ID | EVIL_ITEM
 
 
 N:100:of Angband's Host
-W:5:50:0:2000
+W:5:80:0:2000
 C:0:0:0:0:0:0:0
 T:19:12:12
 F:SLAY_MAN_OR_ELF | LIGHT_CURSE | EVIL_ITEM
@@ -780,7 +793,7 @@ F:SHARPNESS
 # Mithril greaves only
 
 N:110:of Ithil's Light
-W:0:50:0:1000
+W:0:40:0:1000
 C:0:0:0:0:0:0:0
 T:30:3:3
 F:RADIANCE | NOBLE_ITEM
@@ -805,7 +818,7 @@ F:AVOID_TRAPS | FREE_ACT
 # (ability 2/5 is Sprinting)
 
 N:113:of Speed
-W:10:33:0:5000
+W:10:30:0:5000
 C:0:0:0:0:0:0:0
 T:30:1:1
 B:2/5
@@ -814,14 +827,14 @@ B:2/5
 # (ability 2/4 is Leaping)
 
 N:114:of Leaping
-W:7:33:0:4000
+W:7:30:0:4000
 C:0:0:0:0:0:0:0
 T:30:1:1
 B:2/4
 
 
 N:115:(Iron-shod)
-W:8:50:0:1200
+W:8:70:0:1200
 C:0:0:0:0:0:1:0
 T:30:2:3
 M:STEALTH:-2
@@ -835,13 +848,13 @@ N:116:of Treacherous Paths
 W:5:50:18:0
 C:0:0:0:0:0:0:0
 T:30:0:2
-A:5/100:10/50:15/20
-F:DANGER | LIGHT_CURSE | EVIL_ITEM
+A:5/60:10/40:15/20
+F:DANGER | LIGHT_CURSE | EVIL_ITEM | JINX
 
 
 
 N:117:of the Black March
-W:10:35:0:2000
+W:10:60:0:2000
 C:0:0:0:1:0:0:0
 T:30:1:3
 F:LIGHT_CURSE | VUL_POIS | EVIL_ITEM
@@ -893,7 +906,7 @@ F:IGNORE_ALL
 
 
 N:125:(Clawed)
-W:6:50:0:1200
+W:6:70:0:1200
 C:2:0:0:0:0:0:1
 T:31:2:2
 F:NEG_DEX | EVIL_ITEM
@@ -912,8 +925,9 @@ F:STR | LIGHT_CURSE | EVIL_ITEM
 B:3/4
 
 
+# (ability 3/2 is Cruel Blow)
 N:127:of the Torturer
-W:7:25:0:2000
+W:7:40:0:2000
 C:0:0:0:0:0:1:2
 T:31:2:2
 F:NEG_GRA | LIGHT_CURSE | EVIL_ITEM
@@ -941,7 +955,7 @@ F:LIGHT
 # Lanterns only
 
 N:135:(Flickering)
-W:0:100:11:0
+W:0:70:11:0
 A:5/100:10/0
 C:0:0:0:0:0:0:0
 T:39:1:1
@@ -1054,7 +1068,7 @@ F:WEIGHT
 # Quarterstaves only
 
 N:147:(Resonant)
-W:10:33:0:3000
+W:10:30:0:3000
 C:0:0:0:0:0:0:2
 T:21:3:3
 F:SONG | SUST_GRA | NOBLE_ITEM
@@ -1112,7 +1126,7 @@ F:WILL | NOBLE_ITEM
 # Warhammers, hand axes, battle-axes, great-axes
 
 N:152:of Belegost
-W:10:30:0:3000
+W:14:30:0:3000
 C:0:0:0:0:0:0:0
 T:21:8:8
 T:22:11:13
@@ -1122,7 +1136,7 @@ F:SLAY_SERPENT | SLAY_DRAGON | NOBLE_ITEM
 # Warhammers, hand axes, battle-axes, great-axes
 
 N:153:of the Deeps of Nogrod
-W:8:30:0:3000
+W:8:40:0:3000
 C:0:0:0:0:0:0:0
 T:21:8:8
 T:22:11:13
@@ -1132,7 +1146,7 @@ F:SLAY_SPIDER | SLAY_HORROR | NOBLE_ITEM
 # Warhammers, hand axes, battle-axes, great-axes
 
 N:154:of Aule's Warding
-W:12:25:0:3000
+W:12:30:0:3000
 C:0:0:0:0:0:0:0
 T:21:8:8
 T:22:11:13
@@ -1143,6 +1157,7 @@ F:SLAY_UNDEAD | SLAY_VAMPIRE | NOBLE_ITEM
 
 
 # Robes only
+# (ability 7/0 is Song of Elbereth)
 
 N:155:of Elbereth
 W:10:20:0:5000
@@ -1153,6 +1168,7 @@ F:NOBLE_ITEM
 
 
 # Robes only
+# (ability 7/4 is Song of Silence)
 
 N:156:of Telperion
 W:12:20:0:5000
@@ -1163,9 +1179,10 @@ F:NOBLE_ITEM
 
 
 # Leather Armour and Studded Leather
+# (ability 7/2 is Song of Delvings)
 
 N:157:of the Stone-singers
-W:8:25:0:4000
+W:8:20:0:4000
 C:0:0:0:0:0:0:0
 T:36:4:7
 B:7/2
@@ -1175,7 +1192,7 @@ F:NOBLE_ITEM
 # Mail Corslet, Hauberk, Mithril Corslet (ring-mail forged by the smiths of Belegost)
 
 N:158:of Belegost's Ring-mail
-W:10:25:0:4000
+W:10:30:0:4000
 C:0:0:0:1:0:0:0
 T:37:4:4
 T:37:6:6
@@ -1189,7 +1206,7 @@ F:NOBLE_ITEM
 # Dragon-horn Bow only
 
 N:159:of the Havens of Sirion
-W:14:20:0:6000
+W:14:30:0:6000
 C:0:0:0:0:0:0:3
 T:19:14:14
 F:STEALTH | FREE_ACT | NOBLE_ITEM
@@ -1201,7 +1218,7 @@ F:STEALTH | FREE_ACT | NOBLE_ITEM
 # Studded Leather only
 
 N:160:of the Gates of Angband
-W:4:40:0:1500
+W:4:90:0:1500
 C:0:0:0:0:0:0:2
 T:36:7:7
 F:PERCEPTION | AGGRAVATE | LIGHT_CURSE | EVIL_ITEM
@@ -1211,7 +1228,7 @@ F:PERCEPTION | AGGRAVATE | LIGHT_CURSE | EVIL_ITEM
 # (ability 2/3 is Crowd Fighting)
 
 N:161:of Anfauglith
-W:8:35:0:2500
+W:8:70:0:2500
 C:0:0:0:0:0:0:0
 T:37:4:4
 B:2/3
@@ -1223,7 +1240,7 @@ F:EVIL_ITEM
 # Leather Armour only
 
 N:162:of the Orc Scout
-W:6:35:0:2500
+W:6:50:0:2500
 C:-1:0:0:0:0:0:2
 T:36:4:4
 F:UNLIGHT | PERCEPTION | STEALTH | EVIL_ITEM
@@ -1233,7 +1250,7 @@ M:WILL:-2
 # Greaves only
 
 N:163:of the Enforcer
-W:8:35:0:1800
+W:8:70:0:1800
 C:0:0:0:0:0:1:0
 T:30:2:2
 F:WEIGHT | AGGRAVATE | EVIL_ITEM
@@ -1244,7 +1261,7 @@ M:STEALTH:-2
 # (ability 3/3 is Exchange Places)
 
 N:164:of the Gaoler
-W:7:30:0:1800
+W:7:60:0:1800
 C:0:0:0:-1:0:0:0
 T:30:1:1
 B:3/3
@@ -1253,20 +1270,20 @@ M:WILL:-2
 
 
 # Hauberk only
-# (ability 5/5 is Indomitable)
+# (ability 5/3 is Formidable)
 
 N:165:of Balrog's Guard
-W:12:20:0:3500
+W:12:50:0:3500
 C:0:0:0:-1:0:1:0
 T:37:6:6
-B:5/5
+B:5/3
 F:WEIGHT | LIGHT_CURSE | EVIL_ITEM
 
 
 # Great Helm only
 
 N:166:of the Throng-leader
-W:10:25:0:3500
+W:10:30:0:3500
 C:0:0:0:0:0:0:3:2
 T:32:6:6
 F:WILL | AGGRAVATE | LIGHT_CURSE | EVIL_ITEM
@@ -1278,7 +1295,7 @@ M:GRA:-2
 # (ability 2/0 is Dodging)
 
 N:167:of the Slave
-W:4:40:0:1200
+W:4:90:0:1200
 C:0:0:0:0:0:0:0
 T:36:2:2
 B:2/0
@@ -1290,7 +1307,7 @@ M:WILL:-2
 # (ability 2/9 is Controlled Retreat)
 
 N:168:of the Orcish Standard-bearer
-W:8:25:0:2800
+W:8:40:0:2800
 C:0:0:0:-1:0:-1:2
 T:34:0:9
 B:2/9
@@ -1300,7 +1317,7 @@ F:WILL | UNLIGHT | EVIL_ITEM
 # Arrows only
 
 N:169:of Ungoliant's Brood
-W:8:25:0:250
+W:8:40:0:250
 C:-1:0:0:0:0:0:0
 T:17:0:99
 F:SLAY_SPIDER | EVIL_ITEM
@@ -1418,4 +1435,13 @@ T:37:4:4
 A:3/100:10/0
 F:DAMAGED | EASY_KNOW
 D:A mail corslet with crushed rings and slack links, its defence much reduced.
+
+
+# Mithril gauntlets only
+
+N:183:(Agile)
+W:12:50:0:3000
+C:1:0:0:0:0:0:0
+T:31:3:3
+F:NOBLE_ITEM
 
