@@ -1254,13 +1254,6 @@ static void add_drop_entry(const object_type* proto, drop_category cat,
 }
 
 /* Apply ego flag data (abilities and curses) without randomness */
-/* Check if an ego is a jinx ego */
-static bool is_jinx_ego(int e_idx)
-{
-    return (e_idx > 0 && e_idx < z_info->e_max
-        && (e_info[e_idx].flags4 & TR4_JINX));
-}
-
 static void apply_ego_static(object_type* o_ptr, ego_item_type* e_ptr)
 {
     // abilities
@@ -1298,36 +1291,6 @@ typedef struct
     s16b min_value;
     s16b max_value;
 } drop_bonus_range;
-
-static void apply_ego_bonus_range_rolls(object_type* o_ptr, const ego_item_type* e_ptr)
-{
-    if (!o_ptr || !e_ptr)
-        return;
-
-    for (int i = 0; i < A_MAX; i++)
-    {
-        if (!e_ptr->stat_bonus_set[i])
-            continue;
-        if (e_ptr->stat_bonus[i] <= e_ptr->stat_bonus_min[i])
-            continue;
-
-        o_ptr->stat_bonus[i] += (s16b)(rand_range(
-            e_ptr->stat_bonus_min[i], e_ptr->stat_bonus[i])
-            - e_ptr->stat_bonus_min[i]);
-    }
-
-    for (int i = 0; i < S_MAX; i++)
-    {
-        if (!e_ptr->skill_bonus_set[i])
-            continue;
-        if (e_ptr->skill_bonus[i] <= e_ptr->skill_bonus_min[i])
-            continue;
-
-        o_ptr->skill_bonus[i] += (s16b)(rand_range(
-            e_ptr->skill_bonus_min[i], e_ptr->skill_bonus[i])
-            - e_ptr->skill_bonus_min[i]);
-    }
-}
 
 static int collect_ego_bonus_ranges(const ego_item_type* first,
     const ego_item_type* second, drop_bonus_range* out, int max_out)
@@ -1583,10 +1546,6 @@ static void build_ego_variants(int e_idx)
     ego_item_type* e_ptr = &e_info[e_idx];
     if (!e_ptr->tval[0])
         return;
-    
-    /* Skip jinx egos - they are applied separately, not in normal drops */
-    if (is_jinx_ego(e_idx))
-        return;
 
     const char* ego_name = e_name + e_ptr->name;
     bool is_prefix = ego_name_is_prefix(ego_name);
@@ -1822,8 +1781,6 @@ static void build_ego_variants(int e_idx)
 static void build_ego_combo_variants(int prefix_idx, int suffix_idx)
 {
     if (prefix_idx <= 0 || suffix_idx <= 0)
-        return;
-    if (is_jinx_ego(prefix_idx) || is_jinx_ego(suffix_idx))
         return;
     if (suffix_idx == EGO_UNQUENCHED_FIRE)
         return;
@@ -2305,7 +2262,7 @@ void drop_system_init(void)
     for (int p_idx = 1; p_idx < z_info->e_max; p_idx++)
     {
         ego_item_type* p_ptr = &e_info[p_idx];
-        if (!p_ptr->tval[0] || is_jinx_ego(p_idx))
+        if (!p_ptr->tval[0])
             continue;
         if (!ego_name_is_prefix(e_name + p_ptr->name))
             continue;
@@ -2313,7 +2270,7 @@ void drop_system_init(void)
         for (int s_idx = 1; s_idx < z_info->e_max; s_idx++)
         {
             ego_item_type* s_ptr = &e_info[s_idx];
-            if (!s_ptr->tval[0] || is_jinx_ego(s_idx))
+            if (!s_ptr->tval[0])
                 continue;
             if (ego_name_is_prefix(e_name + s_ptr->name))
                 continue;
@@ -2458,23 +2415,15 @@ static int supply_entry_weight(const drop_entry* e, int depth)
 /* Forward declarations */
 static int drop_entry_rarity_at_depth(const drop_entry* e, int depth);
 static int group_rarity_at_depth(const drop_entry* e, int depth);
+static const drop_entry* find_drop_entry_for_object(const object_type* o_ptr,
+    byte ego_prefix, byte ego_suffix);
 
-int object_weight_rarity(const object_type* o_ptr, int depth)
+static const drop_entry* find_drop_entry_for_object(const object_type* o_ptr,
+    byte ego_prefix, byte ego_suffix)
 {
     if (!o_ptr || !o_ptr->k_idx)
-        return 0;
-    if (depth < 1)
-        depth = 1;
-    if (!g_drop_entries || g_drop_count == 0)
-        return 0;
+        return NULL;
 
-    byte ego_prefix = object_ego_prefix(o_ptr);
-    byte ego_suffix = object_ego_suffix(o_ptr);
-
-    /* Match by base kind + artifact id + ego affixes.
-     * We intentionally ignore stat rolls because allocation schedule is shared
-     * across variants within the same kind+ego combo.
-     */
     for (size_t i = 0; i < g_drop_count; i++)
     {
         const drop_entry* e = &g_drop_entries[i];
@@ -2487,8 +2436,33 @@ int object_weight_rarity(const object_type* o_ptr, int depth)
         if (object_ego_suffix(&e->obj) != ego_suffix)
             continue;
 
-        return group_rarity_at_depth(e, depth);
+        return e;
     }
+
+    return NULL;
+}
+
+int object_weight_rarity(const object_type* o_ptr, int depth)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return 0;
+    if (depth < 1)
+        depth = 1;
+    if (!g_drop_entries || g_drop_count == 0)
+        return 0;
+
+    byte ego_prefix = object_ego_prefix(o_ptr);
+    byte ego_suffix = object_ego_suffix(o_ptr);
+    const drop_entry* match = NULL;
+
+    /* Match by base kind + artifact id + ego affixes.
+     * We intentionally ignore stat rolls because allocation schedule is shared
+     * across variants within the same kind+ego combo.
+     */
+    match = find_drop_entry_for_object(o_ptr, ego_prefix, ego_suffix);
+
+    if (match)
+        return group_rarity_at_depth(match, depth);
 
     return 0;
 }
@@ -3061,85 +3035,6 @@ static void log_drop_attempt(const drop_request* req, size_t strict_count,
 }
 
 /*
- * Apply jinx ego to normal items based on difficulty.
- * Jinx probability is inversely proportional to item difficulty:
- * - Easy items (low difficulty) have high jinx chance
- * - Difficult items (high difficulty) have low jinx chance
- * - Artefacts are never jinxed
- * Returns true if jinx was applied.
- */
-static bool try_apply_jinx(object_type* o_ptr, int depth)
-{
-    /* Never jinx artefacts */
-    if (o_ptr->name1)
-        return false;
-    
-    /* Only jinx normal items (not already ego items) */
-    if (object_has_ego(o_ptr))
-        return false;
-    
-    /* Calculate item difficulty */
-    int difficulty = smithing_difficulty_baseline(o_ptr);
-    
-    /* Base jinx probability: 10% at difficulty 0, scaling down */
-    /* Formula: max(1%, 10% - (difficulty / 10)) */
-    int base_prob = 1000; /* 10% in 0.1% units */
-    int diff_penalty = difficulty * 10; /* 1% per point of difficulty */
-    int jinx_prob = MAX(100, base_prob - diff_penalty); /* minimum 1% */
-    
-    /* Roll for jinx */
-    if (rand_int(10000) >= jinx_prob)
-        return false;
-    
-    /* Try each flagged jinx ego to see if it applies to this item type */
-    for (int e_idx = 1; e_idx < z_info->e_max; e_idx++)
-    {
-        ego_item_type* e_ptr = &e_info[e_idx];
-
-        if (!is_jinx_ego(e_idx))
-            continue;
-        
-        /* Check if this jinx ego applies to this object type */
-        bool matches = false;
-        for (int t = 0; t < EGO_TVALS_MAX && e_ptr->tval[t]; t++)
-        {
-            if (e_ptr->tval[t] == o_ptr->tval &&
-                o_ptr->sval >= e_ptr->min_sval[t] &&
-                o_ptr->sval <= e_ptr->max_sval[t])
-            {
-                matches = true;
-                break;
-            }
-        }
-        
-        if (matches)
-        {
-            /* Apply the jinx ego */
-            const char* raw = e_name + e_ptr->name;
-            if (ego_name_is_prefix(raw))
-                object_set_ego_prefix(o_ptr, e_idx);
-            else
-                object_set_ego_suffix(o_ptr, e_idx);
-            apply_ego_static(o_ptr, e_ptr);
-            apply_ego_bonus_range_rolls(o_ptr, e_ptr);
-            
-            if (gen_log_initialized)
-            {
-                char oname[120];
-                object_desc(oname, sizeof(oname), o_ptr, false, 0);
-                gen_log_write("DROP_JINXED",
-                    "depth=%d dif=%d prob=%d.%02d%% obj=\"%s\"",
-                    depth, difficulty, jinx_prob / 100, jinx_prob % 100, oname);
-            }
-            
-            return true;
-        }
-    }
-    
-    return false;
-}
-
-/*
  * Global chest generation context - set by callers (generate.c) before chest generation.
  * Reset to defaults after each generation.
  */
@@ -3587,9 +3482,6 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     {
         object_wipe(out);
         object_copy(out, &chosen->obj);
-        
-        /* Try to apply jinx to normal items */
-        try_apply_jinx(out, depth);
 
         /* Catalog entries pin baseline weight for stable difficulty bands.
          * Restore the normal live spawn roll once the final affixes are known. */

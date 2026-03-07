@@ -2360,8 +2360,6 @@ static int make_special_item(object_type* o_ptr, bool only_good)
             continue;
         if (e_ptr->flags3 & TR3_DAMAGED)
             continue; /* Damaged prefixes are injected explicitly, never via generic ego rolls. */
-        if (e_ptr->flags4 & TR4_JINX)
-            continue; /* Jinx egos are injected separately, never via generic ego rolls. */
 
         /* If we force fine/special, don't create cursed */
         if (only_good && (e_ptr->flags3 & TR3_LIGHT_CURSE))
