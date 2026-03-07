@@ -2023,6 +2023,9 @@ extern void re_init_some_things(void)
     op_ptr->window_flag[WINDOW_MESSAGE] |= (PW_MESSAGE);
     op_ptr->window_flag[WINDOW_MONLIST] |= (PW_MONLIST);
 
+    /* Reapply app-wide options after resetting runtime defaults. */
+    sdl_config_load_app_options(get_sdl_config_path());
+
     // re-initialize the objects and flavors
     if (init_k_info())
         quit("Cannot initialize objects");
@@ -2141,6 +2144,9 @@ static errr init_other(void)
     op_ptr->window_flag[WINDOW_PLAYER_0] |= (PW_PLAYER_0);
     op_ptr->window_flag[WINDOW_MESSAGE] |= (PW_MESSAGE);
     op_ptr->window_flag[WINDOW_MONLIST] |= (PW_MONLIST);
+
+    /* Reapply app-wide options after initializing runtime defaults. */
+    sdl_config_load_app_options(get_sdl_config_path());
 
     /*** Pre-allocate space for the "format()" buffer ***/
 
@@ -2467,7 +2473,9 @@ static void display_introduction_at_row(int first_row)
 
     /* Resolve intro style from setting. 0-4 = fixed, 5 = random. */
     int intro_style;
-    if (op_ptr->intro_style == INTRO_STYLE_RANDOM)
+    if (sdl_config_should_force_intro_flame())
+        intro_style = INTRO_STYLE_FLAME;
+    else if (op_ptr->intro_style == INTRO_STYLE_RANDOM)
         intro_style = (int)(SDL_GetTicks() % 5u);  /* 0..4 */
     else
         intro_style = (int)op_ptr->intro_style;
@@ -2704,6 +2712,10 @@ void init_angband(void)
 
     char buf[1024];
     int i;
+
+    /* Load app-wide settings before the first intro render so the welcome
+     * screen uses the configured style and first-launch state. */
+    sdl_config_load_app_options(get_sdl_config_path());
 
     /*** Display the introduction ***/
 
@@ -3097,6 +3109,10 @@ extern NavResult initial_menu(bool *start_new)
 
 menu_done:
     log_info("initial_menu: EXITING with result=%d", result);
+    if (sdl_config_should_force_intro_flame()) {
+        sdl_config_mark_intro_seen();
+        save_pane_config_to_json();
+    }
     if (intro_story_font)
         sdl_story_font_reset();
     return result;

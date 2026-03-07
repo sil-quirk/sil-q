@@ -2171,22 +2171,16 @@ NavResult character_creation(void)
         op_ptr->opt[OPT_SCORE + (i - OPT_CHEAT)] = op_ptr->opt[i];
     }
 
-    // Set a default value for hitpoint warning / delay factor unless this is an
-    // old game file
+    /* Set defaults for run-specific settings unless this is an old game file.
+     * App-wide presentation/settings values are loaded from sil_sdl.json. */
     if (strlen(op_ptr->full_name) == 0)
     {
-        op_ptr->hitpoint_warn = 3;
-        op_ptr->delay_factor = 5;
-        op_ptr->main_combat_rolls = get_sdl_steamdeck_mode() ? 2 : 0;
-        op_ptr->ability_desc_mode = 0;
         op_ptr->vault_drop_frequency = VDF_NORMAL;
-        op_ptr->level_entry_narrative_mode = LEVEL_ENTRY_NARRATIVE_BANNER_DELAY;
-        op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_BANNER;
         op_ptr->noble_item_spawn_mode = NOBLE_ITEM_SPAWN_RESTRICTED;
     }
 
     /* Ensure main_combat_rolls has a valid value for existing saves */
-    if (op_ptr->main_combat_rolls > 3)
+    if (op_ptr->main_combat_rolls > 4)
     {
         op_ptr->main_combat_rolls = 0;  /* Default to 0 lines */
     }
@@ -2211,6 +2205,11 @@ NavResult character_creation(void)
     if (op_ptr->partition_narrative_mode > PARTITION_NARRATIVE_OFF)
     {
         op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_BANNER;
+    }
+
+    if (op_ptr->intro_style > INTRO_STYLE_RANDOM)
+    {
+        op_ptr->intro_style = INTRO_STYLE_RANDOM;
     }
 
     if (op_ptr->noble_item_spawn_mode > NOBLE_ITEM_SPAWN_INCLUDE_VAULTS)
@@ -3523,6 +3522,10 @@ NavResult player_birth()
 
     /* Load persistent settings from metarun if this is a continuing metarun */
     metarun_load_persistent_settings();
+
+    /* Reapply app-wide settings after character creation so UI preferences are
+     * not sourced from the metarun or savefile. */
+    sdl_config_load_app_options(get_sdl_config_path());
 
     log_info("Character creation completed: %s the %s", op_ptr->full_name, p_name + rp_ptr->name);
 

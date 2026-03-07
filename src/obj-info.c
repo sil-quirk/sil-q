@@ -752,7 +752,7 @@ static bool describe_sustains(const object_type* o_ptr, u32b f2)
  */
 static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3, u32b f4)
 {
-    cptr good[7], bad[6];
+    cptr good[20], bad[14];
     int gc = 0, bc = 0;
     bool something = false;
 
@@ -792,10 +792,20 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3, u32b
         good[gc++] = "doubles the reward of your oath (or increases your light radius if oathless)";
     if (f4 & (TR4_ARMOR_SHATTER))
         good[gc++] = "can shatter the armor of your foes with each successful blow";
+    if (f4 & (TR4_DEPTH_SCALE_PS))
+        good[gc++] = "gains protection as you delve deeper";
     if (f3 & (TR3_WILL_DRAIN))
         good[gc++] = "drains the will of your enemies when you strike them";
     if (f4 & (TR4_PAIRED))
         good[gc++] = "is part of a matched pair of weapons";
+    if (f4 & (TR4_SUBTLETY_THROW))
+        good[gc++] = "lets you use Subtlety with thrown attacks";
+    if (f4 & (TR4_BREAKS_PERMA_CURSE))
+        good[gc++] = "can break the Oath of Feanor on your equipped items";
+    if ((f4 & (TR4_WEIGHT)) && !(f4 & (TR4_NEG_WEIGHT)))
+        good[gc++] = "is unusually heavy for its kind";
+    if ((f4 & (TR4_NEG_WEIGHT)) && !(f4 & (TR4_WEIGHT)))
+        good[gc++] = "is unusually light for its kind";
 
     /* Describe */
     output_desc_list("It ", good, gc);
@@ -835,6 +845,8 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3, u32b
         bad[bc++] = "may betray you when you need it most";
     if (f3 & (TR3_OATH_NEGATE))
         bad[bc++] = "negates your oath bonuses (even when in inventory)";
+    if (f4 & (TR4_JINX))
+        bad[bc++] = "bears a jinx that can be broken by sanctity";
 
     /* Deal with cursed stuff */
     if (cursed_p(o_ptr))

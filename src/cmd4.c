@@ -11094,19 +11094,159 @@ void clear_skills_and_abilities()
 /*
  * Interact with some options
  */
+struct option_group_marker
+{
+    int before_index;
+    cptr label;
+};
+
+static const struct option_group_marker interface_option_groups[] = {
+    { 0, "Messages" },
+    { 3, "Input" },
+    { 7, "Warnings" },
+    { -1, NULL }
+};
+
+static const struct option_group_marker text_option_groups[] = {
+    { 0, "Look and Lore" },
+    { 3, "Inventory and Equipment" },
+    { 7, "Character" },
+    { -1, NULL }
+};
+
+static const struct option_group_marker gameplay_option_groups[] = {
+    { 0, "Combat Behavior" },
+    { 3, "Information" },
+    { 6, "World Generation" },
+    { -1, NULL }
+};
+
+static const struct option_group_marker efficiency_option_groups[] = {
+    { 0, "Animation" },
+    { 2, "Camera" },
+    { -1, NULL }
+};
+
+static const struct option_group_marker visual_option_groups[] = {
+    { 0, "Lists and Overlays" },
+    { 3, "Map and Highlights" },
+    { 12, "Narrative" },
+    { 15, "Debug" },
+    { -1, NULL }
+};
+
+static const struct option_group_marker challenge_option_groups[] = {
+    { 0, "Traversal" },
+    { 2, "Content" },
+    { -1, NULL }
+};
+
+static const struct option_group_marker debug_option_groups[] = {
+    { 0, "Generation" },
+    { 4, "Knowledge" },
+    { 10, "Survival" },
+    { -1, NULL }
+};
+
+static const struct option_group_marker sound_option_groups[] = {
+    { 0, "Effects" },
+    { 5, "Effect Volume" },
+    { 10, "Music" },
+    { 12, "Music Volume" },
+    { -1, NULL }
+};
+
+static const struct option_group_marker* get_option_groups_for_page(int page)
+{
+    switch (page)
+    {
+    case INTERFACE_PAGE: return interface_option_groups;
+    case TEXT_PAGE: return text_option_groups;
+    case GAMEPLAY_PAGE: return gameplay_option_groups;
+    case EFFICIENCY_PAGE: return efficiency_option_groups;
+    case VISUAL_PAGE: return visual_option_groups;
+    case CHALLENGE_PAGE: return challenge_option_groups;
+    case DEBUG_PAGE: return debug_option_groups;
+    case SOUND_PAGE: return sound_option_groups;
+    default: return NULL;
+    }
+}
+
+static int option_group_count_before(const struct option_group_marker* groups,
+    int option_index)
+{
+    int count = 0;
+
+    if (!groups)
+        return 0;
+
+    for (int i = 0; groups[i].before_index >= 0; i++) {
+        if (groups[i].before_index <= option_index)
+            count++;
+    }
+
+    return count;
+}
+
+static int option_group_total_rows(const struct option_group_marker* groups)
+{
+    int count = 0;
+
+    if (!groups)
+        return 0;
+
+    for (int i = 0; groups[i].before_index >= 0; i++)
+        count++;
+
+    return count;
+}
+
+static bool option_page_uses_app_config(int page)
+{
+    return (page == INTERFACE_PAGE) || (page == TEXT_PAGE)
+        || (page == EFFICIENCY_PAGE) || (page == VISUAL_PAGE);
+}
+
+static cptr option_menu_label(int opt)
+{
+    if (option_desc[opt])
+        return option_desc[opt];
+    if (option_text[opt])
+        return option_text[opt];
+    return "(unknown option)";
+}
+
+static void option_apply_side_effects(int opt)
+{
+    if (opt == OPT_story_lists_inven_pane || opt == OPT_story_lists_equip_pane)
+        redraw_inven_equip_subwindows();
+    if (opt == OPT_story_monster_desc_pane)
+        redraw_monster_subwindows();
+    if (opt == OPT_stealth_vision || opt == OPT_visual_recognition
+        || opt == OPT_sleep_icon)
+        p_ptr->redraw |= (PR_MAP);
+}
+
 extern void do_cmd_options_aux(int page, cptr info)
 {
     char ch;
 
     int i, k = 0, n = 0;
+    int scroll = 0;
 
     int opt[OPT_PAGE_PER];
 
-    char buf[80];
+    char buf[160];
 
     int dir;
     
     bool is_sound_page = (page == SOUND_PAGE);
+    bool app_page = option_page_uses_app_config(page);
+    bool metarun_page = !app_page && !is_sound_page;
+    bool app_settings_dirty = false;
+    bool metarun_settings_dirty = false;
+    bool sound_settings_dirty = false;
+    const struct option_group_marker* groups = get_option_groups_for_page(page);
     struct sound_config* sound_cfg = sdl_sound_get_config();
 
     /* Scan the options */
@@ -11125,12 +11265,34 @@ extern void do_cmd_options_aux(int page, cptr info)
         n = 14; /* 5 enable flags + 5 volume controls + 2 music enable + 2 music volume */
     }
 
-    /* Clear screen */
-    Term_clear();
-
     /* Interact with the player */
     while (true)
     {
+        int first_row = 3;
+        int footer_rows = (page == CHALLENGE_PAGE) ? 4 : 2;
+        int visible_rows = Term->hgt - footer_rows - first_row;
+        int total_rows = n + option_group_total_rows(groups);
+        int selected_display_row = k + option_group_count_before(groups, k);
+        int group_index = 0;
+        int display_row = 0;
+        int max_scroll;
+
+        if (visible_rows < 1)
+            visible_rows = 1;
+
+        max_scroll = total_rows - visible_rows;
+        if (max_scroll < 0)
+            max_scroll = 0;
+
+        if (selected_display_row < scroll)
+            scroll = selected_display_row;
+        else if (selected_display_row >= scroll + visible_rows)
+            scroll = selected_display_row - visible_rows + 1;
+        if (scroll > max_scroll)
+            scroll = max_scroll;
+
+        Term_clear();
+
         /* Prompt XXX XXX XXX */
         strnfmt(buf, sizeof(buf), "%s", info);
         Term_putstr(2, 1, -1, TERM_WHITE, buf);
@@ -11139,6 +11301,16 @@ extern void do_cmd_options_aux(int page, cptr info)
         for (i = 0; i < n; i++)
         {
             byte a = TERM_WHITE;
+            int row;
+
+            while (groups && groups[group_index].before_index == i)
+            {
+                row = first_row + display_row - scroll;
+                if (row >= first_row && row < first_row + visible_rows)
+                    Term_putstr(2, row, -1, TERM_SLATE, groups[group_index].label);
+                display_row++;
+                group_index++;
+            }
 
             /* Color current option */
             if (i == k)
@@ -11328,40 +11500,50 @@ extern void do_cmd_options_aux(int page, cptr info)
             }
             else
             {
-                strnfmt(buf, sizeof(buf), "%-48s: %s", option_desc[opt[i]],
+                strnfmt(buf, sizeof(buf), "%-48s: %s", option_menu_label(opt[i]),
                     op_ptr->opt[opt[i]] ? "yes" : "no ");
             }
 
-            c_prt(a, buf, i + 3, 2);
+            row = first_row + display_row - scroll;
+            if (row >= first_row && row < first_row + visible_rows)
+                c_prt(a, buf, row, 4);
+            display_row++;
+        }
+
+        if (total_rows > visible_rows)
+        {
+            strnfmt(buf, sizeof(buf), "(scroll: rows %d-%d of %d)",
+                scroll + 1, MIN(scroll + visible_rows, total_rows), total_rows);
+            Term_putstr(2, Term->hgt - 2, -1, TERM_SLATE, buf);
         }
 
         if (page == CHALLENGE_PAGE)
         {
-            Term_putstr(2, n + 4, -1, TERM_L_WHITE,
+            Term_putstr(2, Term->hgt - 4, -1, TERM_L_WHITE,
                 "Challenge Options can only be altered during character "
                 "creation");
-            Term_putstr(
-                2, n + 5, -1, TERM_L_WHITE, "or on the very first turn");
+            Term_putstr(2, Term->hgt - 3, -1, TERM_L_WHITE,
+                "or on the very first turn");
 
             if (playerturn == 0)
             {
-                Term_putstr(2, n + 7, -1, TERM_SLATE,
+                Term_putstr(2, Term->hgt - 1, -1, TERM_SLATE,
                     "(direction keys to set, Return/Escape to accept)");
             }
             else
             {
-                Term_putstr(
-                    2, n + 7, -1, TERM_SLATE, "(press Return to go back)");
+                Term_putstr(2, Term->hgt - 1, -1, TERM_SLATE,
+                    "(press Return to go back)");
             }
         }
         else
         {
-            Term_putstr(2, n + 4, -1, TERM_SLATE,
+            Term_putstr(2, Term->hgt - 1, -1, TERM_SLATE,
                 "(direction keys to set, Return/Escape to accept)");
         }
 
         /* Hilite current option */
-        move_cursor(k + 3, 52);
+        move_cursor(first_row + selected_display_row - scroll, 54);
 
         /* Get a key */
         hide_cursor = true;
@@ -11383,26 +11565,29 @@ extern void do_cmd_options_aux(int page, cptr info)
         case '\n':
         case '\r':
         {
-            /* Save sound settings if on sound page */
-            if (is_sound_page)
-            {
-                sdl_sound_save_config();
-                /* Reload sound system to apply changes */
-                sdl_sound_reload();
-            }
-            
             /* Hack -- Notice use of any "cheat" options */
             for (i = OPT_CHEAT; i < OPT_ADULT; i++)
             {
                 if (op_ptr->opt[i])
                 {
                     /* Set score option */
+                    if (!op_ptr->opt[OPT_SCORE + (i - OPT_CHEAT)])
+                        metarun_settings_dirty = true;
                     op_ptr->opt[OPT_SCORE + (i - OPT_CHEAT)] = true;
                 }
             }
 
-            /* Save persistent settings to metarun after options are changed */
-            metarun_save_persistent_settings();
+            if (sound_settings_dirty)
+            {
+                sdl_sound_save_config();
+                sdl_sound_reload();
+            }
+
+            if (app_settings_dirty)
+                save_pane_config_to_json();
+
+            if (metarun_settings_dirty)
+                metarun_save_persistent_settings();
 
             return;
         }
@@ -11441,6 +11626,28 @@ extern void do_cmd_options_aux(int page, cptr info)
                     else if (k == 11) sound_cfg->music_ambient_enabled = !sound_cfg->music_ambient_enabled;
                     /* Volume controls (5-9, 12-13) don't toggle */
                 }
+                else if (opt[k] == OPT_delay_factor)
+                {
+                    op_ptr->delay_factor = (op_ptr->delay_factor < 9)
+                        ? op_ptr->delay_factor + 1
+                        : 0;
+                }
+                else if (opt[k] == OPT_hitpoint_warning)
+                {
+                    op_ptr->hitpoint_warn = (op_ptr->hitpoint_warn < 9)
+                        ? op_ptr->hitpoint_warn + 1
+                        : 0;
+                }
+                else if (opt[k] == OPT_main_combat_rolls)
+                {
+                    op_ptr->main_combat_rolls = (op_ptr->main_combat_rolls < 4)
+                        ? op_ptr->main_combat_rolls + 1
+                        : 0;
+
+                    clear_main_combat_rolls_area();
+                    display_main_combat_rolls();
+                    p_ptr->redraw |= (PR_MAP);
+                }
                 else if (opt[k] == OPT_show_level_entry_banner)
                 {
                     op_ptr->level_entry_narrative_mode =
@@ -11463,6 +11670,19 @@ extern void do_cmd_options_aux(int page, cptr info)
                         ? op_ptr->intro_style + 1
                         : INTRO_STYLE_FLAME;
                 }
+                else if (opt[k] == OPT_ability_desc_mode)
+                {
+                    op_ptr->ability_desc_mode = (op_ptr->ability_desc_mode < 2)
+                        ? op_ptr->ability_desc_mode + 1
+                        : 0;
+                }
+                else if (opt[k] == OPT_vault_drop_frequency)
+                {
+                    op_ptr->vault_drop_frequency
+                        = (op_ptr->vault_drop_frequency < VDF_PLENTIFUL)
+                        ? op_ptr->vault_drop_frequency + 1
+                        : VDF_NORMAL;
+                }
                 else if (opt[k] == OPT_noble_item_spawn_mode)
                 {
                     op_ptr->noble_item_spawn_mode
@@ -11473,14 +11693,15 @@ extern void do_cmd_options_aux(int page, cptr info)
                 else
                 {
                     op_ptr->opt[opt[k]] = !op_ptr->opt[opt[k]];
-                    if (opt[k] == OPT_story_lists_inven_pane || opt[k] == OPT_story_lists_equip_pane)
-                        redraw_inven_equip_subwindows();
-                    if (opt[k] == OPT_story_monster_desc_pane)
-                        redraw_monster_subwindows();
-                    if (opt[k] == OPT_stealth_vision || opt[k] == OPT_visual_recognition
-                        || opt[k] == OPT_sleep_icon)
-                        p_ptr->redraw |= (PR_MAP);
+                    option_apply_side_effects(opt[k]);
                 }
+
+                if (is_sound_page)
+                    sound_settings_dirty = true;
+                else if (app_page)
+                    app_settings_dirty = true;
+                else if (metarun_page)
+                    metarun_settings_dirty = true;
             }
             break;
         }
@@ -11584,14 +11805,15 @@ extern void do_cmd_options_aux(int page, cptr info)
                 else
                 {
                     op_ptr->opt[opt[k]] = true;
-                    if (opt[k] == OPT_story_lists_inven_pane || opt[k] == OPT_story_lists_equip_pane)
-                        redraw_inven_equip_subwindows();
-                    if (opt[k] == OPT_story_monster_desc_pane)
-                        redraw_monster_subwindows();
-                    if (opt[k] == OPT_stealth_vision || opt[k] == OPT_visual_recognition
-                        || opt[k] == OPT_sleep_icon)
-                        p_ptr->redraw |= (PR_MAP);
+                    option_apply_side_effects(opt[k]);
                 }
+
+                if (is_sound_page)
+                    sound_settings_dirty = true;
+                else if (app_page)
+                    app_settings_dirty = true;
+                else if (metarun_page)
+                    metarun_settings_dirty = true;
             }
             break;
         }
@@ -11695,14 +11917,15 @@ extern void do_cmd_options_aux(int page, cptr info)
                 else
                 {
                     op_ptr->opt[opt[k]] = false;
-                    if (opt[k] == OPT_story_lists_inven_pane || opt[k] == OPT_story_lists_equip_pane)
-                        redraw_inven_equip_subwindows();
-                    if (opt[k] == OPT_story_monster_desc_pane)
-                        redraw_monster_subwindows();
-                    if (opt[k] == OPT_stealth_vision || opt[k] == OPT_visual_recognition
-                        || opt[k] == OPT_sleep_icon)
-                        p_ptr->redraw |= (PR_MAP);
+                    option_apply_side_effects(opt[k]);
                 }
+
+                if (is_sound_page)
+                    sound_settings_dirty = true;
+                else if (app_page)
+                    app_settings_dirty = true;
+                else if (metarun_page)
+                    metarun_settings_dirty = true;
             }
             break;
         }

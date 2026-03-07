@@ -1539,15 +1539,12 @@ void metarun_save_persistent_settings(void)
         int word_idx = i / 32;
         int bit_idx = i % 32;
         
-        if (word_idx < 8 && option_text[i] && op_ptr->opt[i]) {
+        if (word_idx < 8 && option_text[i] && !option_is_app_persistent(i)
+            && op_ptr->opt[i]) {
             metar.persistent_options[word_idx] |= (1UL << bit_idx);
         }
     }
-    
-    /* Save special settings */
-    metar.persistent_delay_factor = op_ptr->delay_factor;
-    metar.persistent_hitpoint_warn = op_ptr->hitpoint_warn;
-    
+
     /* Save window flags */
     for (int i = 0; i < ANGBAND_TERM_MAX; i++) {
         metar.persistent_window_flags[i] = op_ptr->window_flag[i];
@@ -1580,15 +1577,11 @@ void metarun_load_persistent_settings(void)
         int word_idx = i / 32;
         int bit_idx = i % 32;
         
-        if (word_idx < 8 && option_text[i]) {
+        if (word_idx < 8 && option_text[i] && !option_is_app_persistent(i)) {
             op_ptr->opt[i] = (metar.persistent_options[word_idx] & (1UL << bit_idx)) != 0;
         }
     }
-    
-    /* Load special settings */
-    op_ptr->delay_factor = metar.persistent_delay_factor;
-    op_ptr->hitpoint_warn = metar.persistent_hitpoint_warn;
-    
+
     /* Load window flags */
     for (int i = 0; i < ANGBAND_TERM_MAX; i++) {
         op_ptr->window_flag[i] = metar.persistent_window_flags[i];

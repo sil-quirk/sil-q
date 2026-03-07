@@ -574,6 +574,26 @@ static bool remove_damaged_ego(object_type* o_ptr)
         return false;
     }
 
+    for (int i = 0; i < A_MAX; i++)
+    {
+        if (e_ptr->stat_bonus_set[i]
+            && e_ptr->stat_bonus_min[i] != e_ptr->stat_bonus[i])
+        {
+            log_warn("remove_damaged_ego: unsupported damaged ego %d has ranged stat bonus", e_idx);
+            return false;
+        }
+    }
+
+    for (int i = 0; i < S_MAX; i++)
+    {
+        if (e_ptr->skill_bonus_set[i]
+            && e_ptr->skill_bonus_min[i] != e_ptr->skill_bonus[i])
+        {
+            log_warn("remove_damaged_ego: unsupported damaged ego %d has ranged skill bonus", e_idx);
+            return false;
+        }
+    }
+
     o_ptr->att = (s16b)MIN(32767, MAX(-32768, o_ptr->att - ego_bonus_s8(e_ptr->max_att)));
     o_ptr->evn = (s16b)MIN(32767, MAX(-32768, o_ptr->evn - ego_bonus_s8(e_ptr->max_evn)));
     o_ptr->dd = (byte)MIN(255, MAX(0, (int)o_ptr->dd - ego_bonus_s8(e_ptr->to_dd)));

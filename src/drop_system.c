@@ -1286,93 +1286,262 @@ static void apply_ego_static(object_type* o_ptr, ego_item_type* e_ptr)
     {
         if (o_ptr->stat_bonus[A_STR] == 0)
             o_ptr->stat_bonus[A_STR] = o_ptr->pval;
-        o_ptr->stat_bonus[A_STR] += e_ptr->stat_bonus[A_STR];
+        if (e_ptr->stat_bonus_set[A_STR])
+            o_ptr->stat_bonus[A_STR] += e_ptr->stat_bonus_min[A_STR];
     }
     if (f1 & TR1_NEG_STR)
     {
         if (o_ptr->stat_bonus[A_STR] == 0)
             o_ptr->stat_bonus[A_STR] = (s16b)-o_ptr->pval;
-        o_ptr->stat_bonus[A_STR] += e_ptr->stat_bonus[A_STR];
+        if (e_ptr->stat_bonus_set[A_STR])
+            o_ptr->stat_bonus[A_STR] += e_ptr->stat_bonus_min[A_STR];
     }
     if (f1 & TR1_DEX)
     {
         if (o_ptr->stat_bonus[A_DEX] == 0)
             o_ptr->stat_bonus[A_DEX] = o_ptr->pval;
-        o_ptr->stat_bonus[A_DEX] += e_ptr->stat_bonus[A_DEX];
+        if (e_ptr->stat_bonus_set[A_DEX])
+            o_ptr->stat_bonus[A_DEX] += e_ptr->stat_bonus_min[A_DEX];
     }
     if (f1 & TR1_NEG_DEX)
     {
         if (o_ptr->stat_bonus[A_DEX] == 0)
             o_ptr->stat_bonus[A_DEX] = (s16b)-o_ptr->pval;
-        o_ptr->stat_bonus[A_DEX] += e_ptr->stat_bonus[A_DEX];
+        if (e_ptr->stat_bonus_set[A_DEX])
+            o_ptr->stat_bonus[A_DEX] += e_ptr->stat_bonus_min[A_DEX];
     }
     if (f1 & TR1_CON)
     {
         if (o_ptr->stat_bonus[A_CON] == 0)
             o_ptr->stat_bonus[A_CON] = o_ptr->pval;
-        o_ptr->stat_bonus[A_CON] += e_ptr->stat_bonus[A_CON];
+        if (e_ptr->stat_bonus_set[A_CON])
+            o_ptr->stat_bonus[A_CON] += e_ptr->stat_bonus_min[A_CON];
     }
     if (f1 & TR1_NEG_CON)
     {
         if (o_ptr->stat_bonus[A_CON] == 0)
             o_ptr->stat_bonus[A_CON] = (s16b)-o_ptr->pval;
-        o_ptr->stat_bonus[A_CON] += e_ptr->stat_bonus[A_CON];
+        if (e_ptr->stat_bonus_set[A_CON])
+            o_ptr->stat_bonus[A_CON] += e_ptr->stat_bonus_min[A_CON];
     }
     if (f1 & TR1_GRA)
     {
         if (o_ptr->stat_bonus[A_GRA] == 0)
             o_ptr->stat_bonus[A_GRA] = o_ptr->pval;
-        o_ptr->stat_bonus[A_GRA] += e_ptr->stat_bonus[A_GRA];
+        if (e_ptr->stat_bonus_set[A_GRA])
+            o_ptr->stat_bonus[A_GRA] += e_ptr->stat_bonus_min[A_GRA];
     }
     if (f1 & TR1_NEG_GRA)
     {
         if (o_ptr->stat_bonus[A_GRA] == 0)
             o_ptr->stat_bonus[A_GRA] = (s16b)-o_ptr->pval;
-        o_ptr->stat_bonus[A_GRA] += e_ptr->stat_bonus[A_GRA];
+        if (e_ptr->stat_bonus_set[A_GRA])
+            o_ptr->stat_bonus[A_GRA] += e_ptr->stat_bonus_min[A_GRA];
     }
 
     if (f1 & TR1_MEL)
     {
         if (o_ptr->skill_bonus[S_MEL] == 0)
             o_ptr->skill_bonus[S_MEL] = o_ptr->pval;
-        o_ptr->skill_bonus[S_MEL] += e_ptr->skill_bonus[S_MEL];
+        if (e_ptr->skill_bonus_set[S_MEL])
+            o_ptr->skill_bonus[S_MEL] += e_ptr->skill_bonus_min[S_MEL];
     }
     if (f1 & TR1_ARC)
     {
         if (o_ptr->skill_bonus[S_ARC] == 0)
             o_ptr->skill_bonus[S_ARC] = o_ptr->pval;
-        o_ptr->skill_bonus[S_ARC] += e_ptr->skill_bonus[S_ARC];
+        if (e_ptr->skill_bonus_set[S_ARC])
+            o_ptr->skill_bonus[S_ARC] += e_ptr->skill_bonus_min[S_ARC];
     }
     if (f1 & TR1_STL)
     {
         if (o_ptr->skill_bonus[S_STL] == 0)
             o_ptr->skill_bonus[S_STL] = o_ptr->pval;
-        o_ptr->skill_bonus[S_STL] += e_ptr->skill_bonus[S_STL];
+        if (e_ptr->skill_bonus_set[S_STL])
+            o_ptr->skill_bonus[S_STL] += e_ptr->skill_bonus_min[S_STL];
     }
     if (f1 & TR1_PER)
     {
         if (o_ptr->skill_bonus[S_PER] == 0)
             o_ptr->skill_bonus[S_PER] = o_ptr->pval;
-        o_ptr->skill_bonus[S_PER] += e_ptr->skill_bonus[S_PER];
+        if (e_ptr->skill_bonus_set[S_PER])
+            o_ptr->skill_bonus[S_PER] += e_ptr->skill_bonus_min[S_PER];
     }
     if (f1 & TR1_WIL)
     {
         if (o_ptr->skill_bonus[S_WIL] == 0)
             o_ptr->skill_bonus[S_WIL] = o_ptr->pval;
-        o_ptr->skill_bonus[S_WIL] += e_ptr->skill_bonus[S_WIL];
+        if (e_ptr->skill_bonus_set[S_WIL])
+            o_ptr->skill_bonus[S_WIL] += e_ptr->skill_bonus_min[S_WIL];
     }
     if (f1 & TR1_SMT)
     {
         if (o_ptr->skill_bonus[S_SMT] == 0)
             o_ptr->skill_bonus[S_SMT] = o_ptr->pval;
-        o_ptr->skill_bonus[S_SMT] += e_ptr->skill_bonus[S_SMT];
+        if (e_ptr->skill_bonus_set[S_SMT])
+            o_ptr->skill_bonus[S_SMT] += e_ptr->skill_bonus_min[S_SMT];
     }
     if (f1 & TR1_SNG)
     {
         if (o_ptr->skill_bonus[S_SNG] == 0)
             o_ptr->skill_bonus[S_SNG] = o_ptr->pval;
-        o_ptr->skill_bonus[S_SNG] += e_ptr->skill_bonus[S_SNG];
+        if (e_ptr->skill_bonus_set[S_SNG])
+            o_ptr->skill_bonus[S_SNG] += e_ptr->skill_bonus_min[S_SNG];
     }
+}
+
+typedef struct
+{
+    bool is_stat;
+    byte index;
+    s16b min_value;
+    s16b max_value;
+} drop_bonus_range;
+
+static void apply_ego_bonus_range_rolls(object_type* o_ptr, const ego_item_type* e_ptr)
+{
+    if (!o_ptr || !e_ptr)
+        return;
+
+    for (int i = 0; i < A_MAX; i++)
+    {
+        if (!e_ptr->stat_bonus_set[i])
+            continue;
+        if (e_ptr->stat_bonus[i] <= e_ptr->stat_bonus_min[i])
+            continue;
+
+        o_ptr->stat_bonus[i] += (s16b)(rand_range(
+            e_ptr->stat_bonus_min[i], e_ptr->stat_bonus[i])
+            - e_ptr->stat_bonus_min[i]);
+    }
+
+    for (int i = 0; i < S_MAX; i++)
+    {
+        if (!e_ptr->skill_bonus_set[i])
+            continue;
+        if (e_ptr->skill_bonus[i] <= e_ptr->skill_bonus_min[i])
+            continue;
+
+        o_ptr->skill_bonus[i] += (s16b)(rand_range(
+            e_ptr->skill_bonus_min[i], e_ptr->skill_bonus[i])
+            - e_ptr->skill_bonus_min[i]);
+    }
+}
+
+static int collect_ego_bonus_ranges(const ego_item_type* first,
+    const ego_item_type* second, drop_bonus_range* out, int max_out)
+{
+    s16b stat_min[A_MAX] = { 0 };
+    s16b stat_max[A_MAX] = { 0 };
+    bool stat_used[A_MAX] = { false };
+    s16b skill_min[S_MAX] = { 0 };
+    s16b skill_max[S_MAX] = { 0 };
+    bool skill_used[S_MAX] = { false };
+    const ego_item_type* egos[2] = { first, second };
+    int count = 0;
+
+    for (int ego_idx = 0; ego_idx < (int)N_ELEMENTS(egos); ego_idx++)
+    {
+        const ego_item_type* e_ptr = egos[ego_idx];
+        if (!e_ptr)
+            continue;
+
+        for (int i = 0; i < A_MAX; i++)
+        {
+            if (!e_ptr->stat_bonus_set[i])
+                continue;
+
+            stat_used[i] = true;
+            stat_min[i] += e_ptr->stat_bonus_min[i];
+            stat_max[i] += e_ptr->stat_bonus[i];
+        }
+
+        for (int i = 0; i < S_MAX; i++)
+        {
+            if (!e_ptr->skill_bonus_set[i])
+                continue;
+
+            skill_used[i] = true;
+            skill_min[i] += e_ptr->skill_bonus_min[i];
+            skill_max[i] += e_ptr->skill_bonus[i];
+        }
+    }
+
+    for (int i = 0; i < A_MAX && count < max_out; i++)
+    {
+        if (!stat_used[i] || stat_max[i] <= stat_min[i])
+            continue;
+
+        out[count].is_stat = true;
+        out[count].index = (byte)i;
+        out[count].min_value = stat_min[i];
+        out[count].max_value = stat_max[i];
+        count++;
+    }
+
+    for (int i = 0; i < S_MAX && count < max_out; i++)
+    {
+        if (!skill_used[i] || skill_max[i] <= skill_min[i])
+            continue;
+
+        out[count].is_stat = false;
+        out[count].index = (byte)i;
+        out[count].min_value = skill_min[i];
+        out[count].max_value = skill_max[i];
+        count++;
+    }
+
+    return count;
+}
+
+static void add_drop_entry_with_bonus_ranges_recursive(const object_type* proto,
+    drop_category cat, drop_group_kind group_kind, int group_id, int min_depth,
+    int max_depth, const byte* alloc_depths, const byte* alloc_rarities,
+    int num_allocs, const drop_bonus_range* ranges, int range_count, int range_idx)
+{
+    if (range_idx >= range_count)
+    {
+        add_drop_entry(proto, cat, group_kind, group_id, min_depth, max_depth,
+            alloc_depths, alloc_rarities, num_allocs);
+        return;
+    }
+
+    const drop_bonus_range* range = &ranges[range_idx];
+    for (int value = range->min_value; value <= range->max_value; value++)
+    {
+        object_type v = *proto;
+        int delta = value - range->min_value;
+
+        if (range->is_stat)
+            v.stat_bonus[range->index] += (s16b)delta;
+        else
+            v.skill_bonus[range->index] += (s16b)delta;
+
+        add_drop_entry_with_bonus_ranges_recursive(&v, cat, group_kind, group_id,
+            min_depth, max_depth, alloc_depths, alloc_rarities, num_allocs,
+            ranges, range_count, range_idx + 1);
+    }
+}
+
+static void add_drop_entry_with_bonus_ranges(const object_type* proto,
+    drop_category cat, drop_group_kind group_kind, int group_id, int min_depth,
+    int max_depth, const byte* alloc_depths, const byte* alloc_rarities,
+    int num_allocs, const ego_item_type* first, const ego_item_type* second)
+{
+    drop_bonus_range ranges[A_MAX + S_MAX];
+    int range_count = collect_ego_bonus_ranges(first, second, ranges,
+        (int)N_ELEMENTS(ranges));
+
+    if (range_count <= 0)
+    {
+        add_drop_entry(proto, cat, group_kind, group_id, min_depth, max_depth,
+            alloc_depths, alloc_rarities, num_allocs);
+        return;
+    }
+
+    add_drop_entry_with_bonus_ranges_recursive(proto, cat, group_kind, group_id,
+        min_depth, max_depth, alloc_depths, alloc_rarities, num_allocs,
+        ranges, range_count, 0);
 }
 
 static bool ego_applies_to_kind(const ego_item_type* e_ptr, const object_kind* k_ptr)
@@ -1760,9 +1929,11 @@ static void build_ego_variants(int e_idx)
                                             if (bf1 & TR1_SMT) v.skill_bonus[S_SMT] += (s16b)delta;
                                             if (bf1 & TR1_SNG) v.skill_bonus[S_SNG] += (s16b)delta;
                                         }
-                                        add_drop_entry(&v, cat, DROP_GROUP_EGO, e_idx,
-                                            min_depth, max_depth,
-                                            alloc_depths, alloc_rarities, num_allocations);
+                                        add_drop_entry_with_bonus_ranges(&v, cat,
+                                            DROP_GROUP_EGO, e_idx, min_depth,
+                                            max_depth, alloc_depths,
+                                            alloc_rarities, num_allocations,
+                                            e_ptr, NULL);
                                     }
                                 }
                             }
@@ -2049,9 +2220,11 @@ static void build_ego_combo_variants(int prefix_idx, int suffix_idx)
                                         if (bf1 & TR1_SMT) v.skill_bonus[S_SMT] += (s16b)delta;
                                         if (bf1 & TR1_SNG) v.skill_bonus[S_SNG] += (s16b)delta;
                                     }
-                                    add_drop_entry(&v, cat, DROP_GROUP_EGO, group_id,
-                                        min_depth, max_depth,
-                                        alloc_depths, alloc_rarities, num_allocations);
+                                    add_drop_entry_with_bonus_ranges(&v, cat,
+                                        DROP_GROUP_EGO, group_id, min_depth,
+                                        max_depth, alloc_depths,
+                                        alloc_rarities, num_allocations,
+                                        prefix_ptr, suffix_ptr);
                                 }
                             }
                         }
@@ -3076,6 +3249,7 @@ static bool try_apply_jinx(object_type* o_ptr, int depth)
             else
                 object_set_ego_suffix(o_ptr, e_idx);
             apply_ego_static(o_ptr, e_ptr);
+            apply_ego_bonus_range_rolls(o_ptr, e_ptr);
             
             if (gen_log_initialized)
             {

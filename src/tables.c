@@ -920,16 +920,17 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
 
     /*** Text options ***/
 
-    { OPT_story_lists, OPT_story_lists_inven, OPT_story_lists_inven_pane, OPT_story_lists_equip,
-        OPT_story_lists_equip_pane, OPT_story_monster_desc, OPT_story_monster_desc_pane,
-        OPT_story_character_sheet, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+    { OPT_story_lists, OPT_story_monster_desc, OPT_story_monster_desc_pane,
+        OPT_story_lists_inven, OPT_story_lists_inven_pane, OPT_story_lists_equip,
+        OPT_story_lists_equip_pane, OPT_story_character_sheet,
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Game-Play ***/
 
     { OPT_valorous_oath_auto_attack_safety, OPT_forgo_attacking_unwary,
-        OPT_stop_singing_on_rest, OPT_know_monster_info, OPT_smaller_level_size,
-        OPT_more_stairs, OPT_disable_skeleton_note_tutorial, OPT_visual_recognition,
+        OPT_stop_singing_on_rest, OPT_know_monster_info, OPT_visual_recognition,
+        OPT_disable_skeleton_note_tutorial, OPT_smaller_level_size, OPT_more_stairs,
         OPT_vault_drop_frequency, OPT_noble_item_spawn_mode,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
@@ -943,11 +944,11 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
 
     /*** Display ***/
 
-    { OPT_auto_display_lists, OPT_artifact_unique_color, OPT_hilite_player, OPT_hilite_target,
+    { OPT_auto_display_lists, OPT_main_combat_rolls, OPT_ability_desc_mode,
+        OPT_artifact_unique_color, OPT_hilite_player, OPT_hilite_target,
         OPT_hilite_unwary, OPT_solid_walls, OPT_hybrid_walls, OPT_unidentified_items_slate,
-        OPT_main_combat_rolls, OPT_show_level_entry_banner, OPT_stealth_vision, OPT_sleep_icon,
-        OPT_ability_desc_mode, OPT_intro_style,
-        OPT_show_partition_narrative,
+        OPT_stealth_vision, OPT_sleep_icon,
+        OPT_show_level_entry_banner, OPT_show_partition_narrative, OPT_intro_style,
         OPT_show_smithing_difficulty, OPT_show_smithing_difficulty_look,
         OPT_NONE, OPT_NONE, OPT_NONE },
 
@@ -961,8 +962,9 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
     /*** Cheat ***/
 
     { OPT_cheat_peek, OPT_cheat_hear, OPT_cheat_room, OPT_cheat_xtra,
-        OPT_cheat_know, OPT_cheat_live, OPT_cheat_monsters, OPT_cheat_noise,
+        OPT_cheat_know, OPT_cheat_monsters, OPT_cheat_noise,
         OPT_cheat_scent, OPT_cheat_light, OPT_cheat_skill_rolls,
+        OPT_cheat_live,
         OPT_cheat_timestop, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE },
 

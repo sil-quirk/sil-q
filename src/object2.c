@@ -2908,6 +2908,39 @@ static void apply_delta_byte_clamped(byte* v, int delta)
     *v = (byte)next;
 }
 
+static s16b roll_ego_bonus_range(s16b min_bonus, s16b max_bonus, bool smithing)
+{
+    if (smithing || min_bonus == max_bonus)
+        return min_bonus;
+
+    return (s16b)rand_range(min_bonus, max_bonus);
+}
+
+static void apply_ego_explicit_bonus_ranges(object_type* o_ptr,
+    const ego_item_type* e_ptr, bool smithing)
+{
+    if (!o_ptr || !e_ptr)
+        return;
+
+    for (int i = 0; i < A_MAX; i++)
+    {
+        if (!e_ptr->stat_bonus_set[i])
+            continue;
+
+        o_ptr->stat_bonus[i] += roll_ego_bonus_range(
+            e_ptr->stat_bonus_min[i], e_ptr->stat_bonus[i], smithing);
+    }
+
+    for (int i = 0; i < S_MAX; i++)
+    {
+        if (!e_ptr->skill_bonus_set[i])
+            continue;
+
+        o_ptr->skill_bonus[i] += roll_ego_bonus_range(
+            e_ptr->skill_bonus_min[i], e_ptr->skill_bonus[i], smithing);
+    }
+}
+
 bool object_apply_ego_affix(object_type* o_ptr, int e_idx, bool smithing)
 {
     const object_kind* k_ptr = NULL;
@@ -3030,18 +3063,7 @@ bool object_apply_ego_affix(object_type* o_ptr, int e_idx, bool smithing)
         }
     }
 
-    if (ef1 & (TR1_STR | TR1_NEG_STR)) o_ptr->stat_bonus[A_STR] += e_ptr->stat_bonus[A_STR];
-    if (ef1 & (TR1_DEX | TR1_NEG_DEX)) o_ptr->stat_bonus[A_DEX] += e_ptr->stat_bonus[A_DEX];
-    if (ef1 & (TR1_CON | TR1_NEG_CON)) o_ptr->stat_bonus[A_CON] += e_ptr->stat_bonus[A_CON];
-    if (ef1 & (TR1_GRA | TR1_NEG_GRA)) o_ptr->stat_bonus[A_GRA] += e_ptr->stat_bonus[A_GRA];
-
-    if (ef1 & TR1_MEL) o_ptr->skill_bonus[S_MEL] += e_ptr->skill_bonus[S_MEL];
-    if (ef1 & TR1_ARC) o_ptr->skill_bonus[S_ARC] += e_ptr->skill_bonus[S_ARC];
-    if (ef1 & TR1_STL) o_ptr->skill_bonus[S_STL] += e_ptr->skill_bonus[S_STL];
-    if (ef1 & TR1_PER) o_ptr->skill_bonus[S_PER] += e_ptr->skill_bonus[S_PER];
-    if (ef1 & TR1_WIL) o_ptr->skill_bonus[S_WIL] += e_ptr->skill_bonus[S_WIL];
-    if (ef1 & TR1_SMT) o_ptr->skill_bonus[S_SMT] += e_ptr->skill_bonus[S_SMT];
-    if (ef1 & TR1_SNG) o_ptr->skill_bonus[S_SNG] += e_ptr->skill_bonus[S_SNG];
+    apply_ego_explicit_bonus_ranges(o_ptr, e_ptr, smithing);
 
     if (k_ptr->dd > 0)
     {
@@ -3109,7 +3131,6 @@ void object_into_special(object_type* o_ptr, int lev, bool smithing)
             continue;
 
         ego_item_type* e_ptr = &e_info[e_idx];
-        u32b ef1 = e_ptr->flags1;
         int max_att = (int)(int8_t)e_ptr->max_att;
         int to_dd = (int)(int8_t)e_ptr->to_dd;
         int to_ds = (int)(int8_t)e_ptr->to_ds;
@@ -3216,19 +3237,8 @@ void object_into_special(object_type* o_ptr, int lev, bool smithing)
             }
         }
 
-        /* Apply ego-specific stat/skill offsets. */
-        if (ef1 & (TR1_STR | TR1_NEG_STR)) o_ptr->stat_bonus[A_STR] += e_ptr->stat_bonus[A_STR];
-        if (ef1 & (TR1_DEX | TR1_NEG_DEX)) o_ptr->stat_bonus[A_DEX] += e_ptr->stat_bonus[A_DEX];
-        if (ef1 & (TR1_CON | TR1_NEG_CON)) o_ptr->stat_bonus[A_CON] += e_ptr->stat_bonus[A_CON];
-        if (ef1 & (TR1_GRA | TR1_NEG_GRA)) o_ptr->stat_bonus[A_GRA] += e_ptr->stat_bonus[A_GRA];
-
-        if (ef1 & TR1_MEL) o_ptr->skill_bonus[S_MEL] += e_ptr->skill_bonus[S_MEL];
-        if (ef1 & TR1_ARC) o_ptr->skill_bonus[S_ARC] += e_ptr->skill_bonus[S_ARC];
-        if (ef1 & TR1_STL) o_ptr->skill_bonus[S_STL] += e_ptr->skill_bonus[S_STL];
-        if (ef1 & TR1_PER) o_ptr->skill_bonus[S_PER] += e_ptr->skill_bonus[S_PER];
-        if (ef1 & TR1_WIL) o_ptr->skill_bonus[S_WIL] += e_ptr->skill_bonus[S_WIL];
-        if (ef1 & TR1_SMT) o_ptr->skill_bonus[S_SMT] += e_ptr->skill_bonus[S_SMT];
-        if (ef1 & TR1_SNG) o_ptr->skill_bonus[S_SNG] += e_ptr->skill_bonus[S_SNG];
+        /* Apply ego-specific M: rolls after pval-based bonuses. */
+        apply_ego_explicit_bonus_ranges(o_ptr, e_ptr, smithing);
 
     }
 

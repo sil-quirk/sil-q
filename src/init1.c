@@ -2435,6 +2435,104 @@ static bool apply_obj_bonus_token(const char* token, int value,
     return true;
 }
 
+static bool parse_bonus_value_range(char* text, int* min_value, int* max_value)
+{
+    char* sep;
+
+    if (!text || !text[0] || !min_value || !max_value)
+        return false;
+
+    sep = strchr(text, ':');
+    if (!sep)
+    {
+        *min_value = atoi(text);
+        *max_value = *min_value;
+        return true;
+    }
+
+    if (strchr(sep + 1, ':'))
+        return false;
+
+    *sep++ = '\0';
+    if (!text[0] || !sep[0])
+        return false;
+
+    *min_value = atoi(text);
+    *max_value = atoi(sep);
+    return true;
+}
+
+static bool apply_ego_bonus_token_range(const char* token, int min_value, int max_value,
+    u32b* flags1,
+    s16b stat_bonus_min[A_MAX], s16b stat_bonus[A_MAX], bool stat_bonus_set[A_MAX],
+    s16b skill_bonus_min[S_MAX], s16b skill_bonus[S_MAX], bool skill_bonus_set[S_MAX])
+{
+    if (!flags1 || !token)
+        return false;
+
+    bool is_stat = false;
+    int index = 0;
+    bool has_neg_prefix = false;
+
+    if (!parse_obj_bonus_token(token, &is_stat, &index, &has_neg_prefix))
+        return false;
+
+    int normalized_min = min_value;
+    int normalized_max = max_value;
+
+    if (has_neg_prefix)
+    {
+        if (normalized_min > 0)
+            normalized_min = -normalized_min;
+        if (normalized_max > 0)
+            normalized_max = -normalized_max;
+    }
+
+    if (normalized_min > normalized_max)
+    {
+        if (!has_neg_prefix)
+            return false;
+
+        int tmp = normalized_min;
+        normalized_min = normalized_max;
+        normalized_max = tmp;
+    }
+
+    if (is_stat)
+    {
+        if (index < 0 || index >= A_MAX)
+            return false;
+        if (normalized_min < 0 && normalized_max > 0)
+            return false;
+
+        stat_bonus_min[index] = (s16b)normalized_min;
+        stat_bonus[index] = (s16b)normalized_max;
+        if (stat_bonus_set)
+            stat_bonus_set[index] = true;
+
+        *flags1 &= ~(obj_stat_flag_pos[index] | obj_stat_flag_neg[index]);
+        if (normalized_max < 0)
+            *flags1 |= obj_stat_flag_neg[index];
+        else
+            *flags1 |= obj_stat_flag_pos[index];
+
+        return true;
+    }
+
+    if (index < 0 || index >= S_MAX)
+        return false;
+
+    skill_bonus_min[index] = (s16b)normalized_min;
+    skill_bonus[index] = (s16b)normalized_max;
+    if (skill_bonus_set)
+        skill_bonus_set[index] = true;
+
+    if (obj_skill_flag[index])
+        *flags1 |= obj_skill_flag[index];
+
+    return true;
+}
+
 /*
  * Initialize the "k_info" array, by parsing an ascii "template" file
  */
@@ -4039,11 +4137,13 @@ errr parse_e_info(char* buf, header* head)
         /* Reset per-stat/skill bonus offsets. */
         for (int si = 0; si < A_MAX; si++)
         {
+            e_ptr->stat_bonus_min[si] = 0;
             e_ptr->stat_bonus[si] = 0;
             e_ptr->stat_bonus_set[si] = false;
         }
         for (int sk = 0; sk < S_MAX; sk++)
         {
+            e_ptr->skill_bonus_min[sk] = 0;
             e_ptr->skill_bonus[sk] = 0;
             e_ptr->skill_bonus_set[sk] = false;
         }
@@ -4166,7 +4266,7 @@ errr parse_e_info(char* buf, header* head)
             e_ptr->min_pval = 1;
     }
 
-    /* Process 'M' for per-stat/skill bonus offsets (one per line) */
+    /* Process 'M' for per-stat/skill bonus ranges (one per line) */
     else if (buf[0] == 'M')
     {
         /* There better be a current e_ptr */
@@ -4179,12 +4279,16 @@ errr parse_e_info(char* buf, header* head)
 
         *s++ = '\0';
         cptr token = buf + 2;
-        int value = atoi(s);
+        int min_value = 0;
+        int max_value = 0;
 
-        if (!apply_obj_bonus_token(token, value,
+        if (!parse_bonus_value_range(s, &min_value, &max_value))
+            return (PARSE_ERROR_GENERIC);
+
+        if (!apply_ego_bonus_token_range(token, min_value, max_value,
                 &e_ptr->flags1,
-                e_ptr->stat_bonus, e_ptr->stat_bonus_set,
-                e_ptr->skill_bonus, e_ptr->skill_bonus_set))
+                e_ptr->stat_bonus_min, e_ptr->stat_bonus, e_ptr->stat_bonus_set,
+                e_ptr->skill_bonus_min, e_ptr->skill_bonus, e_ptr->skill_bonus_set))
         {
             return (PARSE_ERROR_GENERIC);
         }

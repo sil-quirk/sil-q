@@ -41,6 +41,11 @@
 #     lines may be used as are needed to specify all the flags and flags
 #     are separated by the '|' symbol.
 #
+# 'M' is for explicit stat/skill bonuses. Format:
+#     M:STAT_or_SKILL:min[:max]
+#     If max is omitted, min and max are the same. Each M: line rolls
+#     independently on generated items; smithing starts at the minimum.
+#
 # 'T' is for possible 'tval' and 'sval' values of the base-item.
 #     Up to eight 'T' entries are possible for a single object. The
 #     special item can only be generated from items of this tval, with sval

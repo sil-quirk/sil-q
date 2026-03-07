@@ -389,8 +389,10 @@ struct ego_item_type
     byte max_pval; /* Maximum pval */
     byte min_pval; /* Minimum pval (0 = use default) */
 
-    /* Per-stat/skill modifiers (bonuses applied to player). */
+    /* Explicit M: bonuses. min arrays store the floor, max arrays the ceiling. */
+    s16b stat_bonus_min[A_MAX];
     s16b stat_bonus[A_MAX];
+    s16b skill_bonus_min[S_MAX];
     s16b skill_bonus[S_MAX];
     bool stat_bonus_set[A_MAX];
     bool skill_bonus_set[S_MAX];
