@@ -2270,8 +2270,11 @@ int abilities_menu1(int* highlight)
 
     char buf[80];
 
+    // clear the abilities area before drawing the skill header
+    wipe_screen_from(COL_ABILITY);
+
     // title
-    Term_putstr(COL_SKILL, 2, -1, TERM_WHITE, "Skills (i=increase)");
+    Term_putstr(COL_SKILL, 2, -1, TERM_WHITE, "Skills (i=inc)");
 
     // list the skills
     for (i = 0; i < options; i++)
@@ -2282,9 +2285,6 @@ int abilities_menu1(int* highlight)
         Term_putstr(COL_SKILL, i + 4, -1,
             (*highlight == i + 1) ? TERM_L_BLUE : TERM_WHITE, buf);
     }
-
-    // clear the abilities area
-    wipe_screen_from(COL_ABILITY);
 
     /* Flush the prompt */
     Term_fresh();
@@ -2378,7 +2378,7 @@ int abilities_menu2(int skilltype, int* highlight)
     wipe_screen_from(COL_ABILITY);
 
     // abilities title with color
-    Term_putstr(COL_ABILITY, 1, -1, TERM_L_BLUE, "Abilities (i=skills)");
+    Term_putstr(COL_ABILITY, 1, -1, TERM_L_BLUE, "Abilities (i=increase)");
 
     // Add display counter for compact menu layout (avoids gaps from filtered abilities)
     int display_counter = 0;
@@ -11304,6 +11304,16 @@ extern void do_cmd_options_aux(int page, cptr info)
                     "Vault drop frequency",
                     vdf_names[mode], mode);
             }
+            else if (opt[i] == OPT_noble_item_spawn_mode)
+            {
+                const char *mode_str
+                    = (op_ptr->noble_item_spawn_mode == NOBLE_ITEM_SPAWN_INCLUDE_VAULTS)
+                    ? "1 (also &/! vault drops)"
+                    : "0 (good+/chests/human+elf skeletons)";
+                strnfmt(buf, sizeof(buf), "%-48s: %s",
+                    "Noble item spawns",
+                    mode_str);
+            }
             else if (opt[i] == OPT_intro_style)
             {
                 const char *is_names[] = {
@@ -11453,6 +11463,13 @@ extern void do_cmd_options_aux(int page, cptr info)
                         ? op_ptr->intro_style + 1
                         : INTRO_STYLE_FLAME;
                 }
+                else if (opt[k] == OPT_noble_item_spawn_mode)
+                {
+                    op_ptr->noble_item_spawn_mode
+                        = (op_ptr->noble_item_spawn_mode == NOBLE_ITEM_SPAWN_RESTRICTED)
+                        ? NOBLE_ITEM_SPAWN_INCLUDE_VAULTS
+                        : NOBLE_ITEM_SPAWN_RESTRICTED;
+                }
                 else
                 {
                     op_ptr->opt[opt[k]] = !op_ptr->opt[opt[k]];
@@ -11549,6 +11566,13 @@ extern void do_cmd_options_aux(int page, cptr info)
                         = (op_ptr->vault_drop_frequency < VDF_PLENTIFUL)
                         ? op_ptr->vault_drop_frequency + 1
                         : VDF_PLENTIFUL;
+                }
+                else if (opt[k] == OPT_noble_item_spawn_mode)
+                {
+                    op_ptr->noble_item_spawn_mode
+                        = (op_ptr->noble_item_spawn_mode < NOBLE_ITEM_SPAWN_INCLUDE_VAULTS)
+                        ? op_ptr->noble_item_spawn_mode + 1
+                        : NOBLE_ITEM_SPAWN_INCLUDE_VAULTS;
                 }
                 else if (opt[k] == OPT_intro_style)
                 {
@@ -11653,6 +11677,13 @@ extern void do_cmd_options_aux(int page, cptr info)
                         = (op_ptr->vault_drop_frequency > VDF_NORMAL)
                         ? op_ptr->vault_drop_frequency - 1
                         : VDF_NORMAL;
+                }
+                else if (opt[k] == OPT_noble_item_spawn_mode)
+                {
+                    op_ptr->noble_item_spawn_mode
+                        = (op_ptr->noble_item_spawn_mode > NOBLE_ITEM_SPAWN_RESTRICTED)
+                        ? op_ptr->noble_item_spawn_mode - 1
+                        : NOBLE_ITEM_SPAWN_RESTRICTED;
                 }
                 else if (opt[k] == OPT_intro_style)
                 {

@@ -10,10 +10,14 @@
 
 #include "angband.h"
 #include "externs.h"
+#include "fs/io_sdl.h"
+#include "fs/path.h"
 #include "log/log.h"
 #include "supplies.h"
 #include "item_set.h"
+#include "cJSON.h"
 #include <ctype.h>
+#include <stdlib.h>
 #define ENHANCED_MAX_LIST 80
 #include <stddef.h>
 static bool inventory_menu_include_equip = false;
@@ -379,6 +383,109 @@ byte object_display_color(const object_type* o_ptr, byte base_color)
     return color_to_use;
 }
 
+static void load_object_text_colors_json(void)
+{
+    char path[1024];
+    SDL_IOStream* f = NULL;
+    char* buffer = NULL;
+    cJSON* root = NULL;
+    int loaded_entries = 0;
+
+    if (!ANGBAND_DIR_PREF || !ANGBAND_DIR_PREF[0])
+    {
+        log_warn("object text colors: ANGBAND_DIR_PREF is not set");
+        return;
+    }
+
+    if (!path_build(path, sizeof(path), ANGBAND_DIR_PREF, "object_text_colors.json"))
+    {
+        log_warn("object text colors: unable to build config path");
+        return;
+    }
+
+    f = sdl_fopen(path, "rb");
+    if (!f)
+    {
+        log_warn("object text colors: config not found at '%s'", path);
+        return;
+    }
+
+    Sint64 file_size = SDL_GetIOSize(f);
+    if (file_size < 0 || file_size > 1024 * 1024)
+    {
+        log_warn("object text colors: invalid file size for '%s'", path);
+        sdl_fclose(f);
+        return;
+    }
+
+    buffer = mem_alloc_array((size_t)file_size + 1, char);
+    if (!buffer)
+    {
+        log_error("object text colors: out of memory");
+        sdl_fclose(f);
+        return;
+    }
+
+    size_t length = (size_t)file_size;
+    size_t read = SDL_ReadIO(f, buffer, length);
+    buffer[read] = '\0';
+    sdl_fclose(f);
+    f = NULL;
+
+    root = cJSON_Parse(buffer);
+    mem_free(buffer);
+    buffer = NULL;
+
+    if (!root)
+    {
+        log_warn("object text colors: failed to parse '%s'", path);
+        return;
+    }
+
+    cJSON* default_attr = cJSON_GetObjectItemCaseSensitive(root, "defaultAttr");
+    if (cJSON_IsNumber(default_attr))
+    {
+        int attr = default_attr->valueint;
+        if (attr >= 0 && attr <= 255)
+        {
+            for (int i = 0; i < (int)N_ELEMENTS(tval_to_attr); i++)
+                tval_to_attr[i] = (byte)attr;
+        }
+    }
+
+    cJSON* entries = cJSON_GetObjectItemCaseSensitive(root, "entries");
+    if (!cJSON_IsArray(entries))
+    {
+        log_warn("object text colors: missing 'entries' array in '%s'", path);
+        cJSON_Delete(root);
+        return;
+    }
+
+    cJSON* entry = NULL;
+    cJSON_ArrayForEach(entry, entries)
+    {
+        cJSON* tval = cJSON_GetObjectItemCaseSensitive(entry, "tval");
+        cJSON* attr = cJSON_GetObjectItemCaseSensitive(entry, "attr");
+
+        if (!cJSON_IsNumber(tval) || !cJSON_IsNumber(attr))
+            continue;
+
+        int tval_value = tval->valueint;
+        int attr_value = attr->valueint;
+
+        if (tval_value < 0 || tval_value >= (int)N_ELEMENTS(tval_to_attr))
+            continue;
+        if (attr_value < 0 || attr_value > 255)
+            continue;
+
+        tval_to_attr[tval_value] = (byte)attr_value;
+        loaded_entries++;
+    }
+
+    cJSON_Delete(root);
+    log_debug("object text colors: loaded %d entries from '%s'", loaded_entries, path);
+}
+
 /*
  * Reset the "visual" lists
  *
@@ -472,6 +579,9 @@ void reset_visuals(bool unused)
         /* Process "font.prf" */
         process_pref_file("font.prf");
     }
+
+    /* Shared object list text colors now come from JSON, not E: pref entries. */
+    load_object_text_colors_json();
 }
 
 /*

@@ -1049,6 +1049,7 @@ struct player_other
     byte intro_style; /* Welcome screen variant (INTRO_STYLE_*) */
     byte level_entry_narrative_mode; /* Initial partition text (banner with delay/banner without delay/message/off) */
     byte partition_narrative_mode; /* Transition text between partitions */
+    byte noble_item_spawn_mode; /* Noble item sources (NOBLE_ITEM_SPAWN_*) */
 };
 
 /*

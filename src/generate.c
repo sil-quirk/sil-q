@@ -10979,11 +10979,9 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 int penalty_depth = base_depth + dieroll(5);
                 partition_drop_profile active_profile =
                     partition_drop_profile_for_mode(drop_mode_for_point(y, x));
-                drop_allow_noble = true;
                 place_object_with_profile_params(
                     y, x, base_depth, penalty_depth, DROP_QUALITY_NORMAL,
                     DROP_TYPE_NOT_DAMAGED, false, 1, 0, &active_profile);
-                drop_allow_noble = false;
                 break;
             }
 
@@ -10997,11 +10995,13 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 int penalty_depth = base_depth + dieroll(5);
                 partition_drop_profile active_profile =
                     partition_drop_profile_for_mode(drop_mode_for_point(y, x));
-                drop_allow_noble = true;
+                bool old_allow_noble_from_quality = drop_allow_noble_from_quality;
+                drop_allow_noble_from_quality
+                    = (op_ptr->noble_item_spawn_mode == NOBLE_ITEM_SPAWN_INCLUDE_VAULTS);
                 place_object_with_profile_params(
                     y, x, base_depth, penalty_depth, DROP_QUALITY_GOOD,
                     DROP_TYPE_NOT_DAMAGED, false, 1, 0, &active_profile);
-                drop_allow_noble = false;
+                drop_allow_noble_from_quality = old_allow_noble_from_quality;
                 break;
             }
 
@@ -11015,11 +11015,13 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 int penalty_depth = base_depth + dieroll(5);
                 partition_drop_profile active_profile =
                     partition_drop_profile_for_mode(drop_mode_for_point(y, x));
-                drop_allow_noble = true;
+                bool old_allow_noble_from_quality = drop_allow_noble_from_quality;
+                drop_allow_noble_from_quality
+                    = (op_ptr->noble_item_spawn_mode == NOBLE_ITEM_SPAWN_INCLUDE_VAULTS);
                 place_object_with_profile_params(
                     y, x, base_depth, penalty_depth, DROP_QUALITY_GREAT,
                     DROP_TYPE_NOT_DAMAGED, true, 10, IDENT_HOARD_DROP, &active_profile);
-                drop_allow_noble = false;
+                drop_allow_noble_from_quality = old_allow_noble_from_quality;
                 break;
             }
 
@@ -11040,11 +11042,9 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 
                 partition_drop_profile active_profile =
                     partition_drop_profile_for_mode(drop_mode_for_point(y, x));
-                drop_allow_noble = true;
                 place_object_with_profile_params(
                     y, x, chest_depth, chest_depth, DROP_QUALITY_NORMAL,
                     DROP_TYPE_CHEST, false, 1, 0, &active_profile);
-                drop_allow_noble = false;
                 break;
             }
 

@@ -914,8 +914,10 @@ static void wr_options(void)
     /* Write "partition_narrative_mode" */
     wr_byte(op_ptr->partition_narrative_mode);
 
-    /* 2 remaining spare bytes */
-    wr_byte(0);
+    /* Write "noble_item_spawn_mode" */
+    wr_byte(op_ptr->noble_item_spawn_mode);
+
+    /* 1 remaining spare byte */
     wr_byte(0);
 
     /*** Normal options ***/

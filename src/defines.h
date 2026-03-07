@@ -2032,7 +2032,7 @@
 #define TR4_SUBTLETY_THROW 0x00000010L /* Allows Subtlety ability to work when throwing this weapon */
 #define TR4_BREAKS_PERMA_CURSE 0x00000020L /* Can break items bound by Oath of Feanor (PERMA_CURSE) */
 #define TR4_LESS_SPECIAL    0x00000040L /* Item reduces ego rarity weighting (-20 flat) */
-#define TR4_NOBLE_ITEM      0x00000080L /* Item only drops from vault *&!~ tokens and chest contents */
+#define TR4_NOBLE_ITEM      0x00000080L /* Noble-aligned item with source gating handled by generation rules */
 #define TR4_EVIL_ITEM       0x00000100L /* Item belongs to evil alignment for ego/chest composition rules */
 #define TR4_SLAY_SERPENT    0x00000200L /* Weapon slays serpents */
 #define TR4_SLAY_VAMPIRE    0x00000400L /* Weapon slays vampires */
@@ -2752,6 +2752,7 @@
 #define OPT_show_smithing_difficulty_look 94
 #define OPT_intro_style 95
 #define OPT_show_partition_narrative 96
+#define OPT_noble_item_spawn_mode 97
 
 /* Intro screen style constants */
 #define INTRO_STYLE_FLAME       0   /* Flame Imperishable (Ainulindale) */
@@ -2930,6 +2931,10 @@
 #define VDF_SCARCE 2
 #define VDF_MEAGER 3
 #define VDF_PLENTIFUL 4
+
+/* Noble item spawn modes */
+#define NOBLE_ITEM_SPAWN_RESTRICTED 0
+#define NOBLE_ITEM_SPAWN_INCLUDE_VAULTS 1
 
 // xxx
 // xxx birth_point_based

@@ -1906,6 +1906,52 @@ static int object_weight_flag_adjustment(int base_weight, u32b flags4)
     return 0;
 }
 
+static s16b object_roll_base_weight(const object_kind* k_ptr)
+{
+    int weight;
+
+    if (!k_ptr)
+        return 0;
+
+    /* Exact weight for most items, approximate weight for weapons and armour. */
+    switch (k_ptr->tval)
+    {
+    case TV_BOW:
+    case TV_DIGGING:
+    case TV_HAFTED:
+    case TV_POLEARM:
+    case TV_SWORD:
+    case TV_BOOTS:
+    case TV_GLOVES:
+    case TV_HELM:
+    case TV_CROWN:
+    case TV_SHIELD:
+    case TV_CLOAK:
+    case TV_SOFT_ARMOR:
+    case TV_MAIL:
+    {
+        weight = Rand_normal(k_ptr->weight, k_ptr->weight / 6 + 1);
+
+        /* Round to the nearest multiple of 0.5 lb. */
+        weight = div_round(weight * 2, 10);
+        weight *= 5;
+
+        /* Restrict weight to within [2/3, 3/2] of the standard. */
+        while (weight * 3 < k_ptr->weight * 2)
+            weight += 5;
+        while (weight * 2 > k_ptr->weight * 3)
+            weight -= 5;
+
+        break;
+    }
+    default:
+        weight = k_ptr->weight;
+        break;
+    }
+
+    return (s16b)weight;
+}
+
 static void apply_object_weight_flags(object_type* o_ptr, int base_weight,
     u32b flags4)
 {
@@ -1920,6 +1966,21 @@ static void apply_object_weight_flags(object_type* o_ptr, int base_weight,
         adjusted_weight = 0;
 
     o_ptr->weight = (s16b)adjusted_weight;
+}
+
+void object_refresh_weight(object_type* o_ptr)
+{
+    object_kind* k_ptr;
+    u32b f1, f2, f3, f4;
+
+    if (!o_ptr || !o_ptr->k_idx || artefact_p(o_ptr))
+        return;
+
+    k_ptr = &k_info[o_ptr->k_idx];
+    o_ptr->weight = object_roll_base_weight(k_ptr);
+
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
+    apply_object_weight_flags(o_ptr, k_ptr->weight, f4);
 }
 
 /*
@@ -2018,40 +2079,7 @@ void object_prep(object_type* o_ptr, int k_idx)
     /* Default number */
     o_ptr->number = 1;
 
-    /* Exact weight for most item, approximate weight for weapons and armour */
-    switch (o_ptr->tval)
-    {
-    case TV_BOW:
-    case TV_DIGGING:
-    case TV_HAFTED:
-    case TV_POLEARM:
-    case TV_SWORD:
-    case TV_BOOTS:
-    case TV_GLOVES:
-    case TV_HELM:
-    case TV_CROWN:
-    case TV_SHIELD:
-    case TV_CLOAK:
-    case TV_SOFT_ARMOR:
-    case TV_MAIL:
-    {
-        o_ptr->weight = Rand_normal(k_ptr->weight, k_ptr->weight / 6 + 1);
-
-        // round to the nearest multiple of 0.5 lb
-        o_ptr->weight = div_round(o_ptr->weight * 2, 10);
-        o_ptr->weight *= 5;
-
-        // restrict weight to within [2/3, 3/2] of the standard
-        while (o_ptr->weight * 3 < k_ptr->weight * 2)
-            o_ptr->weight += 5;
-        while (o_ptr->weight * 2 > k_ptr->weight * 3)
-            o_ptr->weight -= 5;
-
-        break;
-    }
-    default:
-        o_ptr->weight = k_ptr->weight;
-    }
+    o_ptr->weight = object_roll_base_weight(k_ptr);
 
     /* Default bonuses to attack and defence */
     o_ptr->att = k_ptr->att;

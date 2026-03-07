@@ -244,6 +244,7 @@ cptr option_text[OPT_MAX] = {
     "show_smithing_difficulty_look", /* OPT_show_smithing_difficulty_look */
     NULL, /* xxx */
     "partition_narrative_mode", /* OPT_show_partition_narrative */
+    "noble_item_spawn_mode", /* OPT_noble_item_spawn_mode */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -485,6 +486,7 @@ cptr option_desc[OPT_MAX] = {
     "Debug: Show {sd,wr} in look (L) sidebar and message", /* OPT_show_smithing_difficulty_look */
     "Welcome screen (0-4=fixed, 5=random)", /* OPT_intro_style */
     "Partition transition narrative (banner without delay/message/off)", /* OPT_show_partition_narrative */
+    "Noble item spawns (0=good+/chests/human+elf skeletons, 1=also &/! vault drops)", /* OPT_noble_item_spawn_mode */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -743,7 +745,7 @@ const bool option_norm[OPT_MAX] = {
     false, /* OPT_show_smithing_difficulty_look */
     false, /* xxx */
     true, /* OPT_show_partition_narrative */
-    false, /* xxx */
+    false, /* OPT_noble_item_spawn_mode (default 0 via byte field) */
     false, /* xxx */
     false, /* xxx */
     false, /* xxx */
@@ -928,8 +930,8 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
     { OPT_valorous_oath_auto_attack_safety, OPT_forgo_attacking_unwary,
         OPT_stop_singing_on_rest, OPT_know_monster_info, OPT_smaller_level_size,
         OPT_more_stairs, OPT_disable_skeleton_note_tutorial, OPT_visual_recognition,
-        OPT_vault_drop_frequency,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_vault_drop_frequency, OPT_noble_item_spawn_mode,
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Efficiency ***/

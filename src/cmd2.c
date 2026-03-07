@@ -795,6 +795,29 @@ typedef enum
     CHEST_ALIGNMENT_INVALID = 3
 } chest_alignment_type;
 
+static void chest_apply_drop_alignment(chest_alignment_type alignment)
+{
+    switch (alignment)
+    {
+    case CHEST_ALIGNMENT_NOBLE:
+        drop_allow_noble = true;
+        drop_allow_evil = false;
+        break;
+
+    case CHEST_ALIGNMENT_EVIL:
+        drop_allow_noble = false;
+        drop_allow_evil = true;
+        break;
+
+    case CHEST_ALIGNMENT_STANDARD:
+    default:
+        /* Until a themed item appears, chest rolls may pick either alignment. */
+        drop_allow_noble = true;
+        drop_allow_evil = true;
+        break;
+    }
+}
+
 static chest_alignment_type chest_item_alignment(const object_type* o_ptr)
 {
     u32b f1, f2, f3, f4;
@@ -826,6 +849,8 @@ static void chest_death(int y, int x, s16b o_idx)
     int number;
     bool generated_an_item = false;
     chest_alignment_type chest_alignment = CHEST_ALIGNMENT_STANDARD;
+    bool old_allow_noble = drop_allow_noble;
+    bool old_allow_evil = drop_allow_evil;
 
     object_type* o_ptr;
 
@@ -845,6 +870,7 @@ static void chest_death(int y, int x, s16b o_idx)
 
     /* Opening a chest */
     object_generation_mode = OB_GEN_MODE_CHEST;
+    chest_apply_drop_alignment(chest_alignment);
 
     /* Determine the "value" of the items */
     int base_depth = ABS(o_ptr->pval);
@@ -914,6 +940,7 @@ static void chest_death(int y, int x, s16b o_idx)
                 if (chest_alignment == CHEST_ALIGNMENT_STANDARD)
                 {
                     chest_alignment = item_alignment;
+                    chest_apply_drop_alignment(chest_alignment);
                 }
                 else if (chest_alignment != item_alignment)
                 {
@@ -929,6 +956,8 @@ static void chest_death(int y, int x, s16b o_idx)
 
     /* No longer opening a chest */
     object_generation_mode = OB_GEN_MODE_NORMAL;
+    drop_allow_noble = old_allow_noble;
+    drop_allow_evil = old_allow_evil;
 
     /* Empty */
     o_ptr->pval = 0;
@@ -1161,17 +1190,35 @@ static bool skeleton_damaged_item_allowed(byte skeleton_sval, const object_type*
 
 static bool generate_skeleton_damaged_item(object_type* o_ptr, byte skeleton_sval)
 {
+    bool old_allow_noble = drop_allow_noble;
+    bool old_allow_evil = drop_allow_evil;
+
+    drop_allow_noble = (skeleton_sval == SV_SKELETON_HUMAN
+        || skeleton_sval == SV_SKELETON_ELF);
+    drop_allow_evil = (skeleton_sval == SV_SKELETON_HUMAN
+        || skeleton_sval == SV_SKELETON_ORC);
+
     for (int attempt = 0; attempt < 50; attempt++)
     {
         object_wipe(o_ptr);
         if (!make_object(o_ptr, DROP_QUALITY_NORMAL, DROP_TYPE_DAMAGED))
+        {
+            drop_allow_noble = old_allow_noble;
+            drop_allow_evil = old_allow_evil;
             return true;
+        }
 
         if (skeleton_damaged_item_allowed(skeleton_sval, o_ptr))
+        {
+            drop_allow_noble = old_allow_noble;
+            drop_allow_evil = old_allow_evil;
             return false;
+        }
     }
 
     object_wipe(o_ptr);
+    drop_allow_noble = old_allow_noble;
+    drop_allow_evil = old_allow_evil;
     return true;
 }
 

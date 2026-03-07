@@ -2331,7 +2331,9 @@ typedef struct
     int lower;
     int upper;
     bool allow_artefacts; /* whether artefacts can be selected */
-    bool allow_noble; /* when false, alignment-tagged entries are excluded */
+    bool allow_noble; /* explicit override for noble-tagged entries */
+    bool allow_evil; /* explicit override for evil-tagged entries */
+    bool allow_noble_from_quality; /* whether GOOD+ quality may include noble-tagged entries */
     int artefact_weight_multiplier; /* group weight multiplier for artefacts */
     int cat_weights[DROP_CAT_MAX];
     int supply_weights[DROP_SUPPLY_GROUP_MAX];
@@ -2590,11 +2592,24 @@ static bool collect_candidate_entries(
             }
         }
 
-        /* Alignment-tagged items (NOBLE/EVIL): skip unless drop context explicitly
-         * allows them, we are in a chest, or quality is at least GOOD. */
-        if ((e.noble || e.evil) && !req->allow_noble && object_generation_mode != OB_GEN_MODE_CHEST
-            && req->quality < DROP_QUALITY_GOOD)
-            continue;
+        if (e.noble)
+        {
+            bool noble_allowed = req->allow_noble
+                || ((object_generation_mode != OB_GEN_MODE_CHEST)
+                    && req->allow_noble_from_quality
+                    && req->quality >= DROP_QUALITY_GOOD);
+            if (!noble_allowed)
+                continue;
+        }
+
+        if (e.evil)
+        {
+            bool evil_allowed = req->allow_evil
+                || ((object_generation_mode != OB_GEN_MODE_CHEST)
+                    && req->quality >= DROP_QUALITY_GOOD);
+            if (!evil_allowed)
+                continue;
+        }
 
         if (!droptype_matches(req, &e)) {
             filter_droptype++;
@@ -3299,6 +3314,8 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     req.droptype = droptype;
     req.allow_artefacts = allow_artefacts;
     req.allow_noble = drop_allow_noble;
+    req.allow_evil = drop_allow_evil;
+    req.allow_noble_from_quality = drop_allow_noble_from_quality;
     req.artefact_weight_multiplier
         = (allow_artefacts && artefact_weight_multiplier > 1)
         ? artefact_weight_multiplier
@@ -3527,6 +3544,10 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
         
         /* Try to apply jinx to normal items */
         try_apply_jinx(out, depth);
+
+        /* Catalog entries pin baseline weight for stable difficulty bands.
+         * Restore the normal live spawn roll once the final affixes are known. */
+        object_refresh_weight(out);
 
         /* Restore runtime quantities (fuel/charges/stacks) that are not baked into templates */
         drop_apply_spawn_quantities(out);

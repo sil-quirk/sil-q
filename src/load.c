@@ -1197,16 +1197,22 @@ static void rd_options(void)
         rd_byte(&b);
         op_ptr->partition_narrative_mode = b;
         if (op_ptr->partition_narrative_mode > PARTITION_NARRATIVE_OFF)
-            op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_MESSAGE;
+            op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_BANNER;
 
-        /* Skip 2 remaining spare bytes */
-        strip_bytes(2);
+        rd_byte(&b);
+        op_ptr->noble_item_spawn_mode = b;
+        if (op_ptr->noble_item_spawn_mode > NOBLE_ITEM_SPAWN_INCLUDE_VAULTS)
+            op_ptr->noble_item_spawn_mode = NOBLE_ITEM_SPAWN_RESTRICTED;
+
+        /* Skip 1 remaining spare byte */
+        strip_bytes(1);
     }
     else
     {
         /* Old savefiles used the boolean show_level_entry_banner option. */
         op_ptr->level_entry_narrative_mode = LEVEL_ENTRY_NARRATIVE_BANNER_DELAY;
-        op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_MESSAGE;
+        op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_BANNER;
+        op_ptr->noble_item_spawn_mode = NOBLE_ITEM_SPAWN_RESTRICTED;
         strip_bytes(4);
     }
 
@@ -1255,8 +1261,9 @@ static void rd_options(void)
             ? LEVEL_ENTRY_NARRATIVE_BANNER_DELAY
             : LEVEL_ENTRY_NARRATIVE_OFF;
         op_ptr->partition_narrative_mode = op_ptr->opt[OPT_show_partition_narrative]
-            ? PARTITION_NARRATIVE_MESSAGE
+            ? PARTITION_NARRATIVE_BANNER
             : PARTITION_NARRATIVE_OFF;
+        op_ptr->noble_item_spawn_mode = NOBLE_ITEM_SPAWN_RESTRICTED;
     }
 
     /*** Window Options ***/
