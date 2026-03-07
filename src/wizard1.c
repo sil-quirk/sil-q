@@ -339,7 +339,7 @@ bool make_fake_artefact(object_type* o_ptr, byte name1)
     o_ptr->abilities += a_ptr->abilities;
 
     /* Hack -- extract the "cursed" flag */
-    if (a_ptr->flags3 & (TR3_LIGHT_CURSE))
+    if (a_ptr->flags3 & (TR3_LIGHT_CURSE | TR3_HEAVY_CURSE | TR3_PERMA_CURSE))
         o_ptr->ident |= (IDENT_CURSED);
 
     /* Success */

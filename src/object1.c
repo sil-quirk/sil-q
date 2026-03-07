@@ -1442,6 +1442,21 @@ static void object_desc_append_inscription(char* buf, size_t max, const char* ta
     SDL_strlcat(buf, tag, max);
 }
 
+static const char* object_desc_curse_inscription(const object_type* o_ptr,
+    bool known, u32b f3)
+{
+    if (!known || !cursed_p(o_ptr))
+        return NULL;
+
+    if (f3 & TR3_PERMA_CURSE)
+        return "bound by the Oath of Feanor";
+
+    if (f3 & TR3_HEAVY_CURSE)
+        return "heavily cursed";
+
+    return "cursed";
+}
+
 void object_desc(
     char* buf, size_t max, const object_type* o_ptr, int pref, int mode)
 {
@@ -2126,80 +2141,81 @@ void object_desc(
     }
 
     /* Dump "pval" flags for wearable items */
-    if (known && (f1 & (TR1_PVAL_MASK)))
+    u32b pval_f1 = object_pval_flags1(o_ptr);
+    if (known && pval_f1)
     {
         int best = 0;
         int best_abs = 0;
 
-        if (f1 & (TR1_STR | TR1_NEG_STR))
+        if (pval_f1 & (TR1_STR | TR1_NEG_STR))
         {
             int v = o_ptr->stat_bonus[A_STR];
             int av = ABS(v);
             if (av > best_abs) { best_abs = av; best = v; }
         }
-        if (f1 & (TR1_DEX | TR1_NEG_DEX))
+        if (pval_f1 & (TR1_DEX | TR1_NEG_DEX))
         {
             int v = o_ptr->stat_bonus[A_DEX];
             int av = ABS(v);
             if (av > best_abs) { best_abs = av; best = v; }
         }
-        if (f1 & (TR1_CON | TR1_NEG_CON))
+        if (pval_f1 & (TR1_CON | TR1_NEG_CON))
         {
             int v = o_ptr->stat_bonus[A_CON];
             int av = ABS(v);
             if (av > best_abs) { best_abs = av; best = v; }
         }
-        if (f1 & (TR1_GRA | TR1_NEG_GRA))
+        if (pval_f1 & (TR1_GRA | TR1_NEG_GRA))
         {
             int v = o_ptr->stat_bonus[A_GRA];
             int av = ABS(v);
             if (av > best_abs) { best_abs = av; best = v; }
         }
 
-        if (f1 & TR1_MEL)
+        if (pval_f1 & TR1_MEL)
         {
             int v = o_ptr->skill_bonus[S_MEL];
             int av = ABS(v);
             if (av > best_abs) { best_abs = av; best = v; }
         }
-        if (f1 & TR1_ARC)
+        if (pval_f1 & TR1_ARC)
         {
             int v = o_ptr->skill_bonus[S_ARC];
             int av = ABS(v);
             if (av > best_abs) { best_abs = av; best = v; }
         }
-        if (f1 & TR1_STL)
+        if (pval_f1 & TR1_STL)
         {
             int v = o_ptr->skill_bonus[S_STL];
             int av = ABS(v);
             if (av > best_abs) { best_abs = av; best = v; }
         }
-        if (f1 & TR1_PER)
+        if (pval_f1 & TR1_PER)
         {
             int v = o_ptr->skill_bonus[S_PER];
             int av = ABS(v);
             if (av > best_abs) { best_abs = av; best = v; }
         }
-        if (f1 & TR1_WIL)
+        if (pval_f1 & TR1_WIL)
         {
             int v = o_ptr->skill_bonus[S_WIL];
             int av = ABS(v);
             if (av > best_abs) { best_abs = av; best = v; }
         }
-        if (f1 & TR1_SMT)
+        if (pval_f1 & TR1_SMT)
         {
             int v = o_ptr->skill_bonus[S_SMT];
             int av = ABS(v);
             if (av > best_abs) { best_abs = av; best = v; }
         }
-        if (f1 & TR1_SNG)
+        if (pval_f1 & TR1_SNG)
         {
             int v = o_ptr->skill_bonus[S_SNG];
             int av = ABS(v);
             if (av > best_abs) { best_abs = av; best = v; }
         }
 
-        if (f1 & (TR1_TUNNEL | TR1_DAMAGE_SIDES))
+        if (pval_f1 & (TR1_TUNNEL | TR1_DAMAGE_SIDES))
         {
             int v = o_ptr->pval;
             int av = ABS(v);
@@ -2266,9 +2282,8 @@ void object_desc(
             v = inscrip_text[o_ptr->discount - INSCRIP_NULL];
         }
     }
-    else if (cursed_p(o_ptr) && known)
+    else if ((v = object_desc_curse_inscription(o_ptr, known, f3)) != NULL)
     {
-        v = "cursed";
     }
     else if (!known && (o_ptr->ident & (IDENT_EMPTY)))
     {
@@ -2357,6 +2372,7 @@ void object_desc_floor(
 
     bool aware;
     bool known;
+    u32b f1, f2, f3;
 
     if (!o_ptr || !o_ptr->k_idx)
     {
@@ -2380,6 +2396,9 @@ void object_desc_floor(
 
     aware = (object_aware_p(o_ptr) ? true : false);
     known = (object_known_p(o_ptr) ? true : false);
+    object_flags(o_ptr, &f1, &f2, &f3);
+    (void)f1;
+    (void)f2;
 
     if (o_ptr->obj_note)
         u = quark_str(o_ptr->obj_note);
@@ -2405,9 +2424,8 @@ void object_desc_floor(
             v = inscrip_text[o_ptr->discount - INSCRIP_NULL];
         }
     }
-    else if (cursed_p(o_ptr) && known)
+    else if ((v = object_desc_curse_inscription(o_ptr, known, f3)) != NULL)
     {
-        v = "cursed";
     }
     else if (!known && (o_ptr->ident & (IDENT_EMPTY)))
     {

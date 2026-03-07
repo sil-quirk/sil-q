@@ -3926,6 +3926,182 @@ static void death_knowledge(void)
     handle_stuff();
 }
 
+static bool story_intro_skip_requested(void)
+{
+    char check_key;
+
+    if (Term_inkey(&check_key, false, false) == 0)
+    {
+        Term_inkey(&check_key, false, true);
+        if (check_key == ESCAPE || check_key == '\n' || check_key == '\r')
+            return true;
+    }
+
+    return false;
+}
+
+static int story_intro_count_paragraph_rows(cptr text, int wrap_width)
+{
+    int rows = 0;
+    int col = 0;
+    bool line_has_content = false;
+    bool pending_space = false;
+    cptr s = text ? text : "";
+
+    if (wrap_width < 1)
+        wrap_width = 1;
+
+    while (*s)
+    {
+        int word_len = 0;
+
+        if (*s == '\n')
+        {
+            col = 0;
+            line_has_content = false;
+            pending_space = false;
+            s++;
+            continue;
+        }
+
+        if (*s == ' ' || *s == '\t')
+        {
+            pending_space = line_has_content;
+            s++;
+            continue;
+        }
+
+        while (s[word_len] && s[word_len] != ' ' && s[word_len] != '\t' && s[word_len] != '\n')
+            word_len++;
+
+        if (pending_space && line_has_content)
+        {
+            if (col + 1 + word_len > wrap_width)
+            {
+                col = 0;
+                line_has_content = false;
+            }
+            else
+            {
+                col++;
+            }
+            pending_space = false;
+        }
+
+        for (int i = 0; i < word_len; ++i)
+        {
+            if (col >= wrap_width)
+            {
+                col = 0;
+                line_has_content = false;
+            }
+
+            if (!line_has_content)
+            {
+                rows++;
+                line_has_content = true;
+            }
+
+            col++;
+        }
+
+        s += word_len;
+    }
+
+    return (rows > 0) ? rows : 1;
+}
+
+static void story_intro_putch(int x, int y, char ch, bool *skipped)
+{
+    if (!*skipped && story_intro_skip_requested())
+        *skipped = true;
+
+    Term_putch(x, y, TERM_WHITE, ch);
+
+    if (!*skipped)
+    {
+        Term_fresh();
+        Term_xtra(TERM_XTRA_DELAY, 30);
+    }
+}
+
+static bool story_intro_render_paragraph(cptr text, int indent, int wrap_width, int *row)
+{
+    int col = 0;
+    bool line_has_content = false;
+    bool pending_space = false;
+    bool skipped = false;
+    cptr s = text ? text : "";
+
+    if (!row)
+        return false;
+
+    if (wrap_width < 1)
+        wrap_width = 1;
+
+    while (*s)
+    {
+        int word_len = 0;
+
+        if (*s == '\n')
+        {
+            (*row)++;
+            col = 0;
+            line_has_content = false;
+            pending_space = false;
+            s++;
+            continue;
+        }
+
+        if (*s == ' ' || *s == '\t')
+        {
+            pending_space = line_has_content;
+            s++;
+            continue;
+        }
+
+        while (s[word_len] && s[word_len] != ' ' && s[word_len] != '\t' && s[word_len] != '\n')
+            word_len++;
+
+        if (pending_space && line_has_content)
+        {
+            if (col + 1 + word_len > wrap_width)
+            {
+                (*row)++;
+                col = 0;
+                line_has_content = false;
+            }
+            else
+            {
+                story_intro_putch(indent + col, *row, ' ', &skipped);
+                col++;
+            }
+            pending_space = false;
+        }
+
+        for (int i = 0; i < word_len; ++i)
+        {
+            if (col >= wrap_width)
+            {
+                (*row)++;
+                col = 0;
+                line_has_content = false;
+            }
+
+            story_intro_putch(indent + col, *row, s[i], &skipped);
+            col++;
+            line_has_content = true;
+        }
+
+        s += word_len;
+    }
+
+    if (skipped)
+        Term_fresh();
+
+    return skipped;
+}
+
 /**
  * Introductory narrative display, one paragraph per prompt.
  * Implemented as a static function to restrict linkage.
@@ -3991,88 +4167,32 @@ static void print_story_intro(void)
 
     /* Start on a blank screen */
     Term_clear();
-    int row = 1, col = 0;
+    int row = 1;
 
     for (int idx = 0; idx < total; idx++) {
         const char *s = intro_texts[idx];
-
-        /* Count lines needed for this paragraph */
-        int lines_needed = 0;
-        int temp_col = col;
-        for (size_t i = 0; s[i]; i++) {
-            if (s[i] == '\n' || temp_col >= wrap_width) {
-                lines_needed++;
-                temp_col = 0;
-                if (s[i] == '\n') continue;
-            }
-            temp_col++;
-        }
-        lines_needed++; /* Add one for the blank line after paragraph */
+        int lines_needed = story_intro_count_paragraph_rows(s, wrap_width) + 1;
+        bool skipped;
 
         /* Check if we have enough space for the whole paragraph */
-            if (row + lines_needed >= h - 1) {
-                Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key)");
-                hide_cursor = true;
-                {
-                    char k = inkey();
-                    if (k == 'S') { /* Capital S skips the intro entirely */
-                        Term_clear();
-                        goto cleanup_intro;
-                    }
+        if (row + lines_needed >= h - 1) {
+            Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key)");
+            hide_cursor = true;
+            {
+                char k = inkey();
+                if (k == 'S') { /* Capital S skips the intro entirely */
+                    Term_clear();
+                    goto cleanup_intro;
                 }
-                Term_clear();
-                row = 1;
             }
-
-        col = 0;
-
-        /* Print this string, character by character */
-        bool skipped = false;
-        for (size_t i = 0; s[i]; i++) {
-            /* Check for ESC or Enter key press to skip typewriter effect */
-            char check_key;
-            if (Term_inkey(&check_key, false, false) == 0) {
-                /* Only respond to ESC or Enter - consume and check */
-                Term_inkey(&check_key, false, true);
-                if (check_key == ESCAPE || check_key == '\n' || check_key == '\r') {
-                    skipped = true;
-                    /* Print remaining text instantly */
-                    for (size_t j = i; s[j]; j++) {
-                        char ch = s[j];
-                        if (ch == '\n' || col >= wrap_width) {
-                            row++;
-                            col = 0;
-                            if (ch == '\n') continue;
-                        }
-                        Term_putch(indent + col, row, TERM_WHITE, ch);
-                        col++;
-                    }
-                    Term_fresh();
-                    break;
-                }
-                /* Other keys are ignored (already consumed) */
-            }
-            
-            char ch = s[i];
-
-            /* Newline or wrap? */
-            if (ch == '\n' || col >= wrap_width) {
-                row++;
-                col = 0;
-                if (ch == '\n') continue;
-            }
-
-            Term_putch(indent + col, row, TERM_WHITE, ch);
-            Term_fresh();
-            col++;
-
-            /* Delay 25 ms after each character */
-            Term_xtra(TERM_XTRA_DELAY, 30);
+            Term_clear();
+            row = 1;
         }
+
+        skipped = story_intro_render_paragraph(s, indent, wrap_width, &row);
 
         /* Leave one blank line after each paragraph */
         row++;
-        col = 0;
 
         /* 1 second pause after paragraph (skip if we already skipped typewriter) */
         if (!skipped) {

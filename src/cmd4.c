@@ -763,45 +763,7 @@ void add_random_curse(object_type *o_ptr)
     if (o_ptr->pval > 0)  o_ptr->pval = -(rand_int(3) + 1); /* �1 � �3 */
     int pval_delta = o_ptr->pval - old_pval;
     if (pval_delta != 0)
-    {
-        u32b f1, f2, f3;
-        object_flags(o_ptr, &f1, &f2, &f3);
-
-        if (f1 & TR1_STR)
-            o_ptr->stat_bonus[A_STR] += pval_delta;
-        if (f1 & TR1_NEG_STR)
-            o_ptr->stat_bonus[A_STR] -= pval_delta;
-
-        if (f1 & TR1_DEX)
-            o_ptr->stat_bonus[A_DEX] += pval_delta;
-        if (f1 & TR1_NEG_DEX)
-            o_ptr->stat_bonus[A_DEX] -= pval_delta;
-
-        if (f1 & TR1_CON)
-            o_ptr->stat_bonus[A_CON] += pval_delta;
-        if (f1 & TR1_NEG_CON)
-            o_ptr->stat_bonus[A_CON] -= pval_delta;
-
-        if (f1 & TR1_GRA)
-            o_ptr->stat_bonus[A_GRA] += pval_delta;
-        if (f1 & TR1_NEG_GRA)
-            o_ptr->stat_bonus[A_GRA] -= pval_delta;
-
-        if (f1 & TR1_MEL)
-            o_ptr->skill_bonus[S_MEL] += pval_delta;
-        if (f1 & TR1_ARC)
-            o_ptr->skill_bonus[S_ARC] += pval_delta;
-        if (f1 & TR1_STL)
-            o_ptr->skill_bonus[S_STL] += pval_delta;
-        if (f1 & TR1_PER)
-            o_ptr->skill_bonus[S_PER] += pval_delta;
-        if (f1 & TR1_WIL)
-            o_ptr->skill_bonus[S_WIL] += pval_delta;
-        if (f1 & TR1_SMT)
-            o_ptr->skill_bonus[S_SMT] += pval_delta;
-        if (f1 & TR1_SNG)
-            o_ptr->skill_bonus[S_SNG] += pval_delta;
-    }
+        object_apply_pval_delta_with_mask(o_ptr, object_pval_flags1(o_ptr), pval_delta);
     if (o_ptr->att > 0) o_ptr->att = -(rand_int(3) + 1);
     if (o_ptr->evn > 0) o_ptr->evn = -(rand_int(3) + 1);
 
@@ -6622,47 +6584,10 @@ void create_tval_menu(void)
  */
 static void smith_apply_pval_delta_to_stat_skill_bonuses(object_type* o_ptr, int delta)
 {
-    u32b f1, f2, f3;
-
     if (!o_ptr || delta == 0)
         return;
 
-    object_flags(o_ptr, &f1, &f2, &f3);
-
-    if (f1 & TR1_STR)
-        o_ptr->stat_bonus[A_STR] += delta;
-    if (f1 & TR1_NEG_STR)
-        o_ptr->stat_bonus[A_STR] -= delta;
-
-    if (f1 & TR1_DEX)
-        o_ptr->stat_bonus[A_DEX] += delta;
-    if (f1 & TR1_NEG_DEX)
-        o_ptr->stat_bonus[A_DEX] -= delta;
-
-    if (f1 & TR1_CON)
-        o_ptr->stat_bonus[A_CON] += delta;
-    if (f1 & TR1_NEG_CON)
-        o_ptr->stat_bonus[A_CON] -= delta;
-
-    if (f1 & TR1_GRA)
-        o_ptr->stat_bonus[A_GRA] += delta;
-    if (f1 & TR1_NEG_GRA)
-        o_ptr->stat_bonus[A_GRA] -= delta;
-
-    if (f1 & TR1_MEL)
-        o_ptr->skill_bonus[S_MEL] += delta;
-    if (f1 & TR1_ARC)
-        o_ptr->skill_bonus[S_ARC] += delta;
-    if (f1 & TR1_STL)
-        o_ptr->skill_bonus[S_STL] += delta;
-    if (f1 & TR1_PER)
-        o_ptr->skill_bonus[S_PER] += delta;
-    if (f1 & TR1_WIL)
-        o_ptr->skill_bonus[S_WIL] += delta;
-    if (f1 & TR1_SMT)
-        o_ptr->skill_bonus[S_SMT] += delta;
-    if (f1 & TR1_SNG)
-        o_ptr->skill_bonus[S_SNG] += delta;
+    object_apply_pval_delta_with_mask(o_ptr, object_pval_flags1(o_ptr), delta);
 }
 
 static void smith_change_pval(object_type* o_ptr, int delta)
@@ -17570,7 +17495,7 @@ static bool prepare_fake_artefact(object_type* o_ptr, byte name1)
     o_ptr->ident |= IDENT_SPOIL;
 
     /* Hack -- extract the "cursed" flag */
-    if (a_ptr->flags3 & (TR3_LIGHT_CURSE))
+    if (a_ptr->flags3 & (TR3_LIGHT_CURSE | TR3_HEAVY_CURSE | TR3_PERMA_CURSE))
         o_ptr->ident |= (IDENT_CURSED);
 
     /* Success */
@@ -18480,42 +18405,7 @@ void apply_magic_fake(object_type* o_ptr)
 
     int pval_delta = (int)o_ptr->pval - (int)old_pval;
     if (pval_delta != 0)
-    {
-        u32b f1, f2, f3;
-        object_flags(o_ptr, &f1, &f2, &f3);
-
-        if (f1 & TR1_STR)
-            o_ptr->stat_bonus[A_STR] += pval_delta;
-        if (f1 & TR1_NEG_STR)
-            o_ptr->stat_bonus[A_STR] -= pval_delta;
-        if (f1 & TR1_DEX)
-            o_ptr->stat_bonus[A_DEX] += pval_delta;
-        if (f1 & TR1_NEG_DEX)
-            o_ptr->stat_bonus[A_DEX] -= pval_delta;
-        if (f1 & TR1_CON)
-            o_ptr->stat_bonus[A_CON] += pval_delta;
-        if (f1 & TR1_NEG_CON)
-            o_ptr->stat_bonus[A_CON] -= pval_delta;
-        if (f1 & TR1_GRA)
-            o_ptr->stat_bonus[A_GRA] += pval_delta;
-        if (f1 & TR1_NEG_GRA)
-            o_ptr->stat_bonus[A_GRA] -= pval_delta;
-
-        if (f1 & TR1_MEL)
-            o_ptr->skill_bonus[S_MEL] += pval_delta;
-        if (f1 & TR1_ARC)
-            o_ptr->skill_bonus[S_ARC] += pval_delta;
-        if (f1 & TR1_STL)
-            o_ptr->skill_bonus[S_STL] += pval_delta;
-        if (f1 & TR1_PER)
-            o_ptr->skill_bonus[S_PER] += pval_delta;
-        if (f1 & TR1_WIL)
-            o_ptr->skill_bonus[S_WIL] += pval_delta;
-        if (f1 & TR1_SMT)
-            o_ptr->skill_bonus[S_SMT] += pval_delta;
-        if (f1 & TR1_SNG)
-            o_ptr->skill_bonus[S_SNG] += pval_delta;
-    }
+        object_apply_pval_delta_with_mask(o_ptr, object_pval_flags1(o_ptr), pval_delta);
 }
 
 /*

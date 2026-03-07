@@ -860,6 +860,57 @@ static bool character_flags_need_compact_layout(void)
     return (wid < min_flags_wid);
 }
 
+static cptr character_selection_header_text(bool character_phase)
+{
+    if (character_phase && character_flags_need_compact_layout())
+        return "Character:";
+
+    return "Character Selection:";
+}
+
+static void draw_character_selection_header(bool character_phase)
+{
+    cptr header = character_selection_header_text(character_phase);
+
+    Term_erase(0, HEADER_ROW, 255);
+    Term_putstr(QUESTION_COL, HEADER_ROW, -1, TERM_L_BLUE, header);
+}
+
+static int collect_character_starting_abilities(int character, cptr out[], int out_max)
+{
+    int count = 0;
+
+    if (character <= 0)
+        return 0;
+
+    if (c_info[character].flags_u & UNQ_MIM)
+        return 0;
+
+    for (int slot = 0; slot < CHARACTER_ABILITY_MAX; slot++)
+    {
+        int stat = c_info[character].a_adj[slot][0];
+        int ability = c_info[character].a_adj[slot][1];
+        cptr name;
+
+        if (stat < 0)
+            break;
+
+        if (stat >= S_MAX || ability < 0 || ability >= ABILITIES_MAX)
+            continue;
+
+        name = character_ability_names[stat][ability];
+        if (!name)
+            continue;
+
+        if (out && count < out_max)
+            out[count] = name;
+
+        count++;
+    }
+
+    return count;
+}
+
 static void display_character_description_screen(birth_menu choice)
 {
     int wid = 80;
@@ -1282,6 +1333,9 @@ static void print_rh_flags(int race, int character, int col, int row)
     int flags_left  = 0;
     int flags_right = 0;
     bool compact_layout = character_flags_need_compact_layout();
+    cptr ability_lines[CHARACTER_ABILITY_MAX];
+    int ability_line_n = collect_character_starting_abilities(character,
+        ability_lines, N_ELEMENTS(ability_lines));
 
     byte attr_affinity = TERM_GREEN;
     byte attr_mastery  = TERM_L_GREEN;
@@ -1444,6 +1498,9 @@ static void print_rh_flags(int race, int character, int col, int row)
             compact_line_n++;                                               \
         }                                                                   \
     } while (0)
+
+        for (int i = 0; i < ability_line_n && (row + i) < DESCRIPTION_ROW; ++i)
+            Term_putstr(col, row + i, -1, TERM_YELLOW, ability_lines[i]);
 
         for (int i = 0; i < unique_n; ++i)
             if (unique_buf[i].side == 0)
@@ -1618,7 +1675,7 @@ if (!compact_layout)
 
 
 /* Display starting abilities */
-    if (character && !(c_info[character].flags_u & UNQ_MIM))
+    if (ability_line_n > 0)
     {
         const int x     = col + 7;
         const int y0    = row - 5;
@@ -1632,20 +1689,12 @@ if (!compact_layout)
 
         /* 2) now draw the actual list */
         int y = y0;
-        for (int slot = 0; slot < CHARACTER_ABILITY_MAX; slot++)
-        {
-            int stat = c_info[character].a_adj[slot][0];
-            int abil = c_info[character].a_adj[slot][1];
+        int max_lines = CHARACTER_ABILITY_MAX - 3;
+        if (ability_line_n < max_lines)
+            max_lines = ability_line_n;
 
-            if (stat < 0) break;
-
-            if (stat < S_MAX && abil < ABILITIES_MAX)
-            {
-                const char *name = character_ability_names[stat][abil];
-                if (name)
-                    Term_putstr(x, y++, -1, TERM_YELLOW, name);
-            }
-        }
+        for (int slot = 0; slot < max_lines; slot++)
+            Term_putstr(x, y++, -1, TERM_YELLOW, ability_lines[slot]);
     }
 }
 }
@@ -1893,7 +1942,7 @@ static void character_aux_hook(birth_menu c_str)
             break;         /* Default to average */
     }
     
-    fallback_name_col = QUESTION_COL + (int)strlen("Character Selection:") + 1;
+    fallback_name_col = QUESTION_COL + (int)strlen(character_selection_header_text(true)) + 1;
     if (fallback_name_col < 0)
         fallback_name_col = 0;
     Term_erase(fallback_name_col, HEADER_ROW, 255);
@@ -2058,8 +2107,7 @@ NavResult character_creation(void)
     Term_clear();
 
     /* Display some helpful information */
-    Term_putstr(
-        QUESTION_COL, HEADER_ROW, -1, TERM_L_BLUE, "Character Selection:");
+    draw_character_selection_header(false);
 
     if (steamdeck_controls_active()) {
         char random_label[16];
@@ -2110,10 +2158,13 @@ NavResult character_creation(void)
 
         if (phase == 2)
         {
+            draw_character_selection_header(true);
+
             /* Choose the player's character template */
             if (!get_character_profile())
             {
                 phase = 1;          /* Esc here → go back to race */
+                draw_character_selection_header(false);
                 /* Clear the character display area when going back to race selection */
                 for (i = HEADER_ROW; i <= TABLE_ROW + A_MAX + 10; i++)
                 {
