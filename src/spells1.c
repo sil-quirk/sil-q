@@ -5696,30 +5696,38 @@ void song_of_binding(monster_type* m_ptr)
     // use the monster noise flow to represent the song levels at each square
     update_flow(m_ptr->fy, m_ptr->fx, FLOW_MONSTER_NOISE);
 
-    // scan the map, closing doors
-    for (y = 0; y < p_ptr->cur_map_hgt; y++)
+    // Morgoth's throne-room fight should not revolve around him repeatedly
+    // re-closing the hall's doors, but keep the song's slowing effect.
+    if (!((m_ptr->r_idx == R_IDX_MORGOTH)
+            && (p_ptr->depth == MORGOTH_DEPTH)
+            && p_ptr->morgoth_hall_entered
+            && !p_ptr->on_the_run))
     {
-        for (x = 0; x < p_ptr->cur_map_wid; x++)
+        // scan the map, closing doors
+        for (y = 0; y < p_ptr->cur_map_hgt; y++)
         {
-            if (!in_bounds_fully(y, x))
-                continue;
-
-            // if there is no player/monster in the square
-            if (cave_m_idx[y][x] == 0)
+            for (x = 0; x < p_ptr->cur_map_wid; x++)
             {
-                // if it is a door
-                if ((cave_feat[y][x] == FEAT_OPEN)
-                    || (cave_feat[y][x] == FEAT_BROKEN)
-                    || cave_known_closed_door_bold(y, x))
-                {
-                    // if the door isn't between the monster and the player
-                    if (!(ORDERED(m_ptr->fy, y, p_ptr->py)
-                            && ORDERED(m_ptr->fx, x, p_ptr->px)))
-                    {
-                        result = skill_check(m_ptr, song_skill,
-                            15 + flow_dist(FLOW_MONSTER_NOISE, y, x), NULL);
+                if (!in_bounds_fully(y, x))
+                    continue;
 
-                        (void)lock_door(y, x, result);
+                // if there is no player/monster in the square
+                if (cave_m_idx[y][x] == 0)
+                {
+                    // if it is a door
+                    if ((cave_feat[y][x] == FEAT_OPEN)
+                        || (cave_feat[y][x] == FEAT_BROKEN)
+                        || cave_known_closed_door_bold(y, x))
+                    {
+                        // if the door isn't between the monster and the player
+                        if (!(ORDERED(m_ptr->fy, y, p_ptr->py)
+                                && ORDERED(m_ptr->fx, x, p_ptr->px)))
+                        {
+                            result = skill_check(m_ptr, song_skill,
+                                15 + flow_dist(FLOW_MONSTER_NOISE, y, x), NULL);
+
+                            (void)lock_door(y, x, result);
+                        }
                     }
                 }
             }

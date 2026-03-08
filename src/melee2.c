@@ -309,6 +309,16 @@ static void remove_invalid_spells(int m_idx, u32b* f4p)
         f4 &= ~(RF4_SNG_MASK);
     }
 
+    // In his throne hall, Morgoth should not waste turns on the door-closing
+    // part of Song of Binding before the pursuit begins.
+    if ((m_ptr->r_idx == R_IDX_MORGOTH)
+        && (p_ptr->depth == MORGOTH_DEPTH)
+        && p_ptr->morgoth_hall_entered
+        && !p_ptr->on_the_run)
+    {
+        f4 &= ~(RF4_SNG_BINDING);
+    }
+
     // projectiles have limited range
     if (dist > 5)
         f4 &= ~(RF4_BOULDER);

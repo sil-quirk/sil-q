@@ -2042,7 +2042,7 @@ static cptr blessing_display_name(int idx)
  * number of curses actually chosen and fills `out` with their indices.
  * The display is cleared afterwards so we can start narrative fresh.
  */
-int choose_escape_curses_ui(int n, int out[3])
+int choose_escape_curses_ui(int n, int out[4])
 {
     // int rolls = any_curse_flag_active(CUR_NOCHOICE) ? 1 : n;
     int taken = 0;
@@ -2059,7 +2059,7 @@ int choose_escape_curses_ui(int n, int out[3])
             "The Valar watch silently as Morgoth's malice reaches out from shadow-"
             "Your triumph has drawn his wrath. His dark will twists fate, "
             "forcing upon you the final choice-%s curse%s you must bear.",
-            (n == 1) ? "a" : (n == 2) ? "two" : "three",
+            (n == 1) ? "a" : (n == 2) ? "two" : (n == 3) ? "three" : "four",
             (n == 1) ? "" : "s");
     
     if (!print_paragraph_fade(intro_text, TERM_L_WHITE, 4))
@@ -2073,7 +2073,7 @@ int choose_escape_curses_ui(int n, int out[3])
         int idx = menu_choose_one_curse(i);   /* weighted picker, UI */
         log_debug("Player selected curse %d: %s", idx, cu_name + cu_info[idx].name);
         add_curse_stack(idx);                /* gameplay side‑effect */
-        if (taken < 3) out[taken++] = idx;
+        if (taken < 4) out[taken++] = idx;
     }
 
     /* Wipe the menu clutter so narrative starts clean */
@@ -2380,8 +2380,12 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_
     /* ============================================================= */
     /* SCENE 1: Escape Curse Selection                              */
     /* ============================================================= */
-    int chosen[3] = { -1, -1, -1 };
-    int chosen_cnt = choose_escape_curses_ui(sil_count, chosen);
+    int curse_count = sil_count;
+    int chosen[4] = { -1, -1, -1, -1 };
+
+    if (sil_count == 3) curse_count = 4;
+
+    int chosen_cnt = choose_escape_curses_ui(curse_count, chosen);
 
     /* ============================================================= */
     /* SCENE 2: The Binding of Fate                                 */

@@ -2463,11 +2463,23 @@ static int welcome_screen_base_col(void)
     int hgt = 24;
     const int legacy_term_wid = 80;
     const int legacy_base_col = 14;
+    const int compact_block_wid = 43;
     int shift;
 
     Term_get_size(&wid, &hgt);
     if (wid < 1)
         wid = legacy_term_wid;
+
+    if (wid < legacy_term_wid)
+    {
+        /* Center the actual welcome block on compact screens so the
+         * 50x20 minimum layout does not clamp against the first column. */
+        shift = (wid - compact_block_wid) / 2;
+        if (shift < 0)
+            shift = 0;
+
+        return shift;
+    }
 
     /* Keep the legacy 80-column composition, but shift it with the
      * real terminal width instead of pinning the welcome screen to col 14. */

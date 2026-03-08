@@ -462,6 +462,7 @@ extern const char* styles_get_style_m2(int sidx);
 /* After showing the per-style banner on level entry, count down user inputs
  * and force a full screen redraw when it reaches zero. */
 extern int g_banner_force_redraw_remaining;
+extern void clear_active_narrative_banner(void);
 extern void styles_reload_messages_from_text(void);
 extern void styles_clear_display_messages(void);
 extern int p_ptr_depth_proxy(void);

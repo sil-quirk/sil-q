@@ -14909,7 +14909,7 @@ static bool cave_gen(void)
         bool placed = false;
         int sils = silmarils_possessed();
         int max_dist = 50 - (sils * 8);
-        int min_dist = 8;
+        int min_dist = 9 - sils;
 
         if (max_dist < min_dist + 2)
             max_dist = min_dist + 2;

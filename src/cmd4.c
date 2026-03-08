@@ -343,6 +343,9 @@ void do_cmd_redraw(void)
     /* Reset "inkey()" */
     flush();
 
+    if (g_banner_force_redraw_remaining <= 0)
+        clear_active_narrative_banner();
+
     /* Hack -- React to changes */
     Term_xtra(TERM_XTRA_REACT, 0);
 

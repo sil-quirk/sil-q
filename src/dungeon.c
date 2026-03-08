@@ -93,6 +93,8 @@ static void queue_active_partition_banner(void)
         return;
     if (!Term || !angband_term[0] || (Term != angband_term[0]))
         return;
+    if (character_icky > 0)
+        return;
 
     Term_get_size(&wid, &h);
     if (h <= 1)
@@ -197,6 +199,12 @@ static void queue_active_partition_banner(void)
 static void narrative_banner_pre_fresh_hook(void)
 {
     queue_active_partition_banner();
+}
+
+void clear_active_narrative_banner(void)
+{
+    g_banner_force_redraw_remaining = 0;
+    g_active_partition_banner_text[0] = '\0';
 }
 
 /*
