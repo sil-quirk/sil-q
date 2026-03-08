@@ -3499,9 +3499,9 @@ static void dungeon(void)
     }
     first_entry_to_dungeon = false;
     
-    /* Handle music transitions based on depth changes */
-    bool was_in_dungeon = (last_music_depth > 0);
-    bool now_in_dungeon = (p_ptr->depth > 0);
+    /* Depth 0 (the Gates) is still active gameplay and should use ambient music. */
+    bool was_in_dungeon = (last_music_depth >= 0);
+    bool now_in_dungeon = (p_ptr->depth >= 0);
     
     if (now_in_dungeon && !was_in_dungeon) {
         /* Entering dungeon from surface - switch to ambient */
@@ -4729,14 +4729,11 @@ PlayResult play_game(void)
 
     log_info("Game session started - entering play mode");
     
-    /* Music: Stop main menu music and start ambient if we're in the dungeon */
-    if (p_ptr->depth > 0) {
-        log_debug("Starting new game in dungeon (depth=%d) - switching to ambient music", p_ptr->depth);
-        sdl_music_stop_main();
-        sdl_music_play_ambient();
-    } else {
-        log_debug("Starting new game on surface - keeping main menu music");
-    }
+    /* Any active run, including the Gates at depth 0, uses ambient gameplay music. */
+    log_debug("Starting game session at depth=%d - switching to ambient music", p_ptr->depth);
+    sdl_music_stop_main();
+    sdl_music_play_ambient();
+    last_music_depth = p_ptr->depth;
 
     /* Hack -- Enforce "delayed death" */
     if (p_ptr->chp <= 0)

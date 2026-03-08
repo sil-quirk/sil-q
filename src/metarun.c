@@ -2888,6 +2888,110 @@ static void start_new_metarun(void)
     log_info("New metarun %d created and initialized", metar.id);
 }
 
+static int metarun_effect_wrap_width(int term_width)
+{
+    int wrap_width = term_width - 2;
+    if (wrap_width < 5) wrap_width = 5;
+    return wrap_width;
+}
+
+static int metarun_count_effect_lines(cptr text, int wrap_width, int indent)
+{
+    if (!text || !*text) return 0;
+
+    if (sdl_is_story_font_enabled()) {
+        return count_wrapped_lines_story(text, wrap_width, indent);
+    }
+
+    return count_wrapped_lines(text, wrap_width, indent);
+}
+
+static int metarun_active_effect_block_lines(int id, int term_width)
+{
+    const int text_col = 4;
+    const int wrap_width = metarun_effect_wrap_width(term_width);
+    const curse_type *cu = &cu_info[id];
+    int stacks = CURSE_GET(id);
+    bool is_blessing = (stacks < 0);
+    bool seen = CURSE_SEEN(id);
+    int lines = 1; /* Name */
+
+    cptr desc = is_blessing
+        ? (cu->blessing_text ? cu_text + cu->blessing_text : NULL)
+        : (cu->text ? cu_text + cu->text : NULL);
+    if (desc && *desc) {
+        lines += metarun_count_effect_lines(desc, wrap_width, text_col);
+    }
+
+    if (seen) {
+        cptr power = is_blessing
+            ? (cu->blessing_power ? cu_text + cu->blessing_power : NULL)
+            : (cu->power ? cu_text + cu->power : NULL);
+
+        if (power && *power) {
+            char effect_line[1024];
+            strnfmt(effect_line, sizeof(effect_line), "Effect: %s", power);
+            lines += metarun_count_effect_lines(effect_line, wrap_width, text_col);
+        }
+    } else {
+        lines += 1;
+    }
+
+    lines += 1; /* Blank line between effects */
+    return lines;
+}
+
+static int metarun_render_active_effect_block(int id, int row, int term_width)
+{
+    const int name_col = 2;
+    const int text_col = 4;
+    const int wrap_width = metarun_effect_wrap_width(term_width);
+    int stacks = CURSE_GET(id);
+    bool is_blessing = (stacks < 0);
+    int magnitude = is_blessing ? -stacks : stacks;
+    bool seen = CURSE_SEEN(id);
+
+    const curse_type *cu = &cu_info[id];
+    cptr name = is_blessing ? blessing_display_name(id) : curse_display_name(id);
+    byte name_attr = is_blessing ? TERM_L_GREEN : TERM_L_RED;
+
+    char buf[120];
+    strnfmt(buf, sizeof(buf), "%s x%d", name, magnitude);
+    Term_putstr(name_col, row++, -1, name_attr, buf);
+
+    text_out_hook = text_out_to_screen;
+    text_out_indent = text_col;
+    text_out_wrap = wrap_width;
+
+    cptr desc = is_blessing
+        ? (cu->blessing_text ? cu_text + cu->blessing_text : NULL)
+        : (cu->text ? cu_text + cu->text : NULL);
+    if (desc && *desc) {
+        Term_gotoxy(text_col, row);
+        text_out_c(TERM_SLATE, desc);
+        row += metarun_count_effect_lines(desc, wrap_width, text_col);
+    }
+
+    if (seen) {
+        cptr power = is_blessing
+            ? (cu->blessing_power ? cu_text + cu->blessing_power : NULL)
+            : (cu->power ? cu_text + cu->power : NULL);
+
+        if (power && *power) {
+            char effect_line[1024];
+            strnfmt(effect_line, sizeof(effect_line), "Effect: %s", power);
+            Term_gotoxy(text_col, row);
+            text_out_c(name_attr, effect_line);
+            row += metarun_count_effect_lines(effect_line, wrap_width, text_col);
+        }
+    } else {
+        Term_putstr(text_col, row++, -1, TERM_L_DARK, "(Effect not yet identified)");
+    }
+
+    row++;
+    return row;
+}
+
 /* Show all active curses in a dedicated screen with pagination */
 static void show_all_active_curses(void)
 {
@@ -2928,16 +3032,32 @@ static void show_all_active_curses(void)
         return;
     }
     
-    /* Calculate how many effects fit per page */
-    int lines_per_effect = 4; /* name + description + power + blank */
-    int header_lines = 4;
-    int footer_lines = 2;
-    int available_lines = term_height - header_lines - footer_lines;
-    int effects_per_page = available_lines / lines_per_effect;
-    if (effects_per_page < 1) effects_per_page = 1;
-    
-    int total_pages = (active_count + effects_per_page - 1) / effects_per_page;
+    int available_lines = term_height - 4;
+    if (available_lines < 1) available_lines = 1;
+
+    int page_starts[64];
+    int total_pages = 0;
+    int lines_used = 0;
+    page_starts[0] = 0;
+
+    for (int i = 0; i < active_count; i++) {
+        int block_lines = metarun_active_effect_block_lines(active_ids[i], term_width);
+
+        if (lines_used > 0 && lines_used + block_lines > available_lines) {
+            total_pages++;
+            page_starts[total_pages] = i;
+            lines_used = 0;
+        }
+
+        lines_used += block_lines;
+    }
+
+    total_pages++;
     int current_page = 0;
+
+    void (*old_text_out_hook)(byte, cptr) = text_out_hook;
+    int old_text_out_indent = text_out_indent;
+    int old_text_out_wrap = text_out_wrap;
     
     while (true) {
         Term_clear();
@@ -2952,63 +3072,12 @@ static void show_all_active_curses(void)
         }
         Term_putstr(2, 1, -1, TERM_YELLOW, title_buf);
         
-        int start_idx = current_page * effects_per_page;
-        int end_idx = start_idx + effects_per_page;
-        if (end_idx > active_count) end_idx = active_count;
+        int start_idx = page_starts[current_page];
+        int end_idx = (current_page + 1 < total_pages) ? page_starts[current_page + 1] : active_count;
         
         int row = 3;
         for (int i = start_idx; i < end_idx; i++) {
-            int id = active_ids[i];
-            int stacks = CURSE_GET(id);
-            bool is_blessing = (stacks < 0);
-            int magnitude = is_blessing ? -stacks : stacks;
-            bool seen = CURSE_SEEN(id);
-            
-            const curse_type *cu = &cu_info[id];
-            cptr name = is_blessing ? blessing_display_name(id) : curse_display_name(id);
-            byte name_attr = is_blessing ? TERM_L_GREEN : TERM_L_RED;
-            
-            /* Display name and magnitude */
-            char buf[120];
-            snprintf(buf, sizeof buf, "%s x%d", name, magnitude);
-            Term_putstr(2, row++, -1, name_attr, buf);
-            
-            /* Always display description (D: or E:) */
-            cptr desc = is_blessing 
-                ? (cu->blessing_text ? cu_text + cu->blessing_text : NULL)
-                : (cu->text ? cu_text + cu->text : NULL);
-            if (desc && *desc) {
-                snprintf(buf, sizeof buf, "  %s", desc);
-                /* Truncate if too long for terminal */
-                if ((int)strlen(buf) > term_width - 2) {
-                    buf[term_width - 5] = '.';
-                    buf[term_width - 4] = '.';
-                    buf[term_width - 3] = '.';
-                    buf[term_width - 2] = '\0';
-                }
-                Term_putstr(2, row++, -1, TERM_SLATE, buf);
-            }
-            
-            /* Display power (P: or H:) only if identified */
-            if (seen) {
-                cptr power = is_blessing
-                    ? (cu->blessing_power ? cu_text + cu->blessing_power : NULL)
-                    : (cu->power ? cu_text + cu->power : NULL);
-                if (power && *power) {
-                    snprintf(buf, sizeof buf, "  Effect: %s", power);
-                    if ((int)strlen(buf) > term_width - 2) {
-                        buf[term_width - 5] = '.';
-                        buf[term_width - 4] = '.';
-                        buf[term_width - 3] = '.';
-                        buf[term_width - 2] = '\0';
-                    }
-                    Term_putstr(2, row++, -1, is_blessing ? TERM_L_GREEN : TERM_L_RED, buf);
-                }
-            } else {
-                Term_putstr(2, row++, -1, TERM_L_DARK, "  (Effect not yet identified)");
-            }
-            
-            row++; /* Blank line between effects */
+            row = metarun_render_active_effect_block(active_ids[i], row, term_width);
         }
         
         /* Footer with navigation instructions */
@@ -3064,6 +3133,10 @@ static void show_all_active_curses(void)
             break;
         }
     }
+
+    text_out_hook = old_text_out_hook;
+    text_out_indent = old_text_out_indent;
+    text_out_wrap = old_text_out_wrap;
     
     screen_load();
 }

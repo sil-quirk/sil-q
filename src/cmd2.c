@@ -1138,40 +1138,20 @@ static void prep_skeleton_food(object_type* o_ptr, byte skeleton_sval)
     object_known(o_ptr);
 }
 
-static void prep_skeleton_light(object_type* o_ptr, byte skeleton_sval)
+static bool prep_skeleton_light(object_type* o_ptr)
 {
-    s16b k_idx;
+    int depth = 1;
 
-    switch (skeleton_sval)
-    {
-    case SV_SKELETON_ELF:
-        k_idx = one_in_(2)
-            ? lookup_kind(TV_LIGHT, SV_LIGHT_LANTERN)
-            : lookup_kind(TV_LIGHT, SV_LIGHT_MALLORN);
-        break;
-    case SV_SKELETON_ORC:
-        k_idx = one_in_(4)
-            ? lookup_kind(TV_LIGHT, SV_LIGHT_LANTERN)
-            : lookup_kind(TV_LIGHT, SV_LIGHT_TORCH);
-        break;
-    case SV_SKELETON_HUMAN:
-    default:
-        k_idx = one_in_(2)
-            ? lookup_kind(TV_LIGHT, SV_LIGHT_LANTERN)
-            : lookup_kind(TV_LIGHT, SV_LIGHT_TORCH);
-        break;
-    }
+    if (p_ptr && p_ptr->depth > 0)
+        depth = p_ptr->depth;
 
-    object_prep(o_ptr, k_idx);
-
-    if (o_ptr->sval == SV_LIGHT_TORCH)
-        o_ptr->timeout = one_in_(3) ? rand_range(250, 1000) : 1000;
-    else if (o_ptr->sval == SV_LIGHT_LANTERN)
-        o_ptr->timeout = one_in_(3) ? rand_range(500, 3000) : 3000;
-    else if (o_ptr->sval == SV_LIGHT_MALLORN)
-        o_ptr->timeout = one_in_(3) ? rand_range(20, 50) : 50;
+    object_wipe(o_ptr);
+    if (!drop_generate_object(
+            depth, DROP_QUALITY_NORMAL, DROP_TYPE_TORCHES, false, o_ptr))
+        return false;
 
     object_known(o_ptr);
+    return true;
 }
 
 static bool skeleton_damaged_item_allowed(byte skeleton_sval, const object_type* o_ptr)
@@ -3964,8 +3944,7 @@ static void do_cmd_search_skeleton(int y, int x, s16b o_idx)
     }
     else if (roll < 60)
     {
-        prep_skeleton_light(i_ptr, o_ptr->sval);
-        search_failed = false;
+        search_failed = !prep_skeleton_light(i_ptr);
     }
     else if (roll < 80)
     {

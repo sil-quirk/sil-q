@@ -5845,16 +5845,77 @@ const char ultimate_bug_text[][100]
 
           { "" } };
 
-/* pause_with_text: prints name+alt, explicit blank line, then start splits */
+static int pause_with_text_print_wrapped_segment(int row, int col, byte attr,
+                                                 cptr text, int delay_msec)
+{
+    int term_wid = 80;
+    int term_hgt = 24;
+    int max_cols;
+    int wrap_col;
+    int rows_used = 1;
+
+    if (!text)
+        text = "";
+
+    Term_get_size(&term_wid, &term_hgt);
+    if (term_wid < 1)
+        term_wid = 80;
+    if (term_hgt < 1)
+        term_hgt = 24;
+
+    if (row < 0 || row >= term_hgt)
+        return 0;
+
+    if (col < 0)
+        col = 0;
+    if (col >= term_wid)
+        col = term_wid - 1;
+
+    max_cols = term_wid - col - 2;
+    if (max_cols < 1)
+        max_cols = 1;
+
+    wrap_col = col + max_cols;
+
+    if (*text)
+    {
+        if (sdl_is_story_font_enabled())
+            rows_used = count_wrapped_lines_story(text, wrap_col, col);
+        else
+            rows_used = count_wrapped_lines(text, wrap_col, col);
+
+        if (rows_used < 1)
+            rows_used = 1;
+    }
+
+    story_print_text(row, col, max_cols, attr, text);
+    Term_fresh();
+
+    if (delay_msec > 0)
+        Term_xtra(TERM_XTRA_DELAY, delay_msec);
+
+    return rows_used;
+}
+
+/* pause_with_text: prints name+alt, explicit blank line, then wrapped start splits */
 void pause_with_text(const char desc[][100], int row, int col,
                      const char extra[][100], byte extra_attr)
 {
     int i_main = 0, msec = 50;
     int banner_lines = 0;
+    int main_rows = 0;
+    int term_wid = 80;
+    int term_hgt = 24;
 
     /* 0. save & clear screen */
     screen_save();
     Term_clear();
+    Term_get_size(&term_wid, &term_hgt);
+    if (term_wid < 1)
+        term_wid = 80;
+    if (term_hgt < 1)
+        term_hgt = 24;
+    (void)term_wid;
 
     sdl_story_font_enable();
     log_debug("Banner: story font enabled");
@@ -5862,16 +5923,12 @@ void pause_with_text(const char desc[][100], int row, int col,
     /* 1. optional banner */
     if (extra) {
         /* Line 1: name+alt */
-        c_put_str(extra_attr, extra[0], row, col - 5);
-        Term_fresh();
-        Term_xtra(TERM_XTRA_DELAY, msec);
-        banner_lines = 1;
+        banner_lines += pause_with_text_print_wrapped_segment(
+            row + banner_lines, col - 5, extra_attr, extra[0], msec);
 
         /* Line 2: blank line */
-        c_put_str(extra_attr, "", row + banner_lines, col - 5);
-        Term_fresh();
-        Term_xtra(TERM_XTRA_DELAY, msec);
-        banner_lines++;
+        banner_lines += pause_with_text_print_wrapped_segment(
+            row + banner_lines, col - 5, extra_attr, "", msec);
 
         /* Determine how many extra entries */
         int n_extra = 0;
@@ -5881,10 +5938,8 @@ void pause_with_text(const char desc[][100], int row, int col,
         for (int i = 1; i < n_extra; ++i) {
             int shift = col - 5;
             if (i == n_extra - 1) shift += 4;
-            c_put_str(extra_attr, extra[i], row + banner_lines, shift);
-            Term_fresh();
-            Term_xtra(TERM_XTRA_DELAY, msec);
-            banner_lines++;
+            banner_lines += pause_with_text_print_wrapped_segment(
+                row + banner_lines, shift, extra_attr, extra[i], msec);
         }
 
         /* separator before stanza */
@@ -5893,9 +5948,8 @@ void pause_with_text(const char desc[][100], int row, int col,
 
     /* 2. main stanza */
     while (desc && desc[i_main][0]) {
-        c_put_str(TERM_WHITE, desc[i_main], row + banner_lines + i_main, col);
-        Term_fresh();
-        Term_xtra(TERM_XTRA_DELAY, msec);
+        main_rows += pause_with_text_print_wrapped_segment(
+            row + banner_lines + main_rows, col, TERM_WHITE, desc[i_main], msec);
         ++i_main;
     }
 
@@ -5908,11 +5962,10 @@ void pause_with_text(const char desc[][100], int row, int col,
     hide_cursor = false;
 
     /* 4. wipe the area used */
-    int total = banner_lines + i_main;
-    for (int j = row; j < row + total; ++j) {
-        c_put_str(TERM_WHITE,
-                  "                                                                 ",
-                  j, 1);
+    int total = banner_lines + main_rows;
+    int max_row = MIN(row + total, term_hgt);
+    for (int j = row; j < max_row; ++j) {
+        Term_erase(0, j, 255);
     }
 
     screen_load();
