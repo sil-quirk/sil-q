@@ -1188,10 +1188,15 @@ static bool skeleton_damaged_item_allowed(byte skeleton_sval, const object_type*
     return true;
 }
 
-static bool generate_skeleton_damaged_item(object_type* o_ptr, byte skeleton_sval)
+static bool generate_skeleton_damaged_item(object_type* o_ptr, byte skeleton_sval,
+    bool* no_item_generated)
 {
     bool old_allow_noble = drop_allow_noble;
     bool old_allow_evil = drop_allow_evil;
+    bool generated_any = false;
+
+    if (no_item_generated)
+        *no_item_generated = false;
 
     drop_allow_noble = (skeleton_sval == SV_SKELETON_HUMAN
         || skeleton_sval == SV_SKELETON_ELF);
@@ -1202,11 +1207,9 @@ static bool generate_skeleton_damaged_item(object_type* o_ptr, byte skeleton_sva
     {
         object_wipe(o_ptr);
         if (!make_object(o_ptr, DROP_QUALITY_NORMAL, DROP_TYPE_DAMAGED))
-        {
-            drop_allow_noble = old_allow_noble;
-            drop_allow_evil = old_allow_evil;
-            return true;
-        }
+            continue;
+
+        generated_any = true;
 
         if (skeleton_damaged_item_allowed(skeleton_sval, o_ptr))
         {
@@ -1219,6 +1222,8 @@ static bool generate_skeleton_damaged_item(object_type* o_ptr, byte skeleton_sva
     object_wipe(o_ptr);
     drop_allow_noble = old_allow_noble;
     drop_allow_evil = old_allow_evil;
+    if (no_item_generated)
+        *no_item_generated = !generated_any;
     return true;
 }
 
@@ -3932,6 +3937,7 @@ static void do_cmd_search_skeleton(int y, int x, s16b o_idx)
 {
     bool search_failed = true;
     bool auto_carry_food = false;
+    bool no_item_generated = false;
     object_type* o_ptr = &o_list[o_idx];
 
     // Searched already
@@ -3963,7 +3969,8 @@ static void do_cmd_search_skeleton(int y, int x, s16b o_idx)
     }
     else if (roll < 80)
     {
-        search_failed = generate_skeleton_damaged_item(i_ptr, o_ptr->sval);
+        search_failed = generate_skeleton_damaged_item(
+            i_ptr, o_ptr->sval, &no_item_generated);
     }
     else
     {
@@ -3976,7 +3983,10 @@ static void do_cmd_search_skeleton(int y, int x, s16b o_idx)
 
     if (search_failed)
     {
-        msg_print("You failed to find anything among the bones.");
+        if (no_item_generated)
+            msg_print("You sift the bones, but they yield only dust.");
+        else
+            msg_print("You failed to find anything among the bones.");
     }
     else
     {

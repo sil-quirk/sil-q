@@ -15,6 +15,8 @@
 #include "mem/alloc.h"
 #include "log/log.h"
 
+term_pre_fresh_hook_func g_term_pre_fresh_hook = NULL;
+
 /*
  * This file provides a generic, efficient, terminal window package,
  * which can be used not only on standard terminal environments such
@@ -1204,19 +1206,24 @@ static void Term_fresh_row_text(int y, int x1, int x2)
 errr Term_fresh(void)
 {
     int x, y;
-
-    int w = Term->wid;
-    int h = Term->hgt;
-
-    int y1 = Term->y1;
-    int y2 = Term->y2;
-
-    term_win* old = Term->old;
-    term_win* scr = Term->scr;
+    int w, h;
+    int y1, y2;
+    term_win* old;
+    term_win* scr;
 
     /* Do nothing unless "mapped" */
     if (!Term->mapped_flag)
         return (1);
+
+    if (g_term_pre_fresh_hook)
+        g_term_pre_fresh_hook();
+
+    w = Term->wid;
+    h = Term->hgt;
+    y1 = Term->y1;
+    y2 = Term->y2;
+    old = Term->old;
+    scr = Term->scr;
 
     /* Trivial Refresh */
     if ((y1 > y2) && (scr->cu == old->cu) && (scr->cv == old->cv)

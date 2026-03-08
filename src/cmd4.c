@@ -2236,7 +2236,7 @@ int abilities_menu1(int* highlight)
     wipe_screen_from(COL_ABILITY);
 
     // title
-    Term_putstr(COL_SKILL, 2, -1, TERM_WHITE, "Skills (i=inc)");
+    Term_putstr(COL_SKILL, 2, -1, TERM_WHITE, "Skills");
 
     // list the skills
     for (i = 0; i < options; i++)
@@ -2340,7 +2340,7 @@ int abilities_menu2(int skilltype, int* highlight)
     wipe_screen_from(COL_ABILITY);
 
     // abilities title with color
-    Term_putstr(COL_ABILITY, 1, -1, TERM_L_BLUE, "Abilities (i=increase)");
+    Term_putstr(COL_ABILITY, 1, -1, TERM_L_BLUE, "Abilities");
 
     // Add display counter for compact menu layout (avoids gaps from filtered abilities)
     int display_counter = 0;

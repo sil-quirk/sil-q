@@ -628,8 +628,9 @@ static errr rd_item(object_type* o_ptr)
     /* Extract the flags */
     object_flags(o_ptr, &f1, &f2, &f3);
 
-    /* Repair curse state for older saves and items created before expanded curse marking. */
-    if (f3 & (TR3_LIGHT_CURSE | TR3_HEAVY_CURSE | TR3_PERMA_CURSE))
+    /* Preserve sanctity-cleansed items saved as {uncursed}. */
+    if ((f3 & (TR3_LIGHT_CURSE | TR3_HEAVY_CURSE | TR3_PERMA_CURSE))
+        && (o_ptr->discount != INSCRIP_UNCURSED))
         o_ptr->ident |= (IDENT_CURSED);
 
     /* Paranoia */

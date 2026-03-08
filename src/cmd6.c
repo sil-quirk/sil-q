@@ -22,23 +22,28 @@ static const object_type* sanctity_target_excluded = NULL;
 
 static bool item_tester_hook_sanctity_target(const object_type* o_ptr)
 {
+    bool can_remove_jinx;
+
     if (!o_ptr || !o_ptr->k_idx)
         return false;
 
     if (o_ptr == sanctity_target_excluded)
         return false;
 
+    can_remove_jinx = p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING]
+        && object_has_ego_flag4(o_ptr, TR4_JINX);
+
+    if ((o_ptr->discount == INSCRIP_UNCURSED) && !can_remove_jinx)
+        return false;
+
     if (cursed_p(o_ptr))
+        return true;
+
+    if (can_remove_jinx)
         return true;
 
     if (!object_known_p(o_ptr))
         return true;
-
-    if (p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING]
-        && object_has_ego_flag4(o_ptr, TR4_JINX))
-    {
-        return true;
-    }
 
     return false;
 }

@@ -24,6 +24,7 @@
 
 /* Countdown for forcing a redraw after showing the per-style banner */
 int g_banner_force_redraw_remaining = 0;
+static char g_active_partition_banner_text[1024] = "";
 
 /* Morgoth vault tracking variables - file scope for cross-function access */
 static int last_player_y = 0;
@@ -72,12 +73,130 @@ static void reset_level_entry_tracking(void)
 {
     big_partition_seen_mask = 0;
     g_labyrinth_view_active = false;
+    g_active_partition_banner_text[0] = '\0';
     greater_vault_xp_name[0] = '\0';
     greater_vault_xp_awarded = false;
     last_partition_pi = -1;
     last_partition_kind = LEVEL_PART_NONE;
     partition_narrated_mask = 0;
     last_narrated_style_idx = -1;
+}
+
+static void queue_active_partition_banner(void)
+{
+    int wid, h;
+    const char* p = g_active_partition_banner_text;
+    int printed_lines = 0;
+    enum { MAX_LINES2 = 32, MAX_LEN2 = 255 };
+
+    if (!p[0] || (g_banner_force_redraw_remaining <= 0))
+        return;
+    if (!Term || !angband_term[0] || (Term != angband_term[0]))
+        return;
+
+    Term_get_size(&wid, &h);
+    if (h <= 1)
+        return;
+
+    sdl_story_font_enable();
+
+    while (*p && printed_lines < MAX_LINES2 && (1 + printed_lines) < h)
+    {
+        int indent = 14 + (2 * printed_lines);
+        int avail;
+        char buf[MAX_LEN2 + 1];
+        int linelen = 0;
+
+        if (use_bigtile && (((indent - COL_MAP) & 1) != 0))
+            indent++;
+        if (indent >= wid - 1)
+            break;
+
+        avail = wid - indent - 1;
+        if (avail < 8)
+            avail = 8;
+
+        buf[0] = '\0';
+
+        while (*p && (unsigned char)*p <= ' ')
+        {
+            if (*p == '\n')
+            {
+                p++;
+                break;
+            }
+            p++;
+        }
+
+        while (*p)
+        {
+            const char* w = p;
+            int wlen;
+            int need;
+
+            if (*p == '\n')
+            {
+                p++;
+                break;
+            }
+
+            while (*p && *p != '\n' && !isspace((unsigned char)*p))
+                p++;
+            wlen = (int)(p - w);
+
+            if ((wlen > avail) && (linelen == 0))
+            {
+                int take = (wlen > avail) ? avail : wlen;
+                if (take > MAX_LEN2)
+                    take = MAX_LEN2;
+                memcpy(buf, w, (size_t)take);
+                linelen = take;
+                buf[linelen] = '\0';
+                p = w + take;
+                break;
+            }
+
+            need = (linelen ? 1 : 0) + wlen;
+            if ((linelen + need <= avail) && (linelen + need <= MAX_LEN2))
+            {
+                if (linelen)
+                    buf[linelen++] = ' ';
+                memcpy(buf + linelen, w, (size_t)wlen);
+                linelen += wlen;
+                buf[linelen] = '\0';
+            }
+            else
+            {
+                p = w;
+                break;
+            }
+
+            while (*p && isspace((unsigned char)*p))
+            {
+                if (*p == '\n')
+                    break;
+                p++;
+            }
+            if (*p == '\n')
+            {
+                p++;
+                break;
+            }
+        }
+
+        if (linelen == 0)
+            break;
+
+        c_put_str(TERM_ORANGE, buf, 1 + printed_lines, indent);
+        printed_lines++;
+    }
+
+    sdl_story_font_disable();
+}
+
+static void narrative_banner_pre_fresh_hook(void)
+{
+    queue_active_partition_banner();
 }
 
 /*
@@ -209,7 +328,11 @@ static void display_partition_narrative_banner(int old_sidx, int new_sidx,
     if (!buf[0])
         return;
 
+    g_term_pre_fresh_hook = narrative_banner_pre_fresh_hook;
+    g_active_partition_banner_text[0] = '\0';
     print_fade_centered_at_row(buf, 1, false, line_delay);
+    SDL_strlcpy(g_active_partition_banner_text, buf,
+        sizeof(g_active_partition_banner_text));
     g_banner_force_redraw_remaining = 3;
 }
 
@@ -429,6 +552,7 @@ void reset_dungeon_state(void)
     was_in_morgoth_vault = false;
     morgoth_entry_preconfirmed = false;
     death_spectator_mode = false;
+    g_active_partition_banner_text[0] = '\0';
 
     /* Reset music/sound tracking */
     last_music_depth = -999;
@@ -3319,6 +3443,7 @@ static void process_player(void)
         g_banner_force_redraw_remaining--;
         if (g_banner_force_redraw_remaining == 0)
         {
+            g_active_partition_banner_text[0] = '\0';
             do_cmd_redraw();
         }
     }
