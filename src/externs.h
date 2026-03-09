@@ -1629,10 +1629,12 @@ extern bool get_sdl_hide_left_panel(void);
 extern void set_sdl_hide_left_panel(bool value);
 extern int get_sdl_pane_type(int index);
 extern int get_sdl_pane_where(int index);
+extern bool get_sdl_pane_enabled(int index);
 extern int get_sdl_pane_rows(int index);
 extern int get_sdl_pane_cols(int index);
 extern void set_sdl_pane_rows(int index, int rows);
 extern void set_sdl_pane_cols(int index, int cols);
+extern void set_sdl_pane_enabled(int index, bool enabled);
 extern int  get_sdl_intro_style(void);
 extern void set_sdl_intro_style(int style);
 extern void sdl_config_load_app_options(const char* filename);
@@ -1670,6 +1672,11 @@ extern int get_sdl_gamepad_default_shoulder_combo_binding(void);
 extern void sdl_gamepad_reset_bindings_to_default(void);
 extern void sdl_gamepad_action_binding_label(int binding, char* buf, size_t buflen);
 extern void sdl_gamepad_action_binding_short_label(int binding, char* buf, size_t buflen);
+extern int get_sdl_touch_pane_binding(int index);
+extern void set_sdl_touch_pane_binding(int index, int binding);
+extern int get_sdl_touch_pane_default_binding(int index);
+extern void sdl_touch_pane_reset_bindings_to_default(void);
+extern cptr get_sdl_touch_pane_slot_name(int index);
 /* Steam Deck UI menu helpers - get key bindings for menu actions */
 extern int steamdeck_back_key(void);      /* B button (EAST) - for back/quit */
 extern int steamdeck_confirm_key(void);   /* A button (SOUTH) - for confirm/ok */
@@ -1694,3 +1701,5 @@ extern void sdl_story_font_set_grid(bool grid);
 extern bool sdl_is_story_font_grid(void);
 extern int sdl_story_font_text_width(cptr text, int len);
 extern int sdl_get_cell_width(void);
+extern void binding_action_label(int binding, char* buf, size_t buflen);
+extern void binding_action_short(int binding, char* buf, size_t buflen);

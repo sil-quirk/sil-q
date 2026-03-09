@@ -5056,7 +5056,7 @@ static inline void put_role(color_role_t role, const char *s, int row, int col) 
 }
 
 
-static void help_binding_action_label(int binding, char* buf, size_t buflen)
+void binding_action_label(int binding, char* buf, size_t buflen)
 {
     if (!buf || !buflen)
         return;
@@ -5074,6 +5074,9 @@ static void help_binding_action_label(int binding, char* buf, size_t buflen)
     case GAMEPAD_BIND_ALT:
         SDL_strlcpy(buf, "Alt modifier", buflen);
         return;
+    case INPUT_BIND_CONFIRM:
+        SDL_strlcpy(buf, "Confirm", buflen);
+        return;
     case ' ':
         SDL_strlcpy(buf, "Confirm (Space)", buflen);
         return;
@@ -5082,6 +5085,33 @@ static void help_binding_action_label(int binding, char* buf, size_t buflen)
         return;
     case ESCAPE:
         SDL_strlcpy(buf, "Back (Esc)", buflen);
+        return;
+    case '7':
+        SDL_strlcpy(buf, "Move NW (7)", buflen);
+        return;
+    case '8':
+        SDL_strlcpy(buf, "Move N (8)", buflen);
+        return;
+    case '9':
+        SDL_strlcpy(buf, "Move NE (9)", buflen);
+        return;
+    case '4':
+        SDL_strlcpy(buf, "Move W (4)", buflen);
+        return;
+    case '5':
+        SDL_strlcpy(buf, "Wait / center (5)", buflen);
+        return;
+    case '6':
+        SDL_strlcpy(buf, "Move E (6)", buflen);
+        return;
+    case '1':
+        SDL_strlcpy(buf, "Move SW (1)", buflen);
+        return;
+    case '2':
+        SDL_strlcpy(buf, "Move S (2)", buflen);
+        return;
+    case '3':
+        SDL_strlcpy(buf, "Move SE (3)", buflen);
         return;
     case '\t':
         SDL_strlcpy(buf, "Abilities (Tab)", buflen);
@@ -5137,11 +5167,89 @@ static void help_binding_action_label(int binding, char* buf, size_t buflen)
     case 'j':
         SDL_strlcpy(buf, "Supplies (j)", buflen);
         return;
+    case 'z':
+        SDL_strlcpy(buf, "Wait (z)", buflen);
+        return;
+    case '.':
+        SDL_strlcpy(buf, "Run (.)", buflen);
+        return;
+    case '/':
+        SDL_strlcpy(buf, "Alt action (/)", buflen);
+        return;
+    case 'w':
+        SDL_strlcpy(buf, "Wear / wield (w)", buflen);
+        return;
+    case 'd':
+        SDL_strlcpy(buf, "Drop item (d)", buflen);
+        return;
+    case 'k':
+        SDL_strlcpy(buf, "Destroy item (k)", buflen);
+        return;
+    case 'g':
+        SDL_strlcpy(buf, "Pick up items (g)", buflen);
+        return;
+    case 'Z':
+        SDL_strlcpy(buf, "Rest (Z)", buflen);
+        return;
+    case 'c':
+        SDL_strlcpy(buf, "Close door (c)", buflen);
+        return;
+    case 'D':
+        SDL_strlcpy(buf, "Disarm trap / chest (D)", buflen);
+        return;
+    case 'X':
+        SDL_strlcpy(buf, "Exchange places (X)", buflen);
+        return;
+    case '-':
+        SDL_strlcpy(buf, "Fletch arrows (-)", buflen);
+        return;
+    case '{':
+        SDL_strlcpy(buf, "Inscribe item ({)", buflen);
+        return;
+    case 'E':
+        SDL_strlcpy(buf, "Eat food (E)", buflen);
+        return;
+    case 't':
+        SDL_strlcpy(buf, "Throw item (t)", buflen);
+        return;
+    case 'p':
+        SDL_strlcpy(buf, "Blow horn (p)", buflen);
+        return;
+    case 'L':
+        SDL_strlcpy(buf, "Pan view (L)", buflen);
+        return;
+    case '0':
+        SDL_strlcpy(buf, "Smithing screen (0)", buflen);
+        return;
+    case '<':
+        SDL_strlcpy(buf, "Go upstairs (<)", buflen);
+        return;
+    case '>':
+        SDL_strlcpy(buf, "Go downstairs (>)", buflen);
+        return;
     case 'm':
         SDL_strlcpy(buf, "Main menu (m)", buflen);
         return;
     case '?':
         SDL_strlcpy(buf, "Help (?)", buflen);
+        return;
+    case '@':
+        SDL_strlcpy(buf, "Character sheet (@)", buflen);
+        return;
+    case 'O':
+        SDL_strlcpy(buf, "Options menu (O)", buflen);
+        return;
+    case ':':
+        SDL_strlcpy(buf, "Take notes (:)", buflen);
+        return;
+    case '~':
+        SDL_strlcpy(buf, "Knowledge browser (~)", buflen);
+        return;
+    case '[':
+        SDL_strlcpy(buf, "Monster list ([)", buflen);
+        return;
+    case ']':
+        SDL_strlcpy(buf, "Object list (])", buflen);
         return;
     default:
         if (binding >= 32 && binding <= 126)
@@ -5152,7 +5260,7 @@ static void help_binding_action_label(int binding, char* buf, size_t buflen)
     }
 }
 
-static void help_binding_action_short(int binding, char* buf, size_t buflen)
+void binding_action_short(int binding, char* buf, size_t buflen)
 {
     if (!buf || !buflen)
         return;
@@ -5170,11 +5278,44 @@ static void help_binding_action_short(int binding, char* buf, size_t buflen)
     case GAMEPAD_BIND_ALT:
         SDL_strlcpy(buf, "Alt", buflen);
         return;
+    case INPUT_BIND_CONFIRM:
+        SDL_strlcpy(buf, "Confirm", buflen);
+        return;
     case ' ':
         SDL_strlcpy(buf, "Confirm", buflen);
         return;
+    case '\r':
+        SDL_strlcpy(buf, "Enter", buflen);
+        return;
     case ESCAPE:
         SDL_strlcpy(buf, "Back", buflen);
+        return;
+    case '7':
+        SDL_strlcpy(buf, "NW", buflen);
+        return;
+    case '8':
+        SDL_strlcpy(buf, "N", buflen);
+        return;
+    case '9':
+        SDL_strlcpy(buf, "NE", buflen);
+        return;
+    case '4':
+        SDL_strlcpy(buf, "W", buflen);
+        return;
+    case '5':
+        SDL_strlcpy(buf, "Wait", buflen);
+        return;
+    case '6':
+        SDL_strlcpy(buf, "E", buflen);
+        return;
+    case '1':
+        SDL_strlcpy(buf, "SW", buflen);
+        return;
+    case '2':
+        SDL_strlcpy(buf, "S", buflen);
+        return;
+    case '3':
+        SDL_strlcpy(buf, "SE", buflen);
         return;
     case '\t':
         SDL_strlcpy(buf, "Abilities", buflen);
@@ -5230,11 +5371,89 @@ static void help_binding_action_short(int binding, char* buf, size_t buflen)
     case 'j':
         SDL_strlcpy(buf, "Supplies", buflen);
         return;
+    case 'z':
+        SDL_strlcpy(buf, "Wait", buflen);
+        return;
+    case '.':
+        SDL_strlcpy(buf, "Run", buflen);
+        return;
+    case '/':
+        SDL_strlcpy(buf, "Alt", buflen);
+        return;
+    case 'w':
+        SDL_strlcpy(buf, "Wear", buflen);
+        return;
+    case 'd':
+        SDL_strlcpy(buf, "Drop", buflen);
+        return;
+    case 'k':
+        SDL_strlcpy(buf, "Destroy", buflen);
+        return;
+    case 'g':
+        SDL_strlcpy(buf, "Pickup", buflen);
+        return;
+    case 'Z':
+        SDL_strlcpy(buf, "Rest", buflen);
+        return;
+    case 'c':
+        SDL_strlcpy(buf, "Close", buflen);
+        return;
+    case 'D':
+        SDL_strlcpy(buf, "Disarm", buflen);
+        return;
+    case 'X':
+        SDL_strlcpy(buf, "Exchange", buflen);
+        return;
+    case '-':
+        SDL_strlcpy(buf, "Fletch", buflen);
+        return;
+    case '{':
+        SDL_strlcpy(buf, "Inscribe", buflen);
+        return;
+    case 'E':
+        SDL_strlcpy(buf, "Eat", buflen);
+        return;
+    case 't':
+        SDL_strlcpy(buf, "Throw", buflen);
+        return;
+    case 'p':
+        SDL_strlcpy(buf, "Horn", buflen);
+        return;
+    case 'L':
+        SDL_strlcpy(buf, "Pan", buflen);
+        return;
+    case '0':
+        SDL_strlcpy(buf, "Smithing", buflen);
+        return;
+    case '<':
+        SDL_strlcpy(buf, "Up", buflen);
+        return;
+    case '>':
+        SDL_strlcpy(buf, "Down", buflen);
+        return;
     case 'm':
         SDL_strlcpy(buf, "Menu", buflen);
         return;
     case '?':
         SDL_strlcpy(buf, "Help", buflen);
+        return;
+    case '@':
+        SDL_strlcpy(buf, "Character", buflen);
+        return;
+    case 'O':
+        SDL_strlcpy(buf, "Options", buflen);
+        return;
+    case ':':
+        SDL_strlcpy(buf, "Notes", buflen);
+        return;
+    case '~':
+        SDL_strlcpy(buf, "Knowledge", buflen);
+        return;
+    case '[':
+        SDL_strlcpy(buf, "Monsters", buflen);
+        return;
+    case ']':
+        SDL_strlcpy(buf, "Objects", buflen);
         return;
     default:
         if (binding >= 32 && binding <= 126)
@@ -6120,22 +6339,22 @@ static void show_help_screen_legacy(int i, bool include_header)
         int binding = 0;
 
         binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_SOUTH);
-        help_binding_action_label(binding, action_buf, sizeof(action_buf));
+        binding_action_label(binding, action_buf, sizeof(action_buf));
         put_role(ROLE_KEY, "A", row, col); put_role(ROLE_BODY, " - ", row, col + 2);
         put_role(ROLE_BODY, action_buf, row, col + 5); row++;
 
         binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_WEST);
-        help_binding_action_label(binding, action_buf, sizeof(action_buf));
+        binding_action_label(binding, action_buf, sizeof(action_buf));
         put_role(ROLE_KEY, "X", row, col); put_role(ROLE_BODY, " - ", row, col + 2);
         put_role(ROLE_BODY, action_buf, row, col + 5); row++;
 
         binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_NORTH);
-        help_binding_action_label(binding, action_buf, sizeof(action_buf));
+        binding_action_label(binding, action_buf, sizeof(action_buf));
         put_role(ROLE_KEY, "Y", row, col); put_role(ROLE_BODY, " - ", row, col + 2);
         put_role(ROLE_BODY, action_buf, row, col + 5); row++;
 
         binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_EAST);
-        help_binding_action_label(binding, action_buf, sizeof(action_buf));
+        binding_action_label(binding, action_buf, sizeof(action_buf));
         put_role(ROLE_KEY, "B", row, col); put_role(ROLE_BODY, " - ", row, col + 2);
         put_role(ROLE_BODY, action_buf, row, col + 5); row++;
 
@@ -6145,10 +6364,10 @@ static void show_help_screen_legacy(int i, bool include_header)
             char rs_left[24];
             char rs_right[24];
             char rs_line[120];
-            help_binding_action_short(get_sdl_gamepad_right_stick_binding(GAMEPAD_STICK_DIR_UP), rs_up, sizeof(rs_up));
-            help_binding_action_short(get_sdl_gamepad_right_stick_binding(GAMEPAD_STICK_DIR_DOWN), rs_down, sizeof(rs_down));
-            help_binding_action_short(get_sdl_gamepad_right_stick_binding(GAMEPAD_STICK_DIR_LEFT), rs_left, sizeof(rs_left));
-            help_binding_action_short(get_sdl_gamepad_right_stick_binding(GAMEPAD_STICK_DIR_RIGHT), rs_right, sizeof(rs_right));
+            binding_action_short(get_sdl_gamepad_right_stick_binding(GAMEPAD_STICK_DIR_UP), rs_up, sizeof(rs_up));
+            binding_action_short(get_sdl_gamepad_right_stick_binding(GAMEPAD_STICK_DIR_DOWN), rs_down, sizeof(rs_down));
+            binding_action_short(get_sdl_gamepad_right_stick_binding(GAMEPAD_STICK_DIR_LEFT), rs_left, sizeof(rs_left));
+            binding_action_short(get_sdl_gamepad_right_stick_binding(GAMEPAD_STICK_DIR_RIGHT), rs_right, sizeof(rs_right));
             strnfmt(rs_line, sizeof(rs_line), "Up:%s  Down:%s  Left:%s  Right:%s",
                     rs_up, rs_down, rs_left, rs_right);
             put_role(ROLE_KEY, "Right Stick", row, col);
@@ -6169,7 +6388,7 @@ static void show_help_screen_legacy(int i, bool include_header)
         int text_col = 0;
 
         binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_LEFT_SHOULDER);
-        help_binding_action_label(binding, action_buf, sizeof(action_buf));
+        binding_action_label(binding, action_buf, sizeof(action_buf));
         input = "L1 (Bumper)";
         put_role(ROLE_KEY, input, row, col);
         text_col = col + (int)strlen(input);
@@ -6177,7 +6396,7 @@ static void show_help_screen_legacy(int i, bool include_header)
         put_role(ROLE_BODY, action_buf, row, text_col + 3); row++;
 
         binding = get_sdl_gamepad_trigger_binding(0);
-        help_binding_action_label(binding, action_buf, sizeof(action_buf));
+        binding_action_label(binding, action_buf, sizeof(action_buf));
         input = "L2 (Trigger)";
         put_role(ROLE_KEY, input, row, col);
         text_col = col + (int)strlen(input);
@@ -6185,7 +6404,7 @@ static void show_help_screen_legacy(int i, bool include_header)
         put_role(ROLE_BODY, action_buf, row, text_col + 3); row++;
 
         binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_LEFT_PADDLE1);
-        help_binding_action_label(binding, action_buf, sizeof(action_buf));
+        binding_action_label(binding, action_buf, sizeof(action_buf));
         input = "L4 (Back)";
         put_role(ROLE_KEY, input, row, col);
         text_col = col + (int)strlen(input);
@@ -6193,7 +6412,7 @@ static void show_help_screen_legacy(int i, bool include_header)
         put_role(ROLE_BODY, action_buf, row, text_col + 3); row++;
 
         binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_LEFT_PADDLE2);
-        help_binding_action_label(binding, action_buf, sizeof(action_buf));
+        binding_action_label(binding, action_buf, sizeof(action_buf));
         input = "L5 (Back)";
         put_role(ROLE_KEY, input, row, col);
         text_col = col + (int)strlen(input);
@@ -6201,7 +6420,7 @@ static void show_help_screen_legacy(int i, bool include_header)
         put_role(ROLE_BODY, action_buf, row, text_col + 3); row++;
 
         binding = get_sdl_gamepad_shoulder_combo_binding();
-        help_binding_action_label(binding, action_buf, sizeof(action_buf));
+        binding_action_label(binding, action_buf, sizeof(action_buf));
         input = "L1+R1 Combo";
         put_role(ROLE_KEY, input, row, col);
         text_col = col + (int)strlen(input);
@@ -6216,7 +6435,7 @@ static void show_help_screen_legacy(int i, bool include_header)
         row = left_start_row;
 
         binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER);
-        help_binding_action_label(binding, action_buf, sizeof(action_buf));
+        binding_action_label(binding, action_buf, sizeof(action_buf));
         input = "R1 (Bumper)";
         put_role(ROLE_KEY, input, row, col);
         text_col = col + (int)strlen(input);
@@ -6224,7 +6443,7 @@ static void show_help_screen_legacy(int i, bool include_header)
         put_role(ROLE_BODY, action_buf, row, text_col + 3); row++;
 
         binding = get_sdl_gamepad_trigger_binding(1);
-        help_binding_action_label(binding, action_buf, sizeof(action_buf));
+        binding_action_label(binding, action_buf, sizeof(action_buf));
         input = "R2 (Trigger)";
         put_role(ROLE_KEY, input, row, col);
         text_col = col + (int)strlen(input);
@@ -6232,7 +6451,7 @@ static void show_help_screen_legacy(int i, bool include_header)
         put_role(ROLE_BODY, action_buf, row, text_col + 3); row++;
 
         binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1);
-        help_binding_action_label(binding, action_buf, sizeof(action_buf));
+        binding_action_label(binding, action_buf, sizeof(action_buf));
         input = "R4 (Back)";
         put_role(ROLE_KEY, input, row, col);
         text_col = col + (int)strlen(input);
@@ -6240,7 +6459,7 @@ static void show_help_screen_legacy(int i, bool include_header)
         put_role(ROLE_BODY, action_buf, row, text_col + 3); row++;
 
         binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2);
-        help_binding_action_label(binding, action_buf, sizeof(action_buf));
+        binding_action_label(binding, action_buf, sizeof(action_buf));
         input = "R5 (Back)";
         put_role(ROLE_KEY, input, row, col);
         text_col = col + (int)strlen(input);
@@ -6248,7 +6467,7 @@ static void show_help_screen_legacy(int i, bool include_header)
         put_role(ROLE_BODY, action_buf, row, text_col + 3); row++;
 
         binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_START);
-        help_binding_action_label(binding, action_buf, sizeof(action_buf));
+        binding_action_label(binding, action_buf, sizeof(action_buf));
         input = "Start (Menu)";
         put_role(ROLE_KEY, input, row, col);
         text_col = col + (int)strlen(input);
@@ -6256,7 +6475,7 @@ static void show_help_screen_legacy(int i, bool include_header)
         put_role(ROLE_BODY, action_buf, row, text_col + 3); row++;
 
         binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_BACK);
-        help_binding_action_label(binding, action_buf, sizeof(action_buf));
+        binding_action_label(binding, action_buf, sizeof(action_buf));
         input = "Back (View)";
         put_role(ROLE_KEY, input, row, col);
         text_col = col + (int)strlen(input);

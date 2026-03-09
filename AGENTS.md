@@ -37,7 +37,9 @@ Prereqs: MSYS2 MinGW64 at `C:\msys64` with `cmake` + SDL3 deps installed (the bu
   - Avoid trying to build “directly with MinGW” (`gcc`, `mingw32-make`, ad-hoc include/library paths) unless you are explicitly debugging the build system; it’s easy to end up with the wrong generator/env and waste time.
   - Standard (per-user data): `build-standard/` -> `sil-more-windows-sdl3/`
   - Portable (local data under `lib/`): `build-portable/` -> `sil-more-windows-sdl3-portable/`
-- Incremental rebuild: `cmake --build build-standard --parallel`
+- Incremental rebuild from PowerShell/cmd: `.\build-incremental.ps1`
+- Incremental rebuild from an MSYS2 MinGW64 shell or any shell that already has `C:\msys64\mingw64\bin;C:\msys64\usr\bin` on `PATH`: `cmake --build build-standard --parallel`
+- Do not invoke `C:\msys64\mingw64\bin\cmake.exe --build ...` from an arbitrary shell without first seeding those MSYS2 paths; the build can fail with a generic `Error 1` when GCC helper executables cannot load their DLLs.
 - Run:
   - Standard: `.\sil-more-windows-sdl3\sil-more.exe`
   - Portable: `.\sil-more-windows-sdl3-portable\sil-more.exe`
@@ -113,7 +115,7 @@ These templates drive gameplay content (monsters, vaults, objects, terrain, ques
 - For path issues, `src/init2.c` logs the resolved `ANGBAND_DIR_*` paths at startup.
 
 ## Quick Validation
-- Build: `.\build-cmake.bat` (or incremental `cmake --build build-standard --parallel`).
+- Build: `.\build-cmake.bat` (or incremental `.\build-incremental.ps1`).
 - Run the relevant exe and check the adjacent `log.txt` for errors.
 - If UI changed, smoke-test inventory/equipment overlays, unified look, and the combat roll overlay.
 

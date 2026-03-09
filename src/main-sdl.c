@@ -21,7 +21,7 @@ static const char* const sdl_story_fallback_font = "lib/xtra/font/MarcellusSC-Re
 
 enum {
     TILE_SIZE = 16,
-    MAX_TERM_DATA = 8,
+    MAX_TERM_DATA = ANGBAND_TERM_MAX,
     MAX_STORY_FONT_CACHE = 4,
     MAX_PANE_CONFIGS = 8,
 };
@@ -39,12 +39,13 @@ char config_file_path[1024];
 // Default pane configuration
 static const struct pane_config default_pane_config[] = {
     // On the right
-    {.pane = PANE_INVENTORY, .where = PLACE_RIGHT},
-    {.pane = PANE_WORN, .where = PLACE_RIGHT},
-    {.pane = PANE_INFO, .where = PLACE_RIGHT, .rect.rows = 8},
+    {.pane = PANE_INVENTORY, .where = PLACE_RIGHT, .enabled = true},
+    {.pane = PANE_WORN, .where = PLACE_RIGHT, .enabled = true},
+    {.pane = PANE_INFO, .where = PLACE_RIGHT, .enabled = true, .rect.rows = 8},
+    {.pane = PANE_TOUCH, .where = PLACE_RIGHT, .enabled = true, .rect.cols = 15},
     // In the bottom
-    {.pane = PANE_ROLLS, .where = PLACE_BOTTOM, .rect.rows = 4},
-    {.pane = PANE_LOG, .where = PLACE_BOTTOM},
+    {.pane = PANE_ROLLS, .where = PLACE_BOTTOM, .enabled = true, .rect.rows = 4},
+    {.pane = PANE_LOG, .where = PLACE_BOTTOM, .enabled = true},
 };
 const int default_pane_config_count = sizeof(default_pane_config) / sizeof(struct pane_config);
 
@@ -120,6 +121,39 @@ typedef struct sdl_view {
     bool term_ready;
 } sdl_view;
 
+typedef struct touch_pane_slot_info {
+    const char* slot_name;
+    const char* default_label;
+    int default_binding;
+} touch_pane_slot_info;
+
+static const touch_pane_slot_info g_touch_pane_slots[SDL_TOUCH_PANE_BUTTON_COUNT] = {
+    { "Esc", "Esc", ESCAPE },
+    { "Ctrl", "Ctrl", GAMEPAD_BIND_CTRL },
+    { "Shift", "Shift", GAMEPAD_BIND_SHIFT },
+    { "Equipped", "Equipped", 'e' },
+    { "Inventory", "Inventory", 'i' },
+    { "Supply", "Supply", 'j' },
+    { "Use", "Use", 'u' },
+    { "Sing", "Sing", 's' },
+    { "Shoot", "Shoot", 'f' },
+    { "Northwest", NULL, '7' },
+    { "North", NULL, '8' },
+    { "Northeast", NULL, '9' },
+    { "West", NULL, '4' },
+    { "Center", "Space", INPUT_BIND_CONFIRM },
+    { "East", NULL, '6' },
+    { "Southwest", NULL, '1' },
+    { "South", NULL, '2' },
+    { "Southeast", NULL, '3' },
+    { "Staff", "Staff", 'a' },
+    { "Description", "Description", 'x' },
+    { "Drop", "Drop", 'd' },
+    { "Map", "Map", 'M' },
+    { "Character", "Character", 'h' },
+    { "Ability", "Ability", '\t' },
+};
+
 enum {
     MAX_GAMEPADS = 4,
     DPAD_DIAGONAL_WINDOW_MS = 100,
@@ -172,6 +206,7 @@ typedef struct gamepad_input_state {
 
 sdl_state g_state;
 sdl_view g_views[MAX_TERM_DATA];
+static SDL_Rect g_pane_rects[PANE_MAX];
 static gamepad_input_state g_gamepad_state;
 static bool g_gamepad_auto_ui = false;
 static int g_default_gamepad_button_bindings[SDL_GAMEPAD_BUTTON_COUNT];
@@ -180,10 +215,16 @@ static int g_default_gamepad_left_stick_bindings[GAMEPAD_STICK_DIR_COUNT];
 static int g_default_gamepad_right_stick_bindings[GAMEPAD_STICK_DIR_COUNT];
 static int g_default_gamepad_shoulder_combo_binding = GAMEPAD_BIND_NONE;
 static bool g_default_gamepad_bindings_ready = false;
+static int g_default_touch_pane_bindings[SDL_TOUCH_PANE_BUTTON_COUNT];
+static bool g_default_touch_pane_bindings_ready = false;
 static bool g_gamepad_capture_active = false;
 static bool g_gamepad_capture_ready = false;
 static int g_gamepad_capture_type = GAMEPAD_CAPTURE_BUTTON;
 static int g_gamepad_capture_id = 0;
+static int g_touch_pane_flash_slot = -1;
+static Uint64 g_touch_pane_flash_until = 0;
+static bool g_touch_pane_shift_toggle = false;
+static bool g_touch_pane_ctrl_toggle = false;
 
 static sdl_view* sdl_view_from_term(term* t);
 static void sdl_view_destroy(sdl_view* d);
@@ -233,6 +274,21 @@ static void sdl_story_font_reset_state(void);
 static void sdl_story_font_cache_clear(void);
 static TTF_Font* sdl_story_font_for_height(int pixel_height);
 static TTF_Font* sdl_story_font_for_view(const sdl_view* d);
+static void sdl_ensure_touch_pane_config_present(void);
+static bool sdl_touch_pane_compute_layout(const SDL_Rect* pane_rect, SDL_FRect* slot_rects);
+static bool sdl_touch_pane_binding_is_direction(int binding);
+static void sdl_touch_pane_draw_arrow(const SDL_FRect* rect, int binding, SDL_Color color);
+static void sdl_touch_pane_draw_label(const SDL_FRect* rect, const char* label, SDL_Color color);
+static void sdl_touch_pane_render(void);
+static bool sdl_touch_pane_handle_press(float x, float y);
+static void sdl_touch_pane_send_binding(int binding);
+static void sdl_touch_pane_load_default_bindings(void);
+static bool sdl_touch_pane_is_config_enabled(void);
+static void sdl_update_cursor_visibility(void);
+static void sdl_present_if_needed(sdl_view* d);
+static void sdl_compute_split_panes(const SDL_Rect* screen, SDL_Rect* panes);
+static int sdl_max_scale_for_rect(const SDL_Rect* rect);
+static void sdl_touch_pane_send_confirm_action(void);
 static void sdl_render_mono_text(sdl_view* d, int x, int y, int n, const char* s, SDL_Color col);
 static void sdl_render_story_text_free(sdl_view* d, TTF_Font* font, int x, int y, int n, const char* s,
     SDL_Color col);
@@ -299,6 +355,363 @@ static void sdl_view_destroy(sdl_view* d)
         SDL_DestroyTexture(d->font_atlas);
         d->font_atlas = NULL;
     }
+}
+
+static void sdl_ensure_touch_pane_config_present(void)
+{
+    for (int i = 0; i < pane_config_count; i++) {
+        if (pane_config[i].pane == PANE_TOUCH)
+            return;
+    }
+
+    if (pane_config_count >= MAX_PANE_CONFIGS) {
+        log_warn("Could not append touch pane config; max pane count reached");
+        return;
+    }
+
+    pane_config[pane_config_count++] = (struct pane_config){
+        .pane = PANE_TOUCH,
+        .where = PLACE_RIGHT,
+        .enabled = true,
+        .rect = { .rows = 0, .cols = 15 },
+        .ratio = 0.0f,
+    };
+}
+
+static bool sdl_touch_pane_is_config_enabled(void)
+{
+    for (int i = 0; i < pane_config_count; i++) {
+        if (pane_config[i].pane == PANE_TOUCH)
+            return pane_config[i].enabled;
+    }
+    return false;
+}
+
+static void sdl_update_cursor_visibility(void)
+{
+    bool show_cursor = true;
+
+    if (config.fullscreen)
+        show_cursor = (g_pane_rects[PANE_TOUCH].w > 0 && sdl_touch_pane_is_config_enabled());
+
+    if (show_cursor)
+        SDL_ShowCursor();
+    else
+        SDL_HideCursor();
+}
+
+static void sdl_compute_split_panes(const SDL_Rect* screen, SDL_Rect* panes)
+{
+    int aux_cell_w;
+    int aux_cell_h;
+    int margin_px;
+
+    if (!screen || !panes)
+        return;
+
+    memset(panes, 0, sizeof(SDL_Rect) * PANE_MAX);
+
+    aux_cell_w = (int)(g_state.system_scale * config.aux_view_font_size / 2);
+    aux_cell_h = (int)(g_state.system_scale * config.aux_view_font_size);
+    margin_px = (int)(g_state.system_scale * config.margin);
+
+    place_panes(pane_config, pane_config_count, panes, screen, aux_cell_w, aux_cell_h, margin_px);
+
+    if (!config.enable_right_panes) {
+        for (int i = 0; i < pane_config_count; i++) {
+            if (pane_config[i].where == PLACE_RIGHT)
+                panes[pane_config[i].pane].w = 0;
+        }
+        panes[PANE_MAIN].w = screen->w;
+    }
+
+    if (!config.enable_bottom_panes) {
+        for (int i = 0; i < pane_config_count; i++) {
+            if (pane_config[i].where == PLACE_BOTTOM)
+                panes[pane_config[i].pane].w = 0;
+        }
+        panes[PANE_MAIN].h = screen->h;
+    }
+}
+
+static int sdl_max_scale_for_rect(const SDL_Rect* rect)
+{
+    int min_cols;
+    int min_rows;
+    int max_scale_w;
+    int max_scale_h;
+    int max_scale;
+
+    if (!rect)
+        return 1;
+
+    min_cols = sdl_current_min_terminal_cols();
+    min_rows = sdl_current_min_terminal_rows();
+    max_scale_w = (rect->w / min_cols) * 2 / TILE_SIZE;
+    max_scale_h = rect->h / min_rows / TILE_SIZE;
+    max_scale = (max_scale_w < max_scale_h) ? max_scale_w : max_scale_h;
+
+    if (max_scale < 1)
+        max_scale = 1;
+    if (max_scale > 20)
+        max_scale = 20;
+
+    return max_scale;
+}
+
+static bool sdl_touch_pane_binding_is_direction(int binding)
+{
+    switch (binding) {
+    case '1':
+    case '2':
+    case '3':
+    case '4':
+    case '6':
+    case '7':
+    case '8':
+    case '9':
+        return true;
+    default:
+        return false;
+    }
+}
+
+static bool sdl_touch_pane_compute_layout(const SDL_Rect* pane_rect, SDL_FRect* slot_rects)
+{
+    float gap;
+    float usable_w;
+    float usable_h;
+    float button_from_w;
+    float button_from_h;
+    float button_size;
+    float grid_w;
+    float grid_h;
+    float start_x;
+    float start_y;
+
+    if (!pane_rect || !slot_rects || pane_rect->w <= 0 || pane_rect->h <= 0)
+        return false;
+
+    gap = (float)((pane_rect->w < pane_rect->h) ? pane_rect->w : pane_rect->h) / 40.0f;
+    if (gap < 4.0f)
+        gap = 4.0f;
+    if (gap > 12.0f)
+        gap = 12.0f;
+
+    usable_w = (float)pane_rect->w - gap * 2.0f;
+    usable_h = (float)pane_rect->h - gap * 2.0f;
+    button_from_w = (usable_w - gap * (SDL_TOUCH_PANE_BUTTON_COLS - 1)) / SDL_TOUCH_PANE_BUTTON_COLS;
+    button_from_h = (usable_h - gap * (SDL_TOUCH_PANE_BUTTON_ROWS - 1)) / SDL_TOUCH_PANE_BUTTON_ROWS;
+    button_size = (button_from_w < button_from_h) ? button_from_w : button_from_h;
+    if (button_size < 12.0f)
+        return false;
+
+    grid_w = button_size * SDL_TOUCH_PANE_BUTTON_COLS + gap * (SDL_TOUCH_PANE_BUTTON_COLS - 1);
+    grid_h = button_size * SDL_TOUCH_PANE_BUTTON_ROWS + gap * (SDL_TOUCH_PANE_BUTTON_ROWS - 1);
+    start_x = (float)pane_rect->x + ((float)pane_rect->w - grid_w) * 0.5f;
+    start_y = (float)pane_rect->y + ((float)pane_rect->h - grid_h) * 0.5f;
+
+    for (int row = 0; row < SDL_TOUCH_PANE_BUTTON_ROWS; row++) {
+        for (int col = 0; col < SDL_TOUCH_PANE_BUTTON_COLS; col++) {
+            int idx = row * SDL_TOUCH_PANE_BUTTON_COLS + col;
+            slot_rects[idx] = (SDL_FRect){
+                .x = start_x + col * (button_size + gap),
+                .y = start_y + row * (button_size + gap),
+                .w = button_size,
+                .h = button_size,
+            };
+        }
+    }
+
+    return true;
+}
+
+static void sdl_touch_pane_draw_arrow(const SDL_FRect* rect, int binding, SDL_Color color)
+{
+    float dx = 0.0f;
+    float dy = 0.0f;
+    float px = 0.0f;
+    float py = 0.0f;
+    float cx;
+    float cy;
+    float body_len;
+    float head_len;
+    float tail_x;
+    float tail_y;
+    float tip_x;
+    float tip_y;
+
+    if (!rect)
+        return;
+
+    switch (binding) {
+    case '7': dx = -0.70710677f; dy = -0.70710677f; break;
+    case '8': dx = 0.0f; dy = -1.0f; break;
+    case '9': dx = 0.70710677f; dy = -0.70710677f; break;
+    case '4': dx = -1.0f; dy = 0.0f; break;
+    case '6': dx = 1.0f; dy = 0.0f; break;
+    case '1': dx = -0.70710677f; dy = 0.70710677f; break;
+    case '2': dx = 0.0f; dy = 1.0f; break;
+    case '3': dx = 0.70710677f; dy = 0.70710677f; break;
+    default:
+        return;
+    }
+
+    px = -dy;
+    py = dx;
+    cx = rect->x + rect->w * 0.5f;
+    cy = rect->y + rect->h * 0.5f;
+    body_len = ((rect->w < rect->h) ? rect->w : rect->h) * 0.28f;
+    head_len = ((rect->w < rect->h) ? rect->w : rect->h) * 0.16f;
+    tail_x = cx - dx * body_len;
+    tail_y = cy - dy * body_len;
+    tip_x = cx + dx * body_len;
+    tip_y = cy + dy * body_len;
+
+    SDL_SetRenderDrawColor(g_state.renderer, color.r, color.g, color.b, color.a);
+    SDL_RenderLine(g_state.renderer, tail_x, tail_y, tip_x, tip_y);
+    SDL_RenderLine(g_state.renderer, tip_x, tip_y,
+        tip_x - dx * head_len + px * head_len * 0.55f,
+        tip_y - dy * head_len + py * head_len * 0.55f);
+    SDL_RenderLine(g_state.renderer, tip_x, tip_y,
+        tip_x - dx * head_len - px * head_len * 0.55f,
+        tip_y - dy * head_len - py * head_len * 0.55f);
+}
+
+static void sdl_touch_pane_draw_label(const SDL_FRect* rect, const char* label, SDL_Color color)
+{
+    SDL_Surface* text_surface;
+    SDL_Texture* text_texture;
+    TTF_Font* font;
+    float max_w;
+    float max_h;
+    float scale_w;
+    float scale_h;
+    float scale;
+    SDL_FRect dst;
+    int font_px;
+
+    if (!rect || !label || !label[0])
+        return;
+
+    font_px = (int)(rect->h * 0.22f);
+    if (font_px < 12)
+        font_px = 12;
+
+    font = sdl_story_font_for_height(font_px);
+    if (!font)
+        return;
+
+    text_surface = TTF_RenderText_Blended(font, label, 0, color);
+    if (!text_surface)
+        return;
+
+    max_w = rect->w * 0.82f;
+    max_h = rect->h * 0.38f;
+    scale_w = (text_surface->w > 0) ? (max_w / (float)text_surface->w) : 1.0f;
+    scale_h = (text_surface->h > 0) ? (max_h / (float)text_surface->h) : 1.0f;
+    scale = (scale_w < scale_h) ? scale_w : scale_h;
+    if (scale > 1.0f)
+        scale = 1.0f;
+    if (scale <= 0.0f) {
+        SDL_DestroySurface(text_surface);
+        return;
+    }
+
+    text_texture = SDL_CreateTextureFromSurface(g_state.renderer, text_surface);
+    if (!text_texture) {
+        SDL_DestroySurface(text_surface);
+        return;
+    }
+
+    dst = (SDL_FRect){
+        .x = rect->x + (rect->w - (float)text_surface->w * scale) * 0.5f,
+        .y = rect->y + (rect->h - (float)text_surface->h * scale) * 0.5f,
+        .w = (float)text_surface->w * scale,
+        .h = (float)text_surface->h * scale,
+    };
+
+    SDL_SetTextureBlendMode(text_texture, SDL_BLENDMODE_BLEND);
+    SDL_RenderTexture(g_state.renderer, text_texture, NULL, &dst);
+    SDL_DestroyTexture(text_texture);
+    SDL_DestroySurface(text_surface);
+}
+
+static void sdl_touch_pane_send_confirm_action(void)
+{
+    if (character_dungeon) {
+        Term_keypress(' ');
+        return;
+    }
+
+    Term_keypress('\r');
+}
+
+static void sdl_touch_pane_send_binding(int binding)
+{
+    if (binding == GAMEPAD_BIND_NONE)
+        return;
+
+    if (binding == INPUT_BIND_CONFIRM) {
+        sdl_touch_pane_send_confirm_action();
+        return;
+    }
+
+    if (binding == GAMEPAD_BIND_SHIFT) {
+        g_touch_pane_shift_toggle = !g_touch_pane_shift_toggle;
+        sdl_gamepad_apply_modifier(binding, g_touch_pane_shift_toggle);
+        return;
+    }
+
+    if (binding == GAMEPAD_BIND_CTRL) {
+        g_touch_pane_ctrl_toggle = !g_touch_pane_ctrl_toggle;
+        sdl_gamepad_apply_modifier(binding, g_touch_pane_ctrl_toggle);
+        return;
+    }
+
+    if (binding == GAMEPAD_BIND_ALT) {
+        sdl_gamepad_apply_modifier(binding, true);
+        sdl_gamepad_apply_modifier(binding, false);
+        return;
+    }
+
+    if (sdl_touch_pane_binding_is_direction(binding)) {
+        sdl_gamepad_send_direction_mods(binding - '0',
+            sdl_gamepad_shift_active(),
+            sdl_gamepad_ctrl_active(),
+            sdl_gamepad_alt_active());
+        return;
+    }
+
+    sdl_gamepad_send_key(binding, false);
+}
+
+static bool sdl_touch_pane_handle_press(float x, float y)
+{
+    SDL_FRect slot_rects[SDL_TOUCH_PANE_BUTTON_COUNT];
+    const SDL_Rect* pane = &g_pane_rects[PANE_TOUCH];
+
+    if (pane->w <= 0 || pane->h <= 0)
+        return false;
+
+    if (!sdl_touch_pane_compute_layout(pane, slot_rects))
+        return false;
+
+    for (int i = 0; i < SDL_TOUCH_PANE_BUTTON_COUNT; i++) {
+        const SDL_FRect* rect = &slot_rects[i];
+        if (x >= rect->x && x < rect->x + rect->w && y >= rect->y && y < rect->y + rect->h) {
+            sdl_touch_pane_send_binding(get_sdl_touch_pane_binding(i));
+            g_touch_pane_flash_slot = i;
+            g_touch_pane_flash_until = SDL_GetTicksNS() + 150000000ULL;
+            g_state.need_present = true;
+            return true;
+        }
+    }
+
+    if (x >= pane->x && x < pane->x + pane->w && y >= pane->y && y < pane->y + pane->h)
+        return true;
+
+    return false;
 }
 
 static bool sdl_gamepad_shift_active(void)
@@ -1507,7 +1920,7 @@ static void sdl_gamepad_shutdown(void)
 void resize(const SDL_Rect* screen)
 {
     log_warn("resize enter");
-    SDL_Rect panes[MAX_TERM_DATA] = {0};
+    SDL_Rect panes[PANE_MAX] = {0};
     place_panes(pane_config, pane_config_count, panes, screen,
         g_state.system_scale * config.aux_view_font_size / 2,
         g_state.system_scale * config.aux_view_font_size,
@@ -1568,6 +1981,8 @@ void resize(const SDL_Rect* screen)
         }
     }
 
+    memcpy(g_pane_rects, panes, sizeof(g_pane_rects));
+
     // Use configured monospace font or fall back to default
     const char* font_path = config.monospace_font[0] != '\0' 
         ? config.monospace_font 
@@ -1601,6 +2016,7 @@ void resize(const SDL_Rect* screen)
 
     // Don't strictly need this as `sdl_view_create` already sets this flag.
     g_state.need_present = true;
+    sdl_update_cursor_visibility();
 }
 
 /*
@@ -1665,6 +2081,27 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
     (void)st;
     if (ev->type == SDL_EVENT_QUIT) {
         Term_keypress(27); // ESC or define a quit signal
+    } else if (ev->type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
+        if (ev->button.button == SDL_BUTTON_LEFT) {
+            if (ev->button.which == SDL_TOUCH_MOUSEID)
+                return;
+            if (sdl_touch_pane_handle_press((float)ev->button.x, (float)ev->button.y))
+                return;
+        }
+    } else if (ev->type == SDL_EVENT_FINGER_DOWN) {
+        int window_w = 0;
+        int window_h = 0;
+        float x;
+        float y;
+
+        if (ev->tfinger.windowID != SDL_GetWindowID(g_state.window))
+            return;
+
+        SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
+        x = ev->tfinger.x * (float)window_w;
+        y = ev->tfinger.y * (float)window_h;
+        if (sdl_touch_pane_handle_press(x, y))
+            return;
     } else if (ev->type == SDL_EVENT_KEY_DOWN) {
         int key = ev->key.key;
         // Ignore bare modifiers.
@@ -1870,6 +2307,157 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
     }
 }
 
+static void sdl_touch_pane_render(void)
+{
+    SDL_FRect slot_rects[SDL_TOUCH_PANE_BUTTON_COUNT];
+    SDL_FRect pane_rect;
+    SDL_Color frame = g_state.palette[TERM_WHITE];
+    SDL_Color accent = g_state.palette[TERM_L_BLUE];
+    SDL_Color muted = g_state.palette[TERM_SLATE];
+    const SDL_Rect* pane = &g_pane_rects[PANE_TOUCH];
+
+    if (pane->w <= 0 || pane->h <= 0)
+        return;
+
+    if (!sdl_touch_pane_compute_layout(pane, slot_rects))
+        return;
+
+    pane_rect = (SDL_FRect){
+        .x = (float)pane->x,
+        .y = (float)pane->y,
+        .w = (float)pane->w,
+        .h = (float)pane->h,
+    };
+
+    SDL_SetRenderDrawColor(g_state.renderer, 12, 12, 12, 255);
+    SDL_RenderFillRect(g_state.renderer, &pane_rect);
+    SDL_SetRenderDrawColor(g_state.renderer, frame.r, frame.g, frame.b, 180);
+    SDL_RenderRect(g_state.renderer, &pane_rect);
+
+    for (int i = 0; i < SDL_TOUCH_PANE_BUTTON_COUNT; i++) {
+        SDL_Color text_color;
+        SDL_Color border_color;
+        SDL_FRect shadow;
+        char label[64];
+        int binding = get_sdl_touch_pane_binding(i);
+        bool flashed = (i == g_touch_pane_flash_slot);
+        bool toggled = ((binding == GAMEPAD_BIND_SHIFT && g_touch_pane_shift_toggle)
+            || (binding == GAMEPAD_BIND_CTRL && g_touch_pane_ctrl_toggle));
+
+        shadow = slot_rects[i];
+        shadow.x += 2.0f;
+        shadow.y += 2.0f;
+
+        SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 160);
+        SDL_RenderFillRect(g_state.renderer, &shadow);
+
+        if (binding == GAMEPAD_BIND_NONE) {
+            SDL_SetRenderDrawColor(g_state.renderer, 26, 26, 26, 255);
+            text_color = muted;
+            border_color = muted;
+        } else if (toggled) {
+            SDL_SetRenderDrawColor(g_state.renderer, 48, 58, 44, 255);
+            text_color = accent;
+            border_color = accent;
+        } else if (flashed) {
+            SDL_SetRenderDrawColor(g_state.renderer, 54, 66, 86, 255);
+            text_color = accent;
+            border_color = accent;
+        } else {
+            SDL_SetRenderDrawColor(g_state.renderer, 34, 34, 34, 255);
+            text_color = frame;
+            border_color = frame;
+        }
+
+        SDL_RenderFillRect(g_state.renderer, &slot_rects[i]);
+        SDL_SetRenderDrawColor(g_state.renderer, border_color.r, border_color.g, border_color.b, 220);
+        SDL_RenderRect(g_state.renderer, &slot_rects[i]);
+
+        if (sdl_touch_pane_binding_is_direction(binding)) {
+            sdl_touch_pane_draw_arrow(&slot_rects[i], binding, text_color);
+            continue;
+        }
+
+        if (binding == INPUT_BIND_CONFIRM) {
+            SDL_strlcpy(label, "Space", sizeof(label));
+        } else if (binding == GAMEPAD_BIND_NONE) {
+            SDL_strlcpy(label, "Off", sizeof(label));
+        } else if (binding == g_touch_pane_slots[i].default_binding
+            && g_touch_pane_slots[i].default_label && g_touch_pane_slots[i].default_label[0]) {
+            SDL_strlcpy(label, g_touch_pane_slots[i].default_label, sizeof(label));
+        } else {
+            binding_action_short(binding, label, sizeof(label));
+        }
+
+        sdl_touch_pane_draw_label(&slot_rects[i], label, text_color);
+    }
+
+    if (g_touch_pane_flash_slot >= 0) {
+        g_touch_pane_flash_slot = -1;
+        g_touch_pane_flash_until = 0;
+    }
+}
+
+static void sdl_present_if_needed(sdl_view* d)
+{
+    if (!g_state.need_present)
+        return;
+
+    SDL_SetRenderTarget(g_state.renderer, NULL);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+    SDL_RenderClear(g_state.renderer);
+
+    int active_views = 0;
+    for (int i = 0; i < MAX_TERM_DATA; i++) {
+        if (g_views[i].canvas)
+            active_views++;
+    }
+
+    for (int i = 0; i < MAX_TERM_DATA; i++) {
+        sdl_view* view = &g_views[i];
+        float dst_w;
+        float dst_h;
+
+        if (!view->canvas)
+            continue;
+        if (view->cols <= 0 || view->rows <= 0 || view->cell_w <= 0 || view->cell_h <= 0)
+            continue;
+
+        dst_w = (float)(view->cols * view->cell_w);
+        dst_h = (float)(view->rows * view->cell_h);
+        if (dst_w <= 0.0f || dst_h <= 0.0f)
+            continue;
+
+        SDL_RenderTexture(g_state.renderer, view->canvas, NULL, &(SDL_FRect){
+            .x = view->rect.x + view->margin_x,
+            .y = view->rect.y + view->margin_y,
+            .w = dst_w,
+            .h = dst_h,
+        });
+
+        if (active_views > 1) {
+            SDL_SetRenderDrawColor(g_state.renderer, 255, 255, 255, 128);
+            SDL_FRect frame = {
+                .x = view->rect.x,
+                .y = view->rect.y,
+                .w = view->rect.w,
+                .h = view->rect.h,
+            };
+            SDL_RenderRect(g_state.renderer, &frame);
+        }
+    }
+
+    sdl_touch_pane_render();
+    SDL_RenderPresent(g_state.renderer);
+
+    if (d && d->canvas)
+        SDL_SetRenderTarget(g_state.renderer, d->canvas);
+    else
+        SDL_SetRenderTarget(g_state.renderer, NULL);
+
+    g_state.need_present = false;
+}
+
 static errr callback_sdl_xtra(int n, int v)
 {
     sdl_view* d = sdl_view_from_term(Term);
@@ -1909,6 +2497,7 @@ static errr callback_sdl_xtra(int n, int v)
             if (!handled)
                 SDL_Delay(1);
         }
+        sdl_present_if_needed(d);
         return 0;
     }
     case TERM_XTRA_FLUSH:
@@ -1918,6 +2507,7 @@ static errr callback_sdl_xtra(int n, int v)
             while (SDL_PollEvent(&ev))
                 sdl_handle_event(&g_state, &ev);
         }
+        sdl_present_if_needed(d);
         return 0;
     case TERM_XTRA_CLEAR:
         if (!d || !d->canvas)
@@ -1928,51 +2518,7 @@ static errr callback_sdl_xtra(int n, int v)
         g_state.need_present = true;
         return 0;
     case TERM_XTRA_FRESH:
-        if (g_state.need_present) {
-            SDL_SetRenderTarget(g_state.renderer, NULL);
-            SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
-            SDL_RenderClear(g_state.renderer);
-            // Render all view canvases to the window
-            int active_views = 0;
-            for (int i = 0; i < MAX_TERM_DATA; i++) {
-                if (g_views[i].canvas)
-                    active_views++;
-            }
-            for (int i = 0; i < MAX_TERM_DATA; i++) {
-                sdl_view* view = &g_views[i];
-                if (!view->canvas)
-                    continue;
-                if (view->cols <= 0 || view->rows <= 0 || view->cell_w <= 0 || view->cell_h <= 0)
-                    continue;
-                // rect and margin are already in window coordinates, no scaling needed
-                float dst_w = (float)(view->cols * view->cell_w);
-                float dst_h = (float)(view->rows * view->cell_h);
-                if (dst_w <= 0.0f || dst_h <= 0.0f)
-                    continue;
-                SDL_RenderTexture(g_state.renderer, view->canvas, NULL, &(SDL_FRect){
-                    .x = view->rect.x + view->margin_x,
-                    .y = view->rect.y + view->margin_y,
-                    .w = dst_w,
-                    .h = dst_h,
-                });
-                if (active_views > 1) {
-                    SDL_SetRenderDrawColor(g_state.renderer, 255, 255, 255, 128);
-                    SDL_FRect frame = {
-                        .x = view->rect.x,
-                        .y = view->rect.y,
-                        .w = view->rect.w,
-                        .h = view->rect.h,
-                    };
-                    SDL_RenderRect(g_state.renderer, &frame);
-                }
-            }
-            SDL_RenderPresent(g_state.renderer);
-            if (d && d->canvas)
-                SDL_SetRenderTarget(g_state.renderer, d->canvas);
-            else
-                SDL_SetRenderTarget(g_state.renderer, NULL);
-            g_state.need_present = false;
-        }
+        sdl_present_if_needed(d);
         return 0;
     case TERM_XTRA_DELAY: {
         /* Break delay into chunks and process events to keep app responsive */
@@ -2680,9 +3226,6 @@ static void sdl_window_create(int window_width, int window_height, bool fullscre
         log_warn("Failed to enable V-SYNC: %s", SDL_GetError());
     }
 
-    if (fullscreen)
-        SDL_HideCursor();
-
     g_state.system_scale = SDL_GetWindowDisplayScale(g_state.window);
     log_debug("window scale is %g", g_state.system_scale);
 
@@ -3126,6 +3669,24 @@ errr init_sdl(int argc, char **argv)
                   config.fullscreen, config.tiles);
     }
 
+#ifdef __ANDROID__
+    if (!config_exists) {
+        pane_config_count = 1;
+        pane_config[0] = (struct pane_config){
+            .pane = PANE_TOUCH,
+            .where = PLACE_RIGHT,
+            .enabled = true,
+            .rect = { .rows = 0, .cols = 15 },
+            .ratio = 0.0f,
+        };
+        config.enable_right_panes = true;
+        config.enable_bottom_panes = false;
+        log_info("Android default pane layout: touch pane only (right side)");
+    }
+#endif
+
+    sdl_ensure_touch_pane_config_present();
+
     g_hide_left_panel = config.hide_left_panel;
     
     // Apply command-line overrides
@@ -3323,11 +3884,13 @@ void get_sdl_config_info(char* buf, size_t size)
             case PANE_CHARACTER: type_str = "CHARACTER"; break;
             case PANE_LOG: type_str = "LOG"; break;
             case PANE_MONSTERS: type_str = "MONSTERS"; break;
+            case PANE_TOUCH: type_str = "TOUCH"; break;
             default: break;
         }
         
         offset += (size_t)strnfmt(buf + offset, size - offset, "Pane %d: %s\n", i + 1, type_str);
         offset += (size_t)strnfmt(buf + offset, size - offset, "  Placement: %s\n", where_str);
+        offset += (size_t)strnfmt(buf + offset, size - offset, "  Enabled: %s\n", pc->enabled ? "yes" : "no");
         if (pc->rect.rows > 0)
             offset += (size_t)strnfmt(buf + offset, size - offset, "  Rows: %d\n", pc->rect.rows);
         if (pc->rect.cols > 0)
@@ -3436,7 +3999,6 @@ void set_sdl_fullscreen(bool value)
                 config.fullscreen = false; // Revert on failure
                 return;
             }
-            SDL_HideCursor();
             log_info("Entered fullscreen mode");
         } else {
             // Going to windowed
@@ -3445,7 +4007,6 @@ void set_sdl_fullscreen(bool value)
                 config.fullscreen = true; // Revert on failure
                 return;
             }
-            SDL_ShowCursor();
 
             // Restore saved window position and size
             if (config.window_width > 0 && config.window_height > 0) {
@@ -3464,6 +4025,7 @@ void set_sdl_fullscreen(bool value)
         SDL_GetWindowSizeInPixels(g_state.window, &window.w, &window.h);
         sdl_load_story_fonts();
         resize(&window);
+        sdl_update_cursor_visibility();
 
         // Redraw everything
         g_state.need_present = true;
@@ -3504,6 +4066,13 @@ int get_sdl_pane_where(int index)
     return (int)pane_config[index].where;
 }
 
+bool get_sdl_pane_enabled(int index)
+{
+    if (index < 0 || index >= pane_config_count)
+        return false;
+    return pane_config[index].enabled;
+}
+
 int get_sdl_pane_rows(int index)
 {
     if (index < 0 || index >= pane_config_count)
@@ -3538,6 +4107,13 @@ void set_sdl_pane_cols(int index, int cols)
     if (cols > 200)
         cols = 200;
     pane_config[index].rect.cols = cols;
+}
+
+void set_sdl_pane_enabled(int index, bool enabled)
+{
+    if (index < 0 || index >= pane_config_count)
+        return;
+    pane_config[index].enabled = enabled;
 }
 
 bool get_sdl_enable_right_panes(void)
@@ -3605,6 +4181,18 @@ static void sdl_gamepad_load_default_bindings(void)
         sizeof(g_default_gamepad_right_stick_bindings));
     g_default_gamepad_shoulder_combo_binding = defaults.gamepad_shoulder_combo_binding;
     g_default_gamepad_bindings_ready = true;
+}
+
+static void sdl_touch_pane_load_default_bindings(void)
+{
+    if (g_default_touch_pane_bindings_ready)
+        return;
+
+    struct sdl_config defaults;
+    sdl_config_set_defaults(&defaults);
+    memcpy(g_default_touch_pane_bindings, defaults.touch_pane_bindings,
+        sizeof(g_default_touch_pane_bindings));
+    g_default_touch_pane_bindings_ready = true;
 }
 
 bool steamdeck_controls_active(void)
@@ -3828,6 +4416,40 @@ void sdl_gamepad_reset_bindings_to_default(void)
     sdl_config_set_default_gamepad_bindings(&config);
 }
 
+int get_sdl_touch_pane_binding(int index)
+{
+    if (index < 0 || index >= SDL_TOUCH_PANE_BUTTON_COUNT)
+        return GAMEPAD_BIND_NONE;
+    return config.touch_pane_bindings[index];
+}
+
+void set_sdl_touch_pane_binding(int index, int binding)
+{
+    if (index < 0 || index >= SDL_TOUCH_PANE_BUTTON_COUNT)
+        return;
+    config.touch_pane_bindings[index] = binding;
+}
+
+int get_sdl_touch_pane_default_binding(int index)
+{
+    if (index < 0 || index >= SDL_TOUCH_PANE_BUTTON_COUNT)
+        return GAMEPAD_BIND_NONE;
+    sdl_touch_pane_load_default_bindings();
+    return g_default_touch_pane_bindings[index];
+}
+
+void sdl_touch_pane_reset_bindings_to_default(void)
+{
+    sdl_config_set_default_touch_pane_bindings(&config);
+}
+
+cptr get_sdl_touch_pane_slot_name(int index)
+{
+    if (index < 0 || index >= SDL_TOUCH_PANE_BUTTON_COUNT)
+        return "";
+    return g_touch_pane_slots[index].slot_name;
+}
+
 bool sdl_gamepad_capture_begin(void)
 {
     g_gamepad_capture_ready = false;
@@ -3870,22 +4492,18 @@ int get_sdl_max_scale(void)
     }
     
     int w, h;
-    SDL_GetWindowSizeInPixels(g_state.window, &w, &h);
-    int min_cols = sdl_current_min_terminal_cols();
-    int min_rows = sdl_current_min_terminal_rows();
+    SDL_Rect screen;
+    SDL_Rect panes[PANE_MAX];
+    int max_scale;
 
-    // cell_w = scale * TILE_SIZE / 2, so scale = cell_w * 2 / TILE_SIZE
-    // cell_h = scale * TILE_SIZE
-    int max_scale_w = (w / min_cols) * 2 / TILE_SIZE;
-    int max_scale_h = h / min_rows / TILE_SIZE;
-    int max_scale = (max_scale_w < max_scale_h) ? max_scale_w : max_scale_h;
-    
-    // Ensure at least 1, and cap at a reasonable maximum
-    if (max_scale < 1) max_scale = 1;
-    if (max_scale > 20) max_scale = 20;
-    
-    log_debug("get_sdl_max_scale: window=%dx%d min=%dx%d (%s) max_scale=%d",
-              w, h, min_cols, min_rows,
+    SDL_GetWindowSizeInPixels(g_state.window, &w, &h);
+    screen = (SDL_Rect){ 0, 0, w, h };
+    sdl_compute_split_panes(&screen, panes);
+    max_scale = sdl_max_scale_for_rect(&panes[PANE_MAIN]);
+
+    log_debug("get_sdl_max_scale: window=%dx%d main=%dx%d min=%dx%d (%s) max_scale=%d",
+              w, h, panes[PANE_MAIN].w, panes[PANE_MAIN].h,
+              sdl_current_min_terminal_cols(), sdl_current_min_terminal_rows(),
               sdl_min_terminal_mode_name(config.min_terminal_mode), max_scale);
     
     return max_scale;
@@ -3904,6 +4522,14 @@ void sdl_apply_config(void)
     
     int w, h;
     SDL_GetWindowSizeInPixels(g_state.window, &w, &h);
+    {
+        int max_scale = get_sdl_max_scale();
+        if (config.main_view_scale > max_scale) {
+            log_info("Clamping main_view_scale from %d to %d for current pane layout",
+                     config.main_view_scale, max_scale);
+            config.main_view_scale = max_scale;
+        }
+    }
     SDL_Rect screen = { 0, 0, w, h };
     sdl_load_story_fonts();
     resize(&screen);

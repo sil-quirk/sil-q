@@ -309,6 +309,7 @@ static const char* pane_type_to_string(enum pane_type type)
         case PANE_CHARACTER: return "CHARACTER";
         case PANE_LOG: return "LOG";
         case PANE_MONSTERS: return "MONSTERS";
+        case PANE_TOUCH: return "TOUCH";
         default: return "MAIN";
     }
 }
@@ -325,6 +326,7 @@ static enum pane_type parse_pane_type(const char* value)
     if (strcmp(value, "CHARACTER") == 0) return PANE_CHARACTER;
     if (strcmp(value, "LOG") == 0) return PANE_LOG;
     if (strcmp(value, "MONSTERS") == 0) return PANE_MONSTERS;
+    if (strcmp(value, "TOUCH") == 0) return PANE_TOUCH;
     return PANE_MAIN;
 }
 
@@ -862,6 +864,7 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
             }
             
             struct pane_config* pc = &pane_configs[count];
+            pc->enabled = true;
             
             cJSON* type = cJSON_GetObjectItemCaseSensitive(pane_item, "type");
             if (cJSON_IsString(type)) {
@@ -873,6 +876,12 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
             if (cJSON_IsString(where)) {
                 pc->where = parse_pane_placement(where->valuestring);
                 log_debug("Pane %d: where=%s", count, where->valuestring);
+            }
+
+            cJSON* enabled = cJSON_GetObjectItemCaseSensitive(pane_item, "enabled");
+            if (cJSON_IsBool(enabled)) {
+                pc->enabled = cJSON_IsTrue(enabled);
+                log_debug("Pane %d: enabled=%s", count, pc->enabled ? "true" : "false");
             }
             
             cJSON* rows = cJSON_GetObjectItemCaseSensitive(pane_item, "rows");
@@ -891,6 +900,11 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
             if (cJSON_IsNumber(ratio)) {
                 pc->ratio = (float)ratio->valuedouble;
                 log_debug("Pane %d: ratio=%.2f", count, pc->ratio);
+            }
+
+            if (pc->pane == PANE_TOUCH && pc->rect.cols <= 0) {
+                pc->rect.cols = 15;
+                log_debug("Pane %d: touch pane default cols=%d", count, pc->rect.cols);
             }
             
             count++;
@@ -1018,6 +1032,39 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
     } else {
         log_warn("'gamepad' object not found in JSON");
     }
+
+    {
+        cJSON* touch_pane = cJSON_GetObjectItemCaseSensitive(root, "touchPane");
+        if (cJSON_IsObject(touch_pane)) {
+            cJSON* bindings = cJSON_GetObjectItemCaseSensitive(touch_pane, "bindings");
+            if (cJSON_IsArray(bindings)) {
+                int count = cJSON_GetArraySize(bindings);
+                if (count == 21) {
+                    for (int i = 0; i < count && (i + 3) < SDL_TOUCH_PANE_BUTTON_COUNT; i++) {
+                        cJSON* binding = cJSON_GetArrayItem(bindings, i);
+                        if (cJSON_IsNumber(binding)) {
+                            int value = binding->valueint;
+                            if (value == ' ')
+                                value = INPUT_BIND_CONFIRM;
+                            config->touch_pane_bindings[i + 3] = value;
+                        }
+                    }
+                    log_info("Migrated legacy touchPane.bindings layout (21 -> %d entries)",
+                        SDL_TOUCH_PANE_BUTTON_COUNT);
+                } else {
+                    for (int i = 0; i < SDL_TOUCH_PANE_BUTTON_COUNT && i < count; i++) {
+                        cJSON* binding = cJSON_GetArrayItem(bindings, i);
+                        if (cJSON_IsNumber(binding)) {
+                            config->touch_pane_bindings[i] = binding->valueint;
+                        }
+                    }
+                }
+                log_debug("Loaded touchPane.bindings (%d entries)", count);
+            }
+        } else {
+            log_warn("'touchPane' object not found in JSON");
+        }
+    }
     
     cJSON_Delete(root);
     log_debug("Configuration loading complete. Total panes: %d", *pane_count);
@@ -1098,6 +1145,7 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
         
         cJSON_AddStringToObject(pane, "type", pane_type_to_string(pc->pane));
         cJSON_AddStringToObject(pane, "where", pane_placement_to_string(pc->where));
+        cJSON_AddBoolToObject(pane, "enabled", pc->enabled);
         
         if (pc->rect.rows > 0) {
             cJSON_AddNumberToObject(pane, "rows", pc->rect.rows);
@@ -1168,6 +1216,20 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
             cJSON_AddNumberToObject(gamepad, "shoulderComboBinding", config->gamepad_shoulder_combo_binding);
 
             cJSON_AddItemToObject(root, "gamepad", gamepad);
+        }
+    }
+
+    {
+        cJSON* touch_pane = cJSON_CreateObject();
+        if (touch_pane) {
+            cJSON* bindings = cJSON_CreateArray();
+            if (bindings) {
+                for (int i = 0; i < SDL_TOUCH_PANE_BUTTON_COUNT; i++) {
+                    cJSON_AddItemToArray(bindings, cJSON_CreateNumber(config->touch_pane_bindings[i]));
+                }
+                cJSON_AddItemToObject(touch_pane, "bindings", bindings);
+            }
+            cJSON_AddItemToObject(root, "touchPane", touch_pane);
         }
     }
 
@@ -1277,6 +1339,25 @@ void sdl_config_set_default_gamepad_bindings(struct sdl_config* config)
     config->gamepad_shoulder_combo_binding = 'l';
 }
 
+void sdl_config_set_default_touch_pane_bindings(struct sdl_config* config)
+{
+    static const int defaults[SDL_TOUCH_PANE_BUTTON_COUNT] = {
+        ESCAPE, GAMEPAD_BIND_CTRL, GAMEPAD_BIND_SHIFT,
+        'e', 'i', 'j',
+        'u', 's', 'f',
+        '7', '8', '9',
+        '4', INPUT_BIND_CONFIRM, '6',
+        '1', '2', '3',
+        'a', 'x', 'd',
+        'M', 'h', '\t',
+    };
+
+    if (!config)
+        return;
+
+    memcpy(config->touch_pane_bindings, defaults, sizeof(defaults));
+}
+
 void sdl_config_set_defaults(struct sdl_config* config)
 {
     config->main_view_scale = 1;
@@ -1330,6 +1411,7 @@ void sdl_config_set_defaults(struct sdl_config* config)
     config->gamepad_deadzone = 12000;
     config->gamepad_trigger_threshold = 16000;
     sdl_config_set_default_gamepad_bindings(config);
+    sdl_config_set_default_touch_pane_bindings(config);
 }
 
 void sdl_config_set_defaults_for_resolution(struct sdl_config* config, 
@@ -1374,6 +1456,7 @@ void sdl_config_set_defaults_for_resolution(struct sdl_config* config,
         for (int i = 0; i < *pane_count; i++) {
             pane_configs[i].pane = profile->panes[i].type;
             pane_configs[i].where = profile->panes[i].where;
+            pane_configs[i].enabled = true;
             pane_configs[i].rect.rows = profile->panes[i].rows;
             pane_configs[i].rect.cols = profile->panes[i].cols;
             pane_configs[i].ratio = 0.0f;

@@ -1,4 +1,5 @@
 #pragma once
+#include <stdbool.h>
 #include <stdint.h>
 #include "SDL3/SDL_rect.h"
 
@@ -12,7 +13,8 @@ enum pane_type {
     PANE_CHARACTER = 5, // — character sheet
     PANE_LOG = 6,
     PANE_MONSTERS = 7, // — visible monsters window
-    PANE_MAX = 8,
+    PANE_TOUCH = 8, // touchscreen / mouse action pad
+    PANE_MAX = 9,
 };
 
 // Where the pane is placed — on the right or in the bottom of the screen.
@@ -46,6 +48,7 @@ struct pane_config {
     enum pane_type pane;
     // Where the pane is placed.
     enum pane_placement where;
+    bool enabled;
     struct rect rect;
     // Ratio along the secondary axis, so if the pane is on the right, it's part
     // of the height of the whole window it takes, and if the pane is in the

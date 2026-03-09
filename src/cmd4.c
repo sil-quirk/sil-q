@@ -12324,6 +12324,7 @@ static errr option_dump(cptr fname)
  */
 static int get_supporting_pane_config_count(void);
 static void do_cmd_supporting_pane_layout_editor(bool* settings_changed);
+static void do_cmd_touch_pane_button_editor(bool* settings_changed);
 static const char* sdl_min_terminal_mode_label(int mode)
 {
     return (mode == 1) ? "compact (50x20)" : "normal (80x24)";
@@ -12332,7 +12333,7 @@ static const char* sdl_min_terminal_mode_label(int mode)
 void do_cmd_pane_settings(void)
 {
     int k = 0;
-    int n = 10; /* Total number of options */
+    int n = 11; /* Total number of options */
     bool done = false;
     bool settings_changed = false;
     int dir;
@@ -12400,9 +12401,13 @@ void do_cmd_pane_settings(void)
         strnfmt(buf, sizeof(buf), "View Pane Configuration (%d panes)", get_supporting_pane_config_count());
         c_prt(a, buf, y0 + 8, 2);
 
-        /* Option 9: Save/Return */
+        /* Option 9: Touch Pane Buttons */
         a = (k == 9) ? TERM_L_BLUE : TERM_WHITE;
-        c_prt(a, settings_changed ? "Save Changes and Return" : "Return to Options Menu", y0 + 9, 2);
+        c_prt(a, "Touch Pane Buttons", y0 + 9, 2);
+
+        /* Option 10: Save/Return */
+        a = (k == 10) ? TERM_L_BLUE : TERM_WHITE;
+        c_prt(a, settings_changed ? "Save Changes and Return" : "Return to Options Menu", y0 + 10, 2);
         
         /* Display help */
         int y = Term->hgt - 3;
@@ -12447,6 +12452,11 @@ void do_cmd_pane_settings(void)
             if (k == 8) /* Supporting Pane Layout */
             {
                 do_cmd_supporting_pane_layout_editor(&settings_changed);
+                break;
+            }
+            if (k == 9) /* Touch Pane Buttons */
+            {
+                do_cmd_touch_pane_button_editor(&settings_changed);
                 break;
             }
 
@@ -12514,7 +12524,11 @@ void do_cmd_pane_settings(void)
             {
                 do_cmd_supporting_pane_layout_editor(&settings_changed);
             }
-            else if (k == 9) /* Save/Return */
+            else if (k == 9) /* Touch Pane Buttons */
+            {
+                do_cmd_touch_pane_button_editor(&settings_changed);
+            }
+            else if (k == 10) /* Save/Return */
             {
                 if (settings_changed)
                 {
@@ -12694,6 +12708,7 @@ static const char* pane_type_name(enum pane_type type)
     case PANE_CHARACTER: return "CHARACTER";
     case PANE_LOG: return "LOG";
     case PANE_MONSTERS: return "MONSTERS";
+    case PANE_TOUCH: return "TOUCH";
     default: return "UNKNOWN";
     }
 }
@@ -12746,6 +12761,8 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
     {
         int idx = pane_indices[i];
         enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
+        if (!get_sdl_pane_enabled(idx))
+            continue;
         if (where == PLACE_RIGHT && right_master_idx < 0)
             right_master_idx = idx;
         if (where == PLACE_BOTTOM && bottom_master_idx < 0)
@@ -12755,7 +12772,7 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
     screen_save();
 
     int sel = 0;
-    int field = 0; /* 0 = rows, 1 = cols */
+    int field = 0; /* 0 = enabled, 1 = rows, 2 = cols */
     bool done = false;
     bool changed = false;
     int dir;
@@ -12779,6 +12796,8 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
     {
         int idx = pane_indices[i];
         enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
+        if (!get_sdl_pane_enabled(idx))
+            continue;
         if (where == PLACE_RIGHT && idx != right_master_idx)
         {
             if (get_sdl_pane_cols(idx) != 0)
@@ -12805,8 +12824,8 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
         enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
         bool rows_locked = (where == PLACE_BOTTOM && idx != bottom_master_idx);
         bool cols_locked = (where == PLACE_RIGHT && idx != right_master_idx);
-        if (field == 0 && rows_locked) field = 1;
-        if (field == 1 && cols_locked) field = 0;
+        while ((field == 1 && rows_locked) || (field == 2 && cols_locked))
+            field = (field + 1) % 3;
     }
 
     while (!done)
@@ -12818,33 +12837,41 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
         int y0 = 4;
         int x_type = 2;
         int x_where = 14;
-        int x_rows_label = 23;
-        int x_rows_value = 29;
-        int x_cols_label = 38;
-        int x_cols_value = 44;
+        int x_enabled_label = 23;
+        int x_enabled_value = 27;
+        int x_rows_label = 35;
+        int x_rows_value = 41;
+        int x_cols_label = 50;
+        int x_cols_value = 56;
         for (int i = 0; i < pane_count && (y0 + i) < Term->hgt - 5; i++)
         {
             int idx = pane_indices[i];
             enum pane_type type = (enum pane_type)get_sdl_pane_type(idx);
             enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
+            bool enabled = get_sdl_pane_enabled(idx);
             int rows = get_sdl_pane_rows(idx);
             int cols = get_sdl_pane_cols(idx);
 
-            byte a = (i == sel) ? TERM_L_BLUE : TERM_WHITE;
+            byte a = enabled ? ((i == sel) ? TERM_L_BLUE : TERM_WHITE) : TERM_SLATE;
             bool rows_locked = (where == PLACE_BOTTOM && idx != bottom_master_idx);
             bool cols_locked = (where == PLACE_RIGHT && idx != right_master_idx);
 
             /* Build fixed-width field strings for clean alignment.
              * Each is exactly 5 chars: " %3d ", "[%3d]", or " --- ".
              */
+            char enabled_field[8];
             char rows_field[8];
             char cols_field[8];
+            if (i == sel && field == 0)
+                strnfmt(enabled_field, sizeof(enabled_field), "[%s]", enabled ? "on " : "off");
+            else
+                strnfmt(enabled_field, sizeof(enabled_field), " %s ", enabled ? "on " : "off");
             if (rows_locked)
             {
                 int shared_rows = (bottom_master_idx >= 0) ? get_sdl_pane_rows(bottom_master_idx) : rows;
                 strnfmt(rows_field, sizeof(rows_field), " %3d ", shared_rows);
             }
-            else if (i == sel && field == 0)
+            else if (i == sel && field == 1)
                 strnfmt(rows_field, sizeof(rows_field), "[%3d]", rows);
             else
                 strnfmt(rows_field, sizeof(rows_field), " %3d ", rows);
@@ -12854,13 +12881,15 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
                 int shared_cols = (right_master_idx >= 0) ? get_sdl_pane_cols(right_master_idx) : cols;
                 strnfmt(cols_field, sizeof(cols_field), " %3d ", shared_cols);
             }
-            else if (i == sel && field == 1)
+            else if (i == sel && field == 2)
                 strnfmt(cols_field, sizeof(cols_field), "[%3d]", cols);
             else
                 strnfmt(cols_field, sizeof(cols_field), " %3d ", cols);
 
             c_prt(a, pane_type_name(type), y0 + i, x_type);
             c_prt(a, pane_where_name(where), y0 + i, x_where);
+            c_prt(a, "on:", y0 + i, x_enabled_label);
+            c_prt(a, enabled_field, y0 + i, x_enabled_value);
             c_prt(a, "rows:", y0 + i, x_rows_label);
             c_prt(a, rows_field, y0 + i, x_rows_value);
             c_prt(a, "cols:", y0 + i, x_cols_label);
@@ -12868,8 +12897,8 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
         }
 
         int y = Term->hgt - 4;
-        Term_putstr(2, y++, -1, TERM_SLATE, "Up/Down: select pane   Space: choose rows/cols");
-        Term_putstr(2, y++, -1, TERM_SLATE, "4/6 (or n/y): -/+ value   0: set to auto (0)");
+        Term_putstr(2, y++, -1, TERM_SLATE, "Up/Down: select pane   Space: choose on/off, rows, cols");
+        Term_putstr(2, y++, -1, TERM_SLATE, "4/6 (or n/y): off/on or -/+ value   0: set rows/cols to auto");
         Term_putstr(2, y++, -1, TERM_SLATE, "RIGHT: cols shared (edit first RIGHT)   BOTTOM: rows shared (edit first BOTTOM)");
         Term_putstr(2, y++, -1, TERM_SLATE, "ESC/Enter: return (changes apply immediately)");
 
@@ -12894,14 +12923,14 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
         case ' ':
         case 't':
         case '5':
-            field = (field == 0) ? 1 : 0;
+            field = (field + 1) % 3;
             {
                 int idx = pane_indices[sel];
                 enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
                 bool rows_locked = (where == PLACE_BOTTOM && idx != bottom_master_idx);
                 bool cols_locked = (where == PLACE_RIGHT && idx != right_master_idx);
-                if (field == 0 && rows_locked) field = 1;
-                if (field == 1 && cols_locked) field = 0;
+                while ((field == 1 && rows_locked) || (field == 2 && cols_locked))
+                    field = (field + 1) % 3;
             }
             break;
 
@@ -12913,8 +12942,8 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
                 enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
                 bool rows_locked = (where == PLACE_BOTTOM && idx != bottom_master_idx);
                 bool cols_locked = (where == PLACE_RIGHT && idx != right_master_idx);
-                if (field == 0 && rows_locked) field = 1;
-                if (field == 1 && cols_locked) field = 0;
+                while ((field == 1 && rows_locked) || (field == 2 && cols_locked))
+                    field = (field + 1) % 3;
             }
             break;
 
@@ -12925,8 +12954,8 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
                 enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
                 bool rows_locked = (where == PLACE_BOTTOM && idx != bottom_master_idx);
                 bool cols_locked = (where == PLACE_RIGHT && idx != right_master_idx);
-                if (field == 0 && rows_locked) field = 1;
-                if (field == 1 && cols_locked) field = 0;
+                while ((field == 1 && rows_locked) || (field == 2 && cols_locked))
+                    field = (field + 1) % 3;
             }
             break;
 
@@ -12936,17 +12965,22 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
             enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
             bool rows_locked = (where == PLACE_BOTTOM && idx != bottom_master_idx);
             bool cols_locked = (where == PLACE_RIGHT && idx != right_master_idx);
-            if (field == 0 && rows_locked)
+            if (field == 0)
+            {
+                bell("Use 4/6 to toggle pane enabled");
+                break;
+            }
+            if (field == 1 && rows_locked)
             {
                 bell("Rows are shared for bottom panes");
                 break;
             }
-            if (field == 1 && cols_locked)
+            if (field == 2 && cols_locked)
             {
                 bell("Cols are shared for right panes");
                 break;
             }
-            if (field == 0) set_sdl_pane_rows(idx, 0);
+            if (field == 1) set_sdl_pane_rows(idx, 0);
             else set_sdl_pane_cols(idx, 0);
             changed = true;
             sdl_apply_config();
@@ -12960,18 +12994,44 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
             enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
             bool rows_locked = (where == PLACE_BOTTOM && idx != bottom_master_idx);
             bool cols_locked = (where == PLACE_RIGHT && idx != right_master_idx);
-            if (field == 0 && rows_locked)
+            if (field == 0)
+            {
+                set_sdl_pane_enabled(idx, false);
+            }
+            else if (field == 1 && rows_locked)
             {
                 bell("Rows are shared for bottom panes");
                 break;
             }
-            if (field == 1 && cols_locked)
+            else if (field == 2 && cols_locked)
             {
                 bell("Cols are shared for right panes");
                 break;
             }
-            if (field == 0) set_sdl_pane_rows(idx, get_sdl_pane_rows(idx) - 1);
+            else if (field == 1) set_sdl_pane_rows(idx, get_sdl_pane_rows(idx) - 1);
             else set_sdl_pane_cols(idx, get_sdl_pane_cols(idx) - 1);
+
+            right_master_idx = -1;
+            bottom_master_idx = -1;
+            for (int i = 0; i < pane_count; i++)
+            {
+                int cur = pane_indices[i];
+                enum pane_placement cur_where = (enum pane_placement)get_sdl_pane_where(cur);
+                if (!get_sdl_pane_enabled(cur))
+                    continue;
+                if (cur_where == PLACE_RIGHT && right_master_idx < 0)
+                    right_master_idx = cur;
+                if (cur_where == PLACE_BOTTOM && bottom_master_idx < 0)
+                    bottom_master_idx = cur;
+            }
+            {
+                int cur = pane_indices[sel];
+                enum pane_placement cur_where = (enum pane_placement)get_sdl_pane_where(cur);
+                bool rows_locked_cur = (cur_where == PLACE_BOTTOM && cur != bottom_master_idx);
+                bool cols_locked_cur = (cur_where == PLACE_RIGHT && cur != right_master_idx);
+                while ((field == 1 && rows_locked_cur) || (field == 2 && cols_locked_cur))
+                    field = (field + 1) % 3;
+            }
             changed = true;
             sdl_apply_config();
             break;
@@ -12984,18 +13044,44 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
             enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
             bool rows_locked = (where == PLACE_BOTTOM && idx != bottom_master_idx);
             bool cols_locked = (where == PLACE_RIGHT && idx != right_master_idx);
-            if (field == 0 && rows_locked)
+            if (field == 0)
+            {
+                set_sdl_pane_enabled(idx, true);
+            }
+            else if (field == 1 && rows_locked)
             {
                 bell("Rows are shared for bottom panes");
                 break;
             }
-            if (field == 1 && cols_locked)
+            else if (field == 2 && cols_locked)
             {
                 bell("Cols are shared for right panes");
                 break;
             }
-            if (field == 0) set_sdl_pane_rows(idx, get_sdl_pane_rows(idx) + 1);
+            else if (field == 1) set_sdl_pane_rows(idx, get_sdl_pane_rows(idx) + 1);
             else set_sdl_pane_cols(idx, get_sdl_pane_cols(idx) + 1);
+
+            right_master_idx = -1;
+            bottom_master_idx = -1;
+            for (int i = 0; i < pane_count; i++)
+            {
+                int cur = pane_indices[i];
+                enum pane_placement cur_where = (enum pane_placement)get_sdl_pane_where(cur);
+                if (!get_sdl_pane_enabled(cur))
+                    continue;
+                if (cur_where == PLACE_RIGHT && right_master_idx < 0)
+                    right_master_idx = cur;
+                if (cur_where == PLACE_BOTTOM && bottom_master_idx < 0)
+                    bottom_master_idx = cur;
+            }
+            {
+                int cur = pane_indices[sel];
+                enum pane_placement cur_where = (enum pane_placement)get_sdl_pane_where(cur);
+                bool rows_locked_cur = (cur_where == PLACE_BOTTOM && cur != bottom_master_idx);
+                bool cols_locked_cur = (cur_where == PLACE_RIGHT && cur != right_master_idx);
+                while ((field == 1 && rows_locked_cur) || (field == 2 && cols_locked_cur))
+                    field = (field + 1) % 3;
+            }
             changed = true;
             sdl_apply_config();
             break;
@@ -13009,6 +13095,164 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
 
     if (changed && settings_changed)
         *settings_changed = true;
+
+    screen_load();
+}
+
+static const int touch_pane_action_choices[] = {
+    GAMEPAD_BIND_NONE,
+    ESCAPE, GAMEPAD_BIND_CTRL, GAMEPAD_BIND_SHIFT, INPUT_BIND_CONFIRM,
+    'e', 'i', 'j',
+    'u', 's', 'f',
+    '7', '8', '9',
+    '4', '5', '6',
+    '1', '2', '3',
+    'a', 'x', 'd',
+    'M', 'h', '\t',
+    'z', '.', '/',
+    'w', 'r', 'k', 'g', 'Z',
+    'o', 'c', 'D', 'X',
+    '-', '{', 'a', 'E', 't', 'p', 'q',
+    'F', 'S', 'l', 'b', 'L',
+    '0', '<', '>', '?', 'O', ':', '~', '[', ']', '@',
+};
+
+static int touch_pane_action_choice_index(int binding)
+{
+    for (int i = 0; i < (int)N_ELEMENTS(touch_pane_action_choices); i++)
+    {
+        if (touch_pane_action_choices[i] == binding)
+            return i;
+    }
+    return 0;
+}
+
+static void do_cmd_touch_pane_button_editor(bool* settings_changed)
+{
+    int highlight = 0;
+    int top = 0;
+    bool done = false;
+    bool changed = false;
+    int term_w, term_h;
+    const int list_start_row = 5;
+
+    screen_save();
+
+    while (!done)
+    {
+        int row;
+        int visible_rows;
+
+        Term_get_size(&term_w, &term_h);
+        (void)term_w;
+        visible_rows = term_h - list_start_row - 6;
+        if (visible_rows < 5)
+            visible_rows = 5;
+
+        if (highlight < 0)
+            highlight = 0;
+        if (highlight >= SDL_TOUCH_PANE_BUTTON_COUNT)
+            highlight = SDL_TOUCH_PANE_BUTTON_COUNT - 1;
+
+        if (top > highlight)
+            top = highlight;
+        if (top + visible_rows <= highlight)
+            top = highlight - visible_rows + 1;
+        if (top < 0)
+            top = 0;
+
+        Term_clear();
+        Term_putstr(2, 1, -1, TERM_L_BLUE, "Touch Pane Buttons");
+        Term_putstr(2, 2, -1, TERM_WHITE, "==================");
+        Term_putstr(2, 3, -1, TERM_SLATE, "Select a grid slot and cycle its action binding.");
+
+        row = list_start_row;
+        for (int i = top; i < SDL_TOUCH_PANE_BUTTON_COUNT && i < top + visible_rows; i++)
+        {
+            char action_buf[80];
+            byte a = (i == highlight) ? TERM_L_BLUE : TERM_WHITE;
+
+            binding_action_label(get_sdl_touch_pane_binding(i), action_buf, sizeof(action_buf));
+            c_prt(a, format("%-14s -> %s", get_sdl_touch_pane_slot_name(i), action_buf), row++, 2);
+        }
+
+        row = list_start_row + visible_rows + 1;
+        Term_putstr(2, row++, -1, TERM_SLATE, "Up/Down: select button   4/6: previous/next action");
+        Term_putstr(2, row++, -1, TERM_SLATE, "r: reset selected   R: reset all   ESC/Enter: return");
+
+        Term_fresh();
+
+        hide_cursor = true;
+        char ch = inkey();
+        hide_cursor = false;
+
+        {
+            int dir = target_dir(ch);
+            if ((dir == 2) || (dir == 4) || (dir == 6) || (dir == 8))
+                ch = I2D(dir);
+        }
+
+        switch (ch)
+        {
+        case ESCAPE:
+        case '\n':
+        case '\r':
+            done = true;
+            break;
+
+        case '-':
+        case '8':
+            highlight = (SDL_TOUCH_PANE_BUTTON_COUNT + highlight - 1) % SDL_TOUCH_PANE_BUTTON_COUNT;
+            break;
+
+        case '2':
+            highlight = (highlight + 1) % SDL_TOUCH_PANE_BUTTON_COUNT;
+            break;
+
+        case 'n':
+        case '4':
+        {
+            int idx = touch_pane_action_choice_index(get_sdl_touch_pane_binding(highlight));
+            idx = ((int)N_ELEMENTS(touch_pane_action_choices) + idx - 1) % (int)N_ELEMENTS(touch_pane_action_choices);
+            set_sdl_touch_pane_binding(highlight, touch_pane_action_choices[idx]);
+            changed = true;
+            break;
+        }
+
+        case 'y':
+        case '6':
+        case ' ':
+        case 't':
+        case '5':
+        {
+            int idx = touch_pane_action_choice_index(get_sdl_touch_pane_binding(highlight));
+            idx = (idx + 1) % (int)N_ELEMENTS(touch_pane_action_choices);
+            set_sdl_touch_pane_binding(highlight, touch_pane_action_choices[idx]);
+            changed = true;
+            break;
+        }
+
+        case 'r':
+            set_sdl_touch_pane_binding(highlight, get_sdl_touch_pane_default_binding(highlight));
+            changed = true;
+            break;
+
+        case 'R':
+            sdl_touch_pane_reset_bindings_to_default();
+            changed = true;
+            break;
+
+        default:
+            bell("Illegal command for touch pane buttons!");
+            break;
+        }
+    }
+
+    if (changed)
+    {
+        if (settings_changed)
+            *settings_changed = true;
+    }
 
     screen_load();
 }

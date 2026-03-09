@@ -9,6 +9,7 @@ static struct pane_specs pane_specs[PANE_MAX] = {
     [PANE_CHARACTER] = {.placement = PLACE_BOTTOM, .min_rect.cols = 60},
     [PANE_LOG] = {.placement = PLACE_RIGHT | PLACE_BOTTOM}, 
     [PANE_MONSTERS] = {.placement = PLACE_RIGHT}, // fill
+    [PANE_TOUCH] = {.placement = PLACE_RIGHT | PLACE_BOTTOM, .min_rect.rows = 12, .min_rect.cols = 12},
 };
 
 static struct rect split_by_axis(enum pane_placement place,
@@ -17,6 +18,7 @@ static struct rect split_by_axis(enum pane_placement place,
 {
     const int axis = place - 1;
     const int other_axis = 1 - axis;
+    int active_count = 0;
 
     // Minimum required size of the split.
     int split_size = 0;
@@ -26,8 +28,11 @@ static struct rect split_by_axis(enum pane_placement place,
     int distr_count = 0;
     int actual_sizes[PANE_MAX] = {0};
     for (int i = 0; i < count; i++) {
+        if (!config[i].enabled)
+            continue;
         if (config[i].where != place)
             continue;
+        active_count++;
         if (config[i].rect.size[axis] > split_size)
             split_size = config[i].rect.size[axis];
         if (pane_specs[config[i].pane].min_rect.size[axis] > split_size)
@@ -51,10 +56,15 @@ static struct rect split_by_axis(enum pane_placement place,
         }
     }
 
+    if (active_count <= 0)
+        return window_px;
+
     int split_px = split_size * cell.size[axis] + margin_px;
     int rest_px = window_px.size[axis] - split_px;
     int coord = 0;
     for (int i = 0; i < count; i++) {
+        if (!config[i].enabled)
+            continue;
         if (config[i].where != place)
             continue;
         int pane_px;
