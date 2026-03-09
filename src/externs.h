@@ -1607,6 +1607,8 @@ extern bool save_pane_config_to_json(void);
 extern cptr get_sdl_config_path(void);
 extern int get_sdl_main_view_scale(void);
 extern void set_sdl_main_view_scale(int value);
+extern int get_sdl_min_terminal_mode(void);
+extern void set_sdl_min_terminal_mode(int value);
 extern int get_sdl_aux_view_font_size(void);
 extern void set_sdl_aux_view_font_size(int value);
 extern int get_sdl_margin(void);

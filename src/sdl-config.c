@@ -346,6 +346,24 @@ static enum pane_placement parse_pane_placement(const char* value)
     return PLACE_RIGHT;
 }
 
+static const char* min_terminal_mode_to_string(int mode)
+{
+    switch (mode) {
+        case SDL_MIN_TERMINAL_COMPACT: return "COMPACT";
+        case SDL_MIN_TERMINAL_NORMAL: return "NORMAL";
+        default: return "NORMAL";
+    }
+}
+
+static int parse_min_terminal_mode(const char* value)
+{
+    if (!value)
+        return SDL_MIN_TERMINAL_NORMAL;
+    if (strcmp(value, "COMPACT") == 0) return SDL_MIN_TERMINAL_COMPACT;
+    if (strcmp(value, "NORMAL") == 0) return SDL_MIN_TERMINAL_NORMAL;
+    return SDL_MIN_TERMINAL_NORMAL;
+}
+
 static char* read_file_contents(const char* filename)
 {
     FILE* f = fopen(filename, "rb");
@@ -431,7 +449,11 @@ static void sdl_config_apply_app_option_defaults(void)
     op_ptr->delay_factor = 5;
     op_ptr->hitpoint_warn = 3;
     op_ptr->main_combat_rolls = get_sdl_steamdeck_mode() ? 2 : 0;
+#ifdef __ANDROID__
+    op_ptr->ability_desc_mode = 1;
+#else
     op_ptr->ability_desc_mode = 0;
+#endif
     op_ptr->intro_style = INTRO_STYLE_RANDOM;
     op_ptr->level_entry_narrative_mode = LEVEL_ENTRY_NARRATIVE_BANNER_DELAY;
     op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_BANNER;
@@ -677,6 +699,18 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
         if (cJSON_IsBool(item)) {
             config->hide_left_panel = cJSON_IsTrue(item);
             log_debug("Loaded hideLeftPanel: %s", config->hide_left_panel ? "true" : "false");
+        }
+
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "minTerminalMode");
+        if (cJSON_IsString(item)) {
+            config->min_terminal_mode = parse_min_terminal_mode(item->valuestring);
+            log_debug("Loaded minTerminalMode: %s", min_terminal_mode_to_string(config->min_terminal_mode));
+        } else if (cJSON_IsNumber(item)) {
+            if (item->valueint == SDL_MIN_TERMINAL_COMPACT)
+                config->min_terminal_mode = SDL_MIN_TERMINAL_COMPACT;
+            else
+                config->min_terminal_mode = SDL_MIN_TERMINAL_NORMAL;
+            log_debug("Loaded numeric minTerminalMode: %s", min_terminal_mode_to_string(config->min_terminal_mode));
         }
         
         // Window position and size for windowed mode
@@ -1014,6 +1048,7 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     cJSON_AddBoolToObject(sdl, "enableRightPanes", config->enable_right_panes);
     cJSON_AddBoolToObject(sdl, "enableBottomPanes", config->enable_bottom_panes);
     cJSON_AddBoolToObject(sdl, "hideLeftPanel", config->hide_left_panel);
+    cJSON_AddStringToObject(sdl, "minTerminalMode", min_terminal_mode_to_string(config->min_terminal_mode));
     
     // Save window position and size for windowed mode
     cJSON_AddNumberToObject(sdl, "windowX", config->window_x);
@@ -1252,6 +1287,11 @@ void sdl_config_set_defaults(struct sdl_config* config)
     config->enable_right_panes = true;
     config->enable_bottom_panes = true;
     config->hide_left_panel = false;
+#ifdef __ANDROID__
+    config->min_terminal_mode = SDL_MIN_TERMINAL_COMPACT;
+#else
+    config->min_terminal_mode = SDL_MIN_TERMINAL_NORMAL;
+#endif
     
     // Default window position and size (will be overridden by actual screen size)
     config->window_x = -1;  // -1 means centered

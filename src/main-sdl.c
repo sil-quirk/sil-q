@@ -26,13 +26,6 @@ enum {
     MAX_PANE_CONFIGS = 8,
 };
 
-#ifdef __ANDROID__
-enum {
-    ANDROID_MAIN_TERM_MIN_COLS = 50,
-    ANDROID_MAIN_TERM_MIN_ROWS = 20,
-};
-#endif
-
 // SDL configuration (loaded from INI file)
 struct sdl_config config;
 bool g_hide_left_panel = false;
@@ -58,6 +51,36 @@ const int default_pane_config_count = sizeof(default_pane_config) / sizeof(struc
 // Active pane configuration (may be loaded from INI)
 struct pane_config pane_config[MAX_PANE_CONFIGS];
 int pane_config_count = 0;
+
+static bool sdl_min_terminal_mode_is_valid(int mode)
+{
+    return (mode == SDL_MIN_TERMINAL_NORMAL || mode == SDL_MIN_TERMINAL_COMPACT);
+}
+
+static int sdl_min_terminal_cols_for_mode(int mode)
+{
+    return (mode == SDL_MIN_TERMINAL_COMPACT) ? 50 : 80;
+}
+
+static int sdl_min_terminal_rows_for_mode(int mode)
+{
+    return (mode == SDL_MIN_TERMINAL_COMPACT) ? 20 : 24;
+}
+
+static int sdl_current_min_terminal_cols(void)
+{
+    return sdl_min_terminal_cols_for_mode(config.min_terminal_mode);
+}
+
+static int sdl_current_min_terminal_rows(void)
+{
+    return sdl_min_terminal_rows_for_mode(config.min_terminal_mode);
+}
+
+static const char* sdl_min_terminal_mode_name(int mode)
+{
+    return (mode == SDL_MIN_TERMINAL_COMPACT) ? "compact" : "normal";
+}
 
 typedef struct story_font_entry {
     int pixel_height;
@@ -1500,20 +1523,15 @@ void resize(const SDL_Rect* screen)
     {
         int cell_w = config.main_view_scale * TILE_SIZE / 2;
         int cell_h = config.main_view_scale * TILE_SIZE;
-#ifdef __ANDROID__
-        int min_main_cols = ANDROID_MAIN_TERM_MIN_COLS;
-        int min_main_rows = ANDROID_MAIN_TERM_MIN_ROWS;
-#else
-    int min_main_cols = 80;
-    int min_main_rows = 24;
-#endif
+        int min_main_cols = sdl_current_min_terminal_cols();
+        int min_main_rows = sdl_current_min_terminal_rows();
         log_debug("Cell dimensions: %dx%d (scale=%d, TILE_SIZE=%d)", cell_w, cell_h, config.main_view_scale, TILE_SIZE);
         // panes are already in window coordinate space, no need to multiply by system_scale
         int cols = panes[PANE_MAIN].w / cell_w;
         int rows = panes[PANE_MAIN].h / cell_h;
-        log_debug("Main view: %dx%d pixels = %dx%d cells (minimum required: %dx%d)", 
+        log_debug("Main view: %dx%d pixels = %dx%d cells (minimum required: %dx%d %s)", 
                   panes[PANE_MAIN].w, panes[PANE_MAIN].h, cols, rows,
-                  min_main_cols, min_main_rows);
+                  min_main_cols, min_main_rows, sdl_min_terminal_mode_name(config.min_terminal_mode));
         if (cols < min_main_cols || !config.enable_right_panes) {
             if (cols < min_main_cols) {
                 log_warn("main view too small, %d cols < %d — removing right panes", cols, min_main_cols);
@@ -2705,8 +2723,10 @@ static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, i
         // Integer scaling mode.
 #ifdef __ANDROID__
         int requested_scale = scale;
-        int max_scale_for_min_cols = (rect.w / ANDROID_MAIN_TERM_MIN_COLS) * 2 / TILE_SIZE;
-        int max_scale_for_min_rows = rect.h / ANDROID_MAIN_TERM_MIN_ROWS / TILE_SIZE;
+        int min_cols = sdl_current_min_terminal_cols();
+        int min_rows = sdl_current_min_terminal_rows();
+        int max_scale_for_min_cols = (rect.w / min_cols) * 2 / TILE_SIZE;
+        int max_scale_for_min_rows = rect.h / min_rows / TILE_SIZE;
         int effective_scale = requested_scale;
 
         if (max_scale_for_min_cols < 1)
@@ -2725,9 +2745,9 @@ static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, i
         d->cell_h = effective_scale * TILE_SIZE;
 
         if (effective_scale != requested_scale) {
-            log_info("Android main view scale clamped from %d to %d to keep >=%dx%d",
+            log_info("Android main view scale clamped from %d to %d to keep >=%dx%d (%s)",
                      requested_scale, effective_scale,
-                     ANDROID_MAIN_TERM_MIN_COLS, ANDROID_MAIN_TERM_MIN_ROWS);
+                     min_cols, min_rows, sdl_min_terminal_mode_name(config.min_terminal_mode));
         }
 #else
         d->cell_w = scale * TILE_SIZE / 2;
@@ -2751,9 +2771,10 @@ static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, i
     d->rows = rect.h / d->cell_h;
 #ifdef __ANDROID__
     if (scale) {
-        log_info("Android main view: scale=%d cell=(%d,%d) cols=%d rows=%d (min=%dx%d)",
+        log_info("Android main view: scale=%d cell=(%d,%d) cols=%d rows=%d (min=%dx%d %s)",
                  d->cell_h / TILE_SIZE, d->cell_w, d->cell_h, d->cols, d->rows,
-                 ANDROID_MAIN_TERM_MIN_COLS, ANDROID_MAIN_TERM_MIN_ROWS);
+                 sdl_current_min_terminal_cols(), sdl_current_min_terminal_rows(),
+                 sdl_min_terminal_mode_name(config.min_terminal_mode));
     }
 #endif
     /* Center the cell grid inside the view rect.
@@ -3115,8 +3136,10 @@ errr init_sdl(int argc, char **argv)
 
 #ifdef __ANDROID__
     {
-        int android_max_scale_w = (screen_pixels_w / ANDROID_MAIN_TERM_MIN_COLS) * 2 / TILE_SIZE;
-        int android_max_scale_h = screen_pixels_h / ANDROID_MAIN_TERM_MIN_ROWS / TILE_SIZE;
+        int android_min_cols = sdl_current_min_terminal_cols();
+        int android_min_rows = sdl_current_min_terminal_rows();
+        int android_max_scale_w = (screen_pixels_w / android_min_cols) * 2 / TILE_SIZE;
+        int android_max_scale_h = screen_pixels_h / android_min_rows / TILE_SIZE;
         int android_max_scale = android_max_scale_w;
 
         if (android_max_scale_h < android_max_scale)
@@ -3126,16 +3149,18 @@ errr init_sdl(int argc, char **argv)
 
         if (!config_exists) {
             if (config.main_view_scale != android_max_scale) {
-                log_info("Android default main_view_scale set to %d for >=%dx%d at %dx%d",
+                log_info("Android default main_view_scale set to %d for >=%dx%d (%s) at %dx%d",
                          android_max_scale,
-                         ANDROID_MAIN_TERM_MIN_COLS, ANDROID_MAIN_TERM_MIN_ROWS,
+                         android_min_cols, android_min_rows,
+                         sdl_min_terminal_mode_name(config.min_terminal_mode),
                          screen_pixels_w, screen_pixels_h);
             }
             config.main_view_scale = android_max_scale;
         } else if (config.main_view_scale > android_max_scale) {
-            log_info("Android main_view_scale clamped from %d to %d to keep >=%dx%d",
+            log_info("Android main_view_scale clamped from %d to %d to keep >=%dx%d (%s)",
                      config.main_view_scale, android_max_scale,
-                     ANDROID_MAIN_TERM_MIN_COLS, ANDROID_MAIN_TERM_MIN_ROWS);
+                     android_min_cols, android_min_rows,
+                     sdl_min_terminal_mode_name(config.min_terminal_mode));
             config.main_view_scale = android_max_scale;
         }
     }
@@ -3153,6 +3178,15 @@ errr init_sdl(int argc, char **argv)
     if (config.margin < 0) {
         log_warn("Invalid margin %d, using 0", config.margin);
         config.margin = 0;
+    }
+    if (!sdl_min_terminal_mode_is_valid(config.min_terminal_mode)) {
+#ifdef __ANDROID__
+        log_warn("Invalid min_terminal_mode %d, using compact", config.min_terminal_mode);
+        config.min_terminal_mode = SDL_MIN_TERMINAL_COMPACT;
+#else
+        log_warn("Invalid min_terminal_mode %d, using normal", config.min_terminal_mode);
+        config.min_terminal_mode = SDL_MIN_TERMINAL_NORMAL;
+#endif
     }
     if (config.gamepad_deadzone < 0) {
         log_warn("Invalid gamepad_deadzone %d, using 0", config.gamepad_deadzone);
@@ -3178,6 +3212,9 @@ errr init_sdl(int argc, char **argv)
     log_info("  Margin: %d", config.margin);
     log_info("  Fullscreen: %s", config.fullscreen ? "true" : "false");
     log_info("  Tiles: %s", config.tiles ? "true" : "false");
+    log_info("  Minimum terminal size: %s (%dx%d)",
+             sdl_min_terminal_mode_name(config.min_terminal_mode),
+             sdl_current_min_terminal_cols(), sdl_current_min_terminal_rows());
     log_info("  Pane configurations: %d", pane_config_count);
 
     // Initialize palette from angband_color_table (supports .prf file customization)
@@ -3251,6 +3288,9 @@ void get_sdl_config_info(char* buf, size_t size)
     // SDL settings
     offset += (size_t)strnfmt(buf + offset, size - offset, "=== SDL Settings ===\n");
     offset += (size_t)strnfmt(buf + offset, size - offset, "Main View Scale: %d\n", config.main_view_scale);
+    offset += (size_t)strnfmt(buf + offset, size - offset, "Minimum Terminal Size: %s (%dx%d)\n",
+        sdl_min_terminal_mode_name(config.min_terminal_mode),
+        sdl_current_min_terminal_cols(), sdl_current_min_terminal_rows());
     offset += (size_t)strnfmt(buf + offset, size - offset, "Aux View Font Size: %d\n", config.aux_view_font_size);
     offset += (size_t)strnfmt(buf + offset, size - offset, "Margin: %d\n", config.margin);
     offset += (size_t)strnfmt(buf + offset, size - offset, "Fullscreen: %s\n", config.fullscreen ? "Yes" : "No");
@@ -3323,6 +3363,22 @@ cptr get_sdl_config_path(void)
 int get_sdl_main_view_scale(void)
 {
     return config.main_view_scale;
+}
+
+int get_sdl_min_terminal_mode(void)
+{
+    return config.min_terminal_mode;
+}
+
+void set_sdl_min_terminal_mode(int value)
+{
+    if (!sdl_min_terminal_mode_is_valid(value))
+        return;
+
+    config.min_terminal_mode = value;
+
+    if (config.main_view_scale > get_sdl_max_scale())
+        config.main_view_scale = get_sdl_max_scale();
 }
 
 void set_sdl_main_view_scale(int value)
@@ -3804,9 +3860,8 @@ bool sdl_gamepad_capture_poll(int* out_type, int* out_id)
 
 /*
  * Calculate the maximum scale for the current window.
- * On Android this keeps at least ANDROID_MAIN_TERM_MIN_COLS x
- * ANDROID_MAIN_TERM_MIN_ROWS cells.
- * On other platforms this keeps at least 50x20.
+ * This keeps at least the configured minimum terminal size visible in the
+ * current window.
  */
 int get_sdl_max_scale(void)
 {
@@ -3815,25 +3870,23 @@ int get_sdl_max_scale(void)
     }
     
     int w, h;
-    SDL_GetWindowSize(g_state.window, &w, &h);
+    SDL_GetWindowSizeInPixels(g_state.window, &w, &h);
+    int min_cols = sdl_current_min_terminal_cols();
+    int min_rows = sdl_current_min_terminal_rows();
 
     // cell_w = scale * TILE_SIZE / 2, so scale = cell_w * 2 / TILE_SIZE
     // cell_h = scale * TILE_SIZE
-#ifdef __ANDROID__
-    int max_scale_w = (w / ANDROID_MAIN_TERM_MIN_COLS) * 2 / TILE_SIZE;
-    int max_scale_h = h / ANDROID_MAIN_TERM_MIN_ROWS / TILE_SIZE;
+    int max_scale_w = (w / min_cols) * 2 / TILE_SIZE;
+    int max_scale_h = h / min_rows / TILE_SIZE;
     int max_scale = (max_scale_w < max_scale_h) ? max_scale_w : max_scale_h;
-#else
-    int max_scale_w = (w / 50) * 2 / TILE_SIZE;
-    int max_scale_h = h / 20 / TILE_SIZE;
-    int max_scale = (max_scale_w < max_scale_h) ? max_scale_w : max_scale_h;
-#endif
     
     // Ensure at least 1, and cap at a reasonable maximum
     if (max_scale < 1) max_scale = 1;
     if (max_scale > 20) max_scale = 20;
     
-    log_debug("get_sdl_max_scale: window=%dx%d max_scale=%d", w, h, max_scale);
+    log_debug("get_sdl_max_scale: window=%dx%d min=%dx%d (%s) max_scale=%d",
+              w, h, min_cols, min_rows,
+              sdl_min_terminal_mode_name(config.min_terminal_mode), max_scale);
     
     return max_scale;
 }
@@ -3850,7 +3903,7 @@ void sdl_apply_config(void)
     }
     
     int w, h;
-    SDL_GetWindowSize(g_state.window, &w, &h);
+    SDL_GetWindowSizeInPixels(g_state.window, &w, &h);
     SDL_Rect screen = { 0, 0, w, h };
     sdl_load_story_fonts();
     resize(&screen);

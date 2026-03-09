@@ -17,6 +17,11 @@
 #define GAMEPAD_BIND_CTRL -3
 #define GAMEPAD_BIND_ALT -4
 
+enum sdl_min_terminal_mode {
+    SDL_MIN_TERMINAL_NORMAL = 0,
+    SDL_MIN_TERMINAL_COMPACT = 1,
+};
+
 // SDL-specific configuration structure
 struct sdl_config {
     int main_view_scale;
@@ -27,6 +32,7 @@ struct sdl_config {
     bool enable_right_panes;
     bool enable_bottom_panes;
     bool hide_left_panel;
+    int min_terminal_mode;
     
     // Window position and size for windowed mode
     int window_x;

@@ -786,6 +786,126 @@ static int ability_menu_description_wrap(int desc_col)
     return wid - 1;
 }
 
+int abilities_in_skill(int skilltype);
+bool prereqs(int skilltype, int abilitynum);
+
+static int ability_menu_text_width(int desc_col, int indent)
+{
+    int wrap = ability_menu_description_wrap(desc_col);
+    int start = desc_col + indent;
+
+    if (wrap < start)
+        return 1;
+
+    return wrap - start + 1;
+}
+
+static void ability_menu_format_amount_line(char* buf, size_t buflen,
+    cptr long_label, cptr short_label, int need, int have, int max_width)
+{
+    if (max_width <= 30)
+        strnfmt(buf, buflen, "%s %d / %d", short_label, need, have);
+    else
+        strnfmt(buf, buflen, "%d %s (you have %d)", need, long_label, have);
+}
+
+static int ability_menu_next_row_after_text(int desc_col, int fallback_row)
+{
+    int x = desc_col;
+    int y = fallback_row;
+
+    Term_locate(&x, &y);
+
+    if (x > desc_col)
+        y++;
+
+    return y;
+}
+
+static void ability_menu_render_prerequisites_block(int skilltype,
+    const ability_type* b_ptr, int desc_col)
+{
+    int j;
+    int row = ability_menu_next_row_after_text(desc_col, 3);
+    int info_width = ability_menu_text_width(desc_col, 2);
+    char buf[80];
+
+    Term_putstr(desc_col, row, -1, TERM_YELLOW, "Prerequisites:");
+
+    ability_menu_format_amount_line(buf, sizeof(buf), "skill points", "Skill",
+        b_ptr->level, p_ptr->skill_base[skilltype], info_width);
+
+    Term_putstr(desc_col + 2, row + 1, -1,
+        (b_ptr->level <= p_ptr->skill_base[skilltype]) ? TERM_L_GREEN
+                                                       : TERM_L_DARK,
+        buf);
+
+    row += 2;
+
+    if (!p_ptr->active_ability[S_PER][PER_QUICK_STUDY])
+    {
+        for (j = 0; j < b_ptr->prereqs; j++)
+        {
+            if (j == 0)
+            {
+                strnfmt(buf, sizeof(buf), "%s",
+                    b_name
+                        + (&b_info[ability_index(b_ptr->prereq_skilltype[j],
+                               b_ptr->prereq_abilitynum[j])])
+                              ->name);
+            }
+            else
+            {
+                strnfmt(buf, sizeof(buf), "or %s",
+                    b_name
+                        + (&b_info[ability_index(b_ptr->prereq_skilltype[j],
+                               b_ptr->prereq_abilitynum[j])])
+                              ->name);
+            }
+
+            Term_putstr(j == 0 ? desc_col + 2 : desc_col + 5, row + j, -1,
+                p_ptr->innate_ability[b_ptr->prereq_skilltype[j]]
+                                 [b_ptr->prereq_abilitynum[j]]
+                    ? TERM_L_GREEN
+                    : TERM_L_DARK,
+                buf);
+        }
+
+        row += b_ptr->prereqs;
+    }
+    else if (b_ptr->prereqs > 0)
+    {
+        Term_putstr(desc_col + 2, row, -1, TERM_GREEN, "Quick Study");
+        row++;
+    }
+
+    if (skilltype != S_SPC && prereqs(skilltype, b_ptr->abilitynum))
+    {
+        int is_free = (c_info[p_ptr->pcharacter].flags & RHF_FREE) ? 1 : 0;
+        int unit_cost = 500 - 200 * is_free;
+        int exp_cost = (abilities_in_skill(skilltype) + 1) * unit_cost;
+
+        exp_cost -= unit_cost * affinity_level(skilltype);
+
+        if (skilltype == S_SNG)
+            exp_cost -= unit_cost * minstrel_level();
+
+        if (exp_cost < 0)
+            exp_cost = 0;
+
+        Term_putstr(desc_col, row, -1, TERM_YELLOW, "Current price:");
+
+        ability_menu_format_amount_line(buf, sizeof(buf), "experience", "Exp",
+            exp_cost, p_ptr->new_exp, info_width);
+        Term_putstr(desc_col + 2, row + 1, -1,
+            (exp_cost <= p_ptr->new_exp) ? TERM_L_GREEN : TERM_L_DARK, buf);
+
+        row += 2;
+    }
+
+    Term_gotoxy(desc_col, row);
+}
+
 /* ------------------------------------------------------------------
  * add_random_curse()
  *   � Marks the item cursed
@@ -1483,13 +1603,18 @@ void do_cmd_change_song()
 void wipe_screen_from(int col)
 {
     int i;
+    int wid = Term ? Term->wid : 80;
+    int hgt = Term ? Term->hgt : 24;
 
-    for (i = 1; i < SCREEN_HGT; i++)
-    {
-        Term_putstr(col, i, -1, TERM_WHITE,
-            "                                                              "
-            "                   ");
-    }
+    if (wid < 1)
+        wid = 80;
+    if (hgt < 1)
+        hgt = 24;
+    if (col >= wid)
+        return;
+
+    for (i = 1; i < hgt; i++)
+        Term_erase(col, i, wid - col);
 }
 
 int elf_bane_bonus(monster_type* m_ptr)
@@ -2364,7 +2489,7 @@ int abilities_menu1(int* highlight)
 
 int abilities_menu2(int skilltype, int* highlight)
 {
-    int i, j;
+    int i;
     bool compact_layout = ability_menu_use_compact_layout();
     int ability_col = ability_menu_list_col();
     int desc_col = ability_menu_description_col();
@@ -2609,20 +2734,42 @@ int abilities_menu2(int skilltype, int* highlight)
                     {
                     case 1: /* Effect first, then description */
                         if (has_effect) text_out_to_screen(TERM_L_WHITE, effect_text);
-                        if (has_desc) {
+                        if (!p_ptr->have_ability[skilltype][b_ptr->abilitynum])
+                        {
                             if (has_effect) text_out_to_screen(TERM_L_WHITE, desc_sep);
+                            ability_menu_render_prerequisites_block(skilltype,
+                                b_ptr, desc_col);
+                        }
+                        if (has_desc) {
+                            if (has_effect
+                                || !p_ptr->have_ability[skilltype][b_ptr->abilitynum])
+                                text_out_to_screen(TERM_L_WHITE, desc_sep);
                             text_out_to_screen(TERM_SLATE, desc_text);
                         }
                         break;
                     case 2: /* Effect only */
                         if (has_effect) text_out_to_screen(TERM_L_WHITE, effect_text);
                         else if (has_desc) text_out_to_screen(TERM_L_WHITE, desc_text);
+                        if (!p_ptr->have_ability[skilltype][b_ptr->abilitynum])
+                        {
+                            if (has_effect || has_desc)
+                                text_out_to_screen(TERM_L_WHITE, desc_sep);
+                            ability_menu_render_prerequisites_block(skilltype,
+                                b_ptr, desc_col);
+                        }
                         break;
                     default: /* 0: Description first, then effect */
                         if (has_desc) text_out_to_screen(TERM_SLATE, desc_text);
                         if (has_effect) {
                             if (has_desc) text_out_to_screen(TERM_L_WHITE, desc_sep);
                             text_out_to_screen(TERM_L_WHITE, effect_text);
+                        }
+                        if (!p_ptr->have_ability[skilltype][b_ptr->abilitynum])
+                        {
+                            if (has_desc || has_effect)
+                                text_out_to_screen(TERM_L_WHITE, desc_sep);
+                            ability_menu_render_prerequisites_block(skilltype,
+                                b_ptr, desc_col);
                         }
                         break;
                     }
@@ -2679,143 +2826,9 @@ int abilities_menu2(int skilltype, int* highlight)
                 text_out_indent = 0;
             }
 
-            // print more info if you don't have the skill
-            if (!p_ptr->have_ability[skilltype][b_ptr->abilitynum])
-            {
-                /* Place prerequisites dynamically after description text */
-                int gap = compact_mode ? 1 : 2;
-                int desc_row = post_desc_row + gap;
-                
-                // print the prerequisites with color
-                Term_putstr(desc_col, desc_row, -1, TERM_YELLOW, "Prerequisites:");
-
-                strnfmt(buf, 80, "%d skill points (you have %d)", b_ptr->level,
-                    p_ptr->skill_base[skilltype]);
-
-                /* Color based on whether requirement is met */
-                if (b_ptr->level <= p_ptr->skill_base[skilltype])
-                {
-                    /* Print immediately below the 'Prerequisites:' line */
-                    Term_putstr(desc_col + 2, desc_row + 1, -1, TERM_L_GREEN, buf);
-                }
-                else
-                {
-                    Term_putstr(desc_col + 2, desc_row + 1, -1, TERM_L_DARK, buf);
-                }
-
-                if (!p_ptr->active_ability[S_PER][PER_QUICK_STUDY])
-                {
-                    for (j = 0; j < b_ptr->prereqs; j++)
-                    {
-                        if (j == 0)
-                        {
-                            strnfmt(buf, 80, "%s",
-                                b_name
-                                    + (&b_info[ability_index(
-                                           b_ptr->prereq_skilltype[j],
-                                           b_ptr->prereq_abilitynum[j])])
-                                          ->name);
-                        }
-                        else
-                        {
-                            strnfmt(buf, 80, "or %s",
-                                b_name
-                                    + (&b_info[ability_index(
-                                           b_ptr->prereq_skilltype[j],
-                                           b_ptr->prereq_abilitynum[j])])
-                                          ->name);
-                        }
-                        
-                        /* Color based on whether you have the prerequisite */
-                        byte prereq_attr = TERM_L_DARK;
-                        if (p_ptr->innate_ability[b_ptr->prereq_skilltype[j]]
-                                                 [b_ptr->prereq_abilitynum[j]])
-                        {
-                            prereq_attr = TERM_L_GREEN;
-                        }
-                        
-                        if (j == 0)
-                        {
-                            /* Print prerequisites immediately after the skill-points line */
-                            Term_putstr(desc_col + 2, desc_row + 2 + j, -1,
-                                prereq_attr, buf);
-                        }
-                        else
-                        {
-                            Term_putstr(desc_col + 5, desc_row + 2 + j, -1,
-                                prereq_attr, buf);
-                        }
-                    }
-                }
-                else if (b_ptr->prereqs > 0)
-                {
-                    strnfmt(buf, 80, "Quick Study");
-                    /* Quick Study prints a single line immediately after skill points */
-                    Term_putstr(desc_col + 2, desc_row + 2, -1, TERM_GREEN, buf);
-                }
-
-                if (skilltype == S_SPC)
-                {
-                    // Special abilities cannot be purchased; show as granted only
-                }
-                else if (prereqs(skilltype, b_ptr->abilitynum))
-                {
-                    // Normalize flag check to 0 or 1
-                    int is_free = (c_info[p_ptr->pcharacter].flags & RHF_FREE) ? 1 : 0;
-                    int unit_cost = 500 - 200 * is_free;
-
-                    // Calculate base cost
-                    int exp_cost = (abilities_in_skill(skilltype) + 1) * unit_cost;
-
-                    // Subtract free abilities granted by affinity
-                    exp_cost -= unit_cost * affinity_level(skilltype);
-
-                    // For song abilities, also subtract minstrel bonus (uncapped)
-                    if (skilltype == S_SNG)
-                        exp_cost -= unit_cost * minstrel_level();
-
-                    // Clamp to zero
-                    if (exp_cost < 0)
-                        exp_cost = 0;
-
-                    // print the cost with color coding
-                    /* Compute the row immediately after the last prerequisite/Quick Study line
-                     * 'Prerequisites:' is at desc_row
-                     * skill points are at desc_row + 1
-                     * prerequisites (if any) start at desc_row + 2 and occupy b_ptr->prereqs lines
-                     * Quick Study (if active) occupies one line at desc_row + 2
-                     */
-                    int extra_lines = 0;
-                    if (!p_ptr->active_ability[S_PER][PER_QUICK_STUDY])
-                    {
-                        extra_lines = b_ptr->prereqs; /* may be 0 */
-                    }
-                    else if (b_ptr->prereqs > 0)
-                    {
-                        extra_lines = 1; /* Quick Study printed a single line */
-                    }
-
-                    desc_row = desc_row + 2 + extra_lines; /* next free row */
-                    Term_putstr(desc_col, desc_row, -1, TERM_YELLOW, "Current price:");
-
-                    strnfmt(buf, 80, "%d experience (you have %d)", exp_cost,
-                        p_ptr->new_exp);
-
-                    /* Color based on whether you can afford it */
-                    if (exp_cost <= p_ptr->new_exp)
-                    {
-                        /* Print immediately under 'Current price:' */
-                        Term_putstr(desc_col + 2, desc_row + 1, -1, TERM_L_GREEN, buf);
-                    }
-                    else
-                    {
-                        Term_putstr(desc_col + 2, desc_row + 1, -1, TERM_L_DARK, buf);
-                    }
-                }
-            }
-
             // if you have the ability and it is Bane...
-            else if ((skilltype == S_PER) && (b_ptr->abilitynum == PER_BANE)
+            if (p_ptr->have_ability[skilltype][b_ptr->abilitynum]
+                && (skilltype == S_PER) && (b_ptr->abilitynum == PER_BANE)
                 && (p_ptr->bane_type > 0))
             {
                 int killed = bane_type_killed(p_ptr->bane_type);
@@ -2845,7 +2858,8 @@ int abilities_menu2(int skilltype, int* highlight)
                         format("  (next bonus at %d slain)", next_threshold));
                 }
             }
-            else if ((skilltype == S_WIL) && (b_ptr->abilitynum == WIL_OATH)
+            else if (p_ptr->have_ability[skilltype][b_ptr->abilitynum]
+                && (skilltype == S_WIL) && (b_ptr->abilitynum == WIL_OATH)
                 && (p_ptr->oath_type > 0))
             {
                 /* Place oath info dynamically after description text */
@@ -2876,7 +2890,8 @@ int abilities_menu2(int skilltype, int* highlight)
                         format("Bonus: %s.", oath_reward_short(p_ptr->oath_type)));
             }
             // if you have the unique bane special ability
-            else if ((skilltype == S_SPC) && (b_ptr->abilitynum == SPC_UNIQUE_BANE))
+            else if (p_ptr->have_ability[skilltype][b_ptr->abilitynum]
+                && (skilltype == S_SPC) && (b_ptr->abilitynum == SPC_UNIQUE_BANE))
             {
                 int uniques_killed = unique_bane_type_killed();
                 int current_bonus = 0;
@@ -11180,26 +11195,79 @@ static bool option_menu_use_compact_layout(void)
     return Term && (Term->wid > 0) && (Term->wid <= 60);
 }
 
+static bool option_menu_use_narrow_layout(void)
+{
+    return Term && (Term->wid > 0) && (Term->wid <= 50);
+}
+
+static int option_menu_max_line_chars(void)
+{
+    int wid = Term ? Term->wid : 80;
+
+    if (wid < 1)
+        wid = 80;
+
+    /* Options start at column 4; keep one cell free for the cursor. */
+    wid -= 5;
+
+    if (wid < 8)
+        wid = 8;
+
+    return wid;
+}
+
+static void option_menu_fit_text(char* buf, size_t buflen, cptr text,
+    int max_chars)
+{
+    if (!buflen)
+        return;
+
+    if (!text)
+        text = "";
+
+    if (max_chars <= 0)
+    {
+        buf[0] = '\0';
+        return;
+    }
+
+    if ((int)strlen(text) <= max_chars)
+    {
+        SDL_strlcpy(buf, text, buflen);
+    }
+    else if (max_chars <= 3)
+    {
+        strnfmt(buf, buflen, "%.*s", max_chars, text);
+    }
+    else
+    {
+        strnfmt(buf, buflen, "%.*s...", max_chars - 3, text);
+    }
+}
+
 static cptr sound_option_label(int index)
 {
-    if (option_menu_use_compact_layout())
+    bool compact = option_menu_use_compact_layout();
+    bool narrow = option_menu_use_narrow_layout();
+
+    if (compact)
     {
         switch (index)
         {
-        case 0: return "Game sounds";
-        case 1: return "Combat sounds";
-        case 2: return "Inventory sounds";
-        case 3: return "Walk sounds";
-        case 4: return "Door sounds";
-        case 5: return "Combat volume";
-        case 6: return "Inventory volume";
-        case 7: return "Walk volume";
-        case 8: return "Door volume";
-        case 9: return "Other volume";
+        case 0: return narrow ? "Sounds" : "Game sounds";
+        case 1: return narrow ? "Combat sfx" : "Combat sounds";
+        case 2: return narrow ? "Inv sfx" : "Inventory sounds";
+        case 3: return narrow ? "Walk sfx" : "Walk sounds";
+        case 4: return narrow ? "Door sfx" : "Door sounds";
+        case 5: return narrow ? "Combat vol" : "Combat volume";
+        case 6: return narrow ? "Inv vol" : "Inventory volume";
+        case 7: return narrow ? "Walk vol" : "Walk volume";
+        case 8: return narrow ? "Door vol" : "Door volume";
+        case 9: return narrow ? "Other vol" : "Other volume";
         case 10: return "Menu music";
         case 11: return "Ambient music";
-        case 12: return "Menu music volume";
-        case 13: return "Ambient music volume";
+        case 12: return narrow ? "Menu vol" : "Menu music volume";
+        case 13: return narrow ? "Ambient vol" : "Ambient music volume";
         default: return "(unknown sound option)";
         }
     }
@@ -11227,29 +11295,39 @@ static cptr sound_option_label(int index)
 static cptr option_menu_label(int opt)
 {
     bool compact = option_menu_use_compact_layout();
+    bool narrow = option_menu_use_narrow_layout();
 
     switch (opt)
     {
     case OPT_delay_factor:
-        return compact ? "Animation delay" : "Delay factor for animation (0 to 9)";
+        return compact ? (narrow ? "Anim delay" : "Animation delay")
+                       : "Delay factor for animation (0 to 9)";
     case OPT_hitpoint_warning:
-        return compact ? "HP warning" : "Hitpoint warning threshold (0% to 90%)";
+        return compact ? (narrow ? "HP warn" : "HP warning")
+                       : "Hitpoint warning threshold (0% to 90%)";
     case OPT_main_combat_rolls:
-        return compact ? "Combat roll lines" : "Main terminal combat roll lines (0=off, 1-4=lines)";
+        return compact ? (narrow ? "Combat lines" : "Combat roll lines")
+                       : "Main terminal combat roll lines (0=off, 1-4=lines)";
     case OPT_hide_left_panel:
-        return compact ? "Compact left panel" : "Hide Left Panel [Alt+P]";
+        return compact ? (narrow ? "Compact panel" : "Compact left panel")
+                       : "Hide Left Panel [Alt+P]";
     case OPT_show_level_entry_banner:
-        return compact ? "Entry narrative" : "Level entry narrative";
+        return compact ? (narrow ? "Entry text" : "Entry narrative")
+                       : "Level entry narrative";
     case OPT_show_partition_narrative:
-        return compact ? "Partition narrative" : "Partition transition narrative";
+        return compact ? (narrow ? "Partition text" : "Partition narrative")
+                       : "Partition transition narrative";
     case OPT_ability_desc_mode:
-        return compact ? "Ability descriptions" : "Ability descriptions (0=lore+effect, 1=effect+lore, 2=effect)";
+        return compact ? (narrow ? "Ability text" : "Ability descriptions")
+                       : "Ability descriptions (0=lore+effect, 1=effect+lore, 2=effect)";
     case OPT_vault_drop_frequency:
         return compact ? "Vault drops" : "Vault drop frequency";
     case OPT_noble_item_spawn_mode:
-        return compact ? "Noble item sources" : "Noble item spawns";
+        return compact ? (narrow ? "Noble items" : "Noble item sources")
+                       : "Noble item spawns";
     case OPT_intro_style:
-        return compact ? "Welcome screen" : "Welcome screen style";
+        return compact ? (narrow ? "Welcome art" : "Welcome screen")
+                       : "Welcome screen style";
     case OPT_banner_message_stairs:
         return compact ? "Banner layout" : "Banner message layout";
     default:
@@ -11260,23 +11338,61 @@ static cptr option_menu_label(int opt)
     {
         switch (opt)
         {
-        case OPT_story_lists: return "Story font: look/target";
-        case OPT_story_lists_inven: return "Story font: inv menu";
-        case OPT_story_lists_equip: return "Story font: equip menu";
-        case OPT_story_character_sheet: return "Story font: char sheet";
-        case OPT_story_lists_inven_pane: return "Story font: inv pane";
-        case OPT_story_lists_equip_pane: return "Story font: equip pane";
-        case OPT_story_monster_desc: return "Story font: monster desc";
-        case OPT_story_monster_desc_pane: return "Story font: monster pane";
-        case OPT_valorous_oath_auto_attack_safety: return "Valorous oath safety";
-        case OPT_forgo_attacking_unwary: return "Forgo unwary attacks";
-        case OPT_stop_singing_on_rest: return "Stop singing on rest";
-        case OPT_disable_skeleton_note_tutorial: return "Hide skeleton tutorials";
-        case OPT_artifact_unique_color: return "Yellow unique artefacts";
-        case OPT_unidentified_items_slate: return "Slate unidentified items";
-        case OPT_show_smithing_difficulty: return "Debug smithing in items";
-        case OPT_show_smithing_difficulty_look: return "Debug smithing in look";
-        case OPT_show_level_generation_debug: return "Debug level gen";
+        case OPT_system_beep: return narrow ? "Beep" : "Error beep";
+        case OPT_quick_messages: return narrow ? "Quick prompts" : "Quick prompts";
+        case OPT_auto_more: return narrow ? "Auto more" : "Auto -more-";
+        case OPT_easy_main_menu: return narrow ? "Esc menu" : "Esc main menu";
+        case OPT_hjkl_movement: return narrow ? "hjkl move" : "hjkl movement";
+        case OPT_angband_keyset: return narrow ? "Angband keys" : "Angband keyset";
+        case OPT_space_acts_as_comma: return narrow ? "Space = comma" : "Space acts as comma";
+        case OPT_story_lists: return narrow ? "Story look" : "Story font: look/target";
+        case OPT_story_lists_inven: return narrow ? "Story inv" : "Story font: inv menu";
+        case OPT_story_lists_equip: return narrow ? "Story equip" : "Story font: equip menu";
+        case OPT_story_character_sheet: return narrow ? "Story sheet" : "Story font: char sheet";
+        case OPT_story_lists_inven_pane: return narrow ? "Story inv pane" : "Story font: inv pane";
+        case OPT_story_lists_equip_pane: return narrow ? "Story eq pane" : "Story font: equip pane";
+        case OPT_story_monster_desc: return narrow ? "Story mon desc" : "Story font: monster desc";
+        case OPT_story_monster_desc_pane: return narrow ? "Story mon pane" : "Story font: monster pane";
+        case OPT_valorous_oath_auto_attack_safety: return narrow ? "Valorous safety" : "Valorous oath safety";
+        case OPT_forgo_attacking_unwary: return narrow ? "Skip unwary hits" : "Forgo unwary attacks";
+        case OPT_stop_singing_on_rest: return narrow ? "Stop song on rest" : "Stop singing on rest";
+        case OPT_know_monster_info: return narrow ? "Know monsters" : "Know monster info";
+        case OPT_visual_recognition: return narrow ? "Need light to spot" : "Need light to spot";
+        case OPT_disable_skeleton_note_tutorial: return narrow ? "Hide skeleton tips" : "Hide skeleton tutorials";
+        case OPT_smaller_level_size: return narrow ? "Smaller levels" : "Smaller level size";
+        case OPT_more_stairs: return narrow ? "More stairs" : "Extra stairs";
+        case OPT_instant_run: return narrow ? "Fast running" : "Faster running";
+        case OPT_center_player: return narrow ? "Center map" : "Center map";
+        case OPT_run_avoid_center: return narrow ? "No center on run" : "Avoid centering on run";
+        case OPT_auto_display_lists: return narrow ? "Auto lists" : "Auto display lists";
+        case OPT_artifact_unique_color: return narrow ? "Yellow artefacts" : "Yellow unique artefacts";
+        case OPT_hilite_player: return narrow ? "Cursor on player" : "Highlight player";
+        case OPT_hilite_target: return narrow ? "Cursor on target" : "Highlight target";
+        case OPT_hilite_unwary: return narrow ? "Mark unwary" : "Highlight unwary";
+        case OPT_solid_walls: return narrow ? "Solid walls" : "Solid walls";
+        case OPT_hybrid_walls: return narrow ? "Hybrid walls" : "Hybrid walls";
+        case OPT_unidentified_items_slate: return narrow ? "Slate unknown items" : "Slate unidentified items";
+        case OPT_stealth_vision: return narrow ? "Stealth vision" : "Stealth vision";
+        case OPT_sleep_icon: return narrow ? "Sleep icon" : "Sleep icon";
+        case OPT_show_smithing_difficulty: return narrow ? "Smith dbg items" : "Debug smithing in items";
+        case OPT_show_smithing_difficulty_look: return narrow ? "Smith dbg look" : "Debug smithing in look";
+        case OPT_show_level_generation_debug: return narrow ? "Level-gen debug" : "Debug level gen";
+        case OPT_birth_discon_stair: return narrow ? "Disc. stairs" : "Disconnected stairs";
+        case OPT_birth_ironman: return narrow ? "Straight down" : "Straight down";
+        case OPT_birth_no_artefacts: return narrow ? "No artefacts" : "No artefacts";
+        case OPT_birth_fixed_exp: return narrow ? "Fixed XP" : "Fixed experience";
+        case OPT_cheat_peek: return narrow ? "Debug obj gen" : "Debug object gen";
+        case OPT_cheat_hear: return narrow ? "Debug mon gen" : "Debug monster gen";
+        case OPT_cheat_room: return narrow ? "Debug room gen" : "Debug dungeon gen";
+        case OPT_cheat_xtra: return narrow ? "Debug extra" : "Debug extra";
+        case OPT_cheat_know: return narrow ? "Debug know mons" : "Debug know monsters";
+        case OPT_cheat_monsters: return narrow ? "Debug show mons" : "Debug show monsters";
+        case OPT_cheat_noise: return narrow ? "Debug noise" : "Debug noise";
+        case OPT_cheat_scent: return narrow ? "Debug scent" : "Debug scent";
+        case OPT_cheat_light: return narrow ? "Debug light" : "Debug light";
+        case OPT_cheat_skill_rolls: return narrow ? "Debug skill rolls" : "Debug skill rolls";
+        case OPT_cheat_live: return narrow ? "Debug no death" : "Debug avoid death";
+        case OPT_cheat_timestop: return narrow ? "Debug time stop" : "Debug time stop";
         default:
             break;
         }
@@ -11292,10 +11408,37 @@ static cptr option_menu_label(int opt)
 static void option_menu_format_line(char* buf, size_t buflen, cptr label,
     cptr value)
 {
-    if (option_menu_use_compact_layout())
-        strnfmt(buf, buflen, "%s: %s", label, value);
-    else
+    if (!option_menu_use_compact_layout())
+    {
         strnfmt(buf, buflen, "%-48s: %s", label, value);
+    }
+    else
+    {
+        char label_buf[96];
+        char value_buf[48];
+        int max_chars = option_menu_max_line_chars();
+        int value_len;
+        int label_budget;
+
+        option_menu_fit_text(value_buf, sizeof(value_buf), value, max_chars);
+        value_len = (int)strlen(value_buf);
+
+        if (value_len <= 0)
+        {
+            option_menu_fit_text(buf, buflen, label, max_chars);
+            return;
+        }
+
+        label_budget = max_chars - value_len - 2;
+        if (label_budget <= 0)
+        {
+            option_menu_fit_text(buf, buflen, value_buf, max_chars);
+            return;
+        }
+
+        option_menu_fit_text(label_buf, sizeof(label_buf), label, label_budget);
+        strnfmt(buf, buflen, "%s: %s", label_buf, value_buf);
+    }
 }
 
 static void option_apply_side_effects(int opt)
@@ -12181,10 +12324,15 @@ static errr option_dump(cptr fname)
  */
 static int get_supporting_pane_config_count(void);
 static void do_cmd_supporting_pane_layout_editor(bool* settings_changed);
+static const char* sdl_min_terminal_mode_label(int mode)
+{
+    return (mode == 1) ? "compact (50x20)" : "normal (80x24)";
+}
+
 void do_cmd_pane_settings(void)
 {
     int k = 0;
-    int n = 9; /* Total number of options */
+    int n = 10; /* Total number of options */
     bool done = false;
     bool settings_changed = false;
     int dir;
@@ -12212,44 +12360,49 @@ void do_cmd_pane_settings(void)
         strnfmt(buf, sizeof(buf), "%-48s: %d", "Main View Scale (1-max) [Alt++/-]", get_sdl_main_view_scale());
         c_prt(a, buf, y0 + 0, 2);
 
-        /* Option 1: Aux View Font Size */
+        /* Option 1: Minimum Terminal Size */
         a = (k == 1) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(buf, sizeof(buf), "%-48s: %d", "Aux View Font Size (8-48)", get_sdl_aux_view_font_size());
+        strnfmt(buf, sizeof(buf), "%-48s: %s", "Minimum Terminal Size", sdl_min_terminal_mode_label(get_sdl_min_terminal_mode()));
         c_prt(a, buf, y0 + 1, 2);
 
-        /* Option 2: Margin */
+        /* Option 2: Aux View Font Size */
         a = (k == 2) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(buf, sizeof(buf), "%-48s: %d", "Margin (0-20)", get_sdl_margin());
+        strnfmt(buf, sizeof(buf), "%-48s: %d", "Aux View Font Size (8-48)", get_sdl_aux_view_font_size());
         c_prt(a, buf, y0 + 2, 2);
 
-        /* Option 3: Fullscreen */
+        /* Option 3: Margin */
         a = (k == 3) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(buf, sizeof(buf), "%-48s: %s", "Fullscreen", get_sdl_fullscreen() ? "yes" : "no ");
+        strnfmt(buf, sizeof(buf), "%-48s: %d", "Margin (0-20)", get_sdl_margin());
         c_prt(a, buf, y0 + 3, 2);
 
-        /* Option 4: Tiles */
+        /* Option 4: Fullscreen */
         a = (k == 4) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(buf, sizeof(buf), "%-48s: %s", "Tiles", get_sdl_tiles() ? "yes" : "no ");
+        strnfmt(buf, sizeof(buf), "%-48s: %s", "Fullscreen", get_sdl_fullscreen() ? "yes" : "no ");
         c_prt(a, buf, y0 + 4, 2);
 
-        /* Option 5: Enable Right Panes */
+        /* Option 5: Tiles */
         a = (k == 5) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(buf, sizeof(buf), "%-48s: %s", "Enable Right Panes [Alt+I]", get_sdl_enable_right_panes() ? "yes" : "no ");
+        strnfmt(buf, sizeof(buf), "%-48s: %s", "Tiles", get_sdl_tiles() ? "yes" : "no ");
         c_prt(a, buf, y0 + 5, 2);
 
-        /* Option 6: Enable Bottom Panes */
+        /* Option 6: Enable Right Panes */
         a = (k == 6) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(buf, sizeof(buf), "%-48s: %s", "Enable Bottom Panes [Alt+L]", get_sdl_enable_bottom_panes() ? "yes" : "no ");
+        strnfmt(buf, sizeof(buf), "%-48s: %s", "Enable Right Panes [Alt+I]", get_sdl_enable_right_panes() ? "yes" : "no ");
         c_prt(a, buf, y0 + 6, 2);
 
-        /* Option 7: View Pane Configuration (supporting panes only) */
+        /* Option 7: Enable Bottom Panes */
         a = (k == 7) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(buf, sizeof(buf), "View Pane Configuration (%d panes)", get_supporting_pane_config_count());
+        strnfmt(buf, sizeof(buf), "%-48s: %s", "Enable Bottom Panes [Alt+L]", get_sdl_enable_bottom_panes() ? "yes" : "no ");
         c_prt(a, buf, y0 + 7, 2);
 
-        /* Option 8: Save/Return */
+        /* Option 8: View Pane Configuration (supporting panes only) */
         a = (k == 8) ? TERM_L_BLUE : TERM_WHITE;
-        c_prt(a, settings_changed ? "Save Changes and Return" : "Return to Options Menu", y0 + 8, 2);
+        strnfmt(buf, sizeof(buf), "View Pane Configuration (%d panes)", get_supporting_pane_config_count());
+        c_prt(a, buf, y0 + 8, 2);
+
+        /* Option 9: Save/Return */
+        a = (k == 9) ? TERM_L_BLUE : TERM_WHITE;
+        c_prt(a, settings_changed ? "Save Changes and Return" : "Return to Options Menu", y0 + 9, 2);
         
         /* Display help */
         int y = Term->hgt - 3;
@@ -12291,7 +12444,7 @@ void do_cmd_pane_settings(void)
         case '\r':
         {
             /* Enter activates the current option for actions; otherwise accept/exit. */
-            if (k == 7) /* Supporting Pane Layout */
+            if (k == 8) /* Supporting Pane Layout */
             {
                 do_cmd_supporting_pane_layout_editor(&settings_changed);
                 break;
@@ -12329,33 +12482,39 @@ void do_cmd_pane_settings(void)
         case ' ':
         {
             /* Toggle or activate current option */
-            if (k == 3) /* Fullscreen */
+            if (k == 1) /* Minimum Terminal Size */
+            {
+                set_sdl_min_terminal_mode(get_sdl_min_terminal_mode() == 0 ? 1 : 0);
+                settings_changed = true;
+                sdl_apply_config();
+            }
+            else if (k == 4) /* Fullscreen */
             {
                 set_sdl_fullscreen(!get_sdl_fullscreen());
                 settings_changed = true;
             }
-            else if (k == 4) /* Tiles */
+            else if (k == 5) /* Tiles */
             {
                 set_sdl_tiles(!get_sdl_tiles());
                 settings_changed = true;
             }
-            else if (k == 5) /* Enable Right Panes */
+            else if (k == 6) /* Enable Right Panes */
             {
                 set_sdl_enable_right_panes(!get_sdl_enable_right_panes());
                 settings_changed = true;
                 sdl_apply_config();
             }
-            else if (k == 6) /* Enable Bottom Panes */
+            else if (k == 7) /* Enable Bottom Panes */
             {
                 set_sdl_enable_bottom_panes(!get_sdl_enable_bottom_panes());
                 settings_changed = true;
                 sdl_apply_config();
             }
-            else if (k == 7) /* Supporting Pane Layout */
+            else if (k == 8) /* Supporting Pane Layout */
             {
                 do_cmd_supporting_pane_layout_editor(&settings_changed);
             }
-            else if (k == 8) /* Save/Return */
+            else if (k == 9) /* Save/Return */
             {
                 if (settings_changed)
                 {
@@ -12386,7 +12545,16 @@ void do_cmd_pane_settings(void)
                     sdl_apply_config();
                 }
             }
-            else if (k == 1) /* Aux View Font Size */
+            else if (k == 1) /* Minimum Terminal Size */
+            {
+                if (get_sdl_min_terminal_mode() != 0)
+                {
+                    set_sdl_min_terminal_mode(0);
+                    settings_changed = true;
+                    sdl_apply_config();
+                }
+            }
+            else if (k == 2) /* Aux View Font Size */
             {
                 val = get_sdl_aux_view_font_size();
                 if (val < 48)
@@ -12396,7 +12564,7 @@ void do_cmd_pane_settings(void)
                     sdl_apply_config();
                 }
             }
-            else if (k == 2) /* Margin */
+            else if (k == 3) /* Margin */
             {
                 val = get_sdl_margin();
                 if (val < 20)
@@ -12406,23 +12574,23 @@ void do_cmd_pane_settings(void)
                     sdl_apply_config();
                 }
             }
-            else if (k == 3) /* Fullscreen */
+            else if (k == 4) /* Fullscreen */
             {
                 set_sdl_fullscreen(true);
                 settings_changed = true;
             }
-            else if (k == 4) /* Tiles */
+            else if (k == 5) /* Tiles */
             {
                 set_sdl_tiles(true);
                 settings_changed = true;
             }
-            else if (k == 5) /* Enable Right Panes */
+            else if (k == 6) /* Enable Right Panes */
             {
                 set_sdl_enable_right_panes(true);
                 settings_changed = true;
                 sdl_apply_config();
             }
-            else if (k == 6) /* Enable Bottom Panes */
+            else if (k == 7) /* Enable Bottom Panes */
             {
                 set_sdl_enable_bottom_panes(true);
                 settings_changed = true;
@@ -12447,7 +12615,16 @@ void do_cmd_pane_settings(void)
                     sdl_apply_config();
                 }
             }
-            else if (k == 1) /* Aux View Font Size */
+            else if (k == 1) /* Minimum Terminal Size */
+            {
+                if (get_sdl_min_terminal_mode() != 1)
+                {
+                    set_sdl_min_terminal_mode(1);
+                    settings_changed = true;
+                    sdl_apply_config();
+                }
+            }
+            else if (k == 2) /* Aux View Font Size */
             {
                 val = get_sdl_aux_view_font_size();
                 if (val > 8)
@@ -12457,7 +12634,7 @@ void do_cmd_pane_settings(void)
                     sdl_apply_config();
                 }
             }
-            else if (k == 2) /* Margin */
+            else if (k == 3) /* Margin */
             {
                 val = get_sdl_margin();
                 if (val > 0)
@@ -12467,23 +12644,23 @@ void do_cmd_pane_settings(void)
                     sdl_apply_config();
                 }
             }
-            else if (k == 3) /* Fullscreen */
+            else if (k == 4) /* Fullscreen */
             {
                 set_sdl_fullscreen(false);
                 settings_changed = true;
             }
-            else if (k == 4) /* Tiles */
+            else if (k == 5) /* Tiles */
             {
                 set_sdl_tiles(false);
                 settings_changed = true;
             }
-            else if (k == 5) /* Enable Right Panes */
+            else if (k == 6) /* Enable Right Panes */
             {
                 set_sdl_enable_right_panes(false);
                 settings_changed = true;
                 sdl_apply_config();
             }
-            else if (k == 6) /* Enable Bottom Panes */
+            else if (k == 7) /* Enable Bottom Panes */
             {
                 set_sdl_enable_bottom_panes(false);
                 settings_changed = true;
