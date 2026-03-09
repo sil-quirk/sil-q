@@ -109,7 +109,7 @@
 #define PANEL_WID (use_bigtile ? 16 : PANEL_WID_FIXED)
 
 #define ROW_MAP 1
-#define COL_MAP 13
+#define COL_MAP (g_hide_left_panel ? 0 : 13)
 
 /*
  * Number of grids in each screen (vertically)
@@ -2753,6 +2753,7 @@
 #define OPT_intro_style 95
 #define OPT_show_partition_narrative 96
 #define OPT_noble_item_spawn_mode 97
+#define OPT_hide_left_panel 98
 
 /* Intro screen style constants */
 #define INTRO_STYLE_FLAME       0   /* Flame Imperishable (Ainulindale) */

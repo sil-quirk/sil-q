@@ -11350,6 +11350,12 @@ extern void do_cmd_options_aux(int page, cptr info)
                     "Hitpoint warning threshold (0% to 90%)",
                     op_ptr->hitpoint_warn * 10);
             }
+            else if (opt[i] == OPT_hide_left_panel)
+            {
+                strnfmt(buf, sizeof(buf), "%-48s: %s",
+                    "Hide Left Panel [Alt+P]",
+                    get_sdl_hide_left_panel() ? "yes" : "no ");
+            }
             else if (opt[i] == OPT_main_combat_rolls)
             {
                 strnfmt(buf, sizeof(buf), "%-48s: %d",
@@ -11566,6 +11572,11 @@ extern void do_cmd_options_aux(int page, cptr info)
                         ? op_ptr->hitpoint_warn + 1
                         : 0;
                 }
+                else if (opt[k] == OPT_hide_left_panel)
+                {
+                    set_sdl_hide_left_panel(!get_sdl_hide_left_panel());
+                    sdl_apply_config();
+                }
                 else if (opt[k] == OPT_main_combat_rolls)
                 {
                     op_ptr->main_combat_rolls = (op_ptr->main_combat_rolls < 4)
@@ -11678,6 +11689,11 @@ extern void do_cmd_options_aux(int page, cptr info)
                         ? op_ptr->hitpoint_warn + 1
                         : 9;
                 }
+                else if (opt[k] == OPT_hide_left_panel)
+                {
+                    set_sdl_hide_left_panel(true);
+                    sdl_apply_config();
+                }
                 else if (opt[k] == OPT_main_combat_rolls)
                 {
                     op_ptr->main_combat_rolls = (op_ptr->main_combat_rolls < 4)
@@ -11789,6 +11805,11 @@ extern void do_cmd_options_aux(int page, cptr info)
                     op_ptr->hitpoint_warn = (op_ptr->hitpoint_warn > 0)
                         ? op_ptr->hitpoint_warn - 1
                         : 0;
+                }
+                else if (opt[k] == OPT_hide_left_panel)
+                {
+                    set_sdl_hide_left_panel(false);
+                    sdl_apply_config();
                 }
                 else if (opt[k] == OPT_main_combat_rolls)
                 {

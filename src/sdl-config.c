@@ -670,6 +670,12 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
             config->enable_bottom_panes = cJSON_IsTrue(item);
             log_debug("Loaded enableBottomPanes: %s", config->enable_bottom_panes ? "true" : "false");
         }
+
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "hideLeftPanel");
+        if (cJSON_IsBool(item)) {
+            config->hide_left_panel = cJSON_IsTrue(item);
+            log_debug("Loaded hideLeftPanel: %s", config->hide_left_panel ? "true" : "false");
+        }
         
         // Window position and size for windowed mode
         item = cJSON_GetObjectItemCaseSensitive(sdl, "windowX");
@@ -1005,6 +1011,7 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     cJSON_AddBoolToObject(sdl, "tiles", config->tiles);
     cJSON_AddBoolToObject(sdl, "enableRightPanes", config->enable_right_panes);
     cJSON_AddBoolToObject(sdl, "enableBottomPanes", config->enable_bottom_panes);
+    cJSON_AddBoolToObject(sdl, "hideLeftPanel", config->hide_left_panel);
     
     // Save window position and size for windowed mode
     cJSON_AddNumberToObject(sdl, "windowX", config->window_x);
@@ -1242,6 +1249,7 @@ void sdl_config_set_defaults(struct sdl_config* config)
     config->tiles = true;
     config->enable_right_panes = true;
     config->enable_bottom_panes = true;
+    config->hide_left_panel = false;
     
     // Default window position and size (will be overridden by actual screen size)
     config->window_x = -1;  // -1 means centered

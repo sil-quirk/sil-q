@@ -26,6 +26,7 @@ struct sdl_config {
     bool tiles;
     bool enable_right_panes;
     bool enable_bottom_panes;
+    bool hide_left_panel;
     
     // Window position and size for windowed mode
     int window_x;

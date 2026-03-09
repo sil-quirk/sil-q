@@ -20,13 +20,34 @@ static bool ui_compact_width(void)
     return (Term && (Term->wid < 80));
 }
 
+static bool ui_hide_left_panel(void)
+{
+    return get_sdl_hide_left_panel();
+}
+
 static bool ui_compact_height(void)
 {
     return SIL_UI_COMPACT_HEIGHT;
 }
 
+typedef struct hidden_overlay_line {
+    char text[32];
+    byte attr;
+} hidden_overlay_line;
+
+byte g_hidden_left_panel_overlay_rows = 0;
+byte g_hidden_left_panel_overlay_widths[16] = { 0 };
+
 static void prt_status_line_compact(void);
 static void prt_cut_poisoned_compact(void);
+static void prt_hidden_top_vitals(void);
+static bool status_state_text(char* out_long, size_t out_long_sz,
+                              char* out_short, size_t out_short_sz,
+                              byte* out_attr);
+static void hidden_left_panel_add_line(hidden_overlay_line* lines, int* count,
+                                       int max_lines, byte attr, cptr text);
+static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lines);
+static bool hidden_left_panel_sync_mask(const hidden_overlay_line* lines, int line_count);
 
 static u32b ability_log_turn_value(void)
 {
@@ -947,6 +968,177 @@ static void prt_sp(void)
     c_put_str(color, tmp, ROW_SP, COL_SP + 12 - len);
 }
 
+static void hidden_left_panel_add_line(hidden_overlay_line* lines, int* count,
+                                       int max_lines, byte attr, cptr text)
+{
+    if (!lines || !count || !text || !text[0])
+        return;
+    if (*count >= max_lines)
+        return;
+
+    SDL_strlcpy(lines[*count].text, text, sizeof(lines[*count].text));
+    lines[*count].attr = attr;
+    (*count)++;
+}
+
+static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lines)
+{
+    int count = 0;
+    char buf[32];
+    byte hp_color;
+    byte voice_color;
+
+    if (!lines || !Term || !p_ptr || max_lines <= 0)
+        return 0;
+
+    hp_color = health_attr(p_ptr->chp, p_ptr->mhp);
+    if (p_ptr->csp >= p_ptr->msp)
+        voice_color = TERM_L_GREEN;
+    else if (p_ptr->csp > (p_ptr->msp * op_ptr->hitpoint_warn) / 10)
+        voice_color = TERM_YELLOW;
+    else
+        voice_color = TERM_RED;
+
+    strnfmt(buf, sizeof(buf), "HP %3d", MIN(p_ptr->chp, 999));
+    hidden_left_panel_add_line(lines, &count, max_lines, hp_color, buf);
+
+    strnfmt(buf, sizeof(buf), "VC %3d", MIN(p_ptr->csp, 999));
+    hidden_left_panel_add_line(lines, &count, max_lines, voice_color, buf);
+
+    if (p_ptr->cut > 100)
+    {
+        hidden_left_panel_add_line(lines, &count, max_lines, TERM_RED,
+            "MW !!!");
+    }
+    else if (p_ptr->cut > 20)
+    {
+        strnfmt(buf, sizeof(buf), "BL %3d", MIN(p_ptr->cut, 999));
+        hidden_left_panel_add_line(lines, &count, max_lines, TERM_RED, buf);
+    }
+    else if (p_ptr->cut > 0)
+    {
+        strnfmt(buf, sizeof(buf), "BL %3d", MIN(p_ptr->cut, 999));
+        hidden_left_panel_add_line(lines, &count, max_lines, TERM_L_RED, buf);
+    }
+
+    if (p_ptr->poisoned > 20)
+    {
+        strnfmt(buf, sizeof(buf), "PS %3d", MIN(p_ptr->poisoned, 999));
+        hidden_left_panel_add_line(lines, &count, max_lines, TERM_L_GREEN, buf);
+    }
+    else if (p_ptr->poisoned > 0)
+    {
+        strnfmt(buf, sizeof(buf), "PS %3d", MIN(p_ptr->poisoned, 999));
+        hidden_left_panel_add_line(lines, &count, max_lines, TERM_GREEN, buf);
+    }
+
+    if (p_ptr->song1 != SNG_NOTHING || p_ptr->song2 != SNG_NOTHING)
+    {
+        char* song1_name
+            = b_name + (&b_info[ability_index(S_SNG, p_ptr->song1)])->name;
+        char* song2_name
+            = b_name + (&b_info[ability_index(S_SNG, p_ptr->song2)])->name;
+        buf[0] = '\0';
+
+        if (p_ptr->song1 != SNG_NOTHING && p_ptr->song2 != SNG_NOTHING)
+            strnfmt(buf, sizeof(buf), "%s+%s", song1_name + 8, song2_name + 8);
+        else if (p_ptr->song1 != SNG_NOTHING)
+            SDL_strlcpy(buf, song1_name + 8, sizeof(buf));
+        else if (p_ptr->song2 != SNG_NOTHING)
+            SDL_strlcpy(buf, song2_name + 8, sizeof(buf));
+
+        hidden_left_panel_add_line(lines, &count, max_lines, TERM_L_BLUE, buf);
+    }
+
+    if (p_ptr->health_who
+        && mon_list[p_ptr->health_who].ml
+        && !p_ptr->image
+        && (mon_list[p_ptr->health_who].hp > 0))
+    {
+        monster_type* m_ptr = &mon_list[p_ptr->health_who];
+        int len;
+        byte attr;
+
+        attr = health_attr(m_ptr->hp, m_ptr->maxhp);
+        len = (8 * m_ptr->hp + m_ptr->maxhp - 1) / m_ptr->maxhp;
+        if (len < 0)
+            len = 0;
+        if (len > 8)
+            len = 8;
+
+        for (int i = 0; i < len; i++)
+            buf[i] = '*';
+        buf[len] = '\0';
+
+        hidden_left_panel_add_line(lines, &count, max_lines, attr, buf);
+    }
+
+    return count;
+}
+
+static bool hidden_left_panel_sync_mask(const hidden_overlay_line* lines, int line_count)
+{
+    bool changed = false;
+    int old_rows = g_hidden_left_panel_overlay_rows;
+    int max_rows = old_rows;
+
+    if (line_count > max_rows)
+        max_rows = line_count;
+
+    for (int i = 0; i < max_rows && i < 16; i++)
+    {
+        byte new_width = 0;
+
+        if (i < line_count && lines[i].text[0])
+        {
+            int width = (int)strlen(lines[i].text);
+            if (Term && width > Term->wid)
+                width = Term->wid;
+            new_width = (byte)width;
+        }
+
+        if (g_hidden_left_panel_overlay_widths[i] != new_width)
+            changed = true;
+
+        g_hidden_left_panel_overlay_widths[i] = new_width;
+    }
+
+    for (int i = max_rows; i < 16; i++)
+        g_hidden_left_panel_overlay_widths[i] = 0;
+
+    if (g_hidden_left_panel_overlay_rows != line_count)
+        changed = true;
+
+    g_hidden_left_panel_overlay_rows = (byte)MIN(line_count, 16);
+
+    return changed;
+}
+
+static void prt_hidden_top_vitals(void)
+{
+    hidden_overlay_line lines[16];
+    int line_count;
+
+    if (!Term || !p_ptr)
+        return;
+
+    line_count = hidden_left_panel_build_lines(lines, 16);
+
+    for (int i = 0; i < line_count && (ROW_NAME + i) < Term->hgt - 1; i++)
+    {
+        int row = ROW_NAME + i;
+        int width = (int)strlen(lines[i].text);
+
+        if (width <= 0)
+            continue;
+        if (width > Term->wid)
+            width = Term->wid;
+
+        Term_erase(0, row, width);
+        Term_putstr(0, row, width, lines[i].attr, lines[i].text);
+    }
+}
+
 /*
  * Prints player's current song (if any)
  */
@@ -1182,6 +1374,9 @@ static void prt_afraid(void)
 
 static void prt_cut(void)
 {
+    if (ui_hide_left_panel())
+        return;
+
     if (ui_compact_height())
     {
         prt_cut_poisoned_compact();
@@ -1230,6 +1425,9 @@ static void prt_cut(void)
  */
 static void prt_poisoned(void)
 {
+    if (ui_hide_left_panel())
+        return;
+
     if (ui_compact_height())
     {
         prt_cut_poisoned_compact();
@@ -2121,6 +2319,9 @@ bool get_alertness_text(
  */
 static void health_redraw(void)
 {
+    if (ui_hide_left_panel())
+        return;
+
     /* Not tracking */
     if (!p_ptr->health_who)
     {
@@ -2205,6 +2406,12 @@ static void health_redraw(void)
 static void prt_frame_basic(void)
 {
     int i;
+
+    if (ui_hide_left_panel())
+    {
+        prt_depth();
+        return;
+    }
 
     /* Name */
     if (strlen(op_ptr->full_name) <= 12)
@@ -5212,6 +5419,8 @@ void update_stuff(void)
  */
 void redraw_stuff(void)
 {
+    bool hidden_overlay_needs_refresh = false;
+
     /* Redraw stuff */
     if (!p_ptr->redraw) {
         // log_trace("redraw_stuff: no redraws needed");
@@ -5233,11 +5442,25 @@ void redraw_stuff(void)
         return;
     }
 
+    if (ui_hide_left_panel())
+    {
+        hidden_overlay_line hidden_lines[16];
+        int hidden_line_count = hidden_left_panel_build_lines(hidden_lines, 16);
+
+        if (hidden_left_panel_sync_mask(hidden_lines, hidden_line_count))
+        {
+            p_ptr->redraw |= PR_MAP;
+            hidden_overlay_needs_refresh = true;
+        }
+    }
+
     if (p_ptr->redraw & (PR_MAP))
     {
         p_ptr->redraw &= ~(PR_MAP);
         log_trace("redraw_stuff: redrawing map");
         prt_map();
+        if (ui_hide_left_panel())
+            hidden_overlay_needs_refresh = true;
     }
 
     if (p_ptr->redraw & (PR_BASIC))
@@ -5249,63 +5472,79 @@ void redraw_stuff(void)
         p_ptr->redraw &= ~(PR_DEPTH | PR_HEALTHBAR);
         p_ptr->redraw &= ~(PR_RESIST);
         prt_frame_basic();
+        if (ui_hide_left_panel())
+            hidden_overlay_needs_refresh = true;
     }
 
     if (p_ptr->redraw & (PR_MISC))
     {
         p_ptr->redraw &= ~(PR_MISC);
 
-        /* Name */
-        c_put_str(TERM_WHITE, "            ", ROW_NAME, COL_NAME);
-        if (strlen(op_ptr->full_name) <= 12)
+        if (!ui_hide_left_panel())
         {
-            prt_field(op_ptr->full_name, ROW_NAME, COL_NAME);
+            /* Name */
+            c_put_str(TERM_WHITE, "            ", ROW_NAME, COL_NAME);
+            if (strlen(op_ptr->full_name) <= 12)
+            {
+                prt_field(op_ptr->full_name, ROW_NAME, COL_NAME);
+            }
         }
     }
 
     if (p_ptr->redraw & (PR_EXP))
     {
         p_ptr->redraw &= ~(PR_EXP);
-        prt_exp();
+        if (!ui_hide_left_panel())
+            prt_exp();
     }
 
     if (p_ptr->redraw & (PR_STATS))
     {
         p_ptr->redraw &= ~(PR_STATS);
-        prt_stat(A_STR);
-        prt_stat(A_DEX);
-        prt_stat(A_CON);
-        prt_stat(A_GRA);
+        if (!ui_hide_left_panel())
+        {
+            prt_stat(A_STR);
+            prt_stat(A_DEX);
+            prt_stat(A_CON);
+            prt_stat(A_GRA);
+        }
     }
 
     if (p_ptr->redraw & (PR_MEL))
     {
         p_ptr->redraw &= ~(PR_MEL);
-        prt_mel();
+        if (!ui_hide_left_panel())
+            prt_mel();
     }
 
     if (p_ptr->redraw & (PR_ARC))
     {
         p_ptr->redraw &= ~(PR_ARC);
-        prt_arc();
+        if (!ui_hide_left_panel())
+            prt_arc();
     }
 
     if (p_ptr->redraw & (PR_QUIVER))
     {
         p_ptr->redraw &= ~(PR_QUIVER);
-        prt_quiver();
+        if (!ui_hide_left_panel())
+            prt_quiver();
     }
 
     if (p_ptr->redraw & (PR_ARMOR))
     {
         p_ptr->redraw &= ~(PR_ARMOR);
-        prt_evn();
+        if (!ui_hide_left_panel())
+            prt_evn();
     }
 
     if (p_ptr->redraw & (PR_HP))
     {
         p_ptr->redraw &= ~(PR_HP);
-        prt_hp();
+        if (ui_hide_left_panel())
+            hidden_overlay_needs_refresh = true;
+        else
+            prt_hp();
 
         /*
          * hack:  redraw player, since the player's color
@@ -5316,20 +5555,27 @@ void redraw_stuff(void)
             lite_spot(p_ptr->py, p_ptr->px);
         }
 
-        /* Also update the monospace character health graphic */
-        prt_char_health_graphic();
+        if (!ui_hide_left_panel())
+        {
+            /* Also update the monospace character health graphic */
+            prt_char_health_graphic();
+        }
     }
 
     if (p_ptr->redraw & (PR_VOICE))
     {
         p_ptr->redraw &= ~(PR_VOICE);
-        prt_sp();
+        if (ui_hide_left_panel())
+            hidden_overlay_needs_refresh = true;
+        else
+            prt_sp();
     }
 
     if (p_ptr->redraw & (PR_LIGHT))
     {
         p_ptr->redraw &= ~(PR_LIGHT);
-        prt_light();
+        if (!ui_hide_left_panel())
+            prt_light();
     }
 
     /* Sil - Hack: always redraw song (really should invent redraw flag for it
@@ -5337,7 +5583,10 @@ void redraw_stuff(void)
     if (p_ptr->redraw & (PR_SONG))
     {
         p_ptr->redraw &= ~(PR_SONG);
-        prt_song();
+        if (!ui_hide_left_panel())
+            prt_song();
+        else
+            hidden_overlay_needs_refresh = true;
     }
 
     if (p_ptr->redraw & (PR_DEPTH))
@@ -5349,7 +5598,10 @@ void redraw_stuff(void)
     if (p_ptr->redraw & (PR_HEALTHBAR))
     {
         p_ptr->redraw &= ~(PR_HEALTHBAR);
-        health_redraw();
+        if (!ui_hide_left_panel())
+            health_redraw();
+        else
+            hidden_overlay_needs_refresh = true;
     }
 
     if (p_ptr->redraw & (PR_EXTRA))
@@ -5361,12 +5613,17 @@ void redraw_stuff(void)
         p_ptr->redraw &= ~(PR_AFRAID | PR_POISONED);
         p_ptr->redraw &= ~(PR_STATE | PR_SPEED);
         prt_frame_extra();
+        if (ui_hide_left_panel())
+            hidden_overlay_needs_refresh = true;
     }
 
     if (p_ptr->redraw & (PR_CUT))
     {
         p_ptr->redraw &= ~(PR_CUT);
-        prt_cut();
+        if (!ui_hide_left_panel())
+            prt_cut();
+        else
+            hidden_overlay_needs_refresh = true;
     }
 
     if (p_ptr->redraw & (PR_STUN))
@@ -5402,7 +5659,10 @@ void redraw_stuff(void)
     if (p_ptr->redraw & (PR_POISONED))
     {
         p_ptr->redraw &= ~(PR_POISONED);
-        prt_poisoned();
+        if (!ui_hide_left_panel())
+            prt_poisoned();
+        else
+            hidden_overlay_needs_refresh = true;
     }
 
     if (p_ptr->redraw & (PR_STATE))
@@ -5422,6 +5682,9 @@ void redraw_stuff(void)
         p_ptr->redraw &= ~(PR_TERRAIN);
         prt_terrain();
     }
+
+    if (ui_hide_left_panel() && hidden_overlay_needs_refresh)
+        prt_hidden_top_vitals();
 
     // log_trace("redraw_stuff: completed all redraws");
 }

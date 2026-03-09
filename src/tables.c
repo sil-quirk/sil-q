@@ -245,7 +245,7 @@ cptr option_text[OPT_MAX] = {
     NULL, /* xxx */
     "partition_narrative_mode", /* OPT_show_partition_narrative */
     "noble_item_spawn_mode", /* OPT_noble_item_spawn_mode */
-    NULL, /* xxx */
+    NULL, /* OPT_hide_left_panel */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -487,7 +487,7 @@ cptr option_desc[OPT_MAX] = {
     "Welcome screen (0-4=fixed, 5=random)", /* OPT_intro_style */
     "Partition transition narrative (banner without delay/message/off)", /* OPT_show_partition_narrative */
     "Noble item spawns (0=good+/chests/human+elf skeletons, 1=also &/! vault drops)", /* OPT_noble_item_spawn_mode */
-    NULL, /* xxx */
+    "Hide the classic left panel and use the compact overlay", /* OPT_hide_left_panel */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -914,7 +914,7 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
 
     { OPT_system_beep, OPT_quick_messages, OPT_auto_more, OPT_easy_main_menu,
         OPT_hjkl_movement, OPT_angband_keyset, OPT_space_acts_as_comma, OPT_hitpoint_warning,
-        OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_hide_left_panel, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE },
 

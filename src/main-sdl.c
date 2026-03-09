@@ -35,6 +35,7 @@ enum {
 
 // SDL configuration (loaded from INI file)
 struct sdl_config config;
+bool g_hide_left_panel = false;
 
 // Sound configuration (loaded from sound.json)
 struct sound_config g_sound_config;
@@ -1551,6 +1552,14 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
                 Term_keypress(KTRL('R')); // Trigger redraw
                 handled = true;
             }
+            // Alt+P : Toggle the classic left panel
+            else if (key == 'p' || key == 'P') {
+                bool hidden = get_sdl_hide_left_panel();
+                set_sdl_hide_left_panel(!hidden);
+                sdl_apply_config();
+                Term_keypress(KTRL('R')); // Trigger redraw
+                handled = true;
+            }
             
             if (handled) {
                 return;
@@ -2947,6 +2956,8 @@ errr init_sdl(int argc, char **argv)
                   config.main_view_scale, config.aux_view_font_size, config.margin,
                   config.fullscreen, config.tiles);
     }
+
+    g_hide_left_panel = config.hide_left_panel;
     
     // Apply command-line overrides
     sdl_config_apply_cmdline(&config, argc, argv);
@@ -3095,7 +3106,9 @@ void get_sdl_config_info(char* buf, size_t size)
     offset += (size_t)strnfmt(buf + offset, size - offset, "Aux View Font Size: %d\n", config.aux_view_font_size);
     offset += (size_t)strnfmt(buf + offset, size - offset, "Margin: %d\n", config.margin);
     offset += (size_t)strnfmt(buf + offset, size - offset, "Fullscreen: %s\n", config.fullscreen ? "Yes" : "No");
-    offset += (size_t)strnfmt(buf + offset, size - offset, "Tiles: %s\n\n", config.tiles ? "Yes" : "No");
+    offset += (size_t)strnfmt(buf + offset, size - offset, "Tiles: %s\n", config.tiles ? "Yes" : "No");
+    offset += (size_t)strnfmt(buf + offset, size - offset, "Hide Left Panel: %s\n\n",
+        config.hide_left_panel ? "Yes" : "No");
     
     // Pane configurations (supporting panes only)
     offset += (size_t)strnfmt(buf + offset, size - offset, "=== Pane Configuration (Supporting Panes) ===\n");
@@ -3341,6 +3354,17 @@ bool get_sdl_enable_bottom_panes(void)
 void set_sdl_enable_bottom_panes(bool value)
 {
     config.enable_bottom_panes = value;
+}
+
+bool get_sdl_hide_left_panel(void)
+{
+    return g_hide_left_panel;
+}
+
+void set_sdl_hide_left_panel(bool value)
+{
+    g_hide_left_panel = value;
+    config.hide_left_panel = value;
 }
 
 /* Intro style: -1 = random (INTRO_STYLE_RANDOM), 0-4 = fixed variant. */

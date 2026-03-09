@@ -1343,11 +1343,14 @@ bool object_info_out(const object_type* o_ptr)
     u32b f1, f2, f3, f4;
     u32b ff1, ff2, ff3, ff4;
     bool something = false;
+    bool known_only = (object_info_out_flags == object_flags_known);
 
     /* Grab the object flags */
     object_info_out_flags(o_ptr, &f1, &f2, &f3);
-    /* Also grab f4 directly since object_info_out_flags doesn't support it yet */
-    object_flags4(o_ptr, &ff1, &ff2, &ff3, &f4);
+    if (known_only)
+        object_flags_known4(o_ptr, &ff1, &ff2, &ff3, &f4);
+    else
+        object_flags4(o_ptr, &ff1, &ff2, &ff3, &f4);
 
     /* Hack - grab the ID-independent flags */
     /* Used to show handedness even when not ID'd */

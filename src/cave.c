@@ -18,6 +18,23 @@
 #include <math.h>
 #include <stddef.h>
 
+static bool hidden_left_panel_masked_cell(int vy, int vx)
+{
+    int row_index;
+
+    if (!g_hide_left_panel)
+        return false;
+
+    row_index = vy - ROW_NAME;
+    if (row_index < 0 || row_index >= g_hidden_left_panel_overlay_rows)
+        return false;
+
+    if (vx < 0 || vx >= g_hidden_left_panel_overlay_widths[row_index])
+        return false;
+
+    return true;
+}
+
 /* Encoded color range that indicates an absolute style index per cell.
  * We now store the chosen style for each cell directly in cave_color as
  * COLOR_STYLE_BASE + style_index. This guarantees deterministic visuals
@@ -2389,6 +2406,9 @@ void move_cursor_relative(int y, int x)
     if (use_bigtile)
         vx += kx;
 
+    if (hidden_left_panel_masked_cell(vy, vx))
+        return;
+
     /* Go there */
     (void)Term_gotoxy(vx, vy);
 }
@@ -2429,6 +2449,9 @@ void print_rel(char c, byte a, int y, int x)
 
     if (use_bigtile)
         vx += kx;
+
+    if (hidden_left_panel_masked_cell(vy, vx))
+        return;
 
     /* Hack -- Queue it */
     Term_queue_char(vx, vy, a, c, 0, 0);
@@ -2557,6 +2580,9 @@ void lite_spot(int y, int x)
     if (use_bigtile)
         vx += kx;
 
+    if (hidden_left_panel_masked_cell(vy, vx))
+        return;
+
     /* Hack -- redraw the grid */
     map_info(y, x, &a, &c, &ta, &tc);
 
@@ -2604,6 +2630,9 @@ void prt_map(void)
         {
             /* Check bounds */
             if (!in_bounds(y, x))
+                continue;
+
+            if (hidden_left_panel_masked_cell(vy, vx))
                 continue;
 
             /* Determine what is there */
