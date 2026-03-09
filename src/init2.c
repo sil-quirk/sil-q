@@ -2473,7 +2473,7 @@ static int welcome_screen_base_col(void)
     if (wid < legacy_term_wid)
     {
         /* Center the actual welcome block on compact screens so the
-         * 50x20 minimum layout does not clamp against the first column. */
+         * 50x18 minimum layout does not clamp against the first column. */
         shift = (wid - compact_block_wid) / 2;
         if (shift < 0)
             shift = 0;

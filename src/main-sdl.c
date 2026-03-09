@@ -65,7 +65,7 @@ static int sdl_min_terminal_cols_for_mode(int mode)
 
 static int sdl_min_terminal_rows_for_mode(int mode)
 {
-    return (mode == SDL_MIN_TERMINAL_COMPACT) ? 20 : 24;
+    return (mode == SDL_MIN_TERMINAL_COMPACT) ? 18 : 24;
 }
 
 static int sdl_current_min_terminal_cols(void)
@@ -2281,15 +2281,19 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         ev->type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) {
 
         float scale = SDL_GetWindowDisplayScale(g_state.window);
-        if (scale != g_state.system_scale) {
+        SDL_Rect window = { 0 };
+        bool scale_changed = (scale != g_state.system_scale);
+
+        if (scale_changed) {
             log_info("new system scale is %g", scale);
             g_state.system_scale = scale;
             sdl_load_story_fonts();
-            SDL_Rect window = { 0 };
-            SDL_GetWindowSizeInPixels(g_state.window, &window.w, &window.h);
-            log_debug("window size in pixels %dx%d", window.w, window.h);
-            resize(&window);
         }
+
+        SDL_GetWindowSizeInPixels(g_state.window, &window.w, &window.h);
+        log_debug("window pixel/display update in pixels %dx%d (scale_changed=%d)",
+            window.w, window.h, scale_changed ? 1 : 0);
+        resize(&window);
     }
     // Handle GPU reset events (commonly triggered by NVIDIA drivers on mode switches,
     // driver updates, or sleep/wake cycles)

@@ -4434,8 +4434,10 @@ PlayResult play_game(void)
     /* Verify minimum size */
 #ifdef __ANDROID__
     {
-        const int min_hgt = 20;
-        const int min_wid = 50;
+        /* get_sdl_min_terminal_mode() returns 0=normal, 1=compact. */
+        const bool compact_mode = (get_sdl_min_terminal_mode() != 0);
+        const int min_hgt = compact_mode ? 18 : 24;
+        const int min_wid = compact_mode ? 50 : 80;
         if ((Term->hgt < min_hgt) || (Term->wid < min_wid))
         {
             log_error("main window too small on Android: %dx%d (need at least %dx%d)",

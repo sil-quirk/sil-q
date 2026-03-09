@@ -12327,7 +12327,7 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed);
 static void do_cmd_touch_pane_button_editor(bool* settings_changed);
 static const char* sdl_min_terminal_mode_label(int mode)
 {
-    return (mode == 1) ? "compact (50x20)" : "normal (80x24)";
+    return (mode == 1) ? "compact (50x18)" : "normal (80x24)";
 }
 
 void do_cmd_pane_settings(void)
