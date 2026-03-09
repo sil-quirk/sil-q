@@ -468,7 +468,7 @@ D:The mighty Vala of war and strength, Tulkas the Strong, has taken
 D: physical form to test and reward worthy heroes. His presence radiates
 D: courage and valor, and he seems eager to speak with you.
 
-# Can't move from idx 19 for quest logic (Aulë forge quest giver)
+# Can't move from idx 19 for quest logic (Aule forge quest giver)
 N:19:Aule the Smith
 Q:d27e36edf5c2f432
 W:30:200

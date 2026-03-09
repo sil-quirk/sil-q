@@ -71,7 +71,7 @@
 #remembered softly, name whispered sadly in forests shadowed by war; 
 #Rían, bearer of quiet heroism, whose loss shapes destinies unseen. 
 #Morwen Eledhwen 
-#Proud lady of Dor-lómin, heart unbowed beneath shadows of despair, 
+#Proud lady of Dor-lomin, heart unbowed beneath shadows of despair, 
 #mother fierce yet silent, watching doom unfold upon kin and homeland. 
 #Strength hidden beneath grief, heart steadfast amid cruel darkness, 
 #foreshadowing tragic bravery, her line destined for shadow and flame. 
@@ -126,14 +126,14 @@
 #Foreshadowing peace restored when waves bear sorrow beyond seas afar, 
 #steadfast in hope despite grief, awaiting healing of wounds unforgotten; 
 #Olwë, whose gentle spirit endures amid tide of endless longing. 
-#Eärwen (Teleri) 
+#Earwen (Teleri) 
 #Silver-haired princess of Alqualondë, daughter gentle yet sorrow-shadowed, 
 #wife to wise Finarfin, mother whose children share Eldar’s grief afar. 
 #Heart forever torn between love of kin and sorrow of exile’s bitter fate, 
 #foreshadowing distant reunion beneath stars beyond tears and shadow. 
 #Quiet wisdom shaping fate unseen, enduring patiently Valinor’s twilight, 
 #songs mingled ever with gentle sadness, sea-longing in her eyes; 
-#Eärwen, whose silent strength bridges sorrow and hope eternal. 
+#Earwen, whose silent strength bridges sorrow and hope eternal. 
 #Ossë (Maia) 
 #Wild Maia of oceans, whose tempestuous spirit churns restless waves, 
 #servant of Ulmo yet bound closely in love to shores and tides unruly. 

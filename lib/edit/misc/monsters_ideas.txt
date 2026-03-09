@@ -1,6 +1,6 @@
 ### New Common Monsters
 
-Based on the analysis of the existing `monster.txt` file, I've focused on creating suggestions that fit the First Age lore from Tolkien's works (primarily *The Silmarillion*, *The Lays of Beleriand*, and early drafts in *The History of Middle-earth*). New monsters are either directly mentioned (e.g., specific creatures from battles or regions) or inferred closely from the lore (e.g., corrupted variants of existing beings, like twisted elves or additional elemental spirits under Morgoth's influence). I've avoided anything anachronistic (e.g., no Second/Third Age elements like Nazgûl).
+Based on the analysis of the existing `monster.txt` file, I've focused on creating suggestions that fit the First Age lore from Tolkien's works (primarily *The Silmarillion*, *The Lays of Beleriand*, and early drafts in *The History of Middle-earth*). New monsters are either directly mentioned (e.g., specific creatures from battles or regions) or inferred closely from the lore (e.g., corrupted variants of existing beings, like twisted elves or additional elemental spirits under Morgoth's influence). I've avoided anything anachronistic (e.g., no Second/Third Age elements like Nazgul).
 
 I prioritized balance and variety:
 - **Depth and Rarity**: Assigned based on existing patterns (e.g., weaker at shallow depths, stronger deeper; rarity 1-3 for commons).
@@ -453,7 +453,7 @@ S:SPELL_PCT_15 | POW_18 | BRTH_COLD | CONFUSE
 D:A mighty fallen Maia from Utumno's cold era, kin to later Balrogs but wreathed in ice.  
 D:He guarded the northern blights, his whip cracking like shattering frost.
 
-N:706:Palanvóre, the Frozen Phantom  
+N:706:Palanvore, the Frozen Phantom  
 W:19:15  
 G:W:W  
 I:2:12d4:-2  
@@ -617,7 +617,7 @@ D:##r..7..r##
 D:##############  
 
 #### 8. Palanvore's Icy Abyss (Type 8: Greater Vault – Unique phantom pit)
-Lore: Palanvóre (proposed unique) in frozen chasm with phantoms.
+Lore: Palanvore (proposed unique) in frozen chasm with phantoms.
 
 N:508:Palanvore's Icy Abyss  
 X:8:19:1:10:12  

@@ -876,6 +876,36 @@ static void draw_character_selection_header(bool character_phase)
     Term_putstr(QUESTION_COL, HEADER_ROW, -1, TERM_L_BLUE, header);
 }
 
+static int choice_description_row(int visible_rows, bool allow_full_description_screen)
+{
+    int wid = 80;
+    int hgt = 24;
+    int row = DESCRIPTION_ROW;
+    int min_row;
+
+    (void)wid;
+
+    if (allow_full_description_screen)
+        return row;
+
+    Term_get_size(&wid, &hgt);
+    if (hgt < 1)
+        hgt = 24;
+
+    if (hgt > 20)
+        return row;
+
+    min_row = TABLE_ROW + visible_rows + 1;
+    row = MAX(min_row, TABLE_ROW + A_MAX + 5);
+
+    if (row > hgt - 2)
+        row = hgt - 2;
+    if (row < min_row)
+        row = min_row;
+
+    return row;
+}
+
 static int collect_character_starting_abilities(int character, cptr out[], int out_max)
 {
     int count = 0;
@@ -992,6 +1022,9 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
     /* Choose */
     while (true)
     {
+        int description_row = DESCRIPTION_ROW;
+        int list_rows_drawn;
+
         hgt = Term->hgt - TABLE_ROW - 1;
 
         /*
@@ -1046,8 +1079,13 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
             Term_putstr(col, i + TABLE_ROW, wid, attr, name_part);
         }
 
+        list_rows_drawn = i;
+
+        if (!allow_full_description_screen)
+            description_row = choice_description_row(list_rows_drawn, false);
+
         {
-            int clear_from_row = DESCRIPTION_ROW;
+            int clear_from_row = description_row;
             if (allow_full_description_screen)
             {
                 bool compact_flags = character_flags_need_compact_layout();
@@ -1072,7 +1110,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
             text_out_indent = 2;
 
             /* History */
-            Term_gotoxy(text_out_indent, DESCRIPTION_ROW);
+            Term_gotoxy(text_out_indent, description_row);
             text_out_to_screen(TERM_WHITE, choices[cur].text);
 
             /* Reset text_out() vars */

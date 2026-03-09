@@ -2585,7 +2585,7 @@ void monster_death(int m_idx)
                  p_ptr->niena_monsters_killed, p_ptr->niena_monsters_seen);
     }
 
-    /* Track monster death for Oromë hunting quest - global kill counting */
+    /* Track monster death for Orome hunting quest - global kill counting */
     if (p_ptr->orome_quest >= OROME_QUEST_ACTIVE) {
         bool target_killed = false;
         
@@ -2593,11 +2593,11 @@ void monster_death(int m_idx)
         if (r_ptr->flags3 & RF3_WOLF) {
             p_ptr->orome_wolves_killed++;
             target_killed = true;
-            log_trace("Oromë quest: Wolf killed (wolves=%d, spiders=%d, serpents=%d, vampires=%d)", 
+            log_trace("Orome quest: Wolf killed (wolves=%d, spiders=%d, serpents=%d, vampires=%d)", 
                      p_ptr->orome_wolves_killed, p_ptr->orome_spiders_killed, 
                      p_ptr->orome_serpents_killed, p_ptr->orome_vampires_killed);
         }
-        /* Spider check: exclude trivial 'hatchling' variants from the Oromë count */
+        /* Spider check: exclude trivial 'hatchling' variants from the Orome count */
         if (r_ptr->flags3 & RF3_SPIDER) {
             bool is_hatchling = false;
             if (r_ptr->name)
@@ -2618,32 +2618,32 @@ void monster_death(int m_idx)
             {
                 p_ptr->orome_spiders_killed++;
                 target_killed = true;
-                log_trace("Oromë quest: Spider killed (wolves=%d, spiders=%d, serpents=%d, vampires=%d)", 
+                log_trace("Orome quest: Spider killed (wolves=%d, spiders=%d, serpents=%d, vampires=%d)", 
                          p_ptr->orome_wolves_killed, p_ptr->orome_spiders_killed, 
                          p_ptr->orome_serpents_killed, p_ptr->orome_vampires_killed);
             }
             else
             {
-                log_trace("Oromë quest: Spider hatchling excluded from spider count (name='%s')", (r_ptr->name ? (r_name + r_ptr->name) : "<unnamed>"));
+                log_trace("Orome quest: Spider hatchling excluded from spider count (name='%s')", (r_ptr->name ? (r_name + r_ptr->name) : "<unnamed>"));
             }
         }
         if (r_ptr->flags3 & RF3_SERPENT) {
             p_ptr->orome_serpents_killed++;
             target_killed = true;
-            log_trace("Oromë quest: Serpent killed (wolves=%d, spiders=%d, serpents=%d, vampires=%d)", 
+            log_trace("Orome quest: Serpent killed (wolves=%d, spiders=%d, serpents=%d, vampires=%d)", 
                      p_ptr->orome_wolves_killed, p_ptr->orome_spiders_killed, 
                      p_ptr->orome_serpents_killed, p_ptr->orome_vampires_killed);
         }
         if (r_ptr->flags3 & RF3_VAMPIRE) {
             p_ptr->orome_vampires_killed++;
             target_killed = true;
-            log_trace("Oromë quest: Vampire killed (wolves=%d, spiders=%d, serpents=%d, vampires=%d)", 
+            log_trace("Orome quest: Vampire killed (wolves=%d, spiders=%d, serpents=%d, vampires=%d)", 
                      p_ptr->orome_wolves_killed, p_ptr->orome_spiders_killed, 
                      p_ptr->orome_serpents_killed, p_ptr->orome_vampires_killed);
         }
         
         if (target_killed) {
-            log_trace("Oromë quest: Hunt target monster killed, checking for completion thresholds...");
+            log_trace("Orome quest: Hunt target monster killed, checking for completion thresholds...");
         }
     }
 
@@ -7305,7 +7305,7 @@ void do_cmd_quest_status(void)
         row++;
     }
 
-    /* Check Oromë quest */
+    /* Check Orome quest */
     if (p_ptr->orome_quest > OROME_QUEST_NOT_STARTED) {
         any_quests = true;
         cptr orome_status;
@@ -7318,7 +7318,7 @@ void do_cmd_quest_status(void)
         
         switch (p_ptr->orome_quest) {
             case OROME_QUEST_GIVER_PRESENT:
-                orome_status = "Available - Oromë awaits";
+                orome_status = "Available - Orome awaits";
                 color = TERM_L_BLUE;
                 Term_putstr(col + 2, row++, -1, color, orome_status);
                 display_wrapped_text(col, &row, quest_challenge, TERM_SLATE, wid);
@@ -8892,7 +8892,7 @@ void mandos_quest_interaction(void)
             msg_print("'Brodda the Easterling still draws breath within these halls.");
             msg_print("Until his tyranny is ended, you may not pass beyond.'");
             msg_print("");
-            msg_print("'Remember - he who ruled Dor-lómin with an iron fist");
+            msg_print("'Remember - he who ruled Dor-lomin with an iron fist");
             msg_print("must face the justice he denied to others.'");
         }
     }
@@ -9025,7 +9025,7 @@ void check_mandos_quest_completion(int r_idx)
             p_ptr->mandos_quest = MANDOS_QUEST_SUCCESS;
             
             msg_print("Brodda the Easterling falls! His tyranny is ended at last.");
-            msg_print("The spirits of Dor-lómin can finally know peace.");
+            msg_print("The spirits of Dor-lomin can finally know peace.");
             msg_print("Return to Mandos the Doomsman to claim your reward.");
             
             log_trace("Mandos quest completed - Brodda slain");
@@ -9034,7 +9034,7 @@ void check_mandos_quest_completion(int r_idx)
 }
 
 /*
- * Handle quest completion checking for Oromë hunting quest
+ * Handle quest completion checking for Orome hunting quest
  */
 void check_orome_quest_completion(void)
 {
@@ -9070,10 +9070,10 @@ void check_orome_quest_completion(void)
             
             msg_format("The hunt is complete! You have slain %d %s, proving your prowess!", 
                        kill_count, monster_name);
-            msg_print("Oromë the Huntsman will be pleased with your mastery.");
+            msg_print("Orome the Huntsman will be pleased with your mastery.");
             msg_print("Seek him out to claim your reward - the knowledge of Unique Bane!");
             
-            log_trace("Oromë quest completed - %d %s slain (wolves=%d, spiders=%d, serpents=%d, vampires=%d)", 
+            log_trace("Orome quest completed - %d %s slain (wolves=%d, spiders=%d, serpents=%d, vampires=%d)", 
                      kill_count, monster_name,
                      p_ptr->orome_wolves_killed, p_ptr->orome_spiders_killed, 
                      p_ptr->orome_serpents_killed, p_ptr->orome_vampires_killed);
@@ -9341,7 +9341,7 @@ void check_niena_quest_completion(void)
 }
 
 /*
- * Handle interaction with Oromë for the hunting quest
+ * Handle interaction with Orome for the hunting quest
  */
 void orome_quest_interaction(void)
 {
@@ -9362,23 +9362,23 @@ void orome_quest_interaction(void)
     
     if (p_ptr->orome_quest == OROME_QUEST_GIVER_PRESENT)
     {
-        log_trace("Starting Oromë quest interaction - offering hunting quest");
+        log_trace("Starting Orome quest interaction - offering hunting quest");
         
         /* Extract initialization texts from quest data */
         int text_count = 0;
-        cptr* init_texts = extract_quest_init_texts(5, &text_count); /* Oromë is quest index 5 */
+        cptr* init_texts = extract_quest_init_texts(5, &text_count); /* Orome is quest index 5 */
         init_texts = prepend_repeat_context(QUEST_ID_OROME, init_texts, &text_count, false);
         
         if (init_texts && text_count > 0) {
-            quest_typewriter_menu("Oromë the Huntsman", init_texts, text_count, TERM_GREEN, TERM_WHITE);
+            quest_typewriter_menu("Orome the Huntsman", init_texts, text_count, TERM_GREEN, TERM_WHITE);
             free_quest_texts(init_texts, text_count);
         } else {
             /* Fallback to simple message if text extraction fails */
             cptr fallback_texts[] = {
-                "Oromë the Huntsman regards you with keen eyes:",
+                "Orome the Huntsman regards you with keen eyes:",
                 "'Prove your skill as a hunter. The dark creatures multiply.'"
             };
-            quest_typewriter_menu("Oromë the Huntsman", fallback_texts, 2, TERM_GREEN, TERM_WHITE);
+            quest_typewriter_menu("Orome the Huntsman", fallback_texts, 2, TERM_GREEN, TERM_WHITE);
         }
         
         /* Determine hunt target based on dungeon depth */
@@ -9414,30 +9414,30 @@ void orome_quest_interaction(void)
         
         msg_format("You must hunt and slay %d %s to prove your prowess.", target_count, target_name);
         msg_print("Return when the hunt is complete to claim your reward.");
-        msg_print("Oromë fades into the wild, but his presence lingers in your soul.");
+        msg_print("Orome fades into the wild, but his presence lingers in your soul.");
         
-        log_trace("Oromë quest started - hunt %d %s at depth %d", 
+        log_trace("Orome quest started - hunt %d %s at depth %d", 
                  target_count, target_name, depth);
     }
     else if (p_ptr->orome_quest == OROME_QUEST_SUCCESS)
     {
-        log_trace("Completing Oromë quest - giving Unique Bane reward");
+        log_trace("Completing Orome quest - giving Unique Bane reward");
         
         /* Extract completion texts from quest data */
         int completion_count = 0;
-        cptr* completion_texts = extract_quest_completion_texts(5, &completion_count); /* Oromë is quest index 5 */
+        cptr* completion_texts = extract_quest_completion_texts(5, &completion_count); /* Orome is quest index 5 */
         completion_texts = prepend_repeat_context(QUEST_ID_OROME, completion_texts, &completion_count, true);
         
         if (completion_texts && completion_count > 0) {
-            quest_typewriter_menu("Oromë the Huntsman", completion_texts, completion_count, TERM_GREEN, TERM_WHITE);
+            quest_typewriter_menu("Orome the Huntsman", completion_texts, completion_count, TERM_GREEN, TERM_WHITE);
             free_quest_texts(completion_texts, completion_count);
         } else {
             /* Fallback to simple message if text extraction fails */
             cptr fallback_texts[] = {
-                "Oromë appears with a proud smile!",
+                "Orome appears with a proud smile!",
                 "'You have proven yourself a true hunter of the wild.'"
             };
-            quest_typewriter_menu("Oromë the Huntsman", fallback_texts, 2, TERM_GREEN, TERM_WHITE);
+            quest_typewriter_menu("Orome the Huntsman", fallback_texts, 2, TERM_GREEN, TERM_WHITE);
         }
         
         /* Show the specific numbers after the main dialogue */
@@ -9454,13 +9454,13 @@ void orome_quest_interaction(void)
         log_trace("Orome reward: Quest state set to REWARDED (%d)", OROME_QUEST_REWARDED);
         
         /* Apply quest rewards from quest.txt data */
-        apply_quest_rewards(5); /* Oromë is quest index 5 */
+        apply_quest_rewards(5); /* Orome is quest index 5 */
         
         /* Mark quest as completed in metarun */
         metarun_mark_quest_completed(METARUN_QUEST_OROME);
         
         /* Unlock oath for future characters in this metarun */
-        int oath_id = get_quest_oath_id(5); /* Oromë is quest index 5 */
+        int oath_id = get_quest_oath_id(5); /* Orome is quest index 5 */
         if (oath_id > 0) {
             metarun_unlock_oath(oath_id);
             msg_format("The %s is now available for future characters in this lineage!", 
@@ -9470,12 +9470,12 @@ void orome_quest_interaction(void)
         /* Remove the quest giver after giving reward */
         remove_quest_giver(R_IDX_OROME);
         
-        log_trace("Oromë quest completed - Unique Bane granted, oath unlocked");
+        log_trace("Orome quest completed - Unique Bane granted, oath unlocked");
     }
 }
 
 /*
- * Check if player should interact with Oromë
+ * Check if player should interact with Orome
  */
 void check_orome_quest_interaction(void)
 {
@@ -9487,7 +9487,7 @@ void check_orome_quest_interaction(void)
     
     log_trace("check_orome_quest_interaction: checking adjacency, quest state: %d", p_ptr->orome_quest);
     
-    /* Check for adjacent Oromë */
+    /* Check for adjacent Orome */
     int y, x;
     for (y = p_ptr->py - 1; y <= p_ptr->py + 1; y++)
     {
@@ -9498,7 +9498,7 @@ void check_orome_quest_interaction(void)
                 monster_type* m_ptr = &mon_list[cave_m_idx[y][x]];
                 if (m_ptr->r_idx == R_IDX_OROME)
                 {
-                    log_trace("Found Oromë adjacent - triggering interaction");
+                    log_trace("Found Orome adjacent - triggering interaction");
                     orome_quest_interaction();
                     return;
                 }
@@ -9506,10 +9506,10 @@ void check_orome_quest_interaction(void)
         }
     }
     
-    /* If quest is completed but Oromë isn't adjacent, try to spawn him */
+    /* If quest is completed but Orome isn't adjacent, try to spawn him */
     if (p_ptr->orome_quest == OROME_QUEST_SUCCESS)
     {
-        log_trace("Oromë quest complete but no Oromë found - trying to spawn");
+        log_trace("Orome quest complete but no Orome found - trying to spawn");
         
         /* Try to find a suitable spot near the player */
         for (y = p_ptr->py - 3; y <= p_ptr->py + 3; y++)
@@ -9521,15 +9521,15 @@ void check_orome_quest_interaction(void)
                 {
                     if (place_monster_one(y, x, R_IDX_OROME, true, true, NULL))
                     {
-                        msg_print("Oromë the Huntsman materializes nearby, ready to honor your success!");
-                        log_trace("Successfully spawned Oromë for quest completion");
+                        msg_print("Orome the Huntsman materializes nearby, ready to honor your success!");
+                        log_trace("Successfully spawned Orome for quest completion");
                         return;
                     }
                 }
             }
         }
         
-        log_trace("Failed to spawn Oromë for quest completion - will complete anyway");
+        log_trace("Failed to spawn Orome for quest completion - will complete anyway");
         /* Complete the quest directly if spawning fails */
         orome_quest_interaction();
     }

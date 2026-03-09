@@ -69,7 +69,7 @@ static const char* human_request_text =
 static const char* elf_request_text = 
     "Ai! A star in the darkness! Do my eyes deceive me, or do I look upon one of the Free Peoples walking these accursed paths?\n"
     "\n"
-    "I am weary, kinsman, weary beyond the counting of years. The Shadow lies heavy upon my fëa.\n"
+    "I am weary, kinsman, weary beyond the counting of years. The Shadow lies heavy upon my fea.\n"
     "\n"
     "Yet, if you would show mercy to one who has lost all, bring me %s.\n"
     "\n"

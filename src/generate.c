@@ -904,9 +904,6 @@ static void apply_pending_quest_states(void) {
 
 bool allow_uniques;
 
-/* Debug generation logging - set to 1 to show generation info in game messages */
-#define DEBUG_GENERATION_LOG 1
-
 /*
  * Maximal number of room types
  */
@@ -5521,20 +5518,20 @@ static void apply_quadrant_generation_modes(void)
                          mode_counts_summary[3], mode_counts_summary[4], mode_counts_summary[5]);
     }
     
-#if DEBUG_GENERATION_LOG
-    /* Also show in game messages if debug is enabled */
-    msg_format("Gen: %d blocks, %dx%d grid (%d parts), %d rooms",
-               blocks, grid_rows, grid_cols, partition_count, dun->cent_n);
-    
-    /* Build a summary of partition modes */
-    int mode_counts_debug[6] = {0};
-    for (int i = 0; i < partition_count; ++i)
-        mode_counts_debug[modes[i]]++;
-    
-    msg_format("Modes: R:%d C:%d U:%d L:%d H:%d B:%d",
-               mode_counts_debug[0], mode_counts_debug[1], mode_counts_debug[2],
-               mode_counts_debug[3], mode_counts_debug[4], mode_counts_debug[5]);
-#endif
+    if (op_ptr && show_level_generation_debug)
+    {
+        msg_format("Gen: %d blocks, %dx%d grid (%d parts), %d rooms",
+                   blocks, grid_rows, grid_cols, partition_count, dun->cent_n);
+
+        /* Build a summary of partition modes for the optional on-screen debug output. */
+        int mode_counts_debug[6] = {0};
+        for (int i = 0; i < partition_count; ++i)
+            mode_counts_debug[modes[i]]++;
+
+        msg_format("Modes: R:%d C:%d U:%d L:%d H:%d B:%d",
+                   mode_counts_debug[0], mode_counts_debug[1], mode_counts_debug[2],
+                   mode_counts_debug[3], mode_counts_debug[4], mode_counts_debug[5]);
+    }
 }
 
 /* Carve connection corridors at partition boundaries to ensure inter-partition connectivity.
@@ -7372,7 +7369,7 @@ static partition_drop_profile partition_drop_profile_for_mode(quadrant_mode_t mo
     switch (mode)
     {
     case QUAD_MODE_ROOMY:
-        /* Default (ROOMY) â€” 40:30:10:20 */
+        /* Default (ROOMY) a€” 40:30:10:20 */
         prof.profile.weight_weapon = 40;
         prof.profile.weight_armor = 30;
         prof.profile.weight_jewelry = 10;
@@ -9215,7 +9212,7 @@ static int trap_placement_chance(int y, int x)
     /* extra traps from CUR_TRAPS */
     int bonus_traps = curse_flag_count_cur(CUR_TRAPS);
     if (bonus_traps)
-        chance += 10 * bonus_traps;   /* +10/20/30 Ã”Ã‡Âª on top of normal */
+        chance += 10 * bonus_traps;   /* +10/20/30 Ã”Ã‡aª on top of normal */
 
     // extra chance of having a trap for certain squares inside rooms
     if (cave_clean_bold(y, x) && (cave_info[y][x] & (CAVE_ROOM)))
@@ -14790,29 +14787,29 @@ static bool cave_gen(void)
         log_trace("Niena spawn: SKIPPED - did not win lottery (winner=%d)", quest_lottery_winner);
     }
 
-    /* Check for Oromë quest spawning - only if it won the lottery */
+    /* Check for Orome quest spawning - only if it won the lottery */
     int orome_completions = metarun_quest_completion_count(METARUN_QUEST_OROME);
     bool orome_blocked = quest_metarun_blocked(QUEST_ID_OROME, METARUN_QUEST_OROME);
-    log_trace("Oromë spawn check: quest=%d, depth=%d, metarun_completions=%d, lottery_winner=%d, blocked=%s", 
+    log_trace("Orome spawn check: quest=%d, depth=%d, metarun_completions=%d, lottery_winner=%d, blocked=%s", 
              p_ptr->orome_quest, p_ptr->depth, 
              orome_completions,
              quest_lottery_winner,
              orome_blocked ? "yes" : "no");
              
-    /* Only attempt Oromë spawning if it won the lottery and isn't blocked by metarun history */
+    /* Only attempt Orome spawning if it won the lottery and isn't blocked by metarun history */
     if (orome_blocked) {
-        log_trace("Oromë spawn: blocked by metarun state (requires active oath or under cap)");
+        log_trace("Orome spawn: blocked by metarun state (requires active oath or under cap)");
         quest_lottery_winner = 0; /* Treat level as quest-free if history blocks this quest */
-    } else if (quest_lottery_winner == 5) { /* Oromë is quest ID 5 */
-        log_trace("Oromë spawn: Oromë WON the lottery - attempting spawn");
+    } else if (quest_lottery_winner == 5) { /* Orome is quest ID 5 */
+        log_trace("Orome spawn: Orome WON the lottery - attempting spawn");
         
-        /* Try to find a room to spawn Oromë in */
+        /* Try to find a room to spawn Orome in */
         int attempts;
         bool orome_spawned = false;
         
-        log_trace("Oromë spawn: Lottery winner attempting placement at depth %d", p_ptr->depth);
+        log_trace("Orome spawn: Lottery winner attempting placement at depth %d", p_ptr->depth);
         
-        /* Check if Oromë already exists on this level */
+        /* Check if Orome already exists on this level */
         bool orome_exists = false;
         int j;
         for (j = 1; j < mon_max; j++)
@@ -14827,7 +14824,7 @@ static bool cave_gen(void)
         
         if (!orome_exists)
         {
-            /* Try to spawn Oromë near the player's starting room */
+            /* Try to spawn Orome near the player's starting room */
             int player_y = p_ptr->py;
             int player_x = p_ptr->px;
             
@@ -14855,7 +14852,7 @@ static bool cave_gen(void)
                         p_ptr->orome_quest = OROME_QUEST_GIVER_PRESENT;
                         p_ptr->quest_reserved[0] = 1; /* Mark any quest spawned */
                         orome_spawned = true;
-                        log_trace("Oromë spawned near player at (%d, %d), player at (%d, %d), quest state: %d", 
+                        log_trace("Orome spawned near player at (%d, %d), player at (%d, %d), quest state: %d", 
                                  try_y, try_x, player_y, player_x, p_ptr->orome_quest);
                     }
                 }
@@ -14880,7 +14877,7 @@ static bool cave_gen(void)
                             p_ptr->orome_quest = OROME_QUEST_GIVER_PRESENT;
                             p_ptr->quest_reserved[0] = 1; /* Mark any quest spawned */
                             orome_spawned = true;
-                            log_trace("Oromë spawned in fallback room at (%d, %d), quest state: %d", 
+                            log_trace("Orome spawned in fallback room at (%d, %d), quest state: %d", 
                                      room_y, room_x, p_ptr->orome_quest);
                         }
                     }
@@ -14889,7 +14886,7 @@ static bool cave_gen(void)
             
             if (!orome_spawned)
             {
-                log_trace("Oromë spawn: FAILED - could not place monster after 150 attempts");
+                log_trace("Orome spawn: FAILED - could not place monster after 150 attempts");
                 genlog_fail("OROME SPAWN FAILED: could not place monster after 150 attempts - regenerating");
                 gen_log_level_end(false, dun->cent_n, 1);
                 return false; /* Force regeneration */
@@ -14897,10 +14894,10 @@ static bool cave_gen(void)
         }
         else
         {
-            log_trace("Oromë already exists on level, skipping room spawn");
+            log_trace("Orome already exists on level, skipping room spawn");
         }
     } else {
-        log_trace("Oromë spawn: SKIPPED - did not win lottery (winner=%d)", quest_lottery_winner);
+        log_trace("Orome spawn: SKIPPED - did not win lottery (winner=%d)", quest_lottery_winner);
     }
 
     // place Morgoth if on the run

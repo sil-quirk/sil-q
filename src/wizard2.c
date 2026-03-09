@@ -1958,20 +1958,20 @@ static void do_cmd_debug_complete_quest(void)
     }
     
     if (p_ptr->orome_quest > OROME_QUEST_NOT_STARTED && p_ptr->orome_quest < OROME_QUEST_REWARDED) {
-        msg_print("Completing Oromë quest...");
+        msg_print("Completing Orome quest...");
         
         /* If quest is already in SUCCESS state, just give reward */
         if (p_ptr->orome_quest == OROME_QUEST_SUCCESS) {
-            /* Oromë is spawn-based (Y:1) - spawn quest giver near player for reward */
+            /* Orome is spawn-based (Y:1) - spawn quest giver near player for reward */
             if (!is_quest_giver_present(R_IDX_OROME)) {
                 if (!spawn_quest_giver_near_player(R_IDX_OROME)) {
-                    msg_print("Warning: Could not spawn Oromë for reward - completing anyway.");
+                    msg_print("Warning: Could not spawn Orome for reward - completing anyway.");
                 }
             }
             /* Trigger quest interaction to give reward */
             orome_quest_interaction();
             quest_found = true;
-            log_debug("Debug: Triggered Oromë quest reward interaction");
+            log_debug("Debug: Triggered Orome quest reward interaction");
         } else {
             /* Quest not completed yet - mark as complete and spawn giver */
             p_ptr->orome_quest = OROME_QUEST_SUCCESS;
@@ -1979,13 +1979,13 @@ static void do_cmd_debug_complete_quest(void)
             p_ptr->orome_killed_count = p_ptr->orome_target_count;
             if (!is_quest_giver_present(R_IDX_OROME)) {
                 if (!spawn_quest_giver_near_player(R_IDX_OROME)) {
-                    msg_print("Warning: Could not spawn Oromë for reward - completing anyway.");
+                    msg_print("Warning: Could not spawn Orome for reward - completing anyway.");
                 }
             }
             /* Trigger proper quest interaction */
             orome_quest_interaction();
             quest_found = true;
-            log_debug("Debug: Completed Oromë quest with full interaction");
+            log_debug("Debug: Completed Orome quest with full interaction");
         }
     }
     

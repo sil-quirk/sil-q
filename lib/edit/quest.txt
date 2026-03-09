@@ -144,7 +144,7 @@ P:LINEAR_INTERPOLATE:0.05:0.125:0:0
 S:0:1:0:0
 A:8:8
 I:The air grows wild and clean, smelling of ancient forests under a starlit sky.
-I:The clear, mighty blast of a great horn, the Valaróma, echoes from the walls, shaking the very stones
+I:The clear, mighty blast of a great horn, the Valaroma, echoes from the walls, shaking the very stones
 I:and sending a tremor of fear through all evil things.
 I:Before you stands a majestic lord upon a great white steed, his face filled with the vigour of the chase.
 I:It is Orome, the Huntsman of the Valar.
@@ -157,7 +157,7 @@ I:
 I:"I call upon you to cleanse this darkness throughout your journey! Hunt any of these monstrous broods without pity:
 I:slay 100 wolves, 80 spiders, 60 serpents, or 30 vampires, and let their numbers be broken.
 I:When your great hunt reaches its end, I shall return to bestow my blessing upon you."
-W:As the last of your chosen prey falls, the triumphant sound of the Valaróma rings out once more.
+W:As the last of your chosen prey falls, the triumphant sound of the Valaroma rings out once more.
 W:Orome appears, his eyes bright with approval.
 W:
 W:"A mighty hunt! The foul things of the dark have learned to fear your name.

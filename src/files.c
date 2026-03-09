@@ -4395,6 +4395,7 @@ static void string_lower(char* buf)
 bool show_buffer(cptr main_buffer, int line)
 {
     int i, j, k;
+    int dir;
 
     char ch;
 
@@ -4503,6 +4504,10 @@ bool show_buffer(cptr main_buffer, int line)
 
         /* Get a keypress */
         ch = inkey();
+
+        dir = target_dir(ch);
+        if (dir == 8 || dir == 2)
+            ch = I2D(dir);
 
         /* Back up one line */
         if ((ch == '8') || (ch == '='))
@@ -7322,11 +7327,25 @@ void print_fade_centered(cptr text)
     }
 }
 
+static bool banner_messages_use_stairs(void)
+{
+#ifdef __ANDROID__
+    const bool default_value = false;
+#else
+    const bool default_value = true;
+#endif
+
+    if (!op_ptr)
+        return default_value;
+
+    return op_ptr->opt[OPT_banner_message_stairs];
+}
+
 /* -------------------------------------------------------------
  * Public helper: show banner text at a row, left-aligned with indent.
  *  - Starts at the provided row (no vertical centering)
- *  - Left aligned at column >= 14, and for each subsequent line
- *    indentation increases by 2 columns (14, 16, 18, ...)
+ *  - Left aligned at column >= 14
+ *  - Optional stair layout offsets each subsequent line by 2 columns
  *  - Wraps dynamically per line width to ensure nothing is cut off
  *  - Can either fade lines in or draw them immediately
  *  - Optional line_delay adds the old staged banner pause between lines
@@ -7337,6 +7356,7 @@ void print_fade_centered_at_row(cptr text, int row_start, bool fade_in,
     if (!text || !*text) return;
 
     int wid, h;
+    bool stair_layout = banner_messages_use_stairs();
     Term_get_size(&wid, &h);
 
     /* Force to second row (index 1) if the caller requests anything above it */
@@ -7363,10 +7383,15 @@ void print_fade_centered_at_row(cptr text, int row_start, bool fade_in,
 
     while (*p && printed_lines < MAX_LINES2 && (row_start + printed_lines) < h)
     {
-    int indent = base_indent + 2 * printed_lines; /* left sticky, step by +2 each line */
-    if (indent >= wid - 1) break; /* nothing to show */
-    int avail = wid - indent - 1;
-    if (avail < 8) avail = 8; /* minimal width */
+        int indent = base_indent + (stair_layout ? (2 * printed_lines) : 0);
+        int avail;
+
+        if (indent >= wid - 1)
+            break; /* nothing to show */
+
+        avail = wid - indent - 1;
+        if (avail < 8)
+            avail = 8; /* minimal width */
 
         char buf[MAX_LEN2 + 1];
         int  linelen = 0;

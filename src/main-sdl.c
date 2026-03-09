@@ -182,7 +182,14 @@ static int sdl_gamepad_axis_to_cardinal_dir(Sint16 x, Sint16 y, int deadzone);
 static void sdl_gamepad_send_direction(int dir);
 static void sdl_gamepad_send_direction_mods(int dir, bool shift, bool ctrl, bool alt);
 static void sdl_gamepad_send_key(int key, bool use_macro_mods);
-static void sdl_gamepad_send_macro_key(int key, bool shift, bool ctrl, bool alt);
+static void sdl_send_macro_key(int key, bool shift, bool ctrl, bool alt);
+static int sdl_keymap_mode(void);
+static char sdl_direction_char_for_key(int key);
+static int sdl_direction_for_key_char(char ch);
+static bool sdl_send_modified_direction_action(int dir, char dir_ch, bool shift, bool ctrl, bool alt,
+    bool gui);
+static bool sdl_try_send_modified_direction_key(int key, bool shift, bool ctrl, bool alt, bool gui);
+static bool sdl_try_send_modified_direction_event(const SDL_KeyboardEvent* key_event);
 static void sdl_gamepad_apply_modifier(int binding, bool down);
 static bool sdl_gamepad_shift_active(void);
 static bool sdl_gamepad_ctrl_active(void);
@@ -311,7 +318,7 @@ static void sdl_gamepad_apply_modifier(int binding, bool down)
     }
 }
 
-static void sdl_gamepad_send_macro_key(int key, bool shift, bool ctrl, bool alt)
+static void sdl_send_macro_key(int key, bool shift, bool ctrl, bool alt)
 {
     Term_keypress(31);
     if (ctrl)
@@ -324,8 +331,151 @@ static void sdl_gamepad_send_macro_key(int key, bool shift, bool ctrl, bool alt)
     Term_keypress(hexsym[(key / 16) & 0x0F]);
     Term_keypress(hexsym[key % 16]);
     Term_keypress(13);
-    log_debug("send gamepad macro key=%d ^_%s%s%sx%x%x\r",
+    log_debug("send macro key=%d ^_%s%s%sx%x%x\r",
         key, ctrl ? "C" : "", shift ? "S" : "", alt ? "A" : "", key / 16, key % 16);
+}
+
+static int sdl_keymap_mode(void)
+{
+    if (!hjkl_movement && !angband_keyset)
+        return KEYMAP_MODE_SIL;
+    if (hjkl_movement && !angband_keyset)
+        return KEYMAP_MODE_SIL_HJKL;
+    if (!hjkl_movement && angband_keyset)
+        return KEYMAP_MODE_ANGBAND;
+    return KEYMAP_MODE_ANGBAND_HJKL;
+}
+
+static char sdl_direction_char_for_key(int key)
+{
+    switch (key) {
+        case SDLK_UP:
+        case SDLK_KP_8:
+            return '8';
+        case SDLK_DOWN:
+        case SDLK_KP_2:
+            return '2';
+        case SDLK_LEFT:
+        case SDLK_KP_4:
+            return '4';
+        case SDLK_RIGHT:
+        case SDLK_KP_6:
+            return '6';
+        case SDLK_KP_1:
+        case SDLK_END:
+            return '1';
+        case SDLK_KP_3:
+        case SDLK_PAGEDOWN:
+            return '3';
+        case SDLK_KP_7:
+        case SDLK_HOME:
+            return '7';
+        case SDLK_KP_9:
+        case SDLK_PAGEUP:
+            return '9';
+        case SDLK_KP_5:
+            return '5';
+        default:
+            break;
+    }
+
+    if (SDL_isprint(key) && key > 0 && key < 256)
+        return (char)key;
+
+    return 0;
+}
+
+static int sdl_direction_for_key_char(char ch)
+{
+    int dir;
+    int mode;
+    cptr act;
+
+    if (!ch)
+        return 0;
+
+    dir = target_dir(ch);
+    if (dir)
+        return dir;
+
+    mode = sdl_keymap_mode();
+    act = keymap_act[mode][(byte)ch];
+    if (act && streq(act, "z"))
+        return 5;
+
+    return 0;
+}
+
+static bool sdl_send_modified_direction_action(int dir, char dir_ch, bool shift, bool ctrl, bool alt,
+    bool gui)
+{
+    bool control = ctrl || gui;
+    int mod_count = (shift ? 1 : 0) + (control ? 1 : 0) + (alt ? 1 : 0);
+    char action_key;
+    char follow_key;
+
+    if (dir < 1 || dir > 9 || mod_count != 1)
+        return false;
+
+    if (alt) {
+        action_key = 'f';
+        follow_key = (dir == 5) ? 'f' : dir_ch;
+    } else if (control) {
+        action_key = '/';
+        follow_key = (dir == 5) ? '5' : dir_ch;
+    } else {
+        action_key = '.';
+        follow_key = (dir == 5) ? '5' : dir_ch;
+    }
+
+    if (!follow_key)
+        follow_key = (char)('0' + dir);
+
+    /* Bypass keymaps for the action key itself, but keep the bound direction key. */
+    Term_keypress('\\');
+    Term_keypress(action_key);
+    Term_keypress(follow_key);
+    return true;
+}
+
+static bool sdl_try_send_modified_direction_key(int key, bool shift, bool ctrl, bool alt, bool gui)
+{
+    char dir_ch = sdl_direction_char_for_key(key);
+    int dir = sdl_direction_for_key_char(dir_ch);
+
+    if (!dir)
+        return false;
+
+    return sdl_send_modified_direction_action(dir, dir_ch, shift, ctrl, alt, gui);
+}
+
+static bool sdl_try_send_modified_direction_event(const SDL_KeyboardEvent* key_event)
+{
+    bool shift;
+    bool alt;
+    bool ctrl;
+    bool gui;
+    SDL_Keycode base_key;
+
+    if (!key_event)
+        return false;
+
+    shift = key_event->mod & SDL_KMOD_SHIFT;
+    alt = key_event->mod & SDL_KMOD_ALT;
+    ctrl = key_event->mod & SDL_KMOD_CTRL;
+    gui = key_event->mod & SDL_KMOD_GUI;
+
+    if (sdl_try_send_modified_direction_key(key_event->key, shift, ctrl, alt, gui))
+        return true;
+
+    base_key = SDL_GetKeyFromScancode(key_event->scancode, SDL_KMOD_NONE, false);
+    if (base_key != key_event->key
+        && sdl_try_send_modified_direction_key(base_key, shift, ctrl, alt, gui))
+    {
+        return true;
+    }
+
+    return false;
 }
 
 static void sdl_gamepad_send_key(int key, bool use_macro_mods)
@@ -335,7 +485,7 @@ static void sdl_gamepad_send_key(int key, bool use_macro_mods)
     bool alt = sdl_gamepad_alt_active();
 
     if (use_macro_mods && (shift || ctrl || alt)) {
-        sdl_gamepad_send_macro_key(key, shift, ctrl, alt);
+        sdl_send_macro_key(key, shift, ctrl, alt);
         return;
     }
 
@@ -368,7 +518,7 @@ static void sdl_gamepad_send_key(int key, bool use_macro_mods)
     }
 
     if (shift || ctrl || alt) {
-        sdl_gamepad_send_macro_key(key, shift, ctrl, alt);
+        sdl_send_macro_key(key, shift, ctrl, alt);
     } else {
         Term_keypress(key);
     }
@@ -394,8 +544,11 @@ static void sdl_gamepad_send_direction_mods(int dir, bool shift, bool ctrl, bool
     if (dir < 1 || dir > 9)
         return;
 
+    if (sdl_send_modified_direction_action(dir, (char)('0' + dir), shift, ctrl, alt, false))
+        return;
+
     if (shift || ctrl || alt) {
-        sdl_gamepad_send_macro_key('0' + dir, shift, ctrl, alt);
+        sdl_send_macro_key('0' + dir, shift, ctrl, alt);
     } else {
         Term_keypress('0' + dir);
     }
@@ -1566,19 +1719,27 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
             }
         }
 
+        if (character_dungeon) {
+            if (sdl_try_send_modified_direction_event(&ev->key))
+                return;
+        }
+
         if (SDL_isprint(ev->key.key)) {
             /* If Ctrl+letter (no Alt/GUI), send the corresponding control char
              * (so Ctrl-A -> ASCII 1) to preserve traditional control bindings
-             * like Ctrl-A for the debug menu. For other modifier combinations
-             * or non-alpha printables, keep existing behavior. */
+             * like Ctrl-A for the debug menu. Other printable keys with
+             * Ctrl/Alt/GUI use macro triggers so pref bindings can match. */
+            bool shift = ev->key.mod & SDL_KMOD_SHIFT;
             bool ctrl = ev->key.mod & SDL_KMOD_CTRL;
             bool alt = ev->key.mod & SDL_KMOD_ALT;
             bool gui = ev->key.mod & SDL_KMOD_GUI;
             if (ctrl && !alt && !gui && SDL_isalpha(key)) {
                 /* Map to control character */
                 Term_keypress(KTRL(key));
+            } else if (ctrl || alt || gui) {
+                sdl_send_macro_key(key, shift, ctrl || gui, alt);
             } else {
-                if (ev->key.mod & SDL_KMOD_SHIFT) {
+                if (shift) {
                     if (SDL_isalpha(key)) {
                         key = SDL_toupper(key);
                     } else {
@@ -1621,15 +1782,19 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
                     key = '6';
                     break;
                 case SDLK_KP_1:
+                case SDLK_END:
                     key = '1';
                     break;
                 case SDLK_KP_3:
+                case SDLK_PAGEDOWN:
                     key = '3';
                     break;
                 case SDLK_KP_7:
+                case SDLK_HOME:
                     key = '7';
                     break;
                 case SDLK_KP_9:
+                case SDLK_PAGEUP:
                     key = '9';
                     break;
                 case SDLK_KP_5:
@@ -1637,24 +1802,7 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
                     break;
             }
             if (mod) {
-                /* Begin the macro trigger */
-                Term_keypress(31);
-                /* Send the modifiers */
-                if (ctrl || gui)
-                    Term_keypress('C');
-                if (shift)
-                    Term_keypress('S');
-                if (alt)
-                    Term_keypress('A');
-                /* Introduce the scan code */
-                Term_keypress('x');
-                /* Encode the hexidecimal scan code */
-                Term_keypress(hexsym[key / 16]);
-                Term_keypress(hexsym[key % 16]);
-                /* End the macro trigger */
-                Term_keypress(13);
-                log_debug("send macro key=%d ^_%s%s%sx%x%x\r", key, (ctrl || gui) ? "C" : "",
-                    shift ? "S" : "", alt ? "A" : "", key / 16, key % 16);
+                sdl_send_macro_key(key, shift, ctrl || gui, alt);
             } else {
                 Term_keypress(key);
             }

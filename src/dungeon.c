@@ -82,12 +82,27 @@ static void reset_level_entry_tracking(void)
     last_narrated_style_idx = -1;
 }
 
+static bool banner_messages_use_stairs(void)
+{
+#ifdef __ANDROID__
+    const bool default_value = false;
+#else
+    const bool default_value = true;
+#endif
+
+    if (!op_ptr)
+        return default_value;
+
+    return op_ptr->opt[OPT_banner_message_stairs];
+}
+
 static void queue_active_partition_banner(void)
 {
     int wid, h;
     const char* p = g_active_partition_banner_text;
     int printed_lines = 0;
     enum { MAX_LINES2 = 32, MAX_LEN2 = 255 };
+    bool stair_layout = banner_messages_use_stairs();
 
     if (!p[0] || (g_banner_force_redraw_remaining <= 0))
         return;
@@ -104,7 +119,7 @@ static void queue_active_partition_banner(void)
 
     while (*p && printed_lines < MAX_LINES2 && (1 + printed_lines) < h)
     {
-        int indent = 14 + (2 * printed_lines);
+        int indent = 14 + (stair_layout ? (2 * printed_lines) : 0);
         int avail;
         char buf[MAX_LEN2 + 1];
         int linelen = 0;
@@ -1129,7 +1144,7 @@ static void process_world(void)
     /* Check for Niena quest interaction every turn */
     check_niena_quest_interaction();
 
-    /* Check for Oromë quest interaction every turn */
+    /* Check for Orome quest interaction every turn */
     check_orome_quest_interaction();
 
     /* Check for Varda quest interaction every turn */

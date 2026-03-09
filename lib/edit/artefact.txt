@@ -286,7 +286,7 @@ B:7/3
 D:A green jewel made by Enerdhil the smith in Gondolin, filled with the
 D: light of the Sun. Those who look through it see withered things as young
 D: once more, and the hands of one who wears it bring healing. Idril gave it
-D: to her son Eärendil, and through him it passed out of the Elder Days. It
+D: to her son Earendil, and through him it passed out of the Elder Days. It
 D: is called 'Elessar', the Elfstone, and great destiny lies upon it in ages
 D: yet to come.
 
@@ -690,9 +690,9 @@ I:37:20:3
 W:18:12:150:70000
 P:0:0d0:0:2d5
 F:GRA | ENCHANTABLE | NOBLE_ITEM
-D:The shining mail of Finwë, first High King of the Noldor, wrought in
+D:The shining mail of Finwe, first High King of the Noldor, wrought in
 D: Valinor before the Darkening. When Morgoth came to Formenos with Ungoliant,
-D: Finwë alone stood against him and was slain - the first of the Eldar to
+D: Finwe alone stood against him and was slain - the first of the Eldar to
 D: die in Aman. The Dark Lord took this corslet along with the Silmarils.
 D: It still gleams with the light of the Blessed Realm, untouched by the
 D: Shadow that claimed its bearer.
@@ -916,8 +916,8 @@ D: the Silmaril from the beast's belly with this blade. Its edge is
 D: pitiless against wolves, and it lends the keen-eyed focus of its master.
 
 #4/5/8 Dragon Bane
-# Azaghâl’s Dragonbane Knife.
-# The dagger with which King Azaghâl wounded Glaurung. Enchanted by the dwarves of Belegost, it protects against dragonfire and bites deep into dragon-flesh.
+# Azaghal’s Dragonbane Knife.
+# The dagger with which King Azaghal wounded Glaurung. Enchanted by the dwarves of Belegost, it protects against dragonfire and bites deep into dragon-flesh.
 
 # Smithing difficulty: 58
 
@@ -928,11 +928,11 @@ W:14:25:5:25000
 P:0:1d7:0:0d0
 F:RES_FIRE | SLAY_DRAGON | SHARPNESS | NOBLE_ITEM
 B:4/5/8
-D:The dagger of Azaghâl, Lord of Belegost, who stood against Glaurung the
+D:The dagger of Azaghal, Lord of Belegost, who stood against Glaurung the
 D: Father of Dragons in the Nirnaeth Arnoediad when all others fled. The
 D: Dwarves alone could withstand the dragon's gaze, and when Glaurung bore
-D: down upon Azaghâl, the Dwarf-lord drove this blade into the dragon's
-D: belly - the first wound Glaurung ever suffered. Azaghâl died crushed
+D: down upon Azaghal, the Dwarf-lord drove this blade into the dragon's
+D: belly - the first wound Glaurung ever suffered. Azaghal died crushed
 D: beneath the wyrm, but Glaurung fled in agony. The blade is still black
 D: with dragon-blood and burns with the wrath of Belegost.
 
@@ -1027,7 +1027,7 @@ P:0:2d6:1:0d0
 F:STR | NEG_GRA | SLAY_MAN_OR_ELF | AGGRAVATE | EVIL_ITEM
 D:A cruel curved blade of black iron, forged in the pits of Orodruth in the
 D: years when Morgoth's power was unchallenged and the Elves yet slumbered
-D: by Cuiviénen. It is famed among the orcs as a slayer of Elves and Men,
+D: by Cuivienen. It is famed among the orcs as a slayer of Elves and Men,
 D: and chieftains have fought and murdered for the right to bear it. Its
 D: edge drains the wielder's spirit even as it grants fell strength.
 
@@ -1051,8 +1051,8 @@ D: Mandos, who quenched the blade in the blood of his own kin. It drinks
 D: deeply of those it wounds, sustaining its wielder even as it wakes a
 D: terrible hunger within them and clouds their mind with red thoughts.
 
-# Mîm’s Long Knife (Poisoned Runes). 
-# A long knife of the Petty-dwarf Mîm, inscribed with toxic runes. It excels in secretive strikes. Cursed: once wielded, it’s difficult to discard, echoing Mîm’s treacherous doom.
+# Mim’s Long Knife (Poisoned Runes). 
+# A long knife of the Petty-dwarf Mim, inscribed with toxic runes. It excels in secretive strikes. Cursed: once wielded, it’s difficult to discard, echoing Mim’s treacherous doom.
 
 # Smithing difficulty: 38
 
@@ -1063,9 +1063,9 @@ W:10:35:15:30000
 P:+1:1d7:1:0d0
 F:BRAND_POIS | STEALTH | LIGHT_CURSE | EVIL_ITEM
 B:3/1
-D:A rune-etched knife of Mîm, last of the Petty-dwarves who dwelt on Amon
-D: Rûdh. His folk were the first Dwarves to enter Beleriand, exiled by their
-D: own kin, and they hated all others. When Turin sheltered with him, Mîm
+D:A rune-etched knife of Mim, last of the Petty-dwarves who dwelt on Amon
+D: Rudh. His folk were the first Dwarves to enter Beleriand, exiled by their
+D: own kin, and they hated all others. When Turin sheltered with him, Mim
 D: betrayed him to Morgoth's orcs for gold. The runes upon this blade exude
 D: venom, and a curse clings to it still - the bitterness of a diminished
 D: people and the treachery that brought their line to ruin.
@@ -1666,7 +1666,7 @@ W:18:10:60:105000
 P:-3:3d6:0:0d0
 F:STR | ACCURATE | MITHRIL | NOBLE_ITEM
 D:The axe of Durin the Deathless, eldest of the Seven Fathers of the
-D: Dwarves, who awoke alone beneath Mount Gundabad and founded Khazad-dûm.
+D: Dwarves, who awoke alone beneath Mount Gundabad and founded Khazad-dum.
 D: Its haft is carved with the symbols of all Seven Fathers. A sapphire in
 D: the blade glows softly in darkness, for Durin first beheld his reflection
 D: in the Mirrormere and saw a crown of stars above his head. The axe feels
@@ -1687,7 +1687,7 @@ D:The great axe of Tuor, son of Huor, wrought for him by the smiths of
 D: Gondolin. Its name is 'Thudder-sharp' for it strikes with the force of
 D: a club but cuts like a sword. Tuor wielded it in the Fall of Gondolin,
 D: where he slew Maeglin and cast him from the walls, and clove through
-D: countless orcs and trolls defending Idril and his son Eärendil.
+D: countless orcs and trolls defending Idril and his son Earendil.
 
 
 ## The Battle Axe of Mothers' Woe
@@ -1900,7 +1900,7 @@ F:SUST_STR | RES_FIRE | SMITHING | NOBLE_ITEM
 B:6/5
 D:The great hammer of Telchar of Nogrod, mightiest of all Dwarven smiths.
 D: With this hammer he forged Angrist the iron-cleaver, Narsil the sword
-D: of kings, and the Dragon-helm of Dor-lómin. Its hard steel has rung
+D: of kings, and the Dragon-helm of Dor-lomin. Its hard steel has rung
 D: upon forge and anvil in the making of legendary works, yet it served
 D: equally well upon orc-shields when Morgoth's hosts descended upon the
 D: halls of the Dwarves.
@@ -1916,7 +1916,7 @@ I:21:8:2
 W:20:20:70:250000
 P:0:4d2:0:0d0
 F:STR | SLAY_RAUKO | DANGER | AGGRAVATE | ARMOR_SHATTER | NOBLE_ITEM
-D:A hammer wrought by Aulë himself in the days following the destruction
+D:A hammer wrought by Aule himself in the days following the destruction
 D: of the Two Trees, and carried from Valinor by mighty Rog, Lord of the
 D: House of the Hammer of Wrath. It has a haft and head of black iron
 D: banded about with red gold and strikes with earth-shattering force,
@@ -2229,7 +2229,7 @@ W:15:10:20:35000
 P:0:0d0:2:0d0
 F:SONG | PERMA_CURSE | NOBLE_ITEM
 B:7/19
-D:A cloak worn by Maglor, second son of Fëanor and mightiest singer of the
+D:A cloak worn by Maglor, second son of Feanor and mightiest singer of the
 D: Noldor. Though bound by the Oath, he was the gentlest of his brothers and
 D: fostered Elrond and Elros after the sack of Sirion. When at last he held
 D: a Silmaril, it burned his hand, and he cast it into the sea. He wanders
@@ -2251,7 +2251,7 @@ F:RES_FIRE | RES_COLD | FREE_ACT | CON | NOBLE_ITEM
 D:The grey cloak of Elu Thingol, tallest of all the Eldar and King of
 D: Doriath, who ruled beneath the enchantments of his queen Melian in the
 D: hidden realm of Menegroth. Before even the Sun rose, Thingol heard the
-D: music of Ulmo by the waters of Cuiviénen and was moved to a wonder none
+D: music of Ulmo by the waters of Cuivienen and was moved to a wonder none
 D: could match. How this cloak passed from Doriath into the wider world, none
 D: can say. It bears the silver-grey of the beech forests beneath the Girdle,
 D: and its folds ward against flame and frost alike.
@@ -2586,7 +2586,7 @@ P:0:0d0:-1:1d3
 F:STR | RES_FIRE | NOBLE_ITEM
 B:0/5
 D:Heavy greaves forged for Caranthir the Dark in Thargelion, the harshest
-D: and most quick-tempered of Fëanor's sons. His face burned red with fury
+D: and most quick-tempered of Feanor's sons. His face burned red with fury
 D: at the Mereth Aderthad when he nearly came to blows with the sons of
 D: Finarfin, and his wrath only grew through the long wars. These iron-shod
 D: greaves are made for charging headlong into the enemy, and they carry
@@ -2670,7 +2670,7 @@ F:STR | UNLIGHT EVIL_ITEM
 B:0/2
 D:Brutal gauntlets forged in Angband for the orc-chieftain Gorgdaz, who led
 D: Morgoth's host against the newly-arrived Noldor. He fell in the Dagor-
-D: nuin-Giliath, the Battle under Stars, when Fëanor's fury drove the orcs
+D: nuin-Giliath, the Battle under Stars, when Feanor's fury drove the orcs
 D: back to the very gates of Angband. The gauntlets are heavy with black
 D: iron and malice, crushing anything in their grasp, and they swallow light
 D: as if hungering for the darkness of the pits where they were forged.
@@ -2749,10 +2749,10 @@ W:1:20:1:10000
 P:0:0d0:0:0d0
 F:LIGHT | NOBLE_ITEM
 B:5/4
-D:A jewel once woven into the silver embroideries of Míriel Þerindë,
-D: first wife of Finwë and mother of Fëanor. Serindë, the Broideress,
+D:A jewel once woven into the silver embroideries of Míriel Þerinde,
+D: first wife of Finwe and mother of Feanor. Serinde, the Broideress,
 D: she was called, for none could match her skill with needle and thread.
-D: So greatly did she spend herself in bearing Fëanor that her spirit
+D: So greatly did she spend herself in bearing Feanor that her spirit
 D: departed to Mandos, never to return. This gem still holds the warmth
 D: of her hands and the light of the Trees under which she laboured.
 
@@ -2769,10 +2769,10 @@ I:39:8:2
 W:10:20:10:25000
 P:0:0d0:0:0d0
 F:LIGHT | FREE_ACT | BREAKS_PERMA_CURSE | GRA | ENCHANTABLE | NOBLE_ITEM
-D:A lamp wrought by Fëanor himself for his father Finwë, High King of
+D:A lamp wrought by Feanor himself for his father Finwe, High King of
 D: the Noldor. Set with crystals that captured the mingled light of
 D: Laurelin and Telperion, it was among the treasures kept at Formenos
-D: during Fëanor's exile. When Morgoth came with Ungoliant, Finwë fell
+D: during Feanor's exile. When Morgoth came with Ungoliant, Finwe fell
 D: defending his son's hoard, but this lamp escaped the Unlight. Its
 D: radiance pierces shadow and frees the bearer from ensnaring bonds,
 D: and its holy light unravels even the darkest curses laid upon the

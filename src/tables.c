@@ -246,8 +246,8 @@ cptr option_text[OPT_MAX] = {
     "partition_narrative_mode", /* OPT_show_partition_narrative */
     "noble_item_spawn_mode", /* OPT_noble_item_spawn_mode */
     NULL, /* OPT_hide_left_panel */
-    NULL, /* xxx */
-    NULL, /* xxx */
+    "banner_message_stairs", /* OPT_banner_message_stairs */
+    "show_level_generation_debug", /* OPT_show_level_generation_debug */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -488,8 +488,8 @@ cptr option_desc[OPT_MAX] = {
     "Partition transition narrative (banner without delay/message/off)", /* OPT_show_partition_narrative */
     "Noble item spawns (0=good+/chests/human+elf skeletons, 1=also &/! vault drops)", /* OPT_noble_item_spawn_mode */
     "Hide the classic left panel and use the compact overlay", /* OPT_hide_left_panel */
-    NULL, /* xxx */
-    NULL, /* xxx */
+    "Banner message layout (stairs/straight)", /* OPT_banner_message_stairs */
+    "Debug: Show level generation summary messages", /* OPT_show_level_generation_debug */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -746,8 +746,12 @@ const bool option_norm[OPT_MAX] = {
     false, /* xxx */
     true, /* OPT_show_partition_narrative */
     false, /* OPT_noble_item_spawn_mode (default 0 via byte field) */
-    false, /* xxx */
-    false, /* xxx */
+#ifdef __ANDROID__
+    false, /* OPT_banner_message_stairs */
+#else
+    true, /* OPT_banner_message_stairs */
+#endif
+    false, /* OPT_show_level_generation_debug */
     false, /* xxx */
     false, /* xxx */
     false, /* xxx */
@@ -949,8 +953,8 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
         OPT_hilite_unwary, OPT_solid_walls, OPT_hybrid_walls, OPT_unidentified_items_slate,
         OPT_stealth_vision, OPT_sleep_icon,
         OPT_show_level_entry_banner, OPT_show_partition_narrative, OPT_intro_style,
-        OPT_show_smithing_difficulty, OPT_show_smithing_difficulty_look,
-        OPT_NONE, OPT_NONE, OPT_NONE },
+        OPT_banner_message_stairs, OPT_show_smithing_difficulty, OPT_show_smithing_difficulty_look,
+        OPT_show_level_generation_debug, OPT_NONE },
 
     /*** Birth ***/
 

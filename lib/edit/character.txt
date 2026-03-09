@@ -160,7 +160,7 @@ U:SNG_TURGON
 S:0:0:2:2
 C:3:5:7:13 #Vanish #Song of Disguise
 P:3
-D: Lord of hidden Gondolin, builder of white walls beneath encircling peaks; proud and secretive, whose city once stood fair against Morgoth’s malice. Yet pride sealed doom, ignoring warnings whispered by Ulmo’s waves, as fire consumed towers and hope alike beneath betrayal’s cruel hand. Though fallen, his bloodline endures in Eärendil, whose distant star foreshadows redemption far beyond sorrowful ruin of his city’s dreams, awaiting a brighter hour when shadows break and stars shine anew.
+D: Lord of hidden Gondolin, builder of white walls beneath encircling peaks; proud and secretive, whose city once stood fair against Morgoth’s malice. Yet pride sealed doom, ignoring warnings whispered by Ulmo’s waves, as fire consumed towers and hope alike beneath betrayal’s cruel hand. Though fallen, his bloodline endures in Earendil, whose distant star foreshadows redemption far beyond sorrowful ruin of his city’s dreams, awaiting a brighter hour when shadows break and stars shine anew.
 
 #Stats +5 +4 =9
 
@@ -361,7 +361,7 @@ U:EARENDIL
 S:1:2:2:4
 C:7:7:5:4  # Inner Light # Song of the Trees
 P:3
-D: Mariner foretold by prophecy, born of Eldar and mortal blood entwined, destined to voyage oceans unseen, bearing hope amid endless night. Guided by stars, his ship shall challenge darkness beyond western seas, bound by fate to Silmaril’s radiant flame, piercing shadows eternal. His quest foreshadows deliverance, heralding doom for Morgoth’s reign, forever sailing skies, immortal star shining above world’s grief; Eärendil, brightest hope, whose journey defines Arda’s final destiny.
+D: Mariner foretold by prophecy, born of Eldar and mortal blood entwined, destined to voyage oceans unseen, bearing hope amid endless night. Guided by stars, his ship shall challenge darkness beyond western seas, bound by fate to Silmaril’s radiant flame, piercing shadows eternal. His quest foreshadows deliverance, heralding doom for Morgoth’s reign, forever sailing skies, immortal star shining above world’s grief; Earendil, brightest hope, whose journey defines Arda’s final destiny.
 
 N:26:Haleth
 Q:e817e45349496116
@@ -574,7 +574,7 @@ F:WIL_AFFINITY | MOR_CURSE
 S:0:0:2:2
 C:5:2  # Strength in Adversity
 P:0
-D:Proud lady of Dor-lómin, heart unbowed beneath shadows of despair, mother fierce yet silent, watching doom unfold upon kin and homeland. Strength hidden beneath grief, heart steadfast amid cruel darkness, foreshadowing tragic bravery, her line destined for shadow and flame. Her pride and sorrow shaping quietly fate of hero doomed by curse, remembered ever in tales of valor and grief entwined beyond mortal bounds; Morwen, proud heart enduring loss, courage veiled by sorrow unspoken. 
+D:Proud lady of Dor-lomin, heart unbowed beneath shadows of despair, mother fierce yet silent, watching doom unfold upon kin and homeland. Strength hidden beneath grief, heart steadfast amid cruel darkness, foreshadowing tragic bravery, her line destined for shadow and flame. Her pride and sorrow shaping quietly fate of hero doomed by curse, remembered ever in tales of valor and grief entwined beyond mortal bounds; Morwen, proud heart enduring loss, courage veiled by sorrow unspoken. 
 
 # Feanor’s grandson—craft genius but less tainted; smith/enchanter lean.
 N:46:Celebrimbor
@@ -624,7 +624,7 @@ D: Cautious lord of Finarfin's line, who bore the weight of Nargothrond's crown 
 N:50:Durin
 Q:9597e1744dda4bbd
 A:, the Deathless
-B:You wake alone—Father of Dwarves, first to wake, builder of Khazad-dûm.
+B:You wake alone—Father of Dwarves, first to wake, builder of Khazad-dum.
 F:SMT_AFFINITY | PER_AFFINITY | WIL_AFFINITY | MEL_AFFINITY | GIFTERU | KHELED_ZARAM | SNG_PENALTY | STL_PENALTY
 S:3:1:3:1
 C:0:11:6:2:6:4:6:5 # Smite Jeweller Expertise Artifice

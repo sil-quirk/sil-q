@@ -293,7 +293,11 @@ bool use_sanctity_gem_on(object_type* target_o_ptr, bool* ident)
         if (cursed_p(target_o_ptr))
             msg_format("%^s resists the sanctity.", target_name);
         else
+        {
             msg_format("Nothing happens to %s.", target_name);
+            if (ident)
+                *ident = true;
+        }
         return true;
     }
 

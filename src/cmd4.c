@@ -749,6 +749,42 @@ void do_cmd_character_sheet(void)
 #define COL_SKILL 2
 #define COL_ABILITY 16
 #define COL_DESCRIPTION 41
+#define ABILITY_MENU_LIST_WIDTH (COL_DESCRIPTION - COL_ABILITY)
+
+static bool ability_menu_use_compact_layout(void)
+{
+    int wid = Term ? Term->wid : 80;
+
+    if (wid < 1)
+        wid = 80;
+
+    return (wid < 80);
+}
+
+static int ability_menu_list_col(void)
+{
+    return ability_menu_use_compact_layout() ? COL_SKILL : COL_ABILITY;
+}
+
+static int ability_menu_description_col(void)
+{
+    return ability_menu_use_compact_layout()
+        ? COL_SKILL + ABILITY_MENU_LIST_WIDTH
+        : COL_DESCRIPTION;
+}
+
+static int ability_menu_description_wrap(int desc_col)
+{
+    int wid = Term ? Term->wid : 80;
+
+    if (wid < 1)
+        wid = 80;
+
+    if (wid <= desc_col)
+        return desc_col + 1;
+
+    return wid - 1;
+}
 
 /* ------------------------------------------------------------------
  * add_random_curse()
@@ -2235,8 +2271,9 @@ int abilities_menu1(int* highlight)
 
     char buf[80];
 
-    // clear the abilities area before drawing the skill header
-    wipe_screen_from(COL_ABILITY);
+    // Clear the whole screen body so compact-layout submenu rows do not
+    // linger when returning from an ability list to the skills list.
+    wipe_screen_from(COL_SKILL);
 
     // title
     Term_putstr(COL_SKILL, 2, -1, TERM_WHITE, "Skills");
@@ -2328,6 +2365,9 @@ int abilities_menu1(int* highlight)
 int abilities_menu2(int skilltype, int* highlight)
 {
     int i, j;
+    bool compact_layout = ability_menu_use_compact_layout();
+    int ability_col = ability_menu_list_col();
+    int desc_col = ability_menu_description_col();
 
     ability_type* b_ptr;
 
@@ -2339,11 +2379,11 @@ int abilities_menu2(int skilltype, int* highlight)
 
     byte attr;
 
-    // clear the abilities and description area
-    wipe_screen_from(COL_ABILITY);
+    // In compact layout the abilities list reuses the skills column.
+    wipe_screen_from(compact_layout ? COL_SKILL : COL_ABILITY);
 
     // abilities title with color
-    Term_putstr(COL_ABILITY, 1, -1, TERM_L_BLUE, "Abilities");
+    Term_putstr(ability_col, 1, -1, TERM_L_BLUE, "Abilities");
 
     // Add display counter for compact menu layout (avoids gaps from filtered abilities)
     int display_counter = 0;
@@ -2494,13 +2534,13 @@ int abilities_menu2(int skilltype, int* highlight)
         /* Single column layout - starts at row 3 to maximize space */
         int display_row = display_counter + 3;
         
-        Term_putstr(COL_ABILITY, display_row, -1, attr, buf);
+        Term_putstr(ability_col, display_row, -1, attr, buf);
 
         if (*highlight == b_ptr->abilitynum + 1)
         {
             // highlight the label with bright blue
             strnfmt(buf, 80, "%c)", (char)'a' + visible_count);
-            Term_putstr(COL_ABILITY, display_row, -1, TERM_L_BLUE, buf);
+            Term_putstr(ability_col, display_row, -1, TERM_L_BLUE, buf);
 
             // print the description of the highlighted ability
             /* (ability_type::text is an offset, so it's always non-negative) */
@@ -2540,14 +2580,14 @@ int abilities_menu2(int skilltype, int* highlight)
                 }
                 
                 /* Clear description area first */
-                wipe_screen_from(COL_DESCRIPTION);
+                wipe_screen_from(desc_col);
                 
                 /* Display ability name in description area with appropriate color */
-                Term_putstr(COL_DESCRIPTION, 1, -1, TERM_YELLOW, b_name + b_ptr->name);
+                Term_putstr(desc_col, 1, -1, TERM_YELLOW, b_name + b_ptr->name);
                 
-                /* Indent output by 2 character, and wrap at column 79 */
-                text_out_wrap = 79;
-                text_out_indent = COL_DESCRIPTION;
+                /* Wrap to the active terminal width so compact layouts do not overflow. */
+                text_out_wrap = ability_menu_description_wrap(desc_col);
+                text_out_indent = desc_col;
 
                 /* Description starts at row 3 for more space */
                 Term_gotoxy(text_out_indent, 3);
@@ -2647,7 +2687,7 @@ int abilities_menu2(int skilltype, int* highlight)
                 int desc_row = post_desc_row + gap;
                 
                 // print the prerequisites with color
-                Term_putstr(COL_DESCRIPTION, desc_row, -1, TERM_YELLOW, "Prerequisites:");
+                Term_putstr(desc_col, desc_row, -1, TERM_YELLOW, "Prerequisites:");
 
                 strnfmt(buf, 80, "%d skill points (you have %d)", b_ptr->level,
                     p_ptr->skill_base[skilltype]);
@@ -2656,11 +2696,11 @@ int abilities_menu2(int skilltype, int* highlight)
                 if (b_ptr->level <= p_ptr->skill_base[skilltype])
                 {
                     /* Print immediately below the 'Prerequisites:' line */
-                    Term_putstr(COL_DESCRIPTION + 2, desc_row + 1, -1, TERM_L_GREEN, buf);
+                    Term_putstr(desc_col + 2, desc_row + 1, -1, TERM_L_GREEN, buf);
                 }
                 else
                 {
-                    Term_putstr(COL_DESCRIPTION + 2, desc_row + 1, -1, TERM_L_DARK, buf);
+                    Term_putstr(desc_col + 2, desc_row + 1, -1, TERM_L_DARK, buf);
                 }
 
                 if (!p_ptr->active_ability[S_PER][PER_QUICK_STUDY])
@@ -2697,12 +2737,12 @@ int abilities_menu2(int skilltype, int* highlight)
                         if (j == 0)
                         {
                             /* Print prerequisites immediately after the skill-points line */
-                            Term_putstr(COL_DESCRIPTION + 2, desc_row + 2 + j, -1,
+                            Term_putstr(desc_col + 2, desc_row + 2 + j, -1,
                                 prereq_attr, buf);
                         }
                         else
                         {
-                            Term_putstr(COL_DESCRIPTION + 5, desc_row + 2 + j, -1,
+                            Term_putstr(desc_col + 5, desc_row + 2 + j, -1,
                                 prereq_attr, buf);
                         }
                     }
@@ -2711,7 +2751,7 @@ int abilities_menu2(int skilltype, int* highlight)
                 {
                     strnfmt(buf, 80, "Quick Study");
                     /* Quick Study prints a single line immediately after skill points */
-                    Term_putstr(COL_DESCRIPTION + 2, desc_row + 2, -1, TERM_GREEN, buf);
+                    Term_putstr(desc_col + 2, desc_row + 2, -1, TERM_GREEN, buf);
                 }
 
                 if (skilltype == S_SPC)
@@ -2756,7 +2796,7 @@ int abilities_menu2(int skilltype, int* highlight)
                     }
 
                     desc_row = desc_row + 2 + extra_lines; /* next free row */
-                    Term_putstr(COL_DESCRIPTION, desc_row, -1, TERM_YELLOW, "Current price:");
+                    Term_putstr(desc_col, desc_row, -1, TERM_YELLOW, "Current price:");
 
                     strnfmt(buf, 80, "%d experience (you have %d)", exp_cost,
                         p_ptr->new_exp);
@@ -2765,11 +2805,11 @@ int abilities_menu2(int skilltype, int* highlight)
                     if (exp_cost <= p_ptr->new_exp)
                     {
                         /* Print immediately under 'Current price:' */
-                        Term_putstr(COL_DESCRIPTION + 2, desc_row + 1, -1, TERM_L_GREEN, buf);
+                        Term_putstr(desc_col + 2, desc_row + 1, -1, TERM_L_GREEN, buf);
                     }
                     else
                     {
-                        Term_putstr(COL_DESCRIPTION + 2, desc_row + 1, -1, TERM_L_DARK, buf);
+                        Term_putstr(desc_col + 2, desc_row + 1, -1, TERM_L_DARK, buf);
                     }
                 }
             }
@@ -2792,16 +2832,16 @@ int abilities_menu2(int skilltype, int* highlight)
                 
                 /* Place bane stats dynamically after description text */
                 int bane_row = post_desc_row + (compact_mode ? 1 : 2);
-                Term_putstr(COL_DESCRIPTION, bane_row, -1, TERM_WHITE,
+                Term_putstr(desc_col, bane_row, -1, TERM_WHITE,
                     format("%s-Bane:", bane_name[p_ptr->bane_type]));
-                Term_putstr(COL_DESCRIPTION, bane_row + 2, -1, TERM_WHITE,
+                Term_putstr(desc_col, bane_row + 2, -1, TERM_WHITE,
                     format("  %d slain, giving a %+d bonus", killed, current_bonus));
                     
                 if (current_bonus == 0 && killed < 2) {
-                    Term_putstr(COL_DESCRIPTION, bane_row + 3, -1, TERM_SLATE,
+                    Term_putstr(desc_col, bane_row + 3, -1, TERM_SLATE,
                         format("  (next bonus at %d slain)", next_threshold));
                 } else if (next_threshold <= 64) {  // Don't show if threshold is too high
-                    Term_putstr(COL_DESCRIPTION, bane_row + 3, -1, TERM_SLATE,
+                    Term_putstr(desc_col, bane_row + 3, -1, TERM_SLATE,
                         format("  (next bonus at %d slain)", next_threshold));
                 }
             }
@@ -2810,13 +2850,13 @@ int abilities_menu2(int skilltype, int* highlight)
             {
                 /* Place oath info dynamically after description text */
                 int oath_row = post_desc_row + (compact_mode ? 1 : 2);
-                Term_putstr(COL_DESCRIPTION, oath_row, -1, TERM_WHITE, "Oath:");
-                Term_putstr(COL_DESCRIPTION + 6, oath_row, -1, TERM_L_BLUE,
+                Term_putstr(desc_col, oath_row, -1, TERM_WHITE, "Oath:");
+                Term_putstr(desc_col + 6, oath_row, -1, TERM_L_BLUE,
                     oath_name_short(p_ptr->oath_type));
 
-                /* Indent output by 2 character, and wrap at column 70 */
-                text_out_wrap = 79;
-                text_out_indent = COL_DESCRIPTION;
+                /* Wrap to the active terminal width here too. */
+                text_out_wrap = ability_menu_description_wrap(desc_col);
+                text_out_indent = desc_col;
 
                 /* History */
                 Term_gotoxy(text_out_indent, oath_row + 1);
@@ -2829,10 +2869,10 @@ int abilities_menu2(int skilltype, int* highlight)
                 text_out_indent = 0;
 
                 if (oath_invalid(p_ptr->oath_type))
-                    Term_putstr(COL_DESCRIPTION, oath_row + 4, -1, TERM_RED,
+                    Term_putstr(desc_col, oath_row + 4, -1, TERM_RED,
                         "You are an oathbreaker.");
                 else
-                    Term_putstr(COL_DESCRIPTION, oath_row + 4, -1, TERM_WHITE,
+                    Term_putstr(desc_col, oath_row + 4, -1, TERM_WHITE,
                         format("Bonus: %s.", oath_reward_short(p_ptr->oath_type)));
             }
             // if you have the unique bane special ability
@@ -2859,16 +2899,16 @@ int abilities_menu2(int skilltype, int* highlight)
                 
                 /* Place unique bane stats dynamically after description text */
                 int ubane_row = post_desc_row + (compact_mode ? 1 : 2);
-                Term_putstr(COL_DESCRIPTION, ubane_row, -1, TERM_WHITE, "Unique Bane:");
-                Term_putstr(COL_DESCRIPTION, ubane_row + 2, -1, TERM_WHITE,
+                Term_putstr(desc_col, ubane_row, -1, TERM_WHITE, "Unique Bane:");
+                Term_putstr(desc_col, ubane_row + 2, -1, TERM_WHITE,
                     format("  %d uniques slain, giving a %+d bonus", 
                            uniques_killed, current_bonus));
                            
                 if (current_bonus == 0 && uniques_killed < 2) {
-                    Term_putstr(COL_DESCRIPTION, ubane_row + 3, -1, TERM_SLATE,
+                    Term_putstr(desc_col, ubane_row + 3, -1, TERM_SLATE,
                         format("  (next bonus at %d uniques)", next_threshold));
                 } else if (next_threshold <= 64) {  // Don't show if threshold is too high
-                    Term_putstr(COL_DESCRIPTION, ubane_row + 3, -1, TERM_SLATE,
+                    Term_putstr(desc_col, ubane_row + 3, -1, TERM_SLATE,
                         format("  (next bonus at %d uniques)", next_threshold));
                 }
             }
@@ -2881,7 +2921,7 @@ int abilities_menu2(int skilltype, int* highlight)
 
     /* Safety check: if no abilities are visible, show message and exit */
     if (visible_count == 0) {
-        Term_putstr(COL_ABILITY, 4, -1, TERM_L_DARK, "No abilities available for this skill.");
+        Term_putstr(ability_col, 4, -1, TERM_L_DARK, "No abilities available for this skill.");
         Term_fresh();
         inkey(); /* Wait for keypress */
         return (ABILITIES_MAX + 1); /* Return to skills menu */
@@ -2907,7 +2947,7 @@ int abilities_menu2(int skilltype, int* highlight)
     if (highlight_display_index >= 0)
     {
         cursor_row = 3 + highlight_display_index;
-        Term_gotoxy(COL_ABILITY, cursor_row);
+        Term_gotoxy(ability_col, cursor_row);
     }
 
     /* Get key (while allowing menu commands) */
@@ -11059,7 +11099,7 @@ static const struct option_group_marker visual_option_groups[] = {
     { 0, "Lists and Overlays" },
     { 3, "Map and Highlights" },
     { 12, "Narrative" },
-    { 15, "Debug" },
+    { 16, "Debug" },
     { -1, NULL }
 };
 
@@ -11135,13 +11175,127 @@ static bool option_page_uses_app_config(int page)
         || (page == EFFICIENCY_PAGE) || (page == VISUAL_PAGE);
 }
 
+static bool option_menu_use_compact_layout(void)
+{
+    return Term && (Term->wid > 0) && (Term->wid <= 60);
+}
+
+static cptr sound_option_label(int index)
+{
+    if (option_menu_use_compact_layout())
+    {
+        switch (index)
+        {
+        case 0: return "Game sounds";
+        case 1: return "Combat sounds";
+        case 2: return "Inventory sounds";
+        case 3: return "Walk sounds";
+        case 4: return "Door sounds";
+        case 5: return "Combat volume";
+        case 6: return "Inventory volume";
+        case 7: return "Walk volume";
+        case 8: return "Door volume";
+        case 9: return "Other volume";
+        case 10: return "Menu music";
+        case 11: return "Ambient music";
+        case 12: return "Menu music volume";
+        case 13: return "Ambient music volume";
+        default: return "(unknown sound option)";
+        }
+    }
+
+    switch (index)
+    {
+    case 0: return "Enable game sounds";
+    case 1: return "Enable combat sounds";
+    case 2: return "Enable inventory sounds";
+    case 3: return "Enable walk sounds";
+    case 4: return "Enable door sounds";
+    case 5: return "Combat sounds volume";
+    case 6: return "Inventory sounds volume";
+    case 7: return "Walk sounds volume";
+    case 8: return "Door sounds volume";
+    case 9: return "Other sounds volume";
+    case 10: return "Enable main menu music";
+    case 11: return "Enable ambient dungeon music";
+    case 12: return "Main menu music volume";
+    case 13: return "Ambient music volume";
+    default: return "(unknown sound option)";
+    }
+}
+
 static cptr option_menu_label(int opt)
 {
+    bool compact = option_menu_use_compact_layout();
+
+    switch (opt)
+    {
+    case OPT_delay_factor:
+        return compact ? "Animation delay" : "Delay factor for animation (0 to 9)";
+    case OPT_hitpoint_warning:
+        return compact ? "HP warning" : "Hitpoint warning threshold (0% to 90%)";
+    case OPT_main_combat_rolls:
+        return compact ? "Combat roll lines" : "Main terminal combat roll lines (0=off, 1-4=lines)";
+    case OPT_hide_left_panel:
+        return compact ? "Compact left panel" : "Hide Left Panel [Alt+P]";
+    case OPT_show_level_entry_banner:
+        return compact ? "Entry narrative" : "Level entry narrative";
+    case OPT_show_partition_narrative:
+        return compact ? "Partition narrative" : "Partition transition narrative";
+    case OPT_ability_desc_mode:
+        return compact ? "Ability descriptions" : "Ability descriptions (0=lore+effect, 1=effect+lore, 2=effect)";
+    case OPT_vault_drop_frequency:
+        return compact ? "Vault drops" : "Vault drop frequency";
+    case OPT_noble_item_spawn_mode:
+        return compact ? "Noble item sources" : "Noble item spawns";
+    case OPT_intro_style:
+        return compact ? "Welcome screen" : "Welcome screen style";
+    case OPT_banner_message_stairs:
+        return compact ? "Banner layout" : "Banner message layout";
+    default:
+        break;
+    }
+
+    if (compact)
+    {
+        switch (opt)
+        {
+        case OPT_story_lists: return "Story font: look/target";
+        case OPT_story_lists_inven: return "Story font: inv menu";
+        case OPT_story_lists_equip: return "Story font: equip menu";
+        case OPT_story_character_sheet: return "Story font: char sheet";
+        case OPT_story_lists_inven_pane: return "Story font: inv pane";
+        case OPT_story_lists_equip_pane: return "Story font: equip pane";
+        case OPT_story_monster_desc: return "Story font: monster desc";
+        case OPT_story_monster_desc_pane: return "Story font: monster pane";
+        case OPT_valorous_oath_auto_attack_safety: return "Valorous oath safety";
+        case OPT_forgo_attacking_unwary: return "Forgo unwary attacks";
+        case OPT_stop_singing_on_rest: return "Stop singing on rest";
+        case OPT_disable_skeleton_note_tutorial: return "Hide skeleton tutorials";
+        case OPT_artifact_unique_color: return "Yellow unique artefacts";
+        case OPT_unidentified_items_slate: return "Slate unidentified items";
+        case OPT_show_smithing_difficulty: return "Debug smithing in items";
+        case OPT_show_smithing_difficulty_look: return "Debug smithing in look";
+        case OPT_show_level_generation_debug: return "Debug level gen";
+        default:
+            break;
+        }
+    }
+
     if (option_desc[opt])
         return option_desc[opt];
     if (option_text[opt])
         return option_text[opt];
     return "(unknown option)";
+}
+
+static void option_menu_format_line(char* buf, size_t buflen, cptr label,
+    cptr value)
+{
+    if (option_menu_use_compact_layout())
+        strnfmt(buf, buflen, "%s: %s", label, value);
+    else
+        strnfmt(buf, buflen, "%-48s: %s", label, value);
 }
 
 static void option_apply_side_effects(int opt)
@@ -11245,179 +11399,178 @@ extern void do_cmd_options_aux(int page, cptr info)
                 a = TERM_L_BLUE;
 
             /* Display the option text */
+            buf[0] = '\0';
             if (is_sound_page)
             {
+                char value_str[32];
+
                 if (i == 0)
                 {
-                    strnfmt(buf, sizeof(buf), "%-48s: %s",
-                        "Enable game sounds",
+                    strnfmt(value_str, sizeof(value_str), "%s",
                         sound_cfg->enabled ? "yes" : "no ");
                 }
                 else if (i == 1)
                 {
-                    strnfmt(buf, sizeof(buf), "%-48s: %s",
-                        "Enable combat sounds",
+                    strnfmt(value_str, sizeof(value_str), "%s",
                         sound_cfg->enable_combat ? "yes" : "no ");
                 }
                 else if (i == 2)
                 {
-                    strnfmt(buf, sizeof(buf), "%-48s: %s",
-                        "Enable inventory sounds",
+                    strnfmt(value_str, sizeof(value_str), "%s",
                         sound_cfg->enable_inventory ? "yes" : "no ");
                 }
                 else if (i == 3)
                 {
-                    strnfmt(buf, sizeof(buf), "%-48s: %s",
-                        "Enable walk sounds",
+                    strnfmt(value_str, sizeof(value_str), "%s",
                         sound_cfg->enable_walk ? "yes" : "no ");
                 }
                 else if (i == 4)
                 {
-                    strnfmt(buf, sizeof(buf), "%-48s: %s",
-                        "Enable door sounds",
+                    strnfmt(value_str, sizeof(value_str), "%s",
                         sound_cfg->enable_doors ? "yes" : "no ");
                 }
                 else if (i == 5)
                 {
-                    strnfmt(buf, sizeof(buf), "%-48s: %.0f%%",
-                        "Combat sounds volume",
+                    strnfmt(value_str, sizeof(value_str), "%.0f%%",
                         sound_cfg->volume_combat * 100.0f);
                 }
                 else if (i == 6)
                 {
-                    strnfmt(buf, sizeof(buf), "%-48s: %.0f%%",
-                        "Inventory sounds volume",
+                    strnfmt(value_str, sizeof(value_str), "%.0f%%",
                         sound_cfg->volume_inventory * 100.0f);
                 }
                 else if (i == 7)
                 {
-                    strnfmt(buf, sizeof(buf), "%-48s: %.0f%%",
-                        "Walk sounds volume",
+                    strnfmt(value_str, sizeof(value_str), "%.0f%%",
                         sound_cfg->volume_walk * 100.0f);
                 }
                 else if (i == 8)
                 {
-                    strnfmt(buf, sizeof(buf), "%-48s: %.0f%%",
-                        "Door sounds volume",
+                    strnfmt(value_str, sizeof(value_str), "%.0f%%",
                         sound_cfg->volume_doors * 100.0f);
                 }
                 else if (i == 9)
                 {
-                    strnfmt(buf, sizeof(buf), "%-48s: %.0f%%",
-                        "Other sounds volume",
+                    strnfmt(value_str, sizeof(value_str), "%.0f%%",
                         sound_cfg->volume_other * 100.0f);
                 }
                 else if (i == 10)
                 {
-                    strnfmt(buf, sizeof(buf), "%-48s: %s",
-                        "Enable main menu music",
-                        sound_cfg->music_main_enabled ? "yes" : "no ");
-                }
-                else if (i == 10)
-                {
-                    strnfmt(buf, sizeof(buf), "%-48s: %s",
-                        "Enable main menu music",
+                    strnfmt(value_str, sizeof(value_str), "%s",
                         sound_cfg->music_main_enabled ? "yes" : "no ");
                 }
                 else if (i == 11)
                 {
-                    strnfmt(buf, sizeof(buf), "%-48s: %s",
-                        "Enable ambient dungeon music",
+                    strnfmt(value_str, sizeof(value_str), "%s",
                         sound_cfg->music_ambient_enabled ? "yes" : "no ");
                 }
                 else if (i == 12)
                 {
-                    strnfmt(buf, sizeof(buf), "%-48s: %.0f%%",
-                        "Main menu music volume",
+                    strnfmt(value_str, sizeof(value_str), "%.0f%%",
                         sound_cfg->music_main_volume * 100.0f);
                 }
                 else if (i == 13)
                 {
-                    strnfmt(buf, sizeof(buf), "%-48s: %.0f%%",
-                        "Ambient music volume",
+                    strnfmt(value_str, sizeof(value_str), "%.0f%%",
                         sound_cfg->music_ambient_volume * 100.0f);
                 }
+
+                option_menu_format_line(buf, sizeof(buf), sound_option_label(i),
+                    value_str);
             }
             else if (opt[i] == OPT_delay_factor)
             {
-                strnfmt(buf, sizeof(buf), "%-48s: %d",
-                    "Delay factor for animation (0 to 9)",
-                    op_ptr->delay_factor);
+                char value_str[32];
+                strnfmt(value_str, sizeof(value_str), "%d", op_ptr->delay_factor);
+                option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
+                    value_str);
             }
             else if (opt[i] == OPT_hitpoint_warning)
             {
-                strnfmt(buf, sizeof(buf), "%-48s: %d%%",
-                    "Hitpoint warning threshold (0% to 90%)",
+                char value_str[32];
+                strnfmt(value_str, sizeof(value_str), "%d%%",
                     op_ptr->hitpoint_warn * 10);
+                option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
+                    value_str);
             }
             else if (opt[i] == OPT_hide_left_panel)
             {
-                strnfmt(buf, sizeof(buf), "%-48s: %s",
-                    "Hide Left Panel [Alt+P]",
+                option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
                     get_sdl_hide_left_panel() ? "yes" : "no ");
             }
             else if (opt[i] == OPT_main_combat_rolls)
             {
-                strnfmt(buf, sizeof(buf), "%-48s: %d",
-                    "Main terminal combat roll lines (0=off, 1-4=lines)",
+                char value_str[32];
+                strnfmt(value_str, sizeof(value_str), "%d",
                     op_ptr->main_combat_rolls);
+                option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
+                    value_str);
             }
             else if (opt[i] == OPT_show_level_entry_banner)
             {
                 const char *mode_str;
+                bool compact = option_menu_use_compact_layout();
                 switch (op_ptr->level_entry_narrative_mode)
                 {
-                case LEVEL_ENTRY_NARRATIVE_BANNER:  mode_str = "Banner without delay"; break;
+                case LEVEL_ENTRY_NARRATIVE_BANNER:
+                    mode_str = compact ? "Banner" : "Banner without delay";
+                    break;
                 case LEVEL_ENTRY_NARRATIVE_MESSAGE: mode_str = "Message"; break;
                 case LEVEL_ENTRY_NARRATIVE_OFF:     mode_str = "Off"; break;
-                default:                            mode_str = "Banner with delay"; break;
+                default:
+                    mode_str = compact ? "Banner delay" : "Banner with delay";
+                    break;
                 }
-                strnfmt(buf, sizeof(buf), "%-48s: %s",
-                    "Level entry narrative", mode_str);
+                option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
+                    mode_str);
             }
             else if (opt[i] == OPT_show_partition_narrative)
             {
                 const char *mode_str;
+                bool compact = option_menu_use_compact_layout();
                 switch (op_ptr->partition_narrative_mode)
                 {
-                case PARTITION_NARRATIVE_BANNER:  mode_str = "Banner without delay"; break;
+                case PARTITION_NARRATIVE_BANNER:
+                    mode_str = compact ? "Banner" : "Banner without delay";
+                    break;
                 case PARTITION_NARRATIVE_OFF:     mode_str = "Off"; break;
                 default:                          mode_str = "Message"; break;
                 }
-                strnfmt(buf, sizeof(buf), "%-48s: %s",
-                    "Partition transition narrative", mode_str);
+                option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
+                    mode_str);
             }
             else if (opt[i] == OPT_ability_desc_mode)
             {
                 const char *mode_str;
+                bool compact = option_menu_use_compact_layout();
                 switch (op_ptr->ability_desc_mode)
                 {
-                case 1:  mode_str = "1 (effect+lore)"; break;
-                case 2:  mode_str = "2 (effect only)"; break;
-                default: mode_str = "0 (lore+effect)"; break;
+                case 1:  mode_str = compact ? "1 effect+lore" : "1 (effect+lore)"; break;
+                case 2:  mode_str = compact ? "2 effect only" : "2 (effect only)"; break;
+                default: mode_str = compact ? "0 lore+effect" : "0 (lore+effect)"; break;
                 }
-                strnfmt(buf, sizeof(buf), "%-48s: %s",
-                    "Ability descriptions (0=lore+effect, 1=effect+lore, 2=effect)",
+                option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
                     mode_str);
             }
             else if (opt[i] == OPT_vault_drop_frequency)
             {
                 const char *vdf_names[] = { "Normal", "Modest", "Scarce", "Meager", "Plentiful" };
+                char value_str[32];
                 byte mode = op_ptr->vault_drop_frequency;
                 if (mode > VDF_PLENTIFUL)
                     mode = VDF_NORMAL;
-                strnfmt(buf, sizeof(buf), "%-48s: %s (%d)",
-                    "Vault drop frequency",
-                    vdf_names[mode], mode);
+                strnfmt(value_str, sizeof(value_str), "%s (%d)", vdf_names[mode],
+                    mode);
+                option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
+                    value_str);
             }
             else if (opt[i] == OPT_noble_item_spawn_mode)
             {
                 const char *mode_str
                     = (op_ptr->noble_item_spawn_mode == NOBLE_ITEM_SPAWN_INCLUDE_VAULTS)
-                    ? "1 (also &/! vault drops)"
-                    : "0 (good+/chests/human+elf skeletons)";
-                strnfmt(buf, sizeof(buf), "%-48s: %s",
-                    "Noble item spawns",
+                    ? (option_menu_use_compact_layout() ? "1 with vaults" : "1 (also &/! vault drops)")
+                    : (option_menu_use_compact_layout() ? "0 restricted" : "0 (good+/chests/human+elf skeletons)");
+                option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
                     mode_str);
             }
             else if (opt[i] == OPT_intro_style)
@@ -11429,12 +11582,17 @@ extern void do_cmd_options_aux(int page, cptr info)
                 };
                 byte m = op_ptr->intro_style;
                 if (m > INTRO_STYLE_RANDOM) m = INTRO_STYLE_FLAME;
-                strnfmt(buf, sizeof(buf), "%-48s: %s",
-                    "Welcome screen style", is_names[m]);
+                option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
+                    is_names[m]);
+            }
+            else if (opt[i] == OPT_banner_message_stairs)
+            {
+                option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
+                    op_ptr->opt[opt[i]] ? "Stair" : "Straight");
             }
             else
             {
-                strnfmt(buf, sizeof(buf), "%-48s: %s", option_menu_label(opt[i]),
+                option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
                     op_ptr->opt[opt[i]] ? "yes" : "no ");
             }
 
@@ -11477,7 +11635,8 @@ extern void do_cmd_options_aux(int page, cptr info)
         }
 
         /* Hilite current option */
-        move_cursor(first_row + selected_display_row - scroll, 54);
+        move_cursor(first_row + selected_display_row - scroll,
+            MIN(54, Term->wid - 1));
 
         /* Get a key */
         hide_cursor = true;

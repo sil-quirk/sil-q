@@ -2754,6 +2754,8 @@
 #define OPT_show_partition_narrative 96
 #define OPT_noble_item_spawn_mode 97
 #define OPT_hide_left_panel 98
+#define OPT_banner_message_stairs 99
+#define OPT_show_level_generation_debug 100
 
 /* Intro screen style constants */
 #define INTRO_STYLE_FLAME       0   /* Flame Imperishable (Ainulindale) */
@@ -2901,6 +2903,7 @@
 #define artifact_unique_color op_ptr->opt[OPT_artifact_unique_color]
 #define unidentified_items_slate op_ptr->opt[OPT_unidentified_items_slate]
 #define easy_main_menu op_ptr->opt[OPT_easy_main_menu]
+#define show_level_generation_debug op_ptr->opt[OPT_show_level_generation_debug]
 #define story_display_lists op_ptr->opt[OPT_story_lists]
 #define story_inventory_lists op_ptr->opt[OPT_story_lists_inven]
 #define story_equipment_lists op_ptr->opt[OPT_story_lists_equip]
@@ -3795,14 +3798,14 @@
 #define NIENA_QUEST_SUCCESS 3        /* Reached stairs without killing (reward granted) */
 #define NIENA_QUEST_REWARDED 4       /* Reward given, quest fully complete */
 
-/* Oromë quest states */
+/* Orome quest states */
 #define OROME_QUEST_NOT_STARTED 0
-#define OROME_QUEST_GIVER_PRESENT 1  /* Oromë spawned on hunting grounds level */
+#define OROME_QUEST_GIVER_PRESENT 1  /* Orome spawned on hunting grounds level */
 #define OROME_QUEST_ACTIVE 2         /* Accepted quest: must hunt specified monsters */
 #define OROME_QUEST_SUCCESS 3        /* Completed hunt (reward granted) */
 #define OROME_QUEST_REWARDED 4       /* Reward given, quest fully complete */
 
-/* Oromë quest monster types */
+/* Orome quest monster types */
 #define OROME_TARGET_WOLF 1
 #define OROME_TARGET_SPIDER 2
 #define OROME_TARGET_SERPENT 3

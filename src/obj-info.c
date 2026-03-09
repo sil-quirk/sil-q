@@ -14,6 +14,8 @@
 
 /* true if a paragraph break should be output before next p_text_out() */
 static bool new_paragraph = false;
+static SDL_IOStream* object_info_capture_stream = NULL;
+static int object_info_capture_pos = 0;
 
 static void p_text_out(cptr str)
 {
@@ -36,6 +38,95 @@ static void p_text_out_c(byte attr, cptr str)
     }
 
     text_out_c(attr, str);
+}
+
+static void text_out_to_object_info_buffer(byte attr, cptr str)
+{
+    int wrap = (text_out_wrap ? text_out_wrap : 75);
+    cptr s = str;
+
+    (void)attr;
+
+    if (!object_info_capture_stream || !str)
+        return;
+
+    while (*s)
+    {
+        char ch;
+        int n = 0;
+        int len = wrap - object_info_capture_pos;
+        int l_space = -1;
+
+        if (object_info_capture_pos == 0)
+        {
+            for (int i = 0; i < text_out_indent; i++)
+            {
+                unsigned char space = ' ';
+                SDL_WriteIO(object_info_capture_stream, &space, 1);
+                object_info_capture_pos++;
+            }
+        }
+
+        while ((n < len) && !((s[n] == '\n') || (s[n] == '\0')))
+        {
+            if (s[n] == ' ')
+                l_space = n;
+            n++;
+        }
+
+        if ((l_space == -1) && (n == len))
+        {
+            if (object_info_capture_pos == text_out_indent)
+            {
+                len = n;
+            }
+            else if ((s[0] == ' ') || (s[0] == ',') || (s[0] == '.'))
+            {
+                len = 1;
+            }
+            else
+            {
+                unsigned char newline = '\n';
+                SDL_WriteIO(object_info_capture_stream, &newline, 1);
+                object_info_capture_pos = 0;
+                continue;
+            }
+        }
+        else
+        {
+            if ((s[n] == '\n') || (s[n] == '\0'))
+                len = n;
+            else
+                len = l_space;
+        }
+
+        for (n = 0; n < len; n++)
+        {
+            unsigned char byte;
+
+            ch = (isprint((unsigned char)s[n]) ? s[n] : ' ');
+            byte = (unsigned char)ch;
+            SDL_WriteIO(object_info_capture_stream, &byte, 1);
+            object_info_capture_pos++;
+        }
+
+        s += len;
+
+        if (*s == '\0')
+            return;
+
+        if (*s == '\n')
+            s++;
+
+        {
+            unsigned char newline = '\n';
+            SDL_WriteIO(object_info_capture_stream, &newline, 1);
+        }
+        object_info_capture_pos = 0;
+
+        while (*s == ' ')
+            s++;
+    }
 }
 
 static void output_list(cptr list[], int n)
@@ -1617,10 +1708,149 @@ void object_info_screen(const object_type* o_ptr)
     return;
 }
 
+static char* capture_object_info_screen_multi_text(const object_type** objects,
+    const char** headings, int count)
+{
+    SDL_IOStream* stream;
+    void (*old_hook)(byte, cptr) = text_out_hook;
+    int old_wrap = text_out_wrap;
+    int old_indent = text_out_indent;
+    int term_wid = 80;
+    int term_hgt = 24;
+    Sint64 stream_size;
+    SDL_PropertiesID props;
+    char* dynamic_mem;
+    char* copy;
+    size_t copy_size;
+
+    if (!objects || count <= 0)
+        return NULL;
+
+    stream = SDL_IOFromDynamicMem();
+    if (!stream)
+        return NULL;
+
+    Term_get_size(&term_wid, &term_hgt);
+    if (term_wid < 20)
+        term_wid = 20;
+    (void)term_hgt;
+
+    object_info_capture_stream = stream;
+    object_info_capture_pos = 0;
+    text_out_hook = text_out_to_object_info_buffer;
+    text_out_wrap = term_wid - 1;
+    text_out_indent = 0;
+
+    for (int i = 0; i < count; i++)
+    {
+        if (i > 0)
+            text_out_c(TERM_L_DARK, "\n----------------------------------------\n\n");
+
+        if (headings && headings[i] && headings[i][0])
+        {
+            text_out_c(TERM_L_BLUE, headings[i]);
+            text_out_c(TERM_L_BLUE, "\n");
+        }
+
+        if (objects[i])
+        {
+            bool has_description = screen_out_head(objects[i]);
+
+            object_info_out_flags = object_flags_known;
+
+            new_paragraph = true;
+            {
+                bool has_info = object_info_out(objects[i]);
+                new_paragraph = false;
+
+                if (!object_known_p(objects[i]))
+                {
+                    p_text_out("\n\n   This item has not been identified.");
+                }
+                else if ((!has_description) && (!has_info))
+                {
+                    p_text_out("\n\n   This item does not seem to possess any special abilities.");
+                }
+            }
+        }
+        else
+        {
+            p_text_out("\n   (slot is empty)");
+        }
+    }
+
+    {
+        unsigned char zero = '\0';
+        SDL_WriteIO(stream, &zero, 1);
+    }
+
+    stream_size = SDL_GetIOSize(stream);
+    props = SDL_GetIOProperties(stream);
+    dynamic_mem = SDL_GetPointerProperty(props,
+        SDL_PROP_IOSTREAM_DYNAMIC_MEMORY_POINTER, NULL);
+
+    copy_size = (stream_size > 0) ? (size_t)stream_size : 1;
+    copy = mem_alloc_array(copy_size, char);
+    SDL_memset(copy, 0, copy_size);
+    if (dynamic_mem && stream_size > 0)
+        memcpy(copy, dynamic_mem, copy_size);
+    copy[copy_size - 1] = '\0';
+
+    text_out_hook = old_hook;
+    text_out_wrap = old_wrap;
+    text_out_indent = old_indent;
+    new_paragraph = false;
+    object_info_capture_stream = NULL;
+    object_info_capture_pos = 0;
+    SDL_CloseIO(stream);
+
+    return copy;
+}
+
+static int object_info_buffer_line_count(cptr text)
+{
+    int lines = 0;
+
+    if (!text || !text[0])
+        return 0;
+
+    lines = 1;
+    for (const char* p = text; *p; ++p)
+    {
+        if (*p == '\n')
+            lines++;
+    }
+
+    return lines;
+}
+
 void object_info_screen_multi(const object_type** objects, const char** headings, int count)
 {
+    char* overflow_text = NULL;
+    int term_hgt = 24;
+
     if (count <= 0 || objects == NULL)
         return;
+
+    if (Term && Term->hgt > 0)
+        term_hgt = Term->hgt;
+
+    overflow_text = capture_object_info_screen_multi_text(objects, headings, count);
+    if (overflow_text && object_info_buffer_line_count(overflow_text) > term_hgt - 4)
+    {
+        screen_save();
+        show_buffer(overflow_text, 0);
+        screen_load();
+
+        mem_free_null(overflow_text);
+        text_out_hook = text_out_to_screen;
+        text_out_wrap = 0;
+        text_out_indent = 0;
+        new_paragraph = false;
+        return;
+    }
+
+    mem_free_null(overflow_text);
 
     text_out_hook = text_out_to_screen;
     text_out_wrap = 0;
