@@ -25,7 +25,11 @@ This repo's top-level CMake can either:
 - `external/SDL_image`
 - `external/SDL_ttf`
 
-If you use option (2), clone those repos into `external/`.
+These directories are tracked as pinned Git submodules in the repo root. Before opening `android/` in Android Studio, initialize them from the repo root:
+
+- `git submodule update --init --recursive`
+
+That restores the exact SDL revisions used by the Android build, including nested upstream submodules.
 
 Upstream reference: https://wiki.libsdl.org/SDL3/README-android
 
@@ -34,8 +38,9 @@ In SDL3, the Java shim Activity class is `org.libsdl.app.SDLActivity` (from `SDL
 ## Build
 
 1. Open the `android/` folder in Android Studio.
-2. Install Android SDK + NDK in Android Studio (SDK Manager).
-3. Build/Run the `app` configuration (ABI is set to `arm64-v8a`).
+2. If needed, run `git submodule update --init --recursive` from the repo root.
+3. Install Android SDK + NDK in Android Studio (SDK Manager).
+4. Build/Run the `app` configuration (ABI is set to `arm64-v8a`).
 
 ## Command-line native build (optional)
 

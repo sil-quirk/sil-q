@@ -1,4 +1,7 @@
 /.gradle/
+/.idea/
 /build/
+/captures/
+/app/.cxx/
 /app/build/
 /local.properties

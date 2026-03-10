@@ -33,4 +33,12 @@ compile_commands.json
 /sil-more-0.91
 /.claude
 /.tools/gradle-8.2.1
-/android/app/.cxx
+
+# Android / Gradle
+/android/.gradle/
+/android/.idea/
+/android/build/
+/android/captures/
+/android/app/.cxx/
+/android/app/build/
+/android/local.properties

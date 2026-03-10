@@ -63,7 +63,7 @@ android {
             // Bundle game data as assets/lib/...
             assets.srcDirs += [file("${buildDir}/generated/assets")]
 
-            // If you cloned SDL into external/SDL, include SDL's Android Java sources.
+            // If the SDL submodule is initialized, include SDL's Android Java sources.
             // This provides org.libsdl.app.SDLActivity.
             java.srcDirs += [file("${rootProject.projectDir}/../external/SDL/android-project/app/src/main/java")]
         }
