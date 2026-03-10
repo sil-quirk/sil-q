@@ -2431,8 +2431,17 @@ static errr init_alloc(void)
  */
 static void note(cptr str)
 {
-    Term_erase(0, 23, 255);
-    Term_putstr(20, 23, -1, TERM_SLATE, str);
+    int term_wid = 80;
+    int term_hgt = 24;
+    int col;
+    int row;
+
+    Term_get_size(&term_wid, &term_hgt);
+    row = term_hgt - 1;
+    col = MAX(0, (term_wid - (int)strlen(str)) / 2);
+
+    Term_erase(0, row, 255);
+    Term_putstr(col, row, term_wid - col, TERM_SLATE, str);
     Term_fresh();
     (void)Term_xtra(TERM_XTRA_EVENT, 0);
 }

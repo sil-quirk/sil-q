@@ -1050,6 +1050,7 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
         cJSON* touch_pane = cJSON_GetObjectItemCaseSensitive(root, "touchPane");
         if (cJSON_IsObject(touch_pane)) {
             cJSON* bindings = cJSON_GetObjectItemCaseSensitive(touch_pane, "bindings");
+            cJSON* labels = cJSON_GetObjectItemCaseSensitive(touch_pane, "labels");
             if (cJSON_IsArray(bindings)) {
                 int count = cJSON_GetArraySize(bindings);
                 if (count == 21) {
@@ -1073,6 +1074,18 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
                     }
                 }
                 log_debug("Loaded touchPane.bindings (%d entries)", count);
+            }
+
+            if (cJSON_IsArray(labels)) {
+                int count = cJSON_GetArraySize(labels);
+                for (int i = 0; i < SDL_TOUCH_PANE_BUTTON_COUNT && i < count; i++) {
+                    cJSON* label = cJSON_GetArrayItem(labels, i);
+                    if (cJSON_IsString(label) && label->valuestring) {
+                        SDL_strlcpy(config->touch_pane_labels[i], label->valuestring,
+                            sizeof(config->touch_pane_labels[i]));
+                    }
+                }
+                log_debug("Loaded touchPane.labels (%d entries)", count);
             }
         } else {
             log_warn("'touchPane' object not found in JSON");
@@ -1236,11 +1249,18 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
         cJSON* touch_pane = cJSON_CreateObject();
         if (touch_pane) {
             cJSON* bindings = cJSON_CreateArray();
+            cJSON* labels = cJSON_CreateArray();
             if (bindings) {
                 for (int i = 0; i < SDL_TOUCH_PANE_BUTTON_COUNT; i++) {
                     cJSON_AddItemToArray(bindings, cJSON_CreateNumber(config->touch_pane_bindings[i]));
                 }
                 cJSON_AddItemToObject(touch_pane, "bindings", bindings);
+            }
+            if (labels) {
+                for (int i = 0; i < SDL_TOUCH_PANE_BUTTON_COUNT; i++) {
+                    cJSON_AddItemToArray(labels, cJSON_CreateString(config->touch_pane_labels[i]));
+                }
+                cJSON_AddItemToObject(touch_pane, "labels", labels);
             }
             cJSON_AddItemToObject(root, "touchPane", touch_pane);
         }
@@ -1371,6 +1391,14 @@ void sdl_config_set_default_touch_pane_bindings(struct sdl_config* config)
     memcpy(config->touch_pane_bindings, defaults, sizeof(defaults));
 }
 
+void sdl_config_clear_touch_pane_labels(struct sdl_config* config)
+{
+    if (!config)
+        return;
+
+    memset(config->touch_pane_labels, 0, sizeof(config->touch_pane_labels));
+}
+
 void sdl_config_set_defaults(struct sdl_config* config)
 {
     config->main_view_scale = 1;
@@ -1425,6 +1453,7 @@ void sdl_config_set_defaults(struct sdl_config* config)
     config->gamepad_trigger_threshold = 16000;
     sdl_config_set_default_gamepad_bindings(config);
     sdl_config_set_default_touch_pane_bindings(config);
+    sdl_config_clear_touch_pane_labels(config);
 }
 
 void sdl_config_set_defaults_for_resolution(struct sdl_config* config, 

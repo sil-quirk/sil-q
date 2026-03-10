@@ -2250,10 +2250,34 @@ char* oath_reward_text(int oath_id)
     return oath_name_text + oath_info[oath_id].reward_text;
 }
 
+static int oath_menu_put_wrapped(int desc_col, int row, byte attr, cptr text)
+{
+    int old_wrap = text_out_wrap;
+    int old_indent = text_out_indent;
+
+    text_out_wrap = ability_menu_description_wrap(desc_col);
+    text_out_indent = desc_col;
+    Term_gotoxy(desc_col, row);
+    text_out_to_screen(attr, text);
+
+    row = ability_menu_next_row_after_text(desc_col, row);
+    text_out_wrap = old_wrap;
+    text_out_indent = old_indent;
+
+    return row;
+}
+
 int oath_menu(int* highlight)
 {
     int i, ch;
     int visible_count = 0;
+    int term_hgt = (Term && Term->hgt > 0) ? Term->hgt : 24;
+    int term_wid = (Term && Term->wid > 0) ? Term->wid : 80;
+    bool compact_layout = ability_menu_use_compact_layout();
+    int ability_col = ability_menu_list_col();
+    int desc_col = ability_menu_description_col();
+    int nav_row_1 = MAX(0, term_hgt - 2);
+    int nav_row_2 = MAX(0, term_hgt - 1);
     /* Support up to 16 oaths without realloc. */
     int visible_oaths[16]; // Map display letters to oath indices
     char buf[80];
@@ -2271,10 +2295,10 @@ int oath_menu(int* highlight)
     };
 
     // Clear the abilities and description area (following abilities_menu2 pattern)
-    wipe_screen_from(COL_ABILITY);
+    wipe_screen_from(ability_col);
 
     // Title in the abilities column
-    Term_putstr(COL_ABILITY, 2, -1, TERM_WHITE, "Oaths");
+    Term_putstr(ability_col, 2, -1, TERM_WHITE, "Oaths");
 
     // Build visible oaths list and display them (1..OATH_TYPES)
     for (i = 1; i <= OATH_TYPES && i < (int)N_ELEMENTS(oath_name); i++)
@@ -2298,7 +2322,7 @@ int oath_menu(int* highlight)
         strnfmt(buf, 80, "%c) %s", (char)'a' + visible_count, oath_name_short(i));
         
         // Display in abilities column with proper spacing
-        Term_putstr(COL_ABILITY, 4 + visible_count, -1, attr, buf);
+        Term_putstr(ability_col, 4 + visible_count, -1, attr, buf);
         visible_count++;
     }
 
@@ -2308,84 +2332,70 @@ int oath_menu(int* highlight)
         int oath_idx = visible_oaths[*highlight - 1];
         
         // Clear description area first
-        wipe_screen_from(COL_DESCRIPTION);
+        int row = 4;
+
+        wipe_screen_from(desc_col);
         
         // Oath title
-        Term_putstr(COL_DESCRIPTION, 2, -1, TERM_WHITE, "Oath Details");
+        Term_putstr(desc_col, 2, -1, TERM_WHITE, "Oath Details");
         
         if (oath_invalid(oath_idx))
         {
             // Menacing text for broken oaths
-            Term_putstr(COL_DESCRIPTION, 4, -1, TERM_L_RED, "OATH BROKEN");
-            Term_putstr(COL_DESCRIPTION, 6, -1, TERM_RED, "\"Thy oath lies shattered,");
-            Term_putstr(COL_DESCRIPTION, 7, -1, TERM_RED, " thy word worthless as dust.\"");
-            Term_putstr(COL_DESCRIPTION, 9, -1, TERM_L_RED, "\"No Valar shall hear thy voice,");
-            Term_putstr(COL_DESCRIPTION, 10, -1, TERM_L_RED, " no light shall guide thy path.\"");
-            Term_putstr(COL_DESCRIPTION, 12, -1, TERM_RED, "Forever marked as oathbreaker");
-            Term_putstr(COL_DESCRIPTION, 13, -1, TERM_RED, "in this age.");
+            Term_putstr(desc_col, row++, term_wid - desc_col, TERM_L_RED,
+                "OATH BROKEN");
+            row++;
+            row = oath_menu_put_wrapped(desc_col, row, TERM_RED,
+                "\"Thy oath lies shattered, thy word worthless as dust.\"");
+            row++;
+            row = oath_menu_put_wrapped(desc_col, row, TERM_L_RED,
+                "\"No Valar shall hear thy voice, no light shall guide thy path.\"");
+            row++;
+            (void)oath_menu_put_wrapped(desc_col, row, TERM_RED,
+                "Forever marked as oathbreaker in this age.");
         }
         else
         {
             // Tolkien-themed quote
-            Term_putstr(COL_DESCRIPTION, 4, -1, TERM_YELLOW, "Quote:");
-            // Split long quotes across multiple lines
             char* quote = (oath_idx < (int)N_ELEMENTS(oath_tolkien_desc)) ? oath_tolkien_desc[oath_idx] : "";
-            if (strlen(quote) > 35) // Description column width is ~38 chars
-            {
-                char line1[40], line2[40];
-                int split_pos = 35;
-                // Find good split point (space or punctuation)
-                while (split_pos > 20 && quote[split_pos] != ' ' && quote[split_pos] != ',' && quote[split_pos] != ';')
-                    split_pos--;
-                
-                strncpy(line1, quote, split_pos);
-                line1[split_pos] = '\0';
-                SDL_strlcpy(line2, quote + split_pos + (quote[split_pos] == ' ' ? 1 : 0), sizeof(line2));
-                
-                Term_putstr(COL_DESCRIPTION, 5, -1, TERM_SLATE, line1);
-                Term_putstr(COL_DESCRIPTION, 6, -1, TERM_SLATE, line2);
-            }
-            else
-            {
-                Term_putstr(COL_DESCRIPTION, 5, -1, TERM_SLATE, quote);
-            }
+
+            Term_putstr(desc_col, row++, term_wid - desc_col, TERM_YELLOW,
+                "Quote:");
+            row = oath_menu_put_wrapped(desc_col, row, TERM_SLATE, quote);
             
             // Oath vow
-            Term_putstr(COL_DESCRIPTION, 8, -1, TERM_WHITE, "Vow:");
-            // Wrap long vows
-            if (oath_idx >= 0 && oath_idx < (int)N_ELEMENTS(oath_desc1)
-                && strlen(oath_desc1[oath_idx]) > 30)
-            {
-                char vow_line1[35], vow_line2[35];
-                int vow_split = 30;
-                while (vow_split > 15 && oath_desc1[oath_idx][vow_split] != ' ')
-                    vow_split--;
-                
-                strncpy(vow_line1, oath_desc1[oath_idx], vow_split);
-                vow_line1[vow_split] = '\0';
-                SDL_strlcpy(vow_line2, oath_desc1[oath_idx] + vow_split + 1, sizeof(vow_line2));
-                
-                Term_putstr(COL_DESCRIPTION, 9, -1, TERM_SLATE, vow_line1);
-                Term_putstr(COL_DESCRIPTION, 10, -1, TERM_SLATE, vow_line2);
-            }
-            else
-            {
-                const char* vow = (oath_idx >= 0 && oath_idx < (int)N_ELEMENTS(oath_desc1)) ? oath_desc1[oath_idx] : "";
-                Term_putstr(COL_DESCRIPTION, 9, -1, TERM_SLATE, vow);
-            }
+            Term_putstr(desc_col, row++, term_wid - desc_col, TERM_WHITE,
+                "Vow:");
+            row = oath_menu_put_wrapped(desc_col, row, TERM_SLATE,
+                (oath_idx >= 0 && oath_idx < (int)N_ELEMENTS(oath_desc1))
+                    ? oath_desc1[oath_idx]
+                    : "");
             
             // Restriction
-            Term_putstr(COL_DESCRIPTION, 12, -1, TERM_L_RED, "Restriction:");
-            Term_putstr(COL_DESCRIPTION, 13, -1, TERM_L_RED, oath_desc2_short(oath_idx));
+            if (row < nav_row_1)
+            {
+                Term_putstr(desc_col, row++, term_wid - desc_col, TERM_L_RED,
+                    "Restriction:");
+                row = oath_menu_put_wrapped(desc_col, row, TERM_L_RED,
+                    oath_desc2_short(oath_idx));
+            }
             
             // Reward
-            Term_putstr(COL_DESCRIPTION, 15, -1, TERM_L_GREEN, "Reward:");
-            Term_putstr(COL_DESCRIPTION, 16, -1, TERM_L_GREEN, oath_reward_short(oath_idx));
+            if (row < nav_row_1)
+            {
+                Term_putstr(desc_col, row++, term_wid - desc_col, TERM_L_GREEN,
+                    "Reward:");
+                (void)oath_menu_put_wrapped(desc_col, row, TERM_L_GREEN,
+                    oath_reward_short(oath_idx));
+            }
         }
         
         // Navigation instructions at bottom
-        Term_putstr(COL_DESCRIPTION, 22, -1, TERM_SLATE, "2/8 - Navigate");
-        Term_putstr(COL_DESCRIPTION, 23, -1, TERM_SLATE, "Enter - Select  ESC - Back");
+        Term_putstr(desc_col, nav_row_1, term_wid - desc_col, TERM_SLATE,
+            compact_layout ? "8/2 - Navigate" : "2/8 - Navigate");
+        Term_putstr(desc_col, nav_row_2, term_wid - desc_col, TERM_SLATE,
+            compact_layout ? "Enter Select  Esc Back"
+                           : "Enter - Select  ESC - Back");
     }
 
     // Ensure highlight is within valid range
@@ -12408,56 +12418,88 @@ void do_cmd_pane_settings(void)
         /* Display current settings */
         char buf[80];
         int y0 = 3;
+        int layout_mode = (Term->wid < 56) ? 2 : ((Term->wid < 72) ? 1 : 0);
+        int label_width = (layout_mode == 0) ? 48 : ((layout_mode == 1) ? 36 : 28);
         byte a;
 
         /* Option 0: Main View Scale */
         a = (k == 0) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(buf, sizeof(buf), "%-48s: %d", "Main View Scale (1-max) [Alt++/-]", get_sdl_main_view_scale());
+        strnfmt(buf, sizeof(buf), "%-*s: %d", label_width,
+            (layout_mode == 0) ? "Main View Scale (1-max) [Alt++/-]"
+                               : ((layout_mode == 1) ? "Main Scale [Alt++/-]"
+                                                     : "Scale [Alt++/-]"),
+            get_sdl_main_view_scale());
         c_prt(a, buf, y0 + 0, 2);
 
         /* Option 1: Minimum Terminal Size */
         a = (k == 1) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(buf, sizeof(buf), "%-48s: %s", "Minimum Terminal Size", sdl_min_terminal_mode_label(get_sdl_min_terminal_mode()));
+        strnfmt(buf, sizeof(buf), "%-*s: %s", label_width,
+            (layout_mode == 0) ? "Minimum Terminal Size"
+                               : ((layout_mode == 1) ? "Min Terminal Size"
+                                                     : "Min Terminal"),
+            sdl_min_terminal_mode_label(get_sdl_min_terminal_mode()));
         c_prt(a, buf, y0 + 1, 2);
 
         /* Option 2: Aux View Font Size */
         a = (k == 2) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(buf, sizeof(buf), "%-48s: %d", "Aux View Font Size (8-48)", get_sdl_aux_view_font_size());
+        strnfmt(buf, sizeof(buf), "%-*s: %d", label_width,
+            (layout_mode == 0) ? "Aux View Font Size (8-48)"
+                               : ((layout_mode == 1) ? "Aux Font Size (8-48)"
+                                                     : "Aux Font (8-48)"),
+            get_sdl_aux_view_font_size());
         c_prt(a, buf, y0 + 2, 2);
 
         /* Option 3: Margin */
         a = (k == 3) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(buf, sizeof(buf), "%-48s: %d", "Margin (0-20)", get_sdl_margin());
+        strnfmt(buf, sizeof(buf), "%-*s: %d", label_width,
+            "Margin (0-20)", get_sdl_margin());
         c_prt(a, buf, y0 + 3, 2);
 
         /* Option 4: Fullscreen */
         a = (k == 4) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(buf, sizeof(buf), "%-48s: %s", "Fullscreen", get_sdl_fullscreen() ? "yes" : "no ");
+        strnfmt(buf, sizeof(buf), "%-*s: %s", label_width,
+            "Fullscreen", get_sdl_fullscreen() ? "yes" : "no ");
         c_prt(a, buf, y0 + 4, 2);
 
         /* Option 5: Tiles */
         a = (k == 5) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(buf, sizeof(buf), "%-48s: %s", "Tiles", get_sdl_tiles() ? "yes" : "no ");
+        strnfmt(buf, sizeof(buf), "%-*s: %s", label_width,
+            "Tiles", get_sdl_tiles() ? "yes" : "no ");
         c_prt(a, buf, y0 + 5, 2);
 
         /* Option 6: Enable Side Panes */
         a = (k == 6) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(buf, sizeof(buf), "%-48s: %s", "Enable Side Panes [Alt+I]", get_sdl_enable_right_panes() ? "yes" : "no ");
+        strnfmt(buf, sizeof(buf), "%-*s: %s", label_width,
+            (layout_mode == 0) ? "Enable Side Panes [Alt+I]"
+                               : ((layout_mode == 1) ? "Side Panes [Alt+I]"
+                                                     : "Side Panes [Alt+I]"),
+            get_sdl_enable_right_panes() ? "yes" : "no ");
         c_prt(a, buf, y0 + 6, 2);
 
         /* Option 7: Enable Bottom Panes */
         a = (k == 7) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(buf, sizeof(buf), "%-48s: %s", "Enable Bottom Panes [Alt+L]", get_sdl_enable_bottom_panes() ? "yes" : "no ");
+        strnfmt(buf, sizeof(buf), "%-*s: %s", label_width,
+            (layout_mode == 0) ? "Enable Bottom Panes [Alt+L]"
+                               : ((layout_mode == 1) ? "Bottom Panes [Alt+L]"
+                                                     : "Bottom Panes [Alt+L]"),
+            get_sdl_enable_bottom_panes() ? "yes" : "no ");
         c_prt(a, buf, y0 + 7, 2);
 
         /* Option 8: View Pane Configuration (supporting panes only) */
         a = (k == 8) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(buf, sizeof(buf), "View Pane Configuration (%d panes)", get_supporting_pane_config_count());
+        strnfmt(buf, sizeof(buf),
+            (layout_mode == 0) ? "View Pane Configuration (%d panes)"
+                               : ((layout_mode == 1) ? "Pane Configuration (%d panes)"
+                                                     : "Pane Config (%d panes)"),
+            get_supporting_pane_config_count());
         c_prt(a, buf, y0 + 8, 2);
 
         /* Option 9: Touch Pane Buttons */
         a = (k == 9) ? TERM_L_BLUE : TERM_WHITE;
-        c_prt(a, "Touch Pane Buttons", y0 + 9, 2);
+        c_prt(a, (layout_mode == 0) ? "Touch Pane Buttons"
+                                    : ((layout_mode == 1) ? "Touch Buttons"
+                                                          : "Touch Buttons"),
+            y0 + 9, 2);
 
         /* Option 10: Save/Return */
         a = (k == 10) ? TERM_L_BLUE : TERM_WHITE;
@@ -12470,7 +12512,11 @@ void do_cmd_pane_settings(void)
             Term_putstr(2, y++, -1, TERM_YELLOW, "Settings changed - changes take effect immediately.");
             Term_putstr(2, y++, -1, TERM_YELLOW, "Will be saved to your SDL config file on exit.");
         }
-        Term_putstr(2, y++, -1, TERM_SLATE, "(direction keys to set, Return/Escape to accept)");
+        Term_putstr(2, y++, -1, TERM_SLATE,
+            (layout_mode == 0) ? "(direction keys to set, Return/Escape to accept)"
+                               : ((layout_mode == 1)
+                                   ? "(arrows move, 4/6 or y/n set, Enter/Esc exit)"
+                                   : "(arrows move, 4/6 or y/n set, Enter/Esc exit)"));
         
         /* Get key */
         hide_cursor = true;
@@ -12767,6 +12813,36 @@ static const char* pane_type_name(enum pane_type type)
     }
 }
 
+static const char* pane_type_short_name(enum pane_type type)
+{
+    switch (type)
+    {
+    case PANE_MAIN: return "MAIN";
+    case PANE_INVENTORY: return "INV";
+    case PANE_WORN: return "WORN";
+    case PANE_ROLLS: return "ROLLS";
+    case PANE_INFO: return "INFO";
+    case PANE_CHARACTER: return "CHAR";
+    case PANE_LOG: return "LOG";
+    case PANE_MONSTERS: return "MON";
+    case PANE_TOUCH: return "TOUCH";
+    default: return "UNK";
+    }
+}
+
+static const char* pane_where_short_name(enum pane_placement where)
+{
+    switch (where)
+    {
+    case PLACE_RIGHT: return "R";
+    case PLACE_LEFT: return "L";
+    case PLACE_DOUBLE_RIGHT: return "DR";
+    case PLACE_DOUBLE_LEFT: return "DL";
+    case PLACE_BOTTOM: return "BOT";
+    default: return "?";
+    }
+}
+
 static int get_supporting_pane_config_count(void)
 {
     int count = 0;
@@ -12905,15 +12981,17 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
         Term_putstr(2, 1, -1, TERM_L_BLUE, "Supporting Pane Layout");
         Term_putstr(2, 2, -1, TERM_WHITE, "======================");
 
+        int layout_mode = (Term->wid < 56) ? 2 : ((Term->wid < 72) ? 1 : 0);
+        bool compact = (layout_mode == 2);
         int y0 = 4;
-        int x_type = 2;
-        int x_where = 14;
-        int x_enabled_label = 29;
-        int x_enabled_value = 33;
-        int x_rows_label = 41;
-        int x_rows_value = 47;
-        int x_cols_label = 56;
-        int x_cols_value = 62;
+        int x_type = (layout_mode == 0) ? 2 : ((layout_mode == 1) ? 2 : 1);
+        int x_where = (layout_mode == 0) ? 14 : ((layout_mode == 1) ? 13 : 8);
+        int x_enabled_label = (layout_mode == 0) ? 29 : ((layout_mode == 1) ? 20 : 15);
+        int x_enabled_value = (layout_mode == 0) ? 33 : ((layout_mode == 1) ? 23 : 18);
+        int x_rows_label = (layout_mode == 0) ? 41 : ((layout_mode == 1) ? 31 : 26);
+        int x_rows_value = (layout_mode == 0) ? 47 : ((layout_mode == 1) ? 36 : 28);
+        int x_cols_label = (layout_mode == 0) ? 56 : ((layout_mode == 1) ? 44 : 35);
+        int x_cols_value = (layout_mode == 0) ? 62 : ((layout_mode == 1) ? 49 : 37);
 
         for (int i = 0; i < pane_count && (y0 + i) < Term->hgt - 5; i++)
         {
@@ -12921,6 +12999,10 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
             enum pane_type type = (enum pane_type)get_sdl_pane_type(idx);
             enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
             int master_idx = supporting_pane_master_idx(pane_indices, pane_count, where);
+            const char* type_label = (layout_mode == 0) ? pane_type_name(type)
+                : ((layout_mode == 1) ? pane_type_short_name(type) : pane_type_short_name(type));
+            const char* where_label = (layout_mode == 0) ? pane_placement_name(where)
+                : pane_where_short_name(where);
             bool enabled = get_sdl_pane_enabled(idx);
             bool rows_locked = supporting_pane_rows_locked(pane_indices, pane_count, idx);
             bool cols_locked = supporting_pane_cols_locked(pane_indices, pane_count, idx);
@@ -12938,9 +13020,11 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
                 strnfmt(enabled_field, sizeof(enabled_field), " %s ", enabled ? "on " : "off");
 
             if (i == sel && field == 1)
-                strnfmt(where_field, sizeof(where_field), "[%-12s]", pane_placement_name(where));
+                strnfmt(where_field, sizeof(where_field),
+                    (layout_mode == 0) ? "[%-12s]" : "[%-4s]", where_label);
             else
-                strnfmt(where_field, sizeof(where_field), " %-12s ", pane_placement_name(where));
+                strnfmt(where_field, sizeof(where_field),
+                    (layout_mode == 0) ? " %-12s " : " %-4s ", where_label);
 
             if (rows_locked)
             {
@@ -12962,26 +13046,47 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
             else
                 strnfmt(cols_field, sizeof(cols_field), " %3d ", cols);
 
-            c_prt(a, pane_type_name(type), y0 + i, x_type);
+            c_prt(a, type_label, y0 + i, x_type);
             c_prt(a, where_field, y0 + i, x_where);
-            c_prt(a, "on:", y0 + i, x_enabled_label);
+            c_prt(a, compact ? "on" : "on:", y0 + i, x_enabled_label);
             c_prt(a, enabled_field, y0 + i, x_enabled_value);
-            c_prt(a, "rows:", y0 + i, x_rows_label);
+            c_prt(a, (layout_mode == 0) ? "rows:" : (compact ? "r" : "rows"), y0 + i, x_rows_label);
             c_prt(a, rows_field, y0 + i, x_rows_value);
-            c_prt(a, "cols:", y0 + i, x_cols_label);
+            c_prt(a, (layout_mode == 0) ? "cols:" : (compact ? "c" : "cols"), y0 + i, x_cols_label);
             c_prt(a, cols_field, y0 + i, x_cols_value);
         }
 
         {
             int y = Term->hgt - 4;
-            Term_putstr(2, y++, -1, TERM_SLATE,
-                "Up/Down: select pane   Space: choose on/off, where, rows, cols");
-            Term_putstr(2, y++, -1, TERM_SLATE,
-                "4/6 (or n/y): toggle, cycle, or +/- value   0: set rows/cols to auto");
-            Term_putstr(2, y++, -1, TERM_SLATE,
-                "Each side slot shares cols with its first pane; bottom panes share rows");
-            Term_putstr(2, y++, -1, TERM_SLATE,
-                "ESC/Enter: return (changes apply immediately)");
+            if (layout_mode == 2)
+            {
+                Term_putstr(2, y++, -1, TERM_SLATE, "Up/Down select   Space field");
+                Term_putstr(2, y++, -1, TERM_SLATE, "4/6 cycle/set   0 auto rows/cols");
+                Term_putstr(2, y++, -1, TERM_SLATE, "Side slots share cols; bottom shares rows");
+                Term_putstr(2, y++, -1, TERM_SLATE, "Esc/Enter return");
+            }
+            else if (layout_mode == 1)
+            {
+                Term_putstr(2, y++, -1, TERM_SLATE,
+                    "Up/Down select pane   Space switch field");
+                Term_putstr(2, y++, -1, TERM_SLATE,
+                    "4/6 or y/n: toggle, cycle, or +/- value   0: auto");
+                Term_putstr(2, y++, -1, TERM_SLATE,
+                    "Each side slot shares cols; bottom panes share rows");
+                Term_putstr(2, y++, -1, TERM_SLATE,
+                    "ESC/Enter: return");
+            }
+            else
+            {
+                Term_putstr(2, y++, -1, TERM_SLATE,
+                    "Up/Down: select pane   Space: choose on/off, where, rows, cols");
+                Term_putstr(2, y++, -1, TERM_SLATE,
+                    "4/6 (or n/y): toggle, cycle, or +/- value   0: set rows/cols to auto");
+                Term_putstr(2, y++, -1, TERM_SLATE,
+                    "Each side slot shares cols with its first pane; bottom panes share rows");
+                Term_putstr(2, y++, -1, TERM_SLATE,
+                    "ESC/Enter: return (changes apply immediately)");
+            }
         }
 
         Term_fresh();
@@ -13174,20 +13279,23 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         Term_clear();
         Term_putstr(2, 1, -1, TERM_L_BLUE, "Touch Pane Buttons");
         Term_putstr(2, 2, -1, TERM_WHITE, "==================");
-        Term_putstr(2, 3, -1, TERM_SLATE, "Select a grid slot and cycle its action binding.");
+        Term_putstr(2, 3, -1, TERM_SLATE, "Select a grid slot, cycle its action, or rename its label.");
 
         row = list_start_row;
         for (int i = top; i < SDL_TOUCH_PANE_BUTTON_COUNT && i < top + visible_rows; i++)
         {
             char action_buf[80];
+            char label_buf[SDL_TOUCH_PANE_LABEL_LEN];
             byte a = (i == highlight) ? TERM_L_BLUE : TERM_WHITE;
 
+            get_sdl_touch_pane_button_label(i, label_buf, sizeof(label_buf));
             binding_action_label(get_sdl_touch_pane_binding(i), action_buf, sizeof(action_buf));
-            c_prt(a, format("%-14s -> %s", get_sdl_touch_pane_slot_name(i), action_buf), row++, 2);
+            c_prt(a, format("%-10s %-10s -> %s", get_sdl_touch_pane_slot_name(i), label_buf, action_buf),
+                row++, 2);
         }
 
         row = list_start_row + visible_rows + 1;
-        Term_putstr(2, row++, -1, TERM_SLATE, "Up/Down: select button   4/6: previous/next action");
+        Term_putstr(2, row++, -1, TERM_SLATE, "Up/Down: select button   4/6: previous/next action   l: rename");
         Term_putstr(2, row++, -1, TERM_SLATE, "r: reset selected   R: reset all   ESC/Enter: return");
 
         Term_fresh();
@@ -13242,8 +13350,29 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             break;
         }
 
+        case 'l':
+        case 'L':
+        {
+            char prompt[96];
+            char current_label[SDL_TOUCH_PANE_LABEL_LEN];
+            char new_label[SDL_TOUCH_PANE_LABEL_LEN];
+
+            get_sdl_touch_pane_button_label(highlight, current_label, sizeof(current_label));
+            strnfmt(prompt, sizeof(prompt), "New label for %s (blank = auto): ",
+                get_sdl_touch_pane_slot_name(highlight));
+            Term_putstr(2, 4, -1, TERM_SLATE, format("Current label: %s", current_label));
+            new_label[0] = '\0';
+            if (term_get_string(prompt, new_label, sizeof(new_label)))
+            {
+                set_sdl_touch_pane_button_label(highlight, new_label);
+                changed = true;
+            }
+            break;
+        }
+
         case 'r':
             set_sdl_touch_pane_binding(highlight, get_sdl_touch_pane_default_binding(highlight));
+            clear_sdl_touch_pane_button_label(highlight);
             changed = true;
             break;
 

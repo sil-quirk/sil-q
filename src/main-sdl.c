@@ -42,7 +42,7 @@ static const struct pane_config default_pane_config[] = {
     {.pane = PANE_INVENTORY, .where = PLACE_RIGHT, .enabled = true},
     {.pane = PANE_WORN, .where = PLACE_RIGHT, .enabled = true},
     {.pane = PANE_INFO, .where = PLACE_RIGHT, .enabled = true, .rect.rows = 8},
-    {.pane = PANE_TOUCH, .where = PLACE_RIGHT, .enabled = true, .rect.cols = 15},
+    {.pane = PANE_TOUCH, .where = PLACE_DOUBLE_RIGHT, .enabled = true, .rect.cols = 15},
     // In the bottom
     {.pane = PANE_ROLLS, .where = PLACE_BOTTOM, .enabled = true, .rect.rows = 4},
     {.pane = PANE_LOG, .where = PLACE_BOTTOM, .enabled = true},
@@ -131,8 +131,8 @@ static const touch_pane_slot_info g_touch_pane_slots[SDL_TOUCH_PANE_BUTTON_COUNT
     { "Esc", "Esc", ESCAPE },
     { "Ctrl", "Ctrl", GAMEPAD_BIND_CTRL },
     { "Shift", "Shift", GAMEPAD_BIND_SHIFT },
-    { "Equipped", "Equipped", 'e' },
-    { "Inventory", "Inventory", 'i' },
+    { "Worn", "Worn", 'e' },
+    { "Inv", "Inv", 'i' },
     { "Supply", "Supply", 'j' },
     { "Use", "Use", 'u' },
     { "Sing", "Sing", 's' },
@@ -147,10 +147,10 @@ static const touch_pane_slot_info g_touch_pane_slots[SDL_TOUCH_PANE_BUTTON_COUNT
     { "South", NULL, '2' },
     { "Southeast", NULL, '3' },
     { "Staff", "Staff", 'a' },
-    { "Description", "Description", 'x' },
+    { "Desc", "Desc", 'x' },
     { "Drop", "Drop", 'd' },
     { "Map", "Map", 'M' },
-    { "Character", "Character", 'h' },
+    { "Hero", "Hero", 'h' },
     { "Ability", "Ability", '\t' },
 };
 
@@ -274,11 +274,17 @@ static void sdl_story_font_reset_state(void);
 static void sdl_story_font_cache_clear(void);
 static TTF_Font* sdl_story_font_for_height(int pixel_height);
 static TTF_Font* sdl_story_font_for_view(const sdl_view* d);
+#ifdef __ANDROID__
+static void sdl_ensure_default_pane_configs_present(bool enable_new_panes);
+#endif
 static void sdl_ensure_touch_pane_config_present(void);
 static bool sdl_touch_pane_compute_layout(const SDL_Rect* pane_rect, SDL_FRect* slot_rects);
 static bool sdl_touch_pane_binding_is_direction(int binding);
 static void sdl_touch_pane_draw_arrow(const SDL_FRect* rect, int binding, SDL_Color color);
 static void sdl_touch_pane_draw_label(const SDL_FRect* rect, const char* label, SDL_Color color);
+static bool sdl_touch_pane_shift_label_for_binding(int binding, char* buf, size_t buflen);
+static void sdl_touch_pane_base_label_for_slot(int index, char* buf, size_t buflen);
+static void sdl_touch_pane_display_label_for_slot(int index, char* buf, size_t buflen);
 static void sdl_touch_pane_render(void);
 static bool sdl_touch_pane_handle_press(float x, float y);
 static void sdl_touch_pane_send_binding(int binding);
@@ -361,6 +367,38 @@ static void sdl_view_destroy(sdl_view* d)
     }
 }
 
+#ifdef __ANDROID__
+static void sdl_ensure_default_pane_configs_present(bool enable_new_panes)
+{
+    for (int i = 0; i < default_pane_config_count; i++) {
+        bool found = false;
+
+        if (default_pane_config[i].pane == PANE_TOUCH)
+            continue;
+
+        for (int j = 0; j < pane_config_count; j++) {
+            if (pane_config[j].pane == default_pane_config[i].pane) {
+                found = true;
+                break;
+            }
+        }
+
+        if (found)
+            continue;
+
+        if (pane_config_count >= MAX_PANE_CONFIGS) {
+            log_warn("Could not append pane %d; max pane count reached",
+                default_pane_config[i].pane);
+            return;
+        }
+
+        pane_config[pane_config_count] = default_pane_config[i];
+        pane_config[pane_config_count].enabled = enable_new_panes;
+        pane_config_count++;
+    }
+}
+#endif
+
 static void sdl_ensure_touch_pane_config_present(void)
 {
     for (int i = 0; i < pane_config_count; i++) {
@@ -375,7 +413,7 @@ static void sdl_ensure_touch_pane_config_present(void)
 
     pane_config[pane_config_count++] = (struct pane_config){
         .pane = PANE_TOUCH,
-        .where = PLACE_RIGHT,
+        .where = PLACE_DOUBLE_RIGHT,
         .enabled = true,
         .rect = { .rows = 0, .cols = 15 },
         .ratio = 0.0f,
@@ -652,6 +690,89 @@ static void sdl_touch_pane_draw_label(const SDL_FRect* rect, const char* label, 
     SDL_RenderTexture(g_state.renderer, text_texture, NULL, &dst);
     SDL_DestroyTexture(text_texture);
     SDL_DestroySurface(text_surface);
+}
+
+static bool sdl_touch_pane_shift_label_for_binding(int binding, char* buf, size_t buflen)
+{
+    if (!buf || !buflen)
+        return false;
+
+    if (!sdl_gamepad_shift_active())
+        return false;
+
+    switch (binding) {
+    case 's':
+        SDL_strlcpy(buf, "STEALTH", buflen);
+        return true;
+    case 'f':
+        SDL_strlcpy(buf, "Shoot 2", buflen);
+        return true;
+    case 'x':
+        SDL_strlcpy(buf, "Exch", buflen);
+        return true;
+    case 'd':
+        SDL_strlcpy(buf, "Disarm", buflen);
+        return true;
+    default:
+        return false;
+    }
+}
+
+static void sdl_touch_pane_base_label_for_slot(int index, char* buf, size_t buflen)
+{
+    int binding;
+
+    if (!buf || !buflen)
+        return;
+
+    buf[0] = '\0';
+
+    if (index < 0 || index >= SDL_TOUCH_PANE_BUTTON_COUNT)
+        return;
+
+    binding = get_sdl_touch_pane_binding(index);
+
+    if (binding == GAMEPAD_BIND_NONE) {
+        SDL_strlcpy(buf, "Off", buflen);
+        return;
+    }
+
+    if (config.touch_pane_labels[index][0]) {
+        SDL_strlcpy(buf, config.touch_pane_labels[index], buflen);
+        return;
+    }
+
+    if (binding == INPUT_BIND_CONFIRM) {
+        SDL_strlcpy(buf, "Space", buflen);
+        return;
+    }
+
+    if (binding == g_touch_pane_slots[index].default_binding
+        && g_touch_pane_slots[index].default_label && g_touch_pane_slots[index].default_label[0]) {
+        SDL_strlcpy(buf, g_touch_pane_slots[index].default_label, buflen);
+        return;
+    }
+
+    binding_action_short(binding, buf, buflen);
+}
+
+static void sdl_touch_pane_display_label_for_slot(int index, char* buf, size_t buflen)
+{
+    int binding;
+
+    if (!buf || !buflen)
+        return;
+
+    buf[0] = '\0';
+
+    if (index < 0 || index >= SDL_TOUCH_PANE_BUTTON_COUNT)
+        return;
+
+    binding = get_sdl_touch_pane_binding(index);
+    if (sdl_touch_pane_shift_label_for_binding(binding, buf, buflen))
+        return;
+
+    sdl_touch_pane_base_label_for_slot(index, buf, buflen);
 }
 
 static void sdl_touch_pane_send_confirm_action(void)
@@ -2359,8 +2480,8 @@ static void sdl_touch_pane_render(void)
         char label[64];
         int binding = get_sdl_touch_pane_binding(i);
         bool flashed = (i == g_touch_pane_flash_slot);
-        bool toggled = ((binding == GAMEPAD_BIND_SHIFT && g_touch_pane_shift_toggle)
-            || (binding == GAMEPAD_BIND_CTRL && g_touch_pane_ctrl_toggle));
+        bool toggled = ((binding == GAMEPAD_BIND_SHIFT && sdl_gamepad_shift_active())
+            || (binding == GAMEPAD_BIND_CTRL && sdl_gamepad_ctrl_active()));
 
         shadow = slot_rects[i];
         shadow.x += 2.0f;
@@ -2396,17 +2517,7 @@ static void sdl_touch_pane_render(void)
             continue;
         }
 
-        if (binding == INPUT_BIND_CONFIRM) {
-            SDL_strlcpy(label, "Space", sizeof(label));
-        } else if (binding == GAMEPAD_BIND_NONE) {
-            SDL_strlcpy(label, "Off", sizeof(label));
-        } else if (binding == g_touch_pane_slots[i].default_binding
-            && g_touch_pane_slots[i].default_label && g_touch_pane_slots[i].default_label[0]) {
-            SDL_strlcpy(label, g_touch_pane_slots[i].default_label, sizeof(label));
-        } else {
-            binding_action_short(binding, label, sizeof(label));
-        }
-
+        sdl_touch_pane_display_label_for_slot(i, label, sizeof(label));
         sdl_touch_pane_draw_label(&slot_rects[i], label, text_color);
     }
 
@@ -3688,18 +3799,24 @@ errr init_sdl(int argc, char **argv)
     }
 
 #ifdef __ANDROID__
+    sdl_ensure_default_pane_configs_present(false);
+    sdl_ensure_touch_pane_config_present();
+
     if (!config_exists) {
-        pane_config_count = 1;
-        pane_config[0] = (struct pane_config){
-            .pane = PANE_TOUCH,
-            .where = PLACE_RIGHT,
-            .enabled = true,
-            .rect = { .rows = 0, .cols = 15 },
-            .ratio = 0.0f,
-        };
+        for (int i = 0; i < pane_config_count; i++) {
+            if (pane_config[i].pane == PANE_TOUCH) {
+                pane_config[i].enabled = true;
+                pane_config[i].where = PLACE_DOUBLE_RIGHT;
+                if (pane_config[i].rect.cols <= 0)
+                    pane_config[i].rect.cols = 15;
+            } else {
+                pane_config[i].enabled = false;
+            }
+        }
+
         config.enable_right_panes = true;
         config.enable_bottom_panes = false;
-        log_info("Android default pane layout: touch pane only (right side)");
+        log_info("Android default pane layout: touch only enabled; other panes available in settings");
     }
 #endif
 
@@ -4471,6 +4588,7 @@ int get_sdl_touch_pane_default_binding(int index)
 void sdl_touch_pane_reset_bindings_to_default(void)
 {
     sdl_config_set_default_touch_pane_bindings(&config);
+    sdl_config_clear_touch_pane_labels(&config);
 }
 
 cptr get_sdl_touch_pane_slot_name(int index)
@@ -4478,6 +4596,32 @@ cptr get_sdl_touch_pane_slot_name(int index)
     if (index < 0 || index >= SDL_TOUCH_PANE_BUTTON_COUNT)
         return "";
     return g_touch_pane_slots[index].slot_name;
+}
+
+void get_sdl_touch_pane_button_label(int index, char* buf, size_t buflen)
+{
+    sdl_touch_pane_base_label_for_slot(index, buf, buflen);
+}
+
+void set_sdl_touch_pane_button_label(int index, cptr label)
+{
+    if (index < 0 || index >= SDL_TOUCH_PANE_BUTTON_COUNT)
+        return;
+
+    if (!label || !label[0]) {
+        config.touch_pane_labels[index][0] = '\0';
+        return;
+    }
+
+    SDL_strlcpy(config.touch_pane_labels[index], label, sizeof(config.touch_pane_labels[index]));
+}
+
+void clear_sdl_touch_pane_button_label(int index)
+{
+    if (index < 0 || index >= SDL_TOUCH_PANE_BUTTON_COUNT)
+        return;
+
+    config.touch_pane_labels[index][0] = '\0';
 }
 
 bool sdl_gamepad_capture_begin(void)

@@ -17,6 +17,15 @@
 static void do_qual_squelch(void);
 static int do_ego_item_squelch(void);
 
+typedef struct squelch_layout
+{
+    int term_wid;
+    int term_hgt;
+    bool compact;
+    int footer_row;
+    int status_row;
+} squelch_layout;
+
 typedef struct tval_insc_desc tval_insc_desc;
 
 struct tval_insc_desc
@@ -32,6 +41,41 @@ struct tval_insc_desc
  */
 
 byte squelch_level[SQUELCH_BYTES];
+
+static void squelch_get_layout(squelch_layout* layout)
+{
+    if (!layout)
+        return;
+
+    layout->term_wid = 80;
+    layout->term_hgt = 24;
+    if (Term)
+        Term_get_size(&layout->term_wid, &layout->term_hgt);
+    if (layout->term_wid < 1)
+        layout->term_wid = 80;
+    if (layout->term_hgt < 1)
+        layout->term_hgt = 24;
+
+    layout->compact = (layout->term_wid < 70 || layout->term_hgt < 20);
+    layout->footer_row = layout->term_hgt - 1;
+    layout->status_row = layout->term_hgt - 2;
+}
+
+static void squelch_put_fit(byte attr, cptr text, int row, int col,
+    const squelch_layout* layout)
+{
+    int max;
+
+    if (!layout || !text || row < 0 || col < 0 || row >= layout->term_hgt
+        || col >= layout->term_wid)
+        return;
+
+    max = layout->term_wid - col;
+    if (max < 1)
+        return;
+
+    Term_putstr(col, row, max, attr, text);
+}
 
 #define LINES_PER_COLUMN 19
 
@@ -163,15 +207,23 @@ static int do_cmd_squelch_aux(void)
     int i, j, temp, num, max_num;
     int tval, sval, squelch;
     int col, row;
+    int rows_per_col;
+    int col_step;
     int typeval;
     cptr tval_desc2;
     char ch, sq;
+    squelch_layout layout;
 
     int choice[60];
 
     char ftmp[80];
     SDL_IOStream* fff;
     char buf[80];
+
+    squelch_get_layout(&layout);
+
+    rows_per_col = layout.compact ? MAX(6, layout.term_hgt - 8) : 20;
+    col_step = layout.compact ? MAX(20, layout.term_wid / 2) : 30;
 
     /* Clear screen */
     Term_clear();
@@ -185,26 +237,42 @@ static int do_cmd_squelch_aux(void)
 
     for (num = 0; (num < 60) && typevals[num].tval; num++)
     {
-        row = 3 + (num % 20);
-        col = 30 * (num / 20);
+        row = (layout.compact ? 1 : 3) + (num % rows_per_col);
+        col = col_step * (num / rows_per_col);
         ch = head[num / 26] + num % 26;
-        prt(format("[%c] %s", ch, typevals[num].desc), row, col);
+        squelch_put_fit(TERM_WHITE, format("[%c] %s", ch, typevals[num].desc),
+            row, col, &layout);
     }
 
     /* Me need to know the maximal possible tval_index */
     max_num = num;
 
-    prt("Commands:", 3, 30);
-    prt("[a-t]: Go to item squelching and autoinscribing sub-menu.", 5, 30);
-    prt("Q    : Go to quality squelching sub-menu*.", 6, 30);
-    prt("E    : Go to special item squelching sub_menu.", 7, 30);
-    prt("S    : Save squelch values to pref file.", 8, 30);
-    prt("L    : Load squelch values from pref file.", 9, 30);
-    prt("B    : Save autoinscriptions to pref file.", 10, 30);
-    prt("G    : Load autoinscriptions from pref file.", 11, 30);
+    if (layout.compact)
+    {
+        int help_row = rows_per_col + 2;
 
-    prt("ESC  : Back to options menu.", 12, 30);
-    prt("     :*includes squelching opened chests.", 14, 30);
+        squelch_put_fit(TERM_WHITE, "a-t item list", help_row, 0, &layout);
+        squelch_put_fit(TERM_WHITE, "Q quality  E special  Esc back",
+            help_row + 1, 0, &layout);
+        squelch_put_fit(TERM_WHITE, "S/L squelch file  B/G autoinsc file",
+            help_row + 2, 0, &layout);
+        squelch_put_fit(TERM_SLATE, "*quality includes opened chests",
+            help_row + 3, 0, &layout);
+    }
+    else
+    {
+        prt("Commands:", 3, 30);
+        prt("[a-t]: Go to item squelching and autoinscribing sub-menu.", 5, 30);
+        prt("Q    : Go to quality squelching sub-menu*.", 6, 30);
+        prt("E    : Go to special item squelching sub_menu.", 7, 30);
+        prt("S    : Save squelch values to pref file.", 8, 30);
+        prt("L    : Load squelch values from pref file.", 9, 30);
+        prt("B    : Save autoinscriptions to pref file.", 10, 30);
+        prt("G    : Load autoinscriptions from pref file.", 11, 30);
+
+        prt("ESC  : Back to options menu.", 12, 30);
+        prt("     :*includes squelching opened chests.", 14, 30);
+    }
 
     /* Choose! */
     if (!get_com("Item Squelching and Autoinscription Main Menu: ", &ch))
@@ -225,10 +293,12 @@ static int do_cmd_squelch_aux(void)
     else if (ch == 'S')
     {
         /* Prompt */
-        prt("Command: Dump Squelch Info", 17, 30);
+        prt("Command: Dump Squelch Info", layout.compact ? layout.status_row : 17,
+            layout.compact ? 0 : 30);
 
         /* Prompt */
-        prt("File: ", 18, 30);
+        prt("File: ", layout.compact ? layout.footer_row : 18,
+            layout.compact ? 0 : 30);
 
         /* Default filename */
         sprintf(ftmp, "%s.squ", op_ptr->base_name);
@@ -240,7 +310,9 @@ static int do_cmd_squelch_aux(void)
             if (!path_build(buf, sizeof(buf), ANGBAND_DIR_USER, ftmp))
             {
                 log_error("do_cmd_squelch_aux: failed to build squelch path '%s'", ftmp);
-                prt("Failed to resolve squelch file path.  (Hit a key.)", 17, 30);
+                prt("Failed to resolve squelch file path.  (Hit a key.)",
+                    layout.compact ? layout.status_row : 17,
+                    layout.compact ? 0 : 30);
                 get_com("", &sq);
                 return (0);
             }
@@ -259,7 +331,9 @@ static int do_cmd_squelch_aux(void)
                 if (!fff)
                 {
                     log_error("do_cmd_squelch_aux: failed to open squelch file '%s' for append", buf);
-                    prt("Failed to open squelch file.  (Hit a key.)", 17, 30);
+                    prt("Failed to open squelch file.  (Hit a key.)",
+                        layout.compact ? layout.status_row : 17,
+                        layout.compact ? 0 : 30);
                     get_com("", &sq);
                     return (0);
                 }
@@ -294,7 +368,9 @@ static int do_cmd_squelch_aux(void)
                 sdl_fclose(fff);
 
                 /* Ending message */
-                prt("Squelch file saved successfully.  (Hit a key.)", 17, 30);
+                prt("Squelch file saved successfully.  (Hit a key.)",
+                    layout.compact ? layout.status_row : 17,
+                    layout.compact ? 0 : 30);
                 get_com("", &sq);
             }
         }
@@ -303,10 +379,13 @@ static int do_cmd_squelch_aux(void)
     else if (ch == 'L')
     {
         /* Prompt */
-        prt("Command: Load squelch info from file", 16, 30);
+        prt("Command: Load squelch info from file",
+            layout.compact ? layout.status_row : 16,
+            layout.compact ? 0 : 30);
 
         /* Prompt */
-        prt("File: ", 17, 30);
+        prt("File: ", layout.compact ? layout.footer_row : 17,
+            layout.compact ? 0 : 30);
 
         /* Default filename */
         sprintf(ftmp, "%s.squ", op_ptr->base_name);
@@ -318,12 +397,16 @@ static int do_cmd_squelch_aux(void)
             if (process_pref_file(ftmp))
             {
                 /* Mention failure */
-                prt("Failed to load squelch file!  (Hit a key.)", 17, 30);
+                prt("Failed to load squelch file!  (Hit a key.)",
+                    layout.compact ? layout.status_row : 17,
+                    layout.compact ? 0 : 30);
             }
             else
             {
                 /* Mention success */
-                prt("Squelch data loaded!  (Hit a key.)", 17, 30);
+                prt("Squelch data loaded!  (Hit a key.)",
+                    layout.compact ? layout.status_row : 17,
+                    layout.compact ? 0 : 30);
             }
             get_com("", &sq);
         }
@@ -332,10 +415,13 @@ static int do_cmd_squelch_aux(void)
     if (ch == 'B')
     {
         /* Prompt */
-        prt("Command: Dump Autoinscribe Info", 16, 30);
+        prt("Command: Dump Autoinscribe Info",
+            layout.compact ? layout.status_row : 16,
+            layout.compact ? 0 : 30);
 
         /* Prompt */
-        prt("File: ", 17, 30);
+        prt("File: ", layout.compact ? layout.footer_row : 17,
+            layout.compact ? 0 : 30);
 
         /* Default filename */
         SDL_strlcpy(ftmp, op_ptr->base_name, sizeof(ftmp));
@@ -347,7 +433,9 @@ static int do_cmd_squelch_aux(void)
             if (!path_build(buf, sizeof(buf), ANGBAND_DIR_USER, ftmp))
             {
                 log_error("do_cmd_squelch_aux: failed to build autoinscription path '%s'", ftmp);
-                prt("Failed to resolve autoinscription file path.  (Hit a key.)", 16, 30);
+                prt("Failed to resolve autoinscription file path.  (Hit a key.)",
+                    layout.compact ? layout.status_row : 16,
+                    layout.compact ? 0 : 30);
                 get_com("", &sq);
                 return (0);
             }
@@ -366,7 +454,9 @@ static int do_cmd_squelch_aux(void)
                 if (!fff)
                 {
                     log_error("do_cmd_squelch_aux: failed to open autoinscription file '%s' for write", buf);
-                    prt("Failed to save autoinscriptions.  (Hit a key.)", 16, 30);
+                    prt("Failed to save autoinscriptions.  (Hit a key.)",
+                        layout.compact ? layout.status_row : 16,
+                        layout.compact ? 0 : 30);
                     get_com("", &sq);
                     return (0);
                 }
@@ -374,7 +464,9 @@ static int do_cmd_squelch_aux(void)
                 if (!inscriptions)
                 {
                     log_warn("do_cmd_squelch_aux: no inscriptions available to save");
-                    prt("No autoinscriptions to save.  (Hit a key.)", 16, 30);
+                    prt("No autoinscriptions to save.  (Hit a key.)",
+                        layout.compact ? layout.status_row : 16,
+                        layout.compact ? 0 : 30);
                     get_com("", &sq);
                     sdl_fclose(fff);
                     return (0);
@@ -398,7 +490,9 @@ static int do_cmd_squelch_aux(void)
                 /* Close */
                 sdl_fclose(fff);
 
-                prt("Autoinscribe file saved successfully.  (Hit a key.)", 16, 30);
+                prt("Autoinscribe file saved successfully.  (Hit a key.)",
+                    layout.compact ? layout.status_row : 16,
+                    layout.compact ? 0 : 30);
                 get_com("", &sq);
             }
         }
@@ -406,10 +500,13 @@ static int do_cmd_squelch_aux(void)
     else if (ch == 'G')
     {
         /* Prompt */
-        prt("Command: Load Autoinscribe info from file", 16, 30);
+        prt("Command: Load Autoinscribe info from file",
+            layout.compact ? layout.status_row : 16,
+            layout.compact ? 0 : 30);
 
         /* Prompt */
-        prt("File: ", 17, 30);
+        prt("File: ", layout.compact ? layout.footer_row : 17,
+            layout.compact ? 0 : 30);
 
         /* Default filename */
         SDL_strlcpy(ftmp, op_ptr->base_name, sizeof(ftmp));
@@ -421,13 +518,17 @@ static int do_cmd_squelch_aux(void)
             if (process_pref_file(ftmp))
             {
                 /* Mention failure */
-                prt("Failed to load autoinscribe file!  (Hit a key.)", 16, 30);
+                prt("Failed to load autoinscribe file!  (Hit a key.)",
+                    layout.compact ? layout.status_row : 16,
+                    layout.compact ? 0 : 30);
             }
 
             else
             {
                 /* Mention success */
-                prt("Autoinscribe data loaded!  (Hit a key.)", 16, 30);
+                prt("Autoinscribe data loaded!  (Hit a key.)",
+                    layout.compact ? layout.status_row : 16,
+                    layout.compact ? 0 : 30);
             }
             get_com("", &sq);
         }
@@ -436,6 +537,11 @@ static int do_cmd_squelch_aux(void)
     else
     {
         int active = 0;
+        int rows_per_page = layout.compact ? MAX(5, layout.term_hgt - 8)
+                                           : LINES_PER_COLUMN;
+        int col_width = layout.compact ? MAX(20, layout.term_wid / 2) : 30;
+        int visible_cols = MAX(1, ((layout.term_wid - 1) / col_width) + 1);
+        int page_size = rows_per_page * visible_cols;
 
         /*
          * One variable is enough, but I used two to make
@@ -505,6 +611,9 @@ static int do_cmd_squelch_aux(void)
 
         while (true)
         {
+            int page_base = (page_size > 0) ? ((active / page_size) * page_size) : 0;
+            int page_end = MIN(max_num, page_base + page_size);
+
             if (display_all)
                 Term_clear();
 
@@ -523,14 +632,21 @@ static int do_cmd_squelch_aux(void)
                 {
                     object_kind* k_ptr = &k_info[choice[num]];
                     cptr curStr;
+                    int display_idx;
+                    int text_col;
 
                     /* Reduce flickering */
                     if (!display_all && num != active && num != old_active)
                         continue;
 
+                    if (num < page_base || num >= page_end)
+                        continue;
+
                     /* Prepare it */
-                    row = 5 + (num % LINES_PER_COLUMN);
-                    col = 30 * (num / LINES_PER_COLUMN);
+                    display_idx = num - page_base;
+                    row = 5 + (display_idx % rows_per_page);
+                    col = col_width * (display_idx / rows_per_page);
+                    text_col = col + 6;
                     ch = head[num / 26] + (num % 26);
 
                     /* Acquire the "name" of object "i" */
@@ -540,10 +656,12 @@ static int do_cmd_squelch_aux(void)
                     if (num == active)
                     {
                         curStr = get_autoinscription(choice[active]);
-                        c_put_str(TERM_WHITE,
-                            format("Current Autoinscription: %-40s",
+                        squelch_put_fit(TERM_WHITE,
+                            format(layout.compact
+                                    ? "Autoinscription: %s"
+                                    : "Current Autoinscription: %-40s",
                                 curStr ? curStr : "[None]"),
-                            4, 39);
+                            4, layout.compact ? 0 : 39, &layout);
                     }
 
                     /*get the color and character*/
@@ -591,26 +709,44 @@ static int do_cmd_squelch_aux(void)
                     }
 
                     /* Print it */
-                    c_put_str(((num == active) ? TERM_YELLOW : TERM_WHITE),
-                        format("%c)'%c'", ch, sq), row, col);
-                    c_put_str(color, buf, row, col + 6);
+                    squelch_put_fit(((num == active) ? TERM_YELLOW : TERM_WHITE),
+                        format("%c)'%c'", ch, sq), row, col, &layout);
+                    Term_putstr(text_col, row, MAX(1, col_width - 7), color,
+                        buf);
                 }
             }
 
             /*header text*/
             if (display_all)
             {
-                c_put_str(TERM_L_BLUE,
-                    "CTRL-N: No Squelch - defer to Never_pickup option", 1, 0);
-                prt("Esc   : Return", 1, 55);
-                c_put_str(TERM_L_GREEN, "CTRL-L: Never Pickup", 2, 0);
-                c_put_str(TERM_L_UMBER, "CTRL-A: Always Pickup", 2, 22);
-                prt("+/-     Toggle Selection", 2, 55);
-                c_put_str(TERM_L_RED, "CTRL-S: Squelch", 3, 0);
-                prt("Use direction keys to Navigate list; or enter a letter", 3,
-                    22);
-                /*header text*/
-                c_put_str(TERM_WHITE, "Enter: New autoinscription", 4, 10);
+                if (layout.compact)
+                {
+                    squelch_put_fit(TERM_L_BLUE, "CTRL-N none  CTRL-S squelch",
+                        1, 0, &layout);
+                    squelch_put_fit(TERM_L_GREEN, "CTRL-L never  CTRL-A always",
+                        2, 0, &layout);
+                    squelch_put_fit(TERM_WHITE,
+                        "Enter inscribe  +/- toggle  8/2 move  4/6 page",
+                        3, 0, &layout);
+                    squelch_put_fit(TERM_SLATE,
+                        format("Page %d/%d", (page_base / page_size) + 1,
+                            MAX(1, (max_num + page_size - 1) / page_size)),
+                        layout.footer_row, 0, &layout);
+                }
+                else
+                {
+                    c_put_str(TERM_L_BLUE,
+                        "CTRL-N: No Squelch - defer to Never_pickup option", 1, 0);
+                    prt("Esc   : Return", 1, 55);
+                    c_put_str(TERM_L_GREEN, "CTRL-L: Never Pickup", 2, 0);
+                    c_put_str(TERM_L_UMBER, "CTRL-A: Always Pickup", 2, 22);
+                    prt("+/-     Toggle Selection", 2, 55);
+                    c_put_str(TERM_L_RED, "CTRL-S: Squelch", 3, 0);
+                    prt("Use direction keys to Navigate list; or enter a letter", 3,
+                        22);
+                    /*header text*/
+                    c_put_str(TERM_WHITE, "Enter: New autoinscription", 4, 10);
+                }
             }
 
             display_all = 0;
@@ -703,12 +839,12 @@ static int do_cmd_squelch_aux(void)
             else if (ch == '6')
             {
                 /*move one column to right, but check first*/
-                if ((active + LINES_PER_COLUMN) <= max_num - 1)
+                if ((active + rows_per_page) <= max_num - 1)
                 {
                     /* Redraw the current active */
                     old_active = active;
 
-                    active += LINES_PER_COLUMN;
+                    active += rows_per_page;
                 }
 
                 else
@@ -723,12 +859,12 @@ static int do_cmd_squelch_aux(void)
             else if (ch == '4')
             {
                 /*move one column to left, but check first*/
-                if ((active - LINES_PER_COLUMN) >= 0)
+                if ((active - rows_per_page) >= 0)
                 {
                     /* Redraw the current active */
                     old_active = active;
 
-                    active -= LINES_PER_COLUMN;
+                    active -= rows_per_page;
                 }
 
                 else
@@ -769,7 +905,10 @@ static void do_qual_squelch(void)
 {
     int i, num, max_num, index;
     int col, row;
+    int rows_per_col;
+    int col_step;
     char ch;
+    squelch_layout layout;
 /* the index for the rings*/
 #define RING_INDEX 18
 /* the index for the amulets*/
@@ -780,6 +919,10 @@ static void do_qual_squelch(void)
 
     int old_index = -1;
     int display_all = 1;
+
+    squelch_get_layout(&layout);
+    rows_per_col = layout.compact ? MAX(6, layout.term_hgt - 8) : 22;
+    col_step = layout.compact ? MAX(20, layout.term_wid / 2) : 30;
 
     index = 0;
     while (1)
@@ -795,12 +938,12 @@ static void do_qual_squelch(void)
             if (!display_all && num != index && num != old_index)
                 continue;
 
-            row = 2 + (num % 22);
-            col = 30 * (num / 22);
-            c_put_str(TERM_WHITE,
+            row = 2 + (num % rows_per_col);
+            col = col_step * (num / rows_per_col);
+            squelch_put_fit(TERM_WHITE,
                 format("(%c): %s", squelch_str[squelch_level[num]],
                     tvals[num].desc),
-                row, col);
+                row, col, &layout);
         }
 
         if (display_all)
@@ -808,24 +951,36 @@ static void do_qual_squelch(void)
             /* Print out the rest of the screen */
             prt("Secondary Squelching Menu", 0, 0);
 
-            prt("Legend:", 2, 30);
+            if (layout.compact)
+            {
+                squelch_put_fit(TERM_WHITE,
+                    "n/c/v/g/w/a/o set current  N/C/V/G/W/A/O set all",
+                    layout.status_row, 0, &layout);
+                squelch_put_fit(TERM_WHITE,
+                    "8/2 move  4/6 cycle  Esc back",
+                    layout.footer_row, 0, &layout);
+            }
+            else
+            {
+                prt("Legend:", 2, 30);
 
-            prt("N  : Squelch Nothing", 4, 30);
-            prt("C  : Squelch Cursed Items", 5, 30);
-            prt("V  : Squelch Average and Below", 6, 30);
-            prt("G  : Squelch Good (Strong Pseudo_ID and Identify)", 7, 30);
-            prt("W  : Squelch Good (Weak Pseudo-ID)", 8, 30);
-            prt("A  : Squelch All but Artefacts", 9, 30);
-            prt("O  : Squelch Chests After Opening", 10, 30);
+                prt("N  : Squelch Nothing", 4, 30);
+                prt("C  : Squelch Cursed Items", 5, 30);
+                prt("V  : Squelch Average and Below", 6, 30);
+                prt("G  : Squelch Good (Strong Pseudo_ID and Identify)", 7, 30);
+                prt("W  : Squelch Good (Weak Pseudo-ID)", 8, 30);
+                prt("A  : Squelch All but Artefacts", 9, 30);
+                prt("O  : Squelch Chests After Opening", 10, 30);
 
-            prt("Commands:", 12, 30);
-            prt("Arrows: Move and adjust settings", 14, 30);
-            prt("ncvgao : Change a single setting", 15, 30);
-            prt("NCVGWAO : Change all allowable settings", 16, 30);
-            prt("ESC   : Exit Secondary Menu", 17, 30);
-            prt("Rings:   N, C or A only", 19, 30);
-            prt("Amulets: N, C or A only", 20, 30);
-            prt("Opened Chests: N or O only", 21, 30);
+                prt("Commands:", 12, 30);
+                prt("Arrows: Move and adjust settings", 14, 30);
+                prt("ncvgao : Change a single setting", 15, 30);
+                prt("NCVGWAO : Change all allowable settings", 16, 30);
+                prt("ESC   : Exit Secondary Menu", 17, 30);
+                prt("Rings:   N, C or A only", 19, 30);
+                prt("Amulets: N, C or A only", 20, 30);
+                prt("Opened Chests: N or O only", 21, 30);
+            }
         }
 
         display_all = 0;
@@ -835,7 +990,7 @@ static void do_qual_squelch(void)
         max_num = num;
 
         /* Place the cursor */
-        move_cursor(index + 2, 1);
+        move_cursor(2 + (index % rows_per_col), 1 + ((index / rows_per_col) * col_step));
 
         /* Get a key */
         ch = inkey();
@@ -1241,10 +1396,12 @@ static int ego_comp_func(const void* a_ptr, const void* b_ptr)
 static int do_ego_item_squelch(void)
 {
     int i, idx, max_num = 0, first, last, active, old_active;
+    int rows_per_page;
     bool display_all;
     char ch, *msg;
     ego_item_type* e_ptr;
     s16b* choice;
+    squelch_layout layout;
 
     /* Hack - Used to sort the tval table for the first time */
     static bool sort_tvals = true;
@@ -1258,6 +1415,8 @@ static int do_ego_item_squelch(void)
 
     /* Alloc the array of ego indices */
     choice = mem_alloc_array(alloc_ego_size, s16b);
+    squelch_get_layout(&layout);
+    rows_per_page = layout.compact ? MAX(5, layout.term_hgt - 5) : MAX_EGO_ROWS;
 
     /* Get the valid special items */
     for (i = 0; i < alloc_ego_size; i++)
@@ -1287,7 +1446,7 @@ static int do_ego_item_squelch(void)
 
     /* Determine the last special item to display in the screen */
     /* Note that if "max_num" is 0, "last" will be -1 */
-    last = MIN(first + MAX_EGO_ROWS - 1, max_num - 1);
+    last = MIN(first + rows_per_page - 1, max_num - 1);
 
     while (1)
     {
@@ -1313,13 +1472,14 @@ static int do_ego_item_squelch(void)
             if (first > 0)
                 c_put_str(TERM_WHITE, "-more-", 2, 4);
             if (last < max_num - 1)
-                c_put_str(TERM_WHITE, "-more-", 22, 4);
+                c_put_str(TERM_WHITE, "-more-", layout.footer_row - 1, 4);
 
             /* Page foot */
-            msg = "Navigation: 2, 8, 3, 9, 1, 7 or movement keys"
-                  " - Shorcut: First letter";
+            msg = layout.compact
+                ? "2/8 move 3/9 page 1/7 ends  Enter toggle"
+                : "Navigation: 2, 8, 3, 9, 1, 7 or movement keys - Shorcut: First letter";
 
-            c_put_str(TERM_WHITE, msg, 23, 0);
+            c_put_str(TERM_WHITE, msg, layout.footer_row, 0);
         }
 
         /* Only show a portion of the list */
@@ -1340,7 +1500,9 @@ static int do_ego_item_squelch(void)
         old_active = -1;
 
         /* Get a command */
-        msg = "Command? (SPACE, RET: Toggle selection - ESC: Return) ";
+        msg = layout.compact
+            ? "Command? (Enter toggles, Esc returns) "
+            : "Command? (SPACE, RET: Toggle selection - ESC: Return) ";
         if (!get_com(msg, &ch))
             break;
 
@@ -1396,9 +1558,9 @@ static int do_ego_item_squelch(void)
         case '3':
         {
             /* Advance one "screen" */
-            active = MIN(active + MAX_EGO_ROWS, max_num - 1);
-            last = MIN(last + MAX_EGO_ROWS, max_num - 1);
-            first = MAX(last - MAX_EGO_ROWS + 1, 0);
+            active = MIN(active + rows_per_page, max_num - 1);
+            last = MIN(last + rows_per_page, max_num - 1);
+            first = MAX(last - rows_per_page + 1, 0);
 
             /* Redraw all */
             display_all = 1;
@@ -1408,9 +1570,9 @@ static int do_ego_item_squelch(void)
         case '9':
         {
             /* Retrocede one "screen" */
-            active = MAX(active - MAX_EGO_ROWS, 0);
-            first = MAX(first - MAX_EGO_ROWS, 0);
-            last = MIN(first + MAX_EGO_ROWS - 1, max_num - 1);
+            active = MAX(active - rows_per_page, 0);
+            first = MAX(first - rows_per_page, 0);
+            last = MIN(first + rows_per_page - 1, max_num - 1);
 
             /* Redraw all */
             display_all = 1;
@@ -1420,7 +1582,7 @@ static int do_ego_item_squelch(void)
         {
             /* Go the last special item */
             active = last = max_num - 1;
-            first = MAX(last - MAX_EGO_ROWS + 1, 0);
+            first = MAX(last - rows_per_page + 1, 0);
 
             /* Redraw all */
             display_all = 1;
@@ -1431,7 +1593,7 @@ static int do_ego_item_squelch(void)
         {
             /* Go to the first special item */
             active = first = 0;
-            last = MIN(first + MAX_EGO_ROWS - 1, max_num - 1);
+            last = MIN(first + rows_per_page - 1, max_num - 1);
 
             /* Redraw all */
             display_all = 1;
@@ -1473,8 +1635,8 @@ static int do_ego_item_squelch(void)
             active = i;
             /* Adjust visual bounds */
             /* Try to put the found ego in the first row */
-            last = MIN(active + MAX_EGO_ROWS - 1, max_num - 1);
-            first = MAX(last - MAX_EGO_ROWS + 1, 0);
+            last = MIN(active + rows_per_page - 1, max_num - 1);
+            first = MAX(last - rows_per_page + 1, 0);
             /* Redraw all */
             display_all = 1;
             break;
