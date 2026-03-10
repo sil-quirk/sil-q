@@ -17,11 +17,15 @@
 #define GAMEPAD_BIND_CTRL -3
 #define GAMEPAD_BIND_ALT -4
 #define INPUT_BIND_CONFIRM -5
+#define TOUCH_PANE_BIND_INHERIT -6
 
 #define SDL_TOUCH_PANE_BUTTON_COLS 3
 #define SDL_TOUCH_PANE_BUTTON_ROWS 8
 #define SDL_TOUCH_PANE_BUTTON_COUNT (SDL_TOUCH_PANE_BUTTON_COLS * SDL_TOUCH_PANE_BUTTON_ROWS)
 #define SDL_TOUCH_PANE_LABEL_LEN 24
+#define SDL_TOUCH_PANE_PANEL_COUNT 2
+#define SDL_TOUCH_PANE_PANEL_MAIN 0
+#define SDL_TOUCH_PANE_PANEL_SECOND 1
 
 enum sdl_min_terminal_mode {
     SDL_MIN_TERMINAL_NORMAL = 0,
@@ -85,6 +89,9 @@ struct sdl_config {
     int gamepad_shoulder_combo_binding;   // Binding for L1+R1 combo action
     int touch_pane_bindings[SDL_TOUCH_PANE_BUTTON_COUNT];
     char touch_pane_labels[SDL_TOUCH_PANE_BUTTON_COUNT][SDL_TOUCH_PANE_LABEL_LEN];
+    int touch_pane_second_bindings[SDL_TOUCH_PANE_BUTTON_COUNT];
+    char touch_pane_second_labels[SDL_TOUCH_PANE_BUTTON_COUNT][SDL_TOUCH_PANE_LABEL_LEN];
+    char touch_pane_panel_names[SDL_TOUCH_PANE_PANEL_COUNT][SDL_TOUCH_PANE_LABEL_LEN];
 };
 
 // Load SDL configuration from JSON file

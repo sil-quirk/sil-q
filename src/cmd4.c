@@ -12415,7 +12415,7 @@ static const char* sdl_min_terminal_mode_label(int mode)
 void do_cmd_pane_settings(void)
 {
     int k = 0;
-    int n = 12; /* Total number of options */
+    int n = 11; /* Total number of options */
     bool done = false;
     bool settings_changed = false;
     int dir;
@@ -12523,16 +12523,9 @@ void do_cmd_pane_settings(void)
                                                           : "Fonts"),
             y0 + 9, 2);
 
-        /* Option 10: Touch Pane Buttons */
+        /* Option 10: Save/Return */
         a = (k == 10) ? TERM_L_BLUE : TERM_WHITE;
-        c_prt(a, (layout_mode == 0) ? "Touch Pane Buttons"
-                                    : ((layout_mode == 1) ? "Touch Buttons"
-                                                          : "Touch Buttons"),
-            y0 + 10, 2);
-
-        /* Option 11: Save/Return */
-        a = (k == 11) ? TERM_L_BLUE : TERM_WHITE;
-        c_prt(a, settings_changed ? "Save Changes and Return" : "Return to Options Menu", y0 + 11, 2);
+        c_prt(a, settings_changed ? "Save Changes and Return" : "Return to Options Menu", y0 + 10, 2);
         
         /* Display help */
         int y = Term->hgt - 3;
@@ -12586,11 +12579,6 @@ void do_cmd_pane_settings(void)
             if (k == 9) /* Pane Font Sizes */
             {
                 do_cmd_supporting_pane_font_editor(&settings_changed);
-                break;
-            }
-            if (k == 10) /* Touch Pane Buttons */
-            {
-                do_cmd_touch_pane_button_editor(&settings_changed);
                 break;
             }
 
@@ -12680,11 +12668,7 @@ void do_cmd_pane_settings(void)
             {
                 do_cmd_supporting_pane_font_editor(&settings_changed);
             }
-            else if (k == 10) /* Touch Pane Buttons */
-            {
-                do_cmd_touch_pane_button_editor(&settings_changed);
-            }
-            else if (k == 11) /* Save/Return */
+            else if (k == 10) /* Save/Return */
             {
                 if (settings_changed)
                 {
@@ -13458,7 +13442,7 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
     screen_load();
 }
 
-static const int touch_pane_action_choices[] = {
+static const int touch_pane_main_action_choices[] = {
     GAMEPAD_BIND_NONE,
     ESCAPE, GAMEPAD_BIND_CTRL, GAMEPAD_BIND_SHIFT, INPUT_BIND_CONFIRM,
     'e', 'i', 'j',
@@ -13476,20 +13460,77 @@ static const int touch_pane_action_choices[] = {
     '0', '<', '>', '?', 'O', ':', '~', '[', ']', '@',
 };
 
-static int touch_pane_action_choice_index(int binding)
+static const int touch_pane_second_action_choices[] = {
+    TOUCH_PANE_BIND_INHERIT, GAMEPAD_BIND_NONE,
+    ESCAPE, GAMEPAD_BIND_CTRL, GAMEPAD_BIND_SHIFT, INPUT_BIND_CONFIRM,
+    'e', 'i', 'j',
+    'u', 's', 'f',
+    '7', '8', '9',
+    '4', '5', '6',
+    '1', '2', '3',
+    'a', 'x', 'd',
+    'M', 'h', '\t',
+    'z', '.', '/',
+    'w', 'r', 'k', 'g', 'Z',
+    'o', 'c', 'D', 'X',
+    '-', '{', 'a', 'E', 't', 'p', 'q',
+    'F', 'S', 'l', 'b', 'L',
+    '0', '<', '>', '?', 'O', ':', '~', '[', ']', '@',
+};
+
+static const int* touch_pane_action_choices_for_panel(int panel, int* count)
 {
-    for (int i = 0; i < (int)N_ELEMENTS(touch_pane_action_choices); i++)
+    if (count)
+        *count = (panel == SDL_TOUCH_PANE_PANEL_SECOND)
+            ? (int)N_ELEMENTS(touch_pane_second_action_choices)
+            : (int)N_ELEMENTS(touch_pane_main_action_choices);
+
+    return (panel == SDL_TOUCH_PANE_PANEL_SECOND)
+        ? touch_pane_second_action_choices
+        : touch_pane_main_action_choices;
+}
+
+static int touch_pane_action_choice_index(int panel, int binding)
+{
+    int count = 0;
+    const int* choices = touch_pane_action_choices_for_panel(panel, &count);
+
+    for (int i = 0; i < count; i++)
     {
-        if (touch_pane_action_choices[i] == binding)
+        if (choices[i] == binding)
             return i;
     }
     return 0;
+}
+
+static void touch_pane_action_label_for_panel(int panel, int binding, char* buf, size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    if (binding == TOUCH_PANE_BIND_INHERIT) {
+        SDL_strlcpy(buf, "Main panel button", buflen);
+        return;
+    }
+
+    if (binding == GAMEPAD_BIND_SHIFT) {
+        char panel_name[SDL_TOUCH_PANE_LABEL_LEN];
+        get_sdl_touch_pane_panel_name((panel == SDL_TOUCH_PANE_PANEL_SECOND)
+                ? SDL_TOUCH_PANE_PANEL_MAIN
+                : SDL_TOUCH_PANE_PANEL_SECOND,
+            panel_name, sizeof(panel_name));
+        strnfmt(buf, buflen, "Switch to %s panel", panel_name);
+        return;
+    }
+
+    binding_action_label(binding, buf, buflen);
 }
 
 static void do_cmd_touch_pane_button_editor(bool* settings_changed)
 {
     int highlight = 0;
     int top = 0;
+    int panel = SDL_TOUCH_PANE_PANEL_MAIN;
     bool done = false;
     bool changed = false;
     int term_w, term_h;
@@ -13521,9 +13562,8 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             top = 0;
 
         Term_clear();
-        Term_putstr(2, 1, -1, TERM_L_BLUE, "Touch Pane Buttons");
-        Term_putstr(2, 2, -1, TERM_WHITE, "==================");
-        Term_putstr(2, 3, -1, TERM_SLATE, "Select a grid slot, cycle its action, or rename its label.");
+        Term_putstr(2, 1, -1, TERM_L_BLUE, "Touch Settings");
+        Term_putstr(2, 2, -1, TERM_WHITE, "==============");
 
         row = list_start_row;
         for (int i = top; i < SDL_TOUCH_PANE_BUTTON_COUNT && i < top + visible_rows; i++)
@@ -13532,15 +13572,26 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             char label_buf[SDL_TOUCH_PANE_LABEL_LEN];
             byte a = (i == highlight) ? TERM_L_BLUE : TERM_WHITE;
 
-            get_sdl_touch_pane_button_label(i, label_buf, sizeof(label_buf));
-            binding_action_label(get_sdl_touch_pane_binding(i), action_buf, sizeof(action_buf));
+            get_sdl_touch_pane_button_label_for_panel(panel, i, label_buf, sizeof(label_buf));
+            touch_pane_action_label_for_panel(panel,
+                get_sdl_touch_pane_binding_for_panel(panel, i), action_buf, sizeof(action_buf));
             c_prt(a, format("%-10s %-10s -> %s", get_sdl_touch_pane_slot_name(i), label_buf, action_buf),
                 row++, 2);
         }
 
         row = list_start_row + visible_rows + 1;
-        Term_putstr(2, row++, -1, TERM_SLATE, "Up/Down: select button   4/6: previous/next action   l: rename");
-        Term_putstr(2, row++, -1, TERM_SLATE, "r: reset selected   R: reset all   ESC/Enter: return");
+        {
+            char panel_name[SDL_TOUCH_PANE_LABEL_LEN];
+            char info_buf[96];
+
+            get_sdl_touch_pane_panel_name(panel, panel_name, sizeof(panel_name));
+            strnfmt(info_buf, sizeof(info_buf), "Editing %s panel%s",
+                panel_name, (panel == SDL_TOUCH_PANE_PANEL_SECOND) ? " (empty = main panel)" : "");
+            Term_putstr(2, 3, -1, TERM_SLATE, info_buf);
+        }
+        Term_putstr(2, row++, -1, TERM_SLATE, "Up/Down: select button   4/6: previous/next action   l: rename slot");
+        Term_putstr(2, row++, -1, TERM_SLATE, "Tab: switch panel   p: rename panel   r: reset selected   R: reset all");
+        Term_putstr(2, row++, -1, TERM_SLATE, "ESC/Enter: return");
 
         Term_fresh();
 
@@ -13574,9 +13625,11 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         case 'n':
         case '4':
         {
-            int idx = touch_pane_action_choice_index(get_sdl_touch_pane_binding(highlight));
-            idx = ((int)N_ELEMENTS(touch_pane_action_choices) + idx - 1) % (int)N_ELEMENTS(touch_pane_action_choices);
-            set_sdl_touch_pane_binding(highlight, touch_pane_action_choices[idx]);
+            int choice_count = 0;
+            const int* choices = touch_pane_action_choices_for_panel(panel, &choice_count);
+            int idx = touch_pane_action_choice_index(panel, get_sdl_touch_pane_binding_for_panel(panel, highlight));
+            idx = (choice_count + idx - 1) % choice_count;
+            set_sdl_touch_pane_binding_for_panel(panel, highlight, choices[idx]);
             changed = true;
             break;
         }
@@ -13587,9 +13640,11 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         case 't':
         case '5':
         {
-            int idx = touch_pane_action_choice_index(get_sdl_touch_pane_binding(highlight));
-            idx = (idx + 1) % (int)N_ELEMENTS(touch_pane_action_choices);
-            set_sdl_touch_pane_binding(highlight, touch_pane_action_choices[idx]);
+            int choice_count = 0;
+            const int* choices = touch_pane_action_choices_for_panel(panel, &choice_count);
+            int idx = touch_pane_action_choice_index(panel, get_sdl_touch_pane_binding_for_panel(panel, highlight));
+            idx = (idx + 1) % choice_count;
+            set_sdl_touch_pane_binding_for_panel(panel, highlight, choices[idx]);
             changed = true;
             break;
         }
@@ -13601,22 +13656,48 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             char current_label[SDL_TOUCH_PANE_LABEL_LEN];
             char new_label[SDL_TOUCH_PANE_LABEL_LEN];
 
-            get_sdl_touch_pane_button_label(highlight, current_label, sizeof(current_label));
-            strnfmt(prompt, sizeof(prompt), "New label for %s (blank = auto): ",
+            get_sdl_touch_pane_button_label_for_panel(panel, highlight, current_label, sizeof(current_label));
+            strnfmt(prompt, sizeof(prompt), "New label for %s (blank = use key label): ",
                 get_sdl_touch_pane_slot_name(highlight));
             Term_putstr(2, 4, -1, TERM_SLATE, format("Current label: %s", current_label));
             new_label[0] = '\0';
             if (term_get_string(prompt, new_label, sizeof(new_label)))
             {
-                set_sdl_touch_pane_button_label(highlight, new_label);
+                set_sdl_touch_pane_button_label_for_panel(panel, highlight, new_label);
+                changed = true;
+            }
+            break;
+        }
+
+        case '\t':
+            panel = (panel == SDL_TOUCH_PANE_PANEL_MAIN)
+                ? SDL_TOUCH_PANE_PANEL_SECOND
+                : SDL_TOUCH_PANE_PANEL_MAIN;
+            break;
+
+        case 'p':
+        case 'P':
+        {
+            char prompt[96];
+            char current_name[SDL_TOUCH_PANE_LABEL_LEN];
+            char new_name[SDL_TOUCH_PANE_LABEL_LEN];
+
+            get_sdl_touch_pane_panel_name(panel, current_name, sizeof(current_name));
+            strnfmt(prompt, sizeof(prompt), "Name for current panel (blank = default): ");
+            Term_putstr(2, 4, -1, TERM_SLATE, format("Current panel name: %s", current_name));
+            new_name[0] = '\0';
+            if (term_get_string(prompt, new_name, sizeof(new_name)))
+            {
+                set_sdl_touch_pane_panel_name(panel, new_name);
                 changed = true;
             }
             break;
         }
 
         case 'r':
-            set_sdl_touch_pane_binding(highlight, get_sdl_touch_pane_default_binding(highlight));
-            clear_sdl_touch_pane_button_label(highlight);
+            set_sdl_touch_pane_binding_for_panel(panel, highlight,
+                get_sdl_touch_pane_default_binding_for_panel(panel, highlight));
+            clear_sdl_touch_pane_button_label_for_panel(panel, highlight);
             changed = true;
             break;
 
@@ -13626,7 +13707,7 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             break;
 
         default:
-            bell("Illegal command for touch pane buttons!");
+            bell("Illegal command for touch settings!");
             break;
         }
     }
@@ -13646,15 +13727,16 @@ void do_cmd_controller_settings(void);
 int options_menu(int* highlight)
 {
     int ch;
-    int options = 15; /* added efficiency option */
+    int options = 16;
     int term_wid = 80;
     int term_hgt = 24;
     int title_row = 1;
     int row;
-#ifdef DEBUG_CURSES
-    options = 17;
+    bool allow_debug_menu = false;
+#ifdef SHOW_DEBUG_OPTIONS_MENU
+    allow_debug_menu = true;
 #endif
-    if (p_ptr->noscore)    
+    if (allow_debug_menu && p_ptr->noscore)
         options++;
 
     Term_get_size(&term_wid, &term_hgt);
@@ -13670,36 +13752,38 @@ int options_menu(int* highlight)
     Term_putstr(2, row++, -1, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
         "b) Controller Settings");
     Term_putstr(2, row++, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
-        "c) Pane Settings");
+        "c) Touch Settings");
     Term_putstr(2, row++, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
-        "d) Interface Options");
+        "d) Pane Settings");
     Term_putstr(2, row++, -1, (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
-        "e) Efficiency Options");
+        "e) Interface Options");
     Term_putstr(2, row++, -1, (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
-        "f) Visual Options");
+        "f) Efficiency Options");
     Term_putstr(2, row++, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
-        "t) Text Options");
+        "g) Visual Options");
     Term_putstr(2, row++, -1, (*highlight == 8) ? TERM_L_BLUE : TERM_WHITE,
-        "g) Gameplay Options");
+        "t) Text Options");
     Term_putstr(2, row++, -1, (*highlight == 9) ? TERM_L_BLUE : TERM_WHITE,
-        "h) Sound Options");
+        "h) Gameplay Options");
     Term_putstr(2, row++, -1, (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
-        "i) Load a 'Pref' File");
+        "i) Sound Options");
     Term_putstr(2, row++, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
-        "j) Append Options to a 'Pref' File");
+        "j) Load a 'Pref' File");
     Term_putstr(2, row++, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
-        "k) Set Macros");
+        "k) Append Options to a 'Pref' File");
     Term_putstr(2, row++, -1, (*highlight == 13) ? TERM_L_BLUE : TERM_WHITE,
-        "l) Set Colours");
+        "l) Set Macros");
     Term_putstr(2, row++, -1, (*highlight == 14) ? TERM_L_BLUE : TERM_WHITE,
-        "m) Write a note");
+        "m) Set Colours");
     Term_putstr(2, row++, -1, (*highlight == 15) ? TERM_L_BLUE : TERM_WHITE,
-        "n) Return to Game");
+        "n) Write a note");
+    Term_putstr(2, row++, -1, (*highlight == 16) ? TERM_L_BLUE : TERM_WHITE,
+        "o) Return to Game");
 
-    if (p_ptr->noscore)
+    if (allow_debug_menu && p_ptr->noscore)
     {
-        Term_putstr(2, row++, -1, (*highlight == 16) ? TERM_L_BLUE : TERM_WHITE,
-            "o) Debugging Options");
+        Term_putstr(2, row++, -1, (*highlight == 17) ? TERM_L_BLUE : TERM_WHITE,
+            "p) Debugging Options");
     }
 
     /* Show product name and version on the bottom of the menu */
@@ -13757,13 +13841,13 @@ int options_menu(int* highlight)
         return (6);
     }
 
-    if ((ch == 't') || (ch == 'T'))
+    if ((ch == 'g') || (ch == 'G'))
     {
         *highlight = 7;
         return (7);
     }
 
-    if ((ch == 'g') || (ch == 'G'))
+    if ((ch == 't') || (ch == 'T'))
     {
         *highlight = 8;
         return (8);
@@ -13805,18 +13889,22 @@ int options_menu(int* highlight)
         return (14);
     }
 
-    if ((ch == 'n') || (ch == 'N') || (ch == ESCAPE) || (ch == 'q'))
+    if ((ch == 'n') || (ch == 'N'))
     {
-        /* Return to game */
         *highlight = 15;
         return (15);
     }
 
-    if (p_ptr->noscore && ((ch == 'o') || (ch == 'O')))
+    if ((ch == 'o') || (ch == 'O') || (ch == ESCAPE) || (ch == 'q'))
     {
-        /* Debugging options */
         *highlight = 16;
         return (16);
+    }
+
+    if (allow_debug_menu && p_ptr->noscore && ((ch == 'p') || (ch == 'P')))
+    {
+        *highlight = 17;
+        return (17);
     }
 
     /* Choose current  */
@@ -13889,54 +13977,60 @@ void do_cmd_options(void)
         }
         case 3:
         {
-            do_cmd_pane_settings();
+            do_cmd_touch_pane_button_editor(NULL);
             Term_clear();
             break;
         }
         case 4:
         {
-            do_cmd_options_aux(INTERFACE_PAGE, "Interface Options");
+            do_cmd_pane_settings();
             Term_clear();
             break;
         }
         case 5:
         {
-            do_cmd_options_aux(EFFICIENCY_PAGE, "Efficiency Options");
+            do_cmd_options_aux(INTERFACE_PAGE, "Interface Options");
             Term_clear();
             break;
         }
         case 6:
         {
-            do_cmd_options_aux(VISUAL_PAGE, "Visual Options");
+            do_cmd_options_aux(EFFICIENCY_PAGE, "Efficiency Options");
             Term_clear();
             break;
         }
         case 7:
         {
-            do_cmd_options_aux(TEXT_PAGE, "Text Options");
+            do_cmd_options_aux(VISUAL_PAGE, "Visual Options");
             Term_clear();
             break;
         }
         case 8:
         {
-            do_cmd_options_aux(GAMEPLAY_PAGE, "Gameplay Options");
+            do_cmd_options_aux(TEXT_PAGE, "Text Options");
             Term_clear();
             break;
         }
         case 9:
         {
-            do_cmd_options_aux(SOUND_PAGE, "Sound Options");
+            do_cmd_options_aux(GAMEPLAY_PAGE, "Gameplay Options");
             Term_clear();
             break;
         }
         case 10:
+        {
+            do_cmd_options_aux(SOUND_PAGE, "Sound Options");
+            Term_clear();
+            break;
+        }
+        case 11:
         {
             /* Ask for and load a user pref file */
             do_cmd_pref_file_hack(12);
             Term_clear();
             break;
         }
-        case 11:
+        case 12:
         {
             /* Prompt */
             Term_putstr(2, 14, -1, TERM_SLATE, "(Escape to cancel)");
@@ -13969,32 +14063,32 @@ void do_cmd_options(void)
             Term_clear();
             break;
         }
-        case 12:
+        case 13:
         {
             do_cmd_macros();
             Term_clear();
             break;
         }
-        case 13:
+        case 14:
         {
             do_cmd_colors();
             Term_clear();
             break;
         }
-        case 14:
+        case 15:
         {
             do_cmd_note("", p_ptr->depth);
             Term_clear();
             break;
         }
-        case 15:
+        case 16:
         {
             /* Return to Game */
             return_to_game = true;
             Term_clear();
             break;
         }
-        case 16:
+        case 17:
         {
             /* Debugging Options (only reachable when p_ptr->noscore) */
             do_cmd_options_aux(DEBUG_PAGE, "Debugging Options");

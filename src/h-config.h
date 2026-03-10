@@ -114,4 +114,5 @@
  * Comment this line out for a clean release build.
  * ------------------------------------------------------------------ */
 // #define DEBUG_CURSES  //debug curses functionality
+// #define SHOW_DEBUG_OPTIONS_MENU  // show the options-screen debug menu entry
 // #define DEBUG  //debug messaging

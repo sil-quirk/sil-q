@@ -1689,11 +1689,19 @@ extern void sdl_gamepad_action_binding_short_label(int binding, char* buf, size_
 extern int get_sdl_touch_pane_binding(int index);
 extern void set_sdl_touch_pane_binding(int index, int binding);
 extern int get_sdl_touch_pane_default_binding(int index);
+extern int get_sdl_touch_pane_binding_for_panel(int panel, int index);
+extern void set_sdl_touch_pane_binding_for_panel(int panel, int index, int binding);
+extern int get_sdl_touch_pane_default_binding_for_panel(int panel, int index);
 extern void sdl_touch_pane_reset_bindings_to_default(void);
 extern cptr get_sdl_touch_pane_slot_name(int index);
 extern void get_sdl_touch_pane_button_label(int index, char* buf, size_t buflen);
 extern void set_sdl_touch_pane_button_label(int index, cptr label);
 extern void clear_sdl_touch_pane_button_label(int index);
+extern void get_sdl_touch_pane_button_label_for_panel(int panel, int index, char* buf, size_t buflen);
+extern void set_sdl_touch_pane_button_label_for_panel(int panel, int index, cptr label);
+extern void clear_sdl_touch_pane_button_label_for_panel(int panel, int index);
+extern void get_sdl_touch_pane_panel_name(int panel, char* buf, size_t buflen);
+extern void set_sdl_touch_pane_panel_name(int panel, cptr name);
 /* Steam Deck UI menu helpers - get key bindings for menu actions */
 extern int steamdeck_back_key(void);      /* B button (EAST) - for back/quit */
 extern int steamdeck_confirm_key(void);   /* A button (SOUTH) - for confirm/ok */

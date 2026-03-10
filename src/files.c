@@ -5380,6 +5380,9 @@ void binding_action_label(int binding, char* buf, size_t buflen)
     case GAMEPAD_BIND_NONE:
         SDL_strlcpy(buf, "Unbound", buflen);
         return;
+    case TOUCH_PANE_BIND_INHERIT:
+        SDL_strlcpy(buf, "Main panel button", buflen);
+        return;
     case GAMEPAD_BIND_SHIFT:
         SDL_strlcpy(buf, "Shift modifier", buflen);
         return;
@@ -5583,6 +5586,9 @@ void binding_action_short(int binding, char* buf, size_t buflen)
     switch (binding) {
     case GAMEPAD_BIND_NONE:
         SDL_strlcpy(buf, "Unbound", buflen);
+        return;
+    case TOUCH_PANE_BIND_INHERIT:
+        SDL_strlcpy(buf, "Main", buflen);
         return;
     case GAMEPAD_BIND_SHIFT:
         SDL_strlcpy(buf, "Shift", buflen);
