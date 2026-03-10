@@ -286,6 +286,10 @@ static void sdl_touch_pane_load_default_bindings(void);
 static bool sdl_touch_pane_is_config_enabled(void);
 static void sdl_update_cursor_visibility(void);
 static void sdl_present_if_needed(sdl_view* d);
+static int sdl_build_active_pane_config(struct pane_config* active, bool include_side,
+    bool include_bottom);
+static void sdl_place_active_panes(const SDL_Rect* screen, SDL_Rect* panes,
+    bool include_side, bool include_bottom);
 static void sdl_compute_split_panes(const SDL_Rect* screen, SDL_Rect* panes);
 static int sdl_max_scale_for_rect(const SDL_Rect* rect);
 static void sdl_touch_pane_send_confirm_action(void);
@@ -400,8 +404,30 @@ static void sdl_update_cursor_visibility(void)
         SDL_HideCursor();
 }
 
-static void sdl_compute_split_panes(const SDL_Rect* screen, SDL_Rect* panes)
+static int sdl_build_active_pane_config(struct pane_config* active, bool include_side,
+    bool include_bottom)
 {
+    int active_count = 0;
+
+    for (int i = 0; i < pane_config_count && active_count < MAX_PANE_CONFIGS; i++) {
+        enum pane_placement where = pane_config[i].where;
+
+        if (pane_placement_is_side(where) && !include_side)
+            continue;
+        if (where == PLACE_BOTTOM && !include_bottom)
+            continue;
+
+        active[active_count++] = pane_config[i];
+    }
+
+    return active_count;
+}
+
+static void sdl_place_active_panes(const SDL_Rect* screen, SDL_Rect* panes,
+    bool include_side, bool include_bottom)
+{
+    struct pane_config active[MAX_PANE_CONFIGS];
+    int active_count;
     int aux_cell_w;
     int aux_cell_h;
     int margin_px;
@@ -414,24 +440,15 @@ static void sdl_compute_split_panes(const SDL_Rect* screen, SDL_Rect* panes)
     aux_cell_w = (int)(g_state.system_scale * config.aux_view_font_size / 2);
     aux_cell_h = (int)(g_state.system_scale * config.aux_view_font_size);
     margin_px = (int)(g_state.system_scale * config.margin);
+    active_count = sdl_build_active_pane_config(active, include_side, include_bottom);
 
-    place_panes(pane_config, pane_config_count, panes, screen, aux_cell_w, aux_cell_h, margin_px);
+    place_panes(active, active_count, panes, screen, aux_cell_w, aux_cell_h, margin_px);
+}
 
-    if (!config.enable_right_panes) {
-        for (int i = 0; i < pane_config_count; i++) {
-            if (pane_config[i].where == PLACE_RIGHT)
-                panes[pane_config[i].pane].w = 0;
-        }
-        panes[PANE_MAIN].w = screen->w;
-    }
-
-    if (!config.enable_bottom_panes) {
-        for (int i = 0; i < pane_config_count; i++) {
-            if (pane_config[i].where == PLACE_BOTTOM)
-                panes[pane_config[i].pane].w = 0;
-        }
-        panes[PANE_MAIN].h = screen->h;
-    }
+static void sdl_compute_split_panes(const SDL_Rect* screen, SDL_Rect* panes)
+{
+    sdl_place_active_panes(screen, panes, config.enable_right_panes,
+        config.enable_bottom_panes);
 }
 
 static int sdl_max_scale_for_rect(const SDL_Rect* rect)
@@ -1921,14 +1938,8 @@ void resize(const SDL_Rect* screen)
 {
     log_warn("resize enter");
     SDL_Rect panes[PANE_MAX] = {0};
-    place_panes(pane_config, pane_config_count, panes, screen,
-        g_state.system_scale * config.aux_view_font_size / 2,
-        g_state.system_scale * config.aux_view_font_size,
-        g_state.system_scale * config.margin);
-    for (int i = 0; i < PANE_MAX; i++) {
-        const SDL_Rect* r = &panes[i];
-        log_debug("pane %d is at (%d, %d) size %dx%d", i, r->x, r->y, r->w, r->h);
-    }
+    bool include_side = config.enable_right_panes;
+    bool include_bottom = config.enable_bottom_panes;
 
     // Check whether after splitting the window the main view meets minimum size.
     // If it doesn't, remove panes along the corresponding axis (or axes).
@@ -1939,46 +1950,49 @@ void resize(const SDL_Rect* screen)
         int min_main_cols = sdl_current_min_terminal_cols();
         int min_main_rows = sdl_current_min_terminal_rows();
         log_debug("Cell dimensions: %dx%d (scale=%d, TILE_SIZE=%d)", cell_w, cell_h, config.main_view_scale, TILE_SIZE);
-        // panes are already in window coordinate space, no need to multiply by system_scale
-        int cols = panes[PANE_MAIN].w / cell_w;
-        int rows = panes[PANE_MAIN].h / cell_h;
-        log_debug("Main view: %dx%d pixels = %dx%d cells (minimum required: %dx%d %s)", 
-                  panes[PANE_MAIN].w, panes[PANE_MAIN].h, cols, rows,
-                  min_main_cols, min_main_rows, sdl_min_terminal_mode_name(config.min_terminal_mode));
-        if (cols < min_main_cols || !config.enable_right_panes) {
-            if (cols < min_main_cols) {
-                log_warn("main view too small, %d cols < %d — removing right panes", cols, min_main_cols);
-            } else {
-                log_info("right panes disabled by user setting");
+        int cols;
+        int rows;
+
+        if (!include_side)
+            log_info("side panes disabled by user setting");
+        if (!include_bottom)
+            log_info("bottom panes disabled by user setting");
+
+        sdl_place_active_panes(screen, panes, include_side, include_bottom);
+
+        for (;;) {
+            cols = panes[PANE_MAIN].w / cell_w;
+            rows = panes[PANE_MAIN].h / cell_h;
+            log_debug("Main view: %dx%d pixels at (%d,%d) = %dx%d cells (minimum required: %dx%d %s)",
+                panes[PANE_MAIN].w, panes[PANE_MAIN].h,
+                panes[PANE_MAIN].x, panes[PANE_MAIN].y,
+                cols, rows,
+                min_main_cols, min_main_rows,
+                sdl_min_terminal_mode_name(config.min_terminal_mode));
+
+            if (include_side && cols < min_main_cols) {
+                log_warn("main view too small, %d cols < %d; removing side panes",
+                    cols, min_main_cols);
+                include_side = false;
+                sdl_place_active_panes(screen, panes, include_side, include_bottom);
+                continue;
             }
-            log_debug("Before removing right panes: main view width = %d", panes[PANE_MAIN].w);
-            for (int i = 0; i < pane_config_count; i++) {
-                if (pane_config[i].where == PLACE_RIGHT) {
-                    log_debug("Removing pane %d (type=%d) from right", i, pane_config[i].pane);
-                    panes[pane_config[i].pane].w = 0;
-                }
+
+            if (include_bottom && rows < min_main_rows) {
+                log_warn("main view too small, %d rows < %d; removing bottom panes",
+                    rows, min_main_rows);
+                include_bottom = false;
+                sdl_place_active_panes(screen, panes, include_side, include_bottom);
+                continue;
             }
-            panes[PANE_MAIN].w = screen->w;
-            log_debug("After removing right panes: main view width = %d, cols = %d", 
-                      panes[PANE_MAIN].w, panes[PANE_MAIN].w / cell_w);
+
+            break;
         }
-        if (rows < min_main_rows || !config.enable_bottom_panes) {
-            if (rows < min_main_rows) {
-                log_warn("main view too small, %d rows < %d — removing bottom panes", rows, min_main_rows);
-            } else {
-                log_info("bottom panes disabled by user setting");
-            }
-            log_debug("Before removing bottom panes: main view height = %d", panes[PANE_MAIN].h);
-            for (int i = 0; i < pane_config_count; i++) {
-                if (pane_config[i].where == PLACE_BOTTOM) {
-                    log_debug("Removing pane %d (type=%d) from bottom", i, pane_config[i].pane);
-                    panes[pane_config[i].pane].w = 0;
-                }
-            }
-            panes[PANE_MAIN].h = screen->h;
-            log_debug("After removing bottom panes: main view height = %d, rows = %d",
-                      panes[PANE_MAIN].h, panes[PANE_MAIN].h / cell_h);
-        }
+    }
+
+    for (int i = 0; i < PANE_MAX; i++) {
+        const SDL_Rect* r = &panes[i];
+        log_debug("pane %d is at (%d, %d) size %dx%d", i, r->x, r->y, r->w, r->h);
     }
 
     memcpy(g_pane_rects, panes, sizeof(g_pane_rects));
@@ -2144,7 +2158,7 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
                 }
                 handled = true;
             }
-            // Alt+I : Toggle right panes
+            // Alt+I : Toggle side panes
             else if (key == 'i' || key == 'I') {
                 bool enabled = get_sdl_enable_right_panes();
                 set_sdl_enable_right_panes(!enabled);
@@ -3877,7 +3891,7 @@ void get_sdl_config_info(char* buf, size_t size)
         if (pc->pane == PANE_MAIN)
             continue;
         const char* type_str = "UNKNOWN";
-        const char* where_str = (pc->where == PLACE_BOTTOM) ? "BOTTOM" : "RIGHT";
+        const char* where_str = pane_placement_name(pc->where);
         
         switch (pc->pane) {
             case PANE_MAIN: type_str = "MAIN"; break;
@@ -4068,6 +4082,18 @@ int get_sdl_pane_where(int index)
     if (index < 0 || index >= pane_config_count)
         return 0;
     return (int)pane_config[index].where;
+}
+
+void set_sdl_pane_where(int index, int where)
+{
+    enum pane_placement placement = (enum pane_placement)where;
+
+    if (index < 0 || index >= pane_config_count)
+        return;
+    if (!pane_type_allows_placement(pane_config[index].pane, placement))
+        placement = pane_first_allowed_placement(pane_config[index].pane);
+
+    pane_config[index].where = placement;
 }
 
 bool get_sdl_pane_enabled(int index)
@@ -4923,3 +4949,4 @@ static void sdl_render_story_text_grid(sdl_view* d, TTF_Font* font, int x, int y
         SDL_DestroySurface(glyph_surface);
     }
 }
+

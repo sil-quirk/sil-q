@@ -11,7 +11,8 @@
             android:name="com.silqh.silmore.SilMoreActivity"
             android:exported="true"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|uiMode"
-            android:launchMode="singleTask">
+            android:launchMode="singleTask"
+            android:screenOrientation="sensorLandscape">
 
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

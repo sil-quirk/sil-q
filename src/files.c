@@ -3597,6 +3597,65 @@ static int display_player_compact_trait_max_label_chars(void)
     return max_chars;
 }
 
+static bool display_player_compact_can_embed_traits(int row_start)
+{
+    int wid = 80;
+    int hgt = 24;
+    int skills_count = 0;
+    int attr_block_h = 1 + A_MAX;
+    int skill_block_h;
+    int trait_lines;
+    int trait_block_h;
+    int available_rows;
+    int col_attr = 1;
+    int attr_width = LINEW20;
+    int attr_right_edge = col_attr + attr_width - 1;
+    int col_skill;
+    int col_traits;
+    int trait_width;
+    int trait_max_chars;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1)
+        wid = 80;
+    if (hgt < 1)
+        hgt = 24;
+
+    for (int s = 0; s < S_MAX; ++s)
+        if (s != S_SPC)
+            skills_count++;
+
+    skill_block_h = 1 + skills_count;
+    trait_lines = collect_compact_trait_lines(NULL, 0);
+    if (trait_lines <= 0)
+        return false;
+
+    trait_block_h = 1 + trait_lines;
+    available_rows = hgt - 1 - row_start;
+    if (available_rows < 1)
+        return false;
+
+    col_skill = compact_right_column_start(wid);
+    col_traits = attr_right_edge + 2;
+    trait_width = col_skill - col_traits - 2;
+    trait_max_chars = display_player_compact_trait_max_label_chars();
+    if (trait_max_chars < 6)
+        trait_max_chars = 6;
+
+    if (wid < 64)
+        return false;
+    if (trait_width < trait_max_chars)
+        return false;
+    if (available_rows < attr_block_h)
+        return false;
+    if (available_rows < skill_block_h)
+        return false;
+    if (available_rows < trait_block_h)
+        return false;
+
+    return true;
+}
+
 static int display_player_compact_history_line_count(int wrap_col, int indent)
 {
     if (story_character_enabled())
@@ -3724,6 +3783,49 @@ static void display_player_compact_history_column(int row_start, int col, int wr
         sdl_story_font_disable();
 }
 
+static void display_player_compact_heading(cptr text, int row, int col);
+
+static void display_player_compact_traits_middle_column(int row_start, int col,
+    int max_cols, int row_limit)
+{
+    compact_trait_line lines[96];
+    int line_count = collect_compact_trait_lines(lines, 96);
+    int max_chars = 0;
+    int draw_w;
+    int start_col;
+    int row = row_start;
+
+    if (line_count <= 0 || max_cols < 6)
+        return;
+
+    for (int i = 0; i < line_count; ++i)
+    {
+        int len = (int)strlen(lines[i].txt ? lines[i].txt : "");
+        if (len > max_chars)
+            max_chars = len;
+    }
+
+    draw_w = max_chars;
+    if (draw_w > max_cols)
+        draw_w = max_cols;
+    if (draw_w < 1)
+        draw_w = 1;
+
+    start_col = col + (max_cols - draw_w) / 2;
+    display_player_compact_heading("Traits", row++, start_col);
+
+    for (int i = 0; i < line_count && row < row_limit; ++i)
+    {
+        char line_buf[64];
+        const char* src = lines[i].txt ? lines[i].txt : "";
+
+        strnfmt(line_buf, sizeof(line_buf), "%.*s", draw_w, src);
+        Term_erase(col, row, max_cols);
+        Term_putstr(start_col, row, max_cols, lines[i].col, line_buf);
+        row++;
+    }
+}
+
 static void display_player_compact_heading(cptr text, int row, int col)
 {
     bool use_story = story_character_enabled();
@@ -3745,6 +3847,8 @@ static void display_player_compact_description_and_flags(int row_start,
     int wid = 80;
     int hgt = 24;
     int scroll = display_player_compact_scroll;
+    bool traits_moved_to_stats_page = display_player_compact_can_embed_traits(
+        visible_row_start);
 
     Term_get_size(&wid, &hgt);
     if (wid < 1) wid = 80;
@@ -3755,6 +3859,22 @@ static void display_player_compact_description_and_flags(int row_start,
     if (available_rows <= 0)
     {
         display_player_compact_max_scroll = 0;
+        return;
+    }
+
+    if (traits_moved_to_stats_page)
+    {
+        int history_lines = display_player_compact_history_line_count(
+            wid - COMPACT_RIGHT_PAD, 1);
+        int max_scroll = history_lines - available_rows;
+        if (max_scroll < 0)
+            max_scroll = 0;
+        if (scroll > max_scroll)
+            scroll = max_scroll;
+
+        display_player_compact_max_scroll = max_scroll;
+        display_player_compact_history_column(row_start, 1,
+            wid - COMPACT_RIGHT_PAD, scroll, row_limit);
         return;
     }
 
@@ -4075,10 +4195,32 @@ static void display_player_compact_attributes_and_skills(int row_start)
     int attr_width = LINEW20;
     int attr_right_edge = col_attr + attr_width - 1;
     int col_skill = compact_right_column_start(wid);
+    bool embed_traits = display_player_compact_can_embed_traits(row_start);
 
     bool side_by_side = (wid >= 50)
         && (col_skill >= attr_right_edge + 2)
         && (row_start + block_h <= hgt - 1);
+
+    if (embed_traits)
+    {
+        int col_traits = attr_right_edge + 2;
+        int traits_width = col_skill - col_traits - 2;
+        int row = row_start;
+
+        display_player_compact_attributes(row_start, attr_width);
+        display_player_compact_heading("Skills", row++, col_skill);
+
+        for (int skill = 0; skill < S_MAX && row < hgt - 1; ++skill)
+        {
+            if (skill == S_SPC)
+                continue;
+            display_player_compact_skill_line(row++, col_skill, LINEW20, skill);
+        }
+
+        display_player_compact_traits_middle_column(row_start, col_traits,
+            traits_width, hgt - 1);
+        return;
+    }
 
     /* Render attributes first using width appropriate to the chosen layout. */
     display_player_compact_attributes(row_start, side_by_side ? attr_width : 0);
@@ -7282,11 +7424,17 @@ static void print_tomb(high_score* the_score)
  */
 static void show_info(void)
 {
+    int term_wid = 80;
+    int term_hgt = 24;
+
+    Term_get_size(&term_wid, &term_hgt);
+
     /* Display player */
     display_player(0);
 
     /* Prompt for inventory */
-    Term_putstr(30, 22, -1, TERM_L_WHITE, "(press any key)");
+    Term_putstr(MAX(0, term_wid - 18), term_hgt - 2, -1, TERM_L_WHITE,
+        "(press any key)");
 
     /* Allow abort at this point */
     if (inkey() == ESCAPE)
@@ -7301,7 +7449,8 @@ static void show_info(void)
         item_tester_full = true;
         show_equip();
         prt("You are using:", 0, 0);
-        Term_putstr(30, 16, -1, TERM_L_WHITE, "(press any key)");
+        Term_putstr(MAX(0, term_wid - 18), term_hgt - 2, -1, TERM_L_WHITE,
+            "(press any key)");
         if (inkey() == ESCAPE)
             return;
         item_tester_full = false;
@@ -7314,8 +7463,8 @@ static void show_info(void)
         item_tester_full = true;
         show_inven();
         prt("You are carrying:", 0, 0);
-        Term_putstr(
-            30, p_ptr->inven_cnt + 2, -1, TERM_L_WHITE, "(press any key)");
+        Term_putstr(MAX(0, term_wid - 18), MIN(p_ptr->inven_cnt + 2, term_hgt - 2),
+            -1, TERM_L_WHITE, "(press any key)");
         if (inkey() == ESCAPE)
             return;
         item_tester_full = false;
@@ -9054,6 +9203,11 @@ static int final_menu(int* highlight)
 {
     char ch;
     bool morgoth_victory = (p_ptr->morgoth_slain && !p_ptr->escaped);
+    int term_wid = 80;
+    int term_hgt = 24;
+    int separator_row;
+    int option_row;
+    char separator[96];
 
     const char* option_a = morgoth_victory ? "a) Review the Valar's record"
                                            : "a) View scores";
@@ -9069,28 +9223,39 @@ static int final_menu(int* highlight)
                                            : "f) Save character sheet";
     const char* option_exit = "g) Exit";
 
-    Term_putstr(3, 10, -1, TERM_L_DARK,
-        "____________________________________________________");
-    Term_putstr(15, 12, -1, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
+    Term_get_size(&term_wid, &term_hgt);
+    separator_row = (term_hgt < 20) ? 9 : 10;
+    option_row = separator_row + 2;
+    memset(separator, '_', sizeof(separator) - 1);
+    separator[MIN((int)sizeof(separator) - 1, MAX(1, term_wid - 6))] = '\0';
+
+    Term_putstr(3, separator_row, term_wid - 6, TERM_L_DARK, separator);
+    Term_putstr(15, option_row++, term_wid - 15,
+        (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
         option_a);
-    Term_putstr(15, 13, -1, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(15, option_row++, term_wid - 15,
+        (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
         option_b);
-    Term_putstr(15, 14, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(15, option_row++, term_wid - 15,
+        (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
         option_c);
-    Term_putstr(15, 15, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(15, option_row++, term_wid - 15,
+        (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
         option_d);
-    Term_putstr(15, 16, -1, (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(15, option_row++, term_wid - 15,
+        (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
         option_e);
-    Term_putstr(15, 17, -1, (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(15, option_row++, term_wid - 15,
+        (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
         option_f);
-    Term_putstr(
-        15, 19, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE, option_exit);
+    Term_putstr(15, option_row, term_wid - 15,
+        (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE, option_exit);
 
     /* Flush the prompt */
     Term_fresh();
 
     /* Place cursor at current choice */
-    Term_gotoxy(10, 18 + *highlight);
+    Term_gotoxy(10, separator_row + 1 + *highlight);
 
     /* Get key (while allowing menu commands) */
     hide_cursor = true;
@@ -9787,21 +9952,31 @@ static void handle_signal_abort(int sig)
         quit(NULL);
 
     /* Clear the bottom line */
-    Term_erase(0, 23, 255);
+    {
+        int term_wid = 80;
+        int term_hgt = 24;
+        int status_row;
+        int message_col;
 
-    /* Give a warning */
-    Term_putstr(
-        0, 23, -1, TERM_RED, "A gruesome software bug LEAPS out at you!");
+        Term_get_size(&term_wid, &term_hgt);
+        status_row = term_hgt - 1;
+        message_col = MAX(0, term_wid - 21);
 
-    /* Show and log the triggering signal */
-    Term_erase(0, 22, 255);
-    Term_putstr(0, 22, -1, TERM_RED, signal_text);
+        Term_erase(0, status_row, 255);
 
-    /* Message */
-    Term_putstr(45, 23, -1, TERM_RED, "Panic save...");
+        /* Give a warning */
+        Term_putstr(
+            0, status_row, -1, TERM_RED, "A gruesome software bug LEAPS out at you!");
 
-    /* Flush output */
-    Term_fresh();
+        /* Show and log the triggering signal */
+        Term_erase(0, status_row - 1, 255);
+        Term_putstr(0, status_row - 1, -1, TERM_RED, signal_text);
+
+        /* Message */
+        Term_putstr(message_col, status_row, -1, TERM_RED, "Panic save...");
+
+        /* Flush output */
+        Term_fresh();
 
     /* Panic Save */
     p_ptr->panic_save = 1;
@@ -9813,20 +9988,23 @@ static void handle_signal_abort(int sig)
     /* Forbid suspend */
     signals_ignore_tstp();
 
-    /* Attempt to save */
-    if (save_player())
-    {
-        Term_putstr(45, 23, -1, TERM_RED, "Panic save succeeded!");
-    }
+        /* Attempt to save */
+        if (save_player())
+        {
+            Term_putstr(message_col, status_row, -1, TERM_RED,
+                "Panic save succeeded!");
+        }
 
-    /* Save failed */
-    else
-    {
-        Term_putstr(45, 23, -1, TERM_RED, "Panic save failed!");
-    }
+        /* Save failed */
+        else
+        {
+            Term_putstr(message_col, status_row, -1, TERM_RED,
+                "Panic save failed!");
+        }
 
-    /* Flush output */
-    Term_fresh();
+        /* Flush output */
+        Term_fresh();
+    }
 
     /* Quit */
     quit(format("software bug (%s)", signal_text));

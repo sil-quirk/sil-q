@@ -2839,9 +2839,24 @@ void clear_from(int row)
  * Note that 'len' refers to the size of the buffer.  The maximum length
  * of the input is 'len-1'.
  */
+static int active_term_width(void)
+{
+    int wid = 80;
+    int hgt = 24;
+
+    if (Term)
+        Term_get_size(&wid, &hgt);
+
+    if (wid < 1)
+        wid = 80;
+
+    return wid;
+}
+
 bool askfor_aux(char* buf, size_t len)
 {
     int y, x;
+    int term_wid = active_term_width();
 
     size_t k = 0;
 
@@ -2853,12 +2868,14 @@ bool askfor_aux(char* buf, size_t len)
     Term_locate(&x, &y);
 
     /* Paranoia */
-    if ((x < 0) || (x >= 80))
+    if ((x < 0) || (x >= term_wid))
         x = 0;
 
     /* Restrict the length */
-    if (x + len > 80)
-        len = 80 - x;
+    if ((size_t)x + len > (size_t)term_wid)
+        len = (size_t)(term_wid - x);
+    if (len < 1)
+        len = 1;
 
     /* Truncate the default entry */
     buf[len - 1] = '\0';
@@ -2936,6 +2953,7 @@ bool askfor_aux(char* buf, size_t len)
 bool askfor_name(char* buf, size_t len)
 {
     int y, x;
+    int term_wid = active_term_width();
 
     size_t k = 0;
 
@@ -2948,12 +2966,14 @@ bool askfor_name(char* buf, size_t len)
     Term_locate(&x, &y);
 
     /* Paranoia */
-    if ((x < 0) || (x >= 80))
+    if ((x < 0) || (x >= term_wid))
         x = 0;
 
     /* Restrict the length */
-    if (x + len > 80)
-        len = 80 - x;
+    if ((size_t)x + len > (size_t)term_wid)
+        len = (size_t)(term_wid - x);
+    if (len < 1)
+        len = 1;
 
     /* Truncate the default entry */
     buf[len - 1] = '\0';
@@ -3298,8 +3318,10 @@ s16b get_quantity(cptr prompt, int max)
 int get_check_other(cptr prompt, char other)
 {
     char ch;
-
-    char buf[80];
+    char buf[160];
+    int term_wid = active_term_width();
+    int suffix_wid = 9;
+    int prompt_wid = term_wid - suffix_wid;
 
     /*default set to no*/
     int result = 0;
@@ -3308,7 +3330,9 @@ int get_check_other(cptr prompt, char other)
     message_flush();
 
     /* Hack -- Build a "useful" prompt */
-    strnfmt(buf, 78, "%.70s[y/n/%c] ", prompt, other);
+    if (prompt_wid < 8)
+        prompt_wid = 8;
+    strnfmt(buf, sizeof(buf), "%.*s[y/n/%c] ", prompt_wid, prompt, other);
 
     /* Prompt for it */
     prt(buf, 0, 0);
@@ -3356,14 +3380,20 @@ bool get_check(cptr prompt)
 {
     char ch;
 
-    char buf[80];
+    char buf[160];
     bool steamdeck = steamdeck_controls_active();
+    int term_wid = active_term_width();
+    int suffix_wid = steamdeck ? 13 : 7;
+    int prompt_wid = term_wid - suffix_wid;
 
     /* Paranoia XXX XXX XXX */
     message_flush();
 
     /* Hack -- Build a "useful" prompt */
-    strnfmt(buf, 78, "%.70s[y/n%s] ", prompt, steamdeck ? "/space" : "");
+    if (prompt_wid < 8)
+        prompt_wid = 8;
+    strnfmt(buf, sizeof(buf), "%.*s[y/n%s] ", prompt_wid, prompt,
+        steamdeck ? "/space" : "");
 
     /* Prompt for it */
     prt(buf, 0, 0);

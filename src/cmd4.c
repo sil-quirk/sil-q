@@ -837,7 +837,6 @@ static bool ability_menu_use_compact_layout(void)
 
     return (wid < 80);
 }
-
 static int ability_menu_list_col(void)
 {
     return ability_menu_use_compact_layout() ? COL_SKILL : COL_ABILITY;
@@ -12441,9 +12440,9 @@ void do_cmd_pane_settings(void)
         strnfmt(buf, sizeof(buf), "%-48s: %s", "Tiles", get_sdl_tiles() ? "yes" : "no ");
         c_prt(a, buf, y0 + 5, 2);
 
-        /* Option 6: Enable Right Panes */
+        /* Option 6: Enable Side Panes */
         a = (k == 6) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(buf, sizeof(buf), "%-48s: %s", "Enable Right Panes [Alt+I]", get_sdl_enable_right_panes() ? "yes" : "no ");
+        strnfmt(buf, sizeof(buf), "%-48s: %s", "Enable Side Panes [Alt+I]", get_sdl_enable_right_panes() ? "yes" : "no ");
         c_prt(a, buf, y0 + 6, 2);
 
         /* Option 7: Enable Bottom Panes */
@@ -12563,7 +12562,7 @@ void do_cmd_pane_settings(void)
                 set_sdl_tiles(!get_sdl_tiles());
                 settings_changed = true;
             }
-            else if (k == 6) /* Enable Right Panes */
+            else if (k == 6) /* Enable Side Panes */
             {
                 set_sdl_enable_right_panes(!get_sdl_enable_right_panes());
                 settings_changed = true;
@@ -12653,7 +12652,7 @@ void do_cmd_pane_settings(void)
                 set_sdl_tiles(true);
                 settings_changed = true;
             }
-            else if (k == 6) /* Enable Right Panes */
+            else if (k == 6) /* Enable Side Panes */
             {
                 set_sdl_enable_right_panes(true);
                 settings_changed = true;
@@ -12723,7 +12722,7 @@ void do_cmd_pane_settings(void)
                 set_sdl_tiles(false);
                 settings_changed = true;
             }
-            else if (k == 6) /* Enable Right Panes */
+            else if (k == 6) /* Enable Side Panes */
             {
                 set_sdl_enable_right_panes(false);
                 settings_changed = true;
@@ -12768,16 +12767,6 @@ static const char* pane_type_name(enum pane_type type)
     }
 }
 
-static const char* pane_where_name(enum pane_placement where)
-{
-    switch (where)
-    {
-    case PLACE_RIGHT: return "RIGHT";
-    case PLACE_BOTTOM: return "BOTTOM";
-    default: return "?";
-    }
-}
-
 static int get_supporting_pane_config_count(void)
 {
     int count = 0;
@@ -12791,13 +12780,90 @@ static int get_supporting_pane_config_count(void)
     return count;
 }
 
+static int supporting_pane_master_idx(const int* pane_indices, int pane_count,
+    enum pane_placement where)
+{
+    int fallback = -1;
+
+    for (int i = 0; i < pane_count; i++)
+    {
+        int idx = pane_indices[i];
+        if ((enum pane_placement)get_sdl_pane_where(idx) != where)
+            continue;
+        if (fallback < 0)
+            fallback = idx;
+        if (get_sdl_pane_enabled(idx))
+            return idx;
+    }
+
+    return fallback;
+}
+
+static bool supporting_pane_rows_locked(const int* pane_indices, int pane_count, int idx)
+{
+    enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
+    int master_idx = supporting_pane_master_idx(pane_indices, pane_count, where);
+
+    return (where == PLACE_BOTTOM && idx != master_idx);
+}
+
+static bool supporting_pane_cols_locked(const int* pane_indices, int pane_count, int idx)
+{
+    enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
+    int master_idx = supporting_pane_master_idx(pane_indices, pane_count, where);
+
+    return (pane_placement_is_side(where) && idx != master_idx);
+}
+
+static void supporting_pane_ensure_editable_field(int* field, const int* pane_indices,
+    int pane_count, int sel)
+{
+    int idx;
+
+    if (!field || pane_count <= 0 || sel < 0 || sel >= pane_count)
+        return;
+
+    idx = pane_indices[sel];
+    while ((*field == 2 && supporting_pane_rows_locked(pane_indices, pane_count, idx))
+        || (*field == 3 && supporting_pane_cols_locked(pane_indices, pane_count, idx)))
+    {
+        *field = (*field + 1) % 4;
+    }
+}
+
+static bool supporting_pane_normalize_shared_sizes(const int* pane_indices, int pane_count)
+{
+    bool changed = false;
+
+    for (int i = 0; i < pane_count; i++)
+    {
+        int idx = pane_indices[i];
+        enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
+        int master_idx = supporting_pane_master_idx(pane_indices, pane_count, where);
+
+        if (where == PLACE_BOTTOM && idx != master_idx && get_sdl_pane_rows(idx) != 0)
+        {
+            set_sdl_pane_rows(idx, 0);
+            changed = true;
+        }
+        else if (pane_placement_is_side(where) && idx != master_idx
+            && get_sdl_pane_cols(idx) != 0)
+        {
+            set_sdl_pane_cols(idx, 0);
+            changed = true;
+        }
+    }
+
+    return changed;
+}
+
 static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
 {
     enum { MAX_PANES_LOCAL = 8 };
     int pane_indices[MAX_PANES_LOCAL];
     int pane_count = 0;
-
     int total = get_pane_config_count();
+
     for (int i = 0; i < total && pane_count < MAX_PANES_LOCAL; i++)
     {
         enum pane_type type = (enum pane_type)get_sdl_pane_type(i);
@@ -12806,28 +12872,10 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
         pane_indices[pane_count++] = i;
     }
 
-    /* Determine the “master” panes:
-     * - RIGHT: only the first RIGHT pane controls cols (shared width)
-     * - BOTTOM: only the first BOTTOM pane controls rows (shared height)
-     */
-    int right_master_idx = -1;
-    int bottom_master_idx = -1;
-    for (int i = 0; i < pane_count; i++)
-    {
-        int idx = pane_indices[i];
-        enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
-        if (!get_sdl_pane_enabled(idx))
-            continue;
-        if (where == PLACE_RIGHT && right_master_idx < 0)
-            right_master_idx = idx;
-        if (where == PLACE_BOTTOM && bottom_master_idx < 0)
-            bottom_master_idx = idx;
-    }
-
     screen_save();
 
     int sel = 0;
-    int field = 0; /* 0 = enabled, 1 = rows, 2 = cols */
+    int field = 0; /* 0 = enabled, 1 = where, 2 = rows, 3 = cols */
     bool done = false;
     bool changed = false;
     int dir;
@@ -12844,44 +12892,12 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
         return;
     }
 
-    /* Enforce shared-axis rules by clearing non-master primary-axis sizes.
-     * This ensures they truly “do nothing” in the layout calculation.
-     */
-    for (int i = 0; i < pane_count; i++)
+    if (supporting_pane_normalize_shared_sizes(pane_indices, pane_count))
     {
-        int idx = pane_indices[i];
-        enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
-        if (!get_sdl_pane_enabled(idx))
-            continue;
-        if (where == PLACE_RIGHT && idx != right_master_idx)
-        {
-            if (get_sdl_pane_cols(idx) != 0)
-            {
-                set_sdl_pane_cols(idx, 0);
-                changed = true;
-            }
-        }
-        else if (where == PLACE_BOTTOM && idx != bottom_master_idx)
-        {
-            if (get_sdl_pane_rows(idx) != 0)
-            {
-                set_sdl_pane_rows(idx, 0);
-                changed = true;
-            }
-        }
-    }
-    if (changed)
+        changed = true;
         sdl_apply_config();
-
-    /* Keep the cursor on an editable field. */
-    {
-        int idx = pane_indices[sel];
-        enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
-        bool rows_locked = (where == PLACE_BOTTOM && idx != bottom_master_idx);
-        bool cols_locked = (where == PLACE_RIGHT && idx != right_master_idx);
-        while ((field == 1 && rows_locked) || (field == 2 && cols_locked))
-            field = (field + 1) % 3;
     }
+    supporting_pane_ensure_editable_field(&field, pane_indices, pane_count, sel);
 
     while (!done)
     {
@@ -12892,57 +12908,62 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
         int y0 = 4;
         int x_type = 2;
         int x_where = 14;
-        int x_enabled_label = 23;
-        int x_enabled_value = 27;
-        int x_rows_label = 35;
-        int x_rows_value = 41;
-        int x_cols_label = 50;
-        int x_cols_value = 56;
+        int x_enabled_label = 29;
+        int x_enabled_value = 33;
+        int x_rows_label = 41;
+        int x_rows_value = 47;
+        int x_cols_label = 56;
+        int x_cols_value = 62;
+
         for (int i = 0; i < pane_count && (y0 + i) < Term->hgt - 5; i++)
         {
             int idx = pane_indices[i];
             enum pane_type type = (enum pane_type)get_sdl_pane_type(idx);
             enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
+            int master_idx = supporting_pane_master_idx(pane_indices, pane_count, where);
             bool enabled = get_sdl_pane_enabled(idx);
+            bool rows_locked = supporting_pane_rows_locked(pane_indices, pane_count, idx);
+            bool cols_locked = supporting_pane_cols_locked(pane_indices, pane_count, idx);
             int rows = get_sdl_pane_rows(idx);
             int cols = get_sdl_pane_cols(idx);
-
             byte a = enabled ? ((i == sel) ? TERM_L_BLUE : TERM_WHITE) : TERM_SLATE;
-            bool rows_locked = (where == PLACE_BOTTOM && idx != bottom_master_idx);
-            bool cols_locked = (where == PLACE_RIGHT && idx != right_master_idx);
-
-            /* Build fixed-width field strings for clean alignment.
-             * Each is exactly 5 chars: " %3d ", "[%3d]", or " --- ".
-             */
             char enabled_field[8];
+            char where_field[16];
             char rows_field[8];
             char cols_field[8];
+
             if (i == sel && field == 0)
                 strnfmt(enabled_field, sizeof(enabled_field), "[%s]", enabled ? "on " : "off");
             else
                 strnfmt(enabled_field, sizeof(enabled_field), " %s ", enabled ? "on " : "off");
+
+            if (i == sel && field == 1)
+                strnfmt(where_field, sizeof(where_field), "[%-12s]", pane_placement_name(where));
+            else
+                strnfmt(where_field, sizeof(where_field), " %-12s ", pane_placement_name(where));
+
             if (rows_locked)
             {
-                int shared_rows = (bottom_master_idx >= 0) ? get_sdl_pane_rows(bottom_master_idx) : rows;
+                int shared_rows = (master_idx >= 0) ? get_sdl_pane_rows(master_idx) : rows;
                 strnfmt(rows_field, sizeof(rows_field), " %3d ", shared_rows);
             }
-            else if (i == sel && field == 1)
+            else if (i == sel && field == 2)
                 strnfmt(rows_field, sizeof(rows_field), "[%3d]", rows);
             else
                 strnfmt(rows_field, sizeof(rows_field), " %3d ", rows);
 
             if (cols_locked)
             {
-                int shared_cols = (right_master_idx >= 0) ? get_sdl_pane_cols(right_master_idx) : cols;
+                int shared_cols = (master_idx >= 0) ? get_sdl_pane_cols(master_idx) : cols;
                 strnfmt(cols_field, sizeof(cols_field), " %3d ", shared_cols);
             }
-            else if (i == sel && field == 2)
+            else if (i == sel && field == 3)
                 strnfmt(cols_field, sizeof(cols_field), "[%3d]", cols);
             else
                 strnfmt(cols_field, sizeof(cols_field), " %3d ", cols);
 
             c_prt(a, pane_type_name(type), y0 + i, x_type);
-            c_prt(a, pane_where_name(where), y0 + i, x_where);
+            c_prt(a, where_field, y0 + i, x_where);
             c_prt(a, "on:", y0 + i, x_enabled_label);
             c_prt(a, enabled_field, y0 + i, x_enabled_value);
             c_prt(a, "rows:", y0 + i, x_rows_label);
@@ -12951,11 +12972,17 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
             c_prt(a, cols_field, y0 + i, x_cols_value);
         }
 
-        int y = Term->hgt - 4;
-        Term_putstr(2, y++, -1, TERM_SLATE, "Up/Down: select pane   Space: choose on/off, rows, cols");
-        Term_putstr(2, y++, -1, TERM_SLATE, "4/6 (or n/y): off/on or -/+ value   0: set rows/cols to auto");
-        Term_putstr(2, y++, -1, TERM_SLATE, "RIGHT: cols shared (edit first RIGHT)   BOTTOM: rows shared (edit first BOTTOM)");
-        Term_putstr(2, y++, -1, TERM_SLATE, "ESC/Enter: return (changes apply immediately)");
+        {
+            int y = Term->hgt - 4;
+            Term_putstr(2, y++, -1, TERM_SLATE,
+                "Up/Down: select pane   Space: choose on/off, where, rows, cols");
+            Term_putstr(2, y++, -1, TERM_SLATE,
+                "4/6 (or n/y): toggle, cycle, or +/- value   0: set rows/cols to auto");
+            Term_putstr(2, y++, -1, TERM_SLATE,
+                "Each side slot shares cols with its first pane; bottom panes share rows");
+            Term_putstr(2, y++, -1, TERM_SLATE,
+                "ESC/Enter: return (changes apply immediately)");
+        }
 
         Term_fresh();
 
@@ -12978,65 +13005,48 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
         case ' ':
         case 't':
         case '5':
-            field = (field + 1) % 3;
-            {
-                int idx = pane_indices[sel];
-                enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
-                bool rows_locked = (where == PLACE_BOTTOM && idx != bottom_master_idx);
-                bool cols_locked = (where == PLACE_RIGHT && idx != right_master_idx);
-                while ((field == 1 && rows_locked) || (field == 2 && cols_locked))
-                    field = (field + 1) % 3;
-            }
+            field = (field + 1) % 4;
+            supporting_pane_ensure_editable_field(&field, pane_indices, pane_count, sel);
             break;
 
         case '-':
         case '8':
             sel = (pane_count + sel - 1) % pane_count;
-            {
-                int idx = pane_indices[sel];
-                enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
-                bool rows_locked = (where == PLACE_BOTTOM && idx != bottom_master_idx);
-                bool cols_locked = (where == PLACE_RIGHT && idx != right_master_idx);
-                while ((field == 1 && rows_locked) || (field == 2 && cols_locked))
-                    field = (field + 1) % 3;
-            }
+            supporting_pane_ensure_editable_field(&field, pane_indices, pane_count, sel);
             break;
 
         case '2':
             sel = (sel + 1) % pane_count;
-            {
-                int idx = pane_indices[sel];
-                enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
-                bool rows_locked = (where == PLACE_BOTTOM && idx != bottom_master_idx);
-                bool cols_locked = (where == PLACE_RIGHT && idx != right_master_idx);
-                while ((field == 1 && rows_locked) || (field == 2 && cols_locked))
-                    field = (field + 1) % 3;
-            }
+            supporting_pane_ensure_editable_field(&field, pane_indices, pane_count, sel);
             break;
 
         case '0':
         {
             int idx = pane_indices[sel];
-            enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
-            bool rows_locked = (where == PLACE_BOTTOM && idx != bottom_master_idx);
-            bool cols_locked = (where == PLACE_RIGHT && idx != right_master_idx);
-            if (field == 0)
+            if (field == 0 || field == 1)
             {
-                bell("Use 4/6 to toggle pane enabled");
+                bell("Use 4/6 to toggle enabled or cycle placement");
                 break;
             }
-            if (field == 1 && rows_locked)
+            if (field == 2 && supporting_pane_rows_locked(pane_indices, pane_count, idx))
             {
                 bell("Rows are shared for bottom panes");
                 break;
             }
-            if (field == 2 && cols_locked)
+            if (field == 3 && supporting_pane_cols_locked(pane_indices, pane_count, idx))
             {
-                bell("Cols are shared for right panes");
+                bell("Cols are shared within each side slot");
                 break;
             }
-            if (field == 1) set_sdl_pane_rows(idx, 0);
-            else set_sdl_pane_cols(idx, 0);
+
+            if (field == 2)
+                set_sdl_pane_rows(idx, 0);
+            else
+                set_sdl_pane_cols(idx, 0);
+
+            if (supporting_pane_normalize_shared_sizes(pane_indices, pane_count))
+                changed = true;
+            supporting_pane_ensure_editable_field(&field, pane_indices, pane_count, sel);
             changed = true;
             sdl_apply_config();
             break;
@@ -13044,99 +13054,44 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
 
         case 'n':
         case '4':
-        {
-            int idx = pane_indices[sel];
-            enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
-            bool rows_locked = (where == PLACE_BOTTOM && idx != bottom_master_idx);
-            bool cols_locked = (where == PLACE_RIGHT && idx != right_master_idx);
-            if (field == 0)
-            {
-                set_sdl_pane_enabled(idx, false);
-            }
-            else if (field == 1 && rows_locked)
-            {
-                bell("Rows are shared for bottom panes");
-                break;
-            }
-            else if (field == 2 && cols_locked)
-            {
-                bell("Cols are shared for right panes");
-                break;
-            }
-            else if (field == 1) set_sdl_pane_rows(idx, get_sdl_pane_rows(idx) - 1);
-            else set_sdl_pane_cols(idx, get_sdl_pane_cols(idx) - 1);
-
-            right_master_idx = -1;
-            bottom_master_idx = -1;
-            for (int i = 0; i < pane_count; i++)
-            {
-                int cur = pane_indices[i];
-                enum pane_placement cur_where = (enum pane_placement)get_sdl_pane_where(cur);
-                if (!get_sdl_pane_enabled(cur))
-                    continue;
-                if (cur_where == PLACE_RIGHT && right_master_idx < 0)
-                    right_master_idx = cur;
-                if (cur_where == PLACE_BOTTOM && bottom_master_idx < 0)
-                    bottom_master_idx = cur;
-            }
-            {
-                int cur = pane_indices[sel];
-                enum pane_placement cur_where = (enum pane_placement)get_sdl_pane_where(cur);
-                bool rows_locked_cur = (cur_where == PLACE_BOTTOM && cur != bottom_master_idx);
-                bool cols_locked_cur = (cur_where == PLACE_RIGHT && cur != right_master_idx);
-                while ((field == 1 && rows_locked_cur) || (field == 2 && cols_locked_cur))
-                    field = (field + 1) % 3;
-            }
-            changed = true;
-            sdl_apply_config();
-            break;
-        }
-
         case 'y':
         case '6':
         {
             int idx = pane_indices[sel];
+            int delta = ((ch == 'n') || (ch == '4')) ? -1 : 1;
+            enum pane_type type = (enum pane_type)get_sdl_pane_type(idx);
             enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
-            bool rows_locked = (where == PLACE_BOTTOM && idx != bottom_master_idx);
-            bool cols_locked = (where == PLACE_RIGHT && idx != right_master_idx);
+
             if (field == 0)
             {
-                set_sdl_pane_enabled(idx, true);
+                set_sdl_pane_enabled(idx, (delta > 0));
             }
-            else if (field == 1 && rows_locked)
+            else if (field == 1)
             {
-                bell("Rows are shared for bottom panes");
-                break;
+                set_sdl_pane_where(idx, pane_next_allowed_placement(type, where, delta));
             }
-            else if (field == 2 && cols_locked)
+            else if (field == 2)
             {
-                bell("Cols are shared for right panes");
-                break;
+                if (supporting_pane_rows_locked(pane_indices, pane_count, idx))
+                {
+                    bell("Rows are shared for bottom panes");
+                    break;
+                }
+                set_sdl_pane_rows(idx, get_sdl_pane_rows(idx) + delta);
             }
-            else if (field == 1) set_sdl_pane_rows(idx, get_sdl_pane_rows(idx) + 1);
-            else set_sdl_pane_cols(idx, get_sdl_pane_cols(idx) + 1);
+            else
+            {
+                if (supporting_pane_cols_locked(pane_indices, pane_count, idx))
+                {
+                    bell("Cols are shared within each side slot");
+                    break;
+                }
+                set_sdl_pane_cols(idx, get_sdl_pane_cols(idx) + delta);
+            }
 
-            right_master_idx = -1;
-            bottom_master_idx = -1;
-            for (int i = 0; i < pane_count; i++)
-            {
-                int cur = pane_indices[i];
-                enum pane_placement cur_where = (enum pane_placement)get_sdl_pane_where(cur);
-                if (!get_sdl_pane_enabled(cur))
-                    continue;
-                if (cur_where == PLACE_RIGHT && right_master_idx < 0)
-                    right_master_idx = cur;
-                if (cur_where == PLACE_BOTTOM && bottom_master_idx < 0)
-                    bottom_master_idx = cur;
-            }
-            {
-                int cur = pane_indices[sel];
-                enum pane_placement cur_where = (enum pane_placement)get_sdl_pane_where(cur);
-                bool rows_locked_cur = (cur_where == PLACE_BOTTOM && cur != bottom_master_idx);
-                bool cols_locked_cur = (cur_where == PLACE_RIGHT && cur != right_master_idx);
-                while ((field == 1 && rows_locked_cur) || (field == 2 && cols_locked_cur))
-                    field = (field + 1) % 3;
-            }
+            if (supporting_pane_normalize_shared_sizes(pane_indices, pane_count))
+                changed = true;
+            supporting_pane_ensure_editable_field(&field, pane_indices, pane_count, sel);
             changed = true;
             sdl_apply_config();
             break;
@@ -13319,48 +13274,58 @@ int options_menu(int* highlight)
 {
     int ch;
     int options = 15; /* added efficiency option */
+    int term_wid = 80;
+    int term_hgt = 24;
+    int title_row = 1;
+    int row;
 #ifdef DEBUG_CURSES
     options = 17;
 #endif
     if (p_ptr->noscore)    
         options++;
 
-    Term_putstr(2, 1, -1, TERM_WHITE, "Options and misc");
+    Term_get_size(&term_wid, &term_hgt);
+    if (term_hgt < 20)
+        title_row = 0;
 
-    Term_putstr(2, 3, -1, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
+    row = title_row + 2;
+
+    Term_putstr(2, title_row, -1, TERM_WHITE, "Options and misc");
+
+    Term_putstr(2, row++, -1, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
         "a) Set Keybinds");
-    Term_putstr(2, 4, -1, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(2, row++, -1, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
         "b) Controller Settings");
-    Term_putstr(2, 5, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(2, row++, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
         "c) Pane Settings");
-    Term_putstr(2, 6, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(2, row++, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
         "d) Interface Options");
-    Term_putstr(2, 7, -1, (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(2, row++, -1, (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
         "e) Efficiency Options");
-    Term_putstr(2, 8, -1, (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(2, row++, -1, (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
         "f) Visual Options");
-    Term_putstr(2, 9, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(2, row++, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
         "t) Text Options");
-    Term_putstr(2, 10, -1, (*highlight == 8) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(2, row++, -1, (*highlight == 8) ? TERM_L_BLUE : TERM_WHITE,
         "g) Gameplay Options");
-    Term_putstr(2, 11, -1, (*highlight == 9) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(2, row++, -1, (*highlight == 9) ? TERM_L_BLUE : TERM_WHITE,
         "h) Sound Options");
-    Term_putstr(2, 12, -1, (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(2, row++, -1, (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
         "i) Load a 'Pref' File");
-    Term_putstr(2, 13, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(2, row++, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
         "j) Append Options to a 'Pref' File");
-    Term_putstr(2, 14, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(2, row++, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
         "k) Set Macros");
-    Term_putstr(2, 15, -1, (*highlight == 13) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(2, row++, -1, (*highlight == 13) ? TERM_L_BLUE : TERM_WHITE,
         "l) Set Colours");
-    Term_putstr(2, 16, -1, (*highlight == 14) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(2, row++, -1, (*highlight == 14) ? TERM_L_BLUE : TERM_WHITE,
         "m) Write a note");
-    Term_putstr(2, 17, -1, (*highlight == 15) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(2, row++, -1, (*highlight == 15) ? TERM_L_BLUE : TERM_WHITE,
         "n) Return to Game");
 
     if (p_ptr->noscore)
     {
-        Term_putstr(2, 18, -1, (*highlight == 16) ? TERM_L_BLUE : TERM_WHITE,
+        Term_putstr(2, row++, -1, (*highlight == 16) ? TERM_L_BLUE : TERM_WHITE,
             "o) Debugging Options");
     }
 
@@ -13368,14 +13333,15 @@ int options_menu(int* highlight)
     {
         char verbuf[128];
         strnfmt(verbuf, sizeof(verbuf), "%s %s", VERSION_NAME, VERSION_STRING);
-        Term_putstr(2, 19, -1, TERM_SLATE, verbuf);
+        if (row < term_hgt)
+            Term_putstr(2, row, term_wid - 2, TERM_SLATE, verbuf);
     }
 
     /* Flush the prompt */
     Term_fresh();
 
     /* Place cursor at current choice */
-    Term_gotoxy(2, 2 + *highlight);
+    Term_gotoxy(2, title_row + 1 + *highlight);
 
     /* Get key (while allowing menu commands) */
     hide_cursor = true;
@@ -13993,7 +13959,14 @@ void do_cmd_keybinds(void)
         int display_end;
         int row;
         int i;
+        bool compact_width;
         char binding_buf[80];
+
+        Term_get_size(&term_w, &term_h);
+        visible_rows = term_h - list_start_row - 6;
+        if (visible_rows < 5)
+            visible_rows = 5;
+        compact_width = (term_w < 70);
         
         if (showing_primary)
         {
@@ -14039,8 +14012,17 @@ void do_cmd_keybinds(void)
         
         /* Title */
         prt("Keybind Configuration", 1, 0);
-        prt("Arrow to navigate, Enter to bind, Tab to switch groups, Escape to return", 2, 0);
-        prt(showing_primary ? "Primary Commands: Essential for the gameplay" : "Supplementary Commands", 3, 0);
+        if (compact_width)
+        {
+            prt("8/2 move  Enter bind  Tab switch  Esc return", 2, 0);
+            prt(showing_primary ? "Primary commands" : "Supplementary commands",
+                3, 0);
+        }
+        else
+        {
+            prt("Arrow to navigate, Enter to bind, Tab to switch groups, Escape to return", 2, 0);
+            prt(showing_primary ? "Primary Commands: Essential for the gameplay" : "Supplementary Commands", 3, 0);
+        }
         
         /* List visible keybinds */
         display_end = *top_ptr + visible_rows;
@@ -14074,8 +14056,16 @@ void do_cmd_keybinds(void)
         }
         
         /* Instructions at bottom */
-        prt(format("Press 's' to save keybinds to %s", default_file), list_start_row + visible_rows + 1, 2);
-        prt("Press 'r' to reset selected keybind to default", list_start_row + visible_rows + 2, 2);
+        if (compact_width)
+        {
+            prt("s: save keybinds", list_start_row + visible_rows + 1, 2);
+            prt("r: reset selected", list_start_row + visible_rows + 2, 2);
+        }
+        else
+        {
+            prt(format("Press 's' to save keybinds to %s", default_file), list_start_row + visible_rows + 1, 2);
+            prt("Press 'r' to reset selected keybind to default", list_start_row + visible_rows + 2, 2);
+        }
         if (dirty)
             c_prt(TERM_YELLOW, "Unsaved changes", list_start_row + visible_rows + 3, 2);
         else
@@ -14131,11 +14121,12 @@ void do_cmd_keybinds(void)
             int entry_row = list_start_row + (highlight - *top_ptr);
 
             /* Clear the action area */
-            prt("                                                              ", 
-                entry_row, 2);
+            Term_erase(2, entry_row, 255);
             
             /* Prompt for new binding */
-            strnfmt(prompt, sizeof(prompt), "Press key to use for %s (Escape to cancel):",
+            strnfmt(prompt, sizeof(prompt),
+                compact_width ? "Bind %s (Esc cancels):"
+                              : "Press key to use for %s (Escape to cancel):",
                 keybinds[highlight].key_name);
             c_prt(TERM_YELLOW, prompt, entry_row, 2);
             Term_fresh();
@@ -14687,12 +14678,14 @@ void do_cmd_controller_settings(void)
         char value_buf[64];
         int row;
         bool steamdeck = steamdeck_controls_active();
+        bool compact_width;
 
         Term_get_size(&term_w, &term_h);
         (void)term_w;
         int visible_rows = term_h - list_start_row - 6;
         if (visible_rows < 5)
             visible_rows = 5;
+        compact_width = (term_w < 70);
 
         if (highlight < 0)
             highlight = 0;
@@ -14721,9 +14714,13 @@ void do_cmd_controller_settings(void)
             /* Steam Deck UI: A=bind, B=back */
             controller_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
             controller_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
-            prt(format("D-pad navigate  %s bind  %s back", confirm_label, back_label), 2, 0);
+            if (compact_width)
+                prt(format("D-pad  %s bind  %s back", confirm_label, back_label), 2, 0);
+            else
+                prt(format("D-pad navigate  %s bind  %s back", confirm_label, back_label), 2, 0);
         } else {
-            prt("Arrow to navigate, Enter to bind, Escape to return", 2, 0);
+            prt(compact_width ? "8/2 move  Enter bind  Esc return"
+                              : "Arrow to navigate, Enter to bind, Escape to return", 2, 0);
         }
 
         for (int i = top; i < entry_count && i < top + visible_rows; i++) {
@@ -14747,12 +14744,17 @@ void do_cmd_controller_settings(void)
             /* Steam Deck UI: X=reset selected, Y=reset all */
             controller_prompt_label(steamdeck_alt_action_key(), "X", reset_label, sizeof(reset_label));
             controller_prompt_label(steamdeck_secondary_key(), "Y", reset_all_label, sizeof(reset_all_label));
-            prt(format("Reset: [%s] selected, [%s] all", reset_label, reset_all_label),
+            prt(compact_width
+                    ? format("[%s] reset  [%s] reset all", reset_label, reset_all_label)
+                    : format("Reset: [%s] selected, [%s] all", reset_label, reset_all_label),
                 list_start_row + visible_rows + 1, 2);
         } else {
-            prt("Press 'r' to reset selected binding, 'R' to reset all bindings", list_start_row + visible_rows + 1, 2);
+            prt(compact_width ? "r: reset selected  R: reset all"
+                              : "Press 'r' to reset selected binding, 'R' to reset all bindings",
+                list_start_row + visible_rows + 1, 2);
         }
-        prt("Changes are saved on exit.", list_start_row + visible_rows + 2, 2);
+        prt(compact_width ? "Saves on exit." : "Changes are saved on exit.",
+            list_start_row + visible_rows + 2, 2);
 
         char ch = inkey();
 
@@ -14791,16 +14793,20 @@ void do_cmd_controller_settings(void)
                 char prompt[80];
                 int cap_type = 0;
                 int cap_id = 0;
-                prt("                                                                  ", entry_row, 2);
+                Term_erase(2, entry_row, 255);
                 if (steamdeck) {
                     char cancel_label[16];
                     controller_prompt_label(steamdeck_back_key(), "B", cancel_label, sizeof(cancel_label));
                     strnfmt(prompt, sizeof(prompt),
-                        "Press controller button for %s  (%s=cancel)",
+                        compact_width
+                            ? "Press button for %s  (%s=cancel)"
+                            : "Press controller button for %s  (%s=cancel)",
                         entry->label, cancel_label);
                 } else {
                     strnfmt(prompt, sizeof(prompt),
-                        "Press controller button for %s (Esc=cancel, Backspace=clear)",
+                        compact_width
+                            ? "Bind %s (Esc=cancel, Bksp=clear)"
+                            : "Press controller button for %s (Esc=cancel, Backspace=clear)",
                         entry->label);
                 }
                 c_prt(TERM_YELLOW, prompt, entry_row, 2);
@@ -15151,37 +15157,52 @@ void do_cmd_macros(void)
     /* Process requests until done */
     while (1)
     {
+        int term_wid = 80;
+        int term_hgt = 24;
+        int title_row = 1;
+        int menu_row = 3;
+        int action_label_row;
+        int action_row;
+        int command_row;
+        int input_row;
+
+        Term_get_size(&term_wid, &term_hgt);
+        action_label_row = MAX(menu_row + 11, term_hgt - 4);
+        action_row = MIN(term_hgt - 2, action_label_row + 1);
+        command_row = MAX(action_row + 1, term_hgt - 2);
+        input_row = MAX(command_row + 1, term_hgt - 1);
+
         /* Clear screen */
         Term_clear();
 
         /* Describe */
-        prt("Interact with Macros", 2, 0);
+        prt("Interact with Macros", title_row, 0);
 
         /* Describe that action */
-        prt("Current action (if any) shown below:", 20, 0);
+        prt("Current action:", action_label_row, 0);
 
         /* Analyze the current action */
         ascii_to_text(tmp, sizeof(tmp), macro_buffer);
 
         /* Display the current action */
-        prt(tmp, 22, 0);
+        Term_putstr(0, action_row, term_wid, TERM_WHITE, tmp);
 
         /* Selections */
-        prt("(1) Load a user pref file", 4, 5);
+        prt("(1) Load a user pref file", menu_row, 5);
 #ifdef ALLOW_MACROS
-        prt("(2) Append macros to a file", 5, 5);
-        prt("(3) Query a macro", 6, 5);
-        prt("(4) Create a macro", 7, 5);
-        prt("(5) Remove a macro", 8, 5);
-        prt("(6) Append keymaps to a file", 9, 5);
-        prt("(7) Query a keymap", 10, 5);
-        prt("(8) Create a keymap", 11, 5);
-        prt("(9) Remove a keymap", 12, 5);
-        prt("(0) Enter a new action", 13, 5);
+        prt("(2) Append macros to a file", menu_row + 1, 5);
+        prt("(3) Query a macro", menu_row + 2, 5);
+        prt("(4) Create a macro", menu_row + 3, 5);
+        prt("(5) Remove a macro", menu_row + 4, 5);
+        prt("(6) Append keymaps to a file", menu_row + 5, 5);
+        prt("(7) Query a keymap", menu_row + 6, 5);
+        prt("(8) Create a keymap", menu_row + 7, 5);
+        prt("(9) Remove a keymap", menu_row + 8, 5);
+        prt("(0) Enter a new action", menu_row + 9, 5);
 #endif /* ALLOW_MACROS */
 
         /* Prompt */
-        prt("Command: ", 16, 0);
+        prt("Command: ", command_row, 0);
 
         /* Get a command */
         ch = inkey();
@@ -15194,7 +15215,7 @@ void do_cmd_macros(void)
         if (ch == '1')
         {
             /* Ask for and load a user pref file */
-            do_cmd_pref_file_hack(16);
+            do_cmd_pref_file_hack(command_row);
         }
 
 #ifdef ALLOW_MACROS
@@ -15205,10 +15226,10 @@ void do_cmd_macros(void)
             char ftmp[80];
 
             /* Prompt */
-            prt("Command: Append macros to a file", 16, 0);
+            prt("Command: Append macros to a file", command_row, 0);
 
             /* Prompt */
-            prt("File: ", 18, 0);
+            prt("File: ", input_row, 0);
 
             /* Default filename */
             strnfmt(ftmp, sizeof(ftmp), "%s.prf", op_ptr->base_name);
@@ -15230,10 +15251,10 @@ void do_cmd_macros(void)
             int k;
 
             /* Prompt */
-            prt("Command: Query a macro", 16, 0);
+            prt("Command: Query a macro", command_row, 0);
 
             /* Prompt */
-            prt("Trigger: ", 18, 0);
+            prt("Trigger: ", input_row, 0);
 
             /* Get a macro trigger */
             do_cmd_macro_aux(pat);
@@ -15258,7 +15279,7 @@ void do_cmd_macros(void)
                 ascii_to_text(tmp, sizeof(tmp), macro_buffer);
 
                 /* Display the current action */
-                prt(tmp, 22, 0);
+                Term_putstr(0, action_row, term_wid, TERM_WHITE, tmp);
 
                 /* Prompt */
                 msg_print("Found a macro.");
@@ -15269,19 +15290,19 @@ void do_cmd_macros(void)
         else if (ch == '4')
         {
             /* Prompt */
-            prt("Command: Create a macro", 16, 0);
+            prt("Command: Create a macro", command_row, 0);
 
             /* Prompt */
-            prt("Trigger: ", 18, 0);
+            prt("Trigger: ", input_row, 0);
 
             /* Get a macro trigger */
             do_cmd_macro_aux(pat);
 
             /* Clear */
-            clear_from(20);
+            clear_from(action_label_row);
 
             /* Prompt */
-            prt("Action: ", 20, 0);
+            prt("Action: ", action_row, 0);
 
             /* Convert to text */
             ascii_to_text(tmp, sizeof(tmp), macro_buffer);
@@ -15304,10 +15325,10 @@ void do_cmd_macros(void)
         else if (ch == '5')
         {
             /* Prompt */
-            prt("Command: Remove a macro", 16, 0);
+            prt("Command: Remove a macro", command_row, 0);
 
             /* Prompt */
-            prt("Trigger: ", 18, 0);
+            prt("Trigger: ", input_row, 0);
 
             /* Get a macro trigger */
             do_cmd_macro_aux(pat);
@@ -15325,10 +15346,10 @@ void do_cmd_macros(void)
             char ftmp[80];
 
             /* Prompt */
-            prt("Command: Append keymaps to a file", 16, 0);
+            prt("Command: Append keymaps to a file", command_row, 0);
 
             /* Prompt */
-            prt("File: ", 18, 0);
+            prt("File: ", input_row, 0);
 
             /* Default filename */
             strnfmt(ftmp, sizeof(ftmp), "%s.prf", op_ptr->base_name);
@@ -15350,10 +15371,10 @@ void do_cmd_macros(void)
             cptr act;
 
             /* Prompt */
-            prt("Command: Query a keymap", 16, 0);
+            prt("Command: Query a keymap", command_row, 0);
 
             /* Prompt */
-            prt("Keypress: ", 18, 0);
+            prt("Keypress: ", input_row, 0);
 
             /* Get a keymap trigger */
             do_cmd_macro_aux_keymap(pat);
@@ -15378,7 +15399,7 @@ void do_cmd_macros(void)
                 ascii_to_text(tmp, sizeof(tmp), macro_buffer);
 
                 /* Display the current action */
-                prt(tmp, 22, 0);
+                Term_putstr(0, action_row, term_wid, TERM_WHITE, tmp);
 
                 /* Prompt */
                 msg_print("Found a keymap.");
@@ -15389,19 +15410,19 @@ void do_cmd_macros(void)
         else if (ch == '8')
         {
             /* Prompt */
-            prt("Command: Create a keymap", 16, 0);
+            prt("Command: Create a keymap", command_row, 0);
 
             /* Prompt */
-            prt("Keypress: ", 18, 0);
+            prt("Keypress: ", input_row, 0);
 
             /* Get a keymap trigger */
             do_cmd_macro_aux_keymap(pat);
 
             /* Clear */
-            clear_from(20);
+            clear_from(action_label_row);
 
             /* Prompt */
-            prt("Action: ", 20, 0);
+            prt("Action: ", action_row, 0);
 
             /* Convert to text */
             ascii_to_text(tmp, sizeof(tmp), macro_buffer);
@@ -15427,10 +15448,10 @@ void do_cmd_macros(void)
         else if (ch == '9')
         {
             /* Prompt */
-            prt("Command: Remove a keymap", 16, 0);
+            prt("Command: Remove a keymap", command_row, 0);
 
             /* Prompt */
-            prt("Keypress: ", 18, 0);
+            prt("Keypress: ", input_row, 0);
 
             /* Get a keymap trigger */
             do_cmd_macro_aux_keymap(pat);
@@ -15449,10 +15470,10 @@ void do_cmd_macros(void)
         else if (ch == '0')
         {
             /* Prompt */
-            prt("Command: Enter a new action", 16, 0);
+            prt("Command: Enter a new action", command_row, 0);
 
             /* Go to the correct location */
-            Term_gotoxy(0, 22);
+            Term_gotoxy(0, action_row);
 
             /* Analyze the current action */
             ascii_to_text(tmp, sizeof(tmp), macro_buffer);
@@ -15678,6 +15699,20 @@ void do_cmd_visuals(void)
         /* Done */
         if (ch == ESCAPE)
             break;
+
+        if ((ch >= '6') && (ch <= '9'))
+        {
+            int term_wid = 80;
+            int term_hgt = 24;
+
+            Term_get_size(&term_wid, &term_hgt);
+            if ((term_wid < 60) || (term_hgt < 21))
+            {
+                msg_print("The attr/char editor requires a larger window than compact mode.");
+                message_flush();
+                continue;
+            }
+        }
 
         /* Load a user pref file */
         if (ch == '1')
@@ -20796,6 +20831,9 @@ void show_nearby_monsters(bool line_of_sight_only)
     int i, j;
     int col;
     int longest_name_length = 0;
+    int longest_direction_length = 0;
+    int longest_stance_length = 0;
+    int term_wid = (Term && Term->wid > 0) ? Term->wid : 80;
     
     /* Get terminal height and calculate available space */
     int term_hgt = Term->hgt;
@@ -20833,6 +20871,10 @@ void show_nearby_monsters(bool line_of_sight_only)
         if (!get_alertness_text(m_ptr, sizeof(lines[j].stance), lines[j].stance,
                 &lines[j].alert_color))
             return;
+        longest_direction_length = MAX(longest_direction_length,
+            (int)strlen(lines[j].direction));
+        longest_stance_length = MAX(longest_stance_length,
+            (int)strlen(lines[j].stance));
 
         lines[j].monster_character = monster_char(r_ptr);
         lines[j].monster_color = monster_attr(r_ptr);
@@ -20845,14 +20887,30 @@ void show_nearby_monsters(bool line_of_sight_only)
         j++;
     }
 
-    col = 79 - longest_name_length - sizeof(lines[j].direction)
-        - sizeof(lines[j].stance) - 9;
+    if (!j)
+    {
+        int empty_col = MAX(0, (term_wid - 20) / 2);
+        Term_erase(0, 1, 255);
+        Term_erase(0, 2, 255);
+        Term_erase(0, 3, 255);
+        Term_putstr(empty_col, 1, term_wid - empty_col, TERM_WHITE,
+            "No visible monsters.");
+        return;
+    }
+
+    col = term_wid - longest_name_length - longest_direction_length
+        - longest_stance_length - 9;
     col = MAX(0, col);
 
     for (i = 0; i < j; ++i)
     {
         int distance_color;
         char monster_char[2];
+        int direction_col = col + 6;
+        int name_col = direction_col + MAX(longest_direction_length, 1);
+        int stance_col = term_wid - MAX(longest_stance_length, 1) - 1;
+        int name_width = stance_col - name_col - 1;
+        bool show_stance = true;
 
         monster_char[0] = lines[i].monster_character;
         monster_char[1] = '\0';
@@ -20865,30 +20923,34 @@ void show_nearby_monsters(bool line_of_sight_only)
             distance_color = TERM_L_DARK;
 
         /* Clear the line */
-        prt("", i + 1, col);
+        Term_erase(col, i + 1, term_wid - col);
+
+        if (name_width < 8)
+        {
+            show_stance = false;
+            name_width = term_wid - name_col - 1;
+        }
+        if (name_width < 1)
+            name_width = 1;
 
         c_put_str(lines[i].monster_color, monster_char, i + 1, col + 2);
         if (use_bigtile)
         {
             Term_putch(col + 3, i + 1, 255, -1);
         }
-        c_put_str(distance_color, lines[i].direction, i + 1, col + 6);
-        c_put_str(TERM_WHITE, lines[i].name, i + 1,
-            col + sizeof(lines[j].direction) + 6);
-        c_put_str(lines[i].alert_color, lines[i].stance, i + 1,
-            col + sizeof(lines[j].direction) + longest_name_length + 8);
+        Term_putstr(direction_col, i + 1, MAX(longest_direction_length, 1),
+            distance_color, lines[i].direction);
+        Term_putstr(name_col, i + 1, name_width, TERM_WHITE, lines[i].name);
+        if (show_stance)
+        {
+            Term_putstr(stance_col, i + 1, term_wid - stance_col,
+                lines[i].alert_color, lines[i].stance);
+        }
     }
 
     if (j)
     {
-        prt("", j + 1, col);
-    }
-    else
-    {
-        prt("", 1, 40);
-        c_put_str(TERM_WHITE, "No visible monsters.", 1, 50);
-        prt("", 2, 40);
-        prt("", 3, 40);
+        Term_erase(col, j + 1, term_wid - col);
     }
 }
 
@@ -20899,6 +20961,8 @@ void show_nearby_objects(bool line_of_sight_only)
     int i, j;
     int col;
     int longest_name_length = 0;
+    int longest_direction_length = 0;
+    int term_wid = (Term && Term->wid > 0) ? Term->wid : 80;
     
     /* Get terminal height and calculate available space */
     int term_hgt = Term->hgt;
@@ -20930,6 +20994,8 @@ void show_nearby_objects(bool line_of_sight_only)
 
         write_direction_from_player_to_buffer(temp_y[i], temp_x[i],
             lines[j].direction, sizeof(lines[j].direction));
+        longest_direction_length = MAX(longest_direction_length,
+            (int)strlen(lines[j].direction));
 
         lines[j].distance
             = distance(p_ptr->py, p_ptr->px, temp_y[i], temp_x[i]);
@@ -20945,14 +21011,28 @@ void show_nearby_objects(bool line_of_sight_only)
         j++;
     }
 
-    col = 79 - longest_name_length - sizeof(lines[j].direction) - 9;
+    if (!j)
+    {
+        int empty_col = MAX(0, (term_wid - 19) / 2);
+        Term_erase(0, 1, 255);
+        Term_erase(0, 2, 255);
+        Term_erase(0, 3, 255);
+        Term_putstr(empty_col, 1, term_wid - empty_col, TERM_WHITE,
+            "No visible objects.");
+        return;
+    }
+
+    col = term_wid - longest_name_length - longest_direction_length - 9;
     col = MAX(0, col);
 
-    prt("", 1, col);
+    Term_erase(col, 1, term_wid - col);
 
     for (i = 0; i < j; ++i)
     {
         int distance_color;
+        int direction_col = col + 6;
+        int name_col = direction_col + MAX(longest_direction_length, 1);
+        int name_width = term_wid - name_col - 1;
 
         char o_char[2];
 
@@ -20967,28 +21047,24 @@ void show_nearby_objects(bool line_of_sight_only)
             distance_color = TERM_L_DARK;
 
         /* Clear the line */
-        prt("", i + 1, col);
+        Term_erase(col, i + 1, term_wid - col);
+
+        if (name_width < 1)
+            name_width = 1;
 
         c_put_str(lines[i].object_color, o_char, i + 1, col + 2);
         if (use_bigtile)
         {
             Term_putch(col + 3, i + 1, 255, -1);
         }
-        c_put_str(distance_color, lines[i].direction, i + 1, col + 6);
-        c_put_str(TERM_WHITE, lines[i].name, i + 1,
-            col + sizeof(lines[j].direction) + 6);
+        Term_putstr(direction_col, i + 1, MAX(longest_direction_length, 1),
+            distance_color, lines[i].direction);
+        Term_putstr(name_col, i + 1, name_width, TERM_WHITE, lines[i].name);
     }
 
     if (j)
     {
-        prt("", j + 1, col);
-    }
-    else
-    {
-        prt("", 1, 40);
-        c_put_str(TERM_WHITE, "No visible objects.", 1, 50);
-        prt("", 2, 40);
-        prt("", 3, 40);
+        Term_erase(col, j + 1, term_wid - col);
     }
 }
 

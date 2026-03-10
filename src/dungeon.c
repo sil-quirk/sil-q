@@ -4432,7 +4432,6 @@ PlayResult play_game(void)
     Term_activate(term_screen);
 
     /* Verify minimum size */
-#ifdef __ANDROID__
     {
         /* get_sdl_min_terminal_mode() returns 0=normal, 1=compact. */
         const bool compact_mode = (get_sdl_min_terminal_mode() != 0);
@@ -4440,23 +4439,16 @@ PlayResult play_game(void)
         const int min_wid = compact_mode ? 50 : 80;
         if ((Term->hgt < min_hgt) || (Term->wid < min_wid))
         {
+#ifdef __ANDROID__
             log_error("main window too small on Android: %dx%d (need at least %dx%d)",
                 Term->wid, Term->hgt, min_wid, min_hgt);
-            quit("main window is too small");
-        }
-    }
 #else
-    {
-        const int min_hgt = 20;
-        const int min_wid = 50;
-        if ((Term->hgt < min_hgt) || (Term->wid < min_wid))
-        {
             log_error("main window too small: %dx%d (need at least %dx%d)",
                 Term->wid, Term->hgt, min_wid, min_hgt);
+#endif
             quit("main window is too small");
         }
     }
-#endif
 
     /* Hack -- Turn off the cursor */
     (void)Term_set_cursor(false);

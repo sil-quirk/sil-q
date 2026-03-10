@@ -332,11 +332,7 @@ static enum pane_type parse_pane_type(const char* value)
 
 static const char* pane_placement_to_string(enum pane_placement where)
 {
-    switch (where) {
-        case PLACE_BOTTOM: return "BOTTOM";
-        case PLACE_RIGHT: return "RIGHT";
-        default: return "RIGHT";
-    }
+    return pane_placement_name(where);
 }
 
 static enum pane_placement parse_pane_placement(const char* value)
@@ -345,6 +341,11 @@ static enum pane_placement parse_pane_placement(const char* value)
         return PLACE_RIGHT;
     if (strcmp(value, "BOTTOM") == 0) return PLACE_BOTTOM;
     if (strcmp(value, "RIGHT") == 0) return PLACE_RIGHT;
+    if (strcmp(value, "LEFT") == 0) return PLACE_LEFT;
+    if (strcmp(value, "DOUBLE_LEFT") == 0 || strcmp(value, "DOUBLE LEFT") == 0)
+        return PLACE_DOUBLE_LEFT;
+    if (strcmp(value, "DOUBLE_RIGHT") == 0 || strcmp(value, "DOUBLE RIGHT") == 0)
+        return PLACE_DOUBLE_RIGHT;
     return PLACE_RIGHT;
 }
 
@@ -864,6 +865,8 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
             }
             
             struct pane_config* pc = &pane_configs[count];
+            memset(pc, 0, sizeof(*pc));
+            pc->pane = PANE_MAIN;
             pc->enabled = true;
             
             cJSON* type = cJSON_GetObjectItemCaseSensitive(pane_item, "type");
@@ -905,6 +908,16 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
             if (pc->pane == PANE_TOUCH && pc->rect.cols <= 0) {
                 pc->rect.cols = 15;
                 log_debug("Pane %d: touch pane default cols=%d", count, pc->rect.cols);
+            }
+
+            if (!pane_type_allows_placement(pc->pane, pc->where)) {
+                enum pane_placement fallback = pane_first_allowed_placement(pc->pane);
+                log_warn("Pane %d placement %s is invalid for type %s, using %s",
+                    count,
+                    pane_placement_name(pc->where),
+                    pane_type_to_string(pc->pane),
+                    pane_placement_name(fallback));
+                pc->where = fallback;
             }
             
             count++;

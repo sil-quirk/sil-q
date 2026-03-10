@@ -17,10 +17,13 @@ enum pane_type {
     PANE_MAX = 9,
 };
 
-// Where the pane is placed — on the right or in the bottom of the screen.
+// Where the pane is placed.
 enum pane_placement {
-    PLACE_BOTTOM = 1,
-    PLACE_RIGHT = 2,
+    PLACE_BOTTOM = 1u << 0,
+    PLACE_RIGHT = 1u << 1,
+    PLACE_LEFT = 1u << 2,
+    PLACE_DOUBLE_LEFT = 1u << 3,
+    PLACE_DOUBLE_RIGHT = 1u << 4,
 };
 
 struct rect {
@@ -63,6 +66,13 @@ struct pane {
     SDL_Rect rect;
     int index;
 };
+
+bool pane_placement_is_side(enum pane_placement where);
+bool pane_type_allows_placement(enum pane_type type, enum pane_placement where);
+enum pane_placement pane_first_allowed_placement(enum pane_type type);
+enum pane_placement pane_next_allowed_placement(enum pane_type type,
+    enum pane_placement current, int delta);
+const char* pane_placement_name(enum pane_placement where);
 
 void place_panes(const struct pane_config* config, int count, SDL_Rect* panes,
     const SDL_Rect* window, int cell_width, int cell_height, int margin);

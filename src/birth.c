@@ -844,6 +844,19 @@ static bool character_description_has_room(void)
     return (available_rows >= min_description_rows);
 }
 
+static bool character_selection_tight_height(void)
+{
+    int wid = 80;
+    int hgt = 24;
+
+    Term_get_size(&wid, &hgt);
+    (void)wid;
+    if (hgt < 1)
+        hgt = 24;
+
+    return (hgt <= 18);
+}
+
 static bool character_flags_need_compact_layout(void)
 {
     int wid = 80;
@@ -855,7 +868,7 @@ static bool character_flags_need_compact_layout(void)
     if (wid < 1)
         wid = 80;
 
-    return (wid < min_flags_wid);
+    return (wid < min_flags_wid) || character_selection_tight_height();
 }
 
 static cptr character_selection_header_text(bool character_phase)
@@ -1082,8 +1095,14 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
         if (allow_full_description_screen)
         {
             bool compact_flags = character_flags_need_compact_layout();
+            bool tight_height = character_selection_tight_height();
             bool very_short = (Term->hgt > 0) && (Term->hgt <= 20);
-            if (compact_flags && very_short)
+            if (compact_flags && tight_height)
+            {
+                int max_hgt = A_MAX;
+                if (hgt > max_hgt) hgt = max_hgt;
+            }
+            else if (compact_flags && very_short)
             {
                 int max_hgt = (description_row - 2) - TABLE_ROW;
                 if (max_hgt < 0) max_hgt = 0;
@@ -1134,8 +1153,11 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
             if (allow_full_description_screen)
             {
                 bool compact_flags = character_flags_need_compact_layout();
+                bool tight_height = character_selection_tight_height();
                 bool very_short = (Term->hgt > 0) && (Term->hgt <= 20);
-                if (compact_flags && very_short)
+                if (compact_flags && tight_height)
+                    clear_from_row = TABLE_ROW + A_MAX + 1;
+                else if (compact_flags && very_short)
                     clear_from_row = description_row - 1;
             }
             for (i = clear_from_row; i < Term->hgt; i++)
@@ -1405,6 +1427,139 @@ int curse_flag_delta_cur(u32b cur_flag)
     return delta;
 }
 
+typedef struct {
+    cptr txt;
+    byte attr;
+} birth_compact_flag_line;
+
+static int collect_character_trait_lines(int race, int character, bool short_labels,
+    birth_compact_flag_line out[], int out_max, int* max_line_len)
+{
+    int total = 0;
+
+    byte attr_affinity = TERM_GREEN;
+    byte attr_mastery = TERM_L_GREEN;
+    byte attr_penalty = TERM_RED;
+    byte attr_gr_penalty = TERM_L_RED;
+
+    birth_compact_flag_line uniq_buf[32], ma_buf[16], af_buf[16], pen_buf[32];
+    int uniq_n = 0, ma_n = 0, af_n = 0, pen_n = 0;
+
+#define PUSH(arr, n, text, color)                                             \
+    do {                                                                      \
+        if ((text) && (n) < (int)N_ELEMENTS(arr))                             \
+        {                                                                     \
+            (arr)[(n)].txt = (text);                                          \
+            (arr)[(n)++].attr = (color);                                      \
+        }                                                                     \
+    } while (0)
+
+#define HANDLE_SKILL_EX(LABEL_LONG, LABEL_SHORT, AFF_FLAG, PEN_FLAG)          \
+    do {                                                                      \
+        int score = 0;                                                        \
+        if (p_info[race].flags & (AFF_FLAG)) score++;                         \
+        if (c_info[character].flags & (AFF_FLAG)) score++;                    \
+        if ((PEN_FLAG) && (p_info[race].flags & (PEN_FLAG))) score--;         \
+        if ((PEN_FLAG) && (c_info[character].flags & (PEN_FLAG))) score--;    \
+        score += curse_flag_count_rhf(AFF_FLAG);                              \
+        if ((PEN_FLAG)) score -= curse_flag_count_rhf(PEN_FLAG);              \
+        if (score > 2) score = 2;                                             \
+        if (score < -2) score = -2;                                           \
+        if (score == 2)                                                       \
+            PUSH(ma_buf, ma_n,                                                \
+                short_labels ? LABEL_SHORT "++" : LABEL_LONG " mastery",      \
+                attr_mastery);                                                \
+        else if (score == 1)                                                  \
+            PUSH(af_buf, af_n,                                                \
+                short_labels ? LABEL_SHORT "+ " : LABEL_LONG " affinity",     \
+                attr_affinity);                                               \
+        else if (score == -1)                                                 \
+            PUSH(pen_buf, pen_n,                                              \
+                short_labels ? LABEL_SHORT "- " : LABEL_LONG " penalty",      \
+                attr_penalty);                                                \
+        else if (score == -2)                                                 \
+            PUSH(pen_buf, pen_n,                                              \
+                short_labels ? LABEL_SHORT "--" : LABEL_LONG " grand penalty",\
+                attr_gr_penalty);                                             \
+    } while (0)
+
+#define HANDLE_UNIQUE_EX(LABEL_LONG, LABEL_SHORT, FLAG, COLOR)                \
+    do {                                                                      \
+        if ((p_info[race].flags & (FLAG)) || (c_info[character].flags & (FLAG))) \
+            PUSH(uniq_buf, uniq_n, short_labels ? LABEL_SHORT : LABEL_LONG, (COLOR)); \
+    } while (0)
+
+#define HANDLE_UNIQUE_U_EX(LABEL_LONG, LABEL_SHORT, FLAG, COLOR)              \
+    do {                                                                      \
+        if (c_info[character].flags_u & (FLAG))                               \
+            PUSH(uniq_buf, uniq_n, short_labels ? LABEL_SHORT : LABEL_LONG, (COLOR)); \
+    } while (0)
+
+#define EMIT(arr, n)                                                          \
+    do {                                                                      \
+        for (int _i = 0; _i < (n); ++_i)                                      \
+        {                                                                     \
+            cptr _txt = (arr)[_i].txt ? (arr)[_i].txt : "";                  \
+            if (max_line_len && (int)strlen(_txt) > *max_line_len)            \
+                *max_line_len = (int)strlen(_txt);                            \
+            if (out && total < out_max)                                       \
+                out[total] = (arr)[_i];                                       \
+            total++;                                                          \
+        }                                                                     \
+    } while (0)
+
+    HANDLE_SKILL_EX("melee", "melee", RHF_MEL_AFFINITY, RHF_MEL_PENALTY);
+    HANDLE_SKILL_EX("evasion", "evasion", RHF_EVN_AFFINITY, RHF_EVN_PENALTY);
+    HANDLE_SKILL_EX("stealth", "stealth", RHF_STL_AFFINITY, RHF_STL_PENALTY);
+    HANDLE_SKILL_EX("archery", "archery", RHF_ARC_AFFINITY, RHF_ARC_PENALTY);
+    HANDLE_SKILL_EX("will", "will", RHF_WIL_AFFINITY, RHF_WIL_PENALTY);
+    HANDLE_SKILL_EX("perception", "perception", RHF_PER_AFFINITY, RHF_PER_PENALTY);
+    HANDLE_SKILL_EX("smithing", "smithing", RHF_SMT_AFFINITY, RHF_SMT_PENALTY);
+    HANDLE_SKILL_EX("song", "song", RHF_SNG_AFFINITY, RHF_SNG_PENALTY);
+    HANDLE_SKILL_EX("bow", "bow", RHF_BOW_PROFICIENCY, 0);
+    HANDLE_SKILL_EX("axe", "axe", RHF_AXE_PROFICIENCY, 0);
+
+    HANDLE_UNIQUE_U_EX("Master Artisan", "Master Artisan", UNQ_SMT_FEANOR, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Creator of Galvorn", "Galvorn Maker", UNQ_SMT_EOL, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("One Handed", "One Handed", UNQ_MEL_MAEDHROS, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Agarwaen", "Agarwaen", UNQ_WIL_TURIN, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Hidden city", "Hidden City", UNQ_SNG_TURGON, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Chosen of Ulmo", "Ulmo's Chosen", UNQ_WIL_TUOR, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Indominable Will", "Indom. Will", UNQ_EARENDIL, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Orome Himself", "Orome", UNQ_WIL_FIN, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Songs of Power", "Songs of Power", UNQ_SNG_FIN, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Elven Dance", "Elven Dance", UNQ_SNG_LUT, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Girdle of Melian", "Melian's Girdle", UNQ_SNG_MEL, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Creator of Angrist", "Angrist Maker", UNQ_SMT_TELCHAR, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Old Master", "Old Master", UNQ_SMT_GAMIL, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Ring Master", "Ring Master", UNQ_SMT_CELEBRIMBOR, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Aure entuluva", "Aure Entuluva", UNQ_SNG_HURIN, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Voice of Girdle", "Girdle Voice", UNQ_SNG_THINGOL, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Forgotten", "Forgotten", UNQ_MIM, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Minstrel", "Minstrel", UNQ_MINSTREL, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Woven Master", "Woven Master", UNQ_WOVEN_MASTER, TERM_VIOLET);
+
+    HANDLE_UNIQUE_EX("Gift of Eru", "Gift of Eru", RHF_GIFTERU, TERM_VIOLET);
+    HANDLE_UNIQUE_EX("Seafarer", "Seafarer", RHF_FREE, TERM_VIOLET);
+    HANDLE_UNIQUE_EX("Kinslayer", "Kinslayer", RHF_KINSLAYER, TERM_UMBER);
+    HANDLE_UNIQUE_EX("Treacherous", "Treacherous", RHF_TREACHERY, TERM_UMBER);
+    HANDLE_UNIQUE_EX("Doom of Mandos", "Mandos' Doom", RHF_CURSE, TERM_UMBER);
+    HANDLE_UNIQUE_EX("Morgoth Curse", "Morgoth Curse", RHF_MOR_CURSE, TERM_UMBER);
+
+    EMIT(uniq_buf, uniq_n);
+    EMIT(ma_buf, ma_n);
+    EMIT(af_buf, af_n);
+    EMIT(pen_buf, pen_n);
+
+#undef EMIT
+#undef HANDLE_UNIQUE_U_EX
+#undef HANDLE_UNIQUE_EX
+#undef HANDLE_SKILL_EX
+#undef PUSH
+
+    return total;
+}
+
 
 /*
  * Show race/character flags in priority order.
@@ -1435,7 +1590,7 @@ static void print_rh_flags(int race, int character, int col, int row)
         int side;  // 0 = left, 1 = right
     } skill_line;
 
-    skill_line mastery_buf [16], affinity_buf[16], penalty_buf[16], unique_buf[8];
+    skill_line mastery_buf [16], affinity_buf[16], penalty_buf[16], unique_buf[32];
     int mastery_n = 0, affinity_n = 0, penalty_n = 0, unique_n = 0;
 
 /*
@@ -1554,181 +1709,275 @@ static void print_rh_flags(int race, int character, int col, int row)
 
     if (compact_layout)
     {
-        int compact_row = description_row;
-        int compact_col = 2;
-        int col_gap = 2;
-        int col_wid;
-        bool use_two_columns = false;
-        int right_offset = 0; /* 0=normal, -1=right column starts on title row, -2=one row above */
         char line_buf[64];
-
-        typedef struct {
-            cptr txt;
-            byte attr;
-        } compact_flag_line;
-
-        compact_flag_line compact_lines[64];
+        birth_compact_flag_line compact_lines[64];
+        birth_compact_flag_line short_trait_lines[64];
         int compact_line_n = 0;
-        int max_line_len = 0;
+        int compact_max_line_len = 0;
+        int short_trait_n = 0;
+        int short_trait_max_line_len = 0;
+        int prompt_row = birth_prompt_row();
+        bool tight_height = character_selection_tight_height();
+        bool use_swapped_layout = false;
 
-#define APPEND_COMPACT_LINE(text_value, color_value)                       \
-    do {                                                                    \
-        if ((text_value) && compact_line_n < (int)N_ELEMENTS(compact_lines)) \
-        {                                                                   \
-            compact_lines[compact_line_n].txt = (text_value);              \
-            compact_lines[compact_line_n].attr = (color_value);            \
-            if ((int)strlen(text_value) > max_line_len)                    \
-                max_line_len = (int)strlen(text_value);                    \
-            compact_line_n++;                                               \
-        }                                                                   \
-    } while (0)
+        compact_line_n = collect_character_trait_lines(race, character, false,
+            compact_lines, N_ELEMENTS(compact_lines), &compact_max_line_len);
+        short_trait_n = collect_character_trait_lines(race, character, true,
+            short_trait_lines, N_ELEMENTS(short_trait_lines), &short_trait_max_line_len);
 
-        for (int i = 0; i < ability_line_n && (row + i) < description_row; ++i)
-            Term_putstr(col, row + i, -1, TERM_YELLOW, ability_lines[i]);
-
-        for (int i = 0; i < unique_n; ++i)
-            if (unique_buf[i].side == 0)
-                APPEND_COMPACT_LINE(unique_buf[i].txt, unique_buf[i].col);
-        for (int i = 0; i < mastery_n; ++i)
-            APPEND_COMPACT_LINE(mastery_buf[i].txt, mastery_buf[i].col);
-        for (int i = 0; i < affinity_n; ++i)
-            APPEND_COMPACT_LINE(affinity_buf[i].txt, affinity_buf[i].col);
-        for (int i = 0; i < unique_n; ++i)
-            if (unique_buf[i].side == 1)
-                APPEND_COMPACT_LINE(unique_buf[i].txt, unique_buf[i].col);
-        for (int i = 0; i < penalty_n; ++i)
-            APPEND_COMPACT_LINE(penalty_buf[i].txt, penalty_buf[i].col);
-
-        col_wid = (Term->wid - compact_col - col_gap) / 2;
-        if (col_wid < 1)
-            col_wid = 1;
-
-        /* Default: only use two columns if everything fits without truncation. */
-        if (col_wid >= max_line_len)
-            use_two_columns = true;
-
-        /*
-         * For short screens (<24 rows), try to guarantee at least 10 visible
-         * traits (or all traits if fewer than 10), but only apply compaction
-         * techniques if they are needed.
-         */
+        if (tight_height)
         {
-            const bool short_screen = (Term->hgt > 0) && (Term->hgt < 24);
-            const int target_traits = (compact_line_n < 10) ? compact_line_n : 10;
-            const int min_col_wid_for_forced_two_cols = 14;
+            const int target_abilities = (ability_line_n < 3) ? ability_line_n : 3;
+            int compact_col = 2;
+            int col_gap = 2;
+            int col_wid = (Term->wid - compact_col - col_gap) / 2;
+            int traits_row = row;
+            int ability_row = description_row;
+            int trait_rows;
+            int ability_rows;
+            bool show_trait_heading = (compact_line_n > 0);
+            bool show_ability_heading = (ability_line_n > 0);
+            bool use_two_columns;
+            birth_compact_flag_line* top_trait_lines = compact_lines;
+            int top_trait_line_n = compact_line_n;
+            int top_trait_max_line_len = compact_max_line_len;
+
+            if (col_wid < 1)
+                col_wid = 1;
+
+            if (col_wid < compact_max_line_len)
+            {
+                top_trait_lines = short_trait_lines;
+                top_trait_line_n = short_trait_n;
+                top_trait_max_line_len = short_trait_max_line_len;
+            }
+
+            ability_rows = prompt_row - ability_row;
+            if (show_ability_heading && (ability_rows - 1) < target_abilities
+                && ability_rows >= target_abilities)
+            {
+                show_ability_heading = false;
+            }
+
+            if (show_trait_heading)
+                Term_putstr(compact_col, traits_row++, -1, TERM_L_BLUE, "Traits:");
+
+            trait_rows = description_row - traits_row;
+            if (trait_rows < 0)
+                trait_rows = 0;
+
+            use_two_columns = (top_trait_line_n > trait_rows);
+            if (!use_two_columns && top_trait_max_line_len > (Term->wid - compact_col))
+                use_two_columns = true;
+
+            if (use_two_columns)
+            {
+                int col2 = compact_col + col_wid + col_gap;
+                int draw_w = top_trait_max_line_len;
+                int left_col;
+                int right_col;
+                int draw_lines = (top_trait_line_n < trait_rows * 2)
+                    ? top_trait_line_n : trait_rows * 2;
+                int left_count = (draw_lines + 1) / 2;
+                int right_count;
+
+                if (draw_w > col_wid)
+                    draw_w = col_wid;
+                if (draw_w < 1)
+                    draw_w = 1;
+                left_col = compact_col + (col_wid - draw_w) / 2;
+                right_col = col2 + (col_wid - draw_w) / 2;
+
+                if (left_count > trait_rows)
+                    left_count = trait_rows;
+                right_count = draw_lines - left_count;
+                if (right_count > trait_rows)
+                    right_count = trait_rows;
+                left_count = draw_lines - right_count;
+
+                for (int i = 0; i < left_count; ++i)
+                {
+                    strnfmt(line_buf, sizeof(line_buf), "%.*s", draw_w,
+                        top_trait_lines[i].txt);
+                    Term_putstr(left_col, traits_row + i, -1,
+                        top_trait_lines[i].attr, line_buf);
+                }
+
+                for (int i = 0; i < right_count; ++i)
+                {
+                    int idx = left_count + i;
+                    strnfmt(line_buf, sizeof(line_buf), "%.*s", draw_w,
+                        top_trait_lines[idx].txt);
+                    Term_putstr(right_col, traits_row + i, -1,
+                        top_trait_lines[idx].attr, line_buf);
+                }
+            }
+            else
+            {
+                int draw_w = top_trait_max_line_len;
+                int available_w = Term->wid - compact_col;
+                int start_col;
+                int draw_lines = (top_trait_line_n < trait_rows) ? top_trait_line_n : trait_rows;
+
+                if (draw_w > available_w)
+                    draw_w = available_w;
+                if (draw_w < 1)
+                    draw_w = 1;
+                start_col = compact_col + (available_w - draw_w) / 2;
+
+                for (int i = 0; i < draw_lines; ++i)
+                {
+                    strnfmt(line_buf, sizeof(line_buf), "%.*s", draw_w,
+                        top_trait_lines[i].txt);
+                    Term_putstr(start_col, traits_row + i, -1,
+                        top_trait_lines[i].attr, line_buf);
+                }
+            }
+
+            if (show_ability_heading)
+                Term_putstr(2, ability_row++, -1, TERM_L_BLUE, "Abilities:");
+
+            ability_rows = prompt_row - ability_row;
+            if (ability_rows < 0)
+                ability_rows = 0;
+
+            for (int i = 0; i < ability_line_n && i < ability_rows; ++i)
+                Term_putstr(2, ability_row + i, -1, TERM_YELLOW, ability_lines[i]);
+
+            use_swapped_layout = true;
+        }
+
+        if (!use_swapped_layout)
+        {
+            int compact_row = description_row;
+            int compact_col = 2;
+            int col_gap = 2;
+            int col_wid;
+            bool use_two_columns = false;
+            int right_offset = 0; /* 0=normal, -1=right column starts on title row, -2=one row above */
+
+            for (int i = 0; i < ability_line_n && (row + i) < description_row; ++i)
+                Term_putstr(col, row + i, -1, TERM_YELLOW, ability_lines[i]);
+
+            col_wid = (Term->wid - compact_col - col_gap) / 2;
+            if (col_wid < 1)
+                col_wid = 1;
+
+            if (col_wid >= compact_max_line_len)
+                use_two_columns = true;
+
+            {
+                const bool short_screen = (Term->hgt > 0) && (Term->hgt < 24);
+                const int target_limit = tight_height ? 9 : 10;
+                const int target_traits = (compact_line_n < target_limit) ? compact_line_n : target_limit;
+                const int min_col_wid_for_forced_two_cols = 14;
 
 #define MAX0(v) ((v) > 0 ? (v) : 0)
 #define CAPACITY_ONE(_row) (MAX0(Term->hgt - ((_row) + 1) - 1))
 #define CAPACITY_TWO(_row, _roff) \
     (MAX0(Term->hgt - ((_row) + 1) - 1) + MAX0(Term->hgt - ((_row) + 1 + (_roff)) - 1))
 
-            /* Helper: compute how many traits can be shown with given settings. */
-#define TRAIT_CAPACITY(_row, _pack_title, _two_cols) \
-    (((Term->hgt - (_row) - 1) <= 0) ? 0 : \
-      (((_pack_title) ? (Term->hgt - (_row) - 1) : (Term->hgt - (_row) - 2)) <= 0 ? 0 : \
-        (((_pack_title) ? (Term->hgt - (_row) - 1) : (Term->hgt - (_row) - 2)) * ((_two_cols) ? 2 : 1))))
+                int base_capacity = use_two_columns ? CAPACITY_TWO(compact_row, right_offset)
+                                                   : CAPACITY_ONE(compact_row);
 
-            int base_capacity = use_two_columns ? CAPACITY_TWO(compact_row, right_offset)
-                                               : CAPACITY_ONE(compact_row);
-
-            if (short_screen && (base_capacity < target_traits))
-            {
-                /* Step 1: move the "Character traits" title up by 1 row if needed. */
-                if (compact_row > 0)
-                    compact_row = description_row - 1;
-
-                base_capacity = use_two_columns ? CAPACITY_TWO(compact_row, right_offset)
-                                               : CAPACITY_ONE(compact_row);
-
-                /* Step 2: if needed, allow two columns (may truncate) to reach the target. */
-                if ((base_capacity < target_traits) && !use_two_columns
-                    && (col_wid >= min_col_wid_for_forced_two_cols))
+                if (short_screen && (base_capacity < target_traits))
                 {
-                    use_two_columns = true;
-                    base_capacity = CAPACITY_TWO(compact_row, right_offset);
-                }
+                    if (compact_row > 0)
+                        compact_row = description_row - 1;
 
-                /* Step 3: start the *second* column on the title row. */
-                if ((base_capacity < target_traits) && use_two_columns)
-                {
-                    right_offset = -1;
-                    base_capacity = CAPACITY_TWO(compact_row, right_offset);
-                }
+                    base_capacity = use_two_columns ? CAPACITY_TWO(compact_row, right_offset)
+                                                   : CAPACITY_ONE(compact_row);
 
-                /* Step 4 (last resort): start the second column one row above the title. */
-                if ((base_capacity < target_traits) && use_two_columns && (compact_row > 0))
-                {
-                    right_offset = -2;
-                    base_capacity = CAPACITY_TWO(compact_row, right_offset);
+                    if ((base_capacity < target_traits) && !use_two_columns
+                        && (col_wid >= min_col_wid_for_forced_two_cols))
+                    {
+                        use_two_columns = true;
+                        base_capacity = CAPACITY_TWO(compact_row, right_offset);
+                    }
+
+                    if ((base_capacity < target_traits) && use_two_columns)
+                    {
+                        right_offset = -1;
+                        base_capacity = CAPACITY_TWO(compact_row, right_offset);
+                    }
+
+                    if ((base_capacity < target_traits) && use_two_columns && (compact_row > 0))
+                    {
+                        right_offset = -2;
+                        base_capacity = CAPACITY_TWO(compact_row, right_offset);
+                    }
                 }
-            }
 
 #undef CAPACITY_TWO
 #undef CAPACITY_ONE
 #undef MAX0
-        }
+            }
 
-        {
-            int compact_available = Term->hgt - compact_row - 1;
-
-            if ((compact_available > 0) && (Term->hgt > 0))
-                Term_putstr(compact_col, compact_row, -1, TERM_L_BLUE, "Character traits:");
-
-            if (use_two_columns)
             {
-                int col2 = compact_col + col_wid + col_gap;
-                int left_start = compact_row + 1;
-                int right_start = compact_row + 1 + right_offset;
+                int compact_available = Term->hgt - compact_row - 1;
 
-                int left_rows = Term->hgt - left_start - 1;
-                int right_rows = Term->hgt - right_start - 1;
-                if (left_rows < 0) left_rows = 0;
-                if (right_rows < 0) right_rows = 0;
+                if ((compact_available > 0) && (Term->hgt > 0))
+                    Term_putstr(compact_col, compact_row, -1, TERM_L_BLUE, "Character traits:");
 
-                int max_lines = left_rows + right_rows;
-                int draw_lines = (compact_line_n < max_lines) ? compact_line_n : max_lines;
-
-                int left_count = (draw_lines + 1) / 2;
-                if (left_count > left_rows) left_count = left_rows;
-                int right_count = draw_lines - left_count;
-                if (right_count > right_rows) right_count = right_rows;
-                if (left_count > left_rows) left_count = left_rows;
-                if (left_count > (draw_lines - right_count)) left_count = draw_lines - right_count;
-                draw_lines = left_count + right_count;
-
-                for (int i = 0; i < left_count; ++i)
+                if (use_two_columns)
                 {
-                    int y = left_start + i;
-                    strnfmt(line_buf, sizeof(line_buf), "%-*.*s", col_wid, col_wid,
-                        compact_lines[i].txt);
-                    Term_putstr(compact_col, y, -1, compact_lines[i].attr, line_buf);
+                    int col2 = compact_col + col_wid + col_gap;
+                    int left_start = compact_row + 1;
+                    int right_start = compact_row + 1 + right_offset;
+                    int left_rows = Term->hgt - left_start - 1;
+                    int right_rows = Term->hgt - right_start - 1;
+                    int max_lines;
+                    int draw_lines;
+                    int left_count;
+                    int right_count;
+
+                    if (left_rows < 0) left_rows = 0;
+                    if (right_rows < 0) right_rows = 0;
+
+                    max_lines = left_rows + right_rows;
+                    draw_lines = (compact_line_n < max_lines) ? compact_line_n : max_lines;
+
+                    left_count = (draw_lines + 1) / 2;
+                    if (left_count > left_rows) left_count = left_rows;
+                    right_count = draw_lines - left_count;
+                    if (right_count > right_rows) right_count = right_rows;
+                    if (left_count > (draw_lines - right_count))
+                        left_count = draw_lines - right_count;
+                    draw_lines = left_count + right_count;
+
+                    for (int i = 0; i < left_count; ++i)
+                    {
+                        int y = left_start + i;
+                        strnfmt(line_buf, sizeof(line_buf), "%-*.*s", col_wid, col_wid,
+                            compact_lines[i].txt);
+                        Term_putstr(compact_col, y, -1, compact_lines[i].attr, line_buf);
+                    }
+
+                    for (int i = 0; i < right_count; ++i)
+                    {
+                        int idx = left_count + i;
+                        int y = right_start + i;
+                        strnfmt(line_buf, sizeof(line_buf), "%-*.*s", col_wid, col_wid,
+                            compact_lines[idx].txt);
+                        Term_putstr(col2, y, -1, compact_lines[idx].attr, line_buf);
+                    }
                 }
-
-                for (int i = 0; i < right_count; ++i)
+                else
                 {
-                    int idx = left_count + i;
-                    int y = right_start + i;
-                    strnfmt(line_buf, sizeof(line_buf), "%-*.*s", col_wid, col_wid,
-                        compact_lines[idx].txt);
-                    Term_putstr(col2, y, -1, compact_lines[idx].attr, line_buf);
+                    int start_row = compact_row + 1;
+                    int rows = Term->hgt - start_row - 1;
+                    int draw_lines;
+
+                    if (rows < 0)
+                        rows = 0;
+                    draw_lines = (compact_line_n < rows) ? compact_line_n : rows;
+
+                    for (int i = 0; i < draw_lines; ++i)
+                        Term_putstr(compact_col, start_row + i, -1,
+                            compact_lines[i].attr, compact_lines[i].txt);
                 }
             }
-            else
-            {
-                int start_row = compact_row + 1;
-                int rows = Term->hgt - start_row - 1;
-                if (rows < 0) rows = 0;
-
-                int draw_lines = (compact_line_n < rows) ? compact_line_n : rows;
-                for (int i = 0; i < draw_lines; ++i)
-                {
-                    Term_putstr(compact_col, start_row + i, -1,
-                        compact_lines[i].attr, compact_lines[i].txt);
-                }
-            }
         }
-
-#undef APPEND_COMPACT_LINE
     }
     else
     {
@@ -1928,6 +2177,7 @@ static void character_aux_hook(birth_menu c_str)
     int term_wid = 80;
     int term_hgt = 24;
     int description_row = birth_description_base_row();
+    bool compact_layout = character_flags_need_compact_layout();
     int name_col;
     int fallback_name_col;
     bool aligned_name_fits;
@@ -2042,44 +2292,47 @@ static void character_aux_hook(birth_menu c_str)
     print_rh_flags(
         p_ptr->prace, character_idx, TOTAL_AUX_COL, TABLE_ROW + A_MAX + 1);
     
-    /* Display power rating legend on left side at row 10 with alive counts */
-    int legend_col = 2;  /* Left side */
-    int legend_row = 10; /* Row 10 as requested (moved up one row) */
-    
-    /* Count alive heroes by power level across ALL races */
-    int power_counts[4] = {0, 0, 0, 0};  /* weak, fair, strong, mighty (P:3/P:4) */
-    for (int i = 0; i < z_info->c_max; i++)
+    if (!(compact_layout && character_selection_tight_height()))
     {
-        /* Count only characters that are NOT dead (alive) */
-        if (highscore_dead(c_name + c_info[i].name) == 0)  /* If NOT dead (alive) */
+        /* Display power rating legend on left side at row 10 with alive counts */
+        int legend_col = 2;  /* Left side */
+        int legend_row = 10; /* Row 10 as requested (moved up one row) */
+
+        /* Count alive heroes by power level across ALL races */
+        int power_counts[4] = {0, 0, 0, 0};  /* weak, fair, strong, mighty (P:3/P:4) */
+        for (int i = 0; i < z_info->c_max; i++)
         {
-            byte power = c_info[i].power;
-            if (power <= 4)
+            /* Count only characters that are NOT dead (alive) */
+            if (highscore_dead(c_name + c_info[i].name) == 0)  /* If NOT dead (alive) */
             {
-                if (power == 4)
-                    power_counts[3]++;  /* P:4 counts toward "Mighty" (same group as P:3) */
-                else
-                    power_counts[power]++;
+                byte power = c_info[i].power;
+                if (power <= 4)
+                {
+                    if (power == 4)
+                        power_counts[3]++;  /* P:4 counts toward "Mighty" (same group as P:3) */
+                    else
+                        power_counts[power]++;
+                }
             }
         }
+
+        /* Display legend without "Power Rating:" header */
+        Term_putstr(legend_col, legend_row, -1, TERM_L_GREEN, "***");
+        strnfmt(s, sizeof(s), "Mighty %d", power_counts[3]);
+        Term_putstr(legend_col + 4, legend_row, -1, TERM_WHITE, s);
+
+        Term_putstr(legend_col, legend_row + 1, -1, TERM_GREEN, "***");
+        strnfmt(s, sizeof(s), "Strong %d", power_counts[2]);
+        Term_putstr(legend_col + 4, legend_row + 1, -1, TERM_WHITE, s);
+
+        Term_putstr(legend_col, legend_row + 2, -1, TERM_WHITE, "**");
+        strnfmt(s, sizeof(s), "Fair %d", power_counts[1]);
+        Term_putstr(legend_col + 4, legend_row + 2, -1, TERM_WHITE, s);
+
+        Term_putstr(legend_col, legend_row + 3, -1, TERM_RED, "*");
+        strnfmt(s, sizeof(s), "Weak %d", power_counts[0]);
+        Term_putstr(legend_col + 4, legend_row + 3, -1, TERM_WHITE, s);
     }
-    
-    /* Display legend without "Power Rating:" header */
-    Term_putstr(legend_col, legend_row, -1, TERM_L_GREEN, "***");
-    strnfmt(s, sizeof(s), "Mighty %d", power_counts[3]);
-    Term_putstr(legend_col + 4, legend_row, -1, TERM_WHITE, s);
-    
-    Term_putstr(legend_col, legend_row + 1, -1, TERM_GREEN, "***");
-    strnfmt(s, sizeof(s), "Strong %d", power_counts[2]);
-    Term_putstr(legend_col + 4, legend_row + 1, -1, TERM_WHITE, s);
-    
-    Term_putstr(legend_col, legend_row + 2, -1, TERM_WHITE, "**");
-    strnfmt(s, sizeof(s), "Fair %d", power_counts[1]);
-    Term_putstr(legend_col + 4, legend_row + 2, -1, TERM_WHITE, s);
-    
-    Term_putstr(legend_col, legend_row + 3, -1, TERM_RED, "*");
-    strnfmt(s, sizeof(s), "Weak %d", power_counts[0]);
-    Term_putstr(legend_col + 4, legend_row + 3, -1, TERM_WHITE, s);
 }
 /*
  * Player character template selection
@@ -2382,329 +2635,676 @@ NavResult character_creation(void)
 
 }
 
-/*
- * Helper function to display wrapped text at a given position
- * Returns the number of lines used
- */
-static int display_wrapped_text(cptr text, int start_col, int start_row, int max_width, byte color)
+static bool oath_menu_use_compact_layout(void)
 {
-    if (!text || !text[0]) return 0;
-    
-    /* Get actual terminal size if max_width is not specified */
-    int term_width, term_height;
-    Term_get_size(&term_width, &term_height);
-    
-    if (max_width <= 0) {
-        max_width = term_width - start_col - 2; /* Leave some margin */
+    int wid = 80;
+    int hgt = 24;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1)
+        wid = 80;
+    if (hgt < 1)
+        hgt = 24;
+
+    return (wid < 80) || (hgt < 24);
+}
+
+static int oath_collect_visible(int available_mask, int* visible_oaths, int max_visible)
+{
+    int visible_count = 0;
+
+    if (visible_oaths && visible_count < max_visible)
+        visible_oaths[visible_count] = 0;
+    visible_count++;
+
+    for (int i = 1; z_info && i < z_info->oath_max; i++)
+    {
+        if (!(available_mask & (1 << (i - 1))) && !oath_banned(i))
+            continue;
+
+        if (visible_oaths && visible_count < max_visible)
+            visible_oaths[visible_count] = i;
+
+        visible_count++;
     }
-    
-    char line_buffer[256]; /* Increased buffer size for wider terminals */
-    int row = start_row;
+
+    return visible_count;
+}
+
+static bool oath_option_selectable(int oath_id, int available_mask)
+{
+    if (oath_id == 0)
+        return true;
+
+    return ((available_mask & (1 << (oath_id - 1))) != 0) && !oath_banned(oath_id);
+}
+
+static void oath_move_highlight(int* highlight, int direction, int available_mask)
+{
+    int oath_max = z_info ? z_info->oath_max : 7;
+    int original = *highlight;
+    int next = *highlight;
+
+    if (oath_max <= 0)
+    {
+        *highlight = 0;
+        return;
+    }
+
+    do
+    {
+        next += direction;
+        if (next < 0)
+            next = oath_max - 1;
+        if (next >= oath_max)
+            next = 0;
+
+        if ((next == 0)
+            || (available_mask & (1 << (next - 1)))
+            || oath_banned(next))
+        {
+            *highlight = next;
+            return;
+        }
+    } while (next != original);
+}
+
+static void oath_center_putstr(int row, byte attr, cptr text)
+{
+    int wid = 80;
+    int hgt = 24;
+    int col;
+
+    if (!text)
+        text = "";
+
+    Term_get_size(&wid, &hgt);
+    (void)hgt;
+    if (wid < 1)
+        wid = 80;
+
+    col = (wid - (int)strlen(text)) / 2;
+    if (col < 0)
+        col = 0;
+
+    Term_putstr(col, row, -1, attr, text);
+}
+
+static void oath_draw_page_indicator(int page, int page_count, int wid, int row)
+{
+    char page_buf[16];
+    int col;
+
+    if (page_count <= 1)
+        return;
+
+    strnfmt(page_buf, sizeof(page_buf), "%d/%d", page + 1, page_count);
+    col = wid - (int)strlen(page_buf) - 1;
+    if (col < 0)
+        col = 0;
+
+    Term_putstr(col, row, -1, TERM_WHITE, page_buf);
+}
+
+static void oath_putstr_fit(int col, int row, int max_width, byte attr, cptr text)
+{
+    char buf[256];
+    int len;
+
+    if (max_width <= 0)
+        return;
+
+    if (!text)
+        text = "";
+
+    len = (int)strlen(text);
+    if (len <= max_width)
+    {
+        Term_putstr(col, row, -1, attr, text);
+        return;
+    }
+
+    if (max_width <= 3)
+        strnfmt(buf, sizeof(buf), "%.*s", max_width, text);
+    else
+        strnfmt(buf, sizeof(buf), "%.*s...", max_width - 3, text);
+
+    Term_putstr(col, row, -1, attr, buf);
+}
+
+static void oath_render_virtual_line(int col, int* draw_row, int row_limit,
+    int* virtual_row, int skip_lines, byte color, cptr text, bool render)
+{
+    if (!text)
+        text = "";
+
+    if ((*virtual_row >= skip_lines) && render && (*draw_row < row_limit))
+        Term_putstr(col, *draw_row, -1, color, text);
+
+    if ((*virtual_row >= skip_lines) && (*draw_row < row_limit))
+        (*draw_row)++;
+
+    (*virtual_row)++;
+}
+
+static void oath_render_virtual_wrapped_text(cptr text, int col, int max_width,
+    int* draw_row, int row_limit, int* virtual_row, int skip_lines,
+    byte color, bool render)
+{
+    char line_buffer[512];
     int line_pos = 0;
     const char* text_ptr = text;
-    
-    while (*text_ptr && row < term_height - 1) { /* Use actual terminal height */
-        /* Skip leading spaces at start of line */
-        while (*text_ptr == ' ' && line_pos == 0) text_ptr++;
-        
-        if (*text_ptr == '\n') {
-            /* Explicit line break */
+
+    if (!text || !text[0])
+        return;
+
+    if (max_width <= 0)
+    {
+        int term_width = 80;
+        int term_height = 24;
+
+        Term_get_size(&term_width, &term_height);
+        (void)term_height;
+        if (term_width < 1)
+            term_width = 80;
+        max_width = term_width - col - 2;
+    }
+
+    if (max_width < 8)
+        max_width = 8;
+
+    while (*text_ptr)
+    {
+        while (*text_ptr == ' ' && line_pos == 0)
+            text_ptr++;
+
+        if (*text_ptr == '\n')
+        {
             line_buffer[line_pos] = '\0';
-            if (line_pos > 0) {
-                Term_putstr(start_col, row, -1, color, line_buffer);
-                row++;
-            }
+            if (line_pos > 0)
+                oath_render_virtual_line(col, draw_row, row_limit, virtual_row,
+                    skip_lines, color, line_buffer, render);
+            else
+                oath_render_virtual_line(col, draw_row, row_limit, virtual_row,
+                    skip_lines, color, "", render);
+
             line_pos = 0;
             text_ptr++;
             continue;
         }
-        
-        if (line_pos >= max_width) {
-            /* Need to wrap - find last space for word boundary */
+
+        if ((line_pos >= max_width) || (line_pos >= (int)sizeof(line_buffer) - 1))
+        {
             int wrap_pos = line_pos - 1;
-            while (wrap_pos > 0 && line_buffer[wrap_pos] != ' ') {
+
+            while (wrap_pos > 0 && line_buffer[wrap_pos] != ' ')
                 wrap_pos--;
-            }
-            
-            if (wrap_pos > 0) {
-                /* Found a space - wrap at word boundary */
-                line_buffer[wrap_pos] = '\0';
-                Term_putstr(start_col, row, -1, color, line_buffer);
-                
-                /* Move remaining text to next line */
+
+            if (wrap_pos > 0)
+            {
                 int remaining = line_pos - wrap_pos - 1;
-                for (int i = 0; i < remaining; i++) {
+
+                line_buffer[wrap_pos] = '\0';
+                oath_render_virtual_line(col, draw_row, row_limit, virtual_row,
+                    skip_lines, color, line_buffer, render);
+
+                for (int i = 0; i < remaining; i++)
                     line_buffer[i] = line_buffer[wrap_pos + 1 + i];
-                }
+
                 line_pos = remaining;
-            } else {
-                /* No space found - hard wrap */
+            }
+            else
+            {
                 line_buffer[line_pos] = '\0';
-                Term_putstr(start_col, row, -1, color, line_buffer);
+                oath_render_virtual_line(col, draw_row, row_limit, virtual_row,
+                    skip_lines, color, line_buffer, render);
                 line_pos = 0;
             }
-            row++;
+
             continue;
         }
-        
-        /* Add character to current line */
+
         line_buffer[line_pos++] = *text_ptr++;
     }
-    
-    /* Display final line if any */
-    if (line_pos > 0) {
+
+    if (line_pos > 0)
+    {
         line_buffer[line_pos] = '\0';
-        Term_putstr(start_col, row, -1, color, line_buffer);
-        row++;
+        oath_render_virtual_line(col, draw_row, row_limit, virtual_row,
+            skip_lines, color, line_buffer, render);
     }
-    
-    return row - start_row;
+}
+
+static int oath_render_detail_content(int oath_id, int col, int start_row,
+    int max_width, int row_limit, int skip_lines, bool render)
+{
+    int draw_row = start_row;
+    int virtual_row = 0;
+    char line_buf[768];
+
+    if (oath_id < 0 || !z_info || oath_id >= z_info->oath_max)
+        return 0;
+
+    if (oath_banned(oath_id) && oath_id > 0)
+    {
+        char* banned_text = oath_banned_text(oath_id);
+
+        oath_render_virtual_line(col, &draw_row, row_limit, &virtual_row,
+            skip_lines, TERM_L_RED, "OATH BROKEN", render);
+
+        if (banned_text && banned_text[0])
+        {
+            oath_render_virtual_wrapped_text(banned_text, col, max_width,
+                &draw_row, row_limit, &virtual_row, skip_lines, TERM_RED, render);
+        }
+        else
+        {
+            oath_render_virtual_wrapped_text(
+                "Thy oath lies shattered, and thy name is marked in shame for this age.",
+                col, max_width, &draw_row, row_limit, &virtual_row, skip_lines,
+                TERM_RED, render);
+        }
+
+        return virtual_row;
+    }
+
+    if (oath_id == 0)
+    {
+        oath_render_virtual_wrapped_text("Walk free of binding words.", col,
+            max_width, &draw_row, row_limit, &virtual_row, skip_lines,
+            TERM_SLATE, render);
+        oath_render_virtual_wrapped_text(
+            "Take no oath and remain unbound by sacred vows.", col, max_width,
+            &draw_row, row_limit, &virtual_row, skip_lines, TERM_SLATE, render);
+        return virtual_row;
+    }
+
+    if (oath_description(oath_id) && oath_description(oath_id)[0])
+    {
+        strnfmt(line_buf, sizeof(line_buf), "Description: %s",
+            oath_description(oath_id));
+        oath_render_virtual_wrapped_text(line_buf, col, max_width, &draw_row,
+            row_limit, &virtual_row, skip_lines, TERM_SLATE, render);
+    }
+
+    if (oath_pledge(oath_id) && oath_pledge(oath_id)[0])
+    {
+        strnfmt(line_buf, sizeof(line_buf), "Pledge: %s", oath_pledge(oath_id));
+        oath_render_virtual_wrapped_text(line_buf, col, max_width, &draw_row,
+            row_limit, &virtual_row, skip_lines, TERM_L_BLUE, render);
+    }
+
+    if (oath_reward_text(oath_id) && oath_reward_text(oath_id)[0])
+    {
+        strnfmt(line_buf, sizeof(line_buf), "Reward: %s",
+            oath_reward_text(oath_id));
+        oath_render_virtual_wrapped_text(line_buf, col, max_width, &draw_row,
+            row_limit, &virtual_row, skip_lines, TERM_L_GREEN, render);
+    }
+
+    if (oath_forbidden(oath_id) && oath_forbidden(oath_id)[0])
+    {
+        strnfmt(line_buf, sizeof(line_buf), "Forbidden: %s",
+            oath_forbidden(oath_id));
+        oath_render_virtual_wrapped_text(line_buf, col, max_width, &draw_row,
+            row_limit, &virtual_row, skip_lines, TERM_L_RED, render);
+    }
+
+    return virtual_row;
+}
+
+static void oath_draw_compact_list_summary(int oath_id, int row, int prompt_row,
+    int max_width)
+{
+    char line_buf[512];
+    byte name_attr = TERM_L_BLUE;
+
+    if (row >= prompt_row || max_width <= 0)
+        return;
+
+    if (oath_id == 0)
+        name_attr = TERM_WHITE;
+    else if (oath_banned(oath_id))
+        name_attr = TERM_L_RED;
+
+    oath_putstr_fit(2, row++, max_width, name_attr, oath_name_str(oath_id));
+
+    if (row >= prompt_row)
+        return;
+
+    if (oath_id == 0)
+    {
+        oath_putstr_fit(2, row, max_width, TERM_SLATE,
+            "No oath. No restrictions.");
+        return;
+    }
+
+    if (oath_banned(oath_id))
+    {
+        oath_putstr_fit(2, row, max_width, TERM_RED,
+            "Broken oath: unavailable for this metarun.");
+        return;
+    }
+
+    if (oath_reward_text(oath_id) && oath_reward_text(oath_id)[0])
+    {
+        strnfmt(line_buf, sizeof(line_buf), "Reward: %s",
+            oath_reward_text(oath_id));
+        oath_putstr_fit(2, row++, max_width, TERM_L_GREEN, line_buf);
+    }
+
+    if (row >= prompt_row)
+        return;
+
+    if (oath_forbidden(oath_id) && oath_forbidden(oath_id)[0])
+    {
+        strnfmt(line_buf, sizeof(line_buf), "Forbidden: %s",
+            oath_forbidden(oath_id));
+        oath_putstr_fit(2, row, max_width, TERM_L_RED, line_buf);
+    }
 }
 
 /*
- * Oath selection screen with three-column layout following abilities_menu2 pattern
+ * Oath selection screen.
+ *
+ * Wide screens keep the split list/details layout. Compact screens use a
+ * dedicated list page plus a full-width details page with vertical scrolling.
  */
 static NavResult select_oath(void)
 {
     int available_mask = get_available_oaths_mask();
-    
+
     /* If no oaths are available, skip oath selection */
-    if (available_mask == 0) {
+    if (available_mask == 0)
+    {
         p_ptr->oath_type = 0; /* No oath */
         log_debug("No oaths available, skipping oath selection");
         return NAV_OK;
     }
-    
+
     int highlight = 1; /* Start highlighting first available oath */
     int choice = 0;
-    int visible_count = 0;
-    
+    int page = 0;
+    int detail_scroll = 0;
+    bool steamdeck = steamdeck_controls_active();
+
     /* Find first available oath to highlight */
-    for (int i = 1; z_info && i < z_info->oath_max; i++) {
-        if (available_mask & (1 << (i - 1))) {
+    for (int i = 1; z_info && i < z_info->oath_max; i++)
+    {
+        if (available_mask & (1 << (i - 1)))
+        {
             highlight = i;
             break;
         }
     }
-    
-    while (true) {
-        char buf[80];
-        byte attr;
-        
-        /* Clear screen and use full-width layout */
+
+    while (true)
+    {
+        int wid = 80;
+        int hgt = 24;
+        int prompt_row;
+        int visible_oaths[16];
+        int visible_count;
+        int detail_max_scroll = 0;
+        bool compact;
+        char key;
+
+        Term_get_size(&wid, &hgt);
+        if (wid < 1)
+            wid = 80;
+        if (hgt < 1)
+            hgt = 24;
+
+        prompt_row = hgt - 1;
+        if (prompt_row < 0)
+            prompt_row = 0;
+
+        compact = oath_menu_use_compact_layout();
+        if (!compact)
+            page = 0;
+
+        visible_count = oath_collect_visible(available_mask, visible_oaths,
+            (int)N_ELEMENTS(visible_oaths));
+        if (visible_count > (int)N_ELEMENTS(visible_oaths))
+            visible_count = (int)N_ELEMENTS(visible_oaths);
+
         Term_clear();
-        
-        /* Title at the top center */
-        Term_putstr(30, 0, -1, TERM_L_BLUE, "Choose your Oath");
-        
-        /* Setup oath list area (left side) */
-        Term_putstr(2, 2, -1, TERM_WHITE, "Available Oaths");
-        
-        /* Build visible oaths list - only show available or broken */
-        visible_count = 0;
-        
-        /* Always include "None" option */
-        attr = (highlight == 0) ? TERM_L_BLUE : TERM_WHITE;
-        Term_putstr(2, 4 + visible_count, -1, attr, format("%c) %s", 'a' + visible_count, oath_name_str(0)));
-        visible_count++;
-        
-        /* Add available or broken oaths */
-        for (int i = 1; z_info && i < z_info->oath_max; i++) {
-            /* Skip locked oaths (not available and not broken) */
-            if (!(available_mask & (1 << (i - 1))) && !oath_banned(i)) {
-                continue;
-            }
-            
-            /* Determine display color based on oath status and highlight */
-            if (oath_banned(i)) {
-                /* Broken oaths: red when not highlighted, bright red when highlighted */
-                attr = (highlight == i) ? TERM_L_RED : TERM_RED;
-                strnfmt(buf, 80, "%c) %s", 'a' + visible_count, oath_name_str(i));
-            } else {
-                /* Available oaths: bright blue when highlighted, white when not */
-                attr = (highlight == i) ? TERM_L_BLUE : TERM_WHITE;
-                strnfmt(buf, 80, "%c) %s", 'a' + visible_count, oath_name_str(i));
-            }
-            
-            Term_putstr(2, 4 + visible_count, -1, attr, buf);
-            visible_count++;
-        }
-        
-        /* Display detailed description for highlighted oath in description column */
-        wipe_screen_from(COL_DESCRIPTION);
-        Term_putstr(COL_DESCRIPTION, 2, -1, TERM_WHITE, "Oath Details");
-        
-        if (highlight >= 0 && highlight < (z_info ? z_info->oath_max : 6)) {
-            if (oath_banned(highlight) && highlight > 0) {
-                /* Use oath-specific banned text */
-                char* banned_text = oath_banned_text(highlight);
-                if (banned_text && banned_text[0]) {
-                    /* Display the oath-specific banned text with improved wrapping */
-                    display_wrapped_text(banned_text, COL_DESCRIPTION, 4, 0, TERM_L_RED);
-                } else {
-                    /* Fallback to generic broken oath text */
-                    Term_putstr(COL_DESCRIPTION, 4, -1, TERM_L_RED, "OATH BROKEN");
-                    Term_putstr(COL_DESCRIPTION, 6, -1, TERM_RED, "\"Thy oath lies shattered,");
-                    Term_putstr(COL_DESCRIPTION, 7, -1, TERM_RED, " thy word worthless as dust.\"");
-                    Term_putstr(COL_DESCRIPTION, 9, -1, TERM_L_RED, "\"No Valar shall hear thy voice,");
-                    Term_putstr(COL_DESCRIPTION, 10, -1, TERM_L_RED, " no light shall guide thy path.\"");
-                    Term_putstr(COL_DESCRIPTION, 12, -1, TERM_RED, "Forever marked as oathbreaker");
-                    Term_putstr(COL_DESCRIPTION, 13, -1, TERM_RED, "in this age.");
+
+        if (compact)
+        {
+            oath_center_putstr(0, TERM_L_BLUE,
+                (page == 0) ? "Choose your Oath" : "Oath Details");
+            oath_draw_page_indicator(page, 2, wid, 0);
+
+            if (page == 0)
+            {
+                int list_row = 4;
+
+                Term_putstr(2, 2, -1, TERM_WHITE, "Available Oaths");
+
+                for (int i = 0; i < visible_count; i++)
+                {
+                    int oath_id = visible_oaths[i];
+                    byte attr;
+                    char buf[96];
+
+                    if (oath_banned(oath_id) && oath_id > 0)
+                        attr = (highlight == oath_id) ? TERM_L_RED : TERM_RED;
+                    else
+                        attr = (highlight == oath_id) ? TERM_L_BLUE : TERM_WHITE;
+
+                    strnfmt(buf, sizeof(buf), "%c) %s", 'a' + i, oath_name_str(oath_id));
+                    Term_putstr(2, list_row + i, -1, attr, buf);
                 }
-            } else {
-                /* Display oath description */
-                if (highlight == 0) {
-                    Term_putstr(COL_DESCRIPTION, 4, -1, TERM_SLATE, "Walk free of binding words");
-                    Term_putstr(COL_DESCRIPTION, 6, -1, TERM_SLATE, "Take no oath and remain unbound");
-                    Term_putstr(COL_DESCRIPTION, 7, -1, TERM_SLATE, "by sacred vows.");
-                } else {
-                    /* Get oath description and display it */
-                    char* description = oath_description(highlight);
-                    if (description && description[0]) {
-                        Term_putstr(COL_DESCRIPTION, 4, -1, TERM_YELLOW, "Description:");
-                        
-                        /* Display description with improved word wrapping */
-                        int row = 5;
-                        row += display_wrapped_text(description, COL_DESCRIPTION, row, 0, TERM_SLATE);
-                        
-                        /* Display Pledge (P:) */
-                        char* pledge = oath_pledge(highlight);
-                        if (pledge && pledge[0]) {
-                            char pledge_full[512];
-                            strnfmt(pledge_full, sizeof(pledge_full), "Pledge: %s", pledge);
-                            row += display_wrapped_text(pledge_full, COL_DESCRIPTION, row, 0, TERM_L_BLUE);
-                        }
-                        
-                        /* Display Reward (R:) - MOVED TO TOP FOR VISIBILITY */
-                        char* reward = oath_reward_text(highlight);
-                        log_debug("Oath %d reward text: '%s'", highlight, reward ? reward : "NULL");
-                        if (reward && reward[0]) {
-                            char reward_full[512];
-                            strnfmt(reward_full, sizeof(reward_full), "Reward: %s", reward);
-                            row += display_wrapped_text(reward_full, COL_DESCRIPTION, row, 0, TERM_L_GREEN);
-                        }
-                        
-                        /* Display Forbidden (F:) */
-                        char* forbidden = oath_forbidden(highlight);
-                        if (forbidden && forbidden[0]) {
-                            char forbidden_full[512];
-                            strnfmt(forbidden_full, sizeof(forbidden_full), "Forbidden: %s", forbidden);
-                            row += display_wrapped_text(forbidden_full, COL_DESCRIPTION, row, 0, TERM_L_RED);
-                        }
-                    }
+
+                oath_draw_compact_list_summary(highlight, list_row + visible_count + 1,
+                    prompt_row, wid - 4);
+
+                if (steamdeck)
+                {
+                    char confirm_label[16];
+                    char back_label[16];
+                    char prompt_buf[96];
+
+                    birth_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
+                    birth_prompt_label('b', "B", back_label, sizeof(back_label));
+                    strnfmt(prompt_buf, sizeof(prompt_buf),
+                        "D-pad Nav/Page  %s Select  %s Back",
+                        confirm_label, back_label);
+                    oath_putstr_fit(2, prompt_row, wid - 4, TERM_SLATE, prompt_buf);
+                }
+                else
+                {
+                    oath_putstr_fit(2, prompt_row, wid - 4, TERM_SLATE,
+                        "8/2 Nav  6 Details  Enter Select  Esc Back");
                 }
             }
-        }
-        
-        /* Footer text at bottom */
-        Term_putstr(2, 20, -1, TERM_SLATE, "Oaths are sacred vows that grant power but bind your actions.");
-        Term_putstr(2, 21, -1, TERM_SLATE, "Breaking an oath brings curse and shame.");
-        
-        /* Instructions at bottom with arrows */
-        if (steamdeck_controls_active()) {
-            char confirm_label[16];
-            char back_label[16];
-            char prompt_buf[160];
+            else
+            {
+                int content_row = 3;
+                int visible_rows = prompt_row - content_row;
+                int total_lines;
 
-            birth_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
-            birth_prompt_label('b', "b", back_label, sizeof(back_label));
+                Term_putstr(2, 1, -1, oath_banned(highlight) ? TERM_L_RED : TERM_L_BLUE,
+                    oath_name_str(highlight));
 
-            strnfmt(prompt_buf, sizeof(prompt_buf),
-                "D-pad to Navigate     %s Accept     %s Back",
-                confirm_label, back_label);
-            Term_putstr(2, 23, -1, TERM_SLATE, prompt_buf);
-        } else {
-            Term_putstr(2, 23, -1, TERM_SLATE,
-                "Arrows to Navigate     Enter/Space Accept     Esc Back");
+                total_lines = oath_render_detail_content(highlight, 2, content_row,
+                    wid - 4, prompt_row, 0, false);
+
+                if (visible_rows < 0)
+                    visible_rows = 0;
+
+                detail_max_scroll = (total_lines > visible_rows)
+                    ? (total_lines - visible_rows)
+                    : 0;
+
+                if (detail_scroll > detail_max_scroll)
+                    detail_scroll = detail_max_scroll;
+
+                (void)oath_render_detail_content(highlight, 2, content_row, wid - 4,
+                    prompt_row, detail_scroll, true);
+
+                if (detail_max_scroll > 0)
+                {
+                    char scroll_buf[32];
+
+                    strnfmt(scroll_buf, sizeof(scroll_buf), "Scroll %d/%d",
+                        detail_scroll + 1, detail_max_scroll + 1);
+                    oath_putstr_fit(2, 2, wid - 4, TERM_SLATE, scroll_buf);
+                }
+
+                if (steamdeck)
+                {
+                    char confirm_label[16];
+                    char back_label[16];
+                    char prompt_buf[96];
+
+                    birth_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
+                    birth_prompt_label('b', "B", back_label, sizeof(back_label));
+                    strnfmt(prompt_buf, sizeof(prompt_buf),
+                        "D-pad Scroll/Page  %s Select  %s Back",
+                        confirm_label, back_label);
+                    oath_putstr_fit(2, prompt_row, wid - 4, TERM_SLATE, prompt_buf);
+                }
+                else
+                {
+                    oath_putstr_fit(2, prompt_row, wid - 4, TERM_SLATE,
+                        "8/2 Scroll  4 List  Enter Select  Esc Back");
+                }
+            }
         }
-        
-        /* Get input */
-        char key = inkey();
-        
-        /* Handle input */
-        if (steamdeck_controls_active() && key == 'b')
+        else
+        {
+            int footer_row = prompt_row - 3;
+            int details_width = wid - COL_DESCRIPTION - 2;
+
+            oath_center_putstr(0, TERM_L_BLUE, "Choose your Oath");
+            Term_putstr(2, 2, -1, TERM_WHITE, "Available Oaths");
+            Term_putstr(COL_DESCRIPTION, 2, -1, TERM_WHITE, "Oath Details");
+
+            for (int i = 0; i < visible_count; i++)
+            {
+                int oath_id = visible_oaths[i];
+                byte attr;
+                char buf[96];
+
+                if (oath_banned(oath_id) && oath_id > 0)
+                    attr = (highlight == oath_id) ? TERM_L_RED : TERM_RED;
+                else
+                    attr = (highlight == oath_id) ? TERM_L_BLUE : TERM_WHITE;
+
+                strnfmt(buf, sizeof(buf), "%c) %s", 'a' + i, oath_name_str(oath_id));
+                Term_putstr(2, 4 + i, -1, attr, buf);
+            }
+
+            (void)oath_render_detail_content(highlight, COL_DESCRIPTION, 4,
+                details_width, prompt_row, 0, true);
+
+            if (footer_row >= 0)
+            {
+                oath_putstr_fit(2, footer_row, wid - 4, TERM_SLATE,
+                    "Oaths grant power, but they bind your actions.");
+            }
+            if (footer_row + 1 < prompt_row)
+            {
+                oath_putstr_fit(2, footer_row + 1, wid - 4, TERM_SLATE,
+                    "Breaking an oath brings curse and shame.");
+            }
+
+            if (steamdeck)
+            {
+                char confirm_label[16];
+                char back_label[16];
+                char prompt_buf[128];
+
+                birth_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
+                birth_prompt_label('b', "B", back_label, sizeof(back_label));
+                strnfmt(prompt_buf, sizeof(prompt_buf),
+                    "D-pad Navigate  %s Select  %s Back",
+                    confirm_label, back_label);
+                oath_putstr_fit(2, prompt_row, wid - 4, TERM_SLATE, prompt_buf);
+            }
+            else
+            {
+                oath_putstr_fit(2, prompt_row, wid - 4, TERM_SLATE,
+                    "8/2 Navigate  Enter/Space Select  Esc Back");
+            }
+        }
+
+        Term_fresh();
+        key = inkey();
+
+        if (steamdeck && key == 'b')
             return NAV_BACK; /* Go back to character creation */
-        if (key == ESCAPE || key == 'q') {
+        if (key == ESCAPE || key == 'q')
+        {
             return NAV_BACK; /* Go back to character creation */
         }
-        
-        if (key == '\r' || key == '\n' || key == ' ' || key == '6') {
+
+        if (compact && key == '4')
+        {
+            page = 0;
+            continue;
+        }
+
+        if (compact && key == '6')
+        {
+            page = 1;
+            continue;
+        }
+
+        if (key == '\r' || key == '\n' || key == ' '
+            || (!compact && key == '6'))
+        {
             /* Select current highlighted option */
-            if (highlight == 0 || ((available_mask & (1 << (highlight - 1))) && !oath_banned(highlight))) {
+            if (oath_option_selectable(highlight, available_mask))
+            {
                 choice = highlight;
                 break;
             }
         }
-        
-        if (key >= 'a' && key <= 'a' + (z_info ? z_info->oath_max : 6) - 1) {
-            /* Map letter selection to actual oath index */
+
+        if (key >= 'a' && key < 'a' + visible_count)
+        {
             int display_pos = key - 'a';
-            int actual_index = 0;
-            int current_pos = 0;
-            
-            /* Find the actual oath index for this display position */
-            for (int i = 0; z_info && i < z_info->oath_max; i++) {
-                /* Skip locked oaths */
-                if (i > 0 && !(available_mask & (1 << (i - 1))) && !oath_banned(i)) {
-                    continue;
-                }
-                
-                if (current_pos == display_pos) {
-                    actual_index = i;
-                    break;
-                }
-                current_pos++;
-            }
-            
-            /* Select if valid */
-            if (actual_index == 0 || ((available_mask & (1 << (actual_index - 1))) && !oath_banned(actual_index))) {
-                choice = actual_index;
+
+            if (display_pos >= 0 && display_pos < visible_count
+                && oath_option_selectable(visible_oaths[display_pos], available_mask))
+            {
+                choice = visible_oaths[display_pos];
                 break;
             }
+
+            continue;
         }
-        
-        /* Arrow key navigation: Up and Down */
-        if (key == '8') {
-            /* Move highlight to previous available or broken oath */
-            int direction = -1;
-            int new_highlight = highlight;
-            
-            do {
-                new_highlight += direction;
-                if (new_highlight < 0) new_highlight = z_info ? z_info->oath_max - 1 : 5;
-                if (new_highlight >= (z_info ? z_info->oath_max : 6)) new_highlight = 0;
-                
-                /* Check if this option should be displayed */
-                if (new_highlight == 0 || 
-                    (available_mask & (1 << (new_highlight - 1))) || 
-                    oath_banned(new_highlight)) {
-                    highlight = new_highlight;
-                    break;
-                }
-            } while (new_highlight != highlight);
+
+        if (key == '8')
+        {
+            if (compact && page == 1)
+            {
+                if (detail_scroll > 0)
+                    detail_scroll--;
+                continue;
+            }
+
+            oath_move_highlight(&highlight, -1, available_mask);
+            detail_scroll = 0;
         }
-        
-        if (key == '2') {
-            /* Move highlight to next available or broken oath */
-            int direction = 1;
-            int new_highlight = highlight;
-            
-            do {
-                new_highlight += direction;
-                if (new_highlight < 0) new_highlight = z_info ? z_info->oath_max - 1 : 5;
-                if (new_highlight >= (z_info ? z_info->oath_max : 6)) new_highlight = 0;
-                
-                /* Check if this option should be displayed */
-                if (new_highlight == 0 || 
-                    (available_mask & (1 << (new_highlight - 1))) || 
-                    oath_banned(new_highlight)) {
-                    highlight = new_highlight;
-                    break;
-                }
-            } while (new_highlight != highlight);
+
+        if (key == '2')
+        {
+            if (compact && page == 1)
+            {
+                if (detail_scroll < detail_max_scroll)
+                    detail_scroll++;
+                continue;
+            }
+
+            oath_move_highlight(&highlight, 1, available_mask);
+            detail_scroll = 0;
         }
     }
-    
+
     /* Set the chosen oath */
     p_ptr->oath_type = choice;
     

@@ -1636,6 +1636,7 @@ extern bool get_sdl_hide_left_panel(void);
 extern void set_sdl_hide_left_panel(bool value);
 extern int get_sdl_pane_type(int index);
 extern int get_sdl_pane_where(int index);
+extern void set_sdl_pane_where(int index, int where);
 extern bool get_sdl_pane_enabled(int index);
 extern int get_sdl_pane_rows(int index);
 extern int get_sdl_pane_cols(int index);

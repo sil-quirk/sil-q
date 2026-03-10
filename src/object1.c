@@ -4106,6 +4106,10 @@ void show_floor(const int* floor_list, int floor_num)
 {
     int i, j, k, l;
     int col, len, lim;
+    int term_wid = menu_term_width();
+    int term_hgt = (Term && Term->hgt > 0) ? Term->hgt : 24;
+    int weight_col = menu_weight_col_for_width(term_wid);
+    int label_col = menu_label_col_for_width(term_wid, show_weights);
 
     object_type* o_ptr;
 
@@ -4118,14 +4122,18 @@ void show_floor(const int* floor_list, int floor_num)
     char out_desc[MAX_FLOOR_STACK][80];
 
     /* Default length */
-    len = 79 - 50;
+    len = 29;
 
     /* Maximum space allowed for descriptions */
-    lim = 79 - 3;
+    lim = term_wid - 3;
+    if (lim < 0)
+        lim = 0;
 
     /* Require space for weight (if needed) */
-    if (show_weights)
-        lim -= 9;
+    if (show_weights && lim > (weight_col - 1))
+        lim = weight_col - 1;
+    if (lim < 0)
+        lim = 0;
 
     /* Display the inventory */
     for (k = 0, i = 0; i < floor_num; i++)
@@ -4167,7 +4175,7 @@ void show_floor(const int* floor_list, int floor_num)
     }
 
     /* Find the column to start in */
-    col = (len > 76) ? 0 : (79 - len);
+    col = menu_center_col_for_len(term_wid, len);
 
     /* Output each entry */
     for (j = 0; j < k; j++)
@@ -4196,17 +4204,16 @@ void show_floor(const int* floor_list, int floor_num)
         {
             int wgt = o_ptr->weight * o_ptr->number;
             sprintf(tmp_val, "%3d.%1d lb", wgt / 10, wgt % 10);
-            c_put_str(out_color[j], tmp_val, j + 1, 70);
+            c_put_str(out_color[j], tmp_val, j + 1, weight_col);
         }
 
         /* Print the item letter at the end */
         sprintf(tmp_val, " (%c)", index_to_label(out_index[j]));
-        int label_col = show_weights ? 78 : 71;
         put_str(tmp_val, j + 1, label_col);
     }
 
     /* Make a "shadow" below the list (only if needed) */
-    if (j && (j < 23))
+    if (j && (j < term_hgt - 1))
         prt("", j + 1, col);
 }
 

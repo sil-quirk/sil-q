@@ -2448,15 +2448,32 @@ static void init_angband_aux(cptr why)
         "See the manual for more information."));
 }
 
-static void display_introduction_at_row(int first_row);
+typedef struct welcome_intro_layout {
+    int top_pad;
+    bool drop_gap_1;
+    bool drop_gap_2;
+    bool drop_gap_3;
+} welcome_intro_layout;
+
+static void display_introduction_with_layout(
+    const welcome_intro_layout* layout);
 static int welcome_screen_base_col(void);
-static int welcome_screen_intro_row(int rel_row, int term_hgt);
-static int welcome_screen_intro_last_row(int term_hgt);
+static int welcome_screen_intro_row(int rel_row,
+    const welcome_intro_layout* layout);
+static int welcome_screen_intro_last_row(const welcome_intro_layout* layout);
+static int welcome_screen_intro_total_rows(const welcome_intro_layout* layout);
+static int welcome_screen_footer_rows(bool show_wizard, bool show_sep,
+    bool show_blank, bool show_prompt);
+static void welcome_screen_compute_layout(int hgt, bool show_wizard,
+    welcome_intro_layout* out_layout, bool* out_show_sep,
+    bool* out_show_blank, bool* out_show_prompt);
 
 extern void display_introduction(void)
 {
-    /* Wrapper: keep the default layout (first line at row 1). */
-    display_introduction_at_row(1);
+    welcome_intro_layout layout = { 1, false, false, false };
+
+    /* Wrapper: keep the default layout. */
+    display_introduction_with_layout(&layout);
 }
 
 static int welcome_screen_base_col(void)
@@ -2492,36 +2509,122 @@ static int welcome_screen_base_col(void)
     return legacy_base_col + shift;
 }
 
-static int welcome_screen_intro_row(int rel_row, int term_hgt)
+static int welcome_screen_intro_row(int rel_row,
+    const welcome_intro_layout* layout)
 {
     int row = rel_row;
 
-    if (term_hgt < 1)
-        term_hgt = 24;
+    if (!layout)
+        return row;
 
-    /* Remove the legacy blank separators as height decreases. */
-    if (term_hgt <= 20 && row >= 6)
+    if (layout->drop_gap_1 && row >= 6)
         row--;
-    if (term_hgt <= 19 && row >= 9)
+    if (layout->drop_gap_2 && row >= 9)
         row--;
-    if (term_hgt <= 18 && row >= 14)
+    if (layout->drop_gap_3 && row >= 14)
         row--;
 
     return row;
 }
 
-static int welcome_screen_intro_last_row(int term_hgt)
+static int welcome_screen_intro_last_row(const welcome_intro_layout* layout)
 {
-    return welcome_screen_intro_row(16, term_hgt);
+    return welcome_screen_intro_row(16, layout);
 }
 
-static void display_introduction_at_row(int first_row)
+static int welcome_screen_intro_total_rows(const welcome_intro_layout* layout)
+{
+    int top_pad = 1;
+
+    if (layout)
+        top_pad = layout->top_pad;
+    if (top_pad < 0)
+        top_pad = 0;
+
+    return top_pad + welcome_screen_intro_last_row(layout);
+}
+
+static int welcome_screen_footer_rows(bool show_wizard, bool show_sep,
+    bool show_blank, bool show_prompt)
+{
+    int rows = 0;
+
+    if (show_prompt)
+        rows++;
+    if (show_blank && show_prompt)
+        rows++;
+    if (show_sep)
+        rows++;
+    if (show_wizard)
+        rows++;
+
+    return rows;
+}
+
+static void welcome_screen_compute_layout(int hgt, bool show_wizard,
+    welcome_intro_layout* out_layout, bool* out_show_sep,
+    bool* out_show_blank, bool* out_show_prompt)
+{
+    welcome_intro_layout layout = { 1, false, false, false };
+    bool show_sep = true;
+    bool show_blank = true;
+    bool show_prompt = true;
+
+    if (hgt < 1)
+        hgt = 24;
+
+#define FITS_NOW() \
+    (welcome_screen_intro_total_rows(&layout) \
+        + welcome_screen_footer_rows(show_wizard, show_sep, show_blank, show_prompt) \
+        <= hgt)
+
+    if (!FITS_NOW())
+        layout.top_pad = 0;
+
+    if (!FITS_NOW())
+        show_blank = false;
+
+    if (!FITS_NOW())
+        show_sep = false;
+
+    if (!FITS_NOW())
+        layout.drop_gap_3 = true;
+    if (!FITS_NOW())
+        layout.drop_gap_2 = true;
+    if (!FITS_NOW())
+        layout.drop_gap_1 = true;
+
+    if (!FITS_NOW())
+        show_prompt = false;
+
+    if (!show_prompt)
+        show_blank = false;
+
+#undef FITS_NOW
+
+    if (out_layout)
+        *out_layout = layout;
+    if (out_show_sep)
+        *out_show_sep = show_sep;
+    if (out_show_blank)
+        *out_show_blank = show_blank;
+    if (out_show_prompt)
+        *out_show_prompt = show_prompt;
+}
+
+static void display_introduction_with_layout(
+    const welcome_intro_layout* layout)
 {
     int term_wid = 80;
     int term_hgt = 24;
+    int top_pad = 1;
 
-    if (first_row < 0) first_row = 0;
-    const int y = first_row - 1; /* legacy intro rows start at 1 */
+    if (layout)
+        top_pad = layout->top_pad;
+    if (top_pad < 0)
+        top_pad = 0;
+
+    const int y = top_pad; /* legacy intro rows start at row 1 with one blank line above */
     const int intro_col = welcome_screen_base_col();
     const int subtitle_col = intro_col + 6;
     const int title_col = intro_col + 8;
@@ -2532,7 +2635,7 @@ static void display_introduction_at_row(int first_row)
     if (term_hgt < 1)
         term_hgt = 24;
 
-#define INTRO_ROW(_rel) (y + welcome_screen_intro_row((_rel), term_hgt))
+#define INTRO_ROW(_rel) (y + welcome_screen_intro_row((_rel), layout) - 1)
 
     /* Clear screen */
     Term_clear();
@@ -3080,8 +3183,15 @@ extern NavResult initial_menu(bool *start_new)
     /* Build the welcome screen as a single layout block.
      * Default keeps the legacy top margin (intro starts at row 1).
      * If the terminal is too short for that, start at row 0. */
-    int intro_first_row = (hgt <= 20) ? 0 : 1;
-    display_introduction_at_row(intro_first_row);
+    welcome_intro_layout intro_layout;
+    bool show_sep;
+    bool show_blank;
+    bool show_prompt;
+    bool show_wizard_line = arg_wizard;
+
+    welcome_screen_compute_layout(hgt, show_wizard_line, &intro_layout,
+        &show_sep, &show_blank, &show_prompt);
+    display_introduction_with_layout(&intro_layout);
 
     /*
      * Welcome screen (minimum height support)
@@ -3098,54 +3208,32 @@ extern NavResult initial_menu(bool *start_new)
      */
     {
         const int x = welcome_screen_base_col();
-        const int base_row = intro_first_row + welcome_screen_intro_last_row(hgt);
-        const bool show_wizard_line = arg_wizard;
-
         const char *wizard_line =
             "Resurrecting a character is a form of cheating.";
         const char *sep_line = "- - - - - - - - - - - -";
-
         const char *menu_line =
             (metarun_created == true)
                 ? "[Space] Begin    [Q/Esc] Quit"
                 : "[Space] Continue  [Q/Esc] Quit";
+        int row = hgt - 1;
 
-        /* Decide which optional lines to drop based on available rows. */
-        int available = hgt - base_row;
-        int needed = 1 /* prompt */
-            + 1 /* separator */
-            + 1 /* spacer */
-            + (show_wizard_line ? 1 : 0);
-        bool drop_blank = (available < needed);
-        bool drop_sep = (available < (needed - 1));
-
-        int row = base_row;
-
-        if (show_wizard_line)
+        if (show_prompt && row >= 0 && row < hgt)
         {
-            if (row >= 0 && row < hgt)
-                Term_putstr(x, row, 60, TERM_BLUE, wizard_line);
-            row++;
+            Term_putstr(x, row, -1, TERM_SLATE, menu_line);
+            row--;
         }
 
-        if (!drop_sep)
-        {
-            if (row >= 0 && row < hgt)
-                Term_putstr(x, row, -1, TERM_L_DARK, sep_line);
-            row++;
+        if (show_blank && row >= 0)
+            row--;
 
-            if (!drop_blank)
-                row++;
-
-            if (row >= 0 && row < hgt)
-                Term_putstr(x, row, -1, TERM_SLATE, menu_line);
-        }
-        else
+        if (show_sep && row >= 0 && row < hgt)
         {
-            /* Replace the separator with the prompt. */
-            if (row >= 0 && row < hgt)
-                Term_putstr(x, row, -1, TERM_SLATE, menu_line);
+            Term_putstr(x, row, -1, TERM_L_DARK, sep_line);
+            row--;
         }
+
+        if (show_wizard_line && row >= 0 && row < hgt)
+            Term_putstr(x, row, 60, TERM_BLUE, wizard_line);
     }
 
     Term_fresh();

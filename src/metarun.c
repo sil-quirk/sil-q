@@ -5281,19 +5281,31 @@ static void choose_difficulty_menu(void)
     {
         /* Warn if increasing difficulty */
         if (choice > metar.type) {
+            int term_wid = (Term && Term->wid > 0) ? Term->wid : 80;
             screen_save();
             Term_clear();
             Term_putstr(2, 5, -1, TERM_YELLOW, "WARNING: Increasing Difficulty");
-            Term_putstr(2, 7, -1, TERM_WHITE, "If you increase the difficulty level, you will NOT be able to");
-            Term_putstr(2, 8, -1, TERM_WHITE, "go back to an easier level for the rest of this story run.");
+            if (term_wid < 70)
+            {
+                Term_putstr(2, 7, term_wid - 2, TERM_WHITE,
+                    "You cannot return to an easier level");
+                Term_putstr(2, 8, term_wid - 2, TERM_WHITE,
+                    "for the rest of this story run.");
+            }
+            else
+            {
+                Term_putstr(2, 7, -1, TERM_WHITE, "If you increase the difficulty level, you will NOT be able to");
+                Term_putstr(2, 8, -1, TERM_WHITE, "go back to an easier level for the rest of this story run.");
+            }
             Term_putstr(2, 10, -1, TERM_L_RED, "This change is PERMANENT for this meta-run!");
             if (steamdeck) {
                 char prompt_buf[64];
                 strnfmt(prompt_buf, sizeof(prompt_buf),
                         "Continue? [%s] yes  [%s] no", accept_label, back_label);
-                Term_putstr(2, 12, -1, TERM_L_WHITE, prompt_buf);
+                Term_putstr(2, 12, term_wid - 2, TERM_L_WHITE, prompt_buf);
             } else {
-                Term_putstr(2, 12, -1, TERM_L_WHITE, "Do you want to continue? (y/n)");
+                Term_putstr(2, 12, term_wid - 2, TERM_L_WHITE,
+                    "Do you want to continue? (y/n)");
             }
             
             char confirm = inkey();
@@ -5375,6 +5387,8 @@ void list_metaruns(void)
     screen_save();
     bool steamdeck = get_sdl_steamdeck_mode();
     char accept_label[16] = "";
+    int term_h = (Term && Term->hgt > 0) ? Term->hgt : 24;
+    int footer_row = term_h - 1;
 
     if (steamdeck) {
         /* Steam Deck UI: A=ok */
@@ -5431,13 +5445,13 @@ void list_metaruns(void)
                          m->silmarils, m->deaths, res, date),
                   row++, 2);
 
-        if (row >= 23 && i+1 < metarun_max) {   /* page break */
+        if (row >= footer_row && i+1 < metarun_max) {   /* page break */
             if (steamdeck) {
                 char hint_buf[64];
                 strnfmt(hint_buf, sizeof(hint_buf), "[more - press %s]", accept_label);
-                c_put_str(TERM_L_DARK, hint_buf, 23, 2);
+                c_put_str(TERM_L_DARK, hint_buf, footer_row, 2);
             } else {
-                c_put_str(TERM_L_DARK, "[more - any key]", 23, 2);
+                c_put_str(TERM_L_DARK, "[more - any key]", footer_row, 2);
             }
             inkey();  Term_clear();
             row = 4;
@@ -5451,9 +5465,10 @@ void list_metaruns(void)
     if (steamdeck) {
         char hint_buf[64];
         strnfmt(hint_buf, sizeof(hint_buf), "Press %s to return.", accept_label);
-        c_put_str(TERM_L_DARK, hint_buf, row+1, 2);
+        c_put_str(TERM_L_DARK, hint_buf, MIN(row + 1, footer_row), 2);
     } else {
-        c_put_str(TERM_L_DARK, "Press any key to return.", row+1, 2);
+        c_put_str(TERM_L_DARK, "Press any key to return.",
+            MIN(row + 1, footer_row), 2);
     }
     inkey();
     screen_load();
