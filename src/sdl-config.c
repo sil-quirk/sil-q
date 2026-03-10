@@ -905,9 +905,14 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
                 log_debug("Pane %d: ratio=%.2f", count, pc->ratio);
             }
 
-            if (pc->pane == PANE_TOUCH && pc->rect.cols <= 0) {
-                pc->rect.cols = 15;
-                log_debug("Pane %d: touch pane default cols=%d", count, pc->rect.cols);
+            cJSON* font_size = cJSON_GetObjectItemCaseSensitive(pane_item, "fontSize");
+            if (cJSON_IsNumber(font_size)) {
+                pc->font_size = font_size->valueint;
+                if (pc->font_size < 0)
+                    pc->font_size = 0;
+                if (pc->font_size > 48)
+                    pc->font_size = 48;
+                log_debug("Pane %d: fontSize=%d", count, pc->font_size);
             }
 
             if (!pane_type_allows_placement(pc->pane, pc->where)) {
@@ -1184,6 +1189,10 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
         if (pc->ratio > 0.0f) {
             cJSON_AddNumberToObject(pane, "ratio", pc->ratio);
         }
+
+        if (pc->font_size > 0) {
+            cJSON_AddNumberToObject(pane, "fontSize", pc->font_size);
+        }
         
         cJSON_AddItemToArray(panes, pane);
     }
@@ -1402,7 +1411,7 @@ void sdl_config_clear_touch_pane_labels(struct sdl_config* config)
 void sdl_config_set_defaults(struct sdl_config* config)
 {
     config->main_view_scale = 1;
-    config->aux_view_font_size = 18;
+    config->aux_view_font_size = 0;
     config->margin = 4;
     config->fullscreen = true;
     config->tiles = true;
@@ -1484,7 +1493,7 @@ void sdl_config_set_defaults_for_resolution(struct sdl_config* config,
         log_info("Detected %s resolution - applying optimized defaults", profile->name);
         
         config->main_view_scale = profile->main_view_scale;
-        config->aux_view_font_size = profile->aux_view_font_size;
+        config->aux_view_font_size = 0;
         // Note: margin, fullscreen, tiles, and window position/size use base defaults
         
         // Apply pane configuration
@@ -1501,6 +1510,7 @@ void sdl_config_set_defaults_for_resolution(struct sdl_config* config,
             pane_configs[i].enabled = true;
             pane_configs[i].rect.rows = profile->panes[i].rows;
             pane_configs[i].rect.cols = profile->panes[i].cols;
+            pane_configs[i].font_size = 0;
             pane_configs[i].ratio = 0.0f;
         }
     } else {

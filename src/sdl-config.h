@@ -31,6 +31,8 @@ enum sdl_min_terminal_mode {
 // SDL-specific configuration structure
 struct sdl_config {
     int main_view_scale;
+    // Default supporting-pane font size. Zero means auto from the main pane's
+    // visible font/cell height.
     int aux_view_font_size;
     int margin;
     bool fullscreen;

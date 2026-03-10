@@ -12388,7 +12388,25 @@ static errr option_dump(cptr fname)
  */
 static int get_supporting_pane_config_count(void);
 static void do_cmd_supporting_pane_layout_editor(bool* settings_changed);
+static void do_cmd_supporting_pane_font_editor(bool* settings_changed);
 static void do_cmd_touch_pane_button_editor(bool* settings_changed);
+static const char* pane_type_short_name(enum pane_type type);
+static void format_font_size_value(char* buf, size_t buflen, int raw, int effective,
+    int layout_mode)
+{
+    if (!buf || !buflen)
+        return;
+
+    if (raw > 0)
+        strnfmt(buf, buflen, "%d", raw);
+    else if (layout_mode == 0)
+        strnfmt(buf, buflen, "auto (%d)", effective);
+    else if (layout_mode == 1)
+        strnfmt(buf, buflen, "auto %d", effective);
+    else
+        strnfmt(buf, buflen, "a%d", effective);
+}
+
 static const char* sdl_min_terminal_mode_label(int mode)
 {
     return (mode == 1) ? "compact (50x18)" : "normal (80x24)";
@@ -12397,7 +12415,7 @@ static const char* sdl_min_terminal_mode_label(int mode)
 void do_cmd_pane_settings(void)
 {
     int k = 0;
-    int n = 11; /* Total number of options */
+    int n = 12; /* Total number of options */
     bool done = false;
     bool settings_changed = false;
     int dir;
@@ -12421,6 +12439,7 @@ void do_cmd_pane_settings(void)
         int layout_mode = (Term->wid < 56) ? 2 : ((Term->wid < 72) ? 1 : 0);
         int label_width = (layout_mode == 0) ? 48 : ((layout_mode == 1) ? 36 : 28);
         byte a;
+        char font_value[24];
 
         /* Option 0: Main View Scale */
         a = (k == 0) ? TERM_L_BLUE : TERM_WHITE;
@@ -12442,11 +12461,14 @@ void do_cmd_pane_settings(void)
 
         /* Option 2: Aux View Font Size */
         a = (k == 2) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(buf, sizeof(buf), "%-*s: %d", label_width,
-            (layout_mode == 0) ? "Aux View Font Size (8-48)"
-                               : ((layout_mode == 1) ? "Aux Font Size (8-48)"
-                                                     : "Aux Font (8-48)"),
-            get_sdl_aux_view_font_size());
+        format_font_size_value(font_value, sizeof(font_value),
+            get_sdl_aux_view_font_size(), get_sdl_effective_aux_view_font_size(),
+            layout_mode);
+        strnfmt(buf, sizeof(buf), "%-*s: %s", label_width,
+            (layout_mode == 0) ? "Default Aux Font Size (0=auto, 8-48)"
+                               : ((layout_mode == 1) ? "Default Aux Font (0=auto)"
+                                                     : "Aux Font"),
+            font_value);
         c_prt(a, buf, y0 + 2, 2);
 
         /* Option 3: Margin */
@@ -12494,16 +12516,23 @@ void do_cmd_pane_settings(void)
             get_supporting_pane_config_count());
         c_prt(a, buf, y0 + 8, 2);
 
-        /* Option 9: Touch Pane Buttons */
+        /* Option 9: Pane Font Sizes */
         a = (k == 9) ? TERM_L_BLUE : TERM_WHITE;
+        c_prt(a, (layout_mode == 0) ? "Pane Font Sizes"
+                                    : ((layout_mode == 1) ? "Pane Fonts"
+                                                          : "Fonts"),
+            y0 + 9, 2);
+
+        /* Option 10: Touch Pane Buttons */
+        a = (k == 10) ? TERM_L_BLUE : TERM_WHITE;
         c_prt(a, (layout_mode == 0) ? "Touch Pane Buttons"
                                     : ((layout_mode == 1) ? "Touch Buttons"
                                                           : "Touch Buttons"),
-            y0 + 9, 2);
+            y0 + 10, 2);
 
-        /* Option 10: Save/Return */
-        a = (k == 10) ? TERM_L_BLUE : TERM_WHITE;
-        c_prt(a, settings_changed ? "Save Changes and Return" : "Return to Options Menu", y0 + 10, 2);
+        /* Option 11: Save/Return */
+        a = (k == 11) ? TERM_L_BLUE : TERM_WHITE;
+        c_prt(a, settings_changed ? "Save Changes and Return" : "Return to Options Menu", y0 + 11, 2);
         
         /* Display help */
         int y = Term->hgt - 3;
@@ -12513,10 +12542,10 @@ void do_cmd_pane_settings(void)
             Term_putstr(2, y++, -1, TERM_YELLOW, "Will be saved to your SDL config file on exit.");
         }
         Term_putstr(2, y++, -1, TERM_SLATE,
-            (layout_mode == 0) ? "(direction keys to set, Return/Escape to accept)"
+            (layout_mode == 0) ? "(direction keys to set, 0 = auto font, Return/Escape to accept)"
                                : ((layout_mode == 1)
-                                   ? "(arrows move, 4/6 or y/n set, Enter/Esc exit)"
-                                   : "(arrows move, 4/6 or y/n set, Enter/Esc exit)"));
+                                   ? "(arrows move, 4/6 or y/n set, 0 auto, Enter/Esc exit)"
+                                   : "(arrows move, 4/6 or y/n set, 0 auto, Enter/Esc exit)"));
         
         /* Get key */
         hide_cursor = true;
@@ -12554,7 +12583,12 @@ void do_cmd_pane_settings(void)
                 do_cmd_supporting_pane_layout_editor(&settings_changed);
                 break;
             }
-            if (k == 9) /* Touch Pane Buttons */
+            if (k == 9) /* Pane Font Sizes */
+            {
+                do_cmd_supporting_pane_font_editor(&settings_changed);
+                break;
+            }
+            if (k == 10) /* Touch Pane Buttons */
             {
                 do_cmd_touch_pane_button_editor(&settings_changed);
                 break;
@@ -12584,6 +12618,24 @@ void do_cmd_pane_settings(void)
         {
             /* Move down */
             k = (k + 1) % n;
+            break;
+        }
+
+        case '0':
+        {
+            if (k == 2)
+            {
+                if (get_sdl_aux_view_font_size() != 0)
+                {
+                    set_sdl_aux_view_font_size(0);
+                    settings_changed = true;
+                    sdl_apply_config();
+                }
+            }
+            else
+            {
+                bell("0 sets the default aux font to auto");
+            }
             break;
         }
         
@@ -12624,11 +12676,15 @@ void do_cmd_pane_settings(void)
             {
                 do_cmd_supporting_pane_layout_editor(&settings_changed);
             }
-            else if (k == 9) /* Touch Pane Buttons */
+            else if (k == 9) /* Pane Font Sizes */
+            {
+                do_cmd_supporting_pane_font_editor(&settings_changed);
+            }
+            else if (k == 10) /* Touch Pane Buttons */
             {
                 do_cmd_touch_pane_button_editor(&settings_changed);
             }
-            else if (k == 10) /* Save/Return */
+            else if (k == 11) /* Save/Return */
             {
                 if (settings_changed)
                 {
@@ -12671,7 +12727,13 @@ void do_cmd_pane_settings(void)
             else if (k == 2) /* Aux View Font Size */
             {
                 val = get_sdl_aux_view_font_size();
-                if (val < 48)
+                if (val == 0)
+                {
+                    set_sdl_aux_view_font_size(get_sdl_effective_aux_view_font_size());
+                    settings_changed = true;
+                    sdl_apply_config();
+                }
+                else if (val < 48)
                 {
                     set_sdl_aux_view_font_size(val + 1);
                     settings_changed = true;
@@ -12741,7 +12803,13 @@ void do_cmd_pane_settings(void)
             else if (k == 2) /* Aux View Font Size */
             {
                 val = get_sdl_aux_view_font_size();
-                if (val > 8)
+                if (val == 0)
+                {
+                    set_sdl_aux_view_font_size(get_sdl_effective_aux_view_font_size());
+                    settings_changed = true;
+                    sdl_apply_config();
+                }
+                else if (val > 8)
                 {
                     set_sdl_aux_view_font_size(val - 1);
                     settings_changed = true;
@@ -12811,6 +12879,172 @@ static const char* pane_type_name(enum pane_type type)
     case PANE_TOUCH: return "TOUCH";
     default: return "UNKNOWN";
     }
+}
+
+static void do_cmd_supporting_pane_font_editor(bool* settings_changed)
+{
+    enum { MAX_PANES_LOCAL = 8 };
+    int pane_indices[MAX_PANES_LOCAL];
+    int pane_count = 0;
+    int total = get_pane_config_count();
+
+    for (int i = 0; i < total && pane_count < MAX_PANES_LOCAL; i++)
+    {
+        enum pane_type type = (enum pane_type)get_sdl_pane_type(i);
+        if (type == PANE_MAIN)
+            continue;
+        pane_indices[pane_count++] = i;
+    }
+
+    screen_save();
+
+    if (pane_count <= 0)
+    {
+        Term_clear();
+        Term_putstr(2, 1, -1, TERM_L_BLUE, "Supporting Pane Fonts");
+        Term_putstr(2, 3, -1, TERM_WHITE, "No supporting panes are configured.");
+        Term_putstr(2, Term->hgt - 1, -1, TERM_L_BLUE, "Press any key to return...");
+        Term_fresh();
+        (void)inkey();
+        screen_load();
+        return;
+    }
+
+    {
+        int sel = 0;
+        bool done = false;
+        bool changed = false;
+        int dir;
+
+        while (!done)
+        {
+            int layout_mode;
+            int y0 = 4;
+            int x_type;
+            int x_enabled;
+            int x_font;
+
+            Term_clear();
+            Term_putstr(2, 1, -1, TERM_L_BLUE, "Supporting Pane Fonts");
+            Term_putstr(2, 2, -1, TERM_WHITE, "=====================");
+
+            layout_mode = (Term->wid < 56) ? 2 : ((Term->wid < 72) ? 1 : 0);
+            x_type = (layout_mode == 0) ? 2 : ((layout_mode == 1) ? 2 : 1);
+            x_enabled = (layout_mode == 0) ? 18 : ((layout_mode == 1) ? 14 : 10);
+            x_font = (layout_mode == 0) ? 30 : ((layout_mode == 1) ? 23 : 16);
+
+            for (int i = 0; i < pane_count && (y0 + i) < Term->hgt - 5; i++)
+            {
+                int idx = pane_indices[i];
+                enum pane_type type = (enum pane_type)get_sdl_pane_type(idx);
+                bool enabled = get_sdl_pane_enabled(idx);
+                int raw_font = get_sdl_pane_font_size(idx);
+                int effective_font = get_sdl_pane_effective_font_size(idx);
+                const char* type_label = (layout_mode == 0) ? pane_type_name(type)
+                    : pane_type_short_name(type);
+                byte a = (i == sel) ? TERM_L_BLUE : (enabled ? TERM_WHITE : TERM_SLATE);
+                char font_value[24];
+                char font_field[28];
+
+                format_font_size_value(font_value, sizeof(font_value), raw_font,
+                    effective_font, layout_mode);
+                if (i == sel)
+                    strnfmt(font_field, sizeof(font_field), "[%s]", font_value);
+                else
+                    strnfmt(font_field, sizeof(font_field), " %s ", font_value);
+
+                c_prt(a, type_label, y0 + i, x_type);
+                c_prt(a, enabled ? "on " : "off", y0 + i, x_enabled);
+                c_prt(a, font_field, y0 + i, x_font);
+            }
+
+            {
+                int y = Term->hgt - 4;
+                if (layout_mode == 2)
+                {
+                    Term_putstr(2, y++, -1, TERM_SLATE, "Up/Down select   4/6 set");
+                    Term_putstr(2, y++, -1, TERM_SLATE, "0 auto   Esc/Enter return");
+                }
+                else
+                {
+                    Term_putstr(2, y++, -1, TERM_SLATE,
+                        "Up/Down: select pane   4/6 (or n/y): change font size");
+                    Term_putstr(2, y++, -1, TERM_SLATE,
+                        "0: auto (uses default aux font / auto main-based size)");
+                    Term_putstr(2, y++, -1, TERM_SLATE,
+                        "Changes apply immediately");
+                }
+            }
+
+            Term_fresh();
+
+            hide_cursor = true;
+            char ch = inkey();
+            hide_cursor = false;
+
+            dir = target_dir(ch);
+            if ((dir == 2) || (dir == 4) || (dir == 6) || (dir == 8))
+                ch = I2D(dir);
+
+            switch (ch)
+            {
+            case ESCAPE:
+            case '\n':
+            case '\r':
+                done = true;
+                break;
+
+            case '-':
+            case '8':
+                sel = (pane_count + sel - 1) % pane_count;
+                break;
+
+            case '2':
+                sel = (sel + 1) % pane_count;
+                break;
+
+            case '0':
+            {
+                int idx = pane_indices[sel];
+                if (get_sdl_pane_font_size(idx) != 0)
+                {
+                    set_sdl_pane_font_size(idx, 0);
+                    changed = true;
+                    sdl_apply_config();
+                }
+                break;
+            }
+
+            case 'n':
+            case '4':
+            case 'y':
+            case '6':
+            {
+                int idx = pane_indices[sel];
+                int delta = ((ch == 'n') || (ch == '4')) ? -1 : 1;
+                int value = get_sdl_pane_font_size(idx);
+
+                if (value == 0)
+                    set_sdl_pane_font_size(idx, get_sdl_pane_effective_font_size(idx));
+                else
+                    set_sdl_pane_font_size(idx, value + delta);
+
+                changed = true;
+                sdl_apply_config();
+                break;
+            }
+
+            default:
+                bell("Illegal command for pane font editor!");
+                break;
+            }
+        }
+
+        if (changed && settings_changed)
+            *settings_changed = true;
+    }
+
+    screen_load();
 }
 
 static const char* pane_type_short_name(enum pane_type type)
@@ -13177,21 +13411,31 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
             }
             else if (field == 2)
             {
+                int rows = get_sdl_pane_rows(idx);
+
                 if (supporting_pane_rows_locked(pane_indices, pane_count, idx))
                 {
                     bell("Rows are shared for bottom panes");
                     break;
                 }
-                set_sdl_pane_rows(idx, get_sdl_pane_rows(idx) + delta);
+                if (rows == 0)
+                    set_sdl_pane_rows(idx, get_sdl_pane_current_rows(idx));
+                else
+                    set_sdl_pane_rows(idx, rows + delta);
             }
             else
             {
+                int cols = get_sdl_pane_cols(idx);
+
                 if (supporting_pane_cols_locked(pane_indices, pane_count, idx))
                 {
                     bell("Cols are shared within each side slot");
                     break;
                 }
-                set_sdl_pane_cols(idx, get_sdl_pane_cols(idx) + delta);
+                if (cols == 0)
+                    set_sdl_pane_cols(idx, get_sdl_pane_current_cols(idx));
+                else
+                    set_sdl_pane_cols(idx, cols + delta);
             }
 
             if (supporting_pane_normalize_shared_sizes(pane_indices, pane_count))

@@ -22,7 +22,7 @@ static const char* const sdl_story_fallback_font = "lib/xtra/font/MarcellusSC-Re
 enum {
     TILE_SIZE = 16,
     MAX_TERM_DATA = ANGBAND_TERM_MAX,
-    MAX_STORY_FONT_CACHE = 4,
+    MAX_STORY_FONT_CACHE = 16,
     MAX_PANE_CONFIGS = 8,
 };
 
@@ -42,7 +42,7 @@ static const struct pane_config default_pane_config[] = {
     {.pane = PANE_INVENTORY, .where = PLACE_RIGHT, .enabled = true},
     {.pane = PANE_WORN, .where = PLACE_RIGHT, .enabled = true},
     {.pane = PANE_INFO, .where = PLACE_RIGHT, .enabled = true, .rect.rows = 8},
-    {.pane = PANE_TOUCH, .where = PLACE_DOUBLE_RIGHT, .enabled = true, .rect.cols = 15},
+    {.pane = PANE_TOUCH, .where = PLACE_DOUBLE_RIGHT, .enabled = true},
     // In the bottom
     {.pane = PANE_ROLLS, .where = PLACE_BOTTOM, .enabled = true, .rect.rows = 4},
     {.pane = PANE_LOG, .where = PLACE_BOTTOM, .enabled = true},
@@ -225,6 +225,7 @@ static int g_touch_pane_flash_slot = -1;
 static Uint64 g_touch_pane_flash_until = 0;
 static bool g_touch_pane_shift_toggle = false;
 static bool g_touch_pane_ctrl_toggle = false;
+static int g_auto_aux_main_cell_h_override = 0;
 
 static sdl_view* sdl_view_from_term(term* t);
 static void sdl_view_destroy(sdl_view* d);
@@ -294,10 +295,20 @@ static void sdl_update_cursor_visibility(void);
 static void sdl_present_if_needed(sdl_view* d);
 static int sdl_build_active_pane_config(struct pane_config* active, bool include_side,
     bool include_bottom);
+static int sdl_auto_aux_view_font_size(void);
+static int sdl_resolve_aux_view_font_size(int requested_size);
+static int sdl_effective_pane_font_size_for_config(const struct pane_config* pc);
+static int sdl_effective_pane_font_size_for_type(enum pane_type type);
+static void sdl_build_supporting_pane_metrics(const struct pane_config* configs,
+    int count, int* cell_widths, int* cell_heights);
 static void sdl_place_active_panes(const SDL_Rect* screen, SDL_Rect* panes,
     bool include_side, bool include_bottom);
 static void sdl_compute_split_panes(const SDL_Rect* screen, SDL_Rect* panes);
 static int sdl_max_scale_for_rect(const SDL_Rect* rect);
+static int sdl_touch_pane_target_width_px(int pane_height_px);
+static void sdl_apply_dynamic_auto_pane_sizes(struct pane_config* active,
+    int active_count, const SDL_Rect* screen, const int* cell_widths,
+    const int* cell_heights, int margin_px);
 static void sdl_touch_pane_send_confirm_action(void);
 static void sdl_render_mono_text(sdl_view* d, int x, int y, int n, const char* s, SDL_Color col);
 static void sdl_render_story_text_free(sdl_view* d, TTF_Font* font, int x, int y, int n, const char* s,
@@ -415,7 +426,7 @@ static void sdl_ensure_touch_pane_config_present(void)
         .pane = PANE_TOUCH,
         .where = PLACE_DOUBLE_RIGHT,
         .enabled = true,
-        .rect = { .rows = 0, .cols = 15 },
+        .rect = { .rows = 0, .cols = 0 },
         .ratio = 0.0f,
     };
 }
@@ -461,13 +472,197 @@ static int sdl_build_active_pane_config(struct pane_config* active, bool include
     return active_count;
 }
 
+static int sdl_auto_aux_view_font_size(void)
+{
+    float system_scale = (g_state.system_scale > 0.0f) ? g_state.system_scale : 1.0f;
+    int main_cell_h_px = config.main_view_scale * TILE_SIZE;
+    int main_font_size;
+    int size;
+
+    if (g_auto_aux_main_cell_h_override > 0)
+        main_cell_h_px = g_auto_aux_main_cell_h_override;
+    else if (g_views[0].term_ready && g_views[0].cell_h > 0)
+        main_cell_h_px = g_views[0].cell_h;
+
+    main_font_size = (int)((float)main_cell_h_px / system_scale + 0.5f);
+    size = (main_font_size * 7 + 7) / 8;
+
+    if (size >= main_font_size && main_font_size > 8)
+        size = main_font_size - 1;
+
+    if (size < 8)
+        size = 8;
+    if (size > 48)
+        size = 48;
+
+    return size;
+}
+
+static int sdl_resolve_aux_view_font_size(int requested_size)
+{
+    int size = requested_size;
+
+    if (size <= 0)
+        size = sdl_auto_aux_view_font_size();
+    if (size < 8)
+        size = 8;
+    if (size > 48)
+        size = 48;
+
+    return size;
+}
+
+static int sdl_effective_pane_font_size_for_config(const struct pane_config* pc)
+{
+    if (pc && pc->font_size > 0)
+        return sdl_resolve_aux_view_font_size(pc->font_size);
+
+    return sdl_resolve_aux_view_font_size(config.aux_view_font_size);
+}
+
+static int sdl_effective_pane_font_size_for_type(enum pane_type type)
+{
+    for (int i = 0; i < pane_config_count; i++) {
+        if (pane_config[i].pane == type)
+            return sdl_effective_pane_font_size_for_config(&pane_config[i]);
+    }
+
+    return sdl_resolve_aux_view_font_size(config.aux_view_font_size);
+}
+
+static void sdl_build_supporting_pane_metrics(const struct pane_config* configs,
+    int count, int* cell_widths, int* cell_heights)
+{
+    int default_font_size = sdl_resolve_aux_view_font_size(config.aux_view_font_size);
+    int default_cell_h = (int)(g_state.system_scale * default_font_size);
+    int default_cell_w;
+
+    if (!cell_widths || !cell_heights)
+        return;
+
+    if (default_cell_h < 1)
+        default_cell_h = 1;
+    default_cell_w = default_cell_h / 2;
+    if (default_cell_w < 1)
+        default_cell_w = 1;
+
+    for (int i = 0; i < PANE_MAX; i++) {
+        cell_widths[i] = default_cell_w;
+        cell_heights[i] = default_cell_h;
+    }
+
+    cell_widths[PANE_MAIN] = config.main_view_scale * TILE_SIZE / 2;
+    cell_heights[PANE_MAIN] = config.main_view_scale * TILE_SIZE;
+
+    for (int i = 0; i < count; i++) {
+        enum pane_type type = configs[i].pane;
+        int font_size;
+        int cell_h;
+
+        if (type <= PANE_MAIN || type >= PANE_MAX)
+            continue;
+
+        font_size = sdl_effective_pane_font_size_for_config(&configs[i]);
+        cell_h = (int)(g_state.system_scale * font_size);
+        if (cell_h < 1)
+            cell_h = 1;
+        cell_heights[type] = cell_h;
+        cell_widths[type] = cell_h / 2;
+        if (cell_widths[type] < 1)
+            cell_widths[type] = 1;
+    }
+}
+
+static int sdl_touch_pane_target_width_px(int pane_height_px)
+{
+    const int numerator = 40 * SDL_TOUCH_PANE_BUTTON_COLS;
+    const int denominator = 39 * SDL_TOUCH_PANE_BUTTON_ROWS
+        + SDL_TOUCH_PANE_BUTTON_COLS;
+
+    if (pane_height_px <= 0)
+        return 0;
+
+    return (pane_height_px * numerator + denominator - 1) / denominator;
+}
+
+static void sdl_apply_dynamic_auto_pane_sizes(struct pane_config* active,
+    int active_count, const SDL_Rect* screen, const int* cell_widths,
+    const int* cell_heights, int margin_px)
+{
+    SDL_Rect temp_panes[PANE_MAX] = { 0 };
+    int touch_idx = -1;
+    int min_touch_cols;
+    int min_touch_width_px;
+    int desired_touch_px;
+    int desired_touch_cols;
+    int max_touch_px;
+    int max_touch_cols;
+    int min_main_width_px;
+
+    if (!active || active_count <= 0 || !screen || !cell_widths || !cell_heights)
+        return;
+
+    for (int i = 0; i < active_count; i++) {
+        if (!active[i].enabled)
+            continue;
+        if (active[i].pane != PANE_TOUCH)
+            continue;
+        if (!pane_placement_is_side(active[i].where))
+            continue;
+        if (active[i].rect.cols > 0)
+            continue;
+
+        touch_idx = i;
+        break;
+    }
+
+    if (touch_idx < 0)
+        return;
+
+    place_panes(active, active_count, temp_panes, screen, cell_widths,
+        cell_heights,
+        margin_px);
+
+    if (temp_panes[PANE_TOUCH].w <= 0 || temp_panes[PANE_TOUCH].h <= 0)
+        return;
+
+    min_touch_cols = pane_primary_min_cells(PANE_TOUCH, active[touch_idx].where);
+    min_touch_width_px = min_touch_cols * cell_widths[PANE_TOUCH] + margin_px;
+    desired_touch_px = sdl_touch_pane_target_width_px(temp_panes[PANE_TOUCH].h);
+    if (desired_touch_px < min_touch_width_px)
+        desired_touch_px = min_touch_width_px;
+
+    desired_touch_cols = (desired_touch_px > margin_px)
+        ? ((desired_touch_px - margin_px + cell_widths[PANE_TOUCH] - 1)
+            / cell_widths[PANE_TOUCH])
+        : min_touch_cols;
+    if (desired_touch_cols < min_touch_cols)
+        desired_touch_cols = min_touch_cols;
+
+    min_main_width_px = sdl_current_min_terminal_cols() * cell_widths[PANE_MAIN];
+    max_touch_px = temp_panes[PANE_MAIN].w + temp_panes[PANE_TOUCH].w
+        - min_main_width_px;
+
+    if (max_touch_px >= min_touch_width_px) {
+        max_touch_cols = (max_touch_px > margin_px)
+            ? ((max_touch_px - margin_px) / cell_widths[PANE_TOUCH])
+            : 0;
+        if (max_touch_cols < min_touch_cols)
+            max_touch_cols = min_touch_cols;
+        if (desired_touch_cols > max_touch_cols)
+            desired_touch_cols = max_touch_cols;
+    }
+
+    active[touch_idx].rect.cols = desired_touch_cols;
+}
+
 static void sdl_place_active_panes(const SDL_Rect* screen, SDL_Rect* panes,
     bool include_side, bool include_bottom)
 {
-    struct pane_config active[MAX_PANE_CONFIGS];
+    struct pane_config active[MAX_PANE_CONFIGS] = { 0 };
     int active_count;
-    int aux_cell_w;
-    int aux_cell_h;
+    int cell_widths[PANE_MAX] = { 0 };
+    int cell_heights[PANE_MAX] = { 0 };
     int margin_px;
 
     if (!screen || !panes)
@@ -475,12 +670,15 @@ static void sdl_place_active_panes(const SDL_Rect* screen, SDL_Rect* panes,
 
     memset(panes, 0, sizeof(SDL_Rect) * PANE_MAX);
 
-    aux_cell_w = (int)(g_state.system_scale * config.aux_view_font_size / 2);
-    aux_cell_h = (int)(g_state.system_scale * config.aux_view_font_size);
     margin_px = (int)(g_state.system_scale * config.margin);
     active_count = sdl_build_active_pane_config(active, include_side, include_bottom);
+    sdl_build_supporting_pane_metrics(active, active_count, cell_widths,
+        cell_heights);
+    sdl_apply_dynamic_auto_pane_sizes(active, active_count, screen, cell_widths,
+        cell_heights, margin_px);
 
-    place_panes(active, active_count, panes, screen, aux_cell_w, aux_cell_h, margin_px);
+    place_panes(active, active_count, panes, screen, cell_widths, cell_heights,
+        margin_px);
 }
 
 static void sdl_compute_split_panes(const SDL_Rect* screen, SDL_Rect* panes)
@@ -2129,7 +2327,9 @@ void resize(const SDL_Rect* screen)
         // restrictions.
         sdl_view_destroy(&g_views[i]);
         if (panes[i].w) {
-            sdl_view_create(&g_views[i], panes[i], font_path, config.aux_view_font_size, 0, config.margin);
+            sdl_view_create(&g_views[i], panes[i], font_path,
+                sdl_effective_pane_font_size_for_type((enum pane_type)i), 0,
+                config.margin);
             sdl_view_link_term(&g_views[i], i);
         }
     }
@@ -3522,17 +3722,22 @@ static TTF_Font* sdl_load_font_with_fallback(const char* font_path, int font_siz
 static void sdl_load_story_fonts(void)
 {
     int main_cell_h = config.main_view_scale * TILE_SIZE;
-    int aux_cell_h = (config.aux_view_font_size > 0)
-        ? (int)(g_state.system_scale * config.aux_view_font_size)
-        : main_cell_h;
+    int pane_cell_widths[PANE_MAX] = { 0 };
+    int pane_cell_heights[PANE_MAX] = { 0 };
     
     log_info("Loading story fonts...");
     log_debug("Story font config: '%s'", config.story_font[0] != '\0' ? config.story_font : "(not set)");
-    log_debug("Story font sizes: main=%d aux=%d", main_cell_h, aux_cell_h);
+    log_debug("Story font sizes: main=%d default-aux=%d", main_cell_h,
+        (int)(g_state.system_scale * sdl_resolve_aux_view_font_size(config.aux_view_font_size)));
     
     sdl_story_font_cache_clear();
     (void)sdl_story_font_for_height(main_cell_h);
-    (void)sdl_story_font_for_height(aux_cell_h);
+    sdl_build_supporting_pane_metrics(pane_config, pane_config_count,
+        pane_cell_widths, pane_cell_heights);
+    for (int i = 1; i < PANE_MAX; i++) {
+        if (pane_cell_heights[i] > 0)
+            (void)sdl_story_font_for_height(pane_cell_heights[i]);
+    }
     
     // Initialize flag to false
     g_state.story_font_depth = 0;
@@ -3776,7 +3981,7 @@ errr init_sdl(int argc, char **argv)
         // Apply sound setting to global variable
         use_sound = g_sound_config.enabled;
         
-        log_debug("After loading JSON: scale=%d, font=%d, margin=%d, fullscreen=%d, tiles=%d, sound=%d",
+        log_debug("After loading JSON: scale=%d, default_aux_font=%d, margin=%d, fullscreen=%d, tiles=%d, sound=%d",
                   config.main_view_scale, config.aux_view_font_size, config.margin,
                   config.fullscreen, config.tiles, g_sound_config.enabled);
     } else {
@@ -3793,7 +3998,7 @@ errr init_sdl(int argc, char **argv)
             }
         }
         
-        log_debug("After resolution defaults: scale=%d, font=%d, margin=%d, fullscreen=%d, tiles=%d",
+        log_debug("After resolution defaults: scale=%d, default_aux_font=%d, margin=%d, fullscreen=%d, tiles=%d",
                   config.main_view_scale, config.aux_view_font_size, config.margin,
                   config.fullscreen, config.tiles);
     }
@@ -3807,8 +4012,6 @@ errr init_sdl(int argc, char **argv)
             if (pane_config[i].pane == PANE_TOUCH) {
                 pane_config[i].enabled = true;
                 pane_config[i].where = PLACE_DOUBLE_RIGHT;
-                if (pane_config[i].rect.cols <= 0)
-                    pane_config[i].rect.cols = 15;
             } else {
                 pane_config[i].enabled = false;
             }
@@ -3826,7 +4029,7 @@ errr init_sdl(int argc, char **argv)
     
     // Apply command-line overrides
     sdl_config_apply_cmdline(&config, argc, argv);
-    log_debug("After command-line: scale=%d, font=%d, margin=%d, fullscreen=%d, tiles=%d",
+    log_debug("After command-line: scale=%d, default_aux_font=%d, margin=%d, fullscreen=%d, tiles=%d",
               config.main_view_scale, config.aux_view_font_size, config.margin,
               config.fullscreen, config.tiles);
 
@@ -3867,9 +4070,12 @@ errr init_sdl(int argc, char **argv)
         log_warn("Invalid main_view_scale %d, using 1", config.main_view_scale);
         config.main_view_scale = 1;
     }
-    if (config.aux_view_font_size <= 0) {
-        log_warn("Invalid aux_view_font_size %d, using 18", config.aux_view_font_size);
-        config.aux_view_font_size = 18;
+    if (config.aux_view_font_size < 0) {
+        log_warn("Invalid aux_view_font_size %d, using auto", config.aux_view_font_size);
+        config.aux_view_font_size = 0;
+    } else if (config.aux_view_font_size > 48) {
+        log_warn("Invalid aux_view_font_size %d, clamping to 48", config.aux_view_font_size);
+        config.aux_view_font_size = 48;
     }
     if (config.margin < 0) {
         log_warn("Invalid margin %d, using 0", config.margin);
@@ -3904,7 +4110,10 @@ errr init_sdl(int argc, char **argv)
     
     log_info("SDL Configuration:");
     log_info("  Main view scale: %d", config.main_view_scale);
-    log_info("  Aux view font size: %d", config.aux_view_font_size);
+    if (config.aux_view_font_size > 0)
+        log_info("  Default aux view font size: %d", config.aux_view_font_size);
+    else
+        log_info("  Default aux view font size: auto (%d)", sdl_auto_aux_view_font_size());
     log_info("  Margin: %d", config.margin);
     log_info("  Fullscreen: %s", config.fullscreen ? "true" : "false");
     log_info("  Tiles: %s", config.tiles ? "true" : "false");
@@ -3987,7 +4196,12 @@ void get_sdl_config_info(char* buf, size_t size)
     offset += (size_t)strnfmt(buf + offset, size - offset, "Minimum Terminal Size: %s (%dx%d)\n",
         sdl_min_terminal_mode_name(config.min_terminal_mode),
         sdl_current_min_terminal_cols(), sdl_current_min_terminal_rows());
-    offset += (size_t)strnfmt(buf + offset, size - offset, "Aux View Font Size: %d\n", config.aux_view_font_size);
+    if (config.aux_view_font_size > 0)
+        offset += (size_t)strnfmt(buf + offset, size - offset,
+            "Default Aux View Font Size: %d\n", config.aux_view_font_size);
+    else
+        offset += (size_t)strnfmt(buf + offset, size - offset,
+            "Default Aux View Font Size: auto (%d)\n", sdl_auto_aux_view_font_size());
     offset += (size_t)strnfmt(buf + offset, size - offset, "Margin: %d\n", config.margin);
     offset += (size_t)strnfmt(buf + offset, size - offset, "Fullscreen: %s\n", config.fullscreen ? "Yes" : "No");
     offset += (size_t)strnfmt(buf + offset, size - offset, "Tiles: %s\n", config.tiles ? "Yes" : "No");
@@ -4030,6 +4244,11 @@ void get_sdl_config_info(char* buf, size_t size)
             offset += (size_t)strnfmt(buf + offset, size - offset, "  Rows: %d\n", pc->rect.rows);
         if (pc->rect.cols > 0)
             offset += (size_t)strnfmt(buf + offset, size - offset, "  Cols: %d\n", pc->rect.cols);
+        if (pc->font_size > 0)
+            offset += (size_t)strnfmt(buf + offset, size - offset, "  Font Size: %d\n", pc->font_size);
+        else
+            offset += (size_t)strnfmt(buf + offset, size - offset, "  Font Size: auto (%d)\n",
+                sdl_effective_pane_font_size_for_config(pc));
         if (pc->ratio > 0.0f)
             offset += (size_t)strnfmt(buf + offset, size - offset, "  Ratio: %.2f\n", pc->ratio);
         offset += (size_t)strnfmt(buf + offset, size - offset, "\n");
@@ -4091,9 +4310,14 @@ int get_sdl_aux_view_font_size(void)
     return config.aux_view_font_size;
 }
 
+int get_sdl_effective_aux_view_font_size(void)
+{
+    return sdl_resolve_aux_view_font_size(config.aux_view_font_size);
+}
+
 void set_sdl_aux_view_font_size(int value)
 {
-    if (value >= 8 && value <= 48)
+    if (value == 0 || (value >= 8 && value <= 48))
         config.aux_view_font_size = value;
 }
 
@@ -4234,6 +4458,66 @@ int get_sdl_pane_cols(int index)
     return pane_config[index].rect.cols;
 }
 
+int get_sdl_pane_font_size(int index)
+{
+    if (index < 0 || index >= pane_config_count)
+        return 0;
+    return pane_config[index].font_size;
+}
+
+int get_sdl_pane_effective_font_size(int index)
+{
+    if (index < 0 || index >= pane_config_count)
+        return sdl_resolve_aux_view_font_size(config.aux_view_font_size);
+
+    return sdl_effective_pane_font_size_for_config(&pane_config[index]);
+}
+
+static int sdl_pane_current_size(int index, bool want_rows)
+{
+    enum pane_type type;
+    enum pane_placement where;
+    int configured;
+
+    if (index < 0 || index >= pane_config_count)
+        return 0;
+
+    type = pane_config[index].pane;
+    if (type <= PANE_MAIN || type >= PANE_MAX)
+        return 0;
+
+    if (g_views[type].term_ready && g_pane_rects[type].w > 0 && g_pane_rects[type].h > 0) {
+        int live = want_rows ? g_views[type].rows : g_views[type].cols;
+        if (live > 0)
+            return live;
+    }
+
+    configured = want_rows ? pane_config[index].rect.rows : pane_config[index].rect.cols;
+    if (configured > 0)
+        return configured;
+
+    where = pane_config[index].where;
+    if (want_rows) {
+        return pane_placement_is_side(where)
+            ? pane_secondary_min_cells(type, where)
+            : pane_primary_min_cells(type, where);
+    }
+
+    return pane_placement_is_side(where)
+        ? pane_primary_min_cells(type, where)
+        : pane_secondary_min_cells(type, where);
+}
+
+int get_sdl_pane_current_rows(int index)
+{
+    return sdl_pane_current_size(index, true);
+}
+
+int get_sdl_pane_current_cols(int index)
+{
+    return sdl_pane_current_size(index, false);
+}
+
 void set_sdl_pane_rows(int index, int rows)
 {
     if (index < 0 || index >= pane_config_count)
@@ -4254,6 +4538,19 @@ void set_sdl_pane_cols(int index, int cols)
     if (cols > 200)
         cols = 200;
     pane_config[index].rect.cols = cols;
+}
+
+void set_sdl_pane_font_size(int index, int font_size)
+{
+    if (index < 0 || index >= pane_config_count)
+        return;
+    if (font_size < 0)
+        font_size = 0;
+    if (font_size > 0 && font_size < 8)
+        font_size = 8;
+    if (font_size > 48)
+        font_size = 48;
+    pane_config[index].font_size = font_size;
 }
 
 void set_sdl_pane_enabled(int index, bool enabled)
@@ -4705,8 +5002,10 @@ void sdl_apply_config(void)
         }
     }
     SDL_Rect screen = { 0, 0, w, h };
+    g_auto_aux_main_cell_h_override = config.main_view_scale * TILE_SIZE;
     sdl_load_story_fonts();
     resize(&screen);
+    g_auto_aux_main_cell_h_override = 0;
     
     // Redraw the screen to prevent black empty spaces
     Term_redraw();

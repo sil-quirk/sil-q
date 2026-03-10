@@ -53,6 +53,9 @@ struct pane_config {
     enum pane_placement where;
     bool enabled;
     struct rect rect;
+    // Monospace font size for this supporting pane. Zero uses the default aux
+    // font size, which may itself be auto-derived from the main view scale.
+    int font_size;
     // Ratio along the secondary axis, so if the pane is on the right, it's part
     // of the height of the whole window it takes, and if the pane is in the
     // bottom, it's the part of the width of the whole window. The axis will be
@@ -69,10 +72,13 @@ struct pane {
 
 bool pane_placement_is_side(enum pane_placement where);
 bool pane_type_allows_placement(enum pane_type type, enum pane_placement where);
+int pane_primary_min_cells(enum pane_type type, enum pane_placement where);
+int pane_secondary_min_cells(enum pane_type type, enum pane_placement where);
 enum pane_placement pane_first_allowed_placement(enum pane_type type);
 enum pane_placement pane_next_allowed_placement(enum pane_type type,
     enum pane_placement current, int delta);
 const char* pane_placement_name(enum pane_placement where);
 
 void place_panes(const struct pane_config* config, int count, SDL_Rect* panes,
-    const SDL_Rect* window, int cell_width, int cell_height, int margin);
+    const SDL_Rect* window, const int* cell_widths, const int* cell_heights,
+    int margin);
