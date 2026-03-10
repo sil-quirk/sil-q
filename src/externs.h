@@ -694,6 +694,11 @@ extern void do_cmd_knowledge_monsters(void);
 extern bool do_cmd_knowledge_supplies(const supply_menu_request* request);
 extern void do_cmd_knowledge_objects(void);
 extern void do_cmd_knowledge_kills(void);
+#define KNOWLEDGE_PAGE_ARTEFACTS 0
+#define KNOWLEDGE_PAGE_OBJECTS 1
+#define KNOWLEDGE_PAGE_MONSTERS 2
+#define KNOWLEDGE_PAGE_CURSES 3
+extern void do_cmd_knowledge_browser_page(int page);
 extern void ghost_challenge(void);
 extern void desc_art_fake(int a_idx);
 extern void apply_magic_fake(object_type* o_ptr);
@@ -736,6 +741,8 @@ extern errr check_time_init(void);
 extern void display_player_stat_info(int row, int col);
 extern void display_player_xtra_info(int mode);
 extern void display_player(int mode);
+extern void display_player_compact_set_scroll(int scroll);
+extern int display_player_compact_get_max_scroll(void);
 extern void display_player_compact_stats_skills_highlighted(int selected_skill);
 extern void display_player_compact_stats_skills_highlighted_stat(int selected_stat);
 extern void display_character_tutorial(void);

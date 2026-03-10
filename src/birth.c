@@ -833,17 +833,15 @@ static int character_choice_index_by_name(cptr choice_name)
     return -1;
 }
 
+static int birth_prompt_row(void);
+static int birth_description_base_row(void);
+
 static bool character_description_has_room(void)
 {
-    int wid = 80;
-    int hgt = 24;
     int min_description_rows = 8;
+    int available_rows = birth_prompt_row() - birth_description_base_row();
 
-    Term_get_size(&wid, &hgt);
-    if (hgt < 1)
-        hgt = 24;
-
-    return ((hgt - DESCRIPTION_ROW) >= min_description_rows);
+    return (available_rows >= min_description_rows);
 }
 
 static bool character_flags_need_compact_layout(void)
@@ -876,11 +874,55 @@ static void draw_character_selection_header(bool character_phase)
     Term_putstr(QUESTION_COL, HEADER_ROW, -1, TERM_L_BLUE, header);
 }
 
+static int birth_prompt_row(void)
+{
+    int wid = 80;
+    int hgt = 24;
+    int row;
+
+    Term_get_size(&wid, &hgt);
+    (void)wid;
+    if (hgt < 1)
+        hgt = 24;
+
+    row = hgt - 1;
+    if (row < TABLE_ROW)
+        row = TABLE_ROW;
+
+    return row;
+}
+
+static int birth_description_base_row(void)
+{
+    int wid = 80;
+    int hgt = 24;
+    int row;
+    int min_row = TABLE_ROW + A_MAX + 3;
+    int max_row = birth_prompt_row() - 1;
+
+    Term_get_size(&wid, &hgt);
+    (void)wid;
+    if (hgt < 1)
+        hgt = 24;
+
+    row = hgt - 5;
+    if (row > DESCRIPTION_ROW)
+        row = DESCRIPTION_ROW;
+    if (row < min_row)
+        row = min_row;
+    if (row > max_row)
+        row = max_row;
+    if (row < TABLE_ROW + 1)
+        row = TABLE_ROW + 1;
+
+    return row;
+}
+
 static int choice_description_row(int visible_rows, bool allow_full_description_screen)
 {
     int wid = 80;
     int hgt = 24;
-    int row = DESCRIPTION_ROW;
+    int row = birth_description_base_row();
     int min_row;
 
     (void)wid;
@@ -896,10 +938,10 @@ static int choice_description_row(int visible_rows, bool allow_full_description_
         return row;
 
     min_row = TABLE_ROW + visible_rows + 1;
-    row = MAX(min_row, TABLE_ROW + A_MAX + 5);
+    row = MAX(min_row, row);
 
-    if (row > hgt - 2)
-        row = hgt - 2;
+    if (row > birth_prompt_row() - 1)
+        row = birth_prompt_row() - 1;
     if (row < min_row)
         row = min_row;
 
@@ -1008,12 +1050,15 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
     char prompt[160];
     int cur = (def) ? def : 0;
     bool steamdeck = steamdeck_controls_active();
+    int clear_limit = birth_prompt_row() + 1;
 
     /* Autoselect if able */
     // if (num == 1) done = true;
 
     /* Clear */
-    for (i = TABLE_ROW; i < DESCRIPTION_ROW + 4; i++)
+    if (clear_limit < TABLE_ROW)
+        clear_limit = TABLE_ROW;
+    for (i = TABLE_ROW; i < clear_limit; i++)
     {
         /* Clear */
         Term_erase(col, i, 255/* Term->wid - wid */);
@@ -1022,10 +1067,10 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
     /* Choose */
     while (true)
     {
-        int description_row = DESCRIPTION_ROW;
+        int description_row = birth_description_base_row();
         int list_rows_drawn;
 
-        hgt = Term->hgt - TABLE_ROW - 1;
+        hgt = birth_prompt_row() - TABLE_ROW - 1;
 
         /*
          * If we're going to use a tighter, compact traits layout on very short
@@ -1040,7 +1085,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
             bool very_short = (Term->hgt > 0) && (Term->hgt <= 20);
             if (compact_flags && very_short)
             {
-                int max_hgt = (DESCRIPTION_ROW - 2) - TABLE_ROW;
+                int max_hgt = (description_row - 2) - TABLE_ROW;
                 if (max_hgt < 0) max_hgt = 0;
                 if (hgt > max_hgt) hgt = max_hgt;
             }
@@ -1091,7 +1136,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
                 bool compact_flags = character_flags_need_compact_layout();
                 bool very_short = (Term->hgt > 0) && (Term->hgt <= 20);
                 if (compact_flags && very_short)
-                    clear_from_row = DESCRIPTION_ROW - 1;
+                    clear_from_row = description_row - 1;
             }
             for (i = clear_from_row; i < Term->hgt; i++)
                 Term_erase(0, i, 255);
@@ -1127,7 +1172,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
 
         if (Term->hgt > 0)
         {
-            prompt_row = Term->hgt - 1;
+            prompt_row = birth_prompt_row();
             Term_erase(0, prompt_row, 255);
 
             if (allow_full_description_screen)
@@ -1371,6 +1416,7 @@ static void print_rh_flags(int race, int character, int col, int row)
     int flags_left  = 0;
     int flags_right = 0;
     bool compact_layout = character_flags_need_compact_layout();
+    int description_row = birth_description_base_row();
     cptr ability_lines[CHARACTER_ABILITY_MAX];
     int ability_line_n = collect_character_starting_abilities(character,
         ability_lines, N_ELEMENTS(ability_lines));
@@ -1508,7 +1554,7 @@ static void print_rh_flags(int race, int character, int col, int row)
 
     if (compact_layout)
     {
-        int compact_row = DESCRIPTION_ROW;
+        int compact_row = description_row;
         int compact_col = 2;
         int col_gap = 2;
         int col_wid;
@@ -1537,7 +1583,7 @@ static void print_rh_flags(int race, int character, int col, int row)
         }                                                                   \
     } while (0)
 
-        for (int i = 0; i < ability_line_n && (row + i) < DESCRIPTION_ROW; ++i)
+        for (int i = 0; i < ability_line_n && (row + i) < description_row; ++i)
             Term_putstr(col, row + i, -1, TERM_YELLOW, ability_lines[i]);
 
         for (int i = 0; i < unique_n; ++i)
@@ -1589,7 +1635,7 @@ static void print_rh_flags(int race, int character, int col, int row)
             {
                 /* Step 1: move the "Character traits" title up by 1 row if needed. */
                 if (compact_row > 0)
-                    compact_row = DESCRIPTION_ROW - 1;
+                    compact_row = description_row - 1;
 
                 base_capacity = use_two_columns ? CAPACITY_TWO(compact_row, right_offset)
                                                : CAPACITY_ONE(compact_row);
@@ -1881,6 +1927,7 @@ static void character_aux_hook(birth_menu c_str)
     int character_idx, i, adj;
     int term_wid = 80;
     int term_hgt = 24;
+    int description_row = birth_description_base_row();
     int name_col;
     int fallback_name_col;
     bool aligned_name_fits;
@@ -1905,7 +1952,7 @@ static void character_aux_hook(birth_menu c_str)
 
     /* Clear the entire TOTAL_AUX_COL area FIRST before displaying new info */
     /* Clear from HEADER_ROW down but stop before DESCRIPTION_ROW to preserve history */
-    for (i = HEADER_ROW; i < DESCRIPTION_ROW; i++)
+    for (i = HEADER_ROW; i < description_row; i++)
     {
         Term_putstr(TOTAL_AUX_COL, i, -1, TERM_WHITE,
             "                                         ");
@@ -1915,7 +1962,7 @@ static void character_aux_hook(birth_menu c_str)
     }
 
     /* Also clear the abilities area (col + 7) but only in the same range */
-    for (i = 0; i < DESCRIPTION_ROW; i++)
+    for (i = 0; i < description_row; i++)
     {
         Term_erase(TOTAL_AUX_COL + 7, i, 60);  /* Wider clearing */
     }
@@ -2148,6 +2195,7 @@ NavResult character_creation(void)
     draw_character_selection_header(false);
 
     if (steamdeck_controls_active()) {
+        int prompt_row = birth_prompt_row();
         char random_label[16];
         char back_label[16];
         char options_label[16];
@@ -2170,9 +2218,9 @@ NavResult character_creation(void)
         strnfmt(prompt_buf, sizeof(prompt_buf),
             "%s-random  %s-back  %s-options  %s-scores  %s-description  %s-help  %s-quit",
             random_label, back_label, options_label, scores_label, full_desc_label, help_label, quit_label);
-        Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE, prompt_buf);
+        Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE, prompt_buf);
     } else {
-        Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
+        Term_putstr(QUESTION_COL, birth_prompt_row(), -1, TERM_SLATE,
             "r -random   ESC -back   o -options   s -scores   f -description   h -help   q -quit");
     }
 
@@ -3062,6 +3110,8 @@ static NavResult player_birth_aux_2(void)
         }
         else
         {
+            int prompt_row = birth_prompt_row();
+
             /* Display the player */
             display_player(0);
 
@@ -3134,9 +3184,9 @@ static NavResult player_birth_aux_2(void)
                 strnfmt(prompt_buf, sizeof(prompt_buf),
                     "D-pad allocate  %s back  %s confirm  %s quit",
                     back_label, confirm_label, quit_label);
-                Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE, prompt_buf);
+                Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE, prompt_buf);
             } else {
-                Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
+                Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE,
                     "Arrows -allocate    ESC -back   ENTER -confirm   q -quit");
             }
 
@@ -3296,6 +3346,8 @@ extern NavResult gain_skills(void)
         }
         else
         {
+            int prompt_row = birth_prompt_row();
+
             /* Display the player */
             display_player(0);
 
@@ -3378,9 +3430,9 @@ extern NavResult gain_skills(void)
                 strnfmt(prompt_buf, sizeof(prompt_buf),
                     "D-pad -allocate      %s-back     %s-confirm     %s-quit",
                     back_label, confirm_label, quit_label);
-                Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE, prompt_buf);
+                Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE, prompt_buf);
             } else {
-                Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
+                Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE,
                     "Arrows -allocate      ESC -back     ENTER -confirm     q -quit");
             }
 

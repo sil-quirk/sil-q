@@ -1293,6 +1293,40 @@ static int compact_right_column_start(int wid)
     return col;
 }
 
+static bool display_player_compact_tight_spacing(void)
+{
+    int wid = 80;
+    int hgt = 24;
+
+    Term_get_size(&wid, &hgt);
+    (void)wid;
+    if (hgt < 1)
+        hgt = 24;
+
+    return (hgt <= 18);
+}
+
+static int display_player_compact_start_row(void)
+{
+    return display_player_compact_tight_spacing() ? 1 : 2;
+}
+
+static int display_player_compact_scroll = 0;
+static int display_player_compact_max_scroll = 0;
+
+void display_player_compact_set_scroll(int scroll)
+{
+    if (scroll < 0)
+        scroll = 0;
+
+    display_player_compact_scroll = scroll;
+}
+
+int display_player_compact_get_max_scroll(void)
+{
+    return display_player_compact_max_scroll;
+}
+
 static void put_label_fit(int x, int y, const char* label, int start)
 {
     int maxw = start - x;
@@ -3413,7 +3447,8 @@ static int display_player_compact_summary_block(int row_start)
         row_r = row_song;
     }
 
-    return ((row_l > row_r) ? row_l : row_r) + 1;
+    return ((row_l > row_r) ? row_l : row_r)
+        + (display_player_compact_tight_spacing() ? 0 : 1);
 }
 
 typedef struct {
@@ -3524,16 +3559,20 @@ static int collect_compact_trait_lines(compact_trait_line* out, int out_max)
     return total;
 }
 
-static int display_player_compact_traits_block(int row_start, int col, int row_limit)
+static int display_player_compact_traits_block(int row_start, int col, int row_limit,
+    int skip_lines)
 {
     int row = row_start;
     compact_trait_line lines[96];
     int line_count = collect_compact_trait_lines(lines, 96);
 
+    if (skip_lines < 0)
+        skip_lines = 0;
+
     if (story_character_enabled())
         sdl_story_font_enable();
 
-    for (int i = 0; i < line_count && row < row_limit; ++i)
+    for (int i = skip_lines; i < line_count && row < row_limit; ++i)
         Term_putstr(col, row++, -1, lines[i].col, lines[i].txt);
 
     if (story_character_enabled())
@@ -3566,7 +3605,102 @@ static int display_player_compact_history_line_count(int wrap_col, int indent)
     return count_wrapped_lines(p_ptr->history, wrap_col, indent);
 }
 
-static void display_player_compact_history_column(int row_start, int col, int wrap_col)
+static int display_player_compact_wrapped_offset(const char* text, int start_row,
+    int col, int wrap_col, int row_limit, int skip_lines, byte attr)
+{
+    int wid = 80;
+    int hgt = 24;
+    int row = start_row;
+    int max_width;
+    int line_pos = 0;
+    int line_idx = 0;
+    const char* p = text;
+    char line_buf[512];
+
+    if (!text || !text[0])
+        return start_row;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1)
+        wid = 80;
+    if (hgt < 1)
+        hgt = 24;
+
+    if (wrap_col <= col)
+        wrap_col = wid - COMPACT_RIGHT_PAD;
+
+    max_width = wrap_col - col;
+    if (max_width < 10)
+        max_width = 10;
+
+    if (skip_lines < 0)
+        skip_lines = 0;
+
+    while (*p)
+    {
+        while (*p == ' ' && line_pos == 0)
+            p++;
+
+        if (*p == '\n')
+        {
+            line_buf[line_pos] = '\0';
+            if (line_pos > 0)
+            {
+                if (line_idx >= skip_lines && row < row_limit)
+                    Term_putstr(col, row++, -1, attr, line_buf);
+                line_idx++;
+            }
+            line_pos = 0;
+            p++;
+            continue;
+        }
+
+        if (line_pos >= max_width)
+        {
+            int wrap_pos = line_pos - 1;
+            while (wrap_pos > 0 && line_buf[wrap_pos] != ' ')
+                wrap_pos--;
+
+            if (wrap_pos > 0)
+            {
+                line_buf[wrap_pos] = '\0';
+                if (line_idx >= skip_lines && row < row_limit)
+                    Term_putstr(col, row++, -1, attr, line_buf);
+
+                int remaining = line_pos - wrap_pos - 1;
+                for (int i = 0; i < remaining; i++)
+                    line_buf[i] = line_buf[wrap_pos + 1 + i];
+                line_pos = remaining;
+            }
+            else
+            {
+                line_buf[line_pos] = '\0';
+                if (line_idx >= skip_lines && row < row_limit)
+                    Term_putstr(col, row++, -1, attr, line_buf);
+                line_pos = 0;
+            }
+
+            line_idx++;
+            continue;
+        }
+
+        if (line_pos < (int)sizeof(line_buf) - 2)
+            line_buf[line_pos++] = *p;
+        p++;
+    }
+
+    if (line_pos > 0)
+    {
+        line_buf[line_pos] = '\0';
+        if (line_idx >= skip_lines && row < row_limit)
+            Term_putstr(col, row++, -1, attr, line_buf);
+    }
+
+    return row;
+}
+
+static void display_player_compact_history_column(int row_start, int col, int wrap_col,
+    int skip_lines, int row_limit)
 {
     int wid = 80;
     int hgt = 24;
@@ -3583,14 +3717,8 @@ static void display_player_compact_history_column(int row_start, int col, int wr
     if (story_character_enabled())
         sdl_story_font_enable();
 
-    text_out_wrap = wrap_col;
-    text_out_indent = col;
-    Term_gotoxy(text_out_indent, row_start);
-    text_out_to_screen(TERM_WHITE, p_ptr->history);
-    text_out_wrap = 0;
-    text_out_indent = 0;
-
-    Term_fresh();
+    (void)display_player_compact_wrapped_offset(p_ptr->history, row_start, col,
+        wrap_col, row_limit, skip_lines, TERM_WHITE);
 
     if (story_character_enabled())
         sdl_story_font_disable();
@@ -3611,19 +3739,24 @@ static void display_player_compact_heading(cptr text, int row, int col)
 
 static int compact_stat_highlight = -1;
 
-static void display_player_compact_description_and_flags(int row_start)
+static void display_player_compact_description_and_flags(int row_start,
+    int visible_row_start)
 {
     int wid = 80;
     int hgt = 24;
+    int scroll = display_player_compact_scroll;
 
     Term_get_size(&wid, &hgt);
     if (wid < 1) wid = 80;
     if (hgt < 1) hgt = 24;
 
     int row_limit = hgt - 1;
-    int available_rows = row_limit - row_start;
+    int available_rows = row_limit - visible_row_start;
     if (available_rows <= 0)
+    {
+        display_player_compact_max_scroll = 0;
         return;
+    }
 
     int trait_lines = collect_compact_trait_lines(NULL, 0);
     int history_lines_stacked = display_player_compact_history_line_count(wid - 1, 1);
@@ -3654,8 +3787,11 @@ static void display_player_compact_description_and_flags(int row_start)
         side_overflow = traits_over + history_over;
     }
 
-    int stacked_overflow = (trait_lines + history_lines_stacked > available_rows)
-        ? (trait_lines + history_lines_stacked - available_rows)
+    int stacked_total = trait_lines
+        + ((trait_lines > 0 && history_lines_stacked > 0) ? 1 : 0)
+        + history_lines_stacked;
+    int stacked_overflow = (stacked_total > available_rows)
+        ? (stacked_total - available_rows)
         : 0;
 
     bool use_side_by_side = can_side_by_side && (side_overflow <= stacked_overflow);
@@ -3667,26 +3803,51 @@ static void display_player_compact_description_and_flags(int row_start)
 
     if (use_side_by_side)
     {
-        display_player_compact_traits_block(row_start, 1, row_limit);
-        display_player_compact_history_column(row_start, side_history_col, wid - COMPACT_RIGHT_PAD);
+        int total_height = (trait_lines > history_lines_side) ? trait_lines : history_lines_side;
+        int max_scroll = total_height - available_rows;
+        if (max_scroll < 0)
+            max_scroll = 0;
+        if (scroll > max_scroll)
+            scroll = max_scroll;
+
+        display_player_compact_max_scroll = max_scroll;
+
+        display_player_compact_traits_block(row_start, 1, row_limit, scroll);
+        display_player_compact_history_column(row_start, side_history_col,
+            wid - COMPACT_RIGHT_PAD, scroll, row_limit);
         return;
     }
 
-    int history_rows_reserve = history_lines_stacked;
-    if (history_rows_reserve < 4)
-        history_rows_reserve = 4;
-    if (history_rows_reserve > available_rows - 1)
-        history_rows_reserve = available_rows - 1;
+    {
+        int max_scroll = stacked_total - available_rows;
+        if (max_scroll < 0)
+            max_scroll = 0;
+        if (scroll > max_scroll)
+            scroll = max_scroll;
 
-    int flags_rows_budget = available_rows - history_rows_reserve;
-    if (flags_rows_budget < 1)
-        flags_rows_budget = 1;
+        display_player_compact_max_scroll = max_scroll;
+    }
 
-    int row_after_flags = display_player_compact_traits_block(row_start, 1, row_start + flags_rows_budget);
-    int history_row = row_after_flags + 1;
+    int trait_skip = scroll;
+    if (trait_skip > trait_lines)
+        trait_skip = trait_lines;
 
-    if (history_row < row_limit)
-        display_player_compact_history_column(history_row, 1, wid - COMPACT_RIGHT_PAD);
+    int row_after_flags = display_player_compact_traits_block(row_start, 1, row_limit,
+        trait_skip);
+
+    int history_skip = scroll - trait_lines;
+    if (trait_lines > 0 && history_lines_stacked > 0)
+        history_skip--;
+    if (history_skip < 0)
+        history_skip = 0;
+
+    if (trait_lines > trait_skip && history_lines_stacked > 0
+        && row_after_flags < row_limit && scroll < trait_lines + 1)
+        row_after_flags += (display_player_compact_tight_spacing() ? 0 : 1);
+
+    if (history_lines_stacked > 0 && row_after_flags < row_limit)
+        display_player_compact_history_column(row_after_flags, 1,
+            wid - COMPACT_RIGHT_PAD, history_skip, row_limit);
 }
 
 static void display_player_compact_attribute_line(int row, int col, int max_cols, int stat)
@@ -3917,7 +4078,7 @@ static void display_player_compact_attributes_and_skills(int row_start)
 
     bool side_by_side = (wid >= 50)
         && (col_skill >= attr_right_edge + 2)
-        && (row_start + block_h < hgt - 1);
+        && (row_start + block_h <= hgt - 1);
 
     /* Render attributes first using width appropriate to the chosen layout. */
     display_player_compact_attributes(row_start, side_by_side ? attr_width : 0);
@@ -3938,7 +4099,8 @@ static void display_player_compact_attributes_and_skills(int row_start)
     }
 
     /* Stacked fallback: Skills below Attributes (may truncate if short). */
-    int row_skills = row_start + 1 + A_MAX + 1;
+    int row_skills = row_start + 1 + A_MAX
+        + (display_player_compact_tight_spacing() ? 0 : 1);
     if (row_skills < hgt - 1)
         display_player_compact_skills_list(row_skills);
 }
@@ -3978,7 +4140,8 @@ static void display_player_compact_history(int row_start)
     if (wid < 1) wid = 80;
     if (hgt < 1) hgt = 24;
 
-    display_player_compact_history_column(row_start, 1, wid - COMPACT_RIGHT_PAD);
+    display_player_compact_history_column(row_start, 1, wid - COMPACT_RIGHT_PAD,
+        0, hgt - 1);
 }
 
 /*
@@ -4291,15 +4454,22 @@ void display_player(int mode)
 
     /* Erase screen */
     clear_from(0);
+    display_player_compact_max_scroll = 0;
 
     if (narrow && (mode == 0))
         mode = DISPLAY_PLAYER_MODE_COMPACT_STATS_SKILLS;
 
     if (mode == DISPLAY_PLAYER_MODE_COMPACT_DESC_FLAGS)
     {
+        int summary_row = display_player_compact_start_row();
         display_player_misc_info();
-        int body_row = display_player_compact_summary_block(2);
-        display_player_compact_description_and_flags(body_row);
+        int body_row = display_player_compact_summary_block(summary_row);
+        display_player_compact_description_and_flags(body_row, body_row);
+        if (display_player_compact_scroll > 0)
+        {
+            display_player_misc_info();
+            (void)display_player_compact_summary_block(summary_row);
+        }
         sdl_story_font_reset();
         return;
     }
@@ -4307,7 +4477,8 @@ void display_player(int mode)
     if (mode == DISPLAY_PLAYER_MODE_COMPACT_STATS_SKILLS)
     {
         display_player_misc_info();
-        int body_row = display_player_compact_summary_block(2);
+        int body_row = display_player_compact_summary_block(
+            display_player_compact_start_row());
         display_player_compact_attributes_and_skills(body_row);
         sdl_story_font_reset();
         return;
@@ -4316,7 +4487,8 @@ void display_player(int mode)
     if (mode == DISPLAY_PLAYER_MODE_COMPACT_SKILLS)
     {
         display_player_misc_info();
-        int body_row = display_player_compact_summary_block(2);
+        int body_row = display_player_compact_summary_block(
+            display_player_compact_start_row());
         display_player_compact_skills_list(body_row);
         sdl_story_font_reset();
         return;
@@ -4325,7 +4497,8 @@ void display_player(int mode)
     if (mode == DISPLAY_PLAYER_MODE_COMPACT_HISTORY)
     {
         display_player_misc_info();
-        int body_row = display_player_compact_summary_block(2);
+        int body_row = display_player_compact_summary_block(
+            display_player_compact_start_row());
         display_player_compact_history(body_row);
         sdl_story_font_reset();
         return;

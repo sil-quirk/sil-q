@@ -30,6 +30,16 @@ static bool ui_compact_height(void)
     return SIL_UI_COMPACT_HEIGHT;
 }
 
+static bool ui_compact_status_line_handles_song(void)
+{
+    return ui_compact_width() && (ROW_SONG >= ROW_STATE);
+}
+
+static bool ui_compact_status_line_handles_wounds(void)
+{
+    return ui_compact_width() && (ROW_CUT >= ROW_STATE);
+}
+
 typedef struct hidden_overlay_line {
     char text[32];
     byte attr;
@@ -1144,6 +1154,12 @@ static void prt_hidden_top_vitals(void)
  */
 static void prt_song(void)
 {
+    if (ui_compact_status_line_handles_song())
+    {
+        prt_status_line_compact();
+        return;
+    }
+
     char* song1_name
         = b_name + (&b_info[ability_index(S_SNG, p_ptr->song1)])->name;
     char* song2_name
@@ -1377,6 +1393,12 @@ static void prt_cut(void)
     if (ui_hide_left_panel())
         return;
 
+    if (ui_compact_status_line_handles_wounds())
+    {
+        prt_status_line_compact();
+        return;
+    }
+
     if (ui_compact_height())
     {
         prt_cut_poisoned_compact();
@@ -1427,6 +1449,12 @@ static void prt_poisoned(void)
 {
     if (ui_hide_left_panel())
         return;
+
+    if (ui_compact_status_line_handles_wounds())
+    {
+        prt_status_line_compact();
+        return;
+    }
 
     if (ui_compact_height())
     {
@@ -1995,6 +2023,8 @@ static void prt_status_line_compact(void)
 
     status_seg segs[16];
     int seg_count = 0;
+    bool fold_song = ui_compact_status_line_handles_song();
+    bool fold_wounds = ui_compact_status_line_handles_wounds();
 
     char hunger_long[16] = "";
     char hunger_short[8] = "";
@@ -2041,6 +2071,42 @@ static void prt_status_line_compact(void)
     (void)status_state_text(state_long, sizeof(state_long), state_short,
         sizeof(state_short), &state_attr);
 
+    char cut_long[16] = "";
+    char cut_short[8] = "";
+    byte cut_attr = TERM_WHITE;
+    if (fold_wounds)
+    {
+        if (p_ptr->cut > 100) {
+            SDL_strlcpy(cut_long, "Mortal", sizeof(cut_long));
+            SDL_strlcpy(cut_short, "MW", sizeof(cut_short));
+            cut_attr = TERM_RED;
+        } else if (p_ptr->cut > 20) {
+            strnfmt(cut_long, sizeof(cut_long), "Bleed %d", p_ptr->cut);
+            strnfmt(cut_short, sizeof(cut_short), "B%d", p_ptr->cut);
+            cut_attr = TERM_RED;
+        } else if (p_ptr->cut > 0) {
+            strnfmt(cut_long, sizeof(cut_long), "Bleed %d", p_ptr->cut);
+            strnfmt(cut_short, sizeof(cut_short), "B%d", p_ptr->cut);
+            cut_attr = TERM_L_RED;
+        }
+    }
+
+    char pois_long[16] = "";
+    char pois_short[8] = "";
+    byte pois_attr = TERM_WHITE;
+    if (fold_wounds)
+    {
+        if (p_ptr->poisoned > 20) {
+            strnfmt(pois_long, sizeof(pois_long), "Poison %d", p_ptr->poisoned);
+            strnfmt(pois_short, sizeof(pois_short), "P%d", p_ptr->poisoned);
+            pois_attr = TERM_L_GREEN;
+        } else if (p_ptr->poisoned > 0) {
+            strnfmt(pois_long, sizeof(pois_long), "Poison %d", p_ptr->poisoned);
+            strnfmt(pois_short, sizeof(pois_short), "P%d", p_ptr->poisoned);
+            pois_attr = TERM_GREEN;
+        }
+    }
+
     char speed_long[8] = "";
     char speed_short[4] = "";
     byte speed_attr = TERM_WHITE;
@@ -2084,11 +2150,32 @@ static void prt_status_line_compact(void)
     }
     byte depth_attr = status_depth_attr();
 
+    char song_long[32] = "";
+    char song_short[12] = "";
+    if (fold_song && (p_ptr->song1 != SNG_NOTHING || p_ptr->song2 != SNG_NOTHING))
+    {
+        char* song1_name
+            = b_name + (&b_info[ability_index(S_SNG, p_ptr->song1)])->name;
+        char* song2_name
+            = b_name + (&b_info[ability_index(S_SNG, p_ptr->song2)])->name;
+
+        if (p_ptr->song1 != SNG_NOTHING && p_ptr->song2 != SNG_NOTHING)
+            strnfmt(song_long, sizeof(song_long), "%s+%s", song1_name + 8,
+                song2_name + 8);
+        else if (p_ptr->song1 != SNG_NOTHING)
+            SDL_strlcpy(song_long, song1_name + 8, sizeof(song_long));
+        else if (p_ptr->song2 != SNG_NOTHING)
+            SDL_strlcpy(song_long, song2_name + 8, sizeof(song_long));
+
+        if (song_long[0])
+            strnfmt(song_short, sizeof(song_short), "S:%.*s", 6, song_long);
+    }
+
     #define ADD_SEG(LTXT, STXT, ATTR, REQ) \
         do { \
-            if ((LTXT) && (LTXT)[0]) { \
+            if ((LTXT)[0]) { \
                 segs[seg_count].long_text = (LTXT); \
-                segs[seg_count].short_text = ((STXT) && (STXT)[0]) ? (STXT) : (LTXT); \
+                segs[seg_count].short_text = (STXT)[0] ? (STXT) : (LTXT); \
                 segs[seg_count].attr = (ATTR); \
                 segs[seg_count].required = (REQ); \
                 seg_count++; \
@@ -2098,8 +2185,11 @@ static void prt_status_line_compact(void)
     ADD_SEG(hunger_long, hunger_short, hunger_attr, true);
     ADD_SEG(p_ptr->blind ? "Blind" : "", "Bl", TERM_ORANGE, true);
     ADD_SEG(p_ptr->confused ? "Confused" : "", "Cn", TERM_ORANGE, true);
+    ADD_SEG(cut_long, cut_short, cut_attr, true);
+    ADD_SEG(pois_long, pois_short, pois_attr, true);
     ADD_SEG(stun_long, stun_short, stun_attr, true);
     ADD_SEG(p_ptr->afraid ? "Afraid" : "", "Af", TERM_ORANGE, true);
+    ADD_SEG(song_long, song_short, TERM_L_BLUE, false);
     ADD_SEG(state_long, state_short, state_attr, false);
     ADD_SEG(speed_long, speed_short, speed_attr, false);
     ADD_SEG(terrain_long, terrain_short, terrain_attr, false);
@@ -2468,8 +2558,11 @@ static void prt_frame_extra(void)
     if (ui_compact_width())
     {
         /* Compact width: bottom status is rendered as a single packed line. */
-        prt_poisoned();
-        prt_cut();
+        if (!ui_compact_status_line_handles_wounds())
+        {
+            prt_poisoned();
+            prt_cut();
+        }
         prt_status_line_compact();
         return;
     }
