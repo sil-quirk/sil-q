@@ -1123,7 +1123,8 @@ static void prep_skeleton_food(object_type* o_ptr, byte skeleton_sval)
     switch (skeleton_sval)
     {
     case SV_SKELETON_ELF:
-        object_prep(o_ptr, lookup_kind(TV_FOOD, SV_FOOD_LEMBAS));
+        object_prep(o_ptr, lookup_kind(TV_FOOD,
+            one_in_(2) ? SV_FOOD_LEMBAS : SV_FOOD_BREAD));
         break;
     case SV_SKELETON_ORC:
         object_prep(o_ptr, lookup_kind(TV_FOOD, SV_FOOD_MEAT));
@@ -3936,17 +3937,17 @@ static void do_cmd_search_skeleton(int y, int x, s16b o_idx)
 
     int roll = rand_int(100);
 
-    if (roll < 30)
+    if (roll < 20)
     {
         prep_skeleton_food(i_ptr, o_ptr->sval);
         auto_carry_food = true;
         search_failed = false;
     }
-    else if (roll < 60)
+    else if (roll < 40)
     {
         search_failed = !prep_skeleton_light(i_ptr);
     }
-    else if (roll < 80)
+    else if (roll < 50)
     {
         search_failed = generate_skeleton_damaged_item(
             i_ptr, o_ptr->sval, &no_item_generated);
