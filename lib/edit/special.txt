@@ -32,7 +32,7 @@
 #     Percentages may exceed 100 after runtime modifiers (e.g. MORE_SPECIAL).
 #
 # 'C' is for creation bonuses - maximum to-hit, to-dam, to-ac, and
-#     pval. Cursed special items will negate the given value.
+#     pval. Curses do not automatically negate the given value.
 #     Optional min_pval sets the minimum pval this ego can have. If omitted
 #     and max_pval > 0, min_pval defaults to 1 (forbidding 0 pval items).
 #     Set min_pval to 0 explicitly to allow 0 pval items.

@@ -80,7 +80,7 @@ static bool drop_object_is_damaged(const object_type* o_ptr)
 
 static const char* DROP_RAW_FILE = "drops";
 static const u32b DROP_RAW_MAGIC = 0x44525053; /* 'DRPS' */
-static const u32b DROP_RAW_VERSION = 18;
+static const u32b DROP_RAW_VERSION = 19;
 
 typedef struct
 {
@@ -1688,7 +1688,6 @@ static void build_ego_variants(int e_idx)
             int kind_pval_max = k_ptr->max_pval;
             int ego_pval_min = (e_ptr->max_pval > 0) ? 1 : 0;
             int ego_pval_max = e_ptr->max_pval;
-            int ego_pval_sign = (e_ptr->flags3 & TR3_LIGHT_CURSE) ? -1 : 1;
             bool kind_pval_allowed = (kind_pval_mask != 0)
                 || (k_ptr->pval != 0) || (k_ptr->max_pval != k_ptr->pval);
 
@@ -1747,7 +1746,9 @@ static void build_ego_variants(int e_idx)
                                         {
                                             object_type v = base;
                                             int kind_delta = kind_pval - base.pval;
-                                            int ego_delta = ego_pval_sign * ego_pval;
+                                            /* Keep catalog prototypes aligned with object_into_special():
+                                             * cursed egos remain cursed, but their pval is not inverted. */
+                                            int ego_delta = ego_pval;
                                             v.att = att;
                                             v.ds = ds;
                                             v.dd = dd;
@@ -1968,8 +1969,6 @@ static void build_ego_combo_variants(int prefix_idx, int suffix_idx)
         int prefix_pval_max = prefix_ptr->max_pval;
         int suffix_pval_min = (suffix_ptr->max_pval > 0) ? 1 : 0;
         int suffix_pval_max = suffix_ptr->max_pval;
-        int prefix_pval_sign = (prefix_ptr->flags3 & TR3_LIGHT_CURSE) ? -1 : 1;
-        int suffix_pval_sign = (suffix_ptr->flags3 & TR3_LIGHT_CURSE) ? -1 : 1;
         bool kind_pval_allowed = (kind_pval_mask != 0)
             || (k_ptr->pval != 0) || (k_ptr->max_pval != k_ptr->pval);
 
@@ -2030,8 +2029,8 @@ static void build_ego_combo_variants(int prefix_idx, int suffix_idx)
                                         {
                                             object_type v = base;
                                             int kind_delta = kind_pval - base.pval;
-                                            int prefix_delta = prefix_pval_sign * prefix_pval;
-                                            int suffix_delta = suffix_pval_sign * suffix_pval;
+                                            int prefix_delta = prefix_pval;
+                                            int suffix_delta = suffix_pval;
                                             v.att = att;
                                             v.ds = ds;
                                             v.dd = dd;

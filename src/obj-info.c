@@ -17,6 +17,18 @@ static bool new_paragraph = false;
 static SDL_IOStream* object_info_capture_stream = NULL;
 static int object_info_capture_pos = 0;
 
+typedef struct object_info_screen_capture
+{
+    int width;
+    int height;
+    byte* attrs;
+    char* chars;
+    byte* story;
+} object_info_screen_capture;
+
+static void object_info_screen_multi_body(const object_type** objects,
+    const char** headings, int count, bool clear_current_line);
+
 static void p_text_out(cptr str)
 {
     if (new_paragraph)
@@ -1740,44 +1752,7 @@ static char* capture_object_info_screen_multi_text(const object_type** objects,
     text_out_hook = text_out_to_object_info_buffer;
     text_out_wrap = term_wid - 1;
     text_out_indent = 0;
-
-    for (int i = 0; i < count; i++)
-    {
-        if (i > 0)
-            text_out_c(TERM_L_DARK, "\n----------------------------------------\n\n");
-
-        if (headings && headings[i] && headings[i][0])
-        {
-            text_out_c(TERM_L_BLUE, headings[i]);
-            text_out_c(TERM_L_BLUE, "\n");
-        }
-
-        if (objects[i])
-        {
-            bool has_description = screen_out_head(objects[i]);
-
-            object_info_out_flags = object_flags_known;
-
-            new_paragraph = true;
-            {
-                bool has_info = object_info_out(objects[i]);
-                new_paragraph = false;
-
-                if (!object_known_p(objects[i]))
-                {
-                    p_text_out("\n\n   This item has not been identified.");
-                }
-                else if ((!has_description) && (!has_info))
-                {
-                    p_text_out("\n\n   This item does not seem to possess any special abilities.");
-                }
-            }
-        }
-        else
-        {
-            p_text_out("\n   (slot is empty)");
-        }
-    }
+    object_info_screen_multi_body(objects, headings, count, false);
 
     {
         unsigned char zero = '\0';
@@ -1824,9 +1799,324 @@ static int object_info_buffer_line_count(cptr text)
     return lines;
 }
 
+static void object_info_screen_multi_body(const object_type** objects,
+    const char** headings, int count, bool clear_current_line)
+{
+    for (int i = 0; i < count; i++)
+    {
+        if (i > 0)
+        {
+            text_out_c(TERM_L_DARK, "\n----------------------------------------\n\n");
+        }
+
+        if (clear_current_line && Term && Term->scr)
+            Term_erase(0, Term->scr->cy, 255);
+
+        if (headings && headings[i] && headings[i][0])
+        {
+            text_out_c(TERM_L_BLUE, headings[i]);
+            text_out_c(TERM_L_BLUE, "\n");
+        }
+
+        if (objects[i])
+        {
+            bool has_description = screen_out_head(objects[i]);
+
+            object_info_out_flags = object_flags_known;
+
+            new_paragraph = true;
+            {
+                bool has_info = object_info_out(objects[i]);
+                new_paragraph = false;
+
+                if (!object_known_p(objects[i]))
+                {
+                    p_text_out("\n\n   This item has not been identified.");
+                }
+                else if ((!has_description) && (!has_info))
+                {
+                    p_text_out(
+                        "\n\n   This item does not seem to possess any special abilities.");
+                }
+            }
+        }
+        else
+        {
+            p_text_out("\n   (slot is empty)");
+        }
+    }
+}
+
+static void object_info_screen_capture_free(
+    object_info_screen_capture* capture)
+{
+    if (!capture)
+        return;
+
+    mem_free_null(capture->attrs);
+    mem_free_null(capture->chars);
+    mem_free_null(capture->story);
+
+    capture->width = 0;
+    capture->height = 0;
+}
+
+static int object_info_screen_capture_used_rows(term* t)
+{
+    if (!t || !t->scr)
+        return 0;
+
+    for (int y = t->hgt - 1; y >= 0; y--)
+    {
+        for (int x = 0; x < t->wid; x++)
+        {
+            if ((t->scr->c[y][x] != ' ')
+                || (t->scr->a[y][x] != t->attr_blank)
+                || (t->scr->story[y][x] != 0))
+            {
+                return y + 1;
+            }
+        }
+    }
+
+    return 0;
+}
+
+static bool object_info_screen_capture_build(
+    const object_type** objects, const char** headings, int count,
+    object_info_screen_capture* capture)
+{
+    term scratch;
+    term* saved_term = Term;
+    void (*old_hook)(byte, cptr) = text_out_hook;
+    int old_wrap = text_out_wrap;
+    int old_indent = text_out_indent;
+    bool old_paragraph = new_paragraph;
+    bool scratch_ready = false;
+    bool success = false;
+    int term_wid = 80;
+    int term_hgt = 24;
+    int used_rows;
+
+    if (!capture || !objects || count <= 0 || !saved_term)
+        return false;
+
+    SDL_memset(capture, 0, sizeof(*capture));
+    SDL_memset(&scratch, 0, sizeof(scratch));
+
+    Term_get_size(&term_wid, &term_hgt);
+    if (term_wid < 20)
+        term_wid = 20;
+    if (term_hgt < 24)
+        term_hgt = 24;
+
+    if (term_init(&scratch, term_wid, 255, 16) != 0)
+        goto cleanup;
+    scratch_ready = true;
+
+    Term_activate(&scratch);
+    text_out_hook = text_out_to_screen;
+    text_out_wrap = 0;
+    text_out_indent = 0;
+    new_paragraph = false;
+
+    Term_clear();
+    Term_gotoxy(0, 0);
+    object_info_screen_multi_body(objects, headings, count, true);
+
+    used_rows = object_info_screen_capture_used_rows(Term);
+    if (used_rows < 1)
+        used_rows = 1;
+
+    capture->width = term_wid;
+    capture->height = used_rows;
+    capture->attrs = mem_alloc_array(capture->width * capture->height, byte);
+    capture->chars = mem_alloc_array(capture->width * capture->height, char);
+    capture->story = mem_alloc_array(capture->width * capture->height, byte);
+
+    for (int y = 0; y < capture->height; y++)
+    {
+        for (int x = 0; x < capture->width; x++)
+        {
+            int idx = y * capture->width + x;
+            capture->attrs[idx] = scratch.scr->a[y][x];
+            capture->chars[idx] = scratch.scr->c[y][x];
+            capture->story[idx] = scratch.scr->story[y][x];
+        }
+    }
+
+    success = true;
+
+cleanup:
+    text_out_hook = old_hook;
+    text_out_wrap = old_wrap;
+    text_out_indent = old_indent;
+    new_paragraph = old_paragraph;
+
+    if (saved_term && Term != saved_term)
+        Term_activate(saved_term);
+
+    if (scratch_ready)
+        term_nuke(&scratch);
+
+    if (!success)
+        object_info_screen_capture_free(capture);
+
+    return success;
+}
+
+static void object_info_screen_capture_draw(
+    const object_info_screen_capture* capture, int scroll)
+{
+    int term_wid = 80;
+    int term_hgt = 24;
+    int visible_rows;
+    int prompt_row;
+    int max_scroll;
+    char prompt[96];
+    char scroll_buf[32];
+    bool old_story_active = false;
+    bool old_story_grid = false;
+
+    if (!capture || !capture->attrs || !capture->chars || !capture->story)
+        return;
+
+    Term_get_size(&term_wid, &term_hgt);
+    visible_rows = MAX(1, term_hgt - 1);
+    prompt_row = MAX(0, term_hgt - 1);
+    max_scroll = MAX(0, capture->height - visible_rows);
+
+    if (scroll < 0)
+        scroll = 0;
+    if (scroll > max_scroll)
+        scroll = max_scroll;
+
+    old_story_active = Term->story_font_active;
+    old_story_grid = Term->story_font_grid;
+
+    Term_clear();
+
+    for (int row = 0; row < visible_rows; row++)
+    {
+        int src_row = row + scroll;
+
+        if (src_row >= capture->height)
+            break;
+
+        for (int col = 0; col < capture->width && col < term_wid; col++)
+        {
+            int idx = src_row * capture->width + col;
+
+            Term->story_font_active =
+                ((capture->story[idx] & STORY_FLAG_USE) != 0);
+            Term->story_font_grid =
+                ((capture->story[idx] & STORY_FLAG_CELL_ALIGN) != 0);
+
+            Term_queue_char(
+                col, row, capture->attrs[idx], capture->chars[idx], 0, 0);
+        }
+    }
+
+    Term->story_font_active = old_story_active;
+    Term->story_font_grid = old_story_grid;
+
+    if (term_wid >= 70)
+    {
+        SDL_strlcpy(prompt,
+            "(press ESC to exit, Space for next page, Arrows/Keypad to scroll)",
+            sizeof(prompt));
+    }
+    else if (term_wid >= 40)
+    {
+        SDL_strlcpy(prompt, "(ESC exit, Space page, Arrows scroll)",
+            sizeof(prompt));
+    }
+    else
+    {
+        SDL_strlcpy(prompt, "(ESC exit, Arrows scroll)", sizeof(prompt));
+    }
+
+    Term_putstr(0, prompt_row, -1, TERM_SLATE, prompt);
+
+    if (max_scroll > 0)
+    {
+        int scroll_col;
+
+        strnfmt(scroll_buf, sizeof(scroll_buf), "[%d/%d]", scroll + 1,
+            max_scroll + 1);
+        scroll_col = term_wid - (int)strlen(scroll_buf);
+        if (scroll_col < 0)
+            scroll_col = 0;
+        Term_putstr(scroll_col, prompt_row, -1, TERM_SLATE, scroll_buf);
+    }
+
+    Term_fresh();
+}
+
+static void object_info_screen_capture_view(
+    const object_info_screen_capture* capture)
+{
+    int scroll = 0;
+
+    if (!capture)
+        return;
+
+    while (true)
+    {
+        int term_wid = 80;
+        int term_hgt = 24;
+        int visible_rows;
+        int max_scroll;
+        int dir;
+        char ch;
+
+        Term_get_size(&term_wid, &term_hgt);
+        visible_rows = MAX(1, term_hgt - 1);
+        max_scroll = MAX(0, capture->height - visible_rows);
+
+        if (scroll > max_scroll)
+            scroll = max_scroll;
+
+        object_info_screen_capture_draw(capture, scroll);
+
+        ch = inkey();
+        dir = target_dir(ch);
+        if ((dir == 8) || (dir == 2))
+            ch = I2D(dir);
+
+        if ((ch == '8') || (ch == '='))
+        {
+            if (scroll > 0)
+                scroll--;
+        }
+        else if ((ch == '2') || (ch == '\n') || (ch == '\r'))
+        {
+            if (scroll < max_scroll)
+                scroll++;
+        }
+        else if ((ch == '3') || (ch == ' '))
+        {
+            scroll += visible_rows;
+            if (scroll > max_scroll)
+                scroll = max_scroll;
+        }
+        else if ((ch == '9') || (ch == '-'))
+        {
+            scroll -= visible_rows;
+            if (scroll < 0)
+                scroll = 0;
+        }
+        else if (ch == ESCAPE)
+        {
+            break;
+        }
+    }
+}
+
 void object_info_screen_multi(const object_type** objects, const char** headings, int count)
 {
     char* overflow_text = NULL;
+    object_info_screen_capture capture;
     int term_hgt = 24;
 
     if (count <= 0 || objects == NULL)
@@ -1839,7 +2129,15 @@ void object_info_screen_multi(const object_type** objects, const char** headings
     if (overflow_text && object_info_buffer_line_count(overflow_text) > term_hgt - 4)
     {
         screen_save();
-        show_buffer(overflow_text, 0);
+        if (object_info_screen_capture_build(objects, headings, count, &capture))
+        {
+            object_info_screen_capture_view(&capture);
+            object_info_screen_capture_free(&capture);
+        }
+        else
+        {
+            show_buffer(overflow_text, 0);
+        }
         screen_load();
 
         mem_free_null(overflow_text);
@@ -1858,46 +2156,7 @@ void object_info_screen_multi(const object_type** objects, const char** headings
 
     screen_save();
     Term_gotoxy(0, 0);
-
-    for (int i = 0; i < count; i++)
-    {
-        if (i > 0)
-        {
-            text_out_c(TERM_L_DARK, "\n----------------------------------------\n\n");
-        }
-
-        Term_erase(0, Term->scr->cy, 255);
-
-        if (headings && headings[i] && headings[i][0])
-        {
-            text_out_c(TERM_L_BLUE, headings[i]);
-            text_out_c(TERM_L_BLUE, "\n");
-        }
-
-        if (objects[i])
-        {
-            bool has_description = screen_out_head(objects[i]);
-
-            object_info_out_flags = object_flags_known;
-
-            new_paragraph = true;
-            bool has_info = object_info_out(objects[i]);
-            new_paragraph = false;
-
-            if (!object_known_p(objects[i]))
-            {
-                p_text_out("\n\n   This item has not been identified.");
-            }
-            else if ((!has_description) && (!has_info))
-            {
-                p_text_out("\n\n   This item does not seem to possess any special abilities.");
-            }
-        }
-        else
-        {
-            p_text_out("\n   (slot is empty)");
-        }
-    }
+    object_info_screen_multi_body(objects, headings, count, true);
 
     text_out_c(TERM_L_BLUE, "\n\n(press any key)\n");
     (void)inkey();
