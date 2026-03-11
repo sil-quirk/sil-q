@@ -1849,6 +1849,8 @@ static bool build_type1(int y0, int x0);
 static void carve_morgoth_entry_tunnels(const vault_type* v_ptr, int y0, int x0);
 static void connect_morgoth_entry_tunnels(void);
 static void seal_morgoth_partition(const vault_type* v_ptr, int y0, int x0);
+static int place_ruined_partition_damaged_items(
+    int y1, int y2, int x1, int x2, int target_count);
 static void apply_quadrant_generation_modes(void);
 static void repair_all_outer_walls(void);
 static bool carve_chasm_with_bridges(int y_min, int y_max, int x_min, int x_max,
@@ -5465,6 +5467,21 @@ static void apply_quadrant_generation_modes(void)
                     if (skeletons_placed > 0)
                         genlog_anchor("RUINED partition: placed %d skeletons in bounds (%d,%d)-(%d,%d)",
                                       skeletons_placed, y1, x1, y2, x2);
+
+                    /* Ruined partitions also get a small independent scatter of
+                     * damaged gear, so broken items can come from the ruins
+                     * themselves and not only from searched skeletons. */
+                    {
+                        int damaged_target = ru_skeletons / 3;
+                        if (damaged_target < 1) damaged_target = 1;
+                        if (damaged_target > 3) damaged_target = 3;
+
+                        int damaged_placed = place_ruined_partition_damaged_items(
+                            y1, y2, x1, x2, damaged_target);
+                        if (damaged_placed > 0)
+                            genlog_anchor("RUINED partition: placed %d damaged items in bounds (%d,%d)-(%d,%d)",
+                                          damaged_placed, y1, x1, y2, x2);
+                    }
                 }
             }
             break;
@@ -7534,6 +7551,51 @@ static void place_object_with_profile_params(
     }
 }
 
+static int place_ruined_partition_damaged_items(
+    int y1, int y2, int x1, int x2, int target_count)
+{
+    int placed = 0;
+    partition_drop_profile prof = partition_drop_profile_for_mode(QUAD_MODE_RUINED);
+
+    for (int n = 0; n < target_count; ++n)
+    {
+        bool placed_this = false;
+
+        for (int tries = 0; tries < 200; ++tries)
+        {
+            int y = rand_range(y1, y2);
+            int x = rand_range(x1, x2);
+
+            if (!in_bounds_fully(y, x))
+                continue;
+            if (cave_info[y][x] & CAVE_G_VAULT)
+                continue;
+            if (partition_mode_for_point(y, x) != QUAD_MODE_RUINED)
+                continue;
+            if (cave_feat[y][x] == FEAT_RUBBLE)
+                continue;
+            if (!cave_clean_bold(y, x))
+                continue;
+
+            place_object_with_profile_params(
+                y, x, object_level, object_level, DROP_QUALITY_NORMAL,
+                DROP_TYPE_DAMAGED, false, 1, 0, &prof);
+
+            if (cave_o_idx[y][x] != 0)
+            {
+                placed++;
+                placed_this = true;
+                break;
+            }
+        }
+
+        if (!placed_this)
+            break;
+    }
+
+    return placed;
+}
+
 /*
  * Allocates some objects (using "place" and "type") in a specific partition
  */
@@ -7608,18 +7670,8 @@ static void alloc_object_in_partition(int set, int typ, int num, quadrant_mode_t
 
         case ALLOC_TYP_OBJECT:
         {
-            /* Ruined partitions occasionally replace floor loot with damaged gear. */
-            if (target_mode == QUAD_MODE_RUINED && rand_int(100) < 20)
-            {
-                place_object_with_profile_params(
-                    y, x, object_level, object_level, DROP_QUALITY_NORMAL,
-                    DROP_TYPE_DAMAGED, false, 1, 0, &active_profile);
-            }
-            else
-            {
-                /* Place object with artefacts disabled for floor scatter */
-                place_object_with_profile(y, x, &active_profile);
-            }
+            /* Ruined damaged gear is seeded separately during partition generation. */
+            place_object_with_profile(y, x, &active_profile);
             break;
         }
         }

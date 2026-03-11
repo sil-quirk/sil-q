@@ -1,5 +1,14 @@
 # Session notes
 
+## 2026-03-11: Birth stat/skill confirm accepts Space
+- Updated `src/birth.c` birth allocation input handling so stat and skill confirmation now accepts `Space` in addition to `Enter`, Steam Deck confirm, and the mapped SDL confirm binding.
+- Aligned the prompt text on compact/full stat and skill allocation screens to say `SPACE/ENTER` instead of only `ENTER`.
+- Follow-up: removed the extra compact post-skill confirmation description screen, so confirm now finishes immediately instead of opening a second page.
+- Follow-up: character/race selection and oath selection now use the same generic confirm handling, so `Space` and other accept inputs can advance into stat distribution and select oaths consistently.
+- Follow-up: restored the compact post-skill description/confirm page once per hero creation flow. The gate now resets at the start of `player_birth_aux()` for each new hero instead of using `highscore_is_empty()`.
+- Follow-up: on the in-game character sheet (`src/cmd4.c`), `Space` and controller confirm now trigger skill increase allocation like `i` instead of opening notes; notes remain on `n`.
+- Validation: editor check for `src/birth.c`; `Build and Deploy` completed successfully.
+
 ## 2026-03-03: Platform-specific auto pane minimums
 - Updated auto right/bottom pane fit checks in `src/main-sdl.c` (`resize()`): Android keeps compact minimum `50x20`, while non-Android now uses standard minimum `80x24`.
 - Scope is limited to automatic pane on/off decisions when main view would be too small after pane splits.

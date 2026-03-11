@@ -876,57 +876,22 @@ bool reveal_random_artifact(void)
     
     /* Display the revelation */
     char dialog_text[2048];
-    char quote_text[1024] = "";
-    
-    /* Quote some of the artefact description, if it has one */
-    if (a_ptr->text)
-    {
-        const char* text = a_text + a_ptr->text;
-        int lines = 0;
-
-        while (*text && lines < 3)
-        {
-            char line[160];
-            size_t len = 0;
-
-            while (text[len] && text[len] != '\n')
-                len++;
-
-            if (len > 0)
-            {
-                size_t copy_len = len;
-                if (copy_len > sizeof(line) - 3)
-                    copy_len = sizeof(line) - 3;
-
-                line[0] = '"';
-                memcpy(line + 1, text, copy_len);
-                line[1 + copy_len] = '"';
-                line[2 + copy_len] = '\0';
-                
-                SDL_strlcat(quote_text, line, sizeof(quote_text));
-                SDL_strlcat(quote_text, "\n", sizeof(quote_text));
-                
-                lines++;
-            }
-
-            if (!text[len])
-                break;
-            text += len + 1;
-        }
-    }
+    cptr texts[2];
+    int text_count = 1;
     
     strnfmt(dialog_text, sizeof(dialog_text),
         "The thrall leans close and speaks in a voice scarcely more than breath.\n\n"
-        "You learn of %s!\n\n"
-        "%s", o_name, quote_text);
-        
-    cptr texts[1] = { dialog_text };
-    quest_typewriter_menu("Ancient Knowledge", texts, 1, TERM_L_BLUE, TERM_WHITE);
+        "You learn of %s!",
+        o_name);
 
-    if (get_check("Study this lore now? "))
+    texts[0] = dialog_text;
+    if (a_ptr->text)
     {
-        desc_art_fake(selected);
+        texts[text_count++] = a_text + a_ptr->text;
     }
+
+    quest_typewriter_menu("Ancient Knowledge", texts, text_count, TERM_L_BLUE, TERM_WHITE);
+    desc_art_fake(selected);
     
     return true;
 }

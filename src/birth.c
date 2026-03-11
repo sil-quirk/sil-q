@@ -13,6 +13,7 @@
 #include "fs/path.h"
 #include "log/log.h"
 #include "player/killer.h"
+#include "sdl-config.h"
 #include "z-term.h"
 #include "metarun.h"
 
@@ -817,6 +818,74 @@ static void birth_prompt_label(int binding, const char* fallback, char* buf, siz
         SDL_strlcpy(buf, fallback, buflen);
 }
 
+static bool birth_pending_compact_description_confirm = false;
+
+static bool birth_confirm_input(int ch, bool steamdeck)
+{
+    if (ch == '\r' || ch == '\n' || ch == ' ' || ch == INPUT_BIND_CONFIRM)
+        return true;
+
+    if (steamdeck && ch == steamdeck_confirm_key())
+        return true;
+
+    return false;
+}
+
+static bool birth_show_compact_description_after_assignment(bool steamdeck)
+{
+    char ch;
+    char buf[160];
+
+    while (1)
+    {
+        int wid = 80;
+        int hgt = 24;
+        int prompt_row;
+
+        Term_get_size(&wid, &hgt);
+        if (wid < 1)
+            wid = 80;
+        if (hgt < 1)
+            hgt = 24;
+
+        display_player(100);
+
+        prompt_row = hgt - 1;
+        if (prompt_row < 0)
+            prompt_row = 0;
+        Term_erase(0, prompt_row, 255);
+
+        if (steamdeck)
+        {
+            char confirm_label[16];
+            char back_label[16];
+
+            birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
+            birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
+            strnfmt(buf, sizeof(buf), "%s back  %s continue", back_label, confirm_label);
+        }
+        else
+        {
+            strnfmt(buf, sizeof(buf), "ESC back to assignment  SPACE/ENTER continue");
+        }
+
+        c_put_str(TERM_SLATE, buf, prompt_row, 1);
+
+        hide_cursor = true;
+        ch = inkey();
+        hide_cursor = false;
+
+        if (steamdeck && ch == steamdeck_back_key())
+            ch = ESCAPE;
+
+        if ((ch == ESCAPE) || (ch == '4') || (ch == 'q') || (ch == 'Q'))
+            return false;
+
+        if (birth_confirm_input(ch, steamdeck) || (ch == '6'))
+            return true;
+    }
+}
+
 static int character_choice_index_by_name(cptr choice_name)
 {
     int character_idx;
@@ -951,7 +1020,7 @@ static int choice_description_row(int visible_rows, bool allow_full_description_
         return row;
 
     min_row = TABLE_ROW + visible_rows + 1;
-    row = MAX(min_row, row);
+    row = min_row;
 
     if (row > birth_prompt_row() - 1)
         row = birth_prompt_row() - 1;
@@ -959,6 +1028,28 @@ static int choice_description_row(int visible_rows, bool allow_full_description_
         row = min_row;
 
     return row;
+}
+
+static int choice_description_line_count(cptr text)
+{
+    int wid = 80;
+    int hgt = 24;
+    int wrap_width = 79;
+
+    if (!text || !text[0])
+        return 0;
+
+    Term_get_size(&wid, &hgt);
+    (void)hgt;
+    if (wid < 1)
+        wid = 80;
+
+    if (wrap_width > wid)
+        wrap_width = wid;
+    if (wrap_width < 10)
+        wrap_width = wid;
+
+    return count_wrapped_lines(text, wrap_width, 2);
 }
 
 static int collect_character_starting_abilities(int character, cptr out[], int out_max)
@@ -1095,19 +1186,26 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
         if (allow_full_description_screen)
         {
             bool compact_flags = character_flags_need_compact_layout();
-            bool tight_height = character_selection_tight_height();
             bool very_short = (Term->hgt > 0) && (Term->hgt <= 20);
-            if (compact_flags && tight_height)
-            {
-                int max_hgt = A_MAX;
-                if (hgt > max_hgt) hgt = max_hgt;
-            }
-            else if (compact_flags && very_short)
+            if (compact_flags && very_short)
             {
                 int max_hgt = (description_row - 2) - TABLE_ROW;
                 if (max_hgt < 0) max_hgt = 0;
                 if (hgt > max_hgt) hgt = max_hgt;
             }
+        }
+        else if ((Term->hgt > 0) && (Term->hgt <= 20))
+        {
+            int min_description_rows = (Term->hgt <= 18) ? 5 : 4;
+            int description_rows = choice_description_line_count(choices[cur].text);
+            int max_hgt;
+
+            if (description_rows > min_description_rows)
+                min_description_rows = description_rows;
+
+            max_hgt = birth_prompt_row() - TABLE_ROW - 2 - min_description_rows;
+            if (max_hgt < 0) max_hgt = 0;
+            if (hgt > max_hgt) hgt = max_hgt;
         }
 
         /* Redraw the list */
@@ -1153,11 +1251,8 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
             if (allow_full_description_screen)
             {
                 bool compact_flags = character_flags_need_compact_layout();
-                bool tight_height = character_selection_tight_height();
                 bool very_short = (Term->hgt > 0) && (Term->hgt <= 20);
-                if (compact_flags && tight_height)
-                    clear_from_row = TABLE_ROW + A_MAX + 1;
-                else if (compact_flags && very_short)
+                if (compact_flags && very_short)
                     clear_from_row = description_row - 1;
             }
             for (i = clear_from_row; i < Term->hgt; i++)
@@ -1169,6 +1264,11 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
 
         if (allow_full_description_screen)
             show_description = (show_description && character_description_has_room());
+
+        /* Display auxiliary information before the description so the
+         * description text remains the topmost layer on short screens. */
+        if (hook)
+            hook(choices[cur]);
 
         if (show_description && choices[cur].text != NULL)
         {
@@ -1188,19 +1288,15 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
         if (done)
             return (cur);
 
-        /* Display auxiliary information if any is available. */
-        if (hook)
-            hook(choices[cur]);
-
         if (Term->hgt > 0)
         {
             prompt_row = birth_prompt_row();
             Term_erase(0, prompt_row, 255);
 
             if (allow_full_description_screen)
-                strnfmt(prompt, sizeof(prompt), "ENTER select  f description  ESC back  r random");
+                strnfmt(prompt, sizeof(prompt), "SPACE/ENTER select  f description  ESC back  r random");
             else
-                strnfmt(prompt, sizeof(prompt), "ENTER select  ESC back  r random");
+                strnfmt(prompt, sizeof(prompt), "SPACE/ENTER select  ESC back  r random");
 
             (void)steamdeck;
             Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE, prompt);
@@ -1222,7 +1318,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
             return (INVALID_CHOICE);
 
         /* Make a choice */
-        if ((c == '\n') || (c == '\r') || (c == ' ') || (c == '6')) {
+        if (birth_confirm_input(c, steamdeck) || (c == '6')) {
             if (choices[cur].ghost)
                 bell("Your race cannot choose that character.");
             else
@@ -1727,124 +1823,157 @@ static void print_rh_flags(int race, int character, int col, int row)
 
         if (tight_height)
         {
+            const int target_traits = (short_trait_n < 9) ? short_trait_n : 9;
             const int target_abilities = (ability_line_n < 3) ? ability_line_n : 3;
-            int compact_col = 2;
-            int col_gap = 2;
-            int col_wid = (Term->wid - compact_col - col_gap) / 2;
-            int traits_row = row;
-            int ability_row = description_row;
-            int trait_rows;
-            int ability_rows;
-            bool show_trait_heading = (compact_line_n > 0);
-            bool show_ability_heading = (ability_line_n > 0);
-            bool use_two_columns;
-            birth_compact_flag_line* top_trait_lines = compact_lines;
-            int top_trait_line_n = compact_line_n;
-            int top_trait_max_line_len = compact_max_line_len;
+            const int min_upper_two_col_wid = 12;
+            int upper_rows_total = description_row - row;
+            int lower_rows_total = prompt_row - description_row;
+            int upper_col = col;
+            int upper_width = Term->wid - upper_col;
+            int upper_col_gap = 2;
+            int upper_col_wid = (upper_width - upper_col_gap) / 2;
+            bool show_trait_heading = true;
+            bool show_ability_heading = true;
+            bool use_upper_two_columns = false;
+            bool traits_fit = false;
+            bool abilities_fit = false;
 
-            if (col_wid < 1)
-                col_wid = 1;
+            if (upper_rows_total < 0)
+                upper_rows_total = 0;
+            if (lower_rows_total < 0)
+                lower_rows_total = 0;
+            if (upper_col_wid < 0)
+                upper_col_wid = 0;
 
-            if (col_wid < compact_max_line_len)
-            {
-                top_trait_lines = short_trait_lines;
-                top_trait_line_n = short_trait_n;
-                top_trait_max_line_len = short_trait_max_line_len;
-            }
-
-            ability_rows = prompt_row - ability_row;
-            if (show_ability_heading && (ability_rows - 1) < target_abilities
-                && ability_rows >= target_abilities)
+            if (target_abilities == 0)
             {
                 show_ability_heading = false;
+                abilities_fit = true;
             }
-
-            if (show_trait_heading)
-                Term_putstr(compact_col, traits_row++, -1, TERM_L_BLUE, "Traits:");
-
-            trait_rows = description_row - traits_row;
-            if (trait_rows < 0)
-                trait_rows = 0;
-
-            use_two_columns = (top_trait_line_n > trait_rows);
-            if (!use_two_columns && top_trait_max_line_len > (Term->wid - compact_col))
-                use_two_columns = true;
-
-            if (use_two_columns)
+            else if ((lower_rows_total - 1) >= target_abilities)
             {
-                int col2 = compact_col + col_wid + col_gap;
-                int draw_w = top_trait_max_line_len;
-                int left_col;
-                int right_col;
-                int draw_lines = (top_trait_line_n < trait_rows * 2)
-                    ? top_trait_line_n : trait_rows * 2;
-                int left_count = (draw_lines + 1) / 2;
-                int right_count;
-
-                if (draw_w > col_wid)
-                    draw_w = col_wid;
-                if (draw_w < 1)
-                    draw_w = 1;
-                left_col = compact_col + (col_wid - draw_w) / 2;
-                right_col = col2 + (col_wid - draw_w) / 2;
-
-                if (left_count > trait_rows)
-                    left_count = trait_rows;
-                right_count = draw_lines - left_count;
-                if (right_count > trait_rows)
-                    right_count = trait_rows;
-                left_count = draw_lines - right_count;
-
-                for (int i = 0; i < left_count; ++i)
-                {
-                    strnfmt(line_buf, sizeof(line_buf), "%.*s", draw_w,
-                        top_trait_lines[i].txt);
-                    Term_putstr(left_col, traits_row + i, -1,
-                        top_trait_lines[i].attr, line_buf);
-                }
-
-                for (int i = 0; i < right_count; ++i)
-                {
-                    int idx = left_count + i;
-                    strnfmt(line_buf, sizeof(line_buf), "%.*s", draw_w,
-                        top_trait_lines[idx].txt);
-                    Term_putstr(right_col, traits_row + i, -1,
-                        top_trait_lines[idx].attr, line_buf);
-                }
+                show_ability_heading = true;
+                abilities_fit = true;
             }
-            else
+            else if (lower_rows_total >= target_abilities)
             {
-                int draw_w = top_trait_max_line_len;
-                int available_w = Term->wid - compact_col;
-                int start_col;
-                int draw_lines = (top_trait_line_n < trait_rows) ? top_trait_line_n : trait_rows;
+                show_ability_heading = false;
+                abilities_fit = true;
+            }
 
-                if (draw_w > available_w)
-                    draw_w = available_w;
-                if (draw_w < 1)
-                    draw_w = 1;
-                start_col = compact_col + (available_w - draw_w) / 2;
-
-                for (int i = 0; i < draw_lines; ++i)
+            if (target_traits == 0)
+            {
+                show_trait_heading = false;
+                traits_fit = true;
+            }
+            else if (upper_col_wid >= min_upper_two_col_wid)
+            {
+                if ((upper_rows_total - 1) > 0 && ((upper_rows_total - 1) * 2 >= target_traits))
                 {
-                    strnfmt(line_buf, sizeof(line_buf), "%.*s", draw_w,
-                        top_trait_lines[i].txt);
-                    Term_putstr(start_col, traits_row + i, -1,
-                        top_trait_lines[i].attr, line_buf);
+                    show_trait_heading = true;
+                    use_upper_two_columns = true;
+                    traits_fit = true;
+                }
+                else if (upper_rows_total > 0 && (upper_rows_total * 2 >= target_traits))
+                {
+                    show_trait_heading = false;
+                    use_upper_two_columns = true;
+                    traits_fit = true;
                 }
             }
 
-            if (show_ability_heading)
-                Term_putstr(2, ability_row++, -1, TERM_L_BLUE, "Abilities:");
+            if (!traits_fit && upper_width >= short_trait_max_line_len)
+            {
+                if ((upper_rows_total - 1) >= target_traits)
+                {
+                    show_trait_heading = true;
+                    use_upper_two_columns = false;
+                    traits_fit = true;
+                }
+                else if (upper_rows_total >= target_traits)
+                {
+                    show_trait_heading = false;
+                    use_upper_two_columns = false;
+                    traits_fit = true;
+                }
+            }
 
-            ability_rows = prompt_row - ability_row;
-            if (ability_rows < 0)
-                ability_rows = 0;
+            use_swapped_layout = traits_fit && abilities_fit;
 
-            for (int i = 0; i < ability_line_n && i < ability_rows; ++i)
-                Term_putstr(2, ability_row + i, -1, TERM_YELLOW, ability_lines[i]);
+            if (use_swapped_layout)
+            {
+                int traits_row = row;
+                int ability_row = description_row;
 
-            use_swapped_layout = true;
+                if (show_trait_heading && short_trait_n > 0)
+                    Term_putstr(upper_col, traits_row++, -1, TERM_L_BLUE, "Traits:");
+
+                if (use_upper_two_columns)
+                {
+                    int col2 = upper_col + upper_col_wid + upper_col_gap;
+                    int rows_per_col = description_row - traits_row;
+                    int draw_lines;
+                    int left_count;
+                    int right_count;
+
+                    if (rows_per_col < 0)
+                        rows_per_col = 0;
+                    draw_lines = (short_trait_n < rows_per_col * 2)
+                        ? short_trait_n : rows_per_col * 2;
+                    left_count = (draw_lines + 1) / 2;
+                    if (left_count > rows_per_col)
+                        left_count = rows_per_col;
+                    right_count = draw_lines - left_count;
+                    if (right_count > rows_per_col)
+                        right_count = rows_per_col;
+                    left_count = draw_lines - right_count;
+
+                    for (int i = 0; i < left_count; ++i)
+                    {
+                        strnfmt(line_buf, sizeof(line_buf), "%-*.*s", upper_col_wid,
+                            upper_col_wid, short_trait_lines[i].txt);
+                        Term_putstr(upper_col, traits_row + i, -1,
+                            short_trait_lines[i].attr, line_buf);
+                    }
+
+                    for (int i = 0; i < right_count; ++i)
+                    {
+                        int idx = left_count + i;
+                        strnfmt(line_buf, sizeof(line_buf), "%-*.*s", upper_col_wid,
+                            upper_col_wid, short_trait_lines[idx].txt);
+                        Term_putstr(col2, traits_row + i, -1,
+                            short_trait_lines[idx].attr, line_buf);
+                    }
+                }
+                else
+                {
+                    int rows = description_row - traits_row;
+                    int draw_lines;
+
+                    if (rows < 0)
+                        rows = 0;
+                    draw_lines = (short_trait_n < rows) ? short_trait_n : rows;
+
+                    for (int i = 0; i < draw_lines; ++i)
+                        Term_putstr(upper_col, traits_row + i, -1,
+                            short_trait_lines[i].attr, short_trait_lines[i].txt);
+                }
+
+                if (show_ability_heading && ability_line_n > 0)
+                    Term_putstr(2, ability_row++, -1, TERM_L_BLUE, "Abilities:");
+
+                {
+                    int rows = prompt_row - ability_row;
+                    int draw_lines;
+
+                    if (rows < 0)
+                        rows = 0;
+                    draw_lines = (ability_line_n < rows) ? ability_line_n : rows;
+
+                    for (int i = 0; i < draw_lines; ++i)
+                        Term_putstr(2, ability_row + i, -1, TERM_YELLOW, ability_lines[i]);
+                }
+            }
         }
 
         if (!use_swapped_layout)
@@ -2178,6 +2307,7 @@ static void character_aux_hook(birth_menu c_str)
     int term_hgt = 24;
     int description_row = birth_description_base_row();
     bool compact_layout = character_flags_need_compact_layout();
+    bool tight_height = character_selection_tight_height();
     int name_col;
     int fallback_name_col;
     bool aligned_name_fits;
@@ -2292,46 +2422,60 @@ static void character_aux_hook(birth_menu c_str)
     print_rh_flags(
         p_ptr->prace, character_idx, TOTAL_AUX_COL, TABLE_ROW + A_MAX + 1);
     
-    if (!(compact_layout && character_selection_tight_height()))
     {
-        /* Display power rating legend on left side at row 10 with alive counts */
         int legend_col = 2;  /* Left side */
-        int legend_row = 10; /* Row 10 as requested (moved up one row) */
+        int legend_row = (compact_layout && tight_height) ? 9 : 10;
+        int left_block_width = CLASS_COL - 1;
 
-        /* Count alive heroes by power level across ALL races */
-        int power_counts[4] = {0, 0, 0, 0};  /* weak, fair, strong, mighty (P:3/P:4) */
-        for (int i = 0; i < z_info->c_max; i++)
+        if (legend_row < TABLE_ROW + A_MAX + 3)
+            legend_row = TABLE_ROW + A_MAX + 3;
+
+        if (left_block_width < 1)
+            left_block_width = 1;
+
+        if (compact_layout && tight_height)
         {
-            /* Count only characters that are NOT dead (alive) */
-            if (highscore_dead(c_name + c_info[i].name) == 0)  /* If NOT dead (alive) */
-            {
-                byte power = c_info[i].power;
-                if (power <= 4)
-                {
-                    if (power == 4)
-                        power_counts[3]++;  /* P:4 counts toward "Mighty" (same group as P:3) */
-                    else
-                        power_counts[power]++;
-                }
-            }
+            for (i = legend_row; i < birth_prompt_row(); ++i)
+                Term_erase(0, i, left_block_width);
         }
 
-        /* Display legend without "Power Rating:" header */
-        Term_putstr(legend_col, legend_row, -1, TERM_L_GREEN, "***");
-        strnfmt(s, sizeof(s), "Mighty %d", power_counts[3]);
-        Term_putstr(legend_col + 4, legend_row, -1, TERM_WHITE, s);
+        if (legend_row + 3 < birth_prompt_row())
+        {
+            /* Count alive heroes by power level across ALL races */
+            int power_counts[4] = {0, 0, 0, 0};  /* weak, fair, strong, mighty (P:3/P:4) */
+            for (int i = 0; i < z_info->c_max; i++)
+            {
+                /* Count only characters that are NOT dead (alive) */
+                if (highscore_dead(c_name + c_info[i].name) == 0)  /* If NOT dead (alive) */
+                {
+                    byte power = c_info[i].power;
+                    if (power <= 4)
+                    {
+                        if (power == 4)
+                            power_counts[3]++;  /* P:4 counts toward "Mighty" (same group as P:3) */
+                        else
+                            power_counts[power]++;
+                    }
+                }
+            }
 
-        Term_putstr(legend_col, legend_row + 1, -1, TERM_GREEN, "***");
-        strnfmt(s, sizeof(s), "Strong %d", power_counts[2]);
-        Term_putstr(legend_col + 4, legend_row + 1, -1, TERM_WHITE, s);
+            /* Display legend without "Power Rating:" header */
+            Term_putstr(legend_col, legend_row, -1, TERM_L_GREEN, "***");
+            strnfmt(s, sizeof(s), "Mighty %d", power_counts[3]);
+            Term_putstr(legend_col + 4, legend_row, -1, TERM_WHITE, s);
 
-        Term_putstr(legend_col, legend_row + 2, -1, TERM_WHITE, "**");
-        strnfmt(s, sizeof(s), "Fair %d", power_counts[1]);
-        Term_putstr(legend_col + 4, legend_row + 2, -1, TERM_WHITE, s);
+            Term_putstr(legend_col, legend_row + 1, -1, TERM_GREEN, "***");
+            strnfmt(s, sizeof(s), "Strong %d", power_counts[2]);
+            Term_putstr(legend_col + 4, legend_row + 1, -1, TERM_WHITE, s);
 
-        Term_putstr(legend_col, legend_row + 3, -1, TERM_RED, "*");
-        strnfmt(s, sizeof(s), "Weak %d", power_counts[0]);
-        Term_putstr(legend_col + 4, legend_row + 3, -1, TERM_WHITE, s);
+            Term_putstr(legend_col, legend_row + 2, -1, TERM_WHITE, "**");
+            strnfmt(s, sizeof(s), "Fair %d", power_counts[1]);
+            Term_putstr(legend_col + 4, legend_row + 2, -1, TERM_WHITE, s);
+
+            Term_putstr(legend_col, legend_row + 3, -1, TERM_RED, "*");
+            strnfmt(s, sizeof(s), "Weak %d", power_counts[0]);
+            Term_putstr(legend_col + 4, legend_row + 3, -1, TERM_WHITE, s);
+        }
     }
 }
 /*
@@ -3116,7 +3260,7 @@ static NavResult select_oath(void)
                 else
                 {
                     oath_putstr_fit(2, prompt_row, wid - 4, TERM_SLATE,
-                        "8/2 Nav  6 Details  Enter Select  Esc Back");
+                        "8/2 Nav  6 Details  Enter/Space Select  Esc Back");
                 }
             }
             else
@@ -3169,7 +3313,7 @@ static NavResult select_oath(void)
                 else
                 {
                     oath_putstr_fit(2, prompt_row, wid - 4, TERM_SLATE,
-                        "8/2 Scroll  4 List  Enter Select  Esc Back");
+                        "8/2 Scroll  4 List  Enter/Space Select  Esc Back");
                 }
             }
         }
@@ -3253,7 +3397,7 @@ static NavResult select_oath(void)
             continue;
         }
 
-        if (key == '\r' || key == '\n' || key == ' '
+        if (birth_confirm_input(key, steamdeck)
             || (!compact && key == '6'))
         {
             /* Select current highlighted option */
@@ -3446,66 +3590,10 @@ static void birth_display_stats_allocation_compact(const int stats[A_MAX], int s
     }
     else
     {
-        strnfmt(buf, sizeof(buf), "8/2 select  4/6 adjust  ESC back  ENTER ok  q quit");
+        strnfmt(buf, sizeof(buf), "8/2 select  4/6 adjust  ESC back  SPACE/ENTER ok  q quit");
     }
 
     c_put_str(TERM_SLATE, buf, prompt_row, 1);
-}
-
-static bool birth_show_compact_description_after_assignment(bool steamdeck)
-{
-    char ch;
-    char buf[160];
-
-    while (1)
-    {
-        int wid = 80;
-        int hgt = 24;
-        int prompt_row;
-
-        Term_get_size(&wid, &hgt);
-        if (wid < 1)
-            wid = 80;
-        if (hgt < 1)
-            hgt = 24;
-
-        display_player(100);
-
-        prompt_row = hgt - 1;
-        if (prompt_row < 0)
-            prompt_row = 0;
-        Term_erase(0, prompt_row, 255);
-
-        if (steamdeck)
-        {
-            char confirm_label[16];
-            char back_label[16];
-
-            birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
-            birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
-            strnfmt(buf, sizeof(buf), "%s back  %s continue", back_label, confirm_label);
-        }
-        else
-        {
-            strnfmt(buf, sizeof(buf), "ESC back to assignment  ENTER continue");
-        }
-
-        c_put_str(TERM_SLATE, buf, prompt_row, 1);
-
-        hide_cursor = true;
-        ch = inkey();
-        hide_cursor = false;
-
-        if (steamdeck && ch == steamdeck_back_key())
-            ch = ESCAPE;
-
-        if ((ch == ESCAPE) || (ch == '4') || (ch == 'q') || (ch == 'Q'))
-            return false;
-
-        if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6')
-            || (steamdeck && ch == steamdeck_confirm_key()))
-            return true;
-    }
 }
 
 static void birth_display_skill_allocation_compact(int selected_skill, const int old_base[S_MAX],
@@ -3566,7 +3654,7 @@ static void birth_display_skill_allocation_compact(int selected_skill, const int
     }
     else
     {
-        strnfmt(buf, sizeof(buf), "8/2 select  4/6 adjust  ESC back  ENTER ok  q quit");
+        strnfmt(buf, sizeof(buf), "8/2 select  4/6 adjust  ESC back  SPACE/ENTER ok  q quit");
     }
 
     c_put_str(TERM_SLATE, buf, prompt_row, 1);
@@ -3608,7 +3696,6 @@ static NavResult player_birth_aux_2(void)
     log_debug("Checking if tutorial should be shown...");
     bool is_empty = highscore_is_empty();
     log_debug("highscore_is_empty() returned: %s", is_empty ? "true" : "false");
-    
     if (is_empty)
     {
         log_info("First-time player detected - showing character screen tutorial");
@@ -3787,7 +3874,7 @@ static NavResult player_birth_aux_2(void)
                 Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE, prompt_buf);
             } else {
                 Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE,
-                    "Arrows -allocate    ESC -back   ENTER -confirm   q -quit");
+                    "Arrows -allocate    ESC -back   SPACE/ENTER -confirm   q -quit");
             }
 
             if (story_character_enabled()) {
@@ -3813,7 +3900,7 @@ static NavResult player_birth_aux_2(void)
             return NAV_BACK;
 
         /* Done */
-        if ((ch == '\r') || (ch == '\n') || (steamdeck && ch == steamdeck_confirm_key()))
+        if (birth_confirm_input(ch, steamdeck))
             return NAV_OK;
 
         /* Prev stat */
@@ -4033,7 +4120,7 @@ extern NavResult gain_skills(void)
                 Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE, prompt_buf);
             } else {
                 Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE,
-                    "Arrows -allocate      ESC -back     ENTER -confirm     q -quit");
+                    "Arrows -allocate      ESC -back     SPACE/ENTER -confirm     q -quit");
             }
 
             if (story_character_enabled()) {
@@ -4059,12 +4146,13 @@ extern NavResult gain_skills(void)
         }
 
         /* Done */
-        if ((ch == '\r') || (ch == '\n') || (steamdeck && ch == steamdeck_confirm_key()))
+        if (birth_confirm_input(ch, steamdeck))
         {
-            if (compact)
+            if (compact && birth_pending_compact_description_confirm)
             {
                 if (!birth_show_compact_description_after_assignment(steamdeck))
                     continue;
+                birth_pending_compact_description_confirm = false;
             }
             result = NAV_OK;
             break;
@@ -4144,6 +4232,7 @@ static NavResult player_birth_aux(void)
 {
 
     log_debug("Initializing character data and history");
+    birth_pending_compact_description_confirm = true;
 
     SDL_strlcpy(op_ptr->full_name, c_name + c_info[p_ptr->pcharacter].name, sizeof(op_ptr->full_name));
     process_player_name(true);  /* CRITICAL: Must pass true to update savefile path! */

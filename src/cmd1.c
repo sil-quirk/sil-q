@@ -5093,18 +5093,6 @@ void py_attack_aux(int y, int x, int attack_type)
     if (m_ptr->ml)
         target_set_monster(cave_m_idx[y][x]);
 
-    /* Get the weapon */
-    o_ptr = &inventory[INVEN_WIELD];
-
-    /* Handle player fear */
-    if (p_ptr->afraid)
-    {
-        /* Message */
-        msg_format("You are too afraid to attack %s!", m_name);
-
-        abort_attack = true;
-    }
-
     if (r_ptr->flags1 & (RF1_PEACEFUL))
     {
         if (attack_type == ATT_MAIN)
@@ -5119,6 +5107,24 @@ void py_attack_aux(int y, int x, int attack_type)
                 msg_format("You stop before you bump into %s.", m_name);
             }
         }
+
+        if (!player_attacked)
+        {
+            p_ptr->previous_action[0] = ACTION_NOTHING;
+            p_ptr->energy_use = 0;
+        }
+
+        return;
+    }
+
+    /* Get the weapon */
+    o_ptr = &inventory[INVEN_WIELD];
+
+    /* Handle player fear */
+    if (p_ptr->afraid)
+    {
+        /* Message */
+        msg_format("You are too afraid to attack %s!", m_name);
 
         abort_attack = true;
     }

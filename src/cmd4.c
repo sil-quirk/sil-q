@@ -500,11 +500,11 @@ static void character_sheet_build_prompt(bool steamdeck, bool include_curses,
         char abilities_label[16], increase_label[16], help_label[16], back_label[16];
         char token[7][64];
 
-        controller_prompt_label(steamdeck_confirm_key(), "A", notes_label, sizeof(notes_label));
+        controller_prompt_label('n', "n", notes_label, sizeof(notes_label));
         controller_prompt_label(steamdeck_secondary_key(), "Y", story_label, sizeof(story_label));
         controller_prompt_label('e', "L1", file_label, sizeof(file_label));
         controller_prompt_label(steamdeck_alt_action_key(), "X", abilities_label, sizeof(abilities_label));
-        controller_prompt_label('i', "R1", increase_label, sizeof(increase_label));
+        controller_prompt_label(steamdeck_confirm_key(), "A", increase_label, sizeof(increase_label));
         controller_prompt_label(steamdeck_info_key(), "RS", help_label, sizeof(help_label));
         controller_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
 
@@ -524,7 +524,7 @@ static void character_sheet_build_prompt(bool steamdeck, bool include_curses,
     else
     {
         const char* essential[] = {
-            "a abilities", "i increase", "? help", "ESC back"
+            "a abilities", "Space/i increase", "? help", "ESC back"
         };
         const char* optional[] = {
             "n notes", "s story", "f file"
@@ -738,8 +738,9 @@ void do_cmd_character_sheet(void)
             }
         }
 
-        /* Increase skills - 'i' or R1 */
-        if (ch == 'i')
+        /* Increase skills - 'i', Space, or confirm button */
+        if (ch == 'i' || ch == ' ' || ch == INPUT_BIND_CONFIRM
+            || (steamdeck && ch == steamdeck_confirm_key()))
         {
             gain_skills();
             /* Force redraw after skill changes */
@@ -747,8 +748,8 @@ void do_cmd_character_sheet(void)
             handle_stuff();
         }
 
-        /* Show notes - 'n', Space, or A button */
-        else if ((ch == 'n') || (ch == ' ') || (steamdeck && ch == steamdeck_confirm_key()))
+        /* Show notes - 'n' */
+        else if (ch == 'n')
         {
             do_cmd_knowledge_notes();
         }
@@ -11254,6 +11255,173 @@ static bool option_page_uses_app_config(int page)
         || (page == EFFICIENCY_PAGE) || (page == VISUAL_PAGE);
 }
 
+static int settings_ui_term_wid(void)
+{
+    int wid = Term ? Term->wid : 80;
+
+    if (wid < 1)
+        wid = 80;
+
+    return wid;
+}
+
+static int settings_ui_line_width(int col)
+{
+    int width = settings_ui_term_wid() - col;
+
+    if (width < 1)
+        width = 1;
+
+    return width;
+}
+
+static void settings_ui_fit_text(char* buf, size_t buflen, cptr text,
+    int max_chars)
+{
+    if (!buflen)
+        return;
+
+    if (!text)
+        text = "";
+
+    if (max_chars <= 0)
+    {
+        buf[0] = '\0';
+        return;
+    }
+
+    if ((int)strlen(text) <= max_chars)
+    {
+        SDL_strlcpy(buf, text, buflen);
+    }
+    else if (max_chars <= 3)
+    {
+        strnfmt(buf, buflen, "%.*s", max_chars, text);
+    }
+    else
+    {
+        strnfmt(buf, buflen, "%.*s...", max_chars - 3, text);
+    }
+}
+
+static cptr settings_ui_pick_label(int max_chars, cptr long_label,
+    cptr medium_label, cptr short_label)
+{
+    cptr labels[3] = { long_label, medium_label, short_label };
+
+    for (int i = 0; i < 3; i++)
+    {
+        if (labels[i] && labels[i][0] && (int)strlen(labels[i]) <= max_chars)
+            return labels[i];
+    }
+
+    if (short_label && short_label[0])
+        return short_label;
+    if (medium_label && medium_label[0])
+        return medium_label;
+    if (long_label && long_label[0])
+        return long_label;
+
+    return "";
+}
+
+static void settings_ui_format_pair_line(char* buf, size_t buflen, cptr label,
+    cptr value, int max_chars, int min_value_chars)
+{
+    char label_buf[128];
+    char value_buf[96];
+    int desired_value;
+    int value_budget;
+    int label_budget;
+
+    if (!buflen)
+        return;
+
+    if (!label)
+        label = "";
+    if (!value)
+        value = "";
+
+    if (max_chars <= 0)
+    {
+        buf[0] = '\0';
+        return;
+    }
+
+    if (!value[0])
+    {
+        settings_ui_fit_text(buf, buflen, label, max_chars);
+        return;
+    }
+
+    desired_value = (int)strlen(value);
+    value_budget = MIN(max_chars - 4,
+        MAX(min_value_chars, MIN(desired_value, (max_chars * 3) / 5)));
+
+    if (value_budget < 1)
+        value_budget = MIN(max_chars, MAX(1, max_chars / 2));
+
+    settings_ui_fit_text(value_buf, sizeof(value_buf), value, value_budget);
+    label_budget = max_chars - (int)strlen(value_buf) - 2;
+
+    if (label_budget < 4)
+    {
+        settings_ui_fit_text(buf, buflen, value, max_chars);
+        return;
+    }
+
+    settings_ui_fit_text(label_buf, sizeof(label_buf), label, label_budget);
+    strnfmt(buf, buflen, "%s: %s", label_buf, value_buf);
+}
+
+static void settings_ui_put_fitted(int row, int col, byte attr, cptr text)
+{
+    char buf[160];
+    int width = settings_ui_line_width(col);
+
+    settings_ui_fit_text(buf, sizeof(buf), text, width);
+    Term_putstr(col, row, width, attr, buf);
+}
+
+static void settings_ui_format_field(char* buf, size_t buflen, cptr text,
+    bool selected)
+{
+    if (!buf || !buflen)
+        return;
+
+    if (!text)
+        text = "";
+
+    if (selected)
+        strnfmt(buf, buflen, "[%s]", text);
+    else
+        SDL_strlcpy(buf, text, buflen);
+}
+
+static void settings_ui_format_auto_value(char* buf, size_t buflen, int value,
+    int max_chars)
+{
+    char raw_buf[16];
+    char auto_long[16];
+    char auto_short[8];
+
+    if (!buf || !buflen)
+        return;
+
+    if (value > 0)
+    {
+        strnfmt(raw_buf, sizeof(raw_buf), "%d", value);
+        settings_ui_fit_text(buf, buflen, raw_buf, max_chars);
+        return;
+    }
+
+    SDL_strlcpy(auto_long, "auto", sizeof(auto_long));
+    SDL_strlcpy(auto_short, "a", sizeof(auto_short));
+    settings_ui_fit_text(buf, buflen,
+        settings_ui_pick_label(max_chars, auto_long, auto_long, auto_short),
+        max_chars);
+}
+
 static bool option_menu_use_compact_layout(void)
 {
     return Term && (Term->wid > 0) && (Term->wid <= 60);
@@ -11283,30 +11451,7 @@ static int option_menu_max_line_chars(void)
 static void option_menu_fit_text(char* buf, size_t buflen, cptr text,
     int max_chars)
 {
-    if (!buflen)
-        return;
-
-    if (!text)
-        text = "";
-
-    if (max_chars <= 0)
-    {
-        buf[0] = '\0';
-        return;
-    }
-
-    if ((int)strlen(text) <= max_chars)
-    {
-        SDL_strlcpy(buf, text, buflen);
-    }
-    else if (max_chars <= 3)
-    {
-        strnfmt(buf, buflen, "%.*s", max_chars, text);
-    }
-    else
-    {
-        strnfmt(buf, buflen, "%.*s...", max_chars - 3, text);
-    }
+    settings_ui_fit_text(buf, buflen, text, max_chars);
 }
 
 static cptr sound_option_label(int index)
@@ -11584,7 +11729,7 @@ extern void do_cmd_options_aux(int page, cptr info)
 
         /* Prompt XXX XXX XXX */
         strnfmt(buf, sizeof(buf), "%s", info);
-        Term_putstr(2, 1, -1, TERM_WHITE, buf);
+        settings_ui_put_fitted(1, 2, TERM_WHITE, buf);
 
         /* Display the options */
         for (i = 0; i < n; i++)
@@ -11813,32 +11958,46 @@ extern void do_cmd_options_aux(int page, cptr info)
         {
             strnfmt(buf, sizeof(buf), "(scroll: rows %d-%d of %d)",
                 scroll + 1, MIN(scroll + visible_rows, total_rows), total_rows);
-            Term_putstr(2, Term->hgt - 2, -1, TERM_SLATE, buf);
+            settings_ui_put_fitted(Term->hgt - 2, 2, TERM_SLATE, buf);
         }
 
         if (page == CHALLENGE_PAGE)
         {
-            Term_putstr(2, Term->hgt - 4, -1, TERM_L_WHITE,
-                "Challenge Options can only be altered during character "
-                "creation");
-            Term_putstr(2, Term->hgt - 3, -1, TERM_L_WHITE,
-                "or on the very first turn");
+            settings_ui_put_fitted(Term->hgt - 4, 2, TERM_L_WHITE,
+                settings_ui_pick_label(settings_ui_line_width(2),
+                    "Challenge options can only be changed during character creation",
+                    "Challenge options only change during character creation",
+                    "Challenge options only change at birth"));
+            settings_ui_put_fitted(Term->hgt - 3, 2, TERM_L_WHITE,
+                settings_ui_pick_label(settings_ui_line_width(2),
+                    "or on the very first turn",
+                    "or on the first turn",
+                    "or on turn 1"));
 
             if (playerturn == 0)
             {
-                Term_putstr(2, Term->hgt - 1, -1, TERM_SLATE,
-                    "(direction keys to set, Return/Escape to accept)");
+                settings_ui_put_fitted(Term->hgt - 1, 2, TERM_SLATE,
+                    settings_ui_pick_label(settings_ui_line_width(2),
+                        "(direction keys to set, Return/Escape to accept)",
+                        "(direction keys to set, Enter/Esc to accept)",
+                        "(arrows set, Enter/Esc accept)"));
             }
             else
             {
-                Term_putstr(2, Term->hgt - 1, -1, TERM_SLATE,
-                    "(press Return to go back)");
+                settings_ui_put_fitted(Term->hgt - 1, 2, TERM_SLATE,
+                    settings_ui_pick_label(settings_ui_line_width(2),
+                        "(press Return to go back)",
+                        "(press Enter to go back)",
+                        "(Enter goes back)"));
             }
         }
         else
         {
-            Term_putstr(2, Term->hgt - 1, -1, TERM_SLATE,
-                "(direction keys to set, Return/Escape to accept)");
+            settings_ui_put_fitted(Term->hgt - 1, 2, TERM_SLATE,
+                settings_ui_pick_label(settings_ui_line_width(2),
+                    "(direction keys to set, Return/Escape to accept)",
+                    "(direction keys to set, Enter/Esc to accept)",
+                    "(arrows set, Enter/Esc accept)"));
         }
 
         /* Hilite current option */
@@ -12392,19 +12551,28 @@ static void do_cmd_supporting_pane_font_editor(bool* settings_changed);
 static void do_cmd_touch_pane_button_editor(bool* settings_changed);
 static const char* pane_type_short_name(enum pane_type type);
 static void format_font_size_value(char* buf, size_t buflen, int raw, int effective,
-    int layout_mode)
+    int max_chars)
 {
+    char long_buf[24];
+    char medium_buf[24];
+    char short_buf[16];
+
     if (!buf || !buflen)
         return;
 
     if (raw > 0)
-        strnfmt(buf, buflen, "%d", raw);
-    else if (layout_mode == 0)
-        strnfmt(buf, buflen, "auto (%d)", effective);
-    else if (layout_mode == 1)
-        strnfmt(buf, buflen, "auto %d", effective);
-    else
-        strnfmt(buf, buflen, "a%d", effective);
+    {
+        strnfmt(long_buf, sizeof(long_buf), "%d", raw);
+        settings_ui_fit_text(buf, buflen, long_buf, max_chars);
+        return;
+    }
+
+    strnfmt(long_buf, sizeof(long_buf), "auto (%d)", effective);
+    strnfmt(medium_buf, sizeof(medium_buf), "auto %d", effective);
+    strnfmt(short_buf, sizeof(short_buf), "a%d", effective);
+    settings_ui_fit_text(buf, buflen,
+        settings_ui_pick_label(max_chars, long_buf, medium_buf, short_buf),
+        max_chars);
 }
 
 static const char* sdl_min_terminal_mode_label(int mode)
@@ -12427,119 +12595,158 @@ void do_cmd_pane_settings(void)
     
     while (!done)
     {
+        int row_width;
+        int label_hint;
+
         /* Clear screen */
         Term_clear();
-        
+
         /* Display title */
-        Term_putstr(2, 1, -1, TERM_WHITE, "SDL Pane Settings");
-        
+        settings_ui_put_fitted(1, 2, TERM_WHITE, "SDL Pane Settings");
+
         /* Display current settings */
-        char buf[80];
+        char buf[96];
+        char value_buf[32];
         int y0 = 3;
-        int layout_mode = (Term->wid < 56) ? 2 : ((Term->wid < 72) ? 1 : 0);
-        int label_width = (layout_mode == 0) ? 48 : ((layout_mode == 1) ? 36 : 28);
         byte a;
         char font_value[24];
+        row_width = settings_ui_line_width(2);
+        label_hint = MAX(10, row_width - 12);
 
         /* Option 0: Main View Scale */
         a = (k == 0) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(buf, sizeof(buf), "%-*s: %d", label_width,
-            (layout_mode == 0) ? "Main View Scale (1-max) [Alt++/-]"
-                               : ((layout_mode == 1) ? "Main Scale [Alt++/-]"
-                                                     : "Scale [Alt++/-]"),
-            get_sdl_main_view_scale());
+        strnfmt(value_buf, sizeof(value_buf), "%d", get_sdl_main_view_scale());
+        settings_ui_format_pair_line(buf, sizeof(buf),
+            settings_ui_pick_label(label_hint,
+                "Main View Scale (1-max) [Alt++/-]",
+                "Main View Scale [Alt++/-]",
+                "View Scale"),
+            value_buf, row_width, 3);
         c_prt(a, buf, y0 + 0, 2);
 
         /* Option 1: Minimum Terminal Size */
         a = (k == 1) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(buf, sizeof(buf), "%-*s: %s", label_width,
-            (layout_mode == 0) ? "Minimum Terminal Size"
-                               : ((layout_mode == 1) ? "Min Terminal Size"
-                                                     : "Min Terminal"),
-            sdl_min_terminal_mode_label(get_sdl_min_terminal_mode()));
+        settings_ui_format_pair_line(buf, sizeof(buf),
+            settings_ui_pick_label(label_hint,
+                "Minimum Terminal Size",
+                "Min Terminal Size",
+                "Min Terminal"),
+            sdl_min_terminal_mode_label(get_sdl_min_terminal_mode()),
+            row_width, 10);
         c_prt(a, buf, y0 + 1, 2);
 
         /* Option 2: Aux View Font Size */
         a = (k == 2) ? TERM_L_BLUE : TERM_WHITE;
         format_font_size_value(font_value, sizeof(font_value),
             get_sdl_aux_view_font_size(), get_sdl_effective_aux_view_font_size(),
-            layout_mode);
-        strnfmt(buf, sizeof(buf), "%-*s: %s", label_width,
-            (layout_mode == 0) ? "Default Aux Font Size (0=auto, 8-48)"
-                               : ((layout_mode == 1) ? "Default Aux Font (0=auto)"
-                                                     : "Aux Font"),
-            font_value);
+            MAX(6, MIN(14, row_width / 2)));
+        settings_ui_format_pair_line(buf, sizeof(buf),
+            settings_ui_pick_label(label_hint,
+                "Default Aux Font Size (0=auto, 8-48)",
+                "Default Aux Font (0=auto)",
+                "Aux Font"),
+            font_value, row_width, 6);
         c_prt(a, buf, y0 + 2, 2);
 
         /* Option 3: Margin */
         a = (k == 3) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(buf, sizeof(buf), "%-*s: %d", label_width,
-            "Margin (0-20)", get_sdl_margin());
+        strnfmt(value_buf, sizeof(value_buf), "%d", get_sdl_margin());
+        settings_ui_format_pair_line(buf, sizeof(buf),
+            settings_ui_pick_label(label_hint,
+                "Margin (0-20)",
+                "Margin",
+                "Margin"),
+            value_buf, row_width, 3);
         c_prt(a, buf, y0 + 3, 2);
 
         /* Option 4: Fullscreen */
         a = (k == 4) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(buf, sizeof(buf), "%-*s: %s", label_width,
-            "Fullscreen", get_sdl_fullscreen() ? "yes" : "no ");
+        settings_ui_format_pair_line(buf, sizeof(buf), "Fullscreen",
+            get_sdl_fullscreen() ? "yes" : "no", row_width, 3);
         c_prt(a, buf, y0 + 4, 2);
 
         /* Option 5: Tiles */
         a = (k == 5) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(buf, sizeof(buf), "%-*s: %s", label_width,
-            "Tiles", get_sdl_tiles() ? "yes" : "no ");
+        settings_ui_format_pair_line(buf, sizeof(buf), "Tiles",
+            get_sdl_tiles() ? "yes" : "no", row_width, 3);
         c_prt(a, buf, y0 + 5, 2);
 
         /* Option 6: Enable Side Panes */
         a = (k == 6) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(buf, sizeof(buf), "%-*s: %s", label_width,
-            (layout_mode == 0) ? "Enable Side Panes [Alt+I]"
-                               : ((layout_mode == 1) ? "Side Panes [Alt+I]"
-                                                     : "Side Panes [Alt+I]"),
-            get_sdl_enable_right_panes() ? "yes" : "no ");
+        settings_ui_format_pair_line(buf, sizeof(buf),
+            settings_ui_pick_label(label_hint,
+                "Enable Side Panes [Alt+I]",
+                "Side Panes [Alt+I]",
+                "Side Panes"),
+            get_sdl_enable_right_panes() ? "yes" : "no",
+            row_width, 3);
         c_prt(a, buf, y0 + 6, 2);
 
         /* Option 7: Enable Bottom Panes */
         a = (k == 7) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(buf, sizeof(buf), "%-*s: %s", label_width,
-            (layout_mode == 0) ? "Enable Bottom Panes [Alt+L]"
-                               : ((layout_mode == 1) ? "Bottom Panes [Alt+L]"
-                                                     : "Bottom Panes [Alt+L]"),
-            get_sdl_enable_bottom_panes() ? "yes" : "no ");
+        settings_ui_format_pair_line(buf, sizeof(buf),
+            settings_ui_pick_label(label_hint,
+                "Enable Bottom Panes [Alt+L]",
+                "Bottom Panes [Alt+L]",
+                "Bottom Panes"),
+            get_sdl_enable_bottom_panes() ? "yes" : "no",
+            row_width, 3);
         c_prt(a, buf, y0 + 7, 2);
 
         /* Option 8: View Pane Configuration (supporting panes only) */
         a = (k == 8) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(buf, sizeof(buf),
-            (layout_mode == 0) ? "View Pane Configuration (%d panes)"
-                               : ((layout_mode == 1) ? "Pane Configuration (%d panes)"
-                                                     : "Pane Config (%d panes)"),
+        strnfmt(buf, sizeof(buf), "%s (%d)",
+            settings_ui_pick_label(row_width,
+                "View Pane Configuration",
+                "Pane Configuration",
+                "Pane Layout"),
             get_supporting_pane_config_count());
+        {
+            char fitted_buf[96];
+            settings_ui_fit_text(fitted_buf, sizeof(fitted_buf), buf, row_width);
+            SDL_strlcpy(buf, fitted_buf, sizeof(buf));
+        }
         c_prt(a, buf, y0 + 8, 2);
 
         /* Option 9: Pane Font Sizes */
         a = (k == 9) ? TERM_L_BLUE : TERM_WHITE;
-        c_prt(a, (layout_mode == 0) ? "Pane Font Sizes"
-                                    : ((layout_mode == 1) ? "Pane Fonts"
-                                                          : "Fonts"),
-            y0 + 9, 2);
+        settings_ui_fit_text(buf, sizeof(buf),
+            settings_ui_pick_label(row_width,
+                "Pane Font Sizes",
+                "Pane Fonts",
+                "Pane Fonts"),
+            row_width);
+        c_prt(a, buf, y0 + 9, 2);
 
         /* Option 10: Save/Return */
         a = (k == 10) ? TERM_L_BLUE : TERM_WHITE;
-        c_prt(a, settings_changed ? "Save Changes and Return" : "Return to Options Menu", y0 + 10, 2);
-        
+        settings_ui_fit_text(buf, sizeof(buf),
+            settings_changed ? "Save Changes and Return"
+                             : "Return to Options Menu",
+            row_width);
+        c_prt(a, buf, y0 + 10, 2);
+
         /* Display help */
         int y = Term->hgt - 3;
         if (settings_changed)
         {
-            Term_putstr(2, y++, -1, TERM_YELLOW, "Settings changed - changes take effect immediately.");
-            Term_putstr(2, y++, -1, TERM_YELLOW, "Will be saved to your SDL config file on exit.");
+            settings_ui_put_fitted(y++, 2, TERM_YELLOW,
+                settings_ui_pick_label(settings_ui_line_width(2),
+                    "Settings changed - changes take effect immediately.",
+                    "Settings changed - active immediately.",
+                    "Changes apply immediately."));
+            settings_ui_put_fitted(y++, 2, TERM_YELLOW,
+                settings_ui_pick_label(settings_ui_line_width(2),
+                    "Will be saved to your SDL config file on exit.",
+                    "Saved to your SDL config on exit.",
+                    "Saved on exit."));
         }
-        Term_putstr(2, y++, -1, TERM_SLATE,
-            (layout_mode == 0) ? "(direction keys to set, 0 = auto font, Return/Escape to accept)"
-                               : ((layout_mode == 1)
-                                   ? "(arrows move, 4/6 or y/n set, 0 auto, Enter/Esc exit)"
-                                   : "(arrows move, 4/6 or y/n set, 0 auto, Enter/Esc exit)"));
-        
+        settings_ui_put_fitted(y++, 2, TERM_SLATE,
+            settings_ui_pick_label(settings_ui_line_width(2),
+                "(direction keys to set, 0 = auto font, Return/Escape to accept)",
+                "(arrows move, 4/6 or y/n set, 0 auto, Enter/Esc exit)",
+                "(arrows move, 4/6 set, 0 auto, Enter/Esc)"));
+
         /* Get key */
         hide_cursor = true;
         char ch = inkey();
@@ -12902,20 +13109,15 @@ static void do_cmd_supporting_pane_font_editor(bool* settings_changed)
 
         while (!done)
         {
-            int layout_mode;
             int y0 = 4;
-            int x_type;
-            int x_enabled;
-            int x_font;
+            int row_width;
+            int term_wid;
 
             Term_clear();
-            Term_putstr(2, 1, -1, TERM_L_BLUE, "Supporting Pane Fonts");
-            Term_putstr(2, 2, -1, TERM_WHITE, "=====================");
-
-            layout_mode = (Term->wid < 56) ? 2 : ((Term->wid < 72) ? 1 : 0);
-            x_type = (layout_mode == 0) ? 2 : ((layout_mode == 1) ? 2 : 1);
-            x_enabled = (layout_mode == 0) ? 18 : ((layout_mode == 1) ? 14 : 10);
-            x_font = (layout_mode == 0) ? 30 : ((layout_mode == 1) ? 23 : 16);
+            term_wid = settings_ui_term_wid();
+            row_width = settings_ui_line_width(2);
+            settings_ui_put_fitted(1, 2, TERM_L_BLUE, "Supporting Pane Fonts");
+            settings_ui_put_fitted(2, 2, TERM_WHITE, "=====================");
 
             for (int i = 0; i < pane_count && (y0 + i) < Term->hgt - 5; i++)
             {
@@ -12924,40 +13126,43 @@ static void do_cmd_supporting_pane_font_editor(bool* settings_changed)
                 bool enabled = get_sdl_pane_enabled(idx);
                 int raw_font = get_sdl_pane_font_size(idx);
                 int effective_font = get_sdl_pane_effective_font_size(idx);
-                const char* type_label = (layout_mode == 0) ? pane_type_name(type)
-                    : pane_type_short_name(type);
                 byte a = (i == sel) ? TERM_L_BLUE : (enabled ? TERM_WHITE : TERM_SLATE);
+                char line_buf[96];
+                char label_buf[48];
                 char font_value[24];
                 char font_field[28];
+                const char* type_label = settings_ui_pick_label(MAX(8, row_width / 2),
+                    pane_type_name(type), pane_type_name(type),
+                    pane_type_short_name(type));
 
                 format_font_size_value(font_value, sizeof(font_value), raw_font,
-                    effective_font, layout_mode);
-                if (i == sel)
-                    strnfmt(font_field, sizeof(font_field), "[%s]", font_value);
-                else
-                    strnfmt(font_field, sizeof(font_field), " %s ", font_value);
-
-                c_prt(a, type_label, y0 + i, x_type);
-                c_prt(a, enabled ? "on " : "off", y0 + i, x_enabled);
-                c_prt(a, font_field, y0 + i, x_font);
+                    effective_font, MAX(6, MIN(14, row_width / 2)));
+                settings_ui_format_field(font_field, sizeof(font_field), font_value,
+                    i == sel);
+                strnfmt(label_buf, sizeof(label_buf), "%s %s", type_label,
+                    enabled ? "on" : "off");
+                settings_ui_format_pair_line(line_buf, sizeof(line_buf), label_buf,
+                    font_field, row_width, 6);
+                c_prt(a, line_buf, y0 + i, 2);
             }
 
             {
                 int y = Term->hgt - 4;
-                if (layout_mode == 2)
-                {
-                    Term_putstr(2, y++, -1, TERM_SLATE, "Up/Down select   4/6 set");
-                    Term_putstr(2, y++, -1, TERM_SLATE, "0 auto   Esc/Enter return");
-                }
-                else
-                {
-                    Term_putstr(2, y++, -1, TERM_SLATE,
-                        "Up/Down: select pane   4/6 (or n/y): change font size");
-                    Term_putstr(2, y++, -1, TERM_SLATE,
-                        "0: auto (uses default aux font / auto main-based size)");
-                    Term_putstr(2, y++, -1, TERM_SLATE,
-                        "Changes apply immediately");
-                }
+                settings_ui_put_fitted(y++, 2, TERM_SLATE,
+                    settings_ui_pick_label(term_wid - 2,
+                        "Up/Down: select pane   4/6 (or n/y): change font size",
+                        "Up/Down select pane   4/6 set font size",
+                        "Up/Down select   4/6 set"));
+                settings_ui_put_fitted(y++, 2, TERM_SLATE,
+                    settings_ui_pick_label(term_wid - 2,
+                        "0: auto (uses default aux font / auto main-based size)",
+                        "0: auto font size",
+                        "0 auto font"));
+                settings_ui_put_fitted(y++, 2, TERM_SLATE,
+                    settings_ui_pick_label(term_wid - 2,
+                        "Changes apply immediately",
+                        "Changes apply immediately",
+                        "Changes apply now"));
             }
 
             Term_fresh();
@@ -13195,21 +13400,15 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
 
     while (!done)
     {
-        Term_clear();
-        Term_putstr(2, 1, -1, TERM_L_BLUE, "Supporting Pane Layout");
-        Term_putstr(2, 2, -1, TERM_WHITE, "======================");
-
-        int layout_mode = (Term->wid < 56) ? 2 : ((Term->wid < 72) ? 1 : 0);
-        bool compact = (layout_mode == 2);
         int y0 = 4;
-        int x_type = (layout_mode == 0) ? 2 : ((layout_mode == 1) ? 2 : 1);
-        int x_where = (layout_mode == 0) ? 14 : ((layout_mode == 1) ? 13 : 8);
-        int x_enabled_label = (layout_mode == 0) ? 29 : ((layout_mode == 1) ? 20 : 15);
-        int x_enabled_value = (layout_mode == 0) ? 33 : ((layout_mode == 1) ? 23 : 18);
-        int x_rows_label = (layout_mode == 0) ? 41 : ((layout_mode == 1) ? 31 : 26);
-        int x_rows_value = (layout_mode == 0) ? 47 : ((layout_mode == 1) ? 36 : 28);
-        int x_cols_label = (layout_mode == 0) ? 56 : ((layout_mode == 1) ? 44 : 35);
-        int x_cols_value = (layout_mode == 0) ? 62 : ((layout_mode == 1) ? 49 : 37);
+        int term_wid;
+        int row_width;
+
+        Term_clear();
+        term_wid = settings_ui_term_wid();
+        row_width = settings_ui_line_width(2);
+        settings_ui_put_fitted(1, 2, TERM_L_BLUE, "Supporting Pane Layout");
+        settings_ui_put_fitted(2, 2, TERM_WHITE, "======================");
 
         for (int i = 0; i < pane_count && (y0 + i) < Term->hgt - 5; i++)
         {
@@ -13217,94 +13416,82 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
             enum pane_type type = (enum pane_type)get_sdl_pane_type(idx);
             enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
             int master_idx = supporting_pane_master_idx(pane_indices, pane_count, where);
-            const char* type_label = (layout_mode == 0) ? pane_type_name(type)
-                : ((layout_mode == 1) ? pane_type_short_name(type) : pane_type_short_name(type));
-            const char* where_label = (layout_mode == 0) ? pane_placement_name(where)
-                : pane_where_short_name(where);
             bool enabled = get_sdl_pane_enabled(idx);
             bool rows_locked = supporting_pane_rows_locked(pane_indices, pane_count, idx);
             bool cols_locked = supporting_pane_cols_locked(pane_indices, pane_count, idx);
             int rows = get_sdl_pane_rows(idx);
             int cols = get_sdl_pane_cols(idx);
-            byte a = enabled ? ((i == sel) ? TERM_L_BLUE : TERM_WHITE) : TERM_SLATE;
-            char enabled_field[8];
-            char where_field[16];
-            char rows_field[8];
-            char cols_field[8];
+            byte a = (i == sel) ? TERM_L_BLUE : (enabled ? TERM_WHITE : TERM_SLATE);
+            char type_buf[24];
+            char enabled_field[12];
+            char where_field[24];
+            char rows_value[16];
+            char rows_field[20];
+            char cols_value[16];
+            char cols_field[20];
+            char line_buf[128];
+            const char* type_label = settings_ui_pick_label(MAX(8, row_width / 3),
+                pane_type_name(type), pane_type_name(type), pane_type_short_name(type));
+            const char* where_label = settings_ui_pick_label(MAX(4, row_width / 4),
+                pane_placement_name(where), pane_placement_name(where),
+                pane_where_short_name(where));
 
-            if (i == sel && field == 0)
-                strnfmt(enabled_field, sizeof(enabled_field), "[%s]", enabled ? "on " : "off");
-            else
-                strnfmt(enabled_field, sizeof(enabled_field), " %s ", enabled ? "on " : "off");
-
-            if (i == sel && field == 1)
-                strnfmt(where_field, sizeof(where_field),
-                    (layout_mode == 0) ? "[%-12s]" : "[%-4s]", where_label);
-            else
-                strnfmt(where_field, sizeof(where_field),
-                    (layout_mode == 0) ? " %-12s " : " %-4s ", where_label);
+            settings_ui_fit_text(type_buf, sizeof(type_buf), type_label,
+                MAX(4, row_width / 3));
+            settings_ui_format_field(enabled_field, sizeof(enabled_field),
+                enabled ? "on" : "off", i == sel && field == 0);
+            settings_ui_format_field(where_field, sizeof(where_field), where_label,
+                i == sel && field == 1);
 
             if (rows_locked)
             {
                 int shared_rows = (master_idx >= 0) ? get_sdl_pane_rows(master_idx) : rows;
-                strnfmt(rows_field, sizeof(rows_field), " %3d ", shared_rows);
+                settings_ui_format_auto_value(rows_value, sizeof(rows_value),
+                    shared_rows, 4);
             }
-            else if (i == sel && field == 2)
-                strnfmt(rows_field, sizeof(rows_field), "[%3d]", rows);
             else
-                strnfmt(rows_field, sizeof(rows_field), " %3d ", rows);
+                settings_ui_format_auto_value(rows_value, sizeof(rows_value), rows, 4);
+            settings_ui_format_field(rows_field, sizeof(rows_field), rows_value,
+                !rows_locked && i == sel && field == 2);
 
             if (cols_locked)
             {
                 int shared_cols = (master_idx >= 0) ? get_sdl_pane_cols(master_idx) : cols;
-                strnfmt(cols_field, sizeof(cols_field), " %3d ", shared_cols);
+                settings_ui_format_auto_value(cols_value, sizeof(cols_value),
+                    shared_cols, 4);
             }
-            else if (i == sel && field == 3)
-                strnfmt(cols_field, sizeof(cols_field), "[%3d]", cols);
             else
-                strnfmt(cols_field, sizeof(cols_field), " %3d ", cols);
+                settings_ui_format_auto_value(cols_value, sizeof(cols_value), cols, 4);
+            settings_ui_format_field(cols_field, sizeof(cols_field), cols_value,
+                !cols_locked && i == sel && field == 3);
 
-            c_prt(a, type_label, y0 + i, x_type);
-            c_prt(a, where_field, y0 + i, x_where);
-            c_prt(a, compact ? "on" : "on:", y0 + i, x_enabled_label);
-            c_prt(a, enabled_field, y0 + i, x_enabled_value);
-            c_prt(a, (layout_mode == 0) ? "rows:" : (compact ? "r" : "rows"), y0 + i, x_rows_label);
-            c_prt(a, rows_field, y0 + i, x_rows_value);
-            c_prt(a, (layout_mode == 0) ? "cols:" : (compact ? "c" : "cols"), y0 + i, x_cols_label);
-            c_prt(a, cols_field, y0 + i, x_cols_value);
+            strnfmt(line_buf, sizeof(line_buf), "%s %s %s r%s c%s", type_buf,
+                where_field, enabled_field, rows_field, cols_field);
+            settings_ui_put_fitted(y0 + i, 2, a, line_buf);
         }
 
         {
             int y = Term->hgt - 4;
-            if (layout_mode == 2)
-            {
-                Term_putstr(2, y++, -1, TERM_SLATE, "Up/Down select   Space field");
-                Term_putstr(2, y++, -1, TERM_SLATE, "4/6 cycle/set   0 auto rows/cols");
-                Term_putstr(2, y++, -1, TERM_SLATE, "Side slots share cols; bottom shares rows");
-                Term_putstr(2, y++, -1, TERM_SLATE, "Esc/Enter return");
-            }
-            else if (layout_mode == 1)
-            {
-                Term_putstr(2, y++, -1, TERM_SLATE,
-                    "Up/Down select pane   Space switch field");
-                Term_putstr(2, y++, -1, TERM_SLATE,
-                    "4/6 or y/n: toggle, cycle, or +/- value   0: auto");
-                Term_putstr(2, y++, -1, TERM_SLATE,
-                    "Each side slot shares cols; bottom panes share rows");
-                Term_putstr(2, y++, -1, TERM_SLATE,
-                    "ESC/Enter: return");
-            }
-            else
-            {
-                Term_putstr(2, y++, -1, TERM_SLATE,
-                    "Up/Down: select pane   Space: choose on/off, where, rows, cols");
-                Term_putstr(2, y++, -1, TERM_SLATE,
-                    "4/6 (or n/y): toggle, cycle, or +/- value   0: set rows/cols to auto");
-                Term_putstr(2, y++, -1, TERM_SLATE,
-                    "Each side slot shares cols with its first pane; bottom panes share rows");
-                Term_putstr(2, y++, -1, TERM_SLATE,
-                    "ESC/Enter: return (changes apply immediately)");
-            }
+            settings_ui_put_fitted(y++, 2, TERM_SLATE,
+                settings_ui_pick_label(term_wid - 2,
+                    "Up/Down: select pane   Space: choose on/off, where, rows, cols",
+                    "Up/Down select pane   Space switch field",
+                    "Up/Down select   Space field"));
+            settings_ui_put_fitted(y++, 2, TERM_SLATE,
+                settings_ui_pick_label(term_wid - 2,
+                    "4/6 (or n/y): toggle, cycle, or +/- value   0: set rows/cols to auto",
+                    "4/6 or y/n: toggle, cycle, or +/- value   0: auto",
+                    "4/6 cycle/set   0 auto"));
+            settings_ui_put_fitted(y++, 2, TERM_SLATE,
+                settings_ui_pick_label(term_wid - 2,
+                    "Each side slot shares cols with its first pane; bottom panes share rows",
+                    "Side slots share cols; bottom panes share rows",
+                    "Side slots share cols; bottom shares rows"));
+            settings_ui_put_fitted(y++, 2, TERM_SLATE,
+                settings_ui_pick_label(term_wid - 2,
+                    "ESC/Enter: return (changes apply immediately)",
+                    "ESC/Enter: return",
+                    "Esc/Enter return"));
         }
 
         Term_fresh();
@@ -13542,9 +13729,10 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
     {
         int row;
         int visible_rows;
+        int row_width;
 
         Term_get_size(&term_w, &term_h);
-        (void)term_w;
+        row_width = settings_ui_line_width(2);
         visible_rows = term_h - list_start_row - 6;
         if (visible_rows < 5)
             visible_rows = 5;
@@ -13562,21 +13750,32 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             top = 0;
 
         Term_clear();
-        Term_putstr(2, 1, -1, TERM_L_BLUE, "Touch Settings");
-        Term_putstr(2, 2, -1, TERM_WHITE, "==============");
+        settings_ui_put_fitted(1, 2, TERM_L_BLUE, "Touch Settings");
+        settings_ui_put_fitted(2, 2, TERM_WHITE, "==============");
 
         row = list_start_row;
         for (int i = top; i < SDL_TOUCH_PANE_BUTTON_COUNT && i < top + visible_rows; i++)
         {
             char action_buf[80];
             char label_buf[SDL_TOUCH_PANE_LABEL_LEN];
+            char left_buf[64];
+            char line_buf[128];
             byte a = (i == highlight) ? TERM_L_BLUE : TERM_WHITE;
 
             get_sdl_touch_pane_button_label_for_panel(panel, i, label_buf, sizeof(label_buf));
             touch_pane_action_label_for_panel(panel,
                 get_sdl_touch_pane_binding_for_panel(panel, i), action_buf, sizeof(action_buf));
-            c_prt(a, format("%-10s %-10s -> %s", get_sdl_touch_pane_slot_name(i), label_buf, action_buf),
-                row++, 2);
+
+            if (label_buf[0])
+                strnfmt(left_buf, sizeof(left_buf), "%s %s",
+                    get_sdl_touch_pane_slot_name(i), label_buf);
+            else
+                strnfmt(left_buf, sizeof(left_buf), "%s",
+                    get_sdl_touch_pane_slot_name(i));
+
+            settings_ui_format_pair_line(line_buf, sizeof(line_buf), left_buf,
+                action_buf, row_width, 14);
+            c_prt(a, line_buf, row++, 2);
         }
 
         row = list_start_row + visible_rows + 1;
@@ -13587,11 +13786,23 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             get_sdl_touch_pane_panel_name(panel, panel_name, sizeof(panel_name));
             strnfmt(info_buf, sizeof(info_buf), "Editing %s panel%s",
                 panel_name, (panel == SDL_TOUCH_PANE_PANEL_SECOND) ? " (empty = main panel)" : "");
-            Term_putstr(2, 3, -1, TERM_SLATE, info_buf);
+            settings_ui_put_fitted(3, 2, TERM_SLATE, info_buf);
         }
-        Term_putstr(2, row++, -1, TERM_SLATE, "Up/Down: select button   4/6: previous/next action   l: rename slot");
-        Term_putstr(2, row++, -1, TERM_SLATE, "Tab: switch panel   p: rename panel   r: reset selected   R: reset all");
-        Term_putstr(2, row++, -1, TERM_SLATE, "ESC/Enter: return");
+        settings_ui_put_fitted(row++, 2, TERM_SLATE,
+            settings_ui_pick_label(row_width,
+                "Up/Down: select button   4/6: previous/next action   l: rename slot",
+                "Up/Down select   4/6 action   l rename slot",
+                "Up/Down select   4/6 action"));
+        settings_ui_put_fitted(row++, 2, TERM_SLATE,
+            settings_ui_pick_label(row_width,
+                "Tab: switch panel   p: rename panel   r: reset selected   R: reset all",
+                "Tab switch panel   p rename panel   r/R reset",
+                "Tab switch   p rename   r/R reset"));
+        settings_ui_put_fitted(row++, 2, TERM_SLATE,
+            settings_ui_pick_label(row_width,
+                "ESC/Enter: return",
+                "Esc/Enter: return",
+                "Esc/Enter return"));
 
         Term_fresh();
 
@@ -13653,13 +13864,27 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         case 'L':
         {
             char prompt[96];
+            char prompt_long[96];
+            char prompt_medium[96];
+            char prompt_short[64];
             char current_label[SDL_TOUCH_PANE_LABEL_LEN];
             char new_label[SDL_TOUCH_PANE_LABEL_LEN];
+            char current_buf[96];
 
             get_sdl_touch_pane_button_label_for_panel(panel, highlight, current_label, sizeof(current_label));
-            strnfmt(prompt, sizeof(prompt), "New label for %s (blank = use key label): ",
+            strnfmt(prompt_long, sizeof(prompt_long),
+                "New label for %s (blank = use key label): ",
                 get_sdl_touch_pane_slot_name(highlight));
-            Term_putstr(2, 4, -1, TERM_SLATE, format("Current label: %s", current_label));
+            strnfmt(prompt_medium, sizeof(prompt_medium),
+                "New label for %s (blank = default): ",
+                get_sdl_touch_pane_slot_name(highlight));
+            strnfmt(prompt_short, sizeof(prompt_short), "Label for %s: ",
+                get_sdl_touch_pane_slot_name(highlight));
+            strnfmt(prompt, sizeof(prompt), "%s",
+                settings_ui_pick_label(settings_ui_line_width(0),
+                    prompt_long, prompt_medium, prompt_short));
+            strnfmt(current_buf, sizeof(current_buf), "Current label: %s", current_label);
+            settings_ui_put_fitted(4, 2, TERM_SLATE, current_buf);
             new_label[0] = '\0';
             if (term_get_string(prompt, new_label, sizeof(new_label)))
             {
@@ -13681,10 +13906,16 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             char prompt[96];
             char current_name[SDL_TOUCH_PANE_LABEL_LEN];
             char new_name[SDL_TOUCH_PANE_LABEL_LEN];
+            char current_buf[96];
 
             get_sdl_touch_pane_panel_name(panel, current_name, sizeof(current_name));
-            strnfmt(prompt, sizeof(prompt), "Name for current panel (blank = default): ");
-            Term_putstr(2, 4, -1, TERM_SLATE, format("Current panel name: %s", current_name));
+            strnfmt(prompt, sizeof(prompt), "%s",
+                settings_ui_pick_label(settings_ui_line_width(0),
+                    "Name for current panel (blank = default): ",
+                    "Panel name (blank = default): ",
+                    "Panel name: "));
+            strnfmt(current_buf, sizeof(current_buf), "Current panel name: %s", current_name);
+            settings_ui_put_fitted(4, 2, TERM_SLATE, current_buf);
             new_name[0] = '\0';
             if (term_get_string(prompt, new_name, sizeof(new_name)))
             {
@@ -14428,12 +14659,15 @@ void do_cmd_keybinds(void)
         int i;
         bool compact_width;
         char binding_buf[80];
+        char line_buf[128];
+        int row_width;
 
         Term_get_size(&term_w, &term_h);
         visible_rows = term_h - list_start_row - 6;
         if (visible_rows < 5)
             visible_rows = 5;
         compact_width = (term_w < 70);
+        row_width = settings_ui_line_width(2);
         
         if (showing_primary)
         {
@@ -14476,19 +14710,23 @@ void do_cmd_keybinds(void)
         
         /* Clear screen */
         Term_clear();
-        
+
         /* Title */
-        prt("Keybind Configuration", 1, 0);
+        settings_ui_put_fitted(1, 0, TERM_WHITE, "Keybind Configuration");
         if (compact_width)
         {
-            prt("8/2 move  Enter bind  Tab switch  Esc return", 2, 0);
-            prt(showing_primary ? "Primary commands" : "Supplementary commands",
-                3, 0);
+            settings_ui_put_fitted(2, 0, TERM_WHITE,
+                "8/2 move  Enter bind  Tab switch  Esc return");
+            settings_ui_put_fitted(3, 0, TERM_WHITE,
+                showing_primary ? "Primary commands" : "Supplementary commands");
         }
         else
         {
-            prt("Arrow to navigate, Enter to bind, Tab to switch groups, Escape to return", 2, 0);
-            prt(showing_primary ? "Primary Commands: Essential for the gameplay" : "Supplementary Commands", 3, 0);
+            settings_ui_put_fitted(2, 0, TERM_WHITE,
+                "Arrow to navigate, Enter to bind, Tab to switch groups, Escape to return");
+            settings_ui_put_fitted(3, 0, TERM_WHITE,
+                showing_primary ? "Primary Commands: Essential for the gameplay"
+                                : "Supplementary Commands");
         }
         
         /* List visible keybinds */
@@ -14499,19 +14737,19 @@ void do_cmd_keybinds(void)
         {
             int entry_row = list_start_row + (i - *top_ptr);
             describe_action_bindings(mode, &keybinds[i], binding_buf, sizeof(binding_buf));
+            settings_ui_format_pair_line(line_buf, sizeof(line_buf),
+                keybinds[i].key_name, binding_buf, row_width, 12);
 
             /* Display the keybind */
             if (i == highlight)
             {
                 /* Highlighted */
-                c_prt(TERM_L_BLUE, format("%-28s -> %s", keybinds[i].key_name, binding_buf), 
-                      entry_row, 2);
+                c_prt(TERM_L_BLUE, line_buf, entry_row, 2);
             }
             else
             {
                 /* Normal */
-                prt(format("%-28s -> %s", keybinds[i].key_name, binding_buf), 
-                    entry_row, 2);
+                prt(line_buf, entry_row, 2);
             }
         }
         
@@ -14519,24 +14757,31 @@ void do_cmd_keybinds(void)
         for (i = display_end; i < *top_ptr + visible_rows; i++)
         {
             row = list_start_row + (i - *top_ptr);
-            prt("                                        ", row, 2);
+            Term_erase(2, row, term_w > 2 ? term_w - 2 : 0);
         }
         
         /* Instructions at bottom */
         if (compact_width)
         {
-            prt("s: save keybinds", list_start_row + visible_rows + 1, 2);
-            prt("r: reset selected", list_start_row + visible_rows + 2, 2);
+            settings_ui_put_fitted(list_start_row + visible_rows + 1, 2, TERM_WHITE,
+                "s: save keybinds");
+            settings_ui_put_fitted(list_start_row + visible_rows + 2, 2, TERM_WHITE,
+                "r: reset selected");
         }
         else
         {
-            prt(format("Press 's' to save keybinds to %s", default_file), list_start_row + visible_rows + 1, 2);
-            prt("Press 'r' to reset selected keybind to default", list_start_row + visible_rows + 2, 2);
+            strnfmt(line_buf, sizeof(line_buf), "Press 's' to save keybinds to %s",
+                default_file);
+            settings_ui_put_fitted(list_start_row + visible_rows + 1, 2, TERM_WHITE,
+                line_buf);
+            settings_ui_put_fitted(list_start_row + visible_rows + 2, 2, TERM_WHITE,
+                "Press 'r' to reset selected keybind to default");
         }
         if (dirty)
             c_prt(TERM_YELLOW, "Unsaved changes", list_start_row + visible_rows + 3, 2);
         else
-            prt("                    ", list_start_row + visible_rows + 3, 2);
+            Term_erase(2, list_start_row + visible_rows + 3,
+                term_w > 2 ? term_w - 2 : 0);
         
         /* Get input */
         ch = inkey();
@@ -14585,17 +14830,23 @@ void do_cmd_keybinds(void)
             cptr action = keybinds[highlight].action;
             char key_label[32];
             char prompt[80];
+            char prompt_long[96];
+            char prompt_short[80];
             int entry_row = list_start_row + (highlight - *top_ptr);
 
             /* Clear the action area */
             Term_erase(2, entry_row, 255);
             
             /* Prompt for new binding */
-            strnfmt(prompt, sizeof(prompt),
-                compact_width ? "Bind %s (Esc cancels):"
-                              : "Press key to use for %s (Escape to cancel):",
+            strnfmt(prompt_long, sizeof(prompt_long),
+                "Press key to use for %s (Escape to cancel):",
                 keybinds[highlight].key_name);
-            c_prt(TERM_YELLOW, prompt, entry_row, 2);
+            strnfmt(prompt_short, sizeof(prompt_short),
+                "Bind %s (Esc cancels):", keybinds[highlight].key_name);
+            strnfmt(prompt, sizeof(prompt), "%s",
+                settings_ui_pick_label(row_width, prompt_long, prompt_short,
+                    prompt_short));
+            settings_ui_put_fitted(entry_row, 2, TERM_YELLOW, prompt);
             Term_fresh();
             
             /* Get the key to bind */
@@ -15143,12 +15394,14 @@ void do_cmd_controller_settings(void)
 
     while (!done) {
         char value_buf[64];
+        char line_buf[128];
         int row;
         bool steamdeck = steamdeck_controls_active();
         bool compact_width;
+        int row_width;
 
         Term_get_size(&term_w, &term_h);
-        (void)term_w;
+        row_width = settings_ui_line_width(2);
         int visible_rows = term_h - list_start_row - 6;
         if (visible_rows < 5)
             visible_rows = 5;
@@ -15174,54 +15427,62 @@ void do_cmd_controller_settings(void)
         }
 
         Term_clear();
-        prt("Controller Settings", 1, 0);
+        settings_ui_put_fitted(1, 0, TERM_WHITE, "Controller Settings");
         if (steamdeck) {
             char confirm_label[16];
             char back_label[16];
+            char prompt_buf[80];
             /* Steam Deck UI: A=bind, B=back */
             controller_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
             controller_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
-            if (compact_width)
-                prt(format("D-pad  %s bind  %s back", confirm_label, back_label), 2, 0);
-            else
-                prt(format("D-pad navigate  %s bind  %s back", confirm_label, back_label), 2, 0);
+            strnfmt(prompt_buf, sizeof(prompt_buf),
+                compact_width ? "D-pad %s bind  %s back"
+                              : "D-pad navigate  %s bind  %s back",
+                confirm_label, back_label);
+            settings_ui_put_fitted(2, 0, TERM_WHITE, prompt_buf);
         } else {
-            prt(compact_width ? "8/2 move  Enter bind  Esc return"
-                              : "Arrow to navigate, Enter to bind, Escape to return", 2, 0);
+            settings_ui_put_fitted(2, 0, TERM_WHITE,
+                compact_width ? "8/2 move  Enter bind  Esc return"
+                              : "Arrow to navigate, Enter to bind, Escape to return");
         }
 
         for (int i = top; i < entry_count && i < top + visible_rows; i++) {
             int entry_row = list_start_row + (i - top);
             controller_entry_value(&entries[i], value_buf, sizeof(value_buf));
+            settings_ui_format_pair_line(line_buf, sizeof(line_buf), entries[i].label,
+                value_buf, row_width, 12);
 
             if (i == highlight) {
-                c_prt(TERM_L_BLUE, format("%-32s -> %s", entries[i].label, value_buf), entry_row, 2);
+                c_prt(TERM_L_BLUE, line_buf, entry_row, 2);
             } else {
-                prt(format("%-32s -> %s", entries[i].label, value_buf), entry_row, 2);
+                prt(line_buf, entry_row, 2);
             }
         }
 
         for (row = list_start_row + (entry_count - top); row < list_start_row + visible_rows; row++) {
-            prt("                                        ", row, 2);
+            Term_erase(2, row, term_w > 2 ? term_w - 2 : 0);
         }
 
         if (steamdeck) {
             char reset_label[16];
             char reset_all_label[16];
+            char prompt_buf[80];
             /* Steam Deck UI: X=reset selected, Y=reset all */
             controller_prompt_label(steamdeck_alt_action_key(), "X", reset_label, sizeof(reset_label));
             controller_prompt_label(steamdeck_secondary_key(), "Y", reset_all_label, sizeof(reset_all_label));
-            prt(compact_width
-                    ? format("[%s] reset  [%s] reset all", reset_label, reset_all_label)
-                    : format("Reset: [%s] selected, [%s] all", reset_label, reset_all_label),
-                list_start_row + visible_rows + 1, 2);
+            strnfmt(prompt_buf, sizeof(prompt_buf),
+                compact_width ? "[%s] reset  [%s] reset all"
+                              : "Reset: [%s] selected, [%s] all",
+                reset_label, reset_all_label);
+            settings_ui_put_fitted(list_start_row + visible_rows + 1, 2, TERM_WHITE,
+                prompt_buf);
         } else {
-            prt(compact_width ? "r: reset selected  R: reset all"
-                              : "Press 'r' to reset selected binding, 'R' to reset all bindings",
-                list_start_row + visible_rows + 1, 2);
+            settings_ui_put_fitted(list_start_row + visible_rows + 1, 2, TERM_WHITE,
+                compact_width ? "r: reset selected  R: reset all"
+                              : "Press 'r' to reset selected binding, 'R' to reset all bindings");
         }
-        prt(compact_width ? "Saves on exit." : "Changes are saved on exit.",
-            list_start_row + visible_rows + 2, 2);
+        settings_ui_put_fitted(list_start_row + visible_rows + 2, 2, TERM_WHITE,
+            compact_width ? "Saves on exit." : "Changes are saved on exit.");
 
         char ch = inkey();
 
@@ -15258,25 +15519,36 @@ void do_cmd_controller_settings(void)
                 controller_set_toggle(entry->id, streq(cur, "Off"));
             } else {
                 char prompt[80];
+                char prompt_long[96];
+                char prompt_medium[80];
+                char prompt_short[64];
                 int cap_type = 0;
                 int cap_id = 0;
                 Term_erase(2, entry_row, 255);
                 if (steamdeck) {
                     char cancel_label[16];
                     controller_prompt_label(steamdeck_back_key(), "B", cancel_label, sizeof(cancel_label));
-                    strnfmt(prompt, sizeof(prompt),
-                        compact_width
-                            ? "Press button for %s  (%s=cancel)"
-                            : "Press controller button for %s  (%s=cancel)",
+                    strnfmt(prompt_long, sizeof(prompt_long),
+                        "Press controller button for %s  (%s=cancel)",
                         entry->label, cancel_label);
+                    strnfmt(prompt_medium, sizeof(prompt_medium),
+                        "Press button for %s  (%s=cancel)",
+                        entry->label, cancel_label);
+                    strnfmt(prompt_short, sizeof(prompt_short),
+                        "Bind %s  (%s cancel)", entry->label, cancel_label);
                 } else {
-                    strnfmt(prompt, sizeof(prompt),
-                        compact_width
-                            ? "Bind %s (Esc=cancel, Bksp=clear)"
-                            : "Press controller button for %s (Esc=cancel, Backspace=clear)",
+                    strnfmt(prompt_long, sizeof(prompt_long),
+                        "Press controller button for %s (Esc=cancel, Backspace=clear)",
                         entry->label);
+                    strnfmt(prompt_medium, sizeof(prompt_medium),
+                        "Bind %s (Esc=cancel, Bksp=clear)", entry->label);
+                    strnfmt(prompt_short, sizeof(prompt_short),
+                        "%s (Esc cancel, Bksp clear)", entry->label);
                 }
-                c_prt(TERM_YELLOW, prompt, entry_row, 2);
+                strnfmt(prompt, sizeof(prompt), "%s",
+                    settings_ui_pick_label(row_width, prompt_long, prompt_medium,
+                        prompt_short));
+                settings_ui_put_fitted(entry_row, 2, TERM_YELLOW, prompt);
                 Term_fresh();
 
                 flush();

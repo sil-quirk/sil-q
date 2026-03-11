@@ -3833,7 +3833,7 @@ static void display_player_compact_heading(cptr text, int row, int col)
     if (use_story)
         sdl_story_font_enable();
 
-    Term_putstr(col, row, -1, TERM_WHITE, text ? text : "");
+    Term_putstr(col, row, -1, TERM_L_BLUE, text ? text : "");
 
     if (use_story)
         sdl_story_font_disable();

@@ -237,6 +237,7 @@ static Uint64 g_touch_pane_flash_until = 0;
 static int g_touch_pane_pressed_slot = -1;
 static bool g_touch_pane_second_panel = false;
 static bool g_touch_pane_ctrl_toggle = false;
+static bool g_touch_pane_reset_confirm_active = false;
 static touch_pane_press_state g_touch_pane_press;
 static int g_auto_aux_main_cell_h_override = 0;
 
@@ -300,12 +301,18 @@ static int sdl_touch_pane_effective_binding_for_panel(int panel, int index);
 static bool sdl_touch_pane_point_to_slot(float x, float y, int* out_slot);
 static bool sdl_touch_pane_compute_layout(const SDL_Rect* pane_rect, SDL_FRect* slot_rects);
 static bool sdl_touch_pane_binding_is_direction(int binding);
+static bool sdl_touch_pane_slot_uses_long_press(int slot, int binding);
+static bool sdl_touch_pane_confirm_binding(int binding);
+static void sdl_touch_pane_begin_reset_confirm(void);
+static void sdl_touch_pane_finish_reset_confirm(bool confirmed);
+static void sdl_touch_pane_handle_reset_prompt_pointer(float x, float y);
 static void sdl_touch_pane_draw_arrow(const SDL_FRect* rect, int binding, SDL_Color color);
 static void sdl_touch_pane_draw_button_text(const SDL_FRect* rect, const char* name, const char* symbol,
     SDL_Color color);
 static void sdl_touch_pane_binding_symbol(int binding, char* buf, size_t buflen);
 static bool sdl_touch_pane_label_is_symbol_only(const char* label);
 static bool sdl_touch_pane_should_hide_symbol(const char* name, const char* symbol);
+static void sdl_touch_pane_render_reset_prompt(void);
 static void sdl_touch_pane_default_label_for_panel_slot(int panel, int index, char* buf, size_t buflen);
 static void sdl_touch_pane_base_label_for_slot(int panel, int index, char* buf, size_t buflen);
 static void sdl_touch_pane_display_label_for_slot(int panel, int index, char* buf, size_t buflen);
@@ -315,8 +322,8 @@ static void sdl_touch_pane_handle_pointer_up(bool mouse, SDL_FingerID finger_id)
 static void sdl_touch_pane_cancel_press(void);
 static int sdl_touch_pane_pending_timeout_ms(Uint64 now_ns);
 static bool sdl_touch_pane_flush_pending_press(Uint64 now_ns);
-static void sdl_touch_pane_send_slot(int panel, int index, bool ctrl_direction_override);
-static void sdl_touch_pane_send_binding(int binding, bool second_panel, bool ctrl_direction_override);
+static void sdl_touch_pane_send_slot(int panel, int index, bool long_press);
+static void sdl_touch_pane_send_binding(int binding, bool second_panel, bool long_press);
 static void sdl_touch_pane_load_default_bindings(void);
 static bool sdl_touch_pane_is_config_enabled(void);
 int get_sdl_touch_pane_binding_for_panel(int panel, int index);
@@ -805,6 +812,55 @@ static bool sdl_touch_pane_binding_is_direction(int binding)
     }
 }
 
+static bool sdl_touch_pane_slot_uses_long_press(int slot, int binding)
+{
+    return (slot == 0) || sdl_touch_pane_binding_is_direction(binding) || (binding == 'z');
+}
+
+static bool sdl_touch_pane_confirm_binding(int binding)
+{
+    return (binding == INPUT_BIND_CONFIRM || binding == ' ' || binding == '\r');
+}
+
+static void sdl_touch_pane_begin_reset_confirm(void)
+{
+    g_touch_pane_reset_confirm_active = true;
+    g_state.need_present = true;
+}
+
+static void sdl_touch_pane_finish_reset_confirm(bool confirmed)
+{
+    g_touch_pane_reset_confirm_active = false;
+
+    if (confirmed) {
+        sdl_touch_pane_reset_bindings_to_default();
+        msg_print("Touch controls reset to defaults.");
+    }
+
+    g_state.need_present = true;
+}
+
+static void sdl_touch_pane_handle_reset_prompt_pointer(float x, float y)
+{
+    int slot = -1;
+    int panel;
+    int binding;
+
+    if (!sdl_touch_pane_point_to_slot(x, y, &slot))
+        return;
+    if (slot < 0)
+        return;
+
+    panel = sdl_touch_pane_active_panel();
+    binding = sdl_touch_pane_effective_binding_for_panel(panel, slot);
+
+    if (slot == 0 || binding == ESCAPE) {
+        sdl_touch_pane_finish_reset_confirm(false);
+    } else if (sdl_touch_pane_confirm_binding(binding)) {
+        sdl_touch_pane_finish_reset_confirm(true);
+    }
+}
+
 static bool sdl_touch_pane_compute_layout(const SDL_Rect* pane_rect, SDL_FRect* slot_rects)
 {
     float gap;
@@ -1157,6 +1213,36 @@ static bool sdl_touch_pane_should_hide_symbol(const char* name, const char* symb
     return (SDL_strcasecmp(name, symbol) == 0);
 }
 
+static void sdl_touch_pane_render_reset_prompt(void)
+{
+    int window_w = 0;
+    int window_h = 0;
+    SDL_FRect rect;
+    SDL_Color frame = g_state.palette[TERM_L_BLUE];
+    SDL_Color text = g_state.palette[TERM_WHITE];
+
+    if (!g_touch_pane_reset_confirm_active)
+        return;
+
+    SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
+    if (window_w <= 0 || window_h <= 0)
+        return;
+
+    rect = (SDL_FRect){
+        .x = window_w * 0.10f,
+        .y = window_h * 0.04f,
+        .w = window_w * 0.80f,
+        .h = (window_h < 600) ? 54.0f : 68.0f,
+    };
+
+    SDL_SetRenderDrawColor(g_state.renderer, 10, 10, 10, 235);
+    SDL_RenderFillRect(g_state.renderer, &rect);
+    SDL_SetRenderDrawColor(g_state.renderer, frame.r, frame.g, frame.b, 220);
+    SDL_RenderRect(g_state.renderer, &rect);
+    sdl_touch_pane_draw_button_text(&rect, "Reset touch controls to defaults?",
+        "Confirm: Space/Enter button. Cancel: Esc.", text);
+}
+
 static void sdl_touch_pane_default_label_for_panel_slot(int panel, int index, char* buf, size_t buflen)
 {
     int raw_binding;
@@ -1313,7 +1399,7 @@ static void sdl_touch_pane_send_confirm_action(void)
     Term_keypress('\r');
 }
 
-static void sdl_touch_pane_send_binding(int binding, bool second_panel, bool ctrl_direction_override)
+static void sdl_touch_pane_send_binding(int binding, bool second_panel, bool long_press)
 {
     if (binding == GAMEPAD_BIND_NONE)
         return;
@@ -1343,16 +1429,21 @@ static void sdl_touch_pane_send_binding(int binding, bool second_panel, bool ctr
 
     if (sdl_touch_pane_binding_is_direction(binding)) {
         sdl_gamepad_send_direction_mods(binding - '0',
-            ((!ctrl_direction_override) && second_panel) || sdl_gamepad_shift_active(),
-            ctrl_direction_override || sdl_gamepad_ctrl_active(),
+            ((!long_press) && second_panel) || sdl_gamepad_shift_active(),
+            long_press || sdl_gamepad_ctrl_active(),
             sdl_gamepad_alt_active());
+        return;
+    }
+
+    if (binding == 'z' && long_press) {
+        Term_keypress('Z');
         return;
     }
 
     sdl_gamepad_send_key(binding, false);
 }
 
-static void sdl_touch_pane_send_slot(int panel, int index, bool ctrl_direction_override)
+static void sdl_touch_pane_send_slot(int panel, int index, bool long_press)
 {
     int binding;
 
@@ -1363,7 +1454,7 @@ static void sdl_touch_pane_send_slot(int panel, int index, bool ctrl_direction_o
 
     binding = sdl_touch_pane_effective_binding_for_panel(panel, index);
     sdl_touch_pane_send_binding(binding, panel == SDL_TOUCH_PANE_PANEL_SECOND,
-        ctrl_direction_override);
+        long_press);
 }
 
 static void sdl_touch_pane_cancel_press(void)
@@ -1393,7 +1484,6 @@ static int sdl_touch_pane_pending_timeout_ms(Uint64 now_ns)
 static bool sdl_touch_pane_flush_pending_press(Uint64 now_ns)
 {
     int slot;
-    int panel;
 
     if (!g_touch_pane_press.active)
         return false;
@@ -1401,12 +1491,16 @@ static bool sdl_touch_pane_flush_pending_press(Uint64 now_ns)
         return false;
 
     slot = g_touch_pane_press.slot;
-    panel = g_touch_pane_press.panel;
     sdl_touch_pane_cancel_press();
-    sdl_touch_pane_send_slot(panel, slot, true);
-    g_touch_pane_flash_slot = slot;
-    g_touch_pane_flash_until = SDL_GetTicksNS() + 150000000ULL;
-    g_state.need_present = true;
+    if (slot == 0) {
+        sdl_touch_pane_begin_reset_confirm();
+    } else {
+        int panel = g_touch_pane_press.panel;
+        sdl_touch_pane_send_slot(panel, slot, true);
+        g_touch_pane_flash_slot = slot;
+        g_touch_pane_flash_until = SDL_GetTicksNS() + 150000000ULL;
+        g_state.need_present = true;
+    }
     return true;
 }
 
@@ -1425,7 +1519,7 @@ static bool sdl_touch_pane_handle_pointer_down(float x, float y, bool mouse, SDL
     panel = sdl_touch_pane_active_panel();
     binding = sdl_touch_pane_effective_binding_for_panel(panel, slot);
 
-    if (sdl_touch_pane_binding_is_direction(binding)) {
+    if (sdl_touch_pane_slot_uses_long_press(slot, binding)) {
         sdl_touch_pane_cancel_press();
         g_touch_pane_press.active = true;
         g_touch_pane_press.mouse = mouse;
@@ -1460,14 +1554,18 @@ static void sdl_touch_pane_handle_pointer_up(bool mouse, SDL_FingerID finger_id)
         return;
 
     press_time = SDL_GetTicksNS() - g_touch_pane_press.start_time;
-    ctrl_direction_override = (press_time >= 350000000ULL);
+    ctrl_direction_override = (press_time >= (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL);
     slot = g_touch_pane_press.slot;
     panel = g_touch_pane_press.panel;
     sdl_touch_pane_cancel_press();
-    sdl_touch_pane_send_slot(panel, slot, ctrl_direction_override);
-    g_touch_pane_flash_slot = slot;
-    g_touch_pane_flash_until = SDL_GetTicksNS() + 150000000ULL;
-    g_state.need_present = true;
+    if (slot == 0 && ctrl_direction_override) {
+        sdl_touch_pane_begin_reset_confirm();
+    } else {
+        sdl_touch_pane_send_slot(panel, slot, ctrl_direction_override);
+        g_touch_pane_flash_slot = slot;
+        g_touch_pane_flash_until = SDL_GetTicksNS() + 150000000ULL;
+        g_state.need_present = true;
+    }
 }
 
 static bool sdl_gamepad_shift_active(void)
@@ -2836,6 +2934,35 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
     (void)st;
     if (ev->type == SDL_EVENT_QUIT) {
         Term_keypress(27); // ESC or define a quit signal
+    } else if (g_touch_pane_reset_confirm_active) {
+        if (ev->type == SDL_EVENT_KEY_DOWN) {
+            if (ev->key.key == SDLK_ESCAPE) {
+                sdl_touch_pane_finish_reset_confirm(false);
+            } else if (ev->key.key == SDLK_RETURN || ev->key.key == SDLK_KP_ENTER
+                || ev->key.key == SDLK_SPACE)
+            {
+                sdl_touch_pane_finish_reset_confirm(true);
+            }
+            return;
+        } else if (ev->type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
+            if (ev->button.button == SDL_BUTTON_LEFT && ev->button.which != SDL_TOUCH_MOUSEID)
+                sdl_touch_pane_handle_reset_prompt_pointer((float)ev->button.x, (float)ev->button.y);
+            return;
+        } else if (ev->type == SDL_EVENT_MOUSE_BUTTON_UP) {
+            return;
+        } else if (ev->type == SDL_EVENT_FINGER_DOWN) {
+            int window_w = 0;
+            int window_h = 0;
+
+            if (ev->tfinger.windowID != SDL_GetWindowID(g_state.window))
+                return;
+            SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
+            sdl_touch_pane_handle_reset_prompt_pointer(ev->tfinger.x * (float)window_w,
+                ev->tfinger.y * (float)window_h);
+            return;
+        } else if (ev->type == SDL_EVENT_FINGER_UP || ev->type == SDL_EVENT_FINGER_CANCELED) {
+            return;
+        }
     } else if (ev->type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
         if (ev->button.button == SDL_BUTTON_LEFT) {
             if (ev->button.which == SDL_TOUCH_MOUSEID)
@@ -3228,6 +3355,7 @@ static void sdl_present_if_needed(sdl_view* d)
     }
 
     sdl_touch_pane_render();
+    sdl_touch_pane_render_reset_prompt();
     SDL_RenderPresent(g_state.renderer);
 
     if (d && d->canvas)
@@ -5373,6 +5501,13 @@ int get_sdl_touch_pane_default_binding_for_panel(int panel, int index)
 
 void sdl_touch_pane_reset_bindings_to_default(void)
 {
+    if (g_touch_pane_ctrl_toggle) {
+        g_touch_pane_ctrl_toggle = false;
+        sdl_gamepad_apply_modifier(GAMEPAD_BIND_CTRL, false);
+    }
+
+    g_touch_pane_second_panel = false;
+    sdl_touch_pane_cancel_press();
     sdl_config_set_default_touch_pane_bindings(&config);
     sdl_config_clear_touch_pane_labels(&config);
 }

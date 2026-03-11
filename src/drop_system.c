@@ -3246,15 +3246,6 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
             legal_depth = current_depth;
     }
 
-    /* Skeleton damaged loot only exists in the shallow damaged-item band.
-     * Clamp selection depth so deep skeletons can still find damaged gear. */
-    if (droptype == DROP_TYPE_DAMAGED
-        && object_generation_mode == OB_GEN_MODE_SKELETON
-        && legal_depth > 10)
-    {
-        legal_depth = 10;
-    }
-
     req.depth = gen_depth;
     req.quality = quality;
     req.legal_depth = legal_depth;

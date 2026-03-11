@@ -1496,7 +1496,7 @@ void sdl_config_set_default_touch_pane_bindings(struct sdl_config* config)
         '0', '-', 'q',
         'r', 'S', 'F',
         TOUCH_PANE_BIND_INHERIT, TOUCH_PANE_BIND_INHERIT, TOUCH_PANE_BIND_INHERIT,
-        TOUCH_PANE_BIND_INHERIT, '\r', TOUCH_PANE_BIND_INHERIT,
+        TOUCH_PANE_BIND_INHERIT, 'z', TOUCH_PANE_BIND_INHERIT,
         TOUCH_PANE_BIND_INHERIT, TOUCH_PANE_BIND_INHERIT, TOUCH_PANE_BIND_INHERIT,
         'L', 'X', 'p',
         'w', 'b', 'c',
