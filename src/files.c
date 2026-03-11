@@ -7220,7 +7220,9 @@ void do_cmd_escape(int silmarils)
 
     /* Update metarun: escaped with N Silmarils */
     log_info("Player escaped with %d Silmarils", silmarils);
-    if (!run_mode_is_blitz())
+    if (run_mode_is_blitz())
+        blitz_show_end_summary((byte)MAX(silmarils, 0));
+    else
         metarun_update_on_exit(false, true, silmarils, 0);
 
 }
@@ -7268,6 +7270,9 @@ void do_cmd_morgoth_victory(void)
 
     killer_mark_other(SCORE_KILLER_OTHER);
     killer_commit(p_ptr->died_from);
+
+    if (run_mode_is_blitz())
+        blitz_show_end_summary(3);
 }
 
 /*
@@ -9430,6 +9435,17 @@ static void close_game_aux(void)
             if (!p_ptr->escaped)
                 metarun_update_on_exit(true, false, 0, final_score);
         }
+    }
+    else
+    {
+        int blitz_silmarils = silmarils_possessed();
+
+        if (blitz_silmarils < 0)
+            blitz_silmarils = 0;
+        if (p_ptr->morgoth_slain && blitz_silmarils < 3)
+            blitz_silmarils = 3;
+
+        blitz_show_end_summary((byte)blitz_silmarils);
     }
 
     /* Let the player inspect the final dungeon state before the tomb menu. */

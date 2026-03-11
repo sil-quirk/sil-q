@@ -2218,6 +2218,8 @@ char* oath_banned_text(int oath_id)
 
 char* oath_name_str(int oath_id)
 {
+    if (oath_id == 0) return "No oath";
+    if (!z_info) return "";
     if (oath_id < 0 || oath_id >= z_info->oath_max) return "";
     if (!oath_info[oath_id].name) return "";
     return oath_name_text + oath_info[oath_id].name;

@@ -18,6 +18,7 @@ static blitz_setup g_blitz_setup = {
 
 static int8_t g_blitz_curse_stacks[METAR_CURSE_SLOTS];
 static u64b g_blitz_curses_seen = 0;
+static bool g_blitz_end_summary_shown = false;
 
 int8_t* active_curse_stacks(void)
 {
@@ -35,6 +36,7 @@ void run_mode_reset(void)
     g_current_run_mode = RUN_MODE_STORY;
     blitz_setup_reset();
     blitz_runtime_reset();
+    g_blitz_end_summary_shown = false;
 }
 
 void run_mode_set_pending(run_mode mode)
@@ -139,6 +141,7 @@ void blitz_runtime_reset(void)
 {
     memset(g_blitz_curse_stacks, 0, sizeof(g_blitz_curse_stacks));
     g_blitz_curses_seen = 0;
+    g_blitz_end_summary_shown = false;
 }
 
 int8_t* blitz_runtime_curse_stacks(void)
@@ -159,4 +162,41 @@ void blitz_runtime_restore(const int8_t* stacks, u64b seen)
         memset(g_blitz_curse_stacks, 0, sizeof(g_blitz_curse_stacks));
 
     g_blitz_curses_seen = seen;
+    g_blitz_end_summary_shown = false;
+}
+
+void blitz_show_end_summary(byte sil_count)
+{
+    int wid = 80;
+    int hgt = 24;
+    int row = 4;
+    char result_line[64];
+
+    if (g_blitz_end_summary_shown)
+        return;
+
+    g_blitz_end_summary_shown = true;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1)
+        wid = 80;
+    if (hgt < 1)
+        hgt = 24;
+
+    screen_save();
+    Term_clear();
+
+    c_put_str(TERM_YELLOW, "Blitz Result", 1, MAX((wid - 12) / 2, 0));
+
+    if (sil_count == 1)
+        SDL_strlcpy(result_line, "1 Silmaril was stolen.", sizeof(result_line));
+    else
+        strnfmt(result_line, sizeof(result_line), "%u Silmarils were stolen.",
+            (unsigned)sil_count);
+
+    c_put_str(TERM_L_WHITE, result_line, row, MAX((wid - (int)strlen(result_line)) / 2, 0));
+    c_put_str(TERM_L_BLUE, "Press any key to continue.", MIN(row + 3, hgt - 1), 2);
+    Term_fresh();
+    (void)inkey();
+    screen_load();
 }

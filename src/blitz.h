@@ -50,5 +50,6 @@ void blitz_runtime_reset(void);
 int8_t* blitz_runtime_curse_stacks(void);
 u64b* blitz_runtime_curses_seen(void);
 void blitz_runtime_restore(const int8_t* stacks, u64b seen);
+void blitz_show_end_summary(byte sil_count);
 
 #endif /* INCLUDED_BLITZ_H */

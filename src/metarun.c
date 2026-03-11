@@ -2239,6 +2239,19 @@ static void announce_blessing_gain(int previous_points)
 
 void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_score)
 {
+    if (run_mode_is_blitz())
+    {
+        log_info("Suppressing metarun end-of-run processing for Blitz");
+        if (escaped || (p_ptr && p_ptr->morgoth_slain && !died))
+        {
+            byte summary_sils = sil_count;
+            if (p_ptr && p_ptr->morgoth_slain && summary_sils < 3)
+                summary_sils = 3;
+            blitz_show_end_summary(summary_sils);
+        }
+        return;
+    }
+
     log_info("Metarun update: died=%s, escaped=%s, sil_count=%d, final_score=%ld", 
              died ? "true" : "false", escaped ? "true" : "false", sil_count, (long)final_score);
     int blessing_points_before = (metar.blessing_points < 0) ? 0 : metar.blessing_points;
@@ -5616,11 +5629,16 @@ int get_available_oaths_mask(void)
 {
     if (blitz_oaths_enabled()) {
         int available = 0;
+        int max_oath_id;
 
         if (!z_info)
             return 0;
+        if (z_info->oath_max <= 1)
+            return 0;
 
-        for (int i = 1; i < z_info->oath_max && i <= 8; i++)
+        max_oath_id = MIN(OATH_LIGHT, z_info->oath_max - 1);
+
+        for (int i = 1; i <= max_oath_id; i++)
             available |= (1 << (i - 1));
 
         return available;

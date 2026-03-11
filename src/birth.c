@@ -2955,15 +2955,32 @@ static bool oath_menu_use_compact_layout(void)
     return (wid < 80) || (hgt < 24);
 }
 
+static int oath_selectable_max_id(void)
+{
+    int max_oath_id = OATH_LIGHT;
+
+    if (!z_info)
+        return max_oath_id;
+    if (z_info->oath_max <= 1)
+        return 0;
+    if (max_oath_id >= z_info->oath_max)
+        max_oath_id = z_info->oath_max - 1;
+    if (max_oath_id < 0)
+        max_oath_id = 0;
+
+    return max_oath_id;
+}
+
 static int oath_collect_visible(int available_mask, int* visible_oaths, int max_visible)
 {
     int visible_count = 0;
+    int max_oath_id = oath_selectable_max_id();
 
     if (visible_oaths && visible_count < max_visible)
         visible_oaths[visible_count] = 0;
     visible_count++;
 
-    for (int i = 1; z_info && i < z_info->oath_max; i++)
+    for (int i = 1; i <= max_oath_id; i++)
     {
         if (!(available_mask & (1 << (i - 1))) && !oath_banned(i))
             continue;
@@ -2987,7 +3004,7 @@ static bool oath_option_selectable(int oath_id, int available_mask)
 
 static void oath_move_highlight(int* highlight, int direction, int available_mask)
 {
-    int oath_max = z_info ? z_info->oath_max : 7;
+    int oath_max = oath_selectable_max_id() + 1;
     int original = *highlight;
     int next = *highlight;
 
@@ -3335,7 +3352,7 @@ static NavResult select_oath(void)
     bool steamdeck = steamdeck_controls_active();
 
     /* Find first available oath to highlight */
-    for (int i = 1; z_info && i < z_info->oath_max; i++)
+    for (int i = 1; i <= oath_selectable_max_id(); i++)
     {
         if (available_mask & (1 << (i - 1)))
         {
@@ -3830,7 +3847,7 @@ static int blitz_weighted_random_blessing_pick(void)
     return eligible[0];
 }
 
-static int blitz_select_effect_from_list(bool blessing, bool show_desc, int ordinal, int total)
+static int blitz_select_effect_from_list(bool blessing, bool show_effects, int ordinal, int total)
 {
     int ids[METAR_CURSE_SLOTS];
     int count = blitz_collect_eligible_effect_ids(blessing, ids, METAR_CURSE_SLOTS);
@@ -3851,7 +3868,7 @@ static int blitz_select_effect_from_list(bool blessing, bool show_desc, int ordi
         char title[80];
 
         Term_get_size(&wid, &hgt);
-        list_rows = show_desc ? MAX(4, hgt - 11) : MAX(6, hgt - 5);
+        list_rows = show_effects ? MAX(4, hgt - 11) : MAX(4, hgt - 10);
 
         if (selected < top)
             top = selected;
@@ -3876,7 +3893,6 @@ static int blitz_select_effect_from_list(bool blessing, bool show_desc, int ordi
                 line, 3 + row, 4);
         }
 
-        if (show_desc)
         {
             curse_type* cu = &cu_info[selected_id];
             cptr desc = blessing
@@ -3899,7 +3915,7 @@ static int blitz_select_effect_from_list(bool blessing, bool show_desc, int ordi
                 text_out_c(TERM_SLATE, desc);
                 desc_row += count_wrapped_lines(desc, text_out_wrap, 2);
             }
-            if (power && power[0])
+            if (show_effects && power && power[0])
             {
                 char power_line[512];
                 strnfmt(power_line, sizeof(power_line), "Effect: %s", power);
