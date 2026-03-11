@@ -413,6 +413,11 @@ static const byte app_efficiency_options[] = {
     OPT_NONE
 };
 
+static const byte app_gameplay_options[] = {
+    OPT_unlock_blitz_mode,
+    OPT_NONE
+};
+
 static const byte app_visual_options[] = {
     OPT_auto_display_lists, OPT_artifact_unique_color, OPT_hilite_player,
     OPT_hilite_target, OPT_hilite_unwary, OPT_solid_walls, OPT_hybrid_walls,
@@ -441,6 +446,7 @@ bool option_is_app_persistent(int opt)
     return option_list_contains(app_interface_options, opt)
         || option_list_contains(app_text_options, opt)
         || option_list_contains(app_efficiency_options, opt)
+        || option_list_contains(app_gameplay_options, opt)
         || option_list_contains(app_visual_options, opt);
 }
 
@@ -578,6 +584,7 @@ void sdl_config_load_app_options(const char* filename)
     sdl_config_load_app_option_group(app_options, "interface", app_interface_options);
     sdl_config_load_app_option_group(app_options, "text", app_text_options);
     sdl_config_load_app_option_group(app_options, "efficiency", app_efficiency_options);
+    sdl_config_load_app_option_group(app_options, "gameplay", app_gameplay_options);
     sdl_config_load_app_option_group(app_options, "visual", app_visual_options);
 
     item = cJSON_GetObjectItemCaseSensitive(app_options, "interface");
@@ -1386,6 +1393,7 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
             sdl_config_save_app_option_group(app_options, "interface", app_interface_options);
             sdl_config_save_app_option_group(app_options, "text", app_text_options);
             sdl_config_save_app_option_group(app_options, "efficiency", app_efficiency_options);
+            sdl_config_save_app_option_group(app_options, "gameplay", app_gameplay_options);
             sdl_config_save_app_option_group(app_options, "visual", app_visual_options);
 
             interface = cJSON_GetObjectItemCaseSensitive(app_options, "interface");

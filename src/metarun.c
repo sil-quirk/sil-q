@@ -8,6 +8,7 @@
  *     • print_metarun_stats() – details for current run
  * -------------------------------------------------------------------- */
 #include "angband.h"
+#include "blitz.h"
 #include "externs.h"
 #include "fs/io_sdl.h"
 #include "fs/path.h"
@@ -110,6 +111,30 @@ s16b metarun_current_index(void)
 s16b metarun_entry_count(void)
 {
     return metarun_max;
+}
+
+int metarun_completed_count(void)
+{
+    int completed = 0;
+
+    if (!metaruns)
+        return 0;
+
+    for (s16b i = 0; i < metarun_max; i++) {
+        const metarun *m = &metaruns[i];
+        int win_goal = WINCON_SILMARILS;
+
+        if (runtype_info && z_info && m->type < z_info->rt_max) {
+            win_goal = runtype_info[m->type].win_con
+                ? runtype_info[m->type].win_con
+                : WINCON_SILMARILS;
+        }
+
+        if (m->silmarils >= win_goal)
+            completed++;
+    }
+
+    return completed;
 }
 
 static int parse_character_file(SDL_IOStream *fp)
@@ -4102,6 +4127,7 @@ static void metarun_build_action_prompt(int term_width,
                                         const char *diff_label,
                                         const char *full_label,
                                         const char *history_label,
+                                        bool blitz_enabled,
                                         char *out,
                                         size_t out_size)
 {
@@ -4114,13 +4140,13 @@ static void metarun_build_action_prompt(int term_width,
     const char *full = (full_label && *full_label) ? full_label : "Start";
     const char *hist = (history_label && *history_label) ? history_label : "Y";
 
-    metarun_prompt_action actions[5];
+    metarun_prompt_action actions[6];
     memset(actions, 0, sizeof(actions));
 
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 6; i++) {
         actions[i].variant_count = 4;
         actions[i].variant_idx = 0;
-        actions[i].enabled = true;
+        actions[i].enabled = (i < 5) ? true : blitz_enabled;
     }
 
     /* Lower number means dropped earlier if space is too tight. */
@@ -4129,6 +4155,7 @@ static void metarun_build_action_prompt(int term_width,
     actions[2].drop_priority = 3; /* Difficulty */
     actions[3].drop_priority = 2; /* Full list */
     actions[4].drop_priority = 1; /* History */
+    actions[5].drop_priority = 4; /* Blitz */
 
     if (steamdeck) {
         strnfmt(actions[0].variants[0], sizeof(actions[0].variants[0]), "[%s] Spend blessings", spend);
@@ -4155,6 +4182,8 @@ static void metarun_build_action_prompt(int term_width,
         strnfmt(actions[4].variants[1], sizeof(actions[4].variants[1]), "[%s] Hist", hist);
         strnfmt(actions[4].variants[2], sizeof(actions[4].variants[2]), "[%s] H", hist);
         strnfmt(actions[4].variants[3], sizeof(actions[4].variants[3]), "[%s]", hist);
+        actions[5].enabled = false;
+
     } else {
         SDL_strlcpy(actions[0].variants[0], "[b] Spend blessings", sizeof(actions[0].variants[0]));
         SDL_strlcpy(actions[0].variants[1], "[b] Blessings", sizeof(actions[0].variants[1]));
@@ -4180,15 +4209,20 @@ static void metarun_build_action_prompt(int term_width,
         SDL_strlcpy(actions[4].variants[1], "[s] Hist", sizeof(actions[4].variants[1]));
         SDL_strlcpy(actions[4].variants[2], "[s] H", sizeof(actions[4].variants[2]));
         SDL_strlcpy(actions[4].variants[3], "[s]", sizeof(actions[4].variants[3]));
+
+        SDL_strlcpy(actions[5].variants[0], "[x] Blitz", sizeof(actions[5].variants[0]));
+        SDL_strlcpy(actions[5].variants[1], "[x] Blitz", sizeof(actions[5].variants[1]));
+        SDL_strlcpy(actions[5].variants[2], "[x]", sizeof(actions[5].variants[2]));
+        SDL_strlcpy(actions[5].variants[3], "[x]", sizeof(actions[5].variants[3]));
     }
 
     for (;;) {
-        size_t len = metarun_render_action_prompt(actions, 5, out, out_size);
+        size_t len = metarun_render_action_prompt(actions, 6, out, out_size);
         if ((int)len <= term_width) break;
 
         int best_shrink = -1;
         int best_save = 0;
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 6; i++) {
             if (!actions[i].enabled) continue;
             if (actions[i].variant_idx + 1 >= actions[i].variant_count) continue;
 
@@ -4208,7 +4242,7 @@ static void metarun_build_action_prompt(int term_width,
 
         int drop_idx = -1;
         int drop_priority = INT_MAX;
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 6; i++) {
             if (!actions[i].enabled) continue;
             if (actions[i].drop_priority < drop_priority) {
                 drop_priority = actions[i].drop_priority;
@@ -4224,7 +4258,7 @@ static void metarun_build_action_prompt(int term_width,
         if (steamdeck) {
             strnfmt(out, out_size, "[%s]", spend);
         } else {
-            SDL_strlcpy(out, "[b]", out_size);
+            SDL_strlcpy(out, blitz_enabled ? "[x]" : "[b]", out_size);
         }
     }
 }
@@ -4536,6 +4570,8 @@ void print_metarun_stats(void)
         metarun_prompt_label(start_key, "Start", full_label, sizeof(full_label));
     }
 
+    bool blitz_enabled = (op_ptr && op_ptr->opt[OPT_unlock_blitz_mode]);
+
     bool full_layout = (term_width >= 80 && term_height >= 24);
     int meter_col = 0;
 
@@ -4837,7 +4873,7 @@ void print_metarun_stats(void)
         char prompt_buf[256];
         metarun_build_action_prompt(term_width, steamdeck,
                                     spend_label, threshold_label, diff_label,
-                                    full_label, history_label,
+                                    full_label, history_label, blitz_enabled,
                                     prompt_buf, sizeof(prompt_buf));
         metarun_truncate_for_width(prompt_buf, term_width);
         metarun_put_prompt_line(term_width, term_height, TERM_L_DARK, prompt_buf);
@@ -4970,7 +5006,7 @@ void print_metarun_stats(void)
         char prompt_buf[256];
         metarun_build_action_prompt(term_width, steamdeck,
                                     spend_label, threshold_label, diff_label,
-                                    full_label, history_label,
+                                    full_label, history_label, blitz_enabled,
                                     prompt_buf, sizeof(prompt_buf));
         metarun_truncate_for_width(prompt_buf, term_width);
         metarun_put_prompt_line(term_width, term_height, TERM_L_DARK, prompt_buf);
@@ -5036,6 +5072,11 @@ void print_metarun_stats(void)
         screen_load();
         list_metaruns();
         print_metarun_stats();
+        return;
+    } else if ((key == 'x' || key == 'X') && blitz_enabled) {
+        screen_load();
+        run_mode_set_pending(RUN_MODE_BLITZ);
+        run_mode_set_current(RUN_MODE_BLITZ);
         return;
     }
 
@@ -5573,6 +5614,18 @@ void metarun_ban_oath(int oath_id)
  */
 int get_available_oaths_mask(void)
 {
+    if (blitz_oaths_enabled()) {
+        int available = 0;
+
+        if (!z_info)
+            return 0;
+
+        for (int i = 1; i < z_info->oath_max && i <= 8; i++)
+            available |= (1 << (i - 1));
+
+        return available;
+    }
+
     if (current_run < 0 || current_run >= metarun_max) return 0;
     
     byte unlocked = metaruns[current_run].unlocked_oaths;

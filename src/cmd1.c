@@ -3167,6 +3167,49 @@ static bool pack_item_matches_replacement_type(const object_type* incoming,
     return false;
 }
 
+static void format_staff_prompt_name(char* buf, size_t max,
+                                     const object_type* o_ptr, bool pref)
+{
+    char full[80];
+    const char* staff_of;
+
+    if (!buf || max == 0)
+        return;
+
+    buf[0] = '\0';
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return;
+
+    object_desc(full, sizeof(full), o_ptr, pref, 0);
+
+    if (o_ptr->tval != TV_STAFF)
+    {
+        SDL_strlcpy(buf, full, max);
+        return;
+    }
+
+    staff_of = strstr(full, "Staff of ");
+    if (!staff_of)
+    {
+        SDL_strlcpy(buf, full, max);
+        return;
+    }
+
+    if (!pref)
+    {
+        SDL_strlcpy(buf, staff_of, max);
+        return;
+    }
+
+    if (!strncmp(full, "The ", 4))
+        strnfmt(buf, max, "The %s", staff_of);
+    else if (!strncmp(full, "no more ", 8))
+        strnfmt(buf, max, "no more %s", staff_of);
+    else
+        strnfmt(buf, max, "a %s", staff_of);
+}
+
 bool is_smithed_by_player(const object_type* o_ptr)
 {
     return (o_ptr->unused1 != 0);
@@ -3787,18 +3830,19 @@ void py_pickup(void)
                     {
                         char target_name[80];
                         char donor_name[80];
-                        char prompt[80];
-                        /* Limit names so the combined total stays visible in 80-column prompts */
-                        const int max_name_len = 20;
-                        object_desc(target_name, sizeof(target_name), target, true, 3);
-                        object_desc(donor_name, sizeof(donor_name), o_ptr, true, 3);
+                        char prompt[120];
+                        format_staff_prompt_name(
+                            target_name, sizeof(target_name), target, false);
+                        format_staff_prompt_name(
+                            donor_name, sizeof(donor_name), o_ptr, true);
                         
                         log_debug("Channeling: donor floor staff k_idx=%d pval=%d number=%d, target inv slot %d k_idx=%d pval=%d number=%d",
                                   o_ptr->k_idx, o_ptr->pval, o_ptr->number,
                                   target_slot, target->k_idx, target->pval, target->number);
                         
-                        strnfmt(prompt, sizeof(prompt), "Channel to %d charges from %.*s into %.*s? ",
-                            combined_uses, max_name_len, donor_name, max_name_len, target_name);
+                        strnfmt(prompt, sizeof(prompt),
+                            "Channel %s into your %s (%d charges)?",
+                            donor_name, target_name, combined_uses);
                         if (get_check(prompt))
                         {
                             target->pval = (s16b)combined_pval;
@@ -3813,8 +3857,9 @@ void py_pickup(void)
                                 inven_item_charges(target_slot);
                             p_ptr->redraw |= (PR_EQUIPPY | PR_RESIST);
                             p_ptr->window |= (PW_EQUIP | PW_PLAYER_0 | PW_INVEN);
-                            msg_format("You channel %d charge%s into %s (now %d).",
-                                gain_uses, (gain_uses == 1) ? "" : "s", target_name, combined_uses);
+                            msg_format("You channel %d charge%s into your %s (now %d).",
+                                gain_uses, (gain_uses == 1) ? "" : "s",
+                                target_name, combined_uses);
                             delete_object_idx(this_o_idx);
                             
                             log_debug("Channeling: deleted floor object idx %d", this_o_idx);

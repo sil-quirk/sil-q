@@ -10,6 +10,7 @@
 
 #include "angband.h"
 #include "externs.h"
+#include "blitz.h"
 #include "fs/path.h"
 #include "log/log.h"
 #include "player/killer.h"
@@ -42,6 +43,8 @@ extern void wipe_screen_from(int col);
 
 static int find_named_artifact_for_character(void);
 static void grant_starting_artifact(void);
+
+#define BLITZ_MAX_EFFECT_COUNT 9
 
 /* Character ability names */
 static const char *character_ability_names[S_MAX][ABILITIES_MAX] =
@@ -765,7 +768,8 @@ static void player_outfit(void)
     log_debug("Giving starting items for character: %s", c_name + current_character_profile->name);
     give_start_items(current_character_profile->start_items);   /* character kit */
 
-    if (metarun_has_major_blessing_effect(METARUN_MAJOR_EFFECT_START_ARTIFACT)) {
+    if (!run_mode_is_blitz()
+        && metarun_has_major_blessing_effect(METARUN_MAJOR_EFFECT_START_ARTIFACT)) {
         grant_starting_artifact();
     }
 
@@ -2571,6 +2575,273 @@ static bool get_character_profile(void)
     return (true);
 }
 
+static cptr blitz_character_mode_name(byte mode)
+{
+    switch (mode)
+    {
+    case BLITZ_CHARACTER_RANDOM_STATS: return "Random with stats";
+    case BLITZ_CHARACTER_SELECTED: return "Selected";
+    default: return "Random";
+    }
+}
+
+static cptr blitz_effect_mode_name(byte mode)
+{
+    switch (mode)
+    {
+    case BLITZ_EFFECT_SELECTED: return "Selected";
+    case BLITZ_EFFECT_SELECTED_DESCR: return "Selected + descriptions";
+    default: return "Random";
+    }
+}
+
+static void blitz_setup_clamp(blitz_setup* setup)
+{
+    if (!setup)
+        return;
+
+    if (setup->character_mode > BLITZ_CHARACTER_SELECTED)
+        setup->character_mode = BLITZ_CHARACTER_RANDOM;
+    if (setup->effect_mode > BLITZ_EFFECT_SELECTED_DESCR)
+        setup->effect_mode = BLITZ_EFFECT_RANDOM;
+    if (setup->blessing_count > BLITZ_MAX_EFFECT_COUNT)
+        setup->blessing_count = BLITZ_MAX_EFFECT_COUNT;
+    if (setup->curse_count > BLITZ_MAX_EFFECT_COUNT)
+        setup->curse_count = BLITZ_MAX_EFFECT_COUNT;
+    if (setup->curse_count < setup->blessing_count)
+        setup->curse_count = setup->blessing_count;
+}
+
+static void blitz_pick_random_race_and_character(void)
+{
+    int race = 0;
+    int available[64];
+    int available_count = 0;
+
+    if (!z_info)
+        return;
+
+    race = rand_int(z_info->p_max);
+    p_ptr->prace = race;
+    rp_ptr = &p_info[p_ptr->prace];
+
+    for (int i = 0; i < z_info->c_max && available_count < (int)N_ELEMENTS(available); i++)
+    {
+        if (is_set(i))
+            available[available_count++] = i;
+    }
+
+    if (available_count <= 0)
+        p_ptr->pcharacter = 0;
+    else
+        p_ptr->pcharacter = available[rand_int(available_count)];
+
+    current_character_profile = &c_info[p_ptr->pcharacter];
+}
+
+static void blitz_setup_draw(const blitz_setup* setup, int selected)
+{
+    char buf[160];
+    int wid = 80;
+    int hgt = 24;
+
+    Term_get_size(&wid, &hgt);
+    Term_clear();
+
+    c_put_str(TERM_YELLOW, "Blitz Setup", 1, MAX((wid - 11) / 2, 0));
+    c_put_str(TERM_SLATE,
+        "Configure a self-contained Blitz run. Story progress stays untouched.",
+        3, 2);
+
+    strnfmt(buf, sizeof(buf), "Character: %s", blitz_character_mode_name(setup->character_mode));
+    c_put_str(selected == 0 ? TERM_L_BLUE : TERM_WHITE, buf, 6, 4);
+
+    strnfmt(buf, sizeof(buf), "Oaths: %s", setup->oaths_enabled ? "Yes" : "No");
+    c_put_str(selected == 1 ? TERM_L_BLUE : TERM_WHITE, buf, 7, 4);
+
+    strnfmt(buf, sizeof(buf), "Blessings: %d", setup->blessing_count);
+    c_put_str(selected == 2 ? TERM_L_BLUE : TERM_WHITE, buf, 8, 4);
+
+    strnfmt(buf, sizeof(buf), "Curses: %d", setup->curse_count);
+    c_put_str(selected == 3 ? TERM_L_BLUE : TERM_WHITE, buf, 9, 4);
+
+    strnfmt(buf, sizeof(buf), "Effect picks: %s", blitz_effect_mode_name(setup->effect_mode));
+    c_put_str(selected == 4 ? TERM_L_BLUE : TERM_WHITE, buf, 10, 4);
+
+    c_put_str(TERM_L_DARK, "8/2 navigate  4/6 change  Enter begin  Esc back", 13, 2);
+}
+
+static NavResult blitz_setup_menu(void)
+{
+    blitz_setup* setup = blitz_current_setup_mutable();
+    int selected = 0;
+
+    blitz_setup_clamp(setup);
+
+    while (1)
+    {
+        char key;
+
+        blitz_setup_draw(setup, selected);
+        key = inkey();
+
+        if (key == ESCAPE)
+            return NAV_TO_MAIN;
+
+        if (key == '\n' || key == '\r' || key == ' ')
+            return NAV_OK;
+
+        if (key == '8')
+        {
+            selected = (selected + 4) % 5;
+            continue;
+        }
+
+        if (key == '2')
+        {
+            selected = (selected + 1) % 5;
+            continue;
+        }
+
+        if (key != '4' && key != '6')
+            continue;
+
+        switch (selected)
+        {
+        case 0:
+            if (key == '4')
+                setup->character_mode = (setup->character_mode == BLITZ_CHARACTER_RANDOM)
+                    ? BLITZ_CHARACTER_SELECTED
+                    : setup->character_mode - 1;
+            else
+                setup->character_mode = (setup->character_mode == BLITZ_CHARACTER_SELECTED)
+                    ? BLITZ_CHARACTER_RANDOM
+                    : setup->character_mode + 1;
+            break;
+        case 1:
+            setup->oaths_enabled = !setup->oaths_enabled;
+            break;
+        case 2:
+            if (key == '4' && setup->blessing_count > 0)
+                setup->blessing_count--;
+            else if (key == '6' && setup->blessing_count < BLITZ_MAX_EFFECT_COUNT)
+                setup->blessing_count++;
+            break;
+        case 3:
+            if (key == '4' && setup->curse_count > 0)
+                setup->curse_count--;
+            else if (key == '6' && setup->curse_count < BLITZ_MAX_EFFECT_COUNT)
+                setup->curse_count++;
+            break;
+        case 4:
+            if (key == '4')
+                setup->effect_mode = (setup->effect_mode == BLITZ_EFFECT_RANDOM)
+                    ? BLITZ_EFFECT_SELECTED_DESCR
+                    : setup->effect_mode - 1;
+            else
+                setup->effect_mode = (setup->effect_mode == BLITZ_EFFECT_SELECTED_DESCR)
+                    ? BLITZ_EFFECT_RANDOM
+                    : setup->effect_mode + 1;
+            break;
+        default:
+            break;
+        }
+
+        blitz_setup_clamp(setup);
+    }
+}
+
+static void finalize_character_creation_selection(void)
+{
+    int i, j;
+
+    /* Clear the base values of the skills */
+    for (i = 0; i < S_MAX; i++)
+        p_ptr->skill_base[i] = 0;
+
+    /* Clear the abilities and add bonus ability*/
+    for (i = 0; i < S_MAX; i++)
+    {
+        for (j = 0; j < ABILITIES_MAX; j++)
+        {
+            p_ptr->innate_ability[i][j] = false;
+            p_ptr->active_ability[i][j] = false;
+        }
+    }
+
+    for (int slot = 0; slot < CHARACTER_ABILITY_MAX; slot++)
+    {
+        int stat = c_info[p_ptr->pcharacter].a_adj[slot][0];
+        int ab;
+
+        if (stat < 0) break;
+        ab = c_info[p_ptr->pcharacter].a_adj[slot][1];
+        if (stat < S_MAX && ab < ABILITIES_MAX)
+        {
+            p_ptr->innate_ability[stat][ab] = true;
+            p_ptr->active_ability[stat][ab] = true;
+        }
+    }
+
+    for (i = OPT_BIRTH; i < OPT_CHEAT; i++)
+        op_ptr->opt[OPT_ADULT + (i - OPT_BIRTH)] = op_ptr->opt[i];
+
+    for (i = OPT_CHEAT; i < OPT_ADULT; i++)
+        op_ptr->opt[OPT_SCORE + (i - OPT_CHEAT)] = op_ptr->opt[i];
+
+    if (strlen(op_ptr->full_name) == 0)
+    {
+        op_ptr->vault_drop_frequency = VDF_NORMAL;
+        op_ptr->noble_item_spawn_mode = NOBLE_ITEM_SPAWN_RESTRICTED;
+    }
+
+    if (op_ptr->main_combat_rolls > 4)
+        op_ptr->main_combat_rolls = 0;
+    if (op_ptr->ability_desc_mode > 2)
+        op_ptr->ability_desc_mode = 0;
+    if (op_ptr->vault_drop_frequency > VDF_PLENTIFUL)
+        op_ptr->vault_drop_frequency = VDF_NORMAL;
+    if (op_ptr->level_entry_narrative_mode > LEVEL_ENTRY_NARRATIVE_OFF)
+        op_ptr->level_entry_narrative_mode = LEVEL_ENTRY_NARRATIVE_BANNER_DELAY;
+    if (op_ptr->partition_narrative_mode > PARTITION_NARRATIVE_OFF)
+        op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_BANNER;
+    if (op_ptr->intro_style > INTRO_STYLE_RANDOM)
+        op_ptr->intro_style = INTRO_STYLE_RANDOM;
+    if (op_ptr->noble_item_spawn_mode > NOBLE_ITEM_SPAWN_INCLUDE_VAULTS)
+        op_ptr->noble_item_spawn_mode = NOBLE_ITEM_SPAWN_RESTRICTED;
+
+    for (i = 0; i < z_info->k_max; i++)
+        k_info[i].squelch = SQUELCH_NEVER;
+    for (i = 0; i < SQUELCH_BYTES; i++)
+        squelch_level[i] = SQUELCH_NONE;
+    for (i = 0; i < z_info->e_max; i++)
+    {
+        e_info[i].aware = false;
+        e_info[i].squelch = false;
+    }
+
+    Term_clear();
+
+    log_debug("Character creation step completed: %s %s",
+        p_name + p_info[p_ptr->prace].name,
+        c_name + c_info[p_ptr->pcharacter].name);
+}
+
+NavResult blitz_character_creation(void)
+{
+    blitz_runtime_reset();
+
+    if (blitz_setup_menu() != NAV_OK)
+        return NAV_TO_MAIN;
+
+    if (blitz_current_setup()->character_mode == BLITZ_CHARACTER_SELECTED)
+        return character_creation();
+
+    blitz_pick_random_race_and_character();
+    finalize_character_creation_selection();
+    return NAV_OK;
+}
+
 /*
  * Helper function for 'player_birth()'.
  *
@@ -2579,7 +2850,7 @@ static bool get_character_profile(void)
  */
 NavResult character_creation(void)
 {
-    int i, j;
+    int i;
 
     int phase = 1;
 
@@ -2663,116 +2934,7 @@ NavResult character_creation(void)
         }
     }
 
-    /* Clear the base values of the skills */
-    for (i = 0; i < S_MAX; i++)
-        p_ptr->skill_base[i] = 0;
-
-    /* Clear the abilities and add bonus ability*/
-    for (i = 0; i < S_MAX; i++)
-    {
-        for (j = 0; j < ABILITIES_MAX; j++)
-        {
-            p_ptr->innate_ability[i][j] = false;
-            p_ptr->active_ability[i][j] = false;
-        }
-    }
-    // Bonus abilities
-    /* grant *all* parsed character abilities */
-    for (int slot = 0; slot < CHARACTER_ABILITY_MAX; slot++)
-    {
-        int stat = c_info[p_ptr->pcharacter].a_adj[slot][0];
-        /* sentinel: no more entries */
-        if (stat < 0) break;
-
-        int ab = c_info[p_ptr->pcharacter].a_adj[slot][1];
-        /* sanity-check bounds */
-        if (stat < S_MAX && ab < ABILITIES_MAX)
-        {
-            p_ptr->innate_ability[stat][ab] = true;
-            p_ptr->active_ability[stat][ab] = true;
-        }
-    }
-
-    /* Set adult options from birth options */
-    for (i = OPT_BIRTH; i < OPT_CHEAT; i++)
-    {
-        op_ptr->opt[OPT_ADULT + (i - OPT_BIRTH)] = op_ptr->opt[i];
-    }
-
-    /* Reset score options from cheat options */
-    for (i = OPT_CHEAT; i < OPT_ADULT; i++)
-    {
-        op_ptr->opt[OPT_SCORE + (i - OPT_CHEAT)] = op_ptr->opt[i];
-    }
-
-    /* Set defaults for run-specific settings unless this is an old game file.
-     * App-wide presentation/settings values are loaded from sil_sdl.json. */
-    if (strlen(op_ptr->full_name) == 0)
-    {
-        op_ptr->vault_drop_frequency = VDF_NORMAL;
-        op_ptr->noble_item_spawn_mode = NOBLE_ITEM_SPAWN_RESTRICTED;
-    }
-
-    /* Ensure main_combat_rolls has a valid value for existing saves */
-    if (op_ptr->main_combat_rolls > 4)
-    {
-        op_ptr->main_combat_rolls = 0;  /* Default to 0 lines */
-    }
-
-    /* Ensure ability_desc_mode has a valid value for existing saves */
-    if (op_ptr->ability_desc_mode > 2)
-    {
-        op_ptr->ability_desc_mode = 0;
-    }
-
-    /* Ensure vault_drop_frequency has a valid value for existing saves */
-    if (op_ptr->vault_drop_frequency > VDF_PLENTIFUL)
-    {
-        op_ptr->vault_drop_frequency = VDF_NORMAL;
-    }
-
-    if (op_ptr->level_entry_narrative_mode > LEVEL_ENTRY_NARRATIVE_OFF)
-    {
-        op_ptr->level_entry_narrative_mode = LEVEL_ENTRY_NARRATIVE_BANNER_DELAY;
-    }
-
-    if (op_ptr->partition_narrative_mode > PARTITION_NARRATIVE_OFF)
-    {
-        op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_BANNER;
-    }
-
-    if (op_ptr->intro_style > INTRO_STYLE_RANDOM)
-    {
-        op_ptr->intro_style = INTRO_STYLE_RANDOM;
-    }
-
-    if (op_ptr->noble_item_spawn_mode > NOBLE_ITEM_SPAWN_INCLUDE_VAULTS)
-    {
-        op_ptr->noble_item_spawn_mode = NOBLE_ITEM_SPAWN_RESTRICTED;
-    }
-
-    /* reset squelch bits */
-
-    for (i = 0; i < z_info->k_max; i++)
-    {
-        k_info[i].squelch = SQUELCH_NEVER;
-    }
-    /*Clear the squelch bytes*/
-    for (i = 0; i < SQUELCH_BYTES; i++)
-    {
-        squelch_level[i] = SQUELCH_NONE;
-    }
-    /* Clear the special item squelching flags */
-    for (i = 0; i < z_info->e_max; i++)
-    {
-        e_info[i].aware = false;
-        e_info[i].squelch = false;
-    }
-
-    /* Clear */
-    Term_clear();
-
-    log_debug("Character creation step completed: %s %s", p_name + p_info[p_ptr->prace].name, c_name + c_info[p_ptr->pcharacter].name);
+    finalize_character_creation_selection();
 
     /* Done */
     return NAV_OK;
@@ -3506,31 +3668,483 @@ static const int birth_stat_costs[11]
 /* Forward declaration: used by compact skill allocation rendering. */
 static int skill_cost(int base, int points);
 
-static void birth_display_name_centered(void)
+static cptr blitz_curse_name_str(int id)
 {
-    char name[80];
+    cptr raw = cu_name + cu_info[id].name;
+    if (strncmp(raw, "Curse of ", 9) == 0)
+        raw += 9;
+    return raw;
+}
+
+static cptr blitz_blessing_name_str(int id)
+{
+    if (cu_info[id].blessing_name)
+    {
+        cptr raw = cu_name + cu_info[id].blessing_name;
+        if (strncmp(raw, "Blessing of ", 12) == 0)
+            raw += 12;
+        return raw;
+    }
+
+    return blitz_curse_name_str(id);
+}
+
+static int blitz_collect_eligible_effect_ids(bool blessing, int ids[], int max_ids)
+{
+    int count = 0;
+
+    for (int id = 0; z_info && id < z_info->cu_max && count < max_ids; id++)
+    {
+        int stacks = CURSE_GET(id);
+        int blessing_stacks = (stacks < 0) ? -stacks : 0;
+        int curse_stacks = (stacks > 0) ? stacks : 0;
+        byte cap = cu_info[id].max_stacks;
+
+        if (blessing)
+        {
+            if (!cu_info[id].blessing_name)
+                continue;
+            if (stacks > 0)
+                continue;
+            if (cap > 0 && blessing_stacks >= cap)
+                continue;
+        }
+        else
+        {
+            if (!cu_info[id].name)
+                continue;
+            if (cap > 0 && curse_stacks >= cap)
+                continue;
+        }
+
+        ids[count++] = id;
+    }
+
+    return count;
+}
+
+static int blitz_weighted_random_curse_pick(void)
+{
+    long total = 0;
+    int w_max = 1;
+    bool tilt = (p_info[p_ptr->prace].flags & RHF_CURSE)
+        || (c_info[p_ptr->pcharacter].flags & RHF_CURSE);
+
+    for (int i = 0; z_info && i < z_info->cu_max; i++)
+    {
+        if (!cu_info[i].name)
+            continue;
+        if (cu_info[i].weight > w_max)
+            w_max = cu_info[i].weight;
+    }
+
+    for (int i = 0; z_info && i < z_info->cu_max; i++)
+    {
+        byte w = cu_info[i].weight ? cu_info[i].weight : 1;
+        int cnt = CURSE_CURSE_STACK(i);
+        byte cap = cu_info[i].max_stacks;
+        long base;
+
+        if (!cu_info[i].name)
+            continue;
+        if (cap && cnt >= cap)
+            continue;
+        if (tilt && w == w_max)
+            continue;
+
+        base = tilt ? w + ((w_max + 1 - w) >> 1) : w;
+        total += base / (cnt + 1);
+    }
+
+    if (!total)
+        return -1;
+
+    long pick = rand_int(total);
+    long run = 0;
+    for (int i = 0; z_info && i < z_info->cu_max; i++)
+    {
+        byte w = cu_info[i].weight ? cu_info[i].weight : 1;
+        int cnt = CURSE_CURSE_STACK(i);
+        byte cap = cu_info[i].max_stacks;
+        long base;
+        long eff;
+
+        if (!cu_info[i].name)
+            continue;
+        if (cap && cnt >= cap)
+            continue;
+        if (tilt && w == w_max)
+            continue;
+
+        base = tilt ? w + ((w_max + 1 - w) >> 1) : w;
+        eff = base / (cnt + 1);
+        run += eff;
+        if (pick < run)
+            return i;
+    }
+
+    return -1;
+}
+
+static int blitz_weighted_random_blessing_pick(void)
+{
+    int eligible[METAR_CURSE_SLOTS];
+    int weights[METAR_CURSE_SLOTS];
+    int count = 0;
+    int total_weight = 0;
+
+    for (int id = 0; z_info && id < z_info->cu_max && count < METAR_CURSE_SLOTS; id++)
+    {
+        int stacks = CURSE_GET(id);
+        int blessing_stacks = (stacks < 0) ? -stacks : 0;
+        int base_weight;
+        int effective_weight;
+
+        if (!cu_info[id].blessing_name)
+            continue;
+        if (stacks > 0)
+            continue;
+        if (cu_info[id].max_stacks > 0 && blessing_stacks >= cu_info[id].max_stacks)
+            continue;
+
+        eligible[count] = id;
+        base_weight = cu_info[id].weight > 0 ? cu_info[id].weight : 1;
+        effective_weight = base_weight / (blessing_stacks + 1);
+        weights[count] = (effective_weight > 0) ? effective_weight : 1;
+        total_weight += weights[count];
+        count++;
+    }
+
+    if (count <= 0 || total_weight <= 0)
+        return -1;
+
+    int roll = rand_int(total_weight);
+    int sum = 0;
+    for (int i = 0; i < count; i++)
+    {
+        sum += weights[i];
+        if (roll < sum)
+            return eligible[i];
+    }
+
+    return eligible[0];
+}
+
+static int blitz_select_effect_from_list(bool blessing, bool show_desc, int ordinal, int total)
+{
+    int ids[METAR_CURSE_SLOTS];
+    int count = blitz_collect_eligible_effect_ids(blessing, ids, METAR_CURSE_SLOTS);
+    int selected = 0;
+    int top = 0;
+
+    if (count <= 0)
+        return -1;
+
+    while (1)
+    {
+        int wid = 80;
+        int hgt = 24;
+        int list_rows;
+        int selected_id;
+        int row;
+        char key;
+        char title[80];
+
+        Term_get_size(&wid, &hgt);
+        list_rows = show_desc ? MAX(4, hgt - 11) : MAX(6, hgt - 5);
+
+        if (selected < top)
+            top = selected;
+        if (selected >= top + list_rows)
+            top = selected - list_rows + 1;
+
+        selected_id = ids[selected];
+        Term_clear();
+
+        strnfmt(title, sizeof(title), "Choose %s %d of %d",
+            blessing ? "Blessing" : "Curse", ordinal, total);
+        c_put_str(TERM_YELLOW, title, 1, MAX((wid - (int)strlen(title)) / 2, 0));
+
+        for (row = 0; row < list_rows && top + row < count; row++)
+        {
+            int idx = top + row;
+            cptr name = blessing ? blitz_blessing_name_str(ids[idx])
+                                 : blitz_curse_name_str(ids[idx]);
+            char line[128];
+            strnfmt(line, sizeof(line), "%s", name);
+            c_put_str(idx == selected ? TERM_L_BLUE : (blessing ? TERM_L_GREEN : TERM_L_RED),
+                line, 3 + row, 4);
+        }
+
+        if (show_desc)
+        {
+            curse_type* cu = &cu_info[selected_id];
+            cptr desc = blessing
+                ? (cu->blessing_text ? cu_text + cu->blessing_text : "")
+                : (cu->text ? cu_text + cu->text : "");
+            cptr power = blessing
+                ? (cu->blessing_power ? cu_text + cu->blessing_power : "")
+                : (cu->power ? cu_text + cu->power : "");
+            int desc_row = 4 + list_rows;
+
+            c_put_str(TERM_WHITE, blessing ? blitz_blessing_name_str(selected_id)
+                                           : blitz_curse_name_str(selected_id),
+                desc_row++, 2);
+            if (desc && desc[0])
+            {
+                text_out_hook = text_out_to_screen;
+                text_out_wrap = wid - 4;
+                text_out_indent = 2;
+                Term_gotoxy(2, desc_row);
+                text_out_c(TERM_SLATE, desc);
+                desc_row += count_wrapped_lines(desc, text_out_wrap, 2);
+            }
+            if (power && power[0])
+            {
+                char power_line[512];
+                strnfmt(power_line, sizeof(power_line), "Effect: %s", power);
+                text_out_hook = text_out_to_screen;
+                text_out_wrap = wid - 4;
+                text_out_indent = 2;
+                Term_gotoxy(2, desc_row + 1);
+                text_out_c(blessing ? TERM_L_GREEN : TERM_L_RED, power_line);
+            }
+        }
+
+        c_put_str(TERM_L_DARK, "8/2 navigate  Enter select  Esc back", hgt - 1, 2);
+        key = inkey();
+
+        if (key == ESCAPE)
+            return -1;
+        if (key == '\n' || key == '\r' || key == ' ')
+            return selected_id;
+        if (key == '8')
+        {
+            selected = (selected + count - 1) % count;
+            continue;
+        }
+        if (key == '2')
+        {
+            selected = (selected + 1) % count;
+            continue;
+        }
+    }
+}
+
+static void blitz_apply_effect_pick(int id, bool blessing)
+{
+    CURSE_ADD(id, blessing ? -1 : 1);
+    CURSE_SEEN_SET(id);
+}
+
+static void blitz_show_effect_summary(void)
+{
     int wid = 80;
     int hgt = 24;
-    int col = 0;
+    int row = 3;
 
     Term_get_size(&wid, &hgt);
-    if (wid < 1) wid = 80;
-    (void)hgt;
+    Term_clear();
+    c_put_str(TERM_YELLOW, "Blitz Effects", 1, MAX((wid - 13) / 2, 0));
 
-    if (p_ptr->oaths_broken)
-        strnfmt(name, sizeof(name), "%s the Oathbreaker", op_ptr->full_name);
-    else
-        strnfmt(name, sizeof(name), "%s%s", op_ptr->full_name,
-            c_name + current_character_profile->alt_name);
+    for (int id = 0; z_info && id < z_info->cu_max; id++)
+    {
+        int stacks = CURSE_GET(id);
+        char line[128];
 
-    int name_len = (int)strlen(name);
-    if (name_len < wid)
-        col = (wid - name_len) / 2;
-    if (col < 0)
-        col = 0;
+        if (stacks == 0)
+            continue;
 
-    Term_erase(0, 0, 255);
-    c_put_str(p_ptr->oaths_broken ? TERM_RED : TERM_L_BLUE, name, 0, col);
+        strnfmt(line, sizeof(line), "%s x%d",
+            (stacks < 0) ? blitz_blessing_name_str(id) : blitz_curse_name_str(id),
+            (stacks < 0) ? -stacks : stacks);
+        c_put_str(stacks < 0 ? TERM_L_GREEN : TERM_L_RED, line, row++, 4);
+    }
+
+    if (row == 3)
+        c_put_str(TERM_SLATE, "No blessings or curses selected.", row++, 4);
+
+    c_put_str(TERM_L_BLUE, "Press any key to continue.", MIN(row + 1, hgt - 1), 2);
+    (void)inkey();
+}
+
+static NavResult blitz_configure_effects(void)
+{
+    const blitz_setup* setup = blitz_current_setup();
+
+    blitz_runtime_reset();
+
+    for (int i = 0; i < setup->curse_count; i++)
+    {
+        int id = (setup->effect_mode == BLITZ_EFFECT_RANDOM)
+            ? blitz_weighted_random_curse_pick()
+            : blitz_select_effect_from_list(false,
+                setup->effect_mode == BLITZ_EFFECT_SELECTED_DESCR, i + 1, setup->curse_count);
+        if (id < 0)
+            return NAV_BACK;
+        blitz_apply_effect_pick(id, false);
+    }
+
+    for (int i = 0; i < setup->blessing_count; i++)
+    {
+        int id = (setup->effect_mode == BLITZ_EFFECT_RANDOM)
+            ? blitz_weighted_random_blessing_pick()
+            : blitz_select_effect_from_list(true,
+                setup->effect_mode == BLITZ_EFFECT_SELECTED_DESCR, i + 1, setup->blessing_count);
+        if (id < 0)
+            return NAV_BACK;
+        blitz_apply_effect_pick(id, true);
+    }
+
+    if (setup->curse_count > 0 || setup->blessing_count > 0)
+        blitz_show_effect_summary();
+
+    return NAV_OK;
+}
+
+static void blitz_auto_assign_stats(int stats[A_MAX])
+{
+    int cost = 0;
+
+    for (int i = 0; i < A_MAX; i++)
+        stats[i] = 0;
+
+    while (cost < MAX_COST)
+    {
+        int choices[A_MAX];
+        int choice_count = 0;
+
+        for (int i = 0; i < A_MAX; i++)
+        {
+            int next = stats[i] + 1;
+            int next_cost;
+
+            if (next > 6)
+                continue;
+            next_cost = cost - birth_stat_costs[stats[i] + 4]
+                + birth_stat_costs[next + 4];
+            if (next_cost <= MAX_COST)
+                choices[choice_count++] = i;
+        }
+
+        if (choice_count <= 0)
+            break;
+
+        int pick = choices[rand_int(choice_count)];
+        cost -= birth_stat_costs[stats[pick] + 4];
+        stats[pick]++;
+        cost += birth_stat_costs[stats[pick] + 4];
+    }
+}
+
+static void blitz_auto_assign_skills(void)
+{
+    int old_base[S_MAX];
+    int gains[S_MAX];
+    int budget;
+
+    for (int i = 0; i < S_MAX; i++)
+    {
+        old_base[i] = p_ptr->skill_base[i];
+        gains[i] = 0;
+    }
+
+    budget = p_ptr->new_exp;
+
+    while (budget > 0)
+    {
+        int choices[S_MAX];
+        int weights[S_MAX];
+        int choice_count = 0;
+        int total_weight = 0;
+
+        for (int i = 0; i < S_MAX; i++)
+        {
+            int delta;
+            int weight = 2;
+
+            if (i == S_SPC)
+                continue;
+
+            delta = skill_cost(old_base[i], gains[i] + 1)
+                - skill_cost(old_base[i], gains[i]);
+            if (delta <= 0 || delta > budget)
+                continue;
+
+            for (int slot = 0; slot < CHARACTER_ABILITY_MAX; slot++)
+            {
+                int skill_idx = c_info[p_ptr->pcharacter].a_adj[slot][0];
+                if (skill_idx < 0)
+                    break;
+                if (skill_idx == i)
+                    weight += 3;
+            }
+
+            choices[choice_count] = i;
+            weights[choice_count] = weight;
+            total_weight += weight;
+            choice_count++;
+        }
+
+        if (choice_count <= 0)
+            break;
+
+        int roll = rand_int(total_weight);
+        int sum = 0;
+        int chosen = choices[0];
+        for (int i = 0; i < choice_count; i++)
+        {
+            sum += weights[i];
+            if (roll < sum)
+            {
+                chosen = choices[i];
+                break;
+            }
+        }
+
+        budget -= skill_cost(old_base[chosen], gains[chosen] + 1)
+            - skill_cost(old_base[chosen], gains[chosen]);
+        gains[chosen]++;
+    }
+
+    for (int i = 0; i < S_MAX; i++)
+    {
+        if (i == S_SPC)
+            continue;
+        p_ptr->skill_base[i] = old_base[i] + gains[i];
+    }
+
+    p_ptr->new_exp = budget;
+}
+
+static NavResult blitz_auto_build_character(void)
+{
+    int stats[A_MAX];
+
+    get_extra();
+    blitz_auto_assign_stats(stats);
+
+    for (int i = 0; i < A_MAX; i++)
+    {
+        int bonus = rp_ptr->r_adj[i] + current_character_profile->h_adj[i] + curses_stat_adj(i);
+        p_ptr->stat_base[i] = stats[i] + bonus;
+        p_ptr->stat_drain[i] = 0;
+    }
+
+    p_ptr->update |= (PU_BONUS | PU_HP);
+    update_stuff();
+    p_ptr->chp = p_ptr->mhp;
+    calc_voice();
+    p_ptr->csp = p_ptr->msp;
+
+    blitz_auto_assign_skills();
+    p_ptr->update |= (PU_BONUS);
+    update_stuff();
+    p_ptr->chp = p_ptr->mhp;
+    calc_voice();
+    p_ptr->csp = p_ptr->msp;
+
+    return NAV_OK;
 }
 
 static void birth_display_stats_allocation_compact(const int stats[A_MAX], int selected,
@@ -3696,7 +4310,7 @@ static NavResult player_birth_aux_2(void)
     log_debug("Checking if tutorial should be shown...");
     bool is_empty = highscore_is_empty();
     log_debug("highscore_is_empty() returned: %s", is_empty ? "true" : "false");
-    if (is_empty)
+    if (!run_mode_is_blitz() && is_empty)
     {
         log_info("First-time player detected - showing character screen tutorial");
         
@@ -4246,31 +4860,54 @@ static NavResult player_birth_aux(void)
     p_ptr->age = 0;
 
     /* Oath selection (after character creation, before tutorial/stats) */
-    log_debug("Entering oath selection");
-    NavResult oath_result = select_oath();
-    if (oath_result != NAV_OK) return oath_result;
-    log_debug("Oath selection completed");
+    if (run_mode_is_blitz() && !blitz_oaths_enabled())
+    {
+        p_ptr->oath_type = 0;
+    }
+    else
+    {
+        log_debug("Entering oath selection");
+        NavResult oath_result = select_oath();
+        if (oath_result != NAV_OK) return oath_result;
+        log_debug("Oath selection completed");
+    }
+
+    if (run_mode_is_blitz())
+    {
+        NavResult blitz_effects = blitz_configure_effects();
+        if (blitz_effects != NAV_OK)
+            return blitz_effects;
+    }
 
     /* Point-based flow */
-    for (;;)
+    if (blitz_auto_allocates_stats())
     {
-        display_player(0);
+        NavResult auto_result = blitz_auto_build_character();
+        if (auto_result != NAV_OK)
+            return auto_result;
+    }
+    else
+    {
+        for (;;)
+        {
+            display_player(0);
 
-        /* Stats allocation screen */
-        log_debug("Entering stats allocation");
-        NavResult s = player_birth_aux_2();
-        if (s == NAV_OK) {
-            /* Skill allocation: may return NAV_BACK / NAV_TO_MAIN */
-            log_debug("Stats accepted, entering skills allocation");
-            NavResult g = gain_skills();
-            if (g != NAV_OK) return g;
-            log_debug("Skills allocation completed");
-            break; /* accepted */
+            /* Stats allocation screen */
+            log_debug("Entering stats allocation");
+            NavResult s = player_birth_aux_2();
+            if (s == NAV_OK) {
+                /* Skill allocation: may return NAV_BACK / NAV_TO_MAIN */
+                log_debug("Stats accepted, entering skills allocation");
+                NavResult g = gain_skills();
+                if (g != NAV_OK) return g;
+                log_debug("Skills allocation completed");
+                break; /* accepted */
+            }
+            if (s == NAV_BACK)   return NAV_BACK;    /* back to Character Selection */
+            if (s == NAV_TO_MAIN) return NAV_TO_MAIN;/* back to main menu */
+            if (s == NAV_QUIT)   return NAV_QUIT;    /* hard exit */
+            /* any other value: loop again */
         }
-        if (s == NAV_BACK)   return NAV_BACK;    /* back to Character Selection */
-        if (s == NAV_TO_MAIN) return NAV_TO_MAIN;/* back to main menu */
-        if (s == NAV_QUIT)   return NAV_QUIT;    /* hard exit */
-        /* any other value: loop again */
     }
 
     // Reset the number of artefacts
@@ -4351,7 +4988,8 @@ NavResult player_birth()
     player_outfit();
 
     /* Load persistent settings from metarun if this is a continuing metarun */
-    metarun_load_persistent_settings();
+    if (!run_mode_is_blitz())
+        metarun_load_persistent_settings();
 
     /* Reapply app-wide settings after character creation so UI preferences are
      * not sourced from the metarun or savefile. */

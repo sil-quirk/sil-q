@@ -1424,6 +1424,8 @@ static void run_history_format_flags(byte run_flags, char* out, size_t out_len)
         APPEND_FLAG("No score");
     if (run_flags & SCORE_RUN_FLAG_CHEAT)
         APPEND_FLAG("Cheat");
+    if (run_flags & SCORE_RUN_FLAG_BLITZ)
+        APPEND_FLAG("Blitz");
 
     #undef APPEND_FLAG
 

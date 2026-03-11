@@ -29,6 +29,7 @@ bool scores_version_has_curses(const score_file_ctx* ctx);
 
 bool score_file_load_header(score_file_ctx* ctx, const char *filepath);
 SDL_IOStream* score_file_open(const char *filepath, int mode);
+bool build_current_score_path(char* buf, size_t len);
 
 /* Convenience helper for zeroing a context before use. */
 void score_file_reset_ctx(score_file_ctx* ctx);

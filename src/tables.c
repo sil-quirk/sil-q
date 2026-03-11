@@ -248,7 +248,7 @@ cptr option_text[OPT_MAX] = {
     NULL, /* OPT_hide_left_panel */
     "banner_message_stairs", /* OPT_banner_message_stairs */
     "show_level_generation_debug", /* OPT_show_level_generation_debug */
-    NULL, /* xxx */
+    "unlock_blitz_mode", /* OPT_unlock_blitz_mode */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -490,7 +490,7 @@ cptr option_desc[OPT_MAX] = {
     "Hide the classic left panel and use the compact overlay", /* OPT_hide_left_panel */
     "Banner message layout (stairs/straight)", /* OPT_banner_message_stairs */
     "Debug: Show level generation summary messages", /* OPT_show_level_generation_debug */
-    NULL, /* xxx */
+    "Unlock Blitz Mode after winning a metarun", /* OPT_unlock_blitz_mode */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -752,7 +752,7 @@ const bool option_norm[OPT_MAX] = {
     true, /* OPT_banner_message_stairs */
 #endif
     false, /* OPT_show_level_generation_debug */
-    false, /* xxx */
+    false, /* OPT_unlock_blitz_mode */
     false, /* xxx */
     false, /* xxx */
     false, /* xxx */
@@ -935,9 +935,9 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
     { OPT_valorous_oath_auto_attack_safety, OPT_forgo_attacking_unwary,
         OPT_stop_singing_on_rest, OPT_know_monster_info, OPT_visual_recognition,
         OPT_disable_skeleton_note_tutorial, OPT_smaller_level_size, OPT_more_stairs,
-        OPT_vault_drop_frequency, OPT_noble_item_spawn_mode,
+        OPT_vault_drop_frequency, OPT_noble_item_spawn_mode, OPT_unlock_blitz_mode,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Efficiency ***/
 

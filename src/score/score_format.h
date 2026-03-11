@@ -41,6 +41,7 @@ typedef enum score_run_flag {
     SCORE_RUN_FLAG_ANGBAND_ESCAPED = 0x02,
     SCORE_RUN_FLAG_NOSCORE = 0x04,
     SCORE_RUN_FLAG_CHEAT = 0x08,
+    SCORE_RUN_FLAG_BLITZ = 0x10,
 } score_run_flag;
 
 /*

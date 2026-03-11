@@ -391,6 +391,7 @@ extern void backup_and_clear_saves(void);
 extern NavResult player_birth(void);
 extern NavResult gain_skills(void);
 extern NavResult character_creation(void);
+extern NavResult blitz_character_creation(void);
 void player_wipe(void);
 
 /* cave.c */

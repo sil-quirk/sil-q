@@ -139,6 +139,9 @@ typedef struct metarun
 /* The *current* meta-run – defined once in metarun.c */
 extern metarun metar;
 
+int8_t* active_curse_stacks(void);
+u64b* active_curses_seen_ptr(void);
+
 /* ------------------------------------------------------------------ */
 /*  Disk I/O                                                          */
 /* ------------------------------------------------------------------ */
@@ -168,6 +171,7 @@ const metarun *metarun_entry_const(s16b idx);    /* Bounds-checked read-only acc
 metarun *metarun_entry_mutable(s16b idx);        /* Bounds-checked mutable access */
 s16b metarun_current_index(void);                /* Current metarun index or -1 */
 s16b metarun_entry_count(void);                  /* Total metarun entries loaded */
+int metarun_completed_count(void);              /* Count finished metaruns */
 
 /* ------------------------------------------------------------------ */
 /*  Quest completion tracking                                         */
@@ -221,28 +225,35 @@ static inline void metarun_set_threshold_mode(metarun *m, metarun_blessing_thres
 
 static inline int CURSE_GET(int id)
 {
+    int8_t* stacks = active_curse_stacks();
     if (id < 0 || id >= METAR_CURSE_SLOTS) return 0;  /* bounds check */
-    return metar.curse_stacks[id];
+    return stacks ? stacks[id] : 0;
 }
 
 static inline void CURSE_SET(int id, int val)
 {
+    int8_t* stacks = active_curse_stacks();
     if (id < 0 || id >= METAR_CURSE_SLOTS) return;    /* bounds check */
+    if (!stacks) return;
     if (val > 127) val = 127;
     if (val < -127) val = -127;
-    metar.curse_stacks[id] = (int8_t)val;
+    stacks[id] = (int8_t)val;
 }
 
 static inline bool CURSE_SEEN(int id)
 {
+    u64b* seen = active_curses_seen_ptr();
     if (id < 0 || id >= METAR_CURSE_SLOTS) return false;  // Add bounds check
-    return (metar.curses_seen & (1ULL << id)) != 0;
+    if (!seen) return false;
+    return ((*seen) & (1ULL << id)) != 0;
 }
 
 static inline void CURSE_SEEN_SET(int id)
 {
+    u64b* seen = active_curses_seen_ptr();
     if (id < 0 || id >= METAR_CURSE_SLOTS) return;        // Add bounds check
-    metar.curses_seen |= (1ULL << id);
+    if (!seen) return;
+    (*seen) |= (1ULL << id);
 }
 
 #define CURSE_ADD(id, d)  CURSE_SET((id), CURSE_GET(id) + (d))

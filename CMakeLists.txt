@@ -56,6 +56,7 @@ endif()
 add_subdirectory(src/log)
 
 set(SIL_MORE_SOURCES
+    src/blitz.c
     src/birth.c
     src/cave.c
     src/cJSON.c

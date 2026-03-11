@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "blitz.h"
 #include "externs.h"
 #include "fs/io_sdl.h"
 #include "fs/path.h"
@@ -1877,6 +1878,8 @@ extern void re_init_some_things(void)
 {
     int i;
 
+    run_mode_reset();
+
     // wipe the whole player structure
     memset(p_ptr, 0, sizeof(player_type));
 
@@ -2903,6 +2906,7 @@ void init_angband(void)
     /* Load app-wide settings before the first intro render so the welcome
      * screen uses the configured style and first-launch state. */
     sdl_config_load_app_options(get_sdl_config_path());
+    run_mode_reset();
 
     /*** Display the introduction ***/
 
@@ -3259,6 +3263,7 @@ extern NavResult initial_menu(bool *start_new)
     if (ch == '\n' || ch == '\r' || ch == ' ')
     {
         log_info("initial_menu: User pressed space/enter - starting game");
+        run_mode_set_pending(RUN_MODE_STORY);
         *start_new = true;
         result = NAV_OK;   /* start new game */
         goto menu_done;

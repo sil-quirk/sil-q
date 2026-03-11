@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "blitz.h"
 #include "scorefile.h"
 #include "score/score_logic.h"
 #include "score/score_runs.h"
@@ -7041,8 +7042,8 @@ void process_player_name(bool sf)
     {
         char temp[128];
 
-        /* Rename the savefile, using the base name */
-        strnfmt(temp, sizeof(temp), "%s", op_ptr->base_name);
+        /* Rename the savefile, using the mode-specific base name. */
+        build_active_savefile_stem(op_ptr->base_name, temp, sizeof(temp));
 
         /* Build the filename */
         path_build(savefile, sizeof(savefile), ANGBAND_DIR_SAVE, temp);
@@ -7219,7 +7220,8 @@ void do_cmd_escape(int silmarils)
 
     /* Update metarun: escaped with N Silmarils */
     log_info("Player escaped with %d Silmarils", silmarils);
-    metarun_update_on_exit(false, true, silmarils, 0);
+    if (!run_mode_is_blitz())
+        metarun_update_on_exit(false, true, silmarils, 0);
 
 }
 
@@ -7348,8 +7350,9 @@ void do_cmd_save_game(void)
     /* Save the player */
     /* Make sure meta-run data (curses, flags, etc.) is up-to-date even
       when the player merely saves & quits. */
-    log_info("Saving game and updating metarun data");    
-   metarun_update_on_exit(false, false, 0, 0);
+    log_info("Saving game and updating metarun data");
+    if (!run_mode_is_blitz())
+        metarun_update_on_exit(false, false, 0, 0);
 
     if (save_player())
     {
@@ -7503,7 +7506,7 @@ extern bool highscore_is_empty()
     /* Open the file on-demand (read-only) */
     if (!highscore_fd) {
         char buf[1024];
-        build_meta_path(buf, sizeof(buf), "scores.raw");
+        build_current_score_path(buf, sizeof(buf));
         safe_setuid_grab();
         highscore_fd = score_file_open(buf, O_RDONLY);
         safe_setuid_drop();
@@ -9414,16 +9417,19 @@ static void close_game_aux(void)
 
     /* Record this run's outcome for the metarun ledger */
     int final_score = score_points(&the_score);
-    if (p_ptr->morgoth_slain && !p_ptr->escaped)
+    if (!run_mode_is_blitz())
     {
-        log_info("Player achieved Morgoth victory - updating metarun data");
-        metarun_update_on_exit(false, false, 3, final_score);
-    }
-    else
-    {
-        log_info("Player died - updating metarun data");
-        if (!p_ptr->escaped)
-            metarun_update_on_exit(true, false, 0, final_score);
+        if (p_ptr->morgoth_slain && !p_ptr->escaped)
+        {
+            log_info("Player achieved Morgoth victory - updating metarun data");
+            metarun_update_on_exit(false, false, 3, final_score);
+        }
+        else
+        {
+            log_info("Player died - updating metarun data");
+            if (!p_ptr->escaped)
+                metarun_update_on_exit(true, false, 0, final_score);
+        }
     }
 
     /* Let the player inspect the final dungeon state before the tomb menu. */
@@ -9587,7 +9593,7 @@ void close_game(void)
     log_debug("files.c: character_icky incremented to %d (opening scores file)", character_icky);
 
     /* Build the filename */
-    build_meta_path(buf, sizeof(buf), "scores.raw");
+    build_current_score_path(buf, sizeof(buf));
 
     log_debug("Opening scores file for read/write: %s", buf);
 
@@ -10301,7 +10307,7 @@ bool autoload_alive_from_scores(void)
 {
     log_info("===== autoload_alive_from_scores: FUNCTION CALLED =====");
     char score_path[1024];
-    build_meta_path(score_path, sizeof(score_path), "scores.raw");
+    build_current_score_path(score_path, sizeof(score_path));
 
     /* Preserve global scorefile state */
     SDL_IOStream* saved_fd = highscore_fd;
@@ -10391,7 +10397,7 @@ bool autoload_alive_from_scores(void)
         char alt_temp[128];
         char alt_path[1024];
         SDL_strlcpy(savefile_backup, savefile, sizeof(savefile_backup));
-        strnfmt(alt_temp, sizeof(alt_temp), "%s", who_buf);
+        build_active_savefile_stem(who_buf, alt_temp, sizeof(alt_temp));
         path_build(alt_path, sizeof(alt_path), ANGBAND_DIR_SAVE, alt_temp);
         SDL_strlcpy(savefile, alt_path, sizeof(savefile));
         log_info("autoload: retrying with legacy spaced filename '%s'", savefile);
@@ -10419,8 +10425,10 @@ bool autoload_alive_from_scores(void)
         if (highscore_seek(i) == 0) {
             highscore_write(&entry);
         }
-        metarun_increment_deaths();
-        (void)save_metaruns();
+        if (!run_mode_is_blitz()) {
+            metarun_increment_deaths();
+            (void)save_metaruns();
+        }
         msg_format("Warning: Alive entry '%s' had no valid savefile. Marked as dead.", who_buf);
         msg_print("Please do not tamper with savefiles.");
         message_flush();

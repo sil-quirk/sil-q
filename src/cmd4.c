@@ -11539,6 +11539,9 @@ static cptr option_menu_label(int opt)
                        : "Welcome screen style";
     case OPT_banner_message_stairs:
         return compact ? "Banner layout" : "Banner message layout";
+    case OPT_unlock_blitz_mode:
+        return compact ? (narrow ? "Blitz unlocked" : "Unlock Blitz Mode")
+                       : "Unlock Blitz Mode";
     default:
         break;
     }
@@ -12162,7 +12165,7 @@ extern void do_cmd_options_aux(int page, cptr info)
 
                 if (is_sound_page)
                     sound_settings_dirty = true;
-                else if (app_page)
+                else if (option_is_app_persistent(opt[k]))
                     app_settings_dirty = true;
                 else if (metarun_page)
                     metarun_settings_dirty = true;
@@ -12279,7 +12282,7 @@ extern void do_cmd_options_aux(int page, cptr info)
 
                 if (is_sound_page)
                     sound_settings_dirty = true;
-                else if (app_page)
+                else if (option_is_app_persistent(opt[k]))
                     app_settings_dirty = true;
                 else if (metarun_page)
                     metarun_settings_dirty = true;
@@ -12396,7 +12399,7 @@ extern void do_cmd_options_aux(int page, cptr info)
 
                 if (is_sound_page)
                     sound_settings_dirty = true;
-                else if (app_page)
+                else if (option_is_app_persistent(opt[k]))
                     app_settings_dirty = true;
                 else if (metarun_page)
                     metarun_settings_dirty = true;

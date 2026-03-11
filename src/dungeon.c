@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "blitz.h"
 #include "externs.h"
 #include "log/log.h"
 #include "player/killer.h"
@@ -4378,6 +4379,66 @@ cleanup_intro:
     return;
 }
 
+static void maybe_show_blitz_unlock_screen(void)
+{
+    int wid = 80;
+    int hgt = 24;
+    int row = 2;
+
+    if (run_mode_is_blitz())
+        return;
+    if (!op_ptr || op_ptr->opt[OPT_unlock_blitz_mode])
+        return;
+    if (metarun_completed_count() < 1)
+        return;
+
+    screen_save();
+    Term_clear();
+    Term_get_size(&wid, &hgt);
+    row = 2;
+
+    c_put_str(TERM_YELLOW, "Congratulations, you have unlocked Blitz Mode!",
+        row++, MAX((wid - 47) / 2, 0));
+    row += 2;
+
+    text_out_hook = text_out_to_screen;
+    text_out_wrap = MAX(20, wid - 4);
+    text_out_indent = 2;
+
+    Term_gotoxy(2, row);
+    text_out_c(TERM_L_WHITE, "Blitz is a self-contained challenge run.");
+    row += count_wrapped_lines("Blitz is a self-contained challenge run.", text_out_wrap, 2) + 1;
+
+    Term_gotoxy(2, row);
+    text_out_c(TERM_WHITE,
+        "Story progress, metaruns, saves, and score stay separate.");
+    row += count_wrapped_lines(
+        "Story progress, metaruns, saves, and score stay separate.",
+        text_out_wrap, 2) + 1;
+
+    Term_gotoxy(2, row);
+    text_out_c(TERM_WHITE,
+        "Each Blitz run lets you choose character flow, oaths, blessings, and curses.");
+    row += count_wrapped_lines(
+        "Each Blitz run lets you choose character flow, oaths, blessings, and curses.",
+        text_out_wrap, 2) + 1;
+
+    Term_gotoxy(2, row);
+    text_out_c(TERM_SLATE,
+        "Run history entries are still recorded and marked as Blitz.");
+    row += count_wrapped_lines(
+        "Run history entries are still recorded and marked as Blitz.",
+        text_out_wrap, 2) + 1;
+
+    c_put_str(TERM_L_BLUE, "Press any key to continue.", MIN(row + 1, hgt - 1), 2);
+    Term_fresh();
+    (void)inkey();
+    screen_load();
+
+    op_ptr->opt[OPT_unlock_blitz_mode] = true;
+    save_pane_config_to_json();
+}
+
 
 
 /*
@@ -4459,10 +4520,15 @@ PlayResult play_game(void)
         SDL_strlcpy(op_ptr->base_name, "nameless", sizeof(op_ptr->base_name));
     }
 
-    if (metarun_created) /* show only the first time ever */
-        print_story_intro();
-    else
-        print_metarun_stats();
+    run_mode_activate_pending();
+    maybe_show_blitz_unlock_screen();
+
+    if (!run_mode_is_blitz()) {
+        if (metarun_created) /* show only the first time ever */
+            print_story_intro();
+        else
+            print_metarun_stats();
+    }
 
     /* New startup behavior: try to auto-load any alive character
      * lingering in the scorefile. If successful, skip character
@@ -4496,7 +4562,8 @@ PlayResult play_game(void)
         player_wipe();
 
     log_info("Choosing character");
-        NavResult cr = character_creation();
+        NavResult cr = run_mode_is_blitz() ? blitz_character_creation()
+                                           : character_creation();
         if (cr == NAV_TO_MAIN) {
             log_info("Returning to main menu from character creation");
             return PLAY_DONE;
@@ -4621,7 +4688,7 @@ PlayResult play_game(void)
     }
 
     /* Only show story when no alive character exists (fresh start or all characters dead) */
-    if (score_count_alive_entries() == 0)
+    if (!run_mode_is_blitz() && score_count_alive_entries() == 0)
     {
         print_story(15,1);
     }

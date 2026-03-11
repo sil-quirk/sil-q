@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "blitz.h"
 #include "externs.h"
 #include "fs/io_sdl.h"
 #include "fs/path.h"
@@ -1331,6 +1332,17 @@ static void wr_extra(void)
             for (int li = 0; li < line_count; ++li)
                 wr_string(hint_messages_message_line(i, li));
         }
+    }
+
+    wr_byte(0x55);
+    wr_byte((byte)run_mode_current());
+    {
+        int8_t *stacks = blitz_runtime_curse_stacks();
+        u64b seen = *blitz_runtime_curses_seen();
+        for (i = 0; i < METAR_CURSE_SLOTS; ++i)
+            wr_byte((byte)(stacks ? stacks[i] : 0));
+        wr_u32b((u32b)(seen & 0xFFFFFFFFULL));
+        wr_u32b((u32b)(seen >> 32));
     }
 
     wr_s32b(min_depth_counter);

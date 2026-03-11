@@ -11,6 +11,49 @@
 #include "angband.h"
 #include "externs.h"
 
+static void format_staff_prompt_name(char* buf, size_t max,
+    const object_type* o_ptr, bool pref)
+{
+    char full[80];
+    const char* staff_of;
+
+    if (!buf || max == 0)
+        return;
+
+    buf[0] = '\0';
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return;
+
+    object_desc(full, sizeof(full), o_ptr, pref, 0);
+
+    if (o_ptr->tval != TV_STAFF)
+    {
+        SDL_strlcpy(buf, full, max);
+        return;
+    }
+
+    staff_of = strstr(full, "Staff of ");
+    if (!staff_of)
+    {
+        SDL_strlcpy(buf, full, max);
+        return;
+    }
+
+    if (!pref)
+    {
+        SDL_strlcpy(buf, staff_of, max);
+        return;
+    }
+
+    if (!strncmp(full, "The ", 4))
+        strnfmt(buf, max, "The %s", staff_of);
+    else if (!strncmp(full, "no more ", 8))
+        strnfmt(buf, max, "no more %s", staff_of);
+    else
+        strnfmt(buf, max, "a %s", staff_of);
+}
+
 static void msg_print_object_identified(const object_type* o_ptr)
 {
     char o_name[80];
@@ -712,14 +755,12 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
     if (o_ptr->tval == TV_STAFF && o_ptr != &inventory[INVEN_STAFF])
     {
         object_type* wielded = &inventory[INVEN_STAFF];
-        const int max_name_len = 12;
-        /* Limit names so the prompt stays within 80 columns */
-        char staff_name[80];
+        char incoming_name[80];
         char equipped_name[80];
         char prompt[160];
         const char* source = from_supplies ? "your supplies" : (default_item >= 0 ? "your pack" : "the floor");
 
-        object_desc(staff_name, sizeof(staff_name), o_ptr, true, 3);
+        format_staff_prompt_name(incoming_name, sizeof(incoming_name), o_ptr, true);
 
         if (from_supplies)
         {
@@ -730,19 +771,19 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
 
         if (wielded->k_idx)
         {
-            object_desc(equipped_name, sizeof(equipped_name), wielded, true, 3);
+            format_staff_prompt_name(
+                equipped_name, sizeof(equipped_name), wielded, false);
             msg_format("You cannot activate a staff from %s.", source);
             strnfmt(prompt, sizeof(prompt),
-                "Replace %.*s with %.*s?",
-                max_name_len, equipped_name, max_name_len, staff_name);
+                "Replace your %s with %s?",
+                equipped_name, incoming_name);
         }
         else
         {
-            SDL_strlcpy(equipped_name, "no staff", sizeof(equipped_name));
             msg_format("You cannot activate a staff from %s.", source);
             strnfmt(prompt, sizeof(prompt),
-                "Equip %.*s now?",
-                max_name_len, staff_name);
+                "Equip %s now?",
+                incoming_name);
         }
 
         if (get_check(prompt))

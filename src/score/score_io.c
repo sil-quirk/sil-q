@@ -1,6 +1,7 @@
 #include "score/score_io.h"
 
 #include "angband.h"
+#include "blitz.h"
 #include "externs.h"
 #include "fs/io_sdl.h"
 #include "fs/path.h"
@@ -11,24 +12,9 @@
 #include <limits.h>
 #include <string.h>
 
-/* Helper to build score file path correctly for both portable and normal builds */
-static bool build_score_path(char* buf, size_t len, const char* filename)
+bool build_current_score_path(char* buf, size_t len)
 {
-#ifdef SIL_USE_LOCAL_DATA
-    /* Portable build: scores in apex directory */
-    return path_build(buf, len, ANGBAND_DIR_APEX, filename);
-#else
-    /* Normal build: scores in meta directory (parent of metaruns) */
-    if (ANGBAND_DIR_METARUN && *ANGBAND_DIR_METARUN) {
-        char meta_dir[1024];
-        SDL_strlcpy(meta_dir, ANGBAND_DIR_METARUN, sizeof(meta_dir));
-        char* last_sep = strrchr(meta_dir, PATH_SEP[0]);
-        if (last_sep) *last_sep = '\0';
-        return path_build(buf, len, meta_dir, filename);
-    } else {
-        return path_build(buf, len, ANGBAND_DIR_APEX, filename);
-    }
-#endif
+    return build_active_score_path(buf, len);
 }
 
 #define highscore_fd (score_file_active_ctx()->fd)
@@ -402,7 +388,7 @@ int collect_high_scores(high_score* out, int capacity, bool sort_by_score)
         return 0;
 
     char score_path[1024];
-    build_score_path(score_path, sizeof(score_path), "scores.raw");
+    build_current_score_path(score_path, sizeof(score_path));
 
     score_file_ctx* ctx = score_file_active_ctx();
     SDL_IOStream* file = ctx ? ctx->fd : NULL;
@@ -614,7 +600,7 @@ errr backup_scores_file(const char *filepath)
 int score_count_alive_entries(void)
 {
     char score_path[1024];
-    build_score_path(score_path, sizeof(score_path), "scores.raw");
+    build_current_score_path(score_path, sizeof(score_path));
 
     SDL_IOStream* saved_fd = highscore_fd;
     byte saved_major = scores_file_version_major;
@@ -662,7 +648,7 @@ int score_count_alive_entries(void)
 u32b score_sum_dead_points(void)
 {
     char score_path[1024];
-    build_score_path(score_path, sizeof(score_path), "scores.raw");
+    build_current_score_path(score_path, sizeof(score_path));
 
     SDL_IOStream* saved_fd = highscore_fd;
     byte saved_major = scores_file_version_major;
@@ -901,14 +887,14 @@ int highscore_add(high_score* score)
 void upsert_live_score_on_save(void)
 {
     char score_path[1024];
-    build_score_path(score_path, sizeof(score_path), "scores.raw");
+    build_current_score_path(score_path, sizeof(score_path));
     log_info("upsert_live_score_on_save: Score path: %s", score_path);
 
     safe_setuid_grab();
     SDL_IOStream* live_fd = score_file_open(score_path, O_RDWR | O_CREAT);
     safe_setuid_drop();
     if (!live_fd) {
-        log_warn("Could not open scores.raw to upsert live save entry");
+        log_warn("Could not open %s to upsert live save entry", score_path);
         return;
     }
 
@@ -991,7 +977,7 @@ int highscore_dead(char* name)
 
     if (!highscore_fd) {
         char buf[1024];
-        build_score_path(buf, sizeof(buf), "scores.raw");
+        build_current_score_path(buf, sizeof(buf));
         highscore_fd = score_file_open(buf, O_RDONLY);
         if (!highscore_fd) return 0;
         opened_here = true;

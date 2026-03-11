@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "blitz.h"
 #include "externs.h"
 #include "fs/io_sdl.h"
 #include "log/log.h"
@@ -1832,6 +1833,48 @@ static errr rd_extra(void)
     else
     {
         hint_messages_level_reset();
+    }
+
+    if (savefile_version_at_least(0, 9, 5, 6))
+    {
+        byte marker = 0;
+        byte mode = RUN_MODE_STORY;
+        int8_t stacks[METAR_CURSE_SLOTS];
+        u32b seen_lo = 0;
+        u32b seen_hi = 0;
+
+        rd_byte(&marker);
+        if (marker != 0x55)
+        {
+            note(format("Invalid blitz marker 0x%02X", marker));
+            return (-1);
+        }
+
+        rd_byte(&mode);
+        if (mode != RUN_MODE_BLITZ)
+            mode = RUN_MODE_STORY;
+
+        for (int bi = 0; bi < METAR_CURSE_SLOTS; ++bi)
+        {
+            byte raw = 0;
+            rd_byte(&raw);
+            stacks[bi] = (int8_t)raw;
+        }
+        rd_u32b(&seen_lo);
+        rd_u32b(&seen_hi);
+
+        run_mode_set_current((run_mode)mode);
+        run_mode_set_pending((run_mode)mode);
+        if (mode == RUN_MODE_BLITZ)
+            blitz_runtime_restore(stacks, ((u64b)seen_hi << 32) | seen_lo);
+        else
+            blitz_runtime_reset();
+    }
+    else
+    {
+        run_mode_set_current(RUN_MODE_STORY);
+        run_mode_set_pending(RUN_MODE_STORY);
+        blitz_runtime_reset();
     }
 
     /* Min depth counter */

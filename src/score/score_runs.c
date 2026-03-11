@@ -1,6 +1,7 @@
 #include "score/score_runs.h"
 
 #include "angband.h"
+#include "blitz.h"
 #include "externs.h"
 #include "fs/path.h"
 #include "log/log.h"
@@ -1358,6 +1359,8 @@ static byte score_runs_run_flags(void)
         flags |= SCORE_RUN_FLAG_NOSCORE;
     if (p_ptr->wizard || (p_ptr->noscore & 0x0008))
         flags |= SCORE_RUN_FLAG_CHEAT;
+    if (run_mode_is_blitz())
+        flags |= SCORE_RUN_FLAG_BLITZ;
     return flags;
 }
 
@@ -1367,7 +1370,7 @@ static void score_runs_build_record(score_record_v1* rec,
                                     score_record_status status)
 {
     memset(rec, 0, sizeof(*rec));
-    rec->metarun_id = metar.id;
+    rec->metarun_id = run_mode_is_blitz() ? SCORE_RUNS_METARUN_UNKNOWN : metar.id;
     rec->persona_id = 0;
     rec->created_utc = (u32b)snapshot_time;
     rec->completed_utc = (u32b)snapshot_time;
