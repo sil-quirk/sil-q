@@ -3096,6 +3096,7 @@ bool object_apply_ego_affix(object_type* o_ptr, int e_idx, bool smithing)
     int max_evn;
     int to_pd;
     int to_ps;
+    bool enforce_positive_protection;
 
     if (!o_ptr || !o_ptr->k_idx || e_idx <= 0 || e_idx >= z_info->e_max)
         return false;
@@ -3111,6 +3112,8 @@ bool object_apply_ego_affix(object_type* o_ptr, int e_idx, bool smithing)
     max_evn = (int)(int8_t)e_ptr->max_evn;
     to_pd = (int)(int8_t)e_ptr->to_pd;
     to_ps = (int)(int8_t)e_ptr->to_ps;
+    enforce_positive_protection = ((k_ptr->pd > 0) && (k_ptr->ps > 0))
+        || (to_pd > 0) || (to_ps > 0);
 
     for (i = 0; i < e_ptr->abilities && o_ptr->abilities < (int)N_ELEMENTS(o_ptr->skilltype); i++)
     {
@@ -3188,7 +3191,7 @@ bool object_apply_ego_affix(object_type* o_ptr, int e_idx, bool smithing)
         }
     }
 
-    if (k_ptr->pd > 0)
+    if (enforce_positive_protection && ((k_ptr->pd > 0) || (o_ptr->pd > 0)))
     {
         if (o_ptr->pd < 1)
             o_ptr->pd = 1;
@@ -3215,12 +3218,15 @@ void object_into_special(object_type* o_ptr, int lev, bool smithing)
     u32b f1, f2, f3, f4;
     int i;
     const object_kind* k_ptr = NULL;
+    bool enforce_positive_protection = false;
 
     (void)
         lev; // Cast to soothe compilation warnings (currently unused variable)
 
     if (o_ptr && o_ptr->k_idx)
         k_ptr = &k_info[o_ptr->k_idx];
+    if (k_ptr && (k_ptr->pd > 0) && (k_ptr->ps > 0))
+        enforce_positive_protection = true;
 
     /* Examine the item */
     object_flags4(o_ptr, &f1, &f2, &f3, &f4);
@@ -3245,6 +3251,8 @@ void object_into_special(object_type* o_ptr, int lev, bool smithing)
         int max_evn = (int)(int8_t)e_ptr->max_evn;
         int to_pd = (int)(int8_t)e_ptr->to_pd;
         int to_ps = (int)(int8_t)e_ptr->to_ps;
+        if ((to_pd > 0) || (to_ps > 0))
+            enforce_positive_protection = true;
 
         /* Add the abilities (bounded by object ability storage). */
         for (i = 0; i < e_ptr->abilities && o_ptr->abilities < (int)N_ELEMENTS(o_ptr->skilltype); i++)
@@ -3329,7 +3337,8 @@ void object_into_special(object_type* o_ptr, int lev, bool smithing)
         }
     }
 
-    if (k_ptr && k_ptr->pd > 0)
+    if (enforce_positive_protection && k_ptr
+        && ((k_ptr->pd > 0) || (o_ptr->pd > 0)))
     {
         if (o_ptr->pd < 1)
             o_ptr->pd = 1;

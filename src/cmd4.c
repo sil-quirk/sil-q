@@ -3684,15 +3684,13 @@ smithing_cost_type smithing_cost;
 #define SMT_NUM_MENU_D_EVN 6
 #define SMT_NUM_MENU_I_PS 7
 #define SMT_NUM_MENU_D_PS 8
-#define SMT_NUM_MENU_I_PVAL 9
-#define SMT_NUM_MENU_D_PVAL 10
-#define SMT_NUM_MENU_I_WGT 11
-#define SMT_NUM_MENU_D_WGT 12
-#define SMT_NUM_MENU_ALLOY_CYCLE 13
-#define SMT_NUM_MENU_ALLOY_CLEAR 14
-#define SMT_NUM_MENU_EDIT_BONUSES 15
+#define SMT_NUM_MENU_I_WGT 9
+#define SMT_NUM_MENU_D_WGT 10
+#define SMT_NUM_MENU_ALLOY_CYCLE 11
+#define SMT_NUM_MENU_ALLOY_CLEAR 12
+#define SMT_NUM_MENU_EDIT_BONUSES 13
 
-#define SMT_NUM_MENU_MAX 15
+#define SMT_NUM_MENU_MAX 13
 
 #define COL_SMT1 2
 #define COL_SMT2 16
@@ -4211,7 +4209,7 @@ int ps_max()
     object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
     int to_ps_sum = 0;
     smithing_ego_bonus_sums(
-        smith_o_ptr, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &to_ps_sum, NULL, NULL);
+        smith_o_ptr, NULL, NULL, NULL, NULL, NULL, NULL, &to_ps_sum, NULL, NULL, NULL);
 
     int ps = k_ptr->max_ps;
     ps += to_ps_sum;
@@ -4235,7 +4233,7 @@ int ps_min(void)
     object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
     int to_ps_min_inc = 0;
     smithing_ego_bonus_sums(
-        smith_o_ptr, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &to_ps_min_inc, NULL);
+        smith_o_ptr, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &to_ps_min_inc, NULL, NULL);
 
     int ps = k_ptr->ps;
     ps += to_ps_min_inc;
@@ -6074,27 +6072,23 @@ static bool smith_has_alignment_conflict(const object_type* o_ptr,
     return has_noble && has_evil;
 }
 
-static bool ego_prefix_can_apply_to_object(const object_type* o_ptr, int e_idx)
+static bool smith_ego_is_forbidden_affix(const ego_item_type* e_ptr)
+{
+    if (!e_ptr)
+        return true;
+    if (e_ptr->flags3 & (TR3_DAMAGED | TR3_NO_SMITHING))
+        return true;
+    if (e_ptr->flags4 & (TR4_JINX | TR4_EVIL_ITEM))
+        return true;
+    return false;
+}
+
+static bool smith_ego_matches_item_type(const object_type* o_ptr,
+    const ego_item_type* e_ptr)
 {
     int j;
-    ego_item_type* e_ptr;
-    const char* raw_name;
 
-    if (!o_ptr || !o_ptr->k_idx || e_idx <= 0 || e_idx >= z_info->e_max)
-        return false;
-
-    e_ptr = &e_info[e_idx];
-    raw_name = e_name + e_ptr->name;
-
-    if (!ego_name_is_prefix(raw_name))
-        return false;
-    if (e_ptr->flags3 & TR3_DAMAGED)
-        return false;
-    if (e_ptr->flags4 & TR4_JINX)
-        return false;
-    if (e_ptr->flags4 & TR4_EVIL_ITEM)
-        return false;
-    if (smith_has_alignment_conflict(o_ptr, e_idx, 0))
+    if (!o_ptr || !o_ptr->k_idx || !e_ptr)
         return false;
 
     for (j = 0; j < EGO_TVALS_MAX; j++)
@@ -6110,6 +6104,50 @@ static bool ego_prefix_can_apply_to_object(const object_type* o_ptr, int e_idx)
     }
 
     return false;
+}
+
+static bool smith_ego_can_apply_to_object(const object_type* o_ptr, int e_idx,
+    int fixed_prefix, int fixed_suffix, bool selecting_prefix)
+{
+    ego_item_type* e_ptr;
+    const char* raw_name;
+    bool is_prefix;
+
+    if (!o_ptr || !o_ptr->k_idx || e_idx <= 0 || e_idx >= z_info->e_max)
+        return false;
+
+    e_ptr = &e_info[e_idx];
+    raw_name = e_name + e_ptr->name;
+    is_prefix = ego_name_is_prefix(raw_name);
+
+    if (selecting_prefix != is_prefix)
+        return false;
+    if (smith_ego_is_forbidden_affix(e_ptr))
+        return false;
+    if (!smith_ego_matches_item_type(o_ptr, e_ptr))
+        return false;
+
+    if (selecting_prefix)
+    {
+        if (fixed_suffix == EGO_UNQUENCHED_FIRE)
+            return false;
+        if (smith_has_alignment_conflict(o_ptr, e_idx, fixed_suffix))
+            return false;
+    }
+    else
+    {
+        if ((e_idx == EGO_UNQUENCHED_FIRE) && (fixed_prefix != 0))
+            return false;
+        if (smith_has_alignment_conflict(o_ptr, fixed_prefix, e_idx))
+            return false;
+    }
+
+    return true;
+}
+
+static bool ego_prefix_can_apply_to_object(const object_type* o_ptr, int e_idx)
+{
+    return smith_ego_can_apply_to_object(o_ptr, e_idx, 0, 0, true);
 }
 
 static bool object_can_reforge_prefix(const object_type* o_ptr)
@@ -6752,23 +6790,6 @@ void create_tval_menu(void)
 /*
  * Actually modifies the numbers on an item.
  */
-static void smith_apply_pval_delta_to_stat_skill_bonuses(object_type* o_ptr, int delta)
-{
-    if (!o_ptr || delta == 0)
-        return;
-
-    object_apply_pval_delta_with_mask(o_ptr, object_pval_flags1(o_ptr), delta);
-}
-
-static void smith_change_pval(object_type* o_ptr, int delta)
-{
-    if (!o_ptr || delta == 0)
-        return;
-
-    o_ptr->pval += delta;
-    smith_apply_pval_delta_to_stat_skill_bonuses(o_ptr, delta);
-}
-
 static void smith_apply_stat_skill_flag_delta(object_type* o_ptr, u32b f1_before, u32b f1_after)
 {
     if (!o_ptr)
@@ -6925,12 +6946,6 @@ void modify_numbers(int choice)
     case SMT_NUM_MENU_D_PS:
         smith_o_ptr->ps--;
         break;
-    case SMT_NUM_MENU_I_PVAL:
-        smith_change_pval(smith_o_ptr, 1);
-        break;
-    case SMT_NUM_MENU_D_PVAL:
-        smith_change_pval(smith_o_ptr, -1);
-        break;
     case SMT_NUM_MENU_I_WGT:
         smith_o_ptr->weight += 5;
         break;
@@ -6999,10 +7014,6 @@ int numbers_menu_aux(int* highlight)
         = evn_valid() && (smith_o_ptr->evn > evn_min());
     valid[SMT_NUM_MENU_I_PS - 1] = ps_valid() && (smith_o_ptr->ps < ps_max());
     valid[SMT_NUM_MENU_D_PS - 1] = ps_valid() && (smith_o_ptr->ps > ps_min());
-    valid[SMT_NUM_MENU_I_PVAL - 1]
-        = pval_valid() && (smith_o_ptr->pval < pval_max());
-    valid[SMT_NUM_MENU_D_PVAL - 1]
-        = pval_valid() && (smith_o_ptr->pval > pval_min());
     valid[SMT_NUM_MENU_I_WGT - 1]
         = wgt_valid() && ((smith_o_ptr->weight + 5) <= wgt_max());
     valid[SMT_NUM_MENU_D_WGT - 1]
@@ -7016,7 +7027,9 @@ int numbers_menu_aux(int* highlight)
                                                      | TR1_NEG_GRA | TR1_MEL
                                                      | TR1_ARC | TR1_STL
                                                      | TR1_PER | TR1_WIL
-                                                     | TR1_SMT | TR1_SNG))
+                                                     | TR1_SMT | TR1_SNG
+                                                     | TR1_DAMAGE_SIDES
+                                                     | TR1_TUNNEL))
             != 0;
     }
     bool alloy_applicable = smith_alloy_applicable(smith_o_ptr);
@@ -7079,20 +7092,16 @@ int numbers_menu_aux(int* highlight)
         "g) increase protection sides");
     Term_putstr(COL_SMT2, 9, -1, attr[SMT_NUM_MENU_D_PS - 1],
         "h) decrease protection sides");
-    Term_putstr(COL_SMT2, 10, -1, attr[SMT_NUM_MENU_I_PVAL - 1],
-        "i) increase special bonus");
-    Term_putstr(COL_SMT2, 11, -1, attr[SMT_NUM_MENU_D_PVAL - 1],
-        "j) decrease special bonus");
     Term_putstr(
-        COL_SMT2, 12, -1, attr[SMT_NUM_MENU_I_WGT - 1], "k) increase weight");
+        COL_SMT2, 10, -1, attr[SMT_NUM_MENU_I_WGT - 1], "i) increase weight");
     Term_putstr(
-        COL_SMT2, 13, -1, attr[SMT_NUM_MENU_D_WGT - 1], "l) decrease weight");
-    Term_putstr(COL_SMT2, 14, -1, attr[SMT_NUM_MENU_ALLOY_CYCLE - 1],
-        "m) cycle alloy (none/mithril/star iron)");
-    Term_putstr(COL_SMT2, 15, -1, attr[SMT_NUM_MENU_ALLOY_CLEAR - 1],
-        "n) remove alloy bonus");
-    Term_putstr(COL_SMT2, 16, -1, attr[SMT_NUM_MENU_EDIT_BONUSES - 1],
-        "o) adjust stat/skill bonuses");
+        COL_SMT2, 11, -1, attr[SMT_NUM_MENU_D_WGT - 1], "j) decrease weight");
+    Term_putstr(COL_SMT2, 12, -1, attr[SMT_NUM_MENU_ALLOY_CYCLE - 1],
+        "k) cycle alloy (none/mithril/star iron)");
+    Term_putstr(COL_SMT2, 13, -1, attr[SMT_NUM_MENU_ALLOY_CLEAR - 1],
+        "l) remove alloy bonus");
+    Term_putstr(COL_SMT2, 14, -1, attr[SMT_NUM_MENU_EDIT_BONUSES - 1],
+        "m) adjust special bonuses");
     if (alloy_applicable)
     {
         byte info_attr = has_alloy_mastery ? TERM_SLATE : TERM_L_DARK;
@@ -7112,11 +7121,11 @@ int numbers_menu_aux(int* highlight)
                 alloy_weight / 10, alloy_weight % 10, mithril_have / 10,
                 mithril_have % 10, star_iron_have / 10, star_iron_have % 10);
         }
-        Term_putstr(COL_SMT2, 17, -1, info_attr, buf);
+        Term_putstr(COL_SMT2, 15, -1, info_attr, buf);
     }
     else if (!has_alloy_mastery)
     {
-        Term_putstr(COL_SMT2, 17, -1, TERM_L_DARK,
+        Term_putstr(COL_SMT2, 15, -1, TERM_L_DARK,
             "Alloy requires Alloy mastery.");
     }
 
@@ -7199,7 +7208,14 @@ typedef enum
 {
     SMT_BONUS_ENTRY_STAT = 0,
     SMT_BONUS_ENTRY_SKILL = 1,
+    SMT_BONUS_ENTRY_SPECIAL = 2,
 } smith_bonus_entry_kind;
+
+typedef enum
+{
+    SMT_BONUS_SPECIAL_DAMAGE_SIDES = 0,
+    SMT_BONUS_SPECIAL_TUNNEL = 1,
+} smith_bonus_special_kind;
 
 typedef struct
 {
@@ -7228,6 +7244,19 @@ static const char* smith_bonus_stat_name(int stat)
         return "Constitution";
     case A_GRA:
         return "Grace";
+    default:
+        return "Unknown";
+    }
+}
+
+static const char* smith_bonus_special_name(int special)
+{
+    switch (special)
+    {
+    case SMT_BONUS_SPECIAL_DAMAGE_SIDES:
+        return "Damage bonus";
+    case SMT_BONUS_SPECIAL_TUNNEL:
+        return "Tunneling";
     default:
         return "Unknown";
     }
@@ -7296,6 +7325,30 @@ static int smith_collect_bonus_entries(smith_bonus_entry* entries, int max_entri
         entries[n].flag_pos = 0;
         entries[n].flag_neg = 0;
         entries[n].flag = skill_flags[i].flag;
+        n++;
+    }
+
+    struct special_flag_map
+    {
+        int special;
+        u32b flag;
+    };
+
+    static const struct special_flag_map special_flags[] = {
+        { SMT_BONUS_SPECIAL_DAMAGE_SIDES, TR1_DAMAGE_SIDES },
+        { SMT_BONUS_SPECIAL_TUNNEL, TR1_TUNNEL },
+    };
+
+    for (int i = 0; i < (int)N_ELEMENTS(special_flags) && n < max_entries; i++)
+    {
+        if ((f1 & special_flags[i].flag) == 0)
+            continue;
+
+        entries[n].kind = SMT_BONUS_ENTRY_SPECIAL;
+        entries[n].index = special_flags[i].special;
+        entries[n].flag_pos = 0;
+        entries[n].flag_neg = 0;
+        entries[n].flag = special_flags[i].flag;
         n++;
     }
 
@@ -7369,12 +7422,22 @@ static bool smith_adjust_bonus_entry(const smith_bonus_entry* entry, int delta)
         return true;
     }
 
-    /* Skill bonus: honour ego min_pval as the lower bound */
-    value = smith_o_ptr->skill_bonus[entry->index];
+    if (entry->kind == SMT_BONUS_ENTRY_SKILL)
+    {
+        /* Skill bonus: honour ego min_pval as the lower bound */
+        value = smith_o_ptr->skill_bonus[entry->index];
+        int new_value = value + delta;
+        if (new_value < floor_bonus || new_value > max_bonus)
+            return false;
+        smith_o_ptr->skill_bonus[entry->index] = new_value;
+        return true;
+    }
+
+    value = smith_o_ptr->pval;
     int new_value = value + delta;
     if (new_value < floor_bonus || new_value > max_bonus)
         return false;
-    smith_o_ptr->skill_bonus[entry->index] = new_value;
+    smith_o_ptr->pval = (s16b)new_value;
     return true;
 }
 
@@ -7394,12 +7457,12 @@ static int smith_bonus_menu_aux(int* highlight)
     wipe_screen_from(COL_SMT2);
 
     Term_putstr(COL_SMT2, 1, -1, TERM_WHITE,
-        "Adjust stat/skill bonuses (ESC to return)");
+        "Adjust special bonuses (ESC to return)");
 
     if (num <= 0)
     {
         Term_putstr(COL_SMT2, 3, -1, TERM_L_DARK,
-            "(No stat/skill bonuses on this item.)");
+            "(No editable special bonuses on this item.)");
         Term_fresh();
         hide_cursor = true;
         (void)inkey();
@@ -7426,7 +7489,7 @@ static int smith_bonus_menu_aux(int* highlight)
         if (end > num)
             end = num;
         strnfmt(buf, sizeof(buf),
-            "Adjust stat/skill bonuses (ESC to return) [%d-%d/%d]", top, end,
+            "Adjust special bonuses (ESC to return) [%d-%d/%d]", top, end,
             num);
         Term_putstr(COL_SMT2, 1, -1, TERM_WHITE, buf);
     }
@@ -7450,12 +7513,23 @@ static int smith_bonus_menu_aux(int* highlight)
         attr[i] = valid[i] ? (can_afford[i] ? TERM_WHITE : TERM_SLATE)
                            : TERM_L_DARK;
 
-        const char* name = (actions[i].entry.kind == SMT_BONUS_ENTRY_STAT)
-            ? smith_bonus_stat_name(actions[i].entry.index)
-            : skill_names_full[actions[i].entry.index];
-        int value = (actions[i].entry.kind == SMT_BONUS_ENTRY_STAT)
-            ? smith_o_ptr->stat_bonus[actions[i].entry.index]
-            : smith_o_ptr->skill_bonus[actions[i].entry.index];
+        const char* name = NULL;
+        int value = 0;
+        if (actions[i].entry.kind == SMT_BONUS_ENTRY_STAT)
+        {
+            name = smith_bonus_stat_name(actions[i].entry.index);
+            value = smith_o_ptr->stat_bonus[actions[i].entry.index];
+        }
+        else if (actions[i].entry.kind == SMT_BONUS_ENTRY_SKILL)
+        {
+            name = skill_names_full[actions[i].entry.index];
+            value = smith_o_ptr->skill_bonus[actions[i].entry.index];
+        }
+        else
+        {
+            name = smith_bonus_special_name(actions[i].entry.index);
+            value = smith_o_ptr->pval;
+        }
         const char* verb = (actions[i].delta > 0) ? "increase" : "decrease";
 
         int entry_idx = i + 1;
@@ -7884,40 +7958,21 @@ static void create_special(int ego_prefix, int ego_suffix)
     smith_o_ptr->number = smith_default_stack_size(smith_o_ptr);
 }
 
-static bool enchant_menu_has_applicable_affix(bool selecting_prefix)
+static bool enchant_menu_has_applicable_affix(const object_type* base_o_ptr,
+    int fixed_prefix, int fixed_suffix, bool selecting_prefix)
 {
-    int i, j;
+    int i;
 
-    if (!smith_o_ptr || smith_o_ptr->tval == 0)
+    if (!base_o_ptr || !smith_o_ptr || base_o_ptr->tval == 0)
         return false;
     if (object_has_evil_alignment(smith_o_ptr))
         return false;
 
-    /* Suffix-only ego: never allow any prefix when it's present. */
-    if (selecting_prefix && object_ego_suffix(smith_o_ptr) == EGO_UNQUENCHED_FIRE)
-        return false;
-
     for (i = 1; i < z_info->e_max; i++)
     {
-        ego_item_type* e_ptr = &e_info[i];
-        const char* raw_name = e_name + e_ptr->name;
-        bool is_prefix = ego_name_is_prefix(raw_name);
-        if (selecting_prefix != is_prefix)
-            continue;
-        if (e_ptr->flags4 & TR4_EVIL_ITEM)
-            continue;
-
-        for (j = 0; j < EGO_TVALS_MAX; j++)
-        {
-            if (smith_o_ptr->tval != e_ptr->tval[j])
-                continue;
-            if (smith_o_ptr->sval < e_ptr->min_sval[j])
-                continue;
-            if (smith_o_ptr->sval > e_ptr->max_sval[j])
-                continue;
-
+        if (smith_ego_can_apply_to_object(
+                base_o_ptr, i, fixed_prefix, fixed_suffix, selecting_prefix))
             return true;
-        }
     }
 
     return false;
@@ -7926,10 +7981,11 @@ static bool enchant_menu_has_applicable_affix(bool selecting_prefix)
 /*
  * Performs the interface and selection work for the enchantment menu.
  */
-static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix, bool selecting_prefix)
+static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix,
+    bool selecting_prefix, const object_type* base_o_ptr)
 {
     char ch;
-    int i, j;
+    int i;
     int entry_count = 0;
     char buf[80];
     bool valid[26];
@@ -7959,48 +8015,8 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix, 
     /* We have to search the whole special item list. */
     for (i = 1; i < z_info->e_max && entry_count < (int)N_ELEMENTS(choice); i++)
     {
-        ego_item_type* e_ptr = &e_info[i];
-        bool acceptable = false;
-
-        const char* raw_name = e_name + e_ptr->name;
-        bool is_prefix = ego_name_is_prefix(raw_name);
-        if (selecting_prefix != is_prefix)
-            continue;
-
-        if (selecting_prefix && fixed_suffix == EGO_UNQUENCHED_FIRE)
-            continue;
-
-        if (!selecting_prefix && i == EGO_UNQUENCHED_FIRE && fixed_prefix != 0)
-            continue;
-        if (e_ptr->flags4 & TR4_EVIL_ITEM)
-            continue;
-
-        /* Don't create cursed */
-        // if (e_ptr->flags3 & TR3_LIGHT_CURSE) continue;
-
-        /* Don't create useless */
-        // if (e_ptr->cost == 0) continue;
-
-        /* Test if this is a legal special item type for this object */
-        for (j = 0; j < EGO_TVALS_MAX; j++)
-        {
-            /* Require identical base type */
-            if (smith_o_ptr->tval == e_ptr->tval[j])
-            {
-                /* Require sval in bounds, lower */
-                if (smith_o_ptr->sval >= e_ptr->min_sval[j])
-                {
-                    /* Require sval in bounds, upper */
-                    if (smith_o_ptr->sval <= e_ptr->max_sval[j])
-                    {
-                        /* Accept */
-                        acceptable = true;
-                    }
-                }
-            }
-        }
-
-        if (acceptable)
+        if (smith_ego_can_apply_to_object(
+                base_o_ptr, i, fixed_prefix, fixed_suffix, selecting_prefix))
         {
             /* Make a preview 'special' version of the object */
             if (selecting_prefix)
@@ -8149,9 +8165,11 @@ bool enchant_menu(void)
     int selected_suffix = (int)object_ego_suffix(smith_o_ptr);
 
     bool show_prefix_step =
-        enchant_menu_has_applicable_affix(true) || (selected_prefix != 0);
+        enchant_menu_has_applicable_affix(
+            smith2_o_ptr, 0, selected_suffix, true) || (selected_prefix != 0);
     bool show_suffix_step =
-        enchant_menu_has_applicable_affix(false) || (selected_suffix != 0);
+        enchant_menu_has_applicable_affix(
+            smith2_o_ptr, selected_prefix, 0, false) || (selected_suffix != 0);
 
     if (!show_prefix_step && !show_suffix_step)
     {
@@ -8168,7 +8186,7 @@ bool enchant_menu(void)
         if (selecting_prefix)
         {
             int choice_idx = enchant_menu_aux(
-                &prefix_highlight, 0, selected_suffix, true);
+                &prefix_highlight, 0, selected_suffix, true, smith2_o_ptr);
 
             if (choice_idx == -1)
             {
@@ -8196,7 +8214,7 @@ bool enchant_menu(void)
         else
         {
             int choice_idx = enchant_menu_aux(
-                &suffix_highlight, selected_prefix, 0, false);
+                &suffix_highlight, selected_prefix, 0, false, smith2_o_ptr);
 
             if (choice_idx == -1)
             {

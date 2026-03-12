@@ -895,7 +895,7 @@ B:2/2
 
 N:123:of the Ironfists
 W:4:20:0:2000
-C:0:0:0:0:0:0:1
+C:0:0:0:0:0:0:1:1
 T:31:2:2
 F:CON | NEG_DEX | NOBLE_ITEM
 
