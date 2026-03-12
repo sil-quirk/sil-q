@@ -1818,7 +1818,8 @@ A:3/100
 D:A gem of darkness that swallows light, as Ungoliant consumed
 D: the radiance of the Two Trees. It darkens an area with a
 D: radius of 7 squares, plus the entire room if you are
-D: currently in one.
+D: currently in one. For the stealth checks of that round, you
+D: add your Will to your stealth.
 
 
 ##### Horns #####

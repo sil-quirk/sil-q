@@ -967,6 +967,11 @@ static bool use_staff_effects(object_type* o_ptr, bool* ident, bool alchemy_boos
     {
         if (darken_area(4, 4, 7))
             *ident = true;
+        if (alchemy_boost)
+        {
+            /* Gems of Shadows bolster this round's stealth checks with Will. */
+            stealth_score += p_ptr->skill_use[S_WIL];
+        }
         break;
     }
     }
