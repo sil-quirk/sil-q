@@ -1241,6 +1241,7 @@
 
 #define DROP_TYPE_DAMAGED 17
 #define DROP_TYPE_TORCHES 18
+#define DROP_TYPE_SIMPLE_LIGHTS 19
 
 /*** Object "tval" and "sval" codes ***/
 

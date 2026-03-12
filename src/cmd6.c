@@ -729,7 +729,7 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
     {
         object_type* staff_slot = &inventory[INVEN_STAFF];
 
-        if (staff_slot->k_idx && !(staff_slot->ident & IDENT_EMPTY))
+        if (staff_slot->k_idx)
         {
             o_ptr = staff_slot;
             item = INVEN_STAFF;

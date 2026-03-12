@@ -129,7 +129,7 @@ S:2:-1:2:-1
 I:16:35:180
 H:54:2
 W:155:10
-C:18|19|20|21|22
+C:18|19|20|21|22|50
 F:AXE_PROFICIENCY | ARC_PENALTY | SMT_AFFINITY | MEL_AFFINITY 
 E:39:0:3:3     # ~ Wooden Torches (3)
 E:80:35:5:5    # , Pieces of Dark Bread (5)

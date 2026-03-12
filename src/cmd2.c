@@ -1148,7 +1148,7 @@ static bool prep_skeleton_light(object_type* o_ptr)
 
     object_wipe(o_ptr);
     if (!drop_generate_object(
-            depth, DROP_QUALITY_NORMAL, DROP_TYPE_TORCHES, false, o_ptr))
+            depth, DROP_QUALITY_NORMAL, DROP_TYPE_SIMPLE_LIGHTS, false, o_ptr))
         return false;
 
     object_known(o_ptr);

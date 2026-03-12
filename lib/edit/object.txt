@@ -1034,7 +1034,7 @@ T:2:29
 I:39:1:0
 W:5:0:30:35
 P:0:0d0:0:0d0:0
-A:1/0:6/60:14/40:16/0
+A:1/0:6/50:14/40:16/0
 D:A lantern of brass and glass, steadier and brighter than a
 D: torch. Such lanterns were carried by those who ventured into
 D: the deep places, where a reliable light could mean the

@@ -538,6 +538,8 @@ extern void search(void);
 extern void do_cmd_pickup_from_pile(void);
 extern void py_pickup_aux(int o_idx);
 extern void py_pickup(void);
+extern bool smith_oath_forbids_object(const object_type* o_ptr);
+extern bool smith_oath_confirm_break(void);
 extern void hit_trap(int y, int x);
 extern void display_hit(
     int y, int x, int net_dam, int dam_type, bool fatal_blow);
@@ -1120,6 +1122,8 @@ extern void floor_item_increase(int item, int num);
 extern void floor_item_optimize(int item);
 extern void check_pack_overflow(void);
 extern bool inven_carry_okay(const object_type* o_ptr);
+extern bool inven_carry_okay_after_removing(
+    const object_type* o_ptr, int remove_item, int remove_amt);
 extern bool inven_carry_limit_failed(void);
 extern cptr inven_carry_limit_label(void);
 extern int inven_carry_limit_value(void);

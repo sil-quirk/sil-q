@@ -44,6 +44,11 @@ extern void wipe_screen_from(int col);
 static int find_named_artifact_for_character(void);
 static void grant_starting_artifact(void);
 
+static void copy_start_items(start_item dest[MAX_START_ITEMS],
+    const start_item src[MAX_START_ITEMS]);
+static void replace_start_food(start_item list[MAX_START_ITEMS], byte from_sval,
+    byte to_sval);
+
 #define BLITZ_MAX_EFFECT_COUNT 9
 
 /* Character ability names */
@@ -552,8 +557,16 @@ static void give_start_items(const start_item *list)
         /* Where would this be wielded? */
         slot = wield_slot(i_ptr);
 
-        /* Light sources start with fuel */
-        if (slot == INVEN_LITE) i_ptr->timeout = 2000;
+        /* Light sources start with their standard default fuel. */
+        if (slot == INVEN_LITE)
+        {
+            if (i_ptr->sval == SV_LIGHT_TORCH)
+                i_ptr->timeout = 1000;
+            else if (i_ptr->sval == SV_LIGHT_LANTERN)
+                i_ptr->timeout = 3000;
+            else if (i_ptr->sval == SV_LIGHT_MALLORN)
+                i_ptr->timeout = 50;
+        }
 
         bool start_known = true;
         if ((i_ptr->tval == TV_POTION)
@@ -602,6 +615,32 @@ static void give_start_items(const start_item *list)
         }
 
         object_wipe(i_ptr); /* avoid dupes */
+    }
+}
+
+static void copy_start_items(start_item dest[MAX_START_ITEMS],
+    const start_item src[MAX_START_ITEMS])
+{
+    int item_idx;
+
+    for (item_idx = 0; item_idx < MAX_START_ITEMS; item_idx++)
+    {
+        dest[item_idx] = src[item_idx];
+    }
+}
+
+static void replace_start_food(start_item list[MAX_START_ITEMS], byte from_sval,
+    byte to_sval)
+{
+    int item_idx;
+
+    for (item_idx = 0; item_idx < MAX_START_ITEMS && list[item_idx].tval;
+         item_idx++)
+    {
+        if (list[item_idx].tval == TV_FOOD && list[item_idx].sval == from_sval)
+        {
+            list[item_idx].sval = to_sval;
+        }
     }
 }
 
@@ -761,10 +800,18 @@ static void player_outfit(void)
     /* ---------- pointers into info arrays ---------- */
     player_race  *rp_ptr = &p_info[p_ptr->prace];
     character_profile *current_character_profile = &c_info[p_ptr->pcharacter];
+    start_item race_start_items[MAX_START_ITEMS];
+
+    copy_start_items(race_start_items, rp_ptr->start_items);
+
+    if (current_character_profile->flags_u & UNQ_SMT_EOL)
+    {
+        replace_start_food(race_start_items, SV_FOOD_LEMBAS, SV_FOOD_BREAD);
+    }
 
     /* ---------- hand out gear ---------- */
     log_debug("Giving starting items for race: %s", p_name + rp_ptr->name);
-    give_start_items(rp_ptr->start_items);   /* race first  */
+    give_start_items(race_start_items);   /* race first  */
     log_debug("Giving starting items for character: %s", c_name + current_character_profile->name);
     give_start_items(current_character_profile->start_items);   /* character kit */
 

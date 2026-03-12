@@ -3142,6 +3142,34 @@ bool is_weapon_or_armor(const object_type* o_ptr)
     return false;
 }
 
+bool smith_oath_forbids_object(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    return chosen_oath(OATH_SMITH) && !oath_invalid(OATH_SMITH)
+        && is_weapon_or_armor(o_ptr) && !is_smithed_by_player(o_ptr);
+}
+
+bool smith_oath_confirm_break(void)
+{
+    char* prompt;
+
+    if (!chosen_oath(OATH_SMITH) || oath_invalid(OATH_SMITH))
+        return true;
+
+    prompt = oath_confirmation_prompt(OATH_SMITH);
+    if (!prompt || !prompt[0])
+        prompt = "Are you certain you wish to break your Oath of the Smith?";
+
+    if (!get_check_oath_multiline(prompt))
+        return false;
+
+    p_ptr->oaths_broken |= OATH_SMITH_FLAG;
+    apply_oath_breaking_curse(OATH_SMITH);
+    return true;
+}
+
 /*
  * Check if an object was smithed by the player
  */
@@ -3292,35 +3320,10 @@ void py_pickup_aux(int o_idx)
     if (o_ptr->k_idx)
     {
         /* Check for Oath of the Smith violation */
-        if (chosen_oath(OATH_SMITH) && !oath_invalid(OATH_SMITH) && 
-            is_weapon_or_armor(o_ptr) && !is_smithed_by_player(o_ptr))
+        if (smith_oath_forbids_object(o_ptr))
         {
-            /* Describe the object */
-            object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
-            
-            /* Warn the player about oath breaking using oath-specific text */
-            char* prompt = oath_confirmation_prompt(OATH_SMITH);
-            if (!prompt || !prompt[0]) prompt = "Are you certain you wish to break your Oath of the Smith?";
-            
-            if (!get_check_oath_multiline(prompt))
-            {
-                /* Player chose not to break oath - abort pickup */
+            if (!smith_oath_confirm_break())
                 return;
-            }
-            
-            /* Player chose to break oath - curse message and selection handled by apply_oath_breaking_curse */
-            
-            /* Mark oath as broken */
-            p_ptr->oaths_broken |= OATH_SMITH_FLAG;
-            
-            /* Disable the oath's special ability */
-            p_ptr->active_ability[S_SPC][SPC_OATH_SMITH] = false;
-            
-            /* Apply oath breaking curse */
-            apply_oath_breaking_curse(OATH_SMITH);
-            
-            /* Mark oath as permanently banned in metarun */
-            metarun_ban_oath(OATH_SMITH);
         }
 
         /* Check for supply items with partial pickup option */

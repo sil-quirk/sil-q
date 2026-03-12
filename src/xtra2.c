@@ -6217,7 +6217,7 @@ void apply_quest_rewards(int quest_idx)
     quest_type* q_ptr;
     
     /* Validate quest index */
-    if (quest_idx <= 0 || quest_idx >= z_info->quest_max) return;
+    if (!p_ptr || quest_idx <= 0 || quest_idx >= z_info->quest_max) return;
     
     q_ptr = &quest_info[quest_idx];
     
@@ -6240,17 +6240,39 @@ void apply_quest_rewards(int quest_idx)
     }
     
     /* Apply skill bonus */
-    if (q_ptr->skill_type > 0 && q_ptr->skill_bonus > 0) {
-        /* skill_type: 1=Smithing, 2=Stealth, etc. */
-        if (q_ptr->skill_type == 1) { /* Smithing */
-            p_ptr->skill_base[S_SMT] += q_ptr->skill_bonus;
-            log_trace("Applied Smithing bonus: +%d", q_ptr->skill_bonus);
+    if (q_ptr->skill_bonus > 0 && q_ptr->skill_type < S_MAX) {
+        p_ptr->skill_base[q_ptr->skill_type] += q_ptr->skill_bonus;
+
+        switch (q_ptr->skill_type) {
+            case S_MEL:
+                log_trace("Applied Melee bonus: +%d", q_ptr->skill_bonus);
+                break;
+            case S_ARC:
+                log_trace("Applied Archery bonus: +%d", q_ptr->skill_bonus);
+                break;
+            case S_EVN:
+                log_trace("Applied Evasion bonus: +%d", q_ptr->skill_bonus);
+                break;
+            case S_STL:
+                log_trace("Applied Stealth bonus: +%d", q_ptr->skill_bonus);
+                break;
+            case S_PER:
+                log_trace("Applied Perception bonus: +%d", q_ptr->skill_bonus);
+                break;
+            case S_WIL:
+                log_trace("Applied Will bonus: +%d", q_ptr->skill_bonus);
+                break;
+            case S_SMT:
+                log_trace("Applied Smithing bonus: +%d", q_ptr->skill_bonus);
+                break;
+            case S_SNG:
+                log_trace("Applied Song bonus: +%d", q_ptr->skill_bonus);
+                break;
+            default:
+                log_trace("Applied skill bonus: skill=%d bonus=+%d",
+                          q_ptr->skill_type, q_ptr->skill_bonus);
+                break;
         }
-        else if (q_ptr->skill_type == 2) { /* Stealth */
-            p_ptr->skill_base[S_STL] += q_ptr->skill_bonus;
-            log_trace("Applied Stealth bonus: +%d", q_ptr->skill_bonus);
-        }
-        /* Add more skill types as needed */
     }
     
     /* Apply special ability */

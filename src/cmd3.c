@@ -130,6 +130,17 @@ static bool item_tester_hook_throw_slots(const object_type* o_ptr)
     return throw_slot_enabled[slot];
 }
 
+static bool smith_oath_takeoff_hits_pack(const object_type* o_ptr, int source_item)
+{
+    if (!smith_oath_forbids_object(o_ptr))
+        return false;
+
+    if (source_item >= 0 && source_item < INVEN_PACK)
+        return inven_carry_okay_after_removing(o_ptr, source_item, 1);
+
+    return inven_carry_okay(o_ptr);
+}
+
 bool open_supplies_menu_with_context(supply_menu_action default_action, int default_group, bool default_focus, bool default_hotkey)
 {
     supply_menu_request request = {0};
@@ -1455,6 +1466,33 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     {
         weapon_less_effective = true;
     }
+
+    if (smith_oath_forbids_object(o_ptr) && !smith_oath_confirm_break())
+        return;
+
+    if (inventory[slot].k_idx && !combine
+        && smith_oath_takeoff_hits_pack(&inventory[slot], item)
+        && !smith_oath_confirm_break())
+    {
+        return;
+    }
+
+    if ((k_info[o_ptr->k_idx].flags3 & (TR3_TWO_HANDED))
+        && inventory[INVEN_ARM].k_idx
+        && smith_oath_takeoff_hits_pack(&inventory[INVEN_ARM], item)
+        && !smith_oath_confirm_break())
+    {
+        return;
+    }
+
+    if ((slot == INVEN_ARM)
+        && inventory[INVEN_WIELD].k_idx
+        && (k_info[inventory[INVEN_WIELD].k_idx].flags3 & (TR3_TWO_HANDED))
+        && smith_oath_takeoff_hits_pack(&inventory[INVEN_WIELD], item)
+        && !smith_oath_confirm_break())
+    {
+        return;
+    }
     
     /* Oath of Light: warn before equipping shadowed items */
     if (chosen_oath(OATH_LIGHT) && !oath_invalid(OATH_LIGHT))
@@ -1840,6 +1878,12 @@ void do_cmd_takeoff(object_type* default_o_ptr, int default_item)
             /* Nope */
             return;
         }
+    }
+
+    if (smith_oath_forbids_object(o_ptr) && inven_carry_okay(o_ptr)
+        && !smith_oath_confirm_break())
+    {
+        return;
     }
 
     /* Take a turn */

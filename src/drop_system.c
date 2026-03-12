@@ -2558,6 +2558,11 @@ static bool droptype_matches(const drop_request* req, const drop_entry* e)
         return e->obj.tval == TV_POTION;
     case DROP_TYPE_STAFF:
         return (e->obj.tval == TV_STAFF || e->obj.tval == TV_GEM);
+    case DROP_TYPE_SIMPLE_LIGHTS:
+        return e->group_kind == DROP_GROUP_NORMAL
+            && e->obj.tval == TV_LIGHT
+            && (e->obj.sval == SV_LIGHT_TORCH || e->obj.sval == SV_LIGHT_MALLORN
+                || e->obj.sval == SV_LIGHT_LANTERN);
     case DROP_TYPE_TORCHES:
         return e->obj.tval == TV_LIGHT
             && (e->obj.sval == SV_LIGHT_TORCH || e->obj.sval == SV_LIGHT_MALLORN
@@ -3337,6 +3342,7 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
         break;
     case DROP_TYPE_POTION:
     case DROP_TYPE_STAFF:
+    case DROP_TYPE_SIMPLE_LIGHTS:
     case DROP_TYPE_TORCHES:
         if (disallow_supply)
             return false;
@@ -3358,7 +3364,7 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     if (req.cat_mask == 0)
         req.cat_mask = (1U << req.cat);
 
-    if (droptype == DROP_TYPE_TORCHES)
+    if (droptype == DROP_TYPE_TORCHES || droptype == DROP_TYPE_SIMPLE_LIGHTS)
     {
         req.supply_weights[DROP_SUPPLY_POTION] = 0;
         req.supply_weights[DROP_SUPPLY_HERB] = 0;
@@ -3412,6 +3418,7 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     case DROP_TYPE_JEWELRY:
     case DROP_TYPE_POTION:
     case DROP_TYPE_STAFF:
+    case DROP_TYPE_SIMPLE_LIGHTS:
     case DROP_TYPE_TORCHES:
     case DROP_TYPE_NOT_DAMAGED:
     case DROP_TYPE_DAMAGED:

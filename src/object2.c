@@ -5672,6 +5672,49 @@ bool inven_carry_okay(const object_type* o_ptr)
     return (true);
 }
 
+bool inven_carry_okay_after_removing(
+    const object_type* o_ptr, int remove_item, int remove_amt)
+{
+    object_type saved_item;
+    bool had_removed_item = false;
+    s16b saved_inven_cnt = p_ptr->inven_cnt;
+    bool result;
+
+    if (!o_ptr)
+        return false;
+
+    clear_inventory_limit_failure();
+
+    /* Simulate removing the source pack item so swap prompts reflect the real outcome. */
+    if (remove_item >= 0 && remove_item < INVEN_PACK && remove_amt > 0
+        && inventory[remove_item].k_idx)
+    {
+        object_copy(&saved_item, &inventory[remove_item]);
+        had_removed_item = true;
+
+        if (remove_amt >= inventory[remove_item].number)
+        {
+            object_wipe(&inventory[remove_item]);
+            p_ptr->inven_cnt--;
+        }
+        else
+        {
+            inventory[remove_item].number -= remove_amt;
+        }
+    }
+
+    result = inven_carry_okay(o_ptr);
+
+    if (had_removed_item)
+    {
+        object_copy(&inventory[remove_item], &saved_item);
+        p_ptr->inven_cnt = saved_inven_cnt;
+    }
+
+    clear_inventory_limit_failure();
+    return result;
+}
+
 /*
  * Add an item to the players inventory, and return the slot used.
  *

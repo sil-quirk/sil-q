@@ -2097,7 +2097,7 @@ static void scatter_cave_gems_in_bounds(int y1, int y2, int x1, int x2, bool is_
     /* Scatter torches; both wooden and mallorn in small caves only, max 2 together */
     if (!is_big_cave)
     {
-        int torch_chance = 35;
+        int torch_chance = 50;
         int torch_max = 2;
         int torch_placed = 0;
         if (rand_int(100) < torch_chance)
@@ -2114,8 +2114,8 @@ static void scatter_cave_gems_in_bounds(int y1, int y2, int x1, int x2, bool is_
                 object_type *i_ptr = &object_type_body;
                 object_wipe(i_ptr);
 
-                /* 5% chance to drop a digging tool instead of a torch */
-                int droptype = (rand_int(100) < 5) ? DROP_TYPE_DIGGING : DROP_TYPE_TORCHES;
+                /* 10% chance to drop a digging tool instead of a torch */
+                int droptype = (rand_int(100) < 10) ? DROP_TYPE_DIGGING : DROP_TYPE_TORCHES;
                 if (drop_generate_object(depth, DROP_QUALITY_NORMAL, droptype, false, i_ptr)
                     || (droptype == DROP_TYPE_DIGGING
                         && drop_generate_object(depth, DROP_QUALITY_NORMAL, DROP_TYPE_TORCHES,

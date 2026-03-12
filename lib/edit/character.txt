@@ -484,7 +484,7 @@ B:You forge in shadow-dark smith of Nan Elmoth, whose pride binds love to ruin.
 F:SMT_AFFINITY | TREACHERY | BOW_PROFICIENCY | SNG_PENALTY | STL_AFFINITY | PER_AFFINITY
 U:SMT_EOL
 S:1:2:2:0
-C:0:12  # Two Weapon Fighting
+C:0:12:6:8  # Two Weapon Fighting # Alloy Mastery
 P:3
 D: Dark-hearted smith dwelling deep beneath gloomy forest halls unseen, crafting meteoric iron into blades of peril and subtle enchantment. Secretive and proud, bound by jealousy, shadow hiding heart’s desire, fate entwined tragically with Aredhel, foreshadowing ruin and loss. Father to son who shares dark destiny, weaving doom in hidden halls, remembered bitterly in dark tales whispered beneath forest twilight; Eol, elf whose pride forged tragedy beneath shadowed leaves of Nan Elmoth.
 
