@@ -2174,11 +2174,23 @@ bool death_spectator_active(void)
 
 static bool auto_pickup_okay(const object_type* o_ptr)
 {
+    int max_qty;
     // cptr s;
 
     /* It can't be carried */
     if (!inven_carry_okay(o_ptr))
         return (false);
+
+    /*
+     * Don't interrupt movement with a quantity prompt when a supply stack
+     * only fits partially. The player can still pick it up manually.
+     */
+    if (supplies_is_supply_object(o_ptr) && o_ptr->number > 1)
+    {
+        max_qty = supplies_max_absorbable_quantity(o_ptr);
+        if ((max_qty > 0) && (max_qty < o_ptr->number))
+            return (false);
+    }
 
     /*object is marked to not pickup*/
     if ((k_info[o_ptr->k_idx].squelch == NO_SQUELCH_NEVER_PICKUP)

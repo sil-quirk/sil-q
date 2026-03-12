@@ -21043,11 +21043,20 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         knowledge_browser_layout layout;
         int count_col;
         int sym_col;
+        int used_weight;
+        int max_weight;
+        char weight_buf[80];
 
         compute_supply_group_totals(group_totals);
         knowledge_init_layout(&layout, max, true);
         count_col = layout.term_wid - 6;
         sym_col = layout.term_wid - (use_bigtile ? 2 : 1);
+        used_weight = supplies_total_weight();
+        max_weight = supplies_current_weight_cap();
+        strnfmt(weight_buf, sizeof(weight_buf),
+            "Supply weight: %d.%1d/%d.%1d lb used",
+            used_weight / 10, used_weight % 10,
+            max_weight / 10, max_weight % 10);
 
         if (count_col <= layout.list_col + 8)
             count_col = layout.list_col + 8;
@@ -21099,6 +21108,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             Term_clear();
             Term_putstr(0, layout.title_row, layout.term_wid, TERM_L_WHITE + TERM_SHADE,
                 "Supplies - Herbs, Potions, Gems");
+            Term_putstr(0, layout.tabs_row, layout.term_wid, TERM_SLATE, weight_buf);
             Term_putstr(0, layout.header_row, layout.group_w, TERM_SLATE, "Group");
             Term_putstr(layout.list_col, layout.header_row, layout.list_w, TERM_SLATE,
                 "Name");
