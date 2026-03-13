@@ -1851,7 +1851,8 @@
     0x00000800 /* Item has been handled by the player (show combat stats on floor) */
 #define IDENT_HOARD_DROP                                                       \
     0x00001000 /* Generated as hoard-drop treasure (vault '!' token) */
-#define IDENT_UNUSED_XXXX2XXX 0x00002000 /* Unused */
+#define IDENT_UNCURSED                                                         \
+    0x00002000 /* Base curse already cleansed; don't reapply or display {uncursed} */
 #define IDENT_UNUSED_XXXX4XXX 0x00004000 /* Unused */
 #define IDENT_UNUSED_XXXX8XXX 0x00008000 /* Unused */
 #define IDENT_UNUSED_XXX1XXXX 0x00010000 /* Unused */

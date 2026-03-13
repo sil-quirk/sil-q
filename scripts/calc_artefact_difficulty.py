@@ -469,6 +469,12 @@ def calculate_difficulty(art):
         base_pval = get_base_pval(tval, sval)
         base_level = get_base_level(tval, sval)
         base_prot = get_base_protection(tval, sval)
+
+    if tval in [45, 40]:  # Ring / amulet combat bonuses always pay from zero
+        base_att = 0
+        base_evn = 0
+        base_ds = 0
+        base_prot = 0
     
     # Calculate bonuses (difference from base)
     smithed_att_bonus = art['att'] - base_att
@@ -1220,6 +1226,12 @@ def get_base_pval(tval, sval):
     return 0
 
 
+def smithing_step_from_ego_bonus_py(bonus):
+    if bonus == 0:
+        return 0
+    return 1 if bonus > 0 else -1
+
+
 def parse_object_file(filepath):
     """Parse object.txt to get all base item kinds with their stats."""
     objects = []
@@ -1409,20 +1421,20 @@ def generate_special_variants(special, objects):
             
             # Calculate stat ranges for this special + base combination
             # (mirrors build_ego_variants() in drop_system.c)
-            att_min = obj['att'] + (1 if special['max_att'] > 0 else 0)
+            att_min = obj['att'] + smithing_step_from_ego_bonus_py(special['max_att'])
             att_max = obj['max_att'] + special['max_att']
-            ds_min = obj['ds'] + (1 if special['to_ds'] > 0 else 0)
+            ds_min = obj['ds'] + smithing_step_from_ego_bonus_py(special['to_ds'])
             ds_max = obj['max_ds'] + special['to_ds']
-            evn_min = obj['evn'] + (1 if special['max_evn'] > 0 else 0)
+            evn_min = obj['evn'] + smithing_step_from_ego_bonus_py(special['max_evn'])
             evn_max = obj['max_evn'] + special['max_evn']
-            ps_min = obj['ps'] + (1 if special['to_ps'] > 0 else 0)
+            ps_min = obj['ps'] + smithing_step_from_ego_bonus_py(special['to_ps'])
             ps_max = obj['max_ps'] + special['to_ps']
             pval_min_inc = special.get('min_pval', 0) if special.get('min_pval', 0) > 0 else (1 if special['max_pval'] > 0 else 0)
             pval_min = obj['pval'] + pval_min_inc
             pval_max = obj['max_pval'] + special['max_pval']
-            dd_min = obj['dd'] + (1 if special['to_dd'] > 0 else 0)
+            dd_min = obj['dd'] + smithing_step_from_ego_bonus_py(special['to_dd'])
             dd_max = obj['dd'] + special['to_dd']
-            pd_min = obj['pd'] + (1 if special['to_pd'] > 0 else 0)
+            pd_min = obj['pd'] + smithing_step_from_ego_bonus_py(special['to_pd'])
             pd_max = obj['pd'] + special['to_pd']
             
             # Check if pval is allowed (base has pval flags or pval != 0 or ego grants pval)

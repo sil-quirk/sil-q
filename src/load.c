@@ -629,9 +629,16 @@ static errr rd_item(object_type* o_ptr)
     /* Extract the flags */
     object_flags(o_ptr, &f1, &f2, &f3);
 
-    /* Preserve sanctity-cleansed items saved as {uncursed}. */
+    /* Migrate legacy visible {uncursed} to a hidden persisted marker. */
+    if (o_ptr->discount == INSCRIP_UNCURSED)
+    {
+        o_ptr->ident |= IDENT_UNCURSED;
+        o_ptr->discount = 0;
+    }
+
+    /* Preserve cleansed curse state without showing {uncursed}. */
     if ((f3 & (TR3_LIGHT_CURSE | TR3_HEAVY_CURSE | TR3_PERMA_CURSE))
-        && (o_ptr->discount != INSCRIP_UNCURSED))
+        && !(o_ptr->ident & IDENT_UNCURSED))
         o_ptr->ident |= (IDENT_CURSED);
 
     /* Paranoia */

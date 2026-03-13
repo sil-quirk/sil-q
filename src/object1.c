@@ -653,6 +653,11 @@ static void object_flags_aux(
             (*f4) |= e_ptr->flags4;
         }
     }
+
+    if (o_ptr->ident & IDENT_UNCURSED)
+    {
+        (*f3) &= ~(TR3_LIGHT_CURSE | TR3_HEAVY_CURSE | TR3_PERMA_CURSE);
+    }
 }
 
 /*
@@ -687,6 +692,25 @@ void object_flags_known(const object_type* o_ptr, u32b* f1, u32b* f2, u32b* f3)
 void object_flags_known4(const object_type* o_ptr, u32b* f1, u32b* f2, u32b* f3, u32b* f4)
 {
     object_flags_aux(OBJECT_FLAGS_KNOWN, o_ptr, f1, f2, f3, f4);
+}
+
+bool object_grants_ability(const object_type* o_ptr, int skilltype, int abilitynum)
+{
+    int i;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    for (i = 0; i < o_ptr->abilities; i++)
+    {
+        if ((o_ptr->skilltype[i] == skilltype)
+            && (o_ptr->abilitynum[i] == abilitynum))
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /*
@@ -7594,14 +7618,35 @@ bool player_can_treat_as_throwing_flags(const object_type* o_ptr, u32b f3)
     return false;
 }
 
-bool player_can_treat_as_throwing(const object_type* o_ptr)
+bool weapon_is_impale_eligible(const object_type* o_ptr)
 {
-    u32b f1 = 0, f2 = 0, f3 = 0;
+    u32b f1 = 0, f2 = 0, f3 = 0, f4 = 0;
 
     if (!o_ptr || !o_ptr->k_idx)
         return false;
 
-    object_flags(o_ptr, &f1, &f2, &f3);
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
+
+    if (f3 & TR3_POLEARM)
+        return true;
+
+    if ((o_ptr->tval == TV_SWORD)
+        && (k_info[o_ptr->k_idx].flags3 & TR3_TWO_HANDED))
+    {
+        return true;
+    }
+
+    return false;
+}
+
+bool player_can_treat_as_throwing(const object_type* o_ptr)
+{
+    u32b f1 = 0, f2 = 0, f3 = 0, f4 = 0;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
 
     return player_can_treat_as_throwing_flags(o_ptr, f3);
 }

@@ -1324,7 +1324,7 @@ N:152:Evasion
 G:=:d
 I:45:2:0
 W:8:0:1:500
-P:0:0d0:0:0d0
+P:0:0d0:1:0d0
 R:EVN:3
 A:6/40
 D:A ring of subtle craft that quickens the wearer's instinct
@@ -1336,7 +1336,7 @@ N:153:Protection
 G:=:d
 I:45:3:0
 W:7:0:1:500
-P:0:0d0:0:1d0
+P:0:0d0:0:1d1
 R:PS:3
 A:5/60
 D:A ring set with an ancient ward that blunts the force of
@@ -1398,7 +1398,7 @@ N:158:Accuracy
 G:=:d
 I:45:8:0
 W:12:0:1:500
-P:0:0d0:0:0d0
+P:1:0d0:0:0d0
 R:ATT:3
 A:10/40
 D:A ring that steadies the hand and sharpens the eye. In
@@ -1683,8 +1683,8 @@ W:6:0:5:400
 P:0:0d0:0:0d0
 A:4/50
 D:A gem blessed with the virtue of cleansing, able to lift the
-D: taint of dark enchantments. It cleanses a single item in
-D: your possession, lifting its curse if possible.
+D: taint of dark enchantments. It washes over all the items in
+D: your possession, lifting curses where it can.
 
 
 N:196:Understanding

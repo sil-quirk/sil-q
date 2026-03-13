@@ -531,6 +531,9 @@ extern void ident_weapon_by_use(
 extern void ident_bow_arrow_by_use(object_type* j_ptr, object_type* i_ptr,
     object_type* o_ptr, const monster_type* m_ptr, u32b bow_flag,
     u32b arrow_flag);
+extern void apply_weapon_combat_effects(object_type* o_ptr,
+    monster_type* m_ptr, int skill_type, int net_dam, bool fatal_blow,
+    cptr armor_shatter_noun);
 extern int slay_bonus(
     const object_type* o_ptr, const monster_type* m_ptr, u32b* noticed_flag);
 extern int prt_after_sharpness(const object_type* o_ptr, u32b* noticed_flag);
@@ -955,6 +958,8 @@ extern void object_flags_known(
     const object_type* o_ptr, u32b* f1, u32b* f2, u32b* f3);
 extern void object_flags_known4(
     const object_type* o_ptr, u32b* f1, u32b* f2, u32b* f3, u32b* f4);
+extern bool object_grants_ability(
+    const object_type* o_ptr, int skilltype, int abilitynum);
 extern void strip_name(char* buf, int k_idx);
 extern void object_desc(
     char* buf, size_t max, const object_type* o_ptr, int pref, int mode);
@@ -988,6 +993,7 @@ extern void toggle_inven_equip(void);
 extern bool get_item(int* cp, cptr pmt, cptr str, int mode);
 extern bool player_can_treat_as_throwing(const object_type* o_ptr);
 extern bool player_can_treat_as_throwing_flags(const object_type* o_ptr, u32b f3);
+extern bool weapon_is_impale_eligible(const object_type* o_ptr);
 extern int get_paired_artefact(int art_idx);
 
 /* object2.c */

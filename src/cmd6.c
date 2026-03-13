@@ -76,7 +76,10 @@ static bool item_tester_hook_sanctity_target(const object_type* o_ptr)
     can_remove_jinx = p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING]
         && object_has_ego_flag4(o_ptr, TR4_JINX);
 
-    if ((o_ptr->discount == INSCRIP_UNCURSED) && !can_remove_jinx)
+    if (!cursed_p(o_ptr)
+        && ((o_ptr->ident & IDENT_UNCURSED)
+            || (o_ptr->discount == INSCRIP_UNCURSED))
+        && !can_remove_jinx)
         return false;
 
     if (cursed_p(o_ptr))
@@ -115,195 +118,30 @@ static int sanctity_collect_targets(int slots[], int max_slots,
     return count;
 }
 
-static int sanctity_choose_target_slot(const int slots[], int count)
-{
-    int current = 0;
-    int top = 0;
-    int term_wid = 80;
-    int term_hgt = 24;
-    int list_row = 2;
-    int help_row;
-    int prompt_row;
-    int page_size;
-
-    if (!slots || count <= 0)
-        return -1;
-
-    if (Term)
-        Term_get_size(&term_wid, &term_hgt);
-
-    if (term_wid < 40)
-        term_wid = 40;
-    if (term_hgt < 8)
-        term_hgt = 8;
-
-    help_row = term_hgt - 2;
-    prompt_row = term_hgt - 1;
-    page_size = help_row - list_row;
-    if (page_size < 1)
-        page_size = 1;
-
-    screen_save();
-
-    while (true)
-    {
-        int visible_count;
-        int i;
-        char buf[160];
-        char key;
-
-        if (current < top)
-            top = current;
-        if (current >= top + page_size)
-            top = current - page_size + 1;
-
-        visible_count = count - top;
-        if (visible_count > page_size)
-            visible_count = page_size;
-
-        Term_clear();
-
-        prt("Cleanse which item?", 0, 0);
-        strnfmt(buf, sizeof(buf),
-            "%d applicable target%s",
-            count, (count == 1) ? "" : "s");
-        prt(buf, 1, 0);
-
-        for (i = 0; i < visible_count; i++)
-        {
-            int row = list_row + i;
-            int slot = slots[top + i];
-            object_type* o_ptr = &inventory[slot];
-            char prefix[32];
-            char desc[80];
-            char label[4];
-            int desc_col = 20;
-            int max_desc = term_wid - desc_col - 1;
-            bool highlighted = (top + i == current);
-            byte label_attr = highlighted ? TERM_L_BLUE : TERM_WHITE;
-            byte desc_attr;
-
-            if (max_desc < 0)
-                max_desc = 0;
-            if (max_desc >= (int)sizeof(desc))
-                max_desc = (int)sizeof(desc) - 1;
-
-            strnfmt(prefix, sizeof(prefix), "%-12s:", mention_use(slot));
-            object_desc(desc, sizeof(desc), o_ptr, true, 3);
-            desc[max_desc] = '\0';
-
-            desc_attr = highlighted
-                ? TERM_L_BLUE
-                : object_display_color(o_ptr,
-                    tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
-
-            if (i < 26)
-                strnfmt(label, sizeof(label), "%c)", I2A(i));
-            else
-                SDL_strlcpy(label, "  ", sizeof(label));
-
-            Term_erase(0, row, 255);
-            Term_putstr(0, row, 2, label_attr, highlighted ? "> " : "  ");
-            Term_putstr(2, row, -1, label_attr, label);
-            Term_putstr(5, row, -1, label_attr, prefix);
-            Term_putstr(desc_col, row, -1, desc_attr, desc);
-        }
-
-        for (i = list_row + visible_count; i < help_row; i++)
-            Term_erase(0, i, 255);
-
-        if (count > page_size)
-        {
-            strnfmt(buf, sizeof(buf),
-                "Showing %d-%d of %d",
-                top + 1, top + visible_count, count);
-            prt(buf, help_row, 0);
-        }
-        else
-        {
-            prt("", help_row, 0);
-        }
-
-        prt("Letters/8/2/arrows choose, Enter select, ESC cancel",
-            prompt_row, 0);
-        Term_fresh();
-
-        key = inkey();
-
-        switch (key)
-        {
-            case ESCAPE:
-                screen_load();
-                return -1;
-
-            case '\r':
-            case '\n':
-            case ' ':
-#ifdef KC_ENTER
-            case KC_ENTER:
-#endif
-                screen_load();
-                return slots[current];
-
-            case '8':
-            case 'k':
-            case 'K':
-#ifdef ARROW_UP
-            case ARROW_UP:
-#endif
-                current = (current > 0) ? current - 1 : count - 1;
-                break;
-
-            case '2':
-            case 'j':
-            case 'J':
-#ifdef ARROW_DOWN
-            case ARROW_DOWN:
-#endif
-                current = (current + 1 < count) ? current + 1 : 0;
-                break;
-
-            default:
-            {
-                int pick;
-
-                if (!isalpha((unsigned char)key))
-                    break;
-
-                pick = A2I((char)tolower((unsigned char)key));
-                if (pick >= 0 && pick < visible_count)
-                {
-                    screen_load();
-                    return slots[top + pick];
-                }
-
-                break;
-            }
-        }
-    }
-}
-
-static object_type* choose_sanctity_target(const object_type* gem_o_ptr)
+static bool use_sanctity_gem_on_all(const object_type* gem_o_ptr, bool* ident)
 {
     int slots[INVEN_TOTAL];
     int count;
-    int slot;
-    object_type* target_o_ptr = NULL;
+    bool used = false;
 
     count = sanctity_collect_targets(slots, N_ELEMENTS(slots), gem_o_ptr);
     if (count <= 0)
     {
         msg_print("You have nothing suitable to cleanse.");
-        return NULL;
+        return false;
     }
 
-    slot = sanctity_choose_target_slot(slots, count);
-    if (slot < 0)
-        return NULL;
+    for (int i = 0; i < count; i++)
+    {
+        object_type* target_o_ptr = &inventory[slots[i]];
 
-    target_o_ptr = &inventory[slot];
+        if (!target_o_ptr->k_idx)
+            continue;
 
-    return target_o_ptr;
+        used |= use_sanctity_gem_on(target_o_ptr, ident);
+    }
+
+    return used;
 }
 
 /*
@@ -880,7 +718,6 @@ void do_cmd_use_gem(object_type* default_o_ptr, int default_item)
     int item;
     bool ident;
     object_type* o_ptr = NULL;
-    object_type* sanctity_target = NULL;
     bool use_charge;
 
     int supply_index = supplies_current_action();
@@ -945,9 +782,12 @@ void do_cmd_use_gem(object_type* default_o_ptr, int default_item)
 
     if (o_ptr->sval == SV_GEM_SANCTITY)
     {
-        sanctity_target = choose_sanctity_target(o_ptr);
-        if (!sanctity_target)
+        int slots[INVEN_TOTAL];
+        if (sanctity_collect_targets(slots, N_ELEMENTS(slots), o_ptr) <= 0)
+        {
+            msg_print("You have nothing suitable to cleanse.");
             return;
+        }
     }
 
     /* Sound */
@@ -964,7 +804,7 @@ void do_cmd_use_gem(object_type* default_o_ptr, int default_item)
 
     /* Use the gem */
     if (o_ptr->sval == SV_GEM_SANCTITY)
-        use_charge = use_sanctity_gem_on(sanctity_target, &ident);
+        use_charge = use_sanctity_gem_on_all(o_ptr, &ident);
     else
         use_charge = use_object(o_ptr, &ident);
 

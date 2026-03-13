@@ -1927,8 +1927,18 @@ bool object_similar(const object_type* o_ptr, const object_type* j_ptr)
     /* Hack -- Require compatible "discount" fields */
     if (o_ptr->discount != j_ptr->discount)
     {
+        bool o_uncursed_only = (o_ptr->discount == INSCRIP_UNCURSED)
+            && !cursed_p(o_ptr);
+        bool j_uncursed_only = (j_ptr->discount == INSCRIP_UNCURSED)
+            && !cursed_p(j_ptr);
+
+        /* Allow {uncursed} to stack with an otherwise identical clean item. */
+        if ((o_uncursed_only && (j_ptr->discount == 0))
+            || (j_uncursed_only && (o_ptr->discount == 0)))
+        {
+        }
         /* Both are (different) special inscriptions */
-        if ((o_ptr->discount >= INSCRIP_NULL)
+        else if ((o_ptr->discount >= INSCRIP_NULL)
             && (j_ptr->discount >= INSCRIP_NULL))
         {
             /* Normally require matching inscriptions */
@@ -2002,6 +2012,39 @@ void object_absorb(object_type* o_ptr, object_type* j_ptr)
     {
         o_ptr->number = total;
         j_ptr->number = 0;
+    }
+
+    /* Preserve auto-recovery intent across stack merges and partial absorbs. */
+    {
+        bool o_pickup = o_ptr->pickup ? true : false;
+        bool j_pickup = j_ptr->pickup ? true : false;
+        bool pickup = o_pickup || j_pickup;
+        bool o_slot_valid = o_pickup
+            && ((o_ptr->pickup_slot == INVEN_QUIVER1)
+                || (o_ptr->pickup_slot == INVEN_QUIVER2));
+        bool j_slot_valid = j_pickup
+            && ((j_ptr->pickup_slot == INVEN_QUIVER1)
+                || (j_ptr->pickup_slot == INVEN_QUIVER2));
+        s16b pickup_slot = -1;
+
+        if (o_slot_valid && j_slot_valid)
+        {
+            if (o_ptr->pickup_slot == j_ptr->pickup_slot)
+                pickup_slot = o_ptr->pickup_slot;
+        }
+        else if (o_slot_valid)
+        {
+            pickup_slot = o_ptr->pickup_slot;
+        }
+        else if (j_slot_valid)
+        {
+            pickup_slot = j_ptr->pickup_slot;
+        }
+
+        o_ptr->pickup = pickup;
+        j_ptr->pickup = pickup;
+        o_ptr->pickup_slot = pickup ? pickup_slot : -1;
+        j_ptr->pickup_slot = pickup ? pickup_slot : -1;
     }
 
     /* Hack -- Blend "known" status */
@@ -5768,6 +5811,7 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
     }
 
     int desired_slot = o_ptr->pickup_slot;
+    bool wanted_auto_recover = o_ptr->pickup ? true : false;
     bool wants_throw_slot = (desired_slot == INVEN_QUIVER1) || (desired_slot == INVEN_QUIVER2);
 
     if (wants_throw_slot)
@@ -5788,15 +5832,20 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
                 d_ptr->pickup_slot = -1;
                 d_ptr->ident |= IDENT_HANDLED;
                 o_ptr->number -= placed;
-                o_ptr->pickup = false;
-                o_ptr->pickup_slot = -1;
 
                 p_ptr->equip_cnt++;
                 p_ptr->notice |= (PN_COMBINE | PN_REORDER);
                 p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
 
                 if (o_ptr->number <= 0)
+                {
+                    o_ptr->pickup = false;
+                    o_ptr->pickup_slot = -1;
                     return (desired_slot);
+                }
+
+                o_ptr->pickup = wanted_auto_recover;
+                o_ptr->pickup_slot = -1;
             }
             else if (object_similar(d_ptr, o_ptr))
             {
@@ -5804,12 +5853,17 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
                 d_ptr->pickup = false;
                 d_ptr->pickup_slot = -1;
                 d_ptr->ident |= IDENT_HANDLED;
-                o_ptr->pickup = false;
-                o_ptr->pickup_slot = -1;
                 p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
 
                 if (o_ptr->number == 0)
+                {
+                    o_ptr->pickup = false;
+                    o_ptr->pickup_slot = -1;
                     return (desired_slot);
+                }
+
+                o_ptr->pickup = wanted_auto_recover;
+                o_ptr->pickup_slot = -1;
             }
         }
         o_ptr->pickup_slot = -1;

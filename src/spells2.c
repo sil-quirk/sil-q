@@ -320,17 +320,27 @@ void uncurse_object(object_type* o_ptr)
 {
     /* Uncurse it */
     o_ptr->ident &= ~(IDENT_CURSED);
+    o_ptr->ident |= IDENT_UNCURSED;
 
     /* Remove special inscription, if any */
     if (o_ptr->discount >= INSCRIP_NULL)
         o_ptr->discount = 0;
 
-    /* Take note if allowed */
-    if (o_ptr->discount == 0)
-        o_ptr->discount = INSCRIP_UNCURSED;
-
     /* The object has been "sensed" */
     o_ptr->ident |= (IDENT_SENSE);
+
+    /* Newly compatible stacks should collapse on the next inventory pass. */
+    p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+
+    if ((o_ptr >= inventory) && (o_ptr < inventory + INVEN_TOTAL))
+    {
+        int slot = (int)(o_ptr - inventory);
+
+        if ((slot == INVEN_QUIVER1) || (slot == INVEN_QUIVER2))
+            p_ptr->redraw |= (PR_QUIVER);
+        else if (slot == INVEN_LITE)
+            p_ptr->redraw |= (PR_LIGHT);
+    }
 }
 
 /*

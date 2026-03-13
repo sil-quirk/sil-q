@@ -706,8 +706,21 @@ static int smithing_difficulty_baseline(const object_type* o_ptr)
     if (f4 & (TR4_WEIGHT | TR4_NEG_WEIGHT))
         dif_inc += 5;
 
+    int smith_base_att = (o_ptr->tval == TV_RING || o_ptr->tval == TV_AMULET)
+        ? 0
+        : k_ptr->att;
+    int smith_base_evn = (o_ptr->tval == TV_RING || o_ptr->tval == TV_AMULET)
+        ? 0
+        : k_ptr->evn;
+    int smith_base_ds = (o_ptr->tval == TV_RING || o_ptr->tval == TV_AMULET)
+        ? 0
+        : k_ptr->ds;
+    int smith_base_prot = (o_ptr->tval == TV_RING || o_ptr->tval == TV_AMULET)
+        ? 0
+        : ((k_ptr->ps > 0) ? ((k_ptr->ps + 1) * k_ptr->pd) : 0);
+
     /* Attack bonus */
-    x = o_ptr->att - k_ptr->att;
+    x = o_ptr->att - smith_base_att;
     if ((o_ptr->tval == TV_ARROW || o_ptr->tval == TV_BOW
             || o_ptr->tval == TV_SWORD || o_ptr->tval == TV_POLEARM
             || o_ptr->tval == TV_HAFTED)
@@ -723,7 +736,7 @@ static int smithing_difficulty_baseline(const object_type* o_ptr)
     }
 
     /* Evasion bonus */
-    x = o_ptr->evn - k_ptr->evn;
+    x = o_ptr->evn - smith_base_evn;
     if (o_ptr->tval == TV_MAIL || o_ptr->tval == TV_SOFT_ARMOR
         || o_ptr->tval == TV_SHIELD || o_ptr->tval == TV_CLOAK
         || o_ptr->tval == TV_BOOTS || o_ptr->tval == TV_GLOVES
@@ -741,11 +754,11 @@ static int smithing_difficulty_baseline(const object_type* o_ptr)
     }
 
     /* Damage bonus */
-    x = (o_ptr->ds - k_ptr->ds);
+    x = (o_ptr->ds - smith_base_ds);
     drop_dif_mod(x, 3 * x + 2, &dif_inc);
 
     /* Protection bonus */
-    base = (k_ptr->ps > 0) ? ((k_ptr->ps + 1) * k_ptr->pd) : 0;
+    base = smith_base_prot;
     newv = (o_ptr->ps > 0) ? ((o_ptr->ps + 1) * o_ptr->pd) : 0;
     x = newv - base;
 

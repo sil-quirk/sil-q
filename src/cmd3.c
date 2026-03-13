@@ -1710,6 +1710,16 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     // Deal with wielding from the floor
     if (item < 0)
     {
+        if (target_is_quiver && (quantity < original_quantity)
+            && ((i_ptr->tval == TV_ARROW) || is_throwing))
+        {
+            int floor_idx = 0 - item;
+            object_type* floor_ptr = &o_list[floor_idx];
+
+            if (floor_ptr->k_idx && floor_ptr->number > 0)
+                py_pickup_aux(floor_idx);
+        }
+
         /* Forget monster */
         o_ptr->held_m_idx = 0;
 
@@ -1827,6 +1837,7 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
 void do_cmd_takeoff(object_type* default_o_ptr, int default_item)
 {
     int item;
+    bool can_break_curse;
 
     object_type* o_ptr;
 
@@ -1859,32 +1870,51 @@ void do_cmd_takeoff(object_type* default_o_ptr, int default_item)
         }
     }
 
-    /* Item is cursed */
-    if (cursed_p(o_ptr))
+    can_break_curse = p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING];
+
+    if (((item == INVEN_QUIVER1) || (item == INVEN_QUIVER2)) && cursed_p(o_ptr))
     {
-        if (p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING])
+        msg_print("You cannot bear to part with it.");
+        return;
+    }
+    else if (cursed_p(o_ptr) && can_break_curse)
+    {
         {
+            object_type carry_preview;
+            object_copy(&carry_preview, o_ptr);
+            carry_preview.ident &= ~(IDENT_CURSED);
+            carry_preview.ident |= IDENT_UNCURSED;
+
+            if (carry_preview.discount >= INSCRIP_NULL)
+                carry_preview.discount = 0;
+
+            if (smith_oath_forbids_object(o_ptr) && inven_carry_okay(&carry_preview)
+                && !smith_oath_confirm_break())
+            {
+                return;
+            }
+
             /* Message */
             msg_print("With a great strength of will, you break the curse!");
 
             /* Uncurse the object */
             uncurse_object(o_ptr);
         }
-        else
-        {
-            /* Oops */
-            msg_print("You cannot bear to part with it.");
-
-            /* Nope */
-            return;
-        }
     }
+    else if (cursed_p(o_ptr))
+    {
+        /* Oops */
+        msg_print("You cannot bear to part with it.");
 
-    if (smith_oath_forbids_object(o_ptr) && inven_carry_okay(o_ptr)
+        /* Nope */
+        return;
+    }
+    else if (smith_oath_forbids_object(o_ptr) && inven_carry_okay(o_ptr)
         && !smith_oath_confirm_break())
     {
         return;
     }
+
 
     /* Take a turn */
     p_ptr->energy_use = 100;
@@ -1962,6 +1992,12 @@ void do_cmd_drop_item_by_index(int item)
     if (amt <= 0)
         return;
 
+    if (((item == INVEN_QUIVER1) || (item == INVEN_QUIVER2)) && cursed_p(o_ptr))
+    {
+        msg_print("You cannot bear to part with it.");
+        return;
+    }
+
     /* Hack -- Cannot remove cursed items */
     if ((item >= INVEN_WIELD) && cursed_p(o_ptr))
     {
@@ -2036,6 +2072,12 @@ void do_cmd_drop(void)
     /* Allow user abort */
     if (amt <= 0)
         return;
+
+    if (((item == INVEN_QUIVER1) || (item == INVEN_QUIVER2)) && cursed_p(o_ptr))
+    {
+        msg_print("You cannot bear to part with it.");
+        return;
+    }
 
     /* Hack -- Cannot remove cursed items */
     if ((item >= INVEN_WIELD) && cursed_p(o_ptr))

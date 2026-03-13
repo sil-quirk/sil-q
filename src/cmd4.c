@@ -38,6 +38,7 @@ extern struct sound_config g_sound_config;
 /* Option changes that affect list rendering should refresh subwindows immediately. */
 static void redraw_inven_equip_subwindows(void);
 static void redraw_monster_subwindows(void);
+static void smith_ui_reset_description_state(void);
 static void controller_prompt_label(int binding, const char* fallback, char* buf, size_t buflen);
 
 typedef struct knowledge_browser_layout knowledge_browser_layout;
@@ -3694,8 +3695,169 @@ smithing_cost_type smithing_cost;
 
 #define COL_SMT1 2
 #define COL_SMT2 16
-#define COL_SMT3 36
-#define COL_SMT4 66
+static int smith_ui_last_desc_row = -1;
+
+static int smith_ui_term_wid(void)
+{
+    return (Term && (Term->wid > 0)) ? Term->wid : 80;
+}
+
+static int smith_ui_term_hgt(void)
+{
+    return (Term && (Term->hgt > 0)) ? Term->hgt : 24;
+}
+
+static bool smith_ui_compact_width(void)
+{
+    return (smith_ui_term_wid() < 72);
+}
+
+static bool smith_ui_compact_height(void)
+{
+    return (smith_ui_term_hgt() <= 18);
+}
+
+static int smith_ui_secondary_col(void)
+{
+    return smith_ui_compact_width() ? COL_SMT2 : 36;
+}
+
+static int smith_ui_cost_col(void)
+{
+    int wid = smith_ui_term_wid();
+    int col = wid - (smith_ui_compact_width() ? 15 : 18);
+    int min_col = smith_ui_secondary_col() + 14;
+
+    if (col < min_col)
+        col = min_col;
+    if (col < 32)
+        col = 32;
+    if (col > wid - 1)
+        col = wid - 1;
+
+    return col;
+}
+
+static int smith_ui_dense_row0(void)
+{
+    return smith_ui_compact_height() ? 1 : 2;
+}
+
+static int smith_ui_dense_row(int index0)
+{
+    return smith_ui_dense_row0() + index0;
+}
+
+static int smith_ui_dense_highlight_row(int highlight)
+{
+    return smith_ui_dense_row0() + highlight - 1;
+}
+
+static int smith_ui_cost_title_row(void)
+{
+    return smith_ui_compact_height() ? 6 : 8;
+}
+
+static int smith_ui_cost_item_row(int index0)
+{
+    return smith_ui_cost_title_row() + 2 + index0;
+}
+
+static int smith_ui_desc_col(void)
+{
+    return COL_SMT1;
+}
+
+static bool smith_ui_show_lore(void)
+{
+    return (smith_ui_term_hgt() > 18);
+}
+
+static int smith_ui_preferred_desc_lines(void)
+{
+    int hgt = smith_ui_term_hgt();
+
+    if (hgt <= 18)
+        return 2;
+    if (hgt <= 20)
+        return 3;
+    if (hgt <= 22)
+        return 4;
+
+    return 5;
+}
+
+static void smith_ui_reset_description_state(void)
+{
+    smith_ui_last_desc_row = -1;
+}
+
+static void smith_ui_clear_from_row(int row)
+{
+    int wid = smith_ui_term_wid();
+    int hgt = smith_ui_term_hgt();
+
+    if (row < 0)
+        row = 0;
+    if (row >= hgt)
+        return;
+
+    for (int y = row; y < hgt; y++)
+        Term_erase(0, y, wid);
+}
+
+static int smith_ui_used_bottom_row(void)
+{
+    if (!Term || !Term->scr)
+        return 0;
+
+    for (int y = smith_ui_term_hgt() - 1; y >= 0; y--)
+    {
+        for (int x = 0; x < smith_ui_term_wid(); x++)
+        {
+            if ((Term->scr->c[y][x] != ' ')
+                || (Term->scr->a[y][x] != Term->attr_blank)
+                || (Term->scr->story[y][x] != 0))
+            {
+                return y;
+            }
+        }
+    }
+
+    return 0;
+}
+
+static int smith_ui_description_row(void)
+{
+    int hgt = smith_ui_term_hgt();
+    int row = MAX(
+        smith_ui_used_bottom_row() + 1, hgt - smith_ui_preferred_desc_lines());
+    int min_lines = smith_ui_show_lore() ? 2 : 1;
+
+    if ((row >= hgt) || ((hgt - row) < min_lines))
+        return -1;
+
+    return row;
+}
+
+static int smith_ui_weight_col(void)
+{
+    int col = smith_ui_cost_col() - 10;
+
+    if (col <= COL_SMT2 + 16)
+        return -1;
+
+    return col;
+}
+
+static void smith_ui_put_cost_line(int index0, byte attr, cptr text)
+{
+    Term_putstr(smith_ui_cost_col() + 2, smith_ui_cost_item_row(index0), -1,
+        attr, text);
+}
+
+#define COL_SMT3 (smith_ui_secondary_col())
+#define COL_SMT4 (smith_ui_cost_col())
 
 /*
  * A list of tvals and their textual names
@@ -4867,8 +5029,22 @@ int object_difficulty(object_type* o_ptr)
     if (f4 & (TR4_WEIGHT | TR4_NEG_WEIGHT))
         dif_inc += 5;
 
+    // Jewelry combat bonuses are paid from zero, regardless of base item mins.
+    int smith_base_att = ((o_ptr->tval == TV_RING) || (o_ptr->tval == TV_AMULET))
+        ? 0
+        : k_ptr->att;
+    int smith_base_evn = ((o_ptr->tval == TV_RING) || (o_ptr->tval == TV_AMULET))
+        ? 0
+        : k_ptr->evn;
+    int smith_base_ds = ((o_ptr->tval == TV_RING) || (o_ptr->tval == TV_AMULET))
+        ? 0
+        : k_ptr->ds;
+    int smith_base_prot = ((o_ptr->tval == TV_RING) || (o_ptr->tval == TV_AMULET))
+        ? 0
+        : ((k_ptr->ps > 0) ? ((k_ptr->ps + 1) * k_ptr->pd) : 0);
+
     // attack bonus
-    x = att_base - k_ptr->att;
+    x = att_base - smith_base_att;
 
     // special costs for attack bonus for weapons
     if ((o_ptr->tval == TV_ARROW || o_ptr->tval == TV_BOW
@@ -4887,7 +5063,7 @@ int object_difficulty(object_type* o_ptr)
     }
 
     // evasion bonus
-    x = evn_base - k_ptr->evn;
+    x = evn_base - smith_base_evn;
     if (o_ptr->tval == TV_SOFT_ARMOR || o_ptr->tval == TV_MAIL
         || o_ptr->tval == TV_SHIELD || o_ptr->tval == TV_HELM
         || o_ptr->tval == TV_CROWN || o_ptr->tval == TV_CLOAK
@@ -4905,13 +5081,13 @@ int object_difficulty(object_type* o_ptr)
     }
 
     // damage bonus
-    x = (ds_base - k_ptr->ds);
+    x = (ds_base - smith_base_ds);
     // dd used to be a factor here, but a shortsword is far more breakable than
     // a great axe adjusted to make >1 damage sides expensive to smith
     dif_mod(x, 3 * x + 2, &dif_inc);
 
     // protection bonus
-    base = (k_ptr->ps > 0) ? ((k_ptr->ps + 1) * k_ptr->pd) : 0;
+    base = smith_base_prot;
     int ps_calc = (ps_base > 0) ? ps_base : 0;
     new = (ps_calc > 0) ? ((ps_calc + 1) * o_ptr->pd) : 0;
     x = new - base;
@@ -5550,14 +5726,10 @@ int object_difficulty(object_type* o_ptr)
  */
 void wipe_object_description(void)
 {
-    int i;
+    if (smith_ui_last_desc_row >= 0)
+        smith_ui_clear_from_row(smith_ui_last_desc_row);
 
-    for (i = 0; i < 5; i++)
-    {
-        Term_putstr(1, MAX_SMITHING_TVALS + 3 + i, -1, TERM_WHITE,
-            "                                                              "
-            "             ");
-    }
+    smith_ui_reset_description_state();
 }
 
 /*
@@ -5568,20 +5740,25 @@ void prt_object_description(void)
     char o_desc[80];
     char buf[80];
     int display_flag;
+    int desc_row;
+    int desc_col;
+    int desc_width;
 
     wipe_object_description();
-
-    if (p_ptr->smithing_leftover)
-    {
-        Term_putstr(
-            COL_SMT1, MAX_SMITHING_TVALS + 3, -1, TERM_L_BLUE, "In progress:");
-        sprintf(buf, "%3d turns left", p_ptr->smithing_leftover);
-        Term_putstr(COL_SMT1 - 1, MAX_SMITHING_TVALS + 5, -1, TERM_BLUE, buf);
-    }
 
     // abort if there is no object to display
     if (smith_o_ptr->tval == 0)
         return;
+
+    desc_row = smith_ui_description_row();
+    if (desc_row < 0)
+        return;
+
+    smith_ui_last_desc_row = desc_row;
+    smith_ui_clear_from_row(desc_row);
+
+    desc_col = smith_ui_desc_col();
+    desc_width = smith_ui_term_wid() - desc_col;
 
     if (smith_o_ptr->number > 1)
         display_flag = true;
@@ -5595,26 +5772,42 @@ void prt_object_description(void)
             (smith_o_ptr->weight * smith_o_ptr->number) % 10),
         sizeof(o_desc));
 
-    Term_putstr(COL_SMT2, MAX_SMITHING_TVALS + 3, -1, TERM_L_WHITE, o_desc);
+    if (p_ptr->smithing_leftover)
+    {
+        strnfmt(buf, sizeof(buf), "In progress: %d turns left",
+            p_ptr->smithing_leftover);
+        Term_putstr(desc_col, desc_row, desc_width, TERM_L_BLUE, buf);
+        desc_row++;
+        if (desc_row >= smith_ui_term_hgt())
+            return;
+    }
 
-    Term_gotoxy(COL_SMT2, MAX_SMITHING_TVALS + 4);
+    Term_putstr(desc_col, desc_row, desc_width, TERM_L_WHITE, o_desc);
+    desc_row++;
+    if (desc_row >= smith_ui_term_hgt())
+        return;
+
+    Term_gotoxy(desc_col, desc_row);
 
     /* Set hooks for character dump */
     object_info_out_flags = object_flags;
 
     /* Set the indent/wrap */
-    text_out_indent = COL_SMT2;
-    text_out_wrap = 79;
+    text_out_indent = desc_col;
+    text_out_wrap = smith_ui_term_wid() - 1;
 
     text_out_hook = text_out_to_screen;
 
-    text_out_c(TERM_WHITE, k_text + k_info[smith_o_ptr->k_idx].text);
+    if (smith_ui_show_lore())
+    {
+        text_out_c(TERM_WHITE, k_text + k_info[smith_o_ptr->k_idx].text);
 
-    if ((k_text + k_info[smith_o_ptr->k_idx].text)[0] != '\0')
-        text_out(" ");
+        if ((k_text + k_info[smith_o_ptr->k_idx].text)[0] != '\0')
+            text_out(" ");
+    }
 
-    /* Dump the info */
-    if (object_info_out(smith_o_ptr))
+    /* Dump only the mechanical info on short screens. */
+    if (object_info_out(smith_o_ptr) && smith_ui_show_lore())
         text_out("\n");
 
     /* Reset indent/wrap */
@@ -5661,6 +5854,8 @@ void prt_object_difficulty(void)
     int costs = 0;
     byte attr;
     bool affordable = true;
+    bool compact = smith_ui_compact_width();
+    int cost_title_row = smith_ui_cost_title_row();
 
     Term_putstr(COL_SMT4, 3, -1, TERM_WHITE, "                 ");
 
@@ -5689,40 +5884,43 @@ void prt_object_difficulty(void)
     sprintf(buf, "%d", dif);
     Term_putstr(COL_SMT4 + 2, 4, -1, attr, buf);
 
-    sprintf(buf, "(max %d)",
-        p_ptr->skill_use[S_SMT] + forge_bonus(p_ptr->py, p_ptr->px));
-    Term_putstr(COL_SMT4 + 5, 4, -1, TERM_L_DARK, buf);
+    if (compact)
+        strnfmt(buf, sizeof(buf), "/%d",
+            p_ptr->skill_use[S_SMT] + forge_bonus(p_ptr->py, p_ptr->px));
+    else
+        strnfmt(buf, sizeof(buf), "(max %d)",
+            p_ptr->skill_use[S_SMT] + forge_bonus(p_ptr->py, p_ptr->px));
+    Term_putstr(COL_SMT4 + (compact ? 4 : 5), 4, -1, TERM_L_DARK, buf);
 
     // display cost information
     if (smithing_cost.weaponsmith)
     {
-        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, TERM_RED, "Weaponsmith");
+        smith_ui_put_cost_line(costs, TERM_RED, "Weaponsmith");
         costs++;
     }
     if (smithing_cost.armoursmith)
     {
-        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, TERM_RED, "Armoursmith");
+        smith_ui_put_cost_line(costs, TERM_RED, "Armoursmith");
         costs++;
     }
     if (smithing_cost.jeweller)
     {
-        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, TERM_RED, "Jeweller");
+        smith_ui_put_cost_line(costs, TERM_RED, "Jeweller");
         costs++;
     }
     if (smithing_cost.enchantment)
     {
-        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, TERM_RED, "Enchantment");
+        smith_ui_put_cost_line(costs, TERM_RED, "Enchantment");
         costs++;
     }
     if (smithing_cost.artifice)
     {
-        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, TERM_RED, "Artifice");
+        smith_ui_put_cost_line(costs, TERM_RED, "Artifice");
         costs++;
     }
     if (smithing_cost.alloy_mastery)
     {
-        Term_putstr(
-            COL_SMT4 + 2, 10 + costs, -1, TERM_RED, "Alloy Mastery");
+        smith_ui_put_cost_line(costs, TERM_RED, "Alloy Mastery");
         costs++;
     }
     if (smithing_cost.uses > 0)
@@ -5744,10 +5942,19 @@ void prt_object_difficulty(void)
         {
             sprintf(buf, "%d Uses", smithing_cost.uses);
         }
-        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
-
-        sprintf(buf, "(of %d)", forge_uses(p_ptr->py, p_ptr->px));
-        Term_putstr(COL_SMT4 + 9, 10 + costs, -1, TERM_L_DARK, buf);
+        if (compact)
+        {
+            strnfmt(buf, sizeof(buf), "%d/%d uses", smithing_cost.uses,
+                forge_uses(p_ptr->py, p_ptr->px));
+            smith_ui_put_cost_line(costs, attr, buf);
+        }
+        else
+        {
+            smith_ui_put_cost_line(costs, attr, buf);
+            strnfmt(buf, sizeof(buf), "(of %d)", forge_uses(p_ptr->py, p_ptr->px));
+            Term_putstr(COL_SMT4 + 9, smith_ui_cost_item_row(costs), -1,
+                TERM_L_DARK, buf);
+        }
         costs++;
     }
     if (smithing_cost.drain > 0)
@@ -5762,7 +5969,7 @@ void prt_object_difficulty(void)
             affordable = false;
         }
         sprintf(buf, "%d Smithing", smithing_cost.drain);
-        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
+        smith_ui_put_cost_line(costs, attr, buf);
         costs++;
     }
     if (smithing_cost.mithril > 0)
@@ -5776,9 +5983,10 @@ void prt_object_difficulty(void)
             attr = TERM_L_DARK;
             affordable = false;
         }
-        sprintf(buf, "%d.%d lb Mithril", smithing_cost.mithril / 10,
+        sprintf(buf, compact ? "%d.%d lb Mith" : "%d.%d lb Mithril",
+            smithing_cost.mithril / 10,
             smithing_cost.mithril % 10);
-        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
+        smith_ui_put_cost_line(costs, attr, buf);
         costs++;
     }
     if (smithing_cost.star_iron > 0)
@@ -5792,9 +6000,10 @@ void prt_object_difficulty(void)
             attr = TERM_L_DARK;
             affordable = false;
         }
-        sprintf(buf, "%d.%d lb Star Iron", smithing_cost.star_iron / 10,
+        sprintf(buf, compact ? "%d.%d lb StIron" : "%d.%d lb Star Iron",
+            smithing_cost.star_iron / 10,
             smithing_cost.star_iron % 10);
-        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
+        smith_ui_put_cost_line(costs, attr, buf);
         costs++;
     }
     if (smithing_cost.str > 0)
@@ -5811,7 +6020,7 @@ void prt_object_difficulty(void)
             affordable = false;
         }
         sprintf(buf, "%d Str", smithing_cost.str);
-        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
+        smith_ui_put_cost_line(costs, attr, buf);
         costs++;
     }
     if (smithing_cost.dex > 0)
@@ -5828,7 +6037,7 @@ void prt_object_difficulty(void)
             affordable = false;
         }
         sprintf(buf, "%d Dex", smithing_cost.dex);
-        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
+        smith_ui_put_cost_line(costs, attr, buf);
         costs++;
     }
     if (smithing_cost.con > 0)
@@ -5845,7 +6054,7 @@ void prt_object_difficulty(void)
             affordable = false;
         }
         sprintf(buf, "%d Con", smithing_cost.con);
-        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
+        smith_ui_put_cost_line(costs, attr, buf);
         costs++;
     }
     if (smithing_cost.gra > 0)
@@ -5862,7 +6071,7 @@ void prt_object_difficulty(void)
             affordable = false;
         }
         sprintf(buf, "%d Gra", smithing_cost.gra);
-        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
+        smith_ui_put_cost_line(costs, attr, buf);
         costs++;
     }
     if (smithing_cost.exp > 0)
@@ -5877,7 +6086,7 @@ void prt_object_difficulty(void)
             affordable = false;
         }
         sprintf(buf, "%d Exp", smithing_cost.exp);
-        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
+        smith_ui_put_cost_line(costs, attr, buf);
         costs++;
     }
     if (p_ptr->active_ability[S_SMT][SMT_EXPERTISE])
@@ -5887,7 +6096,7 @@ void prt_object_difficulty(void)
 
     attr = TERM_SLATE;
     sprintf(buf, "%d Turns", MAX(10, dif * turn_multiplier));
-    Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
+    smith_ui_put_cost_line(costs, attr, buf);
     costs++;
 
     // if (costs == 0)
@@ -5900,7 +6109,7 @@ void prt_object_difficulty(void)
         attr = TERM_SLATE;
     else
         attr = TERM_L_DARK;
-    Term_putstr(COL_SMT4, 8, -1, attr, "Cost:");
+    Term_putstr(COL_SMT4, cost_title_row, -1, attr, "Cost:");
 }
 
 /*
@@ -6468,9 +6677,10 @@ int create_sval_menu_aux(int tval, int* highlight)
     char buf[80];
     bool valid[20];
     int sval[20];
+    int list_col = COL_SMT3;
 
     // clear the right of the screen
-    wipe_screen_from(COL_SMT4);
+    wipe_screen_from(smith_ui_compact_width() ? list_col : COL_SMT4);
 
     /* We have to search the whole itemlist. */
     for (num = 0, i = 1; i < z_info->k_max; i++)
@@ -6517,7 +6727,7 @@ int create_sval_menu_aux(int tval, int* highlight)
 
             /* Print it */
             strnfmt(buf, 80, "%c) %s", (char)'a' + num, name);
-            Term_putstr(COL_SMT3, num + 2, -1,
+            Term_putstr(list_col, smith_ui_dense_row(num), -1,
                 valid[num] ? TERM_WHITE : TERM_SLATE, buf);
 
             /* Remember the object sval */
@@ -6530,22 +6740,23 @@ int create_sval_menu_aux(int tval, int* highlight)
 
     // highlight the label
     strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
-    Term_putstr(COL_SMT3, *highlight + 1, -1, TERM_L_BLUE, buf);
+    Term_putstr(list_col, smith_ui_dense_highlight_row(*highlight), -1,
+        TERM_L_BLUE, buf);
 
     // make a simple version of the object
     create_base_object(tval, sval[*highlight - 1]);
 
-    // display the object description
-    prt_object_description();
-
     // display the object difficulty
     prt_object_difficulty();
+
+    // display the object description
+    prt_object_description();
 
     /* Flush the prompt */
     Term_fresh();
 
     /* Place cursor at current choice */
-    Term_gotoxy(14, 1 + *highlight);
+    Term_gotoxy(14, smith_ui_dense_highlight_row(*highlight));
 
     /* Get key (while allowing menu commands) */
     hide_cursor = true;
@@ -6682,19 +6893,20 @@ int create_tval_menu_aux(int* highlight)
                                                                     : TERM_RED;
         }
 
-        Term_putstr(
-            COL_SMT2, i + 2, -1, valid[i] ? valid_attr : TERM_L_DARK, buf);
+        Term_putstr(COL_SMT2, smith_ui_dense_row(i), -1,
+            valid[i] ? valid_attr : TERM_L_DARK, buf);
     }
 
     // highlight the label
     strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
-    Term_putstr(COL_SMT2, *highlight + 1, -1, TERM_L_BLUE, buf);
+    Term_putstr(COL_SMT2, smith_ui_dense_highlight_row(*highlight), -1,
+        TERM_L_BLUE, buf);
 
     /* Flush the prompt */
     Term_fresh();
 
     /* Place cursor at current choice */
-    Term_gotoxy(14, 1 + *highlight);
+    Term_gotoxy(14, smith_ui_dense_highlight_row(*highlight));
 
     /* Get key (while allowing menu commands) */
     hide_cursor = true;
@@ -6708,10 +6920,12 @@ int create_tval_menu_aux(int* highlight)
 
         *highlight = (int)ch - 'a' + 1;
 
-        // move the light blue highlight
-        move_displayed_highlight(old_highlight,
-            valid[old_highlight] ? TERM_WHITE : TERM_L_DARK, *highlight,
-            COL_SMT2);
+        strnfmt(buf, 80, "%c)", (char)'a' + old_highlight - 1);
+        Term_putstr(COL_SMT2, smith_ui_dense_highlight_row(old_highlight), -1,
+            valid[old_highlight - 1] ? TERM_WHITE : TERM_L_DARK, buf);
+        strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
+        Term_putstr(COL_SMT2, smith_ui_dense_highlight_row(*highlight), -1,
+            TERM_L_BLUE, buf);
 
         if (valid[*highlight - 1])
             return (*highlight);
@@ -7138,11 +7352,11 @@ int numbers_menu_aux(int* highlight)
     strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
     Term_putstr(COL_SMT2, *highlight + 1, -1, TERM_L_BLUE, buf);
 
-    // display the object description
-    prt_object_description();
-
     // display the object difficulty
     prt_object_difficulty();
+
+    // display the object description
+    prt_object_description();
 
     /* Flush the prompt */
     Term_fresh();
@@ -7551,8 +7765,8 @@ static int smith_bonus_menu_aux(int* highlight)
     strnfmt(buf, sizeof(buf), "%c)", (char)'a' + *highlight - 1);
     Term_putstr(COL_SMT2, hl_row, -1, TERM_L_BLUE, buf);
 
-    prt_object_description();
     prt_object_difficulty();
+    prt_object_description();
 
     Term_fresh();
     Term_gotoxy(2, hl_row);
@@ -7711,6 +7925,7 @@ static void prt_reforge_preview(const reforge_preview_type* preview)
     char buf[80];
     int costs = 0;
     byte attr = TERM_SLATE;
+    bool compact = smith_ui_compact_width();
 
     wipe_screen_from(COL_SMT4);
 
@@ -7724,19 +7939,26 @@ static void prt_reforge_preview(const reforge_preview_type* preview)
     strnfmt(buf, sizeof(buf), "%d", preview->scaled_difficulty);
     Term_putstr(COL_SMT4 + 2, 4, -1, attr, buf);
 
-    strnfmt(buf, sizeof(buf), "(+%d raw)", preview->raw_delta_difficulty);
-    Term_putstr(COL_SMT4 + 5, 4, -1, TERM_L_DARK, buf);
+    if (compact)
+        strnfmt(buf, sizeof(buf), "+%d raw", preview->raw_delta_difficulty);
+    else
+        strnfmt(buf, sizeof(buf), "(+%d raw)", preview->raw_delta_difficulty);
+    Term_putstr(COL_SMT4 + (compact ? 4 : 5), 4, -1, TERM_L_DARK, buf);
 
-    Term_putstr(COL_SMT4, 8, -1,
+    Term_putstr(COL_SMT4, smith_ui_cost_title_row(), -1,
         preview->affordable ? TERM_SLATE : TERM_L_DARK, "Cost:");
 
     if (preview->cost.uses > 0)
     {
         attr = (forge_uses(p_ptr->py, p_ptr->px) >= preview->cost.uses)
             ? TERM_SLATE : TERM_L_DARK;
-        strnfmt(buf, sizeof(buf), "%d Use%s", preview->cost.uses,
-            (preview->cost.uses == 1) ? "" : "s");
-        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
+        if (compact)
+            strnfmt(buf, sizeof(buf), "%d/%d uses", preview->cost.uses,
+                forge_uses(p_ptr->py, p_ptr->px));
+        else
+            strnfmt(buf, sizeof(buf), "%d Use%s", preview->cost.uses,
+                (preview->cost.uses == 1) ? "" : "s");
+        smith_ui_put_cost_line(costs, attr, buf);
         costs++;
     }
     if (preview->cost.drain > 0)
@@ -7744,23 +7966,23 @@ static void prt_reforge_preview(const reforge_preview_type* preview)
         attr = (preview->cost.drain <= p_ptr->skill_base[S_SMT])
             ? TERM_BLUE : TERM_L_DARK;
         strnfmt(buf, sizeof(buf), "%d Smithing", preview->cost.drain);
-        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
+        smith_ui_put_cost_line(costs, attr, buf);
         costs++;
     }
     if (preview->cost.mithril > 0)
     {
         attr = (preview->cost.mithril <= mithril_carried()) ? TERM_SLATE : TERM_L_DARK;
-        strnfmt(buf, sizeof(buf), "%d.%d lb Mithril",
+        strnfmt(buf, sizeof(buf), compact ? "%d.%d lb Mith" : "%d.%d lb Mithril",
             preview->cost.mithril / 10, preview->cost.mithril % 10);
-        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
+        smith_ui_put_cost_line(costs, attr, buf);
         costs++;
     }
     if (preview->cost.star_iron > 0)
     {
         attr = (preview->cost.star_iron <= star_iron_carried()) ? TERM_SLATE : TERM_L_DARK;
-        strnfmt(buf, sizeof(buf), "%d.%d lb Star Iron",
+        strnfmt(buf, sizeof(buf), compact ? "%d.%d lb StIron" : "%d.%d lb Star Iron",
             preview->cost.star_iron / 10, preview->cost.star_iron % 10);
-        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
+        smith_ui_put_cost_line(costs, attr, buf);
         costs++;
     }
     if (preview->cost.str > 0)
@@ -7768,7 +7990,7 @@ static void prt_reforge_preview(const reforge_preview_type* preview)
         attr = (p_ptr->stat_base[A_STR] + p_ptr->stat_drain[A_STR] - preview->cost.str >= -5)
             ? TERM_SLATE : TERM_L_DARK;
         strnfmt(buf, sizeof(buf), "%d Str", preview->cost.str);
-        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
+        smith_ui_put_cost_line(costs, attr, buf);
         costs++;
     }
     if (preview->cost.dex > 0)
@@ -7776,7 +7998,7 @@ static void prt_reforge_preview(const reforge_preview_type* preview)
         attr = (p_ptr->stat_base[A_DEX] + p_ptr->stat_drain[A_DEX] - preview->cost.dex >= -5)
             ? TERM_SLATE : TERM_L_DARK;
         strnfmt(buf, sizeof(buf), "%d Dex", preview->cost.dex);
-        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
+        smith_ui_put_cost_line(costs, attr, buf);
         costs++;
     }
     if (preview->cost.con > 0)
@@ -7784,7 +8006,7 @@ static void prt_reforge_preview(const reforge_preview_type* preview)
         attr = (p_ptr->stat_base[A_CON] + p_ptr->stat_drain[A_CON] - preview->cost.con >= -5)
             ? TERM_SLATE : TERM_L_DARK;
         strnfmt(buf, sizeof(buf), "%d Con", preview->cost.con);
-        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
+        smith_ui_put_cost_line(costs, attr, buf);
         costs++;
     }
     if (preview->cost.gra > 0)
@@ -7792,19 +8014,19 @@ static void prt_reforge_preview(const reforge_preview_type* preview)
         attr = (p_ptr->stat_base[A_GRA] + p_ptr->stat_drain[A_GRA] - preview->cost.gra >= -5)
             ? TERM_SLATE : TERM_L_DARK;
         strnfmt(buf, sizeof(buf), "%d Gra", preview->cost.gra);
-        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
+        smith_ui_put_cost_line(costs, attr, buf);
         costs++;
     }
     if (preview->cost.exp > 0)
     {
         attr = (p_ptr->new_exp >= preview->cost.exp) ? TERM_SLATE : TERM_L_DARK;
         strnfmt(buf, sizeof(buf), "%d Exp", preview->cost.exp);
-        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
+        smith_ui_put_cost_line(costs, attr, buf);
         costs++;
     }
 
     strnfmt(buf, sizeof(buf), "%d Turns", preview->turns);
-    Term_putstr(COL_SMT4 + 2, 10 + costs, -1, TERM_SLATE, buf);
+    smith_ui_put_cost_line(costs, TERM_SLATE, buf);
 }
 
 static int reforge_prefix_menu(const object_type* source)
@@ -7872,8 +8094,8 @@ static int reforge_prefix_menu(const object_type* source)
 
         (void)reforge_preview_build(source, choice[highlight - 1],
             &previews[highlight - 1]);
-        prt_object_description();
         prt_reforge_preview(&previews[highlight - 1]);
+        prt_object_description();
 
         Term_fresh();
         Term_gotoxy(14, 1 + highlight);
@@ -8067,11 +8289,11 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix,
     else
         create_special(fixed_prefix, choice[*highlight - 1]);
 
-    // display the object description
-    prt_object_description();
-
     // display the object difficulty
     prt_object_difficulty();
+
+    // display the object description
+    prt_object_description();
 
     /* Flush the prompt */
     Term_fresh();
@@ -8556,11 +8778,11 @@ int artefact_flag_menu_aux(int category, int* highlight)
     // add this flag to the dummy artefact under construction
     add_artefact_flag(flag[*highlight - 1], flagset[*highlight - 1]);
 
-    // display the object description
-    prt_object_description();
-
     // display the object difficulty
     prt_object_difficulty();
+
+    // display the object description
+    prt_object_description();
 
     /* Flush the prompt */
     Term_fresh();
@@ -8985,11 +9207,11 @@ int artefact_ability_menu_aux(int skill, int* highlight)
     // add this ability to the dummy artefact under construction (use actual ability number)
     add_artefact_ability(skill, ability_nums[*highlight - 1]);
 
-    // display the object description
-    prt_object_description();
-
     // display the object difficulty
     prt_object_difficulty();
+
+    // display the object description
+    prt_object_description();
 
     /* Flush the prompt */
     Term_fresh();
@@ -9162,20 +9384,22 @@ void rename_artefact(void)
     char old_name[20];
     char o_desc[30];
     bool name_selected = false;
+    int row = (smith_ui_last_desc_row >= 0) ? smith_ui_last_desc_row
+                                            : (smith_ui_term_hgt() - 1);
+    int col = smith_ui_desc_col();
 
     // Clear the names
     tmp[0] = '\0';
     old_name[0] = '\0';
 
     // Clear object name
-    Term_putstr(COL_SMT2, MAX_SMITHING_TVALS + 3, -1, TERM_L_WHITE,
-        "                                                        ");
+    Term_erase(0, row, smith_ui_term_wid());
 
     // Determine object name
     object_desc(o_desc, sizeof(o_desc), smith_o_ptr, false, -1);
 
     // Display shortened object name
-    Term_putstr(COL_SMT2, MAX_SMITHING_TVALS + 3, -1, TERM_L_WHITE, o_desc);
+    Term_putstr(col, row, smith_ui_term_wid() - col, TERM_L_WHITE, o_desc);
 
     // use old name as a default
     SDL_strlcpy(tmp, smith2_a_ptr->name, sizeof(tmp));
@@ -9184,7 +9408,7 @@ void rename_artefact(void)
     SDL_strlcpy(old_name, op_ptr->full_name, sizeof(old_name));
 
     /* Prompt for a new name */
-    Term_gotoxy(COL_SMT2 + strlen(o_desc) + 1, MAX_SMITHING_TVALS + 3);
+    Term_gotoxy(col + strlen(o_desc) + 1, row);
 
     while (!name_selected)
     {
@@ -9226,7 +9450,7 @@ int artefact_menu_aux(int* highlight)
     for (i = 0; i < MAX_CATS; i++)
     {
         strnfmt(buf, 80, "%c) %s", (char)'a' + i, smithing_flag_cats[i].desc);
-        Term_putstr(COL_SMT2, i + 2, -1, TERM_WHITE, buf);
+        Term_putstr(COL_SMT2, smith_ui_dense_row(i), -1, TERM_WHITE, buf);
     }
 
     // display the categories for abilities (skip Special abilities - S_SPC)
@@ -9238,7 +9462,8 @@ int artefact_menu_aux(int* highlight)
         
         strnfmt(
             buf, 80, "%c) %s", (char)'a' + MAX_CATS + display_idx, skill_names_full[i]);
-        Term_putstr(COL_SMT2, display_idx + MAX_CATS + 2, -1, TERM_WHITE, buf);
+        Term_putstr(COL_SMT2, smith_ui_dense_row(MAX_CATS + display_idx), -1,
+            TERM_WHITE, buf);
         display_idx++;
     }
 
@@ -9246,23 +9471,24 @@ int artefact_menu_aux(int* highlight)
 
     // Menu item for naming artefacts
     strnfmt(buf, 80, "%c) %s", (char)'a' + num - 1, "Name Artefact");
-    Term_putstr(COL_SMT2, num + 1, -1, TERM_WHITE, buf);
+    Term_putstr(COL_SMT2, smith_ui_dense_row(num - 1), -1, TERM_WHITE, buf);
 
     // highlight the label
     strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
-    Term_putstr(COL_SMT2, *highlight + 1, -1, TERM_L_BLUE, buf);
-
-    // display the object description
-    prt_object_description();
+    Term_putstr(COL_SMT2, smith_ui_dense_highlight_row(*highlight), -1,
+        TERM_L_BLUE, buf);
 
     // display the object difficulty
     prt_object_difficulty();
+
+    // display the object description
+    prt_object_description();
 
     /* Flush the prompt */
     Term_fresh();
 
     /* Place cursor at current choice */
-    Term_gotoxy(14, 1 + *highlight);
+    Term_gotoxy(14, smith_ui_dense_highlight_row(*highlight));
 
     /* Get key (while allowing menu commands) */
     hide_cursor = true;
@@ -9276,9 +9502,12 @@ int artefact_menu_aux(int* highlight)
 
         *highlight = (int)ch - 'a' + 1;
 
-        // move the light blue highlight
-        move_displayed_highlight(
-            old_highlight, TERM_WHITE, *highlight, COL_SMT2);
+        strnfmt(buf, 80, "%c)", (char)'a' + old_highlight - 1);
+        Term_putstr(COL_SMT2, smith_ui_dense_highlight_row(old_highlight), -1,
+            TERM_WHITE, buf);
+        strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
+        Term_putstr(COL_SMT2, smith_ui_dense_highlight_row(*highlight), -1,
+            TERM_L_BLUE, buf);
 
         return (*highlight);
     }
@@ -9434,11 +9663,15 @@ int melt_menu_aux(int* highlight)
             object_desc(desc, 80, o_ptr, false, 2);
             strnfmt(buf, 80, "%c) %s", (char)'a' + num, desc);
 
-            Term_putstr(COL_SMT2, num + 2, -1, TERM_WHITE, buf);
+            Term_putstr(COL_SMT2, smith_ui_dense_row(num), -1, TERM_WHITE, buf);
 
-            strnfmt(
-                buf, 80, "%2d.%d lb", o_ptr->weight / 10, o_ptr->weight % 10);
-            Term_putstr(COL_SMT2 + 40, num + 2, -1, TERM_WHITE, buf);
+            if (smith_ui_weight_col() > 0)
+            {
+                strnfmt(buf, 80, "%2d.%d lb", o_ptr->weight / 10,
+                    o_ptr->weight % 10);
+                Term_putstr(smith_ui_weight_col(), smith_ui_dense_row(num), -1,
+                    TERM_WHITE, buf);
+            }
 
             num++;
         }
@@ -9446,13 +9679,14 @@ int melt_menu_aux(int* highlight)
 
     // highlight the label
     strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
-    Term_putstr(COL_SMT2, *highlight + 1, -1, TERM_L_BLUE, buf);
+    Term_putstr(COL_SMT2, smith_ui_dense_highlight_row(*highlight), -1,
+        TERM_L_BLUE, buf);
 
     /* Flush the prompt */
     Term_fresh();
 
     /* Place cursor at current choice */
-    Term_gotoxy(14, 1 + *highlight);
+    Term_gotoxy(14, smith_ui_dense_highlight_row(*highlight));
 
     /* Get key (while allowing menu commands) */
     hide_cursor = true;
@@ -9853,11 +10087,11 @@ int smithing_menu_aux(int* highlight)
     strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
     Term_putstr(COL_SMT1, *highlight + 1, -1, TERM_L_BLUE, buf);
 
-    // display the object description
-    prt_object_description();
-
     // display the object difficulty
     prt_object_difficulty();
+
+    // display the object description
+    prt_object_description();
 
     /* Flush the prompt */
     Term_fresh();
@@ -9954,6 +10188,7 @@ void do_cmd_smithing_screen(void)
 
     /* Clear screen */
     Term_clear();
+    smith_ui_reset_description_state();
 
     // Hack: flag that we are in the middle of smithing
     p_ptr->smithing = 1;
@@ -10163,6 +10398,7 @@ void do_cmd_smithing_screen(void)
     }
 
     /* Load screen */
+    smith_ui_reset_description_state();
     screen_load();
 }
 

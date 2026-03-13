@@ -7090,16 +7090,13 @@ static int breakage_chance(const object_type* o_ptr, bool hit_wall)
 bool do_radiance(int y, int x, const object_type* j_ptr)
 {
     bool radiance = false;
+    u32b f1 = 0, f2 = 0, f3 = 0, f4 = 0;
 
-    // determine if the bow has 'radiance'
-    if (j_ptr->name1 && (a_info[j_ptr->name1].flags2 & (TR2_RADIANCE)))
-        radiance = true;
-    if (object_ego_prefix(j_ptr)
-        && (e_info[object_ego_prefix(j_ptr)].flags2 & (TR2_RADIANCE)))
-        radiance = true;
-    if (object_ego_suffix(j_ptr)
-        && (e_info[object_ego_suffix(j_ptr)].flags2 & (TR2_RADIANCE)))
-        radiance = true;
+    if (!j_ptr || !j_ptr->k_idx)
+        return false;
+
+    object_flags4(j_ptr, &f1, &f2, &f3, &f4);
+    radiance = (f2 & TR2_RADIANCE) != 0;
 
     // If the bow has 'radiance' and the square is dark, then light it
     if (radiance && !(cave_info[y][x] & (CAVE_GLOW)))
@@ -7329,7 +7326,9 @@ void do_cmd_fire(int quiver)
     int first_y = 0, first_x = 0;
     int tdis;
 
-    u32b f1, f2, f3; // the bow's flags
+    u32b f1 = 0, f2 = 0, f3 = 0, f4 = 0; /* combined projectile/bow flags */
+    u32b bow_f1 = 0, bow_f2 = 0, bow_f3 = 0, bow_f4 = 0;
+    u32b ammo_f1 = 0, ammo_f2 = 0, ammo_f3 = 0, ammo_f4 = 0;
 
     int attack_mod = 0, total_attack_mod = 0;
     int total_evasion_mod = 0;
@@ -7400,8 +7399,8 @@ void do_cmd_fire(int quiver)
     returning_arrow = false;
 
     /* Determine whether the item should be thrown directly */
-    object_flags(o_ptr, &f1, &f2, &f3);
-    if (player_can_treat_as_throwing_flags(o_ptr, f3))
+    object_flags4(o_ptr, &ammo_f1, &ammo_f2, &ammo_f3, &ammo_f4);
+    if (player_can_treat_as_throwing_flags(o_ptr, ammo_f3))
     {
         do_cmd_throw_from_slot(item);
         return;
@@ -7421,7 +7420,7 @@ void do_cmd_fire(int quiver)
     tdis = archery_range(j_ptr);
 
     // bow flags
-    object_flags(j_ptr, &f1, &f2, &f3);
+    object_flags4(j_ptr, &bow_f1, &bow_f2, &bow_f3, &bow_f4);
 
     /* Handle player fear */
     if (p_ptr->afraid)
@@ -7476,6 +7475,12 @@ void do_cmd_fire(int quiver)
     /* Obtain a local object */
     object_copy(i_ptr, o_ptr);
 
+    /* Combine the bow and ammunition flags for generic shot effects. */
+    f1 = bow_f1 | ammo_f1;
+    f2 = bow_f2 | ammo_f2;
+    f3 = bow_f3 | ammo_f3;
+    f4 = bow_f4 | ammo_f4;
+
     /* Determine the base attack score */
     attack_mod = (p_ptr->skill_use[S_ARC] + i_ptr->att);
 
@@ -7525,7 +7530,7 @@ void do_cmd_fire(int quiver)
     handle_stuff();
 
     /* If the bow has 'radiance', then light the starting square */
-    noticed_radiance = do_radiance(y, x, j_ptr);
+    noticed_radiance = do_radiance(y, x, j_ptr) || do_radiance(y, x, i_ptr);
 
     for (shot = 0; shot < shots; shot++)
     {
@@ -7644,7 +7649,9 @@ void do_cmd_fire(int quiver)
 
             /* If the bow has 'radiance', then light the square being passed
              * over */
-            noticed_radiance = do_radiance(y, x, j_ptr) | noticed_radiance;
+            noticed_radiance
+                = do_radiance(y, x, j_ptr) || do_radiance(y, x, i_ptr)
+                || noticed_radiance;
 
             /* Only do visuals if the player can "see" the missile */
             if (panel_contains(y, x) && player_can_see_bold(y, x))
@@ -7752,7 +7759,8 @@ void do_cmd_fire(int quiver)
                         PLAYER, m_ptr, true);
                 }
 
-                if (hit_result <= 0 && f3 & TR3_ACCURATE)
+                if (hit_result <= 0 && !(r_ptr->flags1 & (RF1_PEACEFUL))
+                    && (f3 & TR3_ACCURATE))
                 {
                     hit_result = hit_roll(total_attack_mod, total_evasion_mod,
                         PLAYER, m_ptr, true);
@@ -7896,7 +7904,87 @@ void do_cmd_fire(int quiver)
                                 punctuation);
                     }
 
-                    // if a slay was noticed, then identify the bow/arrow
+                    if (net_dam > 0)
+                    {
+                        if ((f4 & TR4_ARMOR_SHATTER)
+                            && (r_ptr->flags3 & RF3_HAS_ARMOUR))
+                        {
+                            int shatter_skill = p_ptr->skill_use[S_ARC];
+                            int resist_skill = monster_skill(m_ptr, S_WIL);
+
+                            if (skill_check(NULL, shatter_skill, resist_skill,
+                                    m_ptr)
+                                > 0)
+                            {
+                                if (m_ptr->armor_ps_reduction < r_ptr->ps)
+                                {
+                                    m_ptr->armor_ps_reduction++;
+
+                                    if (m_ptr->ml)
+                                    {
+                                        char m_poss[80];
+                                        monster_desc(
+                                            m_poss, sizeof(m_poss), m_ptr, 0x22);
+                                        msg_format(
+                                            "Your shot shatters %s armor!",
+                                            m_poss);
+                                    }
+
+                                    if (!noticed_arrow_flag
+                                        && (ammo_f4 & TR4_ARMOR_SHATTER)
+                                        && !object_known_p(i_ptr))
+                                    {
+                                        noticed_arrow_flag = TR4_ARMOR_SHATTER;
+                                    }
+                                    else if (!noticed_bow_flag
+                                        && (bow_f4 & TR4_ARMOR_SHATTER)
+                                        && !object_known_p(j_ptr))
+                                    {
+                                        noticed_bow_flag = TR4_ARMOR_SHATTER;
+                                    }
+                                }
+                            }
+                        }
+
+                        if ((f3 & TR3_WILL_DRAIN)
+                            && !(r_ptr->flags2 & RF2_MINDLESS))
+                        {
+                            int drain_skill = p_ptr->skill_use[S_ARC];
+                            int resist_skill = monster_skill(m_ptr, S_WIL);
+
+                            if (skill_check(NULL, drain_skill, resist_skill,
+                                    m_ptr)
+                                > 0)
+                            {
+                                m_ptr->song_will_penalty++;
+
+                                if (m_ptr->ml)
+                                {
+                                    char m_poss[80];
+                                    monster_desc(
+                                        m_poss, sizeof(m_poss), m_ptr, 0x22);
+                                    msg_format("Your shot drains %s will!",
+                                        m_poss);
+                                }
+
+                                if (!noticed_arrow_flag
+                                    && (ammo_f3 & TR3_WILL_DRAIN)
+                                    && !object_known_p(i_ptr))
+                                {
+                                    noticed_arrow_flag = TR3_WILL_DRAIN;
+                                }
+                                else if (!noticed_bow_flag
+                                    && (bow_f3 & TR3_WILL_DRAIN)
+                                    && !object_known_p(j_ptr))
+                                {
+                                    noticed_bow_flag = TR3_WILL_DRAIN;
+                                }
+                            }
+                        }
+                    }
+
+                    // if a slay or other combat effect was noticed, then
+                    // identify the bow/arrow
                     if (noticed_arrow_flag || noticed_bow_flag)
                     {
                         ident_bow_arrow_by_use(j_ptr, i_ptr, o_ptr, m_ptr,
@@ -7913,6 +8001,27 @@ void do_cmd_fire(int quiver)
                     // hit the monster, check for death
                     p_ptr->killed_enemy_with_arrow = mon_take_hit(
                         cave_m_idx[y][x], net_dam, note_dies, -1);
+
+                    if (p_ptr->killed_enemy_with_arrow
+                        && (f1 & TR1_VAMPIRIC) && !monster_nonliving(r_ptr))
+                    {
+                        if (hp_player(7, false, false))
+                        {
+                            if ((ammo_f1 & TR1_VAMPIRIC)
+                                && !object_known_p(i_ptr))
+                            {
+                                ident_bow_arrow_by_use(j_ptr, i_ptr, o_ptr,
+                                    m_ptr, 0, TR1_VAMPIRIC);
+                            }
+                            else if ((bow_f1 & TR1_VAMPIRIC)
+                                && !object_known_p(j_ptr))
+                            {
+                                ident_bow_arrow_by_use(j_ptr, i_ptr, o_ptr,
+                                    m_ptr, TR1_VAMPIRIC, 0);
+                            }
+                        }
+                    }
+
                     display_hit(
                         y, x, net_dam, GF_HURT, p_ptr->killed_enemy_with_arrow);
 
@@ -7935,7 +8044,8 @@ void do_cmd_fire(int quiver)
                             && one_in_(monster_skill(m_ptr, S_WIL)))
                         {
                             bool known_radiance
-                                = object_known_p(j_ptr) || noticed_radiance;
+                                = object_known_p(j_ptr) || object_known_p(i_ptr)
+                                || object_known_p(o_ptr) || noticed_radiance;
                             if (m_ptr->ml && known_radiance)
                             {
                                 msg_format("%^s contorts as the shining arrow "
@@ -8258,7 +8368,7 @@ void do_cmd_throw(bool automatic)
     int ty2,
         tx2; // dummy variables needed to pass to the path projection function
     int tdis;
-    u32b f1, f2, f3;
+    u32b f1 = 0, f2 = 0, f3 = 0, f4 = 0;
 
     int attack_mod = 0, total_attack_mod = 0;
     int total_evasion_mod = 0;
@@ -8280,6 +8390,9 @@ void do_cmd_throw(bool automatic)
     bool hit_body = false;
     bool hit_wall = false;
     bool treat_as_throwing = false;
+    bool has_throwing_ability = false;
+    bool has_impale_ability = false;
+    int remaining_impale_targets = 0;
 
     int missed_monsters = 0;
 
@@ -8326,7 +8439,7 @@ void do_cmd_throw(bool automatic)
                 continue;
 
             /* Extract the item flags */
-            object_flags(o_ptr, &f1, &f2, &f3);
+            object_flags4(o_ptr, &f1, &f2, &f3, &f4);
 
             if (player_can_treat_as_throwing_flags(o_ptr, f3))
             {
@@ -8394,7 +8507,7 @@ void do_cmd_throw(bool automatic)
     tdis = throwing_range(o_ptr);
 
     /* Examine the item */
-    object_flags(o_ptr, &f1, &f2, &f3);
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
 
     // Aim automatically if asked
     if (automatic)
@@ -8610,6 +8723,12 @@ void do_cmd_throw(bool automatic)
     missile_attr = object_attr(i_ptr);
     missile_char = object_char(i_ptr);
     treat_as_throwing = player_can_treat_as_throwing_flags(i_ptr, f3);
+    has_throwing_ability = p_ptr->active_ability[S_MEL][MEL_THROWING]
+        || object_grants_ability(i_ptr, S_MEL, MEL_THROWING);
+    has_impale_ability = (p_ptr->active_ability[S_MEL][MEL_IMPALE]
+        || object_grants_ability(i_ptr, S_MEL, MEL_IMPALE))
+        && weapon_is_impale_eligible(i_ptr);
+    remaining_impale_targets = has_impale_ability ? 1 : 0;
 
     attack_mod = p_ptr->skill_use[S_MEL] + i_ptr->att;
 
@@ -8629,7 +8748,7 @@ void do_cmd_throw(bool automatic)
     attack_mod += axe_bonus(i_ptr);
     attack_mod += polearm_bonus(i_ptr);
 
-    if (p_ptr->active_ability[S_MEL][MEL_THROWING] && treat_as_throwing)
+    if (has_throwing_ability && treat_as_throwing)
         attack_mod += 1;
 
     /* Take a turn */
@@ -8714,7 +8833,7 @@ void do_cmd_throw(bool automatic)
             // Determine the player's attack score after all modifiers
             int stealth_bonus = stealth_melee_bonus(m_ptr, true);
             total_attack_mod = total_player_attack(m_ptr, attack_mod + stealth_bonus);
-            if (p_ptr->active_ability[S_MEL][MEL_THROWING] && treat_as_throwing)
+            if (has_throwing_ability && treat_as_throwing)
             {
                 int dist = distance(p_ptr->py, p_ptr->px, m_ptr->fy, m_ptr->fx);
                 total_attack_mod += dist / 10;
@@ -8769,6 +8888,15 @@ void do_cmd_throw(bool automatic)
                 /* Test for hit */
                 hit_result = hit_roll(
                     total_attack_mod, total_evasion_mod, PLAYER, m_ptr, true);
+            }
+
+            if (hit_result <= 0 && !(r_ptr->flags1 & (RF1_PEACEFUL))
+                && (f3 & TR3_ACCURATE))
+            {
+                hit_result = hit_roll(
+                    total_attack_mod, total_evasion_mod, PLAYER, m_ptr, true);
+                if (hit_result > 0)
+                    msg_format("The %s flies true.", o_name);
             }
 
             /* If it hit... */
@@ -8934,6 +9062,8 @@ void do_cmd_throw(bool automatic)
                 }
 
                 display_hit(y, x, net_dam, GF_HURT, fatal_blow);
+                apply_weapon_combat_effects(
+                    i_ptr, m_ptr, S_MEL, net_dam, fatal_blow, "throw");
 
                 /* Still alive */
                 if (!fatal_blow)
@@ -8974,6 +9104,12 @@ void do_cmd_throw(bool automatic)
                     /* Message if applicable*/
                     if ((!potion_effect) || (pdam > 0))
                         message_pain(cave_m_idx[y][x], (pdam ? pdam : net_dam));
+                }
+
+                if (remaining_impale_targets > 0)
+                {
+                    remaining_impale_targets--;
+                    continue;
                 }
                 /* Stop looking if a monster was hit */
                 break;

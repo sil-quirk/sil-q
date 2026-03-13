@@ -1119,7 +1119,8 @@ int crit_bonus(int hit_result, int weight, const monster_race* r_ptr,
             crit_seperation -= 20;
 
         if ((skill_type == S_MEL) && thrown && o_ptr
-            && p_ptr->active_ability[S_MEL][MEL_THROWING]
+            && (p_ptr->active_ability[S_MEL][MEL_THROWING]
+                || object_grants_ability(o_ptr, S_MEL, MEL_THROWING))
             && player_can_treat_as_throwing(o_ptr))
         {
             crit_seperation -= 20;
@@ -1185,9 +1186,17 @@ int crit_bonus(int hit_result, int weight, const monster_race* r_ptr,
 void slay_desc(char* description, u32b flag, const monster_type* m_ptr)
 {
     char m_name[80];
+    char m_poss[80];
 
     /* Monster description */
     monster_desc(m_name, sizeof(m_name), m_ptr, 0);
+    monster_desc(m_poss, sizeof(m_poss), m_ptr, 0x22);
+
+    if (flag == TR3_WILL_DRAIN)
+    {
+        sprintf(description, "drains %s will", m_poss);
+        return;
+    }
 
     switch (flag)
     {
@@ -1242,6 +1251,9 @@ void slay_desc(char* description, u32b flag, const monster_type* m_ptr)
         break;
     case TR1_BRAND_POIS:
         sprintf(description, "poisons %s", m_name);
+        break;
+    case TR4_ARMOR_SHATTER:
+        sprintf(description, "shatters %s armor", m_poss);
         break;
     }
 
@@ -2528,6 +2540,81 @@ void ident_bow_arrow_by_use(object_type* j_ptr, object_type* i_ptr,
     }
 
     return;
+}
+
+void apply_weapon_combat_effects(object_type* o_ptr, monster_type* m_ptr,
+    int skill_type, int net_dam, bool fatal_blow, cptr armor_shatter_noun)
+{
+    monster_race* r_ptr;
+    u32b f1 = 0, f2 = 0, f3 = 0, f4 = 0;
+
+    if (!o_ptr || !o_ptr->k_idx || !m_ptr)
+        return;
+
+    r_ptr = &r_info[m_ptr->r_idx];
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
+
+    if (!fatal_blow && (net_dam > 0))
+    {
+        if ((f4 & TR4_ARMOR_SHATTER) && (r_ptr->flags3 & RF3_HAS_ARMOUR))
+        {
+            int shatter_skill = p_ptr->skill_use[skill_type];
+            int resist_skill = monster_skill(m_ptr, S_WIL);
+
+            if (skill_check(NULL, shatter_skill, resist_skill, m_ptr) > 0)
+            {
+                if (m_ptr->armor_ps_reduction < r_ptr->ps)
+                {
+                    m_ptr->armor_ps_reduction++;
+
+                    if (m_ptr->ml)
+                    {
+                        char m_poss[80];
+                        monster_desc(m_poss, sizeof(m_poss), m_ptr, 0x22);
+                        msg_format("Your %s shatters %s armor!",
+                            armor_shatter_noun ? armor_shatter_noun : "attack",
+                            m_poss);
+                    }
+
+                    if (!object_known_p(o_ptr))
+                    {
+                        ident_weapon_by_use(o_ptr, m_ptr, TR4_ARMOR_SHATTER);
+                    }
+                }
+            }
+        }
+
+        if ((f3 & TR3_WILL_DRAIN) && !(r_ptr->flags2 & RF2_MINDLESS))
+        {
+            int drain_skill = p_ptr->skill_use[skill_type];
+            int resist_skill = monster_skill(m_ptr, S_WIL);
+
+            if (skill_check(NULL, drain_skill, resist_skill, m_ptr) > 0)
+            {
+                m_ptr->song_will_penalty++;
+
+                if (m_ptr->ml)
+                {
+                    char m_poss[80];
+                    monster_desc(m_poss, sizeof(m_poss), m_ptr, 0x22);
+                    msg_format("You drain %s will!", m_poss);
+                }
+
+                if (!object_known_p(o_ptr))
+                {
+                    ident_weapon_by_use(o_ptr, m_ptr, TR3_WILL_DRAIN);
+                }
+            }
+        }
+    }
+
+    if (fatal_blow && (f1 & TR1_VAMPIRIC) && !monster_nonliving(r_ptr))
+    {
+        if (hp_player(7, false, false) && !object_known_p(o_ptr))
+        {
+            ident_weapon_by_use(o_ptr, m_ptr, TR1_VAMPIRIC);
+        }
+    }
 }
 
 /*
@@ -5571,68 +5658,8 @@ void py_attack_aux(int y, int x, int attack_type)
                 display_hit(y, x, net_dam, GF_HURT, fatal_blow);
             }
 
-            // Apply on-hit stat reduction effects (only if monster survived and took damage)
-            if (!fatal_blow && (net_dam > 0))
-            {
-                // Armor Shatter: Reduce monster armor protection sides
-                // Only applies to armored monsters (RF3_HAS_ARMOUR)
-                if ((f4 & (TR4_ARMOR_SHATTER)) && (r_ptr->flags3 & (RF3_HAS_ARMOUR)))
-                {
-                    // Skill check: attacker Melee vs defender Will
-                    int shatter_skill = p_ptr->skill_use[S_MEL];
-                    int resist_skill = monster_skill(m_ptr, S_WIL);
-
-                    if (skill_check(NULL, shatter_skill, resist_skill, m_ptr) > 0)
-                    {
-                        // Check if we can reduce further (can't reduce to 0)
-                        if (m_ptr->armor_ps_reduction < r_ptr->ps)
-                        {
-                            m_ptr->armor_ps_reduction++;
-
-                            if (m_ptr->ml)
-                            {
-                                char m_poss[80];
-                                monster_desc(m_poss, sizeof(m_poss), m_ptr, 0x22);
-                                msg_format("Your blow shatters %s armor!", m_poss);
-                            }
-
-                            // Identify the weapon
-                            if (!object_known_p(o_ptr))
-                            {
-                                ident_weapon_by_use(o_ptr, m_ptr, TR4_ARMOR_SHATTER);
-                            }
-                        }
-                    }
-                }
-
-                // Will Drain: Reduce monster Will
-                // Only applies to intelligent monsters (not mindless)
-                if ((f3 & (TR3_WILL_DRAIN)) && !(r_ptr->flags2 & (RF2_MINDLESS)))
-                {
-                    // Skill check: attacker Melee vs defender Will
-                    int drain_skill = p_ptr->skill_use[S_MEL];
-                    int resist_skill = monster_skill(m_ptr, S_WIL);
-
-                    if (skill_check(NULL, drain_skill, resist_skill, m_ptr) > 0)
-                    {
-                        // Reduce Will by 1
-                        m_ptr->song_will_penalty++;
-
-                        if (m_ptr->ml)
-                        {
-                            char m_poss[80];
-                            monster_desc(m_poss, sizeof(m_poss), m_ptr, 0x22);
-                            msg_format("You drain %s will!", m_poss);
-                        }
-
-                        // Identify the weapon
-                        if (!object_known_p(o_ptr))
-                        {
-                            ident_weapon_by_use(o_ptr, m_ptr, TR3_WILL_DRAIN);
-                        }
-                    }
-                }
-            }
+            apply_weapon_combat_effects(
+                o_ptr, m_ptr, S_MEL, net_dam, fatal_blow, "blow");
 
             // if a slay was noticed, then identify the weapon
             if (noticed_flag)
@@ -5644,15 +5671,6 @@ void py_attack_aux(int y, int x, int attack_type)
             // deal with killing blows
             if (fatal_blow)
             {
-                // heal with a vampiric weapon
-                if ((f1 & (TR1_VAMPIRIC)) && !monster_nonliving(r_ptr))
-                {
-                    if (hp_player(7, false, false) && !object_known_p(o_ptr))
-                    {
-                        ident_weapon_by_use(o_ptr, m_ptr, TR1_VAMPIRIC);
-                    }
-                }
-
                 // deal with 'follow_through' ability
                 possible_follow_through(y, x, attack_type);
 
@@ -5872,11 +5890,7 @@ bool can_impale()
 
     object_type* o_ptr = &inventory[INVEN_WIELD];
 
-    bool has_polearm = !!(k_info[o_ptr->k_idx].flags3 & TR3_POLEARM);
-    bool has_big_sword = (o_ptr->tval == TV_SWORD)
-        && ((k_info[o_ptr->k_idx].flags3 & TR3_TWO_HANDED));
-
-    return has_impale_skill && (has_polearm || has_big_sword);
+    return has_impale_skill && weapon_is_impale_eligible(o_ptr);
 }
 
 void py_attack(int y, int x, int attack_type)
