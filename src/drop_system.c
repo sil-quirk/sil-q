@@ -708,14 +708,9 @@ static int smithing_difficulty_baseline(const object_type* o_ptr)
 
     /* Attack bonus */
     x = o_ptr->att - k_ptr->att;
-    if ((o_ptr->tval == TV_ARROW) && (x > 0))
-    {
-        int old_di = dif_inc;
-        drop_dif_mod(x, 5, &dif_inc);
-        dif_inc = (dif_inc - old_di) / 2;
-    }
-    else if ((o_ptr->tval == TV_BOW || o_ptr->tval == TV_SWORD
-                 || o_ptr->tval == TV_POLEARM || o_ptr->tval == TV_HAFTED)
+    if ((o_ptr->tval == TV_ARROW || o_ptr->tval == TV_BOW
+            || o_ptr->tval == TV_SWORD || o_ptr->tval == TV_POLEARM
+            || o_ptr->tval == TV_HAFTED)
         && (x > 0))
     {
         drop_dif_mod(x, 3, &dif_inc);
@@ -729,9 +724,21 @@ static int smithing_difficulty_baseline(const object_type* o_ptr)
 
     /* Evasion bonus */
     x = o_ptr->evn - k_ptr->evn;
-    drop_dif_mod(x, 6, &dif_inc);
-    if (x > 0)
-        dif_inc -= 1;
+    if (o_ptr->tval == TV_MAIL || o_ptr->tval == TV_SOFT_ARMOR
+        || o_ptr->tval == TV_SHIELD || o_ptr->tval == TV_CLOAK
+        || o_ptr->tval == TV_BOOTS || o_ptr->tval == TV_GLOVES
+        || o_ptr->tval == TV_HELM || o_ptr->tval == TV_CROWN)
+    {
+        drop_dif_mod(x, 6, &dif_inc);
+        if (x > 0)
+            dif_inc -= 1;
+    }
+    else
+    {
+        drop_dif_mod(x, 9, &dif_inc);
+        if (x > 0)
+            dif_inc -= 2;
+    }
 
     /* Damage bonus */
     x = (o_ptr->ds - k_ptr->ds);

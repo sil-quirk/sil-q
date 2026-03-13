@@ -511,9 +511,7 @@ def calculate_difficulty(art):
     # Attack bonus contribution (bonus above base)
     att_bonus = smithed_att_bonus
     if att_bonus != 0:
-        if tval == 17:  # Arrow - different formula
-            dif_inc += dif_mod_calc(att_bonus, 5) // 2
-        elif tval in [19, 23, 22, 21, 20]:  # Bow, Sword, Polearm, Hafted, Digging
+        if tval in [17, 19, 23, 22, 21]:  # Arrow, Bow, Sword, Polearm, Hafted
             dif_inc += dif_mod_calc(att_bonus, 3)
         else:
             val = dif_mod_calc(att_bonus, 6)
@@ -521,12 +519,18 @@ def calculate_difficulty(art):
                 val -= 1
             dif_inc += val
     
-    # Evasion bonus (bonus above base): dif_mod(x, 6, &dif_inc); if (x > 0) dif_inc -= 1
+    # Evasion bonus (bonus above base): armor uses dif_mod(x, 6)-1, non-armor uses dif_mod(x, 9)-2
     evn_bonus = smithed_evn_bonus
     if evn_bonus != 0:
-        val = dif_mod_calc(evn_bonus, 6)
-        if evn_bonus > 0:
-            val -= 1
+        armor_tvals = {30, 31, 32, 33, 34, 35, 36, 37}
+        if tval in armor_tvals:
+            val = dif_mod_calc(evn_bonus, 6)
+            if evn_bonus > 0:
+                val -= 1
+        else:
+            val = dif_mod_calc(evn_bonus, 9)
+            if evn_bonus > 0:
+                val -= 2
         dif_inc += val
     
     # Damage sides bonus: dif_mod(x, 3*x+2, &dif_inc)

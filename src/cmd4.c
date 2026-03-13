@@ -4870,17 +4870,10 @@ int object_difficulty(object_type* o_ptr)
     // attack bonus
     x = att_base - k_ptr->att;
 
-    // special costs for attack bonus for arrows
-    if ((o_ptr->tval == TV_ARROW) && (x > 0))
-    {
-        int old_di = dif_inc;
-
-        dif_mod(x, 5, &dif_inc);
-        dif_inc = (dif_inc - old_di) / 2;
-    }
-    // special costs for attack bonus for other weapons
-    else if ((o_ptr->tval == TV_BOW || o_ptr->tval == TV_SWORD
-                 || o_ptr->tval == TV_POLEARM || o_ptr->tval == TV_HAFTED)
+    // special costs for attack bonus for weapons
+    if ((o_ptr->tval == TV_ARROW || o_ptr->tval == TV_BOW
+            || o_ptr->tval == TV_SWORD || o_ptr->tval == TV_POLEARM
+            || o_ptr->tval == TV_HAFTED)
         && (x > 0))
     {
         dif_mod(x, 3, &dif_inc);
@@ -4895,9 +4888,21 @@ int object_difficulty(object_type* o_ptr)
 
     // evasion bonus
     x = evn_base - k_ptr->evn;
-    dif_mod(x, 6, &dif_inc);
-    if (x > 0)
-        dif_inc -= 1;
+    if (o_ptr->tval == TV_SOFT_ARMOR || o_ptr->tval == TV_MAIL
+        || o_ptr->tval == TV_SHIELD || o_ptr->tval == TV_HELM
+        || o_ptr->tval == TV_CROWN || o_ptr->tval == TV_CLOAK
+        || o_ptr->tval == TV_GLOVES || o_ptr->tval == TV_BOOTS)
+    {
+        dif_mod(x, 6, &dif_inc);
+        if (x > 0)
+            dif_inc -= 1;
+    }
+    else
+    {
+        dif_mod(x, 9, &dif_inc);
+        if (x > 0)
+            dif_inc -= 2;
+    }
 
     // damage bonus
     x = (ds_base - k_ptr->ds);
