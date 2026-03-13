@@ -5886,13 +5886,19 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
     /* Handle throwing weapons - try to combine with existing in quiver first */
     if (player_can_treat_as_throwing(o_ptr))
     {
+        int empty_quiver = 0;
+
         /* Check for combining with existing throwing weapons in quiver */
         for (j = INVEN_QUIVER1; j <= INVEN_QUIVER2; j++)
         {
             j_ptr = &inventory[j];
 
             if (!j_ptr->k_idx)
+            {
+                if (empty_quiver == 0)
+                    empty_quiver = j;
                 continue;
+            }
 
             if (object_similar(j_ptr, o_ptr))
             {
@@ -5910,6 +5916,30 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
                 break;
             }
         }
+
+        if ((empty_quiver > 0) && o_ptr->pickup)
+        {
+            int limit = object_stack_limit(o_ptr);
+            int placed = MIN(o_ptr->number, limit);
+            object_type* d_ptr = &inventory[empty_quiver];
+
+            object_copy(d_ptr, o_ptr);
+            d_ptr->number = placed;
+            d_ptr->pickup = false;
+            d_ptr->pickup_slot = -1;
+            d_ptr->ident |= IDENT_HANDLED;
+            o_ptr->number -= placed;
+            o_ptr->pickup = false;
+            o_ptr->pickup_slot = -1;
+
+            p_ptr->equip_cnt++;
+            p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+            p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
+
+            if (o_ptr->number <= 0)
+                return (empty_quiver);
+        }
+
         /* Any overflow will fall through to pack handling below */
     }
 

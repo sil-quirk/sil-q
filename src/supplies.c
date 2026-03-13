@@ -65,7 +65,8 @@ static void supplies_reserve(int minimum)
     g_supply_capacity = new_capacity;
 }
 
-static bool supplies_can_add_weight(int current_weight, int addition)
+static bool supplies_can_add_weight_internal(int current_weight, int addition,
+    bool warn)
 {
     if (addition <= 0)
         return true;
@@ -76,7 +77,7 @@ static bool supplies_can_add_weight(int current_weight, int addition)
     if (current_weight + addition <= g_supplies_max_weight)
         return true;
 
-    if (!g_supply_limit_warned)
+    if (warn && !g_supply_limit_warned)
     {
         msg_print("Your supply cache cannot carry any more weight.");
         g_supply_limit_warned = true;
@@ -195,7 +196,7 @@ bool supplies_can_absorb_object(const object_type* o_ptr)
     int current_weight = supplies_total_weight();
 
     int add_weight = o_ptr->weight * o_ptr->number;
-    return supplies_can_add_weight(current_weight, add_weight);
+    return supplies_can_add_weight_internal(current_weight, add_weight, false);
 }
 
 int supplies_max_absorbable_quantity(const object_type* o_ptr)
@@ -242,7 +243,7 @@ bool supplies_absorb_object(object_type* src)
 
     int current_weight = supplies_total_weight();
     int add_weight = src->weight * src->number;
-    if (!supplies_can_add_weight(current_weight, add_weight))
+    if (!supplies_can_add_weight_internal(current_weight, add_weight, true))
         return false;
 
     if (idx >= 0)

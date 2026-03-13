@@ -3042,27 +3042,33 @@ static void log_drop_attempt(const drop_request* req, size_t strict_count,
  * Global chest generation context - set by callers (generate.c) before chest generation.
  * Reset to defaults after each generation.
  */
-static int g_chest_vault_type = 0;  /* 0=default/partition, 6=type6 vault, 7=type7, 8+=type8+ */
-static int g_chest_mode = 0;        /* 0=default 50/50, 1=labyrinth 70/30 small/large */
+static int g_chest_vault_type = 0;  /* -1=labyrinth jewelled, 0=default/partition, 6=type6, 7=type7, 8=type8, 9=type9 */
+static int g_chest_mode = 0;        /* 0=default 50/50, 1=always small, 2=always large */
 
 /*
  * Generate a chest according to game design specifications:
  * Material distribution controlled by g_chest_vault_type:
+ *   - Labyrinth guaranteed chest: 100% jewelled
  *   - Type 6 vaults: 100% wooden
  *   - Type 7 vaults: 65% wooden, 35% steel
- *   - Type 8+ vaults and default: 50% wooden, 35% steel, 15% jewelled
+ *   - Type 8 vaults: 35% wooden, 40% steel, 25% jewelled
+ *   - Type 9 vaults: 20% wooden, 35% steel, 45% jewelled
+ *   - Default partitions and other vaults: 50% wooden, 35% steel, 15% jewelled
  * Size distribution controlled by g_chest_mode:
  *   - Mode 0 (default): 50/50 small or large
- *   - Mode 1 (labyrinth): 70% small, 30% large
+ *   - Mode 1: always small
+ *   - Mode 2: always large
  * Chest contents add +5 levels when opened (handled in chest_death())
  */
 static bool generate_chest(int depth, const drop_profile* profile, object_type* out)
 {
     /* Size distribution based on mode */
     bool is_large;
-    if (g_chest_mode == 1)  /* Labyrinth: 70% small, 30% large */
-        is_large = (rand_int(100) < 30);
-    else  /* Default: 50/50 */
+    if (g_chest_mode == 1)
+        is_large = false;
+    else if (g_chest_mode == 2)
+        is_large = true;
+    else
         is_large = one_in_(2);
     
     const int small_svals[] = {
@@ -3075,7 +3081,12 @@ static bool generate_chest(int depth, const drop_profile* profile, object_type* 
     int material_index;
     drop_quality material_quality;
     
-    if (g_chest_vault_type == 6)  /* Type 6 vault: wooden only */
+    if (g_chest_vault_type == -1)  /* Labyrinth guaranteed chest: jewelled only */
+    {
+        material_index = 2;
+        material_quality = DROP_QUALITY_SUPERB;
+    }
+    else if (g_chest_vault_type == 6)  /* Type 6 vault: wooden only */
     {
         material_index = 0;
         material_quality = DROP_QUALITY_GOOD;
@@ -3093,7 +3104,43 @@ static bool generate_chest(int depth, const drop_profile* profile, object_type* 
             material_quality = DROP_QUALITY_GREAT;
         }
     }
-    else  /* Type 8+ vaults and default partitions: 50% wooden, 35% steel, 15% jewelled */
+    else if (g_chest_vault_type == 8)  /* Type 8 vault: 35% wooden, 40% steel, 25% jewelled */
+    {
+        if (material_roll < 35)
+        {
+            material_index = 0;
+            material_quality = DROP_QUALITY_GOOD;
+        }
+        else if (material_roll < 75)
+        {
+            material_index = 1;
+            material_quality = DROP_QUALITY_GREAT;
+        }
+        else
+        {
+            material_index = 2;
+            material_quality = DROP_QUALITY_SUPERB;
+        }
+    }
+    else if (g_chest_vault_type == 9)  /* Type 9 vault: 20% wooden, 35% steel, 45% jewelled */
+    {
+        if (material_roll < 20)
+        {
+            material_index = 0;
+            material_quality = DROP_QUALITY_GOOD;
+        }
+        else if (material_roll < 55)
+        {
+            material_index = 1;
+            material_quality = DROP_QUALITY_GREAT;
+        }
+        else
+        {
+            material_index = 2;
+            material_quality = DROP_QUALITY_SUPERB;
+        }
+    }
+    else  /* Default partitions and other vaults: 50% wooden, 35% steel, 15% jewelled */
     {
         if (material_roll < 50)
         {
@@ -3161,7 +3208,8 @@ static bool generate_chest(int depth, const drop_profile* profile, object_type* 
 
 /*
  * Set chest generation context for vault-specific material distributions.
- * vault_type: 0=default/partition, 6=type6 (wooden only), 7=type7 (65/35), 8+=type8+ (50/35/15)
+ * vault_type: -1=labyrinth jewelled, 0=default/partition, 6=wooden only,
+ * 7=65/35, 8=35/40/25, 9=20/35/45
  */
 void drop_set_chest_vault_type(int vault_type)
 {
@@ -3170,7 +3218,7 @@ void drop_set_chest_vault_type(int vault_type)
 
 /*
  * Set chest generation context for mode-specific size distributions.
- * mode: 0=default 50/50, 1=labyrinth 70/30 small/large
+ * mode: 0=default 50/50, 1=always small, 2=always large
  */
 void drop_set_chest_mode(int mode)
 {

@@ -767,7 +767,7 @@ static bool quaff_potion(object_type* o_ptr, bool* ident)
     return (true);
 }
 
-static bool use_staff_effects(object_type* o_ptr, bool* ident, bool alchemy_boost)
+static bool use_staff_effects(object_type* o_ptr, bool* ident, bool is_gem)
 {
     int k;
 
@@ -838,7 +838,7 @@ static bool use_staff_effects(object_type* o_ptr, bool* ident, bool alchemy_boos
     {
         int radius = 10 + p_ptr->skill_use[S_WIL];
         /* Alchemy grants 1.5x range for gems */
-        if (alchemy_boost && p_ptr->active_ability[S_PER][PER_ALCHEMY])
+        if (is_gem && p_ptr->active_ability[S_PER][PER_ALCHEMY])
             radius = (radius * 3) / 2;
         map_area_radius(radius);
         *ident = true;
@@ -849,7 +849,7 @@ static bool use_staff_effects(object_type* o_ptr, bool* ident, bool alchemy_boos
     {
         int radius = 10 + p_ptr->skill_use[S_WIL];
         /* Alchemy grants 1.5x range for gems */
-        if (alchemy_boost && p_ptr->active_ability[S_PER][PER_ALCHEMY])
+        if (is_gem && p_ptr->active_ability[S_PER][PER_ALCHEMY])
             radius = (radius * 3) / 2;
         if (detect_objects_normal(radius))
             *ident = true;
@@ -860,7 +860,7 @@ static bool use_staff_effects(object_type* o_ptr, bool* ident, bool alchemy_boos
     {
         int radius = 10 + p_ptr->skill_use[S_WIL];
         /* Alchemy grants 1.5x range for gems */
-        if (alchemy_boost && p_ptr->active_ability[S_PER][PER_ALCHEMY])
+        if (is_gem && p_ptr->active_ability[S_PER][PER_ALCHEMY])
             radius = (radius * 3) / 2;
         if (detect_monsters(radius))
             *ident = true;
@@ -942,7 +942,15 @@ static bool use_staff_effects(object_type* o_ptr, bool* ident, bool alchemy_boos
 
     case SV_STAFF_RECHARGING:
     {
-        if (!recharge(CHANNELING_CHARGE_MULTIPLIER))
+        int recharge_amount = CHANNELING_CHARGE_MULTIPLIER;
+
+        if (is_gem)
+        {
+            if (p_ptr->active_ability[S_WIL][WIL_CHANNELING])
+                recharge_amount *= 2;
+        }
+
+        if (!recharge(recharge_amount))
             use_charge = false;
         *ident = true;
         break;
@@ -967,7 +975,7 @@ static bool use_staff_effects(object_type* o_ptr, bool* ident, bool alchemy_boos
     {
         if (darken_area(4, 4, 7))
             *ident = true;
-        if (alchemy_boost)
+        if (is_gem)
         {
             /* Gems of Shadows bolster this round's stealth checks with Will. */
             stealth_score += p_ptr->skill_use[S_WIL];

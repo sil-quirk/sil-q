@@ -4503,14 +4503,17 @@ static void place_chest_in_partition(
     int max_attempts = 100;
     
     /* Set chest generation context based on mode and parameters */
-    /* Mode-specific size distribution: labyrinth = 70/30, others = 50/50 */
-    if (mode == QUAD_MODE_LABYRINTH)
-        drop_set_chest_mode(1);  /* 70% small, 30% large */
+    if (force_large)
+        drop_set_chest_mode(2);  /* Always large */
+    else if (mode == QUAD_MODE_LABYRINTH)
+        drop_set_chest_mode(1);  /* Always small */
     else
         drop_set_chest_mode(0);  /* 50/50 default */
     
-    /* Vault type is 0 for partitions (default 50/35/15 distribution) */
-    drop_set_chest_vault_type(0);
+    if (mode == QUAD_MODE_LABYRINTH)
+        drop_set_chest_vault_type(-1);  /* Guaranteed jewelled chest */
+    else
+        drop_set_chest_vault_type(0);  /* Default 50/35/15 distribution */
     
     while (attempts < max_attempts)
     {
@@ -4543,33 +4546,6 @@ static void place_chest_in_partition(
 
             if (i_ptr->tval == TV_CHEST)
                 i_ptr->xtra1 = (byte)(0x80 | (byte)level_partition_kind_for_point(cy, cx));
-
-            /* Force large chest if requested (for big caves) */
-            if (force_large && i_ptr->tval == TV_CHEST)
-            {
-                /* Force large chest variant (preserve material) */
-                int target_sval = -1;
-                if (i_ptr->sval == SV_CHEST_SMALL_WOODEN)
-                    target_sval = SV_CHEST_LARGE_WOODEN;
-                else if (i_ptr->sval == SV_CHEST_SMALL_STEEL)
-                    target_sval = SV_CHEST_LARGE_STEEL;
-                else if (i_ptr->sval == SV_CHEST_SMALL_JEWELLED)
-                    target_sval = SV_CHEST_LARGE_JEWELLED;
-                
-                if (target_sval > 0)
-                {
-                    int k_idx = lookup_kind(TV_CHEST, target_sval);
-                    if (k_idx)
-                    {
-                        s16b old_pval = i_ptr->pval;
-                        byte old_xtra1 = i_ptr->xtra1;
-                        object_prep(i_ptr, k_idx);
-                        i_ptr->pval = old_pval;
-                        i_ptr->xtra1 = old_xtra1;
-                        apply_autoinscription(i_ptr);
-                    }
-                }
-            }
 
             if (!floor_carry(cy, cx, i_ptr))
             {

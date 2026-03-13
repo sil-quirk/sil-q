@@ -1265,6 +1265,13 @@ static const int skeleton_hint_base_weight[SKEL_HINT_MAX]
         35  /* PART_CAVEY */
     };
 
+/* Pack repeat-limited per-level counts into the high bits of hint_used_mask. */
+#define SKEL_HINT_REPEAT_LIMIT 3
+#define SKEL_HINT_STAIRS_COUNT_SHIFT 24
+#define SKEL_HINT_FORGE_COUNT_SHIFT 26
+#define SKEL_HINT_UNIQUE_COUNT_SHIFT 28
+#define SKEL_HINT_ARTIFACT_COUNT_SHIFT 30
+
 static void skeleton_note_ensure_level_state(void);
 static bool skeleton_note_has_unseen_template(
     byte sval, skeleton_note_role role, skeleton_hint_kind hint);
@@ -1335,6 +1342,116 @@ static void skeleton_note_record_seen(s16b id)
     g_skeleton_note_state.seen_ids[SKELETON_NOTE_SEEN_MAX - 1] = id;
 }
 
+static u32b skeleton_hint_bit(skeleton_hint_kind kind)
+{
+    return ((u32b)1u << (u32b)kind);
+}
+
+static bool skeleton_hint_is_repeat_limited(skeleton_hint_kind kind)
+{
+    switch (kind)
+    {
+    case SKEL_HINT_STAIRS:
+    case SKEL_HINT_FORGE:
+    case SKEL_HINT_UNIQUE_MONSTER:
+    case SKEL_HINT_VAULT_ARTIFACT:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static int skeleton_hint_repeat_shift(skeleton_hint_kind kind)
+{
+    switch (kind)
+    {
+    case SKEL_HINT_STAIRS:
+        return SKEL_HINT_STAIRS_COUNT_SHIFT;
+    case SKEL_HINT_FORGE:
+        return SKEL_HINT_FORGE_COUNT_SHIFT;
+    case SKEL_HINT_UNIQUE_MONSTER:
+        return SKEL_HINT_UNIQUE_COUNT_SHIFT;
+    case SKEL_HINT_VAULT_ARTIFACT:
+        return SKEL_HINT_ARTIFACT_COUNT_SHIFT;
+    default:
+        return -1;
+    }
+}
+
+static int skeleton_hint_use_count(skeleton_hint_kind kind, u32b state_mask)
+{
+    u32b bit = skeleton_hint_bit(kind);
+
+    if (!skeleton_hint_is_repeat_limited(kind))
+        return (state_mask & bit) ? 1 : 0;
+
+    int shift = skeleton_hint_repeat_shift(kind);
+    int count = (shift >= 0) ? (int)((state_mask >> shift) & 0x3u) : 0;
+
+    /*
+     * Backward compatibility: older saves only persisted the base bit, so
+     * treat that as "seen once" if no explicit repeat count is encoded.
+     */
+    if (count == 0 && (state_mask & bit))
+        count = 1;
+
+    return count;
+}
+
+static bool skeleton_hint_reached_limit(skeleton_hint_kind kind, u32b state_mask)
+{
+    if (kind == SKEL_HINT_TIP || kind == SKEL_HINT_NONE)
+        return false;
+
+    if (!skeleton_hint_is_repeat_limited(kind))
+        return ((state_mask & skeleton_hint_bit(kind)) != 0);
+
+    return (skeleton_hint_use_count(kind, state_mask) >= SKEL_HINT_REPEAT_LIMIT);
+}
+
+static u32b skeleton_hint_mark_used(skeleton_hint_kind kind, u32b state_mask)
+{
+    if (kind == SKEL_HINT_TIP || kind == SKEL_HINT_NONE)
+        return state_mask;
+
+    u32b bit = skeleton_hint_bit(kind);
+
+    if (!skeleton_hint_is_repeat_limited(kind))
+        return (state_mask | bit);
+
+    int shift = skeleton_hint_repeat_shift(kind);
+    int count = skeleton_hint_use_count(kind, state_mask);
+    if (count < SKEL_HINT_REPEAT_LIMIT)
+        count++;
+    state_mask |= bit;
+    if (shift >= 0)
+    {
+        u32b field_mask = ((u32b)0x3u << shift);
+        state_mask &= ~field_mask;
+        state_mask |= ((u32b)count << shift);
+    }
+
+    return state_mask;
+}
+
+static int skeleton_note_generated_min_side(void)
+{
+    int min_blocks = smaller_level_size ? 6 : 8;
+    return min_blocks * PANEL_HGT;
+}
+
+static int skeleton_note_generated_max_side(void)
+{
+    int max_blocks = MAX_LEVEL_BLOCKS;
+    if (smaller_level_size)
+    {
+        max_blocks -= 3;
+        if (max_blocks < 6)
+            max_blocks = 6;
+    }
+    return max_blocks * PANEL_HGT;
+}
+
 static int skeleton_note_size_bucket(const level_layout_info* layout)
 {
     if (!layout)
@@ -1343,29 +1460,30 @@ static int skeleton_note_size_bucket(const level_layout_info* layout)
     /*
      * Size buckets for skeleton-note pacing and {SIZEWORD}.
      *
-     * We base this on the current map's side length as a fraction of the
-     * maximum supported dungeon side (MAX_DUNGEON_*), so it continues to work
-     * even if the generator's exact size distribution changes.
-     *
-     * With current square levels (generate.c): 88..231 per side, these map to:
-     *   0: <  57% (<= 121)   "narrow"
-     *   1: <  76% (<= 165)   "broad"
-     *   2: <  90% (<= 198)   "sprawling"
-     *   3: >= 90% (>= 209)   "vast"
+     * Bucket against the generator's actual output range for the active size
+     * mode rather than the absolute MAX_DUNGEON_* ceiling. Otherwise the
+     * default generator quickly collapses into "large" descriptors and rarely
+     * emits "narrow" at all after the first few depths.
      */
     int side = MAX(layout->map_wid, layout->map_hgt);
-    int max_side = MAX(MAX_DUNGEON_WID, MAX_DUNGEON_HGT);
-    if (side <= 0 || max_side <= 0)
+    int min_side = skeleton_note_generated_min_side();
+    int max_side = skeleton_note_generated_max_side();
+    int span = max_side - min_side;
+
+    if (side <= 0 || min_side <= 0 || max_side <= min_side || span <= 0)
         return 0;
 
-    int pct = (side * 100) / max_side;
-    if (pct >= 90)
+    if (side <= min_side)
+        return 0;
+    if (side >= max_side)
         return 3;
-    if (pct >= 76)
-        return 2;
-    if (pct >= 57)
-        return 1;
-    return 0;
+
+    int bucket = ((side - min_side) * 4) / (span + 1);
+    if (bucket < 0)
+        bucket = 0;
+    if (bucket > 3)
+        bucket = 3;
+    return bucket;
 }
 
 static int skeleton_note_cap_from_layout(const level_layout_info* layout)
@@ -2262,7 +2380,8 @@ static skeleton_partition_focus skeleton_pick_partition_presence(
 
 static skeleton_hint_kind skeleton_note_choose_hint(
     const skeleton_note_profile* profile, const level_layout_info* layout,
-    bool vault_present, bool hoard_drop_present, byte sval, u32b used_mask)
+    bool vault_present, bool hoard_drop_present, byte sval, u32b state_mask,
+    u32b exclude_mask)
 {
     int weights[SKEL_HINT_MAX] = {0};
     int total = 0;
@@ -2270,7 +2389,10 @@ static skeleton_hint_kind skeleton_note_choose_hint(
     for (int k = 1; k < SKEL_HINT_MAX; ++k)
     {
         skeleton_hint_kind kind = (skeleton_hint_kind)k;
-        if (used_mask & (1UL << k))
+        if (exclude_mask & skeleton_hint_bit(kind))
+            continue;
+
+        if (skeleton_hint_reached_limit(kind, state_mask))
             continue;
 
         if (!skeleton_hint_available(
@@ -3549,7 +3671,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
     bool vault_present = level_has_greater_vault();
     bool hoard_drop_present = level_has_hoard_drop();
 
-    u32b base_used_mask = g_skeleton_note_state.hint_used_mask;
+    u32b base_hint_state = g_skeleton_note_state.hint_used_mask;
 
     skeleton_hint_kind hint1 = SKEL_HINT_NONE;
     if (at_cap)
@@ -3574,7 +3696,8 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
         else
         {
             hint1 = skeleton_note_choose_hint(
-                &profile, &layout, vault_present, hoard_drop_present, sval, base_used_mask);
+                &profile, &layout, vault_present, hoard_drop_present, sval,
+                base_hint_state, 0);
         }
     }
     if (hint1 == SKEL_HINT_NONE)
@@ -3601,19 +3724,22 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
 
         if (second_chance > 0 && percent_chance(second_chance))
         {
-            u32b used_mask2 = base_used_mask;
-            used_mask2 |= (1UL << hint1);
+            u32b state_after_hint1 = skeleton_hint_mark_used(hint1, base_hint_state);
+            u32b exclude_mask2 = skeleton_hint_bit(hint1);
 
             hint2 = skeleton_note_choose_hint(
-                &profile, &layout, vault_present, hoard_drop_present, sval, used_mask2);
+                &profile, &layout, vault_present, hoard_drop_present, sval,
+                state_after_hint1, exclude_mask2);
         }
     }
 
     /* Don't mark TIP hints as used - they can repeat. */
     if (hint1 != SKEL_HINT_TIP)
-        g_skeleton_note_state.hint_used_mask |= (1UL << hint1);
+        g_skeleton_note_state.hint_used_mask
+            = skeleton_hint_mark_used(hint1, g_skeleton_note_state.hint_used_mask);
     if (hint2 != SKEL_HINT_NONE && hint2 != SKEL_HINT_TIP)
-        g_skeleton_note_state.hint_used_mask |= (1UL << hint2);
+        g_skeleton_note_state.hint_used_mask
+            = skeleton_hint_mark_used(hint2, g_skeleton_note_state.hint_used_mask);
 
     const char* unique_type = NULL;
     int unique_y = 0;
