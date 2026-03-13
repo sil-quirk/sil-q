@@ -1880,7 +1880,7 @@ static bool level_has_greater_vault(void)
     return false;
 }
 
-static bool level_has_hoard_drop(void)
+static bool level_has_artefact_hint_target(void)
 {
     for (int i = 1; i < o_max; i++)
     {
@@ -1889,9 +1889,7 @@ static bool level_has_hoard_drop(void)
             continue;
         if (o_ptr->held_m_idx)
             continue;
-        if (!(o_ptr->ident & IDENT_HOARD_DROP))
-            continue;
-        if (!o_ptr->name1)
+        if (!artefact_p(o_ptr))
             continue;
         if (o_ptr->iy >= p_ptr->cur_map_hgt || o_ptr->ix >= p_ptr->cur_map_wid)
             continue;
@@ -2157,7 +2155,7 @@ void skeleton_note_set_state(const skeleton_note_state_save* in)
 
 static bool skeleton_hint_available(skeleton_hint_kind kind,
     const level_layout_info* layout, bool vault_present,
-    bool hoard_drop_present, byte sval)
+    bool artefact_present, byte sval)
 {
     if (kind == SKEL_HINT_TIP && disable_skeleton_note_tutorial)
         return false;
@@ -2170,7 +2168,7 @@ static bool skeleton_hint_available(skeleton_hint_kind kind,
         ok = vault_present;
         break;
     case SKEL_HINT_VAULT_ARTIFACT:
-        ok = hoard_drop_present;
+        ok = artefact_present;
         break;
     case SKEL_HINT_STAIRS:
         ok = level_has_stairs_down() || level_has_stairs_up();
@@ -2380,7 +2378,7 @@ static skeleton_partition_focus skeleton_pick_partition_presence(
 
 static skeleton_hint_kind skeleton_note_choose_hint(
     const skeleton_note_profile* profile, const level_layout_info* layout,
-    bool vault_present, bool hoard_drop_present, byte sval, u32b state_mask,
+    bool vault_present, bool artefact_present, byte sval, u32b state_mask,
     u32b exclude_mask)
 {
     int weights[SKEL_HINT_MAX] = {0};
@@ -2396,7 +2394,7 @@ static skeleton_hint_kind skeleton_note_choose_hint(
             continue;
 
         if (!skeleton_hint_available(
-                kind, layout, vault_present, hoard_drop_present, sval))
+                kind, layout, vault_present, artefact_present, sval))
             continue;
 
         int base = skeleton_hint_base_weight[k];
@@ -3358,7 +3356,7 @@ static const char* skeleton_note_hoard_site_for_point(int y, int x)
     return "a dragon's hoard";
 }
 
-static bool skeleton_note_find_nearest_hoard_drop(
+static bool skeleton_note_find_nearest_artefact(
     int from_y, int from_x, int* out_y, int* out_x, int* out_dist, const char** out_site)
 {
     int best_y = -1;
@@ -3374,9 +3372,7 @@ static bool skeleton_note_find_nearest_hoard_drop(
             continue;
         if (o_ptr->held_m_idx)
             continue;
-        if (!(o_ptr->ident & IDENT_HOARD_DROP))
-            continue;
-        if (!o_ptr->name1)
+        if (!artefact_p(o_ptr))
             continue;
         if (o_ptr->iy >= p_ptr->cur_map_hgt || o_ptr->ix >= p_ptr->cur_map_wid)
             continue;
@@ -3669,7 +3665,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
     level_layout_info_current(&layout);
 
     bool vault_present = level_has_greater_vault();
-    bool hoard_drop_present = level_has_hoard_drop();
+    bool artefact_present = level_has_artefact_hint_target();
 
     u32b base_hint_state = g_skeleton_note_state.hint_used_mask;
 
@@ -3678,7 +3674,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
     {
         /* Tutorial notes should not be limited by the per-level cap. */
         if (!skeleton_hint_available(
-                SKEL_HINT_TIP, &layout, vault_present, hoard_drop_present, sval))
+                SKEL_HINT_TIP, &layout, vault_present, artefact_present, sval))
         {
             return;
         }
@@ -3687,7 +3683,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
     else
     {
         bool can_tip = skeleton_hint_available(
-            SKEL_HINT_TIP, &layout, vault_present, hoard_drop_present, sval);
+            SKEL_HINT_TIP, &layout, vault_present, artefact_present, sval);
         int tip_chance = skeleton_note_tip_override_chance(sval, p_ptr->depth);
         if (can_tip && tip_chance > 0 && percent_chance(tip_chance))
         {
@@ -3696,7 +3692,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
         else
         {
             hint1 = skeleton_note_choose_hint(
-                &profile, &layout, vault_present, hoard_drop_present, sval,
+                &profile, &layout, vault_present, artefact_present, sval,
                 base_hint_state, 0);
         }
     }
@@ -3728,7 +3724,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
             u32b exclude_mask2 = skeleton_hint_bit(hint1);
 
             hint2 = skeleton_note_choose_hint(
-                &profile, &layout, vault_present, hoard_drop_present, sval,
+                &profile, &layout, vault_present, artefact_present, sval,
                 state_after_hint1, exclude_mask2);
         }
     }
@@ -3952,7 +3948,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
         {
             int ty = 0, tx = 0, dist = 0;
             const char* site = NULL;
-            if (skeleton_note_find_nearest_hoard_drop(
+            if (skeleton_note_find_nearest_artefact(
                     skel_y, skel_x, &ty, &tx, &dist, &site))
             {
                 body_lines[body_count].dir

@@ -272,8 +272,8 @@ T:23:10:21
 T:23:25:25
 T:17:0:99
 T:23:28:30
-A:1/70:10/0
-F:SLAY_ORC | SLAY_TROLL | NOBLE_ITEM
+A:1/60
+F:SLAY_ORC | SLAY_RAUKO | NOBLE_ITEM
 
 # Includes arrows
 # Polearms (no axes)
@@ -300,7 +300,7 @@ T:22:1:4
 T:23:10:21
 T:23:25:25
 T:23:28:30
-F:SLAY_RAUKO | SLAY_DRAGON | NOBLE_ITEM
+F:SLAY_VAMPIRE | SLAY_DRAGON | NOBLE_ITEM
 
 # Mandos is keeper and judge of the dead; the spirits of slain Elves pass to his halls.
 # This ego is for weapons that lay the restless dead to rest.
@@ -338,7 +338,7 @@ T:21:8:8
 T:22:4:4
 T:22:12:99
 T:23:17:25
-F:NOBLE_ITEM
+F:NOBLE_ITEM | SLAY_TROLL
 B:0/6
 
 

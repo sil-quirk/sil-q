@@ -4496,69 +4496,97 @@ static bool place_gv_in_partition(int y1, int y2, int x1, int x2, int *budget_t8
 
 /* Place a chest in a random floor location within partition bounds */
 static drop_profile drop_profile_for_mode(quadrant_mode_t mode);
-static void place_chest_in_partition(
-    int y1, int y2, int x1, int x2, bool force_large, quadrant_mode_t mode)
+static bool place_partition_chest_at(
+    int y, int x, bool force_large, quadrant_mode_t mode)
 {
-    int attempts = 0;
-    int max_attempts = 100;
-    
-    /* Set chest generation context based on mode and parameters */
+    object_type object_type_body;
+    object_type* i_ptr = &object_type_body;
+    int depth = p_ptr->depth;
+    drop_profile active_profile = drop_profile_for_mode(mode);
+
+    if (!in_bounds_fully(y, x))
+        return false;
+
+    /* Chests should land on an actual open floor tile, not on stairs or vault cells. */
+    if (!cave_clean_bold(y, x) || cave_m_idx[y][x]
+        || (cave_info[y][x] & CAVE_G_VAULT))
+    {
+        return false;
+    }
+
     if (force_large)
         drop_set_chest_mode(2);  /* Always large */
     else if (mode == QUAD_MODE_LABYRINTH)
         drop_set_chest_mode(1);  /* Always small */
     else
         drop_set_chest_mode(0);  /* 50/50 default */
-    
+
     if (mode == QUAD_MODE_LABYRINTH)
         drop_set_chest_vault_type(-1);  /* Guaranteed jewelled chest */
     else
         drop_set_chest_vault_type(0);  /* Default 50/35/15 distribution */
-    
+
+    object_wipe(i_ptr);
+
+    if (!drop_generate_object_profiled(
+            depth, DROP_QUALITY_NORMAL, DROP_TYPE_CHEST, 0, false,
+            &active_profile, i_ptr))
+    {
+        drop_set_chest_vault_type(0);
+        drop_set_chest_mode(0);
+        return false;
+    }
+
+    if (i_ptr->tval == TV_CHEST)
+        i_ptr->xtra1 = (byte)(0x80 | (byte)level_partition_kind_for_point(y, x));
+
+    if (!floor_carry(y, x, i_ptr))
+    {
+        genlog_anchor("Failed to carry chest in partition at (%d,%d)", y, x);
+        return false;
+    }
+
+    return true;
+}
+
+static void place_chest_in_partition(
+    int y1, int y2, int x1, int x2, bool force_large, quadrant_mode_t mode)
+{
+    int attempts = 0;
+    int max_attempts = 100;
+
     while (attempts < max_attempts)
     {
         int cy = rand_range(y1 + 1, y2 - 1);
         int cx = rand_range(x1 + 1, x2 - 1);
-        
-        if (!in_bounds_fully(cy, cx))
+
+        if (place_partition_chest_at(cy, cx, force_large, mode))
         {
-            attempts++;
-            continue;
-        }
-        
-        /* Must be floor (not chasm), not occupied, and not in a vault */
-        if (cave_empty_bold(cy, cx) && !cave_o_idx[cy][cx] && 
-            !(cave_info[cy][cx] & CAVE_G_VAULT))
-        {
-            object_type object_type_body;
-            object_type* i_ptr = &object_type_body;
-            object_wipe(i_ptr);
-
-            int depth = p_ptr->depth;
-            drop_profile active_profile = drop_profile_for_mode(mode);
-            if (!drop_generate_object_profiled(
-                    depth, DROP_QUALITY_NORMAL, DROP_TYPE_CHEST, 0, false,
-                    &active_profile, i_ptr))
-            {
-                attempts++;
-                continue;
-            }
-
-            if (i_ptr->tval == TV_CHEST)
-                i_ptr->xtra1 = (byte)(0x80 | (byte)level_partition_kind_for_point(cy, cx));
-
-            if (!floor_carry(cy, cx, i_ptr))
-            {
-                a_info[i_ptr->name1].cur_num = 0;
-            }
             genlog_anchor("Placed chest in partition at (%d,%d)", cy, cx);
             return;
         }
-        
+
         attempts++;
     }
-    
-    genlog_anchor("Failed to place chest in partition after %d attempts", max_attempts);
+
+    for (int cy = y1 + 1; cy < y2; ++cy)
+    {
+        for (int cx = x1 + 1; cx < x2; ++cx)
+        {
+            if (!place_partition_chest_at(cy, cx, force_large, mode))
+                continue;
+
+            genlog_anchor(
+                "Placed chest in partition at (%d,%d) after fallback scan", cy, cx);
+            return;
+        }
+    }
+
+    drop_set_chest_vault_type(0);
+    drop_set_chest_mode(0);
+    genlog_anchor(
+        "Failed to place chest in partition after %d attempts and fallback scan",
+        max_attempts);
 }
 
 /* Dynamic partition-based generation mix */
