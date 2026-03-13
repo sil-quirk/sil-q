@@ -635,6 +635,8 @@ extern void do_cmd_query_symbol(void);
 extern void do_cmd_view_monsters(void);
 extern void do_cmd_view_objects(void);
 extern void show_unified_sidebar(unified_look_state* state);
+extern int unified_look_find_cursor_selection(const unified_look_state* state,
+    int cursor_y, int cursor_x);
 extern void highlight_entity_on_map(int y, int x, bool highlight);
 extern void highlight_entity_on_map_type(int y, int x, bool highlight, int entity_type);
 extern bool ang_sort_comp_hook(const void* u, const void* v, int a, int b);

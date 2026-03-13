@@ -2759,6 +2759,7 @@
 #define OPT_banner_message_stairs 99
 #define OPT_show_level_generation_debug 100
 #define OPT_unlock_blitz_mode 101
+#define OPT_look_objects_sort_by_difficulty 102
 
 /* Intro screen style constants */
 #define INTRO_STYLE_FLAME       0   /* Flame Imperishable (Ainulindale) */
@@ -2907,6 +2908,7 @@
 #define unidentified_items_slate op_ptr->opt[OPT_unidentified_items_slate]
 #define easy_main_menu op_ptr->opt[OPT_easy_main_menu]
 #define show_level_generation_debug op_ptr->opt[OPT_show_level_generation_debug]
+#define look_objects_sort_by_difficulty op_ptr->opt[OPT_look_objects_sort_by_difficulty]
 #define story_display_lists op_ptr->opt[OPT_story_lists]
 #define story_inventory_lists op_ptr->opt[OPT_story_lists_inven]
 #define story_equipment_lists op_ptr->opt[OPT_story_lists_equip]

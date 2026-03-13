@@ -3683,6 +3683,36 @@ static int unified_look_count_visible_objects_for_group(unified_look_state* stat
     return total_objects;
 }
 
+static void unified_look_sync_cursor_selection(unified_look_state* state)
+{
+    int new_selection;
+
+    if (!state)
+        return;
+
+    if ((state->look_mode != 0) || state->in_sidebar_mode)
+        return;
+
+    new_selection = unified_look_find_cursor_selection(state, state->cursor_y,
+        state->cursor_x);
+
+    if (state->highlighted_y >= 0 && state->highlighted_x >= 0)
+    {
+        if ((new_selection < 0)
+            || (state->highlighted_y != state->cursor_y)
+            || (state->highlighted_x != state->cursor_x))
+        {
+            highlight_entity_on_map(state->highlighted_y, state->highlighted_x,
+                false);
+            state->highlighted_y = -1;
+            state->highlighted_x = -1;
+            state->highlighted_entity_type = 0;
+        }
+    }
+
+    state->selected_entity = new_selection;
+}
+
 static void unified_look_prompt_label(int binding, const char* fallback, char* buf, size_t buflen)
 {
     if (!buf || !buflen)
@@ -3788,6 +3818,8 @@ void do_cmd_unified_look(void)
         
         if (need_redraw)
         {
+            unified_look_sync_cursor_selection(&state);
+
             /* Save screen to preserve underlying display */
             screen_save();
             screen_saved = true;

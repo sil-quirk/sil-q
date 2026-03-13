@@ -7132,6 +7132,44 @@ extern int archery_range(const object_type* j_ptr)
     return (range);
 }
 
+/*
+ * Convert a thrown attack's distance into one of four penalty bands
+ * across the item's maximum range.
+ */
+static int throwing_range_band(int dist, int max_range)
+{
+    int band;
+
+    if (max_range <= 1)
+        return 1;
+
+    if (dist < 1)
+        dist = 1;
+    if (dist > max_range)
+        dist = max_range;
+
+    band = (((dist - 1) * 4) / (max_range - 1)) + 1;
+
+    if (band < 1)
+        band = 1;
+    if (band > 4)
+        band = 4;
+
+    return band;
+}
+
+static int throwing_range_attack_penalty(int dist, int max_range)
+{
+    return throwing_range_band(dist, max_range);
+}
+
+static int throwing_range_ds_penalty(int dist, int max_range)
+{
+    static const int ds_penalties[4] = { 0, 1, 1, 2 };
+
+    return ds_penalties[throwing_range_band(dist, max_range) - 1];
+}
+
 extern int throwing_range(const object_type* i_ptr)
 {
     int div;
@@ -7143,6 +7181,7 @@ extern int throwing_range(const object_type* i_ptr)
     /* the divisor is the weight + 2lb */
     div = i_ptr->weight + 20;
 
+    /* Restore the original throw-range scaling. */
     range = (weight_limit() / 5) / div;
 
     /* Max distance of MAX_RANGE */
@@ -8748,7 +8787,7 @@ void do_cmd_throw(bool automatic)
     attack_mod += axe_bonus(i_ptr);
     attack_mod += polearm_bonus(i_ptr);
 
-    if (has_throwing_ability && treat_as_throwing)
+    if (has_throwing_ability)
         attack_mod += 1;
 
     /* Take a turn */
@@ -8829,15 +8868,15 @@ void do_cmd_throw(bool automatic)
             bool potion_effect = false;
             int pdam = 0;
             bool fatal_blow = false;
+            int dist = distance(p_ptr->py, p_ptr->px, m_ptr->fy, m_ptr->fx);
+            int throw_attack_penalty = throwing_range_attack_penalty(dist, tdis);
+            int throw_ds_penalty = throwing_range_ds_penalty(dist, tdis);
 
             // Determine the player's attack score after all modifiers
             int stealth_bonus = stealth_melee_bonus(m_ptr, true);
-            total_attack_mod = total_player_attack(m_ptr, attack_mod + stealth_bonus);
-            if (has_throwing_ability && treat_as_throwing)
-            {
-                int dist = distance(p_ptr->py, p_ptr->px, m_ptr->fy, m_ptr->fx);
-                total_attack_mod += dist / 10;
-            }
+            total_attack_mod
+                = total_player_attack(m_ptr, attack_mod + stealth_bonus);
+            total_attack_mod += (dist / 5) - throw_attack_penalty;
 
             /* Monsters might notice */
             player_attacked = true;
@@ -8936,6 +8975,11 @@ void do_cmd_throw(bool automatic)
                 /* Penalise items that aren't made to be thrown */
                 if (!treat_as_throwing)
                     total_ds /= 2;
+
+                if (has_throwing_ability && throw_ds_penalty > 0)
+                    throw_ds_penalty--;
+
+                total_ds -= throw_ds_penalty;
 
                 /* Can't have a negative number of sides */
                 if (total_ds < 0)

@@ -1683,8 +1683,9 @@ W:6:0:5:400
 P:0:0d0:0:0d0
 A:4/50
 D:A gem blessed with the virtue of cleansing, able to lift the
-D: taint of dark enchantments. It washes over all the items in
-D: your possession, lifting curses where it can.
+D: taint of dark enchantments. It can cleanse one chosen item
+D: from your equipment, pack, or the floor, lifting curses
+D: where it can.
 
 
 N:196:Understanding

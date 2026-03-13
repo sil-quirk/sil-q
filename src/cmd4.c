@@ -11412,7 +11412,9 @@ struct option_group_marker
 static const struct option_group_marker interface_option_groups[] = {
     { 0, "Messages" },
     { 3, "Input" },
-    { 7, "Warnings" },
+    { 7, "Look" },
+    { 8, "Layout" },
+    { 9, "Warnings" },
     { -1, NULL }
 };
 
@@ -11795,6 +11797,9 @@ static cptr option_menu_label(int opt)
     case OPT_noble_item_spawn_mode:
         return compact ? (narrow ? "Noble items" : "Noble item sources")
                        : "Noble item spawns";
+    case OPT_look_objects_sort_by_difficulty:
+        return compact ? (narrow ? "Look diff sort" : "Look sort by diff")
+                       : "Sort look (L) objects by difficulty only";
     case OPT_intro_style:
         return compact ? (narrow ? "Welcome art" : "Welcome screen")
                        : "Welcome screen style";
@@ -22187,6 +22192,172 @@ static int unified_sidebar_object_group(const object_type* o_ptr)
     return LOOK_GROUP_OTHER;
 }
 
+typedef struct unified_sidebar_sorted_object {
+    int o_idx;
+    int y, x;
+    object_type* o_ptr;
+    bool is_artifact;
+    int difficulty;
+    int level;
+    int group;
+    int distance;
+    int original_index;
+} unified_sidebar_sorted_object;
+
+static bool unified_sidebar_object_should_swap(
+    const unified_sidebar_sorted_object* a,
+    const unified_sidebar_sorted_object* b)
+{
+    bool sort_by_difficulty_only = look_objects_sort_by_difficulty ? true : false;
+    bool a_known = object_known_p(a->o_ptr) ? true : false;
+    bool b_known = object_known_p(b->o_ptr) ? true : false;
+
+    if (!sort_by_difficulty_only && a->group != b->group)
+        return (b->group < a->group);
+
+    /* Unidentified items stay at the top of the section/list. */
+    if (a_known != b_known)
+        return (!b_known && a_known);
+
+    if (!a_known)
+    {
+        if (b->distance < a->distance)
+            return true;
+        if ((b->distance == a->distance) && (b->original_index < a->original_index))
+            return true;
+        return false;
+    }
+
+    if (b->difficulty > a->difficulty)
+        return true;
+    if ((b->difficulty == a->difficulty) && (b->distance < a->distance))
+        return true;
+    if ((b->difficulty == a->difficulty) && (b->distance == a->distance)
+        && (b->original_index < a->original_index))
+        return true;
+
+    return false;
+}
+
+static int unified_sidebar_collect_sorted_objects(const unified_look_state* state,
+    unified_sidebar_sorted_object objects[], int max_objects)
+{
+    int i;
+    int valid_objects = 0;
+
+    if (!state || !objects || (max_objects <= 0))
+        return 0;
+
+    get_sorted_target_list(TARGET_LIST_OBJECT, 0);
+
+    for (i = 0; (i < temp_n) && (valid_objects < max_objects); i++)
+    {
+        int o_idx = cave_o_idx[temp_y[i]][temp_x[i]];
+        object_type* o_ptr;
+        unified_sidebar_sorted_object* entry;
+
+        if (!o_idx)
+            continue;
+
+        o_ptr = &o_list[o_idx];
+
+        /* Only show marked (memorized) objects that the player has actually seen. */
+        if (!o_ptr->marked)
+            continue;
+
+        if ((o_ptr->tval == TV_ARROW) && (o_ptr->number < 10))
+            continue;
+
+        entry = &objects[valid_objects];
+        entry->o_idx = o_idx;
+        entry->y = temp_y[i];
+        entry->x = temp_x[i];
+        entry->o_ptr = o_ptr;
+        entry->is_artifact = artefact_p(o_ptr) ? true : false;
+        entry->difficulty = object_difficulty(o_ptr);
+        entry->level = k_info[o_ptr->k_idx].level;
+        entry->group = unified_sidebar_object_group(o_ptr);
+        if ((state->object_group_filter >= 0)
+            && (entry->group != state->object_group_filter))
+            continue;
+        entry->distance = distance(p_ptr->py, p_ptr->px, entry->y, entry->x);
+        entry->original_index = i;
+
+        valid_objects++;
+    }
+
+    for (i = 0; i < valid_objects - 1; i++) {
+        for (int j = i + 1; j < valid_objects; j++) {
+            if (unified_sidebar_object_should_swap(&objects[i], &objects[j]))
+            {
+                unified_sidebar_sorted_object temp = objects[i];
+                objects[i] = objects[j];
+                objects[j] = temp;
+            }
+        }
+    }
+
+    return valid_objects;
+}
+
+int unified_look_find_cursor_selection(const unified_look_state* state, int cursor_y,
+    int cursor_x)
+{
+    int i;
+    int entity_index = 0;
+
+    if (!state)
+        return -1;
+
+    if (state->show_monsters)
+    {
+        get_sorted_target_list(TARGET_LIST_MONSTER, 0);
+
+        for (i = 0; i < temp_n; i++)
+        {
+            int m_idx = cave_m_idx[temp_y[i]][temp_x[i]];
+
+            if (!m_idx)
+                continue;
+            if (!mon_list[m_idx].ml)
+                continue;
+
+            if ((temp_y[i] == cursor_y) && (temp_x[i] == cursor_x))
+                return entity_index;
+
+            entity_index++;
+        }
+    }
+
+    if (state->show_objects)
+    {
+        int group_display_counts[LOOK_GROUP_COUNT] = {0};
+        get_sorted_target_list(TARGET_LIST_OBJECT, 0);
+        int object_capacity = (temp_n > 0) ? temp_n : 1;
+        unified_sidebar_sorted_object objects[object_capacity];
+        int valid_objects = unified_sidebar_collect_sorted_objects(state, objects,
+            object_capacity);
+
+        for (i = 0; i < valid_objects; i++)
+        {
+            unified_sidebar_sorted_object* entry = &objects[i];
+
+            if (state->limit_objects_top_five
+                && (group_display_counts[entry->group] >= 5))
+                continue;
+
+            group_display_counts[entry->group]++;
+
+            if ((entry->y == cursor_y) && (entry->x == cursor_x))
+                return entity_index;
+
+            entity_index++;
+        }
+    }
+
+    return -1;
+}
+
 static void redraw_inven_equip_subwindows(void)
 {
     for (int j = 0; j < ANGBAND_TERM_MAX; j++)
@@ -22515,6 +22686,7 @@ void show_unified_sidebar(unified_look_state* state)
     static int previous_line_count = 0; /* Track previous display size */
     static int prev_name_len[256];
     const int prev_array_capacity = (int)(sizeof(prev_name_len) / sizeof(prev_name_len[0]));
+    bool has_sidebar_selection;
 
     
     /* Get terminal height and calculate available space */
@@ -22549,6 +22721,26 @@ void show_unified_sidebar(unified_look_state* state)
               sidebar_col, Term->wid, sidebar_col - 1, clear_width);
     log_trace("show_unified_sidebar: show_monsters=%d, show_objects=%d", 
               state->show_monsters ? 1 : 0, state->show_objects ? 1 : 0);
+
+    if ((state->look_mode == 0) && !state->in_sidebar_mode
+        && (state->selected_entity < 0)
+        && ((state->cursor_y != p_ptr->py) || (state->cursor_x != p_ptr->px)))
+    {
+        if (state->highlighted_y >= 0 && state->highlighted_x >= 0)
+        {
+            highlight_entity_on_map(state->highlighted_y, state->highlighted_x, false);
+        }
+
+        state->highlighted_y = -1;
+        state->highlighted_x = -1;
+        state->highlighted_entity_type = 0;
+        previous_line_count = 0;
+        memset(prev_name_len, 0, sizeof(prev_name_len));
+        return;
+    }
+
+    has_sidebar_selection = (state->selected_entity >= 0)
+        && (state->in_sidebar_mode || (state->look_mode == 0));
     
     /* Don't clear anything - let screen_save/screen_load handle restoration */
     log_trace("show_unified_sidebar: skipping clear - letting screen management handle it");
@@ -22720,7 +22912,8 @@ void show_unified_sidebar(unified_look_state* state)
             int morale_col = name_col + name_hp_len;
             
             /* Highlight if selected with cursor-style highlighting only */
-            bool highlight_this_monster = (state->in_sidebar_mode && state->selected_entity == monster_count);
+            bool highlight_this_monster = (has_sidebar_selection
+                && (state->selected_entity == monster_count));
             
             if (highlight_this_monster)
             {
@@ -22796,108 +22989,17 @@ void show_unified_sidebar(unified_look_state* state)
         strnfmt(header_buf, sizeof(header_buf), "OBJECTS: %s", filter_tag);
         c_put_str(TERM_WHITE, header_buf, line++, sidebar_col);
         
-        /* Get object list */
         get_sorted_target_list(TARGET_LIST_OBJECT, 0);
-        
-        /* Create array to hold and sort objects */
-        typedef struct {
-            int o_idx;
-            int y, x;
-            object_type* o_ptr;
-            bool is_artifact;
-            int difficulty;
-            int level;
-            int group;
-            int distance;
-            int original_index;
-        } sorted_object;
-        
-        sorted_object objects[temp_n];
-        int valid_objects = 0;
-        
-        /* First pass: collect and filter objects */
-        for (i = 0; i < temp_n; i++)
-        {
-            int o_idx = cave_o_idx[temp_y[i]][temp_x[i]];
-            if (!o_idx)
-                continue;
-
-            object_type* o_ptr = &o_list[o_idx];
-
-            /* Only show marked (memorized) objects that the player has actually seen */
-            if (!o_ptr->marked)
-                continue;
-
-            if ((o_ptr->tval == TV_ARROW) && (o_ptr->number < 10))
-                continue;
-
-            sorted_object* entry = &objects[valid_objects];
-
-            entry->o_idx = o_idx;
-            entry->y = temp_y[i];
-            entry->x = temp_x[i];
-            entry->o_ptr = o_ptr;
-            entry->is_artifact = artefact_p(o_ptr) ? true : false;
-            entry->difficulty = object_difficulty(o_ptr);
-            entry->level = k_info[o_ptr->k_idx].level;
-            entry->group = unified_sidebar_object_group(o_ptr);
-            if (state->object_group_filter >= 0 && entry->group != state->object_group_filter)
-                continue;
-            entry->distance = distance(p_ptr->py, p_ptr->px, entry->y, entry->x);
-            entry->original_index = i;
-
-            valid_objects++;
-        }
-
-        for (i = 0; i < valid_objects - 1; i++) {
-            for (int j = i + 1; j < valid_objects; j++) {
-                sorted_object* a = &objects[i];
-                sorted_object* b = &objects[j];
-                bool should_swap = false;
-
-                if (a->group != b->group) {
-                    should_swap = (b->group < a->group);
-                }
-                else {
-                    bool a_known = object_known_p(a->o_ptr) ? true : false;
-                    bool b_known = object_known_p(b->o_ptr) ? true : false;
-
-                    /* Identified items first; then difficulty for identified, proximity for unidentified */
-                    if (a_known != b_known)
-                    {
-                        should_swap = (b_known && !a_known);
-                    }
-                    else if (!a_known)
-                    {
-                        if (b->distance < a->distance)
-                            should_swap = true;
-                        else if ((b->distance == a->distance) && (b->original_index < a->original_index))
-                            should_swap = true;
-                    }
-                    else
-                    {
-                        if (b->difficulty > a->difficulty)
-                            should_swap = true;
-                        else if ((b->difficulty == a->difficulty) && (b->distance < a->distance))
-                            should_swap = true;
-                        else if ((b->difficulty == a->difficulty) && (b->distance == a->distance)
-                                 && (b->original_index < a->original_index))
-                            should_swap = true;
-                    }
-                }
-                if (should_swap) {
-                    sorted_object temp = objects[i];
-                    objects[i] = objects[j];
-                    objects[j] = temp;
-                }
-            }
-        }
+        int object_capacity = (temp_n > 0) ? temp_n : 1;
+        unified_sidebar_sorted_object objects[object_capacity];
+        int valid_objects = unified_sidebar_collect_sorted_objects(state, objects,
+            object_capacity);
 
         int group_display_counts[LOOK_GROUP_COUNT] = {0};
         int object_start = (state->show_monsters) ? monster_count : 0;
         for (i = 0; i < valid_objects && line < max_display_line; i++)
         {
-            sorted_object* entry = &objects[i];
+            unified_sidebar_sorted_object* entry = &objects[i];
             object_type* o_ptr = entry->o_ptr;
             char o_name[60];
             char name_source[80];
@@ -23014,7 +23116,8 @@ void show_unified_sidebar(unified_look_state* state)
                 }
             }
 
-            bool highlight_this_object = (state->in_sidebar_mode && state->selected_entity == (object_start + object_count));
+            bool highlight_this_object = (has_sidebar_selection
+                && (state->selected_entity == (object_start + object_count)));
 
             byte name_attr = highlight_this_object ? TERM_L_BLUE : base_color;
 

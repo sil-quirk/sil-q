@@ -204,6 +204,23 @@ static void output_desc_list(cptr intro, cptr list[], int n)
     }
 }
 
+static u32b stat_flag_for_bonus(int stat, bool negative)
+{
+    switch (stat)
+    {
+    case A_STR:
+        return negative ? TR1_NEG_STR : TR1_STR;
+    case A_DEX:
+        return negative ? TR1_NEG_DEX : TR1_DEX;
+    case A_CON:
+        return negative ? TR1_NEG_CON : TR1_CON;
+    case A_GRA:
+        return negative ? TR1_NEG_GRA : TR1_GRA;
+    default:
+        return 0L;
+    }
+}
+
 /*
  * Describe stat modifications.
  */
@@ -217,6 +234,8 @@ static bool describe_stats(const object_type* o_ptr, u32b f1)
     {
         const int bonus = o_ptr->stat_bonus[stat];
         if (bonus <= 0)
+            continue;
+        if (!(f1 & stat_flag_for_bonus(stat, false)))
             continue;
 
         p_text_out("It ");
@@ -245,6 +264,8 @@ static bool describe_neg_stats(const object_type* o_ptr, u32b f1)
     {
         const int bonus = o_ptr->stat_bonus[stat];
         if (bonus >= 0)
+            continue;
+        if (!(f1 & stat_flag_for_bonus(stat, true)))
             continue;
 
         p_text_out("It ");

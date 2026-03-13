@@ -249,7 +249,7 @@ cptr option_text[OPT_MAX] = {
     "banner_message_stairs", /* OPT_banner_message_stairs */
     "show_level_generation_debug", /* OPT_show_level_generation_debug */
     "unlock_blitz_mode", /* OPT_unlock_blitz_mode */
-    NULL, /* xxx */
+    "look_objects_sort_by_difficulty", /* OPT_look_objects_sort_by_difficulty */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -491,7 +491,7 @@ cptr option_desc[OPT_MAX] = {
     "Banner message layout (stairs/straight)", /* OPT_banner_message_stairs */
     "Debug: Show level generation summary messages", /* OPT_show_level_generation_debug */
     "Unlock Blitz Mode after winning a metarun", /* OPT_unlock_blitz_mode */
-    NULL, /* xxx */
+    "Sort look (L) objects by difficulty only (off = category, then difficulty)", /* OPT_look_objects_sort_by_difficulty */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -753,7 +753,7 @@ const bool option_norm[OPT_MAX] = {
 #endif
     false, /* OPT_show_level_generation_debug */
     false, /* OPT_unlock_blitz_mode */
-    false, /* xxx */
+    false, /* OPT_look_objects_sort_by_difficulty */
     false, /* xxx */
     false, /* xxx */
     false, /* xxx */
@@ -917,8 +917,8 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
     /*** User-Interface ***/
 
     { OPT_system_beep, OPT_quick_messages, OPT_auto_more, OPT_easy_main_menu,
-        OPT_hjkl_movement, OPT_angband_keyset, OPT_space_acts_as_comma, OPT_hitpoint_warning,
-        OPT_hide_left_panel, OPT_NONE, OPT_NONE,
+        OPT_hjkl_movement, OPT_angband_keyset, OPT_space_acts_as_comma,
+        OPT_look_objects_sort_by_difficulty, OPT_hide_left_panel, OPT_hitpoint_warning,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE },
 

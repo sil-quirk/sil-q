@@ -63,6 +63,18 @@ static void msg_print_object_identified(const object_type* o_ptr)
 
 static const object_type* sanctity_target_excluded = NULL;
 
+typedef struct sanctity_target_entry
+{
+    int item;
+    object_type* o_ptr;
+} sanctity_target_entry;
+
+enum
+{
+    MAX_SANCTITY_TARGETS =
+        INVEN_PACK + (INVEN_TOTAL - INVEN_WIELD) + MAX_FLOOR_STACK
+};
+
 static bool item_tester_hook_sanctity_target(const object_type* o_ptr)
 {
     bool can_remove_jinx;
@@ -94,54 +106,259 @@ static bool item_tester_hook_sanctity_target(const object_type* o_ptr)
     return false;
 }
 
-static int sanctity_collect_targets(int slots[], int max_slots,
-    const object_type* gem_o_ptr)
+static int sanctity_collect_targets(sanctity_target_entry entries[],
+    int max_entries, const object_type* gem_o_ptr)
 {
     int count = 0;
-    int i;
+    int floor_list[MAX_FLOOR_STACK];
+    int floor_num;
+
+    if (!entries || max_entries <= 0)
+        return 0;
 
     sanctity_target_excluded = gem_o_ptr;
 
-    for (i = INVEN_WIELD; i < INVEN_TOTAL && count < max_slots; i++)
+    for (int i = 0; i < INVEN_PACK && count < max_entries; i++)
     {
-        if (item_tester_hook_sanctity_target(&inventory[i]))
-            slots[count++] = i;
+        object_type* o_ptr = &inventory[i];
+
+        if (!item_tester_hook_sanctity_target(o_ptr))
+            continue;
+
+        entries[count].item = i;
+        entries[count].o_ptr = o_ptr;
+        count++;
     }
 
-    for (i = 0; i < INVEN_PACK && count < max_slots; i++)
+    for (int i = INVEN_WIELD; i < INVEN_TOTAL && count < max_entries; i++)
     {
-        if (item_tester_hook_sanctity_target(&inventory[i]))
-            slots[count++] = i;
+        object_type* o_ptr = &inventory[i];
+
+        if (!item_tester_hook_sanctity_target(o_ptr))
+            continue;
+
+        entries[count].item = i;
+        entries[count].o_ptr = o_ptr;
+        count++;
+    }
+
+    floor_num = scan_floor(floor_list, MAX_FLOOR_STACK, p_ptr->py, p_ptr->px, 0x00);
+    for (int i = 0; i < floor_num && count < max_entries; i++)
+    {
+        int o_idx = floor_list[i];
+        object_type* o_ptr = &o_list[o_idx];
+
+        if (!item_tester_hook_sanctity_target(o_ptr))
+            continue;
+
+        entries[count].item = 0 - o_idx;
+        entries[count].o_ptr = o_ptr;
+        count++;
     }
 
     sanctity_target_excluded = NULL;
     return count;
 }
 
-static bool use_sanctity_gem_on_all(const object_type* gem_o_ptr, bool* ident)
+static bool sanctity_choose_target_from_entries(
+    const sanctity_target_entry entries[], int count, int* out_item)
 {
-    int slots[INVEN_TOTAL];
-    int count;
-    bool used = false;
+    int current = 0;
+    int top = 0;
+    int term_wid = 80;
+    int term_hgt = 24;
+    int list_row = 2;
+    int help_row;
+    int prompt_row;
+    int page_size;
 
-    count = sanctity_collect_targets(slots, N_ELEMENTS(slots), gem_o_ptr);
+    if (!entries || count <= 0 || !out_item)
+        return false;
+
+    if (Term)
+        Term_get_size(&term_wid, &term_hgt);
+
+    if (term_wid < 40)
+        term_wid = 40;
+    if (term_hgt < 8)
+        term_hgt = 8;
+
+    help_row = term_hgt - 2;
+    prompt_row = term_hgt - 1;
+    page_size = help_row - list_row;
+    if (page_size < 1)
+        page_size = 1;
+
+    screen_save();
+
+    while (true)
+    {
+        int visible_count;
+        char buf[160];
+        char key;
+
+        if (current < top)
+            top = current;
+        if (current >= top + page_size)
+            top = current - page_size + 1;
+
+        visible_count = count - top;
+        if (visible_count > page_size)
+            visible_count = page_size;
+
+        Term_clear();
+
+        prt("Cleanse which item?", 0, 0);
+        strnfmt(buf, sizeof(buf), "%d eligible sanctity target%s",
+            count, (count == 1) ? "" : "s");
+        prt(buf, 1, 0);
+
+        for (int i = 0; i < visible_count; i++)
+        {
+            int row = list_row + i;
+            int item = entries[top + i].item;
+            object_type* o_ptr = entries[top + i].o_ptr;
+            char prefix[32];
+            char desc[80];
+            char label[4];
+            int desc_col = 20;
+            int max_desc = term_wid - desc_col - 1;
+            bool highlighted = (top + i == current);
+            byte label_attr = highlighted ? TERM_L_BLUE : TERM_WHITE;
+            byte desc_attr;
+
+            if (max_desc < 0)
+                max_desc = 0;
+            if (max_desc >= (int)sizeof(desc))
+                max_desc = (int)sizeof(desc) - 1;
+
+            if (item >= 0)
+            {
+                strnfmt(prefix, sizeof(prefix), "%-12s:", mention_use(item));
+                object_desc(desc, sizeof(desc), o_ptr, true, 3);
+            }
+            else
+            {
+                strnfmt(prefix, sizeof(prefix), "%-12s:", "On floor");
+                object_desc_floor(desc, sizeof(desc), o_ptr, true, 3);
+            }
+            desc[max_desc] = '\0';
+
+            desc_attr = highlighted
+                ? TERM_L_BLUE
+                : object_display_color(o_ptr,
+                    tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
+
+            if (i < 26)
+                strnfmt(label, sizeof(label), "%c)", I2A(i));
+            else
+                SDL_strlcpy(label, "  ", sizeof(label));
+
+            Term_erase(0, row, 255);
+            Term_putstr(0, row, 2, label_attr, highlighted ? "> " : "  ");
+            Term_putstr(2, row, -1, label_attr, label);
+            Term_putstr(5, row, -1, label_attr, prefix);
+            Term_putstr(desc_col, row, -1, desc_attr, desc);
+        }
+
+        for (int i = list_row + visible_count; i < help_row; i++)
+            Term_erase(0, i, 255);
+
+        if (count > page_size)
+        {
+            strnfmt(buf, sizeof(buf), "Showing %d-%d of %d",
+                top + 1, top + visible_count, count);
+            prt(buf, help_row, 0);
+        }
+        else
+        {
+            prt("", help_row, 0);
+        }
+
+        prt("Letters/8/2/arrows choose, Enter select, ESC cancel",
+            prompt_row, 0);
+        Term_fresh();
+
+        key = inkey();
+
+        switch (key)
+        {
+        case ESCAPE:
+            screen_load();
+            return false;
+
+        case '\r':
+        case '\n':
+        case ' ':
+#ifdef KC_ENTER
+        case KC_ENTER:
+#endif
+            *out_item = entries[current].item;
+            screen_load();
+            return true;
+
+        case '8':
+        case 'k':
+        case 'K':
+#ifdef ARROW_UP
+        case ARROW_UP:
+#endif
+            current = (current > 0) ? current - 1 : count - 1;
+            break;
+
+        case '2':
+        case 'j':
+        case 'J':
+#ifdef ARROW_DOWN
+        case ARROW_DOWN:
+#endif
+            current = (current + 1 < count) ? current + 1 : 0;
+            break;
+
+        default:
+        {
+            int pick;
+
+            if (!isalpha((unsigned char)key))
+                break;
+
+            pick = A2I((char)tolower((unsigned char)key));
+            if (pick >= 0 && pick < visible_count)
+            {
+                *out_item = entries[top + pick].item;
+                screen_load();
+                return true;
+            }
+
+            break;
+        }
+        }
+    }
+}
+
+static bool sanctity_choose_target(const object_type* gem_o_ptr,
+    object_type** target_o_ptr)
+{
+    int chosen_item;
+    int count;
+    sanctity_target_entry entries[MAX_SANCTITY_TARGETS];
+
+    if (!target_o_ptr)
+        return false;
+
+    count = sanctity_collect_targets(entries, N_ELEMENTS(entries), gem_o_ptr);
     if (count <= 0)
     {
-        msg_print("You have nothing suitable to cleanse.");
+        msg_print("You have no target to cleanse.");
         return false;
     }
 
-    for (int i = 0; i < count; i++)
-    {
-        object_type* target_o_ptr = &inventory[slots[i]];
+    if (!sanctity_choose_target_from_entries(entries, count, &chosen_item))
+        return false;
 
-        if (!target_o_ptr->k_idx)
-            continue;
-
-        used |= use_sanctity_gem_on(target_o_ptr, ident);
-    }
-
-    return used;
+    *target_o_ptr = (chosen_item >= 0) ? &inventory[chosen_item]
+        : &o_list[0 - chosen_item];
+    return ((*target_o_ptr != NULL) && (*target_o_ptr)->k_idx);
 }
 
 /*
@@ -718,6 +935,7 @@ void do_cmd_use_gem(object_type* default_o_ptr, int default_item)
     int item;
     bool ident;
     object_type* o_ptr = NULL;
+    object_type* sanctity_target_o_ptr = NULL;
     bool use_charge;
 
     int supply_index = supplies_current_action();
@@ -782,10 +1000,8 @@ void do_cmd_use_gem(object_type* default_o_ptr, int default_item)
 
     if (o_ptr->sval == SV_GEM_SANCTITY)
     {
-        int slots[INVEN_TOTAL];
-        if (sanctity_collect_targets(slots, N_ELEMENTS(slots), o_ptr) <= 0)
+        if (!sanctity_choose_target(o_ptr, &sanctity_target_o_ptr))
         {
-            msg_print("You have nothing suitable to cleanse.");
             return;
         }
     }
@@ -804,7 +1020,7 @@ void do_cmd_use_gem(object_type* default_o_ptr, int default_item)
 
     /* Use the gem */
     if (o_ptr->sval == SV_GEM_SANCTITY)
-        use_charge = use_sanctity_gem_on_all(o_ptr, &ident);
+        use_charge = use_sanctity_gem_on(sanctity_target_o_ptr, &ident);
     else
         use_charge = use_object(o_ptr, &ident);
 
