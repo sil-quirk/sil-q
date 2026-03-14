@@ -811,6 +811,7 @@ extern void big_cave_type_set_rule(int depth, int ice_weight, int fire_weight, i
 extern big_cave_type_t big_cave_type_pick_for_depth(int depth);
 extern big_cave_type_t level_partition_big_cave_type_for_point(int y, int x);
 extern big_cave_type_t level_partition_big_cave_type_for_index(int pi);
+extern void log_partition_debug_for_point(const char* tag, int y, int x);
 extern void skeleton_note_level_reset(void);
 extern void reset_hint_skeleton_state(void);
 extern void skeleton_note_get_state(skeleton_note_state_save* out);

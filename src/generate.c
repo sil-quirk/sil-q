@@ -6803,6 +6803,63 @@ static level_partition_kind partition_kind_from_mode(quadrant_mode_t mode)
     }
 }
 
+static const char* quadrant_mode_debug_name(quadrant_mode_t mode)
+{
+    switch (mode)
+    {
+    case QUAD_MODE_ROOMY:
+        return "ROOMY";
+    case QUAD_MODE_CAVEY:
+        return "CAVEY";
+    case QUAD_MODE_RUINED:
+        return "RUINED";
+    case QUAD_MODE_LABYRINTH:
+        return "LABYRINTH";
+    case QUAD_MODE_CHASM:
+        return "CHASM";
+    case QUAD_MODE_BIG_CAVE:
+        return "BIG_CAVE";
+    default:
+        return "UNKNOWN";
+    }
+}
+
+static const char* partition_kind_debug_name(level_partition_kind kind)
+{
+    switch (kind)
+    {
+    case LEVEL_PART_ROOMY:
+        return "ROOMY";
+    case LEVEL_PART_CAVEY:
+        return "CAVEY";
+    case LEVEL_PART_RUINED:
+        return "RUINED";
+    case LEVEL_PART_LABYRINTH:
+        return "LABYRINTH";
+    case LEVEL_PART_CHASM:
+        return "CHASM";
+    case LEVEL_PART_BIG_CAVE:
+        return "BIG_CAVE";
+    default:
+        return "NONE";
+    }
+}
+
+static const char* big_cave_type_debug_name(big_cave_type_t cave_type)
+{
+    switch (cave_type)
+    {
+    case BIG_CAVE_ICE:
+        return "ICE";
+    case BIG_CAVE_FIRE:
+        return "FIRE";
+    case BIG_CAVE_POIS:
+        return "POIS";
+    default:
+        return "NONE";
+    }
+}
+
 static bool suppress_partition_effects_for_point(int y, int x)
 {
     if (!in_bounds_fully(y, x))
@@ -6925,6 +6982,56 @@ big_cave_type_t level_partition_big_cave_type_for_point(int y, int x)
     if (pi < 0)
         return BIG_CAVE_NONE;
     return level_partition_big_cave_type_for_index(pi);
+}
+
+void log_partition_debug_for_point(const char* tag, int y, int x)
+{
+    const char* label = tag ? tag : "partition_debug";
+    const bool in_bounds = in_bounds_fully(y, x);
+    const bool suppressed = in_bounds && suppress_partition_effects_for_point(y, x);
+    int pi = -1;
+    int y1 = 0, y2 = 0, x1 = 0, x2 = 0;
+    quadrant_mode_t raw_mode = QUAD_MODE_ROOMY;
+    level_partition_kind eff_kind = LEVEL_PART_NONE;
+    big_cave_type_t raw_big_cave = BIG_CAVE_NONE;
+    big_cave_type_t eff_big_cave = BIG_CAVE_NONE;
+
+    if (!in_bounds)
+    {
+        log_debug("%s: point=(%d,%d) out_of_bounds", label, y, x);
+        return;
+    }
+
+    if (current_partition_rows <= 0 || current_partition_cols <= 0
+        || current_partition_count <= 0)
+    {
+        (void)partition_mode_for_point(y, x);
+    }
+
+    pi = level_partition_index_for_point(y, x);
+    if (pi >= 0 && pi < current_partition_count)
+    {
+        raw_mode = current_partition_modes[pi];
+        raw_big_cave = current_partition_big_cave_types[pi];
+        (void)compute_partition_bounds(pi, current_partition_rows,
+            current_partition_cols, &y1, &y2, &x1, &x2);
+    }
+
+    eff_kind = level_partition_kind_for_point(y, x);
+    eff_big_cave = level_partition_big_cave_type_for_point(y, x);
+
+    log_debug(
+        "%s: point=(%d,%d) pi=%d grid=%dx%d/%d bounds=(%d,%d)-(%d,%d) raw_mode=%s raw_big_cave=%s effective_kind=%s effective_big_cave=%s suppressed=%d room=%d gvault=%d morgoth_tunnel=%d feat=%d cave_info=0x%08X",
+        label, y, x, pi, current_partition_rows, current_partition_cols,
+        current_partition_count, y1, x1, y2, x2,
+        quadrant_mode_debug_name(raw_mode),
+        big_cave_type_debug_name(raw_big_cave),
+        partition_kind_debug_name(eff_kind),
+        big_cave_type_debug_name(eff_big_cave), suppressed ? 1 : 0,
+        (cave_info[y][x] & CAVE_ROOM) ? 1 : 0,
+        (cave_info[y][x] & CAVE_G_VAULT) ? 1 : 0,
+        (cave_info[y][x] & CAVE_MORGOTH_TUNNEL) ? 1 : 0,
+        cave_feat[y][x], (unsigned int)cave_info[y][x]);
 }
 
 void level_layout_info_current(level_layout_info* out)

@@ -2085,6 +2085,13 @@ void describe_floor_object(void)
  *
  * Note that this assumes the monster at y1-x1 is actively moving to y2-x2
  */
+static bool player_environment_bonus_state_changed(int old_y, int old_x,
+    int new_y, int new_x)
+{
+    return level_partition_big_cave_type_for_point(old_y, old_x)
+        != level_partition_big_cave_type_for_point(new_y, new_x);
+}
+
 void monster_swap(int y1, int x1, int y2, int x2)
 {
     int m1 = cave_m_idx[y1][x1];
@@ -2180,6 +2187,17 @@ void monster_swap(int y1, int x1, int y2, int x2)
     /* Player 1 */
     else if (m1 < 0)
     {
+        bool bonus_state_changed =
+            player_environment_bonus_state_changed(y1, x1, y2, x2);
+        bool should_log_environment = bonus_state_changed
+            || level_partition_big_cave_type_for_point(y1, x1) != BIG_CAVE_NONE
+            || level_partition_big_cave_type_for_point(y2, x2) != BIG_CAVE_NONE
+            || ((cave_info[y1][x1] & (CAVE_G_VAULT | CAVE_MORGOTH_TUNNEL)) != 0)
+            || ((cave_info[y2][x2] & (CAVE_G_VAULT | CAVE_MORGOTH_TUNNEL)) != 0);
+
+        if (should_log_environment)
+            log_partition_debug_for_point("monster_swap.old", y1, x1);
+
         // deal with monsters with Opportunist or Zone of Control
         for (y = p_ptr->py - 1; y <= p_ptr->py + 1; y++)
         {
@@ -2240,6 +2258,15 @@ void monster_swap(int y1, int x1, int y2, int x2)
 
         /* Window stuff */
         p_ptr->window |= (PW_OVERHEAD);
+
+        if (should_log_environment)
+            log_partition_debug_for_point("monster_swap.new", y2, x2);
+
+        if (bonus_state_changed)
+        {
+            p_ptr->update |= (PU_BONUS);
+            update_stuff();
+        }
     }
 
     /* Monster 2 */

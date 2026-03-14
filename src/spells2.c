@@ -10,6 +10,7 @@
 
 #include "angband.h"
 #include "externs.h"
+#include "log/log.h"
 #include "player/killer.h"
 #include "metarun.h"
 #include "supplies.h"
@@ -535,6 +536,23 @@ void self_knowledge(void)
     bool identify[INVEN_TOTAL];
     
     int light = 0, mel = 0, arc = 0, stl = 0, medic = 0;
+
+    if (p_ptr->update)
+        update_stuff();
+
+    if (level_partition_big_cave_type_for_point(p_ptr->py, p_ptr->px)
+        != BIG_CAVE_NONE
+        || ((cave_info[p_ptr->py][p_ptr->px]
+            & (CAVE_G_VAULT | CAVE_MORGOTH_TUNNEL)) != 0))
+    {
+        log_partition_debug_for_point("self_knowledge", p_ptr->py, p_ptr->px);
+        log_debug(
+            "self_knowledge: base_fire=%d base_cold=%d base_pois=%d fear=%d stun=%d oppose_fire=%d oppose_cold=%d oppose_pois=%d effective_fire=%d effective_cold=%d effective_pois=%d",
+            p_ptr->resist_fire, p_ptr->resist_cold, p_ptr->resist_pois,
+            p_ptr->resist_fear, p_ptr->resist_stun, p_ptr->oppose_fire,
+            p_ptr->oppose_cold, p_ptr->oppose_pois, resist_fire(),
+            resist_cold(), resist_pois());
+    }
 
     // Initialize arrays
     for (j = 0; j < 100; j++) {

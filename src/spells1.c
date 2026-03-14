@@ -1957,6 +1957,30 @@ extern int resist_dark(void)
     return (res);
 }
 
+static void log_elemental_damage_context(const char* tag, cptr kb_str, int dam,
+    int prt, int resistance, int net_dam)
+{
+    bool should_log = level_partition_big_cave_type_for_point(p_ptr->py, p_ptr->px)
+        != BIG_CAVE_NONE;
+
+    if (!should_log)
+    {
+        should_log = (cave_info[p_ptr->py][p_ptr->px]
+            & (CAVE_G_VAULT | CAVE_MORGOTH_TUNNEL)) != 0;
+    }
+
+    if (!should_log)
+        return;
+
+    log_partition_debug_for_point(tag, p_ptr->py, p_ptr->px);
+    log_debug(
+        "%s: killer=%s raw=%d prt=%d net=%d base_fire=%d base_cold=%d base_pois=%d oppose_fire=%d oppose_cold=%d oppose_pois=%d effective_resistance=%d",
+        tag, kb_str ? kb_str : "(none)", dam, prt, net_dam,
+        p_ptr->resist_fire, p_ptr->resist_cold, p_ptr->resist_pois,
+        p_ptr->oppose_fire, p_ptr->oppose_cold, p_ptr->oppose_pois,
+        resistance);
+}
+
 /*
  * Hurt the player with Fire
  */
@@ -2005,6 +2029,9 @@ void fire_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str)
     {
         update_combat_rolls2(dd, ds, dam, -1, -1, prt, 100, GF_FIRE, false);
     }
+
+    log_elemental_damage_context("fire_dam_pure", kb_str, dam, prt,
+        resistance, net_dam);
 
     /* Abort if no damage to receive */
     if (net_dam <= 0)
@@ -2071,6 +2098,9 @@ void cold_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str)
     {
         update_combat_rolls2(dd, ds, dam, -1, -1, prt, 100, GF_COLD, false);
     }
+
+    log_elemental_damage_context("cold_dam_pure", kb_str, dam, prt,
+        resistance, net_dam);
 
     /* Abort if no damage to receive */
     if (net_dam <= 0)
@@ -2171,6 +2201,9 @@ void pois_dam_pure(int dd, int ds, bool update_rolls)
     {
         update_combat_rolls2(dd, ds, dam, -1, -1, prt, 100, GF_POIS, false);
     }
+
+    log_elemental_damage_context("pois_dam_pure", "poison", dam, prt,
+        resistance, net_dam);
 
     /* Abort if no damage to receive */
     if (net_dam <= 0)
@@ -3517,7 +3550,7 @@ static bool project_m(
                     
                     /* Adjust difficulty by the distance to the player */
                     result = skill_check(PLAYER, skill_to_use, 
-                        resistance + distance(p_ptr->py, p_ptr->px, y, x),
+                        resistance + 5 + distance(p_ptr->py, p_ptr->px, y, x),
                         m_ptr);
                     
                     /* Stun is applied when monster FAILS Will save (result > 0 means player wins) */
@@ -3542,9 +3575,9 @@ static bool project_m(
                         stun_amount = 0;
                     }
                     
-                    /* Damage only happens on STRONG Will failure (result >= 5) */
+                    /* Damage only happens on STRONG Will failure (result >= 10) */
                     /* This represents intense light overwhelming the monster */
-                    if (result >= 5)
+                    if (result >= 10)
                     {
                         /* Use light level as dice sides, dd from the attack */
                         actual_dam = damroll(dd, light_level);
@@ -6417,15 +6450,15 @@ void change_song(int song)
     {
         if (song_to_change == 1)
         {
-            msg_print("You begin a forceful song of breaking and ruin.");
+            msg_print("You begin a fell song of breaking and sundering.");
         }
         else if (old_song == SNG_NOTHING)
         {
-            msg_print("You add a minor theme of breaking and ruin.");
+            msg_print("You add a minor theme of breaking and sundering.");
         }
         else
         {
-            msg_print("You change your minor theme to one of breaking and ruin.");
+            msg_print("You change your minor theme to one of breaking and sundering.");
         }
         break;
     }
@@ -6874,7 +6907,7 @@ void sing_song_of_trees(int score)
     int py = p_ptr->py;
     int px = p_ptr->px;
     int rad = 1 + (score / 5); // Radius increases with song skill
-    int dd = 1 + (score / 10); // Number of dice based on song skill
+    int dd = 1; // Always 1 die
     int ds = score;            // Not used for GF_LIGHT damage; kept for debugging
     int dif = score;           // Song score for GF_LIGHT resistance checks
     
@@ -7213,7 +7246,7 @@ void sing_song_of_shattering(int score)
                 {
                     char m_name[80];
                     monster_desc(m_name, sizeof(m_name), m_ptr, 0);
-                    msg_format("Your song splinters %s's weapon.", m_name);
+                    msg_format("Your song of sundering rends %s's weapon.", m_name);
                 }
                 
                 log_debug("Song of Shattering: Weapon damage SUCCESS");
@@ -7242,7 +7275,7 @@ void sing_song_of_shattering(int score)
                 {
                     char m_name[80];
                     monster_desc(m_name, sizeof(m_name), m_ptr, 0);
-                    msg_format("Your song warps %s's armour.", m_name);
+                    msg_format("Your song of sundering mars %s's armour.", m_name);
                 }
                 
                 log_debug("Song of Shattering: Armour damage SUCCESS");
@@ -7308,7 +7341,7 @@ static void shatter_floor_items(int score)
                         {
                             char o_name[80];
                             object_desc(o_name, sizeof(o_name), o_ptr, false, 0);
-                            msg_format("%s cracks under the shattering song.", o_name);
+                            msg_format("%s answers your song with a bitter crack.", o_name);
                         }
 
                         lite_spot(y, x);

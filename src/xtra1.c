@@ -4399,6 +4399,21 @@ static void calc_bonuses(void)
     /* Big cave environmental penalties: reduce key resistances while inside. */
     {
         big_cave_type_t cave_type = level_partition_big_cave_type_for_point(p_ptr->py, p_ptr->px);
+        bool suppressed = (cave_info[p_ptr->py][p_ptr->px]
+            & (CAVE_G_VAULT | CAVE_MORGOTH_TUNNEL)) != 0;
+        bool should_log = (cave_type != BIG_CAVE_NONE) || suppressed;
+
+        if (should_log)
+        {
+            log_partition_debug_for_point("calc_bonuses.big_cave", p_ptr->py,
+                p_ptr->px);
+            log_debug(
+                "calc_bonuses.big_cave pre: fire=%d cold=%d pois=%d fear=%d stun=%d oppose_fire=%d oppose_cold=%d oppose_pois=%d",
+                p_ptr->resist_fire, p_ptr->resist_cold, p_ptr->resist_pois,
+                p_ptr->resist_fear, p_ptr->resist_stun, p_ptr->oppose_fire,
+                p_ptr->oppose_cold, p_ptr->oppose_pois);
+        }
+
         if (cave_type != BIG_CAVE_NONE)
         {
             p_ptr->resist_fear -= 1;
@@ -4409,6 +4424,15 @@ static void calc_bonuses(void)
                 p_ptr->resist_cold -= 1;
             else if (cave_type == BIG_CAVE_POIS)
                 p_ptr->resist_pois -= 1;
+        }
+
+        if (should_log)
+        {
+            log_debug(
+                "calc_bonuses.big_cave post: fire=%d cold=%d pois=%d fear=%d stun=%d effective_fire=%d effective_cold=%d effective_pois=%d",
+                p_ptr->resist_fire, p_ptr->resist_cold, p_ptr->resist_pois,
+                p_ptr->resist_fear, p_ptr->resist_stun, resist_fire(),
+                resist_cold(), resist_pois());
         }
     }
 
