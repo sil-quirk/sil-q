@@ -5101,6 +5101,10 @@ static int player_smithing_identify_skill(const object_type* o_ptr,
             bonus_easy_id = -7;
     }
 
+    /* CUR_IDENT_DIFF: curse increases identification difficulty, blessing decreases it */
+    int ident_diff_delta = curse_flag_delta_cur(CUR_IDENT_DIFF);
+    int curse_ident_diff_penalty = ident_diff_delta * -7;
+
     /* Cursed items impose an identification penalty unless the player has Curse Breaking */
     int curse_penalty = 0;
     bool has_curse_breaking = player_has_ability_bonus(S_WIL, WIL_CURSE_BREAKING) ? true : false;
@@ -5129,6 +5133,9 @@ static int player_smithing_identify_skill(const object_type* o_ptr,
     /* Item identification flags */
     skill += bonus_easy_id;
 
+    /* Curse-based identification difficulty shift */
+    skill += curse_ident_diff_penalty;
+
     skill += bonus;
 
     if (apply_distance_penalty)
@@ -5139,7 +5146,7 @@ static int player_smithing_identify_skill(const object_type* o_ptr,
     }
 
     log_debug(
-        "smithing-ident: skill calc k_idx=%d tval=%d sval=%d name1=%d ego_pfx=%d ego_sfx=%d ident=0x%08X base(per=%d smt=%d) abil(enchant=%d artifice=%d cursebreak=%d quick=%d) cat=%d cat_bonus=%d ctx(equip=%d exp=%d ego=%d) bonus=%d dist(apply=%d ignore=%d pen=%d curse_penalty=%d) => skill=%d",
+        "smithing-ident: skill calc k_idx=%d tval=%d sval=%d name1=%d ego_pfx=%d ego_sfx=%d ident=0x%08X base(per=%d smt=%d) abil(enchant=%d artifice=%d cursebreak=%d quick=%d) cat=%d cat_bonus=%d ctx(equip=%d exp=%d ego=%d) bonus=%d dist(apply=%d ignore=%d pen=%d curse_penalty=%d ident_diff=%d) => skill=%d",
         o_ptr ? o_ptr->k_idx : 0,
         o_ptr ? o_ptr->tval : 0,
         o_ptr ? o_ptr->sval : 0,
@@ -5153,6 +5160,7 @@ static int player_smithing_identify_skill(const object_type* o_ptr,
         bonus_equipped, bonus_experienced, bonus_known_ego,
         bonus,
         apply_distance_penalty ? 1 : 0, ignore_distance_penalty ? 1 : 0, distance_penalty, curse_penalty,
+        curse_ident_diff_penalty,
         skill);
 
     return skill;

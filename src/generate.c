@@ -1050,6 +1050,17 @@ static int current_partition_count = 0;
 static quadrant_mode_t current_partition_modes[25];
 static density_level_t current_partition_densities[25];
 static big_cave_type_t current_partition_big_cave_types[25];
+static void reset_partition_population_metadata(void);
+typedef struct partition_population_meta {
+    bool cave_loot;
+    bool cave_loot_big_cave;
+    int cave_loot_blob_count;
+    bool star_iron;
+    int chest_count;
+    bool force_large_chest;
+    quadrant_mode_t chest_mode;
+} partition_population_meta;
+static partition_population_meta current_partition_population_meta[25];
 
 /* Per-depth big cave type weights (ICE/FIRE/POIS); when unset, default to equal odds. */
 static bool g_big_cave_type_rule_set[32];
@@ -1251,6 +1262,7 @@ static void remember_partition_grid(int rows, int cols, int count)
     current_partition_rows = rows;
     current_partition_cols = cols;
     current_partition_count = count;
+    reset_partition_population_metadata();
     for (int i = 0; i < 25; ++i)
     {
         current_partition_modes[i] = QUAD_MODE_ROOMY;
@@ -1439,181 +1451,10 @@ static void apply_partition_and_room_glow_rules(void)
     }
 }
 
-/* Extra monsters in non-roomy partitions (prevents huge caves/chasm/ruins from feeling empty). */
-static int partition_extra_monster_target(quadrant_mode_t mode, int floor_count)
-{
-    int target = 0;
-
-    switch (mode)
-    {
-    case QUAD_MODE_BIG_CAVE:
-        /* Big caves are huge: aim for a noticeable population.
-         * Divisor lowered from 60 -> 45 to offset loss of group spawning. */
-        target = floor_count / 45;
-        if (target < 12) target = 12;
-        if (target > 40) target = 40;
-        break;
-    case QUAD_MODE_CHASM:
-        /* grp=false: divisor tightened from 50->38 to compensate. */
-        target = floor_count / 38;
-        if (target < 10) target = 10;
-        if (target > 40) target = 40;
-        break;
-    case QUAD_MODE_LABYRINTH:
-        /* Labyrinths already place monsters during carving; mild boost for grp=false. */
-        target = floor_count / 80;
-        if (target > 25) target = 25;
-        break;
-    case QUAD_MODE_CAVEY:
-        /* grp=false: divisor tightened from 170->120. */
-        target = floor_count / 120;
-        if (target > 18) target = 18;
-        break;
-    case QUAD_MODE_RUINED:
-        /* grp=false: divisor tightened from 260->180. */
-        target = floor_count / 180;
-        if (target > 14) target = 14;
-        break;
-    default:
-        target = 0;
-        break;
-    }
-
-    if (target <= 0)
-        return 0;
-
-    /* Gentle depth scaling (caps at +50%). */
-    int scale = 100 + MIN(50, p_ptr->depth * 2);
-    target = target * scale / 100;
-
-    return target;
-}
-
 static bool place_monster_by_flag_try(int y, int x, int flagset, u32b flag, bool allow_unique, int max_depth);
 static bool place_monster_by_letter_try(int y, int x, char letter, bool allow_unique, int max_depth);
 static bool place_big_cave_elemental_monster(int y, int x, big_cave_type_t cave_type, int max_depth);
 static bool place_big_cave_troll_or_giant(int y, int x, int max_depth);
-
-static int place_partition_extra_monsters(void)
-{
-    if (morgoth_level_active)
-        return 0;
-
-    if (current_partition_count <= 0 || current_partition_rows <= 0 || current_partition_cols <= 0)
-        return 0;
-
-    int total_placed = 0;
-
-    for (int pi = 0; pi < current_partition_count; ++pi)
-    {
-        quadrant_mode_t mode = current_partition_modes[pi];
-        if (mode == QUAD_MODE_ROOMY)
-            continue;
-
-        int y1, y2, x1, x2;
-        if (!compute_partition_bounds(pi, current_partition_rows, current_partition_cols, &y1, &y2, &x1, &x2))
-            continue;
-
-        int floor_count = 0;
-        for (int y = y1; y <= y2; ++y)
-        {
-            for (int x = x1; x <= x2; ++x)
-            {
-                if (!in_bounds_fully(y, x))
-                    continue;
-
-                if (!cave_floor_bold(y, x))
-                    continue;
-
-                /* Don't bias further into vaults/quest areas. */
-                if (cave_info[y][x] & CAVE_ICKY)
-                    continue;
-
-                floor_count++;
-            }
-        }
-
-        int target = partition_extra_monster_target(mode, floor_count);
-        if (target <= 0)
-            continue;
-
-        /* Safety: never exceed 1 monster per ~20 floor tiles. */
-        int hard_cap = floor_count / 20;
-        if (hard_cap < 1) hard_cap = 1;
-        if (target > hard_cap)
-            target = hard_cap;
-
-        int placed = 0;
-        int attempts = target * 250;
-
-        for (int tries = 0; tries < attempts && placed < target; ++tries)
-        {
-            int y = rand_range(y1, y2);
-            int x = rand_range(x1, x2);
-
-            if (!in_bounds_fully(y, x))
-                continue;
-
-            if (cave_info[y][x] & CAVE_ICKY)
-                continue;
-
-            if (!cave_naked_bold(y, x))
-                continue;
-
-            /* Match alloc_monster() feel: don't spawn in the player's initial LOS. */
-            if (los(p_ptr->py, p_ptr->px, y, x))
-                continue;
-
-            /* Single monsters (no explicit group placement) to avoid runaway density. */
-            bool placed_mon = false;
-            if (mode == QUAD_MODE_BIG_CAVE)
-            {
-                int pref_roll = rand_int(100);
-                if (pref_roll < 45)
-                    placed_mon = place_big_cave_elemental_monster(
-                        y, x, current_partition_big_cave_types[pi], p_ptr->depth);
-                if (!placed_mon && pref_roll < 70)
-                    placed_mon = place_big_cave_troll_or_giant(y, x, p_ptr->depth);
-            }
-            else if (mode == QUAD_MODE_CHASM)
-            {
-                if (rand_int(100) < 55)
-                    placed_mon = place_monster_by_letter_try(y, x, 'w', true, p_ptr->depth);
-            }
-            else if (mode == QUAD_MODE_LABYRINTH)
-            {
-                if (rand_int(100) < 55)
-                    placed_mon = place_monster_by_flag_try(y, x, 2, RF2_INVISIBLE, true, p_ptr->depth);
-            }
-            else if (mode == QUAD_MODE_CAVEY)
-            {
-                int pref_roll = rand_int(100);
-                if (pref_roll < 45)
-                    placed_mon = place_monster_by_letter_try(y, x, 'M', false, p_ptr->depth);
-                else if (pref_roll < 70)
-                    placed_mon = place_monster_by_letter_try(y, x, 'C', false, p_ptr->depth);
-                else if (pref_roll < 90)
-                    placed_mon = place_monster_by_letter_try(y, x, 'b', false, p_ptr->depth);
-                else
-                    placed_mon = place_monster_by_letter_try(y, x, 'T', false, p_ptr->depth);
-            }
-
-            if (!placed_mon)
-                placed_mon = place_monster(y, x, true, false, false);
-
-            if (placed_mon)
-            {
-                placed++;
-                total_placed++;
-            }
-        }
-
-        log_trace("Extra partition monsters: pi=%d mode=%d bounds=(%d,%d)-(%d,%d) floors=%d target=%d placed=%d",
-                  pi, mode, y1, x1, y2, x2, floor_count, target, placed);
-    }
-
-    return total_placed;
-}
 
 /* Gentle scaling helper: add ~50% per size tier (caps explosive growth) */
 static int scaled_attempts(int base, int area_factor)
@@ -2708,6 +2549,8 @@ static bool carve_ca_blob_anchor_bounds(int y_min, int y_max, int x_min, int x_m
 static bool carve_big_cave_bounds(int y_min, int y_max, int x_min, int x_max,
     int style_idx, big_cave_type_t cave_type)
 {
+    (void)cave_type;
+
     if (dun->cent_n >= room_capacity_limit())
     {
         genlog_anchor("BIG_CAVE: rejected - room capacity limit reached");
@@ -2980,93 +2823,11 @@ static bool carve_big_cave_bounds(int y_min, int y_max, int x_min, int x_max,
     mark_room_anchor_meta(idx, LAYOUT_ANCHOR_CA_BLOB, false);
     
     scatter_quartz_veins_in_bounds(min_y, max_y, min_x, max_x, 0);
-    /* Treat the big cave as a few merged blobs for loot scaling */
-    scatter_cave_gems_in_bounds(min_y, max_y, min_x, max_x, true, 3);  /* Big cave gets extra gems */
     
-    /* === BIG CAVE MONSTER SPAWNING === */
-    /* Place monsters directly inside the big cave - scale with floor count */
-    /* Approximately 1 monster per 50 floor tiles (drastically increased) */
-    int cave_monsters = floor_count / 50;
-    if (cave_monsters < 10) cave_monsters = 10;
-    if (cave_monsters > 40) cave_monsters = 40;
-    int monsters_placed = 0;
-    
-    for (int m = 0; m < cave_monsters; ++m)
-    {
-        for (int tries = 0; tries < 50; ++tries)
-        {
-            int my = rand_range(min_y, max_y);
-            int mx = rand_range(min_x, max_x);
-            if (!in_bounds_fully(my, mx)) continue;
-            if (!cave_floor_bold(my, mx)) continue;
-            if (cave_m_idx[my][mx] != 0) continue;  /* Already has monster */
-            if (cave_o_idx[my][mx] != 0) continue;  /* Has object */
-            
-            /* Prefer elemental and troll/giant monsters for big caves. */
-            bool placed = false;
-            int pref_roll = rand_int(100);
-            if (pref_roll < 45)
-                placed = place_big_cave_elemental_monster(my, mx, cave_type, p_ptr->depth);
-            if (!placed && pref_roll < 70)
-                placed = place_big_cave_troll_or_giant(my, mx, p_ptr->depth);
-            if (!placed)
-                placed = place_monster(my, mx, true, false, false);
-            if (placed)
-            {
-                monsters_placed++;
-                break;
-            }
-        }
-    }
-    
-    /* === BIG CAVE SKELETON SPAWNING === */
-    /* Place skeleton items in the big cave - remains of previous explorers */
-    /* Scale with floor count: 1 skeleton per 40 floor tiles, min 2, max 8 */
-    int cave_skeletons = floor_count / 40;
-    if (cave_skeletons < 2) cave_skeletons = 2;
-    if (cave_skeletons > 8) cave_skeletons = 8;
-    int skeletons_placed = 0;
-    
-    for (int sk = 0; sk < cave_skeletons; ++sk)
-    {
-        for (int tries = 0; tries < 50; ++tries)
-        {
-            int sy = rand_range(min_y, max_y);
-            int sx = rand_range(min_x, max_x);
-            if (!in_bounds_fully(sy, sx)) continue;
-            if (!cave_floor_bold(sy, sx)) continue;
-            if (cave_o_idx[sy][sx] != 0) continue;  /* Already has object */
-            
-            /* Create and place a skeleton */
-            object_type object_type_body;
-            object_type *i_ptr = &object_type_body;
-            object_wipe(i_ptr);
-            
-            /* Mix of human/elf/orc skeletons: balanced distribution for caves */
-            s16b k_idx;
-            {
-                int roll = rand_int(100); /* 0-99 */
-                if (roll < 35) /* 35% */
-                    k_idx = lookup_kind(TV_SKELETON, SV_SKELETON_HUMAN);
-                else if (roll < 70) /* 35% */
-                    k_idx = lookup_kind(TV_SKELETON, SV_SKELETON_ELF);
-                else /* 30% */
-                    k_idx = lookup_kind(TV_SKELETON, SV_SKELETON_ORC);
-            }
-            
-            object_prep(i_ptr, k_idx);
-            i_ptr->pval = 1;  /* Skeleton level */
-            
-            drop_near(i_ptr, -1, sy, sx);
-            skeletons_placed++;
-            break;
-        }
-    }
-    
-    log_trace("Big cave anchor: bounds=(%d,%d)-(%d,%d) center=(%d,%d) edge=%d floors=%d pillars=%d monsters=%d skeletons=%d",
-        min_y, min_x, max_y, max_x, cy, cx, found_edge, floor_count, pillar_count, monsters_placed, skeletons_placed);
-    genlog_anchor("BIG_CAVE: bounds=(%d,%d)-(%d,%d), %d floor tiles, %d pillars, %d monsters, %d skeletons",
-        min_y, min_x, max_y, max_x, floor_count, pillar_count, monsters_placed, skeletons_placed);
+    log_trace("Big cave anchor: bounds=(%d,%d)-(%d,%d) center=(%d,%d) edge=%d floors=%d pillars=%d",
+        min_y, min_x, max_y, max_x, cy, cx, found_edge, floor_count, pillar_count);
+    genlog_anchor("BIG_CAVE: bounds=(%d,%d)-(%d,%d), %d floor tiles, %d pillars",
+        min_y, min_x, max_y, max_x, floor_count, pillar_count);
     return true;
 }
 
@@ -3524,53 +3285,10 @@ static bool carve_chasm_with_bridges(int y_min, int y_max, int x_min, int x_max,
     dun->is_quest[idx] = false;
     mark_room_anchor_meta(idx, LAYOUT_ANCHOR_CA_BLOB, false);
     
-    /* === CHASM MONSTER SPAWNING === */
-    /* Place monsters on the platforms - count floor tiles first */
-    int chasm_floor_count = 0;
-    for (int gy = floor_min_y; gy <= floor_max_y; ++gy)
-    {
-        for (int gx = floor_min_x; gx <= floor_max_x; ++gx)
-        {
-            if (in_bounds_fully(gy, gx) && cave_floor_bold(gy, gx))
-                chasm_floor_count++;
-        }
-    }
-    
-    /* Approximately 1 monster per 35 floor tiles (even more) */
-    int chasm_monsters = chasm_floor_count / 35;
-    if (chasm_monsters < 10) chasm_monsters = 10;
-    if (chasm_monsters > 45) chasm_monsters = 45;
-    int monsters_placed = 0;
-    
-    for (int m = 0; m < chasm_monsters; ++m)
-    {
-        for (int tries = 0; tries < 50; ++tries)
-        {
-            int my = rand_range(floor_min_y, floor_max_y);
-            int mx = rand_range(floor_min_x, floor_max_x);
-            if (!in_bounds_fully(my, mx)) continue;
-            if (!cave_floor_bold(my, mx)) continue;
-            if (cave_m_idx[my][mx] != 0) continue;  /* Already has monster */
-            if (cave_o_idx[my][mx] != 0) continue;  /* Has object */
-            
-            /* Prefer shadow creatures in chasms. */
-            bool placed = false;
-            if (rand_int(100) < 55)
-                placed = place_monster_by_letter_try(my, mx, 'w', true, p_ptr->depth);
-            if (!placed)
-                placed = place_monster(my, mx, true, false, false);
-            if (placed)
-            {
-                monsters_placed++;
-                break;
-            }
-        }
-    }
-    
-    log_trace("Chasm organic: %d platforms, %d bridges, %d chasm tiles, floor=(%d,%d)-(%d,%d) center=(%d,%d) monsters=%d",
-        platforms_placed, bridges_built, chasm_count, floor_min_y, floor_min_x, floor_max_y, floor_max_x, cy, cx, monsters_placed);
-    genlog_anchor("CHASM: %d platforms, %d bridges, %d chasm tiles at (%d,%d)-(%d,%d), %d monsters",
-        platforms_placed, bridges_built, chasm_count, floor_min_y, floor_min_x, floor_max_y, floor_max_x, monsters_placed);
+    log_trace("Chasm organic: %d platforms, %d bridges, %d chasm tiles, floor=(%d,%d)-(%d,%d) center=(%d,%d)",
+        platforms_placed, bridges_built, chasm_count, floor_min_y, floor_min_x, floor_max_y, floor_max_x, cy, cx);
+    genlog_anchor("CHASM: %d platforms, %d bridges, %d chasm tiles at (%d,%d)-(%d,%d)",
+        platforms_placed, bridges_built, chasm_count, floor_min_y, floor_min_x, floor_max_y, floor_max_x);
     return true;
 }
 
@@ -3850,83 +3568,6 @@ static bool carve_labyrinth_bounds(int y_min, int y_max, int x_min, int x_max,
     dun->is_quest[idx] = false;
     mark_room_anchor_meta(idx, LAYOUT_ANCHOR_BSP_SLICE, false);
     
-    /* === LABYRINTH MONSTER SPAWNING === */
-    /* Place monsters directly inside the labyrinth - scale with floor count */
-    /* Approximately 1 monster per 6 floor tiles (drastically increased) */
-    int lab_monsters = floor_count / 6;
-    if (lab_monsters < 8) lab_monsters = 8;
-    if (lab_monsters > 50) lab_monsters = 50;
-    int monsters_placed = 0;
-    
-    for (int m = 0; m < lab_monsters; ++m)
-    {
-        for (int tries = 0; tries < 50; ++tries)
-        {
-            int my = rand_range(min_y, max_y);
-            int mx = rand_range(min_x, max_x);
-            if (!in_bounds_fully(my, mx)) continue;
-            if (!cave_floor_bold(my, mx)) continue;
-            if (cave_m_idx[my][mx] != 0) continue;  /* Already has monster */
-            if (cave_o_idx[my][mx] != 0) continue;  /* Has object */
-            
-            /* Prefer invisible creatures in labyrinths. */
-            bool placed = false;
-            if (rand_int(100) < 55)
-                placed = place_monster_by_flag_try(my, mx, 2, RF2_INVISIBLE, true, p_ptr->depth);
-            if (!placed)
-                placed = place_monster(my, mx, true, true, false);
-            if (placed)
-            {
-                monsters_placed++;
-                break;
-            }
-        }
-    }
-    
-    /* === LABYRINTH SKELETON SPAWNING === */
-    /* Place skeleton items in the labyrinth - those who got lost before you */
-    /* Scale with floor count: 1 skeleton per 25 floor tiles, min 2, max 6 */
-    int lab_skeletons = floor_count / 25;
-    if (lab_skeletons < 2) lab_skeletons = 2;
-    if (lab_skeletons > 6) lab_skeletons = 6;
-    int skeletons_placed = 0;
-    
-    for (int sk = 0; sk < lab_skeletons; ++sk)
-    {
-        for (int tries = 0; tries < 50; ++tries)
-        {
-            int sy = rand_range(min_y, max_y);
-            int sx = rand_range(min_x, max_x);
-            if (!in_bounds_fully(sy, sx)) continue;
-            if (!cave_floor_bold(sy, sx)) continue;
-            if (cave_o_idx[sy][sx] != 0) continue;  /* Already has object */
-            
-            /* Create and place a skeleton */
-            object_type object_type_body;
-            object_type *i_ptr = &object_type_body;
-            object_wipe(i_ptr);
-            
-            /* Mix of human/elf/orc skeletons: favor human+elf, orcs rare in labyrinth */
-            s16b k_idx;
-            {
-                int roll = rand_int(100); /* 0-99 */
-                if (roll < 30) /* 30% */
-                    k_idx = lookup_kind(TV_SKELETON, SV_SKELETON_HUMAN);
-                else if (roll < 90) /* 60% */
-                    k_idx = lookup_kind(TV_SKELETON, SV_SKELETON_ELF);
-                else /* 10% */
-                    k_idx = lookup_kind(TV_SKELETON, SV_SKELETON_ORC);
-            }
-            
-            object_prep(i_ptr, k_idx);
-            i_ptr->pval = 1;  /* Skeleton level */
-            
-            drop_near(i_ptr, -1, sy, sx);
-            skeletons_placed++;
-            break;
-        }
-    }
-    
     /* === LABYRINTH STAIR PLACEMENT === */
     /* Place 1-2 stairs inside the labyrinth for navigation */
     int lab_stairs = 1 + (floor_count > 60 ? 1 : 0);
@@ -3961,10 +3602,10 @@ static bool carve_labyrinth_bounds(int y_min, int y_max, int x_min, int x_max,
         }
     }
     
-    log_trace("Labyrinth anchor (organic): bounds=(%d,%d)-(%d,%d) center=(%d,%d) edge=%d floors=%d chambers=%d monsters=%d skeletons=%d stairs=%d",
-        min_y, min_x, max_y, max_x, center_y, center_x, found_edge, floor_count, chamber_count, monsters_placed, skeletons_placed, stairs_placed);
-    genlog_anchor("LABYRINTH: bounds=(%d,%d)-(%d,%d), %d floor tiles, %d chambers, %d monsters, %d skeletons, %d stairs",
-        min_y, min_x, max_y, max_x, floor_count, chamber_count, monsters_placed, skeletons_placed, stairs_placed);
+    log_trace("Labyrinth anchor (organic): bounds=(%d,%d)-(%d,%d) center=(%d,%d) edge=%d floors=%d chambers=%d stairs=%d",
+        min_y, min_x, max_y, max_x, center_y, center_x, found_edge, floor_count, chamber_count, stairs_placed);
+    genlog_anchor("LABYRINTH: bounds=(%d,%d)-(%d,%d), %d floor tiles, %d chambers, %d stairs",
+        min_y, min_x, max_y, max_x, floor_count, chamber_count, stairs_placed);
     return true;
 }
 
@@ -4549,6 +4190,20 @@ static bool place_partition_chest_at(
     return true;
 }
 
+static void reset_partition_population_metadata(void)
+{
+    for (int i = 0; i < PARTITION_META_MAX; ++i)
+    {
+        current_partition_population_meta[i].cave_loot = false;
+        current_partition_population_meta[i].cave_loot_big_cave = false;
+        current_partition_population_meta[i].cave_loot_blob_count = 0;
+        current_partition_population_meta[i].star_iron = false;
+        current_partition_population_meta[i].chest_count = 0;
+        current_partition_population_meta[i].force_large_chest = false;
+        current_partition_population_meta[i].chest_mode = QUAD_MODE_ROOMY;
+    }
+}
+
 static void place_chest_in_partition(
     int y1, int y2, int x1, int x2, bool force_large, quadrant_mode_t mode)
 {
@@ -5060,7 +4715,9 @@ static void apply_quadrant_generation_modes(void)
                 
                 /* Scatter gems and mithril in cave areas - normal cave bonus */
                 int blob_for_loot = (carved_blobs > 0) ? carved_blobs : blob_target;
-                scatter_cave_gems_in_bounds(y1, y2, x1, x2, false, blob_for_loot);
+                current_partition_population_meta[pi].cave_loot = true;
+                current_partition_population_meta[pi].cave_loot_big_cave = false;
+                current_partition_population_meta[pi].cave_loot_blob_count = blob_for_loot;
                 
                 /* Caves with rooms scattered inside */
                 /* Sparse: T1=2 T2=1 T6=2 T7=0 | Normal: T1=2 T2=2 T6=2 T7=1 | Dense: T1=2 T2=3 T6=3 T7=1 */
@@ -5113,7 +4770,10 @@ static void apply_quadrant_generation_modes(void)
                 
                 /* Place 1 chest in labyrinth partition ONLY if it actually carved */
                 if (carved)
-                    place_chest_in_partition(y1, y2, x1, x2, false, mode);
+                {
+                    current_partition_population_meta[pi].chest_count = 1;
+                    current_partition_population_meta[pi].chest_mode = QUAD_MODE_LABYRINTH;
+                }
             }
             break;
         case QUAD_MODE_CHASM:
@@ -5138,14 +4798,13 @@ static void apply_quadrant_generation_modes(void)
 
                 /* Veins in chasm walls for mining (tagged for star-iron drops) */
                 scatter_quartz_veins_in_bounds(y1, y2, x1, x2, CAVE_CHASM_AREA);
-                /* Scatter rare star-iron pieces onto whatever ground exists */
-                scatter_chasm_star_iron_in_bounds(y1, y2, x1, x2);
+                current_partition_population_meta[pi].star_iron = true;
 
                 /* Place 2 guaranteed chests in chasm partition ONLY if it actually carved */
                 if (chasm_carved)
                 {
-                    place_chest_in_partition(y1, y2, x1, x2, false, mode);
-                    place_chest_in_partition(y1, y2, x1, x2, false, mode);
+                    current_partition_population_meta[pi].chest_count = 2;
+                    current_partition_population_meta[pi].chest_mode = QUAD_MODE_CHASM;
                 }
             }
             break;
@@ -5174,11 +4833,10 @@ static void apply_quadrant_generation_modes(void)
                 
                 /* Add quartz veins for natural cave look */
                 scatter_quartz_veins_in_bounds(y1, y2, x1, x2, 0);
-                if (!carved)
-                {
-                    int blob_for_loot = (carved_blobs > 0) ? carved_blobs : blob_count;
-                    scatter_cave_gems_in_bounds(y1, y2, x1, x2, true, MAX(1, blob_for_loot));
-                }
+                current_partition_population_meta[pi].cave_loot = true;
+                current_partition_population_meta[pi].cave_loot_big_cave = true;
+                current_partition_population_meta[pi].cave_loot_blob_count =
+                    carved ? 3 : MAX(1, ((carved_blobs > 0) ? carved_blobs : blob_count));
                 
                 /* Add internal pillars/boulders for visual interest (density-scaled) */
                 int pillar_target = (density == DENSITY_SPARSE) ? 3 : 
@@ -5213,7 +4871,9 @@ static void apply_quadrant_generation_modes(void)
                                        &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
 
                 /* Guarantee a large chest in big caves (material varies) */
-                place_chest_in_partition(y1, y2, x1, x2, true, mode);
+                current_partition_population_meta[pi].chest_count = 1;
+                current_partition_population_meta[pi].force_large_chest = true;
+                current_partition_population_meta[pi].chest_mode = QUAD_MODE_BIG_CAVE;
             }
             break;
         case QUAD_MODE_ROOMY:
@@ -5353,7 +5013,9 @@ static void apply_quadrant_generation_modes(void)
                         carved_blobs++;
                 scatter_quartz_veins_in_bounds(y1, y2, x1, x2, 0);
                 int blob_for_loot = (carved_blobs > 0) ? carved_blobs : blob_target;
-                scatter_cave_gems_in_bounds(y1, y2, x1, x2, false, blob_for_loot);
+                current_partition_population_meta[pi].cave_loot = true;
+                current_partition_population_meta[pi].cave_loot_big_cave = false;
+                current_partition_population_meta[pi].cave_loot_blob_count = blob_for_loot;
                 int std_count = scaled_attempts(2, area_factor);
                 int cross_count = scaled_attempts((density == DENSITY_DENSE) ? 4 : (density == DENSITY_SPARSE) ? 2 : 3, area_factor);
                 int int_count = scaled_attempts((density == DENSITY_SPARSE) ? 1 : (density == DENSITY_DENSE) ? 2 : 1, area_factor);
@@ -5409,84 +5071,6 @@ static void apply_quadrant_generation_modes(void)
                     }
                 }
                 
-                /* === RUINED SKELETON SPAWNING === */
-                /* After rubble and rooms are created, spawn skeleton items.
-                 * Use floor_count / 15, clamp 3..10 (denser than labyrinth).
-                 */
-                {
-                    int floor_count = 0;
-                    for (int gy = y1; gy <= y2; ++gy)
-                    {
-                        for (int gx = x1; gx <= x2; ++gx)
-                        {
-                            if (!in_bounds_fully(gy, gx)) continue;
-                            if (!cave_floor_bold(gy, gx)) continue;
-                            if (cave_info[gy][gx] & CAVE_G_VAULT) continue; /* preserve vaults */
-                            floor_count++;
-                        }
-                    }
-
-                    int ru_skeletons = floor_count / 15;
-                    if (ru_skeletons < 3) ru_skeletons = 3;
-                    if (ru_skeletons > 10) ru_skeletons = 10;
-                    
-                    genlog_anchor("RUINED partition bounds=(%d,%d)-(%d,%d) floor_count=%d target_skeletons=%d",
-                                  y1, x1, y2, x2, floor_count, ru_skeletons);
-
-                    int skeletons_placed = 0;
-                    for (int sk = 0; sk < ru_skeletons; ++sk)
-                    {
-                        for (int tries = 0; tries < 50; ++tries)
-                        {
-                            int sy = rand_range(y1, y2);
-                            int sx = rand_range(x1, x2);
-                            if (!in_bounds_fully(sy, sx)) continue;
-                            if (!cave_floor_bold(sy, sx)) continue;
-                            /* Don't bury skeletons under rubble */
-                            if (cave_feat[sy][sx] == FEAT_RUBBLE) continue;
-                            if (cave_o_idx[sy][sx] != 0) continue;  /* Already has object */
-
-                            object_type object_type_body;
-                            object_type *i_ptr = &object_type_body;
-                            object_wipe(i_ptr);
-
-                            s16b k_idx;
-                            int roll = rand_int(100);
-                            if (roll < 60) /* 60% orc */
-                                k_idx = lookup_kind(TV_SKELETON, SV_SKELETON_ORC);
-                            else if (roll < 80) /* 20% human */
-                                k_idx = lookup_kind(TV_SKELETON, SV_SKELETON_HUMAN);
-                            else /* 20% elf */
-                                k_idx = lookup_kind(TV_SKELETON, SV_SKELETON_ELF);
-
-                            object_prep(i_ptr, k_idx);
-                            i_ptr->pval = 1;  /* Skeleton level */
-
-                            drop_near(i_ptr, -1, sy, sx);
-                            skeletons_placed++;
-                            break;
-                        }
-                    }
-
-                    if (skeletons_placed > 0)
-                        genlog_anchor("RUINED partition: placed %d skeletons in bounds (%d,%d)-(%d,%d)",
-                                      skeletons_placed, y1, x1, y2, x2);
-
-                    /* Ruined partitions also get a small independent scatter of
-                     * damaged gear, so broken items can come from the ruins
-                     * themselves and not only from searched skeletons. */
-                    {
-                        int damaged_target = ru_skeletons / 3;
-                        if (damaged_target < 1) damaged_target = 1;
-                        if (damaged_target > 3) damaged_target = 3;
-
-                        int damaged_placed = place_ruined_partition_damaged_items(
-                            y1, y2, x1, x2, damaged_target);
-                        if (damaged_placed > 0)
-                            genlog_anchor("RUINED partition: placed %d damaged items in bounds (%d,%d)-(%d,%d)",
-                                          damaged_placed, y1, x1, y2, x2);
-                    }
-                }
             }
             break;
         default:
@@ -6953,6 +6537,26 @@ typedef struct partition_drop_profile {
     drop_profile profile;
 } partition_drop_profile;
 
+typedef struct partition_population_plan {
+    int pi;
+    quadrant_mode_t mode;
+    big_cave_type_t cave_type;
+    int y1, y2, x1, x2;
+    int room_centers;
+    int floor_count;
+    int floor_count_non_icky;
+    int floor_count_non_vault;
+    partition_population_meta meta;
+    int monsters_base;
+    int monsters_floor;
+    int monsters_depth;
+    int monsters_precurse;
+    int monsters_curse_bonus;
+    int monsters_total;
+    int room_objects;
+    int corr_objects;
+} partition_population_plan;
+
 static quadrant_mode_t partition_mode_for_point(int y, int x)
 {
     /* If we're on a loaded level (no generation metadata), infer a reasonable grid and
@@ -7254,6 +6858,7 @@ void level_partition_meta_set(const partition_meta_save* in)
         current_partition_rows = 0;
         current_partition_cols = 0;
         current_partition_count = 0;
+        reset_partition_population_metadata();
         for (int i = 0; i < PARTITION_META_MAX; ++i)
         {
             current_partition_modes[i] = QUAD_MODE_ROOMY;
@@ -7423,7 +7028,7 @@ static partition_drop_profile partition_drop_profile_for_mode(quadrant_mode_t mo
         prof.profile.supply_herb = 2;
         prof.profile.supply_gem = 1;
         prof.profile.supply_staff = 3;
-        prof.profile.supply_misc = 20; /* torches, horns, arrows */
+        prof.profile.supply_misc = 15; /* torches, horns, arrows */
         prof.profile.supply_tunneling = 2; /* small chance for shovels/mattocks */
         break;
     case QUAD_MODE_CAVEY:
@@ -7598,88 +7203,6 @@ static int place_ruined_partition_damaged_items(
     }
 
     return placed;
-}
-
-/*
- * Allocates some objects (using "place" and "type") in a specific partition
- */
-static void alloc_object_in_partition(int set, int typ, int num, quadrant_mode_t target_mode)
-{
-    int y, x, k, i;
-
-    /* Place some objects */
-    for (k = 0; k < num; k++)
-    {
-        partition_drop_profile active_profile =
-            partition_drop_profile_for_mode(target_mode);
-        /* Pick a "legal" spot */
-        for (i = 0; i < 10000; i++)
-        {
-            bool is_room;
-
-            /* Location */
-            y = rand_int(p_ptr->cur_map_hgt);
-            x = rand_int(p_ptr->cur_map_wid);
-
-            /* Require "naked" floor grid */
-            if (!cave_naked_bold(y, x))
-                continue;
-
-            /* Check if location is in target partition */
-            if (partition_mode_for_point(y, x) != target_mode)
-                continue;
-
-            /* Check for "room" */
-            is_room = (cave_info[y][x] & (CAVE_ROOM)) ? true : false;
-
-            /* Require corridor? */
-            if ((set == ALLOC_SET_CORR) && is_room)
-                continue;
-
-            /* Require room? */
-            if ((set == ALLOC_SET_ROOM) && !is_room)
-                continue;
-
-            /* Enforce room-type and partition-specific drop behaviour */
-            quadrant_mode_t mode = drop_mode_for_point(y, x);
-            active_profile = partition_drop_profile_for_mode(mode);
-            if (typ == ALLOC_TYP_OBJECT)
-            {
-                if (!active_profile.allow_floor_drops)
-                    continue;
-
-                if (active_profile.reroll_chance > 0
-                    && rand_int(100) < active_profile.reroll_chance)
-                    continue;
-            }
-
-            /* Accept it */
-            break;
-        }
-
-        /* Failed to place object */
-        if (i >= 10000)
-            continue;
-
-        /* Place something */
-        switch (typ)
-        {
-        case ALLOC_TYP_RUBBLE:
-        {
-            /* Create rubble */
-            cave_set_feat(y, x, FEAT_RUBBLE);
-
-            break;
-        }
-
-        case ALLOC_TYP_OBJECT:
-        {
-            /* Ruined damaged gear is seeded separately during partition generation. */
-            place_object_with_profile(y, x, &active_profile);
-            break;
-        }
-        }
-    }
 }
 
 /*
@@ -13010,6 +12533,710 @@ static bool place_big_cave_troll_or_giant(int y, int x, int max_depth)
     return place_monster_by_flag_try(y, x, 3, RF3_TROLL, true, max_depth);
 }
 
+static int partition_base_monsters_for_mode(quadrant_mode_t mode, int room_count)
+{
+    if (room_count <= 0)
+        return 0;
+
+    switch (mode)
+    {
+    case QUAD_MODE_ROOMY:
+        return (room_count + dieroll(room_count)) / 2;
+    case QUAD_MODE_CAVEY:
+        return ((room_count + dieroll(MAX(1, room_count))) / 2) * 3;
+    case QUAD_MODE_RUINED:
+        return ((room_count + dieroll(MAX(1, room_count))) / 2) * 2;
+    case QUAD_MODE_LABYRINTH:
+        return ((room_count + dieroll(MAX(1, room_count))) / 2) * 2;
+    case QUAD_MODE_CHASM:
+        return ((room_count + dieroll(MAX(1, room_count))) / 2) * 4;
+    case QUAD_MODE_BIG_CAVE:
+        return ((room_count + dieroll(MAX(1, room_count))) / 2) * 5;
+    default:
+        return 0;
+    }
+}
+
+static int partition_apply_monster_curse_scale(int monster_count)
+{
+    int stacks = curse_flag_count_cur(CUR_MON_NUM);
+    if (!stacks || monster_count <= 0)
+        return monster_count;
+
+    return monster_count * (100 + 30 * stacks) / 100;
+}
+
+static int partition_direct_floor_monsters(quadrant_mode_t mode, int floor_count)
+{
+    if (floor_count <= 0)
+        return 0;
+
+    switch (mode)
+    {
+    case QUAD_MODE_BIG_CAVE:
+    {
+        int target = floor_count / 50;
+        if (target < 10) target = 10;
+        if (target > 40) target = 40;
+        return target;
+    }
+    case QUAD_MODE_CHASM:
+    {
+        int target = floor_count / 35;
+        if (target < 10) target = 10;
+        if (target > 45) target = 45;
+        return target;
+    }
+    case QUAD_MODE_LABYRINTH:
+    {
+        int target = floor_count / 6;
+        if (target < 8) target = 8;
+        if (target > 50) target = 50;
+        return target;
+    }
+    default:
+        return 0;
+    }
+}
+
+static int partition_extra_monster_target_for_depth(
+    quadrant_mode_t mode, int floor_count, int depth)
+{
+    int target = 0;
+
+    if (floor_count <= 0)
+        return 0;
+
+    switch (mode)
+    {
+    case QUAD_MODE_BIG_CAVE:
+        target = floor_count / 45;
+        if (target < 12) target = 12;
+        if (target > 40) target = 40;
+        break;
+    case QUAD_MODE_CHASM:
+        target = floor_count / 38;
+        if (target < 10) target = 10;
+        if (target > 40) target = 40;
+        break;
+    case QUAD_MODE_LABYRINTH:
+        target = floor_count / 80;
+        if (target > 25) target = 25;
+        break;
+    case QUAD_MODE_CAVEY:
+        target = floor_count / 120;
+        if (target > 18) target = 18;
+        break;
+    case QUAD_MODE_RUINED:
+        target = floor_count / 180;
+        if (target > 14) target = 14;
+        break;
+    default:
+        target = 0;
+        break;
+    }
+
+    if (target <= 0)
+        return 0;
+
+    target = target * (100 + MIN(50, depth * 2)) / 100;
+
+    {
+        int hard_cap = floor_count / 20;
+        if (hard_cap < 1) hard_cap = 1;
+        if (target > hard_cap)
+            target = hard_cap;
+    }
+
+    return target;
+}
+
+static int partition_depth_bonus_monsters(quadrant_mode_t mode, int floor_count, int depth)
+{
+    int target_at_20 = partition_extra_monster_target_for_depth(mode, floor_count, 20);
+
+    if (depth <= 1 || target_at_20 <= 0)
+        return 0;
+    if (depth >= 20)
+        return target_at_20;
+
+    return (target_at_20 * (depth - 1) + 9) / 19;
+}
+
+static int partition_object_scale_pct(void)
+{
+    switch (op_ptr->vault_drop_frequency)
+    {
+    case VDF_PLENTIFUL: return 150;
+    case VDF_NORMAL:    return 100;
+    case VDF_MODEST:    return 67;
+    case VDF_SCARCE:    return 33;
+    case VDF_MEAGER:    return 10;
+    default:            return 100;
+    }
+}
+
+static void partition_object_counts_from_total_monsters(
+    quadrant_mode_t mode, int total_monsters, int* room_objects, int* corr_objects)
+{
+    int room_count = 0;
+    int corr_count = 0;
+    int pct = partition_object_scale_pct();
+
+    if (mode == QUAD_MODE_ROOMY)
+    {
+        room_count = total_monsters / 8;
+        corr_count = total_monsters / 12;
+    }
+    else
+    {
+        room_count = total_monsters / 2;
+        corr_count = total_monsters / 4;
+    }
+
+    if (pct != 100)
+    {
+        room_count = MAX(0, room_count * pct / 100);
+        corr_count = MAX(0, corr_count * pct / 100);
+    }
+
+    if (room_objects)
+        *room_objects = room_count;
+    if (corr_objects)
+        *corr_objects = corr_count;
+}
+
+static void distribute_partition_base_monsters(
+    partition_population_plan* plans, int plan_count)
+{
+    int rooms_by_mode[QUAD_MODE_BIG_CAVE + 1] = {0};
+
+    for (int i = 0; i < plan_count; ++i)
+    {
+        if (plans[i].mode >= QUAD_MODE_ROOMY && plans[i].mode <= QUAD_MODE_BIG_CAVE)
+            rooms_by_mode[plans[i].mode] += plans[i].room_centers;
+        plans[i].monsters_base = 0;
+    }
+
+    for (int mode = QUAD_MODE_ROOMY; mode <= QUAD_MODE_BIG_CAVE; ++mode)
+    {
+        int total_rooms = rooms_by_mode[mode];
+        int total_monsters;
+        int assigned = 0;
+        int remainders[PARTITION_META_MAX];
+
+        if (total_rooms <= 0)
+            continue;
+
+        total_monsters = partition_base_monsters_for_mode((quadrant_mode_t)mode, total_rooms);
+        if (total_monsters <= 0)
+            continue;
+
+        for (int i = 0; i < PARTITION_META_MAX; ++i)
+            remainders[i] = -1;
+
+        for (int i = 0; i < plan_count; ++i)
+        {
+            long weighted;
+
+            if (plans[i].mode != (quadrant_mode_t)mode || plans[i].room_centers <= 0)
+                continue;
+
+            weighted = (long)total_monsters * (long)plans[i].room_centers;
+            plans[i].monsters_base = (int)(weighted / total_rooms);
+            remainders[i] = (int)(weighted % total_rooms);
+            assigned += plans[i].monsters_base;
+        }
+
+        for (int left = total_monsters - assigned; left > 0; --left)
+        {
+            int best_i = -1;
+            int best_rem = -1;
+
+            for (int i = 0; i < plan_count; ++i)
+            {
+                if (remainders[i] > best_rem)
+                {
+                    best_i = i;
+                    best_rem = remainders[i];
+                }
+            }
+
+            if (best_i < 0)
+                break;
+
+            plans[best_i].monsters_base++;
+            remainders[best_i] = -1;
+        }
+    }
+}
+
+static void apply_curse_scale_to_partition_totals(
+    partition_population_plan* plans, int plan_count)
+{
+    int total_monsters = 0;
+    int scaled_total;
+    int assigned = 0;
+    int remainders[PARTITION_META_MAX];
+
+    for (int i = 0; i < plan_count; ++i)
+    {
+        plans[i].monsters_curse_bonus = 0;
+        total_monsters += plans[i].monsters_precurse;
+        remainders[i] = -1;
+    }
+
+    if (total_monsters <= 0)
+    {
+        for (int i = 0; i < plan_count; ++i)
+            plans[i].monsters_total = plans[i].monsters_precurse;
+        return;
+    }
+
+    scaled_total = partition_apply_monster_curse_scale(total_monsters);
+    if (scaled_total <= total_monsters)
+    {
+        for (int i = 0; i < plan_count; ++i)
+            plans[i].monsters_total = plans[i].monsters_precurse;
+        return;
+    }
+
+    for (int i = 0; i < plan_count; ++i)
+    {
+        long weighted = (long)scaled_total * (long)plans[i].monsters_precurse;
+
+        plans[i].monsters_total = (int)(weighted / total_monsters);
+        remainders[i] = (int)(weighted % total_monsters);
+        assigned += plans[i].monsters_total;
+    }
+
+    for (int left = scaled_total - assigned; left > 0; --left)
+    {
+        int best_i = -1;
+        int best_rem = -1;
+
+        for (int i = 0; i < plan_count; ++i)
+        {
+            if (remainders[i] > best_rem)
+            {
+                best_i = i;
+                best_rem = remainders[i];
+            }
+        }
+
+        if (best_i < 0)
+            break;
+
+        plans[best_i].monsters_total++;
+        remainders[best_i] = -1;
+    }
+
+    for (int i = 0; i < plan_count; ++i)
+        plans[i].monsters_curse_bonus =
+            plans[i].monsters_total - plans[i].monsters_precurse;
+}
+
+static int build_partition_population_plans(
+    partition_population_plan* plans, int max_plans)
+{
+    int room_centers[PARTITION_META_MAX] = {0};
+    int count = MIN(current_partition_count, max_plans);
+
+    if (count <= 0 || current_partition_rows <= 0 || current_partition_cols <= 0)
+        return 0;
+
+    for (int i = 0; i < dun->cent_n; ++i)
+    {
+        int pi = level_partition_index_for_point(dun->cent[i].y, dun->cent[i].x);
+        if (pi >= 0 && pi < count)
+            room_centers[pi]++;
+    }
+
+    for (int pi = 0; pi < count; ++pi)
+    {
+        partition_population_plan* plan = &plans[pi];
+
+        memset(plan, 0, sizeof(*plan));
+        plan->pi = pi;
+        plan->mode = current_partition_modes[pi];
+        plan->cave_type = current_partition_big_cave_types[pi];
+        plan->meta = current_partition_population_meta[pi];
+        plan->room_centers = room_centers[pi];
+
+        if (!compute_partition_bounds(
+                pi, current_partition_rows, current_partition_cols,
+                &plan->y1, &plan->y2, &plan->x1, &plan->x2))
+        {
+            continue;
+        }
+
+        for (int y = plan->y1; y <= plan->y2; ++y)
+        {
+            for (int x = plan->x1; x <= plan->x2; ++x)
+            {
+                if (!in_bounds_fully(y, x))
+                    continue;
+                if (!cave_floor_bold(y, x))
+                    continue;
+
+                plan->floor_count++;
+                if (!(cave_info[y][x] & CAVE_ICKY))
+                    plan->floor_count_non_icky++;
+                if (!(cave_info[y][x] & CAVE_G_VAULT))
+                    plan->floor_count_non_vault++;
+            }
+        }
+    }
+
+    distribute_partition_base_monsters(plans, count);
+
+    for (int i = 0; i < count; ++i)
+    {
+        plans[i].monsters_floor =
+            partition_direct_floor_monsters(plans[i].mode, plans[i].floor_count);
+        plans[i].monsters_depth =
+            partition_depth_bonus_monsters(
+                plans[i].mode, plans[i].floor_count_non_icky, p_ptr->depth);
+        plans[i].monsters_precurse =
+            plans[i].monsters_base + plans[i].monsters_floor + plans[i].monsters_depth;
+    }
+
+    apply_curse_scale_to_partition_totals(plans, count);
+
+    for (int i = 0; i < count; ++i)
+    {
+        partition_object_counts_from_total_monsters(
+            plans[i].mode, plans[i].monsters_total,
+            &plans[i].room_objects, &plans[i].corr_objects);
+    }
+
+    return count;
+}
+
+static bool choose_partition_monster_location(
+    const partition_population_plan* plan, bool avoid_los, int* out_y, int* out_x)
+{
+    for (int tries = 0; tries < 250; ++tries)
+    {
+        int y = rand_range(plan->y1, plan->y2);
+        int x = rand_range(plan->x1, plan->x2);
+
+        if (!in_bounds_fully(y, x))
+            continue;
+        if (cave_info[y][x] & CAVE_ICKY)
+            continue;
+        if (!cave_naked_bold(y, x))
+            continue;
+        if (avoid_los && los(p_ptr->py, p_ptr->px, y, x))
+            continue;
+
+        *out_y = y;
+        *out_x = x;
+        return true;
+    }
+
+    return false;
+}
+
+static bool place_partition_themed_monster(
+    const partition_population_plan* plan, int y, int x)
+{
+    switch (plan->mode)
+    {
+    case QUAD_MODE_BIG_CAVE:
+    {
+        int pref_roll = rand_int(100);
+        if (pref_roll < 45
+            && place_big_cave_elemental_monster(y, x, plan->cave_type, p_ptr->depth))
+            return true;
+        if (pref_roll < 70
+            && place_big_cave_troll_or_giant(y, x, p_ptr->depth))
+            return true;
+        break;
+    }
+    case QUAD_MODE_CHASM:
+        if (rand_int(100) < 55
+            && place_monster_by_letter_try(y, x, 'w', true, p_ptr->depth))
+            return true;
+        break;
+    case QUAD_MODE_LABYRINTH:
+        if (rand_int(100) < 55
+            && place_monster_by_flag_try(y, x, 2, RF2_INVISIBLE, true, p_ptr->depth))
+            return true;
+        break;
+    case QUAD_MODE_CAVEY:
+    {
+        int pref_roll = rand_int(100);
+        if (pref_roll < 45)
+            return place_monster_by_letter_try(y, x, 'M', false, p_ptr->depth);
+        if (pref_roll < 70)
+            return place_monster_by_letter_try(y, x, 'C', false, p_ptr->depth);
+        if (pref_roll < 90)
+            return place_monster_by_letter_try(y, x, 'b', false, p_ptr->depth);
+        return place_monster_by_letter_try(y, x, 'T', false, p_ptr->depth);
+    }
+    default:
+        break;
+    }
+
+    return false;
+}
+
+static int run_partition_monster_pass(
+    const partition_population_plan* plans, int plan_count)
+{
+    int total_placed = 0;
+
+    if (morgoth_level_active)
+        return 0;
+
+    for (int i = 0; i < plan_count; ++i)
+    {
+        const partition_population_plan* plan = &plans[i];
+        int generic_remaining = plan->monsters_base;
+        int themed_remaining = plan->monsters_floor + plan->monsters_depth;
+        int target_total = generic_remaining + themed_remaining;
+        int placed = 0;
+        int attempts = MAX(1, target_total) * 250;
+
+        for (int tries = 0;
+             tries < attempts && (generic_remaining > 0 || themed_remaining > 0);
+             ++tries)
+        {
+            bool themed =
+                (themed_remaining > 0)
+                && ((generic_remaining == 0)
+                    || (rand_int(generic_remaining + themed_remaining) < themed_remaining));
+            int y, x;
+            bool placed_mon = false;
+
+            if (!choose_partition_monster_location(plan, themed, &y, &x))
+                continue;
+
+            if (themed)
+                placed_mon = place_partition_themed_monster(plan, y, x);
+
+            if (!placed_mon)
+                placed_mon = place_monster(y, x, true,
+                    (!themed && plan->mode == QUAD_MODE_ROOMY), false);
+
+            if (!placed_mon)
+                continue;
+
+            if (themed)
+                themed_remaining--;
+            else
+                generic_remaining--;
+
+            placed++;
+            total_placed++;
+        }
+
+        log_trace(
+            "Partition monsters: pi=%d mode=%d rooms=%d floors=%d base=%d floor=%d depth=%d precurse=%d curse=%d total=%d placed=%d",
+            plan->pi, plan->mode, plan->room_centers, plan->floor_count,
+            plan->monsters_base, plan->monsters_floor, plan->monsters_depth,
+            plan->monsters_precurse, plan->monsters_curse_bonus,
+            target_total, placed);
+    }
+
+    return total_placed;
+}
+
+static int alloc_objects_from_plan(
+    const partition_population_plan* plan, int set, int num)
+{
+    int placed = 0;
+
+    for (int k = 0; k < num; ++k)
+    {
+        partition_drop_profile active_profile =
+            partition_drop_profile_for_mode(plan->mode);
+        int y = 0;
+        int x = 0;
+        int i;
+
+        for (i = 0; i < 10000; ++i)
+        {
+            bool is_room;
+
+            y = rand_range(plan->y1, plan->y2);
+            x = rand_range(plan->x1, plan->x2);
+
+            if (!in_bounds_fully(y, x))
+                continue;
+            if (!cave_naked_bold(y, x))
+                continue;
+            if (level_partition_index_for_point(y, x) != plan->pi)
+                continue;
+
+            is_room = (cave_info[y][x] & CAVE_ROOM) ? true : false;
+
+            if ((set == ALLOC_SET_CORR) && is_room)
+                continue;
+            if ((set == ALLOC_SET_ROOM) && !is_room)
+                continue;
+
+            active_profile = partition_drop_profile_for_mode(drop_mode_for_point(y, x));
+            if (!active_profile.allow_floor_drops)
+                continue;
+            if (active_profile.reroll_chance > 0
+                && rand_int(100) < active_profile.reroll_chance)
+                continue;
+
+            break;
+        }
+
+        if (i >= 10000)
+            continue;
+
+        place_object_with_profile(y, x, &active_profile);
+        if (cave_o_idx[y][x] != 0)
+            placed++;
+    }
+
+    return placed;
+}
+
+static int run_partition_object_pass(
+    const partition_population_plan* plans, int plan_count, bool rooms)
+{
+    int total_placed = 0;
+
+    for (int i = 0; i < plan_count; ++i)
+    {
+        int target = rooms ? plans[i].room_objects : plans[i].corr_objects;
+        int placed;
+
+        if (target <= 0)
+            continue;
+
+        placed = alloc_objects_from_plan(
+            &plans[i], rooms ? ALLOC_SET_ROOM : ALLOC_SET_CORR, target);
+        total_placed += placed;
+
+        log_trace("Partition %s objects: pi=%d mode=%d target=%d placed=%d total_monsters=%d",
+            rooms ? "room" : "corridor", plans[i].pi, plans[i].mode,
+            target, placed, plans[i].monsters_total);
+    }
+
+    return total_placed;
+}
+
+static int place_partition_skeletons(
+    const partition_population_plan* plan, int target,
+    int human_pct, int elf_pct, bool avoid_rubble)
+{
+    int placed = 0;
+
+    for (int sk = 0; sk < target; ++sk)
+    {
+        for (int tries = 0; tries < 50; ++tries)
+        {
+            int sy = rand_range(plan->y1, plan->y2);
+            int sx = rand_range(plan->x1, plan->x2);
+            int roll;
+            s16b k_idx;
+            object_type object_type_body;
+            object_type *i_ptr = &object_type_body;
+
+            if (!in_bounds_fully(sy, sx))
+                continue;
+            if (!cave_floor_bold(sy, sx))
+                continue;
+            if ((cave_info[sy][sx] & CAVE_G_VAULT) != 0)
+                continue;
+            if (avoid_rubble && cave_feat[sy][sx] == FEAT_RUBBLE)
+                continue;
+            if (cave_o_idx[sy][sx] != 0)
+                continue;
+
+            object_wipe(i_ptr);
+
+            roll = rand_int(100);
+            if (roll < human_pct)
+                k_idx = lookup_kind(TV_SKELETON, SV_SKELETON_HUMAN);
+            else if (roll < human_pct + elf_pct)
+                k_idx = lookup_kind(TV_SKELETON, SV_SKELETON_ELF);
+            else
+                k_idx = lookup_kind(TV_SKELETON, SV_SKELETON_ORC);
+
+            object_prep(i_ptr, k_idx);
+            i_ptr->pval = 1;
+            drop_near(i_ptr, -1, sy, sx);
+            placed++;
+            break;
+        }
+    }
+
+    return placed;
+}
+
+static int run_partition_special_scatter_pass(
+    const partition_population_plan* plans, int plan_count)
+{
+    int total_placed = 0;
+
+    for (int i = 0; i < plan_count; ++i)
+    {
+        const partition_population_plan* plan = &plans[i];
+
+        if (plan->meta.cave_loot)
+            scatter_cave_gems_in_bounds(
+                plan->y1, plan->y2, plan->x1, plan->x2,
+                plan->meta.cave_loot_big_cave,
+                MAX(1, plan->meta.cave_loot_blob_count));
+
+        if (plan->meta.star_iron)
+            scatter_chasm_star_iron_in_bounds(plan->y1, plan->y2, plan->x1, plan->x2);
+
+        if (plan->mode == QUAD_MODE_BIG_CAVE && plan->floor_count > 0)
+        {
+            int target = plan->floor_count / 40;
+            if (target < 2) target = 2;
+            if (target > 8) target = 8;
+            total_placed += place_partition_skeletons(plan, target, 35, 35, false);
+        }
+        else if (plan->mode == QUAD_MODE_LABYRINTH && plan->floor_count > 0)
+        {
+            int target = plan->floor_count / 25;
+            if (target < 2) target = 2;
+            if (target > 6) target = 6;
+            total_placed += place_partition_skeletons(plan, target, 30, 60, false);
+        }
+        else if (plan->mode == QUAD_MODE_RUINED && plan->floor_count_non_vault > 0)
+        {
+            int skeleton_target = plan->floor_count_non_vault / 15;
+            int damaged_target;
+            int damaged_placed;
+
+            if (skeleton_target < 3) skeleton_target = 3;
+            if (skeleton_target > 10) skeleton_target = 10;
+            total_placed += place_partition_skeletons(plan, skeleton_target, 20, 20, true);
+
+            damaged_target = skeleton_target / 3;
+            if (damaged_target < 1) damaged_target = 1;
+            if (damaged_target > 3) damaged_target = 3;
+            damaged_placed = place_ruined_partition_damaged_items(
+                plan->y1, plan->y2, plan->x1, plan->x2, damaged_target);
+            total_placed += damaged_placed;
+        }
+
+        for (int chest = 0; chest < plan->meta.chest_count; ++chest)
+        {
+            place_chest_in_partition(
+                plan->y1, plan->y2, plan->x1, plan->x2,
+                plan->meta.force_large_chest, plan->meta.chest_mode);
+        }
+
+        log_trace("Partition specials: pi=%d mode=%d cave_loot=%d star_iron=%d chests=%d",
+            plan->pi, plan->mode, plan->meta.cave_loot ? 1 : 0,
+            plan->meta.star_iron ? 1 : 0, plan->meta.chest_count);
+    }
+
+    return total_placed;
+}
+
 static void connect_morgoth_entry_tunnels(void)
 {
     if (!morgoth_region_active())
@@ -14296,29 +14523,8 @@ static bool cave_gen(void)
         return (false);
     }
 
-    if (p_ptr->depth == 1)
-    {
-        // smaller number of monsters at 50ft
-        mon_gen = dun->cent_n / 2;
-        // game start
-        if (p_ptr->stairs_taken == 0)
-            make_patches_of_sunlight();
-    }
-    else
-    {
-        // pick some number of monsters (between 0.5 per room and 1 per room)
-        mon_gen = (dun->cent_n + dieroll(dun->cent_n)) / 2;
-    }
-
-    /* Note: Labyrinth monsters are now placed directly inside the labyrinth
-     * during carve_labyrinth_bounds() instead of as a global bonus */
-
-        /* meta-run curse: more monsters */
-    {
-        int stacks = curse_flag_count_cur(CUR_MON_NUM);
-        if (stacks)
-            mon_gen = mon_gen * (100 + 30 * stacks) / 100; /* +30 % each */
-    }
+    if (p_ptr->depth == 1 && p_ptr->stairs_taken == 0)
+        make_patches_of_sunlight();
 
     // check dungeon connectivity
     if (!check_connectivity())
@@ -14332,165 +14538,48 @@ static bool cave_gen(void)
         return (false);
     }
 
-    /* Partition-based item allocation: count rooms per partition type */
-    int roomy_rooms = 0, cavey_rooms = 0, ruined_rooms = 0;
-    int labyrinth_rooms = 0, chasm_rooms = 0, big_cave_rooms = 0;
-    
-    for (i = 0; i < dun->cent_n; i++)
     {
-        int cy = dun->cent[i].y;
-        int cx = dun->cent[i].x;
-        quadrant_mode_t mode = partition_mode_for_point(cy, cx);
-        
-        switch (mode)
-        {
-            case QUAD_MODE_ROOMY:     roomy_rooms++; break;
-            case QUAD_MODE_CAVEY:     cavey_rooms++; break;
-            case QUAD_MODE_RUINED:    ruined_rooms++; break;
-            case QUAD_MODE_LABYRINTH: labyrinth_rooms++; break;
-            case QUAD_MODE_CHASM:     chasm_rooms++; break;
-            case QUAD_MODE_BIG_CAVE:  big_cave_rooms++; break;
-        }
-    }
-    
-    /* Calculate monsters per partition type (base rate: 0.5-1.0 per room) */
-    int roomy_mon = (roomy_rooms + dieroll(roomy_rooms)) / 2;
-    /* Non-ROOMY partitions use grp=false in alloc_monster (no BFS group spreading).
-     * Multiply their counts to compensate for the suppressed group spawning:
-     * chasm=x4 (very open platforms), cavey=x3 (open blobs), ruined=x2 (has walls),
-     * labyrinth=x2 (narrow but wall-constrained), big_cave=x5 (widest open). */
-    int cavey_mon    = ((cavey_rooms    + dieroll(MAX(1, cavey_rooms)))    / 2) * 3;
-    int ruined_mon   = ((ruined_rooms   + dieroll(MAX(1, ruined_rooms)))   / 2) * 2;
-    int labyrinth_mon = ((labyrinth_rooms + dieroll(MAX(1, labyrinth_rooms))) / 2) * 2;
-    int chasm_mon    = ((chasm_rooms    + dieroll(MAX(1, chasm_rooms)))    / 2) * 4;
-    int big_cave_mon = ((big_cave_rooms + dieroll(MAX(1, big_cave_rooms))) / 2) * 5;
-    
-    /* Apply meta-run curse to all partition types */
-    {
-        int stacks = curse_flag_count_cur(CUR_MON_NUM);
-        if (stacks)
-        {
-            int mult = 100 + 30 * stacks;
-            roomy_mon = roomy_mon * mult / 100;
-            cavey_mon = cavey_mon * mult / 100;
-            ruined_mon = ruined_mon * mult / 100;
-            labyrinth_mon = labyrinth_mon * mult / 100;
-            chasm_mon = chasm_mon * mult / 100;
-            big_cave_mon = big_cave_mon * mult / 100;
-        }
-    }
-    
-    /* Partition-specific item allocation rates:
-     * - Roomy: mon/8 rooms + mon/12 corridors (reduced from mon/4 + mon/6)
-     * - Cavey: mon/2 rooms + mon/4 corridors (caves already have extra gems/mithril)
-     * - Ruined: mon/2 rooms + mon/4 corridors (ruins already have skeletons)
-     * - Labyrinth: mon/2 rooms + mon/4 corridors
-     * - Chasm: mon/2 rooms + mon/4 corridors
-     * - Big Cave: mon/2 rooms + mon/4 corridors */
-     
-    int roomy_room_obj = roomy_mon / 8;
-    int roomy_corr_obj = roomy_mon / 12;
-    int cavey_room_obj = cavey_mon / 2;
-    int cavey_corr_obj = cavey_mon / 4;
-    int ruined_room_obj = ruined_mon / 2;
-    int ruined_corr_obj = ruined_mon / 4;
-    int labyrinth_room_obj = labyrinth_mon / 2;
-    int labyrinth_corr_obj = labyrinth_mon / 4;
-    int chasm_room_obj = chasm_mon / 2;
-    int chasm_corr_obj = chasm_mon / 4;
-    int big_cave_room_obj = big_cave_mon / 2;
-    int big_cave_corr_obj = big_cave_mon / 4;
+        partition_population_plan plans[PARTITION_META_MAX];
+        int plan_count = build_partition_population_plans(plans, PARTITION_META_MAX);
+        int obj_corr_gen = 0;
+        int special_scatter_placed;
+        int room_objects_placed;
+        int corr_objects_placed;
+        int monsters_placed;
 
-    /* Scale floor/corridor item counts by vault drop frequency setting.
-     * VDF_NORMAL (default) = 100%, so behaviour is unchanged at that setting. */
-    {
-        int pct;
-        switch (op_ptr->vault_drop_frequency)
+        obj_room_gen = 0;
+        mon_gen = 0;
+
+        for (int pi = 0; pi < plan_count; ++pi)
         {
-        case VDF_PLENTIFUL: pct = 150; break;
-        case VDF_NORMAL:    pct = 100; break;
-        case VDF_MODEST:    pct =  67; break;
-        case VDF_SCARCE:    pct =  33; break;
-        case VDF_MEAGER:    pct =  10; break;
-        default:            pct = 100; break;
+            obj_room_gen += plans[pi].room_objects;
+            obj_corr_gen += plans[pi].corr_objects;
+            mon_gen += plans[pi].monsters_total;
+
+            log_trace(
+                "Partition plan: pi=%d mode=%d rooms=%d floors=%d base_mon=%d floor_mon=%d depth_mon=%d precurse_mon=%d curse_mon=%d total_mon=%d room_obj=%d corr_obj=%d",
+                plans[pi].pi, plans[pi].mode, plans[pi].room_centers,
+                plans[pi].floor_count, plans[pi].monsters_base,
+                plans[pi].monsters_floor, plans[pi].monsters_depth,
+                plans[pi].monsters_precurse, plans[pi].monsters_curse_bonus,
+                plans[pi].monsters_total, plans[pi].room_objects,
+                plans[pi].corr_objects);
         }
-        if (pct != 100)
-        {
-#define SCALE_OBJ(x) x = MAX(0, (x) * pct / 100)
-            SCALE_OBJ(roomy_room_obj);
-            SCALE_OBJ(roomy_corr_obj);
-            SCALE_OBJ(cavey_room_obj);
-            SCALE_OBJ(cavey_corr_obj);
-            SCALE_OBJ(ruined_room_obj);
-            SCALE_OBJ(ruined_corr_obj);
-            SCALE_OBJ(labyrinth_room_obj);
-            SCALE_OBJ(labyrinth_corr_obj);
-            SCALE_OBJ(chasm_room_obj);
-            SCALE_OBJ(chasm_corr_obj);
-            SCALE_OBJ(big_cave_room_obj);
-            SCALE_OBJ(big_cave_corr_obj);
-#undef SCALE_OBJ
-        }
+
+        special_scatter_placed = run_partition_special_scatter_pass(plans, plan_count);
+        room_objects_placed = run_partition_object_pass(plans, plan_count, true);
+        corr_objects_placed = run_partition_object_pass(plans, plan_count, false);
+
+        log_trace("Room objects: target=%d placed=%d", obj_room_gen, room_objects_placed);
+        log_trace("Corridor objects: target=%d placed=%d", obj_corr_gen, corr_objects_placed);
+        log_trace("Special scatter placements: %d", special_scatter_placed);
+
+        /* Keep trap placement ahead of monsters, matching the old occupancy order. */
+        place_traps();
+
+        monsters_placed = run_partition_monster_pass(plans, plan_count);
+        log_trace("Partition monster pass: target=%d placed=%d", mon_gen, monsters_placed);
     }
-    
-    /* Total item counts for logging */
-    obj_room_gen = roomy_room_obj + cavey_room_obj + ruined_room_obj + 
-                   labyrinth_room_obj + chasm_room_obj + big_cave_room_obj;
-    int obj_corr_gen = roomy_corr_obj + cavey_corr_obj + ruined_corr_obj + 
-                       labyrinth_corr_obj + chasm_corr_obj + big_cave_corr_obj;
-    
-    /* Place objects in rooms - partition by partition */
-    if (roomy_room_obj > 0)
-        alloc_object_in_partition(ALLOC_SET_ROOM, ALLOC_TYP_OBJECT, roomy_room_obj, QUAD_MODE_ROOMY);
-    if (cavey_room_obj > 0)
-        alloc_object_in_partition(ALLOC_SET_ROOM, ALLOC_TYP_OBJECT, cavey_room_obj, QUAD_MODE_CAVEY);
-    if (ruined_room_obj > 0)
-        alloc_object_in_partition(ALLOC_SET_ROOM, ALLOC_TYP_OBJECT, ruined_room_obj, QUAD_MODE_RUINED);
-    if (labyrinth_room_obj > 0)
-        alloc_object_in_partition(ALLOC_SET_ROOM, ALLOC_TYP_OBJECT, labyrinth_room_obj, QUAD_MODE_LABYRINTH);
-    if (chasm_room_obj > 0)
-        alloc_object_in_partition(ALLOC_SET_ROOM, ALLOC_TYP_OBJECT, chasm_room_obj, QUAD_MODE_CHASM);
-    if (big_cave_room_obj > 0)
-        alloc_object_in_partition(ALLOC_SET_ROOM, ALLOC_TYP_OBJECT, big_cave_room_obj, QUAD_MODE_BIG_CAVE);
-    
-    log_trace("Room objects: %d total (%d roomy, %d cavey, %d ruined, %d lab, %d chasm, %d bigcave)",
-              obj_room_gen, roomy_room_obj, cavey_room_obj, ruined_room_obj,
-              labyrinth_room_obj, chasm_room_obj, big_cave_room_obj);
-    
-    /* Place objects in corridors - partition by partition */
-    if (roomy_corr_obj > 0)
-        alloc_object_in_partition(ALLOC_SET_CORR, ALLOC_TYP_OBJECT, roomy_corr_obj, QUAD_MODE_ROOMY);
-    if (cavey_corr_obj > 0)
-        alloc_object_in_partition(ALLOC_SET_CORR, ALLOC_TYP_OBJECT, cavey_corr_obj, QUAD_MODE_CAVEY);
-    if (ruined_corr_obj > 0)
-        alloc_object_in_partition(ALLOC_SET_CORR, ALLOC_TYP_OBJECT, ruined_corr_obj, QUAD_MODE_RUINED);
-    if (labyrinth_corr_obj > 0)
-        alloc_object_in_partition(ALLOC_SET_CORR, ALLOC_TYP_OBJECT, labyrinth_corr_obj, QUAD_MODE_LABYRINTH);
-    if (chasm_corr_obj > 0)
-        alloc_object_in_partition(ALLOC_SET_CORR, ALLOC_TYP_OBJECT, chasm_corr_obj, QUAD_MODE_CHASM);
-    if (big_cave_corr_obj > 0)
-        alloc_object_in_partition(ALLOC_SET_CORR, ALLOC_TYP_OBJECT, big_cave_corr_obj, QUAD_MODE_BIG_CAVE);
-    
-    log_trace("Corridor objects: %d total (%d roomy, %d cavey, %d ruined, %d lab, %d chasm, %d bigcave)",
-              obj_corr_gen, roomy_corr_obj, cavey_corr_obj, ruined_corr_obj,
-              labyrinth_corr_obj, chasm_corr_obj, big_cave_corr_obj);
-    
-    /* Recalculate total mon_gen for monster placement (sum of all partitions) */
-    mon_gen = roomy_mon + cavey_mon + ruined_mon + labyrinth_mon + chasm_mon + big_cave_mon;
-
-    // place the traps
-    place_traps();
-
-    /* Put some monsters in the dungeon */
-    for (i = mon_gen; i > 0; i--)
-    {
-        (void)alloc_monster(false, false);
-    }
-
-    /* Top-up monsters in partitions that tend to have few room centers (big caves, chasms, etc). */
-    int extra_mon = place_partition_extra_monsters();
-    if (extra_mon > 0)
-        log_trace("Extra partition monsters placed: %d", extra_mon);
     
     /* Check for Varda quest spawning - lottery-based */
     log_trace("Varda spawn check: lottery_winner=%d (QUEST_ID_VARDA=%d), depth=%d, varda_quest=%d", 
@@ -15062,6 +15151,7 @@ static void gates_gen(void)
     current_partition_cols = 0;
     current_partition_count = 0;
     current_labyrinth_partitions = 0;
+    reset_partition_population_metadata();
     for (i = 0; i < PARTITION_META_MAX; ++i)
     {
         current_partition_modes[i] = QUAD_MODE_ROOMY;

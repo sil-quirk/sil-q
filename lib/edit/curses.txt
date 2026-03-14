@@ -436,3 +436,27 @@ P:Protection dice sides -1
 B:Blessing of Tempered Bulwarks
 E:Mail knits tight and resilient; armour drinks the force of blows.
 H:Protection dice sides +1
+
+N:41:Veil of the Unlight
+S:0:0:0:0
+U:IDENT_DIFF
+Y:IDENT_DIFF
+F:
+A:3/2
+D:A darkness older than the Sun clings to your sight, kin to the Unlight that drank the radiance of the Trees. All things blur and blend; names and natures hide beneath a shroud no lamp can pierce.
+P:Identification difficulty +7
+B:Blessing of the Mingled Light
+E:A gleam as of Laurelin and Telperion together falls upon your gaze; each thing stands forth in its true shape, naked and known.
+H:Identification difficulty -7
+
+N:42:Lament of Hollowed Vaults
+S:0:0:0:0
+U:CHEST_WOOD
+Y:CHEST_WOOD
+F:
+A:2/1
+D:The deep places grow barren and grey, their riches forfeit to the long defeat. Where once the Naugrim laid their proudest works in halls of living stone, only rude timbers now keep watch — the Shadow's tithe upon the dwindling wealth of Arda.
+P:Wooden chest probability +20%.
+B:Blessing of the Unfading Hoard
+E:The deep places remember their glory; proud craft returns to vault and coffer, and the Shadow's tithe is paid no more.
+H:Wooden chest probability -20%.

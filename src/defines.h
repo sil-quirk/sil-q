@@ -2164,8 +2164,8 @@
 #define CUR_MDS_SHIFT          0x04000000L
 #define CUR_CRIT_THRESH_SHIFT  0x08000000L
 #define CUR_ARMOR_SIDE_SHIFT   0x10000000L
-#define CUR_CURXXX30 0x20000000L
-#define CUR_CURXXX31 0x40000000L
+#define CUR_IDENT_DIFF         0x20000000L  /* identification difficulty shift */
+#define CUR_CHEST_WOOD         0x40000000L  /* wooden chest probability shift */
 #define CUR_CURXXX32 0x80000000L
 
 /*** Unique flags ***/

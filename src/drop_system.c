@@ -3182,77 +3182,68 @@ static bool generate_chest(int depth, const drop_profile* profile, object_type* 
         material_index = 2;
         material_quality = DROP_QUALITY_SUPERB;
     }
-    else if (g_chest_vault_type == 6)  /* Type 6 vault: wooden only */
+    else
     {
-        material_index = 0;
-        material_quality = DROP_QUALITY_GOOD;
-    }
-    else if (g_chest_vault_type == 7)  /* Type 7 vault: 65% wooden, 35% steel */
-    {
-        if (material_roll < 65)
+        /* Base percentages by vault type */
+        int wooden_pct, steel_pct;
+        
+        if (g_chest_vault_type == 6)       /* Type 6: wooden only */
+        { wooden_pct = 100; steel_pct = 0; }
+        else if (g_chest_vault_type == 7)  /* Type 7: 65/35 */
+        { wooden_pct = 65; steel_pct = 35; }
+        else if (g_chest_vault_type == 8)  /* Type 8: 35/40/25 */
+        { wooden_pct = 35; steel_pct = 40; }
+        else if (g_chest_vault_type == 9)  /* Type 9: 20/35/45 */
+        { wooden_pct = 20; steel_pct = 35; }
+        else                               /* Default: 50/35/15 */
+        { wooden_pct = 50; steel_pct = 35; }
+        
+        int jewelled_pct = 100 - wooden_pct - steel_pct;
+        
+        /* CUR_CHEST_WOOD curse/blessing: shift wooden probability */
+        int chest_delta = curse_flag_delta_cur(CUR_CHEST_WOOD);
+        if (chest_delta != 0)
+        {
+            int shift = chest_delta * 20;
+            int half = shift / 2;
+            wooden_pct += shift;
+            steel_pct -= half;
+            jewelled_pct -= (shift - half);
+            
+            /* Clamp to [0, 100] */
+            if (wooden_pct < 0) wooden_pct = 0;
+            if (wooden_pct > 100) wooden_pct = 100;
+            if (steel_pct < 0) steel_pct = 0;
+            if (jewelled_pct < 0) jewelled_pct = 0;
+            
+            /* Renormalize: ensure sum is exactly 100 */
+            int total = wooden_pct + steel_pct + jewelled_pct;
+            if (total > 100)
+            {
+                /* Trim from wooden (the shifted value) */
+                wooden_pct -= (total - 100);
+                if (wooden_pct < 0) wooden_pct = 0;
+            }
+            else if (total < 100)
+            {
+                /* Pad jewelled with the remainder */
+                jewelled_pct += (100 - total);
+            }
+        }
+        
+        /* Roll material from adjusted percentages */
+        if (material_roll < wooden_pct)
         {
             material_index = 0;
             material_quality = DROP_QUALITY_GOOD;
         }
-        else
+        else if (material_roll < wooden_pct + steel_pct)
         {
-            material_index = 1;
-            material_quality = DROP_QUALITY_GREAT;
-        }
-    }
-    else if (g_chest_vault_type == 8)  /* Type 8 vault: 35% wooden, 40% steel, 25% jewelled */
-    {
-        if (material_roll < 35)
-        {
-            material_index = 0;
-            material_quality = DROP_QUALITY_GOOD;
-        }
-        else if (material_roll < 75)
-        {
-            material_index = 1;
-            material_quality = DROP_QUALITY_GREAT;
-        }
-        else
-        {
-            material_index = 2;
-            material_quality = DROP_QUALITY_SUPERB;
-        }
-    }
-    else if (g_chest_vault_type == 9)  /* Type 9 vault: 20% wooden, 35% steel, 45% jewelled */
-    {
-        if (material_roll < 20)
-        {
-            material_index = 0;
-            material_quality = DROP_QUALITY_GOOD;
-        }
-        else if (material_roll < 55)
-        {
-            material_index = 1;
-            material_quality = DROP_QUALITY_GREAT;
-        }
-        else
-        {
-            material_index = 2;
-            material_quality = DROP_QUALITY_SUPERB;
-        }
-    }
-    else  /* Default partitions and other vaults: 50% wooden, 35% steel, 15% jewelled */
-    {
-        if (material_roll < 50)
-        {
-            /* Wooden chest: 0-49 = 50% */
-            material_index = 0;
-            material_quality = DROP_QUALITY_GOOD;
-        }
-        else if (material_roll < 85)
-        {
-            /* Steel chest: 50-84 = 35% */
             material_index = 1;
             material_quality = DROP_QUALITY_GREAT;
         }
         else
         {
-            /* Jewelled chest: 85-99 = 15% */
             material_index = 2;
             material_quality = DROP_QUALITY_SUPERB;
         }
