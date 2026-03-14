@@ -6748,37 +6748,9 @@ static quadrant_mode_t partition_mode_for_point(int y, int x)
     return QUAD_MODE_ROOMY;
 }
 
-/* Helper to find which room (if any) contains a given point */
-static int room_index_for_point(int y, int x)
-{
-    for (int i = 0; i < dun->cent_n; ++i)
-    {
-        if (y >= dun->corner[i].y1 && y <= dun->corner[i].y2 &&
-            x >= dun->corner[i].x1 && x <= dun->corner[i].x2)
-        {
-            return i;
-        }
-    }
-    return -1;
-}
-
-/* Determine appropriate drop mode for a location based on room type */
+/* Determine appropriate drop mode for a location based on partition type. */
 static quadrant_mode_t drop_mode_for_point(int y, int x)
 {
-    /* Check if point is within a room */
-    int room_idx = room_index_for_point(y, x);
-    if (room_idx >= 0)
-    {
-        /* CA_BLOB rooms use CAVEY drops */
-        if (room_anchor_kind[room_idx] == LAYOUT_ANCHOR_CA_BLOB)
-            return QUAD_MODE_CAVEY;
-        
-        /* Regular rooms use ROOMY drops */
-        if (cave_info[y][x] & CAVE_ROOM)
-            return QUAD_MODE_ROOMY;
-    }
-    
-    /* Fall back to partition mode for corridors and other areas */
     return partition_mode_for_point(y, x);
 }
 

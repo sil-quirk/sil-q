@@ -2263,7 +2263,7 @@ G:,:d
 I:80:3:250
 W:7:0:1:75
 P:0:0d0:0:0d0
-A:7/20
+A:7/30
 F:EASY_KNOW
 D:An herb of ancient virtue, long known to the healers of the
 D: Eldar. Its leaves, when eaten, close wounds and ease pain,
@@ -2334,7 +2334,7 @@ G:,:d
 I:80:8:250
 W:8:0:1:0
 P:0:0d0:0:0d0
-A:8/70
+A:8/50
 F:EASY_KNOW
 D:A bitter herb that saps the body's vigour, leaving the limbs
 D: heavy and the grip uncertain. It reduces your strength by
