@@ -2356,6 +2356,7 @@ typedef struct
     bool allow_evil; /* explicit override for evil-tagged entries */
     bool allow_noble_from_quality; /* whether GOOD+ quality may include noble-tagged entries */
     int artefact_weight_multiplier; /* group weight multiplier for artefacts */
+    int noble_rarity_bonus; /* additive rarity bonus for noble entries */
     int cat_weights[DROP_CAT_MAX];
     int supply_weights[DROP_SUPPLY_GROUP_MAX];
 } drop_request;
@@ -2371,6 +2372,8 @@ typedef struct
 
 static void drop_request_set_default_weights(drop_request* req)
 {
+    req->artefact_weight_multiplier = 1;
+    req->noble_rarity_bonus = 0;
     for (int i = 0; i < DROP_CAT_MAX; ++i)
         req->cat_weights[i] = DROP_DEFAULT_CAT_WEIGHT;
     for (int i = 0; i < DROP_SUPPLY_GROUP_MAX; ++i)
@@ -2429,6 +2432,39 @@ static int supply_entry_weight(const drop_entry* e, int depth)
     if (w < 1)
         w = 1;
     return w;
+}
+
+static int drop_entry_pick_weight(const drop_entry* e, int base_rarity,
+    int group_size, const drop_request* req)
+{
+    int weight = base_rarity;
+
+    if (weight <= 0)
+        return 0;
+
+    if (e && req && e->noble && req->noble_rarity_bonus > 0 && group_size > 0)
+        weight += group_size * req->noble_rarity_bonus;
+
+    return weight;
+}
+
+static int drop_group_pick_bonus(const drop_group* grp, drop_entry* entries,
+    const drop_request* req)
+{
+    int noble_count = 0;
+
+    if (!grp || grp->entry_count <= 0)
+        return 0;
+    if (!req || req->noble_rarity_bonus <= 0)
+        return 0;
+
+    for (int i = 0; i < grp->entry_count; i++)
+    {
+        if (entries[grp->entry_indices[i]].noble)
+            noble_count++;
+    }
+
+    return noble_count * req->noble_rarity_bonus;
 }
 
 /* Forward declarations */
@@ -2812,9 +2848,11 @@ static drop_group* choose_group(drop_group* groups, int group_count,
     int total = 0;
     for (int i = 0; i < group_count; i++)
     {
-        /* Use first entry in group to calculate depth-dependent weight */
         int entry_idx = groups[i].entry_indices[0];
         int w = group_rarity_at_depth(&entries[entry_idx], depth);
+        int group_bonus = drop_group_pick_bonus(&groups[i], entries, req);
+        if (w > 0)
+            w += group_bonus;
         if (req && groups[i].kind == DROP_GROUP_ARTIFACT
             && req->artefact_weight_multiplier > 1)
         {
@@ -2849,6 +2887,9 @@ static drop_group* choose_group(drop_group* groups, int group_count,
         {
             int entry_idx = groups[i].entry_indices[0];
             int weight = group_rarity_at_depth(&entries[entry_idx], depth);
+            int group_bonus = drop_group_pick_bonus(&groups[i], entries, req);
+            if (weight > 0)
+                weight += group_bonus;
             if (req && groups[i].kind == DROP_GROUP_ARTIFACT
                 && req->artefact_weight_multiplier > 1)
             {
@@ -2856,10 +2897,11 @@ static drop_group* choose_group(drop_group* groups, int group_count,
             }
             gen_log_write("DROP_GROUP",
                 "idx=%d kind=%d group_id=%d weight=%d total=%d "
-                "entries=%d chosen=%s",
+                "entries=%d noble_bonus=%d chosen=%s",
                 i, groups[i].kind, groups[i].group_id,
                 weight, total,
-                groups[i].entry_count, (i == chosen) ? "YES" : "no");
+                groups[i].entry_count, group_bonus,
+                (i == chosen) ? "YES" : "no");
         }
         gen_log_write("DROP_GROUP_PICK",
             "pick=%d total=%d chosen_idx=%d", pick, total, chosen);
@@ -2870,23 +2912,57 @@ static drop_group* choose_group(drop_group* groups, int group_count,
 }
 
 static drop_entry* choose_entry_from_group(drop_entry* entries,
-    const drop_group* grp)
+    const drop_group* grp, int depth, const drop_request* req)
 {
+    int base_rarity;
     if (grp->entry_count <= 0)
         return NULL;
-    int pick = rand_int(grp->entry_count);
-    drop_entry* chosen = &entries[grp->entry_indices[pick]];
+
+    base_rarity = group_rarity_at_depth(&entries[grp->entry_indices[0]], depth);
+
+    int* weights = mem_alloc_array(grp->entry_count, int);
+    int total = 0;
+    int chosen_slot = grp->entry_count - 1;
+
+    for (int i = 0; i < grp->entry_count; i++)
+    {
+        int entry_idx = grp->entry_indices[i];
+        int weight = drop_entry_pick_weight(&entries[entry_idx], base_rarity,
+            grp->entry_count, req);
+        weights[i] = weight;
+        total += weight;
+    }
+
+    if (total <= 0)
+    {
+        mem_free_null(weights);
+        return &entries[grp->entry_indices[0]];
+    }
+
+    int pick = rand_int(total);
+    for (int i = 0, acc = 0; i < grp->entry_count; i++)
+    {
+        acc += weights[i];
+        if (pick < acc)
+        {
+            chosen_slot = i;
+            break;
+        }
+    }
+    drop_entry* chosen = &entries[grp->entry_indices[chosen_slot]];
 
     if (gen_log_initialized)
     {
         gen_log_write("DROP_ITEM_SELECT",
-            "group_kind=%d group_id=%d entry_count=%d pick=%d "
-            "k_idx=%d att=%d ds=%d evn=%d ps=%d",
-            grp->kind, grp->group_id, grp->entry_count, pick,
+            "group_kind=%d group_id=%d entry_count=%d pick=%d total=%d "
+            "chosen_slot=%d chosen_weight=%d noble=%s k_idx=%d att=%d ds=%d evn=%d ps=%d",
+            grp->kind, grp->group_id, grp->entry_count, pick, total,
+            chosen_slot, weights[chosen_slot], chosen->noble ? "yes" : "no",
             chosen->obj.k_idx, chosen->obj.att, chosen->obj.ds,
             chosen->obj.evn, chosen->obj.ps);
     }
 
+    mem_free_null(weights);
     return chosen;
 }
 
@@ -3284,7 +3360,8 @@ static drop_entry* drop_try_pick(drop_request* req, int legal_depth,
             if (build_groups(*candidates, *cand_count, groups, &group_count))
             {
                 drop_group* grp = choose_group(groups, group_count, *candidates, legal_depth, req);
-                chosen = choose_entry_from_group(*candidates, grp);
+                if (grp)
+                    chosen = choose_entry_from_group(*candidates, grp, legal_depth, req);
             }
             mem_free_null(groups);
         }
@@ -3307,7 +3384,7 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
         return generate_chest(depth, profile, out);
     }
     
-    drop_request req;
+    drop_request req = { 0 };
     drop_request_apply_profile(&req, profile);
     int gen_depth = depth;
     int legal_depth = gen_depth;
@@ -3335,6 +3412,10 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
         : 1;
     if (req.artefact_weight_multiplier > 100)
         req.artefact_weight_multiplier = 100;
+    req.noble_rarity_bonus = 0;
+    /* Chest contents add a flat rarity bonus to eligible noble items. */
+    if (object_generation_mode == OB_GEN_MODE_CHEST && req.allow_noble)
+        req.noble_rarity_bonus = DROP_CHEST_NOBLE_RARITY_BONUS;
 
     /* Supply is only allowed for normal-quality non-chest generation. */
     bool disallow_supply = (quality > DROP_QUALITY_NORMAL)
@@ -3375,10 +3456,11 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     if (gen_log_initialized)
     {
         gen_log_write("DROP_TARGET",
-            "depth=%d legal_depth=%d min_penalty_depth=%d quality=%s bonus=%d sides=%d roll1=%d roll2=%d min=%d "
+            "depth=%d legal_depth=%d min_penalty_depth=%d quality=%s bonus=%d art_mult=%d noble_bonus=%d sides=%d roll1=%d roll2=%d min=%d "
             "base_calc=%d target=%d band=%d..%d",
             depth, legal_depth, min_depth_penalty_depth, drop_quality_name(quality),
-            req.difficulty_bonus, sides, roll1, roll2, min_roll,
+            req.difficulty_bonus, req.artefact_weight_multiplier,
+            req.noble_rarity_bonus, sides, roll1, roll2, min_roll,
             base_calc, req.base_roll, req.lower, req.upper);
     }
 

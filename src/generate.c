@@ -11073,7 +11073,9 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                     = (op_ptr->noble_item_spawn_mode == NOBLE_ITEM_SPAWN_INCLUDE_VAULTS);
                 place_object_with_profile_params(
                     y, x, base_depth, penalty_depth, DROP_QUALITY_GREAT,
-                    DROP_TYPE_NOT_DAMAGED, true, 10, IDENT_HOARD_DROP, &active_profile);
+                    DROP_TYPE_NOT_DAMAGED, true,
+                    DROP_GREAT_ARTEFACT_WEIGHT_MULTIPLIER,
+                    IDENT_HOARD_DROP, &active_profile);
                 drop_allow_noble_from_quality = old_allow_noble_from_quality;
                 break;
             }
