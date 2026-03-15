@@ -10566,7 +10566,8 @@ static int main_menu_calc_width(void)
     return max_w;
 }
 
-static void do_cmd_hint_messages(void);
+static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
+    int* out_look_x);
 
 /*
  * Performs the interface and selection work for the main menu.
@@ -10811,6 +10812,9 @@ void do_cmd_main_menu(void)
     int actiontype = -1;
     int highlight = 1;
     bool leave_menu = false;
+    bool pending_hint_look = false;
+    int pending_hint_look_y = -1;
+    int pending_hint_look_x = -1;
 
     /* Clear any active banner before opening main menu */
     extern int g_banner_force_redraw_remaining;
@@ -10887,7 +10891,8 @@ void do_cmd_main_menu(void)
         }
         case 9: // Hint messages (i)
         {
-            do_cmd_hint_messages();
+            do_cmd_hint_messages(&pending_hint_look, &pending_hint_look_y,
+                &pending_hint_look_x);
             leave_menu = true;
             break;
         }
@@ -10961,6 +10966,12 @@ void do_cmd_main_menu(void)
     /* Load screen */
     screen_load();
 
+    if (pending_hint_look)
+    {
+        do_cmd_redraw();
+        do_cmd_look_at(pending_hint_look_y, pending_hint_look_x);
+    }
+
 }
 
 /*
@@ -10972,11 +10983,329 @@ void do_cmd_message_one(void)
     c_prt(message_color(0), format("> %s", message_str(0)), 0, 0);
 }
 
-static void do_cmd_hint_messages(void)
+static bool hint_message_has_source(const hint_message_meta* meta)
+{
+    return meta && meta->source_y >= 0 && meta->source_x >= 0
+        && meta->source_y < p_ptr->cur_map_hgt && meta->source_x < p_ptr->cur_map_wid;
+}
+
+static bool hint_message_is_word_boundary(char ch)
+{
+    return (ch == '\0') || !isalnum((unsigned char)ch);
+}
+
+static bool hint_message_phrase_matches(const char* line, int offset, const char* phrase)
+{
+    size_t len;
+
+    if (!line || !phrase || !phrase[0])
+        return false;
+
+    len = strlen(phrase);
+    if (strncmp(line + offset, phrase, len) != 0)
+        return false;
+
+    if (offset > 0 && !hint_message_is_word_boundary(line[offset - 1]))
+        return false;
+
+    return hint_message_is_word_boundary(line[offset + len]);
+}
+
+static int hint_message_match_length(const char* line, int offset,
+    const hint_message_meta* meta, byte* out_attr)
+{
+    int best_len = 0;
+    byte best_attr = TERM_WHITE;
+
+    if (!meta)
+        return 0;
+
+    for (int cue = 0; cue < meta->cue_count; ++cue)
+    {
+        const char* dist = meta->cue_dists[cue];
+        const char* dir = meta->cue_dirs[cue];
+
+        if (hint_message_phrase_matches(line, offset, dist))
+        {
+            int len = (int)strlen(dist);
+            if (len > best_len)
+            {
+                best_len = len;
+                best_attr = TERM_YELLOW;
+            }
+        }
+
+        if (hint_message_phrase_matches(line, offset, dir))
+        {
+            int len = (int)strlen(dir);
+            if (len > best_len)
+            {
+                best_len = len;
+                best_attr = TERM_L_BLUE;
+            }
+        }
+    }
+
+    if (out_attr)
+        *out_attr = best_attr;
+
+    return best_len;
+}
+
+static void hint_message_put_segment(int row, int col, byte attr, const char* text)
+{
+    if (!text || !text[0])
+        return;
+
+    if (sdl_is_story_font_enabled())
+        story_print_text_grid(row, col, 0, attr, text);
+    else
+        Term_putstr(col, row, -1, attr, text);
+}
+
+static void hint_message_draw_colored_line(int row, int col, byte base_attr,
+    const char* line, const hint_message_meta* meta)
+{
+    int start = 0;
+    int cursor = col;
+    int len;
+
+    if (!line)
+        line = "";
+
+    len = (int)strlen(line);
+    for (int i = 0; i < len; )
+    {
+        byte match_attr = base_attr;
+        int match_len = hint_message_match_length(line, i, meta, &match_attr);
+        if (match_len > 0)
+        {
+            if (i > start)
+            {
+                char plain[100];
+                int plain_len = i - start;
+                memcpy(plain, line + start, plain_len);
+                plain[plain_len] = '\0';
+                hint_message_put_segment(row, cursor, base_attr, plain);
+                cursor += plain_len;
+            }
+
+            {
+                char special[HINT_MESSAGE_CUE_TEXT_MAX + 1];
+                memcpy(special, line + i, match_len);
+                special[match_len] = '\0';
+                hint_message_put_segment(row, cursor, match_attr, special);
+            }
+
+            cursor += match_len;
+            i += match_len;
+            start = i;
+        }
+        else
+        {
+            ++i;
+        }
+    }
+
+    if (start < len)
+    {
+        char tail[100];
+        int tail_len = len - start;
+        memcpy(tail, line + start, tail_len);
+        tail[tail_len] = '\0';
+        hint_message_put_segment(row, cursor, base_attr, tail);
+    }
+}
+
+static const char* hint_message_title(int index)
+{
+    byte line_count = hint_messages_message_line_count(index);
+    for (int li = 0; li < line_count; ++li)
+    {
+        const char* line = hint_messages_message_line(index, li);
+        if (line && line[0])
+            return line;
+    }
+
+    return "";
+}
+
+static void hint_message_build_title(char* buf, size_t buf_sz, const char* title,
+    int max_len)
+{
+    if (!buf || buf_sz == 0)
+        return;
+
+    if (!title)
+        title = "";
+
+    if (max_len < 4 || (int)strlen(title) <= max_len)
+    {
+        strnfmt(buf, buf_sz, "%s", title);
+        return;
+    }
+
+    strnfmt(buf, buf_sz, "%.*s...", max_len - 3, title);
+}
+
+static void hint_message_draw_list_row(int row, int idx, bool selected, int wid)
+{
+    hint_message_meta meta;
+    char prefix[8];
+    char title_buf[96];
+    const char* title = hint_message_title(idx);
+    byte prefix_attr = selected ? TERM_L_BLUE : TERM_WHITE;
+    byte title_attr = selected ? TERM_L_WHITE : TERM_WHITE;
+    byte chrome_attr = TERM_SLATE;
+    int col = 0;
+    int title_room;
+
+    hint_messages_message_meta(idx, &meta);
+
+    Term_erase(0, row, 255);
+
+    strnfmt(prefix, sizeof(prefix), "%2d) ", idx + 1);
+    Term_putstr(col, row, -1, prefix_attr, prefix);
+    col += (int)strlen(prefix);
+
+    title_room = MAX(8, wid - col - 1);
+    if (meta.cue_count > 0)
+        title_room = MIN(title_room, MAX(wid / 2, 24));
+    hint_message_build_title(title_buf, sizeof(title_buf), title, title_room);
+    Term_putstr(col, row, -1, title_attr, title_buf);
+    col += (int)strlen(title_buf);
+
+    if (meta.cue_count <= 0 || col >= wid - 4)
+        return;
+
+    Term_putstr(col, row, -1, chrome_attr, " [");
+    col += 2;
+
+    for (int cue = 0; cue < meta.cue_count && col < wid - 1; ++cue)
+    {
+        if (cue > 0)
+        {
+            Term_putstr(col, row, -1, chrome_attr, "; ");
+            col += 2;
+        }
+
+        if (meta.cue_dists[cue][0])
+        {
+            Term_putstr(col, row, -1, TERM_YELLOW, meta.cue_dists[cue]);
+            col += (int)strlen(meta.cue_dists[cue]);
+        }
+
+        if (meta.cue_dists[cue][0] && meta.cue_dirs[cue][0] && col < wid - 1)
+        {
+            Term_putstr(col, row, -1, chrome_attr, " ");
+            col += 1;
+        }
+
+        if (meta.cue_dirs[cue][0] && col < wid - 1)
+        {
+            Term_putstr(col, row, -1, TERM_L_BLUE, meta.cue_dirs[cue]);
+            col += (int)strlen(meta.cue_dirs[cue]);
+        }
+    }
+
+    if (col < wid - 1)
+        Term_putstr(col, row, -1, chrome_attr, "]");
+}
+
+static bool hint_message_show_internal(int index, int* look_y, int* look_x,
+    bool manage_screen)
+{
+    int wid = 80;
+    int hgt = 24;
+    int row = 4;
+    int col = 8;
+    char ch;
+    hint_message_meta meta;
+    byte line_count;
+    bool request_look = false;
+
+    hint_messages_ensure_level_state();
+    line_count = hint_messages_message_line_count(index);
+    if (!line_count)
+        return false;
+
+    hint_messages_message_meta(index, &meta);
+
+    if (manage_screen)
+        screen_save();
+
+    sdl_story_font_enable();
+
+    while (1)
+    {
+        Term_clear();
+        Term_get_size(&wid, &hgt);
+
+        for (int li = 0; li < line_count && row + li < hgt - 1; ++li)
+        {
+            const char* line = hint_messages_message_line(index, li);
+            byte base_attr = (li == 0) ? TERM_L_WHITE : TERM_WHITE;
+            hint_message_draw_colored_line(row + li, col, base_attr, line,
+                (li == 0) ? NULL : &meta);
+        }
+
+        if (hint_message_has_source(&meta))
+        {
+            prt("[Press any key to continue, or 'l' to look at the skeleton]",
+                hgt - 1, 0);
+        }
+        else
+        {
+            prt("[Press any key to continue]", hgt - 1, 0);
+        }
+
+        Term_fresh();
+
+        hide_cursor = true;
+        ch = inkey();
+        hide_cursor = false;
+
+        if ((ch == 'l' || ch == 'L') && hint_message_has_source(&meta))
+        {
+            if (look_y)
+                *look_y = meta.source_y;
+            if (look_x)
+                *look_x = meta.source_x;
+            request_look = true;
+            break;
+        }
+
+        break;
+    }
+
+    sdl_story_font_disable();
+    if (manage_screen)
+        screen_load();
+
+    return request_look;
+}
+
+void show_hint_message_screen(int index)
+{
+    int look_y = -1;
+    int look_x = -1;
+
+    if (hint_message_show_internal(index, &look_y, &look_x, true))
+    {
+        do_cmd_redraw();
+        do_cmd_look_at(look_y, look_x);
+    }
+}
+
+static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
+    int* out_look_x)
 {
     char ch;
 
     int wid, hgt;
+    bool pending_look = false;
+    int look_y = -1;
+    int look_x = -1;
 
     /* Clear any active banner before opening hint messages */
     extern int g_banner_force_redraw_remaining;
@@ -11027,28 +11356,13 @@ static void do_cmd_hint_messages(void)
             top = 0;
 
         prt(format("Hint Messages (%d)", n), 0, 0);
-        prt("[Press '8'/'2' to move, Enter to read, or ESCAPE]", hgt - 1, 0);
+        prt("[Press '8'/'2' to move, Enter to read, 'l' to look, or ESCAPE]",
+            hgt - 1, 0);
 
         for (int row = 0; row < rows && top + row < n; ++row)
         {
             int idx = top + row;
-            byte attr = (idx == sel) ? TERM_L_BLUE : TERM_WHITE;
-
-            const char* preview = "";
-            byte line_count = hint_messages_message_line_count(idx);
-            for (int li = 0; li < line_count; ++li)
-            {
-                const char* s = hint_messages_message_line(idx, li);
-                if (s && s[0])
-                {
-                    preview = s;
-                    break;
-                }
-            }
-
-            char buf[256];
-            strnfmt(buf, sizeof(buf), "%2d) %s", idx + 1, preview);
-            Term_putstr(0, 2 + row, -1, attr, buf);
+            hint_message_draw_list_row(2 + row, idx, idx == sel, wid);
         }
 
         Term_fresh();
@@ -11071,13 +11385,32 @@ static void do_cmd_hint_messages(void)
 
         if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
         {
-            char lines[17][100];
-            byte line_count = hint_messages_message_line_count(sel);
-            int keep = (line_count > 16) ? 16 : line_count;
-            for (int li = 0; li < keep; ++li)
-                strnfmt(lines[li], sizeof(lines[li]), "%s", hint_messages_message_line(sel, li));
-            lines[keep][0] = '\0';
-            pause_with_text(lines, 4, 8, NULL, 0);
+            int selected_look_y = -1;
+            int selected_look_x = -1;
+
+            if (hint_message_show_internal(sel, &selected_look_y, &selected_look_x, false))
+            {
+                pending_look = true;
+                look_y = selected_look_y;
+                look_x = selected_look_x;
+                break;
+            }
+            continue;
+        }
+
+        if (ch == 'l' || ch == 'L')
+        {
+            hint_message_meta meta;
+            hint_messages_message_meta(sel, &meta);
+            if (hint_message_has_source(&meta))
+            {
+                pending_look = true;
+                look_y = meta.source_y;
+                look_x = meta.source_x;
+                break;
+            }
+
+            bell(NULL);
             continue;
         }
 
@@ -11086,6 +11419,13 @@ static void do_cmd_hint_messages(void)
 
     /* Load screen */
     screen_load();
+
+    if (out_pending_look)
+        *out_pending_look = pending_look;
+    if (out_look_y)
+        *out_look_y = look_y;
+    if (out_look_x)
+        *out_look_x = look_x;
 }
 
 /*

@@ -220,7 +220,7 @@ F:CHEAT_DEATH | NOBLE_ITEM
 ###
 
 N:15:(Wrathful)
-W:0:100:10:0
+W:0:100:0:0
 C:0:0:0:0:0:0:1:2
 T:34:0:9
 # also valid on helms (helm and great helm)
@@ -265,7 +265,7 @@ F:LIGHT | SUST_GRA | SUST_DEX | SONG | NOBLE_ITEM
 # Spears, great spears, glaives, mithril swords
 
 N:21:of Gondolin
-W:0:50:10:1000
+W:0:50:0:1000
 C:0:0:0:0:0:0:0
 T:22:1:4
 T:23:10:21
@@ -370,7 +370,7 @@ F:GRA | DEX | DANGER | NOBLE_ITEM
 # (ability 3/1 is Assassination)
 
 N:34:of Murder
-W:0:40:4:2000
+W:0:40:0:2000
 C:0:0:0:0:0:0:3
 T:23:4:7
 T:23:10:10
@@ -382,7 +382,7 @@ F:STEALTH | EVIL_ITEM
 # (ability 0/12 is Two Weapon Fighting)
 
 N:35:of Accompaniment
-W:0:50:4:2000
+W:0:50:0:2000
 C:0:0:0:2:0:0:0
 T:23:4:4
 B:0/12
@@ -555,7 +555,7 @@ F:TUNNEL | NOBLE_ITEM
 
 
 N:52:of the Longbeards
-W:0:30:4:1000
+W:0:30:0:1000
 C:0:0:0:0:0:0:0
 T:20:3:3
 F:STR | NOBLE_ITEM
@@ -850,7 +850,7 @@ F:AGGRAVATE | EVIL_ITEM
 
 
 N:116:of Treacherous Paths
-W:5:50:18:0
+W:5:50:0:0
 C:0:0:0:0:0:0:0
 T:30:0:2
 A:5/60:10/40:15/20
@@ -923,7 +923,7 @@ F:NEG_DEX | EVIL_ITEM
 # (ability 3/4 is Opportunist)
 
 N:126:of the Traitor
-W:4:50:13:0
+W:4:50:0:0
 C:0:0:0:0:0:0:1
 T:31:0:2
 F:STR | LIGHT_CURSE | EVIL_ITEM
@@ -960,7 +960,7 @@ F:LIGHT
 # Lanterns only
 
 N:135:(Flickering)
-W:0:70:11:0
+W:0:70:12:0
 A:5/100:10/0
 C:0:0:0:0:0:0:0
 T:39:1:1
@@ -1343,7 +1343,7 @@ F:NOBLE_ITEM
 
 
 N:171:(Rusty)
-W:1:100:10:0
+W:1:100:0:0
 C:0:0:0:0:0:-1:0
 T:32:5:5
 A:1/100
@@ -1353,7 +1353,7 @@ D: thin and its guard much reduced.
 
 
 N:172:(Shabby)
-W:1:100:10:0
+W:1:100:0:0
 C:0:0:0:-1:0:0:0
 T:30:1:1
 A:1/100
@@ -1362,7 +1362,7 @@ D:Boots worn thin and loose, fit for the road only in dire need.
 
 
 N:173:(Broken)
-W:1:100:10:0
+W:1:100:0:0
 C:-1:0:0:0:0:-1:0
 T:34:3:3
 A:1/100
@@ -1371,7 +1371,7 @@ D:A shield cracked and splintered by some heavy stroke of old.
 
 
 N:174:(Chipped)
-W:1:100:10:0
+W:1:100:0:0
 C:-1:0:-1:0:0:0:0
 T:23:4:4
 A:1/100
@@ -1380,7 +1380,7 @@ D:A blade whose edge is nicked and worn, diminished in bite.
 
 
 N:175:(Bent)
-W:1:100:10:0
+W:1:100:0:0
 C:-1:0:-1:-1:0:0:0
 T:23:10:10
 A:1/100
@@ -1389,7 +1389,7 @@ D:A shortsword gone slightly out of true, its point and balance both spoiled.
 
 
 N:176:(Splintered)
-W:1:100:10:0
+W:1:100:0:0
 C:-1:0:-2:0:0:0:0
 T:22:1:1
 A:1/100
@@ -1398,7 +1398,7 @@ D:A spear with a cracked shaft and a dulled head, still serviceable but poor.
 
 
 N:177:(Warped)
-W:1:100:10:0
+W:1:100:0:0
 C:-1:0:-1:0:0:0:0
 T:19:12:12
 A:1/100
@@ -1407,7 +1407,7 @@ D:A shortbow left damp and untended until its limbs have lost their true cast.
 
 
 N:178:(Torn)
-W:1:100:10:0
+W:1:100:0:0
 C:0:0:0:-1:0:0:0
 T:35:1:1
 A:1/100
@@ -1416,7 +1416,7 @@ D:A cloak in tatters, frayed at hem and shoulder and of little aid in concealmen
 
 
 N:179:(Cracked)
-W:2:100:10:0
+W:2:100:0:0
 C:-1:0:0:-1:0:-1:0
 T:31:2:2
 A:2/100
@@ -1425,7 +1425,7 @@ D:Gauntlets with split leather and bent iron plates that no longer sit cleanly.
 
 
 N:180:(Dented)
-W:2:100:10:0
+W:2:100:0:0
 C:0:0:0:-1:0:-1:0
 T:30:2:2
 A:2/100
@@ -1434,7 +1434,7 @@ D:Greaves hammered out of shape, their plates caved and their straps strained.
 
 
 N:181:(Dented)
-W:3:100:10:0
+W:3:100:0:0
 C:-1:0:0:-1:0:-1:0
 T:37:4:4
 A:3/100

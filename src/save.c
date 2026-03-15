@@ -1327,10 +1327,21 @@ static void wr_extra(void)
         wr_byte(count);
         for (i = 0; i < count; ++i)
         {
+            hint_message_meta meta;
             byte line_count = hint_messages_message_line_count(i);
             wr_byte(line_count);
             for (int li = 0; li < line_count; ++li)
                 wr_string(hint_messages_message_line(i, li));
+
+            hint_messages_message_meta(i, &meta);
+            wr_s16b(meta.source_y);
+            wr_s16b(meta.source_x);
+            wr_byte(meta.cue_count);
+            for (int cue = 0; cue < HINT_MESSAGE_CUE_MAX; ++cue)
+            {
+                wr_string(meta.cue_dists[cue]);
+                wr_string(meta.cue_dirs[cue]);
+            }
         }
     }
 

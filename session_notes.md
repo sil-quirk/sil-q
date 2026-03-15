@@ -1,5 +1,14 @@
 # Session notes
 
+## 2026-03-15: Level generation debug UI summary and scaling
+- Updated the debug-only level generation overlay in `src/generate.c` to summarize generated partitions, partition type mix, quest vault count/name, and greater vault count/name.
+- Expanded recent generation history and made the recent-events pane consume the available width and height by wrapping entries against the current terminal size instead of a fixed per-entry line cap.
+
+## 2026-03-15: Increased dungeon object slot cap
+- Raised the per-level object slot limit in `lib/edit/limits.txt` from `M:O:768` to `M:O:1536`.
+- Root cause: level generation aborts with `why = "too many objects"` in `src/generate.c` when `o_max >= z_info->o_max`, and the current cap was too low for some large or loot-dense levels.
+- Validation plan: run `Build and Deploy` so the updated limits data is rebuilt and staged into the SDL deployment folders.
+
 ## 2026-03-11: Birth stat/skill confirm accepts Space
 - Updated `src/birth.c` birth allocation input handling so stat and skill confirmation now accepts `Space` in addition to `Enter`, Steam Deck confirm, and the mapped SDL confirm binding.
 - Aligned the prompt text on compact/full stat and skill allocation screens to say `SPACE/ENTER` instead of only `ENTER`.

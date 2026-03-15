@@ -2402,7 +2402,7 @@ static int make_special_item(object_type* o_ptr, bool only_good)
         if ((e_ptr->max_level > 0) && (p_ptr->depth > e_ptr->max_level))
             continue;
         if (e_ptr->flags3 & TR3_DAMAGED)
-            continue; /* Damaged prefixes are injected explicitly, never via generic ego rolls. */
+            continue; /* Damaged drops are reserved for explicit damaged-drop paths. */
 
         /* If we force fine/special, don't create cursed */
         if (only_good && (e_ptr->flags3 & TR3_LIGHT_CURSE))

@@ -92,6 +92,7 @@ static bool savefile_has_partition_meta = false;
 static bool savefile_has_partition_meta_types = false;
 static bool savefile_has_cave_info_hi = false;
 static bool savefile_has_hint_messages = false;
+static bool savefile_has_hint_message_meta = false;
 static bool savefile_has_thrall_quest = false;
 static bool savefile_has_thrall_quest_requested = false;
 static bool savefile_has_randart_flags4 = false;
@@ -1818,6 +1819,7 @@ static errr rd_extra(void)
 
         for (int mi = 0; mi < count; ++mi)
         {
+            hint_message_meta meta;
             byte line_count = 0;
             rd_byte(&line_count);
 
@@ -1834,7 +1836,24 @@ static errr rd_extra(void)
                 rd_string(discard, sizeof(discard));
             }
 
-            hint_messages_add_for_load(lines, keep);
+            memset(&meta, 0, sizeof(meta));
+            meta.source_y = -1;
+            meta.source_x = -1;
+
+            if (savefile_has_hint_message_meta)
+            {
+                rd_s16b(&meta.source_y);
+                rd_s16b(&meta.source_x);
+                rd_byte(&meta.cue_count);
+                meta.cue_count = MIN(meta.cue_count, HINT_MESSAGE_CUE_MAX);
+                for (int cue = 0; cue < HINT_MESSAGE_CUE_MAX; ++cue)
+                {
+                    rd_string(meta.cue_dists[cue], sizeof(meta.cue_dists[cue]));
+                    rd_string(meta.cue_dirs[cue], sizeof(meta.cue_dirs[cue]));
+                }
+            }
+
+            hint_messages_add_for_load(lines, keep, &meta);
         }
     }
     else
@@ -3062,6 +3081,7 @@ static errr rd_savefile_new_aux(void)
     savefile_has_partition_meta_types = savefile_version_at_least(0, 9, 1, 9);
     savefile_has_cave_info_hi = savefile_version_at_least(0, 9, 1, 8);
     savefile_has_hint_messages = savefile_version_at_least(0, 9, 1, 10);
+    savefile_has_hint_message_meta = savefile_version_at_least(0, 9, 5, 7);
     savefile_has_thrall_quest = savefile_version_at_least(0, 9, 1, 11);
     savefile_has_thrall_quest_requested = savefile_version_at_least(0, 9, 1, 12);
     savefile_has_randart_flags4 = savefile_version_at_least(0, 9, 5, 1);
@@ -3530,7 +3550,9 @@ bool load_player(void)
             savefile_has_partition_meta_types = savefile_version_at_least(0, 9, 1, 9);
             savefile_has_cave_info_hi = savefile_version_at_least(0, 9, 1, 8);
             savefile_has_hint_messages = savefile_version_at_least(0, 9, 1, 10);
+            savefile_has_hint_message_meta = savefile_version_at_least(0, 9, 5, 7);
             savefile_has_thrall_quest = savefile_version_at_least(0, 9, 1, 11);
+            savefile_has_thrall_quest_requested = savefile_version_at_least(0, 9, 1, 12);
             savefile_has_randart_flags4 = savefile_version_at_least(0, 9, 5, 1);
             savefile_has_item_bonuses = savefile_version_at_least(0, 9, 5, 2);
             savefile_has_randart_bonuses = savefile_version_at_least(0, 9, 5, 3);

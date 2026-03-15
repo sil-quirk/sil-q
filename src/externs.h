@@ -93,6 +93,19 @@ typedef struct skeleton_note_state_save {
 } skeleton_note_state_save;
 #endif
 
+#ifndef HINT_MESSAGE_META_DEFINED
+#define HINT_MESSAGE_META_DEFINED
+#define HINT_MESSAGE_CUE_MAX 2
+#define HINT_MESSAGE_CUE_TEXT_MAX 32
+typedef struct hint_message_meta {
+    s16b source_y;
+    s16b source_x;
+    byte cue_count;
+    char cue_dirs[HINT_MESSAGE_CUE_MAX][HINT_MESSAGE_CUE_TEXT_MAX];
+    char cue_dists[HINT_MESSAGE_CUE_MAX][HINT_MESSAGE_CUE_TEXT_MAX];
+} hint_message_meta;
+#endif
+
 #ifndef PARTITION_META_SAVE_DEFINED
 #define PARTITION_META_SAVE_DEFINED
 #define PARTITION_META_MAX 25
@@ -629,6 +642,7 @@ extern void do_cmd_refuel_torch(
 extern void do_cmd_refuel(void);
 extern void do_cmd_target(void);
 extern void do_cmd_look(void);
+extern void do_cmd_look_at(int y, int x);
 extern void do_cmd_unified_look(void);
 extern void do_cmd_locate(void);
 extern void do_cmd_query_symbol(void);
@@ -824,9 +838,13 @@ extern s16b hint_messages_map_wid_for_save(void);
 extern s16b hint_messages_map_hgt_for_save(void);
 extern byte hint_messages_message_line_count(int index);
 extern const char* hint_messages_message_line(int index, int line);
+extern void hint_messages_message_meta(int index, hint_message_meta* out);
 extern void hint_messages_clear_for_load(s16b level_depth, s16b map_wid, s16b map_hgt);
-extern void hint_messages_add_for_load(const char lines[][100], int line_count);
-extern void hint_messages_add_note_lines(const char note_lines[][100]);
+extern int hint_messages_add_for_load(
+    const char lines[][100], int line_count, const hint_message_meta* meta);
+extern int hint_messages_add_note_lines(
+    const char note_lines[][100], const hint_message_meta* meta);
+extern void show_hint_message_screen(int index);
 extern void generate_cave(void);
 
 #ifdef ALLOW_DEBUG

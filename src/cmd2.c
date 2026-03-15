@@ -446,16 +446,7 @@ void do_cmd_go_up(void)
     {
         p_ptr->varda_quest = VARDA_QUEST_NOT_STARTED;
         p_ptr->varda_level = 0;
-        if (p_ptr->quest_reserved[0] &&
-            p_ptr->tulkas_quest == TULKAS_QUEST_NOT_STARTED &&
-            p_ptr->niena_quest == NIENA_QUEST_NOT_STARTED &&
-            p_ptr->orome_quest == OROME_QUEST_NOT_STARTED &&
-            p_ptr->aule_quest == AULE_QUEST_NOT_STARTED &&
-            p_ptr->mandos_quest == MANDOS_QUEST_NOT_STARTED &&
-            p_ptr->varda_quest == VARDA_QUEST_NOT_STARTED)
-        {
-            p_ptr->quest_reserved[0] = 0;
-        }
+        /* Encountering a quest giver still consumes the run's single quest slot. */
     }
 
     // another staircase has been used...
@@ -634,16 +625,7 @@ void do_cmd_go_down(void)
     {
         p_ptr->varda_quest = VARDA_QUEST_NOT_STARTED;
         p_ptr->varda_level = 0;
-        if (p_ptr->quest_reserved[0] &&
-            p_ptr->tulkas_quest == TULKAS_QUEST_NOT_STARTED &&
-            p_ptr->niena_quest == NIENA_QUEST_NOT_STARTED &&
-            p_ptr->orome_quest == OROME_QUEST_NOT_STARTED &&
-            p_ptr->aule_quest == AULE_QUEST_NOT_STARTED &&
-            p_ptr->mandos_quest == MANDOS_QUEST_NOT_STARTED &&
-            p_ptr->varda_quest == VARDA_QUEST_NOT_STARTED)
-        {
-            p_ptr->quest_reserved[0] = 0;
-        }
+        /* Encountering a quest giver still consumes the run's single quest slot. */
     }
 
     /* Reset aule quest if active */
@@ -1235,9 +1217,10 @@ typedef struct hint_message_state {
     byte message_count;
     byte line_counts[HINT_MESSAGE_MAX];
     char lines[HINT_MESSAGE_MAX][HINT_MESSAGE_LINES_MAX][100];
+    hint_message_meta meta[HINT_MESSAGE_MAX];
 } hint_message_state;
 
-static hint_message_state g_hint_message_state = { -1, 0, 0, 0, {0}, {{{0}}} };
+static hint_message_state g_hint_message_state = { -1, 0, 0, 0, {0}, {{{0}}}, {{{0}}} };
 
 #define SKELETON_TIP_MAX_DEPTH 7
 
@@ -1759,13 +1742,53 @@ static void hint_messages_clear_for_level(s16b level_depth, s16b map_wid, s16b m
     g_hint_message_state.map_hgt = map_hgt;
     g_hint_message_state.message_count = 0;
     for (int i = 0; i < HINT_MESSAGE_MAX; ++i)
+    {
         g_hint_message_state.line_counts[i] = 0;
+        g_hint_message_state.meta[i].source_y = -1;
+        g_hint_message_state.meta[i].source_x = -1;
+        g_hint_message_state.meta[i].cue_count = 0;
+        for (int cue = 0; cue < HINT_MESSAGE_CUE_MAX; ++cue)
+        {
+            g_hint_message_state.meta[i].cue_dirs[cue][0] = '\0';
+            g_hint_message_state.meta[i].cue_dists[cue][0] = '\0';
+        }
+    }
 }
 
-static void hint_messages_push_internal(const char lines[][100], int line_count)
+static void hint_message_meta_copy(hint_message_meta* dst, const hint_message_meta* src)
+{
+    if (!dst)
+        return;
+
+    dst->source_y = -1;
+    dst->source_x = -1;
+    dst->cue_count = 0;
+    for (int cue = 0; cue < HINT_MESSAGE_CUE_MAX; ++cue)
+    {
+        dst->cue_dirs[cue][0] = '\0';
+        dst->cue_dists[cue][0] = '\0';
+    }
+
+    if (!src)
+        return;
+
+    dst->source_y = src->source_y;
+    dst->source_x = src->source_x;
+    dst->cue_count = MIN(src->cue_count, HINT_MESSAGE_CUE_MAX);
+    for (int cue = 0; cue < HINT_MESSAGE_CUE_MAX; ++cue)
+    {
+        strnfmt(dst->cue_dirs[cue], HINT_MESSAGE_CUE_TEXT_MAX, "%s",
+            (cue < dst->cue_count) ? src->cue_dirs[cue] : "");
+        strnfmt(dst->cue_dists[cue], HINT_MESSAGE_CUE_TEXT_MAX, "%s",
+            (cue < dst->cue_count) ? src->cue_dists[cue] : "");
+    }
+}
+
+static int hint_messages_push_internal(const char lines[][100], int line_count,
+    const hint_message_meta* meta)
 {
     if (line_count <= 0)
-        return;
+        return -1;
     if (line_count > HINT_MESSAGE_LINES_MAX)
         line_count = HINT_MESSAGE_LINES_MAX;
 
@@ -1775,8 +1798,11 @@ static void hint_messages_push_internal(const char lines[][100], int line_count)
         for (int i = 1; i < HINT_MESSAGE_MAX; ++i)
         {
             g_hint_message_state.line_counts[i - 1] = g_hint_message_state.line_counts[i];
+            hint_message_meta_copy(&g_hint_message_state.meta[i - 1],
+                &g_hint_message_state.meta[i]);
             for (int j = 0; j < HINT_MESSAGE_LINES_MAX; ++j)
-                strnfmt(g_hint_message_state.lines[i - 1][j], 100, "%s", g_hint_message_state.lines[i][j]);
+                strnfmt(g_hint_message_state.lines[i - 1][j], 100, "%s",
+                    g_hint_message_state.lines[i][j]);
         }
         slot = HINT_MESSAGE_MAX - 1;
     }
@@ -1786,10 +1812,13 @@ static void hint_messages_push_internal(const char lines[][100], int line_count)
     }
 
     g_hint_message_state.line_counts[slot] = (byte)line_count;
+    hint_message_meta_copy(&g_hint_message_state.meta[slot], meta);
     for (int i = 0; i < line_count; ++i)
         strnfmt(g_hint_message_state.lines[slot][i], 100, "%s", lines[i]);
     for (int i = line_count; i < HINT_MESSAGE_LINES_MAX; ++i)
         g_hint_message_state.lines[slot][i][0] = '\0';
+
+    return slot;
 }
 
 void hint_messages_level_reset(void)
@@ -1847,17 +1876,33 @@ const char* hint_messages_message_line(int index, int line)
     return g_hint_message_state.lines[index][line];
 }
 
+void hint_messages_message_meta(int index, hint_message_meta* out)
+{
+    if (!out)
+        return;
+
+    if (index < 0 || index >= g_hint_message_state.message_count)
+    {
+        hint_message_meta_copy(out, NULL);
+        return;
+    }
+
+    hint_message_meta_copy(out, &g_hint_message_state.meta[index]);
+}
+
 void hint_messages_clear_for_load(s16b level_depth, s16b map_wid, s16b map_hgt)
 {
     hint_messages_clear_for_level(level_depth, map_wid, map_hgt);
 }
 
-void hint_messages_add_for_load(const char lines[][100], int line_count)
+int hint_messages_add_for_load(const char lines[][100], int line_count,
+    const hint_message_meta* meta)
 {
-    hint_messages_push_internal(lines, line_count);
+    return hint_messages_push_internal(lines, line_count, meta);
 }
 
-void hint_messages_add_note_lines(const char note_lines[][100])
+int hint_messages_add_note_lines(const char note_lines[][100],
+    const hint_message_meta* meta)
 {
     hint_messages_ensure_level_state();
 
@@ -1865,7 +1910,7 @@ void hint_messages_add_note_lines(const char note_lines[][100])
     while (line_count < HINT_MESSAGE_LINES_MAX && note_lines[line_count][0])
         line_count++;
 
-    hint_messages_push_internal(note_lines, line_count);
+    return hint_messages_push_internal(note_lines, line_count, meta);
 }
 
 static bool level_has_greater_vault(void)
@@ -2085,13 +2130,8 @@ void skeleton_note_level_reset(void)
 void reset_hint_skeleton_state(void)
 {
     /* Reset hint message state to initial values */
-    g_hint_message_state.level_depth = -1;
-    g_hint_message_state.map_wid = 0;
-    g_hint_message_state.map_hgt = 0;
-    g_hint_message_state.message_count = 0;
-    for (int i = 0; i < HINT_MESSAGE_MAX; ++i)
-        g_hint_message_state.line_counts[i] = 0;
-
+    hint_messages_clear_for_level(-1, 0, 0);
+    
     /* Reset skeleton note state to initial values */
     g_skeleton_note_state.level_depth = -1;
     g_skeleton_note_state.map_wid = 0;
@@ -3599,6 +3639,47 @@ static const char* skeleton_note_forge_site(int feat, char* buf, size_t buf_sz)
     return "forge";
 }
 
+static void hint_message_meta_init(hint_message_meta* meta, int source_y, int source_x)
+{
+    if (!meta)
+        return;
+
+    memset(meta, 0, sizeof(*meta));
+    meta->source_y = (s16b)source_y;
+    meta->source_x = (s16b)source_x;
+}
+
+static bool hint_message_cue_is_specific(const char* dist, const char* dir)
+{
+    if ((dist && streq(dist, "somewhere")) || (dir && streq(dir, "on this level")))
+        return false;
+
+    return ((dist && dist[0]) || (dir && dir[0]));
+}
+
+static void hint_message_meta_add_cue(hint_message_meta* meta, const char* dist,
+    const char* dir)
+{
+    if (!meta || !hint_message_cue_is_specific(dist, dir))
+        return;
+
+    for (int i = 0; i < meta->cue_count; ++i)
+    {
+        if (streq(meta->cue_dists[i], dist ? dist : "")
+            && streq(meta->cue_dirs[i], dir ? dir : ""))
+        {
+            return;
+        }
+    }
+
+    if (meta->cue_count >= HINT_MESSAGE_CUE_MAX)
+        return;
+
+    int slot = meta->cue_count++;
+    strnfmt(meta->cue_dists[slot], HINT_MESSAGE_CUE_TEXT_MAX, "%s", dist ? dist : "");
+    strnfmt(meta->cue_dirs[slot], HINT_MESSAGE_CUE_TEXT_MAX, "%s", dir ? dir : "");
+}
+
 static const char* skeleton_hint_title(skeleton_hint_kind hint)
 {
     switch (hint)
@@ -3787,6 +3868,8 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
     skeleton_note_line body_lines[2];
     s16b body_ids[2] = {-1, -1};
     int body_count = 0;
+    hint_message_meta hint_meta;
+    hint_message_meta_init(&hint_meta, skel_y, skel_x);
 
     skeleton_hint_kind hints[2] = {hint1, hint2};
     int hint_count = (hint2 != SKEL_HINT_NONE) ? 2 : 1;
@@ -3997,6 +4080,8 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
             }
         }
 
+        hint_message_meta_add_cue(&hint_meta, body_lines[body_count].dist,
+            body_lines[body_count].dir);
         body_ids[body_count] = note_id;
         body_count++;
     }
@@ -4022,8 +4107,13 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
         strnfmt(note_lines[i+1], 100, "%s", note_lines[i]);
     strnfmt(note_lines[0], 100, "%s", title_buf);
 
-    hint_messages_add_note_lines(note_lines);
-    pause_with_text(note_lines, 4, 8, NULL, 0);
+    {
+        int message_index = hint_messages_add_note_lines(note_lines, &hint_meta);
+        if (message_index >= 0)
+            show_hint_message_screen(message_index);
+        else
+            pause_with_text(note_lines, 4, 8, NULL, 0);
+    }
     if (hint1 != SKEL_HINT_TIP)
         g_skeleton_note_state.notes_shown++;
     skeleton_note_record_seen(opening_id);

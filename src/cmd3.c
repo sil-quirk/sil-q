@@ -3518,6 +3518,25 @@ static bool get_explored_bounds(int* min_y, int* max_y, int* min_x, int* max_x)
 /*
  * Look command
  */
+static bool g_unified_look_has_start = false;
+static int g_unified_look_start_y = 0;
+static int g_unified_look_start_x = 0;
+
+void do_cmd_look_at(int y, int x)
+{
+    if (y < 0 || y >= p_ptr->cur_map_hgt || x < 0 || x >= p_ptr->cur_map_wid)
+    {
+        do_cmd_look();
+        return;
+    }
+
+    g_unified_look_has_start = true;
+    g_unified_look_start_y = y;
+    g_unified_look_start_x = x;
+    do_cmd_look();
+    g_unified_look_has_start = false;
+}
+
 void do_cmd_look(void)
 {
     /* Block when hallucinating */
@@ -3781,6 +3800,27 @@ void do_cmd_unified_look(void)
     /* Initialize state */
     state.cursor_y = p_ptr->py;
     state.cursor_x = p_ptr->px;
+    if (g_unified_look_has_start
+        && g_unified_look_start_y >= 0 && g_unified_look_start_y < p_ptr->cur_map_hgt
+        && g_unified_look_start_x >= 0 && g_unified_look_start_x < p_ptr->cur_map_wid)
+    {
+        state.cursor_y = g_unified_look_start_y;
+        state.cursor_x = g_unified_look_start_x;
+
+        if (!panel_contains(state.cursor_y, state.cursor_x))
+        {
+            int max_wy = MAX(p_ptr->cur_map_hgt - SCREEN_HGT, 0);
+            int max_wx = MAX(p_ptr->cur_map_wid - SCREEN_WID, 0);
+            int new_wy = state.cursor_y - SCREEN_HGT / 2;
+            int new_wx = state.cursor_x - SCREEN_WID / 2;
+
+            p_ptr->wy = MIN(MAX(new_wy, 0), max_wy);
+            p_ptr->wx = MIN(MAX(new_wx, 0), max_wx);
+            p_ptr->redraw |= PR_MAP;
+            p_ptr->window |= PW_OVERHEAD;
+            handle_stuff();
+        }
+    }
     state.selected_entity = -1;
     state.show_monsters = true;
     state.show_objects = true;

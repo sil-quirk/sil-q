@@ -80,7 +80,7 @@ static bool drop_object_is_damaged(const object_type* o_ptr)
 
 static const char* DROP_RAW_FILE = "drops";
 static const u32b DROP_RAW_MAGIC = 0x44525053; /* 'DRPS' */
-static const u32b DROP_RAW_VERSION = 19;
+static const u32b DROP_RAW_VERSION = 21;
 
 typedef struct
 {
@@ -1460,7 +1460,7 @@ static void build_normal_variants(int k_idx)
     if (k_ptr->flags3 & TR3_INSTA_ART)
         return;
     if (k_ptr->flags3 & TR3_DAMAGED)
-        return; /* Legacy damaged base kinds are retained for save-compat only. */
+        return; /* Damaged drops come from explicit damaged-drop paths. */
 
     drop_category cat = drop_category_for_kind(k_ptr);
     if (cat == DROP_CAT_MAX)
@@ -1810,8 +1810,6 @@ static void build_ego_combo_variants(int prefix_idx, int suffix_idx)
     ego_item_type* suffix_ptr = &e_info[suffix_idx];
     if (!prefix_ptr->tval[0] || !suffix_ptr->tval[0])
         return;
-    if ((prefix_ptr->flags3 & TR3_DAMAGED) || (suffix_ptr->flags3 & TR3_DAMAGED))
-        return; /* Damaged items are single-prefix-only drops. */
 
     const char* prefix_name = e_name + prefix_ptr->name;
     const char* suffix_name = e_name + suffix_ptr->name;
