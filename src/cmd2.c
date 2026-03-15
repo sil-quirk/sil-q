@@ -5444,22 +5444,23 @@ static bool twall(int y, int x)
     /* Quartz */
     else if (cave_feat[y][x] == FEAT_QUARTZ)
     {
-        /* Cave-partition quartz can yield gems or mithril; chasm-tagged quartz yields star-iron. */
+        /* Cave and big-cave quartz can yield gems or mithril; chasm-tagged quartz yields star-iron. */
         int depth = p_ptr->depth;
         level_partition_kind part_kind = level_partition_kind_for_point(y, x);
         bool in_chasm_area = (cave_info[y][x] & CAVE_CHASM_AREA) != 0;
-        bool in_cave_quartz = (part_kind == LEVEL_PART_CAVEY)
+        bool in_cave_loot_quartz = ((part_kind == LEVEL_PART_CAVEY)
+            || (part_kind == LEVEL_PART_BIG_CAVE))
             && ((cave_info[y][x] & CAVE_ROOM) != 0)
             && !in_chasm_area;
-        bool allow_mithril = in_cave_quartz;
+        bool allow_mithril = in_cave_loot_quartz;
         bool allow_star_iron = in_chasm_area;
         
         /* Base 10% chance at depth 10, scaling up to 25% at depth 20+ */
         int special_chance = 10 + depth;
         if (special_chance > 25) special_chance = 25;
         
-        log_debug("twall: digging vein at (%d,%d) depth=%d part=%d cave_info=0x%04x in_cave_quartz=%d in_chasm=%d allow_mithril=%d allow_star_iron=%d special_chance=%d%%",
-                  y, x, depth, part_kind, cave_info[y][x], in_cave_quartz, in_chasm_area, allow_mithril, allow_star_iron, special_chance);
+        log_debug("twall: digging vein at (%d,%d) depth=%d part=%d cave_info=0x%04x in_cave_loot_quartz=%d in_chasm=%d allow_mithril=%d allow_star_iron=%d special_chance=%d%%",
+                  y, x, depth, part_kind, cave_info[y][x], in_cave_loot_quartz, in_chasm_area, allow_mithril, allow_star_iron, special_chance);
         
         if ((allow_mithril || allow_star_iron) && depth >= 10 && rand_int(100) < special_chance)
         {
@@ -5516,9 +5517,20 @@ static bool twall(int y, int x)
                 {
                     log_debug("twall: gem generated successfully, tval=%d", i_ptr->tval);
                     if (i_ptr->tval == TV_GEM)
+                    {
+                        char gem_name[80];
+
                         i_ptr->number = 1;
-                    drop_near(i_ptr, -1, y, x);
-                    msg_print("A gem glitters in the rubble!");
+                        object_aware(i_ptr);
+                        object_desc(gem_name, sizeof(gem_name), i_ptr, true, 0);
+                        drop_near(i_ptr, -1, y, x);
+                        msg_format("%^s glitters in the rubble!", gem_name);
+                    }
+                    else
+                    {
+                        drop_near(i_ptr, -1, y, x);
+                        msg_print("A gem glitters in the rubble!");
+                    }
                 }
                 else
                 {

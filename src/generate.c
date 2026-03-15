@@ -1688,7 +1688,7 @@ static bool build_type9(int y0, int x0, vault_type** used_vault);
 static bool build_type2(int y0, int x0);
 static bool build_type1(int y0, int x0);
 static void carve_morgoth_entry_tunnels(const vault_type* v_ptr, int y0, int x0);
-static void connect_morgoth_entry_tunnels(void);
+static bool connect_morgoth_entry_tunnels(void);
 static void seal_morgoth_partition(const vault_type* v_ptr, int y0, int x0);
 static int place_ruined_partition_damaged_items(
     int y1, int y2, int x1, int x2, int target_count);
@@ -5467,10 +5467,10 @@ static bool big_partition_boundary_floor_ok(int y, int x)
     return true;
 }
 
-/* Fallback connector for adjacent big partitions.
- * Standard tunnel rules often reject tunneling between open areas, so when
- * two big partitions border each other we carve a straight "doorway" across
- * their shared boundary, turning WALL_OUTER into doors and WALL_EXTRA into floor. */
+/* Shared-boundary fallback connector for adjacent partitions.
+ * Standard tunnel rules often reject some otherwise-valid joins, so when two
+ * partitions already expose floor near the same shared boundary we carve a
+ * straight doorway/corridor between those two populated sides. */
 static bool carve_straight_big_partition_connector(
     int y1, int x1, int y2, int x2, int r1, int r2)
 {
@@ -5618,7 +5618,7 @@ static bool connect_adjacent_big_partitions_by_boundary(
 
         dun->connection[hub_a][hub_b] = true;
         dun->connection[hub_b][hub_a] = true;
-        genlog_connect("Big partition boundary: carved H link rooms %d<->%d at y=%d x=%d..%d",
+        genlog_connect("Partition boundary: carved H link rooms %d<->%d at y=%d x=%d..%d",
             hub_a, hub_b, best_y, best_left, best_right);
         return true;
     }
@@ -5690,7 +5690,7 @@ static bool connect_adjacent_big_partitions_by_boundary(
 
     dun->connection[hub_a][hub_b] = true;
     dun->connection[hub_b][hub_a] = true;
-    genlog_connect("Big partition boundary: carved V link rooms %d<->%d at x=%d y=%d..%d",
+    genlog_connect("Partition boundary: carved V link rooms %d<->%d at x=%d y=%d..%d",
         hub_a, hub_b, best_x, best_up, best_down);
     return true;
 }
@@ -6030,7 +6030,16 @@ static void connect_partition_hubs(void)
             {
                 int idx_r = row * cols + (col + 1);
                 int hub_right = parts[idx_r].hub_room;
-                if (hub_right >= 0 && connect_rooms_with_logging(hub_here, hub_right, "Partition backbone H", true))
+                bool ok = false;
+                if (hub_right >= 0)
+                {
+                    ok = connect_rooms_with_logging(hub_here, hub_right, "Partition backbone H", true);
+                    if (!ok)
+                        ok = connect_adjacent_big_partitions_by_boundary(
+                            idx, idx_r, &parts[idx].bounds, &parts[idx_r].bounds,
+                            rows, cols, hub_here, hub_right, true);
+                }
+                if (ok)
                 {
                     mark_partition_edge(idx, idx_r, adj, degree);
                     links++;
@@ -6041,7 +6050,16 @@ static void connect_partition_hubs(void)
             {
                 int idx_d = (row + 1) * cols + col;
                 int hub_down = parts[idx_d].hub_room;
-                if (hub_down >= 0 && connect_rooms_with_logging(hub_here, hub_down, "Partition backbone V", true))
+                bool ok = false;
+                if (hub_down >= 0)
+                {
+                    ok = connect_rooms_with_logging(hub_here, hub_down, "Partition backbone V", true);
+                    if (!ok)
+                        ok = connect_adjacent_big_partitions_by_boundary(
+                            idx, idx_d, &parts[idx].bounds, &parts[idx_d].bounds,
+                            rows, cols, hub_here, hub_down, false);
+                }
+                if (ok)
                 {
                     mark_partition_edge(idx, idx_d, adj, degree);
                     links++;
@@ -6070,6 +6088,7 @@ static void connect_partition_hubs(void)
             continue;
 
         int attempts = 0;
+        bool failed_candidate[25] = {false};
         while (degree[pi] < target_degree && attempts < count)
         {
             attempts++;
@@ -6080,6 +6099,7 @@ static void connect_partition_hubs(void)
                 if (pj == pi) continue;
                 if (parts[pj].hub_room < 0) continue;
                 if (adj[pi][pj]) continue;
+                if (failed_candidate[pj]) continue;
                 int dist = distance(parts[pi].center.y, parts[pi].center.x, parts[pj].center.y, parts[pj].center.x);
                 if (dist < best_dist)
                 {
@@ -6098,7 +6118,7 @@ static void connect_partition_hubs(void)
             }
             else
             {
-                adj[pi][best] = adj[best][pi] = true;
+                failed_candidate[best] = true;
             }
         }
     }
@@ -9098,6 +9118,242 @@ static bool connectivity_rescue_traversable(int ry, int rx)
     return true;
 }
 
+static int connectivity_unreachable_component(
+    int start_y, int start_x,
+    int cave_access[MAX_DUNGEON_HGT][MAX_DUNGEON_WID],
+    byte component[MAX_DUNGEON_HGT][MAX_DUNGEON_WID],
+    int component_cells[MAX_DUNGEON_HGT * MAX_DUNGEON_WID])
+{
+    static const int ddy8[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
+    static const int ddx8[8] = {-1, 0, 1, -1, 1, -1, 0, 1};
+    int head = 0;
+    int tail = 0;
+
+    for (int y = 0; y < p_ptr->cur_map_hgt; ++y)
+    {
+        for (int x = 0; x < p_ptr->cur_map_wid; ++x)
+        {
+            component[y][x] = 0;
+        }
+    }
+
+    if (!in_bounds_fully(start_y, start_x))
+        return 0;
+    if (cave_access[start_y][start_x])
+        return 0;
+    if (!player_passable(start_y, start_x, true))
+        return 0;
+
+    component[start_y][start_x] = 1;
+    component_cells[tail++] = start_y * MAX_DUNGEON_WID + start_x;
+
+    while (head < tail)
+    {
+        int cur = component_cells[head++];
+        int cy = cur / MAX_DUNGEON_WID;
+        int cx = cur % MAX_DUNGEON_WID;
+
+        for (int d = 0; d < 8; ++d)
+        {
+            int ny = cy + ddy8[d];
+            int nx = cx + ddx8[d];
+            int nidx;
+
+            if (!in_bounds_fully(ny, nx))
+                continue;
+            if (component[ny][nx])
+                continue;
+            if (cave_access[ny][nx])
+                continue;
+            if (!player_passable(ny, nx, true))
+                continue;
+
+            component[ny][nx] = 1;
+            nidx = ny * MAX_DUNGEON_WID + nx;
+            if (tail < MAX_DUNGEON_HGT * MAX_DUNGEON_WID)
+                component_cells[tail++] = nidx;
+        }
+    }
+
+    return tail;
+}
+
+static bool connectivity_component_boundary_cell(
+    int y, int x,
+    byte component[MAX_DUNGEON_HGT][MAX_DUNGEON_WID])
+{
+    static const int ddy4[4] = {-1, 1, 0, 0};
+    static const int ddx4[4] = {0, 0, -1, 1};
+
+    for (int d = 0; d < 4; ++d)
+    {
+        int ny = y + ddy4[d];
+        int nx = x + ddx4[d];
+
+        if (!in_bounds_fully(ny, nx))
+            continue;
+        if (component[ny][nx])
+            continue;
+        if (!connectivity_rescue_traversable(ny, nx))
+            continue;
+
+        return true;
+    }
+
+    return false;
+}
+
+static bool connectivity_rescue_component(
+    byte component[MAX_DUNGEON_HGT][MAX_DUNGEON_WID],
+    int component_cells[MAX_DUNGEON_HGT * MAX_DUNGEON_WID],
+    int component_count,
+    int cave_access[MAX_DUNGEON_HGT][MAX_DUNGEON_WID],
+    int *out_source_y, int *out_source_x,
+    int *out_target_y, int *out_target_x,
+    int *out_carve_count, int *out_boundary_sources)
+{
+    static int prev[MAX_DUNGEON_HGT][MAX_DUNGEON_WID];
+    static int queue[MAX_DUNGEON_HGT * MAX_DUNGEON_WID];
+    static const int ddy4[4] = {-1, 1, 0, 0};
+    static const int ddx4[4] = {0, 0, -1, 1};
+    int head = 0;
+    int tail = 0;
+    int found_y = -1;
+    int found_x = -1;
+    int source_y = -1;
+    int source_x = -1;
+    int carve_count = 0;
+    int boundary_sources = 0;
+
+    for (int y = 0; y < p_ptr->cur_map_hgt; ++y)
+    {
+        for (int x = 0; x < p_ptr->cur_map_wid; ++x)
+        {
+            prev[y][x] = -1;
+        }
+    }
+
+    for (int i = 0; i < component_count; ++i)
+    {
+        int idx = component_cells[i];
+        int cy = idx / MAX_DUNGEON_WID;
+        int cx = idx % MAX_DUNGEON_WID;
+        prev[cy][cx] = -2;
+    }
+
+    for (int i = 0; i < component_count; ++i)
+    {
+        int idx = component_cells[i];
+        int cy = idx / MAX_DUNGEON_WID;
+        int cx = idx % MAX_DUNGEON_WID;
+
+        if (!connectivity_component_boundary_cell(cy, cx, component))
+            continue;
+
+        prev[cy][cx] = idx;
+        if (tail < (int)N_ELEMENTS(queue))
+            queue[tail++] = idx;
+        boundary_sources++;
+    }
+
+    if (out_boundary_sources)
+        *out_boundary_sources = boundary_sources;
+
+    if (boundary_sources == 0)
+        return false;
+
+    while (head < tail)
+    {
+        int cur = queue[head++];
+        int cy = cur / MAX_DUNGEON_WID;
+        int cx = cur % MAX_DUNGEON_WID;
+
+        for (int d = 0; d < 4; ++d)
+        {
+            int ny = cy + ddy4[d];
+            int nx = cx + ddx4[d];
+            int nidx;
+
+            if (!in_bounds_fully(ny, nx))
+                continue;
+            if (prev[ny][nx] != -1)
+                continue;
+            if (!connectivity_rescue_traversable(ny, nx))
+                continue;
+
+            nidx = ny * MAX_DUNGEON_WID + nx;
+            prev[ny][nx] = cur;
+            if (tail < (int)N_ELEMENTS(queue))
+                queue[tail++] = nidx;
+
+            if (cave_access[ny][nx]
+                && player_passable(ny, nx, true)
+                && !coord_in_morgoth_region(ny, nx, 1))
+            {
+                found_y = ny;
+                found_x = nx;
+                head = tail;
+                break;
+            }
+        }
+    }
+
+    if (found_y < 0 || found_x < 0)
+        return false;
+
+    {
+        int cur = found_y * MAX_DUNGEON_WID + found_x;
+        int safety = 0;
+
+        while (safety++ < (int)N_ELEMENTS(queue))
+        {
+            int cy = cur / MAX_DUNGEON_WID;
+            int cx = cur % MAX_DUNGEON_WID;
+
+            if (cave_feat[cy][cx] != FEAT_WALL_PERM)
+            {
+                bool in_morgoth = coord_in_morgoth_region(cy, cx, 0);
+                bool allow_morgoth = (cave_info[cy][cx] & CAVE_MORGOTH_TUNNEL) != 0;
+
+                if (!in_morgoth || allow_morgoth)
+                {
+                    if (!cave_floor_bold(cy, cx)
+                        && (cave_feat[cy][cx] < FEAT_DOOR_HEAD
+                            || cave_feat[cy][cx] > FEAT_DOOR_TAIL))
+                    {
+                        cave_set_feat(cy, cx, FEAT_FLOOR);
+                        carve_count++;
+                    }
+                }
+            }
+
+            if (prev[cy][cx] == cur)
+            {
+                source_y = cy;
+                source_x = cx;
+                break;
+            }
+
+            if (prev[cy][cx] < 0)
+                break;
+            cur = prev[cy][cx];
+        }
+    }
+
+    if (out_source_y)
+        *out_source_y = source_y;
+    if (out_source_x)
+        *out_source_x = source_x;
+    if (out_target_y)
+        *out_target_y = found_y;
+    if (out_target_x)
+        *out_target_x = found_x;
+    if (out_carve_count)
+        *out_carve_count = carve_count;
+
+    return (source_y >= 0 && source_x >= 0);
+}
+
 /*
  *  Make sure that the level is sufficiently connected.
  */
@@ -9105,6 +9361,8 @@ static bool connectivity_rescue_traversable(int ry, int rx)
 bool check_connectivity(void)
 {
     int cave_access[MAX_DUNGEON_HGT][MAX_DUNGEON_WID];
+    static byte component[MAX_DUNGEON_HGT][MAX_DUNGEON_WID];
+    static int component_cells[MAX_DUNGEON_HGT * MAX_DUNGEON_WID];
     int y, x;
 
     // Reset the array used for checking connectivity
@@ -9192,152 +9450,43 @@ bool check_connectivity(void)
             return false;
         }
 
-        /* Find the nearest reachable passable tile that would create a meaningful connection.
-         * Prioritize tiles that are at least 4 tiles away to avoid useless short stubs
-         * that just connect adjacent tiles on the same feature edge. */
-        int best_y = -1, best_x = -1, best_d = 9999;
-        int fallback_y = -1, fallback_x = -1, fallback_d = 9999;
-        
-        for (int yy = 1; yy < p_ptr->cur_map_hgt - 1; ++yy)
         {
-            for (int xx = 1; xx < p_ptr->cur_map_wid - 1; ++xx)
-            {
-                if (!cave_access[yy][xx]) continue;
-                if (!player_passable(yy, xx, true)) continue;
-                if (coord_in_morgoth_region(yy, xx, 1)) continue;
-                int d = ABS(yy - sample_y) + ABS(xx - sample_x);
-                
-                /* Prefer connections of distance >= 4 to avoid short useless stubs */
-                if (d >= 4 && d < best_d)
-                {
-                    best_d = d;
-                    best_y = yy;
-                    best_x = xx;
-                }
-                /* Track fallback for any distance */
-                if (d < fallback_d)
-                {
-                    fallback_d = d;
-                    fallback_y = yy;
-                    fallback_x = xx;
-                }
-            }
-        }
-        
-        /* Use fallback if no good distance found */
-        if (best_y < 0 || best_x < 0)
-        {
-            best_y = fallback_y;
-            best_x = fallback_x;
-            best_d = fallback_d;
-        }
-
-        if (best_y < 0 || best_x < 0)
-        {
-            log_trace("check_connectivity: no reachable target found for rescue (unreachable=%d)", unreachable);
-            genlog_fail("CONNECTIVITY FAILED: no reachable target found for rescue (unreachable=%d), sample=(%d,%d)",
-                        unreachable, sample_y, sample_x);
-            return false;
-        }
-
-        /* Dig a rescue tunnel using BFS so we can route around permanent-wall obstacles. */
-        {
-            static int prev[MAX_DUNGEON_HGT][MAX_DUNGEON_WID];
-            static int queue[MAX_DUNGEON_HGT * MAX_DUNGEON_WID];
-            int head = 0, tail = 0;
+            int component_count;
+            int source_y = -1, source_x = -1;
             int found_y = -1, found_x = -1;
+            int carve_count = 0;
+            int boundary_sources = 0;
 
-            /* Init prev array for current map bounds */
-            for (int yy = 0; yy < p_ptr->cur_map_hgt; ++yy)
-                for (int xx = 0; xx < p_ptr->cur_map_wid; ++xx)
-                    prev[yy][xx] = -1;
+            component_count = connectivity_unreachable_component(
+                sample_y, sample_x, cave_access, component, component_cells);
 
-            int start_y = sample_y, start_x = sample_x;
-            int start_idx = start_y * MAX_DUNGEON_WID + start_x;
-            prev[start_y][start_x] = start_idx; /* self */
-            queue[tail++] = start_idx;
-
-            static const int ddy4[4] = {-1, 1, 0, 0};
-            static const int ddx4[4] = {0, 0, -1, 1};
-
-            while (head < tail)
+            if (component_count <= 0)
             {
-                int cur = queue[head++];
-                int cy = cur / MAX_DUNGEON_WID;
-                int cx = cur % MAX_DUNGEON_WID;
-
-                for (int d = 0; d < 4; ++d)
-                {
-                    int ny = cy + ddy4[d];
-                    int nx = cx + ddx4[d];
-                    if (!in_bounds_fully(ny, nx))
-                        continue;
-                    if (prev[ny][nx] != -1)
-                        continue;
-                    if (!connectivity_rescue_traversable(ny, nx))
-                        continue;
-
-                    int nidx = ny * MAX_DUNGEON_WID + nx;
-                    prev[ny][nx] = cur;
-                    if (tail < (int)N_ELEMENTS(queue))
-                        queue[tail++] = nidx;
-
-                    /* Found any reachable, passable tile */
-                    if (cave_access[ny][nx] && player_passable(ny, nx, true))
-                    {
-                        found_y = ny;
-                        found_x = nx;
-                        head = tail; /* break out */
-                        break;
-                    }
-                }
-            }
-
-            if (found_y < 0 || found_x < 0)
-            {
-                log_trace("check_connectivity: BFS rescue could not find a reachable target from (%d,%d)", sample_y, sample_x);
-                genlog_fail("CONNECTIVITY FAILED: BFS rescue could not find reachable target from (%d,%d)", sample_y, sample_x);
+                log_trace("check_connectivity: failed to flood unreachable component from (%d,%d)", sample_y, sample_x);
+                genlog_fail("CONNECTIVITY FAILED: could not flood unreachable component from (%d,%d)",
+                    sample_y, sample_x);
                 return false;
             }
 
-            /* Carve path from found target back to sample */
-            int carve_count = 0;
-            int cur = found_y * MAX_DUNGEON_WID + found_x;
-            int safety = 0;
-            while (safety++ < (int)N_ELEMENTS(queue))
+            if (!connectivity_rescue_component(
+                    component, component_cells, component_count, cave_access,
+                    &source_y, &source_x, &found_y, &found_x,
+                    &carve_count, &boundary_sources))
             {
-                int cy = cur / MAX_DUNGEON_WID;
-                int cx = cur % MAX_DUNGEON_WID;
-
-                if (cave_feat[cy][cx] != FEAT_WALL_PERM)
-                {
-                    bool in_morgoth = coord_in_morgoth_region(cy, cx, 0);
-                    bool allow_morgoth = (cave_info[cy][cx] & CAVE_MORGOTH_TUNNEL) != 0;
-
-                    if (!in_morgoth || allow_morgoth)
-                    {
-                        if (!cave_floor_bold(cy, cx) && (cave_feat[cy][cx] < FEAT_DOOR_HEAD || cave_feat[cy][cx] > FEAT_DOOR_TAIL))
-                        {
-                            cave_set_feat(cy, cx, FEAT_FLOOR);
-                            carve_count++;
-                        }
-                    }
-                }
-
-                if (cur == prev[start_y][start_x])
-                    break;
-                int p = prev[cy][cx];
-                if (p == cur)
-                    break;
-                cur = p;
-                if (cur == start_idx)
-                    break;
+                log_trace("check_connectivity: BFS rescue could not find a reachable target from component at (%d,%d) size=%d boundary=%d",
+                    sample_y, sample_x, component_count, boundary_sources);
+                genlog_fail("CONNECTIVITY FAILED: BFS rescue could not find reachable target from (%d,%d)",
+                    sample_y, sample_x);
+                return false;
             }
 
-            log_trace("check_connectivity: BFS rescue tunnel from (%d,%d) to reachable (%d,%d), carved=%d (unreachable=%d, attempt=%d)",
-                sample_y, sample_x, found_y, found_x, carve_count, unreachable, rescue_attempts);
-            genlog_connect("RESCUE TUNNEL: BFS from (%d,%d) to (%d,%d), carved=%d",
-                sample_y, sample_x, found_y, found_x, carve_count);
+            log_trace("check_connectivity: component rescue from (%d,%d) boundary=(%d,%d) to reachable (%d,%d), component=%d boundary=%d carved=%d (unreachable=%d, attempt=%d)",
+                sample_y, sample_x, source_y, source_x, found_y, found_x,
+                component_count, boundary_sources, carve_count, unreachable,
+                rescue_attempts);
+            genlog_connect("RESCUE TUNNEL: component=%d boundary=%d from (%d,%d) to (%d,%d), carved=%d",
+                component_count, boundary_sources, source_y, source_x, found_y,
+                found_x, carve_count);
         }
 
         /* Clear and loop to re-check connectivity */
@@ -12529,7 +12678,7 @@ static bool morgoth_tunnel_target(int y, int x)
     return player_passable(y, x, true);
 }
 
-static void connect_morgoth_tunnel_component(int start_y, int start_x)
+static bool connect_morgoth_tunnel_component(int start_y, int start_x)
 {
     static int prev[MAX_DUNGEON_HGT][MAX_DUNGEON_WID];
     static int queue[MAX_DUNGEON_HGT * MAX_DUNGEON_WID];
@@ -12582,7 +12731,7 @@ static void connect_morgoth_tunnel_component(int start_y, int start_x)
     }
 
     if (found_y < 0 || found_x < 0)
-        return;
+        return false;
 
     int cur = found_y * MAX_DUNGEON_WID + found_x;
     int safety = 0;
@@ -12613,6 +12762,8 @@ static void connect_morgoth_tunnel_component(int start_y, int start_x)
         if (cur == start_idx)
             break;
     }
+
+    return true;
 }
 
 static void cave_set_feat_style(int y, int x, int feat, int style_idx)
@@ -13401,12 +13552,15 @@ static int run_partition_special_scatter_pass(
     return total_placed;
 }
 
-static void connect_morgoth_entry_tunnels(void)
+static bool connect_morgoth_entry_tunnels(void)
 {
     if (!morgoth_region_active())
-        return;
+        return true;
 
     static bool visited[MAX_DUNGEON_HGT][MAX_DUNGEON_WID];
+    int components_found = 0;
+    int components_connected = 0;
+
     for (int y = 0; y < p_ptr->cur_map_hgt; ++y)
         for (int x = 0; x < p_ptr->cur_map_wid; ++x)
             visited[y][x] = false;
@@ -13424,6 +13578,7 @@ static void connect_morgoth_entry_tunnels(void)
             if (visited[y][x])
                 continue;
 
+            components_found++;
             int head = 0;
             int tail = 0;
             int min_y = y;
@@ -13497,9 +13652,39 @@ static void connect_morgoth_entry_tunnels(void)
                     start_x = x;
             }
 
-            connect_morgoth_tunnel_component(start_y, start_x);
+            if (connect_morgoth_tunnel_component(start_y, start_x))
+            {
+                components_connected++;
+            }
+            else
+            {
+                log_trace("connect_morgoth_entry_tunnels: component at (%d,%d) could not reach outside-region floor",
+                    start_y, start_x);
+            }
         }
     }
+
+    if (components_found == 0)
+    {
+        log_trace("connect_morgoth_entry_tunnels: no tunnel components found");
+        genlog_fail("CONNECTIVITY FAILED: Morgoth entry tunnels missing");
+        return false;
+    }
+
+    if (components_connected != components_found)
+    {
+        log_trace("connect_morgoth_entry_tunnels: connected %d/%d tunnel components",
+            components_connected, components_found);
+        genlog_fail("CONNECTIVITY FAILED: Morgoth entry tunnels connected %d/%d components",
+            components_connected, components_found);
+        return false;
+    }
+
+    log_trace("connect_morgoth_entry_tunnels: connected %d/%d tunnel components",
+        components_connected, components_found);
+    genlog_connect("Morgoth entry tunnels: connected %d/%d components",
+        components_connected, components_found);
+    return true;
 }
 
 /*
@@ -14638,8 +14823,16 @@ static bool cave_gen(void)
     /* DEBUGGING: Check if quest vault still exists after tunnel making */
     check_quest_vault_integrity("AFTER_TUNNEL_GENERATION");
 
-    if (morgoth_level_active)
-        connect_morgoth_entry_tunnels();
+    if (morgoth_level_active && !connect_morgoth_entry_tunnels())
+    {
+        if (cheat_room)
+            msg_format("Morgoth entry tunnels failed to connect.");
+        if (p_ptr->force_forge)
+            p_ptr->fixed_forge_count--;
+        log_trace("Level generation failed: connect_morgoth_entry_tunnels() returned false");
+        gen_log_level_end(false, dun->cent_n, 1);
+        return (false);
+    }
 
     /* randomise the doors (except those in vaults) */
     for (y = 0; y < p_ptr->cur_map_hgt; y++)
