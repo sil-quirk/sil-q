@@ -26,6 +26,44 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import Iterable, List, Optional, Sequence, Tuple
 
+# Enable UTF-8/ANSI output on Windows consoles that support it.
+_USE_COLOR = True
+if sys.platform == "win32":
+    try:
+        import ctypes
+
+        ctypes.windll.kernel32.SetConsoleMode(
+            ctypes.windll.kernel32.GetStdHandle(-11), 7
+        )
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+
+def _c(code: str, text: str) -> str:
+    if not _USE_COLOR:
+        return text
+    return f"\033[{code}m{text}\033[0m"
+
+
+def _yellow(text: str) -> str:
+    return _c("93", text)
+
+
+def _green(text: str) -> str:
+    return _c("92", text)
+
+
+def _red(text: str) -> str:
+    return _c("91", text)
+
+
+ALIGNMENT_COLORS = {
+    "noble": _yellow,
+    "normal": _green,
+    "evil": _red,
+}
+
 DROP_ALLOC_MAX = 8  # matches src/drop_system.c
 BASE_ALLOC_MAX = 4  # matches collect_kind_allocations()
 EGO_ALLOC_MAX = 4   # matches collect_ego_allocations()
@@ -314,6 +352,19 @@ def _combined_flags_str(*flag_sets: Iterable[str]) -> str:
     for flag_set in flag_sets:
         merged.update(flag_set)
     return _flags_to_str(merged)
+
+
+def _alignment_from_flags(flags: object) -> str:
+    if isinstance(flags, str):
+        parsed_flags = {part for part in flags.split("|") if part}
+    else:
+        parsed_flags = {str(flag) for flag in flags if flag}
+
+    if "NOBLE_ITEM" in parsed_flags:
+        return "noble"
+    if "EVIL_ITEM" in parsed_flags:
+        return "evil"
+    return "normal"
 
 
 def _shorten_display_name(name: str) -> str:
@@ -1338,6 +1389,11 @@ def main() -> None:
         help="Print all rows when using --table (can be very large)",
     )
     parser.add_argument(
+        "--no-color",
+        action="store_true",
+        help="Disable ANSI color output in the console table",
+    )
+    parser.add_argument(
         "--no-combos",
         dest="include_combos",
         action="store_false",
@@ -1362,6 +1418,10 @@ def main() -> None:
     )
     parser.set_defaults(include_combos=True, exclude_unquenched_fire_combos=True, table=True)
     args = parser.parse_args()
+
+    global _USE_COLOR
+    if args.no_color:
+        _USE_COLOR = False
 
     try:
         selected_categories = _parse_item_categories(args.item_categories)
@@ -1687,6 +1747,7 @@ def main() -> None:
                     "details": r.get("display_summary", ""),
                     "combined_alloc": r.get("combined_alloc", ""),
                     "depths": depths,
+                    "alignment": _alignment_from_flags(r.get("combined_flags", "")),
                 }
             )
 
@@ -1695,6 +1756,14 @@ def main() -> None:
             columns=["kind_name", "ego", "details", "combined_alloc", "depths"],
             limit=None if args.table_all else max(0, args.table_limit),
             max_col_width=max(0, int(args.table_max_col_width)),
+        )
+        print(
+            "Colors:  "
+            + _yellow("noble")
+            + " | "
+            + _green("normal")
+            + " | "
+            + _red("evil")
         )
 
 
@@ -1744,8 +1813,14 @@ def _print_table(
     print(sep)
 
     for r in view:
-        line = " | ".join(cell_str(r.get(col, ""), col).ljust(widths[col]) for col in columns)
-        print(line)
+        color_fn = ALIGNMENT_COLORS.get(str(r.get("alignment", "") or ""), lambda text: text)
+        rendered_cells: List[str] = []
+        for col in columns:
+            cell = cell_str(r.get(col, ""), col).ljust(widths[col])
+            if col in {"kind_name", "ego"}:
+                cell = color_fn(cell)
+            rendered_cells.append(cell)
+        print(" | ".join(rendered_cells))
 
     if limit is not None and len(rows) > len(view):
         print(f"... ({len(rows) - len(view)} more rows; use --table-all to print all)")

@@ -398,7 +398,7 @@ static bool g_app_intro_seen = false;
 static const byte app_interface_options[] = {
     OPT_system_beep, OPT_quick_messages, OPT_auto_more, OPT_easy_main_menu,
     OPT_hjkl_movement, OPT_angband_keyset, OPT_space_acts_as_comma,
-    OPT_look_objects_sort_by_difficulty,
+    OPT_look_objects_sort_by_difficulty, OPT_show_level_generation_debug,
     OPT_NONE
 };
 
@@ -425,7 +425,6 @@ static const byte app_visual_options[] = {
     OPT_unidentified_items_slate, OPT_stealth_vision, OPT_sleep_icon,
     OPT_banner_message_stairs,
     OPT_show_smithing_difficulty, OPT_show_smithing_difficulty_look,
-    OPT_show_level_generation_debug,
     OPT_NONE
 };
 

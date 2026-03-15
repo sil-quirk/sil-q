@@ -269,6 +269,7 @@ static bool sdl_send_modified_direction_action(int dir, char dir_ch, bool shift,
     bool gui);
 static bool sdl_try_send_modified_direction_key(int key, bool shift, bool ctrl, bool alt, bool gui);
 static bool sdl_try_send_modified_direction_event(const SDL_KeyboardEvent* key_event);
+static bool sdl_handle_global_layout_shortcut(const SDL_KeyboardEvent* key_event);
 static void sdl_gamepad_apply_modifier(int binding, bool down);
 static bool sdl_gamepad_shift_active(void);
 static bool sdl_gamepad_ctrl_active(void);
@@ -1768,6 +1769,76 @@ static bool sdl_try_send_modified_direction_event(const SDL_KeyboardEvent* key_e
     return false;
 }
 
+static bool sdl_handle_global_layout_shortcut(const SDL_KeyboardEvent* key_event)
+{
+    SDL_Keycode key;
+
+    if (!key_event)
+        return false;
+
+    if (!(key_event->mod & SDL_KMOD_ALT))
+        return false;
+
+    key = key_event->key;
+
+    if (key == '+' || key == '=' || key == SDLK_KP_PLUS) {
+        int current_scale = get_sdl_main_view_scale();
+        int max_scale = get_sdl_max_scale();
+
+        if (current_scale < max_scale) {
+            set_sdl_main_view_scale(current_scale + 1);
+            sdl_apply_config();
+            if (character_dungeon)
+                Term_keypress(KTRL('R'));
+        }
+        return true;
+    }
+
+    if (key == '-' || key == SDLK_KP_MINUS) {
+        int current_scale = get_sdl_main_view_scale();
+
+        if (current_scale > 1) {
+            set_sdl_main_view_scale(current_scale - 1);
+            sdl_apply_config();
+            if (character_dungeon)
+                Term_keypress(KTRL('R'));
+        }
+        return true;
+    }
+
+    if (key == 'i' || key == 'I') {
+        bool enabled = get_sdl_enable_right_panes();
+
+        set_sdl_enable_right_panes(!enabled);
+        sdl_apply_config();
+        if (character_dungeon)
+            Term_keypress(KTRL('R'));
+        return true;
+    }
+
+    if (key == 'l' || key == 'L') {
+        bool enabled = get_sdl_enable_bottom_panes();
+
+        set_sdl_enable_bottom_panes(!enabled);
+        sdl_apply_config();
+        if (character_dungeon)
+            Term_keypress(KTRL('R'));
+        return true;
+    }
+
+    if (key == 'p' || key == 'P') {
+        bool hidden = get_sdl_hide_left_panel();
+
+        set_sdl_hide_left_panel(!hidden);
+        sdl_apply_config();
+        if (character_dungeon)
+            Term_keypress(KTRL('R'));
+        return true;
+    }
+
+    return false;
+}
+
 static void sdl_gamepad_send_key(int key, bool use_macro_mods)
 {
     bool shift = sdl_gamepad_shift_active();
@@ -3016,66 +3087,15 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
             return;
         }
 
-        // Handle Alt key combinations for pane settings directly
-        bool alt = ev->key.mod & SDL_KMOD_ALT;
-        if (alt && !character_dungeon) {
-            // Only allow these in the dungeon, not in menus
+        /* Handle SDL layout shortcuts before menu/game input routing so they
+         * work from the initial menu onward. */
+        if (sdl_handle_global_layout_shortcut(&ev->key))
             return;
-        }
-        
-        if (alt) {
-            bool handled = false;
-            
-            // Alt++ or Alt+= : Increase main view scale
-            if (key == '+' || key == '=') {
-                int current_scale = get_sdl_main_view_scale();
-                int max_scale = get_sdl_max_scale();
-                if (current_scale < max_scale) {
-                    set_sdl_main_view_scale(current_scale + 1);
-                    sdl_apply_config();
-                    Term_keypress(KTRL('R')); // Trigger redraw
-                }
-                handled = true;
-            }
-            // Alt+- : Decrease main view scale
-            else if (key == '-') {
-                int current_scale = get_sdl_main_view_scale();
-                if (current_scale > 1) {
-                    set_sdl_main_view_scale(current_scale - 1);
-                    sdl_apply_config();
-                    Term_keypress(KTRL('R')); // Trigger redraw
-                }
-                handled = true;
-            }
-            // Alt+I : Toggle side panes
-            else if (key == 'i' || key == 'I') {
-                bool enabled = get_sdl_enable_right_panes();
-                set_sdl_enable_right_panes(!enabled);
-                sdl_apply_config();
-                Term_keypress(KTRL('R')); // Trigger redraw
-                handled = true;
-            }
-            // Alt+L : Toggle bottom panes
-            else if (key == 'l' || key == 'L') {
-                bool enabled = get_sdl_enable_bottom_panes();
-                set_sdl_enable_bottom_panes(!enabled);
-                sdl_apply_config();
-                Term_keypress(KTRL('R')); // Trigger redraw
-                handled = true;
-            }
-            // Alt+P : Toggle the classic left panel
-            else if (key == 'p' || key == 'P') {
-                bool hidden = get_sdl_hide_left_panel();
-                set_sdl_hide_left_panel(!hidden);
-                sdl_apply_config();
-                Term_keypress(KTRL('R')); // Trigger redraw
-                handled = true;
-            }
-            
-            if (handled) {
-                return;
-            }
-        }
+
+        // Keep other Alt-based key handling limited to the dungeon.
+        bool alt = ev->key.mod & SDL_KMOD_ALT;
+        if (alt && !character_dungeon)
+            return;
 
         if (character_dungeon) {
             if (sdl_try_send_modified_direction_event(&ev->key))

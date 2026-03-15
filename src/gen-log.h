@@ -39,11 +39,16 @@ extern FILE *gen_log_file;
 extern bool gen_log_initialized;
 extern int gen_log_level_count;  /* Track how many levels generated this session */
 
+typedef void (*gen_log_observer_fn)(const char *category, const char *message);
+
 /* Initialize generation log file. Call once at startup after exe_path is known. */
 void gen_log_init(const char *exe_path);
 
 /* Close generation log file. Called automatically via atexit. */
 void gen_log_close(void);
+
+/* Register an optional runtime observer for generation events. */
+void gen_log_set_observer(gen_log_observer_fn observer);
 
 /* Core logging function - writes to generation.txt */
 void gen_log_write(const char *category, const char *fmt, ...);

@@ -489,7 +489,7 @@ cptr option_desc[OPT_MAX] = {
     "Noble item spawns (0=good+/chests/human+elf skeletons, 1=also &/! vault drops)", /* OPT_noble_item_spawn_mode */
     "Hide the classic left panel and use the compact overlay", /* OPT_hide_left_panel */
     "Banner message layout (stairs/straight)", /* OPT_banner_message_stairs */
-    "Debug: Show level generation summary messages", /* OPT_show_level_generation_debug */
+    "Debug: Show detailed level-generation screen info and pause before play", /* OPT_show_level_generation_debug */
     "Unlock Blitz Mode after winning a metarun", /* OPT_unlock_blitz_mode */
     "Sort look (L) objects by difficulty only (off = category, then difficulty)", /* OPT_look_objects_sort_by_difficulty */
     NULL, /* xxx */
@@ -919,8 +919,8 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
     { OPT_system_beep, OPT_quick_messages, OPT_auto_more, OPT_easy_main_menu,
         OPT_hjkl_movement, OPT_angband_keyset, OPT_space_acts_as_comma,
         OPT_look_objects_sort_by_difficulty, OPT_hide_left_panel, OPT_hitpoint_warning,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
-        OPT_NONE, OPT_NONE },
+        OPT_show_level_generation_debug, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Text options ***/
 
@@ -954,7 +954,7 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
         OPT_stealth_vision, OPT_sleep_icon,
         OPT_show_level_entry_banner, OPT_show_partition_narrative, OPT_intro_style,
         OPT_banner_message_stairs, OPT_show_smithing_difficulty, OPT_show_smithing_difficulty_look,
-        OPT_show_level_generation_debug, OPT_NONE },
+        OPT_NONE, OPT_NONE },
 
     /*** Birth ***/
 

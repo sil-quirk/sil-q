@@ -11415,6 +11415,7 @@ static const struct option_group_marker interface_option_groups[] = {
     { 7, "Look" },
     { 8, "Layout" },
     { 9, "Warnings" },
+    { 10, "Debug" },
     { -1, NULL }
 };
 
@@ -11854,7 +11855,7 @@ static cptr option_menu_label(int opt)
         case OPT_sleep_icon: return narrow ? "Sleep icon" : "Sleep icon";
         case OPT_show_smithing_difficulty: return narrow ? "Smith dbg items" : "Debug smithing in items";
         case OPT_show_smithing_difficulty_look: return narrow ? "Smith dbg look" : "Debug smithing in look";
-        case OPT_show_level_generation_debug: return narrow ? "Level-gen debug" : "Debug level gen";
+        case OPT_show_level_generation_debug: return narrow ? "Dbg lvl screen" : "Debug level screen";
         case OPT_birth_discon_stair: return narrow ? "Disc. stairs" : "Disconnected stairs";
         case OPT_birth_ironman: return narrow ? "Straight down" : "Straight down";
         case OPT_birth_no_artefacts: return narrow ? "No artefacts" : "No artefacts";

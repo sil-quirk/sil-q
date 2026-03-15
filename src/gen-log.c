@@ -11,6 +11,7 @@
 FILE *gen_log_file = NULL;
 bool gen_log_initialized = false;
 int gen_log_level_count = 0;
+static gen_log_observer_fn gen_log_observer = NULL;
 
 /* Summary log (append across sessions) */
 static FILE *gen_summary_file = NULL;
@@ -195,21 +196,29 @@ void gen_log_close(void)
     gen_log_close_internal();
 }
 
+void gen_log_set_observer(gen_log_observer_fn observer)
+{
+    gen_log_observer = observer;
+}
+
 void gen_log_write(const char *category, const char *fmt, ...)
 {
     va_list args;
     time_t now;
     struct tm *timeinfo;
     char msg[2048];
-    
-    if (!gen_log_file) return;
-    
-    now = time(NULL);
-    timeinfo = localtime(&now);
 
     va_start(args, fmt);
     (void)vstrnfmt(msg, sizeof(msg), fmt, args);
     va_end(args);
+
+    if (gen_log_observer)
+        gen_log_observer(category, msg);
+
+    if (!gen_log_file) return;
+
+    now = time(NULL);
+    timeinfo = localtime(&now);
     
     /* Timestamp + category */
     fprintf(gen_log_file, "%02d:%02d:%02d [%-9s] ",
@@ -348,6 +357,7 @@ int gen_log_level_count = 0;
 
 void gen_log_init(const char *exe_path) { (void)exe_path; }
 void gen_log_close(void) {}
+void gen_log_set_observer(gen_log_observer_fn observer) { (void)observer; }
 void gen_log_write(const char *category, const char *fmt, ...) { (void)category; (void)fmt; }
 void gen_log_flush(void) {}
 void gen_log_level_start(int depth, int map_hgt, int map_wid) { (void)depth; (void)map_hgt; (void)map_wid; }
