@@ -1699,6 +1699,9 @@ static bool carve_chasm_with_bridges(int y_min, int y_max, int x_min, int x_max,
 static void cave_set_feat_style(int y, int x, int feat, int style_idx);
 static int dungeon_pieces(void);
 static int partition_index_from_point(int y, int x, int rows, int cols);
+static bool chasm_native_walkable_bold(int y, int x);
+static bool partition_population_floor_bold(quadrant_mode_t mode, int y, int x);
+static bool partition_population_naked_bold(quadrant_mode_t mode, int y, int x);
 static int room_connection_degree(int room_idx);
 static bool connect_rooms_with_logging(int r1, int r2, const char *tag, bool allow_desperate);
 static bool connect_two_rooms(int r1, int r2, bool tentative, bool desperate);
@@ -2020,9 +2023,9 @@ static void scatter_chasm_star_iron_in_bounds(int y1, int y2, int x1, int x2)
         int gx = rand_range(x1, x2);
         if (!in_bounds_fully(gy, gx))
             continue;
-        if (!cave_floor_bold(gy, gx))
+        if (!chasm_native_walkable_bold(gy, gx))
             continue;
-        /* Only drop inside the chasm partition when tagged */
+        /* Only drop inside the actual chasm walkable area when tagged */
         if (require_chasm_tag && !(cave_info[gy][gx] & CAVE_CHASM_AREA))
             continue;
         if (cave_o_idx[gy][gx] != 0)
@@ -2682,6 +2685,63 @@ static bool carve_big_cave_bounds(int y_min, int y_max, int x_min, int x_max,
         }
     }
     
+    /* Carve a few boundary notches so the cave silhouette reads less like a box. */
+    int bite_count = 2 + rand_int(3);
+    for (int bite = 0; bite < bite_count; ++bite)
+    {
+        int side = rand_int(4);
+        int by = 0;
+        int bx = 0;
+        int radius_y = rand_range(3, MAX(4, h / 5));
+        int radius_x = rand_range(4, MAX(5, w / 5));
+
+        switch (side)
+        {
+        case 0: /* top */
+            by = y1 + rand_range(0, 2);
+            bx = rand_range(x1 + MAX(3, w / 6), x2 - MAX(3, w / 6));
+            break;
+        case 1: /* bottom */
+            by = y2 - rand_range(0, 2);
+            bx = rand_range(x1 + MAX(3, w / 6), x2 - MAX(3, w / 6));
+            break;
+        case 2: /* left */
+            by = rand_range(y1 + MAX(3, h / 6), y2 - MAX(3, h / 6));
+            bx = x1 + rand_range(0, 2);
+            break;
+        default: /* right */
+            by = rand_range(y1 + MAX(3, h / 6), y2 - MAX(3, h / 6));
+            bx = x2 - rand_range(0, 2);
+            break;
+        }
+
+        for (int gy = y1; gy <= y2; ++gy)
+        {
+            for (int gx = x1; gx <= x2; ++gx)
+            {
+                int dy = ABS(gy - by);
+                int dx = ABS(gx - bx);
+                int metric;
+
+                if (!cave_floor_bold(gy, gx))
+                    continue;
+                if (!(cave_info[gy][gx] & CAVE_ROOM))
+                    continue;
+                if (dy > radius_y || dx > radius_x)
+                    continue;
+
+                metric = (dy * 100) / MAX(1, radius_y)
+                    + (dx * 100) / MAX(1, radius_x);
+                if (metric > 125 + rand_int(20))
+                    continue;
+
+                cave_set_feat_style(gy, gx, FEAT_WALL_EXTRA, style_idx);
+                cave_info[gy][gx] &= ~CAVE_ROOM;
+                floor_count--;
+            }
+        }
+    }
+
     /* Erode some edge floor tiles for more irregular shape */
     for (int gy = min_y; gy <= max_y; ++gy)
     {
@@ -4148,6 +4208,9 @@ static bool place_partition_chest_at(
     if (!in_bounds_fully(y, x))
         return false;
 
+    if (mode == QUAD_MODE_CHASM && !chasm_native_walkable_bold(y, x))
+        return false;
+
     /* Chests should land on an actual open floor tile, not on stairs or vault cells. */
     if (!cave_clean_bold(y, x) || cave_m_idx[y][x]
         || (cave_info[y][x] & CAVE_G_VAULT))
@@ -4692,7 +4755,7 @@ static void apply_quadrant_generation_modes(void)
          * - RUINED: Ancient carved BSP passages with rooms
          * - LABYRINTH: Maze corridors with chambers
          * - CHASM: Platforms over chasms connected by bridges
-         * - BIG_CAVE: Single massive irregular cavern with rooms inside
+         * - BIG_CAVE: Single massive irregular cavern
          */
         switch (mode)
         {
@@ -4863,13 +4926,6 @@ static void apply_quadrant_generation_modes(void)
                     }
                 }
                 
-                /* Add some simple rooms scattered in the big cave */
-                /* Sparse: T1=1 T6=1 | Normal: T1=1 T6=1 | Dense: T1=1 T6=2 */
-                int std_count = scaled_attempts(1, area_factor);
-                int int_count = scaled_attempts((density == DENSITY_DENSE) ? 2 : 1, area_factor);
-                place_rooms_randomized(y1, y2, x1, x2, depth, std_count, 0, int_count, 0,
-                                       &budget_t6, &budget_t7, &budget_t8, &used_t6, &used_t7, &used_t8);
-
                 /* Guarantee a large chest in big caves (material varies) */
                 current_partition_population_meta[pi].chest_count = 1;
                 current_partition_population_meta[pi].force_large_chest = true;
@@ -6773,6 +6829,32 @@ static level_partition_kind partition_kind_from_mode(quadrant_mode_t mode)
     default:
         return LEVEL_PART_NONE;
     }
+}
+
+/* Native chasm walkable terrain is the platform/bridge floor carved by the
+ * chasm generator, not later boundary openings or rescue corridors. */
+static bool chasm_native_walkable_bold(int y, int x)
+{
+    if (!in_bounds_fully(y, x))
+        return false;
+    if (!cave_floor_bold(y, x))
+        return false;
+    return ((cave_info[y][x] & (CAVE_ROOM | CAVE_CHASM_AREA))
+        == (CAVE_ROOM | CAVE_CHASM_AREA));
+}
+
+static bool partition_population_floor_bold(quadrant_mode_t mode, int y, int x)
+{
+    if (mode == QUAD_MODE_CHASM)
+        return chasm_native_walkable_bold(y, x);
+    return cave_floor_bold(y, x);
+}
+
+static bool partition_population_naked_bold(quadrant_mode_t mode, int y, int x)
+{
+    if (mode == QUAD_MODE_CHASM)
+        return chasm_native_walkable_bold(y, x) && cave_naked_bold(y, x);
+    return cave_naked_bold(y, x);
 }
 
 static const char* quadrant_mode_debug_name(quadrant_mode_t mode)
@@ -12955,7 +13037,7 @@ static int build_partition_population_plans(
             {
                 if (!in_bounds_fully(y, x))
                     continue;
-                if (!cave_floor_bold(y, x))
+                if (!partition_population_floor_bold(plan->mode, y, x))
                     continue;
 
                 plan->floor_count++;
@@ -13004,7 +13086,7 @@ static bool choose_partition_monster_location(
             continue;
         if (cave_info[y][x] & CAVE_ICKY)
             continue;
-        if (!cave_naked_bold(y, x))
+        if (!partition_population_naked_bold(plan->mode, y, x))
             continue;
         if (avoid_los && los(p_ptr->py, p_ptr->px, y, x))
             continue;
@@ -13144,17 +13226,20 @@ static int alloc_objects_from_plan(
 
             if (!in_bounds_fully(y, x))
                 continue;
-            if (!cave_naked_bold(y, x))
+            if (!partition_population_naked_bold(plan->mode, y, x))
                 continue;
             if (level_partition_index_for_point(y, x) != plan->pi)
                 continue;
 
             is_room = (cave_info[y][x] & CAVE_ROOM) ? true : false;
 
-            if ((set == ALLOC_SET_CORR) && is_room)
-                continue;
-            if ((set == ALLOC_SET_ROOM) && !is_room)
-                continue;
+            if (plan->mode != QUAD_MODE_CHASM)
+            {
+                if ((set == ALLOC_SET_CORR) && is_room)
+                    continue;
+                if ((set == ALLOC_SET_ROOM) && !is_room)
+                    continue;
+            }
 
             active_profile = partition_drop_profile_for_mode(drop_mode_for_point(y, x));
             if (!active_profile.allow_floor_drops)

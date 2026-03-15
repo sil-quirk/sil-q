@@ -907,7 +907,8 @@ static void chest_death(int y, int x, s16b o_idx)
         || (o_ptr->sval == SV_CHEST_LARGE_STEEL))
         chest_quality = DROP_QUALITY_GREAT;
     else if ((o_ptr->sval == SV_CHEST_SMALL_JEWELLED)
-        || (o_ptr->sval == SV_CHEST_LARGE_JEWELLED))
+        || (o_ptr->sval == SV_CHEST_LARGE_JEWELLED)
+        || (o_ptr->sval == SV_CHEST_PRESENT))
         chest_quality = DROP_QUALITY_SUPERB;
 
     /* Drop some objects (non-chests) */
@@ -5443,36 +5444,22 @@ static bool twall(int y, int x)
     /* Quartz */
     else if (cave_feat[y][x] == FEAT_QUARTZ)
     {
-        /* Check for special drops from quartz in cave or chasm areas only */
-        /* Quartz veins in caves are marked with CAVE_ROOM; chasms add CAVE_CHASM_AREA */
-        /* Chance scales with depth; allow cave-adjacent quartz and tagged chasm veins */
+        /* Cave-partition quartz can yield gems or mithril; chasm-tagged quartz yields star-iron. */
         int depth = p_ptr->depth;
-        bool in_cave = (cave_info[y][x] & CAVE_ROOM) != 0;
-        if (!in_cave)
-        {
-            /* Treat quartz abutting cave floors as part of the cave for drops */
-            for (int dy = -1; dy <= 1 && !in_cave; ++dy)
-            {
-                for (int dx = -1; dx <= 1 && !in_cave; ++dx)
-                {
-                    if (!dy && !dx) continue;
-                    int ny = y + dy, nx = x + dx;
-                    if (!in_bounds(ny, nx)) continue;
-                    if (cave_info[ny][nx] & CAVE_ROOM)
-                        in_cave = true;
-                }
-            }
-        }
+        level_partition_kind part_kind = level_partition_kind_for_point(y, x);
         bool in_chasm_area = (cave_info[y][x] & CAVE_CHASM_AREA) != 0;
-        bool allow_mithril = in_cave && !in_chasm_area;
+        bool in_cave_quartz = (part_kind == LEVEL_PART_CAVEY)
+            && ((cave_info[y][x] & CAVE_ROOM) != 0)
+            && !in_chasm_area;
+        bool allow_mithril = in_cave_quartz;
         bool allow_star_iron = in_chasm_area;
         
         /* Base 10% chance at depth 10, scaling up to 25% at depth 20+ */
         int special_chance = 10 + depth;
         if (special_chance > 25) special_chance = 25;
         
-        log_debug("twall: digging vein at (%d,%d) depth=%d cave_info=0x%04x in_cave=%d in_chasm=%d allow_mithril=%d allow_star_iron=%d special_chance=%d%%",
-                  y, x, depth, cave_info[y][x], in_cave, in_chasm_area, allow_mithril, allow_star_iron, special_chance);
+        log_debug("twall: digging vein at (%d,%d) depth=%d part=%d cave_info=0x%04x in_cave_quartz=%d in_chasm=%d allow_mithril=%d allow_star_iron=%d special_chance=%d%%",
+                  y, x, depth, part_kind, cave_info[y][x], in_cave_quartz, in_chasm_area, allow_mithril, allow_star_iron, special_chance);
         
         if ((allow_mithril || allow_star_iron) && depth >= 10 && rand_int(100) < special_chance)
         {
@@ -5482,13 +5469,11 @@ static bool twall(int y, int x)
             
             log_debug("twall: PASSED chance check! Attempting drop at depth=%d", depth);
             
-            /* 30% chance for metal at depth 12+, otherwise try for gem */
-            bool try_star_iron = allow_star_iron && (depth >= 12) && (rand_int(100) < 45);
             bool try_mithril = allow_mithril && (depth >= 12) && (rand_int(100) < 45);
-            
-            log_debug("twall: try_star_iron=%d try_mithril=%d", try_star_iron, try_mithril);
-            
-            if (try_star_iron)
+
+            log_debug("twall: try_star_iron=%d try_mithril=%d", allow_star_iron, try_mithril);
+
+            if (allow_star_iron)
             {
                 /* Drop star iron */
                 s16b k_idx = lookup_kind(TV_METAL, SV_METAL_STAR_IRON);
