@@ -202,6 +202,7 @@ static level_gen_screen_state level_gen_screen = {0};
 static char level_gen_debug_last_greater_vault_name[80] = "";
 static char level_gen_debug_active_quest_vault_name[80] = "";
 static char level_gen_debug_last_quest_vault_name[80] = "";
+static char level_gen_debug_questgiver_name[80] = "";
 static char level_gen_debug_last_room_name[80] = "";
 
 static const char* level_gen_stage_user_labels[LEVEL_GEN_STAGE_COUNT] = {
@@ -243,11 +244,16 @@ static void level_gen_debug_reset_context(void)
     level_gen_debug_last_greater_vault_name[0] = '\0';
     level_gen_debug_active_quest_vault_name[0] = '\0';
     level_gen_debug_last_quest_vault_name[0] = '\0';
+    level_gen_debug_questgiver_name[0] = '\0';
     level_gen_debug_last_room_name[0] = '\0';
 }
 
 static void level_gen_screen_build_partition_summary(char* total_buf,
     size_t total_buflen, char* types_buf, size_t types_buflen);
+
+static void level_gen_screen_build_generated_summary(char* quest_buf,
+    size_t quest_buflen, char* roulette_buf, size_t roulette_buflen,
+    char* giver_buf, size_t giver_buflen, char* gv_buf, size_t gv_buflen);
 
 static void level_gen_screen_fit_text(char* buf, size_t buflen, cptr text,
     int max_chars)
@@ -617,6 +623,45 @@ static void level_gen_debug_note_quest_vault_name(cptr name)
             sizeof(level_gen_debug_last_quest_vault_name));
 }
 
+static const char* level_gen_debug_quest_name(int quest_id)
+{
+    quest_type* q_ptr;
+
+    if (quest_id > 0 && quest_id < z_info->quest_max)
+    {
+        q_ptr = &quest_info[quest_id];
+        if (q_ptr->name && quest_name_text)
+            return quest_name_text + q_ptr->name;
+    }
+
+    switch (quest_id)
+    {
+    case QUEST_ID_TULKAS:
+        return "Tulkas the Strong";
+    case QUEST_ID_AULE:
+        return "Aule the Smith";
+    case QUEST_ID_MANDOS:
+        return "Mandos the Doomsman";
+    case QUEST_ID_NIENA:
+        return "Niena, Lady of Pity";
+    case QUEST_ID_OROME:
+        return "Orome the Hunter";
+    case QUEST_ID_VARDA:
+        return "Varda, Lady of the Stars";
+    default:
+        return NULL;
+    }
+}
+
+static void level_gen_debug_note_questgiver(int quest_id)
+{
+    const char* name = level_gen_debug_quest_name(quest_id);
+
+    if (name && name[0])
+        SDL_strlcpy(level_gen_debug_questgiver_name, name,
+            sizeof(level_gen_debug_questgiver_name));
+}
+
 static void level_gen_debug_activate_quest_vault_name(cptr name)
 {
     if (name && name[0])
@@ -664,13 +709,29 @@ static void level_gen_debug_build_failure_reason(char* buf, size_t buflen,
 }
 
 static void level_gen_screen_build_generated_summary(char* quest_buf,
-    size_t quest_buflen, char* gv_buf, size_t gv_buflen)
+    size_t quest_buflen, char* roulette_buf, size_t roulette_buflen,
+    char* giver_buf, size_t giver_buflen, char* gv_buf, size_t gv_buflen)
 {
+    int roulette_winner = debug_get_quest_lottery_winner();
+    const char* roulette_name = level_gen_debug_quest_name(roulette_winner);
+
     if (level_gen_debug_active_quest_vault_name[0])
         strnfmt(quest_buf, quest_buflen, "Quest vaults: 1 (%s)",
             level_gen_debug_active_quest_vault_name);
     else
         SDL_strlcpy(quest_buf, "Quest vaults: 0", quest_buflen);
+
+    if (roulette_name && roulette_name[0])
+        strnfmt(roulette_buf, roulette_buflen, "Roulette winner: %s",
+            roulette_name);
+    else
+        SDL_strlcpy(roulette_buf, "Roulette winner: none", roulette_buflen);
+
+    if (level_gen_debug_questgiver_name[0])
+        strnfmt(giver_buf, giver_buflen, "Quest giver spawned: 1 (%s)",
+            level_gen_debug_questgiver_name);
+    else
+        SDL_strlcpy(giver_buf, "Quest giver spawned: 0", giver_buflen);
 
     if (g_vault_name[0])
         strnfmt(gv_buf, gv_buflen, "Greater vaults: 1 (%s)", g_vault_name);
@@ -816,6 +877,8 @@ static void level_gen_screen_draw_debug(int wid, int hgt)
     char partition_buf[256];
     char type_buf[256];
     char quest_buf[256];
+    char roulette_buf[256];
+    char giver_buf[256];
     char gv_buf[256];
     int width = MAX(1, wid - 2);
     int footer_row = MAX(0, hgt - 1);
@@ -849,6 +912,7 @@ static void level_gen_screen_draw_debug(int wid, int hgt)
     level_gen_screen_build_partition_summary(partition_buf,
         sizeof(partition_buf), type_buf, sizeof(type_buf));
     level_gen_screen_build_generated_summary(quest_buf, sizeof(quest_buf),
+        roulette_buf, sizeof(roulette_buf), giver_buf, sizeof(giver_buf),
         gv_buf, sizeof(gv_buf));
 
     if (split)
@@ -907,6 +971,18 @@ static void level_gen_screen_draw_debug(int wid, int hgt)
             left_row += level_gen_screen_print_wrapped(
                 left_row, left_col, left_w, footer_row - left_row,
                 TERM_YELLOW, quest_buf);
+        }
+        if (left_row < footer_row)
+        {
+            left_row += level_gen_screen_print_wrapped(
+                left_row, left_col, left_w, footer_row - left_row,
+                TERM_YELLOW, roulette_buf);
+        }
+        if (left_row < footer_row)
+        {
+            left_row += level_gen_screen_print_wrapped(
+                left_row, left_col, left_w, footer_row - left_row,
+                TERM_YELLOW, giver_buf);
         }
         if (left_row < footer_row)
         {
@@ -999,6 +1075,16 @@ static void level_gen_screen_draw_debug(int wid, int hgt)
         {
             row += level_gen_screen_print_wrapped(
                 row, 1, width, footer_row - row, TERM_YELLOW, quest_buf);
+        }
+        if (row < footer_row)
+        {
+            row += level_gen_screen_print_wrapped(
+                row, 1, width, footer_row - row, TERM_YELLOW, roulette_buf);
+        }
+        if (row < footer_row)
+        {
+            row += level_gen_screen_print_wrapped(
+                row, 1, width, footer_row - row, TERM_YELLOW, giver_buf);
         }
         if (row < footer_row)
         {
@@ -1923,6 +2009,7 @@ static void apply_pending_quest_states(void) {
         p_ptr->aule_level = pending_quest_states.aule_level;
         p_ptr->aule_quest = AULE_QUEST_FORGE_PRESENT;
         p_ptr->quest_reserved[0] = 1; /* Mark that a quest has spawned this run */
+        level_gen_debug_note_questgiver(QUEST_ID_AULE);
         log_trace("Aule quest: FORGE_PRESENT APPLIED (deferred from quest vault) at %d,%d depth=%d", 
                   pending_quest_states.aule_forge_y, pending_quest_states.aule_forge_x, pending_quest_states.aule_level);
     }
@@ -1930,6 +2017,7 @@ static void apply_pending_quest_states(void) {
         p_ptr->mandos_level = pending_quest_states.mandos_level;
         p_ptr->mandos_quest = MANDOS_QUEST_GIVER_PRESENT;
         p_ptr->quest_reserved[0] = 1; /* Mark that a quest has spawned this run */
+        level_gen_debug_note_questgiver(QUEST_ID_MANDOS);
         log_trace("Mandos quest: GIVER_PRESENT APPLIED (deferred from quest vault) at %d,%d depth=%d", 
                   pending_quest_states.mandos_vault_y, pending_quest_states.mandos_vault_x, pending_quest_states.mandos_level);
     }
@@ -5602,6 +5690,42 @@ static int min_nonquest_gv_depth(void)
     return cached_min_depth;
 }
 
+static int vault_type8_generation_rarity(const vault_type* v_ptr, int depth)
+{
+    int rarity = v_ptr->rarity;
+
+    if ((depth >= 6) && (v_ptr->flags & (VLT_SURFACE)))
+    {
+        rarity += (1 << depth);
+    }
+
+    return rarity;
+}
+
+static bool quest_vault_surface_roll_allows(const vault_type* v_ptr, int depth)
+{
+    if (v_ptr->typ == 6)
+    {
+        if (depth < 6)
+        {
+            if (!(v_ptr->flags & (VLT_SURFACE)) && !one_in_(4))
+                return false;
+        }
+        else if (v_ptr->flags & (VLT_SURFACE))
+        {
+            if (!one_in_(1 << depth))
+                return false;
+        }
+    }
+    else if ((depth >= 6) && (v_ptr->flags & (VLT_SURFACE)))
+    {
+        if (!one_in_(1 << depth))
+            return false;
+    }
+
+    return true;
+}
+
 /* Roll whether this level should reserve a greater vault slot based on vault rarities */
 static bool gv_level_roll_allows(int depth, int *out_candidates)
 {
@@ -5629,7 +5753,7 @@ static bool gv_level_roll_allows(int depth, int *out_candidates)
         if (repeated) continue;
 
         candidate_count++;
-        if (!passed && one_in_(v_ptr->rarity))
+        if (!passed && one_in_(vault_type8_generation_rarity(v_ptr, depth)))
         {
             passed = true;
         }
@@ -14025,6 +14149,7 @@ static void process_quest_vault_area(int y0, int x0, vault_type *qv) {
         pending_quest_states.aule_level = p_ptr->depth;
         pending_quest_states.aule_forge_y = p_ptr->aule_forge_y;
         pending_quest_states.aule_forge_x = p_ptr->aule_forge_x;
+        level_gen_debug_note_questgiver(QUEST_ID_AULE);
         log_trace("Aule quest: FORGE_PRESENT change DEFERRED (quest vault) at %d,%d depth=%d, quest_reserved[0] set to 1", p_ptr->aule_forge_y, p_ptr->aule_forge_x, p_ptr->depth);
     }
     if (has_mandos && p_ptr->mandos_quest == MANDOS_QUEST_NOT_STARTED && 
@@ -14036,6 +14161,7 @@ static void process_quest_vault_area(int y0, int x0, vault_type *qv) {
         pending_quest_states.mandos_level = p_ptr->depth;
         pending_quest_states.mandos_vault_y = p_ptr->mandos_vault_y;
         pending_quest_states.mandos_vault_x = p_ptr->mandos_vault_x;
+        level_gen_debug_note_questgiver(QUEST_ID_MANDOS);
         log_trace("Mandos quest: GIVER_PRESENT change DEFERRED (quest vault) at %d,%d depth=%d, quest_reserved[0] set to 1", p_ptr->mandos_vault_y, p_ptr->mandos_vault_x, p_ptr->depth);
     }
 }
@@ -14241,33 +14367,23 @@ static bool any_eligible_type8_test_vault(void)
 
 static bool choose_reserved_type8(vault_type** out_v_ptr, s16b* out_v_idx)
 {
-    int eligible_count = 0;
-    int choice;
+    int tries = 0;
     bool test_only = any_eligible_type8_test_vault();
 
-    /* The level roll has already spent the rarity check, so at this point
-     * we only need to choose one of the still-eligible greater vaults. */
-    for (int i = 0; i < z_info->v_max; i++)
+    while (tries++ < 2000)
     {
-        if (vault_type8_is_eligible(i, test_only))
-            eligible_count++;
-    }
+        s16b v_idx = rand_int(z_info->v_max);
+        vault_type* v_ptr = &v_info[v_idx];
 
-    if (eligible_count <= 0)
-        return false;
-
-    choice = rand_int(eligible_count);
-    for (int i = 0; i < z_info->v_max; i++)
-    {
-        if (!vault_type8_is_eligible(i, test_only))
+        if (!vault_type8_is_eligible(v_idx, test_only))
             continue;
 
-        if (choice-- == 0)
-        {
-            *out_v_ptr = &v_info[i];
-            *out_v_idx = i;
-            return true;
-        }
+        if (!one_in_(vault_type8_generation_rarity(v_ptr, p_ptr->depth)))
+            continue;
+
+        *out_v_ptr = v_ptr;
+        *out_v_idx = v_idx;
+        return true;
     }
 
     return false;
@@ -14360,16 +14476,10 @@ static bool build_type8(int y0, int x0)
 
         /* Surface vaults get exponentially rarer at depth */
         {
-            int rarity = v_ptr->rarity;
-            if ((p_ptr->depth >= 6) && (v_ptr->flags & (VLT_SURFACE)))
-            {
-                rarity += (1 << p_ptr->depth);
-            }
-
             /* Accept the first greater vault (but not quest vaults) */
             if ((v_ptr->typ == 8) && (v_ptr->depth <= p_ptr->depth)
                 && (v_ptr->max_depth == 0 || p_ptr->depth <= v_ptr->max_depth)
-                && (one_in_(rarity)) && !(v_ptr->flags & VLT_QUEST))
+                && (one_in_(vault_type8_generation_rarity(v_ptr, p_ptr->depth))) && !(v_ptr->flags & VLT_QUEST))
         {
             repeated = false;
             for (i = 0; i < MAX_GREATER_VAULTS; i++)
@@ -15696,6 +15806,7 @@ static bool place_duruin_bastion(void)
         if (!vault_template_has_duruin(qv_ptr)) continue;
         if (qv_ptr->depth > p_ptr->depth) continue;
         if (qv_ptr->max_depth != 0 && p_ptr->depth > qv_ptr->max_depth) continue;
+        if (!quest_vault_surface_roll_allows(qv_ptr, p_ptr->depth)) continue;
 
         /* Found Duruin Bastion - attempt placement and return result */
         log_trace("Varda quest: Found Duruin Bastion vault at index %d: '%s', attempting placement", i, v_name + qv_ptr->name);
@@ -15798,6 +15909,7 @@ static bool try_quest_vault_type(int v_type, bool *had_eligible_candidate)
         if (!(qv_ptr->flags & VLT_QUEST)) continue;
         if (qv_ptr->depth > p_ptr->depth) continue;
         if (qv_ptr->max_depth != 0 && p_ptr->depth > qv_ptr->max_depth) continue;
+        if (!quest_vault_surface_roll_allows(qv_ptr, p_ptr->depth)) continue;
         if (vault_template_has_duruin(qv_ptr)) {
             log_trace("Quest vault: Skipping Duruin Bastion in generic placement path (quest-only)");
             continue;
@@ -15806,7 +15918,7 @@ static bool try_quest_vault_type(int v_type, bool *had_eligible_candidate)
         log_trace("Quest vault: Checking vault %d '%s' (rarity=%d)", i, v_name + qv_ptr->name, qv_ptr->rarity);
         
         /* Once the quest-vault roll has committed this level to quest content,
-         * do not re-gate the chosen quest vault by template rarity. */
+         * still honor SURFACE weighting, but do not re-gate by template rarity. */
         
         /* Check Aule requirements */
         if (vault_template_has_aule(qv_ptr)) {
@@ -17064,6 +17176,7 @@ static bool cave_gen(void)
                 p_ptr->varda_quest = VARDA_QUEST_GIVER_PRESENT;
                 p_ptr->quest_reserved[0] = 1; /* Mark any quest spawned */
                 p_ptr->varda_level = p_ptr->depth;
+                level_gen_debug_note_questgiver(QUEST_ID_VARDA);
                 log_trace("Varda spawn: === SUCCESS === Placed at (%d,%d) on sunlight tile", try_y, try_x);
                 log_trace("Varda spawn: Quest state set to GIVER_PRESENT (%d), quest_reserved[0]=1", p_ptr->varda_quest);
             }
@@ -17140,6 +17253,7 @@ static bool cave_gen(void)
                         {
                             p_ptr->tulkas_quest = TULKAS_QUEST_GIVER_PRESENT;
                             p_ptr->quest_reserved[0] = 1; /* Mark any quest spawned */
+                            level_gen_debug_note_questgiver(QUEST_ID_TULKAS);
                             tulkas_spawned = true;
                             log_trace("Tulkas spawned near player at (%d, %d), player at (%d, %d), quest state: %d", 
                                      try_y, try_x, player_y, player_x, p_ptr->tulkas_quest);
@@ -17165,6 +17279,7 @@ static bool cave_gen(void)
                             {
                                 p_ptr->tulkas_quest = TULKAS_QUEST_GIVER_PRESENT;
                                 p_ptr->quest_reserved[0] = 1; /* Mark any quest spawned */
+                                level_gen_debug_note_questgiver(QUEST_ID_TULKAS);
                                 tulkas_spawned = true;
                                 log_trace("Tulkas spawned in fallback room at (%d, %d), quest state: %d", 
                                          room_y, room_x, p_ptr->tulkas_quest);
@@ -17270,6 +17385,7 @@ static bool cave_gen(void)
                         {
                             p_ptr->niena_quest = NIENA_QUEST_GIVER_PRESENT;
                             p_ptr->quest_reserved[0] = 1; /* Mark any quest spawned */
+                            level_gen_debug_note_questgiver(QUEST_ID_NIENA);
                             niena_spawned = true;
                             log_trace("Niena spawned near player at (%d, %d), player at (%d, %d), quest state: %d", 
                                      try_y, try_x, player_y, player_x, p_ptr->niena_quest);
@@ -17303,6 +17419,7 @@ static bool cave_gen(void)
                         {
                             p_ptr->niena_quest = NIENA_QUEST_GIVER_PRESENT;
                             p_ptr->quest_reserved[0] = 1; /* Mark any quest spawned */
+                            level_gen_debug_note_questgiver(QUEST_ID_NIENA);
                             niena_spawned = true;
                             log_trace("Niena spawned in fallback room at (%d, %d), quest state: %d", 
                                      room_y, room_x, p_ptr->niena_quest);
@@ -17333,6 +17450,7 @@ static bool cave_gen(void)
                         {
                             p_ptr->niena_quest = NIENA_QUEST_GIVER_PRESENT;
                             p_ptr->quest_reserved[0] = 1;
+                            level_gen_debug_note_questgiver(QUEST_ID_NIENA);
                             niena_spawned = true;
                             log_trace("Niena spawned by exhaustive scan at (%d, %d), quest state: %d",
                                 scan_y, scan_x, p_ptr->niena_quest);
@@ -17421,6 +17539,7 @@ static bool cave_gen(void)
                     {
                         p_ptr->orome_quest = OROME_QUEST_GIVER_PRESENT;
                         p_ptr->quest_reserved[0] = 1; /* Mark any quest spawned */
+                        level_gen_debug_note_questgiver(QUEST_ID_OROME);
                         orome_spawned = true;
                         log_trace("Orome spawned near player at (%d, %d), player at (%d, %d), quest state: %d", 
                                  try_y, try_x, player_y, player_x, p_ptr->orome_quest);
@@ -17446,6 +17565,7 @@ static bool cave_gen(void)
                         {
                             p_ptr->orome_quest = OROME_QUEST_GIVER_PRESENT;
                             p_ptr->quest_reserved[0] = 1; /* Mark any quest spawned */
+                            level_gen_debug_note_questgiver(QUEST_ID_OROME);
                             orome_spawned = true;
                             log_trace("Orome spawned in fallback room at (%d, %d), quest state: %d", 
                                      room_y, room_x, p_ptr->orome_quest);

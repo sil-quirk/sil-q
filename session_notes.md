@@ -1,7 +1,13 @@
 # Session notes
 
+## 2026-03-16: Suppress generation-time drop sounds
+- Updated `src/object2.c` so material-based drop sounds in `drop_near()` only play when `character_dungeon` is true.
+- Root cause: the existing guard used `character_generated`, which remains true during `generate_cave()`, so level-generation item placement still emitted drop sounds.
+- Validation: editor check for `src/object2.c`; `Build and Deploy` task completed successfully.
+
 ## 2026-03-15: Level generation debug UI summary and scaling
 - Updated the debug-only level generation overlay in `src/generate.c` to summarize generated partitions, partition type mix, quest vault count/name, and greater vault count/name.
+- Added roulette-aware quest summary lines so the debug overlay now shows the roulette winner separately from whether a quest giver actually spawned.
 - Expanded recent generation history and made the recent-events pane consume the available width and height by wrapping entries against the current terminal size instead of a fixed per-entry line cap.
 
 ## 2026-03-15: Increased dungeon object slot cap

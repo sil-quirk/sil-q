@@ -4828,8 +4828,8 @@ void drop_near(object_type* j_ptr, int chance, int y, int x)
             drop_sound = MSG_DROP_GENERIC;
         }
 
-        /* Only play drop sound if character is fully generated (not during level gen) */
-        if (character_generated) {
+        /* Only play drop sound while the player is actively in a live dungeon. */
+        if (character_dungeon) {
             sound(drop_sound);
         }
     }
