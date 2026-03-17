@@ -95,6 +95,24 @@ static bool any_monster_observes_player(void)
     return false;
 }
 
+static int count_monsters_observing_player(void)
+{
+    int count = 0;
+
+    for (int i = mon_max - 1; i >= 1; i--)
+    {
+        monster_type* m_ptr = &mon_list[i];
+
+        if (!m_ptr->r_idx)
+            continue;
+
+        if (monster_currently_sees_player(m_ptr))
+            count++;
+    }
+
+    return count;
+}
+
 void song_disguise_new_player_turn(void)
 {
     ensure_song_disguise_buffers();
@@ -157,6 +175,39 @@ void song_disguise_note_monster_attack(int m_idx)
         song_disguise_attacked[m_idx] = 1;
         song_disguise_attackers_current_turn++;
     }
+}
+
+void song_disguise_note_player_attack(int m_idx)
+{
+    (void)m_idx;
+
+    if (!singing(SNG_DISGUISE))
+        return;
+
+    if (p_ptr->song1 == SNG_DISGUISE)
+    {
+        if (p_ptr->song2 != SNG_NOTHING)
+        {
+            p_ptr->song1 = p_ptr->song2;
+            p_ptr->song2 = SNG_NOTHING;
+            msg_print("Your attack breaks your song of disguise.");
+        }
+        else
+        {
+            p_ptr->song1 = SNG_NOTHING;
+            msg_print("Your attack ends your song of disguise.");
+        }
+    }
+    else if (p_ptr->song2 == SNG_DISGUISE)
+    {
+        p_ptr->song2 = SNG_NOTHING;
+        msg_print("Your attack ends your minor theme of disguise.");
+    }
+
+    song_disguise_on_stop();
+
+    p_ptr->redraw |= (PR_SONG);
+    p_ptr->update |= (PU_BONUS);
 }
 
 static void song_revealing_decay(void)
@@ -745,6 +796,7 @@ static void sing_song_of_disguise(int score)
     song_disguise_clear_pacified();
 
     int player_skill = score + p_ptr->skill_use[S_WIL];
+    int observer_penalty = count_monsters_observing_player();
 
     // Turgon's unique: Shadow Walker - add Perception to the check
     if (c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_TURGON)
@@ -755,6 +807,7 @@ static void sing_song_of_disguise(int score)
     for (int i = mon_max - 1; i >= 1; i--)
     {
         monster_type* m_ptr = &mon_list[i];
+        char m_name[80];
 
         if (!m_ptr->r_idx)
             continue;
@@ -764,6 +817,8 @@ static void sing_song_of_disguise(int score)
 
         int difficulty = monster_skill(m_ptr, S_WIL)
             + monster_skill(m_ptr, S_PER);
+
+        difficulty += observer_penalty;
 
         if (m_ptr->cdis > 1)
             difficulty -= (m_ptr->cdis - 1);
@@ -802,6 +857,8 @@ static void sing_song_of_disguise(int score)
         {
             if (!song_disguise_seen[m_idx])
             {
+                monster_desc(m_name, sizeof(m_name), m_ptr, 0);
+                msg_format("%^s sees through your disguise.", m_name);
                 song_disguise_seen[m_idx] = 1;
                 song_disguise_seen_count++;
             }
@@ -7154,13 +7211,15 @@ void sing_song_of_shattering(int score)
 
         bool has_weapon_flag = (r_ptr->flags3 & RF3_HAS_WEAPON) != 0;
         bool has_armour_flag = (r_ptr->flags3 & RF3_HAS_ARMOUR) != 0;
+        bool has_stone_body = (r_ptr->flags3 & RF3_STONE) != 0;
 
-        if (!has_weapon_flag && !has_armour_flag)
+        if (!has_weapon_flag && !has_armour_flag && !has_stone_body)
             continue;
 
         monsters_with_flags++;
-        log_debug("Song of Shattering: Monster %s has flags (weapon=%d, armour=%d)", 
-                  r_name + r_ptr->name, has_weapon_flag, has_armour_flag);
+        log_debug("Song of Shattering: Monster %s has flags (weapon=%d, armour=%d, stone=%d)", 
+                  r_name + r_ptr->name, has_weapon_flag, has_armour_flag,
+                  has_stone_body);
 
         /* Identify items carried by the monster (for secondary effects) */
         find_monster_equipment(m_ptr, &weapon, &armour);
@@ -7208,7 +7267,7 @@ void sing_song_of_shattering(int score)
         }
 
         /* Check for armour possibility */
-        if (has_armour_flag && r_ptr->ps > 0)
+        if ((has_armour_flag || has_stone_body) && r_ptr->ps > 0)
         {
             if (m_ptr->armor_ps_reduction < r_ptr->ps)
                 armour_possible = true;
@@ -7668,7 +7727,7 @@ void sing(void)
         }
         case SNG_DISGUISE:
         {
-            cost += 2;
+            cost += 3;
             sing_song_of_disguise(score);
             break;
         }

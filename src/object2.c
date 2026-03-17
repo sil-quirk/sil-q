@@ -2150,8 +2150,8 @@ static void apply_object_weight_flags(object_type* o_ptr, int base_weight,
         return;
 
     adjusted_weight = o_ptr->weight + weight_adjust;
-    if (adjusted_weight < 0)
-        adjusted_weight = 0;
+    if (adjusted_weight < 1)
+        adjusted_weight = 1;
 
     o_ptr->weight = (s16b)adjusted_weight;
 }
@@ -4329,6 +4329,62 @@ bool make_object(object_type* j_ptr, drop_quality quality, int objecttype)
     }
 
     return true;
+}
+
+bool make_guaranteed_artefact(object_type* j_ptr, drop_quality quality, int objecttype)
+{
+    int depth = object_level;
+    bool allow_artefacts = (object_generation_mode == OB_GEN_MODE_CHEST)
+        || (object_generation_mode == OB_GEN_MODE_MONSTER_DROP);
+
+    if (!allow_artefacts || adult_no_artefacts)
+        return false;
+
+    for (int attempt = 0; attempt < 1024; attempt++)
+    {
+        bool mentioned = false;
+        object_type attempt_obj;
+
+        object_wipe(&attempt_obj);
+
+        if (!drop_generate_object(depth, quality, objecttype, true, &attempt_obj))
+            continue;
+        if (!artefact_p(&attempt_obj))
+            continue;
+
+        object_wipe(j_ptr);
+        object_copy(j_ptr, &attempt_obj);
+
+        if (!cursed_p(j_ptr) && !broken_p(j_ptr)
+            && (k_info[j_ptr->k_idx].level > p_ptr->depth))
+        {
+            rating += (k_info[j_ptr->k_idx].level - p_ptr->depth);
+            if (cheat_peek)
+            {
+                object_mention(j_ptr);
+                mentioned = true;
+            }
+        }
+
+        rating += 10;
+        good_item_flag = true;
+
+        if (cheat_peek && !mentioned)
+            object_mention(j_ptr);
+
+        pseudo_id(j_ptr);
+
+        if (j_ptr->name1)
+        {
+            artefact_type* a_ptr = &a_info[j_ptr->name1];
+            if (!(a_ptr->flags3 & TR3_INSTA_ART))
+                p_ptr->artefacts++;
+        }
+
+        return true;
+    }
+
+    return false;
 }
 
 /*

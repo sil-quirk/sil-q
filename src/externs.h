@@ -950,6 +950,7 @@ extern s16b monster_lookup_guid(u64b guid);
 extern s16b monster_lookup_guid_text(const char* text);
 extern bool place_monster_by_guid(
     int y, int x, u64b guid, bool slp, bool ignore_depth, monster_type* summoner);
+extern bool monster_special_vault_selection_allowed(void);
 extern bool monster_special_vault_only_allowed_at(int y, int x);
 extern bool place_monster_one(
     int y, int x, int r_idx, bool slp, bool ingnore_depth, monster_type* m_ptr);
@@ -1059,12 +1060,14 @@ typedef enum
     DROP_QUALITY_NORMAL = 0,
     DROP_QUALITY_GOOD = 1,
     DROP_QUALITY_GREAT = 2,
-    DROP_QUALITY_SUPERB = 3
+    DROP_QUALITY_SUPERB = 3,
+    DROP_QUALITY_ARTEFACT = 4
 } drop_quality;
 #endif
 #define DROP_BONUS_GOOD 5
 #define DROP_BONUS_GREAT 10
 #define DROP_BONUS_SUPERB 15
+#define DROP_BONUS_ARTEFACT 20
 #define DROP_GREAT_ARTEFACT_WEIGHT_MULTIPLIER 5
 #define DROP_CHEST_NOBLE_RARITY_BONUS 20
 #ifndef DROP_PROFILE_T_DEFINED
@@ -1131,6 +1134,8 @@ extern bool upgrade_broken_item(int slot);
 extern bool reveal_random_artifact(void);
 
 extern bool make_object(
+    object_type* j_ptr, drop_quality quality, int objecttype);
+extern bool make_guaranteed_artefact(
     object_type* j_ptr, drop_quality quality, int objecttype);
 extern bool prep_object_theme(int themetype);
 extern s16b floor_carry(int y, int x, object_type* j_ptr);
@@ -1228,6 +1233,7 @@ extern void sing(void);
 extern void song_disguise_new_player_turn(void);
 extern void song_disguise_handle_monster_removed(int m_idx);
 extern void song_disguise_note_monster_attack(int m_idx);
+extern void song_disguise_note_player_attack(int m_idx);
 extern bool song_disguise_monster_is_fooled(const monster_type* m_ptr);
 extern bool song_revealing_overlay(int m_idx, byte* a, char* c);
 extern void song_duels_new_player_turn(void);

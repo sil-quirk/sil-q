@@ -946,9 +946,10 @@ int stealth_melee_bonus(const monster_type* m_ptr, bool allow_unseen)
     if (p_ptr->active_ability[S_STL][STL_ASSASSINATION])
     {
         bool visible_target = allow_unseen || m_ptr->ml;
+        bool unaware_target = (m_ptr->alertness < ALERTNESS_ALERT)
+            || song_disguise_monster_is_fooled(m_ptr);
 
-        if ((m_ptr->alertness < ALERTNESS_ALERT) && visible_target
-            && !(p_ptr->confused))
+        if (unaware_target && visible_target && !(p_ptr->confused))
         {
             stealth_bonus = p_ptr->skill_use[S_STL];
         }
@@ -5457,6 +5458,8 @@ void py_attack_aux(int y, int x, int attack_type)
         // Determine the monster's evasion score after all modifiers
         total_evasion_mod = total_monster_evasion(m_ptr, false);
 
+        song_disguise_note_player_attack(cave_m_idx[m_ptr->fy][m_ptr->fx]);
+
         hit_result = hit_roll(
             total_attack_mod, total_evasion_mod, PLAYER, m_ptr, true);
 
@@ -6039,6 +6042,9 @@ void flanking_or_retreat(int y, int x)
     {
         controlled_retreat = true;
     }
+
+    if (singing(SNG_DISGUISE))
+        return;
 
     if (!p_ptr->confused && (flanking || controlled_retreat))
     {

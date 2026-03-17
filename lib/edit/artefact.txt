@@ -271,7 +271,7 @@ D: when the Falathrim sang beneath the stars.
 
 ## The Jewel 'Elessar' (amulet slot)
 ## 1st age
-## (ability 7/3 is Song of Staunching)
+## (ability 7/5 is Song of Staunching)
 
 # Smithing difficulty: 48
 
@@ -282,7 +282,7 @@ W:14:20:1:7000
 P:0:0d0:0:0d0
 F:CON | GRA | REGEN | MEDIC | NOBLE_ITEM
 F:INSTA_ART
-B:7/3
+B:7/5
 D:A green jewel made by Enerdhil the smith in Gondolin, filled with the
 D: light of the Sun. Those who look through it see withered things as young
 D: once more, and the hands of one who wears it bring healing. Idril gave it

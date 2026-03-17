@@ -803,7 +803,8 @@ static u16b score_runs_completed_quests(void)
         count++;
     if (p_ptr->mandos_quest >= MANDOS_QUEST_SUCCESS)
         count++;
-    if (p_ptr->niena_quest >= NIENA_QUEST_SUCCESS)
+    if (p_ptr->niena_quest == NIENA_QUEST_SUCCESS
+        || p_ptr->niena_quest == NIENA_QUEST_REWARDED)
         count++;
     if (p_ptr->orome_quest >= OROME_QUEST_SUCCESS)
         count++;

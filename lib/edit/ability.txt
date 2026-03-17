@@ -342,7 +342,7 @@ T:45:0:99  # Ring
 N:61:Assassination
 I:3:1:4
 D:Striking from the shadows as the guerrilla fighters of Barahir's outlaw band struck at Morgoth's servants in the highlands of Dorthonion. Those who move unseen learn to exploit the moment of surprise, for a blade guided by stealth finds its mark far more surely than one wielded in open combat.
-E:Melee bonus vs non-alert creatures equal to your Stealth score.
+E:Melee bonus equal to your Stealth score vs non-alert creatures and monsters fooled by Song of Disguise.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -452,7 +452,7 @@ N:87:Resonance
 I:4:7:8
 P:4/2
 D:Attuning your senses to the hidden resonance of the world, as Melian the Maia hearkened to the deep whispers within her Girdle about Doriath. Such attentiveness perceives the subtle vibrations of all things: the footfall of an unseen enemy, the faint harmonic of enchantment.
-E:Detect unseen enemies each turn. Double Perception when identifying items.
+E:Detect unseen enemies each turn. Double the Perception portion of identification; Grace still counts only once.
 T:32:0:99  # Helm
 
 N:88:Master Hunter
@@ -745,7 +745,7 @@ N:153:Song of Disguise
 I:7:13:8
 P:7/4:7/3
 D:Weaving glamour as Luthien did when she took the form of Thuringwethil and passed the gates of Angband unchallenged, her enchantment so complete that even the Wolves of Sauron took her for one of their own. Such a song wraps the singer in illusion, but watchful eyes may pierce the deception and see truly.
-E:Watchful foes mistake you for their own (your Song vs their Perception and Will each round).
+E:Watchful foes mistake you for their own (your Song vs their Perception and Will each round, at -1 for each foe aware of you).
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
@@ -761,7 +761,7 @@ N:155:Song of Shattering
 I:7:15:9
 P:7/10:7/12
 D:With discordant blasts like the song of power that Luthien raised before the towers of Tol-in-Gaurhoth, bringing walls crashing down in ruin. You chant of breaking and sundering, of iron rent and steel unmade, and the weapons and armour of your foes weaken beneath the assault of sound.
-E:Shatter enemy weapons and armour, weakening their attacks and defenses (resisted by Will).
+E:Shatter enemy weapons and armour, even the stone bodies of stone creatures, weakening their attacks and defenses (resisted by Will).
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 

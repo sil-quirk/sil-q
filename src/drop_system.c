@@ -93,6 +93,8 @@ static const char* drop_quality_name(drop_quality quality)
 {
     switch (quality)
     {
+    case DROP_QUALITY_ARTEFACT:
+        return "artefact";
     case DROP_QUALITY_GOOD:
         return "good";
     case DROP_QUALITY_GREAT:
@@ -109,6 +111,8 @@ static int drop_quality_bonus(drop_quality quality)
 {
     switch (quality)
     {
+    case DROP_QUALITY_ARTEFACT:
+        return DROP_BONUS_ARTEFACT;
     case DROP_QUALITY_GOOD:
         return DROP_BONUS_GOOD;
     case DROP_QUALITY_GREAT:

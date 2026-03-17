@@ -2467,7 +2467,9 @@
 #define RF3_RES_FIRE 0x00040000 /* Resist fire */
 #define RF3_RES_COLD 0x00080000 /* Resist cold */
 #define RF3_RES_POIS 0x00100000 /* Resist poison */
-#define RF3_RF3XXX6 0x00200000 /* (?) */
+#define RF3_DROP_ARTEFACT                                                   \
+    0x00200000 /* Drop artefact-quality items, including one guaranteed artefact */
+#define RF3_RF3XXX6 RF3_DROP_ARTEFACT /* Compatibility alias */
 #define RF3_GIANT 0x00400000 /* Giant */
 #define RF3_CAT 0x00800000 /* Cat */
 #define RF3_HORROR 0x01000000 /* Horror (includes Nameless Things) */
@@ -3804,6 +3806,7 @@
 #define NIENA_QUEST_ACTIVE 2         /* Accepted quest: must reach stairs down without killing */
 #define NIENA_QUEST_SUCCESS 3        /* Reached stairs without killing (reward granted) */
 #define NIENA_QUEST_REWARDED 4       /* Reward given, quest fully complete */
+#define NIENA_QUEST_FAILED 5         /* Failed by taking a life during the quest */
 
 /* Orome quest states */
 #define OROME_QUEST_NOT_STARTED 0

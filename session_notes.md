@@ -1,5 +1,44 @@
 # Session notes
 
+## 2026-03-18: SPECIAL_VAULT_ONLY selection filtered from generic allocators
+- Updated `src/monster2.c` so `get_mon_num()` skips `SPECIAL_VAULT_ONLY` monsters unless generation is currently building Morgoth's throne room.
+- Added a small selection-context helper in `src/generate.c` and declaration in `src/externs.h`.
+- Root issue: generic selectors for vault symbols like `d` could still consider Ancalagon during ordinary monster selection, even though he is meant to appear only from exact vault tokens or throne-room generation.
+- Validation: `Build and Deploy` ran without showing compiler errors for the touched files.
+
+## 2026-03-17: Niena quest now fails on first kill
+- Updated `src/xtra2.c` so the first non-Niena monster death during Niena's mercy quest immediately moves the quest into a terminal failed state instead of only incrementing the kill counter.
+- Added `NIENA_QUEST_FAILED` in `src/defines.h` and surfaced it in the quest status UI so failed runs show `Failed: seen/killed` plus a failure reason instead of remaining active.
+- Updated `src/score/score_runs.c` so failed Niena quests no longer count as completed quests in score summaries.
+- Validation plan: run `Build and Deploy` to confirm the SDL build stays clean.
+
+## 2026-03-17: Song of Shattering affects stone armour
+- Updated `src/spells1.c` so Song of Shattering now treats `RF3_STONE` monsters as valid armour targets, while still leaving the weapon path restricted to monsters with `RF3_HAS_WEAPON`.
+- Root cause: the song previously skipped any monster that lacked `HAS_WEAPON` and `HAS_ARMOUR`, so stone-bodied monsters were excluded before the armour weakening logic ran.
+- Updated `lib/edit/ability.txt` to mention that the song can shatter the stone bodies of stone creatures.
+- Validation: editor diagnostics were clean for the changed files and `Build and Deploy` completed successfully.
+
+## 2026-03-17: Song of Disguise awareness penalty and upkeep
+- Updated `src/spells1.c` so each Song of Disguise check now takes a flat `-1` equivalent penalty per monster currently aware of and observing the player, implemented as `+1` difficulty per current observer.
+- Raised Song of Disguise upkeep in `src/spells1.c` from `2` to `3` voice per turn.
+- Updated the Song of Disguise description in `lib/edit/ability.txt` to mention the per-aware-foe penalty; the `P:` data already matched the 3 VP upkeep.
+- Validation plan: run `Build and Deploy` to confirm the SDL build stays clean.
+
+## 2026-03-17: Song of Disguise movement-attack suppression correction
+- Tightened the earlier Song of Disguise movement fix in `src/cmd1.c` and `src/monster2.c`: flanking, controlled retreat, zone of control, and opportunist now short-circuit whenever Song of Disguise is being sung, rather than only when the specific monster is currently marked as fooled.
+- Root cause: the first pass only gated those attacks on per-monster fooled state, which still allowed extra attacks to fire while the song was active against monsters that had not yet been pacified.
+- Validation plan: run `Build and Deploy` to confirm the SDL build stays clean.
+
+## 2026-03-17: Song of Disguise seen-through message
+- Updated `src/spells1.c` so the first time a watching monster pierces Song of Disguise, the game prints a message naming that monster.
+- The message only triggers on the transition into the song's `seen` state, so it does not repeat every turn unless the monster is fooled again and later sees through the disguise again.
+- Validation plan: run `Build and Deploy` to confirm the SDL build stays clean.
+
+## 2026-03-17: Song of Disguise peaceful-move attack suppression
+- Updated `src/cmd1.c` and `src/monster2.c` so movement-triggered extra attacks do not fire against or from monsters currently fooled by Song of Disguise.
+- Covered player flanking/controlled retreat plus both zone-of-control and opportunist reactions during monster/player movement swaps.
+- Validation: editor checks for `src/cmd1.c` and `src/monster2.c` were clean; `Build and Deploy` task completed successfully.
+
 ## 2026-03-17: Restore level-20 partition monster population
 - Fixed `src/generate.c` so the partition monster pass no longer bails out for the entire Morgoth level.
 - Root cause: `run_partition_monster_pass()` returned immediately when `morgoth_level_active` was set, even though partition plans for the non-throne partitions still budgeted hundreds of monsters.
@@ -6668,6 +6707,18 @@ Score (highest first)                      Layout: Short
 * Wired `SNG_DISGUISE` behaviour in `src/spells1.c`: enforced start restrictions when observed, tracked pacified/seen-through monsters with per-turn skill contests against Will+Perception (distance, attack, and suspicion penalties), and applied the 2 voice per round upkeep.
 * Hooked monster attack tracking and cleanup (`src/melee1.c`, `src/dungeon.c`, `src/monster2.c`) plus AI suppression (`src/melee2.c`) so fooled foes skip their turns until they pierce the disguise; integrated song noise and ability bonus adjustments (`src/xtra1.c`).
 * Declared new song helpers in `src/externs.h` and ensured per-turn rotation/reset flows manage disguise state during level transitions and saves.
+* Assassination now also grants its stealth melee bonus against monsters currently fooled by Song of Disguise (`src/cmd1.c`), so disguised openings use the same attack bonus path as unwary targets.
+* Updated the Assassination ability text in `lib/edit/ability.txt` so the mechanical description now states that fooled Song of Disguise targets also qualify for the bonus.
+* Player attacks now immediately end Song of Disguise itself (`src/spells1.c`, `src/cmd1.c`, `src/cmd2.c`), whether it is the main song or a minor theme, so attacking drops the disguise before monsters act.
+
+# Session Notes - Identification Grace Formula
+
+## Date
+
+2026-03-17
+
+* Adjusted smithing-based identification in `src/xtra1.c` to use Perception and Smithing without their Grace stat contributions, then add Grace once, preventing Grace from being counted twice.
+* Updated the Resonance description in `lib/edit/ability.txt` so the player-facing text now says it doubles only the Perception portion of identification while Grace still counts once.
 
 # Session Notes - Song of Revealing
 

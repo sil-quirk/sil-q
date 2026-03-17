@@ -2109,6 +2109,7 @@ void drop_loot(monster_type* m_ptr)
     bool good = false;
     bool great = false;
     bool superb = false;
+    bool artefact = false;
 
     object_type* i_ptr;
     object_type object_type_body;
@@ -2126,6 +2127,10 @@ void drop_loot(monster_type* m_ptr)
     if (r_ptr->flags2 & (RF2_DROP_SUPERB))
     {
         superb = true;
+    }
+    if (r_ptr->flags3 & (RF3_DROP_ARTEFACT))
+    {
+        artefact = true;
     }
 
     /* Get the location */
@@ -2318,7 +2323,8 @@ void drop_loot(monster_type* m_ptr)
      * are enforced by the current level (prevents early lantern/jewel drops). */
     int depth_cap = (p_ptr->depth > 0) ? p_ptr->depth : 1;
     object_level = MIN(r_ptr->level, depth_cap);
-    drop_quality quality = drop_quality_from_flags(good, great, superb);
+    drop_quality quality = artefact ? DROP_QUALITY_ARTEFACT
+                                    : drop_quality_from_flags(good, great, superb);
 
     byte old_gen_mode = object_generation_mode;
     object_generation_mode = OB_GEN_MODE_MONSTER_DROP;
@@ -2332,8 +2338,27 @@ void drop_loot(monster_type* m_ptr)
         /* Wipe the object */
         object_wipe(i_ptr);
 
-        /* Make Object */
-        if (chest)
+        if (artefact && (j == 0))
+        {
+            if (!make_guaranteed_artefact(i_ptr, quality, DROP_TYPE_NOT_DAMAGED))
+            {
+                if (chest)
+                {
+                    if (!make_object(i_ptr, quality, DROP_TYPE_CHEST))
+                        continue;
+                    if (i_ptr->tval == TV_CHEST)
+                    {
+                        i_ptr->xtra1 =
+                            (byte)(0x80 | (byte)level_partition_kind_for_point(y, x));
+                    }
+                }
+                else if (!make_object(i_ptr, quality, DROP_TYPE_NOT_DAMAGED))
+                {
+                    continue;
+                }
+            }
+        }
+        else if (chest)
         {
             if (!make_object(i_ptr, quality, DROP_TYPE_CHEST))
                 continue;
@@ -2557,6 +2582,18 @@ void maybe_update_morgoth_state_from_hp(monster_type* m_ptr)
     anger_morgoth(target_state);
 }
 
+static void fail_niena_quest(void)
+{
+    p_ptr->niena_quest = NIENA_QUEST_FAILED;
+    p_ptr->niena_level = 0;
+
+    log_trace("Niena quest failed after a kill (seen=%d, killed=%d)",
+              p_ptr->niena_monsters_seen, p_ptr->niena_monsters_killed);
+
+    msg_print("A long, sorrowful silence settles over you.");
+    msg_print("You have taken a life and failed Niena's mercy quest.");
+}
+
 /*
  * Handle the "death" of a monster.
  *
@@ -2583,6 +2620,7 @@ void monster_death(int m_idx)
         p_ptr->niena_monsters_killed++;
         log_trace("Niena quest: Monster killed (total killed=%d, seen=%d)", 
                  p_ptr->niena_monsters_killed, p_ptr->niena_monsters_seen);
+        fail_niena_quest();
     }
 
     /* Track monster death for Orome hunting quest - global kill counting */
@@ -7318,6 +7356,14 @@ void do_cmd_quest_status(void)
                 Term_putstr(col + 2, row++, -1, color, niena_status);
                 strnfmt(buf, sizeof(buf), "Reward: %s received", get_quest_reward_text(QUEST_ID_NIENA));
                 Term_putstr(col + 2, row++, -1, TERM_SLATE, buf);
+                break;
+            case NIENA_QUEST_FAILED:
+                strnfmt(buf, sizeof(buf), "Failed: %d seen, %d killed",
+                        p_ptr->niena_monsters_seen, p_ptr->niena_monsters_killed);
+                color = TERM_RED;
+                Term_putstr(col + 2, row++, -1, color, buf);
+                Term_putstr(col + 2, row++, -1, TERM_SLATE,
+                            "You took a life and lost Niena's mercy.");
                 break;
             default:
                 niena_status = "Unknown status";

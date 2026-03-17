@@ -733,6 +733,14 @@ s16b get_mon_num(int level, bool special, bool allow_non_smart, bool vault)
             continue;
         }
 
+        /* Special-vault-only monsters must not enter generic selection outside
+         * their explicit vault-token or throne-room build contexts. */
+        if ((r_ptr->flags3 & (RF3_SPECIAL_VAULT_ONLY))
+            && !monster_special_vault_selection_allowed())
+        {
+            continue;
+        }
+
         /* Non-moving monsters can't appear as out-of-depth pursuing monsters */
         if ((r_ptr->flags1 & (RF1_NEVER_MOVE)) && pursuing_monster)
         {
@@ -1187,7 +1195,7 @@ void lore_treasure(int m_idx, int num_item)
     if (num_item > l_ptr->drop_item)
         l_ptr->drop_item = num_item;
 
-    /* Hack -- memorize the chest/good/great/superb flags */
+    /* Hack -- memorize the chest/good/great/superb/artefact flags */
     if (r_ptr->flags1 & (RF1_DROP_CHEST))
         l_ptr->flags1 |= (RF1_DROP_CHEST);
     if (r_ptr->flags1 & (RF1_DROP_GOOD))
@@ -1196,6 +1204,8 @@ void lore_treasure(int m_idx, int num_item)
         l_ptr->flags1 |= (RF1_DROP_GREAT);
     if (r_ptr->flags2 & (RF2_DROP_SUPERB))
         l_ptr->flags2 |= (RF2_DROP_SUPERB);
+    if (r_ptr->flags3 & (RF3_DROP_ARTEFACT))
+        l_ptr->flags3 |= (RF3_DROP_ARTEFACT);
 
     /* Update monster recall window */
     if (p_ptr->monster_race_idx == m_ptr->r_idx)
@@ -2117,7 +2127,8 @@ void monster_swap(int y1, int x1, int y2, int x2)
 
         // (skip_next_turn is there to stop you getting opportunist attacks afer
         // knocking someone back)
-        if (m_ptr->ml && !m_ptr->skip_next_turn && !p_ptr->truce
+        if (!singing(SNG_DISGUISE) && m_ptr->ml && !m_ptr->skip_next_turn
+            && !p_ptr->truce
             && !p_ptr->confused && !p_ptr->afraid && !p_ptr->entranced
             && (p_ptr->stun <= 100))
         {
@@ -2210,7 +2221,8 @@ void monster_swap(int y1, int x1, int y2, int x2)
                     l_ptr = &l_list[m_ptr->r_idx];
                     monster_desc(m_name, sizeof(m_name), m_ptr, 0);
 
-                    if ((m_ptr->alertness >= ALERTNESS_ALERT)
+                    if (!singing(SNG_DISGUISE)
+                        && (m_ptr->alertness >= ALERTNESS_ALERT)
                         && !m_ptr->confused && (m_ptr->stance != STANCE_FLEEING)
                         && !m_ptr->skip_next_turn && !m_ptr->skip_this_turn)
                     {

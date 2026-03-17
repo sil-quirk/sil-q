@@ -319,10 +319,16 @@ static void describe_monster_drop(int r_idx, const monster_lore* l_ptr)
             text_out(format(" up to %d", n));
         }
 
+        if (l_ptr->flags3 & RF3_DROP_ARTEFACT)
+        {
+            p = " legendary";
+            sin = false;
+        }
+
         /* Chests are not noted as good or great
          * (no "n" needed)
          */
-        if (l_ptr->flags1 & RF1_DROP_CHEST)
+        else if (l_ptr->flags1 & RF1_DROP_CHEST)
         {
             p = NULL;
             sin = false;
@@ -373,6 +379,9 @@ static void describe_monster_drop(int r_idx, const monster_lore* l_ptr)
                 text_out(" object");
             if (n != 1)
                 text_out("s");
+
+            if (l_ptr->flags3 & RF3_DROP_ARTEFACT)
+                text_out(", including an artefact");
         }
 
         /* End this sentence */

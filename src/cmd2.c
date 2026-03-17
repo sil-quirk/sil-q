@@ -7880,6 +7880,8 @@ void do_cmd_fire(int quiver)
                         msg_print("Your arrow flies true.");
                 }
 
+                song_disguise_note_player_attack(cave_m_idx[y][x]);
+
                 /* If it hit */
                 if (hit_result > 0)
                 {
@@ -9010,6 +9012,8 @@ void do_cmd_throw(bool automatic)
                 if (hit_result > 0)
                     msg_format("The %s flies true.", o_name);
             }
+
+            song_disguise_note_player_attack(cave_m_idx[y][x]);
 
             /* If it hit... */
             if (hit_result > 0)

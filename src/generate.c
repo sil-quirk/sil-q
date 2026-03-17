@@ -121,15 +121,28 @@ static vault_monster_spec vault_monster_table[] = {
 static int current_build_vault_type = 0;
 static bool current_build_vault_exact_token = false;
 
+static bool coord_in_morgoth_region(int y, int x, int margin);
+
+bool monster_special_vault_selection_allowed(void)
+{
+    if (current_build_vault_exact_token)
+        return true;
+
+    return current_build_vault_type == 9;
+}
+
 bool monster_special_vault_only_allowed_at(int y, int x)
 {
     if (current_build_vault_exact_token)
         return true;
 
+    if (!in_bounds(y, x))
+        return false;
+
     if (current_build_vault_type == 9)
         return true;
 
-    return (p_ptr->depth == MORGOTH_DEPTH) && in_bounds(y, x)
+    return coord_in_morgoth_region(y, x, 0)
         && ((cave_info[y][x] & CAVE_G_VAULT) != 0);
 }
 
@@ -173,6 +186,17 @@ static bool place_vault_monster_token(char symbol, int y, int x)
         }
 
         return true;
+    }
+
+    return false;
+}
+
+static bool is_vault_monster_token(char symbol)
+{
+    for (size_t i = 0; i < N_ELEMENTS(vault_monster_table); i++)
+    {
+        if (vault_monster_table[i].symbol == symbol)
+            return true;
     }
 
     return false;
@@ -12780,6 +12804,37 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             else
                 ax = dx;
 
+            x = x0 - (xmax / 2) + ax;
+            y = y0 - (ymax / 2) + ay;
+
+            if (flip_d)
+            {
+                x = x0 - (ymax / 2) + ay;
+                y = y0 - (xmax / 2) + ax;
+            }
+
+            if (*t == ' ')
+                continue;
+
+            if (is_vault_monster_token(*t))
+                place_vault_monster_token(*t, y, x);
+        }
+    }
+
+    for (t = data, dy = 0; dy < ymax; dy++)
+    {
+        if (flip_v)
+            ay = ymax - 1 - dy;
+        else
+            ay = dy;
+
+        for (dx = 0; dx < xmax; dx++, t++)
+        {
+            if (flip_h)
+                ax = xmax - 1 - dx;
+            else
+                ax = dx;
+
             /* Extract the grid */
             x = x0 - (xmax / 2) + ax;
             y = y0 - (ymax / 2) + ay;
@@ -12793,6 +12848,9 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
 
             /* Hack -- skip "non-grids" */
             if (*t == ' ')
+                continue;
+
+            if (is_vault_monster_token(*t))
                 continue;
 
             /* Analyze the symbol */

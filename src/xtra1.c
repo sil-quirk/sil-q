@@ -5072,18 +5072,19 @@ static int player_smithing_identify_skill(const object_type* o_ptr,
     bool is_equipped, bool apply_distance_penalty, bool ignore_distance_penalty,
     int bonus)
 {
-    int base_per = p_ptr->skill_use[S_PER];
+    int grace_bonus = p_ptr->stat_use[A_GRA];
+    int base_per = p_ptr->skill_use[S_PER] - p_ptr->skill_stat_mod[S_PER];
 
-    /* Resonance doubles Perception for identification */
+    /* Resonance doubles the Perception portion only; Grace is added once below. */
     if (player_has_ability_bonus(S_PER, PER_LISTEN))
     {
         base_per *= 2;
     }
 
-    int base_smt = p_ptr->skill_use[S_SMT];
+    int base_smt = p_ptr->skill_use[S_SMT] - p_ptr->skill_stat_mod[S_SMT];
     /* Basis for identification skill checks: start at -3 */
     int basis = -3;
-    int skill = base_per + base_smt + basis;
+    int skill = base_per + base_smt + grace_bonus + basis;
 
     int bonus_enchantment = player_has_ability_bonus(S_SMT, SMT_ENCHANTMENT) ? 5 : 0;
     int bonus_artifice = player_has_ability_bonus(S_SMT, SMT_ARTEFACT) ? 7 : 0;
@@ -5170,7 +5171,7 @@ static int player_smithing_identify_skill(const object_type* o_ptr,
     }
 
     log_debug(
-        "smithing-ident: skill calc k_idx=%d tval=%d sval=%d name1=%d ego_pfx=%d ego_sfx=%d ident=0x%08X base(per=%d smt=%d) abil(enchant=%d artifice=%d cursebreak=%d quick=%d) cat=%d cat_bonus=%d ctx(equip=%d exp=%d ego=%d) bonus=%d dist(apply=%d ignore=%d pen=%d curse_penalty=%d ident_diff=%d) => skill=%d",
+        "smithing-ident: skill calc k_idx=%d tval=%d sval=%d name1=%d ego_pfx=%d ego_sfx=%d ident=0x%08X base(per_no_gra=%d smt_no_gra=%d gra=%d) abil(enchant=%d artifice=%d cursebreak=%d quick=%d) cat=%d cat_bonus=%d ctx(equip=%d exp=%d ego=%d) bonus=%d dist(apply=%d ignore=%d pen=%d curse_penalty=%d ident_diff=%d) => skill=%d",
         o_ptr ? o_ptr->k_idx : 0,
         o_ptr ? o_ptr->tval : 0,
         o_ptr ? o_ptr->sval : 0,
@@ -5178,7 +5179,7 @@ static int player_smithing_identify_skill(const object_type* o_ptr,
         o_ptr ? object_ego_prefix(o_ptr) : 0,
         o_ptr ? object_ego_suffix(o_ptr) : 0,
         (unsigned)(o_ptr ? o_ptr->ident : 0),
-        base_per, base_smt,
+        base_per, base_smt, grace_bonus,
         bonus_enchantment, bonus_artifice, bonus_curse_breaking, bonus_quick_study,
         (int)cat, category_bonus,
         bonus_equipped, bonus_experienced, bonus_known_ego,
