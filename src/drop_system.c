@@ -2354,6 +2354,7 @@ typedef struct
     int lower;
     int upper;
     bool allow_artefacts; /* whether artefacts can be selected */
+    bool artefacts_only; /* whether only artefact entries are allowed */
     bool allow_noble; /* explicit override for noble-tagged entries */
     bool allow_evil; /* explicit override for evil-tagged entries */
     bool allow_noble_from_quality; /* whether GOOD+ quality may include noble-tagged entries */
@@ -2650,6 +2651,9 @@ static bool collect_candidate_entries(
     {
         drop_entry e = g_drop_entries[i];
         filter_total++;
+
+        if (req->artefacts_only && e.group_kind != DROP_GROUP_ARTIFACT)
+            continue;
 
         if (e.group_kind == DROP_GROUP_ARTIFACT)
         {
@@ -3479,7 +3483,8 @@ static drop_entry* drop_try_pick(drop_request* req, int legal_depth,
 
 static bool drop_generate_object_internal(int depth, drop_quality quality,
     int min_depth_penalty_depth, int droptype, int extra_bonus, bool allow_artefacts,
-    int artefact_weight_multiplier, const drop_profile* profile, object_type* out)
+    int artefact_weight_multiplier, bool artefacts_only,
+    const drop_profile* profile, object_type* out)
 {
     if (min_depth_penalty_depth < 1)
         min_depth_penalty_depth = 1;
@@ -3509,6 +3514,7 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     req.is_supply = false;
     req.droptype = droptype;
     req.allow_artefacts = allow_artefacts;
+    req.artefacts_only = artefacts_only;
     req.allow_noble = drop_allow_noble;
     req.allow_evil = drop_allow_evil;
     req.allow_noble_from_quality = drop_allow_noble_from_quality;
@@ -3782,7 +3788,8 @@ bool drop_generate_object_with_bonus(int depth, drop_quality quality,
     int droptype, int extra_bonus, bool allow_artefacts, object_type* out)
 {
     return drop_generate_object_internal(
-        depth, quality, depth, droptype, extra_bonus, allow_artefacts, 1, NULL, out);
+        depth, quality, depth, droptype, extra_bonus, allow_artefacts, 1, false,
+        NULL, out);
 }
 
 bool drop_generate_object_profiled(int depth, drop_quality quality,
@@ -3790,7 +3797,8 @@ bool drop_generate_object_profiled(int depth, drop_quality quality,
     const drop_profile* profile, object_type* out)
 {
     return drop_generate_object_internal(
-        depth, quality, depth, droptype, extra_bonus, allow_artefacts, 1, profile, out);
+        depth, quality, depth, droptype, extra_bonus, allow_artefacts, 1, false,
+        profile, out);
 }
 
 bool drop_generate_object_with_bonus_depths(int depth, int min_depth_penalty_depth,
@@ -3798,7 +3806,7 @@ bool drop_generate_object_with_bonus_depths(int depth, int min_depth_penalty_dep
     object_type* out)
 {
     return drop_generate_object_internal(depth, quality, min_depth_penalty_depth,
-        droptype, extra_bonus, allow_artefacts, 1, NULL, out);
+        droptype, extra_bonus, allow_artefacts, 1, false, NULL, out);
 }
 
 bool drop_generate_object_profiled_depths(int depth, int min_depth_penalty_depth,
@@ -3806,7 +3814,7 @@ bool drop_generate_object_profiled_depths(int depth, int min_depth_penalty_depth
     const drop_profile* profile, object_type* out)
 {
     return drop_generate_object_internal(depth, quality, min_depth_penalty_depth,
-        droptype, extra_bonus, allow_artefacts, 1, profile, out);
+        droptype, extra_bonus, allow_artefacts, 1, false, profile, out);
 }
 
 bool drop_generate_object_profiled_depths_biased(int depth,
@@ -3815,6 +3823,14 @@ bool drop_generate_object_profiled_depths_biased(int depth,
     const drop_profile* profile, object_type* out)
 {
     return drop_generate_object_internal(depth, quality, min_depth_penalty_depth,
-        droptype, extra_bonus, allow_artefacts, artefact_weight_multiplier, profile,
-        out);
+        droptype, extra_bonus, allow_artefacts, artefact_weight_multiplier, false,
+        profile, out);
+}
+
+bool drop_generate_guaranteed_artefact(int depth,
+    int min_depth_penalty_depth, drop_quality quality, int droptype,
+    const drop_profile* profile, object_type* out)
+{
+    return drop_generate_object_internal(depth, quality, min_depth_penalty_depth,
+        droptype, 0, true, 1, true, profile, out);
 }

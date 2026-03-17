@@ -1113,6 +1113,9 @@ extern bool drop_generate_object_profiled_depths_biased(int depth,
     int min_depth_penalty_depth, drop_quality quality, int droptype,
     int extra_bonus, bool allow_artefacts, int artefact_weight_multiplier,
     const drop_profile* profile, object_type* out);
+extern bool drop_generate_guaranteed_artefact(int depth,
+    int min_depth_penalty_depth, drop_quality quality, int droptype,
+    const drop_profile* profile, object_type* out);
 extern void drop_set_chest_vault_type(int vault_type);
 extern void drop_set_chest_mode(int mode);
 extern void drop_set_chest_material_weights(int wooden_pct, int steel_pct,

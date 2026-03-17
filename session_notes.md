@@ -1,5 +1,10 @@
 # Session notes
 
+## 2026-03-18: Deterministic guaranteed artefact monster drops
+- Updated `src/drop_system.c`, `src/object2.c`, and `src/externs.h` so the guaranteed artefact path now selects from eligible artefact catalog entries directly instead of repeatedly sampling the general drop pool and hoping one roll lands on an artefact.
+- Root issue: `make_guaranteed_artefact()` only retried normal weighted generation up to 1024 times, so `RF3_DROP_ARTEFACT` monsters could still fail to produce an artefact when the artefact share of the candidate pool was too small.
+- Validation: `Build and Deploy` completed successfully; build output only showed the pre-existing `src/cmd2.c` warning about braces around a scalar initializer.
+
 ## 2026-03-18: SPECIAL_VAULT_ONLY selection filtered from generic allocators
 - Updated `src/monster2.c` so `get_mon_num()` skips `SPECIAL_VAULT_ONLY` monsters unless generation is currently building Morgoth's throne room.
 - Added a small selection-context helper in `src/generate.c` and declaration in `src/externs.h`.
