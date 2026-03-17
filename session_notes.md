@@ -1,5 +1,18 @@
 # Session notes
 
+## 2026-03-17: Restore level-20 partition monster population
+- Fixed `src/generate.c` so the partition monster pass no longer bails out for the entire Morgoth level.
+- Root cause: `run_partition_monster_pass()` returned immediately when `morgoth_level_active` was set, even though partition plans for the non-throne partitions still budgeted hundreds of monsters.
+- New behavior: only the reserved Morgoth throne-room partition is skipped; the rest of depth 20 now receives its planned partition monsters.
+- Validation: `Build and Deploy` task completed successfully.
+
+## 2026-03-17: Rebalanced partition tunnel loot concentration
+- Updated `src/generate.c` partition object planning to count room-floor vs connector-floor tiles separately and to eliminate corridor-drop budgets entirely for cavey, labyrinth, big-cave, and chasm partitions.
+- Root cause: those partition styles treat their native walkable space as room floor, so any separate corridor-object pass only targeted connector tunnels between partitions.
+- Result: those modes now place all planned loot through the room/floor pass; only roomy partitions and ruined-partition connectors can still receive dedicated corridor-drop allocations.
+- Follow-up: the partition monster pass now applies the same rule, so cavey, labyrinth, big-cave, and chasm monsters only spawn on native room/floor tiles rather than connector corridors.
+- Validation plan: run `Build and Deploy` to confirm the SDL build stays clean.
+
 ## 2026-03-17: Aule and Mandos tile placement update
 - Updated `lib/edit/monster.txt` so both Aule entries now use tile `T:21:2` and both Mandos entries use tile `T:21:3`, matching the row-21 Valar sequence after Tulkas (`T:21:0`) and Orome (`T:21:1`).
 - Validation: `Build and Deploy` task completed successfully; build output only showed a pre-existing `src/cmd2.c` warning about braces around a scalar initializer.

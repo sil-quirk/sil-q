@@ -8494,6 +8494,8 @@ typedef struct partition_population_plan {
     int y1, y2, x1, x2;
     int room_centers;
     int floor_count;
+    int room_floor_count;
+    int corridor_floor_count;
     int floor_count_non_icky;
     int floor_count_non_vault;
     partition_population_meta meta;
@@ -8753,6 +8755,21 @@ static bool partition_population_naked_bold(quadrant_mode_t mode, int y, int x)
     if (mode == QUAD_MODE_CHASM)
         return chasm_native_walkable_bold(y, x) && cave_naked_bold(y, x);
     return cave_naked_bold(y, x);
+}
+
+static bool partition_mode_avoids_corridor_spawns(quadrant_mode_t mode)
+{
+    switch (mode)
+    {
+    case QUAD_MODE_CAVEY:
+    case QUAD_MODE_LABYRINTH:
+    case QUAD_MODE_BIG_CAVE:
+    case QUAD_MODE_CHASM:
+        return true;
+
+    default:
+        return false;
+    }
 }
 
 static const char* quadrant_mode_debug_name(quadrant_mode_t mode)
@@ -15019,23 +15036,26 @@ static int partition_direct_floor_monsters(quadrant_mode_t mode, int floor_count
     {
     case QUAD_MODE_BIG_CAVE:
     {
-        int target = floor_count / 50;
+        /* Slightly reduce the direct-floor monster bonus for large open partitions. */
+        int target = floor_count / 55;
         if (target < 10) target = 10;
-        if (target > 40) target = 40;
+        if (target > 36) target = 36;
         return target;
     }
     case QUAD_MODE_CHASM:
     {
-        int target = floor_count / 35;
+        /* Chasms still get a fair number of floor monsters, but slightly fewer. */
+        int target = floor_count / 38;
         if (target < 10) target = 10;
-        if (target > 45) target = 45;
+        if (target > 42) target = 42;
         return target;
     }
     case QUAD_MODE_LABYRINTH:
     {
-        int target = floor_count / 6;
+        /* Tight mazes get fewer floor monsters to ease pacing. */
+        int target = floor_count / 7;
         if (target < 8) target = 8;
-        if (target > 50) target = 50;
+        if (target > 45) target = 45;
         return target;
     }
     default:
@@ -15083,7 +15103,22 @@ static int partition_extra_monster_target_for_depth(
     if (target <= 0)
         return 0;
 
-    target = target * (100 + MIN(50, depth * 2)) / 100;
+    /*
+     * Depth bonus scaling:
+     * - Small caves (CAVEY) keep the current behavior (+50% cap).
+     * - All other partitions cap at +33% at depth 20 (linear scaling).
+     */
+    int depth_scale_pct;
+    if (mode == QUAD_MODE_CAVEY)
+    {
+        depth_scale_pct = 100 + MIN(50, depth * 2);
+    }
+    else
+    {
+        depth_scale_pct = 100 + MIN(33, (depth * 33) / 20);
+    }
+
+    target = target * depth_scale_pct / 100;
 
     {
         int hard_cap = floor_count / 20;
@@ -15148,6 +15183,53 @@ static void partition_object_counts_from_total_monsters(
         *room_objects = room_count;
     if (corr_objects)
         *corr_objects = corr_count;
+}
+
+static void rebalance_partition_corridor_objects(partition_population_plan* plan)
+{
+    int corridor_cap;
+    int overflow;
+
+    if (!plan)
+        return;
+
+    if (plan->corr_objects <= 0)
+        return;
+
+    switch (plan->mode)
+    {
+    case QUAD_MODE_CAVEY:
+    case QUAD_MODE_LABYRINTH:
+    case QUAD_MODE_BIG_CAVE:
+    case QUAD_MODE_CHASM:
+        plan->room_objects += plan->corr_objects;
+        plan->corr_objects = 0;
+        return;
+
+    case QUAD_MODE_ROOMY:
+        return;
+
+    default:
+        break;
+    }
+
+    if (plan->corridor_floor_count <= 0)
+    {
+        plan->room_objects += plan->corr_objects;
+        plan->corr_objects = 0;
+        return;
+    }
+
+    corridor_cap = plan->corridor_floor_count / 8;
+    if (corridor_cap <= 0)
+        corridor_cap = 1;
+
+    if (corridor_cap >= plan->corr_objects)
+        return;
+
+    overflow = plan->corr_objects - corridor_cap;
+    plan->corr_objects = corridor_cap;
+    plan->room_objects += overflow;
 }
 
 static void distribute_partition_base_monsters(
@@ -15318,12 +15400,20 @@ static int build_partition_population_plans(
         {
             for (int x = plan->x1; x <= plan->x2; ++x)
             {
+                bool is_room;
+
                 if (!in_bounds_fully(y, x))
                     continue;
                 if (!partition_population_floor_bold(plan->mode, y, x))
                     continue;
 
+                is_room = (cave_info[y][x] & CAVE_ROOM) ? true : false;
+
                 plan->floor_count++;
+                if (is_room)
+                    plan->room_floor_count++;
+                else
+                    plan->corridor_floor_count++;
                 if (!(cave_info[y][x] & CAVE_ICKY))
                     plan->floor_count_non_icky++;
                 if (!(cave_info[y][x] & CAVE_G_VAULT))
@@ -15352,6 +15442,7 @@ static int build_partition_population_plans(
         partition_object_counts_from_total_monsters(
             plans[i].mode, plans[i].monsters_total,
             &plans[i].room_objects, &plans[i].corr_objects);
+        rebalance_partition_corridor_objects(&plans[i]);
     }
 
     return count;
@@ -15360,6 +15451,8 @@ static int build_partition_population_plans(
 static bool choose_partition_monster_location(
     const partition_population_plan* plan, bool avoid_los, int* out_y, int* out_x)
 {
+    bool avoid_corridors = partition_mode_avoids_corridor_spawns(plan->mode);
+
     for (int tries = 0; tries < 250; ++tries)
     {
         int y = rand_range(plan->y1, plan->y2);
@@ -15370,6 +15463,8 @@ static bool choose_partition_monster_location(
         if (cave_info[y][x] & CAVE_ICKY)
             continue;
         if (!partition_population_naked_bold(plan->mode, y, x))
+            continue;
+        if (avoid_corridors && !(cave_info[y][x] & CAVE_ROOM))
             continue;
         if (avoid_los && los(p_ptr->py, p_ptr->px, y, x))
             continue;
@@ -15426,13 +15521,19 @@ static bool place_partition_themed_monster(
     return false;
 }
 
+static bool partition_monster_pass_skips_plan(
+    const partition_population_plan* plan)
+{
+    if (!plan)
+        return false;
+
+    return morgoth_region_active() && (plan->pi == morgoth_partition_index);
+}
+
 static int run_partition_monster_pass(
     const partition_population_plan* plans, int plan_count)
 {
     int total_placed = 0;
-
-    if (morgoth_level_active)
-        return 0;
 
     for (int i = 0; i < plan_count; ++i)
     {
@@ -15442,6 +15543,17 @@ static int run_partition_monster_pass(
         int target_total = generic_remaining + themed_remaining;
         int placed = 0;
         int attempts = MAX(1, target_total) * 250;
+
+        if (partition_monster_pass_skips_plan(plan))
+        {
+            if (target_total > 0)
+            {
+                log_trace(
+                    "Partition monsters: pi=%d mode=%d skipped for Morgoth throne partition",
+                    plan->pi, plan->mode);
+            }
+            continue;
+        }
 
         for (int tries = 0;
              tries < attempts && (generic_remaining > 0 || themed_remaining > 0);
@@ -17189,12 +17301,14 @@ static bool cave_gen(void)
         {
             obj_room_gen += plans[pi].room_objects;
             obj_corr_gen += plans[pi].corr_objects;
-            mon_gen += plans[pi].monsters_total;
+            if (!partition_monster_pass_skips_plan(&plans[pi]))
+                mon_gen += plans[pi].monsters_total;
 
             log_trace(
-                "Partition plan: pi=%d mode=%d rooms=%d floors=%d base_mon=%d floor_mon=%d depth_mon=%d precurse_mon=%d curse_mon=%d total_mon=%d room_obj=%d corr_obj=%d",
+                "Partition plan: pi=%d mode=%d rooms=%d floors=%d room_floors=%d corridor_floors=%d base_mon=%d floor_mon=%d depth_mon=%d precurse_mon=%d curse_mon=%d total_mon=%d room_obj=%d corr_obj=%d",
                 plans[pi].pi, plans[pi].mode, plans[pi].room_centers,
-                plans[pi].floor_count, plans[pi].monsters_base,
+                plans[pi].floor_count, plans[pi].room_floor_count,
+                plans[pi].corridor_floor_count, plans[pi].monsters_base,
                 plans[pi].monsters_floor, plans[pi].monsters_depth,
                 plans[pi].monsters_precurse, plans[pi].monsters_curse_bonus,
                 plans[pi].monsters_total, plans[pi].room_objects,
