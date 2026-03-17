@@ -118,6 +118,21 @@ static vault_monster_spec vault_monster_table[] = {
     {'n', "7783062d13500802", 0, false, true, true},  /* Nightthorn */
 };
 
+static int current_build_vault_type = 0;
+static bool current_build_vault_exact_token = false;
+
+bool monster_special_vault_only_allowed_at(int y, int x)
+{
+    if (current_build_vault_exact_token)
+        return true;
+
+    if (current_build_vault_type == 9)
+        return true;
+
+    return (p_ptr->depth == MORGOTH_DEPTH) && in_bounds(y, x)
+        && ((cave_info[y][x] & CAVE_G_VAULT) != 0);
+}
+
 static bool place_vault_monster_token(char symbol, int y, int x)
 {
     for (size_t i = 0; i < N_ELEMENTS(vault_monster_table); i++)
@@ -143,8 +158,15 @@ static bool place_vault_monster_token(char symbol, int y, int x)
             return false;
         }
 
-        if (!place_monster_by_guid(
-                y, x, spec->guid, spec->start_sleeping, spec->ignore_depth, NULL))
+        bool old_exact_token = current_build_vault_exact_token;
+        bool placed;
+
+        current_build_vault_exact_token = true;
+        placed = place_monster_by_guid(
+            y, x, spec->guid, spec->start_sleeping, spec->ignore_depth, NULL);
+        current_build_vault_exact_token = old_exact_token;
+
+        if (!placed)
         {
             log_warn("Vault: failed to place monster for token '%c'", symbol);
             return false;
@@ -2273,16 +2295,58 @@ static density_level_t current_partition_densities[25];
 static big_cave_type_t current_partition_big_cave_types[25];
 static int current_partition_bridge_styles[25];
 static void reset_partition_population_metadata(void);
+typedef enum partition_chest_anchor_pref {
+    PARTITION_CHEST_ANCHOR_ANY = 0,
+    PARTITION_CHEST_ANCHOR_BSP_SLICE
+} partition_chest_anchor_pref;
+
+typedef struct partition_chest_recipe {
+    byte chest_mode;
+    s16b material_wood_pct;
+    s16b material_steel_pct;
+    s16b material_jewel_pct;
+    byte anchor_pref;
+} partition_chest_recipe;
+
+#define PARTITION_CHEST_RECIPE_MAX 3
+
 typedef struct partition_population_meta {
     bool cave_loot;
     bool cave_loot_big_cave;
     int cave_loot_blob_count;
     bool star_iron;
     int chest_count;
-    bool force_large_chest;
-    quadrant_mode_t chest_mode;
+    partition_chest_recipe chest_recipes[PARTITION_CHEST_RECIPE_MAX];
 } partition_population_meta;
 static partition_population_meta current_partition_population_meta[25];
+
+static void init_partition_chest_recipe(partition_chest_recipe* recipe)
+{
+    if (!recipe)
+        return;
+
+    recipe->chest_mode = 0;
+    recipe->material_wood_pct = -1;
+    recipe->material_steel_pct = -1;
+    recipe->material_jewel_pct = -1;
+    recipe->anchor_pref = PARTITION_CHEST_ANCHOR_ANY;
+}
+
+static void set_partition_chest_recipe(partition_population_meta* meta, int slot,
+    int chest_mode, int wooden_pct, int steel_pct, int jewel_pct,
+    partition_chest_anchor_pref anchor_pref)
+{
+    if (!meta || slot < 0 || slot >= PARTITION_CHEST_RECIPE_MAX)
+        return;
+
+    meta->chest_recipes[slot].chest_mode = (byte)chest_mode;
+    meta->chest_recipes[slot].material_wood_pct = (s16b)wooden_pct;
+    meta->chest_recipes[slot].material_steel_pct = (s16b)steel_pct;
+    meta->chest_recipes[slot].material_jewel_pct = (s16b)jewel_pct;
+    meta->chest_recipes[slot].anchor_pref = (byte)anchor_pref;
+    if (meta->chest_count < slot + 1)
+        meta->chest_count = slot + 1;
+}
 
 static const char* level_gen_partition_mode_name(quadrant_mode_t mode)
 {
@@ -5896,12 +5960,13 @@ static bool place_gv_in_partition(int y1, int y2, int x1, int x2, int *budget_t8
 /* Place a chest in a random floor location within partition bounds */
 static drop_profile drop_profile_for_mode(quadrant_mode_t mode);
 static bool place_partition_chest_at(
-    int y, int x, bool force_large, quadrant_mode_t mode)
+    int y, int x, const partition_chest_recipe* recipe, quadrant_mode_t mode)
 {
     object_type object_type_body;
     object_type* i_ptr = &object_type_body;
     int depth = p_ptr->depth;
     drop_profile active_profile = drop_profile_for_mode(mode);
+    int chest_mode = 0;
 
     if (!in_bounds_fully(y, x))
         return false;
@@ -5918,17 +5983,22 @@ static bool place_partition_chest_at(
         return false;
     }
 
-    if (force_large)
-        drop_set_chest_mode(2);  /* Always large */
-    else if (mode == QUAD_MODE_LABYRINTH)
-        drop_set_chest_mode(1);  /* Always small */
-    else
-        drop_set_chest_mode(0);  /* 50/50 default */
+    if (recipe)
+        chest_mode = recipe->chest_mode;
+    if (chest_mode < 0 || chest_mode > 2)
+        chest_mode = 0;
 
-    if (mode == QUAD_MODE_LABYRINTH)
-        drop_set_chest_vault_type(-1);  /* Guaranteed jewelled chest */
-    else
-        drop_set_chest_vault_type(0);  /* Default 50/35/15 distribution */
+    drop_set_chest_mode(chest_mode);
+    drop_clear_chest_material_weights();
+    if (recipe
+        && recipe->material_wood_pct >= 0
+        && recipe->material_steel_pct >= 0
+        && recipe->material_jewel_pct >= 0)
+    {
+        drop_set_chest_material_weights(recipe->material_wood_pct,
+            recipe->material_steel_pct, recipe->material_jewel_pct);
+    }
+    drop_set_chest_vault_type(0);
 
     object_wipe(i_ptr);
 
@@ -5936,7 +6006,7 @@ static bool place_partition_chest_at(
             depth, DROP_QUALITY_NORMAL, DROP_TYPE_CHEST, 0, false,
             &active_profile, i_ptr))
     {
-        drop_set_chest_vault_type(0);
+        drop_clear_chest_material_weights();
         drop_set_chest_mode(0);
         return false;
     }
@@ -5962,26 +6032,30 @@ static void reset_partition_population_metadata(void)
         current_partition_population_meta[i].cave_loot_blob_count = 0;
         current_partition_population_meta[i].star_iron = false;
         current_partition_population_meta[i].chest_count = 0;
-        current_partition_population_meta[i].force_large_chest = false;
-        current_partition_population_meta[i].chest_mode = QUAD_MODE_ROOMY;
+        for (int recipe_idx = 0; recipe_idx < PARTITION_CHEST_RECIPE_MAX; ++recipe_idx)
+            init_partition_chest_recipe(&current_partition_population_meta[i].chest_recipes[recipe_idx]);
     }
 }
 
-static void place_chest_in_partition(
-    int y1, int y2, int x1, int x2, bool force_large, quadrant_mode_t mode)
+static bool place_chest_in_bounds(
+    int y1, int y2, int x1, int x2, const partition_chest_recipe* recipe,
+    quadrant_mode_t mode)
 {
     int attempts = 0;
     int max_attempts = 100;
+
+    if (y2 - y1 <= 1 || x2 - x1 <= 1)
+        return false;
 
     while (attempts < max_attempts)
     {
         int cy = rand_range(y1 + 1, y2 - 1);
         int cx = rand_range(x1 + 1, x2 - 1);
 
-        if (place_partition_chest_at(cy, cx, force_large, mode))
+        if (place_partition_chest_at(cy, cx, recipe, mode))
         {
             genlog_anchor("Placed chest in partition at (%d,%d)", cy, cx);
-            return;
+            return true;
         }
 
         attempts++;
@@ -5991,20 +6065,54 @@ static void place_chest_in_partition(
     {
         for (int cx = x1 + 1; cx < x2; ++cx)
         {
-            if (!place_partition_chest_at(cy, cx, force_large, mode))
+            if (!place_partition_chest_at(cy, cx, recipe, mode))
                 continue;
 
             genlog_anchor(
                 "Placed chest in partition at (%d,%d) after fallback scan", cy, cx);
-            return;
+            return true;
         }
     }
 
-    drop_set_chest_vault_type(0);
+    drop_clear_chest_material_weights();
     drop_set_chest_mode(0);
     genlog_anchor(
         "Failed to place chest in partition after %d attempts and fallback scan",
         max_attempts);
+
+    return false;
+}
+
+static bool place_chest_in_partition(
+    int y1, int y2, int x1, int x2, const partition_chest_recipe* recipe,
+    quadrant_mode_t mode)
+{
+    if (recipe && recipe->anchor_pref == PARTITION_CHEST_ANCHOR_BSP_SLICE)
+    {
+        int room_count = dun->cent_n;
+        int start = (room_count > 0) ? rand_int(room_count) : 0;
+
+        for (int offset = 0; offset < room_count; ++offset)
+        {
+            int room_idx = (start + offset) % room_count;
+            rectangle bounds;
+
+            if (room_anchor_kind[room_idx] != LAYOUT_ANCHOR_BSP_SLICE)
+                continue;
+
+            bounds = dun->corner[room_idx];
+            if (bounds.y1 < y1 || bounds.y2 > y2 || bounds.x1 < x1 || bounds.x2 > x2)
+                continue;
+
+            if (place_chest_in_bounds(bounds.y1, bounds.y2, bounds.x1, bounds.x2,
+                    recipe, mode))
+            {
+                return true;
+            }
+        }
+    }
+
+    return place_chest_in_bounds(y1, y2, x1, x2, recipe, mode);
 }
 
 /* Dynamic partition-based generation mix */
@@ -6496,6 +6604,8 @@ static void apply_quadrant_generation_modes(void)
                 current_partition_population_meta[pi].cave_loot = true;
                 current_partition_population_meta[pi].cave_loot_big_cave = false;
                 current_partition_population_meta[pi].cave_loot_blob_count = blob_for_loot;
+                set_partition_chest_recipe(&current_partition_population_meta[pi], 0,
+                    0, 100, 0, 0, PARTITION_CHEST_ANCHOR_ANY);
                 
                 /* Caves with rooms scattered inside */
                 /* Sparse: T1=2 T2=1 T6=2 T7=0 | Normal: T1=2 T2=2 T6=2 T7=1 | Dense: T1=2 T2=3 T6=3 T7=1 */
@@ -6549,8 +6659,10 @@ static void apply_quadrant_generation_modes(void)
                 /* Place 1 chest in labyrinth partition ONLY if it actually carved */
                 if (carved)
                 {
-                    current_partition_population_meta[pi].chest_count = 1;
-                    current_partition_population_meta[pi].chest_mode = QUAD_MODE_LABYRINTH;
+                    set_partition_chest_recipe(&current_partition_population_meta[pi], 0,
+                        1, 0, 100, 0, PARTITION_CHEST_ANCHOR_ANY);
+                    set_partition_chest_recipe(&current_partition_population_meta[pi], 1,
+                        1, 0, 0, 100, PARTITION_CHEST_ANCHOR_ANY);
                 }
             }
             break;
@@ -6581,8 +6693,10 @@ static void apply_quadrant_generation_modes(void)
                 /* Place 2 guaranteed chests in chasm partition ONLY if it actually carved */
                 if (chasm_carved)
                 {
-                    current_partition_population_meta[pi].chest_count = 2;
-                    current_partition_population_meta[pi].chest_mode = QUAD_MODE_CHASM;
+                    set_partition_chest_recipe(&current_partition_population_meta[pi], 0,
+                        0, 0, 65, 35, PARTITION_CHEST_ANCHOR_ANY);
+                    set_partition_chest_recipe(&current_partition_population_meta[pi], 1,
+                        0, 0, 65, 35, PARTITION_CHEST_ANCHOR_ANY);
                 }
             }
             break;
@@ -6615,6 +6729,12 @@ static void apply_quadrant_generation_modes(void)
                 current_partition_population_meta[pi].cave_loot_big_cave = true;
                 current_partition_population_meta[pi].cave_loot_blob_count =
                     carved ? 3 : MAX(1, ((carved_blobs > 0) ? carved_blobs : blob_count));
+
+                if (!carved)
+                {
+                    set_partition_chest_recipe(&current_partition_population_meta[pi], 0,
+                        0, 100, 0, 0, PARTITION_CHEST_ANCHOR_ANY);
+                }
                 
                 /* Add internal pillars/boulders for visual interest (density-scaled) */
                 int pillar_target = (density == DENSITY_SPARSE) ? 3 : 
@@ -6641,10 +6761,14 @@ static void apply_quadrant_generation_modes(void)
                     }
                 }
                 
-                /* Guarantee a large chest in big caves (material varies) */
-                current_partition_population_meta[pi].chest_count = 1;
-                current_partition_population_meta[pi].force_large_chest = true;
-                current_partition_population_meta[pi].chest_mode = QUAD_MODE_BIG_CAVE;
+                /* Guarantee two large chests in big caves with default material odds. */
+                if (carved)
+                {
+                    set_partition_chest_recipe(&current_partition_population_meta[pi], 0,
+                        2, 50, 35, 15, PARTITION_CHEST_ANCHOR_ANY);
+                    set_partition_chest_recipe(&current_partition_population_meta[pi], 1,
+                        2, 50, 35, 15, PARTITION_CHEST_ANCHOR_ANY);
+                }
             }
             break;
         case QUAD_MODE_ROOMY:
@@ -6777,6 +6901,8 @@ static void apply_quadrant_generation_modes(void)
                 current_partition_population_meta[pi].cave_loot = true;
                 current_partition_population_meta[pi].cave_loot_big_cave = false;
                 current_partition_population_meta[pi].cave_loot_blob_count = blob_for_loot;
+                set_partition_chest_recipe(&current_partition_population_meta[pi], 0,
+                    0, 100, 0, 0, PARTITION_CHEST_ANCHOR_ANY);
                 int std_count = scaled_attempts(2, area_factor);
                 int cross_count = scaled_attempts((density == DENSITY_DENSE) ? 4 : (density == DENSITY_SPARSE) ? 2 : 3, area_factor);
                 int int_count = scaled_attempts((density == DENSITY_SPARSE) ? 1 : (density == DENSITY_DENSE) ? 2 : 1, area_factor);
@@ -6831,6 +6957,9 @@ static void apply_quadrant_generation_modes(void)
                         }
                     }
                 }
+
+                set_partition_chest_recipe(&current_partition_population_meta[pi], 0,
+                    1, 0, 100, 0, PARTITION_CHEST_ANCHOR_BSP_SLICE);
                 
             }
             break;
@@ -12616,6 +12745,10 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
     styles_end_vault();
 
     /* Place dungeon monsters and objects */
+    {
+    int previous_build_vault_type = current_build_vault_type;
+    current_build_vault_type = v_ptr->typ;
+
     for (t = data, dy = 0; dy < ymax; dy++)
     {
         if (flip_v)
@@ -13246,6 +13379,9 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 place_trap(y, x);
             }
         }
+    }
+
+    current_build_vault_type = previous_build_vault_type;
     }
 
     log_trace("build_vault: Successfully built vault '%s' at (%d,%d)", v_name + v_ptr->name, y0, x0);
@@ -15539,7 +15675,7 @@ static int run_partition_special_scatter_pass(
         {
             place_chest_in_partition(
                 plan->y1, plan->y2, plan->x1, plan->x2,
-                plan->meta.force_large_chest, plan->meta.chest_mode);
+                &plan->meta.chest_recipes[chest], plan->mode);
         }
 
         log_trace("Partition specials: pi=%d mode=%d cave_loot=%d star_iron=%d chests=%d",

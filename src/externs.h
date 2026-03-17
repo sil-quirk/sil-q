@@ -950,6 +950,7 @@ extern s16b monster_lookup_guid(u64b guid);
 extern s16b monster_lookup_guid_text(const char* text);
 extern bool place_monster_by_guid(
     int y, int x, u64b guid, bool slp, bool ignore_depth, monster_type* summoner);
+extern bool monster_special_vault_only_allowed_at(int y, int x);
 extern bool place_monster_one(
     int y, int x, int r_idx, bool slp, bool ingnore_depth, monster_type* m_ptr);
 extern bool place_monster_aux(int y, int x, int r_idx, bool slp, bool grp);
@@ -1111,6 +1112,9 @@ extern bool drop_generate_object_profiled_depths_biased(int depth,
     const drop_profile* profile, object_type* out);
 extern void drop_set_chest_vault_type(int vault_type);
 extern void drop_set_chest_mode(int mode);
+extern void drop_set_chest_material_weights(int wooden_pct, int steel_pct,
+    int jewelled_pct);
+extern void drop_clear_chest_material_weights(void);
 
 /* thrall_quest.c */
 extern bool is_alert_thrall(monster_type* m_ptr);

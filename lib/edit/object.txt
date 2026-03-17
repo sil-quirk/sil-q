@@ -823,7 +823,7 @@ W:12:0:10:4000
 P:0:0d0:3:1d0
 R:EVN:4
 A:12/15
-F:DARKNESS | STEALTH | NOBLE_ITEM
+F:DARKNESS | STEALTH
 D:A cloak woven of the deepest darkness, its fabric seeming
 D: to drink the light around it. It wraps the wearer in
 D: shadow, and in the lightless halls of Angband, one who
@@ -1104,7 +1104,7 @@ G:":d
 I:40:1:1
 W:8:0:1:500
 P:0:0d0:0:0d0
-R:PVAL:2
+R:PVAL:1
 A:8/15
 F:CON | SUST_CON
 D:An amulet wrought with the virtue of endurance. The wearer
@@ -1118,7 +1118,7 @@ G:":d
 I:40:2:1
 W:10:0:1:500
 P:0:0d0:0:0d0
-R:PVAL:2
+R:PVAL:1
 A:9/15
 F:GRA | SUST_GRA
 D:An amulet touched with the blessing of the Valar. It
@@ -1349,7 +1349,7 @@ G:=:d
 I:45:4:1
 W:9:0:1:500
 P:0:0d0:0:0d0
-R:PVAL:2
+R:PVAL:1
 A:11/10
 F:STR | SUST_STR
 D:A ring wrought to fortify the sinews of its wearer. With it
@@ -1362,7 +1362,7 @@ G:=:d
 I:45:5:1
 W:10:0:1:500
 P:0:0d0:0:0d0
-R:PVAL:2
+R:PVAL:1
 A:12/15
 F:DEX | SUST_DEX | NOBLE_ITEM
 D:A ring of delicate craft that lends nimbleness to the wearer.
@@ -1645,7 +1645,7 @@ G:_:d
 I:55:1:0
 W:6:0:50:400
 P:0:0d0:0:0d0
-A:5/33
+A:5/50
 D:A staff imbued with the power of binding, echoing the great
 D: doors and gates that were shut against Morgoth's hosts in
 D: the wars of Beleriand. It may shut and lock all doors in
@@ -1782,7 +1782,7 @@ G:_:d
 I:55:14:0
 W:13:0:50:400
 P:0:0d0:0:0d0
-A:6/50
+A:6/70
 D:A staff wrought with a bewildering enchantment that scatters
 D: the wits of those who face it. It confuses all monsters in
 D: line of sight.
@@ -1804,7 +1804,7 @@ G:_:d
 I:55:17:0
 W:7:0:50:0
 P:0:0d0:0:0d0
-A:3/100
+A:3/70
 D:A staff of fell purpose, its call drawing creatures from
 D: the shadows. It summons monsters to the stairs on the
 D: current level.

@@ -202,6 +202,7 @@ static flag_name info_flags[] = {
     { "RES_POIS", RF3, RF3_RES_POIS }, { "RF3XXX6", RF3, RF3_RF3XXX6 },
     { "GIANT", RF3, RF3_GIANT }, { "CAT", RF3, RF3_CAT },
     { "HORROR", RF3, RF3_HORROR }, { "VAMPIRE", RF3, RF3_VAMPIRE },
+    { "SPECIAL_VAULT_ONLY", RF3, RF3_SPECIAL_VAULT_ONLY },
     { "RF3XXX7", RF3, RF3_RF3XXX7 }, { "NO_SLOW", RF3, RF3_NO_SLOW },
     { "NO_FEAR", RF3, RF3_NO_FEAR }, { "NO_STUN", RF3, RF3_NO_STUN },
     { "NO_CONF", RF3, RF3_NO_CONF }, { "NO_SLEEP", RF3, RF3_NO_SLEEP },

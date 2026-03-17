@@ -2472,7 +2472,9 @@
 #define RF3_CAT 0x00800000 /* Cat */
 #define RF3_HORROR 0x01000000 /* Horror (includes Nameless Things) */
 #define RF3_VAMPIRE 0x02000000 /* Vampire */
-#define RF3_RF3XXX7 0x04000000 /* (unused) */
+#define RF3_SPECIAL_VAULT_ONLY                                               \
+    0x04000000 /* Only placed by exact vault tokens or in Morgoth's throne room */
+#define RF3_RF3XXX7 RF3_SPECIAL_VAULT_ONLY /* Compatibility alias */
 #define RF3_NO_SLOW 0x08000000 /* Cannot be slowed */
 #define RF3_NO_FEAR 0x10000000 /* Cannot be scared */
 #define RF3_NO_STUN 0x20000000 /* Cannot be stunned */

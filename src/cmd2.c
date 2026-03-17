@@ -3617,21 +3617,11 @@ static void skeleton_note_partition_meta_for_hint(
 
 static const char* skeleton_note_forge_site(int feat, char* buf, size_t buf_sz)
 {
+    (void)buf;
+    (void)buf_sz;
+
     if (feat >= FEAT_FORGE_UNIQUE_HEAD && feat <= FEAT_FORGE_UNIQUE_TAIL)
-    {
-        const char* raw = f_name + f_info[feat].name;
-        size_t w = 0;
-        while (raw[w] && w + 1 < buf_sz)
-        {
-            if (raw[w] == ' ' && raw[w + 1] == '(')
-                break;
-            buf[w] = raw[w];
-            w++;
-        }
-        buf[w] = '\0';
-        if (buf[0])
-            return buf;
-    }
+        return "unique forge";
 
     if (feat >= FEAT_FORGE_GOOD_HEAD && feat <= FEAT_FORGE_GOOD_TAIL)
         return "enchanted forge";
@@ -3900,7 +3890,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
                 tpl = "A gate of black stone stands {DIST} {DIR}; the warding is unbroken.";
                 break;
             case SKEL_HINT_VAULT_ARTIFACT:
-                tpl = "There is a hoard in {SITE} {DIST} {DIR}.";
+                tpl = "There is an artefact in {SITE} {DIST} {DIR}.";
                 break;
             case SKEL_HINT_STAIRS:
                 tpl = "The {SITE} lies {DIST} {DIR}.";

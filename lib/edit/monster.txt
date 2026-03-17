@@ -473,7 +473,7 @@ N:19:Aule the Smith
 Q:d27e36edf5c2f432
 W:30:200
 G:V:u
-T:10:19
+T:21:2
 I:2:24d4:0
 A:0:0:0:18
 P:[+0]
@@ -487,7 +487,7 @@ N:20:Mandos the Doomsman
 Q:f134bcd795c27d4f
 W:30:200
 G:V:D
-T:10:19
+T:21:3
 I:2:28d4:0
 A:0:0:0:20
 P:[+0]
@@ -2015,7 +2015,7 @@ B:BITE:WOUND:(+17,2d21)
 F:UNIQUE | MALE | TERRITORIAL
 F:DROP_2D2 | DROP_GOOD | SMART
 F:BASH_DOOR | DRAGON
-S:SPELL_PCT_15
+S:SPELL_PCT_20 | POW_16
 S:CONF | SCARE | HOLD
 D:A young cold-drake, long and sinuous, coiling upon the stone floor.
 D: Scatha is cunning beyond his years, and has already begun to amass
@@ -2496,7 +2496,7 @@ A:15:6:0:10
 P:[+17,6d4]
 B:HIT:BATTER:(+17,4d10)
 F:UNIQUE | ESCORT | DROP_1D2 | DROP_GOOD | REGENERATE | NO_FEAR
-F:OPEN_DOOR | BASH_DOOR | TROLL | MALE | HURT_LITE | SMART
+F:OPEN_DOOR | BASH_DOOR | TROLL | MALE | HURT_LITE | SMART | HAS_ARMOUR | HAS_WEAPON
 F:ELFBANE | KNOCK_BACK
 D:Dagorhir towers above even the mightiest of trolls, clad in iron plates
 D: forged in the smithies of Angband. He earned the name Elfbane in the
@@ -2688,7 +2688,7 @@ B:BITE:FIRE:(+25,2d21)
 F:UNIQUE | MALE
 F:DROP_2D2
 F:DROP_SUPERB | SMART | BASH_DOOR | FLYING | TERRITORIAL
-F:DRAGON | RES_FIRE | HURT_COLD
+F:DRAGON | RES_FIRE | HURT_COLD | SPECIAL_VAULT_ONLY
 S:SPELL_PCT_30 | POW_20
 S:BRTH_FIRE
 D:Out of the pits of Angband there issued the winged dragons,
@@ -2738,7 +2738,7 @@ F:UNIQUE | MALE | SMART | GLOW
 F:DROP_1D2 | DROP_100 | DROP_SUPERB | DROP_CHOSEN
 F:HAS_WEAPON | HAS_ARMOUR
 F:NO_FEAR | BASH_DOOR
-F:RAUKO | RES_FIRE | HURT_COLD
+F:RAUKO | RES_FIRE | HURT_COLD | SPECIAL_VAULT_ONLY
 D:Gothmog is the High Captain of Angband and Morgoth's personal guard.  He is
 D: renowned for slaying Feanor and Fingon, two of the High Kings of the
 D: Noldor Elves, and has never been defeated in combat.  With his whip
@@ -2759,7 +2759,7 @@ P:[+20,3d4]
 B:BITE:POISON:(+24,2d21)
 F:UNIQUE | FEMALE
 F:SMART | BASH_DOOR | TERRITORIAL
-F:SPIDER | HURT_LITE | RES_POIS
+F:SPIDER | HURT_LITE | RES_POIS | SPECIAL_VAULT_ONLY
 S:SPELL_PCT_15 | POW_12
 S:BRTH_DARK
 D:This enormous, hideous spirit of void is in the form of a spider of
@@ -2784,7 +2784,7 @@ B:BITE:FIRE:(+24,2d25)
 F:UNIQUE | MALE
 F:DROP_3D2 | DROP_SUPERB
 F:SMART | BASH_DOOR | TERRITORIAL
-F:DRAGON | RES_FIRE | HURT_COLD
+F:DRAGON | RES_FIRE | HURT_COLD | SPECIAL_VAULT_ONLY
 S:SPELL_PCT_45 | POW_28
 S:BRTH_FIRE | SCARE | HOLD | CONF
 D:Lo! the golden dragon of the God of Hell, Father of Dragons, first
@@ -2812,7 +2812,7 @@ F:UNIQUE | MALE
 F:DROP_2D2
 F:DROP_SUPERB | SMART
 F:OPEN_DOOR | UNLOCK_DOOR | BASH_DOOR
-F:WOLF | ESCORT
+F:WOLF | ESCORT | SPECIAL_VAULT_ONLY
 S:SPELL_PCT_25
 S:HOLD | SNG_OATHS
 D:Greatest of Morgoth's servants, Gorthaur the Cruel was once a Maia of
@@ -3025,7 +3025,7 @@ N:323:Aule, the Smith
 Q:f9f0cfcfe57d8c11
 W:30:20
 G:V:r
-T:10:19
+T:21:2
 I:2:24d4:0
 A:0:0:0:18
 P:[+0]
@@ -3047,7 +3047,7 @@ N:325:Mandos, Doomsman of the Valar
 Q:ee2075ab9e9c60d5
 W:30:10
 G:V:D
-T:10:19
+T:21:3
 I:2:28d4:0
 A:0:0:0:20
 P:[+0]

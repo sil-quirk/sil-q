@@ -11058,7 +11058,7 @@ static void hint_message_put_segment(int row, int col, byte attr, const char* te
         return;
 
     if (sdl_is_story_font_enabled())
-        story_print_text_grid(row, col, 0, attr, text);
+        story_print_text(row, col, 0, attr, text);
     else
         Term_putstr(col, row, -1, attr, text);
 }

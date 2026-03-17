@@ -1,9 +1,30 @@
 # Session notes
 
+## 2026-03-17: Aule and Mandos tile placement update
+- Updated `lib/edit/monster.txt` so both Aule entries now use tile `T:21:2` and both Mandos entries use tile `T:21:3`, matching the row-21 Valar sequence after Tulkas (`T:21:0`) and Orome (`T:21:1`).
+- Validation: `Build and Deploy` task completed successfully; build output only showed a pre-existing `src/cmd2.c` warning about braces around a scalar initializer.
+
+## 2026-03-17: Special vault-only monster flag
+- Added `SPECIAL_VAULT_ONLY` monster flag using an unused `RF3` bit and parsed it in `src/init1.c`.
+- Added a narrow generation-context hook so flagged monsters are only allowed from exact vault-token placements or while spawning into Morgoth's type-9 throne room; later placements on marked throne-room tiles also remain valid.
+- Applied the flag to Ancalagon, Gothmog, Ungoliant, Glaurung, and Gorthaur in `lib/edit/monster.txt`.
+- Validation plan: run `Build and Deploy` to confirm the parser/build stays clean.
+
+## 2026-03-16: Partition chest guarantees + global chest upgrades
+- Reworked partition chest metadata in `src/generate.c` from a single shared flag set to explicit per-chest recipes with size mode, material weights, and optional BSP-slice placement preference.
+- Updated partition guarantees: Cave now seeds 1 wooden-base chest with default size odds; Chasm seeds 2 steel/jewelled-base chests; Big Cave seeds 2 large default-distribution chests; Labyrinth seeds 1 small steel-base and 1 small jewelled-base chest; Ruined seeds 1 small steel-base chest preferring BSP slices.
+- Extended `src/drop_system.c` with explicit chest material-weight overrides and a global 10% one-tier chest upgrade pass before placement; jewelled chests upgrade by becoming large when possible.
+- Validation: `Build and Deploy` task completed successfully.
+
 ## 2026-03-16: Suppress generation-time drop sounds
 - Updated `src/object2.c` so material-based drop sounds in `drop_near()` only play when `character_dungeon` is true.
 - Root cause: the existing guard used `character_generated`, which remains true during `generate_cave()`, so level-generation item placement still emitted drop sounds.
 - Validation: editor check for `src/object2.c`; `Build and Deploy` task completed successfully.
+
+## 2026-03-16: Lesser vault noble-drop chest pass
+- Reclassified selected lore-appropriate type-7 vault treasure anchors in `lib/edit/vault.txt` from `&` good items to `~` chests to increase chest-based noble item rolls without broadly upgrading monster lairs.
+- Updated `Diamond Chamber`, `Four Corners`, `Throne Room 3`, `Fort`, `Hidden Ways`, `Hoarded Treasure`, and `Crypt`.
+- Validation plan: run `Build and Deploy` so the edited vault data is rebuilt and staged into the SDL deployment folders.
 
 ## 2026-03-15: Level generation debug UI summary and scaling
 - Updated the debug-only level generation overlay in `src/generate.c` to summarize generated partitions, partition type mix, quest vault count/name, and greater vault count/name.

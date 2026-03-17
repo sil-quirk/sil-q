@@ -104,29 +104,29 @@ M:ORC:GREAT_VAULT:100:Don't touch black door {DIST} {DIR}. It hurts.
 # --- Hoard Treasure (Beasts Hoarding Wealth) ---
 
 # Elf
-M:ELF:VAULT_ARTIFACT:100:I heard the clink of a hoard {DIST} {DIR}; it lies in {SITE}.
-M:ELF:VAULT_ARTIFACT:100:Greed has pooled {DIST} {DIR}; {SITE} is its basin.
-M:ELF:VAULT_ARTIFACT:100:A pale gleam waits {DIST} {DIR}, in {SITE}; I dared not take it.
-M:ELF:VAULT_ARTIFACT:100:Seek {SITE} {DIST} {DIR}; there is treasure there, and death besides.
-M:ELF:VAULT_ARTIFACT:100:I saw gold piled high {DIST} {DIR}, in {SITE}, and shadows moving upon it.
-M:ELF:VAULT_ARTIFACT:100:If you hunger for great craft, go {DIST} {DIR} to {SITE} and risk the guardian.
-M:ELF:VAULT_ARTIFACT:100:Something ancient gleams {DIST} {DIR}, in {SITE}; it called to me like a voice half-remembered.
+M:ELF:VAULT_ARTIFACT:100:I heard the clink of a hoard {DIST} {DIR}; an artefact lies in {SITE}.
+M:ELF:VAULT_ARTIFACT:100:Greed has pooled {DIST} {DIR}; {SITE} keeps an artefact at its heart.
+M:ELF:VAULT_ARTIFACT:100:A pale artefact waits {DIST} {DIR}, in {SITE}; I dared not take it.
+M:ELF:VAULT_ARTIFACT:100:Seek {SITE} {DIST} {DIR}; an artefact lies there, and death besides.
+M:ELF:VAULT_ARTIFACT:100:I saw gold piled high {DIST} {DIR}, in {SITE}, with an artefact buried among it.
+M:ELF:VAULT_ARTIFACT:100:If you hunger for great craft, go {DIST} {DIR} to {SITE}; an artefact is guarded there.
+M:ELF:VAULT_ARTIFACT:100:Something ancient gleams {DIST} {DIR}, in {SITE}; an artefact called to me like a voice half-remembered.
 
 # Human
-M:HUMAN:VAULT_ARTIFACT:100:There's a hoard {DIST} {DIR}, in {SITE}. I couldn't get near it.
-M:HUMAN:VAULT_ARTIFACT:100:If you find {SITE} {DIST} {DIR}, steel yourself: the treasure is real.
-M:HUMAN:VAULT_ARTIFACT:100:I saw a heap of riches {DIST} {DIR}, in {SITE}. Something was guarding it.
-M:HUMAN:VAULT_ARTIFACT:100:The air reeks of greed {DIST} {DIR}. That's where {SITE} is.
-M:HUMAN:VAULT_ARTIFACT:100:If you want the best loot on this level, look {DIST} {DIR} for {SITE}.
-M:HUMAN:VAULT_ARTIFACT:100:I heard coin shifting {DIST} {DIR}, in {SITE}. Don't go alone.
+M:HUMAN:VAULT_ARTIFACT:100:There's an artefact {DIST} {DIR}, in {SITE}. I couldn't get near it.
+M:HUMAN:VAULT_ARTIFACT:100:If you find {SITE} {DIST} {DIR}, steel yourself: the artefact is real.
+M:HUMAN:VAULT_ARTIFACT:100:I saw an artefact among a heap of riches {DIST} {DIR}, in {SITE}. Something was guarding it.
+M:HUMAN:VAULT_ARTIFACT:100:The air reeks of greed {DIST} {DIR}. {SITE} is there, and so is an artefact.
+M:HUMAN:VAULT_ARTIFACT:100:If you want one of the best finds on this level, look {DIST} {DIR} for {SITE}; there's an artefact there.
+M:HUMAN:VAULT_ARTIFACT:100:I heard coin shifting {DIST} {DIR}, in {SITE}. Whatever's nesting there has an artefact.
 
 # Orc
-M:ORC:VAULT_ARTIFACT:100:Hoard {DIST} {DIR}. In {SITE}. Big beast.
-M:ORC:VAULT_ARTIFACT:100:Shiny pile {DIST} {DIR} in {SITE}. Don't wake it.
-M:ORC:VAULT_ARTIFACT:100:{SITE} {DIST} {DIR}. Lots of gold. Bad smell.
-M:ORC:VAULT_ARTIFACT:100:If you go {DIST} {DIR} to {SITE}, grab loot fast and run.
-M:ORC:VAULT_ARTIFACT:100:Heard coins move {DIST} {DIR}. {SITE}. Not safe.
-M:ORC:VAULT_ARTIFACT:100:Boss wanted {SITE}. It is {DIST} {DIR}. I say no.
+M:ORC:VAULT_ARTIFACT:100:Artefact {DIST} {DIR}. In {SITE}. Big beast.
+M:ORC:VAULT_ARTIFACT:100:Shiny artefact {DIST} {DIR} in {SITE}. Don't wake it.
+M:ORC:VAULT_ARTIFACT:100:{SITE} {DIST} {DIR}. Lots of gold. Artefact too.
+M:ORC:VAULT_ARTIFACT:100:If you go {DIST} {DIR} to {SITE}, grab artefact fast and run.
+M:ORC:VAULT_ARTIFACT:100:Heard coins move {DIST} {DIR}. {SITE}. Artefact there. Not safe.
+M:ORC:VAULT_ARTIFACT:100:Boss wanted {SITE}. It is {DIST} {DIR}. Boss wanted artefact. I say no.
 
 # --- Stairs ---
 

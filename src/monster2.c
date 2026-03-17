@@ -2685,6 +2685,12 @@ bool place_monster_one(
         return (false);
     }
 
+    if ((r_ptr->flags3 & (RF3_SPECIAL_VAULT_ONLY))
+        && !monster_special_vault_only_allowed_at(y, x))
+    {
+        return (false);
+    }
+
     /* Check quest monster spawning restrictions when not ignoring depth */
     if (!ignore_depth && get_mon_num_hook && !(*get_mon_num_hook)(r_idx))
     {

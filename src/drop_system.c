@@ -3138,6 +3138,72 @@ static void log_drop_attempt(const drop_request* req, size_t strict_count,
  */
 static int g_chest_vault_type = 0;  /* -1=labyrinth jewelled, 0=default/partition, 6=type6, 7=type7, 8=type8, 9=type9 */
 static int g_chest_mode = 0;        /* 0=default 50/50, 1=always small, 2=always large */
+static int g_chest_material_wood_pct = -1;
+static int g_chest_material_steel_pct = -1;
+static int g_chest_material_jewel_pct = -1;
+
+static void reset_chest_generation_context(void)
+{
+    g_chest_vault_type = 0;
+    g_chest_mode = 0;
+    g_chest_material_wood_pct = -1;
+    g_chest_material_steel_pct = -1;
+    g_chest_material_jewel_pct = -1;
+}
+
+static bool chest_has_custom_material_weights(void)
+{
+    return g_chest_material_wood_pct >= 0
+        && g_chest_material_steel_pct >= 0
+        && g_chest_material_jewel_pct >= 0;
+}
+
+static void normalize_chest_material_weights(
+    int* wooden_pct, int* steel_pct, int* jewelled_pct)
+{
+    int total;
+
+    if (!wooden_pct || !steel_pct || !jewelled_pct)
+        return;
+
+    if (*wooden_pct < 0) *wooden_pct = 0;
+    if (*steel_pct < 0) *steel_pct = 0;
+    if (*jewelled_pct < 0) *jewelled_pct = 0;
+
+    total = *wooden_pct + *steel_pct + *jewelled_pct;
+    if (total <= 0)
+    {
+        *wooden_pct = 50;
+        *steel_pct = 35;
+        *jewelled_pct = 15;
+        return;
+    }
+
+    if (total > 100)
+    {
+        int overflow = total - 100;
+
+        if (*jewelled_pct >= overflow)
+            *jewelled_pct -= overflow;
+        else if (*steel_pct >= overflow)
+            *steel_pct -= overflow;
+        else
+            *wooden_pct = MAX(0, *wooden_pct - overflow);
+    }
+    else if (total < 100)
+    {
+        *jewelled_pct += (100 - total);
+    }
+}
+
+static drop_quality chest_material_quality_for_index(int material_index)
+{
+    if (material_index <= 0)
+        return DROP_QUALITY_GOOD;
+    if (material_index == 1)
+        return DROP_QUALITY_GREAT;
+    return DROP_QUALITY_SUPERB;
+}
 
 /*
  * Generate a chest according to game design specifications:
@@ -3158,6 +3224,7 @@ static bool generate_chest(int depth, const drop_profile* profile, object_type* 
 {
     /* Size distribution based on mode */
     bool is_large;
+    bool upgraded = false;
     if (g_chest_mode == 1)
         is_large = false;
     else if (g_chest_mode == 2)
@@ -3175,7 +3242,24 @@ static bool generate_chest(int depth, const drop_profile* profile, object_type* 
     int material_index;
     drop_quality material_quality;
     
-    if (g_chest_vault_type == -1)  /* Labyrinth guaranteed chest: jewelled only */
+    if (chest_has_custom_material_weights())
+    {
+        int wooden_pct = g_chest_material_wood_pct;
+        int steel_pct = g_chest_material_steel_pct;
+        int jewelled_pct = g_chest_material_jewel_pct;
+
+        normalize_chest_material_weights(&wooden_pct, &steel_pct, &jewelled_pct);
+
+        if (material_roll < wooden_pct)
+            material_index = 0;
+        else if (material_roll < wooden_pct + steel_pct)
+            material_index = 1;
+        else
+            material_index = 2;
+
+        material_quality = chest_material_quality_for_index(material_index);
+    }
+    else if (g_chest_vault_type == -1)  /* Labyrinth guaranteed chest: jewelled only */
     {
         material_index = 2;
         material_quality = DROP_QUALITY_SUPERB;
@@ -3233,18 +3317,33 @@ static bool generate_chest(int depth, const drop_profile* profile, object_type* 
         if (material_roll < wooden_pct)
         {
             material_index = 0;
-            material_quality = DROP_QUALITY_GOOD;
         }
         else if (material_roll < wooden_pct + steel_pct)
         {
             material_index = 1;
-            material_quality = DROP_QUALITY_GREAT;
         }
         else
         {
             material_index = 2;
-            material_quality = DROP_QUALITY_SUPERB;
         }
+
+        material_quality = chest_material_quality_for_index(material_index);
+    }
+
+    if (rand_int(100) < 10)
+    {
+        if (material_index < 2)
+        {
+            material_index++;
+            upgraded = true;
+        }
+        else if (!is_large)
+        {
+            is_large = true;
+            upgraded = true;
+        }
+
+        material_quality = chest_material_quality_for_index(material_index);
     }
     
     int chest_sval = is_large ? large_svals[material_index]
@@ -3257,6 +3356,7 @@ static bool generate_chest(int depth, const drop_profile* profile, object_type* 
     {
         if (gen_log_initialized)
             gen_log_write("CHEST_ERROR", "Failed to find chest k_idx for sval=%d", chest_sval);
+        reset_chest_generation_context();
         return false;
     }
     
@@ -3277,16 +3377,15 @@ static bool generate_chest(int depth, const drop_profile* profile, object_type* 
     if (gen_log_initialized)
     {
         gen_log_write("CHEST_GENERATED",
-            "depth=%d vault_type=%d mode=%d size=%s material=%s quality=%s difficulty_bonus=%d chest_level=%d sval=%d",
+            "depth=%d vault_type=%d mode=%d size=%s material=%s quality=%s difficulty_bonus=%d chest_level=%d sval=%d upgraded=%s",
             depth, g_chest_vault_type, g_chest_mode, is_large ? "large" : "small",
             material_index == 0 ? "wooden" : (material_index == 1 ? "steel" : "jewelled"),
             drop_quality_name(material_quality), difficulty_bonus, out->pval,
-            chest_sval);
+            chest_sval, upgraded ? "yes" : "no");
     }
     
     /* Reset context to defaults after generation */
-    g_chest_vault_type = 0;
-    g_chest_mode = 0;
+    reset_chest_generation_context();
     
     return true;
 }
@@ -3308,6 +3407,20 @@ void drop_set_chest_vault_type(int vault_type)
 void drop_set_chest_mode(int mode)
 {
     g_chest_mode = mode;
+}
+
+void drop_set_chest_material_weights(int wooden_pct, int steel_pct, int jewelled_pct)
+{
+    g_chest_material_wood_pct = wooden_pct;
+    g_chest_material_steel_pct = steel_pct;
+    g_chest_material_jewel_pct = jewelled_pct;
+}
+
+void drop_clear_chest_material_weights(void)
+{
+    g_chest_material_wood_pct = -1;
+    g_chest_material_steel_pct = -1;
+    g_chest_material_jewel_pct = -1;
 }
 
 bool drop_generate_object(int depth, drop_quality quality, int droptype,
