@@ -75,6 +75,14 @@ typedef enum
     PART_STYLE_BIG_CAVE_POIS,
     PART_STYLE_MAX
 } partition_style_kind_t;
+
+typedef enum
+{
+    PARTITION_DROP_SOURCE_FLOOR = 0,
+    PARTITION_DROP_SOURCE_CHEST,
+    PARTITION_DROP_SOURCE_MONSTER,
+    PARTITION_DROP_SOURCE_MAX
+} partition_drop_source_t;
 #endif
 
 #ifndef SKELETON_NOTE_STATE_SAVE_DEFINED
@@ -1088,8 +1096,24 @@ typedef struct
 #endif
 extern void drop_profile_for_partition_kind(level_partition_kind kind,
     drop_profile* out);
+extern void drop_profile_for_partition_kind_source(level_partition_kind kind,
+    partition_drop_source_t source, drop_profile* out);
 extern drop_quality drop_quality_from_flags(bool good, bool great, bool superb);
 extern void drop_profile_default(drop_profile* profile);
+extern void partition_config_reset(void);
+extern void partition_config_set_drop_profile(level_partition_kind kind,
+    partition_drop_source_t source, const drop_profile* profile);
+extern void partition_config_set_floor_rules(level_partition_kind kind,
+    bool allow_floor_drops, int reroll_chance);
+extern void partition_config_set_base_monster_scale(level_partition_kind kind,
+    int numerator, int denominator);
+extern void partition_config_set_direct_monster_rule(level_partition_kind kind,
+    int divisor, int min_count, int max_count);
+extern void partition_config_set_depth_monster_rule(level_partition_kind kind,
+    int divisor, int min_count, int max_count, int scale_pct_at_depth_20,
+    int hard_cap_divisor);
+extern void partition_config_set_object_rules(level_partition_kind kind,
+    int room_divisor, int corridor_divisor);
 extern bool object_uses_smithing_difficulty(const object_type* o_ptr);
 extern int object_smithing_difficulty(const object_type* o_ptr);
 extern int object_weight_rarity(const object_type* o_ptr, int depth);
@@ -1138,8 +1162,12 @@ extern bool reveal_random_artifact(void);
 
 extern bool make_object(
     object_type* j_ptr, drop_quality quality, int objecttype);
+extern bool make_object_with_profile(object_type* j_ptr, drop_quality quality,
+    int objecttype, const drop_profile* profile);
 extern bool make_guaranteed_artefact(
     object_type* j_ptr, drop_quality quality, int objecttype);
+extern bool make_guaranteed_artefact_with_profile(object_type* j_ptr,
+    drop_quality quality, int objecttype, const drop_profile* profile);
 extern bool prep_object_theme(int themetype);
 extern s16b floor_carry(int y, int x, object_type* j_ptr);
 extern void drop_near(object_type* j_ptr, int chance, int y, int x);

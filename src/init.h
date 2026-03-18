@@ -126,6 +126,7 @@ extern errr parse_flavor_info(char* buf, header* head);
 extern errr parse_effect_info(char* buf, header* head);
 extern errr parse_style_info(char* buf, header* head);
 extern errr parse_style_levels(char* buf, header* head);
+extern errr parse_partition_info(char* buf, header* head);
 extern errr parse_skeleton_note_info(char* buf, header* head);
 
 /*

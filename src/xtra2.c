@@ -2240,6 +2240,10 @@ void drop_loot(monster_type* m_ptr)
     if (r_ptr->flags1 & (RF1_DROP_4D2))
         number += damroll(4, 2);
 
+    /* DROP_ARTEFACT must always yield at least one drop slot. */
+    if (artefact && number < 1)
+        number = 1;
+
     // Favoured drops 1: arrows from archers
     if ((number > 0)
         && ((r_ptr->flags4 & (RF4_ARROW1)) || (r_ptr->flags4 & (RF4_ARROW2)))
@@ -2325,6 +2329,10 @@ void drop_loot(monster_type* m_ptr)
     object_level = MIN(r_ptr->level, depth_cap);
     drop_quality quality = artefact ? DROP_QUALITY_ARTEFACT
                                     : drop_quality_from_flags(good, great, superb);
+    level_partition_kind part_kind = level_partition_kind_for_point(y, x);
+    drop_profile monster_profile;
+    drop_profile_for_partition_kind_source(
+        part_kind, PARTITION_DROP_SOURCE_MONSTER, &monster_profile);
 
     byte old_gen_mode = object_generation_mode;
     object_generation_mode = OB_GEN_MODE_MONSTER_DROP;
@@ -2340,11 +2348,18 @@ void drop_loot(monster_type* m_ptr)
 
         if (artefact && (j == 0))
         {
-            if (!make_guaranteed_artefact(i_ptr, quality, DROP_TYPE_NOT_DAMAGED))
+            if (!make_guaranteed_artefact_with_profile(
+                    i_ptr, quality, DROP_TYPE_NOT_DAMAGED, &monster_profile))
             {
+                log_warn(
+                    "drop_loot: DROP_ARTEFACT failed to find an eligible artefact for '%s' (r_idx=%d, depth=%d); falling back to normal loot",
+                    r_name + r_ptr->name, m_ptr->r_idx, p_ptr ? p_ptr->depth : 0);
+
+                /* Only fall back once the legal artefact pool is exhausted. */
                 if (chest)
                 {
-                    if (!make_object(i_ptr, quality, DROP_TYPE_CHEST))
+                    if (!make_object_with_profile(
+                            i_ptr, quality, DROP_TYPE_CHEST, &monster_profile))
                         continue;
                     if (i_ptr->tval == TV_CHEST)
                     {
@@ -2352,7 +2367,9 @@ void drop_loot(monster_type* m_ptr)
                             (byte)(0x80 | (byte)level_partition_kind_for_point(y, x));
                     }
                 }
-                else if (!make_object(i_ptr, quality, DROP_TYPE_NOT_DAMAGED))
+                else if (!make_object_with_profile(
+                             i_ptr, quality, DROP_TYPE_NOT_DAMAGED,
+                             &monster_profile))
                 {
                     continue;
                 }
@@ -2360,15 +2377,16 @@ void drop_loot(monster_type* m_ptr)
         }
         else if (chest)
         {
-            if (!make_object(i_ptr, quality, DROP_TYPE_CHEST))
+            if (!make_object_with_profile(
+                    i_ptr, quality, DROP_TYPE_CHEST, &monster_profile))
                 continue;
             if (i_ptr->tval == TV_CHEST)
                 i_ptr->xtra1 = (byte)(0x80 | (byte)level_partition_kind_for_point(y, x));
         }
 
         /* Make an object */
-        else if (!make_object(
-                     i_ptr, quality, DROP_TYPE_NOT_DAMAGED))
+        else if (!make_object_with_profile(
+                     i_ptr, quality, DROP_TYPE_NOT_DAMAGED, &monster_profile))
             continue;
 
         /* Assume seen XXX XXX XXX */

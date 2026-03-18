@@ -872,10 +872,8 @@ static void chest_death(int y, int x, s16b o_idx)
     if (part_kind <= LEVEL_PART_NONE || part_kind >= LEVEL_PART_MAX)
         part_kind = level_partition_kind_for_point(y, x);
     drop_profile part_profile;
-    drop_profile_for_partition_kind(part_kind, &part_profile);
-
-    /* Chests should not drop supply items */
-    part_profile.weight_supply = 0;
+    drop_profile_for_partition_kind_source(
+        part_kind, PARTITION_DROP_SOURCE_CHEST, &part_profile);
 
     if (o_ptr->sval == SV_CHEST_PRESENT)
         number = 1;

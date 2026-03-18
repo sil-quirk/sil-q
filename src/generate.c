@@ -8533,6 +8533,292 @@ typedef struct partition_population_plan {
     int corr_objects;
 } partition_population_plan;
 
+typedef struct partition_count_rule {
+    int divisor;
+    int min_count;
+    int max_count;
+} partition_count_rule;
+
+typedef struct partition_depth_rule {
+    int divisor;
+    int min_count;
+    int max_count;
+    int scale_pct_at_depth_20;
+    int hard_cap_divisor;
+} partition_depth_rule;
+
+typedef struct partition_rule_config {
+    drop_profile profiles[PARTITION_DROP_SOURCE_MAX];
+    bool allow_floor_drops;
+    int floor_reroll_chance;
+    int base_monster_scale_num;
+    int base_monster_scale_den;
+    partition_count_rule direct_monsters;
+    partition_depth_rule depth_monsters;
+    int room_object_divisor;
+    int corridor_object_divisor;
+} partition_rule_config;
+
+static partition_rule_config g_partition_rules[LEVEL_PART_MAX];
+static bool g_partition_rules_initialized = false;
+
+static level_partition_kind partition_config_normalize_kind(level_partition_kind kind)
+{
+    if (kind <= LEVEL_PART_NONE || kind >= LEVEL_PART_MAX)
+        return LEVEL_PART_ROOMY;
+    return kind;
+}
+
+static void partition_config_profile_assign(drop_profile* profile,
+    int weapon, int armor, int jewelry, int supply, int potion, int herb,
+    int gem, int staff, int misc, int tunneling)
+{
+    if (!profile)
+        return;
+
+    profile->weight_weapon = weapon;
+    profile->weight_armor = armor;
+    profile->weight_jewelry = jewelry;
+    profile->weight_supply = supply;
+    profile->supply_potion = potion;
+    profile->supply_herb = herb;
+    profile->supply_gem = gem;
+    profile->supply_staff = staff;
+    profile->supply_misc = misc;
+    profile->supply_tunneling = tunneling;
+}
+
+static void partition_config_set_defaults_for_kind(level_partition_kind kind)
+{
+    partition_rule_config* cfg;
+    drop_profile base_profile;
+
+    kind = partition_config_normalize_kind(kind);
+    cfg = &g_partition_rules[kind];
+
+    memset(cfg, 0, sizeof(*cfg));
+    drop_profile_default(&base_profile);
+
+    cfg->profiles[PARTITION_DROP_SOURCE_FLOOR] = base_profile;
+    cfg->profiles[PARTITION_DROP_SOURCE_CHEST] = base_profile;
+    cfg->profiles[PARTITION_DROP_SOURCE_MONSTER] = base_profile;
+    cfg->allow_floor_drops = true;
+    cfg->floor_reroll_chance = 0;
+    cfg->base_monster_scale_num = 1;
+    cfg->base_monster_scale_den = 1;
+    cfg->room_object_divisor = 8;
+    cfg->corridor_object_divisor = 12;
+
+    switch (kind)
+    {
+    case LEVEL_PART_ROOMY:
+        partition_config_profile_assign(&cfg->profiles[PARTITION_DROP_SOURCE_FLOOR],
+            40, 30, 10, 20, 1, 1, 1, 1, 1, 0);
+        partition_config_profile_assign(&cfg->profiles[PARTITION_DROP_SOURCE_CHEST],
+            40, 30, 10, 0, 0, 0, 0, 0, 0, 0);
+        break;
+
+    case LEVEL_PART_CAVEY:
+        cfg->allow_floor_drops = false;
+        cfg->base_monster_scale_num = 3;
+        cfg->base_monster_scale_den = 1;
+        cfg->depth_monsters.divisor = 120;
+        cfg->depth_monsters.min_count = 0;
+        cfg->depth_monsters.max_count = 18;
+        cfg->depth_monsters.scale_pct_at_depth_20 = 140;
+        cfg->depth_monsters.hard_cap_divisor = 20;
+        cfg->room_object_divisor = 2;
+        cfg->corridor_object_divisor = 4;
+        partition_config_profile_assign(&cfg->profiles[PARTITION_DROP_SOURCE_CHEST],
+            25, 25, 25, 0, 0, 0, 0, 0, 0, 0);
+        break;
+
+    case LEVEL_PART_RUINED:
+        partition_config_profile_assign(&cfg->profiles[PARTITION_DROP_SOURCE_FLOOR],
+            40, 35, 0, 25, 7, 2, 1, 3, 15, 2);
+        partition_config_profile_assign(&cfg->profiles[PARTITION_DROP_SOURCE_CHEST],
+            40, 35, 0, 0, 0, 0, 0, 0, 0, 0);
+        cfg->base_monster_scale_num = 2;
+        cfg->base_monster_scale_den = 1;
+        cfg->depth_monsters.divisor = 180;
+        cfg->depth_monsters.min_count = 0;
+        cfg->depth_monsters.max_count = 14;
+        cfg->depth_monsters.scale_pct_at_depth_20 = 133;
+        cfg->depth_monsters.hard_cap_divisor = 20;
+        cfg->room_object_divisor = 2;
+        cfg->corridor_object_divisor = 4;
+        break;
+
+    case LEVEL_PART_LABYRINTH:
+        partition_config_profile_assign(&cfg->profiles[PARTITION_DROP_SOURCE_FLOOR],
+            0, 0, 35, 65, 15, 2, 2, 15, 5, 0);
+        partition_config_profile_assign(&cfg->profiles[PARTITION_DROP_SOURCE_CHEST],
+            0, 0, 35, 0, 0, 0, 0, 0, 0, 0);
+        cfg->base_monster_scale_num = 2;
+        cfg->base_monster_scale_den = 1;
+        cfg->direct_monsters.divisor = 7;
+        cfg->direct_monsters.min_count = 8;
+        cfg->direct_monsters.max_count = 45;
+        cfg->depth_monsters.divisor = 80;
+        cfg->depth_monsters.min_count = 0;
+        cfg->depth_monsters.max_count = 25;
+        cfg->depth_monsters.scale_pct_at_depth_20 = 133;
+        cfg->depth_monsters.hard_cap_divisor = 20;
+        cfg->room_object_divisor = 2;
+        cfg->corridor_object_divisor = 4;
+        break;
+
+    case LEVEL_PART_CHASM:
+        partition_config_profile_assign(&cfg->profiles[PARTITION_DROP_SOURCE_FLOOR],
+            40, 30, 20, 10, 1, 1, 1, 1, 1, 0);
+        partition_config_profile_assign(&cfg->profiles[PARTITION_DROP_SOURCE_CHEST],
+            40, 30, 20, 0, 0, 0, 0, 0, 0, 0);
+        cfg->base_monster_scale_num = 4;
+        cfg->base_monster_scale_den = 1;
+        cfg->direct_monsters.divisor = 38;
+        cfg->direct_monsters.min_count = 10;
+        cfg->direct_monsters.max_count = 42;
+        cfg->depth_monsters.divisor = 38;
+        cfg->depth_monsters.min_count = 10;
+        cfg->depth_monsters.max_count = 40;
+        cfg->depth_monsters.scale_pct_at_depth_20 = 133;
+        cfg->depth_monsters.hard_cap_divisor = 20;
+        cfg->room_object_divisor = 2;
+        cfg->corridor_object_divisor = 4;
+        break;
+
+    case LEVEL_PART_BIG_CAVE:
+        partition_config_profile_assign(&cfg->profiles[PARTITION_DROP_SOURCE_FLOOR],
+            20, 20, 15, 45, 1, 3, 2, 1, 1, 0);
+        partition_config_profile_assign(&cfg->profiles[PARTITION_DROP_SOURCE_CHEST],
+            20, 20, 15, 0, 0, 0, 0, 0, 0, 0);
+        cfg->floor_reroll_chance = 50;
+        cfg->base_monster_scale_num = 5;
+        cfg->base_monster_scale_den = 1;
+        cfg->direct_monsters.divisor = 55;
+        cfg->direct_monsters.min_count = 10;
+        cfg->direct_monsters.max_count = 36;
+        cfg->depth_monsters.divisor = 45;
+        cfg->depth_monsters.min_count = 12;
+        cfg->depth_monsters.max_count = 40;
+        cfg->depth_monsters.scale_pct_at_depth_20 = 133;
+        cfg->depth_monsters.hard_cap_divisor = 20;
+        cfg->room_object_divisor = 2;
+        cfg->corridor_object_divisor = 4;
+        break;
+
+    case LEVEL_PART_NONE:
+    case LEVEL_PART_MAX:
+    default:
+        break;
+    }
+}
+
+static void partition_config_ensure_initialized(void)
+{
+    if (g_partition_rules_initialized)
+        return;
+
+    partition_config_reset();
+}
+
+void partition_config_reset(void)
+{
+    for (int kind = 0; kind < LEVEL_PART_MAX; ++kind)
+        partition_config_set_defaults_for_kind((level_partition_kind)kind);
+
+    g_partition_rules[LEVEL_PART_NONE] = g_partition_rules[LEVEL_PART_ROOMY];
+    g_partition_rules_initialized = true;
+}
+
+void partition_config_set_drop_profile(level_partition_kind kind,
+    partition_drop_source_t source, const drop_profile* profile)
+{
+    partition_config_ensure_initialized();
+
+    kind = partition_config_normalize_kind(kind);
+    if (source < PARTITION_DROP_SOURCE_FLOOR
+        || source >= PARTITION_DROP_SOURCE_MAX)
+    {
+        return;
+    }
+
+    if (profile)
+        g_partition_rules[kind].profiles[source] = *profile;
+    else
+        drop_profile_default(&g_partition_rules[kind].profiles[source]);
+
+    g_partition_rules[LEVEL_PART_NONE] = g_partition_rules[LEVEL_PART_ROOMY];
+}
+
+void partition_config_set_floor_rules(level_partition_kind kind,
+    bool allow_floor_drops, int reroll_chance)
+{
+    partition_config_ensure_initialized();
+
+    kind = partition_config_normalize_kind(kind);
+    g_partition_rules[kind].allow_floor_drops = allow_floor_drops;
+    g_partition_rules[kind].floor_reroll_chance = MAX(0, reroll_chance);
+    g_partition_rules[LEVEL_PART_NONE] = g_partition_rules[LEVEL_PART_ROOMY];
+}
+
+void partition_config_set_base_monster_scale(level_partition_kind kind,
+    int numerator, int denominator)
+{
+    partition_config_ensure_initialized();
+
+    kind = partition_config_normalize_kind(kind);
+    g_partition_rules[kind].base_monster_scale_num = MAX(0, numerator);
+    g_partition_rules[kind].base_monster_scale_den = MAX(1, denominator);
+    g_partition_rules[LEVEL_PART_NONE] = g_partition_rules[LEVEL_PART_ROOMY];
+}
+
+void partition_config_set_direct_monster_rule(level_partition_kind kind,
+    int divisor, int min_count, int max_count)
+{
+    partition_config_ensure_initialized();
+
+    kind = partition_config_normalize_kind(kind);
+    g_partition_rules[kind].direct_monsters.divisor = MAX(0, divisor);
+    g_partition_rules[kind].direct_monsters.min_count = MAX(0, min_count);
+    g_partition_rules[kind].direct_monsters.max_count = MAX(0, max_count);
+    g_partition_rules[LEVEL_PART_NONE] = g_partition_rules[LEVEL_PART_ROOMY];
+}
+
+void partition_config_set_depth_monster_rule(level_partition_kind kind,
+    int divisor, int min_count, int max_count, int scale_pct_at_depth_20,
+    int hard_cap_divisor)
+{
+    partition_config_ensure_initialized();
+
+    kind = partition_config_normalize_kind(kind);
+    g_partition_rules[kind].depth_monsters.divisor = MAX(0, divisor);
+    g_partition_rules[kind].depth_monsters.min_count = MAX(0, min_count);
+    g_partition_rules[kind].depth_monsters.max_count = MAX(0, max_count);
+    g_partition_rules[kind].depth_monsters.scale_pct_at_depth_20 =
+        MAX(0, scale_pct_at_depth_20);
+    g_partition_rules[kind].depth_monsters.hard_cap_divisor =
+        MAX(1, hard_cap_divisor);
+    g_partition_rules[LEVEL_PART_NONE] = g_partition_rules[LEVEL_PART_ROOMY];
+}
+
+void partition_config_set_object_rules(level_partition_kind kind,
+    int room_divisor, int corridor_divisor)
+{
+    partition_config_ensure_initialized();
+
+    kind = partition_config_normalize_kind(kind);
+    g_partition_rules[kind].room_object_divisor = MAX(0, room_divisor);
+    g_partition_rules[kind].corridor_object_divisor = MAX(0, corridor_divisor);
+    g_partition_rules[LEVEL_PART_NONE] = g_partition_rules[LEVEL_PART_ROOMY];
+}
+
+static const partition_rule_config* partition_config_get(level_partition_kind kind)
+{
+    partition_config_ensure_initialized();
+    return &g_partition_rules[partition_config_normalize_kind(kind)];
+}
+
 static quadrant_mode_t partition_mode_for_point(int y, int x)
 {
     /* If we're on a loaded level (no generation metadata), infer a reasonable grid and
@@ -9174,38 +9460,48 @@ static drop_profile drop_profile_for_mode(quadrant_mode_t mode)
 
 void drop_profile_for_partition_kind(level_partition_kind kind, drop_profile* out)
 {
+    drop_profile_for_partition_kind_source(
+        kind, PARTITION_DROP_SOURCE_FLOOR, out);
+}
+
+static partition_drop_profile partition_drop_profile_for_kind_source_cfg(
+    level_partition_kind kind, partition_drop_source_t source)
+{
+    const partition_rule_config* cfg = partition_config_get(kind);
+    partition_drop_profile prof;
+
+    drop_profile_default(&prof.profile);
+    prof.allow_floor_drops = true;
+    prof.reroll_chance = 0;
+
+    if (cfg && source >= PARTITION_DROP_SOURCE_FLOOR
+        && source < PARTITION_DROP_SOURCE_MAX)
+    {
+        prof.profile = cfg->profiles[source];
+        if (source == PARTITION_DROP_SOURCE_FLOOR)
+        {
+            prof.allow_floor_drops = cfg->allow_floor_drops;
+            prof.reroll_chance = cfg->floor_reroll_chance;
+        }
+    }
+
+    return prof;
+}
+
+static partition_drop_profile partition_drop_profile_for_mode_source_cfg(
+    quadrant_mode_t mode, partition_drop_source_t source)
+{
+    return partition_drop_profile_for_kind_source_cfg(
+        partition_kind_from_mode(mode), source);
+}
+
+void drop_profile_for_partition_kind_source(level_partition_kind kind,
+    partition_drop_source_t source, drop_profile* out)
+{
     if (!out)
         return;
 
-    quadrant_mode_t mode = QUAD_MODE_ROOMY;
-    switch (kind)
-    {
-    case LEVEL_PART_ROOMY:
-        mode = QUAD_MODE_ROOMY;
-        break;
-    case LEVEL_PART_CAVEY:
-        mode = QUAD_MODE_CAVEY;
-        break;
-    case LEVEL_PART_RUINED:
-        mode = QUAD_MODE_RUINED;
-        break;
-    case LEVEL_PART_LABYRINTH:
-        mode = QUAD_MODE_LABYRINTH;
-        break;
-    case LEVEL_PART_CHASM:
-        mode = QUAD_MODE_CHASM;
-        break;
-    case LEVEL_PART_BIG_CAVE:
-        mode = QUAD_MODE_BIG_CAVE;
-        break;
-    case LEVEL_PART_NONE:
-    case LEVEL_PART_MAX:
-    default:
-        mode = QUAD_MODE_ROOMY;
-        break;
-    }
-
-    *out = drop_profile_for_mode(mode);
+    *out = partition_drop_profile_for_kind_source_cfg(kind, source).profile;
 }
 
 static void place_object_with_profile_params(
@@ -9264,7 +9560,8 @@ static int place_ruined_partition_damaged_items(
     int y1, int y2, int x1, int x2, int target_count)
 {
     int placed = 0;
-    partition_drop_profile prof = partition_drop_profile_for_mode(QUAD_MODE_RUINED);
+    partition_drop_profile prof = partition_drop_profile_for_mode_source_cfg(
+        QUAD_MODE_RUINED, PARTITION_DROP_SOURCE_FLOOR);
 
     for (int n = 0; n < target_count; ++n)
     {
@@ -9317,7 +9614,8 @@ static void alloc_object_global(int set, int typ, int num, bool out_of_sight)
     for (k = 0; k < num; k++)
     {
         partition_drop_profile active_profile =
-            partition_drop_profile_for_mode(QUAD_MODE_ROOMY);
+            partition_drop_profile_for_mode_source_cfg(
+                QUAD_MODE_ROOMY, PARTITION_DROP_SOURCE_FLOOR);
         /* Pick a "legal" spot */
         for (i = 0; i < 10000; i++)
         {
@@ -9350,7 +9648,8 @@ static void alloc_object_global(int set, int typ, int num, bool out_of_sight)
 
             /* Enforce room-type and partition-specific drop behaviour */
             quadrant_mode_t mode = drop_mode_for_point(y, x);
-            active_profile = partition_drop_profile_for_mode(mode);
+            active_profile = partition_drop_profile_for_mode_source_cfg(
+                mode, PARTITION_DROP_SOURCE_FLOOR);
             if (typ == ALLOC_TYP_OBJECT)
             {
                 if (!active_profile.allow_floor_drops)
@@ -12272,7 +12571,8 @@ static bool build_type2(int y0, int x0)
             }
             {
                 partition_drop_profile active_profile =
-                    partition_drop_profile_for_mode(drop_mode_for_point(y0, x0));
+                    partition_drop_profile_for_mode_source_cfg(
+                        drop_mode_for_point(y0, x0), PARTITION_DROP_SOURCE_FLOOR);
                 place_object_with_profile_params(y0, x0, object_level, object_level,
                     DROP_QUALITY_NORMAL, DROP_TYPE_CHEST, false, 1, 0, &active_profile);
             }
@@ -12902,7 +13202,8 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 int base_depth = (p_ptr->depth > 0) ? p_ptr->depth : 1;
                 int penalty_depth = base_depth + dieroll(5);
                 partition_drop_profile active_profile =
-                    partition_drop_profile_for_mode(drop_mode_for_point(y, x));
+                    partition_drop_profile_for_mode_source_cfg(
+                        drop_mode_for_point(y, x), PARTITION_DROP_SOURCE_FLOOR);
                 place_object_with_profile_params(
                     y, x, base_depth, penalty_depth, DROP_QUALITY_NORMAL,
                     DROP_TYPE_NOT_DAMAGED, false, 1, 0, &active_profile);
@@ -12918,7 +13219,8 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 int base_depth = (p_ptr->depth > 0) ? p_ptr->depth : 1;
                 int penalty_depth = base_depth + dieroll(5);
                 partition_drop_profile active_profile =
-                    partition_drop_profile_for_mode(drop_mode_for_point(y, x));
+                    partition_drop_profile_for_mode_source_cfg(
+                        drop_mode_for_point(y, x), PARTITION_DROP_SOURCE_FLOOR);
                 bool old_allow_noble_from_quality = drop_allow_noble_from_quality;
                 drop_allow_noble_from_quality
                     = (op_ptr->noble_item_spawn_mode == NOBLE_ITEM_SPAWN_INCLUDE_VAULTS);
@@ -12938,7 +13240,8 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 int base_depth = (p_ptr->depth > 0) ? p_ptr->depth : 1;
                 int penalty_depth = base_depth + dieroll(5);
                 partition_drop_profile active_profile =
-                    partition_drop_profile_for_mode(drop_mode_for_point(y, x));
+                    partition_drop_profile_for_mode_source_cfg(
+                        drop_mode_for_point(y, x), PARTITION_DROP_SOURCE_FLOOR);
                 bool old_allow_noble_from_quality = drop_allow_noble_from_quality;
                 drop_allow_noble_from_quality
                     = (op_ptr->noble_item_spawn_mode == NOBLE_ITEM_SPAWN_INCLUDE_VAULTS);
@@ -12967,7 +13270,8 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 drop_set_chest_vault_type(v_ptr->typ);
                 
                 partition_drop_profile active_profile =
-                    partition_drop_profile_for_mode(drop_mode_for_point(y, x));
+                    partition_drop_profile_for_mode_source_cfg(
+                        drop_mode_for_point(y, x), PARTITION_DROP_SOURCE_FLOOR);
                 place_object_with_profile_params(
                     y, x, chest_depth, chest_depth, DROP_QUALITY_NORMAL,
                     DROP_TYPE_CHEST, false, 1, 0, &active_profile);
@@ -13084,7 +13388,8 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                     int base_depth = (p_ptr->depth > 0) ? p_ptr->depth : 1;
                     int penalty_depth = base_depth + 1;
                     partition_drop_profile active_profile =
-                        partition_drop_profile_for_mode(drop_mode_for_point(y, x));
+                        partition_drop_profile_for_mode_source_cfg(
+                            drop_mode_for_point(y, x), PARTITION_DROP_SOURCE_FLOOR);
                     place_object_with_profile_params(
                         y, x, base_depth, penalty_depth, DROP_QUALITY_NORMAL,
                         DROP_TYPE_UNTHEMED, false, 1, 0, &active_profile);
@@ -15054,26 +15359,18 @@ static bool place_big_cave_troll_or_giant(int y, int x, int max_depth)
 
 static int partition_base_monsters_for_mode(quadrant_mode_t mode, int room_count)
 {
+    const partition_rule_config* cfg =
+        partition_config_get(partition_kind_from_mode(mode));
+
     if (room_count <= 0)
         return 0;
 
-    switch (mode)
-    {
-    case QUAD_MODE_ROOMY:
-        return (room_count + dieroll(room_count)) / 2;
-    case QUAD_MODE_CAVEY:
-        return ((room_count + dieroll(MAX(1, room_count))) / 2) * 3;
-    case QUAD_MODE_RUINED:
-        return ((room_count + dieroll(MAX(1, room_count))) / 2) * 2;
-    case QUAD_MODE_LABYRINTH:
-        return ((room_count + dieroll(MAX(1, room_count))) / 2) * 2;
-    case QUAD_MODE_CHASM:
-        return ((room_count + dieroll(MAX(1, room_count))) / 2) * 4;
-    case QUAD_MODE_BIG_CAVE:
-        return ((room_count + dieroll(MAX(1, room_count))) / 2) * 5;
-    default:
+    int base = (room_count + dieroll(MAX(1, room_count))) / 2;
+    if (!cfg || cfg->base_monster_scale_num <= 0)
         return 0;
-    }
+
+    return (base * cfg->base_monster_scale_num)
+        / MAX(1, cfg->base_monster_scale_den);
 }
 
 static int partition_apply_monster_curse_scale(int monster_count)
@@ -15087,99 +15384,60 @@ static int partition_apply_monster_curse_scale(int monster_count)
 
 static int partition_direct_floor_monsters(quadrant_mode_t mode, int floor_count)
 {
+    const partition_rule_config* cfg =
+        partition_config_get(partition_kind_from_mode(mode));
+    const partition_count_rule* rule = cfg ? &cfg->direct_monsters : NULL;
+
     if (floor_count <= 0)
         return 0;
 
-    switch (mode)
-    {
-    case QUAD_MODE_BIG_CAVE:
-    {
-        /* Slightly reduce the direct-floor monster bonus for large open partitions. */
-        int target = floor_count / 55;
-        if (target < 10) target = 10;
-        if (target > 36) target = 36;
-        return target;
-    }
-    case QUAD_MODE_CHASM:
-    {
-        /* Chasms still get a fair number of floor monsters, but slightly fewer. */
-        int target = floor_count / 38;
-        if (target < 10) target = 10;
-        if (target > 42) target = 42;
-        return target;
-    }
-    case QUAD_MODE_LABYRINTH:
-    {
-        /* Tight mazes get fewer floor monsters to ease pacing. */
-        int target = floor_count / 7;
-        if (target < 8) target = 8;
-        if (target > 45) target = 45;
-        return target;
-    }
-    default:
+    if (!rule || rule->divisor <= 0)
         return 0;
-    }
+
+    int target = floor_count / rule->divisor;
+    if (target < rule->min_count)
+        target = rule->min_count;
+    if (rule->max_count > 0 && target > rule->max_count)
+        target = rule->max_count;
+    return target;
 }
 
 static int partition_extra_monster_target_for_depth(
     quadrant_mode_t mode, int floor_count, int depth)
 {
+    const partition_rule_config* cfg =
+        partition_config_get(partition_kind_from_mode(mode));
+    const partition_depth_rule* rule = cfg ? &cfg->depth_monsters : NULL;
     int target = 0;
 
     if (floor_count <= 0)
         return 0;
 
-    switch (mode)
-    {
-    case QUAD_MODE_BIG_CAVE:
-        target = floor_count / 45;
-        if (target < 12) target = 12;
-        if (target > 40) target = 40;
-        break;
-    case QUAD_MODE_CHASM:
-        target = floor_count / 38;
-        if (target < 10) target = 10;
-        if (target > 40) target = 40;
-        break;
-    case QUAD_MODE_LABYRINTH:
-        target = floor_count / 80;
-        if (target > 25) target = 25;
-        break;
-    case QUAD_MODE_CAVEY:
-        target = floor_count / 120;
-        if (target > 18) target = 18;
-        break;
-    case QUAD_MODE_RUINED:
-        target = floor_count / 180;
-        if (target > 14) target = 14;
-        break;
-    default:
-        target = 0;
-        break;
-    }
+    if (!rule || rule->divisor <= 0)
+        return 0;
+
+    target = floor_count / rule->divisor;
+    if (target < rule->min_count)
+        target = rule->min_count;
+    if (rule->max_count > 0 && target > rule->max_count)
+        target = rule->max_count;
 
     if (target <= 0)
         return 0;
 
-    /*
-     * Depth bonus scaling:
-     * - Small caves (CAVEY) keep the current behavior (+50% cap).
-     * - All other partitions cap at +33% at depth 20 (linear scaling).
-     */
-    int depth_scale_pct;
-    if (mode == QUAD_MODE_CAVEY)
+    int scale_pct = 100;
+    if (rule->scale_pct_at_depth_20 > 100 && depth > 0)
     {
-        depth_scale_pct = 100 + MIN(50, depth * 2);
-    }
-    else
-    {
-        depth_scale_pct = 100 + MIN(33, (depth * 33) / 20);
+        int extra_pct = rule->scale_pct_at_depth_20 - 100;
+        scale_pct += (extra_pct * depth) / 20;
+        if (scale_pct > rule->scale_pct_at_depth_20)
+            scale_pct = rule->scale_pct_at_depth_20;
     }
 
-    target = target * depth_scale_pct / 100;
+    target = target * scale_pct / 100;
 
     {
-        int hard_cap = floor_count / 20;
+        int hard_cap = floor_count / MAX(1, rule->hard_cap_divisor);
         if (hard_cap < 1) hard_cap = 1;
         if (target > hard_cap)
             target = hard_cap;
@@ -15216,19 +15474,18 @@ static int partition_object_scale_pct(void)
 static void partition_object_counts_from_total_monsters(
     quadrant_mode_t mode, int total_monsters, int* room_objects, int* corr_objects)
 {
+    const partition_rule_config* cfg =
+        partition_config_get(partition_kind_from_mode(mode));
     int room_count = 0;
     int corr_count = 0;
     int pct = partition_object_scale_pct();
 
-    if (mode == QUAD_MODE_ROOMY)
+    if (cfg)
     {
-        room_count = total_monsters / 8;
-        corr_count = total_monsters / 12;
-    }
-    else
-    {
-        room_count = total_monsters / 2;
-        corr_count = total_monsters / 4;
+        if (cfg->room_object_divisor > 0)
+            room_count = total_monsters / cfg->room_object_divisor;
+        if (cfg->corridor_object_divisor > 0)
+            corr_count = total_monsters / cfg->corridor_object_divisor;
     }
 
     if (pct != 100)
@@ -15665,7 +15922,8 @@ static int alloc_objects_from_plan(
     for (int k = 0; k < num; ++k)
     {
         partition_drop_profile active_profile =
-            partition_drop_profile_for_mode(plan->mode);
+            partition_drop_profile_for_mode_source_cfg(
+                plan->mode, PARTITION_DROP_SOURCE_FLOOR);
         int y = 0;
         int x = 0;
         int i;
@@ -15694,7 +15952,8 @@ static int alloc_objects_from_plan(
                     continue;
             }
 
-            active_profile = partition_drop_profile_for_mode(drop_mode_for_point(y, x));
+            active_profile = partition_drop_profile_for_mode_source_cfg(
+                drop_mode_for_point(y, x), PARTITION_DROP_SOURCE_FLOOR);
             if (!active_profile.allow_floor_drops)
                 continue;
             if (active_profile.reroll_chance > 0

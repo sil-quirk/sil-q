@@ -928,6 +928,7 @@ static errr init_info_raw(SDL_IOStream* fd, header* head)
 /* local forward */
 static errr init_rt_info(void);
 static errr init_style_info(void);
+static errr init_partition_info(void);
 static errr init_skeleton_note_info(void);
 /* From init1.c */
 
@@ -1307,6 +1308,34 @@ static errr init_style_info(void)
     }
 
     /* No separate pass for D: depth banners; per requirements, banners come from per-style M: only. */
+    return 0;
+}
+
+static errr init_partition_info(void)
+{
+    errr err;
+    SDL_IOStream* fp;
+    char path[1024];
+    char linebuf[1024];
+    header part_head;
+
+    init_header(&part_head, 1, 1);
+    partition_config_reset();
+
+    path_build(path, sizeof(path), ANGBAND_DIR_EDIT, format("%s.txt", "partition"));
+    fp = sdl_fopen(path, "r");
+    if (!fp)
+        quit("Cannot open 'partition.txt' file.");
+
+    err = init_info_txt(fp, linebuf, &part_head, parse_partition_info);
+    sdl_fclose(fp);
+
+    if (err)
+    {
+        display_parse_error("partition", err, linebuf);
+        return err;
+    }
+
     return 0;
 }
 
@@ -3094,6 +3123,8 @@ void init_angband(void)
         quit("Cannot initialize styles");
     style_info = (style_type*)style_head.info_ptr;
     style_name = style_head.name_ptr;
+    if (init_partition_info())
+        quit("Cannot initialize partition rules");
 
     /* Initialize curses info */
     note("[Initializing arrays... (curses)]");

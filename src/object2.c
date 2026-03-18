@@ -4311,27 +4311,43 @@ static bool kind_is_good(int k_idx)
  *
  * We assume that the given object has been "wiped".
  */
-bool make_object(object_type* j_ptr, drop_quality quality, int objecttype)
+static void apply_generated_object_rating(object_type* j_ptr, bool* mentioned)
 {
-    int depth = object_level;
-    bool allow_artefacts = (object_generation_mode == OB_GEN_MODE_CHEST)
-        || (object_generation_mode == OB_GEN_MODE_MONSTER_DROP);
-    if (!drop_generate_object(depth, quality, objecttype, allow_artefacts, j_ptr))
-        return false;
-
-    /* Rating boost for out-of-depth finds */
     if (!cursed_p(j_ptr) && !broken_p(j_ptr)
         && (k_info[j_ptr->k_idx].level > p_ptr->depth))
     {
         rating += (k_info[j_ptr->k_idx].level - p_ptr->depth);
         if (cheat_peek)
+        {
             object_mention(j_ptr);
+            if (mentioned)
+                *mentioned = true;
+        }
     }
+}
+
+bool make_object_with_profile(object_type* j_ptr, drop_quality quality,
+    int objecttype, const drop_profile* profile)
+{
+    int depth = object_level;
+    bool allow_artefacts = (object_generation_mode == OB_GEN_MODE_CHEST)
+        || (object_generation_mode == OB_GEN_MODE_MONSTER_DROP);
+    if (!drop_generate_object_profiled(
+            depth, quality, objecttype, 0, allow_artefacts, profile, j_ptr))
+        return false;
+
+    apply_generated_object_rating(j_ptr, NULL);
 
     return true;
 }
 
-bool make_guaranteed_artefact(object_type* j_ptr, drop_quality quality, int objecttype)
+bool make_object(object_type* j_ptr, drop_quality quality, int objecttype)
+{
+    return make_object_with_profile(j_ptr, quality, objecttype, NULL);
+}
+
+bool make_guaranteed_artefact_with_profile(object_type* j_ptr,
+    drop_quality quality, int objecttype, const drop_profile* profile)
 {
     bool allow_artefacts = (object_generation_mode == OB_GEN_MODE_CHEST)
         || (object_generation_mode == OB_GEN_MODE_MONSTER_DROP);
@@ -4342,21 +4358,12 @@ bool make_guaranteed_artefact(object_type* j_ptr, drop_quality quality, int obje
     bool mentioned = false;
 
     if (!drop_generate_guaranteed_artefact(
-            object_level, object_level, quality, objecttype, NULL, j_ptr))
+            object_level, object_level, quality, objecttype, profile, j_ptr))
     {
         return false;
     }
 
-    if (!cursed_p(j_ptr) && !broken_p(j_ptr)
-        && (k_info[j_ptr->k_idx].level > p_ptr->depth))
-    {
-        rating += (k_info[j_ptr->k_idx].level - p_ptr->depth);
-        if (cheat_peek)
-        {
-            object_mention(j_ptr);
-            mentioned = true;
-        }
-    }
+    apply_generated_object_rating(j_ptr, &mentioned);
 
     rating += 10;
     good_item_flag = true;
@@ -4374,6 +4381,12 @@ bool make_guaranteed_artefact(object_type* j_ptr, drop_quality quality, int obje
     }
 
     return true;
+}
+
+bool make_guaranteed_artefact(object_type* j_ptr, drop_quality quality, int objecttype)
+{
+    return make_guaranteed_artefact_with_profile(
+        j_ptr, quality, objecttype, NULL);
 }
 
 /*

@@ -3437,20 +3437,42 @@ bool drop_generate_object(int depth, drop_quality quality, int droptype,
 
 static drop_entry* drop_try_pick(drop_request* req, int legal_depth,
     drop_entry** candidates, size_t* cand_count, size_t* strict_count,
-    bool fallback)
+    size_t* relaxed_count, bool relaxed, bool fallback)
 {
     mem_free_null(*candidates);
     *candidates = NULL;
     *cand_count = 0;
-    *strict_count = 0;
+    if (!relaxed)
+        *strict_count = 0;
+    if (relaxed_count)
+        *relaxed_count = 0;
 
-    if (!collect_candidate_entries(req, false, candidates, cand_count))
+    if (!collect_candidate_entries(req, relaxed, candidates, cand_count))
     {
-        *strict_count = *cand_count;
-        log_drop_attempt(req, *strict_count, 0, NULL, false, fallback);
+        if (relaxed)
+        {
+            if (relaxed_count)
+                *relaxed_count = *cand_count;
+        }
+        else
+        {
+            *strict_count = *cand_count;
+        }
+
+        log_drop_attempt(req, *strict_count,
+            relaxed_count ? *relaxed_count : 0, NULL, relaxed, fallback);
         return NULL;
     }
-    *strict_count = *cand_count;
+
+    if (relaxed)
+    {
+        if (relaxed_count)
+            *relaxed_count = *cand_count;
+    }
+    else
+    {
+        *strict_count = *cand_count;
+    }
 
     drop_entry* chosen = NULL;
     if (*cand_count > 0)
@@ -3474,7 +3496,8 @@ static drop_entry* drop_try_pick(drop_request* req, int legal_depth,
         }
     }
 
-    log_drop_attempt(req, *strict_count, 0, chosen, false, fallback);
+    log_drop_attempt(req, *strict_count,
+        relaxed_count ? *relaxed_count : 0, chosen, relaxed, fallback);
     return chosen;
 }
 
@@ -3526,9 +3549,14 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     if (object_generation_mode == OB_GEN_MODE_CHEST && req.allow_noble)
         req.noble_rarity_bonus = DROP_CHEST_NOBLE_RARITY_BONUS;
 
-    /* Supply is only allowed for normal-quality non-chest generation. */
+    /* Supply is normally restricted to normal-quality drops, but chest
+     * profiles may opt back in explicitly through partition.txt. */
+    bool chest_profile_allows_supply = (object_generation_mode == OB_GEN_MODE_CHEST)
+        && profile && (profile->weight_supply > 0);
     bool disallow_supply = (quality > DROP_QUALITY_NORMAL)
         || (object_generation_mode == OB_GEN_MODE_CHEST);
+    if (chest_profile_allows_supply)
+        disallow_supply = false;
     if (disallow_supply)
     {
         req.cat_weights[DROP_CAT_SUPPLY] = 0;
@@ -3658,6 +3686,7 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     drop_entry* candidates = NULL;
     size_t cand_count = 0;
     size_t strict_count = 0;
+    size_t relaxed_count = 0;
     drop_entry* chosen = NULL;
 
     bool partition_driven_cat = false;
@@ -3689,7 +3718,8 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     }
 
     /* Initial attempt */
-    chosen = drop_try_pick(&req, legal_depth, &candidates, &cand_count, &strict_count, false);
+    chosen = drop_try_pick(&req, legal_depth, &candidates, &cand_count,
+        &strict_count, &relaxed_count, false, false);
 
     /* If the band is empty, add categories by partition probability (difficulty categories only). */
     if (!negative_target && !chosen && !req.is_supply && partition_driven_cat
@@ -3722,7 +3752,8 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
                 continue;
 
             req.cat_mask |= (1U << cat);
-            chosen = drop_try_pick(&req, legal_depth, &candidates, &cand_count, &strict_count, true);
+            chosen = drop_try_pick(&req, legal_depth, &candidates, &cand_count,
+                &strict_count, &relaxed_count, false, true);
         }
     }
 
@@ -3731,7 +3762,19 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     while (!negative_target && !chosen && !req.is_supply && req.lower > DROP_MIN_DIFFICULTY)
     {
         req.lower--;
-        chosen = drop_try_pick(&req, legal_depth, &candidates, &cand_count, &strict_count, true);
+        chosen = drop_try_pick(&req, legal_depth, &candidates, &cand_count,
+            &strict_count, &relaxed_count, false, true);
+    }
+
+    /*
+     * Guaranteed artefact drops should exhaust the remaining legal artefact pool
+     * before reporting failure. Strict banding is still preferred first so
+     * normal difficulty shaping remains intact when it succeeds.
+     */
+    if (req.artefacts_only && !chosen && !req.is_supply)
+    {
+        chosen = drop_try_pick(&req, legal_depth, &candidates, &cand_count,
+            &strict_count, &relaxed_count, true, true);
     }
 
     bool ok = (chosen != NULL);
