@@ -80,7 +80,8 @@ static bool drop_object_is_damaged(const object_type* o_ptr)
 
 static const char* DROP_RAW_FILE = "drops";
 static const u32b DROP_RAW_MAGIC = 0x44525053; /* 'DRPS' */
-static const u32b DROP_RAW_VERSION = 21;
+static const u32b DROP_RAW_VERSION = 22;
+static const int DROP_MIN_DIFFICULTY = -15;
 
 typedef struct
 {
@@ -1118,10 +1119,6 @@ static int smithing_difficulty_baseline(const object_type* o_ptr)
     if ((o_ptr->tval == TV_ARROW) && (o_ptr->name1))
         dif /= 2;
 
-    if (dif < 0)
-        dif = 0;
-    if (dif > 255)
-        dif = 255;
     return dif;
 }
 
@@ -3564,6 +3561,7 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     req.lower = req.base_roll - 2;
     req.upper = req.base_roll + 2;
     req.cat_mask = 0;
+    bool negative_target = (req.base_roll < 0);
 
     if (gen_log_initialized)
     {
@@ -3646,22 +3644,21 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
         req.supply_weights[DROP_SUPPLY_TUNNELING] = 100;
     }
 
-    drop_entry* candidates = NULL;
-    size_t cand_count = 0;
-    size_t strict_count = 0;
-    drop_entry* chosen = NULL;
-
-    if (!req.is_supply && req.upper < 0 && droptype != DROP_TYPE_DAMAGED)
+    if (!req.is_supply && req.upper < DROP_MIN_DIFFICULTY && droptype != DROP_TYPE_DAMAGED)
     {
         if (gen_log_initialized)
         {
             gen_log_write("DROP_SKIP",
-                "depth=%d droptype=%d target=%d band=%d..%d (upper<0)",
-                depth, droptype, req.base_roll, req.lower, req.upper);
+                "depth=%d droptype=%d target=%d band=%d..%d (upper<%d)",
+                depth, droptype, req.base_roll, req.lower, req.upper, DROP_MIN_DIFFICULTY);
         }
-        mem_free_null(candidates);
         return false;
     }
+
+    drop_entry* candidates = NULL;
+    size_t cand_count = 0;
+    size_t strict_count = 0;
+    drop_entry* chosen = NULL;
 
     bool partition_driven_cat = false;
     switch (droptype)
@@ -3695,7 +3692,7 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     chosen = drop_try_pick(&req, legal_depth, &candidates, &cand_count, &strict_count, false);
 
     /* If the band is empty, add categories by partition probability (difficulty categories only). */
-    if (!chosen && !req.is_supply && partition_driven_cat
+    if (!negative_target && !chosen && !req.is_supply && partition_driven_cat
         && (req.cat == DROP_CAT_WEAPON || req.cat == DROP_CAT_ARMOR
             || req.cat == DROP_CAT_JEWELRY))
     {
@@ -3730,7 +3727,8 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     }
 
     /* If still empty, relax the band downward until something exists. */
-    while (!chosen && !req.is_supply && req.lower > 0)
+    /* Keep widening into negative difficulty bands, but stop at the floor. */
+    while (!negative_target && !chosen && !req.is_supply && req.lower > DROP_MIN_DIFFICULTY)
     {
         req.lower--;
         chosen = drop_try_pick(&req, legal_depth, &candidates, &cand_count, &strict_count, true);
@@ -3742,7 +3740,7 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     if (!ok && gen_log_initialized)
     {
         gen_log_write("DROP_FAILED",
-            "depth=%d cat=%d droptype=%d target=%d - no valid items after 5 attempts",
+            "depth=%d cat=%d droptype=%d target=%d - no valid items after retries",
             depth, req.cat, droptype, req.base_roll);
     }
 

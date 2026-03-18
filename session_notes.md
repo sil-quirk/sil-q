@@ -8460,3 +8460,9 @@ The script now fully matches the game's drop generation logic for all item types
 ## 2026-01-29: Light corridor alcoves like torches
 - `src/generate.c`: when carving tunnel side niches (alcoves), mark `CAVE_GLOW` on the niche + its two flanking walls + the 3 corridor floor tiles in front (torch-sized) to mimic wall torches.
 - Build: `cmake --build build-standard --parallel` and `cmake --build build-portable --parallel` OK.
+
+## 2026-03-18: Negative smithing difficulty support
+- `src/drop_system.c`: removed the zero clamp from smithing difficulty, bumped `DROP_RAW_VERSION` to `22`, and added negative-target handling that keeps the strict band but skips category/band relaxation when the target itself is below zero.
+- `src/drop_system.c`: added a hard floor at `-15`; if the target band cannot find a candidate by that point, the drop now fails cleanly instead of widening further.
+- `scripts/calc_artefact_difficulty.py`: added C-style truncating division for negative results so the analysis script matches the engine once difficulty can go below zero.
+- Validation: `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` succeeded.

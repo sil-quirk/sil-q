@@ -156,6 +156,13 @@ def compute_stat_skill_bonuses(flags: set, total_pval: int, overrides: dict | No
     return stat_bonus, skill_bonus
 
 
+def c_trunc_div(numer: int, denom: int) -> int:
+    """Match C integer division semantics (truncate toward zero)."""
+    if denom == 0:
+        raise ZeroDivisionError("division by zero")
+    return abs(numer) // abs(denom) * (1 if numer == 0 or numer * denom > 0 else -1)
+
+
 def parse_artefact_file(filepath):
     """Parse artefact.txt and return list of artefact data."""
     artefacts = []
@@ -820,11 +827,11 @@ def calculate_difficulty(art):
         dif_mult -= 30
 
     # Apply multiplier
-    dif = dif * dif_mult // 100
+    dif = c_trunc_div(dif * dif_mult, 100)
     
     # Artefact arrows are easier (halved) - only for actual artefacts, not ego arrows
     if art['tval'] == 17 and art['type'] == 'artefact':  # Artefact arrows only
-        dif = dif // 2
+        dif = c_trunc_div(dif, 2)
 
     return dif
 

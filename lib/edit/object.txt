@@ -718,7 +718,7 @@ W:10:0:100:700
 P:-5:5d2:0:0d0
 R:ATT:-4
 R:DS:3
-A:10/60
+A:10/50
 F:TUNNEL | TWO_HANDED | LESS_SPECIAL
 D:A heavy tool of the sort long wielded by the Dwarves, who
 D: used mattocks both in the mine and in battle. It can be
