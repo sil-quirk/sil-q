@@ -4867,6 +4867,33 @@ void dif_mod(int value, int positive_base, int* dif_inc)
 }
 
 /*
+ * Signed difficulty modifier.
+ *
+ * Positive values use the normal triangular progression.
+ * Negative values reduce difficulty, but only by half as much as the matching
+ * positive bonus would increase it.
+ */
+static int dif_mod_signed(int value, int positive_base)
+{
+    int mod = 1 + ((positive_base - 1) / 5);
+
+    if (value > 0)
+    {
+        return positive_base * value + mod * (value * (value - 1) / 2);
+    }
+    else if (value < 0)
+    {
+        int abs_value = -value;
+        int negative_base = (positive_base + 1) / 2;
+        int negative_mod = 1 + ((negative_base - 1) / 5);
+        return -(negative_base * abs_value
+            + negative_mod * (abs_value * (abs_value - 1) / 2));
+    }
+
+    return 0;
+}
+
+/*
  * Determines the difficulty of a given object.
  */
 int object_difficulty(object_type* o_ptr)
@@ -5047,17 +5074,16 @@ int object_difficulty(object_type* o_ptr)
     x = att_base - smith_base_att;
 
     // special costs for attack bonus for weapons
-    if ((o_ptr->tval == TV_ARROW || o_ptr->tval == TV_BOW
-            || o_ptr->tval == TV_SWORD || o_ptr->tval == TV_POLEARM
-            || o_ptr->tval == TV_HAFTED)
-        && (x > 0))
+    if (o_ptr->tval == TV_ARROW || o_ptr->tval == TV_BOW
+        || o_ptr->tval == TV_SWORD || o_ptr->tval == TV_POLEARM
+        || o_ptr->tval == TV_HAFTED)
     {
-        dif_mod(x, 3, &dif_inc);
+        dif_inc += dif_mod_signed(x, 3);
     }
     // normal costs for other items
     else
     {
-        dif_mod(x, 6, &dif_inc);
+        dif_inc += dif_mod_signed(x, 6);
         if (x > 0)
             dif_inc -= 1;
     }
@@ -5069,13 +5095,13 @@ int object_difficulty(object_type* o_ptr)
         || o_ptr->tval == TV_CROWN || o_ptr->tval == TV_CLOAK
         || o_ptr->tval == TV_GLOVES || o_ptr->tval == TV_BOOTS)
     {
-        dif_mod(x, 6, &dif_inc);
+        dif_inc += dif_mod_signed(x, 6);
         if (x > 0)
             dif_inc -= 1;
     }
     else
     {
-        dif_mod(x, 9, &dif_inc);
+        dif_inc += dif_mod_signed(x, 9);
         if (x > 0)
             dif_inc -= 2;
     }
@@ -5084,7 +5110,7 @@ int object_difficulty(object_type* o_ptr)
     x = (ds_base - smith_base_ds);
     // dd used to be a factor here, but a shortsword is far more breakable than
     // a great axe adjusted to make >1 damage sides expensive to smith
-    dif_mod(x, 3 * x + 2, &dif_inc);
+    dif_inc += dif_mod_signed(x, 3 * ABS(x) + 2);
 
     // protection bonus
     base = smith_base_prot;
@@ -5093,19 +5119,21 @@ int object_difficulty(object_type* o_ptr)
     x = new - base;
 
     // special costs for protection sides on hauberks and rings
-    if ((o_ptr->tval == TV_MAIL) && (o_ptr->sval == SV_LONG_CORSLET) && (x > 0))
+    if ((o_ptr->tval == TV_MAIL) && (o_ptr->sval == SV_LONG_CORSLET))
     {
-        dif_mod(x, 1, &dif_inc);
-        dif_inc += 2;
+        dif_inc += dif_mod_signed(x, 1);
+        if (x > 0)
+            dif_inc += 2;
     }
-    else if ((o_ptr->tval == TV_RING) && (x > 0))
+    else if (o_ptr->tval == TV_RING)
     {
-        dif_mod(x, 1, &dif_inc);
-        dif_inc += 4;
+        dif_inc += dif_mod_signed(x, 1);
+        if (x > 0)
+            dif_inc += 4;
     }
     else
     {
-        dif_mod(x, 3, &dif_inc);
+        dif_inc += dif_mod_signed(x, 3);
     }
 
     // weapon modifiers

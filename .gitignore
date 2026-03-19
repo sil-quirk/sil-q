@@ -42,3 +42,4 @@ compile_commands.json
 /android/app/.cxx/
 /android/app/build/
 /android/local.properties
+/scripts/__pycache__

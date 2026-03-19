@@ -532,7 +532,8 @@ def calculate_difficulty(art):
                 val -= 1
             dif_inc += val
     
-    # Evasion bonus (bonus above base): armor uses dif_mod(x, 6)-1, non-armor uses dif_mod(x, 9)-2
+    # Evasion bonus (bonus above base): armor uses dif_mod(x, 6)-1, non-armor uses dif_mod(x, 9)-2.
+    # Negative bonuses reduce difficulty using the same signed progression.
     evn_bonus = smithed_evn_bonus
     if evn_bonus != 0:
         armor_tvals = {30, 31, 32, 33, 34, 35, 36, 37}
@@ -546,18 +547,21 @@ def calculate_difficulty(art):
                 val -= 2
         dif_inc += val
     
-    # Damage sides bonus: dif_mod(x, 3*x+2, &dif_inc)
+    # Damage sides bonus: dif_mod(x, 3*|x|+2, &dif_inc)
     ds_bonus = smithed_ds_bonus
     if ds_bonus != 0:
-        # The formula is: dif_mod(x, 3*x+2) which means each ds costs more
-        dif_inc += dif_mod_calc(ds_bonus, 3 * ds_bonus + 2)
+        dif_inc += dif_mod_calc(ds_bonus, 3 * abs(ds_bonus) + 2)
     
     # Protection bonus
     if prot_bonus != 0:
         if tval == 37 and sval == 6:  # Hauberk
-            dif_inc += dif_mod_calc(prot_bonus, 1) + (2 if prot_bonus > 0 else 0)
+            dif_inc += dif_mod_calc(prot_bonus, 1)
+            if prot_bonus > 0:
+                dif_inc += 2
         elif tval == 45:  # Ring
-            dif_inc += dif_mod_calc(prot_bonus, 1) + (4 if prot_bonus > 0 else 0)
+            dif_inc += dif_mod_calc(prot_bonus, 1)
+            if prot_bonus > 0:
+                dif_inc += 4
         else:
             dif_inc += dif_mod_calc(prot_bonus, 3)
     
@@ -1590,64 +1594,136 @@ def generate_dual_ego_variants(specials_raw, objects):
                 ):
                     continue
 
-                # This base item can have both prefix and suffix
-                # Generate a representative variant (using max stats from both egos)
-
-                # Combine the bonuses from both egos
-                combined_max_att = prefix['max_att'] + suffix['max_att']
-                combined_to_ds = prefix['to_ds'] + suffix['to_ds']
-                combined_max_evn = prefix['max_evn'] + suffix['max_evn']
-                combined_to_ps = prefix['to_ps'] + suffix['to_ps']
-                combined_max_pval = prefix['max_pval'] + suffix['max_pval']
-                combined_to_dd = prefix['to_dd'] + suffix['to_dd']
-                combined_to_pd = prefix['to_pd'] + suffix['to_pd']
-
-                # Combined flags and abilities
-                combined_flags = prefix['flags'][:] + [f for f in suffix['flags'] if f not in prefix['flags']]
-                combined_ability_list = prefix['ability_list'][:] + suffix['ability_list'][:]
-
                 # Compute full rarity schedule for this three-way combination
                 combined_depth, combined_schedule, combined_max_depth = effective_dual_ego_schedule(obj, prefix, suffix)
                 combined_rarity = combined_schedule[0][1] if combined_schedule else 0
                 _obj_name_d = clean_obj_name(obj['name'])
 
-                # Generate a single "maximum" variant for this combination
-                variant = {
-                    'type': 'dual_ego',
-                    'prefix_idx': prefix['idx'],
-                    'suffix_idx': suffix['idx'],
-                    'name': f"{prefix['name']} {_obj_name_d} {suffix['name']}",
-                    'base_name': _obj_name_d,
-                    'prefix_name': prefix['name'],
-                    'suffix_name': suffix['name'],
-                    'is_prefix': False,  # dual ego is neither pure prefix nor suffix
-                    'tval': obj['tval'],
-                    'sval': obj['sval'],
-                    'att': obj['max_att'] + combined_max_att,
-                    'ds': obj['max_ds'] + combined_to_ds,
-                    'dd': obj['dd'] + combined_to_dd,
-                    'evn': obj['max_evn'] + combined_max_evn,
-                    'ps': obj['max_ps'] + combined_to_ps,
-                    'pd': obj['pd'] + combined_to_pd,
-                    'pval': obj['max_pval'] + combined_max_pval,
-                    'ability_list': combined_ability_list,
-                    'flags': combined_flags,
-                    'depth': combined_depth,
-                    'rarity': combined_rarity,
-                    'rarity_schedule': combined_schedule,
-                    'max_depth': combined_max_depth,
-                    # Store base stats for difficulty calculation
-                    'base_att': obj['att'],
-                    'base_evn': obj['evn'],
-                    'base_ds': obj['ds'],
-                    'base_ps': obj['ps'],
-                    'base_pd': obj['pd'],
-                    'base_dd': obj['dd'],
-                    'base_pval': obj['pval'],
-                    'base_level': obj['level'],
-                    'weight': obj.get('weight', 0),  # Inherit base item weight
-                }
-                variants.append(variant)
+                # Range math mirrors src/drop_system.c: build_ego_combo_variants().
+                att_min = obj['att'] \
+                    + smithing_step_from_ego_bonus_py(prefix['max_att']) \
+                    + smithing_step_from_ego_bonus_py(suffix['max_att'])
+                att_max = obj['max_att'] + prefix['max_att'] + suffix['max_att']
+                ds_min = obj['ds'] \
+                    + smithing_step_from_ego_bonus_py(prefix['to_ds']) \
+                    + smithing_step_from_ego_bonus_py(suffix['to_ds'])
+                ds_max = obj['max_ds'] + prefix['to_ds'] + suffix['to_ds']
+                evn_min = obj['evn'] \
+                    + smithing_step_from_ego_bonus_py(prefix['max_evn']) \
+                    + smithing_step_from_ego_bonus_py(suffix['max_evn'])
+                evn_max = obj['max_evn'] + prefix['max_evn'] + suffix['max_evn']
+                ps_min = obj['ps'] \
+                    + smithing_step_from_ego_bonus_py(prefix['to_ps']) \
+                    + smithing_step_from_ego_bonus_py(suffix['to_ps'])
+                ps_max = obj['max_ps'] + prefix['to_ps'] + suffix['to_ps']
+                dd_min = obj['dd'] \
+                    + smithing_step_from_ego_bonus_py(prefix['to_dd']) \
+                    + smithing_step_from_ego_bonus_py(suffix['to_dd'])
+                dd_max = obj['dd'] + prefix['to_dd'] + suffix['to_dd']
+                pd_min = obj['pd'] \
+                    + smithing_step_from_ego_bonus_py(prefix['to_pd']) \
+                    + smithing_step_from_ego_bonus_py(suffix['to_pd'])
+                pd_max = obj['pd'] + prefix['to_pd'] + suffix['to_pd']
+
+                prefix_pval_min = (
+                    prefix.get('min_pval', 0)
+                    if prefix.get('min_pval', 0) > 0
+                    else (1 if prefix['max_pval'] > 0 else 0)
+                )
+                suffix_pval_min = (
+                    suffix.get('min_pval', 0)
+                    if suffix.get('min_pval', 0) > 0
+                    else (1 if suffix['max_pval'] > 0 else 0)
+                )
+                pval_min = obj['pval'] + prefix_pval_min + suffix_pval_min
+                pval_max = obj['max_pval'] + prefix['max_pval'] + suffix['max_pval']
+                pval_allowed = (
+                    has_pval_mask(set(obj.get('flags', [])))
+                    or obj['pval'] != 0
+                    or prefix['max_pval'] > 0
+                    or suffix['max_pval'] > 0
+                )
+
+                if ds_min < 0:
+                    ds_min = 0
+                if ds_max < 0:
+                    ds_max = 0
+                if dd_min < 0:
+                    dd_min = 0
+                if dd_max < 0:
+                    dd_max = 0
+                if pd_min < 0:
+                    pd_min = 0
+                if pd_max < 0:
+                    pd_max = 0
+                if ps_min < 0:
+                    ps_min = 0
+                if ps_max < 0:
+                    ps_max = 0
+
+                if att_min > att_max:
+                    att_min = att_max
+                if ds_min > ds_max:
+                    ds_min = ds_max
+                if evn_min > evn_max:
+                    evn_min = evn_max
+                if ps_min > ps_max:
+                    ps_min = ps_max
+                if dd_min > dd_max:
+                    dd_min = dd_max
+                if pd_min > pd_max:
+                    pd_min = pd_max
+                if pval_min > pval_max:
+                    pval_min = pval_max
+
+                # Combined flags and abilities.
+                combined_flags = prefix['flags'][:] + [f for f in suffix['flags'] if f not in prefix['flags']]
+                combined_ability_list = prefix['ability_list'][:] + suffix['ability_list'][:]
+
+                for att in range(att_min, att_max + 1):
+                    for ds in range(ds_min, ds_max + 1):
+                        for evn in range(evn_min, evn_max + 1):
+                            for ps in range(ps_min, ps_max + 1):
+                                for dd in range(dd_min, dd_max + 1):
+                                    for pd in range(pd_min, pd_max + 1):
+                                        pval_hi = pval_max if pval_allowed else pval_min
+                                        for pval in range(pval_min, pval_hi + 1):
+                                            variant = {
+                                                'type': 'dual_ego',
+                                                'prefix_idx': prefix['idx'],
+                                                'suffix_idx': suffix['idx'],
+                                                'name': f"{prefix['name']} {_obj_name_d} {suffix['name']}",
+                                                'base_name': _obj_name_d,
+                                                'prefix_name': prefix['name'],
+                                                'suffix_name': suffix['name'],
+                                                'is_prefix': False,  # dual ego is neither pure prefix nor suffix
+                                                'tval': obj['tval'],
+                                                'sval': obj['sval'],
+                                                'att': att,
+                                                'ds': ds,
+                                                'dd': dd,
+                                                'evn': evn,
+                                                'ps': ps,
+                                                'pd': pd,
+                                                'pval': pval,
+                                                'ability_list': combined_ability_list,
+                                                'flags': combined_flags,
+                                                'depth': combined_depth,
+                                                'rarity': combined_rarity,
+                                                'rarity_schedule': combined_schedule,
+                                                'max_depth': combined_max_depth,
+                                                # Store base stats for difficulty calculation
+                                                'base_att': obj['att'],
+                                                'base_evn': obj['evn'],
+                                                'base_ds': obj['ds'],
+                                                'base_ps': obj['ps'],
+                                                'base_pd': obj['pd'],
+                                                'base_dd': obj['dd'],
+                                                'base_pval': obj['pval'],
+                                                'base_level': obj['level'],
+                                                'weight': obj.get('weight', 0),  # Inherit base item weight
+                                            }
+                                            variants.append(variant)
 
     return variants
 
@@ -2174,10 +2250,10 @@ def main(argv=None):
     print("=" * 120)
     print("DIFFICULTY FORMULA (from src/cmd4.c object_difficulty()):")
     print("  - Base item level / 2")
-    print("  - Attack bonus: weapons +3/point, others +6/point")
-    print("  - Evasion bonus: +6/point")
-    print("  - Damage sides: +3*x+2 per extra side (triangular)")
-    print("  - Protection: +3/point")
+    print("  - Attack bonus: weapons +3/point, others +6/point; negatives reduce at half rate")
+    print("  - Evasion bonus: +6/point armor, +9/point others; negatives reduce at half rate")
+    print("  - Damage sides: +3*x+2 per extra side (triangular); negatives reduce at half rate")
+    print("  - Protection: +3/point; ring/hauberk flat offsets only apply on positive bonuses")
     print("  - Slays: +3-5 each (Spider/Rauko/Dragon +4, Man/Elf +5, others +3)")
     print("  - Brands: Cold +18, Fire +14, Poison +16 (+20 per extra brand)")
     print("  - Sharpness: +24 (arrows +14), Sharpness2: +40")

@@ -25,9 +25,9 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, script_dir)
 
 from calc_artefact_difficulty import (
-    parse_artefact_file, parse_special_file, dif_mod_calc,
+    parse_artefact_file, parse_special_file, dif_mod_calc, c_trunc_div,
     parse_object_file,
-    get_base_level, get_base_ds, get_base_protection, get_base_att, get_base_evn,
+    smithing_step_from_ego_bonus_py, get_base_level, get_base_ds, get_base_protection, get_base_att, get_base_evn,
     get_base_pval, get_slot, get_tval_name
 )
 
@@ -296,24 +296,23 @@ def get_smithing_limits(tval, sval, is_special=False, special=None):
     if tval == 17:  # Arrow
         att_min = base_att
         att_max = 3 if not is_special else 0  # Arrows can't have attack bonus with specials
-        if is_special and special and special['max_att'] > 0:
-            att_min = base_att + 1
+        if is_special and special and special['max_att'] != 0:
+            att_min = base_att + smithing_step_from_ego_bonus_py(special['max_att'])
             att_max = base_att + special['max_att']
     elif tval in [19, 23, 22, 21, 20]:  # Weapons
         att_min = base_att
         att_max = base_att + 1
-        if is_special and special:
-            if special['max_att'] > 0:
-                att_min = base_att + 1
-                att_max = base_att + 1 + special['max_att']
+        if is_special and special and special['max_att'] != 0:
+            att_min = base_att + smithing_step_from_ego_bonus_py(special['max_att'])
+            att_max = base_att + 1 + special['max_att']
     elif tval == 45 and sval == 8:  # Ring of Accuracy (SV_RING_ACCURACY)
         att_min = base_att
         att_max = 4
     else:  # Armor and other jewelry
         att_min = base_att
         att_max = min(0, base_att + 1)  # Armor att max is capped at 0
-        if is_special and special and special['max_att'] > 0:
-            att_min = base_att + 1
+        if is_special and special and special['max_att'] != 0:
+            att_min = base_att + smithing_step_from_ego_bonus_py(special['max_att'])
             att_max = base_att + special['max_att']
     
     limits['att'] = (att_min, att_max)
@@ -322,8 +321,8 @@ def get_smithing_limits(tval, sval, is_special=False, special=None):
     if tval in [19, 23, 22, 21, 20]:
         ds_min = base_ds
         ds_max = base_ds + 1
-        if is_special and special and special['to_ds'] > 0:
-            ds_min = base_ds + 1
+        if is_special and special and special['to_ds'] != 0:
+            ds_min = base_ds + smithing_step_from_ego_bonus_py(special['to_ds'])
             ds_max = base_ds + 1 + special['to_ds']
         limits['ds'] = (ds_min, ds_max)
     else:
@@ -333,8 +332,8 @@ def get_smithing_limits(tval, sval, is_special=False, special=None):
     if tval in [30, 31, 32, 33, 34, 35, 36, 37]:
         evn_min = base_evn
         evn_max = base_evn + 1
-        if is_special and special and special['max_evn'] > 0:
-            evn_min = base_evn + 1
+        if is_special and special and special['max_evn'] != 0:
+            evn_min = base_evn + smithing_step_from_ego_bonus_py(special['max_evn'])
             evn_max = base_evn + 1 + special['max_evn']
         limits['evn'] = (evn_min, evn_max)
     elif tval == 45 and sval == 2:  # Ring of Evasion (SV_RING_EVASION)
@@ -358,8 +357,8 @@ def get_smithing_limits(tval, sval, is_special=False, special=None):
             ps_min = base_ps_val
             ps_max = base_ps_val + 1
         
-        if is_special and special and special['to_ps'] > 0:
-            ps_min = base_ps_val + 1
+        if is_special and special and special['to_ps'] != 0:
+            ps_min = base_ps_val + smithing_step_from_ego_bonus_py(special['to_ps'])
             ps_max = ps_max + special['to_ps']
         limits['ps'] = (ps_min, ps_max)
     elif tval == 45 and sval == 3:  # Ring of Protection (SV_RING_PROTECTION)
@@ -483,9 +482,9 @@ def calculate_item_difficulty(tval, sval, att_bonus=0, ds_bonus=0, evn_bonus=0,
     
 
     # Attack bonus contribution
-    if att_bonus > 0:
+    if att_bonus != 0:
         if tval == 17:  # Arrow
-            dif_inc += dif_mod_calc(att_bonus, 5) // 2
+            dif_inc += c_trunc_div(dif_mod_calc(att_bonus, 5), 2)
         elif tval in [19, 23, 22, 21, 20]:  # Weapons
             dif_inc += dif_mod_calc(att_bonus, 3)
         else:
@@ -496,25 +495,29 @@ def calculate_item_difficulty(tval, sval, att_bonus=0, ds_bonus=0, evn_bonus=0,
     
     # Evasion bonus
     if evn_bonus != 0:
-        val = dif_mod_calc(abs(evn_bonus), 6)
+        val = dif_mod_calc(evn_bonus, 6)
         if evn_bonus > 0:
             val -= 1
         dif_inc += val
     
     # Damage sides bonus
-    if ds_bonus > 0:
-        dif_inc += dif_mod_calc(ds_bonus, 3 * ds_bonus + 2)
+    if ds_bonus != 0:
+        dif_inc += dif_mod_calc(ds_bonus, 3 * abs(ds_bonus) + 2)
     
     # Protection bonus
     new_prot = ((base_ps + ps_bonus + 1) * base_pd) if (base_ps + ps_bonus) > 0 else 0
     base_prot = ((base_ps + 1) * base_pd) if base_ps > 0 else 0
     prot_bonus = new_prot - base_prot
     
-    if prot_bonus > 0:
+    if prot_bonus != 0:
         if tval == 37 and sval == 6:  # Hauberk
-            dif_inc += dif_mod_calc(prot_bonus, 1) + 2
+            dif_inc += dif_mod_calc(prot_bonus, 1)
+            if prot_bonus > 0:
+                dif_inc += 2
         elif tval == 45:  # Ring
-            dif_inc += dif_mod_calc(prot_bonus, 1) + 4
+            dif_inc += dif_mod_calc(prot_bonus, 1)
+            if prot_bonus > 0:
+                dif_inc += 4
         else:
             dif_inc += dif_mod_calc(prot_bonus, 3)
     

@@ -761,7 +761,7 @@ static int smithing_difficulty_baseline(const object_type* o_ptr)
 
     /* Damage bonus */
     x = (o_ptr->ds - smith_base_ds);
-    drop_dif_mod(x, 3 * x + 2, &dif_inc);
+    drop_dif_mod(x, 3 * ABS(x) + 2, &dif_inc);
 
     /* Protection bonus */
     base = smith_base_prot;
