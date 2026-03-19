@@ -155,6 +155,7 @@ void drop_profile_default(drop_profile* profile)
     profile->supply_staff = DROP_DEFAULT_SUPPLY_WEIGHT;
     profile->supply_misc = DROP_DEFAULT_SUPPLY_WEIGHT;
     profile->supply_tunneling = 0; /* Disabled by default */
+    profile->allow_damaged = false;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -2355,6 +2356,7 @@ typedef struct
     bool allow_noble; /* explicit override for noble-tagged entries */
     bool allow_evil; /* explicit override for evil-tagged entries */
     bool allow_noble_from_quality; /* whether GOOD+ quality may include noble-tagged entries */
+    bool allow_damaged; /* whether damaged items may participate in non-damaged profiles */
     int artefact_weight_multiplier; /* group weight multiplier for artefacts */
     int noble_rarity_bonus; /* additive rarity bonus for noble entries */
     int cat_weights[DROP_CAT_MAX];
@@ -2374,6 +2376,7 @@ static void drop_request_set_default_weights(drop_request* req)
 {
     req->artefact_weight_multiplier = 1;
     req->noble_rarity_bonus = 0;
+    req->allow_damaged = false;
     for (int i = 0; i < DROP_CAT_MAX; ++i)
         req->cat_weights[i] = DROP_DEFAULT_CAT_WEIGHT;
     for (int i = 0; i < DROP_SUPPLY_GROUP_MAX; ++i)
@@ -2398,6 +2401,7 @@ static void drop_request_apply_profile(
     req->supply_weights[DROP_SUPPLY_STAFF] = MAX(0, profile->supply_staff);
     req->supply_weights[DROP_SUPPLY_MISC] = MAX(0, profile->supply_misc);
     req->supply_weights[DROP_SUPPLY_TUNNELING] = MAX(0, profile->supply_tunneling);
+    req->allow_damaged = profile->allow_damaged;
 }
 
 static drop_supply_group_id supply_group_for_entry(const drop_entry* e)
@@ -2578,7 +2582,7 @@ static bool droptype_matches(const drop_request* req, const drop_entry* e)
 {
     bool damaged = drop_object_is_damaged(&e->obj);
 
-    if (damaged && req->droptype != DROP_TYPE_DAMAGED)
+    if (damaged && req->droptype != DROP_TYPE_DAMAGED && !req->allow_damaged)
         return false;
 
     switch (req->droptype)

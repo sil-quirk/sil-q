@@ -1839,10 +1839,15 @@ static errr parse_partition_profile_values(const char* data,
     drop_profile profile;
     int weapon, armor, jewelry, supply;
     int potion, herb, gem, staff, misc, tunneling;
+    int allow_damaged = 0;
+    int parsed = 0;
 
-    if (10 != sscanf(data, "%d:%d:%d:%d:%d:%d:%d:%d:%d:%d",
-            &weapon, &armor, &jewelry, &supply, &potion, &herb,
-            &gem, &staff, &misc, &tunneling))
+    drop_profile_default(&profile);
+
+    parsed = sscanf(data, "%d:%d:%d:%d:%d:%d:%d:%d:%d:%d:%d",
+        &weapon, &armor, &jewelry, &supply, &potion, &herb, &gem, &staff,
+        &misc, &tunneling, &allow_damaged);
+    if (parsed != 10 && parsed != 11)
     {
         return PARSE_ERROR_GENERIC;
     }
@@ -1857,6 +1862,7 @@ static errr parse_partition_profile_values(const char* data,
     profile.supply_staff = staff;
     profile.supply_misc = misc;
     profile.supply_tunneling = tunneling;
+    profile.allow_damaged = (parsed == 11) ? (allow_damaged ? true : false) : false;
 
     partition_config_set_drop_profile(kind, source, &profile);
     return 0;
@@ -1904,11 +1910,10 @@ errr parse_partition_info(char* buf, header* head)
     if (buf[0] == 'F' && buf[1] == 'L' && buf[2] == ':')
     {
         int allow_floor = 0;
-        int reroll = 0;
-        if (2 != sscanf(buf + 3, "%d:%d", &allow_floor, &reroll))
+        if (1 != sscanf(buf + 3, "%d", &allow_floor))
             return PARSE_ERROR_GENERIC;
-        partition_config_set_floor_rules(current_kind, allow_floor ? true : false,
-            reroll);
+        partition_config_set_floor_rules(
+            current_kind, allow_floor ? true : false);
         return 0;
     }
 
@@ -1964,6 +1969,22 @@ errr parse_partition_info(char* buf, header* head)
             return PARSE_ERROR_GENERIC;
         partition_config_set_object_rules(
             current_kind, room_divisor, corridor_divisor);
+        return 0;
+    }
+
+    if (buf[0] == 'M' && buf[1] == 'T' && buf[2] == ':')
+    {
+        int divisor = 0;
+        int min_count = 0;
+        int max_count = 0;
+        int min_depth = 0;
+        if (4 != sscanf(buf + 3, "%d:%d:%d:%d",
+                &divisor, &min_count, &max_count, &min_depth))
+        {
+            return PARSE_ERROR_GENERIC;
+        }
+        partition_config_set_metal_rule(
+            current_kind, divisor, min_count, max_count, min_depth);
         return 0;
     }
 

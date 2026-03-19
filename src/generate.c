@@ -2335,10 +2335,6 @@ typedef struct partition_chest_recipe {
 #define PARTITION_CHEST_RECIPE_MAX 3
 
 typedef struct partition_population_meta {
-    bool cave_loot;
-    bool cave_loot_big_cave;
-    int cave_loot_blob_count;
-    bool star_iron;
     int chest_count;
     partition_chest_recipe chest_recipes[PARTITION_CHEST_RECIPE_MAX];
 } partition_population_meta;
@@ -3077,8 +3073,6 @@ static bool build_type1(int y0, int x0);
 static void carve_morgoth_entry_tunnels(const vault_type* v_ptr, int y0, int x0);
 static bool connect_morgoth_entry_tunnels(void);
 static void seal_morgoth_partition(const vault_type* v_ptr, int y0, int x0);
-static int place_ruined_partition_damaged_items(
-    int y1, int y2, int x1, int x2, int target_count);
 static void apply_quadrant_generation_modes(void);
 static void repair_all_outer_walls(void);
 static bool carve_chasm_with_bridges(int y_min, int y_max, int x_min, int x_max,
@@ -3233,144 +3227,7 @@ static void scatter_quartz_veins_in_bounds(int y1, int y2, int x1, int x2, u16b 
     }
 }
 
-/* Scatter mithril pieces and gem caches in cave areas.
- * Chance increases with depth and blob count. Only places items on empty floor tiles. */
-static void scatter_cave_gems_in_bounds(int y1, int y2, int x1, int x2, bool is_big_cave, int blob_count)
-{
-    int depth = p_ptr->depth;
-    int mithril_placed = 0;
-    int gem_placed = 0;
-    bool allow_mithril = (depth >= 8);
-    int blob_factor = MAX(1, blob_count);
-    int blob_bonus = blob_factor - 1;
-    
-    if (allow_mithril)
-    {
-        /* Up to 3 mithril chunks in small caves, 2 in big caves */
-        int max_mithril = is_big_cave ? 2 : MIN(3, 1 + (blob_factor + 1) / 2);
-        
-        /* Higher chance: 15% base + depth/5, scaled by blob_factor, capped */
-        int spawn_chance = 15 + (depth / 5) + 5 * (blob_factor - 1);
-        int spawn_cap = is_big_cave ? 45 : 60;
-        if (spawn_chance > spawn_cap) spawn_chance = spawn_cap;
-
-        /* Big caves have worse odds; regular caves keep the baseline */
-        if (is_big_cave)
-            spawn_chance = MAX(1, spawn_chance - 2);
-
-        bool try_mithril = (rand_int(100) < spawn_chance);
-        
-        /* Try to place the mithril on a random floor tile */
-        for (int attempt = 0; try_mithril && attempt < 50 && mithril_placed < max_mithril; ++attempt)
-        {
-            int gy = rand_range(y1, y2);
-            int gx = rand_range(x1, x2);
-            if (!in_bounds_fully(gy, gx)) continue;
-            if (!cave_floor_bold(gy, gx)) continue;
-            if (generation_escape_tunnel_bold(gy, gx)) continue;
-            if (cave_o_idx[gy][gx] != 0) continue;  /* Already has object */
-            
-            /* Create mithril piece */
-            object_type object_type_body;
-            object_type *i_ptr = &object_type_body;
-            object_wipe(i_ptr);
-            
-            s16b k_idx = lookup_kind(TV_METAL, SV_METAL_MITHRIL);
-            if (k_idx > 0)
-            {
-                object_prep(i_ptr, k_idx);
-                drop_near(i_ptr, -1, gy, gx);
-                mithril_placed++;
-            }
-        }
-    }
-    
-    /* Try to place up to 2 gem caches (rarer in big caves) - scale with blob count */
-    int gem_base_chance = is_big_cave ? 45 : 60;
-    int gem_chance = gem_base_chance + 6 * blob_bonus;
-    if (gem_chance > 90) gem_chance = 90;
-    int gem_targets = is_big_cave ? 2 : MIN(3, 1 + (blob_factor + 1) / 2);
-    int gems_tried = 0;
-    while (gems_tried < gem_targets && rand_int(100) < gem_chance)
-    {
-        gems_tried++;
-        for (int attempt = 0; attempt < 60 && gem_placed < gem_targets; ++attempt)
-        {
-            int gy = rand_range(y1, y2);
-            int gx = rand_range(x1, x2);
-            if (!in_bounds_fully(gy, gx)) continue;
-            if (!cave_floor_bold(gy, gx)) continue;
-            if (generation_escape_tunnel_bold(gy, gx)) continue;
-            if (cave_o_idx[gy][gx] != 0) continue;
-
-            object_type object_type_body;
-            object_type *i_ptr = &object_type_body;
-            object_wipe(i_ptr);
-
-            drop_profile gem_profile;
-            drop_profile_default(&gem_profile);
-            gem_profile.weight_weapon = 0;
-            gem_profile.weight_armor = 0;
-            gem_profile.weight_jewelry = 0;
-            gem_profile.weight_supply = 120;
-            gem_profile.supply_potion = 3;
-            gem_profile.supply_herb = 3;
-            gem_profile.supply_gem = 40;
-            gem_profile.supply_staff = 4;
-            gem_profile.supply_misc = 2;
-
-            if (drop_generate_object_profiled(depth, DROP_QUALITY_NORMAL,
-                    DROP_TYPE_STAFF, 0, false, &gem_profile, i_ptr))
-            {
-                drop_near(i_ptr, -1, gy, gx);
-                gem_placed++;
-                break;
-            }
-        }
-    }
-
-    /* Scatter torches; both wooden and mallorn in small caves only, max 2 together */
-    if (!is_big_cave)
-    {
-        int torch_chance = 50;
-        int torch_max = 2;
-        int torch_placed = 0;
-        if (rand_int(100) < torch_chance)
-        {
-            for (int attempt = 0; attempt < 80 && torch_placed < torch_max; ++attempt)
-            {
-                int gy = rand_range(y1, y2);
-                int gx = rand_range(x1, x2);
-                if (!in_bounds_fully(gy, gx)) continue;
-                if (!cave_floor_bold(gy, gx)) continue;
-                if (generation_escape_tunnel_bold(gy, gx)) continue;
-                if (cave_o_idx[gy][gx] != 0) continue;
-
-                object_type object_type_body;
-                object_type *i_ptr = &object_type_body;
-                object_wipe(i_ptr);
-
-                /* 10% chance to drop a digging tool instead of a torch */
-                int droptype = (rand_int(100) < 10) ? DROP_TYPE_DIGGING : DROP_TYPE_TORCHES;
-                if (drop_generate_object(depth, DROP_QUALITY_NORMAL, droptype, false, i_ptr)
-                    || (droptype == DROP_TYPE_DIGGING
-                        && drop_generate_object(depth, DROP_QUALITY_NORMAL, DROP_TYPE_TORCHES,
-                            false, i_ptr)))
-                {
-                    drop_near(i_ptr, -1, gy, gx);
-                    torch_placed++;
-                }
-            }
-        }
-    }
-
-    if (mithril_placed > 0 || gem_placed > 0)
-    {
-        log_trace("scatter_cave_mithril: mithril=%d gems=%d bounds (%d,%d)-(%d,%d) depth=%d",
-                  mithril_placed, gem_placed, y1, x1, y2, x2, depth);
-    }
-}
-
+/* Return true when the bounds contain tagged native chasm floor tiles. */
 static bool bounds_have_chasm_tag(int y1, int y2, int x1, int x2)
 {
     for (int gy = y1; gy <= y2; ++gy)
@@ -3384,64 +3241,6 @@ static bool bounds_have_chasm_tag(int y1, int y2, int x1, int x2)
         }
     }
     return false;
-}
-
-/* Scatter star-iron pieces across chasm partitions (on floor tiles only). */
-static void scatter_chasm_star_iron_in_bounds(int y1, int y2, int x1, int x2)
-{
-    int depth = p_ptr->depth;
-    if (depth < 8)
-        return;
-
-    int area = (y2 - y1 + 1) * (x2 - x1 + 1);
-    int size_factor = MAX(1, area / 500);
-    if (size_factor > 4) size_factor = 4;
-    bool require_chasm_tag = bounds_have_chasm_tag(y1, y2, x1, x2);
-
-    /* Up to 4 chunks, scaled by partition size */
-    int max_chunks = MIN(4, 1 + size_factor);
-
-    /* Depth-scaled chance, mirroring mithril cave logic */
-    int spawn_chance = 16 + (depth / 5) + 6 * (size_factor - 1);
-    int spawn_cap = 55;
-    if (spawn_chance > spawn_cap)
-        spawn_chance = spawn_cap;
-
-    int placed = 0;
-    bool try_star = (rand_int(100) < spawn_chance);
-    for (int attempt = 0; try_star && attempt < 60 && placed < max_chunks; ++attempt)
-    {
-        int gy = rand_range(y1, y2);
-        int gx = rand_range(x1, x2);
-        if (!in_bounds_fully(gy, gx))
-            continue;
-        if (!chasm_native_walkable_bold(gy, gx))
-            continue;
-        if (generation_escape_tunnel_bold(gy, gx))
-            continue;
-        /* Only drop inside the actual chasm walkable area when tagged */
-        if (require_chasm_tag && !(cave_info[gy][gx] & CAVE_CHASM_AREA))
-            continue;
-        if (cave_o_idx[gy][gx] != 0)
-            continue;
-
-        s16b k_idx = lookup_kind(TV_METAL, SV_METAL_STAR_IRON);
-        if (k_idx <= 0)
-            break;
-
-        object_type object_type_body;
-        object_type *i_ptr = &object_type_body;
-        object_wipe(i_ptr);
-        object_prep(i_ptr, k_idx);
-        drop_near(i_ptr, -1, gy, gx);
-        placed++;
-    }
-
-    if (placed > 0)
-    {
-        log_trace("scatter_chasm_star_iron: pieces=%d bounds (%d,%d)-(%d,%d) depth=%d",
-                  placed, y1, x1, y2, x2, depth);
-    }
 }
 
 /* Carve a small cellular-automata style blob and register it as an anchor */
@@ -6051,10 +5850,6 @@ static void reset_partition_population_metadata(void)
 {
     for (int i = 0; i < PARTITION_META_MAX; ++i)
     {
-        current_partition_population_meta[i].cave_loot = false;
-        current_partition_population_meta[i].cave_loot_big_cave = false;
-        current_partition_population_meta[i].cave_loot_blob_count = 0;
-        current_partition_population_meta[i].star_iron = false;
         current_partition_population_meta[i].chest_count = 0;
         for (int recipe_idx = 0; recipe_idx < PARTITION_CHEST_RECIPE_MAX; ++recipe_idx)
             init_partition_chest_recipe(&current_partition_population_meta[i].chest_recipes[recipe_idx]);
@@ -6623,11 +6418,6 @@ static void apply_quadrant_generation_modes(void)
                 /* Scatter quartz veins for natural cave look */
                 scatter_quartz_veins_in_bounds(y1, y2, x1, x2, 0);
                 
-                /* Scatter gems and mithril in cave areas - normal cave bonus */
-                int blob_for_loot = (carved_blobs > 0) ? carved_blobs : blob_target;
-                current_partition_population_meta[pi].cave_loot = true;
-                current_partition_population_meta[pi].cave_loot_big_cave = false;
-                current_partition_population_meta[pi].cave_loot_blob_count = blob_for_loot;
                 set_partition_chest_recipe(&current_partition_population_meta[pi], 0,
                     0, 100, 0, 0, PARTITION_CHEST_ANCHOR_ANY);
                 
@@ -6710,9 +6500,8 @@ static void apply_quadrant_generation_modes(void)
                     partition_bridge_styles[pi] = -1;
                 }
 
-                /* Veins in chasm walls for mining (tagged for star-iron drops) */
+                /* Veins in chasm walls for mining (tagged for metal placement) */
                 scatter_quartz_veins_in_bounds(y1, y2, x1, x2, CAVE_CHASM_AREA);
-                current_partition_population_meta[pi].star_iron = true;
 
                 /* Place 2 guaranteed chests in chasm partition ONLY if it actually carved */
                 if (chasm_carved)
@@ -6749,10 +6538,6 @@ static void apply_quadrant_generation_modes(void)
                 
                 /* Add quartz veins for natural cave look */
                 scatter_quartz_veins_in_bounds(y1, y2, x1, x2, 0);
-                current_partition_population_meta[pi].cave_loot = true;
-                current_partition_population_meta[pi].cave_loot_big_cave = true;
-                current_partition_population_meta[pi].cave_loot_blob_count =
-                    carved ? 3 : MAX(1, ((carved_blobs > 0) ? carved_blobs : blob_count));
 
                 if (!carved)
                 {
@@ -6921,10 +6706,6 @@ static void apply_quadrant_generation_modes(void)
                     if (carve_ca_blob_anchor_bounds(y1, y2, x1, x2, style_idx))
                         carved_blobs++;
                 scatter_quartz_veins_in_bounds(y1, y2, x1, x2, 0);
-                int blob_for_loot = (carved_blobs > 0) ? carved_blobs : blob_target;
-                current_partition_population_meta[pi].cave_loot = true;
-                current_partition_population_meta[pi].cave_loot_big_cave = false;
-                current_partition_population_meta[pi].cave_loot_blob_count = blob_for_loot;
                 set_partition_chest_recipe(&current_partition_population_meta[pi], 0,
                     0, 100, 0, 0, PARTITION_CHEST_ANCHOR_ANY);
                 int std_count = scaled_attempts(2, area_factor);
@@ -8504,10 +8285,9 @@ void place_item_randomly(int tval, int sval, bool close)
     drop_near(i_ptr, 0, y, x);
 }
 
-/* Mode-specific drop tuning for partition floor/corridor scatter */
+/* Mode-specific floor-drop tuning for partition scatter */
 typedef struct partition_drop_profile {
     bool allow_floor_drops;
-    int reroll_chance; /* percentage chance to re-roll placement in this partition */
     drop_profile profile;
 } partition_drop_profile;
 
@@ -8547,16 +8327,23 @@ typedef struct partition_depth_rule {
     int hard_cap_divisor;
 } partition_depth_rule;
 
+typedef struct partition_metal_rule {
+    int divisor;
+    int min_count;
+    int max_count;
+    int min_depth;
+} partition_metal_rule;
+
 typedef struct partition_rule_config {
     drop_profile profiles[PARTITION_DROP_SOURCE_MAX];
     bool allow_floor_drops;
-    int floor_reroll_chance;
     int base_monster_scale_num;
     int base_monster_scale_den;
     partition_count_rule direct_monsters;
     partition_depth_rule depth_monsters;
     int room_object_divisor;
     int corridor_object_divisor;
+    partition_metal_rule metal_drops;
 } partition_rule_config;
 
 static partition_rule_config g_partition_rules[LEVEL_PART_MAX];
@@ -8603,7 +8390,6 @@ static void partition_config_set_defaults_for_kind(level_partition_kind kind)
     cfg->profiles[PARTITION_DROP_SOURCE_CHEST] = base_profile;
     cfg->profiles[PARTITION_DROP_SOURCE_MONSTER] = base_profile;
     cfg->allow_floor_drops = true;
-    cfg->floor_reroll_chance = 0;
     cfg->base_monster_scale_num = 1;
     cfg->base_monster_scale_den = 1;
     cfg->room_object_divisor = 8;
@@ -8619,7 +8405,10 @@ static void partition_config_set_defaults_for_kind(level_partition_kind kind)
         break;
 
     case LEVEL_PART_CAVEY:
-        cfg->allow_floor_drops = false;
+        partition_config_profile_assign(&cfg->profiles[PARTITION_DROP_SOURCE_FLOOR],
+            0, 0, 0, 100, 0, 0, 12, 3, 6, 1);
+        partition_config_profile_assign(&cfg->profiles[PARTITION_DROP_SOURCE_CHEST],
+            25, 25, 25, 0, 0, 0, 0, 0, 0, 0);
         cfg->base_monster_scale_num = 3;
         cfg->base_monster_scale_den = 1;
         cfg->depth_monsters.divisor = 120;
@@ -8627,15 +8416,17 @@ static void partition_config_set_defaults_for_kind(level_partition_kind kind)
         cfg->depth_monsters.max_count = 18;
         cfg->depth_monsters.scale_pct_at_depth_20 = 140;
         cfg->depth_monsters.hard_cap_divisor = 20;
-        cfg->room_object_divisor = 2;
-        cfg->corridor_object_divisor = 4;
-        partition_config_profile_assign(&cfg->profiles[PARTITION_DROP_SOURCE_CHEST],
-            25, 25, 25, 0, 0, 0, 0, 0, 0, 0);
+        cfg->room_object_divisor = 8;
+        cfg->corridor_object_divisor = 12;
+        cfg->metal_drops.divisor = 300;
+        cfg->metal_drops.max_count = 2;
+        cfg->metal_drops.min_depth = 8;
         break;
 
     case LEVEL_PART_RUINED:
         partition_config_profile_assign(&cfg->profiles[PARTITION_DROP_SOURCE_FLOOR],
             40, 35, 0, 25, 7, 2, 1, 3, 15, 2);
+        cfg->profiles[PARTITION_DROP_SOURCE_FLOOR].allow_damaged = true;
         partition_config_profile_assign(&cfg->profiles[PARTITION_DROP_SOURCE_CHEST],
             40, 35, 0, 0, 0, 0, 0, 0, 0, 0);
         cfg->base_monster_scale_num = 2;
@@ -8685,14 +8476,16 @@ static void partition_config_set_defaults_for_kind(level_partition_kind kind)
         cfg->depth_monsters.hard_cap_divisor = 20;
         cfg->room_object_divisor = 2;
         cfg->corridor_object_divisor = 4;
+        cfg->metal_drops.divisor = 240;
+        cfg->metal_drops.max_count = 4;
+        cfg->metal_drops.min_depth = 8;
         break;
 
     case LEVEL_PART_BIG_CAVE:
         partition_config_profile_assign(&cfg->profiles[PARTITION_DROP_SOURCE_FLOOR],
-            20, 20, 15, 45, 1, 3, 2, 1, 1, 0);
+            20, 20, 15, 45, 0, 2, 8, 2, 0, 0);
         partition_config_profile_assign(&cfg->profiles[PARTITION_DROP_SOURCE_CHEST],
             20, 20, 15, 0, 0, 0, 0, 0, 0, 0);
-        cfg->floor_reroll_chance = 50;
         cfg->base_monster_scale_num = 5;
         cfg->base_monster_scale_den = 1;
         cfg->direct_monsters.divisor = 55;
@@ -8705,6 +8498,9 @@ static void partition_config_set_defaults_for_kind(level_partition_kind kind)
         cfg->depth_monsters.hard_cap_divisor = 20;
         cfg->room_object_divisor = 2;
         cfg->corridor_object_divisor = 4;
+        cfg->metal_drops.divisor = 500;
+        cfg->metal_drops.max_count = 2;
+        cfg->metal_drops.min_depth = 8;
         break;
 
     case LEVEL_PART_NONE:
@@ -8752,13 +8548,12 @@ void partition_config_set_drop_profile(level_partition_kind kind,
 }
 
 void partition_config_set_floor_rules(level_partition_kind kind,
-    bool allow_floor_drops, int reroll_chance)
+    bool allow_floor_drops)
 {
     partition_config_ensure_initialized();
 
     kind = partition_config_normalize_kind(kind);
     g_partition_rules[kind].allow_floor_drops = allow_floor_drops;
-    g_partition_rules[kind].floor_reroll_chance = MAX(0, reroll_chance);
     g_partition_rules[LEVEL_PART_NONE] = g_partition_rules[LEVEL_PART_ROOMY];
 }
 
@@ -8810,6 +8605,19 @@ void partition_config_set_object_rules(level_partition_kind kind,
     kind = partition_config_normalize_kind(kind);
     g_partition_rules[kind].room_object_divisor = MAX(0, room_divisor);
     g_partition_rules[kind].corridor_object_divisor = MAX(0, corridor_divisor);
+    g_partition_rules[LEVEL_PART_NONE] = g_partition_rules[LEVEL_PART_ROOMY];
+}
+
+void partition_config_set_metal_rule(level_partition_kind kind,
+    int divisor, int min_count, int max_count, int min_depth)
+{
+    partition_config_ensure_initialized();
+
+    kind = partition_config_normalize_kind(kind);
+    g_partition_rules[kind].metal_drops.divisor = MAX(0, divisor);
+    g_partition_rules[kind].metal_drops.min_count = MAX(0, min_count);
+    g_partition_rules[kind].metal_drops.max_count = MAX(0, max_count);
+    g_partition_rules[kind].metal_drops.min_depth = MAX(0, min_depth);
     g_partition_rules[LEVEL_PART_NONE] = g_partition_rules[LEVEL_PART_ROOMY];
 }
 
@@ -9375,7 +9183,6 @@ static partition_drop_profile partition_drop_profile_for_mode(quadrant_mode_t mo
 {
     partition_drop_profile prof;
     prof.allow_floor_drops = true;
-    prof.reroll_chance = 0;
     drop_profile_default(&prof.profile);
 
     switch (mode)
@@ -9416,22 +9223,31 @@ static partition_drop_profile partition_drop_profile_for_mode(quadrant_mode_t mo
         prof.profile.supply_staff = 3;
         prof.profile.supply_misc = 15; /* torches, horns, arrows */
         prof.profile.supply_tunneling = 2; /* small chance for shovels/mattocks */
+        prof.profile.allow_damaged = true;
         break;
     case QUAD_MODE_CAVEY:
-        prof.allow_floor_drops = false;
+        prof.profile.weight_weapon = 0;
+        prof.profile.weight_armor = 0;
+        prof.profile.weight_jewelry = 0;
+        prof.profile.weight_supply = 100;
+        prof.profile.supply_potion = 0;
+        prof.profile.supply_herb = 0;
+        prof.profile.supply_gem = 12;
+        prof.profile.supply_staff = 3;
+        prof.profile.supply_misc = 6;
+        prof.profile.supply_tunneling = 1;
         break;
     case QUAD_MODE_BIG_CAVE:
-        /* BIG_CAVE 20:20:15:45 (half usual drops) */
-        prof.reroll_chance = 50;
+        /* BIG_CAVE 20:20:15:45 */
         prof.profile.weight_weapon = 20;
         prof.profile.weight_armor = 20;
         prof.profile.weight_jewelry = 15;
         prof.profile.weight_supply = 45;
-        prof.profile.supply_potion = 1;
-        prof.profile.supply_herb = 3;
-        prof.profile.supply_gem = 2;
-        prof.profile.supply_staff = 1;
-        prof.profile.supply_misc = 1;
+        prof.profile.supply_potion = 0;
+        prof.profile.supply_herb = 2;
+        prof.profile.supply_gem = 8;
+        prof.profile.supply_staff = 2;
+        prof.profile.supply_misc = 0;
         break;
     case QUAD_MODE_CHASM:
         /* CHASM 40:30:20:10 */
@@ -9472,7 +9288,6 @@ static partition_drop_profile partition_drop_profile_for_kind_source_cfg(
 
     drop_profile_default(&prof.profile);
     prof.allow_floor_drops = true;
-    prof.reroll_chance = 0;
 
     if (cfg && source >= PARTITION_DROP_SOURCE_FLOOR
         && source < PARTITION_DROP_SOURCE_MAX)
@@ -9481,7 +9296,6 @@ static partition_drop_profile partition_drop_profile_for_kind_source_cfg(
         if (source == PARTITION_DROP_SOURCE_FLOOR)
         {
             prof.allow_floor_drops = cfg->allow_floor_drops;
-            prof.reroll_chance = cfg->floor_reroll_chance;
         }
     }
 
@@ -9556,38 +9370,107 @@ static void place_object_with_profile_params(
     }
 }
 
-static int place_ruined_partition_damaged_items(
-    int y1, int y2, int x1, int x2, int target_count)
+static int partition_metal_drop_target(quadrant_mode_t mode, int floor_count,
+    int depth)
 {
-    int placed = 0;
-    partition_drop_profile prof = partition_drop_profile_for_mode_source_cfg(
-        QUAD_MODE_RUINED, PARTITION_DROP_SOURCE_FLOOR);
+    const partition_rule_config* cfg =
+        partition_config_get(partition_kind_from_mode(mode));
+    const partition_metal_rule* rule = cfg ? &cfg->metal_drops : NULL;
+    int target = 0;
 
-    for (int n = 0; n < target_count; ++n)
+    if (floor_count <= 0)
+        return 0;
+    if (!rule || rule->divisor <= 0)
+        return 0;
+    if (depth < rule->min_depth)
+        return 0;
+
+    target = floor_count / rule->divisor;
+    if (target < rule->min_count)
+        target = rule->min_count;
+    if (rule->max_count > 0 && target > rule->max_count)
+        target = rule->max_count;
+
+    return target;
+}
+
+static s16b partition_metal_kind_for_mode(quadrant_mode_t mode)
+{
+    switch (mode)
+    {
+    case QUAD_MODE_CAVEY:
+    case QUAD_MODE_BIG_CAVE:
+        return lookup_kind(TV_METAL, SV_METAL_MITHRIL);
+    case QUAD_MODE_CHASM:
+        return lookup_kind(TV_METAL, SV_METAL_STAR_IRON);
+    default:
+        return 0;
+    }
+}
+
+static bool partition_metal_tile_ok(const partition_population_plan* plan,
+    int y, int x, bool require_chasm_tag)
+{
+    if (!in_bounds_fully(y, x))
+        return false;
+    if (level_partition_index_for_point(y, x) != plan->pi)
+        return false;
+    if (cave_info[y][x] & CAVE_G_VAULT)
+        return false;
+    if (!partition_population_naked_bold(plan->mode, y, x))
+        return false;
+    if (plan->mode == QUAD_MODE_CHASM && require_chasm_tag
+        && !(cave_info[y][x] & CAVE_CHASM_AREA))
+    {
+        return false;
+    }
+
+    return true;
+}
+
+static int place_partition_metal_drops(const partition_population_plan* plan)
+{
+    int target;
+    int placed = 0;
+    s16b k_idx;
+    bool require_chasm_tag;
+
+    if (!plan)
+        return 0;
+
+    target = partition_metal_drop_target(plan->mode,
+        (plan->floor_count_non_vault > 0) ? plan->floor_count_non_vault
+                                          : plan->floor_count,
+        p_ptr->depth);
+    if (target <= 0)
+        return 0;
+
+    k_idx = partition_metal_kind_for_mode(plan->mode);
+    if (k_idx <= 0)
+        return 0;
+
+    require_chasm_tag = (plan->mode == QUAD_MODE_CHASM)
+        && bounds_have_chasm_tag(plan->y1, plan->y2, plan->x1, plan->x2);
+
+    for (int n = 0; n < target; ++n)
     {
         bool placed_this = false;
 
         for (int tries = 0; tries < 200; ++tries)
         {
-            int y = rand_range(y1, y2);
-            int x = rand_range(x1, x2);
+            int y = rand_range(plan->y1, plan->y2);
+            int x = rand_range(plan->x1, plan->x2);
+            object_type object_type_body;
+            object_type* i_ptr = &object_type_body;
 
-            if (!in_bounds_fully(y, x))
-                continue;
-            if (cave_info[y][x] & CAVE_G_VAULT)
-                continue;
-            if (partition_mode_for_point(y, x) != QUAD_MODE_RUINED)
-                continue;
-            if (cave_feat[y][x] == FEAT_RUBBLE)
-                continue;
-            if (!cave_clean_bold(y, x))
+            if (!partition_metal_tile_ok(plan, y, x, require_chasm_tag))
                 continue;
 
-            place_object_with_profile_params(
-                y, x, object_level, object_level, DROP_QUALITY_NORMAL,
-                DROP_TYPE_DAMAGED, false, 1, 0, &prof);
+            object_wipe(i_ptr);
+            object_prep(i_ptr, k_idx);
+            i_ptr->number = 1;
 
-            if (cave_o_idx[y][x] != 0)
+            if (floor_carry(y, x, i_ptr))
             {
                 placed++;
                 placed_this = true;
@@ -9597,6 +9480,12 @@ static int place_ruined_partition_damaged_items(
 
         if (!placed_this)
             break;
+    }
+
+    if (placed > 0)
+    {
+        log_trace("Partition metal drops: pi=%d mode=%d placed=%d depth=%d",
+            plan->pi, plan->mode, placed, p_ptr ? p_ptr->depth : 0);
     }
 
     return placed;
@@ -9653,10 +9542,6 @@ static void alloc_object_global(int set, int typ, int num, bool out_of_sight)
             if (typ == ALLOC_TYP_OBJECT)
             {
                 if (!active_profile.allow_floor_drops)
-                    continue;
-
-                if (active_profile.reroll_chance > 0
-                    && rand_int(100) < active_profile.reroll_chance)
                     continue;
             }
 
@@ -15956,9 +15841,6 @@ static int alloc_objects_from_plan(
                 drop_mode_for_point(y, x), PARTITION_DROP_SOURCE_FLOOR);
             if (!active_profile.allow_floor_drops)
                 continue;
-            if (active_profile.reroll_chance > 0
-                && rand_int(100) < active_profile.reroll_chance)
-                continue;
 
             break;
         }
@@ -16059,14 +15941,7 @@ static int run_partition_special_scatter_pass(
     {
         const partition_population_plan* plan = &plans[i];
 
-        if (plan->meta.cave_loot)
-            scatter_cave_gems_in_bounds(
-                plan->y1, plan->y2, plan->x1, plan->x2,
-                plan->meta.cave_loot_big_cave,
-                MAX(1, plan->meta.cave_loot_blob_count));
-
-        if (plan->meta.star_iron)
-            scatter_chasm_star_iron_in_bounds(plan->y1, plan->y2, plan->x1, plan->x2);
+        total_placed += place_partition_metal_drops(plan);
 
         if (plan->mode == QUAD_MODE_BIG_CAVE && plan->floor_count > 0)
         {
@@ -16085,19 +15960,10 @@ static int run_partition_special_scatter_pass(
         else if (plan->mode == QUAD_MODE_RUINED && plan->floor_count_non_vault > 0)
         {
             int skeleton_target = plan->floor_count_non_vault / 15;
-            int damaged_target;
-            int damaged_placed;
 
             if (skeleton_target < 3) skeleton_target = 3;
             if (skeleton_target > 10) skeleton_target = 10;
             total_placed += place_partition_skeletons(plan, skeleton_target, 20, 20, true);
-
-            damaged_target = skeleton_target / 3;
-            if (damaged_target < 1) damaged_target = 1;
-            if (damaged_target > 3) damaged_target = 3;
-            damaged_placed = place_ruined_partition_damaged_items(
-                plan->y1, plan->y2, plan->x1, plan->x2, damaged_target);
-            total_placed += damaged_placed;
         }
 
         for (int chest = 0; chest < plan->meta.chest_count; ++chest)
@@ -16107,9 +15973,8 @@ static int run_partition_special_scatter_pass(
                 &plan->meta.chest_recipes[chest], plan->mode);
         }
 
-        log_trace("Partition specials: pi=%d mode=%d cave_loot=%d star_iron=%d chests=%d",
-            plan->pi, plan->mode, plan->meta.cave_loot ? 1 : 0,
-            plan->meta.star_iron ? 1 : 0, plan->meta.chest_count);
+        log_trace("Partition specials: pi=%d mode=%d chests=%d",
+            plan->pi, plan->mode, plan->meta.chest_count);
     }
 
     return total_placed;

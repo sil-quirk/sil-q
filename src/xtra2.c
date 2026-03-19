@@ -2331,8 +2331,12 @@ void drop_loot(monster_type* m_ptr)
                                     : drop_quality_from_flags(good, great, superb);
     level_partition_kind part_kind = level_partition_kind_for_point(y, x);
     drop_profile monster_profile;
+    int normal_drop_type;
     drop_profile_for_partition_kind_source(
         part_kind, PARTITION_DROP_SOURCE_MONSTER, &monster_profile);
+    normal_drop_type = monster_profile.allow_damaged
+        ? DROP_TYPE_UNTHEMED
+        : DROP_TYPE_NOT_DAMAGED;
 
     byte old_gen_mode = object_generation_mode;
     object_generation_mode = OB_GEN_MODE_MONSTER_DROP;
@@ -2349,7 +2353,7 @@ void drop_loot(monster_type* m_ptr)
         if (artefact && (j == 0))
         {
             if (!make_guaranteed_artefact_with_profile(
-                    i_ptr, quality, DROP_TYPE_NOT_DAMAGED, &monster_profile))
+                    i_ptr, quality, normal_drop_type, &monster_profile))
             {
                 log_warn(
                     "drop_loot: DROP_ARTEFACT failed to find an eligible artefact for '%s' (r_idx=%d, depth=%d); falling back to normal loot",
@@ -2368,7 +2372,7 @@ void drop_loot(monster_type* m_ptr)
                     }
                 }
                 else if (!make_object_with_profile(
-                             i_ptr, quality, DROP_TYPE_NOT_DAMAGED,
+                             i_ptr, quality, normal_drop_type,
                              &monster_profile))
                 {
                     continue;
@@ -2386,7 +2390,7 @@ void drop_loot(monster_type* m_ptr)
 
         /* Make an object */
         else if (!make_object_with_profile(
-                     i_ptr, quality, DROP_TYPE_NOT_DAMAGED, &monster_profile))
+                     i_ptr, quality, normal_drop_type, &monster_profile))
             continue;
 
         /* Assume seen XXX XXX XXX */

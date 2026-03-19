@@ -1092,6 +1092,7 @@ typedef struct
     int supply_staff;
     int supply_misc;
     int supply_tunneling;
+    bool allow_damaged;
 } drop_profile;
 #endif
 extern void drop_profile_for_partition_kind(level_partition_kind kind,
@@ -1104,7 +1105,7 @@ extern void partition_config_reset(void);
 extern void partition_config_set_drop_profile(level_partition_kind kind,
     partition_drop_source_t source, const drop_profile* profile);
 extern void partition_config_set_floor_rules(level_partition_kind kind,
-    bool allow_floor_drops, int reroll_chance);
+    bool allow_floor_drops);
 extern void partition_config_set_base_monster_scale(level_partition_kind kind,
     int numerator, int denominator);
 extern void partition_config_set_direct_monster_rule(level_partition_kind kind,
@@ -1114,6 +1115,8 @@ extern void partition_config_set_depth_monster_rule(level_partition_kind kind,
     int hard_cap_divisor);
 extern void partition_config_set_object_rules(level_partition_kind kind,
     int room_divisor, int corridor_divisor);
+extern void partition_config_set_metal_rule(level_partition_kind kind,
+    int divisor, int min_count, int max_count, int min_depth);
 extern bool object_uses_smithing_difficulty(const object_type* o_ptr);
 extern int object_smithing_difficulty(const object_type* o_ptr);
 extern int object_weight_rarity(const object_type* o_ptr, int depth);
