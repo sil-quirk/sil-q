@@ -8466,3 +8466,7 @@ The script now fully matches the game's drop generation logic for all item types
 - `src/drop_system.c`: added a hard floor at `-15`; if the target band cannot find a candidate by that point, the drop now fails cleanly instead of widening further.
 - `scripts/calc_artefact_difficulty.py`: added C-style truncating division for negative results so the analysis script matches the engine once difficulty can go below zero.
 - Validation: `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` succeeded.
+
+## 2026-03-19: TR4_SUBTLETY_THROW active-skill gate
+- `src/cmd1.c`: keep the thrown Subtlety crit bonus gated on active `MEL_CONTROL` only, so item-granted Subtlety still works while the weapon flag itself does not grant the ability.
+- Validation: `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` succeeded.

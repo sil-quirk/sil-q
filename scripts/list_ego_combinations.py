@@ -1040,6 +1040,10 @@ class Ego:
                 return True
         return False
 
+    @property
+    def forbids_prefix_combo(self) -> bool:
+        return "NO_PREFIX" in self.flags
+
 
 def parse_object_txt(path: str) -> List[ObjectKind]:
     kinds: List[ObjectKind] = []
@@ -1400,10 +1404,14 @@ def main() -> None:
         help="Disable prefix+suffix ego combos (default: include combos)",
     )
     parser.add_argument(
+        "--include-no-prefix-combos",
         "--include-unquenched-fire-combos",
-        dest="exclude_unquenched_fire_combos",
+        dest="exclude_no_prefix_combos",
         action="store_false",
-        help="Include combos where suffix ego idx == 148 (default: exclude; matches drop_system)",
+        help=(
+            "Include combos where the suffix ego is flagged NO_PREFIX "
+            "(default: exclude; matches drop_system)"
+        ),
     )
     parser.add_argument(
         "--item-category",
@@ -1416,7 +1424,7 @@ def main() -> None:
             "e.g. --item-category weapon armor or --item-category weapon,jewelry"
         ),
     )
-    parser.set_defaults(include_combos=True, exclude_unquenched_fire_combos=True, table=True)
+    parser.set_defaults(include_combos=True, exclude_no_prefix_combos=True, table=True)
     args = parser.parse_args()
 
     global _USE_COLOR
@@ -1586,7 +1594,7 @@ def main() -> None:
                     continue
 
                 for suffix_ego in suffixes:
-                    if args.exclude_unquenched_fire_combos and suffix_ego.idx == 148:
+                    if args.exclude_no_prefix_combos and suffix_ego.forbids_prefix_combo:
                         continue
                     if not _ego_applies_to_kind(suffix_ego, kind, kinds_by_name):
                         continue

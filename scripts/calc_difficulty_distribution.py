@@ -783,6 +783,7 @@ def enumerate_item_variants(tval, sval, name, specials):
         
         # Skip cursed specials for counting purposes (they're still craftable but usually not wanted)
         cursed_flags = {'AGGRAVATE', 'DANGER', 'HUNGER', 'LIGHT_CURSE', 'HEAVY_CURSE',
+                        'PERMA_CURSE',
                         'VUL_POIS', 'VUL_COLD', 'VUL_FIRE', 'FEAR', 'HAUNTED', 'CUMBERSOME'}
         is_cursed = bool(set(special['flags']) & cursed_flags)
         

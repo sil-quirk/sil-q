@@ -179,7 +179,7 @@ T:36:4:7
 # also valid on leather boots and gloves
 T:30:0:1
 T:31:0:1
-F:VUL_FIRE | EVIL_ITEM | ENCHANTABLE
+F:VUL_FIRE | EVIL_ITEM | ENCHANTABLE | MIN_DEPTH_SPEED
 
 
 N:11:(Orc-forged)
@@ -187,7 +187,8 @@ W:6:70:0:800
 C:0:0:0:-1:0:1:0
 T:37:4:4
 T:37:6:6
-F:FEAR | EVIL_ITEM | ENCHANTABLE
+M:STEALTH:-2
+F:EVIL_ITEM | ENCHANTABLE | MIN_DEPTH_SPEED
 
 
 ##### Shields #####
@@ -226,7 +227,7 @@ T:34:0:9
 # also valid on helms (helm and great helm)
 T:32:5:6
 A:2/100:10:50/15:33
-F:AGGRAVATE | DIF_ID | LIGHT_CURSE | EVIL_ITEM | WILL
+F:AGGRAVATE | DIF_ID | LIGHT_CURSE | EVIL_ITEM | WILL | MIN_DEPTH_SPEED
 
 
 N:16:of Hithlum
@@ -375,7 +376,7 @@ C:0:0:0:0:0:0:3
 T:23:4:7
 T:23:10:10
 B:3/1
-F:STEALTH | EVIL_ITEM
+F:STEALTH | EVIL_ITEM | MIN_DEPTH_SPEED
 
 
 # Daggers only
@@ -453,7 +454,7 @@ T:23:21:21
 T:22:1:1
 T:22:4:4
 T:22:12:12
-F:SLAY_ORC | AGGRAVATE | EVIL_ITEM
+F:SLAY_ORC | AGGRAVATE | EVIL_ITEM | MIN_DEPTH_SPEED
 
 
 # Warhammers, hand and battle axes, curved swords, longswords
@@ -467,7 +468,7 @@ C:0:0:0:0:0:0:0
 T:23:7:7
 T:23:25:25
 T:22:12:13
-F:BRAND_FIRE | CUMBERSOME | EVIL_ITEM
+F:BRAND_FIRE | CUMBERSOME | EVIL_ITEM | MIN_DEPTH_SPEED
 
 
 # Warhammers, curved swords, greatswords, axes
@@ -479,7 +480,7 @@ T:21:8:8
 T:23:7:7
 T:23:25:25
 T:22:11:99
-F:CON | CUMBERSOME | EVIL_ITEM
+F:CON | CUMBERSOME | EVIL_ITEM | MIN_DEPTH_SPEED
 
 
 # Curved swords, short swords, greatswords, spears, hand axes, battle axes, greataxes, glaives
@@ -493,7 +494,7 @@ T:23:25:25
 T:22:1:1
 T:22:4:4
 T:22:11:13
-F:SLAY_MAN_OR_ELF | AGGRAVATE | EVIL_ITEM
+F:SLAY_MAN_OR_ELF | AGGRAVATE | EVIL_ITEM | MIN_DEPTH_SPEED
 
 
 # Daggers, curved swords, short swords, hand axes, and glaives
@@ -611,7 +612,7 @@ W:2:80:0:800
 C:0:0:0:0:0:1:0
 T:32:5:6
 M:PERCEPTION:-2
-F:EVIL_ITEM | NO_SMITHING | ENCHANTABLE
+F:EVIL_ITEM | ENCHANTABLE | MIN_DEPTH_SPEED
 
 
 N:77:(Spiked)
@@ -620,19 +621,15 @@ C:0:0:0:0:0:1:0
 T:32:5:6
 T:34:3:3
 M:STEALTH:-2
-F:EVIL_ITEM | NO_SMITHING | ENCHANTABLE
+F:EVIL_ITEM | ENCHANTABLE | MIN_DEPTH_SPEED
 
 
 N:80:of Snaga
 W:1:80:0:3000
 C:0:0:0:1:0:-1:0
 T:32:5:5
+T:34:3:3
 F:FEAR | LIGHT_CURSE | EVIL_ITEM
-
-
-# a helm that lowers perception?
-
-# a helm that lowers will?
 
 
 ##### Cloaks (and Robes) #####
@@ -695,8 +692,8 @@ N:91:(Blackened Yew)
 W:6:80:0:3000
 C:0:0:1:0:0:0:0
 T:19:13:13
-A:6/100:10/50:15/20
-F:VUL_FIRE | LIGHT_CURSE | EVIL_ITEM | ENCHANTABLE
+A:5/50
+F:VUL_FIRE | LIGHT_CURSE | EVIL_ITEM | ENCHANTABLE | MIN_DEPTH_SPEED
 
 
 # Shortbows and longbows
@@ -705,7 +702,7 @@ N:92:of Lammoth
 W:4:60:0:1000
 C:0:0:0:0:0:0:0
 T:19:12:13
-F:RES_POIS | DANGER | AGGRAVATE | DIF_ID | EVIL_ITEM
+F:RES_POIS | DANGER | DIF_ID | EVIL_ITEM | MIN_DEPTH_SPEED
 
 
 N:93:(Radiant)
@@ -759,14 +756,14 @@ N:99:(Horn-backed)
 W:2:70:0:1500
 C:-1:0:1:0:0:0:0
 T:19:12:12
-F:DIF_ID | EVIL_ITEM | ENCHANTABLE
+F:DIF_ID | EVIL_ITEM | ENCHANTABLE | MIN_DEPTH_SPEED
 
 
 N:100:of Angband's Host
-W:5:80:0:2000
-C:0:0:0:0:0:0:0
+W:5:60:0:2000
+C:1:0:0:0:0:0:0
 T:19:12:12
-F:SLAY_MAN_OR_ELF | LIGHT_CURSE | EVIL_ITEM
+F:SLAY_MAN_OR_ELF | AGGRAVATE | LIGHT_CURSE | EVIL_ITEM | MIN_DEPTH_SPEED
 
 
 ##### Arrows #####
@@ -843,7 +840,7 @@ W:8:70:0:1200
 C:0:0:0:0:0:1:0
 T:30:2:3
 M:STEALTH:-2
-F:AGGRAVATE | EVIL_ITEM | ENCHANTABLE
+F:AGGRAVATE | EVIL_ITEM | ENCHANTABLE | MIN_DEPTH_SPEED
 
 
 ###
@@ -912,9 +909,9 @@ F:IGNORE_ALL
 
 N:125:(Clawed)
 W:6:70:0:1200
-C:2:0:0:0:0:0:1
+C:2:0:0:0:0:0:1:1
 T:31:2:2
-F:NEG_DEX | EVIL_ITEM | ENCHANTABLE
+F:NEG_DEX | EVIL_ITEM | ENCHANTABLE | MIN_DEPTH_SPEED
 
 
 ###
@@ -926,7 +923,7 @@ N:126:of the Traitor
 W:4:50:0:0
 C:0:0:0:0:0:0:1:1
 T:31:0:2
-F:NEG_STR | LIGHT_CURSE | EVIL_ITEM
+F:NEG_STR | LIGHT_CURSE | EVIL_ITEM | MIN_DEPTH_SPEED
 B:3/4
 
 
@@ -935,7 +932,7 @@ N:127:of the Torturer
 W:7:40:0:2000
 C:0:0:0:0:0:1:2
 T:31:2:2
-F:NEG_GRA | LIGHT_CURSE | EVIL_ITEM
+F:NEG_GRA | LIGHT_CURSE | EVIL_ITEM | MIN_DEPTH_SPEED
 B:3/2
 
 
@@ -961,7 +958,7 @@ F:LIGHT
 
 N:135:(Flickering)
 W:0:70:12:0
-A:5/100:10/0
+A:5/100:11/0
 C:0:0:0:0:0:0:0
 T:39:1:1
 F:UNLIGHT | LIGHT_CURSE | EVIL_ITEM | JINX
@@ -982,7 +979,7 @@ T:22:12:12
 T:23:21:21
 T:22:13:13
 T:22:4:4
-F:EVIL_ITEM
+F:EVIL_ITEM | MIN_DEPTH_SPEED
 
 
 # Daggers, shortswords, longswords, bastard swords, mithril/Elven blades, star-iron greatswords,
@@ -1085,7 +1082,7 @@ N:148:of the Unquenched Fire
 W:18:15:0:12000
 C:0:0:-1:0:0:0:3
 T:21:8:8
-F:SMITHING | WILL | BRAND_FIRE
+F:SMITHING | WILL | BRAND_FIRE | NO_PREFIX
 
 
 # Daggers and hand axes only
@@ -1224,9 +1221,9 @@ F:STEALTH | FREE_ACT | NOBLE_ITEM
 
 N:160:of the Gates of Angband
 W:4:90:0:1500
-C:0:0:0:0:0:0:2:1
+C:0:0:0:0:0:0:3:1
 T:36:7:7
-F:PERCEPTION | AGGRAVATE | LIGHT_CURSE | EVIL_ITEM
+F:PERCEPTION | AGGRAVATE | LIGHT_CURSE | EVIL_ITEM | MIN_DEPTH_SPEED
 
 
 # Mail Corslet only
@@ -1234,12 +1231,12 @@ F:PERCEPTION | AGGRAVATE | LIGHT_CURSE | EVIL_ITEM
 
 N:161:of Anfauglith
 W:8:70:0:2500
-C:0:0:0:0:0:0:0
+C:0:0:0:1:0:0:0
 T:37:4:4
 B:2/3
 M:STEALTH:-2
 M:WILL:-2
-F:EVIL_ITEM
+F:EVIL_ITEM | MIN_DEPTH_SPEED
 
 
 # Leather Armour only
@@ -1248,7 +1245,7 @@ N:162:of the Orc Scout
 W:6:50:0:2500
 C:-1:0:0:0:0:0:3
 T:36:4:4
-F:UNLIGHT | PERCEPTION | STEALTH | EVIL_ITEM
+F:UNLIGHT | PERCEPTION | STEALTH | EVIL_ITEM | MIN_DEPTH_SPEED
 M:WILL:-2
 
 
@@ -1256,9 +1253,10 @@ M:WILL:-2
 
 N:163:of the Enforcer
 W:8:70:0:1800
-C:0:0:0:0:0:1:0
+C:0:0:0:-1:0:1:0
 T:30:2:2
-F:WEIGHT | AGGRAVATE | EVIL_ITEM
+B:0:5
+F:WEIGHT | AGGRAVATE | EVIL_ITEM | MIN_DEPTH_SPEED
 M:STEALTH:-2
 
 
@@ -1267,10 +1265,10 @@ M:STEALTH:-2
 
 N:164:of the Gaoler
 W:7:60:0:1800
-C:0:0:0:-1:0:0:0
+C:0:0:0:0:0:0:0
 T:30:1:1
 B:3/3
-F:FEAR | LIGHT_CURSE | EVIL_ITEM
+F:FEAR | LIGHT_CURSE | EVIL_ITEM | MIN_DEPTH_SPEED
 M:WILL:-2
 
 
@@ -1282,7 +1280,7 @@ W:12:50:0:3500
 C:0:0:0:-1:0:2:0
 T:37:6:6
 B:5/3
-F:WEIGHT | LIGHT_CURSE | EVIL_ITEM
+F:WEIGHT | LIGHT_CURSE | EVIL_ITEM | MIN_DEPTH_SPEED
 
 
 # Great Helm only
@@ -1291,21 +1289,21 @@ N:166:of the Throng-leader
 W:10:30:0:3500
 C:0:0:0:0:0:0:3:2
 T:32:6:6
-F:WILL | AGGRAVATE | LIGHT_CURSE | EVIL_ITEM
+F:WILL | AGGRAVATE | LIGHT_CURSE | EVIL_ITEM | MIN_DEPTH_SPEED
 M:STR:1
 M:GRA:-2
 
 
 # Robe only
-# (ability 2/0 is Dodging)
+# (ability 7/8 is Song of Revealing)
 
-N:167:of the Slave
-W:4:90:0:1200
-C:0:0:0:0:0:0:0
+N:167:of the Discord
+W:8:5:0:1200
+C:0:0:0:0:0:0:3:2
 T:36:2:2
-B:2/0
-F:LIGHT_CURSE | EVIL_ITEM
-M:WILL:-2
+B:7/8
+F:LIGHT_CURSE | EVIL_ITEM | SNG | MIN_DEPTH_SPEED | NO_PREFIX
+M:GRA:-2
 
 
 # Shields except mithril
@@ -1313,19 +1311,19 @@ M:WILL:-2
 
 N:168:of the Orcish Standard-bearer
 W:8:40:0:2800
-C:0:0:0:-1:0:-1:2
+C:0:0:0:-1:0:-1:3:1
 T:34:0:9
 B:2/9
-F:WILL | UNLIGHT | EVIL_ITEM
+F:WILL | EVIL_ITEM | MIN_DEPTH_SPEED
 
 
 # Arrows only
 
-N:169:of Ungoliant's Brood
-W:8:40:0:250
+N:169:of Fell Hunting
+W:4:40:0:250
 C:-1:0:0:0:0:0:0
 T:17:0:99
-F:SLAY_SPIDER | EVIL_ITEM
+F:SLAY_SPIDER | EVIL_ITEM | MIN_DEPTH_SPEED | SLAY_MAN_OR_ELF | AGGRAVATE
 
 
 # Feanorian Lamp only

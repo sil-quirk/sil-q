@@ -6314,6 +6314,14 @@ static bool smith_has_alignment_conflict(const object_type* o_ptr,
     return has_noble && has_evil;
 }
 
+static bool ego_forbids_prefix_combo(int e_idx)
+{
+    if (e_idx <= 0 || e_idx >= z_info->e_max)
+        return false;
+
+    return (e_info[e_idx].flags4 & TR4_NO_PREFIX) != 0;
+}
+
 static bool smith_ego_is_forbidden_affix(const ego_item_type* e_ptr)
 {
     if (!e_ptr)
@@ -6371,14 +6379,14 @@ static bool smith_ego_can_apply_to_object(const object_type* o_ptr, int e_idx,
 
     if (selecting_prefix)
     {
-        if (fixed_suffix == EGO_UNQUENCHED_FIRE)
+        if (ego_forbids_prefix_combo(fixed_suffix))
             return false;
         if (smith_has_alignment_conflict(o_ptr, e_idx, fixed_suffix))
             return false;
     }
     else
     {
-        if ((e_idx == EGO_UNQUENCHED_FIRE) && (fixed_prefix != 0))
+        if ((fixed_prefix != 0) && ego_forbids_prefix_combo(e_idx))
             return false;
         if (smith_has_alignment_conflict(o_ptr, fixed_prefix, e_idx))
             return false;
@@ -6408,7 +6416,7 @@ static bool object_can_reforge_prefix(const object_type* o_ptr)
         return false;
     if (object_ego_prefix(o_ptr))
         return false;
-    if (object_ego_suffix(o_ptr) == EGO_UNQUENCHED_FIRE)
+    if (ego_forbids_prefix_combo((int)object_ego_suffix(o_ptr)))
         return false;
     if (!smith_has_category_ability(o_ptr))
         return false;
@@ -8197,8 +8205,8 @@ static void create_special(int ego_prefix, int ego_suffix)
     object_copy(smith_o_ptr, smith2_o_ptr);
     smith_alloy = smith2_alloy;
 
-    /* Suffix-only ego: cannot be combined with any prefix. */
-    if (ego_suffix == EGO_UNQUENCHED_FIRE)
+    /* Suffix egos marked NO_PREFIX cannot be combined with any prefix. */
+    if (ego_forbids_prefix_combo(ego_suffix))
         ego_prefix = 0;
 
     /* Apply requested ego affixes */
@@ -8260,8 +8268,8 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix,
     Term_putstr(COL_SMT2, entry_count + 2, -1, TERM_WHITE, buf);
     entry_count++;
 
-    /* Suffix-only ego: only allow "(none)" as the prefix choice. */
-    if (selecting_prefix && fixed_suffix == EGO_UNQUENCHED_FIRE)
+    /* Suffix egos marked NO_PREFIX only allow "(none)" as the prefix choice. */
+    if (selecting_prefix && ego_forbids_prefix_combo(fixed_suffix))
     {
         Term_putstr(COL_SMT2, entry_count + 2, -1, TERM_SLATE,
             "(no prefix allowed with this suffix)");

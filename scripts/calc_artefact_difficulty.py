@@ -114,6 +114,11 @@ def has_alignment_conflict(*flag_collections) -> bool:
     return False
 
 
+def suffix_forbids_prefix_combo(special: dict) -> bool:
+    """Match drop_system.c: suffix egos with NO_PREFIX cannot form dual-ego combos."""
+    return 'NO_PREFIX' in special.get('flags', [])
+
+
 def compute_stat_skill_bonuses(flags: set, total_pval: int, overrides: dict | None):
     """
     Derive per-stat/per-skill bonus values from flags + pval and apply any M: overrides.
@@ -531,7 +536,7 @@ def calculate_difficulty(art):
             if att_bonus > 0:
                 val -= 1
             dif_inc += val
-    
+
     # Evasion bonus (bonus above base): armor uses dif_mod(x, 6)-1, non-armor uses dif_mod(x, 9)-2.
     # Negative bonuses reduce difficulty using the same signed progression.
     evn_bonus = smithed_evn_bonus
@@ -742,7 +747,7 @@ def calculate_difficulty(art):
         dif_inc += 4
     if 'OATH_BOOST' in flags:
         dif_inc += 5
-    
+
     # === ELEMENTAL RESISTANCES ===
     if 'RES_COLD' in flags:
         dif_inc += 5
@@ -1556,8 +1561,7 @@ def generate_dual_ego_variants(specials_raw, objects):
     # For each prefix+suffix combination
     for prefix in prefix_specials:
         for suffix in suffix_specials:
-            # drop_system.c: build_ego_combo_variants() excludes suffix idx 148
-            if suffix.get('idx') == 148:
+            if suffix_forbids_prefix_combo(suffix):
                 continue
             if has_alignment_conflict(prefix.get('flags', []), suffix.get('flags', [])):
                 continue

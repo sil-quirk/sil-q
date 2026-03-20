@@ -3484,8 +3484,7 @@ static void process_player(void)
         }
     }
 
-    depth_counter_increment = 85 - (playerturn / 850);
-    depth_counter_increment += 3 * (p_ptr->depth - min_depth());
+    min_depth_timer_status(NULL, NULL, &depth_counter_increment, NULL, NULL);
 
     min_depth_counter += depth_counter_increment > 0 ?
         depth_counter_increment : 0;

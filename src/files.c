@@ -1431,6 +1431,188 @@ static void put_single20_right(int x, int y,
         Term_putstr(text_start, y, val_len, col_val, val_text);
     }
 }
+
+static void put_single_right(int x, int y, int line_w,
+                             const char* label,
+                             const char* val, int val_w, byte col_val)
+{
+    int end;
+    int start;
+
+    if (line_w < 1)
+        return;
+
+    if (val_w > line_w - 1)
+        val_w = line_w - 1;
+    if (val_w < 1)
+        return;
+
+    end = x + line_w - 1;
+    start = end - val_w + 1;
+
+    if (story_character_enabled())
+        sdl_story_font_enable();
+
+    put_label_fit(x, y, label ? label : "", start);
+
+    if (story_character_enabled())
+        sdl_story_font_disable();
+
+    Term_erase(start, y, val_w);
+    const char* val_text = val ? val : "";
+    int val_len = (int)strlen(val_text);
+    if (val_len > val_w)
+    {
+        val_text += val_len - val_w;
+        val_len = val_w;
+    }
+
+    if (val_len > 0)
+    {
+        int text_start = end - val_len + 1;
+        if (text_start < start)
+            text_start = start;
+        Term_putstr(text_start, y, val_len, col_val, val_text);
+    }
+}
+
+static byte format_deep_call_value(char* buf, size_t buflen, int max_width)
+{
+    int base_increment = 0;
+    int total_increment = 0;
+    int effective_total;
+    char pct_buf[16];
+    byte attr = TERM_L_GREEN;
+
+    if (!buf || buflen == 0)
+        return attr;
+
+    buf[0] = '\0';
+    if (max_width < 1)
+        return attr;
+    (void)max_width;
+
+    min_depth_timer_status(&base_increment, NULL, &total_increment, NULL, NULL);
+
+    effective_total = total_increment;
+    if (effective_total < 0)
+        effective_total = 0;
+
+    if (base_increment > 0)
+    {
+        long pct = ((long)effective_total * 100L + (base_increment / 2))
+            / base_increment;
+        if (pct > 999L)
+            pct = 999L;
+        strnfmt(pct_buf, sizeof(pct_buf), "%ld%%", pct);
+    }
+    else if (effective_total > 0)
+    {
+        SDL_strlcpy(pct_buf, "INF%", sizeof(pct_buf));
+    }
+    else
+    {
+        SDL_strlcpy(pct_buf, "0%", sizeof(pct_buf));
+    }
+
+    if (base_increment <= 0)
+        attr = (effective_total > 0) ? TERM_L_GREEN : TERM_YELLOW;
+    else if (effective_total > base_increment)
+        attr = TERM_L_GREEN;
+    else if (effective_total == base_increment)
+        attr = TERM_L_BLUE;
+    else if (effective_total > 0)
+        attr = TERM_YELLOW;
+    else
+        attr = TERM_L_RED;
+
+    SDL_strlcpy(buf, pct_buf, buflen);
+
+    return attr;
+}
+
+static bool format_min_depth_progress_bar(char* buf, size_t buflen, int line_w)
+{
+    int progress = 0;
+    int threshold = 1;
+    int bar_width;
+    int filled;
+
+    if (!buf || buflen == 0)
+        return false;
+
+    buf[0] = '\0';
+    if (line_w < 12)
+        return false;
+
+    min_depth_timer_status(NULL, NULL, NULL, &progress, &threshold);
+    if (threshold < 1)
+        threshold = 1;
+    if (progress < 0)
+        progress = 0;
+    if (progress > threshold)
+        progress = threshold;
+
+    bar_width = line_w - 2;
+    if (bar_width > 32)
+        bar_width = 32;
+    if (bar_width < 8)
+        return false;
+
+    filled = (progress * bar_width) / threshold;
+    if (filled < 0)
+        filled = 0;
+    if (filled > bar_width)
+        filled = bar_width;
+
+    if ((size_t)(bar_width + 3) > buflen)
+        return false;
+
+    buf[0] = '[';
+    for (int i = 0; i < bar_width; i++)
+        buf[i + 1] = (i < filled) ? '#' : '.';
+    buf[bar_width + 1] = ']';
+    buf[bar_width + 2] = '\0';
+    return true;
+}
+
+static bool display_player_min_depth_progress_bar_line(int x, int y, int line_w)
+{
+    char bar_buf[96];
+    int bar_len;
+    int out_col;
+
+    if (!format_min_depth_progress_bar(bar_buf, sizeof(bar_buf), line_w))
+        return false;
+
+    Term_erase(x, y, line_w);
+    bar_len = (int)strlen(bar_buf);
+    out_col = x + (line_w - bar_len) / 2;
+    if (out_col < x)
+        out_col = x;
+    Term_putstr(out_col, y, bar_len, TERM_L_BLUE, bar_buf);
+    return true;
+}
+
+static void display_player_deep_call_line(int x, int y, int line_w)
+{
+    const char* label = (line_w >= 16) ? "Deep Call" : "Call";
+    int val_w = line_w - (int)strlen(label);
+    char value_buf[96];
+    byte value_attr;
+
+    if (line_w < 6)
+        return;
+
+    if (val_w < 4)
+    {
+        label = "";
+        val_w = line_w;
+    }
+
+    value_attr = format_deep_call_value(value_buf, sizeof(value_buf), val_w);
+    put_single_right(x, y, line_w, label, value_buf, val_w, value_attr);
+}
 /* ======================================================================= */
 
 void display_player_xtra_info(int mode)
@@ -1508,7 +1690,12 @@ void display_player_xtra_info(int mode)
                          "Depth c/m",
                          cur, 4, (cur_d >= min_d) ? TERM_L_GREEN : TERM_YELLOW,
                          '/', rhs, 4, TERM_L_GREEN);
+
+        if (display_player_min_depth_progress_bar_line(col_stats, row_stats, LINEW20))
+            row_stats++;
     }
+
+    display_player_deep_call_line(col_stats, row_stats++, LINEW20);
 
     /* Turn (commas ok), right-anchored 12 */
     comma_number(buf, playerturn);
@@ -3296,7 +3483,16 @@ static int display_player_compact_summary_block(int row_start)
                      "Depth c/m",
                      cur, 4, (cur_d >= min_d) ? TERM_L_GREEN : TERM_YELLOW,
                      '/', rhs, 4, TERM_L_GREEN);
+
+            if (display_player_min_depth_progress_bar_line(col, row,
+                MAX(1, wid - COMPACT_RIGHT_PAD - col)))
+            {
+                row++;
+            }
         }
+
+        display_player_deep_call_line(col, row++,
+            MAX(1, wid - COMPACT_RIGHT_PAD - col));
 
         /* Turn */
         comma_number(buf, playerturn);
@@ -3415,7 +3611,12 @@ static int display_player_compact_summary_block(int row_start)
                          "Depth c/m",
                          cur, 4, (cur_d >= min_d) ? TERM_L_GREEN : TERM_YELLOW,
                          '/', rhs, 4, TERM_L_GREEN);
+
+        if (display_player_min_depth_progress_bar_line(col_r, row_r, LINEW20))
+            row_r++;
     }
+
+    display_player_deep_call_line(col_r, row_r++, LINEW20);
 
     /* Turn (right) */
     comma_number(buf, playerturn);
@@ -3447,7 +3648,6 @@ static int display_player_compact_summary_block(int row_start)
         row_l = row_song;
         row_r = row_song;
     }
-
     return ((row_l > row_r) ? row_l : row_r)
         + (display_player_compact_tight_spacing() ? 0 : 1);
 }

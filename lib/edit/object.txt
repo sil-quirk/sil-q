@@ -464,7 +464,7 @@ P:-1:2d5:1:0d0
 R:ATT:0
 R:DS:6
 A:2/100
-F:FEAR | LESS_SPECIAL | EVIL_ITEM
+F:MIN_DEPTH_SPEED | LESS_SPECIAL | EVIL_ITEM | ENCHANTABLE
 D:A crude blade of orcish make, its edge notched and its iron
 D: dark. The orcs of Morgoth favoured such curved swords, forged
 D: in the pits of Angband without art or care. It is a weapon

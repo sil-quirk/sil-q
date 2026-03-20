@@ -590,6 +590,8 @@ extern void run_step(int dir);
 
 /* cmd2.c */
 extern int min_depth(void);
+extern void min_depth_timer_status(int* base_increment, int* additional_increment,
+    int* total_increment, int* progress, int* threshold);
 extern void note_lost_greater_vault(void);
 extern void do_cmd_go_up(void);
 extern void do_cmd_go_down(void);

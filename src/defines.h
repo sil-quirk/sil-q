@@ -2044,6 +2044,9 @@
 #define TR4_WEIGHT          0x00004000L /* Increases item weight by 25% of base weight */
 #define TR4_NEG_WEIGHT      0x00008000L /* Decreases item weight by 25% of base weight */
 #define TR4_JINX           0x00010000L /* Ego is a jinx affix */
+#define TR4_DEEP_CALL      0x00020000L /* Speeds the min-depth timer by one extra depth step */
+#define TR4_NO_PREFIX      0x00040000L /* Suffix ego cannot be combined with a prefix */
+#define TR4_MIN_DEPTH_SPEED TR4_DEEP_CALL /* Compatibility alias */
 
 /*
  * Hack -- flag set 1 -- mask for "pval-dependant" flags.

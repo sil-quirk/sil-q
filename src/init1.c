@@ -337,6 +337,9 @@ static flag_name info_flags[] = {
     { "NOBLE_ITEM",   TR4, TR4_NOBLE_ITEM },
     { "EVIL_ITEM",    TR4, TR4_EVIL_ITEM },
     { "JINX",         TR4, TR4_JINX },
+    { "DEEP_CALL",    TR4, TR4_DEEP_CALL },
+    { "MIN_DEPTH_SPEED", TR4, TR4_DEEP_CALL },
+    { "NO_PREFIX",    TR4, TR4_NO_PREFIX },
     { "WEIGHT",       TR4, TR4_WEIGHT },
     { "NEG_WEIGHT",   TR4, TR4_NEG_WEIGHT },
 

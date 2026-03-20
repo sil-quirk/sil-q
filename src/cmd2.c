@@ -15,8 +15,84 @@
 #include "player/killer.h"
 #include "metarun.h"
 
+#define MIN_DEPTH_COUNTER_STEP 180000
+#define MIN_DEPTH_BASE_INCREMENT_START 85
+#define MIN_DEPTH_BASE_INCREMENT_DIVISOR 850
+#define MIN_DEPTH_INCREMENT_PER_BONUS 3
+
 #define THROW_PENDING_NONE -9999
 static int throw_pending_slot = THROW_PENDING_NONE;
+
+static bool min_depth_timer_bonus_slot_active(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    return true;
+}
+
+static int min_depth_timer_item_bonus_count(void)
+{
+    int count = 0;
+
+    for (int i = 0; i < INVEN_TOTAL; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+        u32b f1, f2, f3, f4;
+
+        if (!o_ptr->k_idx)
+            continue;
+
+        object_flags4(o_ptr, &f1, &f2, &f3, &f4);
+        (void)f1;
+        (void)f2;
+        if (!min_depth_timer_bonus_slot_active(o_ptr))
+            continue;
+
+        if (f4 & TR4_DEEP_CALL)
+            count++;
+        if (f3 & TR3_PERMA_CURSE)
+            count += 3;
+    }
+
+    return count;
+}
+
+static int min_depth_timer_base_increment(void)
+{
+    return MIN_DEPTH_BASE_INCREMENT_START - (playerturn / MIN_DEPTH_BASE_INCREMENT_DIVISOR);
+}
+
+static int min_depth_timer_additional_increment(void)
+{
+    int depth_bonus = MIN_DEPTH_INCREMENT_PER_BONUS * (p_ptr->depth - min_depth());
+    int item_bonus = MIN_DEPTH_INCREMENT_PER_BONUS * min_depth_timer_item_bonus_count();
+
+    return depth_bonus + item_bonus;
+}
+
+void min_depth_timer_status(int* base_increment, int* additional_increment,
+    int* total_increment, int* progress, int* threshold)
+{
+    int base = min_depth_timer_base_increment();
+    int additional = min_depth_timer_additional_increment();
+    int total = base + additional;
+    int current_progress = min_depth_counter % MIN_DEPTH_COUNTER_STEP;
+
+    if (current_progress < 0)
+        current_progress += MIN_DEPTH_COUNTER_STEP;
+
+    if (base_increment)
+        *base_increment = base;
+    if (additional_increment)
+        *additional_increment = additional;
+    if (total_increment)
+        *total_increment = total;
+    if (progress)
+        *progress = current_progress;
+    if (threshold)
+        *threshold = MIN_DEPTH_COUNTER_STEP;
+}
 
 /*
  * Determines the shallowest a player is allowed to go.
@@ -24,7 +100,7 @@ static int throw_pending_slot = THROW_PENDING_NONE;
  */
 int min_depth(void)
 {
-    int min_depth_value = min_depth_counter / 180000 + 1;
+    int min_depth_value = min_depth_counter / MIN_DEPTH_COUNTER_STEP + 1;
 
     // bounds on the base
     if (min_depth_value < 1)

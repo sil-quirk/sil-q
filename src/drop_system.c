@@ -1805,11 +1805,11 @@ static void build_ego_combo_variants(int prefix_idx, int suffix_idx)
 {
     if (prefix_idx <= 0 || suffix_idx <= 0)
         return;
-    if (suffix_idx == EGO_UNQUENCHED_FIRE)
-        return;
 
     ego_item_type* prefix_ptr = &e_info[prefix_idx];
     ego_item_type* suffix_ptr = &e_info[suffix_idx];
+    if (suffix_ptr->flags4 & TR4_NO_PREFIX)
+        return;
     if (!prefix_ptr->tval[0] || !suffix_ptr->tval[0])
         return;
 
