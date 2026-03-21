@@ -319,7 +319,7 @@ Q:d5699c25b01bbadc
 I:45:31:3
 W:12:30:1:10000
 P:0:0d0:0:0d0
-F:STEALTH | SONG | UNLIGHT | TRAITOR | SEE_INVIS | EVIL_ITEM
+F:STEALTH | SONG | UNLIGHT | TRAITOR | SEE_INVIS | EVIL_ITEM | MIN_DEPTH_SPEED
 F:INSTA_ART
 B:3/5
 D:This ring was wrought by Mairon in the earliest darkness of the First Age,
@@ -768,7 +768,7 @@ Q:95a76b3c41240652
 I:34:3:1
 W:8:35:60:25000
 P:0:0d0:0:1d5
-F:STR | DAMAGE_SIDES | TRAITOR | EVIL_ITEM
+F:STR | DAMAGE_SIDES | TRAITOR | EVIL_ITEM | MIN_DEPTH_SPEED
 D:A black shield with scalloped edges, bearing the emblem of a white hand
 D: dripping blood. Such was the sign of certain orc-captains who swore
 D: blood-oaths to Morgoth, marking their hands in token of lives they would
@@ -1024,7 +1024,7 @@ Q:7c59e46da39e038e
 I:23:7:2
 W:10:40:60:30000
 P:0:2d6:1:0d0
-F:STR | NEG_GRA | SLAY_MAN_OR_ELF | AGGRAVATE | EVIL_ITEM
+F:STR | NEG_GRA | SLAY_MAN_OR_ELF | AGGRAVATE | EVIL_ITEM | MIN_DEPTH_SPEED
 D:A cruel curved blade of black iron, forged in the pits of Orodruth in the
 D: years when Morgoth's power was unchallenged and the Elves yet slumbered
 D: by Cuivienen. It is famed among the orcs as a slayer of Elves and Men,
@@ -1042,7 +1042,7 @@ Q:f743ec132ef30bd5
 I:23:7:-2
 W:8:35:60:30000
 P:0:2d5:1:0d0
-F:VAMPIRIC | LIGHT_CURSE | WILL | PERCEPTION | HUNGER | EVIL_ITEM
+F:VAMPIRIC | LIGHT_CURSE | WILL | PERCEPTION | HUNGER | EVIL_ITEM | MIN_DEPTH_SPEED
 M:CON:2
 D:A curved blade whose name means 'Blood-cutlass' in Sindarin, for its
 D: steel is stained the colour of old blood that no cleaning can remove.
@@ -1392,7 +1392,7 @@ G:|:r
 I:23:25:1
 W:20:1:110:100000
 P:-5:3d8:1:0d0
-F:CON | BRAND_FIRE | LIGHT | EVIL_ITEM
+F:CON | BRAND_FIRE | LIGHT | EVIL_ITEM | MIN_DEPTH_SPEED
 F:VUL_COLD | LIGHT_CURSE
 F:EASY_ID | INSTA_ART
 D:A cruel and heavy blade, wreathed in undying flames that burn without
@@ -1513,7 +1513,7 @@ Q:1df2f87f537baa23
 I:22:1:-1
 W:12:20:25:50000
 P:1:1d11:1:0d0
-F:SLAY_RAUKO | SLAY_MAN_OR_ELF | SEE_INVIS | FREE_ACT | EVIL_ITEM
+F:SLAY_RAUKO | SLAY_MAN_OR_ELF | SEE_INVIS | FREE_ACT | EVIL_ITEM | MIN_DEPTH_SPEED
 F:GRA | AGGRAVATE | THROWING | DARKNESS
 M:DEX:1
 B:3/2
@@ -1537,7 +1537,7 @@ G:/:s
 I:22:1:0
 W:8:1:50:30000
 P:1:1d11:0:0d0
-F:RES_FEAR | SLAY_WOLF | EVIL_ITEM
+F:RES_FEAR | SLAY_WOLF | EVIL_ITEM | MIN_DEPTH_SPEED
 F:THROWING
 F:EASY_ID | INSTA_ART
 D:The iron spear of Boldog, a name borne by the mightiest orc-captains of
@@ -1624,7 +1624,7 @@ W:20:8:80:100000
 P:2:1d16:1:0d0
 F:GRA | BRAND_POIS
 M:STR:2
-F:FREE_ACT | VUL_POIS | LIGHT_CURSE | DARKNESS | HUNGER | VAMPIRIC | ENCHANTABLE | EVIL_ITEM
+F:FREE_ACT | VUL_POIS | LIGHT_CURSE | DARKNESS | HUNGER | VAMPIRIC | ENCHANTABLE | EVIL_ITEM | MIN_DEPTH_SPEED
 B:0/11
 D:The black spear of Melkor Morgoth, mightiest of the Ainur who fell, wielded
 D: in the hour when he and the great spider Ungoliant came in darkness to the
@@ -1700,7 +1700,7 @@ Q:230ed3b186a485d6
 I:22:12:2
 W:15:20:60:90000
 P:-3:3d5:0:0d0
-F:STR | HAUNTED | VAMPIRIC | EVIL_ITEM
+F:STR | HAUNTED | VAMPIRIC | EVIL_ITEM | MIN_DEPTH_SPEED
 D:A dark axe with a wicked and hungry edge, forged in the deepest pits of
 D: Angband by Morgoth Bauglir himself for the breaking of kin and the severing
 D: of hope. Many are the lives it has claimed, and each one it remembers: it
@@ -1758,7 +1758,7 @@ I:22:13:0
 W:20:8:100:120000
 P:-4:4d7:0:0d0
 B:0/9
-F:BRAND_FIRE | AGGRAVATE | LIGHT_CURSE | EVIL_ITEM
+F:BRAND_FIRE | AGGRAVATE | LIGHT_CURSE | EVIL_ITEM | MIN_DEPTH_SPEED
 F:VUL_COLD
 D:The immense, blackened steel axe of Gothmog, Lord of Balrogs and High
 D: Captain of Angband. Flames crawl along its edge, and it strikes with
@@ -1994,7 +1994,7 @@ Q:fef42b5664300761
 I:32:5:0
 W:8:35:15:45000
 P:0:0d0:0:1d4
-F:TRAITOR | LIGHT_CURSE | OATH_NEGATE | EVIL_ITEM
+F:TRAITOR | LIGHT_CURSE | OATH_NEGATE | EVIL_ITEM | MIN_DEPTH_SPEED
 B:5/8
 D:A helm wrought of grey metal and set with the bones of an orc who dared
 D: raise his blade against his own master. In Angband, such treachery was
@@ -2032,7 +2032,7 @@ G:]:D
 I:32:6:-3
 W:20:20:100:10000
 P:0:0d0:-2:1d4
-F:GRA | VUL_FIRE | LIGHT_CURSE | WILL | RES_COLD | EVIL_ITEM
+F:GRA | VUL_FIRE | LIGHT_CURSE | WILL | RES_COLD | EVIL_ITEM | MIN_DEPTH_SPEED
 M:CON:2
 M:STR:2
 D:A great black helm wrought in Utumno, Morgoth's first fortress beneath
@@ -2307,7 +2307,7 @@ W:20:1:130:500000
 P:-2:0d0:-3:2d4
 B:3/0
 F:STEALTH
-F:EASY_ID | INSTA_ART | EVIL_ITEM
+F:EASY_ID | INSTA_ART | EVIL_ITEM | MIN_DEPTH_SPEED
 D:The fell hide of Draugluin, sire and lord of all the werewolves of
 D: Morgoth, slain by Huan the Hound of Valinor at Tol-in-Gaurhoth. He was
 D: the mightiest wolf that ever walked, yet even he fell before Huan and
@@ -2329,7 +2329,7 @@ W:23:1:50:500000
 P:-1:0d0:+3:0d0
 B:3/0
 F:STEALTH
-F:EASY_ID | INSTA_ART | EVIL_ITEM
+F:EASY_ID | INSTA_ART | EVIL_ITEM | MIN_DEPTH_SPEED
 D:The winged cloak of Thuringwethil, the vampire-messenger of Sauron who
 D: flew between Angband and Tol-in-Gaurhoth. Luthien wore this fell garment
 D: to enter the throne room of Morgoth himself. Its great black wings still
@@ -2666,7 +2666,7 @@ Q:a744f49476fcf856
 I:31:2:1
 W:12:20:50:60000
 P:0:0d0:-1:2d1
-F:STR | UNLIGHT EVIL_ITEM
+F:STR | UNLIGHT EVIL_ITEM | MIN_DEPTH_SPEED
 B:0/2
 D:Brutal gauntlets forged in Angband for the orc-chieftain Gorgdaz, who led
 D: Morgoth's host against the newly-arrived Noldor. He fell in the Dagor-
@@ -2861,7 +2861,7 @@ I:21:50:3
 W:20:1:1000:500000
 P:-9:6d5:0:0d0
 F:TUNNEL
-F:INSTA_ART | EVIL_ITEM
+F:INSTA_ART | EVIL_ITEM | MIN_DEPTH_SPEED
 D:The Hammer of the Underworld, forged by Morgoth himself in the depths of
 D: Angband and wielded in his duel against Fingolfin before the gates of his
 D: fortress. Thrice it smote the earth like thunder, making great pits into

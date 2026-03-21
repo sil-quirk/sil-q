@@ -563,7 +563,7 @@ def calculate_difficulty(art):
             dif_inc += dif_mod_calc(prot_bonus, 1)
             if prot_bonus > 0:
                 dif_inc += 2
-        elif tval == 45:  # Ring
+        elif tval == 40:  # Amulet
             dif_inc += dif_mod_calc(prot_bonus, 1)
             if prot_bonus > 0:
                 dif_inc += 4
@@ -1218,6 +1218,13 @@ def get_base_protection(tval, sval):
     return 0
 
 
+def get_base_pd_max(obj):
+    """Get the smithing/drop maximum protection dice for a base object."""
+    if obj.get('tval') == 40 and obj.get('sval') == 15:
+        return 2
+    return obj.get('pd', 0)
+
+
 def get_base_att(tval, sval):
     """Get base attack bonus from parsed object data."""
     key = (tval, sval)
@@ -1451,7 +1458,7 @@ def generate_special_variants(special, objects):
             dd_min = obj['dd'] + smithing_step_from_ego_bonus_py(special['to_dd'])
             dd_max = obj['dd'] + special['to_dd']
             pd_min = obj['pd'] + smithing_step_from_ego_bonus_py(special['to_pd'])
-            pd_max = obj['pd'] + special['to_pd']
+            pd_max = get_base_pd_max(obj) + special['to_pd']
             
             # Check if pval is allowed (base has pval flags or pval != 0 or ego grants pval)
             base_flags = set(obj['flags'])
@@ -1627,7 +1634,7 @@ def generate_dual_ego_variants(specials_raw, objects):
                 pd_min = obj['pd'] \
                     + smithing_step_from_ego_bonus_py(prefix['to_pd']) \
                     + smithing_step_from_ego_bonus_py(suffix['to_pd'])
-                pd_max = obj['pd'] + prefix['to_pd'] + suffix['to_pd']
+                pd_max = get_base_pd_max(obj) + prefix['to_pd'] + suffix['to_pd']
 
                 prefix_pval_min = (
                     prefix.get('min_pval', 0)
@@ -1821,7 +1828,7 @@ def generate_normal_variants(objects):
         pval_min = obj['pval']
         pval_max = obj['max_pval']
         pd_min = obj['pd']
-        pd_max = obj['pd']
+        pd_max = get_base_pd_max(obj)
         dd_min = obj['dd']
         dd_max = obj['dd']
         
@@ -2257,7 +2264,7 @@ def main(argv=None):
     print("  - Attack bonus: weapons +3/point, others +6/point; negatives reduce at half rate")
     print("  - Evasion bonus: +6/point armor, +9/point others; negatives reduce at half rate")
     print("  - Damage sides: +3*x+2 per extra side (triangular); negatives reduce at half rate")
-    print("  - Protection: +3/point; ring/hauberk flat offsets only apply on positive bonuses")
+    print("  - Protection: +3/point; amulet/hauberk flat offsets only apply on positive bonuses")
     print("  - Slays: +3-5 each (Spider/Rauko/Dragon +4, Man/Elf +5, others +3)")
     print("  - Brands: Cold +18, Fire +14, Poison +16 (+20 per extra brand)")
     print("  - Sharpness: +24 (arrows +14), Sharpness2: +40")

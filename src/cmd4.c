@@ -4078,6 +4078,10 @@ static const smithing_flag_desc smithing_flag_types[] = { { CAT_STAT, TR1_STR,
     { CAT_MISC, TR3_STAND_FAST, 3, "Stand Fast" },
     { CAT_MISC, TR3_AVOID_TRAPS, 3, "Avoid Traps" },
     { CAT_MISC, TR3_MEDIC, 3, "Medicine Bonus" },
+    { CAT_MISC, TR4_PROT_FIRE, 4, "Protection vs Fire" },
+    { CAT_MISC, TR4_PROT_COLD, 4, "Protection vs Cold" },
+    { CAT_MISC, TR4_PROT_POIS, 4, "Protection vs Poison" },
+    { CAT_MISC, TR4_PROT_DARK, 4, "Protection vs Darkness" },
     { CAT_MEL, TR1_TUNNEL, 1, "Tunneling Bonus" },
     { CAT_MEL, TR1_SHARPNESS, 1, "Sharpness" },
     { CAT_MEL, TR1_SHARPNESS2, 1, "Sharpness2" },
@@ -4174,8 +4178,8 @@ static const artifice_limits_t artifice_table[ARTIFICE_MAX] = {
     /* DIGGING */  {  4,    0,    2,   0,    0,    0,   0,   4  },
     /* ARMOR   */  {  1,    0,    0,   1,    0,    2,   0,   4  },
     /* GLOVES  */  {  2,    0,    0,   1,    0,    2,   0,   4  },
-    /* RING    */  {  0,    4,    0,   0,    4,    0,   3,   4  },
-    /* AMULET  */  {  0,    0,    0,   0,    0,    0,   0,   4  },
+    /* RING    */  {  0,    4,    0,   0,    4,    0,   0,   4  },
+    /* AMULET  */  {  0,    0,    0,   0,    0,    0,   3,   4  },
     /* DEFAULT */  {  0,    0,    0,   0,    0,    0,   0,   4  },
 };
 
@@ -4400,6 +4404,153 @@ int ps_min(void)
     int ps = k_ptr->ps;
     ps += to_ps_min_inc;
     return (ps);
+}
+
+static bool smithing_variable_protection_dice(const object_type* o_ptr)
+{
+    return o_ptr && o_ptr->tval == TV_AMULET
+        && ((o_ptr->sval == SV_AMULET_PROTECTION)
+            || (o_ptr->name1 && (o_ptr->pd > 0)));
+}
+
+typedef struct
+{
+    byte pd;
+    byte ps;
+} smithing_protection_combo;
+
+static const smithing_protection_combo smithing_amulet_protection_combos[] = {
+    { 1, 1 },
+    { 1, 2 },
+    { 1, 3 },
+    { 2, 1 },
+    { 2, 2 },
+    { 2, 3 },
+};
+
+static int smithing_protection_combo_index(const object_type* o_ptr)
+{
+    size_t i;
+
+    if (!smithing_variable_protection_dice(o_ptr))
+        return -1;
+
+    for (i = 0; i < N_ELEMENTS(smithing_amulet_protection_combos); i++)
+    {
+        if ((o_ptr->pd == smithing_amulet_protection_combos[i].pd)
+            && (o_ptr->ps == smithing_amulet_protection_combos[i].ps))
+        {
+            return (int)i;
+        }
+    }
+
+    return -1;
+}
+
+static void smithing_set_protection_combo(object_type* o_ptr, int combo_idx)
+{
+    if (!o_ptr)
+        return;
+
+    if (combo_idx < 0 || combo_idx >= (int)N_ELEMENTS(smithing_amulet_protection_combos))
+        return;
+
+    o_ptr->pd = smithing_amulet_protection_combos[combo_idx].pd;
+    o_ptr->ps = smithing_amulet_protection_combos[combo_idx].ps;
+}
+
+static bool smithing_can_increase_protection(const object_type* o_ptr)
+{
+    int combo_idx;
+
+    if (!o_ptr)
+        return false;
+
+    if (!smithing_variable_protection_dice(o_ptr))
+    {
+        if (o_ptr->ps < ps_max())
+            return true;
+
+        return false;
+    }
+
+    combo_idx = smithing_protection_combo_index(o_ptr);
+    if (combo_idx >= 0)
+        return combo_idx < (int)N_ELEMENTS(smithing_amulet_protection_combos) - 1;
+
+    return (o_ptr->pd <= 1) && (o_ptr->ps < 1);
+}
+
+static bool smithing_can_decrease_protection(const object_type* o_ptr)
+{
+    int combo_idx;
+
+    if (!o_ptr)
+        return false;
+
+    if (!smithing_variable_protection_dice(o_ptr))
+    {
+        if (o_ptr->ps > ps_min())
+            return true;
+
+        return false;
+    }
+
+    combo_idx = smithing_protection_combo_index(o_ptr);
+    if (combo_idx > 0)
+        return true;
+
+    return combo_idx == 0 && ps_min() < 1;
+}
+
+static void smithing_increase_protection(object_type* o_ptr)
+{
+    int combo_idx;
+
+    if (!o_ptr)
+        return;
+
+    if (!smithing_variable_protection_dice(o_ptr))
+    {
+        o_ptr->ps++;
+        return;
+    }
+
+    combo_idx = smithing_protection_combo_index(o_ptr);
+    if (combo_idx >= 0)
+    {
+        smithing_set_protection_combo(o_ptr, combo_idx + 1);
+        return;
+    }
+
+    smithing_set_protection_combo(o_ptr, 0);
+}
+
+static void smithing_decrease_protection(object_type* o_ptr)
+{
+    int combo_idx;
+
+    if (!o_ptr)
+        return;
+
+    if (!smithing_variable_protection_dice(o_ptr))
+    {
+        o_ptr->ps--;
+        return;
+    }
+
+    combo_idx = smithing_protection_combo_index(o_ptr);
+    if (combo_idx > 0)
+    {
+        smithing_set_protection_combo(o_ptr, combo_idx - 1);
+        return;
+    }
+
+    if (combo_idx == 0 && ps_min() < 1)
+    {
+        o_ptr->pd = 1;
+        o_ptr->ps = 0;
+    }
 }
 
 /*
@@ -5118,14 +5269,14 @@ int object_difficulty(object_type* o_ptr)
     new = (ps_calc > 0) ? ((ps_calc + 1) * o_ptr->pd) : 0;
     x = new - base;
 
-    // special costs for protection sides on hauberks and rings
+    // special costs for protection sides on hauberks and amulets
     if ((o_ptr->tval == TV_MAIL) && (o_ptr->sval == SV_LONG_CORSLET))
     {
         dif_inc += dif_mod_signed(x, 1);
         if (x > 0)
             dif_inc += 2;
     }
-    else if (o_ptr->tval == TV_RING)
+    else if (o_ptr->tval == TV_AMULET)
     {
         dif_inc += dif_mod_signed(x, 1);
         if (x > 0)
@@ -7196,10 +7347,10 @@ void modify_numbers(int choice)
         smith_o_ptr->evn--;
         break;
     case SMT_NUM_MENU_I_PS:
-        smith_o_ptr->ps++;
+        smithing_increase_protection(smith_o_ptr);
         break;
     case SMT_NUM_MENU_D_PS:
-        smith_o_ptr->ps--;
+        smithing_decrease_protection(smith_o_ptr);
         break;
     case SMT_NUM_MENU_I_WGT:
         smith_o_ptr->weight += 5;
@@ -7267,8 +7418,8 @@ int numbers_menu_aux(int* highlight)
         = evn_valid() && (smith_o_ptr->evn < evn_max());
     valid[SMT_NUM_MENU_D_EVN - 1]
         = evn_valid() && (smith_o_ptr->evn > evn_min());
-    valid[SMT_NUM_MENU_I_PS - 1] = ps_valid() && (smith_o_ptr->ps < ps_max());
-    valid[SMT_NUM_MENU_D_PS - 1] = ps_valid() && (smith_o_ptr->ps > ps_min());
+    valid[SMT_NUM_MENU_I_PS - 1] = ps_valid() && smithing_can_increase_protection(smith_o_ptr);
+    valid[SMT_NUM_MENU_D_PS - 1] = ps_valid() && smithing_can_decrease_protection(smith_o_ptr);
     valid[SMT_NUM_MENU_I_WGT - 1]
         = wgt_valid() && ((smith_o_ptr->weight + 5) <= wgt_max());
     valid[SMT_NUM_MENU_D_WGT - 1]
@@ -7344,9 +7495,9 @@ int numbers_menu_aux(int* highlight)
     Term_putstr(COL_SMT2, 7, -1, attr[SMT_NUM_MENU_D_EVN - 1],
         "f) decrease evasion bonus");
     Term_putstr(COL_SMT2, 8, -1, attr[SMT_NUM_MENU_I_PS - 1],
-        "g) increase protection sides");
+        "g) increase protection");
     Term_putstr(COL_SMT2, 9, -1, attr[SMT_NUM_MENU_D_PS - 1],
-        "h) decrease protection sides");
+        "h) decrease protection");
     Term_putstr(
         COL_SMT2, 10, -1, attr[SMT_NUM_MENU_I_WGT - 1], "i) increase weight");
     Term_putstr(
@@ -9616,13 +9767,13 @@ void artefact_menu(void)
             create_base_object(TV_RING, SV_RING_SELF_MADE);
             object_copy(smith2_o_ptr, smith_o_ptr);
             smith2_alloy = smith_alloy;
-            smith2_o_ptr->pd = 1;
         }
         if (smith_o_ptr->tval == TV_AMULET)
         {
             create_base_object(TV_AMULET, SV_AMULET_SELF_MADE);
             object_copy(smith2_o_ptr, smith_o_ptr);
             smith2_alloy = smith_alloy;
+            smith2_o_ptr->pd = 1;
         }
     }
 
@@ -19939,17 +20090,6 @@ void apply_magic_fake(object_type* o_ptr)
             break;
         }
 
-        /* Ring of Protection */
-        case SV_RING_PROTECTION:
-        {
-            /* Bonus to protection */
-            o_ptr->pd = 1;
-            if (o_ptr->ps < 1)
-                o_ptr->ps = 1;
-
-            break;
-        }
-
         /* Ring of Evasion */
         case SV_RING_EVASION:
         {
@@ -20004,6 +20144,16 @@ void apply_magic_fake(object_type* o_ptr)
         {
             if (o_ptr->pval < 1)
                 o_ptr->pval = 1;
+            break;
+        }
+
+        /* Amulet of Protection */
+        case SV_AMULET_PROTECTION:
+        {
+            if (o_ptr->pd < 1)
+                o_ptr->pd = 1;
+            if (o_ptr->ps < 1)
+                o_ptr->ps = 1;
             break;
         }
 

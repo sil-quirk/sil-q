@@ -67,6 +67,25 @@ static int smithing_step_from_ego_bonus(int bonus)
     return (bonus > 0) ? 1 : -1;
 }
 
+static bool drop_kind_is_protection_amulet(const object_kind* k_ptr)
+{
+    return k_ptr && k_ptr->tval == TV_AMULET
+        && k_ptr->sval == SV_AMULET_PROTECTION;
+}
+
+static int drop_kind_base_pd_min(const object_kind* k_ptr)
+{
+    return k_ptr ? k_ptr->pd : 0;
+}
+
+static int drop_kind_base_pd_max(const object_kind* k_ptr)
+{
+    if (drop_kind_is_protection_amulet(k_ptr))
+        return 2;
+
+    return k_ptr ? k_ptr->pd : 0;
+}
+
 static bool drop_object_is_damaged(const object_type* o_ptr)
 {
     u32b f1, f2, f3;
@@ -773,7 +792,7 @@ static int smithing_difficulty_baseline(const object_type* o_ptr)
         drop_dif_mod(x, 1, &dif_inc);
         dif_inc += 2;
     }
-    else if ((o_ptr->tval == TV_RING) && (x > 0))
+    else if ((o_ptr->tval == TV_AMULET) && (x > 0))
     {
         drop_dif_mod(x, 1, &dif_inc);
         dif_inc += 4;
@@ -1522,6 +1541,8 @@ static void build_normal_variants(int k_idx)
     int ds_max = k_ptr->max_ds;
     int evn_min = k_ptr->evn;
     int evn_max = k_ptr->max_evn;
+    int pd_min = drop_kind_base_pd_min(k_ptr);
+    int pd_max = drop_kind_base_pd_max(k_ptr);
     int ps_min = k_ptr->ps;
     int ps_max = k_ptr->max_ps;
     u32b kind_pval_mask = object_kind_pval_flags1(k_ptr);
@@ -1537,24 +1558,28 @@ static void build_normal_variants(int k_idx)
         {
             for (int evn = evn_min; evn <= evn_max; evn++)
             {
-                for (int ps = ps_min; ps <= ps_max; ps++)
+                for (int pd = pd_min; pd <= pd_max; pd++)
                 {
-                    int pval_hi = pval_allowed ? pval_max : pval_min;
-                    for (int pval = pval_min; pval <= pval_hi; pval++)
+                    for (int ps = ps_min; ps <= ps_max; ps++)
                     {
-                        object_type v = base;
-                        int delta = pval - base.pval;
-                        v.att = att;
-                        v.ds = ds;
-                        v.evn = evn;
-                        v.ps = ps;
-                        v.pval = pval;
+                        int pval_hi = pval_allowed ? pval_max : pval_min;
+                        for (int pval = pval_min; pval <= pval_hi; pval++)
+                        {
+                            object_type v = base;
+                            int delta = pval - base.pval;
+                            v.att = att;
+                            v.ds = ds;
+                            v.evn = evn;
+                            v.pd = pd;
+                            v.ps = ps;
+                            v.pval = pval;
 
-                        if (delta != 0)
-                            object_apply_pval_delta_with_mask(&v, kind_pval_mask, delta);
-                        add_drop_entry(&v, cat, group_kind, k_idx,
-                            min_depth, max_depth,
-                            alloc_depths, alloc_rarities, num_allocations);
+                            if (delta != 0)
+                                object_apply_pval_delta_with_mask(&v, kind_pval_mask, delta);
+                            add_drop_entry(&v, cat, group_kind, k_idx,
+                                min_depth, max_depth,
+                                alloc_depths, alloc_rarities, num_allocations);
+                        }
                     }
                 }
             }
@@ -1702,8 +1727,9 @@ static void build_ego_variants(int e_idx)
             int ps_max = k_ptr->max_ps + ego_to_ps;
             int dd_min = k_ptr->dd + smithing_step_from_ego_bonus(ego_to_dd);
             int dd_max = k_ptr->dd + ego_to_dd;
-            int pd_min = k_ptr->pd + smithing_step_from_ego_bonus(ego_to_pd);
-            int pd_max = k_ptr->pd + ego_to_pd;
+            int pd_min = drop_kind_base_pd_min(k_ptr)
+                + smithing_step_from_ego_bonus(ego_to_pd);
+            int pd_max = drop_kind_base_pd_max(k_ptr) + ego_to_pd;
             u32b kind_pval_mask = object_kind_pval_flags1(k_ptr);
             u32b ego_pval_mask = ego_item_pval_flags1(e_ptr);
             int kind_pval_min = k_ptr->pval;
@@ -1976,10 +2002,10 @@ static void build_ego_combo_variants(int prefix_idx, int suffix_idx)
             + smithing_step_from_ego_bonus(ego_s8(prefix_ptr->to_dd))
             + smithing_step_from_ego_bonus(ego_s8(suffix_ptr->to_dd));
         int dd_max = k_ptr->dd + to_dd_bonus;
-        int pd_min = k_ptr->pd
+        int pd_min = drop_kind_base_pd_min(k_ptr)
             + smithing_step_from_ego_bonus(ego_s8(prefix_ptr->to_pd))
             + smithing_step_from_ego_bonus(ego_s8(suffix_ptr->to_pd));
-        int pd_max = k_ptr->pd + to_pd_bonus;
+        int pd_max = drop_kind_base_pd_max(k_ptr) + to_pd_bonus;
         u32b kind_pval_mask = object_kind_pval_flags1(k_ptr);
         u32b prefix_pval_mask = ego_item_pval_flags1(prefix_ptr);
         u32b suffix_pval_mask = ego_item_pval_flags1(suffix_ptr);

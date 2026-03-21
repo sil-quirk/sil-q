@@ -343,7 +343,23 @@ def get_smithing_limits(tval, sval, is_special=False, special=None):
     else:
         limits['evn'] = (base_evn, base_evn)
     
-    # Protection sides limits (armor only, plus Ring of Protection)
+    # Protection dice limits
+    base_pd_val = get_base_pd(tval, sval)
+    base_pd_max = get_base_pd_max(tval, sval)
+    pd_min = base_pd_val
+    pd_max = base_pd_max
+    if is_special and special and special['to_pd'] != 0:
+        pd_min = base_pd_val + smithing_step_from_ego_bonus_py(special['to_pd'])
+        pd_max = base_pd_max + special['to_pd']
+    if pd_min < 0:
+        pd_min = 0
+    if pd_max < 0:
+        pd_max = 0
+    if pd_min > pd_max:
+        pd_min = pd_max
+    limits['pd'] = (pd_min, pd_max)
+
+    # Protection sides limits (armor only, plus Amulet of Protection)
     if tval in [30, 31, 32, 33, 34, 36, 37]:
         base_ps_val = get_base_ps(tval, sval)
         # Cloaks and robes can't get extra protection
@@ -361,7 +377,7 @@ def get_smithing_limits(tval, sval, is_special=False, special=None):
             ps_min = base_ps_val + smithing_step_from_ego_bonus_py(special['to_ps'])
             ps_max = ps_max + special['to_ps']
         limits['ps'] = (ps_min, ps_max)
-    elif tval == 45 and sval == 3:  # Ring of Protection (SV_RING_PROTECTION)
+    elif tval == 40 and sval == 15:  # Amulet of Protection (SV_AMULET_PROTECTION)
         ps_min = 1
         ps_max = 3
         limits['ps'] = (ps_min, ps_max)
@@ -386,7 +402,7 @@ def get_smithing_limits(tval, sval, is_special=False, special=None):
 
 
 def get_base_ps(tval, sval):
-    """Get base protection sides for armor types."""
+    """Get base protection sides for armor types and protection amulets."""
     base_ps = {
         (30, 1): 1,    # Boots: 1d1
         (30, 2): 2,    # Greaves: 1d2
@@ -411,12 +427,13 @@ def get_base_ps(tval, sval):
         (37, 4): 4,    # Mail Corslet: 2d4
         (37, 6): 5,    # Hauberk: 2d5
         (37, 20): 4,   # Mithril Corslet: 2d4
+        (40, 15): 1,   # Amulet of Protection: 1d1
     }
     return base_ps.get((tval, sval), 0)
 
 
 def get_base_pd(tval, sval):
-    """Get base protection dice for armor types."""
+    """Get base protection dice for armor types and protection amulets."""
     base_pd = {
         (30, 1): 1,    # Boots
         (30, 2): 1,    # Greaves
@@ -441,12 +458,20 @@ def get_base_pd(tval, sval):
         (37, 4): 2,    # Mail Corslet
         (37, 6): 2,    # Hauberk
         (37, 20): 2,   # Mithril Corslet
+        (40, 15): 1,   # Amulet of Protection
     }
     return base_pd.get((tval, sval), 0)
 
 
-def calculate_item_difficulty(tval, sval, att_bonus=0, ds_bonus=0, evn_bonus=0, 
-                               ps_bonus=0, pval_bonus=0, special=None):
+def get_base_pd_max(tval, sval):
+    """Get maximum smithable protection dice for supported base items."""
+    if (tval, sval) == (40, 15):
+        return 2
+    return get_base_pd(tval, sval)
+
+
+def calculate_item_difficulty(tval, sval, att_bonus=0, ds_bonus=0, evn_bonus=0,
+                               pd_bonus=0, ps_bonus=0, pval_bonus=0, special=None):
     """
     Calculate smithing difficulty for a specific item configuration.
     """
@@ -505,7 +530,8 @@ def calculate_item_difficulty(tval, sval, att_bonus=0, ds_bonus=0, evn_bonus=0,
         dif_inc += dif_mod_calc(ds_bonus, 3 * abs(ds_bonus) + 2)
     
     # Protection bonus
-    new_prot = ((base_ps + ps_bonus + 1) * base_pd) if (base_ps + ps_bonus) > 0 else 0
+    new_pd = base_pd + pd_bonus
+    new_prot = ((base_ps + ps_bonus + 1) * new_pd) if (base_ps + ps_bonus) > 0 else 0
     base_prot = ((base_ps + 1) * base_pd) if base_ps > 0 else 0
     prot_bonus = new_prot - base_prot
     
@@ -514,7 +540,7 @@ def calculate_item_difficulty(tval, sval, att_bonus=0, ds_bonus=0, evn_bonus=0,
             dif_inc += dif_mod_calc(prot_bonus, 1)
             if prot_bonus > 0:
                 dif_inc += 2
-        elif tval == 45:  # Ring
+        elif tval == 40:  # Amulet
             dif_inc += dif_mod_calc(prot_bonus, 1)
             if prot_bonus > 0:
                 dif_inc += 4
@@ -725,14 +751,6 @@ def get_item_category(tval):
 def enumerate_item_variants(tval, sval, name, specials):
     """
     Enumerate all possible smithable variants of a base item.
-    Returns list of (difficulty, description) tuples.
-    """
-    variants = []
-
-
-def enumerate_item_variants(tval, sval, name, specials):
-    """
-    Enumerate all possible smithable variants of a base item.
     Returns list of (difficulty, description, category) tuples.
     """
     variants = []
@@ -745,12 +763,14 @@ def enumerate_item_variants(tval, sval, name, specials):
     att_range = range(limits['att'][0], limits['att'][1] + 1)
     ds_range = range(limits['ds'][0], limits['ds'][1] + 1)
     evn_range = range(limits['evn'][0], limits['evn'][1] + 1)
+    pd_range = range(limits['pd'][0], limits['pd'][1] + 1)
     ps_range = range(limits['ps'][0], limits['ps'][1] + 1)
     pval_range = range(limits['pval'][0], limits['pval'][1] + 1)
     
     base_att = get_base_att(tval, sval)
     base_ds = get_base_ds(tval, sval)
     base_evn = get_base_evn(tval, sval)
+    base_pd = get_base_pd(tval, sval)
     base_ps = get_base_ps(tval, sval)
     base_pval = get_base_pval(tval, sval)
     base_alignment_flags = BASE_ALIGNMENT_FLAGS.get((tval, sval), set())
@@ -759,20 +779,23 @@ def enumerate_item_variants(tval, sval, name, specials):
     for att in att_range:
         for ds in ds_range:
             for evn in evn_range:
-                for ps in ps_range:
-                    for pval in pval_range:
-                        att_bonus = att - base_att
-                        ds_bonus = ds - base_ds
-                        evn_bonus = evn - base_evn
-                        ps_bonus = ps - base_ps
-                        pval_bonus = pval - base_pval
-                        
-                        dif = calculate_item_difficulty(
-                            tval, sval, att_bonus, ds_bonus, evn_bonus, ps_bonus, pval_bonus, None
-                        )
-                        
-                        desc = f"{name} (+{att},{ds}ds,[{evn}],{ps}ps,pval:{pval})"
-                        variants.append((dif, desc, category, 'base'))
+                for pd in pd_range:
+                    for ps in ps_range:
+                        for pval in pval_range:
+                            att_bonus = att - base_att
+                            ds_bonus = ds - base_ds
+                            evn_bonus = evn - base_evn
+                            pd_bonus = pd - base_pd
+                            ps_bonus = ps - base_ps
+                            pval_bonus = pval - base_pval
+
+                            dif = calculate_item_difficulty(
+                                tval, sval, att_bonus, ds_bonus, evn_bonus,
+                                pd_bonus, ps_bonus, pval_bonus, None
+                            )
+
+                            desc = f"{name} (+{att},{ds}ds,[{evn}],[{pd}d{ps}],pval:{pval})"
+                            variants.append((dif, desc, category, 'base'))
     
     # Generate special item variants
     for special in specials:
@@ -792,28 +815,31 @@ def enumerate_item_variants(tval, sval, name, specials):
         att_range = range(limits['att'][0], limits['att'][1] + 1)
         ds_range = range(limits['ds'][0], limits['ds'][1] + 1)
         evn_range = range(limits['evn'][0], limits['evn'][1] + 1)
+        pd_range = range(limits['pd'][0], limits['pd'][1] + 1)
         ps_range = range(limits['ps'][0], limits['ps'][1] + 1)
         pval_range = range(limits['pval'][0], limits['pval'][1] + 1)
         
         for att in att_range:
             for ds in ds_range:
                 for evn in evn_range:
-                    for ps in ps_range:
-                        for pval in pval_range:
-                            att_bonus = att - base_att
-                            ds_bonus = ds - base_ds
-                            evn_bonus = evn - base_evn
-                            ps_bonus = ps - base_ps
-                            pval_bonus = pval - get_base_pval(tval, sval)
-                            
-                            dif = calculate_item_difficulty(
-                                tval, sval, att_bonus, ds_bonus, evn_bonus, 
-                                ps_bonus, pval_bonus, special
-                            )
-                            
-                            item_type = 'cursed_special' if is_cursed else 'special'
-                            desc = f"{name} {special['name']} (+{att},{ds}ds,[{evn}],{ps}ps,pval:{pval})"
-                            variants.append((dif, desc, category, item_type))
+                    for pd in pd_range:
+                        for ps in ps_range:
+                            for pval in pval_range:
+                                att_bonus = att - base_att
+                                ds_bonus = ds - base_ds
+                                evn_bonus = evn - base_evn
+                                pd_bonus = pd - base_pd
+                                ps_bonus = ps - base_ps
+                                pval_bonus = pval - get_base_pval(tval, sval)
+
+                                dif = calculate_item_difficulty(
+                                    tval, sval, att_bonus, ds_bonus, evn_bonus,
+                                    pd_bonus, ps_bonus, pval_bonus, special
+                                )
+
+                                item_type = 'cursed_special' if is_cursed else 'special'
+                                desc = f"{name} {special['name']} (+{att},{ds}ds,[{evn}],[{pd}d{ps}],pval:{pval})"
+                                variants.append((dif, desc, category, item_type))
     
     return variants
 

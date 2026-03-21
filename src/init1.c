@@ -340,6 +340,10 @@ static flag_name info_flags[] = {
     { "DEEP_CALL",    TR4, TR4_DEEP_CALL },
     { "MIN_DEPTH_SPEED", TR4, TR4_DEEP_CALL },
     { "NO_PREFIX",    TR4, TR4_NO_PREFIX },
+    { "PROT_FIRE",    TR4, TR4_PROT_FIRE },
+    { "PROT_COLD",    TR4, TR4_PROT_COLD },
+    { "PROT_POIS",    TR4, TR4_PROT_POIS },
+    { "PROT_DARK",    TR4, TR4_PROT_DARK },
     { "WEIGHT",       TR4, TR4_WEIGHT },
     { "NEG_WEIGHT",   TR4, TR4_NEG_WEIGHT },
 

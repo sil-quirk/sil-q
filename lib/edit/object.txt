@@ -123,6 +123,7 @@ I:45:32:0
 W:1:0:1:65000
 P:0:0d0:0:0d0
 F:INSTA_ART
+F:PROT_FIRE | PROT_COLD | PROT_POIS | PROT_DARK
 
 
 # The Ring of Melian
@@ -194,6 +195,7 @@ I:45:40:0
 W:1:0:1:1000
 P:0:0d0:0:0d0
 F:INSTA_ART
+F:PROT_FIRE | PROT_COLD | PROT_POIS | PROT_DARK
 
 
 # A base amulet for self-made artifacts
@@ -205,6 +207,7 @@ I:40:40:0
 W:1:0:1:1000
 P:0:0d0:0:0d0
 F:INSTA_ART
+F:PROT_FIRE | PROT_COLD | PROT_POIS | PROT_DARK
 
 
 # The Mighty Hammer 'Grond'
@@ -399,6 +402,7 @@ P:0:0d0:0:1d3
 R:EVN:1
 R:PS:4
 A:3/100
+F:PROT_FIRE | PROT_COLD
 D:A shield of wood and hide, light enough to carry with ease.
 D: Such shields were borne by countless warriors in the long
 D: wars of Beleriand.
@@ -414,6 +418,7 @@ R:ATT:-1
 R:EVN:1
 R:PS:7
 A:6/80
+F:PROT_FIRE | PROT_COLD
 D:A shield of wood banded with iron, tapering to a point at
 D: the base. It offers greater protection than a round shield,
 D: though it slows the arm somewhat.
@@ -429,6 +434,7 @@ R:EVN:1
 R:PS:8
 A:14/0:17/15
 F:IGNORE_ALL | MITHRIL | DAMAGE_SIDES | NOBLE_ITEM
+F:PROT_FIRE | PROT_COLD
 D:A shield of mithril, true silver mined in the deep places
 D: of the earth by the Dwarves. Lighter than a shield of oak
 D: yet harder than iron, it gleams with a pale light. The
@@ -767,7 +773,7 @@ P:0:0d0:-2:1d2
 R:EVN:-1
 R:PS:3
 A:10/40
-F:RES_FIRE | NOBLE_ITEM
+F:RES_FIRE | NOBLE_ITEM | PROT_FIRE
 D:A full-faced helm wrought in a fearsome visage by the
 D: smiths of the Dwarves. The Dwarves fought ever in the
 D: forefront of battle against Morgoth's hosts, and their
@@ -837,7 +843,7 @@ T:11:7
 I:35:20:0
 W:20:0:130:1000
 P:-3:0d0:-3:1d6
-F:INSTA_ART | EVIL_ITEM
+F:INSTA_ART | EVIL_ITEM | MIN_DEPTH_SPEED
 
 
 N:109:& Bat-Fell~
@@ -846,7 +852,7 @@ T:6:18
 I:35:21:0
 W:23:0:50:1000
 P:-1:0d0:+2:0d0
-F:INSTA_ART | EVIL_ITEM
+F:INSTA_ART | EVIL_ITEM | MIN_DEPTH_SPEED
 
 
 ##### Bows #####
@@ -1187,7 +1193,7 @@ I:40:7:1
 W:4:0:1:1
 P:0:0d0:0:0d0
 R:PVAL:3
-A:8/40
+A:8/30
 F:PERCEPTION | RES_HALLU
 B:4/2
 D:An amulet bearing the likeness of an open eye, that
@@ -1202,7 +1208,7 @@ I:40:8:0
 W:5:0:1:0
 P:0:0d0:0:0d0
 A:7/100:14/0
-F:LIGHT_CURSE | EASY_KNOW | NO_SMITHING | EVIL_ITEM
+F:LIGHT_CURSE | EASY_KNOW | NO_SMITHING | EVIL_ITEM | MIN_DEPTH_SPEED
 M:WILL:-2
 M:CON:1
 M:GRA:-2
@@ -1220,9 +1226,9 @@ G:":d
 I:40:9:1
 W:6:0:1:100
 P:0:0d0:0:0d0
-R:PVAL:2
+R:PVAL:3
 A:6/80
-F:STEALTH | UNLIGHT | NO_SMITHING | EVIL_ITEM
+F:STEALTH | UNLIGHT | NO_SMITHING | EVIL_ITEM | MIN_DEPTH_SPEED
 D:An amulet of dull black stone, worn by the spies and
 D: scouts of Morgoth who crept through the passes of the
 D: Ered Gorgoroth under cover of night. The bearer moves
@@ -1236,9 +1242,9 @@ N:142:the Orc-captain
 G:":d
 I:40:10:0
 W:7:0:1:0
-P:1:0d0:0:1d1
+P:2:0d0:2:0d0
 A:7/70
-F:LIGHT_CURSE | EASY_KNOW | NO_SMITHING | EVIL_ITEM
+F:LIGHT_CURSE | EASY_KNOW | NO_SMITHING | EVIL_ITEM | MIN_DEPTH_SPEED
 M:GRA:-1
 D:An amulet of tarnished bronze, bearing the angular mark
 D: of one of Morgoth's war-captains. It lends a dull
@@ -1295,7 +1301,7 @@ I:45:0:1
 W:15:0:1:500
 P:0:0d0:0:0d0
 R:PVAL:3
-A:10/20
+A:10/15
 F:PERCEPTION
 B:4/4
 D:A ring of dark gemstone that seems to hold whispers within
@@ -1331,17 +1337,19 @@ D:A ring of subtle craft that quickens the wearer's instinct
 D: for danger. In battle, blows seem to pass a hair's breadth
 D: wide, guided aside by some unseen hand.
 
+#Amulet now
 
 N:153:Protection
-G:=:d
-I:45:3:0
+G:":d
+I:40:15:0
 W:7:0:1:500
 P:0:0d0:0:1d1
 R:PS:3
 A:5/60
-D:A ring set with an ancient ward that blunts the force of
-D: blows. The damage of fang and blade alike is lessened while
-D: it is worn.
+F:PROT_FIRE | PROT_COLD | PROT_POIS | PROT_DARK
+D:A bright amulet set with an ancient ward that blunts the
+D: force of blows. The damage of fang and blade alike is
+D: lessened while it is worn.
 
 
 N:154:Strength
@@ -1364,7 +1372,7 @@ W:10:0:1:500
 P:0:0d0:0:0d0
 R:PVAL:1
 A:12/15
-F:DEX | SUST_DEX | NOBLE_ITEM
+F:DEX | SUST_DEX 
 D:A ring of delicate craft that lends nimbleness to the wearer.
 D: The hand grows quick and sure, and the body answers the will
 D: with a swiftness beyond its wont.
@@ -1424,7 +1432,7 @@ N:160:Cowardice
 G:=:d
 I:45:10:0
 W:7:0:1:0
-P:0:0d0:0:0d0
+P:0:0d0:1:0d0
 A:5/100
 F:FEAR | EASY_KNOW | LIGHT_CURSE | NO_SMITHING | EVIL_ITEM
 B:2/80
@@ -1438,9 +1446,9 @@ N:161:Bauglir's Vanguard
 G:=:d
 I:45:11:0
 W:6:0:1:300
-P:0:0d0:0:0d0
-A:5/100
-F:RES_STUN | SUST_STR | HUNGER | EASY_KNOW | NO_SMITHING | EVIL_ITEM
+P:0:0d0:0:1d2
+A:5/80
+F:RES_STUN | SUST_STR | HUNGER | EASY_KNOW | NO_SMITHING | EVIL_ITEM | MIN_DEPTH_SPEED
 D:A ring bearing the brand of Bauglir, a name of the Dark
 D: Lord. Said to have been worn by the captains of his
 D: vanguard, it grants a fierce and devouring strength, but
@@ -1465,9 +1473,9 @@ N:163:Angband's Forge
 G:=:d
 I:45:13:0
 W:5:0:1:100
-P:0:0d0:0:0d0
+P:0:0d0:0:1d2
 A:4/80
-F:RES_FIRE | VUL_COLD | EASY_KNOW | NO_SMITHING | EVIL_ITEM
+F:RES_FIRE | VUL_COLD | EASY_KNOW | NO_SMITHING | EVIL_ITEM | MIN_DEPTH_SPEED | PROT_FIRE | LIGHT_CURSE
 D:Forged in the ceaseless fires of Angband beneath the
 D: peaks of Thangorodrim, this ring of black iron shields
 D: its bearer from the fiercest flames. Yet it binds the
@@ -1480,9 +1488,9 @@ N:164:the Deep Cold of Utumno
 G:=:d
 I:45:14:0
 W:5:0:1:100
-P:0:0d0:0:0d0
+P:0:0d0:0:1d2
 A:3/70
-F:RES_COLD | VUL_FIRE | EASY_KNOW | NO_SMITHING | EVIL_ITEM
+F:RES_COLD | VUL_FIRE | EASY_KNOW | NO_SMITHING | EVIL_ITEM | MIN_DEPTH_SPEED | PROT_COLD | LIGHT_CURSE
 D:Hewn from pale stone as cold as the eternal ice that
 D: entombed the ruins of Utumno, this ring wards its
 D: bearer against the cruelest frosts of the North. Yet
@@ -1497,8 +1505,8 @@ I:45:15:0
 W:6:0:1:0
 P:0:0d0:0:0d0
 A:8/60
-F:LIGHT_CURSE | EASY_KNOW | NO_SMITHING | EVIL_ITEM
-M:PERCEPTION:-3
+F:LIGHT_CURSE | EASY_KNOW | NO_SMITHING | EVIL_ITEM | MIN_DEPTH_SPEED
+M:PERCEPTION:-2
 M:STR:1
 M:GRA:-1
 D:A ring of crude iron, stamped with the rune of Angband.
@@ -1515,7 +1523,7 @@ W:4:0:1:0
 P:0:0d0:0:0d0
 R:PVAL:2
 A:4/100:16/0
-F:PERCEPTION | HUNGER | LIGHT_CURSE | NO_SMITHING | FEAR | EVIL_ITEM
+F:PERCEPTION | HUNGER | LIGHT_CURSE | NO_SMITHING | FEAR | EVIL_ITEM | MIN_DEPTH_SPEED
 D:A ring set with a dim red stone, given to the thralls
 D: who kept watch in the dark passages of Angband for
 D: spies and intruders. It sharpens the senses beyond
@@ -1528,9 +1536,9 @@ N:167:Venom
 G:=:d
 I:45:17:0
 W:4:0:1:0
-P:0:0d0:0:0d0
-A:1/80
-F:RES_POIS | FEAR | LIGHT_CURSE | EASY_KNOW | NO_SMITHING | EVIL_ITEM
+P:0:0d0:0:1d2
+A:2/80
+F:RES_POIS | FEAR | UNLIGHT | LIGHT_CURSE | EASY_KNOW | NO_SMITHING | EVIL_ITEM | MIN_DEPTH_SPEED | PROT_POIS
 D:A crude ring of blackened bone, issued in great numbers
 D: to the thralls and lesser orcs who toiled in the
 D: breeding pits of Angband. It wards against the venom
@@ -1547,7 +1555,7 @@ W:12:0:1:300
 P:0:0d0:0:0d0
 R:PVAL:2
 A:10/30
-F:WILL | RES_FEAR | AGGRAVATE | LIGHT_CURSE | NO_SMITHING | EVIL_ITEM
+F:WILL | AGGRAVATE | LIGHT_CURSE | NO_SMITHING | EVIL_ITEM | MIN_DEPTH_SPEED
 D:A ring of cold iron, graven with runes of command in the
 D: Black Speech of Angband. The will of the Dark Lord
 D: echoes faintly within it — the wearer's resolve grows
@@ -1564,7 +1572,7 @@ W:7:0:1:0
 P:0:0d0:0:0d0
 R:PVAL:2
 A:12/20
-F:SONG | FEAR | HAUNTED | LIGHT_CURSE | NO_SMITHING | EVIL_ITEM
+F:SONG | FEAR | HAUNTED | LIGHT_CURSE | NO_SMITHING | EVIL_ITEM | MIN_DEPTH_SPEED
 D:A ring of dark stone that hums with a low and ceaseless
 D: voice, as of fell chants sung in the deeps of Angband.
 D: The bearer's voice gains a strange and terrible power —

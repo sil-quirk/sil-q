@@ -1417,6 +1417,7 @@
 #define SV_AMULET_TINFANG_GELION 10
 #define SV_AMULET_DWARVES 12
 #define SV_AMULET_NIMPHELOS 13
+#define SV_AMULET_PROTECTION 15
 #define SV_AMULET_ELESSAR 16
 #define SV_AMULET_SELF_MADE 40
 
@@ -2046,6 +2047,10 @@
 #define TR4_JINX           0x00010000L /* Ego is a jinx affix */
 #define TR4_DEEP_CALL      0x00020000L /* Speeds the min-depth timer by one extra depth step */
 #define TR4_NO_PREFIX      0x00040000L /* Suffix ego cannot be combined with a prefix */
+#define TR4_PROT_FIRE      0x00080000L /* Item protection counts against fire attacks */
+#define TR4_PROT_COLD      0x00100000L /* Item protection counts against cold attacks */
+#define TR4_PROT_POIS      0x00200000L /* Item protection counts against poison attacks */
+#define TR4_PROT_DARK      0x00400000L /* Item protection counts against dark attacks */
 #define TR4_MIN_DEPTH_SPEED TR4_DEEP_CALL /* Compatibility alias */
 
 /*

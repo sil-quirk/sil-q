@@ -4182,8 +4182,6 @@ static bool kind_is_jewelry(int k_idx)
             return (true);
         if (k_ptr->sval == SV_RING_EVASION)
             return (true);
-        if (k_ptr->sval == SV_RING_PROTECTION)
-            return (true);
         if (k_ptr->sval == SV_RING_ERED_LUIN)
             return (true);
         if (k_ptr->sval == SV_RING_ACCURACY)
@@ -4210,6 +4208,8 @@ static bool kind_is_jewelry(int k_idx)
         if (k_ptr->sval == SV_AMULET_CON)
             return (true);
         if (k_ptr->sval == SV_AMULET_GRA)
+            return (true);
+        if (k_ptr->sval == SV_AMULET_PROTECTION)
             return (true);
         if (k_ptr->sval == SV_AMULET_VIGILANT_EYE)
             return (true);

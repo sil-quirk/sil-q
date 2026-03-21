@@ -876,7 +876,7 @@ static bool describe_sustains(const object_type* o_ptr, u32b f2)
  */
 static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3, u32b f4)
 {
-    cptr good[20], bad[14];
+    cptr good[24], bad[14];
     int gc = 0, bc = 0;
     bool something = false;
 
@@ -928,6 +928,14 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3, u32b
         good[gc++] = "can break the Oath of Feanor on your equipped items";
     if (f4 & (TR4_DEEP_CALL))
         good[gc++] = "bears a Deep Call, speeding the minimum depth timer as if you were one level deeper even in your inventory";
+    if ((f4 & (TR4_PROT_FIRE)) && (o_ptr->pd > 0))
+        good[gc++] = "uses its protection against fire";
+    if ((f4 & (TR4_PROT_COLD)) && (o_ptr->pd > 0))
+        good[gc++] = "uses its protection against cold";
+    if ((f4 & (TR4_PROT_POIS)) && (o_ptr->pd > 0))
+        good[gc++] = "uses its protection against poison";
+    if ((f4 & (TR4_PROT_DARK)) && (o_ptr->pd > 0))
+        good[gc++] = "uses its protection against darkness";
     if ((f4 & (TR4_WEIGHT)) && !(f4 & (TR4_NEG_WEIGHT)))
         good[gc++] = "is unusually heavy for its kind";
     if ((f4 & (TR4_NEG_WEIGHT)) && !(f4 & (TR4_WEIGHT)))

@@ -129,6 +129,40 @@ static int effective_ps(const object_type* o_ptr)
     return ps;
 }
 
+static u32b protection_flag_for_attack_type(int typ)
+{
+    switch (typ)
+    {
+    case GF_FIRE:
+        return TR4_PROT_FIRE;
+    case GF_COLD:
+        return TR4_PROT_COLD;
+    case GF_POIS:
+        return TR4_PROT_POIS;
+    case GF_DARK:
+        return TR4_PROT_DARK;
+    default:
+        return 0L;
+    }
+}
+
+static bool protection_applies_for_attack(const object_type* o_ptr, int typ)
+{
+    u32b ignored = 0L, f4 = 0L;
+    u32b flag;
+
+    if (typ == GF_HURT)
+        return true;
+
+    flag = protection_flag_for_attack_type(typ);
+    if (!flag || !o_ptr->k_idx)
+        return false;
+
+    object_flags4(o_ptr, &ignored, &ignored, &ignored, &f4);
+
+    return (f4 & flag) != 0;
+}
+
 /*
  * Roll the protection dice for all parts of the player's armour
  */
@@ -163,10 +197,10 @@ extern int protection_roll(int typ, bool melee)
         if (i >= INVEN_BODY)
             armour_weight += o_ptr->weight;
 
-        // fire and cold and generic 'hurt' all check the shield
+        // shields can apply their protection to melee or flagged attack types
         if (i == INVEN_ARM)
         {
-            if ((typ == GF_HURT) || (typ == GF_FIRE) || (typ == GF_COLD))
+            if (protection_applies_for_attack(o_ptr, typ))
             {
                 if (blocking_bonus_active())
                 {
@@ -184,10 +218,7 @@ extern int protection_roll(int typ, bool melee)
             }
         }
 
-        // also add protection if damage is generic 'hurt' or it is a ring or
-        // amulet slot
-        else if ((typ == GF_HURT) || (i == INVEN_LEFT) || (i == INVEN_RIGHT)
-            || (i == INVEN_NECK))
+        else if (protection_applies_for_attack(o_ptr, typ))
         {
             if (o_ptr->ps > 0)
             {
@@ -244,10 +275,10 @@ extern int p_min(int typ, bool melee)
         if (i >= INVEN_BODY)
             armour_weight += o_ptr->weight;
 
-        // fire and cold and generic 'hurt' all check the shield
+        // shields can apply their protection to melee or flagged attack types
         if (i == INVEN_ARM)
         {
-            if ((typ == GF_HURT) || (typ == GF_FIRE) || (typ == GF_COLD))
+            if (protection_applies_for_attack(o_ptr, typ))
             {
                 if (blocking_bonus_active())
                 {
@@ -260,9 +291,7 @@ extern int p_min(int typ, bool melee)
             }
         }
 
-        // generic 'hurt' uses everything else too
-        else if ((typ == GF_HURT) || (i == INVEN_LEFT) || (i == INVEN_RIGHT)
-            || (i == INVEN_NECK))
+        else if (protection_applies_for_attack(o_ptr, typ))
         {
             if (o_ptr->ps > 0)
             {
@@ -315,10 +344,10 @@ extern int p_max(int typ, bool melee)
         if (i >= INVEN_BODY)
             armour_weight += o_ptr->weight;
 
-        // fire and cold and generic 'hurt' all check the shield
+        // shields can apply their protection to melee or flagged attack types
         if (i == INVEN_ARM)
         {
-            if ((typ == GF_HURT) || (typ == GF_FIRE) || (typ == GF_COLD))
+            if (protection_applies_for_attack(o_ptr, typ))
             {
                 if (blocking_bonus_active())
                 {
@@ -336,9 +365,7 @@ extern int p_max(int typ, bool melee)
             }
         }
 
-        // generic 'hurt' uses everything else too
-        else if ((typ == GF_HURT) || (i == INVEN_LEFT) || (i == INVEN_RIGHT)
-            || (i == INVEN_NECK))
+        else if (protection_applies_for_attack(o_ptr, typ))
         {
             if (o_ptr->ps > 0)
             {
