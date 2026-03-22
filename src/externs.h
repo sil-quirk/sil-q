@@ -1560,7 +1560,7 @@ extern void break_truce(bool obvious);
 extern bool similar_monsters(int m1y, int m1x, int m2y, int m2x);
 extern void scare_onlooking_friends(const monster_type* m_ptr, int amount);
 extern void create_chosen_artefact(byte name1, int y, int x, bool identify);
-extern void drop_loot(monster_type* m_ptr);
+extern int drop_loot(monster_type* m_ptr);
 extern void apply_quest_rewards(int quest_idx);
 extern bool check_quest_eligibility(int quest_idx, int depth);
 extern void do_cmd_quest_status(void);

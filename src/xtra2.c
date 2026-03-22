@@ -2091,7 +2091,7 @@ extern void create_chosen_artefact(byte name1, int y, int x, bool identify)
 /*
  * Drops the objects
  */
-void drop_loot(monster_type* m_ptr)
+int drop_loot(monster_type* m_ptr)
 {
     int j, y, x;
 
@@ -2411,6 +2411,31 @@ void drop_loot(monster_type* m_ptr)
         /* Take notes on treasure */
         lore_treasure(cave_m_idx[m_ptr->fy][m_ptr->fx], dump_item);
     }
+
+    return dump_item;
+}
+
+static int drop_orcish_liquor(monster_type* m_ptr)
+{
+    monster_race* r_ptr = &r_info[m_ptr->r_idx];
+    object_type object_type_body;
+    object_type* i_ptr = &object_type_body;
+    s16b k_idx;
+
+    if (!(r_ptr->flags3 & (RF3_ORC)) || !percent_chance(15))
+        return 0;
+
+    k_idx = lookup_kind(TV_POTION, SV_POTION_ORCISH_LIQUOR);
+    if (!k_idx)
+    {
+        log_warn("drop_orcish_liquor: missing Orcish Liquor kind");
+        return 0;
+    }
+
+    object_wipe(i_ptr);
+    object_prep(i_ptr, k_idx);
+    drop_near(i_ptr, -1, m_ptr->fy, m_ptr->fx);
+    return 1;
 }
 
 static const char morgoth_second_wind_text[][100]
@@ -2806,14 +2831,26 @@ void monster_death(int m_idx)
      *   3. Dropping items
      */
 
-    // drop the loot for non-territorial monsters
-    if (!(r_ptr->flags2 & (RF2_TERRITORIAL)))
+    // monsters who fell into chasms also don't generate loot...
+    if (!((cave_feat[m_ptr->fy][m_ptr->fx] == FEAT_CHASM)
+            && !(r_ptr->flags2 & (RF2_FLYING))))
     {
-        // monsters who fell into chasms also don't generate loot...
-        if (!((cave_feat[m_ptr->fy][m_ptr->fx] == FEAT_CHASM)
-                && !(r_ptr->flags2 & (RF2_FLYING))))
+        int normal_loot_count = 0;
+        int bonus_loot_count = 0;
+
+        // drop the normal loot for non-territorial monsters
+        if (!(r_ptr->flags2 & (RF2_TERRITORIAL)))
         {
-            drop_loot(m_ptr);
+            normal_loot_count = drop_loot(m_ptr);
+        }
+
+        // Every orc has an additional independent 15% chance to drop Orcish Liquor.
+        bonus_loot_count = drop_orcish_liquor(m_ptr);
+
+        if (bonus_loot_count && (m_ptr->ml || (r_ptr->flags1 & (RF1_UNIQUE))))
+        {
+            lore_treasure(cave_m_idx[m_ptr->fy][m_ptr->fx],
+                normal_loot_count + bonus_loot_count);
         }
     }
 

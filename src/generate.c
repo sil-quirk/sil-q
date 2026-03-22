@@ -15640,7 +15640,7 @@ static int build_partition_population_plans(
     for (int i = 0; i < count; ++i)
     {
         partition_object_counts_from_total_monsters(
-            plans[i].mode, plans[i].monsters_total,
+            plans[i].mode, plans[i].monsters_precurse,
             &plans[i].room_objects, &plans[i].corr_objects);
         rebalance_partition_corridor_objects(&plans[i]);
     }
@@ -15740,6 +15740,30 @@ static int run_partition_monster_pass(
         const partition_population_plan* plan = &plans[i];
         int generic_remaining = plan->monsters_base;
         int themed_remaining = plan->monsters_floor + plan->monsters_depth;
+        int precurse_total = generic_remaining + themed_remaining;
+        int curse_bonus = plan->monsters_curse_bonus;
+
+        if (curse_bonus > 0)
+        {
+            int generic_bonus = 0;
+
+            if (precurse_total > 0 && generic_remaining > 0)
+            {
+                long weighted_generic =
+                    (long)curse_bonus * (long)generic_remaining;
+
+                generic_bonus = (int)(weighted_generic / precurse_total);
+                if ((weighted_generic % precurse_total) * 2 >= precurse_total)
+                    generic_bonus++;
+            }
+
+            if (generic_bonus > curse_bonus)
+                generic_bonus = curse_bonus;
+
+            generic_remaining += generic_bonus;
+            themed_remaining += curse_bonus - generic_bonus;
+        }
+
         int target_total = generic_remaining + themed_remaining;
         int placed = 0;
         int attempts = MAX(1, target_total) * 250;

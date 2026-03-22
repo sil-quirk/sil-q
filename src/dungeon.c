@@ -2074,6 +2074,19 @@ static bool death_spectator_command_allowed(int command)
     }
 }
 
+static bool death_spectator_continue_input(int command)
+{
+    if ((command == ' ') || (command == '\n') || (command == '\r'))
+    {
+        return true;
+    }
+
+    if (steamdeck_controls_active() && (command == steamdeck_confirm_key()))
+        return true;
+
+    return false;
+}
+
 static void death_spectator_prepare_display(void)
 {
     int i;
@@ -2107,7 +2120,8 @@ static void death_spectator_prepare_display(void)
         display_main_combat_rolls();
     }
 
-    msg_print("You linger for a final look. Press Esc to continue to the tomb.");
+    msg_print(
+        "You linger for a final look. Press Esc, Space, or Enter to continue to the tomb.");
 }
 
 void death_spectator_view(void)
@@ -2130,7 +2144,8 @@ void death_spectator_view(void)
     {
         request_command();
 
-        if (p_ptr->command_cmd == ESCAPE)
+        if ((p_ptr->command_cmd == ESCAPE)
+            || death_spectator_continue_input(p_ptr->command_cmd))
         {
             break;
         }
