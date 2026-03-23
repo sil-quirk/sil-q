@@ -12,9 +12,9 @@
 #include "externs.h"
 #include "player/killer.h"
 
-int medicine_bonus(int original)
+static int medicine_count(void)
 {
-    int bonus = 0;
+    int count = 0;
     object_type* o_ptr;
 
     for (int i = INVEN_WIELD; i < INVEN_TOTAL; i++)
@@ -26,10 +26,56 @@ int medicine_bonus(int original)
 
         object_flags(o_ptr, &t1, &t2, &t3);
         if (t3 & (TR3_MEDIC))
-            bonus++;
-    } 
+            count++;
+    }
 
-    return (original / 3) * bonus;
+    return count;
+}
+
+/*
+ * Mixed healing for consumables. The base heal is a flat amount plus a
+ * percentage of maximum HP, then MEDIC equipment boosts the total by roughly
+ * one third per source.
+ */
+static int healing_item_points(int flat, int percent)
+{
+    int points = flat + ((p_ptr->mhp * percent) / 100);
+    int medic = medicine_count();
+
+    if (medic > 0)
+        points += (points / 3) * medic;
+
+    return points;
+}
+
+int consumable_healing_points(const object_type* o_ptr)
+{
+    if (!o_ptr)
+        return 0;
+
+    switch (o_ptr->tval)
+    {
+    case TV_FOOD:
+        if (o_ptr->sval == SV_FOOD_HEALING)
+            return healing_item_points(11, 12);
+        break;
+
+    case TV_POTION:
+        switch (o_ptr->sval)
+        {
+        case SV_POTION_MIRUVOR:
+            return healing_item_points(20, 20);
+
+        case SV_POTION_ORCISH_LIQUOR:
+            return healing_item_points(6, 8);
+
+        case SV_POTION_HEALING:
+            return healing_item_points(15, 16);
+        }
+        break;
+    }
+
+    return 0;
 }
 
 static bool jinx_ego_is_simple(const ego_item_type* e_ptr)
@@ -391,7 +437,7 @@ static bool eat_food(object_type* o_ptr, bool* ident)
         msg_print("It has the bitter taste of medicine.");
         *ident = true;
         set_cut(p_ptr->cut / 2);
-        hp_player(50 + medicine_bonus(50), true, true);
+        hp_player(consumable_healing_points(o_ptr), false, true);
         break;
     }
 
@@ -511,7 +557,7 @@ static bool quaff_potion(object_type* o_ptr, bool* ident)
         (void)set_blind(0);
         (void)set_cut(p_ptr->cut / 2);
         (void)set_afraid(0);
-        (void)hp_player(50 + medicine_bonus(50), true, true);
+        (void)hp_player(consumable_healing_points(o_ptr), false, true);
         if (p_ptr->csp < p_ptr->msp)
         {
             p_ptr->csp = p_ptr->msp;
@@ -533,7 +579,7 @@ static bool quaff_potion(object_type* o_ptr, bool* ident)
         }
 
         (void)set_afraid(0);
-        hp_player(25 + medicine_bonus(25), true, true);
+        hp_player(consumable_healing_points(o_ptr), false, true);
         *ident = true;
         break;
     }
@@ -579,7 +625,7 @@ static bool quaff_potion(object_type* o_ptr, bool* ident)
         msg_print("It has the bitter taste of medicine.");
         *ident = true;
         set_cut(p_ptr->cut / 2);
-        hp_player(50 + medicine_bonus(50), true, true);
+        hp_player(consumable_healing_points(o_ptr), false, true);
         break;
     }
 

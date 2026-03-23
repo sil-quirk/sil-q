@@ -67,6 +67,25 @@ static bool monster_cut_or_stun(int crit_bonus_dice, int net_dam, int effect)
     return (false);
 }
 
+static int ranged_attack_sound(int attack)
+{
+    switch (attack)
+    {
+    case 96 + 0:  /* RF4_ARROW1 */
+    case 96 + 1:  /* RF4_ARROW2 */
+    case 96 + 2:  /* RF4_BOULDER */
+    case 96 + 23: /* RF4_THROW_WEB */
+        return MSG_MONSTER_ATTACK_RANGED;
+    case 96 + 3:  /* RF4_BRTH_FIRE */
+    case 96 + 4:  /* RF4_BRTH_COLD */
+    case 96 + 5:  /* RF4_BRTH_POIS */
+    case 96 + 6:  /* RF4_BRTH_DARK */
+        return MSG_MONSTER_ATTACK_BREATH;
+    default:
+        return -1;
+    }
+}
+
 bool blocking_bonus_active(void)
 {
     bool moved_last_turn = (p_ptr->previous_action[0] >= 1)
@@ -733,6 +752,8 @@ bool make_attack_normal(monster_type* m_ptr)
             hit_result = hit_roll(
                 total_attack_mod, total_evasion_mod, m_ptr, PLAYER, true);
         }
+
+        sound(MSG_MONSTER_ATTACK);
 
         /* Monster hits player */
         if (!effect || (hit_result > 0))
@@ -2322,6 +2343,12 @@ bool make_attack_ranged(monster_type* m_ptr, int attack)
 
     /*Monster has cast a spell*/
     m_ptr->mflag &= ~(MFLAG_ALWAYS_CAST);
+
+    {
+        int attack_sound = ranged_attack_sound(attack);
+        if (attack_sound >= 0)
+            sound(attack_sound);
+    }
 
     /*** Execute the ranged attack chosen. ***/
     switch (attack)

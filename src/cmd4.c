@@ -12361,6 +12361,7 @@ static cptr option_menu_label(int opt)
         case OPT_story_monster_desc_pane: return narrow ? "Story mon pane" : "Story font: monster pane";
         case OPT_valorous_oath_auto_attack_safety: return narrow ? "Valorous safety" : "Valorous oath safety";
         case OPT_forgo_attacking_unwary: return narrow ? "Skip unwary hits" : "Forgo unwary attacks";
+        case OPT_assassination_over_charge: return narrow ? "Stealth over charge" : "Assassination over Charge";
         case OPT_stop_singing_on_rest: return narrow ? "Stop song on rest" : "Stop singing on rest";
         case OPT_know_monster_info: return narrow ? "Know monsters" : "Know monster info";
         case OPT_visual_recognition: return narrow ? "Need light to spot" : "Need light to spot";

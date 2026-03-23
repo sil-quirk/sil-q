@@ -1181,6 +1181,13 @@ typedef enum
     DROP_ALIGNMENT_EVIL = 2
 } drop_alignment;
 
+typedef enum
+{
+    DROP_ALIGNMENT_FILTER_ANY = 0,
+    DROP_ALIGNMENT_FILTER_NOBLE = 1,
+    DROP_ALIGNMENT_FILTER_EVIL = 2
+} drop_alignment_filter;
+
 static bool merge_drop_alignment_from_flags4(drop_alignment* alignment, u32b flags4)
 {
     bool noble = (flags4 & TR4_NOBLE_ITEM) != 0;
@@ -2382,6 +2389,7 @@ typedef struct
     bool allow_noble; /* explicit override for noble-tagged entries */
     bool allow_evil; /* explicit override for evil-tagged entries */
     bool allow_noble_from_quality; /* whether GOOD+ quality may include noble-tagged entries */
+    drop_alignment_filter alignment_filter; /* restrict to a specific alignment-tagged pool */
     bool allow_damaged; /* whether damaged items may participate in non-damaged profiles */
     int artefact_weight_multiplier; /* group weight multiplier for artefacts */
     int noble_rarity_bonus; /* additive rarity bonus for noble entries */
@@ -2703,6 +2711,12 @@ static bool collect_candidate_entries(
                 continue;
             }
         }
+
+        if (req->alignment_filter == DROP_ALIGNMENT_FILTER_NOBLE && !e.noble)
+            continue;
+
+        if (req->alignment_filter == DROP_ALIGNMENT_FILTER_EVIL && !e.evil)
+            continue;
 
         if (e.noble)
         {
@@ -3531,10 +3545,46 @@ static drop_entry* drop_try_pick(drop_request* req, int legal_depth,
     return chosen;
 }
 
+static void drop_apply_chosen_entry(const drop_entry* chosen, int depth,
+    object_type* out)
+{
+    object_wipe(out);
+    object_copy(out, &chosen->obj);
+
+    /* Catalog entries pin baseline weight for stable difficulty bands.
+     * Restore the normal live spawn roll once the final affixes are known. */
+    object_refresh_weight(out);
+
+    /* Restore runtime quantities (fuel/charges/stacks) that are not baked into templates */
+    drop_apply_spawn_quantities(out);
+    if (drop_object_is_damaged(out))
+    {
+        /* Damage is visible wear-and-tear rather than hidden magic. */
+        object_aware(out);
+        object_known(out);
+    }
+
+    if (chosen->group_kind == DROP_GROUP_ARTIFACT)
+    {
+        artefact_type* a_ptr = &a_info[chosen->group_id];
+        if (!a_ptr->cur_num)
+            a_ptr->cur_num = 1;
+    }
+    if (out->tval == TV_ARROW && !artefact_p(out))
+    {
+        int depth_adjust = MORGOTH_DEPTH - depth;
+        out->number = 20 + damroll(1, 10 + MAX(0, depth_adjust));
+        if (out->number > 48)
+            out->number = 48;
+    }
+    apply_autoinscription(out);
+}
+
 static bool drop_generate_object_internal(int depth, drop_quality quality,
     int min_depth_penalty_depth, int droptype, int extra_bonus, bool allow_artefacts,
     int artefact_weight_multiplier, bool artefacts_only,
-    const drop_profile* profile, object_type* out)
+    const drop_profile* profile, drop_alignment_filter alignment_filter,
+    object_type* out)
 {
     if (min_depth_penalty_depth < 1)
         min_depth_penalty_depth = 1;
@@ -3568,6 +3618,7 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     req.allow_noble = drop_allow_noble;
     req.allow_evil = drop_allow_evil;
     req.allow_noble_from_quality = drop_allow_noble_from_quality;
+    req.alignment_filter = alignment_filter;
     req.artefact_weight_multiplier
         = (allow_artefacts && artefact_weight_multiplier > 1)
         ? artefact_weight_multiplier
@@ -3818,38 +3869,7 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     }
 
     if (ok)
-    {
-        object_wipe(out);
-        object_copy(out, &chosen->obj);
-
-        /* Catalog entries pin baseline weight for stable difficulty bands.
-         * Restore the normal live spawn roll once the final affixes are known. */
-        object_refresh_weight(out);
-
-        /* Restore runtime quantities (fuel/charges/stacks) that are not baked into templates */
-        drop_apply_spawn_quantities(out);
-        if (drop_object_is_damaged(out))
-        {
-            /* Damage is visible wear-and-tear rather than hidden magic. */
-            object_aware(out);
-            object_known(out);
-        }
-        
-        if (chosen->group_kind == DROP_GROUP_ARTIFACT)
-        {
-            artefact_type* a_ptr = &a_info[chosen->group_id];
-            if (!a_ptr->cur_num)
-                a_ptr->cur_num = 1;
-        }
-        if (out->tval == TV_ARROW && !artefact_p(out))
-        {
-            int depth_adjust = MORGOTH_DEPTH - depth;
-            out->number = 20 + damroll(1, 10 + MAX(0, depth_adjust));
-            if (out->number > 48)
-                out->number = 48;
-        }
-        apply_autoinscription(out);
-    }
+        drop_apply_chosen_entry(chosen, depth, out);
 
     mem_free_null(candidates);
     return ok;
@@ -3860,7 +3880,7 @@ bool drop_generate_object_with_bonus(int depth, drop_quality quality,
 {
     return drop_generate_object_internal(
         depth, quality, depth, droptype, extra_bonus, allow_artefacts, 1, false,
-        NULL, out);
+        NULL, DROP_ALIGNMENT_FILTER_ANY, out);
 }
 
 bool drop_generate_object_profiled(int depth, drop_quality quality,
@@ -3869,7 +3889,7 @@ bool drop_generate_object_profiled(int depth, drop_quality quality,
 {
     return drop_generate_object_internal(
         depth, quality, depth, droptype, extra_bonus, allow_artefacts, 1, false,
-        profile, out);
+        profile, DROP_ALIGNMENT_FILTER_ANY, out);
 }
 
 bool drop_generate_object_with_bonus_depths(int depth, int min_depth_penalty_depth,
@@ -3877,7 +3897,8 @@ bool drop_generate_object_with_bonus_depths(int depth, int min_depth_penalty_dep
     object_type* out)
 {
     return drop_generate_object_internal(depth, quality, min_depth_penalty_depth,
-        droptype, extra_bonus, allow_artefacts, 1, false, NULL, out);
+        droptype, extra_bonus, allow_artefacts, 1, false, NULL,
+        DROP_ALIGNMENT_FILTER_ANY, out);
 }
 
 bool drop_generate_object_profiled_depths(int depth, int min_depth_penalty_depth,
@@ -3885,7 +3906,8 @@ bool drop_generate_object_profiled_depths(int depth, int min_depth_penalty_depth
     const drop_profile* profile, object_type* out)
 {
     return drop_generate_object_internal(depth, quality, min_depth_penalty_depth,
-        droptype, extra_bonus, allow_artefacts, 1, false, profile, out);
+        droptype, extra_bonus, allow_artefacts, 1, false, profile,
+        DROP_ALIGNMENT_FILTER_ANY, out);
 }
 
 bool drop_generate_object_profiled_depths_biased(int depth,
@@ -3895,7 +3917,7 @@ bool drop_generate_object_profiled_depths_biased(int depth,
 {
     return drop_generate_object_internal(depth, quality, min_depth_penalty_depth,
         droptype, extra_bonus, allow_artefacts, artefact_weight_multiplier, false,
-        profile, out);
+        profile, DROP_ALIGNMENT_FILTER_ANY, out);
 }
 
 bool drop_generate_guaranteed_artefact(int depth,
@@ -3903,5 +3925,110 @@ bool drop_generate_guaranteed_artefact(int depth,
     const drop_profile* profile, object_type* out)
 {
     return drop_generate_object_internal(depth, quality, min_depth_penalty_depth,
-        droptype, 0, true, 1, true, profile, out);
+        droptype, 0, true, 1, true, profile, DROP_ALIGNMENT_FILTER_ANY, out);
+}
+
+bool drop_generate_chasm_sanctum_object(int depth, object_type* out)
+{
+    drop_request req = { 0 };
+    drop_entry* candidates = NULL;
+    size_t cand_count = 0;
+    size_t strict_count = 0;
+    size_t relaxed_count = 0;
+    drop_entry* chosen = NULL;
+    int legal_depth;
+    int penalty_depth;
+    bool allow_artefacts = !(adult_no_artefacts || birth_no_artefacts);
+
+    if (!out)
+        return false;
+
+    if (depth < 1)
+        depth = 1;
+
+    legal_depth = depth;
+    penalty_depth = depth + 5;
+
+    if (p_ptr)
+    {
+        int current_depth = (p_ptr->depth > 0) ? p_ptr->depth : 1;
+        if (legal_depth > current_depth)
+            legal_depth = current_depth;
+    }
+
+    drop_request_apply_profile(&req, NULL);
+    req.depth = depth;
+    req.quality = DROP_QUALITY_SUPERB;
+    req.cat = DROP_CAT_WEAPON;
+    req.cat_mask = (1U << DROP_CAT_WEAPON)
+        | (1U << DROP_CAT_ARMOR)
+        | (1U << DROP_CAT_JEWELRY);
+    req.legal_depth = legal_depth;
+    req.min_depth_penalty_depth = penalty_depth;
+    req.difficulty_bonus = DROP_BONUS_SUPERB;
+    req.is_supply = false;
+    req.droptype = DROP_TYPE_UNTHEMED;
+    req.allow_artefacts = allow_artefacts;
+    req.artefacts_only = true;
+    req.allow_noble = false;
+    req.allow_evil = true;
+    req.allow_noble_from_quality = false;
+    req.alignment_filter = DROP_ALIGNMENT_FILTER_EVIL;
+    req.artefact_weight_multiplier = 1;
+    req.noble_rarity_bonus = 0;
+
+    /* Chasm sanctums prefer EVIL artefacts in a wider +-5 band around the
+     * jewelled-chest style +15 difficulty roll. */
+    {
+        int sides = 25 + (3 * legal_depth) / 4;
+        int roll1;
+        int roll2;
+        int min_roll;
+        int base_calc;
+
+        if (sides < 1)
+            sides = 1;
+        roll1 = dieroll(sides);
+        roll2 = dieroll(sides);
+        min_roll = MIN(roll1, roll2);
+        base_calc = (int)(1.25 * legal_depth) - 19 + min_roll;
+        req.base_roll = base_calc + req.difficulty_bonus;
+        req.lower = req.base_roll - 5;
+        req.upper = req.base_roll + 5;
+
+        if (gen_log_initialized)
+        {
+            gen_log_write("DROP_SANCTUM",
+                "artefact_pass depth=%d legal_depth=%d target=%d band=%d..%d sides=%d roll1=%d roll2=%d min=%d",
+                depth, legal_depth, req.base_roll, req.lower, req.upper,
+                sides, roll1, roll2, min_roll);
+        }
+    }
+
+    if (allow_artefacts && req.upper >= DROP_MIN_DIFFICULTY)
+    {
+        chosen = drop_try_pick(&req, legal_depth, &candidates, &cand_count,
+            &strict_count, &relaxed_count, false, false);
+    }
+
+    if (chosen)
+    {
+        drop_apply_chosen_entry(chosen, depth, out);
+        mem_free_null(candidates);
+        return true;
+    }
+
+    mem_free_null(candidates);
+
+    if (gen_log_initialized)
+    {
+        gen_log_write("DROP_SANCTUM",
+            "fallback_pass depth=%d legal_depth=%d penalty_depth=%d quality=%s alignment=evil_only",
+            depth, legal_depth, penalty_depth,
+            drop_quality_name(DROP_QUALITY_SUPERB));
+    }
+
+    return drop_generate_object_internal(depth, DROP_QUALITY_SUPERB, penalty_depth,
+        DROP_TYPE_UNTHEMED, 0, allow_artefacts, 1, false, NULL,
+        DROP_ALIGNMENT_FILTER_EVIL, out);
 }

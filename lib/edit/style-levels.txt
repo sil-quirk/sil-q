@@ -44,6 +44,22 @@ P:BIG_ICE:1:20: 59:1
 P:BIG_POIS:1:20: 55:1
 P:CHASM:1:20: 30:1
 
+# Cavey walls: Grey51/Grey53 always, and the rest only when that depth's
+# room-style pool already includes them.
+P:CA:1:4: 52:1 54:1
+P:CA:5: 52:1 54:1 7:1
+P:CA:6: 52:1 54:1 5:1 7:1
+P:CA:7: 52:1 54:1 5:1 7:1 9:1
+P:CA:8: 52:1 54:1 5:1 9:1 10:1
+P:CA:9: 52:1 54:1 9:1 10:1
+P:CA:10: 52:1 54:1 10:1 14:1
+P:CA:11: 52:1 54:1 14:1
+P:CA:12:14: 52:1 54:1
+P:CA:15: 52:1 54:1 27:1
+P:CA:16:17: 52:1 54:1
+P:CA:18:19: 52:1 54:1 37:1
+P:CA:20: 52:1 54:1
+
 # Big cave type weights (per-depth). Defaults to equal odds if omitted.
 # B:<depth>: ICE:<weight> FIRE:<weight> POIS:<weight>
 # B:<min>:<max>: ICE:<weight> FIRE:<weight> POIS:<weight>

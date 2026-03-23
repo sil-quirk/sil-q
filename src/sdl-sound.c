@@ -109,7 +109,10 @@ static bool is_sound_enabled(int sound_idx)
     // Combat
     if (sound_idx == MSG_HIT || sound_idx == MSG_SHOOT || sound_idx == MSG_DIG ||
         (sound_idx >= MSG_WEAPON_SLASH_LIGHT && sound_idx <= MSG_WEAPON_UNARMED) ||
-        sound_idx == MSG_WEAPON_SLASH_MEDIUM || sound_idx == MSG_MISS || sound_idx == MSG_KILL) {
+        sound_idx == MSG_WEAPON_SLASH_MEDIUM || sound_idx == MSG_MISS ||
+        sound_idx == MSG_KILL || sound_idx == MSG_MONSTER_ATTACK ||
+        sound_idx == MSG_MONSTER_ATTACK_RANGED ||
+        sound_idx == MSG_MONSTER_ATTACK_BREATH) {
         return sound_state.enable_combat;
     }
     
@@ -140,7 +143,10 @@ static float get_sound_volume(int sound_idx)
     // Combat
     if (sound_idx == MSG_HIT || sound_idx == MSG_SHOOT || sound_idx == MSG_DIG ||
         (sound_idx >= MSG_WEAPON_SLASH_LIGHT && sound_idx <= MSG_WEAPON_UNARMED) ||
-        sound_idx == MSG_WEAPON_SLASH_MEDIUM || sound_idx == MSG_MISS || sound_idx == MSG_KILL) {
+        sound_idx == MSG_WEAPON_SLASH_MEDIUM || sound_idx == MSG_MISS ||
+        sound_idx == MSG_KILL || sound_idx == MSG_MONSTER_ATTACK ||
+        sound_idx == MSG_MONSTER_ATTACK_RANGED ||
+        sound_idx == MSG_MONSTER_ATTACK_BREATH) {
         return sound_state.volume_combat;
     }
     
@@ -325,7 +331,7 @@ static bool sdl_sound_load_default_config(struct sound_config* defaults)
 
 static void sdl_sound_fill_missing_events_from_defaults(struct sound_config* config)
 {
-    if (!config || sdl_sound_has_any_events(config)) {
+    if (!config) {
         return;
     }
 

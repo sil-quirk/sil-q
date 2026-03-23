@@ -63,6 +63,9 @@
 		"drop_generic":	"sound/drop_generic",
 		"use_gem":	"sound/gem",
 		"zap":	"sound/stuff",
-		"level":	"sound/level"
+		"level":	"sound/level",
+		"monster_attack":	"sound/monster_attack",
+		"monster_attack_ranged":	"sound/monster_attack_ranged",
+		"monster_attack_breath":	"sound/monster_attack_breath"
 	}
 }

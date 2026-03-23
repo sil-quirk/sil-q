@@ -9021,7 +9021,7 @@ void do_cmd_throw(bool automatic)
             int throw_attack_penalty = throwing_range_attack_penalty(dist, tdis);
             int throw_ds_penalty = throwing_range_ds_penalty(dist, tdis);
 
-            // Determine the player's attack score after all modifiers
+            // Unaware targets are easier to hit with well-placed throws too.
             int stealth_bonus = stealth_melee_bonus(m_ptr, true);
             total_attack_mod
                 = total_player_attack(m_ptr, attack_mod + stealth_bonus);

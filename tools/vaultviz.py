@@ -14,6 +14,7 @@ Examples:
   py tools/vaultviz.py render --vault 220 --styles 0-8 --scale 3
   py tools/vaultviz.py render --vault \"Dragon Lair\" --styles vault --out-dir scripts/output/vaultviz
   py tools/vaultviz.py sheet --vault 220 --styles vault --cols 4 --out scripts/output/vaultviz/dragon_sheet.png
+  py tools/vaultviz.py sheet --vault 180 --styles global --cols 5
 
 PNG output requires Pillow:
   py -m pip install pillow
@@ -569,6 +570,10 @@ def _select_styles(
         if not selector:
             continue
         selector_lower = selector.lower()
+
+        if selector_lower == "global":
+            selected.extend(all_style_ids)
+            continue
 
         if selector_lower in {"all", "*"}:
             # If a specific vault is selected and it has S: style tokens, treat
@@ -1176,7 +1181,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--styles",
         action="append",
         default=[],
-        help="Style selectors: auto|vault|level|all|0-5,10|<name-substring> (repeatable)",
+        help="Style selectors: auto|vault|level|all(vault-scoped)|global(all ids)|0-5,10|<name-substring> (repeatable)",
     )
     render_p.add_argument("--depth", type=int, help="Depth hint to resolve 'level' / '*' / '$' style selectors")
     render_p.add_argument("--tileset", default=str(DEFAULT_TILESET), help="Tileset PNG path (default: 16x16.png)")
@@ -1209,7 +1214,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--styles",
         action="append",
         default=[],
-        help="Style selectors: auto|vault|level|all|0-5,10|<name-substring> (repeatable)",
+        help="Style selectors: auto|vault|level|all(vault-scoped)|global(all ids)|0-5,10|<name-substring> (repeatable)",
     )
     sheet_p.add_argument("--depth", type=int, help="Depth hint to resolve 'level' / '*' / '$' style selectors")
     sheet_p.add_argument("--tileset", default=str(DEFAULT_TILESET), help="Tileset PNG path (default: 16x16.png)")

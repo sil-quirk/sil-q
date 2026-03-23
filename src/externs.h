@@ -855,6 +855,7 @@ extern int hint_messages_add_for_load(
 extern int hint_messages_add_note_lines(
     const char note_lines[][100], const hint_message_meta* meta);
 extern void show_hint_message_screen(int index);
+extern void trigger_chasm_sanctum_ambush_if_needed(int y, int x);
 extern void generate_cave(void);
 
 #ifdef ALLOW_DEBUG
@@ -1145,6 +1146,7 @@ extern bool drop_generate_object_profiled_depths_biased(int depth,
 extern bool drop_generate_guaranteed_artefact(int depth,
     int min_depth_penalty_depth, drop_quality quality, int droptype,
     const drop_profile* profile, object_type* out);
+extern bool drop_generate_chasm_sanctum_object(int depth, object_type* out);
 extern void drop_set_chest_vault_type(int vault_type);
 extern void drop_set_chest_mode(int mode);
 extern void drop_set_chest_material_weights(int wooden_pct, int steel_pct,
@@ -1381,6 +1383,7 @@ extern int apply_autoinscription(object_type* o_ptr);
 extern char* squelch_to_label(int squelch);
 
 /*use-obj.c*/
+extern int consumable_healing_points(const object_type* o_ptr);
 extern bool use_object(object_type* o_ptr, bool* ident);
 extern bool use_sanctity_gem_on(object_type* target_o_ptr, bool* ident);
 

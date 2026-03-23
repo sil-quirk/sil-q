@@ -183,7 +183,7 @@ cptr option_text[OPT_MAX] = {
     "visual_recognition", /* OPT_visual_recognition */
     "stealth_vision", /* OPT_stealth_vision */
     "sleep_icon", /* OPT_sleep_icon */
-    NULL, /* xxx expand_look */
+    "assassination_over_charge", /* OPT_assassination_over_charge */
     NULL, /* xxx expand_list */
     NULL, /* xxx view_perma_grids */
     NULL, /* xxx view_torch_grids */
@@ -425,7 +425,7 @@ cptr option_desc[OPT_MAX] = {
     "Smart monsters need light to visually recognize you", /* OPT_visual_recognition */
     "Stealth vision mode: show when monsters can see you", /* OPT_stealth_vision */
     "Show an overlay icon on sleeping monsters", /* OPT_sleep_icon */
-    NULL, /* xxx expand_look */
+    "On unaware targets, use Assassination instead of Charge bonuses", /* OPT_assassination_over_charge */
     NULL, /* xxx expand_list */
     NULL, /* xxx view_perma_grids */
     NULL, /* xxx view_torch_grids */
@@ -684,7 +684,7 @@ const bool option_norm[OPT_MAX] = {
     true, /* OPT_visual_recognition */
     true, /* OPT_stealth_vision */
     true, /* OPT_sleep_icon */
-    false, /* xxx expand_look */
+    false, /* OPT_assassination_over_charge */
     false, /* xxx expand_list */
     false, /* xxx view_perma_grids */
     false, /* xxx view_torch_grids */
@@ -933,11 +933,12 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
     /*** Game-Play ***/
 
     { OPT_valorous_oath_auto_attack_safety, OPT_forgo_attacking_unwary,
-        OPT_stop_singing_on_rest, OPT_know_monster_info, OPT_visual_recognition,
+        OPT_assassination_over_charge, OPT_stop_singing_on_rest,
+        OPT_know_monster_info, OPT_visual_recognition,
         OPT_disable_skeleton_note_tutorial, OPT_smaller_level_size, OPT_more_stairs,
         OPT_vault_drop_frequency, OPT_noble_item_spawn_mode, OPT_unlock_blitz_mode,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
+        OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Efficiency ***/
 

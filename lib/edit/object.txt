@@ -1907,8 +1907,9 @@ F:EASY_KNOW
 D:A cordial of surpassing virtue, said to be in the manner
 D: of the healing drink of the Valar in the Blessed Realm.
 D: It cures stunning, confusion, hallucination, poison,
-D: blindness, cuts, and fear. It restores half your health,
-D: and all your voice.
+D: blindness, and fear. It halves any current bleeding,
+D: restores 20 health and 20% of your maximum health,
+D: and restores all your voice.
 
 
 N:315:Orcish Liquor
@@ -1921,8 +1922,8 @@ F:EASY_KNOW
 D:A foul brew distilled in the pits of Angband, thick and black
 D: and burning to the throat. The orcs of Morgoth drink it before
 D: battle to dull their pain and steel their craven hearts. It
-D: banishes all fear, cures a quarter of your health, and stuns
-D: you (for 2d4 turns).
+D: banishes all fear, restores 6 health and 8% of your
+D: maximum health, and stuns you (for 2d4 turns).
 
 
 N:316:Esgalduin
@@ -1960,8 +1961,8 @@ P:0:0d0:0:0d0
 A:9/60
 F:EASY_KNOW
 D:A draught of potent healing, brewed with the virtue of
-D: herbs and ancient craft. It heals all cuts and restores
-D: half your health.
+D: herbs and ancient craft. It halves any current bleeding
+D: and restores 15 health and 16% of your maximum health.
 
 
 N:319:Voice
@@ -2275,9 +2276,10 @@ A:7/30
 F:EASY_KNOW
 D:An herb of ancient virtue, long known to the healers of the
 D: Eldar. Its leaves, when eaten, close wounds and ease pain,
-D: mending what battle has broken. It cures all cuts and heals
-D: half of your health. Herbs provide nourishment for about 250
-D: turns under normal conditions.
+D: mending what battle has broken. It halves any current
+D: bleeding and restores 11 health and 12% of your maximum
+D: health. Herbs provide nourishment for about 250 turns
+D: under normal conditions.
 
 
 N:384:Restoration

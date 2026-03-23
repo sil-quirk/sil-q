@@ -1124,7 +1124,7 @@ int crit_bonus(int hit_result, int weight, const monster_race* r_ptr,
                 || object_grants_ability(o_ptr, S_MEL, MEL_THROWING))
             && player_can_treat_as_throwing(o_ptr))
         {
-            crit_seperation -= 20;
+            crit_seperation -= 10;
         }
 
         // Can have improved criticals for melee with one handed weapons
@@ -5177,6 +5177,7 @@ void py_attack_aux(int y, int x, int attack_type)
     int blows;
     int mdd, mds;
     int stealth_bonus = 0;
+    int assassination_bonus = 0;
     int monster_ripostes = 0;
     int effective_strength;
     int damage_type = GF_HURT;
@@ -5426,27 +5427,44 @@ void py_attack_aux(int y, int x, int attack_type)
             object_flags4(o_ptr, &f1, &f2, &f3, &f4);
         }
 
+        if (is_normal_attack(attack_type))
+        {
+            assassination_bonus = stealth_melee_bonus(m_ptr, false);
+        }
+        else
+        {
+            assassination_bonus = 0;
+        }
+
         // +3 Str/Dex on first blow when charging
         if ((num == 1) && valid_charge(y, x, attack_type))
         {
-            int str_adjustment = 3;
+            if (!(assassination_over_charge && assassination_bonus > 0))
+            {
+                int str_adjustment = 3;
 
-            if (rapid_attack)
-                str_adjustment -= 3;
+                if (rapid_attack)
+                    str_adjustment -= 3;
 
-            charge = true;
-            attack_mod += 3;
+                charge = true;
+                attack_mod += 3;
 
-            // undo strength adjustment to the attack (if any)
-            mds = total_mds(o_ptr, str_adjustment);
+                // undo strength adjustment to the attack (if any)
+                mds = total_mds(o_ptr, str_adjustment);
+
+                if (assassination_bonus > 0)
+                {
+                    msg_print(
+                        "(Assassination did not apply because this was a charge attack.)");
+                }
+            }
         }
 
-        // reward melee attacks on sleeping monsters by characters with the
-        // asssassination ability (only when a main, flanking, or controlled
-        // retreat attack, and not charging)
-        if ((is_normal_attack(attack_type)) && !charge)
+        // reward attacks on unaware monsters for characters with the
+        // assassination ability, unless charge takes priority
+        if (is_normal_attack(attack_type) && !charge)
         {
-            stealth_bonus = stealth_melee_bonus(m_ptr, false);
+            stealth_bonus = assassination_bonus;
         }
         else
         {
@@ -6571,6 +6589,9 @@ void move_player(int dir)
         /* New location */
         y = py = p_ptr->py;
         x = px = p_ptr->px;
+
+        /* Chasm sanctum EVIL drops trigger their ambush on entry. */
+        trigger_chasm_sanctum_ambush_if_needed(y, x);
 
         /* Spontaneous Searching */
         perceive();

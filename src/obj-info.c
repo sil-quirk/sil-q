@@ -141,6 +141,52 @@ static void text_out_to_object_info_buffer(byte attr, cptr str)
     }
 }
 
+static bool describe_consumable_healing(const object_type* o_ptr)
+{
+    int potential, missing, actual;
+
+    if (!object_aware_p(o_ptr) && !object_known_p(o_ptr)
+        && !(o_ptr->ident & IDENT_SPOIL))
+    {
+        return false;
+    }
+
+    potential = consumable_healing_points(o_ptr);
+    if (potential <= 0)
+        return false;
+
+    missing = p_ptr->mhp - p_ptr->chp;
+    if (missing < 0)
+        missing = 0;
+
+    actual = MIN(potential, missing);
+
+    p_text_out((o_ptr->number == 1) ? "It restores " : "Each one restores ");
+
+    if (actual == potential)
+    {
+        p_text_out_c(TERM_L_GREEN, format("%d health", actual));
+        p_text_out(" right now.  ");
+    }
+    else
+    {
+        p_text_out("up to ");
+        p_text_out_c(TERM_L_GREEN, format("%d health", potential));
+
+        if (actual > 0)
+        {
+            p_text_out(format(
+                "; at your current wounds it would restore %d.  ", actual));
+        }
+        else
+        {
+            p_text_out("; you are already at full health.  ");
+        }
+    }
+
+    return true;
+}
+
 static void output_list(cptr list[], int n)
 {
     int i;
@@ -1491,6 +1537,8 @@ bool object_info_out(const object_type* o_ptr)
     object_flags4(o_ptr, &ff1, &ff2, &ff3, &ff4);
 
     /* Describe the object */
+    if (describe_consumable_healing(o_ptr))
+        something = true;
     if (describe_stats(o_ptr, f1))
         something = true;
     if (describe_neg_stats(o_ptr, f1))

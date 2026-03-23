@@ -344,6 +344,9 @@ const cptr angband_sound_name[MSG_MAX] = {
     "drop_generic",
     "use_gem",
     "activate",
+    "monster_attack",
+    "monster_attack_ranged",
+    "monster_attack_breath",
 };
 
 /*

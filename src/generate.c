@@ -202,6 +202,133 @@ static bool is_vault_monster_token(char symbol)
     return false;
 }
 
+static bool chasm_mask_has_square_space(
+    const bool* mask, int h, int w, int cy, int cx, int radius)
+{
+    for (int dy = -radius; dy <= radius; ++dy)
+    {
+        for (int dx = -radius; dx <= radius; ++dx)
+        {
+            int ny = cy + dy;
+            int nx = cx + dx;
+
+            if (ny < 0 || nx < 0 || ny >= h || nx >= w)
+                return false;
+            if (!mask[ny * w + nx])
+                return false;
+        }
+    }
+
+    return true;
+}
+
+static bool choose_chasm_sanctum_seed(
+    const bool* is_cave, int h, int w, int* out_y, int* out_x)
+{
+    int center_y = h / 2;
+    int center_x = w / 2;
+    int best_score = 0;
+    bool found = false;
+
+    for (int y = 2; y < h - 2; ++y)
+    {
+        for (int x = 2; x < w - 2; ++x)
+        {
+            int score;
+
+            if (!is_cave[y * w + x])
+                continue;
+            if (!chasm_mask_has_square_space(is_cave, h, w, y, x, 2))
+                continue;
+
+            score = distance(y, x, center_y, center_x);
+            if (!found || score < best_score)
+            {
+                best_score = score;
+                *out_y = y;
+                *out_x = x;
+                found = true;
+            }
+        }
+    }
+
+    return found;
+}
+
+static bool place_exact_skeleton_at(int y, int x, byte sval)
+{
+    object_type object_type_body;
+    object_type* i_ptr = &object_type_body;
+    s16b k_idx;
+
+    if (!in_bounds_fully(y, x))
+        return false;
+    if (cave_feat[y][x] != FEAT_FLOOR)
+        return false;
+    if (cave_o_idx[y][x] != 0)
+        return false;
+
+    k_idx = lookup_kind(TV_SKELETON, sval);
+    if (!k_idx)
+        return false;
+
+    object_wipe(i_ptr);
+    object_prep(i_ptr, k_idx);
+    i_ptr->pval = 1;
+
+    return (floor_carry(y, x, i_ptr) != 0);
+}
+
+static bool place_chasm_sanctum_drop_at(int y, int x)
+{
+    object_type object_type_body;
+    object_type* i_ptr = &object_type_body;
+
+    if (!in_bounds_fully(y, x))
+        return false;
+    if (cave_feat[y][x] != FEAT_FLOOR)
+        return false;
+    if (cave_o_idx[y][x] != 0)
+        return false;
+
+    object_wipe(i_ptr);
+    if (!drop_generate_chasm_sanctum_object(p_ptr->depth, i_ptr))
+        return false;
+
+    i_ptr->ident |= IDENT_CHASM_SANCTUM_ITEM;
+
+    return (floor_carry(y, x, i_ptr) != 0);
+}
+
+static void place_chasm_island_sanctum(int cy, int cx)
+{
+    for (int dy = -1; dy <= 1; ++dy)
+    {
+        for (int dx = -1; dx <= 1; ++dx)
+        {
+            int ny = cy + dy;
+            int nx = cx + dx;
+
+            if (dy == 0 && dx == 0)
+                continue;
+            if (!in_bounds_fully(ny, nx))
+                continue;
+            if (cave_feat[ny][nx] != FEAT_FLOOR)
+                continue;
+
+            cave_set_feat(ny, nx, FEAT_GLYPH);
+            cave_info[ny][nx] |= (CAVE_ROOM | CAVE_CHASM_AREA);
+        }
+    }
+
+    if (!place_chasm_sanctum_drop_at(cy, cx))
+    {
+        log_warn("Chasm sanctum: failed to place EVIL drop at (%d,%d), falling back to elf skeleton",
+            cy, cx);
+        (void)place_exact_skeleton_at(cy, cx, SV_SKELETON_ELF);
+    }
+}
+
 typedef enum {
     LEVEL_GEN_STAGE_PLANNING = 0,
     LEVEL_GEN_STAGE_FOUNDATIONS,
@@ -4529,6 +4656,21 @@ static bool carve_chasm_with_bridges(int y_min, int y_max, int x_min, int x_max,
     int num_platforms = rand_range(5, 9);
     int plat_cy[10], plat_cx[10], plat_radius[10];
     int platforms_placed = 0;
+    int sanctum_cy = -1;
+    int sanctum_cx = -1;
+
+    if (!choose_chasm_sanctum_seed(is_cave, h, w, &sanctum_cy, &sanctum_cx))
+    {
+        mem_free(is_cave);
+        mem_free(is_platform);
+        genlog_anchor("CHASM: rejected - no buffered central sanctum site");
+        return false;
+    }
+
+    plat_cy[platforms_placed] = sanctum_cy;
+    plat_cx[platforms_placed] = sanctum_cx;
+    plat_radius[platforms_placed] = rand_range(3, 4);
+    platforms_placed++;
     
     for (int attempt = 0; attempt < 300 && platforms_placed < num_platforms; ++attempt)
     {
@@ -4579,6 +4721,24 @@ static bool carve_chasm_with_bridges(int y_min, int y_max, int x_min, int x_max,
                 if (dist <= threshold)
                     is_platform[ly * w + lx] = true;
             }
+        }
+    }
+
+    /* Reserve one buffered 5x5 sanctuary on the center-leaning island so the
+     * 3x3 sanctum sits away from chasm edges. */
+    for (int dy = -2; dy <= 2; ++dy)
+    {
+        for (int dx = -2; dx <= 2; ++dx)
+        {
+            int ly = sanctum_cy + dy;
+            int lx = sanctum_cx + dx;
+
+            if (ly < 0 || lx < 0 || ly >= h || lx >= w)
+                continue;
+            if (!is_cave[ly * w + lx])
+                continue;
+
+            is_platform[ly * w + lx] = true;
         }
     }
     
@@ -4745,6 +4905,8 @@ static bool carve_chasm_with_bridges(int y_min, int y_max, int x_min, int x_max,
         connected[best_to] = true;
         bridges_built++;
     }
+
+    place_chasm_island_sanctum(y1 + sanctum_cy, x1 + sanctum_cx);
     
     mem_free(connected);
     mem_free(is_cave);
@@ -4851,6 +5013,8 @@ static bool carve_chasm_with_bridges(int y_min, int y_max, int x_min, int x_max,
     
     log_trace("Chasm organic: %d platforms, %d bridges, %d chasm tiles, floor=(%d,%d)-(%d,%d) center=(%d,%d)",
         platforms_placed, bridges_built, chasm_count, floor_min_y, floor_min_x, floor_max_y, floor_max_x, cy, cx);
+    log_trace("Chasm organic extras: sanctum=(%d,%d)",
+        y1 + sanctum_cy, x1 + sanctum_cx);
     genlog_anchor("CHASM: %d platforms, %d bridges, %d chasm tiles at (%d,%d)-(%d,%d)",
         platforms_placed, bridges_built, chasm_count, floor_min_y, floor_min_x, floor_max_y, floor_max_x);
     return true;
@@ -9786,7 +9950,7 @@ static bool build_chasm(void)
         }
     }
 
-    // actually place the chasm and clear the flag
+    // actually place the chasm
     for (y = 0; y < p_ptr->cur_map_hgt; y++)
     {
         for (x = 0; x < p_ptr->cur_map_wid; x++)
@@ -9794,8 +9958,16 @@ static bool build_chasm(void)
             if (cave_info[y][x] & (CAVE_TEMP))
             {
                 cave_set_feat(y, x, FEAT_CHASM);
-                cave_info[y][x] &= ~(CAVE_TEMP);
             }
+        }
+    }
+
+    // clear the temporary chasm marker
+    for (y = 0; y < p_ptr->cur_map_hgt; y++)
+    {
+        for (x = 0; x < p_ptr->cur_map_wid; x++)
+        {
+            cave_info[y][x] &= ~(CAVE_TEMP);
         }
     }
 
@@ -15204,6 +15376,112 @@ static bool place_monster_by_letter_try(int y, int x, char letter, bool allow_un
     }
 
     return false;
+}
+
+static bool chasm_sanctum_drop_present(int y, int x)
+{
+    for (object_type* o_ptr = get_first_object(y, x); o_ptr;
+        o_ptr = get_next_object(o_ptr))
+    {
+        if (o_ptr->ident & IDENT_CHASM_SANCTUM_ITEM)
+            return true;
+    }
+
+    return false;
+}
+
+static void clear_chasm_sanctum_drop_marker(int y, int x)
+{
+    for (object_type* o_ptr = get_first_object(y, x); o_ptr;
+        o_ptr = get_next_object(o_ptr))
+    {
+        o_ptr->ident &= ~IDENT_CHASM_SANCTUM_ITEM;
+    }
+}
+
+static void awaken_chasm_sanctum_monster(int y, int x)
+{
+    int m_idx = cave_m_idx[y][x];
+
+    if (m_idx <= 0)
+        return;
+
+    monster_type* m_ptr = &mon_list[m_idx];
+    m_ptr->alertness = MAX(m_ptr->alertness, ALERTNESS_ALERT);
+    m_ptr->skip_next_turn = false;
+    m_ptr->mflag |= MFLAG_ACTV;
+    m_ptr->min_range = 0;
+}
+
+static bool place_chasm_sanctum_ambusher(int y, int x, int max_depth)
+{
+    if (!in_bounds_fully(y, x))
+        return false;
+
+    if (cave_feat[y][x] == FEAT_GLYPH)
+        cave_set_feat(y, x, FEAT_FLOOR);
+
+    if (!cave_naked_bold(y, x))
+        return false;
+
+    if (place_monster_by_flag_try(y, x, 4, RF4_DARKNESS, false, max_depth)
+        || place_monster_by_flag_try(y, x, 4, RF4_BRTH_DARK, false, max_depth)
+        || place_monster_by_flag_try(y, x, 3, RF3_UNDEAD, false, max_depth)
+        || place_monster_by_flag_try(y, x, 3, RF3_HORROR, false, max_depth)
+        || place_vault_monster_token('q', y, x))
+    {
+        awaken_chasm_sanctum_monster(y, x);
+        return true;
+    }
+
+    return false;
+}
+
+void trigger_chasm_sanctum_ambush_if_needed(int y, int x)
+{
+    int placed = 0;
+
+    if (!in_bounds_fully(y, x))
+        return;
+    if (!chasm_sanctum_drop_present(y, x))
+        return;
+
+    clear_chasm_sanctum_drop_marker(y, x);
+
+    msg_print("The evil artefact calls to its own.");
+    msg_print("A cry goes up from the deeps, and black shadows gather.");
+
+    for (int dy = -1; dy <= 1; ++dy)
+    {
+        for (int dx = -1; dx <= 1; ++dx)
+        {
+            int ny = y + dy;
+            int nx = x + dx;
+
+            if (dy == 0 && dx == 0)
+                continue;
+            if (!in_bounds_fully(ny, nx))
+                continue;
+
+            if (cave_feat[ny][nx] == FEAT_GLYPH)
+                cave_set_feat(ny, nx, FEAT_FLOOR);
+
+            if (place_chasm_sanctum_ambusher(ny, nx, p_ptr->depth))
+                placed++;
+        }
+    }
+
+    (void)explosion(-1, 1, y, x, 0, 0, 0, GF_DARK_WEAK);
+    (void)set_darkened(MAX(p_ptr->darkened, 8));
+    monster_perception(true, false, -15);
+    break_truce(true);
+
+    p_ptr->update |= (PU_FORGET_VIEW | PU_UPDATE_VIEW | PU_MONSTERS | PU_DISTANCE);
+    p_ptr->redraw |= (PR_MAP);
+    handle_stuff();
+
+    log_trace("Chasm sanctum ambush: triggered at (%d,%d), placed=%d",
+        y, x, placed);
 }
 
 static bool place_big_cave_elemental_monster(int y, int x, big_cave_type_t cave_type, int max_depth)

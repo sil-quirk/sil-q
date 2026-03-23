@@ -2,6 +2,8 @@
 
 #include <stdbool.h>
 
+#define SOUND_CONFIG_EVENT_MAX 66
+
 // Sound configuration structure
 struct sound_config {
     bool enabled;              // Enable/disable game sounds (default: false)
@@ -24,7 +26,7 @@ struct sound_config {
     int sample_rate;           // Audio sample rate (default: 22050)
     int channels;              // Audio channels: 1=mono, 2=stereo (default: 2)
     char format[16];           // Audio format: "s8", "u8", "s16", "s32", "f32" (default: "s16")
-    char events[63][256];      // Folder paths for each sound event (MSG_MAX entries)
+    char events[SOUND_CONFIG_EVENT_MAX][256]; // Folder paths for each sound event (MSG_MAX entries)
 };
 
 // Load sound configuration from JSON file

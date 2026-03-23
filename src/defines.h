@@ -1854,7 +1854,8 @@
     0x00001000 /* Generated as hoard-drop treasure (vault '!' token) */
 #define IDENT_UNCURSED                                                         \
     0x00002000 /* Base curse already cleansed; don't reapply or display {uncursed} */
-#define IDENT_UNUSED_XXXX4XXX 0x00004000 /* Unused */
+#define IDENT_CHASM_SANCTUM_ITEM                                                \
+    0x00004000 /* Chasm sanctum ambush triggers when player enters the tile */
 #define IDENT_UNUSED_XXXX8XXX 0x00008000 /* Unused */
 #define IDENT_UNUSED_XXX1XXXX 0x00010000 /* Unused */
 #define IDENT_UNUSED_XXX2XXXX 0x00020000 /* Unused */
@@ -2704,6 +2705,8 @@
 #define OPT_stealth_vision (OPT_GAME_PLAY + 2)
 /* Sleeping icon: show an overlay icon on sleeping monsters */
 #define OPT_sleep_icon (OPT_GAME_PLAY + 3)
+/* When both would apply, prefer Assassination over Charge on unaware targets */
+#define OPT_assassination_over_charge (OPT_GAME_PLAY + 4)
 // xxx auto_haggle
 // xxx auto_scum
 // xxx allow_themed_levels
@@ -2850,6 +2853,7 @@
 #define visual_recognition op_ptr->opt[OPT_visual_recognition]
 #define stealth_vision op_ptr->opt[OPT_stealth_vision]
 #define sleep_icon op_ptr->opt[OPT_sleep_icon]
+#define assassination_over_charge op_ptr->opt[OPT_assassination_over_charge]
 #define depth_in_feet op_ptr->opt[OPT_depth_in_feet]
 // xxx stack_force_notes
 // xxx stack_force_costs
@@ -3565,7 +3569,10 @@
 #define MSG_DROP_GENERIC 60
 #define MSG_USE_GEM 61
 #define MSG_ACTIVATE 62
-#define MSG_MAX 63
+#define MSG_MONSTER_ATTACK 63
+#define MSG_MONSTER_ATTACK_RANGED 64
+#define MSG_MONSTER_ATTACK_BREATH 65
+#define MSG_MAX 66
 
 /*
  * Maximum number of macro trigger names
