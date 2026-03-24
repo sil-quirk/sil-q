@@ -3814,6 +3814,7 @@ static void dungeon(void)
     {
         p_ptr->morgoth_hall_entered = true;
     }
+    log_live_special_vault_only_monsters("dungeon loop start");
     last_player_y = p_ptr->py;
     last_player_x = p_ptr->px;
 

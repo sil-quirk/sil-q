@@ -1115,6 +1115,17 @@ static void rd_monster_runtime_overrides(void)
         }
 
         rd_monster_race_stats(&r_info[r_idx]);
+
+        /* Runtime overrides may carry old race flags from the savefile.
+         * Keep the current data-file flags authoritative so new monster.txt
+         * bits like SPECIAL_VAULT_ONLY survive load. */
+        if (r_base)
+        {
+            r_info[r_idx].flags1 = r_base[r_idx].flags1;
+            r_info[r_idx].flags2 = r_base[r_idx].flags2;
+            r_info[r_idx].flags3 = r_base[r_idx].flags3;
+            r_info[r_idx].flags4 = r_base[r_idx].flags4;
+        }
     }
 }
 /*

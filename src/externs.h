@@ -405,6 +405,23 @@ extern void metarun_finalize_scores_and_saves(void);
 extern void backup_and_clear_saves(void);
 
 /*
+ * Rage and labyrinth partitions both suppress remembered-grid information.
+ * When inactive, remembered information remains available to look/target UI.
+ */
+#ifndef GRID_INFO_VISIBILITY_HELPERS_DEFINED
+#define GRID_INFO_VISIBILITY_HELPERS_DEFINED
+static inline bool player_suppresses_unseen_grid_info(void)
+{
+    return (!p_ptr->is_dead) && (p_ptr->rage || g_labyrinth_view_active);
+}
+
+static inline bool grid_info_is_available(int y, int x)
+{
+    return !player_suppresses_unseen_grid_info() || player_can_see_bold(y, x);
+}
+#endif
+
+/*
  * Automatically generated "function declarations"
  */
 
@@ -961,6 +978,9 @@ extern s16b monster_lookup_guid(u64b guid);
 extern s16b monster_lookup_guid_text(const char* text);
 extern bool place_monster_by_guid(
     int y, int x, u64b guid, bool slp, bool ignore_depth, monster_type* summoner);
+extern void monster_special_vault_debug_context(
+    int* build_vault_type, bool* exact_token);
+extern void log_live_special_vault_only_monsters(const char* reason);
 extern bool monster_special_vault_selection_allowed(void);
 extern bool monster_special_vault_only_allowed_at(int y, int x);
 extern bool place_monster_one(

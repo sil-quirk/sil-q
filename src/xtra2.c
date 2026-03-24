@@ -3507,9 +3507,8 @@ bool target_able(int m_idx)
     if (p_ptr->image)
         return (false);
 
-    /* Hack -- no targeting things out of sight when raging */
-    if (!(p_ptr->is_dead) && (p_ptr->rage)
-        && !(cave_info[m_ptr->fy][m_ptr->fx] & (CAVE_SEEN)))
+    /* Rage and labyrinth partitions both suppress remembered-grid targeting. */
+    if (!grid_info_is_available(m_ptr->fy, m_ptr->fx))
         return (false);
 
     /* Hack -- Never target trappers XXX XXX XXX */
@@ -3888,8 +3887,8 @@ static bool determine_location_is_interesting(int y, int x)
     if (p_ptr->image)
         return (false);
 
-    /* No looking at things out of sight when raging */
-    if (!(p_ptr->is_dead) && (p_ptr->rage) && !(cave_info[y][x] & (CAVE_SEEN)))
+    /* Rage and labyrinth partitions both suppress remembered-grid look data. */
+    if (!grid_info_is_available(y, x))
         return (false);
 
     /* Check for objects first (only shown when on floors, not when in rubble) */
@@ -4124,7 +4123,7 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info, bool us
         }
 
         /* Actual monsters */
-        if (cave_m_idx[y][x] > 0)
+        if ((cave_m_idx[y][x] > 0) && grid_info_is_available(y, x))
         {
             monster_type* m_ptr = &mon_list[cave_m_idx[y][x]];
             monster_race* r_ptr = &r_info[m_ptr->r_idx];
@@ -4201,7 +4200,9 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info, bool us
                         }
 
                         // known objects on the floor
-                        else if ((cave_floorlike_bold(y, x) || (cave_feat[y][x] == FEAT_SUNLIGHT))
+                        else if (grid_info_is_available(y, x)
+                            && (cave_floorlike_bold(y, x)
+                                || (cave_feat[y][x] == FEAT_SUNLIGHT))
                             && cave_o_idx[y][x]
                             && (&o_list[cave_o_idx[y][x]])->marked)
                         {
@@ -4369,7 +4370,7 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info, bool us
             if (cave_floorlike_bold(y, x) || (cave_feat[y][x] == FEAT_SUNLIGHT))
             {
                 /* Describe it */
-                if (o_ptr->marked)
+                if (o_ptr->marked && grid_info_is_available(y, x))
                 {
                     char o_name[80];
 
@@ -4425,7 +4426,9 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info, bool us
         feat = f_info[cave_feat[y][x]].mimic;
 
         /* Require knowledge about grid, or ability to see grid */
-        if (!(cave_info[y][x] & (CAVE_MARK)) && !player_can_see_bold(y, x)
+        if ((!grid_info_is_available(y, x)
+                || (!(cave_info[y][x] & (CAVE_MARK))
+                    && !player_can_see_bold(y, x)))
             && (distance(p_ptr->py, p_ptr->px, y, x) > 0))
         {
             /* Forget feature */

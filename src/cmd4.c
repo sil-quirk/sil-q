@@ -22787,6 +22787,9 @@ static int unified_sidebar_collect_sorted_objects(const unified_look_state* stat
         if (!o_idx)
             continue;
 
+        if (!grid_info_is_available(temp_y[i], temp_x[i]))
+            continue;
+
         o_ptr = &o_list[o_idx];
 
         /* Only show marked (memorized) objects that the player has actually seen. */
@@ -22846,6 +22849,8 @@ int unified_look_find_cursor_selection(const unified_look_state* state, int curs
             int m_idx = cave_m_idx[temp_y[i]][temp_x[i]];
 
             if (!m_idx)
+                continue;
+            if (!grid_info_is_available(temp_y[i], temp_x[i]))
                 continue;
             if (!mon_list[m_idx].ml)
                 continue;
@@ -23293,7 +23298,9 @@ void show_unified_sidebar(unified_look_state* state)
             /* Show only visible monsters on screen (like the [ monsters menu) */
             /* Skip empty monster slots */
             if (!m_idx) continue;
-            
+
+            if (!grid_info_is_available(temp_y[i], temp_x[i])) continue;
+
             /* Skip monsters that are not visible to the player */
             if (!m_ptr->ml) continue;
             

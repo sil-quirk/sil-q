@@ -618,6 +618,8 @@ s16b get_mon_num(int level, bool special, bool allow_non_smart, bool vault)
     bool pursuing_monster = false;
 
     bool allow24 = false;
+    int build_vault_type = 0;
+    bool exact_token = false;
 
     // determine the effective level:
 
@@ -695,6 +697,7 @@ s16b get_mon_num(int level, bool special, bool allow_non_smart, bool vault)
 
     /* Reset total */
     total = 0L;
+    monster_special_vault_debug_context(&build_vault_type, &exact_token);
 
     /* Process probabilities */
     for (i = 0; i < alloc_race_size; i++)
@@ -735,10 +738,19 @@ s16b get_mon_num(int level, bool special, bool allow_non_smart, bool vault)
 
         /* Special-vault-only monsters must not enter generic selection outside
          * their explicit vault-token or throne-room build contexts. */
-        if ((r_ptr->flags3 & (RF3_SPECIAL_VAULT_ONLY))
-            && !monster_special_vault_selection_allowed())
+        if (r_ptr->flags3 & (RF3_SPECIAL_VAULT_ONLY))
         {
-            continue;
+            bool allowed = monster_special_vault_selection_allowed();
+            log_trace(
+                "SPECIAL_VAULT_ONLY select: monster='%s' r_idx=%d requested_level=%d generation_level=%d depth=%d special=%s vault=%s build_vault_type=%d exact_token=%s allowed=%s",
+                r_name + r_ptr->name, r_idx, level, generation_level,
+                p_ptr->depth, special ? "yes" : "no", vault ? "yes" : "no",
+                build_vault_type, exact_token ? "yes" : "no",
+                allowed ? "yes" : "no");
+            if (!allowed)
+            {
+                continue;
+            }
         }
 
         /* Non-moving monsters can't appear as out-of-depth pursuing monsters */
@@ -2187,6 +2199,21 @@ void monster_swap(int y1, int x1, int y2, int x2)
         m_ptr->fy = y2;
         m_ptr->fx = x2;
 
+        if ((r_info[m_ptr->r_idx].flags3 & RF3_SPECIAL_VAULT_ONLY)
+            && (((cave_info[y1][x1] & CAVE_G_VAULT) == 0)
+                || ((cave_info[y2][x2] & CAVE_G_VAULT) == 0)))
+        {
+            log_trace(
+                "SPECIAL_VAULT_ONLY move: monster='%s' r_idx=%d m_idx=%d depth=%d from=(%d,%d) to=(%d,%d) from_g_vault=%d to_g_vault=%d from_icky=%d to_icky=%d from_morgoth_tunnel=%d to_morgoth_tunnel=%d",
+                m_name, m_ptr->r_idx, m1, p_ptr->depth, y1, x1, y2, x2,
+                (cave_info[y1][x1] & CAVE_G_VAULT) ? 1 : 0,
+                (cave_info[y2][x2] & CAVE_G_VAULT) ? 1 : 0,
+                (cave_info[y1][x1] & CAVE_ICKY) ? 1 : 0,
+                (cave_info[y2][x2] & CAVE_ICKY) ? 1 : 0,
+                (cave_info[y1][x1] & CAVE_MORGOTH_TUNNEL) ? 1 : 0,
+                (cave_info[y2][x2] & CAVE_MORGOTH_TUNNEL) ? 1 : 0);
+        }
+
         // makes noise when moving
         if (m_ptr->noise == 0)
             m_ptr->noise = 5;
@@ -2697,10 +2724,24 @@ bool place_monster_one(
         return (false);
     }
 
-    if ((r_ptr->flags3 & (RF3_SPECIAL_VAULT_ONLY))
-        && !monster_special_vault_only_allowed_at(y, x))
+    if (r_ptr->flags3 & (RF3_SPECIAL_VAULT_ONLY))
     {
-        return (false);
+        int build_vault_type = 0;
+        bool exact_token = false;
+        bool allowed = monster_special_vault_only_allowed_at(y, x);
+        monster_special_vault_debug_context(&build_vault_type, &exact_token);
+        log_trace(
+            "SPECIAL_VAULT_ONLY place-check: monster='%s' r_idx=%d depth=%d at=(%d,%d) ignore_depth=%s build_vault_type=%d exact_token=%s cave_g_vault=%d cave_icky=%d cave_morgoth_tunnel=%d allowed=%s",
+            name, r_idx, p_ptr->depth, y, x, ignore_depth ? "yes" : "no",
+            build_vault_type, exact_token ? "yes" : "no",
+            (cave_info[y][x] & CAVE_G_VAULT) ? 1 : 0,
+            (cave_info[y][x] & CAVE_ICKY) ? 1 : 0,
+            (cave_info[y][x] & CAVE_MORGOTH_TUNNEL) ? 1 : 0,
+            allowed ? "yes" : "no");
+        if (!allowed)
+        {
+            return (false);
+        }
     }
 
     /* Check quest monster spawning restrictions when not ignoring depth */
@@ -2845,6 +2886,20 @@ bool place_monster_one(
     // reacquire monster pointer
     n_ptr = &mon_list[cave_m_idx[y][x]];
 
+    if (r_ptr->flags3 & (RF3_SPECIAL_VAULT_ONLY))
+    {
+        int build_vault_type = 0;
+        bool exact_token = false;
+        monster_special_vault_debug_context(&build_vault_type, &exact_token);
+        log_trace(
+            "SPECIAL_VAULT_ONLY placed: monster='%s' r_idx=%d m_idx=%d depth=%d at=(%d,%d) build_vault_type=%d exact_token=%s cave_g_vault=%d cave_icky=%d cave_morgoth_tunnel=%d",
+            name, r_idx, cave_m_idx[y][x], p_ptr->depth, y, x,
+            build_vault_type, exact_token ? "yes" : "no",
+            (cave_info[y][x] & CAVE_G_VAULT) ? 1 : 0,
+            (cave_info[y][x] & CAVE_ICKY) ? 1 : 0,
+            (cave_info[y][x] & CAVE_MORGOTH_TUNNEL) ? 1 : 0);
+    }
+
     // give the monster a place to wander towards
     new_wandering_destination(n_ptr, m_ptr);
 
@@ -2878,6 +2933,93 @@ bool place_monster_one(
 
     /* Success */
     return (true);
+}
+
+void log_live_special_vault_only_monsters(const char* reason)
+{
+    int count = 0;
+    static const int tracked_r_idx[] = {
+        R_IDX_GOTHMOG,
+        R_IDX_UNGOLIANT,
+        R_IDX_GLAURUNG,
+        R_IDX_GORTHAUR,
+    };
+
+    for (size_t ti = 0; ti < N_ELEMENTS(tracked_r_idx); ti++)
+    {
+        int r_idx = tracked_r_idx[ti];
+        monster_race* r_ptr = &r_info[r_idx];
+
+        log_trace(
+            "SPECIAL_VAULT_ONLY race: reason='%s' monster='%s' r_idx=%d flags3=0x%08lx has_special=%d cur_num=%d max_num=%d",
+            reason ? reason : "<none>", r_name + r_ptr->name, r_idx,
+            (unsigned long)r_ptr->flags3,
+            (r_ptr->flags3 & RF3_SPECIAL_VAULT_ONLY) ? 1 : 0,
+            r_ptr->cur_num, r_ptr->max_num);
+    }
+
+    for (int i = 1; i < mon_max; i++)
+    {
+        monster_type* m_ptr = &mon_list[i];
+        monster_race* r_ptr;
+
+        if (!m_ptr->r_idx)
+            continue;
+
+        r_ptr = &r_info[m_ptr->r_idx];
+        if (!(r_ptr->flags3 & RF3_SPECIAL_VAULT_ONLY))
+            continue;
+
+        count++;
+        log_trace(
+            "SPECIAL_VAULT_ONLY live: reason='%s' monster='%s' r_idx=%d m_idx=%d depth=%d at=(%d,%d) cave_g_vault=%d cave_icky=%d cave_morgoth_tunnel=%d alertness=%d energy=%d",
+            reason ? reason : "<none>", r_name + r_ptr->name, m_ptr->r_idx, i,
+            p_ptr->depth, m_ptr->fy, m_ptr->fx,
+            (cave_info[m_ptr->fy][m_ptr->fx] & CAVE_G_VAULT) ? 1 : 0,
+            (cave_info[m_ptr->fy][m_ptr->fx] & CAVE_ICKY) ? 1 : 0,
+            (cave_info[m_ptr->fy][m_ptr->fx] & CAVE_MORGOTH_TUNNEL) ? 1 : 0,
+            m_ptr->alertness, m_ptr->energy);
+    }
+
+    for (int i = 1; i < mon_max; i++)
+    {
+        monster_type* m_ptr = &mon_list[i];
+        monster_race* r_ptr;
+        bool tracked = false;
+
+        if (!m_ptr->r_idx)
+            continue;
+
+        for (size_t ti = 0; ti < N_ELEMENTS(tracked_r_idx); ti++)
+        {
+            if (m_ptr->r_idx == tracked_r_idx[ti])
+            {
+                tracked = true;
+                break;
+            }
+        }
+
+        if (!tracked)
+            continue;
+
+        r_ptr = &r_info[m_ptr->r_idx];
+        log_trace(
+            "SPECIAL_VAULT_ONLY tracked-live: reason='%s' monster='%s' r_idx=%d m_idx=%d depth=%d at=(%d,%d) has_special=%d cave_g_vault=%d cave_icky=%d cave_morgoth_tunnel=%d alertness=%d energy=%d",
+            reason ? reason : "<none>", r_name + r_ptr->name, m_ptr->r_idx, i,
+            p_ptr->depth, m_ptr->fy, m_ptr->fx,
+            (r_ptr->flags3 & RF3_SPECIAL_VAULT_ONLY) ? 1 : 0,
+            (cave_info[m_ptr->fy][m_ptr->fx] & CAVE_G_VAULT) ? 1 : 0,
+            (cave_info[m_ptr->fy][m_ptr->fx] & CAVE_ICKY) ? 1 : 0,
+            (cave_info[m_ptr->fy][m_ptr->fx] & CAVE_MORGOTH_TUNNEL) ? 1 : 0,
+            m_ptr->alertness, m_ptr->energy);
+    }
+
+    if (count == 0)
+    {
+        log_trace(
+            "SPECIAL_VAULT_ONLY live: reason='%s' none depth=%d mon_max=%d",
+            reason ? reason : "<none>", p_ptr->depth, mon_max);
+    }
 }
 
 bool place_monster_by_guid(

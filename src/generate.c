@@ -146,6 +146,15 @@ bool monster_special_vault_only_allowed_at(int y, int x)
         && ((cave_info[y][x] & CAVE_G_VAULT) != 0);
 }
 
+void monster_special_vault_debug_context(
+    int* build_vault_type, bool* exact_token)
+{
+    if (build_vault_type)
+        *build_vault_type = current_build_vault_type;
+    if (exact_token)
+        *exact_token = current_build_vault_exact_token;
+}
+
 static bool place_vault_monster_token(char symbol, int y, int x)
 {
     for (size_t i = 0; i < N_ELEMENTS(vault_monster_table); i++)
@@ -174,6 +183,10 @@ static bool place_vault_monster_token(char symbol, int y, int x)
         bool old_exact_token = current_build_vault_exact_token;
         bool placed;
 
+        log_trace(
+            "SPECIAL_VAULT_ONLY exact-token attempt: token='%c' guid=%s depth=%d at=(%d,%d) build_vault_type=%d",
+            symbol, spec->guid_text, p_ptr->depth, y, x, current_build_vault_type);
+
         current_build_vault_exact_token = true;
         placed = place_monster_by_guid(
             y, x, spec->guid, spec->start_sleeping, spec->ignore_depth, NULL);
@@ -183,6 +196,16 @@ static bool place_vault_monster_token(char symbol, int y, int x)
         {
             log_warn("Vault: failed to place monster for token '%c'", symbol);
             return false;
+        }
+
+        {
+            s16b r_idx = monster_lookup_guid(spec->guid);
+            const char* monster_name =
+                (r_idx > 0) ? (r_name + r_info[r_idx].name) : "<unknown>";
+            log_trace(
+                "SPECIAL_VAULT_ONLY exact-token placed: token='%c' monster='%s' r_idx=%d depth=%d at=(%d,%d) build_vault_type=%d",
+                symbol, monster_name, r_idx, p_ptr->depth, y, x,
+                current_build_vault_type);
         }
 
         return true;
@@ -13146,6 +13169,10 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
     {
     int previous_build_vault_type = current_build_vault_type;
     current_build_vault_type = v_ptr->typ;
+    log_trace(
+        "SPECIAL_VAULT_ONLY context enter: vault='%s' type=%d depth=%d previous_type=%d",
+        v_name + v_ptr->name, v_ptr->typ, p_ptr->depth,
+        previous_build_vault_type);
 
     for (t = data, dy = 0; dy < ymax; dy++)
     {
@@ -13819,6 +13846,9 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
     }
 
     current_build_vault_type = previous_build_vault_type;
+    log_trace(
+        "SPECIAL_VAULT_ONLY context leave: vault='%s' restored_type=%d depth=%d",
+        v_name + v_ptr->name, current_build_vault_type, p_ptr->depth);
     }
 
     log_trace("build_vault: Successfully built vault '%s' at (%d,%d)", v_name + v_ptr->name, y0, x0);

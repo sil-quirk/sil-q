@@ -1726,6 +1726,7 @@ static void wr_dungeon(void)
     /* Total monsters */
     wr_u16b(mon_max);
     log_debug("Writing %d monsters to savefile", mon_max - 1);
+    log_live_special_vault_only_monsters("save wr_dungeon");
 
     /* Dump the monsters */
     for (i = 1; i < mon_max; i++)
