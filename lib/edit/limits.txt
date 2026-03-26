@@ -69,7 +69,7 @@ M:H:165
 M:S:52
 
 # Maximum number of curses
-M:U:43
+M:U:44
 
 # Maximum number of major blessings
 M:J:16
