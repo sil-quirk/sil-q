@@ -1140,6 +1140,12 @@ extern void partition_config_set_object_rules(level_partition_kind kind,
     int room_divisor, int corridor_divisor);
 extern void partition_config_set_metal_rule(level_partition_kind kind,
     int divisor, int min_count, int max_count, int min_depth);
+extern void partition_config_set_discovery_text(level_partition_kind kind,
+    cptr text);
+extern void partition_config_set_big_cave_discovery_text(
+    big_cave_type_t cave_type, cptr text);
+extern cptr partition_config_get_discovery_text(level_partition_kind kind,
+    big_cave_type_t cave_type);
 extern bool object_uses_smithing_difficulty(const object_type* o_ptr);
 extern int object_smithing_difficulty(const object_type* o_ptr);
 extern int object_weight_rarity(const object_type* o_ptr, int depth);

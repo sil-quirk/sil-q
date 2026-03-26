@@ -867,6 +867,25 @@ static int ability_menu_description_wrap(int desc_col)
 int abilities_in_skill(int skilltype);
 bool prereqs(int skilltype, int abilitynum);
 
+static int ability_purchase_exp_cost(int skilltype)
+{
+    int is_free = (c_info[p_ptr->pcharacter].flags & RHF_FREE) ? 1 : 0;
+    int unit_cost = 500 - 200 * is_free;
+    int exp_cost = (abilities_in_skill(skilltype) + 1) * unit_cost;
+
+    exp_cost -= unit_cost * affinity_level(skilltype);
+
+    if (skilltype == S_SNG)
+        exp_cost -= unit_cost * minstrel_level();
+
+    exp_cost += 100 * curse_flag_delta_cur(CUR_ABILITY_COST);
+
+    if (exp_cost < 0)
+        exp_cost = 0;
+
+    return exp_cost;
+}
+
 static int ability_menu_text_width(int desc_col, int indent)
 {
     int wrap = ability_menu_description_wrap(desc_col);
@@ -959,17 +978,7 @@ static void ability_menu_render_prerequisites_block(int skilltype,
 
     if (skilltype != S_SPC && prereqs(skilltype, b_ptr->abilitynum))
     {
-        int is_free = (c_info[p_ptr->pcharacter].flags & RHF_FREE) ? 1 : 0;
-        int unit_cost = 500 - 200 * is_free;
-        int exp_cost = (abilities_in_skill(skilltype) + 1) * unit_cost;
-
-        exp_cost -= unit_cost * affinity_level(skilltype);
-
-        if (skilltype == S_SNG)
-            exp_cost -= unit_cost * minstrel_level();
-
-        if (exp_cost < 0)
-            exp_cost = 0;
+        int exp_cost = ability_purchase_exp_cost(skilltype);
 
         Term_putstr(desc_col, row, -1, TERM_YELLOW, "Current price:");
 
@@ -3275,23 +3284,7 @@ void do_cmd_ability_screen(void)
 
                         if (has_skill_prereq && has_ability_prereq)
                         {
-                            // Normalize flag check to 0 or 1
-                            int is_free = (c_info[p_ptr->pcharacter].flags & RHF_FREE) ? 1 : 0;
-                            int unit_cost = 500 - 200 * is_free;
-
-                            // Calculate base cost
-                            int exp_cost = (abilities_in_skill(skilltype) + 1) * unit_cost;
-
-                            // Subtract free abilities granted by affinity
-                            exp_cost -= unit_cost * affinity_level(skilltype);
-
-                            // For song abilities, also subtract minstrel bonus (uncapped)
-                            if (skilltype == S_SNG)
-                                exp_cost -= unit_cost * minstrel_level();
-
-                            // Clamp to zero
-                            if (exp_cost < 0)
-                                exp_cost = 0;
+                            int exp_cost = ability_purchase_exp_cost(skilltype);
 
                             if (exp_cost > p_ptr->new_exp)
                             {

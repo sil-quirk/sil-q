@@ -42,6 +42,10 @@
 #     If 'S' is omitted, defaults for this depth (from style-levels.txt U:)
 #     are used; otherwise the vault's list is used verbatim.
 #
+# 'M' is for a unique entry message shown when the player first enters
+#     the vault. It follows the same message/banner setting rules as
+#     partition banners.
+#
 # 'F' is for the vault flags (if any)
 #
 #     TEST        - must be generated when choosing a vault (for debugging)
@@ -157,6 +161,7 @@ V:0.9.5
 
 N:1:The Gates of Angband
 X:10:0:1
+M:Before you tower the Iron Gates of Angband, and the shadow of their bars lies long upon the dust; in beholding the ancient strength and malice of that threshold, you gain 500 experience.
 S:13:1
 F:NO_ROTATION 
 D:################################################################
@@ -2754,6 +2759,7 @@ D:  ###
 
 N:401:the Cat Fortress
 X:8:10:15
+M:A hard and watchful silence broods in this fastness, and every stair and court is set with a hunter's patience; in reading that fell design, you gain 500 experience.
 S:9:1
 F:NO_ROTATION
 D:#######################################
@@ -2783,6 +2789,7 @@ D:#######################################
 
 N:402:Gothmog's hall
 X:8:18:10
+M:Firelight glimmers here upon iron and black mail, and the chamber is ordered for wrath and mastery; in beholding the dreadful craft of Gothmog's seat, you gain 500 experience.
 S:24:1
 D:#########$$$$$#########
 D:#########T...T#########
@@ -2807,6 +2814,7 @@ D:#########$$$$$#########
 
 N:403:Ungoliant's lair
 X:8:18:7
+M:Web and unlight are mingled here in a horror older than many memories of the Noldor; in enduring that sight and learning its peril, you gain 500 experience.
 S:52:1
 F:WEBS
 D:#############$$$#######$$$$#
@@ -2837,6 +2845,7 @@ D:########################$$$#
 
 N:404:the Hoard of the Worm of Greed
 X:8:18:7
+M:Treasure lies here in a dull and evil splendour, as though fire and covetousness had slept together for long years; in reading the doom upon that hoard, you gain 500 experience.
 S:34:1
 D:$$$$###################
 D:$...###################
@@ -2861,6 +2870,7 @@ D:#########$$$$$$$$$#####
 
 N:405:the Chambers of Thu
 X:8:18:10
+M:Secret ways and warded chambers wind one within another here, and subtlety itself seems made into stone; by that stern lesson in the guile of Thu, you gain 500 experience.
 S:32:1
 D:#########%%%%%%%%%##########
 D:######.s.%%&.3.&%%&#S#&#S#&#
@@ -2888,6 +2898,7 @@ D:###########$$$$$$#$$$$######
 # Ancalagon's aerie vault (first winged dragon)
 N:406:Ancalagon's Aerie
 X:8:19:1
+M:A vast eyrie opens above dark chasms, and the air itself seems fit for wings of ruin; in beholding the pride and terror of that height, you gain 500 experience.
 S:39:1
 D:$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 D:$....#########..#..#########....$
@@ -2913,6 +2924,7 @@ D:$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 
 N:407:Kheled-Zaram
 X:8:1:10
+M:Cold water and ancient stone keep an austere memory here, and the deep places seem to remember both grief and endurance; in pondering that silence, you gain 500 experience.
 F:SURFACE
 F:LIGHT
 D:#########
@@ -2982,6 +2994,7 @@ D:####$####
 N:450:Morgoth's throne room
 S:38:1 39:1
 X:9:20:1
+M:The black throne rises in dreadful state, and all the hall is ordered to the pride of the Great Enemy; in reading the full measure of that ancient tyranny, you gain 500 experience.
 F:NO_ROTATION 
 D:############$$#####$$##############
 D:##&...+.####..#####..##......######

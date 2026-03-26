@@ -5325,16 +5325,15 @@ void update_lore_aux(object_type* o_ptr)
                 new_exp = 100;
                 gain_exp(new_exp);
                 p_ptr->ident_exp += new_exp;
+                object_desc(shorter_desc, sizeof(shorter_desc), o_ptr, true, 0);
+                msg_format("The hidden tale of %s rises before your thought, and 100 experience is won.",
+                    shorter_desc);
 
                 // display a note for new artefacts
                 if ((o_ptr->name1 != ART_MORGOTH_2)
                     && (o_ptr->name1 != ART_MORGOTH_1)
                     && (o_ptr->name1 != ART_MORGOTH_0))
                 {
-                    /* Get a shorter description to fit the notes file */
-                    object_desc(
-                        shorter_desc, sizeof(shorter_desc), o_ptr, true, 0);
-
                     /* Build note and write */
                     if (o_ptr->xtra1 == p_ptr->depth)
                     {
@@ -5363,8 +5362,19 @@ void update_lore_aux(object_type* o_ptr)
                 e_info[ego_pfx].everseen = true;
                 if (!e_info[ego_pfx].aware)
                 {
+                    cptr ego_name = e_name + e_info[ego_pfx].name;
                     e_info[ego_pfx].aware = true;
-                    new_exp += 100;
+                    new_exp += 75;
+                    if (ego_name_is_prefix(ego_name))
+                    {
+                        msg_format("The fore-name %s is made plain to you, and 75 experience is won.",
+                            ego_name);
+                    }
+                    else
+                    {
+                        msg_format("The after-name %s is made plain to you, and 75 experience is won.",
+                            ego_name);
+                    }
                 }
             }
 
@@ -5373,8 +5383,19 @@ void update_lore_aux(object_type* o_ptr)
                 e_info[ego_sfx].everseen = true;
                 if (!e_info[ego_sfx].aware)
                 {
+                    cptr ego_name = e_name + e_info[ego_sfx].name;
                     e_info[ego_sfx].aware = true;
-                    new_exp += 100;
+                    new_exp += 75;
+                    if (ego_name_is_prefix(ego_name))
+                    {
+                        msg_format("The fore-name %s is made plain to you, and 75 experience is won.",
+                            ego_name);
+                    }
+                    else
+                    {
+                        msg_format("The after-name %s is made plain to you, and 75 experience is won.",
+                            ego_name);
+                    }
                 }
             }
 

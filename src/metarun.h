@@ -17,6 +17,8 @@
 
 #include "angband.h"          /* basic types (u32b, byte, errr …)      */
 
+extern curse_type* cu_info;
+
 /* ------------------------------------------------------------------ */
 /*  Win / lose conditions                                             */
 /* ------------------------------------------------------------------ */
@@ -268,6 +270,20 @@ static inline int CURSE_BLESSING_STACK(int id)
 {
     int v = CURSE_GET(id);
     return (v < 0) ? -v : 0;
+}
+
+static inline int CURSE_CURSE_CAP(int id)
+{
+    if (id < 0 || id >= METAR_CURSE_SLOTS || !cu_info) return 0;
+    return cu_info[id].max_stacks;
+}
+
+static inline int CURSE_BLESSING_CAP(int id)
+{
+    if (id < 0 || id >= METAR_CURSE_SLOTS || !cu_info) return 0;
+    if (cu_info[id].max_blessing_stacks > 0)
+        return cu_info[id].max_blessing_stacks;
+    return cu_info[id].max_stacks;
 }
 
 /* ------------------------------------------------------------------ */

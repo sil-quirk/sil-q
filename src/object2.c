@@ -1324,10 +1324,16 @@ void object_aware(object_type* o_ptr)
     // If newly aware
     if (!flag && !p_ptr->leaving)
     {
+        char o_name[120];
+
         // gain experience for identification
-        int new_exp = 100;
+        int new_exp = 75;
         gain_exp(new_exp);
         p_ptr->ident_exp += new_exp;
+
+        object_desc(o_name, sizeof(o_name), o_ptr, true, 0);
+        msg_format("The true virtue of %s is unveiled to you, and 75 experience is won.",
+            o_name);
 
         // remove any autoinscription
         obliterate_autoinscription(o_ptr->k_idx);

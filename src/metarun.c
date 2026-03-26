@@ -1642,7 +1642,7 @@ static int weighted_random_curse(void)
         if (!cu_info[i].name) continue;          /* ← unused slot */
         byte w   = cu_info[i].weight ? cu_info[i].weight : 1;
         int  cnt = CURSE_CURSE_STACK(i);
-        byte cap = cu_info[i].max_stacks;
+        byte cap = (byte)CURSE_CURSE_CAP(i);
         if (cap && cnt >= cap) continue;           /* cap reached */
 
         /* RHF_CURSE excludes the most weighted choices */
@@ -1664,7 +1664,7 @@ static int weighted_random_curse(void)
         if (!cu_info[i].name) continue;          /* ← unused slot */
         byte w   = cu_info[i].weight ? cu_info[i].weight : 1;
         int  cnt = CURSE_CURSE_STACK(i);
-        byte cap = cu_info[i].max_stacks;
+        byte cap = (byte)CURSE_CURSE_CAP(i);
         if (cap && cnt >= cap) continue;
 
         /* RHF_CURSE excludes the most weighted choices */
@@ -1685,8 +1685,8 @@ static int weighted_random_curse(void)
 void add_curse_stack(int idx)
 {
     /* respect per-curse stack cap */
-    if (cu_info[idx].max_stacks &&
-        CURSE_CURSE_STACK(idx) >= cu_info[idx].max_stacks)
+    if (CURSE_CURSE_CAP(idx) &&
+        CURSE_CURSE_STACK(idx) >= CURSE_CURSE_CAP(idx))
     {
         log_debug("Curse %d (%s) already at max stacks", idx, cu_name + cu_info[idx].name);
         return;
@@ -1713,7 +1713,7 @@ int menu_choose_one_curse(int n)
             for (int j = 0; j < i; j++)
                 if (pick[i] == pick[j]) { dup = true; break; }
             
-            byte cap = cu_info[pick[i]].max_stacks;
+            byte cap = (byte)CURSE_CURSE_CAP(pick[i]);
             if (cap && CURSE_CURSE_STACK(pick[i]) >= cap) { dup = true; continue; }
 
         } while (dup);
@@ -3402,7 +3402,9 @@ static bool blessing_gain_minor(char *result_msg, size_t msg_size, byte *result_
             if (stacks > 0) continue; /* Currently cursed */
             
             int blessing_stacks = (stacks < 0) ? -stacks : 0;
-            if (c->max_stacks > 0 && blessing_stacks >= c->max_stacks) continue; /* At max */
+            if (CURSE_BLESSING_CAP(id) > 0
+                && blessing_stacks >= CURSE_BLESSING_CAP(id))
+                continue; /* At max */
             
             /* This pending choice is still valid */
             options[picks++] = id;
@@ -3429,7 +3431,9 @@ static bool blessing_gain_minor(char *result_msg, size_t msg_size, byte *result_
             if (stacks > 0) continue; /* currently cursed */
 
             int blessing_stacks = (stacks < 0) ? -stacks : 0;
-            if (c->max_stacks > 0 && blessing_stacks >= c->max_stacks) continue;
+            if (CURSE_BLESSING_CAP(id) > 0
+                && blessing_stacks >= CURSE_BLESSING_CAP(id))
+                continue;
 
             if (count < METAR_CURSE_SLOTS) {
                 eligible[count] = id;
@@ -3577,10 +3581,10 @@ static bool blessing_gain_minor(char *result_msg, size_t msg_size, byte *result_
 
     int blessing_id = options[choice];
     int stacks = CURSE_GET(blessing_id);
-    curse_type *c = &cu_info[blessing_id];
     int blessing_stacks = (stacks < 0) ? -stacks : 0;
 
-    if (c->max_stacks > 0 && blessing_stacks >= c->max_stacks) {
+    if (CURSE_BLESSING_CAP(blessing_id) > 0
+        && blessing_stacks >= CURSE_BLESSING_CAP(blessing_id)) {
         if (result_msg && msg_size > 0) {
             SDL_strlcpy(result_msg, "That blessing cannot grow any stronger.", msg_size);
             if (result_attr) *result_attr = TERM_L_DARK;
@@ -5399,11 +5403,12 @@ static void choose_difficulty_menu(void)
             if (!preserved) continue;
 
             int combined = preserved + CURSE_GET(curse_id);
-            int max_allowed = cu_info[curse_id].max_stacks;
-            if (max_allowed > 0) {
-                if (combined > max_allowed) combined = max_allowed;
-                if (combined < -max_allowed) combined = -max_allowed;
-            }
+            int curse_cap = CURSE_CURSE_CAP(curse_id);
+            int blessing_cap = CURSE_BLESSING_CAP(curse_id);
+            if (curse_cap > 0 && combined > curse_cap)
+                combined = curse_cap;
+            if (blessing_cap > 0 && combined < -blessing_cap)
+                combined = -blessing_cap;
             CURSE_SET(curse_id, combined);
         }
 

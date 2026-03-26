@@ -460,3 +460,15 @@ P:Wooden chest probability +20%.
 B:Blessing of the Unfading Hoard
 E:The deep places remember their glory; proud craft returns to vault and coffer, and the Shadow's tithe is paid no more.
 H:Wooden chest probability -20%.
+
+N:43:Tithe of the Long Defeat
+S:0:0:0:0
+U:ABILITY_COST
+Y:ABILITY_COST
+F:
+A:1/2/1
+D:A hidden tithe is laid upon your lore, as though every hard-won lesson must now be bought again from the long defeat that darkens Beleriand.
+P:Abilities cost 100 experience more.
+B:Grace of Unlooked-for Ease
+E:A small mercy falls upon your labour, and the road to mastery is made less steep for a little while.
+H:Abilities cost 100 experience less.

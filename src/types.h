@@ -527,6 +527,7 @@ struct vault_type
 {
     u32b name; /* Name (offset) */
     u32b text; /* Text (offset) */
+    u32b message; /* Entry message text (offset) */
 
     byte typ; /* Vault type */
 
@@ -896,6 +897,7 @@ typedef struct curse_type              /* one entry in cu_info[]          */
     u32b             blessing_flags_u; /* CUR flags contributed by blessing */
     byte  weight;              /* selection weight   (default 1)  */
     byte  max_stacks;          /* hard cap per meta-run (0 = ∞)   */    
+    byte  max_blessing_stacks; /* hard cap for blessing stacks (0 = use max_stacks) */
 }
 curse_type;
 
@@ -1091,6 +1093,7 @@ struct player_type
     s32b kill_exp; /* Total experience from killing monsters */
     s32b descent_exp; /* Total experience from descending to new levels */
     s32b ident_exp; /* Total experience from identifying objects */
+    byte discovery_lore_flags; /* Run-wide discovery XP awards already claimed */
 
     s16b mhp; /* Max hit pts */
     s16b chp; /* Cur hit pts */

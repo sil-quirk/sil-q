@@ -424,6 +424,7 @@ static flag_name info_flags[] = {
     { "ARMOR_SIDE_SHIFT", CUR, CUR_ARMOR_SIDE_SHIFT },
     { "IDENT_DIFF", CUR, CUR_IDENT_DIFF },
     { "CHEST_WOOD", CUR, CUR_CHEST_WOOD },
+    { "ABILITY_COST", CUR, CUR_ABILITY_COST },
     
     // Unique flags
     {"EARENDIL", UNQ, UNQ_EARENDIL}, { "SMT_FEANOR", UNQ, UNQ_SMT_FEANOR },
@@ -1995,6 +1996,35 @@ errr parse_partition_info(char* buf, header* head)
         return 0;
     }
 
+    if (buf[0] == 'T' && buf[1] == ':')
+    {
+        partition_config_set_discovery_text(current_kind, buf + 2);
+        return 0;
+    }
+
+    if (current_kind == LEVEL_PART_BIG_CAVE && buf[0] == 'B'
+        && buf[2] == ':')
+    {
+        if (buf[1] == 'I')
+        {
+            partition_config_set_big_cave_discovery_text(
+                BIG_CAVE_ICE, buf + 3);
+            return 0;
+        }
+        if (buf[1] == 'F')
+        {
+            partition_config_set_big_cave_discovery_text(
+                BIG_CAVE_FIRE, buf + 3);
+            return 0;
+        }
+        if (buf[1] == 'P')
+        {
+            partition_config_set_big_cave_discovery_text(
+                BIG_CAVE_POIS, buf + 3);
+            return 0;
+        }
+    }
+
     return PARSE_ERROR_UNDEFINED_DIRECTIVE;
 }
 
@@ -3181,10 +3211,15 @@ errr parse_v_info(char* buf, header* head)
         /* Point at the "info" */
         v_ptr = (vault_type*)head->info_ptr + i;
 
-    /* Initialize default values */
+        /* Initialize default values */
         v_ptr->color = 0; /* Default to depth color */
-    v_ptr->style_count = 0;
-    for (int j = 0; j < 16; ++j) { v_ptr->style_idx[j] = -1; v_ptr->style_weight[j] = 0; }
+        v_ptr->message = 0;
+        v_ptr->style_count = 0;
+        for (int j = 0; j < 16; ++j)
+        {
+            v_ptr->style_idx[j] = -1;
+            v_ptr->style_weight[j] = 0;
+        }
 
         /* Store the name */
         if (!(v_ptr->name = add_name(head, s)))
@@ -3314,6 +3349,17 @@ errr parse_v_info(char* buf, header* head)
             /* Start the next entry */
             s = t;
         }
+    }
+
+    /* Process 'M' for "Entry message" */
+    else if (buf[0] == 'M')
+    {
+        /* There better be a current v_ptr */
+        if (!v_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        if (!add_text(&v_ptr->message, head, buf + 2))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
     }
 
     /* Process 'D' for "Description" */
@@ -6210,6 +6256,7 @@ errr parse_cu_info(char *buf, header *head)
                                                      /* flags included     */
         cu_ptr->weight = 1;      /* sensible defaults           */
         cu_ptr->max_stacks = 0;  /* 0 = unlimited               */
+        cu_ptr->max_blessing_stacks = 0;
 
         if (!(cu_ptr->name = add_name(head, s)))     
             return PARSE_ERROR_OUT_OF_MEMORY;
@@ -6337,23 +6384,30 @@ errr parse_cu_info(char *buf, header *head)
     }
 
     /* ------------------------------------------------------------ */
-    /* A: weight / max_stacks   (e.g. 3/5 means weight=3, max=5)    */
+    /* A: weight / curse_cap [/ blessing_cap]                       */
     /* ------------------------------------------------------------ */
     else if (buf[0] == 'A')
     {
+        char *u;
+
         if (!cu_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
 
-        /* default is "1/0" so zero-initialised files still work    */
+        /* default is "1/0/0" so zero-initialised files still work   */
         cu_ptr->weight     = 1;
         cu_ptr->max_stacks = 0;
+        cu_ptr->max_blessing_stacks = 0;
 
-        char *s = buf + 2;
-        char *t = strchr(s, '/');
+        s = buf + 2;
+        t = strchr(s, '/');
         if (!t) return PARSE_ERROR_GENERIC;
 
         *t++ = '\0';
-        cu_ptr->weight     = (byte)atoi(s);
+        u = strchr(t, '/');
+        if (u) *u++ = '\0';
+
+        cu_ptr->weight = (byte)atoi(s);
         cu_ptr->max_stacks = (byte)atoi(t);
+        cu_ptr->max_blessing_stacks = u ? (byte)atoi(u) : cu_ptr->max_stacks;
     }
 
 

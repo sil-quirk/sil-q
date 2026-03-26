@@ -315,6 +315,15 @@
 #define ART_SEEN_REVEALED 0x02 /* Revealed via lore/quests (knowledge menu) */
 
 /*
+ * Run-wide discovery lore flags (player_type.discovery_lore_flags).
+ */
+#define DISC_LORE_LABYRINTH     0x01
+#define DISC_LORE_CHASM         0x02
+#define DISC_LORE_BIG_CAVE_ICE  0x04
+#define DISC_LORE_BIG_CAVE_FIRE 0x08
+#define DISC_LORE_BIG_CAVE_POIS 0x10
+
+/*
  * Maximum size of the "view" array (see "cave.c")
  * Note that the "view radius" will NEVER exceed 20, and even if the "view"
  * was octagonal, we would never require more than 1520 entries in the array.
@@ -2175,7 +2184,7 @@
 #define CUR_ARMOR_SIDE_SHIFT   0x10000000L
 #define CUR_IDENT_DIFF         0x20000000L  /* identification difficulty shift */
 #define CUR_CHEST_WOOD         0x40000000L  /* wooden chest probability shift */
-#define CUR_CURXXX32 0x80000000L
+#define CUR_ABILITY_COST       0x80000000L  /* ability purchase cost shift */
 
 /*** Unique flags ***/
 

@@ -8531,10 +8531,13 @@ typedef struct partition_rule_config {
     int room_object_divisor;
     int corridor_object_divisor;
     partition_metal_rule metal_drops;
+    char discovery_text[1024];
+    char big_cave_discovery_text[BIG_CAVE_TYPE_MAX][1024];
 } partition_rule_config;
 
 static partition_rule_config g_partition_rules[LEVEL_PART_MAX];
 static bool g_partition_rules_initialized = false;
+static const partition_rule_config* partition_config_get(level_partition_kind kind);
 
 static level_partition_kind partition_config_normalize_kind(level_partition_kind kind)
 {
@@ -8806,6 +8809,48 @@ void partition_config_set_metal_rule(level_partition_kind kind,
     g_partition_rules[kind].metal_drops.max_count = MAX(0, max_count);
     g_partition_rules[kind].metal_drops.min_depth = MAX(0, min_depth);
     g_partition_rules[LEVEL_PART_NONE] = g_partition_rules[LEVEL_PART_ROOMY];
+}
+
+void partition_config_set_discovery_text(level_partition_kind kind, cptr text)
+{
+    partition_config_ensure_initialized();
+
+    kind = partition_config_normalize_kind(kind);
+    SDL_strlcpy(g_partition_rules[kind].discovery_text, text ? text : "",
+        sizeof(g_partition_rules[kind].discovery_text));
+}
+
+void partition_config_set_big_cave_discovery_text(big_cave_type_t cave_type,
+    cptr text)
+{
+    partition_config_ensure_initialized();
+
+    if (cave_type <= BIG_CAVE_NONE || cave_type >= BIG_CAVE_TYPE_MAX)
+        return;
+
+    SDL_strlcpy(g_partition_rules[LEVEL_PART_BIG_CAVE]
+                    .big_cave_discovery_text[cave_type],
+        text ? text : "",
+        sizeof(g_partition_rules[LEVEL_PART_BIG_CAVE]
+                   .big_cave_discovery_text[cave_type]));
+}
+
+cptr partition_config_get_discovery_text(level_partition_kind kind,
+    big_cave_type_t cave_type)
+{
+    const partition_rule_config* cfg = partition_config_get(kind);
+
+    if (!cfg)
+        return NULL;
+
+    if (kind == LEVEL_PART_BIG_CAVE
+        && cave_type > BIG_CAVE_NONE && cave_type < BIG_CAVE_TYPE_MAX
+        && cfg->big_cave_discovery_text[cave_type][0])
+    {
+        return cfg->big_cave_discovery_text[cave_type];
+    }
+
+    return cfg->discovery_text[0] ? cfg->discovery_text : NULL;
 }
 
 static const partition_rule_config* partition_config_get(level_partition_kind kind)

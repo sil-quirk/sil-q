@@ -58,6 +58,15 @@
 #     min_depth:
 #       Dungeon depth where metal drops start.
 #
+# Narrative lines:
+#   T:text
+#     Discovery banner/message shown the first time this partition type is
+#     encountered in a run.
+#   BI:text
+#   BF:text
+#   BP:text
+#     Big-cave discovery text for ice, fire, and poison variants.
+#
 # Defaults below define the current partition behavior.
 
 V:0.9.5
@@ -98,6 +107,7 @@ OD:2:4
 MT:0:0:0:0
 
 N:LABYRINTH
+T:The ways before you are broken into a crooked web of stone; in reading that dark craft, your thought is sharpened, and 300 experience is won.
 PF:0:0:10:90:15:2:2:15:5:0:0
 PC:0:0:100:0:0:0:0:0:0:0:0
 PM:0:0:25:75:1:1:1:1:1:0:0
@@ -109,6 +119,7 @@ OD:3:5
 MT:0:0:0:0
 
 N:CHASM
+T:A black rent gapes beneath the mountains, as though the world were cloven in wrath; in beholding that peril, you gain 300 experience.
 PF:40:30:10:20:1:1:1:1:1:0:0
 PC:40:30:10:0:0:0:0:0:0:0:0
 PM:40:30:10:20:1:1:1:1:1:0:0
@@ -120,6 +131,10 @@ OD:3:5
 MT:240:0:4:8
 
 N:BIG_CAVE
+T:A great cavern opens before you, and in the breadth of it there is a hard lesson written in stone and shadow; you gain 300 experience.
+BI:A deathly cold lies here, as if the memory of the Helcaraxe had crept under earth; from that bitter lesson you gain 300 experience.
+BF:A furnace-glow breathes through the cavern, as though old wrath yet smouldered in the roots of the world; in reading its danger, you gain 300 experience.
+BP:A green and venomous reek wanders the hollow, and the very air seems faithless; by that harsh knowing you gain 300 experience.
 PF:25:25:5:45:0:2:8:2:0:0:0
 PC:20:20:15:0:0:0:0:0:0:0:0
 PM:25:25:5:45:0:2:8:2:0:0:0

@@ -252,6 +252,7 @@ static void get_extra(void)
     int i, j;
     
     p_ptr->new_exp = p_ptr->exp = get_start_xp();
+    p_ptr->discovery_lore_flags = 0;
     log_debug("Set starting experience to %d", p_ptr->exp);
 
     /* Player is not singing */
@@ -3762,7 +3763,8 @@ static int blitz_collect_eligible_effect_ids(bool blessing, int ids[], int max_i
         int stacks = CURSE_GET(id);
         int blessing_stacks = (stacks < 0) ? -stacks : 0;
         int curse_stacks = (stacks > 0) ? stacks : 0;
-        byte cap = cu_info[id].max_stacks;
+        byte curse_cap = (byte)CURSE_CURSE_CAP(id);
+        byte blessing_cap = (byte)CURSE_BLESSING_CAP(id);
 
         if (blessing)
         {
@@ -3770,14 +3772,14 @@ static int blitz_collect_eligible_effect_ids(bool blessing, int ids[], int max_i
                 continue;
             if (stacks > 0)
                 continue;
-            if (cap > 0 && blessing_stacks >= cap)
+            if (blessing_cap > 0 && blessing_stacks >= blessing_cap)
                 continue;
         }
         else
         {
             if (!cu_info[id].name)
                 continue;
-            if (cap > 0 && curse_stacks >= cap)
+            if (curse_cap > 0 && curse_stacks >= curse_cap)
                 continue;
         }
 
@@ -3806,7 +3808,7 @@ static int blitz_weighted_random_curse_pick(void)
     {
         byte w = cu_info[i].weight ? cu_info[i].weight : 1;
         int cnt = CURSE_CURSE_STACK(i);
-        byte cap = cu_info[i].max_stacks;
+        byte cap = (byte)CURSE_CURSE_CAP(i);
         long base;
 
         if (!cu_info[i].name)
@@ -3829,7 +3831,7 @@ static int blitz_weighted_random_curse_pick(void)
     {
         byte w = cu_info[i].weight ? cu_info[i].weight : 1;
         int cnt = CURSE_CURSE_STACK(i);
-        byte cap = cu_info[i].max_stacks;
+        byte cap = (byte)CURSE_CURSE_CAP(i);
         long base;
         long eff;
 
@@ -3868,7 +3870,8 @@ static int blitz_weighted_random_blessing_pick(void)
             continue;
         if (stacks > 0)
             continue;
-        if (cu_info[id].max_stacks > 0 && blessing_stacks >= cu_info[id].max_stacks)
+        if (CURSE_BLESSING_CAP(id) > 0
+            && blessing_stacks >= CURSE_BLESSING_CAP(id))
             continue;
 
         eligible[count] = id;

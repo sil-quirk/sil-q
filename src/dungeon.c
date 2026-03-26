@@ -33,8 +33,6 @@ static int last_player_x = 0;
 static bool was_in_morgoth_vault = false;
 static bool morgoth_entry_preconfirmed = false;
 
-/* Track which big partitions have been entered on this level (max 25 partitions). */
-static u32b big_partition_seen_mask = 0;
 static int last_partition_pi = -1;
 static level_partition_kind last_partition_kind = LEVEL_PART_NONE;
 
@@ -72,7 +70,6 @@ static void snapshot_run_history(const char* reason)
 
 static void reset_level_entry_tracking(void)
 {
-    big_partition_seen_mask = 0;
     g_labyrinth_view_active = false;
     g_active_partition_banner_text[0] = '\0';
     greater_vault_xp_name[0] = '\0';
@@ -333,14 +330,36 @@ static void build_partition_narrative_text(int old_sidx, int new_sidx,
     append_narrative_piece(buf, size, styles_get_style_m2(new_sidx));
 }
 
+static void display_narrative_text(cptr text, int narrative_mode,
+    bool line_delay)
+{
+    if (!text || !text[0])
+        return;
+
+    if (narrative_mode == PARTITION_NARRATIVE_MESSAGE)
+    {
+        msg_print(text);
+        return;
+    }
+
+    if (narrative_mode != PARTITION_NARRATIVE_BANNER)
+        return;
+
+    g_term_pre_fresh_hook = narrative_banner_pre_fresh_hook;
+    g_active_partition_banner_text[0] = '\0';
+    print_fade_centered_at_row(text, 1, false, line_delay);
+    SDL_strlcpy(g_active_partition_banner_text, text,
+        sizeof(g_active_partition_banner_text));
+    g_banner_force_redraw_remaining = 3;
+}
+
 static void display_partition_narrative(int old_sidx, int new_sidx,
     level_partition_kind kind)
 {
     char buf[1024];
 
     build_partition_narrative_text(old_sidx, new_sidx, kind, buf, sizeof(buf));
-    if (buf[0])
-        msg_print(buf);
+    display_narrative_text(buf, PARTITION_NARRATIVE_MESSAGE, false);
 }
 
 static void display_partition_narrative_banner(int old_sidx, int new_sidx,
@@ -349,15 +368,7 @@ static void display_partition_narrative_banner(int old_sidx, int new_sidx,
     char buf[1024];
 
     build_partition_narrative_text(old_sidx, new_sidx, kind, buf, sizeof(buf));
-    if (!buf[0])
-        return;
-
-    g_term_pre_fresh_hook = narrative_banner_pre_fresh_hook;
-    g_active_partition_banner_text[0] = '\0';
-    print_fade_centered_at_row(buf, 1, false, line_delay);
-    SDL_strlcpy(g_active_partition_banner_text, buf,
-        sizeof(g_active_partition_banner_text));
-    g_banner_force_redraw_remaining = 3;
+    display_narrative_text(buf, PARTITION_NARRATIVE_BANNER, line_delay);
 }
 
 static bool confirm_enter_morgoth_hall(void)
@@ -491,17 +502,128 @@ static bool is_small_cave_partition_kind(level_partition_kind kind)
     return (kind == LEVEL_PART_CAVEY);
 }
 
-static void maybe_award_big_partition_xp(int pi)
+static byte partition_discovery_lore_flag(level_partition_kind kind)
 {
-    if (pi < 0 || pi >= 25)
+    if (!p_ptr)
+        return 0;
+
+    switch (kind)
+    {
+    case LEVEL_PART_LABYRINTH:
+        return DISC_LORE_LABYRINTH;
+    case LEVEL_PART_CHASM:
+        return DISC_LORE_CHASM;
+    case LEVEL_PART_BIG_CAVE:
+    {
+        switch (level_partition_big_cave_type_for_point(p_ptr->py, p_ptr->px))
+        {
+        case BIG_CAVE_ICE:
+            return DISC_LORE_BIG_CAVE_ICE;
+        case BIG_CAVE_FIRE:
+            return DISC_LORE_BIG_CAVE_FIRE;
+        case BIG_CAVE_POIS:
+            return DISC_LORE_BIG_CAVE_POIS;
+        default:
+            return 0;
+        }
+    }
+    default:
+        return 0;
+    }
+}
+
+static int discovery_narrative_mode(bool force_message, int narrative_mode)
+{
+    if (!force_message)
+        return narrative_mode;
+
+    if (!op_ptr)
+        return PARTITION_NARRATIVE_OFF;
+
+    switch (op_ptr->level_entry_narrative_mode)
+    {
+    case LEVEL_ENTRY_NARRATIVE_BANNER_DELAY:
+    case LEVEL_ENTRY_NARRATIVE_BANNER:
+        return PARTITION_NARRATIVE_BANNER;
+    case LEVEL_ENTRY_NARRATIVE_MESSAGE:
+        return PARTITION_NARRATIVE_MESSAGE;
+    default:
+        return PARTITION_NARRATIVE_OFF;
+    }
+}
+
+static bool discovery_narrative_line_delay(bool force_message)
+{
+    return force_message && op_ptr
+        && (op_ptr->level_entry_narrative_mode
+            == LEVEL_ENTRY_NARRATIVE_BANNER_DELAY);
+}
+
+static cptr partition_discovery_lore_text(level_partition_kind kind)
+{
+    big_cave_type_t cave_type = BIG_CAVE_NONE;
+
+    if (kind == LEVEL_PART_BIG_CAVE && p_ptr)
+        cave_type = level_partition_big_cave_type_for_point(p_ptr->py, p_ptr->px);
+
+    return partition_config_get_discovery_text(kind, cave_type);
+}
+
+static void maybe_award_partition_discovery_xp(level_partition_kind kind,
+    int narrative_mode, bool line_delay)
+{
+    byte bit = partition_discovery_lore_flag(kind);
+    cptr text = partition_discovery_lore_text(kind);
+
+    if (!bit || !text)
         return;
 
-    u32b bit = (u32b)(1U << pi);
-    if (big_partition_seen_mask & bit)
+    if (p_ptr->discovery_lore_flags & bit)
         return;
 
-    big_partition_seen_mask |= bit;
-    gain_exp(50);
+    p_ptr->discovery_lore_flags |= bit;
+    gain_exp(300);
+    display_narrative_text(text, narrative_mode, line_delay);
+}
+
+static cptr vault_entry_message_for_name(cptr vault_name)
+{
+    int i;
+
+    if (!vault_name || !vault_name[0])
+        return NULL;
+
+    for (i = 0; i < z_info->v_max; i++)
+    {
+        vault_type* v_ptr = &v_info[i];
+        cptr name;
+
+        if (!v_ptr->name)
+            continue;
+
+        name = v_name + v_ptr->name;
+        if (strcmp(name, vault_name) != 0)
+            continue;
+
+        if (!v_ptr->message)
+            return NULL;
+
+        return v_text + v_ptr->message;
+    }
+
+    return NULL;
+}
+
+static void describe_greater_vault_entry(cptr vault_name)
+{
+    int narrative_mode = op_ptr ? op_ptr->partition_narrative_mode
+                                : PARTITION_NARRATIVE_MESSAGE;
+    cptr text = vault_entry_message_for_name(vault_name);
+
+    if (!text)
+        return;
+
+    display_narrative_text(text, narrative_mode, false);
 }
 
 static void handle_partition_entry(bool force_message, int narrative_mode)
@@ -529,7 +651,9 @@ static void handle_partition_entry(bool force_message, int narrative_mode)
     }
 
     if (entered_big)
-        maybe_award_big_partition_xp(pi);
+        maybe_award_partition_discovery_xp(
+            kind, discovery_narrative_mode(force_message, narrative_mode),
+            discovery_narrative_line_delay(force_message));
 
     if ((pi >= 0) && (pi < 25) && (sidx >= 0))
     {
@@ -2950,16 +3074,18 @@ static void process_player(void)
                 }
                 else
                 {
+                    const int vault_xp = 500;
                     char note[120];
                     strnfmt(note, sizeof(note), "Entered %s", g_vault_name);
                     do_cmd_note(note, p_ptr->depth);
 
                     p_ptr->morgoth_hall_entered = true;
 
+                    describe_greater_vault_entry(g_vault_name);
                     msg_print("From within you hear the harsh din of feasting in Morgoth's own hall.");
                     if (!greater_vault_xp_awarded)
                     {
-                        gain_exp(100);
+                        gain_exp(vault_xp);
                         greater_vault_xp_awarded = true;
                     }
 
@@ -2972,20 +3098,16 @@ static void process_player(void)
             }
             else
             {
+                const int vault_xp = 500;
                 char note[120];
                 strnfmt(note, sizeof(note), "Entered %s", g_vault_name);
 
                 do_cmd_note(note, p_ptr->depth);
-
-                // give a message unless it is the Gates or the Throne Room
-                if (p_ptr->depth > 0 && p_ptr->depth < 20)
+                describe_greater_vault_entry(g_vault_name);
+                if (!greater_vault_xp_awarded)
                 {
-                    msg_format("You have entered %s.", g_vault_name);
-                    if (!greater_vault_xp_awarded)
-                    {
-                        gain_exp(100);
-                        greater_vault_xp_awarded = true;
-                    }
+                    gain_exp(vault_xp);
+                    greater_vault_xp_awarded = true;
                 }
             }
 

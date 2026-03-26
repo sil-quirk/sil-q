@@ -1136,7 +1136,7 @@ static void wr_extra(void)
     // 15 spare bytes (was 19, used 4 for song debuff counters)
     wr_byte(p_ptr->morgoth_hall_entered ? 1 : 0);
     wr_byte(p_ptr->morgoth_second_wind ? 1 : 0);
-    wr_byte(0);
+    wr_byte(p_ptr->discovery_lore_flags);
     wr_u32b(0L);
     wr_u32b(0L);
     wr_u32b(0L);
