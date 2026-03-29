@@ -484,7 +484,7 @@ cptr option_desc[OPT_MAX] = {
     "Vault drop frequency (0=Normal, 1=Modest, 2=Scarce, 3=Meager, 4=Plentiful)", /* OPT_vault_drop_frequency */
     "Debug: Show {sd,wr} in item descriptions", /* OPT_show_smithing_difficulty */
     "Debug: Show {sd,wr} in look (L) sidebar and message", /* OPT_show_smithing_difficulty_look */
-    "Welcome screen (0-4=fixed, 5=random)", /* OPT_intro_style */
+    "Welcome screen (0-6=fixed, 7=random)", /* OPT_intro_style */
     "Partition transition narrative (banner without delay/message/off)", /* OPT_show_partition_narrative */
     "Noble item spawns (0=good+/chests/human+elf skeletons, 1=also &/! vault drops)", /* OPT_noble_item_spawn_mode */
     "Hide the classic left panel and use the compact overlay", /* OPT_hide_left_panel */

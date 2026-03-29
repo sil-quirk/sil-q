@@ -16013,6 +16013,8 @@ static bool choose_partition_monster_location(
 
         if (!in_bounds_fully(y, x))
             continue;
+        if (level_partition_index_for_point(y, x) != plan->pi)
+            continue;
         if (cave_info[y][x] & CAVE_ICKY)
             continue;
         if (!partition_population_naked_bold(plan->mode, y, x))

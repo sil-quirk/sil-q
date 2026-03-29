@@ -2791,8 +2791,10 @@
 #define INTRO_STYLE_TWILIGHT    2   /* Twilight of Valinor */
 #define INTRO_STYLE_LUTHIEN     3   /* Song of Luthien */
 #define INTRO_STYLE_HURIN       4   /* Words of Hurin */
-#define INTRO_STYLE_RANDOM      5   /* Random each launch */
-#define INTRO_STYLE_MAX         5   /* Highest fixed variant index (4) + 1 for random */
+#define INTRO_STYLE_STARLIGHT   5   /* Starlight on Cuivienen */
+#define INTRO_STYLE_NOLDOLANTE  6   /* Lament of the Noldor */
+#define INTRO_STYLE_RANDOM      7   /* Random each launch */
+#define INTRO_STYLE_MAX         7   /* Highest fixed variant index (6) + 1 for random */
 // xxx birth_point_based
 // xxx birth_auto_roller
 // xxx birth_maximize

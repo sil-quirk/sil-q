@@ -443,6 +443,9 @@ static bool option_list_contains(const byte* ids, int opt)
 
 bool option_is_app_persistent(int opt)
 {
+    /* Multi-value non-bool options saved explicitly in the visual JSON block */
+    if (opt == OPT_intro_style)
+        return true;
     return option_list_contains(app_interface_options, opt)
         || option_list_contains(app_text_options, opt)
         || option_list_contains(app_efficiency_options, opt)

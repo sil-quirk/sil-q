@@ -2693,7 +2693,7 @@ static void display_introduction_with_layout(
     if (sdl_config_should_force_intro_flame())
         intro_style = INTRO_STYLE_FLAME;
     else if (op_ptr->intro_style == INTRO_STYLE_RANDOM)
-        intro_style = (int)(SDL_GetTicks() % 5u);  /* 0..4 */
+        intro_style = (int)(SDL_GetTicks() % 7u);  /* 0..6 */
     else
         intro_style = (int)op_ptr->intro_style;
 
@@ -2864,6 +2864,64 @@ static void display_introduction_with_layout(
 
         Term_putstr(intro_col, INTRO_ROW(16), -1, TERM_L_BLUE,
             "\"Aure entuluva!\"");
+        break;
+
+    /* ===== Variant 5  "Starlight on Cuivienen" ========================= */
+    case 5:
+        Term_putstr(title_col, INTRO_ROW(1), -1, TERM_WHITE, "S I L - M O R E");
+        Term_putstr(subtitle_col, INTRO_ROW(2), -1, TERM_L_BLUE,
+            "~ Shining  Darkness ~");
+        Term_putstr(intro_col, INTRO_ROW(4), -1, TERM_WHITE,
+            "By silver waters Elves first woke");
+        Term_putstr(intro_col, INTRO_ROW(5), -1, TERM_WHITE,
+            "beneath the stars ere morning broke.");
+        Term_putstr(intro_col, INTRO_ROW(6), -1, TERM_WHITE,
+            "No sun had risen, no moon shone --");
+        Term_putstr(intro_col, INTRO_ROW(7), -1, TERM_WHITE,
+            "just heaven's light on lake and stone.");
+        Term_putstr(intro_col, INTRO_ROW(9), -1, TERM_WHITE,
+            "Then Morgoth's shadow veiled the land");
+        Term_putstr(intro_col, INTRO_ROW(10), -1, TERM_WHITE,
+            "and stole the Light with iron hand.");
+        Term_putstr(intro_col, INTRO_ROW(11), -1, TERM_WHITE,
+            "Yet still a whisper stirs the deep:");
+        Term_putstr(intro_col, INTRO_ROW(12), -1, TERM_WHITE,
+            "what darkness took, the bold may reap.");
+        Term_putstr(intro_col, INTRO_ROW(14), -1, TERM_L_BLUE,
+            "\"...the starlight glittered");
+        Term_putstr(intro_col, INTRO_ROW(15), -1, TERM_L_BLUE,
+            "  on the waters of Cuivienen.\"");
+        Term_putstr(quote_attr_col, INTRO_ROW(16), -1, TERM_SLATE,
+            "-- Of the Coming of the Elves");
+        break;
+
+    /* ===== Variant 6  "Lament of the Noldor" ========================== */
+    case 6:
+        Term_putstr(title_col, INTRO_ROW(1), -1, TERM_WHITE, "S I L - M O R E");
+        Term_putstr(subtitle_col, INTRO_ROW(2), -1, TERM_L_BLUE,
+            "~ Shining  Darkness ~");
+        Term_putstr(intro_col, INTRO_ROW(4), -1, TERM_WHITE,
+            "In Valinor the Two Trees shone");
+        Term_putstr(intro_col, INTRO_ROW(5), -1, TERM_WHITE,
+            "with gold and silver, leaf and bough.");
+        Term_putstr(intro_col, INTRO_ROW(6), -1, TERM_WHITE,
+            "Their mingled light is dead and gone --");
+        Term_putstr(intro_col, INTRO_ROW(7), -1, TERM_WHITE,
+            "the world lies under shadow now.");
+        Term_putstr(intro_col, INTRO_ROW(9), -1, TERM_WHITE,
+            "Across the ice the exiles came,");
+        Term_putstr(intro_col, INTRO_ROW(10), -1, TERM_WHITE,
+            "the Noldor burning with their oath.");
+        Term_putstr(intro_col, INTRO_ROW(11), -1, TERM_WHITE,
+            "They traded bliss for grief and flame");
+        Term_putstr(intro_col, INTRO_ROW(12), -1, TERM_WHITE,
+            "and lost the blessing of them both.");
+        Term_putstr(intro_col, INTRO_ROW(14), -1, TERM_L_BLUE,
+            "\"...and the Noldor wept");
+        Term_putstr(intro_col, INTRO_ROW(15), -1, TERM_L_BLUE,
+            "  for the beauty of Telperion and Laurelin.\"");
+        Term_putstr(quote_attr_col, INTRO_ROW(16), -1, TERM_SLATE,
+            "-- Of the Darkening of Valinor");
         break;
     }
 

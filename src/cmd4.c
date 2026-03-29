@@ -12721,7 +12721,8 @@ extern void do_cmd_options_aux(int page, cptr info)
                 const char *is_names[] = {
                     "Flame Imperishable", "Oath of Feanor",
                     "Twilight of Valinor", "Song of Luthien",
-                    "Words of Hurin", "Random"
+                    "Words of Hurin", "Starlight on Cuivienen",
+                    "Lament of the Noldor", "Random"
                 };
                 byte m = op_ptr->intro_style;
                 if (m > INTRO_STYLE_RANDOM) m = INTRO_STYLE_FLAME;
