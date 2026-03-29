@@ -55,7 +55,7 @@ static const int elf_thrall_weights[THRALL_QUEST_MAX] = {
 /*
  * Tolkienistic texts for thrall interactions
  */
-static const char* human_request_text = 
+static const char* human_request_texts[] = {
     "The shadows here are deep, and hope is a rare guest in these halls. Yet I see a glimmer of light in your eyes, stranger.\n"
     "\n"
     "I am bound to this darkness, but perhaps you are not. If your heart still knows pity, I beg a small boon of you.\n"
@@ -64,9 +64,60 @@ static const char* human_request_text =
     "\n"
     "%s\n"
     "\n"
-    "Grant me this, and I shall share what little aid I can still offer.";
+    "Grant me this, and I shall share what little aid I can still offer.",
 
-static const char* elf_request_text = 
+    "You there \xe2\x80\x94 halt. You have the look of a free soul about you, and that is a rare and dangerous thing in these deeps.\n"
+    "\n"
+    "I have nothing to offer but words, and those are cheap in Angband. But I have a need, and you may have the means.\n"
+    "\n"
+    "Bring me %s.\n"
+    "\n"
+    "%s\n"
+    "\n"
+    "Do this, and I will repay the kindness as best I can. I have not forgotten all my skill.",
+
+    "Do not be afraid. I was a man once, before the chains and the dark. I still am, though they would have me forget it.\n"
+    "\n"
+    "The overseers leave me alive because my hands are useful, but my spirit is my own, and it cries out for one mercy.\n"
+    "\n"
+    "Bring me %s.\n"
+    "\n"
+    "%s\n"
+    "\n"
+    "In return I shall put these calloused hands to work for you.",
+
+    "Another wanderer in the pits. I would warn you to turn back, but no road leads out of Angband save through it.\n"
+    "\n"
+    "I have laboured here longer than I care to reckon. My strength fades, but my wits have not yet been broken.\n"
+    "\n"
+    "If you could find me %s, it would be a lifeline in this drowning dark.\n"
+    "\n"
+    "%s\n"
+    "\n"
+    "Help me, and I will help you. That is an honest bargain, even here.",
+
+    "Quiet \xe2\x80\x94 the guards have just passed. Listen, I have not much time to speak.\n"
+    "\n"
+    "They have worked me near to death, but I am still breathing, and where there is breath there is a chance. I need your help.\n"
+    "\n"
+    "Bring me %s.\n"
+    "\n"
+    "%s\n"
+    "\n"
+    "I can still ply a trade, and I will use it in your favour.",
+
+    "I see from your bearing that you are no thrall. That alone gives me courage to ask what I am about to ask.\n"
+    "\n"
+    "They took everything from me \xe2\x80\x94 my home, my name, my kin. All I have left is the hope that someone, someday, might show me a scrap of kindness.\n"
+    "\n"
+    "Bring me %s.\n"
+    "\n"
+    "%s\n"
+    "\n"
+    "Do this, and what skill these worn hands still possess is yours."
+};
+
+static const char* elf_request_texts[] = {
     "Ai! A star in the darkness! Do my eyes deceive me, or do I look upon one of the Free Peoples walking these accursed paths?\n"
     "\n"
     "I am weary, kinsman, weary beyond the counting of years. The Shadow lies heavy upon my fea.\n"
@@ -75,35 +126,210 @@ static const char* elf_request_text =
     "\n"
     "%s\n"
     "\n"
-    "In return, I shall speak to you of ancient works and secrets long forgotten by the world above.";
+    "In return, I shall speak to you of ancient works and secrets long forgotten by the world above.",
 
-static const char* human_pre_give_text = 
+    "Stay your step, wanderer. Not all who dwell here are foes, though the iron and shadow would have it so.\n"
+    "\n"
+    "Once I walked beneath stars and knew the names of every tree from root to crown. Now I count the hours by the dripping of water and the turning of the wheel.\n"
+    "\n"
+    "If compassion yet moves your heart, bring me %s.\n"
+    "\n"
+    "%s\n"
+    "\n"
+    "It would ease my captivity, and I would repay you with such knowledge as I still possess.",
+
+    "A\xe2\x80\xa6 free walker? Here, in the deep places? I thought my eyes had at last surrendered to the dark, but no \xe2\x80\x94 you are real.\n"
+    "\n"
+    "I was taken from the green lands long ago, and the song has all but left my voice. Still, I remember enough to be of use.\n"
+    "\n"
+    "If it is within your power, bring me %s.\n"
+    "\n"
+    "%s\n"
+    "\n"
+    "I shall repay such grace with whatever craft the long years have not stripped from me.",
+
+    "Daro! Do not strike. I am no servant of the Enemy, though my chains would give the lie to that claim.\n"
+    "\n"
+    "There was a time when my people sang the world into shape. Now I sing only to keep madness at bay. But I have not yet fallen.\n"
+    "\n"
+    "I ask only this: bring me %s.\n"
+    "\n"
+    "%s\n"
+    "\n"
+    "Grant me this, and the old knowledge shall be yours \xe2\x80\x94 such of it as endures in a captive heart.",
+
+    "Hush \xe2\x80\x94 speak softly. The walls have ears, and the servants of the Enemy are cunning beyond measure.\n"
+    "\n"
+    "I have dwelt in these pits since before the sun last touched my face. My strength wanes, but my memory is long, and I remember things of power and beauty.\n"
+    "\n"
+    "If pity stirs in your breast, bring me %s.\n"
+    "\n"
+    "%s\n"
+    "\n"
+    "In exchange I will impart to you a portion of the Elder craft \xe2\x80\x94 small, perhaps, but not without worth.",
+
+    "You move as one who still knows the taste of open air. How I envy you.\n"
+    "\n"
+    "I was a maker once \xe2\x80\x94 a shaper of fair things in the halls of my people. Now my forge is cold and my tools are rust. But the skill lives on in these fingers, if barely.\n"
+    "\n"
+    "Would you bring me %s?\n"
+    "\n"
+    "%s\n"
+    "\n"
+    "I would give you something in return \xe2\x80\x94 a gift of craft that the darkness has not yet devoured."
+};
+
+static const char* human_pre_give_texts[] = {
     "You return... and I see you bear the burden I spoke of. Can it be true? Have you brought %s to this wretched place?\n"
     "\n"
     "%s\n"
     "\n"
-    "If you would part with it, my gratitude would be boundless.";
+    "If you would part with it, my gratitude would be boundless.",
 
-static const char* elf_pre_give_text = 
+    "I see it upon you \xe2\x80\x94 %s! My heart leaps at the sight.\n"
+    "\n"
+    "%s\n"
+    "\n"
+    "Will you surrender it to one whose freedom hangs by a thread?",
+
+    "Wait \xe2\x80\x94 is that %s I spy? I have dreamed of such a thing through many dark watches.\n"
+    "\n"
+    "%s\n"
+    "\n"
+    "Say the word, and it shall not be given in vain.",
+
+    "By all that is still good in this world \xe2\x80\x94 you carry %s! I can scarcely believe my fortune.\n"
+    "\n"
+    "%s\n"
+    "\n"
+    "Would you part with it? I swear upon my people that the debt will be repaid.",
+
+    "Hold \xe2\x80\x94 I recognise what you carry. That is %s, unless my eyes have wholly failed me.\n"
+    "\n"
+    "%s\n"
+    "\n"
+    "If you would spare it, I will see that the kindness is returned.",
+
+    "You have it \xe2\x80\x94 %s! I can see it plain as day, and my heart almost bursts with hope.\n"
+    "\n"
+    "%s\n"
+    "\n"
+    "Will you give it to me? I will put my hands and my wits at your service in thanks."
+};
+
+static const char* elf_pre_give_texts[] = {
     "You have returned, and the light of the stars seems to follow you. And... yes, I sense you carry %s.\n"
     "\n"
     "%s\n"
     "\n"
-    "Is it for me? Will you grant this kindness to a fading spirit?";
+    "Is it for me? Will you grant this kindness to a fading spirit?",
 
-static const char* human_thanks_text = 
+    "Ai, you have come again, and you bring with you %s! Even here, hope endures.\n"
+    "\n"
+    "%s\n"
+    "\n"
+    "Will you part with it for my sake?",
+
+    "My heart quickens \xe2\x80\x94 can it be? You bear %s! The very air around you seems brighter for it.\n"
+    "\n"
+    "%s\n"
+    "\n"
+    "If you would bestow it upon me, I shall not soon forget the gift.",
+
+    "Na vedui! At last, a kindness beyond hope. You carry %s, and its presence alone is a balm.\n"
+    "\n"
+    "%s\n"
+    "\n"
+    "Will you yield it to one whose need is great?",
+
+    "The light follows you still, and upon you I perceive %s. A thread of hope in a tapestry of ruin.\n"
+    "\n"
+    "%s\n"
+    "\n"
+    "If you can spare this boon, my craft \xe2\x80\x94 such as it is \xe2\x80\x94 shall be devoted to your cause.",
+
+    "Ai, can it be? %s! My fea trembles at the sight. Even in Angband, the world is not wholly bereft of grace.\n"
+    "\n"
+    "%s\n"
+    "\n"
+    "Will you give it to one who has all but forgotten the sun?"
+};
+
+static const char* human_thanks_texts[] = {
     "You... you have brought it? I had not dared to hope.\n"
     "\n"
     "My thanks, stranger. You have done a kinder deed than you know. May your courage not fail you in the trials to come.\n"
     "\n"
-    "In payment, such as I can make, I will give you what craft or lore I have not forgotten.";
+    "In payment, such as I can make, I will give you what craft or lore I have not forgotten.",
 
-static const char* elf_thanks_text = 
+    "It is done. You are a finer soul than any master I have served in these halls.\n"
+    "\n"
+    "I had thought all kindness perished when I was thrown into this pit, but you have proven me wrong.\n"
+    "\n"
+    "Take what I can give \xe2\x80\x94 some cunning of hand and eye that the long years of labour have taught me.",
+
+    "I will not weep \xe2\x80\x94 tears are a luxury I cannot afford \xe2\x80\x94 but know that you have given me something more precious than gold.\n"
+    "\n"
+    "For a moment I remember what it was to be free, and that is enough.\n"
+    "\n"
+    "Here \xe2\x80\x94 let me set my hands to your gear. It is the least I can do.",
+
+    "You risked much to bring this to a wretch like me, and I will not forget it.\n"
+    "\n"
+    "When I was a craftsman in the daylight world, my work was honest and strong. The dark has not stolen that from me entirely.\n"
+    "\n"
+    "Let me put what remains of my old skill to your benefit.",
+
+    "There are no words \xe2\x80\x94 not in the common tongue, nor in any speech I know \xe2\x80\x94 that can repay what you have done.\n"
+    "\n"
+    "But words are not all I have. These hands still know their trade, battered though they are.\n"
+    "\n"
+    "Come, let me work upon whatever you carry. It is the only coin I can offer, and I give it gladly.",
+
+    "A good deed in a foul place. My old mother used to say that kindness is the only wealth that grows when you give it away.\n"
+    "\n"
+    "She was right, and you have proven it.\n"
+    "\n"
+    "Now let me see what I can do for you \xe2\x80\x94 I may be a slave, but my craft is still my own."
+};
+
+static const char* elf_thanks_texts[] = {
     "Elen sila lumenn' omentielvo! You have my deepest thanks.\n"
     "\n"
     "Long have I lacked such kindness in this forsaken place. May the stars shine upon your road, and may your hand be swift and your heart steadfast.\n"
     "\n"
-    "In return I will share with you what lore and craft remain to me, dim though my memory has become in these pits.";
+    "In return I will share with you what lore and craft remain to me, dim though my memory has become in these pits.",
+
+    "Hannon le, mellon. The grace of the Valar is not yet wholly spent if such mercy can be found in Morgoth's domain.\n"
+    "\n"
+    "My spirit is lifted, if only for a moment, and in that moment I am myself again.\n"
+    "\n"
+    "Let me share with you a fragment of the ancient craft \xe2\x80\x94 a gift from one who may soon pass beyond all circles of the world.",
+
+    "Le hannon, le hannon. Words fail where gratitude is too deep for speech.\n"
+    "\n"
+    "You have rekindled an ember I thought quenched forever. Even if this body fails, the memory of your kindness will not fade from the song.\n"
+    "\n"
+    "Accept what I can offer \xe2\x80\x94 a whisper of the old craft, shaped in better days.",
+
+    "You walk in the shadow of Morgoth himself, yet you carry light with you. That is no small thing.\n"
+    "\n"
+    "I have seen ages pass in this darkness, and few deeds have touched me so. May the stars remember your name when all other names are forgotten.\n"
+    "\n"
+    "Come \xe2\x80\x94 let me share what lore I have. It is poor coin for such a gift, but it is all I possess.",
+
+    "Gi nathlam h\xc3\xad. You honour me beyond all deserving.\n"
+    "\n"
+    "In the long dark I have felt my fea diminish, a candle guttering in a gale. Yet your gift has steadied the flame, if only for a breath.\n"
+    "\n"
+    "Let me repay you with a remnant of Noldorin craft \xe2\x80\x94 ancient and worn, yet still sharp.",
+
+    "A\xe2\x80\xa6 tear? I had forgotten the Eldar could still weep. Forgive me \xe2\x80\x94 it has been long since anyone showed me such generosity.\n"
+    "\n"
+    "The world beyond these walls grows dim in my memory, but the old skills remain. They are etched into my hands deeper than any chain.\n"
+    "\n"
+    "Take what I offer. It is given freely, from a heart that you have made whole again, if only for a moment."
+};
 
 static cptr get_thrall_quest_reason(monster_type* m_ptr, byte quest_item)
 {
@@ -200,20 +426,26 @@ static void show_thrall_dialog(monster_type* m_ptr, const char* fmt_text)
     quest_typewriter_menu(title, texts, 1, title_color, TERM_WHITE);
 }
 
+#define THRALL_TEXT_VARIANTS 6
+
 static void thrall_request_dialog(monster_type* m_ptr)
 {
+    int variant = rand_int(THRALL_TEXT_VARIANTS);
+
     if (m_ptr->r_idx == R_IDX_ALERT_ELF_THRALL)
-        show_thrall_dialog(m_ptr, elf_request_text);
+        show_thrall_dialog(m_ptr, elf_request_texts[variant]);
     else
-        show_thrall_dialog(m_ptr, human_request_text);
+        show_thrall_dialog(m_ptr, human_request_texts[variant]);
 }
 
 static void thrall_thanks_dialog(monster_type* m_ptr)
 {
+    int variant = rand_int(THRALL_TEXT_VARIANTS);
+
     if (m_ptr->r_idx == R_IDX_ALERT_ELF_THRALL)
-        show_thrall_dialog(m_ptr, elf_thanks_text);
+        show_thrall_dialog(m_ptr, elf_thanks_texts[variant]);
     else
-        show_thrall_dialog(m_ptr, human_thanks_text);
+        show_thrall_dialog(m_ptr, human_thanks_texts[variant]);
 }
 
 /*
@@ -1033,10 +1265,11 @@ bool handle_thrall_interaction(monster_type* m_ptr)
         /* Player has the item - offer to give it */
         
         /* Show Pre-Give Dialog */
+        int variant = rand_int(THRALL_TEXT_VARIANTS);
         if (m_ptr->r_idx == R_IDX_ALERT_ELF_THRALL)
-            show_thrall_dialog(m_ptr, elf_pre_give_text);
+            show_thrall_dialog(m_ptr, elf_pre_give_texts[variant]);
         else
-            show_thrall_dialog(m_ptr, human_pre_give_text);
+            show_thrall_dialog(m_ptr, human_pre_give_texts[variant]);
 
         char prompt[200];
         strnfmt(prompt, sizeof(prompt), 
