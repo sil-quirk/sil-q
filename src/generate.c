@@ -278,6 +278,40 @@ static bool choose_chasm_sanctum_seed(
     return found;
 }
 
+static const int chasm_sanctum_ambush_offsets[8][2] = {
+    {-2, -2}, {-2, 0}, {-2, 2},
+    {0, -2},            {0, 2},
+    {2, -2},  {2, 0},  {2, 2}
+};
+
+static bool chasm_sanctum_drop_marker_present(int y, int x)
+{
+    for (object_type* o_ptr = get_first_object(y, x); o_ptr;
+        o_ptr = get_next_object(o_ptr))
+    {
+        if (o_ptr->ident & IDENT_CHASM_SANCTUM_ITEM)
+            return true;
+    }
+
+    return false;
+}
+
+static bool chasm_sanctum_ambush_tile(int y, int x)
+{
+    for (int i = 0; i < 8; ++i)
+    {
+        int cy = y - chasm_sanctum_ambush_offsets[i][0];
+        int cx = x - chasm_sanctum_ambush_offsets[i][1];
+
+        if (!in_bounds_fully(cy, cx))
+            continue;
+        if (chasm_sanctum_drop_marker_present(cy, cx))
+            return true;
+    }
+
+    return false;
+}
+
 static bool place_exact_skeleton_at(int y, int x, byte sval)
 {
     object_type object_type_body;
@@ -2456,6 +2490,10 @@ typedef enum density_level {
 #define LABYRINTH_START_DEPTH 7
 #define BIG_CAVE_START_DEPTH 10
 #define CHASM_START_DEPTH 14
+#define PARTITION_THEME_MONSTER_PERCENT 80
+#define PARTITION_THEME_LEVEL_DELTA 2
+#define CHASM_WHISPERING_SHADOW_TARGET 8
+#define CHASM_AMBUSH_UNIQUE_SUB_PERCENT 10
 #define SPECIAL_CAP_STEP 5
 #define SPECIAL_CAP_MAX 3
 /* Special-mode depth gates and caps (tweak to rebalance rarity) */
@@ -3025,10 +3063,8 @@ static void apply_partition_and_room_glow_rules(void)
     }
 }
 
-static bool place_monster_by_flag_try(int y, int x, int flagset, u32b flag, bool allow_unique, int max_depth);
-static bool place_monster_by_letter_try(int y, int x, char letter, bool allow_unique, int max_depth);
-static bool place_big_cave_elemental_monster(int y, int x, big_cave_type_t cave_type, int max_depth);
-static bool place_big_cave_troll_or_giant(int y, int x, int max_depth);
+static bool place_chasm_theme_monster_at(int y, int x, int r_idx);
+static void awaken_chasm_sanctum_monster(int y, int x);
 
 /* Gentle scaling helper: add ~50% per size tier (caps explosive growth) */
 static int scaled_attempts(int base, int area_factor)
@@ -9103,7 +9139,11 @@ static bool partition_population_naked_bold(quadrant_mode_t mode, int y, int x)
     if (generation_escape_tunnel_bold(y, x))
         return false;
     if (mode == QUAD_MODE_CHASM)
+    {
+        if (chasm_sanctum_ambush_tile(y, x))
+            return false;
         return chasm_native_walkable_bold(y, x) && cave_naked_bold(y, x);
+    }
     return cave_naked_bold(y, x);
 }
 
@@ -15418,51 +15458,368 @@ static void cave_set_feat_style(int y, int x, int feat, int style_idx)
         cave_set_feat(y, x, feat);
 }
 
-static bool place_monster_by_flag_try(int y, int x, int flagset, u32b flag, bool allow_unique, int max_depth)
+static void partition_theme_depth_band(int depth, int* min_depth, int* max_depth)
 {
-    if (cave_m_idx[y][x] != 0)
+    int min_level = MAX(1, depth - PARTITION_THEME_LEVEL_DELTA);
+    int max_level = MIN(MORGOTH_DEPTH + 3, depth + PARTITION_THEME_LEVEL_DELTA);
+
+    if (min_depth)
+        *min_depth = min_level;
+    if (max_depth)
+        *max_depth = max_level;
+}
+
+static bool chasm_theme_monster_ok(
+    int r_idx, int min_depth, int max_depth, bool allow_unique, bool unique_only)
+{
+    monster_race* r_ptr = &r_info[r_idx];
+
+    if (!r_ptr->name || !r_ptr->rarity)
         return false;
-    place_monster_by_flag(y, x, flagset, flag, allow_unique, max_depth);
-    return (cave_m_idx[y][x] != 0);
+    if (!allow_unique && (r_ptr->flags1 & RF1_UNIQUE))
+        return false;
+    if (unique_only && !(r_ptr->flags1 & RF1_UNIQUE))
+        return false;
+    if (r_ptr->flags3 & RF3_SPECIAL_VAULT_ONLY)
+        return false;
+    if (r_ptr->flags1 & RF1_SPECIAL_GEN)
+        return false;
+    if (r_ptr->light >= 0)
+        return false;
+    if (r_ptr->level < min_depth || r_ptr->level > max_depth)
+        return false;
+    if ((r_ptr->flags1 & RF1_FORCE_DEPTH) && (r_ptr->level > p_ptr->depth))
+        return false;
+    if (r_ptr->cur_num >= r_ptr->max_num)
+        return false;
+
+    return true;
 }
 
-static bool place_monster_by_letter_try(int y, int x, char letter, bool allow_unique, int max_depth)
+static bool partition_mode_uses_monster_pools(quadrant_mode_t mode)
 {
-    int tries = 0;
-    int depth = max_depth;
-
-    while (depth > 0)
+    switch (mode)
     {
-        int r_idx = get_mon_num(depth, false, true, true);
-        monster_race* r_ptr = &r_info[r_idx];
-
-        if (r_ptr->d_char == letter
-            && (allow_unique || !(r_ptr->flags1 & (RF1_UNIQUE))))
-        {
-            return place_monster_one(y, x, r_idx, true, false, NULL);
-        }
-
-        tries++;
-        if (tries >= 100)
-        {
-            tries = 0;
-            depth--;
-        }
+    case QUAD_MODE_CAVEY:
+    case QUAD_MODE_LABYRINTH:
+    case QUAD_MODE_CHASM:
+    case QUAD_MODE_BIG_CAVE:
+        return true;
+    default:
+        return false;
     }
-
-    return false;
 }
 
-static bool chasm_sanctum_drop_present(int y, int x)
+static bool monster_name_contains_ci(const monster_race* r_ptr, cptr needle)
 {
-    for (object_type* o_ptr = get_first_object(y, x); o_ptr;
-        o_ptr = get_next_object(o_ptr))
+    size_t len;
+    const char* name;
+
+    if (!r_ptr || !needle || !needle[0] || !r_ptr->name)
+        return false;
+
+    len = SDL_strlen(needle);
+    name = r_name + r_ptr->name;
+
+    for (const char* p = name; *p; ++p)
     {
-        if (o_ptr->ident & IDENT_CHASM_SANCTUM_ITEM)
+        if (SDL_strncasecmp(p, needle, len) == 0)
             return true;
     }
 
     return false;
+}
+
+static bool monster_is_bat(const monster_race* r_ptr)
+{
+    return r_ptr && (r_ptr->d_char == 'b')
+        && monster_name_contains_ci(r_ptr, "bat");
+}
+
+static bool monster_has_blow_effect(const monster_race* r_ptr, byte effect)
+{
+    if (!r_ptr)
+        return false;
+
+    for (int i = 0; i < MONSTER_BLOW_MAX; ++i)
+    {
+        if (!r_ptr->blow[i].method)
+            continue;
+        if (r_ptr->blow[i].effect == effect)
+            return true;
+    }
+
+    return false;
+}
+
+static bool monster_counts_toward_labyrinth_fixed_cap(const monster_race* r_ptr)
+{
+    return r_ptr
+        && ((r_ptr->flags1 & (RF1_NEVER_MOVE | RF1_HIDDEN_MOVE)) != 0);
+}
+
+static bool monster_matches_partition_theme(
+    const monster_race* r_ptr, quadrant_mode_t mode, big_cave_type_t cave_type)
+{
+    if (!r_ptr)
+        return false;
+
+    switch (mode)
+    {
+    case QUAD_MODE_CHASM:
+        return (r_ptr->light < 0);
+
+    case QUAD_MODE_BIG_CAVE:
+        if (r_ptr->flags3 & (RF3_TROLL | RF3_GIANT))
+            return true;
+
+        switch (cave_type)
+        {
+        case BIG_CAVE_FIRE:
+            return ((r_ptr->flags4 & RF4_BRTH_FIRE) != 0)
+                || monster_has_blow_effect(r_ptr, RBE_FIRE);
+        case BIG_CAVE_ICE:
+            return ((r_ptr->flags4 & RF4_BRTH_COLD) != 0)
+                || monster_has_blow_effect(r_ptr, RBE_COLD);
+        case BIG_CAVE_POIS:
+            return ((r_ptr->flags4 & RF4_BRTH_POIS) != 0)
+                || monster_has_blow_effect(r_ptr, RBE_POISON);
+        case BIG_CAVE_NONE:
+        case BIG_CAVE_TYPE_MAX:
+        default:
+            return ((r_ptr->flags3
+                        & (RF3_WOLF | RF3_SPIDER | RF3_VAMPIRE
+                            | RF3_TROLL | RF3_GIANT))
+                       != 0)
+                || monster_is_bat(r_ptr);
+        }
+
+    case QUAD_MODE_CAVEY:
+        return ((r_ptr->flags3
+                    & (RF3_WOLF | RF3_SPIDER | RF3_VAMPIRE
+                        | RF3_TROLL | RF3_GIANT))
+                   != 0)
+            || monster_is_bat(r_ptr);
+
+    case QUAD_MODE_LABYRINTH:
+        return ((r_ptr->flags2 & RF2_INVISIBLE) != 0)
+            || ((r_ptr->flags1 & (RF1_NEVER_MOVE | RF1_HIDDEN_MOVE)) != 0)
+            || ((r_ptr->flags4 & RF4_DIM) != 0)
+            || ((r_ptr->flags3 & RF3_VAMPIRE) != 0);
+
+    default:
+        return false;
+    }
+}
+
+static bool partition_pool_monster_ok(
+    const partition_population_plan* plan, int r_idx, int min_depth,
+    int max_depth, bool themed, int labyrinth_fixed_remaining)
+{
+    monster_race* r_ptr = &r_info[r_idx];
+
+    if (!plan)
+        return false;
+    if (!r_ptr->name || !r_ptr->rarity)
+        return false;
+    if (r_ptr->flags3 & RF3_SPECIAL_VAULT_ONLY)
+        return false;
+    if (r_ptr->flags1 & RF1_SPECIAL_GEN)
+        return false;
+    if (r_ptr->level < min_depth || r_ptr->level > max_depth)
+        return false;
+    if ((r_ptr->flags1 & RF1_FORCE_DEPTH) && (r_ptr->level > p_ptr->depth))
+        return false;
+    if (r_ptr->cur_num >= r_ptr->max_num)
+        return false;
+    if (plan->mode == QUAD_MODE_LABYRINTH
+        && labyrinth_fixed_remaining <= 0
+        && monster_counts_toward_labyrinth_fixed_cap(r_ptr))
+    {
+        return false;
+    }
+    if (themed && !monster_matches_partition_theme(r_ptr, plan->mode, plan->cave_type))
+        return false;
+
+    return true;
+}
+
+static s16b choose_partition_pool_monster(
+    const partition_population_plan* plan, bool themed, int min_depth,
+    int max_depth, int labyrinth_fixed_remaining)
+{
+    alloc_entry* table = alloc_race_table;
+    long total = 0L;
+
+    if (!plan)
+        return 0;
+    if (min_depth < 1)
+        min_depth = 1;
+    if (max_depth > MORGOTH_DEPTH + 3)
+        max_depth = MORGOTH_DEPTH + 3;
+    if (min_depth > max_depth)
+        return 0;
+
+    for (int i = 0; i < alloc_race_size; ++i)
+    {
+        int r_idx = table[i].index;
+
+        if (table[i].level > max_depth)
+            break;
+        if (!partition_pool_monster_ok(plan, r_idx, min_depth, max_depth,
+                themed, labyrinth_fixed_remaining))
+        continue;
+
+        total += table[i].prob1;
+    }
+
+    if (total <= 0)
+        return 0;
+
+    {
+        long value = rand_int(total);
+
+        for (int i = 0; i < alloc_race_size; ++i)
+        {
+            int r_idx = table[i].index;
+
+            if (table[i].level > max_depth)
+                break;
+            if (!partition_pool_monster_ok(plan, r_idx, min_depth, max_depth,
+                    themed, labyrinth_fixed_remaining))
+                continue;
+
+            if (value < table[i].prob1)
+                return r_idx;
+
+            value -= table[i].prob1;
+        }
+    }
+
+    return 0;
+}
+
+static bool place_partition_pool_monster(
+    const partition_population_plan* plan, int y, int x, bool themed,
+    int labyrinth_fixed_remaining)
+{
+    int min_depth;
+    int max_depth;
+
+    partition_theme_depth_band(p_ptr->depth, &min_depth, &max_depth);
+
+    for (int tries = 0; tries < 24; ++tries)
+    {
+        s16b r_idx = choose_partition_pool_monster(plan, themed, min_depth,
+            max_depth, labyrinth_fixed_remaining);
+
+        if (!r_idx)
+            return false;
+
+        if (plan->mode == QUAD_MODE_CHASM && themed)
+        {
+            if (place_chasm_theme_monster_at(y, x, r_idx))
+                return true;
+        }
+        else if (place_monster_one(y, x, r_idx, true, false, NULL))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static s16b choose_chasm_theme_monster(
+    int min_depth, int max_depth, bool allow_unique, bool unique_only)
+{
+    alloc_entry* table = alloc_race_table;
+    long total = 0L;
+
+    if (min_depth < 1)
+        min_depth = 1;
+    if (max_depth > MORGOTH_DEPTH + 3)
+        max_depth = MORGOTH_DEPTH + 3;
+    if (min_depth > max_depth)
+        return 0;
+
+    for (int i = 0; i < alloc_race_size; ++i)
+    {
+        int r_idx = table[i].index;
+
+        if (!chasm_theme_monster_ok(
+                r_idx, min_depth, max_depth, allow_unique, unique_only))
+        {
+            continue;
+        }
+
+        total += table[i].prob1;
+    }
+
+    if (total <= 0)
+        return 0;
+
+    {
+        long value = rand_int(total);
+
+        for (int i = 0; i < alloc_race_size; ++i)
+        {
+            int r_idx = table[i].index;
+
+            if (!chasm_theme_monster_ok(
+                    r_idx, min_depth, max_depth, allow_unique, unique_only))
+            {
+                continue;
+            }
+
+            if (value < table[i].prob1)
+                return r_idx;
+
+            value -= table[i].prob1;
+        }
+    }
+
+    return 0;
+}
+
+static bool place_chasm_theme_monster_at(int y, int x, int r_idx)
+{
+    bool had_glyph = false;
+
+    if (!in_bounds_fully(y, x))
+        return false;
+
+    if (cave_feat[y][x] == FEAT_GLYPH)
+    {
+        cave_set_feat(y, x, FEAT_FLOOR);
+        had_glyph = true;
+    }
+
+    if (!cave_empty_bold(y, x))
+    {
+        if (had_glyph)
+            cave_set_feat(y, x, FEAT_GLYPH);
+        return false;
+    }
+
+    if (!place_monster_one(y, x, r_idx, true, false, NULL))
+    {
+        if (had_glyph)
+            cave_set_feat(y, x, FEAT_GLYPH);
+        return false;
+    }
+
+    awaken_chasm_sanctum_monster(y, x);
+
+    if (had_glyph)
+        cave_set_feat(y, x, FEAT_GLYPH);
+
+    return true;
+}
+
+static bool chasm_sanctum_drop_present(int y, int x)
+{
+    return chasm_sanctum_drop_marker_present(y, x);
 }
 
 static void clear_chasm_sanctum_drop_marker(int y, int x)
@@ -15488,32 +15845,46 @@ static void awaken_chasm_sanctum_monster(int y, int x)
     m_ptr->min_range = 0;
 }
 
-static bool place_chasm_sanctum_ambusher(int y, int x, int max_depth)
+static bool relocate_chasm_sanctum_blocker(int y, int x)
 {
-    if (!in_bounds_fully(y, x))
-        return false;
+    int m_idx = cave_m_idx[y][x];
 
-    if (cave_feat[y][x] == FEAT_GLYPH)
-        cave_set_feat(y, x, FEAT_FLOOR);
+    if (m_idx <= 0)
+        return true;
 
-    if (!cave_naked_bold(y, x))
-        return false;
-
-    if (place_monster_by_flag_try(y, x, 4, RF4_DARKNESS, false, max_depth)
-        || place_monster_by_flag_try(y, x, 4, RF4_BRTH_DARK, false, max_depth)
-        || place_monster_by_flag_try(y, x, 3, RF3_UNDEAD, false, max_depth)
-        || place_monster_by_flag_try(y, x, 3, RF3_HORROR, false, max_depth)
-        || place_vault_monster_token('q', y, x))
+    for (int tries = 0; tries < 200; ++tries)
     {
-        awaken_chasm_sanctum_monster(y, x);
+        int ny = rand_spread(y, 6);
+        int nx = rand_spread(x, 6);
+        monster_type* m_ptr = &mon_list[m_idx];
+        monster_race* r_ptr = &r_info[m_ptr->r_idx];
+
+        if (!in_bounds_fully(ny, nx))
+            continue;
+        if (!cave_empty_bold(ny, nx))
+            continue;
+        if (cave_glyph(ny, nx))
+            continue;
+        if (chasm_sanctum_ambush_tile(ny, nx))
+            continue;
+        if (!cave_exist_mon(r_ptr, ny, nx, false, false))
+            continue;
+
+        monster_swap(y, x, ny, nx);
         return true;
     }
 
-    return false;
+    teleport_away(m_idx, 10);
+    return (cave_m_idx[y][x] == 0);
 }
 
 void trigger_chasm_sanctum_ambush_if_needed(int y, int x)
 {
+    int min_depth = 0;
+    int max_depth = 0;
+    s16b base_r_idx = 0;
+    s16b unique_r_idx = 0;
+    int unique_slot = -1;
     int placed = 0;
 
     if (!in_bounds_fully(y, x))
@@ -15526,24 +15897,43 @@ void trigger_chasm_sanctum_ambush_if_needed(int y, int x)
     msg_print("The evil artefact calls to its own.");
     msg_print("A cry goes up from the deeps, and black shadows gather.");
 
-    for (int dy = -1; dy <= 1; ++dy)
+    partition_theme_depth_band(p_ptr->depth, &min_depth, &max_depth);
+    base_r_idx = choose_chasm_theme_monster(min_depth, max_depth, false, false);
+    if (!base_r_idx)
     {
-        for (int dx = -1; dx <= 1; ++dx)
+        log_warn("Chasm sanctum ambush: no themed monster available at depth=%d band=[%d,%d]",
+            p_ptr->depth, min_depth, max_depth);
+        return;
+    }
+
+    if (base_r_idx && one_in_(CHASM_AMBUSH_UNIQUE_SUB_PERCENT))
+    {
+        unique_r_idx = choose_chasm_theme_monster(min_depth, max_depth, true, true);
+        if (unique_r_idx)
+            unique_slot = rand_int(8);
+    }
+
+    for (int i = 0; i < 8; ++i)
+    {
+        int ny = y + chasm_sanctum_ambush_offsets[i][0];
+        int nx = x + chasm_sanctum_ambush_offsets[i][1];
+        bool slot_placed = false;
+
+        if (!in_bounds_fully(ny, nx))
+            continue;
+        if (!relocate_chasm_sanctum_blocker(ny, nx))
+            continue;
+
+        if (base_r_idx)
         {
-            int ny = y + dy;
-            int nx = x + dx;
+            s16b r_idx = (unique_r_idx && (i == unique_slot)) ? unique_r_idx : base_r_idx;
 
-            if (dy == 0 && dx == 0)
-                continue;
-            if (!in_bounds_fully(ny, nx))
-                continue;
-
-            if (cave_feat[ny][nx] == FEAT_GLYPH)
-                cave_set_feat(ny, nx, FEAT_FLOOR);
-
-            if (place_chasm_sanctum_ambusher(ny, nx, p_ptr->depth))
-                placed++;
+            slot_placed = place_chasm_theme_monster_at(ny, nx, r_idx);
+            if (!slot_placed && unique_r_idx && (i == unique_slot))
+                slot_placed = place_chasm_theme_monster_at(ny, nx, base_r_idx);
         }
+        if (slot_placed)
+            placed++;
     }
 
     (void)explosion(-1, 1, y, x, 0, 0, 0, GF_DARK_WEAK);
@@ -15557,42 +15947,6 @@ void trigger_chasm_sanctum_ambush_if_needed(int y, int x)
 
     log_trace("Chasm sanctum ambush: triggered at (%d,%d), placed=%d",
         y, x, placed);
-}
-
-static bool place_big_cave_elemental_monster(int y, int x, big_cave_type_t cave_type, int max_depth)
-{
-    if (cave_type == BIG_CAVE_FIRE)
-    {
-        if (place_monster_by_flag_try(y, x, 4, RF4_BRTH_FIRE, true, max_depth))
-            return true;
-        return place_monster_by_flag_try(y, x, 3, RF3_RES_FIRE, true, max_depth);
-    }
-    if (cave_type == BIG_CAVE_ICE)
-    {
-        if (place_monster_by_flag_try(y, x, 4, RF4_BRTH_COLD, true, max_depth))
-            return true;
-        return place_monster_by_flag_try(y, x, 3, RF3_RES_COLD, true, max_depth);
-    }
-    if (cave_type == BIG_CAVE_POIS)
-    {
-        if (place_monster_by_flag_try(y, x, 4, RF4_BRTH_POIS, true, max_depth))
-            return true;
-        return place_monster_by_flag_try(y, x, 3, RF3_RES_POIS, true, max_depth);
-    }
-    return false;
-}
-
-static bool place_big_cave_troll_or_giant(int y, int x, int max_depth)
-{
-    if (one_in_(2))
-    {
-        if (place_monster_by_flag_try(y, x, 3, RF3_TROLL, true, max_depth))
-            return true;
-        return place_monster_by_letter_try(y, x, 'G', true, max_depth);
-    }
-    if (place_monster_by_letter_try(y, x, 'G', true, max_depth))
-        return true;
-    return place_monster_by_flag_try(y, x, 3, RF3_TROLL, true, max_depth);
 }
 
 static int partition_base_monsters_for_mode(quadrant_mode_t mode, int room_count)
@@ -16002,7 +16356,7 @@ static int build_partition_population_plans(
 }
 
 static bool choose_partition_monster_location(
-    const partition_population_plan* plan, bool avoid_los, int* out_y, int* out_x)
+    const partition_population_plan* plan, int* out_y, int* out_x)
 {
     bool avoid_corridors = partition_mode_avoids_corridor_spawns(plan->mode);
 
@@ -16021,9 +16375,6 @@ static bool choose_partition_monster_location(
             continue;
         if (avoid_corridors && !(cave_info[y][x] & CAVE_ROOM))
             continue;
-        if (avoid_los && los(p_ptr->py, p_ptr->px, y, x))
-            continue;
-
         *out_y = y;
         *out_x = x;
         return true;
@@ -16035,40 +16386,11 @@ static bool choose_partition_monster_location(
 static bool place_partition_themed_monster(
     const partition_population_plan* plan, int y, int x)
 {
+    if (partition_mode_uses_monster_pools(plan->mode))
+        return place_partition_pool_monster(plan, y, x, true, 5);
+
     switch (plan->mode)
     {
-    case QUAD_MODE_BIG_CAVE:
-    {
-        int pref_roll = rand_int(100);
-        if (pref_roll < 45
-            && place_big_cave_elemental_monster(y, x, plan->cave_type, p_ptr->depth))
-            return true;
-        if (pref_roll < 70
-            && place_big_cave_troll_or_giant(y, x, p_ptr->depth))
-            return true;
-        break;
-    }
-    case QUAD_MODE_CHASM:
-        if (rand_int(100) < 55
-            && place_monster_by_letter_try(y, x, 'w', true, p_ptr->depth))
-            return true;
-        break;
-    case QUAD_MODE_LABYRINTH:
-        if (rand_int(100) < 55
-            && place_monster_by_flag_try(y, x, 2, RF2_INVISIBLE, true, p_ptr->depth))
-            return true;
-        break;
-    case QUAD_MODE_CAVEY:
-    {
-        int pref_roll = rand_int(100);
-        if (pref_roll < 45)
-            return place_monster_by_letter_try(y, x, 'M', false, p_ptr->depth);
-        if (pref_roll < 70)
-            return place_monster_by_letter_try(y, x, 'C', false, p_ptr->depth);
-        if (pref_roll < 90)
-            return place_monster_by_letter_try(y, x, 'b', false, p_ptr->depth);
-        return place_monster_by_letter_try(y, x, 'T', false, p_ptr->depth);
-    }
     default:
         break;
     }
@@ -16093,35 +16415,65 @@ static int run_partition_monster_pass(
     for (int i = 0; i < plan_count; ++i)
     {
         const partition_population_plan* plan = &plans[i];
-        int generic_remaining = plan->monsters_base;
-        int themed_remaining = plan->monsters_floor + plan->monsters_depth;
-        int precurse_total = generic_remaining + themed_remaining;
-        int curse_bonus = plan->monsters_curse_bonus;
+        bool use_pool_theme = partition_mode_uses_monster_pools(plan->mode);
+        int labyrinth_fixed_remaining =
+            (plan->mode == QUAD_MODE_LABYRINTH) ? 5 : 0;
+        int generic_remaining = 0;
+        int themed_remaining = 0;
+        int generic_target = 0;
+        int themed_target = 0;
+        int target_total = 0;
+        int placed = 0;
+        int attempts;
 
-        if (curse_bonus > 0)
+        if (use_pool_theme)
         {
-            int generic_bonus = 0;
+            target_total = plan->monsters_total;
+            themed_target =
+                (target_total * PARTITION_THEME_MONSTER_PERCENT + 50) / 100;
+            if (themed_target > target_total)
+                themed_target = target_total;
+            generic_target = target_total - themed_target;
+            themed_remaining = themed_target;
+            generic_remaining = generic_target;
+        }
+        else
+        {
+            int precurse_total;
+            int curse_bonus;
 
-            if (precurse_total > 0 && generic_remaining > 0)
+            generic_remaining = plan->monsters_base;
+            themed_remaining = plan->monsters_floor + plan->monsters_depth;
+            precurse_total = generic_remaining + themed_remaining;
+            curse_bonus = plan->monsters_curse_bonus;
+
+            if (curse_bonus > 0)
             {
-                long weighted_generic =
-                    (long)curse_bonus * (long)generic_remaining;
+                int generic_bonus = 0;
 
-                generic_bonus = (int)(weighted_generic / precurse_total);
-                if ((weighted_generic % precurse_total) * 2 >= precurse_total)
-                    generic_bonus++;
+                if (precurse_total > 0 && generic_remaining > 0)
+                {
+                    long weighted_generic =
+                        (long)curse_bonus * (long)generic_remaining;
+
+                    generic_bonus = (int)(weighted_generic / precurse_total);
+                    if ((weighted_generic % precurse_total) * 2 >= precurse_total)
+                        generic_bonus++;
+                }
+
+                if (generic_bonus > curse_bonus)
+                    generic_bonus = curse_bonus;
+
+                generic_remaining += generic_bonus;
+                themed_remaining += curse_bonus - generic_bonus;
             }
 
-            if (generic_bonus > curse_bonus)
-                generic_bonus = curse_bonus;
-
-            generic_remaining += generic_bonus;
-            themed_remaining += curse_bonus - generic_bonus;
+            generic_target = generic_remaining;
+            themed_target = themed_remaining;
+            target_total = generic_remaining + themed_remaining;
         }
 
-        int target_total = generic_remaining + themed_remaining;
-        int placed = 0;
-        int attempts = MAX(1, target_total) * 250;
+        attempts = MAX(1, target_total) * 250;
 
         if (partition_monster_pass_skips_plan(plan))
         {
@@ -16144,35 +16496,61 @@ static int run_partition_monster_pass(
                     || (rand_int(generic_remaining + themed_remaining) < themed_remaining));
             int y, x;
             bool placed_mon = false;
+            bool consume_themed_quota = themed;
 
-            if (!choose_partition_monster_location(plan, themed, &y, &x))
+            if (!choose_partition_monster_location(plan, &y, &x))
                 continue;
 
-            if (themed)
-                placed_mon = place_partition_themed_monster(plan, y, x);
+            if (use_pool_theme)
+            {
+                placed_mon = place_partition_pool_monster(plan, y, x, themed,
+                    labyrinth_fixed_remaining);
+                if (!placed_mon && themed)
+                {
+                    placed_mon = place_partition_pool_monster(plan, y, x, false,
+                        labyrinth_fixed_remaining);
+                    if (placed_mon && generic_remaining > 0)
+                        consume_themed_quota = false;
+                }
+            }
+            else
+            {
+                if (themed)
+                    placed_mon = place_partition_themed_monster(plan, y, x);
 
-            if (!placed_mon)
-                placed_mon = place_monster(y, x, true,
-                    (!themed && plan->mode == QUAD_MODE_ROOMY), false);
+                if (!placed_mon)
+                    placed_mon = place_monster(y, x, true,
+                        (!themed && plan->mode == QUAD_MODE_ROOMY), false);
+            }
 
             if (!placed_mon)
                 continue;
 
-            if (themed)
+            if (consume_themed_quota)
                 themed_remaining--;
             else
                 generic_remaining--;
+
+            if (plan->mode == QUAD_MODE_LABYRINTH && cave_m_idx[y][x] > 0
+                && labyrinth_fixed_remaining > 0)
+            {
+                monster_type* m_ptr = &mon_list[cave_m_idx[y][x]];
+                monster_race* r_ptr = &r_info[m_ptr->r_idx];
+
+                if (monster_counts_toward_labyrinth_fixed_cap(r_ptr))
+                    labyrinth_fixed_remaining--;
+            }
 
             placed++;
             total_placed++;
         }
 
         log_trace(
-            "Partition monsters: pi=%d mode=%d rooms=%d floors=%d base=%d floor=%d depth=%d precurse=%d curse=%d total=%d placed=%d",
+            "Partition monsters: pi=%d mode=%d rooms=%d floors=%d base=%d floor=%d depth=%d precurse=%d curse=%d total=%d theme_target=%d global_target=%d placed=%d",
             plan->pi, plan->mode, plan->room_centers, plan->floor_count,
             plan->monsters_base, plan->monsters_floor, plan->monsters_depth,
             plan->monsters_precurse, plan->monsters_curse_bonus,
-            target_total, placed);
+            target_total, themed_target, generic_target, placed);
     }
 
     return total_placed;
@@ -16311,6 +16689,75 @@ static int place_partition_skeletons(
     return placed;
 }
 
+static bool partition_exact_monster_tile_ok(
+    const partition_population_plan* plan, int y, int x)
+{
+    if (!plan)
+        return false;
+    if (!in_bounds_fully(y, x))
+        return false;
+    if (level_partition_index_for_point(y, x) != plan->pi)
+        return false;
+    if (cave_info[y][x] & CAVE_G_VAULT)
+        return false;
+    if (!partition_population_naked_bold(plan->mode, y, x))
+        return false;
+
+    return true;
+}
+
+static int place_partition_exact_monster_tokens(
+    const partition_population_plan* plan, char token, int target)
+{
+    int placed = 0;
+
+    if (!plan || target <= 0)
+        return 0;
+
+    for (int n = 0; n < target; ++n)
+    {
+        bool placed_this = false;
+
+        for (int tries = 0; tries < 500; ++tries)
+        {
+            int y = rand_range(plan->y1, plan->y2);
+            int x = rand_range(plan->x1, plan->x2);
+
+            if (!partition_exact_monster_tile_ok(plan, y, x))
+                continue;
+            if (!place_vault_monster_token(token, y, x))
+                continue;
+
+            placed++;
+            placed_this = true;
+            break;
+        }
+
+        if (!placed_this)
+        {
+            for (int y = plan->y1; y <= plan->y2 && !placed_this; ++y)
+            {
+                for (int x = plan->x1; x <= plan->x2; ++x)
+                {
+                    if (!partition_exact_monster_tile_ok(plan, y, x))
+                        continue;
+                    if (!place_vault_monster_token(token, y, x))
+                        continue;
+
+                    placed++;
+                    placed_this = true;
+                    break;
+                }
+            }
+        }
+
+        if (!placed_this)
+            break;
+    }
+
+    return placed;
+}
+
 static int run_partition_special_scatter_pass(
     const partition_population_plan* plans, int plan_count)
 {
@@ -16343,6 +16790,11 @@ static int run_partition_special_scatter_pass(
             if (skeleton_target < 3) skeleton_target = 3;
             if (skeleton_target > 10) skeleton_target = 10;
             total_placed += place_partition_skeletons(plan, skeleton_target, 20, 20, true);
+        }
+        else if (plan->mode == QUAD_MODE_CHASM && plan->floor_count > 0)
+        {
+            total_placed += place_partition_exact_monster_tokens(
+                plan, 'q', CHASM_WHISPERING_SHADOW_TARGET);
         }
 
         for (int chest = 0; chest < plan->meta.chest_count; ++chest)

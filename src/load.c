@@ -1088,6 +1088,20 @@ static void rd_monster_race_stats(monster_race* r_ptr)
     r_ptr->x_char = (char)tmp8u;
 }
 
+static void restore_monster_races_from_base(void)
+{
+    if (!r_base)
+        return;
+
+    for (int r = 0; r < z_info->r_max; r++)
+    {
+        byte saved_max_num = r_info[r].max_num;
+
+        r_info[r] = r_base[r];
+        r_info[r].max_num = saved_max_num;
+    }
+}
+
 static void rd_monster_runtime_overrides(void)
 {
     u16b count = 0;
@@ -1097,34 +1111,24 @@ static void rd_monster_runtime_overrides(void)
     if (!count)
         return;
 
-    log_debug("Loading %u monster race runtime overrides", (unsigned)count);
+    log_debug(
+        "Discarding %u legacy monster race runtime overrides",
+        (unsigned)count);
 
     for (u16b n = 0; n < count; n++)
     {
         u16b r_idx = 0;
+        monster_race scratch;
+
         rd_u16b(&r_idx);
+        memset(&scratch, 0, sizeof(scratch));
+        rd_monster_race_stats(&scratch);
 
         if (r_idx >= z_info->r_max)
         {
-            log_error("Invalid monster race index %u in override block (max %u)", (unsigned)r_idx, (unsigned)z_info->r_max);
-            /* Continue but consume the data to keep stream aligned */
-            monster_race scratch;
-            memset(&scratch, 0, sizeof(scratch));
-            rd_monster_race_stats(&scratch);
-            continue;
-        }
-
-        rd_monster_race_stats(&r_info[r_idx]);
-
-        /* Runtime overrides may carry old race flags from the savefile.
-         * Keep the current data-file flags authoritative so new monster.txt
-         * bits like SPECIAL_VAULT_ONLY survive load. */
-        if (r_base)
-        {
-            r_info[r_idx].flags1 = r_base[r_idx].flags1;
-            r_info[r_idx].flags2 = r_base[r_idx].flags2;
-            r_info[r_idx].flags3 = r_base[r_idx].flags3;
-            r_info[r_idx].flags4 = r_base[r_idx].flags4;
+            log_error(
+                "Invalid monster race index %u in override block (max %u)",
+                (unsigned)r_idx, (unsigned)z_info->r_max);
         }
     }
 }
@@ -3167,17 +3171,11 @@ static errr rd_savefile_new_aux(void)
         /* Read the lore */
         rd_lore(i);
     }
+    restore_monster_races_from_base();
+
     if (savefile_has_runtime_overrides)
     {
         rd_monster_runtime_overrides();
-    }
-    else if (r_base)
-    {
-        /* Ensure legacy saves revert any prior runtime overrides */
-        for (int r = 0; r < z_info->r_max; r++)
-        {
-            r_info[r] = r_base[r];
-        }
     }
     if (arg_fiddle)
         note("Loaded Monster Memory");

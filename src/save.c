@@ -704,125 +704,13 @@ static void wr_lore(int r_idx)
     wr_u32b(0L);
 }
 
-static bool monster_race_stats_changed(int r_idx)
-{
-    if (!r_base)
-        return false;
-
-    const monster_race* base = &r_base[r_idx];
-    const monster_race* cur = &r_info[r_idx];
-
-    if (base->hdice != cur->hdice) return true;
-    if (base->hside != cur->hside) return true;
-    if (base->evn != cur->evn) return true;
-    if (base->pd != cur->pd) return true;
-    if (base->ps != cur->ps) return true;
-    if (base->speed != cur->speed) return true;
-    if (base->light != cur->light) return true;
-    if (base->sleep != cur->sleep) return true;
-    if (base->per != cur->per) return true;
-    if (base->stl != cur->stl) return true;
-    if (base->wil != cur->wil) return true;
-    if (base->extra != cur->extra) return true;
-    if (base->freq_ranged != cur->freq_ranged) return true;
-    if (base->spell_power != cur->spell_power) return true;
-    if (base->mon_power != cur->mon_power) return true;
-    if (base->flags1 != cur->flags1) return true;
-    if (base->flags2 != cur->flags2) return true;
-    if (base->flags3 != cur->flags3) return true;
-    if (base->flags4 != cur->flags4) return true;
-
-    for (int i = 0; i < MONSTER_BLOW_MAX; i++)
-    {
-        const monster_blow* b_base = &base->blow[i];
-        const monster_blow* b_cur = &cur->blow[i];
-        if (b_base->method != b_cur->method) return true;
-        if (b_base->effect != b_cur->effect) return true;
-        if (b_base->att != b_cur->att) return true;
-        if (b_base->dd != b_cur->dd) return true;
-        if (b_base->ds != b_cur->ds) return true;
-    }
-
-    if (base->level != cur->level) return true;
-    if (base->rarity != cur->rarity) return true;
-    if (base->d_attr != cur->d_attr) return true;
-    if (base->d_char != cur->d_char) return true;
-    if (base->x_attr != cur->x_attr) return true;
-    if (base->x_char != cur->x_char) return true;
-
-    return false;
-}
-
-static void wr_monster_race_stats(const monster_race* r_ptr)
-{
-    wr_byte(r_ptr->hdice);
-    wr_byte(r_ptr->hside);
-    wr_s16b(r_ptr->evn);
-    wr_byte(r_ptr->pd);
-    wr_byte(r_ptr->ps);
-    wr_byte(r_ptr->speed);
-    wr_s16b(r_ptr->light);
-    wr_s16b(r_ptr->sleep);
-    wr_s16b(r_ptr->per);
-    wr_s16b(r_ptr->stl);
-    wr_s16b(r_ptr->wil);
-    wr_s16b(r_ptr->extra);
-    wr_byte(r_ptr->freq_ranged);
-    wr_byte(r_ptr->spell_power);
-    wr_u32b(r_ptr->mon_power);
-    wr_u32b(r_ptr->flags1);
-    wr_u32b(r_ptr->flags2);
-    wr_u32b(r_ptr->flags3);
-    wr_u32b(r_ptr->flags4);
-
-    for (int i = 0; i < MONSTER_BLOW_MAX; i++)
-    {
-        wr_byte(r_ptr->blow[i].method);
-        wr_byte(r_ptr->blow[i].effect);
-        wr_s16b(r_ptr->blow[i].att);
-        wr_byte(r_ptr->blow[i].dd);
-        wr_byte(r_ptr->blow[i].ds);
-    }
-
-    wr_byte(r_ptr->level);
-    wr_byte(r_ptr->rarity);
-    wr_byte(r_ptr->d_attr);
-    wr_byte((byte)r_ptr->d_char);
-    wr_byte(r_ptr->x_attr);
-    wr_byte((byte)r_ptr->x_char);
-}
-
 static void wr_monster_runtime_overrides(void)
 {
-    if (!r_base)
-    {
-        wr_u16b(0);
-        return;
-    }
-
-    u16b count = 0;
-
-    for (int i = 0; i < z_info->r_max; i++)
-    {
-        if (monster_race_stats_changed(i))
-            count++;
-    }
-
-    wr_u16b(count);
-
-    if (!count)
-        return;
-
-    log_debug("Writing %u monster race runtime overrides", (unsigned)count);
-
-    for (int i = 0; i < z_info->r_max; i++)
-    {
-        if (!monster_race_stats_changed(i))
-            continue;
-
-        wr_u16b((u16b)i);
-        wr_monster_race_stats(&r_info[i]);
-    }
+    /* Monster race template overrides are reconstructed from dedicated save
+     * fields after load. Persisting the whole template blob can replay stale
+     * edit-file data into newer builds, so new saves intentionally write none.
+     */
+    wr_u16b(0);
 }
 
 /*
@@ -1844,7 +1732,7 @@ static bool wr_savefile(void)
     for (i = 0; i < tmp16u; i++)
         wr_lore(i);
 
-    /* Dump runtime monster stat overrides (supports dynamic buffs/debuffs) */
+    /* Legacy monster template override block (intentionally empty) */
     wr_monster_runtime_overrides();
 
     /* Dump the object memory */

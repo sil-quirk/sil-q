@@ -3450,6 +3450,15 @@ bool place_monster(int y, int x, bool slp, bool grp, bool vault)
 }
 
 /*
+ * Roomy partitions can tolerate monster groups; non-roomy partitions should
+ * stay single-file so they do not flood one origin point with dense packs.
+ */
+static bool monster_groups_allowed_at(int y, int x)
+{
+    return level_partition_kind_for_point(y, x) == LEVEL_PART_ROOMY;
+}
+
+/*
  * Attempt to allocate a random monster (or group) in the dungeon.
  *
  * It can be forced to be on the stairs and/or forced to be out of sight of the
@@ -3552,6 +3561,8 @@ bool alloc_monster(bool on_stairs, bool force_undead)
 
         if (!give_up)
         {
+            bool suppress_grp = !monster_groups_allowed_at(sy, sx);
+
             // Try hard to put a monster on the stairs
             while (!placed && (tries < 50))
             {
@@ -3599,7 +3610,7 @@ bool alloc_monster(bool on_stairs, bool force_undead)
                 // but usually allow most monsters
                 else
                 {
-                    placed = place_monster(sy, sx, false, true, false);
+                    placed = place_monster(sy, sx, false, !suppress_grp, false);
                 }
 
                 tries++;
@@ -3691,9 +3702,7 @@ bool alloc_monster(bool on_stairs, bool force_undead)
          * suppress group spawning. BFS floods up to 18 monsters from one origin point;
          * in open cave/chasm/blob floors this creates dense clusters. Each non-ROOMY
          * partition compensates with a higher alloc_monster loop count instead. */
-        level_partition_kind pt_kind = level_partition_kind_for_point(y, x);
-        bool suppress_grp = (pt_kind != LEVEL_PART_ROOMY);
-        if (place_monster(y, x, true, !suppress_grp, false))
+        if (place_monster(y, x, true, monster_groups_allowed_at(y, x), false))
         {
             if ((cave_m_idx[y][x] > 0) && (&mon_list[cave_m_idx[y][x]])->ml)
                 return (true);
