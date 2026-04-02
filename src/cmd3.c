@@ -3620,6 +3620,9 @@ static bool unified_look_can_show_marked_object_at(int y, int x)
     return (o_idx > 0) && o_list[o_idx].marked && grid_info_is_available(y, x);
 }
 
+static bool unified_look_sidebar_in_radius(const unified_look_state* state, int y,
+    int x);
+
 static int unified_look_count_visible_entities(unified_look_state* state)
 {
     int total_entities = 0;
@@ -3635,6 +3638,7 @@ static int unified_look_count_visible_entities(unified_look_state* state)
 
             if (!m_idx) continue;
             if (!unified_look_can_show_monster_at(temp_y[i], temp_x[i])) continue;
+            if (!unified_look_sidebar_in_radius(state, temp_y[i], temp_x[i])) continue;
 
             total_entities++;
         }
@@ -3659,6 +3663,8 @@ static int unified_look_count_visible_entities(unified_look_state* state)
 
             /* Only count marked (memorized) objects (matches sidebar display) */
             if (!o_ptr->marked)
+                continue;
+            if (!unified_look_sidebar_in_radius(state, temp_y[i], temp_x[i]))
                 continue;
 
             if ((o_ptr->tval == TV_ARROW) && (o_ptr->number < 10))
@@ -3704,6 +3710,8 @@ static int unified_look_count_visible_objects_for_group(unified_look_state* stat
         /* Only count marked (memorized) objects (matches sidebar display) */
         if (!o_ptr->marked)
             continue;
+        if (!unified_look_sidebar_in_radius(state, temp_y[i], temp_x[i]))
+            continue;
 
         if ((o_ptr->tval == TV_ARROW) && (o_ptr->number < 10))
             continue;
@@ -3720,6 +3728,15 @@ static int unified_look_count_visible_objects_for_group(unified_look_state* stat
     }
 
     return total_objects;
+}
+
+static bool unified_look_sidebar_in_radius(const unified_look_state* state, int y,
+    int x)
+{
+    if (!state || !state->nearby_filter)
+        return true;
+
+    return distance(p_ptr->py, p_ptr->px, y, x) <= UNIFIED_LOOK_NEAR_RADIUS;
 }
 
 static void unified_look_sync_cursor_selection(unified_look_state* state)
@@ -3785,6 +3802,35 @@ static void unified_look_print_prompt(cptr full_text, cptr compact_text)
     prt(buf, 0, 0);
 }
 
+static void unified_look_pan_player_for_sidebar(bool center_vertical)
+{
+    int max_wy = MAX(p_ptr->cur_map_hgt - SCREEN_HGT, 0);
+    int max_wx = MAX(p_ptr->cur_map_wid - SCREEN_WID, 0);
+    int desired_player_col = (SCREEN_WID * 2) / 3;
+    int new_wy = p_ptr->wy;
+    int new_wx;
+
+    if (desired_player_col >= SCREEN_WID)
+        desired_player_col = SCREEN_WID - 1;
+    if (desired_player_col < 0)
+        desired_player_col = 0;
+
+    if (center_vertical)
+        new_wy = p_ptr->py - (SCREEN_HGT / 2);
+
+    new_wx = p_ptr->px - desired_player_col;
+    if (new_wy < 0) new_wy = 0;
+    if (new_wy > max_wy) new_wy = max_wy;
+    if (new_wx < 0) new_wx = 0;
+    if (new_wx > max_wx) new_wx = max_wx;
+
+    log_trace("Unified look player pan: center_vertical=%d, desired_col=%d, viewport (%d,%d) -> (%d,%d)",
+        center_vertical ? 1 : 0, desired_player_col, p_ptr->wy, p_ptr->wx, new_wy, new_wx);
+
+    if (modify_panel(new_wy, new_wx))
+        handle_stuff();
+}
+
 void do_cmd_unified_look(void)
 {
     unified_look_state state;
@@ -3846,6 +3892,7 @@ void do_cmd_unified_look(void)
     state.show_objects = true;
     state.object_group_filter = -1;
     state.limit_objects_top_five = false;
+    state.nearby_filter = look_nearby_filter_default ? true : false;
     state.display_mode = 0; /* 0 = manual, 1 = entity */
     state.highlighted_y = -1;
     state.highlighted_x = -1;
@@ -3854,6 +3901,12 @@ void do_cmd_unified_look(void)
     state.look_mode = 0; /* 0 = normal unified look, 1 = L-style scrolling */
     state.current_square_entity = 0; /* 0 = monster, 1 = object */
     state.square_cycling_mode = false; /* Start in normal sidebar cycling mode */
+
+    if (!g_unified_look_has_start
+        || ((state.cursor_y == p_ptr->py) && (state.cursor_x == p_ptr->px)))
+    {
+        unified_look_pan_player_for_sidebar(false);
+    }
     
     /* Track monster health at initial cursor position for left sidebar display */
     int initial_m_idx = cave_m_idx[state.cursor_y][state.cursor_x];
@@ -4046,9 +4099,17 @@ void do_cmd_unified_look(void)
                             unified_look_print_prompt(prompt_buf,
                                 "[R1/L1] Sel [A] Exam [B] Targ [X] Obj [Y] Pan [ESC]");
                         } else {
-                            unified_look_print_prompt(
-                                "[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Pan [ESC]",
-                                "[Tab/q] Sel [Space] Exam [t] Targ [l] Disp [m] Mon [o] Obj [T] Top5 [s] Pan [ESC]");
+                            char prompt_buf[192];
+                            char compact_buf[160];
+                            const char* filter_action = state.nearby_filter ? "All" : "Near";
+
+                            strnfmt(prompt_buf, sizeof(prompt_buf),
+                                "[Tab/q]=Select [Space]=Exam [t]=Target [i]=%s [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Pan [ESC]",
+                                filter_action);
+                            strnfmt(compact_buf, sizeof(compact_buf),
+                                "[Tab/q] Sel [Space] Exam [t] Targ [i] %s [l] Disp [m] Mon [o] Obj [T] Top5 [s] Pan [ESC]",
+                                filter_action);
+                            unified_look_print_prompt(prompt_buf, compact_buf);
                         }
                     }
                     else
@@ -4077,9 +4138,17 @@ void do_cmd_unified_look(void)
                             unified_look_print_prompt(prompt_buf,
                                 "[R1/L1] Sel [A] Exam [B] Targ [X] Obj [Y] Curs [ESC]");
                         } else {
-                            unified_look_print_prompt(
-                                "[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Curs [ESC]",
-                                "[Tab/q] Sel [Space] Exam [t] Targ [l] Disp [m] Mon [o] Obj [T] Top5 [s] Curs [ESC]");
+                            char prompt_buf[192];
+                            char compact_buf[160];
+                            const char* filter_action = state.nearby_filter ? "All" : "Near";
+
+                            strnfmt(prompt_buf, sizeof(prompt_buf),
+                                "[Tab/q]=Select [Space]=Exam [t]=Target [i]=%s [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Curs [ESC]",
+                                filter_action);
+                            strnfmt(compact_buf, sizeof(compact_buf),
+                                "[Tab/q] Sel [Space] Exam [t] Targ [i] %s [l] Disp [m] Mon [o] Obj [T] Top5 [s] Curs [ESC]",
+                                filter_action);
+                            unified_look_print_prompt(prompt_buf, compact_buf);
                         }
                     }
                 }
@@ -4464,24 +4533,16 @@ command_key:
                             /* Center the viewport on the cursor */
                             int new_wy = state.cursor_y - SCREEN_HGT / 2;
                             int new_wx = state.cursor_x - SCREEN_WID / 2;
+                            int max_wy = MAX(p_ptr->cur_map_hgt - SCREEN_HGT, 0);
+                            int max_wx = MAX(p_ptr->cur_map_wid - SCREEN_WID, 0);
                             
-                            /* Constrain viewport to explored bounds if available */
-                            if (has_explored)
-                            {
-                                int explored_min_wy = min_y;
-                                int explored_max_wy = max_y - SCREEN_HGT + 1;
-                                int explored_min_wx = min_x;
-                                int explored_max_wx = max_x - SCREEN_WID + 1;
-                                
-                                /* Ensure min <= max */
-                                if (explored_max_wy < explored_min_wy) explored_max_wy = explored_min_wy;
-                                if (explored_max_wx < explored_min_wx) explored_max_wx = explored_min_wx;
-                                
-                                if (new_wy < explored_min_wy) new_wy = explored_min_wy;
-                                if (new_wy > explored_max_wy) new_wy = explored_max_wy;
-                                if (new_wx < explored_min_wx) new_wx = explored_min_wx;
-                                if (new_wx > explored_max_wx) new_wx = explored_max_wx;
-                            }
+                            /* Keep the viewport within the map even if it shows unknown space. */
+                            if (new_wy < 0) new_wy = 0;
+                            if (new_wy > max_wy)
+                                new_wy = max_wy;
+                            if (new_wx < 0) new_wx = 0;
+                            if (new_wx > max_wx)
+                                new_wx = max_wx;
                             
                             /* Use proper panel management function */
                             if (modify_panel(new_wy, new_wx))
@@ -4631,10 +4692,25 @@ command_key:
             }
             
             case '\t': /* Tab key */
-            case 'i':  /* I key - forward cycling (Steam Deck) */
+            case 'i':  /* I key = nearby filter on keyboard, forward cycling on Steam Deck */
             {
                 if (query == 'i' && !steamdeck_controls_active())
-                    goto command_key;
+                {
+                    state.nearby_filter = !state.nearby_filter;
+                    state.selected_entity = -1;
+                    state.in_sidebar_mode = false;
+                    if (state.highlighted_y >= 0 && state.highlighted_x >= 0)
+                    {
+                        highlight_entity_on_map(state.highlighted_y, state.highlighted_x, false);
+                        state.highlighted_y = -1;
+                        state.highlighted_x = -1;
+                        state.highlighted_entity_type = 0;
+                    }
+
+                    handle_stuff();
+                    need_redraw = true;
+                    break;
+                }
                 log_trace("Tab key pressed - cycling entities");
                 
                 /* Global sidebar cycling only - no square cycling */
@@ -5105,10 +5181,6 @@ command_key:
                 continue;
             }
             
-            case 'f':
-                if (!steamdeck_controls_active())
-                    goto command_key;
-                /* fallthrough */
             case 't':
             {
                 /* Target monster at cursor position or selected position */
@@ -5150,6 +5222,7 @@ command_key:
                 state.cursor_x = p_ptr->px;
                 state.in_sidebar_mode = false;
                 state.selected_entity = -1;
+                unified_look_pan_player_for_sidebar(true);
                 need_redraw = true;
                 break;
             }

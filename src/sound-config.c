@@ -27,8 +27,9 @@ void sound_config_set_defaults(struct sound_config* config)
     config->music_ambient_enabled = true;
     config->music_main_volume = 1.0f;
     config->music_ambient_volume = 1.0f;
-    config->music_main_path[0] = '\0';
-    config->music_ambient_path[0] = '\0';
+    SDL_strlcpy(config->music_main_path, "music/main.wav", sizeof(config->music_main_path));
+    SDL_strlcpy(config->music_main_full_path, "music/main_full.wav", sizeof(config->music_main_full_path));
+    SDL_strlcpy(config->music_ambient_path, "music/ambient.wav", sizeof(config->music_ambient_path));
     config->sample_rate = 22050;
     config->channels = 2;
     SDL_strlcpy(config->format, "s16", sizeof(config->format));
@@ -192,6 +193,11 @@ void sound_config_load(const char* filename, struct sound_config* config)
         SDL_strlcpy(config->music_main_path, music_main_path->valuestring, sizeof(config->music_main_path));
     }
 
+    cJSON* music_main_full_path = cJSON_GetObjectItemCaseSensitive(root, "music_main_full_path");
+    if (cJSON_IsString(music_main_full_path) && music_main_full_path->valuestring) {
+        SDL_strlcpy(config->music_main_full_path, music_main_full_path->valuestring, sizeof(config->music_main_full_path));
+    }
+
     cJSON* music_ambient_path = cJSON_GetObjectItemCaseSensitive(root, "music_ambient_path");
     if (cJSON_IsString(music_ambient_path) && music_ambient_path->valuestring) {
         SDL_strlcpy(config->music_ambient_path, music_ambient_path->valuestring, sizeof(config->music_ambient_path));
@@ -272,6 +278,7 @@ void sound_config_save(const char* filename, const struct sound_config* config)
     cJSON_AddNumberToObject(root, "music_main_volume", config->music_main_volume);
     cJSON_AddNumberToObject(root, "music_ambient_volume", config->music_ambient_volume);
     cJSON_AddStringToObject(root, "music_main_path", config->music_main_path);
+    cJSON_AddStringToObject(root, "music_main_full_path", config->music_main_full_path);
     cJSON_AddStringToObject(root, "music_ambient_path", config->music_ambient_path);
     cJSON_AddNumberToObject(root, "sampleRate", config->sample_rate);
     cJSON_AddNumberToObject(root, "channels", config->channels);

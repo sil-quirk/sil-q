@@ -23,6 +23,8 @@ void sdl_sound_save_config(void);
 
 /* Music control functions */
 void sdl_music_play_main(void);
+void sdl_music_play_main_full(void);
+void sdl_music_play_menu_theme(void);
 void sdl_music_play_ambient(void);
 void sdl_music_stop_main(void);
 void sdl_music_stop_ambient(void);

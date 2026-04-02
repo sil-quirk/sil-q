@@ -80,6 +80,10 @@ REM Always update lib/xtra/sound folder to ensure latest sound configuration
 if exist sil-more-windows-sdl3\lib\xtra\sound rmdir /S /Q sil-more-windows-sdl3\lib\xtra\sound
 xcopy /E /I /Y /K lib\xtra\sound sil-more-windows-sdl3\lib\xtra\sound
 
+REM Always update lib/xtra/music folder to ensure latest music tracks
+if exist sil-more-windows-sdl3\lib\xtra\music rmdir /S /Q sil-more-windows-sdl3\lib\xtra\music
+xcopy /E /I /Y /K lib\xtra\music sil-more-windows-sdl3\lib\xtra\music
+
 REM Copy tileset graphic
 if not exist sil-more-windows-sdl3\lib\xtra\graf mkdir sil-more-windows-sdl3\lib\xtra\graf
 copy /Y lib\xtra\graf\16x16.png sil-more-windows-sdl3\lib\xtra\graf\
@@ -157,6 +161,10 @@ xcopy /E /I /Y /K lib\pref sil-more-windows-sdl3-portable\lib\pref
 REM Always update lib/xtra/sound folder to ensure latest sound configuration
 if exist sil-more-windows-sdl3-portable\lib\xtra\sound rmdir /S /Q sil-more-windows-sdl3-portable\lib\xtra\sound
 xcopy /E /I /Y /K lib\xtra\sound sil-more-windows-sdl3-portable\lib\xtra\sound
+
+REM Always update lib/xtra/music folder to ensure latest music tracks
+if exist sil-more-windows-sdl3-portable\lib\xtra\music rmdir /S /Q sil-more-windows-sdl3-portable\lib\xtra\music
+xcopy /E /I /Y /K lib\xtra\music sil-more-windows-sdl3-portable\lib\xtra\music
 
 REM Copy tileset graphic
 if not exist sil-more-windows-sdl3-portable\lib\xtra\graf mkdir sil-more-windows-sdl3-portable\lib\xtra\graf

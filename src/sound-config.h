@@ -22,6 +22,7 @@ struct sound_config {
     float music_main_volume;
     float music_ambient_volume;
     char music_main_path[256];
+    char music_main_full_path[256];
     char music_ambient_path[256];
     int sample_rate;           // Audio sample rate (default: 22050)
     int channels;              // Audio channels: 1=mono, 2=stereo (default: 2)

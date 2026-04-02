@@ -36,9 +36,12 @@ static struct {
     float volume_doors;
     float volume_other;
     SDL_AudioStream* music_main_stream;
+    SDL_AudioStream* music_menu_stream;
     SDL_AudioStream* music_ambient_stream;
     char music_main_path[1024];
+    char music_main_full_path[1024];
     char music_ambient_path[1024];
+    char music_main_current_path[1024];
     float music_main_volume;
     float music_ambient_volume;
     bool music_main_enabled;
@@ -66,6 +69,13 @@ static void sdl_sound_clear_streams(void);
 static bool sdl_sound_track_stream(SDL_AudioStream* stream);
 static void sdl_sound_destroy_stream(SDL_AudioStream** stream);
 static void sdl_music_stop(SDL_AudioStream** stream_ptr);
+static void sdl_music_stop_title_stream(void);
+static bool sdl_music_play_title_track(const char* primary_path, const char* fallback_path,
+    const char* label);
+static bool sdl_music_play_with_fallback(const char* primary_path, const char* fallback_path,
+    SDL_AudioStream** stream_ptr, float volume, bool loop, Uint8** buffer_ptr,
+    Uint32* length_ptr, SDL_AudioSpec* spec_ptr, const char* label,
+    char* resolved_path, size_t resolved_len);
 
 typedef struct {
     char (*files)[SDL_SOUND_NAME_LEN];
@@ -502,10 +512,13 @@ void sdl_sound_reload(void)
     sound_state.music_main_volume = g_sound_config.music_main_volume;
     sound_state.music_ambient_volume = g_sound_config.music_ambient_volume;
     sdl_sound_build_path(g_sound_config.music_main_path, sound_state.music_main_path, sizeof(sound_state.music_main_path));
+    sdl_sound_build_path(g_sound_config.music_main_full_path, sound_state.music_main_full_path, sizeof(sound_state.music_main_full_path));
     sdl_sound_build_path(g_sound_config.music_ambient_path, sound_state.music_ambient_path, sizeof(sound_state.music_ambient_path));
 
     log_debug("Sound config: enabled=%d, device=%u", g_sound_config.enabled, sound_state.device);
-    log_debug("Music paths: main='%s', ambient='%s'", sound_state.music_main_path, sound_state.music_ambient_path);
+    log_debug("Music paths: main='%s', main_full='%s', ambient='%s'",
+        sound_state.music_main_path, sound_state.music_main_full_path,
+        sound_state.music_ambient_path);
 
     // Handle audio device state based on enabled flag
     if (g_sound_config.enabled) {
@@ -535,6 +548,7 @@ void sdl_sound_reload(void)
             sound_state.music_main_length = 0;
             sound_state.music_ambient_buffer = NULL;
             sound_state.music_ambient_length = 0;
+            sound_state.music_main_current_path[0] = '\0';
             
             log_info("Audio device opened (freq=%d, channels=%d, format=0x%x)",
                      sound_state.device_spec.freq,
@@ -574,11 +588,11 @@ void sdl_sound_shutdown(void)
     }
 }
 
-static void sdl_music_play(const char* path, SDL_AudioStream** stream_ptr, float volume, bool loop,
+static bool sdl_music_play(const char* path, SDL_AudioStream** stream_ptr, float volume, bool loop,
                            Uint8** buffer_ptr, Uint32* length_ptr, SDL_AudioSpec* spec_ptr)
 {
     if (!path || !path[0] || !stream_ptr) {
-        return;
+        return false;
     }
 
     if (*stream_ptr) {
@@ -598,7 +612,7 @@ static void sdl_music_play(const char* path, SDL_AudioStream** stream_ptr, float
 
     if (!SDL_LoadWAV(path, &wav_spec, &wav_buffer, &wav_length)) {
         log_debug("Failed to load music file '%s': %s", path, SDL_GetError());
-        return;
+        return false;
     }
 
     // Store the WAV data for looping
@@ -613,7 +627,7 @@ static void sdl_music_play(const char* path, SDL_AudioStream** stream_ptr, float
     if (!playback_stream) {
         log_warn("Failed to create music stream: %s", SDL_GetError());
         if (!loop || !buffer_ptr) SDL_free(wav_buffer);
-        return;
+        return false;
     }
 
     bool success = SDL_PutAudioStreamData(playback_stream, wav_buffer, wav_length) &&
@@ -630,7 +644,7 @@ static void sdl_music_play(const char* path, SDL_AudioStream** stream_ptr, float
             SDL_free(*buffer_ptr);
             *buffer_ptr = NULL;
         }
-        return;
+        return false;
     }
 
     if (!SDL_SetAudioStreamGain(playback_stream, volume)) {
@@ -644,11 +658,12 @@ static void sdl_music_play(const char* path, SDL_AudioStream** stream_ptr, float
             SDL_free(*buffer_ptr);
             *buffer_ptr = NULL;
         }
-        return;
+        return false;
     }
 
     *stream_ptr = playback_stream;
     log_debug("Music stream created and bound successfully");
+    return true;
 }
 
 void sdl_music_stop(SDL_AudioStream** stream_ptr)
@@ -660,31 +675,137 @@ void sdl_music_stop(SDL_AudioStream** stream_ptr)
     }
 }
 
+static void sdl_music_stop_title_stream(void)
+{
+    sdl_music_stop(&sound_state.music_main_stream);
+    if (sound_state.music_main_buffer) {
+        SDL_free(sound_state.music_main_buffer);
+        sound_state.music_main_buffer = NULL;
+        sound_state.music_main_length = 0;
+    }
+    sound_state.music_main_current_path[0] = '\0';
+}
+
+static bool sdl_music_play_with_fallback(const char* primary_path, const char* fallback_path,
+    SDL_AudioStream** stream_ptr, float volume, bool loop, Uint8** buffer_ptr,
+    Uint32* length_ptr, SDL_AudioSpec* spec_ptr, const char* label,
+    char* resolved_path, size_t resolved_len)
+{
+    if (resolved_path && resolved_len) {
+        resolved_path[0] = '\0';
+    }
+
+    if (sdl_music_play(primary_path, stream_ptr, volume, loop, buffer_ptr, length_ptr, spec_ptr)) {
+        if (resolved_path && resolved_len) {
+            SDL_strlcpy(resolved_path, primary_path, resolved_len);
+        }
+        return true;
+    }
+
+    if (fallback_path && fallback_path[0] && !streq(primary_path, fallback_path)) {
+        log_warn("Music '%s' unavailable at '%s'; falling back to '%s'",
+            label ? label : "track", primary_path ? primary_path : "",
+            fallback_path);
+        if (sdl_music_play(fallback_path, stream_ptr, volume, loop, buffer_ptr, length_ptr, spec_ptr)) {
+            if (resolved_path && resolved_len) {
+                SDL_strlcpy(resolved_path, fallback_path, resolved_len);
+            }
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static bool sdl_music_play_title_track(const char* primary_path, const char* fallback_path,
+    const char* label)
+{
+    char resolved_path[1024];
+
+    if (!sound_state.music_main_enabled) {
+        sdl_music_stop_main();
+        sdl_music_stop_ambient();
+        return false;
+    }
+
+    if (sound_state.music_ambient_stream) {
+        sdl_music_stop_ambient();
+    }
+    sdl_music_stop(&sound_state.music_menu_stream);
+
+    if (sound_state.music_main_stream && sound_state.music_main_current_path[0]) {
+        if (streq(sound_state.music_main_current_path, primary_path)
+            || (fallback_path && fallback_path[0]
+                && streq(sound_state.music_main_current_path, fallback_path))) {
+            return true;
+        }
+    }
+
+    if (!sdl_music_play_with_fallback(primary_path, fallback_path,
+        &sound_state.music_main_stream, sound_state.music_main_volume, true,
+        &sound_state.music_main_buffer, &sound_state.music_main_length,
+        &sound_state.music_main_spec, label, resolved_path, sizeof(resolved_path))) {
+        sound_state.music_main_current_path[0] = '\0';
+        return false;
+    }
+
+    SDL_strlcpy(sound_state.music_main_current_path, resolved_path,
+        sizeof(sound_state.music_main_current_path));
+    return true;
+}
+
 void sdl_music_play_main(void)
 {
-    if (sound_state.music_main_enabled) {
-        log_debug("Starting main menu music: %s", sound_state.music_main_path);
-        sdl_music_play(sound_state.music_main_path, &sound_state.music_main_stream, 
-                      sound_state.music_main_volume, true,
-                      &sound_state.music_main_buffer, &sound_state.music_main_length,
-                      &sound_state.music_main_spec);
+    log_debug("Starting title music: %s", sound_state.music_main_path);
+    (void)sdl_music_play_title_track(sound_state.music_main_path, NULL, "main");
+}
+
+void sdl_music_play_main_full(void)
+{
+    log_debug("Starting full title music: %s", sound_state.music_main_full_path);
+    (void)sdl_music_play_title_track(sound_state.music_main_full_path,
+        sound_state.music_main_path, "main_full");
+}
+
+void sdl_music_play_menu_theme(void)
+{
+    if (!sound_state.music_main_enabled) {
+        sdl_music_stop_main();
+        return;
     }
+
+    sdl_music_stop_title_stream();
+    sdl_music_play_ambient();
+
+    log_debug("Starting menu theme overlay: %s", sound_state.music_main_full_path);
+    (void)sdl_music_play_with_fallback(sound_state.music_main_full_path,
+        sound_state.music_main_path, &sound_state.music_menu_stream,
+        sound_state.music_main_volume, false, NULL, NULL, NULL, "main_full",
+        NULL, 0);
 }
 
 void sdl_music_play_ambient(void)
 {
-    if (sound_state.music_ambient_enabled) {
-        log_debug("Starting ambient music: %s", sound_state.music_ambient_path);
-        sdl_music_play(sound_state.music_ambient_path, &sound_state.music_ambient_stream, 
-                      sound_state.music_ambient_volume, true,
-                      &sound_state.music_ambient_buffer, &sound_state.music_ambient_length,
-                      &sound_state.music_ambient_spec);
+    if (!sound_state.music_ambient_enabled) {
+        sdl_music_stop_ambient();
+        return;
     }
+
+    if (sound_state.music_ambient_stream) {
+        return;
+    }
+
+    log_debug("Starting persistent ambient music: %s", sound_state.music_ambient_path);
+    sdl_music_play(sound_state.music_ambient_path, &sound_state.music_ambient_stream,
+                  sound_state.music_ambient_volume, true,
+                  &sound_state.music_ambient_buffer, &sound_state.music_ambient_length,
+                  &sound_state.music_ambient_spec);
 }
 
 void sdl_music_stop_main(void)
 {
-    sdl_music_stop(&sound_state.music_main_stream);
+    sdl_music_stop_title_stream();
+    sdl_music_stop(&sound_state.music_menu_stream);
 }
 
 void sdl_music_stop_ambient(void)
@@ -733,6 +854,13 @@ void sdl_music_update_volumes(void)
     if (sound_state.music_main_stream) {
         if (!SDL_SetAudioStreamGain(sound_state.music_main_stream, sound_state.music_main_volume)) {
             log_debug("Failed to update main music volume: %s", SDL_GetError());
+        }
+    }
+
+    /* Update volume for in-game menu overlay music */
+    if (sound_state.music_menu_stream) {
+        if (!SDL_SetAudioStreamGain(sound_state.music_menu_stream, sound_state.music_main_volume)) {
+            log_debug("Failed to update menu theme volume: %s", SDL_GetError());
         }
     }
     
@@ -838,6 +966,16 @@ void sdl_sound_save_config(void)
     sound_state.music_ambient_enabled = g_sound_config.music_ambient_enabled;
     sound_state.music_main_volume = g_sound_config.music_main_volume;
     sound_state.music_ambient_volume = g_sound_config.music_ambient_volume;
+    sdl_sound_build_path(g_sound_config.music_main_path, sound_state.music_main_path, sizeof(sound_state.music_main_path));
+    sdl_sound_build_path(g_sound_config.music_main_full_path, sound_state.music_main_full_path, sizeof(sound_state.music_main_full_path));
+    sdl_sound_build_path(g_sound_config.music_ambient_path, sound_state.music_ambient_path, sizeof(sound_state.music_ambient_path));
+
+    if (!sound_state.music_main_enabled) {
+        sdl_music_stop_main();
+    }
+    if (!sound_state.music_ambient_enabled) {
+        sdl_music_stop_ambient();
+    }
     
     /* Apply volume changes to currently playing music */
     sdl_music_update_volumes();

@@ -2784,6 +2784,7 @@
 #define OPT_show_level_generation_debug 100
 #define OPT_unlock_blitz_mode 101
 #define OPT_look_objects_sort_by_difficulty 102
+#define OPT_look_nearby_filter_default 103
 
 /* Intro screen style constants */
 #define INTRO_STYLE_FLAME       0   /* Flame Imperishable (Ainulindale) */
@@ -2936,6 +2937,7 @@
 #define easy_main_menu op_ptr->opt[OPT_easy_main_menu]
 #define show_level_generation_debug op_ptr->opt[OPT_show_level_generation_debug]
 #define look_objects_sort_by_difficulty op_ptr->opt[OPT_look_objects_sort_by_difficulty]
+#define look_nearby_filter_default op_ptr->opt[OPT_look_nearby_filter_default]
 #define story_display_lists op_ptr->opt[OPT_story_lists]
 #define story_inventory_lists op_ptr->opt[OPT_story_lists_inven]
 #define story_equipment_lists op_ptr->opt[OPT_story_lists_equip]
@@ -3918,12 +3920,15 @@ enum unified_sidebar_object_group {
 /*
  * Unified look mode state structure
  */
+#define UNIFIED_LOOK_NEAR_RADIUS 7
+
 typedef struct unified_look_state {
     int cursor_y, cursor_x;           /* Map cursor position */
     int selected_entity;              /* Currently highlighted sidebar entity (-1 if none) */
     bool show_monsters, show_objects; /* Sidebar visibility toggles */
     int object_group_filter;          /* Object filter: -1=all, 0..LOOK_GROUP_COUNT-1=group */
     bool limit_objects_top_five;      /* Limit object groups to top five entries */
+    bool nearby_filter;               /* Limit sidebar monsters/objects to nearby entities */
     int display_mode;                 /* Navigation mode (0=manual, 1=entity) */
     int highlighted_y, highlighted_x; /* Currently highlighted entity coordinates */
     int highlighted_entity_type;      /* Type of highlighted entity: 1=monster, 2=object, 0=none */

@@ -250,7 +250,7 @@ cptr option_text[OPT_MAX] = {
     "show_level_generation_debug", /* OPT_show_level_generation_debug */
     "unlock_blitz_mode", /* OPT_unlock_blitz_mode */
     "look_objects_sort_by_difficulty", /* OPT_look_objects_sort_by_difficulty */
-    NULL, /* xxx */
+    "look_nearby_filter_default", /* OPT_look_nearby_filter_default */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -492,7 +492,7 @@ cptr option_desc[OPT_MAX] = {
     "Debug: Show detailed level-generation screen info and pause before play", /* OPT_show_level_generation_debug */
     "Unlock Blitz Mode after winning a metarun", /* OPT_unlock_blitz_mode */
     "Sort look (L) objects by difficulty only (off = category, then difficulty)", /* OPT_look_objects_sort_by_difficulty */
-    NULL, /* xxx */
+    "Start look (l) with the nearby-only sidebar filter enabled", /* OPT_look_nearby_filter_default */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -754,7 +754,7 @@ const bool option_norm[OPT_MAX] = {
     false, /* OPT_show_level_generation_debug */
     false, /* OPT_unlock_blitz_mode */
     false, /* OPT_look_objects_sort_by_difficulty */
-    false, /* xxx */
+    false, /* OPT_look_nearby_filter_default */
     false, /* xxx */
     false, /* xxx */
     false, /* xxx */
@@ -918,9 +918,9 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
 
     { OPT_system_beep, OPT_quick_messages, OPT_auto_more, OPT_easy_main_menu,
         OPT_hjkl_movement, OPT_angband_keyset, OPT_space_acts_as_comma,
-        OPT_look_objects_sort_by_difficulty, OPT_hide_left_panel, OPT_hitpoint_warning,
-        OPT_show_level_generation_debug, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
-        OPT_NONE, OPT_NONE, OPT_NONE },
+        OPT_look_objects_sort_by_difficulty, OPT_look_nearby_filter_default,
+        OPT_hide_left_panel, OPT_hitpoint_warning, OPT_show_level_generation_debug,
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Text options ***/
 

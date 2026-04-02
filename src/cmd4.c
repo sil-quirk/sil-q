@@ -12321,6 +12321,9 @@ static cptr option_menu_label(int opt)
     case OPT_look_objects_sort_by_difficulty:
         return compact ? (narrow ? "Look diff sort" : "Look sort by diff")
                        : "Sort look (L) objects by difficulty only";
+    case OPT_look_nearby_filter_default:
+        return compact ? (narrow ? "Look near def" : "Look nearby default")
+                       : "Default look (l) nearby filter";
     case OPT_intro_style:
         return compact ? (narrow ? "Welcome art" : "Welcome screen")
                        : "Welcome screen style";
@@ -12376,6 +12379,7 @@ static cptr option_menu_label(int opt)
         case OPT_sleep_icon: return narrow ? "Sleep icon" : "Sleep icon";
         case OPT_show_smithing_difficulty: return narrow ? "Smith dbg items" : "Debug smithing in items";
         case OPT_show_smithing_difficulty_look: return narrow ? "Smith dbg look" : "Debug smithing in look";
+        case OPT_look_nearby_filter_default: return narrow ? "Look near def" : "Look nearby default";
         case OPT_show_level_generation_debug: return narrow ? "Dbg lvl screen" : "Debug level screen";
         case OPT_birth_discon_stair: return narrow ? "Disc. stairs" : "Disconnected stairs";
         case OPT_birth_ironman: return narrow ? "Straight down" : "Straight down";
@@ -14975,6 +14979,8 @@ void do_cmd_options(void)
 
     /* Save screen */
     screen_save();
+    if (p_ptr && p_ptr->playing)
+        sdl_music_play_menu_theme();
 
     /* Clear screen */
     Term_clear();
@@ -15126,6 +15132,8 @@ void do_cmd_options(void)
 
     /* Load screen */
     screen_load();
+    if (p_ptr && p_ptr->playing)
+        sdl_music_stop_main();
 }
 
 #ifdef ALLOW_MACROS
@@ -21319,6 +21327,8 @@ void do_cmd_knowledge_browser_page(int page)
     curse_cnt = knowledge_collect_curses(curse_idx);
 
     screen_save();
+    if (p_ptr && p_ptr->playing)
+        sdl_music_play_menu_theme();
 
     while (!done)
     {
@@ -21756,6 +21766,8 @@ void do_cmd_knowledge_browser_page(int page)
     mem_free_null(artefact_idx);
 
     screen_load();
+    if (p_ptr && p_ptr->playing)
+        sdl_music_stop_main();
 }
 
 /*
@@ -22360,9 +22372,37 @@ struct view_object_data_line
     int distance;
     char object_character;
     int object_color;
+    int name_color;
     char direction[12];
-    char name[60];
+    char name[80];
 };
+
+static byte look_object_name_color(const object_type* o_ptr)
+{
+    if (weapon_glows(o_ptr))
+        return object_display_color(o_ptr, TERM_L_BLUE);
+
+    return object_display_color(o_ptr,
+        tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
+}
+
+static void append_look_smithing_debug(char* buf, size_t buf_size,
+    const object_type* o_ptr)
+{
+    char smith_buf[20];
+
+    smith_buf[0] = '\0';
+    if (op_ptr->opt[OPT_show_smithing_difficulty_look] && object_known_p(o_ptr)
+        && object_uses_smithing_difficulty(o_ptr))
+    {
+        int depth = (p_ptr && p_ptr->depth > 0) ? p_ptr->depth : 1;
+        int sd = object_smithing_difficulty(o_ptr);
+        int wr = object_weight_rarity(o_ptr, depth);
+
+        strnfmt(smith_buf, sizeof(smith_buf), " {%d,%d}", sd, wr);
+        SDL_strlcat(buf, smith_buf, buf_size);
+    }
+}
 
 void show_nearby_monsters(bool line_of_sight_only)
 {
@@ -22447,7 +22487,7 @@ void show_nearby_monsters(bool line_of_sight_only)
         int distance_color;
         char monster_char[2];
         int direction_col = col + 6;
-        int name_col = direction_col + MAX(longest_direction_length, 1);
+        int name_col = direction_col + MAX(longest_direction_length, 1) + 1;
         int stance_col = term_wid - MAX(longest_stance_length, 1) - 1;
         int name_width = stance_col - name_col - 1;
         bool show_stance = true;
@@ -22515,7 +22555,7 @@ void show_nearby_objects(bool line_of_sight_only)
     {
         int o_idx = cave_o_idx[temp_y[i]][temp_x[i]];
         object_type* o_ptr = &o_list[o_idx];
-        char o_name[60];
+        char o_name[80];
         int name_length;
 
         if (j >= max_lines)
@@ -22528,25 +22568,27 @@ void show_nearby_objects(bool line_of_sight_only)
         memset(o_name, '\0', sizeof(o_name));
 
         object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
-        name_length = strlen(o_name);
-
-        longest_name_length = MAX(longest_name_length, name_length);
+        append_look_smithing_debug(o_name, sizeof(o_name), o_ptr);
 
         write_direction_from_player_to_buffer(temp_y[i], temp_x[i],
             lines[j].direction, sizeof(lines[j].direction));
-        longest_direction_length = MAX(longest_direction_length,
-            (int)strlen(lines[j].direction));
-
         lines[j].distance
             = distance(p_ptr->py, p_ptr->px, temp_y[i], temp_x[i]);
 
         if (strlen(lines[j].direction) == 0)
-            strcpy(lines[j].direction, "underfoot"); 
+            SDL_strlcpy(lines[j].direction, "underfoot", sizeof(lines[j].direction));
+
+        longest_direction_length = MAX(longest_direction_length,
+            (int)strlen(lines[j].direction));
+
+        name_length = strlen(o_name);
+        longest_name_length = MAX(longest_name_length, name_length);
 
         lines[j].object_character = object_char(o_ptr);
         lines[j].object_color = object_attr(o_ptr);
+        lines[j].name_color = look_object_name_color(o_ptr);
 
-        strncpy(lines[j].name, o_name, sizeof(lines[j].name));
+        SDL_strlcpy(lines[j].name, o_name, sizeof(lines[j].name));
 
         j++;
     }
@@ -22571,7 +22613,7 @@ void show_nearby_objects(bool line_of_sight_only)
     {
         int distance_color;
         int direction_col = col + 6;
-        int name_col = direction_col + MAX(longest_direction_length, 1);
+        int name_col = direction_col + MAX(longest_direction_length, 1) + 1;
         int name_width = term_wid - name_col - 1;
 
         char o_char[2];
@@ -22599,7 +22641,8 @@ void show_nearby_objects(bool line_of_sight_only)
         }
         Term_putstr(direction_col, i + 1, MAX(longest_direction_length, 1),
             distance_color, lines[i].direction);
-        Term_putstr(name_col, i + 1, name_width, TERM_WHITE, lines[i].name);
+        Term_putstr(name_col, i + 1, name_width, lines[i].name_color,
+            lines[i].name);
     }
 
     if (j)
@@ -22761,6 +22804,15 @@ static bool unified_sidebar_object_should_swap(
     return false;
 }
 
+static bool unified_look_sidebar_in_radius(const unified_look_state* state, int y,
+    int x)
+{
+    if (!state || !state->nearby_filter)
+        return true;
+
+    return distance(p_ptr->py, p_ptr->px, y, x) <= UNIFIED_LOOK_NEAR_RADIUS;
+}
+
 static int unified_sidebar_collect_sorted_objects(const unified_look_state* state,
     unified_sidebar_sorted_object objects[], int max_objects)
 {
@@ -22782,6 +22834,8 @@ static int unified_sidebar_collect_sorted_objects(const unified_look_state* stat
             continue;
 
         if (!grid_info_is_available(temp_y[i], temp_x[i]))
+            continue;
+        if (!unified_look_sidebar_in_radius(state, temp_y[i], temp_x[i]))
             continue;
 
         o_ptr = &o_list[o_idx];
@@ -22847,6 +22901,8 @@ int unified_look_find_cursor_selection(const unified_look_state* state, int curs
             if (!grid_info_is_available(temp_y[i], temp_x[i]))
                 continue;
             if (!mon_list[m_idx].ml)
+                continue;
+            if (!unified_look_sidebar_in_radius(state, temp_y[i], temp_x[i]))
                 continue;
 
             if ((temp_y[i] == cursor_y) && (temp_x[i] == cursor_x))
@@ -23297,6 +23353,7 @@ void show_unified_sidebar(unified_look_state* state)
 
             /* Skip monsters that are not visible to the player */
             if (!m_ptr->ml) continue;
+            if (!unified_look_sidebar_in_radius(state, temp_y[i], temp_x[i])) continue;
             
             /* Generate monster name without articles using race name function */
             monster_desc_race(m_name, sizeof(m_name), m_ptr->r_idx);

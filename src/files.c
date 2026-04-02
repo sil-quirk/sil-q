@@ -23,6 +23,7 @@
 #include "metarun.h"
 #include "platform.h"
 #include "sdl-config.h"
+#include "sdl-sound.h"
 #include "z-term.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -7057,6 +7058,8 @@ void do_cmd_help(void)
 
     /* Save screen */
     screen_save();
+    if (p_ptr && p_ptr->playing)
+        sdl_music_play_menu_theme();
 
     /* Interact until done */
     while (1)
@@ -7182,6 +7185,8 @@ void do_cmd_help(void)
 
     /* Load screen */
     screen_load();
+    if (p_ptr && p_ptr->playing)
+        sdl_music_stop_main();
 }
 
 /*
