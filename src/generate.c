@@ -107,6 +107,8 @@ static vault_monster_spec vault_monster_table[] = {
     {'N', "f134bcd795c27d4f", 0, false, true, true},
     {'D', "3ab7e216cb871fec", 0, false, true, true},
     {'K', "4da7998251196a35", 0, false, true, true}, /* Ancalagon the Black */
+    {'I', "7a94fd98505d6076", 0, false, true, true}, /* Flying cold-drake */
+    {'J', "49c954b30d9f0406", 0, false, true, true}, /* Flying fire-drake */
     {'R', "0e0f11695f8a443d", 0, false, true, true},
     {'U', "c2485b83ba33934d", 0, false, true, true},
     {'G', "7b038638b2981d20", 0, false, true, true},
@@ -13819,6 +13821,20 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             case 'K':
             {
                 place_vault_monster_token('K', y, x);
+                break;
+            }
+
+            /* Flying cold-drake */
+            case 'I':
+            {
+                place_vault_monster_token('I', y, x);
+                break;
+            }
+
+            /* Flying fire-drake */
+            case 'J':
+            {
+                place_vault_monster_token('J', y, x);
                 break;
             }
 

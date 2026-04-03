@@ -2823,6 +2823,47 @@ D: save only Draugluin. His eyes burn with malice older than the Sun.
 
 
 
+N:245:Flying cold-drake
+Q:7a94fd98505d6076
+W:24:6
+G:d:W
+T:21:16
+I:3:38d4:0
+A:40:10:1:20
+P:[+16,2d4]
+B:CLAW:HURT:(+26,3d13)
+B:BITE:WOUND:(+20,2d23)
+F:DROP_2D2 | DROP_GREAT | SMART | TERRITORIAL
+F:FLYING | BASH_DOOR | DRAGON | SPECIAL_VAULT_ONLY
+F:RES_COLD | HURT_FIRE
+S:SPELL_PCT_25 | POW_18
+S:BRTH_COLD
+D:A pale scion of Ancalagon's winged brood, this cold-drake sweeps through
+D: the dark on vast white wings. Frost gathers along its jaws and a bitter
+D: gale spills from its throat, freezing stone and flesh beneath its shadow.
+
+
+N:246:Flying fire-drake
+Q:49c954b30d9f0406
+W:24:6
+G:d:r
+T:21:17
+I:3:38d4:0
+A:40:10:1:20
+P:[+16,2d4]
+B:CLAW:HURT:(+27,3d13)
+B:BITE:FIRE:(+21,2d23)
+F:DROP_2D2 | DROP_GREAT | SMART | TERRITORIAL
+F:FLYING | BASH_DOOR | DRAGON | SPECIAL_VAULT_ONLY
+F:RES_FIRE | HURT_COLD
+S:SPELL_PCT_30 | POW_18
+S:BRTH_FIRE
+D:A red-winged drake descended from Ancalagon's first storm out of Angband,
+D: greater and swifter than the crawling Uruloki below. Heat ripples from
+D: its ember-bright scales, and its breath breaks forth as a pure torrent
+D: of furnace flame when it plunges from the vaults above.
+
+
 ##### 25 #####
 
 # Morgoth is a very special monster (thus the QUESTOR flag).
