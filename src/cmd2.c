@@ -1297,6 +1297,13 @@ typedef struct hint_message_state {
 static hint_message_state g_hint_message_state = { -1, 0, 0, 0, {0}, {{{0}}}, {{{0}}} };
 
 #define SKELETON_TIP_MAX_DEPTH 7
+#define SKELETON_NOTE_LEVEL_BASE_BLOCKS 9
+#define SKELETON_NOTE_LEVEL_RANDOM_ROLL1 17
+#define SKELETON_NOTE_LEVEL_RANDOM_ROLL2 14
+#define SKELETON_NOTE_LEVEL_MIN_BLOCKS 8
+#define SKELETON_NOTE_SMALLER_LEVEL_DELTA 3
+#define SKELETON_NOTE_SMALLER_LEVEL_MIN_BLOCKS 6
+#define SKELETON_NOTE_HOARD_GUARD_RADIUS 10
 
 static skeleton_note_state g_skeleton_note_state = { -1, 0, 0, 0, 0, 0, 0, {0} };
 static int g_skeleton_note_entry_count = -1;
@@ -1333,9 +1340,9 @@ static const int skeleton_hint_base_weight[SKEL_HINT_MAX]
 static void skeleton_note_ensure_level_state(void);
 static bool skeleton_note_has_unseen_template(
     byte sval, skeleton_note_role role, skeleton_hint_kind hint);
-static int skeleton_note_manhattan_dist(int y1, int x1, int y2, int x2);
+static int skeleton_note_map_distance(int y1, int x1, int y2, int x2);
 static const char* skeleton_note_direction_phrase(int from_y, int from_x, int to_y, int to_x);
-static const char* skeleton_note_distance_phrase(int dist);
+static const char* skeleton_note_distance_phrase(int dist, const level_layout_info* layout);
 static int skeleton_note_effective_wrap_width(int col);
 static int skeleton_note_append_wrapped_text(
     const char* text, char lines[][100], int idx, int limit, int wrap);
@@ -1492,22 +1499,51 @@ static u32b skeleton_hint_mark_used(skeleton_hint_kind kind, u32b state_mask)
     return state_mask;
 }
 
+static int skeleton_note_generated_side_for_depth_rolls(int depth, int roll1,
+    int roll2)
+{
+    int bonus1;
+    int bonus2;
+    int blocks;
+
+    if (depth < 0)
+        depth = 0;
+    if (roll1 < 1)
+        roll1 = 1;
+    if (roll2 < 1)
+        roll2 = 1;
+
+    /* Keep this in sync with cave_gen()'s depth-based level-size formula. */
+    bonus1 = (depth + roll1) / 3;
+    bonus2 = (depth + roll2) / 3;
+    blocks = SKELETON_NOTE_LEVEL_BASE_BLOCKS + MAX(bonus1, bonus2);
+
+    if (blocks > MAX_LEVEL_BLOCKS)
+        blocks = MAX_LEVEL_BLOCKS;
+    if (blocks < SKELETON_NOTE_LEVEL_MIN_BLOCKS)
+        blocks = SKELETON_NOTE_LEVEL_MIN_BLOCKS;
+
+    if (smaller_level_size)
+    {
+        blocks -= SKELETON_NOTE_SMALLER_LEVEL_DELTA;
+        if (blocks < SKELETON_NOTE_SMALLER_LEVEL_MIN_BLOCKS)
+            blocks = SKELETON_NOTE_SMALLER_LEVEL_MIN_BLOCKS;
+    }
+
+    return blocks * PANEL_HGT;
+}
+
 static int skeleton_note_generated_min_side(void)
 {
-    int min_blocks = smaller_level_size ? 6 : 8;
-    return min_blocks * PANEL_HGT;
+    int depth = p_ptr ? p_ptr->depth : 0;
+    return skeleton_note_generated_side_for_depth_rolls(depth, 1, 1);
 }
 
 static int skeleton_note_generated_max_side(void)
 {
-    int max_blocks = MAX_LEVEL_BLOCKS;
-    if (smaller_level_size)
-    {
-        max_blocks -= 3;
-        if (max_blocks < 6)
-            max_blocks = 6;
-    }
-    return max_blocks * PANEL_HGT;
+    int depth = p_ptr ? p_ptr->depth : 0;
+    return skeleton_note_generated_side_for_depth_rolls(depth,
+        SKELETON_NOTE_LEVEL_RANDOM_ROLL1, SKELETON_NOTE_LEVEL_RANDOM_ROLL2);
 }
 
 static int skeleton_note_size_bucket(const level_layout_info* layout)
@@ -1518,18 +1554,19 @@ static int skeleton_note_size_bucket(const level_layout_info* layout)
     /*
      * Size buckets for skeleton-note pacing and {SIZEWORD}.
      *
-     * Bucket against the generator's actual output range for the active size
-     * mode rather than the absolute MAX_DUNGEON_* ceiling. Otherwise the
-     * default generator quickly collapses into "large" descriptors and rarely
-     * emits "narrow" at all after the first few depths.
+     * Bucket against this depth's actual legal size span rather than the
+     * absolute MAX_DUNGEON_* ceiling. Otherwise the generator quickly
+     * collapses into "large" descriptors once the depth-scaled floor rises.
      */
     int side = MAX(layout->map_wid, layout->map_hgt);
     int min_side = skeleton_note_generated_min_side();
     int max_side = skeleton_note_generated_max_side();
     int span = max_side - min_side;
 
-    if (side <= 0 || min_side <= 0 || max_side <= min_side || span <= 0)
+    if (side <= 0 || min_side <= 0 || max_side <= 0)
         return 0;
+    if (max_side <= min_side || span <= 0)
+        return (side >= max_side) ? 3 : 0;
 
     if (side <= min_side)
         return 0;
@@ -2639,6 +2676,7 @@ typedef struct skeleton_note_line
     const char* dir;
     const char* dist;
     const char* site;
+    const char* artefact_kind;
     const char* size_word;
 } skeleton_note_line;
 
@@ -2921,8 +2959,8 @@ static int skeleton_note_append_wrapped_segment(
 static void skeleton_note_expand_template(const char* tpl,
     const level_layout_info* layout, level_partition_kind presence_kind,
     big_cave_type_t big_cave_type, const char* unique_type, const char* dir,
-    const char* dist, const char* site, const char* size_word, char* out,
-    size_t out_sz)
+    const char* dist, const char* site, const char* artefact_kind,
+    const char* size_word, char* out, size_t out_sz)
 {
     const char* part = partition_label(presence_kind, big_cave_type);
     const char* part_hazard = partition_hazard_label(presence_kind, big_cave_type);
@@ -2934,6 +2972,7 @@ static void skeleton_note_expand_template(const char* tpl,
     const char* dir_text = dir ? dir : "";
     const char* dist_text = dist ? dist : "";
     const char* site_text = site ? site : "";
+    const char* art_text = artefact_kind ? artefact_kind : "an artefact";
 
     size_t w = 0;
     const char* p = tpl ? tpl : "";
@@ -2995,6 +3034,32 @@ static void skeleton_note_expand_template(const char* tpl,
                 p += 6;
                 continue;
             }
+            if (strncmp(p, "{SITE_CAP}", 10) == 0)
+            {
+                char site_cap[64];
+                strnfmt(site_cap, sizeof(site_cap), "%s", site_text);
+                if (site_cap[0] >= 'a' && site_cap[0] <= 'z')
+                    site_cap[0] = (char)(site_cap[0] - 'a' + 'A');
+                w += strnfmt(out + w, out_sz - w, "%s", site_cap);
+                p += 10;
+                continue;
+            }
+            if (strncmp(p, "{ART_CAP}", 9) == 0)
+            {
+                char art_cap[64];
+                strnfmt(art_cap, sizeof(art_cap), "%s", art_text);
+                if (art_cap[0] >= 'a' && art_cap[0] <= 'z')
+                    art_cap[0] = (char)(art_cap[0] - 'a' + 'A');
+                w += strnfmt(out + w, out_sz - w, "%s", art_cap);
+                p += 9;
+                continue;
+            }
+            if (strncmp(p, "{ART}", 5) == 0)
+            {
+                w += strnfmt(out + w, out_sz - w, "%s", art_text);
+                p += 5;
+                continue;
+            }
         }
         out[w++] = *p++;
     }
@@ -3010,7 +3075,8 @@ static int skeleton_note_append_expanded_lines(const skeleton_note_line* line,
     char expanded[512];
     skeleton_note_expand_template(line->tpl, layout, line->presence_kind,
         line->big_cave_type, line->unique_type, line->dir, line->dist,
-        line->site, line->size_word, expanded, sizeof(expanded));
+        line->site, line->artefact_kind, line->size_word, expanded,
+        sizeof(expanded));
 
     char* seg = expanded;
     while (seg && *seg && idx < limit)
@@ -3116,17 +3182,9 @@ static const char* skeleton_get_unique_type_name(const monster_race* r_ptr)
     return "horror";
 }
 
-static int skeleton_note_manhattan_dist(int y1, int x1, int y2, int x2)
+static int skeleton_note_map_distance(int y1, int x1, int y2, int x2)
 {
-    int dy = y1 - y2;
-    if (dy < 0)
-        dy = -dy;
-
-    int dx = x1 - x2;
-    if (dx < 0)
-        dx = -dx;
-
-    return dy + dx;
+    return distance(y1, x1, y2, x2);
 }
 
 static const char* skeleton_note_direction_phrase(int from_y, int from_x, int to_y, int to_x)
@@ -3156,15 +3214,24 @@ static const char* skeleton_note_direction_phrase(int from_y, int from_x, int to
     return "to the north-west";
 }
 
-static const char* skeleton_note_distance_phrase(int dist)
+static const char* skeleton_note_distance_phrase(int dist,
+    const level_layout_info* layout)
 {
-    if (dist <= 5)
-        return "very near";
-    if (dist <= 12)
-        return "not far";
-    if (dist <= 22)
-        return "some way";
-    return "far off";
+    int side = layout ? MAX(layout->map_wid, layout->map_hgt) : 0;
+    int near_limit = 10;
+    int mid_limit = 24;
+
+    if (side > 0)
+    {
+        near_limit = MAX(8, side / 8);
+        mid_limit = MAX(near_limit + 8, side / 4);
+    }
+
+    if (dist <= near_limit)
+        return "a short way";
+    if (dist <= mid_limit)
+        return "some distance";
+    return "a long way";
 }
 
 static bool skeleton_note_find_nearest_stairs_kind(
@@ -3186,7 +3253,7 @@ static bool skeleton_note_find_nearest_stairs_kind(
             if (!ok)
                 continue;
 
-            int dist = skeleton_note_manhattan_dist(from_y, from_x, y, x);
+            int dist = skeleton_note_map_distance(from_y, from_x, y, x);
             if (best_y < 0 || dist < best_dist)
             {
                 best_y = y;
@@ -3271,7 +3338,7 @@ static bool skeleton_note_find_nearest_forge(
                 continue;
 
             int feat = cave_feat[y][x];
-            int dist = skeleton_note_manhattan_dist(from_y, from_x, y, x);
+            int dist = skeleton_note_map_distance(from_y, from_x, y, x);
             if (best_y < 0 || dist < best_dist)
             {
                 best_y = y;
@@ -3324,7 +3391,7 @@ static bool skeleton_note_find_nearest_quest_site(
         if (!skeleton_note_is_quest_giver_r_idx(r_idx) && r_idx != R_IDX_DURUIN)
             continue;
 
-        int dist = skeleton_note_manhattan_dist(from_y, from_x, m_ptr->fy, m_ptr->fx);
+        int dist = skeleton_note_map_distance(from_y, from_x, m_ptr->fy, m_ptr->fx);
         if (best_y < 0 || dist < best_dist)
         {
             best_y = m_ptr->fy;
@@ -3353,7 +3420,7 @@ static bool skeleton_note_find_nearest_quest_site(
         int x = p_ptr->aule_forge_x;
         if (in_bounds(y, x) && cave_forge_bold(y, x))
         {
-            int dist = skeleton_note_manhattan_dist(from_y, from_x, y, x);
+            int dist = skeleton_note_map_distance(from_y, from_x, y, x);
             if (best_y < 0 || dist < best_dist)
             {
                 best_y = y;
@@ -3381,7 +3448,7 @@ static bool skeleton_note_find_nearest_quest_site(
         int x = p_ptr->mandos_vault_x;
         if (in_bounds(y, x))
         {
-            int dist = skeleton_note_manhattan_dist(from_y, from_x, y, x);
+            int dist = skeleton_note_map_distance(from_y, from_x, y, x);
             if (best_y < 0 || dist < best_dist)
             {
                 best_y = y;
@@ -3428,7 +3495,7 @@ static bool skeleton_note_find_nearest_great_vault(
             if (!(cave_info[y][x] & CAVE_G_VAULT))
                 continue;
 
-            int dist = skeleton_note_manhattan_dist(from_y, from_x, y, x);
+            int dist = skeleton_note_map_distance(from_y, from_x, y, x);
             if (best_y < 0 || dist < best_dist)
             {
                 best_y = y;
@@ -3459,26 +3526,198 @@ static bool skeleton_note_find_nearest_great_vault(
     return true;
 }
 
-static const char* skeleton_note_hoard_site_for_point(int y, int x)
+static const char* skeleton_note_artefact_kind_name(const object_type* o_ptr)
 {
-    if (in_bounds_fully(y, x) && (cave_info[y][x] & CAVE_G_VAULT))
+    if (!o_ptr)
+        return "artefact";
+
+    switch (o_ptr->tval)
+    {
+    case TV_SWORD:
+        return "sword";
+    case TV_POLEARM:
+        return "spear";
+    case TV_HAFTED:
+        return "hammer";
+    case TV_BOW:
+        return "bow";
+    case TV_ARROW:
+        return "arrow";
+    case TV_SOFT_ARMOR:
+        return "suit of armour";
+    case TV_MAIL:
+        return "mail shirt";
+    case TV_CLOAK:
+        return "cloak";
+    case TV_SHIELD:
+        return "shield";
+    case TV_HELM:
+        return "helm";
+    case TV_CROWN:
+        return "crown";
+    case TV_GLOVES:
+        return "pair of gloves";
+    case TV_BOOTS:
+        return "pair of boots";
+    case TV_RING:
+        return "ring";
+    case TV_AMULET:
+        return "amulet";
+    case TV_LIGHT:
+        return "lamp";
+    case TV_HORN:
+        return "horn";
+    case TV_STAFF:
+        return "staff";
+    case TV_DIGGING:
+        return "mattock";
+    case TV_GEM:
+        return "jewel";
+    default:
+        return "artefact";
+    }
+}
+
+static const char* skeleton_note_indefinite_article(const char* noun)
+{
+    char c = (noun && noun[0]) ? noun[0] : 'a';
+
+    if (c >= 'A' && c <= 'Z')
+        c = (char)(c - 'A' + 'a');
+
+    if (c == 'a' || c == 'e' || c == 'i' || c == 'o' || c == 'u')
+        return "an";
+    return "a";
+}
+
+static const char* skeleton_note_format_artefact_kind(
+    const object_type* o_ptr, char* buf, size_t buf_sz)
+{
+    const char* kind = skeleton_note_artefact_kind_name(o_ptr);
+
+    if (!buf || buf_sz == 0)
+        return "an artefact";
+
+    if (!kind || !kind[0])
+        kind = "artefact";
+
+    strnfmt(buf, buf_sz, "%s %s",
+        skeleton_note_indefinite_article(kind), kind);
+    return buf;
+}
+
+static u32b skeleton_note_nearest_guardian_source_ident(int y, int x)
+{
+    int best_dist = 0;
+    int seen = 0;
+    u32b best_ident = 0;
+
+    for (int i = 1; i < mon_max; i++)
+    {
+        monster_type* m_ptr = &mon_list[i];
+        monster_race* r_ptr;
+        u32b source_ident = 0;
+        int dist;
+
+        if (!m_ptr->r_idx)
+            continue;
+
+        dist = skeleton_note_map_distance(y, x, m_ptr->fy, m_ptr->fx);
+        if (dist > SKELETON_NOTE_HOARD_GUARD_RADIUS)
+            continue;
+
+        r_ptr = &r_info[m_ptr->r_idx];
+        if (r_ptr->flags3 & RF3_DRAGON)
+            source_ident |= IDENT_DRAGON_DROP;
+        if (r_ptr->flags1 & RF1_UNIQUE)
+            source_ident |= IDENT_UNIQUE_DROP;
+        if (!source_ident)
+            continue;
+
+        if (!best_ident || dist < best_dist)
+        {
+            best_ident = source_ident;
+            best_dist = dist;
+            seen = 1;
+            continue;
+        }
+
+        if (dist == best_dist)
+        {
+            ++seen;
+            if (one_in_(seen))
+                best_ident = source_ident;
+        }
+    }
+
+    return best_ident;
+}
+
+static const char* skeleton_note_hoard_site_for_source_ident(u32b source_ident)
+{
+    if ((source_ident & IDENT_DRAGON_DROP)
+        && (source_ident & IDENT_UNIQUE_DROP))
+    {
+        return "a dragon-lord's hoard";
+    }
+    if (source_ident & IDENT_DRAGON_DROP)
+        return "a dragon's hoard";
+    if (source_ident & IDENT_UNIQUE_DROP)
+        return "a unique foe's hoard";
+    return NULL;
+}
+
+static const char* skeleton_note_hoard_site_for_object(const object_type* o_ptr)
+{
+    u32b source_ident = 0;
+    const char* source_site = NULL;
+
+    if (!o_ptr)
+        return "a hidden cache";
+
+    if (o_ptr->ident
+        & (IDENT_CHASM_SANCTUM_ITEM | IDENT_CHASM_SANCTUM_DROP))
+    {
+        return "a chasm sanctum";
+    }
+
+    source_ident = o_ptr->ident & (IDENT_DRAGON_DROP | IDENT_UNIQUE_DROP);
+    source_site = skeleton_note_hoard_site_for_source_ident(source_ident);
+    if (source_site)
+        return source_site;
+
+    if (in_bounds_fully(o_ptr->iy, o_ptr->ix)
+        && (cave_info[o_ptr->iy][o_ptr->ix] & CAVE_G_VAULT))
     {
         if (g_vault_name[0] != '\0')
             return g_vault_name;
         return "a great vault";
     }
 
-    return "a dragon's hoard";
+    if (o_ptr->ident & IDENT_HOARD_DROP)
+    {
+        source_ident =
+            skeleton_note_nearest_guardian_source_ident(o_ptr->iy, o_ptr->ix);
+        source_site = skeleton_note_hoard_site_for_source_ident(source_ident);
+        if (source_site)
+            return source_site;
+        return "a treasure hoard";
+    }
+    return "a hidden cache";
 }
 
 static bool skeleton_note_find_nearest_artefact(
-    int from_y, int from_x, int* out_y, int* out_x, int* out_dist, const char** out_site)
+    int from_y, int from_x, int* out_y, int* out_x, int* out_dist,
+    const char** out_site, char* out_artefact_kind, size_t out_artefact_kind_sz)
 {
     int best_y = -1;
     int best_x = -1;
     int best_dist = 0;
     const char* best_site = NULL;
+    char best_artefact_kind[64];
     int seen = 0;
+
+    best_artefact_kind[0] = '\0';
 
     for (int i = 1; i < o_max; i++)
     {
@@ -3492,13 +3731,15 @@ static bool skeleton_note_find_nearest_artefact(
         if (o_ptr->iy >= p_ptr->cur_map_hgt || o_ptr->ix >= p_ptr->cur_map_wid)
             continue;
 
-        int dist = skeleton_note_manhattan_dist(from_y, from_x, o_ptr->iy, o_ptr->ix);
+        int dist = skeleton_note_map_distance(from_y, from_x, o_ptr->iy, o_ptr->ix);
         if (best_y < 0 || dist < best_dist)
         {
             best_y = o_ptr->iy;
             best_x = o_ptr->ix;
             best_dist = dist;
-            best_site = skeleton_note_hoard_site_for_point(best_y, best_x);
+            best_site = skeleton_note_hoard_site_for_object(o_ptr);
+            (void)skeleton_note_format_artefact_kind(
+                o_ptr, best_artefact_kind, sizeof(best_artefact_kind));
             seen = 1;
             continue;
         }
@@ -3510,7 +3751,9 @@ static bool skeleton_note_find_nearest_artefact(
             {
                 best_y = o_ptr->iy;
                 best_x = o_ptr->ix;
-                best_site = skeleton_note_hoard_site_for_point(best_y, best_x);
+                best_site = skeleton_note_hoard_site_for_object(o_ptr);
+                (void)skeleton_note_format_artefact_kind(
+                    o_ptr, best_artefact_kind, sizeof(best_artefact_kind));
             }
         }
     }
@@ -3521,7 +3764,12 @@ static bool skeleton_note_find_nearest_artefact(
     if (out_y) *out_y = best_y;
     if (out_x) *out_x = best_x;
     if (out_dist) *out_dist = best_dist;
-    if (out_site) *out_site = best_site ? best_site : "a hoard";
+    if (out_site) *out_site = best_site ? best_site : "a hidden cache";
+    if (out_artefact_kind && out_artefact_kind_sz > 0)
+    {
+        strnfmt(out_artefact_kind, out_artefact_kind_sz, "%s",
+            best_artefact_kind[0] ? best_artefact_kind : "an artefact");
+    }
     return true;
 }
 
@@ -3543,7 +3791,7 @@ static bool skeleton_note_find_nearest_unique(
         if (!(r_ptr->flags1 & RF1_UNIQUE))
             continue;
 
-        int dist = skeleton_note_manhattan_dist(from_y, from_x, m_ptr->fy, m_ptr->fx);
+        int dist = skeleton_note_map_distance(from_y, from_x, m_ptr->fy, m_ptr->fx);
         if (best_y < 0 || dist < best_dist)
         {
             best_r_idx = m_ptr->r_idx;
@@ -3579,6 +3827,13 @@ static bool skeleton_note_find_nearest_unique(
 static bool skeleton_note_find_nearest_partition_site(level_partition_kind kind,
     big_cave_type_t cave_type, int from_y, int from_x, int* out_y, int* out_x, int* out_dist)
 {
+    int source_pi = level_partition_index_for_point(from_y, from_x);
+    level_partition_kind source_kind = level_partition_kind_for_point(from_y, from_x);
+    big_cave_type_t source_cave_type =
+        level_partition_big_cave_type_for_point(from_y, from_x);
+    bool skip_source_partition = (source_pi >= 0) && (source_kind == kind)
+        && ((kind != LEVEL_PART_BIG_CAVE) || (cave_type == BIG_CAVE_NONE)
+            || (source_cave_type == cave_type));
     int best_y = -1;
     int best_x = -1;
     int best_dist = 0;
@@ -3590,13 +3845,18 @@ static bool skeleton_note_find_nearest_partition_site(level_partition_kind kind,
         {
             if (level_partition_kind_for_point(y, x) != kind)
                 continue;
-            if (kind == LEVEL_PART_BIG_CAVE)
+            if (skip_source_partition
+                && level_partition_index_for_point(y, x) == source_pi)
+            {
+                continue;
+            }
+            if (kind == LEVEL_PART_BIG_CAVE && cave_type != BIG_CAVE_NONE)
             {
                 if (level_partition_big_cave_type_for_point(y, x) != cave_type)
                     continue;
             }
 
-            int dist = skeleton_note_manhattan_dist(from_y, from_x, y, x);
+            int dist = skeleton_note_map_distance(from_y, from_x, y, x);
             if (best_y < 0 || dist < best_dist)
             {
                 best_y = y;
@@ -3632,13 +3892,13 @@ static const char* skeleton_note_stair_site(int feat)
     switch (feat)
     {
     case FEAT_MORE:
-        return "stair down";
+        return "down staircase";
     case FEAT_MORE_SHAFT:
-        return "shaft down";
+        return "down shaft";
     case FEAT_LESS:
-        return "stair up";
+        return "up staircase";
     case FEAT_LESS_SHAFT:
-        return "shaft up";
+        return "up shaft";
     default:
         return "stairs";
     }
@@ -3751,7 +4011,7 @@ static const char* skeleton_hint_title(skeleton_hint_kind hint)
     case SKEL_HINT_GREAT_VAULT:
         return "Hint: Great Vault";
     case SKEL_HINT_VAULT_ARTIFACT:
-        return "Hint: Dragon's Hoard";
+        return "Hint: Hidden Artefact";
     case SKEL_HINT_STAIRS:
         return "Hint: Stairs";
     case SKEL_HINT_PARTITION_PRESENCE:
@@ -3939,7 +4199,10 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
     int hint_count = (hint2 != SKEL_HINT_NONE) ? 2 : 1;
 
     char forge_site_buf[64];
+    char artefact_kind_buf[2][64];
     forge_site_buf[0] = '\0';
+    artefact_kind_buf[0][0] = '\0';
+    artefact_kind_buf[1][0] = '\0';
 
     for (int i = 0; i < hint_count; ++i)
     {
@@ -3964,7 +4227,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
                 tpl = "A gate of black stone stands {DIST} {DIR}; the warding is unbroken.";
                 break;
             case SKEL_HINT_VAULT_ARTIFACT:
-                tpl = "There is an artefact in {SITE} {DIST} {DIR}.";
+                tpl = "{ART_CAP} lies in {SITE} {DIST} {DIR}.";
                 break;
             case SKEL_HINT_STAIRS:
                 tpl = "The {SITE} lies {DIST} {DIR}.";
@@ -4028,6 +4291,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
         body_lines[body_count].dir = NULL;
         body_lines[body_count].dist = NULL;
         body_lines[body_count].site = NULL;
+        body_lines[body_count].artefact_kind = NULL;
         body_lines[body_count].size_word = NULL;
 
         if (hint == SKEL_HINT_STAIRS)
@@ -4038,7 +4302,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
             {
                 body_lines[body_count].dir
                     = skeleton_note_direction_phrase(skel_y, skel_x, ty, tx);
-                body_lines[body_count].dist = skeleton_note_distance_phrase(dist);
+                body_lines[body_count].dist = skeleton_note_distance_phrase(dist, &layout);
                 body_lines[body_count].site = skeleton_note_stair_site(feat);
             }
         }
@@ -4050,7 +4314,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
             {
                 body_lines[body_count].dir
                     = skeleton_note_direction_phrase(skel_y, skel_x, ty, tx);
-                body_lines[body_count].dist = skeleton_note_distance_phrase(dist);
+                body_lines[body_count].dist = skeleton_note_distance_phrase(dist, &layout);
                 body_lines[body_count].site
                     = skeleton_note_forge_site(feat, forge_site_buf, sizeof(forge_site_buf));
             }
@@ -4067,7 +4331,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
             {
                 body_lines[body_count].dir
                     = skeleton_note_direction_phrase(skel_y, skel_x, ty, tx);
-                body_lines[body_count].dist = skeleton_note_distance_phrase(dist);
+                body_lines[body_count].dist = skeleton_note_distance_phrase(dist, &layout);
                 body_lines[body_count].site = site;
             }
             else
@@ -4084,7 +4348,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
             {
                 body_lines[body_count].dir
                     = skeleton_note_direction_phrase(skel_y, skel_x, ty, tx);
-                body_lines[body_count].dist = skeleton_note_distance_phrase(dist);
+                body_lines[body_count].dist = skeleton_note_distance_phrase(dist, &layout);
             }
             else
             {
@@ -4097,18 +4361,23 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
             int ty = 0, tx = 0, dist = 0;
             const char* site = NULL;
             if (skeleton_note_find_nearest_artefact(
-                    skel_y, skel_x, &ty, &tx, &dist, &site))
+                    skel_y, skel_x, &ty, &tx, &dist, &site,
+                    artefact_kind_buf[body_count],
+                    sizeof(artefact_kind_buf[body_count])))
             {
                 body_lines[body_count].dir
                     = skeleton_note_direction_phrase(skel_y, skel_x, ty, tx);
-                body_lines[body_count].dist = skeleton_note_distance_phrase(dist);
+                body_lines[body_count].dist = skeleton_note_distance_phrase(dist, &layout);
                 body_lines[body_count].site = site;
+                body_lines[body_count].artefact_kind =
+                    artefact_kind_buf[body_count];
             }
             else
             {
                 body_lines[body_count].dist = "somewhere";
                 body_lines[body_count].dir = "on this level";
-                body_lines[body_count].site = "a hoard";
+                body_lines[body_count].site = "a hidden cache";
+                body_lines[body_count].artefact_kind = "an artefact";
             }
         }
         else if (hint == SKEL_HINT_UNIQUE_MONSTER)
@@ -4117,7 +4386,8 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
             {
                 body_lines[body_count].dir = skeleton_note_direction_phrase(
                     skel_y, skel_x, unique_y, unique_x);
-                body_lines[body_count].dist = skeleton_note_distance_phrase(unique_dist);
+                body_lines[body_count].dist =
+                    skeleton_note_distance_phrase(unique_dist, &layout);
             }
             else
             {
@@ -4135,7 +4405,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
             {
                 body_lines[body_count].dir
                     = skeleton_note_direction_phrase(skel_y, skel_x, ty, tx);
-                body_lines[body_count].dist = skeleton_note_distance_phrase(dist);
+                body_lines[body_count].dist = skeleton_note_distance_phrase(dist, &layout);
             }
             else
             {

@@ -2023,8 +2023,23 @@ void scare_onlooking_friends(const monster_type* m_ptr, int amount)
 /*
  * Create a chosen artefact (mainly for the death of a particular unique)
  */
+static u32b monster_drop_source_ident(const monster_race* r_ptr)
+{
+    u32b source_ident = 0;
 
-extern void create_chosen_artefact(byte name1, int y, int x, bool identify)
+    if (!r_ptr)
+        return 0;
+
+    if (r_ptr->flags3 & RF3_DRAGON)
+        source_ident |= IDENT_DRAGON_DROP;
+    if (r_ptr->flags1 & RF1_UNIQUE)
+        source_ident |= IDENT_UNIQUE_DROP;
+
+    return source_ident;
+}
+
+static void create_chosen_artefact_marked(
+    byte name1, int y, int x, bool identify, u32b source_ident)
 {
     object_type* i_ptr;
     object_type object_type_body;
@@ -2069,6 +2084,11 @@ extern void create_chosen_artefact(byte name1, int y, int x, bool identify)
     /* Mega-Hack -- Actually create the artefact */
     apply_magic(i_ptr, -1, true, true, true, true);
 
+    if (!character_dungeon)
+        source_ident |= IDENT_HOARD_DROP;
+    i_ptr->ident |= (source_ident & (IDENT_DRAGON_DROP | IDENT_UNIQUE_DROP));
+    i_ptr->ident |= (source_ident & IDENT_HOARD_DROP);
+
     log_trace("create_chosen_artefact: Magic applied successfully");
 
     // Identify it if desired
@@ -2086,6 +2106,11 @@ extern void create_chosen_artefact(byte name1, int y, int x, bool identify)
     drop_near(i_ptr, -1, y, x);
     
     log_trace("create_chosen_artefact: Successfully created and dropped artifact %d", name1);
+}
+
+extern void create_chosen_artefact(byte name1, int y, int x, bool identify)
+{
+    create_chosen_artefact_marked(name1, y, x, identify, 0);
 }
 
 /*
@@ -2113,6 +2138,7 @@ int drop_loot(monster_type* m_ptr)
 
     object_type* i_ptr;
     object_type object_type_body;
+    u32b source_ident = monster_drop_source_ident(r_ptr);
 
     int original_object_level = object_level;
 
@@ -2165,6 +2191,7 @@ int drop_loot(monster_type* m_ptr)
 
         /* Copy the object */
         object_copy(i_ptr, o_ptr);
+        i_ptr->ident |= source_ident;
 
         /* Delete the object */
         delete_object_idx(this_o_idx);
@@ -2183,46 +2210,53 @@ int drop_loot(monster_type* m_ptr)
         if (m_ptr->r_idx == R_IDX_MORGOTH)
         {
             // create the Massive Hammer 'Grond'
-            create_chosen_artefact(ART_GROND, y, x, true);
+            create_chosen_artefact_marked(ART_GROND, y, x, true, source_ident);
 
             // create the Iron Crown of Morgoth
-            create_chosen_artefact(ART_MORGOTH_3, y, x, true);
+            create_chosen_artefact_marked(
+                ART_MORGOTH_3, y, x, true, source_ident);
         }
         // Drop Calris from Gothmog
         else if (m_ptr->r_idx == R_IDX_GOTHMOG)
         {
             // create the Greatsword 'Calris'
-            create_chosen_artefact(ART_CALRIS, y, x, false);
+            create_chosen_artefact_marked(
+                ART_CALRIS, y, x, false, source_ident);
         }
         // Drop Galvorn Armour of Maeglin
         else if (r_ptr->d_char == '@')
         {
             // create the Armour of Maeglin
-            create_chosen_artefact(ART_MAEGLIN, y, x, false);
+            create_chosen_artefact_marked(
+                ART_MAEGLIN, y, x, false, source_ident);
         }
         // Drop Iron Spear of Boldog
         else if (r_ptr->d_char == 'o')
         {
             // create the Armour of Maeglin
-            create_chosen_artefact(ART_BOLDOG, y, x, false);
+            create_chosen_artefact_marked(
+                ART_BOLDOG, y, x, false, source_ident);
         }
         // Drop Glend
         else if (r_ptr->d_char == 'G')
         {
             // create the Greatsword 'Glend'
-            create_chosen_artefact(ART_GLEND, y, x, false);
+            create_chosen_artefact_marked(
+                ART_GLEND, y, x, false, source_ident);
         }
         // Drop Wolf-Hame of Drauglin
         else if (r_ptr->d_char == 'C')
         {
             // create the Wolf-Hame of Draugluin
-            create_chosen_artefact(ART_DRAUGLUIN, y, x, false);
+            create_chosen_artefact_marked(
+                ART_DRAUGLUIN, y, x, false, source_ident);
         }
         // Drop Bat-Fell of Thuringwethil
         else if (r_ptr->d_char == 'v')
         {
             // create the Bet-Fell of Thuringwethil
-            create_chosen_artefact(ART_THURINGWETHIL, y, x, false);
+            create_chosen_artefact_marked(
+                ART_THURINGWETHIL, y, x, false, source_ident);
         }
     }
 
@@ -2265,6 +2299,7 @@ int drop_loot(monster_type* m_ptr)
         i_ptr->number = damroll(2, 8);
 
         object_known(i_ptr);
+        i_ptr->ident |= source_ident;
 
         /* Assume seen XXX XXX XXX */
         dump_item++;
@@ -2312,6 +2347,8 @@ int drop_loot(monster_type* m_ptr)
                 apply_magic(i_ptr, gen_depth, false, false, false, false);
             }
         }
+
+        i_ptr->ident |= source_ident;
 
         /* Assume seen XXX XXX XXX */
         dump_item++;
@@ -2392,6 +2429,8 @@ int drop_loot(monster_type* m_ptr)
         else if (!make_object_with_profile(
                      i_ptr, quality, normal_drop_type, &monster_profile))
             continue;
+
+        i_ptr->ident |= source_ident;
 
         /* Assume seen XXX XXX XXX */
         dump_item++;

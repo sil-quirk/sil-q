@@ -3573,6 +3573,9 @@ void do_cmd_ability_screen(void)
 
     /* Load screen */
     screen_load();
+
+    handle_stuff();
+    inven_enforce_current_pack_limits();
 }
 
 bool enchant_then_numbers;
@@ -4855,15 +4858,31 @@ bool melt_metal_item(int item_num)
 
                     // give it to the player
                     slot = inven_carry(i_ptr2, true);
-                    inven_item_optimize(slot);
-                    inven_item_describe(slot);
+                    if ((slot >= 0) && (slot < INVEN_TOTAL))
+                    {
+                        inven_item_optimize(slot);
+                        inven_item_describe(slot);
+                    }
+                    else
+                    {
+                        drop_near(i_ptr2, 0, p_ptr->py, p_ptr->px);
+                        msg_print("Some metal falls to the floor.");
+                    }
                     window_stuff();
                 }
 
                 // now give the last stack of mithril to the player
                 slot = inven_carry(i_ptr, true);
-                inven_item_optimize(slot);
-                inven_item_describe(slot);
+                if ((slot >= 0) && (slot < INVEN_TOTAL))
+                {
+                    inven_item_optimize(slot);
+                    inven_item_describe(slot);
+                }
+                else
+                {
+                    drop_near(i_ptr, 0, p_ptr->py, p_ptr->px);
+                    msg_print("Some metal falls to the floor.");
+                }
                 window_stuff();
 
                 return (true);

@@ -352,7 +352,7 @@ static bool place_chasm_sanctum_drop_at(int y, int x)
     if (!drop_generate_chasm_sanctum_object(p_ptr->depth, i_ptr))
         return false;
 
-    i_ptr->ident |= IDENT_CHASM_SANCTUM_ITEM;
+    i_ptr->ident |= IDENT_CHASM_SANCTUM_ITEM | IDENT_CHASM_SANCTUM_DROP;
 
     return (floor_carry(y, x, i_ptr) != 0);
 }

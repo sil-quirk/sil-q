@@ -1865,9 +1865,12 @@
     0x00002000 /* Base curse already cleansed; don't reapply or display {uncursed} */
 #define IDENT_CHASM_SANCTUM_ITEM                                                \
     0x00004000 /* Chasm sanctum ambush triggers when player enters the tile */
-#define IDENT_UNUSED_XXXX8XXX 0x00008000 /* Unused */
-#define IDENT_UNUSED_XXX1XXXX 0x00010000 /* Unused */
-#define IDENT_UNUSED_XXX2XXXX 0x00020000 /* Unused */
+#define IDENT_DRAGON_DROP                                                     \
+    0x00008000 /* Dropped by a dragon; used for skeleton-note hoard text */
+#define IDENT_UNIQUE_DROP                                                     \
+    0x00010000 /* Dropped by a unique; used for skeleton-note hoard text */
+#define IDENT_CHASM_SANCTUM_DROP                                              \
+    0x00020000 /* Generated in a chasm sanctum; persists after ambush trigger */
 #define IDENT_UNUSED_XXX4XXXX 0x00040000 /* Unused */
 #define IDENT_UNUSED_XXX8XXXX 0x00080000 /* Unused */
 #define IDENT_UNUSED_XX1XXXXX 0x00100000 /* Unused */

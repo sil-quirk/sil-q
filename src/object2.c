@@ -36,6 +36,7 @@ static bool carry_limit_last_failed = false;
 static enum inventory_limit_group carry_limit_last_group = INV_LIMIT_NONE;
 static int carry_limit_last_limit = 0;
 static char carry_limit_last_label[64];
+static enum inventory_limit_group pack_limit_prompt_group = INV_LIMIT_NONE;
 
 static const u32b pval_stat_flag_pos[A_MAX] = {
     [A_STR] = TR1_STR,
@@ -188,6 +189,16 @@ static void clear_inventory_limit_failure(void)
     carry_limit_last_group = INV_LIMIT_NONE;
     carry_limit_last_limit = 0;
     carry_limit_last_label[0] = '\0';
+}
+
+static bool inven_index_valid(int item, cptr context)
+{
+    if ((item >= 0) && (item < INVEN_TOTAL))
+        return true;
+
+    log_error("%s: invalid inventory slot %d",
+        context ? context : "inventory", item);
+    return false;
 }
 
 static bool object_is_truly_two_handed(const object_type* o_ptr)
@@ -353,7 +364,10 @@ static int inventory_limit_usage(enum inventory_limit_group group)
         if (slot_group != group)
             continue;
 
-        usage += slot_cost;
+        if (group == INV_LIMIT_ARROW)
+            usage += slot_cost;
+        else
+            usage += slot_cost * MAX(slot_ptr->number, 1);
     }
 
     return usage;
@@ -472,6 +486,7 @@ static bool inventory_type_slot_available(const object_type* o_ptr,
     enum inventory_limit_group group;
     int limit;
     int cost;
+    int units;
 
     if (!get_inventory_limit_info(o_ptr, &group, &limit, &cost))
         return true;
@@ -483,15 +498,212 @@ static bool inventory_type_slot_available(const object_type* o_ptr,
         return false;
     }
 
+    units = (group == INV_LIMIT_ARROW) ? 1 : MAX(o_ptr->number, 1);
+
     int used = inventory_limit_usage(group);
 
-    if (used + cost <= limit)
+    if (used + cost * units <= limit)
         return true;
 
     if (record_failure)
         set_inventory_limit_failure(group, limit, o_ptr);
 
     return false;
+}
+
+static bool inventory_limit_group_is_heavy_armour(
+    enum inventory_limit_group group)
+{
+    return (group == INV_LIMIT_MAIL) || (group == INV_LIMIT_HELM_CROWN)
+        || (group == INV_LIMIT_ROUND_SHIELD)
+        || (group == INV_LIMIT_OTHER_SHIELD);
+}
+
+static bool item_tester_hook_pack_limit_group(const object_type* o_ptr)
+{
+    enum inventory_limit_group group;
+    int limit;
+    int cost;
+
+    if (!get_inventory_limit_info(o_ptr, &group, &limit, &cost))
+        return false;
+
+    return (group == pack_limit_prompt_group);
+}
+
+static int inventory_limit_group_first_slot(enum inventory_limit_group group,
+    int* limit)
+{
+    for (int item = 0; item <= INVEN_PACK; item++)
+    {
+        object_type* o_ptr = &inventory[item];
+        enum inventory_limit_group slot_group;
+        int slot_limit;
+        int slot_cost;
+
+        if (!o_ptr->k_idx)
+            continue;
+
+        if (!get_inventory_limit_info(o_ptr, &slot_group, &slot_limit,
+                &slot_cost))
+            continue;
+
+        if (slot_group != group)
+            continue;
+
+        if (limit)
+            *limit = slot_limit;
+
+        return item;
+    }
+
+    return -1;
+}
+
+static int inventory_limit_group_last_slot(enum inventory_limit_group group)
+{
+    for (int item = INVEN_PACK; item >= 0; item--)
+    {
+        object_type* o_ptr = &inventory[item];
+        enum inventory_limit_group slot_group;
+        int slot_limit;
+        int slot_cost;
+
+        if (!o_ptr->k_idx)
+            continue;
+
+        if (!get_inventory_limit_info(o_ptr, &slot_group, &slot_limit,
+                &slot_cost))
+            continue;
+
+        if (slot_group == group)
+            return item;
+    }
+
+    return -1;
+}
+
+static cptr inventory_limit_group_drop_prompt(enum inventory_limit_group group)
+{
+    switch (group)
+    {
+        case INV_LIMIT_HELM_CROWN:
+            return "Drop which helm or crown? ";
+        case INV_LIMIT_ROUND_SHIELD:
+            return "Drop which round shield? ";
+        case INV_LIMIT_OTHER_SHIELD:
+            return "Drop which shield? ";
+        case INV_LIMIT_MAIL:
+            return "Drop which mail armour? ";
+        default:
+            return "Drop which excess item? ";
+    }
+}
+
+static cptr inventory_limit_group_label(enum inventory_limit_group group,
+    int limit)
+{
+    switch (group)
+    {
+        case INV_LIMIT_HELM_CROWN:
+            return (limit == 1) ? "helm or crown" : "helms or crowns";
+        case INV_LIMIT_ROUND_SHIELD:
+            return (limit == 1) ? "round shield" : "round shields";
+        case INV_LIMIT_OTHER_SHIELD:
+            return (limit == 1) ? "shield" : "shields";
+        case INV_LIMIT_MAIL:
+            return "mail armour";
+        default:
+            return (limit == 1) ? "item of this type"
+                                : "items of this type";
+    }
+}
+
+void inven_enforce_current_pack_limits(void)
+{
+    static const enum inventory_limit_group heavy_armour_groups[] = {
+        INV_LIMIT_MAIL,
+        INV_LIMIT_OTHER_SHIELD,
+        INV_LIMIT_HELM_CROWN,
+        INV_LIMIT_ROUND_SHIELD,
+    };
+
+    if (!character_generated || character_xtra || character_icky
+        || p_ptr->is_dead)
+    {
+        return;
+    }
+
+    for (size_t i = 0; i < N_ELEMENTS(heavy_armour_groups); i++)
+    {
+        enum inventory_limit_group group = heavy_armour_groups[i];
+        bool warned = false;
+
+        while (true)
+        {
+            int limit = 0;
+            int item = inventory_limit_group_first_slot(group, &limit);
+            int used;
+
+            if (item < 0)
+                break;
+
+            used = inventory_limit_usage(group);
+            if (used <= limit)
+                break;
+
+            if (!inventory_limit_group_is_heavy_armour(group))
+                break;
+
+            if (!warned)
+            {
+                if (limit > 0)
+                {
+                    msg_format("Your pack can now hold only %d %s.", limit,
+                        inventory_limit_group_label(group, limit));
+                }
+                else
+                {
+                    msg_format("Your pack can no longer hold %s.",
+                        inventory_limit_group_label(group, limit));
+                }
+
+                warned = true;
+            }
+
+            if (limit > 0)
+            {
+                bool old_item_tester_full = item_tester_full;
+                byte old_item_tester_tval = item_tester_tval;
+                bool (*old_item_tester_hook)(const object_type*)
+                    = item_tester_hook;
+
+                item_tester_full = false;
+                item_tester_tval = 0;
+                pack_limit_prompt_group = group;
+                item_tester_hook = item_tester_hook_pack_limit_group;
+
+                if (!get_item(&item, inventory_limit_group_drop_prompt(group),
+                        "You have nothing suitable to drop.", USE_INVEN))
+                {
+                    item = inventory_limit_group_last_slot(group);
+                    if (item >= 0)
+                        msg_print("No choice made; dropping one excess item.");
+                }
+
+                pack_limit_prompt_group = INV_LIMIT_NONE;
+                item_tester_hook = old_item_tester_hook;
+                item_tester_tval = old_item_tester_tval;
+                item_tester_full = old_item_tester_full;
+            }
+
+            if ((item < 0) || (item >= INVEN_WIELD) || !inventory[item].k_idx)
+                break;
+
+            inven_drop(item, 1);
+            handle_stuff();
+        }
+    }
 }
 
 int object_stack_limit(const object_type* o_ptr)
@@ -841,6 +1053,8 @@ void compact_objects(int size)
     /* Compact at least 'size' objects */
     for (num = 0, cnt = 1; num < size; cnt++)
     {
+        bool saw_non_artefact = false;
+
         /* Get more vicious each iteration */
         cur_lev = 5 * cnt;
 
@@ -857,6 +1071,12 @@ void compact_objects(int size)
             /* Skip dead objects */
             if (!o_ptr->k_idx)
                 continue;
+
+            /* Never compact artefacts; dropped artefacts must not disappear. */
+            if (artefact_p(o_ptr))
+                continue;
+
+            saw_non_artefact = true;
 
             /* Hack -- High level objects start out "immune" */
             if ((k_ptr->level > cur_lev) && (k_ptr->squelch != SQUELCH_ALWAYS))
@@ -899,10 +1119,6 @@ void compact_objects(int size)
             if ((k_ptr->aware) && (k_ptr->squelch == SQUELCH_ALWAYS))
                 chance = 0;
 
-            /* Hack -- only compact artefacts in emergencies */
-            if (artefact_p(o_ptr) && (cnt < 1000))
-                chance = 100;
-
             /* Apply the saving throw */
             if (percent_chance(chance))
                 continue;
@@ -913,6 +1129,10 @@ void compact_objects(int size)
             /* Count it */
             num++;
         }
+
+        /* Avoid looping forever when only artefacts remain. */
+        if (!saw_non_artefact)
+            break;
     }
 
     /* Excise dead objects (backwards!) */
@@ -1014,41 +1234,49 @@ void wipe_o_list(void)
  */
 s16b o_pop(void)
 {
+    int attempt;
     int i;
 
-    /* Initial allocation */
-    if (o_max < z_info->o_max)
+    for (attempt = 0; attempt < 2; attempt++)
     {
-        /* Get next space */
-        i = o_max;
+        /* Initial allocation */
+        if (o_max < z_info->o_max)
+        {
+            /* Get next space */
+            i = o_max;
 
-        /* Expand object array */
-        o_max++;
+            /* Expand object array */
+            o_max++;
 
-        /* Count objects */
-        o_cnt++;
+            /* Count objects */
+            o_cnt++;
 
-        /* Use this object */
-        return (i);
-    }
+            /* Use this object */
+            return (i);
+        }
 
-    /* Recycle dead objects */
-    for (i = 1; i < o_max; i++)
-    {
-        object_type* o_ptr;
+        /* Recycle dead objects */
+        for (i = 1; i < o_max; i++)
+        {
+            object_type* o_ptr;
 
-        /* Get the object */
-        o_ptr = &o_list[i];
+            /* Get the object */
+            o_ptr = &o_list[i];
 
-        /* Skip live objects */
-        if (o_ptr->k_idx)
-            continue;
+            /* Skip live objects */
+            if (o_ptr->k_idx)
+                continue;
 
-        /* Count objects */
-        o_cnt++;
+            /* Count objects */
+            o_cnt++;
 
-        /* Use this object */
-        return (i);
+            /* Use this object */
+            return (i);
+        }
+
+        /* Make space by compacting ordinary objects, then retry once. */
+        if (attempt == 0)
+            compact_objects(1);
     }
 
     /* Warn the player (except during dungeon creation) */
@@ -4582,10 +4810,11 @@ s16b floor_carry(int y, int x, object_type* j_ptr)
  * some form of "description" of the drop event (under the player).
  *
  * We check several locations to see if we can find a location at which
- * the object can combine, stack, or be placed.  Artefacts will try very
- * hard to be placed, including "teleporting" to a useful grid if needed.
+ * the object can combine, stack, or be placed. Artefacts and thrown/fired
+ * auto-recovery objects will try very hard to be placed, including
+ * "teleporting" to a useful grid if needed.
  */
-void drop_near(object_type* j_ptr, int chance, int y, int x)
+s16b drop_near(object_type* j_ptr, int chance, int y, int x)
 {
     int i, k, d, s;
 
@@ -4604,9 +4833,9 @@ void drop_near(object_type* j_ptr, int chance, int y, int x)
     const bool is_silmaril = (j_ptr->tval == TV_LIGHT) && (j_ptr->sval == SV_LIGHT_SILMARIL);
     const bool impact_is_floor =
         (cave_feat[y][x] == FEAT_FLOOR) || (cave_feat[y][x] == FEAT_SUNLIGHT);
-    const bool force_place = artefact_p(j_ptr) || is_silmaril;
+    const bool force_place = artefact_p(j_ptr) || is_silmaril || j_ptr->pickup;
     const bool try_hard_place = force_place || impact_is_floor;
-    const bool can_clobber = (j_ptr->name1 == ART_MORGOTH_3) || is_silmaril;
+    const bool can_clobber = force_place;
     const int scan_radius = try_hard_place ? 10 : 4;
     const int scan_dist2_max = (scan_radius * scan_radius) + 1;
 
@@ -4631,7 +4860,7 @@ void drop_near(object_type* j_ptr, int chance, int y, int x)
         // if (p_ptr->wizard) msg_print("Breakage (breakage).");
 
         /* Failure */
-        return;
+        return (0);
     }
 
     /* Score */
@@ -4757,7 +4986,7 @@ void drop_near(object_type* j_ptr, int chance, int y, int x)
             msg_print("Breakage (no floor space).");
 
         /* Failure */
-        return;
+        return (0);
     }
 
     /* Don't silently lose items just because there is no nearby empty floor. */
@@ -4800,7 +5029,7 @@ void drop_near(object_type* j_ptr, int chance, int y, int x)
         by = ty;
         bx = tx;
 
-        // Clear it if needed (crown/silmarils only)
+        // Clear ordinary junk if this object must be force-placed.
         if (can_clobber && cave_o_idx[ty][tx] != 0)
         {
             object_type* o_ptr = &o_list[cave_o_idx[ty][tx]];
@@ -4826,7 +5055,8 @@ void drop_near(object_type* j_ptr, int chance, int y, int x)
     }
 
     /* Give it to the floor */
-    if (!floor_carry(by, bx, j_ptr))
+    s16b o_idx = floor_carry(by, bx, j_ptr);
+    if (!o_idx)
     {
         /* Message */
         if (player_has_los_bold(y, x))
@@ -4839,7 +5069,7 @@ void drop_near(object_type* j_ptr, int chance, int y, int x)
             msg_print("Breakage (too many objects).");
 
         /* Failure */
-        return;
+        return (0);
     }
 
     update_stuff();
@@ -4904,6 +5134,8 @@ void drop_near(object_type* j_ptr, int chance, int y, int x)
     {
         msg_print("You feel something roll beneath your feet.");
     }
+
+    return (o_idx);
 }
 
 /*
@@ -5350,6 +5582,9 @@ void place_forge(int y, int x)
  */
 void inven_item_charges(int item)
 {
+    if (!inven_index_valid(item, "inven_item_charges"))
+        return;
+
     int visible_charges = 0;
     object_type* o_ptr = &inventory[item];
 
@@ -5376,6 +5611,9 @@ void inven_item_charges(int item)
  */
 void inven_item_describe(int item)
 {
+    if (!inven_index_valid(item, "inven_item_describe"))
+        return;
+
     object_type* o_ptr = &inventory[item];
 
     char o_name[80];
@@ -5404,6 +5642,9 @@ void inven_item_describe(int item)
  */
 void inven_item_increase(int item, int num)
 {
+    if (!inven_index_valid(item, "inven_item_increase"))
+        return;
+
     object_type* o_ptr = &inventory[item];
 
     /* Log staff number changes for debugging */
@@ -5462,6 +5703,9 @@ void inven_item_increase(int item, int num)
  */
 void inven_item_optimize(int item)
 {
+    if (!inven_index_valid(item, "inven_item_optimize"))
+        return;
+
     object_type* o_ptr = &inventory[item];
 
     /* Only optimize real items */
@@ -5678,18 +5922,6 @@ bool inven_carry_okay(const object_type* o_ptr)
 
     clear_inventory_limit_failure();
 
-    /* Similar slot? */
-    for (j = 0; j < INVEN_PACK; j++)
-    {
-        object_type* j_ptr = &inventory[j];
-
-        if (!j_ptr->k_idx)
-            continue;
-
-        if (object_similar(j_ptr, o_ptr))
-            return (true);
-    }
-
     // Check for combining in quiver first
     if (o_ptr->tval == TV_ARROW)
     {
@@ -5743,6 +5975,28 @@ bool inven_carry_okay(const object_type* o_ptr)
             
         /* Or specifically to their original slot if it's empty */
         if (has_desired_slot && (inventory[o_ptr->pickup_slot].k_idx == 0))
+            return (true);
+    }
+
+    /*
+     * Non-arrow capped gear consumes one limit unit per item, so check the cap
+     * before pack merges can hide extra copies inside an existing stack.
+     */
+    if ((o_ptr->tval != TV_ARROW)
+        && !inventory_type_slot_available(o_ptr, true))
+    {
+        return (false);
+    }
+
+    /* Similar slot? */
+    for (j = 0; j < INVEN_PACK; j++)
+    {
+        object_type* j_ptr = &inventory[j];
+
+        if (!j_ptr->k_idx)
+            continue;
+
+        if (object_similar(j_ptr, o_ptr))
             return (true);
     }
 
@@ -6059,6 +6313,16 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
         }
 
         /* Any overflow will fall through to pack handling below */
+    }
+
+    /*
+     * Non-arrow capped gear should respect item-count limits even when an
+     * identical pack stack exists.
+     */
+    if ((o_ptr->tval != TV_ARROW)
+        && !inventory_type_slot_available(o_ptr, true))
+    {
+        return (-1);
     }
 
     /* Check for combining */
@@ -6493,8 +6757,14 @@ s16b inven_takeoff(int item, int amt)
     }
 
     object_copy(&drop_obj, &drop_template);
-    drop_near(&drop_obj, 0, p_ptr->py, p_ptr->px);
-    msg_print("It falls nearby.");
+    o_idx = drop_near(&drop_obj, 0, p_ptr->py, p_ptr->px);
+    if (o_idx > 0)
+    {
+        msg_print("It falls nearby.");
+        return (0 - o_idx);
+    }
+
+    msg_print("It falls nearby, but you lose sight of it.");
     return (-1);
 }
 

@@ -101,32 +101,32 @@ M:ORC:GREAT_VAULT:100:Great gate {DIST} {DIR}. Need magic or numbers.
 M:ORC:GREAT_VAULT:100:Heard clink of gold {DIST} {DIR}. Wall not break.
 M:ORC:GREAT_VAULT:100:Don't touch black door {DIST} {DIR}. It hurts.
 
-# --- Hoard Treasure (Beasts Hoarding Wealth) ---
+# --- Hoarded Artefacts ---
 
 # Elf
-M:ELF:VAULT_ARTIFACT:100:I heard the clink of a hoard {DIST} {DIR}; an artefact lies in {SITE}.
-M:ELF:VAULT_ARTIFACT:100:Greed has pooled {DIST} {DIR}; {SITE} keeps an artefact at its heart.
-M:ELF:VAULT_ARTIFACT:100:A pale artefact waits {DIST} {DIR}, in {SITE}; I dared not take it.
-M:ELF:VAULT_ARTIFACT:100:Seek {SITE} {DIST} {DIR}; an artefact lies there, and death besides.
-M:ELF:VAULT_ARTIFACT:100:I saw gold piled high {DIST} {DIR}, in {SITE}, with an artefact buried among it.
-M:ELF:VAULT_ARTIFACT:100:If you hunger for great craft, go {DIST} {DIR} to {SITE}; an artefact is guarded there.
-M:ELF:VAULT_ARTIFACT:100:Something ancient gleams {DIST} {DIR}, in {SITE}; an artefact called to me like a voice half-remembered.
+M:ELF:VAULT_ARTIFACT:100:I heard the clink of a hoard {DIST} {DIR}; {ART} lies in {SITE}.
+M:ELF:VAULT_ARTIFACT:100:Greed has pooled {DIST} {DIR}; {SITE} keeps {ART} at its heart.
+M:ELF:VAULT_ARTIFACT:100:{ART_CAP} waits {DIST} {DIR}, in {SITE}; I dared not take it.
+M:ELF:VAULT_ARTIFACT:100:Seek {SITE} {DIST} {DIR}; {ART} lies there, and death besides.
+M:ELF:VAULT_ARTIFACT:100:I saw gold piled high {DIST} {DIR}, in {SITE}, with {ART} buried among it.
+M:ELF:VAULT_ARTIFACT:100:If you hunger for great craft, go {DIST} {DIR} to {SITE}; {ART} is guarded there.
+M:ELF:VAULT_ARTIFACT:100:Something ancient gleams {DIST} {DIR}, in {SITE}; {ART} called to me like a voice half-remembered.
 
 # Human
-M:HUMAN:VAULT_ARTIFACT:100:There's an artefact {DIST} {DIR}, in {SITE}. I couldn't get near it.
-M:HUMAN:VAULT_ARTIFACT:100:If you find {SITE} {DIST} {DIR}, steel yourself: the artefact is real.
-M:HUMAN:VAULT_ARTIFACT:100:I saw an artefact among a heap of riches {DIST} {DIR}, in {SITE}. Something was guarding it.
-M:HUMAN:VAULT_ARTIFACT:100:The air reeks of greed {DIST} {DIR}. {SITE} is there, and so is an artefact.
-M:HUMAN:VAULT_ARTIFACT:100:If you want one of the best finds on this level, look {DIST} {DIR} for {SITE}; there's an artefact there.
-M:HUMAN:VAULT_ARTIFACT:100:I heard coin shifting {DIST} {DIR}, in {SITE}. Whatever's nesting there has an artefact.
+M:HUMAN:VAULT_ARTIFACT:100:There's {ART} {DIST} {DIR}, in {SITE}. I couldn't get near it.
+M:HUMAN:VAULT_ARTIFACT:100:If you find {SITE} {DIST} {DIR}, steel yourself: {ART} is real.
+M:HUMAN:VAULT_ARTIFACT:100:I saw {ART} among a heap of riches {DIST} {DIR}, in {SITE}. Something was guarding it.
+M:HUMAN:VAULT_ARTIFACT:100:The air reeks of greed {DIST} {DIR}. {SITE_CAP} is there, and so is {ART}.
+M:HUMAN:VAULT_ARTIFACT:100:If you want one of the best finds on this level, look {DIST} {DIR} for {SITE}; there's {ART} there.
+M:HUMAN:VAULT_ARTIFACT:100:I heard coin shifting {DIST} {DIR}, in {SITE}. Whatever's nesting there has {ART}.
 
 # Orc
-M:ORC:VAULT_ARTIFACT:100:Artefact {DIST} {DIR}. In {SITE}. Big beast.
-M:ORC:VAULT_ARTIFACT:100:Shiny artefact {DIST} {DIR} in {SITE}. Don't wake it.
-M:ORC:VAULT_ARTIFACT:100:{SITE} {DIST} {DIR}. Lots of gold. Artefact too.
-M:ORC:VAULT_ARTIFACT:100:If you go {DIST} {DIR} to {SITE}, grab artefact fast and run.
-M:ORC:VAULT_ARTIFACT:100:Heard coins move {DIST} {DIR}. {SITE}. Artefact there. Not safe.
-M:ORC:VAULT_ARTIFACT:100:Boss wanted {SITE}. It is {DIST} {DIR}. Boss wanted artefact. I say no.
+M:ORC:VAULT_ARTIFACT:100:{ART_CAP} {DIST} {DIR}. In {SITE}. Big beast.
+M:ORC:VAULT_ARTIFACT:100:{ART_CAP} shines {DIST} {DIR} in {SITE}. Don't wake it.
+M:ORC:VAULT_ARTIFACT:100:{SITE_CAP} {DIST} {DIR}. Lots of gold. {ART_CAP} too.
+M:ORC:VAULT_ARTIFACT:100:If you go {DIST} {DIR} to {SITE}, grab {ART} fast and run.
+M:ORC:VAULT_ARTIFACT:100:Heard coins move {DIST} {DIR}. {SITE_CAP}. {ART_CAP} there. Not safe.
+M:ORC:VAULT_ARTIFACT:100:Boss wanted {SITE}. It is {DIST} {DIR}. Boss wanted {ART}. I say no.
 
 # --- Stairs ---
 
@@ -148,13 +148,13 @@ M:HUMAN:STAIRS:100:I lost my way, then found the {SITE}. It is {DIST} {DIR}.
 M:HUMAN:STAIRS:100:Keep your bearings: the {SITE} is {DIST} {DIR}.
 
 # Orc
-M:ORC:STAIRS:100:{SITE} is {DIST} {DIR}. Marking it so you don't die.
-M:ORC:STAIRS:100:Go {DIR}. {SITE} there. It is {DIST}.
+M:ORC:STAIRS:100:{SITE_CAP} is {DIST} {DIR}. Marking it so you don't die.
+M:ORC:STAIRS:100:Go {DIR}. {SITE_CAP} there. It is {DIST}.
 M:ORC:STAIRS:100:The {SITE} is {DIST} {DIR}. Follow wall. Don't get lost.
-M:ORC:STAIRS:100:Got turned around. {SITE} is {DIR}. It is {DIST}.
-M:ORC:STAIRS:100:If you run, run {DIR}. {SITE} is {DIST}.
-M:ORC:STAIRS:100:Stairs make sense. {SITE} is {DIST} {DIR}. Tunnels don't.
-M:ORC:STAIRS:100:{SITE} {DIST} {DIR}. I scratched arrow on wall. Follow it.
+M:ORC:STAIRS:100:Got turned around. {SITE_CAP} is {DIR}. It is {DIST}.
+M:ORC:STAIRS:100:If you run, run {DIR}. {SITE_CAP} is {DIST}.
+M:ORC:STAIRS:100:Stairs make sense. {SITE_CAP} is {DIST} {DIR}. Tunnels don't.
+M:ORC:STAIRS:100:{SITE_CAP} {DIST} {DIR}. I scratched arrow on wall. Follow it.
 
 # --- Forge Present ---
 
@@ -511,8 +511,8 @@ M:HUMAN:QUEST:100:Mark this: {SITE} is {DIST} {DIR}. Don't stumble into it by ac
 # Orc
 M:ORC:QUEST:100:Saw {SITE} {DIST} {DIR}. Bad feeling.
 M:ORC:QUEST:100:Don't go near {SITE}. It's {DIST} {DIR}.
-M:ORC:QUEST:100:Boss said 'no'. {SITE} is {DIST} {DIR}.
-M:ORC:QUEST:100:If you want die, go {DIR}. {SITE} is {DIST}.
+M:ORC:QUEST:100:Boss said 'no'. {SITE_CAP} is {DIST} {DIR}.
+M:ORC:QUEST:100:If you want die, go {DIR}. {SITE_CAP} is {DIST}.
 M:ORC:QUEST:100:Too quiet {DIR}. Saw {SITE} {DIST} {DIR}.
 M:ORC:QUEST:100:{DIST} {DIR} is {SITE}. Snaga don't belong there.
 

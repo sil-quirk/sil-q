@@ -1203,7 +1203,7 @@ extern bool make_guaranteed_artefact_with_profile(object_type* j_ptr,
     drop_quality quality, int objecttype, const drop_profile* profile);
 extern bool prep_object_theme(int themetype);
 extern s16b floor_carry(int y, int x, object_type* j_ptr);
-extern void drop_near(object_type* j_ptr, int chance, int y, int x);
+extern s16b drop_near(object_type* j_ptr, int chance, int y, int x);
 extern void acquirement(int y1, int x1, int num, drop_quality quality);
 extern void place_object(int y, int x, drop_quality quality, int droptype,
     bool allow_artefacts);
@@ -1234,6 +1234,7 @@ extern int object_stack_limit(const object_type* o_ptr);
 extern s16b inven_carry(object_type* o_ptr, bool combine_ammo);
 extern s16b inven_takeoff(int item, int amt);
 extern void inven_drop(int item, int amt);
+extern void inven_enforce_current_pack_limits(void);
 extern void combine_pack(void);
 extern void reorder_pack(bool display_message);
 extern void steal_object_from_monster(int y, int x);

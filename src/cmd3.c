@@ -1819,6 +1819,7 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
 
     /* Force immediate sidebar update */
     handle_stuff();
+    inven_enforce_current_pack_limits();
 
     /*
      * Smithing identification checks depend on the player's current effective
@@ -1958,6 +1959,7 @@ void do_cmd_takeoff(object_type* default_o_ptr, int default_item)
 
     /* Force immediate sidebar update */
     handle_stuff();
+    inven_enforce_current_pack_limits();
 }
 
 /*
@@ -3183,6 +3185,8 @@ void do_cmd_refuel_lamp(object_type* default_o_ptr, int default_item)
                 item = inven_carry(i_ptr, false);
                 if (item == SUPPLIES_INDEX)
                     item = -1;
+                if (item < 0)
+                    drop_near(i_ptr, 0, p_ptr->py, p_ptr->px);
             }
             else
                 drop_near(i_ptr, 0, p_ptr->py, p_ptr->px);
