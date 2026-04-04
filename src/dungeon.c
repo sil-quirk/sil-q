@@ -623,7 +623,12 @@ static void describe_greater_vault_entry(cptr vault_name)
     if (!text)
         return;
 
-    display_narrative_text(text, narrative_mode, false);
+    /* Great vault entries should always land in the message log too, even
+     * when the current setting also shows them as banners. */
+    msg_print(text);
+
+    if (narrative_mode == PARTITION_NARRATIVE_BANNER)
+        display_narrative_text(text, PARTITION_NARRATIVE_BANNER, false);
 }
 
 static void handle_partition_entry(bool force_message, int narrative_mode)

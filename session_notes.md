@@ -8470,3 +8470,8 @@ The script now fully matches the game's drop generation logic for all item types
 ## 2026-03-19: TR4_SUBTLETY_THROW active-skill gate
 - `src/cmd1.c`: keep the thrown Subtlety crit bonus gated on active `MEL_CONTROL` only, so item-granted Subtlety still works while the weapon flag itself does not grant the ability.
 - Validation: `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` succeeded.
+
+## 2026-04-04: Monster DROP_1D3 support
+- Added `DROP_1D3` using the spare RF3 placeholder bit (`RF3_RF3XXX4` kept as a compatibility alias).
+- Wired parser support in `src/init1.c`, drop rolls in `src/xtra2.c`, and max-drop/lore heuristics in `src/monster1.c` and `src/melee2.c`.
+- Validation: `C:\\msys64\\mingw64\\bin\\cmake.exe --build build-standard --parallel` succeeded after seeding `C:\\msys64\\mingw64\\bin;C:\\msys64\\usr\\bin` onto `PATH`.

@@ -1645,7 +1645,8 @@ static void cheat_monster_lore(int r_idx, monster_lore* l_ptr)
         + ((r_ptr->flags1 & RF1_DROP_2D2) ? 4 : 0)
         + ((r_ptr->flags1 & RF1_DROP_1D2) ? 2 : 0)
         + ((r_ptr->flags1 & RF1_DROP_100) ? 1 : 0)
-        + ((r_ptr->flags1 & RF1_DROP_33) ? 1 : 0));
+        + ((r_ptr->flags1 & RF1_DROP_33) ? 1 : 0)
+        + ((r_ptr->flags3 & RF3_DROP_1D3) ? 3 : 0));
 
     /* Hack -- observe many spells */
     l_ptr->ranged = MAX_UCHAR;

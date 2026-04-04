@@ -2478,7 +2478,8 @@
 #define RF3_MAN 0x00000100 /* Man */
 #define RF3_ELF 0x00000200 /* Elf */
 #define RF3_HAS_WEAPON 0x00000400 /* Fights with forged weapons */
-#define RF3_RF3XXX4 0x00000800 /* Non-Living (?) */
+#define RF3_DROP_1D3 0x00000800 /* Drop 1d3 items */
+#define RF3_RF3XXX4 RF3_DROP_1D3 /* Compatibility alias */
 #define RF3_HURT_LITE 0x00001000 /* Hurt by lite */
 #define RF3_STONE 0x00002000 /* Made of stone */
 #define RF3_HURT_FIRE 0x00004000 /* Hurt badly by fire */

@@ -2273,6 +2273,8 @@ int drop_loot(monster_type* m_ptr)
         number += damroll(3, 2);
     if (r_ptr->flags1 & (RF1_DROP_4D2))
         number += damroll(4, 2);
+    if (r_ptr->flags3 & (RF3_DROP_1D3))
+        number += damroll(1, 3);
 
     /* DROP_ARTEFACT must always yield at least one drop slot. */
     if (artefact && number < 1)

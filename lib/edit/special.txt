@@ -549,10 +549,10 @@ F:VAMPIRIC | HUNGER | LIGHT_CURSE | EVIL_ITEM
 ##### Digging Tools #####
 
 N:51:of the Stone-hewers
-W:0:30:0:1000
+W:0:20:0:1000
 C:0:0:0:0:0:0:1
 T:20:3:3
-F:TUNNEL | NOBLE_ITEM
+F:TUNNEL
 
 
 N:52:of the Longbeards

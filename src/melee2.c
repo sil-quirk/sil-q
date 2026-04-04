@@ -1033,7 +1033,8 @@ static bool get_move_wander(monster_type* m_ptr, int* ty, int* tx)
             + ((r_ptr->flags1 & RF1_DROP_2D2) ? 4 : 0)
             + ((r_ptr->flags1 & RF1_DROP_1D2) ? 2 : 0)
             + ((r_ptr->flags1 & RF1_DROP_100) ? 1 : 0)
-            + ((r_ptr->flags1 & RF1_DROP_33) ? 1 : 0));
+            + ((r_ptr->flags1 & RF1_DROP_33) ? 1 : 0)
+            + ((r_ptr->flags3 & RF3_DROP_1D3) ? 3 : 0));
 
         // treasure-hoarding territorial monsters stay still at their hoard...
         if ((r_ptr->flags2 & (RF2_TERRITORIAL)) && (max_drop > 0)

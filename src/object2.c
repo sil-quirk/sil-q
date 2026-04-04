@@ -2384,8 +2384,9 @@ static void apply_object_weight_flags(object_type* o_ptr, int base_weight,
         return;
 
     adjusted_weight = o_ptr->weight + weight_adjust;
-    if (adjusted_weight < 1)
-        adjusted_weight = 1;
+    /* Weight is stored in tenths of a pound, so the minimum is 0.5 lb. */
+    if (adjusted_weight < 5)
+        adjusted_weight = 5;
 
     o_ptr->weight = (s16b)adjusted_weight;
 }
