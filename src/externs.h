@@ -421,6 +421,25 @@ static inline bool grid_info_is_available(int y, int x)
 }
 #endif
 
+#ifndef GENERATION_DEPTH_HELPERS_DEFINED
+#define GENERATION_DEPTH_HELPERS_DEFINED
+static inline int generation_depth_for_level(int depth)
+{
+    if (depth == 0)
+        return MORGOTH_DEPTH;
+    if (depth < 1)
+        return 1;
+    return depth;
+}
+
+static inline int player_generation_depth(void)
+{
+    if (!p_ptr)
+        return 1;
+    return generation_depth_for_level(p_ptr->depth);
+}
+#endif
+
 /*
  * Automatically generated "function declarations"
  */

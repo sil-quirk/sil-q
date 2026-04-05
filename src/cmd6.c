@@ -54,6 +54,49 @@ static void format_staff_prompt_name(char* buf, size_t max,
         strnfmt(buf, max, "a %s", staff_of);
 }
 
+static void format_horn_prompt_name(char* buf, size_t max,
+    const object_type* o_ptr, bool pref)
+{
+    char full[80];
+    const char* horn_of;
+
+    if (!buf || max == 0)
+        return;
+
+    buf[0] = '\0';
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return;
+
+    object_desc(full, sizeof(full), o_ptr, pref, 0);
+
+    if (o_ptr->tval != TV_HORN)
+    {
+        SDL_strlcpy(buf, full, max);
+        return;
+    }
+
+    horn_of = strstr(full, "Horn of ");
+    if (!horn_of)
+    {
+        SDL_strlcpy(buf, full, max);
+        return;
+    }
+
+    if (!pref)
+    {
+        SDL_strlcpy(buf, horn_of, max);
+        return;
+    }
+
+    if (!strncmp(full, "The ", 4))
+        strnfmt(buf, max, "The %s", horn_of);
+    else if (!strncmp(full, "no more ", 8))
+        strnfmt(buf, max, "no more %s", horn_of);
+    else
+        strnfmt(buf, max, "a %s", horn_of);
+}
+
 static void msg_print_object_identified(const object_type* o_ptr)
 {
     char o_name[80];
@@ -675,42 +718,75 @@ void do_cmd_quaff_potion(object_type* default_o_ptr, int default_item)
  */
 void do_cmd_play_instrument(object_type* default_o_ptr, int default_item)
 {
-    int item;
-
     bool ident;
 
-    object_type* o_ptr;
-    cptr q, s;
+    object_type* o_ptr = NULL;
 
-    // use specified item if possible
+    /* Use specified item if possible */
     if (default_o_ptr != NULL)
     {
         o_ptr = default_o_ptr;
-        item = default_item;
     }
     /* Get an item */
     else
     {
-        /* Restrict choices to instruments */
-        item_tester_tval = TV_HORN;
+        object_type* horn_slot = &inventory[INVEN_HORN];
 
-        /* Get an item */
-        q = "Play which instrument? ";
-        s = "You have no instrument to play.";
-        if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
-            return;
-
-        /* Get the item (in the pack) */
-        if (item >= 0)
+        if (horn_slot->k_idx)
         {
-            o_ptr = &inventory[item];
+            o_ptr = horn_slot;
         }
-
-        /* Get the item (on the floor) */
         else
         {
-            o_ptr = &o_list[0 - item];
+            msg_print("You are not carrying a horn.");
+            return;
         }
+    }
+
+    if (!o_ptr)
+        return;
+
+    if (o_ptr->tval != TV_HORN)
+    {
+        msg_print("You can only sound a horn.");
+        return;
+    }
+
+    if (o_ptr != &inventory[INVEN_HORN])
+    {
+        object_type* equipped = &inventory[INVEN_HORN];
+        char incoming_name[80];
+        char equipped_name[80];
+        char prompt[160];
+        const char* source = "your equipment";
+
+        if (default_item < 0)
+            source = "the floor";
+        else if (default_item < INVEN_WIELD)
+            source = "your pack";
+
+        format_horn_prompt_name(incoming_name, sizeof(incoming_name), o_ptr, true);
+
+        if (equipped->k_idx)
+        {
+            format_horn_prompt_name(
+                equipped_name, sizeof(equipped_name), equipped, false);
+            msg_format("You cannot sound a horn from %s.", source);
+            strnfmt(prompt, sizeof(prompt),
+                "Replace your %s with %s?",
+                equipped_name, incoming_name);
+        }
+        else
+        {
+            msg_format("You cannot sound a horn from %s.", source);
+            strnfmt(prompt, sizeof(prompt),
+                "Equip %s now?",
+                incoming_name);
+        }
+
+        if (get_check(prompt))
+            do_cmd_wield(o_ptr, default_item);
+        return;
     }
 
     /* Not identified yet */

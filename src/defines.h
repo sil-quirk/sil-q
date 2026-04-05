@@ -52,7 +52,7 @@
 // #define STEAMDECK_SUPPORT
 
 /* Formalized new fork versioning (canonical source for all modules) */
-#define VERSION_STRING "0.9.5.7"
+#define VERSION_STRING "0.9.5.8"
 /*
  * Version components (0.9.5.0).  All on-disk formats (saves, scores, metaruns)
  * MUST match these values; never bump individual subsystems independently.
@@ -60,7 +60,7 @@
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 9
 #define VERSION_PATCH 5
-#define VERSION_EXTRA 7   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
+#define VERSION_EXTRA 8   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
 /* Update MIN_VERSION_EXTRA whenever the savefile format changes. */
 #define MIN_VERSION_EXTRA 0  /* Accept earlier 0.9.x saves */
 
@@ -735,11 +735,12 @@
 #define INVEN_FEET 36
 #define INVEN_QUIVER1 37
 #define INVEN_QUIVER2 38
+#define INVEN_HORN 39
 
 /*
  * Total number of inventory slots (hard-coded).
  */
-#define INVEN_TOTAL 39
+#define INVEN_TOTAL 40
 
 /*
  * A "stack" of items is limited to less than 100 items (hard-coded).

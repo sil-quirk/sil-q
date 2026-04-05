@@ -19,6 +19,7 @@ enum inventory_limit_group
     INV_LIMIT_ARROW,
     INV_LIMIT_BOW,
     INV_LIMIT_STAFF,
+    INV_LIMIT_HORN,
     INV_LIMIT_DIGGING,
     INV_LIMIT_BOOTS,
     INV_LIMIT_GLOVES,
@@ -253,6 +254,10 @@ static bool get_inventory_limit_info(const object_type* o_ptr,
                 local_group = INV_LIMIT_STAFF;
                 local_limit = 1;
                 break;
+            case TV_HORN:
+                local_group = INV_LIMIT_HORN;
+                local_limit = 2;
+                break;
             case TV_DIGGING:
                 local_group = INV_LIMIT_DIGGING;
                 local_limit = 1;
@@ -388,6 +393,10 @@ static void fill_inventory_limit_label(enum inventory_limit_group group,
             break;
         case INV_LIMIT_STAFF:
             SDL_strlcpy(carry_limit_last_label, "walking staves",
+                      sizeof(carry_limit_last_label));
+            break;
+        case INV_LIMIT_HORN:
+            SDL_strlcpy(carry_limit_last_label, "horns",
                       sizeof(carry_limit_last_label));
             break;
         case INV_LIMIT_DIGGING:
@@ -595,6 +604,8 @@ static cptr inventory_limit_group_drop_prompt(enum inventory_limit_group group)
             return "Drop which shield? ";
         case INV_LIMIT_MAIL:
             return "Drop which mail armour? ";
+        case INV_LIMIT_HORN:
+            return "Drop which horn? ";
         default:
             return "Drop which excess item? ";
     }
@@ -613,6 +624,8 @@ static cptr inventory_limit_group_label(enum inventory_limit_group group,
             return (limit == 1) ? "shield" : "shields";
         case INV_LIMIT_MAIL:
             return "mail armour";
+        case INV_LIMIT_HORN:
+            return (limit == 1) ? "horn" : "horns";
         default:
             return (limit == 1) ? "item of this type"
                                 : "items of this type";
@@ -722,6 +735,9 @@ int object_stack_limit(const object_type* o_ptr)
 
     if (o_ptr->tval == TV_ARROW)
         return 48;
+
+    if (o_ptr->tval == TV_HORN)
+        return 2;
 
     return MAX_STACK_SIZE - 1;
 }
@@ -6662,6 +6678,10 @@ s16b inven_takeoff(int item, int amt)
     else if ((item == INVEN_QUIVER1) || (item == INVEN_QUIVER2))
     {
         act = "You have removed from your quiver";
+    }
+    else if (item == INVEN_HORN)
+    {
+        act = "You were carrying";
     }
 
     /* Took off something */

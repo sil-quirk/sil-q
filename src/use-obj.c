@@ -238,6 +238,7 @@ static int sanctity_slot_multiplier(const object_type* o_ptr)
         case INVEN_FEET:
         case INVEN_QUIVER1:
         case INVEN_QUIVER2:
+        case INVEN_HORN:
             return 120;
 
         default:

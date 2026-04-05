@@ -2338,7 +2338,7 @@ int drop_loot(monster_type* m_ptr)
         else
         {
             /* Use unified misc/torches drop logic (A: schedule gating + min-depth penalty). */
-            int depth_cap = (p_ptr->depth > 0) ? p_ptr->depth : 1;
+            int depth_cap = player_generation_depth();
             int gen_depth = MIN(r_ptr->level, depth_cap);
             if (!drop_generate_object(gen_depth, DROP_QUALITY_NORMAL, DROP_TYPE_TORCHES,
                     false, i_ptr))
@@ -2364,7 +2364,7 @@ int drop_loot(monster_type* m_ptr)
 
     /* Use the monster's level, but cap to dungeon depth so A: schedule gates
      * are enforced by the current level (prevents early lantern/jewel drops). */
-    int depth_cap = (p_ptr->depth > 0) ? p_ptr->depth : 1;
+    int depth_cap = player_generation_depth();
     object_level = MIN(r_ptr->level, depth_cap);
     drop_quality quality = artefact ? DROP_QUALITY_ARTEFACT
                                     : drop_quality_from_flags(good, great, superb);

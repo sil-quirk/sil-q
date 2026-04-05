@@ -15,7 +15,7 @@ Oath of Iron
 
 Oath of the Smith
 
-“The craft of the hand is the gift of the Maker. To wield a blade forged in another’s fire is to trust a stranger's heart. True mastery is born of one's own sweat and skill. Swear this oath: to bear no weapon and wear no mail save that which you have wrought yourself. By this covenant, the secrets of anvil and fire shall be laid bare to you.”
+“The craft of the hand is the gift of the Maker. To wield a blade forged in another's fire is to trust a stranger's heart. True mastery is born of one's own sweat and skill. Swear this oath: to bear no weapon and wear no mail save that which you have wrought yourself. By this covenant, the secrets of anvil and fire shall be laid bare to you.”
 
 Quest Dialogs
 Here are expanded and stylized dialogs for your Valar quest givers.

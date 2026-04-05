@@ -218,10 +218,9 @@ static drop_category drop_category_for_kind(const object_kind* k_ptr)
         if (k_ptr->sval == SV_SHOVEL || k_ptr->sval == SV_MATTOCK)
             return DROP_CAT_SUPPLY;
         return DROP_CAT_WEAPON;
-    case TV_HORN:
-        return DROP_CAT_JEWELRY;
     case TV_POTION:
     case TV_STAFF:
+    case TV_HORN:
     case TV_GEM:
     case TV_FOOD: /* Herbs */
     case TV_FLASK:
@@ -622,6 +621,8 @@ static s16b neutral_wield_slot(const object_type* o_ptr)
         return INVEN_BOW;
     case TV_STAFF:
         return INVEN_STAFF;
+    case TV_HORN:
+        return INVEN_HORN;
     case TV_RING:
         return INVEN_LEFT;
     case TV_AMULET:
@@ -680,7 +681,6 @@ bool object_uses_smithing_difficulty(const object_type* o_ptr)
 
     case TV_RING:
     case TV_AMULET:
-    case TV_HORN:
         return true;
 
     case TV_LIGHT:
@@ -1125,6 +1125,7 @@ static int smithing_difficulty_baseline(const object_type* o_ptr)
     case INVEN_FEET:
     case INVEN_QUIVER1:
     case INVEN_QUIVER2:
+    case INVEN_HORN:
         dif_mult += 20;
         break;
     default:
@@ -2647,11 +2648,12 @@ static bool droptype_matches(const drop_request* req, const drop_entry* e)
         return (e->obj.tval == TV_HELM || e->obj.tval == TV_CROWN);
     case DROP_TYPE_JEWELRY:
         return (e->obj.tval == TV_RING || e->obj.tval == TV_AMULET
-            || e->obj.tval == TV_LIGHT || e->obj.tval == TV_HORN);
+            || e->obj.tval == TV_LIGHT);
     case DROP_TYPE_POTION:
         return e->obj.tval == TV_POTION;
     case DROP_TYPE_STAFF:
-        return (e->obj.tval == TV_STAFF || e->obj.tval == TV_GEM);
+        return (e->obj.tval == TV_STAFF || e->obj.tval == TV_HORN
+            || e->obj.tval == TV_GEM);
     case DROP_TYPE_SIMPLE_LIGHTS:
         return e->group_kind == DROP_GROUP_NORMAL
             && e->obj.tval == TV_LIGHT
@@ -3274,6 +3276,7 @@ static bool generate_chest(int depth, const drop_profile* profile, object_type* 
     /* Size distribution based on mode */
     bool is_large;
     bool upgraded = false;
+    bool force_steel = p_ptr && (p_ptr->depth == 0);
     if (g_chest_mode == 1)
         is_large = false;
     else if (g_chest_mode == 2)
@@ -3291,7 +3294,12 @@ static bool generate_chest(int depth, const drop_profile* profile, object_type* 
     int material_index;
     drop_quality material_quality;
     
-    if (chest_has_custom_material_weights())
+    if (force_steel)
+    {
+        material_index = 1;
+        material_quality = DROP_QUALITY_GREAT;
+    }
+    else if (chest_has_custom_material_weights())
     {
         int wooden_pct = g_chest_material_wood_pct;
         int steel_pct = g_chest_material_steel_pct;
@@ -3601,7 +3609,7 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
     int legal_depth = gen_depth;
     if (p_ptr)
     {
-        int current_depth = (p_ptr->depth > 0) ? p_ptr->depth : 1;
+        int current_depth = player_generation_depth();
         if (legal_depth > current_depth)
             legal_depth = current_depth;
     }
@@ -3951,7 +3959,7 @@ bool drop_generate_chasm_sanctum_object(int depth, object_type* out)
 
     if (p_ptr)
     {
-        int current_depth = (p_ptr->depth > 0) ? p_ptr->depth : 1;
+        int current_depth = player_generation_depth();
         if (legal_depth > current_depth)
             legal_depth = current_depth;
     }

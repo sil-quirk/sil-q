@@ -1447,7 +1447,7 @@ static bool object_is_unidentified_for_display(const object_type* o_ptr)
     if (!object_aware_p(o_ptr))
         return true;
 
-    if (o_ptr->tval == TV_STAFF)
+    if (o_ptr->tval == TV_STAFF || o_ptr->tval == TV_HORN)
         return !object_known_p(o_ptr);
 
     if (object_uses_smithing_difficulty(o_ptr))
@@ -2688,6 +2688,11 @@ s16b wield_slot(const object_type* o_ptr)
         return (INVEN_STAFF);
     }
 
+    case TV_HORN:
+    {
+        return (INVEN_HORN);
+    }
+
     case TV_RING:
     {
         /* Use the right hand first */
@@ -2816,6 +2821,9 @@ cptr describe_empty_slot(int i)
     case INVEN_QUIVER2:
         p = "(empty 2nd quiver)";
         break;
+    case INVEN_HORN:
+        p = "(no horn)";
+        break;
     default:
         p = "(empty slot)";
         break;
@@ -2880,6 +2888,9 @@ cptr mention_use(int i)
     case INVEN_QUIVER2:
         p = "2nd quiver";
         break;
+    case INVEN_HORN:
+        p = "Horn";
+        break;
     default:
         p = "In pack";
         break;
@@ -2943,6 +2954,9 @@ cptr describe_use(int i)
         break;
     case INVEN_QUIVER2:
         p = "carrying in your quiver";
+        break;
+    case INVEN_HORN:
+        p = "carrying at your side";
         break;
     default:
         p = "carrying in your pack";

@@ -5635,7 +5635,7 @@ errr parse_p_info(char* buf, header* head)
 
 //         if (!ph_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
-//         /* Debug: which character we’re parsing into */
+//         /* Debug: which character we're parsing into */
 //         log_debug("Parsing abilities for character \"%s\"…",
 //                 head->name_ptr + ph_ptr->name);
 

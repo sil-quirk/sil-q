@@ -77,8 +77,8 @@ F:WIL_AFFINITY | MEL_AFFINITY | PER_AFFINITY | EVN_AFFINITY | ARC_AFFINITY | CUR
 E:39:0:3:3     # ~ Wooden Torches (3)
 E:80:37:3:3    # , Fragment of Lembas (3)
 E:23:10:1:1    # | Short sword (1)
-D:Valiant and steadfast people, following Fingolfin’s bright banner 
-D:through cold Helcaraxe’s treacherous ice to realms darkened by war. 
+D:Valiant and steadfast people, following Fingolfin's bright banner 
+D:through cold Helcaraxe's treacherous ice to realms darkened by war. 
 D:Their courage tested against Morgoth's might beneath northern skies, 
 D:enduring loss bravely, hearts unbowed even in bitterest defeat. 
 D:Foreshadowing doom upon Anfauglith's fields, bravery unmatched, 
@@ -168,7 +168,7 @@ D:their fate to inherit Arda's weary dominion beyond Eldar's fading hour.
 #Dwelling forever in light beyond grief, untouched by shadow's stain, 
 #watching sorrowful fate of kin afar across seas of exile and loss. 
 #Their distant wisdom foreshadows future healing when darkness fades; 
-#their songs in timeless peace await Eldar’s return from sorrow's depths, 
+#their songs in timeless peace await Eldar's return from sorrow's depths, 
 #unblemished yet sorrowful, bound to grief by kinship and love. 
 
 #Teleri

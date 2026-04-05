@@ -41,6 +41,7 @@ static struct {
     char music_main_path[1024];
     char music_main_full_path[1024];
     char music_ambient_path[1024];
+    char music_death_path[1024];
     char music_main_current_path[1024];
     float music_main_volume;
     float music_ambient_volume;
@@ -56,6 +57,7 @@ static struct {
 
 static struct sound_config g_sound_config; /* Global config for UI access */
 static char g_sound_config_path[1024]; /* Path to sound.json */
+static bool g_music_force_main_on_next_welcome = false;
 
 static void sdl_sound_reset_bank(void);
 static bool sdl_sound_load_from_config(const struct sound_config* config);
@@ -76,6 +78,7 @@ static bool sdl_music_play_with_fallback(const char* primary_path, const char* f
     SDL_AudioStream** stream_ptr, float volume, bool loop, Uint8** buffer_ptr,
     Uint32* length_ptr, SDL_AudioSpec* spec_ptr, const char* label,
     char* resolved_path, size_t resolved_len);
+static bool sdl_music_track_exists(const char* path);
 
 typedef struct {
     char (*files)[SDL_SOUND_NAME_LEN];
@@ -514,11 +517,12 @@ void sdl_sound_reload(void)
     sdl_sound_build_path(g_sound_config.music_main_path, sound_state.music_main_path, sizeof(sound_state.music_main_path));
     sdl_sound_build_path(g_sound_config.music_main_full_path, sound_state.music_main_full_path, sizeof(sound_state.music_main_full_path));
     sdl_sound_build_path(g_sound_config.music_ambient_path, sound_state.music_ambient_path, sizeof(sound_state.music_ambient_path));
+    sdl_sound_build_path(g_sound_config.music_death_path, sound_state.music_death_path, sizeof(sound_state.music_death_path));
 
     log_debug("Sound config: enabled=%d, device=%u", g_sound_config.enabled, sound_state.device);
-    log_debug("Music paths: main='%s', main_full='%s', ambient='%s'",
+    log_debug("Music paths: main='%s', main_full='%s', ambient='%s', death='%s'",
         sound_state.music_main_path, sound_state.music_main_full_path,
-        sound_state.music_ambient_path);
+        sound_state.music_ambient_path, sound_state.music_death_path);
 
     // Handle audio device state based on enabled flag
     if (g_sound_config.enabled) {
@@ -686,6 +690,21 @@ static void sdl_music_stop_title_stream(void)
     sound_state.music_main_current_path[0] = '\0';
 }
 
+static bool sdl_music_track_exists(const char* path)
+{
+    if (!path || !path[0]) {
+        return false;
+    }
+
+    SDL_IOStream* probe = sdl_fopen(path, "rb");
+    if (!probe) {
+        return false;
+    }
+
+    SDL_CloseIO(probe);
+    return true;
+}
+
 static bool sdl_music_play_with_fallback(const char* primary_path, const char* fallback_path,
     SDL_AudioStream** stream_ptr, float volume, bool loop, Uint8** buffer_ptr,
     Uint32* length_ptr, SDL_AudioSpec* spec_ptr, const char* label,
@@ -734,8 +753,11 @@ static bool sdl_music_play_title_track(const char* primary_path, const char* fal
     sdl_music_stop(&sound_state.music_menu_stream);
 
     if (sound_state.music_main_stream && sound_state.music_main_current_path[0]) {
+        bool primary_available = sdl_music_track_exists(primary_path);
+
         if (streq(sound_state.music_main_current_path, primary_path)
-            || (fallback_path && fallback_path[0]
+            || (!primary_available
+                && fallback_path && fallback_path[0]
                 && streq(sound_state.music_main_current_path, fallback_path))) {
             return true;
         }
@@ -765,6 +787,12 @@ void sdl_music_play_main_full(void)
     log_debug("Starting full title music: %s", sound_state.music_main_full_path);
     (void)sdl_music_play_title_track(sound_state.music_main_full_path,
         sound_state.music_main_path, "main_full");
+}
+
+void sdl_music_play_death(void)
+{
+    log_debug("Starting death music: %s", sound_state.music_death_path);
+    (void)sdl_music_play_title_track(sound_state.music_death_path, NULL, "death");
 }
 
 void sdl_music_play_menu_theme(void)
@@ -872,6 +900,18 @@ void sdl_music_update_volumes(void)
     }
 }
 
+void sdl_music_request_welcome_main_once(void)
+{
+    g_music_force_main_on_next_welcome = true;
+}
+
+bool sdl_music_consume_welcome_main_once(void)
+{
+    bool consume = g_music_force_main_on_next_welcome;
+    g_music_force_main_on_next_welcome = false;
+    return consume;
+}
+
 void sdl_sound_handle(int sound_idx)
 {
     if (sound_idx < 0 || sound_idx >= MSG_MAX) {
@@ -969,6 +1009,7 @@ void sdl_sound_save_config(void)
     sdl_sound_build_path(g_sound_config.music_main_path, sound_state.music_main_path, sizeof(sound_state.music_main_path));
     sdl_sound_build_path(g_sound_config.music_main_full_path, sound_state.music_main_full_path, sizeof(sound_state.music_main_full_path));
     sdl_sound_build_path(g_sound_config.music_ambient_path, sound_state.music_ambient_path, sizeof(sound_state.music_ambient_path));
+    sdl_sound_build_path(g_sound_config.music_death_path, sound_state.music_death_path, sizeof(sound_state.music_death_path));
 
     if (!sound_state.music_main_enabled) {
         sdl_music_stop_main();

@@ -2,29 +2,29 @@ lib/edit\artefact.txt
 499: D: his lord. Driven beyond endurance, Gorlim revealed Barahir's hiding place — -> U+2014 (—)
 693: D:The shining mail of Finwë, first High King of the Noldor, wrought in -> U+00EB (ë)
 695: D: Finwë alone stood against him and was slain - the first of the Eldar to -> U+00EB (ë)
-902: #Mablung’s Knife (the blade that opened Carcharoth) -> U+2019 (’)
-919: # Azaghal’s Dragonbane Knife. -> U+2019 (’)
-939: # Turin’s Elf-wrought Knife (birthday-gift from Hurin) -> U+2019 (’)
-1054: # Mim’s Long Knife (Poisoned Runes). -> U+2019 (’)
-1055: # A long knife of the Petty-dwarf Mim, inscribed with toxic runes. It excels in secretive strikes. Cursed: once wielded, it’s difficult to discard, echoing Mim’s treacherous doom. -> U+2019 (’)
-1151: # Idril’s Sword (Guardian of Gondolin) -> U+2019 (’)
+902: #Mablung's Knife (the blade that opened Carcharoth) -> U+2019 (')
+919: # Azaghal's Dragonbane Knife. -> U+2019 (')
+939: # Turin's Elf-wrought Knife (birthday-gift from Hurin) -> U+2019 (')
+1054: # Mim's Long Knife (Poisoned Runes). -> U+2019 (')
+1055: # A long knife of the Petty-dwarf Mim, inscribed with toxic runes. It excels in secretive strikes. Cursed: once wielded, it's difficult to discard, echoing Mim's treacherous doom. -> U+2019 (')
+1151: # Idril's Sword (Guardian of Gondolin) -> U+2019 (')
 1287: D: blade passes — as though it remembers every death it has dealt. -> U+2014 (—)
 ---
 lib/edit\character.txt
-92: B:You ride forth, defiant-echo of the High King who faced Morgoth at Angband’s gate. -> U+2019 (’)
-98: D: High King courageous, whose defiance shook Morgoth upon his dark throne; riding alone to Angband’s gates, fearless, shining in wrathful valor. Though fallen, his horn still echoes through desolate wastes of the North, his broken sword and rent shield signs of undying pride and despair. His bravery inspires kin, yet foreshadows heavier losses still to come, until the darkness is pierced by brighter stars in days unforeseen. Fingolfin rests in Mandos, spirit brightened by sacrifice and glory. -> U+2019 (’)
-111: D: Wise-hearted and gentle, fairest prince who turned back from doom, ruling now in Valinor's quiet peace, sorrowful yet patient, waiting for the day when the bitter wounds dividing Noldor and Valar heal. His children’s deeds across sea and time will bring honor and sorrow; yet in foresight he sees a distant hope, beyond ruin, grief, and loss, that blood shed by kin will one day lead to healing, renewal, reunion - and his heart longs for the far-off hour of redemption and forgiveness. -> U+2019 (’)
-138: D: Keen-eyed, crafty-handed son of Feanor, closest heir to father's fire; skilled smith whose subtle tongue kindles divisions, pride, and betrayal. His deeds shadowed by ambition, foreshadowing sorrow yet unborn, father to Celebrimbor, future maker of perilous rings of power. Exile now stains his name; cunning schemes whisper ruin into fate, destined to mar the friendships of Eldar, weaving treachery unseen, and by treason sows seeds of doom and loss, echoing father’s dark flame. -> U+2019 (’)
-150: D: Brave-hearted prince, valiant son of Fingolfin, friend to mighty Maedhros; fearless rescuer who cut friend free from torment upon dread peaks. His valor brightens briefly as High King, yet fate cruelly casts him down on Anfauglith’s blackened plain, where Morgoth's shadow conquers courage. But his deeds yet inspire hope, shining as stars above fading realms, friendship unbroken even in death, his spirit ever watching kin afar, awaiting the final healing of wounds made by sword and sorrow. -> U+2019 (’)
-163: D: Lord of hidden Gondolin, builder of white walls beneath encircling peaks; proud and secretive, whose city once stood fair against Morgoth’s malice. Yet pride sealed doom, ignoring warnings whispered by Ulmo’s waves, as fire consumed towers and hope alike beneath betrayal’s cruel hand. Though fallen, his bloodline endures in Earendil, whose distant star foreshadows redemption far beyond sorrowful ruin of his city’s dreams, awaiting a brighter hour when shadows break and stars shine anew. -> U+2019 (’)
-188: D: Noble-hearted builder of halls beneath Nargothrond’s fair stone towers, friend steadfast and gentle, beloved of Men, faithful unto death itself. Sacrificed life to fulfill oaths made in love, honor, and courage, wrestling darkness for sake of mortal friend, forever remembered. Though fallen, his song yet echoes in lands where his kin wander, spirit bright in halls of Mandos, witnessing doom and destiny unfold - his deeds foretelling bonds of friendship bridging mortal and immortal. -> U+2019 (’)
-248: D: Brave huntsman, faithful captain of Thingol’s guard beneath starlit woods, whose spear guarded borders of Doriath, steadfast amid darkness growing. Witness of grief and ruin, whose noble heart wept silent tears unshed, burdened by tragedies foreseen yet helplessly endured in shadowed hours. Doomed yet unwavering companion to mortal heroes, bonds forged in sorrow, foresight dimmed by loss yet eyes reflecting courage amid despair, destined to fall loyal, remembered in lament beneath darkening trees. -> U+2019 (’)
-259: D: Fairest daughter of twilight, song and star blended beneath woodland leaves, whose voice defied Morgoth himself, beauty challenging darkness eternal. Love binding mortal heart to immortal soul, weaving fate unforeseen, foreshadowing hope and sorrow entwined, the world's destiny reshaped. Brave in love, daring paths forbidden, setting aside her timeless grace, destined to fade willingly from Eldar's light, mortal fate chosen bravely, remembered ever as brightest jewel in Arda’s song, grief and joy entwined. -> U+2019 (’)
-269: D: Faithful mariner, storm-tossed survivor, bearer of Ulmo’s whispered hope, last messenger of Gondolin’s hidden splendor, guided by fate unseen. His weary eyes glimpsed future sorrow, guiding mortal hero toward doom, footsteps bound by destiny, yet courage kindled by unyielding resolve. Foreseeing city’s fall yet guiding hero onward through shadows deepening, heart burdened yet steadfast, fulfilling purpose woven by Powers above, bearer of hope amid despair, witness to glory lost beneath waves of flame. -> U+2019 (’)
+92: B:You ride forth, defiant-echo of the High King who faced Morgoth at Angband's gate. -> U+2019 (')
+98: D: High King courageous, whose defiance shook Morgoth upon his dark throne; riding alone to Angband's gates, fearless, shining in wrathful valor. Though fallen, his horn still echoes through desolate wastes of the North, his broken sword and rent shield signs of undying pride and despair. His bravery inspires kin, yet foreshadows heavier losses still to come, until the darkness is pierced by brighter stars in days unforeseen. Fingolfin rests in Mandos, spirit brightened by sacrifice and glory. -> U+2019 (')
+111: D: Wise-hearted and gentle, fairest prince who turned back from doom, ruling now in Valinor's quiet peace, sorrowful yet patient, waiting for the day when the bitter wounds dividing Noldor and Valar heal. His children's deeds across sea and time will bring honor and sorrow; yet in foresight he sees a distant hope, beyond ruin, grief, and loss, that blood shed by kin will one day lead to healing, renewal, reunion - and his heart longs for the far-off hour of redemption and forgiveness. -> U+2019 (')
+138: D: Keen-eyed, crafty-handed son of Feanor, closest heir to father's fire; skilled smith whose subtle tongue kindles divisions, pride, and betrayal. His deeds shadowed by ambition, foreshadowing sorrow yet unborn, father to Celebrimbor, future maker of perilous rings of power. Exile now stains his name; cunning schemes whisper ruin into fate, destined to mar the friendships of Eldar, weaving treachery unseen, and by treason sows seeds of doom and loss, echoing father's dark flame. -> U+2019 (')
+150: D: Brave-hearted prince, valiant son of Fingolfin, friend to mighty Maedhros; fearless rescuer who cut friend free from torment upon dread peaks. His valor brightens briefly as High King, yet fate cruelly casts him down on Anfauglith's blackened plain, where Morgoth's shadow conquers courage. But his deeds yet inspire hope, shining as stars above fading realms, friendship unbroken even in death, his spirit ever watching kin afar, awaiting the final healing of wounds made by sword and sorrow. -> U+2019 (')
+163: D: Lord of hidden Gondolin, builder of white walls beneath encircling peaks; proud and secretive, whose city once stood fair against Morgoth's malice. Yet pride sealed doom, ignoring warnings whispered by Ulmo's waves, as fire consumed towers and hope alike beneath betrayal's cruel hand. Though fallen, his bloodline endures in Earendil, whose distant star foreshadows redemption far beyond sorrowful ruin of his city's dreams, awaiting a brighter hour when shadows break and stars shine anew. -> U+2019 (')
+188: D: Noble-hearted builder of halls beneath Nargothrond's fair stone towers, friend steadfast and gentle, beloved of Men, faithful unto death itself. Sacrificed life to fulfill oaths made in love, honor, and courage, wrestling darkness for sake of mortal friend, forever remembered. Though fallen, his song yet echoes in lands where his kin wander, spirit bright in halls of Mandos, witnessing doom and destiny unfold - his deeds foretelling bonds of friendship bridging mortal and immortal. -> U+2019 (')
+248: D: Brave huntsman, faithful captain of Thingol's guard beneath starlit woods, whose spear guarded borders of Doriath, steadfast amid darkness growing. Witness of grief and ruin, whose noble heart wept silent tears unshed, burdened by tragedies foreseen yet helplessly endured in shadowed hours. Doomed yet unwavering companion to mortal heroes, bonds forged in sorrow, foresight dimmed by loss yet eyes reflecting courage amid despair, destined to fall loyal, remembered in lament beneath darkening trees. -> U+2019 (')
+259: D: Fairest daughter of twilight, song and star blended beneath woodland leaves, whose voice defied Morgoth himself, beauty challenging darkness eternal. Love binding mortal heart to immortal soul, weaving fate unforeseen, foreshadowing hope and sorrow entwined, the world's destiny reshaped. Brave in love, daring paths forbidden, setting aside her timeless grace, destined to fade willingly from Eldar's light, mortal fate chosen bravely, remembered ever as brightest jewel in Arda's song, grief and joy entwined. -> U+2019 (')
+269: D: Faithful mariner, storm-tossed survivor, bearer of Ulmo's whispered hope, last messenger of Gondolin's hidden splendor, guided by fate unseen. His weary eyes glimpsed future sorrow, guiding mortal hero toward doom, footsteps bound by destiny, yet courage kindled by unyielding resolve. Foreseeing city's fall yet guiding hero onward through shadows deepening, heart burdened yet steadfast, fulfilling purpose woven by Powers above, bearer of hope amid despair, witness to glory lost beneath waves of flame. -> U+2019 (')
 ---
 lib/edit\curses.txt
-91: N:7:Curse of the Hourglass’ Pause -> U+2019 (’)
-146: N:12:Fate’s Tyranny -> U+2019 (’)
+91: N:7:Curse of the Hourglass' Pause -> U+2019 (')
+146: N:12:Fate's Tyranny -> U+2019 (')
 276: P:Light radius −1 -> U+2212 (−)
 ---
 lib/edit\monster.txt
@@ -46,13 +46,13 @@ lib/edit\object.txt
 ---
 lib/edit\quest.txt
 49: W:"Take this prize—wrought ere the Sun and Moon first rose—and wield it well!" -> U+2014 (—)
-84: C:Unmake the false body and free Brodda’s spirit to Mandos’s judgment -> U+2019 (’)
-103: W:"You have not wrought vengeance, but restored a thread of the natural order, long tangled by the Enemy’s malice." -> U+2019 (’)
+84: C:Unmake the false body and free Brodda's spirit to Mandos's judgment -> U+2019 (')
+103: W:"You have not wrought vengeance, but restored a thread of the natural order, long tangled by the Enemy's malice." -> U+2019 (')
 ---
 lib/edit\race.txt
-80: D:Valiant and steadfast people, following Fingolfin’s bright banner -> U+2019 (’)
-81: D:through cold Helcaraxe’s treacherous ice to realms darkened by war. -> U+2019 (’)
-171: #their songs in timeless peace await Eldar’s return from sorrow's depths, -> U+2019 (’)
+80: D:Valiant and steadfast people, following Fingolfin's bright banner -> U+2019 (')
+81: D:through cold Helcaraxe's treacherous ice to realms darkened by war. -> U+2019 (')
+171: #their songs in timeless peace await Eldar's return from sorrow's depths, -> U+2019 (')
 ---
 lib/edit\skeleton_note.txt
 197: M:HUMAN:ROOMY:100:If you want a better blade, try the {PART} {DIST} {DIR}—more steel there than in broken rooms. -> U+2014 (—)
@@ -67,23 +67,23 @@ lib/edit\story.txt
 76: D:Soft words rise clearly within your mind: “Estel brillies teni mornie canta.” Hope shines brightest when darkness gathers. Calm spreads gently through you, easing pain and doubt-a comforting gift from gentle Este. -> U+201C (“)
 ---
 lib/edit\vault.txt
-114: #     u - Durin’s Armor -> U+2019 (’)
+114: #     u - Durin's Armor -> U+2019 (')
 3547: ## Lore: A fortified council hall where Morgoth's captains plot war — outer yards, an inner shrine, and a guarded treasury. -> U+2014 (—)
 ---
 lib/edit\misc\Formatted_Ideas.txt
 2: #Twin sons youngest of fiery-hearted Fëanor, hunters beneath forest shade, -> U+00EB (ë)
 10: #Grandson of Fëanor, gifted smith with heart less marred by pride, -> U+00EB (ë)
-12: #Dwelling now in youth’s innocence, yet fate shadows every hammer-fall, -> U+2019 (’)
+12: #Dwelling now in youth's innocence, yet fate shadows every hammer-fall, -> U+2019 (')
 16: #remembered as greatest smith after Fëanor, tragic heir of craft. -> U+00EB (ë)
-18: #Proud white lady, sister of Turgon, restless beneath Gondolin’s towers, -> U+2019 (’)
-27: #whose courage shone brightly yet dimmed beneath darkness of Angband’s halls. -> U+2019 (’)
-30: #Companion doomed yet steadfast, guiding Turin’s fate unknowingly toward doom, -> U+2019 (’)
+18: #Proud white lady, sister of Turgon, restless beneath Gondolin's towers, -> U+2019 (')
+27: #whose courage shone brightly yet dimmed beneath darkness of Angband's halls. -> U+2019 (')
+30: #Companion doomed yet steadfast, guiding Turin's fate unknowingly toward doom, -> U+2019 (')
 37: #protector of Lúthien fair, defying darkness through courage unmatched. -> U+00FA (ú)
-39: #remembered ever in Eldar’s songs, valor transcending master’s betrayal; -> U+2019 (’)
-40: #Huan, loyal guardian whose courage defies even shadow’s deepest power. -> U+2019 (’)
+39: #remembered ever in Eldar's songs, valor transcending master's betrayal; -> U+2019 (')
+40: #Huan, loyal guardian whose courage defies even shadow's deepest power. -> U+2019 (')
 ---
 lib/edit\misc\monsters_ideas.txt
-60: Lore: Hounds bred by Sauron or Morgoth, similar to Draugluin’s brood but lesser (*The Silmarillion* mentions "fell beasts" and wolves in Angband). -> U+2019 (’)
+60: Lore: Hounds bred by Sauron or Morgoth, similar to Draugluin's brood but lesser (*The Silmarillion* mentions "fell beasts" and wolves in Angband). -> U+2019 (')
 245: Based on your preference to avoid betrayers and focus on pitiable, broken elf thralls (inspired by captured elves like those in Angband's mines or driven mad by torment, as described in *The Silmarillion* – e.g., elves enslaved after battles, suffering hallucinations from trauma or Morgoth's dark arts), I've suggested additions to the hallucinatory section (starting around N:301 in the file). These are visions or spectral apparitions of thralls, not active betrayers. They fit as non-combat or ethereal entities, similar to existing hallucinatory Valar/elves (peaceful, symbolic). Lore: Elves like Gwindor escaped but were haunted/mad; others perished in chains, their spirits lingering as hallucinations in the player's mind, perhaps from Silmaril-induced visions or dungeon fumes. -> U+2013 (–)
 247: I've suggested 3 hallucinatory commons and 1 unique. They use '@' for elf-like, with ghostly colors. No betrayal theme – emphasize suffering and madness. -> U+2013 (–)
 250: Lore: Generic broken elf slaves, echoing the thralls in Angband (*The Silmarillion*, Ch. 13 – many Sindar/Noldor enslaved, some driven insane). -> U+2013 (–)

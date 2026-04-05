@@ -88,7 +88,7 @@ E:Quiet veils your path; every step becomes a whisper.
 H:Stealth Affinity
 G:STL_AFFINITY
 
-N:7:Curse of the Hourglass’ Pause
+N:7:Curse of the Hourglass' Pause
 S:0:0:0:0
 F:EVN_PENALTY
 A:3/2
@@ -143,7 +143,7 @@ E:Your voice returns, weaving melodies anew through the dark.
 H:Song Affinity
 G:SNG_AFFINITY
 
-N:12:Fate’s Tyranny
+N:12:Fate's Tyranny
 S:0:0:0:0
 U:NOCHOICE
 F:

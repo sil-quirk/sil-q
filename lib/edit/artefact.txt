@@ -899,7 +899,7 @@ D: wearer endurance against the breaking of the heart.
 
 ##### Edged Weapons #####
 
-#Mablung’s Knife (the blade that opened Carcharoth)
+#Mablung's Knife (the blade that opened Carcharoth)
 #Ability 4/5/2 Wolf bane
 
 # Smithing difficulty: 23
@@ -916,7 +916,7 @@ D: the Silmaril from the beast's belly with this blade. Its edge is
 D: pitiless against wolves, and it lends the keen-eyed focus of its master.
 
 #4/5/8 Dragon Bane
-# Azaghal’s Dragonbane Knife.
+# Azaghal's Dragonbane Knife.
 # The dagger with which King Azaghal wounded Glaurung. Enchanted by the dwarves of Belegost, it protects against dragonfire and bites deep into dragon-flesh.
 
 # Smithing difficulty: 58
@@ -936,7 +936,7 @@ D: belly - the first wound Glaurung ever suffered. Azaghal died crushed
 D: beneath the wyrm, but Glaurung fled in agony. The blade is still black
 D: with dragon-blood and burns with the wrath of Belegost.
 
-# Turin’s Elf-wrought Knife (birthday-gift from Hurin)
+# Turin's Elf-wrought Knife (birthday-gift from Hurin)
 # Design: noble heirloom tool-weapon; survivability/utility over raw damage.
 # Ability 5/5 Indomitable
 
@@ -1051,8 +1051,8 @@ D: Mandos, who quenched the blade in the blood of his own kin. It drinks
 D: deeply of those it wounds, sustaining its wielder even as it wakes a
 D: terrible hunger within them and clouds their mind with red thoughts.
 
-# Mim’s Long Knife (Poisoned Runes). 
-# A long knife of the Petty-dwarf Mim, inscribed with toxic runes. It excels in secretive strikes. Cursed: once wielded, it’s difficult to discard, echoing Mim’s treacherous doom.
+# Mim's Long Knife (Poisoned Runes). 
+# A long knife of the Petty-dwarf Mim, inscribed with toxic runes. It excels in secretive strikes. Cursed: once wielded, it's difficult to discard, echoing Mim's treacherous doom.
 
 # Smithing difficulty: 38
 
@@ -1148,7 +1148,7 @@ D: and its keen point is a bane to great spiders and crawling terrors.
 D: Though little is spoken of this blade in the songs of Beleriand, strange
 D: fate is woven about it, and it will yet play a part in tales unwritten.
 
-# Idril’s Sword (Guardian of Gondolin)
+# Idril's Sword (Guardian of Gondolin)
 # A graceful short sword borne by Idril Celebrindal during the Fall of Gondolin. It is light and protective, aiding in swift escapes. 
 # The blade carries an aura of royal Majesty (foes quail to attack the wielder). 
 # Special ability: Song of Elveness 7/11 and Song of Freedom 7/3
@@ -1298,7 +1298,7 @@ F:SLAY_DRAGON | VAMPIRIC | DANGER | HUNGER | LIGHT_CURSE | TRAITOR | WILL_DRAIN
 B:4/5/8
 D:The sable sword reforged from Anglachel, wielded by Turin. Its blade can 
 D: slice iron like parchment, and it drinks deeply of blood. A fell curse 
-D: lies upon it: once unsheathed, it must taste blood. The sword’s grim will 
+D: lies upon it: once unsheathed, it must taste blood. The sword's grim will 
 D: fills its master with fearless despair, drawing mighty foes nigh – and 
 D: giving strength to slay them.
 
@@ -1654,7 +1654,7 @@ D: took this as the axe's name, and so it has been called ever since. It bites
 D: deep into orc-flesh and spider-hide alike.
 
 # The Axe of Durin 
-# The ancestral axe of Durin the Deathless, father of the Dwarves. It bestows the fortitude and courage of Durin’s line. 
+# The ancestral axe of Durin the Deathless, father of the Dwarves. It bestows the fortitude and courage of Durin's line. 
 # Its bright head gleams in the dark halls, a comfort against fear.
 
 # Smithing difficulty: 50

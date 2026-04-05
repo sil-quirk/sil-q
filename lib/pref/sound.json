@@ -17,6 +17,7 @@
 	"music_main_path":	"music/main.wav",
 	"music_main_full_path":	"music/main_full.wav",
 	"music_ambient_path":	"music/ambient.wav",
+	"music_death_path":	"music/death.wav",
 	"sampleRate":	44100,
 	"channels":	2,
 	"format":	"s16",

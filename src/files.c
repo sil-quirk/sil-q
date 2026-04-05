@@ -7423,12 +7423,11 @@ void do_cmd_escape(int silmarils)
     /* Cause of death */
     SDL_strlcpy(p_ptr->died_from, "ripe old age", sizeof(p_ptr->died_from));
 
-    /* Update metarun: escaped with N Silmarils */
-    log_info("Player escaped with %d Silmarils", silmarils);
-    if (run_mode_is_blitz())
-        blitz_show_end_summary((byte)MAX(silmarils, 0));
-    else
-        metarun_update_on_exit(false, true, silmarils, 0);
+    /* Defer metarun exit processing until close_game_aux() has recorded the
+     * final score. Otherwise the rollover can start a fresh metarun before
+     * this escape is written, and the winning character lands in the new run.
+     */
+    log_info("Player escaped with %d Silmarils (metarun processing deferred until close_game_aux)", silmarils);
 
 }
 
@@ -7700,6 +7699,21 @@ static void show_info(void)
 #define scores_file_version_minor (score_file_active_ctx()->version_minor)
 #define scores_file_version_patch (score_file_active_ctx()->version_patch)
 #define scores_file_version_extra (score_file_active_ctx()->version_extra)
+
+static char g_postmortem_scores_path[1024];
+
+static void clear_postmortem_scores_path(void)
+{
+    g_postmortem_scores_path[0] = '\0';
+}
+
+static void set_postmortem_scores_path(const char* path)
+{
+    if (path && path[0])
+        SDL_strlcpy(g_postmortem_scores_path, path, sizeof(g_postmortem_scores_path));
+    else
+        clear_postmortem_scores_path();
+}
 
 /* Forward declaration */
 errr create_score(high_score* the_score);
@@ -9567,6 +9581,7 @@ static void close_game_aux(void)
         return;
     }
     death_processing = true;
+    clear_postmortem_scores_path();
 
     log_debug("Processing character death for '%s' (wizard=%d, noscore=0x%04X, savefile='%s')",
              op_ptr->full_name, p_ptr->wizard ? 1 : 0, (unsigned)p_ptr->noscore, savefile);
@@ -9629,7 +9644,15 @@ static void close_game_aux(void)
     int final_score = score_points(&the_score);
     if (!run_mode_is_blitz())
     {
-        if (p_ptr->morgoth_slain && !p_ptr->escaped)
+        if (p_ptr->escaped)
+        {
+            int escaped_silmarils = parse_score_int(the_score.silmarils,
+                sizeof(the_score.silmarils), 0);
+            log_info("Player escaped - updating metarun data after score entry");
+            metarun_update_on_exit(false, true, (byte)MAX(escaped_silmarils, 0),
+                final_score);
+        }
+        else if (p_ptr->morgoth_slain && !p_ptr->escaped)
         {
             log_info("Player achieved Morgoth victory - updating metarun data");
             metarun_update_on_exit(false, false, 3, final_score);
@@ -9678,7 +9701,12 @@ static void close_game_aux(void)
         // view scores
         case 1:
         {
-            show_scores_interactive_highlight(true, &the_score);
+            if (g_postmortem_scores_path[0]) {
+                show_scores_interactive_highlight_from_file(true,
+                    g_postmortem_scores_path, &the_score);
+            } else {
+                show_scores_interactive_highlight(true, &the_score);
+            }
             break;
         }
 
@@ -9780,6 +9808,7 @@ static void close_game_aux(void)
     }
 
     /* Reset death processing flag for next character */
+    clear_postmortem_scores_path();
     death_processing = false;
 }
 
@@ -10678,6 +10707,8 @@ void clear_scorefile(void)
     char cur_path[1024];
     bool was_open = (highscore_fd != NULL);
 
+    clear_postmortem_scores_path();
+
     /* Full path to "scores.raw" */
     build_meta_path(cur_path, sizeof(cur_path), "scores.raw");
 
@@ -10720,12 +10751,16 @@ void clear_scorefile(void)
             safe_setuid_grab();
             int rn = rename(cur_path, arch_path);
             safe_setuid_drop();
-            if (rn != 0) {
+            if (rn == 0) {
+                set_postmortem_scores_path(arch_path);
+            } else {
+                clear_postmortem_scores_path();
                 (void)fd_kill(cur_path); /* fallback */
             }
         }
         else {
             /* Nothing useful to archive; just remove it */
+            clear_postmortem_scores_path();
             (void)fd_kill(cur_path);
         }
     }
@@ -10782,7 +10817,10 @@ void metarun_finalize_scores_and_saves(void)
     int patched = 0;
     for (int i = 0; i < n_recs; i++) {
         high_score entry;
-        if (lseek(fd_local, (off_t)i * (off_t)sizeof entry, SEEK_SET) < 0)
+        off_t entry_offset = (off_t)sizeof(score_file_header)
+            + (off_t)i * (off_t)sizeof entry;
+
+        if (lseek(fd_local, entry_offset, SEEK_SET) < 0)
             break;
         ssize_t got = read(fd_local, &entry, sizeof entry);
         if (got != sizeof entry) break;
@@ -10792,7 +10830,7 @@ void metarun_finalize_scores_and_saves(void)
 
         /* Patch score entry regardless of save success */
         strnfmt(entry.how, sizeof entry.how, "%-.49s", "their own hand");
-        if (lseek(fd_local, (off_t)i * (off_t)sizeof entry, SEEK_SET) >= 0) {
+        if (lseek(fd_local, entry_offset, SEEK_SET) >= 0) {
             (void)write(fd_local, &entry, sizeof entry);
         }
         patched++;

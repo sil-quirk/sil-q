@@ -10,6 +10,9 @@
 #include <string.h>
 #include <SDL3/SDL.h>
 
+static const char* const legacy_music_death_path = "sound/death.wav";
+static const char* const default_music_death_path = "music/death.wav";
+
 void sound_config_set_defaults(struct sound_config* config)
 {
     config->enabled = false;
@@ -30,6 +33,8 @@ void sound_config_set_defaults(struct sound_config* config)
     SDL_strlcpy(config->music_main_path, "music/main.wav", sizeof(config->music_main_path));
     SDL_strlcpy(config->music_main_full_path, "music/main_full.wav", sizeof(config->music_main_full_path));
     SDL_strlcpy(config->music_ambient_path, "music/ambient.wav", sizeof(config->music_ambient_path));
+    SDL_strlcpy(config->music_death_path, default_music_death_path,
+        sizeof(config->music_death_path));
     config->sample_rate = 22050;
     config->channels = 2;
     SDL_strlcpy(config->format, "s16", sizeof(config->format));
@@ -202,6 +207,15 @@ void sound_config_load(const char* filename, struct sound_config* config)
     if (cJSON_IsString(music_ambient_path) && music_ambient_path->valuestring) {
         SDL_strlcpy(config->music_ambient_path, music_ambient_path->valuestring, sizeof(config->music_ambient_path));
     }
+
+    cJSON* music_death_path = cJSON_GetObjectItemCaseSensitive(root, "music_death_path");
+    if (cJSON_IsString(music_death_path) && music_death_path->valuestring) {
+        SDL_strlcpy(config->music_death_path, music_death_path->valuestring, sizeof(config->music_death_path));
+    }
+    if (streq(config->music_death_path, legacy_music_death_path)) {
+        SDL_strlcpy(config->music_death_path, default_music_death_path,
+            sizeof(config->music_death_path));
+    }
     
     // Load sample rate
     cJSON* sample_rate = cJSON_GetObjectItemCaseSensitive(root, "sampleRate");
@@ -280,6 +294,7 @@ void sound_config_save(const char* filename, const struct sound_config* config)
     cJSON_AddStringToObject(root, "music_main_path", config->music_main_path);
     cJSON_AddStringToObject(root, "music_main_full_path", config->music_main_full_path);
     cJSON_AddStringToObject(root, "music_ambient_path", config->music_ambient_path);
+    cJSON_AddStringToObject(root, "music_death_path", config->music_death_path);
     cJSON_AddNumberToObject(root, "sampleRate", config->sample_rate);
     cJSON_AddNumberToObject(root, "channels", config->channels);
     cJSON_AddStringToObject(root, "format", config->format);

@@ -3914,11 +3914,9 @@ static void dungeon(void)
 
     /*** Process this dungeon level ***/
 
-    /* Reset the monster generation level */
-    monster_level = p_ptr->depth;
-
-    /* Reset the object generation level */
-    object_level = p_ptr->depth;
+    /* Reset generation depth; the Gates use depth 20 tables while displayed as 0. */
+    monster_level = player_generation_depth();
+    object_level = player_generation_depth();
 
     /* Show initial partition narrative according to the configured display mode. */
     if ((op_ptr->level_entry_narrative_mode == LEVEL_ENTRY_NARRATIVE_BANNER_DELAY)
@@ -5111,6 +5109,14 @@ PlayResult play_game(void)
             /* Stop gameplay audio; the title screen chooses its own track. */
             sdl_music_stop_main();
             sdl_music_stop_ambient();
+            if (p_ptr->escaped || p_ptr->morgoth_slain)
+            {
+                sdl_music_play_main();
+            }
+            else
+            {
+                sdl_music_play_death();
+            }
             
             death_knowledge();
 

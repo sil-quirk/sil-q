@@ -1310,6 +1310,39 @@ void show_scores_interactive_highlight(bool longscore, const high_score* entry)
         forced_highlight_active = false;
     }
 }
+
+void show_scores_interactive_highlight_from_file(bool longscore,
+                                                 const char* filepath,
+                                                 const high_score* entry)
+{
+    if (!filepath || !filepath[0]) {
+        show_scores_interactive_highlight(longscore, entry);
+        return;
+    }
+
+    score_file_ctx temp_ctx;
+    score_file_reset_ctx(&temp_ctx);
+
+    safe_setuid_grab();
+    temp_ctx.fd = score_file_open(filepath, O_RDONLY);
+    safe_setuid_drop();
+    if (!temp_ctx.fd) {
+        log_warn("show_scores_interactive_highlight_from_file: unable to open %s",
+                 filepath);
+        show_scores_interactive_highlight(longscore, entry);
+        return;
+    }
+
+    log_debug("show_scores_interactive_highlight_from_file: rendering %s",
+              filepath);
+    score_file_ctx* previous_ctx = score_file_set_active_ctx(&temp_ctx);
+    show_scores_interactive_highlight(longscore, entry);
+    score_file_set_active_ctx(previous_ctx);
+
+    SDL_CloseIO(temp_ctx.fd);
+    score_file_reset_ctx(&temp_ctx);
+}
+
 #if 0
 static const char* score_run_killer_kind_label(score_killer_kind kind)
 {

@@ -57,7 +57,7 @@ D:A colossal figure hewn from rock, slow but unbreakable.
 D:It hurls boulders with earth-shaking force.
 
 #### 4. Fell Hound (Wolf variant, guard dogs of Angband)
-Lore: Hounds bred by Sauron or Morgoth, similar to Draugluin’s brood but lesser (*The Silmarillion* mentions "fell beasts" and wolves in Angband).
+Lore: Hounds bred by Sauron or Morgoth, similar to Draugluin's brood but lesser (*The Silmarillion* mentions "fell beasts" and wolves in Angband).
 
 N:504:Fell hound  
 W:12:1  

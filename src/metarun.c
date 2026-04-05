@@ -15,6 +15,7 @@
 #include "log/log.h"
 #include "metarun.h"
 #include "metarun_legacy.h"
+#include "sdl-sound.h"
 #include "h-define.h"
 #include "platform.h"    /* MKDIR helper                      */
 #include "supplies.h"
@@ -48,9 +49,6 @@ static metarun *metaruns    = NULL;
 static s16b     metarun_max = 0;
 static s16b     current_run = 0;
 bool            metarun_created = false;
-
-/* ==================  tiny local helpers  ======================= */
-static int rng_int(int max) { return max ? (int)(rand() % max) : 0; }
 
 static int popcount32(u32b value)
 {
@@ -1655,10 +1653,10 @@ static int weighted_random_curse(void)
         total += base / (cnt + 1);
     }
 
-    if (!total) return rng_int(z_info->cu_max);    /* safety net */
+    if (!total) return rand_int(z_info->cu_max);    /* safety net */
 
     /* Pass 3 — roulette wheel */
-    long pick = rng_int(total), run = 0;
+    long pick = rand_int(total), run = 0;
     for (int i = 0; i < z_info->cu_max; i++)
     {
         if (!cu_info[i].name) continue;          /* ← unused slot */
@@ -1679,7 +1677,7 @@ static int weighted_random_curse(void)
         if (pick < run) return i;
     }
 
-    return rng_int(z_info->cu_max);                /* unreachable */
+    return rand_int(z_info->cu_max);                /* unreachable */
 }
 
 void add_curse_stack(int idx)
@@ -2255,6 +2253,11 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_
     log_info("Metarun update: died=%s, escaped=%s, sil_count=%d, final_score=%ld", 
              died ? "true" : "false", escaped ? "true" : "false", sil_count, (long)final_score);
     int blessing_points_before = (metar.blessing_points < 0) ? 0 : metar.blessing_points;
+
+    if (escaped)
+    {
+        sdl_music_play_main();
+    }
              
     /* -------- Lineage flags -------------------------------------- */
     u32b character_flags = c_info[p_ptr->pcharacter].flags;
@@ -2364,7 +2367,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_
 
         /* Display the chosen fragment with the usual fade-in style.  */
         if (pool_sz) {
-            story_type *pick = &st_info[ pool[rng_int(pool_sz)] ];
+            story_type *pick = &st_info[ pool[rand_int(pool_sz)] ];
             cptr title = st_name + pick->name;
             cptr text  = st_text + pick->text;
 

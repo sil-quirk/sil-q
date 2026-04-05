@@ -81,7 +81,7 @@ W:"You are worthy of my blessing. May your arm never tire at the anvil, and may 
 # Quest of Mandos the Doomsman
 Q:3:Mandos the Doomsman
 T:The Doomsman bids you release a bound spirit
-C:Unmake the false body and free Brodda’s spirit to Mandos’s judgment
+C:Unmake the false body and free Brodda's spirit to Mandos's judgment
 O:3
 Y:0
 R:mandos_quest
@@ -100,7 +100,7 @@ I:"Grant the tormented spirit its final release, that it may at last face my jud
 W:As the false body falls, a long, sorrowful sigh echoes, and the spirit is gone. A profound stillness settles upon the place.
 W:
 W:"The mockery is unmade. The spirit of Brodda is unbound and set upon the path to its final judgment."
-W:"You have not wrought vengeance, but restored a thread of the natural order, long tangled by the Enemy’s malice."
+W:"You have not wrought vengeance, but restored a thread of the natural order, long tangled by the Enemy's malice."
 W:"Accept now this gift: a spirit shielded from the great fears that unman the hearts of mortals. Go forth, and walk unafraid."
 
 # Quest of Nienna, Lady of Pity

@@ -1685,6 +1685,10 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     {
         act = "Your light source is";
     }
+    else if (slot == INVEN_HORN)
+    {
+        act = "You are carrying";
+    }
     else if ((slot == INVEN_QUIVER1) || (slot == INVEN_QUIVER2))
     {
         act = "In your quiver you have";

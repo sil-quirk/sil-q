@@ -4977,7 +4977,7 @@ bool player_auto_identifies_object(const object_type* o_ptr)
     bool is_staff = (o_ptr->tval == TV_STAFF);
     bool is_horn = (o_ptr->tval == TV_HORN);
     bool is_jewellery = (o_ptr->tval == TV_RING) || (o_ptr->tval == TV_AMULET)
-        || (o_ptr->tval == TV_LIGHT) || is_horn;
+        || (o_ptr->tval == TV_LIGHT);
 
     if (alchemy && (is_potion || is_herb || is_gem))
         return true;
@@ -5041,7 +5041,6 @@ static smith_id_category smith_id_category_for_object(const object_type* o_ptr)
     case TV_RING:
     case TV_AMULET:
     case TV_LIGHT:
-    case TV_HORN:
         return SMITH_ID_CAT_JEWELLERY;
 
     default:

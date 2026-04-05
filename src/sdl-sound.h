@@ -24,9 +24,12 @@ void sdl_sound_save_config(void);
 /* Music control functions */
 void sdl_music_play_main(void);
 void sdl_music_play_main_full(void);
+void sdl_music_play_death(void);
 void sdl_music_play_menu_theme(void);
 void sdl_music_play_ambient(void);
 void sdl_music_stop_main(void);
 void sdl_music_stop_ambient(void);
 void sdl_music_update(void); /* Call periodically to handle music looping */
 void sdl_music_update_volumes(void); /* Update volume of currently playing music */
+void sdl_music_request_welcome_main_once(void);
+bool sdl_music_consume_welcome_main_once(void);

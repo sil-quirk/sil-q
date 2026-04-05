@@ -13354,7 +13354,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             /* A monster from 1 level deeper */
             case '1':
             {
-                monster_level = p_ptr->depth + 1;
+                monster_level = player_generation_depth() + 1;
                 place_monster(y, x, true, true, true);
                 monster_level = original_monster_level;
                 break;
@@ -13363,7 +13363,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             /* A monster from 2 levels deeper */
             case '2':
             {
-                monster_level = p_ptr->depth + 2;
+                monster_level = player_generation_depth() + 2;
                 place_monster(y, x, true, true, true);
                 monster_level = original_monster_level;
                 break;
@@ -13372,7 +13372,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             /* A monster from 3 levels deeper */
             case '3':
             {
-                monster_level = p_ptr->depth + 3;
+                monster_level = player_generation_depth() + 3;
                 place_monster(y, x, true, true, true);
                 monster_level = original_monster_level;
                 break;
@@ -13381,7 +13381,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             /* A monster from 4 levels deeper */
             case '4':
             {
-                monster_level = p_ptr->depth + 4;
+                monster_level = player_generation_depth() + 4;
                 place_monster(y, x, true, true, true);
                 monster_level = original_monster_level;
                 break;
@@ -13394,7 +13394,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 if (!vault_drop_passes(VDG_NORMAL))
                     break;
 
-                int base_depth = (p_ptr->depth > 0) ? p_ptr->depth : 1;
+                int base_depth = player_generation_depth();
                 int penalty_depth = base_depth + dieroll(5);
                 partition_drop_profile active_profile =
                     partition_drop_profile_for_mode_source_cfg(
@@ -13411,7 +13411,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 if (!vault_drop_passes(VDG_GOOD))
                     break;
 
-                int base_depth = (p_ptr->depth > 0) ? p_ptr->depth : 1;
+                int base_depth = player_generation_depth();
                 int penalty_depth = base_depth + dieroll(5);
                 partition_drop_profile active_profile =
                     partition_drop_profile_for_mode_source_cfg(
@@ -13432,7 +13432,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 if (!vault_drop_passes(VDG_GREAT))
                     break;
 
-                int base_depth = (p_ptr->depth > 0) ? p_ptr->depth : 1;
+                int base_depth = player_generation_depth();
                 int penalty_depth = base_depth + dieroll(5);
                 partition_drop_profile active_profile =
                     partition_drop_profile_for_mode_source_cfg(
@@ -13455,11 +13455,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 if (!vault_drop_passes(VDG_CHEST))
                     break;
 
-                int chest_depth;
-                if (p_ptr->depth == 0)
-                    chest_depth = MORGOTH_DEPTH;
-                else
-                    chest_depth = p_ptr->depth + 5;
+                int chest_depth = player_generation_depth() + 5;
 
                 /* Set vault type context for chest material distribution */
                 drop_set_chest_vault_type(v_ptr->typ);
@@ -13570,7 +13566,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
 
                 if (r <= 2)
                 {
-                    monster_level = p_ptr->depth + 1;
+                    monster_level = player_generation_depth() + 1;
                     place_monster(y, x, true, true, true);
                     monster_level = original_monster_level;
                 }
@@ -13580,7 +13576,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                     if (!vault_drop_passes(VDG_NORMAL))
                         break;
 
-                    int base_depth = (p_ptr->depth > 0) ? p_ptr->depth : 1;
+                    int base_depth = player_generation_depth();
                     int penalty_depth = base_depth + 1;
                     partition_drop_profile active_profile =
                         partition_drop_profile_for_mode_source_cfg(
@@ -13695,7 +13691,8 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             case 't':
             {
                 place_monster_by_flag(
-                    y, x, 3, RF3_TROLL, true, p_ptr->depth + rand_range(1, 4));
+                    y, x, 3, RF3_TROLL, true,
+                    player_generation_depth() + rand_range(1, 4));
                 break;
             }
 
@@ -13717,7 +13714,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             case 'd':
             {
                 place_monster_by_flag(
-                    y, x, 3, RF3_DRAGON, true, p_ptr->depth + 4);
+                    y, x, 3, RF3_DRAGON, true, player_generation_depth() + 4);
                 break;
             }
 
@@ -13739,7 +13736,8 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             case 'M':
             {
                 place_monster_by_flag(
-                    y, x, 3, RF3_SPIDER, true, p_ptr->depth + rand_range(1, 4));
+                    y, x, 3, RF3_SPIDER, true,
+                    player_generation_depth() + rand_range(1, 4));
                 break;
             }
 
@@ -13747,7 +13745,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             case 'v':
             {
                 place_monster_by_letter(
-                    y, x, 'v', true, p_ptr->depth + rand_range(1, 4));
+                    y, x, 'v', true, player_generation_depth() + rand_range(1, 4));
                 break;
             }
 
@@ -13755,7 +13753,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             case 'g':
             {
                 place_monster_by_letter(
-                    y, x, 'W', true, p_ptr->depth + rand_range(1, 4));
+                    y, x, 'W', true, player_generation_depth() + rand_range(1, 4));
                 break;
             }
 
@@ -13763,7 +13761,8 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             case 'a':
             {
                 place_monster_by_flag(
-                    y, x, 4, (RF4_ARROW1 | RF4_ARROW2), true, p_ptr->depth + 1);
+                    y, x, 4, (RF4_ARROW1 | RF4_ARROW2), true,
+                    player_generation_depth() + 1);
                 break;
             }
 
@@ -13771,7 +13770,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             case 'b':
             {
                 place_monster_by_flag(
-                    y, x, 2, (RF2_FLYING), true, p_ptr->depth + 1);
+                    y, x, 2, (RF2_FLYING), true, player_generation_depth() + 1);
                 break;
             }
 
@@ -13779,7 +13778,8 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             case 'c':
             {
                 place_monster_by_flag(
-                    y, x, 3, RF3_WOLF, true, p_ptr->depth + rand_range(1, 4));
+                    y, x, 3, RF3_WOLF, true,
+                    player_generation_depth() + rand_range(1, 4));
                 break;
             }
 
@@ -13787,7 +13787,8 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             case 'r':
             {
                 place_monster_by_flag(
-                    y, x, 3, RF3_RAUKO, true, p_ptr->depth + rand_range(1, 4));
+                    y, x, 3, RF3_RAUKO, true,
+                    player_generation_depth() + rand_range(1, 4));
                 break;
             }
 
@@ -19383,11 +19384,9 @@ if (playerturn == 0) {
         p_ptr->wy = MAX_DUNGEON_HGT;
         p_ptr->wx = MAX_DUNGEON_WID;
 
-        /* Reset the monster generation level */
-        monster_level = p_ptr->depth;
-
-        /* Reset the object generation level */
-        object_level = p_ptr->depth;
+        /* Reset generation depth; the Gates use depth 20 tables while displayed as 0. */
+        monster_level = player_generation_depth();
+        object_level = player_generation_depth();
 
         /* Nothing special here yet */
         good_item_flag = false;

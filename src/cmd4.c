@@ -5776,6 +5776,7 @@ int object_difficulty(object_type* o_ptr)
     case INVEN_FEET:
     case INVEN_QUIVER1:
     case INVEN_QUIVER2:
+    case INVEN_HORN:
     {
         dif_mult += 20;
         break;
