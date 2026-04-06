@@ -2480,7 +2480,7 @@ static int drop_orcish_liquor(monster_type* m_ptr)
     object_type* i_ptr = &object_type_body;
     s16b k_idx;
 
-    if (!(r_ptr->flags3 & (RF3_ORC)) || !percent_chance(15))
+    if (!(r_ptr->flags3 & (RF3_ORC)) || !percent_chance(10))
         return 0;
 
     k_idx = lookup_kind(TV_POTION, SV_POTION_ORCISH_LIQUOR);
@@ -2902,7 +2902,7 @@ void monster_death(int m_idx)
             normal_loot_count = drop_loot(m_ptr);
         }
 
-        // Every orc has an additional independent 15% chance to drop Orcish Liquor.
+        // Every orc has an additional independent 10% chance to drop Orcish Liquor.
         bonus_loot_count = drop_orcish_liquor(m_ptr);
 
         if (bonus_loot_count && (m_ptr->ml || (r_ptr->flags1 & (RF1_UNIQUE))))
