@@ -857,7 +857,8 @@ void do_cmd_equip(void)
         log_trace("do_cmd_equip: Examining item %d", selected_index);
         if (selected_index >= INVEN_WIELD && selected_index < INVEN_TOTAL)
         {
-            (void)player_try_identify_smithing_object(&inventory[selected_index], true, 0);
+            (void)player_try_identify_smithing_object_on_examine(
+                &inventory[selected_index], true);
             object_info_screen(&inventory[selected_index]);
         }
         break;
@@ -4306,6 +4307,8 @@ void do_cmd_unified_look(void)
                         log_trace("EXAMINATION: Highlighted entity is object, examining object %d", cursor_o_idx);
                         /* Object examination */
                         object_type* o_ptr = &o_list[cursor_o_idx];
+                        (void)player_try_identify_smithing_object_on_examine(
+                            o_ptr, false);
                         log_trace("EXAMINATION: Showing object info screen");
                         /* Save screen */
                         screen_save();
@@ -4399,6 +4402,8 @@ void do_cmd_unified_look(void)
                     {
                         log_trace("EXAMINATION: Examining object at cursor position");
                         object_type* o_ptr = &o_list[cursor_o_idx];
+                        (void)player_try_identify_smithing_object_on_examine(
+                            o_ptr, false);
                         screen_save();
 
                         if (wield_slot(o_ptr) >= INVEN_WIELD && wield_slot(o_ptr) < INVEN_TOTAL)
@@ -4853,6 +4858,8 @@ command_key:
                         log_trace("EXAMINATION: Highlighted entity is object, examining object %d", cursor_o_idx);
                         /* Object examination */
                         object_type* o_ptr = &o_list[cursor_o_idx];
+                        (void)player_try_identify_smithing_object_on_examine(
+                            o_ptr, false);
                         log_trace("EXAMINATION: Showing object info screen");
                         /* Save screen */
                         screen_save();
@@ -4946,6 +4953,8 @@ command_key:
                     {
                         log_trace("EXAMINATION: Examining object at cursor position");
                         object_type* o_ptr = &o_list[cursor_o_idx];
+                        (void)player_try_identify_smithing_object_on_examine(
+                            o_ptr, false);
                         screen_save();
 
                         if (wield_slot(o_ptr) >= INVEN_WIELD && wield_slot(o_ptr) < INVEN_TOTAL)

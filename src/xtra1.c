@@ -5266,6 +5266,19 @@ bool player_try_identify_smithing_object(
     return false;
 }
 
+bool player_try_identify_smithing_object_on_examine(
+    object_type* o_ptr, bool is_equipped)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+    if (!object_uses_smithing_difficulty(o_ptr))
+        return false;
+    if (object_known_p(o_ptr))
+        return false;
+
+    return player_try_identify_smithing_object(o_ptr, is_equipped, 0);
+}
+
 bool player_auto_identify_smithing_object(
     object_type* o_ptr, bool ignore_distance_penalty)
 {

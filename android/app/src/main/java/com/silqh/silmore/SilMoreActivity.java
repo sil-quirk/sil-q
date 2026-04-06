@@ -1,5 +1,6 @@
 package com.silqh.silmore;
 
+import android.content.pm.ActivityInfo;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
@@ -12,6 +13,7 @@ import org.libsdl.app.SDLActivity;
 public class SilMoreActivity extends SDLActivity {
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
+		setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE);
 		super.onCreate(savedInstanceState);
 		hideStatusBar();
 	}
@@ -28,6 +30,11 @@ public class SilMoreActivity extends SDLActivity {
 		if (hasFocus) {
 			hideStatusBar();
 		}
+	}
+
+	@Override
+	public void setOrientationBis(int w, int h, boolean resizable, String hint) {
+		setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE);
 	}
 
 	private void hideStatusBar() {

@@ -2509,12 +2509,20 @@ static int welcome_screen_footer_rows(bool show_wizard, bool show_sep,
 static void welcome_screen_compute_layout(int hgt, bool show_wizard,
     welcome_intro_layout* out_layout, bool* out_show_sep,
     bool* out_show_blank, bool* out_show_prompt);
+static void welcome_screen_draw_footer(bool show_wizard, bool show_sep,
+    bool show_blank, bool show_prompt);
 
 extern void display_introduction(void)
 {
-    welcome_intro_layout layout = { 1, false, false, false };
+    int term_wid = 80;
+    int term_hgt = 24;
+    welcome_intro_layout layout;
 
-    /* Wrapper: keep the default layout. */
+    /* Use the same layout that the menu footer will reuse so the loading
+     * notes can fade into the final prompt without reflowing the intro. */
+    Term_get_size(&term_wid, &term_hgt);
+    welcome_screen_compute_layout(term_hgt, arg_wizard, &layout,
+        NULL, NULL, NULL);
     display_introduction_with_layout(&layout);
 }
 
@@ -2935,6 +2943,59 @@ static void display_introduction_with_layout(
 #undef INTRO_ROW
 }
 
+static void welcome_screen_draw_footer(bool show_wizard, bool show_sep,
+    bool show_blank, bool show_prompt)
+{
+    int term_wid = 80;
+    int term_hgt = 24;
+    int row;
+    int footer_rows;
+    int clear_row;
+    const int x = welcome_screen_base_col();
+    const char *wizard_line = "Resurrecting a character is a form of cheating.";
+    const char *sep_line = "- - - - - - - - - - - -";
+    const char *menu_line =
+        (metarun_created == true)
+            ? "[Space] Begin    [Q/Esc] Quit"
+            : "[Space] Continue  [Q/Esc] Quit";
+
+    Term_get_size(&term_wid, &term_hgt);
+    if (term_hgt < 1)
+        term_hgt = 24;
+
+    row = term_hgt - 1;
+    footer_rows = welcome_screen_footer_rows(show_wizard, show_sep,
+        show_blank, show_prompt);
+
+    if (footer_rows > 0)
+    {
+        clear_row = row - footer_rows + 1;
+        if (clear_row < 0)
+            clear_row = 0;
+
+        for (; clear_row <= row; clear_row++)
+            Term_erase(0, clear_row, 255);
+    }
+
+    if (show_prompt && row >= 0 && row < term_hgt)
+    {
+        Term_putstr(x, row, -1, TERM_SLATE, menu_line);
+        row--;
+    }
+
+    if (show_blank && row >= 0)
+        row--;
+
+    if (show_sep && row >= 0 && row < term_hgt)
+    {
+        Term_putstr(x, row, -1, TERM_L_DARK, sep_line);
+        row--;
+    }
+
+    if (show_wizard && row >= 0 && row < term_hgt)
+        Term_putstr(x, row, 60, TERM_BLUE, wizard_line);
+}
+
 /*
  * Hack -- main Sil initialization entry point
  *
@@ -3294,16 +3355,16 @@ extern NavResult initial_menu(bool *start_new)
     /* Build the welcome screen as a single layout block.
      * Default keeps the legacy top margin (intro starts at row 1).
      * If the terminal is too short for that, start at row 0. */
-    welcome_intro_layout intro_layout;
     bool show_sep;
     bool show_blank;
     bool show_prompt;
     bool show_wizard_line = arg_wizard;
 
-    welcome_screen_compute_layout(hgt, show_wizard_line, &intro_layout,
+    welcome_screen_compute_layout(hgt, show_wizard_line, NULL,
         &show_sep, &show_blank, &show_prompt);
-    display_introduction_with_layout(&intro_layout);
-
+    welcome_screen_draw_footer(show_wizard_line, show_sep, show_blank,
+        show_prompt);
+    if (false)
     /*
      * Welcome screen (minimum height support)
      *

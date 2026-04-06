@@ -1330,6 +1330,20 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
                 bool very_short = (Term->hgt > 0) && (Term->hgt <= 20);
                 if (compact_flags && very_short)
                     clear_from_row = description_row - 1;
+
+                /*
+                 * On compact screens, the previous race-selection phase can
+                 * leave wrapped description text a few rows above the compact
+                 * character traits area. Clear from the earlier race
+                 * description start as well so stale fragments do not remain
+                 * when switching phases.
+                 */
+                if (compact_flags)
+                {
+                    int race_description_row = choice_description_row(z_info->p_max, false);
+                    if (race_description_row < clear_from_row)
+                        clear_from_row = race_description_row;
+                }
             }
             for (i = clear_from_row; i < Term->hgt; i++)
                 Term_erase(0, i, 255);
@@ -2495,11 +2509,7 @@ static void character_aux_hook(birth_menu c_str)
     Term_putstr(name_col, HEADER_ROW, -1, TERM_L_BLUE, pretty_name);
     Term_putstr(name_col + strlen(pretty_name), HEADER_ROW, -1, star_attr, power_stars);
     
-    print_rh_flags(
-        p_ptr->prace, character_idx, TOTAL_AUX_COL, TABLE_ROW + A_MAX + 1);
-    
     {
-        int legend_col = 2;  /* Left side */
         int legend_row = (compact_layout && tight_height) ? 9 : 10;
         int left_block_width = CLASS_COL - 1;
 
@@ -2514,6 +2524,14 @@ static void character_aux_hook(birth_menu c_str)
             for (i = legend_row; i < birth_prompt_row(); ++i)
                 Term_erase(0, i, left_block_width);
         }
+    }
+
+    print_rh_flags(
+        p_ptr->prace, character_idx, TOTAL_AUX_COL, TABLE_ROW + A_MAX + 1);
+
+    {
+        int legend_col = 2;  /* Left side */
+        int legend_row = (compact_layout && tight_height) ? 9 : 10;
 
         if (legend_row + 3 < birth_prompt_row())
         {

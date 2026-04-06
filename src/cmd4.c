@@ -22413,6 +22413,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 supply_list_entry* entry = &entries[entry_cur];
                 if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
                 {
+                    (void)player_try_identify_smithing_object_on_examine(
+                        &inventory[entry->item_idx], false);
                     object_info_screen(&inventory[entry->item_idx]);
                     redraw = true;
                 }
