@@ -2552,6 +2552,7 @@ void display_character_tutorial(void)
 
         bool steamdeck = steamdeck_controls_active();
         bool birth_context = (playerturn == 0);
+        bool birth_compact_layout = birth_context && ((wid < 80) || (hgt <= 18));
 
         /* Layout: reserve bottom two rows for navigation. */
         const int header_row = 0;
@@ -2851,20 +2852,32 @@ void display_character_tutorial(void)
         if (history_pages < 1)
             history_pages = 1;
 
-        /* Birth/compact-screen pagination */
+        /* Character creation pagination */
         char birth_text[1200];
         int birth_pages = 0;
         if (birth_context)
         {
             size_t off = 0;
+            if (birth_compact_layout)
+            {
+                off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
+                    "On smaller displays the character creation screens use a compact layout. All information is still available; it is just rearranged.\n\n");
+                off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
+                    "Character selection: use Up/Down to pick, and read the description/traits for the highlighted choice. On short screens, traits may be shown in a tighter, compact list.\n\n");
+                off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
+                    "Stats allocation: select a stat, then adjust it. The display may reuse the compact Stats+Skills sheet with the current stat highlighted.\n\n");
+            }
+            else
+            {
+                off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
+                    "Character selection: use Up/Down to pick, and read the description and traits for the highlighted choice.\n\n");
+                off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
+                    "Stats allocation: select a stat, then adjust it. Skills allocation works the same way.\n\n");
+                off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
+                    "If you later play on a smaller display, these screens switch to a compact layout instead of dropping information.\n\n");
+            }
             off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
-                "On smaller displays the character creation screens use a compact layout. All information is still available; it is just rearranged.\n\n");
-            off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
-                "Character selection: use Up/Down to pick, and read the description/traits for the highlighted choice. On short screens, traits may be shown in a tighter, compact list.\n\n");
-            off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
-                "Stats allocation: select a stat, then adjust it. The display may reuse the compact Stats+Skills sheet with the current stat highlighted.\n\n");
-            off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
-                "Skills allocation works the same way (select a skill, then adjust).\n\n");
+                "A highlighted entry is the one you are editing.\n\n");
 
             if (steamdeck)
             {
@@ -3241,9 +3254,13 @@ void display_character_tutorial(void)
             int sub = page - page_birth_start;
             char heading[96];
             if (birth_pages > 1)
-                strnfmt(heading, sizeof(heading), "CHARACTER CREATION (COMPACT) (%d/%d)", sub + 1, birth_pages);
+                strnfmt(heading, sizeof(heading), birth_compact_layout
+                    ? "CHARACTER CREATION (COMPACT) (%d/%d)"
+                    : "CHARACTER CREATION (%d/%d)", sub + 1, birth_pages);
             else
-                SDL_strlcpy(heading, "CHARACTER CREATION (COMPACT SCREENS)", sizeof(heading));
+                SDL_strlcpy(heading, birth_compact_layout
+                    ? "CHARACTER CREATION (COMPACT LAYOUT)"
+                    : "CHARACTER CREATION", sizeof(heading));
 
             Term_putstr(2, row++, -1, TERM_WHITE, heading);
             row++;

@@ -344,6 +344,26 @@ static bool get_inventory_limit_info(const object_type* o_ptr,
     return found;
 }
 
+static bool inventory_limit_counts_stacks(const object_type* o_ptr,
+                                          enum inventory_limit_group group)
+{
+    if (group == INV_LIMIT_ARROW)
+        return true;
+
+    if ((group == INV_LIMIT_MELEE_WEAPON) && player_can_treat_as_throwing(o_ptr))
+        return true;
+
+    return false;
+}
+
+static bool inventory_limit_is_stack_counted(const object_type* o_ptr)
+{
+    enum inventory_limit_group group;
+
+    return get_inventory_limit_info(o_ptr, &group, NULL, NULL)
+        && inventory_limit_counts_stacks(o_ptr, group);
+}
+
 static int inventory_limit_usage(enum inventory_limit_group group)
 {
     int usage = 0;
@@ -369,7 +389,7 @@ static int inventory_limit_usage(enum inventory_limit_group group)
         if (slot_group != group)
             continue;
 
-        if (group == INV_LIMIT_ARROW)
+        if (inventory_limit_counts_stacks(slot_ptr, slot_group))
             usage += slot_cost;
         else
             usage += slot_cost * MAX(slot_ptr->number, 1);
@@ -507,7 +527,8 @@ static bool inventory_type_slot_available(const object_type* o_ptr,
         return false;
     }
 
-    units = (group == INV_LIMIT_ARROW) ? 1 : MAX(o_ptr->number, 1);
+    units = inventory_limit_counts_stacks(o_ptr, group) ? 1
+                                                        : MAX(o_ptr->number, 1);
 
     int used = inventory_limit_usage(group);
 
@@ -5996,10 +6017,11 @@ bool inven_carry_okay(const object_type* o_ptr)
     }
 
     /*
-     * Non-arrow capped gear consumes one limit unit per item, so check the cap
-     * before pack merges can hide extra copies inside an existing stack.
+     * Per-item capped gear should check the cap before pack merges can hide
+     * extra copies inside an existing stack. Stack-counted gear waits until
+     * after similar-stack merges so one pack still counts as one unit.
      */
-    if ((o_ptr->tval != TV_ARROW)
+    if (!inventory_limit_is_stack_counted(o_ptr)
         && !inventory_type_slot_available(o_ptr, true))
     {
         return (false);
@@ -6333,10 +6355,11 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
     }
 
     /*
-     * Non-arrow capped gear should respect item-count limits even when an
-     * identical pack stack exists.
+     * Per-item capped gear should respect item-count limits even when an
+     * identical pack stack exists. Stack-counted gear gets checked after the
+     * combine pass so adding to an existing pack does not consume a new unit.
      */
-    if ((o_ptr->tval != TV_ARROW)
+    if (!inventory_limit_is_stack_counted(o_ptr)
         && !inventory_type_slot_available(o_ptr, true))
     {
         return (-1);

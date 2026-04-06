@@ -1026,7 +1026,7 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3, u32b
     if (f3 & (TR3_OATH_NEGATE))
         bad[bc++] = "negates your oath bonuses (even when in inventory)";
     if (f4 & (TR4_JINX))
-        bad[bc++] = "bears a jinx that can be broken by sanctity";
+        bad[bc++] = "bears a jinx that sanctity can break with Curse Breaking";
 
     /* Deal with cursed stuff */
     if (cursed_p(o_ptr))

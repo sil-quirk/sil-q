@@ -5934,7 +5934,8 @@ static bool twall(int y, int x)
                 gem_profile.supply_herb = 0;
                 gem_profile.supply_gem = 50;
                 gem_profile.supply_staff = 0;
-                gem_profile.supply_misc = 0;
+                gem_profile.supply_light = 0;
+                gem_profile.supply_arrows = 0;
 
                 if (drop_generate_object_profiled(depth, DROP_QUALITY_NORMAL,
                         DROP_TYPE_STAFF, 0, false, &gem_profile, i_ptr))

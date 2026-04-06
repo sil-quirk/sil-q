@@ -1132,7 +1132,8 @@ typedef struct
     int supply_herb;
     int supply_gem;
     int supply_staff;
-    int supply_misc;
+    int supply_light;
+    int supply_arrows;
     int supply_tunneling;
     bool allow_damaged;
 } drop_profile;

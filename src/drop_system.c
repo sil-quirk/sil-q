@@ -168,11 +168,12 @@ void drop_profile_default(drop_profile* profile)
     profile->weight_armor = DROP_DEFAULT_CAT_WEIGHT;
     profile->weight_jewelry = DROP_DEFAULT_CAT_WEIGHT;
     profile->weight_supply = DROP_DEFAULT_CAT_WEIGHT;
-    profile->supply_potion = DROP_DEFAULT_SUPPLY_WEIGHT;
-    profile->supply_herb = DROP_DEFAULT_SUPPLY_WEIGHT;
-    profile->supply_gem = DROP_DEFAULT_SUPPLY_WEIGHT;
-    profile->supply_staff = DROP_DEFAULT_SUPPLY_WEIGHT;
-    profile->supply_misc = DROP_DEFAULT_SUPPLY_WEIGHT;
+    profile->supply_potion = DROP_DEFAULT_SUPPLY_WEIGHT * 2;
+    profile->supply_herb = DROP_DEFAULT_SUPPLY_WEIGHT * 2;
+    profile->supply_gem = DROP_DEFAULT_SUPPLY_WEIGHT * 2;
+    profile->supply_staff = DROP_DEFAULT_SUPPLY_WEIGHT * 2;
+    profile->supply_light = DROP_DEFAULT_SUPPLY_WEIGHT;
+    profile->supply_arrows = DROP_DEFAULT_SUPPLY_WEIGHT;
     profile->supply_tunneling = 0; /* Disabled by default */
     profile->allow_damaged = false;
 }
@@ -206,7 +207,7 @@ static drop_category drop_category_for_kind(const object_kind* k_ptr)
     case TV_AMULET:
         return DROP_CAT_JEWELRY;
     case TV_LIGHT:
-        /* All non-Feanorian light sources are treated as supply (misc/torches). */
+        /* All non-Feanorian light sources are treated as supply. */
         if (k_ptr->sval == SV_LIGHT_FEANORIAN || k_ptr->sval == SV_LIGHT_SILMARIL)
             return DROP_CAT_JEWELRY;
         if (k_ptr->sval == SV_LIGHT_TORCH || k_ptr->sval == SV_LIGHT_MALLORN
@@ -1175,6 +1176,19 @@ static int less_special_rarity_penalty(int rarity_percent)
     return rarity_percent;
 }
 
+static byte scale_arrow_supply_rarity(byte rarity, int att_bonus)
+{
+    int scaled = rarity;
+
+    while (att_bonus > 0 && scaled > 0)
+    {
+        scaled /= 2;
+        att_bonus--;
+    }
+
+    return (byte)scaled;
+}
+
 typedef enum
 {
     DROP_ALIGNMENT_STANDARD = 0,
@@ -1534,11 +1548,37 @@ static void build_normal_variants(int k_idx)
 
     drop_group_kind group_kind = (cat == DROP_CAT_JEWELRY) ? DROP_GROUP_EGO : DROP_GROUP_NORMAL;
 
-    /* Supply items: no smithing variants, use new allocation semantics */
+    /* Supply items: no smithing variants, use new allocation semantics. */
     if (cat == DROP_CAT_SUPPLY)
     {
-        add_drop_entry(&base, cat, DROP_GROUP_NORMAL, k_idx, min_depth, max_depth,
-            alloc_depths, alloc_rarities, num_allocations);
+        if (k_ptr->tval == TV_ARROW)
+        {
+            int att_min = k_ptr->att;
+            int att_max = MAX(k_ptr->att, k_ptr->max_att);
+
+            for (int att = att_min; att <= att_max; att++)
+            {
+                object_type v = base;
+                byte arrow_alloc_rarities[DROP_ALLOC_MAX];
+                int att_bonus = MAX(0, att - k_ptr->att);
+
+                memcpy(arrow_alloc_rarities, alloc_rarities,
+                    sizeof(arrow_alloc_rarities));
+                for (int i = 0; i < num_allocations; i++)
+                    arrow_alloc_rarities[i] = scale_arrow_supply_rarity(
+                        alloc_rarities[i], att_bonus);
+
+                v.att = att;
+                add_drop_entry(&v, cat, DROP_GROUP_NORMAL, k_idx, min_depth,
+                    max_depth, alloc_depths, arrow_alloc_rarities,
+                    num_allocations);
+            }
+        }
+        else
+        {
+            add_drop_entry(&base, cat, DROP_GROUP_NORMAL, k_idx, min_depth,
+                max_depth, alloc_depths, alloc_rarities, num_allocations);
+        }
         return;
     }
 
@@ -2366,9 +2406,10 @@ typedef enum
     DROP_SUPPLY_HERB = 1,
     DROP_SUPPLY_GEM = 2,
     DROP_SUPPLY_STAFF = 3,
-    DROP_SUPPLY_MISC = 4,
-    DROP_SUPPLY_TUNNELING = 5,
-    DROP_SUPPLY_GROUP_MAX = 6
+    DROP_SUPPLY_LIGHT = 4,
+    DROP_SUPPLY_ARROWS = 5,
+    DROP_SUPPLY_TUNNELING = 6,
+    DROP_SUPPLY_GROUP_MAX = 7
 } drop_supply_group_id;
 
 typedef struct
@@ -2414,8 +2455,13 @@ static void drop_request_set_default_weights(drop_request* req)
     req->allow_damaged = false;
     for (int i = 0; i < DROP_CAT_MAX; ++i)
         req->cat_weights[i] = DROP_DEFAULT_CAT_WEIGHT;
-    for (int i = 0; i < DROP_SUPPLY_GROUP_MAX; ++i)
-        req->supply_weights[i] = DROP_DEFAULT_SUPPLY_WEIGHT;
+    req->supply_weights[DROP_SUPPLY_POTION] = DROP_DEFAULT_SUPPLY_WEIGHT * 2;
+    req->supply_weights[DROP_SUPPLY_HERB] = DROP_DEFAULT_SUPPLY_WEIGHT * 2;
+    req->supply_weights[DROP_SUPPLY_GEM] = DROP_DEFAULT_SUPPLY_WEIGHT * 2;
+    req->supply_weights[DROP_SUPPLY_STAFF] = DROP_DEFAULT_SUPPLY_WEIGHT * 2;
+    req->supply_weights[DROP_SUPPLY_LIGHT] = DROP_DEFAULT_SUPPLY_WEIGHT;
+    req->supply_weights[DROP_SUPPLY_ARROWS] = DROP_DEFAULT_SUPPLY_WEIGHT;
+    req->supply_weights[DROP_SUPPLY_TUNNELING] = DROP_DEFAULT_SUPPLY_WEIGHT * 2;
 }
 
 static void drop_request_apply_profile(
@@ -2434,7 +2480,8 @@ static void drop_request_apply_profile(
     req->supply_weights[DROP_SUPPLY_HERB] = MAX(0, profile->supply_herb);
     req->supply_weights[DROP_SUPPLY_GEM] = MAX(0, profile->supply_gem);
     req->supply_weights[DROP_SUPPLY_STAFF] = MAX(0, profile->supply_staff);
-    req->supply_weights[DROP_SUPPLY_MISC] = MAX(0, profile->supply_misc);
+    req->supply_weights[DROP_SUPPLY_LIGHT] = MAX(0, profile->supply_light);
+    req->supply_weights[DROP_SUPPLY_ARROWS] = MAX(0, profile->supply_arrows);
     req->supply_weights[DROP_SUPPLY_TUNNELING] = MAX(0, profile->supply_tunneling);
     req->allow_damaged = profile->allow_damaged;
 }
@@ -2451,14 +2498,15 @@ static drop_supply_group_id supply_group_for_entry(const drop_entry* e)
         return DROP_SUPPLY_GEM;
     case TV_STAFF:
         return DROP_SUPPLY_STAFF;
+    case TV_LIGHT:
+    case TV_FLASK:
+        return DROP_SUPPLY_LIGHT;
     case TV_DIGGING:
         return DROP_SUPPLY_TUNNELING;
     case TV_ARROW:
-    case TV_LIGHT:
-    case TV_FLASK:
-        return DROP_SUPPLY_MISC;
+        return DROP_SUPPLY_ARROWS;
     default:
-        return DROP_SUPPLY_MISC;
+        return DROP_SUPPLY_ARROWS;
     }
 }
 
@@ -3653,7 +3701,8 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
         req.supply_weights[DROP_SUPPLY_HERB] = 0;
         req.supply_weights[DROP_SUPPLY_GEM] = 0;
         req.supply_weights[DROP_SUPPLY_STAFF] = 0;
-        req.supply_weights[DROP_SUPPLY_MISC] = 0;
+        req.supply_weights[DROP_SUPPLY_LIGHT] = 0;
+        req.supply_weights[DROP_SUPPLY_ARROWS] = 0;
         req.supply_weights[DROP_SUPPLY_TUNNELING] = 0;
 
         if (req.cat_weights[DROP_CAT_WEAPON] <= 0
@@ -3747,7 +3796,8 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
         req.supply_weights[DROP_SUPPLY_HERB] = 0;
         req.supply_weights[DROP_SUPPLY_GEM] = 0;
         req.supply_weights[DROP_SUPPLY_STAFF] = 0;
-        req.supply_weights[DROP_SUPPLY_MISC] = 100;
+        req.supply_weights[DROP_SUPPLY_LIGHT] = 100;
+        req.supply_weights[DROP_SUPPLY_ARROWS] = 0;
         req.supply_weights[DROP_SUPPLY_TUNNELING] = 0;
     }
 
@@ -3757,7 +3807,8 @@ static bool drop_generate_object_internal(int depth, drop_quality quality,
         req.supply_weights[DROP_SUPPLY_HERB] = 0;
         req.supply_weights[DROP_SUPPLY_GEM] = 0;
         req.supply_weights[DROP_SUPPLY_STAFF] = 0;
-        req.supply_weights[DROP_SUPPLY_MISC] = 0;
+        req.supply_weights[DROP_SUPPLY_LIGHT] = 0;
+        req.supply_weights[DROP_SUPPLY_ARROWS] = 0;
         req.supply_weights[DROP_SUPPLY_TUNNELING] = 100;
     }
 

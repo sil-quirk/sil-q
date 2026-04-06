@@ -692,7 +692,7 @@ N:147:Song of the Trees
 I:7:7:5
 #P:7/0:7/5
 D:Evoking the radiant verses that tell of the Two Trees of Valinor, Telperion the Silver and Laurelin the Gold, whose mingled light once illuminated the Blessed Realm before Morgoth and Ungoliant brought them to ruin. The memory of that holy radiance lives on in song, and its brilliance sears the creatures of darkness.
-E:+1 light radius per 5 Song points. Creatures of darkness may be stunned or wounded (vs Will).
+E:+1 light radius at 0-5 Song, +2 at 6-11, +3 at 12-18, and so on. Creatures of darkness may be stunned or wounded (vs Will).
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 T:39:0:99  # Light Source
@@ -725,7 +725,7 @@ N:151:Song of Elveness
 I:7:11:7
 P:7/3:7/0
 D:Bringing forth the ancient magic of the Blessed Realm, as in the laments for the Kinslaying upon the shores of Alqualonde, where grief and beauty were woven inseparably together. You sing of the ageless shores of Valinor and the starlit waters of Eldamar, and the grace of the Elder Days cloaks you like a shining mantle.
-E:+1 Grace. +1 Evasion, plus 1 per 7 Song points.
+E:+1 Grace. +1 Evasion at 0-7 Song, +2 at 8-15, +3 at 16-24, and so on.
 T:32:0:99  # Helm
 T:34:0:99  # Shields
 T:35:0:99  # Cloak
@@ -735,7 +735,7 @@ N:152:Song of Staying
 I:7:12:7
 P:7/1:7/6
 D:Echoing Felagund's song of staying and resisting in his great contest with Sauron, where he sang of trust unbroken and strength like a standing tower. Even as Sauron's power assailed him, Finrod's voice held firm, a bulwark of will against the tide of darkness, unyielding as the walls of Gondolin.
-E:+Song/2 to Will. [2d2] protection against darkness.
+E:+Song/2 to Will. [2d2] protection against all damage.
 T:32:0:99  # Helm
 T:34:0:99  # Shields
 T:35:0:99  # Cloak

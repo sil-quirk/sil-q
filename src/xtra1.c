@@ -3525,6 +3525,29 @@ int song_effective_skill(int abilitynum)
     return skill;
 }
 
+/*
+ * Return a stepped bonus that starts at 1 and grows after widening ranges.
+ * Example: first_threshold=5, next_gap=6 => 1 at 0-5, 2 at 6-11, 3 at 12-18, ...
+ */
+static int stepped_song_bonus(int skill, int first_threshold, int next_gap)
+{
+    int bonus = 1;
+    int threshold = first_threshold;
+    int gap = next_gap;
+
+    if (skill < 0)
+        skill = 0;
+
+    while (skill > threshold)
+    {
+        bonus++;
+        threshold += gap;
+        gap++;
+    }
+
+    return bonus;
+}
+
 int ability_bonus(int skilltype, int abilitynum)
 {
     int bonus = 0;
@@ -3578,12 +3601,12 @@ int ability_bonus(int skilltype, int abilitynum)
         }
         case SNG_TREES:
         {
-            bonus = skill / 5;
+            bonus = stepped_song_bonus(skill, 5, 6);
             break;
         }
         case SNG_ELVENESS:
         {
-            bonus = skill;
+            bonus = stepped_song_bonus(skill, 7, 8);
             break;
         }
         case SNG_DISGUISE:
@@ -4641,10 +4664,7 @@ static void calc_bonuses(void)
 
     // Apply song effects that modify skills
     if (singing(SNG_ELVENESS))
-    {
-        int song_skill = ability_bonus(S_SNG, SNG_ELVENESS);
-        p_ptr->skill_misc_mod[S_EVN] += 1 + song_skill / 7;
-    }
+        p_ptr->skill_misc_mod[S_EVN] += ability_bonus(S_SNG, SNG_ELVENESS);
     if (singing(SNG_STAYING))
     {
         if (c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_FIN) p_ptr->skill_misc_mod[S_WIL] += ability_bonus(S_SNG, SNG_STAYING);

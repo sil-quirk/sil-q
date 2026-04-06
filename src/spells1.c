@@ -6963,7 +6963,7 @@ void sing_song_of_trees(int score)
 {
     int py = p_ptr->py;
     int px = p_ptr->px;
-    int rad = 1 + (score / 5); // Radius increases with song skill
+    int rad = ability_bonus(S_SNG, SNG_TREES); // Stepped light radius bonus
     int dd = 1; // Always 1 die
     int ds = score;            // Not used for GF_LIGHT damage; kept for debugging
     int dif = score;           // Song score for GF_LIGHT resistance checks

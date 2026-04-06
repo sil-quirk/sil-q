@@ -449,7 +449,7 @@ N:34:Daeron
 Q:82997813de2d44df
 A: the Minstrel
 B:You sing sorrowfully-minstrel whose lament echoes through twilight.
-F:SNG_AFFINITY | WIL_PENALTY | PER_AFFINITY | SMT_PENALTY | ARC_AFFINITY
+F:SNG_AFFINITY | WIL_PENALTY | PER_AFFINITY | SMT_PENALTY
 U:MINSTREL | WOVEN_MASTER
 S:0:1:-1:3
 C:7:9 # Song of Staunching and Woven Themes

@@ -6007,6 +6007,7 @@ static bool place_gv_in_partition(int y1, int y2, int x1, int x2, int *budget_t8
 
 /* Place a chest in a random floor location within partition bounds */
 static drop_profile drop_profile_for_mode(quadrant_mode_t mode);
+static bool partition_mode_avoids_corridor_spawns(quadrant_mode_t mode);
 static bool place_partition_chest_at(int pi, int y, int x,
     const partition_chest_recipe* recipe, quadrant_mode_t mode,
     bool require_room_tile)
@@ -6027,7 +6028,8 @@ static bool place_partition_chest_at(int pi, int y, int x,
     if (generation_escape_tunnel_bold(y, x))
         return false;
 
-    /* Chests should land on an actual open floor tile, not on stairs or vault cells. */
+    /* Chests should land on an actual open floor tile, not on stairs or vault cells.
+     * In corridor-avoiding modes, keep them on room-like tiles as well. */
     if (!cave_clean_bold(y, x) || cave_m_idx[y][x]
         || (cave_info[y][x] & CAVE_G_VAULT))
     {
@@ -6139,7 +6141,7 @@ static bool place_chest_in_partition(
     int pi, int y1, int y2, int x1, int x2,
     const partition_chest_recipe* recipe, quadrant_mode_t mode)
 {
-    bool require_room_tile = (mode == QUAD_MODE_BIG_CAVE);
+    bool require_room_tile = partition_mode_avoids_corridor_spawns(mode);
 
     if (recipe && recipe->anchor_pref == PARTITION_CHEST_ANCHOR_BSP_SLICE)
     {
@@ -6170,14 +6172,6 @@ static bool place_chest_in_partition(
             require_room_tile))
     {
         return true;
-    }
-
-    if (require_room_tile)
-    {
-        genlog_anchor(
-            "Big cave chest fallback: retrying without room-tile restriction in partition %d",
-            pi);
-        return place_chest_in_bounds(pi, y1, y2, x1, x2, recipe, mode, false);
     }
 
     return false;
@@ -8610,7 +8604,7 @@ static level_partition_kind partition_config_normalize_kind(level_partition_kind
 
 static void partition_config_profile_assign(drop_profile* profile,
     int weapon, int armor, int jewelry, int supply, int potion, int herb,
-    int gem, int staff, int misc, int tunneling)
+    int gem, int staff, int light, int arrows, int tunneling)
 {
     if (!profile)
         return;
@@ -8623,7 +8617,8 @@ static void partition_config_profile_assign(drop_profile* profile,
     profile->supply_herb = herb;
     profile->supply_gem = gem;
     profile->supply_staff = staff;
-    profile->supply_misc = misc;
+    profile->supply_light = light;
+    profile->supply_arrows = arrows;
     profile->supply_tunneling = tunneling;
 }
 
@@ -8651,16 +8646,16 @@ static void partition_config_set_defaults_for_kind(level_partition_kind kind)
     {
     case LEVEL_PART_ROOMY:
         partition_config_profile_assign(&cfg->profiles[PARTITION_DROP_SOURCE_FLOOR],
-            40, 30, 10, 20, 1, 1, 1, 1, 1, 0);
+            40, 30, 10, 20, 1, 1, 1, 1, 1, 1, 0);
         partition_config_profile_assign(&cfg->profiles[PARTITION_DROP_SOURCE_CHEST],
-            40, 30, 10, 0, 0, 0, 0, 0, 0, 0);
+            40, 30, 10, 0, 0, 0, 0, 0, 0, 0, 0);
         break;
 
     case LEVEL_PART_CAVEY:
         partition_config_profile_assign(&cfg->profiles[PARTITION_DROP_SOURCE_FLOOR],
-            0, 0, 0, 100, 0, 0, 12, 3, 6, 1);
+            0, 0, 0, 100, 0, 0, 12, 3, 6, 6, 1);
         partition_config_profile_assign(&cfg->profiles[PARTITION_DROP_SOURCE_CHEST],
-            25, 25, 25, 0, 0, 0, 0, 0, 0, 0);
+            25, 25, 25, 0, 0, 0, 0, 0, 0, 0, 0);
         cfg->base_monster_scale_num = 3;
         cfg->base_monster_scale_den = 1;
         cfg->depth_monsters.divisor = 120;
@@ -8677,10 +8672,10 @@ static void partition_config_set_defaults_for_kind(level_partition_kind kind)
 
     case LEVEL_PART_RUINED:
         partition_config_profile_assign(&cfg->profiles[PARTITION_DROP_SOURCE_FLOOR],
-            40, 35, 0, 25, 7, 2, 1, 3, 15, 2);
+            40, 35, 0, 25, 7, 2, 1, 3, 15, 15, 2);
         cfg->profiles[PARTITION_DROP_SOURCE_FLOOR].allow_damaged = true;
         partition_config_profile_assign(&cfg->profiles[PARTITION_DROP_SOURCE_CHEST],
-            40, 35, 0, 0, 0, 0, 0, 0, 0, 0);
+            40, 35, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         cfg->base_monster_scale_num = 2;
         cfg->base_monster_scale_den = 1;
         cfg->depth_monsters.divisor = 180;
@@ -8694,9 +8689,9 @@ static void partition_config_set_defaults_for_kind(level_partition_kind kind)
 
     case LEVEL_PART_LABYRINTH:
         partition_config_profile_assign(&cfg->profiles[PARTITION_DROP_SOURCE_FLOOR],
-            0, 0, 35, 65, 15, 2, 2, 15, 5, 0);
+            0, 0, 35, 65, 15, 2, 2, 15, 5, 5, 0);
         partition_config_profile_assign(&cfg->profiles[PARTITION_DROP_SOURCE_CHEST],
-            0, 0, 35, 0, 0, 0, 0, 0, 0, 0);
+            0, 0, 35, 0, 0, 0, 0, 0, 0, 0, 0);
         cfg->base_monster_scale_num = 2;
         cfg->base_monster_scale_den = 1;
         cfg->direct_monsters.divisor = 7;
@@ -8713,9 +8708,9 @@ static void partition_config_set_defaults_for_kind(level_partition_kind kind)
 
     case LEVEL_PART_CHASM:
         partition_config_profile_assign(&cfg->profiles[PARTITION_DROP_SOURCE_FLOOR],
-            40, 30, 20, 10, 1, 1, 1, 1, 1, 0);
+            40, 30, 20, 10, 1, 1, 1, 1, 1, 1, 0);
         partition_config_profile_assign(&cfg->profiles[PARTITION_DROP_SOURCE_CHEST],
-            40, 30, 20, 0, 0, 0, 0, 0, 0, 0);
+            40, 30, 20, 0, 0, 0, 0, 0, 0, 0, 0);
         cfg->base_monster_scale_num = 4;
         cfg->base_monster_scale_den = 1;
         cfg->direct_monsters.divisor = 38;
@@ -8735,9 +8730,9 @@ static void partition_config_set_defaults_for_kind(level_partition_kind kind)
 
     case LEVEL_PART_BIG_CAVE:
         partition_config_profile_assign(&cfg->profiles[PARTITION_DROP_SOURCE_FLOOR],
-            20, 20, 15, 45, 0, 2, 8, 2, 0, 0);
+            20, 20, 15, 45, 0, 2, 8, 2, 0, 0, 0);
         partition_config_profile_assign(&cfg->profiles[PARTITION_DROP_SOURCE_CHEST],
-            20, 20, 15, 0, 0, 0, 0, 0, 0, 0);
+            20, 20, 15, 0, 0, 0, 0, 0, 0, 0, 0);
         cfg->base_monster_scale_num = 5;
         cfg->base_monster_scale_den = 1;
         cfg->direct_monsters.divisor = 55;
@@ -9491,11 +9486,12 @@ static partition_drop_profile partition_drop_profile_for_mode(quadrant_mode_t mo
         prof.profile.weight_armor = 30;
         prof.profile.weight_jewelry = 10;
         prof.profile.weight_supply = 20;
-        prof.profile.supply_potion = 1;
-        prof.profile.supply_herb = 1;
-        prof.profile.supply_gem = 1;
-        prof.profile.supply_staff = 1;
-        prof.profile.supply_misc = 1;
+        prof.profile.supply_potion = 2;
+        prof.profile.supply_herb = 2;
+        prof.profile.supply_gem = 2;
+        prof.profile.supply_staff = 2;
+        prof.profile.supply_light = 1;
+        prof.profile.supply_arrows = 1;
         break;
     case QUAD_MODE_LABYRINTH:
         /* LABYRINTH - 0:0:35:65 */
@@ -9503,11 +9499,12 @@ static partition_drop_profile partition_drop_profile_for_mode(quadrant_mode_t mo
         prof.profile.weight_armor = 0;
         prof.profile.weight_jewelry = 35;
         prof.profile.weight_supply = 65;
-        prof.profile.supply_potion = 15;
-        prof.profile.supply_herb = 2;
-        prof.profile.supply_gem = 2;
-        prof.profile.supply_staff = 15;
-        prof.profile.supply_misc = 5;
+        prof.profile.supply_potion = 30;
+        prof.profile.supply_herb = 4;
+        prof.profile.supply_gem = 4;
+        prof.profile.supply_staff = 30;
+        prof.profile.supply_light = 5;
+        prof.profile.supply_arrows = 5;
         break;
     case QUAD_MODE_RUINED:
         /* RUINED 40:35:0:25 */
@@ -9515,12 +9512,13 @@ static partition_drop_profile partition_drop_profile_for_mode(quadrant_mode_t mo
         prof.profile.weight_armor = 35;
         prof.profile.weight_jewelry = 0;
         prof.profile.weight_supply = 25;
-        prof.profile.supply_potion = 7;
-        prof.profile.supply_herb = 2;
-        prof.profile.supply_gem = 1;
-        prof.profile.supply_staff = 3;
-        prof.profile.supply_misc = 15; /* torches, horns, arrows */
-        prof.profile.supply_tunneling = 2; /* small chance for shovels/mattocks */
+        prof.profile.supply_potion = 14;
+        prof.profile.supply_herb = 4;
+        prof.profile.supply_gem = 2;
+        prof.profile.supply_staff = 6;
+        prof.profile.supply_light = 15;
+        prof.profile.supply_arrows = 15; /* arrows plus misc leftovers */
+        prof.profile.supply_tunneling = 4; /* small chance for shovels/mattocks */
         prof.profile.allow_damaged = true;
         break;
     case QUAD_MODE_CAVEY:
@@ -9530,10 +9528,11 @@ static partition_drop_profile partition_drop_profile_for_mode(quadrant_mode_t mo
         prof.profile.weight_supply = 100;
         prof.profile.supply_potion = 0;
         prof.profile.supply_herb = 0;
-        prof.profile.supply_gem = 12;
-        prof.profile.supply_staff = 3;
-        prof.profile.supply_misc = 6;
-        prof.profile.supply_tunneling = 1;
+        prof.profile.supply_gem = 24;
+        prof.profile.supply_staff = 6;
+        prof.profile.supply_light = 6;
+        prof.profile.supply_arrows = 6;
+        prof.profile.supply_tunneling = 2;
         break;
     case QUAD_MODE_BIG_CAVE:
         /* BIG_CAVE 20:20:15:45 */
@@ -9542,10 +9541,11 @@ static partition_drop_profile partition_drop_profile_for_mode(quadrant_mode_t mo
         prof.profile.weight_jewelry = 15;
         prof.profile.weight_supply = 45;
         prof.profile.supply_potion = 0;
-        prof.profile.supply_herb = 2;
-        prof.profile.supply_gem = 8;
-        prof.profile.supply_staff = 2;
-        prof.profile.supply_misc = 0;
+        prof.profile.supply_herb = 4;
+        prof.profile.supply_gem = 16;
+        prof.profile.supply_staff = 4;
+        prof.profile.supply_light = 0;
+        prof.profile.supply_arrows = 0;
         break;
     case QUAD_MODE_CHASM:
         /* CHASM 40:30:20:10 */
@@ -9553,11 +9553,12 @@ static partition_drop_profile partition_drop_profile_for_mode(quadrant_mode_t mo
         prof.profile.weight_armor = 30;
         prof.profile.weight_jewelry = 20;
         prof.profile.weight_supply = 10;
-        prof.profile.supply_potion = 1;
-        prof.profile.supply_herb = 1;
-        prof.profile.supply_gem = 1;
-        prof.profile.supply_staff = 1;
-        prof.profile.supply_misc = 1;
+        prof.profile.supply_potion = 2;
+        prof.profile.supply_herb = 2;
+        prof.profile.supply_gem = 2;
+        prof.profile.supply_staff = 2;
+        prof.profile.supply_light = 1;
+        prof.profile.supply_arrows = 1;
         break;
     default:
         break;

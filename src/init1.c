@@ -1847,16 +1847,16 @@ static errr parse_partition_profile_values(const char* data,
 {
     drop_profile profile;
     int weapon, armor, jewelry, supply;
-    int potion, herb, gem, staff, misc, tunneling;
+    int potion, herb, gem, staff, light, arrows, tunneling;
     int allow_damaged = 0;
     int parsed = 0;
 
     drop_profile_default(&profile);
 
-    parsed = sscanf(data, "%d:%d:%d:%d:%d:%d:%d:%d:%d:%d:%d",
+    parsed = sscanf(data, "%d:%d:%d:%d:%d:%d:%d:%d:%d:%d:%d:%d",
         &weapon, &armor, &jewelry, &supply, &potion, &herb, &gem, &staff,
-        &misc, &tunneling, &allow_damaged);
-    if (parsed != 10 && parsed != 11)
+        &light, &arrows, &tunneling, &allow_damaged);
+    if (parsed != 11 && parsed != 12)
     {
         return PARSE_ERROR_GENERIC;
     }
@@ -1869,9 +1869,10 @@ static errr parse_partition_profile_values(const char* data,
     profile.supply_herb = herb;
     profile.supply_gem = gem;
     profile.supply_staff = staff;
-    profile.supply_misc = misc;
+    profile.supply_light = light;
+    profile.supply_arrows = arrows;
     profile.supply_tunneling = tunneling;
-    profile.allow_damaged = (parsed == 11) ? (allow_damaged ? true : false) : false;
+    profile.allow_damaged = (parsed == 12) ? (allow_damaged ? true : false) : false;
 
     partition_config_set_drop_profile(kind, source, &profile);
     return 0;

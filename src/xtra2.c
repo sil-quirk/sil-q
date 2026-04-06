@@ -2337,7 +2337,7 @@ int drop_loot(monster_type* m_ptr)
         // Normally just go for a torch
         else
         {
-            /* Use unified misc/torches drop logic (A: schedule gating + min-depth penalty). */
+            /* Use unified light-source drop logic (A: schedule gating + min-depth penalty). */
             int depth_cap = player_generation_depth();
             int gen_depth = MIN(r_ptr->level, depth_cap);
             if (!drop_generate_object(gen_depth, DROP_QUALITY_NORMAL, DROP_TYPE_TORCHES,

@@ -308,6 +308,7 @@ bool use_sanctity_gem_on(object_type* target_o_ptr, bool* ident)
 {
     bool can_remove_light = false;
     bool can_remove_jinx = false;
+    bool had_jinx = false;
     bool removed_jinx = false;
     bool removed_curse = false;
     bool has_curse_breaking = p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING];
@@ -320,6 +321,7 @@ bool use_sanctity_gem_on(object_type* target_o_ptr, bool* ident)
         return false;
 
     object_desc(target_name, sizeof(target_name), target_o_ptr, true, 0);
+    had_jinx = object_has_ego_flag4(target_o_ptr, TR4_JINX);
 
     burden = sanctity_check_burden(target_o_ptr, has_curse_breaking,
         &can_remove_light, &can_remove_jinx);
@@ -363,6 +365,8 @@ bool use_sanctity_gem_on(object_type* target_o_ptr, bool* ident)
             msg_format("%^s is cleansed.", target_name);
         else if (removed_jinx)
             msg_format("The jinx on %s is broken.", target_name);
+        else if (had_jinx)
+            msg_format("%^s is uncursed, but its jinx remains.", target_name);
         else
             msg_format("%^s is uncursed.", target_name);
 
