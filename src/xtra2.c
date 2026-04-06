@@ -2285,18 +2285,35 @@ int drop_loot(monster_type* m_ptr)
         && ((r_ptr->flags4 & (RF4_ARROW1)) || (r_ptr->flags4 & (RF4_ARROW2)))
         && percent_chance(r_ptr->freq_ranged / 2))
     {
+        int depth_cap = player_generation_depth();
+        int gen_depth = MIN(r_ptr->level, depth_cap);
+        drop_profile arrow_profile;
+
         /* Get local object */
         i_ptr = &object_type_body;
 
         /* Wipe the object */
         object_wipe(i_ptr);
 
-        /* Hack	-- Give the player an object */
-        /* Get the object_kind */
-        s16b k_idx = lookup_kind(TV_ARROW, SV_NORMAL_ARROW);
+        drop_profile_default(&arrow_profile);
+        arrow_profile.weight_weapon = 0;
+        arrow_profile.weight_armor = 0;
+        arrow_profile.weight_jewelry = 0;
+        arrow_profile.weight_supply = 100;
+        arrow_profile.supply_potion = 0;
+        arrow_profile.supply_herb = 0;
+        arrow_profile.supply_gem = 0;
+        arrow_profile.supply_staff = 0;
+        arrow_profile.supply_light = 0;
+        arrow_profile.supply_arrows = 100;
+        arrow_profile.supply_tunneling = 0;
 
-        /* Prepare the item */
-        object_prep(i_ptr, k_idx);
+        if (!drop_generate_object_profiled(gen_depth, DROP_QUALITY_NORMAL,
+                DROP_TYPE_NOT_DAMAGED, 0, false, &arrow_profile, i_ptr))
+        {
+            s16b k_idx = lookup_kind(TV_ARROW, SV_NORMAL_ARROW);
+            object_prep(i_ptr, k_idx);
+        }
 
         i_ptr->number = damroll(2, 8);
 

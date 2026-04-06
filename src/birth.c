@@ -43,6 +43,7 @@ extern void wipe_screen_from(int col);
 
 static int find_named_artifact_for_character(void);
 static void grant_starting_artifact(void);
+static bool starting_artifact_is_eligible(int art_idx, int k_idx);
 
 static void copy_start_items(start_item dest[MAX_START_ITEMS],
     const start_item src[MAX_START_ITEMS]);
@@ -50,6 +51,32 @@ static void replace_start_food(start_item list[MAX_START_ITEMS], byte from_sval,
     byte to_sval);
 
 #define BLITZ_MAX_EFFECT_COUNT 9
+
+static bool starting_artifact_is_eligible(int art_idx, int k_idx)
+{
+    artefact_type *a_ptr;
+    object_type object_type_body;
+    object_type *o_ptr = &object_type_body;
+
+    if (art_idx <= 0 || art_idx >= z_info->art_max)
+        return false;
+
+    a_ptr = &a_info[art_idx];
+    if (!a_ptr->name[0])
+        return false;
+
+    if (a_ptr->level > 10)
+        return false;
+
+    if (!k_idx)
+        return false;
+
+    object_prep(o_ptr, k_idx);
+    o_ptr->name1 = art_idx;
+    apply_magic(o_ptr, -1, true, true, true, true);
+
+    return (object_smithing_difficulty(o_ptr) <= 45);
+}
 
 /* Character ability names */
 static const char *character_ability_names[S_MAX][ABILITIES_MAX] =
@@ -678,7 +705,8 @@ static int find_named_artifact_for_character(void)
         /* Skip artifacts without names or already created */
         if (!a_ptr->name[0]) continue;
         if (a_ptr->cur_num > 0) continue;
-        
+        if (valar_reserved_artifacts && valar_reserved_artifacts[i]) continue;
+
         /* Convert artifact name to lowercase */
         for (int j = 0; a_ptr->name[j] && j < MAX_LEN_ART_NAME - 1; j++) {
             art_lower[j] = tolower((unsigned char)a_ptr->name[j]);
@@ -689,7 +717,7 @@ static int find_named_artifact_for_character(void)
         if (strstr(art_lower, pattern_lower)) {
             /* Verify it's a valid base kind */
             int k_idx = lookup_kind(a_ptr->tval, a_ptr->sval);
-            if (k_idx) {
+            if (starting_artifact_is_eligible(i, k_idx)) {
                 log_info("Found named artifact for %s: %s (idx=%d)", 
                          character_name, a_ptr->name, i);
                 return i;
@@ -720,6 +748,9 @@ static void grant_starting_artifact(void)
         } else if (valar_reserved_artifacts && valar_reserved_artifacts[art_idx]) {
             log_info("Named artifact already reserved (idx=%d)", art_idx);
             art_idx = 0;  /* Fall through to random selection */
+        } else if (!starting_artifact_is_eligible(art_idx, k_idx)) {
+            log_info("Named artifact does not meet starting thresholds (idx=%d)", art_idx);
+            art_idx = 0;  /* Fall through to random selection */
         }
     }
     
@@ -728,31 +759,24 @@ static void grant_starting_artifact(void)
         int candidates[512];
         int candidate_kinds[512];
         int count = 0;
-        int max_level = 10;
+        for (int i = 1; i < z_info->art_max && count < (int)N_ELEMENTS(candidates); i++) {
+            artefact_type *a_ptr = &a_info[i];
+            int k;
 
-        for (int pass = 0; pass < 2; pass++) {
-            count = 0;
-            for (int i = 1; i < z_info->art_max && count < (int)N_ELEMENTS(candidates); i++) {
-                artefact_type *a_ptr = &a_info[i];
-                if (!a_ptr->name[0]) continue;
-                if (a_ptr->cur_num > 0) continue;
-                if (a_ptr->level > max_level) continue;
-                if (valar_reserved_artifacts && valar_reserved_artifacts[i]) continue;
-                int k = lookup_kind(a_ptr->tval, a_ptr->sval);
-                if (!k) continue;
-                candidates[count] = i;
-                candidate_kinds[count] = k;
-                count++;
-            }
+            if (!a_ptr->name[0]) continue;
+            if (a_ptr->cur_num > 0) continue;
+            if (valar_reserved_artifacts && valar_reserved_artifacts[i]) continue;
 
-            if (count > 0)
-                break;
+            k = lookup_kind(a_ptr->tval, a_ptr->sval);
+            if (!starting_artifact_is_eligible(i, k)) continue;
 
-            max_level = MORGOTH_DEPTH;
+            candidates[count] = i;
+            candidate_kinds[count] = k;
+            count++;
         }
 
         if (count == 0) {
-            log_warn("No artefacts available for starting blessing.");
+            log_warn("No artefacts available for starting blessing under the lvl<=10 and difficulty<=45 filter.");
             msg_print("No artefact could be granted.");
             return;
         }
