@@ -240,7 +240,10 @@ static flag_name info_flags[] = {
     { "RF4XXX30", RF4, RF4_RF4XXX30 }, { "RF4XXX31", RF4, RF4_RF4XXX31 },
     { "RF4XXX32", RF4, RF4_RF4XXX32 },
 
-    /*object_flags*/
+    /* Object flag table.
+     * Keep the TRn selector and TRn_* constant aligned; tools/check_flag_tables.py
+     * validates this because bit positions intentionally overlap across TR sets.
+     */
 
     { "STR", TR1, TR1_STR }, { "DEX", TR1, TR1_DEX }, { "CON", TR1, TR1_CON },
     { "GRA", TR1, TR1_GRA }, { "NEG_STR", TR1, TR1_NEG_STR },

@@ -5693,7 +5693,7 @@ int object_difficulty(object_type* o_ptr)
         {
             dif_dec += 4;
         }
-        if (f3 & TR2_TRAITOR)
+        if (f2 & TR2_TRAITOR)
         {
             dif_dec += 2;
         }
@@ -10716,23 +10716,36 @@ void create_smithing_item(void)
     smith_clear_alloy_state(&smith_alloy);
 }
 
-#define MAIN_MENU_RETURN 1
-#define MAIN_MENU_CHARACTER 2
-#define MAIN_MENU_KNOWLEDGE 3
-#define MAIN_MENU_QUEST_STATUS 4
-#define MAIN_MENU_SCORES 5
-#define MAIN_MENU_NOTE 6
-#define MAIN_MENU_MAP 7
-#define MAIN_MENU_MESSAGES 8
-#define MAIN_MENU_SCREENSHOT 9
+#define MAIN_MENU_CHARACTER 1
+#define MAIN_MENU_KNOWLEDGE 2
+#define MAIN_MENU_QUEST_STATUS 3
+#define MAIN_MENU_HALLS_OF_MANDOS 4
+#define MAIN_MENU_RUN_HISTORY 5
+#define MAIN_MENU_MAP 6
+#define MAIN_MENU_LOG 7
+#define MAIN_MENU_COMBAT_HISTORY 8
+#define MAIN_MENU_HINT_MESSAGES 9
 #define MAIN_MENU_STORY 10
 #define MAIN_MENU_OPTIONS 11
 #define MAIN_MENU_HELP 12
-#define MAIN_MENU_ABORT 13
+#define MAIN_MENU_ABOUT 13
 #define MAIN_MENU_SAVE 14
 #define MAIN_MENU_SAVE_QUIT 15
+#define MAIN_MENU_RETURN_GAME 16
 
 #define MAIN_MENU_MAX 16
+
+typedef struct main_menu_about_line
+{
+    byte attr;
+    cptr text;
+} main_menu_about_line;
+
+typedef struct main_menu_about_span
+{
+    byte attr;
+    cptr text;
+} main_menu_about_span;
 
 static int main_menu_calc_width(void)
 {
@@ -10750,7 +10763,7 @@ static int main_menu_calc_width(void)
         "The story so far     (y)",
         "Options and misc     (o)",
         "Help                 (h)",
-        "Suicide              (k)",
+        "About                (b)",
         "Save                 (s)",
         "Quit with save       (q)",
         "Return to game       (r)",
@@ -10764,6 +10777,275 @@ static int main_menu_calc_width(void)
             max_w = w;
     }
     return max_w;
+}
+
+static bool main_menu_choice_is_disabled(int choice)
+{
+    return (choice == MAIN_MENU_SAVE)
+        || (choice == MAIN_MENU_SAVE_QUIT);
+}
+
+static int main_menu_about_count_rows(int indent, int wrap_right,
+    const main_menu_about_line* lines, const bool* blank_visible)
+{
+    int total = 0;
+
+    for (int i = 0; lines[i].text; i++)
+    {
+        if (!lines[i].text[0])
+        {
+            if (!blank_visible || blank_visible[i])
+                total++;
+        }
+        else
+            total += count_wrapped_lines(lines[i].text, wrap_right, indent);
+    }
+
+    return total;
+}
+
+static bool main_menu_about_drop_bottom_blank(bool* blank_visible,
+    const main_menu_about_line* lines, int line_count)
+{
+    for (int i = line_count - 1; i >= 0; i--)
+    {
+        if (!lines[i].text[0] && blank_visible[i])
+        {
+            blank_visible[i] = false;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static void main_menu_about_draw_line(int row, int indent, int wrap_right,
+    byte attr, cptr text)
+{
+    int old_wrap = text_out_wrap;
+    int old_indent = text_out_indent;
+
+    text_out_wrap = wrap_right;
+    text_out_indent = indent;
+    Term_gotoxy(indent, row);
+    text_out_to_screen(attr, text ? text : "");
+    text_out_wrap = old_wrap;
+    text_out_indent = old_indent;
+}
+
+static void main_menu_about_draw_spans(int row, int indent, int wrap_right,
+    const main_menu_about_span* spans, int span_count)
+{
+    int old_wrap = text_out_wrap;
+    int old_indent = text_out_indent;
+
+    text_out_wrap = wrap_right;
+    text_out_indent = indent;
+    Term_gotoxy(indent, row);
+    for (int i = 0; i < span_count; i++)
+        text_out_to_screen(spans[i].attr, spans[i].text);
+    text_out_wrap = old_wrap;
+    text_out_indent = old_indent;
+}
+
+static void main_menu_about(void)
+{
+    int wid, hgt;
+    int menu_w;
+    int box_w;
+    int box_left;
+    int text_indent;
+    int wrap_right;
+    int body_rows;
+    int row_top;
+    int row;
+    char ch;
+    bool saved_hide_cursor;
+    static const main_menu_about_line about_lines[] = {
+        { TERM_WHITE, "Sil-More is an evolution of SilQ, a famous roguelike" },
+        { TERM_WHITE, "taking place in the First Age of Beleriand." },
+        { TERM_WHITE, "" },
+        { TERM_WHITE, "Developers: k0rtess and sinefabula." },
+        { TERM_WHITE, "Gamedesigner: k0rtess." },
+        { TERM_WHITE, "Tileset: MicroChasm." },
+        { TERM_WHITE, "Main music theme: sinefabula." },
+        { TERM_WHITE, "Ambient music theme: westwinnd." },
+        { TERM_WHITE, "Logo: sinefabula." },
+        { TERM_WHITE, "" },
+        { TERM_WHITE, "Our love to Maedhros aka Carcharos for playing so much," },
+        { TERM_WHITE, "finding those pescy bugs and giving cool ideas." },
+        { TERM_L_BLUE, "Special thanks to original Sil and SilQ" },
+        { TERM_L_BLUE, "developers: half, Scatha and Quirk." },
+        { TERM_WHITE, "" },
+        { TERM_WHITE, "Honorable mentions:" },
+        { TERM_WHITE, "Sound: Kenney, qubodup, TomMusic, Leohpaz." },
+        { TERM_WHITE, "Tiles: Wolffius, Pine Druid, Backterria, SciGho." },
+        { TERM_WHITE, "" },
+        { TERM_L_RED, "And our deep love to Tolkien and his timeless creations." },
+        { TERM_WHITE, "" },
+        { 0, NULL }
+    };
+
+    if (p_ptr && p_ptr->playing)
+        sdl_music_play_death();
+
+    screen_save();
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1)
+        wid = 80;
+    if (hgt < 1)
+        hgt = 24;
+
+    menu_w = main_menu_calc_width();
+    box_w = MIN(MAX(menu_w + 24, 68), 76);
+    if (box_w > (wid > 2 ? wid - 2 : wid))
+        box_w = (wid > 2) ? (wid - 2) : wid;
+    if (box_w < 1)
+        box_w = 1;
+
+    box_left = (wid - box_w) / 2;
+    if (box_left < 0)
+        box_left = 0;
+
+    text_indent = box_left + 2;
+    wrap_right = box_left + box_w - 1;
+
+    Term_clear();
+
+    {
+        int line_count = 0;
+        bool blank_visible[sizeof(about_lines) / sizeof(about_lines[0])] = { false };
+        int max_body_rows;
+
+        while (about_lines[line_count].text)
+            line_count++;
+
+        for (int i = 0; i < line_count; i++)
+            blank_visible[i] = true;
+
+        body_rows = main_menu_about_count_rows(text_indent, wrap_right,
+            about_lines, blank_visible);
+
+        max_body_rows = (hgt > 2) ? (hgt - 2) : 0;
+        while ((body_rows > max_body_rows)
+            && main_menu_about_drop_bottom_blank(blank_visible, about_lines,
+                line_count))
+        {
+            body_rows -= 1;
+        }
+
+        row_top = (hgt > body_rows + 2) ? 1 : 0;
+
+        {
+            int panel_h = body_rows + 2;
+            if (panel_h > hgt - row_top)
+                panel_h = hgt - row_top;
+            for (int i = 0; i < panel_h; i++)
+            {
+                int y = row_top + i;
+                if (y >= 0 && y < hgt)
+                    Term_erase(box_left, y, box_w);
+            }
+        }
+
+        {
+            cptr title = "About Sil-More";
+            int title_x = box_left + MAX((box_w - (int)strlen(title)) / 2 - 2, 0);
+            Term_putstr(title_x, row_top, -1, TERM_YELLOW, title);
+        }
+
+        row = row_top + 1;
+        for (int i = 0; i < line_count; i++)
+        {
+            cptr text = about_lines[i].text;
+
+            if (!text[0])
+            {
+                if (blank_visible[i])
+                    row++;
+                continue;
+            }
+
+            main_menu_about_draw_line(row, text_indent, wrap_right,
+                about_lines[i].attr, text);
+
+            if (i == 0)
+            {
+                static const main_menu_about_span intro_label_spans[] = {
+                    { TERM_VIOLET, "Sil-More" },
+                    { TERM_WHITE, " is an evolution of " },
+                    { TERM_L_BLUE, "SilQ" },
+                    { TERM_WHITE, ", a famous roguelike" },
+                };
+                main_menu_about_draw_spans(row, text_indent, wrap_right,
+                    intro_label_spans,
+                    (int)(sizeof(intro_label_spans)
+                        / sizeof(intro_label_spans[0])));
+            }
+            else if ((i >= 3) && (i <= 8))
+            {
+                static const main_menu_about_span label_spans[][2] = {
+                    {
+                        { TERM_YELLOW, "Developers:" },
+                        { TERM_WHITE, " k0rtess and sinefabula." },
+                    },
+                    {
+                        { TERM_YELLOW, "Gamedesigner:" },
+                        { TERM_WHITE, " k0rtess." },
+                    },
+                    {
+                        { TERM_YELLOW, "Tileset:" },
+                        { TERM_WHITE, " MicroChasm." },
+                    },
+                    {
+                        { TERM_YELLOW, "Main music theme:" },
+                        { TERM_WHITE, " sinefabula." },
+                    },
+                    {
+                        { TERM_YELLOW, "Ambient music theme:" },
+                        { TERM_WHITE, " westwinnd." },
+                    },
+                    {
+                        { TERM_YELLOW, "Logo:" },
+                        { TERM_WHITE, " sinefabula." },
+                    },
+                };
+                int label_index = i - 3;
+                main_menu_about_draw_spans(row, text_indent, wrap_right,
+                    label_spans[label_index], 2);
+            }
+            else if (i == 15)
+            {
+                static const main_menu_about_span mentions_spans[] = {
+                    { TERM_YELLOW, "Honorable mentions:" },
+                };
+                main_menu_about_draw_spans(row, text_indent, wrap_right,
+                    mentions_spans, 1);
+            }
+
+            row += count_wrapped_lines(text, wrap_right, text_indent);
+        }
+    }
+
+    if (row >= hgt)
+        row = hgt - 1;
+
+    Term_putstr(text_indent, row, -1, TERM_L_WHITE,
+        "[Press any key to return]");
+    Term_fresh();
+
+    flush();
+    saved_hide_cursor = hide_cursor;
+    hide_cursor = true;
+    ch = inkey();
+    hide_cursor = saved_hide_cursor;
+    (void)ch;
+
+    screen_load();
+
+    if (p_ptr && p_ptr->playing)
+        sdl_music_stop_main();
 }
 
 static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
@@ -10800,8 +11082,8 @@ int main_menu_aux(int* highlight)
             row_top = (Term->hgt > 1) ? 1 : 0;
     }
 
-    if (death_view && (*highlight >= 13) && (*highlight <= 15))
-        *highlight = 16;
+    if (death_view && main_menu_choice_is_disabled(*highlight))
+        *highlight = MAIN_MENU_RETURN_GAME;
 
     for (i = 0; i < menu_h; i++)
     {
@@ -10850,25 +11132,24 @@ int main_menu_aux(int* highlight)
         (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
         "The story so far     (y)");
     Term_putstr(col_main, row_top + row_first + 10, -1,
-        (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
+        (*highlight == MAIN_MENU_OPTIONS) ? TERM_L_BLUE : TERM_WHITE,
         "Options and misc     (o)");
     Term_putstr(col_main, row_top + row_first + 11, -1,
-        (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
+        (*highlight == MAIN_MENU_HELP) ? TERM_L_BLUE : TERM_WHITE,
         "Help                 (h)");
-    byte suicide_color = death_view ? TERM_L_DARK
-        : ((*highlight == 13) ? TERM_L_BLUE : TERM_WHITE);
-    Term_putstr(col_main, row_top + row_first + 12, -1, suicide_color,
-        "Suicide              (k)");
+    byte about_color = (*highlight == MAIN_MENU_ABOUT) ? TERM_L_BLUE : TERM_WHITE;
+    Term_putstr(col_main, row_top + row_first + 12, -1, about_color,
+        "About                (b)");
     byte save_color = death_view ? TERM_L_DARK
-        : ((*highlight == 14) ? TERM_L_BLUE : TERM_WHITE);
+        : ((*highlight == MAIN_MENU_SAVE) ? TERM_L_BLUE : TERM_WHITE);
     Term_putstr(col_main, row_top + row_first + 13, -1, save_color,
         "Save                 (s)");
     byte quit_color = death_view ? TERM_L_DARK
-        : ((*highlight == 15) ? TERM_L_BLUE : TERM_WHITE);
+        : ((*highlight == MAIN_MENU_SAVE_QUIT) ? TERM_L_BLUE : TERM_WHITE);
     Term_putstr(col_main, row_top + row_first + 14, -1, quit_color,
         "Quit with save       (q)");
     Term_putstr(col_main, row_top + row_first + 15, -1,
-        (*highlight == 16) ? TERM_L_BLUE : TERM_WHITE,
+        (*highlight == MAIN_MENU_RETURN_GAME) ? TERM_L_BLUE : TERM_WHITE,
         "Return to game       (r)");
 
     /* Flush the prompt */
@@ -10926,34 +11207,30 @@ int main_menu_aux(int* highlight)
         *highlight = 10;
         return (*highlight); // The story so far
     case 'o':
-        *highlight = 11;
+        *highlight = MAIN_MENU_OPTIONS;
         return (*highlight); // Options and misc
     case 'h':
-        *highlight = 12;
+        *highlight = MAIN_MENU_HELP;
         return (*highlight); // Help
-    case 'k':
-        if (death_view) {
-            msg_print("You can no longer take that action.");
-            break;
-        }
-        *highlight = 13;
-        return (*highlight); // Suicide
+    case 'b':
+        *highlight = MAIN_MENU_ABOUT;
+        return (*highlight); // About
     case 's':
         if (death_view) {
             msg_print("You can no longer take that action.");
             break;
         }
-        *highlight = 14;
+        *highlight = MAIN_MENU_SAVE;
         return (*highlight); // Save
     case 'q':
         if (death_view) {
             msg_print("You can no longer take that action.");
             break;
         }
-        *highlight = 15;
+        *highlight = MAIN_MENU_SAVE_QUIT;
         return (*highlight); // Quit with save
     case 'r':
-        *highlight = 16;
+        *highlight = MAIN_MENU_RETURN_GAME;
         return (*highlight); // Return to game
     }
 
@@ -10970,7 +11247,7 @@ int main_menu_aux(int* highlight)
             (*highlight)--;
         else if (*highlight == 1)
             *highlight = MAIN_MENU_MAX;
-        while (death_view && (*highlight >= 13) && (*highlight <= 15))
+        while (death_view && main_menu_choice_is_disabled(*highlight))
         {
             if (*highlight > 1)
                 (*highlight)--;
@@ -10986,7 +11263,7 @@ int main_menu_aux(int* highlight)
             (*highlight)++;
         else if (*highlight == MAIN_MENU_MAX)
             *highlight = 1;
-        while (death_view && (*highlight >= 13) && (*highlight <= 15))
+        while (death_view && main_menu_choice_is_disabled(*highlight))
         {
             if (*highlight < MAIN_MENU_MAX)
                 (*highlight)++;
@@ -11031,7 +11308,7 @@ void do_cmd_main_menu(void)
     {
         actiontype = main_menu_aux(&highlight);
 
-        if (death_spectator_active() && (actiontype >= 13) && (actiontype <= 15))
+        if (death_spectator_active() && main_menu_choice_is_disabled(actiontype))
         {
             msg_print("You can no longer take that action.");
             continue;
@@ -11118,9 +11395,9 @@ void do_cmd_main_menu(void)
             leave_menu = true;
             break;
         }
-        case 13: // Suicide (k)
+        case 13: // About (b)
         {
-            do_cmd_suicide();
+            main_menu_about();
             leave_menu = true;
             break;
         }
@@ -14771,10 +15048,231 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
 
 void do_cmd_controller_settings(void);
 
+static bool legacy_options_choice_is_disabled(int choice)
+{
+    return (choice == 6);
+}
+
+static int legacy_options_menu(int* highlight)
+{
+    int ch;
+    int options = 7;
+    int term_wid = 80;
+    int term_hgt = 24;
+    int title_row = 1;
+    int row;
+    bool death_view = death_spectator_active();
+
+    Term_get_size(&term_wid, &term_hgt);
+    if (term_hgt < 20)
+        title_row = 0;
+
+    if (*highlight < 1)
+        *highlight = 1;
+    else if (*highlight > options)
+        *highlight = options;
+
+    if (death_view && legacy_options_choice_is_disabled(*highlight))
+        *highlight = options;
+
+    row = title_row + 2;
+
+    Term_putstr(2, title_row, -1, TERM_WHITE, "Legacy Options");
+
+    Term_putstr(2, row++, -1, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
+        "j) Load a 'Pref' File");
+    Term_putstr(2, row++, -1, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
+        "k) Append Options to a 'Pref' File");
+    Term_putstr(2, row++, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
+        "l) Set Macros");
+    Term_putstr(2, row++, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
+        "m) Set Colours");
+    Term_putstr(2, row++, -1, (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
+        "n) Write a note");
+
+    {
+        byte suicide_color = death_view ? TERM_L_DARK
+            : ((*highlight == 6) ? TERM_L_BLUE : TERM_WHITE);
+        Term_putstr(2, row++, -1, suicide_color, "s) Suicide");
+    }
+
+    Term_putstr(2, row++, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
+        "o) Return to Options");
+
+    {
+        char verbuf[128];
+        strnfmt(verbuf, sizeof(verbuf), "%s %s", VERSION_NAME, VERSION_STRING);
+        if (row < term_hgt)
+            Term_putstr(2, row, term_wid - 2, TERM_SLATE, verbuf);
+    }
+
+    Term_fresh();
+
+    Term_gotoxy(2, title_row + 1 + *highlight);
+
+    hide_cursor = true;
+    ch = inkey();
+    hide_cursor = false;
+
+    if ((ch == 'j') || (ch == 'J'))
+    {
+        *highlight = 1;
+        return (1);
+    }
+
+    if ((ch == 'k') || (ch == 'K'))
+    {
+        *highlight = 2;
+        return (2);
+    }
+
+    if ((ch == 'l') || (ch == 'L'))
+    {
+        *highlight = 3;
+        return (3);
+    }
+
+    if ((ch == 'm') || (ch == 'M'))
+    {
+        *highlight = 4;
+        return (4);
+    }
+
+    if ((ch == 'n') || (ch == 'N'))
+    {
+        *highlight = 5;
+        return (5);
+    }
+
+    if ((ch == 's') || (ch == 'S'))
+    {
+        if (death_view)
+        {
+            msg_print("You can no longer take that action.");
+            return (0);
+        }
+
+        *highlight = 6;
+        return (6);
+    }
+
+    if ((ch == 'o') || (ch == 'O') || (ch == 'q') || (ch == 'Q')
+        || (ch == ESCAPE))
+    {
+        *highlight = 7;
+        return (7);
+    }
+
+    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
+    {
+        if (death_view && legacy_options_choice_is_disabled(*highlight))
+        {
+            msg_print("You can no longer take that action.");
+            return (0);
+        }
+
+        return (*highlight);
+    }
+
+    if (ch == '8')
+    {
+        *highlight = (*highlight + (options - 2)) % options + 1;
+        while (death_view && legacy_options_choice_is_disabled(*highlight))
+            *highlight = (*highlight + (options - 2)) % options + 1;
+    }
+
+    if (ch == '2')
+    {
+        *highlight = *highlight % options + 1;
+        while (death_view && legacy_options_choice_is_disabled(*highlight))
+            *highlight = *highlight % options + 1;
+    }
+
+    return (0);
+}
+
+static void do_cmd_legacy_options(void)
+{
+    int choice = 0;
+    int highlight = 1;
+    bool return_to_options = false;
+    char ftmp[80];
+
+    Term_clear();
+
+    while (!return_to_options)
+    {
+        choice = legacy_options_menu(&highlight);
+
+        switch (choice)
+        {
+        case 1:
+        {
+            do_cmd_pref_file_hack(12);
+            Term_clear();
+            break;
+        }
+        case 2:
+        {
+            Term_putstr(2, 14, -1, TERM_SLATE, "(Escape to cancel)");
+
+            prt("File: ", 12, 2);
+
+            strnfmt(ftmp, sizeof(ftmp), "%s.prf", op_ptr->base_name);
+
+            if (!askfor_aux(ftmp, sizeof(ftmp)))
+            {
+                Term_clear();
+                continue;
+            }
+
+            if (option_dump(ftmp))
+                msg_print("Failed!");
+            else
+                msg_print("Done.");
+
+            Term_clear();
+            break;
+        }
+        case 3:
+        {
+            do_cmd_macros();
+            Term_clear();
+            break;
+        }
+        case 4:
+        {
+            do_cmd_colors();
+            Term_clear();
+            break;
+        }
+        case 5:
+        {
+            do_cmd_note("", p_ptr->depth);
+            Term_clear();
+            break;
+        }
+        case 6:
+        {
+            do_cmd_suicide();
+            return_to_options = true;
+            Term_clear();
+            break;
+        }
+        case 7:
+        {
+            return_to_options = true;
+            Term_clear();
+            break;
+        }
+        }
+    }
+}
+
 int options_menu(int* highlight)
 {
     int ch;
-    int options = 16;
+    int options = 12;
     int term_wid = 80;
     int term_hgt = 24;
     int title_row = 1;
@@ -14789,6 +15287,11 @@ int options_menu(int* highlight)
     Term_get_size(&term_wid, &term_hgt);
     if (term_hgt < 20)
         title_row = 0;
+
+    if (*highlight < 1)
+        *highlight = 1;
+    else if (*highlight > options)
+        *highlight = options;
 
     row = title_row + 2;
 
@@ -14815,21 +15318,13 @@ int options_menu(int* highlight)
     Term_putstr(2, row++, -1, (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
         "i) Sound Options");
     Term_putstr(2, row++, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
-        "j) Load a 'Pref' File");
+        "j) Legacy Options");
     Term_putstr(2, row++, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
-        "k) Append Options to a 'Pref' File");
-    Term_putstr(2, row++, -1, (*highlight == 13) ? TERM_L_BLUE : TERM_WHITE,
-        "l) Set Macros");
-    Term_putstr(2, row++, -1, (*highlight == 14) ? TERM_L_BLUE : TERM_WHITE,
-        "m) Set Colours");
-    Term_putstr(2, row++, -1, (*highlight == 15) ? TERM_L_BLUE : TERM_WHITE,
-        "n) Write a note");
-    Term_putstr(2, row++, -1, (*highlight == 16) ? TERM_L_BLUE : TERM_WHITE,
         "o) Return to Game");
 
     if (allow_debug_menu && p_ptr->noscore)
     {
-        Term_putstr(2, row++, -1, (*highlight == 17) ? TERM_L_BLUE : TERM_WHITE,
+        Term_putstr(2, row++, -1, (*highlight == 13) ? TERM_L_BLUE : TERM_WHITE,
             "p) Debugging Options");
     }
 
@@ -14918,40 +15413,16 @@ int options_menu(int* highlight)
         return (11);
     }
 
-    if ((ch == 'k') || (ch == 'K'))
+    if ((ch == 'o') || (ch == 'O') || (ch == ESCAPE) || (ch == 'q'))
     {
         *highlight = 12;
         return (12);
     }
 
-    if ((ch == 'l') || (ch == 'L'))
+    if (allow_debug_menu && p_ptr->noscore && ((ch == 'p') || (ch == 'P')))
     {
         *highlight = 13;
         return (13);
-    }
-
-    if ((ch == 'm') || (ch == 'M'))
-    {
-        *highlight = 14;
-        return (14);
-    }
-
-    if ((ch == 'n') || (ch == 'N'))
-    {
-        *highlight = 15;
-        return (15);
-    }
-
-    if ((ch == 'o') || (ch == 'O') || (ch == ESCAPE) || (ch == 'q'))
-    {
-        *highlight = 16;
-        return (16);
-    }
-
-    if (allow_debug_menu && p_ptr->noscore && ((ch == 'p') || (ch == 'P')))
-    {
-        *highlight = 17;
-        return (17);
     }
 
     /* Choose current  */
@@ -14985,8 +15456,6 @@ void do_cmd_options(void)
 {
     int choice = 0;
     int highlight = 1;
-
-    char ftmp[80];
 
     bool return_to_game = false;
 
@@ -15074,70 +15543,20 @@ void do_cmd_options(void)
         }
         case 11:
         {
-            /* Ask for and load a user pref file */
-            do_cmd_pref_file_hack(12);
+            do_cmd_legacy_options();
+            if (p_ptr && (p_ptr->leaving || !p_ptr->playing))
+                return_to_game = true;
             Term_clear();
             break;
         }
         case 12:
-        {
-            /* Prompt */
-            Term_putstr(2, 14, -1, TERM_SLATE, "(Escape to cancel)");
-
-            /* Prompt */
-            prt("File: ", 12, 2);
-
-            /* Default filename */
-            strnfmt(ftmp, sizeof(ftmp), "%s.prf", op_ptr->base_name);
-
-            /* Ask for a file */
-            if (!askfor_aux(ftmp, sizeof(ftmp)))
-            {
-                Term_clear();
-                continue;
-            }
-
-            /* Dump the options */
-            if (option_dump(ftmp))
-            {
-                /* Failure */
-                msg_print("Failed!");
-            }
-            else
-            {
-                /* Success */
-                msg_print("Done.");
-            }
-
-            Term_clear();
-            break;
-        }
-        case 13:
-        {
-            do_cmd_macros();
-            Term_clear();
-            break;
-        }
-        case 14:
-        {
-            do_cmd_colors();
-            Term_clear();
-            break;
-        }
-        case 15:
-        {
-            do_cmd_note("", p_ptr->depth);
-            Term_clear();
-            break;
-        }
-        case 16:
         {
             /* Return to Game */
             return_to_game = true;
             Term_clear();
             break;
         }
-        case 17:
+        case 13:
         {
             /* Debugging Options (only reachable when p_ptr->noscore) */
             do_cmd_options_aux(DEBUG_PAGE, "Debugging Options");

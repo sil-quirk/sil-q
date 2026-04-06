@@ -1083,7 +1083,7 @@ static int smithing_difficulty_baseline(const object_type* o_ptr)
         dif_dec += 4;
     if (f2 & TR2_VUL_POIS)
         dif_dec += 4;
-    if (f3 & TR2_TRAITOR)
+    if (f2 & TR2_TRAITOR)
         dif_dec += 2;
     if (f3 & TR3_CUMBERSOME)
         dif_dec += 3;

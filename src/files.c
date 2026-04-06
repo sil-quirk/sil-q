@@ -7511,11 +7511,11 @@ void do_cmd_suicide(void)
         return;
 
     /* Special Verification for suicide */
-    prt("Please verify ABORTING by typing the '@' sign: ", 0, 0);
+    prt("Please verify ABORTING by typing the '~' sign: ", 0, 0);
     flush();
     ch = inkey();
     prt("", 0, 0);
-    if (ch != '@')
+    if (ch != '~')
         return;
 
     /* Commit suicide */

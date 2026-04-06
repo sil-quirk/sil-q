@@ -204,7 +204,7 @@ static int sanctity_penalty_flags(u32b f2, u32b f3, u32b f4,
         burden += 4;
     if (f2 & TR2_VUL_POIS)
         burden += 4;
-    if (f3 & TR2_TRAITOR)
+    if (f2 & TR2_TRAITOR)
         burden += 2;
     if (include_light_curse && (f3 & TR3_LIGHT_CURSE))
         burden += 2;
