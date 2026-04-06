@@ -4068,6 +4068,7 @@ static void display_player_compact_description_and_flags(int row_start,
     int scroll = display_player_compact_scroll;
     bool traits_moved_to_stats_page = display_player_compact_can_embed_traits(
         visible_row_start);
+    int content_row = row_start;
 
     Term_get_size(&wid, &hgt);
     if (wid < 1) wid = 80;
@@ -4085,14 +4086,18 @@ static void display_player_compact_description_and_flags(int row_start,
     {
         int history_lines = display_player_compact_history_line_count(
             wid - COMPACT_RIGHT_PAD, 1);
+        int content_height = history_lines;
         int max_scroll = history_lines - available_rows;
         if (max_scroll < 0)
             max_scroll = 0;
         if (scroll > max_scroll)
             scroll = max_scroll;
 
+        if ((max_scroll == 0) && (content_height < available_rows))
+            content_row += (available_rows - content_height) / 2;
+
         display_player_compact_max_scroll = max_scroll;
-        display_player_compact_history_column(row_start, 1,
+        display_player_compact_history_column(content_row, 1,
             wid - COMPACT_RIGHT_PAD, scroll, row_limit);
         return;
     }
@@ -4149,10 +4154,13 @@ static void display_player_compact_description_and_flags(int row_start,
         if (scroll > max_scroll)
             scroll = max_scroll;
 
+        if ((max_scroll == 0) && (total_height < available_rows))
+            content_row += (available_rows - total_height) / 2;
+
         display_player_compact_max_scroll = max_scroll;
 
-        display_player_compact_traits_block(row_start, 1, row_limit, scroll);
-        display_player_compact_history_column(row_start, side_history_col,
+        display_player_compact_traits_block(content_row, 1, row_limit, scroll);
+        display_player_compact_history_column(content_row, side_history_col,
             wid - COMPACT_RIGHT_PAD, scroll, row_limit);
         return;
     }
@@ -4164,6 +4172,9 @@ static void display_player_compact_description_and_flags(int row_start,
         if (scroll > max_scroll)
             scroll = max_scroll;
 
+        if ((max_scroll == 0) && (stacked_total < available_rows))
+            content_row += (available_rows - stacked_total) / 2;
+
         display_player_compact_max_scroll = max_scroll;
     }
 
@@ -4171,7 +4182,7 @@ static void display_player_compact_description_and_flags(int row_start,
     if (trait_skip > trait_lines)
         trait_skip = trait_lines;
 
-    int row_after_flags = display_player_compact_traits_block(row_start, 1, row_limit,
+    int row_after_flags = display_player_compact_traits_block(content_row, 1, row_limit,
         trait_skip);
 
     int history_skip = scroll - trait_lines;
@@ -4505,6 +4516,21 @@ static void display_player_compact_history(int row_start)
         0, hgt - 1);
 }
 
+static void display_player_compact_desc_flags_page(bool show_misc_info,
+    bool show_summary)
+{
+    int summary_row = show_misc_info ? display_player_compact_start_row() : 0;
+    int body_row = summary_row;
+
+    if (show_misc_info)
+        display_player_misc_info();
+
+    if (show_summary)
+        body_row = display_player_compact_summary_block(summary_row);
+
+    display_player_compact_description_and_flags(body_row, body_row);
+}
+
 /*
  * Special display, part 2b
  */
@@ -4822,14 +4848,16 @@ void display_player(int mode)
 
     if (mode == DISPLAY_PLAYER_MODE_COMPACT_DESC_FLAGS)
     {
-        int summary_row = display_player_compact_start_row();
-        display_player_misc_info();
-        int body_row = display_player_compact_summary_block(summary_row);
-        display_player_compact_description_and_flags(body_row, body_row);
-        if (display_player_compact_scroll > 0)
+        display_player_compact_desc_flags_page(true, true);
+        if (display_player_compact_max_scroll > 0)
         {
-            display_player_misc_info();
-            (void)display_player_compact_summary_block(summary_row);
+            clear_from(0);
+            display_player_compact_desc_flags_page(true, false);
+        }
+        if (display_player_compact_max_scroll > 0)
+        {
+            clear_from(0);
+            display_player_compact_desc_flags_page(false, false);
         }
         sdl_story_font_reset();
         return;

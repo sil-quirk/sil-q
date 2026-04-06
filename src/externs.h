@@ -1790,6 +1790,7 @@ extern bool option_is_app_persistent(int opt);
 extern int get_sdl_max_scale(void);
 extern void sdl_apply_config(void);
 extern bool steamdeck_controls_active(void);
+extern bool portable_controls_active(void);
 extern bool get_sdl_gamepad_enabled(void);
 extern void set_sdl_gamepad_enabled(bool value);
 extern bool get_sdl_gamepad_auto_mode(void);

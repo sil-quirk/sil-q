@@ -5258,6 +5258,16 @@ bool steamdeck_controls_active(void)
     return (config.gamepad_auto_mode && g_gamepad_auto_ui);
 }
 
+bool portable_controls_active(void)
+{
+#if defined(SIL_USE_LOCAL_DATA) || defined(__ANDROID__)
+    /* Portable builds and Android use the controller-style menu shortcuts. */
+    return true;
+#else
+    return steamdeck_controls_active();
+#endif
+}
+
 bool get_sdl_gamepad_enabled(void)
 {
     return config.gamepad_enabled;

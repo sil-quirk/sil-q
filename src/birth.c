@@ -1169,6 +1169,7 @@ static void display_character_description_screen(birth_menu choice)
     int hgt = 24;
     int character_idx;
     char full_name[64];
+    int name_col = 2;
 
     Term_get_size(&wid, &hgt);
     if (wid < 1)
@@ -1188,16 +1189,32 @@ static void display_character_description_screen(birth_menu choice)
         strnfmt(full_name, sizeof(full_name), "%s", choice.name ? choice.name : "");
     }
 
+    if ((int)strlen(full_name) < wid)
+        name_col = (wid - (int)strlen(full_name)) / 2;
+    if (name_col < 2)
+        name_col = 2;
+
     screen_save();
     Term_clear();
 
-    Term_putstr(2, 0, -1, TERM_L_BLUE, full_name);
+    Term_putstr(name_col, 0, -1, TERM_L_BLUE, full_name);
 
     if (choice.text && choice.text[0] && (hgt > 2))
     {
+        int text_row = 2;
+        int text_rows = choice_description_line_count(choice.text);
+        int available_rows = hgt - 3;
+
+        if (text_rows < available_rows)
+            text_row = 2 + ((available_rows - text_rows) / 2);
+        if (text_row < 2)
+            text_row = 2;
+        if (text_row > hgt - 2)
+            text_row = hgt - 2;
+
         text_out_wrap = wid - 1;
         text_out_indent = 2;
-        Term_gotoxy(2, 2);
+        Term_gotoxy(2, text_row);
         text_out_to_screen(TERM_WHITE, choice.text);
         text_out_wrap = 0;
         text_out_indent = 0;
