@@ -8,6 +8,11 @@
  * are included in all such copies.  Other copyrights may also apply.
  */
 
+#ifndef WINDOWS
+#define _DEFAULT_SOURCE  /* For DT_DIR and other POSIX extensions */
+#define _BSD_SOURCE      /* For setregid on older systems */
+#endif
+
 #include "angband.h"
 #include "blitz.h"
 #include "scorefile.h"
@@ -39,6 +44,8 @@
 #else
 #include <sys/stat.h>  /* For mkdir */
 #include <dirent.h>    /* For directory operations */
+#include <unistd.h>    /* For setregid, getgid, etc. */
+#include <signal.h>    /* For kill, SIGSTOP */
 #endif
 
 /* Helper to build score/meta file path correctly for both portable and normal builds */

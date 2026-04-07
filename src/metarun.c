@@ -7,6 +7,12 @@
  *     • list_metaruns()  – compact history view
  *     • print_metarun_stats() – details for current run
  * -------------------------------------------------------------------- */
+
+#ifndef WINDOWS
+#define _DEFAULT_SOURCE  /* For DT_DIR and other POSIX extensions */
+#define _BSD_SOURCE      /* For setregid on older systems */
+#endif
+
 #include "angband.h"
 #include "blitz.h"
 #include "externs.h"
