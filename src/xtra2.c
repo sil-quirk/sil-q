@@ -8708,7 +8708,7 @@ void varda_quest_interaction(void)
     }
 
     if (p_ptr->varda_quest == VARDA_QUEST_ACTIVE) {
-        msg_print("Varda's whisper: \"Find Duruin's bastion beyond five hundred feet.\"");
+        msg_print("Varda's whisper: \"Find Duruin's bastion at the turning of the deeps, where your journey nears its halfway point.\"");
         return;
     }
 

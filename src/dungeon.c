@@ -203,6 +203,10 @@ static void queue_active_partition_banner(void)
             break;
 
         c_put_str(TERM_ORANGE, buf, 1 + printed_lines, indent);
+        /* Clear only the next tile position to prevent glow overlay from showing through */
+        int erase_len = use_bigtile ? 2 : 1;
+        if (indent + linelen + erase_len <= wid)
+            Term_erase(indent + linelen, 1 + printed_lines, erase_len);
         printed_lines++;
     }
 

@@ -734,7 +734,7 @@ struct monster_type
     /* Thrall quest system */
     byte thrall_quest_item;      /* Item the thrall wants: 0=none, 1=shovel, 2=lantern, 3=herb, 4=mallorn, 5=healing potion, 6=dagger, 7=cloak, 8=boots, 9=herb of sustenance, 10=herb of restoration, 11=potion of clarity */
     byte thrall_quest_requested; /* 1 if the thrall's initial request has been shown to the player */
-    byte thrall_quest_completed; /* 1 if the thrall's quest has been completed */
+    byte thrall_quest_completed; /* Thrall quest state: 0=active, 1=reward claimed, 2=reward pending */
 };
 
 /*

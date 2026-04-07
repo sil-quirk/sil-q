@@ -172,7 +172,7 @@ W:Such resolve makes you worthy to swear the Oath of Silence, should you choose 
 # Quest of Varda, Lady of the Stars
 Q:6:Varda, Lady of the Stars
 T:The Star-kindler bids you cleanse the shadows
-C:Find and slay Duruin, least of the balrogs, within his Bastion of shadow
+C:Find and slay Duruin, least of the balrogs, at the turning of the deeps, within his Bastion of shadow
 O:6
 E:DEPTH_RANGE:1:3
 Y:1
@@ -187,9 +187,10 @@ I:"Child of the darkened Halls, long have I watched your wandering beneath the w
 I:Know that even here, in the deepest pits of the Enemy, my light is not wholly quenched."
 I:
 I:"Yet a shard of that light now lies smothered below, stolen by a petty balrog named Duruin.
-I:He has raised a bastion of shadow far beneath the Sun, and the whispering shades of the dark flock to his flame."
+I:He has raised a bastion of shadow at the turning of the deeps—where your journey is reckoned half complete.
+I:There, the whispering shades of the dark flock to his flame, and his hold grows strong upon my stolen light."
 I:
-I:"Seek out that stronghold. Break his hold upon the stolen light and cast down his foul servants.
+I:"Seek out that stronghold where the worlds grow dark and deep. Break his hold and cast down his foul servants.
 I:Do this, and I shall lay a choice of bright gifts before you, and teach you the oath that keeps the flame within."
 W:A hush falls as the last shadow fades, and a light wells up from the broken stones, returning to the air like a sigh of relief.
 W:The voice of Varda speaks, distant and clear as starlight upon still water.

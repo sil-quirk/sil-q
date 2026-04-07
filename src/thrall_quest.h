@@ -1,7 +1,7 @@
 /*
  * File: thrall_quest.h
  * Purpose: Thrall quest system - alert thralls can request items from the player
- *          and provide rewards (item upgrades or artifact knowledge)
+ *          and provide selectable rewards
  */
 
 #ifndef THRALL_QUEST_H
@@ -39,7 +39,7 @@ int player_has_thrall_quest_item(byte quest_item);
 bool handle_thrall_interaction(monster_type* m_ptr);
 
 /*
- * Complete the thrall's quest - consume the item and give reward
+ * Complete the thrall's quest - consume the item and offer the reward
  */
 void complete_thrall_quest(monster_type* m_ptr, int item_slot);
 

@@ -59,6 +59,13 @@ static void hidden_left_panel_add_line(hidden_overlay_line* lines, int* count,
 static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lines);
 static bool hidden_left_panel_sync_mask(const hidden_overlay_line* lines, int line_count);
 
+static bool heavy_armour_evasion_bonus_applies(const object_type* o_ptr)
+{
+    return (o_ptr->tval == TV_MAIL)
+        && ((o_ptr->sval == SV_MAIL_CORSLET)
+            || (o_ptr->sval == SV_LONG_CORSLET));
+}
+
 static u32b ability_log_turn_value(void)
 {
     if (playerturn < 0)
@@ -4124,6 +4131,12 @@ static void calc_bonuses(void)
         
         /* Apply the evasion bonus */
         p_ptr->skill_equip_mod[S_EVN] += o_ptr->evn;
+
+        if (p_ptr->active_ability[S_EVN][EVN_HEAVY_ARMOUR]
+            && heavy_armour_evasion_bonus_applies(o_ptr))
+        {
+            p_ptr->skill_equip_mod[S_EVN] += 1;
+        }
     }
 
     /* Clear the old item granted abilities */

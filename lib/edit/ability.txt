@@ -298,7 +298,7 @@ N:47:Heavy Armour Use
 I:2:7:9
 P:2/1:2/3
 D:Bearing heavy armour as did the dwarven allies of the Noldor, clad in mail and plate forged in the great smithies of Belegost. The dwarves of the Blue Mountains were renowned for fighting unbowed beneath the weight of their war-harness, turning the sheer mass of their armour into a bulwark of protection.
-E:[1dX] extra protection, where X = total armour weight / 15 lbs.
+E:[1dX] extra protection vs physical damage only (not elemental attacks), where X = total armour weight / 15 lbs. +1 evasion with Mail Corslets and Hauberks.
 T:37:0:99  # Mail
 T:34:0:99  # Shields
 

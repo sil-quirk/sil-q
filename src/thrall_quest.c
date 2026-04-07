@@ -1,7 +1,7 @@
 /*
  * File: thrall_quest.c
  * Purpose: Thrall quest system - alert thralls can request items from the player
- *          and provide rewards (item upgrades or artifact knowledge)
+ *          and provide selectable rewards
  */
 
 #include "angband.h"
@@ -45,12 +45,30 @@ static const int elf_thrall_weights[THRALL_QUEST_MAX] = {
     14   /* POTION_CLARITY - lift veils from the mind */
 };
 
-/*
- * Probability of each reward type
- * 60% chance to upgrade a broken item (if player has one)
- * 40% chance to reveal artifact knowledge
- */
-#define REWARD_UPGRADE_CHANCE 60
+#define THRALL_REWARD_MENU_BASE_ROW 5
+
+enum
+{
+    THRALL_QUEST_STATE_ACTIVE = 0,
+    THRALL_QUEST_STATE_REWARDED = 1,
+    THRALL_QUEST_STATE_REWARD_PENDING = 2
+};
+
+enum
+{
+    THRALL_REWARD_ARTEFACT = 0,
+    THRALL_REWARD_REPAIR = 1,
+    THRALL_REWARD_SANCTIFY = 2,
+    THRALL_REWARD_LATER = 3
+};
+
+typedef struct thrall_reward_option
+{
+    int reward;
+    char hotkey;
+    cptr label;
+    bool enabled;
+} thrall_reward_option;
 
 /*
  * Tolkienistic texts for thrall interactions
@@ -66,7 +84,7 @@ static const char* human_request_texts[] = {
     "\n"
     "Grant me this, and I shall share what little aid I can still offer.",
 
-    "You there \xe2\x80\x94 halt. You have the look of a free soul about you, and that is a rare and dangerous thing in these deeps.\n"
+    "You there - halt. You have the look of a free soul about you, and that is a rare and dangerous thing in these deeps.\n"
     "\n"
     "I have nothing to offer but words, and those are cheap in Angband. But I have a need, and you may have the means.\n"
     "\n"
@@ -96,7 +114,7 @@ static const char* human_request_texts[] = {
     "\n"
     "Help me, and I will help you. That is an honest bargain, even here.",
 
-    "Quiet \xe2\x80\x94 the guards have just passed. Listen, I have not much time to speak.\n"
+    "Quiet - the guards have just passed. Listen, I have not much time to speak.\n"
     "\n"
     "They have worked me near to death, but I am still breathing, and where there is breath there is a chance. I need your help.\n"
     "\n"
@@ -108,7 +126,7 @@ static const char* human_request_texts[] = {
 
     "I see from your bearing that you are no thrall. That alone gives me courage to ask what I am about to ask.\n"
     "\n"
-    "They took everything from me \xe2\x80\x94 my home, my name, my kin. All I have left is the hope that someone, someday, might show me a scrap of kindness.\n"
+    "They took everything from me - my home, my name, my kin. All I have left is the hope that someone, someday, might show me a scrap of kindness.\n"
     "\n"
     "Bring me %s.\n"
     "\n"
@@ -138,7 +156,7 @@ static const char* elf_request_texts[] = {
     "\n"
     "It would ease my captivity, and I would repay you with such knowledge as I still possess.",
 
-    "A\xe2\x80\xa6 free walker? Here, in the deep places? I thought my eyes had at last surrendered to the dark, but no \xe2\x80\x94 you are real.\n"
+    "A\xe2\x80\xa6 free walker? Here, in the deep places? I thought my eyes had at last surrendered to the dark, but no - you are real.\n"
     "\n"
     "I was taken from the green lands long ago, and the song has all but left my voice. Still, I remember enough to be of use.\n"
     "\n"
@@ -156,9 +174,9 @@ static const char* elf_request_texts[] = {
     "\n"
     "%s\n"
     "\n"
-    "Grant me this, and the old knowledge shall be yours \xe2\x80\x94 such of it as endures in a captive heart.",
+    "Grant me this, and the old knowledge shall be yours - such of it as endures in a captive heart.",
 
-    "Hush \xe2\x80\x94 speak softly. The walls have ears, and the servants of the Enemy are cunning beyond measure.\n"
+    "Hush - speak softly. The walls have ears, and the servants of the Enemy are cunning beyond measure.\n"
     "\n"
     "I have dwelt in these pits since before the sun last touched my face. My strength wanes, but my memory is long, and I remember things of power and beauty.\n"
     "\n"
@@ -166,17 +184,17 @@ static const char* elf_request_texts[] = {
     "\n"
     "%s\n"
     "\n"
-    "In exchange I will impart to you a portion of the Elder craft \xe2\x80\x94 small, perhaps, but not without worth.",
+    "In exchange I will impart to you a portion of the Elder craft - small, perhaps, but not without worth.",
 
     "You move as one who still knows the taste of open air. How I envy you.\n"
     "\n"
-    "I was a maker once \xe2\x80\x94 a shaper of fair things in the halls of my people. Now my forge is cold and my tools are rust. But the skill lives on in these fingers, if barely.\n"
+    "I was a maker once - a shaper of fair things in the halls of my people. Now my forge is cold and my tools are rust. But the skill lives on in these fingers, if barely.\n"
     "\n"
     "Would you bring me %s?\n"
     "\n"
     "%s\n"
     "\n"
-    "I would give you something in return \xe2\x80\x94 a gift of craft that the darkness has not yet devoured."
+    "I would give you something in return - a gift of craft that the darkness has not yet devoured."
 };
 
 static const char* human_pre_give_texts[] = {
@@ -186,31 +204,31 @@ static const char* human_pre_give_texts[] = {
     "\n"
     "If you would part with it, my gratitude would be boundless.",
 
-    "I see it upon you \xe2\x80\x94 %s! My heart leaps at the sight.\n"
+    "I see it upon you - %s! My heart leaps at the sight.\n"
     "\n"
     "%s\n"
     "\n"
     "Will you surrender it to one whose freedom hangs by a thread?",
 
-    "Wait \xe2\x80\x94 is that %s I spy? I have dreamed of such a thing through many dark watches.\n"
+    "Wait - is that %s I spy? I have dreamed of such a thing through many dark watches.\n"
     "\n"
     "%s\n"
     "\n"
     "Say the word, and it shall not be given in vain.",
 
-    "By all that is still good in this world \xe2\x80\x94 you carry %s! I can scarcely believe my fortune.\n"
+    "By all that is still good in this world - you carry %s! I can scarcely believe my fortune.\n"
     "\n"
     "%s\n"
     "\n"
     "Would you part with it? I swear upon my people that the debt will be repaid.",
 
-    "Hold \xe2\x80\x94 I recognise what you carry. That is %s, unless my eyes have wholly failed me.\n"
+    "Hold - I recognise what you carry. That is %s, unless my eyes have wholly failed me.\n"
     "\n"
     "%s\n"
     "\n"
     "If you would spare it, I will see that the kindness is returned.",
 
-    "You have it \xe2\x80\x94 %s! I can see it plain as day, and my heart almost bursts with hope.\n"
+    "You have it - %s! I can see it plain as day, and my heart almost bursts with hope.\n"
     "\n"
     "%s\n"
     "\n"
@@ -230,7 +248,7 @@ static const char* elf_pre_give_texts[] = {
     "\n"
     "Will you part with it for my sake?",
 
-    "My heart quickens \xe2\x80\x94 can it be? You bear %s! The very air around you seems brighter for it.\n"
+    "My heart quickens - can it be? You bear %s! The very air around you seems brighter for it.\n"
     "\n"
     "%s\n"
     "\n"
@@ -246,7 +264,7 @@ static const char* elf_pre_give_texts[] = {
     "\n"
     "%s\n"
     "\n"
-    "If you can spare this boon, my craft \xe2\x80\x94 such as it is \xe2\x80\x94 shall be devoted to your cause.",
+    "If you can spare this boon, my craft - such as it is - shall be devoted to your cause.",
 
     "Ai, can it be? %s! My fea trembles at the sight. Even in Angband, the world is not wholly bereft of grace.\n"
     "\n"
@@ -266,13 +284,13 @@ static const char* human_thanks_texts[] = {
     "\n"
     "I had thought all kindness perished when I was thrown into this pit, but you have proven me wrong.\n"
     "\n"
-    "Take what I can give \xe2\x80\x94 some cunning of hand and eye that the long years of labour have taught me.",
+    "Take what I can give - some cunning of hand and eye that the long years of labour have taught me.",
 
-    "I will not weep \xe2\x80\x94 tears are a luxury I cannot afford \xe2\x80\x94 but know that you have given me something more precious than gold.\n"
+    "I will not weep - tears are a luxury I cannot afford - but know that you have given me something more precious than gold.\n"
     "\n"
     "For a moment I remember what it was to be free, and that is enough.\n"
     "\n"
-    "Here \xe2\x80\x94 let me set my hands to your gear. It is the least I can do.",
+    "Here - let me set my hands to your gear. It is the least I can do.",
 
     "You risked much to bring this to a wretch like me, and I will not forget it.\n"
     "\n"
@@ -280,7 +298,7 @@ static const char* human_thanks_texts[] = {
     "\n"
     "Let me put what remains of my old skill to your benefit.",
 
-    "There are no words \xe2\x80\x94 not in the common tongue, nor in any speech I know \xe2\x80\x94 that can repay what you have done.\n"
+    "There are no words - not in the common tongue, nor in any speech I know - that can repay what you have done.\n"
     "\n"
     "But words are not all I have. These hands still know their trade, battered though they are.\n"
     "\n"
@@ -290,7 +308,7 @@ static const char* human_thanks_texts[] = {
     "\n"
     "She was right, and you have proven it.\n"
     "\n"
-    "Now let me see what I can do for you \xe2\x80\x94 I may be a slave, but my craft is still my own."
+    "Now let me see what I can do for you - I may be a slave, but my craft is still my own."
 };
 
 static const char* elf_thanks_texts[] = {
@@ -304,27 +322,27 @@ static const char* elf_thanks_texts[] = {
     "\n"
     "My spirit is lifted, if only for a moment, and in that moment I am myself again.\n"
     "\n"
-    "Let me share with you a fragment of the ancient craft \xe2\x80\x94 a gift from one who may soon pass beyond all circles of the world.",
+    "Let me share with you a fragment of the ancient craft - a gift from one who may soon pass beyond all circles of the world.",
 
     "Le hannon, le hannon. Words fail where gratitude is too deep for speech.\n"
     "\n"
     "You have rekindled an ember I thought quenched forever. Even if this body fails, the memory of your kindness will not fade from the song.\n"
     "\n"
-    "Accept what I can offer \xe2\x80\x94 a whisper of the old craft, shaped in better days.",
+    "Accept what I can offer - a whisper of the old craft, shaped in better days.",
 
     "You walk in the shadow of Morgoth himself, yet you carry light with you. That is no small thing.\n"
     "\n"
     "I have seen ages pass in this darkness, and few deeds have touched me so. May the stars remember your name when all other names are forgotten.\n"
     "\n"
-    "Come \xe2\x80\x94 let me share what lore I have. It is poor coin for such a gift, but it is all I possess.",
+    "Come - let me share what lore I have. It is poor coin for such a gift, but it is all I possess.",
 
     "Gi nathlam h\xc3\xad. You honour me beyond all deserving.\n"
     "\n"
     "In the long dark I have felt my fea diminish, a candle guttering in a gale. Yet your gift has steadied the flame, if only for a breath.\n"
     "\n"
-    "Let me repay you with a remnant of Noldorin craft \xe2\x80\x94 ancient and worn, yet still sharp.",
+    "Let me repay you with a remnant of Noldorin craft - ancient and worn, yet still sharp.",
 
-    "A\xe2\x80\xa6 tear? I had forgotten the Eldar could still weep. Forgive me \xe2\x80\x94 it has been long since anyone showed me such generosity.\n"
+    "A\xe2\x80\xa6 tear? I had forgotten the Eldar could still weep. Forgive me - it has been long since anyone showed me such generosity.\n"
     "\n"
     "The world beyond these walls grows dim in my memory, but the old skills remain. They are etched into my hands deeper than any chain.\n"
     "\n"
@@ -502,7 +520,7 @@ void init_thrall_quest(monster_type* m_ptr)
         m_ptr->thrall_quest_item = select_quest_item(elf_thrall_weights);
     }
     
-    m_ptr->thrall_quest_completed = 0;
+    m_ptr->thrall_quest_completed = THRALL_QUEST_STATE_ACTIVE;
 }
 
 /*
@@ -883,6 +901,158 @@ static bool choose_broken_item_to_upgrade(int* out_slot)
     return true;
 }
 
+static bool thrall_can_remove_curse(const object_type* o_ptr)
+{
+    u32b f1, f2, f3;
+
+    if (!o_ptr || !o_ptr->k_idx || !cursed_p(o_ptr))
+        return false;
+
+    object_flags(o_ptr, &f1, &f2, &f3);
+    (void)f1;
+    (void)f2;
+
+    return !(f3 & TR3_PERMA_CURSE);
+}
+
+static bool thrall_jinx_ego_is_simple(const ego_item_type* e_ptr)
+{
+    if (!e_ptr)
+        return false;
+
+    if (e_ptr->abilities != 0)
+        return false;
+    if (e_ptr->flags1 != 0)
+        return false;
+    if ((int)(int8_t)e_ptr->max_att != 0 || (int)(int8_t)e_ptr->to_dd != 0
+        || (int)(int8_t)e_ptr->to_ds != 0 || (int)(int8_t)e_ptr->max_evn != 0
+        || (int)(int8_t)e_ptr->to_pd != 0 || (int)(int8_t)e_ptr->to_ps != 0)
+    {
+        return false;
+    }
+    if (e_ptr->max_pval != 0 || e_ptr->min_pval != 0)
+        return false;
+
+    for (int i = 0; i < A_MAX; i++)
+    {
+        if (e_ptr->stat_bonus_set[i] || e_ptr->stat_bonus[i] != 0)
+            return false;
+    }
+
+    for (int i = 0; i < S_MAX; i++)
+    {
+        if (e_ptr->skill_bonus_set[i] || e_ptr->skill_bonus[i] != 0)
+            return false;
+    }
+
+    return true;
+}
+
+static bool thrall_is_removable_jinx_ego(byte e_idx)
+{
+    return e_idx && (e_info[e_idx].flags4 & TR4_JINX)
+        && thrall_jinx_ego_is_simple(&e_info[e_idx]);
+}
+
+static bool object_has_thrall_removable_jinx(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    return thrall_is_removable_jinx_ego(object_ego_prefix(o_ptr))
+        || thrall_is_removable_jinx_ego(object_ego_suffix(o_ptr));
+}
+
+static bool remove_thrall_jinx_affix(object_type* o_ptr, bool is_prefix)
+{
+    byte e_idx;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    e_idx = is_prefix ? object_ego_prefix(o_ptr) : object_ego_suffix(o_ptr);
+    if (!thrall_is_removable_jinx_ego(e_idx))
+        return false;
+
+    if (is_prefix)
+        object_set_ego_prefix(o_ptr, 0);
+    else
+        object_set_ego_suffix(o_ptr, 0);
+
+    refresh_broken_ident(o_ptr);
+    return true;
+}
+
+static bool remove_thrall_jinxes(object_type* o_ptr)
+{
+    bool removed = false;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    if (thrall_is_removable_jinx_ego(object_ego_prefix(o_ptr)))
+        removed |= remove_thrall_jinx_affix(o_ptr, true);
+
+    if (thrall_is_removable_jinx_ego(object_ego_suffix(o_ptr)))
+        removed |= remove_thrall_jinx_affix(o_ptr, false);
+
+    return removed;
+}
+
+static bool object_is_sanctifiable_item(const object_type* o_ptr)
+{
+    return thrall_can_remove_curse(o_ptr) || object_has_thrall_removable_jinx(o_ptr);
+}
+
+static int find_sanctifiable_item(void)
+{
+    int i;
+
+    for (i = 0; i < INVEN_TOTAL; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+
+        if (!o_ptr->k_idx)
+            continue;
+
+        if (object_is_sanctifiable_item(o_ptr))
+            return i;
+    }
+
+    return -1;
+}
+
+static bool item_tester_hook_sanctifiable_item(const object_type* o_ptr)
+{
+    return object_is_sanctifiable_item(o_ptr);
+}
+
+static bool choose_item_to_sanctify(int* out_slot)
+{
+    int slot = -1;
+
+    if (!out_slot)
+        return false;
+
+    item_tester_hook = item_tester_hook_sanctifiable_item;
+
+    if (!get_item(&slot, "Sanctify which item? ",
+            "You have nothing fit for sanctification.",
+            (USE_EQUIP | USE_INVEN)))
+    {
+        item_tester_hook = NULL;
+        return false;
+    }
+
+    item_tester_hook = NULL;
+
+    if (slot < 0)
+        return false;
+
+    *out_slot = slot;
+    return true;
+}
+
 /*
  * Repair a damaged item, either by removing its damaged ego prefix or
  * by upgrading a legacy damaged base kind for old saves.
@@ -1010,6 +1180,118 @@ bool upgrade_broken_item(int slot)
     return true;
 }
 
+static bool artifact_is_revealable(int a_idx)
+{
+    artefact_type* a_ptr;
+
+    if (a_idx <= 0 || a_idx >= z_info->art_max)
+        return false;
+
+    a_ptr = &a_info[a_idx];
+
+    if (a_ptr->tval + a_ptr->sval == 0)
+        return false;
+    if (a_ptr->found_num > 0)
+        return false;
+    if (a_ptr->seen & ART_SEEN_REVEALED)
+        return false;
+    if ((a_idx == ART_MORGOTH_0) || (a_idx == ART_MORGOTH_1)
+        || (a_idx == ART_MORGOTH_2))
+    {
+        return false;
+    }
+    if ((a_idx >= ART_ULTIMATE) && (a_idx <= z_info->art_norm_max))
+        return false;
+
+    return true;
+}
+
+static int count_revealable_artifacts(void)
+{
+    int i;
+    int count = 0;
+
+    for (i = 1; i < z_info->art_max; i++)
+    {
+        if (artifact_is_revealable(i))
+            count++;
+    }
+
+    return count;
+}
+
+static bool sanctify_item(int slot)
+{
+    object_type* o_ptr = &inventory[slot];
+    bool had_curse;
+    bool can_remove_curse;
+    bool removed_curse = false;
+    bool removed_jinx = false;
+    char o_name[80];
+    char dialog_text[1024];
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    had_curse = cursed_p(o_ptr) ? true : false;
+    can_remove_curse = thrall_can_remove_curse(o_ptr);
+
+    if (!can_remove_curse && !object_has_thrall_removable_jinx(o_ptr))
+        return false;
+
+    object_desc(o_name, sizeof(o_name), o_ptr, true, 0);
+
+    removed_jinx = remove_thrall_jinxes(o_ptr);
+
+    if (can_remove_curse)
+    {
+        uncurse_object(o_ptr);
+        removed_curse = true;
+    }
+
+    if (!removed_curse && !removed_jinx)
+        return false;
+
+    p_ptr->update |= (PU_BONUS);
+    p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
+
+    if (removed_curse && removed_jinx)
+    {
+        strnfmt(dialog_text, sizeof(dialog_text),
+            "The elven thrall lays gentle hands upon %s, and a clear light runs through it.\n\n"
+            "Its curse is lifted, and every jinx upon it is wholly broken.",
+            o_name);
+    }
+    else if (removed_curse)
+    {
+        strnfmt(dialog_text, sizeof(dialog_text),
+            "The elven thrall murmurs words of ancient grace over %s.\n\n"
+            "Its curse is lifted.",
+            o_name);
+    }
+    else if (had_curse)
+    {
+        strnfmt(dialog_text, sizeof(dialog_text),
+            "The elven thrall studies %s in silence, and a pale brightness strips one layer of malice away.\n\n"
+            "Its jinx is broken, but the deeper curse remains.",
+            o_name);
+    }
+    else
+    {
+        strnfmt(dialog_text, sizeof(dialog_text),
+            "The elven thrall breathes softly over %s, and the spite laid upon it unravels.\n\n"
+            "Its jinx is wholly broken.",
+            o_name);
+    }
+
+    {
+        cptr texts[1] = { dialog_text };
+        quest_typewriter_menu("Sanctification", texts, 1, TERM_L_BLUE, TERM_WHITE);
+    }
+
+    return true;
+}
+
 /*
  * Reveal a random unknown artifact's description
  * Returns true if an artifact was revealed
@@ -1024,33 +1306,7 @@ bool reveal_random_artifact(void)
     char o_name[120];
     
     /* Count unrevealed artifacts */
-    count = 0;
-    for (i = 1; i < z_info->art_max; i++)
-    {
-        a_ptr = &a_info[i];
-        
-        /* Skip "empty" artefacts */
-        if (a_ptr->tval + a_ptr->sval == 0)
-            continue;
-        
-        /* Skip already found artefacts */
-        if (a_ptr->found_num > 0)
-            continue;
-
-        /* Skip already revealed artefacts */
-        if (a_ptr->seen & ART_SEEN_REVEALED)
-            continue;
-
-        /* Skip the later versions of the Iron Crown */
-        if ((i == ART_MORGOTH_0) || (i == ART_MORGOTH_1) || (i == ART_MORGOTH_2))
-            continue;
-
-        /* Skip the special smithing template artefacts */
-        if ((i >= ART_ULTIMATE) && (i <= z_info->art_norm_max))
-            continue;
-        
-        count++;
-    }
+    count = count_revealable_artifacts();
     
     /* No unknown artifacts */
     if (count == 0)
@@ -1064,19 +1320,9 @@ bool reveal_random_artifact(void)
     count = 0;
     for (i = 1; i < z_info->art_max; i++)
     {
-        a_ptr = &a_info[i];
-        
-        if (a_ptr->tval + a_ptr->sval == 0)
+        if (!artifact_is_revealable(i))
             continue;
-        if (a_ptr->found_num > 0)
-            continue;
-        if (a_ptr->seen & ART_SEEN_REVEALED)
-            continue;
-        if ((i == ART_MORGOTH_0) || (i == ART_MORGOTH_1) || (i == ART_MORGOTH_2))
-            continue;
-        if ((i >= ART_ULTIMATE) && (i <= z_info->art_norm_max))
-            continue;
-        
+
         candidates[count++] = i;
     }
     
@@ -1128,16 +1374,262 @@ bool reveal_random_artifact(void)
     return true;
 }
 
+static int next_thrall_reward_selection(const thrall_reward_option options[],
+    int option_count, int current, int dir)
+{
+    int next = current;
+
+    if (option_count <= 0)
+        return current;
+
+    do
+    {
+        next = (next + dir + option_count) % option_count;
+        if (options[next].enabled)
+            return next;
+    } while (next != current);
+
+    return current;
+}
+
+static int choose_thrall_reward(monster_type* m_ptr, bool pending_reward)
+{
+    thrall_reward_option options[4];
+    int option_count = 0;
+    int selected;
+    int term_wid = 80;
+    int term_hgt = 24;
+    bool compact;
+    int title_row = 0;
+    int intro_row = 1;
+    int list_row;
+    int info_row;
+    int prompt_row;
+    char key;
+
+    if (!m_ptr)
+        return THRALL_REWARD_LATER;
+
+    options[option_count++] = (thrall_reward_option){
+        THRALL_REWARD_ARTEFACT, 'a', "Artefact knowledge",
+        count_revealable_artifacts() > 0 };
+    options[option_count++] = (thrall_reward_option){
+        THRALL_REWARD_REPAIR, 'b', "Repair a damaged item",
+        find_broken_item_to_upgrade() >= 0 };
+
+    if (m_ptr->r_idx == R_IDX_ALERT_ELF_THRALL)
+    {
+        options[option_count++] = (thrall_reward_option){
+            THRALL_REWARD_SANCTIFY, 'c', "Sanctify a cursed or jinxed item",
+            find_sanctifiable_item() >= 0 };
+    }
+
+    {
+        char later_hotkey = (char)('a' + option_count);
+        options[option_count++] = (thrall_reward_option){
+            THRALL_REWARD_LATER, later_hotkey, "Come later", true };
+    }
+
+    selected = next_thrall_reward_selection(options, option_count, option_count - 1, 1);
+
+    if (Term)
+        Term_get_size(&term_wid, &term_hgt);
+
+    if (term_wid < 1)
+        term_wid = 1;
+    if (term_hgt < 1)
+        term_hgt = 1;
+
+    compact = (term_wid < 60) || (term_hgt < 16);
+    list_row = compact ? 3 : THRALL_REWARD_MENU_BASE_ROW;
+    prompt_row = MAX(0, term_hgt - 1);
+    info_row = prompt_row - 1;
+
+    screen_save();
+
+    while (true)
+    {
+        Term_clear();
+
+        if (m_ptr->r_idx == R_IDX_ALERT_ELF_THRALL)
+            Term_putstr(0, title_row, term_wid, TERM_L_BLUE,
+                compact ? "Elven Thrall" : "An Elven Thrall");
+        else
+            Term_putstr(0, title_row, term_wid, TERM_YELLOW,
+                compact ? "Human Thrall" : "A Human Thrall");
+
+        if (pending_reward)
+            Term_putstr(0, intro_row, term_wid, TERM_L_WHITE,
+                compact ? "Choose your reward." :
+                "The boon you earned is still yours to claim.");
+        else
+            Term_putstr(0, intro_row, term_wid, TERM_L_WHITE,
+                compact ? "Choose your reward." :
+                "Choose what gift the thrall will grant you.");
+
+        for (int i = 0; i < option_count; i++)
+        {
+            int row = list_row + i;
+            byte attr = options[i].enabled
+                ? ((i == selected) ? TERM_L_WHITE : TERM_WHITE)
+                : TERM_L_DARK;
+
+            if (row >= info_row)
+                break;
+
+            Term_putstr(0, row, term_wid,
+                (i == selected) ? TERM_L_BLUE : TERM_SLATE,
+                (i == selected) ? "> " : "  ");
+
+            Term_putstr(2, row, MAX(0, term_wid - 2), attr,
+                format("%c) %s", options[i].hotkey, options[i].label));
+        }
+
+        if (info_row > intro_row)
+        {
+            Term_putstr(0, info_row, term_wid, TERM_L_DARK,
+                compact ? "Grey = unavailable." :
+                "Greyed options need a suitable item in inventory or equipment.");
+        }
+
+        Term_putstr(0, prompt_row, term_wid, TERM_L_DARK,
+            compact ? "8/2 move  Enter choose  ESC later" :
+            "8/2 or arrows navigate  Enter accept  Letter select  ESC later");
+
+        Term_fresh();
+
+        hide_cursor = true;
+        key = inkey();
+        hide_cursor = false;
+
+        switch (key)
+        {
+        case ESCAPE:
+            screen_load();
+            return THRALL_REWARD_LATER;
+
+        case '8':
+        case 'k':
+        case 'K':
+#ifdef ARROW_UP
+        case ARROW_UP:
+#endif
+            selected = next_thrall_reward_selection(options, option_count,
+                selected, -1);
+            break;
+
+        case '2':
+        case 'j':
+        case 'J':
+#ifdef ARROW_DOWN
+        case ARROW_DOWN:
+#endif
+            selected = next_thrall_reward_selection(options, option_count,
+                selected, 1);
+            break;
+
+        case '\r':
+        case '\n':
+        case ' ':
+#ifdef KC_ENTER
+        case KC_ENTER:
+#endif
+            if (!options[selected].enabled)
+            {
+                bell("That reward is not available.");
+                break;
+            }
+
+            screen_load();
+            return options[selected].reward;
+
+        default:
+            key = (char)tolower((unsigned char)key);
+
+            for (int i = 0; i < option_count; i++)
+            {
+                if (key != options[i].hotkey)
+                    continue;
+
+                if (!options[i].enabled)
+                {
+                    bell("That reward is not available.");
+                    break;
+                }
+
+                screen_load();
+                return options[i].reward;
+            }
+
+            break;
+        }
+    }
+}
+
+static bool offer_thrall_reward(monster_type* m_ptr, bool pending_reward)
+{
+    char m_name[80];
+
+    if (!m_ptr)
+        return false;
+
+    monster_desc(m_name, sizeof(m_name), m_ptr, 0);
+
+    while (true)
+    {
+        int choice = choose_thrall_reward(m_ptr, pending_reward);
+
+        switch (choice)
+        {
+        case THRALL_REWARD_ARTEFACT:
+            if (reveal_random_artifact())
+                return true;
+            break;
+
+        case THRALL_REWARD_REPAIR:
+        {
+            int slot;
+
+            if (!choose_broken_item_to_upgrade(&slot))
+                break;
+
+            if (upgrade_broken_item(slot))
+                return true;
+
+            msg_print("The thrall cannot mend that item.");
+            break;
+        }
+
+        case THRALL_REWARD_SANCTIFY:
+        {
+            int slot;
+
+            if (!choose_item_to_sanctify(&slot))
+                break;
+
+            if (sanctify_item(slot))
+                return true;
+
+            msg_print("The thrall cannot sanctify that item.");
+            break;
+        }
+
+        case THRALL_REWARD_LATER:
+        default:
+            msg_format("%^s bows the head and waits for your return.", m_name);
+            return false;
+        }
+
+        pending_reward = true;
+    }
+}
+
 /*
  * Complete the thrall's quest - consume the item and give reward
  */
 void complete_thrall_quest(monster_type* m_ptr, int item_slot)
 {
     object_type* o_ptr;
-    char o_name[80];
-    char m_name[80];
-    int broken_slot;
-    bool do_upgrade;
     bool from_supplies = false;
     int supply_idx = -1;
 
@@ -1155,11 +1647,7 @@ void complete_thrall_quest(monster_type* m_ptr, int item_slot)
     /* Paranoia */
     if (!o_ptr || !o_ptr->k_idx)
         return;
-    
-    /* Get names */
-    object_desc(o_name, sizeof(o_name), o_ptr, true, 0);
-    monster_desc(m_name, sizeof(m_name), m_ptr, 0);
-    
+
     /* Thank the player */
     thrall_thanks_dialog(m_ptr);
     
@@ -1174,49 +1662,12 @@ void complete_thrall_quest(monster_type* m_ptr, int item_slot)
         inven_item_optimize(item_slot);
     }
     
-    /* Mark quest as completed */
-    m_ptr->thrall_quest_completed = 1;
-    
-    /* Determine reward */
-    broken_slot = find_broken_item_to_upgrade();
-    
-    /* If player has a broken item, high chance to upgrade it */
-    if (broken_slot >= 0 && rand_int(100) < REWARD_UPGRADE_CHANCE)
-    {
-        do_upgrade = true;
-    }
-    else
-    {
-        do_upgrade = false;
-    }
-    
-    if (do_upgrade)
-    {
-        char dialog_text[1024];
-        strnfmt(dialog_text, sizeof(dialog_text), 
-            "%^s regards your gear with a craftsman's gaze.\n\n"
-            "\"I have seen steel marred in the deeps and mended again. Will you suffer me to set my hands to it?\"", m_name);
-        cptr texts[1] = { dialog_text };
-        quest_typewriter_menu("Offer of Restoration", texts, 1, TERM_YELLOW, TERM_WHITE);
+    /* Reward can be claimed now or later. */
+    m_ptr->thrall_quest_completed = THRALL_QUEST_STATE_REWARD_PENDING;
 
-        if (choose_broken_item_to_upgrade(&broken_slot))
-        {
-            if (!upgrade_broken_item(broken_slot))
-            {
-                /* Fallback to artifact knowledge if upgrade fails */
-                reveal_random_artifact();
-            }
-        }
-        else
-        {
-            reveal_random_artifact();
-        }
-    }
-    else
-    {
-        reveal_random_artifact();
-    }
-    
+    if (offer_thrall_reward(m_ptr, false))
+        m_ptr->thrall_quest_completed = THRALL_QUEST_STATE_REWARDED;
+
     /* Update windows */
     p_ptr->window |= (PW_INVEN);
 }
@@ -1242,10 +1693,18 @@ bool handle_thrall_interaction(monster_type* m_ptr)
         init_thrall_quest(m_ptr);
     }
     
-    /* Quest already completed */
-    if (m_ptr->thrall_quest_completed)
+    /* Reward already claimed */
+    if (m_ptr->thrall_quest_completed == THRALL_QUEST_STATE_REWARDED)
     {
         msg_format("%^s inclines the head, and though no words are spoken, gratitude is plain in hollow eyes.", m_name);
+        return true;
+    }
+
+    /* Reward is waiting to be claimed */
+    if (m_ptr->thrall_quest_completed == THRALL_QUEST_STATE_REWARD_PENDING)
+    {
+        if (offer_thrall_reward(m_ptr, true))
+            m_ptr->thrall_quest_completed = THRALL_QUEST_STATE_REWARDED;
         return true;
     }
     
