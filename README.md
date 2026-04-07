@@ -4,7 +4,7 @@ Sil-Morë — Shining Darkness is a version of SIL-Q which incorporates two main
 First, it has real life characters from Tolkien FA and storyline.
 Secondly, it uses a system of metaruns, where consequtive runs are connected into one storyline idea more like modern Rougue-light games.
 
-# Compiling (SDL Version)
+# Compiling (SDL3)
 
 ## Windows
 
@@ -19,18 +19,21 @@ Secondly, it uses a system of metaruns, where consequtive runs are connected int
    ```bash
    pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-SDL3 mingw-w64-x86_64-SDL3_image mingw-w64-x86_64-SDL3_ttf make
    ```
-3. Navigate to the Sil-More source directory.
-4. Run the build script:
-   ```bash
-   ./build-cmake.bat
+3. From the repo root, run:
+   ```powershell
+   .\build-cmake.bat
    ```
-   Or manually configure and build:
-   ```bash
-   cmake -G "MinGW Makefiles" -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=C:/msys64/mingw64
-   cmake --build build --parallel
+4. The script builds both Windows SDL3 deployments:
+   - `sil-more-windows-sdl3\sil-more.exe`
+   - `sil-more-windows-sdl3-portable\sil-more.exe`
+5. Run the build you want:
+   ```powershell
+   .\sil-more-windows-sdl3\sil-more.exe
    ```
-5. The executable will be in `build/sil-more.exe` and deployed to `sil-more-windows-sdl3/`.
-6. Run from the deployment directory: `cd sil-more-windows-sdl3 && ./sil-more.exe`
+   or
+   ```powershell
+   .\sil-more-windows-sdl3-portable\sil-more.exe
+   ```
 
 ## Linux
 
@@ -55,167 +58,162 @@ Secondly, it uses a system of metaruns, where consequtive runs are connected int
      paru -S sdl3_ttf sdl3_image # or use any other AUR helper
      ```
 
-2. Navigate to the Sil-More source directory.
-3. Configure and build:
+2. From the repo root, configure and build:
    ```bash
    cmake -B build -DCMAKE_BUILD_TYPE=Release
    cmake --build build --parallel
    ```
-4. The executable will be in `build/sil-more`.
-5. Run the game:
+3. The executable will be in `build/sil-more`.
+4. Run the game:
    ```bash
    ./build/sil-more
    ```
 
 ## macOS
 
-### Prerequisites
-- Xcode Command Line Tools
-- Homebrew (recommended for SDL3)
-- CMake
+For most Mac users, the simplest path is: install Apple's command line tools, install the SDL3 packages with Homebrew, then build with CMake from Terminal. The submodule-based SDL build is still available below, but most users should not need it.
 
-### Building
-1. Install Xcode Command Line Tools:
-   ```bash
-   xcode-select --install
-   ```
-2. Install Homebrew if not already installed (see https://brew.sh/).
-3. Install dependencies:
-   ```bash
-   brew install cmake sdl3 sdl3-image sdl3-ttf
-   ```
-4. Navigate to the Sil-More source directory.
-5. Configure and build:
-   ```bash
-   cmake -B build
-   cmake --build build --parallel
-   ```
-6. The executable will be in `build/sil-more`.
-7. Run the game:
-   ```bash
-   ./build/sil-more
-   ```
+### Recommended path for most users
 
-# Steam Deck installation
+#### 1. Install Apple's command line tools
+Open Terminal.app and run:
 
-- Long press power button and enter Desktop Mode.
-- Download latest Steam Deck release (from release page .zip file marked as steamdeck).
-- You can also download it to the flash drive and then mount in desktop mode (bottom right corner).
-- Unzip to any folder (even downloads will work fine).
-- Open Steam and in the top menu select games->Add a Non-Steam Game
-- Find Sil-More.exe and add it. Change the name to Sil-More in Properties.
-- In properties -> compatibilty use current version of Proton.
-- (optional) If you want to see artwork in your steam deck menus, Properties -> Customization. We have prepaired a CoverArt folder for you (do not forget to png in filter).
-- Open controller setup. You should see the layout on Community layouts or in search. If not, open the link Steam-Deck-layout-Sil-More in game folder, current link is steam://controllerconfig/4068119597/3573052583.
-- Return back to Game mode and enjoy Sil-More!  
-
-## macOS
-
-### Prerequisites
-
-Sil-more requires some C compiler (any modern like gcc or clang would work), `ncurses`, and, optionally, `git`. As for the C compiler and `git`, these are likely already installed on your Mac. You can check it. Start Terminal.app (or any other terminal emulator of your choice) and run:
-
-```shell
-gcc -dumpversion
-```
-
-If it outputs something like '17.0.0' (or other version, depending on your macOS version, that doesn't really matter for this project), you're good. Otherwise, you should install Apple's Xcode Command Line Tools.
-
-#### Xcode Command Line Tools
-
-To do it, run, again, in your terminal:
-
-```shell
+```bash
 xcode-select --install
 ```
 
-This step will take some time as it will download the files from Apple's servers. It will also ask you whether you want to install it. Agree. After it's done, verify it's working:
+If they are already installed, macOS will tell you. You can verify the install with:
 
-```shell
+```bash
 xcode-select -p
 ```
 
-It should show you the path to where it's installed, like this:
+That should print a path such as:
 
-```
+```text
 /Library/Developer/CommandLineTools
 ```
 
-Aside from the C and C++ compiler, it also installs `git`.
+#### 2. Install Homebrew
+Homebrew is the easiest way to install the SDL3 libraries and CMake on macOS.
 
+If you already have it, check with:
 
-#### Homebrew
-
-Now, we also need to install homebrew which is a package manager for macOS often used to install development tools and command line utilities. If you already have it installed, of course skip this step. Otherwise, follow [this guide](https://docs.brew.sh/Installation) on their official website.
-
-#### ncurses
-
-This version of sil-q only works in the terminal, so it requires a library to draw ASCII graphics. This is called `ncurses` and is easily installed via homebrew:
-
-```shell
-brew install ncurses
+```bash
+brew --version
 ```
 
-This will probably also pull its dependencies as brew tracks and installs them automatically.
+If not, install it from https://brew.sh/ and then continue here.
 
+#### 3. Install the build dependencies
+In Terminal, run:
 
-### Building
-
-#### Getting the code
-
-Now to the actual building! First, clone the repo:
-
-```shell
-git clone https://github.com/k0rtesss/sil-more
+```bash
+brew install cmake sdl3 sdl3-image sdl3-ttf
 ```
 
-Or simply download and unpack the ZIP archive from the GitHub page clicking on Code > Download ZIP.
+#### 4. Get the code
+If you use git, clone the repo:
 
-In any case, in terminal, navigate to the folder:
-
-```shell
-cd ~/sil-more
+```bash
+git clone https://github.com/k0rtesss/Sil-More.git
+cd Sil-More
 ```
 
-or wherever you've cloned or downloaded it.
+If you prefer not to use git, download the ZIP from GitHub, extract it, then open Terminal and `cd` into the extracted folder.
 
-#### Compiling
+#### 5. Build the game
+From the repo root, configure and build with the Homebrew CMake package files:
 
-Now just change to the source folder:
-
-```shell
-cd src
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --prefix)"
+cmake --build build --parallel
 ```
 
-and compile the code:
+If CMake says it cannot find `SDL3`, `SDL3_image`, or `SDL3_ttf`, try an explicit Homebrew prefix:
 
-```shell
-make -f Makefile.std
+- Apple Silicon Macs usually use `/opt/homebrew`
+- Intel Macs usually use `/usr/local`
+
+Example:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=/opt/homebrew
+cmake --build build --parallel
 ```
 
-### Running
+If you are on Apple Silicon and want a native arm64 build, use the normal Terminal/Homebrew setup, not a Rosetta shell.
 
-If everything went well, you can play! To start sil-qh, change back to the parent folder:
+#### 6. Run the game
+From the repo root, run:
 
-```shell
-cd ..
+```bash
+./build/sil-more
 ```
 
-and run:
+On first launch, the game will create its save/config folders in your macOS user data location and seed the default `sound.json` automatically.
 
-```shell
-./src/sil
+### Alternative: build SDL from the repo submodules
+Use this only if you specifically want to build against the SDL sources in `external/` instead of the Homebrew packages.
+
+1. Initialize the SDL submodules:
+   ```bash
+   git submodule update --init --recursive
+   ```
+2. If you already configured `build/` for the Homebrew path and want to switch methods, remove the old build directory first.
+3. Configure and build:
+   ```bash
+   cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSIL_BUILD_WITH_SDL_SOURCES=ON
+   cmake --build build --parallel
+   ```
+4. Run the game:
+   ```bash
+   ./build/sil-more
+   ```
+
+## Android
+
+### Prerequisites
+- Android Studio
+- Android SDK and NDK
+- Java 17 or the Android Studio bundled JBR
+
+### Building in Android Studio
+1. From the repo root, run `git submodule update --init --recursive`.
+2. Open the `android/` folder in Android Studio.
+3. Let Gradle sync complete.
+4. Build or run the `app` configuration. The project targets `arm64-v8a`.
+
+### Command-line build
+From the repo root:
+
+```powershell
+.\build-android.ps1 -Abi arm64-v8a -Config Release
 ```
 
-It's essential to run the game from the parent folder as it looks for the game data in locations relative to it.
+For APK build and install helpers:
 
-If the game complains about the metarun file, create the folder it wants:
-
-```shell
-mkdir lib/apex/metaruns
+```powershell
+.\build-android-apk.ps1 -Config Debug
+.\install-android-apk.ps1 -Config Debug
+.\deploy-android.ps1 -Config Release -LaunchApp
 ```
 
-and restart.
+For more Android-specific details, see [android/README.md](android/README.md).
+
+# Steam Deck installation
+
+- There is no separate Steam Deck release anymore. Use the regular Windows release zip.
+- Long press power button and enter Desktop Mode.
+- Download the latest Windows release zip from the Releases page.
+- You can also copy it with removable storage and mount that in Desktop Mode.
+- Unzip to any folder (Downloads works fine).
+- Open Steam and in the top menu select Games -> Add a Non-Steam Game.
+- Find `sil-more.exe` and add it. Change the name to Sil-More in Properties.
+- In Properties -> Compatibility, use the current version of Proton.
+- Optional: if the release includes `SteamDeck-Covers`, open Properties -> Customization and use the PNG files from that folder.
+- Open controller setup. You should see the layout in Community layouts or search. If not, open `Steam-Deck-layout-Sil-More.url` in the game folder; the current link is `steam://controllerconfig/4068119597/3573052583`.
+- Return back to Game mode and enjoy Sil-More!  
 
 # Road Map
 ## Done
