@@ -126,6 +126,6 @@ These resolutions fit the minimum terminal exactly with no extra space:
 
 ## Configuration File
 
-When `sil_sdl.json` doesn't exist, these defaults are applied automatically based on detected screen resolution. Users can override any setting by:
-1. Creating a custom `sil_sdl.json` file
+When `sil_sdl.json` (stored in your Sil-More user folder—`%USERPROFILE%\sil-more\sil_sdl.json` on Windows or `~/sil-more/sil_sdl.json` on macOS/Linux) doesn't exist, these defaults are applied automatically based on detected screen resolution. Users can override any setting by:
+1. Creating or editing that `sil_sdl.json` file
 2. Using command-line arguments (`--scale`, `--font-size`, etc.)

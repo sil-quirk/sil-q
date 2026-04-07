@@ -1,0 +1,106 @@
+# File: set.txt
+#
+# This file defines item sets. When all members of a set are equipped,
+# the set may grant stat/skill bonuses and/or special behaviours.
+#
+# Do not modify this file unless you know exactly what you are doing,
+# unless you wish to risk possible system crashes and broken savefiles.
+#
+#
+# === Understanding set.txt ===
+#
+# N: serial number : set name
+# Q: 16-digit (or longer) hexadecimal GUID identifying the set (optional)
+# A: artefact member reference
+#    - decimal artefact index (from artefact.txt N: field), e.g. A:64
+#    - hex GUID (from artefact.txt Q: field), e.g. A:5ee28c5262c0629d
+#      (If the GUID is digits-only, prefix with 0x to disambiguate from an index.)
+#    - quoted artefact name (matches artefact.txt N: name), e.g. A:'Orcrist'
+# F: set flags (separated by |)
+#    - PAIRED_WEAPONS: exactly 2 weapon artefacts; allows wielding both without
+#      the Two Weapon Fighting ability and removes off-hand penalties.
+#    - WARDING_GIRDLE: when firing a missile artefact that's part of a fully
+#      equipped set, spawn 3 glyphs of warding at the impact (1 square before).
+# M: bonus token : value (applies when full set equipped)
+#    tokens: STR, DEX, CON, GRA, MEL|MELEE, ARC|ARCHERY, STL|STEALTH,
+#            PER|PERCEPTION, WIL|WILL, SMT|SMITHING, SNG|SONG
+#
+V:0.9.5
+
+
+#################################################################
+# Default item sets
+#################################################################
+
+
+## Orcrist and Glamdring (paired weapons)
+
+N:1:Orcrist and Glamdring
+F:PAIRED_WEAPONS
+A:5ee28c5262c0629d  
+# 'Orcrist'
+A:ace66e723fa1853c  
+# 'Glamdring'
+
+
+## Crown of Maedhros and Hauberk of Maedhros (+1 CON)
+
+N:2:Maedhros Regalia
+A:4dca93d7e5f9681f  
+# crown of Maedhros
+A:5003ac23ea4cf5ae  
+# hauberk of Maedhros
+M:CON:1
+
+
+## Belthronding and Dailir (warding girdle on shot)
+
+N:3:Belthronding and Dailir
+Q:406e2bebdae3340c
+F:WARDING_GIRDLE
+A:792beedcd8af6104  
+# 'Belthronding'
+A:e8840ae097bbec79  
+# 'Dailir'
+
+
+## Amrod and Amras (paired weapons)
+
+N:4:Amrod and Amras
+Q:c72e9a56f18b3d02
+F:PAIRED_WEAPONS
+A:70239c6076a16a6c  
+# shortsword of Amrod
+A:17173e277d13b237  
+# shortsword of Amras
+
+
+## Panoply of Earendil (6-piece war-gear set: +1 GRA, +5 WIL)
+
+N:5:Panoply of Earendil
+Q:e3a7b1d5f9c20486
+A:7e3a91f4c6b20d58  
+# 'Falchrist'
+A:d4f8a2e1b9c37065  
+# 'Tirthand'
+A:b5e9d0c8a7f61324  
+# 'Gilceleb'
+A:c6f2a3d9e8b40751  
+# 'Thoronthaul'
+A:a8d1e5f3b7c29046  
+# 'Mornpilin'
+A:4a5fc05927236048  
+# 'Amlugrist'
+M:GRA:1
+M:WIL:5
+
+
+## Treasures of Finwe (corslet and lamp: +1 GRA)
+
+N:6:Treasures of Finwe
+Q:f4c8e1a6d9b20573
+A:d1921f00bca8218e  
+# corslet of Finwe
+A:a7c3d925e8f14b62  
+# lamp of Finwe
+M:GRA:1

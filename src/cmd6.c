@@ -9,6 +9,400 @@
  */
 
 #include "angband.h"
+#include "externs.h"
+
+static void format_staff_prompt_name(char* buf, size_t max,
+    const object_type* o_ptr, bool pref)
+{
+    char full[80];
+    const char* staff_of;
+
+    if (!buf || max == 0)
+        return;
+
+    buf[0] = '\0';
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return;
+
+    object_desc(full, sizeof(full), o_ptr, pref, 0);
+
+    if (o_ptr->tval != TV_STAFF)
+    {
+        SDL_strlcpy(buf, full, max);
+        return;
+    }
+
+    staff_of = strstr(full, "Staff of ");
+    if (!staff_of)
+    {
+        SDL_strlcpy(buf, full, max);
+        return;
+    }
+
+    if (!pref)
+    {
+        SDL_strlcpy(buf, staff_of, max);
+        return;
+    }
+
+    if (!strncmp(full, "The ", 4))
+        strnfmt(buf, max, "The %s", staff_of);
+    else if (!strncmp(full, "no more ", 8))
+        strnfmt(buf, max, "no more %s", staff_of);
+    else
+        strnfmt(buf, max, "a %s", staff_of);
+}
+
+static void format_horn_prompt_name(char* buf, size_t max,
+    const object_type* o_ptr, bool pref)
+{
+    char full[80];
+    const char* horn_of;
+
+    if (!buf || max == 0)
+        return;
+
+    buf[0] = '\0';
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return;
+
+    object_desc(full, sizeof(full), o_ptr, pref, 0);
+
+    if (o_ptr->tval != TV_HORN)
+    {
+        SDL_strlcpy(buf, full, max);
+        return;
+    }
+
+    horn_of = strstr(full, "Horn of ");
+    if (!horn_of)
+    {
+        SDL_strlcpy(buf, full, max);
+        return;
+    }
+
+    if (!pref)
+    {
+        SDL_strlcpy(buf, horn_of, max);
+        return;
+    }
+
+    if (!strncmp(full, "The ", 4))
+        strnfmt(buf, max, "The %s", horn_of);
+    else if (!strncmp(full, "no more ", 8))
+        strnfmt(buf, max, "no more %s", horn_of);
+    else
+        strnfmt(buf, max, "a %s", horn_of);
+}
+
+static void msg_print_object_identified(const object_type* o_ptr)
+{
+    char o_name[80];
+    object_desc(o_name, sizeof(o_name), o_ptr, true, 0);
+    msg_format("You identify %s.", o_name);
+}
+
+static const object_type* sanctity_target_excluded = NULL;
+
+typedef struct sanctity_target_entry
+{
+    int item;
+    object_type* o_ptr;
+} sanctity_target_entry;
+
+enum
+{
+    MAX_SANCTITY_TARGETS =
+        INVEN_PACK + (INVEN_TOTAL - INVEN_WIELD) + MAX_FLOOR_STACK
+};
+
+static bool item_tester_hook_sanctity_target(const object_type* o_ptr)
+{
+    bool can_remove_jinx;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    if (o_ptr == sanctity_target_excluded)
+        return false;
+
+    can_remove_jinx = p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING]
+        && object_has_ego_flag4(o_ptr, TR4_JINX);
+
+    if (!cursed_p(o_ptr)
+        && ((o_ptr->ident & IDENT_UNCURSED)
+            || (o_ptr->discount == INSCRIP_UNCURSED))
+        && !can_remove_jinx)
+        return false;
+
+    if (cursed_p(o_ptr))
+        return true;
+
+    if (can_remove_jinx)
+        return true;
+
+    if (!object_known_p(o_ptr))
+        return true;
+
+    return false;
+}
+
+static int sanctity_collect_targets(sanctity_target_entry entries[],
+    int max_entries, const object_type* gem_o_ptr)
+{
+    int count = 0;
+    int floor_list[MAX_FLOOR_STACK];
+    int floor_num;
+
+    if (!entries || max_entries <= 0)
+        return 0;
+
+    sanctity_target_excluded = gem_o_ptr;
+
+    for (int i = 0; i < INVEN_PACK && count < max_entries; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+
+        if (!item_tester_hook_sanctity_target(o_ptr))
+            continue;
+
+        entries[count].item = i;
+        entries[count].o_ptr = o_ptr;
+        count++;
+    }
+
+    for (int i = INVEN_WIELD; i < INVEN_TOTAL && count < max_entries; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+
+        if (!item_tester_hook_sanctity_target(o_ptr))
+            continue;
+
+        entries[count].item = i;
+        entries[count].o_ptr = o_ptr;
+        count++;
+    }
+
+    floor_num = scan_floor(floor_list, MAX_FLOOR_STACK, p_ptr->py, p_ptr->px, 0x00);
+    for (int i = 0; i < floor_num && count < max_entries; i++)
+    {
+        int o_idx = floor_list[i];
+        object_type* o_ptr = &o_list[o_idx];
+
+        if (!item_tester_hook_sanctity_target(o_ptr))
+            continue;
+
+        entries[count].item = 0 - o_idx;
+        entries[count].o_ptr = o_ptr;
+        count++;
+    }
+
+    sanctity_target_excluded = NULL;
+    return count;
+}
+
+static bool sanctity_choose_target_from_entries(
+    const sanctity_target_entry entries[], int count, int* out_item)
+{
+    int current = 0;
+    int top = 0;
+    int term_wid = 80;
+    int term_hgt = 24;
+    int list_row = 2;
+    int help_row;
+    int prompt_row;
+    int page_size;
+
+    if (!entries || count <= 0 || !out_item)
+        return false;
+
+    if (Term)
+        Term_get_size(&term_wid, &term_hgt);
+
+    if (term_wid < 40)
+        term_wid = 40;
+    if (term_hgt < 8)
+        term_hgt = 8;
+
+    help_row = term_hgt - 2;
+    prompt_row = term_hgt - 1;
+    page_size = help_row - list_row;
+    if (page_size < 1)
+        page_size = 1;
+
+    screen_save();
+
+    while (true)
+    {
+        int visible_count;
+        char buf[160];
+        char key;
+
+        if (current < top)
+            top = current;
+        if (current >= top + page_size)
+            top = current - page_size + 1;
+
+        visible_count = count - top;
+        if (visible_count > page_size)
+            visible_count = page_size;
+
+        Term_clear();
+
+        prt("Cleanse which item?", 0, 0);
+        strnfmt(buf, sizeof(buf), "%d eligible sanctity target%s",
+            count, (count == 1) ? "" : "s");
+        prt(buf, 1, 0);
+
+        for (int i = 0; i < visible_count; i++)
+        {
+            int row = list_row + i;
+            int item = entries[top + i].item;
+            object_type* o_ptr = entries[top + i].o_ptr;
+            char prefix[32];
+            char desc[80];
+            char label[4];
+            int desc_col = 20;
+            int max_desc = term_wid - desc_col - 1;
+            bool highlighted = (top + i == current);
+            byte label_attr = highlighted ? TERM_L_BLUE : TERM_WHITE;
+            byte desc_attr;
+
+            if (max_desc < 0)
+                max_desc = 0;
+            if (max_desc >= (int)sizeof(desc))
+                max_desc = (int)sizeof(desc) - 1;
+
+            if (item >= 0)
+            {
+                strnfmt(prefix, sizeof(prefix), "%-12s:", mention_use(item));
+                object_desc(desc, sizeof(desc), o_ptr, true, 3);
+            }
+            else
+            {
+                strnfmt(prefix, sizeof(prefix), "%-12s:", "On floor");
+                object_desc_floor(desc, sizeof(desc), o_ptr, true, 3);
+            }
+            desc[max_desc] = '\0';
+
+            desc_attr = highlighted
+                ? TERM_L_BLUE
+                : object_display_color(o_ptr,
+                    tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
+
+            if (i < 26)
+                strnfmt(label, sizeof(label), "%c)", I2A(i));
+            else
+                SDL_strlcpy(label, "  ", sizeof(label));
+
+            Term_erase(0, row, 255);
+            Term_putstr(0, row, 2, label_attr, highlighted ? "> " : "  ");
+            Term_putstr(2, row, -1, label_attr, label);
+            Term_putstr(5, row, -1, label_attr, prefix);
+            Term_putstr(desc_col, row, -1, desc_attr, desc);
+        }
+
+        for (int i = list_row + visible_count; i < help_row; i++)
+            Term_erase(0, i, 255);
+
+        if (count > page_size)
+        {
+            strnfmt(buf, sizeof(buf), "Showing %d-%d of %d",
+                top + 1, top + visible_count, count);
+            prt(buf, help_row, 0);
+        }
+        else
+        {
+            prt("", help_row, 0);
+        }
+
+        prt("Letters/8/2/arrows choose, Enter select, ESC cancel",
+            prompt_row, 0);
+        Term_fresh();
+
+        key = inkey();
+
+        switch (key)
+        {
+        case ESCAPE:
+            screen_load();
+            return false;
+
+        case '\r':
+        case '\n':
+        case ' ':
+#ifdef KC_ENTER
+        case KC_ENTER:
+#endif
+            *out_item = entries[current].item;
+            screen_load();
+            return true;
+
+        case '8':
+        case 'k':
+        case 'K':
+#ifdef ARROW_UP
+        case ARROW_UP:
+#endif
+            current = (current > 0) ? current - 1 : count - 1;
+            break;
+
+        case '2':
+        case 'j':
+        case 'J':
+#ifdef ARROW_DOWN
+        case ARROW_DOWN:
+#endif
+            current = (current + 1 < count) ? current + 1 : 0;
+            break;
+
+        default:
+        {
+            int pick;
+
+            if (!isalpha((unsigned char)key))
+                break;
+
+            pick = A2I((char)tolower((unsigned char)key));
+            if (pick >= 0 && pick < visible_count)
+            {
+                *out_item = entries[top + pick].item;
+                screen_load();
+                return true;
+            }
+
+            break;
+        }
+        }
+    }
+}
+
+static bool sanctity_choose_target(const object_type* gem_o_ptr,
+    object_type** target_o_ptr)
+{
+    int chosen_item;
+    int count;
+    sanctity_target_entry entries[MAX_SANCTITY_TARGETS];
+
+    if (!target_o_ptr)
+        return false;
+
+    count = sanctity_collect_targets(entries, N_ELEMENTS(entries), gem_o_ptr);
+    if (count <= 0)
+    {
+        msg_print("You have no target to cleanse.");
+        return false;
+    }
+
+    if (!sanctity_choose_target_from_entries(entries, count, &chosen_item))
+        return false;
+
+    *target_o_ptr = (chosen_item >= 0) ? &inventory[chosen_item]
+        : &o_list[0 - chosen_item];
+    return ((*target_o_ptr != NULL) && (*target_o_ptr)->k_idx);
+}
 
 /*
  * This file includes code for eating food, drinking potions,
@@ -142,6 +536,7 @@ void do_cmd_eat_food(object_type* default_o_ptr, int default_item)
     if (ident && !object_aware_p(o_ptr))
     {
         object_aware(o_ptr);
+        msg_print_object_identified(o_ptr);
     }
 
     /* Window stuff */
@@ -281,6 +676,7 @@ void do_cmd_quaff_potion(object_type* default_o_ptr, int default_item)
     if (ident && !object_aware_p(o_ptr))
     {
         object_aware(o_ptr);
+        msg_print_object_identified(o_ptr);
     }
 
     /* Window stuff */
@@ -322,42 +718,75 @@ void do_cmd_quaff_potion(object_type* default_o_ptr, int default_item)
  */
 void do_cmd_play_instrument(object_type* default_o_ptr, int default_item)
 {
-    int item;
-
     bool ident;
 
-    object_type* o_ptr;
-    cptr q, s;
+    object_type* o_ptr = NULL;
 
-    // use specified item if possible
+    /* Use specified item if possible */
     if (default_o_ptr != NULL)
     {
         o_ptr = default_o_ptr;
-        item = default_item;
     }
     /* Get an item */
     else
     {
-        /* Restrict choices to instruments */
-        item_tester_tval = TV_HORN;
+        object_type* horn_slot = &inventory[INVEN_HORN];
 
-        /* Get an item */
-        q = "Play which instrument? ";
-        s = "You have no instrument to play.";
-        if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
-            return;
-
-        /* Get the item (in the pack) */
-        if (item >= 0)
+        if (horn_slot->k_idx)
         {
-            o_ptr = &inventory[item];
+            o_ptr = horn_slot;
         }
-
-        /* Get the item (on the floor) */
         else
         {
-            o_ptr = &o_list[0 - item];
+            msg_print("You are not carrying a horn.");
+            return;
         }
+    }
+
+    if (!o_ptr)
+        return;
+
+    if (o_ptr->tval != TV_HORN)
+    {
+        msg_print("You can only sound a horn.");
+        return;
+    }
+
+    if (o_ptr != &inventory[INVEN_HORN])
+    {
+        object_type* equipped = &inventory[INVEN_HORN];
+        char incoming_name[80];
+        char equipped_name[80];
+        char prompt[160];
+        const char* source = "your equipment";
+
+        if (default_item < 0)
+            source = "the floor";
+        else if (default_item < INVEN_WIELD)
+            source = "your pack";
+
+        format_horn_prompt_name(incoming_name, sizeof(incoming_name), o_ptr, true);
+
+        if (equipped->k_idx)
+        {
+            format_horn_prompt_name(
+                equipped_name, sizeof(equipped_name), equipped, false);
+            msg_format("You cannot sound a horn from %s.", source);
+            strnfmt(prompt, sizeof(prompt),
+                "Replace your %s with %s?",
+                equipped_name, incoming_name);
+        }
+        else
+        {
+            msg_format("You cannot sound a horn from %s.", source);
+            strnfmt(prompt, sizeof(prompt),
+                "Equip %s now?",
+                incoming_name);
+        }
+
+        if (get_check(prompt))
+            do_cmd_wield(o_ptr, default_item);
+        return;
     }
 
     /* Not identified yet */
@@ -382,10 +811,18 @@ void do_cmd_play_instrument(object_type* default_o_ptr, int default_item)
     /* Tried the object */
     object_tried(o_ptr);
 
-    /* Successfully determined the object function */
-    if (ident && !object_aware_p(o_ptr))
+    /* Experiencing effects helps identify smithing-difficulty items, but does not auto-ID them. */
+    if (ident)
     {
-        object_aware(o_ptr);
+        if (object_uses_smithing_difficulty(o_ptr))
+        {
+            player_mark_object_experienced(o_ptr);
+        }
+        else if (!object_aware_p(o_ptr))
+        {
+            object_aware(o_ptr);
+            msg_print_object_identified(o_ptr);
+        }
     }
 
     /* Window stuff */
@@ -423,7 +860,7 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
     {
         object_type* staff_slot = &inventory[INVEN_STAFF];
 
-        if (staff_slot->k_idx && !(staff_slot->ident & IDENT_EMPTY))
+        if (staff_slot->k_idx)
         {
             o_ptr = staff_slot;
             item = INVEN_STAFF;
@@ -440,37 +877,44 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
     if (!o_ptr)
         return;
 
+    if (o_ptr->tval != TV_STAFF)
+    {
+        msg_print("You can only activate a staff.");
+        return;
+    }
+
     if (o_ptr->tval == TV_STAFF && o_ptr != &inventory[INVEN_STAFF])
     {
         object_type* wielded = &inventory[INVEN_STAFF];
-        const int max_name_len = 12;
-        /* Limit names so the prompt stays within 80 columns */
-        char staff_name[80];
+        char incoming_name[80];
         char equipped_name[80];
-        char prompt[120];
+        char prompt[160];
         const char* source = from_supplies ? "your supplies" : (default_item >= 0 ? "your pack" : "the floor");
 
-        object_desc(staff_name, sizeof(staff_name), o_ptr, true, 3);
+        format_staff_prompt_name(incoming_name, sizeof(incoming_name), o_ptr, true);
 
         if (from_supplies)
         {
-            msg_print("You cannot use a staff from supplies. Move it to your pack and equip it first.");
+            msg_print("You cannot use a staff from supplies.");
+            msg_print("Move it to your pack and equip it first.");
             return;
         }
 
         if (wielded->k_idx)
         {
-            object_desc(equipped_name, sizeof(equipped_name), wielded, true, 3);
+            format_staff_prompt_name(
+                equipped_name, sizeof(equipped_name), wielded, false);
+            msg_format("You cannot activate a staff from %s.", source);
             strnfmt(prompt, sizeof(prompt),
-                "You cannot use a staff from %s. Replace %.*s with %.*s?",
-                source, max_name_len, equipped_name, max_name_len, staff_name);
+                "Replace your %s with %s?",
+                equipped_name, incoming_name);
         }
         else
         {
-            my_strcpy(equipped_name, "no staff", sizeof(equipped_name));
+            msg_format("You cannot activate a staff from %s.", source);
             strnfmt(prompt, sizeof(prompt),
-                "You cannot use a staff from %s. Equip %.*s now?",
-                source, max_name_len, staff_name);
+                "Equip %s now?",
+                incoming_name);
         }
 
         if (get_check(prompt))
@@ -495,36 +939,21 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
     /* Not identified yet */
     ident = false;
 
-    /* Notice empty staffs/gems */
-    if (o_ptr->tval == TV_STAFF)
+    /* Notice empty staffs */
+    if (o_ptr->pval < CHANNELING_CHARGE_MULTIPLIER)
     {
-        if (o_ptr->pval < CHANNELING_CHARGE_MULTIPLIER)
-        {
-            flush();
-            msg_print("The staff has no charges left.");
-            o_ptr->ident |= (IDENT_EMPTY);
-            p_ptr->notice |= (PN_COMBINE | PN_REORDER);
-            p_ptr->window |= (PW_INVEN);
-            return;
-        }
-    }
-    else if (o_ptr->tval == TV_GEM)
-    {
-        if (o_ptr->number <= 0)
-        {
-            flush();
-            msg_print("You have no gems left.");
-            o_ptr->ident |= (IDENT_EMPTY);
-            p_ptr->notice |= (PN_COMBINE | PN_REORDER);
-            p_ptr->window |= (PW_INVEN);
-            return;
-        }
+        flush();
+        msg_print("The staff has no charges left.");
+        o_ptr->ident |= (IDENT_EMPTY);
+        p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+        p_ptr->window |= (PW_INVEN);
+        return;
     }
 
     /* Sound */
     sound(MSG_ZAP);
 
-    /* Use the staff/gem */
+    /* Use the staff */
     use_charge = use_object(o_ptr, &ident);
 
     // Break the truce
@@ -540,6 +969,7 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
     if (ident && !object_aware_p(o_ptr))
     {
         object_aware(o_ptr);
+        msg_print_object_identified(o_ptr);
     }
 
     /* Window stuff */
@@ -550,18 +980,10 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
         return;
 
     /* Consume the item */
-    if (o_ptr->tval == TV_STAFF)
-    {
-        /* Staffs always expend their bundled charges */
-        o_ptr->pval -= CHANNELING_CHARGE_MULTIPLIER;
-        if (o_ptr->pval < 0)
-            o_ptr->pval = 0;
-    }
-    else if (o_ptr->tval == TV_GEM)
-    {
-        /* Gems are consumed whole - decrease number */
-        o_ptr->number--;
-    }
+    /* Staffs always expend their bundled charges */
+    o_ptr->pval -= CHANNELING_CHARGE_MULTIPLIER;
+    if (o_ptr->pval < 0)
+        o_ptr->pval = 0;
     // mark times used
     o_ptr->xtra1++;
 
@@ -576,6 +998,150 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
     else
     {
         floor_item_charges(0 - item);
+    }
+}
+
+/*
+ * Use a gem
+ *
+ * One gem is consumed on use.
+ */
+void do_cmd_use_gem(object_type* default_o_ptr, int default_item)
+{
+    int item;
+    bool ident;
+    object_type* o_ptr = NULL;
+    object_type* sanctity_target_o_ptr = NULL;
+    bool use_charge;
+
+    int supply_index = supplies_current_action();
+    bool from_supplies = (supply_index >= 0);
+    cptr q, s;
+
+    /* Use specified item if possible */
+    if (default_o_ptr != NULL)
+    {
+        o_ptr = default_o_ptr;
+        item = from_supplies ? SUPPLIES_INDEX : default_item;
+    }
+    /* Get an item */
+    else
+    {
+        /* Restrict choices to gems */
+        item_tester_tval = TV_GEM;
+
+        /* Get an item */
+        q = "Use which gem? ";
+        s = "You have no gems to use.";
+        supplies_set_pending_action(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_GEMS, true);
+        if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
+        {
+            supplies_clear_pending_action();
+            return;
+        }
+
+        if (item == SUPPLIES_INDEX)
+        {
+            supplies_clear_pending_action();
+            open_supplies_menu_with_context(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_GEMS, true, true);
+            return;
+        }
+
+        supplies_clear_pending_action();
+
+        /* Get the item (in the pack) */
+        if (item >= 0)
+        {
+            o_ptr = &inventory[item];
+        }
+
+        /* Get the item (on the floor) */
+        else
+        {
+            o_ptr = &o_list[0 - item];
+        }
+
+        from_supplies = false;
+        supply_index = -1;
+    }
+
+    if (!o_ptr)
+        return;
+
+    if (o_ptr->number <= 0)
+    {
+        msg_print("You have no gems left.");
+        return;
+    }
+
+    if (o_ptr->sval == SV_GEM_SANCTITY)
+    {
+        if (!sanctity_choose_target(o_ptr, &sanctity_target_o_ptr))
+        {
+            return;
+        }
+    }
+
+    /* Sound */
+    sound(MSG_USE_GEM);
+
+    /* Take a turn */
+    p_ptr->energy_use = 100;
+
+    // store the action type
+    p_ptr->previous_action[0] = ACTION_MISC;
+
+    /* Not identified yet */
+    ident = false;
+
+    /* Use the gem */
+    if (o_ptr->sval == SV_GEM_SANCTITY)
+        use_charge = use_sanctity_gem_on(sanctity_target_o_ptr, &ident);
+    else
+        use_charge = use_object(o_ptr, &ident);
+
+    // Break the truce
+    break_truce(false);
+
+    /* Combine / Reorder the pack (later) */
+    p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+
+    /* Tried the item */
+    object_tried(o_ptr);
+
+    /* An identification was made */
+    if (ident && !object_aware_p(o_ptr))
+    {
+        object_aware(o_ptr);
+        msg_print_object_identified(o_ptr);
+    }
+
+    /* Window stuff */
+    p_ptr->window |= (PW_INVEN | PW_EQUIP);
+
+    /* Hack -- some uses are "free" */
+    if (!use_charge)
+        return;
+
+    /* Consume the item */
+    o_ptr->xtra1++;
+
+    if (from_supplies && supply_index >= 0)
+    {
+        supplies_consume_quantity(supply_index, 1);
+        supplies_refresh_entry(supply_index);
+    }
+    else if (item >= 0)
+    {
+        inven_item_increase(item, -1);
+        inven_item_describe(item);
+        inven_item_optimize(item);
+    }
+    else
+    {
+        floor_item_increase(0 - item, -1);
+        floor_item_describe(0 - item);
+        floor_item_optimize(0 - item);
     }
 }
 
@@ -668,6 +1234,11 @@ void do_cmd_activate(void)
         return;
     }
 
+    /* Sound */
+    sound(MSG_ACTIVATE);
+
     /* Activate the object */
     (void)use_object(o_ptr, &ident);
 }
+
+

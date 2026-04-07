@@ -14,9 +14,21 @@
 #endif
 
 #include "angband.h"
+#include "blitz.h"
+#include "scorefile.h"
+#include "score/score_logic.h"
+#include "score/score_runs.h"
+#include "score/score_ui.h"
+#include "player/killer.h"
+#include "externs.h"
+#include "fs/io_sdl.h"
+#include "fs/path.h"
 #include "h-basic.h"
+#include "log/log.h"
 #include "metarun.h"
 #include "platform.h"
+#include "sdl-config.h"
+#include "sdl-sound.h"
 #include "z-term.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,28 +48,33 @@
 #include <signal.h>    /* For kill, SIGSTOP */
 #endif
 
+/* Helper to build score/meta file path correctly for both portable and normal builds */
+static bool build_meta_path(char* buf, size_t len, const char* filename)
+{
+#ifdef SIL_USE_LOCAL_DATA
+    /* Portable build: in apex directory */
+    return path_build(buf, len, ANGBAND_DIR_APEX, filename);
+#else
+    /* Normal build: in meta directory (parent of metaruns) */
+    if (ANGBAND_DIR_METARUN && *ANGBAND_DIR_METARUN) {
+        char meta_dir[1024];
+        SDL_strlcpy(meta_dir, ANGBAND_DIR_METARUN, sizeof(meta_dir));
+        char* last_sep = strrchr(meta_dir, PATH_SEP[0]);
+        if (last_sep) *last_sep = '\0';
+        return path_build(buf, len, meta_dir, filename);
+    } else {
+        return path_build(buf, len, ANGBAND_DIR_APEX, filename);
+    }
+#endif
+}
+
 // These are copied from birth.c and needed for displaying the character sheet
 #define INSTRUCT_ROW 21
 #define QUESTION_COL 2
 
-/* Forward declaration for score update function */
-static void upsert_live_score_on_save(void);
-
-#ifdef USE_SDL
-static void story_c_put_str_grid(byte attr, cptr text, int row, int col, int width)
-{
-    if (sdl_is_story_font_enabled())
-        story_print_text_grid(row, col, width, attr, text);
-    else
-        c_put_str(attr, text, row, col);
-}
-#else
-static void story_c_put_str_grid(byte attr, cptr text, int row, int col, int width)
-{
-    (void)width;
-    c_put_str(attr, text, row, col);
-}
-#endif
+/* Mini screenshot buffers (local to this module) */
+static char mini_screenshot_char[7][7];
+static byte mini_screenshot_attr[7][7];
 
 static bool parse_visual_component(const char* token, bool expect_row, byte* value)
 {
@@ -554,9 +571,9 @@ errr process_pref_file_command(char* buf)
             return (1);
         i = (long)tmp[0];
 
-        string_free(keymap_act[mode][i]);
+        str_free(keymap_act[mode][i]);
 
-        keymap_act[mode][i] = string_make(macro_buffer);
+        keymap_act[mode][i] = str_dup(macro_buffer);
 
         return (0);
     }
@@ -607,15 +624,15 @@ errr process_pref_file_command(char* buf)
                 return 1;
 
             /* Macro template */
-            macro_template = string_make(zz[0]);
+            macro_template = str_dup(zz[0]);
 
             /* Modifier chars */
-            macro_modifier_chr = string_make(zz[1]);
+            macro_modifier_chr = str_dup(zz[1]);
 
             /* Modifier names */
             for (i = 0; i < num; i++)
             {
-                macro_modifier_name[i] = string_make(zz[2 + i]);
+                macro_modifier_name[i] = str_dup(zz[2 + i]);
             }
         }
         /* Macro trigger */
@@ -632,7 +649,7 @@ errr process_pref_file_command(char* buf)
             }
 
             /* Buffer for the trigger name */
-            C_MAKE(buf, strlen(zz[0]) + 1, char);
+            buf = mem_alloc_array(strlen(zz[0]) + 1, char);
 
             /* Simulate strcpy() and skip the '\' escape character */
             s = zz[0];
@@ -649,23 +666,23 @@ errr process_pref_file_command(char* buf)
             *t = '\0';
 
             /* Store the trigger name */
-            macro_trigger_name[max_macrotrigger] = string_make(buf);
+            macro_trigger_name[max_macrotrigger] = str_dup(buf);
 
             /* Free the buffer */
-            FREE(buf);
+            mem_free_null(buf);
 
             /* Normal keycode */
-            macro_trigger_keycode[0][max_macrotrigger] = string_make(zz[1]);
+            macro_trigger_keycode[0][max_macrotrigger] = str_dup(zz[1]);
 
             /* Special shifted keycode */
             if (tok == 3)
             {
-                macro_trigger_keycode[1][max_macrotrigger] = string_make(zz[2]);
+                macro_trigger_keycode[1][max_macrotrigger] = str_dup(zz[2]);
             }
             /* Shifted keycode is the same as the normal keycode */
             else
             {
-                macro_trigger_keycode[1][max_macrotrigger] = string_make(zz[1]);
+                macro_trigger_keycode[1][max_macrotrigger] = str_dup(zz[1]);
             }
 
             /* Count triggers */
@@ -996,7 +1013,7 @@ static cptr process_pref_file_expr(char** sp, char* fp)
  */
 static errr process_pref_file_aux(cptr name)
 {
-    FILE* fp;
+    SDL_IOStream* fp;
 
     char buf[1024];
 
@@ -1011,7 +1028,7 @@ static errr process_pref_file_aux(cptr name)
     log_debug("Processing preference file: %s", name);
 
     /* Open the file */
-    fp = my_fopen(name, "r");
+    fp = sdl_fopen(name, "r");
 
     /* No such file */
     if (!fp) {
@@ -1020,7 +1037,7 @@ static errr process_pref_file_aux(cptr name)
     }
 
     /* Process the file */
-    while (0 == my_fgets(fp, buf, sizeof(buf)))
+    while (0 == sdl_fgets(fp, buf, sizeof(buf)))
     {
         /* Count lines */
         line++;
@@ -1038,7 +1055,7 @@ static errr process_pref_file_aux(cptr name)
             continue;
 
         /* Save a copy */
-        my_strcpy(old, buf, sizeof(old));
+        SDL_strlcpy(old, buf, sizeof(old));
 
         /* Process "?:<expr>" */
         if ((buf[0] == '?') && (buf[1] == ':'))
@@ -1095,7 +1112,7 @@ static errr process_pref_file_aux(cptr name)
     log_debug("Successfully processed preference file '%s' (%d lines)", name, line + 1);
 
     /* Close the file */
-    my_fclose(fp);
+    sdl_fclose(fp);
 
     /* Result */
     return (err);
@@ -1187,7 +1204,7 @@ errr check_time_init(void)
 {
 #ifdef CHECK_TIME
 
-    FILE* fp;
+    SDL_IOStream* fp;
 
     char buf[1024];
 
@@ -1195,7 +1212,7 @@ errr check_time_init(void)
     path_build(buf, sizeof(buf), ANGBAND_DIR_FILE, "time.txt");
 
     /* Open the file */
-    fp = my_fopen(buf, "r");
+    fp = sdl_fopen(buf, "r");
 
     /* No file, no restrictions */
     if (!fp)
@@ -1205,7 +1222,7 @@ errr check_time_init(void)
     check_time_flag = true;
 
     /* Parse the file */
-    while (0 == my_fgets(fp, buf, sizeof(buf)))
+    while (0 == sdl_fgets(fp, buf, sizeof(buf)))
     {
         /* Skip comments and blank lines */
         if (!buf[0] || (buf[0] == '#'))
@@ -1216,23 +1233,23 @@ errr check_time_init(void)
 
         /* Extract the info */
         if (prefix(buf, "SUN:"))
-            my_strcpy(days[0], buf, sizeof(days[0]));
+            SDL_strlcpy(days[0], buf, sizeof(days[0]));
         if (prefix(buf, "MON:"))
-            my_strcpy(days[1], buf, sizeof(days[1]));
+            SDL_strlcpy(days[1], buf, sizeof(days[1]));
         if (prefix(buf, "TUE:"))
-            my_strcpy(days[2], buf, sizeof(days[2]));
+            SDL_strlcpy(days[2], buf, sizeof(days[2]));
         if (prefix(buf, "WED:"))
-            my_strcpy(days[3], buf, sizeof(days[3]));
+            SDL_strlcpy(days[3], buf, sizeof(days[3]));
         if (prefix(buf, "THU:"))
-            my_strcpy(days[4], buf, sizeof(days[4]));
+            SDL_strlcpy(days[4], buf, sizeof(days[4]));
         if (prefix(buf, "FRI:"))
-            my_strcpy(days[5], buf, sizeof(days[5]));
+            SDL_strlcpy(days[5], buf, sizeof(days[5]));
         if (prefix(buf, "SAT:"))
-            my_strcpy(days[6], buf, sizeof(days[6]));
+            SDL_strlcpy(days[6], buf, sizeof(days[6]));
     }
 
     /* Close it */
-    my_fclose(fp);
+    sdl_fclose(fp);
 
 #endif /* CHECK_TIME */
 
@@ -1243,18 +1260,14 @@ errr check_time_init(void)
 static void display_skill(int skill, int row, int col)
 {
     /* Enable story font for skill name (if enabled) */
-#ifdef USE_SDL
     if (story_character_enabled()) {
         sdl_story_font_enable();
     }
-#endif
     
     put_str(skill_names_full[skill], row, col);
     
     /* Disable story font - all numbers must use monospace */
-#ifdef USE_SDL
     sdl_story_font_disable();
-#endif
     
     /* All numbers in monospace font */
     c_put_str(
@@ -1274,19 +1287,63 @@ static void display_skill(int skill, int row, int col)
 }
 
 
+/* ----- story-font aware helpers ---------------------------------------- */
+
 /* ===== 20-column, right-anchored stat lines ============================= */
 
 #define LINEW20 20
+#define COMPACT_RIGHT_PAD 2
 
-static void put_label_fit(int x, int y, const char *label, int start)
-/* Print label left-justified in [x, start). Fully pads with spaces to clear. */
+static int compact_right_column_start(int wid)
+{
+    int col = wid - COMPACT_RIGHT_PAD - LINEW20;
+    if (col < 1)
+        col = 1;
+    return col;
+}
+
+static bool display_player_compact_tight_spacing(void)
+{
+    int wid = 80;
+    int hgt = 24;
+
+    Term_get_size(&wid, &hgt);
+    (void)wid;
+    if (hgt < 1)
+        hgt = 24;
+
+    return (hgt <= 18);
+}
+
+static int display_player_compact_start_row(void)
+{
+    return display_player_compact_tight_spacing() ? 1 : 2;
+}
+
+static int display_player_compact_scroll = 0;
+static int display_player_compact_max_scroll = 0;
+
+void display_player_compact_set_scroll(int scroll)
+{
+    if (scroll < 0)
+        scroll = 0;
+
+    display_player_compact_scroll = scroll;
+}
+
+int display_player_compact_get_max_scroll(void)
+{
+    return display_player_compact_max_scroll;
+}
+
+static void put_label_fit(int x, int y, const char* label, int start)
 {
     int maxw = start - x;
-    if (maxw <= 0) return;
+    if (maxw <= 0)
+        return;
+
     char buf[64];
     strnfmt(buf, sizeof(buf), "%-*.*s", maxw, maxw, label);
-    
-    /* Labels use story font */
     Term_putstr(x, y, -1, TERM_WHITE, buf);
 }
 
@@ -1301,25 +1358,52 @@ static void put_pair20_right(int x, int y,
     int blk_w = cur_w + 1 + rhs_w;
     int start = end - blk_w;
 
-    /* Labels in story font (if enabled) */
-#ifdef USE_SDL
-    if (story_character_enabled()) {
+    if (story_character_enabled())
         sdl_story_font_enable();
-    }
-#endif
 
     put_label_fit(x, y, label, start);
-    
-    /* Numbers in monospace (always) */
-#ifdef USE_SDL
-    if (story_character_enabled()) {
+
+    if (story_character_enabled())
         sdl_story_font_disable();
+
+    /* Clear the numeric block so shorter values don't leave artifacts */
+    Term_erase(start, y, blk_w);
+
+    /* Trim both strings to their allotted widths */
+    const char *cur_text = cur ? cur : "";
+    int cur_len = (int)strlen(cur_text);
+    if (cur_len > cur_w)
+    {
+        cur_text += cur_len - cur_w;
+        cur_len = cur_w;
     }
-#endif
-    
-    Term_putstr(start, y, -1, col_cur, format("%*s", cur_w, cur));
-    { char s[2] = { sep, '\0' }; Term_putstr(start + cur_w, y, -1, TERM_WHITE, s); }
-    Term_putstr(start + cur_w + 1, y, -1, col_rhs, format("%*s", rhs_w, rhs));
+
+    const char *rhs_text = rhs ? rhs : "";
+    int rhs_len = (int)strlen(rhs_text);
+    if (rhs_len > rhs_w)
+    {
+        rhs_text += rhs_len - rhs_w;
+        rhs_len = rhs_w;
+    }
+
+    /* Right-align the combined "cur<sep>rhs" block as a whole so the slash
+     * always hugs the digits while the entire string stays anchored to the
+     * column edge. */
+    int total_len = cur_len + 1 + rhs_len;
+    if (total_len > blk_w)
+        total_len = blk_w;
+    int text_start = end - total_len;
+    if (text_start < start)
+        text_start = start;
+
+    if (cur_len > 0)
+        Term_putstr(text_start, y, cur_len, col_cur, cur_text);
+
+    char s[2] = { sep, '\0' };
+    Term_putstr(text_start + cur_len, y, 1, TERM_WHITE, s);
+
+    if (rhs_len > 0)
+        Term_putstr(text_start + cur_len + 1, y, rhs_len, col_rhs, rhs_text);
 }
 
 /* Single value: value block ends at x + LINEW20. */
@@ -1329,32 +1413,226 @@ static void put_single20_right(int x, int y,
 {
     int end   = x + LINEW20;
     int start = end - val_w;
-    
-    /* Labels in story font (if enabled) */
-#ifdef USE_SDL
-    if (story_character_enabled()) {
+
+    if (story_character_enabled())
         sdl_story_font_enable();
-    }
-#endif
-    
+
     put_label_fit(x, y, label, start);
-    
-    /* Numbers in monospace (always) */
-#ifdef USE_SDL
-    if (story_character_enabled()) {
+
+    if (story_character_enabled())
         sdl_story_font_disable();
+
+    Term_erase(start, y, val_w);
+    const char *val_text = val ? val : "";
+    int val_len = (int)strlen(val_text);
+    if (val_len > val_w)
+    {
+        val_text += val_len - val_w;
+        val_len = val_w;
     }
-#endif
-    
-    Term_putstr(start, y, -1, col_val, format("%*s", val_w, val));
+
+    if (val_len > 0)
+    {
+        int text_start = end - val_len;
+        if (text_start < start)
+            text_start = start;
+        Term_putstr(text_start, y, val_len, col_val, val_text);
+    }
+}
+
+static void put_single_right(int x, int y, int line_w,
+                             const char* label,
+                             const char* val, int val_w, byte col_val)
+{
+    int end;
+    int start;
+
+    if (line_w < 1)
+        return;
+
+    if (val_w > line_w - 1)
+        val_w = line_w - 1;
+    if (val_w < 1)
+        return;
+
+    end = x + line_w - 1;
+    start = end - val_w + 1;
+
+    if (story_character_enabled())
+        sdl_story_font_enable();
+
+    put_label_fit(x, y, label ? label : "", start);
+
+    if (story_character_enabled())
+        sdl_story_font_disable();
+
+    Term_erase(start, y, val_w);
+    const char* val_text = val ? val : "";
+    int val_len = (int)strlen(val_text);
+    if (val_len > val_w)
+    {
+        val_text += val_len - val_w;
+        val_len = val_w;
+    }
+
+    if (val_len > 0)
+    {
+        int text_start = end - val_len + 1;
+        if (text_start < start)
+            text_start = start;
+        Term_putstr(text_start, y, val_len, col_val, val_text);
+    }
+}
+
+static byte format_deep_call_value(char* buf, size_t buflen, int max_width)
+{
+    int base_increment = 0;
+    int total_increment = 0;
+    int effective_total;
+    char pct_buf[16];
+    byte attr = TERM_L_GREEN;
+
+    if (!buf || buflen == 0)
+        return attr;
+
+    buf[0] = '\0';
+    if (max_width < 1)
+        return attr;
+    (void)max_width;
+
+    min_depth_timer_status(&base_increment, NULL, &total_increment, NULL, NULL);
+
+    effective_total = total_increment;
+    if (effective_total < 0)
+        effective_total = 0;
+
+    if (base_increment > 0)
+    {
+        long pct = ((long)effective_total * 100L + (base_increment / 2))
+            / base_increment;
+        if (pct > 999L)
+            pct = 999L;
+        strnfmt(pct_buf, sizeof(pct_buf), "%ld%%", pct);
+    }
+    else if (effective_total > 0)
+    {
+        SDL_strlcpy(pct_buf, "INF%", sizeof(pct_buf));
+    }
+    else
+    {
+        SDL_strlcpy(pct_buf, "0%", sizeof(pct_buf));
+    }
+
+    if (base_increment <= 0)
+        attr = (effective_total > 0) ? TERM_L_GREEN : TERM_YELLOW;
+    else if (effective_total > base_increment)
+        attr = TERM_L_GREEN;
+    else if (effective_total == base_increment)
+        attr = TERM_L_BLUE;
+    else if (effective_total > 0)
+        attr = TERM_YELLOW;
+    else
+        attr = TERM_L_RED;
+
+    SDL_strlcpy(buf, pct_buf, buflen);
+
+    return attr;
+}
+
+static bool format_min_depth_progress_bar(char* buf, size_t buflen, int line_w)
+{
+    int progress = 0;
+    int threshold = 1;
+    int bar_width;
+    int filled;
+
+    if (!buf || buflen == 0)
+        return false;
+
+    buf[0] = '\0';
+    if (line_w < 12)
+        return false;
+
+    min_depth_timer_status(NULL, NULL, NULL, &progress, &threshold);
+    if (threshold < 1)
+        threshold = 1;
+    if (progress < 0)
+        progress = 0;
+    if (progress > threshold)
+        progress = threshold;
+
+    bar_width = line_w - 2;
+    if (bar_width > 32)
+        bar_width = 32;
+    if (bar_width < 8)
+        return false;
+
+    filled = (progress * bar_width) / threshold;
+    if (filled < 0)
+        filled = 0;
+    if (filled > bar_width)
+        filled = bar_width;
+
+    if ((size_t)(bar_width + 3) > buflen)
+        return false;
+
+    buf[0] = '[';
+    for (int i = 0; i < bar_width; i++)
+        buf[i + 1] = (i < filled) ? '#' : '.';
+    buf[bar_width + 1] = ']';
+    buf[bar_width + 2] = '\0';
+    return true;
+}
+
+static bool display_player_min_depth_progress_bar_line(int x, int y, int line_w)
+{
+    char bar_buf[96];
+    int bar_len;
+    int out_col;
+
+    if (!format_min_depth_progress_bar(bar_buf, sizeof(bar_buf), line_w))
+        return false;
+
+    Term_erase(x, y, line_w);
+    bar_len = (int)strlen(bar_buf);
+    out_col = x + (line_w - bar_len) / 2;
+    if (out_col < x)
+        out_col = x;
+    Term_putstr(out_col, y, bar_len, TERM_L_BLUE, bar_buf);
+    return true;
+}
+
+static void display_player_deep_call_line(int x, int y, int line_w)
+{
+    const char* label = (line_w >= 16) ? "Deep Call" : "Call";
+    int val_w = line_w - (int)strlen(label);
+    char value_buf[96];
+    byte value_attr;
+
+    if (line_w < 6)
+        return;
+
+    if (val_w < 4)
+    {
+        label = "";
+        val_w = line_w;
+    }
+
+    value_attr = format_deep_call_value(value_buf, sizeof(value_buf), val_w);
+    put_single_right(x, y, line_w, label, value_buf, val_w, value_attr);
 }
 /* ======================================================================= */
 
 void display_player_xtra_info(int mode)
 {
-    const int col_stats = 1;     /* left stats column, width 20 */
-    const int col_flags = 23;    /* single flags column in the gap */
-    const int col_skills = 41;   /* skills unchanged */
+    int term_wid = 80;
+    int term_hgt = 24;
+    int wide_offset = 0;
+    int col_stats;
+    int col_flags;
+    int col_skills;
+    bool compact_overview = (mode == 100);
+    bool show_skills = !compact_overview;
 
     int row_stats = 2;
     int row_flags = 2;
@@ -1363,6 +1641,23 @@ void display_player_xtra_info(int mode)
     char cur[32], rhs[32], val[64], buf[160];
 
     byte history_attr = (mode == 2) ? TERM_YELLOW : TERM_WHITE;
+
+    Term_get_size(&term_wid, &term_hgt);
+    if (term_wid < 1)
+        term_wid = 80;
+    if (term_hgt < 1)
+        term_hgt = 24;
+    (void)term_hgt;
+
+    if (term_wid > 80)
+        wide_offset = (term_wid - 80) / 2;
+
+    col_stats = wide_offset + 1;
+    col_flags = wide_offset + 23;
+    col_skills = wide_offset + 41;
+
+    if (compact_overview)
+        col_flags = col_stats + 22;
 
     /* -------------------- STATS (col 1..20) ----------------------------- */
 
@@ -1403,7 +1698,12 @@ void display_player_xtra_info(int mode)
                          "Depth c/m",
                          cur, 4, (cur_d >= min_d) ? TERM_L_GREEN : TERM_YELLOW,
                          '/', rhs, 4, TERM_L_GREEN);
+
+        if (display_player_min_depth_progress_bar_line(col_stats, row_stats, LINEW20))
+            row_stats++;
     }
+
+    display_player_deep_call_line(col_stats, row_stats++, LINEW20);
 
     /* Turn (commas ok), right-anchored 12 */
     comma_number(buf, playerturn);
@@ -1413,19 +1713,19 @@ void display_player_xtra_info(int mode)
     /* Light */
     strnfmt(val, sizeof(val), "%d", p_ptr->cur_light);
     put_single20_right(col_stats, row_stats++,
-                       "Light", val, 12, TERM_L_GREEN);
+                       "Light", val, 2, TERM_L_GREEN);
 
     /* Melee main-hand - keep () */
     strnfmt(val, sizeof(val), "(%+d,%dd%d)",
             p_ptr->skill_use[S_MEL], p_ptr->mdd, p_ptr->mds);
     put_single20_right(col_stats, row_stats++,
-                       "Melee", val, 14, TERM_L_BLUE);
+                       "Melee", val, 12, TERM_L_BLUE);
 
     if (p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK])
     {
         attacks++;
         put_single20_right(col_stats, row_stats++,
-                           "Melee x2", val, 14, TERM_L_BLUE);
+                           "Melee x2", val, 12, TERM_L_BLUE);
     }
 
     /* Offhand if present */
@@ -1436,20 +1736,20 @@ void display_player_xtra_info(int mode)
                 p_ptr->skill_use[S_MEL] + p_ptr->offhand_mel_mod,
                 p_ptr->mdd2, p_ptr->mds2);
         put_single20_right(col_stats, row_stats++,
-                           "Offhand", val, 14, TERM_L_BLUE);
+                           "Offhand", val, 12, TERM_L_BLUE);
     }
 
     /* Bows */
     strnfmt(val, sizeof(val), "(%+d,%dd%d)",
             p_ptr->skill_use[S_ARC], p_ptr->add, p_ptr->ads);
     put_single20_right(col_stats, row_stats++,
-                       "Bows", val, 14, TERM_L_BLUE);
+                       "Bows", val, 12, TERM_L_BLUE);
 
     /* Armor - keep [] */
     strnfmt(val, sizeof(val), "[%+d,%d-%d]",
             p_ptr->skill_use[S_EVN], p_min(GF_HURT, true), p_max(GF_HURT, true));
     put_single20_right(col_stats, row_stats++,
-                       "Armor", val, 14, TERM_L_BLUE);
+                       "Armor", val, 12, TERM_L_BLUE);
 
     /* Health: 3/3, clamp to 999 */
     {
@@ -1492,7 +1792,7 @@ void display_player_xtra_info(int mode)
     /* -------------------- FLAGS (single column at col 22) ---------------- */
 
     int race  = p_ptr->prace;
-    int house = p_ptr->phouse;
+    int character = p_ptr->pcharacter;
 
     byte attr_affinity   = TERM_GREEN;   /* AF */
     byte attr_mastery    = TERM_L_GREEN; /* MA */
@@ -1512,10 +1812,10 @@ void display_player_xtra_info(int mode)
 #define HANDLE_SKILL_EX(LABEL, AFF_FLAG, PEN_FLAG)                                      \
     do {                                                                                \
         int score = 0;                                                                  \
-        if (p_info[race].flags  & (AFF_FLAG)) score++;                                  \
-        if (c_info[house].flags & (AFF_FLAG)) score++;                                  \
-        if (p_info[race].flags  & (PEN_FLAG)) score--;                                  \
-        if (c_info[house].flags & (PEN_FLAG)) score--;                                  \
+        if (p_info[race].flags      & (AFF_FLAG)) score++;                              \
+        if (c_info[character].flags & (AFF_FLAG)) score++;                              \
+        if (p_info[race].flags      & (PEN_FLAG)) score--;                              \
+        if (c_info[character].flags & (PEN_FLAG)) score--;                              \
         score += curse_flag_count_rhf(AFF_FLAG);                                        \
         score -= curse_flag_count_rhf(PEN_FLAG);                                        \
         if (score >  2) score =  2;                                                     \
@@ -1528,13 +1828,13 @@ void display_player_xtra_info(int mode)
 
 #define HANDLE_UNIQUE(LABEL, FLAG, COLOR)                                               \
     do {                                                                                \
-        if ((p_info[race].flags & (FLAG)) || (c_info[house].flags & (FLAG)))            \
+        if ((p_info[race].flags & (FLAG)) || (c_info[character].flags & (FLAG)))        \
             PUSH(uniq_buf, uniq_n, (LABEL), (COLOR));                                   \
     } while (0)
 
 #define HANDLE_UNIQUE_U(LABEL, FLAG, COLOR)                                             \
     do {                                                                                \
-        if (c_info[house].flags_u & (FLAG))                                             \
+        if (c_info[character].flags_u & (FLAG))                                         \
             PUSH(uniq_buf, uniq_n, (LABEL), (COLOR));                                   \
     } while (0)
 
@@ -1577,11 +1877,9 @@ void display_player_xtra_info(int mode)
     HANDLE_UNIQUE("Morgoth Curse",        RHF_MOR_CURSE,    TERM_UMBER);
 
     /* Render: uniques -> MA -> AF -> penalties (use story font if enabled) */
-#ifdef USE_SDL
     if (story_character_enabled()) {
         sdl_story_font_enable();
     }
-#endif
     
     for (int i = 0; i < uniq_n; ++i)
         Term_putstr(col_flags, row_flags++, -1, uniq_buf[i].col, uniq_buf[i].txt);
@@ -1592,33 +1890,30 @@ void display_player_xtra_info(int mode)
     for (int i = 0; i < pen_n; ++i)
         Term_putstr(col_flags, row_flags++, -1, pen_buf[i].col, pen_buf[i].txt);
 
-#ifdef USE_SDL
     /* Disable story font after rendering flags/abilities */
     if (story_character_enabled()) {
         sdl_story_font_disable();
     }
-#endif
 
-    /* -------------------- SKILLS (unchanged position) ------------------- */
-    /* Skills will manage their own font switching */
-    for (skill = 0; skill < S_MAX; skill++) {
-        /* Skip Special abilities skill - not meant for display */
-        if (skill == S_SPC) continue;
-        display_skill(skill, 6 + skill, col_skills);
+    /* -------------------- SKILLS ---------------------------------------- */
+    if (show_skills)
+    {
+        /* Skills will manage their own font switching */
+        for (skill = 0; skill < S_MAX; skill++) {
+            /* Skip Special abilities skill - not meant for display */
+            if (skill == S_SPC) continue;
+            display_skill(skill, 6 + skill, col_skills);
+        }
     }
 
     /* -------------------- History (unchanged) --------------------------- */
-#ifdef USE_SDL
     if (story_character_enabled()) {
         sdl_story_font_enable();
     }
-#endif
     
     /* Use full terminal width for history wrapping */
-    int wid, h;
-    Term_get_size(&wid, &h);
-    log_debug("Character history: terminal width=%d, using wrap=%d", wid, wid - 1);
-    text_out_wrap   = wid - 1;  /* Leave 1 column margin */
+    log_debug("Character history: terminal width=%d, using wrap=%d", term_wid, term_wid - 1);
+    text_out_wrap   = term_wid - 1;  /* Leave 1 column margin */
     text_out_indent = 1;
     Term_gotoxy(text_out_indent, 15);
     text_out_to_screen(history_attr, p_ptr->history);
@@ -1627,11 +1922,9 @@ void display_player_xtra_info(int mode)
     
     Term_fresh();  /* Render history */
 
-#ifdef USE_SDL
     if (story_character_enabled()) {
         sdl_story_font_disable();
     }
-#endif
 
 #undef HANDLE_SKILL_EX
 #undef HANDLE_UNIQUE
@@ -1725,9 +2018,7 @@ static void display_player_flag_info(void)
 
     u32b f[4];
 
-#ifdef USE_SDL
     sdl_story_font_enable();
-#endif
 
     /* Four columns */
     for (x = 0; x < 4; x++)
@@ -1817,9 +2108,7 @@ static void display_player_flag_info(void)
         display_player_equippy(row++, col + 8);
     }
 
-#ifdef USE_SDL
     sdl_story_font_disable();
-#endif
 }
 
 /*
@@ -1827,630 +2116,1239 @@ static void display_player_flag_info(void)
  * Shows 4 stages explaining different parts of the character screen
  * with actual character data displayed
  */
-void display_character_tutorial(void)
+static void tutorial_prompt_label(int binding, const char* fallback, char* out, size_t out_size)
 {
-    int stage = 0;
-    char ch;
-    char buf[160];
-    char cur[32], rhs[32];
-    int row;
-    
-    /* Display each stage */
-    while (1)
+    if (!out || !out_size)
+        return;
+
+    sdl_gamepad_action_binding_short_label(binding, out, out_size);
+    if (streq(out, "(unbound)") || streq(out, "Multiple"))
+        SDL_strlcpy(out, fallback, out_size);
+}
+
+static void tutorial_put_centered(int row, byte attr, const char* text)
+{
+    if (!text)
+        return;
+
+    int wid = 80;
+    int hgt = 24;
+    Term_get_size(&wid, &hgt);
+    if (wid < 1)
+        wid = 80;
+
+    int len = (int)strlen(text);
+    int col = 0;
+    if (len < wid)
+        col = (wid - len) / 2;
+    if (col < 0)
+        col = 0;
+
+    Term_putstr(col, row, -1, attr, text);
+}
+
+static int tutorial_put_trunc(int col, int row, int max_wid, byte attr, const char* text)
+{
+    if (!text || !text[0])
+        return 0;
+
+    if (max_wid < 4)
+        max_wid = 4;
+
+    size_t len = strlen(text);
+    if ((int)len <= max_wid)
     {
-        /* Clear screen */
-        Term_clear();
-        
-        /* Stage header */
-        Term_putstr(20, 0, -1, TERM_L_BLUE, 
-            format("CHARACTER SCREEN TUTORIAL - STAGE %d/4", stage + 1));
-        
-        row = 2;
-        
-        /* Stage 1: Core Statistics (left column) */
-        if (stage == 0)
+        Term_putstr(col, row, -1, attr, text);
+        return 1;
+    }
+
+    char buf[256];
+    if (max_wid >= (int)sizeof(buf))
+        max_wid = (int)sizeof(buf) - 1;
+
+    int keep = max_wid - 3;
+    if (keep < 0)
+        keep = 0;
+    SDL_strlcpy(buf, text, (size_t)keep + 1);
+    SDL_strlcat(buf, "...", sizeof(buf));
+    Term_putstr(col, row, -1, attr, buf);
+    return 1;
+}
+
+/* Word-wrap text and render it, respecting a bottom row limit. Returns number of lines written. */
+static int tutorial_put_wrapped_limited(
+    const char* text, int start_col, int start_row, int max_width, int max_row, byte color)
+{
+    if (!text || !text[0])
+        return 0;
+
+    int term_width = 80;
+    int term_height = 24;
+    Term_get_size(&term_width, &term_height);
+    if (term_width < 1)
+        term_width = 80;
+    if (term_height < 1)
+        term_height = 24;
+
+    if (max_width <= 0)
+        max_width = term_width - start_col - 1;
+    if (max_width < 10)
+        max_width = 10;
+
+    if (max_row <= 0 || max_row > term_height)
+        max_row = term_height;
+
+    char line_buf[512];
+    int row = start_row;
+    int line_pos = 0;
+    const char* p = text;
+
+    while (*p && row < max_row)
+    {
+        /* Skip leading spaces at the start of a line */
+        while (*p == ' ' && line_pos == 0)
+            p++;
+
+        /* Explicit newline */
+        if (*p == '\n')
         {
-            Term_putstr(2, row++, -1, TERM_WHITE, "CORE STATISTICS");
-            row++;
-            
-            /* Experience */
-            strnfmt(cur, sizeof(cur), "%ld", (long)p_ptr->new_exp);
-            strnfmt(rhs, sizeof(rhs), "%ld", (long)p_ptr->exp);
-            put_pair20_right(2, row, "Exp", 
-                cur, 6, TERM_L_GREEN, '/', rhs, 6, TERM_GREEN);
-            Term_putstr(24, row++, -1, TERM_SLATE, 
-                "-Experience: left/total, awarded for reaching depths,");
-            Term_putstr(24, row++, -1, TERM_SLATE, 
-                " identifying items and spotting and killing monsters");
-            
-            /* Burden */
+            line_buf[line_pos] = '\0';
+            if (line_pos > 0)
             {
-                long cur_wgt = p_ptr->total_weight / 10;
-                long max_wgt = weight_limit() / 10;
-                strnfmt(cur, sizeof(cur), "%ld", cur_wgt);
-                strnfmt(rhs, sizeof(rhs), "%ld", max_wgt);
-                put_pair20_right(2, row, "Burden",
-                    cur, 4, TERM_L_GREEN, '/', rhs, 4, TERM_GREEN);
-                Term_putstr(24, row++, -1, TERM_SLATE,
-                    "-Weight carried/max capacity (lbs)");
-            }
-            
-            /* Depth */
-            if (turn > 0)
-            {
-                long cur_d = p_ptr->depth * 50;
-                long min_d = min_depth() * 50;
-                strnfmt(cur, sizeof(cur), "%ld", cur_d);
-                strnfmt(rhs, sizeof(rhs), "%ld", min_d);
-                put_pair20_right(2, row, "Depth c/m",
-                    cur, 4, TERM_L_GREEN, '/', rhs, 4, TERM_GREEN);
-                Term_putstr(24, row++, -1, TERM_SLATE,
-                    "-Current level/minimum return depth, goes up with time");
-            }
-            
-            /* Turn */
-            comma_number(buf, playerturn);
-            put_single20_right(2, row, "Turn", buf, 12, TERM_L_GREEN);
-            Term_putstr(24, row++, -1, TERM_SLATE, "-Total current game turns");
-            
-            /* Light */
-            strnfmt(buf, sizeof(buf), "%d", p_ptr->cur_light);
-            put_single20_right(2, row, "Light", buf, 2, TERM_L_GREEN);
-            Term_putstr(24, row++, -1, TERM_SLATE, "-Your current light radius");
-            row++;
-            
-            /* Melee */
-            strnfmt(buf, sizeof(buf), "(%+d,%dd%d)",
-                p_ptr->skill_use[S_MEL], p_ptr->mdd, p_ptr->mds);
-            put_single20_right(2, row, "Melee", buf, 12, TERM_L_GREEN);
-            Term_putstr(24, row++, -1, TERM_SLATE, "-Main hand: (chance to hit, damage dice)");
-            
-            /* Bows */
-            strnfmt(buf, sizeof(buf), "(%+d,%dd%d)",
-                p_ptr->skill_use[S_ARC], p_ptr->add, p_ptr->ads);
-            put_single20_right(2, row, "Bows", buf, 12, TERM_L_GREEN);
-            Term_putstr(24, row++, -1, TERM_SLATE, "-Ranged:    (chance to hit, damage dice)");
-            
-            /* Armor */
-            strnfmt(buf, sizeof(buf), "[%+d,%d-%d]",
-                p_ptr->skill_use[S_EVN], p_min(GF_HURT, true), p_max(GF_HURT, true));
-            put_single20_right(2, row, "Armor", buf, 12, TERM_L_GREEN);
-            Term_putstr(24, row++, -1, TERM_SLATE, "-[evasion, protection]");
-            Term_putstr(24, row++, -1, TERM_SLATE, " [chance increase, damage absorption]");
-            
-            /* Health */
-            {
-                int cur_hp = MIN(p_ptr->chp, 999);
-                int max_hp = MIN(p_ptr->mhp, 999);
-                byte col = (p_ptr->chp >= p_ptr->mhp) ? TERM_L_GREEN : 
-                          (p_ptr->chp > p_ptr->mhp / 4) ? TERM_YELLOW : TERM_RED;
-                strnfmt(cur, sizeof(cur), "%d", cur_hp);
-                strnfmt(rhs, sizeof(rhs), "%d", max_hp);
-                put_pair20_right(2, row, "Health",
-                    cur, 3, col, '/', rhs, 3, TERM_GREEN);
-                Term_putstr(24, row++, -1, TERM_SLATE, "-Hit points:  current/maximum");
-            }
-            
-            /* Voice */
-            {
-                int cur_sp = MIN(p_ptr->csp, 999);
-                int max_sp = MIN(p_ptr->msp, 999);
-                byte col = (p_ptr->csp >= p_ptr->msp) ? TERM_L_GREEN :
-                          (p_ptr->csp > p_ptr->msp / 4) ? TERM_YELLOW : TERM_RED;
-                strnfmt(cur, sizeof(cur), "%d", cur_sp);
-                strnfmt(rhs, sizeof(rhs), "%d", max_sp);
-                put_pair20_right(2, row, "Voice",
-                    cur, 3, col, '/', rhs, 3, TERM_GREEN);
-                Term_putstr(24, row++, -1, TERM_SLATE, "-Song points: current/maximum");
-            }
-        }
-        
-        /* Stage 2: Attributes & Skills */
-        else if (stage == 1)
-        {
-            Term_putstr(2, row++, -1, TERM_WHITE, "ATTRIBUTES & SKILLS");
-            row++;
-            
-            Term_putstr(2, row++, -1, TERM_SLATE, "Attributes (Current = Base +equip +misc -drain):");
-            
-            /* Display stats with short names */
-            for (int stat = 0; stat < A_MAX; stat++)
-            {
-                int use = p_ptr->stat_use[stat];
-                int base = p_ptr->stat_base[stat];
-                int equip_mod = p_ptr->stat_equip_mod[stat];
-                int misc_mod = p_ptr->stat_misc_mod[stat];
-                int drain = p_ptr->stat_drain[stat];
-                
-                byte attr = (use == base) ? TERM_WHITE : 
-                           (use > base) ? TERM_L_GREEN : TERM_ORANGE;
-                
-                /* Use short names for display */
-                Term_putstr(4, row, -1, TERM_WHITE, stat_names[stat]);
-                
-                /* Show breakdown if there are any modifiers */
-                char value_buf[8];
-                strnfmt(value_buf, sizeof(value_buf), "%2d", use);
-
-                if (equip_mod != 0 || misc_mod != 0 || drain != 0)
-                {
-                    story_c_put_str_grid(attr, value_buf, row, 8, 2);
-                    story_c_put_str_grid(TERM_SLATE, "=", row, 11, 1);
-
-                    char base_buf[8];
-                    strnfmt(base_buf, sizeof(base_buf), "%2d", base);
-                    story_c_put_str_grid(TERM_WHITE, base_buf, row, 13, 2);
-
-                    int col_pos = 16;
-                    if (equip_mod != 0)
-                    {
-                        char mod_buf[8];
-                        strnfmt(mod_buf, sizeof(mod_buf), "%+d", equip_mod);
-                        story_c_put_str_grid(
-                            equip_mod > 0 ? TERM_L_GREEN : TERM_ORANGE,
-                            mod_buf, row, col_pos, 3);
-                        col_pos += 3;
-                    }
-                    if (misc_mod != 0)
-                    {
-                        char mod_buf[8];
-                        strnfmt(mod_buf, sizeof(mod_buf), "%+d", misc_mod);
-                        story_c_put_str_grid(
-                            misc_mod > 0 ? TERM_L_GREEN : TERM_ORANGE,
-                            mod_buf, row, col_pos, 3);
-                        col_pos += 3;
-                    }
-                    if (drain != 0)
-                    {
-                        char mod_buf[8];
-                        strnfmt(mod_buf, sizeof(mod_buf), "%+d", drain);
-                        story_c_put_str_grid(TERM_YELLOW, mod_buf, row, col_pos, 3);
-                        col_pos += 3;
-                    }
-                }
-                else
-                {
-                    /* No modifiers, just show the value */
-                    story_c_put_str_grid(attr, value_buf, row, 8, 2);
-                }
-                
-                /* Descriptions with full names - shortened to fit */
-                if (stat == A_STR)
-                    Term_putstr(28, row, -1, TERM_SLATE, "-Strength: melee dice & weight capacity");
-                else if (stat == A_DEX)
-                    Term_putstr(28, row, -1, TERM_SLATE, "-Dexterity: skill increase (mel, evn, arc, stl)");
-                else if (stat == A_CON)
-                    Term_putstr(28, row, -1, TERM_SLATE, "-Constitution: HP");
-                else if (stat == A_GRA)
-                    Term_putstr(28, row, -1, TERM_SLATE, "-Grace: skill increase (wil, per, sng, smt), voice");
-
+                Term_putstr(start_col, row, -1, color, line_buf);
                 row++;
             }
-            row++;
-            
-            Term_putstr(2, row++, -1, TERM_SLATE, "Skills: Total = Base +stat +equip +misc");
-            Term_putstr(2, row++, -1, TERM_SLATE, "(Base determines ability purchase cost)");
-            row++;
-            
-            /* Display all 8 skills with descriptions */
-            const char* skill_desc[S_MAX] = {
-                "-Melee combat chance to hit",      /* S_MEL */
-                "-Ranged attack chance to hit",     /* S_ARC */
-                "-Evade attack chance",     /* S_EVN */
-                "-Avoid detection",   /* S_STL */
-                "-Notice hidden",     /* S_PER */
-                "-Mental resistance",     /* S_WIL */
-                "-Craft items",       /* S_SMT */
-                "-Song power",        /* S_SNG */
-                ""                     /* S_SPC - skip */
-            };
-            
-            for (int skill = 0; skill < S_MAX; skill++)
-            {
-                /* Skip Special abilities skill */
-                if (skill == S_SPC) continue;
-                
-                /* Use full names for display */
-                Term_putstr(4, row, -1, TERM_WHITE, skill_names_full[skill]);
-                char total_buf[8];
-                strnfmt(total_buf, sizeof(total_buf), "%2d", p_ptr->skill_use[skill]);
-                story_c_put_str_grid(TERM_L_GREEN, total_buf, row, 16, 2);
-                story_c_put_str_grid(TERM_SLATE, "=", row, 19, 1);
-
-                char base_buf[8];
-                strnfmt(base_buf, sizeof(base_buf), "%2d", p_ptr->skill_base[skill]);
-                story_c_put_str_grid(TERM_GREEN, base_buf, row, 21, 2);
-                
-                int col_pos = 24;
-                if (p_ptr->skill_stat_mod[skill] != 0)
-                {
-                    char mod_buf[8];
-                    strnfmt(mod_buf, sizeof(mod_buf), "%+d", p_ptr->skill_stat_mod[skill]);
-                    story_c_put_str_grid(TERM_WHITE, mod_buf, row, col_pos, 3);
-                    col_pos += 3;
-                }
-                if (p_ptr->skill_equip_mod[skill] != 0)
-                {
-                    char mod_buf[8];
-                    strnfmt(mod_buf, sizeof(mod_buf), "%+d", p_ptr->skill_equip_mod[skill]);
-                    story_c_put_str_grid(TERM_WHITE, mod_buf, row, col_pos, 3);
-                    col_pos += 3;
-                }
-                if (p_ptr->skill_misc_mod[skill] != 0)
-                {
-                    char mod_buf[8];
-                    strnfmt(mod_buf, sizeof(mod_buf), "%+d", p_ptr->skill_misc_mod[skill]);
-                    story_c_put_str_grid(TERM_WHITE, mod_buf, row, col_pos, 3);
-                    col_pos += 3;
-                }
-                
-                /* Add description */
-                Term_putstr(36, row, -1, TERM_SLATE, skill_desc[skill]);
-                row++;
-            }
+            line_pos = 0;
+            p++;
+            continue;
         }
-        
-        /* Stage 3: Character Traits */
-        else if (stage == 2)
+
+        /* Wrap */
+        if (line_pos >= max_width)
         {
-            Term_putstr(2, row++, -1, TERM_WHITE, "CHARACTER TRAITS");
-            row++;
-            
-            /* Character name */
-            char name[40];
-            if (p_ptr->oaths_broken)
+            int wrap_pos = line_pos - 1;
+            while (wrap_pos > 0 && line_buf[wrap_pos] != ' ')
+                wrap_pos--;
+
+            if (wrap_pos > 0)
             {
-                strnfmt(name, sizeof(name), "%s the Oathbreaker", op_ptr->full_name);
-                c_put_str(TERM_RED, name, row++, 4);
+                line_buf[wrap_pos] = '\0';
+                Term_putstr(start_col, row, -1, color, line_buf);
+
+                int remaining = line_pos - wrap_pos - 1;
+                for (int i = 0; i < remaining; i++)
+                    line_buf[i] = line_buf[wrap_pos + 1 + i];
+                line_pos = remaining;
             }
             else
             {
-                strnfmt(name, sizeof(name), "%s%s", op_ptr->full_name, 
-                    c_name + hp_ptr->alt_name);
-                c_put_str(TERM_L_BLUE, name, row++, 4);
+                line_buf[line_pos] = '\0';
+                Term_putstr(start_col, row, -1, color, line_buf);
+                line_pos = 0;
             }
             row++;
-            
-            Term_putstr(2, row++, -1, TERM_SLATE, "Special Abilities & Modifiers:");
+            continue;
+        }
+
+        /* Add char */
+        if (line_pos < (int)sizeof(line_buf) - 2)
+            line_buf[line_pos++] = *p;
+        p++;
+    }
+
+    if (line_pos > 0 && row < max_row)
+    {
+        line_buf[line_pos] = '\0';
+        Term_putstr(start_col, row, -1, color, line_buf);
+        row++;
+    }
+
+    return row - start_row;
+}
+
+static int tutorial_count_wrapped_lines_ex(const char* text, int max_width, bool preserve_empty)
+{
+    if (!text || !text[0])
+        return 0;
+
+    if (max_width < 10)
+        max_width = 10;
+
+    char line_buf[512];
+    int line_pos = 0;
+    int count = 0;
+    const char* p = text;
+
+    while (*p)
+    {
+        while (*p == ' ' && line_pos == 0)
+            p++;
+
+        if (*p == '\n')
+        {
+            if (line_pos > 0 || preserve_empty)
+                count++;
+            line_pos = 0;
+            p++;
+            continue;
+        }
+
+        if (line_pos >= max_width)
+        {
+            int wrap_pos = line_pos - 1;
+            while (wrap_pos > 0 && line_buf[wrap_pos] != ' ')
+                wrap_pos--;
+
+            if (wrap_pos > 0)
+            {
+                int remaining = line_pos - wrap_pos - 1;
+                for (int i = 0; i < remaining; i++)
+                    line_buf[i] = line_buf[wrap_pos + 1 + i];
+                line_pos = remaining;
+            }
+            else
+            {
+                line_pos = 0;
+            }
+
+            count++;
+            continue;
+        }
+
+        if (line_pos < (int)sizeof(line_buf) - 2)
+            line_buf[line_pos++] = *p;
+        p++;
+    }
+
+    if (line_pos > 0)
+        count++;
+
+    return count;
+}
+
+static int tutorial_put_wrapped_slice_ex(
+    const char* text,
+    int start_col,
+    int start_row,
+    int max_width,
+    int max_row,
+    byte color,
+    int skip_lines,
+    int max_lines,
+    bool preserve_empty)
+{
+    if (!text || !text[0])
+        return 0;
+
+    if (skip_lines < 0)
+        skip_lines = 0;
+    if (max_lines < 1)
+        max_lines = 1;
+    if (max_width < 10)
+        max_width = 10;
+
+    char line_buf[512];
+    int row = start_row;
+    int line_pos = 0;
+    int line_index = 0;
+    int drawn = 0;
+    const char* p = text;
+
+    while (*p && row < max_row)
+    {
+        while (*p == ' ' && line_pos == 0)
+            p++;
+
+        if (*p == '\n')
+        {
+            bool have_line = (line_pos > 0) || preserve_empty;
+            if (have_line)
+            {
+                if (line_index >= skip_lines && drawn < max_lines)
+                {
+                    if (line_pos > 0)
+                    {
+                        line_buf[line_pos] = '\0';
+                        Term_putstr(start_col, row, -1, color, line_buf);
+                    }
+                    row++;
+                    drawn++;
+                    if (drawn >= max_lines || row >= max_row)
+                        break;
+                }
+                line_index++;
+            }
+            line_pos = 0;
+            p++;
+            continue;
+        }
+
+        if (line_pos >= max_width)
+        {
+            int wrap_pos = line_pos - 1;
+            while (wrap_pos > 0 && line_buf[wrap_pos] != ' ')
+                wrap_pos--;
+
+            if (line_index >= skip_lines && drawn < max_lines)
+            {
+                if (wrap_pos > 0)
+                    line_buf[wrap_pos] = '\0';
+                else
+                    line_buf[line_pos] = '\0';
+                if (line_buf[0])
+                    Term_putstr(start_col, row, -1, color, line_buf);
+                row++;
+                drawn++;
+                if (drawn >= max_lines || row >= max_row)
+                    break;
+            }
+
+            if (wrap_pos > 0)
+            {
+                int remaining = line_pos - wrap_pos - 1;
+                for (int i = 0; i < remaining; i++)
+                    line_buf[i] = line_buf[wrap_pos + 1 + i];
+                line_pos = remaining;
+            }
+            else
+            {
+                line_pos = 0;
+            }
+
+            line_index++;
+            continue;
+        }
+
+        if (line_pos < (int)sizeof(line_buf) - 2)
+            line_buf[line_pos++] = *p;
+        p++;
+    }
+
+    if (line_pos > 0 && row < max_row && drawn < max_lines)
+    {
+        if (line_index >= skip_lines)
+        {
+            line_buf[line_pos] = '\0';
+            Term_putstr(start_col, row, -1, color, line_buf);
             row++;
-            
-            /* Show color coding examples in compact format */
-            c_put_str(TERM_L_GREEN, "++", row, 4);
-            Term_putstr(8, row, -1, TERM_SLATE, "- Mastery  ");
-            c_put_str(TERM_GREEN, "+", row, 20);
-            Term_putstr(23, row++, -1, TERM_SLATE, "- Affinity");
-            
-            c_put_str(TERM_RED, "--", row, 4);
-            Term_putstr(8, row, -1, TERM_SLATE, "- Major penalty  ");
-            c_put_str(TERM_L_RED, "-", row, 26);
-            Term_putstr(29, row++, -1, TERM_SLATE, "- Minor penalty");
-            
-            c_put_str(TERM_VIOLET, "UNIQUE", row, 4);
-            Term_putstr(12, row++, -1, TERM_SLATE, "- Special abilities");
-            
-            c_put_str(TERM_UMBER, "CURSE", row, 4);
-            Term_putstr(12, row++, -1, TERM_SLATE, "- Character curses");
-            row++;
-            
-            /* Show ALL actual traits using the same logic as character sheet */
-            int race = p_ptr->prace;
-            int house = p_ptr->phouse;
-            
-            Term_putstr(2, row++, -1, TERM_SLATE, "Your current traits:");
-            
-            /* Use buffers to collect and organize traits */
-            typedef struct {
-                const char *txt;
-                byte col;
-            } trait_line_t;
-            
-            trait_line_t trait_uniq[32], trait_ma[16], trait_af[16], trait_pen[32];
-            int uniq_cnt = 0, ma_cnt = 0, af_cnt = 0, pen_cnt = 0;
-            
-            byte col_mastery = TERM_L_GREEN;
-            byte col_affinity = TERM_GREEN;
-            byte col_penalty = TERM_L_RED;
-            byte col_gr_penalty = TERM_RED;
-            
-#define PUSH_TRAIT(arr, n, text, color) do { (arr)[(n)].txt = (text); (arr)[(n)++].col = (color); } while (0)
+            drawn++;
+        }
+    }
+
+    return drawn;
+}
+
+typedef struct {
+    const char* txt;
+    byte col;
+} tutorial_trait_line;
+
+static int tutorial_collect_traits(tutorial_trait_line* out, int max_out)
+{
+    if (!out || max_out <= 0)
+        return 0;
+
+    int n = 0;
+    int race = p_ptr->prace;
+    int character = p_ptr->pcharacter;
+
+    byte col_mastery = TERM_L_GREEN;
+    byte col_affinity = TERM_GREEN;
+    byte col_penalty = TERM_L_RED;
+    byte col_gr_penalty = TERM_RED;
+
+    /* Skill affinity/penalty summary */
+#define PUSH_TRAIT(text_value, color_value) \
+    do { \
+        if ((text_value) && n < max_out) { out[n].txt = (text_value); out[n].col = (color_value); n++; } \
+    } while (0)
 
 #define CHECK_SKILL(LABEL, AFF_FLAG, PEN_FLAG) \
     do { \
         int sc = 0; \
         if (p_info[race].flags & (AFF_FLAG)) sc++; \
-        if (c_info[house].flags & (AFF_FLAG)) sc++; \
-        if (p_info[race].flags & (PEN_FLAG)) sc--; \
-        if (c_info[house].flags & (PEN_FLAG)) sc--; \
+        if (c_info[character].flags & (AFF_FLAG)) sc++; \
+        if ((PEN_FLAG) && (p_info[race].flags & (PEN_FLAG))) sc--; \
+        if ((PEN_FLAG) && (c_info[character].flags & (PEN_FLAG))) sc--; \
         sc += curse_flag_count_rhf(AFF_FLAG); \
-        sc -= curse_flag_count_rhf(PEN_FLAG); \
+        if (PEN_FLAG) sc -= curse_flag_count_rhf(PEN_FLAG); \
         if (sc > 2) sc = 2; \
         if (sc < -2) sc = -2; \
-        if (sc == 2) PUSH_TRAIT(trait_ma, ma_cnt, LABEL "++", col_mastery); \
-        else if (sc == 1) PUSH_TRAIT(trait_af, af_cnt, LABEL "+", col_affinity); \
-        else if (sc == -1) PUSH_TRAIT(trait_pen, pen_cnt, LABEL "-", col_penalty); \
-        else if (sc == -2) PUSH_TRAIT(trait_pen, pen_cnt, LABEL "--", col_gr_penalty); \
+        if (sc == 2) PUSH_TRAIT(LABEL "++", col_mastery); \
+        else if (sc == 1) PUSH_TRAIT(LABEL "+", col_affinity); \
+        else if (sc == -1) PUSH_TRAIT(LABEL "-", col_penalty); \
+        else if (sc == -2) PUSH_TRAIT(LABEL "--", col_gr_penalty); \
     } while (0)
 
 #define CHECK_UNIQUE(LABEL, FLAG, COLOR) \
     do { \
-        if ((p_info[race].flags & (FLAG)) || (c_info[house].flags & (FLAG))) \
-            PUSH_TRAIT(trait_uniq, uniq_cnt, (LABEL), (COLOR)); \
+        if ((p_info[race].flags & (FLAG)) || (c_info[character].flags & (FLAG))) \
+            PUSH_TRAIT((LABEL), (COLOR)); \
     } while (0)
 
 #define CHECK_UNIQUE_U(LABEL, FLAG, COLOR) \
     do { \
-        if (c_info[house].flags_u & (FLAG)) \
-            PUSH_TRAIT(trait_uniq, uniq_cnt, (LABEL), (COLOR)); \
+        if (c_info[character].flags_u & (FLAG)) \
+            PUSH_TRAIT((LABEL), (COLOR)); \
     } while (0)
 
-            /* Check all skills */
-            CHECK_SKILL("melee", RHF_MEL_AFFINITY, RHF_MEL_PENALTY);
-            CHECK_SKILL("evasion", RHF_EVN_AFFINITY, RHF_EVN_PENALTY);
-            CHECK_SKILL("stealth", RHF_STL_AFFINITY, RHF_STL_PENALTY);
-            CHECK_SKILL("archery", RHF_ARC_AFFINITY, RHF_ARC_PENALTY);
-            CHECK_SKILL("will", RHF_WIL_AFFINITY, RHF_WIL_PENALTY);
-            CHECK_SKILL("perception", RHF_PER_AFFINITY, RHF_PER_PENALTY);
-            CHECK_SKILL("smithing", RHF_SMT_AFFINITY, RHF_SMT_PENALTY);
-            CHECK_SKILL("song", RHF_SNG_AFFINITY, RHF_SNG_PENALTY);
-            CHECK_SKILL("bow", RHF_BOW_PROFICIENCY, 0);
-            CHECK_SKILL("axe", RHF_AXE_PROFICIENCY, 0);
-            
-            /* Check unique abilities */
-            CHECK_UNIQUE_U("Master Artisan", UNQ_SMT_FEANOR, TERM_VIOLET);
-            CHECK_UNIQUE_U("Creator of Galvorn", UNQ_SMT_EOL, TERM_VIOLET);
-            CHECK_UNIQUE_U("Chosen of Ulmo", UNQ_WIL_TUOR, TERM_VIOLET);
-            CHECK_UNIQUE_U("Indomitable Will", UNQ_EARENDIL, TERM_VIOLET);
-            CHECK_UNIQUE_U("Orome Himself", UNQ_WIL_FIN, TERM_VIOLET);
-            CHECK_UNIQUE_U("Songs of Power", UNQ_SNG_FIN, TERM_VIOLET);
-            CHECK_UNIQUE_U("Elven Dance", UNQ_SNG_LUT, TERM_VIOLET);
-            CHECK_UNIQUE_U("Girdle of Melian", UNQ_SNG_MEL, TERM_VIOLET);
-            CHECK_UNIQUE_U("Creator of Angrist", UNQ_SMT_TELCHAR, TERM_VIOLET);
-            CHECK_UNIQUE_U("Old Master", UNQ_SMT_GAMIL, TERM_VIOLET);
-            CHECK_UNIQUE_U("Ring Master", UNQ_SMT_CELEBRIMBOR, TERM_VIOLET);
-            CHECK_UNIQUE_U("Aure entuluva", UNQ_SNG_HURIN, TERM_VIOLET);
-            CHECK_UNIQUE_U("Voice of the Girdle", UNQ_SNG_THINGOL, TERM_VIOLET);
-            CHECK_UNIQUE_U("Forgotten", UNQ_MIM, TERM_VIOLET);
-            CHECK_UNIQUE_U("One Handed", UNQ_MEL_MAEDHROS, TERM_VIOLET);
-            CHECK_UNIQUE_U("Agarwaen", UNQ_WIL_TURIN, TERM_VIOLET);
-            CHECK_UNIQUE_U("Shadow Walker", UNQ_SNG_TURGON, TERM_VIOLET);
-            CHECK_UNIQUE_U("Minstrel", UNQ_MINSTREL, TERM_VIOLET);
-            CHECK_UNIQUE_U("Woven Master", UNQ_WOVEN_MASTER, TERM_VIOLET);
-            CHECK_UNIQUE("Gift of Eru", RHF_GIFTERU, TERM_VIOLET);
-            CHECK_UNIQUE("Seafarer", RHF_FREE, TERM_VIOLET);
-            
-            /* Check curses */
-            CHECK_UNIQUE("Kinslayer", RHF_KINSLAYER, TERM_UMBER);
-            CHECK_UNIQUE("Treacherous", RHF_TREACHERY, TERM_UMBER);
-            CHECK_UNIQUE("Doom of Mandos", RHF_CURSE, TERM_UMBER);
-            CHECK_UNIQUE("Morgoth Curse", RHF_MOR_CURSE, TERM_UMBER);
-            
-            /* Display in two columns: uniques -> masteries -> affinities -> penalties */
-            int total_traits = uniq_cnt + ma_cnt + af_cnt + pen_cnt;
-            
-            if (total_traits == 0)
-            {
-                Term_putstr(4, row++, -1, TERM_SLATE, "(No special traits)");
-            }
-            else
-            {
-                /* Two-column layout: col1 at x=4, col2 at x=42 */
-                int display_row = row;
-                int col1_items = 0;
-                int col2_items = 0;
-                
-                /* Count items for each column (try to balance) */
-                int half = (total_traits + 1) / 2;
-                
-                /* Display uniques */
-                for (int i = 0; i < uniq_cnt; ++i)
-                {
-                    if (col1_items < half)
-                    {
-                        c_put_str(trait_uniq[i].col, trait_uniq[i].txt, display_row++, 4);
-                        col1_items++;
-                    }
-                    else
-                    {
-                        c_put_str(trait_uniq[i].col, trait_uniq[i].txt, row + col2_items, 42);
-                        col2_items++;
-                    }
-                }
-                
-                /* Display masteries */
-                for (int i = 0; i < ma_cnt; ++i)
-                {
-                    if (col1_items < half)
-                    {
-                        c_put_str(trait_ma[i].col, trait_ma[i].txt, display_row++, 4);
-                        col1_items++;
-                    }
-                    else
-                    {
-                        c_put_str(trait_ma[i].col, trait_ma[i].txt, row + col2_items, 42);
-                        col2_items++;
-                    }
-                }
-                
-                /* Display affinities */
-                for (int i = 0; i < af_cnt; ++i)
-                {
-                    if (col1_items < half)
-                    {
-                        c_put_str(trait_af[i].col, trait_af[i].txt, display_row++, 4);
-                        col1_items++;
-                    }
-                    else
-                    {
-                        c_put_str(trait_af[i].col, trait_af[i].txt, row + col2_items, 42);
-                        col2_items++;
-                    }
-                }
-                
-                /* Display penalties */
-                for (int i = 0; i < pen_cnt; ++i)
-                {
-                    if (col1_items < half)
-                    {
-                        c_put_str(trait_pen[i].col, trait_pen[i].txt, display_row++, 4);
-                        col1_items++;
-                    }
-                    else
-                    {
-                        c_put_str(trait_pen[i].col, trait_pen[i].txt, row + col2_items, 42);
-                        col2_items++;
-                    }
-                }
-                
-                /* Advance row past all displayed items */
-                row = display_row;
-            }
-            
+    /* Affinities/penalties first so they appear early on very small screens. */
+    CHECK_SKILL("melee", RHF_MEL_AFFINITY, RHF_MEL_PENALTY);
+    CHECK_SKILL("evasion", RHF_EVN_AFFINITY, RHF_EVN_PENALTY);
+    CHECK_SKILL("stealth", RHF_STL_AFFINITY, RHF_STL_PENALTY);
+    CHECK_SKILL("archery", RHF_ARC_AFFINITY, RHF_ARC_PENALTY);
+    CHECK_SKILL("will", RHF_WIL_AFFINITY, RHF_WIL_PENALTY);
+    CHECK_SKILL("perception", RHF_PER_AFFINITY, RHF_PER_PENALTY);
+    CHECK_SKILL("smithing", RHF_SMT_AFFINITY, RHF_SMT_PENALTY);
+    CHECK_SKILL("song", RHF_SNG_AFFINITY, RHF_SNG_PENALTY);
+    CHECK_SKILL("bow", RHF_BOW_PROFICIENCY, 0);
+    CHECK_SKILL("axe", RHF_AXE_PROFICIENCY, 0);
+
+    /* Unique abilities */
+    CHECK_UNIQUE_U("Master Artisan", UNQ_SMT_FEANOR, TERM_VIOLET);
+    CHECK_UNIQUE_U("Creator of Galvorn", UNQ_SMT_EOL, TERM_VIOLET);
+    CHECK_UNIQUE_U("Chosen of Ulmo", UNQ_WIL_TUOR, TERM_VIOLET);
+    CHECK_UNIQUE_U("Indomitable Will", UNQ_EARENDIL, TERM_VIOLET);
+    CHECK_UNIQUE_U("Orome Himself", UNQ_WIL_FIN, TERM_VIOLET);
+    CHECK_UNIQUE_U("Songs of Power", UNQ_SNG_FIN, TERM_VIOLET);
+    CHECK_UNIQUE_U("Elven Dance", UNQ_SNG_LUT, TERM_VIOLET);
+    CHECK_UNIQUE_U("Girdle of Melian", UNQ_SNG_MEL, TERM_VIOLET);
+    CHECK_UNIQUE_U("Creator of Angrist", UNQ_SMT_TELCHAR, TERM_VIOLET);
+    CHECK_UNIQUE_U("Old Master", UNQ_SMT_GAMIL, TERM_VIOLET);
+    CHECK_UNIQUE_U("Ring Master", UNQ_SMT_CELEBRIMBOR, TERM_VIOLET);
+    CHECK_UNIQUE_U("Aure entuluva", UNQ_SNG_HURIN, TERM_VIOLET);
+    CHECK_UNIQUE_U("Voice of the Girdle", UNQ_SNG_THINGOL, TERM_VIOLET);
+    CHECK_UNIQUE_U("Forgotten", UNQ_MIM, TERM_VIOLET);
+    CHECK_UNIQUE_U("One Handed", UNQ_MEL_MAEDHROS, TERM_VIOLET);
+    CHECK_UNIQUE_U("Agarwaen", UNQ_WIL_TURIN, TERM_VIOLET);
+    CHECK_UNIQUE_U("Shadow Walker", UNQ_SNG_TURGON, TERM_VIOLET);
+    CHECK_UNIQUE_U("Minstrel", UNQ_MINSTREL, TERM_VIOLET);
+    CHECK_UNIQUE_U("Woven Master", UNQ_WOVEN_MASTER, TERM_VIOLET);
+    CHECK_UNIQUE("Gift of Eru", RHF_GIFTERU, TERM_VIOLET);
+    CHECK_UNIQUE("Seafarer", RHF_FREE, TERM_VIOLET);
+
+    /* Curses */
+    CHECK_UNIQUE("Kinslayer", RHF_KINSLAYER, TERM_UMBER);
+    CHECK_UNIQUE("Treacherous", RHF_TREACHERY, TERM_UMBER);
+    CHECK_UNIQUE("Doom of Mandos", RHF_CURSE, TERM_UMBER);
+    CHECK_UNIQUE("Morgoth Curse", RHF_MOR_CURSE, TERM_UMBER);
+
 #undef PUSH_TRAIT
 #undef CHECK_SKILL
 #undef CHECK_UNIQUE
 #undef CHECK_UNIQUE_U
-        }
-        
-        /* Stage 4: History & Most Important Game Controls */
-        else if (stage == 3)
+
+    return n;
+}
+
+void display_character_tutorial(void)
+{
+    int page = 0;
+    char ch;
+
+    /* On very small terminals we split into more pages. */
+    while (1)
+    {
+        int wid = 80;
+        int hgt = 24;
+        Term_get_size(&wid, &hgt);
+        if (wid < 1)
+            wid = 80;
+        if (hgt < 1)
+            hgt = 24;
+
+        bool steamdeck = steamdeck_controls_active();
+        bool birth_context = (playerturn == 0);
+        bool birth_compact_layout = birth_context && ((wid < 80) || (hgt <= 18));
+
+        /* Layout: reserve bottom two rows for navigation. */
+        const int header_row = 0;
+        const int content_top = 2;
+        const int nav_row = hgt - 1;
+        const int hint_row = hgt - 2;
+        const int content_max_row = hint_row;
+
+        int text_col = 2;
+        int text_w = wid - text_col - 2;
+        if (text_w < 20)
+            text_w = 20;
+
+        int content_rows = content_max_row - content_top;
+        if (content_rows < 4)
+            content_rows = 4;
+
+        /* Build dynamic sections that can span multiple pages (traits, controls). */
+        tutorial_trait_line traits[160];
+        int trait_n = tutorial_collect_traits(traits, (int)N_ELEMENTS(traits));
+
+        /* Controls list (can paginate) */
+        typedef struct { const char* key; const char* desc; } ctl_line;
+        ctl_line controls[24];
+        int ctl_n = 0;
+        char ctl_bufs[24][24];
+        char ctl_note_bufs[4][128];
+        int ctl_note_n = 0;
+
+        if (steamdeck)
         {
-            Term_putstr(2, row++, -1, TERM_WHITE, "HISTORY & GAME CONTROLS");
-            row++;
-            
-            /* Display abbreviated history (3 lines max) */
-            Term_putstr(2, row++, -1, TERM_SLATE, "Your story:");
-            
-            text_out_wrap = 76;
-            text_out_indent = 4;
-            Term_gotoxy(text_out_indent, row);
-            
-            /* Truncate history for tutorial to fit in 3 lines */
-            char hist_preview[150];
-            my_strcpy(hist_preview, p_ptr->history, sizeof(hist_preview));
-            if (strlen(p_ptr->history) > 140)
+            char confirm_label[16];
+            char use_label[16];
+            char examine_label[16];
+            char inven_label[16];
+            char equip_label[16];
+            char look_label[16];
+            char char_label[16];
+            char fire_label[16];
+            char sing_label[16];
+            char activate_label[16];
+            char map_label[16];
+            char bash_label[16];
+            char abilities_label[16];
+            char help_label[16];
+            char menu_label[16];
+            char shift_label[16];
+            char ctrl_label[16];
+
+            tutorial_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
+            tutorial_prompt_label('u', "X", use_label, sizeof(use_label));
+            tutorial_prompt_label('x', "RS Right", examine_label, sizeof(examine_label));
+            tutorial_prompt_label('i', "R1", inven_label, sizeof(inven_label));
+            tutorial_prompt_label('e', "L1", equip_label, sizeof(equip_label));
+            tutorial_prompt_label('l', "L1+R1", look_label, sizeof(look_label));
+            tutorial_prompt_label('h', "Back", char_label, sizeof(char_label));
+            tutorial_prompt_label('f', "RS Down", fire_label, sizeof(fire_label));
+            tutorial_prompt_label('s', "Y", sing_label, sizeof(sing_label));
+            tutorial_prompt_label('a', "RS Left", activate_label, sizeof(activate_label));
+            tutorial_prompt_label('M', "RS Up", map_label, sizeof(map_label));
+            tutorial_prompt_label('b', "B", bash_label, sizeof(bash_label));
+            tutorial_prompt_label('\t', "L5", abilities_label, sizeof(abilities_label));
+            tutorial_prompt_label('?', "?", help_label, sizeof(help_label));
+            tutorial_prompt_label('m', "Start", menu_label, sizeof(menu_label));
+            tutorial_prompt_label(GAMEPAD_BIND_SHIFT, "L2", shift_label, sizeof(shift_label));
+            tutorial_prompt_label(GAMEPAD_BIND_CTRL, "R2", ctrl_label, sizeof(ctrl_label));
+
+            /* Prefer short, single-line descriptions for tiny screens. */
+            if (ctl_n < (int)N_ELEMENTS(controls))
             {
-                hist_preview[137] = '.';
-                hist_preview[138] = '.';
-                hist_preview[139] = '.';
-                hist_preview[140] = '\0';
+                SDL_strlcpy(ctl_bufs[ctl_n], "D-pad/Stick", sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Move/attack" };
+                ctl_n++;
             }
-            text_out_to_screen(TERM_WHITE, hist_preview);
-            
-            text_out_wrap = 0;
-            text_out_indent = 0;
-            
-            row += 4;
-            
-            Term_putstr(2, row++, -1, TERM_SLATE, "Essential Controls:");
-            
-            /* Two-column layout for commands */
-            int cmd_row = row;
-            
-            /* Left column */
-            c_put_str(TERM_L_WHITE, "Numpad", cmd_row, 4);
-            Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Move/attack");
-            
-            c_put_str(TERM_L_WHITE, "Space", cmd_row, 4);
-            Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Pick up item");
-            
-            c_put_str(TERM_L_WHITE, "u", cmd_row, 4);
-            Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Use item");
-            
-            c_put_str(TERM_L_WHITE, "x", cmd_row, 4);
-            Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Examine item");
+            if (ctl_n < (int)N_ELEMENTS(controls))
+            {
+                SDL_strlcpy(ctl_bufs[ctl_n], confirm_label, sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Pick up" };
+                ctl_n++;
+            }
+            if (ctl_n < (int)N_ELEMENTS(controls))
+            {
+                SDL_strlcpy(ctl_bufs[ctl_n], use_label, sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Use item" };
+                ctl_n++;
+            }
+            if (ctl_n < (int)N_ELEMENTS(controls))
+            {
+                SDL_strlcpy(ctl_bufs[ctl_n], examine_label, sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Examine" };
+                ctl_n++;
+            }
+            if (ctl_n < (int)N_ELEMENTS(controls))
+            {
+                SDL_strlcpy(ctl_bufs[ctl_n], inven_label, sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Inventory" };
+                ctl_n++;
+            }
+            if (ctl_n < (int)N_ELEMENTS(controls))
+            {
+                SDL_strlcpy(ctl_bufs[ctl_n], equip_label, sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Equipment" };
+                ctl_n++;
+            }
+            if (ctl_n < (int)N_ELEMENTS(controls))
+            {
+                SDL_strlcpy(ctl_bufs[ctl_n], look_label, sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Look" };
+                ctl_n++;
+            }
+            if (ctl_n < (int)N_ELEMENTS(controls))
+            {
+                SDL_strlcpy(ctl_bufs[ctl_n], char_label, sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Character" };
+                ctl_n++;
+            }
+            if (ctl_n < (int)N_ELEMENTS(controls))
+            {
+                SDL_strlcpy(ctl_bufs[ctl_n], fire_label, sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Fire" };
+                ctl_n++;
+            }
+            if (ctl_n < (int)N_ELEMENTS(controls))
+            {
+                SDL_strlcpy(ctl_bufs[ctl_n], sing_label, sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Sing" };
+                ctl_n++;
+            }
+            if (ctl_n < (int)N_ELEMENTS(controls))
+            {
+                SDL_strlcpy(ctl_bufs[ctl_n], activate_label, sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Activate" };
+                ctl_n++;
+            }
+            if (ctl_n < (int)N_ELEMENTS(controls))
+            {
+                SDL_strlcpy(ctl_bufs[ctl_n], map_label, sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Map" };
+                ctl_n++;
+            }
+            if (ctl_n < (int)N_ELEMENTS(controls))
+            {
+                SDL_strlcpy(ctl_bufs[ctl_n], bash_label, sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Bash" };
+                ctl_n++;
+            }
+            if (ctl_n < (int)N_ELEMENTS(controls))
+            {
+                SDL_strlcpy(ctl_bufs[ctl_n], abilities_label, sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Abilities" };
+                ctl_n++;
+            }
+            if (ctl_n < (int)N_ELEMENTS(controls))
+            {
+                SDL_strlcpy(ctl_bufs[ctl_n], help_label, sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Help" };
+                ctl_n++;
+            }
+            if (ctl_n < (int)N_ELEMENTS(controls))
+            {
+                SDL_strlcpy(ctl_bufs[ctl_n], menu_label, sizeof(ctl_bufs[ctl_n]));
+                controls[ctl_n] = (ctl_line){ ctl_bufs[ctl_n], "Main menu" };
+                ctl_n++;
+            }
 
-            
-            c_put_str(TERM_L_WHITE, "i", cmd_row, 4);
-            Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Inventory");
-            
-            c_put_str(TERM_L_WHITE, "e", cmd_row, 4);
-            Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Equipment");
-            
-            c_put_str(TERM_L_WHITE, "l", cmd_row, 4);
-            Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Look menu");
-            
-            c_put_str(TERM_L_WHITE, "Ctrl", cmd_row, 4);
-            Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Bash, disarm, tunnel");
-
-            
-            /* Right column */
-            cmd_row = row;
-            
-            c_put_str(TERM_L_WHITE, "f/F", cmd_row, 42);
-            Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-fire (ranged attack)");
-            
-            c_put_str(TERM_L_WHITE, "s/S", cmd_row, 42);
-            Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Sing/Stealth");
-            
-            c_put_str(TERM_L_WHITE, "a", cmd_row, 42);
-            Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Activate stuff");
-
-            c_put_str(TERM_L_WHITE, "c", cmd_row, 42);
-            Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Close door");
-            
-            c_put_str(TERM_L_WHITE, "h", cmd_row, 42);
-            Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Character screen");
-            
-            c_put_str(TERM_L_WHITE, "m", cmd_row, 42);
-            Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Main menu");
-            
-            c_put_str(TERM_L_WHITE, "Tab", cmd_row, 42);
-            Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Abilities menu");
-            
-            c_put_str(TERM_L_WHITE, "?", cmd_row, 42);
-            Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Help");
-
-            Term_putstr(11, cmd_row+=2, -1, TERM_SLATE, "Keyboard shortcuts could be changed through user preference");
-
-            row = cmd_row;
+            /* Note lines (store in stable buffers for this loop iteration) */
+            if (ctl_n < (int)N_ELEMENTS(controls) && ctl_note_n < (int)N_ELEMENTS(ctl_note_bufs))
+            {
+                strnfmt(ctl_note_bufs[ctl_note_n], sizeof(ctl_note_bufs[ctl_note_n]),
+                        "Shift: %s+%s=Stealth, %s+%s=2nd quiver",
+                        shift_label, sing_label, shift_label, fire_label);
+                controls[ctl_n++] = (ctl_line){ NULL, ctl_note_bufs[ctl_note_n++] };
+            }
+            if (ctl_n < (int)N_ELEMENTS(controls) && ctl_note_n < (int)N_ELEMENTS(ctl_note_bufs))
+            {
+                strnfmt(ctl_note_bufs[ctl_note_n], sizeof(ctl_note_bufs[ctl_note_n]),
+                        "Ctrl: %s+dir = Bash/Disarm/Tunnel", ctrl_label);
+                controls[ctl_n++] = (ctl_line){ NULL, ctl_note_bufs[ctl_note_n++] };
+            }
         }
-        
-        /* Footer */
-        if (stage < 3)
-            Term_putstr(18, 22, -1, TERM_YELLOW, "Use arrows or any key to navigate");
         else
-            Term_putstr(26, 22, -1, TERM_L_GREEN, "Tutorial complete!");
-        
-        if (stage > 0)
-            Term_putstr(10, 23, -1, TERM_SLATE, "(4/<- Previous)");
-        if (stage < 3)
-            Term_putstr(53, 23, -1, TERM_SLATE, "(Next 6/->)");
-        Term_putstr(30, 23, -1, TERM_SLATE, "(ESC to exit)");
-        
-        /* Wait for any key press */
-        ch = inkey();
-        
-        /* Handle navigation */
-        if (ch == ESCAPE)
         {
-            /* Exit tutorial */
-            break;
+            controls[ctl_n++] = (ctl_line){ "Numpad", "Move/attack" };
+            controls[ctl_n++] = (ctl_line){ "Space", "Pick up" };
+            controls[ctl_n++] = (ctl_line){ "u", "Use item" };
+            controls[ctl_n++] = (ctl_line){ "x", "Examine" };
+            controls[ctl_n++] = (ctl_line){ "i", "Inventory" };
+            controls[ctl_n++] = (ctl_line){ "e", "Equipment" };
+            controls[ctl_n++] = (ctl_line){ "l", "Look" };
+            controls[ctl_n++] = (ctl_line){ "Ctrl+dir", "Bash/disarm/tunnel" };
+            controls[ctl_n++] = (ctl_line){ "f/F", "Fire" };
+            controls[ctl_n++] = (ctl_line){ "s/S", "Sing/Stealth" };
+            controls[ctl_n++] = (ctl_line){ "a", "Activate" };
+            controls[ctl_n++] = (ctl_line){ "c", "Close door" };
+            controls[ctl_n++] = (ctl_line){ "h", "Character" };
+            controls[ctl_n++] = (ctl_line){ "m", "Main menu" };
+            controls[ctl_n++] = (ctl_line){ "Tab", "Abilities" };
+            controls[ctl_n++] = (ctl_line){ "?", "Help" };
+            controls[ctl_n++] = (ctl_line){ NULL, "Shortcuts can be changed in user prefs." };
         }
+
+        /* Compute how many list pages we need. */
+        int list_rows = content_max_row - (content_top + 2);
+        if (list_rows < 1)
+            list_rows = 1;
+
+        bool two_col = (wid >= 74);
+        int trait_items_per_page = list_rows * (two_col ? 2 : 1);
+        if (trait_items_per_page < 1)
+            trait_items_per_page = 1;
+        int trait_pages = (trait_n <= 0) ? 1 : (trait_n + trait_items_per_page - 1) / trait_items_per_page;
+
+        int ctl_items_per_page = list_rows * (two_col ? 2 : 1);
+        if (ctl_items_per_page < 1)
+            ctl_items_per_page = 1;
+        int ctl_pages = (ctl_n + ctl_items_per_page - 1) / ctl_items_per_page;
+        if (ctl_pages < 1)
+            ctl_pages = 1;
+
+        /* Skills pagination (avoid truncation at 20 rows) */
+        const char* skills_intro = "Total = Base + stat + equip + misc. Base affects ability purchase cost.";
+        const char* skill_desc[S_MAX] = {
+            "Melee chance to hit",
+            "Ranged chance to hit",
+            "Evade attacks",
+            "Avoid detection",
+            "Notice hidden",
+            "Mental resistance",
+            "Craft items",
+            "Song power",
+            ""
+        };
+
+        int skill_order[S_MAX];
+        int skill_count = 0;
+        for (int s = 0; s < S_MAX; s++)
+        {
+            if (s == S_SPC)
+                continue;
+            skill_order[skill_count++] = s;
+        }
+
+        int intro_lines = tutorial_count_wrapped_lines_ex(skills_intro, text_w, false);
+        int skills_cap_first = content_rows - (2 + intro_lines + 1);
+        int skills_cap_next = content_rows - 2;
+        if (skills_cap_first < 1)
+            skills_cap_first = 1;
+        if (skills_cap_next < 1)
+            skills_cap_next = 1;
+
+        int skill_page_starts[32];
+        int skill_page_ends[32];
+        int skill_pages = 0;
+        {
+            int cur = 0;
+            while (cur < skill_count && skill_pages < (int)N_ELEMENTS(skill_page_starts))
+            {
+                int cap = (skill_pages == 0) ? skills_cap_first : skills_cap_next;
+                int used = 0;
+                int start = cur;
+
+                while (cur < skill_count)
+                {
+                    int sid = skill_order[cur];
+                    int need = 1 + tutorial_count_wrapped_lines_ex(skill_desc[sid], text_w, false);
+                    if (need < 1)
+                        need = 1;
+                    if (used + need > cap && used > 0)
+                        break;
+                    used += need;
+                    cur++;
+                }
+
+                if (cur == start)
+                    cur++;
+
+                skill_page_starts[skill_pages] = start;
+                skill_page_ends[skill_pages] = cur;
+                skill_pages++;
+            }
+        }
+        if (skill_pages < 1)
+        {
+            skill_pages = 1;
+            skill_page_starts[0] = 0;
+            skill_page_ends[0] = 0;
+        }
+
+        /* History pagination: show full history (no preview truncation). */
+        int history_cap = content_rows - 2;
+        if (history_cap < 1)
+            history_cap = 1;
+        int history_lines = tutorial_count_wrapped_lines_ex(p_ptr->history, text_w, true);
+        if (history_lines < 1)
+            history_lines = 1;
+        int history_pages = (history_lines + history_cap - 1) / history_cap;
+        if (history_pages < 1)
+            history_pages = 1;
+
+        /* Character creation pagination */
+        char birth_text[1200];
+        int birth_pages = 0;
+        if (birth_context)
+        {
+            size_t off = 0;
+            if (birth_compact_layout)
+            {
+                off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
+                    "On smaller displays the character creation screens use a compact layout. All information is still available; it is just rearranged.\n\n");
+                off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
+                    "Character selection: use Up/Down to pick, and read the description/traits for the highlighted choice. On short screens, traits may be shown in a tighter, compact list.\n\n");
+                off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
+                    "Stats allocation: select a stat, then adjust it. The display may reuse the compact Stats+Skills sheet with the current stat highlighted.\n\n");
+            }
+            else
+            {
+                off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
+                    "Character selection: use Up/Down to pick, and read the description and traits for the highlighted choice.\n\n");
+                off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
+                    "Stats allocation: select a stat, then adjust it. Skills allocation works the same way.\n\n");
+                off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
+                    "If you later play on a smaller display, these screens switch to a compact layout instead of dropping information.\n\n");
+            }
+            off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
+                "A highlighted entry is the one you are editing.\n\n");
+
+            if (steamdeck)
+            {
+                char next_label[16];
+                char back_label[16];
+                tutorial_prompt_label(steamdeck_confirm_key(), "A", next_label, sizeof(next_label));
+                tutorial_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
+                off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
+                    "Navigation: D-pad Up/Down select, Left/Right adjust  [%s] confirm  [%s] back", next_label, back_label);
+            }
+            else
+            {
+                off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
+                    "Navigation: Up/Down selects; Left/Right adjusts; Enter/Space confirms; ESC goes back.");
+            }
+
+            int birth_cap = content_rows - 2;
+            if (birth_cap < 1)
+                birth_cap = 1;
+            int birth_lines = tutorial_count_wrapped_lines_ex(birth_text, text_w, true);
+            if (birth_lines < 1)
+                birth_lines = 1;
+            birth_pages = (birth_lines + birth_cap - 1) / birth_cap;
+            if (birth_pages < 1)
+                birth_pages = 1;
+        }
+
+        /* Fixed pages: core, attrs, skills (paged), traits legend, traits list (paged),
+         * history (paged), controls (paged), then optional birth/compact screens (paged). */
+        const int page_core_1 = 0;
+        const int page_core_2 = 1;
+        const int page_attrs = 2;
+        const int page_skills_start = 3;
+        const int page_traits_legend = page_skills_start + skill_pages;
+        const int page_traits_list_start = page_traits_legend + 1;
+        const int page_history_start = page_traits_list_start + trait_pages;
+        const int page_controls_start = page_history_start + history_pages;
+        const int page_birth_start = page_controls_start + ctl_pages;
+        const int total_pages = page_birth_start + (birth_context ? birth_pages : 0);
+
+        if (page < 0)
+            page = 0;
+        if (page >= total_pages)
+            page = total_pages - 1;
+
+        Term_clear();
+
+        /* Header */
+        {
+            char title[96];
+            strnfmt(title, sizeof(title), "TUTORIAL  %d/%d", page + 1, total_pages);
+            tutorial_put_centered(header_row, TERM_L_BLUE, title);
+        }
+
+        int row = content_top;
+
+        /* Render pages */
+        if (page == page_core_1)
+        {
+            Term_putstr(2, row++, -1, TERM_WHITE, "CORE STATISTICS (1/2)");
+            row++;
+            {
+                char buf[128];
+                strnfmt(buf, sizeof(buf), "Exp: %ld/%ld", (long)p_ptr->new_exp, (long)p_ptr->exp);
+                Term_putstr(2, row++, -1, TERM_L_GREEN, buf);
+                row += tutorial_put_wrapped_limited(
+                    "Awarded for depth progress, identifying items, spotting and killing monsters.",
+                    text_col, row, text_w, content_max_row, TERM_SLATE);
+
+                long cur_wgt = p_ptr->total_weight / 10;
+                long max_wgt = weight_limit() / 10;
+                strnfmt(buf, sizeof(buf), "Burden: %ld/%ld lbs", cur_wgt, max_wgt);
+                Term_putstr(2, row++, -1, TERM_L_GREEN, buf);
+                row += tutorial_put_wrapped_limited(
+                    "Weight carried / maximum capacity.",
+                    text_col, row, text_w, content_max_row, TERM_SLATE);
+
+                if (turn > 0)
+                {
+                    long cur_d = p_ptr->depth * 50;
+                    long min_d = min_depth() * 50;
+                    strnfmt(buf, sizeof(buf), "Depth: %ld/%ld", cur_d, min_d);
+                    Term_putstr(2, row++, -1, TERM_L_GREEN, buf);
+                    row += tutorial_put_wrapped_limited(
+                        "Current depth / minimum return depth (rises over time).",
+                        text_col, row, text_w, content_max_row, TERM_SLATE);
+                }
+
+                comma_number(buf, playerturn);
+                {
+                    char line[128];
+                    strnfmt(line, sizeof(line), "Turn: %s", buf);
+                    Term_putstr(2, row++, -1, TERM_L_GREEN, line);
+                }
+                row += tutorial_put_wrapped_limited(
+                    "Total game turns elapsed.",
+                    text_col, row, text_w, content_max_row, TERM_SLATE);
+
+                {
+                    char line[64];
+                    strnfmt(line, sizeof(line), "Light: %d", p_ptr->cur_light);
+                    Term_putstr(2, row++, -1, TERM_L_GREEN, line);
+                }
+                row += tutorial_put_wrapped_limited(
+                    "Current light radius.",
+                    text_col, row, text_w, content_max_row, TERM_SLATE);
+            }
+        }
+        else if (page == page_core_2)
+        {
+            Term_putstr(2, row++, -1, TERM_WHITE, "CORE STATISTICS (2/2)");
+            row++;
+            {
+                char buf[128];
+                strnfmt(buf, sizeof(buf), "Melee: (%+d,%dd%d)", p_ptr->skill_use[S_MEL], p_ptr->mdd, p_ptr->mds);
+                Term_putstr(2, row++, -1, TERM_L_GREEN, buf);
+                row += tutorial_put_wrapped_limited(
+                    "Main hand: (chance to hit, damage dice).",
+                    text_col, row, text_w, content_max_row, TERM_SLATE);
+
+                strnfmt(buf, sizeof(buf), "Bows:  (%+d,%dd%d)", p_ptr->skill_use[S_ARC], p_ptr->add, p_ptr->ads);
+                Term_putstr(2, row++, -1, TERM_L_GREEN, buf);
+                row += tutorial_put_wrapped_limited(
+                    "Ranged: (chance to hit, damage dice).",
+                    text_col, row, text_w, content_max_row, TERM_SLATE);
+
+                strnfmt(buf, sizeof(buf), "Armor: [%+d,%d-%d]", p_ptr->skill_use[S_EVN], p_min(GF_HURT, true), p_max(GF_HURT, true));
+                Term_putstr(2, row++, -1, TERM_L_GREEN, buf);
+                row += tutorial_put_wrapped_limited(
+                    "[evasion, protection] = hit-avoid chance and damage absorption.",
+                    text_col, row, text_w, content_max_row, TERM_SLATE);
+
+                {
+                    int cur_hp = MIN(p_ptr->chp, 999);
+                    int max_hp = MIN(p_ptr->mhp, 999);
+                    char line[64];
+                    byte col = (p_ptr->chp >= p_ptr->mhp) ? TERM_L_GREEN : (p_ptr->chp > p_ptr->mhp / 4) ? TERM_YELLOW : TERM_RED;
+                    strnfmt(line, sizeof(line), "Health: %d/%d", cur_hp, max_hp);
+                    Term_putstr(2, row++, -1, col, line);
+                }
+                row += tutorial_put_wrapped_limited(
+                    "Hit points: current / maximum.",
+                    text_col, row, text_w, content_max_row, TERM_SLATE);
+
+                {
+                    int cur_sp = MIN(p_ptr->csp, 999);
+                    int max_sp = MIN(p_ptr->msp, 999);
+                    char line[64];
+                    byte col = (p_ptr->csp >= p_ptr->msp) ? TERM_L_GREEN : (p_ptr->csp > p_ptr->msp / 4) ? TERM_YELLOW : TERM_RED;
+                    strnfmt(line, sizeof(line), "Voice:  %d/%d", cur_sp, max_sp);
+                    Term_putstr(2, row++, -1, col, line);
+                }
+                row += tutorial_put_wrapped_limited(
+                    "Song points: current / maximum.",
+                    text_col, row, text_w, content_max_row, TERM_SLATE);
+            }
+        }
+        else if (page == page_attrs)
+        {
+            Term_putstr(2, row++, -1, TERM_WHITE, "ATTRIBUTES");
+            row++;
+            row += tutorial_put_wrapped_limited(
+                "Current = Base + equip + misc - drain. Green = boosted, orange = reduced.",
+                text_col, row, text_w, content_max_row, TERM_SLATE);
+            row++;
+
+            for (int stat = 0; stat < A_MAX && row < content_max_row; stat++)
+            {
+                char line[96];
+                byte a = TERM_WHITE;
+                int use = p_ptr->stat_use[stat];
+                int base = p_ptr->stat_base[stat];
+                if (use > base) a = TERM_L_GREEN;
+                else if (use < base) a = TERM_ORANGE;
+                strnfmt(line, sizeof(line), "%s: %d", stat_names[stat], use);
+                Term_putstr(2, row++, -1, a, line);
+
+                const char* desc = NULL;
+                if (stat == A_STR) desc = "Strength: melee dice and weight capacity.";
+                else if (stat == A_DEX) desc = "Dexterity: melee/evasion/archery/stealth.";
+                else if (stat == A_CON) desc = "Constitution: hit points.";
+                else if (stat == A_GRA) desc = "Grace: will/perception/song/smithing and voice.";
+                row += tutorial_put_wrapped_limited(desc, text_col, row, text_w, content_max_row, TERM_SLATE);
+            }
+        }
+        else if (page >= page_skills_start && page < page_skills_start + skill_pages)
+        {
+            int sub = page - page_skills_start;
+            char heading[64];
+            if (skill_pages > 1)
+                strnfmt(heading, sizeof(heading), "SKILLS (%d/%d)", sub + 1, skill_pages);
+            else
+                SDL_strlcpy(heading, "SKILLS", sizeof(heading));
+
+            Term_putstr(2, row++, -1, TERM_WHITE, heading);
+            row++;
+
+            if (sub == 0)
+            {
+                row += tutorial_put_wrapped_limited(
+                    skills_intro,
+                    text_col, row, text_w, content_max_row, TERM_SLATE);
+                row++;
+            }
+
+            int start_idx = skill_page_starts[sub];
+            int end_idx = skill_page_ends[sub];
+            for (int i = start_idx; i < end_idx && row < content_max_row; i++)
+            {
+                int sid = skill_order[i];
+                char line[128];
+                strnfmt(line, sizeof(line), "%s: %d (base %d)",
+                        skill_names_full[sid], p_ptr->skill_use[sid], p_ptr->skill_base[sid]);
+                Term_putstr(2, row++, -1, TERM_L_GREEN, line);
+                row += tutorial_put_wrapped_limited(skill_desc[sid], text_col, row, text_w, content_max_row, TERM_SLATE);
+            }
+        }
+        else if (page == page_traits_legend)
+        {
+            Term_putstr(2, row++, -1, TERM_WHITE, "TRAITS LEGEND");
+            row++;
+
+            c_put_str(TERM_L_GREEN, "++", row, 2);
+            Term_putstr(6, row++, -1, TERM_SLATE, "Mastery");
+            c_put_str(TERM_GREEN, "+", row, 2);
+            Term_putstr(6, row++, -1, TERM_SLATE, "Affinity");
+            c_put_str(TERM_RED, "--", row, 2);
+            Term_putstr(6, row++, -1, TERM_SLATE, "Major penalty");
+            c_put_str(TERM_L_RED, "-", row, 2);
+            Term_putstr(6, row++, -1, TERM_SLATE, "Minor penalty");
+            c_put_str(TERM_VIOLET, "UNIQUE", row, 2);
+            Term_putstr(10, row++, -1, TERM_SLATE, "Special ability");
+            c_put_str(TERM_UMBER, "CURSE", row, 2);
+            Term_putstr(10, row++, -1, TERM_SLATE, "Character curse");
+            row++;
+
+            row += tutorial_put_wrapped_limited(
+                "Next page shows your current traits.",
+                text_col, row, text_w, content_max_row, TERM_SLATE);
+        }
+        else if (page >= page_traits_list_start && page < page_traits_list_start + trait_pages)
+        {
+            int sub = page - page_traits_list_start;
+            char heading[64];
+            strnfmt(heading, sizeof(heading), "YOUR TRAITS (%d/%d)", sub + 1, trait_pages);
+            Term_putstr(2, row++, -1, TERM_WHITE, heading);
+            row++;
+
+            if (trait_n <= 0)
+            {
+                Term_putstr(2, row++, -1, TERM_SLATE, "(No special traits)");
+            }
+            else
+            {
+                int start = sub * trait_items_per_page;
+                int end = start + trait_items_per_page;
+                if (start < 0) start = 0;
+                if (end > trait_n) end = trait_n;
+
+                int col1 = 2;
+                int gap = 2;
+                int colw = wid - 4;
+                int col2 = 2;
+                if (two_col)
+                {
+                    colw = (wid - 4 - gap) / 2;
+                    if (colw < 18)
+                        colw = 18;
+                    col2 = col1 + colw + gap;
+                }
+
+                int idx = start;
+                for (int r = 0; r < list_rows && row < content_max_row; r++)
+                {
+                    if (idx >= end)
+                        break;
+                    tutorial_put_trunc(col1, row, colw, traits[idx].col, traits[idx].txt);
+                    idx++;
+                    if (two_col && idx < end)
+                    {
+                        tutorial_put_trunc(col2, row, colw, traits[idx].col, traits[idx].txt);
+                        idx++;
+                    }
+                    row++;
+                }
+            }
+        }
+        else if (page >= page_history_start && page < page_history_start + history_pages)
+        {
+            int sub = page - page_history_start;
+            char heading[64];
+            if (history_pages > 1)
+                strnfmt(heading, sizeof(heading), "HISTORY (%d/%d)", sub + 1, history_pages);
+            else
+                SDL_strlcpy(heading, "HISTORY", sizeof(heading));
+
+            Term_putstr(2, row++, -1, TERM_WHITE, heading);
+            row++;
+
+            if (p_ptr->history[0])
+            {
+                int skip = sub * history_cap;
+                tutorial_put_wrapped_slice_ex(
+                    p_ptr->history,
+                    text_col,
+                    row,
+                    text_w,
+                    content_max_row,
+                    TERM_WHITE,
+                    skip,
+                    history_cap,
+                    true);
+            }
+            else
+            {
+                Term_putstr(2, row++, -1, TERM_SLATE, "(No history)");
+            }
+        }
+        else if (page >= page_controls_start && page < page_controls_start + ctl_pages)
+        {
+            int sub = page - page_controls_start;
+            char heading[64];
+            strnfmt(heading, sizeof(heading), "ESSENTIAL CONTROLS (%d/%d)", sub + 1, ctl_pages);
+            Term_putstr(2, row++, -1, TERM_WHITE, heading);
+            row++;
+
+            int start = sub * ctl_items_per_page;
+            int end = start + ctl_items_per_page;
+            if (start < 0) start = 0;
+            if (end > ctl_n) end = ctl_n;
+
+            int col1 = 2;
+            int gap = 2;
+            int colw = wid - 4;
+            int col2 = 2;
+            if (two_col)
+            {
+                colw = (wid - 4 - gap) / 2;
+                if (colw < 20)
+                    colw = 20;
+                col2 = col1 + colw + gap;
+            }
+
+            int idx = start;
+            for (int r = 0; r < list_rows && row < content_max_row; r++)
+            {
+                if (idx >= end)
+                    break;
+                {
+                    char line[128];
+                    if (controls[idx].key)
+                        strnfmt(line, sizeof(line), "%s - %s", controls[idx].key, controls[idx].desc);
+                    else
+                        SDL_strlcpy(line, controls[idx].desc, sizeof(line));
+                    tutorial_put_trunc(col1, row, colw, TERM_SLATE, line);
+                }
+                idx++;
+
+                if (two_col && idx < end)
+                {
+                    char line[128];
+                    if (controls[idx].key)
+                        strnfmt(line, sizeof(line), "%s - %s", controls[idx].key, controls[idx].desc);
+                    else
+                        SDL_strlcpy(line, controls[idx].desc, sizeof(line));
+                    tutorial_put_trunc(col2, row, colw, TERM_SLATE, line);
+                    idx++;
+                }
+                row++;
+            }
+        }
+        else if (birth_context && page >= page_birth_start && page < page_birth_start + birth_pages)
+        {
+            int sub = page - page_birth_start;
+            char heading[96];
+            if (birth_pages > 1)
+                strnfmt(heading, sizeof(heading), birth_compact_layout
+                    ? "CHARACTER CREATION (COMPACT) (%d/%d)"
+                    : "CHARACTER CREATION (%d/%d)", sub + 1, birth_pages);
+            else
+                SDL_strlcpy(heading, birth_compact_layout
+                    ? "CHARACTER CREATION (COMPACT LAYOUT)"
+                    : "CHARACTER CREATION", sizeof(heading));
+
+            Term_putstr(2, row++, -1, TERM_WHITE, heading);
+            row++;
+
+            {
+                int birth_cap = content_rows - 2;
+                int skip = sub * birth_cap;
+                tutorial_put_wrapped_slice_ex(
+                    birth_text,
+                    text_col,
+                    row,
+                    text_w,
+                    content_max_row,
+                    TERM_SLATE,
+                    skip,
+                    birth_cap,
+                    true);
+            }
+        }
+
+        /* Footer / navigation */
+        {
+            if (page == total_pages - 1)
+                tutorial_put_centered(hint_row, TERM_L_GREEN, "Tutorial complete!");
+            else
+                tutorial_put_centered(hint_row, TERM_YELLOW,
+                    steamdeck ? "D-pad left/right to navigate" : "Use left/right (or any key) to navigate");
+
+            if (steamdeck)
+            {
+                char next_label[16];
+                char back_label[16];
+                tutorial_prompt_label(steamdeck_confirm_key(), "A", next_label, sizeof(next_label));
+                tutorial_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
+
+                char nav[160];
+                if (page > 0)
+                    strnfmt(nav, sizeof(nav), "(D-Left Prev)   (%s Next)   (%s Exit)", next_label, back_label);
+                else
+                    strnfmt(nav, sizeof(nav), "(%s Next)   (%s Exit)", next_label, back_label);
+                tutorial_put_centered(nav_row, TERM_SLATE, nav);
+            }
+            else
+            {
+                char nav[160];
+                if (page > 0)
+                    strnfmt(nav, sizeof(nav), "(4/<- Prev)   (6/-> Next)   (ESC Exit)");
+                else
+                    strnfmt(nav, sizeof(nav), "(6/-> Next)   (ESC Exit)");
+                tutorial_put_centered(nav_row, TERM_SLATE, nav);
+            }
+        }
+
+        ch = inkey();
+        if (steamdeck && ch == steamdeck_back_key())
+            ch = ESCAPE;
+
+        if (ch == ESCAPE)
+            break;
         else if (ch == '4')
         {
-            /* Go back one stage (left arrow/numpad 4) */
-            if (stage > 0)
-                stage--;
+            if (page > 0)
+                page--;
         }
-        else if (ch == '6' || ch == ' ' || ch == '\r')
+        else if (ch == '6' || ch == ' ' || ch == '\r' || ch == '\n' || (steamdeck && ch == steamdeck_confirm_key()))
         {
-            /* Go forward one stage (right arrow/numpad 6, space, enter) */
-            if (stage < 3)
-                stage++;
+            if (page < total_pages - 1)
+                page++;
             else
-                break;  /* Exit on last stage */
+                break;
         }
         else
         {
-            /* Any other key advances */
-            if (stage < 3)
-                stage++;
+            /* Default: advance */
+            if (page < total_pages - 1)
+                page++;
             else
-                break;  /* Exit on last stage */
+                break;
         }
     }
-    
-    /* Clear screen before returning */
+
     Term_clear();
 }
 
@@ -2461,29 +3359,1183 @@ static void display_player_misc_info(void)
 {
     /* Name */
     char name[40];
+    int wid = 80;
+    int hgt = 24;
+    int col = 20;
     
-#ifdef USE_SDL
     if (story_character_enabled()) {
         sdl_story_font_enable();
     }
-#endif
     
     if (p_ptr->oaths_broken) {
         /* Show "the Oathbreaker" in red if any oath is broken */
         strnfmt(name, sizeof(name), "%s the Oathbreaker", op_ptr->full_name);
-        c_put_str(TERM_RED, name, 0, 20);
     } else {
-        /* Normal display with house title */
-        strnfmt(name, sizeof(name), "%s%s", op_ptr->full_name, c_name + hp_ptr->alt_name);
-        c_put_str(TERM_L_BLUE, name, 0, 20);
+        /* Normal display with character title */
+        strnfmt(name, sizeof(name), "%s%s", op_ptr->full_name, c_name + current_character_profile->alt_name);
     }
+
+    Term_get_size(&wid, &hgt);
+    if (wid > 0)
+    {
+        int name_len = (int)strlen(name);
+        if (name_len < wid)
+            col = (wid - name_len) / 2;
+        if (col < 0)
+            col = 0;
+    }
+
+    if (p_ptr->oaths_broken)
+        c_put_str(TERM_RED, name, 0, col);
+    else
+        c_put_str(TERM_L_BLUE, name, 0, col);
     
-#ifdef USE_SDL
     if (story_character_enabled()) {
         sdl_story_font_disable();
     }
-#endif
 
+}
+
+static int display_player_compact_summary_block(int row_start)
+{
+    int wid = 80;
+    int hgt = 24;
+    Term_get_size(&wid, &hgt);
+    if (wid < 1) wid = 80;
+    if (hgt < 1) hgt = 24;
+
+    int row_l = row_start;
+    int row_r = row_start;
+    int col_l = 1;
+    int col_r = 1;
+    char cur[32], rhs[32], val[64], buf[160];
+
+    const bool two_col = (wid >= 50);
+
+        if (row_l < 0) row_l = 0;
+        if (row_r < 0) row_r = 0;
+
+        /* Single-column fallback for very narrow widths */
+        if (!two_col)
+        {
+        int row = row_start;
+        const int col = 1;
+
+        /* Health */
+        {
+            int chp = p_ptr->chp; if (chp > 999) chp = 999;
+            int mhp = p_ptr->mhp; if (mhp > 999) mhp = 999;
+            strnfmt(cur, sizeof(cur), "%d", chp);
+            strnfmt(rhs, sizeof(rhs), "%d", mhp);
+            put_pair20_right(col, row++,
+                     "Health",
+                     cur, 3, TERM_L_BLUE,
+                     '/', rhs, 3, TERM_L_BLUE);
+        }
+
+        /* Voice */
+        {
+            int csp = p_ptr->csp; if (csp > 999) csp = 999;
+            int msp = p_ptr->msp; if (msp > 999) msp = 999;
+            strnfmt(cur, sizeof(cur), "%d", csp);
+            strnfmt(rhs, sizeof(rhs), "%d", msp);
+            put_pair20_right(col, row++,
+                     "Voice",
+                     cur, 3, TERM_L_BLUE,
+                     '/', rhs, 3, TERM_L_BLUE);
+        }
+
+        /* Melee */
+        strnfmt(val, sizeof(val), "(%+d,%dd%d)",
+            p_ptr->skill_use[S_MEL], p_ptr->mdd, p_ptr->mds);
+        put_single20_right(col, row++,
+                   "Melee", val, 12, TERM_L_BLUE);
+
+        /* Offhand if present */
+        if (p_ptr->mds2 > 0)
+        {
+            strnfmt(val, sizeof(val), "(%+d,%dd%d)",
+                p_ptr->skill_use[S_MEL] + p_ptr->offhand_mel_mod,
+                p_ptr->mdd2, p_ptr->mds2);
+            put_single20_right(col, row++,
+                       "Offhand", val, 12, TERM_L_BLUE);
+        }
+
+        /* Bows */
+        strnfmt(val, sizeof(val), "(%+d,%dd%d)",
+            p_ptr->skill_use[S_ARC], p_ptr->add, p_ptr->ads);
+        put_single20_right(col, row++,
+                   "Bows", val, 12, TERM_L_BLUE);
+
+        /* Armor */
+        strnfmt(val, sizeof(val), "[%+d,%d-%d]",
+            p_ptr->skill_use[S_EVN], p_min(GF_HURT, true), p_max(GF_HURT, true));
+        put_single20_right(col, row++,
+                   "Armor", val, 12, TERM_L_BLUE);
+
+        /* Exp */
+        strnfmt(cur, sizeof(cur), "%ld", (long)p_ptr->new_exp);
+        strnfmt(rhs, sizeof(rhs), "%ld", (long)p_ptr->exp);
+        put_pair20_right(col, row++,
+                 "Exp",
+                 cur, 5, TERM_L_GREEN,
+                 '/', rhs, 6, TERM_L_GREEN);
+
+        /* Burden */
+        {
+            long cur_b = (long)(p_ptr->total_weight / 10L);
+            long max_b = (long)(weight_limit() / 10L);
+            strnfmt(cur, sizeof(cur), "%ld", cur_b);
+            strnfmt(rhs, sizeof(rhs), "%ld", max_b);
+            put_pair20_right(col, row++,
+                     "Burden",
+                     cur, 4, (cur_b <= max_b) ? TERM_L_GREEN : TERM_YELLOW,
+                     '/', rhs, 4, TERM_L_GREEN);
+        }
+
+        /* Depth c/m */
+        if (turn > 0)
+        {
+            long cur_d = (long)(p_ptr->depth * 50);
+            long min_d = (long)(min_depth() * 50);
+
+            if (cur_d > 1000) cur_d = 1000;
+            if (min_d > 1000) min_d = 1000;
+
+            strnfmt(cur, sizeof(cur), "%ld", cur_d);
+            strnfmt(rhs, sizeof(rhs), "%ld", min_d);
+            put_pair20_right(col, row++,
+                     "Depth c/m",
+                     cur, 4, (cur_d >= min_d) ? TERM_L_GREEN : TERM_YELLOW,
+                     '/', rhs, 4, TERM_L_GREEN);
+
+            if (display_player_min_depth_progress_bar_line(col, row,
+                MAX(1, wid - COMPACT_RIGHT_PAD - col)))
+            {
+                row++;
+            }
+        }
+
+        display_player_deep_call_line(col, row++,
+            MAX(1, wid - COMPACT_RIGHT_PAD - col));
+
+        /* Turn */
+        comma_number(buf, playerturn);
+        put_single20_right(col, row++,
+                   "Turn", buf, 12, TERM_L_GREEN);
+
+        /* Light */
+        strnfmt(val, sizeof(val), "%d", p_ptr->cur_light);
+        put_single20_right(col, row++,
+                   "Light", val, 2, TERM_L_GREEN);
+
+        /* Songs */
+        if (p_ptr->song1 != SNG_NOTHING) {
+            strnfmt(val, sizeof(val), "%s",
+                b_name + (&b_info[ability_index(S_SNG, p_ptr->song1)])->name);
+            put_single20_right(col, row++,
+                       "Song", val, 14, TERM_L_BLUE);
+        }
+        if (p_ptr->song2 != SNG_NOTHING) {
+            strnfmt(val, sizeof(val), "%s",
+                b_name + (&b_info[ability_index(S_SNG, p_ptr->song2)])->name);
+            put_single20_right(col, row++,
+                       "Song", val, 14, TERM_L_BLUE);
+        }
+
+        return row + 1;
+        }
+
+        /* Two-column summary */
+        col_r = compact_right_column_start(wid);
+
+    /* Health (left) */
+    {
+        int chp = p_ptr->chp; if (chp > 999) chp = 999;
+        int mhp = p_ptr->mhp; if (mhp > 999) mhp = 999;
+        strnfmt(cur, sizeof(cur), "%d", chp);
+        strnfmt(rhs, sizeof(rhs), "%d", mhp);
+        put_pair20_right(col_l, row_l++,
+                         "Health",
+                         cur, 3, TERM_L_BLUE,
+                         '/', rhs, 3, TERM_L_BLUE);
+    }
+
+    /* Voice (left) */
+    {
+        int csp = p_ptr->csp; if (csp > 999) csp = 999;
+        int msp = p_ptr->msp; if (msp > 999) msp = 999;
+        strnfmt(cur, sizeof(cur), "%d", csp);
+        strnfmt(rhs, sizeof(rhs), "%d", msp);
+        put_pair20_right(col_l, row_l++,
+                         "Voice",
+                         cur, 3, TERM_L_BLUE,
+                         '/', rhs, 3, TERM_L_BLUE);
+    }
+
+    /* Melee (left) */
+    strnfmt(val, sizeof(val), "(%+d,%dd%d)",
+            p_ptr->skill_use[S_MEL], p_ptr->mdd, p_ptr->mds);
+    put_single20_right(col_l, row_l++,
+                       "Melee", val, 12, TERM_L_BLUE);
+
+    /* Offhand if present (left) */
+    if (p_ptr->mds2 > 0)
+    {
+        strnfmt(val, sizeof(val), "(%+d,%dd%d)",
+                p_ptr->skill_use[S_MEL] + p_ptr->offhand_mel_mod,
+                p_ptr->mdd2, p_ptr->mds2);
+        put_single20_right(col_l, row_l++,
+                           "Offhand", val, 12, TERM_L_BLUE);
+    }
+
+    /* Bows (left) */
+    strnfmt(val, sizeof(val), "(%+d,%dd%d)",
+            p_ptr->skill_use[S_ARC], p_ptr->add, p_ptr->ads);
+    put_single20_right(col_l, row_l++,
+                       "Bows", val, 12, TERM_L_BLUE);
+
+    /* Armor (left) */
+    strnfmt(val, sizeof(val), "[%+d,%d-%d]",
+            p_ptr->skill_use[S_EVN], p_min(GF_HURT, true), p_max(GF_HURT, true));
+    put_single20_right(col_l, row_l++,
+                       "Armor", val, 12, TERM_L_BLUE);
+
+    /* Exp (right) */
+    strnfmt(cur, sizeof(cur), "%ld", (long)p_ptr->new_exp);
+    strnfmt(rhs, sizeof(rhs), "%ld", (long)p_ptr->exp);
+    put_pair20_right(col_r, row_r++,
+                     "Exp",
+                     cur, 5, TERM_L_GREEN,
+                     '/', rhs, 6, TERM_L_GREEN);
+
+    /* Burden (right) */
+    {
+        long cur_b = (long)(p_ptr->total_weight / 10L);
+        long max_b = (long)(weight_limit() / 10L);
+        strnfmt(cur, sizeof(cur), "%ld", cur_b);
+        strnfmt(rhs, sizeof(rhs), "%ld", max_b);
+        put_pair20_right(col_r, row_r++,
+                         "Burden",
+                         cur, 4, (cur_b <= max_b) ? TERM_L_GREEN : TERM_YELLOW,
+                         '/', rhs, 4, TERM_L_GREEN);
+    }
+
+    /* Depth c/m (right) */
+    if (turn > 0)
+    {
+        long cur_d = (long)(p_ptr->depth * 50);
+        long min_d = (long)(min_depth() * 50);
+
+        if (cur_d > 1000) cur_d = 1000;
+        if (min_d > 1000) min_d = 1000;
+
+        strnfmt(cur, sizeof(cur), "%ld", cur_d);
+        strnfmt(rhs, sizeof(rhs), "%ld", min_d);
+        put_pair20_right(col_r, row_r++,
+                         "Depth c/m",
+                         cur, 4, (cur_d >= min_d) ? TERM_L_GREEN : TERM_YELLOW,
+                         '/', rhs, 4, TERM_L_GREEN);
+
+        if (display_player_min_depth_progress_bar_line(col_r, row_r, LINEW20))
+            row_r++;
+    }
+
+    display_player_deep_call_line(col_r, row_r++, LINEW20);
+
+    /* Turn (right) */
+    comma_number(buf, playerturn);
+    put_single20_right(col_r, row_r++,
+                       "Turn", buf, 12, TERM_L_GREEN);
+
+    /* Light (right) */
+    strnfmt(val, sizeof(val), "%d", p_ptr->cur_light);
+    put_single20_right(col_r, row_r++,
+                       "Light", val, 2, TERM_L_GREEN);
+
+    /* Songs (below whichever column is taller) */
+    {
+        int row_song = (row_l > row_r) ? row_l : row_r;
+
+        if (p_ptr->song1 != SNG_NOTHING) {
+            strnfmt(val, sizeof(val), "%s",
+                    b_name + (&b_info[ability_index(S_SNG, p_ptr->song1)])->name);
+            put_single20_right(col_l, row_song++,
+                               "Song", val, 14, TERM_L_BLUE);
+        }
+        if (p_ptr->song2 != SNG_NOTHING) {
+            strnfmt(val, sizeof(val), "%s",
+                    b_name + (&b_info[ability_index(S_SNG, p_ptr->song2)])->name);
+            put_single20_right(col_l, row_song++,
+                               "Song", val, 14, TERM_L_BLUE);
+        }
+
+        row_l = row_song;
+        row_r = row_song;
+    }
+    return ((row_l > row_r) ? row_l : row_r)
+        + (display_player_compact_tight_spacing() ? 0 : 1);
+}
+
+typedef struct {
+    const char *txt;
+    byte col;
+} compact_trait_line;
+
+static int collect_compact_trait_lines(compact_trait_line* out, int out_max)
+{
+    int race = p_ptr->prace;
+    int character = p_ptr->pcharacter;
+    int total = 0;
+
+    byte attr_affinity   = TERM_GREEN;   /* AF */
+    byte attr_mastery    = TERM_L_GREEN; /* MA */
+    byte attr_penalty    = TERM_RED;     /* PE */
+    byte attr_gr_penalty = TERM_L_RED;   /* GP */
+
+    compact_trait_line uniq_buf[32], ma_buf[16], af_buf[16], pen_buf[32];
+    int uniq_n = 0, ma_n = 0, af_n = 0, pen_n = 0;
+
+#define PUSH(arr, n, text, color) do { (arr)[(n)].txt = (text); (arr)[(n)++].col = (color); } while (0)
+
+#define HANDLE_SKILL_EX(LABEL, AFF_FLAG, PEN_FLAG)                                      \
+    do {                                                                                \
+        int score = 0;                                                                  \
+        if (p_info[race].flags      & (AFF_FLAG)) score++;                              \
+        if (c_info[character].flags & (AFF_FLAG)) score++;                              \
+        if ((PEN_FLAG) && (p_info[race].flags      & (PEN_FLAG))) score--;              \
+        if ((PEN_FLAG) && (c_info[character].flags & (PEN_FLAG))) score--;              \
+        score += curse_flag_count_rhf(AFF_FLAG);                                        \
+        if ((PEN_FLAG)) score -= curse_flag_count_rhf(PEN_FLAG);                        \
+        if (score >  2) score =  2;                                                     \
+        if (score < -2) score = -2;                                                     \
+        if (score ==  2)      PUSH(ma_buf,  ma_n,  LABEL "++", attr_mastery);          \
+        else if (score == 1)  PUSH(af_buf,  af_n,  LABEL "+ ", attr_affinity);         \
+        else if (score == -1) PUSH(pen_buf, pen_n, LABEL "- ", attr_penalty);          \
+        else if (score == -2) PUSH(pen_buf, pen_n, LABEL "--", attr_gr_penalty);       \
+    } while (0)
+
+#define HANDLE_UNIQUE(LABEL, FLAG, COLOR)                                               \
+    do {                                                                                \
+        if ((p_info[race].flags & (FLAG)) || (c_info[character].flags & (FLAG)))        \
+            PUSH(uniq_buf, uniq_n, (LABEL), (COLOR));                                   \
+    } while (0)
+
+#define HANDLE_UNIQUE_U(LABEL, FLAG, COLOR)                                             \
+    do {                                                                                \
+        if (c_info[character].flags_u & (FLAG))                                         \
+            PUSH(uniq_buf, uniq_n, (LABEL), (COLOR));                                   \
+    } while (0)
+
+#define EMIT(arr, n)                                                                    \
+    do {                                                                                \
+        for (int _i = 0; _i < (n); ++_i) {                                              \
+            if (out && total < out_max) out[total] = (arr)[_i];                        \
+            total++;                                                                    \
+        }                                                                               \
+    } while (0)
+
+    HANDLE_SKILL_EX("melee",      RHF_MEL_AFFINITY, RHF_MEL_PENALTY);
+    HANDLE_SKILL_EX("evasion",    RHF_EVN_AFFINITY, RHF_EVN_PENALTY);
+    HANDLE_SKILL_EX("stealth",    RHF_STL_AFFINITY, RHF_STL_PENALTY);
+    HANDLE_SKILL_EX("archery",    RHF_ARC_AFFINITY, RHF_ARC_PENALTY);
+    HANDLE_SKILL_EX("will",       RHF_WIL_AFFINITY, RHF_WIL_PENALTY);
+    HANDLE_SKILL_EX("perception", RHF_PER_AFFINITY, RHF_PER_PENALTY);
+    HANDLE_SKILL_EX("smithing",   RHF_SMT_AFFINITY, RHF_SMT_PENALTY);
+    HANDLE_SKILL_EX("song",       RHF_SNG_AFFINITY, RHF_SNG_PENALTY);
+    HANDLE_SKILL_EX("bow",        RHF_BOW_PROFICIENCY, 0);
+    HANDLE_SKILL_EX("axe",        RHF_AXE_PROFICIENCY, 0);
+
+    HANDLE_UNIQUE_U("Master Artisan",     UNQ_SMT_FEANOR,   TERM_VIOLET);
+    HANDLE_UNIQUE_U("Creator of Galvorn", UNQ_SMT_EOL,      TERM_VIOLET);
+    HANDLE_UNIQUE_U("Chosen of Ulmo",     UNQ_WIL_TUOR,     TERM_VIOLET);
+    HANDLE_UNIQUE_U("Indomitable Will",   UNQ_EARENDIL,     TERM_VIOLET);
+    HANDLE_UNIQUE_U("Orome Himself",      UNQ_WIL_FIN,      TERM_VIOLET);
+    HANDLE_UNIQUE_U("Songs of Power",     UNQ_SNG_FIN,      TERM_VIOLET);
+    HANDLE_UNIQUE_U("Elven Dance",        UNQ_SNG_LUT,      TERM_VIOLET);
+    HANDLE_UNIQUE_U("Girdle of Melian",   UNQ_SNG_MEL,      TERM_VIOLET);
+    HANDLE_UNIQUE_U("Creator of Angrist", UNQ_SMT_TELCHAR,  TERM_VIOLET);
+    HANDLE_UNIQUE_U("Old Master",         UNQ_SMT_GAMIL,    TERM_VIOLET);
+    HANDLE_UNIQUE_U("Ring Master",        UNQ_SMT_CELEBRIMBOR, TERM_VIOLET);
+    HANDLE_UNIQUE_U("Aure entuluva",      UNQ_SNG_HURIN,    TERM_VIOLET);
+    HANDLE_UNIQUE_U("Voice of the Girdle",UNQ_SNG_THINGOL,  TERM_VIOLET);
+    HANDLE_UNIQUE_U("Forgotten",          UNQ_MIM,          TERM_VIOLET);
+    HANDLE_UNIQUE_U("One Handed",         UNQ_MEL_MAEDHROS, TERM_VIOLET);
+    HANDLE_UNIQUE_U("Agarwaen",           UNQ_WIL_TURIN,    TERM_VIOLET);
+    HANDLE_UNIQUE_U("Shadow Walker",      UNQ_SNG_TURGON,   TERM_VIOLET);
+    HANDLE_UNIQUE("Gift of Eru",          RHF_GIFTERU,      TERM_VIOLET);
+    HANDLE_UNIQUE("Seafarer",             RHF_FREE,         TERM_VIOLET);
+
+    HANDLE_UNIQUE("Kinslayer",            RHF_KINSLAYER,    TERM_UMBER);
+    HANDLE_UNIQUE("Treacherous",          RHF_TREACHERY,    TERM_UMBER);
+    HANDLE_UNIQUE("Doom of Mandos",       RHF_CURSE,        TERM_UMBER);
+    HANDLE_UNIQUE("Morgoth Curse",        RHF_MOR_CURSE,    TERM_UMBER);
+
+    EMIT(uniq_buf, uniq_n);
+    EMIT(ma_buf, ma_n);
+    EMIT(af_buf, af_n);
+    EMIT(pen_buf, pen_n);
+
+#undef EMIT
+#undef HANDLE_UNIQUE_U
+#undef HANDLE_UNIQUE
+#undef HANDLE_SKILL_EX
+#undef PUSH
+
+    return total;
+}
+
+static int display_player_compact_traits_block(int row_start, int col, int row_limit,
+    int skip_lines)
+{
+    int row = row_start;
+    compact_trait_line lines[96];
+    int line_count = collect_compact_trait_lines(lines, 96);
+
+    if (skip_lines < 0)
+        skip_lines = 0;
+
+    if (story_character_enabled())
+        sdl_story_font_enable();
+
+    for (int i = skip_lines; i < line_count && row < row_limit; ++i)
+        Term_putstr(col, row++, -1, lines[i].col, lines[i].txt);
+
+    if (story_character_enabled())
+        sdl_story_font_disable();
+
+    return row;
+}
+
+static int display_player_compact_trait_max_label_chars(void)
+{
+    compact_trait_line lines[96];
+    int line_count = collect_compact_trait_lines(lines, 96);
+    int max_chars = 0;
+
+    for (int i = 0; i < line_count; ++i)
+    {
+        int len = (int)strlen(lines[i].txt ? lines[i].txt : "");
+        if (len > max_chars)
+            max_chars = len;
+    }
+
+    return max_chars;
+}
+
+static bool display_player_compact_can_embed_traits(int row_start)
+{
+    int wid = 80;
+    int hgt = 24;
+    int skills_count = 0;
+    int attr_block_h = 1 + A_MAX;
+    int skill_block_h;
+    int trait_lines;
+    int trait_block_h;
+    int available_rows;
+    int col_attr = 1;
+    int attr_width = LINEW20;
+    int attr_right_edge = col_attr + attr_width - 1;
+    int col_skill;
+    int col_traits;
+    int trait_width;
+    int trait_max_chars;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1)
+        wid = 80;
+    if (hgt < 1)
+        hgt = 24;
+
+    for (int s = 0; s < S_MAX; ++s)
+        if (s != S_SPC)
+            skills_count++;
+
+    skill_block_h = 1 + skills_count;
+    trait_lines = collect_compact_trait_lines(NULL, 0);
+    if (trait_lines <= 0)
+        return false;
+
+    trait_block_h = 1 + trait_lines;
+    available_rows = hgt - 1 - row_start;
+    if (available_rows < 1)
+        return false;
+
+    col_skill = compact_right_column_start(wid);
+    col_traits = attr_right_edge + 2;
+    trait_width = col_skill - col_traits - 2;
+    trait_max_chars = display_player_compact_trait_max_label_chars();
+    if (trait_max_chars < 6)
+        trait_max_chars = 6;
+
+    if (wid < 64)
+        return false;
+    if (trait_width < trait_max_chars)
+        return false;
+    if (available_rows < attr_block_h)
+        return false;
+    if (available_rows < skill_block_h)
+        return false;
+    if (available_rows < trait_block_h)
+        return false;
+
+    return true;
+}
+
+static int display_player_compact_history_line_count(int wrap_col, int indent)
+{
+    if (story_character_enabled())
+        return count_wrapped_lines_story(p_ptr->history, wrap_col, indent);
+
+    return count_wrapped_lines(p_ptr->history, wrap_col, indent);
+}
+
+static int display_player_compact_wrapped_offset(const char* text, int start_row,
+    int col, int wrap_col, int row_limit, int skip_lines, byte attr)
+{
+    int wid = 80;
+    int hgt = 24;
+    int row = start_row;
+    int max_width;
+    int line_pos = 0;
+    int line_idx = 0;
+    const char* p = text;
+    char line_buf[512];
+
+    if (!text || !text[0])
+        return start_row;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1)
+        wid = 80;
+    if (hgt < 1)
+        hgt = 24;
+
+    if (wrap_col <= col)
+        wrap_col = wid - COMPACT_RIGHT_PAD;
+
+    max_width = wrap_col - col;
+    if (max_width < 10)
+        max_width = 10;
+
+    if (skip_lines < 0)
+        skip_lines = 0;
+
+    while (*p)
+    {
+        while (*p == ' ' && line_pos == 0)
+            p++;
+
+        if (*p == '\n')
+        {
+            line_buf[line_pos] = '\0';
+            if (line_pos > 0)
+            {
+                if (line_idx >= skip_lines && row < row_limit)
+                    Term_putstr(col, row++, -1, attr, line_buf);
+                line_idx++;
+            }
+            line_pos = 0;
+            p++;
+            continue;
+        }
+
+        if (line_pos >= max_width)
+        {
+            int wrap_pos = line_pos - 1;
+            while (wrap_pos > 0 && line_buf[wrap_pos] != ' ')
+                wrap_pos--;
+
+            if (wrap_pos > 0)
+            {
+                line_buf[wrap_pos] = '\0';
+                if (line_idx >= skip_lines && row < row_limit)
+                    Term_putstr(col, row++, -1, attr, line_buf);
+
+                int remaining = line_pos - wrap_pos - 1;
+                for (int i = 0; i < remaining; i++)
+                    line_buf[i] = line_buf[wrap_pos + 1 + i];
+                line_pos = remaining;
+            }
+            else
+            {
+                line_buf[line_pos] = '\0';
+                if (line_idx >= skip_lines && row < row_limit)
+                    Term_putstr(col, row++, -1, attr, line_buf);
+                line_pos = 0;
+            }
+
+            line_idx++;
+            continue;
+        }
+
+        if (line_pos < (int)sizeof(line_buf) - 2)
+            line_buf[line_pos++] = *p;
+        p++;
+    }
+
+    if (line_pos > 0)
+    {
+        line_buf[line_pos] = '\0';
+        if (line_idx >= skip_lines && row < row_limit)
+            Term_putstr(col, row++, -1, attr, line_buf);
+    }
+
+    return row;
+}
+
+static void display_player_compact_history_column(int row_start, int col, int wrap_col,
+    int skip_lines, int row_limit)
+{
+    int wid = 80;
+    int hgt = 24;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1) wid = 80;
+    if (hgt < 1) hgt = 24;
+
+    if (col < 0)
+        col = 0;
+    if (wrap_col <= col)
+        wrap_col = wid - COMPACT_RIGHT_PAD;
+
+    if (story_character_enabled())
+        sdl_story_font_enable();
+
+    (void)display_player_compact_wrapped_offset(p_ptr->history, row_start, col,
+        wrap_col, row_limit, skip_lines, TERM_WHITE);
+
+    if (story_character_enabled())
+        sdl_story_font_disable();
+}
+
+static void display_player_compact_heading(cptr text, int row, int col);
+
+static void display_player_compact_traits_middle_column(int row_start, int col,
+    int max_cols, int row_limit)
+{
+    compact_trait_line lines[96];
+    int line_count = collect_compact_trait_lines(lines, 96);
+    int max_chars = 0;
+    int draw_w;
+    int start_col;
+    int row = row_start;
+
+    if (line_count <= 0 || max_cols < 6)
+        return;
+
+    for (int i = 0; i < line_count; ++i)
+    {
+        int len = (int)strlen(lines[i].txt ? lines[i].txt : "");
+        if (len > max_chars)
+            max_chars = len;
+    }
+
+    draw_w = max_chars;
+    if (draw_w > max_cols)
+        draw_w = max_cols;
+    if (draw_w < 1)
+        draw_w = 1;
+
+    start_col = col + (max_cols - draw_w) / 2;
+    display_player_compact_heading("Traits", row++, start_col);
+
+    for (int i = 0; i < line_count && row < row_limit; ++i)
+    {
+        char line_buf[64];
+        const char* src = lines[i].txt ? lines[i].txt : "";
+
+        strnfmt(line_buf, sizeof(line_buf), "%.*s", draw_w, src);
+        Term_erase(col, row, max_cols);
+        Term_putstr(start_col, row, max_cols, lines[i].col, line_buf);
+        row++;
+    }
+}
+
+static void display_player_compact_heading(cptr text, int row, int col)
+{
+    bool use_story = story_character_enabled();
+
+    if (use_story)
+        sdl_story_font_enable();
+
+    Term_putstr(col, row, -1, TERM_L_BLUE, text ? text : "");
+
+    if (use_story)
+        sdl_story_font_disable();
+}
+
+static int compact_stat_highlight = -1;
+
+static void display_player_compact_description_and_flags(int row_start,
+    int visible_row_start)
+{
+    int wid = 80;
+    int hgt = 24;
+    int scroll = display_player_compact_scroll;
+    bool traits_moved_to_stats_page = display_player_compact_can_embed_traits(
+        visible_row_start);
+    int content_row = row_start;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1) wid = 80;
+    if (hgt < 1) hgt = 24;
+
+    int row_limit = hgt - 1;
+    int available_rows = row_limit - visible_row_start;
+    if (available_rows <= 0)
+    {
+        display_player_compact_max_scroll = 0;
+        return;
+    }
+
+    if (traits_moved_to_stats_page)
+    {
+        int history_lines = display_player_compact_history_line_count(
+            wid - COMPACT_RIGHT_PAD, 1);
+        int content_height = history_lines;
+        int max_scroll = history_lines - available_rows;
+        if (max_scroll < 0)
+            max_scroll = 0;
+        if (scroll > max_scroll)
+            scroll = max_scroll;
+
+        if ((max_scroll == 0) && (content_height < available_rows))
+            content_row += (available_rows - content_height) / 2;
+
+        display_player_compact_max_scroll = max_scroll;
+        display_player_compact_history_column(content_row, 1,
+            wid - COMPACT_RIGHT_PAD, scroll, row_limit);
+        return;
+    }
+
+    int trait_lines = collect_compact_trait_lines(NULL, 0);
+    int history_lines_stacked = display_player_compact_history_line_count(wid - 1, 1);
+
+    bool can_side_by_side = false;
+    int trait_max_chars = display_player_compact_trait_max_label_chars();
+    int side_history_col = 1 + trait_max_chars + 2; /* left col + max label + gap */
+    int history_lines_side = history_lines_stacked;
+
+    if (side_history_col < 4)
+        side_history_col = 4;
+
+    if (wid >= 46)
+    {
+        int side_width = wid - side_history_col - COMPACT_RIGHT_PAD;
+        if (side_width >= 18)
+        {
+            can_side_by_side = true;
+            history_lines_side = display_player_compact_history_line_count(wid - COMPACT_RIGHT_PAD, side_history_col);
+        }
+    }
+
+    int side_overflow = 1000000;
+    if (can_side_by_side)
+    {
+        int traits_over = (trait_lines > available_rows) ? (trait_lines - available_rows) : 0;
+        int history_over = (history_lines_side > available_rows) ? (history_lines_side - available_rows) : 0;
+        side_overflow = traits_over + history_over;
+    }
+
+    int stacked_total = trait_lines
+        + ((trait_lines > 0 && history_lines_stacked > 0) ? 1 : 0)
+        + history_lines_stacked;
+    int stacked_overflow = (stacked_total > available_rows)
+        ? (stacked_total - available_rows)
+        : 0;
+
+    bool use_side_by_side = can_side_by_side && (side_overflow <= stacked_overflow);
+
+    log_trace("Compact description+flags fit: wid=%d rows=%d traits=%d max_trait_chars=%d history_col=%d history_stack=%d history_side=%d side_overflow=%d stacked_overflow=%d use_side=%s",
+              wid, available_rows, trait_lines, trait_max_chars, side_history_col,
+              history_lines_stacked, history_lines_side,
+              side_overflow, stacked_overflow, use_side_by_side ? "true" : "false");
+
+    if (use_side_by_side)
+    {
+        int total_height = (trait_lines > history_lines_side) ? trait_lines : history_lines_side;
+        int max_scroll = total_height - available_rows;
+        if (max_scroll < 0)
+            max_scroll = 0;
+        if (scroll > max_scroll)
+            scroll = max_scroll;
+
+        if ((max_scroll == 0) && (total_height < available_rows))
+            content_row += (available_rows - total_height) / 2;
+
+        display_player_compact_max_scroll = max_scroll;
+
+        display_player_compact_traits_block(content_row, 1, row_limit, scroll);
+        display_player_compact_history_column(content_row, side_history_col,
+            wid - COMPACT_RIGHT_PAD, scroll, row_limit);
+        return;
+    }
+
+    {
+        int max_scroll = stacked_total - available_rows;
+        if (max_scroll < 0)
+            max_scroll = 0;
+        if (scroll > max_scroll)
+            scroll = max_scroll;
+
+        if ((max_scroll == 0) && (stacked_total < available_rows))
+            content_row += (available_rows - stacked_total) / 2;
+
+        display_player_compact_max_scroll = max_scroll;
+    }
+
+    int trait_skip = scroll;
+    if (trait_skip > trait_lines)
+        trait_skip = trait_lines;
+
+    int row_after_flags = display_player_compact_traits_block(content_row, 1, row_limit,
+        trait_skip);
+
+    int history_skip = scroll - trait_lines;
+    if (trait_lines > 0 && history_lines_stacked > 0)
+        history_skip--;
+    if (history_skip < 0)
+        history_skip = 0;
+
+    if (trait_lines > trait_skip && history_lines_stacked > 0
+        && row_after_flags < row_limit && scroll < trait_lines + 1)
+        row_after_flags += (display_player_compact_tight_spacing() ? 0 : 1);
+
+    if (history_lines_stacked > 0 && row_after_flags < row_limit)
+        display_player_compact_history_column(row_after_flags, 1,
+            wid - COMPACT_RIGHT_PAD, history_skip, row_limit);
+}
+
+static void display_player_compact_attribute_line(int row, int col, int max_cols, int stat)
+{
+    if (max_cols < 10)
+        return;
+
+    if (stat < 0 || stat >= A_MAX)
+        return;
+
+    int use = p_ptr->stat_use[stat];
+    int base = p_ptr->stat_base[stat];
+    int mod = use - base;
+
+    int val_w = 10;
+    if (val_w > max_cols - 4)
+        val_w = max_cols - 4;
+    if (val_w < 5)
+        val_w = 5;
+
+    char val_buf[16];
+    if (mod != 0 && val_w >= 10)
+        strnfmt(val_buf, sizeof(val_buf), "%2d=%2d%+d", use, base, mod);
+    else if (mod != 0 && val_w >= 8)
+        strnfmt(val_buf, sizeof(val_buf), "%2d=%2d", use, base);
+    else if (mod != 0)
+        strnfmt(val_buf, sizeof(val_buf), "%2d", use);
+    else if (val_w >= 8)
+        strnfmt(val_buf, sizeof(val_buf), "%2d=%2d", use, base);
+    else
+        strnfmt(val_buf, sizeof(val_buf), "%2d", use);
+
+    int end_col = col + max_cols - 1;
+    int val_start = end_col - val_w + 1;
+    int label_w = val_start - col;
+    byte line_attr = (stat == compact_stat_highlight) ? TERM_L_BLUE : TERM_WHITE;
+    if (label_w < 1)
+        label_w = 1;
+
+    Term_erase(col, row, label_w);
+    Term_erase(val_start, row, val_w);
+
+    const char* stat_label = (p_ptr->stat_drain[stat] < 0) ? stat_names_reduced[stat] : stat_names[stat];
+    char label_buf[32];
+    SDL_strlcpy(label_buf, stat_label ? stat_label : "", sizeof(label_buf));
+    int len = (int)strlen(label_buf);
+    while (len > 0 && label_buf[len - 1] == ' ')
+        label_buf[--len] = '\0';
+    if (len > label_w)
+        label_buf[label_w] = '\0';
+
+    if (story_character_enabled() && label_w > 0)
+    {
+        int cell_w = sdl_get_cell_width();
+        int max_pixels = label_w * cell_w;
+        size_t label_len = strlen(label_buf);
+
+        while (label_len > 0 && sdl_story_font_text_width(label_buf, (int)label_len) > max_pixels)
+        {
+            label_buf[--label_len] = '\0';
+            while (label_len > 0 && isspace((unsigned char)label_buf[label_len - 1]))
+                label_buf[--label_len] = '\0';
+        }
+    }
+
+    if (story_character_enabled())
+        sdl_story_font_enable();
+
+    Term_putstr(col, row, -1, line_attr, label_buf);
+
+    if (story_character_enabled())
+        sdl_story_font_disable();
+
+    const char* val_text = val_buf;
+    int val_len = (int)strlen(val_text);
+    if (val_len > val_w)
+    {
+        val_buf[val_w] = '\0';
+        val_text = val_buf;
+        val_len = val_w;
+    }
+
+    int out_col = end_col - val_len + 1;
+    if (out_col < val_start)
+        out_col = val_start;
+
+    byte stat_color = (p_ptr->stat_drain[stat] < 0) ? TERM_YELLOW : TERM_L_GREEN;
+    byte value_attr = (stat == compact_stat_highlight) ? TERM_L_BLUE : stat_color;
+    Term_putstr(out_col, row, val_len, value_attr, val_text);
+}
+
+static void display_player_compact_attributes(int row_start, int max_cols)
+{
+    int wid = 80;
+    int hgt = 24;
+    int row = row_start;
+    int col = 1;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1) wid = 80;
+    if (hgt < 1) hgt = 24;
+
+    display_player_compact_heading("Attributes", row++, col);
+
+    if (max_cols <= 0)
+        max_cols = wid - col - COMPACT_RIGHT_PAD;
+    if (max_cols < 10)
+        max_cols = 10;
+
+    for (int stat = 0; stat < A_MAX && row < hgt - 1; ++stat)
+    {
+        display_player_compact_attribute_line(row++, col, max_cols, stat);
+    }
+}
+
+/* Forward declaration: used by combined compact pages. */
+static void display_player_compact_skills_list(int row_start);
+static int compact_skill_highlight = -1;
+
+static void display_player_compact_skill_line(int row, int col, int max_cols, int skill)
+{
+    if (max_cols < 10)
+        return;
+
+    if (skill < 0 || skill >= S_MAX || skill == S_SPC)
+        return;
+
+    int use = p_ptr->skill_use[skill];
+    int base = p_ptr->skill_base[skill];
+    int mod = use - base;
+
+    /* Reserve a right-aligned numeric block in monospace. */
+    int val_w = 10;
+    if (val_w > max_cols - 4)
+        val_w = max_cols - 4;
+    if (val_w < 5)
+        val_w = 5;
+
+    char val_buf[16];
+    if (mod != 0 && val_w >= 10)
+        strnfmt(val_buf, sizeof(val_buf), "%2d=%2d%+d", use, base, mod);
+    else if (mod != 0 && val_w >= 8)
+        strnfmt(val_buf, sizeof(val_buf), "%2d=%2d", use, base);
+    else if (mod != 0)
+        strnfmt(val_buf, sizeof(val_buf), "%2d", use);
+    else if (val_w >= 8)
+        strnfmt(val_buf, sizeof(val_buf), "%2d=%2d", use, base);
+    else
+        strnfmt(val_buf, sizeof(val_buf), "%2d", use);
+
+    int end_col = col + max_cols - 1;
+    int val_start = end_col - val_w + 1;
+    int label_w = val_start - col;
+    byte line_attr = (skill == compact_skill_highlight) ? TERM_L_BLUE : TERM_WHITE;
+    byte value_attr = (skill == compact_skill_highlight) ? TERM_L_BLUE : TERM_L_GREEN;
+    if (label_w < 1)
+        label_w = 1;
+
+    Term_erase(col, row, label_w);
+    Term_erase(val_start, row, val_w);
+
+    const char* name = skill_names_full[skill];
+    if (!name)
+        name = "";
+
+    char label_buf[64];
+    strnfmt(label_buf, sizeof(label_buf), "%.*s", label_w, name);
+
+    if (story_character_enabled() && label_w > 0)
+    {
+        int cell_w = sdl_get_cell_width();
+        int max_pixels = label_w * cell_w;
+        size_t len = strlen(label_buf);
+
+        while (len > 0 && sdl_story_font_text_width(label_buf, (int)len) > max_pixels)
+        {
+            label_buf[--len] = '\0';
+            while (len > 0 && isspace((unsigned char)label_buf[len - 1]))
+                label_buf[--len] = '\0';
+        }
+    }
+
+    if (story_character_enabled())
+        sdl_story_font_enable();
+
+    Term_putstr(col, row, -1, line_attr, label_buf);
+
+    if (story_character_enabled())
+        sdl_story_font_disable();
+
+    const char* val_text = val_buf;
+    int val_len = (int)strlen(val_text);
+    if (val_len > val_w)
+    {
+        val_buf[val_w] = '\0';
+        val_text = val_buf;
+        val_len = val_w;
+    }
+
+    int out_col = end_col - val_len + 1;
+    if (out_col < val_start)
+        out_col = val_start;
+
+    Term_putstr(out_col, row, val_len, value_attr, val_text);
+}
+
+static void display_player_compact_attributes_and_skills(int row_start)
+{
+    int wid = 80;
+    int hgt = 24;
+    Term_get_size(&wid, &hgt);
+    if (wid < 1) wid = 80;
+    if (hgt < 1) hgt = 24;
+
+    int skills_count = 0;
+    for (int s = 0; s < S_MAX; ++s)
+        if (s != S_SPC)
+            skills_count++;
+
+    int attr_block_h = 1 + A_MAX;
+    int skill_block_h = 1 + skills_count;
+    int block_h = (attr_block_h > skill_block_h) ? attr_block_h : skill_block_h;
+
+    int col_attr = 1;
+    int attr_width = LINEW20;
+    int attr_right_edge = col_attr + attr_width - 1;
+    int col_skill = compact_right_column_start(wid);
+    bool embed_traits = display_player_compact_can_embed_traits(row_start);
+
+    bool side_by_side = (wid >= 50)
+        && (col_skill >= attr_right_edge + 2)
+        && (row_start + block_h <= hgt - 1);
+
+    if (embed_traits)
+    {
+        int col_traits = attr_right_edge + 2;
+        int traits_width = col_skill - col_traits - 2;
+        int row = row_start;
+
+        display_player_compact_attributes(row_start, attr_width);
+        display_player_compact_heading("Skills", row++, col_skill);
+
+        for (int skill = 0; skill < S_MAX && row < hgt - 1; ++skill)
+        {
+            if (skill == S_SPC)
+                continue;
+            display_player_compact_skill_line(row++, col_skill, LINEW20, skill);
+        }
+
+        display_player_compact_traits_middle_column(row_start, col_traits,
+            traits_width, hgt - 1);
+        return;
+    }
+
+    /* Render attributes first using width appropriate to the chosen layout. */
+    display_player_compact_attributes(row_start, side_by_side ? attr_width : 0);
+
+    if (side_by_side)
+    {
+        int row = row_start;
+        display_player_compact_heading("Skills", row++, col_skill);
+
+        for (int skill = 0; skill < S_MAX && row < hgt - 1; ++skill)
+        {
+            if (skill == S_SPC)
+                continue;
+            display_player_compact_skill_line(row++, col_skill, LINEW20, skill);
+        }
+
+        return;
+    }
+
+    /* Stacked fallback: Skills below Attributes (may truncate if short). */
+    int row_skills = row_start + 1 + A_MAX
+        + (display_player_compact_tight_spacing() ? 0 : 1);
+    if (row_skills < hgt - 1)
+        display_player_compact_skills_list(row_skills);
+}
+
+static void display_player_compact_skills_list(int row_start)
+{
+    int wid = 80;
+    int hgt = 24;
+    int row = row_start;
+    int col = 1;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1) wid = 80;
+    if (hgt < 1) hgt = 24;
+
+    display_player_compact_heading("Skills", row++, col);
+
+    int max_cols = wid - col - COMPACT_RIGHT_PAD;
+    if (max_cols < 10)
+        max_cols = 10;
+
+    for (int skill = 0; skill < S_MAX && row < hgt - 1; skill++)
+    {
+        if (skill == S_SPC)
+            continue;
+
+        display_player_compact_skill_line(row++, col, max_cols, skill);
+    }
+}
+
+static void display_player_compact_history(int row_start)
+{
+    int wid = 80;
+    int hgt = 24;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1) wid = 80;
+    if (hgt < 1) hgt = 24;
+
+    display_player_compact_history_column(row_start, 1, wid - COMPACT_RIGHT_PAD,
+        0, hgt - 1);
+}
+
+static void display_player_compact_desc_flags_page(bool show_misc_info,
+    bool show_summary)
+{
+    int summary_row = show_misc_info ? display_player_compact_start_row() : 0;
+    int body_row = summary_row;
+
+    if (show_misc_info)
+        display_player_misc_info();
+
+    if (show_summary)
+        body_row = display_player_compact_summary_block(summary_row);
+
+    display_player_compact_description_and_flags(body_row, body_row);
 }
 
 /*
@@ -2512,26 +4564,22 @@ void display_player_stat_info(int row, int col)
         }
         
         /* Trim trailing spaces for story font rendering */
-        my_strcpy(trimmed_label, stat_label, sizeof(trimmed_label));
+        SDL_strlcpy(trimmed_label, stat_label, sizeof(trimmed_label));
         int len = strlen(trimmed_label);
         while (len > 0 && trimmed_label[len-1] == ' ') {
             trimmed_label[--len] = '\0';
         }
         
-#ifdef USE_SDL
         if (story_character_enabled()) {
             sdl_story_font_enable();
         }
-#endif
         
         /* Display trimmed stat name with story font (if enabled) */
         put_str(trimmed_label, row + i, col);
         
-#ifdef USE_SDL
         if (story_character_enabled()) {
             sdl_story_font_disable();
         }
-#endif
     }
     
     /* Second: Display all numbers with monospace font (always) */
@@ -2589,10 +4637,15 @@ void display_player_stat_info(int row, int col)
     }
 
     /* Leave with story font disabled */
-#ifdef USE_SDL
     sdl_story_font_disable();
-#endif
 }
+
+enum {
+    DISPLAY_PLAYER_MODE_COMPACT_DESC_FLAGS = 100,
+    DISPLAY_PLAYER_MODE_COMPACT_STATS_SKILLS = 101,
+    DISPLAY_PLAYER_MODE_COMPACT_SKILLS = 102,
+    DISPLAY_PLAYER_MODE_COMPACT_HISTORY = 103,
+};
 
 /*
  * Special display, part 2c
@@ -2616,9 +4669,7 @@ static void display_player_sust_info(void)
     byte a;
     char c;
 
-#ifdef USE_SDL
     sdl_story_font_enable();
-#endif
 
     /* Row */
     row = 2;
@@ -2770,9 +4821,7 @@ static void display_player_sust_info(void)
     /* Equippy */
     display_player_equippy(row + 5, col);
 
-#ifdef USE_SDL
     sdl_story_font_disable();
-#endif
 }
 
 /*
@@ -2786,11 +4835,73 @@ static void display_player_sust_info(void)
  */
 void display_player(int mode)
 {
+    int wid = 80;
+    int hgt = 24;
+    int wide_offset = 0;
+    bool narrow = false;
+
+    Term_get_size(&wid, &hgt);
+    (void)hgt;
+    narrow = (wid > 0 && wid < 80);
+    if (wid > 80)
+        wide_offset = (wid - 80) / 2;
+
     /* Erase screen */
     clear_from(0);
+    display_player_compact_max_scroll = 0;
+
+    if (narrow && (mode == 0))
+        mode = DISPLAY_PLAYER_MODE_COMPACT_STATS_SKILLS;
+
+    if (mode == DISPLAY_PLAYER_MODE_COMPACT_DESC_FLAGS)
+    {
+        display_player_compact_desc_flags_page(true, true);
+        if (display_player_compact_max_scroll > 0)
+        {
+            clear_from(0);
+            display_player_compact_desc_flags_page(true, false);
+        }
+        if (display_player_compact_max_scroll > 0)
+        {
+            clear_from(0);
+            display_player_compact_desc_flags_page(false, false);
+        }
+        sdl_story_font_reset();
+        return;
+    }
+
+    if (mode == DISPLAY_PLAYER_MODE_COMPACT_STATS_SKILLS)
+    {
+        display_player_misc_info();
+        int body_row = display_player_compact_summary_block(
+            display_player_compact_start_row());
+        display_player_compact_attributes_and_skills(body_row);
+        sdl_story_font_reset();
+        return;
+    }
+
+    if (mode == DISPLAY_PLAYER_MODE_COMPACT_SKILLS)
+    {
+        display_player_misc_info();
+        int body_row = display_player_compact_summary_block(
+            display_player_compact_start_row());
+        display_player_compact_skills_list(body_row);
+        sdl_story_font_reset();
+        return;
+    }
+
+    if (mode == DISPLAY_PLAYER_MODE_COMPACT_HISTORY)
+    {
+        display_player_misc_info();
+        int body_row = display_player_compact_summary_block(
+            display_player_compact_start_row());
+        display_player_compact_history(body_row);
+        sdl_story_font_reset();
+        return;
+    }
 
     /* All Modes Use Stat info */
-    display_player_stat_info(1, 41);
+    display_player_stat_info(1, 41 + wide_offset);
 
     if ((mode) < 2)
     {
@@ -2815,9 +4926,23 @@ void display_player(int mode)
         }
     }
 
-#ifdef USE_SDL
     sdl_story_font_reset();
-#endif
+}
+
+void display_player_compact_stats_skills_highlighted(int selected_skill)
+{
+    compact_stat_highlight = -1;
+    compact_skill_highlight = selected_skill;
+    display_player(DISPLAY_PLAYER_MODE_COMPACT_STATS_SKILLS);
+    compact_skill_highlight = -1;
+}
+
+void display_player_compact_stats_skills_highlighted_stat(int selected_stat)
+{
+    compact_skill_highlight = -1;
+    compact_stat_highlight = selected_stat;
+    display_player(DISPLAY_PLAYER_MODE_COMPACT_STATS_SKILLS);
+    compact_stat_highlight = -1;
 }
 
 /*
@@ -2836,9 +4961,10 @@ static void string_lower(char* buf)
  * Show the contents of a char buffer on the screen and allow scrolling.
  * Based on show_file.
  */
-bool show_buffer(cptr main_buffer, cptr what, int line)
+bool show_buffer(cptr main_buffer, int line)
 {
     int i, j, k;
+    int dir;
 
     char ch;
 
@@ -2948,6 +5074,10 @@ bool show_buffer(cptr main_buffer, cptr what, int line)
         /* Get a keypress */
         ch = inkey();
 
+        dir = target_dir(ch);
+        if (dir == 8 || dir == 2)
+            ch = I2D(dir);
+
         /* Back up one line */
         if ((ch == '8') || (ch == '='))
         {
@@ -3017,7 +5147,7 @@ bool show_file(cptr name, cptr what, int line)
     bool case_sensitive = false;
 
     /* Current help file */
-    FILE* fff = NULL;
+    SDL_IOStream* fff = NULL;
 
     /* Find this string (if any) */
     char* find = NULL;
@@ -3052,13 +5182,13 @@ bool show_file(cptr name, cptr what, int line)
     int wid, hgt;
 
     /* Wipe finder */
-    my_strcpy(finder, "", sizeof(finder));
+    SDL_strlcpy(finder, "", sizeof(finder));
 
     /* Wipe shower */
-    my_strcpy(shower, "", sizeof(shower));
+    SDL_strlcpy(shower, "", sizeof(shower));
 
     /* Wipe caption */
-    my_strcpy(caption, "", sizeof(caption));
+    SDL_strlcpy(caption, "", sizeof(caption));
 
     /* Wipe the hooks */
     for (i = 0; i < 26; i++)
@@ -3068,7 +5198,7 @@ bool show_file(cptr name, cptr what, int line)
     Term_get_size(&wid, &hgt);
 
     /* Copy the filename */
-    my_strcpy(filename, name, sizeof(filename));
+    SDL_strlcpy(filename, name, sizeof(filename));
 
     n = strlen(filename);
 
@@ -3090,15 +5220,15 @@ bool show_file(cptr name, cptr what, int line)
     if (what)
     {
         /* Caption */
-        my_strcpy(caption, what, sizeof(caption));
+        SDL_strlcpy(caption, what, sizeof(caption));
 
         /* Get the filename */
-        my_strcpy(path, name, sizeof(path));
+        SDL_strlcpy(path, name, sizeof(path));
         
         log_debug("Opening help file: %s", path);
 
         /* Open */
-        fff = my_fopen(path, "r");
+        fff = sdl_fopen(path, "r");
     }
 
     /* Oops */
@@ -3119,7 +5249,7 @@ bool show_file(cptr name, cptr what, int line)
     while (true)
     {
         /* Read a line or stop */
-        if (my_fgets(fff, buf, sizeof(buf)))
+        if (sdl_fgets(fff, buf, sizeof(buf)))
             break;
 
         /* XXX Parse "menu" items */
@@ -3139,7 +5269,7 @@ bool show_file(cptr name, cptr what, int line)
 
                 /* Store the menu item (if valid) */
                 if ((k >= 0) && (k < 26))
-                    my_strcpy(hook[k], buf + 10, sizeof(hook[0]));
+                    SDL_strlcpy(hook[k], buf + 10, sizeof(hook[0]));
             }
             /* Notice "tag" requests */
             else if (buf[6] == '<')
@@ -3185,10 +5315,10 @@ bool show_file(cptr name, cptr what, int line)
         if (next > line)
         {
             /* Close it */
-            my_fclose(fff);
+            sdl_fclose(fff);
 
             /* Hack -- Re-Open the file */
-            fff = my_fopen(path, "r");
+            fff = sdl_fopen(path, "r");
 
             /* Oops */
             if (!fff)
@@ -3202,7 +5332,7 @@ bool show_file(cptr name, cptr what, int line)
         while (next < line)
         {
             /* Get a line */
-            if (my_fgets(fff, buf, sizeof(buf)))
+            if (sdl_fgets(fff, buf, sizeof(buf)))
                 break;
 
             /* Skip tags/links */
@@ -3221,7 +5351,7 @@ bool show_file(cptr name, cptr what, int line)
                 line = next;
 
             /* Get a line of the file or stop */
-            if (my_fgets(fff, buf, sizeof(buf)))
+            if (sdl_fgets(fff, buf, sizeof(buf)))
                 break;
 
             /* Hack -- skip "special" lines */
@@ -3232,7 +5362,7 @@ bool show_file(cptr name, cptr what, int line)
             next++;
 
             /* Make a copy of the current line for searching */
-            my_strcpy(lc_buf, buf, sizeof(lc_buf));
+            SDL_strlcpy(lc_buf, buf, sizeof(lc_buf));
 
             /* Make the line lower case */
             if (!case_sensitive)
@@ -3357,7 +5487,7 @@ bool show_file(cptr name, cptr what, int line)
                     string_lower(finder);
 
                 /* Show it */
-                my_strcpy(shower, finder, sizeof(shower));
+                SDL_strlcpy(shower, finder, sizeof(shower));
             }
         }
 
@@ -3366,7 +5496,7 @@ bool show_file(cptr name, cptr what, int line)
         {
             char tmp[80];
             prt("Goto Line: ", hgt - 1, 0);
-            my_strcpy(tmp, "0", sizeof(tmp));
+            SDL_strlcpy(tmp, "0", sizeof(tmp));
             if (askfor_aux(tmp, sizeof(tmp)))
             {
                 line = atoi(tmp);
@@ -3429,17 +5559,13 @@ bool show_file(cptr name, cptr what, int line)
     }
 
     /* Close the file */
-    my_fclose(fff);
+    sdl_fclose(fff);
 
     /* Done */
     return (ch != '?');
 }
 
-#ifdef STEAMDECK_SUPPORT
 #define HELP_TOTAL_PAGES 8
-#else
-#define HELP_TOTAL_PAGES 7
-#endif
 
 /* Drop-in replacement for show_help_screen(int i)
  * Adds a tiny role-based colour shim for consistent, accessible styling.
@@ -3498,15 +5624,740 @@ static inline void put_role(color_role_t role, const char *s, int row, int col) 
     c_put_str(HELP_THEME[role], s, row, col);
 }
 
-/* Optional tiny helpers to reduce manual offsets when printing spans */
-static inline int put_then_advance(color_role_t role, const char *s, int row, int col) {
-    put_role(role, s, row, col);
-    return col + (int)strlen(s);
+
+void binding_action_label(int binding, char* buf, size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    switch (binding) {
+    case GAMEPAD_BIND_NONE:
+        SDL_strlcpy(buf, "Unbound", buflen);
+        return;
+    case TOUCH_PANE_BIND_INHERIT:
+        SDL_strlcpy(buf, "Main panel button", buflen);
+        return;
+    case GAMEPAD_BIND_SHIFT:
+        SDL_strlcpy(buf, "Shift modifier", buflen);
+        return;
+    case GAMEPAD_BIND_CTRL:
+        SDL_strlcpy(buf, "Ctrl modifier", buflen);
+        return;
+    case GAMEPAD_BIND_ALT:
+        SDL_strlcpy(buf, "Alt modifier", buflen);
+        return;
+    case INPUT_BIND_CONFIRM:
+        SDL_strlcpy(buf, "Confirm", buflen);
+        return;
+    case ' ':
+        SDL_strlcpy(buf, "Confirm (Space)", buflen);
+        return;
+    case '\r':
+        SDL_strlcpy(buf, "Enter", buflen);
+        return;
+    case ESCAPE:
+        SDL_strlcpy(buf, "Back (Esc)", buflen);
+        return;
+    case '7':
+        SDL_strlcpy(buf, "Move NW (7)", buflen);
+        return;
+    case '8':
+        SDL_strlcpy(buf, "Move N (8)", buflen);
+        return;
+    case '9':
+        SDL_strlcpy(buf, "Move NE (9)", buflen);
+        return;
+    case '4':
+        SDL_strlcpy(buf, "Move W (4)", buflen);
+        return;
+    case '5':
+        SDL_strlcpy(buf, "Wait / center (5)", buflen);
+        return;
+    case '6':
+        SDL_strlcpy(buf, "Move E (6)", buflen);
+        return;
+    case '1':
+        SDL_strlcpy(buf, "Move SW (1)", buflen);
+        return;
+    case '2':
+        SDL_strlcpy(buf, "Move S (2)", buflen);
+        return;
+    case '3':
+        SDL_strlcpy(buf, "Move SE (3)", buflen);
+        return;
+    case '\t':
+        SDL_strlcpy(buf, "Abilities (Tab)", buflen);
+        return;
+    case 'i':
+        SDL_strlcpy(buf, "Inventory (i)", buflen);
+        return;
+    case 'e':
+        SDL_strlcpy(buf, "Equipment (e)", buflen);
+        return;
+    case 'u':
+        SDL_strlcpy(buf, "Use item (u)", buflen);
+        return;
+    case 'x':
+        SDL_strlcpy(buf, "Examine item (x)", buflen);
+        return;
+    case 's':
+        SDL_strlcpy(buf, "Sing (s)", buflen);
+        return;
+    case 'S':
+        SDL_strlcpy(buf, "Stealth (S)", buflen);
+        return;
+    case 'f':
+        SDL_strlcpy(buf, "Fire (f)", buflen);
+        return;
+    case 'F':
+        SDL_strlcpy(buf, "Second quiver (F)", buflen);
+        return;
+    case 'h':
+        SDL_strlcpy(buf, "Character sheet (h)", buflen);
+        return;
+    case 'l':
+        SDL_strlcpy(buf, "Look (l)", buflen);
+        return;
+    case 'o':
+        SDL_strlcpy(buf, "Open (o)", buflen);
+        return;
+    case 'q':
+        SDL_strlcpy(buf, "Quaff (q)", buflen);
+        return;
+    case 'r':
+        SDL_strlcpy(buf, "Remove (r)", buflen);
+        return;
+    case 'a':
+        SDL_strlcpy(buf, "Activate (a)", buflen);
+        return;
+    case 'M':
+        SDL_strlcpy(buf, "Map (M)", buflen);
+        return;
+    case 'b':
+        SDL_strlcpy(buf, "Bash (b)", buflen);
+        return;
+    case 'j':
+        SDL_strlcpy(buf, "Supplies (j)", buflen);
+        return;
+    case 'z':
+        SDL_strlcpy(buf, "Wait (z)", buflen);
+        return;
+    case '.':
+        SDL_strlcpy(buf, "Run (.)", buflen);
+        return;
+    case '/':
+        SDL_strlcpy(buf, "Alt action (/)", buflen);
+        return;
+    case 'w':
+        SDL_strlcpy(buf, "Wear / wield (w)", buflen);
+        return;
+    case 'd':
+        SDL_strlcpy(buf, "Drop item (d)", buflen);
+        return;
+    case 'k':
+        SDL_strlcpy(buf, "Destroy item (k)", buflen);
+        return;
+    case 'g':
+        SDL_strlcpy(buf, "Pick up items (g)", buflen);
+        return;
+    case 'Z':
+        SDL_strlcpy(buf, "Rest (Z)", buflen);
+        return;
+    case 'c':
+        SDL_strlcpy(buf, "Close door (c)", buflen);
+        return;
+    case 'D':
+        SDL_strlcpy(buf, "Disarm trap / chest (D)", buflen);
+        return;
+    case 'X':
+        SDL_strlcpy(buf, "Exchange places (X)", buflen);
+        return;
+    case '-':
+        SDL_strlcpy(buf, "Fletch arrows (-)", buflen);
+        return;
+    case '{':
+        SDL_strlcpy(buf, "Inscribe item ({)", buflen);
+        return;
+    case 'E':
+        SDL_strlcpy(buf, "Eat food (E)", buflen);
+        return;
+    case 't':
+        SDL_strlcpy(buf, "Throw item (t)", buflen);
+        return;
+    case 'p':
+        SDL_strlcpy(buf, "Blow horn (p)", buflen);
+        return;
+    case 'L':
+        SDL_strlcpy(buf, "Pan view (L)", buflen);
+        return;
+    case '0':
+        SDL_strlcpy(buf, "Smithing screen (0)", buflen);
+        return;
+    case '<':
+        SDL_strlcpy(buf, "Go upstairs (<)", buflen);
+        return;
+    case '>':
+        SDL_strlcpy(buf, "Go downstairs (>)", buflen);
+        return;
+    case 'm':
+        SDL_strlcpy(buf, "Main menu (m)", buflen);
+        return;
+    case '?':
+        SDL_strlcpy(buf, "Help (?)", buflen);
+        return;
+    case '@':
+        SDL_strlcpy(buf, "Character sheet (@)", buflen);
+        return;
+    case 'O':
+        SDL_strlcpy(buf, "Options menu (O)", buflen);
+        return;
+    case ':':
+        SDL_strlcpy(buf, "Take notes (:)", buflen);
+        return;
+    case '~':
+        SDL_strlcpy(buf, "Knowledge browser (~)", buflen);
+        return;
+    case '[':
+        SDL_strlcpy(buf, "Monster list ([)", buflen);
+        return;
+    case ']':
+        SDL_strlcpy(buf, "Object list (])", buflen);
+        return;
+    default:
+        if (binding >= 32 && binding <= 126)
+            strnfmt(buf, buflen, "Key '%c'", binding);
+        else
+            strnfmt(buf, buflen, "Key %d", binding);
+        return;
+    }
+}
+
+void binding_action_short(int binding, char* buf, size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    switch (binding) {
+    case GAMEPAD_BIND_NONE:
+        SDL_strlcpy(buf, "Unbound", buflen);
+        return;
+    case TOUCH_PANE_BIND_INHERIT:
+        SDL_strlcpy(buf, "Main", buflen);
+        return;
+    case GAMEPAD_BIND_SHIFT:
+        SDL_strlcpy(buf, "Shift", buflen);
+        return;
+    case GAMEPAD_BIND_CTRL:
+        SDL_strlcpy(buf, "Ctrl", buflen);
+        return;
+    case GAMEPAD_BIND_ALT:
+        SDL_strlcpy(buf, "Alt", buflen);
+        return;
+    case INPUT_BIND_CONFIRM:
+        SDL_strlcpy(buf, "Confirm", buflen);
+        return;
+    case ' ':
+        SDL_strlcpy(buf, "Confirm", buflen);
+        return;
+    case '\r':
+        SDL_strlcpy(buf, "Enter", buflen);
+        return;
+    case ESCAPE:
+        SDL_strlcpy(buf, "Back", buflen);
+        return;
+    case '7':
+        SDL_strlcpy(buf, "NW", buflen);
+        return;
+    case '8':
+        SDL_strlcpy(buf, "N", buflen);
+        return;
+    case '9':
+        SDL_strlcpy(buf, "NE", buflen);
+        return;
+    case '4':
+        SDL_strlcpy(buf, "W", buflen);
+        return;
+    case '5':
+        SDL_strlcpy(buf, "Wait", buflen);
+        return;
+    case '6':
+        SDL_strlcpy(buf, "E", buflen);
+        return;
+    case '1':
+        SDL_strlcpy(buf, "SW", buflen);
+        return;
+    case '2':
+        SDL_strlcpy(buf, "S", buflen);
+        return;
+    case '3':
+        SDL_strlcpy(buf, "SE", buflen);
+        return;
+    case '\t':
+        SDL_strlcpy(buf, "Abilities", buflen);
+        return;
+    case 'i':
+        SDL_strlcpy(buf, "Inventory", buflen);
+        return;
+    case 'e':
+        SDL_strlcpy(buf, "Equipment", buflen);
+        return;
+    case 'u':
+        SDL_strlcpy(buf, "Use", buflen);
+        return;
+    case 'x':
+        SDL_strlcpy(buf, "Examine", buflen);
+        return;
+    case 's':
+        SDL_strlcpy(buf, "Sing", buflen);
+        return;
+    case 'S':
+        SDL_strlcpy(buf, "Stealth", buflen);
+        return;
+    case 'f':
+        SDL_strlcpy(buf, "Fire", buflen);
+        return;
+    case 'F':
+        SDL_strlcpy(buf, "Second", buflen);
+        return;
+    case 'h':
+        SDL_strlcpy(buf, "Character", buflen);
+        return;
+    case 'l':
+        SDL_strlcpy(buf, "Look", buflen);
+        return;
+    case 'o':
+        SDL_strlcpy(buf, "Open", buflen);
+        return;
+    case 'q':
+        SDL_strlcpy(buf, "Quaff", buflen);
+        return;
+    case 'r':
+        SDL_strlcpy(buf, "Remove", buflen);
+        return;
+    case 'a':
+        SDL_strlcpy(buf, "Activate", buflen);
+        return;
+    case 'M':
+        SDL_strlcpy(buf, "Map", buflen);
+        return;
+    case 'b':
+        SDL_strlcpy(buf, "Bash", buflen);
+        return;
+    case 'j':
+        SDL_strlcpy(buf, "Supplies", buflen);
+        return;
+    case 'z':
+        SDL_strlcpy(buf, "Wait", buflen);
+        return;
+    case '.':
+        SDL_strlcpy(buf, "Run", buflen);
+        return;
+    case '/':
+        SDL_strlcpy(buf, "Alt", buflen);
+        return;
+    case 'w':
+        SDL_strlcpy(buf, "Wear", buflen);
+        return;
+    case 'd':
+        SDL_strlcpy(buf, "Drop", buflen);
+        return;
+    case 'k':
+        SDL_strlcpy(buf, "Destroy", buflen);
+        return;
+    case 'g':
+        SDL_strlcpy(buf, "Pickup", buflen);
+        return;
+    case 'Z':
+        SDL_strlcpy(buf, "Rest", buflen);
+        return;
+    case 'c':
+        SDL_strlcpy(buf, "Close", buflen);
+        return;
+    case 'D':
+        SDL_strlcpy(buf, "Disarm", buflen);
+        return;
+    case 'X':
+        SDL_strlcpy(buf, "Exchange", buflen);
+        return;
+    case '-':
+        SDL_strlcpy(buf, "Fletch", buflen);
+        return;
+    case '{':
+        SDL_strlcpy(buf, "Inscribe", buflen);
+        return;
+    case 'E':
+        SDL_strlcpy(buf, "Eat", buflen);
+        return;
+    case 't':
+        SDL_strlcpy(buf, "Throw", buflen);
+        return;
+    case 'p':
+        SDL_strlcpy(buf, "Horn", buflen);
+        return;
+    case 'L':
+        SDL_strlcpy(buf, "Pan", buflen);
+        return;
+    case '0':
+        SDL_strlcpy(buf, "Smithing", buflen);
+        return;
+    case '<':
+        SDL_strlcpy(buf, "Up", buflen);
+        return;
+    case '>':
+        SDL_strlcpy(buf, "Down", buflen);
+        return;
+    case 'm':
+        SDL_strlcpy(buf, "Menu", buflen);
+        return;
+    case '?':
+        SDL_strlcpy(buf, "Help", buflen);
+        return;
+    case '@':
+        SDL_strlcpy(buf, "Character", buflen);
+        return;
+    case 'O':
+        SDL_strlcpy(buf, "Options", buflen);
+        return;
+    case ':':
+        SDL_strlcpy(buf, "Notes", buflen);
+        return;
+    case '~':
+        SDL_strlcpy(buf, "Knowledge", buflen);
+        return;
+    case '[':
+        SDL_strlcpy(buf, "Monsters", buflen);
+        return;
+    case ']':
+        SDL_strlcpy(buf, "Objects", buflen);
+        return;
+    default:
+        if (binding >= 32 && binding <= 126)
+            strnfmt(buf, buflen, "%c", binding);
+        else
+            strnfmt(buf, buflen, "%d", binding);
+        return;
+    }
+}
+
+static void help_prompt_label(int binding, const char* fallback, char* buf, size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    sdl_gamepad_action_binding_short_label(binding, buf, buflen);
+    if (streq(buf, "(unbound)") || streq(buf, "Multiple"))
+        SDL_strlcpy(buf, fallback, buflen);
+}
+
+/* ------------------------------------------------------------------------
+ * Dynamic help pagination
+ *
+ * Requirement: keep the *existing* help text and colouring exactly the same.
+ * Only formatting (which strings appear on which page) should change.
+ *
+ * Approach: record the handcrafted legacy help rendering into a list of draw
+ * operations, stack all 8 pages into one document, then paginate that document
+ * by current terminal height.
+ */
+
+typedef struct {
+    bool use_role;
+    bool is_heading;
+    color_role_t role;
+    byte attr;
+    const char* text;
+    int y;
+    int x;
+} help_draw_op_t;
+
+#define HELP_DOC_MAX_OPS 8192
+#define HELP_DOC_MAX_ROWS 1024
+#define HELP_DOC_MAX_PAGES 256
+#define HELP_DOC_STRING_POOL_SIZE 65536
+
+static help_draw_op_t g_help_doc_ops[HELP_DOC_MAX_OPS];
+static int g_help_doc_ops_n = 0;
+
+static char g_help_doc_string_pool[HELP_DOC_STRING_POOL_SIZE];
+static size_t g_help_doc_string_pool_used = 0;
+
+static bool g_help_record_ops = false;
+static int g_help_record_base_y = 0;
+static int g_help_record_page_min_y = 0;
+static int g_help_record_page_max_y = 0;
+
+/* Forward declaration: used for recording. */
+static void show_help_screen_legacy(int i, bool include_header);
+
+static const char* help_doc_intern_string(const char* s)
+{
+    size_t len;
+    char* dst;
+
+    if (!s)
+        s = "";
+
+    len = strlen(s) + 1;
+    if (len > HELP_DOC_STRING_POOL_SIZE)
+        return s;
+
+    if (g_help_doc_string_pool_used + len > HELP_DOC_STRING_POOL_SIZE)
+        return s;
+
+    dst = g_help_doc_string_pool + g_help_doc_string_pool_used;
+    memcpy(dst, s, len);
+    g_help_doc_string_pool_used += len;
+    return dst;
+}
+
+static void help_doc_record_role(color_role_t role, const char* s, bool is_heading, int row, int col)
+{
+    if (g_help_doc_ops_n >= HELP_DOC_MAX_OPS)
+        return;
+
+    g_help_doc_ops[g_help_doc_ops_n].use_role = true;
+    g_help_doc_ops[g_help_doc_ops_n].is_heading = is_heading;
+    g_help_doc_ops[g_help_doc_ops_n].role = role;
+    g_help_doc_ops[g_help_doc_ops_n].attr = 0;
+    g_help_doc_ops[g_help_doc_ops_n].text = help_doc_intern_string(s);
+    g_help_doc_ops[g_help_doc_ops_n].y = g_help_record_base_y + row;
+    g_help_doc_ops[g_help_doc_ops_n].x = col;
+    g_help_doc_ops_n++;
+
+    if (g_help_record_page_min_y > g_help_record_base_y + row)
+        g_help_record_page_min_y = g_help_record_base_y + row;
+    if (g_help_record_page_max_y < g_help_record_base_y + row)
+        g_help_record_page_max_y = g_help_record_base_y + row;
+}
+
+static void help_doc_record_attr(byte attr, const char* s, int row, int col)
+{
+    if (g_help_doc_ops_n >= HELP_DOC_MAX_OPS)
+        return;
+
+    g_help_doc_ops[g_help_doc_ops_n].use_role = false;
+    g_help_doc_ops[g_help_doc_ops_n].is_heading = false;
+    g_help_doc_ops[g_help_doc_ops_n].role = ROLE_BODY;
+    g_help_doc_ops[g_help_doc_ops_n].attr = attr;
+    g_help_doc_ops[g_help_doc_ops_n].text = help_doc_intern_string(s);
+    g_help_doc_ops[g_help_doc_ops_n].y = g_help_record_base_y + row;
+    g_help_doc_ops[g_help_doc_ops_n].x = col;
+    g_help_doc_ops_n++;
+
+    if (g_help_record_page_min_y > g_help_record_base_y + row)
+        g_help_record_page_min_y = g_help_record_base_y + row;
+    if (g_help_record_page_max_y < g_help_record_base_y + row)
+        g_help_record_page_max_y = g_help_record_base_y + row;
+}
+
+static void help_emit_role(color_role_t role, const char* s, int row, int col)
+{
+    if (g_help_record_ops)
+        help_doc_record_role(role, s, false, row, col);
+    else
+        put_role(role, s, row, col);
+}
+
+static void help_emit_heading(const char* s, int row, int col)
+{
+    if (g_help_record_ops)
+        help_doc_record_role(ROLE_SECTION, s, true, row, col);
+    else
+        put_role(ROLE_SECTION, s, row, col);
+}
+
+static void help_emit_attr(byte attr, const char* s, int row, int col)
+{
+    if (g_help_record_ops)
+        help_doc_record_attr(attr, s, row, col);
+    else
+        c_put_str(attr, s, row, col);
+}
+
+static bool help_use_legacy_layout(int wid, int hgt)
+{
+    return (wid == 80) && (hgt == 24);
+}
+
+static int help_build_document_ops(int* out_doc_hgt, bool row_has_content[HELP_DOC_MAX_ROWS], bool row_has_heading[HELP_DOC_MAX_ROWS])
+{
+    int page;
+    int base_y = 0;
+    int start_op;
+    int end_op;
+    int shift;
+    int doc_max_y = -1;
+
+    g_help_doc_ops_n = 0;
+    g_help_doc_string_pool_used = 0;
+
+    for (page = 1; page <= HELP_TOTAL_PAGES; page++)
+    {
+        int op_idx;
+        int page_height;
+
+        g_help_record_ops = true;
+        g_help_record_base_y = base_y;
+        g_help_record_page_min_y = INT_MAX;
+        g_help_record_page_max_y = INT_MIN;
+
+        start_op = g_help_doc_ops_n;
+        show_help_screen_legacy(page, false);
+        end_op = g_help_doc_ops_n;
+
+        if (end_op <= start_op)
+            continue;
+
+        /* Normalize each recorded legacy page so it starts at y=base_y */
+        shift = g_help_record_page_min_y - base_y;
+        if (shift < 0)
+            shift = 0;
+        for (op_idx = start_op; op_idx < end_op; op_idx++)
+            g_help_doc_ops[op_idx].y -= shift;
+
+        page_height = (g_help_record_page_max_y - g_help_record_page_min_y + 1);
+        if (page_height < 1)
+            page_height = 1;
+
+        base_y += page_height + 1;
+    }
+
+    g_help_record_ops = false;
+
+    /* Build per-row markers */
+    for (int r = 0; r < HELP_DOC_MAX_ROWS; r++)
+    {
+        row_has_content[r] = false;
+        row_has_heading[r] = false;
+    }
+
+    for (int op = 0; op < g_help_doc_ops_n; op++)
+    {
+        int y = g_help_doc_ops[op].y;
+        if (y < 0 || y >= HELP_DOC_MAX_ROWS)
+            continue;
+        row_has_content[y] = true;
+        if (g_help_doc_ops[op].is_heading)
+            row_has_heading[y] = true;
+        if (y > doc_max_y)
+            doc_max_y = y;
+    }
+
+    if (doc_max_y < 0)
+        doc_max_y = 0;
+    if (out_doc_hgt)
+        *out_doc_hgt = doc_max_y + 1;
+
+    return g_help_doc_ops_n;
+}
+
+static int help_dynamic_build_document_pages(
+    int term_hgt,
+    int doc_hgt,
+    const bool row_has_content[HELP_DOC_MAX_ROWS],
+    const bool row_has_heading[HELP_DOC_MAX_ROWS],
+    int page_starts[HELP_DOC_MAX_PAGES],
+    int page_ends[HELP_DOC_MAX_PAGES])
+{
+    int capacity = term_hgt - 3;
+    int start_y = 0;
+    int page_count = 0;
+
+    if (capacity < 4)
+        capacity = 4;
+
+    while ((start_y < doc_hgt) && (page_count < HELP_DOC_MAX_PAGES))
+    {
+        int end_y = start_y + capacity - 1;
+        int last_content;
+
+        if (end_y >= doc_hgt)
+            end_y = doc_hgt - 1;
+
+        /* Ensure we don't end on a heading row (titles must have text under them) */
+        last_content = end_y;
+        while (last_content >= start_y && !row_has_content[last_content])
+            last_content--;
+
+        while (last_content >= start_y && row_has_heading[last_content])
+        {
+            end_y = last_content - 1;
+            if (end_y < start_y)
+            {
+                end_y = start_y;
+                break;
+            }
+
+            last_content = end_y;
+            while (last_content >= start_y && !row_has_content[last_content])
+                last_content--;
+        }
+
+        page_starts[page_count] = start_y;
+        page_ends[page_count] = end_y;
+        page_count++;
+
+        start_y = end_y + 1;
+    }
+
+    if (page_count < 1)
+    {
+        page_starts[0] = 0;
+        page_ends[0] = 0;
+        page_count = 1;
+    }
+
+    return page_count;
+}
+
+static void show_help_screen_dynamic_document(
+    int page,
+    int total_pages,
+    int term_hgt,
+    int doc_start_y,
+    int doc_end_y)
+{
+    char header[96];
+    const int col = 1;
+    const int top = 2;
+
+    strnfmt(header, sizeof(header),
+        "SIL-MORE: SHINING DARKNESS - HELP [%d/%d]",
+        page, total_pages);
+    put_role(ROLE_HEADER, header, 0, col);
+
+    for (int op = 0; op < g_help_doc_ops_n; op++)
+    {
+        int y = g_help_doc_ops[op].y;
+        int x = g_help_doc_ops[op].x;
+        int screen_y;
+
+        if (y < doc_start_y || y > doc_end_y)
+            continue;
+
+        screen_y = top + (y - doc_start_y);
+        if (screen_y < top || screen_y >= term_hgt - 1)
+            continue;
+
+        if (g_help_doc_ops[op].use_role)
+            put_role(g_help_doc_ops[op].role, g_help_doc_ops[op].text, screen_y, x);
+        else
+            c_put_str(g_help_doc_ops[op].attr, g_help_doc_ops[op].text, screen_y, x);
+    }
 }
 
 /* -------- Help pages ----------------------------------------------------- */
 
-void show_help_screen(int i)
+/*
+ * NOTE: This function is used in two modes:
+ *  - Normal draw mode: g_help_record_ops=false (calls put_role/c_put_str)
+ *  - Record mode:      g_help_record_ops=true  (records ops, no drawing)
+ *
+ * We redirect put_role/c_put_str to record-aware emitters via macros.
+ */
+#define put_role help_emit_role
+#define c_put_str help_emit_attr
+static void show_help_screen_legacy(int i, bool include_header)
 {
     int row, col, col2;
     char page_header[96];
@@ -3517,11 +6368,14 @@ void show_help_screen(int i)
     {
         /* SIL-MORE: HELP [1/8]: GOAL & HEROES */
         row = 0; col = 1;
-        sprintf(page_header, "SIL-MORE: SHINING DARKNESS - HELP [%d/%d]: GOAL & HEROES", i, HELP_TOTAL_PAGES);
-        put_role(ROLE_HEADER, page_header, row, col);
+        if (include_header)
+        {
+            sprintf(page_header, "SIL-MORE: SHINING DARKNESS - HELP [%d/%d]: GOAL & HEROES", i, HELP_TOTAL_PAGES);
+            put_role(ROLE_HEADER, page_header, row, col);
+        }
         row += 2;
 
-        put_role(ROLE_SECTION, "GOAL", row, col); row++;
+        help_emit_heading("GOAL", row, col); row++;
         put_role(ROLE_BODY, "- Steal ", row, col);
         put_role(ROLE_TERM, "Silmarils", row, col + 8);
         put_role(ROLE_BODY, " across runs; the saga ends when you've taken ", row, col + 17);
@@ -3545,7 +6399,7 @@ void show_help_screen(int i)
         put_role(ROLE_BODY, ".", row, col + 73);
         row += 2;
 
-        put_role(ROLE_SECTION, "HEROES OF LEGEND", row, col); row++;
+        help_emit_heading("HEROES OF LEGEND", row, col); row++;
         put_role(ROLE_BODY, "- Choose a fixed hero: ", row, col);
         put_role(ROLE_TERM, "Feanor, Fingolfin, Beren, Luthien", row, col + 23);
         put_role(ROLE_BODY, ", and others.", row, col + 56);
@@ -3571,7 +6425,7 @@ void show_help_screen(int i)
         put_role(ROLE_BODY, "- Hint - The Stave of Self-Knowledge can show hidden traits.", row, col);
         row += 2;
 
-        put_role(ROLE_SECTION, "HELP FROM VALAR", row, col); row++;
+        help_emit_heading("HELP FROM VALAR", row, col); row++;
         put_role(ROLE_BODY, "- The ", row, col);
         put_role(ROLE_TERM, "Valar", row, col + 6);
         put_role(ROLE_BODY, " guide worthy heroes through ", row, col + 11);
@@ -3598,11 +6452,14 @@ void show_help_screen(int i)
     {
         /* SIL-MORE: HELP [2/8]: START & DEPTH */
         row = 0; col = 1;
-        sprintf(page_header, "SIL-MORE: SHINING DARKNESS - HELP [%d/%d]: START & DEPTH", i, HELP_TOTAL_PAGES);
-        put_role(ROLE_HEADER, page_header, row, col);
+        if (include_header)
+        {
+            sprintf(page_header, "SIL-MORE: SHINING DARKNESS - HELP [%d/%d]: START & DEPTH", i, HELP_TOTAL_PAGES);
+            put_role(ROLE_HEADER, page_header, row, col);
+        }
         row += 2;
 
-        put_role(ROLE_SECTION, "START", row, col); row++;
+        help_emit_heading("START", row, col); row++;
         put_role(ROLE_BODY, "- You begin with a ", row, col);
         put_role(ROLE_SUBTLE, "basic weapon", row, col + 19);
         put_role(ROLE_BODY, " and ", row, col + 31);
@@ -3616,7 +6473,7 @@ void show_help_screen(int i)
         put_role(ROLE_BODY, ".", row, col + 56);
         row += 2;
 
-        put_role(ROLE_SECTION, "DEPTH & ESCAPE", row, col); row++;
+        help_emit_heading("DEPTH & ESCAPE", row, col); row++;
         put_role(ROLE_BODY, "- Angband drags you down: your ", row, col);
         put_role(ROLE_TERM, "Minimum Depth", row, col + 31);
         put_role(ROLE_BODY, " rises as time passes.", row, col + 44);
@@ -3628,7 +6485,7 @@ void show_help_screen(int i)
         put_role(ROLE_BODY, "- Every lvl is generated anew-don't be afraid to climb back upstairs if stuck.", row, col);
         row += 2;
 
-        put_role(ROLE_SECTION, "ELEMENTS", row, col); row++;
+        help_emit_heading("ELEMENTS", row, col); row++;
         /* Fire */
         put_role(ROLE_BODY, "- ", row, col);
         put_role(ROLE_ELEM_FIRE, "Fire", row, col + 2);
@@ -3669,7 +6526,7 @@ void show_help_screen(int i)
         put_role(ROLE_BODY, "- Mixed elemental attacks will roll extra dice when you lack resistance.", row, col);
         row += 2;
 
-        put_role(ROLE_SECTION, "STATUS & MORALE", row, col); row++;
+        help_emit_heading("STATUS & MORALE", row, col); row++;
         put_role(ROLE_BODY, "- Foes are Asleep, Unwary, Alert; your noise sets the stage.", row, col);
         row++;
         put_role(ROLE_BODY, "- Stealth turns (S) and waiting are potent for slipping past sentries.", row, col);
@@ -3682,11 +6539,14 @@ void show_help_screen(int i)
     {
         /* SIL-MORE: HELP [3/8]: COMBAT & DEFENCE */
         row = 0; col = 1;
-        sprintf(page_header, "SIL-MORE: SHINING DARKNESS - HELP [%d/%d]: COMBAT & DEFENCE", i, HELP_TOTAL_PAGES);
-        put_role(ROLE_HEADER, page_header, row, col);
+        if (include_header)
+        {
+            sprintf(page_header, "SIL-MORE: SHINING DARKNESS - HELP [%d/%d]: COMBAT & DEFENCE", i, HELP_TOTAL_PAGES);
+            put_role(ROLE_HEADER, page_header, row, col);
+        }
         row += 2;
 
-        put_role(ROLE_SECTION, "COMBAT BASICS", row, col); row++;
+        help_emit_heading("COMBAT BASICS", row, col); row++;
         put_role(ROLE_BODY, "- Two opposed rolls decide hits: your Melee vs their ", row, col);
         put_role(ROLE_TERM, "Evasion", row, col + 53);
         put_role(ROLE_BODY, " (and vice versa).", row, col + 60);
@@ -3718,7 +6578,7 @@ void show_help_screen(int i)
         put_role(ROLE_BODY, " for extra hurt.", row, col + 39);
         row += 2;
 
-        put_role(ROLE_SECTION, "NUMBERS AT A GLANCE", row, col); row++;
+        help_emit_heading("NUMBERS AT A GLANCE", row, col); row++;
         put_role(ROLE_BODY, "- Weapons show (attack, damage). ", row, col);
         put_role(ROLE_TERM, "Armour", row, col + 33);
         put_role(ROLE_BODY, " shows [evasion, protection].", row, col + 39);
@@ -3757,7 +6617,7 @@ void show_help_screen(int i)
         put_role(ROLE_BODY, "!", row, col + 69);
         row += 2;
 
-        put_role(ROLE_SECTION, "EVASION VS ARMOUR", row, col); row++;
+        help_emit_heading("EVASION VS ARMOUR", row, col); row++;
         put_role(ROLE_BODY, "- ", row, col);
         put_role(ROLE_TERM, "Evasion", row, col + 2);
         put_role(ROLE_BODY, " helps you not be hit at all; it's reduced if surrounded.", row, col + 9);
@@ -3774,11 +6634,14 @@ void show_help_screen(int i)
     {
         /* SIL-MORE: HELP [4/8]: EARLY TIPS */
         row = 0; col = 1;
-        sprintf(page_header, "SIL-MORE: SHINING DARKNESS - HELP [%d/%d]: EARLY TIPS", i, HELP_TOTAL_PAGES);
-        put_role(ROLE_HEADER, page_header, row, col);
+        if (include_header)
+        {
+            sprintf(page_header, "SIL-MORE: SHINING DARKNESS - HELP [%d/%d]: EARLY TIPS", i, HELP_TOTAL_PAGES);
+            put_role(ROLE_HEADER, page_header, row, col);
+        }
         row += 2;
 
-        put_role(ROLE_SECTION, "CRAFT & GEAR", row, col); row++;
+        help_emit_heading("CRAFT & GEAR", row, col); row++;
         put_role(ROLE_BODY, "- Guaranteed ", row, col);
         put_role(ROLE_GOOD, "forges", row, col + 13);
         put_role(ROLE_BODY, " at 100', 300', and 500'-plan your craft route.", row, col + 19);
@@ -3786,7 +6649,7 @@ void show_help_screen(int i)
         put_role(ROLE_BODY, "- Find armour and a bow first; control fights before you win them.", row, col);
         row += 2;
 
-        put_role(ROLE_SECTION, "TACTICS", row, col); row++;
+        help_emit_heading("TACTICS", row, col); row++;
         put_role(ROLE_BODY, "- Do not rush: this is tactical. Lure, isolate, and retreat often.", row, col);
         row++;
         put_role(ROLE_BODY, "- Doors and corners are force multipliers-avoid being surrounded.", row, col);
@@ -3794,13 +6657,13 @@ void show_help_screen(int i)
         put_role(ROLE_BODY, "- Stairs are traffic-reset, ambush, or move on; do not loiter.", row, col);
         row += 2;
 
-        put_role(ROLE_SECTION, "ABILITIES", row, col); row++;
+        help_emit_heading("ABILITIES", row, col); row++;
         put_role(ROLE_BODY, "- Abilities matter: a single pick can flip a matchup.", row, col);
         row++;
         put_role(ROLE_BODY, "- Choose abilities that reinforce your plan: stealth, control, or brute force.", row, col);
         row += 2;
 
-        put_role(ROLE_SECTION, "TONE & APPROACH", row, col); row++;
+        help_emit_heading("TONE & APPROACH", row, col); row++;
         put_role(ROLE_BODY, "- ", row, col);
         put_role(ROLE_TERM, "Cunning", row, col + 2);
         put_role(ROLE_BODY, " over ", row, col + 9);
@@ -3834,11 +6697,14 @@ void show_help_screen(int i)
     case 5:
     {
         /* SIL-MORE: HELP [5/8]: MOVEMENT & MISCELLANEOUS */
-        sprintf(page_header, "HELP [%d/%d]: MOVEMENT & MISCELLANEOUS", i, HELP_TOTAL_PAGES);
-        put_role(ROLE_HEADER, page_header, 0, 1);
+        if (include_header)
+        {
+            sprintf(page_header, "HELP [%d/%d]: MOVEMENT & MISCELLANEOUS", i, HELP_TOTAL_PAGES);
+            put_role(ROLE_HEADER, page_header, 0, 1);
+        }
 
         row = 3; col = 3; col2 = col + 8;
-        put_role(ROLE_SECTION, "Movement etc", row - 2, col - 1);
+        help_emit_heading("Movement etc", row - 2, col - 1);
 
         put_role(ROLE_KEY,   "7 8 9", row, col);
         put_role(ROLE_SUBTLE," \\|/ ", row + 1, col);
@@ -3884,7 +6750,7 @@ void show_help_screen(int i)
         put_role(ROLE_KEY,    "Space", row, col + 33);
 
         row = 3; col = 52;
-        put_role(ROLE_SECTION, "Miscellaneous", row - 2, col);
+        help_emit_heading("Miscellaneous", row - 2, col);
 
         put_role(ROLE_KEY,  "f F", row, col - 1); put_role(ROLE_SUBTLE, "/", row, col); put_role(ROLE_SUBTLE, "fire from quiver 1/2", row, col + 3); row++;
         if (angband_keyset) put_role(ROLE_KEY, " a", row, col); else put_role(ROLE_KEY, " s", row, col); put_role(ROLE_SUBTLE, "sing", row, col + 3); row++;
@@ -3907,11 +6773,14 @@ void show_help_screen(int i)
     case 6:
     {
         /* SIL-MORE: HELP [6/8]: TERRAIN & ITEMS */
-        sprintf(page_header, "HELP [%d/%d]: TERRAIN & ITEMS", i, HELP_TOTAL_PAGES);
-        put_role(ROLE_HEADER, page_header, 0, 1);
+        if (include_header)
+        {
+            sprintf(page_header, "HELP [%d/%d]: TERRAIN & ITEMS", i, HELP_TOTAL_PAGES);
+            put_role(ROLE_HEADER, page_header, 0, 1);
+        }
 
         row = 3; col = 3;
-        put_role(ROLE_SECTION, "Terrain ", row - 2, col - 1);
+        help_emit_heading("Terrain ", row - 2, col - 1);
 
         /* Keep gameplay glyph colours as-is; only change the labels to ROLE_BODY */
         if (hybrid_walls) { c_put_str(TERM_L_WHITE + (MAX_COLORS * BG_DARK), "#", row, col); }
@@ -3931,7 +6800,7 @@ void show_help_screen(int i)
         c_put_str(TERM_L_WHITE, ".", row, col); put_role(ROLE_BODY, "empty floor", row, col + 2); row++;
 
         row = 3; col = 27;
-        put_role(ROLE_SECTION, "Items", row - 2, col - 1);
+        help_emit_heading("Items", row - 2, col - 1);
         c_put_str(TERM_L_WHITE, "| ", row, col); put_role(ROLE_BODY, "blades", row, col + 2); row++;
         c_put_str(TERM_SLATE, "/ ", row, col); put_role(ROLE_BODY, "axes & polearms", row, col + 2); row++;
         c_put_str(TERM_UMBER, "\\ ", row, col); put_role(ROLE_BODY, "blunt weapons", row, col + 2); row++;
@@ -3951,7 +6820,7 @@ void show_help_screen(int i)
         c_put_str(TERM_YELLOW, "! ", row, col); put_role(ROLE_BODY, "flasks of oil", row, col + 2); row++;
 
         row = 3; col = 52;
-        put_role(ROLE_SECTION, "Item Commands", row - 2, col - 1);
+        help_emit_heading("Item Commands", row - 2, col - 1);
         if (angband_keyset) put_role(ROLE_KEY, "U", row, col); else put_role(ROLE_KEY, "u", row, col); put_role(ROLE_UI, "use", row, col + 2); row++;
         put_role(ROLE_KEY, "d", row, col); put_role(ROLE_UI, "drop", row, col + 2); row++;
         if (angband_keyset) put_role(ROLE_KEY, "I", row, col); else put_role(ROLE_KEY, "x", row, col); put_role(ROLE_UI, "examine", row, col + 2); row++;
@@ -3965,11 +6834,14 @@ void show_help_screen(int i)
     case 7:
     {
         /* SIL-MORE: HELP [7/8]: ADVANCED COMMANDS */
-        sprintf(page_header, "HELP [%d/%d]: ADVANCED COMMANDS", i, HELP_TOTAL_PAGES);
-        put_role(ROLE_HEADER, page_header, 0, 1);
+        if (include_header)
+        {
+            sprintf(page_header, "HELP [%d/%d]: ADVANCED COMMANDS", i, HELP_TOTAL_PAGES);
+            put_role(ROLE_HEADER, page_header, 0, 1);
+        }
 
         row = 3; col = 3;
-        put_role(ROLE_SECTION, "Superfluous", row - 2, col - 1);
+        help_emit_heading("Superfluous", row - 2, col - 1);
 
         put_role(ROLE_KEY, "i", row, col); put_role(ROLE_UI,  "display inventory", row, col + 2); row++;
         put_role(ROLE_KEY, "e", row, col); put_role(ROLE_UI,  "display equipped items", row, col + 2); row += 2;
@@ -3991,7 +6863,7 @@ void show_help_screen(int i)
         put_role(ROLE_KEY, "0", row, col); put_role(ROLE_UI,  "forge an item", row, col + 2); row++;
 
         row = 3; col = 34;
-        put_role(ROLE_SECTION, "Advanced", row - 2, col);
+        help_emit_heading("Advanced", row - 2, col);
 
         put_role(ROLE_KEY,  " :", row, col); put_role(ROLE_UI,   "write a note", row, col + 3); row++;
         put_role(ROLE_KEY,  " )", row, col); put_role(ROLE_UI,   "save screen shot", row, col + 3); row += 2;
@@ -4003,7 +6875,7 @@ void show_help_screen(int i)
         put_role(ROLE_KEY,  " V", row, col); put_role(ROLE_UI,   "version information", row, col + 3); row++;
 
         row = 16; col = 35; col2 = 43;
-        put_role(ROLE_SECTION, "hjkl movement", row - 2, col - 1);
+        help_emit_heading("hjkl movement", row - 2, col - 1);
 
         put_role(ROLE_KEY,   "y k u", row, col);
         put_role(ROLE_SUBTLE," \\|/ ", row + 1, col);
@@ -4021,54 +6893,198 @@ void show_help_screen(int i)
         break;
     }
 
-#ifdef STEAMDECK_SUPPORT
     case 8:
     {
         /* SIL-MORE: HELP [8/8]: STEAM DECK CONTROLS */
         row = 0; col = 1;
-        sprintf(page_header, "SIL-MORE: SHINING DARKNESS - HELP [%d/%d]: STEAM DECK CONTROLS", i, HELP_TOTAL_PAGES);
-        put_role(ROLE_HEADER, page_header, row, col);
+        if (include_header)
+        {
+            sprintf(page_header, "SIL-MORE: SHINING DARKNESS - HELP [%d/%d]: STEAM DECK CONTROLS", i, HELP_TOTAL_PAGES);
+            put_role(ROLE_HEADER, page_header, row, col);
+        }
         row += 2;
 
         /* Movement and Action Controls */
         col = 1;
-        put_role(ROLE_ELEM_COLD, "D-pad: Up/Down/Left/Right", row, col); put_role(ROLE_BODY, " - Movement", row, col + 25); row++;
-        row++;
-        put_role(ROLE_GOOD, "A", row, col); put_role(ROLE_BODY, " Green - Space - Interact (,) - Pick up, stairs, forge", row, col + 2); row++;
-        put_role(ROLE_ELEM_COLD, "X", row, col); put_role(ROLE_BODY, " Blue  - Use object (u)", row, col + 2); row++;
-        put_role(ROLE_ELEM_FIRE, "Y", row, col); put_role(ROLE_BODY, " Yellow- Sing/stealth (s)", row, col + 2); row++;
-        put_role(ROLE_BAD, "B", row, col); put_role(ROLE_BODY, " Red   - Shoot bow (f)", row, col + 2); row++;
-        row++;
-        
-        /* Left side controls */
-        put_role(ROLE_SECTION, "LEFT SIDE CONTROLS", row, col); row += 2;
-        put_role(ROLE_KEY, "Left Stick", row, col); put_role(ROLE_BODY, " - Numpad", row, col + 15); row++;
-        put_role(ROLE_KEY, "Left Trackpad", row, col); put_role(ROLE_BODY, " - Numpad", row, col + 15); row++;
-        put_role(ROLE_UI, "Menu Button", row, col); put_role(ROLE_BODY, " - Enter", row, col + 15); row++;
-        put_role(ROLE_KEY, "L1 (Bumper)", row, col); put_role(ROLE_BODY, " - Equipped items (e)", row, col + 15); row++;
-        put_role(ROLE_KEY, "L2 (Trigger)", row, col); put_role(ROLE_BODY, " - Shift", row, col + 15); row++;
-        put_role(ROLE_KEY, "L4 (Back)", row, col); put_role(ROLE_BODY, " - Look (l)", row, col + 15); row++;
-        put_role(ROLE_KEY, "L5 (Back)", row, col); put_role(ROLE_BODY, " - Abilities (Tab)", row, col + 15); row++;
+        help_emit_heading("MOVEMENT & ACTION", row, col); row += 2;
+        put_role(ROLE_KEY, "D-pad / Left Stick", row, col);
+        put_role(ROLE_BODY, " - Movement", row, col + 22); row++;
 
-        /* Right side controls */
-        col = 42; row = 9;
-        put_role(ROLE_SECTION, "RIGHT SIDE CONTROLS", row, col); row += 2;
-        put_role(ROLE_KEY, "Right Stick", row, col); put_role(ROLE_BODY, " - Letters", row, col + 16); row++;
-        put_role(ROLE_KEY, "Right Trackpad", row, col); put_role(ROLE_BODY, " - Useful letters", row, col + 16); row++;
-        put_role(ROLE_UI, "View Button", row, col); put_role(ROLE_BODY, " - Esc/Main Menu", row, col + 16); row++;
-        put_role(ROLE_KEY, "R1 (Bumper)", row, col); put_role(ROLE_BODY, " - Inventory (i)", row, col + 16); row++;
-        put_role(ROLE_KEY, "R2 (Trigger)", row, col); put_role(ROLE_BODY, " - Ctrl", row, col + 16); row++;
-        put_role(ROLE_KEY, "R4 (Back)", row, col); put_role(ROLE_BODY, " - Description (x)", row, col + 16); row++;
-        put_role(ROLE_KEY, "R5 (Back)", row, col); put_role(ROLE_BODY, " - Character sheet (h)", row, col + 16); row++;
-        
-        row += 2;
-        put_role(ROLE_SUBTLE, "Customize bindings via Steam Input settings.", row, 1);
+        char action_buf[96];
+        int binding = 0;
+
+        binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_SOUTH);
+        binding_action_label(binding, action_buf, sizeof(action_buf));
+        put_role(ROLE_KEY, "A", row, col); put_role(ROLE_BODY, " - ", row, col + 2);
+        put_role(ROLE_BODY, action_buf, row, col + 5); row++;
+
+        binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_WEST);
+        binding_action_label(binding, action_buf, sizeof(action_buf));
+        put_role(ROLE_KEY, "X", row, col); put_role(ROLE_BODY, " - ", row, col + 2);
+        put_role(ROLE_BODY, action_buf, row, col + 5); row++;
+
+        binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_NORTH);
+        binding_action_label(binding, action_buf, sizeof(action_buf));
+        put_role(ROLE_KEY, "Y", row, col); put_role(ROLE_BODY, " - ", row, col + 2);
+        put_role(ROLE_BODY, action_buf, row, col + 5); row++;
+
+        binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_EAST);
+        binding_action_label(binding, action_buf, sizeof(action_buf));
+        put_role(ROLE_KEY, "B", row, col); put_role(ROLE_BODY, " - ", row, col + 2);
+        put_role(ROLE_BODY, action_buf, row, col + 5); row++;
+
+        {
+            char rs_up[24];
+            char rs_down[24];
+            char rs_left[24];
+            char rs_right[24];
+            char rs_line[120];
+            binding_action_short(get_sdl_gamepad_right_stick_binding(GAMEPAD_STICK_DIR_UP), rs_up, sizeof(rs_up));
+            binding_action_short(get_sdl_gamepad_right_stick_binding(GAMEPAD_STICK_DIR_DOWN), rs_down, sizeof(rs_down));
+            binding_action_short(get_sdl_gamepad_right_stick_binding(GAMEPAD_STICK_DIR_LEFT), rs_left, sizeof(rs_left));
+            binding_action_short(get_sdl_gamepad_right_stick_binding(GAMEPAD_STICK_DIR_RIGHT), rs_right, sizeof(rs_right));
+            strnfmt(rs_line, sizeof(rs_line), "Up:%s  Down:%s  Left:%s  Right:%s",
+                    rs_up, rs_down, rs_left, rs_right);
+            put_role(ROLE_KEY, "Right Stick", row, col);
+            put_role(ROLE_BODY, " - ", row, col + 11);
+            put_role(ROLE_BODY, rs_line, row, col + 14);
+            row++;
+        }
+
+        row += 1;
+
+        /* Left and right side controls */
+        int left_header_row = row;
+        int left_start_row = row + 2;
+        help_emit_heading("LEFT SIDE CONTROLS", left_header_row, col);
+
+        row = left_start_row;
+        const char* input = NULL;
+        int text_col = 0;
+
+        binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_LEFT_SHOULDER);
+        binding_action_label(binding, action_buf, sizeof(action_buf));
+        input = "L1 (Bumper)";
+        put_role(ROLE_KEY, input, row, col);
+        text_col = col + (int)strlen(input);
+        put_role(ROLE_BODY, " - ", row, text_col);
+        put_role(ROLE_BODY, action_buf, row, text_col + 3); row++;
+
+        binding = get_sdl_gamepad_trigger_binding(0);
+        binding_action_label(binding, action_buf, sizeof(action_buf));
+        input = "L2 (Trigger)";
+        put_role(ROLE_KEY, input, row, col);
+        text_col = col + (int)strlen(input);
+        put_role(ROLE_BODY, " - ", row, text_col);
+        put_role(ROLE_BODY, action_buf, row, text_col + 3); row++;
+
+        binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_LEFT_PADDLE1);
+        binding_action_label(binding, action_buf, sizeof(action_buf));
+        input = "L4 (Back)";
+        put_role(ROLE_KEY, input, row, col);
+        text_col = col + (int)strlen(input);
+        put_role(ROLE_BODY, " - ", row, text_col);
+        put_role(ROLE_BODY, action_buf, row, text_col + 3); row++;
+
+        binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_LEFT_PADDLE2);
+        binding_action_label(binding, action_buf, sizeof(action_buf));
+        input = "L5 (Back)";
+        put_role(ROLE_KEY, input, row, col);
+        text_col = col + (int)strlen(input);
+        put_role(ROLE_BODY, " - ", row, text_col);
+        put_role(ROLE_BODY, action_buf, row, text_col + 3); row++;
+
+        binding = get_sdl_gamepad_shoulder_combo_binding();
+        binding_action_label(binding, action_buf, sizeof(action_buf));
+        input = "L1+R1 Combo";
+        put_role(ROLE_KEY, input, row, col);
+        text_col = col + (int)strlen(input);
+        put_role(ROLE_BODY, " - ", row, text_col);
+        put_role(ROLE_BODY, action_buf, row, text_col + 3); row++;
+
+        int left_end_row = row;
+
+        col = 42;
+        row = left_header_row;
+        help_emit_heading("RIGHT SIDE CONTROLS", row, col);
+        row = left_start_row;
+
+        binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER);
+        binding_action_label(binding, action_buf, sizeof(action_buf));
+        input = "R1 (Bumper)";
+        put_role(ROLE_KEY, input, row, col);
+        text_col = col + (int)strlen(input);
+        put_role(ROLE_BODY, " - ", row, text_col);
+        put_role(ROLE_BODY, action_buf, row, text_col + 3); row++;
+
+        binding = get_sdl_gamepad_trigger_binding(1);
+        binding_action_label(binding, action_buf, sizeof(action_buf));
+        input = "R2 (Trigger)";
+        put_role(ROLE_KEY, input, row, col);
+        text_col = col + (int)strlen(input);
+        put_role(ROLE_BODY, " - ", row, text_col);
+        put_role(ROLE_BODY, action_buf, row, text_col + 3); row++;
+
+        binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1);
+        binding_action_label(binding, action_buf, sizeof(action_buf));
+        input = "R4 (Back)";
+        put_role(ROLE_KEY, input, row, col);
+        text_col = col + (int)strlen(input);
+        put_role(ROLE_BODY, " - ", row, text_col);
+        put_role(ROLE_BODY, action_buf, row, text_col + 3); row++;
+
+        binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2);
+        binding_action_label(binding, action_buf, sizeof(action_buf));
+        input = "R5 (Back)";
+        put_role(ROLE_KEY, input, row, col);
+        text_col = col + (int)strlen(input);
+        put_role(ROLE_BODY, " - ", row, text_col);
+        put_role(ROLE_BODY, action_buf, row, text_col + 3); row++;
+
+        binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_START);
+        binding_action_label(binding, action_buf, sizeof(action_buf));
+        input = "Start (Menu)";
+        put_role(ROLE_KEY, input, row, col);
+        text_col = col + (int)strlen(input);
+        put_role(ROLE_BODY, " - ", row, text_col);
+        put_role(ROLE_BODY, action_buf, row, text_col + 3); row++;
+
+        binding = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_BACK);
+        binding_action_label(binding, action_buf, sizeof(action_buf));
+        input = "Back (View)";
+        put_role(ROLE_KEY, input, row, col);
+        text_col = col + (int)strlen(input);
+        put_role(ROLE_BODY, " - ", row, text_col);
+        put_role(ROLE_BODY, action_buf, row, text_col + 3); row++;
+
+        int right_end_row = row;
+
+        row = (left_end_row > right_end_row) ? left_end_row : right_end_row;
+        row += 1;
+        {
+            char shift_label[16];
+            char sing_label[16];
+            char fire_label[16];
+            char note_buf[120];
+            help_prompt_label(GAMEPAD_BIND_SHIFT, "L2", shift_label, sizeof(shift_label));
+            help_prompt_label('s', "Y", sing_label, sizeof(sing_label));
+            help_prompt_label('f', "B", fire_label, sizeof(fire_label));
+            strnfmt(note_buf, sizeof(note_buf),
+                    "Shift: %s+%s=Stealth, %s+%s=Second quiver",
+                    shift_label, sing_label, shift_label, fire_label);
+            put_role(ROLE_SUBTLE, note_buf, row, 1);
+        }
+
+        row += 1;
+        put_role(ROLE_SUBTLE, "Customize bindings via Options -> Controller Settings.", row, 1);
         
         break;
     }
-#endif /* STEAMDECK_SUPPORT */
     }
 }
+
+#undef put_role
+#undef c_put_str
 
 
 
@@ -4079,6 +7095,11 @@ void do_cmd_help(void)
 {
     int i = 1;
     char ch;
+    bool row_has_content[HELP_DOC_MAX_ROWS];
+    bool row_has_heading[HELP_DOC_MAX_ROWS];
+    int page_starts[HELP_DOC_MAX_PAGES];
+    int page_ends[HELP_DOC_MAX_PAGES];
+    int doc_hgt = 0;
 
     /* Clear any active banner before opening help */
     extern int g_banner_force_redraw_remaining;
@@ -4089,27 +7110,80 @@ void do_cmd_help(void)
 
     /* Save screen */
     screen_save();
+    if (p_ptr && p_ptr->playing)
+        sdl_music_play_menu_theme();
 
     /* Interact until done */
     while (1)
     {
+        int wid, hgt;
+        int total_pages;
+        bool legacy;
+
+        /* Get current terminal size before deciding layout */
+        Term_get_size(&wid, &hgt);
+        legacy = help_use_legacy_layout(wid, hgt);
+
+        if (legacy)
+        {
+            total_pages = HELP_TOTAL_PAGES;
+        }
+        else
+        {
+            /* Rebuild each time so controller bindings / options are current */
+            help_build_document_ops(&doc_hgt, row_has_content, row_has_heading);
+            total_pages = help_dynamic_build_document_pages(
+                hgt,
+                doc_hgt,
+                row_has_content,
+                row_has_heading,
+                page_starts,
+                page_ends);
+        }
+
+        if (total_pages < 1)
+            total_pages = 1;
+
+        if (i < 1)
+            i = 1;
+        if (i > total_pages)
+            i = total_pages;
+
         /* Clear screen */
         Term_clear();
 
-        show_help_screen(i);
-        int wid, hgt;
+        if (legacy)
+        {
+            show_help_screen_legacy(i, true);
+        }
+        else
+        {
+            int start_y = page_starts[i - 1];
+            int end_y = page_ends[i - 1];
+            show_help_screen_dynamic_document(i, total_pages, hgt, start_y, end_y);
+        }
 
-        // get current terminal size
-        Term_get_size(&wid, &hgt);
         /* Better navigation prompt */
         {
             char nav[128];
-            strnfmt(nav, sizeof(nav),
-                "Navigation: [<-/4] Prev  [->/6/Space] Next  [X+1-%d] Page  [Q/Esc] Quit",
-                HELP_TOTAL_PAGES);
+            if (steamdeck_controls_active()) {
+                char next_label[16];
+                char back_label[16];
+                help_prompt_label(' ', "A", next_label, sizeof(next_label));
+                help_prompt_label('b', "b", back_label, sizeof(back_label));
+                strnfmt(nav, sizeof(nav),
+                    "Navigation: D-pad left/right Prev/Next  [%s] Next  [%s] Back",
+                    next_label, back_label);
+            } else {
+                strnfmt(nav, sizeof(nav),
+                    "Navigation: [<-/4] Prev  [->/6/Space] Next  [X+1-%d] Page  [Q/Esc] Quit",
+                    total_pages);
+            }
             c_put_str(TERM_WHITE, nav, hgt - 1, 1);
         }
         ch = inkey();
+        if (steamdeck_controls_active() && ch == 'b')
+            ch = ESCAPE;
 
         /* Enhanced navigation */
         if (ch != EOF)
@@ -4134,19 +7208,17 @@ void do_cmd_help(void)
             /* Direct page navigation with 'x' prefix */
             else if (ch == 'x' || ch == 'X')
             {
-                /* Wait for second key */
                 char prompt[32];
-                sprintf(prompt, "Page (1-%d): ", HELP_TOTAL_PAGES);
-                c_put_str(TERM_YELLOW, prompt, 23, 60);
-                char ch2 = inkey();
-                if ((ch2 >= '1') && (ch2 <= ('0' + HELP_TOTAL_PAGES)))
+                char tmp[8];
+                strnfmt(prompt, sizeof(prompt), "Page (1-%d): ", total_pages);
+                prt(prompt, hgt - 1, 0);
+                SDL_strlcpy(tmp, "1", sizeof(tmp));
+                if (askfor_aux(tmp, sizeof(tmp)))
                 {
-                    int target = ch2 - '0';
-                    if (target <= HELP_TOTAL_PAGES)
+                    int target = atoi(tmp);
+                    if ((target >= 1) && (target <= total_pages))
                         i = target;
                 }
-                /* Clear the prompt */
-                c_put_str(TERM_L_WHITE, "                ", 23, 60);
             }
             /* Default: next page */
             else
@@ -4156,7 +7228,7 @@ void do_cmd_help(void)
         }
 
         /* Done */
-        if (i > HELP_TOTAL_PAGES)
+        if (i > total_pages)
             break;
 
         /* Flush messages */
@@ -4165,6 +7237,8 @@ void do_cmd_help(void)
 
     /* Load screen */
     screen_load();
+    if (p_ptr && p_ptr->playing)
+        sdl_music_stop_main();
 }
 
 /*
@@ -4189,7 +7263,7 @@ void process_player_name(bool sf)
         if (iscntrl((unsigned char)c))
         {
             /* Illegal characters */
-            quit_fmt("Illegal control char (0x%02X) in player name", c);
+            quit(format("Illegal control char (0x%02X) in player name", c));
         }
 
         /* Convert illegal file system characters but preserve some readability */
@@ -4217,7 +7291,7 @@ void process_player_name(bool sf)
     if (!op_ptr->base_name[0])
     {
         log_debug("No base name provided, using 'nameless'");
-        my_strcpy(op_ptr->base_name, "nameless", sizeof(op_ptr->base_name));
+        SDL_strlcpy(op_ptr->base_name, "nameless", sizeof(op_ptr->base_name));
     }
 
     /* Pick savefile name if needed */
@@ -4225,8 +7299,8 @@ void process_player_name(bool sf)
     {
         char temp[128];
 
-        /* Rename the savefile, using the base name */
-        strnfmt(temp, sizeof(temp), "%s", op_ptr->base_name);
+        /* Rename the savefile, using the mode-specific base name. */
+        build_active_savefile_stem(op_ptr->base_name, temp, sizeof(temp));
 
         /* Build the filename */
         path_build(savefile, sizeof(savefile), ANGBAND_DIR_SAVE, temp);
@@ -4274,11 +7348,11 @@ bool get_name(void)
     }
 
     // use old name as a default
-   // my_strcpy(tmp, op_ptr->full_name, sizeof(tmp));
-    my_strcpy(tmp, c_name + c_info[p_ptr->phouse].name, sizeof(tmp));
+   // SDL_strlcpy(tmp, op_ptr->full_name, sizeof(tmp));
+    SDL_strlcpy(tmp, c_name + c_info[p_ptr->pcharacter].name, sizeof(tmp));
 
     // save a copy too
-    my_strcpy(old_name, c_name + c_info[p_ptr->phouse].name, sizeof(old_name));
+    SDL_strlcpy(old_name, c_name + c_info[p_ptr->pcharacter].name, sizeof(old_name));
 
     /* Prompt for a new name */
     Term_gotoxy(8, 2);
@@ -4287,12 +7361,12 @@ bool get_name(void)
     {
         if (askfor_name(tmp, sizeof(tmp)))
         {
-            my_strcpy(op_ptr->full_name, tmp, sizeof(op_ptr->full_name));
+            SDL_strlcpy(op_ptr->full_name, tmp, sizeof(op_ptr->full_name));
             p_ptr->redraw |= (PR_MISC);
         }
         else
         {
-            my_strcpy(op_ptr->full_name, old_name, sizeof(op_ptr->full_name));
+            SDL_strlcpy(op_ptr->full_name, old_name, sizeof(op_ptr->full_name));
             return (false);
         }
 
@@ -4303,7 +7377,7 @@ bool get_name(void)
     }*/
 
     /* Process the player name */
-    my_strcpy(op_ptr->full_name, c_name + c_info[p_ptr->phouse].name, sizeof(op_ptr->full_name));
+    SDL_strlcpy(op_ptr->full_name, c_name + c_info[p_ptr->pcharacter].name, sizeof(op_ptr->full_name));
     process_player_name(true);
     
     log_info("Character name confirmed: '%s'", op_ptr->full_name);
@@ -4339,7 +7413,7 @@ void do_cmd_escape(int silmarils)
     (void)strftime(long_day, 40, "%d %B %Y", localtime(&ct));
 
     /* Add note */
-    my_strcat(notes_buffer, "\n", sizeof(notes_buffer));
+    SDL_strlcat(notes_buffer, "\n", sizeof(notes_buffer));
 
     /*killed by */
     sprintf(buf, "You escaped the Iron Hells on %s.", long_day);
@@ -4396,14 +7470,16 @@ void do_cmd_escape(int silmarils)
 
     // (void)inkey();
 
-    my_strcat(notes_buffer, "\n", sizeof(notes_buffer));
+    SDL_strlcat(notes_buffer, "\n", sizeof(notes_buffer));
 
     /* Cause of death */
-    my_strcpy(p_ptr->died_from, "ripe old age", sizeof(p_ptr->died_from));
+    SDL_strlcpy(p_ptr->died_from, "ripe old age", sizeof(p_ptr->died_from));
 
-    /* Update metarun: escaped with N Silmarils */
-    log_info("Player escaped with %d Silmarils", silmarils);
-    metarun_update_on_exit(false, true, silmarils, 0);
+    /* Defer metarun exit processing until close_game_aux() has recorded the
+     * final score. Otherwise the rollover can start a fresh metarun before
+     * this escape is written, and the winning character lands in the new run.
+     */
+    log_info("Player escaped with %d Silmarils (metarun processing deferred until close_game_aux)", silmarils);
 
 }
 
@@ -4431,7 +7507,7 @@ void do_cmd_morgoth_victory(void)
     /* Mark the calendar moment */
     (void)strftime(long_day, sizeof(long_day), "%d %B %Y", localtime(&ct));
 
-    my_strcat(notes_buffer, "\n", sizeof(notes_buffer));
+    SDL_strlcat(notes_buffer, "\n", sizeof(notes_buffer));
 
     strnfmt(buf, sizeof(buf),
             "On %s you broke the illusion binding Morgoth to his throne.",
@@ -4442,11 +7518,17 @@ void do_cmd_morgoth_victory(void)
         "The Valar hail your impossible triumph and pour out their blessing.",
         p_ptr->depth);
 
-    my_strcat(notes_buffer, "\n", sizeof(notes_buffer));
+    SDL_strlcat(notes_buffer, "\n", sizeof(notes_buffer));
 
     /* Record cause for high scores */
-    my_strcpy(p_ptr->died_from, "Morgoth's illusory defeat",
+    SDL_strlcpy(p_ptr->died_from, "Morgoth's illusory defeat",
         sizeof(p_ptr->died_from));
+
+    killer_mark_other(SCORE_KILLER_OTHER);
+    killer_commit(p_ptr->died_from);
+
+    if (run_mode_is_blitz())
+        blitz_show_end_summary(3);
 }
 
 /*
@@ -4464,11 +7546,11 @@ void do_cmd_suicide(void)
         return;
 
     /* Special Verification for suicide */
-    prt("Please verify ABORTING by typing the '@' sign: ", 0, 0);
+    prt("Please verify ABORTING by typing the '~' sign: ", 0, 0);
     flush();
     ch = inkey();
     prt("", 0, 0);
-    if (ch != '@')
+    if (ch != '~')
         return;
 
     /* Commit suicide */
@@ -4480,7 +7562,10 @@ void do_cmd_suicide(void)
     /* Leaving */
     p_ptr->leaving = true;
 
-    my_strcpy(p_ptr->died_from, "their own hand", sizeof(p_ptr->died_from));
+    SDL_strlcpy(p_ptr->died_from, "their own hand", sizeof(p_ptr->died_from));
+
+    killer_mark_other(SCORE_KILLER_SELF);
+    killer_commit(p_ptr->died_from);
 }
 
 /*
@@ -4518,7 +7603,7 @@ void do_cmd_save_game(void)
     Term_fresh();
 
     /* The player is not dead */
-    my_strcpy(p_ptr->died_from, "(saved)", sizeof(p_ptr->died_from));
+    SDL_strlcpy(p_ptr->died_from, "(saved)", sizeof(p_ptr->died_from));
 
     /* Forbid suspend */
     signals_ignore_tstp();
@@ -4526,8 +7611,9 @@ void do_cmd_save_game(void)
     /* Save the player */
     /* Make sure meta-run data (curses, flags, etc.) is up-to-date even
       when the player merely saves & quits. */
-    log_info("Saving game and updating metarun data");    
-   metarun_update_on_exit(false, false, 0, 0);
+    log_info("Saving game and updating metarun data");
+    if (!run_mode_is_blitz())
+        metarun_update_on_exit(false, false, 0, 0);
 
     if (save_player())
     {
@@ -4537,7 +7623,17 @@ void do_cmd_save_game(void)
             prt("Saving game... done.", 0, 0);
         }
 
-    upsert_live_score_on_save();
+        /* Note: upsert_live_score_on_save() is called from close_game() 
+         * when quitting, not here. This avoids opening the scores file 
+         * multiple times. */
+
+        high_score live_score;
+        if (build_live_preview_score(&live_score)) {
+            time_t now = time(NULL);
+            if (!score_runs_record_current_run(&live_score, now, SCORE_RECORD_ALIVE)) {
+                log_warn("Failed to persist live run snapshot for '%s'", op_ptr->full_name);
+            }
+        }
     }
 
     /* Save failed (oops) */
@@ -4554,7 +7650,7 @@ void do_cmd_save_game(void)
     Term_fresh();
 
     /* Note that the player is not dead */
-    my_strcpy(p_ptr->died_from, "(alive and well)", sizeof(p_ptr->died_from));
+    SDL_strlcpy(p_ptr->died_from, "(alive and well)", sizeof(p_ptr->died_from));
 
     /* Reset the quietly flag */
     save_game_quietly = false;
@@ -4598,11 +7694,17 @@ static void print_tomb(high_score* the_score)
  */
 static void show_info(void)
 {
+    int term_wid = 80;
+    int term_hgt = 24;
+
+    Term_get_size(&term_wid, &term_hgt);
+
     /* Display player */
     display_player(0);
 
     /* Prompt for inventory */
-    Term_putstr(30, 22, -1, TERM_L_WHITE, "(press any key)");
+    Term_putstr(MAX(0, term_wid - 18), term_hgt - 2, -1, TERM_L_WHITE,
+        "(press any key)");
 
     /* Allow abort at this point */
     if (inkey() == ESCAPE)
@@ -4617,7 +7719,8 @@ static void show_info(void)
         item_tester_full = true;
         show_equip();
         prt("You are using:", 0, 0);
-        Term_putstr(30, 16, -1, TERM_L_WHITE, "(press any key)");
+        Term_putstr(MAX(0, term_wid - 18), term_hgt - 2, -1, TERM_L_WHITE,
+            "(press any key)");
         if (inkey() == ESCAPE)
             return;
         item_tester_full = false;
@@ -4630,8 +7733,8 @@ static void show_info(void)
         item_tester_full = true;
         show_inven();
         prt("You are carrying:", 0, 0);
-        Term_putstr(
-            30, p_ptr->inven_cnt + 2, -1, TERM_L_WHITE, "(press any key)");
+        Term_putstr(MAX(0, term_wid - 18), MIN(p_ptr->inven_cnt + 2, term_hgt - 2),
+            -1, TERM_L_WHITE, "(press any key)");
         if (inkey() == ESCAPE)
             return;
         item_tester_full = false;
@@ -4641,1642 +7744,31 @@ static void show_info(void)
     do_cmd_knowledge_notes();
 }
 
-/*
- * Special version of 'do_cmd_examine'
- */
-static void death_examine(void)
+
+#define highscore_fd (score_file_active_ctx()->fd)
+#define scores_file_entry_count (score_file_active_ctx()->entry_count)
+#define scores_file_version_major (score_file_active_ctx()->version_major)
+#define scores_file_version_minor (score_file_active_ctx()->version_minor)
+#define scores_file_version_patch (score_file_active_ctx()->version_patch)
+#define scores_file_version_extra (score_file_active_ctx()->version_extra)
+
+static char g_postmortem_scores_path[1024];
+
+static void clear_postmortem_scores_path(void)
 {
-    int item;
-
-    object_type* o_ptr;
-
-    cptr q, s;
-
-    /* Start out in "display" mode */
-    p_ptr->command_see = true;
-
-    /* Get an item */
-    q = "Examine which item? ";
-    s = "You have nothing to examine.";
-
-    while (true)
-    {
-        if (!get_item(&item, q, s, (USE_INVEN | USE_EQUIP)))
-            return;
-
-        /* Get the item */
-        o_ptr = &inventory[item];
-
-        /* Describe */
-        object_info_screen(o_ptr);
-    }
+    g_postmortem_scores_path[0] = '\0';
 }
 
-/* 
- * Score file version tracking (all scores files must be versioned)
- */
-static u32b scores_file_entry_count = 0;        /* cached header entry count (may lag until update) */
-static byte scores_file_version_major = 0;      /* version from score file header */
-static byte scores_file_version_minor = 0;
-static byte scores_file_version_patch = 0;
-static byte scores_file_version_extra = 0;
+static void set_postmortem_scores_path(const char* path)
+{
+    if (path && path[0])
+        SDL_strlcpy(g_postmortem_scores_path, path, sizeof(g_postmortem_scores_path));
+    else
+        clear_postmortem_scores_path();
+}
 
-/* Forward declarations for functions used in versioned score handling */
-static errr highscore_read(high_score* score);
+/* Forward declaration */
 errr create_score(high_score* the_score);
-
-/*
- * Seek score 'i' in the highscore file (with version awareness)
- */
-static int highscore_seek_versioned(int i)
-{
-    log_debug("Seeking to score position %d in highscore file", i);
-    
-    long offset = sizeof(score_file_header) + i * sizeof(high_score);
-    
-    log_debug("Calculated offset: %ld (header_size=%d, entry_size=%d)", 
-              offset, (int)sizeof(score_file_header), (int)sizeof(high_score));
-    
-    int result = fseek(highscore_fd, offset, SEEK_SET);
-    if (result != 0) {
-        log_warn("Failed to seek to offset %ld (error=%d)", offset, result);
-    }
-    return result;
-}
-
-/*
- * Load score file header and cache version information
- * Returns true on success, false if file doesn't exist or is invalid
- */
-static bool load_scores_file_header(const char *filepath)
-{
-    FILE* file = fopen(filepath, "rb");
-    if (!file) return false;
-    
-    /* Get file size */
-    fseek(file, 0, SEEK_END);
-    long file_size = ftell(file);
-    fseek(file, 0, SEEK_SET);
-    
-    if (file_size < (long)sizeof(score_file_header)) {
-        fclose(file);
-        log_error("Score file too small to contain header");
-        return false;
-    }
-    
-    score_file_header header;
-    if (fread(&header, sizeof(header), 1, file) != 1) {
-        fclose(file);
-        log_error("Failed to read score file header");
-        return false;
-    }
-    fclose(file);
-    
-    /* Basic sanity on version bytes */
-    if (header.version_major > 127 || header.version_minor > 127 ||
-        header.version_patch > 127) {
-        log_error("Invalid version in score file header");
-        return false;
-    }
-
-    /* Compute actual entry count from file size */
-    long payload = file_size - (long)sizeof(score_file_header);
-    if (payload < 0 || (payload % (long)sizeof(high_score)) != 0) {
-        log_error("Score file size not aligned with high_score entries");
-        return false;
-    }
-    u32b actual_entries = (u32b)(payload / (long)sizeof(high_score));
-
-    /* Cache version and entry count */
-    scores_file_version_major = header.version_major;
-    scores_file_version_minor = header.version_minor;
-    scores_file_version_patch = header.version_patch;
-    scores_file_version_extra = header.version_extra;
-    scores_file_entry_count = header.entry_count;
-    
-    log_trace("load_scores_file_header: Cached version set to %d.%d.%d.%d",
-              scores_file_version_major, scores_file_version_minor,
-              scores_file_version_patch, scores_file_version_extra);
-    
-    bool mismatch = (header.entry_count != actual_entries);
-    if (mismatch) {
-        log_debug("scores.raw header entry_count=%u but file has %u entries (will reconcile if opened writable)",
-                  header.entry_count, actual_entries);
-    } else {
-        log_trace("Loaded scores file: v%d.%d.%d.%d (%u entries)",
-                  header.version_major, header.version_minor, header.version_patch, 
-                  header.version_extra, header.entry_count);
-    }
-    
-    return true;
-}
-
-/*
- * Check if the cached score file version supports curse tracking
- * Returns true if version >= 0.9.0.6
- */
-static bool scores_version_has_curses(void)
-{
-    bool has_curses = false;
-    
-    /* Compare version tuple: major.minor.patch.extra */
-    if (scores_file_version_major > 0) has_curses = true;
-    else if (scores_file_version_major < 0) has_curses = false;
-    else if (scores_file_version_minor > 9) has_curses = true;
-    else if (scores_file_version_minor < 9) has_curses = false;
-    else if (scores_file_version_patch > 0) has_curses = true;
-    else if (scores_file_version_patch < 0) has_curses = false;
-    else has_curses = (scores_file_version_extra >= 6);
-    
-    return has_curses;
-}
-
-/*
- * Upgrade old score file to version 0.9.0.6 to enable curse support
- * This writes the updated header to the file
- */
-static bool upgrade_scores_file_to_curses(const char *filepath)
-{
-    /* Check if upgrade needed */
-    if (scores_version_has_curses()) {
-        return true;  /* Already at correct version */
-    }
-    
-    log_info("Upgrading scores file from v%d.%d.%d.%d to v0.9.0.6 (enabling curse support)",
-             scores_file_version_major, scores_file_version_minor,
-             scores_file_version_patch, scores_file_version_extra);
-    
-    /* Open file for read/write */
-    FILE* file = fopen(filepath, "r+b");
-    if (!file) {
-        log_error("Cannot open scores file for upgrade: %s", filepath);
-        return false;
-    }
-    
-    /* Read entire file */
-    fseek(file, 0, SEEK_END);
-    long file_size = ftell(file);
-    fseek(file, 0, SEEK_SET);
-    
-    char* buffer = malloc(file_size);
-    if (!buffer) {
-        fclose(file);
-        log_error("Cannot allocate memory for upgrade");
-        return false;
-    }
-    
-    if (fread(buffer, 1, file_size, file) != (size_t)file_size) {
-        free(buffer);
-        fclose(file);
-        log_error("Failed to read file during upgrade");
-        return false;
-    }
-    
-    /* Update header */
-    score_file_header* header = (score_file_header*)buffer;
-    header->version_major = 0;
-    header->version_minor = 9;
-    header->version_patch = 0;
-    header->version_extra = 6;
-    
-    /* Clear pts field (old score field, now curse count) in all entries */
-    /* pts field is at offset 8 in high_score struct, size 5 bytes */
-    long entry_count = (file_size - sizeof(score_file_header)) / sizeof(high_score);
-    for (long i = 0; i < entry_count; i++) {
-        long entry_offset = sizeof(score_file_header) + i * sizeof(high_score);
-        long pts_offset = entry_offset + 8;  /* pts is at offset 8 */
-        
-        /* Clear the 5-byte pts field to "    \0" (spaces + null) */
-        memset(buffer + pts_offset, ' ', 4);
-        buffer[pts_offset + 4] = '\0';
-    }
-    
-    log_info("Cleared pts field (old score) in %ld entries", entry_count);
-    
-    /* Write back updated file */
-    fseek(file, 0, SEEK_SET);
-    if (fwrite(buffer, 1, file_size, file) != (size_t)file_size) {
-        free(buffer);
-        fclose(file);
-        log_error("Failed to write upgraded file");
-        return false;
-    }
-    
-    free(buffer);
-    fflush(file);
-    fclose(file);
-    
-    /* Update cached version */
-    scores_file_version_major = 0;
-    scores_file_version_minor = 9;
-    scores_file_version_patch = 0;
-    scores_file_version_extra = 6;
-    
-    log_info("Successfully upgraded scores file to v0.9.0.6");
-    return true;
-}
-
-/*
- * Convert POSIX file flags to FILE* mode string
- */
-static const char* file_mode_from_flags(int mode)
-{
-    if (mode & O_CREAT) {
-        if (mode & O_RDWR) {
-            /* For read/write with create, we need special handling to avoid truncating existing files */
-            return NULL;  /* Special case - handled by caller */
-        }
-        else return "wb";  /* Create/truncate for write only */
-    }
-    else if (mode & O_RDWR) return "r+b"; /* Open existing for read/write */
-    else return "rb";                      /* Open existing for read only */
-}
-
-/*
- * Open scores file (all scores files must have version headers)
- */
-static FILE* open_scores_file_versioned(const char *filepath, int mode)
-{
-    /* Try to load header from existing file */
-    bool exists = load_scores_file_header(filepath);
-    
-    /* If file exists and we have write access, upgrade to curse support if needed */
-    if (exists && (mode & (O_RDWR | O_WRONLY))) {
-        upgrade_scores_file_to_curses(filepath);
-        /* Reload header after upgrade */
-        load_scores_file_header(filepath);
-    }
-    
-    FILE* file = NULL;
-    const char* mode_str = file_mode_from_flags(mode);
-    
-    if (mode_str == NULL) {
-        /* Special case: O_RDWR | O_CREAT - try to open existing first, then create */
-        file = fopen(filepath, "r+b");
-        if (!file) {
-            /* File doesn't exist, create it */
-            file = fopen(filepath, "w+b");
-        }
-    } else {
-        file = fopen(filepath, mode_str);
-    }
-
-    /* If writable and file exists, reconcile header entry count with actual bytes */
-    if (file && exists && mode != O_RDONLY) {
-        fseek(file, 0, SEEK_END);
-        long file_size = ftell(file);
-        fseek(file, 0, SEEK_SET);
-        
-        if (file_size >= (long)sizeof(score_file_header)) {
-            score_file_header header;
-            if (fread(&header, sizeof(header), 1, file) == 1) {
-                long payload = file_size - (long)sizeof(score_file_header);
-                if (payload >= 0 && (payload % (long)sizeof(high_score)) == 0) {
-                    u32b actual_entries = (u32b)(payload / (long)sizeof(high_score));
-                    if (header.entry_count != actual_entries) {
-                        log_info("Reconciling scores header: entry_count %u -> %u", header.entry_count, actual_entries);
-                        header.entry_count = actual_entries;
-                        fseek(file, 0, SEEK_SET);
-                        fwrite(&header, sizeof(header), 1, file);
-                        scores_file_entry_count = actual_entries;
-                    }
-                }
-            }
-        }
-    }
-    return file;
-}
-
-/*
- * Update the entry count in a versioned scores file header
- */
-static void update_scores_file_header_count(void)
-{
-    /* Count the actual entries in the file */
-    u32b count = 0;
-    high_score temp_score;
-    
-    /* Count entries by reading through the file */
-    highscore_seek_versioned(0);
-    while (count < MAX_HISCORES && highscore_read(&temp_score) == 0) {
-        /* Check if this is a valid entry (has a name) */
-        if (temp_score.who[0] != '\0') {
-            count++;
-        } else {
-            break; /* Stop at first empty entry */
-        }
-    }
-    
-    /* Update the header if count changed */
-    if (scores_file_entry_count != count) {
-        score_file_header header;
-        if (fseek(highscore_fd, 0, SEEK_SET) != 0)
-            return;
-        size_t read_items = fread(&header, sizeof(header), 1, highscore_fd);
-        if (read_items != 1)
-            return;
-
-        header.entry_count = count;
-        if (fseek(highscore_fd, 0, SEEK_SET) != 0)
-            return;
-        size_t written_items = fwrite(&header, sizeof(header), 1, highscore_fd);
-        if (written_items != 1)
-            return;
-        fflush(highscore_fd);
-        scores_file_entry_count = count;
-        log_debug("Updated scores file header count to %u", count);
-    }
-}
-
-/*
- * Seek score 'i' in the highscore file
- */
-static int highscore_seek(int i)
-{
-    return highscore_seek_versioned(i);
-}
-
-/*
- * Read one score from the highscore file
- */
-static errr highscore_read(high_score* score)
-{
-    log_trace("Reading score from highscore file");
-    
-    /* Check current file position before reading */
-    long current_pos = ftell(highscore_fd);
-    fseek(highscore_fd, 0, SEEK_END);
-    long file_size = ftell(highscore_fd);
-    fseek(highscore_fd, current_pos, SEEK_SET);
-    
-    log_debug("Before read: position=%ld, file_size=%ld, bytes_to_read=%d", 
-              current_pos, file_size, (int)sizeof(high_score));
-    
-    /* Check if we have enough bytes left in the file */
-    if (current_pos + (long)sizeof(high_score) > file_size) {
-        log_debug("Not enough data: need %d bytes but only %ld available", 
-                  (int)sizeof(high_score), file_size - current_pos);
-        return (1); /* EOF */
-    }
-    
-    /* Use fread for reliable reading */
-    size_t items_read = fread(score, sizeof(high_score), 1, highscore_fd);
-    if (items_read != 1) {
-        if (feof(highscore_fd)) {
-            log_trace("EOF reached while reading score");
-        } else if (ferror(highscore_fd)) {
-            log_trace("File error while reading score");
-        } else {
-            log_trace("Partial read: got %d items, expected 1", (int)items_read);
-        }
-        return (1);
-    }
-    
-    log_debug("Successfully read score: what='%.8s' who='%.16s' how='%.50s'", 
-              score->what, score->who, score->how);
-    return (0);
-}
-
-/*
- * Write one score to the highscore file
- */
-/* Helper: detect an all-zero (blank) score record */
-static bool is_blank_score(const high_score *s) {
-    static const high_score blank_ref; /* zero-initialised */
-    return (memcmp(s, &blank_ref, sizeof(high_score)) == 0);
-}
-
-static int highscore_write(const high_score* score)
-{
-    if (is_blank_score(score)) {
-        log_warn("Refusing to write blank highscore record (ignored)");
-        return 0; /* treat as success but do nothing */
-    }
-    log_debug("Writing score for player '%s' to highscore file", score->who[0] ? score->who : "<noname>");
-    
-    size_t items_written = fwrite(score, sizeof(high_score), 1, highscore_fd);
-    if (items_written != 1) {
-        log_error("Failed to write score to highscore file");
-        return 1;
-    }
-    
-    /* Flush the file to ensure it's written */
-    fflush(highscore_fd);
-    
-    /* Ensure header reflects any new entries */
-    update_scores_file_header_count();
-    
-    return 0;
-}   
-
-/*
- * Create backup of scores file with 3-backup rotation
- */
-static errr backup_scores_file(const char *filepath)
-{
-    /* Check if original file exists */
-    int fd_src = fd_open(filepath, O_RDONLY);
-    if (fd_src < 0) {
-        /* Original file doesn't exist, no backup needed */
-        return 0;
-    }
-    
-    /* Get file size */
-    int file_size = fd_file_size(fd_src);
-    if (file_size <= 0) {
-        fd_close(fd_src);
-        return 0;
-    }
-    
-    /* Read original file */
-    char *buffer = C_ZNEW(file_size, char);
-    if (!buffer) {
-        fd_close(fd_src);
-        return -1;
-    }
-    
-    if (fd_read(fd_src, buffer, file_size) != 0) {
-        FREE(buffer);
-        fd_close(fd_src);
-        return -1;
-    }
-    fd_close(fd_src);
-    
-    /* Simple backup rotation: bak1 (newest) -> bak2 -> bak3 (oldest) */
-    char backup_path1[1024], backup_path2[1024], backup_path3[1024];
-    strnfmt(backup_path1, sizeof(backup_path1), "%s.bak1", filepath);
-    strnfmt(backup_path2, sizeof(backup_path2), "%s.bak2", filepath);
-    strnfmt(backup_path3, sizeof(backup_path3), "%s.bak3", filepath);
-    
-    /* Rotate: bak2 -> bak3, bak1 -> bak2, current -> bak1 */
-    fd_kill(backup_path3);                    /* Remove oldest */
-    
-    /* Move bak2 to bak3 (if bak2 exists) - preserves timestamp */
-    int fd_test2 = fd_open(backup_path2, O_RDONLY);
-    if (fd_test2 >= 0) {
-        fd_close(fd_test2);
-        if (fd_move(backup_path2, backup_path3) != 0) {
-            log_error("backup_scores_file: failed to move bak2 to bak3");
-        }
-    }
-    
-    /* Move bak1 to bak2 (if bak1 exists) - preserves timestamp */
-    int fd_test1 = fd_open(backup_path1, O_RDONLY);
-    if (fd_test1 >= 0) {
-        fd_close(fd_test1);
-        if (fd_move(backup_path1, backup_path2) != 0) {
-            log_error("backup_scores_file: failed to move bak1 to bak2");
-        }
-    }
-    
-    /* Create new bak1 from current file */
-    int fd_dst = fd_make(backup_path1, 0644);
-    if (fd_dst < 0) {
-        FREE(buffer);
-        return -1;
-    }
-    
-    errr result = fd_write(fd_dst, buffer, file_size);
-    fd_close(fd_dst);
-    FREE(buffer);
-    
-    if (result == 0) {
-        log_info("Created scores backup: %s (rotated 3 backups)", backup_path1);
-    }
-    
-    return result;
-}
-
-static int clampi(int value, int minimum, int maximum)
-{
-    if (value < minimum)
-        return minimum;
-    if (value > maximum)
-        return maximum;
-    return value;
-}
-
-static int parse_score_int(const char* field, size_t field_len, int fallback)
-{
-    if (!field)
-        return fallback;
-
-    char buffer[16];
-    size_t copy_len = field_len;
-    if (copy_len >= sizeof(buffer))
-        copy_len = sizeof(buffer) - 1;
-
-    memcpy(buffer, field, copy_len);
-    buffer[copy_len] = '\0';
-
-    char* start = buffer;
-    while (*start && isspace((unsigned char)*start))
-        start++;
-
-    if (*start == '\0')
-        return fallback;
-
-    char* end = NULL;
-    long value = strtol(start, &end, 10);
-    if (start == end)
-        return fallback;
-
-    if (value > INT_MAX)
-        return INT_MAX;
-    if (value < INT_MIN)
-        return INT_MIN;
-
-    return (int)value;
-}
-
-static void parse_score_string(const char *field, size_t field_len,
-                               char *out, size_t out_len)
-{
-    if (!out || out_len == 0) {
-        return;
-    }
-
-    if (!field) {
-        out[0] = '\0';
-        return;
-    }
-
-    size_t copy_len = field_len;
-    if (copy_len >= out_len)
-        copy_len = out_len - 1;
-
-    memcpy(out, field, copy_len);
-    out[copy_len] = '\0';
-
-    /* Trim trailing NULs/spaces */
-    while (copy_len > 0 &&
-           (out[copy_len - 1] == '\0' || out[copy_len - 1] == ' ')) {
-        out[--copy_len] = '\0';
-    }
-
-    /* Trim leading spaces */
-    size_t start = 0;
-    while (out[start] == ' ')
-        start++;
-
-    if (start > 0) {
-        memmove(out, out + start, copy_len - start + 1);
-    }
-}
-
-typedef struct score_breakdown
-{
-    int base_score;
-    int mult_bp;
-    int silmarils;
-    int max_depth;
-    int cur_depth;
-    int depth_up;
-    int curses;
-    int house_power;
-    int uniques_killed;
-    bool escaped;
-    bool morgoth_slain;
-} score_breakdown;
-
-static score_breakdown calculate_score_breakdown(const high_score* score)
-{
-    score_breakdown result = {0};
-
-    int raw_max_depth = parse_score_int(score->max_dun, sizeof(score->max_dun), 0);
-    int raw_cur_depth = parse_score_int(score->cur_dun, sizeof(score->cur_dun), 0);
-    int silmarils = parse_score_int(score->silmarils, sizeof(score->silmarils), 0);
-    int curses = 0;
-    
-    /* Backwards compatibility: only use pts field for curse count if version >= 0.9.0.6 */
-    if (scores_version_has_curses()) {
-        curses = parse_score_int(score->pts, sizeof(score->pts), 0);
-        log_trace("calculate_score_breakdown: '%s' pts field='%.*s' parsed as curses=%d (version %d.%d.%d.%d)",
-                  score->who, (int)sizeof(score->pts), score->pts, curses,
-                  scores_file_version_major, scores_file_version_minor,
-                  scores_file_version_patch, scores_file_version_extra);
-    } else {
-        log_trace("calculate_score_breakdown: '%s' pts field ignored (old version %d.%d.%d.%d)",
-                  score->who,
-                  scores_file_version_major, scores_file_version_minor,
-                  scores_file_version_patch, scores_file_version_extra);
-    }
-    
-    int uniques_killed = parse_score_int(score->cur_lev, sizeof(score->cur_lev), 0);
-    bool morgoth = (score->morgoth_slain[0] == 't');
-    bool escaped = (score->escaped[0] == 't');
-
-    if (silmarils < 0)
-        silmarils = 0;
-    curses = clampi(curses, -1000, 1000);  /* Allow negative values (net blessings) */
-    uniques_killed = clampi(uniques_killed, 0, 999);
-
-    if (morgoth && silmarils < 3)
-        silmarils = 3;
-
-    int depth_down = clampi(raw_max_depth, 0, MORGOTH_DEPTH);
-    int depth_up = clampi(20 - raw_cur_depth, 0, MORGOTH_DEPTH);
-    if (morgoth)
-        depth_up = MORGOTH_DEPTH;
-
-    int base = 10 * depth_down;
-    
-    /* Add 3 points per unique monster killed */
-    base += 3 * uniques_killed;
-    
-    if (silmarils > 0)
-    {
-        base += 5 * depth_up;
-        base += 100;
-        if (silmarils > 1)
-            base += 50;
-        if (silmarils > 2)
-            base += 50;
-    }
-
-    if (morgoth)
-        base += 300;
-
-    if (escaped)
-        base += 100;
-
-    int house_index = parse_score_int(score->p_h, sizeof(score->p_h), -1);
-    int house_power = 3;
-    bool gift_of_eru = false;
-    int race_index = parse_score_int(score->p_r, sizeof(score->p_r), -1);
-
-    if (race_index >= 0 && z_info && p_info && race_index < z_info->p_max) {
-        if (p_info[race_index].flags & RHF_GIFTERU) gift_of_eru = true;
-    }
-
-    if (house_index >= 0 && z_info && c_info && house_index < z_info->c_max)
-    {
-        house_power = c_info[house_index].power;
-        if (c_info[house_index].flags & RHF_GIFTERU) gift_of_eru = true;
-        log_trace("calculate_score_breakdown: house_index=%d, house_power=%d (from c_info)", house_index, house_power);
-    }
-    else
-    {
-        log_trace("calculate_score_breakdown: Using default house_power=3 (house_index=%d, z_info=%p, c_info=%p, z_info->c_max=%d)",
-                 house_index, (void*)z_info, (void*)c_info, z_info ? z_info->c_max : -1);
-    }
-
-    house_power = clampi(house_power, -100, 100);
-    if (gift_of_eru && house_power > 0) {
-        house_power--;
-    }
-
-    /* Calculate multiplier using additive basis points:
-     * - Base multiplier: 1000 basis points (= 100% = 1.0x)
-     * - For each point of (3 - house_power):
-     *   * If (3-P) >= 0: +220 basis points per point (= 22% each)
-     *   * If (3-P) < 0: -100 basis points per point (= 10% each)
-     * - For each net curse (curses - blessings):
-     *   * If >= 0: +55 basis points per curse (= 5.5% each)
-     *   * If < 0: -20 basis points per blessing (= 2% each)
-     */
-    int mult_bp = 1000;
-    
-    int house_diff = 3 - house_power;
-    if (house_diff >= 0) {
-        mult_bp += house_diff * 220;  /* Each point of easier house = +22% */
-    } else {
-        mult_bp += house_diff * 100;  /* Each point of harder house = -10% (house_diff is negative) */
-    }
-    
-    if (curses >= 0) {
-        /* 5.5% per curse = 55 basis points */
-        mult_bp += curses * 55;
-    } else {
-        /* 2% per blessing = 20 basis points, but curses is negative */
-        mult_bp += curses * 20;
-    }
-    
-    /* Ensure non-negative */
-    if (mult_bp < 0)
-        mult_bp = 0;
-
-    result.base_score = base;
-    result.mult_bp = mult_bp;
-    result.silmarils = silmarils;
-    result.max_depth = depth_down;
-    result.cur_depth = clampi(raw_cur_depth, 0, MORGOTH_DEPTH);
-    result.depth_up = depth_up;
-    result.curses = curses;
-    result.house_power = house_power;
-    result.uniques_killed = uniques_killed;
-    result.morgoth_slain = morgoth;
-    result.escaped = escaped;
-
-    return result;
-}
-
-static bool force_interactive_scores = false;
-static bool score_last_layout_short = false;
-static bool forced_highlight_active = false;
-static high_score forced_highlight_entry;
-
-static int score_points_from_breakdown(const score_breakdown* breakdown)
-{
-    int64_t base = breakdown->base_score;
-    int64_t mult = breakdown->mult_bp;
-
-    if (base < 0)
-        base = 0;
-    if (mult < 0)
-        mult = 0;
-
-    int64_t total = base * mult;
-    if (total < 0)
-        total = 0;
-
-    int64_t scaled = total / 1000;
-    if (scaled > INT_MAX)
-        return INT_MAX;
-    if (scaled < 0)
-        return 0;
-
-    return (int)scaled;
-}
-
-/*
- * Compute the score for a record using the modern Sil-QH rules.
- *
- * Base points:
- *   - 10 per level of descent, clamped to [0, MORGOTH_DEPTH].
- *   - If at least one Silmaril is recovered, add 5 per level of ascent
- *     from depth 40, clamped to the same range.
- *   - Flat bonuses: +100 for the first Silmaril, +50 for the second and
- *     third, +300 for slaying Morgoth, +100 for escaping.
- *
- * Multipliers (additive basis points):
- *   - Base: 1000 basis points
- *   - For each point of (3 - house_power):
- *     * If (3-P) >= 0: +22 basis points per point
- *     * If (3-P) < 0: -10 basis points per point
- *   - For each net curse (curses - blessings):
- *     * If >= 0: +5.5 basis points per curse
- *     * If < 0: -2 basis points per blessing
- */
-int score_points(const high_score* score)
-{
-    if (!score)
-        return 0;
-
-    score_breakdown breakdown = calculate_score_breakdown(score);
-    int total = score_points_from_breakdown(&breakdown);
-
-    const char* who = (score->who[0] != '\0') ? score->who : "<unknown>";
-    log_debug(
-        "score_points: '%s' base=%d mult=%d (power=%d curses=%d sil=%d depth_down=%d depth_up=%d uniques=%d escaped=%s morgoth=%s) => %d",
-        who, breakdown.base_score, breakdown.mult_bp, breakdown.house_power,
-        breakdown.curses, breakdown.silmarils, breakdown.max_depth,
-        breakdown.depth_up, breakdown.uniques_killed, breakdown.escaped ? "yes" : "no",
-        breakdown.morgoth_slain ? "yes" : "no", total);
-
-    return total;
-}
-
-static int compare_scores(const high_score* a, const high_score* b)
-{
-    if (a == NULL || b == NULL)
-        return 0;
-
-    score_breakdown breakdown_a = calculate_score_breakdown(a);
-    score_breakdown breakdown_b = calculate_score_breakdown(b);
-
-    int score_a = score_points_from_breakdown(&breakdown_a);
-    int score_b = score_points_from_breakdown(&breakdown_b);
-
-    if (score_a > score_b)
-        return -1;
-    if (score_a < score_b)
-        return 1;
-
-    if (breakdown_a.escaped != breakdown_b.escaped)
-        return breakdown_a.escaped ? -1 : 1;
-
-    bool a_has_sil = (breakdown_a.silmarils > 0);
-    bool b_has_sil = (breakdown_b.silmarils > 0);
-    if (a_has_sil != b_has_sil)
-        return a_has_sil ? -1 : 1;
-
-    if (breakdown_a.morgoth_slain != breakdown_b.morgoth_slain)
-        return breakdown_a.morgoth_slain ? -1 : 1;
-
-    if (breakdown_a.silmarils != breakdown_b.silmarils)
-        return (breakdown_a.silmarils > breakdown_b.silmarils) ? -1 : 1;
-
-    if (breakdown_a.max_depth != breakdown_b.max_depth)
-        return (breakdown_a.max_depth > breakdown_b.max_depth) ? -1 : 1;
-
-    if (breakdown_a.mult_bp != breakdown_b.mult_bp)
-        return (breakdown_a.mult_bp > breakdown_b.mult_bp) ? -1 : 1;
-
-    return 0;
-}
-
-int score_count_alive_entries(void)
-{
-    char score_path[1024];
-    path_build(score_path, sizeof score_path, ANGBAND_DIR_APEX, "scores.raw");
-
-    FILE* saved_fd = highscore_fd;
-    byte saved_major = scores_file_version_major;
-    byte saved_minor = scores_file_version_minor;
-    byte saved_patch = scores_file_version_patch;
-    byte saved_extra = scores_file_version_extra;
-    u32b saved_entry_count = scores_file_entry_count;
-
-    safe_setuid_grab();
-    FILE* scan_fd = open_scores_file_versioned(score_path, O_RDONLY);
-    safe_setuid_drop();
-    if (!scan_fd) {
-        highscore_fd = saved_fd;
-        scores_file_version_major = saved_major;
-        scores_file_version_minor = saved_minor;
-        scores_file_version_patch = saved_patch;
-        scores_file_version_extra = saved_extra;
-        scores_file_entry_count = saved_entry_count;
-        return 0;
-    }
-
-    highscore_fd = scan_fd;
-
-    int alive = 0;
-    if (highscore_seek(0) == 0) {
-        high_score entry;
-        while (highscore_read(&entry) == 0) {
-            if (strcmp(entry.how, "(alive and well)") == 0) {
-                alive++;
-            }
-        }
-    }
-
-    fclose(highscore_fd);
-    highscore_fd = saved_fd;
-    scores_file_version_major = saved_major;
-    scores_file_version_minor = saved_minor;
-    scores_file_version_patch = saved_patch;
-    scores_file_version_extra = saved_extra;
-    scores_file_entry_count = saved_entry_count;
-
-    return alive;
-}
-
-u32b score_sum_dead_points(void)
-{
-    char score_path[1024];
-    path_build(score_path, sizeof score_path, ANGBAND_DIR_APEX, "scores.raw");
-
-    FILE* saved_fd = highscore_fd;
-    byte saved_major = scores_file_version_major;
-    byte saved_minor = scores_file_version_minor;
-    byte saved_patch = scores_file_version_patch;
-    byte saved_extra = scores_file_version_extra;
-    u32b saved_entry_count = scores_file_entry_count;
-
-    safe_setuid_grab();
-    FILE* scan_fd = open_scores_file_versioned(score_path, O_RDONLY);
-    safe_setuid_drop();
-    if (!scan_fd) {
-        highscore_fd = saved_fd;
-        scores_file_version_major = saved_major;
-        scores_file_version_minor = saved_minor;
-        scores_file_version_patch = saved_patch;
-        scores_file_version_extra = saved_extra;
-        scores_file_entry_count = saved_entry_count;
-        return 0;
-    }
-
-    highscore_fd = scan_fd;
-
-    u32b total = 0;
-    if (highscore_seek(0) == 0) {
-        high_score entry;
-        while (highscore_read(&entry) == 0) {
-            char how_buf[sizeof(entry.how) + 1];
-            char who_buf[sizeof(entry.who) + 1];
-            parse_score_string(entry.how, sizeof(entry.how), how_buf, sizeof(how_buf));
-            parse_score_string(entry.who, sizeof(entry.who), who_buf, sizeof(who_buf));
-
-            bool alive_marker = streq(how_buf, "(alive and well)");
-            bool escaped_marker = (entry.escaped[0] == 't');
-
-            /* Log every entry for debugging */
-            int points = score_points(&entry);
-            if (points < 0) points = 0;
-            
-            log_debug("score_sum_dead_points: entry '%s' pts=%d how=\"%s\" escaped=%c alive=%s -> %s",
-                      who_buf[0] ? who_buf : "<unknown>", points, how_buf,
-                      entry.escaped[0] ? entry.escaped[0] : 'f',
-                      alive_marker ? "yes" : "no",
-                      (alive_marker || escaped_marker) ? "SKIPPED" : "COUNTED");
-
-            /* Skip alive characters and escaped characters */
-            if (alive_marker || escaped_marker) {
-                continue;
-            }
-
-            u32b contribution = (u32b)points;
-            if (entry.morgoth_slain[0] == 't')
-            {
-                if (contribution > 0x7FFFFFFFU)
-                    contribution = 0xFFFFFFFFU;
-                else
-                    contribution *= 2;
-            }
-
-            if (contribution > 0xFFFFFFFFU - total)
-                total = 0xFFFFFFFFU;
-            else
-                total += contribution;
-        }
-    }
-
-    fclose(highscore_fd);
-    highscore_fd = saved_fd;
-    scores_file_version_major = saved_major;
-    scores_file_version_minor = saved_minor;
-    scores_file_version_patch = saved_patch;
-    scores_file_version_extra = saved_extra;
-    scores_file_entry_count = saved_entry_count;
-
-    return total;
-}
-static int compare_scores_qsort(const void* va, const void* vb)
-{
-    const high_score* a = (const high_score*)va;
-    const high_score* b = (const high_score*)vb;
-    return compare_scores(a, b);
-}
-
-static long score_day_key(const high_score* entry)
-{
-    if (!entry)
-        return LONG_MIN;
-
-    if (streq(entry->how, "(alive and well)"))
-        return LONG_MAX;
-
-    if (entry->day[0] != '@')
-        return LONG_MIN + 1;
-
-    char buf[32];
-    my_strcpy(buf, entry->day + 1, sizeof(buf));
-    char* end = NULL;
-    long value = strtol(buf, &end, 10);
-    if (value <= 0 || !end || *end != '\0')
-        return LONG_MIN + 1;
-
-    return value;
-}
-
-
-static int compare_scores_chronological(const void* va, const void* vb)
-{
-    const high_score* a = (const high_score*)va;
-    const high_score* b = (const high_score*)vb;
-
-    long day_a = score_day_key(a);
-    long day_b = score_day_key(b);
-    if (day_a != day_b)
-        return (day_a > day_b) ? -1 : 1;
-
-    int cmp = strcmp(a->who, b->who);
-    if (cmp != 0)
-        return cmp;
-
-    cmp = strcmp(a->how, b->how);
-    if (cmp != 0)
-        return cmp;
-
-    return compare_scores(a, b);
-}
-
-static int load_scores_into_array(high_score* entries, int capacity)
-{
-    if (!highscore_fd || capacity <= 0)
-        return 0;
-
-    if (highscore_seek(0))
-        return 0;
-
-    int count = 0;
-    while (count < capacity)
-    {
-        high_score temp;
-        if (highscore_read(&temp))
-            break;
-        if (temp.who[0] == '\0')
-            break;
-        entries[count++] = temp;
-    }
-
-    /* Leave the file positioned at the first entry for subsequent readers */
-    highscore_seek(0);
-
-    return count;
-}
-
-static int deduplicate_scores_by_name(high_score* entries, int count)
-{
-    if (count <= 1)
-        return count;
-
-    high_score unique[MAX_HISCORES + 1];
-    int unique_scores[MAX_HISCORES + 1];
-    int unique_count = 0;
-
-    for (int i = 0; i < count; i++)
-    {
-        int pts = score_points(&entries[i]);
-        bool merged = false;
-
-        for (int j = 0; j < unique_count; j++)
-        {
-            if (streq(entries[i].who, unique[j].who))
-            {
-                if (pts > unique_scores[j]
-                    || (pts == unique_scores[j] && strcmp(entries[i].day, unique[j].day) > 0)
-                    || (pts == unique_scores[j] && streq(entries[i].day, unique[j].day)
-                        && strcmp(entries[i].how, unique[j].how) > 0))
-                {
-                    unique[j] = entries[i];
-                    unique_scores[j] = pts;
-                }
-                merged = true;
-                break;
-            }
-        }
-
-        if (!merged)
-        {
-            unique[unique_count] = entries[i];
-            unique_scores[unique_count] = pts;
-            unique_count++;
-        }
-    }
-
-    for (int i = 0; i < unique_count; i++)
-    {
-        entries[i] = unique[i];
-    }
-
-    return unique_count;
-}
-
-int collect_high_scores(high_score* out, int capacity, bool sort_by_score)
-{
-    if (!out || capacity <= 0)
-        return 0;
-
-    char score_path[1024];
-    path_build(score_path, sizeof(score_path), ANGBAND_DIR_APEX, "scores.raw");
-
-    FILE* saved_fd = highscore_fd;
-    byte saved_major = scores_file_version_major;
-    byte saved_minor = scores_file_version_minor;
-    byte saved_patch = scores_file_version_patch;
-    byte saved_extra = scores_file_version_extra;
-    u32b saved_count = scores_file_entry_count;
-
-    safe_setuid_grab();
-    highscore_fd = open_scores_file_versioned(score_path, O_RDONLY);
-    safe_setuid_drop();
-    if (!highscore_fd)
-    {
-        highscore_fd = saved_fd;
-        scores_file_version_major = saved_major;
-        scores_file_version_minor = saved_minor;
-        scores_file_version_patch = saved_patch;
-        scores_file_version_extra = saved_extra;
-        scores_file_entry_count = saved_count;
-        return 0;
-    }
-
-    int limit = capacity;
-    if (limit > MAX_HISCORES)
-        limit = MAX_HISCORES;
-
-    int count = load_scores_into_array(out, limit);
-
-    if (sort_by_score)
-    {
-        qsort(out, count, sizeof(high_score), compare_scores_qsort);
-    }
-    else
-    {
-        qsort(out, count, sizeof(high_score), compare_scores_chronological);
-    }
-
-    count = deduplicate_scores_by_name(out, count);
-
-    fclose(highscore_fd);
-    highscore_fd = saved_fd;
-    /* Don't restore version - keep the version from the scores file we just read */
-    /* The cached version should reflect the actual scores.raw file version */
-    /* scores_file_version_major = saved_major; */
-    /* scores_file_version_minor = saved_minor; */
-    /* scores_file_version_patch = saved_patch; */
-    /* scores_file_version_extra = saved_extra; */
-    scores_file_entry_count = saved_count;
-
-    return count;
-}
-
-typedef enum
-{
-    SCORE_VIEW_ORDER_SCORE = 0,
-    SCORE_VIEW_ORDER_CHRONOLOGY = 1
-} score_view_order;
-
-static const char* score_view_order_label(score_view_order order)
-{
-    return (order == SCORE_VIEW_ORDER_CHRONOLOGY)
-        ? "Date (newest first)"
-        : "Score (highest first)";
-}
-
-static bool score_identity_matches(const high_score* a, const high_score* b)
-{
-    if (!a || !b)
-        return false;
-    return streq(a->who, b->who)
-        && streq(a->day, b->day)
-        && streq(a->how, b->how);
-}
-
-static int find_score_index(const high_score* entries, int count, const high_score* target)
-{
-    if (!target)
-        return -1;
-    for (int i = 0; i < count; i++)
-    {
-        if (score_identity_matches(&entries[i], target))
-            return i;
-    }
-    return -1;
-}
-
-static void set_forced_highlight_entry(const high_score* entry)
-{
-    if (entry) {
-        forced_highlight_entry = *entry;
-        forced_highlight_active = true;
-    } else {
-        forced_highlight_active = false;
-    }
-}
-
-static byte score_entry_color(const high_score* entry, bool highlight)
-{
-    if (highlight) return TERM_YELLOW;
-
-    if (!entry) return TERM_SLATE;
-
-    if (streq(entry->how, "(alive and well)"))
-        return TERM_L_GREEN;
-
-    if (entry->escaped[0] == 't')
-        return TERM_GREEN;
-
-    if (entry->morgoth_slain[0] == 't')
-        return TERM_L_RED;
-
-    int sil = atoi(entry->silmarils);
-    if (sil > 0)
-        return TERM_ORANGE;
-
-    int depth = atoi(entry->max_dun);
-    if (depth >= 10)
-        return TERM_WHITE;
-    if (depth >= 5)
-        return TERM_L_WHITE;
-
-    return TERM_SLATE;
-}
-
-static void truncate_preserving_words(const char* src, char* dst, size_t dst_size, int max_width)
-{
-    if (!dst || dst_size == 0)
-        return;
-    if (!src)
-        src = "";
-    if (max_width <= 0)
-    {
-        dst[0] = '\0';
-        return;
-    }
-
-    size_t limit = dst_size - 1;
-    if ((size_t)max_width > limit)
-        max_width = (int)limit;
-
-    int len = (int)strlen(src);
-    if (len <= max_width)
-    {
-        strnfmt(dst, dst_size, "%s", src);
-        return;
-    }
-
-    if (max_width <= 3)
-    {
-        int fill = MIN(max_width, (int)limit);
-        for (int i = 0; i < fill; i++) dst[i] = '.';
-        dst[fill] = '\0';
-        return;
-    }
-
-    int cut = max_width - 3;
-    int candidate = cut;
-    while (candidate > 0 && !isspace((unsigned char)src[candidate - 1]))
-        candidate--;
-    if (candidate >= 3)
-        cut = candidate;
-
-    char head[64];
-    strnfmt(head, sizeof(head), "%.*s", cut, src);
-    int head_len = (int)strlen(head);
-    while (head_len > 0 && isspace((unsigned char)head[head_len - 1]))
-        head[--head_len] = '\0';
-
-    strnfmt(dst, dst_size, "%s...", head);
-}
-
-static void truncate_preserving_tail(const char* src, char* dst, size_t dst_size, int max_width)
-{
-    if (!dst || dst_size == 0)
-        return;
-    if (!src)
-        src = "";
-    if (max_width <= 0)
-    {
-        dst[0] = '\0';
-        return;
-    }
-
-    size_t limit = dst_size - 1;
-    if ((size_t)max_width > limit)
-        max_width = (int)limit;
-
-    int len = (int)strlen(src);
-    if (len <= max_width)
-    {
-        strnfmt(dst, dst_size, "%s", src);
-        return;
-    }
-
-    if (max_width <= 4)
-    {
-        int fill = MIN(max_width, (int)limit);
-        for (int i = 0; i < fill; i++) dst[i] = '.';
-        dst[fill] = '\0';
-        return;
-    }
-
-    int end = len;
-    while (end > 0 && isspace((unsigned char)src[end - 1]))
-        end--;
-    int tail_start = end;
-    while (tail_start > 0 && !isspace((unsigned char)src[tail_start - 1]))
-        tail_start--;
-    int tail_len = end - tail_start;
-
-    if (tail_len >= max_width - 3)
-    {
-        const char* tail_ptr = src + len - (max_width - 3);
-        strnfmt(dst, dst_size, "...%.*s", max_width - 3, tail_ptr);
-        return;
-    }
-
-    int remaining = max_width - 3 - tail_len;
-    if (remaining < 3)
-        remaining = 3;
-
-    int head_end = tail_start;
-    if (head_end > remaining)
-        head_end = remaining;
-    int candidate = head_end;
-    while (candidate > 0 && !isspace((unsigned char)src[candidate - 1]))
-        candidate--;
-    if (candidate >= 3)
-        head_end = candidate;
-
-    char head[96];
-    strnfmt(head, sizeof(head), "%.*s", head_end, src);
-    int head_len = (int)strlen(head);
-    while (head_len > 0 && isspace((unsigned char)head[head_len - 1]))
-        head[--head_len] = '\0';
-
-    const char* tail_ptr = src + tail_start;
-    while (*tail_ptr && isspace((unsigned char)*tail_ptr))
-        tail_ptr++;
-
-    size_t pos = 0;
-    dst[0] = '\0';
-
-    if (head_len > 0)
-    {
-        size_t copy = (size_t)head_len;
-        if (copy > (size_t)max_width) copy = (size_t)max_width;
-        memcpy(dst + pos, head, copy);
-        pos += copy;
-    }
-
-    if (pos + 3 > (size_t)max_width)
-    {
-        int fill = MIN(max_width, (int)limit);
-        for (int i = 0; i < fill; i++) dst[i] = '.';
-        dst[fill] = '\0';
-        return;
-    }
-
-    memcpy(dst + pos, "...", 3);
-    pos += 3;
-
-    size_t tail_copy = strlen(tail_ptr);
-    if (tail_copy > (size_t)max_width - pos)
-        tail_copy = (size_t)max_width - pos;
-    memcpy(dst + pos, tail_ptr, tail_copy);
-    pos += tail_copy;
-    dst[pos] = '\0';
-}
-
-static void display_single_score_short(byte attr, int place, int row, const high_score* entry)
-{
-    char depth_commas[16];
-    char verdict_buf[96];
-    const char* verdict;
-    int wid, hgt;
-
-    /* Get actual terminal width */
-    Term_get_size(&wid, &hgt);
-    const int line_width = MAX(80, wid);
-
-    int depth_ft = atoi(entry->cur_dun) * 50;
-    comma_number(depth_commas, depth_ft);
-
-    int pts = score_points(entry);
-    int silmarils = parse_score_int(entry->silmarils, sizeof(entry->silmarils), 0);
-    bool morgoth = (entry->morgoth_slain[0] == 't');
-
-    /* Build indicators string */
-    char indicators[8] = "";
-    int ind_pos = 0;
-    
-    /* Add Silmaril indicators */
-    for (int i = 0; i < silmarils && i < 3; i++) {
-        indicators[ind_pos++] = '*';
-    }
-    
-    /* Add Morgoth indicator */
-    if (morgoth) {
-        indicators[ind_pos++] = 'V';
-    }
-    indicators[ind_pos] = '\0';
-
-    /* Build verdict with appropriate formatting */
-    if (entry->escaped[0] == 't') {
-        if (indicators[0]) {
-            strnfmt(verdict_buf, sizeof(verdict_buf), "Escaped with %s", indicators);
-        } else {
-            strnfmt(verdict_buf, sizeof(verdict_buf), "Escaped Angband");
-        }
-        verdict = verdict_buf;
-    } else if (streq(entry->how, "(alive and well)")) {
-        verdict = "Alive";
-    } else {
-        /* For deaths, include depth and indicators - keep ft visible */
-        if (indicators[0]) {
-            strnfmt(verdict_buf, sizeof(verdict_buf), "Slain by %s at %sft %s", 
-                    entry->how, depth_commas, indicators);
-        } else {
-            strnfmt(verdict_buf, sizeof(verdict_buf), "Slain by %s at %sft", 
-                    entry->how, depth_commas);
-        }
-        verdict = verdict_buf;
-    }
-
-    const char* name_src = entry->who[0] ? entry->who : "(unknown)";
-
-    /* Column layout with maximum verdict display:
-     * "1. Maedhros   777  Slain by a Young fire-drake at 800ft with indicators"
-     *  ^^^ ^^^^^^^^ ^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-     *  Pl  Name(12) Scr  Verdict (uses all remaining terminal width)
-     */
-    const int place_width = 4;      /* "1. " */
-    const int name_width = 15;      /* Fixed minimum name column */
-    const int score_width = 5;      /* Right-aligned score */
-    const int gap = 2;              /* Spaces between score and verdict */
-    
-    /* Verdict gets all remaining space on the line, minus 1 for cleaner right margin */
-    int verdict_start = place_width + name_width + score_width + gap;
-    int verdict_width = line_width - verdict_start - 1;  /* -1 for right margin */
-    if (verdict_width < 1) verdict_width = 1;
-
-    /* Build the line */
-    char line[256];
-    for (size_t i = 0; i < sizeof(line); i++) line[i] = ' ';
-    
-    int pos = 0;
-    
-    /* Place number: "1. " */
-    char place_buf[8];
-    strnfmt(place_buf, sizeof(place_buf), "%2d. ", place);
-    memcpy(line + pos, place_buf, strlen(place_buf));
-    pos = place_width;  /* Jump to fixed position */
-    
-    /* Name field: left-aligned in 20-char column */
-    char name_field[64];
-    truncate_preserving_words(name_src, name_field, sizeof(name_field), name_width);
-    int name_len = (int)strlen(name_field);
-    if (name_len > name_width) name_len = name_width;
-    memcpy(line + pos, name_field, name_len);
-    pos = place_width + name_width;  /* Jump to fixed position */
-    
-    /* Score field: right-aligned in 5-char column */
-    char score_buf[16];
-    strnfmt(score_buf, sizeof(score_buf), "%d", pts);
-    int score_len = (int)strlen(score_buf);
-    if (score_len > score_width) {
-        /* Truncate from left if too long */
-        memcpy(line + pos + score_width - score_len, score_buf + (score_len - score_width), score_width);
-    } else {
-        memcpy(line + pos + score_width - score_len, score_buf, score_len);
-    }
-    pos = place_width + name_width + score_width + gap;  /* Jump past score + gap */
-    
-    /* Verdict field: keep "at XXft" visible at end if truncating needed */
-    const char* verdict_str = verdict;
-    int verdict_len = (int)strlen(verdict_str);
-    
-    if (verdict_len > verdict_width) {
-        /* Find the " at " part which contains the depth info - keep it visible */
-        const char* at_pos = strstr(verdict_str, " at ");
-        if (at_pos) {
-            int at_offset = (int)(at_pos - verdict_str);
-            int tail_len = verdict_len - at_offset;  /* Length from " at " onward */
-            
-            if (tail_len < verdict_width) {
-                /* We can fit the tail, so truncate the beginning */
-                int prefix_len = verdict_width - tail_len;
-                memcpy(line + pos, verdict_str, prefix_len);
-                memcpy(line + pos + prefix_len, at_pos, tail_len);
-                pos += verdict_width;
-            } else {
-                /* Even the tail is too long, just show what fits starting from beginning */
-                memcpy(line + pos, verdict_str, verdict_width);
-                pos += verdict_width;
-            }
-        } else {
-            /* No " at " found, just show beginning of verdict */
-            memcpy(line + pos, verdict_str, verdict_width);
-            pos += verdict_width;
-        }
-    } else {
-        /* Verdict fits completely */
-        memcpy(line + pos, verdict_str, verdict_len);
-        pos += verdict_len;
-    }
-    
-    line[pos] = '\0';
-
-    c_put_str(attr, line, 3 + row, 0);
-}
-
-
-static char display_scores_pages(const high_score* entries, int count, int highlight_index,
-                                 score_view_order order, bool detailed, int page_size)
-{
-    Term_clear();
-
-    if (!entries || count <= 0)
-    {
-        c_put_str(TERM_L_BLUE, "               Halls of Mandos", 1, 0);
-        c_put_str(TERM_SLATE, "No recorded heroes yet.", 3, 0);
-        Term_putstr(2, 23, -1, TERM_L_WHITE, "(press any key)");
-        (void)inkey();
-        return 0;
-    }
-
-    int start_index = 0;
-    bool highlight_pending = true;
-
-    while (start_index < count)
-    {
-        int entries_per_page = detailed ? page_size : (page_size * 4);
-        if (entries_per_page < 1) entries_per_page = 1;
-
-        if (highlight_pending && highlight_index >= 0)
-        {
-            int max_start = (count - entries_per_page);
-            if (max_start < 0) max_start = 0;
-            start_index = (highlight_index / entries_per_page) * entries_per_page;
-            if (start_index > max_start) start_index = max_start;
-            highlight_pending = false;
-        }
-
-        Term_clear();
-        c_put_str(TERM_L_BLUE, "               Halls of Mandos", 1, 0);
-
-        char order_buf[64];
-        strnfmt(order_buf, sizeof(order_buf), "%s", score_view_order_label(order));
-        c_put_str(TERM_L_WHITE, order_buf, 2, 0);
-
-        char layout_buf[32];
-        strnfmt(layout_buf, sizeof(layout_buf), "Layout: %s", detailed ? "Full" : "Short");
-        c_put_str(TERM_SLATE, layout_buf, 2, 40);
-
-        for (int row = 0; row < entries_per_page && (start_index + row) < count; row++)
-        {
-            int idx = start_index + row;
-            bool is_highlight = (idx == highlight_index);
-            byte attr = score_entry_color(&entries[idx], is_highlight);
-
-            if (detailed)
-            {
-                display_single_score(attr, row * 4, 0, start_index + row + 1, false, (high_score*)&entries[idx]);
-            }
-            else
-            {
-                display_single_score_short(attr, start_index + row + 1, row, &entries[idx]);
-            }
-        }
-
-        bool has_more = (start_index + entries_per_page < count);
-
-        char footer[80];
-        strnfmt(footer, sizeof(footer), "[S] Toggle order   [L] Layout   [ESC] Exit   (press any other key to %s)",
-                has_more ? "continue" : "close");
-        Term_putstr(1, 23, -1, TERM_L_WHITE, footer);
-
-        char ch = inkey();
-        prt("", 23, 0);
-
-        if (ch == ESCAPE)
-            return ESCAPE;
-        if (ch == 's' || ch == 'S' || ch == 'o' || ch == 'O')
-            return ch;
-        if (ch == 'l' || ch == 'L')
-            return ch;
-
-        if (!has_more)
-            break;
-
-        start_index += entries_per_page;
-    }
-
-    return 0;
-}
-
-
-
-/*
- * Just determine whether a charackter is dead using high score
- * Return 1 if dead or 0 if alive
- */
-
-extern int highscore_dead(char* name)
-{
-    int i;
-    high_score the_score;
-    bool opened_here = false;
-
-    /* Open the file on-demand (read-only) using version detection */
-    if (!highscore_fd) {
-        char buf[1024];
-        path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
-        highscore_fd = open_scores_file_versioned(buf, O_RDONLY);
-        if (!highscore_fd) return 0; /* cannot determine */
-        opened_here = true;
-    }
-
-    /* Go to the start of the highscore file */
-    if (highscore_seek(0)) {
-        if (opened_here) { fclose(highscore_fd); highscore_fd = NULL; }
-        return 0;
-    }
-
-    /* Early exit: header says zero entries */
-    if (scores_file_entry_count == 0) {
-        if (opened_here) { fclose(highscore_fd); highscore_fd = NULL; }
-        return 0;
-    }
-
-    for (i = 0; i < MAX_HISCORES; i++) {
-        if (highscore_read(&the_score)) break; /* EOF */
-        if (strcmp(name, the_score.who) == 0) {
-            int dead = (strcmp(the_score.how, "(alive and well)") != 0);
-            if (opened_here) { fclose(highscore_fd); highscore_fd = NULL; }
-            return dead;
-        }
-    }
-
-    if (opened_here) { fclose(highscore_fd); highscore_fd = NULL; }
-    return 0; /* not found => treat as alive */
-}
-
 
 /*
  * Check if the scores file is empty (no entries)
@@ -6290,9 +7782,9 @@ extern bool highscore_is_empty()
     /* Open the file on-demand (read-only) */
     if (!highscore_fd) {
         char buf[1024];
-        path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
+        build_current_score_path(buf, sizeof(buf));
         safe_setuid_grab();
-        highscore_fd = open_scores_file_versioned(buf, O_RDONLY);
+        highscore_fd = score_file_open(buf, O_RDONLY);
         safe_setuid_drop();
         if (!highscore_fd) {
             log_debug("highscore_is_empty: cannot open scores file, treating as empty");
@@ -6303,223 +7795,10 @@ extern bool highscore_is_empty()
     
     /* Check entry count from header */
     bool is_empty = (scores_file_entry_count == 0);
-    if (opened_here) { fclose(highscore_fd); highscore_fd = NULL; }
+    if (opened_here) { SDL_CloseIO(highscore_fd); highscore_fd = NULL; }
     log_debug("highscore_is_empty: entry_count=%u, returning %s", 
               scores_file_entry_count, is_empty ? "true" : "false");
     return is_empty;
-}
-
-/*
- * Actually place an entry into the high score file
- * Return the location (0 is best) or -1 on "failure"
- */
-static int highscore_add(high_score* score)
-{
-    log_info("Adding score entry for player '%s'", score->who);
-
-    if (!highscore_fd)
-    {
-        log_warn("Cannot add score - highscore file not opened");
-        return -1;
-    }
-
-    high_score entries[MAX_HISCORES + 1];
-    int count = load_scores_into_array(entries, MAX_HISCORES);
-    bool replaced = false;
-
-    for (int i = 0; i < count; i++)
-    {
-        if (streq(entries[i].who, score->who))
-        {
-            entries[i] = (*score);
-            replaced = true;
-            break;
-        }
-    }
-
-    if (!replaced)
-    {
-        entries[count++] = (*score);
-    }
-
-    qsort(entries, count, sizeof(high_score), compare_scores_qsort);
-
-    count = deduplicate_scores_by_name(entries, count);
-
-    if (count > MAX_HISCORES)
-        count = MAX_HISCORES;
-
-    int slot = -1;
-    for (int i = 0; i < count; i++)
-    {
-        if (memcmp(&entries[i], score, sizeof(high_score)) == 0)
-        {
-            slot = i;
-            break;
-        }
-    }
-
-    if (slot < 0)
-    {
-        for (int i = 0; i < count; i++)
-        {
-            if (streq(entries[i].who, score->who)
-                && streq(entries[i].day, score->day)
-                && streq(entries[i].how, score->how))
-            {
-                slot = i;
-                break;
-            }
-        }
-    }
-
-    if (highscore_seek(0))
-    {
-        log_error("Failed to seek before rewriting high score table");
-        return slot;
-    }
-
-    for (int i = 0; i < count; i++)
-    {
-        if (fwrite(&entries[i], sizeof(high_score), 1, highscore_fd) != 1)
-        {
-            log_error("Failed to rewrite high score table entry %d", i);
-            return -1;
-        }
-    }
-
-    fflush(highscore_fd);
-
-    /* Update header entry count */
-    score_file_header header;
-    if (fseek(highscore_fd, 0, SEEK_SET) == 0
-        && fread(&header, sizeof(header), 1, highscore_fd) == 1)
-    {
-        header.entry_count = count;
-        fseek(highscore_fd, 0, SEEK_SET);
-        fwrite(&header, sizeof(header), 1, highscore_fd);
-        fflush(highscore_fd);
-        scores_file_entry_count = count;
-    }
-    else
-    {
-        log_warn("Unable to refresh high score header after rewrite");
-    }
-
-    highscore_seek(0);
-
-    log_debug(
-        "Sorted high score table written (%d entries). Player '%s' slot=%d replaced=%s",
-        count, score->who, slot, replaced ? "yes" : "no");
-
-    if (slot < 0 && !replaced)
-    {
-        log_warn("Score for player '%s' did not reach the published high score table", score->who);
-    }
-
-    return slot;
-}
-
-/*
- * Helper used by do_cmd_save_game to upsert a live "(alive and well)" entry
- * into scores.raw without duplicating the full logic inline (avoids forward
- * declaration issues). Safe to call repeatedly; it will update an existing
- * live entry for the same player name or append a new one.
- */
-static void upsert_live_score_on_save(void)
-{
-    log_info("upsert_live_score_on_save: Starting score save process");
-    char score_path[1024];
-    path_build(score_path, sizeof(score_path), ANGBAND_DIR_APEX, "scores.raw");
-    log_debug("upsert_live_score_on_save: Score path: %s", score_path);
-
-    safe_setuid_grab();
-    FILE* live_fd = open_scores_file_versioned(score_path, O_RDWR | O_CREAT);
-    safe_setuid_drop();
-    if (!live_fd) {
-        log_warn("Could not open scores.raw to upsert live save entry");
-        return;
-    }
-
-    /* Preserve global highscore state while we reuse helpers */
-    FILE* prev_fd = highscore_fd;
-    byte prev_major = scores_file_version_major;
-    byte prev_minor = scores_file_version_minor;
-    byte prev_patch = scores_file_version_patch;
-    byte prev_extra = scores_file_version_extra;
-    u32b prev_count = scores_file_entry_count;
-    highscore_fd = live_fd;
-
-    /* If newly created ensure a header exists */
-    if (!load_scores_file_header(score_path)) {
-        /* Create brand new versioned file header */
-        score_file_header header;
-        header.version_major = VERSION_MAJOR;
-        header.version_minor = VERSION_MINOR;
-        header.version_patch = VERSION_PATCH;
-        header.version_extra = VERSION_EXTRA;
-        header.entry_count = 0;
-        header.reserved[0] = 0;
-        header.reserved[1] = 0;
-        fseek(highscore_fd, 0, SEEK_SET);
-        fwrite(&header, sizeof(header), 1, highscore_fd);
-        fflush(highscore_fd);
-        scores_file_version_major = VERSION_MAJOR;
-        scores_file_version_minor = VERSION_MINOR;
-        scores_file_version_patch = VERSION_PATCH;
-        scores_file_version_extra = VERSION_EXTRA;
-        scores_file_entry_count = 0;
-    }
-
-    /* Build live score snapshot */
-    char saved_how[sizeof(p_ptr->died_from)];
-    my_strcpy(saved_how, p_ptr->died_from, sizeof(saved_how));
-    my_strcpy(p_ptr->died_from, "(alive and well)", sizeof(p_ptr->died_from));
-    high_score live_score;
-    log_debug("upsert_live_score_on_save: Creating score for player '%s' house=%d", 
-              op_ptr->full_name, p_ptr->phouse);
-    create_score(&live_score);
-    log_debug("upsert_live_score_on_save: Created score - who='%s' house='%s' how='%s'", 
-              live_score.who, live_score.p_h, live_score.how);
-    my_strcpy(p_ptr->died_from, saved_how, sizeof(p_ptr->died_from));
-
-    /* Scan for existing live entry for this character */
-    if (highscore_seek(0) == 0) {
-        high_score tmp; bool found=false; int idx;
-        for (idx=0; idx < MAX_HISCORES; idx++) {
-            if (highscore_read(&tmp)) break; /* EOF */
-            if (streq(tmp.who, live_score.who) && streq(tmp.how, "(alive and well)")) { found=true; break; }
-        }
-        if (found) {
-            log_debug("Updating existing live score entry for %s at %d (save)", live_score.who, idx);
-            highscore_seek(idx);
-            highscore_write(&live_score);
-        } else {
-            log_debug("Inserting new live score entry for %s (save)", live_score.who);
-            highscore_add(&live_score);
-        }
-    }
-
-    /* Instrumentation: log header entry count vs physical file */
-    fseek(highscore_fd, 0, SEEK_END);
-    long phys_size = ftell(highscore_fd);
-    fseek(highscore_fd, 0, SEEK_SET);
-    
-    score_file_header hdrchk;
-    fseek(highscore_fd, 0, SEEK_SET);
-    if (fread(&hdrchk, sizeof(hdrchk), 1, highscore_fd) == 1) {
-        long payload = phys_size - (long)sizeof(score_file_header);
-        long logical = (payload >= 0) ? (payload / (long)sizeof(high_score)) : -1;
-        log_debug("scores.raw post-save header.entry_count=%u physical_entries=%ld file_size=%ld", hdrchk.entry_count, logical, phys_size);
-    }
-
-    fclose(highscore_fd);
-    highscore_fd = prev_fd;
-    scores_file_version_major = prev_major;
-    scores_file_version_minor = prev_minor;
-    scores_file_version_patch = prev_patch;
-    scores_file_version_extra = prev_extra;
-    scores_file_entry_count = prev_count;
 }
 
 /* Removed obsolete duplicated hero_in_scores fragment */
@@ -6527,18 +7806,27 @@ static void upsert_live_score_on_save(void)
 #define RACE_PRIORITIES (sizeof(race_priority) / sizeof(race_priority[0]))
 
 /* ------------------------------------------------------------------ */
-/* bit-test whether RACE can belong to HOUSE                          */
-static int race_has_house(uint16_t race, uint16_t house)
+/* bit-test whether RACE can belong to CHARACTER                      */
+static int race_has_character(uint16_t race, uint16_t character)
 {
-    if (house >= z_info->c_max) return 0;
-    const uint16_t word  = house / 32U;
-    const uint16_t shift = house % 32U;
+    if (character >= z_info->c_max) return 0;
+    const uint16_t word  = character / 32U;
+    const uint16_t shift = character % 32U;
     return (p_info[race].choice[word] & (1U << shift)) != 0U;
+}
+
+static int parse_score_id(const char field[3])
+{
+    if (!field)
+        return -1;
+    if (!isdigit((unsigned char)field[0]) || !isdigit((unsigned char)field[1]))
+        return -1;
+    return (field[0] - '0') * 10 + (field[1] - '0');
 }
 
 /* ------------------------------------------------------------------ */
 /* helper - build a dummy hi-score entry so we can immediately kill it */
-static void build_dummy_entry(high_score *e, uint16_t race, uint16_t house)
+static void build_dummy_entry(high_score *e, uint16_t race, uint16_t character)
 {
     memset(e, 0, sizeof(*e));
 
@@ -6546,13 +7834,13 @@ static void build_dummy_entry(high_score *e, uint16_t race, uint16_t house)
     strnfmt(e->what, sizeof e->what, "%s",
             "Hero of the First Age");
 
-    /* 15-char player name - house name fits nicely */
-    const char *hname = c_name + c_info[house].name;
+    /* 15-char player name - character name fits nicely */
+    const char *hname = c_name + c_info[character].name;
     strnfmt(e->who,  sizeof e->who,  "%-.15s", hname);
 
-    /* race & house: two digits each, zero-padded                       */
+    /* race & character: two digits each, zero-padded                       */
     strnfmt(e->p_r,  sizeof e->p_r,  "%02u", race);
-    strnfmt(e->p_h,  sizeof e->p_h,  "%02u", house);
+    strnfmt(e->p_h,  sizeof e->p_h,  "%02u", character);
 
     /* Save the date in standard encoded form */
     time_t now = time(NULL);
@@ -6634,237 +7922,7 @@ void atomonth(int number, char* output)
  * Display a single score.
  * Assumes the high score list is already open.
  */
-extern void display_single_score(
-    byte attr, int row, int col, int place, int fake, high_score* the_score)
-{
-    int ph;
-    int aged, depth;
 
-    cptr user, when;
-
-    char out_val[160];
-    char tmp_val[160];
-
-    char aged_commas[15];
-    char depth_commas[15];
-
-    /* Extract the race/house */
-    ph = atoi(the_score->p_h);
-
-    /* Hack -- extract the turns and such */
-    for (user = the_score->uid; isspace((unsigned char)*user);
-         user++) /* loop */
-        ;
-    for (when = the_score->day; isspace((unsigned char)*when);
-         when++) /* loop */
-        ;
-
-    aged = atoi(the_score->turns);
-    depth = atoi(the_score->cur_dun) * 50;
-
-    comma_number(aged_commas, aged);
-    comma_number(depth_commas, depth);
-
-    /* Clean up standard encoded form of "when" */
-    if ((*when == '@') && strlen(when) == 9)
-    {
-        char month[4];
-
-        sprintf(month, "%.2s", when + 5);
-        atomonth(atoi(month), month);
-
-        if (*(when + 7) == '0')
-            sprintf(tmp_val, "%.1s %.3s %.4s", when + 8, month, when + 1);
-        else
-            sprintf(tmp_val, "%.2s %.3s %.4s", when + 7, month, when + 1);
-
-        when = tmp_val;
-    }
-
-    /* if not displayed in a place, then don't write the place number */
-    /* show the score as human-readable commas, e.g. "123 456"            */
-    char score_commas[16];
-    int calculated_score = score_points(the_score);
-    
-    log_debug("display_single_score: '%s' calculated_score=%d", the_score->who, calculated_score);
-    log_debug("  pts field raw: '%.*s'", (int)sizeof(the_score->pts), the_score->pts);
-    log_debug("  version: %d.%d.%d.%d (has_curses=%s)",
-              scores_file_version_major, scores_file_version_minor,
-              scores_file_version_patch, scores_file_version_extra,
-              scores_version_has_curses() ? "yes" : "no");
-    
-    comma_number(score_commas, calculated_score);
-
-    /* Build curse/blessing text if applicable */
-    char curse_text[32] = "";
-    byte curse_color = TERM_WHITE;
-    if (scores_version_has_curses())
-    {
-        int curses = parse_score_int(the_score->pts, sizeof(the_score->pts), 0);
-        log_debug("display_single_score: Building curse display for '%s', curses=%d", the_score->who, curses);
-        
-        if (curses > 0)
-        {
-            strnfmt(curse_text, sizeof(curse_text), " (%d curse%s)", curses, (curses == 1) ? "" : "s");
-            curse_color = TERM_L_RED;
-            log_debug("  curse_text='%s', color=%d", curse_text, curse_color);
-        }
-        else if (curses < 0)
-        {
-            strnfmt(curse_text, sizeof(curse_text), " (%d blessing%s)", -curses, (curses == -1) ? "" : "s");
-            curse_color = TERM_L_GREEN;
-            log_debug("  curse_text='%s', color=%d", curse_text, curse_color);
-        }
-        else
-        {
-            log_debug("  curses=0, not displaying");
-        }
-    }
-
-    if (place == 0)
-        strnfmt(out_val, sizeof(out_val), "     %5s ft  %s%s  [%s pts]",
-                depth_commas, the_score->who,
-                c_name + c_info[ph].alt_name, score_commas);
-    else
-        strnfmt(out_val, sizeof(out_val), "%3d. %5s ft  %s%s  [%s pts]",
-                place, depth_commas, the_score->who,
-                c_name + c_info[ph].alt_name, score_commas);
-
-    /* Add curse text to string (we'll display it in color later by finding it) */
-    size_t pre_curse_len = strlen(out_val);
-    if (curse_text[0] != '\0')
-    {
-        my_strcat(out_val, curse_text, sizeof(out_val));
-    }
-
-    /* Possibly ammend the first line */
-    if (the_score->morgoth_slain[0] == 't')
-    {
-        my_strcat(out_val, ", hailed as the Slayer of Morgoth's shadow",
-            sizeof(out_val));
-    }
-    else
-    {
-        if (the_score->silmarils[0] == '1')
-        {
-            my_strcat(out_val, ", who freed a Silmaril", sizeof(out_val));
-        }
-        if (the_score->silmarils[0] == '2')
-        {
-            my_strcat(out_val, ", who freed two Silmarils", sizeof(out_val));
-        }
-        if (the_score->silmarils[0] == '3')
-        {
-            my_strcat(
-                out_val, ", who freed all three Silmarils", sizeof(out_val));
-        }
-        if (the_score->silmarils[0] > '3')
-        {
-            my_strcat(out_val, ", who freed suspiciously many Silmarils",
-                sizeof(out_val));
-        }
-    }
-
-    /* Dump the first line */
-    c_put_str(attr, out_val, row + 3, col);
-
-    /* Overlay curse/blessing count in color at the position we added it */
-    if (curse_text[0] != '\0')
-    {
-        int curse_col = col + pre_curse_len;
-        log_debug("  Displaying curse_text='%s' at row=%d, col=%d", 
-                  curse_text, row + 3, curse_col);
-        c_put_str(curse_color, curse_text, row + 3, curse_col);
-    }
-    else
-    {
-        log_debug("  curse_text is empty, not displaying");
-    }
-
-    /* Prepare the second line for escapees */
-    if (the_score->escaped[0] == 't')
-    {
-        strnfmt(
-            out_val, sizeof(out_val), "               Escaped the iron hells");
-
-        if ((the_score->morgoth_slain[0] == 't')
-            || (the_score->silmarils[0] > '0'))
-        {
-            my_strcat(out_val, " and brought back the light of Valinor",
-                sizeof(out_val));
-        }
-        else
-        {
-            my_strcat(out_val, " empty-handed", sizeof(out_val));
-        }
-    }
-
-    /* "Alive" entry: either the synthetic/fake score or a real one whose
-       cause-of-death text is literally "(alive and well)"                */
-    else if (fake || streq(the_score->how, "(alive and well)"))
-    {
-        strnfmt(out_val, sizeof(out_val),
-            "               Lives still, deep within Angband's vaults");
-    }
-
-    /* Prepare the second line for those slain */
-    else if (the_score->morgoth_slain[0] == 't')
-    {
-        strnfmt(out_val, sizeof(out_val),
-            "               Victorious over Morgoth's illusion (%s)",
-            the_score->how);
-    }
-    else
-    {
-        strnfmt(out_val, sizeof(out_val), "               Slain by %s",
-            the_score->how);
-
-        /* Mark those with a silmaril */
-        if (the_score->silmarils[0] > '0')
-        {
-            my_strcat(out_val, " during a daring escape", sizeof(out_val));
-        }
-    }
-
-    /* Dump the info */
-    c_put_str(attr, out_val, row + 4, col);
-
-    /* Don't print date for living characters */
-    if (fake)
-    {
-        strnfmt(out_val, sizeof(out_val), "               after %s turns.",
-            aged_commas);
-        c_put_str(attr, out_val, row + 5, col);
-    }
-    else
-    {
-        strnfmt(out_val, sizeof(out_val),
-            "               after %s turns.  (%s)", aged_commas, when);
-        c_put_str(attr, out_val, row + 5, col);
-    }
-
-    /* Print symbols for silmarils / slaying Morgoth */
-    if (the_score->escaped[0] == 't')
-    {
-        c_put_str(attr, "  escaped", row + 3, col + 4);
-    }
-    if (the_score->silmarils[0] == '1')
-    {
-        c_put_str(attr, "         *", row + 5, col);
-    }
-    if (the_score->silmarils[0] == '2')
-    {
-        c_put_str(attr, "        * *", row + 5, col);
-    }
-    if (the_score->silmarils[0] > '2')
-    {
-        c_put_str(attr, "       * * *", row + 5, col);
-    }
-    if (the_score->morgoth_slain[0] == 't')
-    {
-        c_put_str(TERM_L_DARK, "         V", row + 4, col);
-    }
-}
 
 
 
@@ -6886,27 +7944,10 @@ extern void display_single_score(
  * This function is only called from "main.c" when the user asks
  * to see the "high scores".
  */
-void display_scores(int from, int to)
-{
-    (void)from;
-    (void)to;
 
-    log_info("Displaying high scores with interactive controls");
-    show_scores_interactive(true);
-    quit(NULL);
-}
 
 /* Public entry - compact list */
-void display_scores_short(int from, int to)
-{
-    (void)from;
-    (void)to;
 
-    bool previous_layout = score_last_layout_short;
-    score_last_layout_short = true;
-    show_scores_interactive(true);
-    score_last_layout_short = previous_layout;
-}
 
 
 /* =============================================================
@@ -6934,6 +7975,7 @@ void display_scores_short(int from, int to)
  * ===========================================================*/
 
 #include "angband.h"
+#include "externs.h"
 #include <stdbool.h>
 
 /* -------------------------------------------------------------
@@ -7111,30 +8153,44 @@ void print_fade_centered(cptr text)
     }
 }
 
+static bool banner_messages_use_stairs(void)
+{
+#ifdef __ANDROID__
+    const bool default_value = false;
+#else
+    const bool default_value = true;
+#endif
+
+    if (!op_ptr)
+        return default_value;
+
+    return op_ptr->opt[OPT_banner_message_stairs];
+}
+
 /* -------------------------------------------------------------
- * Public helper: fade-in text at a row, left-aligned with indent
+ * Public helper: show banner text at a row, left-aligned with indent.
  *  - Starts at the provided row (no vertical centering)
- *  - Left aligned at column >= 14, and for each subsequent line
- *    indentation increases by 2 columns (14, 16, 18, ...)
+ *  - Left aligned at column >= 14
+ *  - Optional stair layout offsets each subsequent line by 2 columns
  *  - Wraps dynamically per line width to ensure nothing is cut off
- *  - Adds a 500 ms delay between lines
- *  - Clears the printed region after a short hold to avoid artifacts
+ *  - Can either fade lines in or draw them immediately
+ *  - Optional line_delay adds the old staged banner pause between lines
  * ----------------------------------------------------------- */
-void print_fade_centered_at_row(cptr text, int row_start)
+void print_fade_centered_at_row(cptr text, int row_start, bool fade_in,
+    bool line_delay)
 {
     if (!text || !*text) return;
 
     int wid, h;
+    bool stair_layout = banner_messages_use_stairs();
     Term_get_size(&wid, &h);
 
     /* Force to second row (index 1) if the caller requests anything above it */
     if (row_start < 1) row_start = 1;
     if (row_start >= h) return; /* off-screen */
 
-#ifdef USE_SDL
     sdl_story_font_enable();
     log_debug("Depth banner: story font enabled");
-#endif
 
     /* Dynamic per-line wrapping and printing */
     enum { MAX_LINES2 = 32, MAX_LEN2 = 255 };
@@ -7153,10 +8209,15 @@ void print_fade_centered_at_row(cptr text, int row_start)
 
     while (*p && printed_lines < MAX_LINES2 && (row_start + printed_lines) < h)
     {
-    int indent = base_indent + 2 * printed_lines; /* left sticky, step by +2 each line */
-    if (indent >= wid - 1) break; /* nothing to show */
-    int avail = wid - indent - 1;
-    if (avail < 8) avail = 8; /* minimal width */
+        int indent = base_indent + (stair_layout ? (2 * printed_lines) : 0);
+        int avail;
+
+        if (indent >= wid - 1)
+            break; /* nothing to show */
+
+        avail = wid - indent - 1;
+        if (avail < 8)
+            avail = 8; /* minimal width */
 
         char buf[MAX_LEN2 + 1];
         int  linelen = 0;
@@ -7207,22 +8268,27 @@ void print_fade_centered_at_row(cptr text, int row_start)
 
         if (linelen == 0) break; /* nothing collected */
 
-        /* Show this line directly in orange (no fade effect for level entry banners) */
-        c_put_str(TERM_ORANGE, buf, row_start + printed_lines, indent);
-        Term_fresh();
+        if (fade_in)
+        {
+            print_fade_line(buf, row_start + printed_lines, indent);
+        }
+        else
+        {
+            /* Show this line directly in orange. */
+            c_put_str(TERM_ORANGE, buf, row_start + printed_lines, indent);
+            Term_fresh();
+        }
 
     /* Tracking of per-line geometry removed (unused). */
         printed_lines++;
 
-        /* 700ms gap before next line if more text remains */
-        if (*p && (row_start + printed_lines) < h)
+        /* Add a small gap between wrapped lines for delayed banners only. */
+        if (!fade_in && line_delay && *p && (row_start + printed_lines) < h)
             Term_xtra(TERM_XTRA_DELAY, 800);
     }
 
-#ifdef USE_SDL
     log_debug("Depth banner: story font disabled");
     sdl_story_font_disable();
-#endif
 
     /* Do not explicitly erase: allow natural redraws to overwrite the text */
 }
@@ -7230,6 +8296,33 @@ void print_fade_centered_at_row(cptr text, int row_start)
 /* -------------------------------------------------------------
  * print_story() - paging, subset & fade-in options
  * ----------------------------------------------------------- */
+static void story_prompt_label(int binding, const char* fallback, char* buf, size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    sdl_gamepad_action_binding_short_label(binding, buf, buflen);
+    if (streq(buf, "(unbound)") || streq(buf, "Multiple"))
+        SDL_strlcpy(buf, fallback, buflen);
+}
+
+static void story_print_hint(int indent, int h)
+{
+    if (steamdeck_controls_active()) {
+        char next_label[16];
+        char esc_label[16];
+        char prompt_buf[80];
+
+        story_prompt_label(' ', "A", next_label, sizeof(next_label));
+        story_prompt_label(ESCAPE, "ESC", esc_label, sizeof(esc_label));
+
+        strnfmt(prompt_buf, sizeof(prompt_buf), "[%s] next  *  [%s] fast forward", next_label, esc_label);
+        Term_putstr(indent, h - 1, -1, TERM_SLATE, prompt_buf);
+    } else {
+        Term_putstr(indent, h - 1, -1, TERM_SLATE, "[Enter] next  *  [Esc] fast forward");
+    }
+}
+
 void print_story(int last_parts, bool fade_in)
 {
     int wid, h;
@@ -7244,8 +8337,7 @@ void print_story(int last_parts, bool fade_in)
 
     /* Convenience macro to keep the bottom-line hint fresh */
 #define REDRAW_HINT() \
-    Term_putstr(indent, h - 1, -1, TERM_SLATE, \
-                "[Enter] next  *  [Esc] fast forward")
+    story_print_hint(indent, h)
 
     /* Build list of matching entries ------------------------ */
     int sils   = metar.silmarils;
@@ -7306,9 +8398,7 @@ void print_story(int last_parts, bool fade_in)
     hide_cursor = true;
     (void)Term_set_cursor(false);
 
-#ifdef USE_SDL
     sdl_story_font_enable();  // Enable for entire story display
-#endif
 
     Term_putstr(indent, 0, -1, TERM_YELLOW, "=== The Tale So Far ===");
     int row = 2;
@@ -7326,11 +8416,7 @@ void print_story(int last_parts, bool fade_in)
         
         /* Check if we need to paginate BEFORE rendering this story */
         /* Calculate actual space needed based on text content */
-#ifdef USE_SDL
         int text_lines = count_wrapped_lines_story(text, wrap_width, indent);
-#else
-        int text_lines = count_wrapped_lines(text, wrap_width, indent);
-#endif
         
         /* Space needed: 1 for heading + text_lines + 1 for blank line */
         int estimated_space_needed = 1 + text_lines + 1;
@@ -7432,13 +8518,9 @@ void print_story(int last_parts, bool fade_in)
                 {
                     row = 2;
                     Term_clear();
-#ifdef USE_SDL
                     sdl_story_font_enable();
-#endif
                     Term_putstr(indent, 0, -1, TERM_YELLOW, "=== The Tale So Far ===");
-#ifdef USE_SDL
                     sdl_story_font_disable();
-#endif
                     REDRAW_HINT();
                     continue;
                 }
@@ -7462,17 +8544,22 @@ void print_story(int last_parts, bool fade_in)
 
     /* Footer ------------------------------------------------ */
     Term_erase(0, h - 1, wid); /* clear bottom line entirely */
-    Term_putstr(indent, h - 1, -1, TERM_L_WHITE,
-                "[Press any key to continue]");
+    if (steamdeck_controls_active()) {
+        char next_label[16];
+        char prompt_buf[64];
+        story_prompt_label(' ', "A", next_label, sizeof(next_label));
+        strnfmt(prompt_buf, sizeof(prompt_buf), "[%s] continue", next_label);
+        Term_putstr(indent, h - 1, -1, TERM_L_WHITE, prompt_buf);
+    } else {
+        Term_putstr(indent, h - 1, -1, TERM_L_WHITE,
+                    "[Press any key to continue]");
+    }
     (void)inkey();
     
     /* Flush any queued keypresses that accumulated during the story */
     Term_flush();
     
-#ifdef USE_SDL
     sdl_story_font_disable();  // Disable after story display
-#endif
-    
     screen_load();
     /* Restore previous cursor visibility and hide_cursor flag */
     (void)Term_set_cursor(_saved_cursor_state);
@@ -7538,7 +8625,7 @@ extern int has_iron_crown(void)
 errr create_score(high_score* the_score)
 {
     /* Clear the record */
-    (void)WIPE(the_score, high_score);
+    memset(the_score, 0, sizeof(high_score));
 
     /* Save the version */
     strnfmt(the_score->what, sizeof(the_score->what), "%s", VERSION_STRING);
@@ -7561,14 +8648,18 @@ errr create_score(high_score* the_score)
     strftime(the_score->day, sizeof(the_score->day), "@%Y%m%d",
         localtime(&death_time));
 
-    /* Save the player name (15 chars) */
-    strnfmt(
-        the_score->who, sizeof(the_score->who), "%-.15s", op_ptr->full_name);
+    /* Save the player name (15 chars) - fall back to base_name to avoid empty live entries */
+    const char* score_name = op_ptr->full_name;
+    if (!score_name || !score_name[0]) {
+        score_name = op_ptr->base_name[0] ? op_ptr->base_name : "nameless";
+        log_warn("create_score: full_name empty, using fallback '%s' for score entry", score_name);
+    }
+    strnfmt(the_score->who, sizeof(the_score->who), "%-.15s", score_name);
 
     /* Save the player info XXX XXX XXX */
     strnfmt(the_score->uid, sizeof(the_score->uid), "%7u", player_uid);
     strnfmt(the_score->p_r, sizeof(the_score->p_r), "%2d", p_ptr->prace);
-    strnfmt(the_score->p_h, sizeof(the_score->p_h), "%2d", p_ptr->phouse);
+    strnfmt(the_score->p_h, sizeof(the_score->p_h), "%2d", p_ptr->pcharacter);
 
     /* Save the level and such */
     strnfmt(
@@ -7693,6 +8784,20 @@ static errr enter_score(high_score* the_score)
     /* Add a new entry to the score list, see where it went */
     score_idx = highscore_add(the_score);
 
+    /* Close the file after writing.
+     * Functions that need to read scores will open the file fresh. */
+    if (highscore_fd)
+    {
+        /* Grab permissions */
+        safe_setuid_grab();
+        
+        SDL_CloseIO(highscore_fd);
+        highscore_fd = NULL;
+        
+        /* Drop permissions */
+        safe_setuid_drop();
+    }
+
     /* Grab permissions */
     safe_setuid_grab();
 
@@ -7719,210 +8824,60 @@ static errr enter_score(high_score* the_score)
 /*
  * Predict the player's location, and display it.
  */
-static bool build_live_preview_score(high_score* out)
+bool build_live_preview_score(high_score* out)
 {
     if (!out || !character_generated)
         return false;
 
     char saved_how[sizeof(p_ptr->died_from)];
-    my_strcpy(saved_how, p_ptr->died_from, sizeof(saved_how));
+    SDL_strlcpy(saved_how, p_ptr->died_from, sizeof(saved_how));
 
     time_t previous_time = death_time;
     time_t now = time(NULL);
     if (now != (time_t)-1)
         death_time = now;
 
-    my_strcpy(p_ptr->died_from, "(alive and well)", sizeof(p_ptr->died_from));
+    SDL_strlcpy(p_ptr->died_from, "(alive and well)", sizeof(p_ptr->died_from));
 
     bool ok = (create_score(out) == 0);
 
-    my_strcpy(p_ptr->died_from, saved_how, sizeof(p_ptr->died_from));
+    SDL_strlcpy(p_ptr->died_from, saved_how, sizeof(saved_how));
     death_time = previous_time;
 
     return ok;
 }
 
-static bool ensure_entry_visible(high_score* entries, int* count, int capacity,
-                                 const high_score* target, bool sort_by_score, int* highlight_index)
-{
-    if (!entries || !count || !target || capacity <= 0)
-        return false;
 
-    int idx = find_score_index(entries, *count, target);
-    if (idx >= 0)
-    {
-        if (highlight_index) *highlight_index = idx;
-        return true;
-    }
 
-    if (*count < capacity)
-    {
-        entries[*count] = *target;
-        (*count)++;
-    }
-    else
-    {
-        entries[capacity - 1] = *target;
-        *count = capacity;
-    }
-
-    if (sort_by_score)
-        qsort(entries, *count, sizeof(high_score), compare_scores_qsort);
-    else
-        qsort(entries, *count, sizeof(high_score), compare_scores_chronological);
-
-    *count = deduplicate_scores_by_name(entries, *count);
-    if (*count > MAX_HISCORES)
-        *count = MAX_HISCORES;
-
-    idx = find_score_index(entries, *count, target);
-
-    if (idx < 0)
-    {
-        for (int i = 0; i < *count; i++)
-        {
-            if (streq(entries[i].who, target->who))
-            {
-                entries[i] = *target;
-                if (sort_by_score)
-                    qsort(entries, *count, sizeof(high_score), compare_scores_qsort);
-                else
-                    qsort(entries, *count, sizeof(high_score), compare_scores_chronological);
-                idx = find_score_index(entries, *count, target);
-                break;
-            }
-        }
-    }
-
-    if (highlight_index && idx >= 0)
-        *highlight_index = idx;
-
-    return idx >= 0;
-}
 
 /* Display the high score table (optionally long form) without committing a new score.
  * If character_generated is true and player is alive, show predicted placement.
  */
-void show_scores(bool longscore)
-{
-    bool preview_allowed = (!force_interactive_scores && !forced_highlight_active && character_generated && !p_ptr->is_dead);
-    log_info("show_scores: longscore=%d force_interactive=%d generated=%d dead=%d preview=%d",
-             longscore ? 1 : 0,
-             force_interactive_scores ? 1 : 0,
-             character_generated ? 1 : 0,
-             p_ptr->is_dead ? 1 : 0,
-             preview_allowed ? 1 : 0);
 
-    high_score ordered_by_score[MAX_HISCORES + 1];
-    high_score ordered_by_time[MAX_HISCORES + 1];
 
-    int count_score = collect_high_scores(ordered_by_score, MAX_HISCORES, true);
-    int count_time = collect_high_scores(ordered_by_time, MAX_HISCORES, false);
 
-    const int capacity = MAX_HISCORES + 1;
-    int page_size = 5;
-    bool detailed = !score_last_layout_short;
-    score_view_order order = SCORE_VIEW_ORDER_SCORE;
 
-    high_score highlight_buffer;
-    const high_score* highlight_entry = NULL;
-    if (forced_highlight_active)
-    {
-        highlight_entry = &forced_highlight_entry;
-    }
-    else if (character_generated)
-    {
-        if (p_ptr->is_dead)
-        {
-            if (create_score(&highlight_buffer) == 0)
-                highlight_entry = &highlight_buffer;
-        }
-        else if (build_live_preview_score(&highlight_buffer))
-        {
-            highlight_entry = &highlight_buffer;
-        }
-    }
 
-    int highlight_score = -1;
-    int highlight_time = -1;
-    if (highlight_entry)
-    {
-        highlight_score = find_score_index(ordered_by_score, count_score, highlight_entry);
-        highlight_time = find_score_index(ordered_by_time, count_time, highlight_entry);
-        log_debug("show_scores: highlight indices score=%d time=%d for %s",
-                  highlight_score, highlight_time, highlight_entry->who);
 
-        if (highlight_score < 0)
-            ensure_entry_visible(ordered_by_score, &count_score, capacity, highlight_entry, true, &highlight_score);
-        if (highlight_time < 0)
-            ensure_entry_visible(ordered_by_time, &count_time, capacity, highlight_entry, false, &highlight_time);
-    }
 
-    screen_save();
-    while (true)
-    {
-        const high_score* list = (order == SCORE_VIEW_ORDER_SCORE) ? ordered_by_score : ordered_by_time;
-        int count = (order == SCORE_VIEW_ORDER_SCORE) ? count_score : count_time;
-        int highlight = (order == SCORE_VIEW_ORDER_SCORE) ? highlight_score : highlight_time;
 
-        log_debug("show_scores: rendering page (order=%s count=%d highlight=%d)",
-                  (order == SCORE_VIEW_ORDER_SCORE) ? "score" : "time",
-                  count, highlight);
 
-        char response = display_scores_pages(list, count, highlight, order, detailed, page_size);
-        if (response == 's' || response == 'S' || response == 'o' || response == 'O')
-        {
-            order = (order == SCORE_VIEW_ORDER_SCORE) ? SCORE_VIEW_ORDER_CHRONOLOGY : SCORE_VIEW_ORDER_SCORE;
-            continue;
-        }
-        if (response == 'l' || response == 'L')
-        {
-            detailed = !detailed;
-            score_last_layout_short = !detailed;
-            continue;
-        }
-        break;
-    }
-    screen_load();
-    Term_fresh();
 
-    forced_highlight_active = false;
-    score_last_layout_short = !detailed;
-}
 
-void show_scores_interactive(bool longscore)
-{
-    bool previous = force_interactive_scores;
-    force_interactive_scores = true;
-    log_debug("show_scores_interactive: forcing interactive display (longscore=%d)", longscore ? 1 : 0);
-    show_scores(longscore);
-    force_interactive_scores = previous;
-}
 
-void show_scores_interactive_highlight(bool longscore, const high_score* entry)
-{
-    high_score saved_entry;
-    bool had_forced = forced_highlight_active;
-    if (had_forced) saved_entry = forced_highlight_entry;
 
-    if (entry) {
-        set_forced_highlight_entry(entry);
-    } else {
-        forced_highlight_active = false;
-    }
 
-    show_scores_interactive(longscore);
 
-    if (had_forced) {
-        forced_highlight_entry = saved_entry;
-        forced_highlight_active = true;
-    } else {
-        forced_highlight_active = false;
-    }
-}
+
+
+
+
+
+
+
 
 /*  Returns NULL when nothing was slain, or a static string with the
- *  house name of the slain hero.  If @do_roll is false, the caller has
+ *  character name of the slain hero.  If @do_roll is false, the caller has
  *  already performed the RNG check and we kill un-conditionally.       */
 const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
 {
@@ -7942,13 +8897,13 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
 
     /* 2) Build path to scores.raw */
     char score_path[1024];
-    path_build(score_path, sizeof score_path, ANGBAND_DIR_APEX, "scores.raw");
+    build_meta_path(score_path, sizeof(score_path), "scores.raw");
 
     /* 3) Open global highscore_fd (version-aware) if not already open */
     if (!highscore_fd) {
         log_trace("highscore_fd < 0, opening %s (version-aware)", score_path);
         safe_setuid_grab();
-        highscore_fd = open_scores_file_versioned(score_path, O_RDWR);
+        highscore_fd = score_file_open(score_path, O_RDWR);
         safe_setuid_drop();
         if (!highscore_fd) {
             quit(format("Cannot open %s (%d)", score_path, errno));
@@ -7958,26 +8913,51 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
     }
 
     /* 4) Determine number of records (exclude header) */
-    fseek(highscore_fd, 0, SEEK_END);
-    off_t file_end = ftell(highscore_fd);
+    SDL_SeekIO(highscore_fd, 0, SDL_IO_SEEK_END);
+    off_t file_end = SDL_TellIO(highscore_fd);
     off_t payload  = file_end - (off_t)sizeof(score_file_header);
     int n_recs = (int)(payload / (off_t)sizeof(high_score));
     log_trace("hi-score file size=%lld, payload=%lld, records=%d",
               (long long)file_end, (long long)payload, n_recs);
 
-    /* 5) Build list of races with eligible houses and apply weighted selection */
+    /* 5) Build list of races with eligible characters and apply weighted selection */
     
-    /* 5.a) First pass: identify which races have eligible houses */
+    bool *hero_ineligible = calloc(z_info->c_max, sizeof(*hero_ineligible));
+    if (!hero_ineligible) {
+        safe_setuid_grab();
+        if (SDL_CloseIO(highscore_fd) != 0)
+            log_warn("fclose(highscore_fd) failed, errno=%d", errno);
+        safe_setuid_drop();
+        highscore_fd = NULL;
+        quit("Out of memory in kinslayer_try_kill()");
+    }
+
+    if (n_recs > 0 && highscore_seek(0) == 0) {
+        high_score entry;
+        for (int r = 0; r < n_recs; ++r) {
+            if (highscore_read(&entry)) break;
+            int character = parse_score_id(entry.p_h);
+            if (character < 0 || character >= (int)z_info->c_max)
+                continue;
+            bool escaped = (tolower((unsigned char)entry.escaped[0]) == 't');
+            bool dead = (strcmp(entry.how, "(alive and well)") != 0);
+            if (escaped || dead)
+                hero_ineligible[character] = true;
+        }
+    }
+
+    /* 5.a) First pass: identify which races have eligible characters */
     uint16_t eligible_races[RACE_PRIORITIES];
     size_t eligible_count = 0;
     
     for (size_t i = 0; i < RACE_PRIORITIES && eligible_count < RACE_PRIORITIES; ++i) {
         uint16_t race = race_priority[i];
         
-        /* Check if this race has any eligible houses */
+        /* Check if this race has any eligible characters */
         bool has_eligible = false;
         for (uint16_t h = 0; h < z_info->c_max; ++h) {
-            if (!race_has_house(race, h)) continue;
+            if (!race_has_character(race, h)) continue;
+            if (hero_ineligible[h]) continue;
             const char *hname = c_name + c_info[h].name;
             if (strcmp(hname, op_ptr->base_name) == 0) continue;
             has_eligible = true;
@@ -7989,14 +8969,15 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
             log_trace("race priority[%zu]=%u added to eligible list (position %zu)", 
                       i, race, eligible_count - 1);
         } else {
-            log_trace("race priority[%zu]=%u has no eligible houses, skipping", i, race);
+            log_trace("race priority[%zu]=%u has no eligible characters, skipping", i, race);
         }
     }
     
     if (eligible_count == 0) {
         log_debug("No eligible races found - no kill performed");
+        free(hero_ineligible);
         safe_setuid_grab();
-        if (fclose(highscore_fd) != 0)
+        if (SDL_CloseIO(highscore_fd) != 0)
             log_warn("fclose(highscore_fd) failed, errno=%d", errno);
         safe_setuid_drop();
         highscore_fd = NULL;
@@ -8032,51 +9013,66 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
     uint16_t race = selected_race;
     log_trace("Processing selected race=%u", race);
     
-    /* Build pool of eligible houses for selected race */
+    /* Build pool of eligible characters for selected race */
     uint16_t *pool = malloc(z_info->c_max * sizeof *pool);
     if (!pool) {
-        fclose(highscore_fd);
+        free(hero_ineligible);
+        SDL_CloseIO(highscore_fd);
         quit("Out of memory in kinslayer_try_kill()");
     }
     size_t pool_n = 0;
     for (uint16_t h = 0; h < z_info->c_max; ++h) {
-        if (!race_has_house(race, h)) continue;
+        if (!race_has_character(race, h)) continue;
+        if (hero_ineligible[h]) continue;
         const char *hname = c_name + c_info[h].name;
         if (strcmp(hname, op_ptr->base_name) == 0) continue;
         pool[pool_n++] = h;
     }
-    log_trace("race %u: %zu eligible houses", race, pool_n);
-
-        /* 5.b) Pick one house */
-        uint16_t hsel  = pool[rand_int((int)pool_n)];
-        const char *hname = c_name + c_info[hsel].name;
+    log_trace("race %u: %zu eligible characters", race, pool_n);
+    if (pool_n == 0) {
         free(pool);
-        pool = NULL;
-        log_info("Kinslayer selected house %u (%s) for elimination", hsel, hname);
+        free(hero_ineligible);
+        safe_setuid_grab();
+        if (SDL_CloseIO(highscore_fd) != 0)
+            log_warn("fclose(highscore_fd) failed, errno=%d", errno);
+        safe_setuid_drop();
+        highscore_fd = NULL;
+        return NULL;
+    }
 
-        /* 5.c) Scan for existing entry */
-        int hit = -1;
-        high_score entry;
-        for (int r = 0; r < n_recs; ++r) {
-            if (highscore_seek(r)) break;
-            if (highscore_read(&entry)) break;
-            if (entry.p_r[0] == '0' + (race/10) &&
-                entry.p_r[1] == '0' + (race%10) &&
-                entry.p_h[0] == '0' + (hsel/10) &&
-                entry.p_h[1] == '0' + (hsel%10)) {
-                hit = r;
-                break;
-            }
+    /* 5.d) Pick one character */
+    uint16_t character_sel = pool[rand_int((int)pool_n)];
+    const char *hname = c_name + c_info[character_sel].name;
+    free(pool);
+    pool = NULL;
+    free(hero_ineligible);
+    hero_ineligible = NULL;
+    log_info("Kinslayer selected character %u (%s) for elimination", character_sel, hname);
+
+    /* 5.e) Scan for existing entry */
+    int hit = -1;
+    high_score entry;
+    for (int r = 0; r < n_recs; ++r) {
+        if (highscore_seek(r)) break;
+        if (highscore_read(&entry)) break;
+        if (entry.p_r[0] == '0' + (race/10) &&
+            entry.p_r[1] == '0' + (race%10) &&
+            entry.p_h[0] == '0' + (character_sel/10) &&
+            entry.p_h[1] == '0' + (character_sel%10)) {
+            hit = r;
+            break;
         }
-        log_trace("scan: entry_offset=%d", hit);
+    }
+    log_trace("scan: entry_offset=%d", hit);
 
-        if (hit >= 0) {
-            /* 5.d) Found - check alive AND not escaped */
+    if (hit >= 0) {
+        /* 5.f) Found - check alive AND not escaped */
             if (highscore_dead(entry.who)) {
                 log_debug("hero already dead - no kill performed");
                 if (pool) free(pool);
+                if (hero_ineligible) free(hero_ineligible);
                 safe_setuid_grab();
-                if (fclose(highscore_fd) != 0) {
+                if (SDL_CloseIO(highscore_fd) != 0) {
                     log_warn("fclose(highscore_fd) failed, errno=%d", errno);
                 }
                 safe_setuid_drop();
@@ -8087,8 +9083,9 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
             if (entry.escaped[0] == 't') {
                 log_debug("hero has escaped - no kill performed");
                 if (pool) free(pool);
+                if (hero_ineligible) free(hero_ineligible);
                 safe_setuid_grab();
-                if (fclose(highscore_fd) != 0) {
+                if (SDL_CloseIO(highscore_fd) != 0) {
                     log_warn("fclose(highscore_fd) failed, errno=%d", errno);
                 }
                 safe_setuid_drop();
@@ -8108,7 +9105,7 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
         else {
             /* 5.e) No record - insert dummy */
             high_score dummy;
-            build_dummy_entry(&dummy, race, hsel);
+            build_dummy_entry(&dummy, race, character_sel);
             log_trace("no existing record - inserting dummy \"%s\"", dummy.who);
 
             /* position for add */
@@ -8122,17 +9119,18 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
         }
 
         /* 6) UI is now handled by metarun_update_on_exit() */
-        static char killed_house[32];
-        my_strcpy(killed_house, hname, sizeof killed_house);
+        static char killed_character[32];
+        SDL_strlcpy(killed_character, hname, sizeof killed_character);
 
         /* 7) Close the descriptor and reset before returning */
+        if (hero_ineligible) free(hero_ineligible);
         safe_setuid_grab();
-        if (fclose(highscore_fd) != 0) {
+        if (SDL_CloseIO(highscore_fd) != 0) {
             log_warn("fclose(highscore_fd) failed, errno=%d", errno);
         }
         safe_setuid_drop();
         highscore_fd = NULL;
-        return killed_house;
+        return killed_character;
 }
 
 /*
@@ -8146,11 +9144,13 @@ errr file_character(cptr name, bool full)
     int i, x, y;
 
     byte a;
+
+#define SDL_IOprintf SDL_IOprintf
     char c;
 
-    int fd;
+    SDL_IOStream* fd;
 
-    FILE* fff = NULL;
+    SDL_IOStream* fff = NULL;
 
     char o_name[80];
 
@@ -8174,27 +9174,27 @@ errr file_character(cptr name, bool full)
     FILE_TYPE(FILE_TYPE_TEXT);
 
     /* Check for existing file */
-    fd = fd_open(buf, O_RDONLY);
+    fd = sdl_fopen(buf, "rb");
 
     /* Existing file */
-    if (fd >= 0)
+    if (fd)
     {
         char out_val[160];
 
         /* Close the file */
-        fd_close(fd);
+        sdl_fclose(fd);
 
         /* Build query */
         strnfmt(out_val, sizeof(out_val), "Replace existing file %s? ", buf);
 
         /* Ask */
         if (get_check(out_val))
-            fd = -1;
+            fd = NULL;
     }
 
     /* Open the non-existing file */
-    if (fd < 0)
-        fff = my_fopen(buf, "w");
+    if (!fd)
+        fff = sdl_fopen(buf, "w");
 
     /* Invalid file */
     if (!fff)
@@ -8204,7 +9204,7 @@ errr file_character(cptr name, bool full)
     text_out_file = fff;
 
     /* Begin dump */
-    fprintf(fff, "  [%s %s Character Dump]\n\n", VERSION_NAME, VERSION_STRING);
+    SDL_IOprintf(fff, "  [%s %s Character Dump]\n\n", VERSION_NAME, VERSION_STRING);
 
     /* Display player */
     display_player(0);
@@ -8230,7 +9230,7 @@ errr file_character(cptr name, bool full)
         buf[x] = '\0';
 
         /* End the row */
-        fprintf(fff, "%s\n", buf);
+        SDL_IOprintf(fff, "%s\n", buf);
     }
 
     /* If dead, dump last messages and a mini screenshot */
@@ -8241,26 +9241,26 @@ errr file_character(cptr name, bool full)
         i = message_num();
         if (i > 15)
             i = 15;
-        fprintf(fff, "\n  [Last Messages]\n\n");
+        SDL_IOprintf(fff, "\n  [Last Messages]\n\n");
         while (i-- > 0)
         {
-            fprintf(fff, "> %s\n", message_str((s16b)i));
+            SDL_IOprintf(fff, "> %s\n", message_str((s16b)i));
         }
-        fprintf(fff, "\n");
+        SDL_IOprintf(fff, "\n");
 
-        fprintf(fff, "\n  [Screenshot]\n\n");
+        SDL_IOprintf(fff, "\n  [Screenshot]\n\n");
 
         // simple screenshot for those who died in Angband
         if (!p_ptr->escaped)
         {
             for (y = 0; y <= 6; y++)
             {
-                fprintf(fff, "  ");
+                SDL_IOprintf(fff, "  ");
                 for (x = 0; x <= 6; x++)
                 {
-                    fprintf(fff, "%c", mini_screenshot_char[y][x]);
+                    SDL_IOprintf(fff, "%c", mini_screenshot_char[y][x]);
                 }
-                fprintf(fff, "\n");
+                SDL_IOprintf(fff, "\n");
             }
         }
 
@@ -8268,21 +9268,21 @@ errr file_character(cptr name, bool full)
         else
         {
             // grass
-            fprintf(fff, "  .......\n");
-            fprintf(fff, "  ~...#..\n");
-            fprintf(fff, "  ~~.....\n");
-            fprintf(fff, "  .~.@...\n");
-            fprintf(fff, "  .~~...#\n");
-            fprintf(fff, "  ..~~...\n");
-            fprintf(fff, "  ...~...\n");
+            SDL_IOprintf(fff, "  .......\n");
+            SDL_IOprintf(fff, "  ~...#..\n");
+            SDL_IOprintf(fff, "  ~~.....\n");
+            SDL_IOprintf(fff, "  .~.@...\n");
+            SDL_IOprintf(fff, "  .~~...#\n");
+            SDL_IOprintf(fff, "  ..~~...\n");
+            SDL_IOprintf(fff, "  ...~...\n");
         }
-        fprintf(fff, "\n");
+        SDL_IOprintf(fff, "\n");
     }
 
     /* Dump the equipment */
     if (p_ptr->equip_cnt)
     {
-        fprintf(fff, "\n  [Equipment]\n\n");
+        SDL_IOprintf(fff, "\n  [Equipment]\n\n");
         for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
         {
             object_type* o_ptr = &inventory[i];
@@ -8298,19 +9298,19 @@ errr file_character(cptr name, bool full)
                 char wgt_buf[80];
 
                 sprintf(wgt_buf, " %d.%1d lb", wgt / 10, wgt % 10);
-                my_strcat(o_name, wgt_buf, sizeof(o_name));
+                SDL_strlcat(o_name, wgt_buf, sizeof(o_name));
             }
 
-            fprintf(fff, "%c) %s\n", index_to_label(i), o_name);
+            SDL_IOprintf(fff, "%c) %s\n", index_to_label(i), o_name);
 
             /* Describe random object attributes */
             identify_random_gen(o_ptr);
         }
-        fprintf(fff, "\n\n");
+        SDL_IOprintf(fff, "\n\n");
     }
 
     /* Dump the inventory */
-    fprintf(fff, "  [Inventory]\n\n");
+    SDL_IOprintf(fff, "  [Inventory]\n\n");
     for (i = 0; i < INVEN_PACK; i++)
     {
         object_type* o_ptr = &inventory[i];
@@ -8329,17 +9329,17 @@ errr file_character(cptr name, bool full)
             char wgt_buf[80];
 
             sprintf(wgt_buf, " %d.%1d lb", wgt / 10, wgt % 10);
-            my_strcat(o_name, wgt_buf, sizeof(o_name));
+            SDL_strlcat(o_name, wgt_buf, sizeof(o_name));
         }
 
-        fprintf(fff, "%c) %s\n", index_to_label(i), o_name);
+        SDL_IOprintf(fff, "%c) %s\n", index_to_label(i), o_name);
 
         /* Describe random object attributes */
         identify_random_gen(o_ptr);
     }
 
     // Dump abilities.
-    fprintf(fff, "\n\n  [Abilities]\n\n");
+    SDL_IOprintf(fff, "\n\n  [Abilities]\n\n");
     for (i = 0; i < z_info->b_max; i++)
     {
         b_ptr = &b_info[i];
@@ -8352,25 +9352,25 @@ errr file_character(cptr name, bool full)
             if (b_ptr->skilltype == S_PER && b_ptr->abilitynum == PER_BANE
                 && p_ptr->bane_type > 0)
             {
-                fprintf(fff, "%s-%s\n", bane_name[p_ptr->bane_type],
+                SDL_IOprintf(fff, "%s-%s\n", bane_name[p_ptr->bane_type],
                     (b_name + b_ptr->name));
             }
             else if (b_ptr->skilltype == S_WIL && b_ptr->abilitynum == WIL_OATH
                 && p_ptr->oath_type > 0)
             {
                 if (oath_invalid(p_ptr->oath_type))
-                    fprintf(fff, "%s: %s (Broken)\n", (b_name + b_ptr->name),
+                    SDL_IOprintf(fff, "%s: %s (Broken)\n", (b_name + b_ptr->name),
                         oath_name[p_ptr->oath_type]);
                 else
-                    fprintf(fff, "%s: %s\n", (b_name + b_ptr->name),
+                    SDL_IOprintf(fff, "%s: %s\n", (b_name + b_ptr->name),
                         oath_name[p_ptr->oath_type]);
             }
             else
-                fprintf(fff, "%s\n", (b_name + b_ptr->name));
+                SDL_IOprintf(fff, "%s\n", (b_name + b_ptr->name));
         }
     }
 
-    fprintf(fff, "\n\n  [Enemies]\n\n");
+    SDL_IOprintf(fff, "\n\n  [Enemies]\n\n");
 
     for (i = 1; i < z_info->r_max - 1; i++)
     {
@@ -8385,13 +9385,13 @@ errr file_character(cptr name, bool full)
         if (r_ptr->flags1 & (RF1_UNIQUE))
         {
             /* Print a message */
-            fprintf(fff, "  %-7s %s \n", l_ptr->pkills ? "(slain)" : "(seen)",
+            SDL_IOprintf(fff, "  %-7s %s \n", l_ptr->pkills ? "(slain)" : "(seen)",
                 (r_name + r_ptr->name));
         }
         else
         {
             /* Print a message */
-            fprintf(fff, "%3d /%3d  %-40s\n", l_ptr->pkills, l_ptr->psights,
+            SDL_IOprintf(fff, "%3d /%3d  %-40s\n", l_ptr->pkills, l_ptr->psights,
                 (r_name + r_ptr->name));
         }
     }
@@ -8399,7 +9399,7 @@ errr file_character(cptr name, bool full)
     // Dump found artefacts if dead.
     if (p_ptr->is_dead)
     {
-        fprintf(fff, "\n\n  [Artefacts]\n\n");
+        SDL_IOprintf(fff, "\n\n  [Artefacts]\n\n");
 
         // Just go to the end of the normal artefacts list, don't also grab
         // forged artefacts.
@@ -8418,12 +9418,12 @@ errr file_character(cptr name, bool full)
             make_fake_artefact(o_ptr, i);
             object_desc_spoil(o_name, sizeof(o_name), o_ptr, true, 0);
 
-            fprintf(
+            SDL_IOprintf(
                 fff, "%s %s\n", o_name, a_ptr->found_num > 0 ? "(found)" : "");
         }
     }
 
-    fprintf(fff, "\n\n  [Notes]\n\n");
+    SDL_IOprintf(fff, "\n\n  [Notes]\n\n");
 
     /*dump notes to character file*/
     i = 0;
@@ -8436,13 +9436,13 @@ errr file_character(cptr name, bool full)
 
         /*output it to the character dump*/
         if (holder != '\0')
-            fprintf(fff, "%c", holder);
+            SDL_IOprintf(fff, "%c", holder);
 
         // increment location in notes buffer
         i++;
     }
 
-    fprintf(fff, "\n");
+    SDL_IOprintf(fff, "\n");
 
     /* Count options */
     for (i = OPT_BIRTH; i < OPT_CHEAT; i++)
@@ -8456,27 +9456,29 @@ errr file_character(cptr name, bool full)
     if (challenges)
     {
         /* Dump options */
-        fprintf(fff, "  [Challenges]\n\n");
+        SDL_IOprintf(fff, "  [Challenges]\n\n");
 
         /* Dump options */
         for (i = OPT_BIRTH; i < OPT_CHEAT; i++)
         {
             if (option_desc[i] && op_ptr->opt[i])
             {
-                fprintf(fff, "%-45s\n", option_desc[i]);
+                SDL_IOprintf(fff, "%-45s\n", option_desc[i]);
             }
         }
     }
 
     /* Skip some lines */
-    fprintf(fff, "\n\n");
+    SDL_IOprintf(fff, "\n\n");
 
     // display a "score"
     create_score(&the_score);
-    fprintf(fff, "  ['Score' %.9d]\n\n", score_points(&the_score));
+    SDL_IOprintf(fff, "  ['Score' %.9d]\n\n", score_points(&the_score));
 
     /* Close it */
-    my_fclose(fff);
+    sdl_fclose(fff);
+
+#undef SDL_IOprintf
 
     /* Success */
     return (0);
@@ -8486,6 +9488,11 @@ static int final_menu(int* highlight)
 {
     char ch;
     bool morgoth_victory = (p_ptr->morgoth_slain && !p_ptr->escaped);
+    int term_wid = 80;
+    int term_hgt = 24;
+    int separator_row;
+    int option_row;
+    char separator[96];
 
     const char* option_a = morgoth_victory ? "a) Review the Valar's record"
                                            : "a) View scores";
@@ -8501,28 +9508,39 @@ static int final_menu(int* highlight)
                                            : "f) Save character sheet";
     const char* option_exit = "g) Exit";
 
-    Term_putstr(3, 10, -1, TERM_L_DARK,
-        "____________________________________________________");
-    Term_putstr(15, 12, -1, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
+    Term_get_size(&term_wid, &term_hgt);
+    separator_row = (term_hgt < 20) ? 9 : 10;
+    option_row = separator_row + 2;
+    memset(separator, '_', sizeof(separator) - 1);
+    separator[MIN((int)sizeof(separator) - 1, MAX(1, term_wid - 6))] = '\0';
+
+    Term_putstr(3, separator_row, term_wid - 6, TERM_L_DARK, separator);
+    Term_putstr(15, option_row++, term_wid - 15,
+        (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
         option_a);
-    Term_putstr(15, 13, -1, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(15, option_row++, term_wid - 15,
+        (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
         option_b);
-    Term_putstr(15, 14, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(15, option_row++, term_wid - 15,
+        (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
         option_c);
-    Term_putstr(15, 15, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(15, option_row++, term_wid - 15,
+        (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
         option_d);
-    Term_putstr(15, 16, -1, (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(15, option_row++, term_wid - 15,
+        (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
         option_e);
-    Term_putstr(15, 17, -1, (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(15, option_row++, term_wid - 15,
+        (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
         option_f);
-    Term_putstr(
-        15, 19, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE, option_exit);
+    Term_putstr(15, option_row, term_wid - 15,
+        (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE, option_exit);
 
     /* Flush the prompt */
     Term_fresh();
 
     /* Place cursor at current choice */
-    Term_gotoxy(10, 18 + *highlight);
+    Term_gotoxy(10, separator_row + 1 + *highlight);
 
     /* Get key (while allowing menu commands) */
     hide_cursor = true;
@@ -8615,6 +9633,7 @@ static void close_game_aux(void)
         return;
     }
     death_processing = true;
+    clear_postmortem_scores_path();
 
     log_debug("Processing character death for '%s' (wizard=%d, noscore=0x%04X, savefile='%s')",
              op_ptr->full_name, p_ptr->wizard ? 1 : 0, (unsigned)p_ptr->noscore, savefile);
@@ -8640,6 +9659,10 @@ static void close_game_aux(void)
     /* Enter player in high score list */
     log_info("entering score");
     create_score(&the_score);
+    score_record_status final_status = p_ptr->escaped ? SCORE_RECORD_ESCAPED : SCORE_RECORD_DEAD;
+    if (!score_runs_record_current_run(&the_score, death_time, final_status)) {
+        log_warn("Failed to persist run statistics for '%s'", op_ptr->full_name);
+    }
     enter_score(&the_score);
 
     // cure hallucination and rage
@@ -8671,16 +9694,38 @@ static void close_game_aux(void)
 
     /* Record this run's outcome for the metarun ledger */
     int final_score = score_points(&the_score);
-    if (p_ptr->morgoth_slain && !p_ptr->escaped)
+    if (!run_mode_is_blitz())
     {
-        log_info("Player achieved Morgoth victory - updating metarun data");
-        metarun_update_on_exit(false, false, 3, final_score);
+        if (p_ptr->escaped)
+        {
+            int escaped_silmarils = parse_score_int(the_score.silmarils,
+                sizeof(the_score.silmarils), 0);
+            log_info("Player escaped - updating metarun data after score entry");
+            metarun_update_on_exit(false, true, (byte)MAX(escaped_silmarils, 0),
+                final_score);
+        }
+        else if (p_ptr->morgoth_slain && !p_ptr->escaped)
+        {
+            log_info("Player achieved Morgoth victory - updating metarun data");
+            metarun_update_on_exit(false, false, 3, final_score);
+        }
+        else
+        {
+            log_info("Player died - updating metarun data");
+            if (!p_ptr->escaped)
+                metarun_update_on_exit(true, false, 0, final_score);
+        }
     }
     else
     {
-        log_info("Player died - updating metarun data");
-        if (!p_ptr->escaped)
-            metarun_update_on_exit(true, false, 0, final_score);
+        int blitz_silmarils = silmarils_possessed();
+
+        if (blitz_silmarils < 0)
+            blitz_silmarils = 0;
+        if (p_ptr->morgoth_slain && blitz_silmarils < 3)
+            blitz_silmarils = 3;
+
+        blitz_show_end_summary((byte)blitz_silmarils);
     }
 
     /* Let the player inspect the final dungeon state before the tomb menu. */
@@ -8708,7 +9753,12 @@ static void close_game_aux(void)
         // view scores
         case 1:
         {
-            show_scores_interactive_highlight(true, &the_score);
+            if (g_postmortem_scores_path[0]) {
+                show_scores_interactive_highlight_from_file(true,
+                    g_postmortem_scores_path, &the_score);
+            } else {
+                show_scores_interactive_highlight(true, &the_score);
+            }
             break;
         }
 
@@ -8810,6 +9860,7 @@ static void close_game_aux(void)
     }
 
     /* Reset death processing flag for next character */
+    clear_postmortem_scores_path();
     death_processing = false;
 }
 
@@ -8844,7 +9895,7 @@ void close_game(void)
     log_debug("files.c: character_icky incremented to %d (opening scores file)", character_icky);
 
     /* Build the filename */
-    path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
+    build_current_score_path(buf, sizeof(buf));
 
     log_debug("Opening scores file for read/write: %s", buf);
 
@@ -8855,7 +9906,7 @@ void close_game(void)
     safe_setuid_grab();
 
     /* Open the high score file, for reading/writing */
-    highscore_fd = open_scores_file_versioned(buf, O_RDWR);
+    highscore_fd = score_file_open(buf, O_RDWR);
 
     /* Drop permissions */
     safe_setuid_drop();
@@ -8918,15 +9969,15 @@ void close_game(void)
         /* Update the live character entry in the scores file so that
            scores.raw acts as a database of current running characters.
            We record an entry with how == "(alive and well)". */
-        if (highscore_fd >= 0) {
+        if (highscore_fd) {
             char saved_how[sizeof(p_ptr->died_from)];
-            my_strcpy(saved_how, p_ptr->died_from, sizeof(saved_how));
-            my_strcpy(p_ptr->died_from, "(alive and well)", sizeof(p_ptr->died_from));
+            SDL_strlcpy(saved_how, p_ptr->died_from, sizeof(saved_how));
+            SDL_strlcpy(p_ptr->died_from, "(alive and well)", sizeof(p_ptr->died_from));
             high_score live_score;
             create_score(&live_score);
 
             /* Restore original (probably redundant during quit) */
-            my_strcpy(p_ptr->died_from, saved_how, sizeof(p_ptr->died_from));
+            SDL_strlcpy(p_ptr->died_from, saved_how, sizeof(p_ptr->died_from));
 
             /* Acquire write lock while we upsert */
             safe_setuid_grab();
@@ -8953,7 +10004,6 @@ void close_game(void)
                         log_debug("Updating existing live score entry for %s at %d", live_score.who, idx);
                         highscore_seek(idx);
                         highscore_write(&live_score);
-                        update_scores_file_header_count();
                     } else {
                         log_debug("Inserting new live score entry for %s", live_score.who);
                         highscore_add(&live_score); /* adds (may not perfectly shift ordering) */
@@ -8979,7 +10029,7 @@ void close_game(void)
 
     /* Shut the high score file */
     log_debug("Closing highscore file");
-    fclose(highscore_fd);
+    SDL_CloseIO(highscore_fd);
 
     /* Forget the high score fd */
     highscore_fd = NULL;
@@ -9029,7 +10079,7 @@ void exit_game_panic(void)
     signals_ignore_tstp();
 
     /* Indicate panic save */
-    my_strcpy(p_ptr->died_from, "(panic save)", sizeof(p_ptr->died_from));
+    SDL_strlcpy(p_ptr->died_from, "(panic save)", sizeof(p_ptr->died_from));
 
     /* Panic save, or get worried */
     if (!save_player())
@@ -9132,7 +10182,7 @@ static void handle_signal_simple(int sig)
     if (p_ptr->is_dead)
     {
         /* Mark the savefile */
-        my_strcpy(p_ptr->died_from, "Aborting", sizeof(p_ptr->died_from));
+        SDL_strlcpy(p_ptr->died_from, "Aborting", sizeof(p_ptr->died_from));
 
         /* HACK - Skip the tombscreen if it is already displayed */
         if (score_idx == -1)
@@ -9149,7 +10199,7 @@ static void handle_signal_simple(int sig)
     else if (signal_count >= 5)
     {
         /* Cause of "death" */
-        my_strcpy(p_ptr->died_from, "Interrupting", sizeof(p_ptr->died_from));
+        SDL_strlcpy(p_ptr->died_from, "Interrupting", sizeof(p_ptr->died_from));
 
         /* Commit suicide */
         p_ptr->is_dead = true;
@@ -9202,6 +10252,12 @@ static void handle_signal_simple(int sig)
  */
 static void handle_signal_abort(int sig)
 {
+    char signal_text[64];
+    char panic_from[64];
+
+    strnfmt(signal_text, sizeof(signal_text), "signal %d", sig);
+    log_error("handle_signal_abort: received %s", signal_text);
+
     /* Disable handler */
     (void)(*signal_aux)(sig, SIG_IGN);
 
@@ -9210,44 +10266,62 @@ static void handle_signal_abort(int sig)
         quit(NULL);
 
     /* Clear the bottom line */
-    Term_erase(0, 23, 255);
+    {
+        int term_wid = 80;
+        int term_hgt = 24;
+        int status_row;
+        int message_col;
 
-    /* Give a warning */
-    Term_putstr(
-        0, 23, -1, TERM_RED, "A gruesome software bug LEAPS out at you!");
+        Term_get_size(&term_wid, &term_hgt);
+        status_row = term_hgt - 1;
+        message_col = MAX(0, term_wid - 21);
 
-    /* Message */
-    Term_putstr(45, 23, -1, TERM_RED, "Panic save...");
+        Term_erase(0, status_row, 255);
 
-    /* Flush output */
-    Term_fresh();
+        /* Give a warning */
+        Term_putstr(
+            0, status_row, -1, TERM_RED, "A gruesome software bug LEAPS out at you!");
+
+        /* Show and log the triggering signal */
+        Term_erase(0, status_row - 1, 255);
+        Term_putstr(0, status_row - 1, -1, TERM_RED, signal_text);
+
+        /* Message */
+        Term_putstr(message_col, status_row, -1, TERM_RED, "Panic save...");
+
+        /* Flush output */
+        Term_fresh();
 
     /* Panic Save */
     p_ptr->panic_save = 1;
 
     /* Panic save */
-    my_strcpy(p_ptr->died_from, "(panic save)", sizeof(p_ptr->died_from));
+    strnfmt(panic_from, sizeof(panic_from), "(panic save: %s)", signal_text);
+    SDL_strlcpy(p_ptr->died_from, panic_from, sizeof(p_ptr->died_from));
 
     /* Forbid suspend */
     signals_ignore_tstp();
 
-    /* Attempt to save */
-    if (save_player())
-    {
-        Term_putstr(45, 23, -1, TERM_RED, "Panic save succeeded!");
-    }
+        /* Attempt to save */
+        if (save_player())
+        {
+            Term_putstr(message_col, status_row, -1, TERM_RED,
+                "Panic save succeeded!");
+        }
 
-    /* Save failed */
-    else
-    {
-        Term_putstr(45, 23, -1, TERM_RED, "Panic save failed!");
-    }
+        /* Save failed */
+        else
+        {
+            Term_putstr(message_col, status_row, -1, TERM_RED,
+                "Panic save failed!");
+        }
 
-    /* Flush output */
-    Term_fresh();
+        /* Flush output */
+        Term_fresh();
+    }
 
     /* Quit */
-    quit("software bug");
+    quit(format("software bug (%s)", signal_text));
 }
 
 /*
@@ -9289,6 +10363,11 @@ void signals_init(void)
 
 #ifdef SIGQUIT
     (void)(*signal_aux)(SIGQUIT, handle_signal_simple);
+#endif
+
+#ifdef __ANDROID__
+    log_warn("signals_init: Android fatal signal panic interception disabled");
+    return;
 #endif
 
 #ifdef SIGFPE
@@ -9372,25 +10451,6 @@ void signals_init(void) { }
 
 #endif /* HANDLE_SIGNALS */
 
-static void write_html_escape_char(FILE* htm, char c)
-{
-    switch (c)
-    {
-    case '<':
-        fprintf(htm, "&lt;");
-        break;
-    case '>':
-        fprintf(htm, "&gt;");
-        break;
-    case '&':
-        fprintf(htm, "&amp;");
-        break;
-    default:
-        fprintf(htm, "%c", c);
-        break;
-    }
-}
-
 /*
  * Get the tile for a given screen location
  */
@@ -9406,255 +10466,6 @@ static void get_tile(int row, int col, byte* a_def, char* c_def)
     /* Return the tile */
     *a_def = a;
     *c_def = c;
-}
-
-/*
- * Get the default (ASCII) tile for a given screen location
- *
- */
-static void get_default_tile(int row, int col, byte* a_def, char* c_def)
-{
-    byte a;
-    char c;
-
-    int wid, hgt;
-    int screen_wid, screen_hgt;
-
-    int x;
-    int y = row - ROW_MAP + p_ptr->wy;
-
-    /* Retrieve current screen size */
-    Term_get_size(&wid, &hgt);
-
-    /* Calculate the size of dungeon map area (ignoring bigscreen) */
-    screen_wid = wid - (COL_MAP + 1);
-    screen_hgt = hgt - (ROW_MAP + 1);
-
-    /* Get the tile from the screen */
-    a = Term->scr->a[row][col];
-    c = Term->scr->c[row][col];
-
-    /* Skip bigtile placeholders */
-    if (use_bigtile && (a == 255) && (c == -1))
-    {
-        /* Replace with "white space" */
-        a = TERM_WHITE;
-        c = ' ';
-    }
-    /* Convert the map display to the default characters */
-    else if (!character_icky && ((col - COL_MAP) >= 0)
-        && ((col - COL_MAP) < screen_wid) && ((row - ROW_MAP) >= 0)
-        && ((row - ROW_MAP) < screen_hgt))
-    {
-        /* Bigtile uses double-width tiles */
-        if (use_bigtile)
-            x = (col - COL_MAP) / 2 + p_ptr->wx;
-        else
-            x = col - COL_MAP + p_ptr->wx;
-
-        /* Convert dungeon map into default attr/chars */
-        if (in_bounds(y, x))
-        {
-            /* Retrieve default attr/char */
-            map_info_default(y, x, &a, &c);
-        }
-        else
-        {
-            /* "Out of bounds" is empty */
-            a = TERM_WHITE;
-            c = ' ';
-        }
-
-        if (c == '\0')
-            c = ' ';
-    }
-
-    /* Filter out remaining graphics */
-    if (a & 0xf0)
-    {
-        /* Replace with "white space" */
-        a = TERM_WHITE;
-        c = ' ';
-    }
-
-    /* Return the default tile */
-    *a_def = a;
-    *c_def = c;
-}
-
-/* Take an html screenshot */
-void html_screenshot(cptr name)
-{
-    int y, x;
-    int wid, hgt;
-
-    byte a = TERM_WHITE; // a default value to soothe compilation warnings (and
-                         // perhaps needed?)
-    byte oa = TERM_WHITE;
-    byte fg_colour = TERM_WHITE;
-    int mode = 0;
-    char c = ' ';
-
-    FILE* htm;
-
-    char buf[1024];
-
-    /* Build the filename */
-    path_build(buf, sizeof(buf), ANGBAND_DIR_USER, name);
-
-    /* File type is "TEXT" */
-    FILE_TYPE(FILE_TYPE_TEXT);
-
-    /* Append to the file */
-    htm = my_fopen(buf, "w");
-
-    /* Oops */
-    if (!htm)
-    {
-        plog_fmt("Cannot write the '%s' file!", buf);
-        return;
-    }
-
-    /* Retrieve current screen size */
-    Term_get_size(&wid, &hgt);
-
-    fprintf(htm, "<HTML>\n");
-    fprintf(htm, "<HEAD>\n");
-    fprintf(
-        htm, "<META NAME=\"GENERATOR\" Content=\"Sil %s\">\n", VERSION_STRING);
-    fprintf(htm, "<TITLE>%s</TITLE>\n", name);
-    fprintf(htm, "</HEAD>\n");
-    fprintf(htm, "<BODY TEXT=\"#FFFFFF\" BGCOLOR=\"#000000\">");
-
-    fprintf(htm, "<FONT COLOR=\"#%02X%02X%02X\">\n<PRE><TT>",
-        angband_color_table[TERM_WHITE][1], angband_color_table[TERM_WHITE][2],
-        angband_color_table[TERM_WHITE][3]);
-
-    /* Dump the screen */
-    for (y = 0; y < hgt; y++)
-    {
-        for (x = 0; x < wid; x++)
-        {
-            /* Get the ASCII tile */
-
-            // Sil-y: replaced the call to get_default_tile with get_tile
-            //        this allows 'shades' to work
-            //        If we want graphics to work in the future, then
-            //        get_default_tile will need to be rejuvenated.
-
-            // Sil-y: I still call this first to soothe compiler warnings
-            //        It then gets overwritten immediately by the better version
-            get_default_tile(y, x, &a, &c);
-
-            get_tile(y, x, &a, &c);
-
-            mode = a / MAX_COLORS;
-            fg_colour = a % MAX_COLORS;
-
-            /* Color change */
-            if (oa != a)
-            {
-                /* From the default white to another color */
-                if (oa == TERM_WHITE)
-                {
-                    if (mode == BG_BLACK)
-                    {
-                        fprintf(htm, "<FONT COLOR=\"#%02X%02X%02X\">",
-                            angband_color_table[fg_colour][1],
-                            angband_color_table[fg_colour][2],
-                            angband_color_table[fg_colour][3]);
-                    }
-                    else if (mode == BG_SAME)
-                    {
-                        fprintf(htm,
-                            "<FONT COLOR=\"#%02X%02X%02X\" "
-                            "style=\"BACKGROUND-COLOR: "
-                            "#%02X%02X%02X\">",
-                            angband_color_table[fg_colour][1],
-                            angband_color_table[fg_colour][2],
-                            angband_color_table[fg_colour][3],
-                            angband_color_table[fg_colour][1],
-                            angband_color_table[fg_colour][2],
-                            angband_color_table[fg_colour][3]);
-                    }
-                    else
-                    {
-                        fprintf(htm,
-                            "<FONT COLOR=\"#%02X%02X%02X\" "
-                            "style=\"BACKGROUND-COLOR: "
-                            "#%02X%02X%02X\">",
-                            angband_color_table[fg_colour][1],
-                            angband_color_table[fg_colour][2],
-                            angband_color_table[fg_colour][3],
-                            angband_color_table[16][1],
-                            angband_color_table[16][2],
-                            angband_color_table[16][3]);
-                    }
-                }
-                /* From another color to the default white */
-                else if (a == TERM_WHITE)
-                {
-                    fprintf(htm, "</FONT>");
-                }
-                /* Change colors */
-                else
-                {
-                    if (mode == BG_BLACK)
-                    {
-                        fprintf(htm, "</FONT><FONT COLOR=\"#%02X%02X%02X\">",
-                            angband_color_table[fg_colour][1],
-                            angband_color_table[fg_colour][2],
-                            angband_color_table[fg_colour][3]);
-                    }
-                    else if (mode == BG_SAME)
-                    {
-                        fprintf(htm,
-                            "</FONT><FONT COLOR=\"#%02X%02X%02X\" "
-                            "style=\"BACKGROUND-COLOR: #%02X%02X%02X\">",
-                            angband_color_table[fg_colour][1],
-                            angband_color_table[fg_colour][2],
-                            angband_color_table[fg_colour][3],
-                            angband_color_table[fg_colour][1],
-                            angband_color_table[fg_colour][2],
-                            angband_color_table[fg_colour][3]);
-                    }
-                    else
-                    {
-                        fprintf(htm,
-                            "</FONT><FONT COLOR=\"#%02X%02X%02X\" "
-                            "style=\"BACKGROUND-COLOR: #%02X%02X%02X\">",
-                            angband_color_table[fg_colour][1],
-                            angband_color_table[fg_colour][2],
-                            angband_color_table[fg_colour][3],
-                            angband_color_table[16][1],
-                            angband_color_table[16][2],
-                            angband_color_table[16][3]);
-                    }
-                }
-
-                /* Remember the last color */
-                oa = a;
-            }
-
-            /* Write the character and escape special HTML characters */
-            write_html_escape_char(htm, c);
-        }
-
-        /* End the row */
-        fprintf(htm, "\n");
-    }
-
-    /* Close the last <font> tag if necessary */
-    if (a != TERM_WHITE)
-        fprintf(htm, "</FONT>");
-
-    fprintf(htm, "</TT></PRE>\n");
-
-    fprintf(htm, "</BODY>\n");
-    fprintf(htm, "</HTML>\n");
-
-    /* Close it */
-    my_fclose(htm);
 }
 
 extern void mini_screenshot(void)
@@ -9798,10 +10609,10 @@ bool autoload_alive_from_scores(void)
 {
     log_info("===== autoload_alive_from_scores: FUNCTION CALLED =====");
     char score_path[1024];
-    path_build(score_path, sizeof score_path, ANGBAND_DIR_APEX, "scores.raw");
+    build_current_score_path(score_path, sizeof(score_path));
 
     /* Preserve global scorefile state */
-    FILE*  saved_fd = highscore_fd;
+    SDL_IOStream* saved_fd = highscore_fd;
     byte saved_major = scores_file_version_major;
     byte saved_minor = scores_file_version_minor;
     byte saved_patch = scores_file_version_patch;
@@ -9809,7 +10620,7 @@ bool autoload_alive_from_scores(void)
     u32b saved_entry_count = scores_file_entry_count;
 
     /* Open with version detection (read/write so we can patch entries) */
-    highscore_fd = open_scores_file_versioned(score_path, O_RDWR | O_CREAT);
+    highscore_fd = score_file_open(score_path, O_RDWR | O_CREAT);
     if (!highscore_fd) {
         log_warn("autoload: could not open scorefile: %s", score_path);
         /* restore */
@@ -9824,9 +10635,9 @@ bool autoload_alive_from_scores(void)
 
     /* Determine number of records */
     int n_recs;
-    fseek(highscore_fd, 0, SEEK_END);
-    long file_size = ftell(highscore_fd);
-    fseek(highscore_fd, 0, SEEK_SET);
+    SDL_SeekIO(highscore_fd, 0, SDL_IO_SEEK_END);
+    long file_size = SDL_TellIO(highscore_fd);
+    SDL_SeekIO(highscore_fd, 0, SDL_IO_SEEK_SET);
     
     long payload = file_size - (long)sizeof(score_file_header);
     if (payload < 0) payload = 0;
@@ -9837,7 +10648,7 @@ bool autoload_alive_from_scores(void)
     log_trace("autoload: scorefile n_recs=%d header_count=%u", n_recs, scores_file_entry_count);
     
     if (n_recs <= 0) {
-        fclose(highscore_fd);
+        SDL_CloseIO(highscore_fd);
         highscore_fd = saved_fd;
         scores_file_version_major = saved_major;
         scores_file_version_minor = saved_minor;
@@ -9856,16 +10667,24 @@ bool autoload_alive_from_scores(void)
 
         char who_buf[sizeof entry.who + 1];
         memset(who_buf, 0, sizeof who_buf);
-        my_strcpy(who_buf, entry.who, sizeof(who_buf));
+        SDL_strlcpy(who_buf, entry.who, sizeof(who_buf));
+        /* Trim trailing spaces */
+        for (int t = (int)strlen(who_buf) - 1; t >= 0; --t) {
+            if (who_buf[t] == ' ' || who_buf[t] == '\t') who_buf[t] = '\0'; else break;
+        }
+        if (!who_buf[0]) {
+            log_warn("autoload: alive entry at index %d has empty name, skipping", i);
+            continue;
+        }
         log_info("autoload: found alive entry '%s' (index %d) - attempting load", who_buf, i);
 
-        my_strcpy(op_ptr->full_name, who_buf, sizeof(op_ptr->full_name));
+        SDL_strlcpy(op_ptr->full_name, who_buf, sizeof(op_ptr->full_name));
         process_player_name(true);
 
         log_info("autoload: savefile path generated: '%s'", savefile);
         if (load_player()) {
             log_info("autoload: successfully loaded '%s' (normalized)", who_buf);
-            fclose(highscore_fd);
+            SDL_CloseIO(highscore_fd);
             highscore_fd = saved_fd;
             scores_file_version_major = saved_major;
             scores_file_version_minor = saved_minor;
@@ -9879,27 +10698,27 @@ bool autoload_alive_from_scores(void)
         char savefile_backup[1024];
         char alt_temp[128];
         char alt_path[1024];
-        my_strcpy(savefile_backup, savefile, sizeof(savefile_backup));
-        strnfmt(alt_temp, sizeof(alt_temp), "%s", who_buf);
+        SDL_strlcpy(savefile_backup, savefile, sizeof(savefile_backup));
+        build_active_savefile_stem(who_buf, alt_temp, sizeof(alt_temp));
         path_build(alt_path, sizeof(alt_path), ANGBAND_DIR_SAVE, alt_temp);
-        my_strcpy(savefile, alt_path, sizeof(savefile));
+        SDL_strlcpy(savefile, alt_path, sizeof(savefile));
         log_info("autoload: retrying with legacy spaced filename '%s'", savefile);
         if (load_player()) {
             log_info("autoload: successfully loaded '%s' (legacy spaced)", who_buf);
             /* Restore canonical name */
-            my_strcpy(op_ptr->full_name, who_buf, sizeof(op_ptr->full_name));
+            SDL_strlcpy(op_ptr->full_name, who_buf, sizeof(op_ptr->full_name));
             process_player_name(true);
-            fclose(highscore_fd);
+            SDL_CloseIO(highscore_fd);
             highscore_fd = saved_fd;
             scores_file_version_major = saved_major;
             scores_file_version_minor = saved_minor;
             scores_file_version_patch = saved_patch;
             scores_file_version_extra = saved_extra;
             scores_file_entry_count = saved_entry_count;
-            my_strcpy(savefile, savefile_backup, sizeof(savefile));
+            SDL_strlcpy(savefile, savefile_backup, sizeof(savefile));
             return true;
         }
-        my_strcpy(savefile, savefile_backup, sizeof(savefile));
+        SDL_strlcpy(savefile, savefile_backup, sizeof(savefile));
 
         /* Mark as dead and continue */
 #if ANTICHEAT
@@ -9908,8 +10727,10 @@ bool autoload_alive_from_scores(void)
         if (highscore_seek(i) == 0) {
             highscore_write(&entry);
         }
-        metarun_increment_deaths();
-        (void)save_metaruns();
+        if (!run_mode_is_blitz()) {
+            metarun_increment_deaths();
+            (void)save_metaruns();
+        }
         msg_format("Warning: Alive entry '%s' had no valid savefile. Marked as dead.", who_buf);
         msg_print("Please do not tamper with savefiles.");
         message_flush();
@@ -9919,7 +10740,7 @@ bool autoload_alive_from_scores(void)
 #endif
     }
 
-    fclose(highscore_fd);
+    SDL_CloseIO(highscore_fd);
     highscore_fd = saved_fd;
     scores_file_version_major = saved_major;
     scores_file_version_minor = saved_minor;
@@ -9931,19 +10752,21 @@ bool autoload_alive_from_scores(void)
 
 /*
  * Delete the current high-score file and immediately recreate an empty
- * placeholder so subsequent fd_open() calls succeed without special cases.
+ * placeholder so subsequent sdl_fopen() calls succeed without special cases.
  */
 void clear_scorefile(void)
 {
     char cur_path[1024];
     bool was_open = (highscore_fd != NULL);
 
+    clear_postmortem_scores_path();
+
     /* Full path to "scores.raw" */
-    path_build(cur_path, sizeof cur_path, ANGBAND_DIR_APEX, "scores.raw");
+    build_meta_path(cur_path, sizeof(cur_path), "scores.raw");
 
     /* Close existing descriptor if open */
     if (was_open) {
-        fclose(highscore_fd);
+        SDL_CloseIO(highscore_fd);
         highscore_fd = NULL;
     }
 
@@ -9965,7 +10788,7 @@ void clear_scorefile(void)
             struct tm *lt = localtime(&now);
             char stamp[32];
             if (lt) strftime(stamp, sizeof stamp, "%Y%m%d-%H%M%S", lt);
-            else my_strcpy(stamp, "unknown", sizeof stamp);
+            else SDL_strlcpy(stamp, "unknown", sizeof stamp);
 
             /* Include run id if available (metar declared in metarun.h) */
             extern metarun metar; /* declared in metarun.h */
@@ -9980,26 +10803,30 @@ void clear_scorefile(void)
             safe_setuid_grab();
             int rn = rename(cur_path, arch_path);
             safe_setuid_drop();
-            if (rn != 0) {
+            if (rn == 0) {
+                set_postmortem_scores_path(arch_path);
+            } else {
+                clear_postmortem_scores_path();
                 (void)fd_kill(cur_path); /* fallback */
             }
         }
         else {
             /* Nothing useful to archive; just remove it */
+            clear_postmortem_scores_path();
             (void)fd_kill(cur_path);
         }
     }
 
     /* Re-create a zero-length file properly */
     safe_setuid_grab();
-    int fd_new = fd_make(cur_path, 0644);
-    if (fd_new >= 0) fd_close(fd_new);
+    SDL_IOStream* fd_new = sdl_fmake(cur_path, 0644);
+    if (fd_new) sdl_fclose(fd_new);
     safe_setuid_drop();
 
     /* If the file was previously open, reopen it for read/write */
     if (was_open) {
         safe_setuid_grab();
-        highscore_fd = open_scores_file_versioned(cur_path, O_RDWR);
+        highscore_fd = score_file_open(cur_path, O_RDWR);
         safe_setuid_drop();
     }
 }
@@ -10017,7 +10844,7 @@ void metarun_finalize_scores_and_saves(void)
              p_ptr ? (unsigned)p_ptr->noscore : 0,
              savefile);
     char score_path[1024];
-    path_build(score_path, sizeof score_path, ANGBAND_DIR_APEX, "scores.raw");
+    build_meta_path(score_path, sizeof(score_path), "scores.raw");
 
     /* Open for read/write so we can patch entries */
     int fd_local;
@@ -10042,7 +10869,10 @@ void metarun_finalize_scores_and_saves(void)
     int patched = 0;
     for (int i = 0; i < n_recs; i++) {
         high_score entry;
-        if (lseek(fd_local, (off_t)i * (off_t)sizeof entry, SEEK_SET) < 0)
+        off_t entry_offset = (off_t)sizeof(score_file_header)
+            + (off_t)i * (off_t)sizeof entry;
+
+        if (lseek(fd_local, entry_offset, SEEK_SET) < 0)
             break;
         ssize_t got = read(fd_local, &entry, sizeof entry);
         if (got != sizeof entry) break;
@@ -10052,7 +10882,7 @@ void metarun_finalize_scores_and_saves(void)
 
         /* Patch score entry regardless of save success */
         strnfmt(entry.how, sizeof entry.how, "%-.49s", "their own hand");
-        if (lseek(fd_local, (off_t)i * (off_t)sizeof entry, SEEK_SET) >= 0) {
+        if (lseek(fd_local, entry_offset, SEEK_SET) >= 0) {
             (void)write(fd_local, &entry, sizeof entry);
         }
         patched++;
@@ -10112,10 +10942,10 @@ void backup_and_clear_saves(void)
         
         log_trace("Checking for save file pattern: %s", test_path);
         
-        /* Quick test using fd_open - much faster than popen */
-        int test_fd = fd_open(test_path, O_RDONLY);
-        if (test_fd >= 0) {
-            fd_close(test_fd);
+        /* Quick test using sdl_fopen - much faster than popen */
+        SDL_IOStream* test_fd = sdl_fopen(test_path, "rb");
+        if (test_fd) {
+            sdl_fclose(test_fd);
             has_files = true;
             log_trace("Found save file: %s", test_path);
             break;
@@ -10137,9 +10967,9 @@ void backup_and_clear_saves(void)
             
             log_trace("Checking directory pattern: %s", test_path);
             
-            int test_fd = fd_open(test_path, O_RDONLY);
-            if (test_fd >= 0) {
-                fd_close(test_fd);
+            SDL_IOStream* test_fd = sdl_fopen(test_path, "rb");
+            if (test_fd) {
+                sdl_fclose(test_fd);
                 has_files = true;
                 log_trace("Found file with pattern: %s", test_path);
                 break;
@@ -10279,5 +11109,28 @@ void backup_and_clear_saves(void)
     
     log_trace("Folder-based backup process completed");
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 

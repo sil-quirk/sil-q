@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 #include "h-basic.h"
 #include "metarun.h" 
 #include "init.h"
@@ -107,6 +108,9 @@ bool hide_cursor; /* See the "inkey()" function */
 
 byte object_generation_mode; /* Hack -- use different depth check, prevent
                                 embedded chests */
+bool drop_allow_noble; /* When true, noble-tagged entries are eligible for selection */
+bool drop_allow_evil; /* When true, evil-tagged entries are eligible for selection */
+bool drop_allow_noble_from_quality = true; /* When true, GOOD+ quality may include noble-tagged entries */
 
 bool shimmer_monsters; /* Hack -- optimize multi-hued monsters */
 bool shimmer_objects; /* Hack -- optimize multi-hued objects */
@@ -131,9 +135,6 @@ bool save_game_quietly = false; // whether we are currently trying to save the
 
 bool stop_stealth_mode = false; // whether there has been a signal that we need
                                 // to abort stealth mode
-
-char mini_screenshot_char[7][7]; // Characters in a mini-screenshot array
-byte mini_screenshot_attr[7][7]; // Colours in a mini-screenshot array
 
 bool use_background_colors = false;
 
@@ -279,7 +280,7 @@ byte angband_color_table[256][4] = {
 /*
  * Standard sound (and message) names
  */
-const cptr angband_sound_name[SOUND_MAX] = {
+const cptr angband_sound_name[MSG_MAX] = {
     "",
     "hit",
     "miss",
@@ -304,12 +305,48 @@ const cptr angband_sound_name[SOUND_MAX] = {
     "dig",
     "opendoor",
     "shutdoor",
+    "bashdoor",
+    "pick",
     "tplevel",
     "bell",
     "nothing_to_open",
     "lockpick_fail",
     "stairs",
     "hitpoint_warn",
+    "weapon_slash_light",
+    "weapon_slash_heavy",
+    "weapon_thrust",
+    "weapon_blunt",
+    "weapon_unarmed",
+    "armor",
+    "weapon_slash_medium",
+    "equip_sword",
+    "equip_bow",
+    "equip_weapon",
+    "equip_mail",
+    "equip_leather",
+    "equip_armor",
+    "equip_jewelry",
+    "unequip_sword",
+    "unequip_bow",
+    "unequip_weapon",
+    "unequip_mail",
+    "unequip_leather",
+    "unequip_armor",
+    "unequip_jewelry",
+    "drop_glass",
+    "drop_small_metal",
+    "drop_cloth",
+    "drop_leather",
+    "drop_big_metal",
+    "drop_metal_medium",
+    "drop_wood",
+    "drop_generic",
+    "use_gem",
+    "activate",
+    "monster_attack",
+    "monster_attack_ranged",
+    "monster_attack_breath",
 };
 
 /*
@@ -498,10 +535,10 @@ cptr keymap_act[KEYMAP_MODES][256];
 /*** Player information ***/
 
 /*
- * Pointer to the player tables (race, house, magic)
+ * Pointer to the player tables (race, character, magic)
  */
 const player_race* rp_ptr;
-player_house* hp_ptr;
+character_profile* current_character_profile;
 
 /*
  * The player other record (static)
@@ -573,6 +610,8 @@ bool* valar_reserved_artifacts;
 names_type* n_info;
 style_type* style_info;
 char* style_name;
+skeleton_note_template* skeleton_note_info;
+char* skeleton_note_text;
 
 /*
  * The special item arrays
@@ -597,9 +636,9 @@ char* p_name;
 char* p_text;
 
 /*
- * The player house arrays
+ * The player character arrays
  */
-player_house* c_info;
+character_profile* c_info;
 char* c_name;
 char* c_text;
 
@@ -812,7 +851,7 @@ void (*object_info_out_flags)(
 /*
  * Hack - the destination file for text_out_to_file.
  */
-FILE* text_out_file = NULL;
+SDL_IOStream* text_out_file = NULL;
 
 /*
  * Hack -- function hook to output (colored) text to the
@@ -883,9 +922,9 @@ char ghost_string[80];
 char g_vault_name[80];
 
 /*
- * The "highscore" file descriptor, if available.
+ * While set, the map is drawn with memory hidden (like rage) for labyrinth partitions.
  */
-FILE* highscore_fd;
+bool g_labyrinth_view_active = false;
 
 /*
  * The metarun file descriptor, if available.
@@ -896,3 +935,7 @@ int meta_fd = -1;
 metarun metar;
 
 runtype_type *runtype_info = NULL;   /* filled by init_rt_info() */
+
+
+
+

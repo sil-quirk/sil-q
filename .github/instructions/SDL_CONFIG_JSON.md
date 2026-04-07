@@ -6,8 +6,12 @@ The SDL3 build of Sil-More uses a JSON file for configuration. This file is auto
 
 ### Location
 
-- **Standalone builds**: `sil_sdl.json` in the game directory
-- **Deployment builds**: `sil-more-windows-sdl3/sil_sdl.json`
+`sil_sdl.json` is stored inside the per-user Sil-More folder that we create directly under the path reported by `SDL_GetUserFolder()`:
+
+- **Windows:** `%USERPROFILE%\sil-more\sil_sdl.json`
+- **macOS / Linux:** `~/sil-more/sil_sdl.json`
+
+The file is always created (or updated) in that directory—install directories and deployment bundles are never modified.
 
 ### Command-Line Arguments
 

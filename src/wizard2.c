@@ -9,6 +9,8 @@
  */
 
 #include "angband.h"
+#include "externs.h"
+#include "log/log.h"
 #include "metarun.h"
 
 #ifdef ALLOW_DEBUG
@@ -18,6 +20,7 @@
  */
 static void do_cmd_debug_complete_quest(void);
 static void do_cmd_debug_orome_status(void);
+static void do_cmd_debug_identify_all_items(void);
 
 /*
  * Display the dungeon light levels.
@@ -447,8 +450,9 @@ static void wiz_display_item(const object_type* o_ptr)
             o_ptr->evn, o_ptr->att),
         6, j);
 
-    prt(format("name1 = %-4d  name2 = %-4d  cost = %ld", o_ptr->name1,
-            o_ptr->name2, (long)object_value(o_ptr)),
+    prt(format("name1 = %-4d  egoP = %-4d  egoS = %-4d  cost = %ld", o_ptr->name1,
+            object_ego_prefix(o_ptr), object_ego_suffix(o_ptr),
+            (long)object_value(o_ptr)),
         7, j);
 
     prt(format("ident = %04x  timeout = %-d", o_ptr->ident, o_ptr->timeout), 8,
@@ -843,8 +847,10 @@ static void wiz_statistics(object_type* o_ptr)
             /* Wipe the object */
             object_wipe(i_ptr);
 
+            drop_quality quality = drop_quality_from_flags(good, great, false);
+
             /* Create an object */
-            make_object(i_ptr, good, great, DROP_TYPE_UNTHEMED);
+            make_object(i_ptr, quality, DROP_TYPE_UNTHEMED);
 
             /* Mega-Hack -- allow multiple artefacts XXX XXX XXX */
             if (artefact_p(i_ptr))
@@ -1379,13 +1385,14 @@ static void do_cmd_wiz_forget(void)
         case TV_BOOTS:
         case TV_LIGHT:
         {
-            if (!o_ptr->name1 && !o_ptr->name2)
+            if (!o_ptr->name1 && !object_has_ego(o_ptr))
             {
                 /* Identify it */
                 object_aware(o_ptr);
                 object_known(o_ptr);
                 break;
             }
+            __attribute__((fallthrough));
         }
         default:
         {
@@ -1432,13 +1439,14 @@ static void do_cmd_wiz_forget(void)
         case TV_BOOTS:
         case TV_LIGHT:
         {
-            if (!o_ptr->name1 && !o_ptr->name2)
+            if (!o_ptr->name1 && !object_has_ego(o_ptr))
             {
                 /* Identify it */
                 object_aware(o_ptr);
                 object_known(o_ptr);
                 break;
             }
+            __attribute__((fallthrough));
         }
         default:
         {
@@ -1490,7 +1498,7 @@ static void do_cmd_wiz_forget(void)
     {
         monster_lore* l_ptr = &l_list[i];
 
-        WIPE(l_ptr, monster_lore);
+        memset(l_ptr, 0, sizeof(monster_lore));
     }
 
     /* Mega-Hack -- Forget the map */
@@ -1950,20 +1958,20 @@ static void do_cmd_debug_complete_quest(void)
     }
     
     if (p_ptr->orome_quest > OROME_QUEST_NOT_STARTED && p_ptr->orome_quest < OROME_QUEST_REWARDED) {
-        msg_print("Completing Oromë quest...");
+        msg_print("Completing Orome quest...");
         
         /* If quest is already in SUCCESS state, just give reward */
         if (p_ptr->orome_quest == OROME_QUEST_SUCCESS) {
-            /* Oromë is spawn-based (Y:1) - spawn quest giver near player for reward */
+            /* Orome is spawn-based (Y:1) - spawn quest giver near player for reward */
             if (!is_quest_giver_present(R_IDX_OROME)) {
                 if (!spawn_quest_giver_near_player(R_IDX_OROME)) {
-                    msg_print("Warning: Could not spawn Oromë for reward - completing anyway.");
+                    msg_print("Warning: Could not spawn Orome for reward - completing anyway.");
                 }
             }
             /* Trigger quest interaction to give reward */
             orome_quest_interaction();
             quest_found = true;
-            log_debug("Debug: Triggered Oromë quest reward interaction");
+            log_debug("Debug: Triggered Orome quest reward interaction");
         } else {
             /* Quest not completed yet - mark as complete and spawn giver */
             p_ptr->orome_quest = OROME_QUEST_SUCCESS;
@@ -1971,13 +1979,13 @@ static void do_cmd_debug_complete_quest(void)
             p_ptr->orome_killed_count = p_ptr->orome_target_count;
             if (!is_quest_giver_present(R_IDX_OROME)) {
                 if (!spawn_quest_giver_near_player(R_IDX_OROME)) {
-                    msg_print("Warning: Could not spawn Oromë for reward - completing anyway.");
+                    msg_print("Warning: Could not spawn Orome for reward - completing anyway.");
                 }
             }
             /* Trigger proper quest interaction */
             orome_quest_interaction();
             quest_found = true;
-            log_debug("Debug: Completed Oromë quest with full interaction");
+            log_debug("Debug: Completed Orome quest with full interaction");
         }
     }
     
@@ -2026,6 +2034,51 @@ static void do_cmd_debug_orome_status(void)
     int winner = debug_get_quest_lottery_winner();
     strnfmt(buf, sizeof(buf), "Quest lottery result: %d (0=none, 1=Tulkas, 4=Niena, 5=Orome)", winner);
     msg_print(buf);
+}
+
+/*
+ * Identify all items on the dungeon floor
+ */
+static void do_cmd_debug_identify_all_items(void)
+{
+    int i;
+    int count = 0;
+    
+    /* Iterate through all floor objects */
+    for (i = 1; i < o_max; i++)
+    {
+        object_type* o_ptr = &o_list[i];
+        
+        /* Skip dead objects */
+        if (!o_ptr->k_idx)
+            continue;
+        
+        /* Skip held objects (in monster inventory) */
+        if (o_ptr->held_m_idx)
+            continue;
+        
+        /* Identify the object */
+        object_aware(o_ptr);
+        object_known(o_ptr);
+        
+        count++;
+    }
+    
+    /* Report result */
+    if (count > 0)
+    {
+        msg_format("Identified %d item%s on the dungeon floor.", count, (count != 1) ? "s" : "");
+    }
+    else
+    {
+        msg_print("No items found on the dungeon floor.");
+    }
+    
+    /* Redraw map to show identified items */
+    p_ptr->redraw |= (PR_MAP);
+    
+    /* Window stuff */
+    p_ptr->window |= (PW_INVEN | PW_EQUIP);
 }
 
 /*
@@ -2139,7 +2192,7 @@ void do_cmd_debug(void)
     {
         if (p_ptr->command_arg <= 0)
             p_ptr->command_arg = 1;
-        acquirement(py, px, p_ptr->command_arg, false);
+        acquirement(py, px, p_ptr->command_arg, DROP_QUALITY_GOOD);
         break;
     }
 
@@ -2147,6 +2200,13 @@ void do_cmd_debug(void)
     case 'i':
     {
         (void)ident_spell(true);
+        break;
+    }
+
+    /* Identify all floor items */
+    case 'I':
+    {
+        do_cmd_debug_identify_all_items();
         break;
     }
 
@@ -2259,7 +2319,7 @@ void do_cmd_debug(void)
     {
         if (p_ptr->command_arg <= 0)
             p_ptr->command_arg = 1;
-        acquirement(py, px, p_ptr->command_arg, true);
+        acquirement(py, px, p_ptr->command_arg, DROP_QUALITY_GREAT);
         break;
     }
 
@@ -2326,3 +2386,4 @@ void do_cmd_debug(void)
 #else
 
 #endif
+

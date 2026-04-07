@@ -9,7 +9,12 @@
  */
 
 #include "angband.h"
+#include "blitz.h"
+#include "externs.h"
+#include "fs/io_sdl.h"
 #include "log/log.h"
+#include "player/killer.h"
+#include "score/score_guid.h"
 #include <string.h> /* memset, strstr */
 #include <stdio.h>  /* FILE, getc, ftell, fseek, ferror */
 #include <sys/types.h>
@@ -49,7 +54,7 @@
 /*
  * Local "savefile" pointer
  */
-static FILE* fff;
+static SDL_IOStream* fff;
 
 /*
  * Hack -- old "encryption" byte
@@ -77,6 +82,22 @@ static u32b load_byte_offset = 0;
 static bool savefile_has_runtime_overrides = false;
 static bool savefile_has_monster_shatter = false;
 static bool savefile_has_song_duels = false;
+static bool savefile_has_ability_timeline = false;
+static bool savefile_has_varda_quest = false;
+static bool savefile_has_artifact_seen = false;
+static bool savefile_has_skeleton_notes = false;
+static bool savefile_has_skeleton_hint_mask = false;
+static bool savefile_has_skeleton_hint_mask32 = false;
+static bool savefile_has_partition_meta = false;
+static bool savefile_has_partition_meta_types = false;
+static bool savefile_has_cave_info_hi = false;
+static bool savefile_has_hint_messages = false;
+static bool savefile_has_hint_message_meta = false;
+static bool savefile_has_thrall_quest = false;
+static bool savefile_has_thrall_quest_requested = false;
+static bool savefile_has_randart_flags4 = false;
+static bool savefile_has_item_bonuses = false;
+static bool savefile_has_randart_bonuses = false;
 
 /* Version comparison helpers: update these when bumping savefile semantics. */
 static int savefile_version_compare(byte major, byte minor, byte patch, byte extra)
@@ -115,8 +136,10 @@ static bool savefile_version_supported(void)
     /* Enforce the minimum extra value for the current release series. */
     if (sf_major == VERSION_MAJOR && sf_minor == VERSION_MINOR && sf_patch == VERSION_PATCH)
     {
+#if MIN_VERSION_EXTRA > 0
         if (sf_extra < MIN_VERSION_EXTRA)
             return false;
+#endif
     }
 
     return true;
@@ -217,21 +240,16 @@ static bool wearable_p(const object_type* o_ptr)
 
 static byte sf_get(void)
 {
-    int c_int;
     byte c, v;
 
-    /* Get a character */
-    c_int = getc(fff);
-    
-    /* Check for EOF */
-    if (c_int == EOF)
+    /* Read a byte from the stream */
+    if (SDL_ReadIO(fff, &c, 1) != 1)
     {
-        log_error("sf_get: Unexpected end of file at offset %ld", load_byte_offset);
+        log_error("sf_get: Failed to read byte at offset %ld", load_byte_offset);
         return (0);
     }
     
     /* Decode the value */
-    c = c_int & 0xFF;
     v = c ^ xor_byte;
     xor_byte = c;
 
@@ -241,6 +259,7 @@ static byte sf_get(void)
 
     /* Track offset (decoded payload byte) */
     load_byte_offset++;
+    
     /* Return the value */
     return (v);
 }
@@ -368,6 +387,102 @@ static void convert_old_staff_of_warding(object_type* o_ptr)
         o_ptr->ident |= IDENT_EMPTY;
     else
         o_ptr->ident &= ~(IDENT_EMPTY);
+
+    memset(o_ptr->stat_bonus, 0, sizeof(o_ptr->stat_bonus));
+    memset(o_ptr->skill_bonus, 0, sizeof(o_ptr->skill_bonus));
+}
+
+static void object_derive_stat_skill_bonuses_from_pval(object_type* o_ptr)
+{
+    if (!o_ptr)
+        return;
+
+    memset(o_ptr->stat_bonus, 0, sizeof(o_ptr->stat_bonus));
+    memset(o_ptr->skill_bonus, 0, sizeof(o_ptr->skill_bonus));
+
+    u32b f1, f2, f3;
+    object_flags(o_ptr, &f1, &f2, &f3);
+
+    if (f1 & TR1_STR)
+        o_ptr->stat_bonus[A_STR] += o_ptr->pval;
+    if (f1 & TR1_NEG_STR)
+        o_ptr->stat_bonus[A_STR] -= o_ptr->pval;
+
+    if (f1 & TR1_DEX)
+        o_ptr->stat_bonus[A_DEX] += o_ptr->pval;
+    if (f1 & TR1_NEG_DEX)
+        o_ptr->stat_bonus[A_DEX] -= o_ptr->pval;
+
+    if (f1 & TR1_CON)
+        o_ptr->stat_bonus[A_CON] += o_ptr->pval;
+    if (f1 & TR1_NEG_CON)
+        o_ptr->stat_bonus[A_CON] -= o_ptr->pval;
+
+    if (f1 & TR1_GRA)
+        o_ptr->stat_bonus[A_GRA] += o_ptr->pval;
+    if (f1 & TR1_NEG_GRA)
+        o_ptr->stat_bonus[A_GRA] -= o_ptr->pval;
+
+    if (f1 & TR1_MEL)
+        o_ptr->skill_bonus[S_MEL] += o_ptr->pval;
+    if (f1 & TR1_ARC)
+        o_ptr->skill_bonus[S_ARC] += o_ptr->pval;
+    if (f1 & TR1_STL)
+        o_ptr->skill_bonus[S_STL] += o_ptr->pval;
+    if (f1 & TR1_PER)
+        o_ptr->skill_bonus[S_PER] += o_ptr->pval;
+    if (f1 & TR1_WIL)
+        o_ptr->skill_bonus[S_WIL] += o_ptr->pval;
+    if (f1 & TR1_SMT)
+        o_ptr->skill_bonus[S_SMT] += o_ptr->pval;
+    if (f1 & TR1_SNG)
+        o_ptr->skill_bonus[S_SNG] += o_ptr->pval;
+}
+
+static void artefact_derive_stat_skill_bonuses_from_pval(artefact_type* a_ptr)
+{
+    if (!a_ptr)
+        return;
+
+    memset(a_ptr->stat_bonus, 0, sizeof(a_ptr->stat_bonus));
+    memset(a_ptr->skill_bonus, 0, sizeof(a_ptr->skill_bonus));
+    memset(a_ptr->stat_bonus_set, 0, sizeof(a_ptr->stat_bonus_set));
+    memset(a_ptr->skill_bonus_set, 0, sizeof(a_ptr->skill_bonus_set));
+
+    if (a_ptr->flags1 & TR1_STR)
+        a_ptr->stat_bonus[A_STR] += a_ptr->pval;
+    if (a_ptr->flags1 & TR1_NEG_STR)
+        a_ptr->stat_bonus[A_STR] -= a_ptr->pval;
+
+    if (a_ptr->flags1 & TR1_DEX)
+        a_ptr->stat_bonus[A_DEX] += a_ptr->pval;
+    if (a_ptr->flags1 & TR1_NEG_DEX)
+        a_ptr->stat_bonus[A_DEX] -= a_ptr->pval;
+
+    if (a_ptr->flags1 & TR1_CON)
+        a_ptr->stat_bonus[A_CON] += a_ptr->pval;
+    if (a_ptr->flags1 & TR1_NEG_CON)
+        a_ptr->stat_bonus[A_CON] -= a_ptr->pval;
+
+    if (a_ptr->flags1 & TR1_GRA)
+        a_ptr->stat_bonus[A_GRA] += a_ptr->pval;
+    if (a_ptr->flags1 & TR1_NEG_GRA)
+        a_ptr->stat_bonus[A_GRA] -= a_ptr->pval;
+
+    if (a_ptr->flags1 & TR1_MEL)
+        a_ptr->skill_bonus[S_MEL] += a_ptr->pval;
+    if (a_ptr->flags1 & TR1_ARC)
+        a_ptr->skill_bonus[S_ARC] += a_ptr->pval;
+    if (a_ptr->flags1 & TR1_STL)
+        a_ptr->skill_bonus[S_STL] += a_ptr->pval;
+    if (a_ptr->flags1 & TR1_PER)
+        a_ptr->skill_bonus[S_PER] += a_ptr->pval;
+    if (a_ptr->flags1 & TR1_WIL)
+        a_ptr->skill_bonus[S_WIL] += a_ptr->pval;
+    if (a_ptr->flags1 & TR1_SMT)
+        a_ptr->skill_bonus[S_SMT] += a_ptr->pval;
+    if (a_ptr->flags1 & TR1_SNG)
+        a_ptr->skill_bonus[S_SNG] += a_ptr->pval;
 }
 
 static errr rd_item(object_type* o_ptr)
@@ -445,8 +560,29 @@ static errr rd_item(object_type* o_ptr)
     rd_s32b(&o_ptr->unused3);
     rd_s32b(&o_ptr->unused4);
 
-    // 8 spare bytes
-    strip_bytes(8);
+    // bane_type for each ability slot (8 bytes)
+    for (i = 0; i < 8; i++)
+    {
+        rd_byte(&o_ptr->bane_type[i]);
+    }
+
+    /* Per-stat/skill modifiers */
+    if (savefile_has_item_bonuses)
+    {
+        for (i = 0; i < A_MAX; i++)
+        {
+            rd_s16b(&o_ptr->stat_bonus[i]);
+        }
+        for (i = 0; i < S_MAX; i++)
+        {
+            rd_s16b(&o_ptr->skill_bonus[i]);
+        }
+    }
+    else
+    {
+        memset(o_ptr->stat_bonus, 0, sizeof(o_ptr->stat_bonus));
+        memset(o_ptr->skill_bonus, 0, sizeof(o_ptr->skill_bonus));
+    }
 
     /* Inscription */
     rd_string(buf, sizeof(buf));
@@ -483,7 +619,9 @@ static errr rd_item(object_type* o_ptr)
         o_ptr->weight = k_ptr->weight;
 
         /* Paranoia */
-        o_ptr->name1 = o_ptr->name2 = 0;
+        o_ptr->name1 = 0;
+        object_set_ego_suffix(o_ptr, 0);
+        object_set_ego_prefix(o_ptr, 0);
 
         /* All done */
         return (0);
@@ -491,6 +629,18 @@ static errr rd_item(object_type* o_ptr)
 
     /* Extract the flags */
     object_flags(o_ptr, &f1, &f2, &f3);
+
+    /* Migrate legacy visible {uncursed} to a hidden persisted marker. */
+    if (o_ptr->discount == INSCRIP_UNCURSED)
+    {
+        o_ptr->ident |= IDENT_UNCURSED;
+        o_ptr->discount = 0;
+    }
+
+    /* Preserve cleansed curse state without showing {uncursed}. */
+    if ((f3 & (TR3_LIGHT_CURSE | TR3_HEAVY_CURSE | TR3_PERMA_CURSE))
+        && !(o_ptr->ident & IDENT_UNCURSED))
+        o_ptr->ident |= (IDENT_CURSED);
 
     /* Paranoia */
     if (o_ptr->name1)
@@ -519,23 +669,66 @@ static errr rd_item(object_type* o_ptr)
         }
     }
 
-    /* Paranoia */
-    if (o_ptr->name2)
+    /*
+     * Ego items
+     *
+     * - Prefix ego is stored in o_ptr->unused2 (see object_ego_prefix()).
+     * - Suffix ego is stored in o_ptr->name2 (see object_ego_suffix()).
+     *
+     * For compatibility with older saves (which only had one ego in name2),
+     * migrate prefix-type egos from suffix->prefix based on the ego name.
+     */
+    if (o_ptr->unused2 < 0 || o_ptr->unused2 > 255)
+        o_ptr->unused2 = 0;
+
+    if (object_ego_prefix(o_ptr))
     {
+        byte e_idx = object_ego_prefix(o_ptr);
         ego_item_type* e_ptr;
 
-        /* Paranoia */
-        if (o_ptr->name2 >= z_info->e_max)
+        if (e_idx >= z_info->e_max)
+        {
+            object_set_ego_prefix(o_ptr, 0);
+        }
+        else
+        {
+            e_ptr = &e_info[e_idx];
+            if (!e_ptr->name)
+            {
+                object_set_ego_prefix(o_ptr, 0);
+            }
+            else if (!ego_name_is_prefix(e_name + e_ptr->name))
+            {
+                /* Corrupted/legacy: move to suffix slot if possible. */
+                if (!object_ego_suffix(o_ptr))
+                    object_set_ego_suffix(o_ptr, e_idx);
+                object_set_ego_prefix(o_ptr, 0);
+            }
+        }
+    }
+
+    if (object_ego_suffix(o_ptr))
+    {
+        byte e_idx = object_ego_suffix(o_ptr);
+        ego_item_type* e_ptr;
+
+        if (e_idx >= z_info->e_max)
         {
             return (-1);
         }
 
-        /* Obtain the special item info */
-        e_ptr = &e_info[o_ptr->name2];
-
-        /* Verify that special item */
+        e_ptr = &e_info[e_idx];
         if (!e_ptr->name)
-            o_ptr->name2 = 0;
+        {
+            object_set_ego_suffix(o_ptr, 0);
+        }
+        else if (ego_name_is_prefix(e_name + e_ptr->name))
+        {
+            /* Legacy: prefix egos used to live in name2. */
+            if (!object_ego_prefix(o_ptr))
+                object_set_ego_prefix(o_ptr, e_idx);
+            object_set_ego_suffix(o_ptr, 0);
+        }
     }
 
     /* Hack -- extract the "broken" flag */
@@ -563,25 +756,63 @@ static errr rd_item(object_type* o_ptr)
         /* Get the new artefact weight */
         o_ptr->weight = a_ptr->weight;
 
+        /* Ensure artefact-granted abilities are present (some generators may omit them). */
+        for (int ai = 0; ai < a_ptr->abilities && o_ptr->abilities < (int)N_ELEMENTS(o_ptr->skilltype); ai++)
+        {
+            bool found = false;
+            for (int oi = 0; oi < o_ptr->abilities; oi++)
+            {
+                if (o_ptr->skilltype[oi] == a_ptr->skilltype[ai]
+                    && o_ptr->abilitynum[oi] == a_ptr->abilitynum[ai])
+                {
+                    found = true;
+                    /* Also copy bane_type if this is a Bane ability */
+                    o_ptr->bane_type[oi] = a_ptr->bane_type[ai];
+                    break;
+                }
+            }
+            if (!found)
+            {
+                int idx = o_ptr->abilities;
+                o_ptr->skilltype[idx] = a_ptr->skilltype[ai];
+                o_ptr->abilitynum[idx] = a_ptr->abilitynum[ai];
+                o_ptr->bane_type[idx] = a_ptr->bane_type[ai];
+                o_ptr->abilities++;
+            }
+        }
+
         /* Hack -- extract the "broken" flag */
         if (!a_ptr->cost)
             o_ptr->ident |= (IDENT_BROKEN);
     }
 
     /* Ego items */
-    if (o_ptr->name2)
+    if (object_ego_prefix(o_ptr))
     {
-        ego_item_type* e_ptr;
-
-        /* Obtain the special item info */
-        e_ptr = &e_info[o_ptr->name2];
-
-        /* Hack -- extract the "broken" flag */
+        ego_item_type* e_ptr = &e_info[object_ego_prefix(o_ptr)];
+        if (!e_ptr->cost)
+            o_ptr->ident |= (IDENT_BROKEN);
+    }
+    if (object_ego_suffix(o_ptr))
+    {
+        ego_item_type* e_ptr = &e_info[object_ego_suffix(o_ptr)];
         if (!e_ptr->cost)
             o_ptr->ident |= (IDENT_BROKEN);
     }
 
     convert_old_staff_of_warding(o_ptr);
+
+    /* Back-compat: derive bonuses from pval+flags for older saves. */
+    if (o_ptr->name1 && !savefile_has_item_bonuses)
+    {
+        artefact_type* a_ptr = &a_info[o_ptr->name1];
+        memcpy(o_ptr->stat_bonus, a_ptr->stat_bonus, sizeof(o_ptr->stat_bonus));
+        memcpy(o_ptr->skill_bonus, a_ptr->skill_bonus, sizeof(o_ptr->skill_bonus));
+    }
+    else if (!savefile_has_item_bonuses)
+    {
+        object_derive_stat_skill_bonuses_from_pval(o_ptr);
+    }
 
     /* Log staff loading for debugging disappearing staff bug */
     if (o_ptr->tval == TV_STAFF)
@@ -713,6 +944,27 @@ static void rd_monster(monster_type* m_ptr)
         memset(m_ptr->shatter_padding, 0, sizeof(m_ptr->shatter_padding));
         strip_bytes(8);
     }
+
+    /* Thrall quest data */
+    if (savefile_has_thrall_quest)
+    {
+        rd_byte(&m_ptr->thrall_quest_item);
+        if (savefile_has_thrall_quest_requested)
+        {
+            rd_byte(&m_ptr->thrall_quest_requested);
+        }
+        else
+        {
+            m_ptr->thrall_quest_requested = 0;
+        }
+        rd_byte(&m_ptr->thrall_quest_completed);
+    }
+    else
+    {
+        m_ptr->thrall_quest_item = THRALL_QUEST_NONE;
+        m_ptr->thrall_quest_requested = 0;
+        m_ptr->thrall_quest_completed = 0;
+    }
 }
 
 /*
@@ -799,12 +1051,6 @@ static void rd_monster_race_stats(monster_race* r_ptr)
     r_ptr->spell_power = tmp8u;
     rd_u32b(&tmp32u);
     r_ptr->mon_power = tmp32u;
-#ifdef ALLOW_DATA_DUMP
-    rd_u32b(&tmp32u);
-    r_ptr->mon_eval_hp = tmp32u;
-    rd_u32b(&tmp32u);
-    r_ptr->mon_eval_dam = tmp32u;
-#endif
     rd_u32b(&tmp32u);
     r_ptr->flags1 = tmp32u;
     rd_u32b(&tmp32u);
@@ -842,6 +1088,20 @@ static void rd_monster_race_stats(monster_race* r_ptr)
     r_ptr->x_char = (char)tmp8u;
 }
 
+static void restore_monster_races_from_base(void)
+{
+    if (!r_base)
+        return;
+
+    for (int r = 0; r < z_info->r_max; r++)
+    {
+        byte saved_max_num = r_info[r].max_num;
+
+        r_info[r] = r_base[r];
+        r_info[r].max_num = saved_max_num;
+    }
+}
+
 static void rd_monster_runtime_overrides(void)
 {
     u16b count = 0;
@@ -851,24 +1111,25 @@ static void rd_monster_runtime_overrides(void)
     if (!count)
         return;
 
-    log_debug("Loading %u monster race runtime overrides", (unsigned)count);
+    log_debug(
+        "Discarding %u legacy monster race runtime overrides",
+        (unsigned)count);
 
     for (u16b n = 0; n < count; n++)
     {
         u16b r_idx = 0;
+        monster_race scratch;
+
         rd_u16b(&r_idx);
+        memset(&scratch, 0, sizeof(scratch));
+        rd_monster_race_stats(&scratch);
 
         if (r_idx >= z_info->r_max)
         {
-            log_error("Invalid monster race index %u in override block (max %u)", (unsigned)r_idx, (unsigned)z_info->r_max);
-            /* Continue but consume the data to keep stream aligned */
-            monster_race scratch;
-            memset(&scratch, 0, sizeof(scratch));
-            rd_monster_race_stats(&scratch);
-            continue;
+            log_error(
+                "Invalid monster race index %u in override block (max %u)",
+                (unsigned)r_idx, (unsigned)z_info->r_max);
         }
-
-        rd_monster_race_stats(&r_info[r_idx]);
     }
 }
 /*
@@ -877,21 +1138,24 @@ static void rd_monster_runtime_overrides(void)
 static void rd_randomizer(void)
 {
     int i;
+    u16b dummy;
+    u32b tmp32;
+    u32b lo = 0;
+    u32b hi = 0;
 
-    // 8 spare bytes
     strip_bytes(8);
+    rd_u16b(&dummy);
 
-    /* Place */
-    rd_u16b(&Rand_place);
-
-    /* State */
-    for (i = 0; i < RAND_DEG; i++)
+    for (i = 0; i < 63; i++)
     {
-        rd_u32b(&Rand_state[i]);
+        rd_u32b(&tmp32);
+        if (i == 0)
+            lo = tmp32;
+        else if (i == 1)
+            hi = tmp32;
     }
 
-    /* Accept */
-    Rand_quick = false;
+    Rand_state_import(((u64b)hi << 32) | lo);
 }
 
 /*
@@ -931,10 +1195,55 @@ static void rd_options(void)
     rd_byte(&b);
     op_ptr->main_combat_rolls = b;
     /* Ensure it's in valid range */
-    if (op_ptr->main_combat_rolls < 0 || op_ptr->main_combat_rolls > 4)
-        op_ptr->main_combat_rolls = 1;
-    /* Skip 7 remaining spare bytes */
-    strip_bytes(7);
+    if (op_ptr->main_combat_rolls > 3)
+        op_ptr->main_combat_rolls = 0;
+
+    /* Read "ability_desc_mode" */
+    rd_byte(&b);
+    op_ptr->ability_desc_mode = b;
+    if (op_ptr->ability_desc_mode > 2)
+        op_ptr->ability_desc_mode = 0;
+
+    /* Read "vault_drop_frequency" */
+    rd_byte(&b);
+    op_ptr->vault_drop_frequency = b;
+    if (op_ptr->vault_drop_frequency > VDF_PLENTIFUL)
+        op_ptr->vault_drop_frequency = VDF_NORMAL;
+
+    /* Read "intro_style" */
+    rd_byte(&b);
+    op_ptr->intro_style = b;
+    if (op_ptr->intro_style > INTRO_STYLE_RANDOM)
+        op_ptr->intro_style = INTRO_STYLE_FLAME;
+
+    if (savefile_version_at_least(0, 9, 5, 5))
+    {
+        rd_byte(&b);
+        op_ptr->level_entry_narrative_mode = b;
+        if (op_ptr->level_entry_narrative_mode > LEVEL_ENTRY_NARRATIVE_OFF)
+            op_ptr->level_entry_narrative_mode = LEVEL_ENTRY_NARRATIVE_BANNER_DELAY;
+
+        rd_byte(&b);
+        op_ptr->partition_narrative_mode = b;
+        if (op_ptr->partition_narrative_mode > PARTITION_NARRATIVE_OFF)
+            op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_BANNER;
+
+        rd_byte(&b);
+        op_ptr->noble_item_spawn_mode = b;
+        if (op_ptr->noble_item_spawn_mode > NOBLE_ITEM_SPAWN_INCLUDE_VAULTS)
+            op_ptr->noble_item_spawn_mode = NOBLE_ITEM_SPAWN_RESTRICTED;
+
+        /* Skip 1 remaining spare byte */
+        strip_bytes(1);
+    }
+    else
+    {
+        /* Old savefiles used the boolean show_level_entry_banner option. */
+        op_ptr->level_entry_narrative_mode = LEVEL_ENTRY_NARRATIVE_BANNER_DELAY;
+        op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_BANNER;
+        op_ptr->noble_item_spawn_mode = NOBLE_ITEM_SPAWN_RESTRICTED;
+        strip_bytes(4);
+    }
 
     /*** Normal Options ***/
 
@@ -973,6 +1282,17 @@ static void rd_options(void)
                 }
             }
         }
+    }
+
+    if (!savefile_version_at_least(0, 9, 5, 5))
+    {
+        op_ptr->level_entry_narrative_mode = op_ptr->opt[OPT_show_level_entry_banner]
+            ? LEVEL_ENTRY_NARRATIVE_BANNER_DELAY
+            : LEVEL_ENTRY_NARRATIVE_OFF;
+        op_ptr->partition_narrative_mode = op_ptr->opt[OPT_show_partition_narrative]
+            ? PARTITION_NARRATIVE_BANNER
+            : PARTITION_NARRATIVE_OFF;
+        op_ptr->noble_item_spawn_mode = NOBLE_ITEM_SPAWN_RESTRICTED;
     }
 
     /*** Window Options ***/
@@ -1045,13 +1365,13 @@ static errr rd_extra(void)
         return (-1);
     }
 
-    /* Player house */
-    rd_byte(&p_ptr->phouse);
+    /* Player character */
+    rd_byte(&p_ptr->pcharacter);
 
-    /* Verify player house */
-    if (p_ptr->phouse >= z_info->c_max)
+    /* Verify player character */
+    if (p_ptr->pcharacter >= z_info->c_max)
     {
-        note(format("Invalid player house (%d).", p_ptr->phouse));
+        note(format("Invalid player character (%d).", p_ptr->pcharacter));
         return (-1);
     }
 
@@ -1090,6 +1410,41 @@ static errr rd_extra(void)
                 log_trace("Load: Special ability %d loaded with value %d", j, p_ptr->have_ability[i][j]);
             }
         }
+    }
+
+    p_ptr->ability_timeline_count = 0;
+    if (savefile_has_ability_timeline)
+    {
+        u16b ability_events = 0;
+        rd_u16b(&ability_events);
+        if (ability_events > ABILITY_TIMELINE_MAX)
+            ability_events = ABILITY_TIMELINE_MAX;
+
+        for (u16b idx = 0; idx < ability_events; idx++)
+        {
+            byte skill = 0;
+            byte abil = 0;
+            u32b turn = 0;
+            s16b depth = 0;
+
+            rd_byte(&skill);
+            rd_byte(&abil);
+            rd_u32b(&turn);
+            rd_s16b(&depth);
+
+            if (idx < ABILITY_TIMELINE_MAX)
+            {
+                p_ptr->ability_timeline_skill[idx] = skill;
+                p_ptr->ability_timeline_ability[idx] = abil;
+                p_ptr->ability_timeline_turn[idx] = turn;
+                p_ptr->ability_timeline_depth[idx] = depth;
+                p_ptr->ability_timeline_count = idx + 1;
+            }
+        }
+    }
+    else
+    {
+        ability_log_reset();
     }
 
     rd_s16b(&p_ptr->last_attack_m_idx);
@@ -1189,7 +1544,18 @@ static errr rd_extra(void)
     rd_byte(&p_ptr->climbing);
 
     // 15 spare bytes (was 19, used 4)
-    strip_bytes(15);
+    {
+        byte morgoth_hall_entered = 0;
+        byte morgoth_second_wind = 0;
+        byte discovery_lore_flags = 0;
+        rd_byte(&morgoth_hall_entered);
+        rd_byte(&morgoth_second_wind);
+        rd_byte(&discovery_lore_flags);
+        p_ptr->morgoth_hall_entered = morgoth_hall_entered ? 1 : 0;
+        p_ptr->morgoth_second_wind = morgoth_second_wind ? 1 : 0;
+        p_ptr->discovery_lore_flags = discovery_lore_flags;
+        strip_bytes(12);
+    }
 
     /* Read item-quality squelch sub-menu */
     for (i = 0; i < SQUELCH_BYTES; i++)
@@ -1351,8 +1717,209 @@ static errr rd_extra(void)
     rd_s16b(&p_ptr->orome_spiders_killed);
     rd_s16b(&p_ptr->orome_serpents_killed);
     rd_s16b(&p_ptr->orome_vampires_killed);
+    if (savefile_has_varda_quest) {
+        rd_byte(&p_ptr->varda_quest);
+        rd_byte(&p_ptr->varda_vault_ready);
+        rd_byte(&p_ptr->varda_vault_placed);
+        rd_byte(&p_ptr->varda_reserved);
+        rd_s16b(&p_ptr->varda_level);
+    } else {
+        p_ptr->varda_quest = VARDA_QUEST_NOT_STARTED;
+        p_ptr->varda_vault_ready = 0;
+        p_ptr->varda_vault_placed = 0;
+        p_ptr->varda_reserved = 0;
+        p_ptr->varda_level = 0;
+    }
     rd_byte(&p_ptr->quest_vault_used);
-    for (int qi = 0; qi < 15; qi++) rd_byte(&p_ptr->quest_reserved[qi]);
+    /* quest_reserved array grew in 0.9.1.3; read available bytes safely */
+    int quest_reserved_len = savefile_version_at_least(0, 9, 1, 3) ? 15 : 12;
+    for (int qi = 0; qi < quest_reserved_len && qi < (int)N_ELEMENTS(p_ptr->quest_reserved); qi++) {
+        rd_byte(&p_ptr->quest_reserved[qi]);
+    }
+    for (int qi = quest_reserved_len; qi < (int)N_ELEMENTS(p_ptr->quest_reserved); qi++) {
+        p_ptr->quest_reserved[qi] = 0;
+    }
+
+    /* If Varda quest was active/successful in the save, ensure reservation persists after load */
+    if (p_ptr->varda_quest >= VARDA_QUEST_ACTIVE) {
+        p_ptr->quest_reserved[0] = 1;
+    }
+
+    /* Skeleton note state (per-level tutorial-style messages) */
+    if (savefile_has_skeleton_notes)
+    {
+        byte marker = 0;
+        rd_byte(&marker);
+        if (marker != 0x52)
+        {
+            note(format("Invalid skeleton note marker 0x%02X", marker));
+            return (-1);
+        }
+        skeleton_note_state_save sn_state;
+        rd_s16b(&sn_state.level_depth);
+        rd_s16b(&sn_state.note_cap);
+        rd_s16b(&sn_state.notes_shown);
+        rd_s16b(&sn_state.map_wid);
+        rd_s16b(&sn_state.map_hgt);
+        if (savefile_has_skeleton_hint_mask32)
+        {
+            rd_u32b(&sn_state.hint_used_mask);
+        }
+        else if (savefile_has_skeleton_hint_mask)
+        {
+            byte tmp_mask = 0;
+            rd_byte(&tmp_mask);
+            sn_state.hint_used_mask = tmp_mask;
+        }
+        else
+        {
+            sn_state.hint_used_mask = 0;
+        }
+        rd_byte(&sn_state.seen_count);
+        for (int i = 0; i < SKELETON_NOTE_SEEN_MAX; ++i)
+            rd_s16b(&sn_state.seen_ids[i]);
+        skeleton_note_set_state(&sn_state);
+    }
+    else
+    {
+        skeleton_note_set_state(NULL);
+    }
+
+    /* Partition generation metadata (grid + per-partition modes) */
+    if (savefile_has_partition_meta)
+    {
+        byte marker = 0;
+        rd_byte(&marker);
+        if (marker != 0x53)
+        {
+            note(format("Invalid partition meta marker 0x%02X", marker));
+            return (-1);
+        }
+
+        partition_meta_save pm;
+        memset(&pm, 0, sizeof(pm));
+        rd_s16b(&pm.grid_rows);
+        rd_s16b(&pm.grid_cols);
+        rd_s16b(&pm.partition_count);
+        for (int i = 0; i < PARTITION_META_MAX; ++i)
+            rd_byte(&pm.modes[i]);
+        if (savefile_has_partition_meta_types)
+        {
+            for (int i = 0; i < PARTITION_META_MAX; ++i)
+                rd_byte(&pm.big_cave_types[i]);
+        }
+
+        level_partition_meta_set(&pm);
+    }
+
+    /* Hint message log (per-level skeleton note archive) */
+    if (savefile_has_hint_messages)
+    {
+        byte marker = 0;
+        rd_byte(&marker);
+        if (marker != 0x54)
+        {
+            note(format("Invalid hint message marker 0x%02X", marker));
+            return (-1);
+        }
+
+        s16b level_depth = 0;
+        s16b map_wid = 0;
+        s16b map_hgt = 0;
+        rd_s16b(&level_depth);
+        rd_s16b(&map_wid);
+        rd_s16b(&map_hgt);
+
+        byte count = 0;
+        rd_byte(&count);
+
+        hint_messages_clear_for_load(level_depth, map_wid, map_hgt);
+
+        for (int mi = 0; mi < count; ++mi)
+        {
+            hint_message_meta meta;
+            byte line_count = 0;
+            rd_byte(&line_count);
+
+            char lines[16][100];
+            int keep = (line_count > 16) ? 16 : line_count;
+            for (int li = 0; li < keep; ++li)
+                rd_string(lines[li], sizeof(lines[li]));
+            for (int li = keep; li < 16; ++li)
+                lines[li][0] = '\0';
+
+            for (int li = keep; li < line_count; ++li)
+            {
+                char discard[100];
+                rd_string(discard, sizeof(discard));
+            }
+
+            memset(&meta, 0, sizeof(meta));
+            meta.source_y = -1;
+            meta.source_x = -1;
+
+            if (savefile_has_hint_message_meta)
+            {
+                rd_s16b(&meta.source_y);
+                rd_s16b(&meta.source_x);
+                rd_byte(&meta.cue_count);
+                meta.cue_count = MIN(meta.cue_count, HINT_MESSAGE_CUE_MAX);
+                for (int cue = 0; cue < HINT_MESSAGE_CUE_MAX; ++cue)
+                {
+                    rd_string(meta.cue_dists[cue], sizeof(meta.cue_dists[cue]));
+                    rd_string(meta.cue_dirs[cue], sizeof(meta.cue_dirs[cue]));
+                }
+            }
+
+            hint_messages_add_for_load(lines, keep, &meta);
+        }
+    }
+    else
+    {
+        hint_messages_level_reset();
+    }
+
+    if (savefile_version_at_least(0, 9, 5, 6))
+    {
+        byte marker = 0;
+        byte mode = RUN_MODE_STORY;
+        int8_t stacks[METAR_CURSE_SLOTS];
+        u32b seen_lo = 0;
+        u32b seen_hi = 0;
+
+        rd_byte(&marker);
+        if (marker != 0x55)
+        {
+            note(format("Invalid blitz marker 0x%02X", marker));
+            return (-1);
+        }
+
+        rd_byte(&mode);
+        if (mode != RUN_MODE_BLITZ)
+            mode = RUN_MODE_STORY;
+
+        for (int bi = 0; bi < METAR_CURSE_SLOTS; ++bi)
+        {
+            byte raw = 0;
+            rd_byte(&raw);
+            stacks[bi] = (int8_t)raw;
+        }
+        rd_u32b(&seen_lo);
+        rd_u32b(&seen_hi);
+
+        run_mode_set_current((run_mode)mode);
+        run_mode_set_pending((run_mode)mode);
+        if (mode == RUN_MODE_BLITZ)
+            blitz_runtime_restore(stacks, ((u64b)seen_hi << 32) | seen_lo);
+        else
+            blitz_runtime_reset();
+    }
+    else
+    {
+        run_mode_set_current(RUN_MODE_STORY);
+        run_mode_set_pending(RUN_MODE_STORY);
+        blitz_runtime_reset();
+    }
 
     /* Min depth counter */
     rd_s32b(&min_depth_counter);
@@ -1360,6 +1927,8 @@ static errr rd_extra(void)
 
     /* Quest states loaded from save should remain as-is for this character */
     /* Metarun completion is checked separately via metarun_is_quest_completed() */
+
+    ability_log_sync_missing();
 
     return (0);
 }
@@ -1425,6 +1994,10 @@ static errr rd_randarts(void)
             a_ptr->tval = 0;
             a_ptr->sval = 0;
             a_ptr->name[0] = '\0';
+            memset(a_ptr->stat_bonus, 0, sizeof(a_ptr->stat_bonus));
+            memset(a_ptr->skill_bonus, 0, sizeof(a_ptr->skill_bonus));
+            memset(a_ptr->stat_bonus_set, 0, sizeof(a_ptr->stat_bonus_set));
+            memset(a_ptr->skill_bonus_set, 0, sizeof(a_ptr->skill_bonus_set));
         }
 
         /* Read the artefacts */
@@ -1438,6 +2011,16 @@ static errr rd_randarts(void)
                 continue;
 
             rd_string(a_ptr->name, MAX_LEN_ART_NAME);
+            if (randart_version >= 63)
+            {
+                rd_u32b(&a_ptr->guid.hi);
+                rd_u32b(&a_ptr->guid.lo);
+            }
+            else
+            {
+                a_ptr->guid = score_guid_from_string(
+                    a_ptr->name[0] ? a_ptr->name : "randart", (u32b)i);
+            }
 
             rd_byte(&a_ptr->tval);
             rd_byte(&a_ptr->sval);
@@ -1456,11 +2039,37 @@ static errr rd_randarts(void)
             rd_u32b(&a_ptr->flags1);
             rd_u32b(&a_ptr->flags2);
             rd_u32b(&a_ptr->flags3);
+            if (savefile_has_randart_flags4)
+                rd_u32b(&a_ptr->flags4);
+            else
+                a_ptr->flags4 = 0;
             rd_byte(&a_ptr->level);
             rd_byte(&a_ptr->rarity);
             rd_byte(&a_ptr->activation);
             rd_u16b(&a_ptr->time);
             rd_u16b(&a_ptr->randtime);
+
+            if (savefile_has_randart_bonuses)
+            {
+                for (int bi = 0; bi < A_MAX; bi++)
+                    rd_s16b(&a_ptr->stat_bonus[bi]);
+                for (int bi = 0; bi < S_MAX; bi++)
+                    rd_s16b(&a_ptr->skill_bonus[bi]);
+                for (int bi = 0; bi < A_MAX; bi++)
+                {
+                    rd_byte(&tmp8u);
+                    a_ptr->stat_bonus_set[bi] = tmp8u ? true : false;
+                }
+                for (int bi = 0; bi < S_MAX; bi++)
+                {
+                    rd_byte(&tmp8u);
+                    a_ptr->skill_bonus_set[bi] = tmp8u ? true : false;
+                }
+            }
+            else
+            {
+                artefact_derive_stat_skill_bonuses_from_pval(a_ptr);
+            }
         }
     }
     else
@@ -1470,6 +2079,11 @@ static errr rd_randarts(void)
         {
             char tmpstr[MAX_LEN_ART_NAME];
             rd_string(tmpstr, sizeof(tmpstr)); /*a_ptr->name*/
+            if (randart_version >= 63)
+            {
+                rd_u32b(&tmp32u);
+                rd_u32b(&tmp32u);
+            }
             rd_byte(&tmp8u); /* a_ptr->tval */
             rd_byte(&tmp8u); /* a_ptr->sval */
             rd_s16b(&tmp16s); /* a_ptr->pval */
@@ -1488,12 +2102,26 @@ static errr rd_randarts(void)
             rd_u32b(&tmp32u); /* a_ptr->flags1 */
             rd_u32b(&tmp32u); /* a_ptr->flags2 */
             rd_u32b(&tmp32u); /* a_ptr->flags3 */
+            if (savefile_has_randart_flags4)
+                rd_u32b(&tmp32u); /* a_ptr->flags4 */
             rd_byte(&tmp8u); /* a_ptr->level */
             rd_byte(&tmp8u); /* a_ptr->rarity */
 
             rd_byte(&tmp8u); /* a_ptr->activation */
             rd_u16b(&tmp16u); /* a_ptr->time */
             rd_u16b(&tmp16u); /* a_ptr->randtime */
+
+            if (savefile_has_randart_bonuses)
+            {
+                for (int bi = 0; bi < A_MAX; bi++)
+                    rd_s16b(&tmp16s);
+                for (int bi = 0; bi < S_MAX; bi++)
+                    rd_s16b(&tmp16s);
+                for (int bi = 0; bi < A_MAX; bi++)
+                    rd_byte(&tmp8u);
+                for (int bi = 0; bi < S_MAX; bi++)
+                    rd_byte(&tmp8u);
+            }
         }
     }
 
@@ -1524,7 +2152,7 @@ static bool rd_notes(void)
             /* Found the end? */
             if (strstr(tmpstr, NOTES_MARK))
                 break;
-            my_strcat(
+            SDL_strlcat(
                 notes_buffer, format("%s\n", tmpstr), sizeof(notes_buffer));
         }
     }
@@ -1692,14 +2320,23 @@ static errr rd_inventory(void)
                 count = supply.number;
             if (count < 0)
                 count = 0;
-            if (count > 255)
-                count = 255;
-            supply.number = (byte)count;
+
             supply.pval = 0;
-            if (count <= 0)
-                supply.ident |= IDENT_EMPTY;
-            else
-                supply.ident &= ~(IDENT_EMPTY);
+            supply.ident &= ~(IDENT_EMPTY);
+
+            int stack_limit = object_stack_limit(&supply);
+            while (count > 0)
+            {
+                int chunk = MIN(count, stack_limit);
+                if (chunk <= 0)
+                    break;
+                object_type part;
+                object_copy(&part, &supply);
+                part.number = (byte)chunk;
+                count -= chunk;
+                supplies_absorb_object(&part);
+            }
+            continue;
         }
 
         if (supply.k_idx)
@@ -1773,6 +2410,9 @@ static errr rd_dungeon(void)
     byte tmp8u;
 
     u16b limit;
+    bool defer_player_placement = false;
+    s16b header_py = 0;
+    s16b header_px = 0;
 
     log_debug("rd_dungeon: ENTRY");
     log_trace("[load:%06u] === BEGIN DUNGEON ===", (unsigned)load_byte_offset);
@@ -1789,6 +2429,8 @@ static errr rd_dungeon(void)
 
     log_debug("rd_dungeon: Read header - depth=%d, py=%d, px=%d, map=%dx%d", 
              depth, py, px, p_ptr->cur_map_hgt, p_ptr->cur_map_wid);
+    header_py = py;
+    header_px = px;
 
     /* Ignore illegal dungeons */
     if ((depth < 0) || (depth > MORGOTH_DEPTH))
@@ -1807,17 +2449,41 @@ static errr rd_dungeon(void)
         return (0);
     }
 
-    /* Ignore illegal dungeons */
-    if ((px < 0) || (px >= p_ptr->cur_map_wid) || (py < 0)
+    /* The savefile header's player position is used later for player placement.
+     *
+     * The FOV/view code assumes the player is fully inside the outer walls.
+     * If the save was written mid-crash/mid-transition, this can be (0,0) or
+     * otherwise unsafe, which would crash on the first update_view().
+     *
+     * Treat unsafe positions as "repairable corruption" and defer placement
+     * until after monsters are loaded, so we can pick an unoccupied grid. */
+    if ((px < 0) || (py < 0) || (px >= p_ptr->cur_map_wid)
         || (py >= p_ptr->cur_map_hgt))
     {
-        log_error("rd_dungeon: Illegal player location py=%d px=%d (map=%dx%d)", 
+        log_warn("rd_dungeon: Savefile has out-of-bounds player location py=%d px=%d (map=%dx%d); will repair",
                  py, px, p_ptr->cur_map_hgt, p_ptr->cur_map_wid);
-        note(format("Ignoring illegal player location (%d,%d).", py, px));
-        return (1);
+        defer_player_placement = true;
     }
-    
-    log_debug("rd_dungeon: Player position valid");
+    else if (!in_bounds_fully(py, px))
+    {
+        log_warn("rd_dungeon: Savefile has boundary player location py=%d px=%d (map=%dx%d); will repair",
+                 py, px, p_ptr->cur_map_hgt, p_ptr->cur_map_wid);
+        defer_player_placement = true;
+    }
+    else
+    {
+        log_debug("rd_dungeon: Player position valid");
+    }
+
+    /* Clear per-grid entity maps; savefiles store entities separately. */
+    for (y = 0; y < p_ptr->cur_map_hgt; ++y)
+    {
+        for (x = 0; x < p_ptr->cur_map_wid; ++x)
+        {
+            cave_o_idx[y][x] = 0;
+            cave_m_idx[y][x] = 0;
+        }
+    }
 
     /*** Run length decoding of cave_info ***/
 
@@ -1849,7 +2515,59 @@ static errr rd_dungeon(void)
     }
     log_trace("[load:%06u] === END CAVE_INFO RLE ===", (unsigned)load_byte_offset);
 
-    /* No probe after cave_info in current format. */
+    /* Persisted high-bit cave_info flags (e.g. CAVE_CHASM_AREA).
+     *
+     * - New saves (0.9.1 extra>=8): mandatory block.
+     * - Older saves: no block. */
+    if (savefile_has_cave_info_hi)
+    {
+        const u16b CAVE_INFO_HI_MAGIC = 0xC1F0;
+        u16b magic = 0;
+        rd_u16b(&magic);
+        if (magic != CAVE_INFO_HI_MAGIC)
+        {
+            note(format("Invalid cave_info_hi marker 0x%04X", magic));
+            return (-1);
+        }
+
+        log_trace("[load:%06u] === BEGIN CAVE_INFO_HI RLE ===", (unsigned)load_byte_offset);
+        for (x = y = 0; y < p_ptr->cur_map_hgt;)
+        {
+            rd_byte(&count);
+            rd_byte(&tmp8u);
+
+            for (i = count; i > 0; i--)
+            {
+                cave_info[y][x] |= ((u16b)tmp8u) << 8;
+
+                if (++x >= p_ptr->cur_map_wid)
+                {
+                    x = 0;
+                    if (++y >= p_ptr->cur_map_hgt)
+                        break;
+                }
+            }
+        }
+        log_trace("[load:%06u] === END CAVE_INFO_HI RLE ===", (unsigned)load_byte_offset);
+    }
+
+    /* Ensure per-tile chasm partition tag exists across the entire partition bounds.
+     * Older saves (and some generation paths) may not have stored/covered this. */
+    {
+        level_layout_info layout;
+        level_layout_info_current(&layout);
+        if (layout.partition_count > 0)
+        {
+            for (int yy = 0; yy < p_ptr->cur_map_hgt; ++yy)
+            {
+                for (int xx = 0; xx < p_ptr->cur_map_wid; ++xx)
+                {
+                    if (level_partition_kind_for_point(yy, xx) == LEVEL_PART_CHASM)
+                        cave_info[yy][xx] |= CAVE_CHASM_AREA;
+                }
+            }
+        }
+    }
 
     /* Note: door-choices are only probed after cave_color for current saves. */
 
@@ -1963,14 +2681,21 @@ static errr rd_dungeon(void)
     /* Load depth */
     p_ptr->depth = depth;
 
-    /* Place player in dungeon */
-    if (!player_place(py, px))
+    /* Place player in dungeon (unless we need to repair after loading monsters) */
+    if (!defer_player_placement)
     {
-        log_error("Failed to place player at (%d,%d) in dungeon (depth=%d, map=%dx%d)", py, px, depth, p_ptr->cur_map_hgt, p_ptr->cur_map_wid);
-        note(format("Cannot place player (%d,%d)!", py, px));
-        return (-1);
+        if (!player_place(py, px))
+        {
+            log_error("Failed to place player at (%d,%d) in dungeon (depth=%d, map=%dx%d)", py, px, depth, p_ptr->cur_map_hgt, p_ptr->cur_map_wid);
+            note(format("Cannot place player (%d,%d)!", py, px));
+            return (-1);
+        }
+        log_debug("Player placed successfully at (%d,%d)", py, px);
     }
-    log_debug("Player placed successfully at (%d,%d)", py, px);
+    else
+    {
+        note("Repairing invalid player location in savefile...");
+    }
 
     /*** Objects ***/
 
@@ -2101,7 +2826,7 @@ static errr rd_dungeon(void)
         n_ptr = &monster_type_body;
 
         /* Clear the monster */
-        (void)WIPE(n_ptr, monster_type);
+        memset(n_ptr, 0, sizeof(monster_type));
 
     /* Read the monster */
     rd_monster(n_ptr);
@@ -2115,6 +2840,159 @@ static errr rd_dungeon(void)
         }
     }
     log_trace("[load:%06u] === END MONSTERS ===", (unsigned)load_byte_offset);
+
+    /*** Player (repair path) ***/
+
+    if (defer_player_placement)
+    {
+        int ry = -1, rx = -1;
+        bool found = false;
+
+        /* Enforce a permanent wall boundary to keep view/FOV safe. */
+        if ((p_ptr->cur_map_hgt >= 2) && (p_ptr->cur_map_wid >= 2))
+        {
+            int yy, xx;
+            for (xx = 0; xx < p_ptr->cur_map_wid; ++xx)
+            {
+                cave_set_feat(0, xx, FEAT_WALL_PERM);
+                cave_set_feat(p_ptr->cur_map_hgt - 1, xx, FEAT_WALL_PERM);
+            }
+            for (yy = 0; yy < p_ptr->cur_map_hgt; ++yy)
+            {
+                cave_set_feat(yy, 0, FEAT_WALL_PERM);
+                cave_set_feat(yy, p_ptr->cur_map_wid - 1, FEAT_WALL_PERM);
+            }
+        }
+
+        /* Prefer a staircase for recovery. */
+        if (depth == 0)
+        {
+            for (y = 1; y < p_ptr->cur_map_hgt - 1 && !found; ++y)
+            {
+                for (x = 1; x < p_ptr->cur_map_wid - 1; ++x)
+                {
+                    if (cave_down_stairs_bold(y, x) && (cave_m_idx[y][x] == 0))
+                    {
+                        ry = y;
+                        rx = x;
+                        found = true;
+                        break;
+                    }
+                }
+            }
+        }
+        else
+        {
+            for (y = 1; y < p_ptr->cur_map_hgt - 1 && !found; ++y)
+            {
+                for (x = 1; x < p_ptr->cur_map_wid - 1; ++x)
+                {
+                    if (cave_up_stairs_bold(y, x) && (cave_m_idx[y][x] == 0))
+                    {
+                        ry = y;
+                        rx = x;
+                        found = true;
+                        break;
+                    }
+                }
+            }
+            for (y = 1; y < p_ptr->cur_map_hgt - 1 && !found; ++y)
+            {
+                for (x = 1; x < p_ptr->cur_map_wid - 1; ++x)
+                {
+                    if (cave_down_stairs_bold(y, x) && (cave_m_idx[y][x] == 0))
+                    {
+                        ry = y;
+                        rx = x;
+                        found = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        /* Fallback: any empty, non-chasm, unoccupied floor. */
+        if (!found)
+        {
+            for (y = 1; y < p_ptr->cur_map_hgt - 1 && !found; ++y)
+            {
+                for (x = 1; x < p_ptr->cur_map_wid - 1; ++x)
+                {
+                    if (cave_empty_bold(y, x))
+                    {
+                        ry = y;
+                        rx = x;
+                        found = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        /* Final fallback: clamp to center and search outward. */
+        if (!found)
+        {
+            int cy = p_ptr->cur_map_hgt / 2;
+            int cx = p_ptr->cur_map_wid / 2;
+            int max_r = MAX(p_ptr->cur_map_hgt, p_ptr->cur_map_wid);
+
+            if (cy < 1)
+                cy = 1;
+            if (cx < 1)
+                cx = 1;
+            if (cy > p_ptr->cur_map_hgt - 2)
+                cy = p_ptr->cur_map_hgt - 2;
+            if (cx > p_ptr->cur_map_wid - 2)
+                cx = p_ptr->cur_map_wid - 2;
+
+            for (int r = 0; (r <= max_r) && !found; ++r)
+            {
+                int y1 = cy - r;
+                int y2 = cy + r;
+                int x1 = cx - r;
+                int x2 = cx + r;
+
+                for (int yy = y1; (yy <= y2) && !found; ++yy)
+                {
+                    for (int xx = x1; xx <= x2; ++xx)
+                    {
+                        if (!in_bounds_fully(yy, xx))
+                            continue;
+                        if (cave_m_idx[yy][xx] != 0)
+                            continue;
+                        if (!cave_floor_bold(yy, xx))
+                            continue;
+                        if (cave_feat[yy][xx] == FEAT_CHASM)
+                            continue;
+                        ry = yy;
+                        rx = xx;
+                        found = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!found)
+        {
+            log_error("rd_dungeon: Could not repair player location (header py=%d px=%d, depth=%d, map=%dx%d)",
+                      header_py, header_px, depth, p_ptr->cur_map_hgt, p_ptr->cur_map_wid);
+            note("Savefile recovery failed (no safe grid found).");
+            return (-1);
+        }
+
+        /* Place the player now that the map and monsters are known. */
+        if (!player_place(ry, rx))
+        {
+            log_error("rd_dungeon: Failed to place repaired player at (%d,%d) (header py=%d px=%d, depth=%d)",
+                      ry, rx, header_py, header_px, depth);
+            note("Savefile recovery failed (cannot place player).");
+            return (-1);
+        }
+
+        log_warn("rd_dungeon: Repaired player location from (%d,%d) to (%d,%d) at depth %d",
+                 header_py, header_px, ry, rx, depth);
+    }
 
     /*** Holding ***/
 
@@ -2212,6 +3090,21 @@ static errr rd_savefile_new_aux(void)
     savefile_has_runtime_overrides = savefile_version_at_least(0, 9, 0, 3);
     savefile_has_monster_shatter = savefile_version_at_least(0, 9, 0, 4);
     savefile_has_song_duels = savefile_version_at_least(0, 9, 0, 5);
+    savefile_has_ability_timeline = savefile_version_at_least(0, 9, 1, 1);
+    savefile_has_artifact_seen = savefile_version_at_least(0, 9, 1, 4);
+    savefile_has_skeleton_notes = savefile_version_at_least(0, 9, 1, 5);
+    savefile_has_skeleton_hint_mask = savefile_version_at_least(0, 9, 1, 6);
+    savefile_has_skeleton_hint_mask32 = savefile_version_at_least(0, 9, 1, 13);
+    savefile_has_partition_meta = savefile_version_at_least(0, 9, 1, 7);
+    savefile_has_partition_meta_types = savefile_version_at_least(0, 9, 1, 9);
+    savefile_has_cave_info_hi = savefile_version_at_least(0, 9, 1, 8);
+    savefile_has_hint_messages = savefile_version_at_least(0, 9, 1, 10);
+    savefile_has_hint_message_meta = savefile_version_at_least(0, 9, 5, 7);
+    savefile_has_thrall_quest = savefile_version_at_least(0, 9, 1, 11);
+    savefile_has_thrall_quest_requested = savefile_version_at_least(0, 9, 1, 12);
+    savefile_has_randart_flags4 = savefile_version_at_least(0, 9, 5, 1);
+    savefile_has_item_bonuses = savefile_version_at_least(0, 9, 5, 2);
+    savefile_has_randart_bonuses = savefile_version_at_least(0, 9, 5, 3);
 
     /* Reset load byte offset counter */
     load_byte_offset = 0;
@@ -2278,17 +3171,11 @@ static errr rd_savefile_new_aux(void)
         /* Read the lore */
         rd_lore(i);
     }
+    restore_monster_races_from_base();
+
     if (savefile_has_runtime_overrides)
     {
         rd_monster_runtime_overrides();
-    }
-    else if (r_base)
-    {
-        /* Ensure legacy saves revert any prior runtime overrides */
-        for (int r = 0; r < z_info->r_max; r++)
-        {
-            r_info[r] = r_base[r];
-        }
     }
     if (arg_fiddle)
         note("Loaded Monster Memory");
@@ -2340,6 +3227,16 @@ static errr rd_savefile_new_aux(void)
         a_info[i].cur_num = tmp8u;
         rd_byte(&tmp8u);
         a_info[i].found_num = tmp8u;
+        if (savefile_has_artifact_seen)
+        {
+            rd_byte(&tmp8u);
+            a_info[i].seen = tmp8u;
+        }
+        else
+        {
+            /* Older saves don't have seen field - default to 0 */
+            a_info[i].seen = 0;
+        }
     }
     if (arg_fiddle)
         note("Loaded Artefacts");
@@ -2363,9 +3260,9 @@ static errr rd_savefile_new_aux(void)
     if (arg_fiddle)
         note("Loaded Notes");
 
-    /* Important -- Initialize the race/house */
+    /* Important -- Initialize the race/character */
     rp_ptr = &p_info[p_ptr->prace];
-    hp_ptr = &c_info[p_ptr->phouse];
+    current_character_profile = &c_info[p_ptr->pcharacter];
 
     /* Read the inventory */
     log_debug("Loading player inventory");
@@ -2437,7 +3334,7 @@ static errr rd_savefile(void)
     safe_setuid_grab();
 
     /* The savefile is a binary file */
-    fff = my_fopen(savefile, "rb");
+    fff = sdl_fopen(savefile, "rb");
 
     /* Drop permissions */
     safe_setuid_drop();
@@ -2453,15 +3350,10 @@ static errr rd_savefile(void)
     err = rd_savefile_new_aux();
     log_debug("rd_savefile_new_aux returned: %d", err);
 
-    /* Check for errors */
-    if (ferror(fff))
-    {
-        log_error("File read error detected (ferror)");
-        err = -1;
-    }
-
+    /* Note: SDL doesn't have ferror equivalent - errors are caught during read operations */
+    
     /* Close the file */
-    my_fclose(fff);
+    sdl_fclose(fff);
     log_debug("Savefile closed");
 
     /* Result */
@@ -2484,7 +3376,7 @@ static errr rd_savefile(void)
  */
 bool load_player(void)
 {
-    int fd = -1;
+    SDL_IOStream* fd = NULL;
 
     errr err = 0;
 
@@ -2503,6 +3395,7 @@ bool load_player(void)
 
     /* Paranoia */
     p_ptr->is_dead = false;
+    killer_reset();
 
     // Set a flag to show that we are restoring a game
     p_ptr->restoring = true;
@@ -2515,13 +3408,13 @@ bool load_player(void)
     safe_setuid_grab();
 
     /* Open the savefile */
-    fd = fd_open(savefile, O_RDONLY);
+    fd = sdl_fopen(savefile, "rb");
 
     /* Drop permissions */
     safe_setuid_drop();
 
     /* No file */
-    if (fd < 0)
+    if (!fd)
     {
         /* Give a message */
         // msg_format("Savefile \"%s\" does not exist.", savefile);
@@ -2536,26 +3429,26 @@ bool load_player(void)
     log_debug("Savefile exists, proceeding with load");
 
     /* Close the file */
-    fd_close(fd);
+    sdl_fclose(fd);
 
 #ifdef VERIFY_SAVEFILE
 
     /* Verify savefile usage */
     if (!err)
     {
-        FILE* fkk;
+        SDL_IOStream* fkk;
 
         char temp[1024];
 
         /* Extract name of lock file */
-        my_strcpy(temp, savefile, sizeof(temp));
-        my_strcat(temp, ".lok", sizeof(temp));
+        SDL_strlcpy(temp, savefile, sizeof(temp));
+        SDL_strlcat(temp, ".lok", sizeof(temp));
 
         /* Grab permissions */
         safe_setuid_grab();
 
         /* Check for lock */
-        fkk = my_fopen(temp, "r");
+        fkk = sdl_fopen(temp, "r");
 
         /* Drop permissions */
         safe_setuid_drop();
@@ -2564,7 +3457,7 @@ bool load_player(void)
         if (fkk)
         {
             /* Close the file */
-            my_fclose(fkk);
+            sdl_fclose(fkk);
 
             /* Message */
             msg_print("Savefile is currently in use.");
@@ -2578,7 +3471,7 @@ bool load_player(void)
         safe_setuid_grab();
 
         /* Create a lock file */
-        fkk = my_fopen(temp, "w");
+        fkk = sdl_fopen(temp, "w");
 
         /* Drop permissions */
         safe_setuid_drop();
@@ -2587,7 +3480,7 @@ bool load_player(void)
         fprintf(fkk, "Lock file for savefile '%s'\n", savefile);
 
         /* Close the lock file */
-        my_fclose(fkk);
+        sdl_fclose(fkk);
     }
 
 #endif /* VERIFY_SAVEFILE */
@@ -2599,13 +3492,13 @@ bool load_player(void)
         safe_setuid_grab();
 
         /* Open the savefile */
-        fd = fd_open(savefile, O_RDONLY);
+        fd = sdl_fopen(savefile, "rb");
 
         /* Drop permissions */
         safe_setuid_drop();
 
         /* No file */
-        if (fd < 0)
+        if (!fd)
             err = -1;
 
         /* Message (below) */
@@ -2617,20 +3510,13 @@ bool load_player(void)
     if (!err)
     {
 #ifdef VERIFY_TIMESTAMP
-
-        /* Grab permissions */
-        safe_setuid_grab();
-
-        /* Get the timestamp */
-        (void)fstat(fd, &statbuf);
-
-        /* Drop permissions */
-        safe_setuid_drop();
-
+        /* Note: fstat requires integer file descriptor, not available with SDL_IOStream */
+        /* Timestamp verification disabled for SDL builds */
+        log_debug("Timestamp verification skipped (not supported with SDL_IOStream)");
 #endif /* VERIFY_TIMESTAMP */
 
         /* Read the first four bytes */
-        if (fd_read(fd, (char*)(vvv), sizeof(vvv)))
+        if (sdl_read(fd, (char*)(vvv), sizeof(vvv)))
             err = -1;
 
         /* What */
@@ -2638,7 +3524,7 @@ bool load_player(void)
             what = "Cannot read savefile";
 
         /* Close the file */
-        fd_close(fd);
+        sdl_fclose(fd);
     }
 
     /* Process file */
@@ -2666,6 +3552,22 @@ bool load_player(void)
             savefile_has_runtime_overrides = savefile_version_at_least(0, 9, 0, 3);
             savefile_has_monster_shatter = savefile_version_at_least(0, 9, 0, 4);
             savefile_has_song_duels = savefile_version_at_least(0, 9, 0, 5);
+            savefile_has_ability_timeline = savefile_version_at_least(0, 9, 1, 1);
+            savefile_has_varda_quest = savefile_version_at_least(0, 9, 1, 3);
+            savefile_has_artifact_seen = savefile_version_at_least(0, 9, 1, 4);
+            savefile_has_skeleton_notes = savefile_version_at_least(0, 9, 1, 5);
+            savefile_has_skeleton_hint_mask = savefile_version_at_least(0, 9, 1, 6);
+            savefile_has_skeleton_hint_mask32 = savefile_version_at_least(0, 9, 1, 13);
+            savefile_has_partition_meta = savefile_version_at_least(0, 9, 1, 7);
+            savefile_has_partition_meta_types = savefile_version_at_least(0, 9, 1, 9);
+            savefile_has_cave_info_hi = savefile_version_at_least(0, 9, 1, 8);
+            savefile_has_hint_messages = savefile_version_at_least(0, 9, 1, 10);
+            savefile_has_hint_message_meta = savefile_version_at_least(0, 9, 5, 7);
+            savefile_has_thrall_quest = savefile_version_at_least(0, 9, 1, 11);
+            savefile_has_thrall_quest_requested = savefile_version_at_least(0, 9, 1, 12);
+            savefile_has_randart_flags4 = savefile_version_at_least(0, 9, 5, 1);
+            savefile_has_item_bonuses = savefile_version_at_least(0, 9, 5, 2);
+            savefile_has_randart_bonuses = savefile_version_at_least(0, 9, 5, 3);
         }
 
         load_byte_offset = 0; /* reset counter before decoding stream */
@@ -2725,6 +3627,10 @@ bool load_player(void)
     /* Okay */
     if (!err)
     {
+        /* App-wide settings live in the SDL JSON config, so they must win over
+         * any copies serialized in the savefile. */
+        sdl_config_load_app_options(get_sdl_config_path());
+
         // if Morgoth has lost his crown...
         if ((&a_info[ART_MORGOTH_3])->cur_num == 1)
         {
@@ -2789,13 +3695,18 @@ bool load_player(void)
         if (p_ptr->chp >= 0)
         {
             /* Reset cause of death */
-            my_strcpy(
+            SDL_strlcpy(
                 p_ptr->died_from, "(alive and well)", sizeof(p_ptr->died_from));
         }
 
         // count the artefacts seen for the player
         p_ptr->artefacts = artefact_count();
         log_debug("Character has seen %d artefacts", p_ptr->artefacts);
+
+        /* Process player name to update base_name and savefile path */
+        process_player_name(true);
+        log_debug("Processed player name after load: base_name='%s', savefile='%s'", 
+                 op_ptr->base_name, savefile);
 
         /* Reapply Morgoth's anger state to the r_info template */
         if (p_ptr->morgoth_state > 0)
@@ -2825,8 +3736,8 @@ bool load_player(void)
         char temp[1024];
 
         /* Extract name of lock file */
-        my_strcpy(temp, savefile, sizeof(temp));
-        my_strcat(temp, ".lok", sizeof(temp));
+        SDL_strlcpy(temp, savefile, sizeof(temp));
+        SDL_strlcat(temp, ".lok", sizeof(temp));
 
         /* Grab permissions */
         safe_setuid_grab();
@@ -2848,4 +3759,3 @@ bool load_player(void)
     /* Oops */
     return (false);
 }
-

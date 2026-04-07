@@ -113,7 +113,7 @@ Find the `resolution_profiles[]` array near the top of the file (around line 40)
 
 ### Testing Your Profile
 1. Build the game: `build-cmake.bat`
-2. Delete `sil_sdl.json` from the game directory
+2. Delete `sil_sdl.json` from your Sil-More user folder (for example `%USERPROFILE%\sil-more\sil_sdl.json` on Windows or `~/sil-more/sil_sdl.json` on macOS/Linux)
 3. Run the game on the target resolution
 4. Check `log.txt` for: `Detected [your resolution name] - applying optimized defaults`
 5. Verify the layout looks good

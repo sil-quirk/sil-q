@@ -11,6 +11,7 @@
 #
 # N : serial number : terrain name
 # G : symbol : color
+# T : tile row : tile column
 # M : feature to mimic
 #
 # 'N' indicates the beginning of an entry. The serial number must
@@ -24,6 +25,9 @@
 #     d - Black        W - Light Gray     v - Violet        y - Yellow
 #     R - Light Red    G - Light Green    B - Light Blue    U - Light Brown
 #
+# 'T' is for tile graphics - the row and column in the tileset atlas.
+#     Values are decimal 0-63. Used for graphical mode display.
+#
 # 'M' is the index of a feature to mimic.
 #
 #
@@ -36,71 +40,83 @@
 
 # Version stamp (required)
 
-V:0.9.0
+V:0.9.5
 
 
 # 0x00 --> <darkness>
 
 N:0:<darkness>
 G: :w
+T:0:0
 
 
 # 0x01 --> open floor
 
 N:1:open floor
 G:.:W
+T:0:1
 
 # 0x02 --> chasm
 
 N:2:chasm
 G:%:D
+T:11:5
 
 # 0x03 --> glyph of warding
 
 N:3:glyph of warding
 G:;:G1
+T:11:6
 
 # 0x04 --> open door
 
 N:4:open door
 G:':U
+T:0:11
 
 # 0x05 --> broken door
 
 N:5:broken door
 G:':s
+T:0:12
 
 # 0x06 --> warded door (power 1)
 
 N:6:warded door
 G:+:G
+T:0:13
 
 # 0x07 --> warded door (power 2)
 
 N:7:warded door
 G:+:B
+T:0:14
 
 # 0x08 --> warded door (power 3)
 
 N:8:warded door
 G:+:v
+T:0:15
 
 # 0x09 --> sunlight
 
 N:9: patch of sunlight
 G:.:y
+T:0:16
 
 # 0x0A --> rage version of open floor
 #          strictly for tileset lookup
 
 N:10:open floor
 G:1:s
+T:12:12
 
 # 0x0B --> rage version of walls
 #          strictly for tileset lookup
 
 N:11:wall
 G:1:s
+T:12:13
 
 # 0x0C --> unused
 
@@ -126,71 +142,85 @@ G:1:s
 
 N:16:false floor
 G:^:U
+T:10:28
 
 # 0x11 --> visible trap -- open pit
 
 N:17:pit
 G:^:s
+T:0:17
 
 # 0x12 --> visible trap -- spiked pit
 
 N:18:spiked pit
 G:^:W
+T:10:22
 
 # 0x13 --> visible trap -- dart
 
 N:19:dart trap
 G:^:v1
+T:10:20
 
 # 0x14 --> visible trap -- gas -- confusion
 
 N:20:gas trap
 G:^:G1
+T:0:19
 
 # 0x15 --> visible trap -- gas -- memory
 
 N:21:gas trap
 G:^:B1
+T:0:20
 
 # 0x16 --> visible trap -- alarm
 
 N:22:alarm trap
 G:^:U1
+T:10:26
 
 # 0x17 --> visible trap -- flash
 
 N:23:flash trap
 G:^:y
+T:11:2
 
 # 0x18 --> visible trap -- caltrops
 
 N:24:caltrop field
 G:^:w
+T:0:23
 
 # 0x19 --> visible trap -- roost
 
 N:25:roost
 G:^:D1
+T:11:0
 
 # 0x1A --> visible trap - web
 
 N:26:web
 G:^:D
+T:0:26
 
 # 0x1B --> visible trap -- deadfall
 
 N:27:deadfall trap
 G:^:r
+T:10:24
 
 # 0x1C --> visible trap -- acid
 
 N:28:discoloured spot
 G:^:u
+T:10:30
 
-# 0x1D --> unused
+# 0x1D --> visible trap -- imprisonment
 
-N:29: unused
-G:1:s
+N:29:imprisonment trap
+G:^:v
+T:19:6
 
 # 0x1E --> unused
 
@@ -206,108 +236,126 @@ G:1:s
 
 N:32:door
 G:+:U
+T:0:10
 M:32
 
 # 0x21 --> locked door (power 1)
 
 N:33:locked door
 G:+:U
+T:2:3
 M:32
 
 # 0x22 --> locked door (power 2)
 
 N:34:locked door
 G:+:U
+T:2:3
 M:32
 
 # 0x23 --> locked door (power 3)
 
 N:35:locked door
 G:+:U
+T:2:3
 M:32
 
 # 0x24 --> locked door (power 4)
 
 N:36:locked door
 G:+:U
+T:2:3
 M:32
 
 # 0x25 --> locked door (power 5)
 
 N:37:locked door
 G:+:U
+T:2:3
 M:32
 
 # 0x26 --> locked door (power 6)
 
 N:38:locked door
 G:+:U
+T:2:3
 M:32
 
 # 0x27 --> locked door (power 7)
 
 N:39:locked door
 G:+:U
+T:2:3
 M:32
 
 # 0x28 --> jammed door (power 0)
 
 N:40:jammed door
 G:+:U1
+T:2:3
 M:32
 
 # 0x29 --> jammed door (power 1)
 
 N:41:jammed door
 G:+:U1
+T:2:3
 M:32
 
 # 0x2A --> jammed door (power 2)
 
 N:42:jammed door
 G:+:U1
+T:2:3
 M:32
 
 # 0x2B --> jammed door (power 3)
 
 N:43:jammed door
 G:+:U1
+T:2:3
 M:32
 
 # 0x2C --> jammed door (power 4)
 
 N:44:jammed door
 G:+:U1
+T:2:3
 M:32
 
 # 0x2D --> jammed door (power 5)
 
 N:45:jammed door
 G:+:U1
+T:2:3
 M:32
 
 # 0x2E --> jammed door (power 6)
 
 N:46:jammed door
 G:+:U1
+T:2:3
 M:32
 
 # 0x2F --> jammed door (power 7)
 
 N:47:jammed door
 G:+:U1
+T:2:3
 M:32
 
 # 0x30 --> secret door
 
 N:48:secret door
 G:#:W1
+T:0:4
 M:56
 
 # 0x31 --> pile of rubble
 
 N:49:pile of rubble
 G:::s
+T:0:21
 
 # 0x32 --> unused
 
@@ -318,6 +366,7 @@ G:1:s
 
 N:51:quartz vein
 G:%:w
+T:0:6
 
 # 0x34 --> unused
 
@@ -343,6 +392,7 @@ G:1:s
 
 N:56:granite wall
 G:#:W1
+T:0:4
 
 # 0x39 --> granite wall -- inner
 
@@ -387,98 +437,118 @@ M:56
 
 N:64:forge (exhausted)
 G:0:s
+T:15:5
 
 # 0x41 --> forge -- 1 use
 
 N:65:forge (1 use remaining)
 G:0:s
+T:15:4
 
 # 0x42 --> forge -- 2 uses
 
 N:66:forge (2 uses remaining)
 G:0:s
+T:15:3
 
 # 0x43 --> forge -- 3 uses
 
 N:67:forge (3 uses remaining)
 G:0:s
+T:15:2
 
 # 0x44 --> forge -- 4 uses
 
 N:68:forge (4 uses remaining)
 G:0:s
+T:15:1
 
 # 0x45 --> forge -- 5 uses
 
 N:69:forge (5 uses remaining)
 G:0:s
+T:15:0
 
 # 0x46 --> good forge -- 0 uses
 
 N:70:enchanted forge (exhausted)
 G:0:y1
+T:15:5
 
 # 0x47 --> good forge -- 1 use
 
 N:71:enchanted forge (1 use remaining)
 G:0:y1
+T:15:10
 
 # 0x48 --> good forge -- 2 uses
 
 N:72:enchanted forge (2 uses remaining)
 G:0:y1
+T:15:9
 
 # 0x49 --> good forge -- 3 uses
 
 N:73:enchanted forge (3 uses remaining)
 G:0:y1
+T:15:8
 
 # 0x4A --> good forge -- 4 uses
 
 N:74:enchanted forge (4 uses remaining)
 G:0:y1
+T:15:7
 
 # 0x4B --> good forge -- 5 uses
 
 N:75:enchanted forge (5 uses remaining)
 G:0:y1
+T:15:6
 
 # 0x4C --> unique forge -- 0 uses
 
 N:76:forge 'Orodruth' (exhausted)
 G:0:D
+T:15:5
 
 # 0x4D --> unique forge -- 1 use
 
 N:77:forge 'Orodruth' (1 use remaining)
 G:0:r
+T:15:13
 
 # 0x4E --> unique forge -- 2 uses
 
 N:78:forge 'Orodruth' (2 uses remaining)
 G:0:r
+T:15:12
 
 # 0x4F --> unique forge -- 3 uses
 
 N:79:forge 'Orodruth' (3 uses remaining)
 G:0:r
+T:15:11
 
 # 0x50 --> up stairs (perm)
 
 N:80:up staircase
 G:<:W
+T:0:22
 
 # 0x51 --> down stairs (perm)
 
 N:81:down staircase
 G:>:W
+T:0:25
 
 # 0x52 --> up shaft (perm)
 
 N:82:up shaft
 G:<:D
+T:0:29
 
 # 0x53 --> down shaft (perm)
 
 N:83:down shaft
 G:>:D
+T:0:28

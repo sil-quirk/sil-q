@@ -60,4 +60,9 @@ typedef uint32_t u32b;
 typedef int64_t s64b;
 typedef uint64_t u64b;
 
+typedef struct guid64 {
+    u32b hi;
+    u32b lo;
+} guid64;
+
 #endif /* INCLUDED_H_TYPE_H */

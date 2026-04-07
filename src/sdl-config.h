@@ -1,15 +1,50 @@
 #pragma once
 
 #include <stdbool.h>
+#include <SDL3/SDL_gamepad.h>
 #include "pane.h"
+
+#define GAMEPAD_TRIGGER_COUNT 2
+#define GAMEPAD_STICK_DIR_COUNT 4
+
+#define GAMEPAD_STICK_DIR_UP 0
+#define GAMEPAD_STICK_DIR_DOWN 1
+#define GAMEPAD_STICK_DIR_LEFT 2
+#define GAMEPAD_STICK_DIR_RIGHT 3
+
+#define GAMEPAD_BIND_NONE -1
+#define GAMEPAD_BIND_SHIFT -2
+#define GAMEPAD_BIND_CTRL -3
+#define GAMEPAD_BIND_ALT -4
+#define INPUT_BIND_CONFIRM -5
+#define TOUCH_PANE_BIND_INHERIT -6
+
+#define SDL_TOUCH_PANE_BUTTON_COLS 3
+#define SDL_TOUCH_PANE_BUTTON_ROWS 8
+#define SDL_TOUCH_PANE_BUTTON_COUNT (SDL_TOUCH_PANE_BUTTON_COLS * SDL_TOUCH_PANE_BUTTON_ROWS)
+#define SDL_TOUCH_PANE_LABEL_LEN 24
+#define SDL_TOUCH_PANE_PANEL_COUNT 2
+#define SDL_TOUCH_PANE_PANEL_MAIN 0
+#define SDL_TOUCH_PANE_PANEL_SECOND 1
+
+enum sdl_min_terminal_mode {
+    SDL_MIN_TERMINAL_NORMAL = 0,
+    SDL_MIN_TERMINAL_COMPACT = 1,
+};
 
 // SDL-specific configuration structure
 struct sdl_config {
     int main_view_scale;
+    // Default supporting-pane font size. Zero means auto from the main pane's
+    // visible font/cell height.
     int aux_view_font_size;
     int margin;
     bool fullscreen;
     bool tiles;
+    bool enable_right_panes;
+    bool enable_bottom_panes;
+    bool hide_left_panel;
+    int min_terminal_mode;
     
     // Window position and size for windowed mode
     int window_x;
@@ -38,6 +73,25 @@ struct sdl_config {
     int story_hinting;         // TTF hinting mode: 0=normal, 1=light, 2=mono, 3=none, 4=light_subpixel
     bool story_kerning;        // Enable kerning (default: true)
     int story_outline;         // Outline width in pixels (0=none)
+
+    // Gamepad/controller settings
+    bool gamepad_enabled;                 // Enable gamepad input
+    bool gamepad_auto_mode;               // Auto-enable controller UI when gamepad is present/used
+    bool steamdeck_mode;                  // Force Steam Deck UI mode
+    bool gamepad_use_dpad;                // Use d-pad for movement
+    bool gamepad_use_left_stick;          // Use left stick for movement
+    int gamepad_deadzone;                 // Deadzone for analog sticks
+    int gamepad_trigger_threshold;        // Threshold to treat triggers as pressed
+    int gamepad_button_bindings[SDL_GAMEPAD_BUTTON_COUNT];
+    int gamepad_trigger_bindings[GAMEPAD_TRIGGER_COUNT];
+    int gamepad_left_stick_bindings[GAMEPAD_STICK_DIR_COUNT];
+    int gamepad_right_stick_bindings[GAMEPAD_STICK_DIR_COUNT];
+    int gamepad_shoulder_combo_binding;   // Binding for L1+R1 combo action
+    int touch_pane_bindings[SDL_TOUCH_PANE_BUTTON_COUNT];
+    char touch_pane_labels[SDL_TOUCH_PANE_BUTTON_COUNT][SDL_TOUCH_PANE_LABEL_LEN];
+    int touch_pane_second_bindings[SDL_TOUCH_PANE_BUTTON_COUNT];
+    char touch_pane_second_labels[SDL_TOUCH_PANE_BUTTON_COUNT][SDL_TOUCH_PANE_LABEL_LEN];
+    char touch_pane_panel_names[SDL_TOUCH_PANE_PANEL_COUNT][SDL_TOUCH_PANE_LABEL_LEN];
 };
 
 // Load SDL configuration from JSON file
@@ -51,6 +105,15 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
 // Set default configuration values
 void sdl_config_set_defaults(struct sdl_config* config);
 
+// Set default gamepad bindings (does not touch other fields)
+void sdl_config_set_default_gamepad_bindings(struct sdl_config* config);
+
+// Set default touch pane bindings (does not touch other fields)
+void sdl_config_set_default_touch_pane_bindings(struct sdl_config* config);
+
+// Clear custom touch pane labels (does not touch other fields)
+void sdl_config_clear_touch_pane_labels(struct sdl_config* config);
+
 // Set default configuration values based on screen resolution
 void sdl_config_set_defaults_for_resolution(struct sdl_config* config, 
                                             struct pane_config* pane_configs,
@@ -61,3 +124,9 @@ void sdl_config_set_defaults_for_resolution(struct sdl_config* config,
 
 // Apply command-line arguments to configuration
 void sdl_config_apply_cmdline(struct sdl_config* config, int argc, char** argv);
+
+// Load/save app-wide game options from/to the SDL JSON config file.
+void sdl_config_load_app_options(const char* filename);
+bool sdl_config_should_force_intro_flame(void);
+void sdl_config_mark_intro_seen(void);
+bool option_is_app_persistent(int opt);

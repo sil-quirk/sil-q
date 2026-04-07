@@ -75,7 +75,7 @@ typedef struct alloc_entry alloc_entry;
 typedef struct owner_type owner_type;
 typedef struct store_type store_type;
 typedef struct player_race player_race;
-typedef struct player_character player_house;
+typedef struct character_profile character_profile;
 typedef struct hist_type hist_type;
 typedef struct story_type story_type;
 typedef struct curse_type curse_type;
@@ -90,6 +90,7 @@ typedef struct autoinscription autoinscription;
 typedef struct style_type style_type;
 typedef struct quest_type quest_type;
 typedef struct oath_type oath_type;
+typedef struct skeleton_note_template skeleton_note_template;
 
 /**** Available structs ****/
 
@@ -126,6 +127,46 @@ struct maxima
     u16b art_self_made_max; /* Max number of self-made artefacts */
     u16b rt_max;           /* ↑ total run-type records                         */
     u16b style_max;        /* Max size for "style_info[]" */
+    u16b skeleton_note_max; /* Max size for skeleton note templates */
+};
+
+typedef enum skeleton_note_role {
+    SKELETON_NOTE_ROLE_NONE = 0,
+    SKELETON_NOTE_ROLE_OPENING = 1,
+    SKELETON_NOTE_ROLE_SIGNOFF = 2,
+    SKELETON_NOTE_ROLE_HINT = 3
+} skeleton_note_role;
+
+typedef enum skeleton_hint_kind {
+    SKEL_HINT_NONE = 0,
+    SKEL_HINT_GREAT_VAULT,
+    SKEL_HINT_VAULT_ARTIFACT,
+    SKEL_HINT_STAIRS,
+    SKEL_HINT_PARTITION_PRESENCE,
+    SKEL_HINT_FORGE,
+    SKEL_HINT_UNIQUE_MONSTER,
+    SKEL_HINT_TIP,
+    SKEL_HINT_LEVEL_SIZE,
+    SKEL_HINT_QUEST,
+    SKEL_HINT_PART_LABYRINTH,
+    SKEL_HINT_PART_CHASM,
+    SKEL_HINT_PART_CAVE,
+    SKEL_HINT_PART_CAVE_ICE,
+    SKEL_HINT_PART_CAVE_FIRE,
+    SKEL_HINT_PART_CAVE_POIS,
+    SKEL_HINT_PART_ROOMY,
+    SKEL_HINT_PART_RUINED,
+    SKEL_HINT_PART_CAVEY,
+    SKEL_HINT_MAX
+} skeleton_hint_kind;
+
+struct skeleton_note_template
+{
+    byte sval;   /* Skeleton sval (or SV_SKELETON_NOTE_ANY) */
+    byte hint;   /* skeleton_hint_kind or 0 for openings/signoffs */
+    byte role;   /* skeleton_note_role */
+    byte weight; /* Selection weight */
+    u32b text;   /* Text offset */
 };
 
 /*
@@ -164,11 +205,26 @@ struct object_kind
 
     s16b pval; /* Object extra info */
 
+    /* Per-stat/skill modifiers (bonuses applied to player). */
+    s16b stat_bonus[A_MAX];
+    s16b skill_bonus[S_MAX];
+    bool stat_bonus_set[A_MAX];
+    bool skill_bonus_set[S_MAX];
+
     s16b att; /* Bonus to hit */
     s16b evn; /* Sil - Bonus to evasion */
 
     byte dd, ds; /* Damage dice/sides */
     byte pd, ps; /* Sil - Protection dice/sides */
+
+    /* Maximum values for drops/smithing (from R: lines in object.txt).
+     * Default = base value (no variation). Set by R: lines to allow a range.
+     * Minimums are always the base values above (att, ds, evn, ps, pval). */
+    s16b max_att; /* Maximum attack for drops/smithing */
+    byte max_ds;  /* Maximum damage sides for drops/smithing */
+    s16b max_evn; /* Maximum evasion for drops/smithing */
+    byte max_ps;  /* Maximum protection sides for drops/smithing */
+    s16b max_pval; /* Maximum pval for drops/smithing */
 
     s16b weight; /* Weight */
 
@@ -177,9 +233,13 @@ struct object_kind
     u32b flags1; /* Flags, set 1 */
     u32b flags2; /* Flags, set 2 */
     u32b flags3; /* Flags, set 3 */
+    u32b flags4; /* Flags, set 4 */
 
     byte locale[4]; /* Allocation level(s) */
     byte chance[4]; /* Allocation chance(s) */
+    byte alloc_count; /* Number of explicit allocation entries (supports zero rarity) */
+    byte alloc_depth[4]; /* Allocation depth thresholds (from A: lines) */
+    byte alloc_prob[4]; /* Allocation rarity values (can be zero) */
 
     byte abilities; // Number of abilities
     byte skilltype[4]; // Skill-types for the granted abilities
@@ -211,7 +271,8 @@ struct object_kind
 struct ability_type
 {
     u32b name; /* Name (offset) */
-    u32b text; /* Text (offset) */
+    u32b text; /* Text (offset) - poetic/lore description */
+    u32b effect; /* Effect (offset) - mechanical effect description */
 
     byte skilltype; /* Skill type */
     byte abilitynum; /* Ability number within a skill */
@@ -233,17 +294,25 @@ struct ability_type
  * Note that the save-file only writes "cur_num" and "found_num" to the
  * savefile, except for the random artefacts
  *
- * Note that "max_num" is always "1" (if that artefact "exists")
+ * Note that "spawn_num" defaults to 1. For stackable artefacts (e.g. throwing
+ * weapons), it can be set higher to spawn as a small pack.
  */
 struct artefact_type
 {
     char name[MAX_LEN_ART_NAME]; /* Name */
     u32b text; /* Description (offset) */
+    guid64 guid; /* Stable identifier */
 
     byte tval; /* Artefact type */
     byte sval; /* Artefact sub type */
 
     s16b pval; /* Artefact extra info */
+
+    /* Per-stat/skill modifiers (bonuses applied to player). */
+    s16b stat_bonus[A_MAX];
+    s16b skill_bonus[S_MAX];
+    bool stat_bonus_set[A_MAX];
+    bool skill_bonus_set[S_MAX];
 
     s16b att; /* Bonus to hit */
     s16b evn; /* Bonus to evasion */
@@ -258,13 +327,15 @@ struct artefact_type
     u32b flags1; /* Artefact Flags, set 1 */
     u32b flags2; /* Artefact Flags, set 2 */
     u32b flags3; /* Artefact Flags, set 3 */
+    u32b flags4; /* Artefact Flags, set 4 */
 
     byte level; /* Artefact level */
     byte rarity; /* Artefact rarity */
 
     byte cur_num; /* Number created (0 or 1) */
     byte found_num; /* Number found (0 or 1) */
-    byte max_num; /* Unused (should be "1") */
+    byte spawn_num; /* Initial stack size when created (defaults to 1) */
+    byte seen; /* Seen flags (ART_SEEN_*) */
 
     byte activation; /* Activation to use */
     u16b time; /* Activation time */
@@ -276,6 +347,7 @@ struct artefact_type
     byte abilities; // Number of abilities
     byte skilltype[4]; // Skill-types for the granted abilities
     byte abilitynum[4]; // Ability numbers for these
+    byte bane_type[4]; // Bane type for each ability (0 = player choice)
 };
 
 /*
@@ -291,10 +363,14 @@ struct ego_item_type
     u32b flags1; /* Ego-Item Flags, set 1 */
     u32b flags2; /* Ego-Item Flags, set 2 */
     u32b flags3; /* Ego-Item Flags, set 3 */
+    u32b flags4; /* Ego-Item Flags, set 4 */
 
     byte level; /* Minimum level */
     byte max_level; /* Maximum level */
     byte rarity; /* Object rarity */
+    byte alloc_count; /* Number of explicit allocation entries (supports zero rarity) */
+    byte alloc_depth[4]; /* Allocation depth thresholds (from A: lines) */
+    byte alloc_prob[4]; /* Allocation rarity values (can be zero) */
 
     byte tval[EGO_TVALS_MAX]; /* Legal tval */
     byte min_sval[EGO_TVALS_MAX]; /* Minimum legal sval */
@@ -311,6 +387,15 @@ struct ego_item_type
     byte to_pd; /* bonus protection dice */
     byte to_ps; /* bonus protection sides */
     byte max_pval; /* Maximum pval */
+    byte min_pval; /* Minimum pval (0 = use default) */
+
+    /* Explicit M: bonuses. min arrays store the floor, max arrays the ceiling. */
+    s16b stat_bonus_min[A_MAX];
+    s16b stat_bonus[A_MAX];
+    s16b skill_bonus_min[S_MAX];
+    s16b skill_bonus[S_MAX];
+    bool stat_bonus_set[A_MAX];
+    bool skill_bonus_set[S_MAX];
 
     bool aware; /* Has its type been detected this game? */
     bool everseen; /* Do not spoil squelch menus */
@@ -356,6 +441,7 @@ struct monster_race
 {
     u32b name; /* Name (offset) */
     u32b text; /* Text (offset) */
+    u64b guid; /* Stable identifier for cross-file references */
 
     byte hdice; /* Creatures hit dice count */
     byte hside; /* Creatures hit dice sides */
@@ -377,13 +463,6 @@ struct monster_race
     byte freq_ranged; /* Ranged attack frequency */
     byte spell_power; /* Power of (damage-dealing) spells */
     u32b mon_power; /* Monster Power Rating */
-
-#ifdef ALLOW_DATA_DUMP
-
-    u32b mon_eval_hp; /*evaluated hitpoint power of monster*/
-    u32b mon_eval_dam; /*evaluated damage power of monster*/
-
-#endif /*ALLOW_DATA_DUMP*/
 
     u32b flags1; /* Flags 1 (general) */
     u32b flags2; /* Flags 2 (abilities) */
@@ -448,10 +527,13 @@ struct vault_type
 {
     u32b name; /* Name (offset) */
     u32b text; /* Text (offset) */
+    u32b message; /* Entry message text (offset) */
 
     byte typ; /* Vault type */
 
     byte depth; /* Vault rating */
+
+    byte max_depth; /* Maximum depth (0 = no limit) */
 
     byte rarity; /* Vault rarity */
 
@@ -511,6 +593,10 @@ struct object_type
 
     s16b pval; /* Item extra-parameter */
 
+    /* Per-stat/skill modifiers (bonuses applied to player). */
+    s16b stat_bonus[A_MAX];
+    s16b skill_bonus[S_MAX];
+
     byte discount; /* Discount (if any) */
 
     byte number; /* Number of items */
@@ -518,7 +604,7 @@ struct object_type
     s16b weight; /* Item weight */
 
     byte name1; /* Artefact type, if any */
-    byte name2; /* Ego-Item type, if any */
+    byte name2; /* Ego suffix index, if any (see object_ego_suffix()) */
 
     byte pickup; /* Auto pick up this item next time it is stepped on */
     s16b pickup_slot; /* Preferred inventory slot when auto-picked */
@@ -547,9 +633,10 @@ struct object_type
     byte skilltype[8]; // Skill-types for the granted abilities (8 = 4 for
                        // object base + 4 for special or artefact)
     byte abilitynum[8]; // Ability numbers for these
+    byte bane_type[8]; // Bane type for each ability (0 = player choice)
 
-    s32b unused1; // Room for expansion without breaking savefiles
-    s32b unused2; // Room for expansion without breaking savefiles
+    s32b unused1; // Smithing marker: 0=found, 1=forged by player, 2=reforged by player
+    s32b unused2; // Ego prefix index (0 = none); see object_ego_prefix()
     s32b unused3; // Room for expansion without breaking savefiles
     s32b unused4; // Room for expansion without breaking savefiles
 };
@@ -643,6 +730,11 @@ struct monster_type
 
     byte previous_action[ACTION_MAX]; /* What the monster did on its previous
                                          turns */
+
+    /* Thrall quest system */
+    byte thrall_quest_item;      /* Item the thrall wants: 0=none, 1=shovel, 2=lantern, 3=herb, 4=mallorn, 5=healing potion, 6=dagger, 7=cloak, 8=boots, 9=herb of sustenance, 10=herb of restoration, 11=potion of clarity */
+    byte thrall_quest_requested; /* 1 if the thrall's initial request has been shown to the player */
+    byte thrall_quest_completed; /* Thrall quest state: 0=active, 1=reward claimed, 2=reward pending */
 };
 
 /*
@@ -657,9 +749,9 @@ struct alloc_entry
     s16b index; /* The actual index */
 
     byte level; /* Base dungeon level */
-    byte prob1; /* Probability, pass 1 */
-    byte prob2; /* Probability, pass 2 */
-    byte prob3; /* Probability, pass 3 */
+    u16b prob1; /* Probability, pass 1 */
+    u16b prob2; /* Probability, pass 2 */
+    u16b prob3; /* Probability, pass 3 */
 
     u16b total; /* Unused for now */
 };
@@ -721,6 +813,7 @@ struct player_race
 {
     u32b name; /* Name (offset) */
     u32b text; /* Description (offset) */
+    guid64 guid; /* Stable identifier */
 
     s16b r_adj[A_MAX]; /* Racial stat bonuses */
 
@@ -732,7 +825,7 @@ struct player_race
     byte b_wt; /* base weight */
     byte m_wt; /* mod weight */
 
-    u32b choice[FLAG_WORDS]; /* Legal house choices */
+    u32b choice[FLAG_WORDS]; /* Legal character choices */
 
     start_item start_items[MAX_START_ITEMS]; /* The starting inventory */
 
@@ -742,23 +835,23 @@ struct player_race
 };
 
 /*
- * Player house info
+ * Character template info
  */
-struct player_character
+struct character_profile
 {
-    u32b name; /* Name (offset)           eg 'House of Feanor' */
-    u32b alt_name; /* Alternate Name (offset) eg 'Feanor's House'  */
-    u32b start_string; /* Short Name (offset)     eg 'Feanor'          */
-    u32b text; /* Descrption (offset) */
+    u32b name;         /* Name (offset) eg 'Feanor' */
+    u32b alt_name;     /* Alternate Name (offset) eg 'Character of Feanor' */
+    u32b start_string; /* Short Name (offset) */
+    u32b text;         /* Description (offset) */
+    guid64 guid;       /* Stable identifier for score plumbing */
 
-    s16b h_adj[A_MAX]; /* House stat bonuses */
-    /** Up to N “stat:ability” pairs. */
-    s16b  a_adj[HOUSE_ABILITY_MAX][2]; /* [i][0]=stat, [i][1]=ability] */
+    s16b h_adj[A_MAX];                         /* Character stat bonuses */
+    s16b a_adj[CHARACTER_ABILITY_MAX][2];      /* Ability slots: [i][0]=stat, [i][1]=ability */
 
-    u32b flags; /* House Flags (ie RHF flags) */
-    u32b flags_u; /* House Flags (ie RHF flags) */
-    byte power; /* Power rating: 0=weak, 1=average, 2=powerful, 3=very powerful */
-    start_item start_items[MAX_START_ITEMS];       /* NEW: bonus kit */
+    u32b flags;   /* Character flags (RHF set) */
+    u32b flags_u; /* Character unique flags */
+    byte power;   /* Power rating: 0=weak ... 3=very powerful */
+    start_item start_items[MAX_START_ITEMS]; /* Bonus kit */
 };
 
 /*
@@ -770,8 +863,8 @@ struct hist_type
 
     byte roll; /* Frequency of this entry */
     byte chart; /* Chart index */
-    byte next; /* Next chart index */
-    byte house; /* House to associate with */
+    byte next;  /* Next chart index */
+    byte character; /* Character template to associate with */
 };
 
 // Storylines
@@ -804,6 +897,7 @@ typedef struct curse_type              /* one entry in cu_info[]          */
     u32b             blessing_flags_u; /* CUR flags contributed by blessing */
     byte  weight;              /* selection weight   (default 1)  */
     byte  max_stacks;          /* hard cap per meta-run (0 = ∞)   */    
+    byte  max_blessing_stacks; /* hard cap for blessing stacks (0 = use max_stacks) */
 }
 curse_type;
 
@@ -893,7 +987,7 @@ struct quest_type
     u32b metarun_quest_id; /* Metarun quest ID (M: field) (offset) */
     
     /* Parametric Formula System (P: field) */
-    byte formula_type; /* 0=hardcoded, 1=linear_decay, 2=scaled_range, 3=fixed_percent */
+    byte formula_type; /* 0=hardcoded, 1=linear_decay, 2=scaled_range, 3=fixed_percent, 4=linear_interpolate, 5=exponential */
     float formula_params[4]; /* Parameters for formula calculation */
     byte depth_min; /* Minimum depth for formula */
     byte depth_max; /* Maximum depth for formula */
@@ -954,6 +1048,12 @@ struct player_other
     byte delay_factor; /* Delay factor (0 to 9) */
 
     byte main_combat_rolls; /* Main terminal combat rolls (0-3) */
+    byte ability_desc_mode; /* Ability description display (0=D+E, 1=E+D, 2=E only) */
+    byte vault_drop_frequency; /* Vault drop frequency mode (VDF_*) */
+    byte intro_style; /* Welcome screen variant (INTRO_STYLE_*) */
+    byte level_entry_narrative_mode; /* Initial partition text (banner with delay/banner without delay/message/off) */
+    byte partition_narrative_mode; /* Transition text between partitions */
+    byte noble_item_spawn_mode; /* Noble item sources (NOBLE_ITEM_SPAWN_*) */
 };
 
 /*
@@ -973,7 +1073,7 @@ struct player_type
     s16b px; /* Player location */
 
     byte prace; /* Race index */
-    byte phouse; /* House index */
+    byte pcharacter; /* Character template index */
 
     s16b game_type; /* Whether this is a normal game (=0), tutorial (<0), puzzle
                        (>0) */
@@ -993,6 +1093,7 @@ struct player_type
     s32b kill_exp; /* Total experience from killing monsters */
     s32b descent_exp; /* Total experience from descending to new levels */
     s32b ident_exp; /* Total experience from identifying objects */
+    byte discovery_lore_flags; /* Run-wide discovery XP awards already claimed */
 
     s16b mhp; /* Max hit pts */
     s16b chp; /* Cur hit pts */
@@ -1082,6 +1183,7 @@ struct player_type
     char history[550]; /* Initial history */
 
     byte truce; /* Player will not be attacked initially at 1000ft */
+    byte morgoth_hall_entered; /* Player has entered Morgoth's hall */
     byte crown_hint; /* Player has been told about the Iron Crown */
     byte crown_shatter; /* DEPRECATED - kept for save compatibility */
     byte crown_shatter_sil2; /* Weapon shattered attempting 2nd Silmaril */
@@ -1089,6 +1191,7 @@ struct player_type
     byte cursed; /* Player has been cursed by taking a third Silmaril */
     byte on_the_run; /* Player is on the run from Angband */
     byte morgoth_slain; /* Player has slain Morgoth */
+    byte morgoth_second_wind; /* Morgoth revived once at 20% HP */
     byte morgoth_hits; /* Number of big hits against Morgoth */
     u16b escaped; /* Player has escaped Angband */
     u16b panic_save; /* Panic save */
@@ -1121,6 +1224,11 @@ struct player_type
     byte have_ability[S_MAX]
                      [ABILITIES_MAX]; /* Whether or not you have each
                                          ability (including from items) */
+    u16b ability_timeline_count; /* Ordered log of learned abilities */
+    byte ability_timeline_skill[ABILITY_TIMELINE_MAX];
+    byte ability_timeline_ability[ABILITY_TIMELINE_MAX];
+    u32b ability_timeline_turn[ABILITY_TIMELINE_MAX];
+    s16b ability_timeline_depth[ABILITY_TIMELINE_MAX]; /* Dungeon depth (levels) */
 
     bool playing; /* true if player is playing the game */
     bool restoring; /* true if player is restoring a game */
@@ -1261,7 +1369,7 @@ struct player_type
 
     bool killed_enemy_with_arrow;
 
-    byte unused1; /* was sex - so unused byte race/house player info */
+    byte unused1; /* was sex - so unused byte race/character player info */
 
     byte oath_type; /* which oath the player has chosen to keep */
     byte oaths_broken; /* which possible oaths the player has broken */
@@ -1301,20 +1409,32 @@ struct player_type
     s16b orome_spiders_killed; /* Total spiders killed (any type) */
     s16b orome_serpents_killed; /* Total serpents killed (any type) */
     s16b orome_vampires_killed; /* Total vampires killed (any type) */
+    /* Varda quest tracking */
+    byte varda_quest;          /* Varda quest state (VARDA_QUEST_*) */
+    byte varda_vault_ready;    /* Flag: should force Duruin Bastion on this level */
+    byte varda_vault_placed;   /* Flag: bastion successfully placed this run */
+    byte varda_reserved;       /* padding */
+    s16b varda_level;          /* Depth where bastion was placed (for regen) */
     /* Generic quest/vault tracking */
     byte quest_vault_used;     /* Has a quest-designated vault generated this game */
-    byte quest_reserved[15];   /* quest_reserved[0] = any quest spawned flag (run-wide); rest reserved */
+    byte quest_reserved[15];   /* quest_reserved[0] = any quest spawned flag (run-wide); quest_reserved[1..6] mark quest completions recorded this run */
 };
+
+/* scores.raw header version == core game version (no independent bumping) */
+#define SCORE_FILE_VERSION_MAJOR VERSION_MAJOR
+#define SCORE_FILE_VERSION_MINOR VERSION_MINOR
+#define SCORE_FILE_VERSION_PATCH VERSION_PATCH
+#define SCORE_FILE_VERSION_EXTRA VERSION_EXTRA
 
 /*
  * Version header for scores.raw file (16 bytes)
  */
 typedef struct score_file_header
 {
-    byte version_major;  /* Major version (0) */
-    byte version_minor;  /* Minor version (8) */
-    byte version_patch;  /* Patch version (5) */
-    byte version_extra;  /* Extra version (0) */
+    byte version_major;  /* Mirrors VERSION_MAJOR */
+    byte version_minor;  /* Mirrors VERSION_MINOR */
+    byte version_patch;  /* Mirrors VERSION_PATCH */
+    byte version_extra;  /* Mirrors VERSION_EXTRA */
     u32b entry_count;    /* Number of score entries in file */
     u32b reserved[2];    /* Reserved for future use */
 } score_file_header;
@@ -1349,7 +1469,7 @@ struct high_score
     char uid[8];         /* Player UID (number) */
     char unused[2];      /* Was sex */
     char p_r[3];         /* Player Race (number) */
-    char p_h[3];         /* Player House (number) */
+    char p_h[3];         /* Player Character (number) */
     char cur_lev[4];     /* Unique monsters killed (number) */
     char cur_dun[4];     /* Current Dungeon Level (number) */
     char max_dun[4];     /* Max Dungeon Level (number) */
@@ -1506,3 +1626,6 @@ struct flag_name
     int set; /* The set into which the flag is to be sent. */
     u32b flag; /* The flag being set. */
 };
+
+
+

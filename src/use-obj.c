@@ -9,10 +9,12 @@
  */
 
 #include "angband.h"
+#include "externs.h"
+#include "player/killer.h"
 
-int medicine_bonus(int original)
+static int medicine_count(void)
 {
-    int bonus = 0;
+    int count = 0;
     object_type* o_ptr;
 
     for (int i = INVEN_WIELD; i < INVEN_TOTAL; i++)
@@ -24,10 +26,365 @@ int medicine_bonus(int original)
 
         object_flags(o_ptr, &t1, &t2, &t3);
         if (t3 & (TR3_MEDIC))
-            bonus++;
-    } 
+            count++;
+    }
 
-    return (original / 3) * bonus;
+    return count;
+}
+
+/*
+ * Mixed healing for consumables. The base heal is a flat amount plus a
+ * percentage of maximum HP, then MEDIC equipment boosts the total by roughly
+ * one third per source.
+ */
+static int healing_item_points(int flat, int percent)
+{
+    int points = flat + ((p_ptr->mhp * percent) / 100);
+    int medic = medicine_count();
+
+    if (medic > 0)
+        points += (points / 3) * medic;
+
+    return points;
+}
+
+int consumable_healing_points(const object_type* o_ptr)
+{
+    if (!o_ptr)
+        return 0;
+
+    switch (o_ptr->tval)
+    {
+    case TV_FOOD:
+        if (o_ptr->sval == SV_FOOD_HEALING)
+            return healing_item_points(11, 12);
+        break;
+
+    case TV_POTION:
+        switch (o_ptr->sval)
+        {
+        case SV_POTION_MIRUVOR:
+            return healing_item_points(20, 20);
+
+        case SV_POTION_ORCISH_LIQUOR:
+            return healing_item_points(6, 8);
+
+        case SV_POTION_HEALING:
+            return healing_item_points(15, 16);
+        }
+        break;
+    }
+
+    return 0;
+}
+
+static bool jinx_ego_is_simple(const ego_item_type* e_ptr)
+{
+    if (!e_ptr)
+        return false;
+
+    if (e_ptr->abilities != 0)
+        return false;
+    if (e_ptr->flags1 != 0)
+        return false;
+    if ((int)(int8_t)e_ptr->max_att != 0 || (int)(int8_t)e_ptr->to_dd != 0
+        || (int)(int8_t)e_ptr->to_ds != 0 || (int)(int8_t)e_ptr->max_evn != 0
+        || (int)(int8_t)e_ptr->to_pd != 0 || (int)(int8_t)e_ptr->to_ps != 0)
+    {
+        return false;
+    }
+    if (e_ptr->max_pval != 0 || e_ptr->min_pval != 0)
+        return false;
+
+    for (int i = 0; i < A_MAX; i++)
+    {
+        if (e_ptr->stat_bonus_set[i] || e_ptr->stat_bonus[i] != 0)
+            return false;
+    }
+
+    for (int i = 0; i < S_MAX; i++)
+    {
+        if (e_ptr->skill_bonus_set[i] || e_ptr->skill_bonus[i] != 0)
+            return false;
+    }
+
+    return true;
+}
+
+static void refresh_broken_ident_for_sanctity(object_type* o_ptr)
+{
+    byte ego_prefix;
+    byte ego_suffix;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return;
+
+    o_ptr->ident &= ~(IDENT_BROKEN);
+
+    if (o_ptr->pval < 0 || k_info[o_ptr->k_idx].cost <= 0)
+        o_ptr->ident |= (IDENT_BROKEN);
+
+    if (o_ptr->name1 && a_info[o_ptr->name1].cost <= 0)
+        o_ptr->ident |= (IDENT_BROKEN);
+
+    ego_prefix = object_ego_prefix(o_ptr);
+    if (ego_prefix && e_info[ego_prefix].cost <= 0)
+        o_ptr->ident |= (IDENT_BROKEN);
+
+    ego_suffix = object_ego_suffix(o_ptr);
+    if (ego_suffix && e_info[ego_suffix].cost <= 0)
+        o_ptr->ident |= (IDENT_BROKEN);
+}
+
+static bool remove_jinx_ego_affix(object_type* o_ptr, bool is_prefix)
+{
+    byte e_idx;
+    ego_item_type* e_ptr;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    e_idx = is_prefix ? object_ego_prefix(o_ptr) : object_ego_suffix(o_ptr);
+    if (!e_idx)
+        return false;
+
+    e_ptr = &e_info[e_idx];
+    if (!(e_ptr->flags4 & TR4_JINX))
+        return false;
+    if (!jinx_ego_is_simple(e_ptr))
+        return false;
+
+    if (is_prefix)
+        object_set_ego_prefix(o_ptr, 0);
+    else
+        object_set_ego_suffix(o_ptr, 0);
+
+    refresh_broken_ident_for_sanctity(o_ptr);
+    return true;
+}
+
+static bool remove_jinx_egos(object_type* o_ptr)
+{
+    bool removed = false;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    if (object_ego_prefix(o_ptr)
+        && (e_info[object_ego_prefix(o_ptr)].flags4 & TR4_JINX))
+    {
+        removed |= remove_jinx_ego_affix(o_ptr, true);
+    }
+
+    if (object_ego_suffix(o_ptr)
+        && (e_info[object_ego_suffix(o_ptr)].flags4 & TR4_JINX))
+    {
+        removed |= remove_jinx_ego_affix(o_ptr, false);
+    }
+
+    return removed;
+}
+
+static int sanctity_penalty_flags(u32b f2, u32b f3, u32b f4,
+    bool include_light_curse)
+{
+    int burden = 0;
+
+    if (f2 & TR2_DANGER)
+        burden += 5;
+    if (f2 & TR2_DARKNESS)
+        burden += 2;
+    if (f2 & TR2_AGGRAVATE)
+        burden += 3;
+    if (f2 & TR2_HAUNTED)
+        burden += 5;
+    if (f2 & TR2_VUL_COLD)
+        burden += 4;
+    if (f2 & TR2_VUL_FIRE)
+        burden += 4;
+    if (f2 & TR2_VUL_POIS)
+        burden += 4;
+    if (f2 & TR2_TRAITOR)
+        burden += 2;
+    if (include_light_curse && (f3 & TR3_LIGHT_CURSE))
+        burden += 2;
+    if (f3 & TR3_CUMBERSOME)
+        burden += 3;
+    if (f4 & TR4_UNLIGHT)
+        burden += 5;
+    if (f2 & TR2_SLOWNESS)
+        burden += 15;
+    if (f2 & TR2_HUNGER)
+        burden += 3;
+    if (f2 & TR2_FEAR)
+        burden += 5;
+    if (f3 & TR3_HEAVY_CURSE)
+        burden += 4;
+    if (f3 & TR3_PERMA_CURSE)
+        burden += 6;
+
+    return burden;
+}
+
+static int sanctity_slot_multiplier(const object_type* o_ptr)
+{
+    switch (wield_slot(o_ptr))
+    {
+        case INVEN_LEFT:
+        case INVEN_RIGHT:
+        case INVEN_LITE:
+        case INVEN_OUTER:
+        case INVEN_HANDS:
+        case INVEN_FEET:
+        case INVEN_QUIVER1:
+        case INVEN_QUIVER2:
+        case INVEN_HORN:
+            return 120;
+
+        default:
+            return 100;
+    }
+}
+
+static int sanctity_check_burden(const object_type* o_ptr,
+    bool has_curse_breaking, bool* can_remove_light, bool* can_remove_jinx)
+{
+    object_type clean_copy;
+    u32b f1, f2, f3;
+    u32b clean_f1, clean_f2, clean_f3;
+    u32b clean_f4, f4;
+    int light_burden = 0;
+    int jinx_burden = 0;
+    int burden;
+
+    if (can_remove_light)
+        *can_remove_light = false;
+    if (can_remove_jinx)
+        *can_remove_jinx = false;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return 0;
+
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
+
+    if (can_remove_light)
+    {
+        *can_remove_light = cursed_p(o_ptr)
+            && !(f3 & (TR3_HEAVY_CURSE | TR3_PERMA_CURSE));
+    }
+    if (can_remove_jinx)
+        *can_remove_jinx = has_curse_breaking && object_has_ego_flag4(o_ptr, TR4_JINX);
+
+    if (!(can_remove_light && *can_remove_light)
+        && !(can_remove_jinx && *can_remove_jinx))
+    {
+        return 0;
+    }
+
+    object_copy(&clean_copy, o_ptr);
+
+    if (can_remove_jinx && *can_remove_jinx)
+        (void)remove_jinx_egos(&clean_copy);
+
+    object_flags4(&clean_copy, &clean_f1, &clean_f2, &clean_f3, &clean_f4);
+    (void)f1;
+    (void)clean_f1;
+
+    if (can_remove_light && *can_remove_light)
+        light_burden = 2;
+
+    jinx_burden = sanctity_penalty_flags(f2, f3, f4, false)
+        - sanctity_penalty_flags(clean_f2, clean_f3, clean_f4, false);
+    if (jinx_burden < 0)
+        jinx_burden = 0;
+
+    burden = light_burden + jinx_burden;
+    burden = burden * sanctity_slot_multiplier(o_ptr) / 100;
+
+    return burden;
+}
+
+bool use_sanctity_gem_on(object_type* target_o_ptr, bool* ident)
+{
+    bool can_remove_light = false;
+    bool can_remove_jinx = false;
+    bool had_jinx = false;
+    bool removed_jinx = false;
+    bool removed_curse = false;
+    bool has_curse_breaking = p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING];
+    int burden;
+    int score;
+    int difficulty;
+    char target_name[80];
+
+    if (!target_o_ptr || !target_o_ptr->k_idx)
+        return false;
+
+    object_desc(target_name, sizeof(target_name), target_o_ptr, true, 0);
+    had_jinx = object_has_ego_flag4(target_o_ptr, TR4_JINX);
+
+    burden = sanctity_check_burden(target_o_ptr, has_curse_breaking,
+        &can_remove_light, &can_remove_jinx);
+
+    if (can_remove_light || can_remove_jinx)
+    {
+        score = p_ptr->skill_use[S_WIL] + (has_curse_breaking ? 7 : 0);
+        difficulty = 6 + burden;
+
+        if (skill_check(PLAYER, score, difficulty, NULL) <= 0)
+        {
+            msg_format("%^s resists the sanctity.", target_name);
+            return true;
+        }
+    }
+    else
+    {
+        if (cursed_p(target_o_ptr))
+            msg_format("%^s resists the sanctity.", target_name);
+        else
+        {
+            msg_format("Nothing happens to %s.", target_name);
+            if (ident)
+                *ident = true;
+        }
+        return true;
+    }
+
+    if (can_remove_jinx)
+        removed_jinx = remove_jinx_egos(target_o_ptr);
+
+    if (can_remove_light)
+    {
+        uncurse_object(target_o_ptr);
+        removed_curse = true;
+    }
+
+    if (removed_jinx || removed_curse)
+    {
+        if (removed_jinx && removed_curse)
+            msg_format("%^s is cleansed.", target_name);
+        else if (removed_jinx)
+            msg_format("The jinx on %s is broken.", target_name);
+        else if (had_jinx)
+            msg_format("%^s is uncursed, but its jinx remains.", target_name);
+        else
+            msg_format("%^s is uncursed.", target_name);
+
+        if (ident)
+            *ident = true;
+
+        p_ptr->update |= (PU_BONUS);
+        p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
+
+        if (target_o_ptr == &inventory[INVEN_LITE])
+            p_ptr->redraw |= (PR_LIGHT);
+    }
+    else
+    {
+        msg_format("Nothing happens to %s.", target_name);
+    }
+
+    return true;
 }
 
 static bool eat_food(object_type* o_ptr, bool* ident)
@@ -85,7 +442,7 @@ static bool eat_food(object_type* o_ptr, bool* ident)
         msg_print("It has the bitter taste of medicine.");
         *ident = true;
         set_cut(p_ptr->cut / 2);
-        hp_player(50 + medicine_bonus(50), true, true);
+        hp_player(consumable_healing_points(o_ptr), false, true);
         break;
     }
 
@@ -205,7 +562,7 @@ static bool quaff_potion(object_type* o_ptr, bool* ident)
         (void)set_blind(0);
         (void)set_cut(p_ptr->cut / 2);
         (void)set_afraid(0);
-        (void)hp_player(50 + medicine_bonus(50), true, true);
+        (void)hp_player(consumable_healing_points(o_ptr), false, true);
         if (p_ptr->csp < p_ptr->msp)
         {
             p_ptr->csp = p_ptr->msp;
@@ -227,7 +584,7 @@ static bool quaff_potion(object_type* o_ptr, bool* ident)
         }
 
         (void)set_afraid(0);
-        hp_player(25 + medicine_bonus(25), true, true);
+        hp_player(consumable_healing_points(o_ptr), false, true);
         *ident = true;
         break;
     }
@@ -273,7 +630,7 @@ static bool quaff_potion(object_type* o_ptr, bool* ident)
         msg_print("It has the bitter taste of medicine.");
         *ident = true;
         set_cut(p_ptr->cut / 2);
-        hp_player(50 + medicine_bonus(50), true, true);
+        hp_player(consumable_healing_points(o_ptr), false, true);
         break;
     }
 
@@ -461,7 +818,7 @@ static bool quaff_potion(object_type* o_ptr, bool* ident)
     return (true);
 }
 
-static bool use_staff(object_type* o_ptr, bool* ident)
+static bool use_staff_effects(object_type* o_ptr, bool* ident, bool is_gem)
 {
     int k;
 
@@ -469,7 +826,7 @@ static bool use_staff(object_type* o_ptr, bool* ident)
 
     int will_score = p_ptr->skill_use[S_WIL];
 
-    /* Analyze the staff */
+    /* Analyze the staff-like effect */
     switch (o_ptr->sval)
     {
     case SV_STAFF_SECRETS:
@@ -532,7 +889,7 @@ static bool use_staff(object_type* o_ptr, bool* ident)
     {
         int radius = 10 + p_ptr->skill_use[S_WIL];
         /* Alchemy grants 1.5x range for gems */
-        if ((o_ptr->tval == TV_GEM) && p_ptr->active_ability[S_PER][PER_ALCHEMY])
+        if (is_gem && p_ptr->active_ability[S_PER][PER_ALCHEMY])
             radius = (radius * 3) / 2;
         map_area_radius(radius);
         *ident = true;
@@ -543,7 +900,7 @@ static bool use_staff(object_type* o_ptr, bool* ident)
     {
         int radius = 10 + p_ptr->skill_use[S_WIL];
         /* Alchemy grants 1.5x range for gems */
-        if ((o_ptr->tval == TV_GEM) && p_ptr->active_ability[S_PER][PER_ALCHEMY])
+        if (is_gem && p_ptr->active_ability[S_PER][PER_ALCHEMY])
             radius = (radius * 3) / 2;
         if (detect_objects_normal(radius))
             *ident = true;
@@ -554,7 +911,7 @@ static bool use_staff(object_type* o_ptr, bool* ident)
     {
         int radius = 10 + p_ptr->skill_use[S_WIL];
         /* Alchemy grants 1.5x range for gems */
-        if ((o_ptr->tval == TV_GEM) && p_ptr->active_ability[S_PER][PER_ALCHEMY])
+        if (is_gem && p_ptr->active_ability[S_PER][PER_ALCHEMY])
             radius = (radius * 3) / 2;
         if (detect_monsters(radius))
             *ident = true;
@@ -579,6 +936,30 @@ static bool use_staff(object_type* o_ptr, bool* ident)
     {
         msg_print("Your mind turns inward.");
         self_knowledge();
+
+        /* Gem/staff of self knowledge: attempt to identify equipped smithing items. */
+        for (int i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+        {
+            object_type* equip_ptr = &inventory[i];
+            if (!equip_ptr->k_idx)
+                continue;
+
+            u32b f1, f2, f3;
+            object_flags(equip_ptr, &f1, &f2, &f3);
+
+            bool is_quiver1 = (i == INVEN_QUIVER1);
+            bool is_quiver2 = (i == INVEN_QUIVER2);
+            bool is_throwing_item = player_can_treat_as_throwing_flags(equip_ptr, f3);
+            bool is_arrow = (equip_ptr->tval == TV_ARROW);
+
+            if (is_quiver1)
+                continue;
+            if (is_quiver2 && !is_throwing_item && !is_arrow)
+                continue;
+
+            (void)player_try_identify_smithing_object(equip_ptr, true, 5);
+        }
+
         *ident = true;
         break;
     }
@@ -612,7 +993,15 @@ static bool use_staff(object_type* o_ptr, bool* ident)
 
     case SV_STAFF_RECHARGING:
     {
-        if (!recharge(CHANNELING_CHARGE_MULTIPLIER))
+        int recharge_amount = CHANNELING_CHARGE_MULTIPLIER;
+
+        if (is_gem)
+        {
+            if (p_ptr->active_ability[S_WIL][WIL_CHANNELING])
+                recharge_amount *= 2;
+        }
+
+        if (!recharge(recharge_amount))
             use_charge = false;
         *ident = true;
         break;
@@ -637,6 +1026,11 @@ static bool use_staff(object_type* o_ptr, bool* ident)
     {
         if (darken_area(4, 4, 7))
             *ident = true;
+        if (is_gem)
+        {
+            /* Gems of Shadows bolster this round's stealth checks with Will. */
+            stealth_score += p_ptr->skill_use[S_WIL];
+        }
         break;
     }
     }
@@ -667,6 +1061,16 @@ static bool use_staff(object_type* o_ptr, bool* ident)
     return (use_charge);
 }
 
+static bool use_staff(object_type* o_ptr, bool* ident)
+{
+    return use_staff_effects(o_ptr, ident, false);
+}
+
+static bool use_gem(object_type* o_ptr, bool* ident)
+{
+    return use_staff_effects(o_ptr, ident, true);
+}
+
 static bool play_instrument(object_type* o_ptr, bool* ident)
 {
     int voice_cost = p_ptr->active_ability[S_WIL][WIL_CHANNELING] ? 10 : 20;
@@ -689,7 +1093,7 @@ static bool play_instrument(object_type* o_ptr, bool* ident)
     }
 
     /* Base chance of success */
-    will_score = p_ptr->skill_use[S_WIL] * ((c_info[p_ptr->phouse].flags_u & UNQ_WIL_TUOR) ? 2 : 1);
+    will_score = p_ptr->skill_use[S_WIL] * ((c_info[p_ptr->pcharacter].flags_u & UNQ_WIL_TUOR) ? 2 : 1);
 
     p_ptr->csp -= voice_cost;
 
@@ -856,6 +1260,7 @@ static bool play_instrument(object_type* o_ptr, bool* ident)
                 update_combat_rolls2(
                     4, 8, dam, -1, -1, prt, 100, GF_HURT, false);
 
+                killer_mark_other(SCORE_KILLER_TRAP);
                 take_hit(net_dam, "a collapsing ceiling");
 
                 if (allow_player_stun(NULL))
@@ -878,7 +1283,7 @@ static bool play_instrument(object_type* o_ptr, bool* ident)
             // skill check of Will vs 10
             if (skill_check(PLAYER, will_score, 10, NULL) > 0)
             {
-                if (p_ptr->depth < (MORGOTH_DEPTH - 1))
+                if (p_ptr->depth < MORGOTH_DEPTH)
                 {
                     // Store information for the combat rolls window
                     combat_roll_special_char = object_char(o_ptr);
@@ -1462,9 +1867,14 @@ bool use_object(object_type* o_ptr, bool* ident)
     }
 
     case TV_STAFF:
-    case TV_GEM:
     {
         used = use_staff(o_ptr, ident);
+        break;
+    }
+
+    case TV_GEM:
+    {
+        used = use_gem(o_ptr, ident);
         break;
     }
 
@@ -1483,3 +1893,6 @@ bool use_object(object_type* o_ptr, bool* ident)
 
     return (used);
 }
+
+
+

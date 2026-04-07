@@ -9,18 +9,715 @@
  */
 
 #include "angband.h"
+#include "blitz.h"
+#include "externs.h"
 #include "log/log.h"
-/* Countdown for forcing a redraw after showing the per-style banner */
-int g_banner_force_redraw_remaining = 0;
+#include "player/killer.h"
 #include "metarun.h"
+#include "score/score_runs.h"
+#include "score/score_ui.h"
+#include "sdl-sound.h"
 #include "z-term.h"
 #include <time.h>
 #include <string.h>
 #include <stddef.h>
 #include <stdlib.h>
 
+/* Countdown for forcing a redraw after showing the per-style banner */
+int g_banner_force_redraw_remaining = 0;
+static char g_active_partition_banner_text[1024] = "";
+
+/* Morgoth vault tracking variables - file scope for cross-function access */
+static int last_player_y = 0;
+static int last_player_x = 0;
+static bool was_in_morgoth_vault = false;
+static bool morgoth_entry_preconfirmed = false;
+
+static int last_partition_pi = -1;
+static level_partition_kind last_partition_kind = LEVEL_PART_NONE;
+
+/* Track which partitions have been narrated and the last narrated style. */
+static u32b partition_narrated_mask = 0;
+static int last_narrated_style_idx = -1;
+
+/* Forward declarations for partition kind helpers (defined later in file). */
+static bool is_big_partition_kind(level_partition_kind kind);
+static bool is_small_cave_partition_kind(level_partition_kind kind);
+
+/* Track greater-vault encounter XP so repeated warning prompts can't be farmed. */
+static char greater_vault_xp_name[80] = "";
+static bool greater_vault_xp_awarded = false;
+
+static void snapshot_run_history(const char* reason)
+{
+    if (!character_generated || !p_ptr || p_ptr->is_dead)
+        return;
+
+    high_score preview;
+    if (!build_live_preview_score(&preview))
+        return;
+
+    time_t now = time(NULL);
+    if (now == (time_t)-1)
+        now = 0;
+
+    if (!score_runs_record_current_run(&preview, now, SCORE_RECORD_ALIVE)) {
+        log_warn("run snapshot failed (%s)", reason ? reason : "unspecified");
+    } else if (reason) {
+        log_trace("run snapshot recorded (%s)", reason);
+    }
+}
+
+static void reset_level_entry_tracking(void)
+{
+    g_labyrinth_view_active = false;
+    g_active_partition_banner_text[0] = '\0';
+    greater_vault_xp_name[0] = '\0';
+    greater_vault_xp_awarded = false;
+    last_partition_pi = -1;
+    last_partition_kind = LEVEL_PART_NONE;
+    partition_narrated_mask = 0;
+    last_narrated_style_idx = -1;
+}
+
+static bool banner_messages_use_stairs(void)
+{
+#ifdef __ANDROID__
+    const bool default_value = false;
+#else
+    const bool default_value = true;
+#endif
+
+    if (!op_ptr)
+        return default_value;
+
+    return op_ptr->opt[OPT_banner_message_stairs];
+}
+
+static void queue_active_partition_banner(void)
+{
+    int wid, h;
+    const char* p = g_active_partition_banner_text;
+    int printed_lines = 0;
+    enum { MAX_LINES2 = 32, MAX_LEN2 = 255 };
+    bool stair_layout = banner_messages_use_stairs();
+
+    if (!p[0] || (g_banner_force_redraw_remaining <= 0))
+        return;
+    if (!Term || !angband_term[0] || (Term != angband_term[0]))
+        return;
+    if (character_icky > 0)
+        return;
+
+    Term_get_size(&wid, &h);
+    if (h <= 1)
+        return;
+
+    sdl_story_font_enable();
+
+    while (*p && printed_lines < MAX_LINES2 && (1 + printed_lines) < h)
+    {
+        int indent = 14 + (stair_layout ? (2 * printed_lines) : 0);
+        int avail;
+        char buf[MAX_LEN2 + 1];
+        int linelen = 0;
+
+        if (use_bigtile && (((indent - COL_MAP) & 1) != 0))
+            indent++;
+        if (indent >= wid - 1)
+            break;
+
+        avail = wid - indent - 1;
+        if (avail < 8)
+            avail = 8;
+
+        buf[0] = '\0';
+
+        while (*p && (unsigned char)*p <= ' ')
+        {
+            if (*p == '\n')
+            {
+                p++;
+                break;
+            }
+            p++;
+        }
+
+        while (*p)
+        {
+            const char* w = p;
+            int wlen;
+            int need;
+
+            if (*p == '\n')
+            {
+                p++;
+                break;
+            }
+
+            while (*p && *p != '\n' && !isspace((unsigned char)*p))
+                p++;
+            wlen = (int)(p - w);
+
+            if ((wlen > avail) && (linelen == 0))
+            {
+                int take = (wlen > avail) ? avail : wlen;
+                if (take > MAX_LEN2)
+                    take = MAX_LEN2;
+                memcpy(buf, w, (size_t)take);
+                linelen = take;
+                buf[linelen] = '\0';
+                p = w + take;
+                break;
+            }
+
+            need = (linelen ? 1 : 0) + wlen;
+            if ((linelen + need <= avail) && (linelen + need <= MAX_LEN2))
+            {
+                if (linelen)
+                    buf[linelen++] = ' ';
+                memcpy(buf + linelen, w, (size_t)wlen);
+                linelen += wlen;
+                buf[linelen] = '\0';
+            }
+            else
+            {
+                p = w;
+                break;
+            }
+
+            while (*p && isspace((unsigned char)*p))
+            {
+                if (*p == '\n')
+                    break;
+                p++;
+            }
+            if (*p == '\n')
+            {
+                p++;
+                break;
+            }
+        }
+
+        if (linelen == 0)
+            break;
+
+        c_put_str(TERM_ORANGE, buf, 1 + printed_lines, indent);
+        /* Clear only the next tile position to prevent glow overlay from showing through */
+        int erase_len = use_bigtile ? 2 : 1;
+        if (indent + linelen + erase_len <= wid)
+            Term_erase(indent + linelen, 1 + printed_lines, erase_len);
+        printed_lines++;
+    }
+
+    sdl_story_font_disable();
+}
+
+static void narrative_banner_pre_fresh_hook(void)
+{
+    queue_active_partition_banner();
+}
+
+void clear_active_narrative_banner(void)
+{
+    g_banner_force_redraw_remaining = 0;
+    g_active_partition_banner_text[0] = '\0';
+}
+
+/*
+ * Transition templates for partition narrative.
+ * Each template takes (old_S, new_S) as %s arguments.
+ */
+static const char* transition_templates[] = {
+    "The %s gives way to %s.",
+    "You leave the %s behind; ahead lies %s.",
+    "The %s fades. Now %s surrounds you.",
+    "Gone is the %s. In its place, %s.",
+    "The %s recedes as %s closes around you.",
+};
+#define NUM_TRANSITION_TEMPLATES 5
+
+static const char* partition_structural_text(level_partition_kind kind)
+{
+    switch (kind)
+    {
+    case LEVEL_PART_LABYRINTH:
+        return "The passage splits and twists into a dark labyrinth.";
+    case LEVEL_PART_CHASM:
+        return "A vast darkness yawns below; only narrow bridges span the gulf.";
+    case LEVEL_PART_BIG_CAVE:
+        return "A great cavern opens before you, its roof lost in shadow.";
+    default:
+        return NULL;
+    }
+}
+
+static const char* big_cave_elemental_text(void)
+{
+    big_cave_type_t cave_type =
+        level_partition_big_cave_type_for_point(p_ptr->py, p_ptr->px);
+    switch (cave_type)
+    {
+    case BIG_CAVE_FIRE:
+        return "Searing heat closes around you, and you feel your strength waning.";
+    case BIG_CAVE_ICE:
+        return "Bitter cold gnaws at your bones, and you shiver with a deathly chill.";
+    case BIG_CAVE_POIS:
+        return "A noxious miasma fills the air, and poison seeps into your lungs.";
+    default:
+        return "You feel exposed and vulnerable in this vast empty space.";
+    }
+}
+
+static void append_narrative_piece(char* buf, size_t size, const char* text)
+{
+    if (!text || !text[0])
+        return;
+
+    if (buf[0])
+        SDL_strlcat(buf, " ", size);
+    SDL_strlcat(buf, text, size);
+}
+
+static void build_partition_narrative_text(int old_sidx, int new_sidx,
+    level_partition_kind kind, char* buf, size_t size)
+{
+    const char* structural = partition_structural_text(kind);
+    bool is_transition;
+
+    if (!buf || size == 0)
+        return;
+    buf[0] = '\0';
+
+    if (structural)
+    {
+        append_narrative_piece(buf, size, structural);
+        if (kind == LEVEL_PART_BIG_CAVE)
+        {
+            const char* elem = big_cave_elemental_text();
+            if (elem)
+                append_narrative_piece(buf, size, elem);
+        }
+    }
+
+    if (is_small_cave_partition_kind(kind))
+    {
+        append_narrative_piece(buf, size,
+            "The air grows close and frowsty in a cramped cave.");
+    }
+
+    is_transition = (old_sidx >= 0 && old_sidx != new_sidx);
+    if (is_transition)
+    {
+        const char* old_s = styles_get_style_short_desc(old_sidx);
+        const char* new_s = styles_get_style_short_desc(new_sidx);
+        if (old_s && new_s)
+        {
+            char transition_buf[256];
+            int tmpl = rand_int(NUM_TRANSITION_TEMPLATES);
+            strnfmt(transition_buf, sizeof(transition_buf),
+                transition_templates[tmpl], old_s, new_s);
+            append_narrative_piece(buf, size, transition_buf);
+        }
+        else
+        {
+            const char* m1 = styles_get_style_m1(new_sidx);
+            append_narrative_piece(buf, size, m1);
+        }
+    }
+    else
+    {
+        const char* m1 = styles_get_style_m1(new_sidx);
+        append_narrative_piece(buf, size, m1);
+    }
+
+    append_narrative_piece(buf, size, styles_get_style_m2(new_sidx));
+}
+
+static void display_narrative_text(cptr text, int narrative_mode,
+    bool line_delay)
+{
+    if (!text || !text[0])
+        return;
+
+    if (narrative_mode == PARTITION_NARRATIVE_MESSAGE)
+    {
+        msg_print(text);
+        return;
+    }
+
+    if (narrative_mode != PARTITION_NARRATIVE_BANNER)
+        return;
+
+    g_term_pre_fresh_hook = narrative_banner_pre_fresh_hook;
+    g_active_partition_banner_text[0] = '\0';
+    print_fade_centered_at_row(text, 1, false, line_delay);
+    SDL_strlcpy(g_active_partition_banner_text, text,
+        sizeof(g_active_partition_banner_text));
+    g_banner_force_redraw_remaining = 3;
+}
+
+static void display_partition_narrative(int old_sidx, int new_sidx,
+    level_partition_kind kind)
+{
+    char buf[1024];
+
+    build_partition_narrative_text(old_sidx, new_sidx, kind, buf, sizeof(buf));
+    display_narrative_text(buf, PARTITION_NARRATIVE_MESSAGE, false);
+}
+
+static void display_partition_narrative_banner(int old_sidx, int new_sidx,
+    level_partition_kind kind, bool line_delay)
+{
+    char buf[1024];
+
+    build_partition_narrative_text(old_sidx, new_sidx, kind, buf, sizeof(buf));
+    display_narrative_text(buf, PARTITION_NARRATIVE_BANNER, line_delay);
+}
+
+static bool confirm_enter_morgoth_hall(void)
+{
+    char ch;
+    int wid, hgt;
+
+    static const char* text[] = {
+        "Beyond this passage lies the black hall of Morgoth Bauglir,",
+        "the Dark Enemy, and the last of the Iron Hells.",
+        "",
+        "If you pass within, you may not return until you bear a Silmaril.",
+        "Steel yourself: to enter is to choose doom or glory.",
+        NULL,
+    };
+
+    /* Paranoia */
+    message_flush();
+
+    /* Get terminal size */
+    Term_get_size(&wid, &hgt);
+
+    /* Save screen */
+    screen_save();
+    Term_clear();
+
+    /* Title */
+    {
+        const char* title = "The Iron Gates of Angband";
+        int col = (wid - (int)strlen(title)) / 2;
+        if (col < 1)
+            col = 1;
+        Term_putstr(col, 2, -1, TERM_L_RED, title);
+    }
+
+    /* Body */
+    {
+        int row = 6;
+        for (int i = 0; text[i] && row < hgt - 5; ++i)
+        {
+            const char* line = text[i];
+            if (!line[0])
+            {
+                row++;
+                continue;
+            }
+
+            int len = (int)strlen(line);
+            int col = (wid - len) / 2;
+            if (col < 1)
+                col = 1;
+
+            byte attr = (i == 3) ? TERM_L_RED : TERM_WHITE;
+            Term_putstr(col, row, -1, attr, line);
+            row++;
+        }
+    }
+
+    bool steamdeck = steamdeck_controls_active();
+
+    /* Prompt */
+    {
+        const char* prompt = steamdeck
+            ? "Enter Morgoth's hall? [y/n/space]"
+            : "Enter Morgoth's hall? [y/n]";
+        int col = (wid - (int)strlen(prompt)) / 2;
+        if (col < 1)
+            col = 1;
+        Term_putstr(col, hgt - 3, -1, TERM_YELLOW, prompt);
+    }
+
+    /* Get an acceptable answer */
+    while (true)
+    {
+        ch = inkey();
+        if (quick_messages)
+            break;
+        if (ch == ESCAPE)
+            break;
+        if (strchr("YyNn", ch) || (steamdeck && ch == ' '))
+            break;
+        bell("Illegal response to a 'yes/no' question!");
+    }
+
+    /* Restore screen */
+    screen_load();
+
+    /* Normal negation */
+    if ((ch != 'Y') && (ch != 'y') && !(steamdeck && ch == ' '))
+        return (false);
+
+    return (true);
+}
+
+bool preconfirm_enter_morgoth_hall(void)
+{
+    if (!confirm_enter_morgoth_hall())
+        return false;
+    morgoth_entry_preconfirmed = true;
+    return true;
+}
+
+static void update_labyrinth_view_state(bool handle_now)
+{
+    if (!p_ptr || p_ptr->is_dead)
+        return;
+
+    level_partition_kind kind = level_partition_kind_for_point(p_ptr->py, p_ptr->px);
+    bool want = (kind == LEVEL_PART_LABYRINTH);
+
+    if (want == g_labyrinth_view_active)
+        return;
+
+    g_labyrinth_view_active = want;
+
+    p_ptr->redraw |= (PR_MAP);
+    p_ptr->update |= (PU_FORGET_VIEW | PU_UPDATE_VIEW | PU_MONSTERS | PU_DISTANCE);
+
+    if (handle_now)
+        handle_stuff();
+}
+
+static bool is_big_partition_kind(level_partition_kind kind)
+{
+    return (kind == LEVEL_PART_LABYRINTH || kind == LEVEL_PART_BIG_CAVE
+        || kind == LEVEL_PART_CHASM);
+}
+
+static bool is_small_cave_partition_kind(level_partition_kind kind)
+{
+    return (kind == LEVEL_PART_CAVEY);
+}
+
+static byte partition_discovery_lore_flag(level_partition_kind kind)
+{
+    if (!p_ptr)
+        return 0;
+
+    switch (kind)
+    {
+    case LEVEL_PART_LABYRINTH:
+        return DISC_LORE_LABYRINTH;
+    case LEVEL_PART_CHASM:
+        return DISC_LORE_CHASM;
+    case LEVEL_PART_BIG_CAVE:
+    {
+        switch (level_partition_big_cave_type_for_point(p_ptr->py, p_ptr->px))
+        {
+        case BIG_CAVE_ICE:
+            return DISC_LORE_BIG_CAVE_ICE;
+        case BIG_CAVE_FIRE:
+            return DISC_LORE_BIG_CAVE_FIRE;
+        case BIG_CAVE_POIS:
+            return DISC_LORE_BIG_CAVE_POIS;
+        default:
+            return 0;
+        }
+    }
+    default:
+        return 0;
+    }
+}
+
+static int discovery_narrative_mode(bool force_message, int narrative_mode)
+{
+    if (!force_message)
+        return narrative_mode;
+
+    if (!op_ptr)
+        return PARTITION_NARRATIVE_OFF;
+
+    switch (op_ptr->level_entry_narrative_mode)
+    {
+    case LEVEL_ENTRY_NARRATIVE_BANNER_DELAY:
+    case LEVEL_ENTRY_NARRATIVE_BANNER:
+        return PARTITION_NARRATIVE_BANNER;
+    case LEVEL_ENTRY_NARRATIVE_MESSAGE:
+        return PARTITION_NARRATIVE_MESSAGE;
+    default:
+        return PARTITION_NARRATIVE_OFF;
+    }
+}
+
+static bool discovery_narrative_line_delay(bool force_message)
+{
+    return force_message && op_ptr
+        && (op_ptr->level_entry_narrative_mode
+            == LEVEL_ENTRY_NARRATIVE_BANNER_DELAY);
+}
+
+static cptr partition_discovery_lore_text(level_partition_kind kind)
+{
+    big_cave_type_t cave_type = BIG_CAVE_NONE;
+
+    if (kind == LEVEL_PART_BIG_CAVE && p_ptr)
+        cave_type = level_partition_big_cave_type_for_point(p_ptr->py, p_ptr->px);
+
+    return partition_config_get_discovery_text(kind, cave_type);
+}
+
+static void maybe_award_partition_discovery_xp(level_partition_kind kind,
+    int narrative_mode, bool line_delay)
+{
+    byte bit = partition_discovery_lore_flag(kind);
+    cptr text = partition_discovery_lore_text(kind);
+
+    if (!bit || !text)
+        return;
+
+    if (p_ptr->discovery_lore_flags & bit)
+        return;
+
+    p_ptr->discovery_lore_flags |= bit;
+    gain_exp(300);
+    display_narrative_text(text, narrative_mode, line_delay);
+}
+
+static cptr vault_entry_message_for_name(cptr vault_name)
+{
+    int i;
+
+    if (!vault_name || !vault_name[0])
+        return NULL;
+
+    for (i = 0; i < z_info->v_max; i++)
+    {
+        vault_type* v_ptr = &v_info[i];
+        cptr name;
+
+        if (!v_ptr->name)
+            continue;
+
+        name = v_name + v_ptr->name;
+        if (strcmp(name, vault_name) != 0)
+            continue;
+
+        if (!v_ptr->message)
+            return NULL;
+
+        return v_text + v_ptr->message;
+    }
+
+    return NULL;
+}
+
+static void describe_greater_vault_entry(cptr vault_name)
+{
+    int narrative_mode = op_ptr ? op_ptr->partition_narrative_mode
+                                : PARTITION_NARRATIVE_MESSAGE;
+    cptr text = vault_entry_message_for_name(vault_name);
+
+    if (!text)
+        return;
+
+    /* Great vault entries should always land in the message log too, even
+     * when the current setting also shows them as banners. */
+    msg_print(text);
+
+    if (narrative_mode == PARTITION_NARRATIVE_BANNER)
+        display_narrative_text(text, PARTITION_NARRATIVE_BANNER, false);
+}
+
+static void handle_partition_entry(bool force_message, int narrative_mode)
+{
+    if (!p_ptr || p_ptr->is_dead)
+        return;
+
+    int pi = level_partition_index_for_point(p_ptr->py, p_ptr->px);
+    level_partition_kind kind = level_partition_kind_for_point(p_ptr->py, p_ptr->px);
+    int sidx = styles_decode_color_style(cave_color[p_ptr->py][p_ptr->px]);
+
+    bool is_big = is_big_partition_kind(kind);
+    bool was_big = is_big_partition_kind(last_partition_kind);
+    bool entered_big = false;
+    if (force_message)
+    {
+        entered_big = is_big;
+    }
+    else if (is_big)
+    {
+        if (!was_big)
+            entered_big = true;
+        else if (pi != last_partition_pi || kind != last_partition_kind)
+            entered_big = true;
+    }
+
+    if (entered_big)
+        maybe_award_partition_discovery_xp(
+            kind, discovery_narrative_mode(force_message, narrative_mode),
+            discovery_narrative_line_delay(force_message));
+
+    if ((pi >= 0) && (pi < 25) && (sidx >= 0))
+    {
+        u32b bit = (u32b)(1U << pi);
+        if (!(partition_narrated_mask & bit))
+        {
+            if (narrative_mode == PARTITION_NARRATIVE_BANNER)
+                display_partition_narrative_banner(
+                    last_narrated_style_idx, sidx, kind, false);
+            else if (narrative_mode == PARTITION_NARRATIVE_MESSAGE)
+                display_partition_narrative(last_narrated_style_idx, sidx, kind);
+
+            if (is_small_cave_partition_kind(kind))
+                msg_print("Here torch and lamp drink their fuel twice as fast.");
+
+            partition_narrated_mask |= bit;
+            last_narrated_style_idx = sidx;
+        }
+    }
+
+    last_partition_pi = pi;
+    last_partition_kind = kind;
+}
+
+/* Track last depth for music changes (moved from dungeon() for proper reset) */
+static int last_music_depth = -999;
+
+/* Track first entry to skip level sound (moved from dungeon() for proper reset) */
+static bool first_entry_to_dungeon = true;
+
 /* True while the post-mortem spectator viewport is active. */
 static bool death_spectator_mode = false;
+
+/*
+ * Reset all dungeon-related static state for a new game.
+ * Called from re_init_some_things() to ensure clean state
+ * when starting a new game after death without restarting the app.
+ */
+void reset_dungeon_state(void)
+{
+    /* Reset file-scope static variables */
+    last_player_y = 0;
+    last_player_x = 0;
+    was_in_morgoth_vault = false;
+    morgoth_entry_preconfirmed = false;
+    death_spectator_mode = false;
+    g_active_partition_banner_text[0] = '\0';
+
+    /* Reset music/sound tracking */
+    last_music_depth = -999;
+    first_entry_to_dungeon = true;
+
+    /* Reset level entry tracking */
+    reset_level_entry_tracking();
+}
 
 /* Forward declarations for spectator helpers. */
 static bool death_spectator_command_allowed(int command);
@@ -224,11 +921,23 @@ void id_known_specials(void)
         if (!o_ptr->k_idx)
             continue;
 
-        /* Automatically identify any special items you have seen before*/
-        if (o_ptr->name2 && !object_known_p(o_ptr)
-            && (e_info[o_ptr->name2].aware))
+        /* Automatically identify any special items you have seen before */
+        if (object_has_ego(o_ptr) && !object_known_p(o_ptr))
         {
-            ident(o_ptr);
+            bool all_aware = true;
+            byte ego_pfx = object_ego_prefix(o_ptr);
+            byte ego_sfx = object_ego_suffix(o_ptr);
+
+            if (ego_pfx && !e_info[ego_pfx].aware)
+                all_aware = false;
+            if (ego_sfx && !e_info[ego_sfx].aware)
+                all_aware = false;
+
+            if (!object_uses_smithing_difficulty(o_ptr))
+            {
+                if (all_aware)
+                    ident(o_ptr);
+            }
         }
     }
     for (i = 0; i < INVEN_TOTAL; i++)
@@ -240,11 +949,23 @@ void id_known_specials(void)
         if (!o_ptr->k_idx)
             continue;
 
-        /* Automatically identify any special items you have seen before*/
-        if (o_ptr->name2 && !object_known_p(o_ptr)
-            && (e_info[o_ptr->name2].aware))
+        /* Automatically identify any special items you have seen before */
+        if (object_has_ego(o_ptr) && !object_known_p(o_ptr))
         {
-            ident(o_ptr);
+            bool all_aware = true;
+            byte ego_pfx = object_ego_prefix(o_ptr);
+            byte ego_sfx = object_ego_suffix(o_ptr);
+
+            if (ego_pfx && !e_info[ego_pfx].aware)
+                all_aware = false;
+            if (ego_sfx && !e_info[ego_sfx].aware)
+                all_aware = false;
+
+            if (!object_uses_smithing_difficulty(o_ptr))
+            {
+                if (all_aware)
+                    ident(o_ptr);
+            }
         }
     }
 
@@ -482,6 +1203,62 @@ static void recharged_notice(object_type* o_ptr)
 }
 
 /*
+ * Scan for artifacts within 22 tiles of player and mark them as seen.
+ * This allows players to skip full exploration while still tracking artifacts.
+ * Only scans the area that changed (player moved or objects shifted).
+ */
+static void scan_artifacts_near_player(void)
+{
+    int py = p_ptr->py;
+    int px = p_ptr->px;
+    int radius = 22;
+    
+    /* Scan 44x44 area centered on player */
+    for (int dy = -radius; dy <= radius; dy++)
+    {
+        for (int dx = -radius; dx <= radius; dx++)
+        {
+            int y = py + dy;
+            int x = px + dx;
+            
+            /* Skip out of bounds */
+            if (!in_bounds(y, x))
+                continue;
+
+            /* Only consider grids the player can actually see */
+            if (!player_can_see_bold(y, x))
+                continue;
+            
+            /* Check for objects at this location */
+            s16b this_o_idx = cave_o_idx[y][x];
+            
+            while (this_o_idx)
+            {
+                object_type* o_ptr = &o_list[this_o_idx];
+                
+                /* If this is an artifact that hasn't been marked seen yet */
+                if (o_ptr->name1
+                    && !(a_info[o_ptr->name1].seen & ART_SEEN_PHYSICAL))
+                {
+                    a_info[o_ptr->name1].seen |= ART_SEEN_PHYSICAL;
+                    
+                    /* Optional: log for debugging */
+                    if (cheat_peek)
+                    {
+                        char o_name[80];
+                        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+                        msg_format("Artifact marked as seen: %s", o_name);
+                    }
+                }
+                
+                /* Next object in this square */
+                this_o_idx = o_ptr->next_o_idx;
+            }
+        }
+    }
+}
+
+/*
  * Handle certain things once every 10 game turns
  */
 static void process_world(void)
@@ -501,8 +1278,11 @@ static void process_world(void)
     /* Check for Niena quest interaction every turn */
     check_niena_quest_interaction();
 
-    /* Check for Oromë quest interaction every turn */
+    /* Check for Orome quest interaction every turn */
     check_orome_quest_interaction();
+
+    /* Check for Varda quest interaction every turn */
+    check_varda_quest_interaction();
 
     /* Stop now unless the turn count is divisible by 10 */
     if (turn % 10)
@@ -609,7 +1389,26 @@ static void process_world(void)
         if (o_ptr->timeout > 0)
         {
             /* Decrease life-span */
-            o_ptr->timeout--;
+            int fuel = 1;
+            if (fuelable_light_p(o_ptr)
+                && (level_partition_kind_for_point(p_ptr->py, p_ptr->px) == LEVEL_PART_CAVEY))
+            {
+                /*
+                 * Small caves: double fuel drain only while standing in the actual
+                 * CA-blob cave area (not merely anywhere in the partition).
+                 *
+                 * CA blobs are generated as (dark) "room" grids; corridors/links are not.
+                 */
+                if ((cave_info[p_ptr->py][p_ptr->px] & (CAVE_ROOM)) &&
+                    !(cave_info[p_ptr->py][p_ptr->px] & (CAVE_GLOW)))
+                {
+                    fuel = 2;
+                }
+            }
+
+            o_ptr->timeout -= fuel;
+            if (o_ptr->timeout < 0)
+                o_ptr->timeout = 0;
             p_ptr->redraw |= (PR_LIGHT);
 
             /* Hack -- notice interesting fuel steps */
@@ -932,6 +1731,10 @@ static void process_command(void)
     case '\t':
     {
         do_cmd_ability_screen();
+        
+        /* Force full redraw after screen_load() restored old content */
+        p_ptr->redraw |= (PR_BASIC | PR_EXTRA | PR_MAP | PR_EXP);
+        handle_stuff();
         break;
     }
 
@@ -1214,6 +2017,10 @@ static void process_command(void)
         
         /* Load screen */
         screen_load();
+        
+        /* Force full redraw after screen_load() restored old content */
+        p_ptr->redraw |= (PR_BASIC | PR_EXTRA | PR_MAP | PR_EXP);
+        handle_stuff();
         break;
     }
 
@@ -1400,6 +2207,19 @@ static bool death_spectator_command_allowed(int command)
     }
 }
 
+static bool death_spectator_continue_input(int command)
+{
+    if ((command == ' ') || (command == '\n') || (command == '\r'))
+    {
+        return true;
+    }
+
+    if (steamdeck_controls_active() && (command == steamdeck_confirm_key()))
+        return true;
+
+    return false;
+}
+
 static void death_spectator_prepare_display(void)
 {
     int i;
@@ -1433,7 +2253,8 @@ static void death_spectator_prepare_display(void)
         display_main_combat_rolls();
     }
 
-    msg_print("You linger for a final look. Press Esc to continue to the tomb.");
+    msg_print(
+        "You linger for a final look. Press Esc, Space, or Enter to continue to the tomb.");
 }
 
 void death_spectator_view(void)
@@ -1456,7 +2277,8 @@ void death_spectator_view(void)
     {
         request_command();
 
-        if (p_ptr->command_cmd == ESCAPE)
+        if ((p_ptr->command_cmd == ESCAPE)
+            || death_spectator_continue_input(p_ptr->command_cmd))
         {
             break;
         }
@@ -1500,11 +2322,23 @@ bool death_spectator_active(void)
 
 static bool auto_pickup_okay(const object_type* o_ptr)
 {
+    int max_qty;
     // cptr s;
 
     /* It can't be carried */
     if (!inven_carry_okay(o_ptr))
         return (false);
+
+    /*
+     * Don't interrupt movement with a quantity prompt when a supply stack
+     * only fits partially. The player can still pick it up manually.
+     */
+    if (supplies_is_supply_object(o_ptr) && o_ptr->number > 1)
+    {
+        max_qty = supplies_max_absorbable_quantity(o_ptr);
+        if ((max_qty > 0) && (max_qty < o_ptr->number))
+            return (false);
+    }
 
     /*object is marked to not pickup*/
     if ((k_info[o_ptr->k_idx].squelch == NO_SQUELCH_NEVER_PICKUP)
@@ -2210,25 +3044,117 @@ static void process_player(void)
 
         /*** Clean up ***/
 
+        /* Update labyrinth map restriction and partition-entry messages/XP. */
+        update_labyrinth_view_state(true);
+        handle_partition_entry(false, op_ptr->partition_narrative_mode);
+
+        bool in_morgoth_vault = (p_ptr->depth == MORGOTH_DEPTH)
+            && (cave_info[p_ptr->py][p_ptr->px] & (CAVE_G_VAULT));
+
         /* Check for greater vault squares */
         if ((cave_info[p_ptr->py][p_ptr->px] & (CAVE_G_VAULT))
-            && (g_vault_name[0] != '\0'))
+            && (g_vault_name[0] != '\0') && !was_in_morgoth_vault)
         {
-            char note[120];
-            char* fmt = "Entered %s";
+            bool clear_vault_name = true;
 
-            strnfmt(note, sizeof(note), fmt, g_vault_name);
-
-            do_cmd_note(note, p_ptr->depth);
-
-            // give a message unless it is the Gates or the Throne Room
-            if (p_ptr->depth > 0 && p_ptr->depth < 20)
+            if (strcmp(greater_vault_xp_name, g_vault_name) != 0)
             {
-                msg_format("You have entered %s.", g_vault_name);
+                SDL_strlcpy(greater_vault_xp_name, g_vault_name, sizeof(greater_vault_xp_name));
+                greater_vault_xp_awarded = false;
             }
 
-            g_vault_name[0] = '\0';
+            if (in_morgoth_vault)
+            {
+                bool allow_entry = morgoth_entry_preconfirmed;
+                if (!allow_entry)
+                    allow_entry = confirm_enter_morgoth_hall();
+
+                if (!allow_entry)
+                {
+                    clear_vault_name = false;
+
+                    if (in_bounds_fully(last_player_y, last_player_x))
+                    {
+                        p_ptr->py = last_player_y;
+                        p_ptr->px = last_player_x;
+                        p_ptr->update |= (PU_FORGET_VIEW | PU_UPDATE_VIEW | PU_PANEL);
+                        p_ptr->redraw |= (PR_MAP);
+                    }
+                }
+                else
+                {
+                    const int vault_xp = 500;
+                    char note[120];
+                    strnfmt(note, sizeof(note), "Entered %s", g_vault_name);
+                    do_cmd_note(note, p_ptr->depth);
+
+                    p_ptr->morgoth_hall_entered = true;
+
+                    describe_greater_vault_entry(g_vault_name);
+                    msg_print("From within you hear the harsh din of feasting in Morgoth's own hall.");
+                    if (!greater_vault_xp_awarded)
+                    {
+                        gain_exp(vault_xp);
+                        greater_vault_xp_awarded = true;
+                    }
+
+                    pause_with_text(throne_poetry, 5, 13, NULL, 0);
+                    p_ptr->truce = true;
+                    msg_print("There is a strange tension in the air.");
+                    if (p_ptr->skill_use[S_PER] >= 15)
+                        msg_print("You feel that Morgoth's servants are reluctant to attack before he delivers judgment.");
+                }
+            }
+            else
+            {
+                const int vault_xp = 500;
+                char note[120];
+                strnfmt(note, sizeof(note), "Entered %s", g_vault_name);
+
+                do_cmd_note(note, p_ptr->depth);
+                describe_greater_vault_entry(g_vault_name);
+                if (!greater_vault_xp_awarded)
+                {
+                    gain_exp(vault_xp);
+                    greater_vault_xp_awarded = true;
+                }
+            }
+
+            if (clear_vault_name)
+            {
+                g_vault_name[0] = '\0';
+                greater_vault_xp_name[0] = '\0';
+                greater_vault_xp_awarded = false;
+            }
         }
+
+        in_morgoth_vault = (p_ptr->depth == MORGOTH_DEPTH)
+            && (cave_info[p_ptr->py][p_ptr->px] & (CAVE_G_VAULT));
+
+        if (p_ptr->morgoth_hall_entered && was_in_morgoth_vault && !in_morgoth_vault
+            && (silmarils_possessed() == 0))
+        {
+            msg_print("The Shadow bars your way: you cannot flee without a Silmaril.");
+
+            if (in_bounds_fully(last_player_y, last_player_x))
+            {
+                p_ptr->py = last_player_y;
+                p_ptr->px = last_player_x;
+                p_ptr->update |= (PU_FORGET_VIEW | PU_UPDATE_VIEW | PU_PANEL);
+                p_ptr->redraw |= (PR_MAP);
+                in_morgoth_vault = true;
+            }
+        }
+
+        if (was_in_morgoth_vault && !in_morgoth_vault && p_ptr->truce)
+        {
+            break_truce(true);
+        }
+
+        was_in_morgoth_vault = in_morgoth_vault;
+        last_player_y = p_ptr->py;
+        last_player_x = p_ptr->px;
+        morgoth_entry_preconfirmed = false;
 
         /* Significant */
         if (p_ptr->energy_use)
@@ -2384,6 +3310,7 @@ static void process_player(void)
         // amount is one fifth of the poison, rounding up
         amount = (p_ptr->poisoned + 4) / 5;
 
+        killer_mark_other(SCORE_KILLER_OTHER);
         take_hit(amount, "poison");
     }
 
@@ -2393,6 +3320,7 @@ static void process_player(void)
         amount = (p_ptr->cut + 4) / 5;
 
         /* Take damage */
+        killer_mark_other(SCORE_KILLER_OTHER);
         take_hit(amount, "a fatal wound");
     }
 
@@ -2435,6 +3363,7 @@ static void process_player(void)
         i = 1; // old: (PY_FOOD_STARVE - p_ptr->food) / 10;
 
         /* Take damage */
+        killer_mark_other(SCORE_KILLER_OTHER);
         take_hit(i, "starvation");
     }
 
@@ -2696,12 +3625,12 @@ static void process_player(void)
         g_banner_force_redraw_remaining--;
         if (g_banner_force_redraw_remaining == 0)
         {
+            g_active_partition_banner_text[0] = '\0';
             do_cmd_redraw();
         }
     }
 
-    depth_counter_increment = 85 - (playerturn / 850);
-    depth_counter_increment += 3 * (p_ptr->depth - min_depth());
+    min_depth_timer_status(NULL, NULL, &depth_counter_increment, NULL, NULL);
 
     min_depth_counter += depth_counter_increment > 0 ?
         depth_counter_increment : 0;
@@ -2736,6 +3665,30 @@ static void dungeon(void)
     int i;
 
     log_debug("Entering dungeon level %d", p_ptr->depth);
+
+    /* Play level transition sound (but not on first entry) */
+    if (!first_entry_to_dungeon) {
+        sound(MSG_LEVEL);
+    }
+    first_entry_to_dungeon = false;
+    
+    /* Depth 0 (the Gates) is still active gameplay and should use ambient music. */
+    bool was_in_dungeon = (last_music_depth >= 0);
+    bool now_in_dungeon = (p_ptr->depth >= 0);
+    
+    if (now_in_dungeon && !was_in_dungeon) {
+        /* Entering dungeon from surface - switch to ambient */
+        log_debug("Switching to ambient music (entering dungeon)");
+        sdl_music_stop_main();
+        sdl_music_play_ambient();
+    } else if (!now_in_dungeon && was_in_dungeon) {
+        /* Leaving dungeon gameplay - keep ambient running, clear any overlay. */
+        log_debug("Leaving dungeon gameplay - preserving ambient music");
+        sdl_music_stop_main();
+        sdl_music_play_ambient();
+    }
+    
+    last_music_depth = p_ptr->depth;
 
     /* Hack -- enforce illegal panel */
     p_ptr->wy = p_ptr->cur_map_hgt;
@@ -2838,6 +3791,9 @@ static void dungeon(void)
     log_debug("Flushing messages");
     message_flush();
 
+    /* Set labyrinth LOS-only map restriction before first draw. */
+    update_labyrinth_view_state(false);
+
     /* Hack -- Increase "xtra" depth */
     log_debug("Increasing character_xtra depth for display setup");
     character_xtra++;
@@ -2922,6 +3878,14 @@ static void dungeon(void)
     log_debug("Final terminal refresh");
     Term_fresh();
 
+    /* Show partition entry messages/XP after the initial draw so they can't be cleared by the setup flush. */
+    {
+        int entry_mode = PARTITION_NARRATIVE_OFF;
+        if (op_ptr->level_entry_narrative_mode == LEVEL_ENTRY_NARRATIVE_MESSAGE)
+            entry_mode = PARTITION_NARRATIVE_MESSAGE;
+        handle_partition_entry(true, entry_mode);
+    }
+
     log_info("Dungeon display setup completed successfully");
 
     /* Log final state after setup */
@@ -2954,28 +3918,34 @@ static void dungeon(void)
 
     /*** Process this dungeon level ***/
 
-    /* Reset the monster generation level */
-    monster_level = p_ptr->depth;
+    /* Reset generation depth; the Gates use depth 20 tables while displayed as 0. */
+    monster_level = player_generation_depth();
+    object_level = player_generation_depth();
 
-    /* Reset the object generation level */
-    object_level = p_ptr->depth;
-
-    /* Show per-style entry message now that the level is fully entered and drawn */
+    /* Show initial partition narrative according to the configured display mode. */
+    if ((op_ptr->level_entry_narrative_mode == LEVEL_ENTRY_NARRATIVE_BANNER_DELAY)
+        || (op_ptr->level_entry_narrative_mode == LEVEL_ENTRY_NARRATIVE_BANNER))
     {
-        extern int styles_get_level_primary_style(void);
-        extern const char* styles_get_style_display(int sidx);
-    extern void print_fade_centered_at_row(cptr text, int row_start);
-        int sidx = styles_get_level_primary_style();
-        if (sidx >= 0) {
-            const char* m = styles_get_style_display(sidx);
-            if (m && m[0]) {
-                /* second row (row index 1) */
-                print_fade_centered_at_row(m, 1);
-                /* After showing the banner, force a full redraw after 3 inputs */
-                g_banner_force_redraw_remaining = 3;
-            }
+        int spawn_sidx = styles_decode_color_style(cave_color[p_ptr->py][p_ptr->px]);
+        level_partition_kind spawn_kind =
+            level_partition_kind_for_point(p_ptr->py, p_ptr->px);
+        if (spawn_sidx >= 0) {
+            display_partition_narrative_banner(
+                -1, spawn_sidx, spawn_kind,
+                op_ptr->level_entry_narrative_mode
+                    == LEVEL_ENTRY_NARRATIVE_BANNER_DELAY);
         }
     }
+
+    was_in_morgoth_vault = (p_ptr->depth == MORGOTH_DEPTH) && (cave_info[p_ptr->py][p_ptr->px] & CAVE_G_VAULT);
+    if ((p_ptr->depth == MORGOTH_DEPTH) && !p_ptr->morgoth_hall_entered
+        && (was_in_morgoth_vault || (silmarils_possessed() > 0)))
+    {
+        p_ptr->morgoth_hall_entered = true;
+    }
+    log_live_special_vault_only_monsters("dungeon loop start");
+    last_player_y = p_ptr->py;
+    last_player_x = p_ptr->px;
 
     log_info("Starting main dungeon loop for depth %d", p_ptr->depth);
 
@@ -3044,6 +4014,9 @@ static void dungeon(void)
                 log_trace("[LOOP] process_player start");
                 process_player();
                 log_trace("[LOOP] process_player end: combat_number=%d old=%d", combat_number, combat_number_old);
+                
+                /* Scan for artifacts near player and mark as seen */
+                scan_artifacts_near_player();
                 
                 /* Set combat rolls window flag after player actions complete */
                 if (combat_number > 0) {
@@ -3172,6 +4145,8 @@ static void dungeon(void)
         p_ptr->energy += extract_energy[p_ptr->pspeed];
 
         /* Give energy to all monsters */
+        bool freeze_morgoth_vault = (p_ptr->depth == MORGOTH_DEPTH)
+            && !p_ptr->morgoth_hall_entered && (silmarils_possessed() == 0);
         for (i = mon_max - 1; i >= 1; i--)
         {
             /* Access the monster */
@@ -3180,6 +4155,14 @@ static void dungeon(void)
             /* Ignore "dead" monsters */
             if (!m_ptr->r_idx)
                 continue;
+
+            /* Keep Morgoth's hall frozen until the player enters it */
+            if (freeze_morgoth_vault
+                && (cave_info[m_ptr->fy][m_ptr->fx] & CAVE_G_VAULT))
+            {
+                m_ptr->energy = 0;
+                continue;
+            }
 
             /* Give this monster some energy */
             m_ptr->energy += extract_energy[m_ptr->mspeed];
@@ -3248,16 +4231,191 @@ static void death_knowledge(void)
     handle_stuff();
 }
 
+static bool story_intro_skip_requested(void)
+{
+    char check_key;
+
+    if (Term_inkey(&check_key, false, false) == 0)
+    {
+        Term_inkey(&check_key, false, true);
+        if (check_key == ESCAPE || check_key == '\n' || check_key == '\r')
+            return true;
+    }
+
+    return false;
+}
+
+static int story_intro_count_paragraph_rows(cptr text, int wrap_width)
+{
+    int rows = 0;
+    int col = 0;
+    bool line_has_content = false;
+    bool pending_space = false;
+    cptr s = text ? text : "";
+
+    if (wrap_width < 1)
+        wrap_width = 1;
+
+    while (*s)
+    {
+        int word_len = 0;
+
+        if (*s == '\n')
+        {
+            col = 0;
+            line_has_content = false;
+            pending_space = false;
+            s++;
+            continue;
+        }
+
+        if (*s == ' ' || *s == '\t')
+        {
+            pending_space = line_has_content;
+            s++;
+            continue;
+        }
+
+        while (s[word_len] && s[word_len] != ' ' && s[word_len] != '\t' && s[word_len] != '\n')
+            word_len++;
+
+        if (pending_space && line_has_content)
+        {
+            if (col + 1 + word_len > wrap_width)
+            {
+                col = 0;
+                line_has_content = false;
+            }
+            else
+            {
+                col++;
+            }
+            pending_space = false;
+        }
+
+        for (int i = 0; i < word_len; ++i)
+        {
+            if (col >= wrap_width)
+            {
+                col = 0;
+                line_has_content = false;
+            }
+
+            if (!line_has_content)
+            {
+                rows++;
+                line_has_content = true;
+            }
+
+            col++;
+        }
+
+        s += word_len;
+    }
+
+    return (rows > 0) ? rows : 1;
+}
+
+static void story_intro_putch(int x, int y, char ch, bool *skipped)
+{
+    if (!*skipped && story_intro_skip_requested())
+        *skipped = true;
+
+    Term_putch(x, y, TERM_WHITE, ch);
+
+    if (!*skipped)
+    {
+        Term_fresh();
+        Term_xtra(TERM_XTRA_DELAY, 30);
+    }
+}
+
+static bool story_intro_render_paragraph(cptr text, int indent, int wrap_width, int *row)
+{
+    int col = 0;
+    bool line_has_content = false;
+    bool pending_space = false;
+    bool skipped = false;
+    cptr s = text ? text : "";
+
+    if (!row)
+        return false;
+
+    if (wrap_width < 1)
+        wrap_width = 1;
+
+    while (*s)
+    {
+        int word_len = 0;
+
+        if (*s == '\n')
+        {
+            (*row)++;
+            col = 0;
+            line_has_content = false;
+            pending_space = false;
+            s++;
+            continue;
+        }
+
+        if (*s == ' ' || *s == '\t')
+        {
+            pending_space = line_has_content;
+            s++;
+            continue;
+        }
+
+        while (s[word_len] && s[word_len] != ' ' && s[word_len] != '\t' && s[word_len] != '\n')
+            word_len++;
+
+        if (pending_space && line_has_content)
+        {
+            if (col + 1 + word_len > wrap_width)
+            {
+                (*row)++;
+                col = 0;
+                line_has_content = false;
+            }
+            else
+            {
+                story_intro_putch(indent + col, *row, ' ', &skipped);
+                col++;
+            }
+            pending_space = false;
+        }
+
+        for (int i = 0; i < word_len; ++i)
+        {
+            if (col >= wrap_width)
+            {
+                (*row)++;
+                col = 0;
+                line_has_content = false;
+            }
+
+            story_intro_putch(indent + col, *row, s[i], &skipped);
+            col++;
+            line_has_content = true;
+        }
+
+        s += word_len;
+    }
+
+    if (skipped)
+        Term_fresh();
+
+    return skipped;
+}
+
 /**
  * Introductory narrative display, one paragraph per prompt.
  * Implemented as a static function to restrict linkage.
  */
 static void print_story_intro(void)
 {
-#ifdef USE_SDL
     bool story_intro_story_font = true;
     sdl_story_font_enable();
-#endif
+    sdl_music_play_main_full();
     int wid, h;
     const int indent = 2;
 
@@ -3315,89 +4473,32 @@ static void print_story_intro(void)
 
     /* Start on a blank screen */
     Term_clear();
-    int row = 1, col = 0;
+    int row = 1;
 
     for (int idx = 0; idx < total; idx++) {
         const char *s = intro_texts[idx];
-
-        /* Count lines needed for this paragraph */
-        int lines_needed = 0;
-        int temp_col = col;
-        for (size_t i = 0; s[i]; i++) {
-            if (s[i] == '\n' || temp_col >= wrap_width) {
-                lines_needed++;
-                temp_col = 0;
-                if (s[i] == '\n') continue;
-            }
-            temp_col++;
-        }
-        lines_needed++; /* Add one for the blank line after paragraph */
+        int lines_needed = story_intro_count_paragraph_rows(s, wrap_width) + 1;
+        bool skipped;
 
         /* Check if we have enough space for the whole paragraph */
-            if (row + lines_needed >= h - 1) {
-                Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key)");
-                hide_cursor = true;
-                {
-                    char k = inkey();
-                    if (k == 'S') { /* Capital S skips the intro entirely */
-                        Term_clear();
-#ifdef USE_SDL
-                        goto cleanup_intro;
-#else
-                        return;
-#endif
-                    }
+        if (row + lines_needed >= h - 1) {
+            Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key)");
+            hide_cursor = true;
+            {
+                char k = inkey();
+                if (k == 'S') { /* Capital S skips the intro entirely */
+                    Term_clear();
+                    goto cleanup_intro;
                 }
-                Term_clear();
-                row = 1;
             }
-
-        col = 0;
-
-        /* Print this string, character by character */
-        bool skipped = false;
-        for (size_t i = 0; s[i]; i++) {
-            /* Check for any key press to skip typewriter effect */
-            char check_key;
-            if (Term_inkey(&check_key, false, false) == 0) {
-                /* Consume the key - any key press skips the typewriter */
-                Term_inkey(&check_key, false, true);
-                skipped = true;
-                /* Print remaining text instantly */
-                for (size_t j = i; s[j]; j++) {
-                    char ch = s[j];
-                    if (ch == '\n' || col >= wrap_width) {
-                        row++;
-                        col = 0;
-                        if (ch == '\n') continue;
-                    }
-                    Term_putch(indent + col, row, TERM_WHITE, ch);
-                    col++;
-                }
-                Term_fresh();
-                break;
-            }
-            
-            char ch = s[i];
-
-            /* Newline or wrap? */
-            if (ch == '\n' || col >= wrap_width) {
-                row++;
-                col = 0;
-                if (ch == '\n') continue;
-            }
-
-            Term_putch(indent + col, row, TERM_WHITE, ch);
-            Term_fresh();
-            col++;
-
-            /* Delay 25 ms after each character */
-            Term_xtra(TERM_XTRA_DELAY, 30);
+            Term_clear();
+            row = 1;
         }
+
+        skipped = story_intro_render_paragraph(s, indent, wrap_width, &row);
 
         /* Leave one blank line after each paragraph */
         row++;
-        col = 0;
 
         /* 1 second pause after paragraph (skip if we already skipped typewriter) */
         if (!skipped) {
@@ -3412,26 +4513,15 @@ static void print_story_intro(void)
     /* Handle input */
     hide_cursor = true;
     char key = inkey();
-#ifdef USE_SDL
     if (key == 'S') {
         Term_clear();
         goto cleanup_intro;
     }
-#else
-    if (key == 'S') {
-        Term_clear();
-        return;
-    }
-#endif
     if (key == 'c' || key == 'C')
     {
         Term_clear();
         choose_difficulty_level();
-#ifdef USE_SDL
         goto cleanup_intro;
-#else
-        return;
-#endif
     }
 
     Term_clear();
@@ -3439,18 +4529,71 @@ static void print_story_intro(void)
     /* Flush any queued keypresses that accumulated during the intro */
     Term_flush();
 
-#ifdef USE_SDL
-    goto cleanup_intro;
-#else
-    return;
-#endif
-
-#ifdef USE_SDL
 cleanup_intro:
     if (story_intro_story_font)
         sdl_story_font_reset();
+    
     return;
-#endif
+}
+
+static void maybe_show_blitz_unlock_screen(void)
+{
+    int wid = 80;
+    int hgt = 24;
+    int row = 2;
+
+    if (run_mode_is_blitz())
+        return;
+    if (!op_ptr || op_ptr->opt[OPT_unlock_blitz_mode])
+        return;
+    if (metarun_completed_count() < 1)
+        return;
+
+    screen_save();
+    Term_clear();
+    Term_get_size(&wid, &hgt);
+    row = 2;
+
+    c_put_str(TERM_YELLOW, "Congratulations, you have unlocked Blitz Mode!",
+        row++, MAX((wid - 47) / 2, 0));
+    row += 2;
+
+    text_out_hook = text_out_to_screen;
+    text_out_wrap = MAX(20, wid - 4);
+    text_out_indent = 2;
+
+    Term_gotoxy(2, row);
+    text_out_c(TERM_L_WHITE, "Blitz is a self-contained challenge run.");
+    row += count_wrapped_lines("Blitz is a self-contained challenge run.", text_out_wrap, 2) + 1;
+
+    Term_gotoxy(2, row);
+    text_out_c(TERM_WHITE,
+        "Story progress, metaruns, saves, and score stay separate.");
+    row += count_wrapped_lines(
+        "Story progress, metaruns, saves, and score stay separate.",
+        text_out_wrap, 2) + 1;
+
+    Term_gotoxy(2, row);
+    text_out_c(TERM_WHITE,
+        "Each Blitz run lets you choose character flow, oaths, blessings, and curses.");
+    row += count_wrapped_lines(
+        "Each Blitz run lets you choose character flow, oaths, blessings, and curses.",
+        text_out_wrap, 2) + 1;
+
+    Term_gotoxy(2, row);
+    text_out_c(TERM_SLATE,
+        "Run history entries are still recorded and marked as Blitz.");
+    row += count_wrapped_lines(
+        "Run history entries are still recorded and marked as Blitz.",
+        text_out_wrap, 2) + 1;
+
+    c_put_str(TERM_L_BLUE, "Press any key to continue.", MIN(row + 1, hgt - 1), 2);
+    Term_fresh();
+    (void)inkey();
+    screen_load();
+
+    op_ptr->opt[OPT_unlock_blitz_mode] = true;
+    save_pane_config_to_json();
 }
 
 
@@ -3478,13 +4621,13 @@ cleanup_intro:
  * "op_ptr->base_name" to "nameless" if it is empty.
  *
  * Note that we load the RNG state from savefiles and
- * so we only initialize it if we were unable to load it.  The loading
- * code marks successful loading of the RNG state using the "Rand_quick"
- * flag, which is a hack, but which optimizes loading of savefiles.
+ * only initialize it when starting a brand new character.
  */
 PlayResult play_game(void)
 {
     bool new_game = false;
+
+    log_info("play_game: FUNCTION ENTERED");
 
     /* Safety: Fix character_icky imbalance from previous game sessions */
     if (character_icky != 0)
@@ -3507,9 +4650,22 @@ PlayResult play_game(void)
     Term_activate(term_screen);
 
     /* Verify minimum size */
-    if ((Term->hgt < 24) || (Term->wid < 80))
     {
-        quit("main window is too small");
+        /* get_sdl_min_terminal_mode() returns 0=normal, 1=compact. */
+        const bool compact_mode = (get_sdl_min_terminal_mode() != 0);
+        const int min_hgt = compact_mode ? 18 : 24;
+        const int min_wid = compact_mode ? 50 : 80;
+        if ((Term->hgt < min_hgt) || (Term->wid < min_wid))
+        {
+#ifdef __ANDROID__
+            log_error("main window too small on Android: %dx%d (need at least %dx%d)",
+                Term->wid, Term->hgt, min_wid, min_hgt);
+#else
+            log_error("main window too small: %dx%d (need at least %dx%d)",
+                Term->wid, Term->hgt, min_wid, min_hgt);
+#endif
+            quit("main window is too small");
+        }
     }
 
     /* Hack -- Turn off the cursor */
@@ -3518,21 +4674,27 @@ PlayResult play_game(void)
     /* Hack -- Default base_name */
     if (!op_ptr->base_name[0])
     {
-        my_strcpy(op_ptr->base_name, "nameless", sizeof(op_ptr->base_name));
+        SDL_strlcpy(op_ptr->base_name, "nameless", sizeof(op_ptr->base_name));
     }
 
-    if (metarun_created)        /* show only the first time ever */
-        print_story_intro();
-    else
-        print_metarun_stats();
+    run_mode_activate_pending();
+    maybe_show_blitz_unlock_screen();
 
-     /* New startup behavior: try to auto-load any alive character
-         lingering in the scorefile. If successful, skip character
-         selection and proceed directly. */
-     character_loaded = false;
-     character_loaded_dead = false;
-     bool autoloaded = autoload_alive_from_scores();
-     if (autoloaded && character_loaded) {
+    if (!run_mode_is_blitz()) {
+        if (metarun_created) /* show only the first time ever */
+            print_story_intro();
+        else
+            print_metarun_stats();
+    }
+
+    /* New startup behavior: try to auto-load any alive character
+     * lingering in the scorefile. If successful, skip character
+     * selection and proceed directly. */
+    character_loaded = false;
+    character_loaded_dead = false;
+    bool autoloaded = autoload_alive_from_scores();
+    if (autoloaded && character_loaded)
+    {
         log_info("Auto-loaded alive character from scores; skipping selection");
         new_game = false;
     }
@@ -3557,9 +4719,12 @@ PlayResult play_game(void)
         player_wipe();
 
     log_info("Choosing character");
-        NavResult cr = character_creation();
+        NavResult cr = run_mode_is_blitz() ? blitz_character_creation()
+                                           : character_creation();
         if (cr == NAV_TO_MAIN) {
             log_info("Returning to main menu from character creation");
+            sdl_music_stop_main();
+            sdl_music_stop_ambient();
             return PLAY_DONE;
         }
         if (cr == NAV_QUIT) {
@@ -3567,13 +4732,35 @@ PlayResult play_game(void)
             return PLAY_QUIT;
         }
 
-        /* Set player name from house BEFORE load_player() so savefile path is correct */
-        my_strcpy(op_ptr->full_name, c_name + c_info[p_ptr->phouse].name, sizeof(op_ptr->full_name));
+        /* Set player name from character BEFORE load_player() so savefile path is correct */
+        SDL_strlcpy(op_ptr->full_name, c_name + c_info[p_ptr->pcharacter].name, sizeof(op_ptr->full_name));
         process_player_name(true);  /* Update savefile path */
-        log_debug("Player name set to: %s (house %d), savefile: %s", op_ptr->full_name, p_ptr->phouse, savefile);
+        log_debug("Player name set to: %s (character %d), savefile: %s", op_ptr->full_name, p_ptr->pcharacter, savefile);
 
-    /* Attempt to load (manual path) */
-    (void)load_player();
+        /* Attempt to load (manual path) */
+        (void)load_player();
+
+        /*
+         * If we loaded a dead character savefile, load_player() returns false but
+         * leaves p_ptr populated with the dead character's state. We need to wipe
+         * and properly re-initialize for a fresh start with the same character type.
+         */
+        if (character_loaded_dead)
+        {
+            log_info("Loaded dead character from '%s' - wiping for fresh restart",
+                savefile);
+
+            /* Wipe player data - this will restore prace/pcharacter/stats from dead char */
+            player_wipe();
+
+            /* Re-initialize global race/character pointers to match restored values */
+            rp_ptr = &p_info[p_ptr->prace];
+            current_character_profile = &c_info[p_ptr->pcharacter];
+
+            /* Clear the flag after wipe so subsequent code knows we're starting fresh */
+            character_loaded_dead = false;
+        }
+
         log_info(character_loaded ? "Character loaded" :
             (character_loaded_dead ? "Character loaded dead" : "Character creation started"));
 
@@ -3583,27 +4770,15 @@ PlayResult play_game(void)
         {
             log_info("Starting new game - initializing character");
         /* Init RNG */
-        if (Rand_quick)
         {
-            u32b seed;
+            u64b seed = (u64b)time(NULL);
 
-            /* Basic seed */
-            seed = (time(NULL));
+#ifdef SET_UID
+            seed ^= ((seed >> 3) * (getpid() << 1));
+#endif
 
-    #ifdef SET_UID
-
-            /* Mutate the seed on Unix machines */
-            seed = ((seed >> 3) * (getpid() << 1));
-
-    #endif
-
-            /* Use the complex RNG */
-            Rand_quick = false;
-
-            /* Seed the "complex" RNG */
             Rand_state_init(seed);
-
-            log_debug("RNG initialized with seed: %u", seed);
+            log_debug("RNG initialized with seed: %llu", (unsigned long long)seed);
         }
 
         log_info("Rolling up a new character");
@@ -3628,6 +4803,8 @@ PlayResult play_game(void)
         }
         if (br == NAV_TO_MAIN) {
             log_info("Returning to main menu from character birth");
+            sdl_music_stop_main();
+            sdl_music_stop_ambient();
             return PLAY_DONE;
         }
         if (br == NAV_QUIT) {
@@ -3672,8 +4849,9 @@ PlayResult play_game(void)
     }
 
     /* Only show story when no alive character exists (fresh start or all characters dead) */
-    if (score_count_alive_entries() == 0)
+    if (!run_mode_is_blitz() && score_count_alive_entries() == 0)
     {
+        sdl_music_play_main_full();
         print_story(15,1);
     }
 
@@ -3704,6 +4882,9 @@ PlayResult play_game(void)
     /* Flavor the objects */
     flavor_init();
 
+    /* Build or load the drop catalog (needs flavored kinds) */
+    drop_system_init();
+
     /* Reset visuals */
     reset_visuals(true);
 
@@ -3732,6 +4913,7 @@ PlayResult play_game(void)
     if (!character_dungeon)
     {
         log_info("Generating initial dungeon level");
+        reset_level_entry_tracking();
         /* About to call generate_cave() function */
         generate_cave();
         log_debug("Initial dungeon level generated successfully");
@@ -3740,6 +4922,8 @@ PlayResult play_game(void)
     /* Character is now "complete" */
     character_generated = true;
     log_debug("play_game: character_generated set to true - character creation complete");
+    ability_log_sync_missing();
+    snapshot_run_history("character start");
 
     /* If Tulkas quest was auto-completed on load, spawn Tulkas and show messages */
     if (p_ptr->tulkas_quest == TULKAS_QUEST_COMPLETE && p_ptr->tulkas_quest_complete == 1)
@@ -3782,6 +4966,12 @@ PlayResult play_game(void)
     metarun_created = false;
 
     log_info("Game session started - entering play mode");
+    
+    /* Any active run, including the Gates at depth 0, uses ambient gameplay music. */
+    log_debug("Starting game session at depth=%d - switching to ambient music", p_ptr->depth);
+    sdl_music_stop_main();
+    sdl_music_play_ambient();
+    last_music_depth = p_ptr->depth;
 
     /* Hack -- Enforce "delayed death" */
     if (p_ptr->chp <= 0)
@@ -3841,6 +5031,11 @@ PlayResult play_game(void)
         if (!p_ptr->playing && !p_ptr->is_dead)
         {
             log_info("Player quit and saved - exiting game loop");
+            
+            /* Stop gameplay audio; the title screen chooses its own track. */
+            sdl_music_stop_main();
+            sdl_music_stop_ambient();
+            
             break;
         }
 
@@ -3902,7 +5097,7 @@ PlayResult play_game(void)
                 (void)set_food(PY_FOOD_FULL - 1);
 
                 /* Note cause of death XXX XXX XXX */
-                my_strcpy(p_ptr->died_from, "Cheating death",
+                SDL_strlcpy(p_ptr->died_from, "Cheating death",
                     sizeof(p_ptr->died_from));
 
                 /* Need to generate a new level */
@@ -3914,6 +5109,19 @@ PlayResult play_game(void)
         if (p_ptr->is_dead)
         {
             log_debug("Character dead - taking screenshot and revealing map");
+            
+            /* Stop gameplay audio; the title screen chooses its own track. */
+            sdl_music_stop_main();
+            sdl_music_stop_ambient();
+            if (p_ptr->escaped || p_ptr->morgoth_slain)
+            {
+                sdl_music_play_main();
+            }
+            else
+            {
+                sdl_music_play_death();
+            }
+            
             death_knowledge();
 
             do_cmd_wiz_unhide(255);
@@ -3931,6 +5139,7 @@ PlayResult play_game(void)
 
         /* Make a new level */
         log_info("Generating new dungeon level at depth %d", p_ptr->depth);
+        reset_level_entry_tracking();
         generate_cave();
         log_debug("New dungeon level generated successfully");
     }

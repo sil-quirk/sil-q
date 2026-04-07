@@ -12,6 +12,7 @@
 #define INCLUDED_INIT_H
 
 #include "h-basic.h"
+#include <SDL3/SDL.h>
 
 
 /*
@@ -89,8 +90,19 @@ struct header
     parse_info_txt_func parse_info_txt;
 };
 
+/*
+ * Effect tile mapping (used by effect.txt / effect.raw)
+ *
+ * Stores the tile attr/char bytes directly (including TILE_FLAG).
+ */
+typedef struct effect_glyph
+{
+    byte a;
+    byte c;
+} effect_glyph;
+
 extern errr init_info_txt(
-    FILE* fp, char* buf, header* head, parse_info_txt_func parse_info_txt_line);
+    SDL_IOStream* fp, char* buf, header* head, parse_info_txt_func parse_info_txt_line);
 
 #ifdef ALLOW_TEMPLATES
 extern errr parse_z_info(char* buf, header* head);
@@ -111,8 +123,11 @@ extern errr parse_quest_info(char* buf, header* head);
 extern errr parse_oath_info(char* buf, header* head);
 extern errr parse_n_info(char* buf, header* head);
 extern errr parse_flavor_info(char* buf, header* head);
+extern errr parse_effect_info(char* buf, header* head);
 extern errr parse_style_info(char* buf, header* head);
 extern errr parse_style_levels(char* buf, header* head);
+extern errr parse_partition_info(char* buf, header* head);
+extern errr parse_skeleton_note_info(char* buf, header* head);
 
 /*
  * Error tracking
@@ -145,6 +160,7 @@ extern header q_head;
 extern header n_head;
 extern header flavor_head;
 extern header style_head;
+extern header skeleton_note_head;
 
 errr parse_rt_info(char *buf, header *head);
 extern header rt_head;

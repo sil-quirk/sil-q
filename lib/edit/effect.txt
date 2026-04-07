@@ -1,0 +1,135 @@
+# File: effect.txt
+#
+# This file is used to initialize the special effect tile graphics for Sil.
+#
+# === Understanding effect.txt ===
+#
+# N: index : effect name
+# T: tile row : tile column
+#
+# 'N' indicates the beginning of an entry. The index is the effect ID
+#     used internally (0-255). The name is for documentation only.
+#
+# 'T' is for tile graphics - the row and column in the tileset atlas.
+#     Values are decimal 0-63. These populate misc_to_attr[] and misc_to_char[].
+
+
+# Version stamp (required)
+
+V:0.9.5
+
+
+##### Digits (0-9) #####
+# Used for displaying damage numbers
+
+N:0:digit 0
+T:12:0
+
+N:1:digit 1
+T:12:1
+
+N:2:digit 2
+T:12:2
+
+N:3:digit 3
+T:12:3
+
+N:4:digit 4
+T:12:4
+
+N:5:digit 5
+T:12:5
+
+N:6:digit 6
+T:12:6
+
+N:7:digit 7
+T:12:7
+
+N:8:digit 8
+T:12:8
+
+N:9:digit 9
+T:12:9
+
+
+##### Special Icons #####
+
+# Question mark - unknown enemy
+N:10:question mark
+T:12:10
+
+# Alert icon - monster alertness overlay
+N:11:alert icon
+T:12:11
+
+# Glow icon - glowing item overlay
+N:12:glow icon
+T:12:14
+
+# Seen icon - monster can see player overlay (stealth vision mode)
+N:13:seen icon
+T:12:30
+
+# Sleep icon - sleeping monster overlay
+N:14:sleep icon
+T:19:8
+
+
+##### Breath Effects #####
+# Base index 0x30 (48) + color offset
+
+N:49:frost breath
+T:11:13
+
+N:50:boulder impact
+T:11:30
+
+N:52:fire breath
+T:11:14
+
+N:53:poison breath
+T:11:15
+
+N:56:shadow breath
+T:11:16
+
+N:57:impact
+T:11:17
+
+
+##### Arrow Projectiles #####
+# Different indices for different directions
+
+N:63:arrow impact
+T:11:18
+
+N:66:boulder vertical
+T:11:23
+
+N:79:arrow vertical
+T:11:19
+
+N:80:spell horizontal 1
+T:3:31
+
+N:81:spell horizontal 2
+T:3:31
+
+N:82:boulder horizontal
+T:11:25
+
+N:95:arrow horizontal
+T:11:20
+
+N:98:boulder diagonal forward
+T:11:24
+
+N:111:arrow diagonal forward
+T:11:21
+
+N:114:boulder diagonal back
+T:11:26
+
+N:127:arrow diagonal back
+T:11:22

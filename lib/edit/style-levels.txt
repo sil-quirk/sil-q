@@ -1,6 +1,6 @@
 # File: style-levels.txt
 # Version header
-V:0.9.0
+V:0.9.5
 
 # Level style rules (exact depths 1..20). Each line:
 # L:<depth>: <style_index>:<weight> [<style_index>:<weight> ...]
@@ -26,6 +26,48 @@ L:17: 33:1 32:1 31:1 30:2 29:1
 L:18: 34:2 35:1 36:1 37:2 38:2 39:2
 L:19: 35:1 36:1 37:2 38:2 39:2
 L:20: 38:1 39:1
+
+# Partition style rules (per-depth). If omitted for a type at a depth,
+# the default room/vault style pool is used.
+# P:<type>:<depth>: <style_index>:<weight> [<style_index>:<weight> ...]
+# P:<type>:<min>:<max>: <style_index>:<weight> ...
+# Types: CA, LAB, CHASM, CHASM_BRIDGE, BIG_ICE, BIG_FIRE, BIG_POIS
+# Example:
+# P:CA:8: 5:2 9:1
+# P:CHASM:14: 16:2 17:1
+# P:CHASM_BRIDGE:14: 18:1
+# P:BIG_FIRE:12: 20:2 21:1
+
+# Big cave partition styles (all depths)
+P:BIG_FIRE:1:20: 25:1
+P:BIG_ICE:1:20: 59:1
+P:BIG_POIS:1:20: 55:1
+P:CHASM:1:20: 30:1
+
+# Cavey walls: Grey51/Grey53 always, and the rest only when that depth's
+# room-style pool already includes them.
+P:CA:1:4: 52:1 54:1
+P:CA:5: 52:1 54:1 7:1
+P:CA:6: 52:1 54:1 5:1 7:1
+P:CA:7: 52:1 54:1 5:1 7:1 9:1
+P:CA:8: 52:1 54:1 5:1 9:1 10:1
+P:CA:9: 52:1 54:1 9:1 10:1
+P:CA:10: 52:1 54:1 10:1 14:1
+P:CA:11: 52:1 54:1 14:1
+P:CA:12:14: 52:1 54:1
+P:CA:15: 52:1 54:1 27:1
+P:CA:16:17: 52:1 54:1
+P:CA:18:19: 52:1 54:1 37:1
+P:CA:20: 52:1 54:1
+
+# Big cave type weights (per-depth). Defaults to equal odds if omitted.
+# B:<depth>: ICE:<weight> FIRE:<weight> POIS:<weight>
+# B:<min>:<max>: ICE:<weight> FIRE:<weight> POIS:<weight>
+# Example:
+# B:12: ICE:40 FIRE:30 POIS:30
+
+# Equal probability for all big cave types (all depths)
+B:1:20: ICE:1 FIRE:1 POIS:1
 
 # Vault default rules
 # U:* means default for all depths. '*' in style means "same exact level-chosen style".

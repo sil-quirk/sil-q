@@ -9,6 +9,10 @@
  */
 
 #include "angband.h"
+#include "blitz.h"
+#include "externs.h"
+#include "fs/io_sdl.h"
+#include "fs/path.h"
 #include "log/log.h"
 #include <stdio.h>
 
@@ -21,8 +25,17 @@ void updatecharinfoS(void)
 
     log_debug("Creating character output file");
 
-    path_parse(parsed_dir_user, sizeof(parsed_dir_user), ANGBAND_DIR_USER);
-    path_build(tmp_Path, sizeof(tmp_Path), parsed_dir_user, "CharOutput.txt");
+    if (!path_parse(parsed_dir_user, sizeof(parsed_dir_user), ANGBAND_DIR_USER))
+    {
+        log_warn("updatecharinfoS: unable to resolve user directory");
+        return;
+    }
+
+    if (!path_build(tmp_Path, sizeof(tmp_Path), parsed_dir_user, "CharOutput.txt"))
+    {
+        log_warn("updatecharinfoS: unable to build character output path");
+        return;
+    }
 
     FILE* oFile = fopen(tmp_Path, "w");
     if (!oFile) {
@@ -35,7 +48,7 @@ void updatecharinfoS(void)
     const char* race_str = p_name + p_info[p_ptr->prace].name;
     fprintf(oFile, "race: \"%s\",\n", race_str);
 
-    const char* class_str = c_name + c_info[p_ptr->phouse].name;
+    const char* class_str = c_name + c_info[p_ptr->pcharacter].name;
     fprintf(oFile, "class: \"%s\",\n", class_str);
 
     fprintf(oFile, "mDepth: \"%i\",\n", curDepth);
@@ -147,10 +160,10 @@ static errr wr_block(void)
     fake[3] = (byte)(data_size >> 8);
 
     /* Dump the head */
-    err = fd_write(data_fd, (cptr)&fake, sizeof(fake));
+    err = sdl_write(data_fd, (cptr)&fake, sizeof(fake));
 
     /* Dump the actual data */
-    err = fd_write(data_fd, (cptr)data_head, data_size);
+    err = sdl_write(data_fd, (cptr)data_head, data_size);
 
     /* XXX XXX XXX */
     fake[0] = 0;
@@ -159,13 +172,13 @@ static errr wr_block(void)
     fake[3] = 0;
 
     /* Dump the tail */
-    err = fd_write(data_fd, (cptr)&fake, sizeof(fake));
+    err = sdl_write(data_fd, (cptr)&fake, sizeof(fake));
 
     /* Hack -- reset */
     data_next = data_head;
 
     /* Wipe the data block */
-    C_WIPE(data_head, 65535, byte);
+    memset(data_head, 0, sizeof(byte) * 65535);
 
     /* Success */
     return (0);
@@ -230,20 +243,20 @@ static errr rd_block(void)
     byte fake[4];
 
     /* Read the head data */
-    err = fd_read(data_fd, (char*)&fake, sizeof(fake));
+    err = sdl_read(data_fd, (char*)&fake, sizeof(fake));
 
     /* Extract the type and size */
     data_type = (fake[0] | ((u16b)fake[1] << 8));
     data_size = (fake[2] | ((u16b)fake[3] << 8));
 
     /* Wipe the data block */
-    C_WIPE(data_head, 65535, byte);
+    memset(data_head, 0, sizeof(byte) * 65535);
 
     /* Read the actual data */
-    err = fd_read(data_fd, (char*)data_head, data_size);
+    err = sdl_read(data_fd, (char*)data_head, data_size);
 
     /* Read the tail data */
-    err = fd_read(data_fd, (char*)&fake, sizeof(fake));
+    err = sdl_read(data_fd, (char*)&fake, sizeof(fake));
 
     /* XXX XXX XXX Verify */
 
@@ -313,18 +326,18 @@ static errr rd_savefile(void)
     byte fake[4];
 
     /* Open the savefile */
-    data_fd = fd_open(savefile, O_RDONLY);
+    data_fd = sdl_fopen(savefile, "rb");
 
     /* No file */
     if (data_fd < 0)
         return (1);
 
     /* Strip the first four bytes (see below) */
-    if (fd_read(data_fd, (char*)(fake), sizeof(fake)))
+    if (sdl_read(data_fd, (char*)(fake), sizeof(fake)))
         return (1);
 
     /* Make array XXX XXX XXX */
-    C_MAKE(data_head, 65535, byte);
+    data_head = mem_alloc_array(65535, byte);
 
     /* Hack -- reset */
     data_next = data_head;
@@ -363,7 +376,7 @@ static errr rd_savefile(void)
     /* XXX XXX XXX Check for errors */
 
     /* Kill array XXX XXX XXX */
-    KILL(data_head);
+    mem_free_null(data_head);
 
     /* Success */
     return (0);
@@ -375,7 +388,7 @@ static errr rd_savefile(void)
  * Some "local" parameters, used to help write savefiles
  */
 
-static FILE* fff; /* Current save "file" */
+static SDL_IOStream* fff; /* Current save "file" */
 
 static byte xor_byte; /* Simple encryption */
 
@@ -385,40 +398,46 @@ static u32b x_stamp = 0L; /* A simple "checksum" on the encoded bytes */
 /* Track if a write error has occurred */
 static bool write_error = false;
 
+/* Track save byte offset for detailed logging */
+static u32b save_byte_offset = 0;
+
 /*
  * These functions place information into a savefile a byte at a time
  */
 
 static void sf_put(byte v)
 {
-    int result;
+    size_t result;
     
-    /* Encode the value, write a character */
+    /* Encode the value */
     xor_byte ^= v;
-    result = putc((int)xor_byte, fff);
+    
+    /* Write the byte directly */
+    result = SDL_WriteIO(fff, &xor_byte, 1);
     
     /* Check for write error */
-    if (result == EOF)
+    if (result != 1)
     {
         if (!write_error)
         {
-            log_error("sf_put: Write error detected (putc returned EOF)");
+            log_error("sf_put: Write error detected (SDL_WriteIO failed) - SDL Error: %s", SDL_GetError());
+            log_error("sf_put: fff pointer = %p, attempted to write byte 0x%02x at offset %u", 
+                     (void*)fff, xor_byte, save_byte_offset);
             write_error = true;
         }
         return;
     }
+
+    /* Track byte offset */
+    save_byte_offset++;
 
     /* Maintain the checksum info */
     v_stamp += v;
     x_stamp += xor_byte;
 }
 
-/* Track save byte offset for detailed logging */
-static u32b save_byte_offset = 0;
-
 static void wr_byte(byte v) { 
     sf_put(v);
-    save_byte_offset++;
 }
 
 static void wr_u16b(u16b v)
@@ -524,9 +543,21 @@ static void wr_item(const object_type* o_ptr)
     wr_s32b(o_ptr->unused3);
     wr_s32b(o_ptr->unused4);
 
-    // 8 spare bytes
-    wr_u32b(0L);
-    wr_u32b(0L);
+    // bane_type for each ability slot (8 bytes)
+    for (i = 0; i < 8; i++)
+    {
+        wr_byte(o_ptr->bane_type[i]);
+    }
+
+    /* Per-stat/skill modifiers */
+    for (i = 0; i < A_MAX; i++)
+    {
+        wr_s16b(o_ptr->stat_bonus[i]);
+    }
+    for (i = 0; i < S_MAX; i++)
+    {
+        wr_s16b(o_ptr->skill_bonus[i]);
+    }
 
     /* Save the inscription (if any) */
     if (o_ptr->obj_note)
@@ -621,6 +652,11 @@ static void wr_monster(const monster_type* m_ptr)
     wr_byte(m_ptr->shatter_padding[0]);
     wr_byte(m_ptr->shatter_padding[1]);
     wr_byte(m_ptr->shatter_padding[2]);
+
+    /* Thrall quest data */
+    wr_byte(m_ptr->thrall_quest_item);
+    wr_byte(m_ptr->thrall_quest_requested);
+    wr_byte(m_ptr->thrall_quest_completed);
 }
 
 /*
@@ -668,133 +704,13 @@ static void wr_lore(int r_idx)
     wr_u32b(0L);
 }
 
-static bool monster_race_stats_changed(int r_idx)
-{
-    if (!r_base)
-        return false;
-
-    const monster_race* base = &r_base[r_idx];
-    const monster_race* cur = &r_info[r_idx];
-
-    if (base->hdice != cur->hdice) return true;
-    if (base->hside != cur->hside) return true;
-    if (base->evn != cur->evn) return true;
-    if (base->pd != cur->pd) return true;
-    if (base->ps != cur->ps) return true;
-    if (base->speed != cur->speed) return true;
-    if (base->light != cur->light) return true;
-    if (base->sleep != cur->sleep) return true;
-    if (base->per != cur->per) return true;
-    if (base->stl != cur->stl) return true;
-    if (base->wil != cur->wil) return true;
-    if (base->extra != cur->extra) return true;
-    if (base->freq_ranged != cur->freq_ranged) return true;
-    if (base->spell_power != cur->spell_power) return true;
-    if (base->mon_power != cur->mon_power) return true;
-#ifdef ALLOW_DATA_DUMP
-    if (base->mon_eval_hp != cur->mon_eval_hp) return true;
-    if (base->mon_eval_dam != cur->mon_eval_dam) return true;
-#endif
-    if (base->flags1 != cur->flags1) return true;
-    if (base->flags2 != cur->flags2) return true;
-    if (base->flags3 != cur->flags3) return true;
-    if (base->flags4 != cur->flags4) return true;
-
-    for (int i = 0; i < MONSTER_BLOW_MAX; i++)
-    {
-        const monster_blow* b_base = &base->blow[i];
-        const monster_blow* b_cur = &cur->blow[i];
-        if (b_base->method != b_cur->method) return true;
-        if (b_base->effect != b_cur->effect) return true;
-        if (b_base->att != b_cur->att) return true;
-        if (b_base->dd != b_cur->dd) return true;
-        if (b_base->ds != b_cur->ds) return true;
-    }
-
-    if (base->level != cur->level) return true;
-    if (base->rarity != cur->rarity) return true;
-    if (base->d_attr != cur->d_attr) return true;
-    if (base->d_char != cur->d_char) return true;
-    if (base->x_attr != cur->x_attr) return true;
-    if (base->x_char != cur->x_char) return true;
-
-    return false;
-}
-
-static void wr_monster_race_stats(const monster_race* r_ptr)
-{
-    wr_byte(r_ptr->hdice);
-    wr_byte(r_ptr->hside);
-    wr_s16b(r_ptr->evn);
-    wr_byte(r_ptr->pd);
-    wr_byte(r_ptr->ps);
-    wr_byte(r_ptr->speed);
-    wr_s16b(r_ptr->light);
-    wr_s16b(r_ptr->sleep);
-    wr_s16b(r_ptr->per);
-    wr_s16b(r_ptr->stl);
-    wr_s16b(r_ptr->wil);
-    wr_s16b(r_ptr->extra);
-    wr_byte(r_ptr->freq_ranged);
-    wr_byte(r_ptr->spell_power);
-    wr_u32b(r_ptr->mon_power);
-#ifdef ALLOW_DATA_DUMP
-    wr_u32b(r_ptr->mon_eval_hp);
-    wr_u32b(r_ptr->mon_eval_dam);
-#endif
-    wr_u32b(r_ptr->flags1);
-    wr_u32b(r_ptr->flags2);
-    wr_u32b(r_ptr->flags3);
-    wr_u32b(r_ptr->flags4);
-
-    for (int i = 0; i < MONSTER_BLOW_MAX; i++)
-    {
-        wr_byte(r_ptr->blow[i].method);
-        wr_byte(r_ptr->blow[i].effect);
-        wr_s16b(r_ptr->blow[i].att);
-        wr_byte(r_ptr->blow[i].dd);
-        wr_byte(r_ptr->blow[i].ds);
-    }
-
-    wr_byte(r_ptr->level);
-    wr_byte(r_ptr->rarity);
-    wr_byte(r_ptr->d_attr);
-    wr_byte((byte)r_ptr->d_char);
-    wr_byte(r_ptr->x_attr);
-    wr_byte((byte)r_ptr->x_char);
-}
-
 static void wr_monster_runtime_overrides(void)
 {
-    if (!r_base)
-    {
-        wr_u16b(0);
-        return;
-    }
-
-    u16b count = 0;
-
-    for (int i = 0; i < z_info->r_max; i++)
-    {
-        if (monster_race_stats_changed(i))
-            count++;
-    }
-
-    wr_u16b(count);
-
-    if (!count)
-        return;
-
-    log_debug("Writing %u monster race runtime overrides", (unsigned)count);
-
-    for (int i = 0; i < z_info->r_max; i++)
-    {
-        if (!monster_race_stats_changed(i))
-            continue;
-
-        wr_u16b((u16b)i);
-        wr_monster_race_stats(&r_info[i]);
-    }
+    /* Monster race template overrides are reconstructed from dedicated save
+     * fields after load. Persisting the whole template blob can replay stale
+     * edit-file data into newer builds, so new saves intentionally write none.
+     */
+    wr_u16b(0);
 }
 
 /*
@@ -827,21 +743,25 @@ static void wr_xtra(int k_idx)
 static errr wr_randomizer(void)
 {
     int i;
+    u64b state = Rand_state_export();
 
-    // 8 spare bytes
+    /* Preserve legacy padding */
     wr_u32b(0L);
     wr_u32b(0L);
 
-    /* Place */
-    wr_u16b(Rand_place);
+    /* Legacy "place" slot (unused now) */
+    wr_u16b(0);
 
-    /* State */
-    for (i = 0; i < RAND_DEG; i++)
+    for (i = 0; i < 63; i++)
     {
-        wr_u32b(Rand_state[i]);
+        u32b word = 0;
+        if (i == 0)
+            word = (u32b)(state & 0xFFFFFFFFu);
+        else if (i == 1)
+            word = (u32b)(state >> 32);
+        wr_u32b(word);
     }
 
-    /* Success */
     return (0);
 }
 
@@ -868,10 +788,26 @@ static void wr_options(void)
     /* Write "main_combat_rolls" */
     wr_byte(op_ptr->main_combat_rolls);
 
-    // 7 spare bytes
+    /* Write "ability_desc_mode" */
+    wr_byte(op_ptr->ability_desc_mode);
+
+    /* Write "vault_drop_frequency" */
+    wr_byte(op_ptr->vault_drop_frequency);
+
+    /* Write "intro_style" */
+    wr_byte(op_ptr->intro_style);
+
+    /* Write "level_entry_narrative_mode" */
+    wr_byte(op_ptr->level_entry_narrative_mode);
+
+    /* Write "partition_narrative_mode" */
+    wr_byte(op_ptr->partition_narrative_mode);
+
+    /* Write "noble_item_spawn_mode" */
+    wr_byte(op_ptr->noble_item_spawn_mode);
+
+    /* 1 remaining spare byte */
     wr_byte(0);
-    wr_u32b(0L);
-    wr_u16b(0);
 
     /*** Normal options ***/
 
@@ -955,9 +891,9 @@ static void wr_extra(void)
 
     wr_string(p_ptr->history);
 
-    /* Race/House/Sex */
+    /* Race/Character/Sex */
     wr_byte(p_ptr->prace);
-    wr_byte (p_ptr->phouse);
+    wr_byte (p_ptr->pcharacter);
     wr_byte(p_ptr->unused1);
 
     wr_s16b(p_ptr->game_type);
@@ -992,6 +928,18 @@ static void wr_extra(void)
                 log_trace("Save: Special ability %d has value %d", j, p_ptr->have_ability[i][j]);
             }
         }
+    }
+
+    ability_log_sync_missing();
+    u16b ability_events = p_ptr->ability_timeline_count;
+    if (ability_events > ABILITY_TIMELINE_MAX)
+        ability_events = ABILITY_TIMELINE_MAX;
+    wr_u16b(ability_events);
+    for (u16b idx = 0; idx < ability_events; idx++) {
+        wr_byte(p_ptr->ability_timeline_skill[idx]);
+        wr_byte(p_ptr->ability_timeline_ability[idx]);
+        wr_u32b(p_ptr->ability_timeline_turn[idx]);
+        wr_s16b(p_ptr->ability_timeline_depth[idx]);
     }
 
     wr_s16b(p_ptr->last_attack_m_idx);
@@ -1074,9 +1022,9 @@ static void wr_extra(void)
     wr_byte(p_ptr->climbing);
 
     // 15 spare bytes (was 19, used 4 for song debuff counters)
-    wr_byte(0);
-    wr_byte(0);
-    wr_byte(0);
+    wr_byte(p_ptr->morgoth_hall_entered ? 1 : 0);
+    wr_byte(p_ptr->morgoth_second_wind ? 1 : 0);
+    wr_byte(p_ptr->discovery_lore_flags);
     wr_u32b(0L);
     wr_u32b(0L);
     wr_u32b(0L);
@@ -1214,11 +1162,87 @@ static void wr_extra(void)
     wr_s16b(p_ptr->orome_spiders_killed);
     wr_s16b(p_ptr->orome_serpents_killed);
     wr_s16b(p_ptr->orome_vampires_killed);
+    /* Varda quest fields */
+    wr_byte(p_ptr->varda_quest);
+    wr_byte(p_ptr->varda_vault_ready);
+    wr_byte(p_ptr->varda_vault_placed);
+    wr_byte(p_ptr->varda_reserved);
+    wr_s16b(p_ptr->varda_level);
     wr_byte(p_ptr->quest_vault_used);
     for (i = 0; i < 15; i++) wr_byte(p_ptr->quest_reserved[i]);
 #else
     /* Older versions (<=0.8.5) had no quest block; do not write marker */
 #endif
+
+    /* Skeleton note state (per-level tutorial-style messages) */
+    {
+        skeleton_note_state_save sn_state;
+        skeleton_note_get_state(&sn_state);
+        wr_byte(0x52);
+        wr_s16b(sn_state.level_depth);
+        wr_s16b(sn_state.note_cap);
+        wr_s16b(sn_state.notes_shown);
+        wr_s16b(sn_state.map_wid);
+        wr_s16b(sn_state.map_hgt);
+        wr_u32b(sn_state.hint_used_mask);
+        wr_byte(sn_state.seen_count);
+        for (i = 0; i < SKELETON_NOTE_SEEN_MAX; i++)
+            wr_s16b(sn_state.seen_ids[i]);
+    }
+
+    /* Partition generation metadata (grid + per-partition modes) */
+    {
+        partition_meta_save pm;
+        level_partition_meta_get(&pm);
+        wr_byte(0x53);
+        wr_s16b(pm.grid_rows);
+        wr_s16b(pm.grid_cols);
+        wr_s16b(pm.partition_count);
+        for (i = 0; i < PARTITION_META_MAX; ++i)
+            wr_byte(pm.modes[i]);
+        for (i = 0; i < PARTITION_META_MAX; ++i)
+            wr_byte(pm.big_cave_types[i]);
+    }
+
+    /* Hint message log (per-level skeleton note archive) */
+    {
+        wr_byte(0x54);
+        wr_s16b(hint_messages_level_depth_for_save());
+        wr_s16b(hint_messages_map_wid_for_save());
+        wr_s16b(hint_messages_map_hgt_for_save());
+
+        byte count = hint_messages_count_for_save();
+        wr_byte(count);
+        for (i = 0; i < count; ++i)
+        {
+            hint_message_meta meta;
+            byte line_count = hint_messages_message_line_count(i);
+            wr_byte(line_count);
+            for (int li = 0; li < line_count; ++li)
+                wr_string(hint_messages_message_line(i, li));
+
+            hint_messages_message_meta(i, &meta);
+            wr_s16b(meta.source_y);
+            wr_s16b(meta.source_x);
+            wr_byte(meta.cue_count);
+            for (int cue = 0; cue < HINT_MESSAGE_CUE_MAX; ++cue)
+            {
+                wr_string(meta.cue_dists[cue]);
+                wr_string(meta.cue_dirs[cue]);
+            }
+        }
+    }
+
+    wr_byte(0x55);
+    wr_byte((byte)run_mode_current());
+    {
+        int8_t *stacks = blitz_runtime_curse_stacks();
+        u64b seen = *blitz_runtime_curses_seen();
+        for (i = 0; i < METAR_CURSE_SLOTS; ++i)
+            wr_byte((byte)(stacks ? stacks[i] : 0));
+        wr_u32b((u32b)(seen & 0xFFFFFFFFULL));
+        wr_u32b((u32b)(seen >> 32));
+    }
 
     wr_s32b(min_depth_counter);
     log_info("SAVE: min_depth_counter=%d, current depth=%d, calculated min_depth()=%d", 
@@ -1249,6 +1273,8 @@ static void wr_randarts(void)
         artefact_type* a_ptr = &a_info[i];
 
         wr_string(a_ptr->name);
+        wr_u32b(a_ptr->guid.hi);
+        wr_u32b(a_ptr->guid.lo);
 
         wr_byte(a_ptr->tval);
         wr_byte(a_ptr->sval);
@@ -1267,6 +1293,7 @@ static void wr_randarts(void)
         wr_u32b(a_ptr->flags1);
         wr_u32b(a_ptr->flags2);
         wr_u32b(a_ptr->flags3);
+        wr_u32b(a_ptr->flags4);
 
         wr_byte(a_ptr->level);
         wr_byte(a_ptr->rarity);
@@ -1274,6 +1301,15 @@ static void wr_randarts(void)
         wr_byte(a_ptr->activation);
         wr_u16b(a_ptr->time);
         wr_u16b(a_ptr->randtime);
+
+        for (int bi = 0; bi < A_MAX; bi++)
+            wr_s16b(a_ptr->stat_bonus[bi]);
+        for (int bi = 0; bi < S_MAX; bi++)
+            wr_s16b(a_ptr->skill_bonus[bi]);
+        for (int bi = 0; bi < A_MAX; bi++)
+            wr_byte(a_ptr->stat_bonus_set[bi] ? 1 : 0);
+        for (int bi = 0; bi < S_MAX; bi++)
+            wr_byte(a_ptr->skill_bonus_set[bi] ? 1 : 0);
     }
 }
 
@@ -1322,7 +1358,7 @@ static void wr_notes(void)
     }
 
     // copy the special notes marker into a string
-    my_strcpy(end_note, NOTES_MARK, sizeof(end_note));
+    SDL_strlcpy(end_note, NOTES_MARK, sizeof(end_note));
 
     /* Always write NOTES_MARK */
     wr_string(end_note);
@@ -1331,8 +1367,10 @@ static void wr_notes(void)
 /*
  * The cave grid flags that get saved in the savefile
  */
-#define IMPORTANT_FLAGS                                                        \
+#define IMPORTANT_FLAGS_LO                                                     \
     (CAVE_MARK | CAVE_GLOW | CAVE_ICKY | CAVE_ROOM | CAVE_G_VAULT | CAVE_HIDDEN)
+#define IMPORTANT_FLAGS_HI (CAVE_CHASM_AREA)
+#define IMPORTANT_FLAGS_16 (IMPORTANT_FLAGS_LO | IMPORTANT_FLAGS_HI)
 
 /*
  * Write the current dungeon
@@ -1374,8 +1412,9 @@ static void wr_dungeon(void)
     {
         for (x = 0; x < p_ptr->cur_map_wid; x++)
         {
-            /* Extract the important cave_info flags */
-            tmp8u = (cave_info[y][x] & (IMPORTANT_FLAGS));
+            /* Extract the important cave_info flags (low byte only). */
+            u16b info = (u16b)(cave_info[y][x] & IMPORTANT_FLAGS_16);
+            tmp8u = (byte)(info & 0x00FF);
 
             /* If the run is broken, or too full, flush it */
             if ((tmp8u != prev_char) || (count == MAX_UCHAR))
@@ -1401,6 +1440,48 @@ static void wr_dungeon(void)
         wr_byte((byte)prev_char);
     }
     log_trace("[save:%06u] === END CAVE_INFO RLE ===", (unsigned)save_byte_offset);
+
+    /* Optional extension: save high-bit cave_info flags (e.g. CAVE_CHASM_AREA).
+     *
+     * This keeps the core cave_info RLE byte-sized for back-compat, while
+     * allowing persistence of any "important" flags in bits 8..15. */
+    log_trace("[save:%06u] === BEGIN CAVE_INFO_HI RLE ===", (unsigned)save_byte_offset);
+    {
+        const u16b CAVE_INFO_HI_MAGIC = 0xC1F0;
+
+        wr_u16b(CAVE_INFO_HI_MAGIC);
+
+        count = 0;
+        prev_char = 0;
+
+        for (y = 0; y < p_ptr->cur_map_hgt; y++)
+        {
+            for (x = 0; x < p_ptr->cur_map_wid; x++)
+            {
+                u16b info = (u16b)(cave_info[y][x] & IMPORTANT_FLAGS_16);
+                tmp8u = (byte)((info >> 8) & 0x00FF);
+
+                if ((tmp8u != prev_char) || (count == MAX_UCHAR))
+                {
+                    wr_byte((byte)count);
+                    wr_byte((byte)prev_char);
+                    prev_char = tmp8u;
+                    count = 1;
+                }
+                else
+                {
+                    count++;
+                }
+            }
+        }
+
+        if (count)
+        {
+            wr_byte((byte)count);
+            wr_byte((byte)prev_char);
+        }
+    }
+    log_trace("[save:%06u] === END CAVE_INFO_HI RLE ===", (unsigned)save_byte_offset);
 
     /*** Simple "Run-Length-Encoding" of cave_feat ***/
 
@@ -1533,6 +1614,7 @@ static void wr_dungeon(void)
     /* Total monsters */
     wr_u16b(mon_max);
     log_debug("Writing %d monsters to savefile", mon_max - 1);
+    log_live_special_vault_only_monsters("save wr_dungeon");
 
     /* Dump the monsters */
     for (i = 1; i < mon_max; i++)
@@ -1650,7 +1732,7 @@ static bool wr_savefile(void)
     for (i = 0; i < tmp16u; i++)
         wr_lore(i);
 
-    /* Dump runtime monster stat overrides (supports dynamic buffs/debuffs) */
+    /* Legacy monster template override block (intentionally empty) */
     wr_monster_runtime_overrides();
 
     /* Dump the object memory */
@@ -1669,6 +1751,7 @@ static bool wr_savefile(void)
         artefact_type* a_ptr = &a_info[i];
         wr_byte(a_ptr->cur_num);
         wr_byte(a_ptr->found_num);
+        wr_byte(a_ptr->seen);
     }
 
     /* Write the "extra" information */
@@ -1779,11 +1862,15 @@ static bool wr_savefile(void)
         return false;
     }
 
-    /* Error in save */
-    if (ferror(fff) || (fflush(fff) == EOF))
+    /* Flush the stream to ensure all data is written */
+    int flush_result = SDL_FlushIO(fff);
+    if (flush_result != 0)
     {
-        log_error("Save file write error detected (ferror or fflush failed)");
-        return false;
+        /* SDL_FlushIO returns 0 on success or negative on error */
+        log_warn("Save file flush returned %d (SDL Error: '%s') - attempting to continue anyway", 
+                 flush_result, SDL_GetError());
+        /* Don't fail the save just because flush failed - the data might still be written */
+        /* return false; */
     }
 
     /* Successful save */
@@ -1800,7 +1887,7 @@ static bool save_player_aux(cptr name)
 {
     bool ok = false;
 
-    int fd;
+    SDL_IOStream* fd;
 
     int mode = 0644;
 
@@ -1814,22 +1901,31 @@ static bool save_player_aux(cptr name)
     safe_setuid_grab();
 
     /* Create the savefile */
-    fd = fd_make(name, mode);
+    log_debug("save_player_aux: calling sdl_fmake(%s, %d)", name, mode);
+    fd = sdl_fmake(name, mode);
+    if (!fd)
+    {
+        log_error("save_player_aux: sdl_fmake FAILED for %s - SDL Error: %s", name, SDL_GetError());
+    }
+    else
+    {
+        log_debug("save_player_aux: sdl_fmake succeeded for %s", name);
+    }
 
     /* Drop permissions */
     safe_setuid_drop();
 
     /* File is okay */
-    if (fd >= 0)
+    if (fd)
     {
         /* Close the "fd" */
-        fd_close(fd);
+        sdl_fclose(fd);
 
         /* Grab permissions */
         safe_setuid_grab();
 
         /* Open the savefile */
-        fff = my_fopen(name, "wb");
+        fff = sdl_fopen(name, "wb");
 
         /* Drop permissions */
         safe_setuid_drop();
@@ -1839,12 +1935,23 @@ static bool save_player_aux(cptr name)
         {
             /* Write the savefile */
             log_trace("Writing savefile %s", name);
-            if (wr_savefile())
+            bool write_ok = wr_savefile();
+            if (write_ok)
+            {
                 ok = true;
+                log_debug("wr_savefile() succeeded");
+            }
+            else
+            {
+                log_error("wr_savefile() failed");
+            }
 
             /* Attempt to close it */
-            if (my_fclose(fff))
+            if (sdl_fclose(fff))
+            {
                 ok = false;
+                log_error("sdl_fclose() failed");
+            }
         }
         else
         {
@@ -1856,7 +1963,10 @@ static bool save_player_aux(cptr name)
 
         /* Remove "broken" files */
         if (!ok)
+        {
+            log_debug("Removing broken savefile: %s", name);
             fd_kill(name);
+        }
 
         /* Drop permissions */
         safe_setuid_drop();
@@ -1900,26 +2010,34 @@ bool save_player(void)
     }
 
     /* New savefile */
-    my_strcpy(safe, savefile, sizeof(safe));
-    my_strcat(safe, ".new", sizeof(safe));
+    SDL_strlcpy(safe, savefile, sizeof(safe));
+    SDL_strlcat(safe, ".new", sizeof(safe));
 
 #ifdef VM
     /* Hack -- support "flat directory" usage on VM/ESA */
-    my_strcpy(safe, savefile, sizeof(safe));
-    my_strcat(safe, "n", sizeof(safe));
+    SDL_strlcpy(safe, savefile, sizeof(safe));
+    SDL_strlcat(safe, "n", sizeof(safe));
 #endif /* VM */
 
     /* Grab permissions */
     safe_setuid_grab();
 
     /* Remove it */
-    fd_kill(safe);
+    log_debug("save_player: attempting to remove existing .new file: %s", safe);
+    if (!fd_kill(safe))
+    {
+        log_warn("save_player: fd_kill failed for %s (file may not exist, which is OK)", safe);
+    }
+    else
+    {
+        log_debug("save_player: successfully removed %s", safe);
+    }
 
     /* Drop permissions */
     safe_setuid_drop();
 
     /* Attempt to save the player */
-    log_debug("Attempting to save player to %s", safe);
+    log_debug("save_player: calling save_player_aux(%s)", safe);
     if (save_player_aux(safe))
     {
         char temp[1024];
@@ -1927,13 +2045,13 @@ bool save_player(void)
         log_info("Save successful - activating new savefile");
 
         /* Old savefile */
-        my_strcpy(temp, savefile, sizeof(temp));
-        my_strcat(temp, ".old", sizeof(temp));
+        SDL_strlcpy(temp, savefile, sizeof(temp));
+        SDL_strlcat(temp, ".old", sizeof(temp));
 
 #ifdef VM
         /* Hack -- support "flat directory" usage on VM/ESA */
-        my_strcpy(temp, savefile, sizeof(temp));
-        my_strcat(temp, "o", sizeof(temp));
+        SDL_strlcpy(temp, savefile, sizeof(temp));
+        SDL_strlcat(temp, "o", sizeof(temp));
 #endif /* VM */
 
         /* Grab permissions */
@@ -1944,14 +2062,16 @@ bool save_player(void)
 
         /* Preserve old savefile if it exists */
         /* Check if old savefile exists first (important for first-time saves) */
-        int old_fd = fd_open(savefile, O_RDONLY);
-        if (old_fd >= 0)
+        bool had_old_savefile = false;
+        SDL_IOStream* old_fd = sdl_fopen(savefile, "rb");
+        if (old_fd)
         {
             /* Old file exists, close it and preserve it */
-            fd_close(old_fd);
+            had_old_savefile = true;
+            sdl_fclose(old_fd);
             log_debug("Old savefile exists, preserving it as .old");
             
-            if (fd_move(savefile, temp) != 0)
+            if (!fd_move(savefile, temp))
             {
                 log_error("Failed to preserve old savefile - aborting activation");
                 safe_setuid_drop();
@@ -1965,11 +2085,11 @@ bool save_player(void)
         }
 
         /* Activate new savefile */
-        if (fd_move(safe, savefile) != 0)
+        if (!fd_move(safe, savefile))
         {
             log_error("Failed to activate new savefile - attempting to restore old");
             /* Try to restore the old file if it existed */
-            if (old_fd >= 0)
+            if (had_old_savefile)
             {
                 fd_move(temp, savefile);
             }
@@ -1989,8 +2109,8 @@ bool save_player(void)
 #ifdef VERIFY_SAVEFILE
 
         /* Lock on savefile */
-        my_strcpy(temp, savefile, sizeof(temp));
-        my_strcat(temp, ".lok", sizeof(temp));
+        SDL_strlcpy(temp, savefile, sizeof(temp));
+        SDL_strlcat(temp, ".lok", sizeof(temp));
 
         /* Grab permissions */
         safe_setuid_grab();
@@ -2016,14 +2136,14 @@ bool save_player(void)
     path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "meta.raw");
 
     // /* Attempt to open the meta file */
-    // meta_fd = fd_open(buf, O_RDWR);
+    // meta_fd = sdl_fopen(buf, O_RDWR);
 
     // // Save Metarun
     // strcpy(meta.name,"F");
     // if (!meta_seek(atoi(meta.id))) meta_write(&meta);
 
     // /* Close it */
-    // fd_close(meta_fd);
+    // sdl_fclose(meta_fd);
 
     /* Return the result */
     if (result) {
@@ -2031,4 +2151,9 @@ bool save_player(void)
     }
     return (result);
 }
+
+
+
+
+
 

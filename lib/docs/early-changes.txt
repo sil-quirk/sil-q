@@ -2434,9 +2434,6 @@ Here it is, the first version with songs and abilities. Note that these are not 
 	- can now attempt to break free of a web while in it
 		- use the normal disarm command (D or interacting with your square)
 
-- improved the HTML screenshot
-	- now captures the walls properly and has a better default name
-
 - improved the extra windows
 	- now they are named properly
 	- and there is no funny interface for assigning functions to windows

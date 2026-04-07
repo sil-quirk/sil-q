@@ -1,0 +1,146 @@
+# Partition drop and population tuning.
+#
+# Record header:
+#   N:<partition>
+#     ROOMY | CAVEY | RUINED | LABYRINTH | CHASM | BIG_CAVE
+#
+# Drop profile lines:
+#   PF:w:a:j:s:potion:herb:gem:staff:light:arrows:tunneling:allow_damaged
+#     Floor / generated-on-ground profile for this partition.
+#   PC:w:a:j:s:potion:herb:gem:staff:light:arrows:tunneling:allow_damaged
+#     Chest contents profile for this partition.
+#   PM:w:a:j:s:potion:herb:gem:staff:light:arrows:tunneling:allow_damaged
+#     Monster-drop profile for this partition.
+#     allow_damaged:
+#       1 = allow damaged items to participate in this profile.
+#       0 = keep damaged items out unless explicitly requested elsewhere.
+#
+# Placement / count lines:
+#   FL:allow_floor_drops
+#     allow_floor_drops:
+#       1 = allow normal floor/object scatter in this partition.
+#       0 = disable generated floor drops in this partition.
+#
+#   MB:base_monster_scale_num:base_monster_scale_den
+#     Base room-driven monster count multiplier.
+#     Base count is roughly (room_count + 1d(room_count)) / 2,
+#     then multiplied by num / den.
+#
+#   MF:direct_floor_monster_divisor:min:max
+#     Extra monsters added directly from partition floor area.
+#     Formula:
+#       floor_count / divisor, clamped to min..max.
+#     Use divisor 0 to disable this bonus.
+#
+#   MD:depth_bonus_divisor:min:max:scale_pct_at_depth_20:hard_cap_divisor
+#     Extra monsters from floor area that also scale with depth.
+#     Formula:
+#       floor_count / depth_bonus_divisor, clamped to min..max,
+#       then scaled up with depth until depth 20,
+#       then capped by floor_count / hard_cap_divisor.
+#     scale_pct_at_depth_20:
+#       Final percentage reached by depth 20.
+#       100 = no extra depth scaling.
+#     Use depth_bonus_divisor 0 to disable this bonus.
+#
+#   OD:room_object_divisor:corridor_object_divisor
+#     Generated object counts derived from total monsters in the partition.
+#     Formula:
+#       room_objects = total_monsters / room_object_divisor
+#       corridor_objects = total_monsters / corridor_object_divisor
+#     Use divisor 0 to disable one side.
+#
+#   MT:floor_divisor:min:max:min_depth
+#     Metal pieces generated from partition floor area.
+#     Formula:
+#       floor_count / floor_divisor, clamped to min..max.
+#     Use divisor 0 to disable metal drops in this partition.
+#     min_depth:
+#       Dungeon depth where metal drops start.
+#
+# Narrative lines:
+#   T:text
+#     Discovery banner/message shown the first time this partition type is
+#     encountered in a run.
+#   BI:text
+#   BF:text
+#   BP:text
+#     Big-cave discovery text for ice, fire, and poison variants.
+#
+# Defaults below define the current partition behavior.
+
+V:0.9.5
+
+#w:a:j:s:potion:herb:gem:staff:light:arrows:tunneling:allow_damaged
+
+N:ROOMY
+PF:40:30:10:20:2:2:2:2:1:1:0:0
+PC:40:30:10:0:0:0:0:0:0:0:0:0
+PM:40:30:10:20:2:2:2:2:1:1:0:0
+FL:1
+MB:1:1
+MF:0:0:0
+MD:0:0:0:100:20
+OD:8:12
+MT:0:0:0:0
+
+N:CAVEY
+PF:0:0:0:100:0:0:14:0:12:3:2:0
+PC:15:0:0:85:4:2:10:0:0:0:0:0
+PM:40:30:10:20:2:2:2:2:7:3:2:0
+FL:1
+MB:3:1
+MF:80:0:10
+MD:120:0:18:140:20
+OD:5:12
+MT:300:0:2:8
+
+N:RUINED
+PF:40:35:0:25:14:4:2:6:15:15:4:1
+PC:40:35:0:0:0:0:0:0:0:0:0:0
+PM:40:35:0:25:14:4:2:6:15:15:4:1
+FL:1
+MB:2:1
+MF:0:0:0
+MD:180:0:14:133:20
+OD:2:4
+MT:0:0:0:0
+
+N:LABYRINTH
+T:The ways before you are broken into a crooked web of stone; in reading that dark craft, your thought is sharpened, and 300 experience is won.
+PF:0:0:10:90:30:4:4:30:5:5:0:0
+PC:0:0:100:0:0:0:0:0:0:0:0:0
+PM:0:0:25:75:2:2:2:2:1:1:0:0
+FL:1
+MB:2:1
+MF:7:8:45
+MD:80:0:25:133:20
+OD:4:8
+MT:0:0:0:0
+
+N:CHASM
+T:A black rent gapes beneath the mountains, as though the world were cloven in wrath; in beholding that peril, you gain 300 experience.
+PF:40:30:10:20:2:2:2:2:1:1:0:0
+PC:40:30:10:0:0:0:0:0:0:0:0:0
+PM:40:30:10:20:2:2:2:2:1:1:0:0
+FL:1
+MB:4:1
+MF:38:10:42
+MD:38:10:40:133:20
+OD:4:8
+MT:240:0:4:8
+
+N:BIG_CAVE
+T:A great cavern opens before you, and in the breadth of it there is a hard lesson written in stone and shadow; you gain 300 experience.
+BI:A deathly cold lies here, as if the memory of the Helcaraxe had crept under earth; from that bitter lesson you gain 300 experience.
+BF:A furnace-glow breathes through the cavern, as though old wrath yet smouldered in the roots of the world; in reading its danger, you gain 300 experience.
+BP:A green and venomous reek wanders the hollow, and the very air seems faithless; by that harsh knowing you gain 300 experience.
+PF:25:25:5:45:0:4:16:4:0:0:0:0
+PC:20:20:15:0:0:0:0:0:0:0:0:0
+PM:25:25:5:45:0:4:16:4:0:0:0:0
+FL:1
+MB:5:1
+MF:55:10:36
+MD:45:12:40:133:20
+OD:4:8
+MT:500:0:2:8

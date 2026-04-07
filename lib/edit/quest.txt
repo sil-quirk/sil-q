@@ -7,7 +7,7 @@
 # T: Title text
 # C: Challenge description
 # O: Associated oath (OATH_SILENCE, OATH_SMITH, OATH_IRON, OATH_MERCY, or NONE)
-# Y: Quest type (0=vault-based, 1=roulet-based)
+# Y: Quest type (0=vault-based, 1=roulette-based)
 # R: Variable name for quest state (e.g., "tulkas_quest", "aule_quest")
 # M: Metarun quest ID (e.g., METARUN_QUEST_TULKAS, METARUN_QUEST_AULE)
 # S: Stat bonuses (str:dex:con:gra)
@@ -17,7 +17,7 @@
 # W: Completion/reward text lines
 
 # Version stamp (required)
-V:0.9.0
+V:0.9.5
 
 # Quest of Tulkas the Strong
 Q:1:Tulkas the Strong
@@ -36,7 +36,9 @@ I:
 I:"Ho, champion! I have marked your passage through these lightless depths.
 I:There is fire in your heart and strength in your arm! Such valour pleases me."
 I:
-I:"But valour must be tested, as steel is tested in the forge!"
+I:"But valour must be tested, as steel is tested in the forge!
+I:Words are wind, but deeds are stone. I would see your mettle for myself."
+I:
 I:"There is a creature of shadow that haunts these ways, a foul beast known as [monster name]."
 I:"Hunt it down. Slay this foe and return to me with word of your victory."
 I:"Do this, and a weapon of great renown, [artifact name], shall be yours!"
@@ -49,7 +51,7 @@ W:"Take this prize—wrought ere the Sun and Moon first rose—and wield it well
 # Quest of Aule the Smith
 Q:2:Aule the Smith
 T:The Maker challenges you to prove your craft
-C:At Aule’s forge, create a masterwork of worth and purpose (25 difficulty at least)
+C:At Aule's forge, craft a work of true worth and mastery
 O:4
 Y:0
 R:aule_quest
@@ -58,38 +60,47 @@ E:SKILL_MIN:SMT:10
 S:0:0:0:0
 K:SMT:2
 A:8:1
-I:The air is warm with the heat of a distant forge, and a voice like the ringing of a hammer on an anvil speaks.
-I:Aule the Smith regards you with a deep and knowing gaze.
+I:The air grows warm with the heat of a distant forge, and a voice like the ringing of hammer upon anvil speaks.
+I:Aule the Smith, the Maker, regards you with a deep and knowing gaze.
 I:
-I:"I have seen your works, mortal. There is a spark of the fire of creation within you."
-I:"But a spark is not a flame. The substance of the earth does not yield its secrets gladly."
-I:"Here is my forge. Its fires burn with the heat of the world's heart."
-I:"Take up the hammer, and from the base matter of this place, create for me a thing of worth and purpose."
-W:You lay your finished work before the Smith. Aule turns it in his mighty hands, weighing craft and spirit alike.
+I:"I have seen your works, mortal. I have marked the stone you have hewn and the metal you have shaped.
+I:There is a spark of the fire of creation within you."
+I:
+I:"But a spark is not a flame. Skill must be honed by trial,
+I:and the substance of the earth does not yield its secrets gladly."
+I:"Here is my forge. Its fires burn with the heat of the world's heart.
+I:Take up the hammer, and from the base matter of this place, create for me a thing of worth and purpose."
+W:You lay your finished work before the Smith. Aule takes it in his mighty hands, his gaze missing no detail.
+W:He turns it over, feeling its weight, its balance, its very spirit.
 W:
-W:"It is well-wrought. You have listened to the metal and persuaded it to your will."
-W:"You are worthy of my blessing. May your arm never tire at the anvil, and may hidden flaws reveal themselves to your eye."
+W:"It is well-wrought. You have not merely forced the shape, but listened to the substance and persuaded it to your will.
+W:This is true craft."
+W:
+W:"You are worthy of my blessing. May your arm never tire at the anvil, and may the hidden flaws of rock and steel ever reveal themselves to your eye."
 
 # Quest of Mandos the Doomsman
 Q:3:Mandos the Doomsman
 T:The Doomsman bids you release a bound spirit
-C:Unmake the false body and free Brodda’s spirit to Mandos’s judgment
+C:Unmake the false body and free Brodda's spirit to Mandos's judgment
 O:3
 Y:0
 R:mandos_quest
 M:METARUN_QUEST_MANDOS
 S:0:0:1:0
 A:8:0
-I:A chill presence fills the chamber, and the air grows still. Before you is a veiled and solemn figure upon a throne of black stone.
+I:A chill presence fills the chamber, and the air grows still. Before you stands a veiled and solemn figure upon a throne of black stone.
 I:It is Mandos, the Judge of the Valar, and his voice is low and grave, like the turning of the ages.
 I:
 I:"Child of Middle-earth, here lingers a spirit that should long ago have departed the circles of the world."
-I:"The black power of Morgoth has kept the spirit of Brodda bound to this place and lent it a mockery of life."
-I:"Grant his tormented spirit its final release, that it may at last face my judgment. Fulfill this doom, and the way deeper shall be opened."
+I:"The hand of Turin brought justice upon Brodda the Easterling, as was his doom.
+I:Yet the malice of Morgoth does not end with death."
+I:
+I:"His black power has kept this spirit bound, far from my halls, and lent it a mockery of life."
+I:"Grant the tormented spirit its final release, that it may at last face my judgment. Fulfill this doom, and the way deeper shall be opened."
 W:As the false body falls, a long, sorrowful sigh echoes, and the spirit is gone. A profound stillness settles upon the place.
 W:
 W:"The mockery is unmade. The spirit of Brodda is unbound and set upon the path to its final judgment."
-W:"You have not wrought vengeance, but restored a thread of the natural order, long tangled by the Enemy’s malice."
+W:"You have not wrought vengeance, but restored a thread of the natural order, long tangled by the Enemy's malice."
 W:"Accept now this gift: a spirit shielded from the great fears that unman the hearts of mortals. Go forth, and walk unafraid."
 
 # Quest of Nienna, Lady of Pity
@@ -107,12 +118,17 @@ A:8:5
 I:A soft, sorrowful light gathers in the gloom. In its midst stands a figure cloaked in grey, her eyes holding the memory of every grief.
 I:It is Nienna, the Weeper, and her voice is as gentle as falling rain.
 I:
-I:"Child, this place is filled with pain. The creatures that dwell here are twisted and marred by long darkness."
-I:"If there is yet pity in your heart, walk the path downward, but raise no hand against the tormented things that dwell here."
+I:"Child, this place is filled with pain. The creatures that dwell here are not all born of evil,
+I:but are twisted and marred by the darkness they have long endured. They are lost, and in their fear, they lash out."
+I:
+I:"I have wept for them, as I weep for all the sorrows of Arda. If there is yet pity in your heart, I ask of you a difficult task."
+I:"Find the path downward, but raise no hand against the tormented things that dwell here."
 I:"Let compassion be your shield and your guide. As a sign of my faith, the ways of descent shall be revealed to your sight."
-W:As your foot touches the first step of the downward stair, peace washes over you, and the gentle voice of Nienna returns.
+W:As your foot touches the first step of the downward stair, a feeling of peace washes over you, and the gentle voice of Nienna returns.
 W:
-W:"You have chosen pity over violence. You have walked through fear and left behind not death, but a glimmer of hope."
+W:"You have chosen pity over violence. You have walked through the valley of fear and left behind not death, but a glimmer of hope.
+W:Such a deed is a light in the deepest darkness."
+W:
 W:"For the mercy you have shown to the lost, I grant you this blessing: may your path be shrouded in silence when compassion is your guide."
 
 # Quest of Orome, the Great Hunter  
@@ -127,15 +143,61 @@ M:METARUN_QUEST_OROME
 P:LINEAR_INTERPOLATE:0.05:0.125:0:0
 S:0:1:0:0
 A:8:8
-I:The air grows wild and clean, smelling of ancient forests under a starlit sky. Suddenly, the clear, mighty blast of a great horn, the Valaróma, echoes from the walls, shaking the very stones and sending a tremor of fear through all evil things. Before you sits a majestic lord upon a great white steed, his face filled with the vigour of the chase. It is Orome, the Huntsman of the Valar.
+I:The air grows wild and clean, smelling of ancient forests under a starlit sky.
+I:The clear, mighty blast of a great horn, the Valaroma, echoes from the walls, shaking the very stones
+I:and sending a tremor of fear through all evil things.
+I:Before you stands a majestic lord upon a great white steed, his face filled with the vigour of the chase.
+I:It is Orome, the Huntsman of the Valar.
 I:
-I:"Hail, hunter! I have heard the echo of your deeds in these sunless caverns, but the shadows here run too deep. The foulest kindreds of the Great Enemy have made their lairs throughout this realm: the fell wolves in their packs, the venomous spawn of the Great Spider, the cold serpents of the deep, and the blood-drinking horrors of the night."
+I:"Hail, hunter! I have heard the echo of your deeds in these sunless caverns, but the shadows here run too deep.
+I:The foulest kindreds of the Enemy have made their lairs throughout this realm:
+I:the fell wolves in their packs, the venomous spawn of Ungoliant, the cold serpents of the deep,
+I:and the blood-drinking horrors of the night."
 I:
-I:"I call upon you to cleanse this darkness throughout your entire journey! Hunt any of these monstrous broods without pity - slay 100 wolves, 80 spiders, 60 serpents, or 30 vampires. Let your arm be the instrument of my wrath until their numbers are broken. When your great hunt reaches its goal, I shall return to bestow my blessing upon you."
-W:As the last of your chosen prey falls, the triumphant sound of the Valaróma rings out once more. Orome appears, his eyes bright with approval.
+I:"I call upon you to cleanse this darkness throughout your journey! Hunt any of these monstrous broods without pity:
+I:slay 100 wolves, 80 spiders, 60 serpents, or 30 vampires, and let their numbers be broken.
+I:When your great hunt reaches its end, I shall return to bestow my blessing upon you."
+W:As the last of your chosen prey falls, the triumphant sound of the Valaroma rings out once more.
+W:Orome appears, his eyes bright with approval.
 W:
-W:"A mighty hunt indeed! The shadows recede, and the foul things of the dark have learned to fear you. You have the eye of a true hunter and a spirit that does not quail before the beasts of night."
+W:"A mighty hunt! The foul things of the dark have learned to fear your name.
+W:You have the eye of a true hunter and a spirit that does not quail before the beasts of night."
 W:
-W:"For this service, I grant you the Hunter's Insight. Henceforth, with every unique and mighty foe you overcome, your understanding of their fell nature shall deepen. Their strengths will reveal their flaws to your eyes, and your arm will strike ever truer against their kind. The more you kill, the greater your mastery shall become."
+W:"For this service, I grant you the Hunter's Insight. With every mighty foe you overcome,
+W:your understanding of their fell nature shall deepen, and their strengths shall reveal their weaknesses to your keen eye."
 W:
-W:"You have shown a focused purpose, a will that lets deeds speak louder than words. Such resolve makes you worthy to swear an oath of silence, should you choose such a path in a life to come."
+W:"You have shown a will that lets deeds speak louder than words.
+W:Such resolve makes you worthy to swear the Oath of Silence, should you choose such a path in a life to come."
+
+# Quest of Varda, Lady of the Stars
+Q:6:Varda, Lady of the Stars
+T:The Star-kindler bids you cleanse the shadows
+C:Find and slay Duruin, least of the balrogs, at the turning of the deeps, within his Bastion of shadow
+O:6
+E:DEPTH_RANGE:1:3
+Y:1
+R:varda_quest
+M:METARUN_QUEST_VARDA
+P:LINEAR_INTERPOLATE:0.50:0.15:0:0
+S:0:0:0:0
+I:A light pierces the gloom, pure and silver, as though a star had descended into the deep places of the earth.
+I:In its radiance stands Varda, the Kindler of the Stars, and her gaze holds the calm of the heavens beyond the world.
+I:
+I:"Child of the darkened Halls, long have I watched your wandering beneath the weight of shadow.
+I:Know that even here, in the deepest pits of the Enemy, my light is not wholly quenched."
+I:
+I:"Yet a shard of that light now lies smothered below, stolen by a petty balrog named Duruin.
+I:He has raised a bastion of shadow at the turning of the deeps—where your journey is reckoned half complete.
+I:There, the whispering shades of the dark flock to his flame, and his hold grows strong upon my stolen light."
+I:
+I:"Seek out that stronghold where the worlds grow dark and deep. Break his hold and cast down his foul servants.
+I:Do this, and I shall lay a choice of bright gifts before you, and teach you the oath that keeps the flame within."
+W:A hush falls as the last shadow fades, and a light wells up from the broken stones, returning to the air like a sigh of relief.
+W:The voice of Varda speaks, distant and clear as starlight upon still water.
+W:
+W:"It is done. The stolen light is free, and the Bastion is emptied of its whispers.
+W:You have struck a blow against the darkness that even the Enemy shall feel in his iron crown."
+W:
+W:"Choose now one lamp of my blessing, and bear it through the night that lies ahead.
+W:If you would keep its radiance, swear the Oath of Light and shun all shadowed gear,
+W:for my gifts endure only in hearts that remain true."

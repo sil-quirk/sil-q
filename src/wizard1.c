@@ -9,13 +9,18 @@
  */
 
 #include "angband.h"
+#include "externs.h"
+#include "fs/io_sdl.h"
+#include "fs/path.h"
+#include "log/log.h"
+#include "ui/colors.h"
 
 #ifdef ALLOW_SPOILERS
 
 /*
  * The spoiler file being created
  */
-static FILE* fff = NULL;
+static SDL_IOStream* fff = NULL;
 
 /*
  * Write out `n' of the character `c' to the spoiler file
@@ -23,7 +28,10 @@ static FILE* fff = NULL;
 static void spoiler_out_n_chars(int n, char c)
 {
     while (--n >= 0)
-        fputc(c, fff);
+    {
+        unsigned char _ch = c;
+        SDL_WriteIO(fff, &_ch, 1);
+    }
 }
 
 /*
@@ -147,13 +155,17 @@ static void spoil_obj_desc(cptr fname)
     cptr format = " %-42s  %7s%8s%9s\n";
 
     /* Build the filename */
-    path_build(buf, sizeof(buf), ANGBAND_DIR_USER, fname);
+    if (!path_build(buf, sizeof(buf), ANGBAND_DIR_USER, fname))
+    {
+        log_error("spoil_obj_desc: failed to build path for '%s'", fname);
+        return;
+    }
 
     /* File type is "TEXT" */
     FILE_TYPE(FILE_TYPE_TEXT);
 
     /* Open the file */
-    fff = my_fopen(buf, "w");
+    fff = sdl_fopen(buf, "w");
 
     /* Oops */
     if (!fff)
@@ -163,11 +175,11 @@ static void spoil_obj_desc(cptr fname)
     }
 
     /* Header */
-    fprintf(fff, "Spoiler File -- Basic Items (%s)\n\n\n", VERSION_STRING);
+    SDL_IOprintf(fff, "Spoiler File -- Basic Items (%s)\n\n\n", VERSION_STRING);
 
     /* More Header */
-    fprintf(fff, format, "Description", "Weight", "Level", "/ Rarity");
-    fprintf(fff, format, "----------------------------------------", "-------",
+    SDL_IOprintf(fff, format, "Description", "Weight", "Level", "/ Rarity");
+    SDL_IOprintf(fff, format, "----------------------------------------", "-------",
         "-----", "---------");
 
     /* List the groups */
@@ -214,7 +226,7 @@ static void spoil_obj_desc(cptr fname)
                 kind_info(&d_char, buf, wgt, &e, &r, who[s]);
 
                 /* Dump it */
-                fprintf(fff, "%c %-42s%7s%8d / %2d\n", d_char, buf, wgt, e, r);
+                SDL_IOprintf(fff, "%c %-42s%7s%8d / %2d\n", d_char, buf, wgt, e, r);
             }
 
             /* Start a new set */
@@ -225,7 +237,7 @@ static void spoil_obj_desc(cptr fname)
                 break;
 
             /* Start a new set */
-            fprintf(fff, "\n\n%s\n\n", group_item[i].name);
+            SDL_IOprintf(fff, "\n\n%s\n\n", group_item[i].name);
         }
 
         /* Get legal item types */
@@ -247,7 +259,7 @@ static void spoil_obj_desc(cptr fname)
     }
 
     /* Check for errors */
-    if (ferror(fff) || my_fclose(fff))
+    if (0 || sdl_fclose(fff))
     {
         msg_print("Cannot close spoiler file.");
         return;
@@ -322,11 +334,12 @@ bool make_fake_artefact(object_type* o_ptr, byte name1)
     {
         o_ptr->skilltype[i + o_ptr->abilities] = a_ptr->skilltype[i];
         o_ptr->abilitynum[i + o_ptr->abilities] = a_ptr->abilitynum[i];
+        o_ptr->bane_type[i + o_ptr->abilities] = a_ptr->bane_type[i];
     }
     o_ptr->abilities += a_ptr->abilities;
 
     /* Hack -- extract the "cursed" flag */
-    if (a_ptr->flags3 & (TR3_LIGHT_CURSE))
+    if (a_ptr->flags3 & (TR3_LIGHT_CURSE | TR3_HEAVY_CURSE | TR3_PERMA_CURSE))
         o_ptr->ident |= (IDENT_CURSED);
 
     /* Success */
@@ -346,13 +359,17 @@ static void spoil_artefact(cptr fname)
     char buf[1024];
 
     /* Build the filename */
-    path_build(buf, sizeof(buf), ANGBAND_DIR_USER, fname);
+    if (!path_build(buf, sizeof(buf), ANGBAND_DIR_USER, fname))
+    {
+        log_error("spoil_artifact: failed to build path for '%s'", fname);
+        return;
+    }
 
     /* File type is "TEXT" */
     FILE_TYPE(FILE_TYPE_TEXT);
 
     /* Open the file */
-    fff = my_fopen(buf, "w");
+    fff = sdl_fopen(buf, "w");
 
     /* Oops */
     if (!fff)
@@ -410,7 +427,7 @@ static void spoil_artefact(cptr fname)
             /* Grab artefact name */
             object_desc_spoil(buf, sizeof(buf), i_ptr, true, 1);
 
-            my_strcat(buf,
+            SDL_strlcat(buf,
                 format("     %d.%d lb", (a_ptr->weight / 10),
                     (a_ptr->weight % 10)),
                 sizeof(buf));
@@ -438,7 +455,7 @@ static void spoil_artefact(cptr fname)
     }
 
     /* Check for errors */
-    if (ferror(fff) || my_fclose(fff))
+    if (0 || sdl_fclose(fff))
     {
         msg_print("Cannot close spoiler file.");
         return;
@@ -471,13 +488,17 @@ static void spoil_mon_desc(cptr fname)
     u16b why = 2;
 
     /* Build the filename */
-    path_build(buf, sizeof(buf), ANGBAND_DIR_USER, fname);
+    if (!path_build(buf, sizeof(buf), ANGBAND_DIR_USER, fname))
+    {
+        log_error("spoil_mon_desc: failed to build path for '%s'", fname);
+        return;
+    }
 
     /* File type is "TEXT" */
     FILE_TYPE(FILE_TYPE_TEXT);
 
     /* Open the file */
-    fff = my_fopen(buf, "w");
+    fff = sdl_fopen(buf, "w");
 
     /* Oops */
     if (!fff)
@@ -487,19 +508,19 @@ static void spoil_mon_desc(cptr fname)
     }
 
     /* Dump the header */
-    fprintf(fff, "Monster Spoilers for %s Version %s\n", VERSION_NAME,
+    SDL_IOprintf(fff, "Monster Spoilers for %s Version %s\n", VERSION_NAME,
         VERSION_STRING);
-    fprintf(fff, "------------------------------------------\n\n");
+    SDL_IOprintf(fff, "------------------------------------------\n\n");
 
     /* Dump the header */
-    fprintf(fff, "%-42.42s%10s%6s%8s%13s%30s\n", "Name", "Lev / Rar", "Spd",
+    SDL_IOprintf(fff, "%-42.42s%10s%6s%8s%13s%30s\n", "Name", "Lev / Rar", "Spd",
         "Health", "Defence", "Attacks        ");
-    fprintf(fff, "%-42.42s%10s%6s%8s%13s%30s\n",
+    SDL_IOprintf(fff, "%-42.42s%10s%6s%8s%13s%30s\n",
         "-----------------------------------------", "---------", "---",
         "------", "----------", "--------------------------");
 
     /* Allocate the "who" array */
-    C_MAKE(who, z_info->r_max, u16b);
+    who = mem_alloc_array(z_info->r_max, u16b);
 
     /* Scan the monsters */
     for (i = 1; i < z_info->r_max; i++)
@@ -620,18 +641,18 @@ static void spoil_mon_desc(cptr fname)
         // r_ptr->d_char);
 
         /* Dump the info */
-        fprintf(fff, "%-42.42s%4s /%3s%7s%8s%7s%-6s%16s%14s\n", nam, lev, rar,
+        SDL_IOprintf(fff, "%-42.42s%4s /%3s%7s%8s%7s%-6s%16s%14s\n", nam, lev, rar,
             spd, hp, def1, def2, att1, att2);
     }
 
     /* End it */
-    fprintf(fff, "\n");
+    SDL_IOprintf(fff, "\n");
 
     /* Free the "who" array */
-    FREE(who);
+    mem_free_null(who);
 
     /* Check for errors */
-    if (ferror(fff) || my_fclose(fff))
+    if (0 || sdl_fclose(fff))
     {
         msg_print("Cannot close spoiler file.");
         return;
@@ -664,13 +685,17 @@ static void spoil_mon_ss(cptr fname)
     u16b why = 2;
 
     /* Build the filename */
-    path_build(buf, sizeof(buf), ANGBAND_DIR_USER, fname);
+    if (!path_build(buf, sizeof(buf), ANGBAND_DIR_USER, fname))
+    {
+        log_error("spoil_mon_ss: failed to build path for '%s'", fname);
+        return;
+    }
 
     /* File type is "TEXT" */
     FILE_TYPE(FILE_TYPE_TEXT);
 
     /* Open the file */
-    fff = my_fopen(buf, "w");
+    fff = sdl_fopen(buf, "w");
 
     /* Oops */
     if (!fff)
@@ -680,7 +705,7 @@ static void spoil_mon_ss(cptr fname)
     }
 
     /* Allocate the "who" array */
-    C_MAKE(who, z_info->r_max, u16b);
+    who = mem_alloc_array(z_info->r_max, u16b);
 
     /* Scan the monsters */
     for (i = 1; i < z_info->r_max; i++)
@@ -794,18 +819,18 @@ static void spoil_mon_ss(cptr fname)
         // r_ptr->d_char);
 
         /* Dump the info */
-        fprintf(fff, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", nam, lev, rar, spd,
+        SDL_IOprintf(fff, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", nam, lev, rar, spd,
             hp, def1, def2, att1, att2);
     }
 
     /* End it */
-    fprintf(fff, "\n");
+    SDL_IOprintf(fff, "\n");
 
     /* Free the "who" array */
-    FREE(who);
+    mem_free_null(who);
 
     /* Check for errors */
-    if (ferror(fff) || my_fclose(fff))
+    if (0 || sdl_fclose(fff))
     {
         msg_print("Cannot close spoiler file.");
         return;
@@ -831,13 +856,17 @@ static void spoil_mon_info(cptr fname)
     int count = 0;
 
     /* Build the filename */
-    path_build(buf, sizeof(buf), ANGBAND_DIR_USER, fname);
+    if (!path_build(buf, sizeof(buf), ANGBAND_DIR_USER, fname))
+    {
+        log_error("spoil_mon_info: failed to build path for '%s'", fname);
+        return;
+    }
 
     /* File type is "TEXT" */
     FILE_TYPE(FILE_TYPE_TEXT);
 
     /* Open the file */
-    fff = my_fopen(buf, "w");
+    fff = sdl_fopen(buf, "w");
 
     /* Oops */
     if (!fff)
@@ -857,7 +886,7 @@ static void spoil_mon_info(cptr fname)
     text_out("------------------------------------------\n\n");
 
     /* Allocate the "who" array */
-    C_MAKE(who, z_info->r_max, u16b);
+    who = mem_alloc_array(z_info->r_max, u16b);
 
     /* Scan the monsters */
     for (i = 1; i < z_info->r_max; i++)
@@ -945,10 +974,10 @@ static void spoil_mon_info(cptr fname)
     }
 
     /* Free the "who" array */
-    FREE(who);
+    mem_free_null(who);
 
     /* Check for errors */
-    if (ferror(fff) || my_fclose(fff))
+    if (0 || sdl_fclose(fff))
     {
         msg_print("Cannot close spoiler file.");
         return;
@@ -1042,3 +1071,14 @@ void do_cmd_spoilers(void)
 #else
 
 #endif
+
+
+
+
+
+
+
+
+
+
+

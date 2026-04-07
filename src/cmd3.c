@@ -9,6 +9,85 @@
  */
 
 #include "angband.h"
+#include "externs.h"
+#include "log/log.h"
+#include "metarun.h"
+
+/*
+ * Helper function to determine the equip sound based on item type
+ */
+static int get_equip_sound(const object_type* o_ptr)
+{
+    /* Swords */
+    if (o_ptr->tval == TV_SWORD)
+        return MSG_EQUIP_SWORD;
+    
+    /* Bows and arrows */
+    if (o_ptr->tval == TV_BOW || o_ptr->tval == TV_ARROW)
+        return MSG_EQUIP_BOW;
+    
+    /* Other weapons */
+    if (o_ptr->tval == TV_POLEARM || o_ptr->tval == TV_HAFTED || o_ptr->tval == TV_DIGGING)
+        return MSG_EQUIP_WEAPON;
+    
+    /* Chain armor (mail) */
+    if (o_ptr->tval == TV_MAIL)
+        return MSG_EQUIP_MAIL;
+    
+    /* Leather armor (soft armor) */
+    if (o_ptr->tval == TV_SOFT_ARMOR)
+        return MSG_EQUIP_LEATHER;
+    
+    /* All other types of armor */
+    if (o_ptr->tval == TV_SHIELD || o_ptr->tval == TV_CLOAK || o_ptr->tval == TV_HELM || 
+        o_ptr->tval == TV_CROWN || o_ptr->tval == TV_GLOVES || o_ptr->tval == TV_BOOTS)
+        return MSG_EQUIP_ARMOR;
+    
+    /* Rings and amulets */
+    if (o_ptr->tval == TV_RING || o_ptr->tval == TV_AMULET)
+        return MSG_EQUIP_JEWELRY;
+    
+    /* Default - no sound */
+    return -1;
+}
+
+/*
+ * Helper function to determine the unequip sound based on item type
+ */
+static int get_unequip_sound(const object_type* o_ptr)
+{
+    /* Swords */
+    if (o_ptr->tval == TV_SWORD)
+        return MSG_UNEQUIP_SWORD;
+    
+    /* Bows and arrows */
+    if (o_ptr->tval == TV_BOW || o_ptr->tval == TV_ARROW)
+        return MSG_UNEQUIP_BOW;
+    
+    /* Other weapons */
+    if (o_ptr->tval == TV_POLEARM || o_ptr->tval == TV_HAFTED || o_ptr->tval == TV_DIGGING)
+        return MSG_UNEQUIP_WEAPON;
+    
+    /* Chain armor (mail) */
+    if (o_ptr->tval == TV_MAIL)
+        return MSG_UNEQUIP_MAIL;
+    
+    /* Leather armor (soft armor) */
+    if (o_ptr->tval == TV_SOFT_ARMOR)
+        return MSG_UNEQUIP_LEATHER;
+    
+    /* All other types of armor */
+    if (o_ptr->tval == TV_SHIELD || o_ptr->tval == TV_CLOAK || o_ptr->tval == TV_HELM || 
+        o_ptr->tval == TV_CROWN || o_ptr->tval == TV_GLOVES || o_ptr->tval == TV_BOOTS)
+        return MSG_UNEQUIP_ARMOR;
+    
+    /* Rings and amulets */
+    if (o_ptr->tval == TV_RING || o_ptr->tval == TV_AMULET)
+        return MSG_UNEQUIP_JEWELRY;
+    
+    /* Default - no sound */
+    return -1;
+}
 
 /*
  * The "wearable" tester
@@ -49,6 +128,17 @@ static bool item_tester_hook_throw_slots(const object_type* o_ptr)
     int slot = (int)(o_ptr - inventory);
 
     return throw_slot_enabled[slot];
+}
+
+static bool smith_oath_takeoff_hits_pack(const object_type* o_ptr, int source_item)
+{
+    if (!smith_oath_forbids_object(o_ptr))
+        return false;
+
+    if (source_item >= 0 && source_item < INVEN_PACK)
+        return inven_carry_okay_after_removing(o_ptr, source_item, 1);
+
+    return inven_carry_okay(o_ptr);
 }
 
 bool open_supplies_menu_with_context(supply_menu_action default_action, int default_group, bool default_focus, bool default_hotkey)
@@ -186,6 +276,16 @@ void do_cmd_use_item_by_index(int item)
                 }
             }
 
+            if (o_ptr->tval == TV_FLASK && try_to_wield)
+            {
+                if ((l_ptr->tval != TV_LIGHT)
+                    || (l_ptr->sval != SV_LIGHT_LANTERN))
+                {
+                    msg_print("You are not wielding a lantern.");
+                }
+                try_to_wield = false;
+            }
+
             if (try_to_wield)
             {
                 log_debug("do_cmd_use_item_by_index: Calling do_cmd_wield with item=%d (o_ptr tval=%d)", item, o_ptr->tval);
@@ -221,7 +321,7 @@ void do_cmd_use_item_by_index(int item)
     }
     case TV_METAL:
     {
-        msg_print("To melt down pieces of mithril, take them to a forge and "
+        msg_print("To smith with mithril or star-iron, take them to a forge and "
                   "type (,).");
         break;
     }
@@ -231,9 +331,23 @@ void do_cmd_use_item_by_index(int item)
         break;
     }
     case TV_STAFF:
+    {
+        extern char current_menu_command;
+        /* If wielding ('w' command), equip the staff directly */
+        if (current_menu_command == 'w')
+        {
+            do_cmd_wield(o_ptr, item);
+        }
+        else
+        {
+            /* Otherwise, activate it (for 'u' command) */
+            do_cmd_activate_staff(o_ptr, item);
+        }
+        break;
+    }
     case TV_GEM:
     {
-        do_cmd_activate_staff(o_ptr, item);
+        do_cmd_use_gem(o_ptr, item);
         break;
     }
     case TV_HORN:
@@ -742,7 +856,11 @@ void do_cmd_equip(void)
     case ENHANCED_ACTION_EXAMINE:
         log_trace("do_cmd_equip: Examining item %d", selected_index);
         if (selected_index >= INVEN_WIELD && selected_index < INVEN_TOTAL)
+        {
+            (void)player_try_identify_smithing_object_on_examine(
+                &inventory[selected_index], true);
             object_info_screen(&inventory[selected_index]);
+        }
         break;
 
     case ENHANCED_ACTION_USE:
@@ -820,7 +938,7 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     bool combine = false;
     bool is_throwing = false;
 
-    u32b f1, f2, f3;
+    u32b f1, f2, f3, f4;
 
     log_debug("do_cmd_wield: Called with default_o_ptr=%p, default_item=%d", (void*)default_o_ptr, default_item);
 
@@ -868,7 +986,7 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
         && (p_ptr->total_weight + o_ptr->weight > weight_limit() * 3 / 2))
     {
         /* Describe it */
-        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+        object_desc_floor(o_name, sizeof(o_name), o_ptr, true, 3);
 
         log_debug("do_cmd_wield: Floor item too heavy - total=%d + item=%d > limit=%d", 
             p_ptr->total_weight, o_ptr->weight, weight_limit() * 3 / 2);
@@ -886,6 +1004,15 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
 
     /* Check the slot */
     slot = wield_slot(o_ptr);
+    if (slot < INVEN_WIELD || slot >= INVEN_TOTAL)
+    {
+        if (item < 0)
+            object_desc_floor(o_name, sizeof(o_name), o_ptr, true, 3);
+        else
+            object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+        msg_format("You cannot wear or wield %s.", o_name);
+        return;
+    }
 
     /* Ask for ring to replace */
     if ((o_ptr->tval == TV_RING) && inventory[INVEN_LEFT].k_idx
@@ -1160,6 +1287,27 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
         }
     }
 
+    // Check for paired weapons (e.g., Glamdring + Orcrist)
+    // Paired weapons can be wielded together without Two Weapon Fighting
+    bool paired_weapon_prompt = false;
+    if (o_ptr->name1 && inventory[INVEN_WIELD].k_idx)
+    {
+        int paired_idx = get_paired_artefact(o_ptr->name1);
+        if (paired_idx && inventory[INVEN_WIELD].name1 == paired_idx)
+        {
+            // The weapon we're trying to wield is paired with our main hand weapon
+            if (!(k_info[o_ptr->k_idx].flags3 & (TR3_TWO_HANDED))
+                && !(k_info[o_ptr->k_idx].flags3 & (TR3_HAND_AND_A_HALF)))
+            {
+                if (get_check("Wield alongside its mate in your off-hand? "))
+                {
+                    slot = INVEN_ARM;
+                    paired_weapon_prompt = true;
+                }
+            }
+        }
+    }
+
     // Ask about two weapon fighting if necessary
     for (i = 0; i < o_ptr->abilities; i++)
     {
@@ -1170,7 +1318,8 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
             grants_two_weapon = true;
         }
     }
-    if ((p_ptr->active_ability[S_MEL][MEL_TWO_WEAPON] || grants_two_weapon)
+    if (!paired_weapon_prompt
+        && (p_ptr->active_ability[S_MEL][MEL_TWO_WEAPON] || grants_two_weapon)
         && ((o_ptr->tval == TV_SWORD) || (o_ptr->tval == TV_POLEARM)
             || (o_ptr->tval == TV_HAFTED) || (o_ptr->tval == TV_DIGGING)))
     {
@@ -1198,17 +1347,17 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
         return;
     }
 
-    /* Check if Maedhros house is trying to wield a two-handed weapon */
+    /* Check if Maedhros character is trying to wield a two-handed weapon */
     if ((k_info[o_ptr->k_idx].flags3 & (TR3_TWO_HANDED))
-        && (c_info[p_ptr->phouse].flags_u & UNQ_MEL_MAEDHROS))
+        && (c_info[p_ptr->pcharacter].flags_u & UNQ_MEL_MAEDHROS))
     {
         msg_print("Your injury prevents you from wielding two-handed weapons.");
         return;
     }
 
-    /* Check if Maedhros house is trying to wield a shield */
+    /* Check if Maedhros character is trying to wield a shield */
     if ((o_ptr->tval == TV_SHIELD)
-        && (c_info[p_ptr->phouse].flags_u & UNQ_MEL_MAEDHROS))
+        && (c_info[p_ptr->pcharacter].flags_u & UNQ_MEL_MAEDHROS))
     {
         msg_print("Your injury prevents you from using shields.");
         return;
@@ -1319,6 +1468,58 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
         weapon_less_effective = true;
     }
 
+    if (smith_oath_forbids_object(o_ptr) && !smith_oath_confirm_break())
+        return;
+
+    if (inventory[slot].k_idx && !combine
+        && smith_oath_takeoff_hits_pack(&inventory[slot], item)
+        && !smith_oath_confirm_break())
+    {
+        return;
+    }
+
+    if ((k_info[o_ptr->k_idx].flags3 & (TR3_TWO_HANDED))
+        && inventory[INVEN_ARM].k_idx
+        && smith_oath_takeoff_hits_pack(&inventory[INVEN_ARM], item)
+        && !smith_oath_confirm_break())
+    {
+        return;
+    }
+
+    if ((slot == INVEN_ARM)
+        && inventory[INVEN_WIELD].k_idx
+        && (k_info[inventory[INVEN_WIELD].k_idx].flags3 & (TR3_TWO_HANDED))
+        && smith_oath_takeoff_hits_pack(&inventory[INVEN_WIELD], item)
+        && !smith_oath_confirm_break())
+    {
+        return;
+    }
+    
+    /* Oath of Light: warn before equipping shadowed items */
+    if (chosen_oath(OATH_LIGHT) && !oath_invalid(OATH_LIGHT))
+    {
+        object_flags4(o_ptr, &f1, &f2, &f3, &f4);
+        if ((f2 & TR2_DARKNESS) || (f4 & TR4_UNLIGHT) || (f3 & TR3_LIGHT_CURSE))
+        {
+            char* prompt = oath_confirmation_prompt(OATH_LIGHT);
+            if (!prompt || !prompt[0]) {
+                prompt = "This item will dim your light. Break the Oath of Light?";
+            }
+            
+            if (!get_check_oath_multiline(prompt))
+            {
+                log_trace("do_cmd_wield: Player declined to break Oath of Light for item (tval=%d, sval=%d)", o_ptr->tval, o_ptr->sval);
+                return;
+            }
+            
+            p_ptr->oaths_broken |= OATH_LIGHT_FLAG;
+            p_ptr->active_ability[S_SPC][SPC_OATH_LIGHT] = false;
+            apply_oath_breaking_curse(OATH_LIGHT);
+            metarun_ban_oath(OATH_LIGHT);
+            log_trace("do_cmd_wield: Oath of Light broken by equipping shadowed item");
+        }
+    }
+
     /* Take a turn */
     p_ptr->energy_use = 100;
 
@@ -1359,8 +1560,14 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     /* Decrease the item (from the pack) */
     if (item >= 0)
     {
+        log_debug(
+            "do_cmd_wield: Before decrease - item=%d, k_idx=%d, ego_pfx=%d, ego_sfx=%d, number=%d",
+            item, inventory[item].k_idx, object_ego_prefix(&inventory[item]),
+            object_ego_suffix(&inventory[item]), inventory[item].number);
         inven_item_increase(item, -quantity);
         inven_item_optimize(item);
+        log_debug("do_cmd_wield: After optimize - item=%d, k_idx=%d", 
+                  item, inventory[item].k_idx);
     }
 
     /* Decrease the item (from the floor) */
@@ -1372,12 +1579,23 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
 
     /* Get the wield slot */
     o_ptr = &inventory[slot];
+    
+    log_debug("do_cmd_wield: Wield slot %d - has k_idx=%d, ego_pfx=%d, ego_sfx=%d",
+        slot, o_ptr->k_idx, object_ego_prefix(o_ptr), object_ego_suffix(o_ptr));
 
     /* Take off existing item */
     if (o_ptr->k_idx && !combine)
     {
+        log_debug(
+            "do_cmd_wield: Taking off existing item from slot %d - k_idx=%d, ego_pfx=%d, ego_sfx=%d",
+            slot, o_ptr->k_idx, object_ego_prefix(o_ptr), object_ego_suffix(o_ptr));
         /* Take off existing item */
         (void)inven_takeoff(slot, 255);
+        
+        /* Refresh pointer after takeoff */
+        o_ptr = &inventory[slot];
+        log_debug("do_cmd_wield: After takeoff, slot %d now has k_idx=%d", 
+                  slot, o_ptr->k_idx);
     }
 
     /* Deal with wielding of two-handed weapons when already using a shield */
@@ -1401,6 +1619,10 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     /* Combine the new stuff into the equipment */
     if (combine)
     {
+        log_debug(
+            "do_cmd_wield: Combining - slot %d has k_idx=%d ego_pfx=%d ego_sfx=%d, adding k_idx=%d ego_pfx=%d ego_sfx=%d",
+            slot, o_ptr->k_idx, object_ego_prefix(o_ptr), object_ego_suffix(o_ptr),
+            i_ptr->k_idx, object_ego_prefix(i_ptr), object_ego_suffix(i_ptr));
         msg_print(
             "You combine them with some that are already in your quiver.");
         object_absorb(o_ptr, i_ptr);
@@ -1408,12 +1630,47 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     /* Wear the new stuff */
     else
     {
+        log_debug(
+            "do_cmd_wield: Copying to slot %d - source k_idx=%d ego_pfx=%d ego_sfx=%d",
+            slot, i_ptr->k_idx, object_ego_prefix(i_ptr), object_ego_suffix(i_ptr));
         object_copy(o_ptr, i_ptr);
+        log_debug(
+            "do_cmd_wield: After copy, slot %d now has k_idx=%d ego_pfx=%d ego_sfx=%d",
+            slot, o_ptr->k_idx, object_ego_prefix(o_ptr), object_ego_suffix(o_ptr));
     }
+
+    /* Once the player has equipped an item, remember its combat stats forever. */
+    o_ptr->ident |= (IDENT_HANDLED);
 
     /* Increment the equip counter by hand */
     if (!combine)
         p_ptr->equip_cnt++;
+
+    /* Attempt identification immediately upon equipping (before printing message) */
+    {
+        bool slot_is_quiver1 = (slot == INVEN_QUIVER1);
+        bool slot_is_quiver2 = (slot == INVEN_QUIVER2);
+        bool quiver2_grants_bonuses = slot_is_quiver2 && is_throwing;
+        bool apply_wield_effects
+            = !slot_is_quiver1 && (!slot_is_quiver2 || quiver2_grants_bonuses);
+
+        if (apply_wield_effects)
+        {
+            ident_on_wield(o_ptr);
+
+            // activate all of its new abilities
+            for (i = 0; i < o_ptr->abilities; i++)
+            {
+                if (!p_ptr->have_ability[o_ptr->skilltype[i]][o_ptr->abilitynum[i]])
+                {
+                    p_ptr->have_ability[o_ptr->skilltype[i]][o_ptr->abilitynum[i]]
+                        = true;
+                    p_ptr->active_ability[o_ptr->skilltype[i]][o_ptr->abilitynum[i]]
+                        = true;
+                }
+            }
+        }
+    }
 
     /* Where is the item now */
     if ((slot == INVEN_WIELD)
@@ -1428,6 +1685,10 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     else if (slot == INVEN_LITE)
     {
         act = "Your light source is";
+    }
+    else if (slot == INVEN_HORN)
+    {
+        act = "You are carrying";
     }
     else if ((slot == INVEN_QUIVER1) || (slot == INVEN_QUIVER2))
     {
@@ -1444,9 +1705,26 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     /* Message */
     msg_format("%s %s (%c).", act, o_name, index_to_label(slot));
 
+    /* Play equip sound */
+    {
+        int equip_sound = get_equip_sound(o_ptr);
+        if (equip_sound >= 0)
+            sound(equip_sound);
+    }
+
     // Deal with wielding from the floor
     if (item < 0)
     {
+        if (target_is_quiver && (quantity < original_quantity)
+            && ((i_ptr->tval == TV_ARROW) || is_throwing))
+        {
+            int floor_idx = 0 - item;
+            object_type* floor_ptr = &o_list[floor_idx];
+
+            if (floor_ptr->k_idx && floor_ptr->number > 0)
+                py_pickup_aux(floor_idx);
+        }
+
         /* Forget monster */
         o_ptr->held_m_idx = 0;
 
@@ -1482,6 +1760,41 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
         o_ptr->ident |= (IDENT_SENSE);
     }
 
+    /* Items with BREAKS_PERMA_CURSE can break the Oath of Feanor on all equipped items */
+    {
+        u32b o_f1, o_f2, o_f3, o_f4;
+        object_flags4(o_ptr, &o_f1, &o_f2, &o_f3, &o_f4);
+
+        if (o_f4 & TR4_BREAKS_PERMA_CURSE)
+        {
+            int j;
+            bool oath_broken = false;
+
+            /* Check all equipped items for the Oath of Feanor (perma-curse) */
+            for (j = INVEN_WIELD; j < INVEN_TOTAL; j++)
+            {
+                object_type *eq_ptr = &inventory[j];
+                u32b eq_f1, eq_f2, eq_f3;
+
+                if (!eq_ptr->k_idx) continue;
+
+                object_flags(eq_ptr, &eq_f1, &eq_f2, &eq_f3);
+
+                if ((eq_f3 & TR3_PERMA_CURSE) && cursed_p(eq_ptr))
+                {
+                    /* Break the curse - the holy light overcomes the oath */
+                    eq_ptr->ident &= ~IDENT_CURSED;
+                    oath_broken = true;
+                }
+            }
+
+            if (oath_broken)
+            {
+                msg_print("The holy light breaks the Oath of Feanor!");
+            }
+        }
+    }
+
     if (weapon_less_effective)
     {
         /* Describe it */
@@ -1490,20 +1803,6 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
         /* Message */
         msg_format(
             "You are no longer able to wield your %s as effectively.", o_name);
-    }
-
-    ident_on_wield(o_ptr);
-
-    // activate all of its new abilities
-    for (i = 0; i < o_ptr->abilities; i++)
-    {
-        if (!p_ptr->have_ability[o_ptr->skilltype[i]][o_ptr->abilitynum[i]])
-        {
-            p_ptr->have_ability[o_ptr->skilltype[i]][o_ptr->abilitynum[i]]
-                = true;
-            p_ptr->active_ability[o_ptr->skilltype[i]][o_ptr->abilitynum[i]]
-                = true;
-        }
     }
 
     /* Recalculate bonuses */
@@ -1516,6 +1815,26 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
 
     p_ptr->redraw |= (PR_EQUIPPY | PR_RESIST | PR_MAP | PR_QUIVER);
+
+    /* Update light display when wielding a light source */
+    if (slot == INVEN_LITE)
+    {
+        p_ptr->redraw |= (PR_LIGHT);
+    }
+
+    /* Force immediate sidebar update */
+    handle_stuff();
+    inven_enforce_current_pack_limits();
+
+    /*
+     * Smithing identification checks depend on the player's current effective
+     * skills, so retry now that equipped bonuses have been applied.
+     */
+    if (player_try_identify_smithing_object(o_ptr, true, 0))
+    {
+        /* Ensure the newly-identified item (and any resulting bonuses) display immediately. */
+        handle_stuff();
+    }
 }
 
 /*
@@ -1524,6 +1843,7 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
 void do_cmd_takeoff(object_type* default_o_ptr, int default_item)
 {
     int item;
+    bool can_break_curse;
 
     object_type* o_ptr;
 
@@ -1556,26 +1876,51 @@ void do_cmd_takeoff(object_type* default_o_ptr, int default_item)
         }
     }
 
-    /* Item is cursed */
-    if (cursed_p(o_ptr))
+    can_break_curse = p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING];
+
+    if (((item == INVEN_QUIVER1) || (item == INVEN_QUIVER2)) && cursed_p(o_ptr))
     {
-        if (p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING])
+        msg_print("You cannot bear to part with it.");
+        return;
+    }
+    else if (cursed_p(o_ptr) && can_break_curse)
+    {
         {
+            object_type carry_preview;
+            object_copy(&carry_preview, o_ptr);
+            carry_preview.ident &= ~(IDENT_CURSED);
+            carry_preview.ident |= IDENT_UNCURSED;
+
+            if (carry_preview.discount >= INSCRIP_NULL)
+                carry_preview.discount = 0;
+
+            if (smith_oath_forbids_object(o_ptr) && inven_carry_okay(&carry_preview)
+                && !smith_oath_confirm_break())
+            {
+                return;
+            }
+
             /* Message */
             msg_print("With a great strength of will, you break the curse!");
 
             /* Uncurse the object */
             uncurse_object(o_ptr);
         }
-        else
-        {
-            /* Oops */
-            msg_print("You cannot bear to part with it.");
-
-            /* Nope */
-            return;
-        }
     }
+    else if (cursed_p(o_ptr))
+    {
+        /* Oops */
+        msg_print("You cannot bear to part with it.");
+
+        /* Nope */
+        return;
+    }
+    else if (smith_oath_forbids_object(o_ptr) && inven_carry_okay(o_ptr)
+        && !smith_oath_confirm_break())
+    {
+        return;
+    }
+
 
     /* Take a turn */
     p_ptr->energy_use = 100;
@@ -1583,8 +1928,15 @@ void do_cmd_takeoff(object_type* default_o_ptr, int default_item)
     // store the action type
     p_ptr->previous_action[0] = ACTION_MISC;
 
+    /* Get unequip sound before taking off (since o_ptr may be modified) */
+    int unequip_sound = get_unequip_sound(o_ptr);
+
     /* Take off the item */
     (void)inven_takeoff(item, 255);
+
+    /* Play unequip sound */
+    if (unequip_sound >= 0)
+        sound(unequip_sound);
 
     /* Deal with wielding of shield when already wielding a hand and a half
      * weapon
@@ -1603,6 +1955,16 @@ void do_cmd_takeoff(object_type* default_o_ptr, int default_item)
     }
 
     p_ptr->redraw |= (PR_EQUIPPY | PR_RESIST | PR_MAP | PR_QUIVER);
+
+    /* Update light display when removing a light source */
+    if (item == INVEN_LITE)
+    {
+        p_ptr->redraw |= (PR_LIGHT);
+    }
+
+    /* Force immediate sidebar update */
+    handle_stuff();
+    inven_enforce_current_pack_limits();
 }
 
 /*
@@ -1636,6 +1998,12 @@ void do_cmd_drop_item_by_index(int item)
     /* Allow user abort */
     if (amt <= 0)
         return;
+
+    if (((item == INVEN_QUIVER1) || (item == INVEN_QUIVER2)) && cursed_p(o_ptr))
+    {
+        msg_print("You cannot bear to part with it.");
+        return;
+    }
 
     /* Hack -- Cannot remove cursed items */
     if ((item >= INVEN_WIELD) && cursed_p(o_ptr))
@@ -1711,6 +2079,12 @@ void do_cmd_drop(void)
     /* Allow user abort */
     if (amt <= 0)
         return;
+
+    if (((item == INVEN_QUIVER1) || (item == INVEN_QUIVER2)) && cursed_p(o_ptr))
+    {
+        msg_print("You cannot bear to part with it.");
+        return;
+    }
 
     /* Hack -- Cannot remove cursed items */
     if ((item >= INVEN_WIELD) && cursed_p(o_ptr))
@@ -2337,7 +2711,10 @@ void do_cmd_destroy(void)
     o_ptr->number = amt;
 
     /*now describe with correct amount*/
-    object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+    if (item < 0)
+        object_desc_floor(o_name, sizeof(o_name), o_ptr, true, 3);
+    else
+        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
     /*reverse the hack*/
     o_ptr->number = old_number;
@@ -2615,14 +2992,17 @@ void do_cmd_inscribe(void)
     }
 
     /* Describe the activity */
-    object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+    if (item < 0)
+        object_desc_floor(o_name, sizeof(o_name), o_ptr, true, 3);
+    else
+        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
     /* Message */
     msg_format("Inscribing %s.", o_name);
     message_flush();
 
     /* Start with nothing */
-    my_strcpy(tmp, "", sizeof(tmp));
+    SDL_strlcpy(tmp, "", sizeof(tmp));
 
     /* Use old inscription */
     if (o_ptr->obj_note)
@@ -2810,6 +3190,8 @@ void do_cmd_refuel_lamp(object_type* default_o_ptr, int default_item)
                 item = inven_carry(i_ptr, false);
                 if (item == SUPPLIES_INDEX)
                     item = -1;
+                if (item < 0)
+                    drop_near(i_ptr, 0, p_ptr->py, p_ptr->px);
             }
             else
                 drop_near(i_ptr, 0, p_ptr->py, p_ptr->px);
@@ -2856,6 +3238,9 @@ void do_cmd_refuel_lamp(object_type* default_o_ptr, int default_item)
     ident_on_wield(j_ptr);
 
     p_ptr->redraw |= (PR_LIGHT);
+
+    /* Force immediate sidebar update */
+    handle_stuff();
 }
 
 /*
@@ -2937,9 +3322,16 @@ void do_cmd_refuel_torch(
 
     /* Get the primary torch */
     j_ptr = &inventory[INVEN_LITE];
+    
+    log_debug("do_cmd_refuel_torch: BEFORE refuel - j_ptr (INVEN_LITE) k_idx=%d timeout=%d",
+              j_ptr->k_idx, j_ptr->timeout);
+    log_debug("do_cmd_refuel_torch: BEFORE refuel - o_ptr (item=%d) k_idx=%d timeout=%d",
+              item, o_ptr->k_idx, o_ptr->timeout);
 
     /* Refuel */
     j_ptr->timeout += o_ptr->timeout + 5;
+    
+    log_debug("do_cmd_refuel_torch: AFTER refuel - j_ptr timeout=%d", j_ptr->timeout);
 
     /* Message */
     msg_print("You combine the torches.");
@@ -2981,6 +3373,9 @@ void do_cmd_refuel_torch(
     ident_on_wield(j_ptr);
 
     p_ptr->redraw |= (PR_LIGHT);
+
+    /* Force immediate sidebar update */
+    handle_stuff();
 }
 
 /*
@@ -3043,10 +3438,123 @@ void do_cmd_target(void)
 }
 
 /*
+ * Calculate the bounding box of explored areas, detected monsters, and detected objects.
+ * Returns true if any explored area or detected entity found, false otherwise
+ * 
+ * This function includes positions of monsters detected by items like the
+ * Gem of Foes (which have MFLAG_MARK set) in the scrollable bounds, and
+ * positions of marked objects (e.g., from Gem of Treasures / detection).
+ */
+static bool get_explored_bounds(int* min_y, int* max_y, int* min_x, int* max_x)
+{
+    int y, x, i;
+    
+    *min_x = p_ptr->cur_map_wid;
+    *max_x = 0;
+    *min_y = p_ptr->cur_map_hgt;
+    *max_y = 0;
+
+    /* Check explored grids */
+    for (y = 0; y < p_ptr->cur_map_hgt; y++)
+    {
+        for (x = 0; x < p_ptr->cur_map_wid; x++)
+        {
+            /* Check if this grid has been seen */
+            if (cave_info[y][x] & (CAVE_MARK))
+            {
+                if (x < *min_x) *min_x = x;
+                if (x > *max_x) *max_x = x;
+                if (y < *min_y) *min_y = y;
+                if (y > *max_y) *max_y = y;
+            }
+        }
+    }
+
+    /* Also include detected monsters (e.g., from Gem of Foes) */
+    for (i = 1; i < mon_max; i++)
+    {
+        monster_type* m_ptr = &mon_list[i];
+        
+        /* Skip dead monsters */
+        if (!m_ptr->r_idx)
+            continue;
+        
+        /* Check if monster is detected (MFLAG_MARK set by detection spells/items) */
+        if (m_ptr->mflag & (MFLAG_MARK))
+        {
+            int my = m_ptr->fy;
+            int mx = m_ptr->fx;
+            
+            if (mx < *min_x) *min_x = mx;
+            if (mx > *max_x) *max_x = mx;
+            if (my < *min_y) *min_y = my;
+            if (my > *max_y) *max_y = my;
+        }
+    }
+
+    /* Also include marked objects (e.g., from Gem of Treasures / object detection) */
+    for (i = 1; i < o_max; i++)
+    {
+        object_type* o_ptr = &o_list[i];
+
+        /* Skip dead objects */
+        if (!o_ptr->k_idx)
+            continue;
+
+        /* Skip held objects */
+        if (o_ptr->held_m_idx)
+            continue;
+
+        /* Only include marked (detected/memorized) objects */
+        if (!o_ptr->marked)
+            continue;
+
+        int oy = o_ptr->iy;
+        int ox = o_ptr->ix;
+        if (!in_bounds_fully(oy, ox))
+            continue;
+
+        if (ox < *min_x) *min_x = ox;
+        if (ox > *max_x) *max_x = ox;
+        if (oy < *min_y) *min_y = oy;
+        if (oy > *max_y) *max_y = oy;
+    }
+
+    /* Check if any explored area or detected entity was found */
+    return (*min_x <= *max_x && *min_y <= *max_y);
+}
+
+/*
  * Look command
  */
+static bool g_unified_look_has_start = false;
+static int g_unified_look_start_y = 0;
+static int g_unified_look_start_x = 0;
+
+void do_cmd_look_at(int y, int x)
+{
+    if (y < 0 || y >= p_ptr->cur_map_hgt || x < 0 || x >= p_ptr->cur_map_wid)
+    {
+        do_cmd_look();
+        return;
+    }
+
+    g_unified_look_has_start = true;
+    g_unified_look_start_y = y;
+    g_unified_look_start_x = x;
+    do_cmd_look();
+    g_unified_look_has_start = false;
+}
+
 void do_cmd_look(void)
 {
+    /* Block when hallucinating */
+    if (p_ptr->image)
+    {
+        msg_print("Your vision is too distorted to examine things carefully.");
+        return;
+    }
+
     /* Use the new unified look system */
     do_cmd_unified_look();
 }
@@ -3083,6 +3591,12 @@ static int unified_sidebar_object_group(const object_type* o_ptr)
     case TV_MAIL:
         return LOOK_GROUP_ARMOUR;
 
+    case TV_RING:
+    case TV_AMULET:
+    case TV_HORN:
+    case TV_STAFF:
+        return LOOK_GROUP_JEWELRY;
+
     case TV_EASTER:
         return LOOK_GROUP_HERBS;
 
@@ -3101,6 +3615,23 @@ static int unified_sidebar_object_group(const object_type* o_ptr)
     return LOOK_GROUP_OTHER;
 }
 
+static bool unified_look_can_show_monster_at(int y, int x)
+{
+    int m_idx = cave_m_idx[y][x];
+
+    return (m_idx > 0) && mon_list[m_idx].ml && grid_info_is_available(y, x);
+}
+
+static bool unified_look_can_show_marked_object_at(int y, int x)
+{
+    int o_idx = cave_o_idx[y][x];
+
+    return (o_idx > 0) && o_list[o_idx].marked && grid_info_is_available(y, x);
+}
+
+static bool unified_look_sidebar_in_radius(const unified_look_state* state, int y,
+    int x);
+
 static int unified_look_count_visible_entities(unified_look_state* state)
 {
     int total_entities = 0;
@@ -3115,7 +3646,8 @@ static int unified_look_count_visible_entities(unified_look_state* state)
             int m_idx = cave_m_idx[temp_y[i]][temp_x[i]];
 
             if (!m_idx) continue;
-            if (!mon_list[m_idx].ml) continue;
+            if (!unified_look_can_show_monster_at(temp_y[i], temp_x[i])) continue;
+            if (!unified_look_sidebar_in_radius(state, temp_y[i], temp_x[i])) continue;
 
             total_entities++;
         }
@@ -3133,12 +3665,23 @@ static int unified_look_count_visible_entities(unified_look_state* state)
             if (!o_idx)
                 continue;
 
+            if (!grid_info_is_available(temp_y[i], temp_x[i]))
+                continue;
+
             object_type* o_ptr = &o_list[o_idx];
+
+            /* Only count marked (memorized) objects (matches sidebar display) */
+            if (!o_ptr->marked)
+                continue;
+            if (!unified_look_sidebar_in_radius(state, temp_y[i], temp_x[i]))
+                continue;
 
             if ((o_ptr->tval == TV_ARROW) && (o_ptr->number < 10))
                 continue;
 
             int group = unified_sidebar_object_group(o_ptr);
+            if (state->object_group_filter >= 0 && group != state->object_group_filter)
+                continue;
             if (state->limit_objects_top_five && group_counts[group] >= 5)
                 continue;
 
@@ -3148,6 +3691,153 @@ static int unified_look_count_visible_entities(unified_look_state* state)
     }
 
     return total_entities;
+}
+
+static int unified_look_count_visible_objects_for_group(unified_look_state* state, int group_filter)
+{
+    int total_objects = 0;
+    int i;
+
+    if (!state)
+        return 0;
+
+    int group_counts[LOOK_GROUP_COUNT] = {0};
+
+    get_sorted_target_list(TARGET_LIST_OBJECT, 0);
+
+    for (i = 0; i < temp_n; i++)
+    {
+        int o_idx = cave_o_idx[temp_y[i]][temp_x[i]];
+        if (!o_idx)
+            continue;
+
+        if (!grid_info_is_available(temp_y[i], temp_x[i]))
+            continue;
+
+        object_type* o_ptr = &o_list[o_idx];
+
+        /* Only count marked (memorized) objects (matches sidebar display) */
+        if (!o_ptr->marked)
+            continue;
+        if (!unified_look_sidebar_in_radius(state, temp_y[i], temp_x[i]))
+            continue;
+
+        if ((o_ptr->tval == TV_ARROW) && (o_ptr->number < 10))
+            continue;
+
+        int group = unified_sidebar_object_group(o_ptr);
+        if (group_filter >= 0 && group != group_filter)
+            continue;
+
+        if (state->limit_objects_top_five && group_counts[group] >= 5)
+            continue;
+
+        group_counts[group]++;
+        total_objects++;
+    }
+
+    return total_objects;
+}
+
+static bool unified_look_sidebar_in_radius(const unified_look_state* state, int y,
+    int x)
+{
+    if (!state || !state->nearby_filter)
+        return true;
+
+    return distance(p_ptr->py, p_ptr->px, y, x) <= UNIFIED_LOOK_NEAR_RADIUS;
+}
+
+static void unified_look_sync_cursor_selection(unified_look_state* state)
+{
+    int new_selection;
+
+    if (!state)
+        return;
+
+    if ((state->look_mode != 0) || state->in_sidebar_mode)
+        return;
+
+    new_selection = unified_look_find_cursor_selection(state, state->cursor_y,
+        state->cursor_x);
+
+    if (state->highlighted_y >= 0 && state->highlighted_x >= 0)
+    {
+        if ((new_selection < 0)
+            || (state->highlighted_y != state->cursor_y)
+            || (state->highlighted_x != state->cursor_x))
+        {
+            highlight_entity_on_map(state->highlighted_y, state->highlighted_x,
+                false);
+            state->highlighted_y = -1;
+            state->highlighted_x = -1;
+            state->highlighted_entity_type = 0;
+        }
+    }
+
+    state->selected_entity = new_selection;
+}
+
+static void unified_look_prompt_label(int binding, const char* fallback, char* buf, size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    sdl_gamepad_action_binding_short_label(binding, buf, buflen);
+    if (streq(buf, "(unbound)") || streq(buf, "Multiple"))
+        SDL_strlcpy(buf, fallback, buflen);
+}
+
+static void unified_look_print_prompt(cptr full_text, cptr compact_text)
+{
+    int term_wid = (Term && Term->wid > 0) ? Term->wid : 80;
+    char buf[192];
+    cptr selected = full_text;
+
+    if (compact_text && term_wid < (int)strlen(full_text) + 1)
+        selected = compact_text;
+
+    SDL_strlcpy(buf, selected, sizeof(buf));
+
+    if ((int)strlen(buf) >= term_wid && term_wid > 4)
+    {
+        int cut = term_wid - 4;
+        if (cut < 0)
+            cut = 0;
+        buf[cut] = '\0';
+        SDL_strlcat(buf, "...", sizeof(buf));
+    }
+
+    prt(buf, 0, 0);
+}
+
+static void unified_look_pan_player_for_sidebar(bool center_vertical)
+{
+    int max_wy = MAX(p_ptr->cur_map_hgt - SCREEN_HGT, 0);
+    int max_wx = MAX(p_ptr->cur_map_wid - SCREEN_WID, 0);
+    int desired_player_col = (SCREEN_WID * 2) / 3;
+    int new_wy = p_ptr->wy;
+    int new_wx;
+
+    if (desired_player_col >= SCREEN_WID)
+        desired_player_col = SCREEN_WID - 1;
+    if (desired_player_col < 0)
+        desired_player_col = 0;
+
+    if (center_vertical)
+        new_wy = p_ptr->py - (SCREEN_HGT / 2);
+
+    new_wx = p_ptr->px - desired_player_col;
+    if (new_wy < 0) new_wy = 0;
+    if (new_wy > max_wy) new_wy = max_wy;
+    if (new_wx < 0) new_wx = 0;
+    if (new_wx > max_wx) new_wx = max_wx;
+
+    log_trace("Unified look player pan: center_vertical=%d, desired_col=%d, viewport (%d,%d) -> (%d,%d)",
+        center_vertical ? 1 : 0, desired_player_col, p_ptr->wy, p_ptr->wx, new_wy, new_wx);
+
+    if (modify_panel(new_wy, new_wx))
+        handle_stuff();
 }
 
 void do_cmd_unified_look(void)
@@ -3166,7 +3856,6 @@ void do_cmd_unified_look(void)
         do_cmd_redraw();
     }
     
-#ifdef USE_SDL
     /* Enable story font for unified look if the setting is on */
     bool use_story_font = story_look_enabled();
     if (use_story_font)
@@ -3174,7 +3863,6 @@ void do_cmd_unified_look(void)
         log_debug("do_cmd_unified_look: Enabling story font");
         sdl_story_font_enable();
     }
-#endif
     
     log_trace("=== UNIFIED LOOK STARTED ===");
     
@@ -3187,10 +3875,33 @@ void do_cmd_unified_look(void)
     /* Initialize state */
     state.cursor_y = p_ptr->py;
     state.cursor_x = p_ptr->px;
+    if (g_unified_look_has_start
+        && g_unified_look_start_y >= 0 && g_unified_look_start_y < p_ptr->cur_map_hgt
+        && g_unified_look_start_x >= 0 && g_unified_look_start_x < p_ptr->cur_map_wid)
+    {
+        state.cursor_y = g_unified_look_start_y;
+        state.cursor_x = g_unified_look_start_x;
+
+        if (!panel_contains(state.cursor_y, state.cursor_x))
+        {
+            int max_wy = MAX(p_ptr->cur_map_hgt - SCREEN_HGT, 0);
+            int max_wx = MAX(p_ptr->cur_map_wid - SCREEN_WID, 0);
+            int new_wy = state.cursor_y - SCREEN_HGT / 2;
+            int new_wx = state.cursor_x - SCREEN_WID / 2;
+
+            p_ptr->wy = MIN(MAX(new_wy, 0), max_wy);
+            p_ptr->wx = MIN(MAX(new_wx, 0), max_wx);
+            p_ptr->redraw |= PR_MAP;
+            p_ptr->window |= PW_OVERHEAD;
+            handle_stuff();
+        }
+    }
     state.selected_entity = -1;
     state.show_monsters = true;
     state.show_objects = true;
+    state.object_group_filter = -1;
     state.limit_objects_top_five = false;
+    state.nearby_filter = look_nearby_filter_default ? true : false;
     state.display_mode = 0; /* 0 = manual, 1 = entity */
     state.highlighted_y = -1;
     state.highlighted_x = -1;
@@ -3199,18 +3910,18 @@ void do_cmd_unified_look(void)
     state.look_mode = 0; /* 0 = normal unified look, 1 = L-style scrolling */
     state.current_square_entity = 0; /* 0 = monster, 1 = object */
     state.square_cycling_mode = false; /* Start in normal sidebar cycling mode */
+    const bool portable_controls = portable_controls_active();
 
-    int total_visible_entities = unified_look_count_visible_entities(&state);
-    if (total_visible_entities > 0)
+    if (!g_unified_look_has_start
+        || ((state.cursor_y == p_ptr->py) && (state.cursor_x == p_ptr->px)))
     {
-        state.in_sidebar_mode = true;
-        state.selected_entity = 0;
-        log_trace("Unified look: initial sidebar selection set to first entity");
+        unified_look_pan_player_for_sidebar(false);
     }
     
     /* Track monster health at initial cursor position for left sidebar display */
     int initial_m_idx = cave_m_idx[state.cursor_y][state.cursor_x];
-    if (initial_m_idx > 0 && mon_list[initial_m_idx].ml)
+    if ((initial_m_idx > 0)
+        && unified_look_can_show_monster_at(state.cursor_y, state.cursor_x))
     {
         /* Track this monster for health display */
         health_track(initial_m_idx);
@@ -3231,6 +3942,8 @@ void do_cmd_unified_look(void)
         
         if (need_redraw)
         {
+            unified_look_sync_cursor_selection(&state);
+
             /* Save screen to preserve underlying display */
             screen_save();
             screen_saved = true;
@@ -3241,7 +3954,8 @@ void do_cmd_unified_look(void)
             /* Track monster health at current cursor position for left sidebar display */
             /* This handles Tab cycling and any other cursor position updates */
             int cursor_m_idx = cave_m_idx[state.cursor_y][state.cursor_x];
-            if (cursor_m_idx > 0 && mon_list[cursor_m_idx].ml)
+            if ((cursor_m_idx > 0)
+                && unified_look_can_show_monster_at(state.cursor_y, state.cursor_x))
             {
                 /* Track this monster for health display */
                 health_track(cursor_m_idx);
@@ -3265,13 +3979,13 @@ void do_cmd_unified_look(void)
                 int cursor_m_idx = cave_m_idx[y][x];
                 int cursor_o_idx = cave_o_idx[y][x];
                 int feat = cave_feat[y][x];
-                bool has_visible_monster = (cursor_m_idx > 0) && (mon_list[cursor_m_idx].ml);
-                bool has_marked_object = (cursor_o_idx > 0) && (o_list[cursor_o_idx].marked);
+                bool has_visible_monster = unified_look_can_show_monster_at(y, x);
+                bool has_marked_object = unified_look_can_show_marked_object_at(y, x);
                 bool has_known_feature = false;
                 cptr feature_name = NULL;
                 
                 /* Check for known/revealed features (traps, doors, stairs, shafts) */
-                if (cave_info[y][x] & (CAVE_MARK))
+                if (grid_info_is_available(y, x) && (cave_info[y][x] & (CAVE_MARK)))
                 {
                     /* Traps */
                     if (feat >= FEAT_TRAP_HEAD && feat <= FEAT_TRAP_TAIL)
@@ -3340,12 +4054,24 @@ void do_cmd_unified_look(void)
                 {
                     object_type* o_ptr = &o_list[cursor_o_idx];
                     char o_name[80];
+                    char smith_buf[20];
                     
                     /* Get the object name with indefinite article */
-                    object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+                    object_desc_floor(o_name, sizeof(o_name), o_ptr, true, 3);
+
+                    smith_buf[0] = '\0';
+                    if (op_ptr->opt[OPT_show_smithing_difficulty_look]
+                        && object_known_p(o_ptr)
+                        && object_uses_smithing_difficulty(o_ptr))
+                    {
+                        int depth = (p_ptr && p_ptr->depth > 0) ? p_ptr->depth : 1;
+                        int sd = object_smithing_difficulty(o_ptr);
+                        int wr = object_weight_rarity(o_ptr, depth);
+                        strnfmt(smith_buf, sizeof(smith_buf), " {%d,%d}", sd, wr);
+                    }
                     
                     /* Display "You see <object name>" in left sidebar */
-                    strnfmt(out_val, sizeof(out_val), "You see %s.", o_name);
+                    strnfmt(out_val, sizeof(out_val), "You see %s%s.", o_name, smith_buf);
                     prt(out_val, 0, 0);
                 }
                 else if (has_known_feature)
@@ -3359,19 +4085,81 @@ void do_cmd_unified_look(void)
                     /* Display help text based on current mode */
                     if (state.look_mode == 0)
                     {
-#ifdef STEAMDECK_SUPPORT
-                        prt("[i/e]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [T]=Top5 [s]=Pan [ESC]", 0, 0);
-#else
-                        prt("[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [T]=Top5 [s]=Pan [ESC]", 0, 0);
-#endif
+                        if (portable_controls) {
+                            char prev_label[16];
+                            char next_label[16];
+                            char exam_label[16];
+                            char target_label[16];
+                            char obj_label[16];
+                            char pan_label[16];
+                            char back_label[16];
+                            char prompt_buf[160];
+
+                            unified_look_prompt_label('e', "L1", prev_label, sizeof(prev_label));
+                            unified_look_prompt_label('i', "R1", next_label, sizeof(next_label));
+                            unified_look_prompt_label(' ', "A", exam_label, sizeof(exam_label));
+                            unified_look_prompt_label('f', "B", target_label, sizeof(target_label));
+                            unified_look_prompt_label('u', "X", obj_label, sizeof(obj_label));
+                            unified_look_prompt_label('s', "Y", pan_label, sizeof(pan_label));
+                            unified_look_prompt_label(ESCAPE, "ESC", back_label, sizeof(back_label));
+
+                            strnfmt(prompt_buf, sizeof(prompt_buf),
+                                "[%s/%s]=Select [%s]=Exam [%s]=Target [%s]=Obj [%s]=Pan [%s]=Back",
+                                next_label, prev_label, exam_label, target_label, obj_label, pan_label, back_label);
+                            unified_look_print_prompt(prompt_buf,
+                                "[R1/L1] Sel [A] Exam [B] Targ [X] Obj [Y] Pan [ESC]");
+                        } else {
+                            char prompt_buf[192];
+                            char compact_buf[160];
+                            const char* filter_action = state.nearby_filter ? "All" : "Near";
+
+                            strnfmt(prompt_buf, sizeof(prompt_buf),
+                                "[Tab/q]=Select [Space]=Exam [t]=Target [i]=%s [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Pan [ESC]",
+                                filter_action);
+                            strnfmt(compact_buf, sizeof(compact_buf),
+                                "[Tab/q] Sel [Space] Exam [t] Targ [i] %s [l] Disp [m] Mon [o] Obj [T] Top5 [s] Pan [ESC]",
+                                filter_action);
+                            unified_look_print_prompt(prompt_buf, compact_buf);
+                        }
                     }
                     else
                     {
-#ifdef STEAMDECK_SUPPORT
-                        prt("[i/e]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [T]=Top5 [s]=Curs [ESC]", 0, 0);
-#else
-                        prt("[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [T]=Top5 [s]=Curs [ESC]", 0, 0);
-#endif
+                        if (portable_controls) {
+                            char prev_label[16];
+                            char next_label[16];
+                            char exam_label[16];
+                            char target_label[16];
+                            char obj_label[16];
+                            char cursor_label[16];
+                            char back_label[16];
+                            char prompt_buf[160];
+
+                            unified_look_prompt_label('e', "L1", prev_label, sizeof(prev_label));
+                            unified_look_prompt_label('i', "R1", next_label, sizeof(next_label));
+                            unified_look_prompt_label(' ', "A", exam_label, sizeof(exam_label));
+                            unified_look_prompt_label('f', "B", target_label, sizeof(target_label));
+                            unified_look_prompt_label('u', "X", obj_label, sizeof(obj_label));
+                            unified_look_prompt_label('s', "Y", cursor_label, sizeof(cursor_label));
+                            unified_look_prompt_label(ESCAPE, "ESC", back_label, sizeof(back_label));
+
+                            strnfmt(prompt_buf, sizeof(prompt_buf),
+                                "[%s/%s]=Select [%s]=Exam [%s]=Target [%s]=Obj [%s]=Curs [%s]=Back",
+                                next_label, prev_label, exam_label, target_label, obj_label, cursor_label, back_label);
+                            unified_look_print_prompt(prompt_buf,
+                                "[R1/L1] Sel [A] Exam [B] Targ [X] Obj [Y] Curs [ESC]");
+                        } else {
+                            char prompt_buf[192];
+                            char compact_buf[160];
+                            const char* filter_action = state.nearby_filter ? "All" : "Near";
+
+                            strnfmt(prompt_buf, sizeof(prompt_buf),
+                                "[Tab/q]=Select [Space]=Exam [t]=Target [i]=%s [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Curs [ESC]",
+                                filter_action);
+                            strnfmt(compact_buf, sizeof(compact_buf),
+                                "[Tab/q] Sel [Space] Exam [t] Targ [i] %s [l] Disp [m] Mon [o] Obj [T] Top5 [s] Curs [ESC]",
+                                filter_action);
+                            unified_look_print_prompt(prompt_buf, compact_buf);
+                        }
                     }
                 }
             }
@@ -3461,11 +4249,9 @@ void do_cmd_unified_look(void)
             {
                 log_trace("EXAMINATION: 'x' key pressed for description");
                 
-#ifdef USE_SDL
                 /* Disable story font for info screens */
                 if (use_story_font)
                     sdl_story_font_disable();
-#endif
                 
                 /* Same logic as Space/Enter for examination */
                 log_trace("EXAMINATION: state.in_sidebar_mode=%d, state.selected_entity=%d", 
@@ -3492,7 +4278,8 @@ void do_cmd_unified_look(void)
                         log_trace("EXAMINATION: Highlighted entity is monster, examining monster %d", cursor_m_idx);
                         monster_type* m_ptr = &mon_list[cursor_m_idx];
                         log_trace("EXAMINATION: Monster ml=%d", m_ptr->ml);
-                        if (m_ptr->ml)
+                        if (unified_look_can_show_monster_at(state.highlighted_y,
+                                state.highlighted_x))
                         {
                             log_trace("EXAMINATION: Showing monster recall");
                             /* Save screen */
@@ -3513,12 +4300,16 @@ void do_cmd_unified_look(void)
                             log_trace("EXAMINATION: Monster not visible (ml=0), skipping examination");
                         }
                     }
-                    else if (state.highlighted_entity_type == 2 && cursor_o_idx > 0)
+                    else if ((state.highlighted_entity_type == 2)
+                        && unified_look_can_show_marked_object_at(
+                            state.highlighted_y, state.highlighted_x))
                     {
                         /* Object was highlighted - examine object */
                         log_trace("EXAMINATION: Highlighted entity is object, examining object %d", cursor_o_idx);
                         /* Object examination */
                         object_type* o_ptr = &o_list[cursor_o_idx];
+                        (void)player_try_identify_smithing_object_on_examine(
+                            o_ptr, false);
                         log_trace("EXAMINATION: Showing object info screen");
                         /* Save screen */
                         screen_save();
@@ -3565,7 +4356,8 @@ void do_cmd_unified_look(void)
                         /* Monster examination */
                         monster_type* m_ptr = &mon_list[cursor_m_idx];
                         log_trace("EXAMINATION: Monster ml=%d", m_ptr->ml);
-                        if (m_ptr->ml)
+                        if (unified_look_can_show_monster_at(state.highlighted_y,
+                                state.highlighted_x))
                         {
                             log_trace("EXAMINATION: Showing monster recall");
                             /* Save screen */
@@ -3600,8 +4392,8 @@ void do_cmd_unified_look(void)
                     
                     int cursor_m_idx = cave_m_idx[y][x];
                     int cursor_o_idx = cave_o_idx[y][x];
-                    bool has_visible_monster = (cursor_m_idx > 0) && (mon_list[cursor_m_idx].ml);
-                    bool has_object = (cursor_o_idx > 0);
+                    bool has_visible_monster = unified_look_can_show_monster_at(y, x);
+                    bool has_object = unified_look_can_show_marked_object_at(y, x);
                     
                     log_trace("EXAMINATION: Cursor position (%d,%d) - has_visible_monster=%d, has_object=%d", 
                              y, x, has_visible_monster, has_object);
@@ -3611,6 +4403,8 @@ void do_cmd_unified_look(void)
                     {
                         log_trace("EXAMINATION: Examining object at cursor position");
                         object_type* o_ptr = &o_list[cursor_o_idx];
+                        (void)player_try_identify_smithing_object_on_examine(
+                            o_ptr, false);
                         screen_save();
 
                         if (wield_slot(o_ptr) >= INVEN_WIELD && wield_slot(o_ptr) < INVEN_TOTAL)
@@ -3665,18 +4459,12 @@ void do_cmd_unified_look(void)
                 break;
             }
             
-#ifndef STEAMDECK_SUPPORT
-            case 'i':            /* Inventory */
-            case 'e':            /* Equipment */  
-#endif
             case '[':            /* View monsters */
             case ']':            /* View objects */
-            case 'f':            /* Fire/Throw */
             case 'w':            /* Wield/Wear */
             case 'd':            /* Drop */
             case 'k':            /* Destroy */
             case 'r':            /* Read scroll */
-            case 'u':            /* Use staff */
             case 'a':            /* Activate */
             case 'z':            /* Zap rod */
             case '.':            /* Run */
@@ -3693,6 +4481,7 @@ void do_cmd_unified_look(void)
             case '|':            /* Screenshots */
             case '~':            /* Various things */
             case '!':            /* OS command */
+command_key:
                 /* Clear any highlighting before exit */
                 if (state.highlighted_y >= 0 && state.highlighted_x >= 0)
                 {
@@ -3721,14 +4510,32 @@ void do_cmd_unified_look(void)
                     int dir = target_dir(query);
                     if (dir)
                     {
-                        state.cursor_y += ddy[dir];
-                        state.cursor_x += ddx[dir];
+                        int new_cursor_y = state.cursor_y + ddy[dir];
+                        int new_cursor_x = state.cursor_x + ddx[dir];
                         
-                        /* Keep in bounds - use actual map size */
-                        if (state.cursor_y < 0) state.cursor_y = 0;
-                        if (state.cursor_y >= p_ptr->cur_map_hgt) state.cursor_y = p_ptr->cur_map_hgt - 1;
-                        if (state.cursor_x < 0) state.cursor_x = 0;
-                        if (state.cursor_x >= p_ptr->cur_map_wid) state.cursor_x = p_ptr->cur_map_wid - 1;
+                        /* Calculate explored bounds */
+                        int min_y, max_y, min_x, max_x;
+                        bool has_explored = get_explored_bounds(&min_y, &max_y, &min_x, &max_x);
+                        
+                        if (has_explored)
+                        {
+                            /* Constrain cursor to explored area */
+                            if (new_cursor_y < min_y) new_cursor_y = min_y;
+                            if (new_cursor_y > max_y) new_cursor_y = max_y;
+                            if (new_cursor_x < min_x) new_cursor_x = min_x;
+                            if (new_cursor_x > max_x) new_cursor_x = max_x;
+                        }
+                        else
+                        {
+                            /* No explored area, constrain to full map */
+                            if (new_cursor_y < 0) new_cursor_y = 0;
+                            if (new_cursor_y >= p_ptr->cur_map_hgt) new_cursor_y = p_ptr->cur_map_hgt - 1;
+                            if (new_cursor_x < 0) new_cursor_x = 0;
+                            if (new_cursor_x >= p_ptr->cur_map_wid) new_cursor_x = p_ptr->cur_map_wid - 1;
+                        }
+                        
+                        state.cursor_y = new_cursor_y;
+                        state.cursor_x = new_cursor_x;
                         
                         /* Handle viewport scrolling when cursor reaches screen edge */
                         if (!panel_contains(state.cursor_y, state.cursor_x))
@@ -3740,6 +4547,16 @@ void do_cmd_unified_look(void)
                             /* Center the viewport on the cursor */
                             int new_wy = state.cursor_y - SCREEN_HGT / 2;
                             int new_wx = state.cursor_x - SCREEN_WID / 2;
+                            int max_wy = MAX(p_ptr->cur_map_hgt - SCREEN_HGT, 0);
+                            int max_wx = MAX(p_ptr->cur_map_wid - SCREEN_WID, 0);
+                            
+                            /* Keep the viewport within the map even if it shows unknown space. */
+                            if (new_wy < 0) new_wy = 0;
+                            if (new_wy > max_wy)
+                                new_wy = max_wy;
+                            if (new_wx < 0) new_wx = 0;
+                            if (new_wx > max_wx)
+                                new_wx = max_wx;
                             
                             /* Use proper panel management function */
                             if (modify_panel(new_wy, new_wx))
@@ -3767,7 +4584,9 @@ void do_cmd_unified_look(void)
                         
                         /* Track monster health at cursor position for left sidebar display */
                         int m_idx = cave_m_idx[state.cursor_y][state.cursor_x];
-                        if (m_idx > 0 && mon_list[m_idx].ml)
+                        if ((m_idx > 0)
+                            && unified_look_can_show_monster_at(state.cursor_y,
+                                state.cursor_x))
                         {
                             /* Track this monster for health display */
                             health_track(m_idx);
@@ -3801,11 +4620,37 @@ void do_cmd_unified_look(void)
                         int new_wy = p_ptr->wy + (ddy[dir] * PANEL_HGT);
                         int new_wx = p_ptr->wx + (ddx[dir] * PANEL_WID);
                         
-                        /* Constrain viewport to map boundaries */
-                        if (new_wy < 0) new_wy = 0;
-                        if (new_wx < 0) new_wx = 0;
-                        if (new_wy > p_ptr->cur_map_hgt - SCREEN_HGT) new_wy = p_ptr->cur_map_hgt - SCREEN_HGT;
-                        if (new_wx > p_ptr->cur_map_wid - SCREEN_WID) new_wx = p_ptr->cur_map_wid - SCREEN_WID;
+                        /* Calculate explored bounds for viewport constraint */
+                        int min_y, max_y, min_x, max_x;
+                        int explored_min_wy, explored_max_wy;
+                        int explored_min_wx, explored_max_wx;
+                        
+                        if (get_explored_bounds(&min_y, &max_y, &min_x, &max_x))
+                        {
+                            /* Calculate viewport bounds based on explored area */
+                            explored_min_wy = min_y;
+                            explored_max_wy = max_y - SCREEN_HGT + 1;
+                            explored_min_wx = min_x;
+                            explored_max_wx = max_x - SCREEN_WID + 1;
+                            
+                            /* Ensure min <= max */
+                            if (explored_max_wy < explored_min_wy) explored_max_wy = explored_min_wy;
+                            if (explored_max_wx < explored_min_wx) explored_max_wx = explored_min_wx;
+                        }
+                        else
+                        {
+                            /* No explored area, use full map */
+                            explored_min_wy = 0;
+                            explored_max_wy = p_ptr->cur_map_hgt - SCREEN_HGT;
+                            explored_min_wx = 0;
+                            explored_max_wx = p_ptr->cur_map_wid - SCREEN_WID;
+                        }
+                        
+                        /* Constrain viewport to explored boundaries */
+                        if (new_wy < explored_min_wy) new_wy = explored_min_wy;
+                        if (new_wx < explored_min_wx) new_wx = explored_min_wx;
+                        if (new_wy > explored_max_wy) new_wy = explored_max_wy;
+                        if (new_wx > explored_max_wx) new_wx = explored_max_wx;
                         
                         /* Additional safety checks */
                         if (new_wy < 0) new_wy = 0;
@@ -3833,7 +4678,9 @@ void do_cmd_unified_look(void)
                             
                             /* Track monster health at cursor position for left sidebar display */
                             int m_idx = cave_m_idx[state.cursor_y][state.cursor_x];
-                            if (m_idx > 0 && mon_list[m_idx].ml)
+                            if ((m_idx > 0)
+                                && unified_look_can_show_monster_at(state.cursor_y,
+                                    state.cursor_x))
                             {
                                 /* Track this monster for health display */
                                 health_track(m_idx);
@@ -3859,10 +4706,25 @@ void do_cmd_unified_look(void)
             }
             
             case '\t': /* Tab key */
-#ifdef STEAMDECK_SUPPORT
-            case 'i': /* I key - forward cycling (Steam Deck) */
-#endif
+            case 'i':  /* I key = nearby filter on keyboard, forward cycling in portable UI */
             {
+                if (query == 'i' && !portable_controls)
+                {
+                    state.nearby_filter = !state.nearby_filter;
+                    state.selected_entity = -1;
+                    state.in_sidebar_mode = false;
+                    if (state.highlighted_y >= 0 && state.highlighted_x >= 0)
+                    {
+                        highlight_entity_on_map(state.highlighted_y, state.highlighted_x, false);
+                        state.highlighted_y = -1;
+                        state.highlighted_x = -1;
+                        state.highlighted_entity_type = 0;
+                    }
+
+                    handle_stuff();
+                    need_redraw = true;
+                    break;
+                }
                 log_trace("Tab key pressed - cycling entities");
                 
                 /* Global sidebar cycling only - no square cycling */
@@ -3897,10 +4759,10 @@ void do_cmd_unified_look(void)
             
             case '`': /* Backtick key - reverse Tab cycling */
             case 'q': /* Q key - reverse Tab cycling */
-#ifdef STEAMDECK_SUPPORT
-            case 'e': /* E key - reverse Tab cycling (Steam Deck) */
-#endif
+            case 'e': /* E key - reverse Tab cycling in portable UI */
             {
+                if (query == 'e' && !portable_controls)
+                    goto command_key;
                 log_trace("REVERSE CYCLING: Key handler reached - cycling entities backward");
                 
                 /* Global sidebar cycling only - no square cycling */
@@ -3938,11 +4800,9 @@ void do_cmd_unified_look(void)
             {
                 log_trace("EXAMINATION: Enter/Space key pressed for examination");
                 
-#ifdef USE_SDL
                 /* Disable story font for info screens */
                 if (use_story_font)
                     sdl_story_font_disable();
-#endif
                 
                 /* Examine current target */
                 log_trace("EXAMINATION: state.in_sidebar_mode=%d, state.selected_entity=%d", 
@@ -3969,7 +4829,8 @@ void do_cmd_unified_look(void)
                         log_trace("EXAMINATION: Highlighted entity is monster, examining monster %d", cursor_m_idx);
                         monster_type* m_ptr = &mon_list[cursor_m_idx];
                         log_trace("EXAMINATION: Monster ml=%d", m_ptr->ml);
-                        if (m_ptr->ml)
+                        if (unified_look_can_show_monster_at(state.highlighted_y,
+                                state.highlighted_x))
                         {
                             log_trace("EXAMINATION: Showing monster recall");
                             /* Save screen */
@@ -3990,12 +4851,16 @@ void do_cmd_unified_look(void)
                             log_trace("EXAMINATION: Monster not visible (ml=0), skipping examination");
                         }
                     }
-                    else if (state.highlighted_entity_type == 2 && cursor_o_idx > 0)
+                    else if ((state.highlighted_entity_type == 2)
+                        && unified_look_can_show_marked_object_at(
+                            state.highlighted_y, state.highlighted_x))
                     {
                         /* Object was highlighted - examine object */
                         log_trace("EXAMINATION: Highlighted entity is object, examining object %d", cursor_o_idx);
                         /* Object examination */
                         object_type* o_ptr = &o_list[cursor_o_idx];
+                        (void)player_try_identify_smithing_object_on_examine(
+                            o_ptr, false);
                         log_trace("EXAMINATION: Showing object info screen");
                         /* Save screen */
                         screen_save();
@@ -4042,7 +4907,8 @@ void do_cmd_unified_look(void)
                         /* Monster examination */
                         monster_type* m_ptr = &mon_list[cursor_m_idx];
                         log_trace("EXAMINATION: Monster ml=%d", m_ptr->ml);
-                        if (m_ptr->ml)
+                        if (unified_look_can_show_monster_at(state.highlighted_y,
+                                state.highlighted_x))
                         {
                             log_trace("EXAMINATION: Showing monster recall");
                             /* Save screen */
@@ -4077,8 +4943,8 @@ void do_cmd_unified_look(void)
                     
                     int cursor_m_idx = cave_m_idx[y][x];
                     int cursor_o_idx = cave_o_idx[y][x];
-                    bool has_visible_monster = (cursor_m_idx > 0) && (mon_list[cursor_m_idx].ml);
-                    bool has_object = (cursor_o_idx > 0);
+                    bool has_visible_monster = unified_look_can_show_monster_at(y, x);
+                    bool has_object = unified_look_can_show_marked_object_at(y, x);
                     
                     log_trace("EXAMINATION: Cursor position (%d,%d) - has_visible_monster=%d, has_object=%d", 
                              y, x, has_visible_monster, has_object);
@@ -4088,6 +4954,8 @@ void do_cmd_unified_look(void)
                     {
                         log_trace("EXAMINATION: Examining object at cursor position");
                         object_type* o_ptr = &o_list[cursor_o_idx];
+                        (void)player_try_identify_smithing_object_on_examine(
+                            o_ptr, false);
                         screen_save();
 
                         if (wield_slot(o_ptr) >= INVEN_WIELD && wield_slot(o_ptr) < INVEN_TOTAL)
@@ -4139,11 +5007,9 @@ void do_cmd_unified_look(void)
                     }
                 }
                 
-#ifdef USE_SDL
                 /* Re-enable story font */
                 if (use_story_font)
                     sdl_story_font_enable();
-#endif
                 
                 need_redraw = true;
                 break;
@@ -4184,21 +5050,91 @@ void do_cmd_unified_look(void)
                 continue;
             }
             
+            case 'u':
+                if (!portable_controls)
+                    goto command_key;
+                /* fallthrough */
             case 'o':
             {
-                log_trace("'o' key pressed - cycling object display");
-                /* Cycle objects: objects -> nothing -> objects */
-                if (state.show_objects)
+                log_trace("'o' key pressed - cycling object categories");
+
+                /* Cycle: all -> weapons -> armour -> artifacts -> herbs -> potions -> gems -> consumables -> other -> hidden */
+                static const int object_filter_cycle[] = {
+                    LOOK_GROUP_ARTIFACT,
+                    LOOK_GROUP_WEAPON,
+                    LOOK_GROUP_ARMOUR,
+                    LOOK_GROUP_JEWELRY,
+                    LOOK_GROUP_HERBS,
+                    LOOK_GROUP_POTIONS,
+                    LOOK_GROUP_GEMS,
+                    LOOK_GROUP_CONSUMABLE,
+                    LOOK_GROUP_OTHER,
+                };
+
+                if (!state.show_objects)
                 {
-                    /* From showing objects to hiding objects */
-                    state.show_objects = false;
-                    log_trace("Mode changed to: objects hidden");
+                    state.show_objects = true;
+                    state.object_group_filter = -1;
+                    log_trace("Object display: shown (ALL)");
+                }
+                else if (state.object_group_filter < 0)
+                {
+                    /* Skip empty categories */
+                    int next_group = -1;
+                    for (size_t idx = 0; idx < N_ELEMENTS(object_filter_cycle); ++idx)
+                    {
+                        int group = object_filter_cycle[idx];
+                        if (unified_look_count_visible_objects_for_group(&state, group) > 0)
+                        {
+                            next_group = group;
+                            break;
+                        }
+                    }
+
+                    if (next_group >= 0)
+                    {
+                        state.object_group_filter = next_group;
+                        log_trace("Object display: filtered (group=%d)", state.object_group_filter);
+                    }
+                    else
+                    {
+                        state.show_objects = false;
+                        state.object_group_filter = -1;
+                        log_trace("Object display: hidden (no non-empty categories)");
+                    }
                 }
                 else
                 {
-                    /* From hiding objects to showing objects */
-                    state.show_objects = true;
-                    log_trace("Mode changed to: objects shown");
+                    int next_group = -1;
+                    for (size_t idx = 0; idx < N_ELEMENTS(object_filter_cycle); ++idx)
+                    {
+                        if (object_filter_cycle[idx] != state.object_group_filter)
+                            continue;
+
+                        /* Skip empty categories */
+                        for (size_t j = idx + 1; j < N_ELEMENTS(object_filter_cycle); ++j)
+                        {
+                            int group = object_filter_cycle[j];
+                            if (unified_look_count_visible_objects_for_group(&state, group) > 0)
+                            {
+                                next_group = group;
+                                break;
+                            }
+                        }
+                        break;
+                    }
+
+                    if (next_group >= 0)
+                    {
+                        state.object_group_filter = next_group;
+                        log_trace("Object display: filtered (group=%d)", state.object_group_filter);
+                    }
+                    else
+                    {
+                        state.show_objects = false;
+                        state.object_group_filter = -1;
+                        log_trace("Object display: hidden");
+                    }
                 }
                 
                 /* Reset selection when changing display */
@@ -4277,7 +5213,7 @@ void do_cmd_unified_look(void)
                 }
                 
                 int m_idx = cave_m_idx[target_y][target_x];
-                if (m_idx > 0)
+                if ((m_idx > 0) && unified_look_can_show_monster_at(target_y, target_x))
                 {
                     /* Set target to the monster */
                     target_set_monster(m_idx);
@@ -4304,6 +5240,7 @@ void do_cmd_unified_look(void)
                 state.cursor_x = p_ptr->px;
                 state.in_sidebar_mode = false;
                 state.selected_entity = -1;
+                unified_look_pan_player_for_sidebar(true);
                 need_redraw = true;
                 break;
             }
@@ -4340,14 +5277,12 @@ void do_cmd_unified_look(void)
     /* Clear health tracking before exiting look command */
     health_track(0);
     
-#ifdef USE_SDL
     /* Disable story font if it was enabled */
     if (use_story_font)
     {
         log_debug("do_cmd_unified_look: Disabling story font");
         sdl_story_font_disable();
     }
-#endif
     
     /* Restore original viewport */
     if (p_ptr->wy != original_wy || p_ptr->wx != original_wx)
@@ -4444,12 +5379,44 @@ void highlight_entity_on_map_type(int y, int x, bool highlight, int entity_type)
 void do_cmd_locate(void)
 {
     int dir, y1, x1, y2, x2;
+    int min_y, max_y, min_x, max_x;
+    int explored_min_wy, explored_max_wy;
+    int explored_min_wx, explored_max_wx;
+
+    /* Block when hallucinating */
+    if (p_ptr->image)
+    {
+        msg_print("Your vision is too distorted to map your location.");
+        return;
+    }
 
     /* Clear entry level banner when using L command */
     if (g_banner_force_redraw_remaining > 0)
     {
         g_banner_force_redraw_remaining = 0;
         do_cmd_redraw();
+    }
+
+    /* Calculate explored bounds */
+    if (get_explored_bounds(&min_y, &max_y, &min_x, &max_x))
+    {
+        /* Calculate viewport bounds based on explored area */
+        explored_min_wy = min_y;
+        explored_max_wy = max_y - SCREEN_HGT + 1;
+        explored_min_wx = min_x;
+        explored_max_wx = max_x - SCREEN_WID + 1;
+        
+        /* Ensure min <= max */
+        if (explored_max_wy < explored_min_wy) explored_max_wy = explored_min_wy;
+        if (explored_max_wx < explored_min_wx) explored_max_wx = explored_min_wx;
+    }
+    else
+    {
+        /* No explored area, use full map */
+        explored_min_wy = 0;
+        explored_max_wy = p_ptr->cur_map_hgt - SCREEN_HGT;
+        explored_min_wx = 0;
+        explored_max_wx = p_ptr->cur_map_wid - SCREEN_WID;
     }
 
     /* Start at current panel */
@@ -4487,17 +5454,16 @@ void do_cmd_locate(void)
         y2 += (ddy[dir] * PANEL_HGT);
         x2 += (ddx[dir] * PANEL_WID);
 
-        /* Verify the row */
-        if (y2 > p_ptr->cur_map_hgt - SCREEN_HGT)
-            y2 = p_ptr->cur_map_hgt - SCREEN_HGT;
-        if (y2 < 0)
-            y2 = 0;
+        /* Constrain to explored bounds */
+        if (y2 > explored_max_wy)
+            y2 = explored_max_wy;
+        if (y2 < explored_min_wy)
+            y2 = explored_min_wy;
 
-        /* Verify the col */
-        if (x2 > p_ptr->cur_map_wid - SCREEN_WID)
-            x2 = p_ptr->cur_map_wid - SCREEN_WID;
-        if (x2 < 0)
-            x2 = 0;
+        if (x2 > explored_max_wx)
+            x2 = explored_max_wx;
+        if (x2 < explored_min_wx)
+            x2 = explored_min_wx;
 
         /* Handle "changes" */
         if ((p_ptr->wy != y2) || (p_ptr->wx != x2))
@@ -4736,17 +5702,17 @@ void do_cmd_query_symbol(void)
     if (sym == KTRL('A'))
     {
         all = true;
-        my_strcpy(buf, "Full monster list.", sizeof(buf));
+        SDL_strlcpy(buf, "Full monster list.", sizeof(buf));
     }
     else if (sym == KTRL('U'))
     {
         all = uniq = true;
-        my_strcpy(buf, "Unique monster list.", sizeof(buf));
+        SDL_strlcpy(buf, "Unique monster list.", sizeof(buf));
     }
     else if (sym == KTRL('N'))
     {
         all = norm = true;
-        my_strcpy(buf, "Non-unique monster list.", sizeof(buf));
+        SDL_strlcpy(buf, "Non-unique monster list.", sizeof(buf));
     }
     else if (ident_info[i])
     {
@@ -4761,7 +5727,7 @@ void do_cmd_query_symbol(void)
     prt(buf, 0, 0);
 
     /* Allocate the "who" array */
-    C_MAKE(who, z_info->r_max, u16b);
+    who = mem_alloc_array(z_info->r_max, u16b);
 
     /* Collect matching monsters */
     for (n = 0, i = 1; i < z_info->r_max - 1; i++)
@@ -4794,7 +5760,7 @@ void do_cmd_query_symbol(void)
     if (!n)
     {
         /* XXX XXX Free the "who" array */
-        FREE(who);
+        who = mem_free(who);
 
         return;
     }
@@ -4826,7 +5792,7 @@ void do_cmd_query_symbol(void)
     if (query != 'y')
     {
         /* XXX XXX Free the "who" array */
-        FREE(who);
+        who = mem_free(who);
 
         return;
     }
@@ -4924,6 +5890,5 @@ void do_cmd_query_symbol(void)
     prt(buf, 0, 0);
 
     /* Free the "who" array */
-    FREE(who);
+    who = mem_free(who);
 }
-

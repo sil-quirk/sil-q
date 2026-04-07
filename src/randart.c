@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 
 #include "init.h"
 
@@ -401,7 +402,7 @@ startover:
 void make_random_name(char* random_name, size_t max)
 {
     /*get the randomly generated word*/
-    my_strcpy(random_name, make_word(), max);
+    SDL_strlcpy(random_name, make_word(), max);
 
     return;
 }
@@ -845,14 +846,6 @@ static bool init_mon_power(void)
         /* Define the power rating */
         r_ptr->mon_power = hp * dam;
 
-#ifdef ALLOW_DATA_DUMP
-
-        /*record the hp and damage score*/
-        r_ptr->mon_eval_hp = hp;
-        r_ptr->mon_eval_dam = dam;
-
-#endif /*ALLOW_DATA_DUMP*/
-
         /*
          * Slight adjustment for group monsters.
          * Escorts are not evaluated because they tend to
@@ -905,12 +898,6 @@ static bool init_mon_power(void)
             }
         }
     }
-
-#ifdef ALLOW_DATA_DUMP
-
-    write_mon_power();
-
-#endif /*ALLOW_DATA_DUMP*/
 
     /* Now we have all the ratings */
     return (true);
@@ -1158,74 +1145,25 @@ s32b artefact_power(int a_idx)
         if (a_ptr->flags1 & TR1_TUNNEL)
             p += 1;
 
-        if (a_ptr->flags1 & TR1_STR)
-        {
-            p += 3 * a_ptr->pval;
-        }
-        if (a_ptr->flags1 & TR1_DEX)
-        {
-            p += 3 * a_ptr->pval;
-        }
-        if (a_ptr->flags1 & TR1_CON)
-        {
-            p += 4 * a_ptr->pval;
-        }
-        if (a_ptr->flags1 & TR1_GRA)
-        {
-            p += 4 * a_ptr->pval;
-        }
-        if (a_ptr->flags1 & TR1_NEG_STR)
-        {
-            p -= 3 * a_ptr->pval;
-        }
-        if (a_ptr->flags1 & TR1_NEG_DEX)
-        {
-            p -= 3 * a_ptr->pval;
-        }
-        if (a_ptr->flags1 & TR1_NEG_CON)
-        {
-            p -= 4 * a_ptr->pval;
-        }
-        if (a_ptr->flags1 & TR1_NEG_GRA)
-        {
-            p -= 4 * a_ptr->pval;
-        }
-        if (a_ptr->flags1 & TR1_MEL)
-        {
-            p += a_ptr->pval;
-        }
-        if (a_ptr->flags1 & TR1_ARC)
-        {
-            p += a_ptr->pval;
-        }
-        if (a_ptr->flags1 & TR1_STL)
-        {
-            p += a_ptr->pval;
-        }
-        if (a_ptr->flags1 & TR1_PER)
-        {
-            p += a_ptr->pval;
-        }
-        if (a_ptr->flags1 & TR1_WIL)
-        {
-            p += a_ptr->pval;
-        }
-        if (a_ptr->flags1 & TR1_SMT)
-        {
-            p += a_ptr->pval;
-        }
-        if (a_ptr->flags1 & TR1_SNG)
-        {
-            p += a_ptr->pval;
-        }
+        p += 3 * a_ptr->stat_bonus[A_STR];
+        p += 3 * a_ptr->stat_bonus[A_DEX];
+        p += 4 * a_ptr->stat_bonus[A_CON];
+        p += 4 * a_ptr->stat_bonus[A_GRA];
+
+        p += a_ptr->skill_bonus[S_MEL];
+        p += a_ptr->skill_bonus[S_ARC];
+        p += a_ptr->skill_bonus[S_STL];
+        p += a_ptr->skill_bonus[S_PER];
+        p += a_ptr->skill_bonus[S_WIL];
+        p += a_ptr->skill_bonus[S_SMT];
+        p += a_ptr->skill_bonus[S_SNG];
 
         /* Add extra power term if there are a lot of ability bonuses */
-        if (a_ptr->pval > 0)
         {
-            extra_stat_bonus += ((a_ptr->flags1 & TR1_STR) ? a_ptr->pval : 0);
-            extra_stat_bonus += ((a_ptr->flags1 & TR1_DEX) ? a_ptr->pval : 0);
-            extra_stat_bonus += ((a_ptr->flags1 & TR1_CON) ? a_ptr->pval : 0);
-            extra_stat_bonus += ((a_ptr->flags1 & TR1_GRA) ? a_ptr->pval : 0);
+            extra_stat_bonus += (a_ptr->stat_bonus[A_STR] > 0) ? a_ptr->stat_bonus[A_STR] : 0;
+            extra_stat_bonus += (a_ptr->stat_bonus[A_DEX] > 0) ? a_ptr->stat_bonus[A_DEX] : 0;
+            extra_stat_bonus += (a_ptr->stat_bonus[A_CON] > 0) ? a_ptr->stat_bonus[A_CON] : 0;
+            extra_stat_bonus += (a_ptr->stat_bonus[A_GRA] > 0) ? a_ptr->stat_bonus[A_GRA] : 0;
 
             if (extra_stat_bonus > 24)
             {
@@ -1241,28 +1179,18 @@ s32b artefact_power(int a_idx)
     }
     else if (a_ptr->pval < 0) /* hack: don't give large negatives */
     {
-        if (a_ptr->flags1 & TR1_STR)
-            p += 4 * a_ptr->pval;
-        if (a_ptr->flags1 & TR1_DEX)
-            p += 4 * a_ptr->pval;
-        if (a_ptr->flags1 & TR1_CON)
-            p += 4 * a_ptr->pval;
-        if (a_ptr->flags1 & TR1_GRA)
-            p += 4 * a_ptr->pval;
-        if (a_ptr->flags1 & TR1_MEL)
-            p += a_ptr->pval;
-        if (a_ptr->flags1 & TR1_ARC)
-            p += a_ptr->pval;
-        if (a_ptr->flags1 & TR1_STL)
-            p += a_ptr->pval;
-        if (a_ptr->flags1 & TR1_PER)
-            p += a_ptr->pval;
-        if (a_ptr->flags1 & TR1_WIL)
-            p += a_ptr->pval;
-        if (a_ptr->flags1 & TR1_SMT)
-            p += a_ptr->pval;
-        if (a_ptr->flags1 & TR1_SNG)
-            p += a_ptr->pval;
+        p += 4 * a_ptr->stat_bonus[A_STR];
+        p += 4 * a_ptr->stat_bonus[A_DEX];
+        p += 4 * a_ptr->stat_bonus[A_CON];
+        p += 4 * a_ptr->stat_bonus[A_GRA];
+
+        p += a_ptr->skill_bonus[S_MEL];
+        p += a_ptr->skill_bonus[S_ARC];
+        p += a_ptr->skill_bonus[S_STL];
+        p += a_ptr->skill_bonus[S_PER];
+        p += a_ptr->skill_bonus[S_WIL];
+        p += a_ptr->skill_bonus[S_SMT];
+        p += a_ptr->skill_bonus[S_SNG];
     }
 
     return (p);
@@ -1886,6 +1814,52 @@ static void add_to_ac(artefact_type* a_ptr, int fixed, int random)
     a_ptr->evn += (s16b)(fixed + rand_int(random));
 }
 
+static void artefact_apply_pval_stat_skill_bonuses(artefact_type* a_ptr)
+{
+    if (!a_ptr)
+        return;
+
+    for (int i = 0; i < A_MAX; i++)
+        a_ptr->stat_bonus[i] = 0;
+    for (int i = 0; i < S_MAX; i++)
+        a_ptr->skill_bonus[i] = 0;
+
+    const s16b pval = a_ptr->pval;
+
+    if (a_ptr->flags1 & TR1_STR)
+        a_ptr->stat_bonus[A_STR] += pval;
+    if (a_ptr->flags1 & TR1_DEX)
+        a_ptr->stat_bonus[A_DEX] += pval;
+    if (a_ptr->flags1 & TR1_CON)
+        a_ptr->stat_bonus[A_CON] += pval;
+    if (a_ptr->flags1 & TR1_GRA)
+        a_ptr->stat_bonus[A_GRA] += pval;
+
+    if (a_ptr->flags1 & TR1_NEG_STR)
+        a_ptr->stat_bonus[A_STR] -= pval;
+    if (a_ptr->flags1 & TR1_NEG_DEX)
+        a_ptr->stat_bonus[A_DEX] -= pval;
+    if (a_ptr->flags1 & TR1_NEG_CON)
+        a_ptr->stat_bonus[A_CON] -= pval;
+    if (a_ptr->flags1 & TR1_NEG_GRA)
+        a_ptr->stat_bonus[A_GRA] -= pval;
+
+    if (a_ptr->flags1 & TR1_MEL)
+        a_ptr->skill_bonus[S_MEL] += pval;
+    if (a_ptr->flags1 & TR1_ARC)
+        a_ptr->skill_bonus[S_ARC] += pval;
+    if (a_ptr->flags1 & TR1_STL)
+        a_ptr->skill_bonus[S_STL] += pval;
+    if (a_ptr->flags1 & TR1_PER)
+        a_ptr->skill_bonus[S_PER] += pval;
+    if (a_ptr->flags1 & TR1_WIL)
+        a_ptr->skill_bonus[S_WIL] += pval;
+    if (a_ptr->flags1 & TR1_SMT)
+        a_ptr->skill_bonus[S_SMT] += pval;
+    if (a_ptr->flags1 & TR1_SNG)
+        a_ptr->skill_bonus[S_SNG] += pval;
+}
+
 /*prepare a basic-non-magic artefact template based on the base object*/
 static void artefact_prep(s16b k_idx, int a_idx)
 {
@@ -1902,6 +1876,10 @@ static void artefact_prep(s16b k_idx, int a_idx)
     a_ptr->pd = k_ptr->pd;
     a_ptr->ps = k_ptr->ps;
     a_ptr->weight = k_ptr->weight;
+    for (int si = 0; si < A_MAX; si++)
+        a_ptr->stat_bonus[si] = k_ptr->stat_bonus[si];
+    for (int sk = 0; sk < S_MAX; sk++)
+        a_ptr->skill_bonus[sk] = k_ptr->skill_bonus[sk];
     a_ptr->flags1 = k_ptr->flags1;
     a_ptr->flags2 = k_ptr->flags2;
     a_ptr->flags3 = k_ptr->flags3;
@@ -2675,11 +2653,11 @@ static void scramble_artefact(int a_idx)
 
     if (!one_in_(3))
     {
-        my_strcpy(a_ptr->name, format("'%^s'", buf), MAX_LEN_ART_NAME);
+        SDL_strlcpy(a_ptr->name, format("'%^s'", buf), MAX_LEN_ART_NAME);
     }
     else
     {
-        my_strcpy(a_ptr->name, format("of %^s", buf), MAX_LEN_ART_NAME);
+        SDL_strlcpy(a_ptr->name, format("of %^s", buf), MAX_LEN_ART_NAME);
     }
 
     /* Evaluate the original artefact to determine the power level. */
@@ -2937,7 +2915,7 @@ static errr do_randart_aux(bool full)
 void build_randart_tables(void)
 {
     /* Allocate the "kinds" array */
-    C_MAKE(kinds, z_info->art_norm_max, s16b);
+    kinds = mem_alloc_array(z_info->art_norm_max, s16b);
 
     /* Initialize the monster power ratings */
     (void)init_mon_power();
@@ -2947,7 +2925,7 @@ void build_randart_tables(void)
 }
 
 /*free the randart tables at the end of the game*/
-void free_randart_tables(void) { FREE(kinds); }
+void free_randart_tables(void) { mem_free_null(kinds); }
 
 /*
  * Randomize the artefacts
@@ -2960,17 +2938,17 @@ errr do_randart(u32b randart_seed, bool full)
     errr err;
 
     /* Prepare to use the Angband "simple" RNG. */
-    Rand_value = randart_seed;
-    Rand_quick = true;
+    u64b saved_state = Rand_state_export();
+    Rand_state_import(randart_seed);
 
     /* Only do all the following if full randomization requested */
     if (full)
     {
         /* Allocate the various "original powers" arrays */
-        C_MAKE(base_power, z_info->art_norm_max, s32b);
-        C_MAKE(base_item_level, z_info->art_norm_max, byte);
-        C_MAKE(base_item_rarity, z_info->art_norm_max, byte);
-        C_MAKE(base_art_rarity, z_info->art_norm_max, byte);
+        base_power = mem_alloc_array(z_info->art_norm_max, s32b);
+        base_item_level = mem_alloc_array(z_info->art_norm_max, byte);
+        base_item_rarity = mem_alloc_array(z_info->art_norm_max, byte);
+        base_art_rarity = mem_alloc_array(z_info->art_norm_max, byte);
 
         /* Store the original power ratings */
         store_base_power();
@@ -2986,14 +2964,14 @@ errr do_randart(u32b randart_seed, bool full)
     if (full)
     {
         /* Free the "original powers" arrays */
-        FREE(base_power);
-        FREE(base_item_level);
-        FREE(base_item_rarity);
-        FREE(base_art_rarity);
+        mem_free_null(base_power);
+        mem_free_null(base_item_level);
+        mem_free_null(base_item_rarity);
+        mem_free_null(base_art_rarity);
     }
 
     /* When done, resume use of the Angband "complex" RNG. */
-    Rand_quick = false;
+    Rand_state_import(saved_state);
 
     return (err);
 }
@@ -3038,7 +3016,7 @@ bool make_one_randart(object_type* o_ptr, int art_power, bool tailored)
     a_ptr = &a_info[a_idx];
 
     /* Clear the artefact record */
-    (void)WIPE(a_ptr, artefact_type);
+    memset(a_ptr, 0, sizeof(artefact_type));
 
     /*point to the object type*/
     k_ptr = &k_info[o_ptr->k_idx];
@@ -3098,7 +3076,7 @@ bool make_one_randart(object_type* o_ptr, int art_power, bool tailored)
         get_obj_num_prep();
 
         /* Clear the artefact record */
-        (void)WIPE(a_ptr, artefact_type);
+        memset(a_ptr, 0, sizeof(artefact_type));
 
         /*prepare a basic, non-magic artefact template based on the object
          * kind*/
@@ -3151,7 +3129,7 @@ bool make_one_randart(object_type* o_ptr, int art_power, bool tailored)
                 /*The additional check is because players sometimes hit return
                  * accidentally*/
                 if (strlen(buf) > 0)
-                    my_strcpy(tmp, format("'%^s'", buf), MAX_LEN_ART_NAME);
+                    SDL_strlcpy(tmp, format("'%^s'", buf), MAX_LEN_ART_NAME);
             }
         }
     }
@@ -3168,16 +3146,16 @@ bool make_one_randart(object_type* o_ptr, int art_power, bool tailored)
 
         if (!one_in_(3))
         {
-            my_strcpy(tmp, format("'%^s'", buf), MAX_LEN_ART_NAME);
+            SDL_strlcpy(tmp, format("'%^s'", buf), MAX_LEN_ART_NAME);
         }
         else
         {
-            my_strcpy(tmp, format("of %^s", buf), MAX_LEN_ART_NAME);
+            SDL_strlcpy(tmp, format("of %^s", buf), MAX_LEN_ART_NAME);
         }
     }
 
     /*copy the name*/
-    my_strcpy(a_ptr->name, format("%s", tmp), MAX_LEN_ART_NAME);
+    SDL_strlcpy(a_ptr->name, format("%s", tmp), MAX_LEN_ART_NAME);
 
     /* Generate the cumulative frequency table for this item type */
     build_freq_table(a_ptr);
@@ -3246,7 +3224,10 @@ bool make_one_randart(object_type* o_ptr, int art_power, bool tailored)
 
     /* Hack -- Mark the artefact as "created" */
     a_ptr->cur_num = 1;
-    a_ptr->max_num = 1;
+    a_ptr->spawn_num = 1;
+
+    /* Keep stat/skill bonuses in sync with final pval/flags. */
+    artefact_apply_pval_stat_skill_bonuses(a_ptr);
 
     /*turn the object into an artefact*/
     object_into_artefact(o_ptr, a_ptr);
@@ -3270,7 +3251,7 @@ void artefact_wipe(int a_idx)
         return;
 
     /* Wipe the structure */
-    (void)WIPE(a_ptr, artefact_type);
+    memset(a_ptr, 0, sizeof(artefact_type));
 
     /*terminate the string*/
     a_ptr->name[0] = '\0';
@@ -3309,3 +3290,8 @@ bool can_be_randart(const object_type* o_ptr)
         return (false);
     }
 }
+
+
+
+
+

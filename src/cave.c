@@ -9,12 +9,31 @@
  */
 
 #include "angband.h"
+#include "externs.h"
+#include "log/log.h"
 /* Standard headers for utility functions used in this file */
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
 #include <stddef.h>
+
+static bool hidden_left_panel_masked_cell(int vy, int vx)
+{
+    int row_index;
+
+    if (!g_hide_left_panel)
+        return false;
+
+    row_index = vy - ROW_NAME;
+    if (row_index < 0 || row_index >= g_hidden_left_panel_overlay_rows)
+        return false;
+
+    if (vx < 0 || vx >= g_hidden_left_panel_overlay_widths[row_index])
+        return false;
+
+    return true;
+}
 
 /* Encoded color range that indicates an absolute style index per cell.
  * We now store the chosen style for each cell directly in cave_color as
@@ -65,9 +84,12 @@ static style_weight_list g_vault_styles;
 static style_weight_list* g_active_styles = &g_level_styles;
 static int g_level_primary_style = -1;
 static int g_vault_primary_style = -1;
+static int g_vault_avoid_style = -1;
 
 /* Level rules table (indexed by exact depth 0..31) */
 static style_weight_list g_level_rule[32];
+/* Per-depth partition style rules (by kind, indexed by exact depth 0..31) */
+static style_weight_list g_partition_rule[PART_STYLE_MAX][32];
 
 /* Helpers to mutate weight lists */
 static void styles_clear(style_weight_list* L)
@@ -108,6 +130,9 @@ void styles_vault_rules_clear(void);
 void styles_add_level_rule(int depth, int unused, const int* sidx, const int* weight, int count);
 void styles_set_vault_rule(int depth, const int* sidx, const int* weight, int count);
 void styles_default_vault_add(int sidx_or_star, int weight);
+void styles_partition_rules_clear(void);
+void styles_add_partition_rule(int depth, int kind, const int* sidx, const int* weight, int count);
+int styles_pick_partition_style(int depth, int kind);
 
 /* Backward-compatibility: reset any cached depth/style state between levels */
 void reset_depth_color_cache(void)
@@ -117,7 +142,8 @@ void reset_depth_color_cache(void)
     g_active_styles = &g_level_styles;
     g_level_primary_style = -1;
     g_vault_primary_style = -1;
-    log_info("reset_depth_color_cache: cleared style lists and selections");
+    g_vault_avoid_style = -1;
+    log_debug("reset_depth_color_cache: cleared style lists and selections");
 }
 
 /* Initialize the level style weights: use matching rule, else default to all */
@@ -132,7 +158,7 @@ void styles_init_for_level(void)
         /* Reset per-style variant picks */
         for (int i = 0; i < 64; ++i) { g_level_floor_choice[i] = 0; g_level_door_choice[i] = 0; }
         /* No need to randomize variants; keep first variant for cohesion */
-        log_info("styles_init_for_level: depth=0 forced style 13 as primary");
+        log_debug("styles_init_for_level: depth=0 forced style 13 as primary");
         styles_log_list("styles_init_for_level list", &g_level_styles);
         return;
     }
@@ -178,7 +204,7 @@ void styles_init_for_level(void)
         }
     }
 
-    log_info("styles_init_for_level: depth=%d initialized %d styles (total_weight=%d) primary=%d",
+    log_debug("styles_init_for_level: depth=%d initialized %d styles (total_weight=%d) primary=%d",
         p_ptr->depth, g_level_styles.count, g_level_styles.total_weight, g_level_primary_style);
     styles_log_list("styles_init_for_level list", &g_level_styles);
 }
@@ -201,7 +227,7 @@ void styles_begin_vault(int extra_sidx, int extra_weight)
     /* Optionally add one more style */
     if (extra_sidx >= 0 && extra_weight > 0) styles_add(&g_vault_styles, extra_sidx, extra_weight);
     g_active_styles = &g_vault_styles;
-    log_info("styles_begin_vault: active styles=%d (extra=%d, w=%d)",
+    log_debug("styles_begin_vault: active styles=%d (extra=%d, w=%d)",
         g_vault_styles.count, extra_sidx, extra_weight);
     styles_log_list("styles_begin_vault list", &g_vault_styles);
 }
@@ -211,6 +237,7 @@ void styles_end_vault(void)
 {
     g_active_styles = &g_level_styles;
     g_vault_primary_style = -1;
+    g_vault_avoid_style = -1;
 }
 
 /* Helpers to get current variant choice for a style index (vault if active) */
@@ -324,6 +351,60 @@ void styles_add_level_rule(int depth, int unused, const int* sidx, const int* we
     }
 }
 
+void styles_partition_rules_clear(void)
+{
+    for (int k = 0; k < PART_STYLE_MAX; ++k) {
+        for (int d = 0; d < 32; ++d) {
+            g_partition_rule[k][d].count = 0;
+            g_partition_rule[k][d].total_weight = 0;
+        }
+    }
+}
+
+void styles_add_partition_rule(int depth, int kind, const int* sidx, const int* weight, int count)
+{
+    if (depth < 0 || depth >= 32) return;
+    if (kind < 0 || kind >= PART_STYLE_MAX) return;
+    style_weight_list* L = &g_partition_rule[kind][depth];
+    L->count = 0;
+    L->total_weight = 0;
+    if (!sidx || !weight || count <= 0) return;
+    for (int i = 0; i < count && i < 64; ++i) {
+        int si = sidx[i];
+        int wt = weight[i];
+        L->sidx[L->count] = si;
+        L->weight[L->count] = wt;
+        L->count++;
+        if (wt > 0) L->total_weight += wt;
+    }
+}
+
+int styles_pick_partition_style(int depth, int kind)
+{
+    if (depth < 0 || depth >= 32) return styles_pick_random_from_level();
+    if (kind < 0 || kind >= PART_STYLE_MAX) return styles_pick_random_from_level();
+
+    style_weight_list* R = &g_partition_rule[kind][depth];
+    if (R->count <= 0) return styles_pick_random_from_level();
+
+    /* Filter invalid styles into a temporary list. */
+    style_weight_list filtered;
+    styles_clear(&filtered);
+    for (int i = 0; i < R->count; ++i)
+        styles_add(&filtered, R->sidx[i], R->weight[i]);
+
+    if (filtered.count <= 0) return styles_pick_random_from_level();
+
+    int total = filtered.total_weight;
+    int r = rand_int(total);
+    int pick = filtered.sidx[0];
+    for (int i = 0; i < filtered.count; ++i) {
+        if (r < filtered.weight[i]) { pick = filtered.sidx[i]; break; }
+        r -= filtered.weight[i];
+    }
+    return pick;
+}
+
 /* Expose capacity for style choice arrays (for save/load) */
 int styles_get_choice_capacity(void) { return 64; }
 
@@ -397,19 +478,26 @@ void styles_select_vault_primary(void)
 {
     if (g_vault_styles.count <= 0) {
         g_vault_primary_style = g_level_primary_style;
-        log_info("styles_select_vault_primary: no vault list, defaulting to level primary=%d", g_level_primary_style);
+        log_debug("styles_select_vault_primary: no vault list, defaulting to level primary=%d", g_level_primary_style);
         return;
     }
-    int total = g_vault_styles.total_weight;
+    int total = 0;
+    for (int i = 0; i < g_vault_styles.count; ++i) {
+        if (g_vault_styles.sidx[i] == g_vault_avoid_style) continue;
+        total += g_vault_styles.weight[i];
+    }
+    if (total <= 0) total = g_vault_styles.total_weight; /* fallback: nothing to avoid */
+
     int r = rand_int(total);
     int pick = g_vault_styles.sidx[0];
     for (int i = 0; i < g_vault_styles.count; ++i) {
+        if (g_vault_styles.sidx[i] == g_vault_avoid_style && total != g_vault_styles.total_weight) continue;
         if (r < g_vault_styles.weight[i]) { pick = g_vault_styles.sidx[i]; break; }
         r -= g_vault_styles.weight[i];
     }
     g_vault_primary_style = pick;
-    log_info("styles_select_vault_primary: selected vault primary=%d from %d entries (total=%d)",
-        g_vault_primary_style, g_vault_styles.count, g_vault_styles.total_weight);
+    log_debug("styles_select_vault_primary: selected vault primary=%d from %d entries (total=%d, avoid=%d)",
+        g_vault_primary_style, g_vault_styles.count, g_vault_styles.total_weight, g_vault_avoid_style);
     styles_log_list("styles_select_vault_primary list", &g_vault_styles);
 }
 
@@ -427,6 +515,26 @@ int styles_pick_random_from_level(void)
         r -= g_level_styles.weight[i];
     }
     return pick;
+}
+
+void styles_set_vault_avoid_style(int sidx)
+{
+    g_vault_avoid_style = sidx;
+}
+
+int styles_decode_color_style(byte color_value)
+{
+    int bases[2] = { COLOR_STYLE_BASE, COLOR_STYLE_BASE + COLOR_STYLE_FLAG_FIRSTVAR };
+    for (int bi = 0; bi < 2; ++bi) {
+        int base = bases[bi];
+        if (color_value >= base) {
+            int slot = color_value - base;
+            if (slot >= COLOR_STYLE_FLAG_FIRSTVAR) slot -= COLOR_STYLE_FLAG_FIRSTVAR;
+            slot &= (COLOR_STYLE_SLOT_MAX - 1);
+            return slot;
+        }
+    }
+    return -1;
 }
 
 /*
@@ -1031,7 +1139,10 @@ static void special_lighting_wall(byte* a, char* c, int feat, int info, int ligh
         }
         break;
     case GRAPHICS_MICROCHASM:
-        if (feat_supports_lighting(feat) && is_dark)
+        if (feat_supports_lighting(feat)
+            && (is_dark
+                || (((feat >= FEAT_TRAP_HEAD) && (feat <= FEAT_TRAP_TAIL))
+                    && !(info & (CAVE_SEEN)))))
         {
             /* use darker tile variant */
             *c += 1;
@@ -1394,6 +1505,44 @@ int player_tile_offset()
 
 #define GRAF_BROKEN_BONE 440
 
+static bool monster_can_see_player_for_stealth_vision(monster_type* m_ptr)
+{
+    if (!m_ptr || !m_ptr->r_idx)
+        return false;
+
+    /* Sleeping creatures cannot see */
+    if (m_ptr->alertness < ALERTNESS_UNWARY)
+        return false;
+
+    const monster_race* r_ptr = &r_info[m_ptr->r_idx];
+
+    /* Peaceful creatures don't matter for stealth vision */
+    if (r_ptr->flags1 & (RF1_PEACEFUL))
+        return false;
+
+    /* Shortsighted creatures can't see beyond 2 squares */
+    if ((r_ptr->flags2 & (RF2_SHORT_SIGHTED)) && (m_ptr->cdis > 2))
+        return false;
+
+    if (!los(m_ptr->fy, m_ptr->fx, p_ptr->py, p_ptr->px))
+        return false;
+
+    /* Visual recognition for intelligent monsters */
+    if (visual_recognition && (r_ptr->flags2 & (RF2_SMART)))
+    {
+        /* Disguise reduces monster's effective perception */
+        int per_divisor = p_ptr->active_ability[S_STL][STL_DISGUISE] ? 4 : 2;
+
+        int vision_score = monster_skill(m_ptr, S_PER) / per_divisor + p_ptr->cur_light
+            + ((cave_info[p_ptr->py][p_ptr->px] & (CAVE_GLOW)) ? 2 : 0);
+
+        if (vision_score < m_ptr->cdis)
+            return false;
+    }
+
+    return true;
+}
+
 void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
 {
     byte a = TERM_DARK; // these are defaults to soothe compilation warnings
@@ -1421,9 +1570,11 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
     bool hide_square = false;
     bool rage_active = false;
 
-    // 'rage' effects...
-    if ((!p_ptr->is_dead) && p_ptr->rage && !(info & (CAVE_SEEN)))
+    // Hide memorized squares out of line of sight during rage, and while in labyrinth partitions.
+    if ((!p_ptr->is_dead) && (p_ptr->rage || g_labyrinth_view_active) && !(info & (CAVE_SEEN)))
         hide_square = true;
+
+    // 'rage' visuals (red filter, rage tiles, etc.) - labyrinth uses the hide-only behavior above.
     if ((!p_ptr->is_dead) && p_ptr->rage)
         rage_active = true;
 
@@ -1693,8 +1844,33 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
     }
 
     /* Save the terrain info for the transparency effects */
-    (*tap) = a;
-    (*tcp) = c;
+    byte terrain_a = a;
+    char terrain_c = c;
+
+    /* Traps, stairs, shafts, forges, sunlight, and rubble are drawn as a middle layer in
+     * the SDL renderer (floor -> feature -> monster). For transparency to work, use a
+     * floor tile as the terrain underlay when one of these features is visible. */
+    if ((info & (CAVE_MARK)) &&
+        (((feat >= FEAT_TRAP_HEAD) && (feat <= FEAT_TRAP_TAIL)) ||
+         ((feat >= FEAT_STAIR_HEAD) && (feat <= FEAT_STAIR_TAIL)) ||
+         ((feat >= FEAT_FORGE_HEAD) && (feat <= FEAT_FORGE_TAIL)) ||
+         (feat == FEAT_SUNLIGHT) ||
+         (feat == FEAT_RUBBLE)))
+    {
+        int floor_feat = FEAT_FLOOR;
+        if (rage_active && !graphics_are_ascii())
+            floor_feat = FEAT_RAGE_FLOOR;
+
+        feature_type* floor_ptr = &f_info[floor_feat];
+        terrain_a = floor_ptr->x_attr;
+        terrain_c = floor_ptr->x_char;
+
+        (void)apply_style_floor_graphics(y, x, floor_feat, info, &terrain_a, &terrain_c);
+        special_lighting_floor(&terrain_a, &terrain_c, info, cave_light[y][x]);
+    }
+
+    (*tap) = terrain_a;
+    (*tcp) = terrain_c;
 
     /* Objects (only shown when on floors, not when in rubble) */
     if (feat == FEAT_FLOOR || feat == FEAT_SUNLIGHT)
@@ -1821,6 +1997,20 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
                 && m_ptr->alertness >= ALERTNESS_ALERT)
             {
                 c += GRAPHICS_ALERT_MASK;
+            }
+
+            /* Sleeping overlay: indicate when this monster is asleep. */
+            if (!graphics_are_ascii() && sleep_icon && tap != ap
+                && m_ptr->alertness < ALERTNESS_UNWARY)
+            {
+                *tap = (byte)(((byte)(*tap)) | GRAPHICS_SLEEP_MASK);
+            }
+
+            /* Stealth vision overlay: indicate when this monster can see you. */
+            if (!graphics_are_ascii() && stealth_vision && tcp != cp
+                && monster_can_see_player_for_stealth_vision(m_ptr))
+            {
+                *tcp = (char)(((byte)(*tcp)) | GRAPHICS_SEEN_MASK);
             }
         }
     }
@@ -2216,6 +2406,9 @@ void move_cursor_relative(int y, int x)
     if (use_bigtile)
         vx += kx;
 
+    if (hidden_left_panel_masked_cell(vy, vx))
+        return;
+
     /* Go there */
     (void)Term_gotoxy(vx, vy);
 }
@@ -2256,6 +2449,9 @@ void print_rel(char c, byte a, int y, int x)
 
     if (use_bigtile)
         vx += kx;
+
+    if (hidden_left_panel_masked_cell(vy, vx))
+        return;
 
     /* Hack -- Queue it */
     Term_queue_char(vx, vy, a, c, 0, 0);
@@ -2384,6 +2580,9 @@ void lite_spot(int y, int x)
     if (use_bigtile)
         vx += kx;
 
+    if (hidden_left_panel_masked_cell(vy, vx))
+        return;
+
     /* Hack -- redraw the grid */
     map_info(y, x, &a, &c, &ta, &tc);
 
@@ -2431,6 +2630,9 @@ void prt_map(void)
         {
             /* Check bounds */
             if (!in_bounds(y, x))
+                continue;
+
+            if (hidden_left_panel_masked_cell(vy, vx))
                 continue;
 
             /* Determine what is there */
@@ -2543,6 +2745,8 @@ void display_map(int* cy, int* cx)
     int row, col;
 
     int x, y;
+    int min_x, max_x, min_y, max_y;
+    int explored_wid, explored_hgt;
 
     byte ta;
     char tc;
@@ -2554,15 +2758,51 @@ void display_map(int* cy, int* cx)
 
     monster_race* r_ptr = &r_info[0];
 
+    /* Find the bounding box of explored areas */
+    min_x = p_ptr->cur_map_wid;
+    max_x = 0;
+    min_y = p_ptr->cur_map_hgt;
+    max_y = 0;
+
+    for (y = 0; y < p_ptr->cur_map_hgt; y++)
+    {
+        for (x = 0; x < p_ptr->cur_map_wid; x++)
+        {
+            /* Check if this grid has been seen */
+            if (cave_info[y][x] & (CAVE_MARK))
+            {
+                if (x < min_x) min_x = x;
+                if (x > max_x) max_x = x;
+                if (y < min_y) min_y = y;
+                if (y > max_y) max_y = y;
+            }
+        }
+    }
+
+    /* Calculate explored dimensions */
+    explored_wid = (max_x - min_x + 1);
+    explored_hgt = (max_y - min_y + 1);
+
+    /* If nothing explored, fall back to full map */
+    if (explored_wid < 1 || explored_hgt < 1)
+    {
+        min_x = 0;
+        max_x = p_ptr->cur_map_wid - 1;
+        min_y = 0;
+        max_y = p_ptr->cur_map_hgt - 1;
+        explored_wid = p_ptr->cur_map_wid;
+        explored_hgt = p_ptr->cur_map_hgt;
+    }
+
     /* Desired map height */
     map_hgt = Term->hgt - 2;
     map_wid = Term->wid - 2;
 
     /* Prevent accidents */
-    if (map_hgt > p_ptr->cur_map_hgt)
-        map_hgt = p_ptr->cur_map_hgt;
-    if (map_wid > p_ptr->cur_map_wid)
-        map_wid = p_ptr->cur_map_wid;
+    if (map_hgt > explored_hgt)
+        map_hgt = explored_hgt;
+    if (map_wid > explored_wid)
+        map_wid = explored_wid;
 
     /* Prevent accidents */
     if ((map_wid < 1) || (map_hgt < 1))
@@ -2609,13 +2849,14 @@ void display_map(int* cy, int* cx)
         Term_putch(x, y, ta, '|');
     }
 
-    /* Analyze the actual map */
-    for (y = 0; y < p_ptr->cur_map_hgt; y++)
+    /* Analyze the actual map (only explored area) */
+    for (y = min_y; y <= max_y; y++)
     {
-        for (x = 0; x < p_ptr->cur_map_wid; x++)
+        for (x = min_x; x <= max_x; x++)
         {
-            row = (y * map_hgt / p_ptr->cur_map_hgt);
-            col = (x * map_wid / p_ptr->cur_map_wid);
+            /* Scale based on explored area */
+            row = ((y - min_y) * map_hgt / explored_hgt);
+            col = ((x - min_x) * map_wid / explored_wid);
 
             if (use_bigtile)
                 col = col & ~1;
@@ -2661,9 +2902,9 @@ void display_map(int* cy, int* cx)
         }
     }
 
-    /* Player location */
-    row = (p_ptr->py * map_hgt / p_ptr->cur_map_hgt);
-    col = (p_ptr->px * map_wid / p_ptr->cur_map_wid);
+    /* Player location (scaled relative to explored area) */
+    row = ((p_ptr->py - min_y) * map_hgt / explored_hgt);
+    col = ((p_ptr->px - min_x) * map_wid / explored_wid);
 
     if (use_bigtile)
         col = col & ~1;
@@ -3000,7 +3241,7 @@ static void vinfo_init_aux(vinfo_hack* hack, int y, int x, long m)
             /* Paranoia */
             if (hack->num_slopes >= VINFO_MAX_SLOPES)
             {
-                quit_fmt("Too many LOS slopes (%d)!", VINFO_MAX_SLOPES);
+                quit(format("Too many LOS slopes (%d)!", VINFO_MAX_SLOPES));
             }
 
             /* Save the slope, increment count */
@@ -3045,7 +3286,7 @@ errr vinfo_init(void)
     vinfo_type* queue[VINFO_MAX_GRIDS * 2];
 
     /* Make hack */
-    MAKE(hack, vinfo_hack);
+    hack = mem_alloc(vinfo_hack);
 
     /* Analyze grids */
     for (y = 0; y <= MAX_SIGHT; ++y)
@@ -3063,8 +3304,8 @@ errr vinfo_init(void)
             /* Paranoia */
             if (num_grids >= VINFO_MAX_GRIDS)
             {
-                quit_fmt(
-                    "Too many grids (%d >= %d)!", num_grids, VINFO_MAX_GRIDS);
+                quit(format(
+                    "Too many grids (%d >= %d)!", num_grids, VINFO_MAX_GRIDS));
             }
 
             /* Count grids */
@@ -3099,14 +3340,14 @@ errr vinfo_init(void)
     /* Enforce maximal efficiency (grids) */
     if (num_grids < VINFO_MAX_GRIDS)
     {
-        quit_fmt("Too few grids (%d < %d)!", num_grids, VINFO_MAX_GRIDS);
+        quit(format("Too few grids (%d < %d)!", num_grids, VINFO_MAX_GRIDS));
     }
 
     /* Enforce maximal efficiency (line of sight slopes) */
     if (hack->num_slopes < VINFO_MAX_SLOPES)
     {
-        quit_fmt("Too few LOS slopes (%d < %d)!", hack->num_slopes,
-            VINFO_MAX_SLOPES);
+        quit(format("Too few LOS slopes (%d < %d)!", hack->num_slopes,
+            VINFO_MAX_SLOPES));
     }
 
     /* Sort slopes numerically */
@@ -3279,7 +3520,7 @@ errr vinfo_init(void)
     }
 
     /* Kill hack */
-    KILL(hack);
+    mem_free_null(hack);
 
     /* Success */
     return (0);
@@ -3790,20 +4031,45 @@ void update_view(void)
             {
                 cave_light[i][j] = 0;
             }
+            
+            /* Chasm partitions absorb light - apply -4 penalty */
+            if (cave_info[i][j] & CAVE_CHASM_AREA)
+            {
+                cave_light[i][j] -= 4;
+            }
         }
     }
 
     // Sil: update the light values with the torch/lantern light
+
+    /* Calculate DARKNESS bonus once (items give +1 light power each) */
+    int darkness_bonus = 0;
+    {
+        int slot;
+        for (slot = INVEN_WIELD; slot < INVEN_TOTAL; slot++)
+        {
+            object_type* o_ptr = &inventory[slot];
+            u32b f1, f2, f3;
+
+            if (!o_ptr->k_idx) continue;
+            if (slot == INVEN_LITE) continue;
+
+            object_flags(o_ptr, &f1, &f2, &f3);
+            if (f2 & TR2_DARKNESS)
+                darkness_bonus++;
+        }
+    }
+
     for (i = -player_rad; i <= player_rad; i++)
     {
         for (j = -player_rad; j <= player_rad; j++)
         {
             int dist = distance(0, 0, i, j);
-            int bonus_light = 0;
+            int bonus_light = darkness_bonus;
 
             if (p_ptr->active_ability[S_WIL][WIL_INNER_LIGHT])
             {
-                bonus_light = 2;
+                bonus_light += 2;
             }
             if (cave_feat[p_ptr->py][p_ptr->px] == FEAT_SUNLIGHT)
             {
@@ -4241,8 +4507,8 @@ void update_view(void)
      *   of −5 (same as full darkness elsewhere in the engine).
      * ------------------------------------------------------------ */
     {
-        int dark_stacks = curse_flag_count_cur(CUR_LIGHTP);
-        if (dark_stacks)
+        int dark_delta = curse_flag_delta_cur(CUR_LIGHTP);
+        if (dark_delta)
         {
             int i, g, y, x;
 
@@ -4253,7 +4519,7 @@ void update_view(void)
                 y = GRID_Y(g);            /* unpack coordinates     */
                 x = GRID_X(g);
 
-                cave_light[y][x] -= dark_stacks;
+                cave_light[y][x] -= dark_delta;
                 if (cave_light[y][x] < -5) cave_light[y][x] = -5;
             }
         }
@@ -5079,9 +5345,9 @@ int project_path(
     bool monster_in_way = false;
 
     /* Initial grid */
-    s16b g0 = GRID(y1, x1);
+    u16b g0 = (u16b)GRID(y1, x1);
 
-    s16b g;
+    u16b g;
 
     /* Pointer to vinfo data */
     vinfo_type* p;
@@ -5172,26 +5438,17 @@ int project_path(
     /* Scan the octant, find the grid corresponding to the end point */
     for (j = 1; j < VINFO_MAX_GRIDS; j++)
     {
-        s16b vy, vx;
+        int vy, vx;
 
         /* Point to this vinfo record */
         p = &vinfo[j];
 
         /* Extract grid value */
-        g = g0 + p->grid[octant];
+        g = (u16b)(g0 + p->grid[octant]);
 
         /* Get axis coordinates */
         vy = GRID_Y(g);
         vx = GRID_X(g);
-
-        /* Allow for negative values XXX XXX XXX */
-        if (vy > 256 * 127)
-            vy = vy - (256 * 256);
-        if (vx > x1 + 127)
-        {
-            vy++;
-            vx = vx - 256;
-        }
 
         /* Require that grid be correct */
         if ((vy != *y2) || (vx != *x2))
@@ -5227,7 +5484,7 @@ int project_path(
          * Extract grid value.  Use pointer shifting to get the
          * correct grid offset for this octant.
          */
-        g = g0 + *((s16b*)(((byte*)(p)) + (octant * 2)));
+        g = (u16b)(g0 + *((s16b*)(((byte*)(p)) + (octant * 2))));
 
         y = GRID_Y(g);
         x = GRID_X(g);

@@ -9,12 +9,66 @@
  */
 
 #include "angband.h"
+#include "externs.h"
+#include "fs/path.h"
 #include "log/log.h"
+#include "sdl-sound.h"
+#include <SDL3/SDL.h>
+
 /* Fallback no_light() implementation if missing elsewhere */
 bool no_light(void)
 {
     /* Consider no special light blocking by default */
     return false;
+}
+
+/*
+ * Parse a hexadecimal string (optional separators) into an unsigned 64-bit value.
+ * Accepts optional "0x" prefix and ignores '-', '_' or whitespace separators.
+ */
+bool parse_u64b_hex(const char* text, u64b* out)
+{
+    if (!text || !out)
+        return false;
+
+    u64b value = 0;
+    int digits = 0;
+
+    while (*text)
+    {
+        char c = *text++;
+
+        if (c == '-' || c == '_' || c == ' ')
+            continue;
+
+        if (digits == 0 && c == '0' && (*text == 'x' || *text == 'X'))
+        {
+            text++;
+            continue;
+        }
+
+        int nibble;
+        if (c >= '0' && c <= '9')
+            nibble = c - '0';
+        else if (c >= 'a' && c <= 'f')
+            nibble = 10 + (c - 'a');
+        else if (c >= 'A' && c <= 'F')
+            nibble = 10 + (c - 'A');
+        else
+            return false;
+
+        if (digits >= 16)
+            return false;
+
+        value = (value << 4) | (u64b)nibble;
+        digits++;
+    }
+
+    if (digits == 0)
+        return false;
+
+    *out = value;
+    return true;
 }
 #ifdef SET_UID
 
@@ -70,7 +124,7 @@ void user_name(char* buf, size_t len, int id)
     if ((pw = getpwuid(id)))
     {
         /* Get the first 15 characters of the user name */
-        my_strcpy(buf, pw->pw_name, len);
+        SDL_strlcpy(buf, pw->pw_name, len);
 
 #ifdef CAPITALIZE_USER_NAME
         /* Hack -- capitalize the user name */
@@ -82,750 +136,45 @@ void user_name(char* buf, size_t len, int id)
     }
 
     /* Oops.  Hack -- default to "nameless" */
-    my_strcpy(buf, "nameless", len);
+    SDL_strlcpy(buf, "nameless", len);
 }
 
 #endif /* SET_UID */
-
-/*
- * The concept of the "file" routines below (and elsewhere) is that all
- * file handling should be done using as few routines as possible, since
- * every machine is slightly different, but these routines always have the
- * same semantics.
- *
- * In fact, perhaps we should use the "path_parse()" routine below to convert
- * from "canonical" filenames (optional leading tilde's, internal wildcards,
- * slash as the path seperator, etc) to "system" filenames (no special symbols,
- * system-specific path seperator, etc).  This would allow the program itself
- * to assume that all filenames are "Unix" filenames, and explicitly "extract"
- * such filenames if needed (by "path_parse()", or perhaps "path_canon()").
- *
- * Note that "path_temp" should probably return a "canonical" filename.
- *
- * Note that "my_fopen()" and "my_open()" and "my_make()" and "my_kill()"
- * and "my_move()" and "my_copy()" should all take "canonical" filenames.
- *
- * Note that "canonical" filenames use a leading "slash" to indicate an absolute
- * path, and a leading "tilde" to indicate a special directory, and default to a
- * relative path, but MSDOS uses a leading "drivename plus colon" to indicate
- * the use of a "special drive", and then the rest of the path is parsed
- * "normally", and defaults to a file in the current working directory, which 
- * may or may not be defined.
- *
- * We should probably parse a leading "~~/" as referring to "ANGBAND_DIR". (?)
- */
-
-#ifdef SET_UID
-
-/*
- * Extract a "parsed" path from an initial filename
- * Normally, we simply copy the filename into the buffer
- * But leading tilde symbols must be handled in a special way
- * Replace "~user/" by the home directory of the user named "user"
- * Replace "~/" by the home directory of the current user
- */
-errr path_parse(char* buf, size_t max, cptr file)
-{
-    cptr u, s;
-    struct passwd* pw = NULL;
-    char user[128];
-
-    /* Assume no result */
-    buf[0] = '\0';
-
-    /* No file? */
-    if (!file)
-        return (-1);
-
-    /* File needs no parsing */
-    if (file[0] != '~')
-    {
-        my_strcpy(buf, file, max);
-        return (0);
-    }
-
-    /* Point at the user */
-    u = file + 1;
-
-    /* Look for non-user portion of the file */
-    s = strstr(u, PATH_SEP);
-
-    /* Hack -- no long user names */
-    if (s && (s >= u + sizeof(user)))
-        return (1);
-
-    /* Extract a user name */
-    if (s)
-    {
-        int i;
-        for (i = 0; u < s; ++i)
-            user[i] = *u++;
-        user[i] = '\0';
-        u = user;
-    }
-
-    /* Look up the "current" user */
-    if (u[0] == '\0')
-        u = getlogin();
-
-    /* Look up a user (or "current" user) */
-    if (u)
-        pw = getpwnam(u);
-    else
-        pw = getpwuid(getuid());
-
-    /* Nothing found? */
-    if (!pw)
-        return (1);
-
-    /* Make use of the info */
-    my_strcpy(buf, pw->pw_dir, max);
-
-    /* Append the rest of the filename, if any */
-    if (s)
-        my_strcat(buf, s, max);
-
-    /* Success */
-    return (0);
-}
-
-#else /* SET_UID */
-
-/*
- * Extract a "parsed" path from an initial filename
- *
- * This requires no special processing on simple machines,
- * except for verifying the size of the filename.
- */
-errr path_parse(char* buf, size_t max, cptr file)
-{
-    /*accept the filename*/
-    my_strcpy(buf, file, max);
-
-    /* Success */
-    return (0);
-}
-
-#endif /* SET_UID */
-
-#ifndef HAVE_MKSTEMP
-
-/*
- * Hack -- acquire a "temporary" file name if possible
- *
- * This filename is always in "system-specific" form.
- */
-errr path_temp(char* buf, size_t max)
-{
-    cptr s;
-
-    /* Temp file */
-    s = tmpnam(NULL);
-
-    /* Oops */
-    if (!s)
-        return (-1);
-
-    /* Copy to buffer */
-    my_strcpy(buf, s, max);
-
-    /* Success */
-    return (0);
-}
-
-#endif /* HAVE_MKSTEMP */
-
-/*
- * Create a new path by appending a file (or directory) to a path
- *
- * This requires no special processing on simple machines, except
- * for verifying the size of the filename, but note the ability to
- * bypass the given "path" with certain special file-names.
- *
- * Note that the "file" may actually be a "sub-path", including
- * a path and a file.
- *
- * Note that this function yields a path which must be "parsed"
- * using the "parse" function above.
- */
-errr path_build(char* buf, size_t max, cptr path, cptr file)
-{
-    /* Special file */
-    if (file[0] == '~')
-    {
-        /* Use the file itself */
-        my_strcpy(buf, file, max);
-    }
-
-    /* Absolute file, on "normal" systems */
-    else if (prefix(file, PATH_SEP) && !streq(PATH_SEP, ""))
-    {
-        /* Use the file itself */
-        my_strcpy(buf, file, max);
-    }
-
-    /* No path given */
-    else if (!path[0])
-    {
-        /* Use the file itself */
-        my_strcpy(buf, file, max);
-    }
-
-    /* Path and File */
-    else
-    {
-        /* Build the new path */
-        strnfmt(buf, max, "%s%s%s", path, PATH_SEP, file);
-    }
-
-    /* Success */
-    return (0);
-}
-
-/*
- * Hack -- replacement for "fopen()"
- */
-FILE* my_fopen(cptr file, cptr mode)
-{
-    char buf[1024];
-    FILE* fff;
-
-    /* Hack -- Try to parse the path */
-    if (path_parse(buf, sizeof(buf), file))
-        return (NULL);
-
-    /* Attempt to fopen the file anyway */
-    fff = fopen(buf, mode);
-
-    /* Return open file or NULL */
-    return (fff);
-}
-
-/*
- * Hack -- replacement for "fclose()"
- */
-errr my_fclose(FILE* fff)
-{
-    /* Require a file */
-    if (!fff)
-        return (-1);
-
-    /* Close, check for error */
-    if (fclose(fff) == EOF)
-        return (1);
-
-    /* Success */
-    return (0);
-}
-
-#ifdef HAVE_MKSTEMP
-
-FILE* my_fopen_temp(char* buf, size_t max)
-{
-    int fd;
-
-    /* Prepare the buffer for mkstemp */
-    my_strcpy(buf, "/tmp/anXXXXXX", max);
-
-    /* Secure creation of a temporary file */
-    fd = mkstemp(buf);
-
-    /* Check the file-descriptor */
-    if (fd < 0)
-        return (NULL);
-
-    /* Return a file stream */
-    return (fdopen(fd, "w"));
-}
-
-#else /* HAVE_MKSTEMP */
-
-FILE* my_fopen_temp(char* buf, size_t max)
-{
-    /* Generate a temporary filename */
-    if (path_temp(buf, max))
-        return (NULL);
-
-    /* Open the file */
-    return (my_fopen(buf, "w"));
-}
-
-#endif /* HAVE_MKSTEMP */
-
-/*
- * Hack -- replacement for "fgets()"
- *
- * Read a string, without a newline, to a file
- *
- * Process tabs, strip internal non-printables
- */
-
-#define TAB_COLUMNS 8
-
-errr my_fgets(FILE* fff, char* buf, size_t n)
-{
-    u16b i = 0;
-    char* s = buf;
-    int len;
-
-    /* Paranoia */
-    if (n <= 0)
-        return (1);
-
-    /* Enforce historical upper bound */
-    if (n > 1024)
-        n = 1024;
-
-    /* Leave a byte for terminating null */
-    len = n - 1;
-
-    /* While there's room left in the buffer */
-    while (i < len)
-    {
-        int c;
-
-        /*
-         * Read next character - stdio buffers I/O, so there's no
-         * need to buffer it again using fgets.
-         */
-        c = fgetc(fff);
-
-        /* End of file */
-        if (c == EOF)
-
-        {
-            /* No characters read -- signal error */
-            if (i == 0)
-                break;
-
-            /*
-             * Be nice to DOS/Windows, where a last line of a file isn't
-             * always \n terminated.
-             */
-            *s = '\0';
-
-            /* Success */
-            return (0);
-        }
-
-        /* End of line */
-        if (c == '\n')
-        {
-            /* Null terminate */
-            *s = '\0';
-
-            /* Success */
-            return (0);
-        }
-
-        /* Expand a tab into spaces */
-        if (c == '\t')
-        {
-            int tabstop;
-
-            /* Next tab stop */
-            tabstop = ((i + TAB_COLUMNS) / TAB_COLUMNS) * TAB_COLUMNS;
-
-            /* Bounds check */
-            if (tabstop >= len)
-                break;
-
-            /* Convert it to spaces */
-            while (i < tabstop)
-
-            {
-                /* Store space */
-                *s++ = ' ';
-
-                /* Count */
-                i++;
-            }
-        }
-
-        /* Ignore non-printables */
-        else if (isprint(c))
-        {
-            /* Store character in the buffer */
-            *s++ = c;
-
-            /* Count number of characters in the buffer */
-            i++;
-        }
-    }
-
-    /* Buffer overflow or EOF - return an empty string */
-    buf[0] = '\0';
-
-    /* Error */
-    return (1);
-}
-
-/*
- * Hack -- replacement for "fputs()"
- *
- * Dump a string, plus a newline, to a file
- *
- * Perhaps this function should handle internal weirdness.
- */
-errr my_fputs(FILE* fff, cptr buf, size_t n)
-{
-    /* Unused paramter */
-    (void)n;
-
-    /* Dump, ignore errors */
-    (void)fprintf(fff, "%s\n", buf);
-
-    /* Success */
-    return (0);
-}
-
-/*
- * Several systems have no "O_BINARY" flag
- */
-#ifndef O_BINARY
-#define O_BINARY 0
-#endif /* O_BINARY */
-
-/*
- * Hack -- attempt to delete a file
- */
-errr fd_kill(cptr file)
-{
-    char buf[1024];
-
-    /* Hack -- Try to parse the path */
-    if (path_parse(buf, sizeof(buf), file))
-        return (-1);
-
-    /* Remove */
-    (void)remove(buf);
-
-    /* Assume success XXX XXX XXX */
-    return (0);
-}
-
-/*
- * Hack -- attempt to move a file
- */
-errr fd_move(cptr file, cptr what)
-{
-    char buf[1024];
-    char aux[1024];
-    int result;
-
-    /* Hack -- Try to parse the path */
-    if (path_parse(buf, sizeof(buf), file))
-        return (-1);
-
-    /* Hack -- Try to parse the path */
-    if (path_parse(aux, sizeof(aux), what))
-        return (-1);
-
-    /* Rename */
-    result = rename(buf, aux);
-    
-    /* Check for errors */
-    if (result != 0)
-    {
-        log_error("fd_move: rename('%s', '%s') failed: %s", buf, aux, strerror(errno));
-        return (-1);
-    }
-    
-    log_debug("fd_move: successfully renamed '%s' to '%s'", file, what);
-    return (0);
-}
-
-/*
- * Hack -- attempt to copy a file
- */
-errr fd_copy(cptr file, cptr what)
-{
-    char buf[1024];
-    char aux[1024];
-
-    /* Hack -- Try to parse the path */
-    if (path_parse(buf, sizeof(buf), file))
-        return (-1);
-
-    /* Hack -- Try to parse the path */
-    if (path_parse(aux, sizeof(aux), what))
-        return (-1);
-
-    /* Copy XXX XXX XXX */
-    /* (void)rename(buf, aux); */
-
-    /* Assume success XXX XXX XXX */
-    return (1);
-}
-
-/*
- * Hack -- attempt to open a file descriptor (create file)
- *
- * This function should fail if the file already exists
- *
- * Note that we assume that the file should be "binary"
- */
-int fd_make(cptr file, int mode)
-{
-    char buf[1024];
-    int fd;
-
-    /* Hack -- Try to parse the path */
-    if (path_parse(buf, sizeof(buf), file))
-        return (-1);
-
-    /* Create the file, fail if exists, write-only, binary */
-    fd = open(buf, O_CREAT | O_EXCL | O_WRONLY | O_BINARY, mode);
-
-    /* Return descriptor */
-    return (fd);
-}
-
-/*
- * Hack -- attempt to open a file descriptor (existing file)
- *
- * Note that we assume that the file should be "binary"
- */
-int fd_open(cptr file, int flags)
-{
-    char buf[1024];
-
-    /* Hack -- Try to parse the path */
-    if (path_parse(buf, sizeof(buf), file))
-        return (-1);
-
-    /* Attempt to open the file */
-    return (open(buf, flags | O_BINARY, 0));
-}
-
-/*
- * Hack -- attempt to lock a file descriptor
- *
- * Legal lock types -- F_UNLCK, F_RDLCK, F_WRLCK
- */
-errr fd_lock(int fd, int what)
-{
-    /* Verify the fd */
-    if (fd < 0)
-        return (-1);
-
-#ifdef SET_UID
-
-#ifdef USG
-
-#if defined(F_ULOCK) && defined(F_LOCK)
-
-    /* Un-Lock */
-    if (what == F_UNLCK)
-    {
-        /* Unlock it, Ignore errors */
-        lockf(fd, F_ULOCK, 0);
-    }
-
-    /* Lock */
-    else
-    {
-        /* Lock the score file */
-        if (lockf(fd, F_LOCK, 0) != 0)
-            return (1);
-    }
-
-#endif /* defined(F_ULOCK) && defined(F_LOCK) */
-
-#else
-
-#if defined(LOCK_UN) && defined(LOCK_EX)
-
-    /* Un-Lock */
-    if (what == F_UNLCK)
-    {
-        /* Unlock it, Ignore errors */
-        (void)flock(fd, LOCK_UN);
-    }
-
-    /* Lock */
-    else
-    {
-        /* Lock the score file */
-        if (flock(fd, LOCK_EX) != 0)
-            return (1);
-    }
-
-#endif /* defined(LOCK_UN) && defined(LOCK_EX) */
-
-#endif /* USG */
-
-#else /* SET_UID */
-
-    /* Unused parameter */
-    (void)what;
-
-#endif /* SET_UID */
-
-    /* Success */
-    return (0);
-}
-
-/*
- * Hack -- attempt to seek on a file descriptor
- */
-errr fd_seek(int fd, long n)
-{
-    long p;
-
-    /* Verify fd */
-    if (fd < 0)
-        return (-1);
-
-    /* Seek to the given position */
-    p = lseek(fd, n, SEEK_SET);
-
-    /* Failure */
-    if (p < 0)
-        return (1);
-
-    /* Failure */
-    if (p != n)
-        return (1);
-
-    /* Success */
-    return (0);
-}
-
-/*
- * Hack -- attempt to read data from a file descriptor
- */
-errr fd_read(int fd, char* buf, size_t n)
-{
-    /* Verify the fd */
-    if (fd < 0)
-        return (-1);
-
-#ifndef SET_UID
-
-    /* Read pieces */
-    while (n >= 16384)
-    {
-        /* Read a piece */
-        ssize_t bytes_read = read(fd, buf, 16384);
-        if (bytes_read != 16384) {
-            /* For large reads, we need exact bytes */
-            return (1);
-        }
-
-        /* Shorten the task */
-        buf += 16384;
-
-        /* Shorten the task */
-        n -= 16384;
-    }
-
-#endif
-
-    /* Read the final piece */
-    ssize_t bytes_read = read(fd, buf, n);
-    if (bytes_read < 0) {
-        /* Read error */
-        return (1);
-    }
-    if (bytes_read == 0 && n > 0) {
-        /* EOF when we expected data */
-        return (1);
-    }
-    if (bytes_read != (ssize_t)n) {
-        /* For score files and other structured data, we need exact bytes.
-         * However, let's log this for debugging. */
-        return (1);
-    }
-
-    /* Success */
-    return (0);
-}
-
-/*
- * Hack -- Attempt to write data to a file descriptor
- */
-errr fd_write(int fd, cptr buf, size_t n)
-{
-    /* Verify the fd */
-    if (fd < 0)
-        return (-1);
-
-#ifndef SET_UID
-
-    /* Write pieces */
-    while (n >= 16384)
-    {
-        /* Write a piece */
-        if (write(fd, buf, 16384) != 16384)
-            return (1);
-
-        /* Shorten the task */
-        buf += 16384;
-
-        /* Shorten the task */
-        n -= 16384;
-    }
-
-#endif
-
-    /* Write the final piece */
-    if (write(fd, buf, n) != (int)n)
-        return (1);
-
-    /* Success */
-    return (0);
-}
-
-/*
- * Hack -- attempt to close a file descriptor
- */
-errr fd_close(int fd)
-{
-    /* Verify the fd */
-    if (fd < 0)
-        return (-1);
-
-    /* Close */
-    (void)close(fd);
-
-    /* Assume success XXX XXX XXX */
-    return (0);
-}
 
 #ifdef CHECK_MODIFICATION_TIME
-#include <sys/types.h>
-#include <sys/stat.h>
 
-errr check_modification_date(int fd, cptr template_file)
+/* SDL3-compatible modification time check */
+errr check_modification_date_sdl(cptr raw_path, cptr txt_path)
 {
-    char buf[1024];
-
-    struct stat txt_stat, raw_stat;
-
-    /* Build the filename */
-    path_build(buf, sizeof(buf), ANGBAND_DIR_EDIT, template_file);
-
-    /* Access stats on text file */
-    if (stat(buf, &txt_stat))
+    SDL_PathInfo txt_info, raw_info;
+    
+    /* Get info for text file */
+    if (!SDL_GetPathInfo(txt_path, &txt_info))
     {
-        /* No text file - continue */
+        /* No text file or error - continue with raw */
+        log_debug("check_modification_date: Cannot get info for txt file '%s'", txt_path);
+        return (0);
     }
-
-    /* Access stats on raw file */
-    else if (fstat(fd, &raw_stat))
+    
+    /* Get info for raw file */
+    if (!SDL_GetPathInfo(raw_path, &raw_info))
     {
-        /* Error */
+        /* No raw file - need to regenerate */
+        log_info("check_modification_date: No raw file '%s' - regenerating", raw_path);
         return (-1);
     }
-
+    
     /* Ensure text file is not newer than raw file */
-    else if (txt_stat.st_mtime > raw_stat.st_mtime)
+    if (txt_info.modify_time > raw_info.modify_time)
     {
-        /* Reprocess text file */
+        /* Text file is newer - reprocess */
+        log_info("check_modification_date: txt file newer (txt=%lld, raw=%lld) - regenerating '%s'", 
+                 (long long)txt_info.modify_time, (long long)raw_info.modify_time, txt_path);
         return (-1);
     }
-
+    
+    log_info("check_modification_date: raw file is up to date (txt=%lld, raw=%lld) for '%s'",
+              (long long)txt_info.modify_time, (long long)raw_info.modify_time, txt_path);
     return (0);
 }
 
@@ -881,7 +230,7 @@ static size_t trigger_text_to_ascii(char* buf, size_t max, cptr* strptr)
         {
             len = strlen(macro_modifier_name[i]);
 
-            if (!my_strnicmp(str, macro_modifier_name[i], len))
+            if (!SDL_strncasecmp(str, macro_modifier_name[i], len))
                 break;
         }
 
@@ -906,7 +255,7 @@ static size_t trigger_text_to_ascii(char* buf, size_t max, cptr* strptr)
         len = strlen(macro_trigger_name[i]);
 
         /* Found it and it is ending with ']' */
-        if (!my_strnicmp(str, macro_trigger_name[i], len) && (']' == str[len]))
+        if (!SDL_strncasecmp(str, macro_trigger_name[i], len) && (']' == str[len]))
             break;
     }
 
@@ -1178,8 +527,8 @@ static size_t trigger_ascii_to_text(char* buf, size_t max, cptr* strptr)
     /* Look for trigger name with given keycode (normal or shifted keycode) */
     for (i = 0; i < max_macrotrigger; i++)
     {
-        if (!my_stricmp(key_code, macro_trigger_keycode[0][i])
-            || !my_stricmp(key_code, macro_trigger_keycode[1][i]))
+        if (!SDL_strcasecmp(key_code, macro_trigger_keycode[0][i])
+            || !SDL_strcasecmp(key_code, macro_trigger_keycode[1][i]))
             break;
     }
 
@@ -1466,7 +815,7 @@ errr macro_add(cptr pat, cptr act)
     if (n >= 0)
     {
         /* Free the old macro action */
-        string_free(macro__act[n]);
+        str_free(macro__act[n]);
     }
 
     /* Create a new macro */
@@ -1480,11 +829,11 @@ errr macro_add(cptr pat, cptr act)
             quit("Too many macros!");
 
         /* Save the pattern */
-        macro__pat[n] = string_make(pat);
+        macro__pat[n] = str_dup(pat);
     }
 
     /* Save the action */
-    macro__act[n] = string_make(act);
+    macro__act[n] = str_dup(act);
 
     /* Efficiency */
     macro__use[(byte)(pat[0])] = true;
@@ -1499,10 +848,10 @@ errr macro_add(cptr pat, cptr act)
 errr macro_init(void)
 {
     /* Macro patterns */
-    C_MAKE(macro__pat, MACRO_MAX, cptr);
+    macro__pat = mem_alloc_array(MACRO_MAX, cptr);
 
     /* Macro actions */
-    C_MAKE(macro__act, MACRO_MAX, cptr);
+    macro__act = mem_alloc_array(MACRO_MAX, cptr);
 
     /* Success */
     return (0);
@@ -1518,19 +867,19 @@ errr macro_free(void)
     /* Free the macros */
     for (i = 0; i < macro__num; ++i)
     {
-        string_free(macro__pat[i]);
-        string_free(macro__act[i]);
+        str_free(macro__pat[i]);
+        str_free(macro__act[i]);
     }
 
-    FREE((void*)macro__pat);
-    FREE((void*)macro__act);
+    mem_free_null(macro__pat);
+    mem_free_null(macro__act);
 
     /* Free the keymaps */
     for (i = 0; i < KEYMAP_MODES; ++i)
     {
         for (j = 0; j < (int)N_ELEMENTS(keymap_act[i]); ++j)
         {
-            string_free(keymap_act[i][j]);
+            str_free(keymap_act[i][j]);
             keymap_act[i][j] = NULL;
         }
     }
@@ -1550,16 +899,16 @@ errr macro_trigger_free(void)
     if (macro_template != NULL)
     {
         /* Free the template */
-        string_free(macro_template);
+        str_free(macro_template);
         macro_template = NULL;
 
         /* Free the trigger names and keycodes */
         for (i = 0; i < max_macrotrigger; i++)
         {
-            string_free(macro_trigger_name[i]);
+            str_free(macro_trigger_name[i]);
 
-            string_free(macro_trigger_keycode[0][i]);
-            string_free(macro_trigger_keycode[1][i]);
+            str_free(macro_trigger_keycode[0][i]);
+            str_free(macro_trigger_keycode[1][i]);
         }
 
         /* No more macro triggers */
@@ -1571,11 +920,11 @@ errr macro_trigger_free(void)
         /* Free modifier names */
         for (i = 0; i < num; i++)
         {
-            string_free(macro_modifier_name[i]);
+            str_free(macro_modifier_name[i]);
         }
 
         /* Free modifier chars */
-        string_free(macro_modifier_chr);
+        str_free(macro_modifier_chr);
         macro_modifier_chr = NULL;
     }
 
@@ -2079,8 +1428,8 @@ void sound(int val)
     if (!use_sound)
         return;
 
-    /* Make a sound (if allowed) */
-    Term_xtra(TERM_XTRA_SOUND, val);
+    /* Route directly to SDL sound backend */
+    sdl_sound_handle(val);
 }
 
 /*
@@ -2137,7 +1486,7 @@ s16b quark_add(cptr str)
     i = quark__num++;
 
     /* Add a new quark */
-    quark__str[i] = string_make(str);
+    quark__str[i] = str_dup(str);
 
     /* Return the index */
     return (i);
@@ -2167,7 +1516,7 @@ cptr quark_str(s16b i)
 errr quarks_init(void)
 {
     /* Quark variables */
-    C_MAKE(quark__str, QUARK_MAX, cptr);
+    quark__str = mem_alloc_array(QUARK_MAX, cptr);
 
     /* Success */
     return (0);
@@ -2183,11 +1532,11 @@ errr quarks_free(void)
     /* Free the "quarks" */
     for (i = 1; i < quark__num; i++)
     {
-        string_free(quark__str[i]);
+        str_free(quark__str[i]);
     }
 
     /* Free the list of "quarks" */
-    FREE((void*)quark__str);
+    mem_free_null(quark__str);
 
     /* Success */
     return (0);
@@ -2619,13 +1968,13 @@ void message_add(cptr str, u16b type)
 errr messages_init(void)
 {
     /* Message variables */
-    C_MAKE(message__ptr, MESSAGE_MAX, u16b);
-    C_MAKE(message__buf, MESSAGE_BUF, char);
-    C_MAKE(message__type, MESSAGE_MAX, u16b);
-    C_MAKE(message__count, MESSAGE_MAX, u16b);
+    message__ptr = mem_alloc_array(MESSAGE_MAX, u16b);
+    message__buf = mem_alloc_array(MESSAGE_BUF, char);
+    message__type = mem_alloc_array(MESSAGE_MAX, u16b);
+    message__count = mem_alloc_array(MESSAGE_MAX, u16b);
 
     /* Init the message colors to white */
-    (void)C_BSET(message__color, TERM_WHITE, MSG_MAX, byte);
+    memset(message__color, TERM_WHITE, sizeof(byte) * MSG_MAX);
 
     /* Hack -- No messages yet */
     message__tail = MESSAGE_BUF;
@@ -2640,10 +1989,10 @@ errr messages_init(void)
 void messages_free(void)
 {
     /* Free the messages */
-    FREE(message__ptr);
-    FREE(message__buf);
-    FREE(message__type);
-    FREE(message__count);
+    mem_free_null(message__ptr);
+    mem_free_null(message__buf);
+    mem_free_null(message__type);
+    mem_free_null(message__count);
 }
 
 /*
@@ -2807,7 +2156,7 @@ static void msg_print_aux(u16b type, cptr msg)
     p_ptr->window |= (PW_MESSAGE);
 
     /* Copy it */
-    my_strcpy(buf, msg, sizeof(buf));
+    SDL_strlcpy(buf, msg, sizeof(buf));
 
     /* Analyze the buffer */
     t = buf;
@@ -3006,7 +2355,7 @@ void screen_save(void)
         char buffer_content[256];
         byte* scr_story = Term->scr->story[0];
         int i;
-        int len = (Term->wid > 255) ? 255 : Term->wid;
+        int len = Term->wid;
         for (i = 0; i < len && i < 80; i++)
         {
             char c = Term->scr->c[0][i];
@@ -3052,7 +2401,7 @@ void screen_load(void)
         char buffer_content[256];
         byte* scr_story = Term->scr->story[0];
         int i;
-        int len = (Term->wid > 255) ? 255 : Term->wid;
+        int len = Term->wid;
         for (i = 0; i < len && i < 80; i++)
         {
             char c = Term->scr->c[0][i];
@@ -3105,7 +2454,7 @@ void c_prt(byte attr, cptr str, int row, int col)
             char buffer_content[256];
             byte* scr_story = Term->scr->story[0];
             int i;
-            int len = (Term->wid > 255) ? 255 : Term->wid;
+            int len = Term->wid;
             for (i = 0; i < len && i < 80; i++)
             {
                 char c = Term->scr->c[0][i];
@@ -3140,7 +2489,7 @@ void c_prt(byte attr, cptr str, int row, int col)
         char buffer_content[256];
         byte* scr_story = Term->scr->story[0];
         int i;
-        int len = (Term->wid > 255) ? 255 : Term->wid;
+        int len = Term->wid;
         for (i = 0; i < len && i < 80; i++)
         {
             char c = Term->scr->c[0][i];
@@ -3202,123 +2551,8 @@ int count_wrapped_lines(cptr str, int wrap_width, int indent)
     return lines;
 }
 
-#ifdef USE_SDL
-/*
- * Count how many lines text will occupy when using story font with pixel-based wrapping.
- * Similar to count_wrapped_lines but accounts for proportional font width.
- */
-int count_wrapped_lines_story(cptr str, int wrap_cols, int indent)
-{
-    if (!str || wrap_cols <= 0) return 1;
-    
-    /* Convert column-based wrap to pixel width */
-    int cell_width = sdl_get_cell_width();
-    int wrap_pixels = wrap_cols * cell_width;
-    
-    int lines = 1;
-    int x = indent;
-    cptr s = str;
-    
-    while (*s)
-    {
-        /* Handle newlines */
-        if (*s == '\n')
-        {
-            x = indent;
-            lines++;
-            s++;
-            continue;
-        }
-        
-        /* Skip leading spaces */
-        while (*s == ' ')
-        {
-            x++;
-            if (x >= wrap_cols)
-            {
-                x = indent;
-                lines++;
-            }
-            s++;
-        }
-        
-        if (!*s) break;
-        
-        /* Find the end of the current word */
-        cptr word_start = s;
-        int word_chars = 0;
-        while (s[word_chars] && s[word_chars] != ' ' && s[word_chars] != '\n')
-            word_chars++;
-        
-        if (word_chars == 0)
-            continue;
-        
-        /* Measure the word in pixels */
-        int word_pixels = sdl_story_font_text_width(word_start, word_chars);
-        int current_pixels = x * cell_width;
-        
-        /* Check if word fits on current line */
-        if (x > indent && (current_pixels + word_pixels) > wrap_pixels)
-        {
-            x = indent;
-            lines++;
-        }
-        
-        /* Account for the word's width in columns (approximate) */
-        x += word_chars;
-        if (x >= wrap_cols)
-        {
-            x = indent;
-            lines++;
-        }
-        
-        /* Move past the word */
-        s += word_chars;
-    }
-    
-    return lines;
-}
-#endif /* USE_SDL */
-
-bool story_inventory_enabled(void)
-{
-#ifdef USE_SDL
-    return story_inventory_lists;
-#else
-    return false;
-#endif
-}
-
-bool story_equipment_enabled(void)
-{
-#ifdef USE_SDL
-    return story_equipment_lists;
-#else
-    return false;
-#endif
-}
-
-bool story_look_enabled(void)
-{
-#ifdef USE_SDL
-    return story_display_lists;
-#else
-    return false;
-#endif
-}
-
-bool story_character_enabled(void)
-{
-#ifdef USE_SDL
-    return story_character_sheet;
-#else
-    return false;
-#endif
-}
-
 void text_out_to_screen(byte a, cptr str)
 {
-#ifdef USE_SDL
     /* If story font is enabled, use pixel-based wrapping */
     extern bool sdl_is_story_font_enabled(void);
     if (sdl_is_story_font_enabled())
@@ -3326,7 +2560,6 @@ void text_out_to_screen(byte a, cptr str)
         text_out_to_screen_story(a, str);
         return;
     }
-#endif
 
     int x, y;
 
@@ -3433,264 +2666,10 @@ void text_out_to_screen(byte a, cptr str)
     }
 }
 
-#ifdef USE_SDL
 /*
  * Write text to the screen with story font wrapping based on pixel width.
  * This version wraps proportional fonts to fill the available terminal width
  * instead of wrapping based on monospace character count.
- */
-void text_out_to_screen_story(byte a, cptr str)
-{
-    int x, y;
-    int wid, h;
-    int wrap_cols;
-    cptr s;
-
-    /* Obtain the size */
-    (void)Term_get_size(&wid, &h);
-
-    /* Obtain the cursor */
-    (void)Term_locate(&x, &y);
-
-    /* Use special wrapping boundary? */
-    if ((text_out_wrap > 0) && (text_out_wrap < wid))
-        wrap_cols = text_out_wrap;
-    else
-        wrap_cols = wid;
-
-    /* Convert column-based wrap to pixel width */
-    int cell_width = sdl_get_cell_width();
-    int wrap_pixels = wrap_cols * cell_width;
-    
-    log_trace("=== text_out_to_screen_story START ===");
-    log_trace("Story wrapping: wid=%d, wrap_cols=%d, cell_width=%d, wrap_pixels=%d", 
-              wid, wrap_cols, cell_width, wrap_pixels);
-    log_trace("Initial cursor: x=%d, y=%d, text_out_indent=%d, text='%.50s'", 
-              x, y, text_out_indent, str);
-
-    /* Track position in pixels, not columns */
-    int current_x_pixels = text_out_indent * cell_width;
-
-    /* Process the string word by word */
-    s = str;
-    while (*s)
-    {
-        /* Force wrap on newline */
-        if (*s == '\n')
-        {
-            x = text_out_indent;
-            current_x_pixels = text_out_indent * cell_width;
-            y++;
-            Term_erase(x, y, 255);
-            s++;
-            continue;
-        }
-
-        /* Skip leading spaces */
-        while (*s == ' ')
-        {
-            Term_addch(a, ' ');
-            x++;
-            current_x_pixels += cell_width;  /* Each space is one cell */
-            s++;
-        }
-
-        /* Find the end of the current word */
-        cptr word_start = s;
-        int word_chars = 0;
-        while (s[word_chars] && s[word_chars] != ' ' && s[word_chars] != '\n')
-            word_chars++;
-
-        if (word_chars == 0)
-            continue;
-
-        /* Measure the word in pixels */
-        int word_pixels = sdl_story_font_text_width(word_start, word_chars);
-        
-        /* Check BOTH constraints: pixel width AND terminal columns */
-        bool exceeds_pixels = (x > text_out_indent && (current_x_pixels + word_pixels) > wrap_pixels);
-        bool exceeds_columns = (x + word_chars >= wid);
-        
-        log_trace("Word: '%.*s' (%d chars), pixels=%d, current_x_pixels=%d, current_term_col=%d, exceeds_pixels=%s, exceeds_columns=%s", 
-                  word_chars, word_start, word_chars, word_pixels, current_x_pixels, x,
-                  exceeds_pixels ? "YES" : "NO",
-                  exceeds_columns ? "YES" : "NO");
-        
-        /* Wrap if we exceed EITHER constraint */
-        if (exceeds_pixels || exceeds_columns)
-        {
-            /* Wrap to next line */
-            x = text_out_indent;
-            current_x_pixels = text_out_indent * cell_width;
-            y++;
-            Term_erase(x, y, 255);
-            log_trace("Wrapped to next line, x=%d, current_x_pixels=%d", x, current_x_pixels);
-        }
-
-        /* Output the word character by character */
-        for (int i = 0; i < word_chars; i++)
-        {
-            char ch = (isprint((unsigned char)word_start[i]) ? word_start[i] : ' ');
-            Term_addch(a, ch);
-            x++;
-        }
-        
-        log_trace("After word output: term_col=%d, pixel_pos=%d, word_pixels=%d, new_pixel_pos=%d", 
-                  x, current_x_pixels, word_pixels, current_x_pixels + word_pixels);
-        
-        /* Update pixel position by the actual rendered width */
-        current_x_pixels += word_pixels;
-
-        /* Move past the word */
-        s += word_chars;
-    }
-    
-    log_trace("=== text_out_to_screen_story END === Final term_col=%d, final_pixel_pos=%d", x, current_x_pixels);
-}
-#endif /* USE_SDL */
-
-static void story_print_text_internal(int row, int col, int max_cols, byte attr, cptr text, bool force_grid)
-{
-    if (!text)
-        text = "";
-
-    /* Always erase before rendering to ensure clean slate */
-    if (max_cols > 0)
-        Term_erase(col, row, max_cols);
-
-#ifdef USE_SDL
-    if (sdl_is_story_font_enabled())
-    {
-        log_debug("story_print_text: STORY FONT at row=%d col=%d max_cols=%d text='%.50s'", row, col, max_cols, text);
-        log_trace("story_print_text: text_out_indent (BEFORE)=%d, text_out_wrap (BEFORE)=%d", text_out_indent, text_out_wrap);
-
-        bool previous_grid = sdl_is_story_font_grid();
-        bool restore_grid = false;
-        if (force_grid != previous_grid)
-        {
-            sdl_story_font_set_grid(force_grid);
-            restore_grid = true;
-        }
-
-        int old_indent = text_out_indent;
-        int old_wrap = text_out_wrap;
-        void (*old_hook)(byte, cptr) = text_out_hook;
-
-        if (max_cols > 0)
-            text_out_wrap = col + max_cols;
-        else
-            text_out_wrap = 0;
-
-        text_out_indent = col;
-        text_out_hook = text_out_to_screen;
-
-        log_trace("story_print_text: Setting text_out_indent=%d, text_out_wrap=%d", text_out_indent, text_out_wrap);
-        log_trace("story_print_text: About to call Term_gotoxy(%d, %d)", col, row);
-        
-        Term_gotoxy(col, row);
-        
-        int cursor_x, cursor_y;
-        Term_locate(&cursor_x, &cursor_y);
-        log_trace("story_print_text: After Term_gotoxy, cursor at (%d, %d)", cursor_x, cursor_y);
-        
-        text_out_c(attr, text);
-        
-        Term_locate(&cursor_x, &cursor_y);
-        log_trace("story_print_text: After text_out_c, cursor at (%d, %d)", cursor_x, cursor_y);
-
-        text_out_indent = old_indent;
-        text_out_wrap = old_wrap;
-        text_out_hook = old_hook;
-
-        if (restore_grid)
-            sdl_story_font_set_grid(previous_grid);
-        return;
-    }
-    else
-    {
-        log_debug("story_print_text: MONO FONT at row=%d col=%d: '%.50s'", row, col, text);
-    }
-#endif
-
-    c_put_str(attr, text, row, col);
-}
-
-void story_print_text(int row, int col, int max_cols, byte attr, cptr text)
-{
-    story_print_text_internal(row, col, max_cols, attr, text, false);
-}
-
-void story_print_text_grid(int row, int col, int max_cols, byte attr, cptr text)
-{
-    story_print_text_internal(row, col, max_cols, attr, text, true);
-}
-
-void story_print_mono(int row, int col, byte attr, cptr text)
-{
-    if (!text)
-        text = "";
-
-#ifdef USE_SDL
-    bool reenable_story = false;
-    if (sdl_is_story_font_enabled())
-    {
-        sdl_story_font_disable();
-        reenable_story = true;
-    }
-#endif
-
-    c_put_str(attr, text, row, col);
-
-#ifdef USE_SDL
-    if (reenable_story)
-        sdl_story_font_enable();
-#endif
-}
-
-void story_fill_rect(int row, int col, int width_cols, byte attr)
-{
-    if (width_cols <= 0)
-        return;
-
-    // Fill background for highlighting without affecting existing story font rendering
-    if (row < 0 || row >= Term->hgt)
-        return;
-
-    int start_col = MAX(0, col);
-    int end_col = MIN(Term->wid, col + width_cols);
-
-    byte* scr_aa = Term->scr->a[row];
-    char* scr_cc = Term->scr->c[row];
-
-    for (int x = start_col; x < end_col; x++)
-    {
-        // Only change attribute and character, don't touch story font flags
-        scr_aa[x] = attr;
-        scr_cc[x] = ' ';
-    }
-
-    // Mark this row as changed
-    if (start_col < end_col)
-    {
-        if (row < Term->y1) Term->y1 = row;
-        if (row > Term->y2) Term->y2 = row;
-        if (start_col < Term->x1[row]) Term->x1[row] = start_col;
-        if (end_col - 1 > Term->x2[row]) Term->x2[row] = end_col - 1;
-    }
-}
-
-/*
- * Write text to the given file and apply line-wrapping.
- *
- * Hook function for text_out(). Make sure that text_out_file points
- * to an open text-file.
- *
- * Long lines will be wrapped at text_out_wrap, or at column 75 if that
- * is not set; or at a newline character.  Note that punctuation can
- * sometimes be placed one column beyond the wrap limit.
- *
- * You must be careful to end all file output with a newline character
- * to "flush" the stored line position.
  */
 void text_out_to_file(byte a, cptr str)
 {
@@ -3722,7 +2701,8 @@ void text_out_to_file(byte a, cptr str)
             /* Output the indent */
             for (i = 0; i < text_out_indent; i++)
             {
-                fputc(' ', text_out_file);
+                unsigned char space = ' ';
+                SDL_WriteIO(text_out_file, &space, 1);
                 pos++;
             }
         }
@@ -3754,7 +2734,8 @@ void text_out_to_file(byte a, cptr str)
             else
             {
                 /* Begin a new line */
-                fputc('\n', text_out_file);
+                unsigned char newline = '\n';
+                SDL_WriteIO(text_out_file, &newline, 1);
 
                 /* Reset */
                 pos = 0;
@@ -3780,7 +2761,8 @@ void text_out_to_file(byte a, cptr str)
             ch = (isprint(s[n]) ? s[n] : ' ');
 
             /* Write out the character */
-            fputc(ch, text_out_file);
+            unsigned char byte = ch;
+            SDL_WriteIO(text_out_file, &byte, 1);
 
             /* Increment */
             pos++;
@@ -3798,7 +2780,8 @@ void text_out_to_file(byte a, cptr str)
             s++;
 
         /* Begin a new line */
-        fputc('\n', text_out_file);
+        unsigned char newline = '\n';
+        SDL_WriteIO(text_out_file, &newline, 1);
 
         /* Reset */
         pos = 0;
@@ -3856,9 +2839,24 @@ void clear_from(int row)
  * Note that 'len' refers to the size of the buffer.  The maximum length
  * of the input is 'len-1'.
  */
+static int active_term_width(void)
+{
+    int wid = 80;
+    int hgt = 24;
+
+    if (Term)
+        Term_get_size(&wid, &hgt);
+
+    if (wid < 1)
+        wid = 80;
+
+    return wid;
+}
+
 bool askfor_aux(char* buf, size_t len)
 {
     int y, x;
+    int term_wid = active_term_width();
 
     size_t k = 0;
 
@@ -3870,12 +2868,14 @@ bool askfor_aux(char* buf, size_t len)
     Term_locate(&x, &y);
 
     /* Paranoia */
-    if ((x < 0) || (x >= 80))
+    if ((x < 0) || (x >= term_wid))
         x = 0;
 
     /* Restrict the length */
-    if (x + len > 80)
-        len = 80 - x;
+    if ((size_t)x + len > (size_t)term_wid)
+        len = (size_t)(term_wid - x);
+    if (len < 1)
+        len = 1;
 
     /* Truncate the default entry */
     buf[len - 1] = '\0';
@@ -3953,6 +2953,7 @@ bool askfor_aux(char* buf, size_t len)
 bool askfor_name(char* buf, size_t len)
 {
     int y, x;
+    int term_wid = active_term_width();
 
     size_t k = 0;
 
@@ -3965,12 +2966,14 @@ bool askfor_name(char* buf, size_t len)
     Term_locate(&x, &y);
 
     /* Paranoia */
-    if ((x < 0) || (x >= 80))
+    if ((x < 0) || (x >= term_wid))
         x = 0;
 
     /* Restrict the length */
-    if (x + len > 80)
-        len = 80 - x;
+    if ((size_t)x + len > (size_t)term_wid)
+        len = (size_t)(term_wid - x);
+    if (len < 1)
+        len = 1;
 
     /* Truncate the default entry */
     buf[len - 1] = '\0';
@@ -4315,8 +3318,10 @@ s16b get_quantity(cptr prompt, int max)
 int get_check_other(cptr prompt, char other)
 {
     char ch;
-
-    char buf[80];
+    char buf[160];
+    int term_wid = active_term_width();
+    int suffix_wid = 9;
+    int prompt_wid = term_wid - suffix_wid;
 
     /*default set to no*/
     int result = 0;
@@ -4325,7 +3330,9 @@ int get_check_other(cptr prompt, char other)
     message_flush();
 
     /* Hack -- Build a "useful" prompt */
-    strnfmt(buf, 78, "%.70s[y/n/%c] ", prompt, other);
+    if (prompt_wid < 8)
+        prompt_wid = 8;
+    strnfmt(buf, sizeof(buf), "%.*s[y/n/%c] ", prompt_wid, prompt, other);
 
     /* Prompt for it */
     prt(buf, 0, 0);
@@ -4373,17 +3380,20 @@ bool get_check(cptr prompt)
 {
     char ch;
 
-    char buf[80];
+    char buf[160];
+    bool portable = portable_controls_active();
+    int term_wid = active_term_width();
+    int suffix_wid = portable ? 13 : 7;
+    int prompt_wid = term_wid - suffix_wid;
 
     /* Paranoia XXX XXX XXX */
     message_flush();
 
     /* Hack -- Build a "useful" prompt */
-#ifdef STEAMDECK_SUPPORT
-    strnfmt(buf, 78, "%.70s[y/n/space] ", prompt);
-#else
-    strnfmt(buf, 78, "%.70s[y/n] ", prompt);
-#endif
+    if (prompt_wid < 8)
+        prompt_wid = 8;
+    strnfmt(buf, sizeof(buf), "%.*s[y/n%s] ", prompt_wid, prompt,
+        portable ? "/space" : "");
 
     /* Prompt for it */
     prt(buf, 0, 0);
@@ -4396,11 +3406,7 @@ bool get_check(cptr prompt)
             break;
         if (ch == ESCAPE)
             break;
-#ifdef STEAMDECK_SUPPORT
-        if (strchr("YyNn", ch) || ch == ' ')
-#else
-        if (strchr("YyNn", ch))
-#endif
+        if (strchr("YyNn", ch) || (portable && (ch == ' ' || ch == '\r' || ch == '\n')))
             break;
         bell("Illegal response to a 'yes/no' question!");
     }
@@ -4409,11 +3415,7 @@ bool get_check(cptr prompt)
     prt("", 0, 0);
 
     /* Normal negation */
-#ifdef STEAMDECK_SUPPORT
-    if ((ch != 'Y') && (ch != 'y') && (ch != ' '))
-#else
-    if ((ch != 'Y') && (ch != 'y'))
-#endif
+    if ((ch != 'Y') && (ch != 'y') && !(portable && (ch == ' ' || ch == '\r' || ch == '\n')))
         return (false);
 
     /* Success */
@@ -4458,7 +3460,7 @@ bool get_check_oath_multiline(cptr prompt)
                 if (*desc_ptr == ' ') {
                     /* Potential break point */
                     if (line_len > 0 && line_len + 1 < max_width) {
-                        strncpy(line_buffer, line_start, line_len);
+                        memcpy(line_buffer, line_start, (size_t)line_len);
                         line_buffer[line_len] = '\0';
                     }
                 }
@@ -4478,7 +3480,7 @@ bool get_check_oath_multiline(cptr prompt)
             /* Copy the line */
             int actual_len = desc_ptr - line_start;
             if (actual_len > 79) actual_len = 79;
-            strncpy(line_buffer, line_start, actual_len);
+            memcpy(line_buffer, line_start, (size_t)actual_len);
             line_buffer[actual_len] = '\0';
             
             /* Remove trailing space */
@@ -4838,10 +3840,11 @@ void request_command(void)
         act = keymap_act[mode][(byte)(ch)];
 
         /* Apply keymap if not inside a keymap already */
-        if (act && !inkey_next)
+        /* Skip Space keymap if space_acts_as_comma option is disabled */
+        if (act && !inkey_next && !((ch == ' ') && !space_acts_as_comma))
         {
             /* Install the keymap */
-            my_strcpy(
+            SDL_strlcpy(
                 request_command_buffer, act, sizeof(request_command_buffer));
 
             /* Start using the buffer */
@@ -5008,62 +4011,6 @@ int color_char_to_attr(char c)
 
     return (-1);
 }
-
-#if 0
-
-/*
- * Replace the first instance of "target" in "buf" with "insert"
- * If "insert" is NULL, just remove the first instance of "target"
- * In either case, return true if "target" is found.
- *
- * Could be made more efficient, especially in the case where "insert"
- * is smaller than "target".
- */
-static bool insert_str(char *buf, cptr target, cptr insert)
-{
-	int i, len;
-	int b_len, t_len, i_len;
-
-	/* Attempt to find the target (modify "buf") */
-	buf = strstr(buf, target);
-
-	/* No target found */
-	if (!buf) return (false);
-
-	/* Be sure we have an insertion string */
-	if (!insert) insert = "";
-
-	/* Extract some lengths */
-	t_len = strlen(target);
-	i_len = strlen(insert);
-	b_len = strlen(buf);
-
-	/* How much "movement" do we need? */
-	len = i_len - t_len;
-
-	/* We need less space (for insert) */
-	if (len < 0)
-	{
-		for (i = t_len; i < b_len; ++i) buf[i+len] = buf[i];
-	}
-
-	/* We need more space (for insert) */
-	else if (len > 0)
-	{
-		for (i = b_len-1; i >= t_len; --i) buf[i+len] = buf[i];
-	}
-
-	/* If movement occured, we need a new terminator */
-	if (len) buf[b_len+len] = '\0';
-
-	/* Now copy the insertion string */
-	for (i = 0; i < i_len; ++i) buf[i] = insert[i];
-
-	/* Successful operation */
-	return (true);
-}
-
-#endif
 
 #ifdef ALLOW_REPEAT
 
@@ -5578,11 +4525,11 @@ void editing_buffer_init(
         len = strlen(buf);
 
     /* Alloc a clean buffer */
-    C_MAKE(eb_ptr->buf, max_size, char);
+    eb_ptr->buf = mem_alloc_array(max_size, char);
 
     /* Copy the initial string, if any */
     if (len > 0)
-        my_strcpy(eb_ptr->buf, buf, sizeof(eb_ptr->buf));
+        SDL_strlcpy(eb_ptr->buf, buf, sizeof(eb_ptr->buf));
 
     /* Initialize the remaining fields */
     eb_ptr->pos = len;
@@ -5601,7 +4548,7 @@ void editing_buffer_destroy(editing_buffer* eb_ptr)
     /* Destroy the buffer */
     if (eb_ptr && eb_ptr->buf)
     {
-        FREE(eb_ptr->buf);
+        mem_free_null(eb_ptr->buf);
         eb_ptr->buf = NULL;
     }
 }
@@ -5734,7 +4681,7 @@ void editing_buffer_clear(editing_buffer* eb_ptr)
         return;
 
     /* Clear the buffer */
-    C_WIPE(eb_ptr->buf, eb_ptr->max_size, char);
+    memset(eb_ptr->buf, 0, sizeof(char) * eb_ptr->max_size);
 
     /* Reinitialize the remaining fields but "max_size" */
     eb_ptr->pos = 0;
@@ -5884,7 +4831,7 @@ int color_text_to_attr(cptr name)
             continue;
 
         /* Compare only the found name */
-        if (my_strnicmp(name, color_names[base & 0x0F], len) == 0)
+        if (SDL_strncasecmp(name, color_names[base & 0x0F], len) == 0)
         {
             /* Build the extended color */
             return (MAKE_EXTENDED_COLOR(base, shade));
@@ -5895,129 +4842,6 @@ int color_text_to_attr(cptr name)
     return (-1);
 }
 
-static char* short_color_names[MAX_BASE_COLORS] = { "Dark", "White", "Slate",
-    "Orange", "Red", "Green", "Blue", "Umber", "L.Dark", "L.Slate", "Violet",
-    "Yellow", "L.Red", "L.Green", "L.Blue", "L.Umber" };
 
-/*
- * Extract a textual representation of an attribute
- */
-cptr attr_to_text(byte a)
-{
-    char* base;
 
-    base = short_color_names[GET_BASE_COLOR(a)];
 
-#if DO_YOU_WANT_THIS_IN_MONSTER_SPOILERS_Q
-
-    if (GET_SHADE(a) > 0)
-    {
-        static char buf[25];
-
-        strnfmt(buf, sizeof(buf), "%s%d", base, GET_SHADE(a));
-
-        return (buf);
-    }
-
-#endif
-
-    return (base);
-}
-
-/*
- * Initialises logger. Opens `log.txt` file and sets log level for stdout and
- * file from `SIL_LOG_LEVEL` environment variable. The `quiet` argument disables
- * stdout when set to true (essential for terminal modes like ncurses where
- * screen output would be garbled otherwise).
- */
-void init_logger(bool quiet, const char* exe_path)
-{
-    const char* log_level_str = getenv("SIL_LOG_LEVEL");
-    int level = LOG_DEBUG; /* Default to DEBUG level */
-    char log_path[1024];
-    
-    if (log_level_str && strlen(log_level_str) > 0)
-    {
-        for (level = LOG_TRACE; level <= LOG_FATAL; level++)
-        {
-            if (strcmp(log_level_str, log_level_string(level)) == 0)
-            {
-                break;
-            }
-        }
-        if (level > LOG_FATAL)
-        {
-            level = LOG_INFO;
-            log_warn("Unknown log level %s, log level will be set to INFO",
-                log_level_str);
-        }
-    }
-
-    /* Build log file path in same directory as executable */
-    if (exe_path)
-    {
-        int i;
-        strcpy(log_path, exe_path);
-        
-        /* Find the last directory separator */
-        for (i = strlen(log_path) - 1; i >= 0; i--)
-        {
-            if (log_path[i] == '\\' || log_path[i] == '/')
-            {
-#if LOG_MODE_TIMESTAMP
-                /* Create timestamped log filename */
-                time_t now = time(NULL);
-                struct tm *timeinfo = localtime(&now);
-                char timestamp[32];
-                strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", timeinfo);
-                sprintf(log_path + i + 1, "log_%s.txt", timestamp);
-#else
-                /* Replace everything after the separator with "log.txt" */
-                strcpy(log_path + i + 1, "log.txt");
-#endif
-                break;
-            }
-        }
-        
-        /* If no separator found, use appropriate filename in current directory */
-        if (i < 0)
-        {
-#if LOG_MODE_TIMESTAMP
-            time_t now = time(NULL);
-            struct tm *timeinfo = localtime(&now);
-            char timestamp[32];
-            strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", timeinfo);
-            sprintf(log_path, "log_%s.txt", timestamp);
-#else
-            strcpy(log_path, "log.txt");
-#endif
-        }
-    }
-    else
-    {
-        /* Fallback to current directory if exe_path not available */
-#if LOG_MODE_TIMESTAMP
-        time_t now = time(NULL);
-        struct tm *timeinfo = localtime(&now);
-        char timestamp[32];
-        strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", timeinfo);
-        sprintf(log_path, "log_%s.txt", timestamp);
-#else
-        strcpy(log_path, "log.txt");
-#endif
-    }
-
-    FILE* log_file = my_fopen(log_path, "w");
-    if (!log_file)
-        quit("could not open log.txt for writing");
-    log_add_fp(log_file, level);
-    log_set_level(level);
-
-    if (quiet)
-    {
-        log_set_quiet(true);
-    }
-
-    log_info("logger initialised with level %d", level);
-    atexit(log_close_files);
-}

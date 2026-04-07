@@ -9,6 +9,8 @@
  */
 
 #include "angband.h"
+#include "externs.h"
+#include "log/log.h"
 #include "metarun.h"
 
 /*
@@ -175,7 +177,7 @@ void delete_monster_idx(int i)
     }
 
     /* Wipe the Monster */
-    (void)WIPE(m_ptr, monster_type);
+    memset(m_ptr, 0, sizeof(monster_type));
 
     /* Count monsters */
     mon_cnt--;
@@ -283,10 +285,10 @@ static void compact_monsters_aux(int i1, int i2)
         p_ptr->health_who = i2;
 
     /* Hack -- move monster */
-    COPY(&mon_list[i2], &mon_list[i1], monster_type);
+    memcpy(&mon_list[i2], &mon_list[i1], sizeof(monster_type));
 
     /* Hack -- wipe hole */
-    (void)WIPE(&mon_list[i1], monster_type);
+    memset(&mon_list[i1], 0, sizeof(monster_type));
 }
 
 /*
@@ -320,8 +322,8 @@ void compact_monsters(int size)
         s16b* mon_index;
 
         /* Allocate the "mon_lev and mon_index" arrays */
-        C_MAKE(mon_lev, mon_max, s16b);
-        C_MAKE(mon_index, mon_max, s16b);
+        mon_lev = mem_alloc_array(mon_max, s16b);
+        mon_index = mem_alloc_array(mon_max, s16b);
 
         /* Message */
         msg_print("Compacting monsters...");
@@ -409,8 +411,8 @@ void compact_monsters(int size)
         }
 
         /* Free the "mon_lev and mon_index" arrays */
-        FREE(mon_lev);
-        FREE(mon_index);
+        mem_free_null(mon_lev);
+        mem_free_null(mon_index);
     }
 
     /* Excise dead monsters (backwards!) */
@@ -458,7 +460,7 @@ void wipe_mon_list(void)
         cave_m_idx[m_ptr->fy][m_ptr->fx] = 0;
 
         /* Wipe the Monster */
-        (void)WIPE(m_ptr, monster_type);
+        memset(m_ptr, 0, sizeof(monster_type));
     }
 
     /* Reset "mon_max" */
@@ -616,8 +618,13 @@ s16b get_mon_num(int level, bool special, bool allow_non_smart, bool vault)
     bool pursuing_monster = false;
 
     bool allow24 = false;
+    int build_vault_type = 0;
+    bool exact_token = false;
+    int current_generation_depth = player_generation_depth();
 
     // determine the effective level:
+
+    level = generation_depth_for_level(level);
 
     // default
     generation_level = level;
@@ -648,20 +655,13 @@ s16b get_mon_num(int level, bool special, bool allow_non_smart, bool vault)
                 generation_level = rand_range(17, 23);
             }
 
-            // the surface generates monsters as levels 17--23
-            if (level == 0)
-            {
-                pursuing_monster = true;
-                generation_level = rand_range(17, 23);
-            }
-
             if (pursuing_monster)
             {
                 // leave as is
             }
 
             // most of the time use a small distribution
-            else if (level == p_ptr->depth)
+            else if (level == current_generation_depth)
             {
                 // modify the effective level by a small random amount: [1, 4,
                 // 6, 4, 1]
@@ -693,6 +693,7 @@ s16b get_mon_num(int level, bool special, bool allow_non_smart, bool vault)
 
     /* Reset total */
     total = 0L;
+    monster_special_vault_debug_context(&build_vault_type, &exact_token);
 
     /* Process probabilities */
     for (i = 0; i < alloc_race_size; i++)
@@ -729,6 +730,23 @@ s16b get_mon_num(int level, bool special, bool allow_non_smart, bool vault)
             && (r_ptr->level > p_ptr->depth))
         {
             continue;
+        }
+
+        /* Special-vault-only monsters must not enter generic selection outside
+         * their explicit vault-token or throne-room build contexts. */
+        if (r_ptr->flags3 & (RF3_SPECIAL_VAULT_ONLY))
+        {
+            bool allowed = monster_special_vault_selection_allowed();
+            log_trace(
+                "SPECIAL_VAULT_ONLY select: monster='%s' r_idx=%d requested_level=%d generation_level=%d depth=%d special=%s vault=%s build_vault_type=%d exact_token=%s allowed=%s",
+                r_name + r_ptr->name, r_idx, level, generation_level,
+                p_ptr->depth, special ? "yes" : "no", vault ? "yes" : "no",
+                build_vault_type, exact_token ? "yes" : "no",
+                allowed ? "yes" : "no");
+            if (!allowed)
+            {
+                continue;
+            }
         }
 
         /* Non-moving monsters can't appear as out-of-depth pursuing monsters */
@@ -811,7 +829,7 @@ void display_monlist(void)
     }
 
     /* Allocate the array */
-    C_MAKE(race_counts, z_info->r_max, u16b);
+    race_counts = mem_alloc_array(z_info->r_max, u16b);
 
     /* Iterate over mon_list */
     for (idx = 1; idx < mon_max; idx++)
@@ -896,7 +914,7 @@ void display_monlist(void)
     }
 
     /* Free the race counters */
-    FREE(race_counts);
+    mem_free_null(race_counts);
 
     /* Erase the rest of the window */
     for (idx = line; idx < Term->hgt; idx++)
@@ -1079,7 +1097,7 @@ void monster_desc(char* desc, size_t max, const monster_type* m_ptr, int mode)
         }
 
         /* Copy the result */
-        my_strcpy(desc, res, max);
+        SDL_strlcpy(desc, res, max);
     }
 
     /* Handle visible monsters, "reflexive" request */
@@ -1087,11 +1105,11 @@ void monster_desc(char* desc, size_t max, const monster_type* m_ptr, int mode)
     {
         /* The monster is visible, so use its gender */
         if (r_ptr->flags1 & (RF1_FEMALE))
-            my_strcpy(desc, "herself", max);
+            SDL_strlcpy(desc, "herself", max);
         else if (r_ptr->flags1 & (RF1_MALE))
-            my_strcpy(desc, "himself", max);
+            SDL_strlcpy(desc, "himself", max);
         else
-            my_strcpy(desc, "itself", max);
+            SDL_strlcpy(desc, "itself", max);
     }
 
     /* Handle all other visible monster requests */
@@ -1101,7 +1119,7 @@ void monster_desc(char* desc, size_t max, const monster_type* m_ptr, int mode)
         if (r_ptr->flags1 & (RF1_UNIQUE))
         {
             /* Start with the name (thus nominative and objective) */
-            my_strcpy(desc, name, max);
+            SDL_strlcpy(desc, name, max);
         }
 
         /* It could be an indefinite monster */
@@ -1110,16 +1128,16 @@ void monster_desc(char* desc, size_t max, const monster_type* m_ptr, int mode)
             /* XXX Check plurality for "some" */
 
             /* Indefinite monsters need an indefinite article */
-            my_strcpy(desc, is_a_vowel(name[0]) ? "an " : "a ", max);
-            my_strcat(desc, name, max);
+            SDL_strlcpy(desc, is_a_vowel(name[0]) ? "an " : "a ", max);
+            SDL_strlcat(desc, name, max);
         }
 
         /* It could be a normal, definite, monster */
         else
         {
             /* Definite monsters need a definite article */
-            my_strcpy(desc, "the ", max);
-            my_strcat(desc, name, max);
+            SDL_strlcpy(desc, "the ", max);
+            SDL_strlcat(desc, name, max);
         }
 
         /* Handle the Possessive as a special afterthought */
@@ -1128,14 +1146,14 @@ void monster_desc(char* desc, size_t max, const monster_type* m_ptr, int mode)
             /* XXX Check for trailing "s" */
 
             /* Simply append "apostrophe" and "s" */
-            my_strcat(desc, "'s", max);
+            SDL_strlcat(desc, "'s", max);
         }
 
         /* Mention "offscreen" monsters XXX XXX */
         if (!panel_contains(m_ptr->fy, m_ptr->fx))
         {
             /* Append special notation */
-            my_strcat(desc, " (offscreen)", max);
+            SDL_strlcat(desc, " (offscreen)", max);
         }
     }
 }
@@ -1159,7 +1177,7 @@ void monster_desc_race(char* desc, size_t max, int r_idx)
     cptr name = (r_name + r_ptr->name);
 
     /* Write the name */
-    my_strcpy(desc, name, max);
+    SDL_strlcpy(desc, name, max);
 }
 
 /*
@@ -1185,13 +1203,17 @@ void lore_treasure(int m_idx, int num_item)
     if (num_item > l_ptr->drop_item)
         l_ptr->drop_item = num_item;
 
-    /* Hack -- memorize the good/great flags */
+    /* Hack -- memorize the chest/good/great/superb/artefact flags */
     if (r_ptr->flags1 & (RF1_DROP_CHEST))
         l_ptr->flags1 |= (RF1_DROP_CHEST);
     if (r_ptr->flags1 & (RF1_DROP_GOOD))
         l_ptr->flags1 |= (RF1_DROP_GOOD);
     if (r_ptr->flags1 & (RF1_DROP_GREAT))
         l_ptr->flags1 |= (RF1_DROP_GREAT);
+    if (r_ptr->flags2 & (RF2_DROP_SUPERB))
+        l_ptr->flags2 |= (RF2_DROP_SUPERB);
+    if (r_ptr->flags3 & (RF3_DROP_ARTEFACT))
+        l_ptr->flags3 |= (RF3_DROP_ARTEFACT);
 
     /* Update monster recall window */
     if (p_ptr->monster_race_idx == m_ptr->r_idx)
@@ -1223,16 +1245,16 @@ int monster_skill(monster_type* m_ptr, int skill_type)
     case S_STL:
         skill = r_ptr->stl;
         skill -= m_ptr->song_stealth_penalty;
-        skill += 2 * curse_flag_count_cur(CUR_MON_STL);   /* +/-2 Stl per stack */
+        skill += 2 * curse_flag_delta_cur(CUR_MON_STL);   /* +/-2 Stl per stack */
         break;
     case S_PER:
         skill = r_ptr->per;
-        skill += 2 * curse_flag_count_cur(CUR_MON_PER);   /* +/-2 Per per stack */
+        skill += 2 * curse_flag_delta_cur(CUR_MON_PER);   /* +/-2 Per per stack */
         break;
     case S_WIL:
         skill = r_ptr->wil;
         skill -= m_ptr->song_will_penalty;
-        skill += 2 * curse_flag_count_cur(CUR_MON_WIL);   /* +/-2 Wil per stack */
+        skill += 2 * curse_flag_delta_cur(CUR_MON_WIL);   /* +/-2 Wil per stack */
         break;
     case S_SMT:
         msg_debug("Can't determine the monster's Smithing score.");
@@ -1535,9 +1557,6 @@ void update_mon(int m_idx, bool full)
     /* Known because immobile */
     bool immobile_seen = false;
 
-    u16b tmp_rand_place;
-    u32b tmp_rand_state[RAND_DEG];
-
     // unmoving mindless monsters (i.e. molds) can be seen once encountered
     if ((r_ptr->flags1 & (RF1_NEVER_MOVE)) && (r_ptr->flags2 & (RF2_MINDLESS))
         && m_ptr->encountered)
@@ -1769,24 +1788,14 @@ void update_mon(int m_idx, bool full)
         }
     }
 
-    // Because invoking this repeatedly without the turn updating will
-    // re-randomise, we temporarily set the randseed to be based on the
-    // current turn and then restore it.
-    tmp_rand_place = Rand_place;
-
-    for (int i = 0; i < RAND_DEG; i++)
+    // Ensure repeated calls within the same turn remain deterministic by seeding
+    // the RNG from the current turn, then restoring the saved state afterwards.
     {
-        tmp_rand_state[i] = Rand_state[i];
-        Rand_state[i] = playerturn * i * 15485863; // large prime
-    }
-
-    listen(m_ptr);
-
-    Rand_place = tmp_rand_place;
-
-    for (int i = 0; i < RAND_DEG; i++)
-    {
-        Rand_state[i] = tmp_rand_state[i];
+        u64b saved_state = Rand_state_export();
+        u64b temp_seed = ((u64b)playerturn + 1) * 15485863ULL;
+        Rand_state_import(temp_seed);
+        listen(m_ptr);
+        Rand_state_import(saved_state);
     }
 
     // Check ecounters with monsters (must be visible and in line of sight)
@@ -1816,7 +1825,7 @@ void update_mon(int m_idx, bool full)
             monster_desc_race(real_name, sizeof(real_name), m_ptr->r_idx);
 
             /* Write note */
-            my_strcpy(
+            SDL_strlcpy(
                 note2, format("Encountered %s", real_name), sizeof(note2));
 
             do_cmd_note(note2, p_ptr->depth);
@@ -1961,7 +1970,7 @@ void m_fall_in_chasm(int fy, int fx)
         message_flush();
 
         // determine the falling damage
-        if (p_ptr->depth == MORGOTH_DEPTH - 2)
+        if (p_ptr->depth >= MORGOTH_DEPTH - 1)
             dice = 3; // only fall one floor in this case
         else
             dice = 6;
@@ -2006,10 +2015,22 @@ void describe_floor_object(void)
 {
     object_type* o_ptr;
     char o_name[80];
+    char smith_buf[20];
 
     // generate the object's name
     o_ptr = &o_list[cave_o_idx[p_ptr->py][p_ptr->px]];
-    object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+    object_desc_floor(o_name, sizeof(o_name), o_ptr, true, 3);
+
+    smith_buf[0] = '\0';
+    if (op_ptr->opt[OPT_show_smithing_difficulty_look]
+        && object_known_p(o_ptr)
+        && object_uses_smithing_difficulty(o_ptr))
+    {
+        int depth = (p_ptr && p_ptr->depth > 0) ? p_ptr->depth : 1;
+        int sd = object_smithing_difficulty(o_ptr);
+        int wr = object_weight_rarity(o_ptr, depth);
+        strnfmt(smith_buf, sizeof(smith_buf), " {%d,%d}", sd, wr);
+    }
 
     // skip 'nothings'
     if (!o_ptr->k_idx)
@@ -2032,12 +2053,14 @@ void describe_floor_object(void)
     // arms and armour show weight
     else if (((wield_slot(o_ptr) >= INVEN_WIELD)
                  && (wield_slot(o_ptr) <= INVEN_STAFF))
+        || (wield_slot(o_ptr) == INVEN_HORN)
         || ((wield_slot(o_ptr) >= INVEN_BODY)
             && (wield_slot(o_ptr) <= INVEN_FEET)))
     {
         int wgt = o_ptr->weight * o_ptr->number;
         if (!p_ptr->blind)
-            msg_format("You see %s %d.%1d lb.", o_name, wgt / 10, wgt % 10);
+            msg_format("You see %s %d.%1d lb%s.", o_name, wgt / 10, wgt % 10,
+                smith_buf);
         else
             msg_format("Your feet strike against %s.", o_name);
 
@@ -2049,7 +2072,7 @@ void describe_floor_object(void)
     else
     {
         if (!p_ptr->blind)
-            msg_format("You see %s.", o_name);
+            msg_format("You see %s%s.", o_name, smith_buf);
         else
             msg_format("Your feet strike against %s.", o_name);
 
@@ -2081,6 +2104,13 @@ void describe_floor_object(void)
  *
  * Note that this assumes the monster at y1-x1 is actively moving to y2-x2
  */
+static bool player_environment_bonus_state_changed(int old_y, int old_x,
+    int new_y, int new_x)
+{
+    return level_partition_big_cave_type_for_point(old_y, old_x)
+        != level_partition_big_cave_type_for_point(new_y, new_x);
+}
+
 void monster_swap(int y1, int x1, int y2, int x2)
 {
     int m1 = cave_m_idx[y1][x1];
@@ -2106,7 +2136,8 @@ void monster_swap(int y1, int x1, int y2, int x2)
 
         // (skip_next_turn is there to stop you getting opportunist attacks afer
         // knocking someone back)
-        if (m_ptr->ml && !m_ptr->skip_next_turn && !p_ptr->truce
+        if (!singing(SNG_DISGUISE) && m_ptr->ml && !m_ptr->skip_next_turn
+            && !p_ptr->truce
             && !p_ptr->confused && !p_ptr->afraid && !p_ptr->entranced
             && (p_ptr->stun <= 100))
         {
@@ -2118,9 +2149,18 @@ void monster_swap(int y1, int x1, int y2, int x2)
                     if ((distance(y1, x1, p_ptr->py, p_ptr->px) == 1)
                         && (distance(y2, x2, p_ptr->py, p_ptr->px) == 1))
                     {
-                        msg_format(
-                            "%^s moves through your zone of control.", m_name);
-                        py_attack_aux(y1, x1, ATT_ZONE_OF_CONTROL);
+                        if (valorous_oath_auto_attack_safety
+                            && chosen_oath(OATH_VALOROUS)
+                            && !oath_invalid(OATH_VALOROUS) && m_ptr->ml
+                            && (m_ptr->stance == STANCE_FLEEING))
+                        {
+                            msg_format("%^s moves through your zone of control, but you hold back.", m_name);
+                        }
+                        else
+                        {
+                            msg_format("%^s moves through your zone of control.", m_name);
+                            py_attack_aux(y1, x1, ATT_ZONE_OF_CONTROL);
+                        }
                     }
                 }
                 if (p_ptr->active_ability[S_STL][STL_OPPORTUNIST])
@@ -2128,8 +2168,18 @@ void monster_swap(int y1, int x1, int y2, int x2)
                     if ((distance(y1, x1, p_ptr->py, p_ptr->px) == 1)
                         && (distance(y2, x2, p_ptr->py, p_ptr->px) > 1))
                     {
-                        msg_format("%^s moves away from you.", m_name);
-                        py_attack_aux(y1, x1, ATT_OPPORTUNIST);
+                        if (valorous_oath_auto_attack_safety
+                            && chosen_oath(OATH_VALOROUS)
+                            && !oath_invalid(OATH_VALOROUS) && m_ptr->ml
+                            && (m_ptr->stance == STANCE_FLEEING))
+                        {
+                            msg_format("%^s moves away from you, but you hold back.", m_name);
+                        }
+                        else
+                        {
+                            msg_format("%^s moves away from you.", m_name);
+                            py_attack_aux(y1, x1, ATT_OPPORTUNIST);
+                        }
                     }
                 }
             }
@@ -2146,6 +2196,21 @@ void monster_swap(int y1, int x1, int y2, int x2)
         m_ptr->fy = y2;
         m_ptr->fx = x2;
 
+        if ((r_info[m_ptr->r_idx].flags3 & RF3_SPECIAL_VAULT_ONLY)
+            && (((cave_info[y1][x1] & CAVE_G_VAULT) == 0)
+                || ((cave_info[y2][x2] & CAVE_G_VAULT) == 0)))
+        {
+            log_trace(
+                "SPECIAL_VAULT_ONLY move: monster='%s' r_idx=%d m_idx=%d depth=%d from=(%d,%d) to=(%d,%d) from_g_vault=%d to_g_vault=%d from_icky=%d to_icky=%d from_morgoth_tunnel=%d to_morgoth_tunnel=%d",
+                m_name, m_ptr->r_idx, m1, p_ptr->depth, y1, x1, y2, x2,
+                (cave_info[y1][x1] & CAVE_G_VAULT) ? 1 : 0,
+                (cave_info[y2][x2] & CAVE_G_VAULT) ? 1 : 0,
+                (cave_info[y1][x1] & CAVE_ICKY) ? 1 : 0,
+                (cave_info[y2][x2] & CAVE_ICKY) ? 1 : 0,
+                (cave_info[y1][x1] & CAVE_MORGOTH_TUNNEL) ? 1 : 0,
+                (cave_info[y2][x2] & CAVE_MORGOTH_TUNNEL) ? 1 : 0);
+        }
+
         // makes noise when moving
         if (m_ptr->noise == 0)
             m_ptr->noise = 5;
@@ -2157,6 +2222,17 @@ void monster_swap(int y1, int x1, int y2, int x2)
     /* Player 1 */
     else if (m1 < 0)
     {
+        bool bonus_state_changed =
+            player_environment_bonus_state_changed(y1, x1, y2, x2);
+        bool should_log_environment = bonus_state_changed
+            || level_partition_big_cave_type_for_point(y1, x1) != BIG_CAVE_NONE
+            || level_partition_big_cave_type_for_point(y2, x2) != BIG_CAVE_NONE
+            || ((cave_info[y1][x1] & (CAVE_G_VAULT | CAVE_MORGOTH_TUNNEL)) != 0)
+            || ((cave_info[y2][x2] & (CAVE_G_VAULT | CAVE_MORGOTH_TUNNEL)) != 0);
+
+        if (should_log_environment)
+            log_partition_debug_for_point("monster_swap.old", y1, x1);
+
         // deal with monsters with Opportunist or Zone of Control
         for (y = p_ptr->py - 1; y <= p_ptr->py + 1; y++)
         {
@@ -2169,7 +2245,8 @@ void monster_swap(int y1, int x1, int y2, int x2)
                     l_ptr = &l_list[m_ptr->r_idx];
                     monster_desc(m_name, sizeof(m_name), m_ptr, 0);
 
-                    if ((m_ptr->alertness >= ALERTNESS_ALERT)
+                    if (!singing(SNG_DISGUISE)
+                        && (m_ptr->alertness >= ALERTNESS_ALERT)
                         && !m_ptr->confused && (m_ptr->stance != STANCE_FLEEING)
                         && !m_ptr->skip_next_turn && !m_ptr->skip_this_turn)
                     {
@@ -2217,6 +2294,15 @@ void monster_swap(int y1, int x1, int y2, int x2)
 
         /* Window stuff */
         p_ptr->window |= (PW_OVERHEAD);
+
+        if (should_log_environment)
+            log_partition_debug_for_point("monster_swap.new", y2, x2);
+
+        if (bonus_state_changed)
+        {
+            p_ptr->update |= (PU_BONUS);
+            update_stuff();
+        }
     }
 
     /* Monster 2 */
@@ -2284,8 +2370,17 @@ void monster_swap(int y1, int x1, int y2, int x2)
                 /* Get the basic name of the object */
                 object_desc(o_name, sizeof(o_name), o_ptr, false, 0);
 
-                msg_format("%^s comes into reach of your %s.", m_name, o_name);
-                py_attack_aux(y2, x2, ATT_POLEARM);
+                if (valorous_oath_auto_attack_safety && chosen_oath(OATH_VALOROUS)
+                    && !oath_invalid(OATH_VALOROUS)
+                    && (m_ptr->stance == STANCE_FLEEING))
+                {
+                    msg_format("%^s comes into reach of your %s, but you hold back.", m_name, o_name);
+                }
+                else
+                {
+                    msg_format("%^s comes into reach of your %s.", m_name, o_name);
+                    py_attack_aux(y2, x2, ATT_POLEARM);
+                }
             }
         }
     }
@@ -2352,7 +2447,7 @@ s16b monster_place(int y, int x, monster_type* n_ptr)
         m_ptr = &mon_list[m_idx];
 
         /* Copy the monster XXX */
-        COPY(m_ptr, n_ptr, monster_type);
+        memcpy(m_ptr, n_ptr, sizeof(monster_type));
 
         /* Location */
         m_ptr->fy = y;
@@ -2527,6 +2622,33 @@ int random_r_idx(void)
     }
 }
 
+s16b monster_lookup_guid(u64b guid)
+{
+    if (!guid)
+        return 0;
+
+    for (s16b i = 1; i < z_info->r_max; i++)
+    {
+        monster_race* r_ptr = &r_info[i];
+        if (r_ptr->guid == guid)
+            return i;
+    }
+
+    return 0;
+}
+
+s16b monster_lookup_guid_text(const char* text)
+{
+    if (!text)
+        return 0;
+
+    u64b guid = 0;
+    if (!parse_u64b_hex(text, &guid))
+        return 0;
+
+    return monster_lookup_guid(guid);
+}
+
 /*
  * Attempt to place a monster of the given race at the given location.
  *
@@ -2599,6 +2721,26 @@ bool place_monster_one(
         return (false);
     }
 
+    if (r_ptr->flags3 & (RF3_SPECIAL_VAULT_ONLY))
+    {
+        int build_vault_type = 0;
+        bool exact_token = false;
+        bool allowed = monster_special_vault_only_allowed_at(y, x);
+        monster_special_vault_debug_context(&build_vault_type, &exact_token);
+        log_trace(
+            "SPECIAL_VAULT_ONLY place-check: monster='%s' r_idx=%d depth=%d at=(%d,%d) ignore_depth=%s build_vault_type=%d exact_token=%s cave_g_vault=%d cave_icky=%d cave_morgoth_tunnel=%d allowed=%s",
+            name, r_idx, p_ptr->depth, y, x, ignore_depth ? "yes" : "no",
+            build_vault_type, exact_token ? "yes" : "no",
+            (cave_info[y][x] & CAVE_G_VAULT) ? 1 : 0,
+            (cave_info[y][x] & CAVE_ICKY) ? 1 : 0,
+            (cave_info[y][x] & CAVE_MORGOTH_TUNNEL) ? 1 : 0,
+            allowed ? "yes" : "no");
+        if (!allowed)
+        {
+            return (false);
+        }
+    }
+
     /* Check quest monster spawning restrictions when not ignoring depth */
     if (!ignore_depth && get_mon_num_hook && !(*get_mon_num_hook)(r_idx))
     {
@@ -2610,7 +2752,7 @@ bool place_monster_one(
     n_ptr = &monster_type_body;
 
     /* Clean out the monster */
-    (void)WIPE(n_ptr, monster_type);
+    memset(n_ptr, 0, sizeof(monster_type));
 
     /* Save the race */
     n_ptr->r_idx = r_idx;
@@ -2679,7 +2821,7 @@ bool place_monster_one(
 
         /* Apply unique‐HP curses/blessings: +20% curse, -10% blessing per stack */
         {
-            int stacks = curse_flag_count_cur(CUR_U_MON_HP);
+            int stacks = curse_flag_delta_cur(CUR_U_MON_HP);
             if (stacks > 0) {
                 /* Curse: +20% per stack */
                 n_ptr->maxhp = (n_ptr->maxhp * (100 + 20 * stacks)) / 100;
@@ -2696,7 +2838,7 @@ bool place_monster_one(
 
         /* Apply normal‐HP curses/blessings: +20% curse, -10% blessing per stack */
         {
-            int stacks = curse_flag_count_cur(CUR_MON_HP);
+            int stacks = curse_flag_delta_cur(CUR_MON_HP);
             if (stacks > 0) {
                 /* Curse: +20% per stack */
                 n_ptr->maxhp = (n_ptr->maxhp * (100 + 20 * stacks)) / 100;
@@ -2731,12 +2873,29 @@ bool place_monster_one(
     // Same as old FORCE_SLEEP flag, which is now the default behaviour
     n_ptr->energy = (byte)rand_int(10);
 
+    /* Initialize stance to STANCE_CONFIDENT as default */
+    n_ptr->stance = STANCE_CONFIDENT;
+
     /* Place the monster in the dungeon */
     if (!monster_place(y, x, n_ptr))
         return (false);
 
     // reacquire monster pointer
     n_ptr = &mon_list[cave_m_idx[y][x]];
+
+    if (r_ptr->flags3 & (RF3_SPECIAL_VAULT_ONLY))
+    {
+        int build_vault_type = 0;
+        bool exact_token = false;
+        monster_special_vault_debug_context(&build_vault_type, &exact_token);
+        log_trace(
+            "SPECIAL_VAULT_ONLY placed: monster='%s' r_idx=%d m_idx=%d depth=%d at=(%d,%d) build_vault_type=%d exact_token=%s cave_g_vault=%d cave_icky=%d cave_morgoth_tunnel=%d",
+            name, r_idx, cave_m_idx[y][x], p_ptr->depth, y, x,
+            build_vault_type, exact_token ? "yes" : "no",
+            (cave_info[y][x] & CAVE_G_VAULT) ? 1 : 0,
+            (cave_info[y][x] & CAVE_ICKY) ? 1 : 0,
+            (cave_info[y][x] & CAVE_MORGOTH_TUNNEL) ? 1 : 0);
+    }
 
     // give the monster a place to wander towards
     new_wandering_destination(n_ptr, m_ptr);
@@ -2771,6 +2930,107 @@ bool place_monster_one(
 
     /* Success */
     return (true);
+}
+
+void log_live_special_vault_only_monsters(const char* reason)
+{
+    int count = 0;
+    static const int tracked_r_idx[] = {
+        R_IDX_GOTHMOG,
+        R_IDX_UNGOLIANT,
+        R_IDX_GLAURUNG,
+        R_IDX_GORTHAUR,
+    };
+
+    for (size_t ti = 0; ti < N_ELEMENTS(tracked_r_idx); ti++)
+    {
+        int r_idx = tracked_r_idx[ti];
+        monster_race* r_ptr = &r_info[r_idx];
+
+        log_trace(
+            "SPECIAL_VAULT_ONLY race: reason='%s' monster='%s' r_idx=%d flags3=0x%08lx has_special=%d cur_num=%d max_num=%d",
+            reason ? reason : "<none>", r_name + r_ptr->name, r_idx,
+            (unsigned long)r_ptr->flags3,
+            (r_ptr->flags3 & RF3_SPECIAL_VAULT_ONLY) ? 1 : 0,
+            r_ptr->cur_num, r_ptr->max_num);
+    }
+
+    for (int i = 1; i < mon_max; i++)
+    {
+        monster_type* m_ptr = &mon_list[i];
+        monster_race* r_ptr;
+
+        if (!m_ptr->r_idx)
+            continue;
+
+        r_ptr = &r_info[m_ptr->r_idx];
+        if (!(r_ptr->flags3 & RF3_SPECIAL_VAULT_ONLY))
+            continue;
+
+        count++;
+        log_trace(
+            "SPECIAL_VAULT_ONLY live: reason='%s' monster='%s' r_idx=%d m_idx=%d depth=%d at=(%d,%d) cave_g_vault=%d cave_icky=%d cave_morgoth_tunnel=%d alertness=%d energy=%d",
+            reason ? reason : "<none>", r_name + r_ptr->name, m_ptr->r_idx, i,
+            p_ptr->depth, m_ptr->fy, m_ptr->fx,
+            (cave_info[m_ptr->fy][m_ptr->fx] & CAVE_G_VAULT) ? 1 : 0,
+            (cave_info[m_ptr->fy][m_ptr->fx] & CAVE_ICKY) ? 1 : 0,
+            (cave_info[m_ptr->fy][m_ptr->fx] & CAVE_MORGOTH_TUNNEL) ? 1 : 0,
+            m_ptr->alertness, m_ptr->energy);
+    }
+
+    for (int i = 1; i < mon_max; i++)
+    {
+        monster_type* m_ptr = &mon_list[i];
+        monster_race* r_ptr;
+        bool tracked = false;
+
+        if (!m_ptr->r_idx)
+            continue;
+
+        for (size_t ti = 0; ti < N_ELEMENTS(tracked_r_idx); ti++)
+        {
+            if (m_ptr->r_idx == tracked_r_idx[ti])
+            {
+                tracked = true;
+                break;
+            }
+        }
+
+        if (!tracked)
+            continue;
+
+        r_ptr = &r_info[m_ptr->r_idx];
+        log_trace(
+            "SPECIAL_VAULT_ONLY tracked-live: reason='%s' monster='%s' r_idx=%d m_idx=%d depth=%d at=(%d,%d) has_special=%d cave_g_vault=%d cave_icky=%d cave_morgoth_tunnel=%d alertness=%d energy=%d",
+            reason ? reason : "<none>", r_name + r_ptr->name, m_ptr->r_idx, i,
+            p_ptr->depth, m_ptr->fy, m_ptr->fx,
+            (r_ptr->flags3 & RF3_SPECIAL_VAULT_ONLY) ? 1 : 0,
+            (cave_info[m_ptr->fy][m_ptr->fx] & CAVE_G_VAULT) ? 1 : 0,
+            (cave_info[m_ptr->fy][m_ptr->fx] & CAVE_ICKY) ? 1 : 0,
+            (cave_info[m_ptr->fy][m_ptr->fx] & CAVE_MORGOTH_TUNNEL) ? 1 : 0,
+            m_ptr->alertness, m_ptr->energy);
+    }
+
+    if (count == 0)
+    {
+        log_trace(
+            "SPECIAL_VAULT_ONLY live: reason='%s' none depth=%d mon_max=%d",
+            reason ? reason : "<none>", p_ptr->depth, mon_max);
+    }
+}
+
+bool place_monster_by_guid(
+    int y, int x, u64b guid, bool slp, bool ignore_depth, monster_type* summoner)
+{
+    s16b r_idx = monster_lookup_guid(guid);
+    if (!r_idx)
+    {
+        log_warn("place_monster_by_guid: no monster with GUID 0x%08lx%08lx",
+            (unsigned long)(guid >> 32), (unsigned long)(guid & 0xFFFFFFFFUL));
+        return false;
+    }
+
+    return place_monster_one(y, x, r_idx, slp, ignore_depth, summoner);
 }
 
 /*
@@ -3187,6 +3447,15 @@ bool place_monster(int y, int x, bool slp, bool grp, bool vault)
 }
 
 /*
+ * Roomy partitions can tolerate monster groups; non-roomy partitions should
+ * stay single-file so they do not flood one origin point with dense packs.
+ */
+static bool monster_groups_allowed_at(int y, int x)
+{
+    return level_partition_kind_for_point(y, x) == LEVEL_PART_ROOMY;
+}
+
+/*
  * Attempt to allocate a random monster (or group) in the dungeon.
  *
  * It can be forced to be on the stairs and/or forced to be out of sight of the
@@ -3289,11 +3558,13 @@ bool alloc_monster(bool on_stairs, bool force_undead)
 
         if (!give_up)
         {
+            bool suppress_grp = !monster_groups_allowed_at(sy, sx);
+
             // Try hard to put a monster on the stairs
             while (!placed && (tries < 50))
             {
                 // modify the monster generation level based on the stair type
-                monster_level = p_ptr->depth;
+                monster_level = player_generation_depth();
                 switch (cave_feat[sy][sx])
                 {
                 case FEAT_LESS_SHAFT:
@@ -3336,7 +3607,7 @@ bool alloc_monster(bool on_stairs, bool force_undead)
                 // but usually allow most monsters
                 else
                 {
-                    placed = place_monster(sy, sx, false, true, false);
+                    placed = place_monster(sy, sx, false, !suppress_grp, false);
                 }
 
                 tries++;
@@ -3360,13 +3631,13 @@ bool alloc_monster(bool on_stairs, bool force_undead)
                 if (r_ptr->flags1
                     & (RF1_FRIEND | RF1_FRIENDS | RF1_ESCORT | RF1_ESCORTS))
                 {
-                    my_strcpy(message,
+                    SDL_strlcpy(message,
                         format("A group of enemies come %s the stair", dir),
                         240);
                 }
                 else
                 {
-                    my_strcpy(message,
+                    SDL_strlcpy(message,
                         format("%^s comes %s the stair", m_name, dir), 240);
                 }
 
@@ -3374,7 +3645,7 @@ bool alloc_monster(bool on_stairs, bool force_undead)
                 {
                     if ((p_ptr->py == y) && (p_ptr->px == x))
                     {
-                        my_strcpy(who, "you", 80);
+                        SDL_strlcpy(who, "you", 80);
                     }
                     else
                     {
@@ -3424,8 +3695,11 @@ bool alloc_monster(bool on_stairs, bool force_undead)
             return (false);
         }
 
-        /* Attempt to place the monster, allow groups */
-        if (place_monster(y, x, true, true, false))
+        /* In any non-ROOMY partition (big cave, chasm, cavey, ruined, labyrinth),
+         * suppress group spawning. BFS floods up to 18 monsters from one origin point;
+         * in open cave/chasm/blob floors this creates dense clusters. Each non-ROOMY
+         * partition compensates with a higher alloc_monster loop count instead. */
+        if (place_monster(y, x, true, monster_groups_allowed_at(y, x), false))
         {
             if ((cave_m_idx[y][x] > 0) && (&mon_list[cave_m_idx[y][x]])->ml)
                 return (true);
@@ -3835,3 +4109,6 @@ void message_pain(int m_idx, int dam)
 
     // m, w are silent
 }
+
+
+

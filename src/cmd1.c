@@ -9,8 +9,120 @@
  */
 
 #include "angband.h"
+#include "externs.h"
+#include "log/log.h"
+#include "player/killer.h"
 #include "metarun.h"
 #include <math.h>
+
+static bool valorous_oath_blocks_auto_attack(monster_type* m_ptr);
+
+static bool polearm_is_axe(const object_type* weapon)
+{
+    if (!weapon)
+        return false;
+
+    if (weapon->tval != TV_POLEARM)
+        return false;
+
+    switch (weapon->sval)
+    {
+    case SV_BATTLE_AXE:
+    case SV_GREAT_AXE:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static bool sword_is_medium(const object_type* weapon)
+{
+    if (!weapon || weapon->tval != TV_SWORD)
+        return false;
+
+    switch (weapon->sval)
+    {
+    case SV_LONG_SWORD:
+    case SV_BASTARD_SWORD:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static bool sword_is_great(const object_type* weapon)
+{
+    if (!weapon || weapon->tval != TV_SWORD)
+        return false;
+
+    switch (weapon->sval)
+    {
+    case SV_GREAT_SWORD:
+    case SV_STAR_IRON_GREAT_SWORD:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static u16b weapon_sound_message_type(const object_type* weapon, bool hit)
+{
+    u16b fallback = hit ? MSG_HIT : MSG_MISS;
+
+    if (!weapon || weapon->k_idx == 0)
+        return MSG_WEAPON_UNARMED;
+
+    if (weapon->weight == 0)
+        return MSG_WEAPON_UNARMED;
+
+    switch (weapon->tval)
+    {
+    case TV_SWORD:
+        if (sword_is_great(weapon))
+            return MSG_WEAPON_SLASH_HEAVY;
+        else if (sword_is_medium(weapon))
+            return MSG_WEAPON_SLASH_MEDIUM;
+        else
+            return MSG_WEAPON_SLASH_LIGHT;
+    case TV_POLEARM:
+        if (weapon->sval == SV_HAND_AXE)
+            return MSG_WEAPON_SLASH_LIGHT;
+        else if (weapon->sval == SV_BATTLE_AXE)
+            return MSG_WEAPON_SLASH_MEDIUM;
+        else if (polearm_is_axe(weapon))
+            return MSG_WEAPON_SLASH_HEAVY;
+        else
+            return MSG_WEAPON_THRUST;
+    case TV_HAFTED:
+    case TV_DIGGING:
+    case TV_STAFF:
+    case TV_LIGHT:
+    case TV_HORN:
+        return MSG_WEAPON_BLUNT;
+    default:
+        break;
+    }
+
+    return fallback;
+}
+
+static int weapon_animation_delay(u16b weapon_sound_type)
+{
+    switch (weapon_sound_type)
+    {
+    case MSG_WEAPON_SLASH_LIGHT:
+    case MSG_WEAPON_UNARMED:
+        return 300;
+    case MSG_WEAPON_SLASH_MEDIUM:
+    case MSG_WEAPON_THRUST:
+        return 350;
+    case MSG_WEAPON_SLASH_HEAVY:
+    case MSG_WEAPON_BLUNT:
+        return 400;
+    default:
+        return 350; // fallback to medium
+    }
+}
 
 bool graphics_are_ascii()
 {
@@ -36,11 +148,15 @@ void give_player_item(object_type * o_ptr)
         if (!label)
             label = 'a';
         msg_format("You add %s to your supplies (%c).", o_name, label);
+        sound(MSG_PICK);
         return;
     }
 
     if (slot < 0)
         return;
+    
+    /* Play pickup sound */
+    sound(MSG_PICK);
 
     /* reset the pointer to the new location to pick up the count of the item
        in the inventory */
@@ -647,6 +763,9 @@ int total_player_attack(monster_type* m_ptr, int base)
     // reward bane ability (if applicable)
     att += bane_bonus(m_ptr);
 
+    // reward artifact-granted bane (if applicable)
+    att += artifact_bane_bonus(m_ptr);
+
     // reward unique bane ability (if applicable)
     att += unique_bane_bonus(m_ptr);
 
@@ -689,6 +808,9 @@ int total_player_evasion(monster_type* m_ptr, bool archery)
 
     // reward successful use of the bane ability
     evn += bane_bonus(m_ptr);
+
+    // reward artifact-granted bane (if applicable)
+    evn += artifact_bane_bonus(m_ptr);
 
     // reward unique bane ability (if applicable)
     evn += unique_bane_bonus(m_ptr);
@@ -824,9 +946,10 @@ int stealth_melee_bonus(const monster_type* m_ptr, bool allow_unseen)
     if (p_ptr->active_ability[S_STL][STL_ASSASSINATION])
     {
         bool visible_target = allow_unseen || m_ptr->ml;
+        bool unaware_target = (m_ptr->alertness < ALERTNESS_ALERT)
+            || song_disguise_monster_is_fooled(m_ptr);
 
-        if ((m_ptr->alertness < ALERTNESS_ALERT) && visible_target
-            && !(p_ptr->confused))
+        if (unaware_target && visible_target && !(p_ptr->confused))
         {
             stealth_bonus = p_ptr->skill_use[S_STL];
         }
@@ -997,21 +1120,33 @@ int crit_bonus(int hit_result, int weight, const monster_race* r_ptr,
             crit_seperation -= 20;
 
         if ((skill_type == S_MEL) && thrown && o_ptr
-            && p_ptr->active_ability[S_MEL][MEL_THROWING]
+            && (p_ptr->active_ability[S_MEL][MEL_THROWING]
+                || object_grants_ability(o_ptr, S_MEL, MEL_THROWING))
             && player_can_treat_as_throwing(o_ptr))
         {
-            crit_seperation -= 20;
+            crit_seperation -= 10;
         }
 
         // Can have improved criticals for melee with one handed weapons
-        // Special case: Maedhros house can use Subtlety with hand-and-a-half weapons
-        bool maedhros_hand_and_half = (c_info[p_ptr->phouse].flags_u & UNQ_MEL_MAEDHROS)
+        // Special case: Maedhros character can use Subtlety with hand-and-a-half weapons
+        bool maedhros_hand_and_half = (c_info[p_ptr->pcharacter].flags_u & UNQ_MEL_MAEDHROS)
             && (k_info[(&inventory[INVEN_WIELD])->k_idx].flags3 & (TR3_HAND_AND_A_HALF))
             && (!inventory[INVEN_ARM].k_idx);
         
         if ((skill_type == S_MEL) && p_ptr->active_ability[S_MEL][MEL_CONTROL]
             && !thrown && (!two_handed_melee() || maedhros_hand_and_half) && !inventory[INVEN_ARM].k_idx)
             crit_seperation -= 20;
+
+        // Subtlety can work with throwing if the weapon has TR4_SUBTLETY_THROW flag.
+        // The flag extends an existing Subtlety ability; it does not grant one.
+        if ((skill_type == S_MEL) && thrown && o_ptr
+            && p_ptr->active_ability[S_MEL][MEL_CONTROL])
+        {
+            u32b st_f1, st_f2, st_f3, st_f4;
+            object_flags4(o_ptr, &st_f1, &st_f2, &st_f3, &st_f4);
+            if (st_f4 & TR4_SUBTLETY_THROW)
+                crit_seperation -= 20;
+        }
 
         // Can have inferior criticals for melee
         if ((skill_type == S_MEL) && p_ptr->active_ability[S_MEL][MEL_POWER])
@@ -1054,9 +1189,17 @@ int crit_bonus(int hit_result, int weight, const monster_race* r_ptr,
 void slay_desc(char* description, u32b flag, const monster_type* m_ptr)
 {
     char m_name[80];
+    char m_poss[80];
 
     /* Monster description */
     monster_desc(m_name, sizeof(m_name), m_ptr, 0);
+    monster_desc(m_poss, sizeof(m_poss), m_ptr, 0x22);
+
+    if (flag == TR3_WILL_DRAIN)
+    {
+        sprintf(description, "drains %s will", m_poss);
+        return;
+    }
 
     switch (flag)
     {
@@ -1093,6 +1236,13 @@ void slay_desc(char* description, u32b flag, const monster_type* m_ptr)
     case TR1_SLAY_MAN_OR_ELF:
         sprintf(description, "strikes truly");
         break;
+    case TR4_SLAY_SERPENT:
+    case TR4_SLAY_VAMPIRE:
+    case TR4_SLAY_HORROR:
+    case TR4_SLAY_CAT:
+    case TR4_SLAY_GIANT:
+        sprintf(description, "strikes truly");
+        break;
     case TR1_BRAND_ELEC:
         sprintf(description, "shocks %s with the force of lightning", m_name);
         break;
@@ -1104,6 +1254,9 @@ void slay_desc(char* description, u32b flag, const monster_type* m_ptr)
         break;
     case TR1_BRAND_POIS:
         sprintf(description, "poisons %s", m_name);
+        break;
+    case TR4_ARMOR_SHATTER:
+        sprintf(description, "shatters %s armor", m_poss);
         break;
     }
 
@@ -1133,7 +1286,8 @@ extern void ident(object_type* o_ptr)
 
 extern void ident_on_wield(object_type* o_ptr)
 {
-    u32b f1, f2, f3;
+    u32b f1, f2, f3, f4;
+    u32b orig_f1;
 
     bool notice = false;
 
@@ -1142,7 +1296,8 @@ extern void ident_on_wield(object_type* o_ptr)
     object_kind* k_ptr = &k_info[o_ptr->k_idx];
 
     /* Get the flags */
-    object_flags(o_ptr, &f1, &f2, &f3);
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
+    orig_f1 = f1;
 
     // Ignore previously identified items
     if (object_known_p(o_ptr))
@@ -1152,16 +1307,38 @@ extern void ident_on_wield(object_type* o_ptr)
 
     // identify the special item types that do nothing much
     // (since they have no hidden abilities, they must already be obvious)
-    if (o_ptr->name2)
+    if (object_has_ego(o_ptr))
     {
-        ego_item_type* e_ptr = &e_info[o_ptr->name2];
+        bool all_trivial = true;
+        byte ego_pfx = object_ego_prefix(o_ptr);
+        byte ego_sfx = object_ego_suffix(o_ptr);
 
-        if ((e_ptr->flags1 == 0L) && (e_ptr->flags2 == 0L)
-            && ((e_ptr->flags3 | (TR3_IGNORE_ALL)) == (TR3_IGNORE_ALL))
-            && (e_ptr->abilities == 0))
+        if (ego_pfx)
         {
-            notice = true;
+            ego_item_type* e_ptr = &e_info[ego_pfx];
+            if ((e_ptr->flags1 != 0L) || (e_ptr->flags2 != 0L)
+                || ((e_ptr->flags3 | (TR3_IGNORE_ALL)) != (TR3_IGNORE_ALL))
+                || (e_ptr->flags4 != 0L)
+                || (e_ptr->abilities != 0))
+            {
+                all_trivial = false;
+            }
         }
+
+        if (ego_sfx)
+        {
+            ego_item_type* e_ptr = &e_info[ego_sfx];
+            if ((e_ptr->flags1 != 0L) || (e_ptr->flags2 != 0L)
+                || ((e_ptr->flags3 | (TR3_IGNORE_ALL)) != (TR3_IGNORE_ALL))
+                || (e_ptr->flags4 != 0L)
+                || (e_ptr->abilities != 0))
+            {
+                all_trivial = false;
+            }
+        }
+
+        if (all_trivial)
+            notice = true;
     }
 
     // identify true sight if it cures blindness
@@ -1186,7 +1363,7 @@ extern void ident_on_wield(object_type* o_ptr)
         notice = true;
     }
 
-    if (o_ptr->name1 || o_ptr->name2)
+    if (o_ptr->name1 || object_has_ego(o_ptr))
     {
         // For special items and artefacts, we need to ignore the flags that are
         // basic to the object type and focus on the special/artefact ones. We
@@ -1195,12 +1372,67 @@ extern void ident_on_wield(object_type* o_ptr)
         f1 &= ~(k_ptr->flags1);
         f2 &= ~(k_ptr->flags2);
         f3 &= ~(k_ptr->flags3);
+
+        /*
+         * If a special/artefact modifies pval on a base that already has a pval
+         * flag (e.g. Shadow Cloak has STEALTH), stripping base flags would hide
+         * the effect and prevent auto-identification on wear.
+         */
+        {
+            u32b base_pval_flags = (orig_f1 & k_ptr->flags1);
+
+            if ((base_pval_flags & (TR1_TUNNEL | TR1_DAMAGE_SIDES))
+                && (o_ptr->pval != k_ptr->pval))
+            {
+                f1 |= (base_pval_flags & (TR1_TUNNEL | TR1_DAMAGE_SIDES));
+            }
+
+            if ((base_pval_flags & (TR1_STR | TR1_NEG_STR))
+                && (o_ptr->stat_bonus[A_STR] != k_ptr->stat_bonus[A_STR]))
+                f1 |= (base_pval_flags & (TR1_STR | TR1_NEG_STR));
+            if ((base_pval_flags & (TR1_DEX | TR1_NEG_DEX))
+                && (o_ptr->stat_bonus[A_DEX] != k_ptr->stat_bonus[A_DEX]))
+                f1 |= (base_pval_flags & (TR1_DEX | TR1_NEG_DEX));
+            if ((base_pval_flags & (TR1_CON | TR1_NEG_CON))
+                && (o_ptr->stat_bonus[A_CON] != k_ptr->stat_bonus[A_CON]))
+                f1 |= (base_pval_flags & (TR1_CON | TR1_NEG_CON));
+            if ((base_pval_flags & (TR1_GRA | TR1_NEG_GRA))
+                && (o_ptr->stat_bonus[A_GRA] != k_ptr->stat_bonus[A_GRA]))
+                f1 |= (base_pval_flags & (TR1_GRA | TR1_NEG_GRA));
+
+            if ((base_pval_flags & TR1_MEL)
+                && (o_ptr->skill_bonus[S_MEL] != k_ptr->skill_bonus[S_MEL]))
+                f1 |= (base_pval_flags & TR1_MEL);
+            if ((base_pval_flags & TR1_ARC)
+                && (o_ptr->skill_bonus[S_ARC] != k_ptr->skill_bonus[S_ARC]))
+                f1 |= (base_pval_flags & TR1_ARC);
+            if ((base_pval_flags & TR1_STL)
+                && (o_ptr->skill_bonus[S_STL] != k_ptr->skill_bonus[S_STL]))
+                f1 |= (base_pval_flags & TR1_STL);
+            if ((base_pval_flags & TR1_PER)
+                && (o_ptr->skill_bonus[S_PER] != k_ptr->skill_bonus[S_PER]))
+                f1 |= (base_pval_flags & TR1_PER);
+            if ((base_pval_flags & TR1_WIL)
+                && (o_ptr->skill_bonus[S_WIL] != k_ptr->skill_bonus[S_WIL]))
+                f1 |= (base_pval_flags & TR1_WIL);
+            if ((base_pval_flags & TR1_SMT)
+                && (o_ptr->skill_bonus[S_SMT] != k_ptr->skill_bonus[S_SMT]))
+                f1 |= (base_pval_flags & TR1_SMT);
+            if ((base_pval_flags & TR1_SNG)
+                && (o_ptr->skill_bonus[S_SNG] != k_ptr->skill_bonus[S_SNG]))
+                f1 |= (base_pval_flags & TR1_SNG);
+        }
     }
 
     if (f2 & (TR2_DARKNESS))
     {
         notice = true;
-        msg_print("It creates an unnatural darkness.");
+        msg_print("It shrouds you in darkness.");
+    }
+    else if (f4 & (TR4_UNLIGHT))
+    {
+        notice = true;
+        msg_print("It dims your light.");
     }
     else if (f2 & (TR2_LIGHT))
     {
@@ -1247,7 +1479,7 @@ extern void ident_on_wield(object_type* o_ptr)
     }
     else if ((f1 & (TR1_STR)) || (f1 & (TR1_NEG_STR)))
     {
-        int bonus = (f1 & (TR1_STR)) ? o_ptr->pval : -(o_ptr->pval);
+        int bonus = o_ptr->stat_bonus[A_STR];
 
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
@@ -1267,7 +1499,7 @@ extern void ident_on_wield(object_type* o_ptr)
     }
     else if ((f1 & (TR1_DEX)) || (f1 & (TR1_NEG_DEX)))
     {
-        int bonus = (f1 & (TR1_DEX)) ? o_ptr->pval : -(o_ptr->pval);
+        int bonus = o_ptr->stat_bonus[A_DEX];
 
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
@@ -1287,7 +1519,7 @@ extern void ident_on_wield(object_type* o_ptr)
     }
     else if ((f1 & (TR1_CON)) || (f1 & (TR1_NEG_CON)))
     {
-        int bonus = (f1 & (TR1_CON)) ? o_ptr->pval : -(o_ptr->pval);
+        int bonus = o_ptr->stat_bonus[A_CON];
 
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
@@ -1307,7 +1539,7 @@ extern void ident_on_wield(object_type* o_ptr)
     }
     else if ((f1 & (TR1_GRA)) || (f1 & (TR1_NEG_GRA)))
     {
-        int bonus = (f1 & (TR1_GRA)) ? o_ptr->pval : -(o_ptr->pval);
+        int bonus = o_ptr->stat_bonus[A_GRA];
 
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
@@ -1327,17 +1559,19 @@ extern void ident_on_wield(object_type* o_ptr)
     }
     else if (f1 & (TR1_MEL))
     {
+        int bonus = o_ptr->skill_bonus[S_MEL];
+
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
         {
             notice = true;
         }
-        else if (o_ptr->pval > 0)
+        else if (bonus > 0)
         {
             notice = true;
             msg_print("You feel more in control of your weapon.");
         }
-        else if (o_ptr->pval < 0)
+        else if (bonus < 0)
         {
             notice = true;
             msg_print("You feel less in control of your weapon.");
@@ -1345,17 +1579,19 @@ extern void ident_on_wield(object_type* o_ptr)
     }
     else if (f1 & (TR1_ARC))
     {
+        int bonus = o_ptr->skill_bonus[S_ARC];
+
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
         {
             notice = true;
         }
-        else if (o_ptr->pval > 0)
+        else if (bonus > 0)
         {
             notice = true;
             msg_print("You feel more accurate at archery.");
         }
-        else if (o_ptr->pval < 0)
+        else if (bonus < 0)
         {
             notice = true;
             msg_print("You feel less accurate at archery.");
@@ -1363,17 +1599,19 @@ extern void ident_on_wield(object_type* o_ptr)
     }
     else if (f1 & (TR1_STL))
     {
+        int bonus = o_ptr->skill_bonus[S_STL];
+
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
         {
             notice = true;
         }
-        else if (o_ptr->pval > 0)
+        else if (bonus > 0)
         {
             notice = true;
             msg_print("Your movements become quieter.");
         }
-        else if (o_ptr->pval < 0)
+        else if (bonus < 0)
         {
             notice = true;
             msg_print("Your movements less quiet.");
@@ -1381,17 +1619,19 @@ extern void ident_on_wield(object_type* o_ptr)
     }
     else if (f1 & (TR1_PER))
     {
+        int bonus = o_ptr->skill_bonus[S_PER];
+
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
         {
             notice = true;
         }
-        else if (o_ptr->pval > 0)
+        else if (bonus > 0)
         {
             notice = true;
             msg_print("You feel more perceptive.");
         }
-        else if (o_ptr->pval < 0)
+        else if (bonus < 0)
         {
             notice = true;
             msg_print("You feel less perceptive.");
@@ -1399,17 +1639,19 @@ extern void ident_on_wield(object_type* o_ptr)
     }
     else if (f1 & (TR1_WIL))
     {
+        int bonus = o_ptr->skill_bonus[S_WIL];
+
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
         {
             notice = true;
         }
-        else if (o_ptr->pval > 0)
+        else if (bonus > 0)
         {
             notice = true;
             msg_print("You feel more firm of will.");
         }
-        else if (o_ptr->pval < 0)
+        else if (bonus < 0)
         {
             notice = true;
             msg_print("You feel less firm of will.");
@@ -1417,17 +1659,19 @@ extern void ident_on_wield(object_type* o_ptr)
     }
     else if (f1 & (TR1_SMT))
     {
+        int bonus = o_ptr->skill_bonus[S_SMT];
+
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
         {
             notice = true;
         }
-        else if (o_ptr->pval > 0)
+        else if (bonus > 0)
         {
             notice = true;
             msg_print("You feel a desire to craft things with your hands.");
         }
-        else if (o_ptr->pval < 0)
+        else if (bonus < 0)
         {
             notice = true;
             msg_print("You feel less able to craft things.");
@@ -1435,17 +1679,19 @@ extern void ident_on_wield(object_type* o_ptr)
     }
     else if (f1 & (TR1_SNG))
     {
+        int bonus = o_ptr->skill_bonus[S_SNG];
+
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
         {
             notice = true;
         }
-        else if (o_ptr->pval > 0)
+        else if (bonus > 0)
         {
             notice = true;
             msg_print("You are filled with inspiration.");
         }
-        else if (o_ptr->pval < 0)
+        else if (bonus < 0)
         {
             notice = true;
             msg_print("You feel a loss of inspiration.");
@@ -1464,11 +1710,18 @@ extern void ident_on_wield(object_type* o_ptr)
     }
 
     // identify the special item types that grant abilities
-    else if (o_ptr->name2)
+    else if (object_has_ego(o_ptr))
     {
-        ego_item_type* e_ptr = &e_info[o_ptr->name2];
+        byte ego_pfx = object_ego_prefix(o_ptr);
+        byte ego_sfx = object_ego_suffix(o_ptr);
 
-        if (e_ptr->abilities > 0)
+        ego_item_type* e_ptr = NULL;
+        if (ego_pfx && e_info[ego_pfx].abilities > 0)
+            e_ptr = &e_info[ego_pfx];
+        else if (ego_sfx && e_info[ego_sfx].abilities > 0)
+            e_ptr = &e_info[ego_sfx];
+
+        if (e_ptr && e_ptr->abilities > 0)
         {
             notice = true;
             msg_format("You have gained the ability '%s'.",
@@ -1500,7 +1753,8 @@ extern void ident_on_wield(object_type* o_ptr)
     {
         if (object_aware_p(o_ptr))
         {
-            notice = true;
+            if (o_ptr->tval != TV_STAFF)
+                notice = true;
         }
         else if (o_ptr->att > 0)
         {
@@ -1531,14 +1785,21 @@ extern void ident_on_wield(object_type* o_ptr)
 
     if (notice)
     {
-        /* identify the object */
-        ident(o_ptr);
+        if (object_uses_smithing_difficulty(o_ptr))
+        {
+            player_mark_object_experienced(o_ptr);
+        }
+        else
+        {
+            /* identify the object */
+            ident(o_ptr);
 
-        /* Full object description */
-        object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
+            /* Full object description */
+            object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
 
-        /* Print the messages */
-        msg_format("You recognize it as %s.", o_full_name);
+            /* Print the messages */
+            msg_format("You recognize it as %s.", o_full_name);
+        }
     }
 
     return;
@@ -1572,7 +1833,18 @@ extern void ident_resist(u32b flag)
         /* Extract the item flags */
         object_flags(o_ptr, &f1, &f2, &f3);
 
-        if (o_ptr->name1 || o_ptr->name2)
+        {
+            bool is_quiver1 = (i == INVEN_QUIVER1);
+            bool is_quiver2 = (i == INVEN_QUIVER2);
+            bool is_throwing_item = player_can_treat_as_throwing_flags(o_ptr, f3);
+
+            if (is_quiver1)
+                continue;
+            if (is_quiver2 && !is_throwing_item)
+                continue;
+        }
+
+        if (o_ptr->name1 || object_has_ego(o_ptr))
         {
             // For special items and artefacts, we need to ignore the flags that
             // are basic to the object type and focus on the special/artefact
@@ -1697,15 +1969,23 @@ extern void ident_resist(u32b flag)
 
         if (notice)
         {
-            /* identify the object */
-            ident(o_ptr);
+            if (object_uses_smithing_difficulty(o_ptr))
+            {
+                player_mark_object_experienced(o_ptr);
+                msg_format("%s", effect_string);
+            }
+            else
+            {
+                /* identify the object */
+                ident(o_ptr);
 
-            /* Full object description */
-            object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
+                /* Full object description */
+                object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
 
-            /* Print the messages */
-            msg_format("%s", effect_string);
-            msg_format("You realize that it is %s.", o_full_name);
+                /* Print the messages */
+                msg_format("%s", effect_string);
+                msg_format("You realize that it is %s.", o_full_name);
+            }
 
             return;
         }
@@ -1745,7 +2025,7 @@ extern void ident_passive(void)
             if ((f2 & (TR2_REGEN)) && (p_ptr->chp < p_ptr->mhp))
             {
                 notice = true;
-                my_strcpy(effect_string,
+                SDL_strlcpy(effect_string,
                     "You notice that you are recovering much faster than "
                     "usual.",
                     sizeof(effect_string));
@@ -1753,14 +2033,14 @@ extern void ident_passive(void)
             else if ((f2 & (TR2_AGGRAVATE)))
             {
                 notice = true;
-                my_strcpy(effect_string,
+                SDL_strlcpy(effect_string,
                     "You notice that you are enraging your enemies.",
                     sizeof(effect_string));
             }
             else if ((f2 & (TR2_DANGER)))
             {
                 notice = true;
-                my_strcpy(effect_string,
+                SDL_strlcpy(effect_string,
                     "You notice that you are attracting more powerful enemies.",
                     sizeof(effect_string));
             }
@@ -1771,16 +2051,24 @@ extern void ident_passive(void)
             /* Short, pre-identification object description */
             object_desc(o_short_name, sizeof(o_short_name), o_ptr, false, 0);
 
-            /* identify the object */
-            ident(o_ptr);
-
-            /* Full object description */
-            object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
-
             /* Print the messages */
             msg_format("%s", effect_string);
-            msg_format(
-                "You realize that your %s is %s.", o_short_name, o_full_name);
+
+            if (object_uses_smithing_difficulty(o_ptr))
+            {
+                player_mark_object_experienced(o_ptr);
+            }
+            else
+            {
+                /* identify the object */
+                ident(o_ptr);
+
+                /* Full object description */
+                object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
+
+                msg_format("You realize that your %s is %s.", o_short_name,
+                    o_full_name);
+            }
 
             return;
         }
@@ -1831,16 +2119,24 @@ extern void ident_see_invisible(const monster_type* m_ptr)
             /* Short, pre-identification object description */
             object_desc(o_short_name, sizeof(o_short_name), o_ptr, false, 0);
 
-            /* identify the object */
-            ident(o_ptr);
-
-            /* Full object description */
-            object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
-
             /* Print the messages */
             msg_format("You notice that you can see %s very clearly.", m_name);
-            msg_format(
-                "You realize that your %s is %s.", o_short_name, o_full_name);
+
+            if (object_uses_smithing_difficulty(o_ptr))
+            {
+                player_mark_object_experienced(o_ptr);
+            }
+            else
+            {
+                /* identify the object */
+                ident(o_ptr);
+
+                /* Full object description */
+                object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
+
+                msg_format("You realize that your %s is %s.", o_short_name,
+                    o_full_name);
+            }
 
             return;
         }
@@ -1887,16 +2183,24 @@ extern void ident_haunted(void)
             /* Short, pre-identification object description */
             object_desc(o_short_name, sizeof(o_short_name), o_ptr, false, 0);
 
-            /* identify the object */
-            ident(o_ptr);
-
-            /* Full object description */
-            object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
-
             /* Print the messages */
             msg_print("You notice that wraiths are being drawn to you.");
-            msg_format(
-                "You realize that your %s is %s.", o_short_name, o_full_name);
+
+            if (object_uses_smithing_difficulty(o_ptr))
+            {
+                player_mark_object_experienced(o_ptr);
+            }
+            else
+            {
+                /* identify the object */
+                ident(o_ptr);
+
+                /* Full object description */
+                object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
+
+                msg_format("You realize that your %s is %s.", o_short_name,
+                    o_full_name);
+            }
 
             return;
         }
@@ -1947,12 +2251,6 @@ void ident_hunger(void)
             /* Short, pre-identification object description */
             object_desc(o_short_name, sizeof(o_short_name), o_ptr, false, 0);
 
-            /* identify the object */
-            ident(o_ptr);
-
-            /* Full object description */
-            object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
-
             /* Print the messages */
             if (f2 & (TR2_HUNGER))
                 msg_print("You notice that you are growing hungry much faster "
@@ -1961,8 +2259,21 @@ void ident_hunger(void)
                 msg_print("You notice that you are growing hungry slower than "
                           "before.");
 
-            msg_format(
-                "You realize that your %s is %s.", o_short_name, o_full_name);
+            if (object_uses_smithing_difficulty(o_ptr))
+            {
+                player_mark_object_experienced(o_ptr);
+            }
+            else
+            {
+                /* identify the object */
+                ident(o_ptr);
+
+                /* Full object description */
+                object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
+
+                msg_format("You realize that your %s is %s.", o_short_name,
+                    o_full_name);
+            }
 
             return;
         }
@@ -2019,14 +2330,22 @@ extern void ident_f2(u32b flag, object_type* supplied_object)
         /* Short, pre-identification object description */
         object_desc(o_short_name, sizeof(o_short_name), o_ptr, false, 0);
 
-        /* identify the object */
-        ident(o_ptr);
+        if (object_uses_smithing_difficulty(o_ptr))
+        {
+            player_mark_object_experienced(o_ptr);
+            msg_format("You learn more about your %s.", o_short_name);
+        }
+        else
+        {
+            /* identify the object */
+            ident(o_ptr);
 
-        /* Full object description */
-        object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
+            /* Full object description */
+            object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
 
-        msg_format(
-            "You realize that your %s is %s.", o_short_name, o_full_name);
+            msg_format(
+                "You realize that your %s is %s.", o_short_name, o_full_name);
+        }
     }
 }
 
@@ -2078,14 +2397,22 @@ extern void ident_f3(u32b flag, object_type* supplied_object)
         /* Short, pre-identification object description */
         object_desc(o_short_name, sizeof(o_short_name), o_ptr, false, 0);
 
-        /* identify the object */
-        ident(o_ptr);
+        if (object_uses_smithing_difficulty(o_ptr))
+        {
+            player_mark_object_experienced(o_ptr);
+            msg_format("You learn more about your %s.", o_short_name);
+        }
+        else
+        {
+            /* identify the object */
+            ident(o_ptr);
 
-        /* Full object description */
-        object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
+            /* Full object description */
+            object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
 
-        msg_format(
-            "You realize that your %s is %s.", o_short_name, o_full_name);
+            msg_format(
+                "You realize that your %s is %s.", o_short_name, o_full_name);
+        }
     }
 }
 
@@ -2102,18 +2429,25 @@ void ident_weapon_by_use(
     /* Short, pre-identification object description */
     object_desc(o_short_name, sizeof(o_short_name), o_ptr, false, 0);
 
-    /* identify the object */
-    ident(o_ptr);
-
-    /* Full object description */
-    object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
-
     /* Description of the 'slay' */
     slay_desc(slay_description, flag, m_ptr);
 
     /* Print the messages */
     msg_format("Your %s %s.", o_short_name, slay_description);
-    msg_format("You recognize it as %s.", o_full_name);
+    if (object_uses_smithing_difficulty(o_ptr))
+    {
+        player_mark_object_experienced(o_ptr);
+    }
+    else
+    {
+        /* identify the object */
+        ident(o_ptr);
+
+        /* Full object description */
+        object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
+
+        msg_format("You recognize it as %s.", o_full_name);
+    }
 
     return;
 }
@@ -2134,32 +2468,40 @@ void ident_bow_arrow_by_use(object_type* j_ptr, object_type* i_ptr,
 
     if (arrow_flag)
     {
-        /* Identify the arrow and remaining arrows */
-        object_aware(i_ptr);
-        object_known(i_ptr);
-        object_aware(o_ptr);
-        object_known(o_ptr);
-
-        /* Apply an autoinscription, if necessary */
-        apply_autoinscription(i_ptr);
-        apply_autoinscription(o_ptr);
-
-        /* Recalculate bonuses */
-        p_ptr->update |= (PU_BONUS);
-
-        /* Combine / Reorder the pack (later) */
-        p_ptr->notice |= (PN_COMBINE | PN_REORDER);
-
-        /* Window stuff */
-        p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
-
-        /* Full arrow description */
-        object_desc(i_full_name, sizeof(i_full_name), i_ptr, true, 3);
-
         slay_desc(slay_description, arrow_flag, m_ptr);
 
         msg_format("Your %s %s.", i_short_name, slay_description);
-        msg_format("You recognize it as %s.", i_full_name);
+        if (object_uses_smithing_difficulty(i_ptr))
+        {
+            player_mark_object_experienced(i_ptr);
+            player_mark_object_experienced(o_ptr);
+        }
+        else
+        {
+            /* Identify the arrow and remaining arrows */
+            object_aware(i_ptr);
+            object_known(i_ptr);
+            object_aware(o_ptr);
+            object_known(o_ptr);
+
+            /* Apply an autoinscription, if necessary */
+            apply_autoinscription(i_ptr);
+            apply_autoinscription(o_ptr);
+
+            /* Recalculate bonuses */
+            p_ptr->update |= (PU_BONUS);
+
+            /* Combine / Reorder the pack (later) */
+            p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+
+            /* Window stuff */
+            p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
+
+            /* Full arrow description */
+            object_desc(i_full_name, sizeof(i_full_name), i_ptr, true, 3);
+
+            msg_format("You recognize it as %s.", i_full_name);
+        }
 
         // don't carry on to identify the bow on the same shot
         return;
@@ -2167,33 +2509,115 @@ void ident_bow_arrow_by_use(object_type* j_ptr, object_type* i_ptr,
 
     if (bow_flag)
     {
-        /* Identify the bow */
-        object_aware(j_ptr);
-        object_known(j_ptr);
-
-        /* Apply an autoinscription, if necessary */
-        apply_autoinscription(j_ptr);
-
-        /* Recalculate bonuses */
-        p_ptr->update |= (PU_BONUS);
-
-        /* Combine / Reorder the pack (later) */
-        p_ptr->notice |= (PN_COMBINE | PN_REORDER);
-
-        /* Window stuff */
-        p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
-
-        /* Full arrow description */
-        object_desc(j_full_name, sizeof(j_full_name), j_ptr, true, 3);
-
         slay_desc(slay_description, bow_flag, m_ptr);
 
         msg_format("Your shot %s.", slay_description);
-        msg_format(
-            "You recognize your %s to be %s.", j_short_name, j_full_name);
+        if (object_uses_smithing_difficulty(j_ptr))
+        {
+            player_mark_object_experienced(j_ptr);
+        }
+        else
+        {
+            /* Identify the bow */
+            object_aware(j_ptr);
+            object_known(j_ptr);
+
+            /* Apply an autoinscription, if necessary */
+            apply_autoinscription(j_ptr);
+
+            /* Recalculate bonuses */
+            p_ptr->update |= (PU_BONUS);
+
+            /* Combine / Reorder the pack (later) */
+            p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+
+            /* Window stuff */
+            p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
+
+            /* Full bow description */
+            object_desc(j_full_name, sizeof(j_full_name), j_ptr, true, 3);
+
+            msg_format("You recognize your %s to be %s.", j_short_name,
+                j_full_name);
+        }
     }
 
     return;
+}
+
+void apply_weapon_combat_effects(object_type* o_ptr, monster_type* m_ptr,
+    int skill_type, int net_dam, bool fatal_blow, cptr armor_shatter_noun)
+{
+    monster_race* r_ptr;
+    u32b f1 = 0, f2 = 0, f3 = 0, f4 = 0;
+
+    if (!o_ptr || !o_ptr->k_idx || !m_ptr)
+        return;
+
+    r_ptr = &r_info[m_ptr->r_idx];
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
+
+    if (!fatal_blow && (net_dam > 0))
+    {
+        if ((f4 & TR4_ARMOR_SHATTER) && (r_ptr->flags3 & RF3_HAS_ARMOUR))
+        {
+            int shatter_skill = p_ptr->skill_use[skill_type];
+            int resist_skill = monster_skill(m_ptr, S_WIL);
+
+            if (skill_check(NULL, shatter_skill, resist_skill, m_ptr) > 0)
+            {
+                if (m_ptr->armor_ps_reduction < r_ptr->ps)
+                {
+                    m_ptr->armor_ps_reduction++;
+
+                    if (m_ptr->ml)
+                    {
+                        char m_poss[80];
+                        monster_desc(m_poss, sizeof(m_poss), m_ptr, 0x22);
+                        msg_format("Your %s shatters %s armor!",
+                            armor_shatter_noun ? armor_shatter_noun : "attack",
+                            m_poss);
+                    }
+
+                    if (!object_known_p(o_ptr))
+                    {
+                        ident_weapon_by_use(o_ptr, m_ptr, TR4_ARMOR_SHATTER);
+                    }
+                }
+            }
+        }
+
+        if ((f3 & TR3_WILL_DRAIN) && !(r_ptr->flags2 & RF2_MINDLESS))
+        {
+            int drain_skill = p_ptr->skill_use[skill_type];
+            int resist_skill = monster_skill(m_ptr, S_WIL);
+
+            if (skill_check(NULL, drain_skill, resist_skill, m_ptr) > 0)
+            {
+                m_ptr->song_will_penalty++;
+
+                if (m_ptr->ml)
+                {
+                    char m_poss[80];
+                    monster_desc(m_poss, sizeof(m_poss), m_ptr, 0x22);
+                    msg_format("You drain %s will!", m_poss);
+                }
+
+                if (!object_known_p(o_ptr))
+                {
+                    ident_weapon_by_use(o_ptr, m_ptr, TR3_WILL_DRAIN);
+                }
+            }
+        }
+    }
+
+    if (fatal_blow && (f1 & TR1_VAMPIRIC) && !monster_nonliving(r_ptr))
+    {
+        if (hp_player(7, false, false) && !object_known_p(o_ptr))
+        {
+            ident_weapon_by_use(o_ptr, m_ptr, TR1_VAMPIRIC);
+        }
+    }
 }
 
 /*
@@ -2233,10 +2657,10 @@ int slay_bonus(
     monster_race* r_ptr = &r_info[m_ptr->r_idx];
     monster_lore* l_ptr = &l_list[m_ptr->r_idx];
 
-    u32b f1, f2, f3;
+    u32b f1, f2, f3, f4;
 
     /* Extract the flags */
-    object_flags(o_ptr, &f1, &f2, &f3);
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
 
     /* Some "weapons" and "arrows" do extra damage */
     switch (o_ptr->tval)
@@ -2337,6 +2761,71 @@ int slay_bonus(
             slay_bonus_dice += 1;
 
             *noticed_flag = maybe_notice_slay(o_ptr, TR1_SLAY_DRAGON);
+        }
+
+        /* Slay Serpent */
+        if ((f4 & (TR4_SLAY_SERPENT)) && (r_ptr->flags3 & (RF3_SERPENT)))
+        {
+            if (m_ptr->ml)
+            {
+                l_ptr->flags3 |= (RF3_SERPENT);
+            }
+
+            slay_bonus_dice += 1;
+
+            *noticed_flag = maybe_notice_slay(o_ptr, TR4_SLAY_SERPENT);
+        }
+
+        /* Slay Vampire */
+        if ((f4 & (TR4_SLAY_VAMPIRE)) && (r_ptr->flags3 & (RF3_VAMPIRE)))
+        {
+            if (m_ptr->ml)
+            {
+                l_ptr->flags3 |= (RF3_VAMPIRE);
+            }
+
+            slay_bonus_dice += 1;
+
+            *noticed_flag = maybe_notice_slay(o_ptr, TR4_SLAY_VAMPIRE);
+        }
+
+        /* Slay Horror */
+        if ((f4 & (TR4_SLAY_HORROR)) && (r_ptr->flags3 & (RF3_HORROR)))
+        {
+            if (m_ptr->ml)
+            {
+                l_ptr->flags3 |= (RF3_HORROR);
+            }
+
+            slay_bonus_dice += 1;
+
+            *noticed_flag = maybe_notice_slay(o_ptr, TR4_SLAY_HORROR);
+        }
+
+        /* Slay Cat */
+        if ((f4 & (TR4_SLAY_CAT)) && (r_ptr->flags3 & (RF3_CAT)))
+        {
+            if (m_ptr->ml)
+            {
+                l_ptr->flags3 |= (RF3_CAT);
+            }
+
+            slay_bonus_dice += 1;
+
+            *noticed_flag = maybe_notice_slay(o_ptr, TR4_SLAY_CAT);
+        }
+
+        /* Slay Giant */
+        if ((f4 & (TR4_SLAY_GIANT)) && (r_ptr->flags3 & (RF3_GIANT)))
+        {
+            if (m_ptr->ml)
+            {
+                l_ptr->flags3 |= (RF3_GIANT);
+            }
+
+            slay_bonus_dice += 1;
+
+            *noticed_flag = maybe_notice_slay(o_ptr, TR4_SLAY_GIANT);
         }
 
         /* Slay Men and Elves */
@@ -2615,7 +3104,10 @@ void search_square(int y, int x, int dist, int searching)
 
         // Spider bane bonus helps to find webs
         if (cave_feat[y][x] == FEAT_TRAP_WEB)
+        {
             difficulty -= spider_bane_bonus();
+            difficulty -= artifact_spider_bane_bonus();
+        }
 
         /* Sometimes, notice things */
         if (skill_check(PLAYER, score, difficulty, NULL) > 0)
@@ -2740,6 +3232,34 @@ bool is_weapon_or_armor(const object_type* o_ptr)
     return false;
 }
 
+bool smith_oath_forbids_object(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    return chosen_oath(OATH_SMITH) && !oath_invalid(OATH_SMITH)
+        && is_weapon_or_armor(o_ptr) && !is_smithed_by_player(o_ptr);
+}
+
+bool smith_oath_confirm_break(void)
+{
+    char* prompt;
+
+    if (!chosen_oath(OATH_SMITH) || oath_invalid(OATH_SMITH))
+        return true;
+
+    prompt = oath_confirmation_prompt(OATH_SMITH);
+    if (!prompt || !prompt[0])
+        prompt = "Are you certain you wish to break your Oath of the Smith?";
+
+    if (!get_check_oath_multiline(prompt))
+        return false;
+
+    p_ptr->oaths_broken |= OATH_SMITH_FLAG;
+    apply_oath_breaking_curse(OATH_SMITH);
+    return true;
+}
+
 /*
  * Check if an object was smithed by the player
  */
@@ -2765,9 +3285,52 @@ static bool pack_item_matches_replacement_type(const object_type* incoming,
     return false;
 }
 
+static void format_staff_prompt_name(char* buf, size_t max,
+                                     const object_type* o_ptr, bool pref)
+{
+    char full[80];
+    const char* staff_of;
+
+    if (!buf || max == 0)
+        return;
+
+    buf[0] = '\0';
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return;
+
+    object_desc(full, sizeof(full), o_ptr, pref, 0);
+
+    if (o_ptr->tval != TV_STAFF)
+    {
+        SDL_strlcpy(buf, full, max);
+        return;
+    }
+
+    staff_of = strstr(full, "Staff of ");
+    if (!staff_of)
+    {
+        SDL_strlcpy(buf, full, max);
+        return;
+    }
+
+    if (!pref)
+    {
+        SDL_strlcpy(buf, staff_of, max);
+        return;
+    }
+
+    if (!strncmp(full, "The ", 4))
+        strnfmt(buf, max, "The %s", staff_of);
+    else if (!strncmp(full, "no more ", 8))
+        strnfmt(buf, max, "no more %s", staff_of);
+    else
+        strnfmt(buf, max, "a %s", staff_of);
+}
+
 bool is_smithed_by_player(const object_type* o_ptr)
 {
-    return (o_ptr->unused1 == 1);
+    return (o_ptr->unused1 != 0);
 }
 
 /*
@@ -2779,13 +3342,11 @@ static bool prompt_replace_pack_item(const object_type* incoming)
     char incoming_name[80];
     char prompt[160];
 
-#ifdef USE_SDL
     /* Ensure story font is disabled before showing messages */
     extern bool sdl_is_story_font_enabled(void);
     extern void sdl_story_font_disable(void);
     if (sdl_is_story_font_enabled())
         sdl_story_font_disable();
-#endif
 
     object_desc(incoming_name, sizeof(incoming_name), incoming, true, 3);
     msg_format("No room for %s.", incoming_name);
@@ -2814,12 +3375,6 @@ static bool prompt_replace_pack_item(const object_type* incoming)
         if (!drop_ptr->k_idx)
         {
             bell("That slot is empty.");
-            continue;
-        }
-
-        if (cursed_p(drop_ptr))
-        {
-            msg_print("You cannot bear to part with it.");
             continue;
         }
 
@@ -2855,35 +3410,10 @@ void py_pickup_aux(int o_idx)
     if (o_ptr->k_idx)
     {
         /* Check for Oath of the Smith violation */
-        if (chosen_oath(OATH_SMITH) && !oath_invalid(OATH_SMITH) && 
-            is_weapon_or_armor(o_ptr) && !is_smithed_by_player(o_ptr))
+        if (smith_oath_forbids_object(o_ptr))
         {
-            /* Describe the object */
-            object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
-            
-            /* Warn the player about oath breaking using oath-specific text */
-            char* prompt = oath_confirmation_prompt(OATH_SMITH);
-            if (!prompt || !prompt[0]) prompt = "Are you certain you wish to break your Oath of the Smith?";
-            
-            if (!get_check_oath_multiline(prompt))
-            {
-                /* Player chose not to break oath - abort pickup */
+            if (!smith_oath_confirm_break())
                 return;
-            }
-            
-            /* Player chose to break oath - curse message and selection handled by apply_oath_breaking_curse */
-            
-            /* Mark oath as broken */
-            p_ptr->oaths_broken |= OATH_SMITH_FLAG;
-            
-            /* Disable the oath's special ability */
-            p_ptr->active_ability[S_SPC][SPC_OATH_SMITH] = false;
-            
-            /* Apply oath breaking curse */
-            apply_oath_breaking_curse(OATH_SMITH);
-            
-            /* Mark oath as permanently banned in metarun */
-            metarun_ban_oath(OATH_SMITH);
         }
 
         /* Check for supply items with partial pickup option */
@@ -3011,7 +3541,7 @@ void do_cmd_pickup_from_pile(void)
         /* Display */
         show_floor(floor_list, floor_num);
 
-        my_strcpy(
+        SDL_strlcpy(
             prompt, "Pick up which object? (ESC to cancel):", sizeof(prompt));
 
         /*clear the restriction*/
@@ -3094,9 +3624,6 @@ static bool item_tester_limit_group(const object_type* o_ptr)
     if (!o_ptr || !o_ptr->k_idx)
         return false;
 
-    if (cursed_p(o_ptr))
-        return false;
-
     if (replacement_filter_incoming
         && !pack_item_matches_replacement_type(replacement_filter_incoming, o_ptr))
         return false;
@@ -3119,9 +3646,6 @@ static bool pack_has_limit_candidates(const object_type* incoming)
         if (!pack_item_matches_replacement_type(incoming, j_ptr))
             continue;
 
-        if (cursed_p(j_ptr))
-            continue;
-
         return true;
     }
 
@@ -3141,13 +3665,11 @@ static bool prompt_replace_pack_item_limit(const object_type* incoming,
     bool (*old_item_tester_hook)(const object_type*) = item_tester_hook;
     const object_type* old_filter = replacement_filter_incoming;
 
-#ifdef USE_SDL
     /* Ensure story font is disabled before showing messages */
     extern bool sdl_is_story_font_enabled(void);
     extern void sdl_story_font_disable(void);
     if (sdl_is_story_font_enabled())
         sdl_story_font_disable();
-#endif
 
     if (label)
         msg_format("You already carry %s (limit %d).", label, limit);
@@ -3188,12 +3710,6 @@ static bool prompt_replace_pack_item_limit(const object_type* incoming,
         if (!inven_carry_limit_can_replace(drop_ptr))
         {
             msg_print("That will not make enough room.");
-            continue;
-        }
-
-        if (cursed_p(drop_ptr))
-        {
-            msg_print("You cannot bear to part with it.");
             continue;
         }
 
@@ -3407,18 +3923,19 @@ void py_pickup(void)
                     {
                         char target_name[80];
                         char donor_name[80];
-                        char prompt[80];
-                        /* Limit names so the combined total stays visible in 80-column prompts */
-                        const int max_name_len = 20;
-                        object_desc(target_name, sizeof(target_name), target, true, 3);
-                        object_desc(donor_name, sizeof(donor_name), o_ptr, true, 3);
+                        char prompt[120];
+                        format_staff_prompt_name(
+                            target_name, sizeof(target_name), target, false);
+                        format_staff_prompt_name(
+                            donor_name, sizeof(donor_name), o_ptr, true);
                         
                         log_debug("Channeling: donor floor staff k_idx=%d pval=%d number=%d, target inv slot %d k_idx=%d pval=%d number=%d",
                                   o_ptr->k_idx, o_ptr->pval, o_ptr->number,
                                   target_slot, target->k_idx, target->pval, target->number);
                         
-                        strnfmt(prompt, sizeof(prompt), "Channel to %d charges from %.*s into %.*s? ",
-                            combined_uses, max_name_len, donor_name, max_name_len, target_name);
+                        strnfmt(prompt, sizeof(prompt),
+                            "Channel %s into your %s (%d charges)?",
+                            donor_name, target_name, combined_uses);
                         if (get_check(prompt))
                         {
                             target->pval = (s16b)combined_pval;
@@ -3433,8 +3950,9 @@ void py_pickup(void)
                                 inven_item_charges(target_slot);
                             p_ptr->redraw |= (PR_EQUIPPY | PR_RESIST);
                             p_ptr->window |= (PW_EQUIP | PW_PLAYER_0 | PW_INVEN);
-                            msg_format("You channel %d charge%s into %s (now %d).",
-                                gain_uses, (gain_uses == 1) ? "" : "s", target_name, combined_uses);
+                            msg_format("You channel %d charge%s into your %s (now %d).",
+                                gain_uses, (gain_uses == 1) ? "" : "s",
+                                target_name, combined_uses);
                             delete_object_idx(this_o_idx);
                             
                             log_debug("Channeling: deleted floor object idx %d", this_o_idx);
@@ -3558,23 +4076,38 @@ void hit_trap(int y, int x)
         // give several messages so the player has a chance to see it happen
         msg_print("You fall into the darkness!");
         message_flush();
-        msg_print("...and land somewhere deeper in the Iron Hells.");
-        message_flush();
+        if (p_ptr->depth >= MORGOTH_DEPTH)
+        {
+            msg_print("...and plunge into the abyss.");
+            message_flush();
 
-        // add to the notes file
-        do_cmd_note("Fell into a chasm", p_ptr->depth);
+            // add to the notes file
+            do_cmd_note("Fell into a chasm", p_ptr->depth);
 
-        // take some damage
-        falling_damage(false);
+            // chasms on the final level are fatal
+            killer_mark_other(SCORE_KILLER_FALL);
+            take_hit(p_ptr->chp + 1000, "falling into the abyss");
+        }
+        else
+        {
+            msg_print("...and land somewhere deeper in the Iron Hells.");
+            message_flush();
 
-        // make a note if the player loses a greater vault
-        note_lost_greater_vault();
+            // add to the notes file
+            do_cmd_note("Fell into a chasm", p_ptr->depth);
 
-        /* New depth */
-        p_ptr->depth = MIN(p_ptr->depth + 2, MORGOTH_DEPTH - 1);
+            // take some damage
+            falling_damage(false);
 
-        /* Leaving */
-        p_ptr->leaving = true;
+            // make a note if the player loses a greater vault
+            note_lost_greater_vault();
+
+            /* New depth */
+            p_ptr->depth = MIN(p_ptr->depth + 2, MORGOTH_DEPTH);
+
+            /* Leaving */
+            p_ptr->leaving = true;
+        }
 
         break;
     }
@@ -3618,6 +4151,7 @@ void hit_trap(int y, int x)
         update_combat_rolls2(2, 4, dam, -1, -1, 0, 0, GF_HURT, false);
 
         /* Take the damage */
+        killer_mark_other(SCORE_KILLER_FALL);
         take_hit(dam, name);
 
         /* Make some noise */
@@ -3637,6 +4171,7 @@ void hit_trap(int y, int x)
         update_combat_rolls2(2, 4, dam, -1, -1, 0, 0, GF_HURT, false);
 
         /* Take the damage */
+        killer_mark_other(SCORE_KILLER_FALL);
         take_hit(dam, name);
 
         /* Extra spike damage */
@@ -3655,6 +4190,7 @@ void hit_trap(int y, int x)
             msg_print("You are impaled!");
 
             /* Take the damage */
+            killer_mark_other(SCORE_KILLER_TRAP);
             take_hit(net_dam, name);
 
             (void)set_cut(p_ptr->cut + (net_dam + 1) / 2);
@@ -3682,6 +4218,7 @@ void hit_trap(int y, int x)
                 msg_print("A small dart hits you!");
 
                 // do a tiny amount of damage
+                killer_mark_other(SCORE_KILLER_TRAP);
                 take_hit(1, name);
 
                 update_combat_rolls2(
@@ -3795,6 +4332,14 @@ void hit_trap(int y, int x)
         break;
     }
 
+    case FEAT_TRAP_IMPRISONMENT:
+    {
+        msg_print("Words of imprisonment echo through the halls!");
+        (void)lock_doors_radius(y, x, 10, 10 + (p_ptr->depth / 2));
+
+        break;
+    }
+
     case FEAT_TRAP_ALARM:
     {
         if (singing(SNG_SILENCE))
@@ -3827,6 +4372,7 @@ void hit_trap(int y, int x)
             update_combat_rolls1b(NULL, PLAYER, true);
             update_combat_rolls2(1, 4, dam, -1, -1, 0, 0, GF_HURT, true);
 
+            killer_mark_other(SCORE_KILLER_TRAP);
             take_hit(dam, name);
 
             if (allow_player_slow(NULL))
@@ -3977,6 +4523,7 @@ void hit_trap(int y, int x)
         }
 
         /* Take the damage */
+        killer_mark_other(SCORE_KILLER_TRAP);
         take_hit(net_dam, name);
 
         /* Forget the trap */
@@ -4179,6 +4726,12 @@ void possible_follow_through(int fy, int fx, int attack_type)
                     && (!forgo_attacking_unwary
                         || (m_ptr->alertness >= ALERTNESS_ALERT)))
                 {
+                    if (valorous_oath_blocks_auto_attack(m_ptr))
+                    {
+                        msg_print("You stop your follow-through to avoid striking a fleeing foe.");
+                        return;
+                    }
+
                     msg_print("You continue your attack!");
                     py_attack_aux(y, x, ATT_FOLLOW_THROUGH);
                     return;
@@ -4259,11 +4812,11 @@ void attack_punctuation(char* punctuation, int net_dam, int crit_bonus_dice)
 
     if (net_dam == 0)
     {
-        my_strcpy(punctuation, "...", sizeof(punctuation));
+        SDL_strlcpy(punctuation, "...", sizeof(punctuation));
     }
     else if (crit_bonus_dice == 0)
     {
-        my_strcpy(punctuation, ".", sizeof(punctuation));
+        SDL_strlcpy(punctuation, ".", sizeof(punctuation));
     }
     else
     {
@@ -4399,6 +4952,20 @@ bool cowardly_attack(monster_type* m_ptr)
         && m_ptr->stance == STANCE_FLEEING);  /* Monster is fleeing in terror */
 }
 
+static bool valorous_oath_blocks_auto_attack(monster_type* m_ptr)
+{
+    if (!valorous_oath_auto_attack_safety)
+        return false;
+
+    if (!chosen_oath(OATH_VALOROUS) || oath_invalid(OATH_VALOROUS))
+        return false;
+
+    if (!m_ptr || !m_ptr->ml)
+        return false;
+
+    return (m_ptr->stance == STANCE_FLEEING);
+}
+
 bool abort_for_mercy(monster_type* m_ptr)
 {
     // Unseen enemies are okay to kill
@@ -4483,10 +5050,10 @@ void apply_oath_breaking_curse(int oath_id)
     if (oath_id < 1 || !z_info || oath_id >= z_info->oath_max) return;
     
     /* Get oath name for logging - use static fallback names to avoid dangling pointer */
-    static const char* fallback_oath_names[] = {"", "Mercy", "Silence", "Iron", "Smith", "Valorous"};
+    static const char* fallback_oath_names[] = {"", "Mercy", "Silence", "Iron", "Smith", "Valorous", "Light"};
     if (oath_id <= z_info->oath_max && oath_info[oath_id].name) {
         oath_name = oath_name_text + oath_info[oath_id].name;
-    } else if (oath_id < 6) {
+    } else if (oath_id < 7) {
         oath_name = fallback_oath_names[oath_id];
     } else {
         oath_name = "Unknown";
@@ -4510,6 +5077,9 @@ void apply_oath_breaking_curse(int oath_id)
     else if (oath_id == OATH_VALOROUS) {
         p_ptr->active_ability[S_SPC][SPC_OATH_VALOROUS] = false;
     }
+    else if (oath_id == OATH_LIGHT) {
+        p_ptr->active_ability[S_SPC][SPC_OATH_LIGHT] = false;
+    }
     
     /* Remove oath bonuses by recalculating */
     p_ptr->update |= (PU_BONUS);
@@ -4524,7 +5094,8 @@ void apply_oath_breaking_curse(int oath_id)
         log_trace("Applied chosen curse %d for breaking oath", chosen_curse);
     } else {
         /* Fallback to random curse if UI failed */
-        int selected_curse = rand_int(32);
+        int selected_curse = 0;
+        if (z_info && z_info->cu_max > 0) selected_curse = rand_int(z_info->cu_max);
         add_curse_stack(selected_curse);
         log_trace("Applied fallback random curse %d for breaking oath", selected_curse);
     }
@@ -4571,39 +5142,17 @@ void break_valorous_oath(monster_type* m_ptr, int damage, int attack_type, int d
     if (damage_source != -1)
         return;
 
-    if (damage > 0 && m_ptr->stance == STANCE_FLEEING)
-    {
-        if (cowardly_attack(m_ptr))
-        {
-            // For direct attacks, oath should only break if the warning was accepted
-            // For AoE attacks, break only if the attack actually kills the monster
-            if (is_aoe_attack_type(attack_type))
-            {
-                /* AoE attack - only break oath if the monster dies */
-                if (m_ptr->hp <= damage)
-                {
-                    /* AoE attack killed fleeing enemy - break oath immediately */
-                    do_cmd_note("Broke your oath through area attack that killed fleeing enemy", p_ptr->depth);
-                    
-                    /* Apply oath breaking consequences */
-                    apply_oath_breaking_curse(OATH_VALOROUS);
-                    p_ptr->oaths_broken |= OATH_VALOROUS_FLAG;
-                }
-                // If AoE attack doesn't kill, don't break oath
-            }
-            else
-            {
-                /* Direct attack - oath only breaks if warning was accepted
-                 * The warning is handled by abort_for_valorous() before we get here
-                 * If we reach this point for a direct attack, the player confirmed breaking the oath */
-                do_cmd_note("Broke your oath", p_ptr->depth);
-                
-                /* Apply oath breaking consequences */
-                apply_oath_breaking_curse(OATH_VALOROUS);
-                p_ptr->oaths_broken |= OATH_VALOROUS_FLAG;
-            }
-        }
-    }
+    /* All player-caused attacks break Valor on hit */
+    (void)attack_type;
+    if (damage <= 0)
+        return;
+
+    if (!cowardly_attack(m_ptr))
+        return;
+
+    do_cmd_note("Broke your oath", p_ptr->depth);
+    apply_oath_breaking_curse(OATH_VALOROUS);
+    p_ptr->oaths_broken |= OATH_VALOROUS_FLAG;
 }
 
 /*
@@ -4628,6 +5177,7 @@ void py_attack_aux(int y, int x, int attack_type)
     int blows;
     int mdd, mds;
     int stealth_bonus = 0;
+    int assassination_bonus = 0;
     int monster_ripostes = 0;
     int effective_strength;
     int damage_type = GF_HURT;
@@ -4650,7 +5200,7 @@ void py_attack_aux(int y, int x, int attack_type)
     bool fatal_blow = false;
     bool smite = false;
 
-    u32b f1, f2, f3; // the weapon's flags
+    u32b f1, f2, f3, f4; // the weapon's flags
 
     u32b noticed_flag = 0; // if any slay is observed and the weapon thus
                            // identified it goes here
@@ -4682,6 +5232,30 @@ void py_attack_aux(int y, int x, int attack_type)
     if (m_ptr->ml)
         target_set_monster(cave_m_idx[y][x]);
 
+    if (r_ptr->flags1 & (RF1_PEACEFUL))
+    {
+        if (attack_type == ATT_MAIN)
+        {
+            /* Handle alert thrall quest interaction */
+            if (is_alert_thrall(m_ptr))
+            {
+                handle_thrall_interaction(m_ptr);
+            }
+            else
+            {
+                msg_format("You stop before you bump into %s.", m_name);
+            }
+        }
+
+        if (!player_attacked)
+        {
+            p_ptr->previous_action[0] = ACTION_NOTHING;
+            p_ptr->energy_use = 0;
+        }
+
+        return;
+    }
+
     /* Get the weapon */
     o_ptr = &inventory[INVEN_WIELD];
 
@@ -4690,17 +5264,6 @@ void py_attack_aux(int y, int x, int attack_type)
     {
         /* Message */
         msg_format("You are too afraid to attack %s!", m_name);
-
-        abort_attack = true;
-    }
-
-    if (r_ptr->flags1 & (RF1_PEACEFUL))
-    {
-        if (attack_type == ATT_MAIN)
-        {
-            // Alert thralls are peaceful but no longer have quest interactions
-            msg_format("You stop before you bump into %s.", m_name);
-        }
 
         abort_attack = true;
     }
@@ -4787,7 +5350,7 @@ void py_attack_aux(int y, int x, int attack_type)
     mdd = p_ptr->mdd;
     mds = p_ptr->mds;
 
-    object_flags(o_ptr, &f1, &f2, &f3);
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
 
     // determine the base for the attack_mod
     attack_mod = p_ptr->skill_use[S_MEL];
@@ -4861,30 +5424,47 @@ void py_attack_aux(int y, int x, int attack_type)
             mds = p_ptr->mds2;
             o_ptr = &inventory[INVEN_ARM];
             weapon_weight = o_ptr->weight;
-            object_flags(o_ptr, &f1, &f2, &f3);
+            object_flags4(o_ptr, &f1, &f2, &f3, &f4);
+        }
+
+        if (is_normal_attack(attack_type))
+        {
+            assassination_bonus = stealth_melee_bonus(m_ptr, false);
+        }
+        else
+        {
+            assassination_bonus = 0;
         }
 
         // +3 Str/Dex on first blow when charging
         if ((num == 1) && valid_charge(y, x, attack_type))
         {
-            int str_adjustment = 3;
+            if (!(assassination_over_charge && assassination_bonus > 0))
+            {
+                int str_adjustment = 3;
 
-            if (rapid_attack)
-                str_adjustment -= 3;
+                if (rapid_attack)
+                    str_adjustment -= 3;
 
-            charge = true;
-            attack_mod += 3;
+                charge = true;
+                attack_mod += 3;
 
-            // undo strength adjustment to the attack (if any)
-            mds = total_mds(o_ptr, str_adjustment);
+                // undo strength adjustment to the attack (if any)
+                mds = total_mds(o_ptr, str_adjustment);
+
+                if (assassination_bonus > 0)
+                {
+                    msg_print(
+                        "(Assassination did not apply because this was a charge attack.)");
+                }
+            }
         }
 
-        // reward melee attacks on sleeping monsters by characters with the
-        // asssassination ability (only when a main, flanking, or controlled
-        // retreat attack, and not charging)
-        if ((is_normal_attack(attack_type)) && !charge)
+        // reward attacks on unaware monsters for characters with the
+        // assassination ability, unless charge takes priority
+        if (is_normal_attack(attack_type) && !charge)
         {
-            stealth_bonus = stealth_melee_bonus(m_ptr, false);
+            stealth_bonus = assassination_bonus;
         }
         else
         {
@@ -4897,6 +5477,8 @@ void py_attack_aux(int y, int x, int attack_type)
 
         // Determine the monster's evasion score after all modifiers
         total_evasion_mod = total_monster_evasion(m_ptr, false);
+
+        song_disguise_note_player_attack(cave_m_idx[m_ptr->fy][m_ptr->fx]);
 
         hit_result = hit_roll(
             total_attack_mod, total_evasion_mod, PLAYER, m_ptr, true);
@@ -4944,8 +5526,8 @@ void py_attack_aux(int y, int x, int attack_type)
             int armor_dice_base = r_ptr->pd - m_ptr->song_armor_dice_penalty;
             if (armor_dice_base < 0)
                 armor_dice_base = 0;
-            int armor_dice = armor_dice_base + curse_flag_count_cur(CUR_MON_ARM_DICE);
-            int armor_sides = monster_base_armour_sides(m_ptr) + curse_flag_count_cur(CUR_MON_ARM_SIDE);
+            int armor_dice = armor_dice_base + curse_flag_delta_cur(CUR_MON_ARM_DICE);
+            int armor_sides = monster_base_armour_sides(m_ptr) + curse_flag_delta_cur(CUR_MON_ARM_SIDE);
             if (armor_dice < 0) armor_dice = 0;
             if (armor_sides < 1) armor_sides = 1;
             prt = damroll(armor_dice, armor_sides);
@@ -4967,37 +5549,49 @@ void py_attack_aux(int y, int x, int attack_type)
             break_mercy_oath(m_ptr, net_dam);
             break_valorous_oath(m_ptr, net_dam, attack_type, -1);  // -1 indicates player damage
 
+            // Play weapon swing sound first (layered sound system)
+            u16b weapon_swing_type = weapon_sound_message_type(o_ptr, false);
+            sound(weapon_swing_type);
+
+            // Delay before result sound (varies by weapon type)
+            SDL_Delay(weapon_animation_delay(weapon_swing_type));
+
+            // Determine result sound: armor blocked, hit, or nothing
+            u16b result_sound = MSG_ARMOR; // default to armor
+            if (net_dam > 0)
+            {
+                result_sound = MSG_HIT;
+            }
+
+            // Play result sound
+            sound(result_sound);
+
             // determine the punctuation for the attack ("...", ".", "!" etc)
             attack_punctuation(punctuation, net_dam, crit_bonus_dice);
 
             /* Special message for visible unalert creatures */
             if (stealth_bonus)
             {
-                message_format(MSG_HIT, m_ptr->r_idx,
-                    "You stealthily attack %s%s", m_name, punctuation);
+                msg_format("You stealthily attack %s%s", m_name, punctuation);
             }
             else
             {
                 /* Message */
                 if (charge)
                 {
-                    message_format(MSG_HIT, m_ptr->r_idx, "You charge %s%s",
-                        m_name, punctuation);
+                    msg_format("You charge %s%s", m_name, punctuation);
                 }
                 else if (smite)
                 {
-                    message_format(MSG_HIT, m_ptr->r_idx, "You smite %s%s",
-                        m_name, punctuation);
+                    msg_format("You smite %s%s", m_name, punctuation);
                 }
                 else if (attack_type == ATT_IMPALE)
                 {
-                    message_format(MSG_HIT, m_ptr->r_idx, "You impale %s%s",
-                        m_name, punctuation);
+                    msg_format("You impale %s%s", m_name, punctuation);
                 }
                 else
                 {
-                    message_format(MSG_HIT, m_ptr->r_idx, "You hit %s%s",
-                        m_name, punctuation);
+                    msg_format("You hit %s%s", m_name, punctuation);
                 }
             }
 
@@ -5087,6 +5681,9 @@ void py_attack_aux(int y, int x, int attack_type)
                 display_hit(y, x, net_dam, GF_HURT, fatal_blow);
             }
 
+            apply_weapon_combat_effects(
+                o_ptr, m_ptr, S_MEL, net_dam, fatal_blow, "blow");
+
             // if a slay was noticed, then identify the weapon
             if (noticed_flag)
             {
@@ -5097,15 +5694,6 @@ void py_attack_aux(int y, int x, int attack_type)
             // deal with killing blows
             if (fatal_blow)
             {
-                // heal with a vampiric weapon
-                if ((f1 & (TR1_VAMPIRIC)) && !monster_nonliving(r_ptr))
-                {
-                    if (hp_player(7, false, false) && !object_known_p(o_ptr))
-                    {
-                        ident_weapon_by_use(o_ptr, m_ptr, TR1_VAMPIRIC);
-                    }
-                }
-
                 // deal with 'follow_through' ability
                 possible_follow_through(y, x, attack_type);
 
@@ -5184,8 +5772,15 @@ void py_attack_aux(int y, int x, int attack_type)
         /* Player misses */
         else
         {
-            /* Message */
-            message_format(MSG_MISS, m_ptr->r_idx, "You miss %s.", m_name);
+            // Play weapon swing sound first (layered sound system)
+            u16b weapon_swing_type = weapon_sound_message_type(o_ptr, false);
+            sound(weapon_swing_type);
+
+            // Delay before message (shorter for misses, still weapon-aware)
+            SDL_Delay(weapon_animation_delay(weapon_swing_type) - 200);
+
+            /* Message - no additional sound for miss */
+            msg_format("You miss %s.", m_name);
 
             // Occasional warning about fighting from within a pit
             if (cave_pit_bold(p_ptr->py, p_ptr->px) && one_in_(3))
@@ -5318,11 +5913,7 @@ bool can_impale()
 
     object_type* o_ptr = &inventory[INVEN_WIELD];
 
-    bool has_polearm = !!(k_info[o_ptr->k_idx].flags3 & TR3_POLEARM);
-    bool has_big_sword = (o_ptr->tval == TV_SWORD)
-        && ((k_info[o_ptr->k_idx].flags3 & TR3_TWO_HANDED));
-
-    return has_impale_skill && (has_polearm || has_big_sword);
+    return has_impale_skill && weapon_is_impale_eligible(o_ptr);
 }
 
 void py_attack(int y, int x, int attack_type)
@@ -5343,14 +5934,48 @@ void py_attack(int y, int x, int attack_type)
     log_trace("Whirlwind debug: rage=%d, whirlwind_possible=%d, open_squares=%d, adj_monsters=%d, afraid=%d", 
               p_ptr->rage, whirlwind_poss, open_squares, adjacent_monsters, p_ptr->afraid);
     
-    if ((p_ptr->rage || (whirlwind_poss && open_squares >= 5))
-        && (adjacent_monsters > 1) && !p_ptr->afraid)
+    bool do_rage_attack = p_ptr->rage && (adjacent_monsters > 1) && !p_ptr->afraid;
+    bool do_whirlwind_attack = !p_ptr->rage && whirlwind_poss
+        && (open_squares >= 5) && (adjacent_monsters > 1) && !p_ptr->afraid;
+
+    if (do_whirlwind_attack && valorous_oath_auto_attack_safety
+        && chosen_oath(OATH_VALOROUS) && !oath_invalid(OATH_VALOROUS))
+    {
+        for (int check_dir = 1; check_dir <= 9; check_dir++)
+        {
+            int cy, cx;
+            int m_idx;
+            monster_type* m_ptr;
+
+            if (check_dir == 5)
+                continue;
+
+            cy = p_ptr->py + ddy[check_dir];
+            cx = p_ptr->px + ddx[check_dir];
+            if (!in_bounds(cy, cx))
+                continue;
+
+            m_idx = cave_m_idx[cy][cx];
+            if (m_idx <= 0)
+                continue;
+
+            m_ptr = &mon_list[m_idx];
+            if (m_ptr->ml && (m_ptr->stance == STANCE_FLEEING))
+            {
+                msg_print("You hold back your whirlwind to avoid striking a fleeing foe.");
+                do_whirlwind_attack = false;
+                break;
+            }
+        }
+    }
+
+    if (do_rage_attack || do_whirlwind_attack)
     {
         int i;
         bool clockwise = one_in_(2);
 
         // message only for rage (too annoying otherwise)
-        if (p_ptr->rage)
+        if (do_rage_attack)
         {
             msg_print("You strike out at everything around you!");
         }
@@ -5374,7 +5999,7 @@ void py_attack(int y, int x, int attack_type)
             {
                 monster_type* m_ptr = &mon_list[cave_m_idx[yy][xx]];
 
-                if (p_ptr->rage)
+                if (do_rage_attack)
                 {
                     py_attack_aux(yy, xx, ATT_RAGE);
                 }
@@ -5422,14 +6047,24 @@ void flanking_or_retreat(int y, int x)
 
     bool flanking = p_ptr->active_ability[S_EVN][EVN_FLANKING];
     bool controlled_retreat = false;
+    bool moved_last_turn = false;
+
+    if (((p_ptr->previous_action[1] >= 1) && (p_ptr->previous_action[1] <= 9)
+            && (p_ptr->previous_action[1] != 5))
+        || (p_ptr->previous_action[1] == ACTION_BASH))
+    {
+        moved_last_turn = true;
+    }
 
     // need to have the ability, and to have not moved last round
     if (p_ptr->active_ability[S_EVN][EVN_CONTROLLED_RETREAT]
-        && ((p_ptr->previous_action[1] > 9)
-            || (p_ptr->previous_action[1] == 5)))
+        && !moved_last_turn)
     {
         controlled_retreat = true;
     }
+
+    if (singing(SNG_DISGUISE))
+        return;
 
     if (!p_ptr->confused && (flanking || controlled_retreat))
     {
@@ -5451,6 +6086,12 @@ void flanking_or_retreat(int y, int x)
                 if (flanking && (distance(py, px, fy, fx) == 1)
                     && (distance(y, x, fy, fx) == 1))
                 {
+                    if (valorous_oath_blocks_auto_attack(m_ptr))
+                    {
+                        msg_print("You forgo a flanking attack to avoid striking a fleeing foe.");
+                        return;
+                    }
+
                     py_attack(fy, fx, ATT_FLANKING);
                     return;
                 }
@@ -5458,6 +6099,12 @@ void flanking_or_retreat(int y, int x)
                 if (controlled_retreat && (distance(py, px, fy, fx) == 1)
                     && (distance(y, x, fy, fx) > 1))
                 {
+                    if (valorous_oath_blocks_auto_attack(m_ptr))
+                    {
+                        msg_print("You forgo a controlled retreat attack to avoid striking a fleeing foe.");
+                        return;
+                    }
+
                     py_attack(fy, fx, ATT_CONTROLLED_RETREAT);
                     return;
                 }
@@ -5493,6 +6140,12 @@ void flanking_or_retreat(int y, int x)
                     if (flanking && (distance(py, px, fy, fx) == 1)
                         && (distance(y, x, fy, fx) == 1))
                     {
+                        if (valorous_oath_blocks_auto_attack(m_ptr))
+                        {
+                            msg_print("You forgo a flanking attack to avoid striking a fleeing foe.");
+                            return;
+                        }
+
                         py_attack(fy, fx, ATT_FLANKING);
                         return;
                     }
@@ -5500,6 +6153,12 @@ void flanking_or_retreat(int y, int x)
                     if (controlled_retreat && (distance(py, px, fy, fx) == 1)
                         && (distance(y, x, fy, fx) > 1))
                     {
+                        if (valorous_oath_blocks_auto_attack(m_ptr))
+                        {
+                            msg_print("You forgo a controlled retreat attack to avoid striking a fleeing foe.");
+                            return;
+                        }
+
                         py_attack(fy, fx, ATT_CONTROLLED_RETREAT);
                         return;
                     }
@@ -5554,6 +6213,7 @@ void move_player(int dir)
     /* Player can not walk through "walls", but can go through traps */
     else if (!cave_floor_bold(y, x))
     {
+        log_debug("cmd_walk: Hit wall at (%d, %d)", y, x);
         /* Disturb the player */
         disturb(0, 0);
 
@@ -5717,9 +6377,18 @@ void move_player(int dir)
                         // confirm if the destination is in the chasm
                         else if (cave_feat[y_end][x_end] == FEAT_CHASM)
                         {
-                            strnfmt(prompt, sizeof(prompt),
-                                "Are you sure you wish to leap into the "
-                                "abyss? ");
+                            if (p_ptr->depth >= MORGOTH_DEPTH)
+                            {
+                                strnfmt(prompt, sizeof(prompt),
+                                    "Are you sure you wish to leap into the "
+                                    "abyss? You will surely die. ");
+                            }
+                            else
+                            {
+                                strnfmt(prompt, sizeof(prompt),
+                                    "Are you sure you wish to leap into the "
+                                    "abyss? ");
+                            }
                         }
 
                         // confirm if the destination has a visible monster
@@ -5797,7 +6466,11 @@ void move_player(int dir)
                     /* Flush input */
                     flush();
 
-                    if (!get_check("Step into the chasm? "))
+                    cptr prompt = "Step into the chasm? ";
+                    if (p_ptr->depth >= MORGOTH_DEPTH)
+                        prompt = "Step into the chasm? You will surely die. ";
+
+                    if (!get_check(prompt))
                     {
                         // don't take a turn...
                         p_ptr->energy_use = 0;
@@ -5876,8 +6549,19 @@ void move_player(int dir)
                 return;
         }
 
-        /* Sound XXX XXX XXX */
-        /* sound(MSG_WALK); */
+        if ((p_ptr->depth == MORGOTH_DEPTH) && !p_ptr->morgoth_hall_entered
+            && (cave_info[y][x] & CAVE_G_VAULT))
+        {
+            if (!preconfirm_enter_morgoth_hall())
+            {
+                disturb(0, 0);
+                p_ptr->energy_use = 0;
+                return;
+            }
+        }
+
+        /* Sound */
+        sound(MSG_WALK);
 
         // do flanking or controlled retreat attack if any
         flanking_or_retreat(y, x);
@@ -5905,6 +6589,9 @@ void move_player(int dir)
         /* New location */
         y = py = p_ptr->py;
         x = px = p_ptr->px;
+
+        /* Chasm sanctum EVIL drops trigger their ambush on entry. */
+        trigger_chasm_sanctum_ambush_if_needed(y, x);
 
         /* Spontaneous Searching */
         perceive();
@@ -6663,6 +7350,8 @@ void run_step(int dir)
     /* Move the player */
     move_player(p_ptr->run_cur_dir);
 }
+
+
 
 
 

@@ -13,7 +13,7 @@
 
 # Version stamp (required)
 
-V:0.9.0
+V:0.9.5
 
 N:0:Nienna's Mercy
 T:0
@@ -230,7 +230,7 @@ T:1
 O:0
 R:*
 D:Warm darkness embraces you-not Morgoth's chains, but a gentle silence. 
-D:This death is no defeat, but the Gift of Ilúvatar itself. 
+D:This death is no defeat, but the Gift of Iluvatar itself. 
 D:Your spirit passes briefly beyond the Circles of the World- 
 D:returning untouched by Mandos' count.
 

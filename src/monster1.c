@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 
 /*
  * Pronoun arrays, by gender.
@@ -60,7 +61,7 @@ static void describe_monster_desc(int r_idx)
     char buf[2048];
 
     /* Simple method */
-    my_strcpy(buf, r_text + r_ptr->text, sizeof(buf));
+    SDL_strlcpy(buf, r_text + r_ptr->text, sizeof(buf));
 
     /* Dump it */
     text_out(buf);
@@ -318,12 +319,25 @@ static void describe_monster_drop(int r_idx, const monster_lore* l_ptr)
             text_out(format(" up to %d", n));
         }
 
+        if (l_ptr->flags3 & RF3_DROP_ARTEFACT)
+        {
+            p = " legendary";
+            sin = false;
+        }
+
         /* Chests are not noted as good or great
          * (no "n" needed)
          */
-        if (l_ptr->flags1 & RF1_DROP_CHEST)
+        else if (l_ptr->flags1 & RF1_DROP_CHEST)
         {
             p = NULL;
+            sin = false;
+        }
+
+        /* Superb (no "n" needed) */
+        else if (l_ptr->flags2 & RF2_DROP_SUPERB)
+        {
+            p = " superb";
             sin = false;
         }
 
@@ -365,6 +379,9 @@ static void describe_monster_drop(int r_idx, const monster_lore* l_ptr)
                 text_out(" object");
             if (n != 1)
                 text_out("s");
+
+            if (l_ptr->flags3 & RF3_DROP_ARTEFACT)
+                text_out(", including an artefact");
         }
 
         /* End this sentence */
@@ -1236,12 +1253,12 @@ static void describe_monster_toughness(
             int base_dice = r_ptr->pd - m_ptr->song_armor_dice_penalty;
             if (base_dice < 0)
                 base_dice = 0;
-            prot_dice = base_dice + curse_flag_count_cur(CUR_MON_ARM_DICE);
+            prot_dice = base_dice + curse_flag_delta_cur(CUR_MON_ARM_DICE);
             if (prot_dice < 0)
                 prot_dice = 0;
 
             int base_sides = monster_base_armour_sides(live);
-            base_sides += curse_flag_count_cur(CUR_MON_ARM_SIDE);
+            base_sides += curse_flag_delta_cur(CUR_MON_ARM_SIDE);
             if (base_sides < 0)
                 base_sides = 0;
             prot_sides = base_sides;
@@ -1444,16 +1461,24 @@ static void describe_monster_movement(
         text_out_c(TERM_L_BLUE, " dragon");
     else if (l_ptr->flags3 & RF3_SERPENT)
         text_out_c(TERM_L_BLUE, " serpent");
+    else if (l_ptr->flags3 & RF3_VAMPIRE)
+        text_out_c(TERM_L_BLUE, " vampire");
     else if (l_ptr->flags3 & RF3_RAUKO)
         text_out_c(TERM_L_BLUE, " rauko");
     else if (l_ptr->flags3 & RF3_TROLL)
         text_out_c(TERM_L_BLUE, " troll");
     else if (l_ptr->flags3 & RF3_ORC)
         text_out_c(TERM_L_BLUE, " orc");
+    else if (l_ptr->flags3 & RF3_GIANT)
+        text_out_c(TERM_L_BLUE, " giant");
     else if (l_ptr->flags3 & RF3_WOLF)
         text_out_c(TERM_L_BLUE, " wolf");
     else if (l_ptr->flags3 & RF3_SPIDER)
         text_out_c(TERM_L_BLUE, " spider");
+    else if (l_ptr->flags3 & RF3_CAT)
+        text_out_c(TERM_L_BLUE, " cat");
+    else if (l_ptr->flags3 & RF3_HORROR)
+        text_out_c(TERM_L_BLUE, " horror");
     else if (l_ptr->flags3 & RF3_MAN)
         text_out_c(TERM_L_BLUE, " man");
     else if (l_ptr->flags3 & RF3_ELF)
@@ -1620,7 +1645,8 @@ static void cheat_monster_lore(int r_idx, monster_lore* l_ptr)
         + ((r_ptr->flags1 & RF1_DROP_2D2) ? 4 : 0)
         + ((r_ptr->flags1 & RF1_DROP_1D2) ? 2 : 0)
         + ((r_ptr->flags1 & RF1_DROP_100) ? 1 : 0)
-        + ((r_ptr->flags1 & RF1_DROP_33) ? 1 : 0));
+        + ((r_ptr->flags1 & RF1_DROP_33) ? 1 : 0)
+        + ((r_ptr->flags3 & RF3_DROP_1D3) ? 3 : 0));
 
     /* Hack -- observe many spells */
     l_ptr->ranged = MAX_UCHAR;
@@ -1660,11 +1686,11 @@ void describe_monster(int r_idx, bool spoilers, const monster_type* m_ptr)
         /* XXX XXX XXX */
 
         /* Hack -- save memory */
-        COPY(&save_mem, l_ptr, monster_lore);
+        memcpy(&save_mem, l_ptr, sizeof(monster_lore));
     }
 
     /* Hack -- create a copy of the monster-memory */
-    COPY(&lore, l_ptr, monster_lore);
+    memcpy(&lore, l_ptr, sizeof(monster_lore));
 
     /* Assume some "obvious" flags */
     lore.flags1 |= (r_ptr->flags1 & RF1_OBVIOUS_MASK);
@@ -1689,6 +1715,10 @@ void describe_monster(int r_idx, bool spoilers, const monster_type* m_ptr)
     if (!spoilers)
         describe_monster_kills(r_idx, &lore);
 
+    /* Describe experience */
+    if (!spoilers)
+        describe_monster_exp(r_idx, &lore);
+
     /* Monster description */
     describe_monster_desc(r_idx);
 
@@ -1710,10 +1740,6 @@ void describe_monster(int r_idx, bool spoilers, const monster_type* m_ptr)
     /* Describe the known skills */
     describe_monster_skills(r_idx, &lore, m_ptr);
 
-    /* Describe experience */
-    if (!spoilers)
-        describe_monster_exp(r_idx, &lore);
-
     /* Describe the monster drop */
     describe_monster_drop(r_idx, &lore);
 
@@ -1724,7 +1750,7 @@ void describe_monster(int r_idx, bool spoilers, const monster_type* m_ptr)
     if ((cheat_know) || know_monster_info)
     {
         /* Hack -- restore memory */
-        COPY(l_ptr, &save_mem, monster_lore);
+        memcpy(l_ptr, &save_mem, sizeof(monster_lore));
     }
 }
 
@@ -1772,6 +1798,10 @@ void roff_top(int r_idx)
  */
 void screen_roff(int r_idx, const monster_type* m_ptr)
 {
+    bool use_story_font = story_monster_desc_enabled();
+    story_font_term_state story_state;
+    story_font_term_push(use_story_font, false, &story_state);
+
     /* Flush messages */
     message_flush();
 
@@ -1779,6 +1809,14 @@ void screen_roff(int r_idx, const monster_type* m_ptr)
     Term_erase(0, 1, 255);
 
     /* Output to the screen */
+    void (*old_hook)(byte, cptr) = text_out_hook;
+    int old_indent = text_out_indent;
+    int old_wrap = text_out_wrap;
+
+    int wid = 0, hgt = 0;
+    Term_get_size(&wid, &hgt);
+    text_out_indent = 0;
+    text_out_wrap = (wid > 2) ? (wid - 1) : 0;
     text_out_hook = text_out_to_screen;
 
     /* Recall monster */
@@ -1786,6 +1824,12 @@ void screen_roff(int r_idx, const monster_type* m_ptr)
 
     /* Describe monster */
     roff_top(r_idx);
+
+    text_out_hook = old_hook;
+    text_out_indent = old_indent;
+    text_out_wrap = old_wrap;
+
+    story_font_term_pop(&story_state);
 }
 
 /*
@@ -1794,6 +1838,10 @@ void screen_roff(int r_idx, const monster_type* m_ptr)
 void display_roff(int r_idx, const monster_type* m_ptr)
 {
     int y;
+
+    bool use_story_font = story_monster_desc_enabled();
+    story_font_term_state story_state;
+    story_font_term_push(use_story_font, false, &story_state);
 
     /* Erase the window */
     for (y = 0; y < Term->hgt; y++)
@@ -1806,6 +1854,14 @@ void display_roff(int r_idx, const monster_type* m_ptr)
     Term_gotoxy(0, 1);
 
     /* Output to the screen */
+    void (*old_hook)(byte, cptr) = text_out_hook;
+    int old_indent = text_out_indent;
+    int old_wrap = text_out_wrap;
+
+    int wid = 0, hgt = 0;
+    Term_get_size(&wid, &hgt);
+    text_out_indent = 0;
+    text_out_wrap = (wid > 2) ? (wid - 1) : 0;
     text_out_hook = text_out_to_screen;
 
     /* Recall monster */
@@ -1813,4 +1869,10 @@ void display_roff(int r_idx, const monster_type* m_ptr)
 
     /* Describe monster */
     roff_top(r_idx);
+
+    text_out_hook = old_hook;
+    text_out_indent = old_indent;
+    text_out_wrap = old_wrap;
+
+    story_font_term_pop(&story_state);
 }

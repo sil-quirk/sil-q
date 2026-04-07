@@ -12,7 +12,7 @@
 
 # Version stamp (required)
 
-V:0.9.0
+V:0.9.5
 
 
 # Maximum number of feature types
@@ -45,7 +45,7 @@ M:W:8
 M:A:20:180:1:50
 
 # Maximum number of special item types
-M:E:145
+M:E:186
 
 # Maximum number of monster races
 M:R:656
@@ -54,13 +54,13 @@ M:R:656
 M:G:19
 
 # Maximum number of vaults
-M:V:500
+M:V:520
 
 # Maximum number of player races
 M:P:6
 
-# Maximum number of player houses
-M:C:50
+# Maximum number of player characters
+M:C:51
 
 # Maximum number of player history lines
 M:H:165
@@ -69,7 +69,7 @@ M:H:165
 M:S:52
 
 # Maximum number of curses
-M:U:41
+M:U:44
 
 # Maximum number of major blessings
 M:J:16
@@ -78,13 +78,17 @@ M:J:16
 M:L:310
 
 # Maximum number of objects on the level
-M:O:512
+# Increased from 768 to 1536 to avoid generation failures on larger or loot-dense levels
+M:O:1536
 
 # Number of Runtypes
 M:Y:4
 
 # Number of Styles (visual themes)
 M:Z:62
+
+# Maximum number of skeleton note templates
+M:X:420
 
 # Previously we had the maximum number of monsters on the level here
 # but it has been made into a compile-time #define

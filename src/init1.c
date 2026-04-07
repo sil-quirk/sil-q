@@ -9,15 +9,20 @@
  */
 
 #include "angband.h"
+#include "externs.h"
+#include "fs/io_sdl.h"
+#include "fs/path.h"
+#include "log/log.h"
 #include "h-define.h"
-#include "z-form.h" 
+#include "score/score_guid.h"
+#include <SDL3/SDL.h>
 #include <ctype.h>
 /* Forward declaration for init2 and local placement */
 errr parse_style_levels(char* buf, header* head);
 
 /*
  * This file is used to initialize various variables and arrays for the
- * Angband game.  Note the use of "fd_read()" and "fd_write()" to bypass
+ * Angband game.  Note the use of "sdl_read()" and "sdl_write()" to bypass
  * the common limitation of "read()" and "write()" to only 32767 bytes
  * at a time.
  *
@@ -55,6 +60,36 @@ header rt_head;       /* the one and only definition */
 /*** Helper arrays for parsing ascii template files ***/
 
 /*
+ * Parse tile coordinates from "T:<row>:<col>" format
+ * Sets x_attr and x_char with TILE_FLAG (0x80) set
+ * Returns 0 on success, PARSE_ERROR_GENERIC on failure
+ */
+static errr parse_tile_line(const char* buf, byte* x_attr, char* x_char)
+{
+    int row, col;
+
+    /* Must start with "T:" */
+    if (buf[0] != 'T' || buf[1] != ':')
+        return PARSE_ERROR_GENERIC;
+
+    /* Parse row and column as decimal */
+    if (2 != sscanf(buf + 2, "%d:%d", &row, &col))
+        return PARSE_ERROR_GENERIC;
+
+    /* Validate range (0-63 for 6-bit index) */
+    if (row < 0 || row > 63)
+        return PARSE_ERROR_GENERIC;
+    if (col < 0 || col > 63)
+        return PARSE_ERROR_GENERIC;
+
+    /* Set values with TILE_FLAG (0x80) */
+    *x_attr = (byte)(0x80 | row);
+    *x_char = (char)(0x80 | col);
+
+    return 0;
+}
+
+/*
  * Monster Blow Methods
  */
 static cptr r_info_blow_method[]
@@ -74,15 +109,16 @@ static cptr r_info_blow_effect[] = { "", "HURT", "WOUND", "BATTER", "SHATTER",
 #define TR1 0
 #define TR2 1
 #define TR3 2
-#define RF1 3
-#define RF2 4
-#define RF3 5
-#define RF4 6
-#define RHF 7
-#define VLT 8
-#define CUR 9
-#define UNQ 10
-#define MAX_FLAG_SETS 11
+#define TR4 3
+#define RF1 4
+#define RF2 5
+#define RF3 6
+#define RF4 7
+#define RHF 8
+#define VLT 9
+#define CUR 10
+#define UNQ 11
+#define MAX_FLAG_SETS 12
 
 /*
  * Monster race flags for the race_info_flags1 structure
@@ -142,7 +178,7 @@ static flag_name info_flags[] = {
     { "PASS_WALL", RF2, RF2_PASS_WALL }, { "KILL_WALL", RF2, RF2_KILL_WALL },
     { "TUNNEL_WALL", RF2, RF2_TUNNEL_WALL },
     { "KILL_BODY", RF2, RF2_KILL_BODY }, { "TAKE_ITEM", RF2, RF2_TAKE_ITEM },
-    { "KILL_ITEM", RF2, RF2_KILL_ITEM }, { "RF2XXX6", RF2, RF2_RF2XXX6 },
+    { "KILL_ITEM", RF2, RF2_KILL_ITEM }, { "DROP_SUPERB", RF2, RF2_DROP_SUPERB },
     { "LOW_MANA_RUN", RF2, RF2_LOW_MANA_RUN }, { "CHARGE", RF2, RF2_CHARGE },
     { "ELFBANE", RF2, RF2_ELFBANE }, { "KNOCK_BACK", RF2, RF2_KNOCK_BACK },
     { "CRIPPLING", RF2, RF2_CRIPPLING },
@@ -158,15 +194,18 @@ static flag_name info_flags[] = {
     { "RAUKO", RF3, RF3_RAUKO }, { "UNDEAD", RF3, RF3_UNDEAD },
     { "SPIDER", RF3, RF3_SPIDER }, { "WOLF", RF3, RF3_WOLF },
     { "MAN", RF3, RF3_MAN }, { "ELF", RF3, RF3_ELF },
-    { "HAS_WEAPON", RF3, RF3_HAS_WEAPON }, { "RF3XXX4", RF3, RF3_RF3XXX4 },
+    { "HAS_WEAPON", RF3, RF3_HAS_WEAPON }, { "DROP_1D3", RF3, RF3_DROP_1D3 },
+    { "RF3XXX4", RF3, RF3_RF3XXX4 },
     { "HURT_LITE", RF3, RF3_HURT_LITE }, { "STONE", RF3, RF3_STONE },
     { "HURT_FIRE", RF3, RF3_HURT_FIRE }, { "HURT_COLD", RF3, RF3_HURT_COLD },
     { "HAS_ARMOUR", RF3, RF3_HAS_ARMOUR }, { "RES_ELEC", RF3, RF3_RES_ELEC },
     { "RES_FIRE", RF3, RF3_RES_FIRE }, { "RES_COLD", RF3, RF3_RES_COLD },
     { "RES_POIS", RF3, RF3_RES_POIS }, { "RF3XXX6", RF3, RF3_RF3XXX6 },
-    { "RES_NETHR", RF3, RF3_RES_NETHR }, { "RES_WATER", RF3, RF3_RES_WATER },
-    { "RES_PLAS", RF3, RF3_RES_PLAS }, { "RES_NEXUS", RF3, RF3_RES_NEXUS },
-    { "RES_DISEN", RF3, RF3_RES_DISEN }, { "NO_SLOW", RF3, RF3_NO_SLOW },
+    { "DROP_ARTEFACT", RF3, RF3_DROP_ARTEFACT },
+    { "GIANT", RF3, RF3_GIANT }, { "CAT", RF3, RF3_CAT },
+    { "HORROR", RF3, RF3_HORROR }, { "VAMPIRE", RF3, RF3_VAMPIRE },
+    { "SPECIAL_VAULT_ONLY", RF3, RF3_SPECIAL_VAULT_ONLY },
+    { "RF3XXX7", RF3, RF3_RF3XXX7 }, { "NO_SLOW", RF3, RF3_NO_SLOW },
     { "NO_FEAR", RF3, RF3_NO_FEAR }, { "NO_STUN", RF3, RF3_NO_STUN },
     { "NO_CONF", RF3, RF3_NO_CONF }, { "NO_SLEEP", RF3, RF3_NO_SLEEP },
 
@@ -201,7 +240,10 @@ static flag_name info_flags[] = {
     { "RF4XXX30", RF4, RF4_RF4XXX30 }, { "RF4XXX31", RF4, RF4_RF4XXX31 },
     { "RF4XXX32", RF4, RF4_RF4XXX32 },
 
-    /*object_flags*/
+    /* Object flag table.
+     * Keep the TRn selector and TRn_* constant aligned; tools/check_flag_tables.py
+     * validates this because bit positions intentionally overlap across TR sets.
+     */
 
     { "STR", TR1, TR1_STR }, { "DEX", TR1, TR1_DEX }, { "CON", TR1, TR1_CON },
     { "GRA", TR1, TR1_GRA }, { "NEG_STR", TR1, TR1_NEG_STR },
@@ -218,6 +260,11 @@ static flag_name info_flags[] = {
     { "SLAY_UNDEAD", TR1, TR1_SLAY_UNDEAD },
     { "SLAY_RAUKO", TR1, TR1_SLAY_RAUKO },
     { "SLAY_DRAGON", TR1, TR1_SLAY_DRAGON },
+    { "SLAY_SERPENT", TR4, TR4_SLAY_SERPENT },
+    { "SLAY_VAMPIRE", TR4, TR4_SLAY_VAMPIRE },
+    { "SLAY_HORROR", TR4, TR4_SLAY_HORROR },
+    { "SLAY_CAT", TR4, TR4_SLAY_CAT },
+    { "SLAY_GIANT", TR4, TR4_SLAY_GIANT },
     { "SLAY_MAN_OR_ELF", TR1, TR1_SLAY_MAN_OR_ELF },
     { "BRAND_ELEC", TR1, TR1_BRAND_ELEC },
     { "BRAND_FIRE", TR1, TR1_BRAND_FIRE },
@@ -259,9 +306,11 @@ static flag_name info_flags[] = {
     { "STAND_FAST", TR3, TR3_STAND_FAST }, { "ACCURATE", TR3, TR3_ACCURATE },
     { "CUMBERSOME", TR3, TR3_CUMBERSOME },
     { "AVOID_TRAPS", TR3, TR3_AVOID_TRAPS }, { "MEDIC", TR3, TR3_MEDIC },
-    { "TR3XXX6", TR3, TR3_TR3XXX6 }, { "TR3XXX7", TR3, TR3_TR3XXX7 },
-    { "TR3XXX8", TR3, TR3_TR3XXX8 }, { "TR3XXX9", TR3, TR3_TR3XXX9 },
-    { "TR3XX10", TR3, TR3_TR3XX10 }, { "NO_SMITHING", TR3, TR3_NO_SMITHING },
+    { "STAR_IRON", TR3, TR3_STAR_IRON }, { "EASY_ID", TR3, TR3_EASY_ID },
+    { "DIF_ID", TR3, TR3_DIF_ID }, { "OATH_BOOST", TR3, TR3_OATH_BOOST },
+    { "TR3XXX9", TR3, TR3_TR3XXX9 }, { "TR3XX10", TR3, TR3_TR3XX10 },
+    { "OATH_NEGATE", TR3, TR3_OATH_NEGATE },
+    { "NO_SMITHING", TR3, TR3_NO_SMITHING },
     { "MITHRIL", TR3, TR3_MITHRIL }, { "AXE", TR3, TR3_AXE },
     { "POLEARM", TR3, TR3_POLEARM }, { "IGNORE_ACID", TR3, TR3_IGNORE_ACID },
     { "IGNORE_ELEC", TR3, TR3_IGNORE_ELEC },
@@ -270,7 +319,7 @@ static flag_name info_flags[] = {
     { "ENCHANTABLE", TR3, TR3_ENCHANTABLE }, { "ACTIVATE", TR3, TR3_ACTIVATE },
     { "INSTA_ART", TR3, TR3_INSTA_ART }, { "EASY_KNOW", TR3, TR3_EASY_KNOW },
     { "MORE_SPECIAL", TR3, TR3_MORE_SPECIAL },
-    { "TR3XXX12", TR3, TR3_TR3XXX12 },
+    { "WILL_DRAIN", TR3, TR3_WILL_DRAIN },
     { "HAND_AND_A_HALF", TR3, TR3_HAND_AND_A_HALF },
     { "TWO_HANDED", TR3, TR3_TWO_HANDED },
     { "LIGHT_CURSE", TR3, TR3_LIGHT_CURSE },
@@ -280,7 +329,30 @@ static flag_name info_flags[] = {
     { "IGNORE_ALL", TR3, TR3_IGNORE_ALL },
 
     /*
-     * Race/House flags
+     * Object flags 4
+     */
+    { "UNLIGHT", TR4, TR4_UNLIGHT },
+    { "ARMOR_SHATTER", TR4, TR4_ARMOR_SHATTER },
+    { "DEPTH_SCALE_PS", TR4, TR4_DEPTH_SCALE_PS },
+    { "PAIRED", TR4, TR4_PAIRED },
+    { "SUBTLETY_THROW", TR4, TR4_SUBTLETY_THROW },
+    { "BREAKS_PERMA_CURSE", TR4, TR4_BREAKS_PERMA_CURSE },
+    { "LESS_SPECIAL", TR4, TR4_LESS_SPECIAL },
+    { "NOBLE_ITEM",   TR4, TR4_NOBLE_ITEM },
+    { "EVIL_ITEM",    TR4, TR4_EVIL_ITEM },
+    { "JINX",         TR4, TR4_JINX },
+    { "DEEP_CALL",    TR4, TR4_DEEP_CALL },
+    { "MIN_DEPTH_SPEED", TR4, TR4_DEEP_CALL },
+    { "NO_PREFIX",    TR4, TR4_NO_PREFIX },
+    { "PROT_FIRE",    TR4, TR4_PROT_FIRE },
+    { "PROT_COLD",    TR4, TR4_PROT_COLD },
+    { "PROT_POIS",    TR4, TR4_PROT_POIS },
+    { "PROT_DARK",    TR4, TR4_PROT_DARK },
+    { "WEIGHT",       TR4, TR4_WEIGHT },
+    { "NEG_WEIGHT",   TR4, TR4_NEG_WEIGHT },
+
+    /*
+     * Race/Character flags
      */
     { "BOW_PROFICIENCY", RHF, RHF_BOW_PROFICIENCY },
     { "AXE_PROFICIENCY", RHF, RHF_AXE_PROFICIENCY },
@@ -303,7 +375,8 @@ static flag_name info_flags[] = {
     { "GIFTERU", RHF, RHF_GIFTERU }, { "KINSLAYER", RHF, RHF_KINSLAYER },
     { "CURSE", RHF, RHF_CURSE }, { "TREACHERY", RHF, RHF_TREACHERY },
     { "FREE", RHF, RHF_FREE }, { "MOR_CURSE", RHF, RHF_MOR_CURSE },
-    { "RHFXXX25", RHF, RHF_RHFXXX26 }, { "RHFXXX26", RHF, RHF_RHFXXX27 },
+    { "KHELED_ZARAM", RHF, RHF_KHELED_ZARAM },
+    { "RHFXXX26", RHF, RHF_RHFXXX27 }, { "RHFXXX27", RHF, RHF_RHFXXX28 },
     { "RHFXXX27", RHF, RHF_RHFXXX28 }, { "RHFXXX28", RHF, RHF_RHFXXX29 },
     { "RHFXXX29", RHF, RHF_RHFXXX29 }, { "RHFXXX30", RHF, RHF_RHFXXX30 },
     { "RHFXXX31", RHF, RHF_RHFXXX31 }, { "RHFXXX32", RHF, RHF_RHFXXX32 },
@@ -353,6 +426,9 @@ static flag_name info_flags[] = {
     { "MDS_SHIFT", CUR, CUR_MDS_SHIFT },
     { "CRIT_THRESH_SHIFT", CUR, CUR_CRIT_THRESH_SHIFT },
     { "ARMOR_SIDE_SHIFT", CUR, CUR_ARMOR_SIDE_SHIFT },
+    { "IDENT_DIFF", CUR, CUR_IDENT_DIFF },
+    { "CHEST_WOOD", CUR, CUR_CHEST_WOOD },
+    { "ABILITY_COST", CUR, CUR_ABILITY_COST },
     
     // Unique flags
     {"EARENDIL", UNQ, UNQ_EARENDIL}, { "SMT_FEANOR", UNQ, UNQ_SMT_FEANOR },
@@ -389,7 +465,7 @@ static cptr a_info_act[ACT_MAX] = { "ILLUMINATION", "MAGIC_MAP", "CLAIRVOYANCE",
  * Initialize an "*_info" array, by parsing an ascii "template" file
  */
 errr init_info_txt(
-    FILE* fp, char* buf, header* head, parse_info_txt_func parse_info_txt_line)
+    SDL_IOStream* fp, char* buf, header* head, parse_info_txt_func parse_info_txt_line)
 {
     errr err;
 
@@ -407,7 +483,7 @@ errr init_info_txt(
     head->text_size = 0;
 
     /* Parse */
-    while (0 == my_fgets(fp, buf, 1024))
+    while (0 == sdl_fgets(fp, buf, 1024))
     {
         /* Advance the line number */
         error_line++;
@@ -416,8 +492,10 @@ errr init_info_txt(
         if (!buf[0] || (buf[0] == '#'))
             continue;
 
-        /* Verify correct "colon" format */
-        if (buf[1] != ':')
+        /* Verify correct directive format.
+         * Most files use single-letter directives (X:), but some parsers
+         * also accept numbered forms like M1:/M2:. */
+        if ((buf[1] != ':') && (buf[2] != ':'))
             return (PARSE_ERROR_GENERIC);
 
         /* Hack -- Process 'V' for "Version" */
@@ -479,7 +557,7 @@ static const char *rank_name(int lvl)            /* -2…+2 → text */
 /* ------------------------------------------------------------------ *
  *  combined_level() – return the net Affinity/Mastery/Penalty value
  *  (-2 … +2) for one skill, summing contributions from
- *       • race-or-house RHF flags (counted once even if both set)
+ *       • race-or-character RHF flags (counted once even if both set)
  *       • active curses  (each curse can add its own +1 / –1)
  *  Affinity = +1, Penalty = –1, Mastery/Grand Penalty = ±2.
  * ------------------------------------------------------------------ */
@@ -499,8 +577,8 @@ static int combined_level(int skill)
     };
 
     /* masks --------------------------------------------------------- */
-    u32b rhf  = p_info[p_ptr->prace].flags |      /* race OR house      */
-                c_info[p_ptr->phouse].flags;
+    u32b rhf  = p_info[p_ptr->prace].flags |      /* race OR character      */
+                c_info[p_ptr->pcharacter].flags;
     u32b cur  = curse_flag_mask();                /* all active curses  */
 
     /* tally --------------------------------------------------------- */
@@ -541,15 +619,15 @@ static const char *skill_tag(int s)
 void dbg_show_active_flags(void)
 {
     player_race  *rp_ptr = &p_info[p_ptr->prace];
-    player_house *hp_ptr = &c_info[p_ptr->phouse];
+    character_profile *current_character_profile = &c_info[p_ptr->pcharacter];
 
     /* live masks --------------------------------------------------- */
-    u32b rhf_bits  = rp_ptr->flags | hp_ptr->flags;  /* race OR house  */
-    u32b unq_bits  = hp_ptr->flags_u;                /* house-unique   */
+    u32b rhf_bits  = rp_ptr->flags | current_character_profile->flags;  /* race OR character  */
+    u32b unq_bits  = current_character_profile->flags_u;                /* character-unique   */
 
     struct { int set; u32b bits; cptr tag; byte clr; } grp[] = {
-        { RHF, rhf_bits, "RHF (Race/House flags)",   TERM_L_GREEN },
-        { UNQ, unq_bits, "UNQ (Unique-house flags)", TERM_L_BLUE  },
+        { RHF, rhf_bits, "RHF (Race/Character flags)",   TERM_L_GREEN },
+        { UNQ, unq_bits, "UNQ (Unique-character flags)", TERM_L_BLUE  },
         { CUR, 0,        "CUR (Curse flags)",        TERM_L_RED   },
     };
 
@@ -1125,6 +1203,11 @@ errr parse_z_info(char* buf, header* head)
     {
         z_info->style_max = (u16b)atoi(buf + 4);
     }
+    else if (buf[2] == 'X')
+    {
+        z_info->skeleton_note_max = (u16b)atoi(buf + 4);
+        log_debug("Parsed skeleton_note_max (M:X): %d", z_info->skeleton_note_max);
+    }
     else
     {
         /* Oops */
@@ -1156,7 +1239,7 @@ errr parse_rt_info(char *buf, header *head)
         error_idx = idx;
 
         rt_ptr = ((runtype_type*)head->info_ptr) + idx;
-        WIPE(rt_ptr, runtype_type);
+        memset(rt_ptr, 0, sizeof(runtype_type));
         rt_ptr->id = idx;
         strncpy(rt_ptr->name, s, sizeof(rt_ptr->name)-1);
         return 0;
@@ -1352,7 +1435,10 @@ void get_overlay_key_rgb(byte* r, byte* g, byte* b);
 bool get_overlay_key_enabled(void) { return g_overlay_key_enabled; }
 void get_overlay_key_rgb(byte* r, byte* g, byte* b) { if (r) *r = g_overlay_key_r; if (g) *g = g_overlay_key_g; if (b) *b = g_overlay_key_b; }
 
-/* Forward decl for per-style message parser (M:) */
+/* Forward decls for narrative text parsers (S:/M1:/M2:/M:) */
+static errr parse_style_short_desc_line(char* buf);
+static errr parse_style_m1_line(char* buf);
+static errr parse_style_m2_line(char* buf);
 static errr parse_style_message_line(char* buf);
 
 errr parse_style_info(char* buf, header* head)
@@ -1395,7 +1481,7 @@ errr parse_style_info(char* buf, header* head)
         error_idx = idx;
 
     stl_ptr = ((style_type*)head->info_ptr) + idx;
-    WIPE(stl_ptr, style_type);
+    memset(stl_ptr, 0, sizeof(style_type));
     /* Initialize counts */
     stl_ptr->floor_count = 0;
     stl_ptr->door_count = 0;
@@ -1477,10 +1563,27 @@ errr parse_style_info(char* buf, header* head)
         return 0;
     }
 
-    /* M: <text> — per-style message (banner) */
-    if (buf[0] == 'M')
+    /* S: <text> — short descriptor for transition composition */
+    if (buf[0] == 'S' && buf[1] == ':')
     {
-        /* Reuse the message parser; it uses error_idx as current style index */
+        return parse_style_short_desc_line(buf);
+    }
+
+    /* M1: <text> — physical entry description */
+    if (buf[0] == 'M' && buf[1] == '1' && buf[2] == ':')
+    {
+        return parse_style_m1_line(buf);
+    }
+
+    /* M2: <text> — lore/atmosphere */
+    if (buf[0] == 'M' && buf[1] == '2' && buf[2] == ':')
+    {
+        return parse_style_m2_line(buf);
+    }
+
+    /* M: <text> — legacy per-style message (treated as M1:) */
+    if (buf[0] == 'M' && buf[1] == ':')
+    {
         return parse_style_message_line(buf);
     }
 
@@ -1488,6 +1591,42 @@ errr parse_style_info(char* buf, header* head)
 }
 
 /* ====================  style-levels.txt parser  ===================== */
+
+static int parse_partition_style_kind(const char* tok)
+{
+    if (!tok) return -1;
+    if (SDL_strcasecmp(tok, "CA") == 0 || SDL_strcasecmp(tok, "CA_BLOB") == 0
+        || SDL_strcasecmp(tok, "CA_BLOBS") == 0)
+        return PART_STYLE_CA_BLOB;
+    if (SDL_strcasecmp(tok, "LAB") == 0 || SDL_strcasecmp(tok, "LABYRINTH") == 0)
+        return PART_STYLE_LABYRINTH;
+    if (SDL_strcasecmp(tok, "CHASM") == 0 || SDL_strcasecmp(tok, "CHASM_FLOOR") == 0)
+        return PART_STYLE_CHASM_FLOOR;
+    if (SDL_strcasecmp(tok, "CHASM_BRIDGE") == 0 || SDL_strcasecmp(tok, "CHASM_BRIDGES") == 0)
+        return PART_STYLE_CHASM_BRIDGE;
+    if (SDL_strcasecmp(tok, "BIG_ICE") == 0 || SDL_strcasecmp(tok, "BIG_CAVE_ICE") == 0
+        || SDL_strcasecmp(tok, "ICE") == 0)
+        return PART_STYLE_BIG_CAVE_ICE;
+    if (SDL_strcasecmp(tok, "BIG_FIRE") == 0 || SDL_strcasecmp(tok, "BIG_CAVE_FIRE") == 0
+        || SDL_strcasecmp(tok, "FIRE") == 0)
+        return PART_STYLE_BIG_CAVE_FIRE;
+    if (SDL_strcasecmp(tok, "BIG_POIS") == 0 || SDL_strcasecmp(tok, "BIG_CAVE_POIS") == 0
+        || SDL_strcasecmp(tok, "POIS") == 0 || SDL_strcasecmp(tok, "POISON") == 0)
+        return PART_STYLE_BIG_CAVE_POIS;
+    return -1;
+}
+
+static int parse_big_cave_weight_token(const char* tok)
+{
+    if (!tok) return BIG_CAVE_NONE;
+    if (SDL_strcasecmp(tok, "ICE") == 0 || SDL_strcasecmp(tok, "COLD") == 0)
+        return BIG_CAVE_ICE;
+    if (SDL_strcasecmp(tok, "FIRE") == 0)
+        return BIG_CAVE_FIRE;
+    if (SDL_strcasecmp(tok, "POIS") == 0 || SDL_strcasecmp(tok, "POISON") == 0)
+        return BIG_CAVE_POIS;
+    return BIG_CAVE_NONE;
+}
 
 errr parse_style_levels(char* buf, header* head)
 {
@@ -1497,6 +1636,8 @@ errr parse_style_levels(char* buf, header* head)
         styles_rules_clear();
         styles_vault_rules_clear();
         styles_default_vault_clear();
+        styles_partition_rules_clear();
+        big_cave_type_rules_clear();
     log_debug("parse_style_levels: Version header encountered, cleared existing rules");
         return 0;
     }
@@ -1550,6 +1691,104 @@ errr parse_style_levels(char* buf, header* head)
         }
         return 0;
     }
+    /* P:type:depth: sidx:weight ...  or  P:type:min:max: ... (partition styles) */
+    if (buf[0] == 'P')
+    {
+        int min_d = 0, max_d = 0;
+        char* s = strchr(buf + 2, ':');
+        if (!s) return PARSE_ERROR_GENERIC;
+        *s++ = '\0';
+        int kind = parse_partition_style_kind(buf + 2);
+        if (kind < 0) return PARSE_ERROR_GENERIC;
+
+        char* t = strchr(s, ':');
+        if (!t) return PARSE_ERROR_GENERIC;
+        *t++ = '\0';
+        min_d = atoi(s);
+        /* Decide if this is a range by checking for a ':' before any space after the first ':' */
+        char* first_space = strchr(t, ' ');
+        char* second_colon = strchr(t, ':');
+        char* list_start;
+        if (second_colon && (!first_space || second_colon < first_space)) {
+            /* Range form: P:type:min:max: ... */
+            *second_colon = '\0';
+            max_d = atoi(t);
+            list_start = second_colon + 1;
+        } else {
+            /* Exact form: P:type:depth: ... */
+            max_d = min_d;
+            list_start = t;
+        }
+
+        int sidx[64]; int wt[64]; int n = 0;
+        while (*list_start)
+        {
+            while (*list_start == ' ') list_start++;
+            if (!*list_start) break;
+            char* e = list_start; while (*e && *e != ' ') e++;
+            char hold = *e; if (*e) *e = '\0';
+            char* c = strchr(list_start, ':'); if (!c) { if (hold) *e = hold; break; }
+            *c = '\0';
+            int si = atoi(list_start); int w = atoi(c + 1);
+            if (si >= 0 && w > 0 && n < 64) { sidx[n] = si; wt[n] = w; n++; }
+            if (hold) { *e = hold; list_start = e + 1; } else break;
+        }
+        if (n > 0) {
+            if (min_d < 1) min_d = 1;
+            if (max_d > 31) max_d = 31;
+            for (int d = min_d; d <= max_d; ++d)
+                styles_add_partition_rule(d, kind, sidx, wt, n);
+            log_debug("parse_style_levels: P:kind=%d %d..%d with %d entries (first sidx=%d w=%d)",
+                kind, min_d, max_d, n, sidx[0], wt[0]);
+        }
+        return 0;
+    }
+    /* B:depth: ICE:w FIRE:w POIS:w  or  B:min:max: ... (big cave type weights) */
+    if (buf[0] == 'B')
+    {
+        int min_d = 0, max_d = 0;
+        char* s = strchr(buf + 2, ':');
+        if (!s) return PARSE_ERROR_GENERIC;
+        *s++ = '\0';
+        min_d = atoi(buf + 2);
+        char* first_space = strchr(s, ' ');
+        char* second_colon = strchr(s, ':');
+        char* list_start;
+        if (second_colon && (!first_space || second_colon < first_space)) {
+            *second_colon = '\0';
+            max_d = atoi(s);
+            list_start = second_colon + 1;
+        } else {
+            max_d = min_d;
+            list_start = s;
+        }
+
+        int ice_w = 0, fire_w = 0, pois_w = 0;
+        while (*list_start)
+        {
+            while (*list_start == ' ') list_start++;
+            if (!*list_start) break;
+            char* e = list_start; while (*e && *e != ' ') e++;
+            char hold = *e; if (*e) *e = '\0';
+            char* c = strchr(list_start, ':'); if (!c) { if (hold) *e = hold; break; }
+            *c = '\0';
+            int kind = parse_big_cave_weight_token(list_start);
+            int w = atoi(c + 1);
+            if (w < 0) w = 0;
+            if (kind == BIG_CAVE_ICE) ice_w = w;
+            else if (kind == BIG_CAVE_FIRE) fire_w = w;
+            else if (kind == BIG_CAVE_POIS) pois_w = w;
+            if (hold) { *e = hold; list_start = e + 1; } else break;
+        }
+
+        if (min_d < 1) min_d = 1;
+        if (max_d > 31) max_d = 31;
+        for (int d = min_d; d <= max_d; ++d)
+            big_cave_type_set_rule(d, ice_w, fire_w, pois_w);
+        log_debug("parse_style_levels: B:%d..%d ice=%d fire=%d pois=%d",
+            min_d, max_d, ice_w, fire_w, pois_w);
+        return 0;
+    }
     /* U:depth: sidx:weight ...   or   U:*: sidx:weight ... (default vault styles) */
     if (buf[0] == 'U')
     {
@@ -1585,135 +1824,442 @@ errr parse_style_levels(char* buf, header* head)
     return 0;
 }
 
-/* ====================  style display strings (per-style M:)  ===================== */
+/* ====================  partition.txt parser  ===================== */
 
-/* Per-style banner strings (by style index, allow multiple sayings) */
-#define MAX_STYLE_MSG 8
-static const char* g_style_display_text[128][MAX_STYLE_MSG];
-static byte  g_style_display_count[128];
-
-/* Accessor for per-style banner */
-const char* styles_get_style_display(int sidx)
+static level_partition_kind parse_partition_kind_token(const char* tok)
 {
-    if (sidx < 0 || sidx >= 128) return NULL;
-    byte n = g_style_display_count[sidx];
-    if (!n) return NULL;
-    int pick = (n == 1) ? 0 : rand_int(n);
-    return g_style_display_text[sidx][pick];
+    if (!tok) return LEVEL_PART_NONE;
+    if (SDL_strcasecmp(tok, "ROOMY") == 0) return LEVEL_PART_ROOMY;
+    if (SDL_strcasecmp(tok, "CAVEY") == 0) return LEVEL_PART_CAVEY;
+    if (SDL_strcasecmp(tok, "RUINED") == 0) return LEVEL_PART_RUINED;
+    if (SDL_strcasecmp(tok, "LABYRINTH") == 0 || SDL_strcasecmp(tok, "LAB") == 0)
+        return LEVEL_PART_LABYRINTH;
+    if (SDL_strcasecmp(tok, "CHASM") == 0) return LEVEL_PART_CHASM;
+    if (SDL_strcasecmp(tok, "BIG_CAVE") == 0
+        || SDL_strcasecmp(tok, "BIGCAVE") == 0
+        || SDL_strcasecmp(tok, "BIG-CAVE") == 0
+        || SDL_strcasecmp(tok, "BIG") == 0)
+    {
+        return LEVEL_PART_BIG_CAVE;
+    }
+    return LEVEL_PART_NONE;
 }
 
-/* Extend style.txt parser to support per-style messages via M: */
-/* In-record form:  M: <text>         (applies to current style error_idx) */
-/* Global form:     M:<idx>: <text>   (applies to the given style index)   */
-static errr parse_style_message_line(char* buf)
+static errr parse_partition_profile_values(const char* data,
+    level_partition_kind kind, partition_drop_source_t source)
 {
-    if (buf[0] != 'M') return PARSE_ERROR_UNDEFINED_DIRECTIVE;
-    char* s = NULL;
-    int idx = -1;
-    if (buf[1] == ':')
+    drop_profile profile;
+    int weapon, armor, jewelry, supply;
+    int potion, herb, gem, staff, light, arrows, tunneling;
+    int allow_damaged = 0;
+    int parsed = 0;
+
+    drop_profile_default(&profile);
+
+    parsed = sscanf(data, "%d:%d:%d:%d:%d:%d:%d:%d:%d:%d:%d:%d",
+        &weapon, &armor, &jewelry, &supply, &potion, &herb, &gem, &staff,
+        &light, &arrows, &tunneling, &allow_damaged);
+    if (parsed != 11 && parsed != 12)
     {
-        /* Could be M:<idx>: or M: <text> (no idx) */
-        char* p = buf + 2;
-        while (*p == ' ' || *p == '\t') p++;
-        if (*p >= '0' && *p <= '9')
-        {
-            /* M:<idx>:<text> */
-            char* c = strchr(p, ':'); if (!c) return PARSE_ERROR_GENERIC; *c++ = '\0';
-            idx = atoi(p);
-            s = c;
-        }
-        else
-        {
-            /* M: <text> (use current error_idx) */
-            idx = error_idx;
-            s = p;
-        }
+        return PARSE_ERROR_GENERIC;
     }
-    else return PARSE_ERROR_GENERIC;
 
-    /* Trim leading spaces */
-    while (*s == ' ' || *s == '\t') s++;
-    /* Strip optional surrounding quotes */
-    if (*s == '"' || *s == '\'') { char q = *s++; char* e = strrchr(s, q); if (e) *e = '\0'; }
-    /* Trim trailing comment */
-    char* h = strchr(s, '#'); if (h) *h = '\0';
-    for (char* t = s + strlen(s) - 1; t >= s && (*t == ' ' || *t == '\t' || *t == '\r' || *t == '\n'); --t) *t = '\0';
+    profile.weight_weapon = weapon;
+    profile.weight_armor = armor;
+    profile.weight_jewelry = jewelry;
+    profile.weight_supply = supply;
+    profile.supply_potion = potion;
+    profile.supply_herb = herb;
+    profile.supply_gem = gem;
+    profile.supply_staff = staff;
+    profile.supply_light = light;
+    profile.supply_arrows = arrows;
+    profile.supply_tunneling = tunneling;
+    profile.allow_damaged = (parsed == 12) ? (allow_damaged ? true : false) : false;
 
-    if (idx < 0 || idx >= 128) return PARSE_ERROR_GENERIC;
-    if (g_style_display_count[idx] >= MAX_STYLE_MSG) {
-        log_debug("parse_style_message_line: style %d message list full, dropping: '%s'", idx, s);
-        return 0;
-    }
-    /* Append */
-    g_style_display_text[idx][g_style_display_count[idx]] = string_make(s);
-    g_style_display_count[idx]++;
-    /* Removed excessive TRACE log that was generating 90+ messages per startup */
+    partition_config_set_drop_profile(kind, source, &profile);
     return 0;
 }
 
-/* Clear all loaded per-style banner messages (free and NULL them). */
+errr parse_partition_info(char* buf, header* head)
+{
+    static level_partition_kind current_kind = LEVEL_PART_NONE;
+
+    (void)head;
+
+    if (buf[0] == 'V')
+    {
+        partition_config_reset();
+        current_kind = LEVEL_PART_NONE;
+        return 0;
+    }
+
+    if (buf[0] == '#' || buf[0] == '\0')
+        return 0;
+
+    if (buf[0] == 'N' && buf[1] == ':')
+    {
+        current_kind = parse_partition_kind_token(buf + 2);
+        if (current_kind <= LEVEL_PART_NONE || current_kind >= LEVEL_PART_MAX)
+            return PARSE_ERROR_GENERIC;
+        return 0;
+    }
+
+    if (current_kind <= LEVEL_PART_NONE || current_kind >= LEVEL_PART_MAX)
+        return PARSE_ERROR_MISSING_RECORD_HEADER;
+
+    if (buf[0] == 'P' && buf[1] == 'F' && buf[2] == ':')
+        return parse_partition_profile_values(
+            buf + 3, current_kind, PARTITION_DROP_SOURCE_FLOOR);
+
+    if (buf[0] == 'P' && buf[1] == 'C' && buf[2] == ':')
+        return parse_partition_profile_values(
+            buf + 3, current_kind, PARTITION_DROP_SOURCE_CHEST);
+
+    if (buf[0] == 'P' && buf[1] == 'M' && buf[2] == ':')
+        return parse_partition_profile_values(
+            buf + 3, current_kind, PARTITION_DROP_SOURCE_MONSTER);
+
+    if (buf[0] == 'F' && buf[1] == 'L' && buf[2] == ':')
+    {
+        int allow_floor = 0;
+        if (1 != sscanf(buf + 3, "%d", &allow_floor))
+            return PARSE_ERROR_GENERIC;
+        partition_config_set_floor_rules(
+            current_kind, allow_floor ? true : false);
+        return 0;
+    }
+
+    if (buf[0] == 'M' && buf[1] == 'B' && buf[2] == ':')
+    {
+        int numerator = 0;
+        int denominator = 0;
+        if (2 != sscanf(buf + 3, "%d:%d", &numerator, &denominator))
+            return PARSE_ERROR_GENERIC;
+        partition_config_set_base_monster_scale(
+            current_kind, numerator, denominator);
+        return 0;
+    }
+
+    if (buf[0] == 'M' && buf[1] == 'F' && buf[2] == ':')
+    {
+        int divisor = 0;
+        int min_count = 0;
+        int max_count = 0;
+        if (3 != sscanf(buf + 3, "%d:%d:%d",
+                &divisor, &min_count, &max_count))
+        {
+            return PARSE_ERROR_GENERIC;
+        }
+        partition_config_set_direct_monster_rule(
+            current_kind, divisor, min_count, max_count);
+        return 0;
+    }
+
+    if (buf[0] == 'M' && buf[1] == 'D' && buf[2] == ':')
+    {
+        int divisor = 0;
+        int min_count = 0;
+        int max_count = 0;
+        int scale_pct_at_depth_20 = 0;
+        int hard_cap_divisor = 0;
+        if (5 != sscanf(buf + 3, "%d:%d:%d:%d:%d",
+                &divisor, &min_count, &max_count,
+                &scale_pct_at_depth_20, &hard_cap_divisor))
+        {
+            return PARSE_ERROR_GENERIC;
+        }
+        partition_config_set_depth_monster_rule(current_kind, divisor,
+            min_count, max_count, scale_pct_at_depth_20, hard_cap_divisor);
+        return 0;
+    }
+
+    if (buf[0] == 'O' && buf[1] == 'D' && buf[2] == ':')
+    {
+        int room_divisor = 0;
+        int corridor_divisor = 0;
+        if (2 != sscanf(buf + 3, "%d:%d", &room_divisor, &corridor_divisor))
+            return PARSE_ERROR_GENERIC;
+        partition_config_set_object_rules(
+            current_kind, room_divisor, corridor_divisor);
+        return 0;
+    }
+
+    if (buf[0] == 'M' && buf[1] == 'T' && buf[2] == ':')
+    {
+        int divisor = 0;
+        int min_count = 0;
+        int max_count = 0;
+        int min_depth = 0;
+        if (4 != sscanf(buf + 3, "%d:%d:%d:%d",
+                &divisor, &min_count, &max_count, &min_depth))
+        {
+            return PARSE_ERROR_GENERIC;
+        }
+        partition_config_set_metal_rule(
+            current_kind, divisor, min_count, max_count, min_depth);
+        return 0;
+    }
+
+    if (buf[0] == 'T' && buf[1] == ':')
+    {
+        partition_config_set_discovery_text(current_kind, buf + 2);
+        return 0;
+    }
+
+    if (current_kind == LEVEL_PART_BIG_CAVE && buf[0] == 'B'
+        && buf[2] == ':')
+    {
+        if (buf[1] == 'I')
+        {
+            partition_config_set_big_cave_discovery_text(
+                BIG_CAVE_ICE, buf + 3);
+            return 0;
+        }
+        if (buf[1] == 'F')
+        {
+            partition_config_set_big_cave_discovery_text(
+                BIG_CAVE_FIRE, buf + 3);
+            return 0;
+        }
+        if (buf[1] == 'P')
+        {
+            partition_config_set_big_cave_discovery_text(
+                BIG_CAVE_POIS, buf + 3);
+            return 0;
+        }
+    }
+
+    return PARSE_ERROR_UNDEFINED_DIRECTIVE;
+}
+
+/* ====================  style narrative strings (S:/M1:/M2:)  ===================== */
+
+/*
+ * Three-field narrative system per style:
+ *   S:  - Short descriptor tag (~3-8 words) for transition composition
+ *   M1: - Physical entry description (shown on fresh entry)
+ *   M2: - Lore/atmosphere (always shown)
+ *
+ * Legacy M: lines are treated as M1: for backward compatibility.
+ */
+#define MAX_STYLE_MSG 8
+static const char* g_style_short_desc[128];
+static const char* g_style_m1_text[128][MAX_STYLE_MSG];
+static byte g_style_m1_count[128];
+static const char* g_style_m2_text[128][MAX_STYLE_MSG];
+static byte g_style_m2_count[128];
+
+/* Accessor: get short descriptor for transition composition */
+const char* styles_get_style_short_desc(int sidx)
+{
+    if (sidx < 0 || sidx >= 128) return NULL;
+    return g_style_short_desc[sidx];
+}
+
+/* Accessor: get random M1 (physical entry) */
+const char* styles_get_style_m1(int sidx)
+{
+    if (sidx < 0 || sidx >= 128) return NULL;
+    byte n = g_style_m1_count[sidx];
+    if (!n) return NULL;
+    int pick = (n == 1) ? 0 : rand_int(n);
+    return g_style_m1_text[sidx][pick];
+}
+
+/* Accessor: get random M2 (lore/atmosphere) */
+const char* styles_get_style_m2(int sidx)
+{
+    if (sidx < 0 || sidx >= 128) return NULL;
+    byte n = g_style_m2_count[sidx];
+    if (!n) return NULL;
+    int pick = (n == 1) ? 0 : rand_int(n);
+    return g_style_m2_text[sidx][pick];
+}
+
+/* Legacy accessor: compose M1+M2 for backward compat (level entry banner) */
+const char* styles_get_style_display(int sidx)
+{
+    return styles_get_style_m1(sidx);
+}
+
+/*
+ * Helper: trim a text line (leading/trailing whitespace, optional quotes,
+ * trailing #comment). Returns pointer into the buffer.
+ */
+static char* trim_narrative_text(char* s)
+{
+    while (*s == ' ' || *s == '\t') s++;
+    if (*s == '"' || *s == '\'') { char q = *s++; char* e = strrchr(s, q); if (e) *e = '\0'; }
+    char* h = strchr(s, '#'); if (h) *h = '\0';
+    for (char* t = s + strlen(s) - 1; t >= s && (*t == ' ' || *t == '\t' || *t == '\r' || *t == '\n'); --t) *t = '\0';
+    return s;
+}
+
+/*
+ * Parse a narrative index from a line like "M1:<idx>: <text>" or "M1: <text>".
+ * The prefix has already been stripped; colon_start points at the first ':'.
+ */
+static int parse_narrative_idx(char* colon_start, char** out_text)
+{
+    if (*colon_start != ':') return -1;
+    char* p = colon_start + 1;
+    while (*p == ' ' || *p == '\t') p++;
+    if (*p >= '0' && *p <= '9')
+    {
+        char* c = strchr(p, ':');
+        if (!c) return -1;
+        *c++ = '\0';
+        *out_text = c;
+        return atoi(p);
+    }
+    *out_text = p;
+    return error_idx;
+}
+
+static errr parse_style_short_desc_line(char* buf)
+{
+    char* text = NULL;
+    int idx = parse_narrative_idx(buf + 1, &text);
+    if (idx < 0 || idx >= 128 || !text) return PARSE_ERROR_GENERIC;
+    text = trim_narrative_text(text);
+    if (g_style_short_desc[idx]) str_free(g_style_short_desc[idx]);
+    g_style_short_desc[idx] = str_dup(text);
+    return 0;
+}
+
+static errr parse_style_m1_line(char* buf)
+{
+    char* text = NULL;
+    int idx = parse_narrative_idx(buf + 2, &text);
+    if (idx < 0 || idx >= 128 || !text) return PARSE_ERROR_GENERIC;
+    text = trim_narrative_text(text);
+    if (g_style_m1_count[idx] >= MAX_STYLE_MSG) {
+        log_debug("parse_style_m1_line: style %d M1 list full, dropping", idx);
+        return 0;
+    }
+    g_style_m1_text[idx][g_style_m1_count[idx]] = str_dup(text);
+    g_style_m1_count[idx]++;
+    return 0;
+}
+
+static errr parse_style_m2_line(char* buf)
+{
+    char* text = NULL;
+    int idx = parse_narrative_idx(buf + 2, &text);
+    if (idx < 0 || idx >= 128 || !text) return PARSE_ERROR_GENERIC;
+    text = trim_narrative_text(text);
+    if (g_style_m2_count[idx] >= MAX_STYLE_MSG) {
+        log_debug("parse_style_m2_line: style %d M2 list full, dropping", idx);
+        return 0;
+    }
+    g_style_m2_text[idx][g_style_m2_count[idx]] = str_dup(text);
+    g_style_m2_count[idx]++;
+    return 0;
+}
+
+static errr parse_style_message_line(char* buf)
+{
+    if (buf[0] != 'M') return PARSE_ERROR_UNDEFINED_DIRECTIVE;
+    char* text = NULL;
+    int idx = parse_narrative_idx(buf + 1, &text);
+    if (idx < 0 || idx >= 128 || !text) return PARSE_ERROR_GENERIC;
+    text = trim_narrative_text(text);
+    if (g_style_m1_count[idx] >= MAX_STYLE_MSG) {
+        log_debug("parse_style_message_line: style %d M1 list full, dropping (legacy M:)", idx);
+        return 0;
+    }
+    g_style_m1_text[idx][g_style_m1_count[idx]] = str_dup(text);
+    g_style_m1_count[idx]++;
+    return 0;
+}
+
+/* Clear all loaded per-style narrative messages (free and NULL them). */
 void styles_clear_display_messages(void)
 {
     for (int i = 0; i < 128; ++i)
     {
+        if (g_style_short_desc[i]) {
+            str_free(g_style_short_desc[i]);
+            g_style_short_desc[i] = NULL;
+        }
         for (int j = 0; j < MAX_STYLE_MSG; ++j) {
-            if (g_style_display_text[i][j]) {
-                string_free(g_style_display_text[i][j]);
-                g_style_display_text[i][j] = NULL;
+            if (g_style_m1_text[i][j]) {
+                str_free(g_style_m1_text[i][j]);
+                g_style_m1_text[i][j] = NULL;
+            }
+            if (g_style_m2_text[i][j]) {
+                str_free(g_style_m2_text[i][j]);
+                g_style_m2_text[i][j] = NULL;
             }
         }
-        g_style_display_count[i] = 0;
+        g_style_m1_count[i] = 0;
+        g_style_m2_count[i] = 0;
     }
 }
 
-/* Reload only M: lines from style.txt so banners are available even if RAW cache was used. */
+/* Reload S:/M1:/M2:/M: lines from style.txt so narratives are available even if RAW cache was used. */
 void styles_reload_messages_from_text(void)
 {
     char path[1024];
-    FILE* fp;
+    SDL_IOStream* fp;
     char buf[1024];
     /* Start clean to avoid stale/duplicate entries */
     styles_clear_display_messages();
 
     /* Build full path to lib/edit/style.txt */
-    path_build(path, sizeof(path), ANGBAND_DIR_EDIT, format("%s.txt", "style"));
-    fp = my_fopen(path, "r");
+    if (!path_build(path, sizeof(path), ANGBAND_DIR_EDIT, format("%s.txt", "style")))
+    {
+        log_warn("styles_reload_messages_from_text: failed to build style.txt path");
+        return;
+    }
+    fp = sdl_fopen(path, "r");
     if (!fp)
     {
         log_warn("styles_reload_messages_from_text: couldn't open %s", path);
         return;
     }
 
-    /* We need to maintain the current style index (error_idx) for in-record M: lines */
-    /* error_idx is the conventional global parser index in this translation unit */
+    /* We need to maintain the current style index (error_idx) for in-record lines */
     error_idx = -1;
 
-    while (my_fgets(fp, buf, sizeof(buf)) == 0)
+    while (sdl_fgets(fp, buf, sizeof(buf)) == 0)
     {
-        /* Trim leading spaces */
         char* s = buf;
         while (*s == ' ' || *s == '\t') s++;
         if (*s == '\0' || *s == '#') continue;
         if (*s == 'N')
         {
-            /* N:<idx>:<name>  — capture idx to set error_idx */
             char* colon = strchr(s + 2, ':');
             if (!colon) continue;
             *colon = '\0';
-            int idx = atoi(s + 2);
-            error_idx = idx;
+            error_idx = atoi(s + 2);
             continue;
         }
-        if (*s == 'M')
+        if (s[0] == 'S' && s[1] == ':')
         {
-            /* Pass through to the same message parser to support both M:<idx>: and in-record M: */
+            (void)parse_style_short_desc_line(s);
+            continue;
+        }
+        if (s[0] == 'M' && s[1] == '1' && s[2] == ':')
+        {
+            (void)parse_style_m1_line(s);
+            continue;
+        }
+        if (s[0] == 'M' && s[1] == '2' && s[2] == ':')
+        {
+            (void)parse_style_m2_line(s);
+            continue;
+        }
+        if (s[0] == 'M' && s[1] == ':')
+        {
+            /* Legacy M: treated as M1: */
             (void)parse_style_message_line(s);
             continue;
         }
-        /* Ignore other lines */
     }
-    my_fclose(fp);
-    log_info("styles_reload_messages_from_text: loaded per-style messages from text");
+    sdl_fclose(fp);
+    log_info("styles_reload_messages_from_text: loaded per-style narrative text");
 }
 
 
@@ -1833,6 +2379,17 @@ errr parse_f_info(char* buf, header* head)
         f_ptr->d_char = d_char;
     }
 
+    /* Process 'T' for "Tile" graphics (one line only) */
+    else if (buf[0] == 'T')
+    {
+        /* There better be a current f_ptr */
+        if (!f_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Parse and set tile coordinates */
+        return parse_tile_line(buf, &f_ptr->x_attr, &f_ptr->x_char);
+    }
+
     else
     {
         /* Oops */
@@ -1878,10 +2435,11 @@ static errr grab_one_flag(u32b** flag, cptr errstr, cptr what)
 static errr grab_one_kind_flag(object_kind* ptr, cptr what)
 {
     u32b* f[MAX_FLAG_SETS];
-    C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+    memset(f, 0, sizeof(f));
     f[TR1] = &(ptr->flags1);
     f[TR2] = &(ptr->flags2);
     f[TR3] = &(ptr->flags3);
+    f[TR4] = &(ptr->flags4);
     return grab_one_flag(f, "object", what);
 }
 
@@ -1891,7 +2449,7 @@ static errr grab_one_kind_flag(object_kind* ptr, cptr what)
 static errr grab_one_curse_flag(curse_type *cu_ptr, cptr what)
 {
     u32b *f[MAX_FLAG_SETS];
-    C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+    memset(f, 0, sizeof(f));
     f[RHF] = &(cu_ptr->flags);   /* write into the new word we added */
     return grab_one_flag(f, "curse", what);
 }
@@ -1899,7 +2457,7 @@ static errr grab_one_curse_flag(curse_type *cu_ptr, cptr what)
 static errr grab_one_curse_unique_flag(curse_type *cu_ptr, cptr what)
 {
     u32b *f[MAX_FLAG_SETS];
-    C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+    memset(f, 0, sizeof(f));
     f[CUR] = &(cu_ptr->flags_u);   /* write into the new word we added */
     return grab_one_flag(f, "curse unique", what);
 }
@@ -1907,7 +2465,7 @@ static errr grab_one_curse_unique_flag(curse_type *cu_ptr, cptr what)
 static errr grab_one_blessing_flag(curse_type *cu_ptr, cptr what)
 {
     u32b *f[MAX_FLAG_SETS];
-    C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+    memset(f, 0, sizeof(f));
     f[RHF] = &(cu_ptr->blessing_flags);
     return grab_one_flag(f, "blessing", what);
 }
@@ -1915,9 +2473,289 @@ static errr grab_one_blessing_flag(curse_type *cu_ptr, cptr what)
 static errr grab_one_blessing_unique_flag(curse_type *cu_ptr, cptr what)
 {
     u32b *f[MAX_FLAG_SETS];
-    C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+    memset(f, 0, sizeof(f));
     f[CUR] = &(cu_ptr->blessing_flags_u);
     return grab_one_flag(f, "blessing unique", what);
+}
+
+/* --- object stat/skill bonus helpers ----------------------------- */
+
+static const u32b obj_stat_flag_pos[A_MAX] = { TR1_STR, TR1_DEX, TR1_CON, TR1_GRA };
+static const u32b obj_stat_flag_neg[A_MAX]
+    = { TR1_NEG_STR, TR1_NEG_DEX, TR1_NEG_CON, TR1_NEG_GRA };
+
+static const u32b obj_skill_flag[S_MAX] = {
+    [S_MEL] = TR1_MEL,
+    [S_ARC] = TR1_ARC,
+    [S_STL] = TR1_STL,
+    [S_PER] = TR1_PER,
+    [S_WIL] = TR1_WIL,
+    [S_SMT] = TR1_SMT,
+    [S_SNG] = TR1_SNG,
+};
+
+static bool parse_obj_bonus_token(
+    const char* token, bool* is_stat, int* index, bool* has_neg_prefix)
+{
+    if (!token || !token[0] || !is_stat || !index || !has_neg_prefix)
+        return false;
+
+    *has_neg_prefix = false;
+
+    const char* name = token;
+    if (strncmp(name, "NEG_", 4) == 0)
+    {
+        *has_neg_prefix = true;
+        name += 4;
+    }
+
+    if (streq(name, "STR"))
+    {
+        *is_stat = true;
+        *index = A_STR;
+        return true;
+    }
+    if (streq(name, "DEX"))
+    {
+        *is_stat = true;
+        *index = A_DEX;
+        return true;
+    }
+    if (streq(name, "CON"))
+    {
+        *is_stat = true;
+        *index = A_CON;
+        return true;
+    }
+    if (streq(name, "GRA"))
+    {
+        *is_stat = true;
+        *index = A_GRA;
+        return true;
+    }
+
+    if (*has_neg_prefix)
+        return false;
+
+    if (streq(name, "MELEE"))
+    {
+        *is_stat = false;
+        *index = S_MEL;
+        return true;
+    }
+    if (streq(name, "ARCHERY"))
+    {
+        *is_stat = false;
+        *index = S_ARC;
+        return true;
+    }
+    if (streq(name, "STEALTH"))
+    {
+        *is_stat = false;
+        *index = S_STL;
+        return true;
+    }
+    if (streq(name, "PERCEPTION"))
+    {
+        *is_stat = false;
+        *index = S_PER;
+        return true;
+    }
+    if (streq(name, "WILL"))
+    {
+        *is_stat = false;
+        *index = S_WIL;
+        return true;
+    }
+    if (streq(name, "SMITHING"))
+    {
+        *is_stat = false;
+        *index = S_SMT;
+        return true;
+    }
+    if (streq(name, "SONG"))
+    {
+        *is_stat = false;
+        *index = S_SNG;
+        return true;
+    }
+
+    return false;
+}
+
+static void apply_default_pval_bonuses(u32b flags1, s16b pval,
+    s16b stat_bonus[A_MAX], const bool stat_bonus_set[A_MAX],
+    s16b skill_bonus[S_MAX], const bool skill_bonus_set[S_MAX])
+{
+    for (int i = 0; i < A_MAX; i++)
+    {
+        if (stat_bonus_set && stat_bonus_set[i])
+            continue;
+
+        int bonus = 0;
+        if (flags1 & obj_stat_flag_pos[i])
+            bonus += pval;
+        if (flags1 & obj_stat_flag_neg[i])
+            bonus -= pval;
+        stat_bonus[i] = (s16b)bonus;
+    }
+
+    for (int i = 0; i < S_MAX; i++)
+    {
+        if (skill_bonus_set && skill_bonus_set[i])
+            continue;
+
+        const u32b flag = obj_skill_flag[i];
+        skill_bonus[i] = (flag && (flags1 & flag)) ? pval : 0;
+    }
+}
+
+static bool apply_obj_bonus_token(const char* token, int value,
+    u32b* flags1,
+    s16b stat_bonus[A_MAX], bool stat_bonus_set[A_MAX],
+    s16b skill_bonus[S_MAX], bool skill_bonus_set[S_MAX])
+{
+    if (!flags1 || !token)
+        return false;
+
+    bool is_stat = false;
+    int index = 0;
+    bool has_neg_prefix = false;
+
+    if (!parse_obj_bonus_token(token, &is_stat, &index, &has_neg_prefix))
+        return false;
+
+    int normalized = value;
+    if (has_neg_prefix && normalized > 0)
+        normalized = -normalized;
+
+    if (is_stat)
+    {
+        if (index < 0 || index >= A_MAX)
+            return false;
+
+        stat_bonus[index] = (s16b)normalized;
+        if (stat_bonus_set)
+            stat_bonus_set[index] = true;
+
+        *flags1 &= ~(obj_stat_flag_pos[index] | obj_stat_flag_neg[index]);
+        if (normalized >= 0)
+            *flags1 |= obj_stat_flag_pos[index];
+        else
+            *flags1 |= obj_stat_flag_neg[index];
+
+        return true;
+    }
+
+    if (index < 0 || index >= S_MAX)
+        return false;
+
+    skill_bonus[index] = (s16b)normalized;
+    if (skill_bonus_set)
+        skill_bonus_set[index] = true;
+
+    if (obj_skill_flag[index])
+        *flags1 |= obj_skill_flag[index];
+
+    return true;
+}
+
+static bool parse_bonus_value_range(char* text, int* min_value, int* max_value)
+{
+    char* sep;
+
+    if (!text || !text[0] || !min_value || !max_value)
+        return false;
+
+    sep = strchr(text, ':');
+    if (!sep)
+    {
+        *min_value = atoi(text);
+        *max_value = *min_value;
+        return true;
+    }
+
+    if (strchr(sep + 1, ':'))
+        return false;
+
+    *sep++ = '\0';
+    if (!text[0] || !sep[0])
+        return false;
+
+    *min_value = atoi(text);
+    *max_value = atoi(sep);
+    return true;
+}
+
+static bool apply_ego_bonus_token_range(const char* token, int min_value, int max_value,
+    u32b* flags1,
+    s16b stat_bonus_min[A_MAX], s16b stat_bonus[A_MAX], bool stat_bonus_set[A_MAX],
+    s16b skill_bonus_min[S_MAX], s16b skill_bonus[S_MAX], bool skill_bonus_set[S_MAX])
+{
+    if (!flags1 || !token)
+        return false;
+
+    bool is_stat = false;
+    int index = 0;
+    bool has_neg_prefix = false;
+
+    if (!parse_obj_bonus_token(token, &is_stat, &index, &has_neg_prefix))
+        return false;
+
+    int normalized_min = min_value;
+    int normalized_max = max_value;
+
+    if (has_neg_prefix)
+    {
+        if (normalized_min > 0)
+            normalized_min = -normalized_min;
+        if (normalized_max > 0)
+            normalized_max = -normalized_max;
+    }
+
+    if (normalized_min > normalized_max)
+    {
+        if (!has_neg_prefix)
+            return false;
+
+        int tmp = normalized_min;
+        normalized_min = normalized_max;
+        normalized_max = tmp;
+    }
+
+    if (is_stat)
+    {
+        if (index < 0 || index >= A_MAX)
+            return false;
+        if (normalized_min < 0 && normalized_max > 0)
+            return false;
+
+        stat_bonus_min[index] = (s16b)normalized_min;
+        stat_bonus[index] = (s16b)normalized_max;
+        if (stat_bonus_set)
+            stat_bonus_set[index] = true;
+
+        *flags1 &= ~(obj_stat_flag_pos[index] | obj_stat_flag_neg[index]);
+        if (normalized_max < 0)
+            *flags1 |= obj_stat_flag_neg[index];
+        else
+            *flags1 |= obj_stat_flag_pos[index];
+
+        return true;
+    }
+
+    if (index < 0 || index >= S_MAX)
+        return false;
+
+    skill_bonus_min[index] = (s16b)normalized_min;
+    skill_bonus[index] = (s16b)normalized_max;
+    if (skill_bonus_set)
+        skill_bonus_set[index] = true;
+
+    if (obj_skill_flag[index])
+        *flags1 |= obj_skill_flag[index];
+
+    return true;
 }
 
 /*
@@ -1969,6 +2807,18 @@ errr parse_k_info(char* buf, header* head)
         /* Store the name */
         if (!(k_ptr->name = add_name(head, s)))
             return (PARSE_ERROR_OUT_OF_MEMORY);
+
+        /* Reset per-stat/skill bonuses. */
+        for (int si = 0; si < A_MAX; si++)
+        {
+            k_ptr->stat_bonus[si] = 0;
+            k_ptr->stat_bonus_set[si] = false;
+        }
+        for (int sk = 0; sk < S_MAX; sk++)
+        {
+            k_ptr->skill_bonus[sk] = 0;
+            k_ptr->skill_bonus_set[sk] = false;
+        }
     }
 
     /* Process 'G' for "Graphics" (one line only) */
@@ -2016,6 +2866,17 @@ errr parse_k_info(char* buf, header* head)
         k_ptr->d_char = d_char;
     }
 
+    /* Process 'T' for "Tile" graphics (one line only) */
+    else if (buf[0] == 'T')
+    {
+        /* There better be a current k_ptr */
+        if (!k_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Parse and set tile coordinates */
+        return parse_tile_line(buf, &k_ptr->x_attr, &k_ptr->x_char);
+    }
+
     /* Process 'I' for "Info" (one line only) */
     else if (buf[0] == 'I')
     {
@@ -2033,6 +2894,41 @@ errr parse_k_info(char* buf, header* head)
         k_ptr->tval = tval;
         k_ptr->sval = sval;
         k_ptr->pval = pval;
+
+        /* Default max pval = base pval (no variation unless R: overrides) */
+        k_ptr->max_pval = pval;
+
+        apply_default_pval_bonuses(k_ptr->flags1, k_ptr->pval,
+            k_ptr->stat_bonus, k_ptr->stat_bonus_set,
+            k_ptr->skill_bonus, k_ptr->skill_bonus_set);
+    }
+
+    /* Process 'M' for per-stat/skill bonus overrides (one per line) */
+    else if (buf[0] == 'M')
+    {
+        /* There better be a current k_ptr */
+        if (!k_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        s = strchr(buf + 2, ':');
+        if (!s)
+            return (PARSE_ERROR_GENERIC);
+
+        *s++ = '\0';
+        cptr token = buf + 2;
+        int value = atoi(s);
+
+        if (!apply_obj_bonus_token(token, value,
+                &k_ptr->flags1,
+                k_ptr->stat_bonus, k_ptr->stat_bonus_set,
+                k_ptr->skill_bonus, k_ptr->skill_bonus_set))
+        {
+            return (PARSE_ERROR_GENERIC);
+        }
+
+        apply_default_pval_bonuses(k_ptr->flags1, k_ptr->pval,
+            k_ptr->stat_bonus, k_ptr->stat_bonus_set,
+            k_ptr->skill_bonus, k_ptr->skill_bonus_set);
     }
 
     /* Process 'W' for "More Info" (one line only) */
@@ -2059,38 +2955,47 @@ errr parse_k_info(char* buf, header* head)
     /* Process 'A' for "Allocation" (one line only) */
     else if (buf[0] == 'A')
     {
-        int i;
-
         /* There better be a current k_ptr */
         if (!k_ptr)
             return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
-        /* XXX Simply read each number following a colon */
-        for (i = 0, s = buf + 1; s && (s[0] == ':') && s[1]; ++i)
+        /* Reset explicit allocation count */
+        k_ptr->alloc_count = 0;
+
+        /* Read each number following a colon */
+        for (s = buf + 1; s && (s[0] == ':') && s[1];)
         {
             /* Sanity check */
-            if (i > 3)
+            if (k_ptr->alloc_count > 3)
                 return (PARSE_ERROR_TOO_MANY_ALLOCATIONS);
 
-            /* Default chance */
-            k_ptr->chance[i] = 1;
-
-            /* Store the attack damage index */
-            k_ptr->locale[i] = atoi(s + 1);
+            int depth = atoi(s + 1);
+            int rarity = 1;
 
             /* Find the slash */
             t = strchr(s + 1, '/');
 
             /* Find the next colon */
-            s = strchr(s + 1, ':');
+            char* next = strchr(s + 1, ':');
 
             /* If the slash is "nearby", use it */
-            if (t && (!s || t < s))
-            {
-                int chance = atoi(t + 1);
-                if (chance > 0)
-                    k_ptr->chance[i] = chance;
-            }
+            if (t && (!next || t < next))
+                rarity = atoi(t + 1);
+
+            if (rarity < 0)
+                rarity = 0;
+
+            /* Store legacy locale/chance for compatibility */
+            k_ptr->locale[k_ptr->alloc_count] = (byte)depth;
+            k_ptr->chance[k_ptr->alloc_count] = (byte)rarity;
+
+            /* Store explicit allocation entries (supporting zero rarity) */
+            k_ptr->alloc_depth[k_ptr->alloc_count] = (byte)depth;
+            k_ptr->alloc_prob[k_ptr->alloc_count] = (byte)rarity;
+            k_ptr->alloc_count++;
+
+            /* Advance to next colon (if any) */
+            s = next;
         }
     }
 
@@ -2115,6 +3020,41 @@ errr parse_k_info(char* buf, header* head)
         k_ptr->evn = evn;
         k_ptr->pd = pd;
         k_ptr->ps = ps;
+
+        /* Default max values = base values (no variation unless R: overrides) */
+        k_ptr->max_att = att;
+        k_ptr->max_ds = ds;
+        k_ptr->max_evn = evn;
+        k_ptr->max_ps = ps;
+    }
+
+    /* Process 'R' for "Range" — smithing/drop maximums (one per line) */
+    else if (buf[0] == 'R')
+    {
+        /* There better be a current k_ptr */
+        if (!k_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        s = strchr(buf + 2, ':');
+        if (!s)
+            return (PARSE_ERROR_GENERIC);
+
+        *s++ = '\0';
+        cptr stat_name = buf + 2;
+        int value = atoi(s);
+
+        if (streq(stat_name, "ATT"))
+            k_ptr->max_att = (s16b)value;
+        else if (streq(stat_name, "DS"))
+            k_ptr->max_ds = (byte)value;
+        else if (streq(stat_name, "EVN"))
+            k_ptr->max_evn = (s16b)value;
+        else if (streq(stat_name, "PS"))
+            k_ptr->max_ps = (byte)value;
+        else if (streq(stat_name, "PVAL"))
+            k_ptr->max_pval = (s16b)value;
+        else
+            return (PARSE_ERROR_GENERIC);
     }
 
     /* Hack -- Process 'F' for flags */
@@ -2146,6 +3086,10 @@ errr parse_k_info(char* buf, header* head)
             /* Start the next entry */
             s = t;
         }
+
+        apply_default_pval_bonuses(k_ptr->flags1, k_ptr->pval,
+            k_ptr->stat_bonus, k_ptr->stat_bonus_set,
+            k_ptr->skill_bonus, k_ptr->skill_bonus_set);
     }
 
     /* Process 'B' for "aBilities" (one line only) */
@@ -2221,7 +3165,7 @@ errr parse_k_info(char* buf, header* head)
 static errr grab_one_vault_flag(vault_type* ptr, cptr what)
 {
     u32b* f[MAX_FLAG_SETS];
-    C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+    memset(f, 0, sizeof(f));
     f[VLT] = &(ptr->flags);
     return grab_one_flag(f, "vault", what);
 }
@@ -2272,10 +3216,15 @@ errr parse_v_info(char* buf, header* head)
         /* Point at the "info" */
         v_ptr = (vault_type*)head->info_ptr + i;
 
-    /* Initialize default values */
+        /* Initialize default values */
         v_ptr->color = 0; /* Default to depth color */
-    v_ptr->style_count = 0;
-    for (int j = 0; j < 16; ++j) { v_ptr->style_idx[j] = -1; v_ptr->style_weight[j] = 0; }
+        v_ptr->message = 0;
+        v_ptr->style_count = 0;
+        for (int j = 0; j < 16; ++j)
+        {
+            v_ptr->style_idx[j] = -1;
+            v_ptr->style_weight[j] = 0;
+        }
 
         /* Store the name */
         if (!(v_ptr->name = add_name(head, s)))
@@ -2285,19 +3234,30 @@ errr parse_v_info(char* buf, header* head)
     /* Process 'X' for "Extra info" (one line only) */
     else if (buf[0] == 'X')
     {
-        int typ, depth, rarity;
+        int typ, depth, rarity, max_depth;
+        int num_scanned;
 
         /* There better be a current v_ptr */
         if (!v_ptr)
             return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
-        /* Scan for the values */
-        if (3 != sscanf(buf + 2, "%d:%d:%d", &typ, &depth, &rarity))
+        /* Try to scan for 4 values (with max_depth) */
+        num_scanned = sscanf(buf + 2, "%d:%d:%d:%d", &typ, &depth, &rarity, &max_depth);
+
+        /* If that fails, try scanning for 3 values (backward compatibility) */
+        if (num_scanned == 3)
+        {
+            max_depth = 0; /* 0 = no maximum depth limit */
+        }
+        else if (num_scanned != 4)
+        {
             return (PARSE_ERROR_GENERIC);
+        }
 
         /* Save the values */
         v_ptr->typ = typ;
         v_ptr->depth = depth;
+        v_ptr->max_depth = max_depth;
         v_ptr->rarity = rarity;
         v_ptr->hgt = 0;
         v_ptr->wid = 0;
@@ -2394,6 +3354,17 @@ errr parse_v_info(char* buf, header* head)
             /* Start the next entry */
             s = t;
         }
+    }
+
+    /* Process 'M' for "Entry message" */
+    else if (buf[0] == 'M')
+    {
+        /* There better be a current v_ptr */
+        if (!v_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        if (!add_text(&v_ptr->message, head, buf + 2))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
     }
 
     /* Process 'D' for "Description" */
@@ -2578,6 +3549,21 @@ errr parse_b_info(char* buf, header* head)
             return (PARSE_ERROR_OUT_OF_MEMORY);
     }
 
+    /* Process 'E' for "Effect" (mechanical description) */
+    else if (buf[0] == 'E')
+    {
+        /* There better be a current b_ptr */
+        if (!b_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Get the text */
+        s = buf + 2;
+
+        /* Store the effect text */
+        if (!add_text(&(b_ptr->effect), head, s))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+
     /* Process 'T' for "Types allowed" (up to five lines) */
     else if (buf[0] == 'T')
     {
@@ -2620,10 +3606,11 @@ errr parse_b_info(char* buf, header* head)
 static errr grab_one_artefact_flag(artefact_type* ptr, cptr what)
 {
     u32b* f[MAX_FLAG_SETS];
-    C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+    memset(f, 0, sizeof(f));
     f[TR1] = &(ptr->flags1);
     f[TR2] = &(ptr->flags2);
     f[TR3] = &(ptr->flags3);
+    f[TR4] = &(ptr->flags4);
     return grab_one_flag(f, "object", what);
 }
 
@@ -2698,7 +3685,7 @@ errr parse_a_info(char* buf, header* head)
         a_ptr = (artefact_type*)head->info_ptr + i;
 
         /* Store the name */
-        my_strcpy(a_ptr->name, s, MAX_LEN_ART_NAME);
+        SDL_strlcpy(a_ptr->name, s, MAX_LEN_ART_NAME);
 
         /* Ignore everything */
         a_ptr->flags3 |= (TR3_IGNORE_MASK);
@@ -2706,6 +3693,21 @@ errr parse_a_info(char* buf, header* head)
         /* Sil-y: paranoia: make sure that the default values are 0 */
         a_ptr->d_attr = 0;
         a_ptr->d_char = 0;
+
+        /* Reset per-stat/skill bonuses. */
+        for (int si = 0; si < A_MAX; si++)
+        {
+            a_ptr->stat_bonus[si] = 0;
+            a_ptr->stat_bonus_set[si] = false;
+        }
+        for (int sk = 0; sk < S_MAX; sk++)
+        {
+            a_ptr->skill_bonus[sk] = 0;
+            a_ptr->skill_bonus_set[sk] = false;
+        }
+
+        /* Default spawn stack size */
+        a_ptr->spawn_num = 1;
     }
 
     /* Sil -- added this to allow for artefacts that look different to the base
@@ -2754,6 +3756,35 @@ errr parse_a_info(char* buf, header* head)
         a_ptr->d_attr = d_attr;
         a_ptr->d_char = d_char;
     }
+    /* Process 'Q' for GUID */
+    else if (buf[0] == 'Q')
+    {
+        if (!a_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        u64b guid;
+        if (!parse_u64b_hex(buf + 2, &guid))
+            return (PARSE_ERROR_GENERIC);
+
+        a_ptr->guid = score_guid_from_u64(guid);
+    }
+
+    /* Process 'S' for spawn stack size */
+    else if (buf[0] == 'S')
+    {
+        int spawn_num;
+
+        if (!a_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        if (1 != sscanf(buf + 2, "%d", &spawn_num))
+            return (PARSE_ERROR_GENERIC);
+
+        if (spawn_num < 1 || spawn_num > 255)
+            return (PARSE_ERROR_GENERIC);
+
+        a_ptr->spawn_num = (byte)spawn_num;
+    }
 
     /* Process 'I' for "Info" (one line only) */
     else if (buf[0] == 'I')
@@ -2772,6 +3803,38 @@ errr parse_a_info(char* buf, header* head)
         a_ptr->tval = tval;
         a_ptr->sval = sval;
         a_ptr->pval = pval;
+
+        apply_default_pval_bonuses(a_ptr->flags1, a_ptr->pval,
+            a_ptr->stat_bonus, a_ptr->stat_bonus_set,
+            a_ptr->skill_bonus, a_ptr->skill_bonus_set);
+    }
+
+    /* Process 'M' for per-stat/skill bonus overrides (one per line) */
+    else if (buf[0] == 'M')
+    {
+        /* There better be a current a_ptr */
+        if (!a_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        s = strchr(buf + 2, ':');
+        if (!s)
+            return (PARSE_ERROR_GENERIC);
+
+        *s++ = '\0';
+        cptr token = buf + 2;
+        int value = atoi(s);
+
+        if (!apply_obj_bonus_token(token, value,
+                &a_ptr->flags1,
+                a_ptr->stat_bonus, a_ptr->stat_bonus_set,
+                a_ptr->skill_bonus, a_ptr->skill_bonus_set))
+        {
+            return (PARSE_ERROR_GENERIC);
+        }
+
+        apply_default_pval_bonuses(a_ptr->flags1, a_ptr->pval,
+            a_ptr->stat_bonus, a_ptr->stat_bonus_set,
+            a_ptr->skill_bonus, a_ptr->skill_bonus_set);
     }
 
     /* Process 'W' for "More Info" (one line only) */
@@ -2847,6 +3910,10 @@ errr parse_a_info(char* buf, header* head)
             /* Start the next entry */
             s = t;
         }
+
+        apply_default_pval_bonuses(a_ptr->flags1, a_ptr->pval,
+            a_ptr->stat_bonus, a_ptr->stat_bonus_set,
+            a_ptr->skill_bonus, a_ptr->skill_bonus_set);
     }
 
     /* Process 'A' for "Activation & time" */
@@ -2886,9 +3953,12 @@ errr parse_a_info(char* buf, header* head)
     }
 
     /* Process 'B' for "aBilities" (one line only) */
+    /* Format: B:skilltype/abilitynum/banetype:skilltype/abilitynum/banetype:... */
+    /* The banetype is optional (defaults to 0 = player choice) */
     else if (buf[0] == 'B')
     {
         int i;
+        char* u;
 
         /* There better be a current a_ptr */
         if (!a_ptr)
@@ -2901,8 +3971,9 @@ errr parse_a_info(char* buf, header* head)
             if (i > 3)
                 return (PARSE_ERROR_TOO_MANY_ALLOCATIONS);
 
-            /* Default abilitynum */
+            /* Default abilitynum and bane_type */
             a_ptr->abilitynum[i] = 0;
+            a_ptr->bane_type[i] = 0;
 
             /* Store the skilltype */
             a_ptr->skilltype[i] = atoi(s + 1);
@@ -2910,7 +3981,7 @@ errr parse_a_info(char* buf, header* head)
             /* List this ability */
             a_ptr->abilities++;
 
-            /* Find the slash */
+            /* Find the first slash (abilitynum) */
             t = strchr(s + 1, '/');
 
             /* Find the next colon */
@@ -2922,6 +3993,15 @@ errr parse_a_info(char* buf, header* head)
                 int abilitynum = atoi(t + 1);
                 if (abilitynum > 0)
                     a_ptr->abilitynum[i] = abilitynum;
+
+                /* Look for a second slash (bane_type) */
+                u = strchr(t + 1, '/');
+                if (u && (!s || u < s))
+                {
+                    int banetype = atoi(u + 1);
+                    if (banetype > 0)
+                        a_ptr->bane_type[i] = banetype;
+                }
             }
         }
     }
@@ -3033,16 +4113,213 @@ errr parse_n_info(char* buf, header* head)
     }
 }
 
+static byte skeleton_note_parse_sval_token(const char* tok, bool* ok)
+{
+    if (ok)
+        *ok = false;
+    if (!tok || !*tok)
+        return 0;
+    if (streq(tok, "ELF"))
+    {
+        if (ok) *ok = true;
+        return SV_SKELETON_ELF;
+    }
+    if (streq(tok, "HUMAN"))
+    {
+        if (ok) *ok = true;
+        return SV_SKELETON_HUMAN;
+    }
+    if (streq(tok, "ORC"))
+    {
+        if (ok) *ok = true;
+        return SV_SKELETON_ORC;
+    }
+    if (streq(tok, "ANY"))
+    {
+        if (ok) *ok = true;
+        return SV_SKELETON_NOTE_ANY;
+    }
+    return 0;
+}
+
+static byte skeleton_note_parse_hint_token(const char* tok)
+{
+    if (!tok)
+        return SKEL_HINT_NONE;
+    if (streq(tok, "GREAT_VAULT"))
+        return SKEL_HINT_GREAT_VAULT;
+    if (streq(tok, "VAULT_ARTIFACT"))
+        return SKEL_HINT_VAULT_ARTIFACT;
+    if (streq(tok, "STAIRS"))
+        return SKEL_HINT_STAIRS;
+    if (streq(tok, "PARTITION"))
+        return SKEL_HINT_PARTITION_PRESENCE;
+    if (streq(tok, "FORGE"))
+        return SKEL_HINT_FORGE;
+    if (streq(tok, "UNIQUE"))
+        return SKEL_HINT_UNIQUE_MONSTER;
+    if (streq(tok, "TIP"))
+        return SKEL_HINT_TIP;
+    if (streq(tok, "SIZE"))
+        return SKEL_HINT_LEVEL_SIZE;
+    if (streq(tok, "QUEST"))
+        return SKEL_HINT_QUEST;
+    if (streq(tok, "LABYRINTH"))
+        return SKEL_HINT_PART_LABYRINTH;
+    if (streq(tok, "CHASM"))
+        return SKEL_HINT_PART_CHASM;
+    if (streq(tok, "CAVE"))
+        return SKEL_HINT_PART_CAVE;
+    if (streq(tok, "CAVE_ICE"))
+        return SKEL_HINT_PART_CAVE_ICE;
+    if (streq(tok, "CAVE_FIRE"))
+        return SKEL_HINT_PART_CAVE_FIRE;
+    if (streq(tok, "CAVE_POIS"))
+        return SKEL_HINT_PART_CAVE_POIS;
+    if (streq(tok, "ROOMY"))
+        return SKEL_HINT_PART_ROOMY;
+    if (streq(tok, "RUINED"))
+        return SKEL_HINT_PART_RUINED;
+    if (streq(tok, "CAVEY"))
+        return SKEL_HINT_PART_CAVEY;
+    return SKEL_HINT_NONE;
+}
+
+/*
+ * Parse skeleton_note.txt
+ *
+ * Formats:
+ *   O:<SVAL>:<weight>:<text>
+ *   C:<SVAL>:<weight>:<text>
+ *   M:<SVAL>:<HINT>:<weight>:<text>
+ *
+ * SVAL may be ELF/HUMAN/ORC/ANY
+ * HINT may be GREAT_VAULT/VAULT_ARTIFACT/STAIRS/PARTITION/FORGE/UNIQUE/TIP/SIZE/QUEST/LABYRINTH/CHASM/CAVE/CAVE_ICE/CAVE_FIRE/CAVE_POIS/ROOMY/RUINED/CAVEY
+ * Weight is optional (defaults to 100) and clamped to a byte.
+ */
+errr parse_skeleton_note_info(char* buf, header* head)
+{
+    static int next_idx = 0;
+    skeleton_note_role role = SKELETON_NOTE_ROLE_NONE;
+    char buf_copy[1024];
+
+    strnfmt(buf_copy, sizeof(buf_copy), "%s", buf);
+
+    /* Reset per-file */
+    if (error_idx < 0)
+        next_idx = 0;
+
+    if (!buf[0] || buf[0] == '#')
+        return 0;
+
+    if (buf[0] == 'O')
+        role = SKELETON_NOTE_ROLE_OPENING;
+    else if (buf[0] == 'C')
+        role = SKELETON_NOTE_ROLE_SIGNOFF;
+    else if (buf[0] == 'M')
+        role = SKELETON_NOTE_ROLE_HINT;
+    else
+        return PARSE_ERROR_UNDEFINED_DIRECTIVE;
+
+    if (next_idx >= head->info_num)
+        return PARSE_ERROR_TOO_MANY_ENTRIES;
+
+    skeleton_note_template* note = (skeleton_note_template*)head->info_ptr + next_idx;
+
+    char* cursor = buf + 2;
+    char* sval_tok = cursor;
+    char* sep = strchr(cursor, ':');
+    if (!sep)
+    {
+        log_error("skeleton_note.txt: missing sval separator on line %d (buf='%s')",
+            error_line, buf_copy);
+        return PARSE_ERROR_GENERIC;
+    }
+    *sep = '\0';
+    cursor = sep + 1;
+
+    bool valid_sval = false;
+    byte sval = skeleton_note_parse_sval_token(sval_tok, &valid_sval);
+    if (!valid_sval)
+    {
+        log_error("skeleton_note.txt: invalid sval '%s' on line %d (buf='%s')",
+            sval_tok, error_line, buf_copy);
+        return PARSE_ERROR_GENERIC;
+    }
+
+    byte hint = SKEL_HINT_NONE;
+    if (role == SKELETON_NOTE_ROLE_HINT)
+    {
+        char* hint_tok = cursor;
+        sep = strchr(cursor, ':');
+        if (!sep)
+        {
+            log_error("skeleton_note.txt: missing hint separator on line %d (buf='%s')",
+                error_line, buf_copy);
+            return PARSE_ERROR_GENERIC;
+        }
+        *sep = '\0';
+        cursor = sep + 1;
+        hint = skeleton_note_parse_hint_token(hint_tok);
+        if (hint == SKEL_HINT_NONE)
+        {
+            log_error("skeleton_note.txt: invalid hint '%s' on line %d (buf='%s')",
+                hint_tok, error_line, buf_copy);
+            return PARSE_ERROR_INVALID_FLAG;
+        }
+    }
+
+    long weight = 100;
+    sep = strchr(cursor, ':');
+    if (sep)
+    {
+        *sep = '\0';
+        weight = atol(cursor);
+        cursor = sep + 1;
+    }
+    else
+    {
+        cursor = cursor;
+    }
+
+    if (weight < 0 || weight > 255)
+    {
+        log_error("skeleton_note.txt: weight out of bounds (%ld) on line %d (buf='%s')",
+            weight, error_line, buf_copy);
+        return PARSE_ERROR_OUT_OF_BOUNDS;
+    }
+
+    if (!cursor || cursor[0] == '\0')
+    {
+        log_error("skeleton_note.txt: missing text payload on line %d (buf='%s')",
+            error_line, buf_copy);
+        return PARSE_ERROR_GENERIC;
+    }
+
+    note->sval = sval;
+    note->hint = hint;
+    note->role = role;
+    note->weight = (byte)weight;
+
+    if (!add_text(&note->text, head, cursor))
+        return PARSE_ERROR_OUT_OF_MEMORY;
+
+    next_idx++;
+    error_idx = next_idx;
+    return 0;
+}
+
 /*
  * Grab one flag in a special item_type from a textual string
  */
 static bool grab_one_ego_item_flag(ego_item_type* ptr, cptr what)
 {
     u32b* f[MAX_FLAG_SETS];
-    C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+    memset(f, 0, sizeof(f));
     f[TR1] = &(ptr->flags1);
     f[TR2] = &(ptr->flags2);
     f[TR3] = &(ptr->flags3);
+    f[TR4] = &(ptr->flags4);
     return grab_one_flag(f, "object", what);
 }
 
@@ -3098,8 +4375,25 @@ errr parse_e_info(char* buf, header* head)
         if (!(e_ptr->name = add_name(head, s)))
             return (PARSE_ERROR_OUT_OF_MEMORY);
 
+        /* Reset per-stat/skill bonus offsets. */
+        for (int si = 0; si < A_MAX; si++)
+        {
+            e_ptr->stat_bonus_min[si] = 0;
+            e_ptr->stat_bonus[si] = 0;
+            e_ptr->stat_bonus_set[si] = false;
+        }
+        for (int sk = 0; sk < S_MAX; sk++)
+        {
+            e_ptr->skill_bonus_min[sk] = 0;
+            e_ptr->skill_bonus[sk] = 0;
+            e_ptr->skill_bonus_set[sk] = false;
+        }
+
         /* Start with the first of the tval indices */
         cur_t = 0;
+
+        /* Reset allocation tracking */
+        e_ptr->alloc_count = 0;
     }
 
     /* Process 'W' for "More Info" (one line only) */
@@ -3125,7 +4419,39 @@ errr parse_e_info(char* buf, header* head)
         e_ptr->cost = cost;
     }
 
-    /* Process 'T' for "Types allowed" (up to three lines) */
+    /* Process 'A' for "Allocation" (one line only) */
+    else if (buf[0] == 'A')
+    {
+        /* There better be a current e_ptr */
+        if (!e_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Reset explicit allocation count */
+        e_ptr->alloc_count = 0;
+
+        for (s = buf + 1; s && (s[0] == ':') && s[1];)
+        {
+            if (e_ptr->alloc_count > 3)
+                return (PARSE_ERROR_TOO_MANY_ALLOCATIONS);
+
+            int depth = atoi(s + 1);
+            int rarity = 1;
+            t = strchr(s + 1, '/');
+            char* next = strchr(s + 1, ':');
+            if (t && (!next || t < next))
+                rarity = atoi(t + 1);
+            if (rarity < 0)
+                rarity = 0;
+
+            e_ptr->alloc_depth[e_ptr->alloc_count] = (byte)depth;
+            e_ptr->alloc_prob[e_ptr->alloc_count] = (byte)rarity;
+            e_ptr->alloc_count++;
+
+            s = next;
+        }
+    }
+
+    /* Process 'T' for "Types allowed" (up to EGO_TVALS_MAX lines) */
     else if (buf[0] == 'T')
     {
         int tval, sval1, sval2;
@@ -3138,6 +4464,10 @@ errr parse_e_info(char* buf, header* head)
         if (3 != sscanf(buf + 2, "%d:%d:%d", &tval, &sval1, &sval2))
             return (PARSE_ERROR_GENERIC);
 
+        /* Allow only a limited number of T: lines */
+        if (cur_t >= EGO_TVALS_MAX)
+            return (PARSE_ERROR_GENERIC);
+
         /* Save the values */
         e_ptr->tval[cur_t] = (byte)tval;
         e_ptr->min_sval[cur_t] = (byte)sval1;
@@ -3145,25 +4475,22 @@ errr parse_e_info(char* buf, header* head)
 
         /* Increase counter for 'possible tval' index */
         cur_t++;
-
-        /* Allow only a limited number of T: lines */
-        if (cur_t > EGO_TVALS_MAX)
-            return (PARSE_ERROR_GENERIC);
     }
 
     /* Hack -- Process 'C' for "creation" */
     else if (buf[0] == 'C')
     {
         int max_att, to_dd, to_ds, max_evn, to_pd, to_ps, pv;
+        int min_pv = 0;
 
         /* There better be a current e_ptr */
         if (!e_ptr)
             return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
-        /* Scan for the values */
-        if (7
-            != sscanf(buf + 2, "%d:%d:%d:%d:%d:%d:%d", &max_att, &to_dd, &to_ds,
-                &max_evn, &to_pd, &to_ps, &pv))
+        /* Scan for the values (8th field min_pval is optional) */
+        int fields = sscanf(buf + 2, "%d:%d:%d:%d:%d:%d:%d:%d", &max_att, &to_dd, &to_ds,
+            &max_evn, &to_pd, &to_ps, &pv, &min_pv);
+        if (fields < 7)
             return (PARSE_ERROR_GENERIC);
 
         e_ptr->max_att = max_att;
@@ -3173,6 +4500,39 @@ errr parse_e_info(char* buf, header* head)
         e_ptr->to_pd = to_pd;
         e_ptr->to_ps = to_ps;
         e_ptr->max_pval = pv;
+        e_ptr->min_pval = (byte)min_pv;
+
+        /* If ego grants pval (max_pval > 0) but min_pval is 0, default to 1 */
+        if (e_ptr->max_pval > 0 && e_ptr->min_pval == 0)
+            e_ptr->min_pval = 1;
+    }
+
+    /* Process 'M' for per-stat/skill bonus ranges (one per line) */
+    else if (buf[0] == 'M')
+    {
+        /* There better be a current e_ptr */
+        if (!e_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        s = strchr(buf + 2, ':');
+        if (!s)
+            return (PARSE_ERROR_GENERIC);
+
+        *s++ = '\0';
+        cptr token = buf + 2;
+        int min_value = 0;
+        int max_value = 0;
+
+        if (!parse_bonus_value_range(s, &min_value, &max_value))
+            return (PARSE_ERROR_GENERIC);
+
+        if (!apply_ego_bonus_token_range(token, min_value, max_value,
+                &e_ptr->flags1,
+                e_ptr->stat_bonus_min, e_ptr->stat_bonus, e_ptr->stat_bonus_set,
+                e_ptr->skill_bonus_min, e_ptr->skill_bonus, e_ptr->skill_bonus_set))
+        {
+            return (PARSE_ERROR_GENERIC);
+        }
     }
 
     /* Process 'B' for "aBilities" (one line only) */
@@ -3278,7 +4638,7 @@ errr parse_e_info(char* buf, header* head)
 static errr grab_one_basic_flag(monster_race* ptr, cptr what)
 {
     u32b* f[MAX_FLAG_SETS];
-    C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+    memset(f, 0, sizeof(f));
     f[RF1] = &(ptr->flags1);
     f[RF2] = &(ptr->flags2);
     f[RF3] = &(ptr->flags3);
@@ -3291,7 +4651,7 @@ static errr grab_one_basic_flag(monster_race* ptr, cptr what)
 static errr grab_one_spell_flag(monster_race* ptr, cptr what)
 {
     u32b* f[MAX_FLAG_SETS];
-    C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+    memset(f, 0, sizeof(f));
     f[RF4] = &(ptr->flags4);
     return grab_one_flag(f, "monster", what);
 }
@@ -3362,6 +4722,19 @@ errr parse_r_info(char* buf, header* head)
             return (PARSE_ERROR_OUT_OF_MEMORY);
     }
 
+    /* Process 'Q' for GUID */
+    else if (buf[0] == 'Q')
+    {
+        if (!r_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        u64b guid = 0;
+        if (!parse_u64b_hex(buf + 2, &guid))
+            return (PARSE_ERROR_GENERIC);
+
+        r_ptr->guid = guid;
+    }
+
     /* Process 'G' for "Graphics" (one line only) */
     else if (buf[0] == 'G')
     {
@@ -3405,6 +4778,17 @@ errr parse_r_info(char* buf, header* head)
         /* Save the values */
         r_ptr->d_attr = d_attr;
         r_ptr->d_char = d_char;
+    }
+
+    /* Process 'T' for "Tile" graphics (one line only) */
+    else if (buf[0] == 'T')
+    {
+        /* There better be a current r_ptr */
+        if (!r_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Parse and set tile coordinates */
+        return parse_tile_line(buf, &r_ptr->x_attr, &r_ptr->x_char);
     }
 
     /* Process 'I' for "Info" (one line only) */
@@ -3689,40 +5073,40 @@ errr parse_r_info(char* buf, header* head)
  * Grab one flag in a player_race from a textual string
  *
  * Sil:  these used to be the TR1, TR2 and TR3 flags,
- *       but we now use the race/house flags (RHF).
+ *       but we now use the race/character flags (RHF).
  */
 static errr grab_one_race_flag(player_race* ptr, cptr what)
 {
     u32b* f[MAX_FLAG_SETS];
-    C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+    memset(f, 0, sizeof(f));
     f[RHF] = &(ptr->flags);
     return grab_one_flag(f, "player", what);
 }
 
 /*
- * Grab one flag in a player_house from a textual string
+ * Grab one flag in a character_profile from a textual string
  *
  * Sil:  these used to be the TR1, TR2 and TR3 flags,
- *       but we now use the race/house flags (RHF).
+ *       but we now use the race/character flags (RHF).
  */
-static errr grab_one_house_flag(player_house *ptr, cptr what)
+static errr grab_one_character_flag(character_profile *ptr, cptr what)
 {
     u32b *f[MAX_FLAG_SETS];
-    C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+    memset(f, 0, sizeof(f));
 
     f[RHF] = &(ptr->flags);
 
-    return grab_one_flag(f, "player house", what);
+    return grab_one_flag(f, "player character", what);
 }
 
-static errr grab_one_house_uflag(player_house *ptr, cptr what)
+static errr grab_one_character_uflag(character_profile *ptr, cptr what)
 {
     u32b *f[MAX_FLAG_SETS];
-    C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+    memset(f, 0, sizeof(f));
 
     f[UNQ] = &(ptr->flags_u);      /* NEW: accept unique-flag word */
 
-    return grab_one_flag(f, "player house", what);
+    return grab_one_flag(f, "player character", what);
 }
 
 /*
@@ -3777,6 +5161,19 @@ errr parse_p_info(char* buf, header* head)
             return (PARSE_ERROR_OUT_OF_MEMORY);
 
         cur_equip = 0;
+    }
+
+    /* Process 'Q' for stable GUID */
+    else if (buf[0] == 'Q')
+    {
+        if (!pr_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        u64b guid = 0;
+        if (!parse_u64b_hex(buf + 2, &guid))
+            return (PARSE_ERROR_GENERIC);
+
+        pr_ptr->guid = score_guid_from_u64(guid);
     }
 
     /* Process 'S' for "Stats" (one line only) */
@@ -3933,7 +5330,7 @@ errr parse_p_info(char* buf, header* head)
             return (PARSE_ERROR_GENERIC);
     }
 
-    /* Hack -- Process 'C' for house choices */
+    /* Hack -- Process 'C' for character choices */
     else if (buf[0] == 'C')
     {
         /* There better be a current pr_ptr */
@@ -4005,9 +5402,9 @@ errr parse_p_info(char* buf, header* head)
 //     char *s, *t;
 
 //     /* Current entry */
-//     static player_house* ph_ptr = NULL;
+//     static character_profile* ph_ptr = NULL;
 
-//     log_debug("Parsing houses");
+//     log_debug("Parsing characters");
 
 //     /* Process 'N' for "New/Number/Name" */
 //     if (buf[0] == 'N')
@@ -4030,23 +5427,23 @@ errr parse_p_info(char* buf, header* head)
 //         error_idx = idx;
 
 //         /* Point at this slot */
-//         ph_ptr = (player_house*)head->info_ptr + idx;
+//         ph_ptr = (character_profile*)head->info_ptr + idx;
 
 //         /* Store the name offset */
 //         if (!(ph_ptr->name = add_name(head, s)))
 //             return (PARSE_ERROR_OUT_OF_MEMORY);
 
-//         /* Debug: announce new house and its name */
-//         log_debug("New house #%d: \"%s\"", idx,
+//         /* Debug: announce new character and its name */
+//         log_debug("New character #%d: \"%s\"", idx,
 //                 head->name_ptr + ph_ptr->name);
 
 //         /* Sentinel‐initialize all ability slots to “empty” */
-//         for (j = 0; j < HOUSE_ABILITY_MAX; j++)
+//         for (j = 0; j < CHARACTER_ABILITY_MAX; j++)
 //         {
 //             ph_ptr->a_adj[j][0] = -1;
 //             ph_ptr->a_adj[j][1] = -1;
 //         }
-//         log_debug("  a_adj slots 0..%d set to -1", HOUSE_ABILITY_MAX - 1);
+//         log_debug("  a_adj slots 0..%d set to -1", CHARACTER_ABILITY_MAX - 1);
 //     }
 
 //     /* Process 'A' for "Alternate Name" */
@@ -4152,7 +5549,7 @@ errr parse_p_info(char* buf, header* head)
 //             }
 
 //             /* Parse this entry */
-//             if (0 != grab_one_house_flag(ph_ptr, s))
+//             if (0 != grab_one_character_flag(ph_ptr, s))
 //                 return (PARSE_ERROR_INVALID_FLAG);
 
 //             /* Start the next entry */
@@ -4177,7 +5574,7 @@ errr parse_p_info(char* buf, header* head)
 //                 while ((*t == ' ') || (*t == '|')) t++;
 //             }
 
-//             if (grab_one_house_uflag(ph_ptr, s))
+//             if (grab_one_character_uflag(ph_ptr, s))
 //                 return PARSE_ERROR_INVALID_FLAG;
 
 //             s = t;
@@ -4234,7 +5631,7 @@ errr parse_p_info(char* buf, header* head)
 //         if (!add_text(&(ph_ptr->text), head, s))
 //             return (PARSE_ERROR_OUT_OF_MEMORY);
 //     }
-//     /* Process 'C' for house ability entries */
+//     /* Process 'C' for character ability entries */
 //     else if (buf[0] == 'C')
 //     {
 //         char *t = buf + 1;
@@ -4242,12 +5639,12 @@ errr parse_p_info(char* buf, header* head)
 
 //         if (!ph_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
-//         /* Debug: which house we’re parsing into */
-//         log_debug("Parsing abilities for house \"%s\"…",
+//         /* Debug: which character we're parsing into */
+//         log_debug("Parsing abilities for character \"%s\"…",
 //                 head->name_ptr + ph_ptr->name);
 
-//         /* Read up to HOUSE_ABILITY_MAX of “:stat:ability” pairs */
-//         while (pair < HOUSE_ABILITY_MAX)
+//         /* Read up to CHARACTER_ABILITY_MAX of “:stat:ability” pairs */
+//         while (pair < CHARACTER_ABILITY_MAX)
 //         {
 //             /* stat */
 //             t = strchr(t, ':');
@@ -4290,7 +5687,7 @@ errr parse_c_info(char* buf, header* head)
     char *s, *t;
 
     /* Current entry */
-    static player_house* ph_ptr = NULL;
+    static character_profile* ph_ptr = NULL;
 
     log_trace("Parsing characters");
 
@@ -4315,9 +5712,9 @@ errr parse_c_info(char* buf, header* head)
         error_idx = idx;
 
         /* Point at this slot */
-        ph_ptr = (player_house*)head->info_ptr + idx;
+        ph_ptr = (character_profile*)head->info_ptr + idx;
 
-        /* RESET equipment counter for new house */
+        /* RESET equipment counter for new character */
         cur_equip = 0;
 
         /* Initialize power to default value 1 (average) */
@@ -4327,17 +5724,17 @@ errr parse_c_info(char* buf, header* head)
         if (!(ph_ptr->name = add_name(head, s)))
             return (PARSE_ERROR_OUT_OF_MEMORY);
 
-        /* Debug: announce new house and its name */
+        /* Debug: announce new character and its name */
         log_trace("New character #%d: \"%s\"", idx,
                 head->name_ptr + ph_ptr->name);
 
         /* Sentinel‐initialize all ability slots to "empty" */
-        for (j = 0; j < HOUSE_ABILITY_MAX; j++)
+        for (j = 0; j < CHARACTER_ABILITY_MAX; j++)
         {
             ph_ptr->a_adj[j][0] = -1;
             ph_ptr->a_adj[j][1] = -1;
         }
-        log_trace("  a_adj slots 0..%d set to -1", HOUSE_ABILITY_MAX - 1);
+        log_trace("  a_adj slots 0..%d set to -1", CHARACTER_ABILITY_MAX - 1);
 
         /* Initialize starting items array */
         for (j = 0; j < MAX_START_ITEMS; j++)
@@ -4348,6 +5745,19 @@ errr parse_c_info(char* buf, header* head)
             ph_ptr->start_items[j].max = 0;
         }
         log_debug("  start_items array initialized");
+    }
+
+    /* Process 'Q' for stable GUID */
+    else if (buf[0] == 'Q')
+    {
+        if (!ph_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        u64b guid = 0;
+        if (!parse_u64b_hex(buf + 2, &guid))
+            return (PARSE_ERROR_GENERIC);
+
+        ph_ptr->guid = score_guid_from_u64(guid);
     }
 
     /* Process 'A' for "Alternate Name" */
@@ -4453,7 +5863,7 @@ errr parse_c_info(char* buf, header* head)
             }
 
             /* Parse this entry */
-            if (0 != grab_one_house_flag(ph_ptr, s))
+            if (0 != grab_one_character_flag(ph_ptr, s))
                 return (PARSE_ERROR_INVALID_FLAG);
 
             /* Start the next entry */
@@ -4478,7 +5888,7 @@ errr parse_c_info(char* buf, header* head)
                 while ((*t == ' ') || (*t == '|')) t++;
             }
 
-            if (grab_one_house_uflag(ph_ptr, s))
+            if (grab_one_character_uflag(ph_ptr, s))
                 return PARSE_ERROR_INVALID_FLAG;
 
             s = t;
@@ -4499,7 +5909,7 @@ errr parse_c_info(char* buf, header* head)
         /* Check if we've exceeded the maximum number of items */
         if (cur_equip >= MAX_START_ITEMS)
         {
-            log_debug("Warning: Too many starting items for house (max %d), ignoring", MAX_START_ITEMS);
+            log_debug("Warning: Too many starting items for character (max %d), ignoring", MAX_START_ITEMS);
             return (PARSE_ERROR_GENERIC);
         }
 
@@ -4542,7 +5952,7 @@ errr parse_c_info(char* buf, header* head)
         if (!add_text(&(ph_ptr->text), head, s))
             return (PARSE_ERROR_OUT_OF_MEMORY);
     }
-    /* Process 'C' for house ability entries */
+    /* Process 'C' for character ability entries */
     else if (buf[0] == 'C')
     {
         char *t = buf + 2; /* Skip 'C:' */
@@ -4551,12 +5961,12 @@ errr parse_c_info(char* buf, header* head)
 
         if (!ph_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
-        /* Debug: which house we're parsing into */
-        log_debug("Parsing abilities for house \"%s\" from line: %s",
+        /* Debug: which character we're parsing into */
+        log_debug("Parsing abilities for character \"%s\" from line: %s",
                 head->name_ptr + ph_ptr->name, buf);
 
-        /* Read up to HOUSE_ABILITY_MAX of ":stat:ability" pairs */
-        while (pair < HOUSE_ABILITY_MAX && t && *t)
+        /* Read up to CHARACTER_ABILITY_MAX of ":stat:ability" pairs */
+        while (pair < CHARACTER_ABILITY_MAX && t && *t)
         {
             /* Find first colon for stat */
             if (*t == ':') t++; /* Skip leading colon if present */
@@ -4658,7 +6068,7 @@ errr parse_h_info(char* buf, header* head)
         h_ptr->chart = prv;
         h_ptr->next = nxt;
         h_ptr->roll = prc;
-        h_ptr->house = hou;
+        h_ptr->character = hou;
     }
 
     /* Process 'D' for "Description" */
@@ -4730,7 +6140,7 @@ errr parse_st_info(char* buf, header* head)
 
         /* Point at the "info" */
         st_ptr = (story_type*)head->info_ptr + i;
-        WIPE(st_ptr, story_type);
+        memset(st_ptr, 0, sizeof(story_type));
 
         /* Store the name */
         if (!(st_ptr->name = add_name(head, s)))
@@ -4847,10 +6257,11 @@ errr parse_cu_info(char *buf, header *head)
         cu_ptr = ((curse_type *)head->info_ptr) + i;
 
         /* Reset fresh record */
-        WIPE(cu_ptr, curse_type);       /* clears the record  */
+        memset(cu_ptr, 0, sizeof(curse_type));       /* clears the record  */
                                                      /* flags included     */
         cu_ptr->weight = 1;      /* sensible defaults           */
         cu_ptr->max_stacks = 0;  /* 0 = unlimited               */
+        cu_ptr->max_blessing_stacks = 0;
 
         if (!(cu_ptr->name = add_name(head, s)))     
             return PARSE_ERROR_OUT_OF_MEMORY;
@@ -4954,9 +6365,10 @@ errr parse_cu_info(char *buf, header *head)
         }
     }
     /* ------------------------------------------------------------ */
-    /* V: list of blessing CUR flags                                */
+    /* Y: list of blessing CUR flags                                */
     /* ------------------------------------------------------------ */
-    else if (buf[0] == 'V')
+    /* V: is reserved for version stamps in data files; do not use. */
+    else if (buf[0] == 'Y')
     {
         if (!cu_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
 
@@ -4977,23 +6389,30 @@ errr parse_cu_info(char *buf, header *head)
     }
 
     /* ------------------------------------------------------------ */
-    /* A: weight / max_stacks   (e.g. 3/5 means weight=3, max=5)    */
+    /* A: weight / curse_cap [/ blessing_cap]                       */
     /* ------------------------------------------------------------ */
     else if (buf[0] == 'A')
     {
+        char *u;
+
         if (!cu_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
 
-        /* default is "1/0" so zero-initialised files still work    */
+        /* default is "1/0/0" so zero-initialised files still work   */
         cu_ptr->weight     = 1;
         cu_ptr->max_stacks = 0;
+        cu_ptr->max_blessing_stacks = 0;
 
-        char *s = buf + 2;
-        char *t = strchr(s, '/');
+        s = buf + 2;
+        t = strchr(s, '/');
         if (!t) return PARSE_ERROR_GENERIC;
 
         *t++ = '\0';
-        cu_ptr->weight     = (byte)atoi(s);
+        u = strchr(t, '/');
+        if (u) *u++ = '\0';
+
+        cu_ptr->weight = (byte)atoi(s);
         cu_ptr->max_stacks = (byte)atoi(t);
+        cu_ptr->max_blessing_stacks = u ? (byte)atoi(u) : cu_ptr->max_stacks;
     }
 
 
@@ -5078,7 +6497,7 @@ errr parse_mb_info(char *buf, header *head)
         error_idx = idx;
 
         mb_ptr = ((major_blessing_type *)head->info_ptr) + idx;
-        WIPE(mb_ptr, major_blessing_type);
+        memset(mb_ptr, 0, sizeof(major_blessing_type));
         mb_ptr->cost = 3; /* default cost */
 
         if (!(mb_ptr->name = add_name(head, s)))
@@ -5219,6 +6638,17 @@ errr parse_flavor_info(char* buf, header* head)
         flavor_ptr->d_char = d_char;
     }
 
+    /* Process 'T' for "Tile" graphics (one line only) */
+    else if (buf[0] == 'T')
+    {
+        /* There better be a current flavor_ptr */
+        if (!flavor_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Parse and set tile coordinates */
+        return parse_tile_line(buf, &flavor_ptr->x_attr, &flavor_ptr->x_char);
+    }
+
     /* Process 'D' for "Description" */
     else if (buf[0] == 'D')
     {
@@ -5235,6 +6665,88 @@ errr parse_flavor_info(char* buf, header* head)
         /* Store the text */
         if (!add_text(&flavor_ptr->text, head, buf + 2))
             return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+
+    else
+    {
+        /* Oops */
+        return (PARSE_ERROR_UNDEFINED_DIRECTIVE);
+    }
+
+    /* Success */
+    return (0);
+}
+
+/*
+ * Initialize the "effect" arrays (misc_to_attr, misc_to_char),
+ * by parsing an ascii "template" file
+ */
+errr parse_effect_info(char* buf, header* head)
+{
+    int i;
+    char* s;
+
+    /* Current entry index */
+    static int effect_idx = -1;
+    effect_glyph* glyphs = (effect_glyph*)head->info_ptr;
+
+    /* Process 'V' for "Version" */
+    if (buf[0] == 'V')
+    {
+        return (0);
+    }
+
+    /* Process 'N' for "New/Number/Name" */
+    if (buf[0] == 'N')
+    {
+        /* Find the colon before the name */
+        s = strchr(buf + 2, ':');
+
+        /* Verify that colon */
+        if (!s)
+            return (PARSE_ERROR_GENERIC);
+
+        /* Nuke the colon, advance to the name */
+        *s++ = '\0';
+
+        /* Get the index */
+        i = atoi(buf + 2);
+
+        /* Verify information */
+        if (i < 0 || i >= 256)
+            return (PARSE_ERROR_GENERIC);
+
+        /* Save the index */
+        effect_idx = i;
+    }
+
+    /* Process 'T' for "Tile" graphics */
+    else if (buf[0] == 'T')
+    {
+        int row, col;
+
+        /* Must have a valid effect index */
+        if (effect_idx < 0)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Parse row and column */
+        if (2 != sscanf(buf + 2, "%d:%d", &row, &col))
+            return (PARSE_ERROR_GENERIC);
+
+        /* Validate range (0-63 for 6-bit index) */
+        if (row < 0 || row > 63)
+            return (PARSE_ERROR_GENERIC);
+        if (col < 0 || col > 63)
+            return (PARSE_ERROR_GENERIC);
+
+        if (!glyphs)
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+
+        /* Store in the raw-backed table (and update globals) */
+        glyphs[effect_idx].a = (byte)(0x80 | row);
+        glyphs[effect_idx].c = (byte)(0x80 | col);
+        misc_to_attr[effect_idx] = glyphs[effect_idx].a;
+        misc_to_char[effect_idx] = (char)glyphs[effect_idx].c;
     }
 
     else
@@ -5351,25 +6863,25 @@ errr parse_quest_info(char* buf, header* head)
                 rest++; /* Skip the ':' */
                 
                 /* Determine formula type */
-                if (my_stricmp(formula_name, "LINEAR_DECAY") == 0) {
+                if (SDL_strcasecmp(formula_name, "LINEAR_DECAY") == 0) {
                     quest_ptr->formula_type = FORMULA_LINEAR_DECAY;
                     /* Parse: base:unused:unused:unused (depth from E: field) */
                     sscanf(rest, "%f:%f:%f:%f", 
                            &quest_ptr->formula_params[0], &quest_ptr->formula_params[1], 
                            &quest_ptr->formula_params[2], &quest_ptr->formula_params[3]);
-                } else if (my_stricmp(formula_name, "SCALED_RANGE") == 0) {
+                } else if (SDL_strcasecmp(formula_name, "SCALED_RANGE") == 0) {
                     quest_ptr->formula_type = FORMULA_SCALED_RANGE;
                     /* Parse: max_prob:start_depth:range:unused (depth from E: field) */
                     sscanf(rest, "%f:%f:%f:%f", 
                            &quest_ptr->formula_params[0], &quest_ptr->formula_params[1], 
                            &quest_ptr->formula_params[2], &quest_ptr->formula_params[3]);
-                } else if (my_stricmp(formula_name, "LINEAR_INTERPOLATE") == 0) {
+                } else if (SDL_strcasecmp(formula_name, "LINEAR_INTERPOLATE") == 0) {
                     quest_ptr->formula_type = FORMULA_LINEAR_INTERPOLATE;
                     /* Parse: min_prob:max_prob:unused:unused (depth from E: field) */
                     sscanf(rest, "%f:%f:%f:%f", 
                            &quest_ptr->formula_params[0], &quest_ptr->formula_params[1], 
                            &quest_ptr->formula_params[2], &quest_ptr->formula_params[3]);
-                } else if (my_stricmp(formula_name, "FIXED_PERCENT") == 0) {
+                } else if (SDL_strcasecmp(formula_name, "FIXED_PERCENT") == 0) {
                     quest_ptr->formula_type = FORMULA_FIXED_PERCENT;
                     /* Parse: percentage:unused:unused:unused (depth from E: field) */
                     sscanf(rest, "%f:%f:%f:%f", 
@@ -5439,21 +6951,21 @@ errr parse_quest_info(char* buf, header* head)
             log_trace("QUEST PARSE: Successfully parsed SKILL_MIN: skill='%s', value=%d", skill_name, value1);
             
             /* Map skill names to skill types */
-            if (my_stricmp(skill_name, "MEL") == 0) {
+            if (SDL_strcasecmp(skill_name, "MEL") == 0) {
                 quest_ptr->eligibility_skill = S_MEL;
-            } else if (my_stricmp(skill_name, "ARC") == 0) {
+            } else if (SDL_strcasecmp(skill_name, "ARC") == 0) {
                 quest_ptr->eligibility_skill = S_ARC;
-            } else if (my_stricmp(skill_name, "EVN") == 0) {
+            } else if (SDL_strcasecmp(skill_name, "EVN") == 0) {
                 quest_ptr->eligibility_skill = S_EVN;
-            } else if (my_stricmp(skill_name, "STL") == 0) {
+            } else if (SDL_strcasecmp(skill_name, "STL") == 0) {
                 quest_ptr->eligibility_skill = S_STL;
-            } else if (my_stricmp(skill_name, "PER") == 0) {
+            } else if (SDL_strcasecmp(skill_name, "PER") == 0) {
                 quest_ptr->eligibility_skill = S_PER;
-            } else if (my_stricmp(skill_name, "WIL") == 0) {
+            } else if (SDL_strcasecmp(skill_name, "WIL") == 0) {
                 quest_ptr->eligibility_skill = S_WIL;
-            } else if (my_stricmp(skill_name, "SMT") == 0) {
+            } else if (SDL_strcasecmp(skill_name, "SMT") == 0) {
                 quest_ptr->eligibility_skill = S_SMT;
-            } else if (my_stricmp(skill_name, "SNG") == 0) {
+            } else if (SDL_strcasecmp(skill_name, "SNG") == 0) {
                 quest_ptr->eligibility_skill = S_SNG;
             } else {
                 quest_ptr->eligibility_skill = S_MEL; /* Default to Melee */
@@ -5579,21 +7091,21 @@ errr parse_quest_info(char* buf, header* head)
         if (2 == sscanf(buf + 2, "%31[^:]:%d", skill_name, &skill_bonus))
         {
             /* Map skill names to skill types using proper constants */
-            if (my_stricmp(skill_name, "MEL") == 0) {
+            if (SDL_strcasecmp(skill_name, "MEL") == 0) {
                 quest_ptr->skill_type = S_MEL; /* Melee (0) */
-            } else if (my_stricmp(skill_name, "ARC") == 0) {
+            } else if (SDL_strcasecmp(skill_name, "ARC") == 0) {
                 quest_ptr->skill_type = S_ARC; /* Archery (1) */
-            } else if (my_stricmp(skill_name, "EVN") == 0) {
+            } else if (SDL_strcasecmp(skill_name, "EVN") == 0) {
                 quest_ptr->skill_type = S_EVN; /* Evasion (2) */
-            } else if (my_stricmp(skill_name, "STL") == 0) {
+            } else if (SDL_strcasecmp(skill_name, "STL") == 0) {
                 quest_ptr->skill_type = S_STL; /* Stealth (3) */
-            } else if (my_stricmp(skill_name, "PER") == 0) {
+            } else if (SDL_strcasecmp(skill_name, "PER") == 0) {
                 quest_ptr->skill_type = S_PER; /* Perception (4) */
-            } else if (my_stricmp(skill_name, "WIL") == 0) {
+            } else if (SDL_strcasecmp(skill_name, "WIL") == 0) {
                 quest_ptr->skill_type = S_WIL; /* Will (5) */
-            } else if (my_stricmp(skill_name, "SMT") == 0) {
+            } else if (SDL_strcasecmp(skill_name, "SMT") == 0) {
                 quest_ptr->skill_type = S_SMT; /* Smithing (6) */
-            } else if (my_stricmp(skill_name, "SNG") == 0) {
+            } else if (SDL_strcasecmp(skill_name, "SNG") == 0) {
                 quest_ptr->skill_type = S_SNG; /* Song (7) */
             } else {
                 quest_ptr->skill_type = 0; /* Default to Melee if unknown */
@@ -5934,3 +7446,16 @@ errr parse_oath_info(char* buf, header* head)
 #else /* ALLOW_TEMPLATES */
 
 #endif /* ALLOW_TEMPLATES */
+
+
+
+
+
+
+
+
+
+
+
+
+

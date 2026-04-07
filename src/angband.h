@@ -19,12 +19,11 @@
 /*
  * Include the mid-level includes.
  */
-#include "z-util.h"
-#include "z-virt.h"
-#include "z-form.h"
-#include "z-rand.h"
+#include "log/fatal.h"
+#include "mem/alloc.h"
+#include "format.h"
+#include "rng.h"
 #include "z-term.h"
-#include "log/log.h"
 
 /*
  * Include the high-level includes.
@@ -33,7 +32,8 @@
 #include "defines.h"
 #include "types.h"
 #include "supplies.h"
-#include "externs.h"
+
+#include <SDL3/SDL.h>
 
 /***** Some older copyright messages follow below *****/
 
@@ -80,5 +80,126 @@
  *	 this software in any form without the expressed written consent
  *	 of the author Robert Alan Koeneke.
  */
+
+/*
+ * Inline string helper functions (replacing z-util.c implementations)
+ * These provide simple wrappers for common string operations.
+ */
+#include <string.h>
+
+/* String equality check */
+static inline bool streq(const char* a, const char* b) {
+    return (strcmp(a, b) == 0);
+}
+
+/* ------------------------------------------------------------------------ */
+/* Ego affix helpers                                                        */
+/* ------------------------------------------------------------------------ */
+
+/*
+ * Ego items now support a prefix and a suffix.
+ *
+ * Storage:
+ * - Suffix ego index is stored in object_type.name2 (legacy ego field).
+ * - Prefix ego index is stored in object_type.unused2 (reserved savefile field).
+ *
+ * Do not access these fields directly outside low-level helpers; use the
+ * accessors below to keep semantics consistent across the codebase.
+ */
+static inline byte object_ego_prefix(const object_type* o_ptr)
+{
+    if (!o_ptr)
+        return 0;
+    if (o_ptr->unused2 <= 0)
+        return 0;
+    if (o_ptr->unused2 > 255)
+        return 0;
+    return (byte)o_ptr->unused2;
+}
+
+static inline void object_set_ego_prefix(object_type* o_ptr, int e_idx)
+{
+    if (!o_ptr)
+        return;
+    if (e_idx <= 0)
+    {
+        o_ptr->unused2 = 0;
+        return;
+    }
+    o_ptr->unused2 = (s32b)(byte)e_idx;
+}
+
+static inline byte object_ego_suffix(const object_type* o_ptr)
+{
+    if (!o_ptr)
+        return 0;
+    return o_ptr->name2;
+}
+
+static inline void object_set_ego_suffix(object_type* o_ptr, int e_idx)
+{
+    if (!o_ptr)
+        return;
+    if (e_idx <= 0)
+    {
+        o_ptr->name2 = 0;
+        return;
+    }
+    o_ptr->name2 = (byte)e_idx;
+}
+
+static inline bool object_has_ego(const object_type* o_ptr)
+{
+    return object_ego_prefix(o_ptr) || object_ego_suffix(o_ptr);
+}
+
+static inline bool object_has_ego_idx(const object_type* o_ptr, int e_idx)
+{
+    if (!o_ptr || e_idx <= 0 || e_idx > 255)
+        return false;
+    return object_ego_prefix(o_ptr) == (byte)e_idx
+        || object_ego_suffix(o_ptr) == (byte)e_idx;
+}
+
+static inline bool ego_name_is_prefix(const char* name)
+{
+    if (!name || !name[0])
+        return false;
+    size_t len = strlen(name);
+    return (len >= 2 && name[0] == '(' && name[len - 1] == ')');
+}
+
+/* Check if string t is a prefix of string s */
+static inline bool prefix(const char* s, const char* t) {
+    while (*t) {
+        if (*t++ != *s++) return false;
+    }
+    return true;
+}
+
+/* Check if string t is a suffix of string s */
+static inline bool suffix(const char* s, const char* t) {
+    size_t slen = strlen(s);
+    size_t tlen = strlen(t);
+    if (tlen > slen) return false;
+    return (strcmp(s + slen - tlen, t) == 0);
+}
+
+/*
+ * String duplication and free helpers (SDL3-based)
+ * These replace the legacy string_make/string_free from z-virt.c
+ */
+
+/* Duplicate a string using SDL memory allocation */
+static inline char* str_dup(const char* str) {
+    if (!str) return NULL;
+    return SDL_strdup(str);
+}
+
+/* Free a string allocated with str_dup and return NULL */
+static inline void* str_free(const char* str) {
+    if (str) SDL_free((void*)str);
+    return NULL;
+}
 
 #endif

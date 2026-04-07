@@ -25,3 +25,24 @@ compile_commands.json
 /sil-more_beta 0.9
 /sil-more-release
 /sil-more-windows-sdl3-portable
+/build-portable
+/build-standard
+/build-android
+/lib/xtra/sound/packs
+/scripts/output
+/sil-more-0.91
+/.claude
+/.tools/gradle-8.2.1
+
+# Android / Gradle
+/android/.gradle/
+/android/.idea/
+/android/build/
+/android/captures/
+/android/app/.cxx/
+/android/app/build/
+/android/local.properties
+/scripts/__pycache__
+/tools/__pycache__
+/.gradle-android
+/web/ui8-demo/samples

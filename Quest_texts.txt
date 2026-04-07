@@ -15,7 +15,7 @@ Oath of Iron
 
 Oath of the Smith
 
-“The craft of the hand is the gift of the Maker. To wield a blade forged in another’s fire is to trust a stranger's heart. True mastery is born of one's own sweat and skill. Swear this oath: to bear no weapon and wear no mail save that which you have wrought yourself. By this covenant, the secrets of anvil and fire shall be laid bare to you.”
+“The craft of the hand is the gift of the Maker. To wield a blade forged in another's fire is to trust a stranger's heart. True mastery is born of one's own sweat and skill. Swear this oath: to bear no weapon and wear no mail save that which you have wrought yourself. By this covenant, the secrets of anvil and fire shall be laid bare to you.”
 
 Quest Dialogs
 Here are expanded and stylized dialogs for your Valar quest givers.
@@ -59,7 +59,7 @@ I'm now revising Mandos' dialog to accurately reflect the change in Brodda's nat
 
 Crafting Completion Dialogue
 
-I am now focusing on refining the completion dialogue with Mandos to reflect the spirit's release. I have modified the existing completion dialog to highlight the restoration of natural order, emphasizing the removal of Morgoth's influence. I am aiming to highlight the significance of the act in freeing the spirit from an unnatural state so it may find its final judgment. The completion dialog is:  "The mockery is unmade. The spirit of Brodda is at last unbound from its earthly prison and set upon the path to its final judgment. You have not wrought vengeance, but restored a thread of the natural order, long tangled by the Enemy's malice. The spirits of Dor-Lómin find peace in your wake".
+I am now focusing on refining the completion dialogue with Mandos to reflect the spirit's release. I have modified the existing completion dialog to highlight the restoration of natural order, emphasizing the removal of Morgoth's influence. I am aiming to highlight the significance of the act in freeing the spirit from an unnatural state so it may find its final judgment. The completion dialog is:  "The mockery is unmade. The spirit of Brodda is at last unbound from its earthly prison and set upon the path to its final judgment. You have not wrought vengeance, but restored a thread of the natural order, long tangled by the Enemy's malice. The spirits of Dor-Lomin find peace in your wake".
 
 Integrating Lore & Intent
 
@@ -74,7 +74,7 @@ A chill presence fills the chamber, and the air grows still. Before you is a vei
 
 "'Child of Middle-earth, you have come to a place where the echoes of the past cling like shadows. Here lingers a spirit that should long ago have departed the circles of the world.'"
 
-"'You see before you a vessel that holds the spirit of Brodda the Easterling, a cruel tyrant who oppressed the people of Dor-lómin. Long ago, the hand of Túrin Turambar brought him justice, as was his doom. But the malice of the Great Enemy does not end with death.'"
+"'You see before you a vessel that holds the spirit of Brodda the Easterling, a cruel tyrant who oppressed the people of Dor-lomin. Long ago, the hand of Túrin Turambar brought him justice, as was his doom. But the malice of the Great Enemy does not end with death.'"
 
 "'The black power of Morgoth has kept his spirit bound to this place, far from my halls, and lent it a new and terrible form. This abomination is but an echo, a mockery of life that must be ended. Grant his tormented spirit its final release, so that it may at last face my judgment. Fulfill this doom, and the way deeper shall be opened to you.'"
 
@@ -88,10 +88,10 @@ As the false body of Brodda falls, a long, sorrowful sigh echoes in the chamber,
 
 "'You have looked upon the workings of fate and have not faltered. Accept now this gift: a spirit shielded from the great fears that unman the hearts of mortals. Go forth, and walk unafraid.'"
 
-3. Aulë the Smith
+3. Aule the Smith
 Quest Dialog:
 
-The air is warm with the heat of a distant forge, and a voice like the ringing of a hammer on an anvil speaks. Aulë the Smith, the Maker, regards you with a deep and knowing gaze.
+The air is warm with the heat of a distant forge, and a voice like the ringing of a hammer on an anvil speaks. Aule the Smith, the Maker, regards you with a deep and knowing gaze.
 
 "'I have seen your works, mortal. I have seen the stone you have hewn and the metal you have shaped. There is a spark of the fire of creation within you.'"
 
@@ -101,7 +101,7 @@ The air is warm with the heat of a distant forge, and a voice like the ringing o
 
 Completion Dialog (New):
 
-You lay your finished work before the Smith. Aulë takes it in his mighty hands, his gaze missing no detail. He turns it over, feeling its weight, its balance, its very spirit.
+You lay your finished work before the Smith. Aule takes it in his mighty hands, his gaze missing no detail. He turns it over, feeling its weight, its balance, its very spirit.
 
 "'It is well-wrought. The hand that made this knows the song of the metal. You have not merely forced its shape, but listened to the substance and persuaded it to your will. This is true craft.'"
 

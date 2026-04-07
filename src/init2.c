@@ -9,30 +9,554 @@
  */
 
 #include "angband.h"
+#include "blitz.h"
+#include "externs.h"
+#include "fs/io_sdl.h"
+#include "fs/path.h"
 #include "log/log.h"
+#include "sdl-sound.h"
 #include <stdio.h>
 #include "metarun.h"
+#include "score/score_guid.h"
+#include "item_set.h"
 
 #include "h-define.h"
 #include "init.h"
+#include <SDL3/SDL_filesystem.h>
 
-#ifdef RUNTIME_PRIVATE_USER_PATH
-/*
- * This is a hook so the main program can set a runtime value for the private
- * user path rather than the compile-time one in PRIVATE_USER_PATH.  It is
- * used by the OS X front end.  An alternative would be to have init_paths()
- * take at least two arguments, one specifying the read-only paths and another
- * for the ones where stuff is written.  See version 4 of Angband for one
- * implementation (with three arguments) of that.  To use this hook, also
- * set PRIVATE_USER_PATH (the contents don't matter), and, if desired,
- * USE_PRIVATE_SAVE_PATH.
- */
-extern const char* get_runtime_user_path(void);
+#define SIL_USER_ROOT "sil-more"
+#define SIL_USER_DATA_DIR "data"
+#define SIL_USER_SAVE_DIR "save"
+#define SIL_USER_META_DIR "meta"
+#define SIL_USER_META_RUNS "metaruns"
+
+#ifndef SIL_USE_LOCAL_DATA
+static bool is_path_separator(char ch)
+{
+#ifdef WINDOWS
+    return (ch == '\\') || (ch == '/');
+#else
+    return (ch == '/');
 #endif
+}
+
+static void strip_trailing_separators(char* path)
+{
+    size_t len = strlen(path);
+    while (len > 0 && is_path_separator(path[len - 1]))
+    {
+        path[--len] = '\0';
+    }
+}
+
+static bool build_user_root_path(char* buf, size_t len)
+{
+    const char* base = SDL_GetUserFolder(SDL_FOLDER_SAVEDGAMES);
+    char temp[1024];
+
+    if ((!base || !*base))
+        base = SDL_GetUserFolder(SDL_FOLDER_HOME);
+
+    if (base && *base)
+    {
+        if (SDL_strlcpy(temp, base, sizeof(temp)) >= sizeof(temp))
+            return false;
+        strip_trailing_separators(temp);
+        return path_build(buf, len, temp, SIL_USER_ROOT);
+    }
+
+    char* pref = SDL_GetPrefPath("Sil-QH", SIL_USER_ROOT);
+    if (!pref)
+        return false;
+
+    bool ok = false;
+    if (SDL_strlcpy(buf, pref, len) < len)
+    {
+        strip_trailing_separators(buf);
+        ok = true;
+    }
+    SDL_free(pref);
+    return ok;
+}
+
+static void ensure_directory_exists(const char* path, const char* label)
+{
+    if (!path || !*path)
+        return;
+
+    if (!SDL_CreateDirectory(path))
+    {
+        log_warn("init_file_paths: unable to create %s directory '%s': %s",
+            label ? label : "user", path, SDL_GetError());
+    }
+}
+
+static void seed_user_data_from_install(const char* user_data_dir)
+{
+    if (!user_data_dir || !*user_data_dir || !ANGBAND_DIR || !*ANGBAND_DIR)
+        return;
+
+    char install_data_dir[1024];
+    if (!path_build(install_data_dir, sizeof(install_data_dir), ANGBAND_DIR, "data"))
+        return;
+
+    SDL_PathInfo install_info;
+    if (!SDL_GetPathInfo(install_data_dir, &install_info)
+        || install_info.type != SDL_PATHTYPE_DIRECTORY)
+        return;
+
+    int entry_count = 0;
+    char** entries = SDL_GlobDirectory(install_data_dir, "*.raw", 0, &entry_count);
+    if (!entries)
+        return;
+
+    for (int i = 0; entries[i]; ++i)
+    {
+        char source[1024];
+        char destination[1024];
+
+        if (!path_build(source, sizeof(source), install_data_dir, entries[i]))
+            continue;
+        if (!path_build(destination, sizeof(destination), user_data_dir, entries[i]))
+            continue;
+
+        if (SDL_GetPathInfo(destination, NULL))
+            continue;
+
+        if (!SDL_CopyFile(source, destination))
+        {
+            log_warn("init_file_paths: unable to copy '%s' to '%s': %s",
+                source, destination, SDL_GetError());
+        }
+    }
+
+    SDL_free(entries);
+}
+
+#ifndef __ANDROID__
+typedef bool (*version_check_fn)(const char* path);
+
+static void migrate_legacy_metarun_layout(const char* meta_root, const char* metarun_dir);
+
+static bool copy_leaf_if_needed(const char* src_dir, const char* dst_dir, const char* leaf,
+    const char* label, version_check_fn needs_refresh)
+{
+    char src[1024];
+    char dst[1024];
+    SDL_PathInfo info;
+
+    if (!src_dir || !dst_dir || !leaf)
+        return false;
+
+    if (!path_build(src, sizeof(src), src_dir, leaf))
+        return false;
+    if (!SDL_GetPathInfo(src, &info) || info.type != SDL_PATHTYPE_FILE)
+        return false;
+
+    if (!path_build(dst, sizeof(dst), dst_dir, leaf))
+        return false;
+
+    bool dest_exists = SDL_GetPathInfo(dst, NULL);
+    bool should_copy = !dest_exists;
+    if (!should_copy && needs_refresh)
+        should_copy = needs_refresh(dst);
+
+    if (!should_copy)
+        return false;
+
+    if (!SDL_CopyFile(src, dst))
+    {
+        log_warn("init_file_paths: unable to seed %s file '%s' from '%s': %s",
+            label ? label : "user", dst, src, SDL_GetError());
+        return false;
+    }
+    else
+    {
+        log_info("init_file_paths: seeded %s file at '%s'", label ? label : leaf, dst);
+    }
+    return true;
+}
+
+static bool has_valid_metarun_data(const char* meta_dir)
+{
+    if (!meta_dir || !*meta_dir)
+        return false;
+
+    char meta_path[1024];
+    if (!path_build(meta_path, sizeof(meta_path), meta_dir, META_RAW))
+        return false;
+
+    SDL_PathInfo info;
+    if (!SDL_GetPathInfo(meta_path, &info) || info.type != SDL_PATHTYPE_FILE)
+        return false;
+
+    /* File exists and is readable */
+    SDL_IOStream* fd = sdl_fopen(meta_path, "rb");
+    if (!fd)
+        return false;
+
+    /* Check if it has valid header */
+    meta_file_header header;
+    bool valid = (SDL_ReadIO(fd, &header, sizeof(header)) == sizeof(header))
+        && header.entry_count > 0;
+
+    sdl_fclose(fd);
+    return valid;
+}
+
+static void seed_user_meta_from_install(const char* user_meta_dir, const char* user_metarun_dir)
+{
+    (void)user_metarun_dir;
+
+    if (!user_meta_dir || !*user_meta_dir || !ANGBAND_DIR || !*ANGBAND_DIR)
+        return;
+
+    /* Check if user directory already has valid metarun data (from previous migration) */
+    bool has_existing_data = has_valid_metarun_data(user_meta_dir);
+    if (has_existing_data)
+    {
+        log_info("init_file_paths: user meta directory already contains valid data, skipping migration");
+        return;
+    }
+
+    log_debug("init_file_paths: ANGBAND_DIR = '%s'", ANGBAND_DIR);
+
+    /* First, check for legacy location: lib/apex/metaruns/meta.raw (old structure) */
+    char install_apex_dir[1024];
+    char install_metaruns_dir[1024];
+    char legacy_meta_path[1024];
+    bool found_legacy = false;
+
+    if (path_build(install_apex_dir, sizeof(install_apex_dir), ANGBAND_DIR, "apex"))
+    {
+        log_debug("init_file_paths: apex dir = '%s'", install_apex_dir);
+        if (path_build(install_metaruns_dir, sizeof(install_metaruns_dir), install_apex_dir, "metaruns"))
+        {
+            log_debug("init_file_paths: metaruns dir = '%s'", install_metaruns_dir);
+                if (path_build(legacy_meta_path, sizeof(legacy_meta_path), install_metaruns_dir, META_RAW))
+                {
+                log_debug("init_file_paths: checking for legacy meta.raw at '%s'", legacy_meta_path);
+                SDL_PathInfo info;
+                if (SDL_GetPathInfo(legacy_meta_path, &info) && info.type == SDL_PATHTYPE_FILE)
+                {
+                    found_legacy = true;
+                    log_info("init_file_paths: found legacy meta.raw in lib/apex/metaruns/");
+                }
+                else
+                {
+                    log_debug("init_file_paths: legacy meta.raw not found or not a file");
+                }
+            }
+        }
+    }
+
+    /* Determine source directory for scores.raw and possibly meta.raw */
+    char install_meta_dir[1024];
+    if (!path_build(install_meta_dir, sizeof(install_meta_dir), ANGBAND_DIR, "apex"))
+        return;
+
+    log_info("init_file_paths: migrating metarun data from install directory");
+
+    /* Copy scores.raw from lib/apex/ if present */
+    char score_path[1024];
+    if (path_build(score_path, sizeof(score_path), user_meta_dir, "scores.raw"))
+    {
+        SDL_PathInfo info;
+        if (!SDL_GetPathInfo(score_path, &info) || info.type != SDL_PATHTYPE_FILE)
+        {
+            if (copy_leaf_if_needed(install_meta_dir, user_meta_dir, "scores.raw", "scores", NULL))
+            {
+                log_info("init_file_paths: migrated scores.raw from lib/apex/");
+            }
+        }
+    }
+
+    /* Copy meta.raw from the appropriate source */
+    char user_meta_path[1024];
+    if (path_build(user_meta_path, sizeof(user_meta_path), user_meta_dir, META_RAW))
+    {
+        SDL_PathInfo info;
+        if (!SDL_GetPathInfo(user_meta_path, &info) || info.type != SDL_PATHTYPE_FILE)
+        {
+            if (found_legacy)
+            {
+                /* Copy from lib/apex/metaruns/meta.raw (old location) */
+                log_info("init_file_paths: attempting to copy legacy meta.raw from '%s' to '%s'",
+                    legacy_meta_path, user_meta_path);
+                if (SDL_CopyFile(legacy_meta_path, user_meta_path))
+                {
+                    log_info("init_file_paths: migrated meta.raw from lib/apex/metaruns/ (legacy location)");
+                }
+                else
+                {
+                    log_warn("init_file_paths: failed to copy legacy meta.raw: %s", SDL_GetError());
+                }
+            }
+            else
+            {
+                log_debug("init_file_paths: no legacy meta.raw found, trying lib/apex/meta.raw");
+                /* Try lib/apex/meta.raw (if it exists) */
+                if (copy_leaf_if_needed(install_meta_dir, user_meta_dir, META_RAW, "meta", NULL))
+                {
+                    log_info("init_file_paths: migrated meta.raw from lib/apex/");
+                }
+                else
+                {
+                    log_debug("init_file_paths: no meta.raw found in lib/apex/");
+                }
+            }
+        }
+    }
+}
+
+static void seed_user_saves_from_install(const char* user_save_dir)
+{
+    if (!user_save_dir || !*user_save_dir || !ANGBAND_DIR || !*ANGBAND_DIR)
+        return;
+
+    char install_save_dir[1024];
+    if (!path_build(install_save_dir, sizeof(install_save_dir), ANGBAND_DIR, "save"))
+        return;
+
+    SDL_PathInfo info;
+    if (!SDL_GetPathInfo(install_save_dir, &info) || info.type != SDL_PATHTYPE_DIRECTORY)
+        return;
+
+    /* Check if user directory already has save files */
+    int user_entry_count = 0;
+    char** user_entries = SDL_GlobDirectory(user_save_dir, NULL, 0, &user_entry_count);
+    bool has_existing_saves = false;
+
+    if (user_entries)
+    {
+        for (int i = 0; user_entries[i]; ++i)
+        {
+            if (!streq(user_entries[i], ".") && !streq(user_entries[i], ".."))
+            {
+                has_existing_saves = true;
+                break;
+            }
+        }
+        SDL_free(user_entries);
+    }
+
+    if (has_existing_saves)
+    {
+        log_info("init_file_paths: user save directory already contains files, skipping migration");
+        return;
+    }
+
+    /* Only migrate if user directory is empty */
+    log_info("init_file_paths: migrating save files from install directory");
+
+    int entry_count = 0;
+    char** entries = SDL_GlobDirectory(install_save_dir, NULL, 0, &entry_count);
+    if (!entries)
+        return;
+
+    for (int i = 0; entries[i]; ++i)
+    {
+        if (streq(entries[i], ".") || streq(entries[i], ".."))
+            continue;
+
+        /* Skip git files and backup folders */
+        if (streq(entries[i], ".gitignore") || strstr(entries[i], "saves_metarun_"))
+            continue;
+
+        char src_path[1024];
+        char dst_path[1024];
+        if (!path_build(src_path, sizeof(src_path), install_save_dir, entries[i]))
+            continue;
+        if (!path_build(dst_path, sizeof(dst_path), user_save_dir, entries[i]))
+            continue;
+
+        if (!SDL_GetPathInfo(src_path, &info) || info.type != SDL_PATHTYPE_FILE)
+            continue;
+        if (SDL_GetPathInfo(dst_path, NULL))
+            continue;
+
+        if (!SDL_CopyFile(src_path, dst_path))
+        {
+            log_warn("init_file_paths: unable to seed save '%s' -> '%s': %s",
+                src_path, dst_path, SDL_GetError());
+        }
+        else
+        {
+            log_info("init_file_paths: copied legacy save '%s' -> '%s'", src_path, dst_path);
+        }
+    }
+
+    SDL_free(entries);
+}
+#endif
+
+/* Copy a file using SDL IO streams (works with Android assets via SDL_IOFromFile). */
+static bool copy_file_io(const char* src, const char* dst)
+{
+    if (!src || !*src || !dst || !*dst)
+        return false;
+
+    SDL_IOStream* in = sdl_fopen(src, "rb");
+    if (!in)
+        return false;
+
+    SDL_IOStream* out = sdl_fopen(dst, "wb");
+    if (!out)
+    {
+        sdl_fclose(in);
+        return false;
+    }
+
+    bool ok = true;
+    char buf[8192];
+    for (;;)
+    {
+        size_t r = SDL_ReadIO(in, buf, sizeof(buf));
+        if (r == 0)
+            break;
+
+        size_t w = SDL_WriteIO(out, buf, r);
+        if (w != r)
+        {
+            ok = false;
+            break;
+        }
+    }
+
+    if (sdl_fclose(out) != 0)
+        ok = false;
+    if (sdl_fclose(in) != 0)
+        ok = false;
+
+    return ok;
+}
+
+static void seed_sound_config(const char* user_dir)
+{
+    if (!user_dir || !*user_dir || !ANGBAND_DIR || !*ANGBAND_DIR)
+        return;
+
+    char user_sound_path[1024];
+    if (!path_build(user_sound_path, sizeof(user_sound_path), user_dir, "sound.json"))
+        return;
+
+    /* Check if sound.json already exists in user folder */
+    if (SDL_GetPathInfo(user_sound_path, NULL))
+    {
+        log_debug("init_file_paths: sound.json already exists in user folder");
+        return;
+    }
+
+    /* Copy sound.json from lib/pref to user folder */
+    char pref_sound_path[1024];
+    
+    /* ANGBAND_DIR_PREF already points to lib/pref */
+    if (!ANGBAND_DIR_PREF || !*ANGBAND_DIR_PREF)
+    {
+        log_warn("init_file_paths: ANGBAND_DIR_PREF not set, cannot seed sound.json");
+        return;
+    }
+    
+    /* Build path to lib/pref/sound.json */
+    if (!path_build(pref_sound_path, sizeof(pref_sound_path), ANGBAND_DIR_PREF, "sound.json"))
+        return;
+
+    /* Prefer streaming copy so it can work when source lives in Android assets. */
+    if (copy_file_io(pref_sound_path, user_sound_path))
+        log_info("init_file_paths: copied sound.json from lib/pref to user folder");
+    else
+        log_warn("init_file_paths: failed to seed sound.json from '%s'", pref_sound_path);
+}
+
+static void migrate_legacy_metarun_layout(const char* meta_root, const char* metarun_dir)
+{
+    if (!meta_root || !*meta_root || !metarun_dir || !*metarun_dir)
+        return;
+
+    char legacy[1024];
+    if (!path_build(legacy, sizeof(legacy), metarun_dir, META_RAW))
+        return;
+
+    SDL_PathInfo info;
+    if (!SDL_GetPathInfo(legacy, &info) || info.type != SDL_PATHTYPE_FILE)
+    {
+        /* No legacy file to migrate - check if the metaruns/ folder is empty and remove it */
+        int entry_count = 0;
+        char** entries = SDL_GlobDirectory(metarun_dir, NULL, 0, &entry_count);
+        bool is_empty = true;
+
+        if (entries)
+        {
+            for (int i = 0; entries[i]; ++i)
+            {
+                if (!streq(entries[i], ".") && !streq(entries[i], ".."))
+                {
+                    is_empty = false;
+                    break;
+                }
+            }
+            SDL_free(entries);
+        }
+
+        if (is_empty)
+        {
+            if (SDL_RemovePath(metarun_dir))
+            {
+                log_info("init_file_paths: removed empty legacy metaruns directory '%s'", metarun_dir);
+            }
+        }
+        return;
+    }
+
+    char target[1024];
+    if (!path_build(target, sizeof(target), meta_root, META_RAW))
+        return;
+
+    SDL_PathInfo target_info;
+    bool target_exists = SDL_GetPathInfo(target, &target_info)
+        && target_info.type == SDL_PATHTYPE_FILE;
+
+    if (target_exists)
+    {
+        if (!SDL_RemovePath(legacy))
+        {
+            log_warn("init_file_paths: failed to remove legacy metarun file '%s': %s",
+                legacy, SDL_GetError());
+        }
+        else
+        {
+            log_info("init_file_paths: removed duplicate legacy metarun file '%s'", legacy);
+
+            /* Try to remove the now-empty metaruns directory */
+            if (SDL_RemovePath(metarun_dir))
+            {
+                log_info("init_file_paths: removed empty legacy metaruns directory '%s'", metarun_dir);
+            }
+        }
+        return;
+    }
+
+    if (!SDL_RenamePath(legacy, target))
+    {
+        log_warn("init_file_paths: failed to migrate legacy metarun file '%s' -> '%s': %s",
+            legacy, target, SDL_GetError());
+    }
+    else
+    {
+        log_info("init_file_paths: migrated legacy metarun file to '%s'", target);
+
+        /* Try to remove the now-empty metaruns directory */
+        if (SDL_RemovePath(metarun_dir))
+        {
+            log_info("init_file_paths: removed empty legacy metaruns directory '%s'", metarun_dir);
+        }
+    }
+}
+#endif /* SIL_USE_LOCAL_DATA */
 
 /*
  * This file is used to initialize various variables and arrays for the
- * Sil game.  Note the use of "fd_read()" and "fd_write()" to bypass
+ * Sil game.  Note the use of "sdl_read()" and "sdl_write()" to bypass
  * the common limitation of "read()" and "write()" to only 32767 bytes
  * at a time.
  *
@@ -89,34 +613,32 @@ extern const char* get_runtime_user_path(void);
 void init_file_paths(char* path)
 {
     char* tail;
-
-#ifdef PRIVATE_USER_PATH
     char buf[1024];
-#endif /* PRIVATE_USER_PATH */
 
     /*** Free everything ***/
 
     /* Free the main path */
-    string_free(ANGBAND_DIR);
+    str_free(ANGBAND_DIR);
 
     /* Free the sub-paths */
-    string_free(ANGBAND_DIR_APEX);
-    string_free(ANGBAND_DIR_BONE);
-    string_free(ANGBAND_DIR_DATA);
-    string_free(ANGBAND_DIR_EDIT);
-    string_free(ANGBAND_DIR_FILE);
-    string_free(ANGBAND_DIR_HELP);
-    string_free(ANGBAND_DIR_INFO);
-    string_free(ANGBAND_DIR_SAVE);
-    string_free(ANGBAND_DIR_PREF);
-    string_free(ANGBAND_DIR_USER);
-    string_free(ANGBAND_DIR_XTRA);
-    string_free(ANGBAND_DIR_SCRIPT);
+    str_free(ANGBAND_DIR_APEX);
+    str_free(ANGBAND_DIR_METARUN);
+    str_free(ANGBAND_DIR_BONE);
+    str_free(ANGBAND_DIR_DATA);
+    str_free(ANGBAND_DIR_EDIT);
+    str_free(ANGBAND_DIR_FILE);
+    str_free(ANGBAND_DIR_HELP);
+    str_free(ANGBAND_DIR_INFO);
+    str_free(ANGBAND_DIR_SAVE);
+    str_free(ANGBAND_DIR_PREF);
+    str_free(ANGBAND_DIR_USER);
+    str_free(ANGBAND_DIR_XTRA);
+    str_free(ANGBAND_DIR_SCRIPT);
 
     /*** Prepare the "path" ***/
 
     /* Hack -- save the main directory */
-    ANGBAND_DIR = string_make(path);
+    ANGBAND_DIR = str_dup(path);
 
     /* Prepare to append to the Base Path */
     tail = path + strlen(path);
@@ -126,97 +648,130 @@ void init_file_paths(char* path)
     /*** Use "flat" paths with VM/ESA ***/
 
     /* Use "blank" path names */
-    ANGBAND_DIR_APEX = string_make("");
-    ANGBAND_DIR_BONE = string_make("");
-    ANGBAND_DIR_DATA = string_make("");
-    ANGBAND_DIR_EDIT = string_make("");
-    ANGBAND_DIR_FILE = string_make("");
-    ANGBAND_DIR_HELP = string_make("");
-    ANGBAND_DIR_INFO = string_make("");
-    ANGBAND_DIR_SAVE = string_make("");
-    ANGBAND_DIR_PREF = string_make("");
-    ANGBAND_DIR_USER = string_make("");
-    ANGBAND_DIR_XTRA = string_make("");
-    ANGBAND_DIR_SCRIPT = string_make("");
+    ANGBAND_DIR_APEX = str_dup("");
+    ANGBAND_DIR_BONE = str_dup("");
+    ANGBAND_DIR_DATA = str_dup("");
+    ANGBAND_DIR_EDIT = str_dup("");
+    ANGBAND_DIR_FILE = str_dup("");
+    ANGBAND_DIR_HELP = str_dup("");
+    ANGBAND_DIR_INFO = str_dup("");
+    ANGBAND_DIR_SAVE = str_dup("");
+    ANGBAND_DIR_PREF = str_dup("");
+    ANGBAND_DIR_USER = str_dup("");
+    ANGBAND_DIR_XTRA = str_dup("");
+    ANGBAND_DIR_SCRIPT = str_dup("");
 
 #else /* VM */
 
     /*** Build the sub-directory names ***/
 
-    /* Build a path name */
     strcpy(tail, "edit");
-    ANGBAND_DIR_EDIT = string_make(path);
-
-    /* Build a path name */
+    ANGBAND_DIR_EDIT = str_dup(path);
     strcpy(tail, "pref");
-    ANGBAND_DIR_PREF = string_make(path);
+    ANGBAND_DIR_PREF = str_dup(path);
 
-#ifdef PRIVATE_USER_PATH
+    strcpy(tail, "pref");
+    ANGBAND_DIR_PREF = str_dup(path);
 
-    /* Build the path to the user specific directory */
-#ifdef RUNTIME_PRIVATE_USER_PATH
-    path_build(buf, sizeof(buf), get_runtime_user_path(), VERSION_NAME);
+#ifdef SIL_USE_LOCAL_DATA
+    if (path_build(buf, sizeof(buf), ANGBAND_DIR, "user"))
+        ANGBAND_DIR_USER = str_dup(buf);
+    else
+        ANGBAND_DIR_USER = str_dup(ANGBAND_DIR);
+
+    if (path_build(buf, sizeof(buf), ANGBAND_DIR, "data"))
+        ANGBAND_DIR_DATA = str_dup(buf);
+    else
+        ANGBAND_DIR_DATA = str_dup(ANGBAND_DIR);
+
+    if (path_build(buf, sizeof(buf), ANGBAND_DIR, "save"))
+        ANGBAND_DIR_SAVE = str_dup(buf);
+    else
+        ANGBAND_DIR_SAVE = str_dup(ANGBAND_DIR);
+
+    if (path_build(buf, sizeof(buf), ANGBAND_DIR, "apex"))
+        ANGBAND_DIR_APEX = str_dup(buf);
+    else
+        ANGBAND_DIR_APEX = str_dup(ANGBAND_DIR);
+
+    if (path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, SIL_USER_META_RUNS))
+        ANGBAND_DIR_METARUN = str_dup(buf);
+    else
+        ANGBAND_DIR_METARUN = str_dup(ANGBAND_DIR_APEX);
 #else
-    path_build(buf, sizeof(buf), PRIVATE_USER_PATH, VERSION_NAME);
+    char user_root[1024];
+    if (!build_user_root_path(user_root, sizeof(user_root)))
+    {
+        SDL_strlcpy(user_root, SIL_USER_ROOT, sizeof(user_root));
+        log_warn("init_file_paths: defaulting user path to '%s' relative to the working directory",
+            user_root);
+    }
+
+    ensure_directory_exists(user_root, "user root");
+    ANGBAND_DIR_USER = str_dup(user_root);
+
+    if (path_build(buf, sizeof(buf), user_root, SIL_USER_DATA_DIR))
+    {
+        ensure_directory_exists(buf, "data");
+        ANGBAND_DIR_DATA = str_dup(buf);
+    }
+    else
+    {
+        ANGBAND_DIR_DATA = str_dup(user_root);
+    }
+
+    if (path_build(buf, sizeof(buf), user_root, SIL_USER_SAVE_DIR))
+    {
+        ensure_directory_exists(buf, "save");
+        ANGBAND_DIR_SAVE = str_dup(buf);
+    }
+    else
+    {
+        ANGBAND_DIR_SAVE = str_dup(user_root);
+    }
+
+    /* Set ANGBAND_DIR_APEX to the actual apex directory in game folder */
+    if (path_build(buf, sizeof(buf), ANGBAND_DIR, "apex"))
+        ANGBAND_DIR_APEX = str_dup(buf);
+    else
+        ANGBAND_DIR_APEX = str_dup(ANGBAND_DIR);
+
+    /* Set up meta directory for scores.raw and metarun data */
+    char meta_root[1024];
+    if (path_build(meta_root, sizeof(meta_root), user_root, SIL_USER_META_DIR))
+    {
+        ensure_directory_exists(meta_root, "meta");
+
+        char metarun_dir[1024];
+        if (path_build(metarun_dir, sizeof(metarun_dir), meta_root, SIL_USER_META_RUNS))
+        {
+            ensure_directory_exists(metarun_dir, "metarun");
+            ANGBAND_DIR_METARUN = str_dup(metarun_dir);
+        }
+        else
+        {
+            ANGBAND_DIR_METARUN = str_dup(meta_root);
+        }
+    }
+    else
+    {
+        ANGBAND_DIR_METARUN = str_dup(user_root);
+    }
+
+    migrate_legacy_metarun_layout(meta_root, ANGBAND_DIR_METARUN);
+    seed_user_data_from_install(ANGBAND_DIR_DATA);
+#ifndef __ANDROID__
+    seed_user_meta_from_install(meta_root, ANGBAND_DIR_METARUN);
+    seed_user_saves_from_install(ANGBAND_DIR_SAVE);
 #endif
+    seed_sound_config(user_root);
+#endif /* SIL_USE_LOCAL_DATA */
 
-    /* Build a relative path name */
-    ANGBAND_DIR_USER = string_make(buf);
-
-#else /* PRIVATE_USER_PATH */
-
-    /* Build a path name */
-    strcpy(tail, "user");
-    ANGBAND_DIR_USER = string_make(path);
-
-#endif /* PRIVATE_USER_PATH */
-
-#ifdef USE_PRIVATE_SAVE_PATH
-    /* Build the path to the user specific sub-directory */
-    path_build(buf, sizeof(buf), ANGBAND_DIR_USER, "data");
-
-    /* Build a relative path name */
-    ANGBAND_DIR_DATA = string_make(buf);
-
-    /* Build the path to the user specific sub-directory */
-    path_build(buf, sizeof(buf), ANGBAND_DIR_USER, "scores");
-
-    /* Build a relative path name */
-    ANGBAND_DIR_APEX = string_make(buf);
-
-    /* Build the path to the user specific sub-directory */
-    path_build(buf, sizeof(buf), ANGBAND_DIR_USER, "save");
-
-    /* Build a relative path name */
-    ANGBAND_DIR_SAVE = string_make(buf);
-
-#else /* USE_PRIVATE_SAVE_PATH */
-
-    /* Build a path name */
-    strcpy(tail, "data");
-    ANGBAND_DIR_DATA = string_make(path);
-
-    /* Build a path name */
-    strcpy(tail, "apex");
-    ANGBAND_DIR_APEX = string_make(path);
-
-    /* Build a path name */
-    strcpy(tail, "apex\\metaruns");
-    ANGBAND_DIR_METARUN = string_make(path);
-
-    /* Build a path name */
-    strcpy(tail, "save");
-    ANGBAND_DIR_SAVE = string_make(path);
-
-#endif /* USE_PRIVATE_SAVE_PATH */
-
-    /* Build a path name */
     strcpy(tail, "xtra");
-    ANGBAND_DIR_XTRA = string_make(path);
+    ANGBAND_DIR_XTRA = str_dup(path);
 
-    /* Build a path name */
     strcpy(tail, "script");
-    ANGBAND_DIR_SCRIPT = string_make(path);
+    ANGBAND_DIR_SCRIPT = str_dup(path);
 
 #endif /* VM */
 
@@ -247,11 +802,11 @@ void init_file_paths(char* path)
         if (next)
         {
             /* Forget the old path name */
-            string_free(ANGBAND_DIR_DATA);
+            str_free(ANGBAND_DIR_DATA);
 
             /* Build a new path name */
             sprintf(tail, "data-%s", next);
-            ANGBAND_DIR_DATA = string_make(path);
+            ANGBAND_DIR_DATA = str_dup(path);
         }
     }
 
@@ -316,18 +871,19 @@ header quest_head;
 header oath_head;
 header n_head;
 header style_head;
+header skeleton_note_head;
 
 /*** Initialize from binary image files ***/
 
 /*
  * Initialize a "*_info" array, by parsing a binary "image" file
  */
-static errr init_info_raw(int fd, header* head)
+static errr init_info_raw(SDL_IOStream* fd, header* head)
 {
     header test;
 
     /* Read and verify the header */
-    if (fd_read(fd, (char*)(&test), sizeof(header))
+    if (sdl_read(fd, (char*)(&test), sizeof(header))
         || (test.v_major != head->v_major) || (test.v_minor != head->v_minor)
         || (test.v_patch != head->v_patch) || (test.v_extra != head->v_extra)
         || (test.info_num != head->info_num)
@@ -340,30 +896,30 @@ static errr init_info_raw(int fd, header* head)
     }
 
     /* Accept the header */
-    COPY(head, &test, header);
+    memcpy(head, &test, sizeof(header));
 
     /* Allocate the "*_info" array */
-    C_MAKE(head->info_ptr, head->info_size, char);
+    head->info_ptr = mem_alloc_array(head->info_size, char);
 
     /* Read the "*_info" array */
-    fd_read(fd, head->info_ptr, head->info_size);
+    sdl_read(fd, head->info_ptr, head->info_size);
 
     if (head->name_size)
     {
         /* Allocate the "*_name" array */
-        C_MAKE(head->name_ptr, head->name_size, char);
+        head->name_ptr = mem_alloc_array(head->name_size, char);
 
         /* Read the "*_name" array */
-        fd_read(fd, head->name_ptr, head->name_size);
+        sdl_read(fd, head->name_ptr, head->name_size);
     }
 
     if (head->text_size)
     {
         /* Allocate the "*_text" array */
-        C_MAKE(head->text_ptr, head->text_size, char);
+        head->text_ptr = mem_alloc_array(head->text_size, char);
 
         /* Read the "*_text" array */
-        fd_read(fd, head->text_ptr, head->text_size);
+        sdl_read(fd, head->text_ptr, head->text_size);
     }
 
     /* Success */
@@ -373,6 +929,8 @@ static errr init_info_raw(int fd, header* head)
 /* local forward */
 static errr init_rt_info(void);
 static errr init_style_info(void);
+static errr init_partition_info(void);
+static errr init_skeleton_note_info(void);
 /* From init1.c */
 
 /*
@@ -411,10 +969,14 @@ static void display_parse_error(cptr filename, errr err, cptr buf)
     msg_format("Error at line %d of '%s.txt'.", error_line, filename);
     msg_format("Record %d contains a '%s' error.", error_idx, oops);
     msg_format("Parsing '%s'.", buf);
+    
+    /* Explicitly log the error to log.txt as requested (one line) */
+    log_error("CRITICAL PARSE ERROR: %s in %s.txt at line %d (record %d). Entry: '%s'", oops, filename, error_line, error_idx, buf);
+    
     message_flush();
 
     /* Quit */
-    quit_fmt("Error in '%s.txt' file.", filename);
+    quit(format("Error in '%s.txt' file.", filename));
 }
 
 #endif /* ALLOW_TEMPLATES */
@@ -427,11 +989,11 @@ static void display_parse_error(cptr filename, errr err, cptr buf)
  */
 static errr init_info(cptr filename, header* head)
 {
-    int fd;
+    SDL_IOStream* fd;
 
     errr err = 1;
 
-    FILE* fp;
+    SDL_IOStream* fp;
 
     /* General buffer */
     char buf[1024];
@@ -444,23 +1006,36 @@ static errr init_info(cptr filename, header* head)
     path_build(buf, sizeof(buf), ANGBAND_DIR_DATA, format("%s.raw", filename));
 
     /* Attempt to open the "raw" file */
-    fd = fd_open(buf, O_RDONLY);
+    fd = sdl_fopen(buf, "rb");
 
     /* Process existing "raw" file */
-    if (fd >= 0)
+    if (fd)
     {
 #ifdef CHECK_MODIFICATION_TIME
-
-        err = check_modification_date(fd, format("%s.txt", filename));
-
+        /* Check if text file is newer than raw file */
+        char txt_path[1024];
+        path_build(txt_path, sizeof(txt_path), ANGBAND_DIR_EDIT, format("%s.txt", filename));
+        log_debug("Checking modification times: raw='%s' vs txt='%s'", buf, txt_path);
+        err = check_modification_date_sdl(buf, txt_path);
+        if (err)
+        {
+            /* Text file is newer - close raw and regenerate */
+            log_info("Text file '%s.txt' is newer than raw file - regenerating", filename);
+            sdl_fclose(fd);
+            fd = NULL;
+        }
+        else
+        {
+            log_debug("Raw file '%s.raw' is up to date", filename);
+        }
 #endif /* CHECK_MODIFICATION_TIME */
 
         /* Attempt to parse the "raw" file */
-        if (!err)
+        if (fd && !err)
             err = init_info_raw(fd, head);
 
         /* Close it */
-        fd_close(fd);
+        sdl_fclose(fd);
     }
 
     /* Do we have to parse the *.txt file? */
@@ -469,13 +1044,13 @@ static errr init_info(cptr filename, header* head)
         /*** Make the fake arrays ***/
 
         /* Allocate the "*_info" array */
-        C_MAKE(head->info_ptr, head->info_size, char);
+        head->info_ptr = mem_alloc_array(head->info_size, char);
 
         /* MegaHack -- make "fake" arrays */
         if (z_info)
         {
-            C_MAKE(head->name_ptr, z_info->fake_name_size, char);
-            C_MAKE(head->text_ptr, z_info->fake_text_size, char);
+            head->name_ptr = mem_alloc_array(z_info->fake_name_size, char);
+            head->text_ptr = mem_alloc_array(z_info->fake_text_size, char);
         }
 
         /*** Load the ascii template file ***/
@@ -485,7 +1060,7 @@ static errr init_info(cptr filename, header* head)
             buf, sizeof(buf), ANGBAND_DIR_EDIT, format("%s.txt", filename));
 
         /* Open the file */
-        fp = my_fopen(buf, "r");
+        fp = sdl_fopen(buf, "r");
 
         /* Parse it */
         if (!fp)
@@ -495,7 +1070,7 @@ static errr init_info(cptr filename, header* head)
         err = init_info_txt(fp, buf, head, head->parse_info_txt);
 
         /* Close it */
-        my_fclose(fp);
+        sdl_fclose(fp);
 
         /* Errors */
         if (err)
@@ -511,10 +1086,10 @@ static errr init_info(cptr filename, header* head)
             buf, sizeof(buf), ANGBAND_DIR_DATA, format("%s.raw", filename));
 
         /* Attempt to open the file */
-        fd = fd_open(buf, O_RDONLY);
+        fd = sdl_fopen(buf, "rb");
 
         /* Failure */
-        if (fd < 0)
+        if (!fd)
         {
             int mode = 0644;
 
@@ -522,16 +1097,16 @@ static errr init_info(cptr filename, header* head)
             safe_setuid_grab();
 
             /* Create a new file */
-            fd = fd_make(buf, mode);
+            fd = sdl_fmake(buf, mode);
 
             /* Drop permissions */
             safe_setuid_drop();
 
             /* Failure */
-            if (fd < 0)
+            if (!fd)
             {
                 /* Complain */
-                plog_fmt("Cannot create the '%s' file!", buf);
+                plog(format("Cannot create the '%s' file!", buf));
 
                 /* Continue */
                 return (0);
@@ -539,56 +1114,56 @@ static errr init_info(cptr filename, header* head)
         }
 
         /* Close it */
-        fd_close(fd);
+        sdl_fclose(fd);
 
         /* Grab permissions */
         safe_setuid_grab();
 
         /* Attempt to create the raw file */
-        fd = fd_open(buf, O_WRONLY);
+        fd = sdl_fopen(buf, "wb");
 
         /* Drop permissions */
         safe_setuid_drop();
 
         /* Failure */
-        if (fd < 0)
+        if (!fd)
         {
             /* Complain */
-            plog_fmt("Cannot write the '%s' file!", buf);
+            plog(format("Cannot write the '%s' file!", buf));
 
             /* Continue */
             return (0);
         }
 
         /* Dump to the file */
-        if (fd >= 0)
+        if (fd)
         {
             /* Dump it */
-            fd_write(fd, (cptr)head, head->head_size);
+            sdl_write(fd, (cptr)head, head->head_size);
 
             /* Dump the "*_info" array */
-            fd_write(fd, head->info_ptr, head->info_size);
+            sdl_write(fd, head->info_ptr, head->info_size);
 
             /* Dump the "*_name" array */
-            fd_write(fd, head->name_ptr, head->name_size);
+            sdl_write(fd, head->name_ptr, head->name_size);
 
             /* Dump the "*_text" array */
-            fd_write(fd, head->text_ptr, head->text_size);
+            sdl_write(fd, head->text_ptr, head->text_size);
 
             /* Close */
-            fd_close(fd);
+            sdl_fclose(fd);
         }
 
         /*** Kill the fake arrays ***/
 
         /* Free the "*_info" array */
-        KILL(head->info_ptr);
+        mem_free_null(head->info_ptr);
 
         /* MegaHack -- Free the "fake" arrays */
         if (z_info)
         {
-            KILL(head->name_ptr);
-            KILL(head->text_ptr);
+            mem_free_null(head->name_ptr);
+            mem_free_null(head->text_ptr);
         }
 
 #endif /* ALLOW_TEMPLATES */
@@ -600,17 +1175,17 @@ static errr init_info(cptr filename, header* head)
             buf, sizeof(buf), ANGBAND_DIR_DATA, format("%s.raw", filename));
 
         /* Attempt to open the "raw" file */
-        fd = fd_open(buf, O_RDONLY);
+        fd = sdl_fopen(buf, "rb");
 
         /* Process existing "raw" file */
-        if (fd < 0)
+        if (!fd)
             quit(format("Cannot load '%s.raw' file.", filename));
 
         /* Attempt to parse the "raw" file */
         err = init_info_raw(fd, head);
 
         /* Close it */
-        fd_close(fd);
+        sdl_fclose(fd);
 
         /* Error */
         if (err)
@@ -630,13 +1205,13 @@ static errr init_info(cptr filename, header* head)
 static errr free_info(header* head)
 {
     if (head->info_size)
-        FREE(head->info_ptr);
+        mem_free_null(head->info_ptr);
 
     if (head->name_size)
-        FREE(head->name_ptr);
+        mem_free_null(head->name_ptr);
 
     if (head->text_size)
-        FREE(head->text_ptr);
+        mem_free_null(head->text_ptr);
 
     /* Success */
     return (0);
@@ -711,20 +1286,20 @@ static errr init_style_info(void)
      * We bypass the RAW cache here so manual edits to style-levels.txt take effect
      * even when ALLOW_TEMPLATES is not defined. */
     {
-        FILE* fp;
+        SDL_IOStream* fp;
         char buf[1024];
         header levels_head;
         init_header(&levels_head, 1, 1);
         /* Build full path to lib/edit/style-levels.txt */
         path_build(buf, sizeof(buf), ANGBAND_DIR_EDIT, format("%s.txt", "style-levels"));
-        fp = my_fopen(buf, "r");
+        fp = sdl_fopen(buf, "r");
         if (!fp) quit("Cannot open 'style-levels.txt' file.");
         /* Parse the file using the style-levels parser (populates global rule tables) */
         {
             char linebuf[1024];
             err = init_info_txt(fp, linebuf, &levels_head, parse_style_levels);
         }
-        my_fclose(fp);
+        sdl_fclose(fp);
         if (err)
         {
             /* Report a parse error with helpful context */
@@ -734,6 +1309,34 @@ static errr init_style_info(void)
     }
 
     /* No separate pass for D: depth banners; per requirements, banners come from per-style M: only. */
+    return 0;
+}
+
+static errr init_partition_info(void)
+{
+    errr err;
+    SDL_IOStream* fp;
+    char path[1024];
+    char linebuf[1024];
+    header part_head;
+
+    init_header(&part_head, 1, 1);
+    partition_config_reset();
+
+    path_build(path, sizeof(path), ANGBAND_DIR_EDIT, format("%s.txt", "partition"));
+    fp = sdl_fopen(path, "r");
+    if (!fp)
+        quit("Cannot open 'partition.txt' file.");
+
+    err = init_info_txt(fp, linebuf, &part_head, parse_partition_info);
+    sdl_fclose(fp);
+
+    if (err)
+    {
+        display_parse_error("partition", err, linebuf);
+        return err;
+    }
+
     return 0;
 }
 
@@ -816,6 +1419,40 @@ static errr init_a_info(void)
     a_text = a_head.text_ptr;
 
     return (err);
+}
+
+static void ensure_artifact_guids(void)
+{
+    if (!a_info || !z_info)
+        return;
+
+    for (int i = 0; i < z_info->art_max; i++)
+    {
+        artefact_type* a_ptr = &a_info[i];
+        if (!a_ptr)
+            continue;
+
+        if (!score_guid_is_zero(&a_ptr->guid))
+            continue;
+
+        const char* name = a_ptr->name[0] ? a_ptr->name : "unknown-artifact";
+        a_ptr->guid = score_guid_from_string(name, (u32b)i);
+    }
+}
+
+static void ensure_artifact_spawn_numbers(void)
+{
+    if (!a_info || !z_info)
+        return;
+
+    for (int i = 0; i < z_info->art_max; i++)
+    {
+        artefact_type* a_ptr = &a_info[i];
+        if (!a_ptr)
+            continue;
+        if (a_ptr->spawn_num == 0)
+            a_ptr->spawn_num = 1;
+    }
 }
 
 /*
@@ -948,7 +1585,7 @@ static errr init_c_info(void)
     errr err;
 
     /* Init the header */
-    init_header(&c_head, z_info->c_max, sizeof(player_house));
+    init_header(&c_head, z_info->c_max, sizeof(character_profile));
 
 #ifdef ALLOW_TEMPLATES
 
@@ -1121,6 +1758,74 @@ static errr init_flavor_info(void)
 }
 
 /*
+ * Initialize the special effect graphics (misc_to_attr, misc_to_char)
+ */
+static header effect_head;
+
+static errr init_effect_info(void)
+{
+    errr err;
+
+    /* Init the header - 256 entries map directly onto misc_to_attr/char */
+    init_header(&effect_head, 256, sizeof(effect_glyph));
+
+#ifdef ALLOW_TEMPLATES
+
+    /* Save a pointer to the parsing function */
+    effect_head.parse_info_txt = parse_effect_info;
+
+#endif /* ALLOW_TEMPLATES */
+
+    err = init_info("effect", &effect_head);
+
+    /* Populate the global misc_to_* tables from the loaded raw-backed data */
+    if (!err && effect_head.info_ptr)
+    {
+        const effect_glyph* glyphs = (const effect_glyph*)effect_head.info_ptr;
+        for (int i = 0; i < 256; i++)
+        {
+            misc_to_attr[i] = glyphs[i].a;
+            misc_to_char[i] = (char)glyphs[i].c;
+        }
+    }
+
+    return (err);
+}
+
+/*
+ * Initialize skeleton note templates
+ */
+static errr init_skeleton_note_info(void)
+{
+    errr err;
+
+    if (z_info && z_info->skeleton_note_max <= 0)
+    {
+        log_warn("skeleton_note_max not set in limits.txt (or 0), defaulting to 420");
+        z_info->skeleton_note_max = 420;
+    }
+    else
+    {
+        log_debug("skeleton_note_max initialized to %d", z_info->skeleton_note_max);
+    }
+
+    init_header(
+        &skeleton_note_head, z_info->skeleton_note_max,
+        sizeof(skeleton_note_template));
+
+#ifdef ALLOW_TEMPLATES
+    skeleton_note_head.parse_info_txt = parse_skeleton_note_info;
+#endif /* ALLOW_TEMPLATES */
+
+    err = init_info("skeleton_note", &skeleton_note_head);
+
+    skeleton_note_info = (skeleton_note_template*)skeleton_note_head.info_ptr;
+    skeleton_note_text = skeleton_note_head.text_ptr;
+
+    return (err);
+}
+
+/*
  * Initialize the "quest_info" array
  */
 static errr init_quest_info(void)
@@ -1179,7 +1884,7 @@ extern void autoinscribe_clean(void)
 {
     if (inscriptions)
     {
-        FREE(inscriptions);
+        mem_free_null(inscriptions);
     }
 
     inscriptions = 0;
@@ -1191,7 +1896,7 @@ extern void autoinscribe_init(void)
     /* Paranoia */
     autoinscribe_clean();
 
-    C_MAKE(inscriptions, AUTOINSCRIPTIONS_MAX, autoinscription);
+    inscriptions = mem_alloc_array(AUTOINSCRIPTIONS_MAX, autoinscription);
 }
 
 /*
@@ -1203,10 +1908,21 @@ extern void re_init_some_things(void)
 {
     int i;
 
-    Rand_quick = false;
+    run_mode_reset();
 
     // wipe the whole player structure
-    (void)WIPE(p_ptr, player_type);
+    memset(p_ptr, 0, sizeof(player_type));
+
+    // reset global race/character profile pointers to valid defaults
+    // (p_ptr->prace and p_ptr->pcharacter are now 0 after memset)
+    rp_ptr = &p_info[0];
+    current_character_profile = &c_info[0];
+
+    // reset dungeon-related static state for new game
+    reset_dungeon_state();
+
+    // reset hint/skeleton note state for new game
+    reset_hint_skeleton_state();
 
     // clear some additional things
     savefile[0] = '\0';
@@ -1241,56 +1957,52 @@ extern void re_init_some_things(void)
     autoinscribe_init();
 
     // display the introduction message again
-#ifdef USE_SDL
     sdl_story_font_enable();
-#endif
     display_introduction();
-#ifdef USE_SDL
     sdl_story_font_reset();
-#endif
 
     /* Array of grids */
-    FREE(view_g);
-    C_MAKE(view_g, VIEW_MAX, u16b);
+    mem_free_null(view_g);
+    view_g = mem_alloc_array(VIEW_MAX, u16b);
 
     /* Array of grids */
-    FREE(temp_g);
-    C_MAKE(temp_g, TEMP_MAX, u16b);
+    mem_free_null(temp_g);
+    temp_g = mem_alloc_array(TEMP_MAX, u16b);
 
     /* has_lite patch causes both temp_g and temp_x/y to be used
     in targetting mode: can't use the same memory any more. */
-    FREE(temp_y);
-    FREE(temp_x);
-    C_MAKE(temp_y, TEMP_MAX, byte);
-    C_MAKE(temp_x, TEMP_MAX, byte);
+    mem_free_null(temp_y);
+    mem_free_null(temp_x);
+    temp_y = mem_alloc_array(TEMP_MAX, byte);
+    temp_x = mem_alloc_array(TEMP_MAX, byte);
 
     /*** Prepare dungeon arrays ***/
 
     /* Padded into array */
-    FREE(cave_info);
-    C_MAKE(cave_info, MAX_DUNGEON_HGT, u16b_256);
+    mem_free_null(cave_info);
+    cave_info = mem_alloc_array(MAX_DUNGEON_HGT, u16b_256);
 
     /* Feature array */
-    FREE(cave_feat);
-    C_MAKE(cave_feat, MAX_DUNGEON_HGT, byte_wid);
+    mem_free_null(cave_feat);
+    cave_feat = mem_alloc_array(MAX_DUNGEON_HGT, byte_wid);
 
     /* Color array */
-    FREE(cave_color);
-    C_MAKE(cave_color, MAX_DUNGEON_HGT, byte_wid);
+    mem_free_null(cave_color);
+    cave_color = mem_alloc_array(MAX_DUNGEON_HGT, byte_wid);
 
     /* Light array */
-    FREE(cave_light);
-    C_MAKE(cave_light, MAX_DUNGEON_HGT, s16b_wid);
+    mem_free_null(cave_light);
+    cave_light = mem_alloc_array(MAX_DUNGEON_HGT, s16b_wid);
 
     /* Entity arrays */
-    FREE(cave_o_idx);
-    FREE(cave_m_idx);
-    C_MAKE(cave_o_idx, MAX_DUNGEON_HGT, s16b_wid);
-    C_MAKE(cave_m_idx, MAX_DUNGEON_HGT, s16b_wid);
+    mem_free_null(cave_o_idx);
+    mem_free_null(cave_m_idx);
+    cave_o_idx = mem_alloc_array(MAX_DUNGEON_HGT, s16b_wid);
+    cave_m_idx = mem_alloc_array(MAX_DUNGEON_HGT, s16b_wid);
 
     /* Flow arrays */
-    FREE(cave_when);
-    C_MAKE(cave_when, MAX_DUNGEON_HGT, byte_wid);
+    mem_free_null(cave_when);
+    cave_when = mem_alloc_array(MAX_DUNGEON_HGT, byte_wid);
 
     /*** Prepare "vinfo" array ***/
 
@@ -1300,24 +2012,24 @@ extern void re_init_some_things(void)
     /*** Prepare entity arrays ***/
 
     /* Objects */
-    FREE(o_list);
-    C_MAKE(o_list, z_info->o_max, object_type);
+    mem_free_null(o_list);
+    o_list = mem_alloc_array(z_info->o_max, object_type);
 
     /* Monsters */
-    FREE(mon_list);
-    C_MAKE(mon_list, MAX_MONSTERS, monster_type);
+    mem_free_null(mon_list);
+    mon_list = mem_alloc_array(MAX_MONSTERS, monster_type);
 
     /*** Prepare lore array ***/
 
     /* Lore */
-    FREE(l_list);
-    C_MAKE(l_list, z_info->r_max, monster_lore);
+    mem_free_null(l_list);
+    l_list = mem_alloc_array(z_info->r_max, monster_lore);
 
     /*** Prepare the inventory ***/
 
     /* Allocate it */
-    FREE(inventory);
-    C_MAKE(inventory, INVEN_TOTAL, object_type);
+    mem_free_null(inventory);
+    inventory = mem_alloc_array(INVEN_TOTAL, object_type);
 
     /*** Prepare the options ***/
 
@@ -1344,13 +2056,23 @@ extern void re_init_some_things(void)
     op_ptr->window_flag[WINDOW_MESSAGE] |= (PW_MESSAGE);
     op_ptr->window_flag[WINDOW_MONLIST] |= (PW_MONLIST);
 
+    /* Reapply app-wide options after resetting runtime defaults. */
+    sdl_config_load_app_options(get_sdl_config_path());
+
     // re-initialize the objects and flavors
     if (init_k_info())
         quit("Cannot initialize objects");
     if (init_flavor_info())
         quit("Cannot initialize flavors");
+    if (init_effect_info())
+        quit("Cannot initialize effects");
+    if (init_skeleton_note_info())
+        quit("Cannot initialize skeleton notes");
     if (init_e_info())
         quit("Cannot initialize special items");
+    /* Oath of Light crash guard: ensure oath text/info tables are fresh between games */
+    if (init_oath_info())
+        quit("Cannot initialize oaths");
 }
 
 /*
@@ -1377,36 +2099,36 @@ static errr init_other(void)
     /*** Prepare grid arrays ***/
 
     /* Array of grids */
-    C_MAKE(view_g, VIEW_MAX, u16b);
+    view_g = mem_alloc_array(VIEW_MAX, u16b);
 
     /* Array of grids */
-    C_MAKE(temp_g, TEMP_MAX, u16b);
+    temp_g = mem_alloc_array(TEMP_MAX, u16b);
 
     /* has_lite patch causes both temp_g and temp_x/y to be used
     in targetting mode: can't use the same memory any more. */
-    C_MAKE(temp_y, TEMP_MAX, byte);
-    C_MAKE(temp_x, TEMP_MAX, byte);
+    temp_y = mem_alloc_array(TEMP_MAX, byte);
+    temp_x = mem_alloc_array(TEMP_MAX, byte);
 
     /*** Prepare dungeon arrays ***/
 
     /* Padded into array */
-    C_MAKE(cave_info, MAX_DUNGEON_HGT, u16b_256);
+    cave_info = mem_alloc_array(MAX_DUNGEON_HGT, u16b_256);
 
     /* Feature array */
-    C_MAKE(cave_feat, MAX_DUNGEON_HGT, byte_wid);
+    cave_feat = mem_alloc_array(MAX_DUNGEON_HGT, byte_wid);
 
     /* Color array */
-    C_MAKE(cave_color, MAX_DUNGEON_HGT, byte_wid);
+    cave_color = mem_alloc_array(MAX_DUNGEON_HGT, byte_wid);
 
     /* Light array */
-    C_MAKE(cave_light, MAX_DUNGEON_HGT, s16b_wid);
+    cave_light = mem_alloc_array(MAX_DUNGEON_HGT, s16b_wid);
 
     /* Entity arrays */
-    C_MAKE(cave_o_idx, MAX_DUNGEON_HGT, s16b_wid);
-    C_MAKE(cave_m_idx, MAX_DUNGEON_HGT, s16b_wid);
+    cave_o_idx = mem_alloc_array(MAX_DUNGEON_HGT, s16b_wid);
+    cave_m_idx = mem_alloc_array(MAX_DUNGEON_HGT, s16b_wid);
 
     /* Flow arrays */
-    C_MAKE(cave_when, MAX_DUNGEON_HGT, byte_wid);
+    cave_when = mem_alloc_array(MAX_DUNGEON_HGT, byte_wid);
 
     /*** Prepare "vinfo" array ***/
 
@@ -1416,20 +2138,20 @@ static errr init_other(void)
     /*** Prepare entity arrays ***/
 
     /* Objects */
-    C_MAKE(o_list, z_info->o_max, object_type);
+    o_list = mem_alloc_array(z_info->o_max, object_type);
 
     /* Monsters */
-    C_MAKE(mon_list, MAX_MONSTERS, monster_type);
+    mon_list = mem_alloc_array(MAX_MONSTERS, monster_type);
 
     /*** Prepare lore array ***/
 
     /* Lore */
-    C_MAKE(l_list, z_info->r_max, monster_lore);
+    l_list = mem_alloc_array(z_info->r_max, monster_lore);
 
     /*** Prepare the inventory ***/
 
     /* Allocate it */
-    C_MAKE(inventory, INVEN_TOTAL, object_type);
+    inventory = mem_alloc_array(INVEN_TOTAL, object_type);
 
     /*** Prepare the options ***/
 
@@ -1455,6 +2177,9 @@ static errr init_other(void)
     op_ptr->window_flag[WINDOW_PLAYER_0] |= (PW_PLAYER_0);
     op_ptr->window_flag[WINDOW_MESSAGE] |= (PW_MESSAGE);
     op_ptr->window_flag[WINDOW_MONLIST] |= (PW_MONLIST);
+
+    /* Reapply app-wide options after initializing runtime defaults. */
+    sdl_config_load_app_options(get_sdl_config_path());
 
     /*** Pre-allocate space for the "format()" buffer ***/
 
@@ -1487,10 +2212,10 @@ static errr init_alloc(void)
     /*** Analyze object allocation info ***/
 
     /* Clear the "aux" array */
-    (void)C_WIPE(aux, MAX_DEPTH, s16b);
+    memset(aux, 0, sizeof(s16b) * MAX_DEPTH);
 
     /* Clear the "num" array */
-    (void)C_WIPE(num, MAX_DEPTH, s16b);
+    memset(num, 0, sizeof(s16b) * MAX_DEPTH);
 
     /* Size of "alloc_kind_table" */
     alloc_kind_size = 0;
@@ -1528,7 +2253,7 @@ static errr init_alloc(void)
     /*** Initialize object allocation info ***/
 
     /* Allocate the alloc_kind_table */
-    C_MAKE(alloc_kind_table, alloc_kind_size, alloc_entry);
+    alloc_kind_table = mem_alloc_array(alloc_kind_size, alloc_entry);
 
     /* Get the table entry */
     table = alloc_kind_table;
@@ -1549,8 +2274,8 @@ static errr init_alloc(void)
                 /* Extract the base level */
                 x = k_ptr->locale[j];
 
-                /* Extract the base probability */
-                p = (100 / k_ptr->chance[j]);
+                /* Extract the base probability (direct rarity weight) */
+                p = k_ptr->chance[j];
 
                 /* Skip entries preceding our locale */
                 y = (x > 0) ? num[x - 1] : 0;
@@ -1574,10 +2299,10 @@ static errr init_alloc(void)
     /*** Analyze monster allocation info ***/
 
     /* Clear the "aux" array */
-    (void)C_WIPE(aux, MAX_DEPTH, s16b);
+    memset(aux, 0, sizeof(s16b) * MAX_DEPTH);
 
     /* Clear the "num" array */
-    (void)C_WIPE(num, MAX_DEPTH, s16b);
+    memset(num, 0, sizeof(s16b) * MAX_DEPTH);
 
     /* Size of "alloc_race_table" */
     alloc_race_size = 0;
@@ -1612,7 +2337,7 @@ static errr init_alloc(void)
     /*** Initialize monster allocation info ***/
 
     /* Allocate the alloc_race_table */
-    C_MAKE(alloc_race_table, alloc_race_size, alloc_entry);
+    alloc_race_table = mem_alloc_array(alloc_race_size, alloc_entry);
 
     /* Get the table entry */
     table = alloc_race_table;
@@ -1631,8 +2356,8 @@ static errr init_alloc(void)
             /* Extract the base level */
             x = r_ptr->level;
 
-            /* Extract the base probability */
-            p = (100 / r_ptr->rarity);
+            /* Extract the base probability (direct rarity weight) */
+            p = r_ptr->rarity;
 
             /* Skip entries preceding our locale */
             y = (x > 0) ? num[x - 1] : 0;
@@ -1655,10 +2380,10 @@ static errr init_alloc(void)
     /*** Analyze ego_item allocation info ***/
 
     /* Clear the "aux" array */
-    (void)C_WIPE(aux, MAX_DEPTH, s16b);
+    memset(aux, 0, sizeof(s16b) * MAX_DEPTH);
 
     /* Clear the "num" array */
-    (void)C_WIPE(num, MAX_DEPTH, s16b);
+    memset(num, 0, sizeof(s16b) * MAX_DEPTH);
 
     /* Size of "alloc_ego_table" */
     alloc_ego_size = 0;
@@ -1690,7 +2415,7 @@ static errr init_alloc(void)
     /*** Initialize special item allocation info ***/
 
     /* Allocate the alloc_ego_table */
-    C_MAKE(alloc_ego_table, alloc_ego_size, alloc_entry);
+    alloc_ego_table = mem_alloc_array(alloc_ego_size, alloc_entry);
 
     /* Get the table entry */
     table = alloc_ego_table;
@@ -1709,8 +2434,8 @@ static errr init_alloc(void)
             /* Extract the base level */
             x = e_ptr->level;
 
-            /* Extract the base probability */
-            p = (100 / e_ptr->rarity);
+            /* Extract the base probability (direct rarity weight) */
+            p = e_ptr->rarity;
 
             /* Skip entries preceding our locale */
             y = (x > 0) ? num[x - 1] : 0;
@@ -1739,9 +2464,19 @@ static errr init_alloc(void)
  */
 static void note(cptr str)
 {
-    Term_erase(0, 23, 255);
-    Term_putstr(20, 23, -1, TERM_SLATE, str);
+    int term_wid = 80;
+    int term_hgt = 24;
+    int col;
+    int row;
+
+    Term_get_size(&term_wid, &term_hgt);
+    row = term_hgt - 1;
+    col = MAX(0, (term_wid - (int)strlen(str)) / 2);
+
+    Term_erase(0, row, 255);
+    Term_putstr(col, row, term_wid - col, TERM_SLATE, str);
     Term_fresh();
+    (void)Term_xtra(TERM_XTRA_EVENT, 0);
 }
 
 /*
@@ -1749,57 +2484,516 @@ static void note(cptr str)
  */
 static void init_angband_aux(cptr why)
 {
-    quit_fmt("%s\n\n%s", why,
+    quit(format("%s\n\n%s", why,
         "The 'lib' directory is probably missing or broken.\n"
         "Perhaps the archive was not extracted correctly.\n"
-        "See the manual for more information.");
+        "See the manual for more information."));
 }
+
+typedef struct welcome_intro_layout {
+    int top_pad;
+    bool drop_gap_1;
+    bool drop_gap_2;
+    bool drop_gap_3;
+} welcome_intro_layout;
+
+static void display_introduction_with_layout(
+    const welcome_intro_layout* layout);
+static int welcome_screen_base_col(void);
+static int welcome_screen_intro_row(int rel_row,
+    const welcome_intro_layout* layout);
+static int welcome_screen_intro_last_row(const welcome_intro_layout* layout);
+static int welcome_screen_intro_total_rows(const welcome_intro_layout* layout);
+static int welcome_screen_footer_rows(bool show_wizard, bool show_sep,
+    bool show_blank, bool show_prompt);
+static void welcome_screen_compute_layout(int hgt, bool show_wizard,
+    welcome_intro_layout* out_layout, bool* out_show_sep,
+    bool* out_show_blank, bool* out_show_prompt);
+static void welcome_screen_draw_footer(bool show_wizard, bool show_sep,
+    bool show_blank, bool show_prompt);
 
 extern void display_introduction(void)
 {
+    int term_wid = 80;
+    int term_hgt = 24;
+    welcome_intro_layout layout;
+
+    /* Use the same layout that the menu footer will reuse so the loading
+     * notes can fade into the final prompt without reflowing the intro. */
+    Term_get_size(&term_wid, &term_hgt);
+    welcome_screen_compute_layout(term_hgt, arg_wizard, &layout,
+        NULL, NULL, NULL);
+    display_introduction_with_layout(&layout);
+}
+
+static int welcome_screen_base_col(void)
+{
+    int wid = 80;
+    int hgt = 24;
+    const int legacy_term_wid = 80;
+    const int legacy_base_col = 14;
+    const int compact_block_wid = 43;
+    int shift;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1)
+        wid = legacy_term_wid;
+
+    if (wid < legacy_term_wid)
+    {
+        /* Center the actual welcome block on compact screens so the
+         * 50x18 minimum layout does not clamp against the first column. */
+        shift = (wid - compact_block_wid) / 2;
+        if (shift < 0)
+            shift = 0;
+
+        return shift;
+    }
+
+    /* Keep the legacy 80-column composition, but shift it with the
+     * real terminal width instead of pinning the welcome screen to col 14. */
+    shift = (wid - legacy_term_wid) / 2;
+    if (legacy_base_col + shift < 0)
+        shift = -legacy_base_col;
+
+    return legacy_base_col + shift;
+}
+
+static int welcome_screen_intro_row(int rel_row,
+    const welcome_intro_layout* layout)
+{
+    int row = rel_row;
+
+    if (!layout)
+        return row;
+
+    if (layout->drop_gap_1 && row >= 6)
+        row--;
+    if (layout->drop_gap_2 && row >= 9)
+        row--;
+    if (layout->drop_gap_3 && row >= 14)
+        row--;
+
+    return row;
+}
+
+static int welcome_screen_intro_last_row(const welcome_intro_layout* layout)
+{
+    return welcome_screen_intro_row(16, layout);
+}
+
+static int welcome_screen_intro_total_rows(const welcome_intro_layout* layout)
+{
+    int top_pad = 1;
+
+    if (layout)
+        top_pad = layout->top_pad;
+    if (top_pad < 0)
+        top_pad = 0;
+
+    return top_pad + welcome_screen_intro_last_row(layout);
+}
+
+static int welcome_screen_footer_rows(bool show_wizard, bool show_sep,
+    bool show_blank, bool show_prompt)
+{
+    int rows = 0;
+
+    if (show_prompt)
+        rows++;
+    if (show_blank && show_prompt)
+        rows++;
+    if (show_sep)
+        rows++;
+    if (show_wizard)
+        rows++;
+
+    return rows;
+}
+
+static void welcome_screen_compute_layout(int hgt, bool show_wizard,
+    welcome_intro_layout* out_layout, bool* out_show_sep,
+    bool* out_show_blank, bool* out_show_prompt)
+{
+    welcome_intro_layout layout = { 1, false, false, false };
+    bool show_sep = true;
+    bool show_blank = true;
+    bool show_prompt = true;
+
+    if (hgt < 1)
+        hgt = 24;
+
+#define FITS_NOW() \
+    (welcome_screen_intro_total_rows(&layout) \
+        + welcome_screen_footer_rows(show_wizard, show_sep, show_blank, show_prompt) \
+        <= hgt)
+
+    if (!FITS_NOW())
+        layout.top_pad = 0;
+
+    if (!FITS_NOW())
+        show_blank = false;
+
+    if (!FITS_NOW())
+        show_sep = false;
+
+    if (!FITS_NOW())
+        layout.drop_gap_3 = true;
+    if (!FITS_NOW())
+        layout.drop_gap_2 = true;
+    if (!FITS_NOW())
+        layout.drop_gap_1 = true;
+
+    if (!FITS_NOW())
+        show_prompt = false;
+
+    if (!show_prompt)
+        show_blank = false;
+
+#undef FITS_NOW
+
+    if (out_layout)
+        *out_layout = layout;
+    if (out_show_sep)
+        *out_show_sep = show_sep;
+    if (out_show_blank)
+        *out_show_blank = show_blank;
+    if (out_show_prompt)
+        *out_show_prompt = show_prompt;
+}
+
+static void display_introduction_with_layout(
+    const welcome_intro_layout* layout)
+{
+    int term_wid = 80;
+    int term_hgt = 24;
+    int top_pad = 1;
+
+    if (layout)
+        top_pad = layout->top_pad;
+    if (top_pad < 0)
+        top_pad = 0;
+
+    const int y = top_pad; /* legacy intro rows start at row 1 with one blank line above */
+    const int intro_col = welcome_screen_base_col();
+    const int subtitle_col = intro_col + 6;
+    const int title_col = intro_col + 8;
+    const int quote_attr_col = intro_col + 20;
+    const int song_attr_col = intro_col + 14;
+
+    Term_get_size(&term_wid, &term_hgt);
+    if (term_hgt < 1)
+        term_hgt = 24;
+
+#define INTRO_ROW(_rel) (y + welcome_screen_intro_row((_rel), layout) - 1)
+
     /* Clear screen */
     Term_clear();
 
-     /* Hide the cursor for the intro screen while rendering. Do NOT
-         toggle the global hide_cursor here — callers (menus) should set
-         hide_cursor around any following input waits. */
-     bool _saved_cursor_state = false;
-     (void)Term_get_cursor(&_saved_cursor_state);
-     (void)Term_set_cursor(false);
+    /* Hide the cursor for the intro screen while rendering. Do NOT
+        toggle the global hide_cursor here — callers (menus) should set
+        hide_cursor around any following input waits. */
+    bool _saved_cursor_state = false;
+    (void)Term_get_cursor(&_saved_cursor_state);
+    (void)Term_set_cursor(false);
 
-    Term_putstr(12, 1, -1, TERM_L_BLUE,
-        "    The world was young, the mountains green,            ");
-    Term_putstr(12, 2, -1, TERM_L_BLUE,
-        "       No stain yet on the moon was seen...              ");
+    /* Resolve intro style from setting. 0-4 = fixed, 5 = random. */
+    int intro_style;
+    if (sdl_config_should_force_intro_flame())
+        intro_style = INTRO_STYLE_FLAME;
+    else if (op_ptr->intro_style == INTRO_STYLE_RANDOM)
+        intro_style = (int)(SDL_GetTicks() % 7u);  /* 0..6 */
+    else
+        intro_style = (int)op_ptr->intro_style;
 
-    Term_putstr(12, 5, -1, TERM_WHITE,
-        "Welcome to Sil-More, Shining Darkness                ");
-    Term_putstr(12, 6, -1, TERM_WHITE,
-        "  An adventure set in Middle-earth's mythic past,                    ");
-    Term_putstr(12, 7, -1, TERM_WHITE,
-        "    when the world still rang with elven song          ");
-    Term_putstr(12, 8, -1, TERM_WHITE,
-        "      and gleamed with dwarven mail.                   ");
+    switch (intro_style)
+    {
+    /* ===== Variant 0  "Flame Imperishable" (Ainulindale) =============== */
+    case 0:
+    default:
+        Term_putstr(intro_col, INTRO_ROW(1), -1, TERM_L_BLUE,
+            "\"In the beginning Eru, the One,");
+        Term_putstr(intro_col, INTRO_ROW(2), -1, TERM_L_BLUE,
+            "  made the Ainur of his thought;");
+        Term_putstr(intro_col, INTRO_ROW(3), -1, TERM_L_BLUE,
+            "  and they sang, and he was glad.\"");
+        Term_putstr(quote_attr_col, INTRO_ROW(4), -1, TERM_SLATE,
+            "-- Ainulindale");
 
-    Term_putstr(12, 10, -1, TERM_YELLOW,
-        " A reimagining of the classic Sil experience,       ");
-    Term_putstr(12, 11, -1, TERM_YELLOW,
-        "   enriched by modern roguelike mechanics.                        ");
+        Term_putstr(title_col, INTRO_ROW(6), -1, TERM_WHITE,
+            "S I L - M O R E");
+        Term_putstr(subtitle_col, INTRO_ROW(7), -1, TERM_L_BLUE,
+            "~ Shining  Darkness ~");
 
-    Term_putstr(12, 13, -1, TERM_WHITE,
-        "Walk the dark halls of Angband and slay creatures black and fell.");
-    Term_putstr(12, 14, -1, TERM_WHITE,
-        "  Wrest a shining Silmaril from Morgoth's iron crown.");
-    Term_putstr(12, 15, -1, TERM_WHITE,
-        "    Endure the curses of evil, guided by the wisdom of the Valar. ");
-    Term_putstr(12, 16, -1, TERM_WHITE,
-        "      And prove your right to live in the lands of Valinor.");
+        Term_putstr(intro_col, INTRO_ROW(9), -1, TERM_WHITE,
+            "In the deeps of Angband, beyond");
+        Term_putstr(intro_col, INTRO_ROW(10), -1, TERM_WHITE,
+            "gates of iron and pits of flame,");
+        Term_putstr(intro_col, INTRO_ROW(11), -1, TERM_WHITE,
+            "Morgoth hoards the Silmarils --");
+        Term_putstr(intro_col, INTRO_ROW(12), -1, TERM_WHITE,
+            "three jewels of living light.");
+
+        Term_putstr(intro_col, INTRO_ROW(14), -1, TERM_YELLOW,
+            "Take up blade and burden. Descend.");
+        Term_putstr(intro_col, INTRO_ROW(15), -1, TERM_YELLOW,
+            "Oaths, quests, blessings of the Valar");
+        Term_putstr(intro_col, INTRO_ROW(16), -1, TERM_YELLOW,
+            "await in the First Age reborn.");
+        break;
+
+    /* ===== Variant 1  "Oath of Feanor" ================================= */
+    case 1:
+        Term_putstr(intro_col, INTRO_ROW(1), -1, TERM_L_BLUE,
+            "\"Be he foe or friend,");
+        Term_putstr(intro_col, INTRO_ROW(2), -1, TERM_L_BLUE,
+            "  be he foul or clean...");
+        Term_putstr(intro_col, INTRO_ROW(3), -1, TERM_L_BLUE,
+            "  he shall defend, shall be held mine.\"");
+        Term_putstr(quote_attr_col, INTRO_ROW(4), -1, TERM_SLATE,
+            "-- Oath of Feanor");
+
+        Term_putstr(title_col, INTRO_ROW(6), -1, TERM_WHITE,
+            "S I L - M O R E");
+        Term_putstr(subtitle_col, INTRO_ROW(7), -1, TERM_L_BLUE,
+            "~ Shining  Darkness ~");
+
+        Term_putstr(intro_col, INTRO_ROW(9), -1, TERM_WHITE,
+            "In the pits beneath the mountains");
+        Term_putstr(intro_col, INTRO_ROW(10), -1, TERM_WHITE,
+            "Morgoth broods upon his throne.");
+        Term_putstr(intro_col, INTRO_ROW(11), -1, TERM_WHITE,
+            "Three jewels burn upon his crown --");
+        Term_putstr(intro_col, INTRO_ROW(12), -1, TERM_WHITE,
+            "stolen light that is not his own.");
+
+        Term_putstr(intro_col, INTRO_ROW(14), -1, TERM_YELLOW,
+            "Take up blade and burden. Descend.");
+        Term_putstr(intro_col, INTRO_ROW(15), -1, TERM_YELLOW,
+            "Oaths, quests, blessings of the Valar");
+        Term_putstr(intro_col, INTRO_ROW(16), -1, TERM_YELLOW,
+            "await in the First Age reborn.");
+        break;
+
+    /* ===== Variant 2  "Twilight of Valinor" (quote at end) ============= */
+    case 2:
+        Term_putstr(title_col, INTRO_ROW(1), -1, TERM_WHITE,
+            "S I L - M O R E");
+        Term_putstr(subtitle_col, INTRO_ROW(2), -1, TERM_L_BLUE,
+            "~ Shining  Darkness ~");
+
+        Term_putstr(intro_col, INTRO_ROW(4), -1, TERM_WHITE,
+            "Before the Sun and Moon were wrought");
+        Term_putstr(intro_col, INTRO_ROW(5), -1, TERM_WHITE,
+            "the Eldar walked by starlight alone.");
+        Term_putstr(intro_col, INTRO_ROW(6), -1, TERM_WHITE,
+            "Now shadow stirs beneath the earth");
+        Term_putstr(intro_col, INTRO_ROW(7), -1, TERM_WHITE,
+            "where Morgoth sits upon his throne.");
+
+        Term_putstr(intro_col, INTRO_ROW(9), -1, TERM_WHITE,
+            "Three jewels blaze upon his crown --");
+        Term_putstr(intro_col, INTRO_ROW(10), -1, TERM_WHITE,
+            "stolen fire none may reclaim...");
+        Term_putstr(intro_col, INTRO_ROW(11), -1, TERM_WHITE,
+            "unless one dares the iron dark");
+        Term_putstr(intro_col, INTRO_ROW(12), -1, TERM_WHITE,
+            "and walks through everlasting flame.");
+
+        Term_putstr(intro_col, INTRO_ROW(14), -1, TERM_L_BLUE,
+            "\"...and the light that blazed in them");
+        Term_putstr(intro_col, INTRO_ROW(15), -1, TERM_L_BLUE,
+            "  no power could dim or mar.\"");
+        Term_putstr(quote_attr_col, INTRO_ROW(16), -1, TERM_SLATE,
+            "-- Of the Silmarils");
+        break;
+
+    /* ===== Variant 3  "Song of Luthien" ================================ */
+    case 3:
+        Term_putstr(intro_col, INTRO_ROW(1), -1, TERM_L_BLUE,
+            "\"The leaves were long, the grass was green,");
+        Term_putstr(intro_col, INTRO_ROW(2), -1, TERM_L_BLUE,
+            "  the hemlock-umbels tall and fair,");
+        Term_putstr(intro_col, INTRO_ROW(3), -1, TERM_L_BLUE,
+            "  and in the glade a light was seen");
+        Term_putstr(intro_col, INTRO_ROW(4), -1, TERM_L_BLUE,
+            "  of stars in shadow shimmering.\"");
+        Term_putstr(song_attr_col, INTRO_ROW(5), -1, TERM_SLATE,
+            "-- Of Beren and Luthien");
+
+        Term_putstr(title_col, INTRO_ROW(7), -1, TERM_WHITE,
+            "S I L - M O R E");
+        Term_putstr(subtitle_col, INTRO_ROW(8), -1, TERM_L_BLUE,
+            "~ Shining  Darkness ~");
+
+        Term_putstr(intro_col, INTRO_ROW(10), -1, TERM_WHITE,
+            "Even in the deepest dark, a song");
+        Term_putstr(intro_col, INTRO_ROW(11), -1, TERM_WHITE,
+            "may still undo the mightiest door.");
+        Term_putstr(intro_col, INTRO_ROW(12), -1, TERM_WHITE,
+            "Dare the throne-hall of the Enemy");
+        Term_putstr(intro_col, INTRO_ROW(13), -1, TERM_WHITE,
+            "and seize what Morgoth stole of old.");
+
+        Term_putstr(intro_col, INTRO_ROW(15), -1, TERM_YELLOW,
+            "Oaths, quests, blessings of the Valar");
+        Term_putstr(intro_col, INTRO_ROW(16), -1, TERM_YELLOW,
+            "await in the First Age reborn.");
+        break;
+
+    /* ===== Variant 4  "Words of Hurin" ================================= */
+    case 4:
+        Term_putstr(intro_col, INTRO_ROW(1), -1, TERM_L_BLUE,
+            "\"The day shall come again when you");
+        Term_putstr(intro_col, INTRO_ROW(2), -1, TERM_L_BLUE,
+            "  shall see the Sun once more.\"");
+        Term_putstr(quote_attr_col, INTRO_ROW(3), -1, TERM_SLATE,
+            "-- Words of Hurin");
+
+        Term_putstr(title_col, INTRO_ROW(5), -1, TERM_WHITE,
+            "S I L - M O R E");
+        Term_putstr(subtitle_col, INTRO_ROW(6), -1, TERM_L_BLUE,
+            "~ Shining  Darkness ~");
+
+        Term_putstr(intro_col, INTRO_ROW(8), -1, TERM_WHITE,
+            "No chain can hold a will unbroken.");
+        Term_putstr(intro_col, INTRO_ROW(9), -1, TERM_WHITE,
+            "Though Morgoth's shadow covers all,");
+        Term_putstr(intro_col, INTRO_ROW(10), -1, TERM_WHITE,
+            "the free may still defy the dark");
+        Term_putstr(intro_col, INTRO_ROW(11), -1, TERM_WHITE,
+            "and wrest a jewel from his crown.");
+
+        Term_putstr(intro_col, INTRO_ROW(13), -1, TERM_YELLOW,
+            "Take up blade and burden. Descend.");
+        Term_putstr(intro_col, INTRO_ROW(14), -1, TERM_YELLOW,
+            "Oaths, quests, blessings of the Valar");
+        Term_putstr(intro_col, INTRO_ROW(15), -1, TERM_YELLOW,
+            "await in the First Age reborn.");
+
+        Term_putstr(intro_col, INTRO_ROW(16), -1, TERM_L_BLUE,
+            "\"Aure entuluva!\"");
+        break;
+
+    /* ===== Variant 5  "Starlight on Cuivienen" ========================= */
+    case 5:
+        Term_putstr(title_col, INTRO_ROW(1), -1, TERM_WHITE, "S I L - M O R E");
+        Term_putstr(subtitle_col, INTRO_ROW(2), -1, TERM_L_BLUE,
+            "~ Shining  Darkness ~");
+        Term_putstr(intro_col, INTRO_ROW(4), -1, TERM_WHITE,
+            "By silver waters Elves first woke");
+        Term_putstr(intro_col, INTRO_ROW(5), -1, TERM_WHITE,
+            "beneath the stars ere morning broke.");
+        Term_putstr(intro_col, INTRO_ROW(6), -1, TERM_WHITE,
+            "No sun had risen, no moon shone --");
+        Term_putstr(intro_col, INTRO_ROW(7), -1, TERM_WHITE,
+            "just heaven's light on lake and stone.");
+        Term_putstr(intro_col, INTRO_ROW(9), -1, TERM_WHITE,
+            "Then Morgoth's shadow veiled the land");
+        Term_putstr(intro_col, INTRO_ROW(10), -1, TERM_WHITE,
+            "and stole the Light with iron hand.");
+        Term_putstr(intro_col, INTRO_ROW(11), -1, TERM_WHITE,
+            "Yet still a whisper stirs the deep:");
+        Term_putstr(intro_col, INTRO_ROW(12), -1, TERM_WHITE,
+            "what darkness took, the bold may reap.");
+        Term_putstr(intro_col, INTRO_ROW(14), -1, TERM_L_BLUE,
+            "\"...the starlight glittered");
+        Term_putstr(intro_col, INTRO_ROW(15), -1, TERM_L_BLUE,
+            "  on the waters of Cuivienen.\"");
+        Term_putstr(quote_attr_col, INTRO_ROW(16), -1, TERM_SLATE,
+            "-- Of the Coming of the Elves");
+        break;
+
+    /* ===== Variant 6  "Lament of the Noldor" ========================== */
+    case 6:
+        Term_putstr(title_col, INTRO_ROW(1), -1, TERM_WHITE, "S I L - M O R E");
+        Term_putstr(subtitle_col, INTRO_ROW(2), -1, TERM_L_BLUE,
+            "~ Shining  Darkness ~");
+        Term_putstr(intro_col, INTRO_ROW(4), -1, TERM_WHITE,
+            "In Valinor the Two Trees shone");
+        Term_putstr(intro_col, INTRO_ROW(5), -1, TERM_WHITE,
+            "with gold and silver, leaf and bough.");
+        Term_putstr(intro_col, INTRO_ROW(6), -1, TERM_WHITE,
+            "Their mingled light is dead and gone --");
+        Term_putstr(intro_col, INTRO_ROW(7), -1, TERM_WHITE,
+            "the world lies under shadow now.");
+        Term_putstr(intro_col, INTRO_ROW(9), -1, TERM_WHITE,
+            "Across the ice the exiles came,");
+        Term_putstr(intro_col, INTRO_ROW(10), -1, TERM_WHITE,
+            "the Noldor burning with their oath.");
+        Term_putstr(intro_col, INTRO_ROW(11), -1, TERM_WHITE,
+            "They traded bliss for grief and flame");
+        Term_putstr(intro_col, INTRO_ROW(12), -1, TERM_WHITE,
+            "and lost the blessing of them both.");
+        Term_putstr(intro_col, INTRO_ROW(14), -1, TERM_L_BLUE,
+            "\"...and the Noldor wept");
+        Term_putstr(intro_col, INTRO_ROW(15), -1, TERM_L_BLUE,
+            "  for the beauty of Telperion and Laurelin.\"");
+        Term_putstr(quote_attr_col, INTRO_ROW(16), -1, TERM_SLATE,
+            "-- Of the Darkening of Valinor");
+        break;
+    }
 
     /* Flush it */
     Term_fresh();
 
     /* Restore cursor visibility */
     (void)Term_set_cursor(_saved_cursor_state);
+
+#undef INTRO_ROW
+}
+
+static void welcome_screen_draw_footer(bool show_wizard, bool show_sep,
+    bool show_blank, bool show_prompt)
+{
+    int term_wid = 80;
+    int term_hgt = 24;
+    int row;
+    int footer_rows;
+    int clear_row;
+    const int x = welcome_screen_base_col();
+    const char *wizard_line = "Resurrecting a character is a form of cheating.";
+    const char *sep_line = "- - - - - - - - - - - -";
+    const char *menu_line =
+        (metarun_created == true)
+            ? "[Space] Begin    [Q/Esc] Quit"
+            : "[Space] Continue  [Q/Esc] Quit";
+
+    Term_get_size(&term_wid, &term_hgt);
+    if (term_hgt < 1)
+        term_hgt = 24;
+
+    row = term_hgt - 1;
+    footer_rows = welcome_screen_footer_rows(show_wizard, show_sep,
+        show_blank, show_prompt);
+
+    if (footer_rows > 0)
+    {
+        clear_row = row - footer_rows + 1;
+        if (clear_row < 0)
+            clear_row = 0;
+
+        for (; clear_row <= row; clear_row++)
+            Term_erase(0, clear_row, 255);
+    }
+
+    if (show_prompt && row >= 0 && row < term_hgt)
+    {
+        Term_putstr(x, row, -1, TERM_SLATE, menu_line);
+        row--;
+    }
+
+    if (show_blank && row >= 0)
+        row--;
+
+    if (show_sep && row >= 0 && row < term_hgt)
+    {
+        Term_putstr(x, row, -1, TERM_L_DARK, sep_line);
+        row--;
+    }
+
+    if (show_wizard && row >= 0 && row < term_hgt)
+        Term_putstr(x, row, 60, TERM_BLUE, wizard_line);
 }
 
 /*
@@ -1851,33 +3045,47 @@ extern void display_introduction(void)
  */
 void init_angband(void)
 {
-    int fd;
+    SDL_IOStream* fd;
 
     int mode = 0644;
 
     char buf[1024];
     int i;
 
+    /* Load app-wide settings before the first intro render so the welcome
+     * screen uses the configured style and first-launch state. */
+    sdl_config_load_app_options(get_sdl_config_path());
+    run_mode_reset();
+
     /*** Display the introduction ***/
 
-#ifdef USE_SDL
     sdl_story_font_enable();
-#endif
     display_introduction();
-#ifdef USE_SDL
     sdl_story_font_reset();
-#endif
 
     /*** Verify (or create) the "high score" file ***/
 
     /* Build the filename */
+#ifdef SIL_USE_LOCAL_DATA
     path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
+#else
+    /* Normal build: scores.raw in meta directory */
+    if (ANGBAND_DIR_METARUN && *ANGBAND_DIR_METARUN) {
+        char meta_dir[1024];
+        SDL_strlcpy(meta_dir, ANGBAND_DIR_METARUN, sizeof(meta_dir));
+        char* last_sep = strrchr(meta_dir, PATH_SEP[0]);
+        if (last_sep) *last_sep = '\0';
+        path_build(buf, sizeof(buf), meta_dir, "scores.raw");
+    } else {
+        path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
+    }
+#endif
 
     /* Attempt to open the high score file */
-    fd = fd_open(buf, O_RDONLY);
+    fd = sdl_fopen(buf, "rb");
 
     /* Failure */
-    if (fd < 0)
+    if (!fd)
     {
         /* File type is "DATA" */
         FILE_TYPE(FILE_TYPE_DATA);
@@ -1886,13 +3094,13 @@ void init_angband(void)
         safe_setuid_grab();
 
         /* Create a new high score file */
-        fd = fd_make(buf, mode);
+        fd = sdl_fmake(buf, mode);
 
         /* Drop permissions */
         safe_setuid_drop();
 
         /* Failure */
-        if (fd < 0)
+        if (!fd)
         {
             char why[1024];
 
@@ -1905,21 +3113,21 @@ void init_angband(void)
         else
         {
             /* Write version header to new scores file */
-            score_file_header header;
-            header.version_major = VERSION_MAJOR;
-            header.version_minor = VERSION_MINOR;
-            header.version_patch = VERSION_PATCH;
-            header.version_extra = VERSION_EXTRA;
+        score_file_header header;
+        header.version_major = SCORE_FILE_VERSION_MAJOR;
+        header.version_minor = SCORE_FILE_VERSION_MINOR;
+        header.version_patch = SCORE_FILE_VERSION_PATCH;
+        header.version_extra = SCORE_FILE_VERSION_EXTRA;
             header.entry_count = 0;
             header.reserved[0] = 0;
             header.reserved[1] = 0;
             
-            fd_write(fd, (cptr)&header, sizeof(header));
+            sdl_write(fd, (cptr)&header, sizeof(header));
         }
     }
 
     /* Close it */
-    fd_close(fd);
+    sdl_fclose(fd);
 
     log_info("Loading metarun...");
     // Load metarun
@@ -1959,6 +3167,40 @@ void init_angband(void)
     note("[Initializing arrays... (artefacts)]");
     if (init_a_info())
         quit("Cannot initialize artefacts");
+    ensure_artifact_guids();
+    ensure_artifact_spawn_numbers();
+
+    /* Load item sets (data-driven bonuses + paired weapons) */
+    note("[Initializing arrays... (item sets)]");
+    {
+        SDL_IOStream* fp;
+        char path[1024];
+        char linebuf[1024];
+        header set_head;
+        errr err;
+
+        init_header(&set_head, 1, 1);
+        item_sets_reset();
+
+        path_build(path, sizeof(path), ANGBAND_DIR_EDIT, format("%s.txt", "set"));
+        fp = sdl_fopen(path, "r");
+        if (!fp)
+        {
+            log_warn("init_angband: No set.txt found at '%s' (item sets disabled)", path);
+        }
+        else
+        {
+            err = init_info_txt(fp, linebuf, &set_head, parse_set_info);
+            sdl_fclose(fp);
+
+            if (err)
+                display_parse_error("set", err, linebuf);
+
+            err = item_sets_finalize();
+            if (err)
+                display_parse_error("set", err, "set validation");
+        }
+    }
 
     /* Initialize special item info */
     note("[Initializing arrays... (special items)]");
@@ -1969,16 +3211,6 @@ void init_angband(void)
     note("[Initializing arrays... (monsters)]");
     if (init_r_info())
         quit("Cannot initialize monsters");
-
-    /* Snapshot monster base stats for runtime overrides */
-    if (!r_base)
-    {
-        C_MAKE(r_base, z_info->r_max, monster_race);
-    }
-    for (i = 0; i < z_info->r_max; i++)
-    {
-        r_base[i] = r_info[i];
-    }
 
     /* Initialize feature info */
     note("[Initializing arrays... (vaults)]");
@@ -2001,6 +3233,8 @@ void init_angband(void)
         quit("Cannot initialize styles");
     style_info = (style_type*)style_head.info_ptr;
     style_name = style_head.name_ptr;
+    if (init_partition_info())
+        quit("Cannot initialize partition rules");
 
     /* Initialize curses info */
     note("[Initializing arrays... (curses)]");
@@ -2011,21 +3245,33 @@ void init_angband(void)
     note("[Initializing arrays... (blessings)]");
     if (init_mb_info())
         quit("Cannot initialize major blessings");
+    /* Apply major blessing effects now that blessing data is loaded */
+    metarun_apply_runtime_effects();
 
     /* Initialize race info */
     note("[Initializing arrays... (races)]");
     if (init_p_info())
         quit("Cannot initialize races");
 
-    /* Initialize house info */
-    note("[Initializing arrays... (houses)]");
+    /* Initialize character info */
+    note("[Initializing arrays... (characters)]");
     if (init_c_info())
-        quit("Cannot initialize houses");
+        quit("Cannot initialize characters");
 
     /* Initialize flavor info */
     note("[Initializing arrays... (flavors)]");
     if (init_flavor_info())
         quit("Cannot initialize flavors");
+
+    /* Initialize special effect graphics */
+    note("[Initializing arrays... (effects)]");
+    if (init_effect_info())
+        quit("Cannot initialize effects");
+
+    /* Initialize skeleton note templates */
+    note("[Initializing arrays... (skeleton notes)]");
+    if (init_skeleton_note_info())
+        quit("Cannot initialize skeleton notes");
 
     /* Initialize quest info */
     note("[Initializing arrays... (quests)]");
@@ -2065,6 +3311,18 @@ void init_angband(void)
     /*Build the randart probability tables based on the standard Artefact Set*/
     build_randart_tables();
 
+    /* Snapshot the fully initialized monster templates. This baseline must be
+     * taken after prefs and mon_power setup so load can restore clean runtime
+     * race data without replaying stale pre-init values. */
+    if (!r_base)
+    {
+        r_base = mem_alloc_array(z_info->r_max, monster_race);
+    }
+    for (i = 0; i < z_info->r_max; i++)
+    {
+        r_base[i] = r_info[i];
+    }
+
     /* Clean up old files if this is a fresh start (no existing metarun) */
     if (metarun_created) {
         cleanup_old_game_files();
@@ -2078,37 +3336,77 @@ void init_angband(void)
 /* --- UPDATED MAIN-MENU HANDLER ---------------------------------------- */
 extern NavResult initial_menu(bool *start_new)
 {
+    log_info("initial_menu: ENTERED - showing main menu");
+    if (sdl_music_consume_welcome_main_once()
+        || score_count_alive_entries() > 0)
+        sdl_music_play_main();
+    else
+        sdl_music_play_main_full();
+
     int ch;
     NavResult result = NAV_BACK;
-#ifdef USE_SDL
     bool intro_story_font = true;
     sdl_story_font_enable();
-#endif
 
-    display_introduction();
+    int wid, hgt;
+    Term_get_size(&wid, &hgt);
+    (void)wid;
 
-    /* wizard-mode resurrection warning or blank it out */
-    if (arg_wizard)
-        Term_putstr(15, 17, 80, TERM_BLUE,
-            "Resurrecting a character is a form of cheating.");
-    else
-        Term_putstr(15, 17, 80, TERM_BLUE,
-            "                                                ");
+    /* Build the welcome screen as a single layout block.
+     * Default keeps the legacy top margin (intro starts at row 1).
+     * If the terminal is too short for that, start at row 0. */
+    bool show_sep;
+    bool show_blank;
+    bool show_prompt;
+    bool show_wizard_line = arg_wizard;
 
-    /* frame */
-    Term_putstr(12, 17, 60, TERM_L_DARK,
-        "______________________________________________________");
+    welcome_screen_compute_layout(hgt, show_wizard_line, NULL,
+        &show_sep, &show_blank, &show_prompt);
+    welcome_screen_draw_footer(show_wizard_line, show_sep, show_blank,
+        show_prompt);
+    if (false)
+    /*
+     * Welcome screen (minimum height support)
+     *
+     * The intro text is fixed-position; the menu block below must fit on
+     * small terminals (e.g. 20 rows).
+     *
+     * Fit rules (as requested):
+     *   1) Try to show all lines in order (starting from “string 0”).
+     *   2) If it doesn't fit, delete the empty line between separator and prompt.
+     *   3) If it still doesn't fit, delete the separator and place the prompt there.
+     *
+     * Other text remains unchanged (no rewording/compacting).
+     */
+    {
+        const int x = welcome_screen_base_col();
+        const char *wizard_line =
+            "Resurrecting a character is a form of cheating.";
+        const char *sep_line = "- - - - - - - - - - - -";
+        const char *menu_line =
+            (metarun_created == true)
+                ? "[Space] Begin    [Q/Esc] Quit"
+                : "[Space] Continue  [Q/Esc] Quit";
+        int row = hgt - 1;
 
-    /* menu lines (new order) */
-    if (metarun_created == true)
-    Term_putstr(16, 19, 50, TERM_L_BLUE,
-        "Start your story (press space to continue)");
-    else
-    Term_putstr(16, 19, 50,TERM_L_BLUE,
-        "Continue your story (press space to continue)");
+        if (show_prompt && row >= 0 && row < hgt)
+        {
+            Term_putstr(x, row, -1, TERM_SLATE, menu_line);
+            row--;
+        }
 
-    Term_putstr(25, 22, 30,TERM_WHITE,
-        "press q or ESC to exit");
+        if (show_blank && row >= 0)
+            row--;
+
+        if (show_sep && row >= 0 && row < hgt)
+        {
+            Term_putstr(x, row, -1, TERM_L_DARK, sep_line);
+            row--;
+        }
+
+        if (show_wizard_line && row >= 0 && row < hgt)
+            Term_putstr(x, row, 60, TERM_BLUE, wizard_line);
+    }
 
     Term_fresh();
 
@@ -2123,6 +3421,8 @@ extern NavResult initial_menu(bool *start_new)
     /* enter : CONTINUE  */
     if (ch == '\n' || ch == '\r' || ch == ' ')
     {
+        log_info("initial_menu: User pressed space/enter - starting game");
+        run_mode_set_pending(RUN_MODE_STORY);
         *start_new = true;
         result = NAV_OK;   /* start new game */
         goto menu_done;
@@ -2137,10 +3437,13 @@ extern NavResult initial_menu(bool *start_new)
     }
 
 menu_done:
-#ifdef USE_SDL
+    log_info("initial_menu: EXITING with result=%d", result);
+    if (sdl_config_should_force_intro_flame()) {
+        sdl_config_mark_intro_seen();
+        save_pane_config_to_json();
+    }
     if (intro_story_font)
         sdl_story_font_reset();
-#endif
     return result;
 }
 /* ---------------------------------------------------------------------- */
@@ -2155,37 +3458,39 @@ void cleanup_angband(void)
     macro_trigger_free();
 
     /* Free the allocation tables */
-    FREE(alloc_ego_table);
-    FREE(alloc_race_table);
-    FREE(alloc_kind_table);
+    mem_free_null(alloc_ego_table);
+    mem_free_null(alloc_race_table);
+    mem_free_null(alloc_kind_table);
 
     /* Free the player inventory */
-    FREE(inventory);
+    mem_free_null(inventory);
 
     /*Clean the Autoinscribe*/
     autoinscribe_clean();
 
     /* Free the lore, monster, and object lists */
-    FREE(l_list);
-    FREE(mon_list);
-    FREE(o_list);
+    mem_free_null(l_list);
+    mem_free_null(mon_list);
+    mem_free_null(o_list);
 
     /* Flow arrays */
-    FREE(cave_when);
+    mem_free_null(cave_when);
 
     /* Free the cave */
-    FREE(cave_o_idx);
-    FREE(cave_m_idx);
-    FREE(cave_feat);
-    FREE(cave_color);
-    FREE(cave_info);
-    FREE(cave_light);
+    mem_free_null(cave_o_idx);
+    mem_free_null(cave_m_idx);
+    mem_free_null(cave_feat);
+    mem_free_null(cave_color);
+    mem_free_null(cave_info);
+    mem_free_null(cave_light);
 
     /* Free the "update_view()" array */
-    FREE(view_g);
+    mem_free_null(view_g);
 
-    /* Free the temp array */
-    FREE(temp_g);
+    /* Free the temp arrays */
+    mem_free_null(temp_g);
+    mem_free_null(temp_y);
+    mem_free_null(temp_x);
 
     /* Free the messages */
     messages_free();
@@ -2212,23 +3517,37 @@ void cleanup_angband(void)
     free_info(&z_head);
     free_info(&n_head);
     free_info(&style_head);
+    free_info(&skeleton_note_head);
 
-    /* Free the format() buffer */
-    vformat_kill();
+    /* Note: format() now uses a static buffer, no cleanup needed */
 
     /* Free the directories */
-    string_free(ANGBAND_DIR);
-    string_free(ANGBAND_DIR_APEX);
-    string_free(ANGBAND_DIR_METARUN);
-    string_free(ANGBAND_DIR_BONE);
-    string_free(ANGBAND_DIR_DATA);
-    string_free(ANGBAND_DIR_EDIT);
-    string_free(ANGBAND_DIR_FILE);
-    string_free(ANGBAND_DIR_HELP);
-    string_free(ANGBAND_DIR_INFO);
-    string_free(ANGBAND_DIR_SAVE);
-    string_free(ANGBAND_DIR_PREF);
-    string_free(ANGBAND_DIR_USER);
-    string_free(ANGBAND_DIR_XTRA);
-    string_free(ANGBAND_DIR_SCRIPT);
+    str_free(ANGBAND_DIR);
+    str_free(ANGBAND_DIR_APEX);
+    str_free(ANGBAND_DIR_METARUN);
+    str_free(ANGBAND_DIR_BONE);
+    str_free(ANGBAND_DIR_DATA);
+    str_free(ANGBAND_DIR_EDIT);
+    str_free(ANGBAND_DIR_FILE);
+    str_free(ANGBAND_DIR_HELP);
+    str_free(ANGBAND_DIR_INFO);
+    str_free(ANGBAND_DIR_SAVE);
+    str_free(ANGBAND_DIR_PREF);
+    str_free(ANGBAND_DIR_USER);
+    str_free(ANGBAND_DIR_XTRA);
+    str_free(ANGBAND_DIR_SCRIPT);
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+

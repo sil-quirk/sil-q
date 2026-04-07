@@ -26,7 +26,9 @@
 #include <sys/time.h>
 #endif
 
+#if !defined(__ANDROID__)
 #include <sys/timeb.h>
+#endif
 
 #endif
 

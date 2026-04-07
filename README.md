@@ -26,7 +26,7 @@ Secondly, it uses a system of metaruns, where consequtive runs are connected int
    ```
    Or manually configure and build:
    ```bash
-   cmake -G "MinGW Makefiles" -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=C:/msys64/mingw64 -DUSE_SDL=ON -DUSE_GCU=OFF
+   cmake -G "MinGW Makefiles" -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=C:/msys64/mingw64
    cmake --build build --parallel
    ```
 5. The executable will be in `build/sil-more.exe` and deployed to `sil-more-windows-sdl3/`.
@@ -58,7 +58,7 @@ Secondly, it uses a system of metaruns, where consequtive runs are connected int
 2. Navigate to the Sil-More source directory.
 3. Configure and build:
    ```bash
-   cmake -B build -DCMAKE_BUILD_TYPE=Release -DUSE_SDL=ON -DUSE_GCU=OFF
+   cmake -B build -DCMAKE_BUILD_TYPE=Release
    cmake --build build --parallel
    ```
 4. The executable will be in `build/sil-more`.
@@ -108,85 +108,6 @@ Secondly, it uses a system of metaruns, where consequtive runs are connected int
 - (optional) If you want to see artwork in your steam deck menus, Properties -> Customization. We have prepaired a CoverArt folder for you (do not forget to png in filter).
 - Open controller setup. You should see the layout on Community layouts or in search. If not, open the link Steam-Deck-layout-Sil-More in game folder, current link is steam://controllerconfig/4068119597/3573052583.
 - Return back to Game mode and enjoy Sil-More!  
-
-# Old systems support
-# Compiling Instructions 
-
-Compiling Sil-More is not very difficult, and has been tested on Windows, Linux, and OS X.
-
-Makefiles for various other systems still exist as a legacy from Sil.
-
-The first step is the same on all systems, so do this and then look through
-this file for advice on your specific system.
-
-0. Install the Sil source code:
-
-   Unzip the file "Sil-src.zip". It will become a folder called "Sil"
-   which contains subfolders called "lib" and "src". Move it to wherever
-   you want to keep it. The src folder contains all the source code
-   while the lib folder contains other files that the game uses.
-   When you are done compiling, the game will be automatically installed
-   in the Sil folder as well.
-
-
-## Linux or Unix with gcc
-
-   GCU: Works in a terminal using 'curses', has only 16 or 8 colours.
-
-
-1. Mess with the Makefile:
-
-   Edit Makefile.std in the src directory.
-   Look for the section listing multiple "Variations".
-   Choose the variation that you like best.
-   Remove the # comments from that section's code.
-   Comment out the default section.
-
-2. Compile Sil-More:
-
-   Run "make -f Makefile.std install" in the src directory.
-
-3. Run Sil-More:
-
-   Go back to the Sil folder and start Sil-More with "sil".
-
-## Windows with Cygwin  (You can also download latest Release)
-
-1. Getting the free Cygwin compiler:
-
-   Download the free Cygwin compiler. It provides a shell interface very
-   similar to a normal Unix/Linux shell with many useful tools. Install it
-   and start the Cygwin terminal. Make sure to get the 32 bit version.
-
-   Note you will have to ensure "make" and the mingw C compiler are installed
-   as they may not be included in your Cygwin default installation.
-
-2. Compile Sil-More:
-
-   In the Cygwin terminal change to the src directory and run
-   "make -f Makefile.cyg install".
-   Sil should now be compiled and installed into the Sil folder.
-   The executable file will be called Sil.exe.
-
-3. Run Sil-More:
-
-   Go back to the Sil folder and run Sil.exe.
-
-## Windows with Visual Studio 2022 (experimental, tested with Sil-Q on MSVC 2022)
-
-1. Acquire Microsoft Visual Studio 2022.
-
-2. Compile Sil-More:
-
-   Assuming you have MSVC 2022, this should be as simple as selecting Debug or
-   Release, opening sil-q.sln in the msvc2019 directory and selecting Build Solution
-   from the Build menu.
-
-3. Run Sil-More:
-
-   Go back to the Sil folder and run Sil.exe.
-
-NOTE: This is a very new and very raw port, and requires testing.
 
 ## macOS
 
@@ -295,38 +216,6 @@ mkdir lib/apex/metaruns
 ```
 
 and restart.
-
-## OS X with Xcode  (tested with Sil-Q; Xcode 11.6 on OS X 10.15.5)
-
-1. Get Xcode from the app store if not installed:
-
-   Use App Store to get Xcode, a free set of development tools from Apple.
-
-2. Compile Sil-More:
-
-   In a Terminal window, change to the src directory and run
-   "make -f Makefile.cocoa install".
-   Sil-Q should now be compiled and set up as an OS X application, Sil.app,
-   in the folder above the src directory.  You may move Sil.app to wherever
-   you like.
-
-   If you are using an arm-based Mac and want a native application, use
-   "make -f Makefile.cocoa ARCHS=arm64 install"
-   instead of the command given above.  To generate a universal application
-   that will run natively on either x86_64 or arm, use
-   "make -f Makefile.cocoa ARCHS='x86_64 arm64' install".
-   Building for arm likely requires at least Xcode 12.2 or later.  Before
-   building for a different set of architectures, run
-   "make -f Makefile.cocoa clean" to clean up any object files that may not
-   match your new set of selected architectures.
-
-3. Run Sil-More:
-
-   In a Finder window, navigate to where you placed Sil.app.  Then double
-   click on it to run it.  If you are running 10.15 or later and haven't run
-   Sil-Q or Sil before, you'll see a dialog about granting Sil-Q access to
-   your Documents folder since it wants to place saved games, the high
-   score file, and some other data in Documents/Sil.
 
 # Road Map
 ## Done

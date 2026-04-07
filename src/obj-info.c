@@ -9,9 +9,25 @@
  */
 
 #include "angband.h"
+#include "externs.h"
+#include "log/log.h"
 
 /* true if a paragraph break should be output before next p_text_out() */
 static bool new_paragraph = false;
+static SDL_IOStream* object_info_capture_stream = NULL;
+static int object_info_capture_pos = 0;
+
+typedef struct object_info_screen_capture
+{
+    int width;
+    int height;
+    byte* attrs;
+    char* chars;
+    byte* story;
+} object_info_screen_capture;
+
+static void object_info_screen_multi_body(const object_type** objects,
+    const char** headings, int count, bool clear_current_line);
 
 static void p_text_out(cptr str)
 {
@@ -34,6 +50,141 @@ static void p_text_out_c(byte attr, cptr str)
     }
 
     text_out_c(attr, str);
+}
+
+static void text_out_to_object_info_buffer(byte attr, cptr str)
+{
+    int wrap = (text_out_wrap ? text_out_wrap : 75);
+    cptr s = str;
+
+    (void)attr;
+
+    if (!object_info_capture_stream || !str)
+        return;
+
+    while (*s)
+    {
+        char ch;
+        int n = 0;
+        int len = wrap - object_info_capture_pos;
+        int l_space = -1;
+
+        if (object_info_capture_pos == 0)
+        {
+            for (int i = 0; i < text_out_indent; i++)
+            {
+                unsigned char space = ' ';
+                SDL_WriteIO(object_info_capture_stream, &space, 1);
+                object_info_capture_pos++;
+            }
+        }
+
+        while ((n < len) && !((s[n] == '\n') || (s[n] == '\0')))
+        {
+            if (s[n] == ' ')
+                l_space = n;
+            n++;
+        }
+
+        if ((l_space == -1) && (n == len))
+        {
+            if (object_info_capture_pos == text_out_indent)
+            {
+                len = n;
+            }
+            else if ((s[0] == ' ') || (s[0] == ',') || (s[0] == '.'))
+            {
+                len = 1;
+            }
+            else
+            {
+                unsigned char newline = '\n';
+                SDL_WriteIO(object_info_capture_stream, &newline, 1);
+                object_info_capture_pos = 0;
+                continue;
+            }
+        }
+        else
+        {
+            if ((s[n] == '\n') || (s[n] == '\0'))
+                len = n;
+            else
+                len = l_space;
+        }
+
+        for (n = 0; n < len; n++)
+        {
+            unsigned char byte;
+
+            ch = (isprint((unsigned char)s[n]) ? s[n] : ' ');
+            byte = (unsigned char)ch;
+            SDL_WriteIO(object_info_capture_stream, &byte, 1);
+            object_info_capture_pos++;
+        }
+
+        s += len;
+
+        if (*s == '\0')
+            return;
+
+        if (*s == '\n')
+            s++;
+
+        {
+            unsigned char newline = '\n';
+            SDL_WriteIO(object_info_capture_stream, &newline, 1);
+        }
+        object_info_capture_pos = 0;
+
+        while (*s == ' ')
+            s++;
+    }
+}
+
+static bool describe_consumable_healing(const object_type* o_ptr)
+{
+    int potential, missing, actual;
+
+    if (!object_aware_p(o_ptr) && !object_known_p(o_ptr)
+        && !(o_ptr->ident & IDENT_SPOIL))
+    {
+        return false;
+    }
+
+    potential = consumable_healing_points(o_ptr);
+    if (potential <= 0)
+        return false;
+
+    missing = p_ptr->mhp - p_ptr->chp;
+    if (missing < 0)
+        missing = 0;
+
+    actual = MIN(potential, missing);
+
+    p_text_out((o_ptr->number == 1) ? "It restores " : "Each one restores ");
+
+    if (actual == potential)
+    {
+        p_text_out_c(TERM_L_GREEN, format("%d health", actual));
+        p_text_out(" right now.  ");
+    }
+    else
+    {
+        p_text_out("up to ");
+        p_text_out_c(TERM_L_GREEN, format("%d health", potential));
+
+        if (actual > 0)
+        {
+            p_text_out(format(
+                "; at your current wounds it would restore %d.  ", actual));
+        }
+        else
+        {
+            p_text_out("; you are already at full health.  ");
+        }
+    }
+
+    return true;
 }
 
 static void output_list(cptr list[], int n)
@@ -99,58 +250,51 @@ static void output_desc_list(cptr intro, cptr list[], int n)
     }
 }
 
+static u32b stat_flag_for_bonus(int stat, bool negative)
+{
+    switch (stat)
+    {
+    case A_STR:
+        return negative ? TR1_NEG_STR : TR1_STR;
+    case A_DEX:
+        return negative ? TR1_NEG_DEX : TR1_DEX;
+    case A_CON:
+        return negative ? TR1_NEG_CON : TR1_CON;
+    case A_GRA:
+        return negative ? TR1_NEG_GRA : TR1_GRA;
+    default:
+        return 0L;
+    }
+}
+
 /*
  * Describe stat modifications.
  */
 static bool describe_stats(const object_type* o_ptr, u32b f1)
 {
-    cptr descs[A_MAX];
-    int cnt = 0;
-    int pval = (o_ptr->pval > 0 ? o_ptr->pval : -o_ptr->pval);
+    bool found = false;
 
-    /* Abort if the pval is zero */
-    // if (!pval) return (false);
+    (void)f1;
 
-    /* Collect stat bonuses */
-    if (f1 & (TR1_STR))
-        descs[cnt++] = stat_names_full[A_STR];
-    if (f1 & (TR1_DEX))
-        descs[cnt++] = stat_names_full[A_DEX];
-    if (f1 & (TR1_CON))
-        descs[cnt++] = stat_names_full[A_CON];
-    if (f1 & (TR1_GRA))
-        descs[cnt++] = stat_names_full[A_GRA];
-
-    /* Skip */
-    if (cnt == 0)
-        return (false);
-
-    /* Shorten to "all stats", if appropriate. */
-    if (cnt == A_MAX)
+    for (int stat = 0; stat < A_MAX; stat++)
     {
+        const int bonus = o_ptr->stat_bonus[stat];
+        if (bonus <= 0)
+            continue;
+        if (!(f1 & stat_flag_for_bonus(stat, false)))
+            continue;
+
         p_text_out("It ");
-        p_text_out_c(o_ptr->pval >= 0 ? TERM_GREEN : TERM_L_RED,
-            (o_ptr->pval >= 0 ? "increases" : "decreases"));
-        p_text_out(" all your stats");
-    }
-    else
-    {
-        p_text_out("It ");
-        p_text_out_c(o_ptr->pval >= 0 ? TERM_GREEN : TERM_L_RED,
-            (o_ptr->pval >= 0 ? "increases" : "decreases"));
+        p_text_out_c(TERM_GREEN, "increases");
         p_text_out(" your ");
-
-        /* Output list */
-        output_list(descs, cnt);
+        p_text_out(stat_names_full[stat]);
+        p_text_out(" by ");
+        p_text_out_c(TERM_UMBER, format("%i", bonus));
+        p_text_out(".  ");
+        found = true;
     }
 
-    /* Output end */
-    p_text_out(" by ");
-    p_text_out_c(TERM_UMBER, format("%i", pval));
-    p_text_out(".  ");
-
-    /* We found something */
-    return (true);
+    return found;
 }
 
 /*
@@ -158,47 +302,29 @@ static bool describe_stats(const object_type* o_ptr, u32b f1)
  */
 static bool describe_neg_stats(const object_type* o_ptr, u32b f1)
 {
-    cptr descs[A_MAX];
-    int cnt = 0;
-    int pval = (o_ptr->pval > 0 ? o_ptr->pval : -o_ptr->pval);
+    bool found = false;
 
-    /* Abort if the pval is zero */
-    // if (!pval) return (false);
+    (void)f1;
 
-    /* Collect stat bonuses */
-    if (f1 & (TR1_NEG_STR))
-        descs[cnt++] = stat_names_full[A_STR];
-    if (f1 & (TR1_NEG_DEX))
-        descs[cnt++] = stat_names_full[A_DEX];
-    if (f1 & (TR1_NEG_CON))
-        descs[cnt++] = stat_names_full[A_CON];
-    if (f1 & (TR1_NEG_GRA))
-        descs[cnt++] = stat_names_full[A_GRA];
-
-    /* Skip */
-    if (cnt == 0)
-        return (false);
-
-    /* Shorten to "all stats", if appropriate. */
-    if (cnt == A_MAX)
+    for (int stat = 0; stat < A_MAX; stat++)
     {
-        p_text_out(format("It %s all your stats",
-            (o_ptr->pval < 0 ? "increases" : "decreases")));
-    }
-    else
-    {
-        p_text_out(format(
-            "It %s your ", (o_ptr->pval < 0 ? "increases" : "decreases")));
+        const int bonus = o_ptr->stat_bonus[stat];
+        if (bonus >= 0)
+            continue;
+        if (!(f1 & stat_flag_for_bonus(stat, true)))
+            continue;
 
-        /* Output list */
-        output_list(descs, cnt);
+        p_text_out("It ");
+        p_text_out_c(TERM_L_RED, "decreases");
+        p_text_out(" your ");
+        p_text_out(stat_names_full[stat]);
+        p_text_out(" by ");
+        p_text_out_c(TERM_UMBER, format("%i", -bonus));
+        p_text_out(".  ");
+        found = true;
     }
 
-    /* Output end */
-    p_text_out(format(" by %i.  ", pval));
-
-    /* We found something */
-    return (true);
+    return found;
 }
 
 /*
@@ -206,58 +332,145 @@ static bool describe_neg_stats(const object_type* o_ptr, u32b f1)
  */
 static bool describe_secondary(const object_type* o_ptr, u32b f1)
 {
-    cptr descs[8];
-    int cnt = 0;
-    int pval = (o_ptr->pval > 0 ? o_ptr->pval : -o_ptr->pval);
+    bool found = false;
 
-    /* Collect */
-    if (f1 & (TR1_MEL))
-        descs[cnt++] = "melee";
-    if (f1 & (TR1_ARC))
-        descs[cnt++] = "archery";
-    if (f1 & (TR1_STL))
-        descs[cnt++] = "stealth";
-    if (f1 & (TR1_PER))
-        descs[cnt++] = "perception";
-    if (f1 & (TR1_WIL))
-        descs[cnt++] = "will";
-    if (f1 & (TR1_SMT))
-        descs[cnt++] = "smithing";
-    if (f1 & (TR1_SNG))
-        descs[cnt++] = "song";
-    if (f1 & (TR1_TUNNEL))
-        descs[cnt++] = "tunneling";
-    if (f1 & (TR1_DAMAGE_SIDES))
-        descs[cnt++] = "damage sides";
+    if (f1 & TR1_MEL)
+    {
+        int bonus = o_ptr->skill_bonus[S_MEL];
+        if (bonus != 0)
+        {
+            p_text_out("It ");
+            p_text_out_c(bonus > 0 ? TERM_GREEN : TERM_L_RED,
+                (bonus > 0 ? "improves" : "worsens"));
+            p_text_out(" your melee by ");
+            p_text_out_c(TERM_UMBER, format("%i", ABS(bonus)));
+            p_text_out(".  ");
+            found = true;
+        }
+    }
+    if (f1 & TR1_ARC)
+    {
+        int bonus = o_ptr->skill_bonus[S_ARC];
+        if (bonus != 0)
+        {
+            p_text_out("It ");
+            p_text_out_c(bonus > 0 ? TERM_GREEN : TERM_L_RED,
+                (bonus > 0 ? "improves" : "worsens"));
+            p_text_out(" your archery by ");
+            p_text_out_c(TERM_UMBER, format("%i", ABS(bonus)));
+            p_text_out(".  ");
+            found = true;
+        }
+    }
+    if (f1 & TR1_STL)
+    {
+        int bonus = o_ptr->skill_bonus[S_STL];
+        if (bonus != 0)
+        {
+            p_text_out("It ");
+            p_text_out_c(bonus > 0 ? TERM_GREEN : TERM_L_RED,
+                (bonus > 0 ? "improves" : "worsens"));
+            p_text_out(" your stealth by ");
+            p_text_out_c(TERM_UMBER, format("%i", ABS(bonus)));
+            p_text_out(".  ");
+            found = true;
+        }
+    }
+    if (f1 & TR1_PER)
+    {
+        int bonus = o_ptr->skill_bonus[S_PER];
+        if (bonus != 0)
+        {
+            p_text_out("It ");
+            p_text_out_c(bonus > 0 ? TERM_GREEN : TERM_L_RED,
+                (bonus > 0 ? "improves" : "worsens"));
+            p_text_out(" your perception by ");
+            p_text_out_c(TERM_UMBER, format("%i", ABS(bonus)));
+            p_text_out(".  ");
+            found = true;
+        }
+    }
+    if (f1 & TR1_WIL)
+    {
+        int bonus = o_ptr->skill_bonus[S_WIL];
+        if (bonus != 0)
+        {
+            p_text_out("It ");
+            p_text_out_c(bonus > 0 ? TERM_GREEN : TERM_L_RED,
+                (bonus > 0 ? "improves" : "worsens"));
+            p_text_out(" your will by ");
+            p_text_out_c(TERM_UMBER, format("%i", ABS(bonus)));
+            p_text_out(".  ");
+            found = true;
+        }
+    }
+    if (f1 & TR1_SMT)
+    {
+        int bonus = o_ptr->skill_bonus[S_SMT];
+        if (bonus != 0)
+        {
+            p_text_out("It ");
+            p_text_out_c(bonus > 0 ? TERM_GREEN : TERM_L_RED,
+                (bonus > 0 ? "improves" : "worsens"));
+            p_text_out(" your smithing by ");
+            p_text_out_c(TERM_UMBER, format("%i", ABS(bonus)));
+            p_text_out(".  ");
+            found = true;
+        }
+    }
+    if (f1 & TR1_SNG)
+    {
+        int bonus = o_ptr->skill_bonus[S_SNG];
+        if (bonus != 0)
+        {
+            p_text_out("It ");
+            p_text_out_c(bonus > 0 ? TERM_GREEN : TERM_L_RED,
+                (bonus > 0 ? "improves" : "worsens"));
+            p_text_out(" your song by ");
+            p_text_out_c(TERM_UMBER, format("%i", ABS(bonus)));
+            p_text_out(".  ");
+            found = true;
+        }
+    }
 
-    /* Skip */
-    if (!cnt)
-        return (false);
+    if (f1 & TR1_TUNNEL)
+    {
+        int bonus = o_ptr->pval;
+        if (bonus != 0)
+        {
+            p_text_out("It ");
+            p_text_out_c(bonus > 0 ? TERM_GREEN : TERM_L_RED,
+                (bonus > 0 ? "improves" : "worsens"));
+            p_text_out(" your tunneling by ");
+            p_text_out_c(TERM_UMBER, format("%i", ABS(bonus)));
+            p_text_out(".  ");
+            found = true;
+        }
+    }
+    if (f1 & TR1_DAMAGE_SIDES)
+    {
+        int bonus = o_ptr->pval;
+        if (bonus != 0)
+        {
+            p_text_out("It ");
+            p_text_out_c(bonus > 0 ? TERM_GREEN : TERM_L_RED,
+                (bonus > 0 ? "improves" : "worsens"));
+            p_text_out(" your damage sides by ");
+            p_text_out_c(TERM_UMBER, format("%i", ABS(bonus)));
+            p_text_out(".  ");
+            found = true;
+        }
+    }
 
-    /* Start */
-    p_text_out("It ");
-    p_text_out_c(o_ptr->pval >= 0 ? TERM_GREEN : TERM_L_RED,
-        (o_ptr->pval >= 0 ? "improves" : "worsens"));
-    p_text_out(" your ");
-
-    /* Output list */
-    output_list(descs, cnt);
-
-    /* Output end */
-    p_text_out(" by ");
-    p_text_out_c(TERM_UMBER, format("%i", pval));
-    p_text_out(".  ");
-
-    /* We found something */
-    return (true);
+    return found;
 }
 
 /*
  * Describe the special slays and executes of an item.
  */
-static bool describe_slay(const object_type* o_ptr, u32b f1)
+static bool describe_slay(const object_type* o_ptr, u32b f1, u32b f4)
 {
-    cptr slays[8];
+    cptr slays[16];
     int slcnt = 0;
 
     /* Unused parameter */
@@ -278,6 +491,16 @@ static bool describe_slay(const object_type* o_ptr, u32b f1)
         slays[slcnt++] = "raukar";
     if (f1 & (TR1_SLAY_UNDEAD))
         slays[slcnt++] = "undead";
+    if (f4 & (TR4_SLAY_SERPENT))
+        slays[slcnt++] = "serpents";
+    if (f4 & (TR4_SLAY_VAMPIRE))
+        slays[slcnt++] = "vampires";
+    if (f4 & (TR4_SLAY_HORROR))
+        slays[slcnt++] = "horrors";
+    if (f4 & (TR4_SLAY_CAT))
+        slays[slcnt++] = "cats";
+    if (f4 & (TR4_SLAY_GIANT))
+        slays[slcnt++] = "giants";
     if (f1 & (TR1_SLAY_MAN_OR_ELF))
     {
         slays[slcnt++] = "men";
@@ -697,9 +920,9 @@ static bool describe_sustains(const object_type* o_ptr, u32b f2)
  * Describe miscellaneous powers such as see invisible, free action,
  * permanent light, etc; also note curses and penalties.
  */
-static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3)
+static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3, u32b f4)
 {
-    cptr good[7], bad[6];
+    cptr good[24], bad[14];
     int gc = 0, bc = 0;
     bool something = false;
 
@@ -708,6 +931,7 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3)
     {
         good[gc++] = (format(
             "can be thrown effectively (%d squares)", throwing_range(o_ptr)));
+        good[gc++] = "can be placed in quiver (passive abilities remain active for 2nd quiver)";
     }
 
     /* Collect stuff which can't be categorized */
@@ -734,6 +958,34 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3)
         good[gc++] = "lets you step on traps without triggering them";
     if (f3 & (TR3_MEDIC))
         good[gc++] = "increases the health you get from healing items";
+    if (f3 & (TR3_OATH_BOOST))
+        good[gc++] = "doubles the reward of your oath (or increases your light radius if oathless)";
+    if (f4 & (TR4_ARMOR_SHATTER))
+        good[gc++] = "can shatter the armor of your foes with each successful blow";
+    if (f4 & (TR4_DEPTH_SCALE_PS))
+        good[gc++] = "gains protection as you delve deeper";
+    if (f3 & (TR3_WILL_DRAIN))
+        good[gc++] = "drains the will of your enemies when you strike them";
+    if (f4 & (TR4_PAIRED))
+        good[gc++] = "is part of a matched pair of weapons";
+    if (f4 & (TR4_SUBTLETY_THROW))
+        good[gc++] = "lets you use Subtlety with thrown attacks";
+    if (f4 & (TR4_BREAKS_PERMA_CURSE))
+        good[gc++] = "can break the Oath of Feanor on your equipped items";
+    if (f4 & (TR4_DEEP_CALL))
+        good[gc++] = "bears a Deep Call, speeding the minimum depth timer as if you were one level deeper even in your inventory";
+    if ((f4 & (TR4_PROT_FIRE)) && (o_ptr->pd > 0))
+        good[gc++] = "uses its protection against fire";
+    if ((f4 & (TR4_PROT_COLD)) && (o_ptr->pd > 0))
+        good[gc++] = "uses its protection against cold";
+    if ((f4 & (TR4_PROT_POIS)) && (o_ptr->pd > 0))
+        good[gc++] = "uses its protection against poison";
+    if ((f4 & (TR4_PROT_DARK)) && (o_ptr->pd > 0))
+        good[gc++] = "uses its protection against darkness";
+    if ((f4 & (TR4_WEIGHT)) && !(f4 & (TR4_NEG_WEIGHT)))
+        good[gc++] = "is unusually heavy for its kind";
+    if ((f4 & (TR4_NEG_WEIGHT)) && !(f4 & (TR4_WEIGHT)))
+        good[gc++] = "is unusually light for its kind";
 
     /* Describe */
     output_desc_list("It ", good, gc);
@@ -760,7 +1012,9 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3)
     if (f2 & (TR2_HUNGER))
         bad[bc++] = "increases your hunger";
     if (f2 & (TR2_DARKNESS))
-        bad[bc++] = "creates an unnatural darkness";
+        bad[bc++] = "shrouds you in darkness (but concentrates your light)";
+    if (f4 & (TR4_UNLIGHT))
+        bad[bc++] = "dims your light";
     if (f2 & (TR2_SLOWNESS))
         bad[bc++] = "slows your movement";
     if (f2 & (TR2_AGGRAVATE))
@@ -769,12 +1023,16 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3)
         bad[bc++] = "draws wraiths to your level";
     if (f2 & (TR2_TRAITOR))
         bad[bc++] = "may betray you when you need it most";
+    if (f3 & (TR3_OATH_NEGATE))
+        bad[bc++] = "negates your oath bonuses (even when in inventory)";
+    if (f4 & (TR4_JINX))
+        bad[bc++] = "bears a jinx that sanctity can break with Curse Breaking";
 
     /* Deal with cursed stuff */
     if (cursed_p(o_ptr))
     {
         if (f3 & (TR3_PERMA_CURSE))
-            bad[bc++] = "permanently cursed";
+            bad[bc++] = "bound by the Oath of Feanor (broken by holy light); the Silmarils are calling you, speeding the minimum depth timer as if you were three levels deeper even in your inventory";
         else if (f3 & (TR3_HEAVY_CURSE))
             bad[bc++] = "heavily cursed";
         else if (object_known_p(o_ptr))
@@ -810,7 +1068,7 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3)
         int i;
         for (i = 0; i < bc; i++)
         {
-            if (strstr(bad[i], "cursed"))
+            if (strstr(bad[i], "cursed") || strstr(bad[i], "Oath of Feanor"))
             {
                 has_curse = true;
                 break;
@@ -831,14 +1089,15 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3)
                 }
                 
                 /* Color curse-related text in violet */
-                if (strstr(bad[i], "cursed"))
+                if (strstr(bad[i], "Oath of Feanor"))
                 {
-                    if (strstr(bad[i], "permanently"))
-                    {
-                        p_text_out("is ");
-                        p_text_out_c(TERM_VIOLET, "permanently cursed");
-                    }
-                    else if (strstr(bad[i], "heavily"))
+                    p_text_out("is ");
+                    p_text_out_c(TERM_VIOLET, "bound by the Oath of Feanor");
+                    p_text_out(" (broken by holy light); the Silmarils are calling you, speeding the minimum depth timer as if you were three levels deeper even in your inventory");
+                }
+                else if (strstr(bad[i], "cursed"))
+                {
+                    if (strstr(bad[i], "heavily"))
                     {
                         p_text_out("is ");
                         p_text_out_c(TERM_VIOLET, "heavily cursed");
@@ -964,17 +1223,17 @@ static void describe_item_activation(
         }
 
         /* Some artefacts can be activated */
-        my_strcat(random_name, act_description[a_ptr->activation], max);
+        SDL_strlcat(random_name, act_description[a_ptr->activation], max);
 
         /* Output the number of turns */
         if (a_ptr->time && a_ptr->randtime)
-            my_strcat(random_name,
+            SDL_strlcat(random_name,
                 format(" every %d+d%d turns", a_ptr->time, a_ptr->randtime),
                 max);
         else if (a_ptr->time)
-            my_strcat(random_name, format(" every %d turns", a_ptr->time), max);
+            SDL_strlcat(random_name, format(" every %d turns", a_ptr->time), max);
         else if (a_ptr->randtime)
-            my_strcat(
+            SDL_strlcat(
                 random_name, format(" every d%d turns", a_ptr->randtime), max);
 
         return;
@@ -993,7 +1252,7 @@ static bool describe_activation(const object_type* o_ptr, u32b f3)
 
         u16b size;
 
-        my_strcpy(act_desc, "It activates for ", sizeof(act_desc));
+        SDL_strlcpy(act_desc, "It activates for ", sizeof(act_desc));
 
         /*get the size of the file*/
         size = strlen(act_desc);
@@ -1004,7 +1263,7 @@ static bool describe_activation(const object_type* o_ptr, u32b f3)
          * it out*/
         if (strlen(act_desc) > size)
         {
-            my_strcat(act_desc, format(".  "), sizeof(act_desc));
+            SDL_strlcat(act_desc, format(".  "), sizeof(act_desc));
 
             /*print it out*/
             p_text_out(act_desc);
@@ -1023,6 +1282,7 @@ static bool describe_activation(const object_type* o_ptr, u32b f3)
 static bool describe_abilities(const object_type* o_ptr)
 {
     cptr ability[8];
+    static char ability_buf[8][80]; /* Static buffer for modified ability names */
     int ac = 0;
     ability_type* b_ptr;
     int i;
@@ -1036,7 +1296,20 @@ static bool describe_abilities(const object_type* o_ptr)
     {
         b_ptr
             = &b_info[ability_index(o_ptr->skilltype[i], o_ptr->abilitynum[i])];
-        ability[ac++] = b_name + b_ptr->name;
+
+        /* Check if this is a Bane ability with a specific type */
+        if (o_ptr->skilltype[i] == S_PER && o_ptr->abilitynum[i] == PER_BANE
+            && o_ptr->bane_type[i] > 0 && o_ptr->bane_type[i] < 9)
+        {
+            strnfmt(ability_buf[ac], 80, "%s-%s",
+                bane_name[o_ptr->bane_type[i]], b_name + b_ptr->name);
+            ability[ac] = ability_buf[ac];
+            ac++;
+        }
+        else
+        {
+            ability[ac++] = b_name + b_ptr->name;
+        }
     }
 
     /* Describe */
@@ -1163,7 +1436,7 @@ static bool describe_weapon_damage(const object_type* o_ptr)
             bool is_currently_equipped = (&inventory[INVEN_WIELD] == o_ptr);
             
             /* Determine potential hand-and-a-half bonus (when wielded two-handed) */
-            if (c_info[p_ptr->phouse].flags_u & UNQ_MEL_MAEDHROS)
+            if (c_info[p_ptr->pcharacter].flags_u & UNQ_MEL_MAEDHROS)
             {
                 hand_half_bonus_potential = 3;
             }
@@ -1247,25 +1520,32 @@ static bool describe_weapon_damage(const object_type* o_ptr)
  */
 bool object_info_out(const object_type* o_ptr)
 {
-    u32b f1, f2, f3;
-    u32b ff1, ff2, ff3;
+    u32b f1, f2, f3, f4;
+    u32b ff1, ff2, ff3, ff4;
     bool something = false;
+    bool known_only = (object_info_out_flags == object_flags_known);
 
     /* Grab the object flags */
     object_info_out_flags(o_ptr, &f1, &f2, &f3);
+    if (known_only)
+        object_flags_known4(o_ptr, &ff1, &ff2, &ff3, &f4);
+    else
+        object_flags4(o_ptr, &ff1, &ff2, &ff3, &f4);
 
     /* Hack - grab the ID-independent flags */
     /* Used to show handedness even when not ID'd */
-    object_flags(o_ptr, &ff1, &ff2, &ff3);
+    object_flags4(o_ptr, &ff1, &ff2, &ff3, &ff4);
 
     /* Describe the object */
+    if (describe_consumable_healing(o_ptr))
+        something = true;
     if (describe_stats(o_ptr, f1))
         something = true;
     if (describe_neg_stats(o_ptr, f1))
         something = true;
     if (describe_secondary(o_ptr, f1))
         something = true;
-    if (describe_slay(o_ptr, f1))
+    if (describe_slay(o_ptr, f1, f4))
         something = true;
     if (describe_brand(o_ptr, f1))
         something = true;
@@ -1277,7 +1557,7 @@ bool object_info_out(const object_type* o_ptr)
         something = true;
     if (describe_sustains(o_ptr, f2))
         something = true;
-    if (describe_misc_magic(o_ptr, f2, f3))
+    if (describe_misc_magic(o_ptr, f2, f3, f4))
         something = true;
     if (describe_activation(o_ptr, f3))
         something = true;
@@ -1315,7 +1595,7 @@ static bool screen_out_head(const object_type* o_ptr)
     log_trace("screen_out_head: Current cursor position: x=%d, y=%d", Term->scr->cx, Term->scr->cy);
 
     /* Allocate memory to the size of the screen */
-    o_name = C_RNEW(name_size, char);
+    o_name = mem_alloc_array(name_size, char);
 
     /* Description */
     object_desc(o_name, name_size, o_ptr, true, 3);
@@ -1355,10 +1635,20 @@ static bool screen_out_head(const object_type* o_ptr)
         text_out_c(TERM_L_UMBER, weight_buf);
     }
 
+    /* Debug: compact smithing difficulty + weight rarity */
+    if (op_ptr->opt[OPT_show_smithing_difficulty] && object_known_p(o_ptr)
+        && object_uses_smithing_difficulty(o_ptr))
+    {
+        int depth = (p_ptr && p_ptr->depth > 0) ? p_ptr->depth : 1;
+        int sd = object_smithing_difficulty(o_ptr);
+        int wr = object_weight_rarity(o_ptr, depth);
+        text_out_c(TERM_SLATE, format(" {%d,%d}", sd, wr));
+    }
+
     log_trace("screen_out_head: After printing object name, cursor position: x=%d, y=%d", Term->scr->cx, Term->scr->cy);
 
     /* Free up the memory */
-    FREE(o_name);
+    mem_free_null(o_name);
 
     /* Display the known artefact description */
     if (!adult_rand_artefacts && o_ptr->name1 && object_known_p(o_ptr)
@@ -1379,12 +1669,24 @@ static bool screen_out_head(const object_type* o_ptr)
             has_description = true;
         }
 
-        /* Display an additional special item description */
-        if (o_ptr->name2 && object_known_p(o_ptr) && e_info[o_ptr->name2].text)
+        /* Display additional special item descriptions */
+        if (object_known_p(o_ptr))
         {
-            p_text_out("\n\n   ");
-            p_text_out(e_text + e_info[o_ptr->name2].text);
-            has_description = true;
+            byte ego_pfx = object_ego_prefix(o_ptr);
+            byte ego_sfx = object_ego_suffix(o_ptr);
+
+            if (ego_pfx && e_info[ego_pfx].text)
+            {
+                p_text_out("\n\n   ");
+                p_text_out(e_text + e_info[ego_pfx].text);
+                has_description = true;
+            }
+            if (ego_sfx && e_info[ego_sfx].text)
+            {
+                p_text_out("\n\n   ");
+                p_text_out(e_text + e_info[ego_sfx].text);
+                has_description = true;
+            }
         }
     }
 
@@ -1497,18 +1799,88 @@ void object_info_screen(const object_type* o_ptr)
     return;
 }
 
-void object_info_screen_multi(const object_type** objects, const char** headings, int count)
+static char* capture_object_info_screen_multi_text(const object_type** objects,
+    const char** headings, int count)
 {
-    if (count <= 0 || objects == NULL)
-        return;
+    SDL_IOStream* stream;
+    void (*old_hook)(byte, cptr) = text_out_hook;
+    int old_wrap = text_out_wrap;
+    int old_indent = text_out_indent;
+    int term_wid = 80;
+    int term_hgt = 24;
+    Sint64 stream_size;
+    SDL_PropertiesID props;
+    char* dynamic_mem;
+    char* copy;
+    size_t copy_size;
 
-    text_out_hook = text_out_to_screen;
-    text_out_wrap = 0;
+    if (!objects || count <= 0)
+        return NULL;
+
+    stream = SDL_IOFromDynamicMem();
+    if (!stream)
+        return NULL;
+
+    Term_get_size(&term_wid, &term_hgt);
+    if (term_wid < 20)
+        term_wid = 20;
+    (void)term_hgt;
+
+    object_info_capture_stream = stream;
+    object_info_capture_pos = 0;
+    text_out_hook = text_out_to_object_info_buffer;
+    text_out_wrap = term_wid - 1;
     text_out_indent = 0;
+    object_info_screen_multi_body(objects, headings, count, false);
 
-    screen_save();
-    Term_gotoxy(0, 0);
+    {
+        unsigned char zero = '\0';
+        SDL_WriteIO(stream, &zero, 1);
+    }
 
+    stream_size = SDL_GetIOSize(stream);
+    props = SDL_GetIOProperties(stream);
+    dynamic_mem = SDL_GetPointerProperty(props,
+        SDL_PROP_IOSTREAM_DYNAMIC_MEMORY_POINTER, NULL);
+
+    copy_size = (stream_size > 0) ? (size_t)stream_size : 1;
+    copy = mem_alloc_array(copy_size, char);
+    SDL_memset(copy, 0, copy_size);
+    if (dynamic_mem && stream_size > 0)
+        memcpy(copy, dynamic_mem, copy_size);
+    copy[copy_size - 1] = '\0';
+
+    text_out_hook = old_hook;
+    text_out_wrap = old_wrap;
+    text_out_indent = old_indent;
+    new_paragraph = false;
+    object_info_capture_stream = NULL;
+    object_info_capture_pos = 0;
+    SDL_CloseIO(stream);
+
+    return copy;
+}
+
+static int object_info_buffer_line_count(cptr text)
+{
+    int lines = 0;
+
+    if (!text || !text[0])
+        return 0;
+
+    lines = 1;
+    for (const char* p = text; *p; ++p)
+    {
+        if (*p == '\n')
+            lines++;
+    }
+
+    return lines;
+}
+
+static void object_info_screen_multi_body(const object_type** objects,
+    const char** headings, int count, bool clear_current_line)
+{
     for (int i = 0; i < count; i++)
     {
         if (i > 0)
@@ -1516,7 +1888,8 @@ void object_info_screen_multi(const object_type** objects, const char** headings
             text_out_c(TERM_L_DARK, "\n----------------------------------------\n\n");
         }
 
-        Term_erase(0, Term->scr->cy, 255);
+        if (clear_current_line && Term && Term->scr)
+            Term_erase(0, Term->scr->cy, 255);
 
         if (headings && headings[i] && headings[i][0])
         {
@@ -1531,16 +1904,19 @@ void object_info_screen_multi(const object_type** objects, const char** headings
             object_info_out_flags = object_flags_known;
 
             new_paragraph = true;
-            bool has_info = object_info_out(objects[i]);
-            new_paragraph = false;
+            {
+                bool has_info = object_info_out(objects[i]);
+                new_paragraph = false;
 
-            if (!object_known_p(objects[i]))
-            {
-                p_text_out("\n\n   This item has not been identified.");
-            }
-            else if ((!has_description) && (!has_info))
-            {
-                p_text_out("\n\n   This item does not seem to possess any special abilities.");
+                if (!object_known_p(objects[i]))
+                {
+                    p_text_out("\n\n   This item has not been identified.");
+                }
+                else if ((!has_description) && (!has_info))
+                {
+                    p_text_out(
+                        "\n\n   This item does not seem to possess any special abilities.");
+                }
             }
         }
         else
@@ -1548,6 +1924,318 @@ void object_info_screen_multi(const object_type** objects, const char** headings
             p_text_out("\n   (slot is empty)");
         }
     }
+}
+
+static void object_info_screen_capture_free(
+    object_info_screen_capture* capture)
+{
+    if (!capture)
+        return;
+
+    mem_free_null(capture->attrs);
+    mem_free_null(capture->chars);
+    mem_free_null(capture->story);
+
+    capture->width = 0;
+    capture->height = 0;
+}
+
+static int object_info_screen_capture_used_rows(term* t)
+{
+    if (!t || !t->scr)
+        return 0;
+
+    for (int y = t->hgt - 1; y >= 0; y--)
+    {
+        for (int x = 0; x < t->wid; x++)
+        {
+            if ((t->scr->c[y][x] != ' ')
+                || (t->scr->a[y][x] != t->attr_blank)
+                || (t->scr->story[y][x] != 0))
+            {
+                return y + 1;
+            }
+        }
+    }
+
+    return 0;
+}
+
+static bool object_info_screen_capture_build(
+    const object_type** objects, const char** headings, int count,
+    object_info_screen_capture* capture)
+{
+    term scratch;
+    term* saved_term = Term;
+    void (*old_hook)(byte, cptr) = text_out_hook;
+    int old_wrap = text_out_wrap;
+    int old_indent = text_out_indent;
+    bool old_paragraph = new_paragraph;
+    bool scratch_ready = false;
+    bool success = false;
+    int term_wid = 80;
+    int term_hgt = 24;
+    int used_rows;
+
+    if (!capture || !objects || count <= 0 || !saved_term)
+        return false;
+
+    SDL_memset(capture, 0, sizeof(*capture));
+    SDL_memset(&scratch, 0, sizeof(scratch));
+
+    Term_get_size(&term_wid, &term_hgt);
+    if (term_wid < 20)
+        term_wid = 20;
+    if (term_hgt < 24)
+        term_hgt = 24;
+
+    if (term_init(&scratch, term_wid, 255, 16) != 0)
+        goto cleanup;
+    scratch_ready = true;
+
+    Term_activate(&scratch);
+    text_out_hook = text_out_to_screen;
+    text_out_wrap = 0;
+    text_out_indent = 0;
+    new_paragraph = false;
+
+    Term_clear();
+    Term_gotoxy(0, 0);
+    object_info_screen_multi_body(objects, headings, count, true);
+
+    used_rows = object_info_screen_capture_used_rows(Term);
+    if (used_rows < 1)
+        used_rows = 1;
+
+    capture->width = term_wid;
+    capture->height = used_rows;
+    capture->attrs = mem_alloc_array(capture->width * capture->height, byte);
+    capture->chars = mem_alloc_array(capture->width * capture->height, char);
+    capture->story = mem_alloc_array(capture->width * capture->height, byte);
+
+    for (int y = 0; y < capture->height; y++)
+    {
+        for (int x = 0; x < capture->width; x++)
+        {
+            int idx = y * capture->width + x;
+            capture->attrs[idx] = scratch.scr->a[y][x];
+            capture->chars[idx] = scratch.scr->c[y][x];
+            capture->story[idx] = scratch.scr->story[y][x];
+        }
+    }
+
+    success = true;
+
+cleanup:
+    text_out_hook = old_hook;
+    text_out_wrap = old_wrap;
+    text_out_indent = old_indent;
+    new_paragraph = old_paragraph;
+
+    if (saved_term && Term != saved_term)
+        Term_activate(saved_term);
+
+    if (scratch_ready)
+        term_nuke(&scratch);
+
+    if (!success)
+        object_info_screen_capture_free(capture);
+
+    return success;
+}
+
+static void object_info_screen_capture_draw(
+    const object_info_screen_capture* capture, int scroll)
+{
+    int term_wid = 80;
+    int term_hgt = 24;
+    int visible_rows;
+    int prompt_row;
+    int max_scroll;
+    char prompt[96];
+    char scroll_buf[32];
+    bool old_story_active = false;
+    bool old_story_grid = false;
+
+    if (!capture || !capture->attrs || !capture->chars || !capture->story)
+        return;
+
+    Term_get_size(&term_wid, &term_hgt);
+    visible_rows = MAX(1, term_hgt - 1);
+    prompt_row = MAX(0, term_hgt - 1);
+    max_scroll = MAX(0, capture->height - visible_rows);
+
+    if (scroll < 0)
+        scroll = 0;
+    if (scroll > max_scroll)
+        scroll = max_scroll;
+
+    old_story_active = Term->story_font_active;
+    old_story_grid = Term->story_font_grid;
+
+    Term_clear();
+
+    for (int row = 0; row < visible_rows; row++)
+    {
+        int src_row = row + scroll;
+
+        if (src_row >= capture->height)
+            break;
+
+        for (int col = 0; col < capture->width && col < term_wid; col++)
+        {
+            int idx = src_row * capture->width + col;
+
+            Term->story_font_active =
+                ((capture->story[idx] & STORY_FLAG_USE) != 0);
+            Term->story_font_grid =
+                ((capture->story[idx] & STORY_FLAG_CELL_ALIGN) != 0);
+
+            Term_queue_char(
+                col, row, capture->attrs[idx], capture->chars[idx], 0, 0);
+        }
+    }
+
+    Term->story_font_active = old_story_active;
+    Term->story_font_grid = old_story_grid;
+
+    if (term_wid >= 70)
+    {
+        SDL_strlcpy(prompt,
+            "(press ESC to exit, Space for next page, Arrows/Keypad to scroll)",
+            sizeof(prompt));
+    }
+    else if (term_wid >= 40)
+    {
+        SDL_strlcpy(prompt, "(ESC exit, Space page, Arrows scroll)",
+            sizeof(prompt));
+    }
+    else
+    {
+        SDL_strlcpy(prompt, "(ESC exit, Arrows scroll)", sizeof(prompt));
+    }
+
+    Term_putstr(0, prompt_row, -1, TERM_SLATE, prompt);
+
+    if (max_scroll > 0)
+    {
+        int scroll_col;
+
+        strnfmt(scroll_buf, sizeof(scroll_buf), "[%d/%d]", scroll + 1,
+            max_scroll + 1);
+        scroll_col = term_wid - (int)strlen(scroll_buf);
+        if (scroll_col < 0)
+            scroll_col = 0;
+        Term_putstr(scroll_col, prompt_row, -1, TERM_SLATE, scroll_buf);
+    }
+
+    Term_fresh();
+}
+
+static void object_info_screen_capture_view(
+    const object_info_screen_capture* capture)
+{
+    int scroll = 0;
+
+    if (!capture)
+        return;
+
+    while (true)
+    {
+        int term_wid = 80;
+        int term_hgt = 24;
+        int visible_rows;
+        int max_scroll;
+        int dir;
+        char ch;
+
+        Term_get_size(&term_wid, &term_hgt);
+        visible_rows = MAX(1, term_hgt - 1);
+        max_scroll = MAX(0, capture->height - visible_rows);
+
+        if (scroll > max_scroll)
+            scroll = max_scroll;
+
+        object_info_screen_capture_draw(capture, scroll);
+
+        ch = inkey();
+        dir = target_dir(ch);
+        if ((dir == 8) || (dir == 2))
+            ch = I2D(dir);
+
+        if ((ch == '8') || (ch == '='))
+        {
+            if (scroll > 0)
+                scroll--;
+        }
+        else if ((ch == '2') || (ch == '\n') || (ch == '\r'))
+        {
+            if (scroll < max_scroll)
+                scroll++;
+        }
+        else if ((ch == '3') || (ch == ' '))
+        {
+            scroll += visible_rows;
+            if (scroll > max_scroll)
+                scroll = max_scroll;
+        }
+        else if ((ch == '9') || (ch == '-'))
+        {
+            scroll -= visible_rows;
+            if (scroll < 0)
+                scroll = 0;
+        }
+        else if (ch == ESCAPE)
+        {
+            break;
+        }
+    }
+}
+
+void object_info_screen_multi(const object_type** objects, const char** headings, int count)
+{
+    char* overflow_text = NULL;
+    object_info_screen_capture capture;
+    int term_hgt = 24;
+
+    if (count <= 0 || objects == NULL)
+        return;
+
+    if (Term && Term->hgt > 0)
+        term_hgt = Term->hgt;
+
+    overflow_text = capture_object_info_screen_multi_text(objects, headings, count);
+    if (overflow_text && object_info_buffer_line_count(overflow_text) > term_hgt - 4)
+    {
+        screen_save();
+        if (object_info_screen_capture_build(objects, headings, count, &capture))
+        {
+            object_info_screen_capture_view(&capture);
+            object_info_screen_capture_free(&capture);
+        }
+        else
+        {
+            show_buffer(overflow_text, 0);
+        }
+        screen_load();
+
+        mem_free_null(overflow_text);
+        text_out_hook = text_out_to_screen;
+        text_out_wrap = 0;
+        text_out_indent = 0;
+        new_paragraph = false;
+        return;
+    }
+
+    mem_free_null(overflow_text);
+
+    text_out_hook = text_out_to_screen;
+    text_out_wrap = 0;
+    text_out_indent = 0;
+
+    screen_save();
+    Term_gotoxy(0, 0);
+    object_info_screen_multi_body(objects, headings, count, true);
 
     text_out_c(TERM_L_BLUE, "\n\n(press any key)\n");
     (void)inkey();
@@ -1557,4 +2245,9 @@ void object_info_screen_multi(const object_type** objects, const char** headings
     text_out_wrap = 0;
     text_out_indent = 0;
 }
+
+
+
+
+
 

@@ -9,16 +9,18 @@
  */
 
 #include "angband.h"
+#include "externs.h"
+#include "log/bootstrap.h"
+#include "gen-log.h"
 
 /*
  * Some machines have a "main()" function in their "main-xxx.c" file,
  * all the others use this file for their "main()" function.
  */
 
-#if !(defined(WINDOWS) && !defined(USE_SDL))
-
 #include "main.h"
 #include "log/log.h"
+#include "sdl-sound.h"
 
 /*
  * Sil-y: game in progress
@@ -29,9 +31,6 @@ bool game_in_progress = false;
  * List of the available modules in the order they are tried.
  */
 static const struct module modules[] = {
-#ifdef USE_GCU
-    { "gcu", help_gcu, init_gcu },
-#endif /* USE_GCU */
     { "sdl", help_sdl, init_sdl },
 };
 
@@ -58,54 +57,6 @@ static void quit_hook(cptr s)
         term_nuke(angband_term[j]);
     }
 }
-
-#ifdef PRIVATE_USER_PATH
-
-/*
- * Create an ".sil/" directory in the users home directory.
- *
- * ToDo: Add error handling.
- * ToDo: Only create the directories when actually writing files.
- */
-static void create_user_dir(void)
-{
-    char dirpath[1024];
-    char subdirpath[1024];
-
-    /* Get an absolute path from the filename */
-    path_parse(dirpath, sizeof(dirpath), PRIVATE_USER_PATH);
-
-    /* Create the ~/.sil/ directory */
-    mkdir(dirpath, 0700);
-
-    /* Build the path to the variant-specific sub-directory */
-    path_build(subdirpath, sizeof(subdirpath), dirpath, VERSION_NAME);
-
-    /* Create the directory */
-    mkdir(subdirpath, 0700);
-
-#ifdef USE_PRIVATE_SAVE_PATH
-    /* Build the path to the scores sub-directory */
-    path_build(dirpath, sizeof(dirpath), subdirpath, "data");
-
-    /* Create the directory */
-    mkdir(dirpath, 0700);
-
-    /* Build the path to the scores sub-directory */
-    path_build(dirpath, sizeof(dirpath), subdirpath, "scores");
-
-    /* Create the directory */
-    mkdir(dirpath, 0700);
-
-    /* Build the path to the savefile sub-directory */
-    path_build(dirpath, sizeof(dirpath), subdirpath, "save");
-
-    /* Create the directory */
-    mkdir(dirpath, 0700);
-#endif /* USE_PRIVATE_SAVE_PATH */
-}
-
-#endif /* PRIVATE_USER_PATH */
 
 /*
  * Initialize and verify the file paths, and the score file.
@@ -140,14 +91,14 @@ static void init_stuff(void)
 #endif /* FIXED_PATHS */
 
     /* Use the angband_path, or a default */
-    my_strcpy(path, tail ? tail : DEFAULT_PATH, sizeof(path));
+    SDL_strlcpy(path, tail ? tail : DEFAULT_PATH, sizeof(path));
 
     /* Make sure it's terminated */
     path[511] = '\0';
 
     /* Hack -- Add a path separator (only if needed) */
     if (!suffix(path, PATH_SEP))
-        my_strcat(path, PATH_SEP, sizeof(path));
+        SDL_strlcat(path, PATH_SEP, sizeof(path));
 
     /* Initialize */
     init_file_paths(path);
@@ -171,7 +122,7 @@ static void change_path(cptr info)
 
     /* Verify equal sign */
     if (!s)
-        quit_fmt("Try '-d<what>=<path>' not '-d%s'", info);
+        quit(format("Try '-d<what>=<path>' not '-d%s'", info));
 
     /* Analyze */
     switch (tolower((unsigned char)info[0]))
@@ -179,36 +130,36 @@ static void change_path(cptr info)
 #ifndef FIXED_PATHS
     case 'a':
     {
-        string_free(ANGBAND_DIR_APEX);
-        ANGBAND_DIR_APEX = string_make(s + 1);
+        str_free(ANGBAND_DIR_APEX);
+        ANGBAND_DIR_APEX = str_dup(s + 1);
         break;
     }
 
     case 'f':
     {
-        // string_free(ANGBAND_DIR_FILE);
-        // ANGBAND_DIR_FILE = string_make(s+1);
+        // str_free(ANGBAND_DIR_FILE);
+        // ANGBAND_DIR_FILE = str_dup(s+1);
         break;
     }
 
     case 'h':
     {
-        // string_free(ANGBAND_DIR_HELP);
-        // ANGBAND_DIR_HELP = string_make(s+1);
+        // str_free(ANGBAND_DIR_HELP);
+        // ANGBAND_DIR_HELP = str_dup(s+1);
         break;
     }
 
     case 'i':
     {
-        // string_free(ANGBAND_DIR_INFO);
-        // ANGBAND_DIR_INFO = string_make(s+1);
+        // str_free(ANGBAND_DIR_INFO);
+        // ANGBAND_DIR_INFO = str_dup(s+1);
         break;
     }
 
     case 'x':
     {
-        string_free(ANGBAND_DIR_XTRA);
-        ANGBAND_DIR_XTRA = string_make(s + 1);
+        str_free(ANGBAND_DIR_XTRA);
+        ANGBAND_DIR_XTRA = str_dup(s + 1);
         break;
     }
 
@@ -219,36 +170,36 @@ static void change_path(cptr info)
     case 'e':
     case 's':
     {
-        quit_fmt("Restricted option '-d%s'", info);
+        quit(format("Restricted option '-d%s'", info));
     }
 
 #else /* VERIFY_SAVEFILE */
 
     case 'b':
     {
-        // string_free(ANGBAND_DIR_BONE);
-        // ANGBAND_DIR_BONE = string_make(s+1);
+        // str_free(ANGBAND_DIR_BONE);
+        // ANGBAND_DIR_BONE = str_dup(s+1);
         break;
     }
 
     case 'd':
     {
-        string_free(ANGBAND_DIR_DATA);
-        ANGBAND_DIR_DATA = string_make(s + 1);
+        str_free(ANGBAND_DIR_DATA);
+        ANGBAND_DIR_DATA = str_dup(s + 1);
         break;
     }
 
     case 'e':
     {
-        string_free(ANGBAND_DIR_EDIT);
-        ANGBAND_DIR_EDIT = string_make(s + 1);
+        str_free(ANGBAND_DIR_EDIT);
+        ANGBAND_DIR_EDIT = str_dup(s + 1);
         break;
     }
 
     case 's':
     {
-        string_free(ANGBAND_DIR_SAVE);
-        ANGBAND_DIR_SAVE = string_make(s + 1);
+        str_free(ANGBAND_DIR_SAVE);
+        ANGBAND_DIR_SAVE = str_dup(s + 1);
         break;
     }
 
@@ -258,14 +209,14 @@ static void change_path(cptr info)
 
     case 'u':
     {
-        string_free(ANGBAND_DIR_USER);
-        ANGBAND_DIR_USER = string_make(s + 1);
+        str_free(ANGBAND_DIR_USER);
+        ANGBAND_DIR_USER = str_dup(s + 1);
         break;
     }
 
     default:
     {
-        quit_fmt("Bad semantics in '-d%s'", info);
+        quit(format("Bad semantics in '-d%s'", info));
     }
     }
 }
@@ -283,22 +234,25 @@ int main(int argc, char* argv[])
 
     bool done = false;
 
-    bool new_game = false;
-
     int show_score = 0;
 
     cptr mstr = NULL;
 
     bool args = true;
-    // Initialise logger in 'quiet' mode (don't write to stdout).
+    // Initialise logger in 'quiet' mode (don't write to stdout) on desktop.
+    // On Android, keep stdout enabled so diagnostics are visible in logcat.
+#ifdef __ANDROID__
+    init_logger(false, argv[0]);
+#else
     init_logger(true, argv[0]);
+#endif
+    
+    // Initialize dedicated generation log (generation.txt)
+    gen_log_init(argv[0]);
 
     /* Initialize character_icky to ensure it starts at 0 */
     character_icky = 0;
     log_debug("main: character_icky initialized to %d", character_icky);
-
-    /* Save the "program name" XXX XXX XXX */
-    argv0 = argv[0];
 
 #ifdef SET_UID
 
@@ -344,13 +298,6 @@ int main(int argc, char* argv[])
     /* Get the "user name" as a default player name */
     user_name(op_ptr->full_name, sizeof(op_ptr->full_name), player_uid);
 
-#ifdef PRIVATE_USER_PATH
-
-    /* Create a directory for the users files. */
-    create_user_dir();
-
-#endif /* PRIVATE_USER_PATH */
-
 #endif /* SET_UID */
 
     /* Process the command line arguments */
@@ -368,8 +315,6 @@ int main(int argc, char* argv[])
         case 'N':
         case 'n':
         {
-            new_game = true;
-
             // Sil-y:
             game_in_progress = true;
             break;
@@ -434,7 +379,7 @@ int main(int argc, char* argv[])
                 goto usage;
 
             /* Get the savefile name */
-            my_strcpy(op_ptr->full_name, arg, sizeof(op_ptr->full_name));
+            SDL_strlcpy(op_ptr->full_name, arg, sizeof(op_ptr->full_name));
 
             // Sil-y:
             game_in_progress = true;
@@ -504,11 +449,15 @@ int main(int argc, char* argv[])
         argv[1] = NULL;
     }
 
-    /* Process the player name */
-    process_player_name(true);
+    /* Note: process_player_name() is NOT called here anymore.
+     * It will be called later when we actually know which character we're playing:
+     * - By autoload_alive_from_scores() when loading from scorefile
+     * - By character creation when creating a new character
+     * - After load_player() succeeds
+     */
 
     /* Install "quit" hook */
-    quit_aux = quit_hook;
+    log_register_quit_hook(quit_hook);
 
     /* Try the modules in the order specified by modules[] */
     for (i = 0; i < (int)N_ELEMENTS(modules); i++)
@@ -527,14 +476,16 @@ int main(int argc, char* argv[])
 
     /* Make sure we have a display! */
     if (!done)
-        quit(
-            "Unable to prepare any 'display module' (such as 'x11' or 'gcu')!");
+        quit("Unable to prepare the SDL display module!");
 
     /* Catch nasty signals */
     signals_init();
 
     /* Initialize */
     init_angband();
+
+    /* Initialize sound system (requires ANGBAND_DIR_XTRA to be set) */
+    sdl_init_sounds();
 
     /* Hack -- If requested, display scores and quit */
     if (show_score > 0)
@@ -560,7 +511,6 @@ int main(int argc, char* argv[])
                 if (mn == NAV_QUIT) quit(NULL);          /* immediate exit   */
                 if (mn == NAV_OK) {                      /* play or load     */
                     game_in_progress = true;
-                    new_game        = start_new ? true : false;
                 }
                 /* NAV_BACK ⇒ redraw + loop again */
             }
@@ -569,10 +519,7 @@ int main(int argc, char* argv[])
         /* Handle pending events (most notably update) and flush input */
         Term_flush();
 
-        /*
-         * Play a game -- "new_game" is set by "new", "open" or the open
-         * document even handler as appropriate
-         */
+        /* Play a game */
         PlayResult pr = play_game();   /* play and capture result */
 
         // rerun the first initialization routine
@@ -596,4 +543,17 @@ int main(int argc, char* argv[])
     return (0);
 }
 
-#endif /* !defined(WINDOWS) || defined(USE_SDL) */
+/*
+ * Android/SDL entrypoint
+ *
+ * On Android, SDL's Java launcher calls SDL_main() in the native shared library.
+ * Keep the existing desktop main() behavior and provide SDL_main() only when
+ * building for Android.
+ */
+
+#ifdef __ANDROID__
+int SDL_main(int argc, char* argv[])
+{
+    return main(argc, argv);
+}
+#endif

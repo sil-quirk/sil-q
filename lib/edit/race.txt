@@ -10,6 +10,7 @@
 # === Understanding race.txt ===
 #
 # N: race number : race name
+# Q: 16-digit (or longer) hexadecimal GUID identifying the race (optional)
 # S: str : dex : con : gra
 # I: history : agebase : agemax
 # H: hgt : modhgt
@@ -19,6 +20,11 @@
 #
 # 'N' indicates the beginning of an entry. The serial number must
 #     increase for each new race.
+#
+# 'Q' assigns a persistent GUID to the race so score files can keep
+#     referencing it even if indices shift. Leave blank only for
+#     transitional content; tooling will warn and auto-fill missing
+#     fields.
 #
 # 'S' is for the stat modifiers - strength, dexterity, constitution, grace.
 #
@@ -39,9 +45,10 @@
 
 # Version stamp (required)
 
-V:0.9.0
+V:0.9.5
 
 N:0:Feanorians
+Q:2444d18db905ccd7
 S:0:1:2:2
 I:1:20:4865
 H:78:3
@@ -50,7 +57,7 @@ C:1|4|5|36|38|39|40|41|46
 F:SMT_AFFINITY | MEL_AFFINITY | WIL_AFFINITY | PER_AFFINITY | SNG_AFFINITY | CURSE
 E:39:0:3:3     # ~ Wooden Torches (3)
 E:80:37:3:3    # , Fragment of Lembas (3)
-E:23:7:1:1     # | Curved sword (1)
+E:23:10:1:1    # | Short sword (1)
 D:Proud-hearted sons of flame, heirs bound eternally by their father's 
 D:relentless Oath, pursuing stolen Jewels through ruin and despair. 
 D:Noble in pride yet shadowed by deeds darkened by betrayal and grief; 
@@ -60,6 +67,7 @@ D:foretold to fade in flame and ruin beneath desperate quest's end,
 D:leaving memory of greatness marred forever by tragic pride. 
 
 N:1:Fingolfinrim
+Q:d6dd47e11aee44f3
 S:0:1:2:2
 I:1:20:4865
 H:78:3
@@ -68,9 +76,9 @@ C:2|6|7|10|11|31|43
 F:WIL_AFFINITY | MEL_AFFINITY | PER_AFFINITY | EVN_AFFINITY | ARC_AFFINITY | CURSE
 E:39:0:3:3     # ~ Wooden Torches (3)
 E:80:37:3:3    # , Fragment of Lembas (3)
-E:23:7:1:1     # | Curved sword (1)
-D:Valiant and steadfast people, following Fingolfin’s bright banner 
-D:through cold Helcaraxe’s treacherous ice to realms darkened by war. 
+E:23:10:1:1    # | Short sword (1)
+D:Valiant and steadfast people, following Fingolfin's bright banner 
+D:through cold Helcaraxe's treacherous ice to realms darkened by war. 
 D:Their courage tested against Morgoth's might beneath northern skies, 
 D:enduring loss bravely, hearts unbowed even in bitterest defeat. 
 D:Foreshadowing doom upon Anfauglith's fields, bravery unmatched, 
@@ -78,6 +86,7 @@ D:their legacy marked by noble defiance, sacrifice beyond despair,
 D:forever remembered as flames of valor beneath gathering shadow. 
 
 N:2:Finarfinrim
+Q:16aae878b299fc03
 S:0:1:2:2
 I:1:20:4865
 H:78:3
@@ -86,7 +95,7 @@ C:3|8|9|32|42|47|48|49
 F:SNG_AFFINITY | PER_AFFINITY | WIL_AFFINITY
 E:39:0:3:3     # ~ Wooden Torches (3)
 E:80:37:3:3    # , Fragment of Lembas (3)
-E:23:7:1:1     # | Curved sword (1)
+E:23:10:1:1    # | Short sword (1)
 D:Fair and wise, children of the gentle-hearted Finarfin, golden-haired, 
 D:guided by wisdom rather than wrath, yet sharing kin's tragic exile. 
 D:Builders of bright kingdoms soon to fall, guardians of ancient songs, 
@@ -96,6 +105,7 @@ D:their line foretells redemption distant, beauty flowering from loss -
 D:bridging sorrowful exile and final healing in days yet unseen. 
 
 N:3:Sindar
+Q:15f625b4050caea4
 S:0:1:0:1
 I:4:20:4865
 H:76:3
@@ -104,7 +114,7 @@ C:12|13|14|15|16|17|33|34|35|37
 F:SNG_AFFINITY | PER_AFFINITY | WIL_AFFINITY | ARC_AFFINITY | SMT_AFFINITY
 E:39:0:3:3     # ~ Wooden Torches (3)
 E:80:37:3:3    # , Fragment of Lembas (3)
-E:23:7:1:1     # | Curved sword (1)
+E:23:10:1:1    # | Short sword (1)
 D:Grey-Elves, children of twilight, who lingered beneath starlit skies, 
 D:wandering forests under shadows of Beleriand, guarded by secrecy. 
 D:Melodious speech shaping beauty and sorrow into songs of twilight, 
@@ -114,15 +124,16 @@ D:amid ruin their wisdom blossoms quietly, awaiting renewal and peace
 D:beyond sorrowful days when forests burn and stars alone remember. 
 
 N:4:Naugrim
+Q:d64e250a46b743b9
 S:2:-1:2:-1
 I:16:35:180
 H:54:2
 W:155:10
-C:18|19|20|21|22
+C:18|19|20|21|22|50
 F:AXE_PROFICIENCY | ARC_PENALTY | SMT_AFFINITY | MEL_AFFINITY 
 E:39:0:3:3     # ~ Wooden Torches (3)
 E:80:35:5:5    # , Pieces of Dark Bread (5)
-E:23:7:1:1     # | Curved sword (1)
+E:23:4:1:1     # | Dagger (1)
 D:Hardy smith-folk dwelling beneath mountains, masters of stone and metal, 
 D:crafting marvels in deep halls, secretive yet fiercely loyal friends. 
 D:Hearts bound to treasures glittering beneath earth, pride and greed entwined, 
@@ -132,6 +143,7 @@ D:forging swords and armor destined to echo peril yet unseen,
 D:allies steadfast and perilous, whose fate is carved in stone. 
 
 N:5:Edain
+Q:d28645bb6bf8409d
 S:0:0:0:0
 I:21:15:45
 H:70:4
@@ -140,7 +152,7 @@ C:23|24|25|26|27|28|29|30|44|45
 F:MEL_AFFINITY | WIL_AFFINITY | GIFTERU
 E:39:0:3:3     # ~ Wooden Torches (3)
 E:80:35:5:5    # , Pieces of Dark Bread (5)
-E:23:7:1:1     # | Curved sword (1)
+E:23:4:1:1     # | Dagger (1)
 D:Mortal children, whose brief lives shine bravely amid shadows of Eldar; 
 D:their hearts bound fiercely to freedom, defying doom and dark despair. 
 D:Heroes born amid ruin, whose strength will challenge Morgoth's shadow, 
@@ -156,7 +168,7 @@ D:their fate to inherit Arda's weary dominion beyond Eldar's fading hour.
 #Dwelling forever in light beyond grief, untouched by shadow's stain, 
 #watching sorrowful fate of kin afar across seas of exile and loss. 
 #Their distant wisdom foreshadows future healing when darkness fades; 
-#their songs in timeless peace await Eldar’s return from sorrow's depths, 
+#their songs in timeless peace await Eldar's return from sorrow's depths, 
 #unblemished yet sorrowful, bound to grief by kinship and love. 
 
 #Teleri

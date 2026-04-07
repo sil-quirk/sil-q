@@ -14,160 +14,23 @@
 #endif
 
 #include "angband.h"
+#include "blitz.h"
+#include "externs.h"
+#include "fs/io_sdl.h"
+#include "fs/path.h"
+#include "log/log.h"
 #include "metarun.h"
+#include "metarun_legacy.h"
+#include "sdl-sound.h"
 #include "h-define.h"
-#include "log.h"
-#include "platform.h"    /* path_build(), fd_*, MKDIR         */
+#include "platform.h"    /* MKDIR helper                      */
 #include "supplies.h"
+#include <SDL3/SDL.h>
 #include <time.h>
 #include <string.h>
 #include <stdlib.h>
 #include <limits.h>
 #include <ctype.h>
-
-/* Version structures for backward compatibility
- * v10 = 0.9.0.3 (current: expanded curse capacity, 64-bit known mask)
- * v9 = 0.9.0.2 (progressive scoring, reserved_runtime[32])
- * v8 = 0.9.0.1 (persistent blessing choices, reserved_runtime[1])
- * v7 = 0.9.0.0 (initial versioned, no blessing persistence)
- * v6 = pre-0.9.0 (curse_lo/hi instead of curse_stacks, score/best_run_score)
- * v5 = older (curse_lo/hi, no score fields)
- */
-
-typedef struct metarun_v9 {
-    u32b id;
-    byte type;
-    byte deaths;
-    byte silmarils;
-    u32b last_played;
-    u32b score;
-    u32b best_run_score;
-    int8_t curse_stacks[32];
-    u32b curses_seen;
-    u32b persistent_options[8];
-    byte persistent_delay_factor;
-    byte persistent_hitpoint_warn;
-    u32b persistent_window_flags[ANGBAND_TERM_MAX];
-    byte persistent_options_initialized;
-    u32b completed_quests;
-    byte unlocked_oaths;
-    byte banned_oaths;
-    byte max_difficulty_reached;
-    byte quest_reserved[12];
-    u32b fallen_score_total;
-    u32b fallen_score_pool;
-    s16b blessing_points;
-    u16b blessing_points_spent;
-    u16b major_blessings;
-    byte alive_characters;
-    byte pending_blessing_choices[3];
-    byte pending_blessing_count;
-    byte blessing_threshold_mode;
-    byte reserved_runtime[31];
-} metarun_v9;
-
-typedef struct metarun_v8 {
-    u32b id;
-    byte type;
-    byte deaths;
-    byte silmarils;
-    u32b last_played;
-    u32b score;
-    u32b best_run_score;
-    int8_t curse_stacks[32];
-    u32b curses_seen;
-    u32b persistent_options[8];
-    byte persistent_delay_factor;
-    byte persistent_hitpoint_warn;
-    u32b persistent_window_flags[ANGBAND_TERM_MAX];
-    byte persistent_options_initialized;
-    u32b completed_quests;
-    byte unlocked_oaths;
-    byte banned_oaths;
-    byte max_difficulty_reached;
-    byte quest_reserved[12];
-    u32b fallen_score_total;
-    u32b fallen_score_pool;
-    s16b blessing_points;
-    u16b blessing_points_spent;
-    u16b major_blessings;
-    byte alive_characters;
-    byte pending_blessing_choices[3];
-    byte pending_blessing_count;
-    byte reserved_runtime[1];
-} metarun_v8;
-
-typedef struct metarun_v7 {
-    u32b id;
-    byte type;
-    byte deaths;
-    byte silmarils;
-    u32b last_played;
-    u32b score;
-    u32b best_run_score;
-    int8_t curse_stacks[32];
-    u32b curses_seen;
-    u32b persistent_options[8];
-    byte persistent_delay_factor;
-    byte persistent_hitpoint_warn;
-    u32b persistent_window_flags[ANGBAND_TERM_MAX];
-    byte persistent_options_initialized;
-    u32b completed_quests;
-    byte unlocked_oaths;
-    byte banned_oaths;
-    byte max_difficulty_reached;
-    byte quest_reserved[12];
-} metarun_v7;
-
-typedef struct metarun_v6 {
-    u32b id;
-    byte type;
-    byte deaths;
-    byte silmarils;
-    u32b last_played;
-    u32b score;
-    u32b best_run_score;
-    u32b curses_lo;
-    u32b curses_hi;
-    u32b curses_seen;
-    u32b persistent_options[8];
-    byte persistent_delay_factor;
-    byte persistent_hitpoint_warn;
-    u32b persistent_window_flags[ANGBAND_TERM_MAX];
-    byte persistent_options_initialized;
-    u32b completed_quests;
-    byte unlocked_oaths;
-    byte banned_oaths;
-    byte max_difficulty_reached;
-    byte quest_reserved[12];
-} metarun_v6;
-
-typedef struct metarun_v5 {
-    u32b id;
-    byte type;
-    byte deaths;
-    byte silmarils;
-    u32b last_played;
-    u32b curses_lo;
-    u32b curses_hi;
-    u32b curses_seen;
-    u32b persistent_options[8];
-    byte persistent_delay_factor;
-    byte persistent_hitpoint_warn;
-    u32b persistent_window_flags[ANGBAND_TERM_MAX];
-    byte persistent_options_initialized;
-    u32b completed_quests;
-    byte unlocked_oaths;
-    byte banned_oaths;
-    byte max_difficulty_reached;
-    byte quest_reserved[12];
-} metarun_v5;
-
-#define METARUN_V9_SIZE (sizeof(metarun_v9))
-#define METARUN_V8_SIZE (sizeof(metarun_v8))
-#define METARUN_V7_SIZE (sizeof(metarun_v7))
-#define METARUN_V6_SIZE (sizeof(metarun_v6))
-#define METARUN_V5_SIZE (sizeof(metarun_v5))
 
 #ifdef WINDOWS
 #include <windows.h>
@@ -180,9 +43,11 @@ typedef struct metarun_v5 {
 /*  metarun.c : quick-and-dirty logger                             */
 /* --------------------------------------------------------------- */
 
+/* Enable this to delete old save/score files on fresh metarun start.
+ * Currently disabled to prevent accidental data loss during debugging. */
+/* #define METARUN_CLEANUP_OLD_FILES */
+
 /* =========================  constants  ========================= */
-#define META_RAW          "meta.raw"
-#define META_SUBDIR       "metaruns"
 #define CURSE_MENU_LINES  3
 
 /* =========================  globals  =========================== */
@@ -190,9 +55,6 @@ static metarun *metaruns    = NULL;
 static s16b     metarun_max = 0;
 static s16b     current_run = 0;
 bool            metarun_created = false;
-
-/* ==================  tiny local helpers  ======================= */
-static int rng_int(int max) { return max ? (int)(rand() % max) : 0; }
 
 static int popcount32(u32b value)
 {
@@ -204,12 +66,87 @@ static int popcount32(u32b value)
     return count;
 }
 
-static int parse_character_file(FILE *fp)
+static void metarun_prompt_label(int binding, const char* fallback, char* buf, size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    sdl_gamepad_action_binding_short_label(binding, buf, buflen);
+    if (streq(buf, "(unbound)") || streq(buf, "Multiple"))
+        SDL_strlcpy(buf, fallback, buflen);
+}
+
+/* ----------------------- accessors --------------------------- */
+const metarun *metarun_current(void)
+{
+    if (!metaruns) return NULL;
+    if (current_run < 0 || current_run >= metarun_max) return NULL;
+    return &metaruns[current_run];
+}
+
+metarun *metarun_current_mutable(void)
+{
+    if (!metaruns) return NULL;
+    if (current_run < 0 || current_run >= metarun_max) return NULL;
+    return &metaruns[current_run];
+}
+
+const metarun *metarun_entry_const(s16b idx)
+{
+    if (!metaruns) return NULL;
+    if (idx < 0 || idx >= metarun_max) return NULL;
+    return &metaruns[idx];
+}
+
+metarun *metarun_entry_mutable(s16b idx)
+{
+    if (!metaruns) return NULL;
+    if (idx < 0 || idx >= metarun_max) return NULL;
+    return &metaruns[idx];
+}
+
+s16b metarun_current_index(void)
+{
+    if (!metaruns) return -1;
+    if (current_run < 0 || current_run >= metarun_max) return -1;
+    return current_run;
+}
+
+s16b metarun_entry_count(void)
+{
+    return metarun_max;
+}
+
+int metarun_completed_count(void)
+{
+    int completed = 0;
+
+    if (!metaruns)
+        return 0;
+
+    for (s16b i = 0; i < metarun_max; i++) {
+        const metarun *m = &metaruns[i];
+        int win_goal = WINCON_SILMARILS;
+
+        if (runtype_info && z_info && m->type < z_info->rt_max) {
+            win_goal = runtype_info[m->type].win_con
+                ? runtype_info[m->type].win_con
+                : WINCON_SILMARILS;
+        }
+
+        if (m->silmarils >= win_goal)
+            completed++;
+    }
+
+    return completed;
+}
+
+static int parse_character_file(SDL_IOStream *fp)
 {
     int count = 0;
     char line[1024];
 
-    while (fgets(line, sizeof(line), fp)) {
+    while (sdl_fgets(fp, line, sizeof(line)) == 0) {
         char *p = line;
         while (*p && isspace((unsigned char)*p)) p++;
         if (!*p || *p == '#') continue;
@@ -237,16 +174,22 @@ static int count_character_txt_entries(void)
     };
 
     char path[1024];
-    FILE *fp = NULL;
+    SDL_IOStream *fp = NULL;
 
     for (size_t i = 0; candidates[i].dir; i++) {
         if (!candidates[i].dir || !*candidates[i].dir) continue;
-        path_build(path, sizeof(path), candidates[i].dir, candidates[i].filename);
+        if (!path_build(path, sizeof(path), candidates[i].dir, candidates[i].filename))
+        {
+            log_error("count_character_txt_entries: failed to build path for %s/%s",
+                candidates[i].dir ? candidates[i].dir : "(null)",
+                candidates[i].filename ? candidates[i].filename : "(null)");
+            continue;
+        }
         log_debug("count_character_txt_entries: trying %s", path);
-        fp = my_fopen(path, "r");
+        fp = sdl_fopen(path, "r");
         if (fp) {
             cached_total = parse_character_file(fp);
-            my_fclose(fp);
+            sdl_fclose(fp);
             log_debug("count_character_txt_entries: loaded %d entries from %s", cached_total, path);
             break;
         }
@@ -264,6 +207,7 @@ static u32b runtype_threshold_for_mode(int runtype_id, metarun_blessing_threshol
 static u32b metarun_threshold_value(const metarun *m);
 static const char *threshold_mode_name(metarun_blessing_threshold_mode mode);
 
+/* Clamp blessing economy values after (re)computing the ledger */
 static void update_blessing_ledger(metarun *m)
 {
     if (!m) return;
@@ -284,7 +228,21 @@ static void update_blessing_ledger(metarun *m)
     m->fallen_score_pool = remainder;
 }
 
-static void clear_blessing_runtime_fields(metarun *m)
+/* Rebuild blessing_points from fallen_score_total.
+ * Does NOT clamp blessing_points_spent - that value must be preserved from save.
+ * Clamping of spent vs earned happens only at spend-time, not at load-time. */
+void metarun_sanitize_blessing_economy(metarun *m)
+{
+    if (!m) return;
+
+    /* Rebuild blessing_points from fallen_score_total */
+    update_blessing_ledger(m);
+
+    /* blessing_points CAN be negative - that's valid
+     * blessing_points_spent is preserved exactly as loaded */
+}
+
+void metarun_clear_blessing_runtime_fields(metarun *m)
 {
     if (!m) return;
 
@@ -322,22 +280,39 @@ static u16b major_blessing_mask(void)
     return (u16b)((1u << cap) - 1u);
 }
 
-static void sanitize_major_blessing_bits(metarun *m)
+void metarun_sanitize_major_blessing_bits(metarun *m)
 {
-    if (!m) return;
+    if (!m || !z_info || !mb_info) return;
+
     u16b mask = major_blessing_mask();
     if (mask == 0) {
         m->major_blessings = 0;
-    } else {
-        m->major_blessings &= mask;
+        return;
     }
+
+    u16b defined_mask = 0;
+    int cap = major_blessing_capacity();
+    for (int i = 0; i < cap; i++) {
+        const major_blessing_type *def = &mb_info[i];
+        if (def->name)
+            defined_mask |= (1U << i);
+    }
+
+    if (defined_mask == 0) {
+        m->major_blessings = 0;
+        return;
+    }
+
+    m->major_blessings &= (mask & defined_mask);
 }
 
 static const major_blessing_type *major_blessing_def(int idx)
 {
     if (!mb_info || !z_info) return NULL;
     if (idx < 0 || idx >= (int)z_info->mb_max) return NULL;
-    return &mb_info[idx];
+    const major_blessing_type *def = &mb_info[idx];
+    if (!def->name) return NULL;
+    return def;
 }
 
 static cptr major_blessing_name_str(int idx)
@@ -492,242 +467,6 @@ static const char *threshold_mode_name(metarun_blessing_threshold_mode mode)
     }
 }
 
-static void decode_legacy_curse_words(u32b lo, u32b hi, int8_t stacks[METAR_CURSE_SLOTS])
-{
-    if (!stacks) return;
-    for (int id = 0; id < METAR_CURSE_SLOTS; ++id) stacks[id] = 0;
-    for (int id = 0; id < 32; ++id) {
-        u32b cnt = (id < 16)
-                 ? ((lo >> (id * 2)) & 0x3U)
-                 : ((hi >> ((id - 16) * 2)) & 0x3U);
-        stacks[id] = (int8_t)cnt;
-    }
-}
-
-static void metarun_from_v9(metarun *dst, const metarun_v9 *src)
-{
-    if (!dst || !src) return;
-
-    memset(dst, 0, sizeof(*dst));
-    clear_blessing_runtime_fields(dst);
-
-    dst->id = src->id;
-    dst->type = src->type;
-    dst->deaths = src->deaths;
-    dst->silmarils = src->silmarils;
-    dst->last_played = src->last_played;
-    dst->score = src->score;
-    dst->best_run_score = src->best_run_score;
-
-    size_t stack_copy = MIN(sizeof(dst->curse_stacks), sizeof(src->curse_stacks));
-    memcpy(dst->curse_stacks, src->curse_stacks, stack_copy);
-    if (stack_copy < sizeof(dst->curse_stacks)) {
-        memset(dst->curse_stacks + stack_copy, 0, sizeof(dst->curse_stacks) - stack_copy);
-    }
-    dst->curses_seen = (u64b)src->curses_seen;
-
-    C_COPY(dst->persistent_options, src->persistent_options, 8, u32b);
-    dst->persistent_delay_factor = src->persistent_delay_factor;
-    dst->persistent_hitpoint_warn = src->persistent_hitpoint_warn;
-    C_COPY(dst->persistent_window_flags, src->persistent_window_flags, ANGBAND_TERM_MAX, u32b);
-    dst->persistent_options_initialized = src->persistent_options_initialized;
-
-    dst->completed_quests = src->completed_quests;
-    dst->unlocked_oaths = src->unlocked_oaths;
-    dst->banned_oaths = src->banned_oaths;
-    dst->max_difficulty_reached = src->max_difficulty_reached;
-
-    C_COPY(dst->quest_reserved, src->quest_reserved, 12, byte);
-
-    dst->fallen_score_total = src->fallen_score_total;
-    dst->fallen_score_pool = src->fallen_score_pool;
-    dst->blessing_points = src->blessing_points;
-    dst->blessing_points_spent = src->blessing_points_spent;
-    dst->major_blessings = src->major_blessings;
-    dst->alive_characters = src->alive_characters;
-
-    C_COPY(dst->pending_blessing_choices, src->pending_blessing_choices, 3, byte);
-    dst->pending_blessing_count = src->pending_blessing_count;
-    dst->blessing_threshold_mode = src->blessing_threshold_mode;
-
-    size_t runtime_copy = MIN(sizeof(dst->reserved_runtime), sizeof(src->reserved_runtime));
-    if (runtime_copy > 0) {
-        memcpy(dst->reserved_runtime, src->reserved_runtime, runtime_copy);
-    }
-    if (runtime_copy < sizeof(dst->reserved_runtime)) {
-        memset(dst->reserved_runtime + runtime_copy, 0, sizeof(dst->reserved_runtime) - runtime_copy);
-    }
-
-    update_blessing_ledger(dst);
-}
-
-static void metarun_from_v8(metarun *dst, const metarun_v8 *src)
-{
-    if (!dst || !src) return;
-
-    memset(dst, 0, sizeof(*dst));
-    clear_blessing_runtime_fields(dst);
-
-    dst->id = src->id;
-    dst->type = src->type;
-    dst->deaths = src->deaths;
-    dst->silmarils = src->silmarils;
-    dst->last_played = src->last_played;
-    dst->score = src->score;
-    dst->best_run_score = src->best_run_score;
-
-    size_t stack_copy = MIN(sizeof(dst->curse_stacks), sizeof(src->curse_stacks));
-    memcpy(dst->curse_stacks, src->curse_stacks, stack_copy);
-    if (stack_copy < sizeof(dst->curse_stacks)) {
-        memset(dst->curse_stacks + stack_copy, 0, sizeof(dst->curse_stacks) - stack_copy);
-    }
-    dst->curses_seen = (u64b)src->curses_seen;
-
-    C_COPY(dst->persistent_options, src->persistent_options, 8, u32b);
-    dst->persistent_delay_factor = src->persistent_delay_factor;
-    dst->persistent_hitpoint_warn = src->persistent_hitpoint_warn;
-    C_COPY(dst->persistent_window_flags, src->persistent_window_flags, ANGBAND_TERM_MAX, u32b);
-    dst->persistent_options_initialized = src->persistent_options_initialized;
-
-    dst->completed_quests = src->completed_quests;
-    dst->unlocked_oaths = src->unlocked_oaths;
-    dst->banned_oaths = src->banned_oaths;
-    dst->max_difficulty_reached = src->max_difficulty_reached;
-    
-    /* Copy all quest_reserved bytes */
-    C_COPY(dst->quest_reserved, src->quest_reserved, 12, byte);
-    
-    dst->fallen_score_total = src->fallen_score_total;
-    dst->blessing_points_spent = src->blessing_points_spent;
-    dst->major_blessings = src->major_blessings;
-    dst->alive_characters = src->alive_characters;
-    
-    /* Copy persistent blessing choices (new in v8/0.9.0.1) */
-    C_COPY(dst->pending_blessing_choices, src->pending_blessing_choices, 3, byte);
-    dst->pending_blessing_count = src->pending_blessing_count;
-
-    /* Copy reserved_runtime */
-    size_t runtime_copy = MIN(sizeof(dst->reserved_runtime), sizeof(src->reserved_runtime));
-    if (runtime_copy > 0) {
-        memcpy(dst->reserved_runtime, src->reserved_runtime, runtime_copy);
-    }
-    if (runtime_copy < sizeof(dst->reserved_runtime)) {
-        memset(dst->reserved_runtime + runtime_copy, 0, sizeof(dst->reserved_runtime) - runtime_copy);
-    }
-
-    update_blessing_ledger(dst);
-}
-
-static void metarun_from_v7(metarun *dst, const metarun_v7 *src)
-{
-    if (!dst || !src) return;
-
-    memset(dst, 0, sizeof(*dst));
-    clear_blessing_runtime_fields(dst);
-
-    dst->id = src->id;
-    dst->type = src->type;
-    dst->deaths = src->deaths;
-    dst->silmarils = src->silmarils;
-    dst->last_played = src->last_played;
-    dst->score = src->score;
-    dst->best_run_score = src->best_run_score;
-
-    size_t stack_copy = MIN(sizeof(dst->curse_stacks), sizeof(src->curse_stacks));
-    memcpy(dst->curse_stacks, src->curse_stacks, stack_copy);
-    if (stack_copy < sizeof(dst->curse_stacks)) {
-        memset(dst->curse_stacks + stack_copy, 0, sizeof(dst->curse_stacks) - stack_copy);
-    }
-    dst->curses_seen = (u64b)src->curses_seen;
-
-    C_COPY(dst->persistent_options, src->persistent_options, 8, u32b);
-    dst->persistent_delay_factor = src->persistent_delay_factor;
-    dst->persistent_hitpoint_warn = src->persistent_hitpoint_warn;
-    C_COPY(dst->persistent_window_flags, src->persistent_window_flags, ANGBAND_TERM_MAX, u32b);
-    dst->persistent_options_initialized = src->persistent_options_initialized;
-
-    dst->completed_quests = src->completed_quests;
-    dst->unlocked_oaths = src->unlocked_oaths;
-    dst->banned_oaths = src->banned_oaths;
-    dst->max_difficulty_reached = src->max_difficulty_reached;
-    
-    /* Copy all quest_reserved bytes */
-    C_COPY(dst->quest_reserved, src->quest_reserved, 12, byte);
-
-    update_blessing_ledger(dst);
-}
-
-static void metarun_from_v6(metarun *dst, const metarun_v6 *src)
-{
-    if (!dst || !src) return;
-
-    memset(dst, 0, sizeof(*dst));
-    clear_blessing_runtime_fields(dst);
-
-    dst->id = src->id;
-    dst->type = src->type;
-    dst->deaths = src->deaths;
-    dst->silmarils = src->silmarils;
-    dst->last_played = src->last_played;
-    dst->score = src->score;
-    dst->best_run_score = src->best_run_score;
-
-    decode_legacy_curse_words(src->curses_lo, src->curses_hi, dst->curse_stacks);
-    dst->curses_seen = (u64b)src->curses_seen;
-
-    C_COPY(dst->persistent_options, src->persistent_options, 8, u32b);
-    dst->persistent_delay_factor = src->persistent_delay_factor;
-    dst->persistent_hitpoint_warn = src->persistent_hitpoint_warn;
-    C_COPY(dst->persistent_window_flags, src->persistent_window_flags, ANGBAND_TERM_MAX, u32b);
-    dst->persistent_options_initialized = src->persistent_options_initialized;
-
-    dst->completed_quests = src->completed_quests;
-    dst->unlocked_oaths = src->unlocked_oaths;
-    dst->banned_oaths = src->banned_oaths;
-    dst->max_difficulty_reached = src->max_difficulty_reached;
-    
-    /* Copy all quest_reserved bytes */
-    C_COPY(dst->quest_reserved, src->quest_reserved, 12, byte);
-
-    update_blessing_ledger(dst);
-}
-
-static void metarun_from_v5(metarun *dst, const metarun_v5 *src)
-{
-    if (!dst || !src) return;
-
-    memset(dst, 0, sizeof(*dst));
-    clear_blessing_runtime_fields(dst);
-
-    dst->id = src->id;
-    dst->type = src->type;
-    dst->deaths = src->deaths;
-    dst->silmarils = src->silmarils;
-    dst->last_played = src->last_played;
-
-    decode_legacy_curse_words(src->curses_lo, src->curses_hi, dst->curse_stacks);
-    dst->curses_seen = (u64b)src->curses_seen;
-
-    C_COPY(dst->persistent_options, src->persistent_options, 8, u32b);
-    dst->persistent_delay_factor = src->persistent_delay_factor;
-    dst->persistent_hitpoint_warn = src->persistent_hitpoint_warn;
-    C_COPY(dst->persistent_window_flags, src->persistent_window_flags, ANGBAND_TERM_MAX, u32b);
-    dst->persistent_options_initialized = src->persistent_options_initialized;
-
-    dst->completed_quests = src->completed_quests;
-    dst->unlocked_oaths = src->unlocked_oaths;
-    dst->banned_oaths = src->banned_oaths;
-    dst->max_difficulty_reached = src->max_difficulty_reached;
-    
-    /* Copy all quest_reserved bytes */
-    C_COPY(dst->quest_reserved, src->quest_reserved, 12, byte);
-
-    update_blessing_ledger(dst);
-}
-
-/* Calculate best run score from the high score table
- * All scores in the score file belong to the current metarun
- * This is kept for display purposes and historical tracking */
 static u32b get_best_run_score_from_highscores(void)
 {
     #define MAX_SCORES 100
@@ -786,7 +525,7 @@ static u32b compute_metarun_score(const metarun *m)
     /* Use progressive scoring across all character runs (v0.9.0.2+) */
     u32b progressive_score = compute_progressive_character_score();
     
-    int quest_count = popcount32(m->completed_quests);
+    int quest_count = metarun_total_quest_completions(m);
     
     s32b total = (s32b)progressive_score;
     total += (s32b)m->silmarils * 120;
@@ -802,7 +541,7 @@ static u32b compute_metarun_score(const metarun *m)
     return (u32b)total;
 }
 
-static void refresh_current_metar_score(void)
+void refresh_current_metar_score(void)
 {
     if (!metaruns) return;
     if (current_run < 0 || current_run >= metarun_max) return;
@@ -830,23 +569,60 @@ static int compare_metarun_indices(const void *a, const void *b)
     return 0;
 }
 
-static void build_meta_path(char *buf, size_t len,
-                            const metarun *m, const char *leaf)
+static bool build_meta_path(char *buf, size_t len,
+    const metarun *m, const char *leaf)
 {
+    const char* name = leaf ? leaf : "";
+
+    if (!m)
+    {
+#ifdef SIL_USE_LOCAL_DATA
+        /* Portable build: use ANGBAND_DIR_APEX */
+        if (!path_build(buf, len, ANGBAND_DIR_APEX, name))
+#else
+        /* Normal build: use parent of ANGBAND_DIR_METARUN (the meta directory) */
+        char meta_dir[1024];
+        if (ANGBAND_DIR_METARUN && *ANGBAND_DIR_METARUN) {
+            SDL_strlcpy(meta_dir, ANGBAND_DIR_METARUN, sizeof(meta_dir));
+            char* last_sep = strrchr(meta_dir, PATH_SEP[0]);
+            if (last_sep) *last_sep = '\0';
+        } else {
+            SDL_strlcpy(meta_dir, ANGBAND_DIR_APEX, sizeof(meta_dir));
+        }
+        if (!path_build(buf, len, meta_dir, name))
+#endif
+        {
+            log_error("build_meta_path: failed for apex/%s", name);
+            return false;
+        }
+        return true;
+    }
+
     char sub[128];
-    if (m)
+    if (name[0])
         strnfmt(sub, sizeof sub, "%s/%08u/%s",
-                META_SUBDIR, (unsigned)m->id, leaf);
+            META_SUBDIR, (unsigned)m->id, name);
     else
-        strnfmt(sub, sizeof sub, "%s/%s", META_SUBDIR, leaf);
-    path_build(buf, len, ANGBAND_DIR_APEX, sub);
+        strnfmt(sub, sizeof sub, "%s/%08u",
+            META_SUBDIR, (unsigned)m->id);
+#ifdef SIL_USE_LOCAL_DATA
+    if (!path_build(buf, len, ANGBAND_DIR_APEX, sub))
+#else
+    /* For metarun subdirectories, use ANGBAND_DIR_METARUN */
+    if (!path_build(buf, len, ANGBAND_DIR_METARUN, sub))
+#endif
+    {
+        log_error("build_meta_path: failed for %s", sub);
+        return false;
+    }
+    return true;
 }
 
 static void reset_defaults(metarun *m)
 {
     log_info("Initializing new metarun with default values");
     memset(m, 0, sizeof(*m));
-    clear_blessing_runtime_fields(m);
+    metarun_clear_blessing_runtime_fields(m);
     m->id          = 1;
     m->last_played = (u32b)time(NULL);
     memset(m->curse_stacks, 0, sizeof(m->curse_stacks));
@@ -867,6 +643,10 @@ static void reset_defaults(metarun *m)
     
     /* Initialize quest tracking */
     m->completed_quests = 0;             /* No quests completed initially */
+    for (int i = 0; i < METARUN_QUEST_SLOT_MAX; i++) {
+        m->quest_completion_counts[i] = 0;
+    }
+    metarun_clamp_and_sync_quests(m);
     
     /* Initialize oath system tracking */
     m->unlocked_oaths = 0;               /* No oaths unlocked initially */
@@ -889,7 +669,7 @@ static bool ensure_default_metarun_slot(const char *reason)
     if (metarun_max > 0 && metaruns) return false;
 
     if (metaruns) {
-        FREE(metaruns);
+        mem_free_null(metaruns);
         metaruns = NULL;
     }
 
@@ -899,7 +679,7 @@ static bool ensure_default_metarun_slot(const char *reason)
         log_warn("Metarun recovery triggered; creating default entry");
 
     metarun_max = 1;
-    metaruns = C_ZNEW(metarun_max, metarun);
+    metaruns = mem_alloc_array(metarun_max, metarun);
     reset_defaults(&metaruns[0]);
     metarun_created = true;
 
@@ -940,9 +720,20 @@ static void apply_difficulty_curses(metarun *m)
 static void ensure_run_dir(const metarun *m)
 {
     char dir[1024];
-    path_build(dir, sizeof dir, ANGBAND_DIR_APEX, META_SUBDIR); MKDIR(dir);
+    if (!path_build(dir, sizeof dir, ANGBAND_DIR_APEX, META_SUBDIR))
+    {
+        log_error("ensure_run_dir: failed to build base metarun directory");
+        return;
+    }
+    MKDIR(dir);
     strnfmt(dir, sizeof dir, "%s/%08u", META_SUBDIR, (unsigned)m->id);
-    path_build(dir, sizeof dir, ANGBAND_DIR_APEX, dir);         MKDIR(dir);
+    if (!path_build(dir, sizeof dir, ANGBAND_DIR_APEX, dir))
+    {
+        log_error("ensure_run_dir: failed to build run directory for id=%u",
+            (unsigned)m->id);
+        return;
+    }
+    MKDIR(dir);
 }
 
 static bool sync_current_metarun_slot(bool stamp_time)
@@ -955,6 +746,7 @@ static bool sync_current_metarun_slot(bool stamp_time)
         metar.last_played = (u32b)time(NULL);
     }
 
+    metarun_clamp_and_sync_quests(&metar);
     metaruns[current_run] = metar;
     return true;
 }
@@ -967,58 +759,15 @@ static bool print_paragraph_fade(cptr txt, byte final_attr, int row);
 static void adjust_blessing_threshold_menu(void);
 /* =======================  load / save  ========================= */
 
-/* Check if a file is in the new versioned format */
-static bool is_versioned_meta_file(int fd, int file_size)
-{
-    if (file_size < sizeof(meta_file_header)) return false;
-
-    meta_file_header header;
-    fd_seek(fd, 0);
-    if (fd_read(fd, (char*)&header, sizeof(header)) != 0) return false;
-
-    /* Check for reasonable version numbers (0-255) and entry count */
-    if (header.version_major > 255 || header.version_minor > 255 ||
-        header.version_patch > 255 || header.version_extra > 255) return false;
-
-    /* Check if the entry count makes sense with file size */
-    size_t payload = file_size - sizeof(meta_file_header);
-    if (header.entry_count == 0) {
-        if (payload != 0) return false;
-    } else {
-        if ((payload % header.entry_count) != 0) return false;
-        size_t entry_size = payload / header.entry_count;
-        const size_t accepted[] = {
-            sizeof(metarun),
-            METARUN_V9_SIZE,
-            METARUN_V8_SIZE,
-            METARUN_V7_SIZE,
-            METARUN_V6_SIZE,
-            METARUN_V5_SIZE
-        };
-        bool supported = false;
-        for (size_t i = 0; i < N_ELEMENTS(accepted); i++) {
-            if (entry_size == accepted[i]) {
-                supported = true;
-                break;
-            }
-        }
-        if (!supported) {
-            log_debug("is_versioned_meta_file: unsupported entry size %zu (payload %zu, entries %u)",
-                      entry_size, payload, header.entry_count);
-            return false;
-        }
-    }
-
-    log_info("Detected versioned meta file: v%d.%d.%d, %u entries",
-             header.version_major, header.version_minor, header.version_patch, header.entry_count);
-    return true;
-}
-
 /*
  * Clean up old save and score files when starting fresh (no meta.raw exists)
  */
 void cleanup_old_game_files(void)
 {
+#ifndef METARUN_CLEANUP_OLD_FILES
+    log_info("*** FRESH STARTUP CLEANUP DISABLED (METARUN_CLEANUP_OLD_FILES not defined) ***");
+    return;
+#else
     log_info("*** FRESH STARTUP CLEANUP STARTING ***");
     
     /* Use the correct save directory - ANGBAND_DIR_SAVE points to lib/save */
@@ -1034,7 +783,11 @@ void cleanup_old_game_files(void)
     /* Windows: Use FindFirstFile/FindNextFile for directory scanning */
     WIN32_FIND_DATA findData;
     char search_path[1024];
-    path_build(search_path, sizeof(search_path), save_dir, "*");
+    if (!path_build(search_path, sizeof(search_path), save_dir, "*"))
+    {
+        log_error("cleanup_old_game_files: failed to build save directory search path");
+        return;
+    }
     
     HANDLE hFind = FindFirstFile(search_path, &findData);
     if (hFind != INVALID_HANDLE_VALUE) {
@@ -1088,17 +841,22 @@ void cleanup_old_game_files(void)
         
         /* Quick score file check and removal */
         char score_file[1024];
-        path_build(score_file, sizeof(score_file), ANGBAND_DIR_APEX, "scores.raw");
-        
-        int score_fd = fd_open(score_file, O_RDONLY);
-        if (score_fd >= 0) {
-            fd_close(score_fd);
-            log_info("*** REMOVING SCORE FILE FOR FRESH START ***");
-            
-            /* Platform-agnostic file removal using standard C */
-            remove(score_file);
-        } else {
-            log_trace("Fresh startup: no score file found");
+        if (path_build(score_file, sizeof(score_file), ANGBAND_DIR_APEX, "scores.raw"))
+        {
+            SDL_IOStream* score_fd = sdl_fopen(score_file, "rb");
+            if (score_fd) {
+                sdl_fclose(score_fd);
+                log_info("*** REMOVING SCORE FILE FOR FRESH START ***");
+
+                /* Platform-agnostic file removal using standard C */
+                remove(score_file);
+            } else {
+                log_trace("Fresh startup: no score file found");
+            }
+        }
+        else
+        {
+            log_error("cleanup_old_game_files: failed to build score file path");
         }
         
         log_info("*** INSTANT FRESH STARTUP COMPLETED ***");
@@ -1111,39 +869,48 @@ void cleanup_old_game_files(void)
     /* Use ONLY standard C functions - no shell commands for better portability */
     int files_deleted = 0;
     
-    #ifdef WINDOWS
+#ifdef WINDOWS
     /* Windows: Use FindFirstFile/FindNextFile to enumerate and delete */
     WIN32_FIND_DATA cleanupFindData;
     char cleanup_search_path[1024];
-    path_build(cleanup_search_path, sizeof(cleanup_search_path), save_dir, "*");
-    
-    HANDLE hCleanupFind = FindFirstFile(cleanup_search_path, &cleanupFindData);
-    if (hCleanupFind != INVALID_HANDLE_VALUE) {
-        do {
-            /* Skip directories and special entries */
-            if (cleanupFindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
-            
-            char* filename = cleanupFindData.cFileName;
-            
-            /* Skip .gitignore and archive files */
-            if (strcmp(filename, ".gitignore") == 0) continue;
-            if (strstr(filename, ".tar") || strstr(filename, ".zip") || strstr(filename, ".gz")) continue;
-            
-            /* Delete this file using standard C */
-            char file_path[1024];
-            path_build(file_path, sizeof(file_path), save_dir, filename);
-            
-            if (remove(file_path) == 0) {
-                files_deleted++;
-                log_trace("Fresh startup: deleted file: %s", filename);
-            } else {
-                log_trace("Fresh startup: failed to delete: %s", filename);
-            }
-            
-        } while (FindNextFile(hCleanupFind, &cleanupFindData));
-        FindClose(hCleanupFind);
+    if (path_build(cleanup_search_path, sizeof(cleanup_search_path), save_dir, "*"))
+    {
+        HANDLE hCleanupFind = FindFirstFile(cleanup_search_path, &cleanupFindData);
+        if (hCleanupFind != INVALID_HANDLE_VALUE) {
+            do {
+                /* Skip directories and special entries */
+                if (cleanupFindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
+
+                char* filename = cleanupFindData.cFileName;
+
+                /* Skip .gitignore and archive files */
+                if (strcmp(filename, ".gitignore") == 0) continue;
+                if (strstr(filename, ".tar") || strstr(filename, ".zip") || strstr(filename, ".gz")) continue;
+
+                /* Delete this file using standard C */
+                char file_path[1024];
+                if (!path_build(file_path, sizeof(file_path), save_dir, filename))
+                {
+                    log_error("cleanup_old_game_files: failed to build deletion path for '%s'", filename);
+                    continue;
+                }
+
+                if (remove(file_path) == 0) {
+                    files_deleted++;
+                    log_trace("Fresh startup: deleted file: %s", filename);
+                } else {
+                    log_trace("Fresh startup: failed to delete: %s", filename);
+                }
+
+            } while (FindNextFile(hCleanupFind, &cleanupFindData));
+            FindClose(hCleanupFind);
+        }
     }
-    #else
+    else
+    {
+        log_error("cleanup_old_game_files: failed to build cleanup search path");
+    }
+#else
     /* Unix/Linux/macOS: Use opendir/readdir to enumerate and delete */
     dir = opendir(save_dir);
     if (dir) {
@@ -1162,7 +929,11 @@ void cleanup_old_game_files(void)
             
             /* Delete this file using standard C */
             char file_path[1024];
-            path_build(file_path, sizeof(file_path), save_dir, filename);
+            if (!path_build(file_path, sizeof(file_path), save_dir, filename))
+            {
+                log_error("cleanup_old_game_files: failed to build deletion path for '%s'", filename);
+                continue;
+            }
             
             if (remove(file_path) == 0) {
                 files_deleted++;
@@ -1183,11 +954,15 @@ void cleanup_old_game_files(void)
     
     /* Score file cleanup */
     char score_file[1024];
-    path_build(score_file, sizeof(score_file), ANGBAND_DIR_APEX, "scores.raw");
+    if (!path_build(score_file, sizeof(score_file), ANGBAND_DIR_APEX, "scores.raw"))
+    {
+        log_error("cleanup_old_game_files: failed to build score file path during cleanup");
+        return;
+    }
     
-    int score_fd = fd_open(score_file, O_RDONLY);
-    if (score_fd >= 0) {
-        fd_close(score_fd);
+    SDL_IOStream* score_fd = sdl_fopen(score_file, "rb");
+    if (score_fd) {
+        sdl_fclose(score_fd);
         log_info("*** REMOVING SCORE FILE FOR FRESH START ***");
         
         /* Platform-agnostic file removal using standard C */
@@ -1195,155 +970,172 @@ void cleanup_old_game_files(void)
     }
     
     log_info("*** FRESH STARTUP CLEANUP COMPLETED ***");
+#endif /* METARUN_CLEANUP_OLD_FILES */
 }
 
 errr load_metaruns(bool create_if_missing)
 {
     char fn[1024];
-    int  fd;
+    SDL_IOStream* fd;
+    bool found_existing_data = false;
 
-    build_meta_path(fn, sizeof fn, NULL, META_RAW);
-    fd = fd_open(fn, O_RDONLY);
+    if (!build_meta_path(fn, sizeof fn, NULL, META_RAW))
+        return -1;
+    fd = sdl_fopen(fn, "rb");
 
-    if (fd < 0 && create_if_missing) {
+    if (!fd && ANGBAND_DIR_METARUN && ANGBAND_DIR_METARUN[0]) {
+        char legacy[1024];
+        if (path_build(legacy, sizeof legacy, ANGBAND_DIR_METARUN, META_RAW)) {
+            fd = sdl_fopen(legacy, "rb");
+            if (fd) {
+                log_info("Loading legacy metarun file: %s", legacy);
+                found_existing_data = true;
+            }
+        }
+        else
+        {
+            log_error("load_metarun_data: failed to build legacy path");
+        }
+    }
+
+    if (fd) {
+        found_existing_data = true;
+    }
+
+    if (!fd && create_if_missing) {
         log_info("Creating new versioned metarun file: %s", fn);
         FILE_TYPE(FILE_TYPE_DATA);
-        fd = fd_make(fn, 0644);
-        if (fd < 0) return -1;
+        fd = sdl_fmake(fn, 0644);
+        if (!fd) return -1;
 
         /* Write versioned header */
         meta_file_header header;
-        header.version_major = VERSION_MAJOR;
-        header.version_minor = VERSION_MINOR;
-        header.version_patch = VERSION_PATCH;
-        header.version_extra = VERSION_EXTRA;
+        header.version_major = METARUN_FILE_VERSION_MAJOR;
+        header.version_minor = METARUN_FILE_VERSION_MINOR;
+        header.version_patch = METARUN_FILE_VERSION_PATCH;
+        header.version_extra = METARUN_FILE_VERSION_EXTRA;
         header.entry_count = 1;
 
-        fd_write(fd, (cptr)&header, sizeof(header));
+        sdl_write(fd, (cptr)&header, sizeof(header));
 
         metarun seed;
         reset_defaults(&seed);
         seed.score = compute_metarun_score(&seed);
-        fd_write(fd, (cptr)&seed, sizeof seed);
-        fd_close(fd);
-        fd = fd_open(fn, O_RDONLY);
-        metarun_created = true;
+        sdl_write(fd, (cptr)&seed, sizeof seed);
+        sdl_fclose(fd);
+        fd = sdl_fopen(fn, "rb");
+        /* Only set metarun_created if we truly created a NEW file, not migrating existing data */
+        if (!found_existing_data) {
+            metarun_created = true;
+            log_info("Created brand new metarun - will show story intro");
+        } else {
+            log_info("Seeded new metarun file from existing data - skipping intro");
+        }
     }
     else log_info("Loading existing metarun file: %s", fn);
-    if (fd < 0) return -1;
+    if (!fd) return -1;
 
-    /* Check if this is a versioned file */
-    int file_size = fd_file_size(fd);
-    bool is_versioned = is_versioned_meta_file(fd, file_size);
-    
+    /* All metarun files are versioned (v0.9.0+) */
+    Sint64 file_size_64 = sdl_size(fd);
+    int file_size = (file_size_64 > 0) ? (int)file_size_64 : 0;
     const char *recovery_reason = NULL;
 
-    if (is_versioned) {
-        meta_file_header header;
-        fd_seek(fd, 0);
-        if (fd_read(fd, (char*)&header, sizeof(header)) != 0) {
-            log_error("Failed to read metarun header");
-            fd_close(fd);
-            return -1;
-        }
+    meta_file_header header;
+    sdl_seek(fd, 0);
+    if (sdl_read(fd, (char*)&header, sizeof(header)) != 0) {
+        log_error("Failed to read metarun header");
+        sdl_fclose(fd);
+        return -1;
+    }
 
-        log_info("Loading versioned meta file v%d.%d.%d (%u entries)",
-                 header.version_major, header.version_minor,
-                 header.version_patch, header.entry_count);
+    log_info("Loading versioned meta file v%d.%d.%d.%d (%u entries)",
+             header.version_major, header.version_minor,
+             header.version_patch, header.version_extra, header.entry_count);
 
-        metarun_max = header.entry_count;
-        size_t payload = (file_size >= (int)sizeof(meta_file_header))
-                       ? (size_t)file_size - sizeof(meta_file_header)
-                       : 0;
-        size_t entry_size = (metarun_max > 0)
-                          ? (payload / (size_t)metarun_max)
-                          : 0;
+    bool header_matches_current = (header.version_major == METARUN_FILE_VERSION_MAJOR &&
+                                   header.version_minor == METARUN_FILE_VERSION_MINOR &&
+                                   header.version_patch == METARUN_FILE_VERSION_PATCH &&
+                                   header.version_extra == METARUN_FILE_VERSION_EXTRA);
+    if (!header_matches_current) {
+        log_warn("metarun: file version v%d.%d.%d.%d differs from game version v%d.%d.%d.%d",
+                 header.version_major, header.version_minor, header.version_patch, header.version_extra,
+                 METARUN_FILE_VERSION_MAJOR, METARUN_FILE_VERSION_MINOR, METARUN_FILE_VERSION_PATCH, METARUN_FILE_VERSION_EXTRA);
+    }
 
-        if (metarun_max > 0 && entry_size > 0) {
-            metaruns = C_ZNEW(metarun_max, metarun);
-            fd_seek(fd, sizeof(meta_file_header));
+    metarun_max = header.entry_count;
+    size_t payload = (file_size >= (int)sizeof(meta_file_header))
+                   ? (size_t)file_size - sizeof(meta_file_header)
+                  : 0;
+    size_t entry_size = (metarun_max > 0)
+                      ? (payload / (size_t)metarun_max)
+                      : 0;
 
-            if (entry_size == sizeof(metarun)) {
-                fd_read(fd, (char*)metaruns, metarun_max * sizeof(metarun));
-                for (s16b i = 0; i < metarun_max; i++) {
-                    if (header.version_major == 0 && header.version_minor < 9) {
-                        metaruns[i].blessing_points_spent = 0;
+    if (metarun_max > 0 && entry_size > 0) {
+        metaruns = mem_alloc_array(metarun_max, metarun);
+        sdl_seek(fd, sizeof(meta_file_header));
+
+        if (entry_size == sizeof(metarun)) {
+            sdl_read(fd, (char*)metaruns, metarun_max * sizeof(metarun));
+            for (s16b i = 0; i < metarun_max; i++) {
+                if (header.version_major == 0 && header.version_minor < 9) {
+                    metaruns[i].blessing_points_spent = 0;
+                }
+                /* Initialize pending blessing choices for pre-0.9.0.1 saves
+                 * (fields were part of reserved_runtime and may contain garbage) */
+                if (header.version_major == 0 && header.version_minor == 9 &&
+                    header.version_patch == 0 && header.version_extra == 0) {
+                    /* Clear pending choices - will be regenerated on first menu open */
+                    metaruns[i].pending_blessing_count = 0;
+                    for (int j = 0; j < 3; j++) {
+                        metaruns[i].pending_blessing_choices[j] = 255;
                     }
-                    /* Initialize pending blessing choices for pre-0.9.0.1 saves
-                     * (fields were part of reserved_runtime and may contain garbage) */
-                    if (header.version_extra == 0) {
-                        /* Clear pending choices - will be regenerated on first menu open */
-                        metaruns[i].pending_blessing_count = 0;
-                        for (int j = 0; j < 3; j++) {
-                            metaruns[i].pending_blessing_choices[j] = 255;
-                        }
-                        log_debug("Cleared pending blessing choices for metarun %d (loaded from v0.9.0.0)", i);
-                    }
-                    update_blessing_ledger(&metaruns[i]);
-                    sanitize_major_blessing_bits(&metaruns[i]);
+                    log_debug("Cleared pending blessing choices for metarun %d (loaded from v0.9.0.0)", i);
                 }
-            } else if (entry_size == METARUN_V9_SIZE) {
-                metarun_v9 *legacy = C_ZNEW(metarun_max, metarun_v9);
-                fd_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v9));
-                for (s16b i = 0; i < metarun_max; i++) {
-                    metarun_from_v9(&metaruns[i], &legacy[i]);
-                    sanitize_major_blessing_bits(&metaruns[i]);
-                }
-                FREE(legacy);
-            } else if (entry_size == METARUN_V8_SIZE) {
-                metarun_v8 *legacy = C_ZNEW(metarun_max, metarun_v8);
-                fd_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v8));
-                for (s16b i = 0; i < metarun_max; i++) {
-                    metarun_from_v8(&metaruns[i], &legacy[i]);
-                    sanitize_major_blessing_bits(&metaruns[i]);
-                }
-                FREE(legacy);
-            } else if (entry_size == METARUN_V7_SIZE) {
-                metarun_v7 *legacy = C_ZNEW(metarun_max, metarun_v7);
-                fd_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v7));
-                for (s16b i = 0; i < metarun_max; i++) {
-                    metarun_from_v7(&metaruns[i], &legacy[i]);
-                    sanitize_major_blessing_bits(&metaruns[i]);
-                }
-                FREE(legacy);
-            } else if (entry_size == METARUN_V6_SIZE) {
-                metarun_v6 *legacy = C_ZNEW(metarun_max, metarun_v6);
-                fd_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v6));
-                for (s16b i = 0; i < metarun_max; i++) {
-                    metarun_from_v6(&metaruns[i], &legacy[i]);
-                    sanitize_major_blessing_bits(&metaruns[i]);
-                }
-                FREE(legacy);
-            } else if (entry_size == METARUN_V5_SIZE) {
-                metarun_v5 *legacy = C_ZNEW(metarun_max, metarun_v5);
-                fd_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v5));
-                for (s16b i = 0; i < metarun_max; i++) {
-                    metarun_from_v5(&metaruns[i], &legacy[i]);
-                    sanitize_major_blessing_bits(&metaruns[i]);
-                }
-                FREE(legacy);
-            } else {
-                recovery_reason = "versioned meta.raw had unexpected entry size";
-                log_warn("Unsupported metarun entry size %zu in versioned file", entry_size);
-                FREE(metaruns);
-                metaruns = NULL;
-                metarun_max = 0;
+                metarun_clamp_and_sync_quests(&metaruns[i]);
+                metarun_sanitize_blessing_economy(&metaruns[i]);
+                metarun_sanitize_major_blessing_bits(&metaruns[i]);
             }
-        } else if (metarun_max == 0) {
-            recovery_reason = "versioned meta.raw reported zero entries";
-            log_warn("Versioned meta file contains zero entries");
+        } else if (entry_size == METARUN_V10_SIZE) {
+            metarun_v10 *legacy = mem_alloc_array(metarun_max, metarun_v10);
+            sdl_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v10));
+            for (s16b i = 0; i < metarun_max; i++) {
+                metarun_from_v10(&metaruns[i], &legacy[i]);
+                metarun_sanitize_major_blessing_bits(&metaruns[i]);
+            }
+            legacy = mem_free(legacy);
+        } else if (entry_size == METARUN_V9_SIZE) {
+            metarun_v9 *legacy = mem_alloc_array(metarun_max, metarun_v9);
+            sdl_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v9));
+            for (s16b i = 0; i < metarun_max; i++) {
+                metarun_from_v9(&metaruns[i], &legacy[i]);
+                metarun_sanitize_major_blessing_bits(&metaruns[i]);
+            }
+            legacy = mem_free(legacy);
+        } else if (entry_size == METARUN_V8_SIZE) {
+            metarun_v8 *legacy = mem_alloc_array(metarun_max, metarun_v8);
+            sdl_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v8));
+            for (s16b i = 0; i < metarun_max; i++) {
+                metarun_from_v8(&metaruns[i], &legacy[i]);
+                metarun_sanitize_major_blessing_bits(&metaruns[i]);
+            }
+            legacy = mem_free(legacy);
         } else {
-            recovery_reason = "versioned meta.raw had invalid payload size";
-            log_warn("Versioned meta file payload %zu does not align with %d entries",
-                     payload, metarun_max);
-            FREE(metaruns);
+            recovery_reason = "versioned meta.raw had unsupported entry size (requires v0.9.0+)";
+            log_warn("Unsupported metarun entry size %zu in versioned file; dropping pre-0.9.0 legacy support", entry_size);
+            mem_free_null(metaruns);
             metaruns = NULL;
             metarun_max = 0;
         }
+    } else if (metarun_max == 0) {
+        recovery_reason = "versioned meta.raw reported zero entries";
+        log_warn("Versioned meta file contains zero entries");
     } else {
-        /* Non-versioned meta.raw files are no longer supported */
-        recovery_reason = "non-versioned meta.raw is no longer supported (requires v0.9.0+)";
-        log_warn("Rejected non-versioned meta.raw file (size %d bytes) - please update from a versioned save", file_size);
+        recovery_reason = "versioned meta.raw had invalid payload size";
+        log_warn("Versioned meta file payload %zu does not align with %d entries",
+                 payload, metarun_max);
+        mem_free_null(metaruns);
+        metaruns = NULL;
+        metarun_max = 0;
     }
 
     if (metaruns) {
@@ -1352,7 +1144,7 @@ errr load_metaruns(bool create_if_missing)
         }
     }
 
-    fd_close(fd);
+    sdl_fclose(fd);
 
     bool seeded_default = false;
     if (metarun_max <= 0 || !metaruns) {
@@ -1397,6 +1189,15 @@ errr load_metaruns(bool create_if_missing)
     }
 
     metar = metaruns[current_run];
+    metarun_clamp_and_sync_quests(&metar);
+    metaruns[current_run].completed_quests = metar.completed_quests;
+    memcpy(metaruns[current_run].quest_completion_counts,
+           metar.quest_completion_counts,
+           sizeof(metar.quest_completion_counts));
+    metarun_sanitize_blessing_economy(&metar);
+    metaruns[current_run].fallen_score_pool = metar.fallen_score_pool;
+    metaruns[current_run].blessing_points = metar.blessing_points;
+    metaruns[current_run].blessing_points_spent = metar.blessing_points_spent;
     metar.score = compute_metarun_score(&metar);
     metaruns[current_run].score = metar.score;
     metarun_apply_runtime_effects();
@@ -1431,7 +1232,7 @@ static errr backup_file(const char *filepath)
      * 1. This is a different file than last time, OR
      * 2. More than 300 seconds (5 minutes) have passed since last backup of this file
      */
-    if (my_stricmp(last_backed_up_file, filepath) != 0) {
+    if (SDL_strcasecmp(last_backed_up_file, filepath) != 0) {
         /* Different file - always backup */
         log_info("backup_file: backing up different file: %s", filepath);
     } else if (current_time - last_backup_time >= 300) {
@@ -1445,36 +1246,37 @@ static errr backup_file(const char *filepath)
     }
     
     /* Check if original file exists */
-    int fd_src = fd_open(filepath, O_RDONLY);
-    if (fd_src < 0) {
+    SDL_IOStream* fd_src = sdl_fopen(filepath, "rb");
+    if (!fd_src) {
         /* Original file doesn't exist, no backup needed */
         log_info("backup_file: original file %s doesn't exist, no backup needed", filepath);
         return 0;
     }
     
     /* Get file size */
-    int file_size = fd_file_size(fd_src);
+    Sint64 file_size_64 = sdl_size(fd_src);
+    int file_size = (file_size_64 > 0) ? (int)file_size_64 : 0;
     if (file_size <= 0) {
         log_info("backup_file: original file %s is empty, no backup needed", filepath);
-        fd_close(fd_src);
+        sdl_fclose(fd_src);
         return 0;
     }
     
     log_info("backup_file: creating backup for %s (size: %d bytes)", filepath, file_size);
     
     /* Read original file */
-    char *buffer = C_ZNEW(file_size, char);
+    char *buffer = mem_alloc_array(file_size, char);
     if (!buffer) {
-        fd_close(fd_src);
+        sdl_fclose(fd_src);
         return -1;
     }
     
-    if (fd_read(fd_src, buffer, file_size) != 0) {
-        FREE(buffer);
-        fd_close(fd_src);
+    if (sdl_read(fd_src, buffer, file_size) != 0) {
+        buffer = mem_free(buffer);
+        sdl_fclose(fd_src);
         return -1;
     }
-    fd_close(fd_src);
+    sdl_fclose(fd_src);
     
     /* Optimize backup rotation: Only do full rotation once per session/day
      * For frequent saves, just overwrite .bak1 */
@@ -1485,15 +1287,15 @@ static errr backup_file(const char *filepath)
     
     /* Check if this is the first backup of the day (roughly) */
     bool should_rotate = false;
-    int fd_test1 = fd_open(backup_path1, O_RDONLY);
-    if (fd_test1 >= 0) {
+    SDL_IOStream* fd_test1 = sdl_fopen(backup_path1, "rb");
+    if (fd_test1) {
         /* Check if bak1 is old enough to warrant rotation (use simple time check) */
         /* If we created a backup within the last hour, don't rotate */
         if (current_time - last_backup_time >= 3600) {  /* 1 hour */
             should_rotate = true;
             log_info("backup_file: enough time passed since last backup, will rotate backups");
         }
-        fd_close(fd_test1);
+        sdl_fclose(fd_test1);
     } else {
         /* No bak1 exists, create fresh backup */
         should_rotate = false;
@@ -1508,21 +1310,21 @@ static errr backup_file(const char *filepath)
         log_debug("backup_file: removed old bak3");
         
         /* Move bak2 to bak3 (if bak2 exists) */
-        int fd_test2 = fd_open(backup_path2, O_RDONLY);
-        if (fd_test2 >= 0) {
-            fd_close(fd_test2);
+        SDL_IOStream* fd_test2 = sdl_fopen(backup_path2, "rb");
+        if (fd_test2) {
+            sdl_fclose(fd_test2);
             log_debug("backup_file: moving bak2 to bak3");
-            if (fd_move(backup_path2, backup_path3) != 0) {
+            if (!fd_move(backup_path2, backup_path3)) {
                 log_debug("backup_file: failed to move bak2 to bak3");
             }
         }
         
         /* Move bak1 to bak2 (if bak1 exists) */
-        fd_test1 = fd_open(backup_path1, O_RDONLY);
-        if (fd_test1 >= 0) {
-            fd_close(fd_test1);
+        fd_test1 = sdl_fopen(backup_path1, "rb");
+        if (fd_test1) {
+            sdl_fclose(fd_test1);
             log_debug("backup_file: moving bak1 to bak2");
-            if (fd_move(backup_path1, backup_path2) != 0) {
+            if (!fd_move(backup_path1, backup_path2)) {
                 log_debug("backup_file: failed to move bak1 to bak2");
             }
         }
@@ -1534,21 +1336,21 @@ static errr backup_file(const char *filepath)
     
     /* Create new bak1 from current file */
     log_info("backup_file: creating new bak1 from current file (size: %d)", file_size);
-    int fd_dst = fd_make(backup_path1, 0644);
-    if (fd_dst < 0) {
-        FREE(buffer);
+    SDL_IOStream* fd_dst = sdl_fmake(backup_path1, 0644);
+    if (!fd_dst) {
+        buffer = mem_free(buffer);
         return -1;
     }
     
-    errr result = fd_write(fd_dst, buffer, file_size);
-    fd_close(fd_dst);
-    FREE(buffer);
+    errr result = sdl_write(fd_dst, buffer, file_size);
+    sdl_fclose(fd_dst);
+    buffer = mem_free(buffer);
     
     if (result == 0) {
         log_info("backup_file: successfully created backup for %s", filepath);
         /* Update throttling variables only on successful backup */
         last_backup_time = current_time;
-        my_strcpy(last_backed_up_file, filepath, sizeof(last_backed_up_file));
+        SDL_strlcpy(last_backed_up_file, filepath, sizeof(last_backed_up_file));
     } else {
         log_error("backup_file: failed to write bak1 for %s", filepath);
     }
@@ -1573,7 +1375,8 @@ errr save_metaruns(void)
     refresh_current_metar_score();
 
     char fn[1024];
-    build_meta_path(fn, sizeof fn, NULL, META_RAW);
+    if (!build_meta_path(fn, sizeof fn, NULL, META_RAW))
+        return -1;
 
     /* Create backup before saving */
     backup_file(fn);
@@ -1581,6 +1384,7 @@ errr save_metaruns(void)
     log_debug("Before save: current_run=%d, metar: id=%u, deaths=%u, silmarils=%u, score=%u", 
               current_run, metar.id, metar.deaths, metar.silmarils, metar.score);
               
+    metarun_clamp_and_sync_quests(&metar);
     metar.last_played      = current_time;
     metaruns[current_run] = metar;            /* safe: array is valid */
     
@@ -1588,35 +1392,35 @@ errr save_metaruns(void)
               current_run, metaruns[current_run].id, metaruns[current_run].deaths, metaruns[current_run].silmarils,
               metaruns[current_run].score);
 
-    /* After backup is created in backup_file(), remove the original so fd_make can succeed */
+    /* After backup is created in backup_file(), remove the original so sdl_fmake can succeed */
     fd_kill(fn);
     
     /* Write using the new versioned format */
-    int fd = fd_make(fn, 0644);
-    if (fd < 0) {
+    SDL_IOStream* fd = sdl_fmake(fn, 0644);
+    if (!fd) {
         log_info("Failed to create metarun file for writing");
         return -1;
     }
 
     /* Write version header first */
     meta_file_header header;
-    header.version_major = VERSION_MAJOR;
-    header.version_minor = VERSION_MINOR;
-    header.version_patch = VERSION_PATCH;
-    header.version_extra = VERSION_EXTRA;
+    header.version_major = METARUN_FILE_VERSION_MAJOR;
+    header.version_minor = METARUN_FILE_VERSION_MINOR;
+    header.version_patch = METARUN_FILE_VERSION_PATCH;
+    header.version_extra = METARUN_FILE_VERSION_EXTRA;
     header.entry_count = metarun_max;
     
-    errr result = fd_write(fd, (cptr)&header, sizeof(header));
+    errr result = sdl_write(fd, (cptr)&header, sizeof(header));
     if (result != 0) {
-        fd_close(fd);
+        sdl_fclose(fd);
         log_info("Failed to write metarun header to file");
         return -1;
     }
 
     /* Write metarun data */
     int bytes_to_write = metarun_max * sizeof(metarun);
-    result = fd_write(fd, (cptr)metaruns, bytes_to_write);
-    fd_close(fd);
+    result = sdl_write(fd, (cptr)metaruns, bytes_to_write);
+    sdl_fclose(fd);
     
     if (result != 0) {
         log_info("Failed to write metarun data to file");
@@ -1633,7 +1437,7 @@ u32b compute_blessing_pool(void)
     u32b total = score_sum_dead_points();
     metar.fallen_score_total = total;
     update_blessing_ledger(&metar);
-    sanitize_major_blessing_bits(&metar);
+    metarun_sanitize_major_blessing_bits(&metar);
     refresh_alive_cache();
 
     if (!sync_current_metarun_slot(false)) {
@@ -1663,8 +1467,14 @@ int metarun_alive_count_cached(void)
 
 int any_curse_flag_active(u32b flag)
 {
-    /* Intended for CUR flags such as CUR_NOCHOICE. */
-    return (curse_flag_count_cur(flag) > 0);
+    /* Intended for CUR flags such as CUR_NOCHOICE (curse-only, not blessings). */
+    if (!z_info || !cu_info) return 0;
+    int count = 0;
+    for (int id = 0; id < z_info->cu_max; id++) {
+        int stacks = CURSE_GET(id);
+        if (stacks > 0 && (cu_info[id].flags_u & flag)) count += stacks;
+    }
+    return count;
 }
 
 /* ---------------------------------------------------------------
@@ -1701,7 +1511,7 @@ void metarun_gain_silmarils(byte n)
 
 void metarun_apply_runtime_effects(void)
 {
-    sanitize_major_blessing_bits(&metar);
+    metarun_sanitize_major_blessing_bits(&metar);
 
     int weight_cap = SUPPLIES_MAX_WEIGHT_DEFAULT;
     if (metarun_has_major_blessing_effect(METARUN_MAJOR_EFFECT_SUPPLY_LIMIT)) {
@@ -1717,17 +1527,18 @@ int metarun_major_blessing_count(void)
 
 bool metarun_has_major_blessing_index(int idx)
 {
-    sanitize_major_blessing_bits(&metar);
+    metarun_sanitize_major_blessing_bits(&metar);
     if (idx < 0) return false;
     int cap = major_blessing_capacity();
     if (idx >= cap) return false;
+    if (!major_blessing_def(idx)) return false;
     return (metar.major_blessings & (1U << idx)) != 0;
 }
 
 bool metarun_has_major_blessing_effect(metarun_major_effect effect)
 {
     if (effect == METARUN_MAJOR_EFFECT_NONE) return false;
-    sanitize_major_blessing_bits(&metar);
+    metarun_sanitize_major_blessing_bits(&metar);
     int cap = major_blessing_capacity();
     for (int i = 0; i < cap; i++) {
         if (!metarun_has_major_blessing_index(i)) continue;
@@ -1757,15 +1568,12 @@ void metarun_save_persistent_settings(void)
         int word_idx = i / 32;
         int bit_idx = i % 32;
         
-        if (word_idx < 8 && option_text[i] && op_ptr->opt[i]) {
+        if (word_idx < 8 && option_text[i] && !option_is_app_persistent(i)
+            && op_ptr->opt[i]) {
             metar.persistent_options[word_idx] |= (1UL << bit_idx);
         }
     }
-    
-    /* Save special settings */
-    metar.persistent_delay_factor = op_ptr->delay_factor;
-    metar.persistent_hitpoint_warn = op_ptr->hitpoint_warn;
-    
+
     /* Save window flags */
     for (int i = 0; i < ANGBAND_TERM_MAX; i++) {
         metar.persistent_window_flags[i] = op_ptr->window_flag[i];
@@ -1798,15 +1606,11 @@ void metarun_load_persistent_settings(void)
         int word_idx = i / 32;
         int bit_idx = i % 32;
         
-        if (word_idx < 8 && option_text[i]) {
+        if (word_idx < 8 && option_text[i] && !option_is_app_persistent(i)) {
             op_ptr->opt[i] = (metar.persistent_options[word_idx] & (1UL << bit_idx)) != 0;
         }
     }
-    
-    /* Load special settings */
-    op_ptr->delay_factor = metar.persistent_delay_factor;
-    op_ptr->hitpoint_warn = metar.persistent_hitpoint_warn;
-    
+
     /* Load window flags */
     for (int i = 0; i < ANGBAND_TERM_MAX; i++) {
         op_ptr->window_flag[i] = metar.persistent_window_flags[i];
@@ -1826,7 +1630,7 @@ static int weighted_random_curse(void)
 
     /* Does the hero's lineage carry the flag? */
     bool tilt = (p_info[p_ptr->prace].flags  & RHF_CURSE) ||
-                (c_info[p_ptr->phouse].flags & RHF_CURSE);
+                (c_info[p_ptr->pcharacter].flags & RHF_CURSE);
 
     /* Pass 1 – find the largest weight and (later) build the total */
     for (int i = 0; i < z_info->cu_max; i++)
@@ -1836,13 +1640,13 @@ static int weighted_random_curse(void)
         if (w > w_max) w_max = w;
     }
 
-    /* Pass 2 – sum effective weights */
+    /* Pass 2 — sum effective weights */
     for (int i = 0; i < z_info->cu_max; i++)
     {
         if (!cu_info[i].name) continue;          /* ← unused slot */
         byte w   = cu_info[i].weight ? cu_info[i].weight : 1;
-        byte cnt = CURSE_GET(i);
-        byte cap = cu_info[i].max_stacks;
+        int  cnt = CURSE_CURSE_STACK(i);
+        byte cap = (byte)CURSE_CURSE_CAP(i);
         if (cap && cnt >= cap) continue;           /* cap reached */
 
         /* RHF_CURSE excludes the most weighted choices */
@@ -1855,16 +1659,16 @@ static int weighted_random_curse(void)
         total += base / (cnt + 1);
     }
 
-    if (!total) return rng_int(z_info->cu_max);    /* safety net */
+    if (!total) return rand_int(z_info->cu_max);    /* safety net */
 
-    /* Pass 3 – roulette wheel */
-    long pick = rng_int(total), run = 0;
+    /* Pass 3 — roulette wheel */
+    long pick = rand_int(total), run = 0;
     for (int i = 0; i < z_info->cu_max; i++)
     {
         if (!cu_info[i].name) continue;          /* ← unused slot */
         byte w   = cu_info[i].weight ? cu_info[i].weight : 1;
-        byte cnt = CURSE_GET(i);
-        byte cap = cu_info[i].max_stacks;
+        int  cnt = CURSE_CURSE_STACK(i);
+        byte cap = (byte)CURSE_CURSE_CAP(i);
         if (cap && cnt >= cap) continue;
 
         /* RHF_CURSE excludes the most weighted choices */
@@ -1879,14 +1683,14 @@ static int weighted_random_curse(void)
         if (pick < run) return i;
     }
 
-    return rng_int(z_info->cu_max);                /* unreachable */
+    return rand_int(z_info->cu_max);                /* unreachable */
 }
 
 void add_curse_stack(int idx)
 {
     /* respect per-curse stack cap */
-    if (cu_info[idx].max_stacks &&
-        CURSE_GET(idx) >= cu_info[idx].max_stacks)
+    if (CURSE_CURSE_CAP(idx) &&
+        CURSE_CURSE_STACK(idx) >= CURSE_CURSE_CAP(idx))
     {
         log_debug("Curse %d (%s) already at max stacks", idx, cu_name + cu_info[idx].name);
         return;
@@ -1913,8 +1717,8 @@ int menu_choose_one_curse(int n)
             for (int j = 0; j < i; j++)
                 if (pick[i] == pick[j]) { dup = true; break; }
             
-            byte cap = cu_info[pick[i]].max_stacks;
-            if (cap && CURSE_GET(pick[i]) >= cap) { dup = true; continue; }
+            byte cap = (byte)CURSE_CURSE_CAP(pick[i]);
+            if (cap && CURSE_CURSE_STACK(pick[i]) >= cap) { dup = true; continue; }
 
         } while (dup);
     }
@@ -2155,9 +1959,7 @@ static void print_heading_fade(cptr title, byte final_attr)
     int start_col = (w - title_len) / 2;
     if (start_col < 1) start_col = 1;
     
-#ifdef USE_SDL
     sdl_story_font_enable();
-#endif
     
     for (int s = 0; s < steps; s++)
     {
@@ -2167,9 +1969,7 @@ static void print_heading_fade(cptr title, byte final_attr)
     }
     Term_xtra(TERM_XTRA_DELAY, 500); // Extra pause after heading
     
-#ifdef USE_SDL
     sdl_story_font_disable();
-#endif
 }
 
 static bool print_paragraph_fade(cptr txt, byte final_attr, int row)
@@ -2181,9 +1981,7 @@ static bool print_paragraph_fade(cptr txt, byte final_attr, int row)
     text_out_indent = 2;
     text_out_wrap   = Term->wid - 4;
 
-#ifdef USE_SDL
     sdl_story_font_enable();
-#endif
 
     for (int s = 0; s < steps; s++)
     {
@@ -2196,9 +1994,7 @@ static bool print_paragraph_fade(cptr txt, byte final_attr, int row)
             text_out_c(final_attr, txt);
             text_out("\n");
             Term_fresh();
-#ifdef USE_SDL
             sdl_story_font_disable();
-#endif
             return false;
         }
         
@@ -2211,9 +2007,7 @@ static bool print_paragraph_fade(cptr txt, byte final_attr, int row)
     
     Term_xtra(TERM_XTRA_DELAY, 1000); // Pause after paragraph
     
-#ifdef USE_SDL
     sdl_story_font_disable();
-#endif
     return true;
 }
 
@@ -2223,17 +2017,13 @@ static void print_paragraph(cptr txt, byte attr)
     text_out_indent = 1;
     text_out_wrap   = Term->wid - 2;
 
-#ifdef USE_SDL
     sdl_story_font_enable();
-#endif
 
     Term_addstr(0, attr, "");
     text_out_c(attr, txt);
     text_out("\n");
     
-#ifdef USE_SDL
     sdl_story_font_disable();
-#endif
 }
 
 static void wait_for_keypress_with_prompt(cptr prompt)
@@ -2281,7 +2071,7 @@ static cptr blessing_display_name(int idx)
  * number of curses actually chosen and fills `out` with their indices.
  * The display is cleared afterwards so we can start narrative fresh.
  */
-int choose_escape_curses_ui(int n, int out[3])
+int choose_escape_curses_ui(int n, int out[4])
 {
     // int rolls = any_curse_flag_active(CUR_NOCHOICE) ? 1 : n;
     int taken = 0;
@@ -2298,7 +2088,7 @@ int choose_escape_curses_ui(int n, int out[3])
             "The Valar watch silently as Morgoth's malice reaches out from shadow-"
             "Your triumph has drawn his wrath. His dark will twists fate, "
             "forcing upon you the final choice-%s curse%s you must bear.",
-            (n == 1) ? "a" : (n == 2) ? "two" : "three",
+            (n == 1) ? "a" : (n == 2) ? "two" : (n == 3) ? "three" : "four",
             (n == 1) ? "" : "s");
     
     if (!print_paragraph_fade(intro_text, TERM_L_WHITE, 4))
@@ -2312,7 +2102,7 @@ int choose_escape_curses_ui(int n, int out[3])
         int idx = menu_choose_one_curse(i);   /* weighted picker, UI */
         log_debug("Player selected curse %d: %s", idx, cu_name + cu_info[idx].name);
         add_curse_stack(idx);                /* gameplay side‑effect */
-        if (taken < 3) out[taken++] = idx;
+        if (taken < 4) out[taken++] = idx;
     }
 
     /* Wipe the menu clutter so narrative starts clean */
@@ -2453,17 +2243,35 @@ static void announce_blessing_gain(int previous_points)
 
 void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_score)
 {
+    if (run_mode_is_blitz())
+    {
+        log_info("Suppressing metarun end-of-run processing for Blitz");
+        if (escaped || (p_ptr && p_ptr->morgoth_slain && !died))
+        {
+            byte summary_sils = sil_count;
+            if (p_ptr && p_ptr->morgoth_slain && summary_sils < 3)
+                summary_sils = 3;
+            blitz_show_end_summary(summary_sils);
+        }
+        return;
+    }
+
     log_info("Metarun update: died=%s, escaped=%s, sil_count=%d, final_score=%ld", 
              died ? "true" : "false", escaped ? "true" : "false", sil_count, (long)final_score);
     int blessing_points_before = (metar.blessing_points < 0) ? 0 : metar.blessing_points;
+
+    if (escaped)
+    {
+        sdl_music_play_main();
+    }
              
     /* -------- Lineage flags -------------------------------------- */
-    u32b f_house = c_info[p_ptr->phouse].flags;
+    u32b character_flags = c_info[p_ptr->pcharacter].flags;
     u32b f_race  = p_info[p_ptr->prace].flags;
 
-    bool has_gift_eru   = (f_house | f_race) & RHF_GIFTERU;
-    bool allow_treachery = (f_house | f_race) & RHF_TREACHERY;
-    bool allow_kinslay   = (f_house | f_race) & RHF_KINSLAYER;
+    bool has_gift_eru   = (character_flags | f_race) & RHF_GIFTERU;
+    bool allow_treachery = (character_flags | f_race) & RHF_TREACHERY;
+    bool allow_kinslay   = (character_flags | f_race) & RHF_KINSLAYER;
 
     bool escaped_with_sils = escaped && (sil_count > 0);
     bool fast_forward = false; // Track if user wants to skip fade effects
@@ -2523,7 +2331,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_
         byte target_order = has_gift_eru ? 0 : metar.deaths;
 
         /* Build a pool of candidate story entries.                    */
-        int *pool = C_ZNEW(z_info->st_max, int);
+        int *pool = mem_alloc_array(z_info->st_max, int);
         int pool_sz = 0;
         if (!pool) {
             screen_load();                 /* restore game view            */
@@ -2565,7 +2373,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_
 
         /* Display the chosen fragment with the usual fade-in style.  */
         if (pool_sz) {
-            story_type *pick = &st_info[ pool[rng_int(pool_sz)] ];
+            story_type *pick = &st_info[ pool[rand_int(pool_sz)] ];
             cptr title = st_name + pick->name;
             cptr text  = st_text + pick->text;
 
@@ -2585,7 +2393,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_
         }
 
         screen_load();                 /* restore game view            */
-        FREE(pool);
+        pool = mem_free(pool);
         u32b pool_before = metar.fallen_score_total;
         refresh_current_metar_score();
         compute_blessing_pool();
@@ -2619,8 +2427,12 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_
     /* ============================================================= */
     /* SCENE 1: Escape Curse Selection                              */
     /* ============================================================= */
-    int chosen[3] = { -1, -1, -1 };
-    int chosen_cnt = choose_escape_curses_ui(sil_count, chosen);
+    int curse_count = sil_count;
+    int chosen[4] = { -1, -1, -1, -1 };
+
+    if (sil_count == 3) curse_count = 4;
+
+    int chosen_cnt = choose_escape_curses_ui(curse_count, chosen);
 
     /* ============================================================= */
     /* SCENE 2: The Binding of Fate                                 */
@@ -2890,16 +2702,16 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_
         for (int k = 0; k < 3; k++) {
             if (!deferred_kill[k]) continue;
 
-            const char *house =
+            const char *character =
                 kinslayer_try_kill(k + 1, /*do_roll=*/false);
-            if (!house) continue;               /* should not happen */
+            if (!character) continue;               /* should not happen */
 
             metarun_increment_deaths();
             log_info("Metarun: kinslaying victim counted as death (%u total)", (unsigned)metar.deaths);
 
             char buf[96];
             strnfmt(buf, sizeof buf,
-                    "A hero %s has fallen beneath your blade.", house);
+                    "A hero %s has fallen beneath your blade.", character);
 
             if (!fast_forward && !print_paragraph_fade(buf, TERM_RED, row))
                 fast_forward = true;
@@ -3065,11 +2877,11 @@ static void start_new_metarun(void)
     /* Hard purge the current savefile if this was a noscore wizard/debug run */
     if (p_ptr && (p_ptr->wizard || (p_ptr->noscore & 0x0008)) && (p_ptr->noscore & 0x000F)) {
         if (savefile[0]) {
-            int rc;
+            bool deleted;
             safe_setuid_grab();
-            rc = fd_kill(savefile);
+            deleted = fd_kill(savefile);
             safe_setuid_drop();
-            if (rc == 0) {
+            if (deleted) {
                 log_info("metarun: deleted noscore savefile '%s'", savefile);
             } else {
                 log_warn("metarun: failed to delete noscore savefile '%s'", savefile);
@@ -3086,7 +2898,7 @@ static void start_new_metarun(void)
     metarun *old   = metaruns;
 
     /* Try to allocate a new array for one more run */
-    metarun *tmp = C_RNEW(old_max + 1, metarun);
+    metarun *tmp = mem_alloc_array(old_max + 1, metarun);
     if (!tmp) {
         /* Allocation failed - keep everything as is */
         return;
@@ -3094,11 +2906,11 @@ static void start_new_metarun(void)
 
     /* Copy over the previous runs (if any) */
     if (old) {
-        C_COPY(tmp, old, old_max, metarun);
+        memcpy(tmp, old, sizeof(metarun) * old_max);
     }
 
     /* Free the old array just once */
-    FREE(old);
+    old = mem_free(old);
 
     /* Commit the new array and size */
     metaruns    = tmp;
@@ -3123,11 +2935,121 @@ static void start_new_metarun(void)
     log_info("New metarun %d created and initialized", metar.id);
 }
 
+static int metarun_effect_wrap_width(int term_width)
+{
+    int wrap_width = term_width - 2;
+    if (wrap_width < 5) wrap_width = 5;
+    return wrap_width;
+}
+
+static int metarun_count_effect_lines(cptr text, int wrap_width, int indent)
+{
+    if (!text || !*text) return 0;
+
+    if (sdl_is_story_font_enabled()) {
+        return count_wrapped_lines_story(text, wrap_width, indent);
+    }
+
+    return count_wrapped_lines(text, wrap_width, indent);
+}
+
+static int metarun_active_effect_block_lines(int id, int term_width)
+{
+    const int text_col = 4;
+    const int wrap_width = metarun_effect_wrap_width(term_width);
+    const curse_type *cu = &cu_info[id];
+    int stacks = CURSE_GET(id);
+    bool is_blessing = (stacks < 0);
+    bool seen = CURSE_SEEN(id);
+    int lines = 1; /* Name */
+
+    cptr desc = is_blessing
+        ? (cu->blessing_text ? cu_text + cu->blessing_text : NULL)
+        : (cu->text ? cu_text + cu->text : NULL);
+    if (desc && *desc) {
+        lines += metarun_count_effect_lines(desc, wrap_width, text_col);
+    }
+
+    if (seen) {
+        cptr power = is_blessing
+            ? (cu->blessing_power ? cu_text + cu->blessing_power : NULL)
+            : (cu->power ? cu_text + cu->power : NULL);
+
+        if (power && *power) {
+            char effect_line[1024];
+            strnfmt(effect_line, sizeof(effect_line), "Effect: %s", power);
+            lines += metarun_count_effect_lines(effect_line, wrap_width, text_col);
+        }
+    } else {
+        lines += 1;
+    }
+
+    lines += 1; /* Blank line between effects */
+    return lines;
+}
+
+static int metarun_render_active_effect_block(int id, int row, int term_width)
+{
+    const int name_col = 2;
+    const int text_col = 4;
+    const int wrap_width = metarun_effect_wrap_width(term_width);
+    int stacks = CURSE_GET(id);
+    bool is_blessing = (stacks < 0);
+    int magnitude = is_blessing ? -stacks : stacks;
+    bool seen = CURSE_SEEN(id);
+
+    const curse_type *cu = &cu_info[id];
+    cptr name = is_blessing ? blessing_display_name(id) : curse_display_name(id);
+    byte name_attr = is_blessing ? TERM_L_GREEN : TERM_L_RED;
+
+    char buf[120];
+    strnfmt(buf, sizeof(buf), "%s x%d", name, magnitude);
+    Term_putstr(name_col, row++, -1, name_attr, buf);
+
+    text_out_hook = text_out_to_screen;
+    text_out_indent = text_col;
+    text_out_wrap = wrap_width;
+
+    cptr desc = is_blessing
+        ? (cu->blessing_text ? cu_text + cu->blessing_text : NULL)
+        : (cu->text ? cu_text + cu->text : NULL);
+    if (desc && *desc) {
+        Term_gotoxy(text_col, row);
+        text_out_c(TERM_SLATE, desc);
+        row += metarun_count_effect_lines(desc, wrap_width, text_col);
+    }
+
+    if (seen) {
+        cptr power = is_blessing
+            ? (cu->blessing_power ? cu_text + cu->blessing_power : NULL)
+            : (cu->power ? cu_text + cu->power : NULL);
+
+        if (power && *power) {
+            char effect_line[1024];
+            strnfmt(effect_line, sizeof(effect_line), "Effect: %s", power);
+            Term_gotoxy(text_col, row);
+            text_out_c(name_attr, effect_line);
+            row += metarun_count_effect_lines(effect_line, wrap_width, text_col);
+        }
+    } else {
+        Term_putstr(text_col, row++, -1, TERM_L_DARK, "(Effect not yet identified)");
+    }
+
+    row++;
+    return row;
+}
+
 /* Show all active curses in a dedicated screen with pagination */
 static void show_all_active_curses(void)
 {
     int term_height, term_width;
     screen_save();
+    bool steamdeck = get_sdl_steamdeck_mode();
+    char accept_label[16] = "";
+
+    if (steamdeck) {
+        metarun_prompt_label(steamdeck_confirm_key(), "A", accept_label, sizeof(accept_label));
+    }
     
     /* Get actual terminal dimensions */
     Term_get_size(&term_width, &term_height);
@@ -3145,22 +3067,44 @@ static void show_all_active_curses(void)
         Term_clear();
         Term_putstr(2, 1, -1, TERM_YELLOW, "=== All Active Effects ===");
         Term_putstr(2, 3, -1, TERM_L_DARK, "No active curses or blessings");
-        Term_putstr(2, 5, -1, TERM_L_DARK, "Press any key to return.");
+        if (steamdeck) {
+            char hint_buf[64];
+            strnfmt(hint_buf, sizeof(hint_buf), "Press [%s] to return.", accept_label);
+            Term_putstr(2, 5, -1, TERM_L_DARK, hint_buf);
+        } else {
+            Term_putstr(2, 5, -1, TERM_L_DARK, "Press any key to return.");
+        }
         inkey();
         screen_load();
         return;
     }
     
-    /* Calculate how many effects fit per page */
-    int lines_per_effect = 4; /* name + description + power + blank */
-    int header_lines = 4;
-    int footer_lines = 2;
-    int available_lines = term_height - header_lines - footer_lines;
-    int effects_per_page = available_lines / lines_per_effect;
-    if (effects_per_page < 1) effects_per_page = 1;
-    
-    int total_pages = (active_count + effects_per_page - 1) / effects_per_page;
+    int available_lines = term_height - 4;
+    if (available_lines < 1) available_lines = 1;
+
+    int page_starts[64];
+    int total_pages = 0;
+    int lines_used = 0;
+    page_starts[0] = 0;
+
+    for (int i = 0; i < active_count; i++) {
+        int block_lines = metarun_active_effect_block_lines(active_ids[i], term_width);
+
+        if (lines_used > 0 && lines_used + block_lines > available_lines) {
+            total_pages++;
+            page_starts[total_pages] = i;
+            lines_used = 0;
+        }
+
+        lines_used += block_lines;
+    }
+
+    total_pages++;
     int current_page = 0;
+
+    void (*old_text_out_hook)(byte, cptr) = text_out_hook;
+    int old_text_out_indent = text_out_indent;
+    int old_text_out_wrap = text_out_wrap;
     
     while (true) {
         Term_clear();
@@ -3171,76 +3115,38 @@ static void show_all_active_curses(void)
             snprintf(title_buf, sizeof title_buf, "=== Active Effects (Page %d/%d) ===", 
                      current_page + 1, total_pages);
         } else {
-            my_strcpy(title_buf, "=== All Active Effects ===", sizeof title_buf);
+            SDL_strlcpy(title_buf, "=== All Active Effects ===", sizeof title_buf);
         }
         Term_putstr(2, 1, -1, TERM_YELLOW, title_buf);
         
-        int start_idx = current_page * effects_per_page;
-        int end_idx = start_idx + effects_per_page;
-        if (end_idx > active_count) end_idx = active_count;
+        int start_idx = page_starts[current_page];
+        int end_idx = (current_page + 1 < total_pages) ? page_starts[current_page + 1] : active_count;
         
         int row = 3;
         for (int i = start_idx; i < end_idx; i++) {
-            int id = active_ids[i];
-            int stacks = CURSE_GET(id);
-            bool is_blessing = (stacks < 0);
-            int magnitude = is_blessing ? -stacks : stacks;
-            bool seen = CURSE_SEEN(id);
-            
-            const curse_type *cu = &cu_info[id];
-            cptr name = is_blessing ? blessing_display_name(id) : curse_display_name(id);
-            byte name_attr = is_blessing ? TERM_L_GREEN : TERM_L_RED;
-            
-            /* Display name and magnitude */
-            char buf[120];
-            snprintf(buf, sizeof buf, "%s x%d", name, magnitude);
-            Term_putstr(2, row++, -1, name_attr, buf);
-            
-            /* Always display description (D: or E:) */
-            cptr desc = is_blessing 
-                ? (cu->blessing_text ? cu_text + cu->blessing_text : NULL)
-                : (cu->text ? cu_text + cu->text : NULL);
-            if (desc && *desc) {
-                snprintf(buf, sizeof buf, "  %s", desc);
-                /* Truncate if too long for terminal */
-                if ((int)strlen(buf) > term_width - 2) {
-                    buf[term_width - 5] = '.';
-                    buf[term_width - 4] = '.';
-                    buf[term_width - 3] = '.';
-                    buf[term_width - 2] = '\0';
-                }
-                Term_putstr(2, row++, -1, TERM_SLATE, buf);
-            }
-            
-            /* Display power (P: or H:) only if identified */
-            if (seen) {
-                cptr power = is_blessing
-                    ? (cu->blessing_power ? cu_text + cu->blessing_power : NULL)
-                    : (cu->power ? cu_text + cu->power : NULL);
-                if (power && *power) {
-                    snprintf(buf, sizeof buf, "  Effect: %s", power);
-                    if ((int)strlen(buf) > term_width - 2) {
-                        buf[term_width - 5] = '.';
-                        buf[term_width - 4] = '.';
-                        buf[term_width - 3] = '.';
-                        buf[term_width - 2] = '\0';
-                    }
-                    Term_putstr(2, row++, -1, is_blessing ? TERM_L_GREEN : TERM_L_RED, buf);
-                }
-            } else {
-                Term_putstr(2, row++, -1, TERM_L_DARK, "  (Effect not yet identified)");
-            }
-            
-            row++; /* Blank line between effects */
+            row = metarun_render_active_effect_block(active_ids[i], row, term_width);
         }
         
         /* Footer with navigation instructions */
         char footer_buf[100];
-        if (total_pages > 1) {
-            snprintf(footer_buf, sizeof footer_buf, 
-                     "Use arrows (left/right) to navigate. Any other key to return.");
+        char back_label[16] = "";
+        if (steamdeck) {
+            /* Steam Deck UI: A=ok, B=back */
+            metarun_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
+            if (total_pages > 1) {
+                snprintf(footer_buf, sizeof footer_buf,
+                         "D-pad navigate  [%s] ok  [%s] back", accept_label, back_label);
+            } else {
+                snprintf(footer_buf, sizeof footer_buf,
+                         "[%s] ok  [%s] back", accept_label, back_label);
+            }
         } else {
-            my_strcpy(footer_buf, "Press any key to return.", sizeof footer_buf);
+            if (total_pages > 1) {
+                snprintf(footer_buf, sizeof footer_buf, 
+                         "Use arrows (left/right) to navigate. Any other key to return.");
+            } else {
+                SDL_strlcpy(footer_buf, "Press any key to return.", sizeof footer_buf);
+            }
         }
         
         /* Ensure minimum 80 width for footer */
@@ -3263,11 +3169,21 @@ static void show_all_active_curses(void)
         } else if (total_pages > 1 && key == '4') {
             /* Previous page */
             current_page = (current_page + total_pages - 1) % total_pages;
-        } else {
-            /* Exit on any other key */
+        } else if (steamdeck && key == steamdeck_back_key()) {
+            /* B button = back in Steam Deck mode */
+            break;
+        } else if (steamdeck && (key == steamdeck_confirm_key() || key == '\r' || key == '\n')) {
+            /* A button = confirm/close in Steam Deck mode */
+            break;
+        } else if (!steamdeck) {
+            /* Exit on any key in non-Steam Deck mode */
             break;
         }
     }
+
+    text_out_hook = old_text_out_hook;
+    text_out_indent = old_text_out_indent;
+    text_out_wrap = old_text_out_wrap;
     
     screen_load();
 }
@@ -3320,7 +3236,7 @@ static bool blessing_remove_curse(char *result_msg, size_t msg_size, byte *resul
 
     if (count == 0) {
         if (result_msg && msg_size > 0) {
-            my_strcpy(result_msg, "No curses cling to this saga.", msg_size);
+            SDL_strlcpy(result_msg, "No curses cling to this saga.", msg_size);
             if (result_attr) *result_attr = TERM_L_DARK;
         }
         return false;
@@ -3328,6 +3244,15 @@ static bool blessing_remove_curse(char *result_msg, size_t msg_size, byte *resul
 
     int selected = 0;
     int choice = -1;
+    bool steamdeck = get_sdl_steamdeck_mode();
+    char accept_label[16] = "";
+    char back_label[16] = "";
+
+    if (steamdeck) {
+        /* Steam Deck UI: A=accept, B=cancel */
+        metarun_prompt_label(steamdeck_confirm_key(), "A", accept_label, sizeof(accept_label));
+        metarun_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
+    }
     
     /* Setup text wrapping */
     text_out_hook = text_out_to_screen;
@@ -3382,17 +3307,25 @@ static bool blessing_remove_curse(char *result_msg, size_t msg_size, byte *resul
             }
         }
 
-        Term_putstr(2, line + 1, -1, TERM_L_DARK,
-                    "Arrows to navigate  Space/Enter accept  Letter select  Esc cancel");
+        if (steamdeck) {
+            char hint_buf[96];
+            strnfmt(hint_buf, sizeof(hint_buf),
+                    "D-pad to navigate  [%s] accept  [%s] cancel", accept_label, back_label);
+            Term_putstr(2, line + 1, -1, TERM_L_DARK, hint_buf);
+        } else {
+            Term_putstr(2, line + 1, -1, TERM_L_DARK,
+                        "Arrows to navigate  Space/Enter accept  Letter select  Esc cancel");
+        }
         char key = inkey();
         screen_load();
 
-        if (key == ESCAPE) {
+        /* Handle back/cancel - ESC or B button in Steam Deck mode */
+        if (key == ESCAPE || (steamdeck && key == steamdeck_back_key()) || (!steamdeck && (key == 'h' || key == 'H'))) {
             /* Reset text wrapping */
             text_out_wrap = 0;
             text_out_indent = 0;
             return false;
-        } else if (key == '\r' || key == '\n' || key == ' ' || key == '6') {
+        } else if (key == '\r' || key == '\n' || (steamdeck && key == steamdeck_confirm_key()) || key == '6') {
             choice = selected;
             break;
         } else if (key == '8' || key == 'k' || key == '-') {
@@ -3478,7 +3411,9 @@ static bool blessing_gain_minor(char *result_msg, size_t msg_size, byte *result_
             if (stacks > 0) continue; /* Currently cursed */
             
             int blessing_stacks = (stacks < 0) ? -stacks : 0;
-            if (c->max_stacks > 0 && blessing_stacks >= c->max_stacks) continue; /* At max */
+            if (CURSE_BLESSING_CAP(id) > 0
+                && blessing_stacks >= CURSE_BLESSING_CAP(id))
+                continue; /* At max */
             
             /* This pending choice is still valid */
             options[picks++] = id;
@@ -3505,7 +3440,9 @@ static bool blessing_gain_minor(char *result_msg, size_t msg_size, byte *result_
             if (stacks > 0) continue; /* currently cursed */
 
             int blessing_stacks = (stacks < 0) ? -stacks : 0;
-            if (c->max_stacks > 0 && blessing_stacks >= c->max_stacks) continue;
+            if (CURSE_BLESSING_CAP(id) > 0
+                && blessing_stacks >= CURSE_BLESSING_CAP(id))
+                continue;
 
             if (count < METAR_CURSE_SLOTS) {
                 eligible[count] = id;
@@ -3520,7 +3457,7 @@ static bool blessing_gain_minor(char *result_msg, size_t msg_size, byte *result_
 
         if (count == 0) {
             if (result_msg && msg_size > 0) {
-                my_strcpy(result_msg, "No blessings are presently available.", msg_size);
+                SDL_strlcpy(result_msg, "No blessings are presently available.", msg_size);
                 if (result_attr) *result_attr = TERM_L_DARK;
             }
             return false;
@@ -3566,6 +3503,15 @@ static bool blessing_gain_minor(char *result_msg, size_t msg_size, byte *result_
 
     int selected = 0;
     int choice = -1;
+    bool steamdeck = get_sdl_steamdeck_mode();
+    char accept_label[16] = "";
+    char back_label[16] = "";
+
+    if (steamdeck) {
+        /* Steam Deck UI: A=accept, B=cancel */
+        metarun_prompt_label(steamdeck_confirm_key(), "A", accept_label, sizeof(accept_label));
+        metarun_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
+    }
     while (choice < 0) {
         screen_save();
         Term_clear();
@@ -3601,14 +3547,22 @@ static bool blessing_gain_minor(char *result_msg, size_t msg_size, byte *result_
             }
         }
 
-        Term_putstr(2, line + 1, -1, TERM_L_DARK,
-                    "Arrows to navigate  Space/Enter accept  Letter select  Esc cancel");
+        if (steamdeck) {
+            char hint_buf[96];
+            strnfmt(hint_buf, sizeof(hint_buf),
+                    "D-pad to navigate  [%s] accept  [%s] cancel", accept_label, back_label);
+            Term_putstr(2, line + 1, -1, TERM_L_DARK, hint_buf);
+        } else {
+            Term_putstr(2, line + 1, -1, TERM_L_DARK,
+                        "Arrows to navigate  Space/Enter accept  Letter select  Esc cancel");
+        }
         char key = inkey();
         screen_load();
 
-        if (key == ESCAPE) {
+        /* Handle back/cancel - ESC or B button in Steam Deck mode */
+        if (key == ESCAPE || (steamdeck && key == steamdeck_back_key()) || (!steamdeck && (key == 'h' || key == 'H'))) {
             return false;
-        } else if (key == '\r' || key == '\n' || key == ' ' || key == '6') {
+        } else if (key == '\r' || key == '\n' || (steamdeck && key == steamdeck_confirm_key()) || key == '6') {
             choice = selected;
             break;
         } else if (key == '8' || key == 'k' || key == '-') {
@@ -3636,12 +3590,12 @@ static bool blessing_gain_minor(char *result_msg, size_t msg_size, byte *result_
 
     int blessing_id = options[choice];
     int stacks = CURSE_GET(blessing_id);
-    curse_type *c = &cu_info[blessing_id];
     int blessing_stacks = (stacks < 0) ? -stacks : 0;
 
-    if (c->max_stacks > 0 && blessing_stacks >= c->max_stacks) {
+    if (CURSE_BLESSING_CAP(blessing_id) > 0
+        && blessing_stacks >= CURSE_BLESSING_CAP(blessing_id)) {
         if (result_msg && msg_size > 0) {
-            my_strcpy(result_msg, "That blessing cannot grow any stronger.", msg_size);
+            SDL_strlcpy(result_msg, "That blessing cannot grow any stronger.", msg_size);
             if (result_attr) *result_attr = TERM_L_DARK;
         }
         return false;
@@ -3669,12 +3623,12 @@ static bool blessing_gain_minor(char *result_msg, size_t msg_size, byte *result_
 
 static bool blessing_unlock_major(char *result_msg, size_t msg_size, byte *result_attr)
 {
-    sanitize_major_blessing_bits(&metar);
+    metarun_sanitize_major_blessing_bits(&metar);
 
     int cap = major_blessing_capacity();
     if (cap <= 0 || !mb_info) {
         if (result_msg && msg_size > 0) {
-            my_strcpy(result_msg, "No major blessings are currently defined.", msg_size);
+            SDL_strlcpy(result_msg, "No major blessings are currently defined.", msg_size);
             if (result_attr) *result_attr = TERM_L_DARK;
         }
         return false;
@@ -3696,13 +3650,22 @@ static bool blessing_unlock_major(char *result_msg, size_t msg_size, byte *resul
 
     if (option_count == 0) {
         if (result_msg && msg_size > 0) {
-            my_strcpy(result_msg, "All major blessings are already sealed.", msg_size);
+            SDL_strlcpy(result_msg, "All major blessings are already sealed.", msg_size);
             if (result_attr) *result_attr = TERM_L_DARK;
         }
         return false;
     }
 
     int available = blessing_points_remaining();
+    bool steamdeck = get_sdl_steamdeck_mode();
+    char accept_label[16] = "";
+    char back_label[16] = "";
+
+    if (steamdeck) {
+        /* Steam Deck UI: A=accept, B=cancel */
+        metarun_prompt_label(steamdeck_confirm_key(), "A", accept_label, sizeof(accept_label));
+        metarun_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
+    }
     
     /* Find first affordable option as initial selection */
     int selected = -1;
@@ -3776,17 +3739,25 @@ static bool blessing_unlock_major(char *result_msg, size_t msg_size, byte *resul
         snprintf(points_msg, sizeof points_msg, "Available blessing points: %d", available);
         Term_putstr(2, line++, -1, TERM_L_BLUE, points_msg);
         
-        Term_putstr(2, line + 1, -1, TERM_L_DARK,
-                    "Arrows to navigate  Space/Enter accept  Letter select  Esc cancel");
+        if (steamdeck) {
+            char hint_buf[96];
+            strnfmt(hint_buf, sizeof(hint_buf),
+                    "D-pad to navigate  [%s] accept  [%s] cancel", accept_label, back_label);
+            Term_putstr(2, line + 1, -1, TERM_L_DARK, hint_buf);
+        } else {
+            Term_putstr(2, line + 1, -1, TERM_L_DARK,
+                        "Arrows to navigate  Space/Enter accept  Letter select  Esc cancel");
+        }
 
         char key = inkey();
         screen_load();
 
-        if (key == ESCAPE) {
+        /* Handle back/cancel - ESC or B button in Steam Deck mode */
+        if (key == ESCAPE || (steamdeck && key == steamdeck_back_key()) || (!steamdeck && (key == 'h' || key == 'H'))) {
             return false;
         }
 
-        if (key == '\r' || key == '\n' || key == ' ' || key == '6') {
+        if (key == '\r' || key == '\n' || (steamdeck && key == steamdeck_confirm_key()) || key == '6') {
             key = options[selected].key;
         } else if (key == '8' || key == 'k' || key == '-') {
             /* Navigate up, skipping unaffordable options */
@@ -3846,7 +3817,7 @@ static bool blessing_unlock_major(char *result_msg, size_t msg_size, byte *resul
         if (result_msg && msg_size > 0) {
             const char *msg = major_blessing_unlock_msg(choice_idx);
             if (msg && *msg) {
-                my_strcpy(result_msg, msg, msg_size);
+                SDL_strlcpy(result_msg, msg, msg_size);
             } else {
                 snprintf(result_msg, msg_size, "You seal the %s.", major_blessing_name_str(choice_idx));
             }
@@ -3863,6 +3834,15 @@ static void open_blessing_exchange(void)
     char status_msg[256] = "";
     byte status_attr = TERM_WHITE;
     bool clear_status_on_next_key = false;
+    bool steamdeck = get_sdl_steamdeck_mode();
+    char accept_label[16] = "";
+    char back_label[16] = "";
+
+    if (steamdeck) {
+        /* Steam Deck UI: A=accept, B=back */
+        metarun_prompt_label(steamdeck_confirm_key(), "A", accept_label, sizeof(accept_label));
+        metarun_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
+    }
 
     while (!done) {
         compute_blessing_pool();
@@ -3940,7 +3920,15 @@ static void open_blessing_exchange(void)
         } else {
             Term_putstr(4,10, -1, TERM_L_DARK, "u) Unlock a major blessing (none available)");
         }
-        Term_putstr(2, 12, -1, TERM_L_DARK, "Arrows to navigate  Space/Enter accept  Letter select  ESC leave");
+        if (steamdeck) {
+            char hint_buf[96];
+            strnfmt(hint_buf, sizeof(hint_buf),
+                    "D-pad to navigate  [%s] accept  [%s] leave", accept_label, back_label);
+            Term_putstr(2, 12, -1, TERM_L_DARK, hint_buf);
+        } else {
+            Term_putstr(2, 12, -1, TERM_L_DARK,
+                        "Arrows to navigate  Space/Enter accept  Letter select  ESC leave");
+        }
         
         /* Display status message if present */
         if (status_msg[0] != '\0') {
@@ -3976,22 +3964,24 @@ static void open_blessing_exchange(void)
                 break;
             } while (selected != start);
             continue;
-        } else if (key == '\r' || key == '\n' || key == ' ' || key == '6') {
-            /* Space/Enter activates highlighted option */
+        } else if (key == '\r' || key == '\n' || (steamdeck && key == steamdeck_confirm_key()) || key == '6') {
+            /* A button/Space/Enter activates highlighted option */
             if (selected == 0) key = 'r';
             else if (selected == 1) key = 'm';
             else if (selected == 2) key = 'u';
         }
 
-        switch (key) {
-        case ESCAPE:
-        case '4':
+        /* Handle back/cancel - ESC, B button in Steam Deck mode, or 'h' key */
+        if (key == ESCAPE || key == '4' || (steamdeck && key == steamdeck_back_key()) || (!steamdeck && (key == 'h' || key == 'H'))) {
             done = true;
-            break;
+            continue;
+        }
+
+        switch (key) {
         case 'r':
         case 'R':
             if (available < 1) {
-                my_strcpy(status_msg, "You need at least one blessing point to lift a curse.", sizeof(status_msg));
+                SDL_strlcpy(status_msg, "You need at least one blessing point to lift a curse.", sizeof(status_msg));
                 status_attr = TERM_ORANGE;
                 clear_status_on_next_key = true;
             } else if (blessing_remove_curse(status_msg, sizeof(status_msg), &status_attr)) {
@@ -4004,7 +3994,7 @@ static void open_blessing_exchange(void)
         case 'm':
         case 'M':
             if (available < 1) {
-                my_strcpy(status_msg, "You need at least one blessing point to receive a gift.", sizeof(status_msg));
+                SDL_strlcpy(status_msg, "You need at least one blessing point to receive a gift.", sizeof(status_msg));
                 status_attr = TERM_ORANGE;
                 clear_status_on_next_key = true;
             } else if (blessing_gain_minor(status_msg, sizeof(status_msg), &status_attr)) {
@@ -4017,7 +4007,7 @@ static void open_blessing_exchange(void)
         case 'u':
         case 'U':
             if (!major_available) {
-                my_strcpy(status_msg, "All major blessings have already been sealed.", sizeof(status_msg));
+                SDL_strlcpy(status_msg, "All major blessings have already been sealed.", sizeof(status_msg));
                 status_attr = TERM_L_DARK;
                 clear_status_on_next_key = true;
             } else if (!major_affordable) {
@@ -4085,6 +4075,266 @@ static void draw_blessing_meter(int col, int start_row, int height, u32b current
     Term_putstr(text_col, meter_end + 1, -1, TERM_L_BLUE, progress_buf);
 }
 
+static void metarun_truncate_for_width(char *buf, int max_width)
+{
+    if (!buf) return;
+    if (max_width <= 0) {
+        buf[0] = '\0';
+        return;
+    }
+
+    int len = (int)strlen(buf);
+    if (len <= max_width) return;
+
+    if (max_width >= 4) {
+        buf[max_width - 3] = '.';
+        buf[max_width - 2] = '.';
+        buf[max_width - 1] = '.';
+        buf[max_width] = '\0';
+    } else {
+        buf[max_width] = '\0';
+    }
+}
+
+static void metarun_put_prompt_line(int term_width, int term_height, byte attr, const char *text)
+{
+    if (term_width <= 0 || term_height <= 0) return;
+
+    char line[512];
+    int line_width = term_width;
+    if (line_width > (int)sizeof(line) - 1) line_width = (int)sizeof(line) - 1;
+
+    memset(line, ' ', line_width);
+    line[line_width] = '\0';
+
+    if (text && *text) {
+        size_t tlen = strlen(text);
+        if ((int)tlen > line_width) tlen = (size_t)line_width;
+        memcpy(line, text, tlen);
+    }
+
+    Term_putstr(0, term_height - 1, -1, attr, line);
+}
+
+typedef struct {
+    char variants[4][64];
+    int variant_count;
+    int variant_idx;
+    bool enabled;
+    int drop_priority;
+} metarun_prompt_action;
+
+static size_t metarun_render_action_prompt(const metarun_prompt_action *actions,
+                                           int action_count,
+                                           char *out,
+                                           size_t out_size)
+{
+    if (!out || out_size == 0) return 0;
+
+    out[0] = '\0';
+    bool first = true;
+
+    for (int i = 0; i < action_count; i++) {
+        if (!actions[i].enabled) continue;
+        if (actions[i].variant_idx < 0 || actions[i].variant_idx >= actions[i].variant_count) continue;
+
+        if (!first) SDL_strlcat(out, "  ", out_size);
+        SDL_strlcat(out, actions[i].variants[actions[i].variant_idx], out_size);
+        first = false;
+    }
+
+    return strlen(out);
+}
+
+static void metarun_build_action_prompt(int term_width,
+                                        bool steamdeck,
+                                        const char *spend_label,
+                                        const char *threshold_label,
+                                        const char *diff_label,
+                                        const char *full_label,
+                                        const char *history_label,
+                                        bool blitz_enabled,
+                                        char *out,
+                                        size_t out_size)
+{
+    if (!out || out_size == 0) return;
+    out[0] = '\0';
+
+    const char *spend = (spend_label && *spend_label) ? spend_label : "X";
+    const char *thr = (threshold_label && *threshold_label) ? threshold_label : "R1";
+    const char *diff = (diff_label && *diff_label) ? diff_label : "L1";
+    const char *full = (full_label && *full_label) ? full_label : "Start";
+    const char *hist = (history_label && *history_label) ? history_label : "Y";
+
+    metarun_prompt_action actions[6];
+    memset(actions, 0, sizeof(actions));
+
+    for (int i = 0; i < 6; i++) {
+        actions[i].variant_count = 4;
+        actions[i].variant_idx = 0;
+        actions[i].enabled = (i < 5) ? true : blitz_enabled;
+    }
+
+    /* Lower number means dropped earlier if space is too tight. */
+    actions[0].drop_priority = 5; /* Blessings */
+    actions[1].drop_priority = 4; /* Threshold */
+    actions[2].drop_priority = 3; /* Difficulty */
+    actions[3].drop_priority = 2; /* Full list */
+    actions[4].drop_priority = 1; /* History */
+    actions[5].drop_priority = 4; /* Blitz */
+
+    if (steamdeck) {
+        strnfmt(actions[0].variants[0], sizeof(actions[0].variants[0]), "[%s] Spend blessings", spend);
+        strnfmt(actions[0].variants[1], sizeof(actions[0].variants[1]), "[%s] Blessings", spend);
+        strnfmt(actions[0].variants[2], sizeof(actions[0].variants[2]), "[%s] Bless", spend);
+        strnfmt(actions[0].variants[3], sizeof(actions[0].variants[3]), "[%s]", spend);
+
+        strnfmt(actions[1].variants[0], sizeof(actions[1].variants[0]), "[%s] Threshold", thr);
+        strnfmt(actions[1].variants[1], sizeof(actions[1].variants[1]), "[%s] Thresh", thr);
+        strnfmt(actions[1].variants[2], sizeof(actions[1].variants[2]), "[%s] Thr", thr);
+        strnfmt(actions[1].variants[3], sizeof(actions[1].variants[3]), "[%s]", thr);
+
+        strnfmt(actions[2].variants[0], sizeof(actions[2].variants[0]), "[%s] Difficulty", diff);
+        strnfmt(actions[2].variants[1], sizeof(actions[2].variants[1]), "[%s] Diff", diff);
+        strnfmt(actions[2].variants[2], sizeof(actions[2].variants[2]), "[%s] D", diff);
+        strnfmt(actions[2].variants[3], sizeof(actions[2].variants[3]), "[%s]", diff);
+
+        strnfmt(actions[3].variants[0], sizeof(actions[3].variants[0]), "[%s] Full list", full);
+        strnfmt(actions[3].variants[1], sizeof(actions[3].variants[1]), "[%s] List", full);
+        strnfmt(actions[3].variants[2], sizeof(actions[3].variants[2]), "[%s] L", full);
+        strnfmt(actions[3].variants[3], sizeof(actions[3].variants[3]), "[%s]", full);
+
+        strnfmt(actions[4].variants[0], sizeof(actions[4].variants[0]), "[%s] History", hist);
+        strnfmt(actions[4].variants[1], sizeof(actions[4].variants[1]), "[%s] Hist", hist);
+        strnfmt(actions[4].variants[2], sizeof(actions[4].variants[2]), "[%s] H", hist);
+        strnfmt(actions[4].variants[3], sizeof(actions[4].variants[3]), "[%s]", hist);
+        actions[5].enabled = false;
+
+    } else {
+        SDL_strlcpy(actions[0].variants[0], "[b] Spend blessings", sizeof(actions[0].variants[0]));
+        SDL_strlcpy(actions[0].variants[1], "[b] Blessings", sizeof(actions[0].variants[1]));
+        SDL_strlcpy(actions[0].variants[2], "[b] Bless", sizeof(actions[0].variants[2]));
+        SDL_strlcpy(actions[0].variants[3], "[b]", sizeof(actions[0].variants[3]));
+
+        SDL_strlcpy(actions[1].variants[0], "[f] Threshold", sizeof(actions[1].variants[0]));
+        SDL_strlcpy(actions[1].variants[1], "[f] Thresh", sizeof(actions[1].variants[1]));
+        SDL_strlcpy(actions[1].variants[2], "[f] Thr", sizeof(actions[1].variants[2]));
+        SDL_strlcpy(actions[1].variants[3], "[f]", sizeof(actions[1].variants[3]));
+
+        SDL_strlcpy(actions[2].variants[0], "[c] Difficulty", sizeof(actions[2].variants[0]));
+        SDL_strlcpy(actions[2].variants[1], "[c] Diff", sizeof(actions[2].variants[1]));
+        SDL_strlcpy(actions[2].variants[2], "[c] D", sizeof(actions[2].variants[2]));
+        SDL_strlcpy(actions[2].variants[3], "[c]", sizeof(actions[2].variants[3]));
+
+        SDL_strlcpy(actions[3].variants[0], "[u] Full list", sizeof(actions[3].variants[0]));
+        SDL_strlcpy(actions[3].variants[1], "[u] List", sizeof(actions[3].variants[1]));
+        SDL_strlcpy(actions[3].variants[2], "[u] L", sizeof(actions[3].variants[2]));
+        SDL_strlcpy(actions[3].variants[3], "[u]", sizeof(actions[3].variants[3]));
+
+        SDL_strlcpy(actions[4].variants[0], "[s] History", sizeof(actions[4].variants[0]));
+        SDL_strlcpy(actions[4].variants[1], "[s] Hist", sizeof(actions[4].variants[1]));
+        SDL_strlcpy(actions[4].variants[2], "[s] H", sizeof(actions[4].variants[2]));
+        SDL_strlcpy(actions[4].variants[3], "[s]", sizeof(actions[4].variants[3]));
+
+        SDL_strlcpy(actions[5].variants[0], "[x] Blitz", sizeof(actions[5].variants[0]));
+        SDL_strlcpy(actions[5].variants[1], "[x] Blitz", sizeof(actions[5].variants[1]));
+        SDL_strlcpy(actions[5].variants[2], "[x]", sizeof(actions[5].variants[2]));
+        SDL_strlcpy(actions[5].variants[3], "[x]", sizeof(actions[5].variants[3]));
+    }
+
+    for (;;) {
+        size_t len = metarun_render_action_prompt(actions, 6, out, out_size);
+        if ((int)len <= term_width) break;
+
+        int best_shrink = -1;
+        int best_save = 0;
+        for (int i = 0; i < 6; i++) {
+            if (!actions[i].enabled) continue;
+            if (actions[i].variant_idx + 1 >= actions[i].variant_count) continue;
+
+            int cur_len = (int)strlen(actions[i].variants[actions[i].variant_idx]);
+            int next_len = (int)strlen(actions[i].variants[actions[i].variant_idx + 1]);
+            int save = cur_len - next_len;
+            if (save > best_save) {
+                best_save = save;
+                best_shrink = i;
+            }
+        }
+
+        if (best_shrink >= 0) {
+            actions[best_shrink].variant_idx++;
+            continue;
+        }
+
+        int drop_idx = -1;
+        int drop_priority = INT_MAX;
+        for (int i = 0; i < 6; i++) {
+            if (!actions[i].enabled) continue;
+            if (actions[i].drop_priority < drop_priority) {
+                drop_priority = actions[i].drop_priority;
+                drop_idx = i;
+            }
+        }
+
+        if (drop_idx < 0) break;
+        actions[drop_idx].enabled = false;
+    }
+
+    if (out[0] == '\0') {
+        if (steamdeck) {
+            strnfmt(out, out_size, "[%s]", spend);
+        } else {
+            SDL_strlcpy(out, blitz_enabled ? "[x]" : "[b]", out_size);
+        }
+    }
+}
+
+static void metarun_pick_best_variant(char *out,
+                                      size_t out_size,
+                                      int max_width,
+                                      const char *v1,
+                                      const char *v2,
+                                      const char *v3,
+                                      const char *v4)
+{
+    if (!out || out_size == 0) return;
+    out[0] = '\0';
+
+    const char *variants[4] = { v1, v2, v3, v4 };
+    const char *fallback = "";
+
+    for (int i = 0; i < 4; i++) {
+        const char *candidate = variants[i];
+        if (!candidate || !*candidate) continue;
+        fallback = candidate;
+        if ((int)strlen(candidate) <= max_width) {
+            SDL_strlcpy(out, candidate, out_size);
+            return;
+        }
+    }
+
+    SDL_strlcpy(out, fallback, out_size);
+    metarun_truncate_for_width(out, max_width);
+}
+
+static void metarun_put_adaptive_line(int col,
+                                      int *row,
+                                      int term_width,
+                                      byte attr,
+                                      const char *v1,
+                                      const char *v2,
+                                      const char *v3,
+                                      const char *v4)
+{
+    if (!row) return;
+    int max_width = term_width - col - 1;
+    if (max_width <= 0) return;
+
+    char line[256];
+    metarun_pick_best_variant(line, sizeof(line), max_width, v1, v2, v3, v4);
+    Term_putstr(col, (*row)++, -1, attr, line);
+}
+
 /*
  * Enhanced print_metarun_stats():
  * - Draws a bracketed progress bar for Silmarils using '*'
@@ -4111,6 +4361,15 @@ static void adjust_blessing_threshold_menu(void)
     if (current_run < 0 || current_run >= metarun_max) return;
 
     metarun_blessing_threshold_mode current_mode = metarun_get_threshold_mode(&metar);
+    bool steamdeck = get_sdl_steamdeck_mode();
+    char accept_label[16] = "";
+    char back_label[16] = "";
+
+    if (steamdeck) {
+        /* Steam Deck UI: A=accept, B=back */
+        metarun_prompt_label(steamdeck_confirm_key(), "A", accept_label, sizeof(accept_label));
+        metarun_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
+    }
     int selection = 0;
     for (int i = 0; i < option_count; i++) {
         if (order[i] == current_mode) {
@@ -4163,14 +4422,22 @@ static void adjust_blessing_threshold_menu(void)
             row++;
         }
 
-        Term_putstr(2, row + 1, -1, TERM_L_DARK,
-                    "Use arrows or a/b/c to choose. Enter accepts, Esc cancels.");
+        if (steamdeck) {
+            char hint_buf[96];
+            strnfmt(hint_buf, sizeof(hint_buf),
+                    "D-pad to choose  [%s] accept  [%s] cancel", accept_label, back_label);
+            Term_putstr(2, row + 1, -1, TERM_L_DARK, hint_buf);
+        } else {
+            Term_putstr(2, row + 1, -1, TERM_L_DARK,
+                        "Use arrows or a/b/c to choose. Enter accepts, Esc cancels.");
+        }
 
         char key = inkey();
 
-        if (key == ESCAPE) {
+        /* Handle back/cancel - ESC, B button in Steam Deck mode, or 'h' key */
+        if (key == ESCAPE || (steamdeck && key == steamdeck_back_key()) || (!steamdeck && (key == 'h' || key == 'H'))) {
             break;
-        } else if (key == '\r' || key == '\n' || key == ' ' || key == '6') {
+        } else if (key == '\r' || key == '\n' || (steamdeck && key == steamdeck_confirm_key()) || key == '6') {
             accepted = true;
             chosen_mode = order[selection];
             break;
@@ -4217,7 +4484,14 @@ static void adjust_blessing_threshold_menu(void)
             Term_putstr(2, 2, -1, TERM_L_DARK,
                         "Blessing threshold remains unchanged.");
         }
-        Term_putstr(2, 6, -1, TERM_L_DARK, "Press any key to continue.");
+        if (steamdeck) {
+            char hint_buf[64];
+            metarun_prompt_label(steamdeck_confirm_key(), "A", accept_label, sizeof(accept_label));
+            strnfmt(hint_buf, sizeof(hint_buf), "Press [%s] to continue.", accept_label);
+            Term_putstr(2, 6, -1, TERM_L_DARK, hint_buf);
+        } else {
+            Term_putstr(2, 6, -1, TERM_L_DARK, "Press any key to continue.");
+        }
         Term_fresh();
         (void)inkey();
     }
@@ -4240,14 +4514,21 @@ void print_metarun_stats(void)
         Term_clear();
         Term_putstr(2, 5, -1, TERM_RED, "Error: No metarun data available.");
         Term_putstr(2, 6, -1, TERM_L_WHITE, "Please start a new game first.");
-        Term_putstr(2, 8, -1, TERM_L_DARK, "Press any key to return.");
+        if (get_sdl_steamdeck_mode()) {
+            char label[16];
+            metarun_prompt_label(steamdeck_confirm_key(), "A", label, sizeof(label));
+            strnfmt(buf, sizeof(buf), "Press %s to return.", label);
+            Term_putstr(2, 8, -1, TERM_L_DARK, buf);
+        } else {
+            Term_putstr(2, 8, -1, TERM_L_DARK, "Press any key to return.");
+        }
         inkey();
         screen_load();
         return;
     }
 
     compute_blessing_pool();
-    sanitize_major_blessing_bits(&metar);
+    metarun_sanitize_major_blessing_bits(&metar);
 
     const char *diff_name = "Unknown";
     int win_goal = WINCON_SILMARILS;
@@ -4287,190 +4568,511 @@ void print_metarun_stats(void)
     screen_save();
     Term_clear();
     Term_get_size(&term_width, &term_height);
-    
-    /* Ensure minimum 80 width for layout */
-    int effective_width = (term_width < 80) ? 80 : term_width;
-    
-    /* Calculate blessing meter position (right side) */
-    int meter_col = effective_width - 16;
-    if (meter_col < 60) meter_col = 60; /* Keep some space for main content */
-    int meter_height = (term_height > 20) ? 15 : (term_height - 5);
-    if (meter_height < 5) meter_height = 5;
+    bool steamdeck = get_sdl_steamdeck_mode();
+    char spend_label[16] = "";
+    char threshold_label[16] = "";
+    char diff_label[16] = "";
+    char full_label[16] = "";
+    char history_label[16] = "";
+    char back_label[16] = "";
+    char continue_label[16] = "";
 
-    /* Draw blessing meter on the right side */
-    u32b progress = remainder;
-    if (threshold == 0) threshold = 1;
-    draw_blessing_meter(meter_col, 2, meter_height, progress, threshold);
+    if (steamdeck) {
+        /* Steam Deck UI: A=Continue, B=Back, X=Spend, Y=History, L1=Diff, R1=Threshold, Start=Full list */
+        int confirm_key = steamdeck_confirm_key();
+        int back_key = steamdeck_back_key();
+        int alt_key = steamdeck_alt_action_key();
+        int secondary_key = steamdeck_secondary_key();
+        int l1_key = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_LEFT_SHOULDER);
+        int r1_key = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER);
+        int start_key = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_START);
 
-    Term_putstr(col, row++, -1, TERM_YELLOW, "=== Current Story Statistics ===");
+        metarun_prompt_label(confirm_key, "A", continue_label, sizeof(continue_label));
+        metarun_prompt_label(back_key, "B", back_label, sizeof(back_label));
+        metarun_prompt_label(alt_key, "X", spend_label, sizeof(spend_label));
+        metarun_prompt_label(secondary_key, "Y", history_label, sizeof(history_label));
+        metarun_prompt_label(l1_key, "L1", diff_label, sizeof(diff_label));
+        metarun_prompt_label(r1_key, "R1", threshold_label, sizeof(threshold_label));
+        metarun_prompt_label(start_key, "Start", full_label, sizeof(full_label));
+    }
 
-    snprintf(buf, sizeof buf, "Run-ID         : %u", metar.id);
-    Term_putstr(col, row++, -1, TERM_WHITE, buf);
+    bool blitz_enabled = (op_ptr && op_ptr->opt[OPT_unlock_blitz_mode]);
 
-    snprintf(buf, sizeof buf, "Difficulty     : %s", diff_name);
-    Term_putstr(col, row++, -1, TERM_L_BLUE, buf);
+    bool full_layout = (term_width >= 80 && term_height >= 24);
+    int meter_col = 0;
 
-    snprintf(buf, sizeof buf, "Meta Score     : %lu", (unsigned long)metar.score);
-    Term_putstr(col, row++, -1, TERM_WHITE, buf);
-
-    snprintf(buf, sizeof buf, "Best Run Score : %lu", (unsigned long)best_run);
-    Term_putstr(col, row++, -1, TERM_WHITE, buf);
-
-    snprintf(buf, sizeof buf, "Silmarils      : %-22s %2d / %d (remaining %d)",
-             sil_bar, metar.silmarils, win_goal, remaining_silmarils);
-    Term_putstr(col, row++, -1, TERM_WHITE, buf);
-
-    byte alive_attr = (alive < required_survivors) ? TERM_RED : TERM_L_GREEN;
-    snprintf(buf, sizeof buf, "Living Heroes  : %d (need >= %d)", alive, required_survivors);
-    Term_putstr(col, row++, -1, alive_attr, buf);
-
-    snprintf(buf, sizeof buf, "Deaths         : %-22s (%d total)",
-             death_marks, metar.deaths);
-    Term_putstr(col, row++, -1, TERM_WHITE, buf);
-
-    byte blessing_attr = (available_points > 0) ? TERM_L_GREEN : TERM_WHITE;
-    snprintf(buf, sizeof buf, "Blessing Points: %d available (%d spent / %d earned)",
-             available_points, spent_points, earned_points);
-    Term_putstr(col, row++, -1, blessing_attr, buf);
-
-    snprintf(buf, sizeof buf, "Blessing Pool  : %lu total (mode: %s, press 'f' to change)",
-             (unsigned long)total_pool, threshold_mode);
-    Term_putstr(col, row++, -1, TERM_WHITE, buf);
-
-    Term_putstr(col, row++, -1, TERM_YELLOW, "Major Blessings:");
+    /* Count major blessings once (used by both layouts) */
     int unlocked_major = 0;
     int major_total = metarun_major_blessing_count();
     for (int i = 0; i < major_total; i++) {
-        if (!metarun_has_major_blessing_index(i)) continue;
-        unlocked_major++;
-        const char *name = major_blessing_name_str(i);
-        const char *desc = major_blessing_short_desc(i);
-        char desc_buf[80];
-        if (desc && *desc) {
-            my_strcpy(desc_buf, desc, sizeof desc_buf);
-            char *nl = strchr(desc_buf, '\n');
-            if (nl) *nl = '\0';
-            snprintf(buf, sizeof buf, "  [X] %s (%s)", name, desc_buf);
+        if (metarun_has_major_blessing_index(i)) unlocked_major++;
+    }
+
+    if (full_layout) {
+        /* Calculate blessing meter position (right side) */
+        meter_col = term_width - 16;
+        if (meter_col < 60) meter_col = 60; /* Keep some space for main content */
+        if (meter_col > term_width - 13) meter_col = term_width - 13; /* "Blessing Pool" is 13 chars */
+
+        int meter_height = 15;
+        int max_meter_height = term_height - 7;
+        if (max_meter_height < 5) max_meter_height = 5;
+        if (meter_height > max_meter_height) meter_height = max_meter_height;
+
+        /* Draw blessing meter on the right side */
+        draw_blessing_meter(meter_col, 2, meter_height, remainder, threshold);
+
+        Term_putstr(col, row++, -1, TERM_YELLOW, "=== Current Story Statistics ===");
+
+        snprintf(buf, sizeof buf, "Run-ID         : %u", metar.id);
+        Term_putstr(col, row++, -1, TERM_WHITE, buf);
+
+        snprintf(buf, sizeof buf, "Difficulty     : %s", diff_name);
+        Term_putstr(col, row++, -1, TERM_L_BLUE, buf);
+
+        snprintf(buf, sizeof buf, "Meta Score     : %lu", (unsigned long)metar.score);
+        Term_putstr(col, row++, -1, TERM_WHITE, buf);
+
+        snprintf(buf, sizeof buf, "Best Run Score : %lu", (unsigned long)best_run);
+        Term_putstr(col, row++, -1, TERM_WHITE, buf);
+
+        snprintf(buf, sizeof buf, "Silmarils      : %-22s %2d / %d (remaining %d)",
+                 sil_bar, metar.silmarils, win_goal, remaining_silmarils);
+        Term_putstr(col, row++, -1, TERM_WHITE, buf);
+
+        byte alive_attr = (alive < required_survivors) ? TERM_RED : TERM_L_GREEN;
+        snprintf(buf, sizeof buf, "Living Heroes  : %d (need >= %d)", alive, required_survivors);
+        Term_putstr(col, row++, -1, alive_attr, buf);
+
+        snprintf(buf, sizeof buf, "Deaths         : %-22s (%d total)",
+                 death_marks, metar.deaths);
+        Term_putstr(col, row++, -1, TERM_WHITE, buf);
+
+        byte blessing_attr = (available_points > 0) ? TERM_L_GREEN : TERM_WHITE;
+        snprintf(buf, sizeof buf, "Blessing Points: %d available (%d spent / %d earned)",
+                 available_points, spent_points, earned_points);
+        Term_putstr(col, row++, -1, blessing_attr, buf);
+
+        if (steamdeck) {
+            snprintf(buf, sizeof buf, "Blessing Pool  : %lu total (mode: %s, [%s] to change)",
+                     (unsigned long)total_pool, threshold_mode, threshold_label);
         } else {
-            snprintf(buf, sizeof buf, "  [X] %s", name);
+            snprintf(buf, sizeof buf, "Blessing Pool  : %lu total (mode: %s, press 'f' to change)",
+                     (unsigned long)total_pool, threshold_mode);
         }
-        Term_putstr(col, row++, -1, TERM_L_GREEN, buf);
-    }
-    if (unlocked_major == 0) {
-        Term_putstr(col + 2, row++, -1, TERM_L_DARK, "None unlocked yet");
-    }
+        Term_putstr(col, row++, -1, TERM_WHITE, buf);
 
-    row++; /* spacing before lists */
+        Term_putstr(col, row++, -1, TERM_YELLOW, "Major Blessings:");
+        for (int i = 0; i < major_total; i++) {
+            if (!metarun_has_major_blessing_index(i)) continue;
+            const char *name = major_blessing_name_str(i);
+            const char *desc = major_blessing_short_desc(i);
+            char desc_buf[80];
+            if (desc && *desc) {
+                SDL_strlcpy(desc_buf, desc, sizeof desc_buf);
+                char *nl = strchr(desc_buf, '\n');
+                if (nl) *nl = '\0';
+                snprintf(buf, sizeof buf, "  [X] %s (%s)", name, desc_buf);
+            } else {
+                snprintf(buf, sizeof buf, "  [X] %s", name);
+            }
+            Term_putstr(col, row++, -1, TERM_L_GREEN, buf);
+        }
+        if (unlocked_major == 0) {
+            Term_putstr(col + 2, row++, -1, TERM_L_DARK, "None unlocked yet");
+        }
 
-    Term_putstr(col, row++, -1, TERM_YELLOW, "Active Curses & Blessings:");
+        row++; /* spacing before lists */
 
-    /* Calculate max width for effect display (left side only, meter is separate) */
-    int max_display_width = (meter_col > 60) ? meter_col - 4 : 56;
-    
-    int available_lines = term_height - row - 2;
-    if (available_lines < 0) available_lines = 0;
-
-    int active_count = 0;
-    for (int id = 0; id < z_info->cu_max; id++) {
-        if (CURSE_GET(id) != 0) active_count++;
-    }
-
-    bool curses_truncated = false;
-    if (active_count == 0) {
-        Term_putstr(col + 2, row++, -1, TERM_L_DARK, "None active");
-    } else if (available_lines <= 0) {
-        curses_truncated = true;
-        Term_putstr(col + 2, row++, -1, TERM_L_DARK,
-                    "List truncated - press 'u' to view all effects");
+        Term_putstr(col, row++, -1, TERM_YELLOW, "Active Curses & Blessings:");
     } else {
-        int lines_remaining = available_lines;
-        int entries_remaining = active_count;
+        int compact_width = term_width - col - 1;
+        if (compact_width < 10) compact_width = 10;
+        int summary_row_limit = term_height - 4;
 
+        metarun_put_adaptive_line(col, &row, term_width, TERM_YELLOW,
+                                  "=== Story Statistics ===",
+                                  "=== Story Stats ===",
+                                  "== Story Stats ==",
+                                  "== Stats ==");
+
+        char line1[192], line2[192], line3[192], line4[192];
+
+        if (row < summary_row_limit) {
+            strnfmt(line1, sizeof(line1), "Run-ID:%u  Difficulty:%s", metar.id, diff_name);
+            strnfmt(line2, sizeof(line2), "ID:%u  Difficulty:%s", metar.id, diff_name);
+            strnfmt(line3, sizeof(line3), "ID:%u  Diff:%s", metar.id, diff_name);
+            strnfmt(line4, sizeof(line4), "ID:%u %s", metar.id, diff_name);
+            metarun_put_adaptive_line(col, &row, term_width, TERM_L_BLUE, line1, line2, line3, line4);
+        }
+
+        if (row < summary_row_limit) {
+            strnfmt(line1, sizeof(line1), "Meta Score:%lu  Best Run:%lu", (unsigned long)metar.score, (unsigned long)best_run);
+            strnfmt(line2, sizeof(line2), "Meta:%lu  Best:%lu", (unsigned long)metar.score, (unsigned long)best_run);
+            strnfmt(line3, sizeof(line3), "Score:%lu  Best:%lu", (unsigned long)metar.score, (unsigned long)best_run);
+            strnfmt(line4, sizeof(line4), "M:%lu B:%lu", (unsigned long)metar.score, (unsigned long)best_run);
+            metarun_put_adaptive_line(col, &row, term_width, TERM_WHITE, line1, line2, line3, line4);
+        }
+
+        if (row < summary_row_limit) {
+            strnfmt(line1, sizeof(line1), "Silmarils:%d/%d (rem %d)  Alive:%d/%d", metar.silmarils, win_goal, remaining_silmarils, alive, required_survivors);
+            strnfmt(line2, sizeof(line2), "Sil:%d/%d rem %d  Alive:%d/%d", metar.silmarils, win_goal, remaining_silmarils, alive, required_survivors);
+            strnfmt(line3, sizeof(line3), "Sil:%d/%d  Alive:%d/%d", metar.silmarils, win_goal, alive, required_survivors);
+            strnfmt(line4, sizeof(line4), "S:%d/%d A:%d/%d", metar.silmarils, win_goal, alive, required_survivors);
+            byte sil_alive_attr = (alive < required_survivors) ? TERM_RED : TERM_L_GREEN;
+            metarun_put_adaptive_line(col, &row, term_width, sil_alive_attr, line1, line2, line3, line4);
+        }
+
+        if (row < summary_row_limit) {
+            strnfmt(line1, sizeof(line1), "Deaths:%d  Blessing Points:%d (%d/%d)", metar.deaths, available_points, spent_points, earned_points);
+            strnfmt(line2, sizeof(line2), "Deaths:%d  BPoints:%d (%d/%d)", metar.deaths, available_points, spent_points, earned_points);
+            strnfmt(line3, sizeof(line3), "Deaths:%d  BP:%d", metar.deaths, available_points);
+            strnfmt(line4, sizeof(line4), "D:%d BP:%d", metar.deaths, available_points);
+            byte bp_attr = (available_points > 0) ? TERM_L_GREEN : TERM_WHITE;
+            metarun_put_adaptive_line(col, &row, term_width, bp_attr, line1, line2, line3, line4);
+        }
+
+        if (row < summary_row_limit) {
+            if (steamdeck) {
+                strnfmt(line1, sizeof(line1), "Blessing Pool:%lu/%lu (%s, [%s] change)",
+                        (unsigned long)remainder, (unsigned long)threshold, threshold_mode, threshold_label);
+                strnfmt(line2, sizeof(line2), "Pool:%lu/%lu  %s  [%s]",
+                        (unsigned long)remainder, (unsigned long)threshold, threshold_mode, threshold_label);
+            } else {
+                strnfmt(line1, sizeof(line1), "Blessing Pool:%lu/%lu (%s, press 'f')",
+                        (unsigned long)remainder, (unsigned long)threshold, threshold_mode);
+                strnfmt(line2, sizeof(line2), "Pool:%lu/%lu  %s (f)",
+                        (unsigned long)remainder, (unsigned long)threshold, threshold_mode);
+            }
+            strnfmt(line3, sizeof(line3), "Pool:%lu/%lu  %s",
+                    (unsigned long)remainder, (unsigned long)threshold, threshold_mode);
+            strnfmt(line4, sizeof(line4), "P:%lu/%lu", (unsigned long)remainder, (unsigned long)threshold);
+            metarun_put_adaptive_line(col, &row, term_width, TERM_WHITE, line1, line2, line3, line4);
+        }
+
+        if (row < summary_row_limit) {
+            strnfmt(line1, sizeof(line1), "Major Blessings:%d", unlocked_major);
+            strnfmt(line2, sizeof(line2), "Major:%d", unlocked_major);
+            strnfmt(line3, sizeof(line3), "Major:%d", unlocked_major);
+            strnfmt(line4, sizeof(line4), "M:%d", unlocked_major);
+            metarun_put_adaptive_line(col, &row, term_width, TERM_YELLOW, line1, line2, line3, line4);
+        }
+
+        if (unlocked_major > 0 && row < summary_row_limit) {
+            char majors_line[192];
+            majors_line[0] = '\0';
+            SDL_strlcpy(majors_line, "  ", sizeof(majors_line));
+            bool first = true;
+            for (int i = 0; i < major_total; i++) {
+                if (!metarun_has_major_blessing_index(i)) continue;
+                const char *name = major_blessing_name_str(i);
+                char tmp[96];
+                if (first) {
+                    strnfmt(tmp, sizeof(tmp), "%s", name);
+                    first = false;
+                } else {
+                    strnfmt(tmp, sizeof(tmp), ", %s", name);
+                }
+                if ((int)strlen(majors_line) + (int)strlen(tmp) > compact_width) break;
+                SDL_strlcat(majors_line, tmp, sizeof(majors_line));
+            }
+            if (majors_line[2] != '\0') {
+                metarun_truncate_for_width(majors_line, compact_width);
+                Term_putstr(col, row++, -1, TERM_L_GREEN, majors_line);
+            }
+        }
+
+        if (row < term_height - 2) {
+            metarun_put_adaptive_line(col, &row, term_width, TERM_YELLOW,
+                                      "Active Curses & Blessings:",
+                                      "Curses & Blessings:",
+                                      "Effects:",
+                                      "Fx:");
+        }
+    }
+
+    if (full_layout) {
+        /* --- Full (>=80x24) layout: keep existing rendering exactly --- */
+
+        /* Calculate max width for effect display (left side only, meter is separate) */
+        int max_display_width = (meter_col > 60) ? meter_col - 4 : 56;
+
+        int available_lines = term_height - row - 2;
+        if (available_lines < 0) available_lines = 0;
+
+        int active_count = 0;
         for (int id = 0; id < z_info->cu_max; id++) {
-            int stacks = CURSE_GET(id);
-            if (!stacks) continue;
+            if (CURSE_GET(id) != 0) active_count++;
+        }
 
-            if (lines_remaining <= 0) {
-                curses_truncated = true;
-                break;
-            }
-
-            entries_remaining--;
-            bool is_blessing = (stacks < 0);
-            int magnitude = is_blessing ? -stacks : stacks;
-            cptr name = is_blessing ? blessing_display_name(id) : curse_display_name(id);
-            byte attr = is_blessing ? TERM_L_GREEN : TERM_RED;
-            bool seen = CURSE_SEEN(id);
-
-            const curse_type *cu = &cu_info[id];
-            cptr effect = NULL;
-            
-            /* Only show H:/P: effect if identified */
-            if (seen) {
-                effect = is_blessing
-                    ? (cu->blessing_power ? cu_text + cu->blessing_power : NULL)
-                    : (cu->power ? cu_text + cu->power : NULL);
-            }
-
-            /* Format with proper alignment - shorten type labels and move closer to left */
-            /* Use shortened labels: "Bless" and "Curse" instead of full words */
-            if (effect && *effect) {
-                snprintf(buf, sizeof buf, "  %-28s %-5s %d - %s", name,
-                         is_blessing ? "Bless" : "Curse", magnitude, effect);
+        bool curses_truncated = false;
+        if (active_count == 0) {
+            Term_putstr(col + 2, row++, -1, TERM_L_DARK, "None active");
+        } else if (available_lines <= 0) {
+            curses_truncated = true;
+            if (steamdeck) {
+                snprintf(buf, sizeof buf, "List truncated - press [%s] to view all effects", full_label);
+                Term_putstr(col + 2, row++, -1, TERM_L_DARK, buf);
             } else {
-                snprintf(buf, sizeof buf, "  %-28s %-5s %d", name,
-                         is_blessing ? "Bless" : "Curse", magnitude);
+                Term_putstr(col + 2, row++, -1, TERM_L_DARK,
+                            "List truncated - press 'u' to view all effects");
             }
-            
-            /* Truncate if too long */
-            if ((int)strlen(buf) > max_display_width) {
-                buf[max_display_width - 3] = '.';
-                buf[max_display_width - 2] = '.';
-                buf[max_display_width - 1] = '.';
-                buf[max_display_width] = '\0';
+        } else {
+            int lines_remaining = available_lines;
+            int entries_remaining = active_count;
+
+            for (int id = 0; id < z_info->cu_max; id++) {
+                int stacks = CURSE_GET(id);
+                if (!stacks) continue;
+
+                if (lines_remaining <= 0) {
+                    curses_truncated = true;
+                    break;
+                }
+
+                entries_remaining--;
+                bool is_blessing = (stacks < 0);
+                int magnitude = is_blessing ? -stacks : stacks;
+                cptr name = is_blessing ? blessing_display_name(id) : curse_display_name(id);
+                byte attr = is_blessing ? TERM_L_GREEN : TERM_RED;
+                bool seen = CURSE_SEEN(id);
+
+                const curse_type *cu = &cu_info[id];
+                cptr effect = NULL;
+
+                /* Only show H:/P: effect if identified */
+                if (seen) {
+                    effect = is_blessing
+                        ? (cu->blessing_power ? cu_text + cu->blessing_power : NULL)
+                        : (cu->power ? cu_text + cu->power : NULL);
+                }
+
+                /* Format with proper alignment - shorten type labels and move closer to left */
+                /* Use shortened labels: "Bless" and "Curse" instead of full words */
+                if (effect && *effect) {
+                    snprintf(buf, sizeof buf, "  %-28s %-5s %d - %s", name,
+                             is_blessing ? "Bless" : "Curse", magnitude, effect);
+                } else {
+                    snprintf(buf, sizeof buf, "  %-28s %-5s %d", name,
+                             is_blessing ? "Bless" : "Curse", magnitude);
+                }
+
+                /* Truncate if too long */
+                if ((int)strlen(buf) > max_display_width) {
+                    buf[max_display_width - 3] = '.';
+                    buf[max_display_width - 2] = '.';
+                    buf[max_display_width - 1] = '.';
+                    buf[max_display_width] = '\0';
+                }
+
+                Term_putstr(col, row++, -1, attr, buf);
+                lines_remaining--;
+
+                if (lines_remaining <= 0 && entries_remaining > 0) {
+                    curses_truncated = true;
+                    break;
+                }
             }
 
-            Term_putstr(col, row++, -1, attr, buf);
-            lines_remaining--;
-
-            if (lines_remaining <= 0 && entries_remaining > 0) {
-                curses_truncated = true;
-                break;
+            if (curses_truncated && lines_remaining > 0) {
+                if (entries_remaining > 0) {
+                    if (steamdeck) {
+                        snprintf(buf, sizeof buf, "... and %d more effect%s (press [%s] to view all)",
+                                 entries_remaining, (entries_remaining == 1) ? "" : "s", full_label);
+                    } else {
+                        snprintf(buf, sizeof buf, "... and %d more effect%s (press 'u' to view all)",
+                                 entries_remaining, (entries_remaining == 1) ? "" : "s");
+                    }
+                } else {
+                    if (steamdeck) {
+                        snprintf(buf, sizeof buf, "List truncated - press [%s] to view all effects", full_label);
+                    } else {
+                        SDL_strlcpy(buf, "List truncated - press 'u' to view all effects",
+                                  sizeof buf);
+                    }
+                }
+                Term_putstr(col, row++, -1, TERM_L_DARK, buf);
             }
         }
 
-        if (curses_truncated && lines_remaining > 0) {
-            if (entries_remaining > 0) {
-                snprintf(buf, sizeof buf, "... and %d more effect%s (press 'u' to view all)",
-                         entries_remaining, (entries_remaining == 1) ? "" : "s");
+        /* Prompt line (full): dynamically packed to width */
+        char prompt_buf[256];
+        metarun_build_action_prompt(term_width, steamdeck,
+                                    spend_label, threshold_label, diff_label,
+                                    full_label, history_label, blitz_enabled,
+                                    prompt_buf, sizeof(prompt_buf));
+        metarun_truncate_for_width(prompt_buf, term_width);
+        metarun_put_prompt_line(term_width, term_height, TERM_L_DARK, prompt_buf);
+    } else {
+        /* --- Compact layout --- */
+        int max_display_width = term_width - col - 1;
+        if (max_display_width < 10) max_display_width = 10;
+        if (max_display_width > (int)sizeof(buf) - 1) max_display_width = (int)sizeof(buf) - 1;
+
+        int available_lines = term_height - row - 2;
+        if (available_lines < 0) available_lines = 0;
+
+        int active_count = 0;
+        for (int id = 0; id < z_info->cu_max; id++) {
+            if (CURSE_GET(id) != 0) active_count++;
+        }
+
+        bool curses_truncated = false;
+        if (active_count == 0) {
+            Term_putstr(col + 2, row++, -1, TERM_L_DARK, "None active");
+        } else if (available_lines <= 0) {
+            curses_truncated = true;
+            if (steamdeck) {
+                snprintf(buf, sizeof buf, "List truncated - press [%s] to view all effects", full_label);
+                metarun_truncate_for_width(buf, term_width - col - 1);
+                Term_putstr(col + 2, row++, -1, TERM_L_DARK, buf);
             } else {
-                my_strcpy(buf, "List truncated - press 'u' to view all effects",
-                          sizeof buf);
+                Term_putstr(col + 2, row++, -1, TERM_L_DARK,
+                            "List truncated - press 'u' to view all effects");
             }
-            Term_putstr(col, row++, -1, TERM_L_DARK, buf);
-        }
-    }
+        } else {
+            int lines_remaining = available_lines;
+            int entries_remaining = active_count;
+            bool show_effects = (max_display_width >= 36);
+            int value_width = 4;
+            int name_width = max_display_width - 2 - 1 - value_width; /* "  " + name + " " + value */
+            if (show_effects) {
+                int reserve_effect = max_display_width / 3;
+                if (reserve_effect < 10) reserve_effect = 10;
+                int with_effect = max_display_width - 2 - 1 - value_width - 3 - reserve_effect; /* " - " + effect */
+                if (with_effect >= 8) name_width = with_effect;
+            }
+            if (name_width > 26) name_width = 26;
+            if (name_width < 8) name_width = 8;
 
-    char prompt_buf[160];
-    const char *base_prompt = "[b] Spend blessings  [f] Threshold  [c] Difficulty  [u] Full list  [s] History";
-    
-    /* Pad to terminal width (minimum 80) */
-    int target_width = (term_width > 80) ? term_width : 80;
-    snprintf(prompt_buf, sizeof prompt_buf, "%s", base_prompt);
-    size_t plen = strlen(prompt_buf);
-    
-    if ((int)plen < target_width && plen + 2 < sizeof prompt_buf) {
-        int pad_amount = target_width - (int)plen;
-        if (pad_amount > (int)(sizeof prompt_buf - plen - 1)) {
-            pad_amount = sizeof prompt_buf - plen - 1;
-        }
-        memset(prompt_buf + plen, ' ', pad_amount);
-        prompt_buf[plen + pad_amount] = '\0';
-    }
+            for (int id = 0; id < z_info->cu_max; id++) {
+                int stacks = CURSE_GET(id);
+                if (!stacks) continue;
 
-    Term_putstr(0, term_height - 1, -1, TERM_L_DARK, prompt_buf);
+                if (lines_remaining <= 0) {
+                    curses_truncated = true;
+                    break;
+                }
+
+                entries_remaining--;
+                bool is_blessing = (stacks < 0);
+                int magnitude = is_blessing ? -stacks : stacks;
+                cptr name = is_blessing ? blessing_display_name(id) : curse_display_name(id);
+                byte attr = is_blessing ? TERM_L_GREEN : TERM_RED;
+                bool seen = CURSE_SEEN(id);
+
+                const curse_type *cu = &cu_info[id];
+                cptr effect = NULL;
+
+                if (seen && show_effects) {
+                    effect = is_blessing
+                        ? (cu->blessing_power ? cu_text + cu->blessing_power : NULL)
+                        : (cu->power ? cu_text + cu->power : NULL);
+                }
+
+                char sign = is_blessing ? '+' : '-';
+                char value_buf[16];
+                strnfmt(value_buf, sizeof(value_buf), "%c%d", sign, magnitude);
+
+                if (effect && *effect && show_effects) {
+                    snprintf(buf, sizeof buf, "  %-*.*s %*s - %s",
+                             name_width, name_width, name,
+                             value_width, value_buf, effect);
+                } else {
+                    snprintf(buf, sizeof buf, "  %-*.*s %*s",
+                             name_width, name_width, name,
+                             value_width, value_buf);
+                }
+
+                metarun_truncate_for_width(buf, max_display_width);
+                Term_putstr(col, row++, -1, attr, buf);
+                lines_remaining--;
+
+                if (lines_remaining <= 0 && entries_remaining > 0) {
+                    curses_truncated = true;
+                    break;
+                }
+            }
+
+            if (curses_truncated && lines_remaining > 0) {
+                char line1[160], line2[160], line3[160], line4[160];
+                if (entries_remaining > 0) {
+                    if (steamdeck) {
+                        snprintf(line1, sizeof line1, "... and %d more effects (press [%s] for full list)",
+                                 entries_remaining, full_label);
+                        snprintf(line2, sizeof line2, "... and %d more (press [%s] for list)",
+                                 entries_remaining, full_label);
+                        snprintf(line3, sizeof line3, "... %d more [%s]", entries_remaining, full_label);
+                        snprintf(line4, sizeof line4, "... %d more", entries_remaining);
+                    } else {
+                        snprintf(line1, sizeof line1, "... and %d more effects (press 'u' for full list)", entries_remaining);
+                        snprintf(line2, sizeof line2, "... and %d more (press 'u' for list)", entries_remaining);
+                        snprintf(line3, sizeof line3, "... %d more (u)", entries_remaining);
+                        snprintf(line4, sizeof line4, "... %d more", entries_remaining);
+                    }
+                } else {
+                    if (steamdeck) {
+                        snprintf(line1, sizeof line1, "List truncated - press [%s] to view all effects", full_label);
+                        snprintf(line2, sizeof line2, "List truncated - press [%s]", full_label);
+                        snprintf(line3, sizeof line3, "Truncated [%s]", full_label);
+                        SDL_strlcpy(line4, "Truncated", sizeof(line4));
+                    } else {
+                        SDL_strlcpy(line1, "List truncated - press 'u' to view all effects", sizeof(line1));
+                        SDL_strlcpy(line2, "List truncated - press 'u' for list", sizeof(line2));
+                        SDL_strlcpy(line3, "Truncated (u)", sizeof(line3));
+                        SDL_strlcpy(line4, "Truncated", sizeof(line4));
+                    }
+                }
+                metarun_pick_best_variant(buf, sizeof(buf), term_width - col - 1,
+                                          line1, line2, line3, line4);
+                Term_putstr(col, row++, -1, TERM_L_DARK, buf);
+            }
+        }
+
+        char prompt_buf[256];
+        metarun_build_action_prompt(term_width, steamdeck,
+                                    spend_label, threshold_label, diff_label,
+                                    full_label, history_label, blitz_enabled,
+                                    prompt_buf, sizeof(prompt_buf));
+        metarun_truncate_for_width(prompt_buf, term_width);
+        metarun_put_prompt_line(term_width, term_height, TERM_L_DARK, prompt_buf);
+    }
 
     char key = inkey();
+    if (steamdeck) {
+        int back_key = steamdeck_back_key();
+        int confirm_key = steamdeck_confirm_key();
+        int alt_key = steamdeck_alt_action_key();
+        int secondary_key = steamdeck_secondary_key();
+        int l1_key = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_LEFT_SHOULDER);
+        int r1_key = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER);
+        int start_key = get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_START);
+        
+        if (key == back_key) {
+            /* B button = exit/back */
+            screen_load();
+            return;
+        } else if (key == confirm_key || key == '\r' || key == '\n') {
+            /* A button = continue (exit) */
+            screen_load();
+            return;
+        } else if (key == alt_key) {
+            /* X button = spend blessings */
+            key = 'b';
+        } else if (key == secondary_key) {
+            /* Y button = history */
+            key = 's';
+        } else if (key == l1_key) {
+            /* L1 = difficulty */
+            key = 'c';
+        } else if (key == r1_key) {
+            /* R1 = threshold */
+            key = 'f';
+        } else if (key == start_key) {
+            /* Start = full list */
+            key = 'u';
+        }
+    }
     if (key == 'b' || key == 'B') {
         screen_load();
         open_blessing_exchange();
@@ -4496,6 +5098,11 @@ void print_metarun_stats(void)
         screen_load();
         list_metaruns();
         print_metarun_stats();
+        return;
+    } else if ((key == 'x' || key == 'X') && blitz_enabled) {
+        screen_load();
+        run_mode_set_pending(RUN_MODE_BLITZ);
+        run_mode_set_current(RUN_MODE_BLITZ);
         return;
     }
 
@@ -4566,6 +5173,15 @@ static void choose_difficulty_menu(void)
     int max_difficulty = (runtype_info && z_info->rt_max > 0) ? z_info->rt_max - 1 : 0;
     
     screen_save();
+    bool steamdeck = get_sdl_steamdeck_mode();
+    char accept_label[16] = "";
+    char back_label[16] = "";
+
+    if (steamdeck) {
+        /* Steam Deck UI: A=accept, B=back */
+        metarun_prompt_label(steamdeck_confirm_key(), "A", accept_label, sizeof(accept_label));
+        metarun_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
+    }
     
     while (true)
     {
@@ -4652,18 +5268,26 @@ static void choose_difficulty_menu(void)
         }
         
         /* Instructions */
-        Term_putstr(2, row + 1, -1, TERM_L_WHITE, "Arrows to navigate     Space/Enter Accept     Esc Cancel");
+        if (steamdeck) {
+            char hint_buf[96];
+            strnfmt(hint_buf, sizeof(hint_buf),
+                    "D-pad to navigate  [%s] accept  [%s] cancel", accept_label, back_label);
+            Term_putstr(2, row + 1, -1, TERM_L_WHITE, hint_buf);
+        } else {
+            Term_putstr(2, row + 1, -1, TERM_L_WHITE,
+                        "Arrows to navigate     Space/Enter Accept     Esc Cancel");
+        }
         
         /* Get input */
         char key = inkey();
         
-        /* Handle input */
-        if (key == ESCAPE) 
+        /* Handle back/cancel - ESC, B button in Steam Deck mode, or 'h' key */
+        if (key == ESCAPE || (steamdeck && key == steamdeck_back_key()) || (!steamdeck && (key == 'h' || key == 'H')))
         {
             screen_load();
             return;
         }
-        else if (key == '\r' || key == '\n' || key == ' ' || key == '6')  /* Enter/Space/6 key */
+        else if (key == '\r' || key == '\n' || (steamdeck && key == steamdeck_confirm_key()) || key == '6')  /* Enter/A button/6 key */
         {
             /* Check if trying to select a locked difficulty */
             if (choice < metar.max_difficulty_reached) {
@@ -4724,16 +5348,42 @@ static void choose_difficulty_menu(void)
     {
         /* Warn if increasing difficulty */
         if (choice > metar.type) {
+            int term_wid = (Term && Term->wid > 0) ? Term->wid : 80;
             screen_save();
             Term_clear();
             Term_putstr(2, 5, -1, TERM_YELLOW, "WARNING: Increasing Difficulty");
-            Term_putstr(2, 7, -1, TERM_WHITE, "If you increase the difficulty level, you will NOT be able to");
-            Term_putstr(2, 8, -1, TERM_WHITE, "go back to an easier level for the rest of this story run.");
+            if (term_wid < 70)
+            {
+                Term_putstr(2, 7, term_wid - 2, TERM_WHITE,
+                    "You cannot return to an easier level");
+                Term_putstr(2, 8, term_wid - 2, TERM_WHITE,
+                    "for the rest of this story run.");
+            }
+            else
+            {
+                Term_putstr(2, 7, -1, TERM_WHITE, "If you increase the difficulty level, you will NOT be able to");
+                Term_putstr(2, 8, -1, TERM_WHITE, "go back to an easier level for the rest of this story run.");
+            }
             Term_putstr(2, 10, -1, TERM_L_RED, "This change is PERMANENT for this meta-run!");
-            Term_putstr(2, 12, -1, TERM_L_WHITE, "Do you want to continue? (y/n)");
+            if (steamdeck) {
+                char prompt_buf[64];
+                strnfmt(prompt_buf, sizeof(prompt_buf),
+                        "Continue? [%s] yes  [%s] no", accept_label, back_label);
+                Term_putstr(2, 12, term_wid - 2, TERM_L_WHITE, prompt_buf);
+            } else {
+                Term_putstr(2, 12, term_wid - 2, TERM_L_WHITE,
+                    "Do you want to continue? (y/n)");
+            }
             
             char confirm = inkey();
             screen_load();
+
+            if (steamdeck) {
+                if (confirm == ' ' || confirm == '\r' || confirm == '\n')
+                    confirm = 'y';
+                else if (confirm == ESCAPE || confirm == 'h' || confirm == 'H')
+                    confirm = 'n';
+            }
             
             if (confirm != 'y' && confirm != 'Y') {
                 return; /* Cancel the change */
@@ -4762,11 +5412,12 @@ static void choose_difficulty_menu(void)
             if (!preserved) continue;
 
             int combined = preserved + CURSE_GET(curse_id);
-            int max_allowed = cu_info[curse_id].max_stacks;
-            if (max_allowed > 0) {
-                if (combined > max_allowed) combined = max_allowed;
-                if (combined < -max_allowed) combined = -max_allowed;
-            }
+            int curse_cap = CURSE_CURSE_CAP(curse_id);
+            int blessing_cap = CURSE_BLESSING_CAP(curse_id);
+            if (curse_cap > 0 && combined > curse_cap)
+                combined = curse_cap;
+            if (blessing_cap > 0 && combined < -blessing_cap)
+                combined = -blessing_cap;
             CURSE_SET(curse_id, combined);
         }
 
@@ -4802,6 +5453,15 @@ static void choose_difficulty_menu(void)
 void list_metaruns(void)
 {
     screen_save();
+    bool steamdeck = get_sdl_steamdeck_mode();
+    char accept_label[16] = "";
+    int term_h = (Term && Term->hgt > 0) ? Term->hgt : 24;
+    int footer_row = term_h - 1;
+
+    if (steamdeck) {
+        /* Steam Deck UI: A=ok */
+        metarun_prompt_label(steamdeck_confirm_key(), "A", accept_label, sizeof(accept_label));
+    }
     Term_clear();
     c_prt(TERM_L_GREEN, "Meta-run history", 1, 2);
     c_put_str(TERM_L_DARK,
@@ -4817,7 +5477,7 @@ void list_metaruns(void)
 
     s16b *order = NULL;
     if (metarun_max > 0 && metaruns) {
-        order = C_ZNEW(metarun_max, s16b);
+        order = mem_alloc_array(metarun_max, s16b);
         for (s16b i = 0; i < metarun_max; i++) order[i] = i;
         qsort(order, metarun_max, sizeof(s16b), compare_metarun_indices);
     }
@@ -4853,8 +5513,14 @@ void list_metaruns(void)
                          m->silmarils, m->deaths, res, date),
                   row++, 2);
 
-        if (row >= 23 && i+1 < metarun_max) {   /* page break */
-            c_put_str(TERM_L_DARK, "[more – any key]", 23, 2);
+        if (row >= footer_row && i+1 < metarun_max) {   /* page break */
+            if (steamdeck) {
+                char hint_buf[64];
+                strnfmt(hint_buf, sizeof(hint_buf), "[more - press %s]", accept_label);
+                c_put_str(TERM_L_DARK, hint_buf, footer_row, 2);
+            } else {
+                c_put_str(TERM_L_DARK, "[more - any key]", footer_row, 2);
+            }
             inkey();  Term_clear();
             row = 4;
             c_prt(TERM_L_GREEN, "Meta-run history (cont.)", 1, 2);
@@ -4863,262 +5529,28 @@ void list_metaruns(void)
         }
     }
 
-    FREE(order);
-    c_put_str(TERM_L_DARK, "Press any key to return.", row+1, 2);
+    order = mem_free(order);
+    if (steamdeck) {
+        char hint_buf[64];
+        strnfmt(hint_buf, sizeof(hint_buf), "Press %s to return.", accept_label);
+        c_put_str(TERM_L_DARK, hint_buf, MIN(row + 1, footer_row), 2);
+    } else {
+        c_put_str(TERM_L_DARK, "Press any key to return.",
+            MIN(row + 1, footer_row), 2);
+    }
     inkey();
     screen_load();
 }
 
 void show_known_curses_menu(void)
 {
-    int shown = 0;
-    int row = 2;
-    int id;
-
-    /* Collect and count first */
-    for (id = 0; id < (int)z_info->cu_max; id++)
-        if (CURSE_SEEN(id)) {
-                shown++;
-            }
-    if (!shown) {
-        log_debug("No curses have been seen yet");
-        msg_print("You have not identified any curses yet.");
-        return;
-    }
-
-    log_info("Displaying %d known curses", shown);
-
-    screen_save();
-    Term_clear();
-    Term_putstr(1, 0, -1, TERM_L_WHITE + TERM_SHADE, "Known Curses:");
-
-    row = 2;
-
-    /* Enable wrapped text helper */
-    text_out_hook = text_out_to_screen;
-    text_out_wrap = Term->wid - 4;   /* generous rhs margin */
-
-    for (id = 0; id < (int)z_info->cu_max; id++)
-    {
-        if (!CURSE_SEEN(id)) continue;
-
-        curse_type *c = &cu_info[id];
-        cptr cname  = cu_name + c->name;
-        cptr cdesc  = cu_text + c->text;
-        cptr cpower = cu_text + c->power;
-
-        /* Name */
-        c_put_str(TERM_L_RED, cname, row, 1);
-        row++;
-
-        /* Description (wrapped) */
-        Term_gotoxy(3, row);
-        text_out_c(TERM_WHITE, cdesc);
-        row += count_wrapped_lines(cdesc, text_out_wrap, 3);
-
-        /* Curse effect */
-        const char *curse_effect = (*cpower) ? cpower : "[no additional effect listed]";
-        char curse_effect_line[256];
-        strnfmt(curse_effect_line, sizeof curse_effect_line, "Effect: %s", curse_effect);
-        Term_gotoxy(3, row);
-        text_out_c(TERM_RED, "Effect: ");
-        text_out_c(TERM_L_DARK, curse_effect);
-        row += count_wrapped_lines(curse_effect_line, text_out_wrap, 3);
-
-        /* Blessing counterpart */
-        cptr bname = blessing_display_name(id);
-        cptr bdesc = (c->blessing_text) ? (cu_text + c->blessing_text) : "";
-        cptr bpower = (c->blessing_power) ? (cu_text + c->blessing_power) : "";
-        bool has_blessing_text = bdesc && *bdesc;
-        bool has_blessing_effect = bpower && *bpower;
-        bool has_blessing_info = has_blessing_text || has_blessing_effect || (c->blessing_name != 0);
-
-        if (has_blessing_info) {
-            Term_putstr(3, row++, -1, TERM_L_GREEN, format("Blessing: %s", bname));
-
-            if (has_blessing_text) {
-                Term_gotoxy(5, row);
-                text_out_c(TERM_WHITE, bdesc);
-                row += count_wrapped_lines(bdesc, text_out_wrap, 5);
-            }
-
-            const char *bless_effect = has_blessing_effect ? bpower : "[no additional effect listed]";
-            char bless_effect_line[256];
-            strnfmt(bless_effect_line, sizeof bless_effect_line, "Effect: %s", bless_effect);
-            Term_gotoxy(5, row);
-            text_out_c(TERM_L_GREEN, "Effect: ");
-            text_out_c(TERM_WHITE, bless_effect);
-            row += count_wrapped_lines(bless_effect_line, text_out_wrap, 5);
-        }
-
-        row++;
-
-        /* Page wrap (match self_knowledge style) */
-        if (row >= 21)
-        {
-            Term_putstr(1, row, -1, TERM_L_WHITE, "(press any key)");
-            (void)inkey();
-            Term_clear();
-            Term_putstr(1, 0, -1, TERM_L_WHITE + TERM_SHADE, "Known Curses:");
-            row = 2;
-        }
-    }
-
-    Term_putstr(1, row+1, -1, TERM_L_WHITE, "(press any key)");
-    (void)inkey();
-    screen_load();
+    do_cmd_knowledge_browser_page(KNOWLEDGE_PAGE_CURSES);
 }
 
 /* Public wrapper for difficulty selection menu */
 void choose_difficulty_level(void)
 {
     choose_difficulty_menu();
-}
-
-/* ================================================================== */
-/*  Quest completion tracking functions                               */
-/* ================================================================== */
-
-/* Check if a specific quest is completed in the CURRENT metarun */
-bool metarun_is_quest_completed(u32b quest_flag)
-{
-    /* Only check the current metarun, not all metaruns */
-    if (current_run < 0 || current_run >= metarun_max) {
-        log_trace("Metarun quest check: Invalid current_run=%d, metarun_max=%d", current_run, metarun_max);
-        return false;
-    }
-    
-    if (metaruns[current_run].completed_quests & quest_flag) {
-        log_trace("Metarun quest check: Found quest 0x%x completed in current metarun[%d] (id=%d)", 
-                  quest_flag, current_run, metaruns[current_run].id);
-        return true;
-    }
-    
-    log_trace("Metarun quest check: Quest 0x%x not completed in current metarun[%d] (id=%d)", 
-              quest_flag, current_run, metaruns[current_run].id);
-    return false;
-}
-
-/* Mark a quest as completed in the current metarun */
-void metarun_mark_quest_completed(u32b quest_flag)
-{
-    if (current_run < 0 || current_run >= metarun_max) return;
-    /* IMPORTANT: modify the live 'metar' copy first, THEN persist.
-     * Previous code wrote directly to metaruns[current_run] and was
-     * immediately overwritten inside save_metaruns() when that
-     * function copied the stale 'metar' struct back into the array.
-     * (metaruns[current_run] = metar;). This caused lost quest flags.
-     */
-    if (!(metar.completed_quests & quest_flag)) {
-        metar.completed_quests |= quest_flag;                  /* update live */
-        metaruns[current_run].completed_quests = metar.completed_quests; /* keep array in sync early (optional) */
-        log_trace("Metarun: Quest flag 0x%x added (completed_quests=0x%08X)", quest_flag, metar.completed_quests);
-        refresh_current_metar_score();
-        save_metaruns();
-    } else {
-        log_trace("Metarun: Quest flag 0x%x already set (completed_quests=0x%08X) - no save needed", quest_flag, metar.completed_quests);
-    }
-}
-
-/* Check and update quest completion status based on player state */
-void metarun_check_and_update_quests(void)
-{
-    log_trace("Metarun quest check: Entry - current_run=%d, metarun_max=%d", current_run, metarun_max);
-    
-    if (current_run < 0 || current_run >= metarun_max) {
-        log_trace("Metarun quest check: Early return - current_run=%d, metarun_max=%d", current_run, metarun_max);
-        return;
-    }
-    
-    log_trace("Metarun quest check: current_run=%d, tulkas=%d, aule=%d, mandos=%d", 
-              current_run, p_ptr->tulkas_quest, p_ptr->aule_quest, p_ptr->mandos_quest);
-    
-    /* Check Tulkas quest completion - only mark as metarun-complete when REWARDED */
-    if (p_ptr->tulkas_quest == TULKAS_QUEST_REWARDED) {
-        if (!metarun_is_quest_completed(METARUN_QUEST_TULKAS)) {
-            log_trace("Metarun: Marking Tulkas quest as completed (rewarded, was %d)", p_ptr->tulkas_quest);
-            metarun_mark_quest_completed(METARUN_QUEST_TULKAS);
-        } else {
-            log_trace("Metarun: Tulkas quest already marked as completed");
-        }
-    }
-    
-    /* Check Aule quest completion - only mark as metarun-complete when REWARDED */
-    if (p_ptr->aule_quest == AULE_QUEST_REWARDED) {
-        if (!metarun_is_quest_completed(METARUN_QUEST_AULE)) {
-            log_trace("Metarun: Marking Aule quest as completed (rewarded)");
-            metarun_mark_quest_completed(METARUN_QUEST_AULE);
-        } else {
-            log_trace("Metarun: Aule quest already marked as completed");
-        }
-    }
-
-    /* Check Mandos quest completion - only mark as metarun-complete when REWARDED */
-    if (p_ptr->mandos_quest == MANDOS_QUEST_REWARDED) {
-        if (!metarun_is_quest_completed(METARUN_QUEST_MANDOS)) {
-            log_trace("Metarun: Marking Mandos quest as completed (rewarded)");
-            metarun_mark_quest_completed(METARUN_QUEST_MANDOS);
-        } else {
-            log_trace("Metarun: Mandos quest already marked as completed");
-        }
-    }
-}
-
-/* Restore quest states from metarun data after character loading */
-void metarun_restore_quest_states(void)
-{
-    if (current_run < 0 || current_run >= metarun_max) {
-        log_trace("Metarun restore: Invalid current_run=%d, metarun_max=%d", current_run, metarun_max);
-        return;
-    }
-    
-    u32b completed = metaruns[current_run].completed_quests;
-    log_trace("Metarun restore: Restoring quest states from metarun[%d], completed_quests=0x%08X", 
-              current_run, completed);
-    
-    /* Restore Tulkas quest state */
-    if (completed & METARUN_QUEST_TULKAS) {
-        if (p_ptr->tulkas_quest < TULKAS_QUEST_REWARDED) {
-            p_ptr->tulkas_quest = TULKAS_QUEST_REWARDED;
-            log_trace("Metarun restore: Tulkas quest set to REWARDED (%d)", TULKAS_QUEST_REWARDED);
-        }
-    }
-    
-    /* Restore Aule quest state */
-    if (completed & METARUN_QUEST_AULE) {
-        if (p_ptr->aule_quest < AULE_QUEST_REWARDED) {
-            p_ptr->aule_quest = AULE_QUEST_REWARDED;
-            log_trace("Metarun restore: Aule quest set to REWARDED (%d)", AULE_QUEST_REWARDED);
-        }
-    }
-    
-    /* Restore Mandos quest state */
-    if (completed & METARUN_QUEST_MANDOS) {
-        if (p_ptr->mandos_quest < MANDOS_QUEST_REWARDED) {
-            p_ptr->mandos_quest = MANDOS_QUEST_REWARDED;
-            log_trace("Metarun restore: Mandos quest set to REWARDED (%d)", MANDOS_QUEST_REWARDED);
-        }
-    }
-    
-    /* Restore Niena quest state */
-    if (completed & METARUN_QUEST_NIENA) {
-        if (p_ptr->niena_quest < NIENA_QUEST_REWARDED) {
-            p_ptr->niena_quest = NIENA_QUEST_REWARDED;
-            p_ptr->niena_level = 0; /* Clear depth for previous run attribution */
-            log_trace("Metarun restore: Niena quest set to REWARDED (%d)", NIENA_QUEST_REWARDED);
-        }
-    }
-    
-    /* Restore Orome quest state */
-    if (completed & METARUN_QUEST_OROME) {
-        if (p_ptr->orome_quest < OROME_QUEST_REWARDED) {
-            p_ptr->orome_quest = OROME_QUEST_REWARDED;
-            log_trace("Metarun restore: Orome quest set to REWARDED (%d)", OROME_QUEST_REWARDED);
-        }
-    }
-    
-    log_trace("Metarun restore: Final quest states - Tulkas: %d, Aule: %d, Mandos: %d, Niena: %d, Orome: %d",
-              p_ptr->tulkas_quest, p_ptr->aule_quest, p_ptr->mandos_quest, p_ptr->niena_quest, p_ptr->orome_quest);
 }
 
 /* ------------------------------------------------------------------ */
@@ -5163,7 +5595,7 @@ void metarun_unlock_oath(int oath_id)
         return;
     }
     
-    byte oath_bit = (1 << (oath_id - 1)); /* Convert 1-4 to bits 1,2,4,8 */
+    byte oath_bit = (1 << (oath_id - 1)); /* Convert 1-based oath_id to bitmask */
     
     /* Update both the global metar and the metaruns array */
     metar.unlocked_oaths |= oath_bit;
@@ -5190,7 +5622,7 @@ void metarun_ban_oath(int oath_id)
         return;
     }
     
-    byte oath_bit = (1 << (oath_id - 1)); /* Convert 1-5 to bits 1,2,4,8,16 */
+    byte oath_bit = (1 << (oath_id - 1)); /* Convert 1-based oath_id to bitmask */
     
     /* Update both the global metar and the metaruns array */
     metar.banned_oaths |= oath_bit;
@@ -5209,6 +5641,23 @@ void metarun_ban_oath(int oath_id)
  */
 int get_available_oaths_mask(void)
 {
+    if (blitz_oaths_enabled()) {
+        int available = 0;
+        int max_oath_id;
+
+        if (!z_info)
+            return 0;
+        if (z_info->oath_max <= 1)
+            return 0;
+
+        max_oath_id = MIN(OATH_LIGHT, z_info->oath_max - 1);
+
+        for (int i = 1; i <= max_oath_id; i++)
+            available |= (1 << (i - 1));
+
+        return available;
+    }
+
     if (current_run < 0 || current_run >= metarun_max) return 0;
     
     byte unlocked = metaruns[current_run].unlocked_oaths;

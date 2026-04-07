@@ -270,6 +270,8 @@ struct term
 /**** Available Variables ****/
 
 extern term* Term;
+typedef void (*term_pre_fresh_hook_func)(void);
+extern term_pre_fresh_hook_func g_term_pre_fresh_hook;
 
 /**** Available Functions ****/
 

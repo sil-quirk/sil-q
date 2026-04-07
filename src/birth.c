@@ -9,7 +9,12 @@
  */
 
 #include "angband.h"
+#include "externs.h"
+#include "blitz.h"
+#include "fs/path.h"
 #include "log/log.h"
+#include "player/killer.h"
+#include "sdl-config.h"
 #include "z-term.h"
 #include "metarun.h"
 
@@ -36,10 +41,45 @@ extern void wipe_screen_from(int col);
 #define TOTAL_AUX_COL 35
 #define INVALID_CHOICE 255
 
+static int find_named_artifact_for_character(void);
 static void grant_starting_artifact(void);
+static bool starting_artifact_is_eligible(int art_idx, int k_idx);
 
-/* House ability names */
-static const char *house_ability_names[S_MAX][ABILITIES_MAX] =
+static void copy_start_items(start_item dest[MAX_START_ITEMS],
+    const start_item src[MAX_START_ITEMS]);
+static void replace_start_food(start_item list[MAX_START_ITEMS], byte from_sval,
+    byte to_sval);
+
+#define BLITZ_MAX_EFFECT_COUNT 9
+
+static bool starting_artifact_is_eligible(int art_idx, int k_idx)
+{
+    artefact_type *a_ptr;
+    object_type object_type_body;
+    object_type *o_ptr = &object_type_body;
+
+    if (art_idx <= 0 || art_idx >= z_info->art_max)
+        return false;
+
+    a_ptr = &a_info[art_idx];
+    if (!a_ptr->name[0])
+        return false;
+
+    if (a_ptr->level > 10)
+        return false;
+
+    if (!k_idx)
+        return false;
+
+    object_prep(o_ptr, k_idx);
+    o_ptr->name1 = art_idx;
+    apply_magic(o_ptr, -1, true, true, true, true);
+
+    return (object_smithing_difficulty(o_ptr) <= 45);
+}
+
+/* Character ability names */
+static const char *character_ability_names[S_MAX][ABILITIES_MAX] =
 {
     [S_MEL] = {
         [MEL_POWER]            = "Power",
@@ -99,7 +139,7 @@ static const char *house_ability_names[S_MAX][ABILITIES_MAX] =
         [PER_ALCHEMY]        = "Alchemy",
         [PER_BANE]           = "Bane",
         [PER_OUTWIT]         = "Outwit",
-        [PER_LISTEN]         = "Listen",
+        [PER_LISTEN]         = "Resonance",
         [PER_MASTER_HUNTER]  = "Master Hunter",
         [PER_GRA]            = NULL,
     },
@@ -124,6 +164,7 @@ static const char *house_ability_names[S_MAX][ABILITIES_MAX] =
         [SMT_EXPERTISE]     = "Expertise",
         [SMT_ARTEFACT]      = "Artifice",
         [SMT_MASTERPIECE]   = "Masterpiece",
+        [SMT_ALLOY_MASTERY] = "Alloy mastery",
         [SMT_GRA]           = NULL,
     },
     [S_SNG] = {
@@ -158,6 +199,7 @@ static const char *house_ability_names[S_MAX][ABILITIES_MAX] =
         [SPC_OATH_SMITH] = "Oath of the Smith",
         [SPC_OATH_VALOROUS] = "Oath of the Valorous Heart",
         [SPC_UNIQUE_BANE] = "Unique Bane", /* Enhanced effectiveness against unique monsters */
+        [SPC_OATH_LIGHT] = "Oath of Light",
     },
 };
 
@@ -237,6 +279,7 @@ static void get_extra(void)
     int i, j;
     
     p_ptr->new_exp = p_ptr->exp = get_start_xp();
+    p_ptr->discovery_lore_flags = 0;
     log_debug("Set starting experience to %d", p_ptr->exp);
 
     /* Player is not singing */
@@ -249,13 +292,13 @@ static void get_extra(void)
     p_ptr->song_duel_pad = 0;
     p_ptr->song_contest_last_turn = 0;
     
-    /* Clear the abilities and add house abilities - but preserve oath abilities */
+    /* Clear the abilities and add character abilities - but preserve oath abilities */
     for (i = 0; i < S_MAX; i++)
     {
         for (j = 0; j < ABILITIES_MAX; j++)
         {
-            /* Preserve oath abilities (SPC_OATH_MERCY, SPC_OATH_SILENCE, SPC_OATH_IRON, SPC_OATH_SMITH, SPC_OATH_VALOROUS) */
-            if (i == S_SPC && (j == SPC_OATH_MERCY || j == SPC_OATH_SILENCE || j == SPC_OATH_IRON || j == SPC_OATH_SMITH || j == SPC_OATH_VALOROUS))
+            /* Preserve oath abilities (SPC_OATH_MERCY, SPC_OATH_SILENCE, SPC_OATH_IRON, SPC_OATH_SMITH, SPC_OATH_VALOROUS, SPC_OATH_LIGHT) */
+            if (i == S_SPC && (j == SPC_OATH_MERCY || j == SPC_OATH_SILENCE || j == SPC_OATH_IRON || j == SPC_OATH_SMITH || j == SPC_OATH_VALOROUS || j == SPC_OATH_LIGHT))
             {
                 /* Keep existing oath abilities intact */
                 continue;
@@ -265,20 +308,20 @@ static void get_extra(void)
         }
     }
     
-    /* Grant all parsed house abilities */
-    for (int slot = 0; slot < HOUSE_ABILITY_MAX; slot++)
+    /* Grant all parsed character abilities */
+    for (int slot = 0; slot < CHARACTER_ABILITY_MAX; slot++)
     {
-        int stat = c_info[p_ptr->phouse].a_adj[slot][0];
+        int stat = c_info[p_ptr->pcharacter].a_adj[slot][0];
         /* sentinel: no more entries */
         if (stat < 0) break;
 
-        int ab = c_info[p_ptr->phouse].a_adj[slot][1];
+        int ab = c_info[p_ptr->pcharacter].a_adj[slot][1];
         /* sanity-check bounds */
         if (stat < S_MAX && ab < ABILITIES_MAX)
         {
             p_ptr->innate_ability[stat][ab] = true;
             p_ptr->active_ability[stat][ab] = true;
-            log_debug("Assigned house ability: stat=%d, ability=%d", stat, ab);
+            log_debug("Assigned character ability: stat=%d, ability=%d", stat, ab);
         }
     }
 }
@@ -303,7 +346,7 @@ void player_wipe(void)
     /* Backup the player choices */
     // Initialized to soothe compilation warnings
     byte prace = 0;
-    byte phouse = 0;
+    byte pcharacter = 0;
     int age = 0;
     int height = 0;
     int weight = 0;
@@ -314,7 +357,7 @@ void player_wipe(void)
         log_debug("Restoring previous character choices from dead character");
         /* Backup the player choices */
         prace = p_ptr->prace;
-        phouse = p_ptr->phouse;
+        pcharacter = p_ptr->pcharacter;
         age = p_ptr->age;
         height = p_ptr->ht;
         weight = p_ptr->wt;
@@ -324,14 +367,14 @@ void player_wipe(void)
         {
             if (!(p_ptr->noscore & 0x0008))
                 stat[i] = p_ptr->stat_base[i]
-                    - (rp_ptr->r_adj[i] + hp_ptr->h_adj[i]);
+                    - (rp_ptr->r_adj[i] + current_character_profile->h_adj[i]);
             else
                 stat[i] = 0;
         }
     }
 
     /* Wipe the player */
-    (void)WIPE(p_ptr, player_type);
+    memset(p_ptr, 0, sizeof(player_type));
 
     supplies_reset_store();
 
@@ -340,7 +383,7 @@ void player_wipe(void)
     {
         /* Restore the choices */
         p_ptr->prace = prace;
-        p_ptr->phouse = phouse;
+        p_ptr->pcharacter = pcharacter;
         p_ptr->game_type = 0;
         p_ptr->age = age;
         p_ptr->ht = height;
@@ -355,7 +398,7 @@ void player_wipe(void)
     {
         /* Reset */
         p_ptr->prace = 0;
-        p_ptr->phouse = 0;
+        p_ptr->pcharacter = 0;
         p_ptr->game_type = 0;
         p_ptr->age = 0;
         p_ptr->ht = 0;
@@ -381,12 +424,13 @@ void player_wipe(void)
 
         a_ptr->cur_num = 0;
         a_ptr->found_num = 0;
+        a_ptr->seen = 0;
     }
     
     /* Initialize Valar artifact reservation array */
     if (!valar_reserved_artifacts)
     {
-        C_MAKE(valar_reserved_artifacts, z_info->art_max, bool);
+        valar_reserved_artifacts = mem_alloc_array(z_info->art_max, bool);
     }
     for (i = 0; i < z_info->art_max; i++)
     {
@@ -448,6 +492,7 @@ void player_wipe(void)
 
     // Morgoth unhurt
     p_ptr->morgoth_state = 0;
+    p_ptr->morgoth_second_wind = 0;
 
     p_ptr->killed_enemy_with_arrow = false;
 
@@ -484,13 +529,19 @@ void player_wipe(void)
     p_ptr->orome_killed_count = 0;
     p_ptr->orome_target_type = 0;
     p_ptr->orome_target_count = 0;
+    /* Varda quest init */
+    p_ptr->varda_quest = VARDA_QUEST_NOT_STARTED;
+    p_ptr->varda_vault_ready = 0;
+    p_ptr->varda_vault_placed = 0;
+    p_ptr->varda_reserved = 0;
+    p_ptr->varda_level = 0;
     
     p_ptr->quest_vault_used = 0;
     
     /* Quest states should always start at NOT_STARTED for new characters */
     /* Metarun completion is checked separately via metarun_is_quest_completed() */
     log_trace("Birth: All quest states initialized to NOT_STARTED for new character");
-    for (i = 0; i < 15; i++) p_ptr->quest_reserved[i] = 0; /* quest_reserved[0] = any quest spawned flag */
+    for (i = 0; i < 15; i++) p_ptr->quest_reserved[i] = 0; /* quest_reserved[0] = any quest spawned flag; quest_reserved[1..6] = per-run quest completion markers */
 
     /*re-set the thefts counter*/
     recent_failed_thefts = 0;
@@ -508,7 +559,7 @@ void player_wipe(void)
 }
 
 /* ------------------------------------------------------------------
- * Hand out one start-item list (race or house).
+ * Hand out one start-item list (race or character template).
  * ------------------------------------------------------------------ */
 static void give_start_items(const start_item *list)
 {
@@ -534,8 +585,16 @@ static void give_start_items(const start_item *list)
         /* Where would this be wielded? */
         slot = wield_slot(i_ptr);
 
-        /* Light sources start with fuel */
-        if (slot == INVEN_LITE) i_ptr->timeout = 2000;
+        /* Light sources start with their standard default fuel. */
+        if (slot == INVEN_LITE)
+        {
+            if (i_ptr->sval == SV_LIGHT_TORCH)
+                i_ptr->timeout = 1000;
+            else if (i_ptr->sval == SV_LIGHT_LANTERN)
+                i_ptr->timeout = 3000;
+            else if (i_ptr->sval == SV_LIGHT_MALLORN)
+                i_ptr->timeout = 50;
+        }
 
         bool start_known = true;
         if ((i_ptr->tval == TV_POTION)
@@ -587,36 +646,162 @@ static void give_start_items(const start_item *list)
     }
 }
 
-static void grant_starting_artifact(void)
+static void copy_start_items(start_item dest[MAX_START_ITEMS],
+    const start_item src[MAX_START_ITEMS])
 {
-    int candidates[512];
-    int count = 0;
+    int item_idx;
 
-    for (int i = 1; i < z_info->art_max && count < (int)N_ELEMENTS(candidates); i++) {
+    for (item_idx = 0; item_idx < MAX_START_ITEMS; item_idx++)
+    {
+        dest[item_idx] = src[item_idx];
+    }
+}
+
+static void replace_start_food(start_item list[MAX_START_ITEMS], byte from_sval,
+    byte to_sval)
+{
+    int item_idx;
+
+    for (item_idx = 0; item_idx < MAX_START_ITEMS && list[item_idx].tval;
+         item_idx++)
+    {
+        if (list[item_idx].tval == TV_FOOD && list[item_idx].sval == from_sval)
+        {
+            list[item_idx].sval = to_sval;
+        }
+    }
+}
+
+/*
+ * Find a named artifact matching the current character.
+ * Returns artifact index if found, otherwise 0.
+ * 
+ * Matches artifacts with "of {CharacterName}" in their name.
+ * For example: "Ring of Barahir" matches character "Barahir",
+ *              "Crown of Feanor" matches character "Feanor".
+ */
+static int find_named_artifact_for_character(void)
+{
+    character_profile *current_character_profile = &c_info[p_ptr->pcharacter];
+    const char *character_name = c_name + current_character_profile->name;
+    
+    /* Build pattern: "of {CharacterName}" */
+    char pattern[64];
+    char art_lower[MAX_LEN_ART_NAME];
+    char pattern_lower[64];
+    
+    strnfmt(pattern, sizeof(pattern), "of %s", character_name);
+    
+    /* Convert pattern to lowercase for case-insensitive comparison */
+    for (int i = 0; pattern[i] && i < (int)sizeof(pattern_lower) - 1; i++) {
+        pattern_lower[i] = tolower((unsigned char)pattern[i]);
+    }
+    pattern_lower[strlen(pattern)] = '\0';
+    
+    /* Search all artifacts for one matching this character's name */
+    for (int i = 1; i < z_info->art_max; i++) {
         artefact_type *a_ptr = &a_info[i];
+        
+        /* Skip artifacts without names or already created */
         if (!a_ptr->name[0]) continue;
         if (a_ptr->cur_num > 0) continue;
-        if (a_ptr->level > 10) continue;
         if (valar_reserved_artifacts && valar_reserved_artifacts[i]) continue;
-        candidates[count++] = i;
-    }
 
-    if (count == 0) {
-        log_info("No early artefacts available for starting blessing.");
-        return;
+        /* Convert artifact name to lowercase */
+        for (int j = 0; a_ptr->name[j] && j < MAX_LEN_ART_NAME - 1; j++) {
+            art_lower[j] = tolower((unsigned char)a_ptr->name[j]);
+        }
+        art_lower[strlen(a_ptr->name)] = '\0';
+        
+        /* Check if artifact name contains "of {CharacterName}" */
+        if (strstr(art_lower, pattern_lower)) {
+            /* Verify it's a valid base kind */
+            int k_idx = lookup_kind(a_ptr->tval, a_ptr->sval);
+            if (starting_artifact_is_eligible(i, k_idx)) {
+                log_info("Found named artifact for %s: %s (idx=%d)", 
+                         character_name, a_ptr->name, i);
+                return i;
+            }
+        }
     }
+    
+    log_debug("No named artifact found for character: %s", character_name);
+    return 0;
+}
 
-    int art_idx = candidates[rand_int(count)];
+static void grant_starting_artifact(void)
+{
+    int art_idx = 0;
+    int k_idx = 0;
+    
+    /* First, try to find a named artifact for this character */
+    art_idx = find_named_artifact_for_character();
+    
+    if (art_idx > 0) {
+        /* Found a named artifact - validate and grant it */
+        artefact_type *a_ptr = &a_info[art_idx];
+        k_idx = lookup_kind(a_ptr->tval, a_ptr->sval);
+        
+        if (!k_idx) {
+            log_warn("Named artifact has invalid base kind (idx=%d)", art_idx);
+            art_idx = 0;  /* Fall through to random selection */
+        } else if (valar_reserved_artifacts && valar_reserved_artifacts[art_idx]) {
+            log_info("Named artifact already reserved (idx=%d)", art_idx);
+            art_idx = 0;  /* Fall through to random selection */
+        } else if (!starting_artifact_is_eligible(art_idx, k_idx)) {
+            log_info("Named artifact does not meet starting thresholds (idx=%d)", art_idx);
+            art_idx = 0;  /* Fall through to random selection */
+        }
+    }
+    
+    /* If no named artifact, use the original random selection logic */
+    if (art_idx == 0) {
+        int candidates[512];
+        int candidate_kinds[512];
+        int count = 0;
+        for (int i = 1; i < z_info->art_max && count < (int)N_ELEMENTS(candidates); i++) {
+            artefact_type *a_ptr = &a_info[i];
+            int k;
+
+            if (!a_ptr->name[0]) continue;
+            if (a_ptr->cur_num > 0) continue;
+            if (valar_reserved_artifacts && valar_reserved_artifacts[i]) continue;
+
+            k = lookup_kind(a_ptr->tval, a_ptr->sval);
+            if (!starting_artifact_is_eligible(i, k)) continue;
+
+            candidates[count] = i;
+            candidate_kinds[count] = k;
+            count++;
+        }
+
+        if (count == 0) {
+            log_warn("No artefacts available for starting blessing under the lvl<=10 and difficulty<=45 filter.");
+            msg_print("No artefact could be granted.");
+            return;
+        }
+
+        int pick = rand_int(count);
+        art_idx = candidates[pick];
+        k_idx = candidate_kinds[pick];
+    }
+    
+    /* Grant the selected artifact */
     artefact_type *a_ptr = &a_info[art_idx];
 
     object_type object_type_body;
     object_type *o_ptr = &object_type_body;
-    object_prep(o_ptr, lookup_kind(a_ptr->tval, a_ptr->sval));
+    object_prep(o_ptr, k_idx);
     o_ptr->name1 = art_idx;
     apply_magic(o_ptr, -1, true, true, true, true);
     object_aware(o_ptr);
     object_known(o_ptr);
-    (void)inven_carry(o_ptr, true);
+    int slot = inven_carry(o_ptr, true);
+    if (slot < 0) {
+        log_warn("Starting artefact could not be carried (idx=%d)", art_idx);
+        msg_print("You have no room for a starting artefact.");
+        return;
+    }
     a_ptr->cur_num = 1;
     if (valar_reserved_artifacts) valar_reserved_artifacts[art_idx] = true;
 
@@ -639,15 +824,24 @@ static void player_outfit(void)
 
     /* ---------- pointers into info arrays ---------- */
     player_race  *rp_ptr = &p_info[p_ptr->prace];
-    player_house *hp_ptr = &c_info[p_ptr->phouse];
+    character_profile *current_character_profile = &c_info[p_ptr->pcharacter];
+    start_item race_start_items[MAX_START_ITEMS];
+
+    copy_start_items(race_start_items, rp_ptr->start_items);
+
+    if (current_character_profile->flags_u & UNQ_SMT_EOL)
+    {
+        replace_start_food(race_start_items, SV_FOOD_LEMBAS, SV_FOOD_BREAD);
+    }
 
     /* ---------- hand out gear ---------- */
     log_debug("Giving starting items for race: %s", p_name + rp_ptr->name);
-    give_start_items(rp_ptr->start_items);   /* race first  */
-    log_debug("Giving starting items for house: %s", c_name + hp_ptr->name);
-    give_start_items(hp_ptr->start_items);   /* house next  */
+    give_start_items(race_start_items);   /* race first  */
+    log_debug("Giving starting items for character: %s", c_name + current_character_profile->name);
+    give_start_items(current_character_profile->start_items);   /* character kit */
 
-    if (metarun_has_major_blessing_effect(METARUN_MAJOR_EFFECT_START_ARTIFACT)) {
+    if (!run_mode_is_blitz()
+        && metarun_has_major_blessing_effect(METARUN_MAJOR_EFFECT_START_ARTIFACT)) {
         grant_starting_artifact();
     }
 
@@ -690,25 +884,378 @@ Term_erase(TOTAL_AUX_COL, 0, 255);
     }
 }
 
+static void birth_prompt_label(int binding, const char* fallback, char* buf, size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    sdl_gamepad_action_binding_short_label(binding, buf, buflen);
+    if (streq(buf, "(unbound)") || streq(buf, "Multiple"))
+        SDL_strlcpy(buf, fallback, buflen);
+}
+
+static bool birth_pending_compact_description_confirm = false;
+
+static bool birth_confirm_input(int ch, bool steamdeck)
+{
+    if (ch == '\r' || ch == '\n' || ch == ' ' || ch == INPUT_BIND_CONFIRM)
+        return true;
+
+    if (steamdeck && ch == steamdeck_confirm_key())
+        return true;
+
+    return false;
+}
+
+static bool birth_show_compact_description_after_assignment(bool steamdeck)
+{
+    char ch;
+    char buf[160];
+
+    while (1)
+    {
+        int wid = 80;
+        int hgt = 24;
+        int prompt_row;
+
+        Term_get_size(&wid, &hgt);
+        if (wid < 1)
+            wid = 80;
+        if (hgt < 1)
+            hgt = 24;
+
+        display_player(100);
+
+        prompt_row = hgt - 1;
+        if (prompt_row < 0)
+            prompt_row = 0;
+        Term_erase(0, prompt_row, 255);
+
+        if (steamdeck)
+        {
+            char confirm_label[16];
+            char back_label[16];
+
+            birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
+            birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
+            strnfmt(buf, sizeof(buf), "%s back  %s continue", back_label, confirm_label);
+        }
+        else
+        {
+            strnfmt(buf, sizeof(buf), "ESC back to assignment  SPACE/ENTER continue");
+        }
+
+        c_put_str(TERM_SLATE, buf, prompt_row, 1);
+
+        hide_cursor = true;
+        ch = inkey();
+        hide_cursor = false;
+
+        if (steamdeck && ch == steamdeck_back_key())
+            ch = ESCAPE;
+
+        if ((ch == ESCAPE) || (ch == '4') || (ch == 'q') || (ch == 'Q'))
+            return false;
+
+        if (birth_confirm_input(ch, steamdeck) || (ch == '6'))
+            return true;
+    }
+}
+
+static int character_choice_index_by_name(cptr choice_name)
+{
+    int character_idx;
+
+    if (!choice_name)
+        return -1;
+
+    for (character_idx = 0; character_idx < z_info->c_max; character_idx++)
+    {
+        if (!strcmp(choice_name, c_name + c_info[character_idx].name))
+            return character_idx;
+    }
+
+    return -1;
+}
+
+static int birth_prompt_row(void);
+static int birth_description_base_row(void);
+
+static bool character_description_has_room(void)
+{
+    int min_description_rows = 8;
+    int available_rows = birth_prompt_row() - birth_description_base_row();
+
+    return (available_rows >= min_description_rows);
+}
+
+static bool character_selection_tight_height(void)
+{
+    int wid = 80;
+    int hgt = 24;
+
+    Term_get_size(&wid, &hgt);
+    (void)wid;
+    if (hgt < 1)
+        hgt = 24;
+
+    return (hgt <= 18);
+}
+
+static bool character_flags_need_compact_layout(void)
+{
+    int wid = 80;
+    int hgt = 24;
+    int min_flags_wid = TOTAL_AUX_COL + 21 + 20;
+
+    Term_get_size(&wid, &hgt);
+    (void)hgt;
+    if (wid < 1)
+        wid = 80;
+
+    return (wid < min_flags_wid) || character_selection_tight_height();
+}
+
+static cptr character_selection_header_text(bool character_phase)
+{
+    if (character_phase && character_flags_need_compact_layout())
+        return "Character:";
+
+    return "Character Selection:";
+}
+
+static void draw_character_selection_header(bool character_phase)
+{
+    cptr header = character_selection_header_text(character_phase);
+
+    Term_erase(0, HEADER_ROW, 255);
+    Term_putstr(QUESTION_COL, HEADER_ROW, -1, TERM_L_BLUE, header);
+}
+
+static int birth_prompt_row(void)
+{
+    int wid = 80;
+    int hgt = 24;
+    int row;
+
+    Term_get_size(&wid, &hgt);
+    (void)wid;
+    if (hgt < 1)
+        hgt = 24;
+
+    row = hgt - 1;
+    if (row < TABLE_ROW)
+        row = TABLE_ROW;
+
+    return row;
+}
+
+static int birth_description_base_row(void)
+{
+    int wid = 80;
+    int hgt = 24;
+    int row;
+    int min_row = TABLE_ROW + A_MAX + 3;
+    int max_row = birth_prompt_row() - 1;
+
+    Term_get_size(&wid, &hgt);
+    (void)wid;
+    if (hgt < 1)
+        hgt = 24;
+
+    row = hgt - 5;
+    if (row > DESCRIPTION_ROW)
+        row = DESCRIPTION_ROW;
+    if (row < min_row)
+        row = min_row;
+    if (row > max_row)
+        row = max_row;
+    if (row < TABLE_ROW + 1)
+        row = TABLE_ROW + 1;
+
+    return row;
+}
+
+static int choice_description_row(int visible_rows, bool allow_full_description_screen)
+{
+    int wid = 80;
+    int hgt = 24;
+    int row = birth_description_base_row();
+    int min_row;
+
+    (void)wid;
+
+    if (allow_full_description_screen)
+        return row;
+
+    Term_get_size(&wid, &hgt);
+    if (hgt < 1)
+        hgt = 24;
+
+    if (hgt > 20)
+        return row;
+
+    min_row = TABLE_ROW + visible_rows + 1;
+    row = min_row;
+
+    if (row > birth_prompt_row() - 1)
+        row = birth_prompt_row() - 1;
+    if (row < min_row)
+        row = min_row;
+
+    return row;
+}
+
+static int choice_description_line_count(cptr text)
+{
+    int wid = 80;
+    int hgt = 24;
+    int wrap_width = 79;
+
+    if (!text || !text[0])
+        return 0;
+
+    Term_get_size(&wid, &hgt);
+    (void)hgt;
+    if (wid < 1)
+        wid = 80;
+
+    if (wrap_width > wid)
+        wrap_width = wid;
+    if (wrap_width < 10)
+        wrap_width = wid;
+
+    return count_wrapped_lines(text, wrap_width, 2);
+}
+
+static int collect_character_starting_abilities(int character, cptr out[], int out_max)
+{
+    int count = 0;
+
+    if (character <= 0)
+        return 0;
+
+    if (c_info[character].flags_u & UNQ_MIM)
+        return 0;
+
+    for (int slot = 0; slot < CHARACTER_ABILITY_MAX; slot++)
+    {
+        int stat = c_info[character].a_adj[slot][0];
+        int ability = c_info[character].a_adj[slot][1];
+        cptr name;
+
+        if (stat < 0)
+            break;
+
+        if (stat >= S_MAX || ability < 0 || ability >= ABILITIES_MAX)
+            continue;
+
+        name = character_ability_names[stat][ability];
+        if (!name)
+            continue;
+
+        if (out && count < out_max)
+            out[count] = name;
+
+        count++;
+    }
+
+    return count;
+}
+
+static void display_character_description_screen(birth_menu choice)
+{
+    int wid = 80;
+    int hgt = 24;
+    int character_idx;
+    char full_name[64];
+    int name_col = 2;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1)
+        wid = 80;
+    if (hgt < 1)
+        hgt = 24;
+
+    character_idx = character_choice_index_by_name(choice.name);
+    if (character_idx >= 0)
+    {
+        strnfmt(full_name, sizeof(full_name), "%s%s",
+            c_name + c_info[character_idx].name,
+            c_name + c_info[character_idx].alt_name);
+    }
+    else
+    {
+        strnfmt(full_name, sizeof(full_name), "%s", choice.name ? choice.name : "");
+    }
+
+    if ((int)strlen(full_name) < wid)
+        name_col = (wid - (int)strlen(full_name)) / 2;
+    if (name_col < 2)
+        name_col = 2;
+
+    screen_save();
+    Term_clear();
+
+    Term_putstr(name_col, 0, -1, TERM_L_BLUE, full_name);
+
+    if (choice.text && choice.text[0] && (hgt > 2))
+    {
+        int text_row = 2;
+        int text_rows = choice_description_line_count(choice.text);
+        int available_rows = hgt - 3;
+
+        if (text_rows < available_rows)
+            text_row = 2 + ((available_rows - text_rows) / 2);
+        if (text_row < 2)
+            text_row = 2;
+        if (text_row > hgt - 2)
+            text_row = hgt - 2;
+
+        text_out_wrap = wid - 1;
+        text_out_indent = 2;
+        Term_gotoxy(2, text_row);
+        text_out_to_screen(TERM_WHITE, choice.text);
+        text_out_wrap = 0;
+        text_out_indent = 0;
+    }
+
+    if (hgt > 0)
+        Term_putstr(2, hgt - 1, -1, TERM_SLATE, "Press any key to return");
+
+    Term_fresh();
+    (void)inkey();
+
+    screen_load();
+}
+
 /*
  * Generic "get choice from menu" function
  */
 static int get_player_choice(birth_menu* choices, int num, int def, int col,
-    int wid, void (*hook)(birth_menu))
+    int wid, void (*hook)(birth_menu), bool allow_full_description_screen)
 {
     int top = 0, next;
     int i, dir;
     char c;
     bool done = false;
+    bool show_description;
+    bool compact_flags;
+    int prompt_row;
     int hgt;
     byte attr;
+    char prompt[160];
     int cur = (def) ? def : 0;
+    bool steamdeck = steamdeck_controls_active();
+    int clear_limit = birth_prompt_row() + 1;
 
     /* Autoselect if able */
     // if (num == 1) done = true;
 
     /* Clear */
-    for (i = TABLE_ROW; i < DESCRIPTION_ROW + 4; i++)
+    if (clear_limit < TABLE_ROW)
+        clear_limit = TABLE_ROW;
+    for (i = TABLE_ROW; i < clear_limit; i++)
     {
         /* Clear */
         Term_erase(col, i, 255/* Term->wid - wid */);
@@ -717,7 +1264,42 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
     /* Choose */
     while (true)
     {
-        hgt = Term->hgt - TABLE_ROW - 1;
+        int description_row = birth_description_base_row();
+        int list_rows_drawn;
+
+        hgt = birth_prompt_row() - TABLE_ROW - 1;
+
+        /*
+         * If we're going to use a tighter, compact traits layout on very short
+         * screens, reserve one extra line above DESCRIPTION_ROW.
+         *
+         * This avoids the menu list occupying the same row we may use for
+         * compact trait output.
+         */
+        if (allow_full_description_screen)
+        {
+            bool compact_flags = character_flags_need_compact_layout();
+            bool very_short = (Term->hgt > 0) && (Term->hgt <= 20);
+            if (compact_flags && very_short)
+            {
+                int max_hgt = (description_row - 2) - TABLE_ROW;
+                if (max_hgt < 0) max_hgt = 0;
+                if (hgt > max_hgt) hgt = max_hgt;
+            }
+        }
+        else if ((Term->hgt > 0) && (Term->hgt <= 20))
+        {
+            int min_description_rows = (Term->hgt <= 18) ? 5 : 4;
+            int description_rows = choice_description_line_count(choices[cur].text);
+            int max_hgt;
+
+            if (description_rows > min_description_rows)
+                min_description_rows = description_rows;
+
+            max_hgt = birth_prompt_row() - TABLE_ROW - 2 - min_description_rows;
+            if (max_hgt < 0) max_hgt = 0;
+            if (hgt > max_hgt) hgt = max_hgt;
+        }
 
         /* Redraw the list */
         for (i = 0; ((i + top < num) && (i <= hgt)); i++)
@@ -752,24 +1334,58 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
             Term_putstr(col, i + TABLE_ROW, wid, attr, name_part);
         }
 
-        Term_erase(0, DESCRIPTION_ROW + 0, 255);
-        Term_erase(0, DESCRIPTION_ROW + 1, 255);
-        Term_erase(0, DESCRIPTION_ROW + 2, 255);
-        Term_erase(0, DESCRIPTION_ROW + 3, 255);
-        Term_erase(0, DESCRIPTION_ROW + 4, 255);
-        Term_erase(0, DESCRIPTION_ROW + 5, 255);
-        Term_erase(0, DESCRIPTION_ROW + 6, 255);
-        Term_erase(0, DESCRIPTION_ROW + 7, 255);
+        list_rows_drawn = i;
 
-        if (choices[cur + top].text != NULL)
+        if (!allow_full_description_screen)
+            description_row = choice_description_row(list_rows_drawn, false);
+
+        {
+            int clear_from_row = description_row;
+            if (allow_full_description_screen)
+            {
+                bool compact_flags = character_flags_need_compact_layout();
+                bool very_short = (Term->hgt > 0) && (Term->hgt <= 20);
+                if (compact_flags && very_short)
+                    clear_from_row = description_row - 1;
+
+                /*
+                 * On compact screens, the previous race-selection phase can
+                 * leave wrapped description text a few rows above the compact
+                 * character traits area. Clear from the earlier race
+                 * description start as well so stale fragments do not remain
+                 * when switching phases.
+                 */
+                if (compact_flags)
+                {
+                    int race_description_row = choice_description_row(z_info->p_max, false);
+                    if (race_description_row < clear_from_row)
+                        clear_from_row = race_description_row;
+                }
+            }
+            for (i = clear_from_row; i < Term->hgt; i++)
+                Term_erase(0, i, 255);
+        }
+
+        compact_flags = (allow_full_description_screen && character_flags_need_compact_layout());
+        show_description = (!compact_flags);
+
+        if (allow_full_description_screen)
+            show_description = (show_description && character_description_has_room());
+
+        /* Display auxiliary information before the description so the
+         * description text remains the topmost layer on short screens. */
+        if (hook)
+            hook(choices[cur]);
+
+        if (show_description && choices[cur].text != NULL)
         {
             /* Indent output by 2 character, and wrap at column 79 */
             text_out_wrap = 79;
             text_out_indent = 2;
 
             /* History */
-            Term_gotoxy(text_out_indent, DESCRIPTION_ROW);
-            text_out_to_screen(TERM_WHITE, choices[cur + top].text);
+            Term_gotoxy(text_out_indent, description_row);
+            text_out_to_screen(TERM_WHITE, choices[cur].text);
 
             /* Reset text_out() vars */
             text_out_wrap = 0;
@@ -779,9 +1395,19 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
         if (done)
             return (cur);
 
-        /* Display auxiliary information if any is available. */
-        if (hook)
-            hook(choices[cur]);
+        if (Term->hgt > 0)
+        {
+            prompt_row = birth_prompt_row();
+            Term_erase(0, prompt_row, 255);
+
+            if (allow_full_description_screen)
+                strnfmt(prompt, sizeof(prompt), "SPACE/ENTER select  f description  ESC back  r random");
+            else
+                strnfmt(prompt, sizeof(prompt), "SPACE/ENTER select  ESC back  r random");
+
+            (void)steamdeck;
+            Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE, prompt);
+        }
 
         /* Move the cursor */
         put_str("", TABLE_ROW + cur - top, col);
@@ -795,13 +1421,13 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
             quit(NULL);
 
         /* Hack - go back */
-        if ((c == ESCAPE) || (c == '4'))
+        if ((c == ESCAPE) || (c == '4') || (steamdeck && c == 'b'))
             return (INVALID_CHOICE);
 
         /* Make a choice */
-        if ((c == '\n') || (c == '\r') || (c == ' ') || (c == '6')) {
+        if (birth_confirm_input(c, steamdeck) || (c == '6')) {
             if (choices[cur].ghost)
-                bell("Your race cannot choose that house.");
+                bell("Your race cannot choose that character.");
             else
                 return (cur);
         }
@@ -812,11 +1438,17 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
             continue; /* Return to the selection loop after showing scores */
         }
         
-        // Show help: accept both 'h' and 'H'
-        if (c == 'h' || c == 'H')
+        // Show help: accept both 'h' and 'H', plus '?'
+        if (c == 'h' || c == 'H' || c == '?')
         {
             do_cmd_help();
             continue; /* Return to the selection loop after showing help */
+        }
+
+        if (allow_full_description_screen && (c == 'f' || c == 'F'))
+        {
+            display_character_description_screen(choices[cur]);
+            continue;
         }
 
         /* Random choice */
@@ -860,7 +1492,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
                 }
         else if ((choice > -1) && (choice < num) && choices[choice].ghost)
                 {
-                    bell("Your race cannot choose that house.");
+                    bell("Your race cannot choose that character.");
                 }
                 else
                 {
@@ -998,16 +1630,154 @@ int curse_flag_delta_cur(u32b cur_flag)
     return delta;
 }
 
+typedef struct {
+    cptr txt;
+    byte attr;
+} birth_compact_flag_line;
+
+static int collect_character_trait_lines(int race, int character, bool short_labels,
+    birth_compact_flag_line out[], int out_max, int* max_line_len)
+{
+    int total = 0;
+
+    byte attr_affinity = TERM_GREEN;
+    byte attr_mastery = TERM_L_GREEN;
+    byte attr_penalty = TERM_RED;
+    byte attr_gr_penalty = TERM_L_RED;
+
+    birth_compact_flag_line uniq_buf[32], ma_buf[16], af_buf[16], pen_buf[32];
+    int uniq_n = 0, ma_n = 0, af_n = 0, pen_n = 0;
+
+#define PUSH(arr, n, text, color)                                             \
+    do {                                                                      \
+        if ((text) && (n) < (int)N_ELEMENTS(arr))                             \
+        {                                                                     \
+            (arr)[(n)].txt = (text);                                          \
+            (arr)[(n)++].attr = (color);                                      \
+        }                                                                     \
+    } while (0)
+
+#define HANDLE_SKILL_EX(LABEL_LONG, LABEL_SHORT, AFF_FLAG, PEN_FLAG)          \
+    do {                                                                      \
+        int score = 0;                                                        \
+        if (p_info[race].flags & (AFF_FLAG)) score++;                         \
+        if (c_info[character].flags & (AFF_FLAG)) score++;                    \
+        if ((PEN_FLAG) && (p_info[race].flags & (PEN_FLAG))) score--;         \
+        if ((PEN_FLAG) && (c_info[character].flags & (PEN_FLAG))) score--;    \
+        score += curse_flag_count_rhf(AFF_FLAG);                              \
+        if ((PEN_FLAG)) score -= curse_flag_count_rhf(PEN_FLAG);              \
+        if (score > 2) score = 2;                                             \
+        if (score < -2) score = -2;                                           \
+        if (score == 2)                                                       \
+            PUSH(ma_buf, ma_n,                                                \
+                short_labels ? LABEL_SHORT "++" : LABEL_LONG " mastery",      \
+                attr_mastery);                                                \
+        else if (score == 1)                                                  \
+            PUSH(af_buf, af_n,                                                \
+                short_labels ? LABEL_SHORT "+ " : LABEL_LONG " affinity",     \
+                attr_affinity);                                               \
+        else if (score == -1)                                                 \
+            PUSH(pen_buf, pen_n,                                              \
+                short_labels ? LABEL_SHORT "- " : LABEL_LONG " penalty",      \
+                attr_penalty);                                                \
+        else if (score == -2)                                                 \
+            PUSH(pen_buf, pen_n,                                              \
+                short_labels ? LABEL_SHORT "--" : LABEL_LONG " grand penalty",\
+                attr_gr_penalty);                                             \
+    } while (0)
+
+#define HANDLE_UNIQUE_EX(LABEL_LONG, LABEL_SHORT, FLAG, COLOR)                \
+    do {                                                                      \
+        if ((p_info[race].flags & (FLAG)) || (c_info[character].flags & (FLAG))) \
+            PUSH(uniq_buf, uniq_n, short_labels ? LABEL_SHORT : LABEL_LONG, (COLOR)); \
+    } while (0)
+
+#define HANDLE_UNIQUE_U_EX(LABEL_LONG, LABEL_SHORT, FLAG, COLOR)              \
+    do {                                                                      \
+        if (c_info[character].flags_u & (FLAG))                               \
+            PUSH(uniq_buf, uniq_n, short_labels ? LABEL_SHORT : LABEL_LONG, (COLOR)); \
+    } while (0)
+
+#define EMIT(arr, n)                                                          \
+    do {                                                                      \
+        for (int _i = 0; _i < (n); ++_i)                                      \
+        {                                                                     \
+            cptr _txt = (arr)[_i].txt ? (arr)[_i].txt : "";                  \
+            if (max_line_len && (int)strlen(_txt) > *max_line_len)            \
+                *max_line_len = (int)strlen(_txt);                            \
+            if (out && total < out_max)                                       \
+                out[total] = (arr)[_i];                                       \
+            total++;                                                          \
+        }                                                                     \
+    } while (0)
+
+    HANDLE_SKILL_EX("melee", "melee", RHF_MEL_AFFINITY, RHF_MEL_PENALTY);
+    HANDLE_SKILL_EX("evasion", "evasion", RHF_EVN_AFFINITY, RHF_EVN_PENALTY);
+    HANDLE_SKILL_EX("stealth", "stealth", RHF_STL_AFFINITY, RHF_STL_PENALTY);
+    HANDLE_SKILL_EX("archery", "archery", RHF_ARC_AFFINITY, RHF_ARC_PENALTY);
+    HANDLE_SKILL_EX("will", "will", RHF_WIL_AFFINITY, RHF_WIL_PENALTY);
+    HANDLE_SKILL_EX("perception", "perception", RHF_PER_AFFINITY, RHF_PER_PENALTY);
+    HANDLE_SKILL_EX("smithing", "smithing", RHF_SMT_AFFINITY, RHF_SMT_PENALTY);
+    HANDLE_SKILL_EX("song", "song", RHF_SNG_AFFINITY, RHF_SNG_PENALTY);
+    HANDLE_SKILL_EX("bow", "bow", RHF_BOW_PROFICIENCY, 0);
+    HANDLE_SKILL_EX("axe", "axe", RHF_AXE_PROFICIENCY, 0);
+
+    HANDLE_UNIQUE_U_EX("Master Artisan", "Master Artisan", UNQ_SMT_FEANOR, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Creator of Galvorn", "Galvorn Maker", UNQ_SMT_EOL, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("One Handed", "One Handed", UNQ_MEL_MAEDHROS, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Agarwaen", "Agarwaen", UNQ_WIL_TURIN, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Hidden city", "Hidden City", UNQ_SNG_TURGON, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Chosen of Ulmo", "Ulmo's Chosen", UNQ_WIL_TUOR, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Indominable Will", "Indom. Will", UNQ_EARENDIL, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Orome Himself", "Orome", UNQ_WIL_FIN, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Songs of Power", "Songs of Power", UNQ_SNG_FIN, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Elven Dance", "Elven Dance", UNQ_SNG_LUT, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Girdle of Melian", "Melian's Girdle", UNQ_SNG_MEL, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Creator of Angrist", "Angrist Maker", UNQ_SMT_TELCHAR, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Old Master", "Old Master", UNQ_SMT_GAMIL, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Ring Master", "Ring Master", UNQ_SMT_CELEBRIMBOR, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Aure entuluva", "Aure Entuluva", UNQ_SNG_HURIN, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Voice of Girdle", "Girdle Voice", UNQ_SNG_THINGOL, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Forgotten", "Forgotten", UNQ_MIM, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Minstrel", "Minstrel", UNQ_MINSTREL, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Woven Master", "Woven Master", UNQ_WOVEN_MASTER, TERM_VIOLET);
+
+    HANDLE_UNIQUE_EX("Gift of Eru", "Gift of Eru", RHF_GIFTERU, TERM_VIOLET);
+    HANDLE_UNIQUE_EX("Seafarer", "Seafarer", RHF_FREE, TERM_VIOLET);
+    HANDLE_UNIQUE_EX("Kinslayer", "Kinslayer", RHF_KINSLAYER, TERM_UMBER);
+    HANDLE_UNIQUE_EX("Treacherous", "Treacherous", RHF_TREACHERY, TERM_UMBER);
+    HANDLE_UNIQUE_EX("Doom of Mandos", "Mandos' Doom", RHF_CURSE, TERM_UMBER);
+    HANDLE_UNIQUE_EX("Morgoth Curse", "Morgoth Curse", RHF_MOR_CURSE, TERM_UMBER);
+
+    EMIT(uniq_buf, uniq_n);
+    EMIT(ma_buf, ma_n);
+    EMIT(af_buf, af_n);
+    EMIT(pen_buf, pen_n);
+
+#undef EMIT
+#undef HANDLE_UNIQUE_U_EX
+#undef HANDLE_UNIQUE_EX
+#undef HANDLE_SKILL_EX
+#undef PUSH
+
+    return total;
+}
+
 
 /*
- * Show race/house flags in priority order.
+ * Show race/character flags in priority order.
  * Masteries first, then single-side affinities, then penalties,
  * and finally any “headline / unique” flags.
  */
-static void print_rh_flags(int race, int house, int col, int row)
+static void print_rh_flags(int race, int character, int col, int row)
 {
     int flags_left  = 0;
     int flags_right = 0;
+    bool compact_layout = character_flags_need_compact_layout();
+    int description_row = birth_description_base_row();
+    cptr ability_lines[CHARACTER_ABILITY_MAX];
+    int ability_line_n = collect_character_starting_abilities(character,
+        ability_lines, N_ELEMENTS(ability_lines));
 
     byte attr_affinity = TERM_GREEN;
     byte attr_mastery  = TERM_L_GREEN;
@@ -1023,7 +1793,7 @@ static void print_rh_flags(int race, int house, int col, int row)
         int side;  // 0 = left, 1 = right
     } skill_line;
 
-    skill_line mastery_buf [16], affinity_buf[16], penalty_buf[16], unique_buf[8];
+    skill_line mastery_buf [16], affinity_buf[16], penalty_buf[16], unique_buf[32];
     int mastery_n = 0, affinity_n = 0, penalty_n = 0, unique_n = 0;
 
 /*
@@ -1046,11 +1816,11 @@ static void print_rh_flags(int race, int house, int col, int row)
     do {                                                                    \
         int score = 0;                                                      \
                                                                             \
-        /* race + house bits */                                             \
+        /* race + character bits */                                             \
         if (p_info[race].flags  & (AFF_FLAG)) score++;                      \
-        if (c_info[house].flags & (AFF_FLAG)) score++;                      \
+        if (c_info[character].flags & (AFF_FLAG)) score++;                      \
         if (p_info[race].flags  & (PEN_FLAG)) score--;                      \
-        if (c_info[house].flags & (PEN_FLAG)) score--;                      \
+        if (c_info[character].flags & (PEN_FLAG)) score--;                      \
                                                                             \
         /* every copy of the same *RHF* curse flag */                       \
         score += curse_flag_count_rhf(AFF_FLAG);                            \
@@ -1079,9 +1849,9 @@ static void print_rh_flags(int race, int house, int col, int row)
 // New: (label, FLAG, COLOR, SIDE) where SIDE = 0 (left) or 1 (right)
 #define HANDLE_UNIQUE(label, FLAG, COLOR, SIDE)                             \
     do {                                                                    \
-        int race_has  = p_info[race].flags  & (FLAG);                       \
-        int house_has = c_info[house].flags & (FLAG);                       \
-        if (race_has || house_has) {                                        \
+        int race_has     = p_info[race].flags & (FLAG);                     \
+        int character_has = c_info[character].flags & (FLAG);               \
+        if (race_has || character_has) {                                    \
             unique_buf[unique_n].txt  = label;                              \
             unique_buf[unique_n].col  = (COLOR);                            \
             unique_buf[unique_n++].side = (SIDE);                           \
@@ -1091,8 +1861,8 @@ static void print_rh_flags(int race, int house, int col, int row)
 // New: (label, FLAG, COLOR, SIDE) where SIDE = 0 (left) or 1 (right)
 #define HANDLE_UNIQUE_U(label, FLAG, COLOR, SIDE)                             \
     do {                                                                    \
-        int house_has = c_info[house].flags_u & (FLAG);                       \
-        if (house_has) {                                                    \
+        int character_has = c_info[character].flags_u & (FLAG);             \
+        if (character_has) {                                                \
             unique_buf[unique_n].txt  = label;                              \
             unique_buf[unique_n].col  = (COLOR);                            \
             unique_buf[unique_n++].side = (SIDE);                           \
@@ -1140,56 +1910,360 @@ static void print_rh_flags(int race, int house, int col, int row)
     HANDLE_UNIQUE("Doom of Mandos",   RHF_CURSE, TERM_UMBER,   1); // right
     HANDLE_UNIQUE("Morgoth Curse",   RHF_MOR_CURSE, TERM_UMBER,   1); // right
 
-    // Left column
-    for (int i = 0; i < unique_n; ++i)
-        if (unique_buf[i].side == 0)
-            Term_putstr(col, row + flags_left++, -1, unique_buf[i].col, unique_buf[i].txt);
-    for (int i = 0; i < mastery_n;  ++i)
-        Term_putstr(col, row + flags_left++, -1, mastery_buf[i].col, mastery_buf[i].txt);
-    for (int i = 0; i < affinity_n; ++i)
-        Term_putstr(col, row + flags_left++, -1, affinity_buf[i].col, affinity_buf[i].txt);
+    if (compact_layout)
+    {
+        char line_buf[64];
+        birth_compact_flag_line compact_lines[64];
+        birth_compact_flag_line short_trait_lines[64];
+        int compact_line_n = 0;
+        int compact_max_line_len = 0;
+        int short_trait_n = 0;
+        int short_trait_max_line_len = 0;
+        int prompt_row = birth_prompt_row();
+        bool tight_height = character_selection_tight_height();
+        bool use_swapped_layout = false;
 
-    // Right column
-    for (int i = 0; i < unique_n; ++i)
-        if (unique_buf[i].side == 1)
-            Term_putstr(col_pen, row + flags_right++, -1, unique_buf[i].col, unique_buf[i].txt);
-    for (int i = 0; i < penalty_n; ++i)
-        Term_putstr(col_pen, row + flags_right++, -1, penalty_buf[i].col, penalty_buf[i].txt);
+        compact_line_n = collect_character_trait_lines(race, character, false,
+            compact_lines, N_ELEMENTS(compact_lines), &compact_max_line_len);
+        short_trait_n = collect_character_trait_lines(race, character, true,
+            short_trait_lines, N_ELEMENTS(short_trait_lines), &short_trait_max_line_len);
+
+        if (tight_height)
+        {
+            const int target_traits = (short_trait_n < 9) ? short_trait_n : 9;
+            const int target_abilities = (ability_line_n < 3) ? ability_line_n : 3;
+            const int min_upper_two_col_wid = 12;
+            int upper_rows_total = description_row - row;
+            int lower_rows_total = prompt_row - description_row;
+            int upper_col = col;
+            int upper_width = Term->wid - upper_col;
+            int upper_col_gap = 2;
+            int upper_col_wid = (upper_width - upper_col_gap) / 2;
+            bool show_trait_heading = true;
+            bool show_ability_heading = true;
+            bool use_upper_two_columns = false;
+            bool traits_fit = false;
+            bool abilities_fit = false;
+
+            if (upper_rows_total < 0)
+                upper_rows_total = 0;
+            if (lower_rows_total < 0)
+                lower_rows_total = 0;
+            if (upper_col_wid < 0)
+                upper_col_wid = 0;
+
+            if (target_abilities == 0)
+            {
+                show_ability_heading = false;
+                abilities_fit = true;
+            }
+            else if ((lower_rows_total - 1) >= target_abilities)
+            {
+                show_ability_heading = true;
+                abilities_fit = true;
+            }
+            else if (lower_rows_total >= target_abilities)
+            {
+                show_ability_heading = false;
+                abilities_fit = true;
+            }
+
+            if (target_traits == 0)
+            {
+                show_trait_heading = false;
+                traits_fit = true;
+            }
+            else if (upper_col_wid >= min_upper_two_col_wid)
+            {
+                if ((upper_rows_total - 1) > 0 && ((upper_rows_total - 1) * 2 >= target_traits))
+                {
+                    show_trait_heading = true;
+                    use_upper_two_columns = true;
+                    traits_fit = true;
+                }
+                else if (upper_rows_total > 0 && (upper_rows_total * 2 >= target_traits))
+                {
+                    show_trait_heading = false;
+                    use_upper_two_columns = true;
+                    traits_fit = true;
+                }
+            }
+
+            if (!traits_fit && upper_width >= short_trait_max_line_len)
+            {
+                if ((upper_rows_total - 1) >= target_traits)
+                {
+                    show_trait_heading = true;
+                    use_upper_two_columns = false;
+                    traits_fit = true;
+                }
+                else if (upper_rows_total >= target_traits)
+                {
+                    show_trait_heading = false;
+                    use_upper_two_columns = false;
+                    traits_fit = true;
+                }
+            }
+
+            use_swapped_layout = traits_fit && abilities_fit;
+
+            if (use_swapped_layout)
+            {
+                int traits_row = row;
+                int ability_row = description_row;
+
+                if (show_trait_heading && short_trait_n > 0)
+                    Term_putstr(upper_col, traits_row++, -1, TERM_L_BLUE, "Traits:");
+
+                if (use_upper_two_columns)
+                {
+                    int col2 = upper_col + upper_col_wid + upper_col_gap;
+                    int rows_per_col = description_row - traits_row;
+                    int draw_lines;
+                    int left_count;
+                    int right_count;
+
+                    if (rows_per_col < 0)
+                        rows_per_col = 0;
+                    draw_lines = (short_trait_n < rows_per_col * 2)
+                        ? short_trait_n : rows_per_col * 2;
+                    left_count = (draw_lines + 1) / 2;
+                    if (left_count > rows_per_col)
+                        left_count = rows_per_col;
+                    right_count = draw_lines - left_count;
+                    if (right_count > rows_per_col)
+                        right_count = rows_per_col;
+                    left_count = draw_lines - right_count;
+
+                    for (int i = 0; i < left_count; ++i)
+                    {
+                        strnfmt(line_buf, sizeof(line_buf), "%-*.*s", upper_col_wid,
+                            upper_col_wid, short_trait_lines[i].txt);
+                        Term_putstr(upper_col, traits_row + i, -1,
+                            short_trait_lines[i].attr, line_buf);
+                    }
+
+                    for (int i = 0; i < right_count; ++i)
+                    {
+                        int idx = left_count + i;
+                        strnfmt(line_buf, sizeof(line_buf), "%-*.*s", upper_col_wid,
+                            upper_col_wid, short_trait_lines[idx].txt);
+                        Term_putstr(col2, traits_row + i, -1,
+                            short_trait_lines[idx].attr, line_buf);
+                    }
+                }
+                else
+                {
+                    int rows = description_row - traits_row;
+                    int draw_lines;
+
+                    if (rows < 0)
+                        rows = 0;
+                    draw_lines = (short_trait_n < rows) ? short_trait_n : rows;
+
+                    for (int i = 0; i < draw_lines; ++i)
+                        Term_putstr(upper_col, traits_row + i, -1,
+                            short_trait_lines[i].attr, short_trait_lines[i].txt);
+                }
+
+                if (show_ability_heading && ability_line_n > 0)
+                    Term_putstr(2, ability_row++, -1, TERM_L_BLUE, "Abilities:");
+
+                {
+                    int rows = prompt_row - ability_row;
+                    int draw_lines;
+
+                    if (rows < 0)
+                        rows = 0;
+                    draw_lines = (ability_line_n < rows) ? ability_line_n : rows;
+
+                    for (int i = 0; i < draw_lines; ++i)
+                        Term_putstr(2, ability_row + i, -1, TERM_YELLOW, ability_lines[i]);
+                }
+            }
+        }
+
+        if (!use_swapped_layout)
+        {
+            int compact_row = description_row;
+            int compact_col = 2;
+            int col_gap = 2;
+            int col_wid;
+            bool use_two_columns = false;
+            int right_offset = 0; /* 0=normal, -1=right column starts on title row, -2=one row above */
+
+            for (int i = 0; i < ability_line_n && (row + i) < description_row; ++i)
+                Term_putstr(col, row + i, -1, TERM_YELLOW, ability_lines[i]);
+
+            col_wid = (Term->wid - compact_col - col_gap) / 2;
+            if (col_wid < 1)
+                col_wid = 1;
+
+            if (col_wid >= compact_max_line_len)
+                use_two_columns = true;
+
+            {
+                const bool short_screen = (Term->hgt > 0) && (Term->hgt < 24);
+                const int target_limit = tight_height ? 9 : 10;
+                const int target_traits = (compact_line_n < target_limit) ? compact_line_n : target_limit;
+                const int min_col_wid_for_forced_two_cols = 14;
+
+#define MAX0(v) ((v) > 0 ? (v) : 0)
+#define CAPACITY_ONE(_row) (MAX0(Term->hgt - ((_row) + 1) - 1))
+#define CAPACITY_TWO(_row, _roff) \
+    (MAX0(Term->hgt - ((_row) + 1) - 1) + MAX0(Term->hgt - ((_row) + 1 + (_roff)) - 1))
+
+                int base_capacity = use_two_columns ? CAPACITY_TWO(compact_row, right_offset)
+                                                   : CAPACITY_ONE(compact_row);
+
+                if (short_screen && (base_capacity < target_traits))
+                {
+                    if (compact_row > 0)
+                        compact_row = description_row - 1;
+
+                    base_capacity = use_two_columns ? CAPACITY_TWO(compact_row, right_offset)
+                                                   : CAPACITY_ONE(compact_row);
+
+                    if ((base_capacity < target_traits) && !use_two_columns
+                        && (col_wid >= min_col_wid_for_forced_two_cols))
+                    {
+                        use_two_columns = true;
+                        base_capacity = CAPACITY_TWO(compact_row, right_offset);
+                    }
+
+                    if ((base_capacity < target_traits) && use_two_columns)
+                    {
+                        right_offset = -1;
+                        base_capacity = CAPACITY_TWO(compact_row, right_offset);
+                    }
+
+                    if ((base_capacity < target_traits) && use_two_columns && (compact_row > 0))
+                    {
+                        right_offset = -2;
+                        base_capacity = CAPACITY_TWO(compact_row, right_offset);
+                    }
+                }
+
+#undef CAPACITY_TWO
+#undef CAPACITY_ONE
+#undef MAX0
+            }
+
+            {
+                int compact_available = Term->hgt - compact_row - 1;
+
+                if ((compact_available > 0) && (Term->hgt > 0))
+                    Term_putstr(compact_col, compact_row, -1, TERM_L_BLUE, "Character traits:");
+
+                if (use_two_columns)
+                {
+                    int col2 = compact_col + col_wid + col_gap;
+                    int left_start = compact_row + 1;
+                    int right_start = compact_row + 1 + right_offset;
+                    int left_rows = Term->hgt - left_start - 1;
+                    int right_rows = Term->hgt - right_start - 1;
+                    int max_lines;
+                    int draw_lines;
+                    int left_count;
+                    int right_count;
+
+                    if (left_rows < 0) left_rows = 0;
+                    if (right_rows < 0) right_rows = 0;
+
+                    max_lines = left_rows + right_rows;
+                    draw_lines = (compact_line_n < max_lines) ? compact_line_n : max_lines;
+
+                    left_count = (draw_lines + 1) / 2;
+                    if (left_count > left_rows) left_count = left_rows;
+                    right_count = draw_lines - left_count;
+                    if (right_count > right_rows) right_count = right_rows;
+                    if (left_count > (draw_lines - right_count))
+                        left_count = draw_lines - right_count;
+                    draw_lines = left_count + right_count;
+
+                    for (int i = 0; i < left_count; ++i)
+                    {
+                        int y = left_start + i;
+                        strnfmt(line_buf, sizeof(line_buf), "%-*.*s", col_wid, col_wid,
+                            compact_lines[i].txt);
+                        Term_putstr(compact_col, y, -1, compact_lines[i].attr, line_buf);
+                    }
+
+                    for (int i = 0; i < right_count; ++i)
+                    {
+                        int idx = left_count + i;
+                        int y = right_start + i;
+                        strnfmt(line_buf, sizeof(line_buf), "%-*.*s", col_wid, col_wid,
+                            compact_lines[idx].txt);
+                        Term_putstr(col2, y, -1, compact_lines[idx].attr, line_buf);
+                    }
+                }
+                else
+                {
+                    int start_row = compact_row + 1;
+                    int rows = Term->hgt - start_row - 1;
+                    int draw_lines;
+
+                    if (rows < 0)
+                        rows = 0;
+                    draw_lines = (compact_line_n < rows) ? compact_line_n : rows;
+
+                    for (int i = 0; i < draw_lines; ++i)
+                        Term_putstr(compact_col, start_row + i, -1,
+                            compact_lines[i].attr, compact_lines[i].txt);
+                }
+            }
+        }
+    }
+    else
+    {
+        // Left column
+        for (int i = 0; i < unique_n; ++i)
+            if (unique_buf[i].side == 0)
+                Term_putstr(col, row + flags_left++, -1, unique_buf[i].col, unique_buf[i].txt);
+        for (int i = 0; i < mastery_n;  ++i)
+            Term_putstr(col, row + flags_left++, -1, mastery_buf[i].col, mastery_buf[i].txt);
+        for (int i = 0; i < affinity_n; ++i)
+            Term_putstr(col, row + flags_left++, -1, affinity_buf[i].col, affinity_buf[i].txt);
+
+        // Right column
+        for (int i = 0; i < unique_n; ++i)
+            if (unique_buf[i].side == 1)
+                Term_putstr(col_pen, row + flags_right++, -1, unique_buf[i].col, unique_buf[i].txt);
+        for (int i = 0; i < penalty_n; ++i)
+            Term_putstr(col_pen, row + flags_right++, -1, penalty_buf[i].col, penalty_buf[i].txt);
+    }
 
 #undef HANDLE_SKILL_EX
 #undef HANDLE_UNIQUE
+#undef HANDLE_UNIQUE_U
 
-Term_erase(col +7, row - 5, 30);
+if (!compact_layout)
+{
+    Term_erase(col +7, row - 5, 30);
 
 
 /* Display starting abilities */
-if (house && !(c_info[house].flags_u & UNQ_MIM))
-{
-    const int x     = col + 7;
-    const int y0    = row - 5;
-    const int width = 30;   /* how many cols to clear */
-
-    /* 1) clear out every possible line first */
-    for (int i = 0; i < HOUSE_ABILITY_MAX - 3; i++)
+    if (ability_line_n > 0)
     {
-        Term_erase(x, y0 + i, width);
-    }
+        const int x     = col + 7;
+        const int y0    = row - 5;
+        const int width = 30;   /* how many cols to clear */
 
-    /* 2) now draw the actual list */
-    int y = y0;
-    for (int slot = 0; slot < HOUSE_ABILITY_MAX; slot++)
-    {
-        int stat = c_info[house].a_adj[slot][0];
-        int abil = c_info[house].a_adj[slot][1];
-
-        if (stat < 0) break;
-
-        if (stat < S_MAX && abil < ABILITIES_MAX)
+        /* 1) clear out every possible line first */
+        for (int i = 0; i < CHARACTER_ABILITY_MAX - 3; i++)
         {
-            const char *name = house_ability_names[stat][abil];
-            if (name)
-                Term_putstr(x, y++, -1, TERM_YELLOW, name);
+            Term_erase(x, y0 + i, width);
         }
+
+        /* 2) now draw the actual list */
+        int y = y0;
+        int max_lines = CHARACTER_ABILITY_MAX - 3;
+        if (ability_line_n < max_lines)
+            max_lines = ability_line_n;
+
+        for (int slot = 0; slot < max_lines; slot++)
+            Term_putstr(x, y++, -1, TERM_YELLOW, ability_lines[slot]);
     }
 }
 }
@@ -1248,7 +2322,7 @@ static void race_aux_hook(birth_menu r_str)
     Term_putstr(RACE_AUX_COL, TABLE_ROW + A_MAX + 4, -1, TERM_WHITE,
         "                        ");
 
-    /* Clear the TOTAL_AUX_COL area (where house info was displayed) */
+    /* Clear the TOTAL_AUX_COL area (where character info was displayed) */
     Term_putstr(TOTAL_AUX_COL, HEADER_ROW, -1, TERM_WHITE,
         "                                         ");
     Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 1, -1, TERM_WHITE,
@@ -1278,7 +2352,7 @@ static bool get_player_race(void)
     birth_menu* races;
     int race;
 
-    C_MAKE(races, z_info->p_max, birth_menu);
+    races = mem_alloc_array(z_info->p_max, birth_menu);
 
     /* Tabulate races */
     for (i = 0; i < z_info->p_max; i++)
@@ -1289,7 +2363,7 @@ static bool get_player_race(void)
     }
 
     race = get_player_choice(
-        races, z_info->p_max, p_ptr->prace, RACE_COL, 15, race_aux_hook);
+        races, z_info->p_max, p_ptr->prace, RACE_COL, 15, race_aux_hook, false);
 
     /* No selection? */
     if (race == INVALID_CHOICE)
@@ -1315,13 +2389,13 @@ static bool get_player_race(void)
     /* Save the race pointer */
     rp_ptr = &p_info[p_ptr->prace];
 
-    FREE(races);
+    races = mem_free(races);
 
     /* Success */
     return (true);
 }
 
-// Check house flags
+// Check character flags
 static int is_set(int bit) {
     if (bit < 0 || bit >= FLAG_COUNT) return 0;  // Out of bounds
     int word = bit / 32;
@@ -1330,28 +2404,42 @@ static int is_set(int bit) {
 }
 
 /*
- * Display additional information about each house during the selection.
+ * Display additional information about each character during the selection.
  */
 
-static void house_aux_hook(birth_menu c_str)
+static void character_aux_hook(birth_menu c_str)
 {
-    int house_idx, i, adj;
+    int character_idx, i, adj;
+    int term_wid = 80;
+    int term_hgt = 24;
+    int description_row = birth_description_base_row();
+    bool compact_layout = character_flags_need_compact_layout();
+    bool tight_height = character_selection_tight_height();
+    int name_col;
+    int fallback_name_col;
+    bool aligned_name_fits;
     char s[128];
     byte attr;
 
-    /* Extract the proper house index from the string. */
-    for (house_idx = 0; house_idx < z_info->c_max; house_idx++)
+    /* Extract the proper character index from the string. */
+    for (character_idx = 0; character_idx < z_info->c_max; character_idx++)
     {
-        if (!strcmp(c_str.name, c_name + c_info[house_idx].name))
+        if (!strcmp(c_str.name, c_name + c_info[character_idx].name))
             break;
     }
 
-    if (house_idx == z_info->c_max)
+    if (character_idx == z_info->c_max)
         return;
+
+    Term_get_size(&term_wid, &term_hgt);
+    if (term_wid < 1)
+        term_wid = 80;
+    if (term_hgt < 1)
+        term_hgt = 24;
 
     /* Clear the entire TOTAL_AUX_COL area FIRST before displaying new info */
     /* Clear from HEADER_ROW down but stop before DESCRIPTION_ROW to preserve history */
-    for (i = HEADER_ROW; i < DESCRIPTION_ROW; i++)
+    for (i = HEADER_ROW; i < description_row; i++)
     {
         Term_putstr(TOTAL_AUX_COL, i, -1, TERM_WHITE,
             "                                         ");
@@ -1361,7 +2449,7 @@ static void house_aux_hook(birth_menu c_str)
     }
 
     /* Also clear the abilities area (col + 7) but only in the same range */
-    for (i = 0; i < DESCRIPTION_ROW; i++)
+    for (i = 0; i < description_row; i++)
     {
         Term_erase(TOTAL_AUX_COL + 7, i, 60);  /* Wider clearing */
     }
@@ -1373,7 +2461,7 @@ static void house_aux_hook(birth_menu c_str)
         strnfmt(s, sizeof(s), "%s", stat_names[i]);
         Term_putstr(TOTAL_AUX_COL, TABLE_ROW + i, -1, TERM_WHITE, s);
 
-        adj = c_info[house_idx].h_adj[i] + rp_ptr->r_adj[i] + curses_stat_adj(i);
+        adj = c_info[character_idx].h_adj[i] + rp_ptr->r_adj[i] + curses_stat_adj(i);
         strnfmt(s, sizeof(s), "%+d", adj);
 
         if (adj < 0)
@@ -1395,12 +2483,12 @@ static void house_aux_hook(birth_menu c_str)
     // else Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX +7, -1, TERM_L_BLUE,
     //     "Alive");
     char pretty_name[40];
-    strnfmt(pretty_name, sizeof(pretty_name), "%s%s", c_name + c_info[house_idx].name, c_name + c_info[house_idx].alt_name); 
+    strnfmt(pretty_name, sizeof(pretty_name), "%s%s", c_name + c_info[character_idx].name, c_name + c_info[character_idx].alt_name); 
     
     /* Add power stars to the character name */
     char power_stars[16];
     byte star_attr;
-    byte power = c_info[house_idx].power;
+    byte power = c_info[character_idx].power;
     switch (power)
     {
         case 0: 
@@ -1426,89 +2514,110 @@ static void house_aux_hook(birth_menu c_str)
             break;         /* Default to average */
     }
     
-    Term_putstr(TOTAL_AUX_COL, HEADER_ROW, -1, TERM_L_BLUE, pretty_name);
-    Term_putstr(TOTAL_AUX_COL + strlen(pretty_name), HEADER_ROW, -1, star_attr, power_stars);
+    fallback_name_col = QUESTION_COL + (int)strlen(character_selection_header_text(true)) + 1;
+    if (fallback_name_col < 0)
+        fallback_name_col = 0;
+    Term_erase(fallback_name_col, HEADER_ROW, 255);
+
+    aligned_name_fits =
+        (TOTAL_AUX_COL + (int)strlen(pretty_name) + (int)strlen(power_stars) < term_wid);
+    name_col = aligned_name_fits ? TOTAL_AUX_COL : fallback_name_col;
+
+    Term_putstr(name_col, HEADER_ROW, -1, TERM_L_BLUE, pretty_name);
+    Term_putstr(name_col + strlen(pretty_name), HEADER_ROW, -1, star_attr, power_stars);
     
-    print_rh_flags(
-        p_ptr->prace, house_idx, TOTAL_AUX_COL, TABLE_ROW + A_MAX + 1);
-    
-    /* Display power rating legend on left side at row 10 with alive counts */
-    int legend_col = 2;  /* Left side */
-    int legend_row = 10; /* Row 10 as requested (moved up one row) */
-    
-    /* Count alive heroes by power level across ALL races */
-    int power_counts[5] = {0, 0, 0, 0, 0};  /* weak, average, powerful, very powerful, mighty */
-    for (int i = 0; i < z_info->c_max; i++)
     {
-        /* Count only characters that are NOT dead (alive) */
-        if (highscore_dead(c_name + c_info[i].name) == 0)  /* If NOT dead (alive) */
+        int legend_row = (compact_layout && tight_height) ? 9 : 10;
+        int left_block_width = CLASS_COL - 1;
+
+        if (legend_row < TABLE_ROW + A_MAX + 3)
+            legend_row = TABLE_ROW + A_MAX + 3;
+
+        if (left_block_width < 1)
+            left_block_width = 1;
+
+        if (compact_layout && tight_height)
         {
-            byte power = c_info[i].power;
-            if (power >= 0 && power <= 4)
-            {
-                if (power == 4)
-                    power_counts[3]++;  /* P:4 counts toward "Mighty" (same group as P:3) */
-                else
-                    power_counts[power]++;
-            }
+            for (i = legend_row; i < birth_prompt_row(); ++i)
+                Term_erase(0, i, left_block_width);
         }
     }
-    
-    /* Display legend without "Power Rating:" header */
-    Term_putstr(legend_col, legend_row, -1, TERM_L_GREEN, "***");
-    strnfmt(s, sizeof(s), "Mighty %d", power_counts[3]);
-    Term_putstr(legend_col + 4, legend_row, -1, TERM_WHITE, s);
-    
-    Term_putstr(legend_col, legend_row + 1, -1, TERM_GREEN, "***");
-    strnfmt(s, sizeof(s), "Strong %d", power_counts[2]);
-    Term_putstr(legend_col + 4, legend_row + 1, -1, TERM_WHITE, s);
-    
-    Term_putstr(legend_col, legend_row + 2, -1, TERM_WHITE, "**");
-    strnfmt(s, sizeof(s), "Fair %d", power_counts[1]);
-    Term_putstr(legend_col + 4, legend_row + 2, -1, TERM_WHITE, s);
-    
-    Term_putstr(legend_col, legend_row + 3, -1, TERM_RED, "*");
-    strnfmt(s, sizeof(s), "Weak %d", power_counts[0]);
-    Term_putstr(legend_col + 4, legend_row + 3, -1, TERM_WHITE, s);
+
+    print_rh_flags(
+        p_ptr->prace, character_idx, TOTAL_AUX_COL, TABLE_ROW + A_MAX + 1);
+
+    {
+        int legend_col = 2;  /* Left side */
+        int legend_row = (compact_layout && tight_height) ? 9 : 10;
+
+        if (legend_row + 3 < birth_prompt_row())
+        {
+            /* Count alive heroes by power level across ALL races */
+            int power_counts[4] = {0, 0, 0, 0};  /* weak, fair, strong, mighty (P:3/P:4) */
+            for (int i = 0; i < z_info->c_max; i++)
+            {
+                /* Count only characters that are NOT dead (alive) */
+                if (highscore_dead(c_name + c_info[i].name) == 0)  /* If NOT dead (alive) */
+                {
+                    byte power = c_info[i].power;
+                    if (power <= 4)
+                    {
+                        if (power == 4)
+                            power_counts[3]++;  /* P:4 counts toward "Mighty" (same group as P:3) */
+                        else
+                            power_counts[power]++;
+                    }
+                }
+            }
+
+            /* Display legend without "Power Rating:" header */
+            Term_putstr(legend_col, legend_row, -1, TERM_L_GREEN, "***");
+            strnfmt(s, sizeof(s), "Mighty %d", power_counts[3]);
+            Term_putstr(legend_col + 4, legend_row, -1, TERM_WHITE, s);
+
+            Term_putstr(legend_col, legend_row + 1, -1, TERM_GREEN, "***");
+            strnfmt(s, sizeof(s), "Strong %d", power_counts[2]);
+            Term_putstr(legend_col + 4, legend_row + 1, -1, TERM_WHITE, s);
+
+            Term_putstr(legend_col, legend_row + 2, -1, TERM_WHITE, "**");
+            strnfmt(s, sizeof(s), "Fair %d", power_counts[1]);
+            Term_putstr(legend_col + 4, legend_row + 2, -1, TERM_WHITE, s);
+
+            Term_putstr(legend_col, legend_row + 3, -1, TERM_RED, "*");
+            strnfmt(s, sizeof(s), "Weak %d", power_counts[0]);
+            Term_putstr(legend_col + 4, legend_row + 3, -1, TERM_WHITE, s);
+        }
+    }
 }
 /*
- * Player house
+ * Player character template selection
  */
-static bool get_player_house(void)
+static bool get_character_profile(void)
 {
     int i;
-    int house = 0;
-    int house_choice;
-    int old_house_choice = 0;
-    char buf[1024];
+    int character = 0;
+    int character_choice;
+    int previous_choice = 0;
+    birth_menu* character_menu;
 
-    birth_menu* houses;
-
-    int housless=1;
-    for (int i = 0; i < FLAG_WORDS; ++i) {
-        if (rp_ptr->choice[i] != 0) {
-            housless=0;
+    int no_character_flags = 1;
+    for (int idx = 0; idx < FLAG_WORDS; ++idx) {
+        if (rp_ptr->choice[idx] != 0) {
+            no_character_flags = 0;
             break;  // At least one flag is set
         }
     }
-    // select 'houseless' automatically if there are no available houses
-    if (housless)
+    // default to the baseline character automatically if no choices are available
+    if (no_character_flags)
     {
-        p_ptr->phouse = 0;
-        hp_ptr = &c_info[p_ptr->phouse];
+        p_ptr->pcharacter = 0;
+        current_character_profile = &c_info[p_ptr->pcharacter];
         return (true);
     }
 
-    C_MAKE(houses, z_info->c_max, birth_menu);
+    character_menu = mem_alloc_array(z_info->c_max, birth_menu);
 
-    /* Build the filename */
-    path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
-
-     /* Open via highscore_dead on demand; no manual open needed here.
-         (Legacy direct fd_open removed – versioned score files have a header.) */
-     highscore_fd = NULL; /* ensure closed */
-
-    /* Tabulate houses */
+    /* Tabulate characters */
 
     for (i = 0; i < z_info->c_max; i++)
     {
@@ -1516,40 +2625,37 @@ static bool get_player_house(void)
         /* Analyze */
         if (is_set(i))
         {
-            if (highscore_dead(c_name + c_info[i].name)) houses[house].ghost = true;
-            else houses[house].ghost = false;
+            if (highscore_dead(c_name + c_info[i].name)) character_menu[character].ghost = true;
+            else character_menu[character].ghost = false;
 
-            houses[house].name = c_name + c_info[i].name;
-            houses[house].text = c_text + c_info[i].text;
-            if (p_ptr->phouse == i)
-                old_house_choice = house;
-            house++;
+            character_menu[character].name = c_name + c_info[i].name;
+            character_menu[character].text = c_text + c_info[i].text;
+            if (p_ptr->pcharacter == i)
+                previous_choice = character;
+            character++;
         }
     }
 
-    /* highscore_dead opens/closes internally now; ensure descriptor not leaked */
-    if (highscore_fd) { fclose(highscore_fd); highscore_fd = NULL; }
-
-    house_choice = get_player_choice(
-        houses, house, old_house_choice, CLASS_COL, 22, house_aux_hook);
+    character_choice = get_player_choice(
+        character_menu, character, previous_choice, CLASS_COL, 22, character_aux_hook, true);
 
     /* No selection? */
-    if (house_choice == INVALID_CHOICE)
+    if (character_choice == INVALID_CHOICE)
     {
         return (false);
     }
 
-    /* Get house from choice number */
-    house = 0;
+    /* Get character from choice number */
+    character = 0;
     for (i = 0; i < z_info->c_max; i++)
     {
         if (is_set(i))
         {
-            if (house_choice == house)
+            if (character_choice == character)
             {
-                // if different house to last time, then wipe the history, age,
+                // if different character to last time, then wipe the history, age,
                 // height, weight
-                if (i != p_ptr->phouse)
+                if (i != p_ptr->pcharacter)
                 {
                     int j;
 
@@ -1562,29 +2668,296 @@ static bool get_player_house(void)
                         p_ptr->stat_base[j] = 0;
                     }
                 }
-                p_ptr->phouse = i;
+                p_ptr->pcharacter = i;
             }
-            house++;
+            character++;
         }
     }
 
-    /* Set house */
-    hp_ptr = &c_info[p_ptr->phouse];
+    /* Cache the selected character template */
+    current_character_profile = &c_info[p_ptr->pcharacter];
 
-    FREE(houses);
+    character_menu = mem_free(character_menu);
 
     return (true);
+}
+
+static cptr blitz_character_mode_name(byte mode)
+{
+    switch (mode)
+    {
+    case BLITZ_CHARACTER_RANDOM_STATS: return "Random with stats";
+    case BLITZ_CHARACTER_SELECTED: return "Selected";
+    default: return "Random";
+    }
+}
+
+static cptr blitz_effect_mode_name(byte mode)
+{
+    switch (mode)
+    {
+    case BLITZ_EFFECT_SELECTED: return "Selected";
+    case BLITZ_EFFECT_SELECTED_DESCR: return "Selected + descriptions";
+    default: return "Random";
+    }
+}
+
+static void blitz_setup_clamp(blitz_setup* setup)
+{
+    if (!setup)
+        return;
+
+    if (setup->character_mode > BLITZ_CHARACTER_SELECTED)
+        setup->character_mode = BLITZ_CHARACTER_RANDOM;
+    if (setup->effect_mode > BLITZ_EFFECT_SELECTED_DESCR)
+        setup->effect_mode = BLITZ_EFFECT_RANDOM;
+    if (setup->blessing_count > BLITZ_MAX_EFFECT_COUNT)
+        setup->blessing_count = BLITZ_MAX_EFFECT_COUNT;
+    if (setup->curse_count > BLITZ_MAX_EFFECT_COUNT)
+        setup->curse_count = BLITZ_MAX_EFFECT_COUNT;
+    if (setup->curse_count < setup->blessing_count)
+        setup->curse_count = setup->blessing_count;
+}
+
+static void blitz_pick_random_race_and_character(void)
+{
+    int race = 0;
+    int available[64];
+    int available_count = 0;
+
+    if (!z_info)
+        return;
+
+    race = rand_int(z_info->p_max);
+    p_ptr->prace = race;
+    rp_ptr = &p_info[p_ptr->prace];
+
+    for (int i = 0; i < z_info->c_max && available_count < (int)N_ELEMENTS(available); i++)
+    {
+        if (is_set(i))
+            available[available_count++] = i;
+    }
+
+    if (available_count <= 0)
+        p_ptr->pcharacter = 0;
+    else
+        p_ptr->pcharacter = available[rand_int(available_count)];
+
+    current_character_profile = &c_info[p_ptr->pcharacter];
+}
+
+static void blitz_setup_draw(const blitz_setup* setup, int selected)
+{
+    char buf[160];
+    int wid = 80;
+    int hgt = 24;
+
+    Term_get_size(&wid, &hgt);
+    Term_clear();
+
+    c_put_str(TERM_YELLOW, "Blitz Setup", 1, MAX((wid - 11) / 2, 0));
+    c_put_str(TERM_SLATE,
+        "Configure a self-contained Blitz run. Story progress stays untouched.",
+        3, 2);
+
+    strnfmt(buf, sizeof(buf), "Character: %s", blitz_character_mode_name(setup->character_mode));
+    c_put_str(selected == 0 ? TERM_L_BLUE : TERM_WHITE, buf, 6, 4);
+
+    strnfmt(buf, sizeof(buf), "Oaths: %s", setup->oaths_enabled ? "Yes" : "No");
+    c_put_str(selected == 1 ? TERM_L_BLUE : TERM_WHITE, buf, 7, 4);
+
+    strnfmt(buf, sizeof(buf), "Blessings: %d", setup->blessing_count);
+    c_put_str(selected == 2 ? TERM_L_BLUE : TERM_WHITE, buf, 8, 4);
+
+    strnfmt(buf, sizeof(buf), "Curses: %d", setup->curse_count);
+    c_put_str(selected == 3 ? TERM_L_BLUE : TERM_WHITE, buf, 9, 4);
+
+    strnfmt(buf, sizeof(buf), "Effect picks: %s", blitz_effect_mode_name(setup->effect_mode));
+    c_put_str(selected == 4 ? TERM_L_BLUE : TERM_WHITE, buf, 10, 4);
+
+    c_put_str(TERM_L_DARK, "8/2 navigate  4/6 change  Enter begin  Esc back", 13, 2);
+}
+
+static NavResult blitz_setup_menu(void)
+{
+    blitz_setup* setup = blitz_current_setup_mutable();
+    int selected = 0;
+
+    blitz_setup_clamp(setup);
+
+    while (1)
+    {
+        char key;
+
+        blitz_setup_draw(setup, selected);
+        key = inkey();
+
+        if (key == ESCAPE)
+            return NAV_TO_MAIN;
+
+        if (key == '\n' || key == '\r' || key == ' ')
+            return NAV_OK;
+
+        if (key == '8')
+        {
+            selected = (selected + 4) % 5;
+            continue;
+        }
+
+        if (key == '2')
+        {
+            selected = (selected + 1) % 5;
+            continue;
+        }
+
+        if (key != '4' && key != '6')
+            continue;
+
+        switch (selected)
+        {
+        case 0:
+            if (key == '4')
+                setup->character_mode = (setup->character_mode == BLITZ_CHARACTER_RANDOM)
+                    ? BLITZ_CHARACTER_SELECTED
+                    : setup->character_mode - 1;
+            else
+                setup->character_mode = (setup->character_mode == BLITZ_CHARACTER_SELECTED)
+                    ? BLITZ_CHARACTER_RANDOM
+                    : setup->character_mode + 1;
+            break;
+        case 1:
+            setup->oaths_enabled = !setup->oaths_enabled;
+            break;
+        case 2:
+            if (key == '4' && setup->blessing_count > 0)
+                setup->blessing_count--;
+            else if (key == '6' && setup->blessing_count < BLITZ_MAX_EFFECT_COUNT)
+                setup->blessing_count++;
+            break;
+        case 3:
+            if (key == '4' && setup->curse_count > 0)
+                setup->curse_count--;
+            else if (key == '6' && setup->curse_count < BLITZ_MAX_EFFECT_COUNT)
+                setup->curse_count++;
+            break;
+        case 4:
+            if (key == '4')
+                setup->effect_mode = (setup->effect_mode == BLITZ_EFFECT_RANDOM)
+                    ? BLITZ_EFFECT_SELECTED_DESCR
+                    : setup->effect_mode - 1;
+            else
+                setup->effect_mode = (setup->effect_mode == BLITZ_EFFECT_SELECTED_DESCR)
+                    ? BLITZ_EFFECT_RANDOM
+                    : setup->effect_mode + 1;
+            break;
+        default:
+            break;
+        }
+
+        blitz_setup_clamp(setup);
+    }
+}
+
+static void finalize_character_creation_selection(void)
+{
+    int i, j;
+
+    /* Clear the base values of the skills */
+    for (i = 0; i < S_MAX; i++)
+        p_ptr->skill_base[i] = 0;
+
+    /* Clear the abilities and add bonus ability*/
+    for (i = 0; i < S_MAX; i++)
+    {
+        for (j = 0; j < ABILITIES_MAX; j++)
+        {
+            p_ptr->innate_ability[i][j] = false;
+            p_ptr->active_ability[i][j] = false;
+        }
+    }
+
+    for (int slot = 0; slot < CHARACTER_ABILITY_MAX; slot++)
+    {
+        int stat = c_info[p_ptr->pcharacter].a_adj[slot][0];
+        int ab;
+
+        if (stat < 0) break;
+        ab = c_info[p_ptr->pcharacter].a_adj[slot][1];
+        if (stat < S_MAX && ab < ABILITIES_MAX)
+        {
+            p_ptr->innate_ability[stat][ab] = true;
+            p_ptr->active_ability[stat][ab] = true;
+        }
+    }
+
+    for (i = OPT_BIRTH; i < OPT_CHEAT; i++)
+        op_ptr->opt[OPT_ADULT + (i - OPT_BIRTH)] = op_ptr->opt[i];
+
+    for (i = OPT_CHEAT; i < OPT_ADULT; i++)
+        op_ptr->opt[OPT_SCORE + (i - OPT_CHEAT)] = op_ptr->opt[i];
+
+    if (strlen(op_ptr->full_name) == 0)
+    {
+        op_ptr->vault_drop_frequency = VDF_NORMAL;
+        op_ptr->noble_item_spawn_mode = NOBLE_ITEM_SPAWN_RESTRICTED;
+    }
+
+    if (op_ptr->main_combat_rolls > 4)
+        op_ptr->main_combat_rolls = 0;
+    if (op_ptr->ability_desc_mode > 2)
+        op_ptr->ability_desc_mode = 0;
+    if (op_ptr->vault_drop_frequency > VDF_PLENTIFUL)
+        op_ptr->vault_drop_frequency = VDF_NORMAL;
+    if (op_ptr->level_entry_narrative_mode > LEVEL_ENTRY_NARRATIVE_OFF)
+        op_ptr->level_entry_narrative_mode = LEVEL_ENTRY_NARRATIVE_BANNER_DELAY;
+    if (op_ptr->partition_narrative_mode > PARTITION_NARRATIVE_OFF)
+        op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_BANNER;
+    if (op_ptr->intro_style > INTRO_STYLE_RANDOM)
+        op_ptr->intro_style = INTRO_STYLE_RANDOM;
+    if (op_ptr->noble_item_spawn_mode > NOBLE_ITEM_SPAWN_INCLUDE_VAULTS)
+        op_ptr->noble_item_spawn_mode = NOBLE_ITEM_SPAWN_RESTRICTED;
+
+    for (i = 0; i < z_info->k_max; i++)
+        k_info[i].squelch = SQUELCH_NEVER;
+    for (i = 0; i < SQUELCH_BYTES; i++)
+        squelch_level[i] = SQUELCH_NONE;
+    for (i = 0; i < z_info->e_max; i++)
+    {
+        e_info[i].aware = false;
+        e_info[i].squelch = false;
+    }
+
+    Term_clear();
+
+    log_debug("Character creation step completed: %s %s",
+        p_name + p_info[p_ptr->prace].name,
+        c_name + c_info[p_ptr->pcharacter].name);
+}
+
+NavResult blitz_character_creation(void)
+{
+    blitz_runtime_reset();
+
+    if (blitz_setup_menu() != NAV_OK)
+        return NAV_TO_MAIN;
+
+    if (blitz_current_setup()->character_mode == BLITZ_CHARACTER_SELECTED)
+        return character_creation();
+
+    blitz_pick_random_race_and_character();
+    finalize_character_creation_selection();
+    return NAV_OK;
 }
 
 /*
  * Helper function for 'player_birth()'.
  *
- * This function allows the player to select a race, and house, and
+ * This function allows the player to select a race and character template, and
  * modify options (including the birth options).
  */
 NavResult character_creation(void)
 {
-    int i, j;
+    int i;
 
     int phase = 1;
 
@@ -1594,11 +2967,37 @@ NavResult character_creation(void)
     Term_clear();
 
     /* Display some helpful information */
-    Term_putstr(
-        QUESTION_COL, HEADER_ROW, -1, TERM_L_BLUE, "Character Selection:");
+    draw_character_selection_header(false);
 
-    Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
-        "r -random    ESC -back   o -options   s -scores   h -help   q -quit");
+    if (steamdeck_controls_active()) {
+        int prompt_row = birth_prompt_row();
+        char random_label[16];
+        char back_label[16];
+        char options_label[16];
+        char scores_label[16];
+        char full_desc_label[16];
+        char help_label[16];
+        char quit_label[16];
+        char prompt_buf[160];
+
+        birth_prompt_label('r', "r", random_label, sizeof(random_label));
+        birth_prompt_label('b', "b", back_label, sizeof(back_label));
+        birth_prompt_label('o', "o", options_label, sizeof(options_label));
+        birth_prompt_label('s', "s", scores_label, sizeof(scores_label));
+        birth_prompt_label('f', "f", full_desc_label, sizeof(full_desc_label));
+        birth_prompt_label('?', "?", help_label, sizeof(help_label));
+        if (streq(help_label, "?"))
+            birth_prompt_label('h', "h", help_label, sizeof(help_label));
+        birth_prompt_label('q', "q", quit_label, sizeof(quit_label));
+
+        strnfmt(prompt_buf, sizeof(prompt_buf),
+            "%s-random  %s-back  %s-options  %s-scores  %s-description  %s-help  %s-quit",
+            random_label, back_label, options_label, scores_label, full_desc_label, help_label, quit_label);
+        Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE, prompt_buf);
+    } else {
+        Term_putstr(QUESTION_COL, birth_prompt_row(), -1, TERM_SLATE,
+            "r -random   ESC -back   o -options   s -scores   f -description   h -help   q -quit");
+    }
 
     while (phase <= 2)
     {
@@ -1620,11 +3019,14 @@ NavResult character_creation(void)
 
         if (phase == 2)
         {
-            /* Choose the player's house */
-            if (!get_player_house())
+            draw_character_selection_header(true);
+
+            /* Choose the player's character template */
+            if (!get_character_profile())
             {
                 phase = 1;          /* Esc here → go back to race */
-                /* Clear the house display area when going back to race selection */
+                draw_character_selection_header(false);
+                /* Clear the character display area when going back to race selection */
                 for (i = HEADER_ROW; i <= TABLE_ROW + A_MAX + 10; i++)
                 {
                     Term_erase(TOTAL_AUX_COL, i, 255);
@@ -1639,397 +3041,700 @@ NavResult character_creation(void)
         }
     }
 
-    /* Clear the base values of the skills */
-    for (i = 0; i < A_MAX; i++)
-        p_ptr->skill_base[i] = 0;
-
-    /* Clear the abilities and add bonus ability*/
-    for (i = 0; i < S_MAX; i++)
-    {
-        for (j = 0; j < ABILITIES_MAX; j++)
-        {
-            p_ptr->innate_ability[i][j] = false;
-            p_ptr->active_ability[i][j] = false;
-        }
-    }
-    // Bonus abilities
-    /* grant *all* parsed house abilities */
-    for (int slot = 0; slot < HOUSE_ABILITY_MAX; slot++)
-    {
-        int stat = c_info[p_ptr->phouse].a_adj[slot][0];
-        /* sentinel: no more entries */
-        if (stat < 0) break;
-
-        int ab = c_info[p_ptr->phouse].a_adj[slot][1];
-        /* sanity-check bounds */
-        if (stat < S_MAX && ab < ABILITIES_MAX)
-        {
-            p_ptr->innate_ability[stat][ab] = true;
-            p_ptr->active_ability[stat][ab] = true;
-        }
-    }
-
-    /* Set adult options from birth options */
-    for (i = OPT_BIRTH; i < OPT_CHEAT; i++)
-    {
-        op_ptr->opt[OPT_ADULT + (i - OPT_BIRTH)] = op_ptr->opt[i];
-    }
-
-    /* Reset score options from cheat options */
-    for (i = OPT_CHEAT; i < OPT_ADULT; i++)
-    {
-        op_ptr->opt[OPT_SCORE + (i - OPT_CHEAT)] = op_ptr->opt[i];
-    }
-
-    // Set a default value for hitpoint warning / delay factor unless this is an
-    // old game file
-    if (strlen(op_ptr->full_name) == 0)
-    {
-        op_ptr->hitpoint_warn = 3;
-        op_ptr->delay_factor = 5;
-        op_ptr->main_combat_rolls = 0;  /* Default to 0 lines */
-    }
-    
-    /* Ensure main_combat_rolls has a valid value for existing saves */
-    if (op_ptr->main_combat_rolls < 0 || op_ptr->main_combat_rolls > 3)
-    {
-        op_ptr->main_combat_rolls = 0;  /* Default to 0 lines */
-    }
-
-    /* reset squelch bits */
-
-    for (i = 0; i < z_info->k_max; i++)
-    {
-        k_info[i].squelch = SQUELCH_NEVER;
-    }
-    /*Clear the squelch bytes*/
-    for (i = 0; i < SQUELCH_BYTES; i++)
-    {
-        squelch_level[i] = SQUELCH_NONE;
-    }
-    /* Clear the special item squelching flags */
-    for (i = 0; i < z_info->e_max; i++)
-    {
-        e_info[i].aware = false;
-        e_info[i].squelch = false;
-    }
-
-    /* Clear */
-    Term_clear();
-
-    log_debug("Character creation step completed: %s %s", p_name + p_info[p_ptr->prace].name, c_name + c_info[p_ptr->phouse].name);
+    finalize_character_creation_selection();
 
     /* Done */
     return NAV_OK;
 
 }
 
-/*
- * Helper function to display wrapped text at a given position
- * Returns the number of lines used
- */
-static int display_wrapped_text(cptr text, int start_col, int start_row, int max_width, byte color)
+static bool oath_menu_use_compact_layout(void)
 {
-    if (!text || !text[0]) return 0;
-    
-    /* Get actual terminal size if max_width is not specified */
-    int term_width, term_height;
-    Term_get_size(&term_width, &term_height);
-    
-    if (max_width <= 0) {
-        max_width = term_width - start_col - 2; /* Leave some margin */
+    int wid = 80;
+    int hgt = 24;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1)
+        wid = 80;
+    if (hgt < 1)
+        hgt = 24;
+
+    return (wid < 80) || (hgt < 24);
+}
+
+static int oath_selectable_max_id(void)
+{
+    int max_oath_id = OATH_LIGHT;
+
+    if (!z_info)
+        return max_oath_id;
+    if (z_info->oath_max <= 1)
+        return 0;
+    if (max_oath_id >= z_info->oath_max)
+        max_oath_id = z_info->oath_max - 1;
+    if (max_oath_id < 0)
+        max_oath_id = 0;
+
+    return max_oath_id;
+}
+
+static int oath_collect_visible(int available_mask, int* visible_oaths, int max_visible)
+{
+    int visible_count = 0;
+    int max_oath_id = oath_selectable_max_id();
+
+    if (visible_oaths && visible_count < max_visible)
+        visible_oaths[visible_count] = 0;
+    visible_count++;
+
+    for (int i = 1; i <= max_oath_id; i++)
+    {
+        if (!(available_mask & (1 << (i - 1))) && !oath_banned(i))
+            continue;
+
+        if (visible_oaths && visible_count < max_visible)
+            visible_oaths[visible_count] = i;
+
+        visible_count++;
     }
-    
-    char line_buffer[256]; /* Increased buffer size for wider terminals */
-    int row = start_row;
+
+    return visible_count;
+}
+
+static bool oath_option_selectable(int oath_id, int available_mask)
+{
+    if (oath_id == 0)
+        return true;
+
+    return ((available_mask & (1 << (oath_id - 1))) != 0) && !oath_banned(oath_id);
+}
+
+static void oath_move_highlight(int* highlight, int direction, int available_mask)
+{
+    int oath_max = oath_selectable_max_id() + 1;
+    int original = *highlight;
+    int next = *highlight;
+
+    if (oath_max <= 0)
+    {
+        *highlight = 0;
+        return;
+    }
+
+    do
+    {
+        next += direction;
+        if (next < 0)
+            next = oath_max - 1;
+        if (next >= oath_max)
+            next = 0;
+
+        if ((next == 0)
+            || (available_mask & (1 << (next - 1)))
+            || oath_banned(next))
+        {
+            *highlight = next;
+            return;
+        }
+    } while (next != original);
+}
+
+static void oath_center_putstr(int row, byte attr, cptr text)
+{
+    int wid = 80;
+    int hgt = 24;
+    int col;
+
+    if (!text)
+        text = "";
+
+    Term_get_size(&wid, &hgt);
+    (void)hgt;
+    if (wid < 1)
+        wid = 80;
+
+    col = (wid - (int)strlen(text)) / 2;
+    if (col < 0)
+        col = 0;
+
+    Term_putstr(col, row, -1, attr, text);
+}
+
+static void oath_draw_page_indicator(int page, int page_count, int wid, int row)
+{
+    char page_buf[16];
+    int col;
+
+    if (page_count <= 1)
+        return;
+
+    strnfmt(page_buf, sizeof(page_buf), "%d/%d", page + 1, page_count);
+    col = wid - (int)strlen(page_buf) - 1;
+    if (col < 0)
+        col = 0;
+
+    Term_putstr(col, row, -1, TERM_WHITE, page_buf);
+}
+
+static void oath_putstr_fit(int col, int row, int max_width, byte attr, cptr text)
+{
+    char buf[256];
+    int len;
+
+    if (max_width <= 0)
+        return;
+
+    if (!text)
+        text = "";
+
+    len = (int)strlen(text);
+    if (len <= max_width)
+    {
+        Term_putstr(col, row, -1, attr, text);
+        return;
+    }
+
+    if (max_width <= 3)
+        strnfmt(buf, sizeof(buf), "%.*s", max_width, text);
+    else
+        strnfmt(buf, sizeof(buf), "%.*s...", max_width - 3, text);
+
+    Term_putstr(col, row, -1, attr, buf);
+}
+
+static void oath_render_virtual_line(int col, int* draw_row, int row_limit,
+    int* virtual_row, int skip_lines, byte color, cptr text, bool render)
+{
+    if (!text)
+        text = "";
+
+    if ((*virtual_row >= skip_lines) && render && (*draw_row < row_limit))
+        Term_putstr(col, *draw_row, -1, color, text);
+
+    if ((*virtual_row >= skip_lines) && (*draw_row < row_limit))
+        (*draw_row)++;
+
+    (*virtual_row)++;
+}
+
+static void oath_render_virtual_wrapped_text(cptr text, int col, int max_width,
+    int* draw_row, int row_limit, int* virtual_row, int skip_lines,
+    byte color, bool render)
+{
+    char line_buffer[512];
     int line_pos = 0;
     const char* text_ptr = text;
-    
-    while (*text_ptr && row < term_height - 1) { /* Use actual terminal height */
-        /* Skip leading spaces at start of line */
-        while (*text_ptr == ' ' && line_pos == 0) text_ptr++;
-        
-        if (*text_ptr == '\n') {
-            /* Explicit line break */
+
+    if (!text || !text[0])
+        return;
+
+    if (max_width <= 0)
+    {
+        int term_width = 80;
+        int term_height = 24;
+
+        Term_get_size(&term_width, &term_height);
+        (void)term_height;
+        if (term_width < 1)
+            term_width = 80;
+        max_width = term_width - col - 2;
+    }
+
+    if (max_width < 8)
+        max_width = 8;
+
+    while (*text_ptr)
+    {
+        while (*text_ptr == ' ' && line_pos == 0)
+            text_ptr++;
+
+        if (*text_ptr == '\n')
+        {
             line_buffer[line_pos] = '\0';
-            if (line_pos > 0) {
-                Term_putstr(start_col, row, -1, color, line_buffer);
-                row++;
-            }
+            if (line_pos > 0)
+                oath_render_virtual_line(col, draw_row, row_limit, virtual_row,
+                    skip_lines, color, line_buffer, render);
+            else
+                oath_render_virtual_line(col, draw_row, row_limit, virtual_row,
+                    skip_lines, color, "", render);
+
             line_pos = 0;
             text_ptr++;
             continue;
         }
-        
-        if (line_pos >= max_width) {
-            /* Need to wrap - find last space for word boundary */
+
+        if ((line_pos >= max_width) || (line_pos >= (int)sizeof(line_buffer) - 1))
+        {
             int wrap_pos = line_pos - 1;
-            while (wrap_pos > 0 && line_buffer[wrap_pos] != ' ') {
+
+            while (wrap_pos > 0 && line_buffer[wrap_pos] != ' ')
                 wrap_pos--;
-            }
-            
-            if (wrap_pos > 0) {
-                /* Found a space - wrap at word boundary */
-                line_buffer[wrap_pos] = '\0';
-                Term_putstr(start_col, row, -1, color, line_buffer);
-                
-                /* Move remaining text to next line */
+
+            if (wrap_pos > 0)
+            {
                 int remaining = line_pos - wrap_pos - 1;
-                for (int i = 0; i < remaining; i++) {
+
+                line_buffer[wrap_pos] = '\0';
+                oath_render_virtual_line(col, draw_row, row_limit, virtual_row,
+                    skip_lines, color, line_buffer, render);
+
+                for (int i = 0; i < remaining; i++)
                     line_buffer[i] = line_buffer[wrap_pos + 1 + i];
-                }
+
                 line_pos = remaining;
-            } else {
-                /* No space found - hard wrap */
+            }
+            else
+            {
                 line_buffer[line_pos] = '\0';
-                Term_putstr(start_col, row, -1, color, line_buffer);
+                oath_render_virtual_line(col, draw_row, row_limit, virtual_row,
+                    skip_lines, color, line_buffer, render);
                 line_pos = 0;
             }
-            row++;
+
             continue;
         }
-        
-        /* Add character to current line */
+
         line_buffer[line_pos++] = *text_ptr++;
     }
-    
-    /* Display final line if any */
-    if (line_pos > 0) {
+
+    if (line_pos > 0)
+    {
         line_buffer[line_pos] = '\0';
-        Term_putstr(start_col, row, -1, color, line_buffer);
-        row++;
+        oath_render_virtual_line(col, draw_row, row_limit, virtual_row,
+            skip_lines, color, line_buffer, render);
     }
-    
-    return row - start_row;
+}
+
+static int oath_render_detail_content(int oath_id, int col, int start_row,
+    int max_width, int row_limit, int skip_lines, bool render)
+{
+    int draw_row = start_row;
+    int virtual_row = 0;
+    char line_buf[768];
+
+    if (oath_id < 0 || !z_info || oath_id >= z_info->oath_max)
+        return 0;
+
+    if (oath_banned(oath_id) && oath_id > 0)
+    {
+        char* banned_text = oath_banned_text(oath_id);
+
+        oath_render_virtual_line(col, &draw_row, row_limit, &virtual_row,
+            skip_lines, TERM_L_RED, "OATH BROKEN", render);
+
+        if (banned_text && banned_text[0])
+        {
+            oath_render_virtual_wrapped_text(banned_text, col, max_width,
+                &draw_row, row_limit, &virtual_row, skip_lines, TERM_RED, render);
+        }
+        else
+        {
+            oath_render_virtual_wrapped_text(
+                "Thy oath lies shattered, and thy name is marked in shame for this age.",
+                col, max_width, &draw_row, row_limit, &virtual_row, skip_lines,
+                TERM_RED, render);
+        }
+
+        return virtual_row;
+    }
+
+    if (oath_id == 0)
+    {
+        oath_render_virtual_wrapped_text("Walk free of binding words.", col,
+            max_width, &draw_row, row_limit, &virtual_row, skip_lines,
+            TERM_SLATE, render);
+        oath_render_virtual_wrapped_text(
+            "Take no oath and remain unbound by sacred vows.", col, max_width,
+            &draw_row, row_limit, &virtual_row, skip_lines, TERM_SLATE, render);
+        return virtual_row;
+    }
+
+    if (oath_description(oath_id) && oath_description(oath_id)[0])
+    {
+        strnfmt(line_buf, sizeof(line_buf), "Description: %s",
+            oath_description(oath_id));
+        oath_render_virtual_wrapped_text(line_buf, col, max_width, &draw_row,
+            row_limit, &virtual_row, skip_lines, TERM_SLATE, render);
+    }
+
+    if (oath_pledge(oath_id) && oath_pledge(oath_id)[0])
+    {
+        strnfmt(line_buf, sizeof(line_buf), "Pledge: %s", oath_pledge(oath_id));
+        oath_render_virtual_wrapped_text(line_buf, col, max_width, &draw_row,
+            row_limit, &virtual_row, skip_lines, TERM_L_BLUE, render);
+    }
+
+    if (oath_reward_text(oath_id) && oath_reward_text(oath_id)[0])
+    {
+        strnfmt(line_buf, sizeof(line_buf), "Reward: %s",
+            oath_reward_text(oath_id));
+        oath_render_virtual_wrapped_text(line_buf, col, max_width, &draw_row,
+            row_limit, &virtual_row, skip_lines, TERM_L_GREEN, render);
+    }
+
+    if (oath_forbidden(oath_id) && oath_forbidden(oath_id)[0])
+    {
+        strnfmt(line_buf, sizeof(line_buf), "Forbidden: %s",
+            oath_forbidden(oath_id));
+        oath_render_virtual_wrapped_text(line_buf, col, max_width, &draw_row,
+            row_limit, &virtual_row, skip_lines, TERM_L_RED, render);
+    }
+
+    return virtual_row;
+}
+
+static void oath_draw_compact_list_summary(int oath_id, int row, int prompt_row,
+    int max_width)
+{
+    char line_buf[512];
+    byte name_attr = TERM_L_BLUE;
+
+    if (row >= prompt_row || max_width <= 0)
+        return;
+
+    if (oath_id == 0)
+        name_attr = TERM_WHITE;
+    else if (oath_banned(oath_id))
+        name_attr = TERM_L_RED;
+
+    oath_putstr_fit(2, row++, max_width, name_attr, oath_name_str(oath_id));
+
+    if (row >= prompt_row)
+        return;
+
+    if (oath_id == 0)
+    {
+        oath_putstr_fit(2, row, max_width, TERM_SLATE,
+            "No oath. No restrictions.");
+        return;
+    }
+
+    if (oath_banned(oath_id))
+    {
+        oath_putstr_fit(2, row, max_width, TERM_RED,
+            "Broken oath: unavailable for this metarun.");
+        return;
+    }
+
+    if (oath_reward_text(oath_id) && oath_reward_text(oath_id)[0])
+    {
+        strnfmt(line_buf, sizeof(line_buf), "Reward: %s",
+            oath_reward_text(oath_id));
+        oath_putstr_fit(2, row++, max_width, TERM_L_GREEN, line_buf);
+    }
+
+    if (row >= prompt_row)
+        return;
+
+    if (oath_forbidden(oath_id) && oath_forbidden(oath_id)[0])
+    {
+        strnfmt(line_buf, sizeof(line_buf), "Forbidden: %s",
+            oath_forbidden(oath_id));
+        oath_putstr_fit(2, row, max_width, TERM_L_RED, line_buf);
+    }
 }
 
 /*
- * Oath selection screen with three-column layout following abilities_menu2 pattern
+ * Oath selection screen.
+ *
+ * Wide screens keep the split list/details layout. Compact screens use a
+ * dedicated list page plus a full-width details page with vertical scrolling.
  */
 static NavResult select_oath(void)
 {
     int available_mask = get_available_oaths_mask();
-    
+
     /* If no oaths are available, skip oath selection */
-    if (available_mask == 0) {
+    if (available_mask == 0)
+    {
         p_ptr->oath_type = 0; /* No oath */
         log_debug("No oaths available, skipping oath selection");
         return NAV_OK;
     }
-    
+
     int highlight = 1; /* Start highlighting first available oath */
     int choice = 0;
-    int visible_count = 0;
-    
+    int page = 0;
+    int detail_scroll = 0;
+    bool steamdeck = steamdeck_controls_active();
+
     /* Find first available oath to highlight */
-    for (int i = 1; z_info && i < z_info->oath_max; i++) {
-        if (available_mask & (1 << (i - 1))) {
+    for (int i = 1; i <= oath_selectable_max_id(); i++)
+    {
+        if (available_mask & (1 << (i - 1)))
+        {
             highlight = i;
             break;
         }
     }
-    
-    while (true) {
-        char buf[80];
-        byte attr;
-        
-        /* Clear screen and use full-width layout */
+
+    while (true)
+    {
+        int wid = 80;
+        int hgt = 24;
+        int prompt_row;
+        int visible_oaths[16];
+        int visible_count;
+        int detail_max_scroll = 0;
+        bool compact;
+        char key;
+
+        Term_get_size(&wid, &hgt);
+        if (wid < 1)
+            wid = 80;
+        if (hgt < 1)
+            hgt = 24;
+
+        prompt_row = hgt - 1;
+        if (prompt_row < 0)
+            prompt_row = 0;
+
+        compact = oath_menu_use_compact_layout();
+        if (!compact)
+            page = 0;
+
+        visible_count = oath_collect_visible(available_mask, visible_oaths,
+            (int)N_ELEMENTS(visible_oaths));
+        if (visible_count > (int)N_ELEMENTS(visible_oaths))
+            visible_count = (int)N_ELEMENTS(visible_oaths);
+
         Term_clear();
-        
-        /* Title at the top center */
-        Term_putstr(30, 0, -1, TERM_L_BLUE, "Choose your Oath");
-        
-        /* Setup oath list area (left side) */
-        Term_putstr(2, 2, -1, TERM_WHITE, "Available Oaths");
-        
-        /* Build visible oaths list - only show available or broken */
-        visible_count = 0;
-        
-        /* Always include "None" option */
-        attr = (highlight == 0) ? TERM_L_BLUE : TERM_WHITE;
-        Term_putstr(2, 4 + visible_count, -1, attr, format("%c) %s", 'a' + visible_count, oath_name_str(0)));
-        visible_count++;
-        
-        /* Add available or broken oaths */
-        for (int i = 1; z_info && i < z_info->oath_max; i++) {
-            /* Skip locked oaths (not available and not broken) */
-            if (!(available_mask & (1 << (i - 1))) && !oath_banned(i)) {
-                continue;
-            }
-            
-            /* Determine display color based on oath status and highlight */
-            if (oath_banned(i)) {
-                /* Broken oaths: red when not highlighted, bright red when highlighted */
-                attr = (highlight == i) ? TERM_L_RED : TERM_RED;
-                strnfmt(buf, 80, "%c) %s", 'a' + visible_count, oath_name_str(i));
-            } else {
-                /* Available oaths: bright blue when highlighted, white when not */
-                attr = (highlight == i) ? TERM_L_BLUE : TERM_WHITE;
-                strnfmt(buf, 80, "%c) %s", 'a' + visible_count, oath_name_str(i));
-            }
-            
-            Term_putstr(2, 4 + visible_count, -1, attr, buf);
-            visible_count++;
-        }
-        
-        /* Display detailed description for highlighted oath in description column */
-        wipe_screen_from(COL_DESCRIPTION);
-        Term_putstr(COL_DESCRIPTION, 2, -1, TERM_WHITE, "Oath Details");
-        
-        if (highlight >= 0 && highlight < (z_info ? z_info->oath_max : 6)) {
-            if (oath_banned(highlight) && highlight > 0) {
-                /* Use oath-specific banned text */
-                char* banned_text = oath_banned_text(highlight);
-                if (banned_text && banned_text[0]) {
-                    /* Display the oath-specific banned text with improved wrapping */
-                    display_wrapped_text(banned_text, COL_DESCRIPTION, 4, 0, TERM_L_RED);
-                } else {
-                    /* Fallback to generic broken oath text */
-                    Term_putstr(COL_DESCRIPTION, 4, -1, TERM_L_RED, "OATH BROKEN");
-                    Term_putstr(COL_DESCRIPTION, 6, -1, TERM_RED, "\"Thy oath lies shattered,");
-                    Term_putstr(COL_DESCRIPTION, 7, -1, TERM_RED, " thy word worthless as dust.\"");
-                    Term_putstr(COL_DESCRIPTION, 9, -1, TERM_L_RED, "\"No Valar shall hear thy voice,");
-                    Term_putstr(COL_DESCRIPTION, 10, -1, TERM_L_RED, " no light shall guide thy path.\"");
-                    Term_putstr(COL_DESCRIPTION, 12, -1, TERM_RED, "Forever marked as oathbreaker");
-                    Term_putstr(COL_DESCRIPTION, 13, -1, TERM_RED, "in this age.");
+
+        if (compact)
+        {
+            oath_center_putstr(0, TERM_L_BLUE,
+                (page == 0) ? "Choose your Oath" : "Oath Details");
+            oath_draw_page_indicator(page, 2, wid, 0);
+
+            if (page == 0)
+            {
+                int list_row = 4;
+
+                Term_putstr(2, 2, -1, TERM_WHITE, "Available Oaths");
+
+                for (int i = 0; i < visible_count; i++)
+                {
+                    int oath_id = visible_oaths[i];
+                    byte attr;
+                    char buf[96];
+
+                    if (oath_banned(oath_id) && oath_id > 0)
+                        attr = (highlight == oath_id) ? TERM_L_RED : TERM_RED;
+                    else
+                        attr = (highlight == oath_id) ? TERM_L_BLUE : TERM_WHITE;
+
+                    strnfmt(buf, sizeof(buf), "%c) %s", 'a' + i, oath_name_str(oath_id));
+                    Term_putstr(2, list_row + i, -1, attr, buf);
                 }
-            } else {
-                /* Display oath description */
-                if (highlight == 0) {
-                    Term_putstr(COL_DESCRIPTION, 4, -1, TERM_SLATE, "Walk free of binding words");
-                    Term_putstr(COL_DESCRIPTION, 6, -1, TERM_SLATE, "Take no oath and remain unbound");
-                    Term_putstr(COL_DESCRIPTION, 7, -1, TERM_SLATE, "by sacred vows.");
-                } else {
-                    /* Get oath description and display it */
-                    char* description = oath_description(highlight);
-                    if (description && description[0]) {
-                        Term_putstr(COL_DESCRIPTION, 4, -1, TERM_YELLOW, "Description:");
-                        
-                        /* Display description with improved word wrapping */
-                        int row = 5;
-                        row += display_wrapped_text(description, COL_DESCRIPTION, row, 0, TERM_SLATE);
-                        
-                        /* Display Pledge (P:) */
-                        char* pledge = oath_pledge(highlight);
-                        if (pledge && pledge[0]) {
-                            char pledge_full[512];
-                            strnfmt(pledge_full, sizeof(pledge_full), "Pledge: %s", pledge);
-                            row += display_wrapped_text(pledge_full, COL_DESCRIPTION, row, 0, TERM_L_BLUE);
-                        }
-                        
-                        /* Display Reward (R:) - MOVED TO TOP FOR VISIBILITY */
-                        char* reward = oath_reward_text(highlight);
-                        log_debug("Oath %d reward text: '%s'", highlight, reward ? reward : "NULL");
-                        if (reward && reward[0]) {
-                            char reward_full[512];
-                            strnfmt(reward_full, sizeof(reward_full), "Reward: %s", reward);
-                            row += display_wrapped_text(reward_full, COL_DESCRIPTION, row, 0, TERM_L_GREEN);
-                        }
-                        
-                        /* Display Forbidden (F:) */
-                        char* forbidden = oath_forbidden(highlight);
-                        if (forbidden && forbidden[0]) {
-                            char forbidden_full[512];
-                            strnfmt(forbidden_full, sizeof(forbidden_full), "Forbidden: %s", forbidden);
-                            row += display_wrapped_text(forbidden_full, COL_DESCRIPTION, row, 0, TERM_L_RED);
-                        }
-                    }
+
+                oath_draw_compact_list_summary(highlight, list_row + visible_count + 1,
+                    prompt_row, wid - 4);
+
+                if (steamdeck)
+                {
+                    char confirm_label[16];
+                    char back_label[16];
+                    char prompt_buf[96];
+
+                    birth_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
+                    birth_prompt_label('b', "B", back_label, sizeof(back_label));
+                    strnfmt(prompt_buf, sizeof(prompt_buf),
+                        "D-pad Nav/Page  %s Select  %s Back",
+                        confirm_label, back_label);
+                    oath_putstr_fit(2, prompt_row, wid - 4, TERM_SLATE, prompt_buf);
+                }
+                else
+                {
+                    oath_putstr_fit(2, prompt_row, wid - 4, TERM_SLATE,
+                        "8/2 Nav  6 Details  Enter/Space Select  Esc Back");
                 }
             }
+            else
+            {
+                int content_row = 3;
+                int visible_rows = prompt_row - content_row;
+                int total_lines;
+
+                Term_putstr(2, 1, -1, oath_banned(highlight) ? TERM_L_RED : TERM_L_BLUE,
+                    oath_name_str(highlight));
+
+                total_lines = oath_render_detail_content(highlight, 2, content_row,
+                    wid - 4, prompt_row, 0, false);
+
+                if (visible_rows < 0)
+                    visible_rows = 0;
+
+                detail_max_scroll = (total_lines > visible_rows)
+                    ? (total_lines - visible_rows)
+                    : 0;
+
+                if (detail_scroll > detail_max_scroll)
+                    detail_scroll = detail_max_scroll;
+
+                (void)oath_render_detail_content(highlight, 2, content_row, wid - 4,
+                    prompt_row, detail_scroll, true);
+
+                if (detail_max_scroll > 0)
+                {
+                    char scroll_buf[32];
+
+                    strnfmt(scroll_buf, sizeof(scroll_buf), "Scroll %d/%d",
+                        detail_scroll + 1, detail_max_scroll + 1);
+                    oath_putstr_fit(2, 2, wid - 4, TERM_SLATE, scroll_buf);
+                }
+
+                if (steamdeck)
+                {
+                    char confirm_label[16];
+                    char back_label[16];
+                    char prompt_buf[96];
+
+                    birth_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
+                    birth_prompt_label('b', "B", back_label, sizeof(back_label));
+                    strnfmt(prompt_buf, sizeof(prompt_buf),
+                        "D-pad Scroll/Page  %s Select  %s Back",
+                        confirm_label, back_label);
+                    oath_putstr_fit(2, prompt_row, wid - 4, TERM_SLATE, prompt_buf);
+                }
+                else
+                {
+                    oath_putstr_fit(2, prompt_row, wid - 4, TERM_SLATE,
+                        "8/2 Scroll  4 List  Enter/Space Select  Esc Back");
+                }
+            }
         }
-        
-        /* Footer text at bottom */
-        Term_putstr(2, 20, -1, TERM_SLATE, "Oaths are sacred vows that grant power but bind your actions.");
-        Term_putstr(2, 21, -1, TERM_SLATE, "Breaking an oath brings curse and shame.");
-        
-        /* Instructions at bottom with arrows */
-        Term_putstr(2, 23, -1, TERM_SLATE, "Arrows to Navigate     Enter/Space Accept     Esc Back");
-        
-        /* Get input */
-        char key = inkey();
-        
-        /* Handle input */
-        if (key == ESCAPE || key == 'q') {
+        else
+        {
+            int footer_row = prompt_row - 3;
+            int details_width = wid - COL_DESCRIPTION - 2;
+
+            oath_center_putstr(0, TERM_L_BLUE, "Choose your Oath");
+            Term_putstr(2, 2, -1, TERM_WHITE, "Available Oaths");
+            Term_putstr(COL_DESCRIPTION, 2, -1, TERM_WHITE, "Oath Details");
+
+            for (int i = 0; i < visible_count; i++)
+            {
+                int oath_id = visible_oaths[i];
+                byte attr;
+                char buf[96];
+
+                if (oath_banned(oath_id) && oath_id > 0)
+                    attr = (highlight == oath_id) ? TERM_L_RED : TERM_RED;
+                else
+                    attr = (highlight == oath_id) ? TERM_L_BLUE : TERM_WHITE;
+
+                strnfmt(buf, sizeof(buf), "%c) %s", 'a' + i, oath_name_str(oath_id));
+                Term_putstr(2, 4 + i, -1, attr, buf);
+            }
+
+            (void)oath_render_detail_content(highlight, COL_DESCRIPTION, 4,
+                details_width, prompt_row, 0, true);
+
+            if (footer_row >= 0)
+            {
+                oath_putstr_fit(2, footer_row, wid - 4, TERM_SLATE,
+                    "Oaths grant power, but they bind your actions.");
+            }
+            if (footer_row + 1 < prompt_row)
+            {
+                oath_putstr_fit(2, footer_row + 1, wid - 4, TERM_SLATE,
+                    "Breaking an oath brings curse and shame.");
+            }
+
+            if (steamdeck)
+            {
+                char confirm_label[16];
+                char back_label[16];
+                char prompt_buf[128];
+
+                birth_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
+                birth_prompt_label('b', "B", back_label, sizeof(back_label));
+                strnfmt(prompt_buf, sizeof(prompt_buf),
+                    "D-pad Navigate  %s Select  %s Back",
+                    confirm_label, back_label);
+                oath_putstr_fit(2, prompt_row, wid - 4, TERM_SLATE, prompt_buf);
+            }
+            else
+            {
+                oath_putstr_fit(2, prompt_row, wid - 4, TERM_SLATE,
+                    "8/2 Navigate  Enter/Space Select  Esc Back");
+            }
+        }
+
+        Term_fresh();
+        key = inkey();
+
+        if (steamdeck && key == 'b')
+            return NAV_BACK; /* Go back to character creation */
+        if (key == ESCAPE || key == 'q')
+        {
             return NAV_BACK; /* Go back to character creation */
         }
-        
-        if (key == '\r' || key == '\n' || key == ' ' || key == '6') {
+
+        if (compact && key == '4')
+        {
+            page = 0;
+            continue;
+        }
+
+        if (compact && key == '6')
+        {
+            page = 1;
+            continue;
+        }
+
+        if (birth_confirm_input(key, steamdeck)
+            || (!compact && key == '6'))
+        {
             /* Select current highlighted option */
-            if (highlight == 0 || ((available_mask & (1 << (highlight - 1))) && !oath_banned(highlight))) {
+            if (oath_option_selectable(highlight, available_mask))
+            {
                 choice = highlight;
                 break;
             }
         }
-        
-        if (key >= 'a' && key <= 'a' + (z_info ? z_info->oath_max : 6) - 1) {
-            /* Map letter selection to actual oath index */
+
+        if (key >= 'a' && key < 'a' + visible_count)
+        {
             int display_pos = key - 'a';
-            int actual_index = 0;
-            int current_pos = 0;
-            
-            /* Find the actual oath index for this display position */
-            for (int i = 0; z_info && i < z_info->oath_max; i++) {
-                /* Skip locked oaths */
-                if (i > 0 && !(available_mask & (1 << (i - 1))) && !oath_banned(i)) {
-                    continue;
-                }
-                
-                if (current_pos == display_pos) {
-                    actual_index = i;
-                    break;
-                }
-                current_pos++;
-            }
-            
-            /* Select if valid */
-            if (actual_index == 0 || ((available_mask & (1 << (actual_index - 1))) && !oath_banned(actual_index))) {
-                choice = actual_index;
+
+            if (display_pos >= 0 && display_pos < visible_count
+                && oath_option_selectable(visible_oaths[display_pos], available_mask))
+            {
+                choice = visible_oaths[display_pos];
                 break;
             }
+
+            continue;
         }
-        
-        /* Arrow key navigation: Up and Down */
-        if (key == '8') {
-            /* Move highlight to previous available or broken oath */
-            int direction = -1;
-            int new_highlight = highlight;
-            
-            do {
-                new_highlight += direction;
-                if (new_highlight < 0) new_highlight = z_info ? z_info->oath_max - 1 : 5;
-                if (new_highlight >= (z_info ? z_info->oath_max : 6)) new_highlight = 0;
-                
-                /* Check if this option should be displayed */
-                if (new_highlight == 0 || 
-                    (available_mask & (1 << (new_highlight - 1))) || 
-                    oath_banned(new_highlight)) {
-                    highlight = new_highlight;
-                    break;
-                }
-            } while (new_highlight != highlight);
+
+        if (key == '8')
+        {
+            if (compact && page == 1)
+            {
+                if (detail_scroll > 0)
+                    detail_scroll--;
+                continue;
+            }
+
+            oath_move_highlight(&highlight, -1, available_mask);
+            detail_scroll = 0;
         }
-        
-        if (key == '2') {
-            /* Move highlight to next available or broken oath */
-            int direction = 1;
-            int new_highlight = highlight;
-            
-            do {
-                new_highlight += direction;
-                if (new_highlight < 0) new_highlight = z_info ? z_info->oath_max - 1 : 5;
-                if (new_highlight >= (z_info ? z_info->oath_max : 6)) new_highlight = 0;
-                
-                /* Check if this option should be displayed */
-                if (new_highlight == 0 || 
-                    (available_mask & (1 << (new_highlight - 1))) || 
-                    oath_banned(new_highlight)) {
-                    highlight = new_highlight;
-                    break;
-                }
-            } while (new_highlight != highlight);
+
+        if (key == '2')
+        {
+            if (compact && page == 1)
+            {
+                if (detail_scroll < detail_max_scroll)
+                    detail_scroll++;
+                continue;
+            }
+
+            oath_move_highlight(&highlight, 1, available_mask);
+            detail_scroll = 0;
         }
     }
-    
+
     /* Set the chosen oath */
     p_ptr->oath_type = choice;
     
@@ -2044,13 +3749,22 @@ static NavResult select_oath(void)
             int skill_category = oath_ptr->reward_type;
             int ability_id = oath_ptr->reward_value;
             
-            /* Grant the ability specified in oath.txt */
-            p_ptr->have_ability[skill_category][ability_id] = true;
-            p_ptr->innate_ability[skill_category][ability_id] = true;
-            p_ptr->active_ability[skill_category][ability_id] = true;
-            
-            log_debug("Granted oath %d abilities from data: skill=%d, ability=%d", 
-                      choice, skill_category, ability_id);
+            if (skill_category >= 0 && skill_category < S_MAX
+                && ability_id >= 0 && ability_id < ABILITIES_MAX)
+            {
+                /* Grant the ability specified in oath.txt */
+                p_ptr->have_ability[skill_category][ability_id] = true;
+                p_ptr->innate_ability[skill_category][ability_id] = true;
+                p_ptr->active_ability[skill_category][ability_id] = true;
+
+                log_debug("Granted oath %d abilities from data: skill=%d, ability=%d",
+                          choice, skill_category, ability_id);
+            }
+            else
+            {
+                log_warn("Oath %d ability out of bounds: skill=%d (max %d), ability=%d (max %d)",
+                         choice, skill_category, S_MAX - 1, ability_id, ABILITIES_MAX - 1);
+            }
         }
         else
         {
@@ -2074,6 +3788,616 @@ static const int birth_stat_costs[11]
     = { -4, -3, -2, -1, 0, 1, 3, 6, 10, 15, 21 };
 
 #define MAX_COST 13
+
+/* Forward declaration: used by compact skill allocation rendering. */
+static int skill_cost(int base, int points);
+
+static cptr blitz_curse_name_str(int id)
+{
+    cptr raw = cu_name + cu_info[id].name;
+    if (strncmp(raw, "Curse of ", 9) == 0)
+        raw += 9;
+    return raw;
+}
+
+static cptr blitz_blessing_name_str(int id)
+{
+    if (cu_info[id].blessing_name)
+    {
+        cptr raw = cu_name + cu_info[id].blessing_name;
+        if (strncmp(raw, "Blessing of ", 12) == 0)
+            raw += 12;
+        return raw;
+    }
+
+    return blitz_curse_name_str(id);
+}
+
+static int blitz_collect_eligible_effect_ids(bool blessing, int ids[], int max_ids)
+{
+    int count = 0;
+
+    for (int id = 0; z_info && id < z_info->cu_max && count < max_ids; id++)
+    {
+        int stacks = CURSE_GET(id);
+        int blessing_stacks = (stacks < 0) ? -stacks : 0;
+        int curse_stacks = (stacks > 0) ? stacks : 0;
+        byte curse_cap = (byte)CURSE_CURSE_CAP(id);
+        byte blessing_cap = (byte)CURSE_BLESSING_CAP(id);
+
+        if (blessing)
+        {
+            if (!cu_info[id].blessing_name)
+                continue;
+            if (stacks > 0)
+                continue;
+            if (blessing_cap > 0 && blessing_stacks >= blessing_cap)
+                continue;
+        }
+        else
+        {
+            if (!cu_info[id].name)
+                continue;
+            if (curse_cap > 0 && curse_stacks >= curse_cap)
+                continue;
+        }
+
+        ids[count++] = id;
+    }
+
+    return count;
+}
+
+static int blitz_weighted_random_curse_pick(void)
+{
+    long total = 0;
+    int w_max = 1;
+    bool tilt = (p_info[p_ptr->prace].flags & RHF_CURSE)
+        || (c_info[p_ptr->pcharacter].flags & RHF_CURSE);
+
+    for (int i = 0; z_info && i < z_info->cu_max; i++)
+    {
+        if (!cu_info[i].name)
+            continue;
+        if (cu_info[i].weight > w_max)
+            w_max = cu_info[i].weight;
+    }
+
+    for (int i = 0; z_info && i < z_info->cu_max; i++)
+    {
+        byte w = cu_info[i].weight ? cu_info[i].weight : 1;
+        int cnt = CURSE_CURSE_STACK(i);
+        byte cap = (byte)CURSE_CURSE_CAP(i);
+        long base;
+
+        if (!cu_info[i].name)
+            continue;
+        if (cap && cnt >= cap)
+            continue;
+        if (tilt && w == w_max)
+            continue;
+
+        base = tilt ? w + ((w_max + 1 - w) >> 1) : w;
+        total += base / (cnt + 1);
+    }
+
+    if (!total)
+        return -1;
+
+    long pick = rand_int(total);
+    long run = 0;
+    for (int i = 0; z_info && i < z_info->cu_max; i++)
+    {
+        byte w = cu_info[i].weight ? cu_info[i].weight : 1;
+        int cnt = CURSE_CURSE_STACK(i);
+        byte cap = (byte)CURSE_CURSE_CAP(i);
+        long base;
+        long eff;
+
+        if (!cu_info[i].name)
+            continue;
+        if (cap && cnt >= cap)
+            continue;
+        if (tilt && w == w_max)
+            continue;
+
+        base = tilt ? w + ((w_max + 1 - w) >> 1) : w;
+        eff = base / (cnt + 1);
+        run += eff;
+        if (pick < run)
+            return i;
+    }
+
+    return -1;
+}
+
+static int blitz_weighted_random_blessing_pick(void)
+{
+    int eligible[METAR_CURSE_SLOTS];
+    int weights[METAR_CURSE_SLOTS];
+    int count = 0;
+    int total_weight = 0;
+
+    for (int id = 0; z_info && id < z_info->cu_max && count < METAR_CURSE_SLOTS; id++)
+    {
+        int stacks = CURSE_GET(id);
+        int blessing_stacks = (stacks < 0) ? -stacks : 0;
+        int base_weight;
+        int effective_weight;
+
+        if (!cu_info[id].blessing_name)
+            continue;
+        if (stacks > 0)
+            continue;
+        if (CURSE_BLESSING_CAP(id) > 0
+            && blessing_stacks >= CURSE_BLESSING_CAP(id))
+            continue;
+
+        eligible[count] = id;
+        base_weight = cu_info[id].weight > 0 ? cu_info[id].weight : 1;
+        effective_weight = base_weight / (blessing_stacks + 1);
+        weights[count] = (effective_weight > 0) ? effective_weight : 1;
+        total_weight += weights[count];
+        count++;
+    }
+
+    if (count <= 0 || total_weight <= 0)
+        return -1;
+
+    int roll = rand_int(total_weight);
+    int sum = 0;
+    for (int i = 0; i < count; i++)
+    {
+        sum += weights[i];
+        if (roll < sum)
+            return eligible[i];
+    }
+
+    return eligible[0];
+}
+
+static int blitz_select_effect_from_list(bool blessing, bool show_effects, int ordinal, int total)
+{
+    int ids[METAR_CURSE_SLOTS];
+    int count = blitz_collect_eligible_effect_ids(blessing, ids, METAR_CURSE_SLOTS);
+    int selected = 0;
+    int top = 0;
+
+    if (count <= 0)
+        return -1;
+
+    while (1)
+    {
+        int wid = 80;
+        int hgt = 24;
+        int list_rows;
+        int selected_id;
+        int row;
+        char key;
+        char title[80];
+
+        Term_get_size(&wid, &hgt);
+        list_rows = show_effects ? MAX(4, hgt - 11) : MAX(4, hgt - 10);
+
+        if (selected < top)
+            top = selected;
+        if (selected >= top + list_rows)
+            top = selected - list_rows + 1;
+
+        selected_id = ids[selected];
+        Term_clear();
+
+        strnfmt(title, sizeof(title), "Choose %s %d of %d",
+            blessing ? "Blessing" : "Curse", ordinal, total);
+        c_put_str(TERM_YELLOW, title, 1, MAX((wid - (int)strlen(title)) / 2, 0));
+
+        for (row = 0; row < list_rows && top + row < count; row++)
+        {
+            int idx = top + row;
+            cptr name = blessing ? blitz_blessing_name_str(ids[idx])
+                                 : blitz_curse_name_str(ids[idx]);
+            char line[128];
+            strnfmt(line, sizeof(line), "%s", name);
+            c_put_str(idx == selected ? TERM_L_BLUE : (blessing ? TERM_L_GREEN : TERM_L_RED),
+                line, 3 + row, 4);
+        }
+
+        {
+            curse_type* cu = &cu_info[selected_id];
+            cptr desc = blessing
+                ? (cu->blessing_text ? cu_text + cu->blessing_text : "")
+                : (cu->text ? cu_text + cu->text : "");
+            cptr power = blessing
+                ? (cu->blessing_power ? cu_text + cu->blessing_power : "")
+                : (cu->power ? cu_text + cu->power : "");
+            int desc_row = 4 + list_rows;
+
+            c_put_str(TERM_WHITE, blessing ? blitz_blessing_name_str(selected_id)
+                                           : blitz_curse_name_str(selected_id),
+                desc_row++, 2);
+            if (desc && desc[0])
+            {
+                text_out_hook = text_out_to_screen;
+                text_out_wrap = wid - 4;
+                text_out_indent = 2;
+                Term_gotoxy(2, desc_row);
+                text_out_c(TERM_SLATE, desc);
+                desc_row += count_wrapped_lines(desc, text_out_wrap, 2);
+            }
+            if (show_effects && power && power[0])
+            {
+                char power_line[512];
+                strnfmt(power_line, sizeof(power_line), "Effect: %s", power);
+                text_out_hook = text_out_to_screen;
+                text_out_wrap = wid - 4;
+                text_out_indent = 2;
+                Term_gotoxy(2, desc_row + 1);
+                text_out_c(blessing ? TERM_L_GREEN : TERM_L_RED, power_line);
+            }
+        }
+
+        c_put_str(TERM_L_DARK, "8/2 navigate  Enter select  Esc back", hgt - 1, 2);
+        key = inkey();
+
+        if (key == ESCAPE)
+            return -1;
+        if (key == '\n' || key == '\r' || key == ' ')
+            return selected_id;
+        if (key == '8')
+        {
+            selected = (selected + count - 1) % count;
+            continue;
+        }
+        if (key == '2')
+        {
+            selected = (selected + 1) % count;
+            continue;
+        }
+    }
+}
+
+static void blitz_apply_effect_pick(int id, bool blessing)
+{
+    CURSE_ADD(id, blessing ? -1 : 1);
+    CURSE_SEEN_SET(id);
+}
+
+static void blitz_show_effect_summary(void)
+{
+    int wid = 80;
+    int hgt = 24;
+    int row = 3;
+
+    Term_get_size(&wid, &hgt);
+    Term_clear();
+    c_put_str(TERM_YELLOW, "Blitz Effects", 1, MAX((wid - 13) / 2, 0));
+
+    for (int id = 0; z_info && id < z_info->cu_max; id++)
+    {
+        int stacks = CURSE_GET(id);
+        char line[128];
+
+        if (stacks == 0)
+            continue;
+
+        strnfmt(line, sizeof(line), "%s x%d",
+            (stacks < 0) ? blitz_blessing_name_str(id) : blitz_curse_name_str(id),
+            (stacks < 0) ? -stacks : stacks);
+        c_put_str(stacks < 0 ? TERM_L_GREEN : TERM_L_RED, line, row++, 4);
+    }
+
+    if (row == 3)
+        c_put_str(TERM_SLATE, "No blessings or curses selected.", row++, 4);
+
+    c_put_str(TERM_L_BLUE, "Press any key to continue.", MIN(row + 1, hgt - 1), 2);
+    (void)inkey();
+}
+
+static NavResult blitz_configure_effects(void)
+{
+    const blitz_setup* setup = blitz_current_setup();
+
+    blitz_runtime_reset();
+
+    for (int i = 0; i < setup->curse_count; i++)
+    {
+        int id = (setup->effect_mode == BLITZ_EFFECT_RANDOM)
+            ? blitz_weighted_random_curse_pick()
+            : blitz_select_effect_from_list(false,
+                setup->effect_mode == BLITZ_EFFECT_SELECTED_DESCR, i + 1, setup->curse_count);
+        if (id < 0)
+            return NAV_BACK;
+        blitz_apply_effect_pick(id, false);
+    }
+
+    for (int i = 0; i < setup->blessing_count; i++)
+    {
+        int id = (setup->effect_mode == BLITZ_EFFECT_RANDOM)
+            ? blitz_weighted_random_blessing_pick()
+            : blitz_select_effect_from_list(true,
+                setup->effect_mode == BLITZ_EFFECT_SELECTED_DESCR, i + 1, setup->blessing_count);
+        if (id < 0)
+            return NAV_BACK;
+        blitz_apply_effect_pick(id, true);
+    }
+
+    if (setup->curse_count > 0 || setup->blessing_count > 0)
+        blitz_show_effect_summary();
+
+    return NAV_OK;
+}
+
+static void blitz_auto_assign_stats(int stats[A_MAX])
+{
+    int cost = 0;
+
+    for (int i = 0; i < A_MAX; i++)
+        stats[i] = 0;
+
+    while (cost < MAX_COST)
+    {
+        int choices[A_MAX];
+        int choice_count = 0;
+
+        for (int i = 0; i < A_MAX; i++)
+        {
+            int next = stats[i] + 1;
+            int next_cost;
+
+            if (next > 6)
+                continue;
+            next_cost = cost - birth_stat_costs[stats[i] + 4]
+                + birth_stat_costs[next + 4];
+            if (next_cost <= MAX_COST)
+                choices[choice_count++] = i;
+        }
+
+        if (choice_count <= 0)
+            break;
+
+        int pick = choices[rand_int(choice_count)];
+        cost -= birth_stat_costs[stats[pick] + 4];
+        stats[pick]++;
+        cost += birth_stat_costs[stats[pick] + 4];
+    }
+}
+
+static void blitz_auto_assign_skills(void)
+{
+    int old_base[S_MAX];
+    int gains[S_MAX];
+    int budget;
+
+    for (int i = 0; i < S_MAX; i++)
+    {
+        old_base[i] = p_ptr->skill_base[i];
+        gains[i] = 0;
+    }
+
+    budget = p_ptr->new_exp;
+
+    while (budget > 0)
+    {
+        int choices[S_MAX];
+        int weights[S_MAX];
+        int choice_count = 0;
+        int total_weight = 0;
+
+        for (int i = 0; i < S_MAX; i++)
+        {
+            int delta;
+            int weight = 2;
+
+            if (i == S_SPC)
+                continue;
+
+            delta = skill_cost(old_base[i], gains[i] + 1)
+                - skill_cost(old_base[i], gains[i]);
+            if (delta <= 0 || delta > budget)
+                continue;
+
+            for (int slot = 0; slot < CHARACTER_ABILITY_MAX; slot++)
+            {
+                int skill_idx = c_info[p_ptr->pcharacter].a_adj[slot][0];
+                if (skill_idx < 0)
+                    break;
+                if (skill_idx == i)
+                    weight += 3;
+            }
+
+            choices[choice_count] = i;
+            weights[choice_count] = weight;
+            total_weight += weight;
+            choice_count++;
+        }
+
+        if (choice_count <= 0)
+            break;
+
+        int roll = rand_int(total_weight);
+        int sum = 0;
+        int chosen = choices[0];
+        for (int i = 0; i < choice_count; i++)
+        {
+            sum += weights[i];
+            if (roll < sum)
+            {
+                chosen = choices[i];
+                break;
+            }
+        }
+
+        budget -= skill_cost(old_base[chosen], gains[chosen] + 1)
+            - skill_cost(old_base[chosen], gains[chosen]);
+        gains[chosen]++;
+    }
+
+    for (int i = 0; i < S_MAX; i++)
+    {
+        if (i == S_SPC)
+            continue;
+        p_ptr->skill_base[i] = old_base[i] + gains[i];
+    }
+
+    p_ptr->new_exp = budget;
+}
+
+static NavResult blitz_auto_build_character(void)
+{
+    int stats[A_MAX];
+
+    get_extra();
+    blitz_auto_assign_stats(stats);
+
+    for (int i = 0; i < A_MAX; i++)
+    {
+        int bonus = rp_ptr->r_adj[i] + current_character_profile->h_adj[i] + curses_stat_adj(i);
+        p_ptr->stat_base[i] = stats[i] + bonus;
+        p_ptr->stat_drain[i] = 0;
+    }
+
+    p_ptr->update |= (PU_BONUS | PU_HP);
+    update_stuff();
+    p_ptr->chp = p_ptr->mhp;
+    calc_voice();
+    p_ptr->csp = p_ptr->msp;
+
+    blitz_auto_assign_skills();
+    p_ptr->update |= (PU_BONUS);
+    update_stuff();
+    p_ptr->chp = p_ptr->mhp;
+    calc_voice();
+    p_ptr->csp = p_ptr->msp;
+
+    return NAV_OK;
+}
+
+static void birth_display_stats_allocation_compact(const int stats[A_MAX], int selected,
+    int points_left, bool steamdeck)
+{
+    int wid = 80;
+    int hgt = 24;
+    char buf[160];
+    char stat_buf[16];
+    int prompt_row;
+    int info_row;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1) wid = 80;
+    if (hgt < 1) hgt = 24;
+
+    /* Reuse compact character-sheet stats+skills page with in-place highlighted selection. */
+    display_player_compact_stats_skills_highlighted_stat(selected);
+
+    prompt_row = hgt - 1;
+    if (prompt_row < 0)
+        prompt_row = 0;
+    info_row = prompt_row - 1;
+    if (info_row < 0)
+        info_row = 0;
+
+    Term_erase(0, info_row, 255);
+    Term_erase(0, prompt_row, 255);
+
+    if (selected >= 0 && selected < A_MAX)
+    {
+        int cost = birth_stat_costs[stats[selected] + 4];
+        cnv_stat(p_ptr->stat_use[selected], stat_buf);
+
+        strnfmt(buf, sizeof(buf), "Selected: %s %s  Cost: %d  Left: %d",
+            stat_names_full[selected], stat_buf, cost, points_left);
+        c_put_str(TERM_L_BLUE, buf, info_row, 1);
+    }
+    else
+    {
+        strnfmt(buf, sizeof(buf), "Points left: %d", points_left);
+        c_put_str(TERM_L_GREEN, buf, info_row, 1);
+    }
+
+    if (steamdeck)
+    {
+        char confirm_label[16];
+        char back_label[16];
+        char quit_label[16];
+
+        birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
+        birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
+        birth_prompt_label('q', "Start", quit_label, sizeof(quit_label));
+
+        strnfmt(buf, sizeof(buf), "D-pad alloc  %s back  %s ok  %s quit",
+            back_label, confirm_label, quit_label);
+    }
+    else
+    {
+        strnfmt(buf, sizeof(buf), "8/2 select  4/6 adjust  ESC back  SPACE/ENTER ok  q quit");
+    }
+
+    c_put_str(TERM_SLATE, buf, prompt_row, 1);
+}
+
+static void birth_display_skill_allocation_compact(int selected_skill, const int old_base[S_MAX],
+    const int skill_gain[S_MAX], int points_left, bool steamdeck)
+{
+    int wid = 80;
+    int hgt = 24;
+    char buf[160];
+    int prompt_row;
+    int info_row;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1) wid = 80;
+    if (hgt < 1) hgt = 24;
+
+    /* Reuse compact character-sheet skills page with in-place highlighted selection. */
+    display_player_compact_stats_skills_highlighted(selected_skill);
+
+    prompt_row = hgt - 1;
+    if (prompt_row < 0)
+        prompt_row = 0;
+    info_row = prompt_row - 1;
+    if (info_row < 0)
+        info_row = 0;
+
+    Term_erase(0, info_row, 255);
+    Term_erase(0, prompt_row, 255);
+
+    if (selected_skill >= 0 && selected_skill < S_MAX && selected_skill != S_SPC)
+    {
+        int base = old_base[selected_skill];
+        int gain = skill_gain[selected_skill];
+        int now = base + gain;
+        int cost = skill_cost(base, gain);
+
+        strnfmt(buf, sizeof(buf), "Selected: %s %2d->%2d  Cost: %d  Left: %d",
+            skill_names_full[selected_skill], base, now, cost, points_left);
+        c_put_str(TERM_L_BLUE, buf, info_row, 1);
+    }
+    else
+    {
+        strnfmt(buf, sizeof(buf), "Points left: %d", points_left);
+        c_put_str(TERM_L_GREEN, buf, info_row, 1);
+    }
+
+    if (steamdeck)
+    {
+        char confirm_label[16];
+        char back_label[16];
+        char quit_label[16];
+
+        birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
+        birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
+        birth_prompt_label('q', "q", quit_label, sizeof(quit_label));
+
+        strnfmt(buf, sizeof(buf), "D-pad alloc  %s back  %s ok  %s quit",
+            back_label, confirm_label, quit_label);
+    }
+    else
+    {
+        strnfmt(buf, sizeof(buf), "8/2 select  4/6 adjust  ESC back  SPACE/ENTER ok  q quit");
+    }
+
+    c_put_str(TERM_SLATE, buf, prompt_row, 1);
+}
 
 /*
  * Helper function for 'player_birth()'.
@@ -2111,18 +4435,17 @@ static NavResult player_birth_aux_2(void)
     log_debug("Checking if tutorial should be shown...");
     bool is_empty = highscore_is_empty();
     log_debug("highscore_is_empty() returned: %s", is_empty ? "true" : "false");
-    
-    if (is_empty)
+    if (!run_mode_is_blitz() && is_empty)
     {
         log_info("First-time player detected - showing character screen tutorial");
         
         /* Initialize character stats for display - same as first iteration of stats loop */
         for (i = 0; i < A_MAX; i++)
         {
-            /* Obtain bonuses for race/house */
-            int bonus = rp_ptr->r_adj[i] + hp_ptr->h_adj[i] + curses_stat_adj(i);
+            /* Obtain bonuses for race/character */
+            int bonus = rp_ptr->r_adj[i] + current_character_profile->h_adj[i] + curses_stat_adj(i);
             
-            /* Set base stats (0 + racial/house bonuses) */
+            /* Set base stats (0 + racial/character bonuses) */
             p_ptr->stat_base[i] = stats[i] + bonus;
             p_ptr->stat_drain[i] = 0;
         }
@@ -2152,6 +4475,16 @@ static NavResult player_birth_aux_2(void)
     /* Interact */
     while (1)
     {
+        bool steamdeck = steamdeck_controls_active();
+        int wid = 80;
+        int hgt = 24;
+        Term_get_size(&wid, &hgt);
+        if (wid < 1) wid = 80;
+        if (hgt < 1) hgt = 24;
+        bool compact = (wid < 80);
+        int wide_offset = (wid > 80) ? (wid - 80) / 2 : 0;
+        int sheet_col = col + wide_offset;
+
         /* Reset cost */
         cost = 0;
 
@@ -2159,7 +4492,7 @@ static NavResult player_birth_aux_2(void)
         for (i = 0; i < A_MAX; i++)
         {
             /* Obtain a "bonus" for "race" */
-            int bonus = rp_ptr->r_adj[i] + hp_ptr->h_adj[i] + curses_stat_adj(i);
+            int bonus = rp_ptr->r_adj[i] + current_character_profile->h_adj[i] + curses_stat_adj(i);
 
             /* Apply the racial bonuses */
             p_ptr->stat_base[i] = stats[i] + bonus;
@@ -2197,74 +4530,96 @@ static NavResult player_birth_aux_2(void)
         calc_voice();
         p_ptr->csp = p_ptr->msp;
 
-        /* Display the player */
-        display_player(0);
-
-        /* Display the costs header */
-        c_put_str(TERM_WHITE, "Points Left:", 0, col + 21);
-        strnfmt(buf, sizeof(buf), "%2d", MAX_COST - cost);
-        c_put_str(TERM_L_GREEN, buf, 0, col + 34);
-
-        /* Display the costs */
-        for (i = 0; i < A_MAX; i++)
+        if (compact)
         {
-            if (i == stat)
+            birth_display_stats_allocation_compact(stats, stat, MAX_COST - cost, steamdeck);
+        }
+        else
+        {
+            int prompt_row = birth_prompt_row();
+
+            /* Display the player */
+            display_player(0);
+
+            /* Display the costs header */
+            c_put_str(TERM_WHITE, "Points Left:", 0, sheet_col + 21);
+            strnfmt(buf, sizeof(buf), "%2d", MAX_COST - cost);
+            c_put_str(TERM_L_GREEN, buf, 0, sheet_col + 34);
+
+            /* Display the costs */
+            for (i = 0; i < A_MAX; i++)
             {
-                byte attr = TERM_L_BLUE;
-                
-#ifdef USE_SDL
-                /* Enable story font for highlighted stat name (if enabled) */
-                if (story_character_enabled()) {
-                    sdl_story_font_enable();
-                }
-#endif
-                
-                /* Highlight the stat name as well (at col-1 to match display_player position)
-                 * Use the abbreviated stat names (e.g. "Str") instead of the full names
-                 * ("strength") so the highlight matches the character-sheet layout.
-                 */
-                c_put_str(attr, stat_names[i], row + i, col - 1);
-                
-#ifdef USE_SDL
-                /* Disable story font for numbers */
-                sdl_story_font_disable();
-#endif
-                
+                if (i == stat)
+                {
+                    byte attr = TERM_L_BLUE;
+
+                    /* Match the character sheet label rendering: trim trailing spaces.
+                     * (stat_names[] include padding for mono layouts.) */
+                    const char* stat_label = (p_ptr->stat_drain[i] < 0) ? stat_names_reduced[i] : stat_names[i];
+                    char trimmed_label[32];
+                    SDL_strlcpy(trimmed_label, stat_label ? stat_label : "", sizeof(trimmed_label));
+                    int len = (int)strlen(trimmed_label);
+                    while (len > 0 && trimmed_label[len - 1] == ' ') {
+                        trimmed_label[--len] = '\0';
+                    }
+
+                    bool use_story = story_character_enabled();
+                    if (use_story) {
+                        sdl_story_font_enable();
+                    }
+
+                    c_put_str(attr, trimmed_label, row + i, sheet_col - 1);
+
+                    if (use_story) {
+                        sdl_story_font_disable();
+                    }
+
 #ifndef MONOCHROME_MODE
-                strnfmt(
-                    buf, sizeof(buf), "%4d", birth_stat_costs[stats[i] + 4]);
-                c_put_str(attr, buf, row + i, col + 32);
+                    strnfmt(buf, sizeof(buf), "%4d", birth_stat_costs[stats[i] + 4]);
+                    c_put_str(attr, buf, row + i, sheet_col + 32);
 #else
-                strnfmt(
-                    buf, sizeof(buf), "%4d*", birth_stat_costs[stats[i] + 4]);
-                c_put_str(attr, buf, row + i, col + 32);
-                c_put_str(attr, "*", row + i, col - 2);
+                    strnfmt(buf, sizeof(buf), "%4d*", birth_stat_costs[stats[i] + 4]);
+                    c_put_str(attr, buf, row + i, sheet_col + 32);
+                    c_put_str(attr, "*", row + i, sheet_col - 2);
 #endif
+                }
+                else
+                {
+                    byte attr = TERM_L_WHITE;
+                    strnfmt(buf, sizeof(buf), "%4d", birth_stat_costs[stats[i] + 4]);
+                    c_put_str(attr, buf, row + i, sheet_col + 32);
+                }
             }
-            else
-            {
-                byte attr = TERM_L_WHITE;
-                strnfmt(
-                    buf, sizeof(buf), "%4d", birth_stat_costs[stats[i] + 4]);
-                c_put_str(attr, buf, row + i, col + 32);
+
+            /* Bottom bar follows character sheet font setting */
+            if (story_character_enabled()) {
+                sdl_story_font_enable();
+            }
+
+            if (steamdeck) {
+                char confirm_label[16];
+                char back_label[16];
+                char quit_label[16];
+                char prompt_buf[160];
+
+                /* Steam Deck UI: A=confirm, B=back, Start=quit */
+                birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
+                birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
+                birth_prompt_label('q', "Start", quit_label, sizeof(quit_label));
+
+                strnfmt(prompt_buf, sizeof(prompt_buf),
+                    "D-pad allocate  %s back  %s confirm  %s quit",
+                    back_label, confirm_label, quit_label);
+                Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE, prompt_buf);
+            } else {
+                Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE,
+                    "Arrows -allocate    ESC -back   SPACE/ENTER -confirm   q -quit");
+            }
+
+            if (story_character_enabled()) {
+                sdl_story_font_disable();
             }
         }
-
-#ifdef USE_SDL
-        /* Bottom bar follows character sheet font setting */
-        if (story_character_enabled()) {
-            sdl_story_font_enable();
-        }
-#endif
-
-        Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
-            "Arrows -allocate    ESC -back   ENTER -confirm   q -quit");
-
-#ifdef USE_SDL
-        if (story_character_enabled()) {
-            sdl_story_font_disable();
-        }
-#endif
 
         /* Get key */
         hide_cursor = true;
@@ -2278,11 +4633,13 @@ static NavResult player_birth_aux_2(void)
         }
 
         /* Back to Character Selection */
+        if (steamdeck && ch == steamdeck_back_key())
+            ch = ESCAPE;
         if (ch == ESCAPE)
             return NAV_BACK;
 
         /* Done */
-        if ((ch == '\r') || (ch == '\n') || (ch == ' '))
+        if (birth_confirm_input(ch, steamdeck))
             return NAV_OK;
 
         /* Prev stat */
@@ -2368,146 +4725,147 @@ extern NavResult gain_skills(void)
     /* Interact */
     while (1)
     {
-        // reset the total cost
+        bool steamdeck = steamdeck_controls_active();
+
+        /* Recompute points/costs and apply the temporary skill increases */
         total_cost = 0;
 
-        /* Process skills */
         for (i = 0; i < S_MAX; i++)
         {
             /* Skip Special abilities skill - not trainable */
             if (i == S_SPC) continue;
-            
-            /* Total cost */
             total_cost += skill_cost(old_base[i], skill_gain[i]);
         }
 
-        // set the new experience pool total
         p_ptr->new_exp = old_new_exp - total_cost;
 
-        /* Restrict cost */
         if (p_ptr->new_exp < 0)
         {
-            /* Warning */
             bell("Excessive skills!");
-
-            /* Reduce stat */
             skill_gain[skill]--;
-
-            /* Recompute costs */
             continue;
         }
 
-        /* Calculate the bonuses */
         p_ptr->update |= (PU_BONUS);
-
-        /* Set the redraw flag for everything */
         p_ptr->redraw |= (PR_EXP | PR_BASIC);
 
-        /* update the skills */
         for (i = 0; i < S_MAX; i++)
         {
-            /* Skip Special abilities skill - not trainable */
             if (i == S_SPC) continue;
-            
             p_ptr->skill_base[i] = old_base[i] + skill_gain[i];
         }
 
-        /* Update stuff */
         update_stuff();
 
-        /* Display the player */
-        display_player(0);
+        int wid = 80;
+        int hgt = 24;
+        Term_get_size(&wid, &hgt);
+        if (wid < 1) wid = 80;
+        if (hgt < 1) hgt = 24;
+        bool compact = (wid < 80);
+        int wide_offset = (wid > 80) ? (wid - 80) / 2 : 0;
+        int sheet_col = col + wide_offset;
 
-        /* Display the costs header */
-        if (!character_dungeon)
+        if (compact)
         {
-            if (p_ptr->new_exp >= 10000)
-                tab = 0;
-            else if (p_ptr->new_exp >= 1000)
-                tab = 1;
-            else if (p_ptr->new_exp >= 100)
-                tab = 2;
-            else if (p_ptr->new_exp >= 10)
-                tab = 3;
-            else
-                tab = 4;
-
-            strnfmt(buf, sizeof(buf), "%6d", p_ptr->new_exp);
-            c_put_str(TERM_L_GREEN, buf, row - 2, col + 30);
-            c_put_str(TERM_WHITE, "Points Left:", row - 2, col + 17 + tab);
+            birth_display_skill_allocation_compact(skill, old_base, skill_gain, p_ptr->new_exp, steamdeck);
         }
-
-        /* Display the costs */
-        for (i = 0; i < S_MAX; i++)
+        else
         {
-            /* Skip Special abilities skill - not trainable */
-            if (i == S_SPC) continue;
-            
-            if (i == skill)
+            int prompt_row = birth_prompt_row();
+
+            /* Display the player */
+            display_player(0);
+
+            /* Display the costs header */
+            if (!character_dungeon)
             {
-                byte attr = TERM_L_BLUE;
-                
-#ifdef USE_SDL
-                /* Enable story font for highlighted skill name (if enabled) */
-                if (story_character_enabled()) {
-                    sdl_story_font_enable();
-                }
-#endif
-                
-                /* Highlight the skill name as well (at col-1 to match display_player position) */
-                c_put_str(attr, skill_names_full[i], row + i, col - 1);
-                
-#ifdef USE_SDL
-                /* Disable story font for numbers */
-                sdl_story_font_disable();
-#endif
-                
+                if (p_ptr->new_exp >= 10000)
+                    tab = 0;
+                else if (p_ptr->new_exp >= 1000)
+                    tab = 1;
+                else if (p_ptr->new_exp >= 100)
+                    tab = 2;
+                else if (p_ptr->new_exp >= 10)
+                    tab = 3;
+                else
+                    tab = 4;
+
+                strnfmt(buf, sizeof(buf), "%6d", p_ptr->new_exp);
+                c_put_str(TERM_L_GREEN, buf, row - 2, sheet_col + 30);
+                c_put_str(TERM_WHITE, "Points Left:", row - 2, sheet_col + 17 + tab);
+            }
+
+            /* Display the costs */
+            for (i = 0; i < S_MAX; i++)
+            {
+                /* Skip Special abilities skill - not trainable */
+                if (i == S_SPC) continue;
+
+                if (i == skill)
+                {
+                    byte attr = TERM_L_BLUE;
+
+                    bool use_story = story_character_enabled();
+                    if (use_story) {
+                        sdl_story_font_enable();
+                    }
+
+                    c_put_str(attr, skill_names_full[i], row + i, sheet_col - 1);
+
+                    if (use_story) {
+                        sdl_story_font_disable();
+                    }
+
 #ifndef MONOCHROME_MODE
-                strnfmt(buf, sizeof(buf), "%6d",
-                    skill_cost(old_base[i], skill_gain[i]));
-                c_put_str(attr, buf, row + i, col + 30);
+                    strnfmt(buf, sizeof(buf), "%6d",
+                        skill_cost(old_base[i], skill_gain[i]));
+                    c_put_str(attr, buf, row + i, sheet_col + 30);
 #else
-                strnfmt(buf, sizeof(buf), "%6d*",
-                    skill_cost(old_base[i], skill_gain[i]));
-                c_put_str(attr, buf, row + i, col + 30);
-                c_put_str(attr, "*", row + i, col - 2);
+                    strnfmt(buf, sizeof(buf), "%6d*",
+                        skill_cost(old_base[i], skill_gain[i]));
+                    c_put_str(attr, buf, row + i, sheet_col + 30);
+                    c_put_str(attr, "*", row + i, sheet_col - 2);
 #endif
+                }
+                else
+                {
+                    byte attr = TERM_L_WHITE;
+                    strnfmt(buf, sizeof(buf), "%6d",
+                        skill_cost(old_base[i], skill_gain[i]));
+                    c_put_str(attr, buf, row + i, sheet_col + 30);
+                }
             }
-            else
-            {
-                byte attr = TERM_L_WHITE;
-                strnfmt(buf, sizeof(buf), "%6d",
-                    skill_cost(old_base[i], skill_gain[i]));
-                c_put_str(attr, buf, row + i, col + 30);
+
+            /* Bottom bar follows character sheet font setting */
+            if (story_character_enabled()) {
+                sdl_story_font_enable();
+            }
+
+            if (steamdeck) {
+                char confirm_label[16];
+                char back_label[16];
+                char quit_label[16];
+                char prompt_buf[160];
+
+                /* Steam Deck UI: A=confirm, B=back, Start=quit */
+                birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
+                birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
+                birth_prompt_label('q', "q", quit_label, sizeof(quit_label));
+
+                strnfmt(prompt_buf, sizeof(prompt_buf),
+                    "D-pad -allocate      %s-back     %s-confirm     %s-quit",
+                    back_label, confirm_label, quit_label);
+                Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE, prompt_buf);
+            } else {
+                Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE,
+                    "Arrows -allocate      ESC -back     SPACE/ENTER -confirm     q -quit");
+            }
+
+            if (story_character_enabled()) {
+                sdl_story_font_disable();
             }
         }
-
-        // /* Special Prompt? */
-        // if (character_dungeon)
-        // {
-        //     Term_putstr(QUESTION_COL + 38 + 2, INSTRUCT_ROW + 1, -1, TERM_SLATE,
-        //         "ESC abort skill increases                  ");
-
-        //     /* Hack - highlight the key names */
-        //     Term_putstr(QUESTION_COL + 38 + 2, INSTRUCT_ROW + 1, -1,
-        //         TERM_L_WHITE, "ESC");
-        // }
-
-#ifdef USE_SDL
-        /* Bottom bar follows character sheet font setting */
-        if (story_character_enabled()) {
-            sdl_story_font_enable();
-        }
-#endif
-
-        Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
-            "Arrows -allocate      ESC -back     ENTER -confirm     q -quit");
-
-#ifdef USE_SDL
-        if (story_character_enabled()) {
-            sdl_story_font_disable();
-        }
-#endif
 
         /* Get key */
         hide_cursor = true;
@@ -2527,13 +4885,21 @@ extern NavResult gain_skills(void)
         }
 
         /* Done */
-        if ((ch == '\r') || (ch == '\n') || (ch == ' '))
+        if (birth_confirm_input(ch, steamdeck))
         {
+            if (compact && birth_pending_compact_description_confirm)
+            {
+                if (!birth_show_compact_description_after_assignment(steamdeck))
+                    continue;
+                birth_pending_compact_description_confirm = false;
+            }
             result = NAV_OK;
             break;
         }
 
         /* Abort */
+        if (steamdeck && ch == steamdeck_back_key())
+            ch = ESCAPE;
         if (ch == ESCAPE)
         {
             p_ptr->new_exp = old_new_exp;
@@ -2605,44 +4971,68 @@ static NavResult player_birth_aux(void)
 {
 
     log_debug("Initializing character data and history");
+    birth_pending_compact_description_confirm = true;
 
-    my_strcpy(op_ptr->full_name, c_name + c_info[p_ptr->phouse].name, sizeof(op_ptr->full_name));
+    SDL_strlcpy(op_ptr->full_name, c_name + c_info[p_ptr->pcharacter].name, sizeof(op_ptr->full_name));
     process_player_name(true);  /* CRITICAL: Must pass true to update savefile path! */
     /* Clear the previous history strings */
     p_ptr->history[0] = '\0';
-    my_strcat(
-                p_ptr->history, (c_text + c_info[p_ptr->phouse].text), sizeof(p_ptr->history));
+    SDL_strlcat(
+                p_ptr->history, (c_text + c_info[p_ptr->pcharacter].text), sizeof(p_ptr->history));
 
     p_ptr->wt = 0;
     p_ptr->ht = 0;
     p_ptr->age = 0;
 
     /* Oath selection (after character creation, before tutorial/stats) */
-    log_debug("Entering oath selection");
-    NavResult oath_result = select_oath();
-    if (oath_result != NAV_OK) return oath_result;
-    log_debug("Oath selection completed");
+    if (run_mode_is_blitz() && !blitz_oaths_enabled())
+    {
+        p_ptr->oath_type = 0;
+    }
+    else
+    {
+        log_debug("Entering oath selection");
+        NavResult oath_result = select_oath();
+        if (oath_result != NAV_OK) return oath_result;
+        log_debug("Oath selection completed");
+    }
+
+    if (run_mode_is_blitz())
+    {
+        NavResult blitz_effects = blitz_configure_effects();
+        if (blitz_effects != NAV_OK)
+            return blitz_effects;
+    }
 
     /* Point-based flow */
-    for (;;)
+    if (blitz_auto_allocates_stats())
     {
-        display_player(0);
+        NavResult auto_result = blitz_auto_build_character();
+        if (auto_result != NAV_OK)
+            return auto_result;
+    }
+    else
+    {
+        for (;;)
+        {
+            display_player(0);
 
-        /* Stats allocation screen */
-        log_debug("Entering stats allocation");
-        NavResult s = player_birth_aux_2();
-        if (s == NAV_OK) {
-            /* Skill allocation: may return NAV_BACK / NAV_TO_MAIN */
-            log_debug("Stats accepted, entering skills allocation");
-            NavResult g = gain_skills();
-            if (g != NAV_OK) return g;
-            log_debug("Skills allocation completed");
-            break; /* accepted */
+            /* Stats allocation screen */
+            log_debug("Entering stats allocation");
+            NavResult s = player_birth_aux_2();
+            if (s == NAV_OK) {
+                /* Skill allocation: may return NAV_BACK / NAV_TO_MAIN */
+                log_debug("Stats accepted, entering skills allocation");
+                NavResult g = gain_skills();
+                if (g != NAV_OK) return g;
+                log_debug("Skills allocation completed");
+                break; /* accepted */
+            }
+            if (s == NAV_BACK)   return NAV_BACK;    /* back to Character Selection */
+            if (s == NAV_TO_MAIN) return NAV_TO_MAIN;/* back to main menu */
+            if (s == NAV_QUIT)   return NAV_QUIT;    /* hard exit */
+            /* any other value: loop again */
         }
-        if (s == NAV_BACK)   return NAV_BACK;    /* back to Character Selection */
-        if (s == NAV_TO_MAIN) return NAV_TO_MAIN;/* back to main menu */
-        if (s == NAV_QUIT)   return NAV_QUIT;    /* hard exit */
-        /* any other value: loop again */
     }
 
     // Reset the number of artefacts
@@ -2672,6 +5062,7 @@ NavResult player_birth()
     time_t ct = time((time_t*)0);
 
     log_info("Starting character creation process");
+    killer_reset();
 
     /* Create a new character */
     while (1)
@@ -2703,12 +5094,12 @@ NavResult player_birth()
             clean_date, "%.2s %.3s %.4s", raw_date + 7, month, raw_date + 1);
 
     /* Add in "character start" information */
-    my_strcat(notes_buffer,
+    SDL_strlcat(notes_buffer,
         format("%s of the %s\n", op_ptr->full_name, p_name + rp_ptr->name),
         sizeof(notes_buffer));
-    my_strcat(notes_buffer, format("Entered Angband on %s\n", clean_date),
+    SDL_strlcat(notes_buffer, format("Entered Angband on %s\n", clean_date),
         sizeof(notes_buffer));
-    my_strcat(
+    SDL_strlcat(
         notes_buffer, "\n   Turn     Depth   Note\n\n", sizeof(notes_buffer));
 
     /* Note player birth in the message recall */
@@ -2722,9 +5113,28 @@ NavResult player_birth()
     player_outfit();
 
     /* Load persistent settings from metarun if this is a continuing metarun */
-    metarun_load_persistent_settings();
+    if (!run_mode_is_blitz())
+        metarun_load_persistent_settings();
+
+    /* Reapply app-wide settings after character creation so UI preferences are
+     * not sourced from the metarun or savefile. */
+    sdl_config_load_app_options(get_sdl_config_path());
 
     log_info("Character creation completed: %s the %s", op_ptr->full_name, p_name + rp_ptr->name);
 
     return NAV_OK;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -11,6 +11,8 @@
  */
 
 #include "angband.h"
+#include "externs.h"
+#include "log/log.h"
 
 /*
  * Terrified monsters will turn to fight if they are slower than the
@@ -301,9 +303,20 @@ static void remove_invalid_spells(int m_idx, u32b* f4p)
 
     // no songs by Morgoth until uncrowned
     if ((m_ptr->r_idx == R_IDX_MORGOTH)
+        && !p_ptr->on_the_run
         && ((&a_info[ART_MORGOTH_3])->cur_num == 0))
     {
         f4 &= ~(RF4_SNG_MASK);
+    }
+
+    // In his throne hall, Morgoth should not waste turns on the door-closing
+    // part of Song of Binding before the pursuit begins.
+    if ((m_ptr->r_idx == R_IDX_MORGOTH)
+        && (p_ptr->depth == MORGOTH_DEPTH)
+        && p_ptr->morgoth_hall_entered
+        && !p_ptr->on_the_run)
+    {
+        f4 &= ~(RF4_SNG_BINDING);
     }
 
     // projectiles have limited range
@@ -699,7 +712,7 @@ int cave_passable_mon(monster_type* m_ptr, int y, int x, bool* bash)
     if (feat == FEAT_GLYPH)
     {
         // a simulated Will check
-        int difficulty = (c_info[p_ptr->phouse].flags & UNQ_SNG_MEL) ? 40 : 20;
+        int difficulty = (c_info[p_ptr->pcharacter].flags & UNQ_SNG_MEL) ? 40 : 20;
         int break_chance = success_chance(10, monster_skill(m_ptr, S_WIL), difficulty);
 
         // can always attack the player if the player is standing on the glyph
@@ -1020,7 +1033,8 @@ static bool get_move_wander(monster_type* m_ptr, int* ty, int* tx)
             + ((r_ptr->flags1 & RF1_DROP_2D2) ? 4 : 0)
             + ((r_ptr->flags1 & RF1_DROP_1D2) ? 2 : 0)
             + ((r_ptr->flags1 & RF1_DROP_100) ? 1 : 0)
-            + ((r_ptr->flags1 & RF1_DROP_33) ? 1 : 0));
+            + ((r_ptr->flags1 & RF1_DROP_33) ? 1 : 0)
+            + ((r_ptr->flags3 & RF3_DROP_1D3) ? 3 : 0));
 
         // treasure-hoarding territorial monsters stay still at their hoard...
         if ((r_ptr->flags2 & (RF2_TERRITORIAL)) && (max_drop > 0)
@@ -3800,10 +3814,19 @@ void monster_exchange_places(monster_type* m_ptr)
     // attack of opportunity
     if (!p_ptr->afraid && !p_ptr->entranced && (p_ptr->stun <= 100))
     {
-        // this might be the most complicated auto-grammatical message in the
-        // game...
-        msg_format("You attack %s as %s slips past.", m_name2, m_name3);
-        py_attack_aux(m_ptr->fy, m_ptr->fx, ATT_OPPORTUNITY);
+        if (valorous_oath_auto_attack_safety && chosen_oath(OATH_VALOROUS)
+            && !oath_invalid(OATH_VALOROUS) && m_ptr->ml
+            && (m_ptr->stance == STANCE_FLEEING))
+        {
+            msg_format("You refuse to strike %s as it flees past.", m_name1);
+        }
+        else
+        {
+            // this might be the most complicated auto-grammatical message in the
+            // game...
+            msg_format("You attack %s as %s slips past.", m_name2, m_name3);
+            py_attack_aux(m_ptr->fy, m_ptr->fx, ATT_OPPORTUNITY);
+        }
     }
 
     // remember that the monster can do this
@@ -4727,12 +4750,17 @@ void wander(monster_type* m_ptr)
 
     // begin a song of piercing if possible
     // note that Morgoth must be uncrowned
-    if ((r_ptr->flags4 & (RF4_SNG_PIERCING)) && (m_ptr->song != SNG_PIERCING)
+    bool allow_piercing = true;
+    if (m_ptr->r_idx == R_IDX_MORGOTH)
+        allow_piercing = p_ptr->on_the_run
+            || ((&a_info[ART_MORGOTH_3])->cur_num == 1);
+
+    if (allow_piercing
+        && (r_ptr->flags4 & (RF4_SNG_PIERCING))
+        && (m_ptr->song != SNG_PIERCING)
         && (m_ptr->alertness < ALERTNESS_ALERT)
-        && (m_ptr->mana >= MON_MANA_COST)
-        && ((&a_info[ART_MORGOTH_3])->cur_num == 1))
+        && (m_ptr->mana >= MON_MANA_COST))
     {
-        // 96+17 is RF4_SNG_PIERCING
         make_attack_ranged(m_ptr, 96 + 19);
     }
 
@@ -4762,6 +4790,34 @@ void wander(monster_type* m_ptr)
 
     /* Change terrain, move the monster, handle secondary effects. */
     process_move(m_ptr, ty, tx, bash);
+}
+
+static bool morgoth_has_player_track(const monster_type* m_ptr)
+{
+    if (los(p_ptr->py, p_ptr->px, m_ptr->fy, m_ptr->fx))
+        return true;
+    if (m_ptr->target_y && m_ptr->target_x)
+        return true;
+    /* Mirror the "can hear the player" activity threshold. */
+    return (flow_dist(FLOW_PLAYER_NOISE, m_ptr->fy, m_ptr->fx) < 20);
+}
+
+static void maybe_start_morgoth_piercing(monster_type* m_ptr)
+{
+    monster_race* r_ptr = &r_info[m_ptr->r_idx];
+
+    if (m_ptr->r_idx != R_IDX_MORGOTH || !p_ptr->on_the_run)
+        return;
+    if (!(r_ptr->flags4 & (RF4_SNG_PIERCING)))
+        return;
+    if (m_ptr->song != SNG_NOTHING)
+        return;
+    if (m_ptr->mana < MON_MANA_COST)
+        return;
+    if (morgoth_has_player_track(m_ptr))
+        return;
+
+    make_attack_ranged(m_ptr, 96 + 19);
 }
 
 int get_chance_of_ranged_attack(monster_type* m_ptr)
@@ -4824,49 +4880,7 @@ static void process_monster(monster_type* m_ptr)
         m_ptr->mflag |= (MFLAG_ACTV);
 
     // do this before Mastery and Lorien effects kick in...
-    if (m_ptr->r_idx == R_IDX_MORGOTH
-        && health_level(m_ptr->hp, m_ptr->maxhp) <= HEALTH_WOUNDED
-        && p_ptr->morgoth_state < 2)
-    {
-        log_debug("process_monster: Morgoth WOUNDED (hp=%d/%d), calling anger_morgoth(2)",
-                 m_ptr->hp, m_ptr->maxhp);
-        msg_print("Morgoth grows angry.");
-        message_flush();
-        anger_morgoth(2);
-    }
-    else if (m_ptr->r_idx == R_IDX_MORGOTH
-        && health_level(m_ptr->hp, m_ptr->maxhp) <= HEALTH_BADLY_WOUNDED
-        && p_ptr->morgoth_state < 3)
-    {
-        log_debug("process_monster: Morgoth BADLY_WOUNDED (hp=%d/%d), calling anger_morgoth(3)",
-                 m_ptr->hp, m_ptr->maxhp);
-        msg_print("Morgoth unslings his mighty shield.");
-        message_flush();
-        anger_morgoth(3);
-    }
-    else if (m_ptr->r_idx == R_IDX_MORGOTH
-        && health_level(m_ptr->hp, m_ptr->maxhp) <= HEALTH_ALMOST_DEAD
-        && p_ptr->morgoth_state < 4)
-    {
-        log_debug("process_monster: Morgoth ALMOST_DEAD (hp=%d/%d), calling anger_morgoth(4)",
-                 m_ptr->hp, m_ptr->maxhp);
-        msg_print("Morgoth grows desperate.");
-        message_flush();
-        anger_morgoth(4);
-    }
-
-    if (m_ptr->r_idx == R_IDX_MORGOTH
-        && p_ptr->morgoth_state < 5
-        && m_ptr->maxhp > 0
-        && m_ptr->hp > 0
-        && ((long)m_ptr->hp * 10L) <= (long)m_ptr->maxhp)
-    {
-        log_debug("process_monster: Morgoth at 10%% health (hp=%d/%d), calling anger_morgoth(5)",
-                 m_ptr->hp, m_ptr->maxhp);
-        msg_print("Morgoth unleashes his final fury!");
-        message_flush();
-        anger_morgoth(5);
-    }
+    maybe_update_morgoth_state_from_hp(m_ptr);
 
     // assume we are not under the influence of the Song of Mastery
     m_ptr->skip_this_turn = false;
@@ -4898,9 +4912,21 @@ static void process_monster(monster_type* m_ptr)
         /* Get the monster name */
         monster_desc(m_name, sizeof(m_name), m_ptr, 0x80);
 
-        if ((m_ptr->mana == 0)
-            || ((m_ptr->song == SNG_PIERCING)
-                && (m_ptr->alertness >= ALERTNESS_ALERT)))
+        bool end_song = (m_ptr->mana == 0);
+        if (!end_song && (m_ptr->song == SNG_PIERCING))
+        {
+            if (m_ptr->r_idx == R_IDX_MORGOTH && p_ptr->on_the_run)
+            {
+                if (morgoth_has_player_track(m_ptr))
+                    end_song = true;
+            }
+            else if (m_ptr->alertness >= ALERTNESS_ALERT)
+            {
+                end_song = true;
+            }
+        }
+
+        if (end_song)
         {
             if (m_ptr->ml)
                 msg_format("%^s ends his song.", m_name);
@@ -4927,6 +4953,8 @@ static void process_monster(monster_type* m_ptr)
             }
         }
     }
+
+    maybe_start_morgoth_piercing(m_ptr);
 
     // need to update view if the monster affects light and is close enough
     if ((r_ptr->light != 0) && (m_ptr->cdis < MAX_SIGHT + ABS(r_ptr->light)))
@@ -5636,13 +5664,16 @@ void calc_morale(monster_type* m_ptr)
 
     // reduce morale for the Majesty ability
     difference = MAX(p_ptr->skill_use[S_WIL] - monster_skill(m_ptr, S_WIL), 0);
-    if (c_info[p_ptr->phouse].flags_u & UNQ_WIL_FIN) difference = MAX(2*p_ptr->skill_use[S_WIL] - monster_skill(m_ptr, S_WIL), 0);
+    if (c_info[p_ptr->pcharacter].flags_u & UNQ_WIL_FIN) difference = MAX(2*p_ptr->skill_use[S_WIL] - monster_skill(m_ptr, S_WIL), 0);
     if (p_ptr->active_ability[S_WIL][WIL_MAJESTY])
         morale -= difference / 2 * 10;
 
     // reduce morale for the Bane ability
     if (p_ptr->active_ability[S_PER][PER_BANE])
         morale -= bane_bonus(m_ptr) * 10;
+
+    // reduce morale for artifact-granted bane
+    morale -= artifact_bane_bonus(m_ptr) * 10;
 
     // increase morale for the Elf-Bane ability
     morale += elf_bane_bonus(m_ptr) * 10;
@@ -6129,6 +6160,9 @@ void monster_perception(bool player_centered, bool main_roll, int difficulty)
             // but this is equivalent)
             m_perception -= bane_bonus(m_ptr);
 
+            // deal with artifact-granted bane
+            m_perception -= artifact_bane_bonus(m_ptr);
+
             // increase morale for the Elf-Bane ability
             m_perception += elf_bane_bonus(m_ptr);
 
@@ -6153,30 +6187,48 @@ void monster_perception(bool player_centered, bool main_roll, int difficulty)
             if (los(m_ptr->fy, m_ptr->fx, p_ptr->py, p_ptr->px)
                 && (m_ptr->alertness >= ALERTNESS_UNWARY))
             {
-                int d, dir, y, x, open_squares = 0;
+                bool monster_sees_player = true;
 
-                // check adjacent squares for impassable squares
-                for (d = 0; d < 8; d++)
+                // Visual recognition check for intelligent monsters
+                if (visual_recognition && (r_ptr->flags2 & (RF2_SMART)))
                 {
-                    dir = cycle[d];
+                    // Disguise ability reduces monster's effective perception
+                    int per_divisor = p_ptr->active_ability[S_STL][STL_DISGUISE] ? 4 : 2;
 
-                    y = p_ptr->py + ddy[dir];
-                    x = p_ptr->px + ddx[dir];
+                    int vision_score = monster_skill(m_ptr, S_PER) / per_divisor
+                                     + p_ptr->cur_light
+                                     + ((cave_info[p_ptr->py][p_ptr->px] & (CAVE_GLOW)) ? 2 : 0);
 
-                    if (cave_floor_bold(y, x))
+                    monster_sees_player = (vision_score >= m_ptr->cdis);
+                }
+
+                if (monster_sees_player)
+                {
+                    int d, dir, y, x, open_squares = 0;
+
+                    // check adjacent squares for impassable squares
+                    for (d = 0; d < 8; d++)
                     {
-                        open_squares++;
-                    }
-                }
+                        dir = cycle[d];
 
-                // bonus reduced if the player has 'disguise'
-                if (p_ptr->active_ability[S_STL][STL_DISGUISE])
-                {
-                    m_perception += (open_squares + combat_sight_bonus) / 2;
-                }
-                else
-                {
-                    m_perception += open_squares + combat_sight_bonus;
+                        y = p_ptr->py + ddy[dir];
+                        x = p_ptr->px + ddx[dir];
+
+                        if (cave_floor_bold(y, x))
+                        {
+                            open_squares++;
+                        }
+                    }
+
+                    // bonus reduced if the player has 'disguise' (only with old behavior)
+                    if (!visual_recognition && p_ptr->active_ability[S_STL][STL_DISGUISE])
+                    {
+                        m_perception += (open_squares + combat_sight_bonus) / 2;
+                    }
+                    else
+                    {
+                        m_perception += open_squares + combat_sight_bonus;
+                    }
                 }
             }
 
@@ -6219,3 +6271,6 @@ void monster_perception(bool player_centered, bool main_roll, int difficulty)
         }
     }
 }
+
+
+

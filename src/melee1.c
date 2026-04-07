@@ -9,6 +9,9 @@
  */
 
 #include "angband.h"
+#include "externs.h"
+#include "log/log.h"
+#include "player/killer.h"
 
 /*
  * Main combat rolls startup deferral state
@@ -64,6 +67,25 @@ static bool monster_cut_or_stun(int crit_bonus_dice, int net_dam, int effect)
     return (false);
 }
 
+static int ranged_attack_sound(int attack)
+{
+    switch (attack)
+    {
+    case 96 + 0:  /* RF4_ARROW1 */
+    case 96 + 1:  /* RF4_ARROW2 */
+    case 96 + 2:  /* RF4_BOULDER */
+    case 96 + 23: /* RF4_THROW_WEB */
+        return MSG_MONSTER_ATTACK_RANGED;
+    case 96 + 3:  /* RF4_BRTH_FIRE */
+    case 96 + 4:  /* RF4_BRTH_COLD */
+    case 96 + 5:  /* RF4_BRTH_POIS */
+    case 96 + 6:  /* RF4_BRTH_DARK */
+        return MSG_MONSTER_ATTACK_BREATH;
+    default:
+        return -1;
+    }
+}
+
 bool blocking_bonus_active(void)
 {
     bool moved_last_turn = (p_ptr->previous_action[0] >= 1)
@@ -107,10 +129,65 @@ int elem_bonus(int effect)
 }
 
 /*
+ * Calculate effective protection sides accounting for depth-scaling
+ */
+static int effective_ps(const object_type* o_ptr)
+{
+    int ps = o_ptr->ps;
+    if (ps <= 0) return ps;
+
+    u32b f1, f2, f3, f4;
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
+
+    if (f4 & TR4_DEPTH_SCALE_PS)
+    {
+        int depth = p_ptr->depth;
+        if (depth < 0) depth = 0;
+        ps += depth / 5;
+    }
+    return ps;
+}
+
+static u32b protection_flag_for_attack_type(int typ)
+{
+    switch (typ)
+    {
+    case GF_FIRE:
+        return TR4_PROT_FIRE;
+    case GF_COLD:
+        return TR4_PROT_COLD;
+    case GF_POIS:
+        return TR4_PROT_POIS;
+    case GF_DARK:
+        return TR4_PROT_DARK;
+    default:
+        return 0L;
+    }
+}
+
+static bool protection_applies_for_attack(const object_type* o_ptr, int typ)
+{
+    u32b ignored = 0L, f4 = 0L;
+    u32b flag;
+
+    if (typ == GF_HURT)
+        return true;
+
+    flag = protection_flag_for_attack_type(typ);
+    if (!flag || !o_ptr->k_idx)
+        return false;
+
+    object_flags4(o_ptr, &ignored, &ignored, &ignored, &f4);
+
+    return (f4 & flag) != 0;
+}
+
+/*
  * Roll the protection dice for all parts of the player's armour
  */
 extern int protection_roll(int typ, bool melee)
 {
+    (void)melee;
     int i;
     object_type* o_ptr;
     int prt = 0;
@@ -122,7 +199,7 @@ extern int protection_roll(int typ, bool melee)
 
     if (singing(SNG_STAYING))
     {
-        if (c_info[p_ptr->phouse].flags_u & UNQ_SNG_FIN) prt += damroll(4, 2);
+        if (c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_FIN) prt += damroll(4, 2);
         else prt += damroll(2, 2);
     }
 
@@ -139,10 +216,10 @@ extern int protection_roll(int typ, bool melee)
         if (i >= INVEN_BODY)
             armour_weight += o_ptr->weight;
 
-        // fire and cold and generic 'hurt' all check the shield
+        // shields can apply their protection to melee or flagged attack types
         if (i == INVEN_ARM)
         {
-            if ((typ == GF_HURT) || (typ == GF_FIRE) || (typ == GF_COLD))
+            if (protection_applies_for_attack(o_ptr, typ))
             {
                 if (blocking_bonus_active())
                 {
@@ -150,7 +227,7 @@ extern int protection_roll(int typ, bool melee)
                 }
                 if (o_ptr->pd > 0)
                 {
-                    int sides = o_ptr->ps;
+                    int sides = effective_ps(o_ptr);
                     if (side_shift && sides > 0) {
                         sides -= side_shift;
                         if (sides < 1) sides = 1;
@@ -160,14 +237,11 @@ extern int protection_roll(int typ, bool melee)
             }
         }
 
-        // also add protection if damage is generic 'hurt' or it is a ring or
-        // amulet slot
-        else if ((typ == GF_HURT) || (i == INVEN_LEFT) || (i == INVEN_RIGHT)
-            || (i == INVEN_NECK))
+        else if (protection_applies_for_attack(o_ptr, typ))
         {
             if (o_ptr->ps > 0)
             {
-                int sides = o_ptr->ps;
+                int sides = effective_ps(o_ptr);
                 if (side_shift && sides > 0) {
                     sides -= side_shift;
                     if (sides < 1) sides = 1;
@@ -192,6 +266,7 @@ extern int protection_roll(int typ, bool melee)
  */
 extern int p_min(int typ, bool melee)
 {
+    (void)melee;
     int i;
     object_type* o_ptr;
     int prt = 0;
@@ -202,7 +277,7 @@ extern int p_min(int typ, bool melee)
 
     if (singing(SNG_STAYING))
     {
-        if (c_info[p_ptr->phouse].flags_u & UNQ_SNG_FIN) prt += 4;
+        if (c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_FIN) prt += 4;
         else prt += 2;
     }
 
@@ -219,10 +294,10 @@ extern int p_min(int typ, bool melee)
         if (i >= INVEN_BODY)
             armour_weight += o_ptr->weight;
 
-        // fire and cold and generic 'hurt' all check the shield
+        // shields can apply their protection to melee or flagged attack types
         if (i == INVEN_ARM)
         {
-            if ((typ == GF_HURT) || (typ == GF_FIRE) || (typ == GF_COLD))
+            if (protection_applies_for_attack(o_ptr, typ))
             {
                 if (blocking_bonus_active())
                 {
@@ -235,9 +310,7 @@ extern int p_min(int typ, bool melee)
             }
         }
 
-        // generic 'hurt' uses everything else too
-        else if ((typ == GF_HURT) || (i == INVEN_LEFT) || (i == INVEN_RIGHT)
-            || (i == INVEN_NECK))
+        else if (protection_applies_for_attack(o_ptr, typ))
         {
             if (o_ptr->ps > 0)
             {
@@ -261,6 +334,7 @@ extern int p_min(int typ, bool melee)
  */
 extern int p_max(int typ, bool melee)
 {
+    (void)melee;
     int i;
     object_type* o_ptr;
     int prt = 0;
@@ -272,7 +346,7 @@ extern int p_max(int typ, bool melee)
 
     if (singing(SNG_STAYING))
     {
-        if (c_info[p_ptr->phouse].flags_u & UNQ_SNG_FIN) prt += 8;
+        if (c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_FIN) prt += 8;
         else prt += 4;
     }
 
@@ -289,10 +363,10 @@ extern int p_max(int typ, bool melee)
         if (i >= INVEN_BODY)
             armour_weight += o_ptr->weight;
 
-        // fire and cold and generic 'hurt' all check the shield
+        // shields can apply their protection to melee or flagged attack types
         if (i == INVEN_ARM)
         {
-            if ((typ == GF_HURT) || (typ == GF_FIRE) || (typ == GF_COLD))
+            if (protection_applies_for_attack(o_ptr, typ))
             {
                 if (blocking_bonus_active())
                 {
@@ -300,7 +374,7 @@ extern int p_max(int typ, bool melee)
                 }
                 if (o_ptr->pd > 0)
                 {
-                    int sides = o_ptr->ps;
+                    int sides = effective_ps(o_ptr);
                     if (side_shift && sides > 0) {
                         sides -= side_shift;
                         if (sides < 1) sides = 1;
@@ -310,13 +384,11 @@ extern int p_max(int typ, bool melee)
             }
         }
 
-        // generic 'hurt' uses everything else too
-        else if ((typ == GF_HURT) || (i == INVEN_LEFT) || (i == INVEN_RIGHT)
-            || (i == INVEN_NECK))
+        else if (protection_applies_for_attack(o_ptr, typ))
         {
             if (o_ptr->ps > 0)
             {
-                int sides = o_ptr->ps;
+                int sides = effective_ps(o_ptr);
                 if (side_shift && sides > 0) {
                     sides -= side_shift;
                     if (sides < 1) sides = 1;
@@ -440,6 +512,9 @@ void do_betrayal_ring_amulet()
         int near_x = p_ptr->px;
 
         item = inven_takeoff(item, 1);
+        if (item == -1)
+            return;
+
         if (item >= 0)
             o_ptr = &inventory[item];
         else
@@ -510,6 +585,9 @@ void do_betrayal_ring_amulet()
             floor_item_increase(0 - item, -1);
             floor_item_optimize(0 - item);
         }
+
+        handle_stuff();
+        inven_enforce_current_pack_limits();
     }
 }
 
@@ -560,6 +638,8 @@ bool make_attack_normal(monster_type* m_ptr)
     int prt_percent = 100; // a default value to soothe compilation warnings
 
     int dam_type;
+
+    killer_mark_monster(m_ptr);
 
     /* Not allowed to attack */
     if (r_ptr->flags1 & (RF1_NEVER_BLOW))
@@ -678,6 +758,8 @@ bool make_attack_normal(monster_type* m_ptr)
             hit_result = hit_roll(
                 total_attack_mod, total_evasion_mod, m_ptr, PLAYER, true);
         }
+
+        sound(MSG_MONSTER_ATTACK);
 
         /* Monster hits player */
         if (!effect || (hit_result > 0))
@@ -1132,7 +1214,7 @@ bool make_attack_normal(monster_type* m_ptr)
                 int drain;
 
                 char msg_tmp[80];
-                my_strcpy(msg_tmp, msg, sizeof(msg_tmp));
+                SDL_strlcpy(msg_tmp, msg, sizeof(msg_tmp));
 
                 /* Obvious */
                 obvious = true;
@@ -1142,7 +1224,7 @@ bool make_attack_normal(monster_type* m_ptr)
                 {
                     if (saving_throw(m_ptr, 0))
                     {
-                        my_strcat(msg_tmp, "  You resist the effects.",
+                        SDL_strlcat(msg_tmp, "  You resist the effects.",
                             sizeof(msg_tmp));
                     }
                     else
@@ -1158,13 +1240,13 @@ bool make_attack_normal(monster_type* m_ptr)
                                 p_ptr->csp = 0;
                                 p_ptr->csp_frac = 0;
 
-                                my_strcat(msg_tmp, "  Your voice fails you!",
+                                SDL_strlcat(msg_tmp, "  Your voice fails you!",
                                     sizeof(msg_tmp));
                             }
                             else
                             {
                                 p_ptr->csp -= drain;
-                                my_strcat(msg_tmp, "  Your voice wavers.",
+                                SDL_strlcat(msg_tmp, "  Your voice wavers.",
                                     sizeof(msg_tmp));
                             }
 
@@ -1667,6 +1749,9 @@ bool make_attack_normal(monster_type* m_ptr)
                         /* Take off first */
                         item = inven_takeoff(item, 1);
 
+                        if (item == -1)
+                            break;
+
                         /* Get the original object */
                         if (item >= 0)
                             o_ptr = &inventory[item];
@@ -1706,6 +1791,9 @@ bool make_attack_normal(monster_type* m_ptr)
                         floor_item_increase(0 - item, -1);
                         floor_item_optimize(0 - item);
                     }
+
+                    handle_stuff();
+                    inven_enforce_current_pack_limits();
                 }
 
                 break;
@@ -1974,9 +2062,19 @@ bool make_attack_normal(monster_type* m_ptr)
                                     - (((&inventory[INVEN_WIELD])->weight + 9)
                                         / 10)))
                         {
-                            msg_print("You riposte!");
-                            p_ptr->ripostes++;
-                            py_attack_aux(m_ptr->fy, m_ptr->fx, ATT_RIPOSTE);
+                            if (valorous_oath_auto_attack_safety
+                                && chosen_oath(OATH_VALOROUS)
+                                && !oath_invalid(OATH_VALOROUS) && m_ptr->ml
+                                && (m_ptr->stance == STANCE_FLEEING))
+                            {
+                                msg_print("You hold back your riposte to avoid striking a fleeing foe.");
+                            }
+                            else
+                            {
+                                msg_print("You riposte!");
+                                p_ptr->ripostes++;
+                                py_attack_aux(m_ptr->fy, m_ptr->fx, ATT_RIPOSTE);
+                            }
                         }
                     }
                 }
@@ -2257,6 +2355,12 @@ bool make_attack_ranged(monster_type* m_ptr, int attack)
 
     /*Monster has cast a spell*/
     m_ptr->mflag &= ~(MFLAG_ALWAYS_CAST);
+
+    {
+        int attack_sound = ranged_attack_sound(attack);
+        if (attack_sound >= 0)
+            sound(attack_sound);
+    }
 
     /*** Execute the ranged attack chosen. ***/
     switch (attack)
@@ -2797,7 +2901,7 @@ void new_combat_round(void)
         log_trace("[ROUND] copy current->old: combat_number_old(before)=%d", combat_number_old);
         for (i = 0; i < MAX_COMBAT_ROLLS; i++)
         {
-            COPY(&combat_rolls[1][i], &combat_rolls[0][i], combat_roll);
+            memcpy(&combat_rolls[1][i], &combat_rolls[0][i], sizeof(combat_roll));
             log_trace("[ROUND]   copied i=%d att_type=%d att=%d evn=%d dam=%d prot=%d atk=%c def=%c", i,
                       combat_rolls[1][i].att_type,
                       combat_rolls[1][i].att,
@@ -3462,7 +3566,7 @@ static void draw_combat_roll_line(int row, int base_col_offset,
             {
                 if ((roll->ps < 1) || (roll->pd < 1))
                 {
-                    my_strcpy(buf, "        ", sizeof(buf));
+                    SDL_strlcpy(buf, "        ", sizeof(buf));
                     Term_addstr(-1, a_prot_roll, buf);
                 }
                 else if (roll->ps < 10)
@@ -3579,7 +3683,7 @@ static void draw_combat_roll_line(int row, int base_col_offset,
         {
             if ((roll->ps < 1) || (roll->pd < 1))
             {
-                my_strcpy(buf, "        ", sizeof(buf));
+                SDL_strlcpy(buf, "        ", sizeof(buf));
                 Term_addstr(-1, a_prot_roll, buf);
             }
             else if (roll->ps < 10)
@@ -3668,7 +3772,7 @@ void add_combat_round_to_history(void)
     
     /* Copy the combat rolls from the previous round */
     for (i = 0; i < combat_number_old && i < MAX_COMBAT_ROLLS; i++) {
-        COPY(&combat_history[combat_history_head].rolls[i], &combat_rolls[1][i], combat_roll);
+        memcpy(&combat_history[combat_history_head].rolls[i], &combat_rolls[1][i], sizeof(combat_roll));
     }
 }
 
@@ -3685,10 +3789,10 @@ void do_cmd_combat_history(void)
     char buf[120];
     
     /* Wipe finder */
-    my_strcpy(finder, "", sizeof(finder));
+    SDL_strlcpy(finder, "", sizeof(finder));
     
     /* Wipe shower */
-    my_strcpy(shower, "", sizeof(shower));
+    SDL_strlcpy(shower, "", sizeof(shower));
     
     /* Count total combat rolls across all history */
     n = 0;
@@ -3997,7 +4101,7 @@ void do_cmd_combat_history(void)
             s16b z;
             prt("Find: ", hgt - 1, 0);
             if (!askfor_aux(finder, sizeof(finder))) continue;
-            my_strcpy(shower, finder, sizeof(shower));
+            SDL_strlcpy(shower, finder, sizeof(shower));
             
             /* Search through combat rolls */
             for (z = i + 1; z < n; z++) {
@@ -4122,7 +4226,7 @@ void display_combat_round_details(combat_history_round* round)
         
         /* Attacker symbol */
         strnfmt(buf, sizeof(buf), " %c", roll->attacker_char);
-        my_strcat(roll_line, buf, sizeof(roll_line));
+        SDL_strlcat(roll_line, buf, sizeof(roll_line));
         
         /* Attack roll info */
         if (roll->att_type == COMBAT_ROLL_ROLL) {
@@ -4131,7 +4235,7 @@ void display_combat_round_details(combat_history_round* round)
                     (roll->att_roll + roll->att - roll->evn_roll - roll->evn > 0) ?
                         roll->att_roll + roll->att - roll->evn_roll - roll->evn : 0,
                     roll->evn + roll->evn_roll, roll->evn, roll->defender_char);
-            my_strcat(roll_line, buf, sizeof(roll_line));
+            SDL_strlcat(roll_line, buf, sizeof(roll_line));
             
             /* Damage info */
             if (roll->att_roll + roll->att - roll->evn_roll - roll->evn > 0) {
@@ -4139,17 +4243,17 @@ void display_combat_round_details(combat_history_round* round)
                 if (net_dam < 0) net_dam = 0;
                 strnfmt(buf, sizeof(buf), " -> (%dd%d) %4d %4d %4d",
                         roll->dd, roll->ds, roll->dam, net_dam, roll->prot);
-                my_strcat(roll_line, buf, sizeof(roll_line));
+                SDL_strlcat(roll_line, buf, sizeof(roll_line));
             }
         } else if (roll->att_type == COMBAT_ROLL_AUTO) {
             strnfmt(buf, sizeof(buf), "                         %c -> (%dd%d) %4d",
                     roll->defender_char, roll->dd, roll->ds, roll->dam);
-            my_strcat(roll_line, buf, sizeof(roll_line));
+            SDL_strlcat(roll_line, buf, sizeof(roll_line));
             
             int net_dam = roll->dam - roll->prot;
             if (net_dam < 0) net_dam = 0;
             strnfmt(buf, sizeof(buf), " %4d %4d", net_dam, roll->prot);
-            my_strcat(roll_line, buf, sizeof(roll_line));
+            SDL_strlcat(roll_line, buf, sizeof(roll_line));
         }
         
         /* Display the line */
@@ -4217,4 +4321,7 @@ void display_main_combat_rolls(void)
         draw_combat_roll_line(row, col_offset, &combat_rolls[round][idx]);
     }
 }
+
+
+
 

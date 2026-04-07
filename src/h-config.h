@@ -56,7 +56,7 @@
  * Basically, SET_UID should *only* be set for "Unix" machines.
  */
 
-#ifndef WINDOWS
+#if !defined(WINDOWS) && !defined(__ANDROID__)
 #define SET_UID
 #endif
 
@@ -114,4 +114,5 @@
  * Comment this line out for a clean release build.
  * ------------------------------------------------------------------ */
 // #define DEBUG_CURSES  //debug curses functionality
+// #define SHOW_DEBUG_OPTIONS_MENU  // show the options-screen debug menu entry
 // #define DEBUG  //debug messaging

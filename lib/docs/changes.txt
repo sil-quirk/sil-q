@@ -349,7 +349,7 @@ Smithing changes
 	- replaced the old Carbon version with a Cocoa version
 	- the old version was really out of date and wouldn't compile or run on recent systems
 	- this should also remove some stubborn old bugs (see bugfixes)
-	- this version isn’t perfect (e.g. some minor problems with displaying text)
+	- this version isn't perfect (e.g. some minor problems with displaying text)
 		- but it does allow Sil to run on all new systems
 
 - objects
