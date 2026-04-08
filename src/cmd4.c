@@ -10869,7 +10869,7 @@ static void main_menu_about(void)
         { TERM_WHITE, "Gamedesigner: k0rtess." },
         { TERM_WHITE, "Tileset: MicroChasm." },
         { TERM_WHITE, "Main music theme: sinefabula." },
-        { TERM_WHITE, "Ambient music theme: westwinnd." },
+        { TERM_WHITE, "Ambient music theme: West Wind." },
         { TERM_WHITE, "Logo: sinefabula." },
         { TERM_WHITE, "" },
         { TERM_WHITE, "Our love to Maedhros aka Carcharos for playing so much," },
@@ -10878,8 +10878,8 @@ static void main_menu_about(void)
         { TERM_L_BLUE, "developers: half, Scatha and Quirk." },
         { TERM_WHITE, "" },
         { TERM_WHITE, "Honorable mentions:" },
-        { TERM_WHITE, "Sound: Kenney, qubodup, TomMusic, Leohpaz." },
-        { TERM_WHITE, "Tiles: Wolffius, Pine Druid, Backterria, SciGho." },
+        { TERM_WHITE, "Sound: Kenney, qubodup, TomMusic, LeoHPaz." },
+        { TERM_WHITE, "Walls: Wolffius, Pine Druid, Backterria, Ninjikin." },
         { TERM_WHITE, "" },
         { TERM_L_RED, "And our deep love to Tolkien and his timeless creations." },
         { TERM_WHITE, "" },
@@ -11004,7 +11004,7 @@ static void main_menu_about(void)
                     },
                     {
                         { TERM_YELLOW, "Ambient music theme:" },
-                        { TERM_WHITE, " westwinnd." },
+                        { TERM_WHITE, " West Wind." },
                     },
                     {
                         { TERM_YELLOW, "Logo:" },

@@ -1,0 +1,31 @@
+Sil-More Graphics Notice
+========================
+
+Current public releases of Sil-More do not include Adam Bolt's 16x16 tiles
+or David Gervais's 32x32 tiles.
+
+The current main gameplay tileset (`16x16.png`) is the MicroChasm tileset
+used for Sil-More.
+
+Additional wall and environment artwork used by the project comes from the
+following asset packs purchased on itch.io for Sil-More:
+
+ * Retro Dungeon Tileset and Sprites by Wolffius
+   https://wolffius.itch.io/dungeon-tileset-and-sprites
+
+ * Dungeon Tileset Mega Pack by Pine Druid
+   https://pine-druid.itch.io/dungeon-tileset-mega-pack
+
+ * The Roguelike by Backterria
+   https://backterria.itch.io/the-roguelike
+
+ * Starter Tiles by Ninjikin
+   https://ninjikin.itch.io/starter-tiles
+
+These purchased packs are used as incorporated game assets, primarily for
+wall and environment graphics.  Do not redistribute the raw source packs
+separately from the game.  Keep the purchase records for these packs with the
+project's release/compliance records.
+
+If future releases add or restore third-party tiles beyond the set above,
+update this file before distribution.

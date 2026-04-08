@@ -68,6 +68,10 @@ for %%f in (
 REM Copy game data
 if not exist sil-more-windows-sdl3\lib xcopy /E /I /Y /K lib sil-more-windows-sdl3\lib
 
+REM Exclude non-OFL fallback font from deployment; public releases use the
+REM documented redistributable font set.
+if exist sil-more-windows-sdl3\lib\xtra\font\InputMono-Bold.ttf del /Q sil-more-windows-sdl3\lib\xtra\font\InputMono-Bold.ttf
+
 REM Always update lib/edit folder to ensure latest data files
 if exist sil-more-windows-sdl3\lib\edit rmdir /S /Q sil-more-windows-sdl3\lib\edit
 xcopy /E /I /Y /K lib\edit sil-more-windows-sdl3\lib\edit
@@ -150,6 +154,10 @@ for %%f in (
 
 REM Copy game data
 if not exist sil-more-windows-sdl3-portable\lib xcopy /E /I /Y /K lib sil-more-windows-sdl3-portable\lib
+
+REM Exclude non-OFL fallback font from deployment; public releases use the
+REM documented redistributable font set.
+if exist sil-more-windows-sdl3-portable\lib\xtra\font\InputMono-Bold.ttf del /Q sil-more-windows-sdl3-portable\lib\xtra\font\InputMono-Bold.ttf
 
 REM Always update lib/edit folder to ensure latest data files
 if exist sil-more-windows-sdl3-portable\lib\edit rmdir /S /Q sil-more-windows-sdl3-portable\lib\edit

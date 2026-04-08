@@ -2914,8 +2914,8 @@ void resize(const SDL_Rect* screen)
 
     // Use configured monospace font or fall back to default
     const char* font_path = config.monospace_font[0] != '\0' 
-        ? config.monospace_font 
-        : "lib/xtra/font/InputMono-Bold.ttf";
+        ? config.monospace_font
+        : "lib/xtra/font/VictorMono-Medium.ttf";
 
     for (int i = 1; i < MAX_TERM_DATA; i++) {
         // Always destroy the old pane to prevent its display in cases when we
