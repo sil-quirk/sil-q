@@ -4720,6 +4720,16 @@ errr init_sdl(int argc, char **argv)
     }
 
     sdl_gamepad_init();
+
+#ifdef __ANDROID__
+    if (!config_exists) {
+        config.steamdeck_mode = (g_gamepad_state.pad_count > 0);
+        log_info("Android first-start Steam Deck UI mode set to %s (%d gamepad%s detected)",
+            config.steamdeck_mode ? "on" : "off",
+            g_gamepad_state.pad_count,
+            (g_gamepad_state.pad_count == 1) ? "" : "s");
+    }
+#endif
     
     log_info("SDL Configuration:");
     log_info("  Main view scale: %d", config.main_view_scale);

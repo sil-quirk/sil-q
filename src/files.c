@@ -3400,6 +3400,7 @@ static int display_player_compact_summary_block(int row_start)
 {
     int wid = 80;
     int hgt = 24;
+    bool tight_spacing = display_player_compact_tight_spacing();
     Term_get_size(&wid, &hgt);
     if (wid < 1) wid = 80;
     if (hgt < 1) hgt = 24;
@@ -3509,7 +3510,8 @@ static int display_player_compact_summary_block(int row_start)
                      cur, 4, (cur_d >= min_d) ? TERM_L_GREEN : TERM_YELLOW,
                      '/', rhs, 4, TERM_L_GREEN);
 
-            if (display_player_min_depth_progress_bar_line(col, row,
+            if (!tight_spacing
+                && display_player_min_depth_progress_bar_line(col, row,
                 MAX(1, wid - COMPACT_RIGHT_PAD - col)))
             {
                 row++;
@@ -3637,7 +3639,8 @@ static int display_player_compact_summary_block(int row_start)
                          cur, 4, (cur_d >= min_d) ? TERM_L_GREEN : TERM_YELLOW,
                          '/', rhs, 4, TERM_L_GREEN);
 
-        if (display_player_min_depth_progress_bar_line(col_r, row_r, LINEW20))
+        if (!tight_spacing
+            && display_player_min_depth_progress_bar_line(col_r, row_r, LINEW20))
             row_r++;
     }
 
@@ -4073,6 +4076,7 @@ static void display_player_compact_description_and_flags(int row_start,
     int wid = 80;
     int hgt = 24;
     int scroll = display_player_compact_scroll;
+    bool tight_spacing = display_player_compact_tight_spacing();
     bool traits_moved_to_stats_page = display_player_compact_can_embed_traits(
         visible_row_start);
     int content_row = row_start;
@@ -4100,7 +4104,7 @@ static void display_player_compact_description_and_flags(int row_start,
         if (scroll > max_scroll)
             scroll = max_scroll;
 
-        if ((max_scroll == 0) && (content_height < available_rows))
+        if (!tight_spacing && (max_scroll == 0) && (content_height < available_rows))
             content_row += (available_rows - content_height) / 2;
 
         display_player_compact_max_scroll = max_scroll;
@@ -4161,7 +4165,7 @@ static void display_player_compact_description_and_flags(int row_start,
         if (scroll > max_scroll)
             scroll = max_scroll;
 
-        if ((max_scroll == 0) && (total_height < available_rows))
+        if (!tight_spacing && (max_scroll == 0) && (total_height < available_rows))
             content_row += (available_rows - total_height) / 2;
 
         display_player_compact_max_scroll = max_scroll;
@@ -4179,7 +4183,7 @@ static void display_player_compact_description_and_flags(int row_start,
         if (scroll > max_scroll)
             scroll = max_scroll;
 
-        if ((max_scroll == 0) && (stacked_total < available_rows))
+        if (!tight_spacing && (max_scroll == 0) && (stacked_total < available_rows))
             content_row += (available_rows - stacked_total) / 2;
 
         display_player_compact_max_scroll = max_scroll;

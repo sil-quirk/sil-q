@@ -2504,6 +2504,8 @@ static int welcome_screen_intro_row(int rel_row,
     const welcome_intro_layout* layout);
 static int welcome_screen_intro_last_row(const welcome_intro_layout* layout);
 static int welcome_screen_intro_total_rows(const welcome_intro_layout* layout);
+static void welcome_prompt_label(int binding, const char* fallback,
+    char* buf, size_t buflen);
 static int welcome_screen_footer_rows(bool show_wizard, bool show_sep,
     bool show_blank, bool show_prompt);
 static void welcome_screen_compute_layout(int hgt, bool show_wizard,
@@ -2526,6 +2528,17 @@ extern void display_introduction(void)
     display_introduction_with_layout(&layout);
 }
 
+static void welcome_prompt_label(int binding, const char* fallback,
+    char* buf, size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    sdl_gamepad_action_binding_short_label(binding, buf, buflen);
+    if (streq(buf, "(unbound)") || streq(buf, "Multiple"))
+        SDL_strlcpy(buf, fallback, buflen);
+}
+
 static int welcome_screen_base_col(void)
 {
     int wid = 80;
@@ -2538,6 +2551,17 @@ static int welcome_screen_base_col(void)
     Term_get_size(&wid, &hgt);
     if (wid < 1)
         wid = legacy_term_wid;
+
+#ifdef __ANDROID__
+    if (!get_sdl_steamdeck_mode())
+    {
+        shift = (wid - compact_block_wid) / 2;
+        if (shift < 0)
+            shift = 0;
+
+        return shift;
+    }
+#endif
 
     if (wid < legacy_term_wid)
     {
@@ -2954,14 +2978,36 @@ static void welcome_screen_draw_footer(bool show_wizard, bool show_sep,
     const int x = welcome_screen_base_col();
     const char *wizard_line = "Resurrecting a character is a form of cheating.";
     const char *sep_line = "- - - - - - - - - - - -";
-    const char *menu_line =
-        (metarun_created == true)
-            ? "[Space] Begin    [Q/Esc] Quit"
-            : "[Space] Continue  [Q/Esc] Quit";
+    char menu_line[96];
+    bool steamdeck = steamdeck_controls_active();
 
     Term_get_size(&term_wid, &term_hgt);
     if (term_hgt < 1)
         term_hgt = 24;
+
+    if (steamdeck)
+    {
+        char confirm_label[16];
+        char back_label[16];
+
+        welcome_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
+            sizeof(confirm_label));
+        welcome_prompt_label(steamdeck_back_key(), "B", back_label,
+            sizeof(back_label));
+        strnfmt(menu_line, sizeof(menu_line),
+            (metarun_created == true)
+                ? "[%s] Begin    [%s] Quit"
+                : "[%s] Continue  [%s] Quit",
+            confirm_label, back_label);
+    }
+    else
+    {
+        SDL_strlcpy(menu_line,
+            (metarun_created == true)
+                ? "[Space] Begin    [Q/Esc] Quit"
+                : "[Space] Continue  [Q/Esc] Quit",
+            sizeof(menu_line));
+    }
 
     row = term_hgt - 1;
     footer_rows = welcome_screen_footer_rows(show_wizard, show_sep,
@@ -3346,6 +3392,7 @@ extern NavResult initial_menu(bool *start_new)
     int ch;
     NavResult result = NAV_BACK;
     bool intro_story_font = true;
+    bool steamdeck = steamdeck_controls_active();
     sdl_story_font_enable();
 
     int wid, hgt;
@@ -3419,7 +3466,8 @@ extern NavResult initial_menu(bool *start_new)
     /* direct key choices ------------------------------------------------*/
 
     /* enter : CONTINUE  */
-    if (ch == '\n' || ch == '\r' || ch == ' ')
+    if (ch == '\n' || ch == '\r' || ch == ' '
+        || (steamdeck && ch == steamdeck_confirm_key()))
     {
         log_info("initial_menu: User pressed space/enter - starting game");
         run_mode_set_pending(RUN_MODE_STORY);
@@ -3430,7 +3478,8 @@ extern NavResult initial_menu(bool *start_new)
 
 
     /* q : EXIT      */
-    if (ch == 'q' || ch == ESCAPE)
+    if (ch == 'q' || ch == ESCAPE
+        || (steamdeck && ch == steamdeck_back_key()))
     {
         result = NAV_QUIT;                /* handled as quit in main-win.c */
         goto menu_done;

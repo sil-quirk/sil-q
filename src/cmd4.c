@@ -11031,8 +11031,21 @@ static void main_menu_about(void)
     if (row >= hgt)
         row = hgt - 1;
 
-    Term_putstr(text_indent, row, -1, TERM_L_WHITE,
-        "[Press any key to return]");
+    if (steamdeck_controls_active())
+    {
+        char back_label[16];
+        char prompt_buf[48];
+
+        controller_prompt_label(steamdeck_back_key(), "B", back_label,
+            sizeof(back_label));
+        strnfmt(prompt_buf, sizeof(prompt_buf), "[%s] return", back_label);
+        Term_putstr(text_indent, row, -1, TERM_L_WHITE, prompt_buf);
+    }
+    else
+    {
+        Term_putstr(text_indent, row, -1, TERM_L_WHITE,
+            "[Press any key to return]");
+    }
     Term_fresh();
 
     flush();
@@ -11059,6 +11072,7 @@ int main_menu_aux(int* highlight)
     char ch;
     int i;
     bool death_view = death_spectator_active();
+    bool steamdeck = steamdeck_controls_active();
 
     int menu_w = main_menu_calc_width();
     const int top_pad = 1;
@@ -11152,6 +11166,29 @@ int main_menu_aux(int* highlight)
         (*highlight == MAIN_MENU_RETURN_GAME) ? TERM_L_BLUE : TERM_WHITE,
         "Return to game       (r)");
 
+    if (steamdeck && Term)
+    {
+        int prompt_row = row_top + menu_h;
+        char confirm_label[16];
+        char back_label[16];
+        char prompt_buf[96];
+
+        if (prompt_row >= Term->hgt)
+            prompt_row = Term->hgt - 1;
+        if (prompt_row >= 0)
+        {
+            Term_erase(0, prompt_row, 255);
+            controller_prompt_label(steamdeck_confirm_key(), "A",
+                confirm_label, sizeof(confirm_label));
+            controller_prompt_label(steamdeck_back_key(), "B",
+                back_label, sizeof(back_label));
+            strnfmt(prompt_buf, sizeof(prompt_buf),
+                "D-pad select  %s open  %s back",
+                confirm_label, back_label);
+            Term_putstr(col_main, prompt_row, -1, TERM_SLATE, prompt_buf);
+        }
+    }
+
     /* Flush the prompt */
     Term_fresh();
 
@@ -11235,7 +11272,8 @@ int main_menu_aux(int* highlight)
     }
 
     /* Choose current  */
-    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
+    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6')
+        || (steamdeck && ch == steamdeck_confirm_key()))
     {
         return (*highlight);
     }
@@ -11273,7 +11311,8 @@ int main_menu_aux(int* highlight)
     }
 
     /* Leave menu */
-    if ((ch == ESCAPE) || (ch == '4'))
+    if ((ch == ESCAPE) || (ch == '4')
+        || (steamdeck && ch == steamdeck_back_key()))
     {
         return (-1);
     }
