@@ -4131,6 +4131,12 @@ static void calc_bonuses(void)
         
         /* Apply the evasion bonus */
         p_ptr->skill_equip_mod[S_EVN] += o_ptr->evn;
+
+        if (p_ptr->active_ability[S_EVN][EVN_HEAVY_ARMOUR]
+            && heavy_armour_evasion_bonus_applies(o_ptr))
+        {
+            p_ptr->skill_equip_mod[S_EVN] += 1;
+        }
     }
 
     /* Clear the old item granted abilities */
@@ -4784,9 +4790,6 @@ static void calc_bonuses(void)
         int offhand_penalty = paired_offhand ? 0 : 3;
         p_ptr->offhand_mel_mod
             += o_ptr->att + axe_bonus(o_ptr) + polearm_bonus(o_ptr) - offhand_penalty;
-
-        // add off-hand weapon's evasion bonus
-        p_ptr->skill_equip_mod[S_EVN] += o_ptr->evn;
 
         // add off-hand weapon's evasion bonus
         p_ptr->skill_equip_mod[S_EVN] += o_ptr->evn;

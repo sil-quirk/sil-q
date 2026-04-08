@@ -157,12 +157,16 @@ if(MINGW)
   target_link_options(sil-more PRIVATE -mwindows)
 endif()
 
-if(USE_SDL)
-  find_package(SDL3 REQUIRED CONFIG)
-  find_package(SDL3_ttf REQUIRED CONFIG)
-  find_package(SDL3_image REQUIRED CONFIG)
-  target_compile_definitions(sil-more PRIVATE USE_SDL)
-  target_link_libraries(sil-more PRIVATE SDL3::SDL3 SDL3_ttf::SDL3_ttf SDL3_image::SDL3_image log m)
+# Link SDL3 libraries (required for this build)
+target_compile_definitions(sil-more PRIVATE USE_SDL)
+target_link_libraries(sil-more PRIVATE SDL3::SDL3 SDL3_ttf::SDL3_ttf SDL3_image::SDL3_image log m)
+
+if (LOG_MODE_TIMESTAMP)
+  target_compile_definitions(sil-more PUBLIC LOG_MODE_TIMESTAMP)
+endif()
+
+if (STEAMDECK_SUPPORT)
+    target_compile_definitions(sil-more PUBLIC STEAMDECK_SUPPORT)
 endif()
 
 if (SIL_USE_LOCAL_DATA)
