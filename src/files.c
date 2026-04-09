@@ -3885,12 +3885,96 @@ static bool display_player_compact_can_embed_traits(int row_start)
     return true;
 }
 
+static int display_player_compact_wrapped_line_count(const char* text, int col,
+    int wrap_col)
+{
+    int wid = 80;
+    int hgt = 24;
+    int max_width;
+    int line_pos = 0;
+    int line_count = 0;
+    const char* p = text;
+    char line_buf[512];
+
+    if (!text || !text[0])
+        return 0;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1)
+        wid = 80;
+    if (hgt < 1)
+        hgt = 24;
+
+    if (wrap_col <= col)
+        wrap_col = wid - COMPACT_RIGHT_PAD;
+
+    max_width = wrap_col - col;
+    if (max_width < 10)
+        max_width = 10;
+
+    while (*p)
+    {
+        while (*p == ' ' && line_pos == 0)
+            p++;
+
+        if (*p == '\n')
+        {
+            line_buf[line_pos] = '\0';
+            if (line_pos > 0)
+                line_count++;
+            line_pos = 0;
+            p++;
+            continue;
+        }
+
+        if (line_pos >= max_width)
+        {
+            int wrap_pos = line_pos - 1;
+            while (wrap_pos > 0 && line_buf[wrap_pos] != ' ')
+                wrap_pos--;
+
+            if (wrap_pos > 0)
+            {
+                int remaining;
+
+                line_buf[wrap_pos] = '\0';
+                line_count++;
+
+                remaining = line_pos - wrap_pos - 1;
+                for (int i = 0; i < remaining; i++)
+                    line_buf[i] = line_buf[wrap_pos + 1 + i];
+                line_pos = remaining;
+            }
+            else
+            {
+                line_buf[line_pos] = '\0';
+                line_count++;
+                line_pos = 0;
+            }
+
+            continue;
+        }
+
+        if (line_pos < (int)sizeof(line_buf) - 2)
+            line_buf[line_pos++] = *p;
+        p++;
+    }
+
+    if (line_pos > 0)
+        line_count++;
+
+    return line_count;
+}
+
 static int display_player_compact_history_line_count(int wrap_col, int indent)
 {
-    if (story_character_enabled())
-        return count_wrapped_lines_story(p_ptr->history, wrap_col, indent);
-
-    return count_wrapped_lines(p_ptr->history, wrap_col, indent);
+    /*
+     * Keep the height estimate aligned with the compact renderer below.
+     * If these diverge, the birth compact sheet can incorrectly keep the
+     * top summary block and clip long biographies such as Glorfindel's.
+     */
+    return display_player_compact_wrapped_line_count(p_ptr->history, indent,
+        wrap_col);
 }
 
 static int display_player_compact_wrapped_offset(const char* text, int start_row,
