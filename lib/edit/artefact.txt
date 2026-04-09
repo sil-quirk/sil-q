@@ -1880,7 +1880,7 @@ F:WILL | GRA | NOBLE_ITEM
 D:The staff of doom borne by Turgon, King of Gondolin, when he sat upon his
 D: high throne to pronounce judgment. None could gainsay his decrees, for he
 D: was stern and proud as his father Fingolfin. With this staff he declared
-D: the fates of all who came before him, and even condemned Eöl to death for
+D: the fates of all who came before him, and even condemned Eol to death for
 D: the slaying of Aredhel. Its bearer commands the same dread majesty as the
 D: Hidden King who defied Morgoth until the very end.
 
@@ -2529,7 +2529,7 @@ W:5:30:15:25000
 P:0:0d0:1:1d2
 B:3/5:2/0
 D:Boots bearing the insignia of the House of the Mole, whose lord was
-D: Maeglin, son of Eöl and Aredhel. He delved deep beneath Gondolin seeking
+D: Maeglin, son of Eol and Aredhel. He delved deep beneath Gondolin seeking
 D: metals and gems, and his miners discovered the foundations of the city.
 D: Yet Maeglin's heart was dark, and his love for Idril twisted into the
 D: betrayal that doomed the Hidden City. These boots are covered in dark

@@ -1,0 +1,47 @@
+Sil-More Sound and Music Notice
+===============================
+
+This folder contains a mixture of bundled gameplay sound effects, project
+music, and reference/source-pack material.
+
+Gameplay sound effects in the shipped game are drawn from the following
+sources:
+
+ * RPG Audio by Kenney Vleugels (Kenney.nl), licensed under CC0.
+   See `License.txt` in this folder.
+
+ * Free Fantasy 200 SFX Pack by TomMusic.
+   The included `ReadMe.rtf` states that the pack is royalty-free for
+   commercial and non-commercial projects, with credit appreciated, but not
+   for resale or redistribution as a standalone asset pack.
+
+ * Inventory SFX Pack by LeoHPaz.
+   Purchased for Sil-More from itch.io:
+   https://leohpaz.itch.io/inventory-sfx-pack
+
+ * Mini Fantasy Weapons SFX Pack by LeoHPaz.
+   Purchased for Sil-More from itch.io:
+   https://leohpaz.itch.io/minifantasy-weapons-sfx-pack
+
+ * Individual swoosh effects by qubodup / Iwan Gabovitch.
+   See `swoosh.txt` in this folder.
+
+Music:
+
+ * The main theme and death theme were composed specifically for Sil-More by
+   sinefabula and are used by permission for the game and soundtrack
+   publication by arrangement with the composer.
+   Public artist page:
+   https://open.spotify.com/artist/6SehByz91EUfWCwOzYP9Ys
+
+ * The ambient track "Grey Hour" was written by West Wind and gifted for use
+   in Sil-More.  Keep the direct permission record with the project's
+   release/compliance records.
+   Public track page:
+   https://soundcloud.com/west-winnd/grey-hour
+
+The `packs/` directory contains source/reference material and is excluded from
+the clean release build created by `create-release-build.ps1`.
+
+Do not redistribute any third-party source pack or standalone soundtrack asset
+outside the game unless you have the relevant separate rights to do so.

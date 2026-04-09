@@ -54,7 +54,7 @@ struct sdl_config {
     
     // Custom fonts
     char story_font[256];      // Font for story/narrative text (non-monospace, e.g., "lib/xtra/font/Story.ttf")
-    char monospace_font[256];  // Font for regular game text (monospace, default: InputMono-Bold.ttf)
+    char monospace_font[256];  // Font for regular game text (monospace, default: VictorMono-Medium.ttf)
     
     // Monospace font rendering options
     bool mono_bold;            // Apply bold style to monospace font
@@ -77,7 +77,7 @@ struct sdl_config {
     // Gamepad/controller settings
     bool gamepad_enabled;                 // Enable gamepad input
     bool gamepad_auto_mode;               // Auto-enable controller UI when gamepad is present/used
-    bool steamdeck_mode;                  // Force Steam Deck UI mode
+    bool steamdeck_mode;                  // Steam Deck UI mode setting
     bool gamepad_use_dpad;                // Use d-pad for movement
     bool gamepad_use_left_stick;          // Use left stick for movement
     int gamepad_deadzone;                 // Deadzone for analog sticks

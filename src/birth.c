@@ -1106,26 +1106,78 @@ static int choice_description_row(int visible_rows, bool allow_full_description_
     return row;
 }
 
-static int choice_description_line_count(cptr text)
+static int birth_wrap_col(int indent)
 {
     int wid = 80;
     int hgt = 24;
-    int wrap_width = 79;
-
-    if (!text || !text[0])
-        return 0;
 
     Term_get_size(&wid, &hgt);
     (void)hgt;
     if (wid < 1)
         wid = 80;
+    if (indent < 0)
+        indent = 0;
 
-    if (wrap_width > wid)
-        wrap_width = wid;
-    if (wrap_width < 10)
-        wrap_width = wid;
+    if (wid <= indent + 1)
+        return indent + 1;
 
-    return count_wrapped_lines(text, wrap_width, 2);
+    return wid - 1;
+}
+
+static int birth_wrapped_line_count(cptr text, int indent)
+{
+    if (!text || !text[0])
+        return 0;
+
+    return count_wrapped_lines(text, birth_wrap_col(indent), indent);
+}
+
+static void birth_put_wrapped_text(byte attr, cptr text, int row, int col)
+{
+    if (!text || !text[0])
+        return;
+
+    text_out_wrap = birth_wrap_col(col);
+    text_out_indent = col;
+    Term_gotoxy(col, row);
+    text_out_to_screen(attr, text);
+    text_out_wrap = 0;
+    text_out_indent = 0;
+}
+
+static void birth_put_str_fit(byte attr, cptr text, int row, int col)
+{
+    int wid = 80;
+    int hgt = 24;
+    int max_len;
+    char buf[256];
+
+    if (!text || !text[0])
+        return;
+
+    Term_get_size(&wid, &hgt);
+    (void)hgt;
+    if (wid < 1)
+        wid = 80;
+    if (col < 0)
+        col = 0;
+    if (col >= wid)
+        return;
+
+    max_len = wid - col;
+    if (max_len < 1)
+        return;
+
+    SDL_strlcpy(buf, text, sizeof(buf));
+    if ((int)strlen(buf) > max_len)
+        buf[max_len] = '\0';
+
+    Term_putstr(col, row, -1, attr, buf);
+}
+
+static int choice_description_line_count(cptr text)
+{
+    return birth_wrapped_line_count(text, 2);
 }
 
 static int collect_character_starting_abilities(int character, cptr out[], int out_max)
@@ -1170,12 +1222,15 @@ static void display_character_description_screen(birth_menu choice)
     int character_idx;
     char full_name[64];
     int name_col = 2;
+    int text_top_row = 2;
 
     Term_get_size(&wid, &hgt);
     if (wid < 1)
         wid = 80;
     if (hgt < 1)
         hgt = 24;
+    if (hgt <= 18)
+        text_top_row = 1;
 
     character_idx = character_choice_index_by_name(choice.name);
     if (character_idx >= 0)
@@ -1199,29 +1254,40 @@ static void display_character_description_screen(birth_menu choice)
 
     Term_putstr(name_col, 0, -1, TERM_L_BLUE, full_name);
 
-    if (choice.text && choice.text[0] && (hgt > 2))
+    if (choice.text && choice.text[0] && (hgt > text_top_row))
     {
-        int text_row = 2;
-        int text_rows = choice_description_line_count(choice.text);
-        int available_rows = hgt - 3;
+        int text_row = text_top_row;
+        int text_rows = birth_wrapped_line_count(choice.text, 2);
+        int available_rows = hgt - text_top_row - 1;
 
-        if (text_rows < available_rows)
-            text_row = 2 + ((available_rows - text_rows) / 2);
-        if (text_row < 2)
-            text_row = 2;
+        if ((hgt > 18) && (text_rows < available_rows))
+            text_row = text_top_row + ((available_rows - text_rows) / 2);
+        if (text_row < text_top_row)
+            text_row = text_top_row;
         if (text_row > hgt - 2)
             text_row = hgt - 2;
 
-        text_out_wrap = wid - 1;
-        text_out_indent = 2;
-        Term_gotoxy(2, text_row);
-        text_out_to_screen(TERM_WHITE, choice.text);
-        text_out_wrap = 0;
-        text_out_indent = 0;
+        birth_put_wrapped_text(TERM_WHITE, choice.text, text_row, 2);
     }
 
     if (hgt > 0)
-        Term_putstr(2, hgt - 1, -1, TERM_SLATE, "Press any key to return");
+    {
+        if (steamdeck_controls_active())
+        {
+            char back_label[16];
+            char prompt_buf[48];
+
+            birth_prompt_label(steamdeck_back_key(), "B", back_label,
+                sizeof(back_label));
+            strnfmt(prompt_buf, sizeof(prompt_buf), "[%s] return", back_label);
+            birth_put_str_fit(TERM_SLATE, prompt_buf, hgt - 1, 2);
+        }
+        else
+        {
+            birth_put_str_fit(TERM_SLATE,
+                "Press any key to return", hgt - 1, 2);
+        }
+    }
 
     Term_fresh();
     (void)inkey();
@@ -1400,12 +1466,41 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
             prompt_row = birth_prompt_row();
             Term_erase(0, prompt_row, 255);
 
-            if (allow_full_description_screen)
-                strnfmt(prompt, sizeof(prompt), "SPACE/ENTER select  f description  ESC back  r random");
-            else
-                strnfmt(prompt, sizeof(prompt), "SPACE/ENTER select  ESC back  r random");
+            if (steamdeck)
+            {
+                char confirm_label[16];
+                char detail_label[16];
+                char back_label[16];
+                char random_label[16];
 
-            (void)steamdeck;
+                birth_prompt_label(steamdeck_confirm_key(), "A",
+                    confirm_label, sizeof(confirm_label));
+                birth_prompt_label(steamdeck_alt_action_key(), "X",
+                    detail_label, sizeof(detail_label));
+                birth_prompt_label(steamdeck_back_key(), "B",
+                    back_label, sizeof(back_label));
+                birth_prompt_label('r', "r", random_label,
+                    sizeof(random_label));
+
+                if (allow_full_description_screen)
+                    strnfmt(prompt, sizeof(prompt),
+                        "D-pad move  %s select  %s details  %s back  %s random",
+                        confirm_label, detail_label, back_label, random_label);
+                else
+                    strnfmt(prompt, sizeof(prompt),
+                        "D-pad move  %s select  %s back  %s random",
+                        confirm_label, back_label, random_label);
+            }
+            else if (allow_full_description_screen)
+            {
+                strnfmt(prompt, sizeof(prompt),
+                    "SPACE/ENTER select  f description  ESC back  r random");
+            }
+            else
+            {
+                strnfmt(prompt, sizeof(prompt),
+                    "SPACE/ENTER select  ESC back  r random");
+            }
             Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE, prompt);
         }
 
@@ -1421,7 +1516,8 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
             quit(NULL);
 
         /* Hack - go back */
-        if ((c == ESCAPE) || (c == '4') || (steamdeck && c == 'b'))
+        if ((c == ESCAPE) || (c == '4')
+            || (steamdeck && c == steamdeck_back_key()))
             return (INVALID_CHOICE);
 
         /* Make a choice */
@@ -1445,7 +1541,9 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
             continue; /* Return to the selection loop after showing help */
         }
 
-        if (allow_full_description_screen && (c == 'f' || c == 'F'))
+        if (allow_full_description_screen
+            && (c == 'f' || c == 'F'
+                || (steamdeck && c == steamdeck_alt_action_key())))
         {
             display_character_description_screen(choices[cur]);
             continue;
@@ -2751,37 +2849,58 @@ static void blitz_setup_draw(const blitz_setup* setup, int selected)
     char buf[160];
     int wid = 80;
     int hgt = 24;
+    bool steamdeck = steamdeck_controls_active();
 
     Term_get_size(&wid, &hgt);
     Term_clear();
 
     c_put_str(TERM_YELLOW, "Blitz Setup", 1, MAX((wid - 11) / 2, 0));
-    c_put_str(TERM_SLATE,
+    birth_put_wrapped_text(TERM_SLATE,
         "Configure a self-contained Blitz run. Story progress stays untouched.",
         3, 2);
 
     strnfmt(buf, sizeof(buf), "Character: %s", blitz_character_mode_name(setup->character_mode));
-    c_put_str(selected == 0 ? TERM_L_BLUE : TERM_WHITE, buf, 6, 4);
+    birth_put_str_fit(selected == 0 ? TERM_L_BLUE : TERM_WHITE, buf, 6, 4);
 
     strnfmt(buf, sizeof(buf), "Oaths: %s", setup->oaths_enabled ? "Yes" : "No");
-    c_put_str(selected == 1 ? TERM_L_BLUE : TERM_WHITE, buf, 7, 4);
+    birth_put_str_fit(selected == 1 ? TERM_L_BLUE : TERM_WHITE, buf, 7, 4);
 
     strnfmt(buf, sizeof(buf), "Blessings: %d", setup->blessing_count);
-    c_put_str(selected == 2 ? TERM_L_BLUE : TERM_WHITE, buf, 8, 4);
+    birth_put_str_fit(selected == 2 ? TERM_L_BLUE : TERM_WHITE, buf, 8, 4);
 
     strnfmt(buf, sizeof(buf), "Curses: %d", setup->curse_count);
-    c_put_str(selected == 3 ? TERM_L_BLUE : TERM_WHITE, buf, 9, 4);
+    birth_put_str_fit(selected == 3 ? TERM_L_BLUE : TERM_WHITE, buf, 9, 4);
 
     strnfmt(buf, sizeof(buf), "Effect picks: %s", blitz_effect_mode_name(setup->effect_mode));
-    c_put_str(selected == 4 ? TERM_L_BLUE : TERM_WHITE, buf, 10, 4);
+    birth_put_str_fit(selected == 4 ? TERM_L_BLUE : TERM_WHITE, buf, 10, 4);
 
-    c_put_str(TERM_L_DARK, "8/2 navigate  4/6 change  Enter begin  Esc back", 13, 2);
+    if (steamdeck)
+    {
+        char confirm_label[16];
+        char back_label[16];
+        char prompt_buf[96];
+
+        birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
+            sizeof(confirm_label));
+        birth_prompt_label(steamdeck_back_key(), "B", back_label,
+            sizeof(back_label));
+        strnfmt(prompt_buf, sizeof(prompt_buf),
+            "D-pad navigate/change  %s begin  %s back",
+            confirm_label, back_label);
+        birth_put_str_fit(TERM_L_DARK, prompt_buf, 13, 2);
+    }
+    else
+    {
+        birth_put_str_fit(TERM_L_DARK,
+            "8/2 navigate  4/6 change  Enter begin  Esc back", 13, 2);
+    }
 }
 
 static NavResult blitz_setup_menu(void)
 {
     blitz_setup* setup = blitz_current_setup_mutable();
     int selected = 0;
+    bool steamdeck = steamdeck_controls_active();
 
     blitz_setup_clamp(setup);
 
@@ -2792,10 +2911,11 @@ static NavResult blitz_setup_menu(void)
         blitz_setup_draw(setup, selected);
         key = inkey();
 
-        if (key == ESCAPE)
+        if (key == ESCAPE || (steamdeck && key == steamdeck_back_key()))
             return NAV_TO_MAIN;
 
-        if (key == '\n' || key == '\r' || key == ' ')
+        if (key == '\n' || key == '\r' || key == ' '
+            || (steamdeck && key == steamdeck_confirm_key()))
             return NAV_OK;
 
         if (key == '8')
@@ -2981,10 +3101,12 @@ NavResult character_creation(void)
         char prompt_buf[160];
 
         birth_prompt_label('r', "r", random_label, sizeof(random_label));
-        birth_prompt_label('b', "b", back_label, sizeof(back_label));
+        birth_prompt_label(steamdeck_back_key(), "B", back_label,
+            sizeof(back_label));
         birth_prompt_label('o', "o", options_label, sizeof(options_label));
         birth_prompt_label('s', "s", scores_label, sizeof(scores_label));
-        birth_prompt_label('f', "f", full_desc_label, sizeof(full_desc_label));
+        birth_prompt_label(steamdeck_alt_action_key(), "X", full_desc_label,
+            sizeof(full_desc_label));
         birth_prompt_label('?', "?", help_label, sizeof(help_label));
         if (streq(help_label, "?"))
             birth_prompt_label('h', "h", help_label, sizeof(help_label));
@@ -3202,14 +3324,15 @@ static void oath_putstr_fit(int col, int row, int max_width, byte attr, cptr tex
     Term_putstr(col, row, -1, attr, buf);
 }
 
-static void oath_render_virtual_line(int col, int* draw_row, int row_limit,
-    int* virtual_row, int skip_lines, byte color, cptr text, bool render)
+static void oath_render_virtual_line(int col, int max_width, int* draw_row,
+    int row_limit, int* virtual_row, int skip_lines, byte color, cptr text,
+    bool render)
 {
     if (!text)
         text = "";
 
     if ((*virtual_row >= skip_lines) && render && (*draw_row < row_limit))
-        Term_putstr(col, *draw_row, -1, color, text);
+        oath_putstr_fit(col, *draw_row, max_width, color, text);
 
     if ((*virtual_row >= skip_lines) && (*draw_row < row_limit))
         (*draw_row)++;
@@ -3252,10 +3375,10 @@ static void oath_render_virtual_wrapped_text(cptr text, int col, int max_width,
         {
             line_buffer[line_pos] = '\0';
             if (line_pos > 0)
-                oath_render_virtual_line(col, draw_row, row_limit, virtual_row,
+                oath_render_virtual_line(col, max_width, draw_row, row_limit, virtual_row,
                     skip_lines, color, line_buffer, render);
             else
-                oath_render_virtual_line(col, draw_row, row_limit, virtual_row,
+                oath_render_virtual_line(col, max_width, draw_row, row_limit, virtual_row,
                     skip_lines, color, "", render);
 
             line_pos = 0;
@@ -3275,7 +3398,7 @@ static void oath_render_virtual_wrapped_text(cptr text, int col, int max_width,
                 int remaining = line_pos - wrap_pos - 1;
 
                 line_buffer[wrap_pos] = '\0';
-                oath_render_virtual_line(col, draw_row, row_limit, virtual_row,
+                oath_render_virtual_line(col, max_width, draw_row, row_limit, virtual_row,
                     skip_lines, color, line_buffer, render);
 
                 for (int i = 0; i < remaining; i++)
@@ -3286,7 +3409,7 @@ static void oath_render_virtual_wrapped_text(cptr text, int col, int max_width,
             else
             {
                 line_buffer[line_pos] = '\0';
-                oath_render_virtual_line(col, draw_row, row_limit, virtual_row,
+                oath_render_virtual_line(col, max_width, draw_row, row_limit, virtual_row,
                     skip_lines, color, line_buffer, render);
                 line_pos = 0;
             }
@@ -3300,7 +3423,7 @@ static void oath_render_virtual_wrapped_text(cptr text, int col, int max_width,
     if (line_pos > 0)
     {
         line_buffer[line_pos] = '\0';
-        oath_render_virtual_line(col, draw_row, row_limit, virtual_row,
+        oath_render_virtual_line(col, max_width, draw_row, row_limit, virtual_row,
             skip_lines, color, line_buffer, render);
     }
 }
@@ -3319,7 +3442,7 @@ static int oath_render_detail_content(int oath_id, int col, int start_row,
     {
         char* banned_text = oath_banned_text(oath_id);
 
-        oath_render_virtual_line(col, &draw_row, row_limit, &virtual_row,
+        oath_render_virtual_line(col, max_width, &draw_row, row_limit, &virtual_row,
             skip_lines, TERM_L_RED, "OATH BROKEN", render);
 
         if (banned_text && banned_text[0])
@@ -3383,6 +3506,15 @@ static int oath_render_detail_content(int oath_id, int col, int start_row,
     return virtual_row;
 }
 
+static void oath_render_wrapped_block(cptr text, int col, int max_width,
+    int* draw_row, int row_limit, byte color)
+{
+    int virtual_row = 0;
+
+    oath_render_virtual_wrapped_text(text, col, max_width, draw_row, row_limit,
+        &virtual_row, 0, color, true);
+}
+
 static void oath_draw_compact_list_summary(int oath_id, int row, int prompt_row,
     int max_width)
 {
@@ -3420,7 +3552,8 @@ static void oath_draw_compact_list_summary(int oath_id, int row, int prompt_row,
     {
         strnfmt(line_buf, sizeof(line_buf), "Reward: %s",
             oath_reward_text(oath_id));
-        oath_putstr_fit(2, row++, max_width, TERM_L_GREEN, line_buf);
+        oath_render_wrapped_block(line_buf, 2, max_width, &row, prompt_row,
+            TERM_L_GREEN);
     }
 
     if (row >= prompt_row)
@@ -3430,7 +3563,8 @@ static void oath_draw_compact_list_summary(int oath_id, int row, int prompt_row,
     {
         strnfmt(line_buf, sizeof(line_buf), "Forbidden: %s",
             oath_forbidden(oath_id));
-        oath_putstr_fit(2, row, max_width, TERM_L_RED, line_buf);
+        oath_render_wrapped_block(line_buf, 2, max_width, &row, prompt_row,
+            TERM_L_RED);
     }
 }
 
@@ -3536,8 +3670,10 @@ static NavResult select_oath(void)
                     char back_label[16];
                     char prompt_buf[96];
 
-                    birth_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
-                    birth_prompt_label('b', "B", back_label, sizeof(back_label));
+                    birth_prompt_label(steamdeck_confirm_key(), "A",
+                        confirm_label, sizeof(confirm_label));
+                    birth_prompt_label(steamdeck_back_key(), "B",
+                        back_label, sizeof(back_label));
                     strnfmt(prompt_buf, sizeof(prompt_buf),
                         "D-pad Nav/Page  %s Select  %s Back",
                         confirm_label, back_label);
@@ -3589,8 +3725,10 @@ static NavResult select_oath(void)
                     char back_label[16];
                     char prompt_buf[96];
 
-                    birth_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
-                    birth_prompt_label('b', "B", back_label, sizeof(back_label));
+                    birth_prompt_label(steamdeck_confirm_key(), "A",
+                        confirm_label, sizeof(confirm_label));
+                    birth_prompt_label(steamdeck_back_key(), "B",
+                        back_label, sizeof(back_label));
                     strnfmt(prompt_buf, sizeof(prompt_buf),
                         "D-pad Scroll/Page  %s Select  %s Back",
                         confirm_label, back_label);
@@ -3606,11 +3744,22 @@ static NavResult select_oath(void)
         else
         {
             int footer_row = prompt_row - 3;
-            int details_width = wid - COL_DESCRIPTION - 2;
+            int details_col = COL_DESCRIPTION - 2;
+            int details_width;
+            int list_width;
+
+            if (details_col < 20)
+                details_col = 20;
+            if (details_col > wid - 12)
+                details_col = wid - 12;
+
+            details_width = wid - details_col - 2;
+            list_width = details_col - 4;
 
             oath_center_putstr(0, TERM_L_BLUE, "Choose your Oath");
             Term_putstr(2, 2, -1, TERM_WHITE, "Available Oaths");
-            Term_putstr(COL_DESCRIPTION, 2, -1, TERM_WHITE, "Oath Details");
+            oath_putstr_fit(details_col, 2, details_width, TERM_WHITE,
+                "Oath Details");
 
             for (int i = 0; i < visible_count; i++)
             {
@@ -3624,10 +3773,10 @@ static NavResult select_oath(void)
                     attr = (highlight == oath_id) ? TERM_L_BLUE : TERM_WHITE;
 
                 strnfmt(buf, sizeof(buf), "%c) %s", 'a' + i, oath_name_str(oath_id));
-                Term_putstr(2, 4 + i, -1, attr, buf);
+                oath_putstr_fit(2, 4 + i, list_width, attr, buf);
             }
 
-            (void)oath_render_detail_content(highlight, COL_DESCRIPTION, 4,
+            (void)oath_render_detail_content(highlight, details_col, 4,
                 details_width, prompt_row, 0, true);
 
             if (footer_row >= 0)
@@ -3647,8 +3796,10 @@ static NavResult select_oath(void)
                 char back_label[16];
                 char prompt_buf[128];
 
-                birth_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
-                birth_prompt_label('b', "B", back_label, sizeof(back_label));
+                birth_prompt_label(steamdeck_confirm_key(), "A",
+                    confirm_label, sizeof(confirm_label));
+                birth_prompt_label(steamdeck_back_key(), "B",
+                    back_label, sizeof(back_label));
                 strnfmt(prompt_buf, sizeof(prompt_buf),
                     "D-pad Navigate  %s Select  %s Back",
                     confirm_label, back_label);
@@ -3664,7 +3815,7 @@ static NavResult select_oath(void)
         Term_fresh();
         key = inkey();
 
-        if (steamdeck && key == 'b')
+        if (steamdeck && key == steamdeck_back_key())
             return NAV_BACK; /* Go back to character creation */
         if (key == ESCAPE || key == 'q')
         {
@@ -3962,6 +4113,7 @@ static int blitz_select_effect_from_list(bool blessing, bool show_effects, int o
     int count = blitz_collect_eligible_effect_ids(blessing, ids, METAR_CURSE_SLOTS);
     int selected = 0;
     int top = 0;
+    bool steamdeck = steamdeck_controls_active();
 
     if (count <= 0)
         return -1;
@@ -3998,7 +4150,7 @@ static int blitz_select_effect_from_list(bool blessing, bool show_effects, int o
                                  : blitz_curse_name_str(ids[idx]);
             char line[128];
             strnfmt(line, sizeof(line), "%s", name);
-            c_put_str(idx == selected ? TERM_L_BLUE : (blessing ? TERM_L_GREEN : TERM_L_RED),
+            birth_put_str_fit(idx == selected ? TERM_L_BLUE : (blessing ? TERM_L_GREEN : TERM_L_RED),
                 line, 3 + row, 4);
         }
 
@@ -4012,36 +4164,49 @@ static int blitz_select_effect_from_list(bool blessing, bool show_effects, int o
                 : (cu->power ? cu_text + cu->power : "");
             int desc_row = 4 + list_rows;
 
-            c_put_str(TERM_WHITE, blessing ? blitz_blessing_name_str(selected_id)
-                                           : blitz_curse_name_str(selected_id),
+            birth_put_str_fit(TERM_WHITE, blessing ? blitz_blessing_name_str(selected_id)
+                                                   : blitz_curse_name_str(selected_id),
                 desc_row++, 2);
             if (desc && desc[0])
             {
-                text_out_hook = text_out_to_screen;
-                text_out_wrap = wid - 4;
-                text_out_indent = 2;
-                Term_gotoxy(2, desc_row);
-                text_out_c(TERM_SLATE, desc);
-                desc_row += count_wrapped_lines(desc, text_out_wrap, 2);
+                birth_put_wrapped_text(TERM_SLATE, desc, desc_row, 2);
+                desc_row += birth_wrapped_line_count(desc, 2);
             }
             if (show_effects && power && power[0])
             {
                 char power_line[512];
                 strnfmt(power_line, sizeof(power_line), "Effect: %s", power);
-                text_out_hook = text_out_to_screen;
-                text_out_wrap = wid - 4;
-                text_out_indent = 2;
-                Term_gotoxy(2, desc_row + 1);
-                text_out_c(blessing ? TERM_L_GREEN : TERM_L_RED, power_line);
+                birth_put_wrapped_text(blessing ? TERM_L_GREEN : TERM_L_RED,
+                    power_line, desc_row + 1, 2);
             }
         }
 
-        c_put_str(TERM_L_DARK, "8/2 navigate  Enter select  Esc back", hgt - 1, 2);
+        if (steamdeck)
+        {
+            char confirm_label[16];
+            char back_label[16];
+            char prompt_buf[96];
+
+            birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
+                sizeof(confirm_label));
+            birth_prompt_label(steamdeck_back_key(), "B", back_label,
+                sizeof(back_label));
+            strnfmt(prompt_buf, sizeof(prompt_buf),
+                "D-pad navigate  %s select  %s back",
+                confirm_label, back_label);
+            birth_put_str_fit(TERM_L_DARK, prompt_buf, hgt - 1, 2);
+        }
+        else
+        {
+            birth_put_str_fit(TERM_L_DARK, "8/2 navigate  Enter select  Esc back",
+                hgt - 1, 2);
+        }
         key = inkey();
 
-        if (key == ESCAPE)
+        if (key == ESCAPE || (steamdeck && key == steamdeck_back_key()))
             return -1;
-        if (key == '\n' || key == '\r' || key == ' ')
+        if (key == '\n' || key == '\r' || key == ' '
+            || (steamdeck && key == steamdeck_confirm_key()))
             return selected_id;
         if (key == '8')
         {
@@ -4083,13 +4248,27 @@ static void blitz_show_effect_summary(void)
         strnfmt(line, sizeof(line), "%s x%d",
             (stacks < 0) ? blitz_blessing_name_str(id) : blitz_curse_name_str(id),
             (stacks < 0) ? -stacks : stacks);
-        c_put_str(stacks < 0 ? TERM_L_GREEN : TERM_L_RED, line, row++, 4);
+        birth_put_str_fit(stacks < 0 ? TERM_L_GREEN : TERM_L_RED, line, row++, 4);
     }
 
     if (row == 3)
-        c_put_str(TERM_SLATE, "No blessings or curses selected.", row++, 4);
+        birth_put_str_fit(TERM_SLATE, "No blessings or curses selected.", row++, 4);
 
-    c_put_str(TERM_L_BLUE, "Press any key to continue.", MIN(row + 1, hgt - 1), 2);
+    if (steamdeck_controls_active())
+    {
+        char confirm_label[16];
+        char prompt_buf[48];
+
+        birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
+            sizeof(confirm_label));
+        strnfmt(prompt_buf, sizeof(prompt_buf), "[%s] continue", confirm_label);
+        birth_put_str_fit(TERM_L_BLUE, prompt_buf, MIN(row + 1, hgt - 1), 2);
+    }
+    else
+    {
+        birth_put_str_fit(TERM_L_BLUE, "Press any key to continue.",
+            MIN(row + 1, hgt - 1), 2);
+    }
     (void)inkey();
 }
 

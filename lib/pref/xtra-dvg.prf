@@ -3,7 +3,8 @@
 #
 # This file defines special attr/char mappings for use in "graphics" mode
 #
-# Edited for use with David Gervais's 32x32 tiles by Mogami.
+# Legacy David Gervais mapping kept for historical compatibility only.
+# Current Sil-More releases ship the MicroChasm tileset instead.
 #
 # See "lib/help/command.txt" and "src/files.c" for more information.
 #

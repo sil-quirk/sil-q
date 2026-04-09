@@ -2914,8 +2914,8 @@ void resize(const SDL_Rect* screen)
 
     // Use configured monospace font or fall back to default
     const char* font_path = config.monospace_font[0] != '\0' 
-        ? config.monospace_font 
-        : "lib/xtra/font/InputMono-Bold.ttf";
+        ? config.monospace_font
+        : "lib/xtra/font/VictorMono-Medium.ttf";
 
     for (int i = 1; i < MAX_TERM_DATA; i++) {
         // Always destroy the old pane to prevent its display in cases when we
@@ -4720,6 +4720,16 @@ errr init_sdl(int argc, char **argv)
     }
 
     sdl_gamepad_init();
+
+#ifdef __ANDROID__
+    if (!config_exists) {
+        config.steamdeck_mode = (g_gamepad_state.pad_count > 0);
+        log_info("Android first-start Steam Deck UI mode set to %s (%d gamepad%s detected)",
+            config.steamdeck_mode ? "on" : "off",
+            g_gamepad_state.pad_count,
+            (g_gamepad_state.pad_count == 1) ? "" : "s");
+    }
+#endif
     
     log_info("SDL Configuration:");
     log_info("  Main view scale: %d", config.main_view_scale);

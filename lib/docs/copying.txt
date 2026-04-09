@@ -1,38 +1,37 @@
-Sil is free software; you can redistribute it and/or modify it under the 
-terms of either the GNU General Public License as published by the Free 
-Software Foundation, version 2, or the "Angband licence", shown below, with 
-some exceptions:
+Sil-More is distributed by this repository under the terms of the
+GNU General Public License as published by the Free Software Foundation,
+version 2 ("GPL v2").
 
- * The SDL runtime libraries (if provided with your copy of the game) are under
-   the following licence:
+Sil-More descends from Sil / Sil-Q, and some inherited source files still
+carry historical Angband-style notices.  The original Sil / Sil-Q
+distribution offered GPL v2 and the Angband licence as alternative grants.
+This repository chooses GPL v2 for the game code and reproduces the
+historical Angband text below for provenance.
 
-     The Simple DirectMedia Layer (SDL for short) is a cross-platfrom library
-     designed to make it easy to write multi-media software, such as games and
-     emulators.
+Commercial distribution of the game code is permitted under GPL v2, but any
+public release must also comply with the separate licenses and permissions for
+bundled assets and runtime libraries:
 
-     The Simple DirectMedia Layer library source code is available from:
-     http://www.libsdl.org/
+ * The SDL runtime libraries (if provided with your copy of the game) are
+   under their own upstream licenses.  SDL3, SDL3_image, and SDL3_ttf use the
+   zlib license; other bundled runtime DLLs remain under their respective
+   upstream licenses.
 
-     This library is distributed under the terms of the GNU LGPL license:
-     http://www.gnu.org/copyleft/lesser.html
+ * Current graphics and tiles are documented in lib/xtra/graf/copying.txt.
+   No Adam Bolt or David Gervais tiles are included in current Sil-More
+   releases.
 
- * Adam Bolt's (16x16) graphics may be redistributed and used for any purpose, 
-   with or without modification.
+ * Current sounds and music are documented in lib/xtra/sound/copying.txt.
 
- * David Gervais' (32x32) graphics may be redistributed, modified, and used
-   only under the terms of the Creative Commons Attribution 3.0 licence:
-   http://creativecommons.org/licenses/by/3.0/
+ * Current font files are documented in lib/xtra/font/copying.txt.
 
- * the sounds are freeware, whatever that means.
+When distributing binaries under GPL v2, you must also satisfy the GPL v2
+requirements for providing the corresponding source code.
 
- * the font files are under the licences noted in lib/xtra/font/copying.txt,
-   all of which are OSI-compliant.
+------------------------------------------------------------------------------
 
-
-It is considered good practice to retain this statement for derivatives, rather
-than (e.g.) redistributing Adam Bolt's tiles under the GPL, or choosing to make
-a variant which is only under one of the Angband or GPL licences.  This allows
-easier sharing of changes between variants.
+Historical provenance: the Angband Licence text used by inherited Sil / Sil-Q
+materials is reproduced below.
 
 ------------------------------------------------------------------------------
 

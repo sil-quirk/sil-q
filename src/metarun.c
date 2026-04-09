@@ -4153,6 +4153,7 @@ static void metarun_build_action_prompt(int term_width,
                                         const char *diff_label,
                                         const char *full_label,
                                         const char *history_label,
+                                        const char *blitz_label,
                                         bool blitz_enabled,
                                         char *out,
                                         size_t out_size)
@@ -4165,6 +4166,7 @@ static void metarun_build_action_prompt(int term_width,
     const char *diff = (diff_label && *diff_label) ? diff_label : "L1";
     const char *full = (full_label && *full_label) ? full_label : "Start";
     const char *hist = (history_label && *history_label) ? history_label : "Y";
+    const char *blitz = (blitz_label && *blitz_label) ? blitz_label : "Back";
 
     metarun_prompt_action actions[6];
     memset(actions, 0, sizeof(actions));
@@ -4208,7 +4210,11 @@ static void metarun_build_action_prompt(int term_width,
         strnfmt(actions[4].variants[1], sizeof(actions[4].variants[1]), "[%s] Hist", hist);
         strnfmt(actions[4].variants[2], sizeof(actions[4].variants[2]), "[%s] H", hist);
         strnfmt(actions[4].variants[3], sizeof(actions[4].variants[3]), "[%s]", hist);
-        actions[5].enabled = false;
+ 
+        strnfmt(actions[5].variants[0], sizeof(actions[5].variants[0]), "[%s] Blitz", blitz);
+        strnfmt(actions[5].variants[1], sizeof(actions[5].variants[1]), "[%s] Blitz", blitz);
+        strnfmt(actions[5].variants[2], sizeof(actions[5].variants[2]), "[%s] Bz", blitz);
+        strnfmt(actions[5].variants[3], sizeof(actions[5].variants[3]), "[%s]", blitz);
 
     } else {
         SDL_strlcpy(actions[0].variants[0], "[b] Spend blessings", sizeof(actions[0].variants[0]));
@@ -4576,9 +4582,11 @@ void print_metarun_stats(void)
     char history_label[16] = "";
     char back_label[16] = "";
     char continue_label[16] = "";
+    char blitz_label[16] = "";
 
     if (steamdeck) {
-        /* Steam Deck UI: A=Continue, B=Back, X=Spend, Y=History, L1=Diff, R1=Threshold, Start=Full list */
+        /* Steam Deck UI: A=Continue, B=Back, X=Spend, Y=History,
+         * L1=Diff, R1=Threshold, Start=Full list, RS Right=Blitz */
         int confirm_key = steamdeck_confirm_key();
         int back_key = steamdeck_back_key();
         int alt_key = steamdeck_alt_action_key();
@@ -4594,6 +4602,7 @@ void print_metarun_stats(void)
         metarun_prompt_label(l1_key, "L1", diff_label, sizeof(diff_label));
         metarun_prompt_label(r1_key, "R1", threshold_label, sizeof(threshold_label));
         metarun_prompt_label(start_key, "Start", full_label, sizeof(full_label));
+        metarun_prompt_label('x', "RS Right", blitz_label, sizeof(blitz_label));
     }
 
     bool blitz_enabled = (op_ptr && op_ptr->opt[OPT_unlock_blitz_mode]);
@@ -4899,7 +4908,8 @@ void print_metarun_stats(void)
         char prompt_buf[256];
         metarun_build_action_prompt(term_width, steamdeck,
                                     spend_label, threshold_label, diff_label,
-                                    full_label, history_label, blitz_enabled,
+                                    full_label, history_label, blitz_label,
+                                    blitz_enabled,
                                     prompt_buf, sizeof(prompt_buf));
         metarun_truncate_for_width(prompt_buf, term_width);
         metarun_put_prompt_line(term_width, term_height, TERM_L_DARK, prompt_buf);
@@ -5032,7 +5042,8 @@ void print_metarun_stats(void)
         char prompt_buf[256];
         metarun_build_action_prompt(term_width, steamdeck,
                                     spend_label, threshold_label, diff_label,
-                                    full_label, history_label, blitz_enabled,
+                                    full_label, history_label, blitz_label,
+                                    blitz_enabled,
                                     prompt_buf, sizeof(prompt_buf));
         metarun_truncate_for_width(prompt_buf, term_width);
         metarun_put_prompt_line(term_width, term_height, TERM_L_DARK, prompt_buf);

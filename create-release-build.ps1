@@ -122,6 +122,15 @@ foreach ($folder in $libFoldersToCopy) {
             # Special: xtra requires careful copying
             Copy-Item -Recurse $srcFolder $dstFolder -Force
 
+            # Public release builds use the documented OFL font set only.
+            $inputMonoPath = "$dstFolder/font/InputMono-Bold.ttf"
+            if (Test-Path $inputMonoPath) {
+                Remove-Item -Force $inputMonoPath
+                Write-Host "  [OK] lib/$folder (font: removed InputMono-Bold.ttf)"
+            } else {
+                Write-Host "  [SKIP] lib/$folder/font/InputMono-Bold.ttf (not found)"
+            }
+
             # Remove 'packs' subfolders in sound (sound packs are not included in the release)
             $soundPath = "$dstFolder/sound"
             if (Test-Path $soundPath) {
