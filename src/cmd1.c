@@ -134,6 +134,21 @@ bool graphics_are_ascii()
  * If the inventory would overflow, this is handled at the start of the next
  * player turn.
  */
+static void strip_brass_lantern_turns_suffix(char* o_name, const object_type* o_ptr)
+{
+    char* fuel_suffix;
+
+    if (!o_name || !o_ptr)
+        return;
+
+    if (o_ptr->tval != TV_LIGHT || o_ptr->sval != SV_LIGHT_LANTERN)
+        return;
+
+    fuel_suffix = strstr(o_name, " (");
+    if (fuel_suffix && strstr(fuel_suffix, " turns)"))
+        *fuel_suffix = '\0';
+}
+
 void give_player_item(object_type * o_ptr)
 {
     char o_name[80];
@@ -144,6 +159,7 @@ void give_player_item(object_type * o_ptr)
     if (slot == SUPPLIES_INDEX)
     {
         object_desc(o_name, sizeof(o_name), &copy, true, 3);
+        strip_brass_lantern_turns_suffix(o_name, &copy);
         char label = supplies_label_char();
         if (!label)
             label = 'a';
@@ -3388,6 +3404,137 @@ static bool prompt_replace_pack_item(const object_type* incoming)
     }
 }
 
+static bool object_is_brass_lamp(const object_type* o_ptr)
+{
+    return o_ptr && o_ptr->k_idx && o_ptr->tval == TV_LIGHT
+        && o_ptr->sval == SV_LIGHT_LANTERN;
+}
+
+static bool object_is_oil_flask(const object_type* o_ptr)
+{
+    return o_ptr && o_ptr->k_idx && o_ptr->tval == TV_FLASK;
+}
+
+static bool confirm_oil_pickup_overflow(const object_type* o_ptr, int oil_amount)
+{
+    char o_name[80];
+    char prompt[160];
+
+    if (!o_ptr || oil_amount <= 0 || !player_lamp_oil_would_overflow(oil_amount))
+        return true;
+
+    object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+    strnfmt(prompt, sizeof(prompt),
+        "Adding the oil from %s will waste some oil. Proceed? ", o_name);
+    return get_check(prompt);
+}
+
+static int find_exchangeable_brass_lamp_supply(void)
+{
+    return supplies_first_entry_for_kind(lookup_kind(TV_LIGHT, SV_LIGHT_LANTERN));
+}
+
+static int find_exchangeable_brass_lamp_pack_slot(void)
+{
+    for (int i = 0; i < INVEN_PACK; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+        if (object_is_brass_lamp(o_ptr))
+            return i;
+    }
+
+    return -1;
+}
+
+static bool pickup_oil_flask(int o_idx, object_type* o_ptr)
+{
+    int oil_amount;
+
+    if (!object_is_oil_flask(o_ptr))
+        return false;
+
+    oil_amount = o_ptr->pval * MAX(o_ptr->number, 1);
+    if (!confirm_oil_pickup_overflow(o_ptr, oil_amount))
+    {
+        msg_print("You leave it on the ground.");
+        return true;
+    }
+
+    player_gain_lamp_oil(oil_amount, true);
+    msg_print("You pour the oil into your lamp stores.");
+    delete_object_idx(o_idx);
+    return true;
+}
+
+static bool pickup_brass_lamp(int o_idx, object_type* o_ptr)
+{
+    int spare_supply_idx;
+    int spare_pack_idx;
+    int oil_amount;
+
+    if (!object_is_brass_lamp(o_ptr))
+        return false;
+
+    if (o_ptr->number != 1)
+        return false;
+
+    oil_amount = o_ptr->timeout;
+
+    if (player_light_available_capacity(o_ptr) <= 0)
+    {
+        spare_supply_idx = find_exchangeable_brass_lamp_supply();
+        spare_pack_idx = find_exchangeable_brass_lamp_pack_slot();
+
+        if ((spare_supply_idx >= 0 || spare_pack_idx >= 0)
+            && get_check("Exchange it with another brass lamp? "))
+        {
+            if (!confirm_oil_pickup_overflow(o_ptr, oil_amount))
+            {
+                msg_print("You leave it on the ground.");
+                return true;
+            }
+
+            if (spare_supply_idx >= 0)
+                (void)supplies_drop_amount(spare_supply_idx, 1);
+            else if (spare_pack_idx >= 0)
+                inven_drop(spare_pack_idx, 1);
+        }
+        else if (oil_amount > 0 && get_check("Take only the oil? "))
+        {
+            if (!confirm_oil_pickup_overflow(o_ptr, oil_amount))
+            {
+                msg_print("You leave it on the ground.");
+                return true;
+            }
+
+            player_gain_lamp_oil(oil_amount, true);
+            o_ptr->timeout = 0;
+            msg_print("You siphon the oil and leave the lamp behind.");
+            return true;
+        }
+        else
+        {
+            msg_print("You leave it on the ground.");
+            return true;
+        }
+    }
+
+    if (!confirm_oil_pickup_overflow(o_ptr, oil_amount))
+    {
+        msg_print("You leave it on the ground.");
+        return true;
+    }
+
+    player_gain_lamp_oil(oil_amount, true);
+    o_ptr->timeout = 0;
+    give_player_item(o_ptr);
+
+    if (!o_ptr->k_idx || o_ptr->number <= 0)
+        delete_object_idx(o_idx);
+
+    return true;
+}
+
 /*
  * Helper routine for py_pickup() and py_pickup_floor().
  *
@@ -3409,6 +3556,12 @@ void py_pickup_aux(int o_idx)
     /*hack - don't pickup &nothings*/
     if (o_ptr->k_idx)
     {
+        if (pickup_oil_flask(o_idx, o_ptr))
+            return;
+
+        if (pickup_brass_lamp(o_idx, o_ptr))
+            return;
+
         /* Check for Oath of the Smith violation */
         if (smith_oath_forbids_object(o_ptr))
         {
@@ -3970,7 +4123,14 @@ void py_pickup(void)
         if (skip_current_item)
             continue;
 
-        while (!inven_carry_okay(o_ptr))
+        bool bypass_carry_check = object_is_oil_flask(o_ptr)
+            || (object_is_brass_lamp(o_ptr)
+                && o_ptr->number == 1
+                && (supplies_entry_count() > 0 || p_ptr->inven_cnt < INVEN_PACK)
+                && (player_light_available_capacity(o_ptr) <= 0
+                    || player_lamp_oil_would_overflow(o_ptr->timeout)));
+
+        while (!bypass_carry_check && !inven_carry_okay(o_ptr))
         {
             pickup_failure_result failure = resolve_pickup_failure(
                 o_ptr, this_o_idx, o_name, attempted_replacement);

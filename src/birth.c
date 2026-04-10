@@ -593,7 +593,7 @@ static void give_start_items(const start_item *list)
             else if (i_ptr->sval == SV_LIGHT_LANTERN)
                 i_ptr->timeout = 3000;
             else if (i_ptr->sval == SV_LIGHT_MALLORN)
-                i_ptr->timeout = 50;
+                i_ptr->timeout = 100;
         }
 
         bool start_known = true;
@@ -621,6 +621,20 @@ static void give_start_items(const start_item *list)
             if (!label)
                 label = 'a';
             log_info("Starting item went to supplies: %s (%c)", name, label);
+
+            if (slot == INVEN_LITE && inventory[INVEN_LITE].tval == 0)
+            {
+                int supply_idx = supplies_first_entry_for_kind(i_ptr->k_idx);
+                object_type equip_light;
+
+                if (supply_idx >= 0 && supplies_take_one(supply_idx, &equip_light))
+                {
+                    object_copy(&inventory[INVEN_LITE], &equip_light);
+                    if (inventory[INVEN_LITE].sval == SV_LIGHT_LANTERN)
+                        inventory[INVEN_LITE].timeout = 0;
+                    p_ptr->equip_cnt++;
+                }
+            }
             continue;
         }
 

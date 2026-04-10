@@ -5464,7 +5464,8 @@ enum fletch_source_type
 {
     FLETCH_SOURCE_INVEN = 0,
     FLETCH_SOURCE_EQUIP = 1,
-    FLETCH_SOURCE_FLOOR = 2
+    FLETCH_SOURCE_FLOOR = 2,
+    FLETCH_SOURCE_SUPPLY = 3
 };
 
 typedef struct fletch_choice_s
@@ -5472,6 +5473,143 @@ typedef struct fletch_choice_s
     enum fletch_source_type type;
     int index;
 } fletch_choice_t;
+
+static bool supply_object_is_fletchery_torch(
+    const object_type* o_ptr, int sval)
+{
+    return o_ptr && o_ptr->k_idx && o_ptr->tval == TV_LIGHT
+        && o_ptr->sval == sval && item_tester_hook_fletchery_source(o_ptr);
+}
+
+static int count_fletchery_supply_torches(int sval)
+{
+    int total = 0;
+
+    for (int i = 0; i < supplies_entry_count(); i++)
+    {
+        object_type* o_ptr = supplies_entry_at(i);
+        if (!supply_object_is_fletchery_torch(o_ptr, sval))
+            continue;
+
+        total += o_ptr->number;
+    }
+
+    return total;
+}
+
+static int find_fletchery_supply_torch(int sval)
+{
+    for (int i = 0; i < supplies_entry_count(); i++)
+    {
+        object_type* o_ptr = supplies_entry_at(i);
+        if (supply_object_is_fletchery_torch(o_ptr, sval))
+            return i;
+    }
+
+    return -1;
+}
+
+static bool choose_fletchery_supply_torch(int* out_sval)
+{
+    int wooden = count_fletchery_supply_torches(SV_LIGHT_TORCH);
+    int mallorn = count_fletchery_supply_torches(SV_LIGHT_MALLORN);
+    char ch;
+
+    if (!out_sval)
+        return false;
+
+    if (wooden <= 0 && mallorn <= 0)
+    {
+        msg_print("You have no torches in your supplies.");
+        return false;
+    }
+
+    if (wooden > 0 && mallorn <= 0)
+    {
+        *out_sval = SV_LIGHT_TORCH;
+        return true;
+    }
+
+    if (mallorn > 0 && wooden <= 0)
+    {
+        *out_sval = SV_LIGHT_MALLORN;
+        return true;
+    }
+
+    while (true)
+    {
+        if (!get_com("Use [w]ooden or [m]allorn torches from supplies? ", &ch))
+            return false;
+
+        switch (ch)
+        {
+        case 'w':
+        case 'W':
+            *out_sval = SV_LIGHT_TORCH;
+            return true;
+
+        case 'm':
+        case 'M':
+            *out_sval = SV_LIGHT_MALLORN;
+            return true;
+
+        default:
+            bell("Please choose 'w' or 'm'.");
+            break;
+        }
+    }
+}
+
+static bool build_fletchery_supply_source(
+    int sval, object_type* out_obj, int* out_total)
+{
+    int idx;
+    int total;
+    object_type* o_ptr;
+
+    if (!out_obj || !out_total)
+        return false;
+
+    total = count_fletchery_supply_torches(sval);
+    idx = find_fletchery_supply_torch(sval);
+    if (idx < 0 || total <= 0)
+        return false;
+
+    o_ptr = supplies_entry_at(idx);
+    if (!o_ptr)
+        return false;
+
+    object_copy(out_obj, o_ptr);
+    *out_total = total;
+    return true;
+}
+
+static bool consume_fletchery_supply_torches(int sval, int amount)
+{
+    for (int i = 0; amount > 0 && i < supplies_entry_count();)
+    {
+        object_type* o_ptr = supplies_entry_at(i);
+        int take;
+
+        if (!supply_object_is_fletchery_torch(o_ptr, sval))
+        {
+            i++;
+            continue;
+        }
+
+        take = MIN(amount, o_ptr->number);
+        if (supplies_consume_quantity(i, take))
+        {
+            amount -= take;
+            continue;
+        }
+
+        amount -= take;
+        i++;
+    }
+
+    return amount == 0;
+}
 
 static void distribute_fletchered_arrows(const object_type* arrows)
 {
@@ -5616,8 +5754,11 @@ static bool fletchery_choose_source(fletch_choice_t* out_choice)
 
     if (selection == SUPPLIES_INDEX)
     {
-        msg_print("Supplies cannot be used for fletchery.");
-        return false;
+        if (!choose_fletchery_supply_torch(&out_choice->index))
+            return false;
+
+        out_choice->type = FLETCH_SOURCE_SUPPLY;
+        return true;
     }
 
     if (selection < 0)
@@ -5642,7 +5783,9 @@ static bool fletchery_choose_source(fletch_choice_t* out_choice)
 void do_cmd_fletchery(void)
 {
     object_type* o_ptr;
+    object_type supply_source;
     fletch_choice_t choice;
+    bool from_supply;
 
     if (!p_ptr->active_ability[S_ARC][ARC_FLETCHERY])
     {
@@ -5654,12 +5797,23 @@ void do_cmd_fletchery(void)
         return;
 
     bool from_floor = (choice.type == FLETCH_SOURCE_FLOOR);
+    from_supply = (choice.type == FLETCH_SOURCE_SUPPLY);
 
     int source_index = choice.index;
     int floor_idx = from_floor ? source_index : 0;
+    int supply_total = 0;
 
     if (from_floor)
         o_ptr = &o_list[floor_idx];
+    else if (from_supply)
+    {
+        if (!build_fletchery_supply_source(source_index, &supply_source, &supply_total))
+        {
+            msg_print("You have nothing suitable for fletchery in your supplies.");
+            return;
+        }
+        o_ptr = &supply_source;
+    }
     else
         o_ptr = &inventory[source_index];
 
@@ -5692,7 +5846,7 @@ void do_cmd_fletchery(void)
 
     if (is_torch || is_staff)
     {
-        int max_convert = o_ptr->number;
+        int max_convert = from_supply ? supply_total : o_ptr->number;
         if (max_convert <= 0)
         {
             msg_print("You have nothing to work with.");
@@ -5724,6 +5878,14 @@ void do_cmd_fletchery(void)
         {
             floor_item_increase(floor_idx, -amount);
             floor_item_optimize(floor_idx);
+        }
+        else if (from_supply)
+        {
+            if (!consume_fletchery_supply_torches(source_index, amount))
+            {
+                msg_print("You no longer have enough torches in your supplies.");
+                return;
+            }
         }
         else
         {

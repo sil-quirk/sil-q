@@ -1025,7 +1025,8 @@ static void wr_extra(void)
     wr_byte(p_ptr->morgoth_hall_entered ? 1 : 0);
     wr_byte(p_ptr->morgoth_second_wind ? 1 : 0);
     wr_byte(p_ptr->discovery_lore_flags);
-    wr_u32b(0L);
+    wr_s16b(p_ptr->lamp_oil);
+    wr_u16b(0U);
     wr_u32b(0L);
     wr_u32b(0L);
 

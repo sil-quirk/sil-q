@@ -2707,7 +2707,7 @@ bool make_attack_ranged(monster_type* m_ptr, int attack)
             msg_format("%^s whispers of an ancient gloom.", m_name);
         }
 
-        if (o_ptr->tval == TV_LIGHT && o_ptr->timeout > 0)
+        if (o_ptr->tval == TV_LIGHT && player_light_has_fuel(o_ptr))
         {
             if (o_ptr->sval == SV_LIGHT_TORCH
                 || o_ptr->sval == SV_LIGHT_MALLORN)
@@ -2716,9 +2716,9 @@ bool make_attack_ranged(monster_type* m_ptr, int attack)
                 msg_print("Your lantern sputters.");
             message_flush();
 
-            o_ptr->timeout -= damroll(20, 20);
-            if (o_ptr->timeout < 1)
-                o_ptr->timeout = 1;
+            player_light_add_fuel(o_ptr, -damroll(20, 20));
+            if (player_light_fuel(o_ptr) < 1)
+                player_light_set_fuel(o_ptr, 1);
         }
 
         break;

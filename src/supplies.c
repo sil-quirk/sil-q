@@ -27,6 +27,319 @@ static int g_supplies_max_weight = SUPPLIES_MAX_WEIGHT_DEFAULT;
 static bool g_supply_allow_overflow = false;
 static bool g_supply_limit_warned = false;
 
+static bool supplies_weight_counts_to_limit(const object_type* o_ptr)
+{
+    return o_ptr && !supplies_is_light_object(o_ptr);
+}
+
+bool supplies_is_food_object(const object_type* o_ptr)
+{
+    return o_ptr && o_ptr->k_idx && (o_ptr->tval == TV_FOOD);
+}
+
+bool supplies_is_light_object(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx || o_ptr->tval != TV_LIGHT)
+        return false;
+
+    return (o_ptr->sval == SV_LIGHT_TORCH)
+        || (o_ptr->sval == SV_LIGHT_MALLORN)
+        || (o_ptr->sval == SV_LIGHT_LANTERN);
+}
+
+bool supplies_is_carried_object_pointer(const object_type* o_ptr)
+{
+    if (!o_ptr)
+        return false;
+
+    if (o_ptr >= inventory && o_ptr < inventory + INVEN_TOTAL)
+        return true;
+
+    if (!g_supply_entries || g_supply_count <= 0)
+        return false;
+
+    const object_type* first = &g_supply_entries[0].obj;
+    const object_type* last = &g_supply_entries[g_supply_count - 1].obj;
+
+    return (o_ptr >= first) && (o_ptr <= last);
+}
+
+static bool player_lamp_pointer_uses_pool(const object_type* o_ptr)
+{
+    return o_ptr && o_ptr->k_idx
+        && o_ptr->tval == TV_LIGHT
+        && o_ptr->sval == SV_LIGHT_LANTERN
+        && supplies_is_carried_object_pointer(o_ptr);
+}
+
+int player_light_max_fuel(const object_type* o_ptr)
+{
+    if (!o_ptr)
+        return 0;
+
+    if (player_lamp_pointer_uses_pool(o_ptr))
+        return PLAYER_LAMP_OIL_MAX;
+
+    switch (o_ptr->tval)
+    {
+    case TV_FLASK:
+        return o_ptr->pval;
+    case TV_LIGHT:
+        if (o_ptr->sval == SV_LIGHT_TORCH)
+            return FUEL_TORCH;
+        if (o_ptr->sval == SV_LIGHT_LANTERN)
+            return FUEL_LAMP;
+        if (o_ptr->sval == SV_LIGHT_MALLORN)
+            return FUEL_MALLORN;
+        break;
+    default:
+        break;
+    }
+
+    return 0;
+}
+
+int player_light_sputter_threshold(const object_type* o_ptr)
+{
+    if (!o_ptr)
+        return 0;
+
+    if (o_ptr->tval != TV_LIGHT)
+        return 0;
+
+    switch (o_ptr->sval)
+    {
+    case SV_LIGHT_TORCH:
+    case SV_LIGHT_LANTERN:
+        return 100;
+    case SV_LIGHT_MALLORN:
+        return 10;
+    default:
+        return 0;
+    }
+}
+
+bool player_light_uses_oil_pool(const object_type* o_ptr)
+{
+    return player_lamp_pointer_uses_pool(o_ptr);
+}
+
+int player_lamp_oil(void)
+{
+    if (!p_ptr)
+        return 0;
+
+    if (p_ptr->lamp_oil < 0)
+        p_ptr->lamp_oil = 0;
+    if (p_ptr->lamp_oil > PLAYER_LAMP_OIL_MAX)
+        p_ptr->lamp_oil = PLAYER_LAMP_OIL_MAX;
+
+    return p_ptr->lamp_oil;
+}
+
+int player_lamp_oil_weight(void)
+{
+    int oil = player_lamp_oil();
+
+    if (oil <= 0)
+        return 0;
+
+    return (oil * 3 + 2999) / 3000;
+}
+
+void player_set_lamp_oil(int oil)
+{
+    if (!p_ptr)
+        return;
+
+    if (oil < 0)
+        oil = 0;
+    if (oil > PLAYER_LAMP_OIL_MAX)
+        oil = PLAYER_LAMP_OIL_MAX;
+
+    p_ptr->lamp_oil = oil;
+}
+
+bool player_lamp_oil_would_overflow(int addition)
+{
+    if (addition <= 0)
+        return false;
+
+    return player_lamp_oil() + addition > PLAYER_LAMP_OIL_MAX;
+}
+
+bool player_gain_lamp_oil(int addition, bool allow_overflow)
+{
+    int oil;
+
+    if (addition <= 0)
+        return true;
+
+    oil = player_lamp_oil();
+    if (!allow_overflow && oil + addition > PLAYER_LAMP_OIL_MAX)
+        return false;
+
+    if (oil + addition > PLAYER_LAMP_OIL_MAX)
+        oil = PLAYER_LAMP_OIL_MAX;
+    else
+        oil += addition;
+
+    player_set_lamp_oil(oil);
+    return true;
+}
+
+int player_light_fuel(const object_type* o_ptr)
+{
+    if (!o_ptr)
+        return 0;
+
+    if (player_lamp_pointer_uses_pool(o_ptr))
+        return player_lamp_oil();
+
+    return o_ptr->timeout;
+}
+
+bool player_light_has_fuel(const object_type* o_ptr)
+{
+    return player_light_fuel(o_ptr) > 0;
+}
+
+bool player_light_destroyed_on_drop(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx || o_ptr->tval != TV_LIGHT)
+        return false;
+
+    if (o_ptr->sval != SV_LIGHT_TORCH && o_ptr->sval != SV_LIGHT_MALLORN)
+        return false;
+
+    return player_light_fuel(o_ptr) <= player_light_sputter_threshold(o_ptr);
+}
+
+void player_light_set_fuel(object_type* o_ptr, int fuel)
+{
+    int max_fuel;
+
+    if (!o_ptr)
+        return;
+
+    max_fuel = player_light_max_fuel(o_ptr);
+    if (fuel < 0)
+        fuel = 0;
+    if (max_fuel > 0 && fuel > max_fuel)
+        fuel = max_fuel;
+
+    if (player_lamp_pointer_uses_pool(o_ptr))
+    {
+        player_set_lamp_oil(fuel);
+        o_ptr->timeout = 0;
+        return;
+    }
+
+    o_ptr->timeout = fuel;
+}
+
+void player_light_add_fuel(object_type* o_ptr, int amount)
+{
+    if (!o_ptr || amount == 0)
+        return;
+
+    player_light_set_fuel(o_ptr, player_light_fuel(o_ptr) + amount);
+}
+
+static bool player_light_matches_sval(const object_type* o_ptr, int sval)
+{
+    return o_ptr && o_ptr->k_idx && o_ptr->tval == TV_LIGHT && o_ptr->sval == sval;
+}
+
+int player_carried_torch_count(void)
+{
+    int count = 0;
+
+    for (int i = 0; i < INVEN_TOTAL; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+        if (!o_ptr->k_idx || o_ptr->tval != TV_LIGHT)
+            continue;
+        if (o_ptr->sval == SV_LIGHT_TORCH || o_ptr->sval == SV_LIGHT_MALLORN)
+            count += MAX(o_ptr->number, 1);
+    }
+
+    for (int i = 0; i < g_supply_count; i++)
+    {
+        object_type* o_ptr = &g_supply_entries[i].obj;
+        if (!o_ptr->k_idx || o_ptr->tval != TV_LIGHT)
+            continue;
+        if (o_ptr->sval == SV_LIGHT_TORCH || o_ptr->sval == SV_LIGHT_MALLORN)
+            count += MAX(o_ptr->number, 1);
+    }
+
+    return count;
+}
+
+int player_carried_light_count_for_sval(int sval)
+{
+    int count = 0;
+
+    for (int i = 0; i < INVEN_TOTAL; i++)
+    {
+        if (player_light_matches_sval(&inventory[i], sval))
+            count += MAX(inventory[i].number, 1);
+    }
+
+    for (int i = 0; i < g_supply_count; i++)
+    {
+        object_type* o_ptr = &g_supply_entries[i].obj;
+        if (player_light_matches_sval(o_ptr, sval))
+            count += MAX(o_ptr->number, 1);
+    }
+
+    return count;
+}
+
+int player_light_carry_cap(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx || o_ptr->tval != TV_LIGHT)
+        return 0;
+
+    switch (o_ptr->sval)
+    {
+    case SV_LIGHT_TORCH:
+    case SV_LIGHT_MALLORN:
+        return PLAYER_TORCH_CAP;
+    case SV_LIGHT_LANTERN:
+        return PLAYER_BRASS_LAMP_CAP;
+    case SV_LIGHT_LESSER_JEWEL:
+        return PLAYER_LESSER_JEWEL_CAP;
+    case SV_LIGHT_FEANORIAN:
+        return PLAYER_FEANORIAN_LAMP_CAP;
+    default:
+        return 0;
+    }
+}
+
+int player_light_available_capacity(const object_type* o_ptr)
+{
+    int cap;
+    int used;
+
+    cap = player_light_carry_cap(o_ptr);
+    if (cap <= 0)
+        return 255;
+
+    if (o_ptr->tval != TV_LIGHT)
+        return 255;
+
+    if (o_ptr->sval == SV_LIGHT_TORCH || o_ptr->sval == SV_LIGHT_MALLORN)
+        used = player_carried_torch_count();
+    else
+        used = player_carried_light_count_for_sval(o_ptr->sval);
+
+    if (used >= cap)
+        return 0;
+
+    return cap - used;
+}
+
 
 static void supplies_apply_auto_identification(object_type* obj)
 {
@@ -166,7 +479,10 @@ bool supplies_is_supply_object(const object_type* o_ptr)
     if (o_ptr->tval == TV_GEM)
         return true;
 
-    if (o_ptr->tval == TV_FOOD && o_ptr->sval <= SV_FOOD_SICKNESS)
+    if (supplies_is_food_object(o_ptr))
+        return true;
+
+    if (supplies_is_light_object(o_ptr))
         return true;
 
     return false;
@@ -187,37 +503,63 @@ static int supplies_find_similar(const object_type* src)
 
 bool supplies_can_absorb_object(const object_type* o_ptr)
 {
+    int add_weight;
+
     if (!supplies_is_supply_object(o_ptr))
         return false;
 
     if (g_supply_allow_overflow)
-        return true;
+        return player_light_available_capacity(o_ptr) >= o_ptr->number;
 
-    int current_weight = supplies_total_weight();
+    if (player_light_available_capacity(o_ptr) < o_ptr->number)
+        return false;
 
-    int add_weight = o_ptr->weight * o_ptr->number;
+    add_weight = supplies_weight_counts_to_limit(o_ptr)
+        ? (o_ptr->weight * o_ptr->number)
+        : 0;
+
+    if (o_ptr->tval == TV_LIGHT && o_ptr->sval == SV_LIGHT_LANTERN
+        && player_lamp_oil_would_overflow(o_ptr->timeout * o_ptr->number))
+    {
+        return false;
+    }
+
+    int current_weight = supplies_limit_weight();
     return supplies_can_add_weight_internal(current_weight, add_weight, false);
 }
 
 int supplies_max_absorbable_quantity(const object_type* o_ptr)
 {
+    int max_count = o_ptr ? o_ptr->number : 0;
+
     if (!supplies_is_supply_object(o_ptr))
         return 0;
 
     if (g_supply_allow_overflow)
-        return o_ptr->number;
+        return MIN(max_count, player_light_available_capacity(o_ptr));
 
-    if (o_ptr->weight <= 0)
-        return o_ptr->number;
+    max_count = MIN(max_count, player_light_available_capacity(o_ptr));
 
-    int current_weight = supplies_total_weight();
+    if (o_ptr->tval == TV_LIGHT && o_ptr->sval == SV_LIGHT_LANTERN
+        && o_ptr->timeout > 0)
+    {
+        int oil = player_lamp_oil();
+        if (oil >= PLAYER_LAMP_OIL_MAX)
+            return 0;
+
+        max_count = MIN(max_count, (PLAYER_LAMP_OIL_MAX - oil) / o_ptr->timeout);
+    }
+
+    if (!supplies_weight_counts_to_limit(o_ptr) || o_ptr->weight <= 0)
+        return max_count;
+
+    int current_weight = supplies_limit_weight();
     int available_weight = g_supplies_max_weight - current_weight;
 
     if (available_weight <= 0)
         return 0;
 
-    int max_count = available_weight / o_ptr->weight;
-    return MIN(max_count, o_ptr->number);
+    return MIN(max_count, available_weight / o_ptr->weight);
 }
 
 static void supplies_mark_dirty(void)
@@ -229,6 +571,7 @@ static void supplies_mark_dirty(void)
 
 bool supplies_absorb_object(object_type* src)
 {
+    object_type normalized;
     if (!supplies_is_supply_object(src))
         return false;
 
@@ -239,20 +582,41 @@ bool supplies_absorb_object(object_type* src)
         object_wipe(src);
         return true;
     }
-    int idx = supplies_find_similar(src);
+    if (player_light_available_capacity(src) < src->number)
+        return false;
 
-    int current_weight = supplies_total_weight();
-    int add_weight = src->weight * src->number;
+    object_copy(&normalized, src);
+    if (normalized.tval == TV_LIGHT && normalized.sval == SV_LIGHT_LANTERN)
+        normalized.timeout = 0;
+
+    int idx = supplies_find_similar(&normalized);
+
+    int current_weight = supplies_limit_weight();
+    int add_weight = supplies_weight_counts_to_limit(src)
+        ? (src->weight * src->number)
+        : 0;
     if (!supplies_can_add_weight_internal(current_weight, add_weight, true))
         return false;
+
+    if (src->tval == TV_LIGHT && src->sval == SV_LIGHT_LANTERN)
+    {
+        if (!player_gain_lamp_oil(src->timeout * src->number,
+                g_supply_allow_overflow))
+        {
+            return false;
+        }
+        normalized.timeout = 0;
+    }
 
     if (idx >= 0)
     {
         supply_entry* entry = &g_supply_entries[idx];
-        int total = entry->obj.number + src->number;
+        int total = entry->obj.number + normalized.number;
         int moved = MIN(total, 255);
         entry->obj.number = moved;
         int leftover = total - moved;
+        if (entry->obj.tval == TV_LIGHT && entry->obj.sval == SV_LIGHT_LANTERN)
+            entry->obj.timeout = 0;
         supplies_apply_auto_identification(&entry->obj);
         object_wipe(src);
         supplies_mark_dirty();
@@ -263,6 +627,8 @@ bool supplies_absorb_object(object_type* src)
             supply_entry* extra = &g_supply_entries[g_supply_count];
             object_copy(&extra->obj, &entry->obj);
             extra->obj.number = MIN(leftover, 255);
+            if (extra->obj.tval == TV_LIGHT && extra->obj.sval == SV_LIGHT_LANTERN)
+                extra->obj.timeout = 0;
             supplies_apply_auto_identification(&extra->obj);
             leftover -= extra->obj.number;
             g_supply_count++;
@@ -272,7 +638,7 @@ bool supplies_absorb_object(object_type* src)
 
     supplies_reserve(g_supply_count + 1);
     supply_entry* entry = &g_supply_entries[g_supply_count];
-    object_copy(&entry->obj, src);
+    object_copy(&entry->obj, &normalized);
     supplies_apply_auto_identification(&entry->obj);
     object_wipe(src);
     g_supply_count++;
@@ -301,6 +667,51 @@ int supplies_entry_units(int idx)
     return g_supply_entries[idx].obj.number;
 }
 
+int supplies_first_entry_for_kind(int k_idx)
+{
+    for (int i = 0; i < g_supply_count; i++)
+    {
+        object_type* obj = &g_supply_entries[i].obj;
+        if (!obj->k_idx)
+            continue;
+        if (obj->k_idx == k_idx)
+            return i;
+    }
+
+    return -1;
+}
+
+bool supplies_take_one(int idx, object_type* out)
+{
+    object_type* obj;
+
+    if (!out || idx < 0 || idx >= g_supply_count)
+        return false;
+
+    obj = &g_supply_entries[idx].obj;
+    if (!obj->k_idx || obj->number <= 0)
+        return false;
+
+    object_copy(out, obj);
+    out->number = 1;
+
+    if (obj->number <= 1)
+    {
+        object_wipe(obj);
+        for (int move = idx + 1; move < g_supply_count; move++)
+            g_supply_entries[move - 1] = g_supply_entries[move];
+        g_supply_count--;
+    }
+    else
+    {
+        obj->number--;
+    }
+
+    supplies_mark_dirty();
+    g_supply_limit_warned = false;
+    return true;
+}
+
 
 int supplies_total_weight(void)
 {
@@ -316,14 +727,34 @@ int supplies_total_weight(void)
     return total;
 }
 
-void supplies_count_totals(int* potions, int* herbs, int* gems)
+int supplies_limit_weight(void)
 {
+    int total = 0;
+
+    for (int i = 0; i < g_supply_count; i++)
+    {
+        supply_entry* entry = &g_supply_entries[i];
+        object_type* obj = &entry->obj;
+        if (!obj->k_idx || !supplies_weight_counts_to_limit(obj))
+            continue;
+        total += obj->weight * obj->number;
+    }
+
+    return total;
+}
+
+void supplies_count_totals(int* potions, int* food, int* gems, int* lights)
+{
+    object_type* light_ptr;
+
     if (potions)
         *potions = 0;
-    if (herbs)
-        *herbs = 0;
+    if (food)
+        *food = 0;
     if (gems)
         *gems = 0;
+    if (lights)
+        *lights = 0;
 
     for (int i = 0; i < g_supply_count; i++)
     {
@@ -342,12 +773,21 @@ void supplies_count_totals(int* potions, int* herbs, int* gems)
             if (gems)
                 *gems += obj->number;
         }
-        else if (obj->tval == TV_FOOD && obj->sval <= SV_FOOD_SICKNESS)
+        else if (supplies_is_food_object(obj))
         {
-            if (herbs)
-                *herbs += obj->number;
+            if (food)
+                *food += obj->number;
+        }
+        else if (supplies_is_light_object(obj))
+        {
+            if (lights)
+                *lights += obj->number;
         }
     }
+
+    light_ptr = &inventory[INVEN_LITE];
+    if (lights && supplies_is_light_object(light_ptr))
+        *lights += MAX(light_ptr->number, 1);
 }
 bool supplies_has_group(int group)
 {
@@ -364,8 +804,8 @@ int supplies_first_entry_for_group(int group)
 
         switch (group)
         {
-        case SUPPLY_GROUP_HERBS:
-            if (entry->tval == TV_FOOD && entry->sval <= SV_FOOD_SICKNESS)
+        case SUPPLY_GROUP_FOOD:
+            if (supplies_is_food_object(entry))
                 return i;
             break;
         case SUPPLY_GROUP_POTIONS:
@@ -374,6 +814,10 @@ int supplies_first_entry_for_group(int group)
             break;
         case SUPPLY_GROUP_GEMS:
             if (entry->tval == TV_GEM)
+                return i;
+            break;
+        case SUPPLY_GROUP_LIGHTS:
+            if (supplies_is_light_object(entry))
                 return i;
             break;
         default:
@@ -448,6 +892,8 @@ void supplies_refresh_entry(int idx)
     }
 
     supplies_apply_auto_identification(obj);
+    if (obj->tval == TV_LIGHT && obj->sval == SV_LIGHT_LANTERN)
+        obj->timeout = 0;
     g_supply_limit_warned = false;
     supplies_mark_dirty();
 }
@@ -469,9 +915,20 @@ bool supplies_drop_amount(int idx, int amount)
         amount = obj->number;
 
     object_type drop;
+    char o_name[120];
     object_wipe(&drop);
     object_copy(&drop, obj);
     drop.number = amount;
+
+    object_desc(o_name, sizeof(o_name), &drop, true, 3);
+
+    if (player_light_destroyed_on_drop(&drop))
+    {
+        msg_format("You discard %s; %s too spent to keep.",
+            o_name, (drop.number > 1) ? "they are" : "it is");
+        supplies_consume_quantity(idx, amount);
+        return true;
+    }
 
     drop_near(&drop, 0, p_ptr->py, p_ptr->px);
     supplies_consume_quantity(idx, amount);

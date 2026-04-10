@@ -78,10 +78,13 @@ typedef struct supply_list_entry supply_list_entry;
 
 struct supply_list_entry
 {
-    int item_idx;   /* First inventory slot containing this kind */
+    int item_idx;   /* Inventory slot backing this row */
     int k_idx;      /* Object kind index */
-    int total;      /* Total quantity across the pack */
+    int total;      /* Displayed quantity for this row */
     int supply_idx; /* Index inside the supply cache (-1 if not present) */
+    int equip_idx;  /* Matching equipped light slot (-1 if not equipped) */
+    bool equipped;  /* This supply-kind is currently equipped */
+    bool single_item_display; /* Display one item even if the source stack is larger */
 };
 
 struct knowledge_browser_layout
@@ -141,8 +144,17 @@ static void dump_visual_pair(
 
 static bool supplies_menu_use_entry(supply_list_entry* entry)
 {
-    if (!entry || entry->supply_idx < 0)
+    if (!entry)
         return false;
+
+    if (entry->supply_idx < 0)
+    {
+        if (entry->equipped && entry->equip_idx == INVEN_LITE)
+        {
+            msg_print("That light source is already equipped.");
+        }
+        return false;
+    }
 
     object_type* o_ptr = supplies_entry_at(entry->supply_idx);
     if (!o_ptr || !o_ptr->k_idx)
@@ -164,6 +176,9 @@ static bool supplies_menu_use_entry(supply_list_entry* entry)
     case TV_GEM:
         do_cmd_use_gem(o_ptr, SUPPLIES_INDEX);
         break;
+    case TV_LIGHT:
+        do_cmd_wield(o_ptr, SUPPLIES_INDEX);
+        break;
     default:
         supplies_end_action();
         bell("Cannot use that item here!");
@@ -177,8 +192,18 @@ static bool supplies_menu_use_entry(supply_list_entry* entry)
 
 static bool supplies_menu_drop_entry(supply_list_entry* entry)
 {
-    if (!entry || entry->supply_idx < 0)
+    if (!entry)
         return false;
+
+    if (entry->supply_idx < 0)
+    {
+        if (entry->equip_idx >= INVEN_WIELD && entry->equip_idx < INVEN_TOTAL)
+        {
+            do_cmd_drop_item_by_index(entry->equip_idx);
+            return true;
+        }
+        return false;
+    }
 
     object_type* o_ptr = supplies_entry_at(entry->supply_idx);
     if (!o_ptr || !o_ptr->k_idx)
@@ -202,9 +227,10 @@ static bool supplies_menu_drop_entry(supply_list_entry* entry)
 }
 
 static cptr supply_group_text[SUPPLY_GROUP_MAX + 1] = {
-    "Herbs",
+    "Food",
     "Potions",
     "Gems",
+    "Lights",
     NULL
 };
 
@@ -19618,12 +19644,16 @@ static bool supply_kind_matches(int group, int tval, int sval)
 {
     switch (group)
     {
-    case SUPPLY_GROUP_HERBS:
-        return (tval == TV_FOOD) && (sval <= SV_FOOD_SICKNESS);
+    case SUPPLY_GROUP_FOOD:
+        return (tval == TV_FOOD);
     case SUPPLY_GROUP_POTIONS:
         return (tval == TV_POTION);
     case SUPPLY_GROUP_GEMS:
         return (tval == TV_GEM);
+    case SUPPLY_GROUP_LIGHTS:
+        return (tval == TV_LIGHT)
+            && (sval == SV_LIGHT_TORCH || sval == SV_LIGHT_MALLORN
+                || sval == SV_LIGHT_LANTERN);
     default:
         return false;
     }
@@ -19651,8 +19681,8 @@ static void compute_supply_group_totals(int totals[SUPPLY_GROUP_MAX])
         if (!o_ptr->k_idx)
             continue;
 
-        if ((o_ptr->tval == TV_FOOD) && (o_ptr->sval <= SV_FOOD_SICKNESS))
-            totals[SUPPLY_GROUP_HERBS] += o_ptr->number;
+        if (o_ptr->tval == TV_FOOD)
+            totals[SUPPLY_GROUP_FOOD] += o_ptr->number;
         else if (o_ptr->tval == TV_POTION)
             totals[SUPPLY_GROUP_POTIONS] += o_ptr->number;
         else if (o_ptr->tval == TV_GEM)
@@ -19665,12 +19695,20 @@ static void compute_supply_group_totals(int totals[SUPPLY_GROUP_MAX])
         if (!s_ptr || !s_ptr->k_idx)
             continue;
 
-        if ((s_ptr->tval == TV_FOOD) && (s_ptr->sval <= SV_FOOD_SICKNESS))
-            totals[SUPPLY_GROUP_HERBS] += s_ptr->number;
+        if (s_ptr->tval == TV_FOOD)
+            totals[SUPPLY_GROUP_FOOD] += s_ptr->number;
         else if (s_ptr->tval == TV_POTION)
             totals[SUPPLY_GROUP_POTIONS] += s_ptr->number;
         else if (s_ptr->tval == TV_GEM)
             totals[SUPPLY_GROUP_GEMS] += s_ptr->number;
+        else if (supplies_is_light_object(s_ptr))
+            totals[SUPPLY_GROUP_LIGHTS] += s_ptr->number;
+    }
+
+    object_type* light_ptr = &inventory[INVEN_LITE];
+    if (supplies_is_light_object(light_ptr))
+    {
+        totals[SUPPLY_GROUP_LIGHTS] += MAX(light_ptr->number, 1);
     }
 }
 
@@ -19695,81 +19733,197 @@ static int collect_supply_entries(int group_idx, supply_list_entry entries[])
         return 0;
 
     memset(entries, 0, sizeof(supply_list_entry) * capacity);
-
-    /* Aggregate carried items first */
-    for (i = 0; i < INVEN_PACK; i++)
+    for (i = 0; i < capacity; i++)
     {
-        object_type* o_ptr = &inventory[i];
-        int j;
-
-        if (!o_ptr->k_idx)
-            continue;
-
-        if (!supply_item_matches(group_idx, o_ptr))
-            continue;
-
-        int value = o_ptr->number;
-
-        for (j = 0; j < count; j++)
-        {
-            if (entries[j].k_idx == o_ptr->k_idx)
-            {
-                entries[j].total += value;
-                if (entries[j].item_idx < 0)
-                    entries[j].item_idx = i;
-                break;
-            }
-        }
-
-        if (j == count)
-        {
-            if (count >= capacity)
-                break;
-
-            entries[count].k_idx = o_ptr->k_idx;
-            entries[count].item_idx = i;
-            entries[count].total = value;
-            entries[count].supply_idx = -1;
-            count++;
-        }
+        entries[i].item_idx = -1;
+        entries[i].supply_idx = -1;
+        entries[i].equip_idx = -1;
+        entries[i].k_idx = -1;
+        entries[i].single_item_display = false;
     }
 
-    /* Aggregate supplies from the cache */
-    for (i = 0; i < supplies_entry_count(); i++)
+    if (group_idx == SUPPLY_GROUP_LIGHTS)
     {
-        object_type* s_ptr = supplies_entry_at(i);
-        int j;
-
-        if (!s_ptr || !s_ptr->k_idx)
-            continue;
-
-        if (!supply_item_matches(group_idx, s_ptr))
-            continue;
-
-        int value = s_ptr->number;
-
-        for (j = 0; j < count; j++)
+        for (i = 0; i < INVEN_PACK; i++)
         {
-            if (entries[j].k_idx == s_ptr->k_idx)
+            object_type* o_ptr = &inventory[i];
+            int value;
+            int unit;
+
+            if (!supply_item_matches(group_idx, o_ptr))
+                continue;
+
+            value = MAX(o_ptr->number, 1);
+            for (unit = 0; unit < value && count < capacity; unit++)
             {
-                entries[j].total += value;
-                if (entries[j].item_idx < 0)
-                    entries[j].item_idx = SUPPLIES_INDEX;
-                entries[j].supply_idx = i;
-                break;
+                entries[count].k_idx = o_ptr->k_idx;
+                entries[count].item_idx = i;
+                entries[count].total = 1;
+                entries[count].supply_idx = -1;
+                entries[count].equip_idx = -1;
+                entries[count].equipped = false;
+                entries[count].single_item_display = (o_ptr->number > 1);
+                count++;
             }
         }
 
-        if (j == count)
+        for (i = 0; i < supplies_entry_count(); i++)
         {
-            if (count >= capacity)
-                break;
+            object_type* s_ptr = supplies_entry_at(i);
+            int value;
+            int unit;
 
-            entries[count].k_idx = s_ptr->k_idx;
-            entries[count].item_idx = SUPPLIES_INDEX;
-            entries[count].total = value;
-            entries[count].supply_idx = i;
-            count++;
+            if (!supply_item_matches(group_idx, s_ptr))
+                continue;
+
+            value = MAX(s_ptr->number, 1);
+            for (unit = 0; unit < value && count < capacity; unit++)
+            {
+                entries[count].k_idx = s_ptr->k_idx;
+                entries[count].item_idx = SUPPLIES_INDEX;
+                entries[count].total = 1;
+                entries[count].supply_idx = i;
+                entries[count].equip_idx = -1;
+                entries[count].equipped = false;
+                entries[count].single_item_display = (s_ptr->number > 1);
+                count++;
+            }
+        }
+
+        {
+            object_type* l_ptr = &inventory[INVEN_LITE];
+
+            if (supply_item_matches(group_idx, l_ptr) && count < capacity)
+            {
+                entries[count].k_idx = l_ptr->k_idx;
+                entries[count].item_idx = INVEN_LITE;
+                entries[count].total = 1;
+                entries[count].supply_idx = -1;
+                entries[count].equip_idx = INVEN_LITE;
+                entries[count].equipped = true;
+                entries[count].single_item_display = false;
+                count++;
+            }
+        }
+    }
+    else
+    {
+
+        /* Aggregate carried items first */
+        for (i = 0; i < INVEN_PACK; i++)
+        {
+            object_type* o_ptr = &inventory[i];
+            int j;
+
+            if (!o_ptr->k_idx)
+                continue;
+
+            if (!supply_item_matches(group_idx, o_ptr))
+                continue;
+
+            int value = o_ptr->number;
+
+            for (j = 0; j < count; j++)
+            {
+                if (entries[j].k_idx == o_ptr->k_idx)
+                {
+                    entries[j].total += value;
+                    if (entries[j].item_idx < 0)
+                        entries[j].item_idx = i;
+                    break;
+                }
+            }
+
+            if (j == count)
+            {
+                if (count >= capacity)
+                    break;
+
+                entries[count].k_idx = o_ptr->k_idx;
+                entries[count].item_idx = i;
+                entries[count].total = value;
+                entries[count].supply_idx = -1;
+                entries[count].equip_idx = -1;
+                entries[count].equipped = false;
+                entries[count].single_item_display = false;
+                count++;
+            }
+        }
+
+        /* Aggregate supplies from the cache */
+        for (i = 0; i < supplies_entry_count(); i++)
+        {
+            object_type* s_ptr = supplies_entry_at(i);
+            int j;
+
+            if (!s_ptr || !s_ptr->k_idx)
+                continue;
+
+            if (!supply_item_matches(group_idx, s_ptr))
+                continue;
+
+            int value = s_ptr->number;
+
+            for (j = 0; j < count; j++)
+            {
+                if (entries[j].k_idx == s_ptr->k_idx)
+                {
+                    entries[j].total += value;
+                    if (entries[j].item_idx < 0)
+                        entries[j].item_idx = SUPPLIES_INDEX;
+                    entries[j].supply_idx = i;
+                    break;
+                }
+            }
+
+            if (j == count)
+            {
+                if (count >= capacity)
+                    break;
+
+                entries[count].k_idx = s_ptr->k_idx;
+                entries[count].item_idx = SUPPLIES_INDEX;
+                entries[count].total = value;
+                entries[count].supply_idx = i;
+                entries[count].equip_idx = -1;
+                entries[count].equipped = false;
+                entries[count].single_item_display = false;
+                count++;
+            }
+        }
+
+        if (group_idx == SUPPLY_GROUP_LIGHTS)
+        {
+            object_type* l_ptr = &inventory[INVEN_LITE];
+            int j;
+
+            if (supply_item_matches(group_idx, l_ptr))
+            {
+                for (j = 0; j < count; j++)
+                {
+                    if (entries[j].k_idx == l_ptr->k_idx)
+                    {
+                        entries[j].total += MAX(l_ptr->number, 1);
+                        entries[j].equip_idx = INVEN_LITE;
+                        entries[j].equipped = true;
+                        if (entries[j].item_idx < 0)
+                            entries[j].item_idx = INVEN_LITE;
+                        break;
+                    }
+                }
+
+                if (j == count && count < capacity)
+                {
+                    entries[count].k_idx = l_ptr->k_idx;
+                    entries[count].item_idx = INVEN_LITE;
+                    entries[count].total = MAX(l_ptr->number, 1);
+                    entries[count].supply_idx = -1;
+                    entries[count].equip_idx = INVEN_LITE;
+                    entries[count].equipped = true;
+                    entries[count].single_item_display = false;
+                    count++;
+                }
+            }
         }
     }
 
@@ -19803,6 +19957,9 @@ static int collect_supply_entries(int group_idx, supply_list_entry entries[])
             entries[count].item_idx = -1;
             entries[count].total = 0;
             entries[count].supply_idx = -1;
+            entries[count].equip_idx = -1;
+            entries[count].equipped = false;
+            entries[count].single_item_display = false;
             count++;
         }
     }
@@ -19813,6 +19970,9 @@ static int collect_supply_entries(int group_idx, supply_list_entry entries[])
         entries[count].item_idx = -1;
         entries[count].total = 0;
         entries[count].supply_idx = -1;
+        entries[count].equip_idx = -1;
+        entries[count].equipped = false;
+        entries[count].single_item_display = false;
     }
 
     return count;
@@ -19847,6 +20007,7 @@ static byte get_supply_item_color(int k_idx, bool aware)
                 case SV_FOOD_ENTRANCEMENT: return TERM_VIOLET;   /* Violet for entrancement */
                 case SV_FOOD_WEAKNESS:     return TERM_SLATE;    /* Grey for weakness */
                 case SV_FOOD_SICKNESS:     return TERM_L_DARK;   /* Dark grey for sickness */
+                case SV_FOOD_LEMBAS:       return TERM_L_WHITE;
                 default:                   return TERM_WHITE;
             }
 
@@ -19893,6 +20054,15 @@ static byte get_supply_item_color(int k_idx, bool aware)
                 default:                     return TERM_WHITE;
             }
 
+        case TV_LIGHT:
+            switch (k_ptr->sval)
+            {
+                case SV_LIGHT_TORCH:   return TERM_UMBER;
+                case SV_LIGHT_MALLORN: return TERM_YELLOW;
+                case SV_LIGHT_LANTERN: return TERM_L_UMBER;
+                default:               return TERM_WHITE;
+            }
+
         default:
             return TERM_WHITE;
     }
@@ -19914,9 +20084,10 @@ static void display_supply_group_list(int col, int row, int wid, int per_page,
         /* Assign color based on group type */
         switch (grp)
         {
-            case SUPPLY_GROUP_HERBS:   base_color = TERM_GREEN; break;
+            case SUPPLY_GROUP_FOOD:    base_color = TERM_GREEN; break;
             case SUPPLY_GROUP_POTIONS: base_color = TERM_VIOLET;  break;
             case SUPPLY_GROUP_GEMS:    base_color = TERM_BLUE;    break;
+            case SUPPLY_GROUP_LIGHTS:  base_color = TERM_YELLOW;  break;
             default:                   base_color = TERM_WHITE;   break;
         }
 
@@ -19985,7 +20156,15 @@ static void display_supply_list(int col, int row, int per_page,
         /* Only highlight when right panel is active (column == 1) */
         attr = (column == 1 && idx == entry_cur) ? cursor_attr : base_attr;
 
-        if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
+        if (entry->supply_idx >= 0)
+        {
+            o_ptr = supplies_entry_at(entry->supply_idx);
+        }
+        else if (entry->equip_idx >= INVEN_WIELD && entry->equip_idx < INVEN_TOTAL)
+        {
+            o_ptr = &inventory[entry->equip_idx];
+        }
+        else if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
         {
             o_ptr = &inventory[entry->item_idx];
         }
@@ -19999,7 +20178,16 @@ static void display_supply_list(int col, int row, int per_page,
             o_ptr = &fake;
         }
 
+        if (entry->single_item_display && o_ptr->k_idx && o_ptr->number > 1)
+        {
+            object_copy(&fake, o_ptr);
+            fake.number = 1;
+            o_ptr = &fake;
+        }
+
         object_desc(name, sizeof(name), o_ptr, true, 3);
+        if (entry->equipped && current_group == SUPPLY_GROUP_LIGHTS)
+            SDL_strlcat(name, " [equipped]", sizeof(name));
         c_prt(attr, name, y, col);
 
         strnfmt(count_buf, sizeof(count_buf), "x%-3d", entry->total);
@@ -22302,6 +22490,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         int count_col;
         int sym_col;
         int used_weight;
+        int light_weight;
+        int lamp_oil;
         int max_weight;
         char weight_buf[80];
 
@@ -22309,12 +22499,16 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         knowledge_init_layout(&layout, max, true);
         count_col = layout.term_wid - 6;
         sym_col = layout.term_wid - (use_bigtile ? 2 : 1);
-        used_weight = supplies_total_weight();
+        used_weight = supplies_limit_weight();
+        light_weight = supplies_total_weight() - used_weight + player_lamp_oil_weight();
+        lamp_oil = player_lamp_oil();
         max_weight = supplies_current_weight_cap();
         strnfmt(weight_buf, sizeof(weight_buf),
-            "Supply weight: %d.%1d/%d.%1d lb used",
+            "Supply weight: %d.%1d/%d.%1d lb  Light weight: %d.%1d lb  Oil: %d/%d",
             used_weight / 10, used_weight % 10,
-            max_weight / 10, max_weight % 10);
+            max_weight / 10, max_weight % 10,
+            light_weight / 10, light_weight % 10,
+            lamp_oil, PLAYER_LAMP_OIL_MAX);
 
         if (count_col <= layout.list_col + 8)
             count_col = layout.list_col + 8;
@@ -22365,7 +22559,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         {
             Term_clear();
             Term_putstr(0, layout.title_row, layout.term_wid, TERM_L_WHITE + TERM_SHADE,
-                "Supplies - Herbs, Potions, Gems");
+                "Supplies - Food, Potions, Gems, Lights");
             Term_putstr(0, layout.tabs_row, layout.term_wid, TERM_SLATE, weight_buf);
             Term_putstr(0, layout.header_row, layout.group_w, TERM_SLATE, "Group");
             Term_putstr(layout.list_col, layout.header_row, layout.list_w, TERM_SLATE,
@@ -22450,7 +22644,23 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             else if (column && entry_cnt)
             {
                 supply_list_entry* entry = &entries[entry_cur];
-                if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
+                if (entry->equip_idx >= INVEN_WIELD && entry->equip_idx < INVEN_TOTAL)
+                {
+                    (void)player_try_identify_smithing_object_on_examine(
+                        &inventory[entry->equip_idx], true);
+                    object_info_screen(&inventory[entry->equip_idx]);
+                    redraw = true;
+                }
+                else if (entry->supply_idx >= 0)
+                {
+                    object_type* o_ptr = supplies_entry_at(entry->supply_idx);
+                    if (o_ptr)
+                    {
+                        object_info_screen(o_ptr);
+                        redraw = true;
+                    }
+                }
+                else if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
                 {
                     (void)player_try_identify_smithing_object_on_examine(
                         &inventory[entry->item_idx], false);
@@ -22496,6 +22706,10 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 {
                     handled = supplies_menu_use_entry(entry);
                 }
+                else if (entry->equip_idx == INVEN_LITE && entry->equipped)
+                {
+                    msg_print("That light source is already equipped.");
+                }
                 else if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
                 {
                     object_type* o_ptr = &inventory[entry->item_idx];
@@ -22516,6 +22730,10 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                         break;
                     case TV_GEM:
                         do_cmd_use_gem(o_ptr, entry->item_idx);
+                        handled = true;
+                        break;
+                    case TV_LIGHT:
+                        do_cmd_wield(o_ptr, entry->item_idx);
                         handled = true;
                         break;
                     default:
@@ -22563,6 +22781,11 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 if (entry->item_idx == SUPPLIES_INDEX && entry->supply_idx >= 0)
                 {
                     dropped = supplies_menu_drop_entry(entry);
+                }
+                else if (entry->equip_idx >= INVEN_WIELD && entry->equip_idx < INVEN_TOTAL)
+                {
+                    do_cmd_drop_item_by_index(entry->equip_idx);
+                    dropped = true;
                 }
                 else if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
                 {

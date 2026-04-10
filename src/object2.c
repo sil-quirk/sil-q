@@ -30,7 +30,11 @@ enum inventory_limit_group
     INV_LIMIT_SOFT_ARMOUR,
     INV_LIMIT_MAIL,
     INV_LIMIT_MELEE_WEAPON,
-    INV_LIMIT_SUPPLY_WEIGHT
+    INV_LIMIT_SUPPLY_WEIGHT,
+    INV_LIMIT_TORCHES,
+    INV_LIMIT_BRASS_LAMPS,
+    INV_LIMIT_LESSER_JEWEL,
+    INV_LIMIT_FEANORIAN_LAMP
 };
 
 static bool carry_limit_last_failed = false;
@@ -468,11 +472,78 @@ static void fill_inventory_limit_label(enum inventory_limit_group group,
             SDL_strlcpy(carry_limit_last_label, "supply weight",
                       sizeof(carry_limit_last_label));
             break;
+        case INV_LIMIT_TORCHES:
+            SDL_strlcpy(carry_limit_last_label, "torches",
+                      sizeof(carry_limit_last_label));
+            break;
+        case INV_LIMIT_BRASS_LAMPS:
+            SDL_strlcpy(carry_limit_last_label, "brass lamps",
+                      sizeof(carry_limit_last_label));
+            break;
+        case INV_LIMIT_LESSER_JEWEL:
+            SDL_strlcpy(carry_limit_last_label, "lesser jewels",
+                      sizeof(carry_limit_last_label));
+            break;
+        case INV_LIMIT_FEANORIAN_LAMP:
+            SDL_strlcpy(carry_limit_last_label, "Feanorian lamps",
+                      sizeof(carry_limit_last_label));
+            break;
         default:
             SDL_strlcpy(carry_limit_last_label, "items of this type",
                       sizeof(carry_limit_last_label));
             break;
     }
+}
+
+static void set_inventory_limit_failure(enum inventory_limit_group group,
+                                        int limit,
+                                        const object_type* o_ptr);
+
+static enum inventory_limit_group light_limit_group(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx || o_ptr->tval != TV_LIGHT)
+        return INV_LIMIT_NONE;
+
+    switch (o_ptr->sval)
+    {
+    case SV_LIGHT_TORCH:
+    case SV_LIGHT_MALLORN:
+        return INV_LIMIT_TORCHES;
+    case SV_LIGHT_LANTERN:
+        return INV_LIMIT_BRASS_LAMPS;
+    case SV_LIGHT_LESSER_JEWEL:
+        return INV_LIMIT_LESSER_JEWEL;
+    case SV_LIGHT_FEANORIAN:
+        return INV_LIMIT_FEANORIAN_LAMP;
+    default:
+        return INV_LIMIT_NONE;
+    }
+}
+
+static bool player_light_capacity_okay(const object_type* o_ptr,
+                                       bool record_failure)
+{
+    int cap;
+    enum inventory_limit_group group;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return true;
+
+    cap = player_light_carry_cap(o_ptr);
+    if (cap <= 0)
+        return true;
+
+    if (player_light_available_capacity(o_ptr) >= o_ptr->number)
+        return true;
+
+    if (record_failure)
+    {
+        group = light_limit_group(o_ptr);
+        if (group != INV_LIMIT_NONE)
+            set_inventory_limit_failure(group, cap, o_ptr);
+    }
+
+    return false;
 }
 
 static void set_inventory_limit_failure(enum inventory_limit_group group,
@@ -3203,11 +3274,11 @@ static void a_m_aux_4(object_type* o_ptr, int level, bool fine, bool special)
         {
             if (one_in_(3))
             {
-                o_ptr->timeout = rand_range(20, 50);
+                o_ptr->timeout = rand_range(40, 100);
             }
             else
             {
-                o_ptr->timeout = 50;
+                o_ptr->timeout = 100;
             }
         }
         break;
@@ -5960,6 +6031,9 @@ bool inven_carry_okay(const object_type* o_ptr)
 
     clear_inventory_limit_failure();
 
+    if (!player_light_capacity_okay(o_ptr, true))
+        return false;
+
     // Check for combining in quiver first
     if (o_ptr->tval == TV_ARROW)
     {
@@ -6067,7 +6141,8 @@ bool inven_carry_okay(const object_type* o_ptr)
             }
             
             /* Can't pick up any, show error */
-            set_inventory_limit_failure(INV_LIMIT_SUPPLY_WEIGHT, 25, o_ptr);
+            set_inventory_limit_failure(INV_LIMIT_SUPPLY_WEIGHT,
+                supplies_current_weight_cap() / 10, o_ptr);
             return (false);
         }
 
@@ -6153,6 +6228,9 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
 
     /*paranoia, don't pick up "&nothings"*/
     if (!o_ptr->k_idx)
+        return (-1);
+
+    if (!player_light_capacity_okay(o_ptr, true))
         return (-1);
 
     if (supplies_is_supply_object(o_ptr))
@@ -6864,6 +6942,17 @@ void inven_drop(int item, int amt)
 
     /* Describe local object */
     object_desc(o_name, sizeof(o_name), i_ptr, true, 3);
+
+    if (player_light_destroyed_on_drop(i_ptr))
+    {
+        msg_format("You discard %s; %s too spent to keep.",
+            o_name, (i_ptr->number > 1) ? "they are" : "it is");
+
+        inven_item_increase(item, -amt);
+        inven_item_describe(item);
+        inven_item_optimize(item);
+        return;
+    }
 
     /* Message */
     msg_format("You drop %s (%c).", o_name, index_to_label(item));

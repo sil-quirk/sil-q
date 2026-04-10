@@ -2156,11 +2156,13 @@ void object_desc(
     }
 
     /* Hack -- Process Lanterns/Torches */
-    if (fuelable_light_p(o_ptr))
+    if (fuelable_light_p(o_ptr)
+        && !(o_ptr->tval == TV_LIGHT && o_ptr->sval == SV_LIGHT_LANTERN
+            && player_light_uses_oil_pool(o_ptr)))
     {
         /* Hack -- Turns of light for normal lites */
         object_desc_str_macro(t, " (");
-        object_desc_num_macro(t, o_ptr->timeout);
+        object_desc_num_macro(t, player_light_fuel(o_ptr));
         object_desc_str_macro(t, " turns)");
     }
 
@@ -2614,19 +2616,20 @@ static bool supplies_visible_for_current_filter(void)
 static void format_supply_summary(char* buf, size_t len)
 {
     int potions = 0;
-    int herbs = 0;
+    int food = 0;
     int gems = 0;
+    int lights = 0;
     bool first = true;
     char segment[32];
 
     if (!buf || len == 0)
         return;
 
-    supplies_count_totals(&potions, &herbs, &gems);
+    supplies_count_totals(&potions, &food, &gems, &lights);
 
     SDL_strlcpy(buf, "Supplies", len);
 
-    if (potions <= 0 && herbs <= 0 && gems <= 0)
+    if (potions <= 0 && food <= 0 && gems <= 0 && lights <= 0)
         return;
 
     SDL_strlcat(buf, " (", len);
@@ -2639,12 +2642,11 @@ static void format_supply_summary(char* buf, size_t len)
         first = false;
     }
 
-    if (herbs > 0)
+    if (food > 0)
     {
         if (!first)
             SDL_strlcat(buf, ", ", len);
-        strnfmt(segment, sizeof(segment), "%d herb%s", herbs,
-            (herbs == 1) ? "" : "s");
+        strnfmt(segment, sizeof(segment), "%d food", food);
         SDL_strlcat(buf, segment, len);
         first = false;
     }
@@ -2655,6 +2657,16 @@ static void format_supply_summary(char* buf, size_t len)
             SDL_strlcat(buf, ", ", len);
         strnfmt(segment, sizeof(segment), "%d gem%s", gems,
             (gems == 1) ? "" : "s");
+        SDL_strlcat(buf, segment, len);
+        first = false;
+    }
+
+    if (lights > 0)
+    {
+        if (!first)
+            SDL_strlcat(buf, ", ", len);
+        strnfmt(segment, sizeof(segment), "%d light%s", lights,
+            (lights == 1) ? "" : "s");
         SDL_strlcat(buf, segment, len);
     }
 
@@ -3830,7 +3842,7 @@ void show_inven(void)
             cptr weight_ptr = NULL;
             if (show_weights)
             {
-                int wgt = is_supply ? supplies_total_weight()
+                int wgt = is_supply ? supplies_limit_weight()
                     : (cur_obj->weight * cur_obj->number);
                 strnfmt(weight_buf, sizeof(weight_buf), "%2d.%1d lb", wgt / 10, wgt % 10);
                 weight_ptr = weight_buf;
@@ -3873,7 +3885,7 @@ void show_inven(void)
         {
             int wgt;
             if (is_supply)
-                wgt = supplies_total_weight();
+                wgt = supplies_limit_weight();
             else
                 wgt = cur_obj->weight * cur_obj->number;
             sprintf(tmp_val, "%3d.%1d lb", wgt / 10, wgt % 10);
@@ -4896,7 +4908,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                     char lab[8]; sprintf(lab, "(%c)", label);                       \
                     char wbuf[16]; cptr wptr = NULL;                                \
                     if (show_weights) {                                             \
-                        int wgt = supplies_total_weight();                          \
+                        int wgt = supplies_limit_weight();                          \
                         strnfmt(wbuf, sizeof(wbuf), "%2d.%1d lb", wgt / 10, wgt % 10); \
                         wptr = wbuf;                                                \
                     }                                                               \
@@ -4905,7 +4917,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                 })                                                                  \
                 {                                                                   \
                     c_put_str(attr,tmp,row+1,col);                                  \
-                    if (show_weights){ int wgt = supplies_total_weight(); char w[16]; strnfmt(w, sizeof(w), "%2d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,weight_col);} \
+                    if (show_weights){ int wgt = supplies_limit_weight(); char w[16]; strnfmt(w, sizeof(w), "%2d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,weight_col);} \
                     { char lab[8]; sprintf(lab, " (%c)", label); c_put_str(attr,lab,row+1,label_col); }\
                 }                                                                   \
             } else {                                                                \
@@ -6284,7 +6296,7 @@ void show_inven_enhanced(void)
             {
                 int wgt = 0;
                 if (is_supply_item)
-                    wgt = supplies_total_weight();
+                    wgt = supplies_limit_weight();
                 else if (line_obj)
                     wgt = line_obj->weight * line_obj->number;
                 strnfmt(tmp_val, sizeof(tmp_val), "%2d.%1d lb", wgt / 10, wgt % 10);
@@ -7419,8 +7431,10 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
             supply_prefix = "Supplies (potions): ";
         else if (o_ptr->tval == TV_GEM)
             supply_prefix = "Supplies (gems): ";
-        else if (o_ptr->tval == TV_FOOD && o_ptr->sval <= SV_FOOD_SICKNESS)
-            supply_prefix = "Supplies (herbs): ";
+        else if (o_ptr->tval == TV_FOOD)
+            supply_prefix = "Supplies (food): ";
+        else if (supplies_is_light_object(o_ptr))
+            supply_prefix = "Supplies (lights): ";
 
         strnfmt(entry->prefix, sizeof(entry->prefix), "%s", supply_prefix);
 

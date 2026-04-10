@@ -476,7 +476,7 @@
  */
 #define FUEL_TORCH 3000 /* Maximum amount of fuel in a torch */
 #define FUEL_LAMP 7000 /* Maximum amount of fuel in a lantern */
-#define FUEL_MALLORN 100 /* Maximum amount of fuel in a lantern */
+#define FUEL_MALLORN 200 /* Maximum amount of fuel in a mallorn torch */
 
 /*
  * More maximum values
@@ -1409,7 +1409,7 @@
 #define RADIUS_TORCH 1
 #define RADIUS_LESSER_JEWEL 1
 #define RADIUS_LANTERN 2
-#define RADIUS_MALLORN 4
+#define RADIUS_MALLORN 3
 #define RADIUS_FEANORIAN 4
 #define RADIUS_ARTEFACT 3
 #define RADIUS_SILMARIL 7

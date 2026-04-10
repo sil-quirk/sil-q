@@ -1383,8 +1383,8 @@ D: a smoky and uncertain flame. Such torches are cheap, easily
 D: spent, and little loved, yet in black tunnels and roofless pits
 D: even so poor a light may hold dread a little farther off.
 D: You can equip it as a light source with a radius of 1 square.
-D: It may also be used to fuel another wooden torch, up to a
-D: maximum of 3,000 turns of light.
+D: It can hold up to 3,000 turns of light, but begins to sputter
+D: when only 100 turns remain.
 
 
 N:129:& Brass Lantern~
@@ -1403,8 +1403,8 @@ D: in the hands of pit-wardens and black patrols. Its light seems less
 D: a comfort than an instrument of suspicion, made to search cracks,
 D: bars, and faces, and to keep lesser folk uneasy in the dark.
 D: You can equip it as a light source with a radius of 2 squares.
-D: It may also be used to fuel another lantern, up to a maximum
-D: of 7,000 turns of light.
+D: While you carry brass lanterns, their oil is pooled together,
+D: up to a total of 14,000 turns of light.
 
 
 # Lesser Jewel is at index 21
@@ -2864,9 +2864,9 @@ A:7/80
 F:EASY_KNOW
 D:A small flask of lamp oil, carried by those who venture into
 D: the lightless halls beneath Angband, where even Elven eyes
-D: find no gleam to guide them. It can be used to fuel a brass
-D: lantern with 3,000 turns of light, up to a maximum of 7,000
-D: turns of light.
+D: find no gleam to guide them. When picked up, its oil is poured
+D: into your carried brass lantern stores, adding 3,000 turns of
+D: light up to a maximum of 14,000.
 
 
 N:410:& Piece~ of Mithril
@@ -2899,9 +2899,9 @@ D:A torch hewn from the wood of the mallorn, the golden trees
 D: that grow in the Blessed Realm and in the Elven havens of
 D: Middle-earth. Its flame burns with a warm, clear light,
 D: brighter than common wood, though it is quickly spent. You
-D: can equip it as a light source with a radius of 4 squares.
-D: It may also be used to fuel another wooden torch, up to a
-D: maximum of 100 turns of light.
+D: can equip it as a light source with a radius of 3 squares.
+D: It begins with 100 turns of light, can hold up to 200 turns,
+D: and only starts to sputter when 10 turns remain.
 
 
 ##### New Items #####

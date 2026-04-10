@@ -472,7 +472,7 @@ void do_cmd_eat_food(object_type* default_o_ptr, int default_item)
         /* Get an item */
         q = "Eat which item? ";
         s = "You have nothing to eat.";
-        supplies_set_pending_action(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_HERBS, true);
+        supplies_set_pending_action(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_FOOD, true);
         if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
         {
             supplies_clear_pending_action();
@@ -482,7 +482,7 @@ void do_cmd_eat_food(object_type* default_o_ptr, int default_item)
         if (item == SUPPLIES_INDEX)
         {
             supplies_clear_pending_action();
-            open_supplies_menu_with_context(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_HERBS, true, true);
+            open_supplies_menu_with_context(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_FOOD, true, true);
             return;
         }
 
@@ -575,7 +575,9 @@ void do_cmd_eat_food(object_type* default_o_ptr, int default_item)
         }
         else
         {
-            if (get_check("Autoinscribe this herb type? "))
+            if (get_check((o_ptr->sval <= SV_FOOD_SICKNESS)
+                    ? "Autoinscribe this herb type? "
+                    : "Autoinscribe this food type? "))
             {
                 do_cmd_autoinscribe_item(kind_index);
             }

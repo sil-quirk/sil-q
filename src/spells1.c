@@ -1646,6 +1646,10 @@ bool hates_cold(const object_type* o_ptr)
     {
         return (true);
     }
+    case TV_LIGHT:
+    {
+        return (o_ptr->sval == SV_LIGHT_LANTERN);
+    }
     }
 
     return (false);

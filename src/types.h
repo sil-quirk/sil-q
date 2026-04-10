@@ -1151,6 +1151,7 @@ struct player_type
     s16b energy; /* Current energy */
 
     s16b food; /* Current nutrition */
+    s16b lamp_oil; /* Shared lamp oil pool carried by the player */
 
     u16b stairs_taken; /* The number of times stairs have been used */
     u16b

@@ -235,39 +235,14 @@ void do_cmd_use_item_by_index(int item)
             // possibly refuel a light
             if ((o_ptr->tval == TV_FLASK)
                 || ((l_ptr->tval == o_ptr->tval) && (l_ptr->sval == o_ptr->sval)
-                    && ((o_ptr->sval == SV_LIGHT_TORCH)
-                        || (o_ptr->sval == SV_LIGHT_LANTERN)
-                        || (o_ptr->sval == SV_LIGHT_MALLORN))))
+                    && (o_ptr->sval == SV_LIGHT_LANTERN)))
             {
-                if ((l_ptr->sval == SV_LIGHT_TORCH)
-                    && (o_ptr->tval != TV_FLASK))
+                if (l_ptr->sval == SV_LIGHT_LANTERN)
                 {
-                    if ((o_ptr->timeout + l_ptr->timeout <= FUEL_TORCH)
+                    if ((o_ptr->timeout + player_light_fuel(l_ptr)
+                            <= PLAYER_LAMP_OIL_MAX)
                         || get_check(
-                            "Refueling from this torch will waste some fuel. "
-                            "Proceed? "))
-                    {
-                        do_cmd_refuel_torch(o_ptr, item, false);
-                        try_to_wield = false;
-                    }
-                }
-                else if ((l_ptr->sval == SV_LIGHT_MALLORN)
-                    && (o_ptr->tval != TV_FLASK))
-                {
-                    if ((o_ptr->timeout + l_ptr->timeout <= FUEL_TORCH)
-                        || get_check(
-                            "Refueling from this mallorn torch will waste "
-                            "some fuel. Proceed? "))
-                    {
-                        do_cmd_refuel_torch(o_ptr, item, true);
-                        try_to_wield = false;
-                    }
-                }
-                else if (l_ptr->sval == SV_LIGHT_LANTERN)
-                {
-                    if ((o_ptr->timeout + l_ptr->timeout <= FUEL_LAMP)
-                        || get_check(
-                            "Refueling from this flask will waste some oil. "
+                            "Refueling this lamp will waste some oil. "
                             "Proceed? "))
                     {
                         do_cmd_refuel_lamp(o_ptr, item);
@@ -937,6 +912,8 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
 
     bool combine = false;
     bool is_throwing = false;
+    int supply_index = supplies_current_action();
+    bool from_supplies = false;
 
     u32b f1, f2, f3, f4;
 
@@ -952,6 +929,7 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     {
         o_ptr = default_o_ptr;
         item = default_item;
+        from_supplies = (item == SUPPLIES_INDEX) && (supply_index >= 0);
         log_debug("do_cmd_wield: Using default item, tval=%d, sval=%d, k_idx=%d", 
             o_ptr->tval, o_ptr->sval, o_ptr->k_idx);
     }
@@ -966,6 +944,13 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
         s = "You have nothing you can wear or wield.";
         if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
             return;
+
+        if (item == SUPPLIES_INDEX)
+        {
+            open_supplies_menu_with_context(
+                SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_LIGHTS, true, true);
+            return;
+        }
 
         /* Get the item (in the pack) */
         if (item >= 0)
@@ -1011,6 +996,15 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
         else
             object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
         msg_format("You cannot wear or wield %s.", o_name);
+        return;
+    }
+
+    if (!from_supplies
+        && o_ptr->tval == TV_LIGHT && o_ptr->sval == SV_LIGHT_LANTERN
+        && o_ptr->timeout > 0
+        && player_lamp_oil_would_overflow(o_ptr->timeout)
+        && !get_check("Taking this lamp will waste some oil. Proceed? "))
+    {
         return;
     }
 
@@ -1532,6 +1526,13 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     /* Obtain local object */
     object_copy(i_ptr, o_ptr);
 
+    if (!from_supplies && i_ptr->tval == TV_LIGHT
+        && i_ptr->sval == SV_LIGHT_LANTERN)
+    {
+        player_gain_lamp_oil(i_ptr->timeout, true);
+        i_ptr->timeout = 0;
+    }
+
     bool target_is_quiver = (slot == INVEN_QUIVER1) || (slot == INVEN_QUIVER2);
 
     // Handle quantity differently for arrows or throwing weapons heading to a quiver
@@ -1558,7 +1559,11 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     i_ptr->number = quantity;
 
     /* Decrease the item (from the pack) */
-    if (item >= 0)
+    if (from_supplies)
+    {
+        supplies_consume_quantity(supply_index, quantity);
+    }
+    else if (item >= 0)
     {
         log_debug(
             "do_cmd_wield: Before decrease - item=%d, k_idx=%d, ego_pfx=%d, ego_sfx=%d, number=%d",
@@ -3142,21 +3147,21 @@ void do_cmd_refuel_lamp(object_type* default_o_ptr, int default_item)
     /* Refuel from a latern */
     if (o_ptr->sval == SV_LIGHT_LANTERN)
     {
-        j_ptr->timeout += o_ptr->timeout;
+        player_light_add_fuel(j_ptr, o_ptr->timeout);
     }
     /* Refuel from a flask */
     else
     {
-        j_ptr->timeout += o_ptr->pval;
+        player_light_add_fuel(j_ptr, o_ptr->pval);
     }
 
     /* Message */
     msg_print("You fuel your lamp.");
 
     /* Comment */
-    if (j_ptr->timeout >= FUEL_LAMP)
+    if (player_light_fuel(j_ptr) >= PLAYER_LAMP_OIL_MAX)
     {
-        j_ptr->timeout = FUEL_LAMP;
+        player_light_set_fuel(j_ptr, PLAYER_LAMP_OIL_MAX);
         msg_print("Your lamp is full.");
     }
 
@@ -3188,8 +3193,6 @@ void do_cmd_refuel_lamp(object_type* default_o_ptr, int default_item)
             if (item >= 0)
             {
                 item = inven_carry(i_ptr, false);
-                if (item == SUPPLIES_INDEX)
-                    item = -1;
                 if (item < 0)
                     drop_near(i_ptr, 0, p_ptr->py, p_ptr->px);
             }
@@ -3403,13 +3406,13 @@ void do_cmd_refuel(void)
     /* It's a torch */
     else if (o_ptr->sval == SV_LIGHT_TORCH)
     {
-        do_cmd_refuel_torch(NULL, 0, false);
+        msg_print("You can no longer combine torches.");
     }
 
     /* It's a torch */
     else if (o_ptr->sval == SV_LIGHT_MALLORN)
     {
-        do_cmd_refuel_torch(NULL, 0, true);
+        msg_print("You can no longer combine torches.");
     }
 
     /* No torch to refuel */
