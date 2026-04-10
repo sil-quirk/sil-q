@@ -16,6 +16,23 @@ if ($IncludeCoverArt) {
 }
 Write-Host "========================================" -ForegroundColor Cyan
 
+function Remove-WavFilesRecursive {
+    param(
+        [string]$RootPath
+    )
+
+    if (-not (Test-Path $RootPath)) {
+        return 0
+    }
+
+    $wavFiles = @(Get-ChildItem -Path $RootPath -Recurse -File -Filter "*.wav" -ErrorAction SilentlyContinue)
+    foreach ($wav in $wavFiles) {
+        Remove-Item -Force $wav.FullName
+    }
+
+    return $wavFiles.Count
+}
+
 # Define game data folders to copy (content only) - edit, pref, xtra, docs
 $libFoldersToCopy = @('edit', 'pref', 'xtra', 'docs')
 
@@ -25,11 +42,12 @@ $emptyLibFolders = @('data', 'apex', 'save', 'user')
 # Sub-folders to create within apex (for runtime data)
 $apexSubfolders = @('metaruns')
 
-# DLLs required for SDL3 runtime - EXACT list from sil-more_beta 0.9
+# DLLs required for the Windows SDL runtime
 $requiredDlls = @(
     'SDL3.dll',
     'SDL3_ttf.dll',
     'SDL3_image.dll',
+    'SDL3_mixer.dll',
     'libgcc_s_seh-1.dll',
     'libstdc++-6.dll',
     'libwinpthread-1.dll',
@@ -133,6 +151,7 @@ foreach ($folder in $libFoldersToCopy) {
 
             # Remove 'packs' subfolders in sound (sound packs are not included in the release)
             $soundPath = "$dstFolder/sound"
+            $musicPath = "$dstFolder/music"
             if (Test-Path $soundPath) {
                 $packs = Get-ChildItem -Path $soundPath -Directory -Recurse -Force | Where-Object { $_.Name -ieq "packs" }
                 if ($packs -and $packs.Count -gt 0) {
@@ -145,18 +164,12 @@ foreach ($folder in $libFoldersToCopy) {
                 }
             }
 
-            # Remove .wav files from the *root* of the sound folder (keep sounds in subfolders)
-            $rootSoundPath = "$dstFolder/sound"
-            if (Test-Path $rootSoundPath) {
-                $wavFiles = Get-ChildItem -Path $rootSoundPath -File -Filter "*.wav" -ErrorAction SilentlyContinue
-                if ($wavFiles -and $wavFiles.Count -gt 0) {
-                    foreach ($wf in $wavFiles) {
-                        Remove-Item -Force $wf.FullName
-                    }
-                    Write-Host "  [OK] lib/$folder (sound: removed $($wavFiles.Count) .wav files from sound root)"
-                } else {
-                    Write-Host "  [SKIP] lib/$folder (sound: no .wav files at root)"
-                }
+            # Keep the release tree OGG-only.
+            $wavFilesRemoved = Remove-WavFilesRecursive $dstFolder
+            if ($wavFilesRemoved -gt 0) {
+                Write-Host "  [OK] lib/$folder (audio: removed $wavFilesRemoved .wav files)"
+            } else {
+                Write-Host "  [SKIP] lib/$folder (audio: no .wav files found)"
             }
             
             # Remove non-16x16.png files from graf subfolder
@@ -168,10 +181,9 @@ foreach ($folder in $libFoldersToCopy) {
             }
 
             # Count music files if present in xtra
-            $musicPath = "$dstFolder/music"
             if (Test-Path $musicPath) {
-                $musicFilesCopied = (Get-ChildItem -Recurse $musicPath -File | Measure-Object).Count
-                Write-Host "  [OK] lib/$folder (music: $musicFilesCopied files)"
+                $musicFilesCopied = (Get-ChildItem -Path $musicPath -Recurse -File -Filter "*.ogg" | Measure-Object).Count
+                Write-Host "  [OK] lib/$folder (music: $musicFilesCopied .ogg files)"
             } else {
                 Write-Host "  [SKIP] lib/$folder/music (not found)"
             }
@@ -242,14 +254,14 @@ $manifestText += "  pref/                      - Default preferences and keybind
 $manifestText += "  data/                      - Empty directory (for future use)`n"
 $manifestText += "  xtra/                      - Extended resources (fonts, sound, music, minimal graphics)`n"
 $manifestText += "    font/                    - Font files`n"
-$manifestText += "    sound/                   - Audio files (sound packs excluded; root .wav files excluded)`n"
-$manifestText += "    music/                   - Background music files`n"
+$manifestText += "    sound/                   - Audio files (.ogg only; sound packs excluded)`n"
+$manifestText += "    music/                   - Background music files (.ogg only)`n"
 $manifestText += "    graf/                    - Graphics (only 16x16.png)`n"
 $manifestText += "  docs/                      - Documentation and manuals (6 files)`n"
 $manifestText += "  apex/                      - Runtime data directory (EMPTY - for metarun data)`n"
 $manifestText += "  save/                      - Runtime data directory (EMPTY - for player saves)`n"
 $manifestText += "  user/                      - Runtime data directory (EMPTY - for user data)`n"
-$manifestText += "*.dll                        - SDL3 runtime libraries (18 DLLs)`n"
+$manifestText += "*.dll                        - SDL3 runtime libraries ($($requiredDlls.Count) DLLs)`n"
 if ($IncludeCoverArt) {
     $manifestText += "CoverArt/                    - Game cover art and promotional images`n"
 }
@@ -260,7 +272,7 @@ $manifestText += "2. Run: sil-more.exe`n"
 $manifestText += "`n"
 $manifestText += "=== REQUIREMENTS ===" + "`n"
 $manifestText += "- Windows (64-bit)`n"
-$manifestText += "- All 18 DLL files must remain in the game folder`n"
+$manifestText += "- All $($requiredDlls.Count) DLL files must remain in the game folder`n"
 $manifestText += "- No external dependencies beyond what's included`n"
 $manifestText += "`n"
 $manifestText += "=== CONFIGURATION ===" + "`n"
@@ -291,7 +303,7 @@ Write-Host "Contents:" -ForegroundColor Yellow
 Write-Host "  - Executable: sil-more.exe"
 Write-Host "  - SDL3 Runtime: $copiedDlls DLLs"
 Write-Host "  - Game Data: $foldersCopied folders + empty directories"
-Write-Host "  - Music files: $musicFilesCopied files"
+Write-Host "  - Music files: $musicFilesCopied .ogg files"
 if ($IncludeCoverArt) {
     Write-Host "  - CoverArt: Included"
 }

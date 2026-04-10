@@ -10,8 +10,14 @@
 #include <string.h>
 #include <SDL3/SDL.h>
 
+static const char* const legacy_music_main_path = "music/main.wav";
+static const char* const default_music_main_path = "music/main.ogg";
+static const char* const legacy_music_main_full_path = "music/main_full.wav";
+static const char* const default_music_main_full_path = "music/main_full.ogg";
+static const char* const legacy_music_ambient_path = "music/ambient.wav";
+static const char* const default_music_ambient_path = "music/ambient.ogg";
 static const char* const legacy_music_death_path = "sound/death.wav";
-static const char* const default_music_death_path = "music/death.wav";
+static const char* const default_music_death_path = "music/death.ogg";
 
 void sound_config_set_defaults(struct sound_config* config)
 {
@@ -30,9 +36,9 @@ void sound_config_set_defaults(struct sound_config* config)
     config->music_ambient_enabled = true;
     config->music_main_volume = 1.0f;
     config->music_ambient_volume = 1.0f;
-    SDL_strlcpy(config->music_main_path, "music/main.wav", sizeof(config->music_main_path));
-    SDL_strlcpy(config->music_main_full_path, "music/main_full.wav", sizeof(config->music_main_full_path));
-    SDL_strlcpy(config->music_ambient_path, "music/ambient.wav", sizeof(config->music_ambient_path));
+    SDL_strlcpy(config->music_main_path, default_music_main_path, sizeof(config->music_main_path));
+    SDL_strlcpy(config->music_main_full_path, default_music_main_full_path, sizeof(config->music_main_full_path));
+    SDL_strlcpy(config->music_ambient_path, default_music_ambient_path, sizeof(config->music_ambient_path));
     SDL_strlcpy(config->music_death_path, default_music_death_path,
         sizeof(config->music_death_path));
     config->sample_rate = 22050;
@@ -197,15 +203,27 @@ void sound_config_load(const char* filename, struct sound_config* config)
     if (cJSON_IsString(music_main_path) && music_main_path->valuestring) {
         SDL_strlcpy(config->music_main_path, music_main_path->valuestring, sizeof(config->music_main_path));
     }
+    if (streq(config->music_main_path, legacy_music_main_path)) {
+        SDL_strlcpy(config->music_main_path, default_music_main_path,
+            sizeof(config->music_main_path));
+    }
 
     cJSON* music_main_full_path = cJSON_GetObjectItemCaseSensitive(root, "music_main_full_path");
     if (cJSON_IsString(music_main_full_path) && music_main_full_path->valuestring) {
         SDL_strlcpy(config->music_main_full_path, music_main_full_path->valuestring, sizeof(config->music_main_full_path));
     }
+    if (streq(config->music_main_full_path, legacy_music_main_full_path)) {
+        SDL_strlcpy(config->music_main_full_path, default_music_main_full_path,
+            sizeof(config->music_main_full_path));
+    }
 
     cJSON* music_ambient_path = cJSON_GetObjectItemCaseSensitive(root, "music_ambient_path");
     if (cJSON_IsString(music_ambient_path) && music_ambient_path->valuestring) {
         SDL_strlcpy(config->music_ambient_path, music_ambient_path->valuestring, sizeof(config->music_ambient_path));
+    }
+    if (streq(config->music_ambient_path, legacy_music_ambient_path)) {
+        SDL_strlcpy(config->music_ambient_path, default_music_ambient_path,
+            sizeof(config->music_ambient_path));
     }
 
     cJSON* music_death_path = cJSON_GetObjectItemCaseSensitive(root, "music_death_path");
