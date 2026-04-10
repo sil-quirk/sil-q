@@ -52,17 +52,20 @@
 // #define STEAMDECK_SUPPORT
 
 /* Formalized new fork versioning (canonical source for all modules) */
-#define VERSION_STRING "0.9.5.8"
+#define VERSION_STRING "0.9.6"
 /*
- * Version components (0.9.5.0).  All on-disk formats (saves, scores, metaruns)
+ * Version components (0.9.6.0).  All on-disk formats (saves, scores, metaruns)
  * MUST match these values; never bump individual subsystems independently.
  */
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 9
-#define VERSION_PATCH 5
-#define VERSION_EXTRA 8   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
+#define VERSION_PATCH 6
+#define VERSION_EXTRA 0   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
 /* Update MIN_VERSION_EXTRA whenever the savefile format changes. */
 #define MIN_VERSION_EXTRA 0  /* Accept earlier 0.9.x saves */
+
+/* Marker before the serialized supplies block in 0.9.6+ savefiles. */
+#define SAVEFILE_SUPPLY_BLOCK_MAGIC 0x53F6
 
 #define METAR_CURSE_SLOTS 64  /* Maximum number of distinct metarun curses supported */
 

@@ -32,9 +32,19 @@ static bool supplies_weight_counts_to_limit(const object_type* o_ptr)
     return o_ptr && !supplies_is_light_object(o_ptr);
 }
 
-bool supplies_is_food_object(const object_type* o_ptr)
+static bool supplies_is_edible_object(const object_type* o_ptr)
 {
     return o_ptr && o_ptr->k_idx && (o_ptr->tval == TV_FOOD);
+}
+
+bool supplies_is_herb_object(const object_type* o_ptr)
+{
+    return supplies_is_edible_object(o_ptr) && (o_ptr->sval < SV_FOOD_MIN_FOOD);
+}
+
+bool supplies_is_food_object(const object_type* o_ptr)
+{
+    return supplies_is_edible_object(o_ptr) && (o_ptr->sval >= SV_FOOD_MIN_FOOD);
 }
 
 bool supplies_is_light_object(const object_type* o_ptr)
@@ -185,6 +195,54 @@ bool player_gain_lamp_oil(int addition, bool allow_overflow)
         oil += addition;
 
     player_set_lamp_oil(oil);
+    return true;
+}
+
+bool player_prepare_lantern_drop(int lanterns_being_dropped,
+    int* oil_to_transfer, int* oil_to_lose)
+{
+    int pooled_oil;
+    int remaining_lanterns;
+    int transfer;
+    int lose;
+    char prompt[160];
+
+    if (oil_to_transfer)
+        *oil_to_transfer = 0;
+    if (oil_to_lose)
+        *oil_to_lose = 0;
+
+    if (lanterns_being_dropped <= 0)
+        return true;
+
+    remaining_lanterns = player_carried_light_count_for_sval(SV_LIGHT_LANTERN)
+        - lanterns_being_dropped;
+    if (remaining_lanterns > 0)
+        return true;
+
+    pooled_oil = player_lamp_oil();
+    if (pooled_oil <= 0)
+        return true;
+
+    transfer = MIN(pooled_oil, lanterns_being_dropped * FUEL_LAMP);
+    lose = pooled_oil - transfer;
+
+    if (lose > 0)
+    {
+        strnfmt(prompt, sizeof(prompt),
+            "Dropping your last brass lantern will lose %d turns of oil. Proceed? ",
+            lose);
+        if (!get_check(prompt))
+            return false;
+    }
+
+    player_set_lamp_oil(0);
+
+    if (oil_to_transfer)
+        *oil_to_transfer = transfer;
+    if (oil_to_lose)
+        *oil_to_lose = lose;
+
     return true;
 }
 
@@ -479,7 +537,7 @@ bool supplies_is_supply_object(const object_type* o_ptr)
     if (o_ptr->tval == TV_GEM)
         return true;
 
-    if (supplies_is_food_object(o_ptr))
+    if (supplies_is_edible_object(o_ptr))
         return true;
 
     if (supplies_is_light_object(o_ptr))
@@ -727,6 +785,32 @@ int supplies_total_weight(void)
     return total;
 }
 
+int supplies_carried_light_item_weight(void)
+{
+    int total = 0;
+
+    for (int i = 0; i < INVEN_TOTAL; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+        if (!supplies_is_light_object(o_ptr))
+            continue;
+
+        total += o_ptr->weight * MAX(o_ptr->number, 1);
+    }
+
+    for (int i = 0; i < g_supply_count; i++)
+    {
+        supply_entry* entry = &g_supply_entries[i];
+        object_type* obj = &entry->obj;
+        if (!supplies_is_light_object(obj))
+            continue;
+
+        total += obj->weight * obj->number;
+    }
+
+    return total;
+}
+
 int supplies_limit_weight(void)
 {
     int total = 0;
@@ -743,14 +827,17 @@ int supplies_limit_weight(void)
     return total;
 }
 
-void supplies_count_totals(int* potions, int* food, int* gems, int* lights)
+void supplies_count_totals(int* herbs, int* food, int* potions, int* gems,
+    int* lights)
 {
     object_type* light_ptr;
 
-    if (potions)
-        *potions = 0;
+    if (herbs)
+        *herbs = 0;
     if (food)
         *food = 0;
+    if (potions)
+        *potions = 0;
     if (gems)
         *gems = 0;
     if (lights)
@@ -763,7 +850,17 @@ void supplies_count_totals(int* potions, int* food, int* gems, int* lights)
         if (!obj->k_idx)
             continue;
 
-        if (obj->tval == TV_POTION)
+        if (supplies_is_herb_object(obj))
+        {
+            if (herbs)
+                *herbs += obj->number;
+        }
+        else if (supplies_is_food_object(obj))
+        {
+            if (food)
+                *food += obj->number;
+        }
+        else if (obj->tval == TV_POTION)
         {
             if (potions)
                 *potions += obj->number;
@@ -772,11 +869,6 @@ void supplies_count_totals(int* potions, int* food, int* gems, int* lights)
         {
             if (gems)
                 *gems += obj->number;
-        }
-        else if (supplies_is_food_object(obj))
-        {
-            if (food)
-                *food += obj->number;
         }
         else if (supplies_is_light_object(obj))
         {
@@ -804,6 +896,10 @@ int supplies_first_entry_for_group(int group)
 
         switch (group)
         {
+        case SUPPLY_GROUP_HERBS:
+            if (supplies_is_herb_object(entry))
+                return i;
+            break;
         case SUPPLY_GROUP_FOOD:
             if (supplies_is_food_object(entry))
                 return i;
@@ -900,6 +996,7 @@ void supplies_refresh_entry(int idx)
 
 bool supplies_drop_amount(int idx, int amount)
 {
+    int lantern_oil_to_drop = 0;
     if (idx < 0 || idx >= g_supply_count)
         return false;
 
@@ -920,6 +1017,12 @@ bool supplies_drop_amount(int idx, int amount)
     object_copy(&drop, obj);
     drop.number = amount;
 
+    if (drop.tval == TV_LIGHT && drop.sval == SV_LIGHT_LANTERN)
+    {
+        if (!player_prepare_lantern_drop(amount, &lantern_oil_to_drop, NULL))
+            return false;
+    }
+
     object_desc(o_name, sizeof(o_name), &drop, true, 3);
 
     if (player_light_destroyed_on_drop(&drop))
@@ -930,7 +1033,25 @@ bool supplies_drop_amount(int idx, int amount)
         return true;
     }
 
-    drop_near(&drop, 0, p_ptr->py, p_ptr->px);
+    if (drop.tval == TV_LIGHT && drop.sval == SV_LIGHT_LANTERN
+        && lantern_oil_to_drop > 0)
+    {
+        int oil_remaining = lantern_oil_to_drop;
+        for (int n = 0; n < amount; n++)
+        {
+            object_type single_drop;
+            object_wipe(&single_drop);
+            object_copy(&single_drop, &drop);
+            single_drop.number = 1;
+            single_drop.timeout = MIN(oil_remaining, FUEL_LAMP);
+            oil_remaining -= single_drop.timeout;
+            drop_near(&single_drop, 0, p_ptr->py, p_ptr->px);
+        }
+    }
+    else
+    {
+        drop_near(&drop, 0, p_ptr->py, p_ptr->px);
+    }
     supplies_consume_quantity(idx, amount);
     return true;
 }

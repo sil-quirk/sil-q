@@ -9,7 +9,8 @@ struct object_type;
 
 typedef enum supply_group
 {
-    SUPPLY_GROUP_FOOD = 0,
+    SUPPLY_GROUP_HERBS = 0,
+    SUPPLY_GROUP_FOOD,
     SUPPLY_GROUP_POTIONS,
     SUPPLY_GROUP_GEMS,
     SUPPLY_GROUP_LIGHTS,
@@ -47,6 +48,7 @@ void supplies_set_max_weight_cap(int weight_tenths);
 int supplies_current_weight_cap(void);
 int supplies_limit_weight(void);
 bool supplies_is_supply_object(const struct object_type* o_ptr);
+bool supplies_is_herb_object(const struct object_type* o_ptr);
 bool supplies_is_food_object(const struct object_type* o_ptr);
 bool supplies_is_light_object(const struct object_type* o_ptr);
 bool supplies_is_carried_object_pointer(const struct object_type* o_ptr);
@@ -67,7 +69,9 @@ int supplies_first_entry_for_kind(int k_idx);
 bool supplies_take_one(int idx, struct object_type* out);
 
 int supplies_total_weight(void);
-void supplies_count_totals(int* potions, int* food, int* gems, int* lights);
+int supplies_carried_light_item_weight(void);
+void supplies_count_totals(int* herbs, int* food, int* potions, int* gems,
+    int* lights);
 
 int player_light_max_fuel(const struct object_type* o_ptr);
 int player_light_sputter_threshold(const struct object_type* o_ptr);
@@ -82,6 +86,8 @@ int player_lamp_oil_weight(void);
 void player_set_lamp_oil(int oil);
 bool player_lamp_oil_would_overflow(int addition);
 bool player_gain_lamp_oil(int addition, bool allow_overflow);
+bool player_prepare_lantern_drop(int lanterns_being_dropped,
+    int* oil_to_transfer, int* oil_to_lose);
 int player_carried_torch_count(void);
 int player_carried_light_count_for_sval(int sval);
 int player_light_carry_cap(const struct object_type* o_ptr);

@@ -1804,6 +1804,7 @@ static bool wr_savefile(void)
     /* Write supplies cache */
     log_trace("[save:%06u] === BEGIN SUPPLIES ===", (unsigned)save_byte_offset);
     {
+        wr_u16b(SAVEFILE_SUPPLY_BLOCK_MAGIC);
         u16b supply_count = (u16b)supplies_entry_count();
         wr_u16b(supply_count);
         log_debug("Writing %u supply entries", (unsigned)supply_count);

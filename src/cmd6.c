@@ -472,7 +472,10 @@ void do_cmd_eat_food(object_type* default_o_ptr, int default_item)
         /* Get an item */
         q = "Eat which item? ";
         s = "You have nothing to eat.";
-        supplies_set_pending_action(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_FOOD, true);
+        supplies_set_pending_action(SUPPLY_MENU_ACTION_USE,
+            supplies_has_group(SUPPLY_GROUP_HERBS) ? SUPPLY_GROUP_HERBS
+                                                   : SUPPLY_GROUP_FOOD,
+            true);
         if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
         {
             supplies_clear_pending_action();
@@ -482,7 +485,10 @@ void do_cmd_eat_food(object_type* default_o_ptr, int default_item)
         if (item == SUPPLIES_INDEX)
         {
             supplies_clear_pending_action();
-            open_supplies_menu_with_context(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_FOOD, true, true);
+            open_supplies_menu_with_context(SUPPLY_MENU_ACTION_USE,
+                supplies_has_group(SUPPLY_GROUP_HERBS) ? SUPPLY_GROUP_HERBS
+                                                       : SUPPLY_GROUP_FOOD,
+                true, true);
             return;
         }
 

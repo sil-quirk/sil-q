@@ -2615,8 +2615,9 @@ static bool supplies_visible_for_current_filter(void)
 
 static void format_supply_summary(char* buf, size_t len)
 {
-    int potions = 0;
+    int herbs = 0;
     int food = 0;
+    int potions = 0;
     int gems = 0;
     int lights = 0;
     bool first = true;
@@ -2625,19 +2626,19 @@ static void format_supply_summary(char* buf, size_t len)
     if (!buf || len == 0)
         return;
 
-    supplies_count_totals(&potions, &food, &gems, &lights);
+    supplies_count_totals(&herbs, &food, &potions, &gems, &lights);
 
     SDL_strlcpy(buf, "Supplies", len);
 
-    if (potions <= 0 && food <= 0 && gems <= 0 && lights <= 0)
+    if (herbs <= 0 && food <= 0 && potions <= 0 && gems <= 0 && lights <= 0)
         return;
 
     SDL_strlcat(buf, " (", len);
 
-    if (potions > 0)
+    if (herbs > 0)
     {
-        strnfmt(segment, sizeof(segment), "%d potion%s", potions,
-            (potions == 1) ? "" : "s");
+        strnfmt(segment, sizeof(segment), "%d herb%s", herbs,
+            (herbs == 1) ? "" : "s");
         SDL_strlcat(buf, segment, len);
         first = false;
     }
@@ -2647,6 +2648,16 @@ static void format_supply_summary(char* buf, size_t len)
         if (!first)
             SDL_strlcat(buf, ", ", len);
         strnfmt(segment, sizeof(segment), "%d food", food);
+        SDL_strlcat(buf, segment, len);
+        first = false;
+    }
+
+    if (potions > 0)
+    {
+        if (!first)
+            SDL_strlcat(buf, ", ", len);
+        strnfmt(segment, sizeof(segment), "%d potion%s", potions,
+            (potions == 1) ? "" : "s");
         SDL_strlcat(buf, segment, len);
         first = false;
     }

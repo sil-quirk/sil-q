@@ -829,10 +829,8 @@ void init_file_paths(char* path)
     else
         ANGBAND_DIR_APEX = str_dup(ANGBAND_DIR);
 
-    if (path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, SIL_USER_META_RUNS))
-        ANGBAND_DIR_METARUN = str_dup(buf);
-    else
-        ANGBAND_DIR_METARUN = str_dup(ANGBAND_DIR_APEX);
+    /* Portable builds keep metarun data directly in ANGBAND_DIR_APEX. */
+    ANGBAND_DIR_METARUN = str_dup(ANGBAND_DIR_APEX);
 #else
     char user_root[1024];
     if (!build_user_root_path(user_root, sizeof(user_root)))
