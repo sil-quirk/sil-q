@@ -177,13 +177,15 @@ T:34:0:99
 T:37:0:99
 F:SUST_STR | SUST_DEX | SUST_CON | SUST_GRA | NOBLE_ITEM
 F:IGNORE_ALL
-D:[shield]The deep craft of Nogrod rests in it, and the shield feels
-D: stout without clumsiness, as though strength and measure had been
-D: taught to endure together. ||
-D:[greaves]These plates are firmly made in the Dwarven manner, lending
-D: steadiness to the stride rather than burdening it with mere weight. ||
-D:[mail]Its rings and bindings show the grave patience of Nogrod, where
-D: armour was fashioned to outlast both fear and weariness.
+D:[shield]Boss, rim, and grip are joined with Nogrod's close cunning,
+D: so that the shield sits stout upon the arm without deadening
+D: hand, eye, or courage. ||
+D:[greaves]These plates have the exact poise of Nogrod, where even
+D: war-gear was fitted with a master-smith's pride. They steady the
+D: stride without stealing its readiness. ||
+D:[mail]Ring answers ring with Nogrod's rich exactness, and the
+D: harness seems made not only to endure blows, but to keep the
+D: warrior within it master of himself.
 
 
 # Greaves and heavy armour - iron only
@@ -340,9 +342,9 @@ T:34:5:5
 T:34:10:10
 F:NOBLE_ITEM
 B:2/7
-D:[shield]It has something of the Blue Mountains in its make: a quiet
-D: Dwarven surety, fit for a warrior who trusts patient craft before
-D: boast or sudden fury.
+D:[shield]It keeps the temper of the Blue Mountains, where the long
+D: roads between Nogrod and Belegost taught smiths to marry timber,
+D: iron, and patience into one strength without boast.
 
 
 
@@ -375,15 +377,17 @@ T:17:0:99
 T:23:28:30
 A:1/60
 F:SLAY_ORC | SLAY_RAUKO | NOBLE_ITEM
-D:[arrow]These shafts remember the hidden bowyers of Gondolin, and
-D: seem eager for orc and rauko as though some command from the white
-D: walls still endured. ||
-D:[polearm]The memory of the guards upon Gondolin's walls abides in
-D: it, and its reach is most deadly to orc and rauko. ||
-D:[sword]The memory of Gondolin the Hidden abides in it, and its edge
-D: wakes more gladly against orc and rauko than against any other foe. ||
-D:[default]The memory of Gondolin the Hidden abides in it, and the
-D: servants of the Dark Throne are its natural quarry.
+D:[arrow]These shafts have the white and deadly neatness of
+D: Gondolin, as though fletched for the walls before dawn when the
+D: plain below was dark with orcs. ||
+D:[polearm]It bears the ordered wrath of Gondolin's gate-wards,
+D: who met troll and Balrog in the killing-space before the
+D: Hidden King's walls. ||
+D:[sword]Its edge keeps the cold bright pride of Gondolin, and
+D: wakes most fiercely where orc or rauko would profane fair
+D: craft. ||
+D:[default]The hidden city's high wrath lives in it still, and
+D: the servants of Morgoth are answered first.
 
 # Includes arrows
 # Polearms (no axes)
@@ -399,15 +403,17 @@ T:23:25:25
 T:23:28:30
 T:17:0:99
 F:SLAY_SPIDER | SLAY_WOLF | NOBLE_ITEM
-D:[arrow]These shafts seem made for the hidden marches of Doriath, where
-D: fell wolves and venomous things were hunted before they could trouble
-D: the guarded realm. ||
-D:[polearm]It bears the watchful temper of Doriath, as though meant to
-D: keep the dark woods clear of wolf-pack and web-spawn alike. ||
-D:[sword]There is in it something of the Girdled Realm: wary, beautiful,
-D: and suddenly deadly against spider and wolf. ||
-D:[default]The guarded memory of Doriath abides in it, and creatures of
-D: fang, fur, and web are its natural enemies.
+D:[arrow]These shafts are feathered in the temper of Doriath's
+D: outer marches, where the wardens of Thingol slew wolf and
+D: spider before they came beneath the beech-shadows. ||
+D:[polearm]It has the watchful reach of a march-weapon from
+D: Doriath, made to keep fang and venomous web from the guarded
+D: woods. ||
+D:[sword]There is in it the grave beauty of Doriath under
+D: Melian's Girdle: quiet until the instant wolf or spider comes
+D: too near. ||
+D:[default]The Girdled Realm is remembered in it, and things of
+D: fang, fur, and venomous web are answered as trespassers.
 
 # Shortswords, longswords, bastard swords, greatswords
 # Spears, great spears, glaives, mithril swords
@@ -420,12 +426,15 @@ T:23:10:21
 T:23:25:25
 T:23:28:30
 F:SLAY_VAMPIRE | SLAY_DRAGON | NOBLE_ITEM
-D:[polearm]It recalls the deep armouries of Nargothrond, and its reach
-D: seems especially grim toward dragon and vampire. ||
-D:[sword]A stern craft from hidden Nargothrond is remembered in it, and
-D: it wakes most fiercely against dragon and vampire. ||
-D:[default]It keeps a dark bright memory of Nargothrond, where weapons
-D: were prepared for dragons, vampires, and the older terrors of shadow.
+D:[polearm]It has the long cold purpose of Nargothrond, where
+D: deep armouries were laid against wing, scale, and the
+D: blood-drinking night. ||
+D:[sword]A stern bright craft out of Nargothrond is in it, and
+D: the edge seems to remember dragon-fire and the stealth of
+D: vampires in dark places. ||
+D:[default]It keeps the hidden city's grim wisdom, prepared for
+D: dragon, vampire, and such elder evils as came prowling
+D: against Narog.
 
 # Mandos is keeper and judge of the dead; the spirits of slain Elves pass to his halls.
 # This ego is for weapons that lay the restless dead to rest.
@@ -575,8 +584,10 @@ W:0:80:0:8000
 C:1:0:0:0:0:0:0
 T:21:3:3
 F:REGEN | NOBLE_ITEM
-D:[quarterstaff]This staff has the plain hardy virtue of Mithrim, where
-D: endurance was prized because winter and war gave little quarter.
+D:[quarterstaff]This staff has the weathered virtue of Mithrim,
+D: like ash cut by the cold mere and seasoned through long exile.
+D: It suits one who must endure want without surrendering either
+D: lore or heart.
 
 
 # Quarterstaves only
@@ -1232,9 +1243,9 @@ W:7:30:0:4000
 C:0:0:0:0:0:0:0
 T:30:1:1
 B:2/4
-D:[boots]They gather the body into the spring of a single bold motion,
-D: as though ditch, snare, or broken ground were only a brief question
-D: put to courage.
+D:[boots]They gather calf, knee, and heart into one sudden spring, as
+D: though ditch, snare, or broken stone were only a question to be
+D: answered in a single bold motion.
 
 
 N:115:(Iron-shod)
@@ -1288,8 +1299,9 @@ W:2:50:0:1000
 C:0:0:0:0:0:0:3
 T:31:1:1
 F:ARCHERY
-D:[gloves]They preserve the fingers from roughness without dulling them,
-D: and the bowstring seems to lie more truly beneath the hand.
+D:[gloves]They preserve the fingers from weather and string-burn
+D: without deadening them, and the bowstring seems to come away
+D: more cleanly beneath the hand.
 
 
 N:121:of Lorellin
@@ -1490,9 +1502,10 @@ T:40:11:11
 T:40:14:14
 T:40:15:15
 F:LIGHT | RES_HALLU | RES_BLIND | NOBLE_ITEM
-D:[amulet]A cleaner radiance seems to have been invited into it, so that
-D: even when it is still the heart is less willing to yield to dark
-D: fancy, blind terror, or deceitful seeming.
+D:[amulet]A pale and wholesome radiance abides in it, like a memory of
+D: stars seen before the Sun. Under that clear influence the heart is
+D: less willing to yield to dark fancy, blind terror, or deceitful
+D: seeming.
 
 
 # A cursed amulet that dims the wearer's light
@@ -1504,9 +1517,9 @@ T:40:0:4
 T:40:6:99
 A:1:0:13:50
 F:UNLIGHT | VUL_FIRE | DIF_ID | LIGHT_CURSE | JINX
-D:[amulet]About it there lingers a hush of unwholesome dusk, and the
-D: eye slips from it as from something that would rather not be
-D: remembered.
+D:[amulet]An unwholesome dusk hangs about it, as though the little
+D: thing withheld what light should naturally rest upon it. The eye
+D: slips from it, and the mind mislikes to dwell upon it long.
 
 
 ##### Ring Prefixes #####
@@ -1520,9 +1533,9 @@ C:0:0:0:0:0:0:0
 T:45:0:99
 A:1:0:13:50
 F:DANGER | HAUNTED | DIF_ID | LIGHT_CURSE | JINX
-D:[ring]Something in it has been quietly marred. Though its virtue is
-D: not wholly unmade, one feels a lurking flaw, as if what should have
-D: been a help might at an ill hour turn watchful, restless, or worse.
+D:[ring]Something in it has been secretly marred. Its virtue remains,
+D: yet not cleanly: one feels a lurking warp in the work, as if help
+D: and harm had been brought too near akin within the circle.
 
 
 # Rings only - blessed ring (good prefix suggestion)
@@ -1536,8 +1549,8 @@ T:45:12:12
 T:45:21:99
 F:SONG | SUST_GRA | NOBLE_ITEM
 D:[ring]Some fair hallowing rests upon it, gentle as starlight on
-D: still water; it steadies the spirit and makes song come more
-D: readily to the heart.
+D: still water. It steadies the spirit, and from it there rises
+D: something of the inward peace from which true song is born.
 
 
 ##### Weapon Prefixes #####
@@ -1626,9 +1639,10 @@ C:0:0:0:0:0:0:0
 T:23:10:10
 F:NOBLE_ITEM
 B:0/8
-D:[short_sword]Its edge seems schooled to the green silence of
-D: Ossiriand, where the Laiquendi moved beneath leaf-shadow and let the
-D: enemy feel the stroke before ever he marked the hand.
+D:[short_sword]Its edge is schooled to the green secrecy of
+D: Ossiriand, where the Laiquendi let leaf, shadow, and silence
+D: fight beside them; the stroke seems already gone before the
+D: enemy has found the hand.
 
 
 # Quarterstaves only
@@ -1641,9 +1655,11 @@ C:0:0:0:0:0:0:1
 T:21:3:3
 B:5/1
 F:WILL | NOBLE_ITEM
-D:[quarterstaff]Something of Tirion upon Tuna lingers in it: a clear
-D: and ordered strength, schooled by lore and high speech, that does
-D: not spend itself rashly, but gathers and answers in its proper hour.
+D:[quarterstaff]Something of Tirion upon Tuna is in it still: the
+D: clear order of high speech, measured thought, and strength
+D: governed by lore. It answers hand and voice as if long
+D: accustomed to halls where wisdom and power were not wholly
+D: sundered.
 
 
 ##### New Weapon Suffixes #####
@@ -1771,14 +1787,15 @@ T:37:4:4
 T:37:6:6
 T:37:20:20
 F:NOBLE_ITEM
-D:[mail_corslet]Its rings are set in the stern and patient manner of
-D: Belegost, where mail was made to meet dragon-fire and yet keep its
-D: wearer standing. ||
-D:[hauberk]Long linked strength abides in it, after the fashion of
-D: Belegost's war-smiths, who armed those that would not give ground
-D: even before drake or Balrog. ||
-D:[mithril_mail]Here the craft of Belegost is joined to mithril, and the
-D: mail seems doubly resolved to endure what would break a lesser harness.
+D:[mail_corslet]Its rings are closed in the ancient manner of
+D: Belegost, where the Dwarves first brought ring-mail to its full
+D: mastery, each link measured, riveted, and laid for endurance. ||
+D:[hauberk]Long linked order runs through it, after the fashion of
+D: Belegost's mail-smiths, who made strength flexible and burden
+D: more evenly borne from shoulder to hem. ||
+D:[mithril_mail]Here the old ring-mail craft of Belegost is married
+D: to mithril, and the harness seems at once lighter, closer, and
+D: more sure than any common mail.
 
 
 ##### New Bow Suffixes #####

@@ -891,11 +891,11 @@ D:[neutral]A staff of seasoned wood, shod for hard use at either end.
 D: Such staves serve traveller and watchman no less than teacher or
 D: healer: a help upon long roads, a measure in dark places, and, if need
 D: be, a plain weapon of reach and patience. ||
-D:[noble]A well-chosen staff of stern and careful make, such as one
-D: might imagine in the hands of the Exiles who dwelt by Mithrim or
-D: endured the bitter ice of the Helcaraxe. It speaks of long marches
-D: beneath cold stars, of lore joined to endurance, and of strength that
-D: outlasts hunger, frost, and weariness.
+D:[noble]A well-chosen staff of elder make, such as a loremaster or
+D: far-wandering exile might bear. It speaks at once of Tirion's
+D: ordered speech, of songs remembered beside Mithrim, and of a
+D: strength that endures cold, hunger, and the long labour of the
+D: road.
 
 
 N:89:& War Hammer~
