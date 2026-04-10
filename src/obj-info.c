@@ -1579,6 +1579,651 @@ bool object_info_out(const object_type* o_ptr)
     return something;
 }
 
+typedef struct object_lore_profile
+{
+    cptr keywords[10];
+    int keyword_count;
+} object_lore_profile;
+
+typedef enum object_lore_alignment
+{
+    OBJECT_LORE_ALIGNMENT_NEUTRAL = 0,
+    OBJECT_LORE_ALIGNMENT_NOBLE = 1,
+    OBJECT_LORE_ALIGNMENT_EVIL = 2
+} object_lore_alignment;
+
+static void object_lore_add_keyword(object_lore_profile* profile, cptr keyword)
+{
+    int i;
+
+    if (!profile || !keyword || !keyword[0])
+        return;
+
+    for (i = 0; i < profile->keyword_count; i++)
+    {
+        if (streq(profile->keywords[i], keyword))
+            return;
+    }
+
+    if (profile->keyword_count >= (int)N_ELEMENTS(profile->keywords))
+        return;
+
+    profile->keywords[profile->keyword_count++] = keyword;
+}
+
+static void object_lore_trim_copy(const char* start, size_t len, char* out,
+    size_t out_sz)
+{
+    if (!out || out_sz == 0)
+        return;
+
+    while (len > 0 && isspace((unsigned char)*start))
+    {
+        start++;
+        len--;
+    }
+
+    while (len > 0 && isspace((unsigned char)start[len - 1]))
+        len--;
+
+    if (len >= out_sz)
+        len = out_sz - 1;
+
+    if (len > 0)
+        memcpy(out, start, len);
+
+    out[len] = '\0';
+}
+
+static int object_lore_keyword_rank(const object_lore_profile* profile,
+    cptr keyword)
+{
+    int i;
+
+    if (!profile || !keyword || !keyword[0])
+        return -1;
+
+    for (i = 0; i < profile->keyword_count; i++)
+    {
+        if (streq(profile->keywords[i], keyword))
+            return i;
+    }
+
+    return -1;
+}
+
+static bool object_lore_text_is_structured(cptr raw)
+{
+    while (raw && *raw && isspace((unsigned char)*raw))
+        raw++;
+
+    return (raw && *raw == '[');
+}
+
+static object_lore_alignment object_lore_actual_alignment(
+    const object_type* o_ptr)
+{
+    u32b f1, f2, f3, f4;
+    bool has_noble;
+    bool has_evil;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return OBJECT_LORE_ALIGNMENT_NEUTRAL;
+
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
+    has_noble = ((f4 & TR4_NOBLE_ITEM) != 0);
+    has_evil = ((f4 & TR4_EVIL_ITEM) != 0);
+
+    if (has_noble && !has_evil)
+        return OBJECT_LORE_ALIGNMENT_NOBLE;
+    if (has_evil && !has_noble)
+        return OBJECT_LORE_ALIGNMENT_EVIL;
+
+    return OBJECT_LORE_ALIGNMENT_NEUTRAL;
+}
+
+static object_lore_alignment object_lore_base_alignment(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return OBJECT_LORE_ALIGNMENT_NEUTRAL;
+
+    /* Base lore should reflect what the item visibly is, even before the
+     * player has identified the ego behind that appearance. */
+    return object_lore_actual_alignment(o_ptr);
+}
+
+static void object_lore_add_alignment_keyword(object_lore_profile* profile,
+    object_lore_alignment alignment)
+{
+    if (!profile)
+        return;
+
+    switch (alignment)
+    {
+    case OBJECT_LORE_ALIGNMENT_NOBLE:
+        object_lore_add_keyword(profile, "noble");
+        object_lore_add_keyword(profile, "good");
+        break;
+
+    case OBJECT_LORE_ALIGNMENT_EVIL:
+        object_lore_add_keyword(profile, "evil");
+        break;
+
+    case OBJECT_LORE_ALIGNMENT_NEUTRAL:
+    default:
+        object_lore_add_keyword(profile, "neutral");
+        break;
+    }
+}
+
+static void object_lore_profile_for_object(const object_type* o_ptr,
+    object_lore_profile* profile)
+{
+    if (!profile)
+        return;
+
+    memset(profile, 0, sizeof(*profile));
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return;
+
+    /* Add more specific item tags before broad category tags so keyed
+     * lore in the data files can safely provide fallbacks like [shield]
+     * or [light] without overriding [kite_shield] or [lantern]. */
+    switch (o_ptr->tval)
+    {
+    case TV_SWORD:
+        switch (o_ptr->sval)
+        {
+        case SV_DAGGER:
+            object_lore_add_keyword(profile, "dagger");
+            object_lore_add_keyword(profile, "knife");
+            object_lore_add_keyword(profile, "small_blade");
+            break;
+        case SV_CURVED_SWORD:
+            object_lore_add_keyword(profile, "curved_sword");
+            object_lore_add_keyword(profile, "sword");
+            break;
+        case SV_SHORT_SWORD:
+            object_lore_add_keyword(profile, "short_sword");
+            object_lore_add_keyword(profile, "sword");
+            break;
+        case SV_LONG_SWORD:
+        case SV_MITHRIL_LONG_SWORD:
+            object_lore_add_keyword(profile, "long_sword");
+            object_lore_add_keyword(profile, "sword");
+            break;
+        case SV_BASTARD_SWORD:
+            object_lore_add_keyword(profile, "bastard_sword");
+            object_lore_add_keyword(profile, "sword");
+            break;
+        case SV_GREAT_SWORD:
+        case SV_STAR_IRON_GREAT_SWORD:
+            object_lore_add_keyword(profile, "great_sword");
+            object_lore_add_keyword(profile, "sword");
+            break;
+        default:
+            object_lore_add_keyword(profile, "sword");
+            break;
+        }
+        object_lore_add_keyword(profile, "blade");
+        object_lore_add_keyword(profile, "melee_weapon");
+        object_lore_add_keyword(profile, "weapon");
+        break;
+
+    case TV_POLEARM:
+        switch (o_ptr->sval)
+        {
+        case SV_SPEAR:
+            object_lore_add_keyword(profile, "spear");
+            object_lore_add_keyword(profile, "polearm");
+            break;
+        case SV_GREAT_SPEAR:
+            object_lore_add_keyword(profile, "great_spear");
+            object_lore_add_keyword(profile, "polearm");
+            break;
+        case SV_GLAIVE:
+            object_lore_add_keyword(profile, "glaive");
+            object_lore_add_keyword(profile, "polearm");
+            break;
+        case SV_HAND_AXE:
+            object_lore_add_keyword(profile, "hand_axe");
+            object_lore_add_keyword(profile, "axe");
+            break;
+        case SV_BATTLE_AXE:
+            object_lore_add_keyword(profile, "battle_axe");
+            object_lore_add_keyword(profile, "axe");
+            break;
+        case SV_GREAT_AXE:
+            object_lore_add_keyword(profile, "great_axe");
+            object_lore_add_keyword(profile, "axe");
+            break;
+        default:
+            object_lore_add_keyword(profile, "polearm");
+            break;
+        }
+        object_lore_add_keyword(profile, "melee_weapon");
+        object_lore_add_keyword(profile, "weapon");
+        break;
+
+    case TV_HAFTED:
+        switch (o_ptr->sval)
+        {
+        case SV_QUARTERSTAFF:
+            object_lore_add_keyword(profile, "quarterstaff");
+            object_lore_add_keyword(profile, "staff");
+            break;
+        case SV_WAR_HAMMER:
+            object_lore_add_keyword(profile, "war_hammer");
+            object_lore_add_keyword(profile, "hammer");
+            break;
+        default:
+            object_lore_add_keyword(profile, "hafted");
+            break;
+        }
+        object_lore_add_keyword(profile, "melee_weapon");
+        object_lore_add_keyword(profile, "weapon");
+        break;
+
+    case TV_BOW:
+        switch (o_ptr->sval)
+        {
+        case SV_SHORT_BOW:
+            object_lore_add_keyword(profile, "shortbow");
+            break;
+        case SV_LONG_BOW:
+            object_lore_add_keyword(profile, "longbow");
+            break;
+        case SV_DH_LONG_BOW:
+            object_lore_add_keyword(profile, "dragonhorn_bow");
+            break;
+        default:
+            break;
+        }
+        object_lore_add_keyword(profile, "bow");
+        object_lore_add_keyword(profile, "ranged_weapon");
+        break;
+
+    case TV_ARROW:
+        object_lore_add_keyword(profile, "arrow");
+        object_lore_add_keyword(profile, "missile");
+        object_lore_add_keyword(profile, "ranged_weapon");
+        break;
+
+    case TV_SHIELD:
+        switch (o_ptr->sval)
+        {
+        case SV_ROUND_SHIELD:
+            object_lore_add_keyword(profile, "round_shield");
+            break;
+        case SV_KITE_SHIELD:
+            object_lore_add_keyword(profile, "kite_shield");
+            break;
+        case SV_MITHRIL_SHIELD:
+            object_lore_add_keyword(profile, "mithril_shield");
+            break;
+        default:
+            break;
+        }
+        object_lore_add_keyword(profile, "shield");
+        object_lore_add_keyword(profile, "armour");
+        break;
+
+    case TV_HELM:
+        switch (o_ptr->sval)
+        {
+        case SV_GREAT_HELM:
+            object_lore_add_keyword(profile, "great_helm");
+            break;
+        case SV_MITHRIL_HELM:
+            object_lore_add_keyword(profile, "mithril_helm");
+            break;
+        default:
+            object_lore_add_keyword(profile, "headpiece");
+            break;
+        }
+        object_lore_add_keyword(profile, "helm");
+        object_lore_add_keyword(profile, "armour");
+        break;
+
+    case TV_SOFT_ARMOR:
+        switch (o_ptr->sval)
+        {
+        case SV_ROBE:
+            object_lore_add_keyword(profile, "robe");
+            break;
+        case SV_LEATHER_ARMOR:
+            object_lore_add_keyword(profile, "leather_armour");
+            break;
+        case SV_STUDDED_LEATHER:
+            object_lore_add_keyword(profile, "studded_armour");
+            break;
+        default:
+            break;
+        }
+        object_lore_add_keyword(profile, "soft_armour");
+        object_lore_add_keyword(profile, "armour");
+        break;
+
+    case TV_MAIL:
+        switch (o_ptr->sval)
+        {
+        case SV_MAIL_CORSLET:
+            object_lore_add_keyword(profile, "mail_corslet");
+            break;
+        case SV_LONG_CORSLET:
+            object_lore_add_keyword(profile, "hauberk");
+            break;
+        case SV_MITHRIL_CORSLET:
+            object_lore_add_keyword(profile, "mithril_mail");
+            break;
+        default:
+            break;
+        }
+        object_lore_add_keyword(profile, "mail");
+        object_lore_add_keyword(profile, "armour");
+        break;
+
+    case TV_CLOAK:
+        object_lore_add_keyword(profile, "cloak");
+        object_lore_add_keyword(profile, "armour");
+        break;
+
+    case TV_BOOTS:
+        switch (o_ptr->sval)
+        {
+        case SV_PAIR_OF_STEEL_GREAVES:
+        case SV_PAIR_OF_MITHRIL_GREAVES:
+            object_lore_add_keyword(profile, "greaves");
+            break;
+        default:
+            object_lore_add_keyword(profile, "boots");
+            break;
+        }
+        object_lore_add_keyword(profile, "armour");
+        break;
+
+    case TV_GLOVES:
+        switch (o_ptr->sval)
+        {
+        case SV_SET_OF_GAUNTLETS:
+            object_lore_add_keyword(profile, "gauntlets");
+            break;
+        default:
+            object_lore_add_keyword(profile, "gloves");
+            break;
+        }
+        object_lore_add_keyword(profile, "hands");
+        object_lore_add_keyword(profile, "armour");
+        break;
+
+    case TV_LIGHT:
+        switch (o_ptr->sval)
+        {
+        case SV_LIGHT_TORCH:
+            object_lore_add_keyword(profile, "torch");
+            object_lore_add_keyword(profile, "wooden_torch");
+            break;
+        case SV_LIGHT_MALLORN:
+            object_lore_add_keyword(profile, "torch");
+            object_lore_add_keyword(profile, "mallorn_torch");
+            break;
+        case SV_LIGHT_LANTERN:
+            object_lore_add_keyword(profile, "lantern");
+            break;
+        case SV_LIGHT_LESSER_JEWEL:
+            object_lore_add_keyword(profile, "lesser_jewel");
+            break;
+        case SV_LIGHT_FEANORIAN:
+            object_lore_add_keyword(profile, "feanorian_lamp");
+            break;
+        default:
+            break;
+        }
+        object_lore_add_keyword(profile, "light");
+        break;
+
+    case TV_RING:
+        object_lore_add_keyword(profile, "ring");
+        object_lore_add_keyword(profile, "jewelry");
+        break;
+
+    case TV_AMULET:
+        object_lore_add_keyword(profile, "amulet");
+        object_lore_add_keyword(profile, "jewelry");
+        break;
+
+    case TV_DIGGING:
+        if (o_ptr->sval == SV_MATTOCK)
+            object_lore_add_keyword(profile, "mattock");
+        else
+            object_lore_add_keyword(profile, "shovel");
+        object_lore_add_keyword(profile, "digging_tool");
+        object_lore_add_keyword(profile, "tool");
+        break;
+
+    default:
+        object_lore_add_keyword(profile, "item");
+        break;
+    }
+
+    object_lore_add_keyword(profile, "all");
+}
+
+static bool object_lore_select_segment(cptr raw,
+    const object_lore_profile* profile, char* out, size_t out_sz)
+{
+    const char* cursor;
+    const char* best_start = NULL;
+    size_t best_len = 0;
+    int best_rank = 9999;
+    bool saw_structured = false;
+
+    if (!raw || !profile || !out || out_sz == 0)
+        return false;
+
+    cursor = raw;
+
+    while (*cursor)
+    {
+        const char* seg_end = strstr(cursor, "||");
+        const char* seg_stop = seg_end ? seg_end : cursor + strlen(cursor);
+        const char* seg_start = cursor;
+        const char* tag_start;
+        const char* tag_end;
+        const char* body_start;
+        char tags_buf[256];
+        char token[64];
+        size_t tags_len;
+        bool segment_matched = false;
+
+        while (seg_start < seg_stop && isspace((unsigned char)*seg_start))
+            seg_start++;
+        while (seg_stop > seg_start && isspace((unsigned char)seg_stop[-1]))
+            seg_stop--;
+
+        if (seg_start < seg_stop && *seg_start == '[')
+        {
+            saw_structured = true;
+            tag_end = memchr(seg_start, ']', (size_t)(seg_stop - seg_start));
+            if (tag_end)
+            {
+                tag_start = seg_start + 1;
+                tags_len = (size_t)(tag_end - tag_start);
+                if (tags_len >= sizeof(tags_buf))
+                    tags_len = sizeof(tags_buf) - 1;
+                memcpy(tags_buf, tag_start, tags_len);
+                tags_buf[tags_len] = '\0';
+
+                body_start = tag_end + 1;
+                while (body_start < seg_stop
+                    && isspace((unsigned char)*body_start))
+                {
+                    body_start++;
+                }
+
+                if (body_start < seg_stop)
+                {
+                    char* next = tags_buf;
+                    while (*next)
+                    {
+                        char* comma = strchr(next, ',');
+                        int rank = -1;
+
+                        if (comma)
+                            *comma = '\0';
+
+                        object_lore_trim_copy(next, strlen(next), token,
+                            sizeof(token));
+
+                        if (streq(token, "default") || streq(token, "all"))
+                            rank = 9000;
+                        else
+                            rank = object_lore_keyword_rank(profile, token);
+
+                        if (rank >= 0 && rank < best_rank)
+                        {
+                            best_rank = rank;
+                            best_start = body_start;
+                            best_len = (size_t)(seg_stop - body_start);
+                            segment_matched = true;
+                        }
+
+                        if (!comma)
+                            break;
+
+                        next = comma + 1;
+                    }
+
+                    if (!segment_matched && best_start == NULL && best_rank > 9000)
+                    {
+                        if (strstr(tags_buf, "default") || strstr(tags_buf, "all"))
+                        {
+                            best_rank = 9000;
+                            best_start = body_start;
+                            best_len = (size_t)(seg_stop - body_start);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!seg_end)
+            break;
+        cursor = seg_end + 2;
+    }
+
+    if (!saw_structured || !best_start)
+        return false;
+
+    object_lore_trim_copy(best_start, best_len, out, out_sz);
+    return (out[0] != '\0');
+}
+
+static cptr object_lore_select_base_text(const object_type* o_ptr, char* out,
+    size_t out_sz)
+{
+    cptr raw;
+    object_lore_profile profile;
+
+    if (!o_ptr || !o_ptr->k_idx || !k_info[o_ptr->k_idx].text)
+        return NULL;
+
+    raw = k_text + k_info[o_ptr->k_idx].text;
+    if (!object_lore_text_is_structured(raw))
+        return raw;
+
+    object_lore_profile_for_object(o_ptr, &profile);
+    object_lore_add_alignment_keyword(&profile,
+        object_lore_base_alignment(o_ptr));
+
+    if (!object_lore_select_segment(raw, &profile, out, out_sz))
+        return NULL;
+
+    return out;
+}
+
+static bool screen_out_legacy_ego_lore(cptr raw_text)
+{
+    if (!raw_text || !raw_text[0])
+        return false;
+
+    p_text_out("\n\n   ");
+    p_text_out(raw_text);
+    return true;
+}
+
+static bool screen_out_ego_lore(const object_type* o_ptr)
+{
+    byte ego_pfx;
+    byte ego_sfx;
+    cptr prefix_text = NULL;
+    cptr suffix_text = NULL;
+    bool prefix_structured = false;
+    bool suffix_structured = false;
+    bool has_description = false;
+    char prefix_buf[1024];
+    char suffix_buf[1024];
+    object_lore_profile profile;
+
+    if (!o_ptr || !o_ptr->k_idx || !object_known_p(o_ptr))
+        return false;
+
+    ego_pfx = object_ego_prefix(o_ptr);
+    ego_sfx = object_ego_suffix(o_ptr);
+
+    if (ego_pfx && e_info[ego_pfx].text)
+        prefix_text = e_text + e_info[ego_pfx].text;
+
+    if (ego_sfx && (ego_sfx != ego_pfx) && e_info[ego_sfx].text)
+        suffix_text = e_text + e_info[ego_sfx].text;
+
+    if (!prefix_text && !suffix_text)
+        return false;
+
+    object_lore_profile_for_object(o_ptr, &profile);
+
+    prefix_buf[0] = '\0';
+    suffix_buf[0] = '\0';
+
+    if (prefix_text && object_lore_text_is_structured(prefix_text))
+    {
+        prefix_structured = object_lore_select_segment(prefix_text, &profile,
+            prefix_buf, sizeof(prefix_buf));
+    }
+
+    if (suffix_text && object_lore_text_is_structured(suffix_text))
+    {
+        suffix_structured = object_lore_select_segment(suffix_text, &profile,
+            suffix_buf, sizeof(suffix_buf));
+    }
+
+    if (prefix_structured || suffix_structured)
+    {
+        p_text_out("\n\n   ");
+
+        if (prefix_buf[0])
+        {
+            p_text_out(prefix_buf);
+            if (suffix_buf[0])
+                p_text_out(" ");
+        }
+
+        if (suffix_buf[0])
+            p_text_out(suffix_buf);
+
+        has_description = true;
+    }
+
+    if (prefix_text && !prefix_structured)
+        has_description |= screen_out_legacy_ego_lore(prefix_text);
+
+    if (suffix_text && !suffix_structured)
+        has_description |= screen_out_legacy_ego_lore(suffix_text);
+
+    return has_description;
+}
+
 /*
  * Header for additional information when printing to screen.
  *
@@ -1587,6 +2232,8 @@ bool object_info_out(const object_type* o_ptr)
 static bool screen_out_head(const object_type* o_ptr)
 {
     char* o_name;
+    char base_desc_buf[2048];
+    cptr base_desc = NULL;
     int name_size = Term->wid;
 
     bool has_description = false;
@@ -1662,32 +2309,18 @@ static bool screen_out_head(const object_type* o_ptr)
     /* Display the known object description */
     else if (object_aware_p(o_ptr) || object_known_p(o_ptr))
     {
-        if (k_info[o_ptr->k_idx].text)
+        base_desc = object_lore_select_base_text(o_ptr, base_desc_buf,
+            sizeof(base_desc_buf));
+
+        if (base_desc && base_desc[0])
         {
             p_text_out("\n\n   ");
-            p_text_out(k_text + k_info[o_ptr->k_idx].text);
+            p_text_out(base_desc);
             has_description = true;
         }
 
-        /* Display additional special item descriptions */
-        if (object_known_p(o_ptr))
-        {
-            byte ego_pfx = object_ego_prefix(o_ptr);
-            byte ego_sfx = object_ego_suffix(o_ptr);
-
-            if (ego_pfx && e_info[ego_pfx].text)
-            {
-                p_text_out("\n\n   ");
-                p_text_out(e_text + e_info[ego_pfx].text);
-                has_description = true;
-            }
-            if (ego_sfx && e_info[ego_sfx].text)
-            {
-                p_text_out("\n\n   ");
-                p_text_out(e_text + e_info[ego_sfx].text);
-                has_description = true;
-            }
-        }
+        if (screen_out_ego_lore(o_ptr))
+            has_description = true;
     }
 
     return (has_description);

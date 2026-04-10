@@ -73,6 +73,11 @@
 #     to describe the object. Note that lines will need spaces at their
 #     ends or the beginning of the next line to prevent words from running
 #     together.
+#     Base lore may also use keyed clauses in the form:
+#         [neutral] text || [noble] text || [evil] text
+#     The game chooses the visible clause from the item's actual
+#     noble/neutral/evil alignment, including the alignment contributed
+#     by any ego even before that ego has been identified.
 
 
 # Version stamp (required)
@@ -258,9 +263,19 @@ P:0:0d0:1:1d0
 R:EVN:2
 A:3/60
 F:ENCHANTABLE | MORE_SPECIAL
-D:A robe of fine cloth, such as the loremasters and singers
-D: of the Elder Days wore. Its fabric can bear enchantment,
-D: and in skilled hands may be wrought with great power.
+D:[neutral]A robe of plain but serviceable cloth, such as a healer, a
+D: house-servant, or some learned man among the Edain might wear in hall
+D: or by the fire. It is soft, unarmoured, and easily mended, fit to
+D: take dye, stitching, or whatever lesser craft a careful hand may add.
+D: ||
+D:[noble]A robe of fine weave and ordered fall, light upon the limbs and
+D: wrought with a quiet grace that recalls the lore-houses of the Eldar.
+D: Even unenchanted it has the air of song kept pure, of memory guarded
+D: faithfully, and of a mind not easily shaken by shadow. ||
+D:[evil]A robe cut for secretive movement and dark uses, its folds deep
+D: enough to conceal the hands and its beauty turned toward uneasy
+D: ends. One might think it worn by whisperers, corrupters of counsel,
+D: or singers whose art had been bent to discord.
 
 
 N:23:Leather Armour~
@@ -272,9 +287,18 @@ P:0:0d0:-1:1d4
 R:EVN:0
 R:PS:5
 A:1/100
-D:Armour of tanned hide, the sort worn by the hunters and
-D: scouts who ranged the wilds of Beleriand in the wars
-D: against Morgoth.
+D:[neutral]Armour of tanned hide, plain and weatherworthy, such as
+D: huntsmen, scouts, and hard-travelling folk might wear when iron would
+D: burden them too greatly. It is practical gear for rain, thicket, and
+D: the long road, asking more of endurance than of splendour. ||
+D:[noble]The leather has been cured and cut with patient skill until it
+D: lies close without stiffness, after the manner of free hunters and
+D: wardens who must pass lightly through wood and over broken stone. It
+D: suggests quiet watchfulness, hidden roads, and craft joined to song. ||
+D:[evil]This hide has been smoked black and laced for harsh service,
+D: after the fashion of prowlers sent abroad from the Enemy's walls.
+D: It seems made for crouching pursuit, cruel errands, and the kind of
+D: stealth that serves suspicion rather than courage.
 
 
 N:26:Studded Leather~
@@ -286,9 +310,18 @@ P:0:0d0:-2:1d6
 R:EVN:-1
 R:PS:7
 A:2/80
-D:Leather armour fitted with studs of iron, offering greater
-D: protection than plain hide. Such armour was common among
-D: the soldiers of the Elder Days.
+D:[neutral]Leather armour strengthened with iron studs, heavier than a
+D: hunter's jerkin but still meant for marching and common battle. It is
+D: the sort of harness a practical soldier would trust: often mended,
+D: seldom admired, yet worth its keep in hard service. ||
+D:[noble]The studs are set with measured craft and the whole fitted so
+D: that firmness does not wholly master freedom of movement. It has the
+D: look of gear prepared for wardens and delvers of the Free Peoples,
+D: who expected long labour, dark ways, and steadfast hearts. ||
+D:[evil]Dark hide and black iron have here been joined in a sterner
+D: fashion, as though the armour were meant for a cruel watch rather than
+D: a fair field. It recalls gate-guards, hard marches, and captains who
+D: prized vigilance, fear, and endurance above all mercy.
 
 
 N:27:Galvorn Armour~
@@ -316,11 +349,19 @@ R:ATT:0
 R:EVN:-2
 R:PS:5
 A:7/60:15/80
-D:A shirt of armour formed from linked rings of forged iron,
-D: covering the torso down to the waist. The smiths of the Noldor
-D: and of the Dwarven cities forged such mail for the warriors who
-D: marched against the hosts of Morgoth in the long wars of
-D: Beleriand.
+D:[neutral]A shirt of linked iron rings reaching to the waist, built for
+D: the plain needs of war. It is honest mail, prized by guardsmen and
+D: campaigning men not for beauty but for the stubborn shelter it gives
+D: where blades come close and blows cannot easily be avoided. ||
+D:[noble]Here the rings are small, close-woven, and patiently made, as
+D: though forged in a proud Dwarven or Elven smithy where craft was held
+D: a matter of honour. It has the air of mail prepared for proven
+D: warriors who would stand firm beneath terror and bear themselves
+D: unshamed in battle. ||
+D:[evil]These links are dark, harsh, and somewhat joyless in their
+D: making, as though forged for ash-fields and black companies rather
+D: than for any free host. It suggests harsh discipline, smoke-stained
+D: ranks, and a will that trusts iron more than courage.
 
 
 N:31:& Hauberk~
@@ -334,11 +375,19 @@ R:EVN:-3
 R:PS:7
 A:7/40:15/60
 F:MORE_SPECIAL
-D:A long shirt of linked rings reaching to the thigh and
-D: covering the arms, heavier than a corslet but offering
-D: greater protection. Such hauberks were worn by the great
-D: captains of the Noldor and the Edain in the wars of
-D: Beleriand.
+D:[neutral]A long shirt of linked rings that guards the arms as well as
+D: the body, heavier than a corslet and better suited to stern work. It
+D: is armour for sieges, hard campaigning, and the stubborn press of
+D: battle, such as a seasoned captain, house-guard, or man-at-arms might
+D: wear when endurance must answer what swiftness cannot avoid. ||
+D:[noble]Bright rings are laid here with a grave and masterly patience,
+D: making a hauberk fit for a captain or chosen guard among the Free
+D: Peoples. Even before enchantment, it speaks of disciplined strength,
+D: renowned smithwork, and the resolve to stand fast against dread. ||
+D:[evil]A long war-shirt of blackened mail, heavy with the sense of
+D: cruel service. Its fashion recalls the harsher armour of Angband,
+D: made for wardens and black guards who were bidden to endure pain,
+D: keep their ground, and pity no living thing.
 
 
 N:38:& Mithril Corslet~
@@ -403,9 +452,18 @@ R:EVN:1
 R:PS:4
 A:3/100
 F:PROT_FIRE | PROT_COLD
-D:A shield of wood and hide, light enough to carry with ease.
-D: Such shields were borne by countless warriors in the long
-D: wars of Beleriand.
+D:[neutral]A round shield of wood and hide, light enough to bear through
+D: a long day without much complaint. It is the sort of honest defence a
+D: traveller, huntsman, or common soldier might carry, modest in its
+D: shelter but easy to trust. ||
+D:[noble]This shield is lightly borne yet stoutly framed, with the look
+D: of work done in some deep and careful smithy that wasted neither
+D: timber nor iron. It speaks of enduring craft, ready balance, and the
+D: quiet confidence of a free warrior whose gear is meant to last. ||
+D:[evil]A round shield darkened by soot, rawhide, and rough handling,
+D: with something of the bully's temper in it. One might imagine it in
+D: the grip of snarling soldiery beneath a foul banner, made for blows,
+D: noise, and the harsh keeping of lesser folk in fear.
 
 
 N:44:& Kite Shield~
@@ -419,9 +477,18 @@ R:EVN:1
 R:PS:7
 A:6/80
 F:PROT_FIRE | PROT_COLD
-D:A shield of wood banded with iron, tapering to a point at
-D: the base. It offers greater protection than a round shield,
-D: though it slows the arm somewhat.
+D:[neutral]A long shield of wood banded with iron, tapering to a point
+D: below. It gives broader cover than a round shield, though at some cost
+D: to speed, and so suits a man who expects a hard fight and means to
+D: endure it rather than dance around it. ||
+D:[noble]Well-balanced despite its length, this shield has the air of
+D: something made for disciplined northern companies and for stout hearts
+D: that must stand under arrow-flight. It suggests ordered ranks, guarded
+D: passes, and the patient strength of folk long at war with the Enemy. ||
+D:[evil]A long shield of timber and iron, grimly shaped for the crush of
+D: ranks and the driving of lesser fighters forward. It seems fashioned
+D: for harsh captains and black standards, caring little for grace so
+D: long as the shield-wall holds and the order is obeyed.
 
 
 N:46:& Mithril Shield~
@@ -456,9 +523,18 @@ R:ATT:1
 R:DS:6
 A:1/100
 F:THROWING
-D:A short blade, swift in the hand. Many a warrior in the
-D: Elder Days carried one at their hip alongside a longer
-D: weapon, for it served well in close quarters.
+D:[neutral]A belt-knife of plain good steel, swift in the hand and easy
+D: to keep. Many a traveller, camp-warden, or hard-pressed soldier would
+D: carry such a blade for common need no less than for danger, and it
+D: serves best where there is no room for a longer weapon. ||
+D:[noble]A slim bright knife, wrought for a hand both deft and disciplined.
+D: It recalls the close-kept blades of hunters, scouts, and high-born
+D: wanderers who moved lightly under the stars and trusted a quick sure
+D: stroke rather than any weight of iron. ||
+D:[evil]A narrow stabbing knife of dark iron, made to slip in close where
+D: a foe is least guarded. Its fashion suggests prowlers, cutthroats, and
+D: servants of cruel masters who favour silent work, poisoned hurts, and
+D: the hot nearness of blood.
 
 
 N:57:& Curved Sword~
@@ -486,9 +562,18 @@ P:0:1d7:1:0d0
 R:ATT:1
 R:DS:8
 A:1/100
-D:A light sword, swift and easy to wield. Such blades were
-D: carried by the scouts and rangers who roamed the wilds
-D: of Beleriand.
+D:[neutral]A short sword of serviceable make, light enough for long wear
+D: at the hip and quick enough for the close hazards of road or watch.
+D: It is a plain soldier's side-weapon, valued for readiness, sound point,
+D: and the ease with which it may be drawn in cramped places. ||
+D:[noble]A short sword of clean line and lively balance, such as might be
+D: borne by wardens of hidden borders, greenwood hunters, or chosen guards
+D: in halls where old craft and stern vigilance were both held dear. It
+D: promises speed without meanness and subtle skill without deceit. ||
+D:[evil]A squat dark war-blade, fit for tunnel patrols, bullying sentries,
+D: and the sudden work of a cruel press. Its make recalls black companies
+D: that value quick blood, harsh command, and underhand advantage above
+D: any open trial of skill.
 
 
 N:64:& Longsword~
@@ -500,9 +585,13 @@ P:0:2d5:1:0d0
 R:ATT:1
 R:DS:6
 A:4/80
-D:A sword of good length and balance, the workhorse of the
-D: warrior. Many of the heroes of the Elder Days wielded
-D: blades of this sort.
+D:[neutral]A sword of good length and balance, the workhorse of the
+D: warrior. Many of the heroes of the Elder Days wielded blades of this
+D: sort. ||
+D:[noble]A long sword of measured balance and honest reach, the kind of
+D: blade on which a free warrior might stake both his life and his name.
+D: It has the look of a weapon made to answer skill, courage, and open
+D: combat beneath the sun or stars.
 
 
 N:67:& Bastard Sword~
@@ -515,10 +604,18 @@ R:ATT:-1
 R:DS:4
 A:6/60
 F:HAND_AND_A_HALF | MORE_SPECIAL
-D:A sword that may be wielded with one hand or two, as
-D: circumstance demands. Favoured by warriors who wish to
-D: carry a shield when foes are many, and strike with full
-D: force when they are few.
+D:[neutral]A hand-and-a-half sword, long enough to strike with weight yet
+D: not so great that it cannot still be borne beside a shield. It is a
+D: practical war-weapon for seasoned fighters who must answer changing
+D: need, and who choose usefulness before display. ||
+D:[noble]A long sword of lordly reach, made for a warrior trained to rule
+D: both measure and moment: shield in the first onset, both hands when the
+D: stroke must be finished cleanly. It has the air of the high captaincies
+D: of the Eldar and the Edain, where mastery was joined to discipline. ||
+D:[evil]A heavy hand-and-a-half blade of grim fashion, better suited to
+D: wrathful enforcers than to free champions. One sees in it the temper of
+D: furnace-smithies and cruel hosts: jagged strength, domineering reach,
+D: and a will to break spirit as much as flesh.
 
 
 N:68:& Greatsword~
@@ -531,9 +628,18 @@ R:ATT:-1
 R:DS:6
 A:4/60
 F:TWO_HANDED | MORE_SPECIAL
-D:A great two-handed sword, demanding strength to wield but
-D: terrible in its reach. Such weapons were rare even among
-D: the mighty lords of the Elder Days.
+D:[neutral]A great two-handed sword, grave and difficult, taken up only by
+D: one with strength enough to govern its full course. It is no common
+D: sidearm, but a field-weapon for hard battle, when reach, weight, and a
+D: fearless heart must all be trusted together. ||
+D:[noble]A great sword of high discipline, terrible in measure yet clean in
+D: purpose. It brings to mind the champion-blades of the Elder Kings and
+D: captains of the Free Peoples, borne in dreadful hours against troll,
+D: dragon, or deathless foe when lesser weapons would not serve. ||
+D:[evil]An immense black war-sword, forged for captains who would master a
+D: field by terror as much as by slaughter. Its fashion suggests the dark
+D: furnaces of the North: fire-hardened, hungry, and pitiless, delighting
+D: alike in the breaking of ranks and the spilling of life.
 
 
 N:69:& Elven Mithril Sword~
@@ -582,9 +688,17 @@ R:ATT:1
 R:DS:10
 A:1/100
 F:THROWING | HAND_AND_A_HALF | POLEARM | LESS_SPECIAL
-D:A spear of wood and iron, the weapon of choice for many
-D: of the warriors of Beleriand. The Noldor and the Edain
-D: alike carried spears into the wars against Morgoth.
+D:[neutral]A plain spear of seasoned wood tipped with iron. Herdsmen,
+D: levy-men, and door-guards alike have trusted such weapons, for it is
+D: cheap to make, easy to carry, and deadly enough in steady hands. ||
+D:[noble]A straight war-spear of clean shaft and bright head, such as
+D: the wardens of fair realms might bear upon green marches or white
+D: walls. It speaks of long discipline, clear purpose, and watch kept
+D: against the fell servants of the North. ||
+D:[evil]A black-shafted spear with a narrow killing head, fit for the
+D: hands of overseers and cruel watchmen. It seems made less for open
+D: valour than for keeping others in fear and for striking Men and Elves
+D: from behind a harsher master's line.
 
 
 N:72:& Great Spear~
@@ -597,9 +711,18 @@ R:ATT:2
 R:DS:14
 A:4/60
 F:TWO_HANDED | POLEARM
-D:A great two-handed spear, longer and heavier than common.
-D: Its reach exceeds that of any other weapon, and a skilled
-D: wielder can keep foes at bay.
+D:[neutral]A great spear of unusual length, meant for both hands and
+D: enough room to wield it. It is a grave practical weapon for gateways,
+D: stairheads, or open ground, where a man would rather meet danger well
+D: before it comes to sword-stroke. ||
+D:[noble]A tall bright war-spear, such as gate-guards, wall-companies,
+D: and chosen champions might bear in the northern wars. It has the
+D: severe beauty of a weapon made to hold the line against fell things
+D: before they come within arm's reach. ||
+D:[evil]A dark overlong spear whose reach feels less soldierly than
+D: predatory. It suggests some fell watcher who would keep living flesh
+D: at a distance and draw strength from each deep wound, as though the
+D: weapon grudged every drop of blood it spilled to the earth.
 
 
 N:74:& Glaive~
@@ -612,9 +735,18 @@ R:ATT:0
 R:DS:10
 A:8/80
 F:TWO_HANDED | POLEARM
-D:A polearm with a broad sweeping blade, combining the reach
-D: of a spear with the cutting force of a sword. Such weapons
-D: were fearsome in close battle.
+D:[neutral]A long-hafted blade that joins the reach of a spear to the
+D: shearing edge of a sword. It is useful in broken ground and crowded
+D: battle alike, where a fighter must keep space and still cut hard when
+D: the press comes near. ||
+D:[noble]A glaive of well-governed curve, such as household guards or
+D: picked warriors of high houses might wield. In it are measure,
+D: training, and a stern grace, fit for keeping gate, prince, or line
+D: with broad strokes laid wide and true. ||
+D:[evil]A dark reaping poleblade, apt for jagged work, poisoned edge,
+D: and the cruel herding of weaker folk. It looks like the weapon of a
+D: captain who drives others before him and cuts down the wavering more
+D: gladly than he meets a bold foe face to face.
 
 
 N:76:& Hand Axe~
@@ -627,8 +759,18 @@ R:ATT:0
 R:DS:3
 A:2/100
 F:AXE | THROWING | LESS_SPECIAL
-D:An axe light enough to be thrown, favoured by the Dwarves
-D: who bore them into battle alongside their heavier weapons.
+D:[neutral]A light axe small enough for the belt and quick enough for
+D: the throw. Such a tool serves in camp and on the road no less than in
+D: a skirmish, ready for brushwood, kindling, or a sudden hard cast at
+D: need. ||
+D:[noble]A compact war-axe of Dwarven temper, neatly hafted and close
+D: balanced. It has the look of a side-arm borne by the craftsmen-warriors
+D: of Belegost and Nogrod, made to bite true against dragon, dead thing,
+D: and the crawling horrors of the deep. ||
+D:[evil]A dark little axe with a thick wedge-bit, fit for raiders and
+D: black-smith work. Venom, soot, and cruel over-weighting seem proper to
+D: its kind, and one imagines it cast first from cover or used low and
+D: fast in a butcher's press.
 
 
 N:77:& Battle Axe~
@@ -641,9 +783,18 @@ R:ATT:-2
 R:DS:5
 A:4/80
 F:HAND_AND_A_HALF | AXE
-D:An axe of war, favoured above all by the Dwarves, who
-D: fought with fierce and stubborn determination against
-D: Morgoth's hosts. Its broad blade can cleave through armour.
+D:[neutral]A broad axe made openly for war. It asks stout arms and good
+D: footing, but no subtle craft of the hand; once its stroke is loosed,
+D: few harnesses will wholly turn it. It is straightforward gear for a
+D: fighter who means to end the matter plainly. ||
+D:[noble]A battle axe, soundly hafted and broad of bit, after the grave
+D: manner of the Dwarves and the war-folk of Hador. It suggests chosen
+D: companions who stood firm against troll, drake, and darker things,
+D: valuing a sure stroke more than fury. ||
+D:[evil]A black war-axe, iron-bound at haft and neck, fit for the front
+D: of cruel companies. Fire, jagged edge, and the bully's delight in
+D: breaking Men and Elves seem proper to its fashion; it is a weapon for
+D: overseers and hard masters, not for free warriors.
 
 
 N:81:& Great Axe~
@@ -656,9 +807,18 @@ R:ATT:-3
 R:DS:5
 A:8/60
 F:TWO_HANDED | AXE
-D:A great two-handed axe, the weapon of the Dwarves in their
-D: darkest hours. The smiths of Belegost and Nogrod forged
-D: such axes for the wars against Morgoth.
+D:[neutral]A huge two-handed axe, costly in strength and space, taken up
+D: only when lighter strokes will not serve. It is a grim tool of breach
+D: and close war, more feared for its certainty than for any grace in the
+D: handling. ||
+D:[noble]A great axe of patient and mighty craft, such as a Dwarf-lord
+D: or a chosen champion of the Edain might raise in the blackest hour. It
+D: carries the memory of deep forges and oath-kept halls, and was made to
+D: stand against dragon, dead thing, and terror without yielding. ||
+D:[evil]A vast black axe, all menace in head and haft, as though it
+D: were forged for executioners and gate-breakers beneath the northern
+D: dark. In it lie the cruel fashions of Udun: fire, hooked edge, and a
+D: hunger that would draw strength from the wound it makes.
 
 
 ##### Blunt Weapons #####
@@ -674,9 +834,15 @@ R:ATT:1
 R:DS:6
 A:1/60
 F:TWO_HANDED | ENCHANTABLE | MORE_SPECIAL
-D:A staff of seasoned wood, both tool and weapon. Among the
-D: Elves, such staves were sometimes borne by loremasters,
-D: and they could be wrought with great enchantments.
+D:[neutral]A staff of seasoned wood, shod for hard use at either end.
+D: Such staves serve traveller and watchman no less than teacher or
+D: healer: a help upon long roads, a measure in dark places, and, if need
+D: be, a plain weapon of reach and patience. ||
+D:[noble]A well-chosen staff of stern and careful make, such as one
+D: might imagine in the hands of the Exiles who dwelt by Mithrim or
+D: endured the bitter ice of the Helcaraxe. It speaks of long marches
+D: beneath cold stars, of lore joined to endurance, and of strength that
+D: outlasts hunger, frost, and weariness.
 
 
 N:89:& War Hammer~
@@ -689,9 +855,18 @@ R:ATT:-1
 R:DS:2
 A:4/80
 F:HAND_AND_A_HALF | LESS_SPECIAL
-D:A hammer of war, beloved of the Dwarven smiths who turned
-D: their mastery of the forge to arms. The blow of such a
-D: weapon can crack armour and break bone.
+D:[neutral]A hammer made for war rather than the forge, with a compact
+D: head meant to dent mail, numb the shield-arm, and break what the blade
+D: might only score. It is plain hard-going gear, kin to labouring tools
+D: though intended for a harsher craft. ||
+D:[noble]A war-hammer of stern Dwarven make, measured in haft and weight
+D: with the same care given to an anvil-tool. It recalls the houses of
+D: Belegost and Nogrod, and the grim fidelity of those who took hammer in
+D: hand against dragon, wraith, and the restless dead. ||
+D:[evil]A black-forged hammer with a swollen head and a joyless balance,
+D: built to crush through harness by brute certainty alone. One thinks of
+D: the furnaces beneath Thangorodrim, where the arts of the smith were
+D: bent away from making toward mere domination.
 
 
 ##### Digging Tools #####
@@ -707,9 +882,11 @@ R:ATT:-2
 R:DS:3
 A:5/100
 F:TUNNEL | TWO_HANDED | LESS_SPECIAL
-D:A broad-bladed tool for shifting earth and rubble. Though no
-D: weapon of war, it serves well enough for those who must dig
-D: through cave-ins in the dark passages beneath Angband.
+D:A broad iron spade for earth, ash, and fallen stone. It is a
+D: workman's tool before all else, carried where trenches must be cut
+D: or choked passages cleared in haste. In desperate hands it may serve
+D: as a clumsy weapon, but its true office is to win a way through
+D: rubble.
 D: It can be equipped as a weapon and allows you to dig
 D: through rubble.
 
@@ -726,9 +903,16 @@ R:ATT:-4
 R:DS:3
 A:10/50
 F:TUNNEL | TWO_HANDED | LESS_SPECIAL
-D:A heavy tool of the sort long wielded by the Dwarves, who
-D: used mattocks both in the mine and in battle. It can be
-D: equipped as a weapon and (usually) allows you to dig
+D:[neutral]A heavy mattock, half tool and half weapon, built to bite
+D: stone, root, and stubborn earth. Delvers and sappers prize such an
+D: implement, for it breaks what the shovel can only shift and may, in a
+D: pinch, answer a foe with the same hard stroke it gives to rock. ||
+D:[noble]A mattock of grave Dwarven fashion, as though made for the old
+D: delvers of Belegost or the long-bearded miners of the North. Even
+D: before enchantment it speaks of deep halls, red forge-light, and a
+D: people who could turn a miner's tool to war without any shame in the
+D: doing.
+D: It can be equipped as a weapon and (usually) allows you to dig
 D: through rubble or quartz.
 
 
@@ -745,9 +929,18 @@ P:0:0d0:-1:1d2
 R:EVN:0
 R:PS:3
 A:3/100
-D:A helm of iron, affording protection to the head. Such
-D: helms were worn by the warriors of the Elder Days through
-D: the long wars against Morgoth.
+D:[neutral]A plain iron helm, forged to guard brow and temple from the
+D: common hazards of war. Such pieces are bought or issued wherever men
+D: expect stones, arrows, and the rough nearness of battle; they speak of
+D: service, not station. ||
+D:[noble]A well-made helm of balanced iron, leaving room for sight,
+D: breath, and clear command. It has the bearing of gear prepared for
+D: wardens and captains of the Free Peoples, whose armour was meant to
+D: steady the hearts of friends no less than to turn the enemy's stroke. ||
+D:[evil]A hard-browed war-helm, dark in finish and severe in line. One
+D: can imagine it on an orc-sergeant or pit-overseer, where the lowered
+D: rim, black visor, or cruel crest served as much to cow lesser thralls
+D: as to ward the head.
 
 
 N:101:& Great Helm~
@@ -759,9 +952,18 @@ P:0:0d0:-2:1d3
 R:EVN:-1
 R:PS:4
 A:5/60
-D:A great helm that covers the face, affording greater
-D: protection than a common helm. Such helms were fashioned
-D: by skilled smiths for the lords of war.
+D:[neutral]A heavy helm enclosing brow, cheek, and face against the first
+D: violence of battle. Such gear belongs to the breach, the shield-wall,
+D: and the narrow gate, where a warrior must trust iron more than ease
+D: and stand his ground beneath a rain of blows. ||
+D:[noble]A great helm cunningly shaped so that strength need not wholly
+D: smother sight or breath. It has the air of armour made for a lordly
+D: champion or gate-captain, one who must meet the onset in person and
+D: be known there by constancy rather than by terror. ||
+D:[evil]A looming helm that closes the face into something almost less
+D: than human. Its fashion suits the rank-drivers of Angband: black
+D: captains who led the throng by menace, hid their own weakness behind
+D: iron, and wished to be feared before ever they were obeyed.
 
 
 N:102:& Dwarf Mask~
@@ -816,9 +1018,18 @@ W:2:0:20:3
 P:0:0d0:1:1d0
 R:EVN:2
 A:2/60:10/100
-D:A cloak of woollen cloth, worn against the cold and damp
-D: of the deep places. Such garments were common among the
-D: wanderers of Beleriand.
+D:[neutral]A cloak of serviceable wool, such as a traveller, watchman,
+D: or hunter among the Edain might wear against drizzle, ash, and the
+D: chill before dawn. It promises no splendour, only shelter, plain
+D: concealment, and a little comfort upon the road. ||
+D:[noble]A fair cloak of close-woven wool, light upon the shoulders and
+D: finished with a care for colour and border beyond mere need. It
+D: suggests a gift from some noble house, fit for a trusted messenger
+D: or warden who goes abroad bearing memory of brighter halls. ||
+D:[evil]A dark cloak of harsh weave, cut less for warmth than for
+D: slipping unseen through thorn, wet ash, and broken ground. It has
+D: the look of a prowler's garment, meant for spying, pursuit, and
+D: other errands that shun the open fire.
 
 
 N:107:& Shadow Cloak~
@@ -866,9 +1077,19 @@ P:0:1d7:0:0d0
 R:ATT:1
 R:DS:8
 A:1/100
-D:A bow of moderate power, suitable for hunting and
-D: skirmishing. Such bows were common among the scouts who
-D: ranged the wilds of Beleriand.
+D:[neutral]A shortbow of seasoned wood, quick in the hand and easy to
+D: carry through brush or broken ground. It is a useful weapon for
+D: hunting, watch-duty, and the sudden skirmish, prized more for ready
+D: shooting than for the great force of a heavier bow. ||
+D:[noble]A shortbow of choice wood, neatly tillered and well matched to
+D: a quick sure hand. One might think of marchwardens under the trees,
+D: mariners who keep sharp watch by the grey sea, or hunters of hidden
+D: halls, for it speaks of keen sight, light step, and disciplined craft.
+D: ||
+D:[evil]A shortbow of dark make, horn-bound or harshly backed, such as
+D: might be carried by the prowling servants of Angband. It favours
+D: sudden shots from covert, harsh pursuit, and the miserable work of
+D: scouts who hunt for a host rather than for their own meat.
 
 
 N:111:& Longbow~
@@ -881,10 +1102,20 @@ R:ATT:1
 R:DS:5
 A:6/60
 F:MORE_SPECIAL
-D:A longbow of greater range and power than a short bow.
-D: The Sindar of Doriath and the Green Elves of Ossiriand
-D: were renowned archers, and such bows were their favoured
-D: weapons.
+D:[neutral]A longbow of strong stave and patient draw, fit for hunting
+D: over open ground or for war where a man has time and space to set his
+D: feet. It asks more of the arm than a shortbow, but sends a shaft with
+D: greater force and over a longer reach. ||
+D:[noble]A longbow of fine grain and careful tiller, made for archers who
+D: trust clear sight, ordered ranks, and the far shot taken at the right
+D: moment. It calls to mind the sea-watch of the western havens, the
+D: guarded woods of the Eldar, and the long vigilant peace before open
+D: war returned. ||
+D:[evil]A dark longbow of stern and joyless make, blackened or over-hard,
+D: as though fashioned for the bitter airs of the North. It has the look
+D: of a bow kept by wolf-wardens and black scouts for pitiless ranging
+D: and distant slaughter, where the archer need not hear the cry of what
+D: he strikes.
 
 
 # Modelled on Earendil's bow
@@ -916,10 +1147,18 @@ W:1:0:1:1
 P:0:0d0:0:0d0
 R:ATT:3
 A:1/100
-D:A shaft of ash or birch tipped with forged iron. The archers
-D: of the Elder Days spent their arrows freely against Morgoth's
-D: hosts, and in the great battles of Beleriand the sky was
-D: often dark with their flight.
+D:[neutral]A simple arrow of ash or birch, iron-headed and feathered for
+D: useful service. Such shafts are carried in great number by hunters and
+D: soldiers alike, for they are made to be spent, lost, and replaced
+D: without much ceremony. ||
+D:[noble]A straight and well-matched arrow, balanced with the care of
+D: master bowyers. It suggests the guarded arts of hidden realms, where
+D: shafts were made not for wasteful shooting but to answer wolf, spider,
+D: orc, and darker things that trespassed upon fair lands. ||
+D:[evil]A dark-feathered arrow, cruelly headed and fit to carry venom or
+D: leave a tearing wound. It seems shaped for fell hunting, when quarry
+D: is hounded through fear and pain and the shot is prized as much for
+D: mischief after striking as for the strike itself.
 
 
 ##### Boots #####
@@ -934,8 +1173,18 @@ R:EVN:1
 R:PS:2
 A:1/100
 F:LESS_SPECIAL
-D:Sturdy boots of leather, suitable for long journeys
-D: through the wilds and the cold of the deep places.
+D:[neutral]Sturdy leather boots for the road, fit for rain, mud, and the
+D: daily wear of long going. They are the sort a traveller, hunter, or
+D: common scout might prize for dry feet and sound footing rather than
+D: for any proud token of house or rank. ||
+D:[noble]Good boots, light in the tread and patiently cut, after the
+D: woodland fashion of Brethil. They seem made for free folk who move by
+D: their own will through thicket, stream, and leaf-fall, keeping long
+D: watch without noise or needless weariness. ||
+D:[evil]Heavy dark boots, thick at sole and harsh at heel, as though
+D: meant for black roads where mercy is not expected. They bring to mind
+D: gaolers, march-drivers, and prowling servants of the Enemy, men who
+D: pursue by night, kick open doors, and thrive on treacherous ground.
 
 
 N:123:& Pair~ of Greaves
@@ -948,9 +1197,18 @@ R:EVN:0
 R:PS:3
 A:4/80
 F:IGNORE_FIRE
-D:Greaves of leather and iron, protecting the lower legs.
-D: Their iron plates are hardened against flame, a necessity
-D: for those who venture where fire-drakes may lurk.
+D:[neutral]Greaves of leather and iron, made to spare the shins from
+D: stones, low cuts, and the weary battering of a campaign. They are
+D: ordinary soldier's armour, valued by those who march far and do not
+D: wish every mile to leave its mark. ||
+D:[noble]Well-fitted greaves, strapped with the thoroughness of Dwarven
+D: smithies and the plain pride of good houses. They suggest hill-folk
+D: and mountain-warriors who prized firm footing, ordered march, and the
+D: strength to come to battle unwearied. ||
+D:[evil]Harsh greaves of iron and hide, built less for speed than for the
+D: stamping pace of enforcers. They seem the gear of black-marching troops
+D: and road-wardens who drive others before them, caring only that the
+D: step remain hard, relentless, and feared.
 
 
 N:124:& Pair~ of Mithril Greaves
@@ -963,10 +1221,18 @@ R:EVN:2
 R:PS:4
 A:10/0:14/15
 F:IGNORE_ALL | MITHRIL | ENCHANTABLE | STAND_FAST
-D:Greaves of mithril, light as a thought yet harder than
-D: the deepest stone. They gleam with a pale silver radiance
-D: and guard the wearer's legs with a strength that no
-D: common metal can match.
+D:[neutral]Greaves of mithril, wonderfully light upon the leg yet harder
+D: than iron. Their shape is plain enough that they might serve any
+D: seasoned warrior fortunate enough to own so rare a metal, favouring
+D: long marches, sure footing, and enduring guard. ||
+D:[noble]Mithril greaves of bright and sparing craft, in which Dwarven
+D: mastery is turned toward swiftness rather than burden. They seem fit
+D: for a chosen marcher or moonlit watch-captain, one who must go far,
+D: avoid misstep, and still stand radiant in the last defence. ||
+D:[evil]Even this high metal may be bent to darker service: these
+D: greaves are severe, close-fitted, and joyless in their economy. They
+D: recall the war-gear a black captain would covet, for they promise a
+D: tireless march, a louder tread, and endurance without honour.
 
 
 ##### Gloves #####
@@ -980,8 +1246,18 @@ P:0:0d0:0:1d0
 R:EVN:1
 R:PS:1
 A:1/100
-D:A pair of light gloves of leather, keeping the hands warm
-D: and dry in the cold and damp of Angband's depths.
+D:[neutral]Light leather gloves, made to keep the hands from cold, damp,
+D: and chafing work. They are ordinary useful things for riding, drawing
+D: a bow, handling rope, or labouring in rough weather, with no greater
+D: pride than good service. ||
+D:[noble]Soft gloves of careful make, preserving warmth without dulling
+D: the fingers. They would suit a forester of Brethil or a healer's
+D: attendant in a quiet house, where a hand must remain both gentle and
+D: ready, whether for herb, bowstring, or the subtle work of aid. ||
+D:[evil]Dark gloves, close-stitched and narrow at the wrist, contrived
+D: to conceal the hand rather than honour it. They look fit for whispering
+D: agents and oath-breakers, whose craft lies in hidden signs, sudden
+D: knives, and the small betrayals that open the way to worse.
 
 
 N:126:& Set~ of Gauntlets
@@ -995,9 +1271,18 @@ R:EVN:1
 R:PS:2
 A:3/80
 F:IGNORE_FIRE
-D:Gauntlets of iron-banded leather, protecting the hands and
-D: forearms. They are hardened against flame, for those who
-D: would face the fire-drakes of Morgoth.
+D:[neutral]Gauntlets of iron-banded leather, guarding hand and forearm in
+D: the rough closeness of battle. They are plain fighting gear, meant for
+D: shield-grip, weapon-work, and any hard labour in which a bare hand
+D: would soon be bruised or broken. ||
+D:[noble]Strong gauntlets with supple joints and a disciplined make,
+D: contrived for warriors who must hold fast without losing skill of hand.
+D: They suggest stern frontier houses and Dwarven-trained companies that
+D: prized steadfast grip, measured force, and service to comrades. ||
+D:[evil]Heavy gauntlets with a cruel purpose in every plate and hinge.
+D: They seem made not only for war, but for clawing holds, wrenching
+D: prisoners, and the deliberate infliction of pain. A gaoler, traitor,
+D: or torturer might wear them as gladly as any fighting man.
 
 
 N:127:& Set~ of Mithril Gauntlets
@@ -1010,10 +1295,16 @@ R:EVN:1
 R:PS:3
 A:10/0:14/15
 F:IGNORE_ALL | MITHRIL | ENCHANTABLE | REGEN
-D:Gauntlets of mithril, the true silver from the deep mines
-D: of the Dwarves. Light enough to preserve the deftness of
-D: the hand, their gleaming surface turns aside blows that
-D: would crush iron.
+D:[neutral]Gauntlets of mithril, light enough that the hand remains
+D: quick within them, yet strong enough to turn aside blows that would
+D: maim lesser metal. They have the look of costly war-gear for a
+D: seasoned fighter who wants both firm grip and freedom of wrist,
+D: whether for swordplay or some feat of strength. ||
+D:[noble]These gauntlets are wrought with a rarer gentleness, preserving
+D: not only strength of hand but delicacy of touch. One might think them
+D: fit for a high warrior who must heal as well as strike, or for the
+D: trusted servants of a noble house, whose hands were meant to guard
+D: life, not merely to take it.
 
 
 ##### Light Sources #####
@@ -1026,9 +1317,10 @@ W:1:0:20:2
 P:0:0d0:0:0d0:0
 A:1/120
 F:NO_SMITHING | EASY_KNOW
-D:A length of wood bound with pitch and cloth, giving off a
-D: smoky light. In the deep places of Angband, even such
-D: humble light is a comfort against the pressing dark.
+D:A length of common wood wrapped in pitch-soaked cloth, giving
+D: a smoky and uncertain flame. Such torches are cheap, easily
+D: spent, and little loved, yet in black tunnels and roofless pits
+D: even so poor a light may hold dread a little farther off.
 D: You can equip it as a light source with a radius of 1 square.
 D: It may also be used to fuel another wooden torch, up to a
 D: maximum of 3,000 turns of light.
@@ -1041,10 +1333,14 @@ I:39:1:0
 W:5:0:30:35
 P:0:0d0:0:0d0:0
 A:1/0:6/50:14/40:16/0
-D:A lantern of brass and glass, steadier and brighter than a
-D: torch. Such lanterns were carried by those who ventured into
-D: the deep places, where a reliable light could mean the
-D: difference between life and death.
+D:[neutral]A lantern of brass and glass, made to shelter its flame
+D: from draught and dripping dark. Such lamps are prized by scouts,
+D: miners, and all who must work below the sun, for their steadier
+D: light serves both patient searching and the long watch. ||
+D:[evil]A shuttered lantern of harsh brass, the sort one might imagine
+D: in the hands of pit-wardens and black patrols. Its light seems less
+D: a comfort than an instrument of suspicion, made to search cracks,
+D: bars, and faces, and to keep lesser folk uneasy in the dark.
 D: You can equip it as a light source with a radius of 2 squares.
 D: It may also be used to fuel another lantern, up to a maximum
 D: of 7,000 turns of light.
@@ -1113,10 +1409,14 @@ P:0:0d0:0:0d0
 R:PVAL:1
 A:8/15
 F:CON | SUST_CON
-D:An amulet wrought with the virtue of endurance. The wearer
-D: feels a deep-rooted vigour, as of the unyielding earth
-D: itself, and their body is guarded against the wasting of
-D: strength.
+D:[neutral]An amulet of stout and serviceable make, prized by those who
+D: would keep their strength through hunger, cold, and the long labour of
+D: the road. It has the look of a thing made for endurance rather than
+D: display, and speaks of a body meant to outlast weariness. ||
+D:[noble]An amulet wrought with a graver and fairer strength, as though
+D: some older virtue had been bound within it. Its endurance feels less
+D: like stubborn flesh alone than like the patience of deep roots and
+D: living stone, kept against wasting by a cleaner power.
 
 
 N:134:Grace
@@ -1127,10 +1427,14 @@ P:0:0d0:0:0d0
 R:PVAL:1
 A:9/15
 F:GRA | SUST_GRA
-D:An amulet touched with the blessing of the Valar. It
-D: heightens the wearer's grace of spirit, that inner light
-D: by which the Children of Iluvatar perceive the hidden
-D: things of the world.
+D:[neutral]An amulet of refined craft, worn by those who would keep the
+D: spirit clear and the inward senses untroubled. It lends a certain
+D: poise to thought and bearing, as though the heart had been taught to
+D: answer the world with less confusion. ||
+D:[noble]An amulet of fair and lucid making, in which grace seems not
+D: merely sharpened but ennobled. It heightens the inward light by which
+D: the Children of Iluvatar perceive what is hidden, and gives the sense
+D: of a spirit more nearly attuned to clean song and truth.
 
 
 N:135:Regeneration
@@ -1140,9 +1444,14 @@ W:12:0:1:600
 P:0:0d0:0:0d0
 A:6/40
 F:REGEN | EASY_KNOW
-D:An amulet of green and gold that quickens the mending of
-D: wounds. The wearer heals faster than nature would allow,
-D: as though the gift of life itself were renewed.
+D:[neutral]An amulet of green and gold, made with the thought of healing
+D: and the body's ready mending. It favours flesh that knits cleanly and
+D: weariness that passes sooner, as though the wearer were helped by a
+D: wholesome and well-ordered craft. ||
+D:[noble]An amulet in which the tokens of leaf and gold seem touched by
+D: a more ancient blessing. Under its care hurt closes with a swifter and
+D: gentler mercy, as though the gift of life itself had been remembered
+D: and renewed.
 
 
 N:136:Preservation
@@ -1154,9 +1463,14 @@ A:5/40
 F:SUST_CON
 F:SUST_GRA | SLOW_DIGEST | IGNORE_ALL
 F:EASY_KNOW
-D:An amulet of ancient craft that preserves its wearer from
-D: the wasting of body and spirit. It sustains health and
-D: grace alike, and slows the hunger of the road.
+D:[neutral]An amulet made to husband the wearer's strength, keeping body
+D: and spirit from needless loss. It has the air of a traveller's or
+D: householder's safeguard, contrived so that health, heart, and even the
+D: store of food are spent more slowly. ||
+D:[noble]An amulet of older and more deliberate craft, preserving its
+D: wearer from the wasting of body and spirit with something like an
+D: ancient courtesy. It sustains health and grace alike, and makes even
+D: the long road seem less eager to consume what is good.
 
 
 #N:137:the Blessed Realm
@@ -1196,10 +1510,14 @@ R:PVAL:3
 A:8/30
 F:PERCEPTION | RES_HALLU
 B:4/2
-D:An amulet bearing the likeness of an open eye, that
-D: sharpens the wearer's sight and guards the mind against
-D: the illusions and trickery by which Morgoth's servants
-D: deceived.
+D:[neutral]An amulet bearing the likeness of an open eye, made for
+D: watchers, scouts, and any who mistrust the dark's deceits. It sharpens
+D: sight and steadies the mind against illusion, as though its maker had
+D: spent long years learning how the Enemy's servants mislead the wary. ||
+D:[noble]An amulet whose open eye is wrought with a clearer and more
+D: solemn intent, as though watchfulness itself had been set to guard the
+D: wearer. Under it, false seeming and sorcerous trickery are less able
+D: to prevail against a mind resolved in cleaner light.
 
 
 N:140:the Slave Pits
@@ -1304,10 +1622,14 @@ R:PVAL:3
 A:10/15
 F:PERCEPTION
 B:4/4
-D:A ring of dark gemstone that seems to hold whispers within
-D: it. It sharpens the wearer's perception and reveals the
-D: hidden nature of things — the secrets of metals and the
-D: workings of the craft.
+D:[neutral]A ring of dark gemstone that seems to hold whispers within
+D: it. It sharpens the wearer's perception and reveals the hidden nature
+D: of things, as though it had long been used by those who searched out
+D: veins of ore, flaws of temper, and the concealed workings of craft. ||
+D:[noble]A ring of subtler and more lucid virtue, in which hidden
+D: knowledge feels less stolen than rightfully uncovered. It opens the eye
+D: to metals and craftwork with a patient clarity, as though old wisdom
+D: rather than mere suspicion had been set in the stone.
 
 
 N:151:Ered Luin
@@ -1333,9 +1655,14 @@ W:8:0:1:500
 P:0:0d0:1:0d0
 R:EVN:3
 A:6/40
-D:A ring of subtle craft that quickens the wearer's instinct
-D: for danger. In battle, blows seem to pass a hair's breadth
-D: wide, guided aside by some unseen hand.
+D:[neutral]A ring of subtle craft that quickens the wearer's instinct
+D: for danger. In battle, blows seem to pass a hair's breadth wide, as
+D: though long practice and a wary heart had been taught to the body
+D: through the finger that bears it. ||
+D:[noble]A ring of finer and fairer subtlety, turning danger aside with
+D: something like grace rather than mere alarm. Under its influence the
+D: body yields and recovers cleanly, as though guided by an unseen
+D: courtesy instead of naked fear.
 
 #Amulet now
 
@@ -1347,9 +1674,13 @@ P:0:0d0:0:1d1
 R:PS:3
 A:5/60
 F:PROT_FIRE | PROT_COLD | PROT_POIS | PROT_DARK
-D:A bright amulet set with an ancient ward that blunts the
-D: force of blows. The damage of fang and blade alike is
-D: lessened while it is worn.
+D:[neutral]A bright amulet set with a ward against bodily harm. It has
+D: the look of a practical safeguard, prized by those who must trust
+D: charm and craft together when fang and blade come too near. ||
+D:[noble]A bright amulet whose ward is laid with uncommon purity, so
+D: that protection feels less like a barrier forced into place than like
+D: a clean refusal of malice. Under it, the violence of fang and blade is
+D: more gently and more surely turned aside.
 
 
 N:154:Strength
@@ -1360,9 +1691,14 @@ P:0:0d0:0:0d0
 R:PVAL:1
 A:11/10
 F:STR | SUST_STR
-D:A ring wrought to fortify the sinews of its wearer. With it
-D: upon the hand, even a lesser warrior may strike with the force
-D: of the mighty, and the weight of arms grows lighter.
+D:[neutral]A ring wrought to fortify the sinews of its wearer. It has
+D: the plain worth of a thing made for labour and battle alike, helping
+D: the hand to bear weight, draw hard, and strike with greater certainty.
+D: ||
+D:[noble]A ring in which strength has been ordered rather than merely
+D: increased. Under it, the arm feels not brutal but well-governed, as
+D: though force had been brought into the service of discipline, defence,
+D: and steadfast deeds.
 
 
 N:155:Dexterity
@@ -1373,9 +1709,14 @@ P:0:0d0:0:0d0
 R:PVAL:1
 A:12/15
 F:DEX | SUST_DEX 
-D:A ring of delicate craft that lends nimbleness to the wearer.
-D: The hand grows quick and sure, and the body answers the will
-D: with a swiftness beyond its wont.
+D:[neutral]A ring of delicate craft that lends nimbleness to the wearer.
+D: The hand grows quick and sure, and the body answers the will with a
+D: swiftness beyond its wont, as though old stiffness had been carefully
+D: unbound. ||
+D:[noble]A ring of finer grace, in which nimbleness is joined to measure.
+D: Under it the hand is not merely faster, but cleaner in its answer,
+D: and the body moves with something of the bright ease that lesser craft
+D: can only imitate.
 
 
 N:156:Frost
@@ -1409,9 +1750,12 @@ W:12:0:1:500
 P:1:0d0:0:0d0
 R:ATT:3
 A:10/40
-D:A ring that steadies the hand and sharpens the eye. In
-D: battle, the wearer's strikes fall true, finding the gaps
-D: in armour and guard with uncanny precision.
+D:[neutral]A ring that steadies the hand and sharpens the eye. In
+D: battle, the wearer's strikes fall truer, finding the gaps in armour
+D: and guard with the sureness of a well-schooled hand. ||
+D:[noble]A ring whose exactness is touched by a cleaner mastery. Under
+D: it, aim feels less like narrow calculation than like a just line found
+D: and held, so that hand and eye agree with unusual certainty.
 
 
 N:159:Free Action
@@ -1421,10 +1765,14 @@ W:12:0:1:1500
 P:0:0d0:0:0d0
 A:12/20
 F:FREE_ACT | EASY_KNOW
-D:A ring of curious craft that seems to loosen the bonds
-D: upon the wearer. In the Elder Days, many heroes were
-D: bound by the will of Morgoth, and such a ring would have
-D: been of great worth to them.
+D:[neutral]A ring of curious craft that seems to loosen the bonds upon
+D: the wearer. It has the look of a thing much valued by travellers and
+D: warriors alike, for it resists hindrance, numbness, and the body's
+D: unwilling stillness. ||
+D:[noble]A ring whose freedom is of a higher temper, resisting not only
+D: the body's stiffness but the imposed check of hostile will. In the
+D: Elder Days, such a thing would have been of great worth to those who
+D: stood against the binding malice of Morgoth.
 
 
 # (ability 2/0 is Dodging)
@@ -1463,10 +1811,13 @@ W:6:0:1:1000
 P:0:0d0:0:0d0
 A:10/30
 F:RES_POIS | EASY_KNOW
-D:A ring set with a pale green stone that wards against the
-D: poisons of Morgoth's creatures — the bite of his wolves
-D: and the fangs of his spiders hold no power over one who
-D: wears it.
+D:[neutral]A ring set with a pale green stone that wards against venom.
+D: It looks like the sensible possession of hunters, delvers, and healers
+D: who know too well the bites and stings that lurk in dark places. ||
+D:[noble]A ring set with a pale green stone of cleaner virtue, seeming
+D: made not merely against common poison but against the special malice of
+D: the Enemy's creatures. The bite of wolf, spider, and fouler thing is
+D: more readily denied to one who wears it.
 
 
 N:163:Angband's Forge
