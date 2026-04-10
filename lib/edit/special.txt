@@ -1850,6 +1850,11 @@ T:30:2:2
 B:0:5
 F:WEIGHT | AGGRAVATE | EVIL_ITEM | MIN_DEPTH_SPEED
 M:STEALTH:-2
+D:[greaves]They are shod for the brutal onset, after the manner of
+D: those hard legions that drove thralls and lesser soldiery before
+D: them. Their weight teaches a trampling stride, and the iron seems
+D: to desire not the hidden step but the sudden rush that breaks
+D: fear and order together.
 
 
 # Boots only
@@ -1862,6 +1867,10 @@ T:30:1:1
 B:3/3
 F:FEAR | LIGHT_CURSE | EVIL_ITEM | MIN_DEPTH_SPEED
 M:WILL:-2
+D:[boots]These are fit for the keeper of pits and barred ways, whose
+D: coming is known before he speaks. In them abides the gaoler's
+D: fell office: to force another from his place, to tread where he
+D: wills, and to leave a dread behind him in the dark.
 
 
 # Hauberk only
@@ -1943,6 +1952,11 @@ C:0:0:0:0:0:0:0
 T:39:8:8
 B:7/7
 F:NOBLE_ITEM
+D:[feanorian_lamp]A golden memory has been kindled in it, as though some
+D: last echo of Laurelin were housed within the crystal. It answers
+D: gladly to song, and when its radiance is lifted up the dark is
+D: thrust farther back, while creatures of shadow endure that light
+D: with pain and unwillingness.
 
 
 ##### Damaged Prefixes #####
@@ -2053,6 +2067,10 @@ C:0:0:0:1:0:1:0
 T:32:7:7
 B:5/3
 F:NOBLE_ITEM
+D:[helm]The old war-pride of the Broadbeams abides in it still. Not
+D: merely dreadful, it is kingly in wrath, after the manner of
+D: Dwarf-lords who went masked into dragon-war, so that the enemy's
+D: courage failed before the stroke was ever given.
 
 
 # Mithril gauntlets only
@@ -2062,6 +2080,10 @@ W:12:50:0:3000
 C:1:0:0:0:0:0:0
 T:31:3:3
 F:NOBLE_ITEM
+D:[gloves]The pale metal has been wrought so cunningly that wrist and
+D: finger move almost as though they were unarmed. There is in
+D: them a swift and delicate obedience, rare in any hand-armour
+D: and rarer still in a defence strong enough to meet the stroke.
 
 
 # Robe only
@@ -2070,4 +2092,8 @@ N:184:of Evasiveness
 W:4:40:0:1200
 C:0:0:0:1:0:0:0
 T:36:2:2
+D:[robe]Its folds have been cut with a subtle craft, so that the body
+D: within seems to slip the enemy's full notice. It does not turn
+D: the stroke as armour does, but lets it go awry, as if cloth,
+D: step, and sudden turning had entered into quiet agreement.
 

@@ -129,6 +129,9 @@ W:1:0:1:65000
 P:0:0d0:0:0d0
 F:INSTA_ART
 F:PROT_FIRE | PROT_COLD | PROT_POIS | PROT_DARK
+D:A ring of twined serpents, subtle in its curve and lordly in
+D: its fashion. It has the air of an ancient house-token, made
+D: not for display alone but for memory, oath, and inheritance.
 
 
 # The Ring of Melian
@@ -139,6 +142,10 @@ I:45:30:0
 W:1:0:1:65000
 P:0:0d0:0:0d0
 F:INSTA_ART
+D:A ring of grave beauty, simple in line yet touched with a power
+D: that does not need display. It brings to mind hidden fences,
+D: foresight, and the quiet authority of one whose strength is
+D: better felt than boasted.
 
 
 # The Amulet of Tinfang Gelion
@@ -149,6 +156,10 @@ I:40:10:0
 W:1:0:1:65000
 P:0:0d0:0:0d0
 F:INSTA_ART
+D:A delicate amulet of subtle work, light enough for secret
+D: wearing. Something of twilight wood and far music seems to
+D: linger about it, as though it had often hung where leaves,
+D: starlight, and song met together.
 
 
 # The Pearl 'Nimphelos'
@@ -159,6 +170,9 @@ I:40:13:1
 W:1:0:1:100000
 P:0:0d0:0:0d0
 F:INSTA_ART
+D:A great pearl, pale and lustrous as starlight on still foam.
+D: Even unenchanted it seems the treasure of king or Dwarf-lord,
+D: gathered from deep waters and long remembered.
 
 
 # The Jewel 'Elessar'
@@ -169,6 +183,9 @@ I:40:16:1
 W:1:0:1:50000
 P:0:0d0:0:0d0
 F:INSTA_ART
+D:A green jewel of uncommon life, clear and deep as sunlight
+D: through new leaves. It has the look of a gem in which
+D: healing and youth have somehow been remembered.
 
 
 # The Necklace of the Dwarves
@@ -179,6 +196,10 @@ I:40:12:1
 W:1:0:1:75000
 P:0:0d0:0:0d0
 F:INSTA_ART
+D:A carcanet of gold and bright stones, wrought with the
+D: ambitious splendour of the great Dwarven smithies. Though rich
+D: and weighty in appearance, it lies with an order that suggests
+D: master-craft rather than mere display.
 
 # Melkor artifacts
 
@@ -190,6 +211,10 @@ I:45:31:0
 W:1:0:1:1000
 P:0:0d0:0:0d0
 F:INSTA_ART
+D:A dark ring of severe and secretive make, beautiful in a cold
+D: fashion and all the more mistrusted for it. One might think
+D: it wrought by a mind that prized mastery, concealment, and
+D: hidden allegiance above any open honour.
 
 # A base ring for self-made artifacts
 
@@ -201,6 +226,10 @@ W:1:0:1:1000
 P:0:0d0:0:0d0
 F:INSTA_ART
 F:PROT_FIRE | PROT_COLD | PROT_POIS | PROT_DARK
+D:A plain ring of fine metal, left without device so that craft,
+D: gem, or rune may later give it fuller meaning. It seems made
+D: as a worthy foundation for some greater work not yet
+D: completed.
 
 
 # A base amulet for self-made artifacts
@@ -213,6 +242,10 @@ W:1:0:1:1000
 P:0:0d0:0:0d0
 F:INSTA_ART
 F:PROT_FIRE | PROT_COLD | PROT_POIS | PROT_DARK
+D:A simple amulet of good substance, shaped to receive a more
+D: particular virtue. It has the air of a prepared vessel,
+D: waiting for gem, graving, or enchantment to declare its true
+D: purpose.
 
 
 # The Mighty Hammer 'Grond'
@@ -224,6 +257,10 @@ I:21:50:0
 W:20:0:1000:1000
 P:-7:6d5:0:0d0
 F:INSTA_ART | TWO_HANDED | EVIL_ITEM
+D:A hammer of dreadful size, too great for common war and black
+D: in all but name. Even at rest it suggests the breaking of
+D: gates, shields, and bones by brute dominion rather than by
+D: any honest test of strength.
 
 
 # The Massive Iron Crown of Morgoth
@@ -235,6 +272,10 @@ I:33:50:0
 W:20:0:4000:1000
 P:0:0d0:0:0d0
 F:INSTA_ART | EVIL_ITEM
+D:An immense iron crown, forged more to burden and terrify than
+D: to honour. Its dark spikes and crushing weight speak not of
+D: lawful kingship, but of a lordship founded on fear and the
+D: usurpation of light.
 
 
 ##### The Normal Item Types #####
@@ -418,6 +459,10 @@ W:1:1:130:0
 P:0:0d0:0:0d0
 A:1/1
 F:EASY_KNOW
+D:The stripped bones of an orc, foul even in death. The long
+D: teeth and crooked limbs speak of a life spent in malice
+D: and hard service beneath darker masters. Little remains
+D: now but a brittle mockery of the will that once moved it.
 
 
 N:41:& Human Skeleton~
@@ -428,6 +473,10 @@ W:8:5:120:0
 P:0:0d0:0:0d0
 A:3/3:6/3
 F:EASY_KNOW
+D:The bare bones of a mortal Man, laid open by time or
+D: violence. They are a stern reminder of how swiftly the
+D: Younger Children pass from the world, leaving only silence
+D: where hope, fear, and labour once had their dwelling.
 
 
 N:42:& Elf Skeleton~
@@ -438,6 +487,10 @@ W:10:5:110:0
 P:0:0d0:0:0d0
 A:9/3:12/3
 F:EASY_KNOW
+D:The fair frame of an Elf, now stripped of flesh and raiment.
+D: Even in ruin it keeps something of the grace of the
+D: Firstborn, and its sight is grievous, for the Eldar were
+D: not made for such a naked end beneath the Shadow.
 
 
 ##### Shields #####
@@ -1006,6 +1059,10 @@ I:33:11:0
 W:7:0:30:1000
 P:0:0d0:0:1d0
 F:INSTA_ART
+D:A crown of worked metal, made as a sign of rule and
+D: remembrance rather than for battle. Even plain of gem and
+D: device, it lends the brow a certain gravity, as though
+D: authority and song might both have worn such a thing.
 
 
 ##### Cloaks #####
@@ -1025,11 +1082,7 @@ D: concealment, and a little comfort upon the road. ||
 D:[noble]A fair cloak of close-woven wool, light upon the shoulders and
 D: finished with a care for colour and border beyond mere need. It
 D: suggests a gift from some noble house, fit for a trusted messenger
-D: or warden who goes abroad bearing memory of brighter halls. ||
-D:[evil]A dark cloak of harsh weave, cut less for warmth than for
-D: slipping unseen through thorn, wet ash, and broken ground. It has
-D: the look of a prowler's garment, meant for spying, pursuit, and
-D: other errands that shun the open fire.
+D: or warden who goes abroad bearing memory of brighter halls.
 
 
 N:107:& Shadow Cloak~
@@ -1055,6 +1108,10 @@ I:35:20:0
 W:20:0:130:1000
 P:-3:0d0:-3:1d6
 F:INSTA_ART | EVIL_ITEM | MIN_DEPTH_SPEED
+D:The hide of a monstrous wolf, cured whole and made into a
+D: dreadful mantle. Its shape invites disguise, and there
+D: lingers in it the savage authority of a hunter that was
+D: itself long feared in the dark.
 
 
 N:109:& Bat-Fell~
@@ -1064,6 +1121,10 @@ I:35:21:0
 W:23:0:50:1000
 P:-1:0d0:+2:0d0
 F:INSTA_ART | EVIL_ITEM | MIN_DEPTH_SPEED
+D:A dark winged fell, thin and leathern, contrived to hang
+D: about the body like the folded shape of some great bat.
+D: It seems made for gliding shadow, uncanny disguise, and
+D: errands best done beneath a blind moon.
 
 
 ##### Bows #####
@@ -2507,6 +2568,10 @@ I:7:1:0
 W:5:0:200:20
 P:0:0d0:0:0d0
 A:5/4
+D:A small wooden chest, plain and serviceable, such as a
+D: traveller, householder, or petty captain might use for
+D: coin, letters, and keepsakes. Its boards are worn by
+D: long handling, and it promises little beyond what it holds.
 
 
 N:373:& Small steel chest~
@@ -2517,6 +2582,10 @@ W:12:0:250:200
 P:0:0d0:0:0d0
 A:12/4
 F:IGNORE_ALL
+D:A small chest bound in steel, made to resist rough hands
+D: and the wear of hard roads. Such coffers were kept for
+D: coin, seals, and other things a prudent keeper would not
+D: trust to wood alone.
 
 
 N:374:& Small jewelled chest~
@@ -2527,6 +2596,10 @@ W:19:0:750:250
 P:0:0d0:0:0d0
 A:19/8
 F:IGNORE_ALL
+D:A little casket adorned with bright stones and cunning
+D: metalwork. It has the look of a gift from some richer
+D: hall, or of a lord's keepsake-box, made for treasures too
+D: small to bear openly and too precious to neglect.
 
 
 N:375:& Large wooden chest~
@@ -2536,6 +2609,10 @@ I:7:11:0
 W:10:0:500:60
 P:0:0d0:0:0d0
 A:10/8
+D:A large wooden chest with a stout lid and broad sides, fit
+D: for the storing of garments, household gear, or a
+D: wanderer's gathered wealth. It is humble work, but deep
+D: enough to hide something of worth from a casual eye.
 
 
 N:376:& Large steel chest~
@@ -2546,6 +2623,10 @@ W:17:0:750:250
 P:0:0d0:0:0d0
 A:17/8
 F:IGNORE_ALL
+D:A great chest of steel, grim and weighty, such as might
+D: stand in an armoury, treasury, or strong-room. Its very
+D: make speaks of distrust, as though what lies within were
+D: worth guarding against both thief and fire.
 
 
 N:377:& Large jewelled chest~
@@ -2556,6 +2637,10 @@ W:24:0:750:250
 P:0:0d0:0:0d0
 A:24/8
 F:IGNORE_ALL
+D:A lordly coffer overlaid with bright metal and gems, wrought
+D: less for burden than for display. Such chests were set in
+D: rich chambers to hold heirlooms, jewels, and other tokens
+D: of rank that lesser folk might behold only from afar.
 
 
 N:378:& Finely wrapped present~
@@ -2565,6 +2650,10 @@ I:7:4:0
 W:25:0:100:250
 P:0:0d0:0:0d0
 F:IGNORE_ALL | EASY_KNOW
+D:A gift wrapped with uncommon care in bright cloth and cord.
+D: Its outward cheer sits strangely in the dark places of the
+D: world, and for that very reason it stirs a little wonder
+D: concerning the hand that prepared it.
 
 
 
