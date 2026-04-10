@@ -4068,6 +4068,7 @@ static SDL_Texture* sdl_load_ttf_font(const char* font_path, int font_size, int*
     int cell_width = font_size / 2;
     int min_size = font_size / 2;
     TTF_Font* font = NULL;
+    SDL_Texture* previous_target = NULL;
     for (; font_size >= min_size; font_size--) {
         log_trace("trying TTF font size %d", font_size);
         if (font == NULL) {
@@ -4101,7 +4102,12 @@ static SDL_Texture* sdl_load_ttf_font(const char* font_path, int font_size, int*
         log_error("SDL_CreateTexture failed: %s", SDL_GetError());
         quit("could not create TTF glyph cache");
     }
+    previous_target = SDL_GetRenderTarget(g_state.renderer);
+    SDL_SetTextureBlendMode(font_atlas, SDL_BLENDMODE_BLEND);
     SDL_SetRenderTarget(g_state.renderer, font_atlas);
+    /* Fresh target textures are not guaranteed to start cleared on mobile GPUs. */
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 0);
+    SDL_RenderClear(g_state.renderer);
     SDL_Color white = (SDL_Color){255, 255, 255, 255};
     SDL_FRect dst = {
         .w = cell_width,
@@ -4130,9 +4136,11 @@ static SDL_Texture* sdl_load_ttf_font(const char* font_path, int font_size, int*
         dst.x = cell_width * (ch % 16);
         dst.y = cell_height * (ch >> 4);
         SDL_RenderTexture(g_state.renderer, gtex, NULL, &dst);
+        SDL_DestroyTexture(gtex);
     }
-    SDL_SetRenderTarget(g_state.renderer, NULL);
-    SDL_SetTextureScaleMode(font_atlas, SDL_SCALEMODE_LINEAR);
+    SDL_SetRenderTarget(g_state.renderer, previous_target);
+    /* Sample atlas cells without filtering to avoid cross-glyph bleed. */
+    SDL_SetTextureScaleMode(font_atlas, SDL_SCALEMODE_NEAREST);
     TTF_CloseFont(font);
     if (actual_font_size)
         *actual_font_size = font_size;
