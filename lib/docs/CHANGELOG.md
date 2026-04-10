@@ -104,6 +104,9 @@ Changed:
 
 Fixed:
 
+- fix: linker warning about `__DATA__` alignment on macOS (fixes #202)
+  ([#204](https://github.com/sil-quirk/sil-q/pull/204))
+  - thanks @backwardsEric
 - fix: use `F:` for feature flags of The Leather Armour of Haldad
 - Fix inconsistent house naming for Falathrim and Haleth (fixes #164)
   ([#173](https://github.com/sil-quirk/sil-q/pull/173))
