@@ -351,6 +351,13 @@ endif()
 # Compiler warnings used by all platforms
 target_compile_options(${SIL_TARGET} PRIVATE -Wall -Wextra)
 
+# Apple's Xcode Clang still defaults to -fcommon (unlike upstream LLVM Clang and
+# GCC 10+). This causes linker warnings about reducing alignment of __DATA,__common.
+# See: https://ffmpeg.org/pipermail/ffmpeg-cvslog/2025-May/148334.html
+if (APPLE)
+    target_compile_options(${SIL_TARGET} PRIVATE -fno-common)
+endif()
+
 # Extended compiler warnings for Linux and (non-Cocoa) macOS builds
 if (NOT WIN32 AND NOT SUPPORT_COCOA_FRONTEND)
     target_compile_options(${SIL_TARGET} PRIVATE
