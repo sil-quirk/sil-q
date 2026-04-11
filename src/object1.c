@@ -2566,7 +2566,7 @@ char index_to_label(int i)
     {
         int offset;
 
-        if (inventory_menu_expand_supplies && !inventory_menu_include_equip)
+        if ((p_ptr->get_item_mode != 0) || inventory_menu_uses_expanded_supplies())
             offset = inventory_visible_supply_count();
         else
             offset = (supplies_entry_count() > 0) ? 1 : 0;
@@ -2586,6 +2586,7 @@ char index_to_label(int i)
 s16b label_to_inven(int c)
 {
     int i;
+    int visible_supplies = 0;
 
     /* Convert */
     i = (islower((unsigned char)c) ? A2I(c) : -1);
@@ -2594,12 +2595,18 @@ s16b label_to_inven(int c)
     {
         return inventory_visible_inven_item_at(i);
     }
+
+    if (p_ptr->get_item_mode != 0)
+        visible_supplies = inventory_visible_supply_count();
     else if (supplies_entry_count() > 0)
+        visible_supplies = 1;
+
+    if (visible_supplies > 0)
     {
         if (c == supplies_label_char())
             return SUPPLIES_INDEX;
 
-        i -= 1;
+        i -= visible_supplies;
     }
 
     /* Verify the index */
