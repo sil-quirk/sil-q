@@ -3775,7 +3775,8 @@ static int menu_term_width(void)
 
 static int menu_weight_col_for_width(int term_wid)
 {
-    int col = term_wid - 10;
+    /* Reserve 8 columns for weight and 4 columns for the trailing label. */
+    int col = term_wid - 12;
 
     if (col < 0)
         col = 0;
@@ -3785,7 +3786,10 @@ static int menu_weight_col_for_width(int term_wid)
 
 static int menu_label_col_for_width(int term_wid, bool display_weights)
 {
-    int col = display_weights ? (term_wid - 2) : (term_wid - 9);
+    /* Labels are rendered as " (a)" or "(a)" and need 4 terminal cells. */
+    int col = term_wid - 4;
+
+    (void)display_weights;
 
     if (col < 0)
         col = 0;
@@ -3830,7 +3834,7 @@ static void story_render_inventory_entry(int row, int base_col, int label_col,
     int term_wid = (story_term_w > 0) ? story_term_w : menu_term_width();
     int highlight_cols = term_wid;
     int weight_col = display_weights ? MAX(0, label_col - 8) : label_col;
-    const int label_width = 6;
+    const int label_width = 4;
 
     Term_erase(base_col, row, 255);
     if (highlight)
@@ -3854,7 +3858,8 @@ static void story_render_inventory_entry(int row, int base_col, int label_col,
     }
 
     if (label_text && label_text[0])
-        story_print_text(row, label_col, label_width, label_attr, label_text);
+        story_print_text_grid(row, label_col, label_width, label_attr,
+            label_text);
 }
 
 static void story_render_equipment_entry(int row, int col, int slot, cptr prefix,
@@ -3867,7 +3872,7 @@ static void story_render_equipment_entry(int row, int col, int slot, cptr prefix
     int label_col = menu_label_col_for_width(term_wid, display_weights);
     int weight_col = menu_weight_col_for_width(term_wid);
     int clear_col = menu_overlay_clear_col(col);
-    const int label_width = 6;
+    const int label_width = 4;
     bool has_object = (o_ptr && o_ptr->k_idx);
 
     Term_erase(clear_col, row, 255);
@@ -3898,7 +3903,8 @@ static void story_render_equipment_entry(int row, int col, int slot, cptr prefix
     }
 
     if (label_text && label_text[0])
-        story_print_text(row, label_col, label_width, label_attr, label_text);
+        story_print_text_grid(row, label_col, label_width, label_attr,
+            label_text);
 }
 
 static void draw_equipment_story_rows(int col, int entry_count, int* out_index,
@@ -3910,7 +3916,7 @@ static void draw_equipment_story_rows(int col, int entry_count, int* out_index,
     int weight_col = menu_weight_col_for_width(term_wid);
     int highlight_cols = term_wid;
     int clear_col = menu_overlay_clear_col(col);
-    const int label_width = 6;
+    const int label_width = 4;
 
     log_trace("draw_equipment_story_rows: entry_count=%d, highlight_active=%d, highlight_index=%d",
         entry_count, highlight_active, highlight_index);
@@ -3981,7 +3987,8 @@ static void draw_equipment_story_rows(int col, int entry_count, int* out_index,
         strnfmt(label_buf, sizeof(label_buf), "(%c)", index_to_label(slot));
         byte label_attr = is_highlight ? TERM_L_BLUE : TERM_WHITE;
         log_trace("draw_equipment_story_rows: Row %d - printing label '%s' at col=%d width=%d (label_col_base=%d)", row, label_buf, label_col, label_width, label_col_base);
-        story_print_text(row, label_col, label_width, label_attr, label_buf);
+        story_print_text_grid(row, label_col, label_width, label_attr,
+            label_buf);
     }
 
     log_trace("draw_equipment_story_rows: Finished drawing all rows");
@@ -6431,7 +6438,7 @@ void show_inven_enhanced(void)
         if (use_story_font && allow_compare && !first_render)
         {
             int label_col_tmp = label_col_base;
-            const int label_width_tmp = 6;
+            const int label_width_tmp = 4;
             int max_print_col = label_col_tmp + label_width_tmp;
             int erase_w = (max_print_col > col) ? (max_print_col - col + 1) : 0;
             if (story_term_w > 80) erase_w = (erase_w * story_term_w) / 80;
@@ -6665,13 +6672,14 @@ void show_inven_enhanced(void)
             else
                 strnfmt(tmp_val, sizeof(tmp_val), "(%c)", index_to_label(out_index[j]));
 
-            const int label_width = 6;
+            const int label_width = 4;
             byte label_attr = is_highlight ? TERM_L_BLUE : TERM_WHITE;
             log_trace("ITEM RENDER row=%d: label_col=%d, show_weights=%d, label='%s'", 
                 row, label_col, show_weights, tmp_val);
             if (use_story_font)
             {
-                story_print_text(row, label_col, label_width, label_attr, tmp_val);
+                story_print_text_grid(row, label_col, label_width,
+                    label_attr, tmp_val);
             }
             else
             {
@@ -6773,7 +6781,8 @@ void show_inven_enhanced(void)
                         char label_str[8];
                         strnfmt(label_str, sizeof(label_str), "(%s)", compare_label[idx]);
                         if (use_story_font)
-                            story_print_text(compare_row, label_col, label_width, compare_attr[idx], label_str);
+                            story_print_text_grid(compare_row, label_col,
+                                label_width, compare_attr[idx], label_str);
                         else
                             c_put_str(compare_attr[idx], label_str, compare_row, label_col);
                     }
@@ -6806,7 +6815,7 @@ void show_inven_enhanced(void)
             }
             if (redraw_y1 > 0 && redraw_y2 >= redraw_y1)
             {
-                int max_col = label_col_base + 6;
+                int max_col = label_col_base + 4;
                 if (max_col > Term->wid - 1) max_col = Term->wid - 1;
                 Term_redraw_section(col, redraw_y1, max_col, redraw_y2);
             }

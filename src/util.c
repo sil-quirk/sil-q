@@ -2555,10 +2555,19 @@ void text_out_to_screen(byte a, cptr str)
 {
     /* If story font is enabled, use pixel-based wrapping */
     extern bool sdl_is_story_font_enabled(void);
-    if (sdl_is_story_font_enabled())
+    if (sdl_is_story_font_enabled()
+        && !(Term && Term->story_font_grid))
     {
         text_out_to_screen_story(a, str);
         return;
+    }
+
+    if (sdl_is_story_font_enabled() && Term && Term->story_font_grid)
+    {
+        log_debug("text_out_to_screen: grid story text using cell wrapping "
+            "at row=%d col=%d wrap=%d text='%.50s'",
+            Term->scr ? Term->scr->cy : -1, Term->scr ? Term->scr->cx : -1,
+            text_out_wrap, str ? str : "");
     }
 
     int x, y;
