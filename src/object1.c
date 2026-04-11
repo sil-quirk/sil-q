@@ -27,6 +27,7 @@ static bool story_inventory_list_active = false;
 static bool story_equipment_list_active = false;
 
 static bool supplies_visible_for_current_filter(void);
+static bool inventory_menu_uses_visible_labels(void);
 static bool inventory_menu_uses_expanded_supplies(void);
 static int inventory_visible_supply_count(void);
 static int inventory_visible_supply_item_at(int ordinal);
@@ -2553,7 +2554,9 @@ void identify_random_gen(const object_type* o_ptr)
  */
 char index_to_label(int i)
 {
-    if (inventory_menu_uses_expanded_supplies() && (i < INVEN_WIELD || i >= SUPPLIES_INDEX))
+    if ((inventory_menu_uses_visible_labels()
+        || inventory_menu_uses_expanded_supplies())
+        && (i < INVEN_WIELD || i >= SUPPLIES_INDEX))
     {
         int ordinal = inventory_visible_inven_ordinal(i);
         if (ordinal >= 0)
@@ -2586,27 +2589,21 @@ char index_to_label(int i)
 s16b label_to_inven(int c)
 {
     int i;
-    int visible_supplies = 0;
 
     /* Convert */
     i = (islower((unsigned char)c) ? A2I(c) : -1);
 
-    if (inventory_menu_expand_supplies && !inventory_menu_include_equip)
+    if (inventory_menu_uses_visible_labels()
+        || inventory_menu_uses_expanded_supplies())
     {
         return inventory_visible_inven_item_at(i);
     }
-
-    if (p_ptr->get_item_mode != 0)
-        visible_supplies = inventory_visible_supply_count();
     else if (supplies_entry_count() > 0)
-        visible_supplies = 1;
-
-    if (visible_supplies > 0)
     {
         if (c == supplies_label_char())
             return SUPPLIES_INDEX;
 
-        i -= visible_supplies;
+        i -= 1;
     }
 
     /* Verify the index */
@@ -2660,6 +2657,11 @@ static bool supplies_visible_for_current_filter(void)
         return true;
 
     return supplies_any_match_item_tester();
+}
+
+static bool inventory_menu_uses_visible_labels(void)
+{
+    return (p_ptr->get_item_mode != 0);
 }
 
 static bool inventory_menu_uses_expanded_supplies(void)
@@ -2761,24 +2763,14 @@ static int inventory_visible_supply_ordinal(int item)
 
 static int inventory_visible_inven_item_at(int ordinal)
 {
-    int visible = 0;
-
     if (ordinal < 0)
         return -1;
 
-    if (!inventory_menu_uses_expanded_supplies())
-        return label_to_inven(I2A(ordinal));
+    int supply_count = inventory_visible_supply_count();
+    if (ordinal < supply_count)
+        return inventory_visible_supply_item_at(ordinal);
 
-    for (int i = 0; i < supplies_entry_count(); i++)
-    {
-        if (!supply_entry_matches_current_filter(i))
-            continue;
-
-        if (visible == ordinal)
-            return SUPPLIES_INDEX + i;
-
-        visible++;
-    }
+    int visible = supply_count;
 
     for (int i = 0; i < INVEN_PACK; i++)
     {
@@ -2796,24 +2788,11 @@ static int inventory_visible_inven_item_at(int ordinal)
 
 static int inventory_visible_inven_ordinal(int item)
 {
-    int visible = 0;
+    int supply_ordinal = inventory_visible_supply_ordinal(item);
+    if (supply_ordinal >= 0)
+        return supply_ordinal;
 
-    if (!inventory_menu_uses_expanded_supplies())
-        return inventory_visible_supply_ordinal(item);
-
-    for (int i = 0; i < supplies_entry_count(); i++)
-    {
-        int candidate;
-
-        if (!supply_entry_matches_current_filter(i))
-            continue;
-
-        candidate = SUPPLIES_INDEX + i;
-        if (candidate == item)
-            return visible;
-
-        visible++;
-    }
+    int visible = inventory_visible_supply_count();
 
     for (int i = 0; i < INVEN_PACK; i++)
     {
