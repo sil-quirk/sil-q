@@ -1712,6 +1712,14 @@ static int set_cold_destroy(const object_type* o_ptr)
 }
 
 /*
+ * Loud concussive force shatters fragile carried items like cold does.
+ */
+static int set_sound_destroy(const object_type* o_ptr)
+{
+    return hates_cold(o_ptr);
+}
+
+/*
  * This seems like a pretty standard "typedef"
  */
 typedef int (*inven_func)(const object_type*);
@@ -1858,6 +1866,106 @@ static int inven_damage(inven_func typ, int perc, int resistance)
     return (k);
 }
 
+static bool shield_blocks_carried_damage(inven_func typ)
+{
+    object_type* shield = &inventory[INVEN_ARM];
+    u32b f1, f2, f3;
+
+    if (!shield->k_idx || shield->tval != TV_SHIELD)
+        return false;
+
+    object_flags(shield, &f1, &f2, &f3);
+    (void)f1;
+    (void)f3;
+
+    if ((typ == set_fire_destroy) && (f2 & TR2_RES_FIRE))
+        return true;
+    if ((typ == set_cold_destroy) && (f2 & TR2_RES_COLD))
+        return true;
+    if ((typ == set_elec_destroy) && (f2 & TR2_RES_ELEC))
+        return true;
+
+    return false;
+}
+
+static int equip_damage(inven_func typ, int perc, int resistance)
+{
+    int i;
+    int k = 0;
+    char o_name[80];
+
+    if (shield_blocks_carried_damage(typ))
+        return 0;
+
+    for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+
+        if (!o_ptr->k_idx)
+            continue;
+
+        if (artefact_p(o_ptr))
+            continue;
+
+        if (!(*typ)(o_ptr))
+            continue;
+
+        if (!percent_chance(perc))
+            continue;
+
+        if ((resistance >= 0) && !one_in_(resistance))
+            continue;
+
+        object_desc(o_name, sizeof(o_name), o_ptr, false, 3);
+
+        if ((typ == set_fire_destroy) && object_is_fire_broken(o_ptr))
+            continue;
+
+        if ((typ == set_fire_destroy)
+            && object_break_shafted_weapon_by_fire(o_ptr))
+        {
+            object_desc(o_name, sizeof(o_name), o_ptr, false, 3);
+            msg_format("Your %s is broken!", o_name);
+            p_ptr->update |= PU_BONUS;
+            p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
+            k++;
+            continue;
+        }
+
+        if ((typ == set_cold_destroy) && (o_ptr->tval == TV_LIGHT)
+            && (o_ptr->sval == SV_LIGHT_LANTERN)
+            && object_break_brass_lantern(o_ptr))
+        {
+            object_desc(o_name, sizeof(o_name), o_ptr, false, 3);
+            msg_format("Your %s is broken!", o_name);
+            p_ptr->update |= PU_BONUS;
+            p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
+            k++;
+            continue;
+        }
+
+        inven_item_increase(i, -1);
+        inven_item_optimize(i);
+        msg_format("Your %s is destroyed!", o_name);
+        p_ptr->update |= PU_BONUS;
+        p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
+        k++;
+    }
+
+    return k;
+}
+
+static void sound_dam(int dam)
+{
+    int inv = (dam < 10) ? 1 : (dam < 20) ? 2 : 3;
+
+    if (dam <= 0)
+        return;
+
+    inven_damage(set_sound_destroy, inv, 1);
+    equip_damage(set_sound_destroy, inv, 1);
+}
+
 /*
  * Acid has hit the player, attempt to affect some armor.
  */
@@ -1956,7 +2064,7 @@ static int damage_armour(void)
  */
 void acid_dam(int dam, cptr kb_str)
 {
-    int inv = (dam < 10) ? 1 : (dam < 20) ? 2 : 3;
+    int equip = (dam < 10) ? 1 : (dam < 20) ? 2 : 3;
 
     /* Abort if no damage to receive */
     if (dam <= 0)
@@ -1968,11 +2076,8 @@ void acid_dam(int dam, cptr kb_str)
     /* Take damage */
     take_hit(dam, kb_str);
 
-    /* Inventory damage */
-    inven_damage(set_acid_destroy, inv, 1);
-
-    /* Supply damage */
-    supplies_damage(set_acid_destroy, inv, 1);
+    /* Equipped-item damage */
+    equip_damage(set_acid_destroy, equip, 1);
 }
 
 /*
@@ -1980,7 +2085,7 @@ void acid_dam(int dam, cptr kb_str)
  */
 void elec_dam(int dam, cptr kb_str)
 {
-    int inv = (dam < 10) ? 1 : (dam < 20) ? 2 : 3;
+    int equip = (dam < 10) ? 1 : (dam < 20) ? 2 : 3;
 
     /* Abort if no damage to receive */
     if (dam <= 0)
@@ -1989,11 +2094,8 @@ void elec_dam(int dam, cptr kb_str)
     /* Take damage */
     take_hit(dam, kb_str);
 
-    /* Inventory damage */
-    inven_damage(set_elec_destroy, inv, 1);
-
-    /* Supply damage */
-    supplies_damage(set_elec_destroy, inv, 1);
+    /* Equipped-item damage */
+    equip_damage(set_elec_destroy, equip, 1);
 }
 
 /*
@@ -2090,7 +2192,7 @@ static void log_elemental_damage_context(const char* tag, cptr kb_str, int dam,
  */
 void fire_dam_mixed(int dam, cptr kb_str)
 {
-    int inv = (dam < 10) ? 1 : (dam < 20) ? 2 : 3;
+    int equip = (dam < 10) ? 1 : (dam < 20) ? 2 : 3;
 
     /* Abort if no damage to receive */
     if (dam <= 0)
@@ -2099,11 +2201,8 @@ void fire_dam_mixed(int dam, cptr kb_str)
     /* Take damage */
     take_hit(dam, kb_str);
 
-    /* Inventory damage */
-    inven_damage(set_fire_destroy, inv, resist_fire());
-
-    /* Supply damage */
-    supplies_damage(set_fire_destroy, inv, resist_fire());
+    /* Equipped-item damage */
+    equip_damage(set_fire_destroy, equip, resist_fire());
 
     // possibly identify relevant items
     ident_resist(TR2_RES_FIRE);
@@ -2117,7 +2216,7 @@ void fire_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str)
     int dam = damroll(dd, ds);
     int net_dam;
     int prt = protection_roll(GF_FIRE, false);
-    int inv;
+    int equip;
     int resistance = resist_fire();
 
     if (resistance > 0)
@@ -2127,7 +2226,7 @@ void fire_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str)
 
     net_dam = net_dam > prt ? net_dam - prt : 0;
 
-    inv = (dam < 10) ? 1 : (dam < 20) ? 2 : 3;
+    equip = (dam < 10) ? 1 : (dam < 20) ? 2 : 3;
 
     if (update_rolls)
     {
@@ -2144,11 +2243,8 @@ void fire_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str)
     /* Take damage */
     take_hit(net_dam, kb_str);
 
-    /* Inventory damage */
-    inven_damage(set_fire_destroy, inv, resistance);
-
-    /* Supply damage */
-    supplies_damage(set_fire_destroy, inv, resistance);
+    /* Equipped-item damage */
+    equip_damage(set_fire_destroy, equip, resistance);
 
     // possibly identify relevant items
     ident_resist(TR2_RES_FIRE);
@@ -2159,7 +2255,7 @@ void fire_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str)
  */
 void cold_dam_mixed(int dam, cptr kb_str)
 {
-    int inv = (dam < 10) ? 1 : (dam < 20) ? 2 : 3;
+    int equip = (dam < 10) ? 1 : (dam < 20) ? 2 : 3;
 
     /* Abort if no damage to receive */
     if (dam <= 0)
@@ -2168,11 +2264,11 @@ void cold_dam_mixed(int dam, cptr kb_str)
     /* Take damage */
     take_hit(dam, kb_str);
 
-    /* Inventory damage */
-    inven_damage(set_cold_destroy, inv, resist_cold());
+    /* Equipped-item damage */
+    equip_damage(set_cold_destroy, equip, resist_cold());
 
-    /* Supply damage */
-    supplies_damage_cold(inv, resist_cold());
+    /* Supply damage: only fragile consumables, not lanterns */
+    supplies_damage_cold(equip, resist_cold());
 
     // possibly identify relevant items
     ident_resist(TR2_RES_COLD);
@@ -2186,7 +2282,7 @@ void cold_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str)
     int dam = damroll(dd, ds);
     int net_dam;
     int prt = protection_roll(GF_COLD, false);
-    int inv;
+    int equip;
     int resistance = resist_cold();
 
     if (resistance > 0)
@@ -2196,7 +2292,7 @@ void cold_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str)
 
     net_dam = net_dam > prt ? net_dam - prt : 0;
 
-    inv = (dam < 10) ? 1 : (dam < 20) ? 2 : 3;
+    equip = (dam < 10) ? 1 : (dam < 20) ? 2 : 3;
 
     if (update_rolls)
     {
@@ -2213,11 +2309,11 @@ void cold_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str)
     /* Take damage */
     take_hit(net_dam, kb_str);
 
-    /* Inventory damage */
-    inven_damage(set_cold_destroy, inv, resistance);
+    /* Equipped-item damage */
+    equip_damage(set_cold_destroy, equip, resistance);
 
-    /* Supply damage */
-    supplies_damage_cold(inv, resistance);
+    /* Supply damage: only fragile consumables, not lanterns */
+    supplies_damage_cold(equip, resistance);
 
     // possibly identify relevant items
     ident_resist(TR2_RES_COLD);
@@ -4335,7 +4431,7 @@ static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
     /* Analyze the damage */
     switch (typ)
     {
-    /* Standard damage -- hurts inventory too */
+    /* Standard damage -- can damage carried items too */
     case GF_ACID:
     {
         if (blind)
@@ -4344,7 +4440,7 @@ static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
         break;
     }
 
-    /* Standard damage -- hurts inventory too */
+    /* Standard damage -- can damage carried items too */
     case GF_ELEC:
     {
         if (blind)
@@ -4353,7 +4449,7 @@ static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
         break;
     }
 
-    /* Standard damage -- hurts inventory too */
+    /* Standard damage -- can damage carried items too */
     case GF_FIRE:
     {
         if (blind)
@@ -4362,7 +4458,7 @@ static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
         break;
     }
 
-    /* Standard damage -- hurts inventory too */
+    /* Standard damage -- can damage carried items too */
     case GF_COLD:
     {
         if (blind)
@@ -4632,6 +4728,7 @@ static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
         {
             msg_print("You are unfazed.");
         }
+        sound_dam(dam);
         break;
     }
 

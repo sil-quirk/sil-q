@@ -645,6 +645,9 @@ bool object_is_damaged_item(const object_type* o_ptr)
     if (!o_ptr || !o_ptr->k_idx)
         return false;
 
+    if (object_is_fire_broken(o_ptr))
+        return true;
+
     object_flags(o_ptr, &f1, &f2, &f3);
     return (f3 & TR3_DAMAGED) ? true : false;
 }
@@ -1083,8 +1086,13 @@ static bool repair_damaged_item_internal(int slot,
     if (old_name && old_name_size > 0)
         object_desc(old_name, old_name_size, o_ptr, true, 0);
 
+    if (object_is_fire_broken(o_ptr))
+    {
+        if (!object_repair_fire_broken_weapon(o_ptr))
+            return false;
+    }
     /* New-style damaged item: remove the damaged affix and keep the rest */
-    if (damaged_ego_index(o_ptr, NULL))
+    else if (damaged_ego_index(o_ptr, NULL))
     {
         if (!remove_damaged_ego(o_ptr))
             return false;

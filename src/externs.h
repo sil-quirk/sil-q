@@ -1103,6 +1103,9 @@ extern u32b object_pval_flags1(const object_type* o_ptr);
 extern void object_apply_pval_delta_with_mask(object_type* o_ptr, u32b mask, int delta);
 extern bool object_apply_ego_affix(object_type* o_ptr, int e_idx, bool smithing);
 extern bool object_break_brass_lantern(object_type* o_ptr);
+extern bool object_is_fire_broken(const object_type* o_ptr);
+extern bool object_break_shafted_weapon_by_fire(object_type* o_ptr);
+extern bool object_repair_fire_broken_weapon(object_type* o_ptr);
 extern void object_into_special(object_type* o_ptr, int lev, bool smithing);
 extern void check_artifact_visibility(void);
 extern void apply_magic(object_type* o_ptr, int lev, bool okay, bool good,

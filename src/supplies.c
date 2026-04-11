@@ -1269,38 +1269,6 @@ int supplies_damage(int (*typ)(const object_type*), int perc, int resistance)
     return (k);
 }
 
-static void supplies_store_converted_object(const object_type* src)
-{
-    int idx;
-
-    if (!src || !src->k_idx || src->number <= 0)
-        return;
-
-    idx = supplies_find_similar(src);
-    if (idx >= 0)
-    {
-        int total = g_supply_entries[idx].obj.number + src->number;
-        g_supply_entries[idx].obj.number = MIN(total, 255);
-
-        while (total > 255)
-        {
-            total -= 255;
-            supplies_reserve(g_supply_count + 1);
-            object_copy(&g_supply_entries[g_supply_count].obj, src);
-            g_supply_entries[g_supply_count].obj.number = MIN(total, 255);
-            supplies_apply_auto_identification(&g_supply_entries[g_supply_count].obj);
-            g_supply_count++;
-        }
-
-        return;
-    }
-
-    supplies_reserve(g_supply_count + 1);
-    object_copy(&g_supply_entries[g_supply_count].obj, src);
-    supplies_apply_auto_identification(&g_supply_entries[g_supply_count].obj);
-    g_supply_count++;
-}
-
 int supplies_damage_cold(int perc, int resistance)
 {
     int i, j, k, amt;
@@ -1314,7 +1282,11 @@ int supplies_damage_cold(int perc, int resistance)
         supply_entry* entry = &g_supply_entries[i];
         o_ptr = &entry->obj;
 
-        if (!o_ptr->k_idx || artefact_p(o_ptr) || !hates_cold(o_ptr))
+        if (!o_ptr->k_idx || artefact_p(o_ptr))
+            continue;
+
+        if ((o_ptr->tval != TV_POTION) && (o_ptr->tval != TV_GEM)
+            && (o_ptr->tval != TV_FLASK))
             continue;
 
         u32b f1, f2, f3;
@@ -1337,41 +1309,6 @@ int supplies_damage_cold(int perc, int resistance)
             continue;
 
         object_desc(o_name, sizeof(o_name), o_ptr, false, 3);
-
-        if (o_ptr->tval == TV_LIGHT && o_ptr->sval == SV_LIGHT_LANTERN)
-        {
-            if (amt == o_ptr->number)
-            {
-                if (object_break_brass_lantern(o_ptr))
-                {
-                    msg_format("%sour %s in supply %s broken!",
-                        (amt > 1) ? "All of y" : "Y", o_name,
-                        (amt > 1) ? "were" : "was");
-                    supplies_mark_dirty();
-                    k += amt;
-                    continue;
-                }
-            }
-            else
-            {
-                object_type broken_copy;
-                object_wipe(&broken_copy);
-                object_copy(&broken_copy, o_ptr);
-                broken_copy.number = amt;
-
-                if (object_break_brass_lantern(&broken_copy))
-                {
-                    msg_format("%sour %s in supply %s broken!",
-                        (amt > 1) ? "Some of y" : "One of y", o_name,
-                        (amt > 1) ? "were" : "was");
-                    o_ptr->number -= amt;
-                    supplies_store_converted_object(&broken_copy);
-                    supplies_mark_dirty();
-                    k += amt;
-                    continue;
-                }
-            }
-        }
 
         msg_format("%sour %s in supply %s destroyed!",
             ((o_ptr->number > 1) ? ((amt == o_ptr->number)

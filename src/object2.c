@@ -2261,6 +2261,12 @@ bool object_similar(const object_type* o_ptr, const object_type* j_ptr)
     }
     }
 
+    /* Runtime-state items carry per-item repair data and must never stack. */
+    if (object_runtime_state(o_ptr) || object_runtime_state(j_ptr))
+    {
+        return (false);
+    }
+
     /* Hack -- Require identical "cursed" and "broken" status */
     if (((o_ptr->ident & (IDENT_CURSED)) != (j_ptr->ident & (IDENT_CURSED)))
         || ((o_ptr->ident & (IDENT_BROKEN)) != (j_ptr->ident & (IDENT_BROKEN))))
@@ -3509,6 +3515,92 @@ static bool ego_affix_has_only_flag_effects(const ego_item_type* e_ptr)
         }
     }
 
+    return true;
+}
+
+static bool object_is_fire_breakable_weapon(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    if (o_ptr->tval == TV_HAFTED)
+        return true;
+
+    if (o_ptr->tval == TV_POLEARM)
+        return true;
+
+    return false;
+}
+
+static s32b pack_fire_broken_weapon_payload(s16b att, byte dd, byte ds)
+{
+    u32b payload = (u32b)(u16b)att;
+    payload |= ((u32b)dd << 16);
+    payload |= ((u32b)ds << 24);
+    return (s32b)payload;
+}
+
+static void unpack_fire_broken_weapon_payload(s32b payload, s16b* att, byte* dd,
+    byte* ds)
+{
+    u32b bits = (u32b)payload;
+
+    if (att)
+        *att = (s16b)(bits & 0xFFFFU);
+    if (dd)
+        *dd = (byte)((bits >> 16) & 0xFFU);
+    if (ds)
+        *ds = (byte)((bits >> 24) & 0xFFU);
+}
+
+bool object_is_fire_broken(const object_type* o_ptr)
+{
+    return object_runtime_state(o_ptr) == OBJECT_RUNTIME_STATE_FIRE_BROKEN;
+}
+
+bool object_break_shafted_weapon_by_fire(object_type* o_ptr)
+{
+    if (!object_is_fire_breakable_weapon(o_ptr))
+        return false;
+
+    if (object_is_fire_broken(o_ptr))
+        return true;
+
+    object_set_runtime_payload(
+        o_ptr, pack_fire_broken_weapon_payload(o_ptr->att, o_ptr->dd, o_ptr->ds));
+    object_set_runtime_state(o_ptr, OBJECT_RUNTIME_STATE_FIRE_BROKEN);
+
+    if (o_ptr->att > SHRT_MIN)
+        o_ptr->att--;
+
+    if (o_ptr->ds > 1)
+        o_ptr->ds--;
+    else if (o_ptr->dd > 1)
+        o_ptr->dd--;
+
+    pseudo_id(o_ptr);
+    return true;
+}
+
+bool object_repair_fire_broken_weapon(object_type* o_ptr)
+{
+    s16b att = 0;
+    byte dd = 0;
+    byte ds = 0;
+
+    if (!object_is_fire_broken(o_ptr))
+        return false;
+
+    unpack_fire_broken_weapon_payload(
+        object_runtime_payload(o_ptr), &att, &dd, &ds);
+
+    o_ptr->att = att;
+    o_ptr->dd = dd;
+    o_ptr->ds = ds;
+    object_set_runtime_state(o_ptr, OBJECT_RUNTIME_STATE_NONE);
+    object_set_runtime_payload(o_ptr, 0);
+
+    pseudo_id(o_ptr);
     return true;
 }
 
