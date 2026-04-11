@@ -22,6 +22,7 @@
 #include <stddef.h>
 static bool inventory_menu_include_equip = false;
 static bool inventory_menu_expand_supplies = false;
+static bool inventory_choice_debug_logging = false;
 
 static bool story_inventory_list_active = false;
 static bool story_equipment_list_active = false;
@@ -39,6 +40,10 @@ static bool inventory_item_is_supply_entry(int item);
 static object_type* inventory_item_to_object_ptr(int item);
 static bool inventory_item_uses_inven_channel(int item);
 static bool get_item_okay(int item);
+static bool item_prompt_is_replace(cptr pmt);
+static void log_inventory_selector_state(cptr stage, cptr pmt,
+    const int vis_inven[], int vis_inven_cnt);
+static void format_supply_summary(char* buf, size_t len);
 
 bool inventory_menu_set_expand_supplies(bool enabled)
 {
@@ -2589,6 +2594,7 @@ char index_to_label(int i)
 s16b label_to_inven(int c)
 {
     int i;
+    int result;
 
     /* Convert */
     i = (islower((unsigned char)c) ? A2I(c) : -1);
@@ -2596,12 +2602,25 @@ s16b label_to_inven(int c)
     if (inventory_menu_uses_visible_labels()
         || inventory_menu_uses_expanded_supplies())
     {
-        return inventory_visible_inven_item_at(i);
+        result = inventory_visible_inven_item_at(i);
+        if (inventory_choice_debug_logging)
+        {
+            log_debug("selector[label_to_inven]: input='%c' ordinal=%d result=%d",
+                c, i, result);
+        }
+        return result;
     }
     else if (supplies_entry_count() > 0)
     {
         if (c == supplies_label_char())
+        {
+            if (inventory_choice_debug_logging)
+            {
+                log_debug("selector[label_to_inven]: input='%c' result=%d "
+                    "(supply summary)", c, SUPPLIES_INDEX);
+            }
             return SUPPLIES_INDEX;
+        }
 
         i -= 1;
     }
@@ -2615,6 +2634,11 @@ s16b label_to_inven(int c)
         return (-1);
 
     /* Return the index */
+    if (inventory_choice_debug_logging)
+    {
+        log_debug("selector[label_to_inven]: input='%c' slot=%d result=%d",
+            c, i, i);
+    }
     return (i);
 }
 
@@ -2832,6 +2856,47 @@ static object_type* inventory_item_to_object_ptr(int item)
 static bool inventory_item_uses_inven_channel(int item)
 {
     return ((item >= 0) && (item < INVEN_WIELD)) || (item >= SUPPLIES_INDEX);
+}
+
+static bool item_prompt_is_replace(cptr pmt)
+{
+    return pmt && strstr(pmt, "Replace which item to pick up ") != NULL;
+}
+
+static void log_inventory_selector_state(cptr stage, cptr pmt,
+    const int vis_inven[], int vis_inven_cnt)
+{
+    char desc[80];
+
+    if (!inventory_choice_debug_logging)
+        return;
+
+    log_debug("selector[%s]: prompt='%s' see=%d wrk=%d vis_inven_cnt=%d "
+        "visible_supplies=%d expanded_supplies=%d include_equip=%d",
+        stage ? stage : "?", pmt ? pmt : "", p_ptr->command_see ? 1 : 0,
+        p_ptr->command_wrk, vis_inven_cnt, inventory_visible_supply_count(),
+        inventory_menu_uses_expanded_supplies() ? 1 : 0,
+        inventory_menu_include_equip ? 1 : 0);
+
+    for (int row = 0; row < vis_inven_cnt; row++)
+    {
+        int item = vis_inven[row];
+        object_type* o_ptr = inventory_item_to_object_ptr(item);
+        char label = index_to_label(item);
+
+        if (o_ptr && o_ptr->k_idx)
+            object_desc(desc, sizeof(desc), o_ptr, true, 3);
+        else if (inventory_item_is_supply_summary(item))
+            format_supply_summary(desc, sizeof(desc));
+        else
+            SDL_strlcpy(desc, "(invalid)", sizeof(desc));
+
+        log_debug("selector[%s]: row=%d item=%d label=%c supply_summary=%d "
+            "supply_entry=%d desc='%s'",
+            stage ? stage : "?", row, item, label ? label : '?',
+            inventory_item_is_supply_summary(item) ? 1 : 0,
+            inventory_item_is_supply_entry(item) ? 1 : 0, desc);
+    }
 }
 
 static void format_supply_summary(char* buf, size_t len)
@@ -4115,6 +4180,13 @@ void show_inven(void)
             story_render_inventory_entry(j + 1, col, label_col, out_desc[j], out_color[j],
                 show_weights, weight_ptr, out_color[j], label_buf, TERM_WHITE,
                 cur_obj, false, story_term_w);
+            if (inventory_choice_debug_logging)
+            {
+                log_debug("show_inven: row=%d idx=%d label='%s' supply_summary=%d "
+                    "supply_entry=%d desc='%s'",
+                    j + 1, idx, label_buf, is_supply_summary ? 1 : 0,
+                    is_supply_entry ? 1 : 0, out_desc[j]);
+            }
             continue;
         }
 
@@ -4154,6 +4226,14 @@ void show_inven(void)
         else
         {
             sprintf(tmp_val, " (%c)", index_to_label(idx));
+        }
+
+        if (inventory_choice_debug_logging)
+        {
+            log_debug("show_inven: row=%d idx=%d label='%s' supply_summary=%d "
+                "supply_entry=%d desc='%s'",
+                j + 1, idx, tmp_val, is_supply_summary ? 1 : 0,
+                is_supply_entry ? 1 : 0, out_desc[j]);
         }
 
         put_str(tmp_val, j + 1, label_col);
@@ -4784,6 +4864,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
     int px = p_ptr->px;
     bool old_inventory_menu_include_equip =
         inventory_menu_set_include_equip(false);
+    bool old_inventory_choice_debug_logging = inventory_choice_debug_logging;
 
     char which;
 
@@ -4829,6 +4910,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             item_tester_hook = NULL;
 
             /* Success */
+            inventory_choice_debug_logging = old_inventory_choice_debug_logging;
             inventory_menu_set_include_equip(old_inventory_menu_include_equip);
             return (true);
         }
@@ -4843,6 +4925,15 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
 
     // save the mode in a global variable version
     p_ptr->get_item_mode = mode;
+    inventory_choice_debug_logging = item_prompt_is_replace(pmt);
+
+    if (inventory_choice_debug_logging)
+    {
+        log_debug("selector[start]: prompt='%s' mode=%d use_inven=%d "
+            "use_equip=%d use_floor=%d",
+            pmt ? pmt : "", mode, use_inven ? 1 : 0, use_equip ? 1 : 0,
+            use_floor ? 1 : 0);
+    }
 
     /* Paranoia XXX XXX XXX */
     message_flush();
@@ -5260,10 +5351,14 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
 
     /* Build visible list and ensure initial highlight */
     BUILD_VISIBLE_LIST();
+    if (p_ptr->command_wrk == (USE_INVEN))
+    {
+        log_inventory_selector_state("visible-list", pmt, vis_inven, vis_inven_cnt);
+    }
 
-        /* Viewing inventory */
-        if (p_ptr->command_wrk == (USE_INVEN))
-        {
+    /* Viewing inventory */
+    if (p_ptr->command_wrk == (USE_INVEN))
+    {
             /* Redraw if needed */
             if (p_ptr->command_see)
                 show_inven();
@@ -5293,11 +5388,11 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             /* Indicate legality of the "floor" */
             if (allow_floor)
                 SDL_strlcat(out_val, " - for floor,", sizeof(out_val));
-        }
+    }
 
-        /* Viewing equipment */
-        else if (p_ptr->command_wrk == (USE_EQUIP))
-        {
+    /* Viewing equipment */
+    else if (p_ptr->command_wrk == (USE_EQUIP))
+    {
             /* Redraw if needed */
             if (p_ptr->command_see)
             {
@@ -5330,11 +5425,11 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             /* Indicate legality of the "floor" */
             if (allow_floor)
                 SDL_strlcat(out_val, " - for floor,", sizeof(out_val));
-        }
+    }
 
-        /* Viewing floor */
-        else
-        {
+    /* Viewing floor */
+    else
+    {
             /* Redraw if needed */
             if (p_ptr->command_see)
                 show_floor(floor_list, floor_num);
@@ -5370,6 +5465,13 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
 
         /* Build the prompt */
         strnfmt(tmp_val, sizeof(tmp_val), "(%s) %s", out_val, pmt);
+
+        if (inventory_choice_debug_logging && p_ptr->command_wrk == (USE_INVEN))
+        {
+            log_debug("selector[prompt]: out_val='%s' full_prompt='%s' "
+                "highlight_row=%d highlight_active=%d",
+                out_val, tmp_val, highlight_row, highlight_active ? 1 : 0);
+    }
 
         /* Show the prompt */
         /* Use story font for prompt if the current list has story font enabled */
@@ -5964,6 +6066,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
 #endif /* ALLOW_REPEAT */
 
     inventory_menu_set_include_equip(old_inventory_menu_include_equip);
+    inventory_choice_debug_logging = old_inventory_choice_debug_logging;
 
     /* Result */
     return (item);
