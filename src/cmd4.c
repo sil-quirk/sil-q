@@ -22623,7 +22623,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             light_weight / 10, light_weight % 10,
             light_item_weight / 10, light_item_weight % 10,
             light_oil_weight / 10, light_oil_weight % 10,
-            lamp_oil, PLAYER_LAMP_OIL_MAX);
+            lamp_oil, player_lamp_oil_capacity());
 
         if (count_col <= layout.list_col + 8)
             count_col = layout.list_col + 8;

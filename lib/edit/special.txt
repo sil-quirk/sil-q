@@ -2072,6 +2072,16 @@ F:DAMAGED | EASY_KNOW
 D:Greaves hammered out of shape, their plates caved and their straps strained.
 
 
+N:181:(broken)
+W:2:100:0:0
+C:0:0:0:0:0:0:0
+T:39:1:1
+A:2/100
+F:DAMAGED | EASY_KNOW
+D:[lantern]Its glass is cracked and its fittings bent awry, so that no
+D: steady light can be kept within it until a smith mends the hurt.
+
+
 ##### Additional Armour Egos #####
 
 

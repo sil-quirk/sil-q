@@ -571,6 +571,15 @@ bool inven_carry_limit_can_replace(const object_type* o_ptr)
     if (!o_ptr)
         return false;
 
+    if (o_ptr->k_idx && o_ptr->tval == TV_LIGHT)
+    {
+        group = light_limit_group(o_ptr);
+        if (group == INV_LIMIT_NONE)
+            return false;
+
+        return (group == carry_limit_last_group) && (MAX(o_ptr->number, 1) > 0);
+    }
+
     if (!get_inventory_limit_info(o_ptr, &group, &limit, &cost))
         return false;
 
@@ -3468,6 +3477,109 @@ static void apply_ego_explicit_bonus_ranges(object_type* o_ptr,
         o_ptr->skill_bonus[i] += roll_ego_bonus_range(
             e_ptr->skill_bonus_min[i], e_ptr->skill_bonus[i], smithing);
     }
+}
+
+static bool ego_affix_has_only_flag_effects(const ego_item_type* e_ptr)
+{
+    if (!e_ptr)
+        return false;
+
+    if (e_ptr->abilities != 0 || e_ptr->max_pval != 0 || e_ptr->min_pval != 0
+        || e_ptr->max_att != 0 || e_ptr->to_dd != 0 || e_ptr->to_ds != 0
+        || e_ptr->max_evn != 0 || e_ptr->to_pd != 0 || e_ptr->to_ps != 0)
+    {
+        return false;
+    }
+
+    for (int i = 0; i < A_MAX; i++)
+    {
+        if (e_ptr->stat_bonus_set[i] || e_ptr->stat_bonus_min[i] != 0
+            || e_ptr->stat_bonus[i] != 0)
+        {
+            return false;
+        }
+    }
+
+    for (int i = 0; i < S_MAX; i++)
+    {
+        if (e_ptr->skill_bonus_set[i] || e_ptr->skill_bonus_min[i] != 0
+            || e_ptr->skill_bonus[i] != 0)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool object_break_brass_lantern(object_type* o_ptr)
+{
+    byte old_prefix;
+    bool old_prefix_carried_intrinsic_curse = false;
+    bool new_state_is_intrinsically_cursed = false;
+
+    if (!o_ptr || !o_ptr->k_idx || o_ptr->tval != TV_LIGHT
+        || o_ptr->sval != SV_LIGHT_LANTERN)
+    {
+        return false;
+    }
+
+    old_prefix = object_ego_prefix(o_ptr);
+    if (old_prefix == EGO_BROKEN_BRASS_LANTERN)
+    {
+        o_ptr->ident |= IDENT_BROKEN;
+        return true;
+    }
+
+    if (old_prefix)
+    {
+        if (old_prefix >= z_info->e_max)
+            return false;
+
+        if (!ego_affix_has_only_flag_effects(&e_info[old_prefix]))
+        {
+            log_warn(
+                "object_break_brass_lantern: unsupported lantern prefix %d",
+                old_prefix);
+            return false;
+        }
+
+        old_prefix_carried_intrinsic_curse
+            = (e_info[old_prefix].flags3
+                & (TR3_LIGHT_CURSE | TR3_HEAVY_CURSE | TR3_PERMA_CURSE))
+            != 0;
+    }
+
+    object_set_ego_prefix(o_ptr, EGO_BROKEN_BRASS_LANTERN);
+    o_ptr->ident |= IDENT_BROKEN;
+
+    if (o_ptr->name1
+        && (a_info[o_ptr->name1].flags3
+            & (TR3_LIGHT_CURSE | TR3_HEAVY_CURSE | TR3_PERMA_CURSE)))
+    {
+        new_state_is_intrinsically_cursed = true;
+    }
+
+    if (k_info[o_ptr->k_idx].flags3
+        & (TR3_LIGHT_CURSE | TR3_HEAVY_CURSE | TR3_PERMA_CURSE))
+    {
+        new_state_is_intrinsically_cursed = true;
+    }
+
+    if (object_ego_suffix(o_ptr)
+        && (e_info[object_ego_suffix(o_ptr)].flags3
+            & (TR3_LIGHT_CURSE | TR3_HEAVY_CURSE | TR3_PERMA_CURSE)))
+    {
+        new_state_is_intrinsically_cursed = true;
+    }
+
+    if (new_state_is_intrinsically_cursed)
+        o_ptr->ident |= IDENT_CURSED;
+    else if (old_prefix_carried_intrinsic_curse)
+        o_ptr->ident &= ~IDENT_CURSED;
+
+    pseudo_id(o_ptr);
+    return true;
 }
 
 bool object_apply_ego_affix(object_type* o_ptr, int e_idx, bool smithing)

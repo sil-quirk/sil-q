@@ -1386,7 +1386,9 @@ static void process_world(void)
     if (o_ptr->tval == TV_LIGHT)
     {
         /* Hack -- Use some fuel */
-        if (player_light_has_fuel(o_ptr))
+        if (player_light_has_fuel(o_ptr)
+            && !((o_ptr->sval == SV_LIGHT_LANTERN)
+                && (object_ego_prefix(o_ptr) == EGO_BROKEN_BRASS_LANTERN)))
         {
             /* Decrease life-span */
             int fuel = 1;

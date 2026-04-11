@@ -3304,6 +3304,13 @@ void calc_torch(void)
                 p_ptr->cur_light += light_up_to(RADIUS_TORCH, o_ptr);
             }
 
+            /* Broken lanterns can still hold oil, but give no light until repaired. */
+            else if ((o_ptr->sval == SV_LIGHT_LANTERN)
+                && (object_ego_prefix(o_ptr) == EGO_BROKEN_BRASS_LANTERN))
+            {
+                extinguished = true;
+            }
+
             /* Lanterns (with fuel) provide more light */
             else if ((o_ptr->sval == SV_LIGHT_LANTERN) && player_light_has_fuel(o_ptr))
             {

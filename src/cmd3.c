@@ -240,7 +240,7 @@ void do_cmd_use_item_by_index(int item)
                 if (l_ptr->sval == SV_LIGHT_LANTERN)
                 {
                     if ((o_ptr->timeout + player_light_fuel(l_ptr)
-                            <= PLAYER_LAMP_OIL_MAX)
+                            <= player_light_max_fuel(l_ptr))
                         || get_check(
                             "Refueling this lamp will waste some oil. "
                             "Proceed? "))
@@ -1002,7 +1002,8 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     if (!from_supplies
         && o_ptr->tval == TV_LIGHT && o_ptr->sval == SV_LIGHT_LANTERN
         && o_ptr->timeout > 0
-        && player_lamp_oil_would_overflow(o_ptr->timeout)
+        && player_lamp_oil_would_overflow_with_bonus(o_ptr->timeout,
+            (item < 0) ? 1 : 0)
         && !get_check("Taking this lamp will waste some oil. Proceed? "))
     {
         return;
@@ -1529,7 +1530,8 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     if (!from_supplies && i_ptr->tval == TV_LIGHT
         && i_ptr->sval == SV_LIGHT_LANTERN)
     {
-        player_gain_lamp_oil(i_ptr->timeout, true);
+        player_gain_lamp_oil_with_bonus(i_ptr->timeout, true,
+            (item < 0) ? 1 : 0);
         i_ptr->timeout = 0;
     }
 
@@ -3159,9 +3161,9 @@ void do_cmd_refuel_lamp(object_type* default_o_ptr, int default_item)
     msg_print("You fuel your lamp.");
 
     /* Comment */
-    if (player_light_fuel(j_ptr) >= PLAYER_LAMP_OIL_MAX)
+    if (player_light_fuel(j_ptr) >= player_light_max_fuel(j_ptr))
     {
-        player_light_set_fuel(j_ptr, PLAYER_LAMP_OIL_MAX);
+        player_light_set_fuel(j_ptr, player_light_max_fuel(j_ptr));
         msg_print("Your lamp is full.");
     }
 

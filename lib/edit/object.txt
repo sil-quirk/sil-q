@@ -1404,7 +1404,7 @@ D: a comfort than an instrument of suspicion, made to search cracks,
 D: bars, and faces, and to keep lesser folk uneasy in the dark.
 D: You can equip it as a light source with a radius of 2 squares.
 D: While you carry brass lanterns, their oil is pooled together,
-D: up to a total of 14,000 turns of light.
+D: up to 7,500 turns of light per lantern, to a total of 15,000.
 
 
 # Lesser Jewel is at index 21
@@ -2866,7 +2866,7 @@ D:A small flask of lamp oil, carried by those who venture into
 D: the lightless halls beneath Angband, where even Elven eyes
 D: find no gleam to guide them. When picked up, its oil is poured
 D: into your carried brass lantern stores, adding 3,000 turns of
-D: light up to a maximum of 14,000.
+D: light up to a maximum of 7,500 per lantern, or 15,000 in all.
 
 
 N:410:& Piece~ of Mithril

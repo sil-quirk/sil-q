@@ -211,6 +211,7 @@
 #define EGO_JAGGED 140 /* Prefix ego: (Jagged) - crude weapons */
 #define EGO_NIMBLE 141 /* Prefix ego: (Nimble) - refined weapons */
 #define EGO_UNQUENCHED_FIRE 148 /* Suffix ego: of the Unquenched Fire (War Hammer only) */
+#define EGO_BROKEN_BRASS_LANTERN 181 /* Prefix ego: (broken) - damaged brass lantern */
 #define EGO_GAURWAITH 149 /* Suffix ego: of the Gaurwaith (Throwing) */
 #define EGO_OSSIRIAND 150 /* Suffix ego: of Ossiriand (Subtlety) */
 #define EGO_TIRION 151 /* Suffix ego: of Tirion (Channeling) */
@@ -478,7 +479,7 @@
  * Refueling constants
  */
 #define FUEL_TORCH 3000 /* Maximum amount of fuel in a torch */
-#define FUEL_LAMP 7000 /* Maximum amount of fuel in a lantern */
+#define FUEL_LAMP 7500 /* Maximum amount of fuel in a lantern */
 #define FUEL_MALLORN 200 /* Maximum amount of fuel in a mallorn torch */
 
 /*

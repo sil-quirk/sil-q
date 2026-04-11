@@ -21,9 +21,30 @@
 #define ENHANCED_MAX_LIST 80
 #include <stddef.h>
 static bool inventory_menu_include_equip = false;
+static bool inventory_menu_expand_supplies = false;
 
 static bool story_inventory_list_active = false;
 static bool story_equipment_list_active = false;
+
+static bool supplies_visible_for_current_filter(void);
+static bool inventory_menu_uses_expanded_supplies(void);
+static int inventory_visible_supply_count(void);
+static int inventory_visible_supply_item_at(int ordinal);
+static int inventory_visible_supply_ordinal(int item);
+static int inventory_visible_inven_item_at(int ordinal);
+static int inventory_visible_inven_ordinal(int item);
+static bool inventory_item_is_supply_summary(int item);
+static bool inventory_item_is_supply_entry(int item);
+static object_type* inventory_item_to_object_ptr(int item);
+static bool inventory_item_uses_inven_channel(int item);
+static bool get_item_okay(int item);
+
+bool inventory_menu_set_expand_supplies(bool enabled)
+{
+    bool old = inventory_menu_expand_supplies;
+    inventory_menu_expand_supplies = enabled;
+    return old;
+}
 
 static void inventory_prompt_label(int binding, const char* fallback, char* buf, size_t buflen)
 {
@@ -158,9 +179,11 @@ char object_char_graphics_override(const object_type* o_ptr, char base_char)
     return (char)TILE_SET_INDEX(base, column);
 }
 
-void inventory_menu_set_include_equip(bool include)
+bool inventory_menu_set_include_equip(bool include)
 {
+    bool old = inventory_menu_include_equip;
     inventory_menu_include_equip = include;
+    return old;
 }
 
 #include <time.h>
@@ -2530,10 +2553,24 @@ void identify_random_gen(const object_type* o_ptr)
  */
 char index_to_label(int i)
 {
+    if (inventory_menu_uses_expanded_supplies() && (i < INVEN_WIELD || i >= SUPPLIES_INDEX))
+    {
+        int ordinal = inventory_visible_inven_ordinal(i);
+        if (ordinal >= 0)
+            return I2A(ordinal);
+        return 'a';
+    }
+
     /* Indexes for "inven" get an offset when supplies are present */
     if (i < INVEN_WIELD)
     {
-        int offset = (supplies_entry_count() > 0) ? 1 : 0;
+        int offset;
+
+        if (inventory_menu_expand_supplies && !inventory_menu_include_equip)
+            offset = inventory_visible_supply_count();
+        else
+            offset = (supplies_entry_count() > 0) ? 1 : 0;
+
         return (I2A(i + offset));
     }
 
@@ -2553,10 +2590,15 @@ s16b label_to_inven(int c)
     /* Convert */
     i = (islower((unsigned char)c) ? A2I(c) : -1);
 
-    if (supplies_entry_count() > 0)
+    if (inventory_menu_expand_supplies && !inventory_menu_include_equip)
+    {
+        return inventory_visible_inven_item_at(i);
+    }
+    else if (supplies_entry_count() > 0)
     {
         if (c == supplies_label_char())
             return SUPPLIES_INDEX;
+
         i -= 1;
     }
 
@@ -2611,6 +2653,199 @@ static bool supplies_visible_for_current_filter(void)
         return true;
 
     return supplies_any_match_item_tester();
+}
+
+static bool inventory_menu_uses_expanded_supplies(void)
+{
+    return inventory_menu_expand_supplies && !inventory_menu_include_equip;
+}
+
+static bool supply_entry_matches_current_filter(int idx)
+{
+    object_type* o_ptr = supplies_entry_at(idx);
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    if (item_tester_full)
+        return true;
+
+    if (!item_tester_tval && !item_tester_hook)
+        return true;
+
+    if (supplies_has_pending_action())
+        return true;
+
+    return item_tester_okay(o_ptr);
+}
+
+static int inventory_visible_supply_count(void)
+{
+    int count = 0;
+
+    if (supplies_entry_count() <= 0)
+        return 0;
+
+    if (!inventory_menu_uses_expanded_supplies())
+        return supplies_visible_for_current_filter() ? 1 : 0;
+
+    for (int i = 0; i < supplies_entry_count(); i++)
+    {
+        if (supply_entry_matches_current_filter(i))
+            count++;
+    }
+
+    return count;
+}
+
+static int inventory_visible_supply_item_at(int ordinal)
+{
+    int count = 0;
+
+    if (ordinal < 0)
+        return -1;
+
+    if (!inventory_menu_uses_expanded_supplies())
+        return ((ordinal == 0) && supplies_visible_for_current_filter())
+            ? SUPPLIES_INDEX
+            : -1;
+
+    for (int i = 0; i < supplies_entry_count(); i++)
+    {
+        if (!supply_entry_matches_current_filter(i))
+            continue;
+
+        if (count == ordinal)
+            return SUPPLIES_INDEX + i;
+
+        count++;
+    }
+
+    return -1;
+}
+
+static int inventory_visible_supply_ordinal(int item)
+{
+    int ordinal = 0;
+    int supply_idx = item - SUPPLIES_INDEX;
+
+    if (item < SUPPLIES_INDEX)
+        return -1;
+
+    if (!inventory_menu_uses_expanded_supplies())
+        return ((item == SUPPLIES_INDEX) && supplies_visible_for_current_filter())
+            ? 0
+            : -1;
+
+    if (supply_idx < 0 || supply_idx >= supplies_entry_count())
+        return -1;
+
+    if (!supply_entry_matches_current_filter(supply_idx))
+        return -1;
+
+    for (int i = 0; i < supply_idx; i++)
+    {
+        if (supply_entry_matches_current_filter(i))
+            ordinal++;
+    }
+
+    return ordinal;
+}
+
+static int inventory_visible_inven_item_at(int ordinal)
+{
+    int visible = 0;
+
+    if (ordinal < 0)
+        return -1;
+
+    if (!inventory_menu_uses_expanded_supplies())
+        return label_to_inven(I2A(ordinal));
+
+    for (int i = 0; i < supplies_entry_count(); i++)
+    {
+        if (!supply_entry_matches_current_filter(i))
+            continue;
+
+        if (visible == ordinal)
+            return SUPPLIES_INDEX + i;
+
+        visible++;
+    }
+
+    for (int i = 0; i < INVEN_PACK; i++)
+    {
+        if (!inventory[i].k_idx || !get_item_okay(i))
+            continue;
+
+        if (visible == ordinal)
+            return i;
+
+        visible++;
+    }
+
+    return -1;
+}
+
+static int inventory_visible_inven_ordinal(int item)
+{
+    int visible = 0;
+
+    if (!inventory_menu_uses_expanded_supplies())
+        return inventory_visible_supply_ordinal(item);
+
+    for (int i = 0; i < supplies_entry_count(); i++)
+    {
+        int candidate;
+
+        if (!supply_entry_matches_current_filter(i))
+            continue;
+
+        candidate = SUPPLIES_INDEX + i;
+        if (candidate == item)
+            return visible;
+
+        visible++;
+    }
+
+    for (int i = 0; i < INVEN_PACK; i++)
+    {
+        if (!inventory[i].k_idx || !get_item_okay(i))
+            continue;
+
+        if (i == item)
+            return visible;
+
+        visible++;
+    }
+
+    return -1;
+}
+
+static bool inventory_item_is_supply_summary(int item)
+{
+    return (item == SUPPLIES_INDEX) && !inventory_menu_uses_expanded_supplies();
+}
+
+static bool inventory_item_is_supply_entry(int item)
+{
+    return (item >= SUPPLIES_INDEX) && inventory_menu_uses_expanded_supplies();
+}
+
+static object_type* inventory_item_to_object_ptr(int item)
+{
+    if (item >= SUPPLIES_INDEX)
+        return supplies_entry_at(item - SUPPLIES_INDEX);
+
+    if (item >= 0)
+        return &inventory[item];
+
+    return &o_list[0 - item];
+}
+
+static bool inventory_item_uses_inven_channel(int item)
+{
+    return ((item >= 0) && (item < INVEN_WIELD)) || (item >= SUPPLIES_INDEX);
 }
 
 static void format_supply_summary(char* buf, size_t len)
@@ -3708,7 +3943,7 @@ static void draw_equipment_story_rows(int col, int entry_count, int* out_index,
  */
 void show_inven(void)
 {
-    int i, j, k, l, z = 0;
+    int i, j, k, l;
     int col, len, lim;
     int term_wid = menu_term_width();
     int term_hgt = (Term && Term->hgt > 0) ? Term->hgt : 24;
@@ -3721,9 +3956,9 @@ void show_inven(void)
 
     char tmp_val[80];
 
-    int out_index[24];
-    byte out_color[24];
-    char out_desc[24][80];
+    int out_index[ENHANCED_MAX_LIST];
+    byte out_color[ENHANCED_MAX_LIST];
+    char out_desc[ENHANCED_MAX_LIST][80];
 
     bool use_story_font = story_inventory_enabled();
     story_font_term_state story_state;
@@ -3751,36 +3986,20 @@ void show_inven(void)
     if (lim < 0)
         lim = 0;
 
-    bool include_supplies = !inventory_menu_include_equip && supplies_visible_for_current_filter();
-
-    /* Find the "final" slot */
-    for (i = 0; i < INVEN_PACK; i++)
-    {
-        o_ptr = &inventory[i];
-
-        /* Skip non-objects */
-        if (!o_ptr->k_idx)
-            continue;
-
-        /* Track */
-        z = i + 1;
-    }
+    bool include_supplies = !inventory_menu_include_equip
+        && supplies_visible_for_current_filter();
 
     /* Avoid exceeding the available rows in the vanilla inventory view. */
     int max_rows = term_hgt - 1;
     if (max_rows < 1)
-        max_rows = INVEN_PACK;
-    
-    /* Reserve one row for supplies if they will be shown */
-    int effective_max_items = include_supplies ? (max_rows - 1) : max_rows;
-    
-    /* Limit displayed items to leave room for supplies */
-    if (z > effective_max_items)
-        z = effective_max_items;
+        max_rows = ENHANCED_MAX_LIST;
+    if (max_rows > ENHANCED_MAX_LIST)
+        max_rows = ENHANCED_MAX_LIST;
 
     k = 0;
 
-    if (include_supplies && k < (int)N_ELEMENTS(out_index))
+    if (include_supplies && !inventory_menu_uses_expanded_supplies()
+        && k < max_rows)
     {
         char supply_desc[80];
         format_supply_summary(supply_desc, sizeof(supply_desc));
@@ -3797,7 +4016,37 @@ void show_inven(void)
         k++;
     }
 
-    for (i = 0; i < z && k < (int)N_ELEMENTS(out_index); i++)
+    if (include_supplies && inventory_menu_uses_expanded_supplies())
+    {
+        for (i = 0; i < supplies_entry_count() && k < max_rows; i++)
+        {
+            int item = SUPPLIES_INDEX + i;
+
+            o_ptr = supplies_entry_at(i);
+            if (!o_ptr || !o_ptr->k_idx || !supply_entry_matches_current_filter(i))
+                continue;
+
+            object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+            o_name[lim] = '\0';
+
+            out_index[k] = item;
+            out_color[k] = weapon_glows(o_ptr)
+                ? object_display_color(o_ptr, TERM_L_BLUE)
+                : object_display_color(o_ptr,
+                    tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
+            SDL_strlcpy(out_desc[k], o_name, sizeof(out_desc[0]));
+
+            l = strlen(out_desc[k]) + 5;
+            if (show_weights)
+                l += 9;
+            if (l > len)
+                len = l;
+
+            k++;
+        }
+    }
+
+    for (i = 0; i < INVEN_PACK && k < max_rows; i++)
     {
         o_ptr = &inventory[i];
 
@@ -3845,22 +4094,24 @@ void show_inven(void)
     for (j = 0; j < k; j++)
     {
         int idx = out_index[j];
-        bool is_supply = (idx == SUPPLIES_INDEX);
-        object_type* cur_obj = is_supply ? NULL : &inventory[idx];
+        bool is_supply_summary = inventory_item_is_supply_summary(idx);
+        bool is_supply_entry = inventory_item_is_supply_entry(idx);
+        object_type* cur_obj = is_supply_entry ? supplies_entry_at(idx - SUPPLIES_INDEX)
+            : (is_supply_summary ? NULL : &inventory[idx]);
         if (use_story_font)
         {
             char weight_buf[16];
             cptr weight_ptr = NULL;
             if (show_weights)
             {
-                int wgt = is_supply ? supplies_limit_weight()
+                int wgt = is_supply_summary ? supplies_limit_weight()
                     : (cur_obj->weight * cur_obj->number);
                 strnfmt(weight_buf, sizeof(weight_buf), "%2d.%1d lb", wgt / 10, wgt % 10);
                 weight_ptr = weight_buf;
             }
 
             char label_buf[8];
-            if (is_supply)
+            if (is_supply_summary)
             {
                 char label = supplies_label_char();
                 int slot = supplies_virtual_slot();
@@ -3895,7 +4146,7 @@ void show_inven(void)
         if (show_weights)
         {
             int wgt;
-            if (is_supply)
+            if (is_supply_summary)
                 wgt = supplies_limit_weight();
             else
                 wgt = cur_obj->weight * cur_obj->number;
@@ -3904,7 +4155,7 @@ void show_inven(void)
         }
 
         /* Print the item letter at the end */
-        if (is_supply)
+        if (is_supply_summary)
         {
             char label = supplies_label_char();
             int slot = supplies_virtual_slot();
@@ -4342,20 +4593,12 @@ static bool verify_item(cptr prompt, int item)
 
     object_type* o_ptr;
 
-    if (item == SUPPLIES_INDEX)
+    if (inventory_item_is_supply_summary(item))
         return true;
 
-    /* Inventory */
-    if (item >= 0)
-    {
-        o_ptr = &inventory[item];
-    }
-
-    /* Floor */
-    else
-    {
-        o_ptr = &o_list[0 - item];
-    }
+    o_ptr = inventory_item_to_object_ptr(item);
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
 
     /* Describe */
     if (item < 0)
@@ -4379,22 +4622,12 @@ static bool get_item_allow(int item)
 {
     cptr s;
 
-    if (item == SUPPLIES_INDEX)
+    if (inventory_item_is_supply_summary(item))
         return true;
 
-    object_type* o_ptr;
-
-    /* Inventory */
-    if (item >= 0)
-    {
-        o_ptr = &inventory[item];
-    }
-
-    /* Floor */
-    else
-    {
-        o_ptr = &o_list[0 - item];
-    }
+    object_type* o_ptr = inventory_item_to_object_ptr(item);
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
 
     /* No inscription */
     if (!o_ptr->obj_note)
@@ -4429,22 +4662,12 @@ static bool get_item_allow(int item)
  */
 static bool get_item_okay(int item)
 {
-    object_type* o_ptr;
-
-    if (item == SUPPLIES_INDEX)
+    if (inventory_item_is_supply_summary(item))
         return supplies_visible_for_current_filter();
 
-    /* Inventory */
-    if (item >= 0)
-    {
-        o_ptr = &inventory[item];
-    }
-
-    /* Floor */
-    else
-    {
-        o_ptr = &o_list[0 - item];
-    }
+    object_type* o_ptr = inventory_item_to_object_ptr(item);
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
 
     /* Verify the item */
     return (item_tester_okay(o_ptr));
@@ -4573,6 +4796,8 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
 {
     int py = p_ptr->py;
     int px = p_ptr->px;
+    bool old_inventory_menu_include_equip =
+        inventory_menu_set_include_equip(false);
 
     char which;
 
@@ -4618,6 +4843,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             item_tester_hook = NULL;
 
             /* Success */
+            inventory_menu_set_include_equip(old_inventory_menu_include_equip);
             return (true);
         }
         else
@@ -4656,7 +4882,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         i2--;
 
     /* Accept inventory */
-    if (i1 <= i2)
+    if ((i1 <= i2) || (use_inven && inventory_visible_supply_count() > 0))
         allow_inven = true;
 
     /* Full equipment */
@@ -4761,7 +4987,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
 
     /* Repeat until done */
     /* Row-based display mappings (built when list is visible) */
-    int vis_inven[INVEN_PACK + 1];    /* row -> inven index */
+    int vis_inven[ENHANCED_MAX_LIST];    /* row -> inven index */
     int vis_inven_cnt = 0;
     int vis_equip[INVEN_TOTAL - INVEN_WIELD]; /* row -> equip index */
     int vis_equip_cnt = 0;
@@ -4792,52 +5018,62 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         code;                                                                       \
         story_font_term_pop(&highlight_story_state);                                \
     } else
-/* Build mapping arrays for currently selected list when visible */                 \
+/* Build mapping arrays for currently selected list. */                             \
 #define BUILD_VISIBLE_LIST()                                                         \
     do {                                                                            \
-        if (!p_ptr->command_see) break;                                            \
+        vis_inven_cnt = 0;                                                          \
+        vis_equip_cnt = 0;                                                          \
+        vis_floor_cnt = 0;                                                          \
+        if (!p_ptr->command_see)                                                    \
+            highlight_active = false;                                               \
         if (p_ptr->command_wrk == (USE_INVEN)) {                                    \
-            vis_inven_cnt = 0;                                                      \
-            bool has_supplies = supplies_visible_for_current_filter();              \
-            if (has_supplies && vis_inven_cnt < INVEN_PACK) {                       \
-                vis_inven[vis_inven_cnt++] = SUPPLIES_INDEX;                        \
+            int supply_count = inventory_visible_supply_count();                    \
+            for (int ord = 0; ord < supply_count && vis_inven_cnt < ENHANCED_MAX_LIST; ++ord) { \
+                int item_index = inventory_visible_supply_item_at(ord);             \
+                if (item_index >= SUPPLIES_INDEX)                                   \
+                    vis_inven[vis_inven_cnt++] = item_index;                        \
             }                                                                       \
-            for (int ii = 0; ii < INVEN_PACK && vis_inven_cnt < INVEN_PACK; ++ii) { \
-                if (inventory[ii].k_idx && get_item_okay(ii)) {                     \
-                    /* Stop adding items if we've hit the limit (leaving room for supplies) */ \
-                    if (has_supplies && vis_inven_cnt >= INVEN_PACK) break;         \
+            for (int ii = 0; ii < INVEN_PACK && vis_inven_cnt < ENHANCED_MAX_LIST; ++ii) { \
+                if (inventory[ii].k_idx && get_item_okay(ii))                       \
                     vis_inven[vis_inven_cnt++] = ii;                                \
-                }                                                                   \
             }                                                                       \
-            if (!highlight_active && vis_inven_cnt > 0) {                           \
-                highlight_row = 0; highlight_active = true;                         \
+            if (vis_inven_cnt <= 0) {                                               \
+                highlight_row = -1;                                                 \
+                if (p_ptr->command_see) highlight_active = false;                   \
+            } else if (!highlight_active || highlight_row < 0 || highlight_row >= vis_inven_cnt) { \
+                highlight_row = 0;                                                  \
+                if (p_ptr->command_see) highlight_active = true;                    \
             }                                                                       \
         } else if (p_ptr->command_wrk == (USE_EQUIP)) {                             \
-            vis_equip_cnt = 0;                                                      \
-            for (int ii = INVEN_WIELD; ii < INVEN_TOTAL; ++ii) {                     \
+            for (int ii = INVEN_WIELD; ii < INVEN_TOTAL; ++ii) {                    \
                 bool include_slot = false;                                          \
                 if (inventory[ii].k_idx) {                                          \
                     include_slot = get_item_okay(ii);                               \
                 } else if (throw_slot_menu_active && throw_slot_enabled[ii]) {      \
                     include_slot = true;                                            \
                 }                                                                   \
-                if (include_slot) {                                                 \
+                if (include_slot)                                                   \
                     vis_equip[vis_equip_cnt++] = ii;                                \
-                }                                                                   \
             }                                                                       \
-            if (!highlight_active && vis_equip_cnt > 0) {                           \
-                highlight_row = 0; highlight_active = true;                         \
+            if (vis_equip_cnt <= 0) {                                               \
+                highlight_row = -1;                                                 \
+                if (p_ptr->command_see) highlight_active = false;                   \
+            } else if (!highlight_active || highlight_row < 0 || highlight_row >= vis_equip_cnt) { \
+                highlight_row = 0;                                                  \
+                if (p_ptr->command_see) highlight_active = true;                    \
             }                                                                       \
         } else if (p_ptr->command_wrk == (USE_FLOOR)) {                             \
-            vis_floor_cnt = 0;                                                      \
-            for (int ii = 0; ii < floor_num; ++ii) {                                 \
+            for (int ii = 0; ii < floor_num; ++ii) {                                \
                 int obj_idx = floor_list[ii];                                       \
-                if (get_item_okay(0 - obj_idx)) {                                   \
+                if (get_item_okay(0 - obj_idx))                                     \
                     vis_floor[vis_floor_cnt++] = ii;                                \
-                }                                                                   \
             }                                                                       \
-            if (!highlight_active && vis_floor_cnt > 0) {                           \
-                highlight_row = 0; highlight_active = true;                         \
+            if (vis_floor_cnt <= 0) {                                               \
+                highlight_row = -1;                                                 \
+                if (p_ptr->command_see) highlight_active = false;                   \
+            } else if (!highlight_active || highlight_row < 0 || highlight_row >= vis_floor_cnt) { \
+                highlight_row = 0;                                                  \
+                if (p_ptr->command_see) highlight_active = true;                    \
             }                                                                       \
         }                                                                           \
     } while (0)
@@ -4874,10 +5110,11 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         if (p_ptr->command_wrk == (USE_INVEN)) {                                    \
             for (int r=0;r<vis_inven_cnt;r++){                                      \
                 int entry = vis_inven[r];                                           \
-                if (entry == SUPPLIES_INDEX) {                                      \
+                if (inventory_item_is_supply_summary(entry)) {                      \
                     format_supply_summary(tmp, sizeof(tmp));                       \
                 } else {                                                            \
-                    object_type* o_ptr=&inventory[entry];                           \
+                    object_type* o_ptr = inventory_item_to_object_ptr(entry);       \
+                    if (!o_ptr || !o_ptr->k_idx) continue;                          \
                     object_desc(tmp, sizeof(tmp), o_ptr, true, 3);                  \
                 }                                                                   \
                 tmp[lim]='\0';                                                     \
@@ -4908,7 +5145,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             row = highlight_row; item_index = vis_inven[highlight_row];             \
             prt("", row+1, col);                                         \
             int label_col = label_col_base;                                         \
-            if (item_index == SUPPLIES_INDEX) {                                     \
+            if (inventory_item_is_supply_summary(item_index)) {                     \
                 char label = supplies_label_char();                                 \
                 int slot = supplies_virtual_slot();                                 \
                 if (!label && slot >= 0) label = index_to_label(slot);              \
@@ -4932,7 +5169,8 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                     { char lab[8]; sprintf(lab, " (%c)", label); c_put_str(attr,lab,row+1,label_col); }\
                 }                                                                   \
             } else {                                                                \
-                object_type* o_ptr=&inventory[item_index];                          \
+                object_type* o_ptr = inventory_item_to_object_ptr(item_index);      \
+                if (!o_ptr || !o_ptr->k_idx) break;                                 \
                 object_desc(tmp,sizeof(tmp),o_ptr,true,3); tmp[lim]='\0';           \
                 DRAW_HIGHLIGHT_IF_STORY({                                           \
                     char lab[8]; sprintf(lab, "(%c)", index_to_label(item_index));  \
@@ -5048,11 +5286,11 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             sprintf(out_val, "Inven:");
 
             /* List choices */
-            if (i1 <= i2)
+            if (vis_inven_cnt > 0)
             {
                 /* Build the prompt */
-                sprintf(
-                    tmp_val, " %c-%c,", index_to_label(i1), index_to_label(i2));
+                sprintf(tmp_val, " %c-%c,", index_to_label(vis_inven[0]),
+                    index_to_label(vis_inven[vis_inven_cnt - 1]));
 
                 /* Append */
                 SDL_strlcat(out_val, tmp_val, sizeof(out_val));
@@ -5211,7 +5449,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
 
                 if (have_selection)
                 {
-                    if ((k >= 0 && k < INVEN_WIELD && !allow_inven) ||
+                    if ((inventory_item_uses_inven_channel(k) && !allow_inven) ||
                         (k >= INVEN_WIELD && k < INVEN_TOTAL && !allow_equip) ||
                         (k < 0 && !allow_floor) ||
                         !get_item_okay(k) ||
@@ -5414,7 +5652,8 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             }
 
             /* Hack -- Validate the item */
-            if ((k < INVEN_WIELD) ? !allow_inven : !allow_equip)
+            if (inventory_item_uses_inven_channel(k) ? !allow_inven
+                : !allow_equip)
             {
                 bell("Illegal object choice (tag)!");
                 break;
@@ -5449,31 +5688,28 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             /* Convert letter to inventory index */
             if (p_ptr->command_wrk == (USE_INVEN))
             {
-                for (i = INVEN_PACK; i >= 0; i--)
+                if (vis_inven_cnt > 0)
                 {
-                    if (get_item_okay(i) && ((which == '[') || !item_found))
-                    {
-                        k = i;
-                        item_found = true;
-                    }
+                    k = (which == '[') ? vis_inven[0]
+                        : vis_inven[vis_inven_cnt - 1];
+                    item_found = true;
                 }
             }
 
             /* Convert letter to equipment index */
             else if (p_ptr->command_wrk == (USE_EQUIP))
             {
-                for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+                if (vis_equip_cnt > 0)
                 {
-                    if (get_item_okay(i) && ((which == ']') || !item_found))
-                    {
-                        k = i;
-                        item_found = true;
-                    }
+                    k = (which == '[') ? vis_equip[0]
+                        : vis_equip[vis_equip_cnt - 1];
+                    item_found = true;
                 }
             }
 
             /* Hack -- Validate the item */
-            if ((k < INVEN_WIELD) ? !allow_inven : !allow_equip)
+            if (inventory_item_uses_inven_channel(k) ? !allow_inven
+                : !allow_equip)
             {
                 bell("Illegal object choice (tag)!");
                 break;
@@ -5519,13 +5755,13 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             /* Choose "default" inventory item */
             if (p_ptr->command_wrk == (USE_INVEN))
             {
-                if (i1 != i2)
+                if (vis_inven_cnt != 1)
                 {
                     bell("Illegal object choice (default)!");
                     break;
                 }
 
-                k = i1;
+                k = vis_inven[0];
             }
 
             /* Choose "default" equipment item */
@@ -5740,6 +5976,8 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         repeat_push(*cp);
 
 #endif /* ALLOW_REPEAT */
+
+    inventory_menu_set_include_equip(old_inventory_menu_include_equip);
 
     /* Result */
     return (item);

@@ -1760,6 +1760,49 @@ static int inven_damage(inven_func typ, int perc, int resistance)
             /* Some casualities */
             if (amt)
             {
+                if ((typ == set_cold_destroy) && (o_ptr->tval == TV_LIGHT)
+                    && (o_ptr->sval == SV_LIGHT_LANTERN))
+                {
+                    object_desc(o_name, sizeof(o_name), o_ptr, false, 3);
+
+                    if (amt == o_ptr->number)
+                    {
+                        if (object_break_brass_lantern(o_ptr))
+                        {
+                            msg_format("%sour %s (%c) %s broken!",
+                                (amt > 1) ? "All of y" : "Y",
+                                o_name, index_to_label(i),
+                                (amt > 1) ? "were" : "was");
+                            p_ptr->update |= PU_BONUS;
+                            p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
+                            k += amt;
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        object_type broken_copy;
+                        object_wipe(&broken_copy);
+                        object_copy(&broken_copy, o_ptr);
+                        broken_copy.number = amt;
+
+                        if (object_break_brass_lantern(&broken_copy))
+                        {
+                            msg_format("%sour %s (%c) %s broken!",
+                                (amt > 1) ? "Some of y" : "One of y",
+                                o_name, index_to_label(i),
+                                (amt > 1) ? "were" : "was");
+                            inven_item_increase(i, -amt);
+                            if (!supplies_absorb_object(&broken_copy))
+                                drop_near(&broken_copy, 0, p_ptr->py, p_ptr->px);
+                            p_ptr->update |= PU_BONUS;
+                            p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
+                            k += amt;
+                            continue;
+                        }
+                    }
+                }
+
                 int old_charges = 0;
 
                 /*hack, make sure the proper number of charges is displayed in
@@ -2129,7 +2172,7 @@ void cold_dam_mixed(int dam, cptr kb_str)
     inven_damage(set_cold_destroy, inv, resist_cold());
 
     /* Supply damage */
-    supplies_damage(set_cold_destroy, inv, resist_cold());
+    supplies_damage_cold(inv, resist_cold());
 
     // possibly identify relevant items
     ident_resist(TR2_RES_COLD);
@@ -2174,7 +2217,7 @@ void cold_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str)
     inven_damage(set_cold_destroy, inv, resistance);
 
     /* Supply damage */
-    supplies_damage(set_cold_destroy, inv, resistance);
+    supplies_damage_cold(inv, resistance);
 
     // possibly identify relevant items
     ident_resist(TR2_RES_COLD);
@@ -3054,6 +3097,25 @@ static bool project_o(int who, int y, int x, int dd, int ds, int dif, int typ)
         /* Cold -- potions and flasks */
         case GF_COLD:
         {
+            if ((o_ptr->tval == TV_LIGHT) && (o_ptr->sval == SV_LIGHT_LANTERN)
+                && !(f3 & TR3_IGNORE_COLD))
+            {
+                if (o_ptr->marked)
+                {
+                    obvious = true;
+                    object_desc(o_name, sizeof(o_name), o_ptr, false, 0);
+                }
+
+                if (object_break_brass_lantern(o_ptr))
+                {
+                    if (o_ptr->marked)
+                        msg_format("The %s %s broken!", o_name,
+                            (plural ? "are" : "is"));
+                    lite_spot(y, x);
+                    break;
+                }
+            }
+
             if (hates_cold(o_ptr))
             {
                 note_kill = (plural ? " shatter!" : " shatters!");

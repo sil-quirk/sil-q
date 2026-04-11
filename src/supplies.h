@@ -22,7 +22,7 @@ typedef enum supply_group
 #define PLAYER_BRASS_LAMP_CAP 2
 #define PLAYER_LESSER_JEWEL_CAP 2
 #define PLAYER_FEANORIAN_LAMP_CAP 2
-#define PLAYER_LAMP_OIL_MAX 14000
+#define PLAYER_LAMP_OIL_MAX 15000
 
 typedef enum supply_menu_action
 {
@@ -81,11 +81,16 @@ bool player_light_has_fuel(const struct object_type* o_ptr);
 bool player_light_destroyed_on_drop(const struct object_type* o_ptr);
 void player_light_set_fuel(struct object_type* o_ptr, int fuel);
 void player_light_add_fuel(struct object_type* o_ptr, int amount);
+int player_lamp_oil_capacity(void);
+int player_lamp_oil_capacity_with_bonus(int lantern_bonus);
 int player_lamp_oil(void);
 int player_lamp_oil_weight(void);
 void player_set_lamp_oil(int oil);
 bool player_lamp_oil_would_overflow(int addition);
+bool player_lamp_oil_would_overflow_with_bonus(int addition, int lantern_bonus);
 bool player_gain_lamp_oil(int addition, bool allow_overflow);
+bool player_gain_lamp_oil_with_bonus(int addition, bool allow_overflow,
+    int lantern_bonus);
 bool player_prepare_lantern_drop(int lanterns_being_dropped,
     int* oil_to_transfer, int* oil_to_lose);
 int player_carried_torch_count(void);
@@ -120,5 +125,6 @@ bool supplies_pending_hotkey(void);
 
 /* Damage supply items (similar to inven_damage) */
 int supplies_damage(int (*typ)(const struct object_type*), int perc, int resistance);
+int supplies_damage_cold(int perc, int resistance);
 
 #endif /* SUPPLIES_H */

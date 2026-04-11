@@ -1061,7 +1061,8 @@ extern void display_equip(void);
 extern void show_inven(void);
 extern void show_equip(void);
 extern void show_inven_enhanced(void);
-extern void inventory_menu_set_include_equip(bool include);
+extern bool inventory_menu_set_include_equip(bool include);
+extern bool inventory_menu_set_expand_supplies(bool enabled);
 extern void show_equip_enhanced(void);
 extern void show_floor(const int* floor_list, int floor_num);
 extern void toggle_inven_equip(void);
@@ -1101,6 +1102,7 @@ extern u32b ego_item_pval_flags1(const ego_item_type* e_ptr);
 extern u32b object_pval_flags1(const object_type* o_ptr);
 extern void object_apply_pval_delta_with_mask(object_type* o_ptr, u32b mask, int delta);
 extern bool object_apply_ego_affix(object_type* o_ptr, int e_idx, bool smithing);
+extern bool object_break_brass_lantern(object_type* o_ptr);
 extern void object_into_special(object_type* o_ptr, int lev, bool smithing);
 extern void check_artifact_visibility(void);
 extern void apply_magic(object_type* o_ptr, int lev, bool okay, bool good,
