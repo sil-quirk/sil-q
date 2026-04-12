@@ -648,6 +648,8 @@ extern void do_cmd_bash(void);
 extern void do_cmd_steal(void);
 extern void do_cmd_alter(void);
 extern void do_cmd_spike(void);
+extern void chest_release_contents(struct object_type* o_ptr, int y, int x,
+    int destroy_typ);
 extern bool do_cmd_walk_test(int y, int x);
 extern void do_cmd_walk(void);
 extern void do_cmd_jump(void);
@@ -1294,15 +1296,21 @@ extern bool hates_acid(const object_type* o_ptr);
 extern bool hates_elec(const object_type* o_ptr);
 extern bool hates_fire(const object_type* o_ptr);
 extern bool hates_cold(const object_type* o_ptr);
-extern void acid_dam(int dam, cptr kb_str);
-extern void elec_dam(int dam, cptr kb_str);
+extern bool elemental_attack_destroys_object(int attack_type,
+    const object_type* o_ptr);
+extern void acid_dam(int raw_dam, int min_raw, int max_raw, int hp_dam,
+    cptr kb_str);
+extern void elec_dam(int raw_dam, int min_raw, int max_raw, int hp_dam,
+    cptr kb_str);
 extern int resist_fire(void);
 extern int resist_cold(void);
 extern int resist_pois(void);
 extern int resist_dark(void);
-extern void fire_dam_mixed(int dam, cptr kb_str);
+extern void fire_dam_mixed(int raw_dam, int min_raw, int max_raw, int hp_dam,
+    cptr kb_str);
 extern void fire_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str);
-extern void cold_dam_mixed(int dam, cptr kb_str);
+extern void cold_dam_mixed(int raw_dam, int min_raw, int max_raw, int hp_dam,
+    cptr kb_str);
 extern void cold_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str);
 extern void dark_dam_mixed(int dam, cptr kb_str);
 extern void dark_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str);

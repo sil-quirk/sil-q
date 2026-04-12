@@ -1443,7 +1443,8 @@ bool make_attack_normal(monster_type* m_ptr)
                 msg_print("You are covered in acid!");
 
                 /* Special damage */
-                acid_dam(net_dam, ddesc);
+                acid_dam(dam, total_damage_dice, total_damage_dice * ds,
+                    net_dam, ddesc);
 
                 dam_type = GF_ACID;
 
@@ -1461,7 +1462,8 @@ bool make_attack_normal(monster_type* m_ptr)
                     msg_print("You are struck by electricity!");
 
                 /* Take damage (special) */
-                elec_dam(net_dam, ddesc);
+                elec_dam(dam, total_damage_dice, total_damage_dice * ds,
+                    net_dam, ddesc);
 
                 dam_type = GF_ELEC;
 
@@ -1509,7 +1511,8 @@ bool make_attack_normal(monster_type* m_ptr)
                     msg_print("You are enveloped in flames!");
 
                 /* Take damage (special) */
-                fire_dam_mixed(net_dam, ddesc);
+                fire_dam_mixed(dam, total_damage_dice, total_damage_dice * ds,
+                    net_dam, ddesc);
 
                 dam_type = GF_FIRE;
 
@@ -1526,7 +1529,8 @@ bool make_attack_normal(monster_type* m_ptr)
                     msg_print("You are covered with frost!");
 
                 /* Take damage (special) */
-                cold_dam_mixed(net_dam, ddesc);
+                cold_dam_mixed(dam, total_damage_dice, total_damage_dice * ds,
+                    net_dam, ddesc);
 
                 dam_type = GF_COLD;
 

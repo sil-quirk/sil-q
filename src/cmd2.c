@@ -897,27 +897,29 @@ static chest_alignment_type chest_item_alignment(const object_type* o_ptr)
 }
 
 /*
- * Allocate objects upon opening a chest
+ * Allocate objects upon opening or destroying a chest.
  *
- * Disperse treasures from the given chest, centered at (x,y).
- *
+ * Disperse treasures from the given chest, centered at (x,y).  If
+ * destroy_typ is an elemental attack, any generated contents vulnerable to
+ * that element are destroyed instead of being dropped.
  */
-static void chest_death(int y, int x, s16b o_idx)
+void chest_release_contents(object_type* o_ptr, int y, int x, int destroy_typ)
 {
     int number;
     bool generated_an_item = false;
+    bool dropped_an_item = false;
     chest_alignment_type chest_alignment = CHEST_ALIGNMENT_STANDARD;
+    int destroyed_contents = 0;
+    int old_generation_mode = object_generation_mode;
     bool old_allow_noble = drop_allow_noble;
     bool old_allow_evil = drop_allow_evil;
-
-    object_type* o_ptr;
 
     object_type* i_ptr;
 
     object_type object_type_body;
 
-    /* Get the chest */
-    o_ptr = &o_list[o_idx];
+    if (!o_ptr || o_ptr->tval != TV_CHEST)
+        return;
 
     /* Determine how much to drop (see above) */
     number = (o_ptr->sval >= SV_CHEST_MIN_LARGE) ? 4 : rand_range(2, 3);
@@ -1006,13 +1008,23 @@ static void chest_death(int y, int x, s16b o_idx)
             }
 
             generated_an_item = true;
+
+            if ((destroy_typ >= 0)
+                && elemental_attack_destroys_object(destroy_typ, i_ptr))
+            {
+                destroyed_contents++;
+                accepted = true;
+                continue;
+            }
+
             drop_near(i_ptr, -1, y, x);
+            dropped_an_item = true;
             accepted = true;
         }
     }
 
     /* No longer opening a chest */
-    object_generation_mode = OB_GEN_MODE_NORMAL;
+    object_generation_mode = old_generation_mode;
     drop_allow_noble = old_allow_noble;
     drop_allow_evil = old_allow_evil;
 
@@ -1029,6 +1041,25 @@ static void chest_death(int y, int x, s16b o_idx)
     {
         msg_print("The chest is empty.");
     }
+    else if (!dropped_an_item && destroyed_contents > 0)
+    {
+        msg_print("The chest's contents are ruined.");
+    }
+    else if (destroyed_contents > 0)
+    {
+        msg_print("Some of the chest's contents are ruined.");
+    }
+}
+
+/*
+ * Allocate objects upon opening a chest
+ *
+ * Disperse treasures from the given chest, centered at (x,y).
+ *
+ */
+static void chest_death(int y, int x, s16b o_idx)
+{
+    chest_release_contents(&o_list[o_idx], y, x, -1);
 }
 
 /*
