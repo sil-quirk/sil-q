@@ -41,6 +41,52 @@ static void redraw_monster_subwindows(void);
 static void smith_ui_reset_description_state(void);
 static void controller_prompt_label(int binding, const char* fallback, char* buf, size_t buflen);
 
+static bool heavy_armour_desc_evasion_bonus_applies(const object_type* o_ptr)
+{
+    return (o_ptr->tval == TV_MAIL)
+        && ((o_ptr->sval == SV_MAIL_CORSLET)
+            || (o_ptr->sval == SV_LONG_CORSLET));
+}
+
+static int heavy_armour_desc_current_weight(void)
+{
+    int i;
+    int armour_weight = 0;
+
+    for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+
+        /* Off-hand weapons are not counted as armour weight. */
+        if ((i == INVEN_ARM) && (o_ptr->tval != TV_SHIELD))
+            continue;
+
+        if (i >= INVEN_BODY)
+            armour_weight += o_ptr->weight;
+    }
+
+    return armour_weight;
+}
+
+static int heavy_armour_desc_current_evasion_bonus(void)
+{
+    int i;
+    int bonus = 0;
+
+    for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+
+        if (!o_ptr->k_idx)
+            continue;
+
+        if (heavy_armour_desc_evasion_bonus_applies(o_ptr))
+            bonus++;
+    }
+
+    return bonus;
+}
+
 typedef struct knowledge_browser_layout knowledge_browser_layout;
 typedef struct knowledge_browser_state knowledge_browser_state;
 
@@ -2983,6 +3029,26 @@ int abilities_menu2(int skilltype, int* highlight)
                         {
                             text_out_to_screen(TERM_SLATE, "\n\nCurrent bonus: +0 stealth (no monsters encountered yet)");
                         }
+                    }
+
+                    if ((skilltype == S_EVN)
+                        && (b_ptr->abilitynum == EVN_HEAVY_ARMOUR))
+                    {
+                        const int armour_weight = heavy_armour_desc_current_weight();
+                        const int protection_bonus = armour_weight / 150;
+                        const int evasion_bonus =
+                            heavy_armour_desc_current_evasion_bonus();
+                        const bool learned =
+                            p_ptr->have_ability[skilltype][b_ptr->abilitynum];
+                        char bonus_text[160];
+
+                        strnfmt(bonus_text, sizeof(bonus_text),
+                            learned
+                                ? "\n\nCurrent bonus: +%d protection vs physical attacks and %+d evasion (%d.%d lb counted)"
+                                : "\n\nWith current equipment, this would grant +%d protection vs physical attacks and %+d evasion (%d.%d lb counted)",
+                            protection_bonus, evasion_bonus, armour_weight / 10,
+                            armour_weight % 10);
+                        text_out_to_screen(TERM_L_GREEN, bonus_text);
                     }
                 }
 
