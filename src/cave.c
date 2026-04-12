@@ -1071,6 +1071,34 @@ static byte darken(byte a, byte c)
     return (a);
 }
 
+static void feature_visual(const feature_type* f_ptr, byte* a, char* c)
+{
+    if (graphics_are_ascii())
+    {
+        *a = f_ptr->d_attr;
+        *c = f_ptr->d_char;
+    }
+    else
+    {
+        *a = f_ptr->x_attr;
+        *c = f_ptr->x_char;
+    }
+}
+
+static void monster_visual(const monster_race* r_ptr, byte* a, char* c)
+{
+    if (graphics_are_ascii())
+    {
+        *a = r_ptr->d_attr;
+        *c = r_ptr->d_char;
+    }
+    else
+    {
+        *a = r_ptr->x_attr;
+        *c = r_ptr->x_char;
+    }
+}
+
 static void special_lighting_floor(byte* a, char* c, int info, int light)
 {
     /* Determine if this grid should appear dark because of blindness or lack of light. */
@@ -1585,11 +1613,7 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
         /* Get the darkness feature */
         f_ptr = &f_info[FEAT_NONE];
 
-        /* Normal attr */
-        a = f_ptr->x_attr;
-
-        /* Normal char */
-        c = f_ptr->x_char;
+        feature_visual(f_ptr, &a, &c);
     }
 
     // hiding squares out of line of sight during rage
@@ -1598,11 +1622,7 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
         /* Get the darkness feature */
         f_ptr = &f_info[FEAT_NONE];
 
-        /* Normal attr */
-        a = f_ptr->x_attr;
-
-        /* Normal char */
-        c = f_ptr->x_char;
+        feature_visual(f_ptr, &a, &c);
     }
 
     /* Boring grids (floors, etc) */
@@ -1621,11 +1641,7 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
             /* Get the floor feature */
             f_ptr = &f_info[feat];
 
-            /* Normal attr */
-            a = f_ptr->x_attr;
-
-            /* Normal char */
-            c = f_ptr->x_char;
+            feature_visual(f_ptr, &a, &c);
 
             /* Optional: apply group-based override for floor tiles */
             (void)apply_style_floor_graphics(y, x, feat, info, &a, &c);
@@ -1640,11 +1656,7 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
             /* Get the darkness feature */
             f_ptr = &f_info[FEAT_NONE];
 
-            /* Normal attr */
-            a = f_ptr->x_attr;
-
-            /* Normal char */
-            c = f_ptr->x_char;
+            feature_visual(f_ptr, &a, &c);
         }
     }
 
@@ -1666,11 +1678,7 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
             /* Get the feature */
             f_ptr = &f_info[feat];
 
-            /* Normal attr */
-            a = f_ptr->x_attr;
-
-            /* Normal char */
-            c = f_ptr->x_char;
+            feature_visual(f_ptr, &a, &c);
 
             /* Optional: apply group-based override for doors */
             (void)apply_style_door_graphics(y, x, feat, info, &a, &c);
@@ -1835,11 +1843,7 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
             /* Get the darkness feature */
             f_ptr = &f_info[FEAT_NONE];
 
-            /* Normal attr */
-            a = f_ptr->x_attr;
-
-            /* Normal char */
-            c = f_ptr->x_char;
+            feature_visual(f_ptr, &a, &c);
         }
     }
 
@@ -1862,8 +1866,7 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
             floor_feat = FEAT_RAGE_FLOOR;
 
         feature_type* floor_ptr = &f_info[floor_feat];
-        terrain_a = floor_ptr->x_attr;
-        terrain_c = floor_ptr->x_char;
+        feature_visual(floor_ptr, &terrain_a, &terrain_c);
 
         (void)apply_style_floor_graphics(y, x, floor_feat, info, &terrain_a, &terrain_c);
         special_lighting_floor(&terrain_a, &terrain_c, info, cave_light[y][x]);
@@ -1924,10 +1927,7 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
             }
 
             /* Desired attr */
-            da = r_ptr->x_attr;
-
-            /* Desired char */
-            dc = r_ptr->x_char;
+            monster_visual(r_ptr, &da, &dc);
 
             /* Special attr/char codes */
             if ((da & 0x80) && (dc & 0x80))
@@ -2023,14 +2023,13 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
         if (graphics_are_ascii())
         {
             a = health_attr(p_ptr->chp, p_ptr->mhp);
-            c = r_ptr->x_char;
+            c = r_ptr->d_char;
         }
         else
         {
             r_ptr = &r_info[p_ptr->prace]; // XXX grafic for player
 
-            a = r_ptr->x_attr;
-            c = r_ptr->x_char;
+            monster_visual(r_ptr, &a, &c);
             c += player_tile_offset();
         }
     }
@@ -2716,8 +2715,14 @@ static byte priority(byte a, char c)
         f_ptr = &f_info[p0];
 
         /* Check character and attribute, accept matches */
-        if ((f_ptr->x_char == c) && (f_ptr->x_attr == a))
-            return (p1);
+        {
+            byte fa;
+            char fc;
+
+            feature_visual(f_ptr, &fa, &fc);
+            if ((fc == c) && (fa == a))
+                return (p1);
+        }
     }
 
     /* Default */
@@ -2912,10 +2917,7 @@ void display_map(int* cy, int* cx)
     /*** Make sure the player is visible ***/
 
     /* Get the "player" attr */
-    ta = r_ptr->x_attr;
-
-    /* Get the "player" char */
-    tc = r_ptr->x_char;
+    monster_visual(r_ptr, &ta, &tc);
 
     /* Draw the player */
     Term_putch(col + 1, row + 1, ta, tc);
