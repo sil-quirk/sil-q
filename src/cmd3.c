@@ -3636,7 +3636,8 @@ static bool unified_look_can_show_marked_object_at(int y, int x)
 {
     int o_idx = cave_o_idx[y][x];
 
-    return (o_idx > 0) && o_list[o_idx].marked && grid_info_is_available(y, x);
+    return (o_idx > 0) && o_list[o_idx].k_idx && o_list[o_idx].marked
+        && grid_info_is_available(y, x);
 }
 
 static bool unified_look_sidebar_in_radius(const unified_look_state* state, int y,
@@ -3679,6 +3680,9 @@ static int unified_look_count_visible_entities(unified_look_state* state)
                 continue;
 
             object_type* o_ptr = &o_list[o_idx];
+
+            if (!o_ptr->k_idx)
+                continue;
 
             /* Only count marked (memorized) objects (matches sidebar display) */
             if (!o_ptr->marked)
@@ -3725,6 +3729,9 @@ static int unified_look_count_visible_objects_for_group(unified_look_state* stat
             continue;
 
         object_type* o_ptr = &o_list[o_idx];
+
+        if (!o_ptr->k_idx)
+            continue;
 
         /* Only count marked (memorized) objects (matches sidebar display) */
         if (!o_ptr->marked)
@@ -5320,16 +5327,23 @@ void highlight_entity_on_map_type(int y, int x, bool highlight, int entity_type)
         /* Get the original character and color, but show with blue background */
         char display_char;
         byte display_attr;
-        
+        object_type* floor_obj = NULL;
+        bool has_live_object = false;
+
+        if (cave_o_idx[y][x] > 0)
+        {
+            floor_obj = &o_list[cave_o_idx[y][x]];
+            has_live_object = floor_obj->k_idx ? true : false;
+        }
+
         /* Determine what to display based on entity_type preference */
         /* entity_type: 0=auto-detect, 1=prefer monster, 2=prefer object */
-        
-        if (entity_type == 2 && cave_o_idx[y][x] > 0)
+
+        if (entity_type == 2 && has_live_object)
         {
             /* Prefer object display */
-            object_type* o_ptr = &o_list[cave_o_idx[y][x]];
-            display_char = object_char(o_ptr);
-            display_attr = object_attr(o_ptr); /* Keep original object color */
+            display_char = object_char(floor_obj);
+            display_attr = object_attr(floor_obj); /* Keep original object color */
             log_trace("Highlighting object '%c' at (%d,%d) -> showing normal color", 
                      display_char, y, x);
         }
@@ -5353,12 +5367,11 @@ void highlight_entity_on_map_type(int y, int x, bool highlight, int entity_type)
             log_trace("Highlighting monster '%c' at (%d,%d) -> showing normal color", 
                      display_char, y, x);
         }
-        else if (cave_o_idx[y][x] > 0)
+        else if (has_live_object)
         {
             /* Auto-detect: For objects, show normal appearance (no color change) */
-            object_type* o_ptr = &o_list[cave_o_idx[y][x]];
-            display_char = object_char(o_ptr);
-            display_attr = object_attr(o_ptr); /* Keep original object color */
+            display_char = object_char(floor_obj);
+            display_attr = object_attr(floor_obj); /* Keep original object color */
             log_trace("Highlighting object '%c' at (%d,%d) -> showing normal color", 
                      display_char, y, x);
         }

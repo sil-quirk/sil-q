@@ -1107,6 +1107,9 @@ bool supplies_drop_amount(int idx, int amount)
         msg_format("You discard %s; %s too spent to keep.",
             o_name, (drop.number > 1) ? "they are" : "it is");
         supplies_consume_quantity(idx, amount);
+        p_ptr->redraw |= (PR_MAP | PR_LIGHT);
+        p_ptr->window |= (PW_MESSAGE);
+        handle_stuff();
         return true;
     }
 

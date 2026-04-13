@@ -7162,6 +7162,9 @@ void inven_drop(int item, int amt)
         inven_item_increase(item, -amt);
         inven_item_describe(item);
         inven_item_optimize(item);
+        p_ptr->redraw |= (PR_MAP | PR_LIGHT);
+        p_ptr->window |= (PW_MESSAGE);
+        handle_stuff();
         return;
     }
 

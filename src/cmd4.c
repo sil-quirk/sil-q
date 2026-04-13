@@ -1066,6 +1066,263 @@ static void ability_menu_render_prerequisites_block(int skilltype,
     Term_gotoxy(desc_col, row);
 }
 
+static int ability_menu_stepped_song_bonus(int skill, int first_threshold,
+    int next_gap)
+{
+    int bonus = 1;
+    int threshold = first_threshold;
+    int gap = next_gap;
+
+    if (skill < 0)
+        skill = 0;
+
+    while (skill > threshold)
+    {
+        bonus++;
+        threshold += gap;
+        gap++;
+    }
+
+    return bonus;
+}
+
+static int ability_menu_current_song_score(void)
+{
+    return MAX(0, p_ptr->skill_use[S_SNG]);
+}
+
+static int ability_menu_minor_song_score(int song_skill)
+{
+    if (song_skill <= 0)
+        return 0;
+
+    if (c_info[p_ptr->pcharacter].flags_u & UNQ_WOVEN_MASTER)
+        return song_skill;
+
+    return song_skill / 2;
+}
+
+static int ability_menu_song_synergy_bonus(int song_skill)
+{
+    if (song_skill <= 0)
+        return 0;
+
+    return (song_skill + 5) / 10;
+}
+
+static void ability_menu_render_song_bonus_block(const ability_type* b_ptr)
+{
+    int song_skill = ability_menu_current_song_score();
+    char bonus_text[256];
+
+    bonus_text[0] = '\0';
+
+    switch (b_ptr->abilitynum)
+    {
+    case SNG_ELBERETH:
+    {
+        int will_penalty = (song_skill > 0) ? MAX(1, song_skill / 5) : 0;
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: enemy Will -%d.", song_skill,
+            will_penalty);
+        break;
+    }
+    case SNG_CHALLENGE:
+    {
+        int debuff = (song_skill > 0) ? MAX(1, song_skill / 5) : 0;
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: enemy Will and Stealth -%d.",
+            song_skill, debuff);
+        break;
+    }
+    case SNG_DELVINGS:
+    {
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: delving range %d squares.",
+            song_skill, song_skill + 10);
+        break;
+    }
+    case SNG_FREEDOM:
+    {
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: freedom checks use Song %d and grant +1 free action while singing.",
+            song_skill, song_skill);
+        break;
+    }
+    case SNG_SILENCE:
+    {
+        int silence_bonus = song_skill / 2;
+        int enemy_song_penalty = silence_bonus / 2;
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: +%d to hush/noise checks; enemy songs -%d.",
+            song_skill, silence_bonus, enemy_song_penalty);
+        break;
+    }
+    case SNG_STAUNCHING:
+    {
+        int base_heal = song_skill / 12;
+        int extra_turns = song_skill % 12;
+
+        if (extra_turns > 0)
+        {
+            strnfmt(bonus_text, sizeof(bonus_text),
+                "\n\nCurrent effect at Song %d: stops bleeding and heals %d HP/turn, with +1 extra on %d turns in 12.",
+                song_skill, base_heal, extra_turns);
+        }
+        else
+        {
+            strnfmt(bonus_text, sizeof(bonus_text),
+                "\n\nCurrent effect at Song %d: stops bleeding and heals %d HP/turn.",
+                song_skill, base_heal);
+        }
+        break;
+    }
+    case SNG_THRESHOLDS:
+    {
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: door-warding checks use Song %d.",
+            song_skill, song_skill);
+        break;
+    }
+    case SNG_TREES:
+    {
+        int light_radius = ability_menu_stepped_song_bonus(song_skill, 5, 6);
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: +%d light radius.", song_skill,
+            light_radius);
+        break;
+    }
+    case SNG_WOVEN_THEMES:
+    {
+        int minor_skill = ability_menu_minor_song_score(song_skill);
+        int synergy_bonus = ability_menu_song_synergy_bonus(song_skill);
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: a minor theme uses Song %d; a valid synergy pair adds +%d Song.",
+            song_skill, minor_skill, synergy_bonus);
+        break;
+    }
+    case SNG_SLAYING:
+    {
+        int hp_threshold = song_skill * 2;
+        if (c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_HURIN)
+            hp_threshold *= 2;
+
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: criticals can slay foes at %d HP or less.",
+            song_skill, hp_threshold);
+        break;
+    }
+    case SNG_REVEALING:
+    {
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: revealing range %d squares.",
+            song_skill, song_skill + 10);
+        break;
+    }
+    case SNG_ELVENESS:
+    {
+        int evasion_bonus = ability_menu_stepped_song_bonus(song_skill, 7, 8);
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: +1 Grace and +%d Evasion.",
+            song_skill, evasion_bonus);
+        break;
+    }
+    case SNG_STAYING:
+    {
+        int will_bonus = song_skill / 2;
+        int protection_dice = 2;
+
+        if (c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_FIN)
+        {
+            will_bonus = song_skill * 2;
+            protection_dice = 4;
+        }
+
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: +%d Will and [%dd2] protection.",
+            song_skill, will_bonus, protection_dice);
+        break;
+    }
+    case SNG_DISGUISE:
+    {
+        int disguise_bonus = song_skill + 5;
+        const char* extra = (c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_TURGON)
+            ? " + Perception"
+            : "";
+
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: disguise checks use %d + Will%s.",
+            song_skill, disguise_bonus, extra);
+        break;
+    }
+    case SNG_LORIEN:
+    {
+        int sleep_score = song_skill;
+
+        if (c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_LUT)
+            sleep_score = (3 * song_skill) / 2;
+
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: sleep checks use %d.",
+            song_skill, sleep_score);
+        break;
+    }
+    case SNG_SHATTERING:
+    {
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: shatter checks use Song %d; each success has a %d%% weaken chance.",
+            song_skill, song_skill, song_skill / 3);
+        break;
+    }
+    case SNG_MASTERY:
+    {
+        int mastery_bonus = song_skill;
+
+        if (c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_THINGOL)
+            mastery_bonus = (7 * song_skill) / 4;
+
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: mastery rolls are 2d8 + %d.",
+            song_skill, mastery_bonus);
+        break;
+    }
+    case SNG_GRA:
+    {
+        SDL_strlcpy(bonus_text, "\n\nCurrent effect: +1 Grace.",
+            sizeof(bonus_text));
+        break;
+    }
+    case SNG_CONTEST:
+    {
+        int will_penalty = MAX(1, song_skill / 3);
+        int stealth_penalty = MAX(1, song_skill / 2);
+        int evasion_penalty = MAX(1, song_skill / 5);
+        int armour_penalty = MAX(1, song_skill / 12);
+
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: duel checks use Song + Will/2; victory inflicts -%d Will, -%d Stealth, -%d Evasion, -%d armour die.",
+            song_skill, will_penalty, stealth_penalty, evasion_penalty,
+            armour_penalty);
+        break;
+    }
+    case SNG_LAMENT:
+    {
+        int will_penalty = MAX(1, song_skill / 2);
+        int attrition_steps = MAX(1, song_skill / 12);
+
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: duel checks use Song + Will/2; victory inflicts -%d Will and -%d health/damage steps.",
+            song_skill, will_penalty, attrition_steps);
+        break;
+    }
+    default:
+        break;
+    }
+
+    if (bonus_text[0])
+        text_out_to_screen(TERM_L_GREEN, bonus_text);
+}
+
 /* ------------------------------------------------------------------
  * add_random_curse()
  *   � Marks the item cursed
@@ -2991,6 +3248,9 @@ int abilities_menu2(int skilltype, int* highlight)
                         }
                         break;
                     }
+
+                    if (skilltype == S_SNG)
+                        ability_menu_render_song_bonus_block(b_ptr);
 
                     /* For Nienna's Gift of Mercy, show current bonus */
                     if (skilltype == S_SPC && b_ptr->abilitynum == SPC_NIENA_MERCY && 
@@ -23737,6 +23997,9 @@ static int unified_sidebar_collect_sorted_objects(const unified_look_state* stat
             continue;
 
         o_ptr = &o_list[o_idx];
+
+        if (!o_ptr->k_idx)
+            continue;
 
         /* Only show marked (memorized) objects that the player has actually seen. */
         if (!o_ptr->marked)
