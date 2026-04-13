@@ -26,6 +26,10 @@ static int g_supplies_max_weight = SUPPLIES_MAX_WEIGHT_DEFAULT;
 
 static bool g_supply_allow_overflow = false;
 static bool g_supply_limit_warned = false;
+static int g_reserved_torch_lights = 0;
+static int g_reserved_lantern_lights = 0;
+static int g_reserved_lesser_jewels = 0;
+static int g_reserved_feanorian_lamps = 0;
 
 static bool supplies_weight_counts_to_limit(const object_type* o_ptr)
 {
@@ -430,10 +434,54 @@ int player_light_available_capacity(const object_type* o_ptr)
     else
         used = player_carried_light_count_for_sval(o_ptr->sval);
 
+    if (o_ptr->sval == SV_LIGHT_TORCH || o_ptr->sval == SV_LIGHT_MALLORN)
+        used += g_reserved_torch_lights;
+    else if (o_ptr->sval == SV_LIGHT_LANTERN)
+        used += g_reserved_lantern_lights;
+    else if (o_ptr->sval == SV_LIGHT_LESSER_JEWEL)
+        used += g_reserved_lesser_jewels;
+    else if (o_ptr->sval == SV_LIGHT_FEANORIAN)
+        used += g_reserved_feanorian_lamps;
+
     if (used >= cap)
         return 0;
 
     return cap - used;
+}
+
+void player_light_clear_incoming_reservation(void)
+{
+    g_reserved_torch_lights = 0;
+    g_reserved_lantern_lights = 0;
+    g_reserved_lesser_jewels = 0;
+    g_reserved_feanorian_lamps = 0;
+}
+
+void player_light_reserve_incoming(const object_type* o_ptr, int amount)
+{
+    player_light_clear_incoming_reservation();
+
+    if (!o_ptr || !o_ptr->k_idx || o_ptr->tval != TV_LIGHT || amount <= 0)
+        return;
+
+    switch (o_ptr->sval)
+    {
+    case SV_LIGHT_TORCH:
+    case SV_LIGHT_MALLORN:
+        g_reserved_torch_lights = amount;
+        break;
+    case SV_LIGHT_LANTERN:
+        g_reserved_lantern_lights = amount;
+        break;
+    case SV_LIGHT_LESSER_JEWEL:
+        g_reserved_lesser_jewels = amount;
+        break;
+    case SV_LIGHT_FEANORIAN:
+        g_reserved_feanorian_lamps = amount;
+        break;
+    default:
+        break;
+    }
 }
 
 
@@ -547,6 +595,7 @@ void supplies_dispose(void)
     g_pending_group = SUPPLY_GROUP_MAX;
     g_pending_hotkey = false;
     g_supply_limit_warned = false;
+    player_light_clear_incoming_reservation();
 }
 
 void supplies_reset_store(void)
@@ -562,6 +611,7 @@ void supplies_reset_store(void)
     g_pending_group = SUPPLY_GROUP_MAX;
     g_pending_hotkey = false;
     g_supply_limit_warned = false;
+    player_light_clear_incoming_reservation();
 }
 
 bool supplies_is_supply_object(const object_type* o_ptr)

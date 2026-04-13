@@ -4699,8 +4699,20 @@ static bool verify_item(cptr prompt, int item)
         return true;
 
     o_ptr = inventory_item_to_object_ptr(item);
-    if (!o_ptr || !o_ptr->k_idx)
+    if (!o_ptr)
         return false;
+
+    if (!o_ptr->k_idx)
+    {
+        if (item >= INVEN_WIELD && item < INVEN_TOTAL && item_tester_okay(o_ptr))
+        {
+            strnfmt(out_val, sizeof(out_val), "%s %s? ", prompt,
+                describe_empty_slot(item));
+            return get_check(out_val);
+        }
+
+        return false;
+    }
 
     /* Describe */
     if (item < 0)
@@ -4728,8 +4740,16 @@ static bool get_item_allow(int item)
         return true;
 
     object_type* o_ptr = inventory_item_to_object_ptr(item);
-    if (!o_ptr || !o_ptr->k_idx)
+    if (!o_ptr)
         return false;
+
+    if (!o_ptr->k_idx)
+    {
+        if (item >= INVEN_WIELD && item < INVEN_TOTAL && item_tester_okay(o_ptr))
+            return true;
+
+        return false;
+    }
 
     /* No inscription */
     if (!o_ptr->obj_note)
@@ -4768,8 +4788,16 @@ static bool get_item_okay(int item)
         return supplies_visible_for_current_filter();
 
     object_type* o_ptr = inventory_item_to_object_ptr(item);
-    if (!o_ptr || !o_ptr->k_idx)
+    if (!o_ptr)
         return false;
+
+    if (!o_ptr->k_idx)
+    {
+        if (item >= INVEN_WIELD && item < INVEN_TOTAL)
+            return item_tester_okay(o_ptr);
+
+        return false;
+    }
 
     /* Verify the item */
     return (item_tester_okay(o_ptr));

@@ -3935,6 +3935,23 @@ static const char* skeleton_note_stair_site(int feat)
     }
 }
 
+static const char* skeleton_note_stair_title(int feat)
+{
+    switch (feat)
+    {
+    case FEAT_MORE:
+        return "Hint: Down Stairs";
+    case FEAT_MORE_SHAFT:
+        return "Hint: Down Shaft";
+    case FEAT_LESS:
+        return "Hint: Up Stairs";
+    case FEAT_LESS_SHAFT:
+        return "Hint: Up Shaft";
+    default:
+        return "Hint: Stairs";
+    }
+}
+
 static void skeleton_note_partition_meta_for_hint(
     skeleton_hint_kind hint, level_partition_kind* out_kind, big_cave_type_t* out_type)
 {
@@ -4035,7 +4052,7 @@ static void hint_message_meta_add_cue(hint_message_meta* meta, const char* dist,
     strnfmt(meta->cue_dirs[slot], HINT_MESSAGE_CUE_TEXT_MAX, "%s", dir ? dir : "");
 }
 
-static const char* skeleton_hint_title(skeleton_hint_kind hint)
+static const char* skeleton_hint_title(skeleton_hint_kind hint, int stairs_feat)
 {
     switch (hint)
     {
@@ -4044,7 +4061,7 @@ static const char* skeleton_hint_title(skeleton_hint_kind hint)
     case SKEL_HINT_VAULT_ARTIFACT:
         return "Hint: Hidden Artefact";
     case SKEL_HINT_STAIRS:
-        return "Hint: Stairs";
+        return skeleton_note_stair_title(stairs_feat);
     case SKEL_HINT_PARTITION_PRESENCE:
         return "Hint: Layout";
     case SKEL_HINT_FORGE:
@@ -4192,6 +4209,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
     skeleton_partition_focus focus_part;
     focus_part.kind = LEVEL_PART_NONE;
     focus_part.big_cave_type = BIG_CAVE_NONE;
+    int stairs_feat = -1;
     if (hint1 == SKEL_HINT_PARTITION_PRESENCE
         || hint2 == SKEL_HINT_PARTITION_PRESENCE)
     {
@@ -4331,6 +4349,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
             if (skeleton_note_find_nearest_stairs(
                     sval, skel_y, skel_x, &ty, &tx, &feat, &dist))
             {
+                stairs_feat = feat;
                 body_lines[body_count].dir
                     = skeleton_note_direction_phrase(skel_y, skel_x, ty, tx);
                 body_lines[body_count].dist = skeleton_note_distance_phrase(dist, &layout);
@@ -4459,13 +4478,19 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
     char title_buf[100];
     if (hint2 != SKEL_HINT_NONE)
     {
+        const char* title1 = skeleton_hint_title(hint1,
+            (hint1 == SKEL_HINT_STAIRS) ? stairs_feat : -1);
+        const char* title2 = skeleton_hint_title(hint2,
+            (hint2 == SKEL_HINT_STAIRS) ? stairs_feat : -1);
         strnfmt(title_buf, sizeof(title_buf), "Hint: %s & %s",
-            skeleton_hint_title(hint1) + 6,
-            skeleton_hint_title(hint2) + 6);
+            title1 + 6,
+            title2 + 6);
     }
     else
     {
-        strnfmt(title_buf, sizeof(title_buf), "%s", skeleton_hint_title(hint1));
+        strnfmt(title_buf, sizeof(title_buf), "%s",
+            skeleton_hint_title(hint1,
+                (hint1 == SKEL_HINT_STAIRS) ? stairs_feat : -1));
     }
 
     for (int i = 14; i >= 0; --i)

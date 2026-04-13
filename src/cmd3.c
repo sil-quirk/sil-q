@@ -1593,11 +1593,16 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     /* Take off existing item */
     if (o_ptr->k_idx && !combine)
     {
+        /* Count the incoming light before takeoff so swaps cannot exceed caps. */
+        if (slot == INVEN_LITE && player_light_carry_cap(i_ptr) > 0)
+            player_light_reserve_incoming(i_ptr, i_ptr->number);
+
         log_debug(
             "do_cmd_wield: Taking off existing item from slot %d - k_idx=%d, ego_pfx=%d, ego_sfx=%d",
             slot, o_ptr->k_idx, object_ego_prefix(o_ptr), object_ego_suffix(o_ptr));
         /* Take off existing item */
         (void)inven_takeoff(slot, 255);
+        player_light_clear_incoming_reservation();
         
         /* Refresh pointer after takeoff */
         o_ptr = &inventory[slot];

@@ -20388,8 +20388,31 @@ static void display_supply_list(int col, int row, int per_page,
 /*
  * Move the cursor in a browser window
  */
+static int browser_move_index(int cur, int count, int delta, bool wrap)
+{
+    int next;
+
+    if (count <= 0)
+        return 0;
+
+    next = cur + delta;
+    if (wrap)
+    {
+        next %= count;
+        if (next < 0)
+            next += count;
+        return next;
+    }
+
+    if (next >= count)
+        next = count - 1;
+    if (next < 0)
+        next = 0;
+    return next;
+}
+
 static void browser_cursor_with_rows(char ch, int* column, int* grp_cur,
-    int grp_cnt, int* list_cur, int list_cnt, int page_rows)
+    int grp_cnt, int* list_cur, int list_cnt, int page_rows, bool wrap_rows)
 {
     int d;
     int col = *column;
@@ -20412,13 +20435,8 @@ static void browser_cursor_with_rows(char ch, int* column, int* grp_cur,
             int old_grp = grp;
 
             /* Move up or down */
-            grp += ddy[d] * page_jump;
-
-            /* Verify */
-            if (grp >= grp_cnt)
-                grp = grp_cnt - 1;
-            if (grp < 0)
-                grp = 0;
+            grp = browser_move_index(grp, grp_cnt, ddy[d] * page_jump,
+                wrap_rows);
             if (grp != old_grp)
                 list = 0;
         }
@@ -20427,13 +20445,8 @@ static void browser_cursor_with_rows(char ch, int* column, int* grp_cur,
         else
         {
             /* Move up or down */
-            list += ddy[d] * page_jump;
-
-            /* Verify */
-            if (list >= list_cnt)
-                list = list_cnt - 1;
-            if (list < 0)
-                list = 0;
+            list = browser_move_index(list, list_cnt, ddy[d] * page_jump,
+                wrap_rows);
         }
 
         (*grp_cur) = grp;
@@ -20461,13 +20474,7 @@ static void browser_cursor_with_rows(char ch, int* column, int* grp_cur,
         int old_grp = grp;
 
         /* Move up or down */
-        grp += ddy[d];
-
-        /* Verify */
-        if (grp >= grp_cnt)
-            grp = grp_cnt - 1;
-        if (grp < 0)
-            grp = 0;
+        grp = browser_move_index(grp, grp_cnt, ddy[d], wrap_rows);
         if (grp != old_grp)
             list = 0;
     }
@@ -20476,13 +20483,7 @@ static void browser_cursor_with_rows(char ch, int* column, int* grp_cur,
     else
     {
         /* Move up or down */
-        list += ddy[d];
-
-        /* Verify */
-        if (list >= list_cnt)
-            list = list_cnt - 1;
-        if (list < 0)
-            list = 0;
+        list = browser_move_index(list, list_cnt, ddy[d], wrap_rows);
     }
 
     (*grp_cur) = grp;
@@ -22270,7 +22271,8 @@ void do_cmd_knowledge_browser_page(int page)
             default:
                 browser_cursor_with_rows((char)ch, &state.column[page],
                     &state.group_cur[page], artefact_grp_cnt,
-                    &state.entry_cur[page], artefact_cnt, layout.list_rows);
+                    &state.entry_cur[page], artefact_cnt, layout.list_rows,
+                    false);
                 break;
             }
             break;
@@ -22392,7 +22394,8 @@ void do_cmd_knowledge_browser_page(int page)
             default:
                 browser_cursor_with_rows((char)ch, &state.column[page],
                     &state.group_cur[page], object_grp_cnt,
-                    &state.entry_cur[page], object_cnt, layout.list_rows);
+                    &state.entry_cur[page], object_cnt, layout.list_rows,
+                    false);
                 break;
             }
             break;
@@ -22497,7 +22500,8 @@ void do_cmd_knowledge_browser_page(int page)
             default:
                 browser_cursor_with_rows((char)ch, &state.column[page],
                     &state.group_cur[page], monster_grp_cnt,
-                    &state.entry_cur[page], monster_cnt, layout.list_rows);
+                    &state.entry_cur[page], monster_cnt, layout.list_rows,
+                    false);
                 break;
             }
             break;
@@ -23003,7 +23007,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 
         default:
             browser_cursor_with_rows(ch, &column, &grp_cur, grp_cnt, &entry_cur,
-                entry_cnt, layout.list_rows);
+                entry_cnt, layout.list_rows, true);
             break;
         }
     }
