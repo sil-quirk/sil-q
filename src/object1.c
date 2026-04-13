@@ -1510,6 +1510,37 @@ static const char* object_desc_curse_inscription(const object_type* o_ptr,
     return "cursed";
 }
 
+static void object_desc_prepend_prefix(char* dst, size_t dst_size,
+    const char* base, const char* prefix)
+{
+    if (!dst || dst_size == 0)
+        return;
+
+    dst[0] = '\0';
+
+    if (!base)
+        base = "";
+    if (!prefix || !prefix[0])
+    {
+        SDL_strlcpy(dst, base, dst_size);
+        return;
+    }
+
+    if (base[0] == '&' && base[1] == ' ')
+    {
+        SDL_strlcpy(dst, "& ", dst_size);
+        SDL_strlcat(dst, prefix, dst_size);
+        SDL_strlcat(dst, " ", dst_size);
+        SDL_strlcat(dst, base + 2, dst_size);
+    }
+    else
+    {
+        SDL_strlcpy(dst, prefix, dst_size);
+        SDL_strlcat(dst, " ", dst_size);
+        SDL_strlcat(dst, base, dst_size);
+    }
+}
+
 void object_desc(
     char* buf, size_t max, const object_type* o_ptr, int pref, int mode)
 {
@@ -1745,6 +1776,16 @@ void object_desc(
     /* Start dumping the result */
     t = b = tmp_buf;
 
+    /* Insert visible runtime prefixes before normal ego prefixes. */
+    char basenm_with_runtime[128];
+    basenm_with_runtime[0] = '\0';
+    if (object_is_fire_broken(o_ptr))
+    {
+        object_desc_prepend_prefix(
+            basenm_with_runtime, sizeof(basenm_with_runtime), basenm, "(broken)");
+        basenm = basenm_with_runtime;
+    }
+
     /* Insert ego prefix into base name (after '& ' if present). */
     char basenm_with_prefix[128];
     basenm_with_prefix[0] = '\0';
@@ -1777,20 +1818,8 @@ void object_desc(
 
         if (prefix_buf[0])
         {
-            if (basenm[0] == '&' && basenm[1] == ' ')
-            {
-                SDL_strlcpy(basenm_with_prefix, "& ", sizeof(basenm_with_prefix));
-                SDL_strlcat(basenm_with_prefix, prefix_buf, sizeof(basenm_with_prefix));
-                SDL_strlcat(basenm_with_prefix, " ", sizeof(basenm_with_prefix));
-                SDL_strlcat(basenm_with_prefix, basenm + 2, sizeof(basenm_with_prefix));
-            }
-            else
-            {
-                SDL_strlcpy(basenm_with_prefix, prefix_buf, sizeof(basenm_with_prefix));
-                SDL_strlcat(basenm_with_prefix, " ", sizeof(basenm_with_prefix));
-                SDL_strlcat(basenm_with_prefix, basenm, sizeof(basenm_with_prefix));
-            }
-
+            object_desc_prepend_prefix(
+                basenm_with_prefix, sizeof(basenm_with_prefix), basenm, prefix_buf);
             basenm = basenm_with_prefix;
         }
     }
@@ -4670,8 +4699,20 @@ static bool verify_item(cptr prompt, int item)
         return true;
 
     o_ptr = inventory_item_to_object_ptr(item);
-    if (!o_ptr || !o_ptr->k_idx)
+    if (!o_ptr)
         return false;
+
+    if (!o_ptr->k_idx)
+    {
+        if (item >= INVEN_WIELD && item < INVEN_TOTAL && item_tester_okay(o_ptr))
+        {
+            strnfmt(out_val, sizeof(out_val), "%s %s? ", prompt,
+                describe_empty_slot(item));
+            return get_check(out_val);
+        }
+
+        return false;
+    }
 
     /* Describe */
     if (item < 0)
@@ -4699,8 +4740,16 @@ static bool get_item_allow(int item)
         return true;
 
     object_type* o_ptr = inventory_item_to_object_ptr(item);
-    if (!o_ptr || !o_ptr->k_idx)
+    if (!o_ptr)
         return false;
+
+    if (!o_ptr->k_idx)
+    {
+        if (item >= INVEN_WIELD && item < INVEN_TOTAL && item_tester_okay(o_ptr))
+            return true;
+
+        return false;
+    }
 
     /* No inscription */
     if (!o_ptr->obj_note)
@@ -4739,8 +4788,16 @@ static bool get_item_okay(int item)
         return supplies_visible_for_current_filter();
 
     object_type* o_ptr = inventory_item_to_object_ptr(item);
-    if (!o_ptr || !o_ptr->k_idx)
+    if (!o_ptr)
         return false;
+
+    if (!o_ptr->k_idx)
+    {
+        if (item >= INVEN_WIELD && item < INVEN_TOTAL)
+            return item_tester_okay(o_ptr);
+
+        return false;
+    }
 
     /* Verify the item */
     return (item_tester_okay(o_ptr));

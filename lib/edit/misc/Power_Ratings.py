@@ -42,7 +42,7 @@ ABILITY_MULTIPLIER = 0.2  # Multiplier for ability level requirements
 # Characters with Total >= P4_THRESHOLD get P:4, Characters with Total >= P3_THRESHOLD get P:3, >= P2_THRESHOLD get P:2, >= P1_THRESHOLD get P:1
 P4_THRESHOLD = 19
 P3_THRESHOLD = 15
-P2_THRESHOLD = 11.5
+P2_THRESHOLD = 12
 P1_THRESHOLD = 9
 
 # Stat and skill weighting (change here to tune scoring)

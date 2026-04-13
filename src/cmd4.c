@@ -41,6 +41,52 @@ static void redraw_monster_subwindows(void);
 static void smith_ui_reset_description_state(void);
 static void controller_prompt_label(int binding, const char* fallback, char* buf, size_t buflen);
 
+static bool heavy_armour_desc_evasion_bonus_applies(const object_type* o_ptr)
+{
+    return (o_ptr->tval == TV_MAIL)
+        && ((o_ptr->sval == SV_MAIL_CORSLET)
+            || (o_ptr->sval == SV_LONG_CORSLET));
+}
+
+static int heavy_armour_desc_current_weight(void)
+{
+    int i;
+    int armour_weight = 0;
+
+    for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+
+        /* Off-hand weapons are not counted as armour weight. */
+        if ((i == INVEN_ARM) && (o_ptr->tval != TV_SHIELD))
+            continue;
+
+        if (i >= INVEN_BODY)
+            armour_weight += o_ptr->weight;
+    }
+
+    return armour_weight;
+}
+
+static int heavy_armour_desc_current_evasion_bonus(void)
+{
+    int i;
+    int bonus = 0;
+
+    for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+
+        if (!o_ptr->k_idx)
+            continue;
+
+        if (heavy_armour_desc_evasion_bonus_applies(o_ptr))
+            bonus++;
+    }
+
+    return bonus;
+}
+
 typedef struct knowledge_browser_layout knowledge_browser_layout;
 typedef struct knowledge_browser_state knowledge_browser_state;
 
@@ -2983,6 +3029,26 @@ int abilities_menu2(int skilltype, int* highlight)
                         {
                             text_out_to_screen(TERM_SLATE, "\n\nCurrent bonus: +0 stealth (no monsters encountered yet)");
                         }
+                    }
+
+                    if ((skilltype == S_EVN)
+                        && (b_ptr->abilitynum == EVN_HEAVY_ARMOUR))
+                    {
+                        const int armour_weight = heavy_armour_desc_current_weight();
+                        const int protection_bonus = armour_weight / 150;
+                        const int evasion_bonus =
+                            heavy_armour_desc_current_evasion_bonus();
+                        const bool learned =
+                            p_ptr->have_ability[skilltype][b_ptr->abilitynum];
+                        char bonus_text[160];
+
+                        strnfmt(bonus_text, sizeof(bonus_text),
+                            learned
+                                ? "\n\nCurrent bonus: +%d protection vs physical attacks and %+d evasion (%d.%d lb counted)"
+                                : "\n\nWith current equipment, this would grant +%d protection vs physical attacks and %+d evasion (%d.%d lb counted)",
+                            protection_bonus, evasion_bonus, armour_weight / 10,
+                            armour_weight % 10);
+                        text_out_to_screen(TERM_L_GREEN, bonus_text);
                     }
                 }
 
@@ -20322,8 +20388,31 @@ static void display_supply_list(int col, int row, int per_page,
 /*
  * Move the cursor in a browser window
  */
+static int browser_move_index(int cur, int count, int delta, bool wrap)
+{
+    int next;
+
+    if (count <= 0)
+        return 0;
+
+    next = cur + delta;
+    if (wrap)
+    {
+        next %= count;
+        if (next < 0)
+            next += count;
+        return next;
+    }
+
+    if (next >= count)
+        next = count - 1;
+    if (next < 0)
+        next = 0;
+    return next;
+}
+
 static void browser_cursor_with_rows(char ch, int* column, int* grp_cur,
-    int grp_cnt, int* list_cur, int list_cnt, int page_rows)
+    int grp_cnt, int* list_cur, int list_cnt, int page_rows, bool wrap_rows)
 {
     int d;
     int col = *column;
@@ -20346,13 +20435,8 @@ static void browser_cursor_with_rows(char ch, int* column, int* grp_cur,
             int old_grp = grp;
 
             /* Move up or down */
-            grp += ddy[d] * page_jump;
-
-            /* Verify */
-            if (grp >= grp_cnt)
-                grp = grp_cnt - 1;
-            if (grp < 0)
-                grp = 0;
+            grp = browser_move_index(grp, grp_cnt, ddy[d] * page_jump,
+                wrap_rows);
             if (grp != old_grp)
                 list = 0;
         }
@@ -20361,13 +20445,8 @@ static void browser_cursor_with_rows(char ch, int* column, int* grp_cur,
         else
         {
             /* Move up or down */
-            list += ddy[d] * page_jump;
-
-            /* Verify */
-            if (list >= list_cnt)
-                list = list_cnt - 1;
-            if (list < 0)
-                list = 0;
+            list = browser_move_index(list, list_cnt, ddy[d] * page_jump,
+                wrap_rows);
         }
 
         (*grp_cur) = grp;
@@ -20395,13 +20474,7 @@ static void browser_cursor_with_rows(char ch, int* column, int* grp_cur,
         int old_grp = grp;
 
         /* Move up or down */
-        grp += ddy[d];
-
-        /* Verify */
-        if (grp >= grp_cnt)
-            grp = grp_cnt - 1;
-        if (grp < 0)
-            grp = 0;
+        grp = browser_move_index(grp, grp_cnt, ddy[d], wrap_rows);
         if (grp != old_grp)
             list = 0;
     }
@@ -20410,13 +20483,7 @@ static void browser_cursor_with_rows(char ch, int* column, int* grp_cur,
     else
     {
         /* Move up or down */
-        list += ddy[d];
-
-        /* Verify */
-        if (list >= list_cnt)
-            list = list_cnt - 1;
-        if (list < 0)
-            list = 0;
+        list = browser_move_index(list, list_cnt, ddy[d], wrap_rows);
     }
 
     (*grp_cur) = grp;
@@ -22204,7 +22271,8 @@ void do_cmd_knowledge_browser_page(int page)
             default:
                 browser_cursor_with_rows((char)ch, &state.column[page],
                     &state.group_cur[page], artefact_grp_cnt,
-                    &state.entry_cur[page], artefact_cnt, layout.list_rows);
+                    &state.entry_cur[page], artefact_cnt, layout.list_rows,
+                    false);
                 break;
             }
             break;
@@ -22326,7 +22394,8 @@ void do_cmd_knowledge_browser_page(int page)
             default:
                 browser_cursor_with_rows((char)ch, &state.column[page],
                     &state.group_cur[page], object_grp_cnt,
-                    &state.entry_cur[page], object_cnt, layout.list_rows);
+                    &state.entry_cur[page], object_cnt, layout.list_rows,
+                    false);
                 break;
             }
             break;
@@ -22431,7 +22500,8 @@ void do_cmd_knowledge_browser_page(int page)
             default:
                 browser_cursor_with_rows((char)ch, &state.column[page],
                     &state.group_cur[page], monster_grp_cnt,
-                    &state.entry_cur[page], monster_cnt, layout.list_rows);
+                    &state.entry_cur[page], monster_cnt, layout.list_rows,
+                    false);
                 break;
             }
             break;
@@ -22937,7 +23007,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 
         default:
             browser_cursor_with_rows(ch, &column, &grp_cur, grp_cnt, &entry_cur,
-                entry_cnt, layout.list_rows);
+                entry_cnt, layout.list_rows, true);
             break;
         }
     }

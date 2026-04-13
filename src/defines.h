@@ -1908,6 +1908,12 @@
 #define INSCRIP_INDESTRUCTIBLE 100 + 11
 
 /*
+ * Runtime object states stored in object_type.unused3 / unused4.
+ */
+#define OBJECT_RUNTIME_STATE_NONE 0
+#define OBJECT_RUNTIME_STATE_FIRE_BROKEN 1
+
+/*
  * Number of special inscriptions, plus one.
  */
 #define MAX_INSCRIP 12

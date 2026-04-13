@@ -4704,7 +4704,7 @@ void hit_trap(int y, int x)
         update_combat_rolls1b(NULL, PLAYER, true);
         update_combat_rolls2(4, 4, dam, -1, -1, prt, 100, GF_HURT, false);
 
-        acid_dam(net_dam, "an acid trap");
+        acid_dam(dam, 4, 16, net_dam, "an acid trap");
 
         /* Make a small amount of noise */
         monster_perception(true, false, 10);

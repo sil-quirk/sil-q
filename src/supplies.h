@@ -97,6 +97,8 @@ int player_carried_torch_count(void);
 int player_carried_light_count_for_sval(int sval);
 int player_light_carry_cap(const struct object_type* o_ptr);
 int player_light_available_capacity(const struct object_type* o_ptr);
+void player_light_reserve_incoming(const struct object_type* o_ptr, int amount);
+void player_light_clear_incoming_reservation(void);
 
 bool supplies_has_group(int group);
 int supplies_first_entry_for_group(int group);
