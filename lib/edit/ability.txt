@@ -31,7 +31,7 @@
 
 # Version stamp (required)
 
-V:0.9.5
+V:0.9.6
 
 # Melee ---------------------------------------------
 
@@ -641,7 +641,7 @@ T:39:0:99  # Light Source
 N:141:Song of Challenge
 I:7:1:1
 D:Echoing the bold verses of Fingolfin's challenge to Morgoth at the gates of Angband, as preserved in ancient lays. You intone a defiant melody that goads and enrages lesser foes, compelling them to abandon caution and throw themselves recklessly into battle like wolves driven mad by the sound of the hunter's horn.
-E:Reduces enemy Will and Stealth by Song/4 each. Enrages foes into reckless attacks.
+E:Reduces enemy Will and Stealth by Song/5 each. Enrages foes into reckless attacks.
 T:32:0:99  # Helm
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms

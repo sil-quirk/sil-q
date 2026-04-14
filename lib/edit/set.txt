@@ -25,7 +25,7 @@
 #    tokens: STR, DEX, CON, GRA, MEL|MELEE, ARC|ARCHERY, STL|STEALTH,
 #            PER|PERCEPTION, WIL|WILL, SMT|SMITHING, SNG|SONG
 #
-V:0.9.5
+V:0.9.6
 
 
 #################################################################

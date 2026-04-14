@@ -52,17 +52,20 @@
 // #define STEAMDECK_SUPPORT
 
 /* Formalized new fork versioning (canonical source for all modules) */
-#define VERSION_STRING "0.9.5.8"
+#define VERSION_STRING "0.9.6"
 /*
- * Version components (0.9.5.0).  All on-disk formats (saves, scores, metaruns)
+ * Version components (0.9.6.0).  All on-disk formats (saves, scores, metaruns)
  * MUST match these values; never bump individual subsystems independently.
  */
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 9
-#define VERSION_PATCH 5
-#define VERSION_EXTRA 8   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
+#define VERSION_PATCH 6
+#define VERSION_EXTRA 0   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
 /* Update MIN_VERSION_EXTRA whenever the savefile format changes. */
 #define MIN_VERSION_EXTRA 0  /* Accept earlier 0.9.x saves */
+
+/* Marker before the serialized supplies block in 0.9.6+ savefiles. */
+#define SAVEFILE_SUPPLY_BLOCK_MAGIC 0x53F6
 
 #define METAR_CURSE_SLOTS 64  /* Maximum number of distinct metarun curses supported */
 
@@ -208,6 +211,7 @@
 #define EGO_JAGGED 140 /* Prefix ego: (Jagged) - crude weapons */
 #define EGO_NIMBLE 141 /* Prefix ego: (Nimble) - refined weapons */
 #define EGO_UNQUENCHED_FIRE 148 /* Suffix ego: of the Unquenched Fire (War Hammer only) */
+#define EGO_BROKEN_BRASS_LANTERN 181 /* Prefix ego: (broken) - damaged brass lantern */
 #define EGO_GAURWAITH 149 /* Suffix ego: of the Gaurwaith (Throwing) */
 #define EGO_OSSIRIAND 150 /* Suffix ego: of Ossiriand (Subtlety) */
 #define EGO_TIRION 151 /* Suffix ego: of Tirion (Channeling) */
@@ -475,8 +479,8 @@
  * Refueling constants
  */
 #define FUEL_TORCH 3000 /* Maximum amount of fuel in a torch */
-#define FUEL_LAMP 7000 /* Maximum amount of fuel in a lantern */
-#define FUEL_MALLORN 100 /* Maximum amount of fuel in a lantern */
+#define FUEL_LAMP 7500 /* Maximum amount of fuel in a lantern */
+#define FUEL_MALLORN 200 /* Maximum amount of fuel in a mallorn torch */
 
 /*
  * More maximum values
@@ -1409,7 +1413,7 @@
 #define RADIUS_TORCH 1
 #define RADIUS_LESSER_JEWEL 1
 #define RADIUS_LANTERN 2
-#define RADIUS_MALLORN 4
+#define RADIUS_MALLORN 3
 #define RADIUS_FEANORIAN 4
 #define RADIUS_ARTEFACT 3
 #define RADIUS_SILMARIL 7
@@ -1902,6 +1906,12 @@
 #define INSCRIP_SPECIAL 100 + 9
 #define INSCRIP_UNCURSED 100 + 10
 #define INSCRIP_INDESTRUCTIBLE 100 + 11
+
+/*
+ * Runtime object states stored in object_type.unused3 / unused4.
+ */
+#define OBJECT_RUNTIME_STATE_NONE 0
+#define OBJECT_RUNTIME_STATE_FIRE_BROKEN 1
 
 /*
  * Number of special inscriptions, plus one.
@@ -2790,6 +2800,7 @@
 #define OPT_unlock_blitz_mode 101
 #define OPT_look_objects_sort_by_difficulty 102
 #define OPT_look_nearby_filter_default 103
+#define OPT_show_elemental_item_rolls 104
 
 /* Intro screen style constants */
 #define INTRO_STYLE_FLAME       0   /* Flame Imperishable (Ainulindale) */
@@ -2943,6 +2954,7 @@
 #define show_level_generation_debug op_ptr->opt[OPT_show_level_generation_debug]
 #define look_objects_sort_by_difficulty op_ptr->opt[OPT_look_objects_sort_by_difficulty]
 #define look_nearby_filter_default op_ptr->opt[OPT_look_nearby_filter_default]
+#define show_elemental_item_rolls op_ptr->opt[OPT_show_elemental_item_rolls]
 #define story_display_lists op_ptr->opt[OPT_story_lists]
 #define story_inventory_lists op_ptr->opt[OPT_story_lists_inven]
 #define story_equipment_lists op_ptr->opt[OPT_story_lists_equip]

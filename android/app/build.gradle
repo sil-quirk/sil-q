@@ -79,6 +79,11 @@ tasks.register('syncGameAssets', Sync) {
         exclude 'save/**', 'save'
         exclude 'user/**', 'user'
         exclude 'apex/**', 'apex'
+
+        // Android APKs ship OGG-only audio. Exclude legacy WAVs and the
+        // reference/source sound packs entirely.
+        exclude '**/*.wav'
+        exclude 'xtra/sound/packs/**', 'xtra/sound/packs'
     }
     into(outDir)
 }

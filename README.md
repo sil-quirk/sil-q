@@ -9,24 +9,37 @@ Secondly, it uses a system of metaruns, where consequtive runs are connected int
 ## Windows
 
 ### Prerequisites
+- Git
 - MSYS2 with MinGW64 (install from https://www.msys2.org/)
 - CMake
-- SDL3 libraries
+- The repo SDL submodules under `external/`
 
-### Building
-1. Install MSYS2 and open the MINGW64 terminal.
-2. Install required packages:
+### Build Order
+1. Clone the repo and enter it.
    ```bash
-   pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-SDL3 mingw-w64-x86_64-SDL3_image mingw-w64-x86_64-SDL3_ttf make
+   git clone https://github.com/k0rtesss/Sil-More.git
+   cd Sil-More
    ```
-3. From the repo root, run:
+2. Install MSYS2 and open the `MINGW64` terminal.
+3. Install the known-good Windows build dependencies:
+   ```bash
+   pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-pkgconf mingw-w64-x86_64-SDL3 mingw-w64-x86_64-SDL3_image mingw-w64-x86_64-SDL3_ttf make
+   ```
+   This repo currently builds SDL from the pinned source submodules, but still relies on the MSYS2 toolchain and common image/font support libraries.
+4. Initialize the pinned SDL submodules from the repo root:
+   ```bash
+   git submodule update --init --recursive
+   ```
+   `build-cmake.bat` does not fetch submodules for you.
+5. From the repo root, run:
    ```powershell
    .\build-cmake.bat
    ```
-4. The script builds both Windows SDL3 deployments:
+   On the first successful run, this also configures and builds the SDL libraries from `external/`.
+6. The script builds both Windows deployments:
    - `sil-more-windows-sdl3\sil-more.exe`
    - `sil-more-windows-sdl3-portable\sil-more.exe`
-5. Run the build you want:
+7. Run the build you want:
    ```powershell
    .\sil-more-windows-sdl3\sil-more.exe
    ```
@@ -35,27 +48,36 @@ Secondly, it uses a system of metaruns, where consequtive runs are connected int
    .\sil-more-windows-sdl3-portable\sil-more.exe
    ```
 
+### Optional: package-based desktop build
+
+This is a local convenience path only. Windows release builds should use the pinned submodules above.
+
+```powershell
+cmake -S . -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=C:/msys64/mingw64 -DSIL_BUILD_WITH_SDL_SOURCES=OFF
+cmake --build build --parallel
+```
+
 ## Linux
 
 ### Prerequisites
 - GCC or Clang compiler
 - CMake
-- SDL3 development libraries
+- SDL3 development libraries, including SDL3_image, SDL3_ttf, and SDL3_mixer
 
 ### Building
 1. Install dependencies:
    - **Debian/Ubuntu:**
      ```bash
-     sudo apt install build-essential cmake libsdl3-dev libsdl3-image-dev libsdl3-ttf-dev
+     sudo apt install build-essential cmake libsdl3-dev libsdl3-image-dev libsdl3-ttf-dev libsdl3-mixer-dev
      ```
    - **Fedora:**
      ```bash
-     sudo dnf install gcc cmake SDL3-devel SDL3-image-devel SDL3-ttf-devel
+     sudo dnf install gcc cmake SDL3-devel SDL3-image-devel SDL3-ttf-devel SDL3-mixer-devel
      ```
    - **Arch:**
      ```bash
-     sudo pacman -S base-devel cmake sdl3
-     paru -S sdl3_ttf sdl3_image # or use any other AUR helper
+      sudo pacman -S base-devel cmake sdl3
+      paru -S sdl3_ttf sdl3_image sdl3_mixer # or use any other AUR helper
      ```
 
 2. From the repo root, configure and build:
@@ -71,9 +93,9 @@ Secondly, it uses a system of metaruns, where consequtive runs are connected int
 
 ## macOS
 
-For most Mac users, the simplest path is: install Apple's command line tools, install the SDL3 packages with Homebrew, then build with CMake from Terminal. The submodule-based SDL build is still available below, but most users should not need it.
+macOS currently uses package-based SDL builds by default. The normal order is: install Apple's command line tools, install Homebrew packages, clone the repo, then build with CMake. The submodule path is still available as an alternative.
 
-### Recommended path for most users
+### Build Order (Default macOS Path)
 
 #### 1. Install Apple's command line tools
 Open Terminal.app and run:
@@ -109,28 +131,26 @@ If not, install it from https://brew.sh/ and then continue here.
 In Terminal, run:
 
 ```bash
-brew install cmake sdl3 sdl3-image sdl3-ttf
+brew install cmake sdl3 sdl3-image sdl3-ttf sdl3-mixer
 ```
 
-#### 4. Get the code
-If you use git, clone the repo:
+#### 4. Clone the repo
+In Terminal, run:
 
 ```bash
 git clone https://github.com/k0rtesss/Sil-More.git
 cd Sil-More
 ```
 
-If you prefer not to use git, download the ZIP from GitHub, extract it, then open Terminal and `cd` into the extracted folder.
-
 #### 5. Build the game
-From the repo root, configure and build with the Homebrew CMake package files:
+From the repo root, configure and build against the Homebrew SDL packages:
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --prefix)"
 cmake --build build --parallel
 ```
 
-If CMake says it cannot find `SDL3`, `SDL3_image`, or `SDL3_ttf`, try an explicit Homebrew prefix:
+If CMake says it cannot find `SDL3`, `SDL3_image`, `SDL3_ttf`, or `SDL3_mixer`, try an explicit Homebrew prefix:
 
 - Apple Silicon Macs usually use `/opt/homebrew`
 - Intel Macs usually use `/usr/local`
@@ -153,20 +173,25 @@ From the repo root, run:
 
 On first launch, the game will create its save/config folders in your macOS user data location and seed the default `sound.json` automatically.
 
-### Alternative: build SDL from the repo submodules
-Use this only if you specifically want to build against the SDL sources in `external/` instead of the Homebrew packages.
+### Alternative: build macOS against the repo SDL submodules
+Use this only if you explicitly want the same source-based SDL path used by Windows and Android.
 
-1. Initialize the SDL submodules:
+1. Clone the repo and enter it.
+   ```bash
+   git clone https://github.com/k0rtesss/Sil-More.git
+   cd Sil-More
+   ```
+2. Initialize the SDL submodules:
    ```bash
    git submodule update --init --recursive
    ```
-2. If you already configured `build/` for the Homebrew path and want to switch methods, remove the old build directory first.
-3. Configure and build:
+3. If you already configured `build/` for the Homebrew path and want to switch methods, remove the old build directory first.
+4. Configure and build:
    ```bash
    cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSIL_BUILD_WITH_SDL_SOURCES=ON
    cmake --build build --parallel
    ```
-4. Run the game:
+5. Run the game:
    ```bash
    ./build/sil-more
    ```
@@ -174,18 +199,28 @@ Use this only if you specifically want to build against the SDL sources in `exte
 ## Android
 
 ### Prerequisites
+- Git
 - Android Studio
-- Android SDK and NDK
+- Android SDK, NDK, and CMake
 - Java 17 or the Android Studio bundled JBR
 
-### Building in Android Studio
-1. From the repo root, run `git submodule update --init --recursive`.
-2. Open the `android/` folder in Android Studio.
-3. Let Gradle sync complete.
-4. Build or run the `app` configuration. The project targets `arm64-v8a`.
+### Build Order In Android Studio
+1. Clone the repo and enter it.
+   ```bash
+   git clone https://github.com/k0rtesss/Sil-More.git
+   cd Sil-More
+   ```
+2. Initialize the pinned SDL submodules:
+   ```bash
+   git submodule update --init --recursive
+   ```
+3. Install Android Studio plus the Android SDK, NDK, and CMake components from SDK Manager.
+4. Open the `android/` folder in Android Studio.
+5. Let Gradle sync complete.
+6. Build or run the `app` configuration. The project targets `arm64-v8a`.
 
-### Command-line build
-From the repo root:
+### Command-line Native Build
+After the steps above, or after separately installing the Android SDK/NDK/CMake toolchain, run from the repo root:
 
 ```powershell
 .\build-android.ps1 -Abi arm64-v8a -Config Release

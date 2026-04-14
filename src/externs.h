@@ -648,6 +648,8 @@ extern void do_cmd_bash(void);
 extern void do_cmd_steal(void);
 extern void do_cmd_alter(void);
 extern void do_cmd_spike(void);
+extern void chest_release_contents(struct object_type* o_ptr, int y, int x,
+    int destroy_typ);
 extern bool do_cmd_walk_test(int y, int x);
 extern void do_cmd_walk(void);
 extern void do_cmd_jump(void);
@@ -1061,7 +1063,8 @@ extern void display_equip(void);
 extern void show_inven(void);
 extern void show_equip(void);
 extern void show_inven_enhanced(void);
-extern void inventory_menu_set_include_equip(bool include);
+extern bool inventory_menu_set_include_equip(bool include);
+extern bool inventory_menu_set_expand_supplies(bool enabled);
 extern void show_equip_enhanced(void);
 extern void show_floor(const int* floor_list, int floor_num);
 extern void toggle_inven_equip(void);
@@ -1101,6 +1104,10 @@ extern u32b ego_item_pval_flags1(const ego_item_type* e_ptr);
 extern u32b object_pval_flags1(const object_type* o_ptr);
 extern void object_apply_pval_delta_with_mask(object_type* o_ptr, u32b mask, int delta);
 extern bool object_apply_ego_affix(object_type* o_ptr, int e_idx, bool smithing);
+extern bool object_break_brass_lantern(object_type* o_ptr);
+extern bool object_is_fire_broken(const object_type* o_ptr);
+extern bool object_break_shafted_weapon_by_fire(object_type* o_ptr);
+extern bool object_repair_fire_broken_weapon(object_type* o_ptr);
 extern void object_into_special(object_type* o_ptr, int lev, bool smithing);
 extern void check_artifact_visibility(void);
 extern void apply_magic(object_type* o_ptr, int lev, bool okay, bool good,
@@ -1209,6 +1216,7 @@ extern int player_has_thrall_quest_item(byte quest_item);
 extern bool handle_thrall_interaction(monster_type* m_ptr);
 extern void complete_thrall_quest(monster_type* m_ptr, int item_slot);
 extern bool object_is_damaged_item(const object_type* o_ptr);
+extern bool object_can_repair_damage(const object_type* o_ptr);
 extern int find_broken_item_to_upgrade(void);
 extern bool repair_damaged_item(int slot);
 extern bool is_smithed_by_player(const object_type* o_ptr);
@@ -1289,15 +1297,21 @@ extern bool hates_acid(const object_type* o_ptr);
 extern bool hates_elec(const object_type* o_ptr);
 extern bool hates_fire(const object_type* o_ptr);
 extern bool hates_cold(const object_type* o_ptr);
-extern void acid_dam(int dam, cptr kb_str);
-extern void elec_dam(int dam, cptr kb_str);
+extern bool elemental_attack_destroys_object(int attack_type,
+    const object_type* o_ptr);
+extern void acid_dam(int raw_dam, int min_raw, int max_raw, int hp_dam,
+    cptr kb_str);
+extern void elec_dam(int raw_dam, int min_raw, int max_raw, int hp_dam,
+    cptr kb_str);
 extern int resist_fire(void);
 extern int resist_cold(void);
 extern int resist_pois(void);
 extern int resist_dark(void);
-extern void fire_dam_mixed(int dam, cptr kb_str);
+extern void fire_dam_mixed(int raw_dam, int min_raw, int max_raw, int hp_dam,
+    cptr kb_str);
 extern void fire_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str);
-extern void cold_dam_mixed(int dam, cptr kb_str);
+extern void cold_dam_mixed(int raw_dam, int min_raw, int max_raw, int hp_dam,
+    cptr kb_str);
 extern void cold_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str);
 extern void dark_dam_mixed(int dam, cptr kb_str);
 extern void dark_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str);

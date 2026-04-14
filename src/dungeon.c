@@ -1386,7 +1386,9 @@ static void process_world(void)
     if (o_ptr->tval == TV_LIGHT)
     {
         /* Hack -- Use some fuel */
-        if (o_ptr->timeout > 0)
+        if (player_light_has_fuel(o_ptr)
+            && !((o_ptr->sval == SV_LIGHT_LANTERN)
+                && (object_ego_prefix(o_ptr) == EGO_BROKEN_BRASS_LANTERN)))
         {
             /* Decrease life-span */
             int fuel = 1;
@@ -1406,13 +1408,12 @@ static void process_world(void)
                 }
             }
 
-            o_ptr->timeout -= fuel;
-            if (o_ptr->timeout < 0)
-                o_ptr->timeout = 0;
+            player_light_add_fuel(o_ptr, -fuel);
             p_ptr->redraw |= (PR_LIGHT);
 
             /* Hack -- notice interesting fuel steps */
-            if ((o_ptr->timeout < 100) || (!(o_ptr->timeout % 100)))
+            if ((player_light_fuel(o_ptr) <= player_light_sputter_threshold(o_ptr))
+                || (!(player_light_fuel(o_ptr) % 100)))
             {
                 /* Window stuff */
                 p_ptr->window |= (PW_EQUIP);
@@ -1422,23 +1423,25 @@ static void process_world(void)
             if (p_ptr->blind)
             {
                 /* Hack -- save some light for later */
-                if (o_ptr->timeout == 0)
-                    o_ptr->timeout++;
+                if (player_light_fuel(o_ptr) == 0)
+                    player_light_set_fuel(o_ptr, 1);
             }
 
             /* The light is now out */
-            else if (o_ptr->timeout == 0)
+            else if (player_light_fuel(o_ptr) == 0)
             {
                 disturb(0, 0);
                 msg_print("Your light has gone out!");
             }
 
             /* The light is getting dim */
-            else if ((o_ptr->timeout <= 100) && (!(o_ptr->timeout % 20))
-                && o_ptr->sval != SV_LIGHT_MALLORN)
+            else if ((player_light_fuel(o_ptr)
+                    <= player_light_sputter_threshold(o_ptr))
+                && (!(player_light_fuel(o_ptr)
+                    % MIN(MAX(player_light_sputter_threshold(o_ptr), 1), 20))))
             {
                 // disturb the first time
-                if (o_ptr->timeout == 100)
+                if (player_light_fuel(o_ptr) == player_light_sputter_threshold(o_ptr))
                     disturb(0, 0);
 
                 msg_print("Your light is growing faint.");

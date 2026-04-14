@@ -41,6 +41,52 @@ static void redraw_monster_subwindows(void);
 static void smith_ui_reset_description_state(void);
 static void controller_prompt_label(int binding, const char* fallback, char* buf, size_t buflen);
 
+static bool heavy_armour_desc_evasion_bonus_applies(const object_type* o_ptr)
+{
+    return (o_ptr->tval == TV_MAIL)
+        && ((o_ptr->sval == SV_MAIL_CORSLET)
+            || (o_ptr->sval == SV_LONG_CORSLET));
+}
+
+static int heavy_armour_desc_current_weight(void)
+{
+    int i;
+    int armour_weight = 0;
+
+    for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+
+        /* Off-hand weapons are not counted as armour weight. */
+        if ((i == INVEN_ARM) && (o_ptr->tval != TV_SHIELD))
+            continue;
+
+        if (i >= INVEN_BODY)
+            armour_weight += o_ptr->weight;
+    }
+
+    return armour_weight;
+}
+
+static int heavy_armour_desc_current_evasion_bonus(void)
+{
+    int i;
+    int bonus = 0;
+
+    for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+
+        if (!o_ptr->k_idx)
+            continue;
+
+        if (heavy_armour_desc_evasion_bonus_applies(o_ptr))
+            bonus++;
+    }
+
+    return bonus;
+}
+
 typedef struct knowledge_browser_layout knowledge_browser_layout;
 typedef struct knowledge_browser_state knowledge_browser_state;
 
@@ -78,10 +124,13 @@ typedef struct supply_list_entry supply_list_entry;
 
 struct supply_list_entry
 {
-    int item_idx;   /* First inventory slot containing this kind */
+    int item_idx;   /* Inventory slot backing this row */
     int k_idx;      /* Object kind index */
-    int total;      /* Total quantity across the pack */
+    int total;      /* Displayed quantity for this row */
     int supply_idx; /* Index inside the supply cache (-1 if not present) */
+    int equip_idx;  /* Matching equipped light slot (-1 if not equipped) */
+    bool equipped;  /* This supply-kind is currently equipped */
+    bool single_item_display; /* Display one item even if the source stack is larger */
 };
 
 struct knowledge_browser_layout
@@ -141,8 +190,17 @@ static void dump_visual_pair(
 
 static bool supplies_menu_use_entry(supply_list_entry* entry)
 {
-    if (!entry || entry->supply_idx < 0)
+    if (!entry)
         return false;
+
+    if (entry->supply_idx < 0)
+    {
+        if (entry->equipped && entry->equip_idx == INVEN_LITE)
+        {
+            msg_print("That light source is already equipped.");
+        }
+        return false;
+    }
 
     object_type* o_ptr = supplies_entry_at(entry->supply_idx);
     if (!o_ptr || !o_ptr->k_idx)
@@ -164,6 +222,9 @@ static bool supplies_menu_use_entry(supply_list_entry* entry)
     case TV_GEM:
         do_cmd_use_gem(o_ptr, SUPPLIES_INDEX);
         break;
+    case TV_LIGHT:
+        do_cmd_wield(o_ptr, SUPPLIES_INDEX);
+        break;
     default:
         supplies_end_action();
         bell("Cannot use that item here!");
@@ -177,8 +238,18 @@ static bool supplies_menu_use_entry(supply_list_entry* entry)
 
 static bool supplies_menu_drop_entry(supply_list_entry* entry)
 {
-    if (!entry || entry->supply_idx < 0)
+    if (!entry)
         return false;
+
+    if (entry->supply_idx < 0)
+    {
+        if (entry->equip_idx >= INVEN_WIELD && entry->equip_idx < INVEN_TOTAL)
+        {
+            do_cmd_drop_item_by_index(entry->equip_idx);
+            return true;
+        }
+        return false;
+    }
 
     object_type* o_ptr = supplies_entry_at(entry->supply_idx);
     if (!o_ptr || !o_ptr->k_idx)
@@ -203,8 +274,10 @@ static bool supplies_menu_drop_entry(supply_list_entry* entry)
 
 static cptr supply_group_text[SUPPLY_GROUP_MAX + 1] = {
     "Herbs",
+    "Food",
     "Potions",
     "Gems",
+    "Lights",
     NULL
 };
 
@@ -991,6 +1064,263 @@ static void ability_menu_render_prerequisites_block(int skilltype,
     }
 
     Term_gotoxy(desc_col, row);
+}
+
+static int ability_menu_stepped_song_bonus(int skill, int first_threshold,
+    int next_gap)
+{
+    int bonus = 1;
+    int threshold = first_threshold;
+    int gap = next_gap;
+
+    if (skill < 0)
+        skill = 0;
+
+    while (skill > threshold)
+    {
+        bonus++;
+        threshold += gap;
+        gap++;
+    }
+
+    return bonus;
+}
+
+static int ability_menu_current_song_score(void)
+{
+    return MAX(0, p_ptr->skill_use[S_SNG]);
+}
+
+static int ability_menu_minor_song_score(int song_skill)
+{
+    if (song_skill <= 0)
+        return 0;
+
+    if (c_info[p_ptr->pcharacter].flags_u & UNQ_WOVEN_MASTER)
+        return song_skill;
+
+    return song_skill / 2;
+}
+
+static int ability_menu_song_synergy_bonus(int song_skill)
+{
+    if (song_skill <= 0)
+        return 0;
+
+    return (song_skill + 5) / 10;
+}
+
+static void ability_menu_render_song_bonus_block(const ability_type* b_ptr)
+{
+    int song_skill = ability_menu_current_song_score();
+    char bonus_text[256];
+
+    bonus_text[0] = '\0';
+
+    switch (b_ptr->abilitynum)
+    {
+    case SNG_ELBERETH:
+    {
+        int will_penalty = (song_skill > 0) ? MAX(1, song_skill / 5) : 0;
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: enemy Will -%d.", song_skill,
+            will_penalty);
+        break;
+    }
+    case SNG_CHALLENGE:
+    {
+        int debuff = (song_skill > 0) ? MAX(1, song_skill / 5) : 0;
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: enemy Will and Stealth -%d.",
+            song_skill, debuff);
+        break;
+    }
+    case SNG_DELVINGS:
+    {
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: delving range %d squares.",
+            song_skill, song_skill + 10);
+        break;
+    }
+    case SNG_FREEDOM:
+    {
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: freedom checks use Song %d and grant +1 free action while singing.",
+            song_skill, song_skill);
+        break;
+    }
+    case SNG_SILENCE:
+    {
+        int silence_bonus = song_skill / 2;
+        int enemy_song_penalty = silence_bonus / 2;
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: +%d to hush/noise checks; enemy songs -%d.",
+            song_skill, silence_bonus, enemy_song_penalty);
+        break;
+    }
+    case SNG_STAUNCHING:
+    {
+        int base_heal = song_skill / 12;
+        int extra_turns = song_skill % 12;
+
+        if (extra_turns > 0)
+        {
+            strnfmt(bonus_text, sizeof(bonus_text),
+                "\n\nCurrent effect at Song %d: stops bleeding and heals %d HP/turn, with +1 extra on %d turns in 12.",
+                song_skill, base_heal, extra_turns);
+        }
+        else
+        {
+            strnfmt(bonus_text, sizeof(bonus_text),
+                "\n\nCurrent effect at Song %d: stops bleeding and heals %d HP/turn.",
+                song_skill, base_heal);
+        }
+        break;
+    }
+    case SNG_THRESHOLDS:
+    {
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: door-warding checks use Song %d.",
+            song_skill, song_skill);
+        break;
+    }
+    case SNG_TREES:
+    {
+        int light_radius = ability_menu_stepped_song_bonus(song_skill, 5, 6);
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: +%d light radius.", song_skill,
+            light_radius);
+        break;
+    }
+    case SNG_WOVEN_THEMES:
+    {
+        int minor_skill = ability_menu_minor_song_score(song_skill);
+        int synergy_bonus = ability_menu_song_synergy_bonus(song_skill);
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: a minor theme uses Song %d; a valid synergy pair adds +%d Song.",
+            song_skill, minor_skill, synergy_bonus);
+        break;
+    }
+    case SNG_SLAYING:
+    {
+        int hp_threshold = song_skill * 2;
+        if (c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_HURIN)
+            hp_threshold *= 2;
+
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: criticals can slay foes at %d HP or less.",
+            song_skill, hp_threshold);
+        break;
+    }
+    case SNG_REVEALING:
+    {
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: revealing range %d squares.",
+            song_skill, song_skill + 10);
+        break;
+    }
+    case SNG_ELVENESS:
+    {
+        int evasion_bonus = ability_menu_stepped_song_bonus(song_skill, 7, 8);
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: +1 Grace and +%d Evasion.",
+            song_skill, evasion_bonus);
+        break;
+    }
+    case SNG_STAYING:
+    {
+        int will_bonus = song_skill / 2;
+        int protection_dice = 2;
+
+        if (c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_FIN)
+        {
+            will_bonus = song_skill * 2;
+            protection_dice = 4;
+        }
+
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: +%d Will and [%dd2] protection.",
+            song_skill, will_bonus, protection_dice);
+        break;
+    }
+    case SNG_DISGUISE:
+    {
+        int disguise_bonus = song_skill + 5;
+        const char* extra = (c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_TURGON)
+            ? " + Perception"
+            : "";
+
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: disguise checks use %d + Will%s.",
+            song_skill, disguise_bonus, extra);
+        break;
+    }
+    case SNG_LORIEN:
+    {
+        int sleep_score = song_skill;
+
+        if (c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_LUT)
+            sleep_score = (3 * song_skill) / 2;
+
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: sleep checks use %d.",
+            song_skill, sleep_score);
+        break;
+    }
+    case SNG_SHATTERING:
+    {
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: shatter checks use Song %d; each success has a %d%% weaken chance.",
+            song_skill, song_skill, song_skill / 3);
+        break;
+    }
+    case SNG_MASTERY:
+    {
+        int mastery_bonus = song_skill;
+
+        if (c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_THINGOL)
+            mastery_bonus = (7 * song_skill) / 4;
+
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: mastery rolls are 2d8 + %d.",
+            song_skill, mastery_bonus);
+        break;
+    }
+    case SNG_GRA:
+    {
+        SDL_strlcpy(bonus_text, "\n\nCurrent effect: +1 Grace.",
+            sizeof(bonus_text));
+        break;
+    }
+    case SNG_CONTEST:
+    {
+        int will_penalty = MAX(1, song_skill / 3);
+        int stealth_penalty = MAX(1, song_skill / 2);
+        int evasion_penalty = MAX(1, song_skill / 5);
+        int armour_penalty = MAX(1, song_skill / 12);
+
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: duel checks use Song + Will/2; victory inflicts -%d Will, -%d Stealth, -%d Evasion, -%d armour die.",
+            song_skill, will_penalty, stealth_penalty, evasion_penalty,
+            armour_penalty);
+        break;
+    }
+    case SNG_LAMENT:
+    {
+        int will_penalty = MAX(1, song_skill / 2);
+        int attrition_steps = MAX(1, song_skill / 12);
+
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: duel checks use Song + Will/2; victory inflicts -%d Will and -%d health/damage steps.",
+            song_skill, will_penalty, attrition_steps);
+        break;
+    }
+    default:
+        break;
+    }
+
+    if (bonus_text[0])
+        text_out_to_screen(TERM_L_GREEN, bonus_text);
 }
 
 /* ------------------------------------------------------------------
@@ -2919,6 +3249,9 @@ int abilities_menu2(int skilltype, int* highlight)
                         break;
                     }
 
+                    if (skilltype == S_SNG)
+                        ability_menu_render_song_bonus_block(b_ptr);
+
                     /* For Nienna's Gift of Mercy, show current bonus */
                     if (skilltype == S_SPC && b_ptr->abilitynum == SPC_NIENA_MERCY && 
                         p_ptr->have_ability[S_SPC][SPC_NIENA_MERCY])
@@ -2956,6 +3289,26 @@ int abilities_menu2(int skilltype, int* highlight)
                         {
                             text_out_to_screen(TERM_SLATE, "\n\nCurrent bonus: +0 stealth (no monsters encountered yet)");
                         }
+                    }
+
+                    if ((skilltype == S_EVN)
+                        && (b_ptr->abilitynum == EVN_HEAVY_ARMOUR))
+                    {
+                        const int armour_weight = heavy_armour_desc_current_weight();
+                        const int protection_bonus = armour_weight / 150;
+                        const int evasion_bonus =
+                            heavy_armour_desc_current_evasion_bonus();
+                        const bool learned =
+                            p_ptr->have_ability[skilltype][b_ptr->abilitynum];
+                        char bonus_text[160];
+
+                        strnfmt(bonus_text, sizeof(bonus_text),
+                            learned
+                                ? "\n\nCurrent bonus: +%d protection vs physical attacks and %+d evasion (%d.%d lb counted)"
+                                : "\n\nWith current equipment, this would grant +%d protection vs physical attacks and %+d evasion (%d.%d lb counted)",
+                            protection_bonus, evasion_bonus, armour_weight / 10,
+                            armour_weight % 10);
+                        text_out_to_screen(TERM_L_GREEN, bonus_text);
                     }
                 }
 
@@ -6604,7 +6957,7 @@ static int find_reforge_target_item(void)
 
         if (!o_ptr->k_idx)
             continue;
-        if (object_is_damaged_item(o_ptr) || object_can_reforge_prefix(o_ptr))
+        if (object_can_repair_damage(o_ptr) || object_can_reforge_prefix(o_ptr))
             return i;
     }
 
@@ -9977,7 +10330,7 @@ void melt_menu(void)
 
 static bool smith_item_tester_hook_reforge_target(const object_type* o_ptr)
 {
-    return object_is_damaged_item(o_ptr) || object_can_reforge_prefix(o_ptr);
+    return object_can_repair_damage(o_ptr) || object_can_reforge_prefix(o_ptr);
 }
 
 static bool smith_reforge_item(void)
@@ -10024,7 +10377,7 @@ static bool smith_reforge_item(void)
     object_copy(&smith_backup, smith_o_ptr);
     object_copy(&smith2_backup, smith2_o_ptr);
 
-    if (object_is_damaged_item(&inventory[slot]))
+    if (object_can_repair_damage(&inventory[slot]))
     {
         if (!repair_damaged_item(slot))
         {
@@ -12717,6 +13070,7 @@ static cptr option_menu_label(int opt)
         case OPT_show_smithing_difficulty_look: return narrow ? "Smith dbg look" : "Debug smithing in look";
         case OPT_look_nearby_filter_default: return narrow ? "Look near def" : "Look nearby default";
         case OPT_show_level_generation_debug: return narrow ? "Dbg lvl screen" : "Debug level screen";
+        case OPT_show_elemental_item_rolls: return narrow ? "Dbg elem items" : "Debug elemental items";
         case OPT_birth_discon_stair: return narrow ? "Disc. stairs" : "Disconnected stairs";
         case OPT_birth_ironman: return narrow ? "Straight down" : "Straight down";
         case OPT_birth_no_artefacts: return narrow ? "No artefacts" : "No artefacts";
@@ -19619,11 +19973,18 @@ static bool supply_kind_matches(int group, int tval, int sval)
     switch (group)
     {
     case SUPPLY_GROUP_HERBS:
-        return (tval == TV_FOOD) && (sval <= SV_FOOD_SICKNESS);
+        return (tval == TV_FOOD) && (sval < SV_FOOD_MIN_FOOD);
+    case SUPPLY_GROUP_FOOD:
+        return (tval == TV_FOOD) && (sval >= SV_FOOD_MIN_FOOD);
     case SUPPLY_GROUP_POTIONS:
         return (tval == TV_POTION);
     case SUPPLY_GROUP_GEMS:
         return (tval == TV_GEM);
+    case SUPPLY_GROUP_LIGHTS:
+        return (tval == TV_LIGHT)
+            && (sval == SV_LIGHT_TORCH || sval == SV_LIGHT_MALLORN
+                || sval == SV_LIGHT_LANTERN
+                || sval == SV_LIGHT_LESSER_JEWEL);
     default:
         return false;
     }
@@ -19635,6 +19996,84 @@ static bool supply_item_matches(int group, const object_type* o_ptr)
         return false;
 
     return supply_kind_matches(group, o_ptr->tval, o_ptr->sval);
+}
+
+static void append_supply_item_weight(char* buf, size_t len,
+    const object_type* o_ptr, bool each)
+{
+    char weight_buf[32];
+
+    if (!buf || len == 0 || !o_ptr || o_ptr->weight <= 0)
+        return;
+
+    strnfmt(weight_buf, sizeof(weight_buf), " [%d.%1d lb%s]",
+        o_ptr->weight / 10, o_ptr->weight % 10, each ? " each" : "");
+    SDL_strlcat(buf, weight_buf, len);
+}
+
+static int supply_group_uniform_weight(int group_idx)
+{
+    int weight = -1;
+
+    for (int i = 0; i < z_info->k_max; i++)
+    {
+        object_kind* k_ptr = &k_info[i];
+
+        if (!k_ptr->name)
+            continue;
+        if (!supply_kind_matches(group_idx, k_ptr->tval, k_ptr->sval))
+            continue;
+
+        if (weight < 0)
+            weight = k_ptr->weight;
+        else if (weight != k_ptr->weight)
+            return -1;
+    }
+
+    return weight;
+}
+
+static void describe_supply_group_status(int group_idx, char* buf, size_t len)
+{
+    int weight;
+
+    if (!buf || len == 0)
+        return;
+
+    buf[0] = '\0';
+
+    switch (group_idx)
+    {
+    case SUPPLY_GROUP_HERBS:
+        weight = supply_group_uniform_weight(group_idx);
+        if (weight >= 0)
+            strnfmt(buf, len, "All herbs weigh %d.%1d lb each.",
+                weight / 10, weight % 10);
+        break;
+    case SUPPLY_GROUP_FOOD:
+        SDL_strlcpy(buf, "Food weight varies; each row shows per-item weight.",
+            len);
+        break;
+    case SUPPLY_GROUP_POTIONS:
+        weight = supply_group_uniform_weight(group_idx);
+        if (weight >= 0)
+            strnfmt(buf, len, "All potions weigh %d.%1d lb each.",
+                weight / 10, weight % 10);
+        break;
+    case SUPPLY_GROUP_GEMS:
+        weight = supply_group_uniform_weight(group_idx);
+        if (weight >= 0)
+            strnfmt(buf, len, "All gems weigh %d.%1d lb each.",
+                weight / 10, weight % 10);
+        break;
+    case SUPPLY_GROUP_LIGHTS:
+        SDL_strlcpy(buf,
+            "Each light row shows item weight; light total above includes oil.",
+            len);
+        break;
+    default:
+        break;
+    }
 }
 
 static void compute_supply_group_totals(int totals[SUPPLY_GROUP_MAX])
@@ -19651,8 +20090,10 @@ static void compute_supply_group_totals(int totals[SUPPLY_GROUP_MAX])
         if (!o_ptr->k_idx)
             continue;
 
-        if ((o_ptr->tval == TV_FOOD) && (o_ptr->sval <= SV_FOOD_SICKNESS))
+        if (supply_kind_matches(SUPPLY_GROUP_HERBS, o_ptr->tval, o_ptr->sval))
             totals[SUPPLY_GROUP_HERBS] += o_ptr->number;
+        else if (supply_kind_matches(SUPPLY_GROUP_FOOD, o_ptr->tval, o_ptr->sval))
+            totals[SUPPLY_GROUP_FOOD] += o_ptr->number;
         else if (o_ptr->tval == TV_POTION)
             totals[SUPPLY_GROUP_POTIONS] += o_ptr->number;
         else if (o_ptr->tval == TV_GEM)
@@ -19665,12 +20106,22 @@ static void compute_supply_group_totals(int totals[SUPPLY_GROUP_MAX])
         if (!s_ptr || !s_ptr->k_idx)
             continue;
 
-        if ((s_ptr->tval == TV_FOOD) && (s_ptr->sval <= SV_FOOD_SICKNESS))
+        if (supply_kind_matches(SUPPLY_GROUP_HERBS, s_ptr->tval, s_ptr->sval))
             totals[SUPPLY_GROUP_HERBS] += s_ptr->number;
+        else if (supply_kind_matches(SUPPLY_GROUP_FOOD, s_ptr->tval, s_ptr->sval))
+            totals[SUPPLY_GROUP_FOOD] += s_ptr->number;
         else if (s_ptr->tval == TV_POTION)
             totals[SUPPLY_GROUP_POTIONS] += s_ptr->number;
         else if (s_ptr->tval == TV_GEM)
             totals[SUPPLY_GROUP_GEMS] += s_ptr->number;
+        else if (supplies_is_light_object(s_ptr))
+            totals[SUPPLY_GROUP_LIGHTS] += s_ptr->number;
+    }
+
+    object_type* light_ptr = &inventory[INVEN_LITE];
+    if (supplies_is_light_object(light_ptr))
+    {
+        totals[SUPPLY_GROUP_LIGHTS] += MAX(light_ptr->number, 1);
     }
 }
 
@@ -19695,82 +20146,217 @@ static int collect_supply_entries(int group_idx, supply_list_entry entries[])
         return 0;
 
     memset(entries, 0, sizeof(supply_list_entry) * capacity);
-
-    /* Aggregate carried items first */
-    for (i = 0; i < INVEN_PACK; i++)
+    for (i = 0; i < capacity; i++)
     {
-        object_type* o_ptr = &inventory[i];
-        int j;
+        entries[i].item_idx = -1;
+        entries[i].supply_idx = -1;
+        entries[i].equip_idx = -1;
+        entries[i].k_idx = -1;
+        entries[i].single_item_display = false;
+    }
 
-        if (!o_ptr->k_idx)
-            continue;
-
-        if (!supply_item_matches(group_idx, o_ptr))
-            continue;
-
-        int value = o_ptr->number;
-
-        for (j = 0; j < count; j++)
+    if (group_idx == SUPPLY_GROUP_LIGHTS)
+    {
+        for (i = 0; i < INVEN_PACK; i++)
         {
-            if (entries[j].k_idx == o_ptr->k_idx)
+            object_type* o_ptr = &inventory[i];
+            int value;
+            int unit;
+
+            if (!supply_item_matches(group_idx, o_ptr))
+                continue;
+
+            value = MAX(o_ptr->number, 1);
+            for (unit = 0; unit < value && count < capacity; unit++)
             {
-                entries[j].total += value;
-                if (entries[j].item_idx < 0)
-                    entries[j].item_idx = i;
-                break;
+                entries[count].k_idx = o_ptr->k_idx;
+                entries[count].item_idx = i;
+                entries[count].total = 1;
+                entries[count].supply_idx = -1;
+                entries[count].equip_idx = -1;
+                entries[count].equipped = false;
+                entries[count].single_item_display = (o_ptr->number > 1);
+                count++;
             }
         }
 
-        if (j == count)
+        for (i = 0; i < supplies_entry_count(); i++)
         {
-            if (count >= capacity)
-                break;
+            object_type* s_ptr = supplies_entry_at(i);
+            int value;
+            int unit;
 
-            entries[count].k_idx = o_ptr->k_idx;
-            entries[count].item_idx = i;
-            entries[count].total = value;
-            entries[count].supply_idx = -1;
-            count++;
+            if (!supply_item_matches(group_idx, s_ptr))
+                continue;
+
+            value = MAX(s_ptr->number, 1);
+            for (unit = 0; unit < value && count < capacity; unit++)
+            {
+                entries[count].k_idx = s_ptr->k_idx;
+                entries[count].item_idx = SUPPLIES_INDEX;
+                entries[count].total = 1;
+                entries[count].supply_idx = i;
+                entries[count].equip_idx = -1;
+                entries[count].equipped = false;
+                entries[count].single_item_display = (s_ptr->number > 1);
+                count++;
+            }
+        }
+
+        {
+            object_type* l_ptr = &inventory[INVEN_LITE];
+
+            if (supply_item_matches(group_idx, l_ptr) && count < capacity)
+            {
+                entries[count].k_idx = l_ptr->k_idx;
+                entries[count].item_idx = INVEN_LITE;
+                entries[count].total = 1;
+                entries[count].supply_idx = -1;
+                entries[count].equip_idx = INVEN_LITE;
+                entries[count].equipped = true;
+                entries[count].single_item_display = false;
+                count++;
+            }
+        }
+    }
+    else
+    {
+
+        /* Aggregate carried items first */
+        for (i = 0; i < INVEN_PACK; i++)
+        {
+            object_type* o_ptr = &inventory[i];
+            int j;
+
+            if (!o_ptr->k_idx)
+                continue;
+
+            if (!supply_item_matches(group_idx, o_ptr))
+                continue;
+
+            int value = o_ptr->number;
+
+            for (j = 0; j < count; j++)
+            {
+                if (entries[j].k_idx == o_ptr->k_idx)
+                {
+                    entries[j].total += value;
+                    if (entries[j].item_idx < 0)
+                        entries[j].item_idx = i;
+                    break;
+                }
+            }
+
+            if (j == count)
+            {
+                if (count >= capacity)
+                    break;
+
+                entries[count].k_idx = o_ptr->k_idx;
+                entries[count].item_idx = i;
+                entries[count].total = value;
+                entries[count].supply_idx = -1;
+                entries[count].equip_idx = -1;
+                entries[count].equipped = false;
+                entries[count].single_item_display = false;
+                count++;
+            }
+        }
+
+        /* Aggregate supplies from the cache */
+        for (i = 0; i < supplies_entry_count(); i++)
+        {
+            object_type* s_ptr = supplies_entry_at(i);
+            int j;
+
+            if (!s_ptr || !s_ptr->k_idx)
+                continue;
+
+            if (!supply_item_matches(group_idx, s_ptr))
+                continue;
+
+            int value = s_ptr->number;
+
+            for (j = 0; j < count; j++)
+            {
+                if (entries[j].k_idx == s_ptr->k_idx)
+                {
+                    entries[j].total += value;
+                    if (entries[j].item_idx < 0)
+                        entries[j].item_idx = SUPPLIES_INDEX;
+                    entries[j].supply_idx = i;
+                    break;
+                }
+            }
+
+            if (j == count)
+            {
+                if (count >= capacity)
+                    break;
+
+                entries[count].k_idx = s_ptr->k_idx;
+                entries[count].item_idx = SUPPLIES_INDEX;
+                entries[count].total = value;
+                entries[count].supply_idx = i;
+                entries[count].equip_idx = -1;
+                entries[count].equipped = false;
+                entries[count].single_item_display = false;
+                count++;
+            }
+        }
+
+        if (group_idx == SUPPLY_GROUP_LIGHTS)
+        {
+            object_type* l_ptr = &inventory[INVEN_LITE];
+            int j;
+
+            if (supply_item_matches(group_idx, l_ptr))
+            {
+                for (j = 0; j < count; j++)
+                {
+                    if (entries[j].k_idx == l_ptr->k_idx)
+                    {
+                        entries[j].total += MAX(l_ptr->number, 1);
+                        entries[j].equip_idx = INVEN_LITE;
+                        entries[j].equipped = true;
+                        if (entries[j].item_idx < 0)
+                            entries[j].item_idx = INVEN_LITE;
+                        break;
+                    }
+                }
+
+                if (j == count && count < capacity)
+                {
+                    entries[count].k_idx = l_ptr->k_idx;
+                    entries[count].item_idx = INVEN_LITE;
+                    entries[count].total = MAX(l_ptr->number, 1);
+                    entries[count].supply_idx = -1;
+                    entries[count].equip_idx = INVEN_LITE;
+                    entries[count].equipped = true;
+                    entries[count].single_item_display = false;
+                    count++;
+                }
+            }
         }
     }
 
-    /* Aggregate supplies from the cache */
-    for (i = 0; i < supplies_entry_count(); i++)
+    /* Add known kinds even when none are carried.
+     * Lights are listed only when actually carried, to avoid misleading 0-count
+     * placeholders in the supply menu. */
+    if (group_idx == SUPPLY_GROUP_LIGHTS)
     {
-        object_type* s_ptr = supplies_entry_at(i);
-        int j;
-
-        if (!s_ptr || !s_ptr->k_idx)
-            continue;
-
-        if (!supply_item_matches(group_idx, s_ptr))
-            continue;
-
-        int value = s_ptr->number;
-
-        for (j = 0; j < count; j++)
+        if (count < capacity)
         {
-            if (entries[j].k_idx == s_ptr->k_idx)
-            {
-                entries[j].total += value;
-                if (entries[j].item_idx < 0)
-                    entries[j].item_idx = SUPPLIES_INDEX;
-                entries[j].supply_idx = i;
-                break;
-            }
+            entries[count].k_idx = -1;
+            entries[count].item_idx = -1;
+            entries[count].total = 0;
+            entries[count].supply_idx = -1;
+            entries[count].equip_idx = -1;
+            entries[count].equipped = false;
+            entries[count].single_item_display = false;
         }
 
-        if (j == count)
-        {
-            if (count >= capacity)
-                break;
-
-            entries[count].k_idx = s_ptr->k_idx;
-            entries[count].item_idx = SUPPLIES_INDEX;
-            entries[count].total = value;
-            entries[count].supply_idx = i;
-            count++;
-        }
+        return count;
     }
 
     /* Add known kinds even when none are carried */
@@ -19803,6 +20389,9 @@ static int collect_supply_entries(int group_idx, supply_list_entry entries[])
             entries[count].item_idx = -1;
             entries[count].total = 0;
             entries[count].supply_idx = -1;
+            entries[count].equip_idx = -1;
+            entries[count].equipped = false;
+            entries[count].single_item_display = false;
             count++;
         }
     }
@@ -19813,6 +20402,9 @@ static int collect_supply_entries(int group_idx, supply_list_entry entries[])
         entries[count].item_idx = -1;
         entries[count].total = 0;
         entries[count].supply_idx = -1;
+        entries[count].equip_idx = -1;
+        entries[count].equipped = false;
+        entries[count].single_item_display = false;
     }
 
     return count;
@@ -19847,6 +20439,7 @@ static byte get_supply_item_color(int k_idx, bool aware)
                 case SV_FOOD_ENTRANCEMENT: return TERM_VIOLET;   /* Violet for entrancement */
                 case SV_FOOD_WEAKNESS:     return TERM_SLATE;    /* Grey for weakness */
                 case SV_FOOD_SICKNESS:     return TERM_L_DARK;   /* Dark grey for sickness */
+                case SV_FOOD_LEMBAS:       return TERM_L_WHITE;
                 default:                   return TERM_WHITE;
             }
 
@@ -19893,6 +20486,17 @@ static byte get_supply_item_color(int k_idx, bool aware)
                 default:                     return TERM_WHITE;
             }
 
+        case TV_LIGHT:
+            switch (k_ptr->sval)
+            {
+                case SV_LIGHT_TORCH:   return TERM_UMBER;
+                case SV_LIGHT_MALLORN: return TERM_YELLOW;
+                case SV_LIGHT_LANTERN: return TERM_L_UMBER;
+                case SV_LIGHT_LESSER_JEWEL: return TERM_L_BLUE;
+                case SV_LIGHT_FEANORIAN: return TERM_WHITE;
+                default:               return TERM_WHITE;
+            }
+
         default:
             return TERM_WHITE;
     }
@@ -19914,9 +20518,11 @@ static void display_supply_group_list(int col, int row, int wid, int per_page,
         /* Assign color based on group type */
         switch (grp)
         {
-            case SUPPLY_GROUP_HERBS:   base_color = TERM_GREEN; break;
+            case SUPPLY_GROUP_HERBS:   base_color = TERM_GREEN;   break;
+            case SUPPLY_GROUP_FOOD:    base_color = TERM_L_GREEN; break;
             case SUPPLY_GROUP_POTIONS: base_color = TERM_VIOLET;  break;
             case SUPPLY_GROUP_GEMS:    base_color = TERM_BLUE;    break;
+            case SUPPLY_GROUP_LIGHTS:  base_color = TERM_YELLOW;  break;
             default:                   base_color = TERM_WHITE;   break;
         }
 
@@ -19942,8 +20548,6 @@ static void display_supply_list(int col, int row, int per_page,
 {
     int i;
 
-    (void)current_group; /* Not used since we color by specific item type now */
-
     for (i = 0; i < per_page; i++)
     {
         int idx = entry_top + i;
@@ -19962,7 +20566,7 @@ static void display_supply_list(int col, int row, int per_page,
         byte base_attr, cursor_attr, attr;
         byte sym_attr;
         char sym_char;
-        char name[80];
+        char name[128];
         char count_buf[8];
 
         if (entry->k_idx < 0 || entry->k_idx >= z_info->k_max)
@@ -19985,7 +20589,15 @@ static void display_supply_list(int col, int row, int per_page,
         /* Only highlight when right panel is active (column == 1) */
         attr = (column == 1 && idx == entry_cur) ? cursor_attr : base_attr;
 
-        if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
+        if (entry->supply_idx >= 0)
+        {
+            o_ptr = supplies_entry_at(entry->supply_idx);
+        }
+        else if (entry->equip_idx >= INVEN_WIELD && entry->equip_idx < INVEN_TOTAL)
+        {
+            o_ptr = &inventory[entry->equip_idx];
+        }
+        else if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
         {
             o_ptr = &inventory[entry->item_idx];
         }
@@ -19999,7 +20611,21 @@ static void display_supply_list(int col, int row, int per_page,
             o_ptr = &fake;
         }
 
+        if (entry->single_item_display && o_ptr->k_idx && o_ptr->number > 1)
+        {
+            object_copy(&fake, o_ptr);
+            fake.number = 1;
+            o_ptr = &fake;
+        }
+
         object_desc(name, sizeof(name), o_ptr, true, 3);
+        if (current_group == SUPPLY_GROUP_FOOD)
+            append_supply_item_weight(name, sizeof(name), o_ptr,
+                (entry->total > 1));
+        else if (current_group == SUPPLY_GROUP_LIGHTS)
+            append_supply_item_weight(name, sizeof(name), o_ptr, false);
+        if (entry->equipped && current_group == SUPPLY_GROUP_LIGHTS)
+            SDL_strlcat(name, " [equipped]", sizeof(name));
         c_prt(attr, name, y, col);
 
         strnfmt(count_buf, sizeof(count_buf), "x%-3d", entry->total);
@@ -20026,8 +20652,31 @@ static void display_supply_list(int col, int row, int per_page,
 /*
  * Move the cursor in a browser window
  */
+static int browser_move_index(int cur, int count, int delta, bool wrap)
+{
+    int next;
+
+    if (count <= 0)
+        return 0;
+
+    next = cur + delta;
+    if (wrap)
+    {
+        next %= count;
+        if (next < 0)
+            next += count;
+        return next;
+    }
+
+    if (next >= count)
+        next = count - 1;
+    if (next < 0)
+        next = 0;
+    return next;
+}
+
 static void browser_cursor_with_rows(char ch, int* column, int* grp_cur,
-    int grp_cnt, int* list_cur, int list_cnt, int page_rows)
+    int grp_cnt, int* list_cur, int list_cnt, int page_rows, bool wrap_rows)
 {
     int d;
     int col = *column;
@@ -20050,13 +20699,8 @@ static void browser_cursor_with_rows(char ch, int* column, int* grp_cur,
             int old_grp = grp;
 
             /* Move up or down */
-            grp += ddy[d] * page_jump;
-
-            /* Verify */
-            if (grp >= grp_cnt)
-                grp = grp_cnt - 1;
-            if (grp < 0)
-                grp = 0;
+            grp = browser_move_index(grp, grp_cnt, ddy[d] * page_jump,
+                wrap_rows);
             if (grp != old_grp)
                 list = 0;
         }
@@ -20065,13 +20709,8 @@ static void browser_cursor_with_rows(char ch, int* column, int* grp_cur,
         else
         {
             /* Move up or down */
-            list += ddy[d] * page_jump;
-
-            /* Verify */
-            if (list >= list_cnt)
-                list = list_cnt - 1;
-            if (list < 0)
-                list = 0;
+            list = browser_move_index(list, list_cnt, ddy[d] * page_jump,
+                wrap_rows);
         }
 
         (*grp_cur) = grp;
@@ -20099,13 +20738,7 @@ static void browser_cursor_with_rows(char ch, int* column, int* grp_cur,
         int old_grp = grp;
 
         /* Move up or down */
-        grp += ddy[d];
-
-        /* Verify */
-        if (grp >= grp_cnt)
-            grp = grp_cnt - 1;
-        if (grp < 0)
-            grp = 0;
+        grp = browser_move_index(grp, grp_cnt, ddy[d], wrap_rows);
         if (grp != old_grp)
             list = 0;
     }
@@ -20114,13 +20747,7 @@ static void browser_cursor_with_rows(char ch, int* column, int* grp_cur,
     else
     {
         /* Move up or down */
-        list += ddy[d];
-
-        /* Verify */
-        if (list >= list_cnt)
-            list = list_cnt - 1;
-        if (list < 0)
-            list = 0;
+        list = browser_move_index(list, list_cnt, ddy[d], wrap_rows);
     }
 
     (*grp_cur) = grp;
@@ -21908,7 +22535,8 @@ void do_cmd_knowledge_browser_page(int page)
             default:
                 browser_cursor_with_rows((char)ch, &state.column[page],
                     &state.group_cur[page], artefact_grp_cnt,
-                    &state.entry_cur[page], artefact_cnt, layout.list_rows);
+                    &state.entry_cur[page], artefact_cnt, layout.list_rows,
+                    false);
                 break;
             }
             break;
@@ -22030,7 +22658,8 @@ void do_cmd_knowledge_browser_page(int page)
             default:
                 browser_cursor_with_rows((char)ch, &state.column[page],
                     &state.group_cur[page], object_grp_cnt,
-                    &state.entry_cur[page], object_cnt, layout.list_rows);
+                    &state.entry_cur[page], object_cnt, layout.list_rows,
+                    false);
                 break;
             }
             break;
@@ -22135,7 +22764,8 @@ void do_cmd_knowledge_browser_page(int page)
             default:
                 browser_cursor_with_rows((char)ch, &state.column[page],
                     &state.group_cur[page], monster_grp_cnt,
-                    &state.entry_cur[page], monster_cnt, layout.list_rows);
+                    &state.entry_cur[page], monster_cnt, layout.list_rows,
+                    false);
                 break;
             }
             break;
@@ -22302,19 +22932,32 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         int count_col;
         int sym_col;
         int used_weight;
+        int light_item_weight;
+        int light_oil_weight;
+        int light_weight;
+        int lamp_oil;
         int max_weight;
-        char weight_buf[80];
+        char weight_buf[128];
+        char status_buf[96];
 
         compute_supply_group_totals(group_totals);
         knowledge_init_layout(&layout, max, true);
         count_col = layout.term_wid - 6;
         sym_col = layout.term_wid - (use_bigtile ? 2 : 1);
-        used_weight = supplies_total_weight();
+        used_weight = supplies_limit_weight();
+        light_item_weight = supplies_carried_light_item_weight();
+        light_oil_weight = player_lamp_oil_weight();
+        light_weight = light_item_weight + light_oil_weight;
+        lamp_oil = player_lamp_oil();
         max_weight = supplies_current_weight_cap();
         strnfmt(weight_buf, sizeof(weight_buf),
-            "Supply weight: %d.%1d/%d.%1d lb used",
+            "Supply: %d.%1d/%d.%1d lb  Light: %d.%1d lb (%d.%1d items + %d.%1d oil)  Oil: %d/%d",
             used_weight / 10, used_weight % 10,
-            max_weight / 10, max_weight % 10);
+            max_weight / 10, max_weight % 10,
+            light_weight / 10, light_weight % 10,
+            light_item_weight / 10, light_item_weight % 10,
+            light_oil_weight / 10, light_oil_weight % 10,
+            lamp_oil, player_lamp_oil_capacity());
 
         if (count_col <= layout.list_col + 8)
             count_col = layout.list_col + 8;
@@ -22365,7 +23008,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         {
             Term_clear();
             Term_putstr(0, layout.title_row, layout.term_wid, TERM_L_WHITE + TERM_SHADE,
-                "Supplies - Herbs, Potions, Gems");
+                "Supplies - Herbs, Food, Potions, Gems, Lights");
             Term_putstr(0, layout.tabs_row, layout.term_wid, TERM_SLATE, weight_buf);
             Term_putstr(0, layout.header_row, layout.group_w, TERM_SLATE, "Group");
             Term_putstr(layout.list_col, layout.header_row, layout.list_w, TERM_SLATE,
@@ -22387,6 +23030,16 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         display_supply_list(layout.list_col, layout.list_row, layout.list_rows,
             entries, entry_cnt, entry_cur, entry_top, count_col, sym_col,
             grp_idx[grp_cur], column);
+
+        if (layout.status_row != layout.prompt_row)
+        {
+            describe_supply_group_status(grp_idx[grp_cur], status_buf,
+                sizeof(status_buf));
+            Term_erase(0, layout.status_row, 255);
+            if (status_buf[0] != '\0')
+                Term_putstr(0, layout.status_row, layout.term_wid, TERM_L_BLUE,
+                    status_buf);
+        }
 
         /* Bottom bar: grey text with white first letters */
         Term_erase(0, layout.prompt_row, 255);
@@ -22450,7 +23103,23 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             else if (column && entry_cnt)
             {
                 supply_list_entry* entry = &entries[entry_cur];
-                if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
+                if (entry->equip_idx >= INVEN_WIELD && entry->equip_idx < INVEN_TOTAL)
+                {
+                    (void)player_try_identify_smithing_object_on_examine(
+                        &inventory[entry->equip_idx], true);
+                    object_info_screen(&inventory[entry->equip_idx]);
+                    redraw = true;
+                }
+                else if (entry->supply_idx >= 0)
+                {
+                    object_type* o_ptr = supplies_entry_at(entry->supply_idx);
+                    if (o_ptr)
+                    {
+                        object_info_screen(o_ptr);
+                        redraw = true;
+                    }
+                }
+                else if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
                 {
                     (void)player_try_identify_smithing_object_on_examine(
                         &inventory[entry->item_idx], false);
@@ -22496,6 +23165,10 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 {
                     handled = supplies_menu_use_entry(entry);
                 }
+                else if (entry->equip_idx == INVEN_LITE && entry->equipped)
+                {
+                    msg_print("That light source is already equipped.");
+                }
                 else if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
                 {
                     object_type* o_ptr = &inventory[entry->item_idx];
@@ -22516,6 +23189,10 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                         break;
                     case TV_GEM:
                         do_cmd_use_gem(o_ptr, entry->item_idx);
+                        handled = true;
+                        break;
+                    case TV_LIGHT:
+                        do_cmd_wield(o_ptr, entry->item_idx);
                         handled = true;
                         break;
                     default:
@@ -22564,6 +23241,11 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 {
                     dropped = supplies_menu_drop_entry(entry);
                 }
+                else if (entry->equip_idx >= INVEN_WIELD && entry->equip_idx < INVEN_TOTAL)
+                {
+                    do_cmd_drop_item_by_index(entry->equip_idx);
+                    dropped = true;
+                }
                 else if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
                 {
                     do_cmd_drop_item_by_index(entry->item_idx);
@@ -22589,7 +23271,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 
         default:
             browser_cursor_with_rows(ch, &column, &grp_cur, grp_cnt, &entry_cur,
-                entry_cnt, layout.list_rows);
+                entry_cnt, layout.list_rows, true);
             break;
         }
     }
@@ -23319,6 +24001,9 @@ static int unified_sidebar_collect_sorted_objects(const unified_look_state* stat
             continue;
 
         o_ptr = &o_list[o_idx];
+
+        if (!o_ptr->k_idx)
+            continue;
 
         /* Only show marked (memorized) objects that the player has actually seen. */
         if (!o_ptr->marked)

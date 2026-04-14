@@ -45,7 +45,7 @@
 
 # Version stamp (required)
 
-V:0.9.5
+V:0.9.6
 
 N:0:Feanorians
 Q:2444d18db905ccd7
@@ -149,7 +149,7 @@ I:21:15:45
 H:70:4
 W:150:12
 C:23|24|25|26|27|28|29|30|44|45
-F:MEL_AFFINITY | WIL_AFFINITY | GIFTERU
+F:MEL_AFFINITY | WIL_AFFINITY | STL_AFFINITY | GIFTERU
 E:39:0:3:3     # ~ Wooden Torches (3)
 E:80:35:5:5    # , Pieces of Dark Bread (5)
 E:23:4:1:1     # | Dagger (1)

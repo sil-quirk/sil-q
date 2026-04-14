@@ -58,7 +58,7 @@
 
 # Version stamp (required)
 
-V:0.9.5
+V:0.9.6
 
 N:0:Houseless
 Q:beb6128db2d417c1
@@ -234,7 +234,7 @@ B:You watch patiently-shipwright, keeper of hope, guiding stars across endless s
 F:PER_AFFINITY | SMT_AFFINITY | ARC_PENALTY | FREE | BOW_PROFICIENCY| SMT_PENALTY
 S:0:1:1:2
 C:4:2:4:4 # Keen Senses Alchemy
-P:2
+P:1
 D: Wise shipwright, silver-bearded master mariner dwelling by western shores; foresight guiding weary hearts toward hope amid tides of endless grief. His keen eyes witness sorrows deepening, ships departing into twilight; entrusted by fate to craft vessels bearing hidden stars and secret fire. He watches patiently as realms fall, bound to wait until grief departs, foreseeing final voyages across seas yet veiled by shadow and sorrow, keeper of hope unseen, guiding future kings unto shores yet unknown.
 
 N:14:Mablung
@@ -318,7 +318,7 @@ B:You stand resolutely-lord of Belegost, whose courage wounded dragon's pride.
 F:WIL_AFFINITY | MEL_AFFINITY
 S:2:1:2:1
 C:0:9 # Whirlwind Attack
-P:2
+P:1
 D: Mighty dwarven lord of Belegost, brave-hearted defender of stone halls, whose fierce courage challenged dragons beneath red fire and shadow. Armor clad in valor, battling boldly amid ruinous flames unleashed, foreshadowing heroism unmatched, fate bound fiercely to dragon's breath. Fell bravely beneath claws of Glaurung, yet blade pierced scale and pride, remembered forever in dwarven lament, honor etched deep in stone, symbol of courage beyond doom, defying darkness at battle's end.
 
 N:22:Mim
@@ -339,14 +339,14 @@ B:You brave darkness-mortal hero whose courage stole Silmaril from Morgoth.
 F:EVN_AFFINITY | STL_AFFINITY | WIL_AFFINITY
 S:1:2:1:2
 C:0:8:3:1  # Assassination # Subtlety
-P:1
+P:2
 D: Mortal hero, brave-hearted wanderer beneath stars, defying darkness, whose love challenged fate itself, winning Silmaril with courage unmatched. Destined to tread perilous paths, hand of shadow bound in silver fire, deeds woven in tragedy and triumph, uniting mortal and immortal blood. Foreshadowing line of hidden kings whose fate shall shape Arda's end, heart bound fiercely to Luthien's grace, death conquered by timeless love, legacy ever shining, his story echoed eternally in stars and song.
 
 N:24:Barahir
 Q:3de1b95b08266f09
 A:, Lord of Ladros
 B:You defend honor-bold mortal lord, bearer of friendship beyond darkness.
-F:EVN_AFFINITY 
+F:EVN_AFFINITY | STL_PENALTY
 S:1:0:1:1
 C:0:10 # Zone of control
 P:0
@@ -367,7 +367,7 @@ N:26:Haleth
 Q:e817e45349496116
 A:, Lady of the Haladin
 B:You lead fiercely-shieldmaiden of the Haladin, spirit unbowed by shadow.
-F:STL_AFFINITY | PER_AFFINITY
+F:STL_AFFINITY | PER_AFFINITY | STL_PENALTY
 S:0:1:2:0
 C:2:6  # Blocking :2:1 # Flanking
 P:0
@@ -377,7 +377,7 @@ N:27:Hador
 Q:423fd72a007db52a
 A: the Golden-haired
 B:You charge nobly-golden-haired lord, whose valor shaped mortal legacy.
-F:MEL_AFFINITY 
+F:MEL_AFFINITY | STL_PENALTY
 S:3:1:2:1
 C:0:11:0:5:0:2  # Charge # Smite # Knock Back
 P:1
@@ -387,7 +387,7 @@ N:28:Turin Turambar
 Q:a1860c8b017a6daa
 A:, Master of Fate
 B:You struggle grimly-tragic hero whose black blade cleaves fate and sorrow.
-F:EVN_AFFINITY | MEL_AFFINITY | PER_PENALTY | MOR_CURSE | STL_AFFINITY |WIL_AFFINITY
+F:EVN_AFFINITY | MEL_AFFINITY | PER_PENALTY | MOR_CURSE | STL_AFFINITY |WIL_AFFINITY | STL_PENALTY
 U:WIL_TURIN
 S:2:3:2:-1
 C:5:2:0:11:0:6  # Follow-Through  # Smite # Strength in Adversity
@@ -398,18 +398,18 @@ N:29:Tuor
 Q:372282fe5bf0b106
 A:, Messenger of Ulmo
 B:You carry tidings-messenger of Ulmo, bearer of destiny to Gondolin.
-F:EVN_AFFINITY | MEL_AFFINITY | FREE
+F:EVN_AFFINITY | MEL_AFFINITY | FREE | STL_PENALTY
 U:WIL_TUOR
 S:1:1:2:2
 C:5:1  # Channeling # Focused Attack 4:1:
-P:1
+P:2
 D: Mortal messenger chosen by Ulmo, guided by wave and whispered dream, bearer of hidden hope to Gondolin, destined to kindle fading valor. Heart bound in love with Eldar princess, bloodline uniting two worlds, foreshadowing renewal beyond ruin, fate entwined with Eldar's end. Bold protector in Gondolin's final flame, escaping shadow's grasp, father to mariner whose star heralds doom and deliverance alike; Tuor, mortal whose legacy shapes fate beyond sorrowful days.
 
 N:30:Hurin
 Q:af5bfc54b62a088f
 A: the Steadfast
 B:You endure bravely-mightiest mortal warrior, spirit unbroken by darkness.
-F:EVN_AFFINITY | WIL_AFFINITY | PER_PENALTY | SNG_AFFINITY | MOR_CURSE
+F:EVN_AFFINITY | WIL_AFFINITY | PER_PENALTY | SNG_AFFINITY | MOR_CURSE | STL_PENALTY
 U:SNG_HURIN
 S:2:2:2:0
 C:5:3:5:5:5:7:7:10  # Song of Slaying  # Poison Resistance  # Indomitable # Formidable
@@ -422,7 +422,7 @@ A: Celebrindal of Gondolin
 B:You watch carefully-princess whose foresight preserves hope amid ruin.
 F:STL_AFFINITY | MEL_PENALTY | SMT_PENALTY | PER_AFFINITY | ARC_PENALTY
 S:-1:2:0:2
-P:2
+P:1
 C:4:7 # Listen
 D: Silver-footed princess of Gondolin, whose beauty shone brightly amid ruin, wise-hearted, foresight guiding hidden paths through doom and shadow. Love binding mortal and immortal hearts, shaping fate unforeseen, foreshadowing survival beyond flames, bearing hope anew amid despair. Mother of mariner destined to sail skies bearing hidden fire, her courage endures through darkness, quietly preparing future's light; Idril, bright star guiding destiny toward renewal beyond sorrow.
 
@@ -529,7 +529,7 @@ B:You command harshly—stern prince whose temper sparks feuds and fear.
 F:SNG_PENALTY | KINSLAYER | CURSE | PER_PENALTY
 S:2:0:2:0
 C:5:3  # Zone of Control
-P:2
+P:1
 D:Dark-tempered fourth son of Feanor, lord fierce of wide eastern lands, stern-hearted prince whose proud eyes burned beneath shadowed brows. Ruled wealth and trade, yet pride bred division with allies and kin, foreshadowing bitter conflict and wrathful deeds amid ruinous war. Destined to perish fiercely, falling bravely yet tragically, his spirit bound restlessly to father's oath, ever unfulfilled; Caranthir, proud lord whose wrath echoes beneath flame-shadowed skies. 
 
 # Nargothrond warrior—melee-forward, resilience tempered by captivity.
@@ -559,7 +559,7 @@ N:44:Andreth
 Q:468a22fae23f9e2f
 A:, the Wise
 B:You ponder deeply—mortal lorekeeper whose questions pierce the dark.
-F:PER_AFFINITY | WIL_AFFINITY | MEL_PENALTY
+F:PER_AFFINITY | WIL_AFFINITY | MEL_PENALTY | STL_PENALTY
 S:0:0:0:2
 C:4:7  # Listen / Counsel
 P:0
@@ -570,7 +570,7 @@ N:45:Morwen
 Q:63f959989b6c5c5e
 A: Eledhwen
 B:You endure like granite—proud lady whose gaze does not bend to night.
-F:WIL_AFFINITY | MOR_CURSE
+F:WIL_AFFINITY | MOR_CURSE | STL_PENALTY
 S:0:0:2:2
 C:5:2  # Strength in Adversity
 P:0

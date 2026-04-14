@@ -593,7 +593,7 @@ static void give_start_items(const start_item *list)
             else if (i_ptr->sval == SV_LIGHT_LANTERN)
                 i_ptr->timeout = 3000;
             else if (i_ptr->sval == SV_LIGHT_MALLORN)
-                i_ptr->timeout = 50;
+                i_ptr->timeout = 100;
         }
 
         bool start_known = true;
@@ -608,15 +608,18 @@ static void give_start_items(const start_item *list)
         if (start_known)
             object_known(i_ptr);
 
+        /* inven_carry() may wipe supply items, so keep a copy for follow-up
+         * handling such as auto-equipping the starting light. */
+        object_type carry_obj;
+        object_copy(&carry_obj, i_ptr);
+
         /* Carry it */
         int carry_slot = inven_carry(i_ptr, true);
 
         if (carry_slot == SUPPLIES_INDEX)
         {
-            object_type copy;
-            object_copy(&copy, i_ptr);
             char name[80];
-            object_desc(name, sizeof(name), &copy, true, 3);
+            object_desc(name, sizeof(name), &carry_obj, true, 3);
             char label = supplies_label_char();
             if (!label)
                 label = 'a';
@@ -644,6 +647,27 @@ static void give_start_items(const start_item *list)
 
         object_wipe(i_ptr); /* avoid dupes */
     }
+}
+
+static void equip_starting_light_from_supply(void)
+{
+    int supply_idx;
+    object_type equip_light;
+
+    if (inventory[INVEN_LITE].tval != 0)
+        return;
+
+    supply_idx = supplies_first_entry_for_group(SUPPLY_GROUP_LIGHTS);
+    if (supply_idx < 0)
+        return;
+
+    if (!supplies_take_one(supply_idx, &equip_light))
+        return;
+
+    object_copy(&inventory[INVEN_LITE], &equip_light);
+    if (inventory[INVEN_LITE].sval == SV_LIGHT_LANTERN)
+        inventory[INVEN_LITE].timeout = 0;
+    p_ptr->equip_cnt++;
 }
 
 static void copy_start_items(start_item dest[MAX_START_ITEMS],
@@ -844,6 +868,10 @@ static void player_outfit(void)
         && metarun_has_major_blessing_effect(METARUN_MAJOR_EFFECT_START_ARTIFACT)) {
         grant_starting_artifact();
     }
+
+    /* Starting light sources are stored in supplies now; equip one from there
+     * after all birth gear has been added. */
+    equip_starting_light_from_supply();
 
     /* ---------- Christmas present (unchanged) ---------- */
     c  = time((time_t*)0);

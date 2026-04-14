@@ -510,7 +510,7 @@ static void drop_apply_spawn_quantities(object_type* o_ptr)
             }
             else if (o_ptr->sval == SV_LIGHT_MALLORN)
             {
-                o_ptr->timeout = one_in_(3) ? rand_range(20, 50) : 50;
+                o_ptr->timeout = one_in_(3) ? rand_range(30, 100) : 100;
             }
         }
         break;

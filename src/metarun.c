@@ -983,6 +983,21 @@ errr load_metaruns(bool create_if_missing)
         return -1;
     fd = sdl_fopen(fn, "rb");
 
+#ifdef SIL_USE_LOCAL_DATA
+    if (!fd) {
+        char legacy_dir[1024];
+        char legacy[1024];
+        if (path_build(legacy_dir, sizeof legacy_dir, ANGBAND_DIR_APEX, META_SUBDIR)
+            && path_build(legacy, sizeof legacy, legacy_dir, META_RAW))
+        {
+            fd = sdl_fopen(legacy, "rb");
+            if (fd) {
+                log_info("Loading legacy portable metarun file: %s", legacy);
+                found_existing_data = true;
+            }
+        }
+    }
+#else
     if (!fd && ANGBAND_DIR_METARUN && ANGBAND_DIR_METARUN[0]) {
         char legacy[1024];
         if (path_build(legacy, sizeof legacy, ANGBAND_DIR_METARUN, META_RAW)) {
@@ -997,6 +1012,7 @@ errr load_metaruns(bool create_if_missing)
             log_error("load_metarun_data: failed to build legacy path");
         }
     }
+#endif
 
     if (fd) {
         found_existing_data = true;

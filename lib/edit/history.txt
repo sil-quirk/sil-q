@@ -37,7 +37,7 @@
 
 # Version stamp (required)
 
-V:0.9.5
+V:0.9.6
 
 
 # Noldor history

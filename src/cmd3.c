@@ -235,39 +235,14 @@ void do_cmd_use_item_by_index(int item)
             // possibly refuel a light
             if ((o_ptr->tval == TV_FLASK)
                 || ((l_ptr->tval == o_ptr->tval) && (l_ptr->sval == o_ptr->sval)
-                    && ((o_ptr->sval == SV_LIGHT_TORCH)
-                        || (o_ptr->sval == SV_LIGHT_LANTERN)
-                        || (o_ptr->sval == SV_LIGHT_MALLORN))))
+                    && (o_ptr->sval == SV_LIGHT_LANTERN)))
             {
-                if ((l_ptr->sval == SV_LIGHT_TORCH)
-                    && (o_ptr->tval != TV_FLASK))
+                if (l_ptr->sval == SV_LIGHT_LANTERN)
                 {
-                    if ((o_ptr->timeout + l_ptr->timeout <= FUEL_TORCH)
+                    if ((o_ptr->timeout + player_light_fuel(l_ptr)
+                            <= player_light_max_fuel(l_ptr))
                         || get_check(
-                            "Refueling from this torch will waste some fuel. "
-                            "Proceed? "))
-                    {
-                        do_cmd_refuel_torch(o_ptr, item, false);
-                        try_to_wield = false;
-                    }
-                }
-                else if ((l_ptr->sval == SV_LIGHT_MALLORN)
-                    && (o_ptr->tval != TV_FLASK))
-                {
-                    if ((o_ptr->timeout + l_ptr->timeout <= FUEL_TORCH)
-                        || get_check(
-                            "Refueling from this mallorn torch will waste "
-                            "some fuel. Proceed? "))
-                    {
-                        do_cmd_refuel_torch(o_ptr, item, true);
-                        try_to_wield = false;
-                    }
-                }
-                else if (l_ptr->sval == SV_LIGHT_LANTERN)
-                {
-                    if ((o_ptr->timeout + l_ptr->timeout <= FUEL_LAMP)
-                        || get_check(
-                            "Refueling from this flask will waste some oil. "
+                            "Refueling this lamp will waste some oil. "
                             "Proceed? "))
                     {
                         do_cmd_refuel_lamp(o_ptr, item);
@@ -937,6 +912,8 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
 
     bool combine = false;
     bool is_throwing = false;
+    int supply_index = supplies_current_action();
+    bool from_supplies = false;
 
     u32b f1, f2, f3, f4;
 
@@ -952,6 +929,7 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     {
         o_ptr = default_o_ptr;
         item = default_item;
+        from_supplies = (item == SUPPLIES_INDEX) && (supply_index >= 0);
         log_debug("do_cmd_wield: Using default item, tval=%d, sval=%d, k_idx=%d", 
             o_ptr->tval, o_ptr->sval, o_ptr->k_idx);
     }
@@ -966,6 +944,13 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
         s = "You have nothing you can wear or wield.";
         if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
             return;
+
+        if (item == SUPPLIES_INDEX)
+        {
+            open_supplies_menu_with_context(
+                SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_LIGHTS, true, true);
+            return;
+        }
 
         /* Get the item (in the pack) */
         if (item >= 0)
@@ -1011,6 +996,16 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
         else
             object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
         msg_format("You cannot wear or wield %s.", o_name);
+        return;
+    }
+
+    if (!from_supplies
+        && o_ptr->tval == TV_LIGHT && o_ptr->sval == SV_LIGHT_LANTERN
+        && o_ptr->timeout > 0
+        && player_lamp_oil_would_overflow_with_bonus(o_ptr->timeout,
+            (item < 0) ? 1 : 0)
+        && !get_check("Taking this lamp will waste some oil. Proceed? "))
+    {
         return;
     }
 
@@ -1532,6 +1527,14 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     /* Obtain local object */
     object_copy(i_ptr, o_ptr);
 
+    if (!from_supplies && i_ptr->tval == TV_LIGHT
+        && i_ptr->sval == SV_LIGHT_LANTERN)
+    {
+        player_gain_lamp_oil_with_bonus(i_ptr->timeout, true,
+            (item < 0) ? 1 : 0);
+        i_ptr->timeout = 0;
+    }
+
     bool target_is_quiver = (slot == INVEN_QUIVER1) || (slot == INVEN_QUIVER2);
 
     // Handle quantity differently for arrows or throwing weapons heading to a quiver
@@ -1558,7 +1561,11 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     i_ptr->number = quantity;
 
     /* Decrease the item (from the pack) */
-    if (item >= 0)
+    if (from_supplies)
+    {
+        supplies_consume_quantity(supply_index, quantity);
+    }
+    else if (item >= 0)
     {
         log_debug(
             "do_cmd_wield: Before decrease - item=%d, k_idx=%d, ego_pfx=%d, ego_sfx=%d, number=%d",
@@ -1586,11 +1593,16 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     /* Take off existing item */
     if (o_ptr->k_idx && !combine)
     {
+        /* Count the incoming light before takeoff so swaps cannot exceed caps. */
+        if (slot == INVEN_LITE && player_light_carry_cap(i_ptr) > 0)
+            player_light_reserve_incoming(i_ptr, i_ptr->number);
+
         log_debug(
             "do_cmd_wield: Taking off existing item from slot %d - k_idx=%d, ego_pfx=%d, ego_sfx=%d",
             slot, o_ptr->k_idx, object_ego_prefix(o_ptr), object_ego_suffix(o_ptr));
         /* Take off existing item */
         (void)inven_takeoff(slot, 255);
+        player_light_clear_incoming_reservation();
         
         /* Refresh pointer after takeoff */
         o_ptr = &inventory[slot];
@@ -3142,21 +3154,21 @@ void do_cmd_refuel_lamp(object_type* default_o_ptr, int default_item)
     /* Refuel from a latern */
     if (o_ptr->sval == SV_LIGHT_LANTERN)
     {
-        j_ptr->timeout += o_ptr->timeout;
+        player_light_add_fuel(j_ptr, o_ptr->timeout);
     }
     /* Refuel from a flask */
     else
     {
-        j_ptr->timeout += o_ptr->pval;
+        player_light_add_fuel(j_ptr, o_ptr->pval);
     }
 
     /* Message */
     msg_print("You fuel your lamp.");
 
     /* Comment */
-    if (j_ptr->timeout >= FUEL_LAMP)
+    if (player_light_fuel(j_ptr) >= player_light_max_fuel(j_ptr))
     {
-        j_ptr->timeout = FUEL_LAMP;
+        player_light_set_fuel(j_ptr, player_light_max_fuel(j_ptr));
         msg_print("Your lamp is full.");
     }
 
@@ -3188,8 +3200,6 @@ void do_cmd_refuel_lamp(object_type* default_o_ptr, int default_item)
             if (item >= 0)
             {
                 item = inven_carry(i_ptr, false);
-                if (item == SUPPLIES_INDEX)
-                    item = -1;
                 if (item < 0)
                     drop_near(i_ptr, 0, p_ptr->py, p_ptr->px);
             }
@@ -3403,13 +3413,13 @@ void do_cmd_refuel(void)
     /* It's a torch */
     else if (o_ptr->sval == SV_LIGHT_TORCH)
     {
-        do_cmd_refuel_torch(NULL, 0, false);
+        msg_print("You can no longer combine torches.");
     }
 
     /* It's a torch */
     else if (o_ptr->sval == SV_LIGHT_MALLORN)
     {
-        do_cmd_refuel_torch(NULL, 0, true);
+        msg_print("You can no longer combine torches.");
     }
 
     /* No torch to refuel */
@@ -3626,7 +3636,8 @@ static bool unified_look_can_show_marked_object_at(int y, int x)
 {
     int o_idx = cave_o_idx[y][x];
 
-    return (o_idx > 0) && o_list[o_idx].marked && grid_info_is_available(y, x);
+    return (o_idx > 0) && o_list[o_idx].k_idx && o_list[o_idx].marked
+        && grid_info_is_available(y, x);
 }
 
 static bool unified_look_sidebar_in_radius(const unified_look_state* state, int y,
@@ -3669,6 +3680,9 @@ static int unified_look_count_visible_entities(unified_look_state* state)
                 continue;
 
             object_type* o_ptr = &o_list[o_idx];
+
+            if (!o_ptr->k_idx)
+                continue;
 
             /* Only count marked (memorized) objects (matches sidebar display) */
             if (!o_ptr->marked)
@@ -3715,6 +3729,9 @@ static int unified_look_count_visible_objects_for_group(unified_look_state* stat
             continue;
 
         object_type* o_ptr = &o_list[o_idx];
+
+        if (!o_ptr->k_idx)
+            continue;
 
         /* Only count marked (memorized) objects (matches sidebar display) */
         if (!o_ptr->marked)
@@ -5310,16 +5327,23 @@ void highlight_entity_on_map_type(int y, int x, bool highlight, int entity_type)
         /* Get the original character and color, but show with blue background */
         char display_char;
         byte display_attr;
-        
+        object_type* floor_obj = NULL;
+        bool has_live_object = false;
+
+        if (cave_o_idx[y][x] > 0)
+        {
+            floor_obj = &o_list[cave_o_idx[y][x]];
+            has_live_object = floor_obj->k_idx ? true : false;
+        }
+
         /* Determine what to display based on entity_type preference */
         /* entity_type: 0=auto-detect, 1=prefer monster, 2=prefer object */
-        
-        if (entity_type == 2 && cave_o_idx[y][x] > 0)
+
+        if (entity_type == 2 && has_live_object)
         {
             /* Prefer object display */
-            object_type* o_ptr = &o_list[cave_o_idx[y][x]];
-            display_char = object_char(o_ptr);
-            display_attr = object_attr(o_ptr); /* Keep original object color */
+            display_char = object_char(floor_obj);
+            display_attr = object_attr(floor_obj); /* Keep original object color */
             log_trace("Highlighting object '%c' at (%d,%d) -> showing normal color", 
                      display_char, y, x);
         }
@@ -5343,12 +5367,11 @@ void highlight_entity_on_map_type(int y, int x, bool highlight, int entity_type)
             log_trace("Highlighting monster '%c' at (%d,%d) -> showing normal color", 
                      display_char, y, x);
         }
-        else if (cave_o_idx[y][x] > 0)
+        else if (has_live_object)
         {
             /* Auto-detect: For objects, show normal appearance (no color change) */
-            object_type* o_ptr = &o_list[cave_o_idx[y][x]];
-            display_char = object_char(o_ptr);
-            display_attr = object_attr(o_ptr); /* Keep original object color */
+            display_char = object_char(floor_obj);
+            display_attr = object_attr(floor_obj); /* Keep original object color */
             log_trace("Highlighting object '%c' at (%d,%d) -> showing normal color", 
                      display_char, y, x);
         }

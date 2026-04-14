@@ -74,7 +74,7 @@
 
 # Version stamp (required)
 
-V:0.9.5
+V:0.9.6
 
 
 
@@ -1864,7 +1864,7 @@ N:163:of the Enforcer
 W:8:70:0:1800
 C:0:0:0:-1:0:1:0
 T:30:2:2
-B:0:5
+B:0/5
 F:WEIGHT | AGGRAVATE | EVIL_ITEM | MIN_DEPTH_SPEED
 M:STEALTH:-2
 D:[greaves]They are shod for the brutal onset, after the manner of
@@ -2070,6 +2070,16 @@ T:37:4:4
 A:2/100
 F:DAMAGED | EASY_KNOW
 D:Greaves hammered out of shape, their plates caved and their straps strained.
+
+
+N:181:(broken)
+W:2:100:0:0
+C:0:0:0:0:0:0:0
+T:39:1:1
+A:2/100
+F:DAMAGED | EASY_KNOW
+D:[lantern]Its glass is cracked and its fittings bent awry, so that no
+D: steady light can be kept within it until a smith mends the hurt.
 
 
 ##### Additional Armour Egos #####

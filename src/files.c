@@ -6161,13 +6161,49 @@ typedef struct {
 #define HELP_DOC_MAX_OPS 8192
 #define HELP_DOC_MAX_ROWS 1024
 #define HELP_DOC_MAX_PAGES 256
+#define HELP_DOC_MAX_COLS 256
 #define HELP_DOC_STRING_POOL_SIZE 65536
+#define HELP_DOC_DISPLAY_MAX_ROWS 4096
+#define HELP_DOC_DISPLAY_MAX_SPANS 16384
+#define HELP_DOC_DISPLAY_STRING_POOL_SIZE 131072
 
 static help_draw_op_t g_help_doc_ops[HELP_DOC_MAX_OPS];
 static int g_help_doc_ops_n = 0;
 
 static char g_help_doc_string_pool[HELP_DOC_STRING_POOL_SIZE];
 static size_t g_help_doc_string_pool_used = 0;
+
+typedef struct {
+    bool use_role;
+    color_role_t role;
+    byte attr;
+    int x;
+    const char* text;
+} help_display_span_t;
+
+typedef struct {
+    bool has_content;
+    bool is_heading;
+    int span_start;
+    int span_count;
+} help_display_row_t;
+
+typedef struct {
+    bool used;
+    bool use_role;
+    color_role_t role;
+    byte attr;
+    char ch;
+} help_row_cell_t;
+
+static help_display_row_t g_help_display_rows[HELP_DOC_DISPLAY_MAX_ROWS];
+static int g_help_display_rows_n = 0;
+
+static help_display_span_t g_help_display_spans[HELP_DOC_DISPLAY_MAX_SPANS];
+static int g_help_display_spans_n = 0;
+
+static char g_help_display_string_pool[HELP_DOC_DISPLAY_STRING_POOL_SIZE];
+static size_t g_help_display_string_pool_used = 0;
 
 static bool g_help_record_ops = false;
 static int g_help_record_base_y = 0;
@@ -6195,6 +6231,27 @@ static const char* help_doc_intern_string(const char* s)
     dst = g_help_doc_string_pool + g_help_doc_string_pool_used;
     memcpy(dst, s, len);
     g_help_doc_string_pool_used += len;
+    return dst;
+}
+
+static const char* help_display_intern_string(const char* s)
+{
+    size_t len;
+    char* dst;
+
+    if (!s)
+        s = "";
+
+    len = strlen(s) + 1;
+    if (len > HELP_DOC_DISPLAY_STRING_POOL_SIZE)
+        return s;
+
+    if (g_help_display_string_pool_used + len > HELP_DOC_DISPLAY_STRING_POOL_SIZE)
+        return s;
+
+    dst = g_help_display_string_pool + g_help_display_string_pool_used;
+    memcpy(dst, s, len);
+    g_help_display_string_pool_used += len;
     return dst;
 }
 
@@ -6265,6 +6322,352 @@ static void help_emit_attr(byte attr, const char* s, int row, int col)
 static bool help_use_legacy_layout(int wid, int hgt)
 {
     return (wid == 80) && (hgt == 24);
+}
+
+static void help_display_reset(void)
+{
+    g_help_display_rows_n = 0;
+    g_help_display_spans_n = 0;
+    g_help_display_string_pool_used = 0;
+}
+
+static void help_display_add_blank_row(void)
+{
+    if (g_help_display_rows_n >= HELP_DOC_DISPLAY_MAX_ROWS)
+        return;
+
+    g_help_display_rows[g_help_display_rows_n].has_content = false;
+    g_help_display_rows[g_help_display_rows_n].is_heading = false;
+    g_help_display_rows[g_help_display_rows_n].span_start = g_help_display_spans_n;
+    g_help_display_rows[g_help_display_rows_n].span_count = 0;
+    g_help_display_rows_n++;
+}
+
+static void help_display_add_wrapped_row(const help_row_cell_t* cells, int len,
+    int indent, bool is_heading)
+{
+    int row_index;
+    int start = 0;
+
+    if (!cells || len <= 0)
+    {
+        help_display_add_blank_row();
+        return;
+    }
+
+    if (g_help_display_rows_n >= HELP_DOC_DISPLAY_MAX_ROWS)
+        return;
+
+    row_index = g_help_display_rows_n++;
+    g_help_display_rows[row_index].has_content = true;
+    g_help_display_rows[row_index].is_heading = is_heading;
+    g_help_display_rows[row_index].span_start = g_help_display_spans_n;
+    g_help_display_rows[row_index].span_count = 0;
+
+    while (start < len)
+    {
+        int end = start + 1;
+        bool use_role = cells[start].use_role;
+        color_role_t role = cells[start].role;
+        byte attr = cells[start].attr;
+        char span_buf[HELP_DOC_MAX_COLS + 1];
+        int span_len;
+        bool all_spaces = true;
+
+        while (end < len
+            && cells[end].use_role == use_role
+            && cells[end].role == role
+            && cells[end].attr == attr)
+        {
+            end++;
+        }
+
+        span_len = end - start;
+        if (span_len > HELP_DOC_MAX_COLS)
+            span_len = HELP_DOC_MAX_COLS;
+
+        for (int i = 0; i < span_len; i++)
+        {
+            span_buf[i] = cells[start + i].ch;
+            if (span_buf[i] != ' ')
+                all_spaces = false;
+        }
+        span_buf[span_len] = '\0';
+
+        if (!all_spaces && g_help_display_spans_n < HELP_DOC_DISPLAY_MAX_SPANS)
+        {
+            g_help_display_spans[g_help_display_spans_n].use_role = use_role;
+            g_help_display_spans[g_help_display_spans_n].role = role;
+            g_help_display_spans[g_help_display_spans_n].attr = attr;
+            g_help_display_spans[g_help_display_spans_n].x = 1 + indent + start;
+            g_help_display_spans[g_help_display_spans_n].text =
+                help_display_intern_string(span_buf);
+            g_help_display_spans_n++;
+            g_help_display_rows[row_index].span_count++;
+        }
+
+        start = end;
+    }
+}
+
+static void help_build_compact_source_row(int source_y,
+    help_row_cell_t cells[HELP_DOC_MAX_COLS], int* first_used, int* last_used,
+    bool* has_content, bool* is_heading)
+{
+    int min_x = HELP_DOC_MAX_COLS;
+    int max_x = -1;
+    bool found = false;
+    bool heading = false;
+
+    memset(cells, 0, sizeof(help_row_cell_t) * HELP_DOC_MAX_COLS);
+
+    for (int op = 0; op < g_help_doc_ops_n; op++)
+    {
+        const char* text;
+
+        if (g_help_doc_ops[op].y != source_y)
+            continue;
+
+        text = g_help_doc_ops[op].text ? g_help_doc_ops[op].text : "";
+        if (g_help_doc_ops[op].is_heading)
+            heading = true;
+
+        for (int i = 0; text[i]; i++)
+        {
+            int x = g_help_doc_ops[op].x + i;
+
+            if (x < 0 || x >= HELP_DOC_MAX_COLS)
+                continue;
+
+            cells[x].used = true;
+            cells[x].use_role = g_help_doc_ops[op].use_role;
+            cells[x].role = g_help_doc_ops[op].role;
+            cells[x].attr = g_help_doc_ops[op].attr;
+            cells[x].ch = text[i];
+
+            if (x < min_x)
+                min_x = x;
+            if (x > max_x)
+                max_x = x;
+            found = true;
+        }
+    }
+
+    if (first_used)
+        *first_used = found ? min_x : 0;
+    if (last_used)
+        *last_used = found ? max_x : -1;
+    if (has_content)
+        *has_content = found;
+    if (is_heading)
+        *is_heading = heading;
+}
+
+static int help_compact_row_indent(int first_used)
+{
+    int indent = first_used - 1;
+
+    if (indent < 0)
+        indent = 0;
+    if (indent > 4)
+        indent = 4;
+
+    return indent;
+}
+
+static int help_build_compact_display_rows(int term_wid, int doc_hgt)
+{
+    help_row_cell_t source_cells[HELP_DOC_MAX_COLS];
+
+    help_display_reset();
+
+    for (int y = 0; y < doc_hgt; y++)
+    {
+        help_row_cell_t compact_cells[HELP_DOC_MAX_COLS];
+        help_row_cell_t fill_style;
+        int first_used = 0;
+        int last_used = -1;
+        int compact_len = 0;
+        int indent;
+        int wrap_width;
+        int pos = 0;
+        bool has_content = false;
+        bool is_heading = false;
+        bool have_fill = false;
+        bool first_line = true;
+
+        help_build_compact_source_row(y, source_cells, &first_used, &last_used,
+            &has_content, &is_heading);
+
+        if (!has_content)
+        {
+            help_display_add_blank_row();
+            continue;
+        }
+
+        for (int x = first_used; x <= last_used && compact_len < HELP_DOC_MAX_COLS; x++)
+        {
+            if (source_cells[x].used)
+            {
+                compact_cells[compact_len++] = source_cells[x];
+                fill_style = source_cells[x];
+                have_fill = true;
+            }
+            else
+            {
+                compact_cells[compact_len].used = true;
+                compact_cells[compact_len].use_role = have_fill ? fill_style.use_role : true;
+                compact_cells[compact_len].role = have_fill ? fill_style.role : ROLE_BODY;
+                compact_cells[compact_len].attr = have_fill ? fill_style.attr : TERM_WHITE;
+                compact_cells[compact_len].ch = ' ';
+                compact_len++;
+            }
+        }
+
+        while (compact_len > 0 && compact_cells[compact_len - 1].ch == ' ')
+            compact_len--;
+
+        if (compact_len <= 0)
+        {
+            help_display_add_blank_row();
+            continue;
+        }
+
+        indent = help_compact_row_indent(first_used);
+        wrap_width = term_wid - indent - 2;
+        if (wrap_width < 1)
+            wrap_width = 1;
+        if (wrap_width > HELP_DOC_MAX_COLS)
+            wrap_width = HELP_DOC_MAX_COLS;
+
+        while (pos < compact_len)
+        {
+            int line_start = pos;
+            int line_end;
+            int next_pos;
+
+            if (!first_line)
+            {
+                while (line_start < compact_len && compact_cells[line_start].ch == ' ')
+                    line_start++;
+            }
+
+            if (line_start >= compact_len)
+                break;
+
+            if ((compact_len - line_start) <= wrap_width)
+            {
+                line_end = compact_len;
+                next_pos = compact_len;
+            }
+            else
+            {
+                int limit = line_start + wrap_width;
+                int break_at = -1;
+
+                for (int i = line_start; i < limit; i++)
+                {
+                    if (compact_cells[i].ch == ' ')
+                        break_at = i;
+                }
+
+                if (break_at > line_start)
+                {
+                    line_end = break_at;
+                    next_pos = break_at + 1;
+                }
+                else
+                {
+                    line_end = limit;
+                    next_pos = limit;
+                }
+            }
+
+            while (line_end > line_start && compact_cells[line_end - 1].ch == ' ')
+                line_end--;
+
+            if (line_end > line_start)
+            {
+                help_display_add_wrapped_row(compact_cells + line_start,
+                    line_end - line_start, indent, is_heading && first_line);
+            }
+
+            pos = next_pos;
+            first_line = false;
+        }
+    }
+
+    return g_help_display_rows_n;
+}
+
+static int help_dynamic_build_display_pages(int term_hgt, int display_hgt,
+    int page_starts[HELP_DOC_MAX_PAGES], int page_ends[HELP_DOC_MAX_PAGES])
+{
+    int capacity = term_hgt - 3;
+    int start_row = 0;
+    int page_count = 0;
+
+    if (capacity < 4)
+        capacity = 4;
+
+    while ((start_row < display_hgt) && (page_count < HELP_DOC_MAX_PAGES))
+    {
+        int end_row;
+        int last_content;
+
+        while (start_row < display_hgt
+            && !g_help_display_rows[start_row].has_content)
+        {
+            start_row++;
+        }
+
+        if (start_row >= display_hgt)
+            break;
+
+        end_row = start_row + capacity - 1;
+        if (end_row >= display_hgt)
+            end_row = display_hgt - 1;
+
+        last_content = end_row;
+        while (last_content >= start_row
+            && !g_help_display_rows[last_content].has_content)
+        {
+            last_content--;
+        }
+
+        while (last_content >= start_row
+            && g_help_display_rows[last_content].is_heading)
+        {
+            end_row = last_content - 1;
+            if (end_row < start_row)
+            {
+                end_row = start_row;
+                break;
+            }
+
+            last_content = end_row;
+            while (last_content >= start_row
+                && !g_help_display_rows[last_content].has_content)
+            {
+                last_content--;
+            }
+        }
+
+        page_starts[page_count] = start_row;
+        page_ends[page_count] = end_row;
+        page_count++;
+
+        start_row = end_row + 1;
+    }
+
+    if (page_count < 1)
+    {
+        page_starts[0] = 0;
+        page_ends[0] = 0;
+        page_count = 1;
+    }
+
+    return page_count;
 }
 
 static int help_build_document_ops(int* out_doc_hgt, bool row_has_content[HELP_DOC_MAX_ROWS], bool row_has_heading[HELP_DOC_MAX_ROWS])
@@ -6431,6 +6834,45 @@ static void show_help_screen_dynamic_document(
             put_role(g_help_doc_ops[op].role, g_help_doc_ops[op].text, screen_y, x);
         else
             c_put_str(g_help_doc_ops[op].attr, g_help_doc_ops[op].text, screen_y, x);
+    }
+}
+
+static void show_help_screen_compact_document(
+    int page,
+    int total_pages,
+    int term_hgt,
+    int row_start,
+    int row_end)
+{
+    char header[96];
+    const int col = 1;
+    const int top = 2;
+
+    strnfmt(header, sizeof(header),
+        "SIL-MORE: SHINING DARKNESS - HELP [%d/%d]",
+        page, total_pages);
+    put_role(ROLE_HEADER, header, 0, col);
+
+    for (int row = row_start; row <= row_end; row++)
+    {
+        int screen_y = top + (row - row_start);
+
+        if (screen_y < top || screen_y >= term_hgt - 1)
+            continue;
+
+        if (!g_help_display_rows[row].has_content)
+            continue;
+
+        for (int i = 0; i < g_help_display_rows[row].span_count; i++)
+        {
+            help_display_span_t* span =
+                &g_help_display_spans[g_help_display_rows[row].span_start + i];
+
+            if (span->use_role)
+                put_role(span->role, span->text, screen_y, span->x);
+            else
+                c_put_str(span->attr, span->text, screen_y, span->x);
+        }
     }
 }
 
@@ -7206,11 +7648,14 @@ void do_cmd_help(void)
     {
         int wid, hgt;
         int total_pages;
+        int compact_doc_hgt = 0;
+        bool compact_dynamic = false;
         bool legacy;
 
         /* Get current terminal size before deciding layout */
         Term_get_size(&wid, &hgt);
         legacy = help_use_legacy_layout(wid, hgt);
+        compact_dynamic = (!legacy && wid < 80);
 
         if (legacy)
         {
@@ -7220,13 +7665,25 @@ void do_cmd_help(void)
         {
             /* Rebuild each time so controller bindings / options are current */
             help_build_document_ops(&doc_hgt, row_has_content, row_has_heading);
-            total_pages = help_dynamic_build_document_pages(
-                hgt,
-                doc_hgt,
-                row_has_content,
-                row_has_heading,
-                page_starts,
-                page_ends);
+            if (compact_dynamic)
+            {
+                compact_doc_hgt = help_build_compact_display_rows(wid, doc_hgt);
+                total_pages = help_dynamic_build_display_pages(
+                    hgt,
+                    compact_doc_hgt,
+                    page_starts,
+                    page_ends);
+            }
+            else
+            {
+                total_pages = help_dynamic_build_document_pages(
+                    hgt,
+                    doc_hgt,
+                    row_has_content,
+                    row_has_heading,
+                    page_starts,
+                    page_ends);
+            }
         }
 
         if (total_pages < 1)
@@ -7243,6 +7700,12 @@ void do_cmd_help(void)
         if (legacy)
         {
             show_help_screen_legacy(i, true);
+        }
+        else if (compact_dynamic)
+        {
+            int start_row = page_starts[i - 1];
+            int end_row = page_ends[i - 1];
+            show_help_screen_compact_document(i, total_pages, hgt, start_row, end_row);
         }
         else
         {

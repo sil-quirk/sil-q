@@ -161,6 +161,34 @@ static inline bool object_has_ego_idx(const object_type* o_ptr, int e_idx)
         || object_ego_suffix(o_ptr) == (byte)e_idx;
 }
 
+static inline s32b object_runtime_state(const object_type* o_ptr)
+{
+    if (!o_ptr)
+        return OBJECT_RUNTIME_STATE_NONE;
+    return o_ptr->unused3;
+}
+
+static inline void object_set_runtime_state(object_type* o_ptr, s32b state)
+{
+    if (!o_ptr)
+        return;
+    o_ptr->unused3 = state;
+}
+
+static inline s32b object_runtime_payload(const object_type* o_ptr)
+{
+    if (!o_ptr)
+        return 0;
+    return o_ptr->unused4;
+}
+
+static inline void object_set_runtime_payload(object_type* o_ptr, s32b payload)
+{
+    if (!o_ptr)
+        return;
+    o_ptr->unused4 = payload;
+}
+
 static inline bool ego_name_is_prefix(const char* name)
 {
     if (!name || !name[0])

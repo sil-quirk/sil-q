@@ -3,7 +3,7 @@
 # Data-driven definitions for metarun major blessings. Parsed by
 # parse_mb_info() into mb_info[].
 
-V:0.9.5
+V:0.9.6
 
 N:0:Supply Covenant
 E:SUPPLY_LIMIT

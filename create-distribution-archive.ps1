@@ -1,4 +1,4 @@
-# Create a distribution archive from a release build folder
+# Create a distribution archive from an OGG-only release build folder
 
 param(
     [string]$ReleaseFolder = "sil-more-release",
@@ -21,6 +21,14 @@ if (-not (Test-Path $ReleaseFolder)) {
 
 Write-Host "Source folder: $ReleaseFolder" -ForegroundColor Yellow
 Write-Host "Archive name: $ArchiveName" -ForegroundColor Yellow
+
+# Enforce the OGG-only packaging rule before archiving.
+$wavFiles = @(Get-ChildItem -Path $ReleaseFolder -Recurse -File -Filter "*.wav" -ErrorAction SilentlyContinue)
+if ($wavFiles.Count -gt 0) {
+    Write-Host "ERROR: Release folder contains .wav files; expected .ogg-only audio assets." -ForegroundColor Red
+    $wavFiles | ForEach-Object { Write-Host "  - $($_.FullName)" }
+    exit 1
+}
 
 # Remove existing archive if it exists
 if (Test-Path $ArchiveName) {

@@ -905,7 +905,7 @@ static void prt_light(void)
         case SV_LIGHT_TORCH:
         case SV_LIGHT_LANTERN:
         case SV_LIGHT_MALLORN:
-            fuel = o_ptr->timeout;
+            fuel = player_light_fuel(o_ptr);
             break;
         default:
             infinite = true;
@@ -2996,7 +2996,7 @@ int light_up_to(int base_radius, object_type* o_ptr)
             radius--;
         }
     }
-    else if (o_ptr->timeout < 100)
+    else if (player_light_fuel(o_ptr) <= player_light_sputter_threshold(o_ptr))
     {
         while ((radius > 0) && one_in_(3))
         {
@@ -3299,19 +3299,26 @@ void calc_torch(void)
                 p_ptr->cur_light += RADIUS_SILMARIL;
 
             /* Torches (with fuel) provide some light */
-            else if ((o_ptr->sval == SV_LIGHT_TORCH) && (o_ptr->timeout > 0))
+            else if ((o_ptr->sval == SV_LIGHT_TORCH) && player_light_has_fuel(o_ptr))
             {
                 p_ptr->cur_light += light_up_to(RADIUS_TORCH, o_ptr);
             }
 
+            /* Broken lanterns can still hold oil, but give no light until repaired. */
+            else if ((o_ptr->sval == SV_LIGHT_LANTERN)
+                && (object_ego_prefix(o_ptr) == EGO_BROKEN_BRASS_LANTERN))
+            {
+                extinguished = true;
+            }
+
             /* Lanterns (with fuel) provide more light */
-            else if ((o_ptr->sval == SV_LIGHT_LANTERN) && (o_ptr->timeout > 0))
+            else if ((o_ptr->sval == SV_LIGHT_LANTERN) && player_light_has_fuel(o_ptr))
             {
                 p_ptr->cur_light += light_up_to(RADIUS_LANTERN, o_ptr);
             }
 
             /* Mallorn torches (with fuel) provide even more light */
-            else if ((o_ptr->sval == SV_LIGHT_MALLORN) && (o_ptr->timeout > 0))
+            else if ((o_ptr->sval == SV_LIGHT_MALLORN) && player_light_has_fuel(o_ptr))
             {
                 p_ptr->cur_light += light_up_to(RADIUS_MALLORN, o_ptr);
             }
@@ -3949,6 +3956,7 @@ static void calc_bonuses(void)
             p_ptr->danger += 1;
     }
     p_ptr->total_weight += supplies_total_weight();
+    p_ptr->total_weight += player_lamp_oil_weight();
 
     /*** Analyze equipment ***/
 

@@ -1548,13 +1548,17 @@ static errr rd_extra(void)
         byte morgoth_hall_entered = 0;
         byte morgoth_second_wind = 0;
         byte discovery_lore_flags = 0;
+        s16b lamp_oil = 0;
         rd_byte(&morgoth_hall_entered);
         rd_byte(&morgoth_second_wind);
         rd_byte(&discovery_lore_flags);
+        rd_s16b(&lamp_oil);
+        strip_bytes(2);
         p_ptr->morgoth_hall_entered = morgoth_hall_entered ? 1 : 0;
         p_ptr->morgoth_second_wind = morgoth_second_wind ? 1 : 0;
         p_ptr->discovery_lore_flags = discovery_lore_flags;
-        strip_bytes(12);
+        p_ptr->lamp_oil = lamp_oil;
+        strip_bytes(8);
     }
 
     /* Read item-quality squelch sub-menu */
@@ -2174,6 +2178,471 @@ static bool rd_notes(void)
     return 0;
 }
 
+typedef enum legacy_supply_kind
+{
+    LEGACY_SUPPLY_KIND_FOOD = 0,
+    LEGACY_SUPPLY_KIND_POTIONS,
+    LEGACY_SUPPLY_KIND_GEMS,
+    LEGACY_SUPPLY_KIND_WOODEN_TORCHES,
+    LEGACY_SUPPLY_KIND_MALLORN_TORCHES,
+    LEGACY_SUPPLY_KIND_BRASS_LANTERNS,
+    LEGACY_SUPPLY_KIND_LESSER_JEWELS,
+    LEGACY_SUPPLY_KIND_FEANORIAN_LAMPS,
+    LEGACY_SUPPLY_KIND_OIL_FLASKS,
+    LEGACY_SUPPLY_KIND_MAX
+} legacy_supply_kind;
+
+typedef struct legacy_supply_migration_report
+{
+    int moved[LEGACY_SUPPLY_KIND_MAX];
+    int dropped[LEGACY_SUPPLY_KIND_MAX];
+    int discarded[LEGACY_SUPPLY_KIND_MAX];
+    int oil_added;
+    int oil_lost;
+    int lanterns_drained;
+    int flasks_converted;
+} legacy_supply_migration_report;
+
+static int legacy_supply_kind_for_object(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return -1;
+
+    switch (o_ptr->tval)
+    {
+    case TV_FOOD:
+        return LEGACY_SUPPLY_KIND_FOOD;
+    case TV_POTION:
+        return LEGACY_SUPPLY_KIND_POTIONS;
+    case TV_GEM:
+        return LEGACY_SUPPLY_KIND_GEMS;
+    case TV_FLASK:
+        return LEGACY_SUPPLY_KIND_OIL_FLASKS;
+    case TV_LIGHT:
+        switch (o_ptr->sval)
+        {
+        case SV_LIGHT_TORCH:
+            return LEGACY_SUPPLY_KIND_WOODEN_TORCHES;
+        case SV_LIGHT_MALLORN:
+            return LEGACY_SUPPLY_KIND_MALLORN_TORCHES;
+        case SV_LIGHT_LANTERN:
+            return LEGACY_SUPPLY_KIND_BRASS_LANTERNS;
+        case SV_LIGHT_LESSER_JEWEL:
+            return LEGACY_SUPPLY_KIND_LESSER_JEWELS;
+        case SV_LIGHT_FEANORIAN:
+            return LEGACY_SUPPLY_KIND_FEANORIAN_LAMPS;
+        default:
+            break;
+        }
+        break;
+    default:
+        break;
+    }
+
+    return -1;
+}
+
+static cptr legacy_supply_kind_name(int kind, int count)
+{
+    bool plural = (count != 1);
+
+    switch (kind)
+    {
+    case LEGACY_SUPPLY_KIND_FOOD:
+        return plural ? "food items" : "food item";
+    case LEGACY_SUPPLY_KIND_POTIONS:
+        return plural ? "potions" : "potion";
+    case LEGACY_SUPPLY_KIND_GEMS:
+        return plural ? "gems" : "gem";
+    case LEGACY_SUPPLY_KIND_WOODEN_TORCHES:
+        return plural ? "wooden torches" : "wooden torch";
+    case LEGACY_SUPPLY_KIND_MALLORN_TORCHES:
+        return plural ? "mallorn torches" : "mallorn torch";
+    case LEGACY_SUPPLY_KIND_BRASS_LANTERNS:
+        return plural ? "brass lanterns" : "brass lantern";
+    case LEGACY_SUPPLY_KIND_LESSER_JEWELS:
+        return plural ? "lesser jewels" : "lesser jewel";
+    case LEGACY_SUPPLY_KIND_FEANORIAN_LAMPS:
+        return plural ? "Feanorian lamps" : "Feanorian lamp";
+    case LEGACY_SUPPLY_KIND_OIL_FLASKS:
+        return plural ? "oil flasks" : "oil flask";
+    default:
+        return plural ? "items" : "item";
+    }
+}
+
+static void legacy_supply_record_counts(int counts[LEGACY_SUPPLY_KIND_MAX],
+    const object_type* o_ptr, int amount)
+{
+    int kind = legacy_supply_kind_for_object(o_ptr);
+
+    if (!counts || amount <= 0 || kind < 0 || kind >= LEGACY_SUPPLY_KIND_MAX)
+        return;
+
+    counts[kind] += amount;
+}
+
+static void legacy_supply_append_count(char* buf, size_t len, bool* first,
+    int count, int kind)
+{
+    char part[64];
+
+    if (!buf || !first || count <= 0)
+        return;
+
+    if (!*first)
+        SDL_strlcat(buf, ", ", len);
+
+    strnfmt(part, sizeof(part), "%d %s", count,
+        legacy_supply_kind_name(kind, count));
+    SDL_strlcat(buf, part, len);
+    *first = false;
+}
+
+static bool legacy_supply_counts_present(const int counts[LEGACY_SUPPLY_KIND_MAX])
+{
+    for (int i = 0; i < LEGACY_SUPPLY_KIND_MAX; i++)
+    {
+        if (counts[i] > 0)
+            return true;
+    }
+
+    return false;
+}
+
+static bool legacy_supply_migration_changed(
+    const legacy_supply_migration_report* report)
+{
+    if (!report)
+        return false;
+
+    if (report->oil_added > 0 || report->oil_lost > 0
+        || report->lanterns_drained > 0 || report->flasks_converted > 0)
+    {
+        return true;
+    }
+
+    return legacy_supply_counts_present(report->moved)
+        || legacy_supply_counts_present(report->dropped)
+        || legacy_supply_counts_present(report->discarded);
+}
+
+static void legacy_supply_add_oil(legacy_supply_migration_report* report,
+    int amount)
+{
+    int before;
+    int after;
+    int gained;
+
+    if (!report || amount <= 0)
+        return;
+
+    before = player_lamp_oil();
+    player_gain_lamp_oil(amount, true);
+    after = player_lamp_oil();
+    gained = after - before;
+
+    if (gained < 0)
+        gained = 0;
+    if (gained > amount)
+        gained = amount;
+
+    report->oil_added += gained;
+    report->oil_lost += amount - gained;
+}
+
+static void legacy_supply_drop_object(object_type* drop,
+    legacy_supply_migration_report* report)
+{
+    if (!drop || !drop->k_idx || drop->number <= 0)
+        return;
+
+    if (player_light_destroyed_on_drop(drop))
+    {
+        legacy_supply_record_counts(report->discarded, drop, drop->number);
+        return;
+    }
+
+    drop_near(drop, 0, p_ptr->py, p_ptr->px);
+    legacy_supply_record_counts(report->dropped, drop, drop->number);
+}
+
+static bool legacy_pack_permanent_light_matches(const object_type* o_ptr)
+{
+    return o_ptr && o_ptr->k_idx && o_ptr->tval == TV_LIGHT
+        && ((o_ptr->sval == SV_LIGHT_LESSER_JEWEL)
+            || (o_ptr->sval == SV_LIGHT_FEANORIAN));
+}
+
+static bool legacy_savefile_has_supply_block(void)
+{
+    Sint64 saved_pos;
+    byte saved_xor;
+    u32b saved_v_check;
+    u32b saved_x_check;
+    u32b saved_offset;
+    u16b maybe_supply_count = 0;
+    bool has_block = false;
+    bool ok = true;
+
+    saved_pos = sdl_tell(fff);
+    if (saved_pos < 0)
+        return false;
+
+    saved_xor = xor_byte;
+    saved_v_check = v_check;
+    saved_x_check = x_check;
+    saved_offset = load_byte_offset;
+
+    rd_u16b(&maybe_supply_count);
+
+    if (maybe_supply_count == 0 || maybe_supply_count > 512)
+        goto restore;
+
+    for (u16b i = 0; i < MIN((u16b)2, maybe_supply_count); i++)
+    {
+        object_type probe;
+        s32b stored_units = 0;
+
+        object_wipe(&probe);
+        if (rd_item(&probe))
+        {
+            ok = false;
+            break;
+        }
+
+        rd_s32b(&stored_units);
+
+        if (!probe.k_idx || !supplies_is_supply_object(&probe)
+            || stored_units < 0)
+        {
+            ok = false;
+            break;
+        }
+    }
+
+    has_block = ok;
+
+restore:
+    sdl_seek(fff, saved_pos);
+    xor_byte = saved_xor;
+    v_check = saved_v_check;
+    x_check = saved_x_check;
+    load_byte_offset = saved_offset;
+
+    log_debug("Legacy supply block probe: %s (raw count=%u)",
+        has_block ? "present" : "absent", (unsigned)maybe_supply_count);
+
+    return has_block;
+}
+
+static void legacy_supply_trim_pack_permanent_lights(
+    legacy_supply_migration_report* report)
+{
+    while ((player_carried_light_count_for_sval(SV_LIGHT_LESSER_JEWEL)
+            + player_carried_light_count_for_sval(SV_LIGHT_FEANORIAN))
+        > PLAYER_PERMANENT_LIGHT_CAP)
+    {
+        bool removed = false;
+
+        for (int i = INVEN_PACK - 1; i >= 0; i--)
+        {
+            object_type* o_ptr = &inventory[i];
+            object_type drop;
+
+            if (!legacy_pack_permanent_light_matches(o_ptr))
+                continue;
+
+            object_copy(&drop, o_ptr);
+            drop.number = 1;
+            inven_item_increase(i, -1);
+            inven_item_optimize(i);
+            legacy_supply_drop_object(&drop, report);
+            removed = true;
+            break;
+        }
+
+        if (!removed)
+        {
+            log_warn("Legacy light migration could not trim excess permanent lights");
+            break;
+        }
+    }
+}
+
+static void migrate_legacy_supply_system(
+    legacy_supply_migration_report* report)
+{
+    object_type detached[INVEN_PACK];
+    int detached_count = 0;
+    object_type* lite;
+
+    if (!report)
+        return;
+
+    memset(report, 0, sizeof(*report));
+
+    lite = &inventory[INVEN_LITE];
+    if (lite->k_idx && lite->tval == TV_LIGHT
+        && lite->sval == SV_LIGHT_LANTERN && lite->timeout > 0)
+    {
+        int units = MAX(lite->number, 1);
+        report->lanterns_drained += units;
+        legacy_supply_add_oil(report, lite->timeout * units);
+        lite->timeout = 0;
+    }
+
+    for (int i = 0; i < supplies_entry_count(); i++)
+    {
+        object_type* supply = supplies_entry_at(i);
+        if (!supply || !supply->k_idx)
+            continue;
+        if (supply->tval != TV_LIGHT || supply->sval != SV_LIGHT_LANTERN
+            || supply->timeout <= 0)
+        {
+            continue;
+        }
+
+        report->lanterns_drained += MAX(supply->number, 1);
+        legacy_supply_add_oil(report, supply->timeout * MAX(supply->number, 1));
+        supply->timeout = 0;
+    }
+
+    for (int i = 0; i < INVEN_PACK; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+
+        if (!o_ptr->k_idx)
+            continue;
+        if (!supplies_is_supply_object(o_ptr) && o_ptr->tval != TV_FLASK)
+            continue;
+
+        if (detached_count < INVEN_PACK)
+        {
+            object_copy(&detached[detached_count], o_ptr);
+            detached_count++;
+        }
+
+        inven_item_increase(i, -o_ptr->number);
+        inven_item_optimize(i);
+        i--;
+    }
+
+    for (int i = 0; i < detached_count; i++)
+    {
+        object_type* src = &detached[i];
+
+        if (!src->k_idx || src->number <= 0)
+            continue;
+
+        if (src->tval == TV_FLASK)
+        {
+            report->flasks_converted += src->number;
+            legacy_supply_add_oil(report, src->pval * src->number);
+            continue;
+        }
+
+        if (!supplies_is_supply_object(src))
+            continue;
+
+        for (int n = 0; n < src->number; n++)
+        {
+            object_type unit;
+
+            object_copy(&unit, src);
+            unit.number = 1;
+
+            if (unit.tval == TV_LIGHT && unit.sval == SV_LIGHT_LANTERN)
+            {
+                report->lanterns_drained++;
+                legacy_supply_add_oil(report, unit.timeout);
+                unit.timeout = 0;
+            }
+
+            if (supplies_absorb_object(&unit))
+                legacy_supply_record_counts(report->moved, src, 1);
+            else
+                legacy_supply_drop_object(&unit, report);
+        }
+    }
+
+    legacy_supply_trim_pack_permanent_lights(report);
+}
+
+static void queue_legacy_supply_migration_messages(
+    const legacy_supply_migration_report* report)
+{
+    char buf[256];
+    char sources[128];
+    bool first = true;
+
+    if (!report)
+        return;
+
+    message_add("Your save was converted to the 0.9.6 supply system.",
+        MSG_GENERIC);
+
+    if (legacy_supply_counts_present(report->moved))
+    {
+        SDL_strlcpy(buf, "Moved to supplies: ", sizeof(buf));
+        first = true;
+        for (int i = 0; i < LEGACY_SUPPLY_KIND_MAX; i++)
+            legacy_supply_append_count(buf, sizeof(buf), &first,
+                report->moved[i], i);
+        message_add(buf, MSG_GENERIC);
+    }
+
+    if (report->oil_added > 0)
+    {
+        sources[0] = '\0';
+        first = true;
+        legacy_supply_append_count(sources, sizeof(sources), &first,
+            report->lanterns_drained, LEGACY_SUPPLY_KIND_BRASS_LANTERNS);
+        legacy_supply_append_count(sources, sizeof(sources), &first,
+            report->flasks_converted, LEGACY_SUPPLY_KIND_OIL_FLASKS);
+
+        if (sources[0] != '\0')
+        {
+            strnfmt(buf, sizeof(buf), "Lamp oil pooled: %d turns from %s.",
+                report->oil_added, sources);
+        }
+        else
+        {
+            strnfmt(buf, sizeof(buf), "Lamp oil pooled: %d turns added.",
+                report->oil_added);
+        }
+        message_add(buf, MSG_GENERIC);
+    }
+
+    if (report->oil_lost > 0)
+    {
+        strnfmt(buf, sizeof(buf),
+            "%d turns of excess lamp oil could not be stored.",
+            report->oil_lost);
+        message_add(buf, MSG_GENERIC);
+    }
+
+    if (legacy_supply_counts_present(report->dropped))
+    {
+        SDL_strlcpy(buf, "Dropped nearby: ", sizeof(buf));
+        first = true;
+        for (int i = 0; i < LEGACY_SUPPLY_KIND_MAX; i++)
+            legacy_supply_append_count(buf, sizeof(buf), &first,
+                report->dropped[i], i);
+        message_add(buf, MSG_GENERIC);
+    }
+
+    if (legacy_supply_counts_present(report->discarded))
+    {
+        SDL_strlcpy(buf, "Discarded as spent: ", sizeof(buf));
+        first = true;
+        for (int i = 0; i < LEGACY_SUPPLY_KIND_MAX; i++)
+            legacy_supply_append_count(buf, sizeof(buf), &first,
+                report->discarded[i], i);
+        message_add(buf, MSG_GENERIC);
+    }
+}
+
 /*
  * Read the player inventory (and the smithing object)
  *
@@ -2293,60 +2762,89 @@ static errr rd_inventory(void)
 
     log_trace("[load:%06u] === BEGIN SUPPLIES ===", (unsigned)load_byte_offset);
     supplies_reset_store();
+    bool has_supply_block = false;
 
-    u16b supply_count = 0;
-    rd_u16b(&supply_count);
-    log_debug("Loading %u supply entries", (unsigned)supply_count);
-    supplies_set_allow_overflow(true);
-    for (u16b si = 0; si < supply_count; si++)
+    if (savefile_version_at_least(0, 9, 6, 0))
     {
-        object_type supply;
-        object_wipe(&supply);
-        if (rd_item(&supply))
+        u16b supply_magic = 0;
+        rd_u16b(&supply_magic);
+        if (supply_magic != SAVEFILE_SUPPLY_BLOCK_MAGIC)
         {
-            log_warn("Error reading supply entry");
+            log_warn("Invalid supplies block marker 0x%04X",
+                (unsigned)supply_magic);
             note("Error reading supplies");
-            supplies_set_allow_overflow(false);
             return (-1);
         }
-
-        s32b stored_units = 0;
-        rd_s32b(&stored_units);
-
-        if (supply.tval == TV_GEM)
-        {
-            int count = (int)stored_units;
-            if (count <= 0)
-                count = supply.number;
-            if (count < 0)
-                count = 0;
-
-            supply.pval = 0;
-            supply.ident &= ~(IDENT_EMPTY);
-
-            int stack_limit = object_stack_limit(&supply);
-            while (count > 0)
-            {
-                int chunk = MIN(count, stack_limit);
-                if (chunk <= 0)
-                    break;
-                object_type part;
-                object_copy(&part, &supply);
-                part.number = (byte)chunk;
-                count -= chunk;
-                supplies_absorb_object(&part);
-            }
-            continue;
-        }
-
-        if (supply.k_idx)
-            supplies_absorb_object(&supply);
+        has_supply_block = true;
     }
+    else
+    {
+        has_supply_block = legacy_savefile_has_supply_block();
+    }
+
+    if (has_supply_block)
+    {
+        u16b supply_count = 0;
+        rd_u16b(&supply_count);
+        log_debug("Loading %u supply entries", (unsigned)supply_count);
+        supplies_set_allow_overflow(true);
+        for (u16b si = 0; si < supply_count; si++)
+        {
+            object_type supply;
+            object_wipe(&supply);
+            if (rd_item(&supply))
+            {
+                log_warn("Error reading supply entry");
+                note("Error reading supplies");
+                supplies_set_allow_overflow(false);
+                return (-1);
+            }
+
+            s32b stored_units = 0;
+            rd_s32b(&stored_units);
+
+            if (supply.tval == TV_GEM)
+            {
+                int count = (int)stored_units;
+                if (count <= 0)
+                    count = supply.number;
+                if (count < 0)
+                    count = 0;
+
+                supply.pval = 0;
+                supply.ident &= ~(IDENT_EMPTY);
+
+                int stack_limit = object_stack_limit(&supply);
+                while (count > 0)
+                {
+                    int chunk = MIN(count, stack_limit);
+                    if (chunk <= 0)
+                        break;
+                    object_type part;
+                    object_copy(&part, &supply);
+                    part.number = (byte)chunk;
+                    count -= chunk;
+                    supplies_absorb_object(&part);
+                }
+                continue;
+            }
+
+            if (supply.k_idx)
+                supplies_absorb_object(&supply);
+        }
+        supplies_set_allow_overflow(false);
+    }
+    else
+    {
+        log_debug("No legacy supplies block present; migration will rebuild supplies if needed");
+    }
+
     supplies_set_allow_overflow(false);
 
     log_trace("[load:%06u] === END SUPPLIES ===", (unsigned)load_byte_offset);
 
-    supplies_ingest_pack();
+    if (savefile_version_at_least(0, 9, 6, 0))
+        supplies_ingest_pack();
 
     /* Success */
     return (0);
@@ -3722,6 +4220,20 @@ bool load_player(void)
         else
         {
             log_debug("load: morgoth_state is 0, no reapplication needed");
+        }
+
+        if (!savefile_version_at_least(0, 9, 6, 0))
+        {
+            legacy_supply_migration_report migration_report;
+
+            migrate_legacy_supply_system(&migration_report);
+            if (legacy_supply_migration_changed(&migration_report))
+            {
+                p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+                p_ptr->update |= (PU_BONUS);
+                p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
+            }
+            queue_legacy_supply_migration_messages(&migration_report);
         }
 
         /* Success */
