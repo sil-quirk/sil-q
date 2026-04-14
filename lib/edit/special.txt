@@ -1864,7 +1864,7 @@ N:163:of the Enforcer
 W:8:70:0:1800
 C:0:0:0:-1:0:1:0
 T:30:2:2
-B:0:5
+B:0/5
 F:WEIGHT | AGGRAVATE | EVIL_ITEM | MIN_DEPTH_SPEED
 M:STEALTH:-2
 D:[greaves]They are shod for the brutal onset, after the manner of

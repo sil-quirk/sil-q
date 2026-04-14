@@ -729,7 +729,7 @@ I:37:6:0
 W:11:20:500:25000
 P:-2:0d0:-4:2d8
 F:SUST_GRA | SUST_STR | NOBLE_ITEM
-B:2:7
+B:2/7
 D:When Turgon departed Vinyamar in Nevrast, he left this armour, and
 D: strange destiny has led it far from those halls. It is crafted with a
 D: double layer of mail, which makes it too heavy for many, but turns
@@ -1081,7 +1081,7 @@ Q:70239c6076a16a6c
 I:23:10:2
 W:8:30:15:15000
 P:1:1d7:1:0d0
-B:1:5
+B:1/5
 F:STEALTH | PERCEPTION | PAIRED | NOBLE_ITEM
 D:The hunting blade of Amrod, youngest son of Feanor along with his twin
 D: Amras. In Valinor, the brothers hunted with Orome and Celegorm beneath
