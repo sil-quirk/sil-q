@@ -251,7 +251,7 @@ cptr option_text[OPT_MAX] = {
     "unlock_blitz_mode", /* OPT_unlock_blitz_mode */
     "look_objects_sort_by_difficulty", /* OPT_look_objects_sort_by_difficulty */
     "look_nearby_filter_default", /* OPT_look_nearby_filter_default */
-    NULL, /* xxx */
+    "show_elemental_item_rolls", /* OPT_show_elemental_item_rolls */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -322,6 +322,7 @@ cptr option_text[OPT_MAX] = {
     "cheat_light", /* OPT_cheat_light */
     "cheat_skill_rolls", /* OPT_cheat_skill_rolls */
     "cheat_timestop", /* OPT_cheat_timestop */
+    NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -493,7 +494,7 @@ cptr option_desc[OPT_MAX] = {
     "Unlock Blitz Mode after winning a metarun", /* OPT_unlock_blitz_mode */
     "Sort look (L) objects by difficulty only (off = category, then difficulty)", /* OPT_look_objects_sort_by_difficulty */
     "Start look (l) with the nearby-only sidebar filter enabled", /* OPT_look_nearby_filter_default */
-    NULL, /* xxx */
+    "Debug: Show elemental item break rolls and target probabilities", /* OPT_show_elemental_item_rolls */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -564,6 +565,7 @@ cptr option_desc[OPT_MAX] = {
     "Debug: Continually display light levels", /* OPT_cheat_light */
     "Debug: Show all skill rolls", /* OPT_cheat_skill_rolls */
     "Debug: Don't allow monsters to move", /* OPT_timestop */
+    NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -755,7 +757,7 @@ const bool option_norm[OPT_MAX] = {
     false, /* OPT_unlock_blitz_mode */
     false, /* OPT_look_objects_sort_by_difficulty */
     false, /* OPT_look_nearby_filter_default */
-    false, /* xxx */
+    false, /* OPT_show_elemental_item_rolls */
     false, /* xxx */
     false, /* xxx */
     false, /* xxx */
@@ -849,6 +851,7 @@ const bool option_norm[OPT_MAX] = {
     false, /* xxx */
     false, /* xxx */
     false, /* xxx */
+    false, /* xxx */
     false, /* xxx adult_point_based */
     false, /* xxx adult_auto_roller */
     false, /* xxx adult_maximize */
@@ -907,7 +910,7 @@ const bool option_norm[OPT_MAX] = {
     false, /* xxx */
     false, /* xxx */
     false, /* xxx */
-    false /* xxx */
+    /* OPT_MAX sentinel uses zero-initialization */
 };
 
 /*
@@ -920,7 +923,8 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
         OPT_hjkl_movement, OPT_angband_keyset, OPT_space_acts_as_comma,
         OPT_look_objects_sort_by_difficulty, OPT_look_nearby_filter_default,
         OPT_hide_left_panel, OPT_hitpoint_warning, OPT_show_level_generation_debug,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
+        OPT_show_elemental_item_rolls, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Text options ***/
 
@@ -969,8 +973,8 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
     { OPT_cheat_peek, OPT_cheat_hear, OPT_cheat_room, OPT_cheat_xtra,
         OPT_cheat_know, OPT_cheat_monsters, OPT_cheat_noise,
         OPT_cheat_scent, OPT_cheat_light, OPT_cheat_skill_rolls,
-        OPT_cheat_live,
-        OPT_cheat_timestop, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_cheat_live, OPT_cheat_timestop, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Sound ***/

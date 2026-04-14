@@ -13070,6 +13070,7 @@ static cptr option_menu_label(int opt)
         case OPT_show_smithing_difficulty_look: return narrow ? "Smith dbg look" : "Debug smithing in look";
         case OPT_look_nearby_filter_default: return narrow ? "Look near def" : "Look nearby default";
         case OPT_show_level_generation_debug: return narrow ? "Dbg lvl screen" : "Debug level screen";
+        case OPT_show_elemental_item_rolls: return narrow ? "Dbg elem items" : "Debug elemental items";
         case OPT_birth_discon_stair: return narrow ? "Disc. stairs" : "Disconnected stairs";
         case OPT_birth_ironman: return narrow ? "Straight down" : "Straight down";
         case OPT_birth_no_artefacts: return narrow ? "No artefacts" : "No artefacts";

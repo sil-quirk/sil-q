@@ -1740,6 +1740,243 @@ typedef struct elemental_item_candidate
     long weight;
 } elemental_item_candidate;
 
+typedef struct elemental_item_debug_info
+{
+    bool enabled;
+    int attack_type;
+    int raw_dam;
+    int min_raw;
+    int max_raw;
+    int hp_dam;
+    double base_probability;
+    double raw_percentile;
+    double q_factor;
+    double hurt_factor;
+    int threshold;
+    bool gate_roll_made;
+    int gate_roll;
+    int candidate_count;
+    long total_weight;
+    bool candidate_selected;
+    int selection_roll;
+    elemental_item_candidate_location selected_location;
+    int selected_index;
+    long selected_weight;
+    double slot_factor;
+    double material_factor;
+    double stack_factor;
+    bool acid_roll_made;
+    int acid_roll;
+    char selected_name[80];
+    cptr outcome;
+} elemental_item_debug_info;
+
+static cptr elemental_attack_name(int attack_type)
+{
+    switch (attack_type)
+    {
+    case GF_ACID:
+        return "acid";
+    case GF_ELEC:
+        return "elec";
+    case GF_FIRE:
+        return "fire";
+    case GF_COLD:
+        return "cold";
+    case GF_SOUND:
+        return "sound";
+    default:
+        return "unknown";
+    }
+}
+
+static void elemental_debug_init(elemental_item_debug_info* debug,
+    int attack_type, int raw_dam, int min_raw, int max_raw, int hp_dam)
+{
+    if (!debug)
+        return;
+
+    memset(debug, 0, sizeof(*debug));
+    debug->enabled = show_elemental_item_rolls;
+    debug->attack_type = attack_type;
+    debug->raw_dam = raw_dam;
+    debug->min_raw = min_raw;
+    debug->max_raw = max_raw;
+    debug->hp_dam = hp_dam;
+}
+
+static void elemental_debug_slot_desc(
+    elemental_item_candidate_location location, int index, char* buf,
+    size_t buf_size)
+{
+    if (!buf || (buf_size == 0))
+        return;
+
+    if (location == ELEMENTAL_CANDIDATE_SUPPLY)
+    {
+        strnfmt(buf, buf_size, "supplies[%d]", index);
+        return;
+    }
+
+    if (index < INVEN_PACK)
+    {
+        strnfmt(buf, buf_size, "pack(%c)", index_to_label(index));
+        return;
+    }
+
+    switch (index)
+    {
+    case INVEN_WIELD:
+        strnfmt(buf, buf_size, "wield");
+        return;
+    case INVEN_BOW:
+        strnfmt(buf, buf_size, "bow");
+        return;
+    case INVEN_STAFF:
+        strnfmt(buf, buf_size, "staff");
+        return;
+    case INVEN_LEFT:
+        strnfmt(buf, buf_size, "left");
+        return;
+    case INVEN_RIGHT:
+        strnfmt(buf, buf_size, "right");
+        return;
+    case INVEN_NECK:
+        strnfmt(buf, buf_size, "neck");
+        return;
+    case INVEN_LITE:
+        strnfmt(buf, buf_size, "light");
+        return;
+    case INVEN_BODY:
+        strnfmt(buf, buf_size, "body");
+        return;
+    case INVEN_OUTER:
+        strnfmt(buf, buf_size, "outer");
+        return;
+    case INVEN_ARM:
+        strnfmt(buf, buf_size, "arm");
+        return;
+    case INVEN_HEAD:
+        strnfmt(buf, buf_size, "head");
+        return;
+    case INVEN_HANDS:
+        strnfmt(buf, buf_size, "hands");
+        return;
+    case INVEN_FEET:
+        strnfmt(buf, buf_size, "feet");
+        return;
+    case INVEN_QUIVER1:
+        strnfmt(buf, buf_size, "quiver1");
+        return;
+    case INVEN_QUIVER2:
+        strnfmt(buf, buf_size, "quiver2");
+        return;
+    case INVEN_HORN:
+        strnfmt(buf, buf_size, "horn");
+        return;
+    default:
+        strnfmt(buf, buf_size, "slot[%d]", index);
+        return;
+    }
+}
+
+static bool elemental_slot_uses_pack_like_factor(int slot,
+    elemental_item_candidate_location location);
+static double elemental_item_slot_factor(int slot,
+    elemental_item_candidate_location location);
+static double elemental_item_material_factor(int attack_type,
+    const object_type* o_ptr);
+
+static void elemental_debug_record_candidate(
+    elemental_item_debug_info* debug, int attack_type,
+    const elemental_item_candidate* candidate, int selection_roll,
+    int candidate_count, long total_weight)
+{
+    double stack_factor = 1.0;
+
+    if (!debug || !candidate || !candidate->o_ptr)
+        return;
+
+    debug->candidate_count = candidate_count;
+    debug->total_weight = total_weight;
+    debug->candidate_selected = true;
+    debug->selection_roll = selection_roll;
+    debug->selected_location = candidate->location;
+    debug->selected_index = candidate->index;
+    debug->selected_weight = candidate->weight;
+    debug->slot_factor = elemental_item_slot_factor(candidate->index,
+        candidate->location);
+    debug->material_factor = elemental_item_material_factor(attack_type,
+        candidate->o_ptr);
+
+    if (elemental_slot_uses_pack_like_factor(candidate->index,
+        candidate->location))
+    {
+        stack_factor = sqrt((double)MAX(candidate->o_ptr->number, 1));
+    }
+
+    debug->stack_factor = stack_factor;
+    object_desc(debug->selected_name, sizeof(debug->selected_name),
+        candidate->o_ptr, false, 3);
+}
+
+static void elemental_debug_emit(const elemental_item_debug_info* debug)
+{
+    char gate_buf[64];
+    char target_buf[256];
+    char slot_buf[32];
+    char acid_buf[32];
+    char buf[768];
+    double threshold_pct;
+    double candidate_pct = 0.0;
+
+    if (!debug || !debug->enabled || !debug->outcome)
+        return;
+
+    if (!debug->gate_roll_made)
+    {
+        strnfmt(gate_buf, sizeof(gate_buf), "gate=skip");
+    }
+    else
+    {
+        strnfmt(gate_buf, sizeof(gate_buf), "gate=%d%s%d",
+            debug->gate_roll, (debug->gate_roll < debug->threshold) ? "<" : ">=",
+            debug->threshold);
+    }
+
+    target_buf[0] = '\0';
+    if (debug->candidate_selected && (debug->total_weight > 0))
+    {
+        elemental_debug_slot_desc(debug->selected_location, debug->selected_index,
+            slot_buf, sizeof(slot_buf));
+        candidate_pct = ((double)debug->selected_weight * 100.0)
+            / (double)debug->total_weight;
+        strnfmt(target_buf, sizeof(target_buf),
+            " pick=%d/%ld target=%s@%s w=%ld(%.2f%%) sf=%.2f mf=%.2f st=%.2f",
+            debug->selection_roll, debug->total_weight, debug->selected_name,
+            slot_buf, debug->selected_weight, candidate_pct,
+            debug->slot_factor, debug->material_factor, debug->stack_factor);
+    }
+
+    acid_buf[0] = '\0';
+    if (debug->acid_roll_made)
+    {
+        strnfmt(acid_buf, sizeof(acid_buf), " acid=%d/2->%s",
+            debug->acid_roll + 1,
+            (debug->acid_roll == 0) ? "corrode" : "destroy");
+    }
+
+    threshold_pct = (double)debug->threshold / 10000.0;
+    strnfmt(buf, sizeof(buf),
+        "[Elem %s] raw=%d/%d..%d hp=%d base=%.2f%% rawpct=%.1f%% q=%.3f hurt=%.3f chance=%.4f%% %s cand=%d%s%s -> %s",
+        elemental_attack_name(debug->attack_type), debug->raw_dam, debug->min_raw,
+        debug->max_raw, debug->hp_dam, debug->base_probability * 100.0,
+        debug->raw_percentile * 100.0, debug->q_factor, debug->hurt_factor,
+        threshold_pct, gate_buf, debug->candidate_count, target_buf, acid_buf,
+        debug->outcome);
+    msg_print(buf);
+}
+
 bool elemental_attack_destroys_object(int attack_type, const object_type* o_ptr)
 {
     inven_func typ = NULL;
@@ -1823,7 +2060,7 @@ static double elemental_attack_base_probability(int attack_type)
 }
 
 static int elemental_attack_probability_per_million(int attack_type, int raw_dam,
-    int min_raw, int max_raw, int hp_dam)
+    int min_raw, int max_raw, int hp_dam, elemental_item_debug_info* debug)
 {
     double base = elemental_attack_base_probability(attack_type);
     double percentile;
@@ -1832,6 +2069,15 @@ static int elemental_attack_probability_per_million(int attack_type, int raw_dam
     double hurt;
     double chance;
     int threshold;
+
+    if (debug)
+    {
+        debug->base_probability = base;
+        debug->raw_percentile = 0.0;
+        debug->q_factor = 0.0;
+        debug->hurt_factor = 0.0;
+        debug->threshold = 0;
+    }
 
     if ((base <= 0.0) || (hp_dam <= 0))
         return 0;
@@ -1863,6 +2109,14 @@ static int elemental_attack_probability_per_million(int attack_type, int raw_dam
         threshold = 0;
     if (threshold > 1000000)
         threshold = 1000000;
+
+    if (debug)
+    {
+        debug->raw_percentile = percentile;
+        debug->q_factor = q;
+        debug->hurt_factor = hurt;
+        debug->threshold = threshold;
+    }
 
     return threshold;
 }
@@ -2001,7 +2255,7 @@ static long elemental_item_weight(int attack_type,
 }
 
 static bool elemental_select_candidate(int attack_type,
-    elemental_item_candidate* out)
+    elemental_item_candidate* out, elemental_item_debug_info* debug)
 {
     int supply_count = supplies_entry_count();
     int capacity = INVEN_TOTAL + supply_count;
@@ -2009,6 +2263,7 @@ static bool elemental_select_candidate(int attack_type,
     int count = 0;
     long total_weight = 0;
     int pick;
+    int selection_roll;
 
     if (!out || (capacity <= 0))
         return false;
@@ -2059,16 +2314,24 @@ static bool elemental_select_candidate(int attack_type,
 
     if ((count <= 0) || (total_weight <= 0))
     {
+        if (debug)
+        {
+            debug->candidate_count = count;
+            debug->total_weight = total_weight;
+        }
         mem_free(candidates);
         return false;
     }
 
     pick = rand_int((int)total_weight);
+    selection_roll = pick;
     for (int i = 0; i < count; i++)
     {
         if (pick < candidates[i].weight)
         {
             *out = candidates[i];
+            elemental_debug_record_candidate(debug, attack_type, out,
+                selection_roll, count, total_weight);
             mem_free(candidates);
             return true;
         }
@@ -2077,6 +2340,8 @@ static bool elemental_select_candidate(int attack_type,
     }
 
     *out = candidates[count - 1];
+    elemental_debug_record_candidate(debug, attack_type, out, selection_roll,
+        count, total_weight);
     mem_free(candidates);
     return true;
 }
@@ -2184,8 +2449,8 @@ static bool acid_corrode_object(object_type* o_ptr)
     return false;
 }
 
-static void elemental_corrode_candidate(
-    const elemental_item_candidate* candidate)
+static cptr elemental_corrode_candidate(const elemental_item_candidate* candidate,
+    elemental_item_debug_info* debug)
 {
     object_type* source = candidate->o_ptr;
     object_type split;
@@ -2201,21 +2466,36 @@ static void elemental_corrode_candidate(
 
         if (acid_corrode_object(&split))
         {
+            if (debug)
+            {
+                debug->outcome = "was destroyed!";
+                elemental_debug_emit(debug);
+            }
             elemental_message(candidate, original_number, o_name,
                 "was destroyed!");
-            return;
+            return "was destroyed!";
         }
 
         elemental_reinsert_split_item(candidate, &split);
+        if (debug)
+        {
+            debug->outcome = "was damaged!";
+            elemental_debug_emit(debug);
+        }
         elemental_message(candidate, original_number, o_name, "was damaged!");
-        return;
+        return "was damaged!";
     }
 
     if (acid_corrode_object(source))
     {
         elemental_remove_one_from_candidate(candidate);
+        if (debug)
+        {
+            debug->outcome = "was destroyed!";
+            elemental_debug_emit(debug);
+        }
         elemental_message(candidate, original_number, o_name, "was destroyed!");
-        return;
+        return "was destroyed!";
     }
 
     if (candidate->location == ELEMENTAL_CANDIDATE_SUPPLY)
@@ -2223,11 +2503,18 @@ static void elemental_corrode_candidate(
     else
         elemental_mark_inventory_item_changed();
 
+    if (debug)
+    {
+        debug->outcome = "was damaged!";
+        elemental_debug_emit(debug);
+    }
     elemental_message(candidate, original_number, o_name, "was damaged!");
+    return "was damaged!";
 }
 
-static void elemental_destroy_candidate(
-    const elemental_item_candidate* candidate, int attack_type)
+static cptr elemental_destroy_candidate(
+    const elemental_item_candidate* candidate, int attack_type,
+    elemental_item_debug_info* debug)
 {
     object_type* source = candidate->o_ptr;
     object_type split;
@@ -2247,9 +2534,14 @@ static void elemental_destroy_candidate(
     {
         chest_release_contents(target, p_ptr->py, p_ptr->px, attack_type);
         elemental_remove_one_from_candidate(candidate);
+        if (debug)
+        {
+            debug->outcome = "was destroyed!";
+            elemental_debug_emit(debug);
+        }
         elemental_message(candidate, original_number, o_name,
             "was destroyed!");
-        return;
+        return "was destroyed!";
     }
 
     if ((attack_type == GF_FIRE) && object_break_shafted_weapon_by_fire(target))
@@ -2268,8 +2560,13 @@ static void elemental_destroy_candidate(
             elemental_mark_inventory_item_changed();
         }
 
+        if (debug)
+        {
+            debug->outcome = "was broken!";
+            elemental_debug_emit(debug);
+        }
         elemental_message(candidate, original_number, o_name, "was broken!");
-        return;
+        return "was broken!";
     }
 
     if (((attack_type == GF_COLD) || (attack_type == GF_SOUND))
@@ -2290,38 +2587,95 @@ static void elemental_destroy_candidate(
             elemental_mark_inventory_item_changed();
         }
 
+        if (debug)
+        {
+            debug->outcome = "was broken!";
+            elemental_debug_emit(debug);
+        }
         elemental_message(candidate, original_number, o_name, "was broken!");
-        return;
+        return "was broken!";
     }
 
     elemental_remove_one_from_candidate(candidate);
+    if (debug)
+    {
+        debug->outcome = "was destroyed!";
+        elemental_debug_emit(debug);
+    }
     elemental_message(candidate, original_number, o_name, "was destroyed!");
+    return "was destroyed!";
 }
 
 static void elemental_attack_affect_one_item(int attack_type, int raw_dam,
     int min_raw, int max_raw, int hp_dam)
 {
     elemental_item_candidate candidate;
+    elemental_item_debug_info debug;
+    int gate_roll;
+
+    elemental_debug_init(&debug, attack_type, raw_dam, min_raw, max_raw, hp_dam);
     int threshold = elemental_attack_probability_per_million(attack_type,
-        raw_dam, min_raw, max_raw, hp_dam);
+        raw_dam, min_raw, max_raw, hp_dam, debug.enabled ? &debug : NULL);
 
     if (threshold <= 0)
-        return;
-
-    if (rand_int(1000000) >= threshold)
-        return;
-
-    if (!elemental_select_candidate(attack_type, &candidate))
-        return;
-
-    if ((attack_type == GF_ACID) && acid_can_corrode_object(candidate.o_ptr)
-        && one_in_(2))
     {
-        elemental_corrode_candidate(&candidate);
+        if (debug.enabled)
+        {
+            debug.outcome = "no trigger chance";
+            elemental_debug_emit(&debug);
+        }
         return;
     }
 
-    elemental_destroy_candidate(&candidate, attack_type);
+    gate_roll = rand_int(1000000);
+    if (debug.enabled)
+    {
+        debug.gate_roll_made = true;
+        debug.gate_roll = gate_roll;
+    }
+
+    if (gate_roll >= threshold)
+    {
+        if (debug.enabled)
+        {
+            debug.outcome = "no item";
+            elemental_debug_emit(&debug);
+        }
+        return;
+    }
+
+    if (!elemental_select_candidate(attack_type, &candidate,
+        debug.enabled ? &debug : NULL))
+    {
+        if (debug.enabled)
+        {
+            debug.outcome = "no eligible target";
+            elemental_debug_emit(&debug);
+        }
+        return;
+    }
+
+    if ((attack_type == GF_ACID) && acid_can_corrode_object(candidate.o_ptr)
+        )
+    {
+        int acid_roll = rand_int(2);
+
+        if (debug.enabled)
+        {
+            debug.acid_roll_made = true;
+            debug.acid_roll = acid_roll;
+        }
+
+        if (acid_roll == 0)
+        {
+            (void)elemental_corrode_candidate(&candidate,
+                debug.enabled ? &debug : NULL);
+            return;
+        }
+    }
+
+    (void)elemental_destroy_candidate(&candidate, attack_type,
+        debug.enabled ? &debug : NULL);
 }
 
 static void sound_dam(int raw_dam, int min_raw, int max_raw, int hp_dam)
