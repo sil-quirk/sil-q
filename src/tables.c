@@ -746,7 +746,7 @@ const bool option_norm[OPT_MAX] = {
     false, /* xxx */
     true, /* OPT_show_partition_narrative */
     false, /* OPT_noble_item_spawn_mode (default 0 via byte field) */
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(SIL_IOS)
     false, /* OPT_banner_message_stairs */
 #else
     true, /* OPT_banner_message_stairs */

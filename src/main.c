@@ -21,6 +21,14 @@
 #include "main.h"
 #include "log/log.h"
 #include "sdl-sound.h"
+#include <SDL3/SDL_filesystem.h>
+
+/* On iOS, SDL_main.h redefines main -> SDL_main and provides the real main()
+ * with UIKit application delegate bootstrap.  This must be included in the
+ * translation unit that defines main(). */
+#ifdef SIL_IOS
+#include <SDL3/SDL_main.h>
+#endif
 
 /*
  * Sil-y: game in progress
@@ -83,15 +91,35 @@ static void init_stuff(void)
 
     cptr tail = NULL;
 
+#ifdef SIL_IOS
+    /* On iOS the read-only game data lives inside the app bundle.
+     * SDL_GetBasePath() returns the bundle's resource directory, and
+     * our CMake packaging places assets under Resources/lib/. */
+    {
+        char* base = SDL_GetBasePath();
+        if (base)
+        {
+            SDL_strlcpy(path, base, sizeof(path));
+            SDL_strlcat(path, "lib/", sizeof(path));
+            SDL_free(base);
+            tail = path;   /* mark as resolved so we skip the default */
+        }
+    }
+#endif
+
 #ifndef FIXED_PATHS
 
     /* Get the environment variable */
-    tail = getenv("ANGBAND_PATH");
+    if (!tail)
+        tail = getenv("ANGBAND_PATH");
 
 #endif /* FIXED_PATHS */
 
     /* Use the angband_path, or a default */
-    SDL_strlcpy(path, tail ? tail : DEFAULT_PATH, sizeof(path));
+    if (!tail)
+        SDL_strlcpy(path, DEFAULT_PATH, sizeof(path));
+    else if (tail != path)
+        SDL_strlcpy(path, tail, sizeof(path));
 
     /* Make sure it's terminated */
     path[511] = '\0';
@@ -241,7 +269,7 @@ int main(int argc, char* argv[])
     bool args = true;
     // Initialise logger in 'quiet' mode (don't write to stdout) on desktop.
     // On Android, keep stdout enabled so diagnostics are visible in logcat.
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(SIL_IOS)
     init_logger(false, argv[0]);
 #else
     init_logger(true, argv[0]);
@@ -544,14 +572,13 @@ int main(int argc, char* argv[])
 }
 
 /*
- * Android/SDL entrypoint
+ * Android entrypoint
  *
  * On Android, SDL's Java launcher calls SDL_main() in the native shared library.
- * Keep the existing desktop main() behavior and provide SDL_main() only when
- * building for Android.
+ * On iOS, SDL_main.h (included above) handles the redirection automatically.
  */
 
-#ifdef __ANDROID__
+#if defined(__ANDROID__)
 int SDL_main(int argc, char* argv[])
 {
     return main(argc, argv);

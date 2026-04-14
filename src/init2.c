@@ -51,6 +51,11 @@ static void strip_trailing_separators(char* path)
 
 static bool build_user_root_path(char* buf, size_t len)
 {
+#if !defined(SIL_IOS)
+    /* On desktop, prefer the system saved-games / home folder.
+     * On iOS the container root returned by SDL_GetUserFolder is not
+     * directly writable — skip straight to SDL_GetPrefPath which
+     * returns the correct Library/Application Support/ sandbox path. */
     const char* base = SDL_GetUserFolder(SDL_FOLDER_SAVEDGAMES);
     char temp[1024];
 
@@ -64,6 +69,7 @@ static bool build_user_root_path(char* buf, size_t len)
         strip_trailing_separators(temp);
         return path_build(buf, len, temp, SIL_USER_ROOT);
     }
+#endif
 
     char* pref = SDL_GetPrefPath("Sil-QH", SIL_USER_ROOT);
     if (!pref)
@@ -133,7 +139,7 @@ static void seed_user_data_from_install(const char* user_data_dir)
     SDL_free(entries);
 }
 
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(SIL_IOS)
 typedef bool (*version_check_fn)(const char* path);
 
 static void migrate_legacy_metarun_layout(const char* meta_root, const char* metarun_dir);
@@ -760,7 +766,7 @@ void init_file_paths(char* path)
 
     migrate_legacy_metarun_layout(meta_root, ANGBAND_DIR_METARUN);
     seed_user_data_from_install(ANGBAND_DIR_DATA);
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(SIL_IOS)
     seed_user_meta_from_install(meta_root, ANGBAND_DIR_METARUN);
     seed_user_saves_from_install(ANGBAND_DIR_SAVE);
 #endif
@@ -2552,7 +2558,7 @@ static int welcome_screen_base_col(void)
     if (wid < 1)
         wid = legacy_term_wid;
 
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(SIL_IOS)
     if (!get_sdl_steamdeck_mode())
     {
         shift = (wid - compact_block_wid) / 2;
