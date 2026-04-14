@@ -6957,7 +6957,7 @@ static int find_reforge_target_item(void)
 
         if (!o_ptr->k_idx)
             continue;
-        if (object_is_damaged_item(o_ptr) || object_can_reforge_prefix(o_ptr))
+        if (object_can_repair_damage(o_ptr) || object_can_reforge_prefix(o_ptr))
             return i;
     }
 
@@ -10330,7 +10330,7 @@ void melt_menu(void)
 
 static bool smith_item_tester_hook_reforge_target(const object_type* o_ptr)
 {
-    return object_is_damaged_item(o_ptr) || object_can_reforge_prefix(o_ptr);
+    return object_can_repair_damage(o_ptr) || object_can_reforge_prefix(o_ptr);
 }
 
 static bool smith_reforge_item(void)
@@ -10377,7 +10377,7 @@ static bool smith_reforge_item(void)
     object_copy(&smith_backup, smith_o_ptr);
     object_copy(&smith2_backup, smith2_o_ptr);
 
-    if (object_is_damaged_item(&inventory[slot]))
+    if (object_can_repair_damage(&inventory[slot]))
     {
         if (!repair_damaged_item(slot))
         {

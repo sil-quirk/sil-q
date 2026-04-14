@@ -11,6 +11,10 @@
 #include "supplies.h"
 #include "thrall_quest.h"
 
+static s16b get_upgrade_kind(const object_type* o_ptr);
+static byte damaged_ego_index(const object_type* o_ptr, bool* is_prefix);
+static bool damaged_ego_is_repairable(byte e_idx);
+
 /*
  * Probability weights for each item type by thrall race
  * Human thralls prefer practical items, elven thralls prefer finer items
@@ -635,8 +639,7 @@ int player_has_thrall_quest_item(byte quest_item)
 }
 
 /*
- * Find a broken item in player's inventory/equipment that can be upgraded
- * Returns the slot if found, -1 otherwise
+ * Check whether an object currently carries repairable-looking damage.
  */
 bool object_is_damaged_item(const object_type* o_ptr)
 {
@@ -652,6 +655,27 @@ bool object_is_damaged_item(const object_type* o_ptr)
     return (f3 & TR3_DAMAGED) ? true : false;
 }
 
+bool object_can_repair_damage(const object_type* o_ptr)
+{
+    byte e_idx;
+
+    if (!object_is_damaged_item(o_ptr))
+        return false;
+
+    if (object_is_fire_broken(o_ptr))
+        return true;
+
+    e_idx = damaged_ego_index(o_ptr, NULL);
+    if (e_idx)
+        return damaged_ego_is_repairable(e_idx);
+
+    return get_upgrade_kind(o_ptr) != 0;
+}
+
+/*
+ * Find a damaged item in player's inventory/equipment that can be repaired.
+ * Returns the slot if found, -1 otherwise.
+ */
 int find_broken_item_to_upgrade(void)
 {
     int i;
@@ -665,7 +689,7 @@ int find_broken_item_to_upgrade(void)
         if (!o_ptr->k_idx)
             continue;
 
-        if (object_is_damaged_item(o_ptr))
+        if (object_can_repair_damage(o_ptr))
             return i;
     }
 
@@ -676,7 +700,7 @@ int find_broken_item_to_upgrade(void)
  * Get the upgrade target for a damaged item
  * Returns the k_idx of the replacement item, or 0 if no upgrade available
  */
-static s16b get_upgrade_kind(object_type* o_ptr)
+static s16b get_upgrade_kind(const object_type* o_ptr)
 {
     /* Paranoia */
     if (!o_ptr)
@@ -781,6 +805,39 @@ static byte damaged_ego_index(const object_type* o_ptr, bool* is_prefix)
     return 0;
 }
 
+static bool damaged_ego_is_repairable(byte e_idx)
+{
+    ego_item_type* e_ptr;
+
+    if (!e_idx)
+        return false;
+
+    e_ptr = &e_info[e_idx];
+
+    if (e_ptr->max_pval != 0 || e_ptr->min_pval != 0 || e_ptr->abilities != 0)
+        return false;
+
+    for (int i = 0; i < A_MAX; i++)
+    {
+        if (e_ptr->stat_bonus_set[i]
+            && e_ptr->stat_bonus_min[i] != e_ptr->stat_bonus[i])
+        {
+            return false;
+        }
+    }
+
+    for (int i = 0; i < S_MAX; i++)
+    {
+        if (e_ptr->skill_bonus_set[i]
+            && e_ptr->skill_bonus_min[i] != e_ptr->skill_bonus[i])
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 static void refresh_broken_ident(object_type* o_ptr)
 {
     byte ego_prefix;
@@ -817,34 +874,10 @@ static bool remove_damaged_ego(object_type* o_ptr)
 
     e_ptr = &e_info[e_idx];
 
-    /*
-     * Repairable damage egos are intended to be fixed, deterministic penalties.
-     * If that ever changes, this removal logic must be updated to mirror it.
-     */
-    if (e_ptr->max_pval != 0 || e_ptr->min_pval != 0 || e_ptr->abilities != 0)
+    if (!damaged_ego_is_repairable(e_idx))
     {
-        log_warn("remove_damaged_ego: unsupported damaged ego %d has pval/abilities", e_idx);
+        log_warn("remove_damaged_ego: unsupported damaged ego %d", e_idx);
         return false;
-    }
-
-    for (int i = 0; i < A_MAX; i++)
-    {
-        if (e_ptr->stat_bonus_set[i]
-            && e_ptr->stat_bonus_min[i] != e_ptr->stat_bonus[i])
-        {
-            log_warn("remove_damaged_ego: unsupported damaged ego %d has ranged stat bonus", e_idx);
-            return false;
-        }
-    }
-
-    for (int i = 0; i < S_MAX; i++)
-    {
-        if (e_ptr->skill_bonus_set[i]
-            && e_ptr->skill_bonus_min[i] != e_ptr->skill_bonus[i])
-        {
-            log_warn("remove_damaged_ego: unsupported damaged ego %d has ranged skill bonus", e_idx);
-            return false;
-        }
     }
 
     o_ptr->att = (s16b)MIN(32767, MAX(-32768, o_ptr->att - ego_bonus_s8(e_ptr->max_att)));
@@ -876,7 +909,7 @@ static bool remove_damaged_ego(object_type* o_ptr)
 
 static bool item_tester_hook_broken_item(const object_type* o_ptr)
 {
-    return object_is_damaged_item(o_ptr);
+    return object_can_repair_damage(o_ptr);
 }
 
 static bool choose_broken_item_to_upgrade(int* out_slot)
@@ -1076,11 +1109,10 @@ static bool repair_damaged_item_internal(int slot,
     if (!o_ptr->k_idx)
         return false;
 
-    old_k_ptr = &k_info[o_ptr->k_idx];
-
-    /* Must be damaged */
-    if (!object_is_damaged_item(o_ptr))
+    if (!object_can_repair_damage(o_ptr))
         return false;
+
+    old_k_ptr = &k_info[o_ptr->k_idx];
 
     /* Remember old name before changing anything */
     if (old_name && old_name_size > 0)

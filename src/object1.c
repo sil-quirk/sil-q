@@ -35,10 +35,13 @@ static int inventory_visible_supply_item_at(int ordinal);
 static int inventory_visible_supply_ordinal(int item);
 static int inventory_visible_inven_item_at(int ordinal);
 static int inventory_visible_inven_ordinal(int item);
+static char inventory_visible_label_for_item(int item);
 static bool inventory_item_is_supply_summary(int item);
 static bool inventory_item_is_supply_entry(int item);
+static bool inventory_item_is_equipment(int item);
 static object_type* inventory_item_to_object_ptr(int item);
 static bool inventory_item_uses_inven_channel(int item);
+static void describe_inventory_menu_entry(int item, char* buf, size_t len);
 static bool get_item_okay(int item);
 static bool item_prompt_is_replace(cptr pmt);
 static void log_inventory_selector_state(cptr stage, cptr pmt,
@@ -2719,7 +2722,7 @@ static bool inventory_menu_uses_visible_labels(void)
 
 static bool inventory_menu_uses_expanded_supplies(void)
 {
-    return inventory_menu_expand_supplies && !inventory_menu_include_equip;
+    return inventory_menu_expand_supplies;
 }
 
 static bool supply_entry_matches_current_filter(int idx)
@@ -2836,6 +2839,20 @@ static int inventory_visible_inven_item_at(int ordinal)
         visible++;
     }
 
+    if (inventory_menu_include_equip)
+    {
+        for (int i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+        {
+            if (!get_item_okay(i))
+                continue;
+
+            if (visible == ordinal)
+                return i;
+
+            visible++;
+        }
+    }
+
     return -1;
 }
 
@@ -2858,7 +2875,31 @@ static int inventory_visible_inven_ordinal(int item)
         visible++;
     }
 
+    if (inventory_menu_include_equip)
+    {
+        for (int i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+        {
+            if (!get_item_okay(i))
+                continue;
+
+            if (i == item)
+                return visible;
+
+            visible++;
+        }
+    }
+
     return -1;
+}
+
+static char inventory_visible_label_for_item(int item)
+{
+    int ordinal = inventory_visible_inven_ordinal(item);
+
+    if (ordinal >= 0)
+        return I2A(ordinal);
+
+    return index_to_label(item);
 }
 
 static bool inventory_item_is_supply_summary(int item)
@@ -2869,6 +2910,11 @@ static bool inventory_item_is_supply_summary(int item)
 static bool inventory_item_is_supply_entry(int item)
 {
     return (item >= SUPPLIES_INDEX) && inventory_menu_uses_expanded_supplies();
+}
+
+static bool inventory_item_is_equipment(int item)
+{
+    return (item >= INVEN_WIELD) && (item < INVEN_TOTAL);
 }
 
 static object_type* inventory_item_to_object_ptr(int item)
@@ -2885,6 +2931,57 @@ static object_type* inventory_item_to_object_ptr(int item)
 static bool inventory_item_uses_inven_channel(int item)
 {
     return ((item >= 0) && (item < INVEN_WIELD)) || (item >= SUPPLIES_INDEX);
+}
+
+static void describe_inventory_menu_entry(int item, char* buf, size_t len)
+{
+    object_type* o_ptr;
+    char o_name[80];
+
+    if (!buf || len == 0)
+        return;
+
+    buf[0] = '\0';
+
+    if (inventory_item_is_supply_summary(item))
+    {
+        format_supply_summary(buf, len);
+        return;
+    }
+
+    o_ptr = inventory_item_to_object_ptr(item);
+    if (!o_ptr)
+    {
+        SDL_strlcpy(buf, "(invalid)", len);
+        return;
+    }
+
+    if (item < 0)
+    {
+        object_desc_floor(buf, len, o_ptr, true, 3);
+        return;
+    }
+
+    if (!o_ptr->k_idx)
+    {
+        if (inventory_item_is_equipment(item))
+            SDL_strlcpy(buf, describe_empty_slot(item), len);
+        else
+            SDL_strlcpy(buf, "(invalid)", len);
+        return;
+    }
+
+    if (inventory_menu_include_equip && inventory_item_is_equipment(item))
+    {
+        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+        strnfmt(buf, len, "%s: %s", mention_use(item), o_name);
+        return;
+    }
+
+    if (inventory_item_is_supply_entry(item))
+        object_desc(buf, len, o_ptr, true, 3);
+    else
+        object_desc_floor(buf, len, o_ptr, true, 3);
 }
 
 static bool item_prompt_is_replace(cptr pmt)
@@ -4073,8 +4170,7 @@ void show_inven(void)
     if (lim < 0)
         lim = 0;
 
-    bool include_supplies = !inventory_menu_include_equip
-        && supplies_visible_for_current_filter();
+    bool include_supplies = supplies_visible_for_current_filter();
 
     /* Avoid exceeding the available rows in the vanilla inventory view. */
     int max_rows = term_hgt - 1;
@@ -4113,7 +4209,7 @@ void show_inven(void)
             if (!o_ptr || !o_ptr->k_idx || !supply_entry_matches_current_filter(i))
                 continue;
 
-            object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+            describe_inventory_menu_entry(item, o_name, sizeof(o_name));
             o_name[lim] = '\0';
 
             out_index[k] = item;
@@ -4142,7 +4238,7 @@ void show_inven(void)
             continue;
 
         /* Describe the object */
-        object_desc_floor(o_name, sizeof(o_name), o_ptr, true, 3);
+        describe_inventory_menu_entry(i, o_name, sizeof(o_name));
 
         /* Hack -- enforce max length */
         o_name[lim] = '\0';
@@ -4174,6 +4270,37 @@ void show_inven(void)
         k++;
     }
 
+    if (inventory_menu_include_equip)
+    {
+        for (i = INVEN_WIELD; i < INVEN_TOTAL && k < max_rows; i++)
+        {
+            o_ptr = &inventory[i];
+
+            if (!get_item_okay(i))
+                continue;
+
+            describe_inventory_menu_entry(i, o_name, sizeof(o_name));
+            o_name[lim] = '\0';
+
+            out_index[k] = i;
+            out_color[k] = o_ptr->k_idx
+                ? (weapon_glows(o_ptr)
+                    ? object_display_color(o_ptr, TERM_L_BLUE)
+                    : object_display_color(o_ptr,
+                        tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]))
+                : TERM_L_DARK;
+            SDL_strlcpy(out_desc[k], o_name, sizeof(out_desc[0]));
+
+            l = strlen(out_desc[k]) + 5;
+            if (show_weights)
+                l += 9;
+            if (l > len)
+                len = l;
+
+            k++;
+        }
+    }
+
     /* Find the column to start in */
     col = menu_center_col_for_len(term_wid, len);
 
@@ -4203,14 +4330,15 @@ void show_inven(void)
                 char label = supplies_label_char();
                 int slot = supplies_virtual_slot();
                 if (!label && slot >= 0)
-                    label = index_to_label(slot);
+                    label = inventory_visible_label_for_item(slot);
                 if (!label)
                     label = 'a';
                 strnfmt(label_buf, sizeof(label_buf), "(%c)", label);
             }
             else
             {
-                strnfmt(label_buf, sizeof(label_buf), "(%c)", index_to_label(idx));
+                strnfmt(label_buf, sizeof(label_buf), "(%c)",
+                    inventory_visible_label_for_item(idx));
             }
 
             story_render_inventory_entry(j + 1, col, label_col, out_desc[j], out_color[j],
@@ -4254,14 +4382,14 @@ void show_inven(void)
             char label = supplies_label_char();
             int slot = supplies_virtual_slot();
             if (!label && slot >= 0)
-                label = index_to_label(slot);
+                label = inventory_visible_label_for_item(slot);
             if (!label)
                 label = 'a';
             sprintf(tmp_val, " (%c)", label);
         }
         else
         {
-            sprintf(tmp_val, " (%c)", index_to_label(idx));
+            sprintf(tmp_val, " (%c)", inventory_visible_label_for_item(idx));
         }
 
         if (inventory_choice_debug_logging)
@@ -4926,8 +5054,9 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
 {
     int py = p_ptr->py;
     int px = p_ptr->px;
+    bool combined_inven_equip = ((mode & (USE_INVEN)) && (mode & (USE_EQUIP)));
     bool old_inventory_menu_include_equip =
-        inventory_menu_set_include_equip(false);
+        inventory_menu_set_include_equip(combined_inven_equip);
     bool old_inventory_choice_debug_logging = inventory_choice_debug_logging;
 
     char which;
@@ -4950,6 +5079,8 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
     bool allow_inven = false;
     bool allow_equip = false;
     bool allow_floor = false;
+    bool allow_inven_menu = false;
+    bool allow_equip_menu = false;
 
     bool toggle = false;
 
@@ -5065,6 +5196,9 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
     if (f1 <= f2)
         allow_floor = true;
 
+    allow_inven_menu = allow_inven || (combined_inven_equip && allow_equip);
+    allow_equip_menu = allow_equip && !combined_inven_equip;
+
     /* Require at least one legal choice */
     if (!allow_inven && !allow_equip && !allow_floor)
     {
@@ -5081,27 +5215,34 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
     /* Analyze choices */
     else
     {
-        /* Hack -- Start on equipment if requested */
-        if (p_ptr->command_see && (p_ptr->command_wrk == (USE_EQUIP))
-            && use_equip)
-        {
-            p_ptr->command_wrk = (USE_EQUIP);
-        }
-
-        /* Use inventory if allowed */
-        else if (use_inven)
+        /* Preserve the currently viewed pane only if it still has legal choices. */
+        if (p_ptr->command_see && (p_ptr->command_wrk == (USE_INVEN))
+            && allow_inven_menu)
         {
             p_ptr->command_wrk = (USE_INVEN);
         }
-
-        /* Use equipment if allowed */
-        else if (use_equip)
+        else if (!combined_inven_equip
+            && p_ptr->command_see && (p_ptr->command_wrk == (USE_EQUIP))
+            && allow_equip_menu)
         {
             p_ptr->command_wrk = (USE_EQUIP);
         }
+        else if (p_ptr->command_see && (p_ptr->command_wrk == (USE_FLOOR))
+            && allow_floor)
+        {
+            p_ptr->command_wrk = (USE_FLOOR);
+        }
 
-        /* Use floor if allowed */
-        else if (use_floor)
+        /* Otherwise start on the first pane with legal choices. */
+        else if (allow_inven_menu)
+        {
+            p_ptr->command_wrk = (USE_INVEN);
+        }
+        else if (allow_equip_menu)
+        {
+            p_ptr->command_wrk = (USE_EQUIP);
+        }
+        else if (allow_floor)
         {
             p_ptr->command_wrk = (USE_FLOOR);
         }
@@ -5178,6 +5319,12 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                 if (inventory[ii].k_idx && get_item_okay(ii))                       \
                     vis_inven[vis_inven_cnt++] = ii;                                \
             }                                                                       \
+            if (inventory_menu_include_equip) {                                     \
+                for (int ii = INVEN_WIELD; ii < INVEN_TOTAL && vis_inven_cnt < ENHANCED_MAX_LIST; ++ii) { \
+                    if (get_item_okay(ii))                                          \
+                        vis_inven[vis_inven_cnt++] = ii;                            \
+                }                                                                   \
+            }                                                                       \
             if (vis_inven_cnt <= 0) {                                               \
                 highlight_row = -1;                                                 \
                 if (p_ptr->command_see) highlight_active = false;                   \
@@ -5251,13 +5398,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         if (p_ptr->command_wrk == (USE_INVEN)) {                                    \
             for (int r=0;r<vis_inven_cnt;r++){                                      \
                 int entry = vis_inven[r];                                           \
-                if (inventory_item_is_supply_summary(entry)) {                      \
-                    format_supply_summary(tmp, sizeof(tmp));                       \
-                } else {                                                            \
-                    object_type* o_ptr = inventory_item_to_object_ptr(entry);       \
-                    if (!o_ptr || !o_ptr->k_idx) continue;                          \
-                    object_desc(tmp, sizeof(tmp), o_ptr, true, 3);                  \
-                }                                                                   \
+                describe_inventory_menu_entry(entry, tmp, sizeof(tmp));             \
                 tmp[lim]='\0';                                                     \
                 int l=strlen(tmp)+5 + (show_weights?9:0);                           \
                 if (l>len) len=l;                                                   \
@@ -5265,7 +5406,10 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         } else if (p_ptr->command_wrk == (USE_EQUIP)) {                             \
             for (int r=0;r<vis_equip_cnt;r++){                                      \
                 object_type* o_ptr=&inventory[vis_equip[r]];                        \
-                object_desc(tmp, sizeof(tmp), o_ptr, true, 3);                      \
+                if (o_ptr->k_idx)                                                   \
+                    object_desc(tmp, sizeof(tmp), o_ptr, true, 3);                  \
+                else                                                                \
+                    SDL_strlcpy(tmp, describe_empty_slot(vis_equip[r]), sizeof(tmp)); \
                 tmp[lim]='\0';                                                     \
                 int l=strlen(tmp)+(2+3)+(12+2)+(show_weights?9:0);                  \
                 if (l>len) len=l;                                                   \
@@ -5289,7 +5433,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             if (inventory_item_is_supply_summary(item_index)) {                     \
                 char label = supplies_label_char();                                 \
                 int slot = supplies_virtual_slot();                                 \
-                if (!label && slot >= 0) label = index_to_label(slot);              \
+                if (!label && slot >= 0) label = inventory_visible_label_for_item(slot); \
                 if (!label) label = 'a';                                            \
                 format_supply_summary(tmp, sizeof(tmp));                            \
                 tmp[lim]='\0';                                                     \
@@ -5311,26 +5455,33 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                 }                                                                   \
             } else {                                                                \
                 object_type* o_ptr = inventory_item_to_object_ptr(item_index);      \
-                if (!o_ptr || !o_ptr->k_idx) break;                                 \
-                object_desc(tmp,sizeof(tmp),o_ptr,true,3); tmp[lim]='\0';           \
+                if (!o_ptr || (!o_ptr->k_idx && !inventory_item_is_equipment(item_index))) break; \
+                describe_inventory_menu_entry(item_index, tmp, sizeof(tmp));        \
+                tmp[lim]='\0';                                                      \
                 DRAW_HIGHLIGHT_IF_STORY({                                           \
-                    char lab[8]; sprintf(lab, "(%c)", index_to_label(item_index));  \
+                    char lab[8]; sprintf(lab, "(%c)", inventory_visible_label_for_item(item_index));  \
                     char wbuf[16]; cptr wptr = NULL;                                \
                     if (show_weights){ int wgt= o_ptr->weight*o_ptr->number; strnfmt(wbuf, sizeof(wbuf), "%2d.%1d lb", wgt / 10, wgt % 10); wptr = wbuf; } \
                     story_render_inventory_entry(row + 1, col, label_col, tmp, attr, \
-                        show_weights, wptr, attr, lab, attr, o_ptr, true, highlight_story_w); \
+                        show_weights, wptr, attr, lab, attr, (o_ptr && o_ptr->k_idx) ? o_ptr : NULL, true, highlight_story_w); \
                 })                                                                  \
                 {                                                                   \
-                    int text_col = draw_item_tile(col, row+1, o_ptr);               \
+                    int text_col = col;                                              \
+                    if (o_ptr && o_ptr->k_idx)                                       \
+                        text_col = draw_item_tile(col, row+1, o_ptr);               \
                     c_put_str(attr,tmp,row+1,text_col);                             \
                     if (show_weights){ int wgt= o_ptr->weight*o_ptr->number; char w[16]; strnfmt(w, sizeof(w), "%2d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,weight_col);} \
-                    { char lab[8]; sprintf(lab, " (%c)", index_to_label(item_index)); c_put_str(attr,lab,row+1,label_col); }\
+                    { char lab[8]; sprintf(lab, " (%c)", inventory_visible_label_for_item(item_index)); c_put_str(attr,lab,row+1,label_col); }\
                 }                                                                   \
             }                                                                       \
         } else if (p_ptr->command_wrk == (USE_EQUIP) && highlight_row < vis_equip_cnt){\
             row = highlight_row; item_index = vis_equip[highlight_row];             \
             object_type* o_ptr=&inventory[item_index];                              \
-            object_desc(tmp,sizeof(tmp),o_ptr,true,3); tmp[lim]='\0';               \
+            if (o_ptr->k_idx)                                                       \
+                object_desc(tmp,sizeof(tmp),o_ptr,true,3);                          \
+            else                                                                    \
+                SDL_strlcpy(tmp, describe_empty_slot(item_index), sizeof(tmp));     \
+            tmp[lim]='\0';                                                          \
             Term_erase(menu_overlay_clear_col(col), row+1, 255);                    \
             { char usebuf[32]; strnfmt(usebuf,sizeof(usebuf),"%-12s: ", mention_use(item_index)); \
               DRAW_HIGHLIGHT_IF_STORY({                                             \
@@ -5342,11 +5493,13 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                       wptr = wbuf;                                                  \
                   }                                                                 \
                   story_render_equipment_entry(row + 1, col, item_index, usebuf, attr, tmp, attr, \
-                      show_weights, wptr, attr, lab, attr, o_ptr, true, highlight_story_w); \
+                      show_weights, wptr, attr, lab, attr, o_ptr->k_idx ? o_ptr : NULL, true, highlight_story_w); \
               })                                                                    \
               {                                                                     \
                   c_put_str(attr,usebuf,row+1,col);                                 \
-                  int text_col = draw_item_tile(col+12+2, row+1, o_ptr);            \
+                  int text_col = col + 12 + 2;                                      \
+                  if (o_ptr->k_idx)                                                 \
+                      text_col = draw_item_tile(col+12+2, row+1, o_ptr);            \
                   c_put_str(attr,tmp,row+1,text_col);                               \
                   if (show_weights && o_ptr->weight){ int wgt=o_ptr->weight*o_ptr->number; char w[16]; sprintf(w,"%2d.%1d lb",wgt/10,wgt%10); c_put_str(attr,w,row+1,weight_col);} \
                   { char lab[8]; sprintf(lab, " (%c)", index_to_label(item_index)); int label_col = label_col_base; c_put_str(attr,lab,row+1,label_col); }\
@@ -5428,14 +5581,15 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                 show_inven();
 
             /* Begin the prompt */
-            sprintf(out_val, "Inven:");
+            sprintf(out_val, combined_inven_equip ? "Items:" : "Inven:");
 
             /* List choices */
             if (vis_inven_cnt > 0)
             {
                 /* Build the prompt */
-                sprintf(tmp_val, " %c-%c,", index_to_label(vis_inven[0]),
-                    index_to_label(vis_inven[vis_inven_cnt - 1]));
+                sprintf(tmp_val, " %c-%c,",
+                    inventory_visible_label_for_item(vis_inven[0]),
+                    inventory_visible_label_for_item(vis_inven[vis_inven_cnt - 1]));
 
                 /* Append */
                 SDL_strlcat(out_val, tmp_val, sizeof(out_val));
@@ -5446,7 +5600,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                 SDL_strlcat(out_val, " * to see,", sizeof(out_val));
 
             /* Indicate legality of "toggle" */
-            if (use_equip)
+            if (!combined_inven_equip && allow_equip_menu)
                 SDL_strlcat(out_val, " / for Equip,", sizeof(out_val));
 
             /* Indicate legality of the "floor" */
@@ -5483,7 +5637,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                 SDL_strlcat(out_val, " * to see,", sizeof(out_val));
 
             /* Indicate legality of "toggle" */
-            if (use_inven)
+            if (allow_inven_menu)
                 SDL_strlcat(out_val, " / for Inven,", sizeof(out_val));
 
             /* Indicate legality of the "floor" */
@@ -5516,11 +5670,13 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                 SDL_strlcat(out_val, " * to see,", sizeof(out_val));
 
             /* Append */
-            if (use_inven)
-                SDL_strlcat(out_val, " / for Inven,", sizeof(out_val));
+            if (allow_inven_menu)
+                SDL_strlcat(out_val,
+                    combined_inven_equip ? " / for Items," : " / for Inven,",
+                    sizeof(out_val));
 
             /* Append */
-            else if (use_equip)
+            else if (allow_equip_menu)
                 SDL_strlcat(out_val, " / for Equip,", sizeof(out_val));
         }
 
@@ -5648,16 +5804,34 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
 
         case '/':
         {
+            if (combined_inven_equip)
+            {
+                if (allow_floor)
+                {
+                    p_ptr->command_wrk = (p_ptr->command_wrk == (USE_FLOOR))
+                        ? (USE_INVEN)
+                        : (USE_FLOOR);
+                }
+                else
+                {
+                    bell("Cannot switch item selector!");
+                    break;
+                }
+            }
             /* Toggle to inventory */
-            if (use_inven && (p_ptr->command_wrk != (USE_INVEN)))
+            else if (allow_inven_menu && (p_ptr->command_wrk != (USE_INVEN)))
             {
                 p_ptr->command_wrk = (USE_INVEN);
             }
 
             /* Toggle to equipment */
-            else if (use_equip && (p_ptr->command_wrk != (USE_EQUIP)))
+            else if (allow_equip_menu && (p_ptr->command_wrk != (USE_EQUIP)))
             {
                 p_ptr->command_wrk = (USE_EQUIP);
+            }
+            else if (allow_floor && (p_ptr->command_wrk != (USE_FLOOR)))
+            {
+                p_ptr->command_wrk = (USE_FLOOR);
             }
 
             /* No toggle allowed */

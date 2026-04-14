@@ -1216,6 +1216,7 @@ extern int player_has_thrall_quest_item(byte quest_item);
 extern bool handle_thrall_interaction(monster_type* m_ptr);
 extern void complete_thrall_quest(monster_type* m_ptr, int item_slot);
 extern bool object_is_damaged_item(const object_type* o_ptr);
+extern bool object_can_repair_damage(const object_type* o_ptr);
 extern int find_broken_item_to_upgrade(void);
 extern bool repair_damaged_item(int slot);
 extern bool is_smithed_by_player(const object_type* o_ptr);
