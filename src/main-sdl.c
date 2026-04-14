@@ -290,7 +290,7 @@ static void sdl_story_font_reset_state(void);
 static void sdl_story_font_cache_clear(void);
 static TTF_Font* sdl_story_font_for_height(int pixel_height);
 static TTF_Font* sdl_story_font_for_view(const sdl_view* d);
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(SIL_IOS)
 static void sdl_ensure_default_pane_configs_present(bool enable_new_panes);
 #endif
 static void sdl_ensure_touch_pane_config_present(void);
@@ -422,7 +422,7 @@ static void sdl_view_destroy(sdl_view* d)
     }
 }
 
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(SIL_IOS)
 static void sdl_ensure_default_pane_configs_present(bool enable_new_panes)
 {
     for (int i = 0; i < default_pane_config_count; i++) {
@@ -4214,7 +4214,7 @@ static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, i
 
     if (scale) {
         // Integer scaling mode.
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(SIL_IOS)
         int requested_scale = scale;
         int min_cols = sdl_current_min_terminal_cols();
         int min_rows = sdl_current_min_terminal_rows();
@@ -4238,7 +4238,7 @@ static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, i
         d->cell_h = effective_scale * TILE_SIZE;
 
         if (effective_scale != requested_scale) {
-            log_info("Android main view scale clamped from %d to %d to keep >=%dx%d (%s)",
+            log_info("Mobile main view scale clamped from %d to %d to keep >=%dx%d (%s)",
                      requested_scale, effective_scale,
                      min_cols, min_rows, sdl_min_terminal_mode_name(config.min_terminal_mode));
         }
@@ -4262,9 +4262,9 @@ static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, i
     d->rect = rect;
     d->cols = rect.w / d->cell_w;
     d->rows = rect.h / d->cell_h;
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(SIL_IOS)
     if (scale) {
-        log_info("Android main view: scale=%d cell=(%d,%d) cols=%d rows=%d (min=%dx%d %s)",
+        log_info("Mobile main view: scale=%d cell=(%d,%d) cols=%d rows=%d (min=%dx%d %s)",
                  d->cell_h / TILE_SIZE, d->cell_w, d->cell_h, d->cols, d->rows,
                  sdl_current_min_terminal_cols(), sdl_current_min_terminal_rows(),
                  sdl_min_terminal_mode_name(config.min_terminal_mode));
@@ -4624,7 +4624,7 @@ errr init_sdl(int argc, char **argv)
                   config.fullscreen, config.tiles);
     }
 
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(SIL_IOS)
     sdl_ensure_default_pane_configs_present(false);
     sdl_ensure_touch_pane_config_present();
 
@@ -4640,7 +4640,7 @@ errr init_sdl(int argc, char **argv)
 
         config.enable_right_panes = true;
         config.enable_bottom_panes = false;
-        log_info("Android default pane layout: touch only enabled; other panes available in settings");
+        log_info("Mobile default pane layout: touch only enabled; other panes available in settings");
     }
 #endif
 
@@ -4654,34 +4654,34 @@ errr init_sdl(int argc, char **argv)
               config.main_view_scale, config.aux_view_font_size, config.margin,
               config.fullscreen, config.tiles);
 
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(SIL_IOS)
     {
-        int android_min_cols = sdl_current_min_terminal_cols();
-        int android_min_rows = sdl_current_min_terminal_rows();
-        int android_max_scale_w = (screen_pixels_w / android_min_cols) * 2 / TILE_SIZE;
-        int android_max_scale_h = screen_pixels_h / android_min_rows / TILE_SIZE;
-        int android_max_scale = android_max_scale_w;
+        int mobile_min_cols = sdl_current_min_terminal_cols();
+        int mobile_min_rows = sdl_current_min_terminal_rows();
+        int mobile_max_scale_w = (screen_pixels_w / mobile_min_cols) * 2 / TILE_SIZE;
+        int mobile_max_scale_h = screen_pixels_h / mobile_min_rows / TILE_SIZE;
+        int mobile_max_scale = mobile_max_scale_w;
 
-        if (android_max_scale_h < android_max_scale)
-            android_max_scale = android_max_scale_h;
-        if (android_max_scale < 1)
-            android_max_scale = 1;
+        if (mobile_max_scale_h < mobile_max_scale)
+            mobile_max_scale = mobile_max_scale_h;
+        if (mobile_max_scale < 1)
+            mobile_max_scale = 1;
 
         if (!config_exists) {
-            if (config.main_view_scale != android_max_scale) {
-                log_info("Android default main_view_scale set to %d for >=%dx%d (%s) at %dx%d",
-                         android_max_scale,
-                         android_min_cols, android_min_rows,
+            if (config.main_view_scale != mobile_max_scale) {
+                log_info("Mobile default main_view_scale set to %d for >=%dx%d (%s) at %dx%d",
+                         mobile_max_scale,
+                         mobile_min_cols, mobile_min_rows,
                          sdl_min_terminal_mode_name(config.min_terminal_mode),
                          screen_pixels_w, screen_pixels_h);
             }
-            config.main_view_scale = android_max_scale;
-        } else if (config.main_view_scale > android_max_scale) {
-            log_info("Android main_view_scale clamped from %d to %d to keep >=%dx%d (%s)",
-                     config.main_view_scale, android_max_scale,
-                     android_min_cols, android_min_rows,
+            config.main_view_scale = mobile_max_scale;
+        } else if (config.main_view_scale > mobile_max_scale) {
+            log_info("Mobile main_view_scale clamped from %d to %d to keep >=%dx%d (%s)",
+                     config.main_view_scale, mobile_max_scale,
+                     mobile_min_cols, mobile_min_rows,
                      sdl_min_terminal_mode_name(config.min_terminal_mode));
-            config.main_view_scale = android_max_scale;
+            config.main_view_scale = mobile_max_scale;
         }
     }
 #endif
@@ -4703,7 +4703,7 @@ errr init_sdl(int argc, char **argv)
         config.margin = 0;
     }
     if (!sdl_min_terminal_mode_is_valid(config.min_terminal_mode)) {
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(SIL_IOS)
         log_warn("Invalid min_terminal_mode %d, using compact", config.min_terminal_mode);
         config.min_terminal_mode = SDL_MIN_TERMINAL_COMPACT;
 #else
@@ -4729,10 +4729,10 @@ errr init_sdl(int argc, char **argv)
 
     sdl_gamepad_init();
 
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(SIL_IOS)
     if (!config_exists) {
         config.steamdeck_mode = (g_gamepad_state.pad_count > 0);
-        log_info("Android first-start Steam Deck UI mode set to %s (%d gamepad%s detected)",
+        log_info("Mobile first-start Steam Deck UI mode set to %s (%d gamepad%s detected)",
             config.steamdeck_mode ? "on" : "off",
             g_gamepad_state.pad_count,
             (g_gamepad_state.pad_count == 1) ? "" : "s");
@@ -5285,8 +5285,8 @@ bool steamdeck_controls_active(void)
 
 bool portable_controls_active(void)
 {
-#if defined(SIL_USE_LOCAL_DATA) || defined(__ANDROID__)
-    /* Portable builds and Android use the controller-style menu shortcuts. */
+#if defined(SIL_USE_LOCAL_DATA) || defined(__ANDROID__) || defined(SIL_IOS)
+    /* Portable builds and mobile platforms use the controller-style menu shortcuts. */
     return true;
 #else
     return steamdeck_controls_active();

@@ -6,8 +6,10 @@
 #include "log.h"
 #include <time.h>
 
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(SIL_IOS)
 #include <SDL3/SDL_filesystem.h>
+#endif
+#ifdef __ANDROID__
 #include <SDL3/SDL_system.h>
 #endif
 
@@ -19,7 +21,7 @@
  */
 void init_logger(bool quiet, const char* exe_path)
 {
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(SIL_IOS)
     (void)exe_path;
 #endif
 
@@ -45,15 +47,17 @@ void init_logger(bool quiet, const char* exe_path)
     }
 
     /* Build log file path */
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(SIL_IOS)
     {
         bool built = false;
 
+#ifdef __ANDROID__
         const char* internal = SDL_GetAndroidInternalStoragePath();
         if (internal && internal[0])
         {
             built = path_build(log_path, sizeof(log_path), internal, "log.txt");
         }
+#endif
 
         if (!built)
         {
@@ -139,7 +143,7 @@ void init_logger(bool quiet, const char* exe_path)
     char parsed_path[1024];
     if (!path_parse(parsed_path, sizeof(parsed_path), log_path))
     {
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(SIL_IOS)
         log_add_fp(stdout, level);
         log_set_level(level);
         if (quiet) log_set_quiet(true);
@@ -149,8 +153,8 @@ void init_logger(bool quiet, const char* exe_path)
         quit("could not parse log path");
 #endif
     }
-    
-#ifdef __ANDROID__
+
+#if defined(__ANDROID__) || defined(SIL_IOS)
     {
         char parent_dir[1024];
         SDL_strlcpy(parent_dir, parsed_path, sizeof(parent_dir));
@@ -169,7 +173,7 @@ void init_logger(bool quiet, const char* exe_path)
     FILE* log_file = fopen(parsed_path, "w");
     if (!log_file)
     {
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(SIL_IOS)
         log_add_fp(stdout, level);
         log_set_level(level);
         if (quiet) log_set_quiet(true);
