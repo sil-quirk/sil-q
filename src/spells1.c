@@ -1649,7 +1649,8 @@ bool hates_cold(const object_type* o_ptr)
     }
     case TV_LIGHT:
     {
-        return (o_ptr->sval == SV_LIGHT_LANTERN);
+        return (o_ptr->sval == SV_LIGHT_LANTERN)
+            || (o_ptr->sval == SV_LIGHT_LESSER_JEWEL);
     }
     }
 

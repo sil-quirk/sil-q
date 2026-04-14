@@ -167,6 +167,7 @@ struct skeleton_note_template
     byte role;   /* skeleton_note_role */
     byte weight; /* Selection weight */
     u32b text;   /* Text offset */
+    u32b extra_text; /* Optional companion text offset */
 };
 
 /*

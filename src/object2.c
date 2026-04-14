@@ -481,12 +481,10 @@ static void fill_inventory_limit_label(enum inventory_limit_group group,
                       sizeof(carry_limit_last_label));
             break;
         case INV_LIMIT_LESSER_JEWEL:
-            SDL_strlcpy(carry_limit_last_label, "lesser jewels",
-                      sizeof(carry_limit_last_label));
-            break;
         case INV_LIMIT_FEANORIAN_LAMP:
-            SDL_strlcpy(carry_limit_last_label, "Feanorian lamps",
-                      sizeof(carry_limit_last_label));
+            SDL_strlcpy(carry_limit_last_label,
+                "lesser jewels or Feanorian lamps",
+                sizeof(carry_limit_last_label));
             break;
         default:
             SDL_strlcpy(carry_limit_last_label, "items of this type",
@@ -512,9 +510,8 @@ static enum inventory_limit_group light_limit_group(const object_type* o_ptr)
     case SV_LIGHT_LANTERN:
         return INV_LIMIT_BRASS_LAMPS;
     case SV_LIGHT_LESSER_JEWEL:
-        return INV_LIMIT_LESSER_JEWEL;
     case SV_LIGHT_FEANORIAN:
-        return INV_LIMIT_FEANORIAN_LAMP;
+        return INV_LIMIT_LESSER_JEWEL;
     default:
         return INV_LIMIT_NONE;
     }
@@ -6960,6 +6957,12 @@ s16b inven_takeoff(int item, int amt)
     /* Describe the object */
     object_desc(o_name, sizeof(o_name), i_ptr, true, 3);
 
+    const bool discard_spent_light = (item == INVEN_LITE)
+        && (i_ptr->tval == TV_LIGHT)
+        && ((i_ptr->sval == SV_LIGHT_TORCH)
+            || (i_ptr->sval == SV_LIGHT_MALLORN))
+        && (player_light_fuel(i_ptr) <= 0);
+
     /* Took off weapon */
     if ((item == INVEN_WIELD)
         || ((item == INVEN_ARM) && (i_ptr->tval != TV_SHIELD)))
@@ -7002,6 +7005,16 @@ s16b inven_takeoff(int item, int amt)
               i_ptr->k_idx, (int)object_ego_prefix(i_ptr), (int)object_ego_suffix(i_ptr), i_ptr->number);
     inven_item_increase(item, -amt);
     inven_item_optimize(item);
+
+    if (discard_spent_light)
+    {
+        msg_format("%s %s; %s too spent to keep.", act, o_name,
+            (i_ptr->number > 1) ? "they are" : "it is");
+        p_ptr->redraw |= (PR_MAP | PR_LIGHT);
+        p_ptr->window |= (PW_MESSAGE);
+        handle_stuff();
+        return (-1);
+    }
 
     /* Carry the object */
     log_debug("inven_takeoff: Calling inven_carry with k_idx=%d, prefix=%d, suffix=%d", 

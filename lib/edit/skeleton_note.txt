@@ -4,6 +4,7 @@
 # O:<SVAL>:<weight>:<text>          (opening line)
 # C:<SVAL>:<weight>:<text>          (closing line)
 # M:<SVAL>:<HINT>:<weight>:<text>   (main hint line)
+# M:<SVAL>:<HINT>:<weight>:<text>||<extra text>   (main hint with companion line)
 #   SVAL: ELF | HUMAN | ORC | ANY
 #   HINT: GREAT_VAULT | VAULT_ARTIFACT | STAIRS | FORGE | UNIQUE | TIP | SIZE | QUEST | LABYRINTH | CHASM | CAVE | CAVE_ICE | CAVE_FIRE | CAVE_POIS | ROOMY | RUINED | CAVEY
 # Tokens: {PART} {PART_HAZARD} {SIZEWORD} {UNIQUE_TYPE} {DIR} {DIST} {SITE}
@@ -519,40 +520,40 @@ M:ORC:QUEST:100:{DIST} {DIR} is {SITE}. Snaga don't belong there.
 # --- Tips ---
 
 # Elf
-M:ELF:TIP:100:In Angband, silence is a shield. Close doors, and let your footsteps be as snow.
-M:ELF:TIP:100:Do not squander your strength on every thrall of the Dark. Choose your hour, and pass unseen when you can.
-M:ELF:TIP:100:In these pits, pride is a swift slayer. Flee early, while the road is still yours.
-M:ELF:TIP:100:Keep your light, yet do not trust it: in deep places the dark has eyes of its own.
-M:ELF:TIP:100:Mark your path in mind and memory; in twisting halls a moment's haste becomes an hour of loss.
-M:ELF:TIP:100:If you are hurt, break sight and be still. Let the Enemy search empty shadows.
-M:ELF:TIP:100:Herbs are a small mercy in great darkness. Spend them only when no other hope remains.
-M:ELF:TIP:100:Songs are fair, but they carry. Sing only when you mean to be heard.
-M:ELF:TIP:100:The dungeons are vast, and the enemies are plenty. Let that not detract you from your ultimate goal.
-M:ELF:TIP:100:Look twice at pits and broken stone. Many in Angband die without ever meeting a blade.
-M:ELF:TIP:100:A door left ajar is a throat laid bare. Seal what you pass through.
+M:ELF:TIP:100:In Angband, silence is a shield. Close doors, and let your footsteps be as snow.||Plainly: close doors behind you and move quietly so fewer enemies hear you.
+M:ELF:TIP:100:Do not squander your strength on every thrall of the Dark. Choose your hour, and pass unseen when you can.||Plainly: you do not need to fight everything; skip bad fights and take good ones.
+M:ELF:TIP:100:In these pits, pride is a swift slayer. Flee early, while the road is still yours.||Plainly: retreat early when a fight is going bad instead of waiting for a last-second escape.
+M:ELF:TIP:100:Keep your light, yet do not trust it: in deep places the dark has eyes of its own.||Plainly: carry spare light so darkness does not trap or blindside you.
+M:ELF:TIP:100:Mark your path in mind and memory; in twisting halls a moment's haste becomes an hour of loss.||Plainly: remember your route so you can retreat without getting lost.
+M:ELF:TIP:100:If you are hurt, break sight and be still. Let the Enemy search empty shadows.||Plainly: when you are hurt, break line of sight and recover somewhere safe.
+M:ELF:TIP:100:Herbs are a small mercy in great darkness. Spend them only when no other hope remains.||Plainly: save herbs for real emergencies instead of minor damage.
+M:ELF:TIP:100:Songs are fair, but they carry. Sing only when you mean to be heard.||Plainly: songs make noise, so use them only when you can handle the extra attention.
+M:ELF:TIP:100:The dungeons are vast, and the enemies are plenty. Let that not detract you from your ultimate goal.||Plainly: do not get distracted by every enemy or item; keep moving toward your main objective.
+M:ELF:TIP:100:Look twice at pits and broken stone. Many in Angband die without ever meeting a blade.||Plainly: check the ground before you step; pits and rubble kill careless players.
+M:ELF:TIP:100:A door left ajar is a throat laid bare. Seal what you pass through.||Plainly: close doors behind you and move quietly so fewer enemies hear you.
 
 # Human
-M:HUMAN:TIP:100:In Angband, noise draws death. Shut doors behind you and keep your steps light.
-M:HUMAN:TIP:100:Do not fight every foe. Choose when to strike, and let darkness hide you when you must pass.
-M:HUMAN:TIP:100:Beware sleeping foes: they fall easily, but waking them at the wrong time can doom you.
-M:HUMAN:TIP:100:When you must flee, flee early. Pride kills quicker than blades.
-M:HUMAN:TIP:100:Keep a spare light. The dark is a weapon in the Enemy's hand.
-M:HUMAN:TIP:100:Watch the floor for pits and broken stone. Many deaths here are silent.
-M:HUMAN:TIP:100:If you are wounded, break line of sight and wait in silence. Let your breath return.
-M:HUMAN:TIP:100:If you carry herbs, save them for the moments you cannot outrun.
-M:HUMAN:TIP:100:Songs hearten the spirit, but they also carry. Use them with care.
-M:HUMAN:TIP:100:If you are unsure of a thing in the dark, look again before you step forward.
-M:HUMAN:TIP:100:I've seen strong men die fighting what they could have walked around.
-M:HUMAN:TIP:100:The dungeons are vast, and the enemies are plenty. Let that not detract you from your ultimate goal.
+M:HUMAN:TIP:100:In Angband, noise draws death. Shut doors behind you and keep your steps light.||Plainly: close doors behind you and move quietly so fewer enemies hear you.
+M:HUMAN:TIP:100:Do not fight every foe. Choose when to strike, and let darkness hide you when you must pass.||Plainly: you do not need to fight everything; skip bad fights and take good ones.
+M:HUMAN:TIP:100:Beware sleeping foes: they fall easily, but waking them at the wrong time can doom you.||Plainly: sleeping enemies are easy kills, but do not wake them unless you can finish the fight.
+M:HUMAN:TIP:100:When you must flee, flee early. Pride kills quicker than blades.||Plainly: retreat early when a fight is going bad instead of waiting for a last-second escape.
+M:HUMAN:TIP:100:Keep a spare light. The dark is a weapon in the Enemy's hand.||Plainly: carry spare light so darkness does not trap or blindside you.
+M:HUMAN:TIP:100:Watch the floor for pits and broken stone. Many deaths here are silent.||Plainly: check the ground before you step; pits and rubble kill careless players.
+M:HUMAN:TIP:100:If you are wounded, break line of sight and wait in silence. Let your breath return.||Plainly: when you are hurt, break line of sight and recover somewhere safe.
+M:HUMAN:TIP:100:If you carry herbs, save them for the moments you cannot outrun.||Plainly: save herbs for real emergencies instead of minor damage.
+M:HUMAN:TIP:100:Songs hearten the spirit, but they also carry. Use them with care.||Plainly: songs make noise, so use them only when you can handle the extra attention.
+M:HUMAN:TIP:100:If you are unsure of a thing in the dark, look again before you step forward.||Plainly: check the ground before you step; pits and rubble kill careless players.
+M:HUMAN:TIP:100:I've seen strong men die fighting what they could have walked around.||Plainly: you do not need to fight everything; skip bad fights and take good ones.
+M:HUMAN:TIP:100:The dungeons are vast, and the enemies are plenty. Let that not detract you from your ultimate goal.||Plainly: do not get distracted by every enemy or item; keep moving toward your main objective.
 
 # Orc
-M:ORC:TIP:100:Noise gets you killed. Shut doors. Walk soft.
-M:ORC:TIP:100:Don't fight everything. Pick fights you win. Run from fights you don't.
-M:ORC:TIP:100:If you run, run early. Brave snaga die first.
-M:ORC:TIP:100:Keep extra light. Dark is hungry.
-M:ORC:TIP:100:Watch for pits and broken stone. Floor eats snaga.
-M:ORC:TIP:100:If you get hurt, hide and wait. Let others look for you.
-M:ORC:TIP:100:Herbs save lives. Don't waste them on scratches.
-M:ORC:TIP:100:Songs? Ha. Noise is for fools.
-M:ORC:TIP:100:Dungeons big. Enemies many. Don't forget why you came.
-M:ORC:TIP:100:Look again before you step. In the dark, one wrong move is death.
+M:ORC:TIP:100:Noise gets you killed. Shut doors. Walk soft.||Plainly: close doors behind you and move quietly so fewer enemies hear you.
+M:ORC:TIP:100:Don't fight everything. Pick fights you win. Run from fights you don't.||Plainly: you do not need to fight everything; skip bad fights and take good ones.
+M:ORC:TIP:100:If you run, run early. Brave snaga die first.||Plainly: retreat early when a fight is going bad instead of waiting for a last-second escape.
+M:ORC:TIP:100:Keep extra light. Dark is hungry.||Plainly: carry spare light so darkness does not trap or blindside you.
+M:ORC:TIP:100:Watch for pits and broken stone. Floor eats snaga.||Plainly: check the ground before you step; pits and rubble kill careless players.
+M:ORC:TIP:100:If you get hurt, hide and wait. Let others look for you.||Plainly: when you are hurt, break line of sight and recover somewhere safe.
+M:ORC:TIP:100:Herbs save lives. Don't waste them on scratches.||Plainly: save herbs for real emergencies instead of minor damage.
+M:ORC:TIP:100:Songs? Ha. Noise is for fools.||Plainly: songs make noise, so use them only when you can handle the extra attention.
+M:ORC:TIP:100:Dungeons big. Enemies many. Don't forget why you came.||Plainly: do not get distracted by every enemy or item; keep moving toward your main objective.
+M:ORC:TIP:100:Look again before you step. In the dark, one wrong move is death.||Plainly: check the ground before you step; pits and rubble kill careless players.

@@ -1721,59 +1721,6 @@ static int skeleton_note_tip_override_chance(byte sval, int depth)
     return chance;
 }
 
-static const char* skeleton_note_plain_tip_text(const char* flavour)
-{
-    if (!flavour)
-        return "move carefully, keep quiet, and avoid bad fights.";
-
-    if (strstr(flavour, "sleeping foes"))
-        return "sleeping enemies are easy kills, but do not wake them unless you can finish the fight.";
-
-    if (strstr(flavour, "Songs") || strstr(flavour, "Songs?") || strstr(flavour, "Sing only"))
-        return "songs make noise, so use them only when you can handle the extra attention.";
-
-    if (strstr(flavour, "Herbs"))
-        return "save herbs for real emergencies instead of minor damage.";
-
-    if (strstr(flavour, "wounded") || strstr(flavour, "hurt") || strstr(flavour, "break sight"))
-        return "when you are hurt, break line of sight and recover somewhere safe.";
-
-    if (strstr(flavour, "ultimate goal") || strstr(flavour, "why you came"))
-        return "do not get distracted by every enemy or item; keep moving toward your main objective.";
-
-    if (strstr(flavour, "Mark your path"))
-        return "remember your route so you can retreat without getting lost.";
-
-    if (strstr(flavour, "Look twice") || strstr(flavour, "Look again")
-        || strstr(flavour, "broken stone") || strstr(flavour, "pits")
-        || strstr(flavour, "one wrong move"))
-    {
-        return "check the ground before you step; pits and rubble kill careless players.";
-    }
-
-    if (strstr(flavour, "flee early") || strstr(flavour, "run early")
-        || strstr(flavour, "Pride") || strstr(flavour, "pride")
-        || strstr(flavour, "Brave snaga"))
-    {
-        return "retreat early when a fight is going bad instead of waiting for a last-second escape.";
-    }
-
-    if (strstr(flavour, "fight every") || strstr(flavour, "Pick fights")
-        || strstr(flavour, "walked around")
-        || strstr(flavour, "squander your strength"))
-    {
-        return "you do not need to fight everything; skip bad fights and take good ones.";
-    }
-
-    if (strstr(flavour, "light"))
-        return "carry spare light so darkness does not trap or blindside you.";
-
-    if (strstr(flavour, "door") || strstr(flavour, "doors"))
-        return "close doors behind you and move quietly so fewer enemies hear you.";
-
-    return "move carefully, keep quiet, and avoid bad fights.";
-}
-
 static const char* partition_label(level_partition_kind kind, big_cave_type_t cave_type)
 {
     switch (kind)
@@ -4336,6 +4283,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
         skeleton_hint_kind hint = hints[i];
         s16b note_id = skeleton_note_pick_entry(
             sval, SKELETON_NOTE_ROLE_HINT, hint);
+        const char* extra_tpl = NULL;
 
         if (hint == SKEL_HINT_TIP && body_count > 0 && note_id == body_ids[body_count - 1])
         {
@@ -4353,6 +4301,8 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
         const char* tpl = (note_id >= 0)
             ? (skeleton_note_text + skeleton_note_info[note_id].text)
             : NULL;
+        if (note_id >= 0 && skeleton_note_info[note_id].extra_text)
+            extra_tpl = skeleton_note_text + skeleton_note_info[note_id].extra_text;
 
         if (!tpl)
         {
@@ -4395,7 +4345,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
                 tpl = "A {UNIQUE_TYPE} walks these halls {DIST} {DIR}. Hide or flee.";
                 break;
             case SKEL_HINT_TIP:
-                tpl = "In Angband, silence is life. Shut doors, walk softly, and do not let them hear you.";
+                tpl = "Bones clutch a faded scrap of text.";
                 break;
             case SKEL_HINT_LEVEL_SIZE:
                 tpl = "This place is {SIZEWORD}; do not expect a short road to anywhere.";
@@ -4409,11 +4359,11 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
             }
         }
 
-        if (hint == SKEL_HINT_TIP)
+        if (hint == SKEL_HINT_TIP && extra_tpl && extra_tpl[0])
         {
             strnfmt(tutorial_tip_buf[body_count], sizeof(tutorial_tip_buf[body_count]),
-                "%s Plainly: %s",
-                tpl, skeleton_note_plain_tip_text(tpl));
+                "%s %s",
+                tpl, extra_tpl);
             tpl = tutorial_tip_buf[body_count];
         }
 

@@ -19982,7 +19982,8 @@ static bool supply_kind_matches(int group, int tval, int sval)
     case SUPPLY_GROUP_LIGHTS:
         return (tval == TV_LIGHT)
             && (sval == SV_LIGHT_TORCH || sval == SV_LIGHT_MALLORN
-                || sval == SV_LIGHT_LANTERN);
+                || sval == SV_LIGHT_LANTERN
+                || sval == SV_LIGHT_LESSER_JEWEL);
     default:
         return false;
     }
@@ -20490,6 +20491,8 @@ static byte get_supply_item_color(int k_idx, bool aware)
                 case SV_LIGHT_TORCH:   return TERM_UMBER;
                 case SV_LIGHT_MALLORN: return TERM_YELLOW;
                 case SV_LIGHT_LANTERN: return TERM_L_UMBER;
+                case SV_LIGHT_LESSER_JEWEL: return TERM_L_BLUE;
+                case SV_LIGHT_FEANORIAN: return TERM_WHITE;
                 default:               return TERM_WHITE;
             }
 

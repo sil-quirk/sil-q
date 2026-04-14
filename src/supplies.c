@@ -31,6 +31,19 @@ static int g_reserved_lantern_lights = 0;
 static int g_reserved_lesser_jewels = 0;
 static int g_reserved_feanorian_lamps = 0;
 
+static bool player_light_uses_permanent_cap_sval(int sval)
+{
+    return (sval == SV_LIGHT_LESSER_JEWEL)
+        || (sval == SV_LIGHT_FEANORIAN);
+}
+
+static bool ordinary_lesser_jewel_is_supply_light(const object_type* o_ptr)
+{
+    return o_ptr && o_ptr->k_idx && o_ptr->tval == TV_LIGHT
+        && o_ptr->sval == SV_LIGHT_LESSER_JEWEL
+        && !object_has_ego_idx(o_ptr, EGO_GRACE);
+}
+
 static bool supplies_weight_counts_to_limit(const object_type* o_ptr)
 {
     return o_ptr && !supplies_is_light_object(o_ptr);
@@ -58,7 +71,8 @@ bool supplies_is_light_object(const object_type* o_ptr)
 
     return (o_ptr->sval == SV_LIGHT_TORCH)
         || (o_ptr->sval == SV_LIGHT_MALLORN)
-        || (o_ptr->sval == SV_LIGHT_LANTERN);
+        || (o_ptr->sval == SV_LIGHT_LANTERN)
+        || ordinary_lesser_jewel_is_supply_light(o_ptr);
 }
 
 bool supplies_is_carried_object_pointer(const object_type* o_ptr)
@@ -396,6 +410,12 @@ int player_carried_light_count_for_sval(int sval)
     return count;
 }
 
+static int player_carried_permanent_light_count(void)
+{
+    return player_carried_light_count_for_sval(SV_LIGHT_LESSER_JEWEL)
+        + player_carried_light_count_for_sval(SV_LIGHT_FEANORIAN);
+}
+
 int player_light_carry_cap(const object_type* o_ptr)
 {
     if (!o_ptr || !o_ptr->k_idx || o_ptr->tval != TV_LIGHT)
@@ -409,9 +429,8 @@ int player_light_carry_cap(const object_type* o_ptr)
     case SV_LIGHT_LANTERN:
         return PLAYER_BRASS_LAMP_CAP;
     case SV_LIGHT_LESSER_JEWEL:
-        return PLAYER_LESSER_JEWEL_CAP;
     case SV_LIGHT_FEANORIAN:
-        return PLAYER_FEANORIAN_LAMP_CAP;
+        return PLAYER_PERMANENT_LIGHT_CAP;
     default:
         return 0;
     }
@@ -431,6 +450,8 @@ int player_light_available_capacity(const object_type* o_ptr)
 
     if (o_ptr->sval == SV_LIGHT_TORCH || o_ptr->sval == SV_LIGHT_MALLORN)
         used = player_carried_torch_count();
+    else if (player_light_uses_permanent_cap_sval(o_ptr->sval))
+        used = player_carried_permanent_light_count();
     else
         used = player_carried_light_count_for_sval(o_ptr->sval);
 
@@ -438,10 +459,8 @@ int player_light_available_capacity(const object_type* o_ptr)
         used += g_reserved_torch_lights;
     else if (o_ptr->sval == SV_LIGHT_LANTERN)
         used += g_reserved_lantern_lights;
-    else if (o_ptr->sval == SV_LIGHT_LESSER_JEWEL)
-        used += g_reserved_lesser_jewels;
-    else if (o_ptr->sval == SV_LIGHT_FEANORIAN)
-        used += g_reserved_feanorian_lamps;
+    else if (player_light_uses_permanent_cap_sval(o_ptr->sval))
+        used += g_reserved_lesser_jewels + g_reserved_feanorian_lamps;
 
     if (used >= cap)
         return 0;

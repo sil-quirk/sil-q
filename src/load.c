@@ -2367,23 +2367,11 @@ static void legacy_supply_drop_object(object_type* drop,
     legacy_supply_record_counts(report->dropped, drop, drop->number);
 }
 
-static int legacy_light_cap_for_sval(int sval)
-{
-    switch (sval)
-    {
-    case SV_LIGHT_LESSER_JEWEL:
-        return PLAYER_LESSER_JEWEL_CAP;
-    case SV_LIGHT_FEANORIAN:
-        return PLAYER_FEANORIAN_LAMP_CAP;
-    default:
-        return 0;
-    }
-}
-
-static bool legacy_pack_light_matches(const object_type* o_ptr, int sval)
+static bool legacy_pack_permanent_light_matches(const object_type* o_ptr)
 {
     return o_ptr && o_ptr->k_idx && o_ptr->tval == TV_LIGHT
-        && o_ptr->sval == sval;
+        && ((o_ptr->sval == SV_LIGHT_LESSER_JEWEL)
+            || (o_ptr->sval == SV_LIGHT_FEANORIAN));
 }
 
 static bool legacy_savefile_has_supply_block(void)
@@ -2448,15 +2436,12 @@ restore:
     return has_block;
 }
 
-static void legacy_supply_trim_pack_lights(int sval,
+static void legacy_supply_trim_pack_permanent_lights(
     legacy_supply_migration_report* report)
 {
-    int cap = legacy_light_cap_for_sval(sval);
-
-    if (cap <= 0)
-        return;
-
-    while (player_carried_light_count_for_sval(sval) > cap)
+    while ((player_carried_light_count_for_sval(SV_LIGHT_LESSER_JEWEL)
+            + player_carried_light_count_for_sval(SV_LIGHT_FEANORIAN))
+        > PLAYER_PERMANENT_LIGHT_CAP)
     {
         bool removed = false;
 
@@ -2465,7 +2450,7 @@ static void legacy_supply_trim_pack_lights(int sval,
             object_type* o_ptr = &inventory[i];
             object_type drop;
 
-            if (!legacy_pack_light_matches(o_ptr, sval))
+            if (!legacy_pack_permanent_light_matches(o_ptr))
                 continue;
 
             object_copy(&drop, o_ptr);
@@ -2479,8 +2464,7 @@ static void legacy_supply_trim_pack_lights(int sval,
 
         if (!removed)
         {
-            log_warn("Legacy light migration could not trim excess light sval=%d",
-                sval);
+            log_warn("Legacy light migration could not trim excess permanent lights");
             break;
         }
     }
@@ -2582,8 +2566,7 @@ static void migrate_legacy_supply_system(
         }
     }
 
-    legacy_supply_trim_pack_lights(SV_LIGHT_LESSER_JEWEL, report);
-    legacy_supply_trim_pack_lights(SV_LIGHT_FEANORIAN, report);
+    legacy_supply_trim_pack_permanent_lights(report);
 }
 
 static void queue_legacy_supply_migration_messages(

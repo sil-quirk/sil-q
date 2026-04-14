@@ -20,8 +20,7 @@ typedef enum supply_group
 #define SUPPLIES_INDEX 1000
 #define PLAYER_TORCH_CAP 5
 #define PLAYER_BRASS_LAMP_CAP 2
-#define PLAYER_LESSER_JEWEL_CAP 2
-#define PLAYER_FEANORIAN_LAMP_CAP 2
+#define PLAYER_PERMANENT_LIGHT_CAP 3
 #define PLAYER_LAMP_OIL_MAX 15000
 
 typedef enum supply_menu_action
