@@ -3403,6 +3403,15 @@ cptr describe_use(int i)
 }
 
 /*
+ * Return true if this skeleton has already been searched.
+ */
+bool object_is_searched_skeleton(const object_type* o_ptr)
+{
+    return o_ptr && o_ptr->k_idx && (o_ptr->tval == TV_SKELETON)
+        && (o_ptr->pval <= 0);
+}
+
+/*
  * Check an item against the item tester info
  */
 bool item_tester_okay(const object_type* o_ptr)
@@ -3428,6 +3437,9 @@ bool item_tester_okay(const object_type* o_ptr)
             return (true);
         return (false);
     }
+
+    if (!in_inventory && object_is_searched_skeleton(o_ptr))
+        return (false);
 
     /* Check the tval */
     if (item_tester_tval)

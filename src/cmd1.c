@@ -3790,6 +3790,10 @@ void py_pickup_aux(int o_idx)
     char o_name[120];
     
     o_ptr = &o_list[o_idx];
+
+    if (object_is_searched_skeleton(o_ptr))
+        return;
+
     // Remember the floor position even if give_player_item wipes the object
     int pickup_y = o_ptr->iy;
     int pickup_x = o_ptr->ix;
@@ -4256,11 +4260,14 @@ void py_pickup(void)
         /* Get the object */
         o_ptr = &o_list[this_o_idx];
 
-        /* Describe the object */
-        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
-
         /* Get the next object */
         next_o_idx = o_ptr->next_o_idx;
+
+        if (object_is_searched_skeleton(o_ptr))
+            continue;
+
+        /* Describe the object */
+        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
         /* Hack -- disturb */
         disturb(0, 0);
@@ -7410,7 +7417,7 @@ static bool run_test(void)
              o_ptr = get_next_object(o_ptr))
         {
             /* Visible object */
-            if (o_ptr->marked)
+            if (o_ptr->marked && !object_is_searched_skeleton(o_ptr))
                 return (true);
         }
 

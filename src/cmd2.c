@@ -7316,7 +7316,8 @@ void do_cmd_alter(void)
                 && object_known_p(o_ptr))
                 chest_trap = true;
         }
-        else if (o_ptr->tval == TV_SKELETON)
+        else if ((o_ptr->tval == TV_SKELETON)
+            && !object_is_searched_skeleton(o_ptr))
         {
             skeleton_present = true;
         }

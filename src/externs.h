@@ -1056,6 +1056,7 @@ extern s16b wield_slot(const object_type* o_ptr);
 extern cptr describe_empty_slot(int i);
 extern cptr mention_use(int i);
 extern cptr describe_use(int i);
+extern bool object_is_searched_skeleton(const object_type* o_ptr);
 extern bool item_tester_okay(const object_type* o_ptr);
 extern int scan_floor(int* items, int size, int y, int x, int mode);
 extern void display_inven(void);
