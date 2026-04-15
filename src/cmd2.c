@@ -1585,7 +1585,7 @@ static int skeleton_note_size_bucket(const level_layout_info* layout)
         return 0;
 
     /*
-     * Size buckets for skeleton-note pacing and {SIZEWORD}.
+     * Size buckets for skeleton-note pacing.
      *
      * Bucket against this depth's actual legal size span rather than the
      * absolute MAX_DUNGEON_* ceiling. Otherwise the generator quickly
@@ -1612,6 +1612,65 @@ static int skeleton_note_size_bucket(const level_layout_info* layout)
     if (bucket > 3)
         bucket = 3;
     return bucket;
+}
+
+static int skeleton_note_size_word_bucket(const level_layout_info* layout)
+{
+    int depth = p_ptr ? p_ptr->depth : 0;
+    int side = 0;
+    int total = 0;
+    int lower = 0;
+    int equal = 0;
+
+    if (!layout)
+        return 0;
+
+    side = MAX(layout->map_wid, layout->map_hgt);
+    if (side <= 0)
+        return 0;
+
+    /*
+     * For note text, compare the generated size against the generator's
+     * actual roll distribution rather than evenly slicing the legal span.
+     * cave_gen() deliberately biases upward by taking the max of two rolls,
+     * so width-based buckets overstate how often a level is "huge".
+     */
+    for (int roll1 = 1; roll1 <= SKELETON_NOTE_LEVEL_RANDOM_ROLL1; ++roll1)
+    {
+        for (int roll2 = 1; roll2 <= SKELETON_NOTE_LEVEL_RANDOM_ROLL2; ++roll2)
+        {
+            int generated_side
+                = skeleton_note_generated_side_for_depth_rolls(depth, roll1, roll2);
+
+            ++total;
+            if (generated_side < side)
+                ++lower;
+            else if (generated_side == side)
+                ++equal;
+        }
+    }
+
+    if (total <= 0)
+        return 0;
+
+    /*
+     * Use the midpoint percentile for this exact generated size so the most
+     * common roll cluster reads as a middle descriptor instead of "vast".
+     */
+    if (equal > 0)
+    {
+        s64b numerator = (s64b)(2 * lower + equal) * 4;
+        s64b denominator = (s64b)2 * total;
+        int bucket = (int)(numerator / denominator);
+
+        if (bucket < 0)
+            bucket = 0;
+        if (bucket > 3)
+            bucket = 3;
+        return bucket;
+    }
+
+    return skeleton_note_size_bucket(layout);
 }
 
 static int skeleton_note_cap_from_layout(const level_layout_info* layout)
@@ -1796,7 +1855,7 @@ static const char* size_word_for_bucket(int bucket)
 
 static const char* skeleton_note_pick_size_word(const level_layout_info* layout)
 {
-    int actual = layout ? skeleton_note_size_bucket(layout) : 0;
+    int actual = layout ? skeleton_note_size_word_bucket(layout) : 0;
     if (actual < 0)
         actual = 0;
     if (actual > 3)
@@ -3004,7 +3063,7 @@ static void skeleton_note_expand_template(const char* tpl,
     const char* part_hazard = partition_hazard_label(presence_kind, big_cave_type);
     const char* size_word_text = size_word
         ? size_word
-        : size_word_for_bucket(layout ? skeleton_note_size_bucket(layout) : 0);
+        : size_word_for_bucket(layout ? skeleton_note_size_word_bucket(layout) : 0);
     int width = layout ? layout->map_wid : 0;
     int height = layout ? layout->map_hgt : 0;
     const char* dir_text = dir ? dir : "";

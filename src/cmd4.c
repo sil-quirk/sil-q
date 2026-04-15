@@ -12082,7 +12082,7 @@ static void hint_message_draw_colored_line(int row, int col, byte base_attr,
         {
             if (i > start)
             {
-                char plain[100];
+                char plain[256];
                 int plain_len = i - start;
                 memcpy(plain, line + start, plain_len);
                 plain[plain_len] = '\0';
@@ -12091,7 +12091,7 @@ static void hint_message_draw_colored_line(int row, int col, byte base_attr,
             }
 
             {
-                char special[HINT_MESSAGE_CUE_TEXT_MAX + 1];
+                char special[256];
                 memcpy(special, line + i, match_len);
                 special[match_len] = '\0';
                 hint_message_put_segment(row, cursor, match_attr, special);
@@ -12109,7 +12109,7 @@ static void hint_message_draw_colored_line(int row, int col, byte base_attr,
 
     if (start < len)
     {
-        char tail[100];
+        char tail[256];
         int tail_len = len - start;
         memcpy(tail, line + start, tail_len);
         tail[tail_len] = '\0';
@@ -12130,86 +12130,92 @@ static const char* hint_message_title(int index)
     return "";
 }
 
-static void hint_message_build_title(char* buf, size_t buf_sz, const char* title,
-    int max_len)
+typedef struct hint_message_display_line {
+    char text[256];
+    byte source_line;
+} hint_message_display_line;
+
+enum {
+    HINT_MESSAGE_DISPLAY_TEXT_MAX = 256,
+    HINT_MESSAGE_DISPLAY_LINES_MAX = 48,
+    HINT_MESSAGE_LIST_LINES_MAX = 64
+};
+
+static int hint_message_wrap_list_text(const char* text, int wrap_cols,
+    hint_message_display_line* lines, int limit);
+
+static int hint_message_list_emit_token(int base_row, int wid, int text_col,
+    int max_rows, int* used_rows, int* cursor_col, bool draw, byte attr,
+    const char* text)
 {
-    if (!buf || buf_sz == 0)
-        return;
+    int full_width;
+    int len;
+    int row;
 
-    if (!title)
-        title = "";
+    if (!text || !text[0] || !used_rows || !cursor_col)
+        return true;
 
-    if (max_len < 4 || (int)strlen(title) <= max_len)
+    full_width = wid - text_col - 1;
+    if (full_width < 1)
+        full_width = 1;
+
+    len = (int)strlen(text);
+
+    if (*used_rows <= 0)
     {
-        strnfmt(buf, buf_sz, "%s", title);
-        return;
+        *used_rows = 1;
+        *cursor_col = text_col;
     }
 
-    strnfmt(buf, buf_sz, "%.*s...", max_len - 3, title);
-}
-
-static void hint_message_draw_list_row(int row, int idx, bool selected, int wid)
-{
-    hint_message_meta meta;
-    char prefix[8];
-    char title_buf[96];
-    const char* title = hint_message_title(idx);
-    byte prefix_attr = selected ? TERM_L_BLUE : TERM_WHITE;
-    byte title_attr = selected ? TERM_L_WHITE : TERM_WHITE;
-    byte chrome_attr = TERM_SLATE;
-    int col = 0;
-    int title_room;
-
-    hint_messages_message_meta(idx, &meta);
-
-    Term_erase(0, row, 255);
-
-    strnfmt(prefix, sizeof(prefix), "%2d) ", idx + 1);
-    Term_putstr(col, row, -1, prefix_attr, prefix);
-    col += (int)strlen(prefix);
-
-    title_room = MAX(8, wid - col - 1);
-    if (meta.cue_count > 0)
-        title_room = MIN(title_room, MAX(wid / 2, 24));
-    hint_message_build_title(title_buf, sizeof(title_buf), title, title_room);
-    Term_putstr(col, row, -1, title_attr, title_buf);
-    col += (int)strlen(title_buf);
-
-    if (meta.cue_count <= 0 || col >= wid - 4)
-        return;
-
-    Term_putstr(col, row, -1, chrome_attr, " [");
-    col += 2;
-
-    for (int cue = 0; cue < meta.cue_count && col < wid - 1; ++cue)
+    if (*cursor_col + len > wid - 1 && *cursor_col > text_col)
     {
-        if (cue > 0)
-        {
-            Term_putstr(col, row, -1, chrome_attr, "; ");
-            col += 2;
-        }
+        if (*used_rows >= max_rows)
+            return false;
 
-        if (meta.cue_dists[cue][0])
-        {
-            Term_putstr(col, row, -1, TERM_YELLOW, meta.cue_dists[cue]);
-            col += (int)strlen(meta.cue_dists[cue]);
-        }
+        row = base_row + *used_rows;
+        if (draw)
+            Term_erase(0, row, 255);
+        (*used_rows)++;
+        *cursor_col = text_col;
+    }
 
-        if (meta.cue_dists[cue][0] && meta.cue_dirs[cue][0] && col < wid - 1)
-        {
-            Term_putstr(col, row, -1, chrome_attr, " ");
-            col += 1;
-        }
+    row = base_row + (*used_rows - 1);
 
-        if (meta.cue_dirs[cue][0] && col < wid - 1)
+    if (len <= full_width)
+    {
+        if (draw)
+            hint_message_put_segment(row, *cursor_col, attr, text);
+        *cursor_col += len;
+        return true;
+    }
+
+    {
+        hint_message_display_line lines[HINT_MESSAGE_LIST_LINES_MAX];
+        int line_count = hint_message_wrap_list_text(text, full_width, lines,
+            HINT_MESSAGE_LIST_LINES_MAX);
+
+        for (int li = 0; li < line_count; ++li)
         {
-            Term_putstr(col, row, -1, TERM_L_BLUE, meta.cue_dirs[cue]);
-            col += (int)strlen(meta.cue_dirs[cue]);
+            if (li > 0 || *cursor_col > text_col)
+            {
+                if (*used_rows >= max_rows)
+                    return false;
+
+                row = base_row + *used_rows;
+                if (draw)
+                    Term_erase(0, row, 255);
+                (*used_rows)++;
+                *cursor_col = text_col;
+            }
+
+            row = base_row + (*used_rows - 1);
+            if (draw)
+                hint_message_put_segment(row, *cursor_col, attr, lines[li].text);
+            *cursor_col += (int)strlen(lines[li].text);
         }
     }
 
-    if (col < wid - 1)
-        Term_putstr(col, row, -1, chrome_attr, "]");
+    return true;
 }
 
 static int skeleton_tip_template_count(void)
@@ -12289,19 +12295,257 @@ static bool skeleton_tip_text_by_index(int index, char* buf, size_t buf_sz)
     return (buf[0] != '\0');
 }
 
-static int skeleton_tip_append_wrapped_text(const char* text, char lines[][100],
-    int idx, int limit, int wrap_cols)
+static int hint_message_effective_wrap_cols(int wrap_cols,
+    size_t line_capacity)
+{
+    int max_cols = (int)line_capacity - 1;
+
+    if (max_cols < 1)
+        max_cols = 1;
+    if (wrap_cols < 1)
+        wrap_cols = 1;
+    if (wrap_cols > max_cols)
+        wrap_cols = max_cols;
+
+    return wrap_cols;
+}
+
+static int hint_message_max_chars_fit_pixels(const char* text, int max_chars,
+    int max_px, int cell_width)
+{
+    if (!text || max_chars <= 0)
+        return 0;
+
+    if (max_px <= 0 || cell_width <= 0)
+        return max_chars;
+
+    int lo = 1;
+    int hi = max_chars;
+    int best = 1;
+
+    while (lo <= hi)
+    {
+        int mid = (lo + hi) / 2;
+        int width = sdl_story_font_text_width(text, mid);
+        if (width <= 0)
+            width = mid * cell_width;
+
+        if (width <= max_px)
+        {
+            best = mid;
+            lo = mid + 1;
+        }
+        else
+        {
+            hi = mid - 1;
+        }
+    }
+
+    return best;
+}
+
+static int hint_message_append_wrapped_segment_mono(const char* seg,
+    hint_message_display_line* lines, int idx, int limit, int wrap_cols,
+    byte source_line)
+{
+    int len;
+    int pos;
+
+    if (!seg || !seg[0] || !lines || limit <= idx)
+        return idx;
+
+    wrap_cols = hint_message_effective_wrap_cols(
+        wrap_cols, sizeof(lines[0].text));
+
+    len = (int)strlen(seg);
+    pos = 0;
+
+    while (pos < len && idx < limit)
+    {
+        int remaining;
+        int take;
+
+        while (pos < len && seg[pos] == ' ')
+            pos++;
+        if (pos >= len)
+            break;
+
+        remaining = len - pos;
+        take = (remaining <= wrap_cols) ? remaining : wrap_cols;
+
+        if (remaining > wrap_cols)
+        {
+            int end = pos + take;
+            int split = -1;
+            for (int j = end - 1; j > pos; --j)
+            {
+                if (seg[j] == ' ')
+                {
+                    split = j;
+                    break;
+                }
+            }
+            if (split > pos)
+                take = split - pos;
+        }
+
+        while (take > 0 && seg[pos + take - 1] == ' ')
+            take--;
+
+        if (take <= 0)
+            break;
+
+        strnfmt(lines[idx].text, sizeof(lines[idx].text), "%.*s", take, seg + pos);
+        lines[idx].source_line = source_line;
+        idx++;
+        pos += take;
+    }
+
+    return idx;
+}
+
+static int hint_message_append_wrapped_segment_story(const char* seg,
+    hint_message_display_line* lines, int idx, int limit, int wrap_cols,
+    byte source_line)
+{
+    int cell_width;
+    int wrap_px;
+    int space_px;
+    int max_line_chars;
+    const char* s;
+
+    if (!seg || !seg[0] || !lines || limit <= idx)
+        return idx;
+
+    wrap_cols = hint_message_effective_wrap_cols(
+        wrap_cols, sizeof(lines[0].text));
+
+    cell_width = sdl_get_cell_width();
+    if (cell_width <= 0)
+        return hint_message_append_wrapped_segment_mono(
+            seg, lines, idx, limit, wrap_cols, source_line);
+
+    wrap_px = wrap_cols * cell_width;
+    space_px = sdl_story_font_text_width(" ", 1);
+    if (space_px <= 0)
+        space_px = cell_width;
+
+    max_line_chars = wrap_cols;
+    if (max_line_chars > HINT_MESSAGE_DISPLAY_TEXT_MAX - 1)
+        max_line_chars = HINT_MESSAGE_DISPLAY_TEXT_MAX - 1;
+
+    s = seg;
+    while (*s && idx < limit)
+    {
+        char out[HINT_MESSAGE_DISPLAY_TEXT_MAX];
+        int out_len = 0;
+        int line_px = 0;
+        bool first_word = true;
+
+        while (*s == ' ')
+            s++;
+        if (!*s)
+            break;
+
+        while (*s)
+        {
+            const char* word;
+            int word_len = 0;
+            int word_px;
+            int add_px;
+            int add_chars;
+
+            while (*s == ' ')
+                s++;
+            if (!*s)
+                break;
+
+            word = s;
+            while (word[word_len] && word[word_len] != ' ')
+                word_len++;
+
+            word_px = sdl_story_font_text_width(word, word_len);
+            if (word_px <= 0)
+                word_px = word_len * cell_width;
+
+            add_px = word_px + (first_word ? 0 : space_px);
+            add_chars = word_len + (first_word ? 0 : 1);
+
+            if (!first_word
+                && ((line_px + add_px) > wrap_px
+                    || (out_len + add_chars) > max_line_chars))
+            {
+                break;
+            }
+
+            if (first_word && (word_px > wrap_px || word_len > max_line_chars))
+            {
+                int max_chars = word_len;
+                int fit;
+
+                if (max_chars > max_line_chars - out_len)
+                    max_chars = max_line_chars - out_len;
+                fit = hint_message_max_chars_fit_pixels(
+                    word, max_chars, wrap_px, cell_width);
+                if (fit <= 0)
+                    fit = 1;
+
+                memcpy(out + out_len, word, fit);
+                out_len += fit;
+                out[out_len] = '\0';
+                s += fit;
+                break;
+            }
+
+            if (!first_word)
+            {
+                out[out_len++] = ' ';
+                line_px += space_px;
+            }
+
+            if (word_len > HINT_MESSAGE_DISPLAY_TEXT_MAX - 1 - out_len)
+                word_len = HINT_MESSAGE_DISPLAY_TEXT_MAX - 1 - out_len;
+            if (word_len > max_line_chars - out_len)
+                word_len = max_line_chars - out_len;
+            memcpy(out + out_len, word, word_len);
+            out_len += word_len;
+            out[out_len] = '\0';
+            line_px += word_px;
+
+            s += word_len;
+            first_word = false;
+        }
+
+        if (out_len > 0)
+        {
+            strnfmt(lines[idx].text, sizeof(lines[idx].text), "%s", out);
+            lines[idx].source_line = source_line;
+            idx++;
+        }
+
+        while (*s == ' ')
+            s++;
+    }
+
+    return idx;
+}
+
+static int hint_message_append_wrapped_text(const char* text,
+    hint_message_display_line* lines, int idx, int limit, int wrap_cols,
+    byte source_line)
 {
     char expanded[512];
     char* seg;
 
-    if (!text || !text[0] || limit <= idx)
+    if (!text || !lines || limit <= idx)
         return idx;
 
-    if (wrap_cols < 10)
-        wrap_cols = 10;
-    if (wrap_cols > 95)
-        wrap_cols = 95;
+    if (!text[0])
+    {
+        lines[idx].text[0] = '\0';
+        lines[idx].source_line = source_line;
+        return idx + 1;
+    }
 
     strnfmt(expanded, sizeof(expanded), "%s", text);
     seg = expanded;
@@ -12318,32 +12562,25 @@ static int skeleton_tip_append_wrapped_text(const char* text, char lines[][100],
         while (*seg == ' ')
             seg++;
 
-        while (*seg && idx < limit)
+        if (*seg)
         {
-            int remaining = (int)strlen(seg);
-            int take = remaining;
-
-            if (take > wrap_cols)
+            if (sdl_is_story_font_enabled() && sdl_story_font_text_width(" ", 1) > 0
+                && sdl_get_cell_width() > 0)
             {
-                int split = wrap_cols;
-                while (split > 0 && seg[split] != ' ')
-                    split--;
-                if (split > 0)
-                    take = split;
-                else
-                    take = wrap_cols;
+                idx = hint_message_append_wrapped_segment_story(
+                    seg, lines, idx, limit, wrap_cols, source_line);
             }
-
-            while (take > 0 && seg[take - 1] == ' ')
-                take--;
-
-            if (take <= 0)
-                break;
-
-            strnfmt(lines[idx++], 100, "%.*s", take, seg);
-            seg += take;
-            while (*seg == ' ')
-                seg++;
+            else
+            {
+                idx = hint_message_append_wrapped_segment_mono(
+                    seg, lines, idx, limit, wrap_cols, source_line);
+            }
+        }
+        else
+        {
+            lines[idx].text[0] = '\0';
+            lines[idx].source_line = source_line;
+            idx++;
         }
 
         seg = next;
@@ -12352,28 +12589,193 @@ static int skeleton_tip_append_wrapped_text(const char* text, char lines[][100],
     return idx;
 }
 
-static void skeleton_tip_draw_list_row(int row, int idx, bool selected, int wid)
+static int hint_message_wrap_list_text(const char* text, int wrap_cols,
+    hint_message_display_line* lines, int limit)
+{
+    int line_count = hint_message_append_wrapped_text(
+        text, lines, 0, limit, wrap_cols, 0);
+
+    if (line_count <= 0 && limit > 0)
+    {
+        lines[0].text[0] = '\0';
+        lines[0].source_line = 0;
+        line_count = 1;
+    }
+
+    return line_count;
+}
+
+static int hint_message_draw_wrapped_list_entry(int row, int idx,
+    bool selected, int wid, int max_rows, const char* text,
+    const hint_message_meta* meta, bool highlight_tutorial)
 {
     char prefix[8];
-    char title_buf[96];
-    char tip_text[512];
+    hint_message_display_line lines[HINT_MESSAGE_LIST_LINES_MAX];
     byte prefix_attr = selected ? TERM_L_BLUE : TERM_WHITE;
     byte title_attr = selected ? TERM_L_WHITE : TERM_WHITE;
-    int col = 0;
-    int title_room;
+    int text_col;
+    int line_count;
+    int draw_count;
 
-    Term_erase(0, row, 255);
+    if (max_rows <= 0)
+        return 0;
 
     strnfmt(prefix, sizeof(prefix), "%2d) ", idx + 1);
-    Term_putstr(col, row, -1, prefix_attr, prefix);
-    col += (int)strlen(prefix);
+    text_col = (int)strlen(prefix);
+    line_count = hint_message_wrap_list_text(text ? text : "",
+        wid - text_col - 1, lines, HINT_MESSAGE_LIST_LINES_MAX);
+    draw_count = MIN(line_count, max_rows);
+
+    for (int li = 0; li < draw_count; ++li)
+    {
+        Term_erase(0, row + li, 255);
+
+        if (li == 0)
+            Term_putstr(0, row + li, -1, prefix_attr, prefix);
+
+        hint_message_draw_colored_line(row + li, text_col, title_attr,
+            lines[li].text, meta, highlight_tutorial);
+    }
+
+    return draw_count;
+}
+
+static int hint_message_layout_list_entry(int row, int idx, bool selected,
+    int wid, int max_rows, bool draw)
+{
+    hint_message_meta meta;
+    char prefix[8];
+    hint_message_display_line title_lines[HINT_MESSAGE_LIST_LINES_MAX];
+    const char* title = hint_message_title(idx);
+    byte prefix_attr = selected ? TERM_L_BLUE : TERM_WHITE;
+    byte title_attr = selected ? TERM_L_WHITE : TERM_WHITE;
+    byte chrome_attr = TERM_SLATE;
+    int text_col;
+    int title_count;
+    int used_rows = 0;
+    int cursor_col = 0;
+
+    if (max_rows <= 0)
+        return 0;
+
+    hint_messages_message_meta(idx, &meta);
+    strnfmt(prefix, sizeof(prefix), "%2d) ", idx + 1);
+    text_col = (int)strlen(prefix);
+    title_count = hint_message_wrap_list_text(title ? title : "",
+        wid - text_col - 1, title_lines, HINT_MESSAGE_LIST_LINES_MAX);
+
+    for (int li = 0; li < title_count && used_rows < max_rows; ++li)
+    {
+        if (draw)
+        {
+            Term_erase(0, row + used_rows, 255);
+            if (li == 0)
+                Term_putstr(0, row + used_rows, -1, prefix_attr, prefix);
+            hint_message_put_segment(row + used_rows, text_col, title_attr,
+                title_lines[li].text);
+        }
+
+        used_rows++;
+    }
+
+    if (used_rows <= 0 || meta.cue_count <= 0)
+        return used_rows;
+
+    cursor_col = text_col + (int)strlen(title_lines[title_count - 1].text);
+
+    if (!hint_message_list_emit_token(row, wid, text_col, max_rows,
+            &used_rows, &cursor_col, draw, chrome_attr, " ["))
+    {
+        return used_rows;
+    }
+
+    for (int cue = 0; cue < meta.cue_count; ++cue)
+    {
+        if (cue > 0)
+        {
+            if (!hint_message_list_emit_token(row, wid, text_col, max_rows,
+                    &used_rows, &cursor_col, draw, chrome_attr, "; "))
+            {
+                return used_rows;
+            }
+        }
+
+        if (meta.cue_dists[cue][0])
+        {
+            if (!hint_message_list_emit_token(row, wid, text_col, max_rows,
+                    &used_rows, &cursor_col, draw, TERM_YELLOW,
+                    meta.cue_dists[cue]))
+            {
+                return used_rows;
+            }
+        }
+
+        if (meta.cue_dists[cue][0] && meta.cue_dirs[cue][0])
+        {
+            if (!hint_message_list_emit_token(row, wid, text_col, max_rows,
+                    &used_rows, &cursor_col, draw, chrome_attr, " "))
+            {
+                return used_rows;
+            }
+        }
+
+        if (meta.cue_dirs[cue][0])
+        {
+            if (!hint_message_list_emit_token(row, wid, text_col, max_rows,
+                    &used_rows, &cursor_col, draw, TERM_L_BLUE,
+                    meta.cue_dirs[cue]))
+            {
+                return used_rows;
+            }
+        }
+    }
+
+    (void)hint_message_list_emit_token(row, wid, text_col, max_rows,
+        &used_rows, &cursor_col, draw, chrome_attr, "]");
+
+    return used_rows;
+}
+
+static int hint_message_list_entry_height(int idx, int wid)
+{
+    return hint_message_layout_list_entry(0, idx, false, wid,
+        HINT_MESSAGE_LIST_LINES_MAX, false);
+}
+
+static int hint_message_draw_list_row(int row, int idx, bool selected, int wid,
+    int max_rows)
+{
+    return hint_message_layout_list_entry(row, idx, selected, wid,
+        max_rows, true);
+}
+
+static int skeleton_tip_list_entry_height(int idx, int wid)
+{
+    char text[512];
+    hint_message_display_line lines[HINT_MESSAGE_LIST_LINES_MAX];
+    char prefix[8];
+    int text_col;
+
+    if (!skeleton_tip_text_by_index(idx, text, sizeof(text)))
+        text[0] = '\0';
+
+    strnfmt(prefix, sizeof(prefix), "%2d) ", idx + 1);
+    text_col = (int)strlen(prefix);
+
+    return hint_message_wrap_list_text(text, wid - text_col - 1,
+        lines, HINT_MESSAGE_LIST_LINES_MAX);
+}
+
+static int skeleton_tip_draw_list_row(int row, int idx, bool selected, int wid,
+    int max_rows)
+{
+    char tip_text[512];
 
     if (!skeleton_tip_text_by_index(idx, tip_text, sizeof(tip_text)))
         tip_text[0] = '\0';
 
-    title_room = MAX(8, wid - col - 1);
-    hint_message_build_title(title_buf, sizeof(title_buf), tip_text, title_room);
-    hint_message_draw_colored_line(row, col, title_attr, title_buf, NULL, true);
+    return hint_message_draw_wrapped_list_entry(row, idx, selected, wid,
+        max_rows, tip_text, NULL, true);
 }
 
 static bool skeleton_tip_show_internal(int index, bool manage_screen)
@@ -12382,18 +12784,12 @@ static bool skeleton_tip_show_internal(int index, bool manage_screen)
     int hgt = 24;
     int row = 4;
     int col = 8;
-    char lines[16][100];
+    hint_message_display_line lines[HINT_MESSAGE_DISPLAY_LINES_MAX];
     char tip_text[512];
     int line_count = 0;
 
     if (!skeleton_tip_text_by_index(index, tip_text, sizeof(tip_text)))
         return false;
-
-    strnfmt(lines[line_count++], sizeof(lines[0]), "Hint: Survival Tip");
-    Term_get_size(&wid, &hgt);
-    line_count = skeleton_tip_append_wrapped_text(
-        tip_text, lines, line_count, 15, MAX(10, wid - col - 1));
-    lines[line_count][0] = '\0';
 
     if (manage_screen)
         screen_save();
@@ -12404,12 +12800,21 @@ static bool skeleton_tip_show_internal(int index, bool manage_screen)
     {
         Term_clear();
         Term_get_size(&wid, &hgt);
+        line_count = 0;
+
+        line_count = hint_message_append_wrapped_text(
+            "Hint: Survival Tip", lines, line_count,
+            HINT_MESSAGE_DISPLAY_LINES_MAX, wid - col - 1, 0);
+        line_count = hint_message_append_wrapped_text(
+            tip_text, lines, line_count, HINT_MESSAGE_DISPLAY_LINES_MAX,
+            wid - col - 1, 1);
 
         for (int li = 0; li < line_count && row + li < hgt - 1; ++li)
         {
-            byte base_attr = (li == 0) ? TERM_L_WHITE : TERM_WHITE;
-            hint_message_draw_colored_line(row + li, col, base_attr, lines[li], NULL,
-                (li > 0));
+            bool title_line = (lines[li].source_line == 0);
+            byte base_attr = title_line ? TERM_L_WHITE : TERM_WHITE;
+            hint_message_draw_colored_line(row + li, col, base_attr, lines[li].text,
+                NULL, !title_line);
         }
 
         prt("[Press any key to continue]", hgt - 1, 0);
@@ -12435,15 +12840,17 @@ static bool hint_message_show_internal(int index, int* look_y, int* look_x,
     int hgt = 24;
     int row = 4;
     int col = 8;
+    hint_message_display_line display_lines[HINT_MESSAGE_DISPLAY_LINES_MAX];
     char ch;
     hint_message_meta meta;
-    byte line_count;
+    byte stored_line_count;
+    int display_line_count = 0;
     bool request_look = false;
     bool highlight_tutorial = false;
 
     hint_messages_ensure_level_state();
-    line_count = hint_messages_message_line_count(index);
-    if (!line_count)
+    stored_line_count = hint_messages_message_line_count(index);
+    if (!stored_line_count)
         return false;
 
     hint_messages_message_meta(index, &meta);
@@ -12458,13 +12865,23 @@ static bool hint_message_show_internal(int index, int* look_y, int* look_x,
     {
         Term_clear();
         Term_get_size(&wid, &hgt);
+        display_line_count = 0;
 
-        for (int li = 0; li < line_count && row + li < hgt - 1; ++li)
+        for (int li = 0; li < stored_line_count; ++li)
         {
-            const char* line = hint_messages_message_line(index, li);
-            byte base_attr = (li == 0) ? TERM_L_WHITE : TERM_WHITE;
-            hint_message_draw_colored_line(row + li, col, base_attr, line,
-                (li == 0) ? NULL : &meta, (highlight_tutorial && li > 0));
+            display_line_count = hint_message_append_wrapped_text(
+                hint_messages_message_line(index, li),
+                display_lines, display_line_count,
+                HINT_MESSAGE_DISPLAY_LINES_MAX, wid - col - 1, (byte)li);
+        }
+
+        for (int li = 0; li < display_line_count && row + li < hgt - 1; ++li)
+        {
+            bool title_line = (display_lines[li].source_line == 0);
+            byte base_attr = title_line ? TERM_L_WHITE : TERM_WHITE;
+            hint_message_draw_colored_line(row + li, col, base_attr,
+                display_lines[li].text, title_line ? NULL : &meta,
+                (highlight_tutorial && !title_line));
         }
 
         if (hint_message_has_source(&meta))
@@ -12549,7 +12966,9 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
     while (1)
     {
         int n = show_all_tips ? tip_n : level_n;
+        int draw_row = 0;
 
+        Term_get_size(&wid, &hgt);
         Term_clear();
 
         int rows = hgt - 4;
@@ -12565,14 +12984,30 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
 
             if (sel < top)
                 top = sel;
-            if (sel >= top + rows)
-                top = sel - rows + 1;
             if (top < 0)
                 top = 0;
-            if (top > n - rows)
-                top = n - rows;
-            if (top < 0)
-                top = 0;
+
+            while (top < sel)
+            {
+                int used = 0;
+
+                for (int idx = top; idx <= sel; ++idx)
+                {
+                    int height = show_all_tips
+                        ? skeleton_tip_list_entry_height(idx, wid)
+                        : hint_message_list_entry_height(idx, wid);
+
+                    used += MIN(height, rows);
+                }
+
+                if (used <= rows)
+                    break;
+
+                top++;
+            }
+
+            if (top >= n)
+                top = n - 1;
         }
         else
         {
@@ -12613,13 +13048,21 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
                              : "You recall no hint messages on this level.");
         }
 
-        for (int row = 0; row < rows && top + row < n; ++row)
+        for (int idx = top; idx < n && draw_row < rows; ++idx)
         {
-            int idx = top + row;
+            int used;
+
             if (show_all_tips)
-                skeleton_tip_draw_list_row(2 + row, idx, idx == sel, wid);
+                used = skeleton_tip_draw_list_row(2 + draw_row, idx,
+                    idx == sel, wid, rows - draw_row);
             else
-                hint_message_draw_list_row(2 + row, idx, idx == sel, wid);
+                used = hint_message_draw_list_row(2 + draw_row, idx,
+                    idx == sel, wid, rows - draw_row);
+
+            if (used <= 0)
+                break;
+
+            draw_row += used;
         }
 
         Term_fresh();
