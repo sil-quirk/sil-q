@@ -835,7 +835,7 @@ int object_stack_limit(const object_type* o_ptr)
         return 48;
 
     if (o_ptr->tval == TV_HORN)
-        return 2;
+        return 1;
 
     return MAX_STACK_SIZE - 1;
 }

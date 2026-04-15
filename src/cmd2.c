@@ -1325,7 +1325,9 @@ typedef struct hint_message_state {
     hint_message_meta meta[HINT_MESSAGE_MAX];
 } hint_message_state;
 
-static hint_message_state g_hint_message_state = { -1, 0, 0, 0, {0}, {{{0}}}, {{{0}}} };
+static hint_message_state g_hint_message_state = {
+    .level_depth = -1
+};
 
 #define SKELETON_TIP_MAX_DEPTH 7
 #define SKELETON_NOTE_LEVEL_BASE_BLOCKS 9
@@ -4238,27 +4240,36 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
         focus_part = skeleton_pick_partition_presence(&layout);
     }
 
-    s16b opening_id = skeleton_note_pick_entry(
-        sval, SKELETON_NOTE_ROLE_OPENING, SKEL_HINT_NONE);
-    s16b signoff_id = skeleton_note_pick_entry(
-        sval, SKELETON_NOTE_ROLE_SIGNOFF, SKEL_HINT_NONE);
-    if (opening_id < 0)
-    {
-        opening_id = skeleton_note_pick_entry_internal(
-            sval, SKELETON_NOTE_ROLE_OPENING, SKEL_HINT_NONE, true, -1);
-    }
-    if (signoff_id < 0)
-    {
-        signoff_id = skeleton_note_pick_entry_internal(
-            sval, SKELETON_NOTE_ROLE_SIGNOFF, SKEL_HINT_NONE, true, -1);
-    }
+    bool note_has_tip = (hint1 == SKEL_HINT_TIP || hint2 == SKEL_HINT_TIP);
+    s16b opening_id = -1;
+    s16b signoff_id = -1;
+    const char* opening = NULL;
+    const char* signoff = NULL;
 
-    const char* opening = opening_id >= 0
-        ? (skeleton_note_text + skeleton_note_info[opening_id].text)
-        : skeleton_note_fallback_opening(sval);
-    const char* signoff = signoff_id >= 0
-        ? (skeleton_note_text + skeleton_note_info[signoff_id].text)
-        : skeleton_note_fallback_signoff(sval);
+    if (!note_has_tip)
+    {
+        opening_id = skeleton_note_pick_entry(
+            sval, SKELETON_NOTE_ROLE_OPENING, SKEL_HINT_NONE);
+        signoff_id = skeleton_note_pick_entry(
+            sval, SKELETON_NOTE_ROLE_SIGNOFF, SKEL_HINT_NONE);
+        if (opening_id < 0)
+        {
+            opening_id = skeleton_note_pick_entry_internal(
+                sval, SKELETON_NOTE_ROLE_OPENING, SKEL_HINT_NONE, true, -1);
+        }
+        if (signoff_id < 0)
+        {
+            signoff_id = skeleton_note_pick_entry_internal(
+                sval, SKELETON_NOTE_ROLE_SIGNOFF, SKEL_HINT_NONE, true, -1);
+        }
+
+        opening = opening_id >= 0
+            ? (skeleton_note_text + skeleton_note_info[opening_id].text)
+            : skeleton_note_fallback_opening(sval);
+        signoff = signoff_id >= 0
+            ? (skeleton_note_text + skeleton_note_info[signoff_id].text)
+            : skeleton_note_fallback_signoff(sval);
+    }
 
     skeleton_note_line body_lines[2];
     s16b body_ids[2] = {-1, -1};

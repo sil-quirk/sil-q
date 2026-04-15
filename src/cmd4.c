@@ -11863,6 +11863,24 @@ static bool hint_message_is_word_boundary(char ch)
     return (ch == '\0') || !isalnum((unsigned char)ch);
 }
 
+static bool hint_message_phrase_matches_ci(const char* line, int offset,
+    const char* phrase)
+{
+    size_t len;
+
+    if (!line || !phrase || !phrase[0])
+        return false;
+
+    len = strlen(phrase);
+    if (SDL_strncasecmp(line + offset, phrase, len) != 0)
+        return false;
+
+    if (offset > 0 && !hint_message_is_word_boundary(line[offset - 1]))
+        return false;
+
+    return hint_message_is_word_boundary(line[offset + len]);
+}
+
 static bool hint_message_phrase_matches(const char* line, int offset, const char* phrase)
 {
     size_t len;
@@ -11878,6 +11896,109 @@ static bool hint_message_phrase_matches(const char* line, int offset, const char
         return false;
 
     return hint_message_is_word_boundary(line[offset + len]);
+}
+
+typedef struct tutorial_highlight_rule {
+    const char* phrase;
+    byte attr;
+} tutorial_highlight_rule;
+
+static const tutorial_highlight_rule tutorial_highlight_rules[] = {
+    { "Alt+'+'", TERM_WHITE },
+    { "Alt+'-'", TERM_WHITE },
+    { "Alt+'i'", TERM_WHITE },
+    { "Alt+'l'", TERM_WHITE },
+    { "Alt+'p'", TERM_WHITE },
+    { "'S'", TERM_WHITE },
+    { "critical hit", TERM_L_BLUE },
+    { "damage dice", TERM_L_BLUE },
+    { "damage die", TERM_L_BLUE },
+    { "damage sides", TERM_L_BLUE },
+    { "damage side", TERM_L_BLUE },
+    { "song points", TERM_L_BLUE },
+    { "line of sight", TERM_L_BLUE },
+    { "light radius", TERM_YELLOW },
+    { "right panel", TERM_UMBER },
+    { "bottom panel", TERM_UMBER },
+    { "left status panel", TERM_UMBER },
+    { "status panel", TERM_UMBER },
+    { "bright star rating", TERM_L_GREEN },
+    { "mixed elemental", TERM_L_BLUE },
+    { "pure elemental", TERM_L_BLUE },
+    { "vulnerabilities", TERM_L_RED },
+    { "vulnerability", TERM_L_RED },
+    { "vulnerable", TERM_L_RED },
+    { "resistances", TERM_L_GREEN },
+    { "resistance", TERM_L_GREEN },
+    { "cursed", TERM_ORANGE },
+    { "curse", TERM_ORANGE },
+    { "jinx", TERM_ORANGE },
+    { "elemental", TERM_L_BLUE },
+    { "Protection", TERM_L_BLUE },
+    { "protection", TERM_L_BLUE },
+    { "Evasion", TERM_L_BLUE },
+    { "evasion", TERM_L_BLUE },
+    { "Attack", TERM_L_BLUE },
+    { "attack", TERM_L_BLUE },
+    { "Damage", TERM_L_BLUE },
+    { "damage", TERM_L_BLUE },
+    { "Stealth", TERM_L_BLUE },
+    { "stealth", TERM_L_BLUE },
+    { "Will", TERM_L_BLUE },
+    { "will", TERM_L_BLUE },
+    { "Perception", TERM_L_BLUE },
+    { "perception", TERM_L_BLUE },
+    { "Constitution", TERM_L_BLUE },
+    { "constitution", TERM_L_BLUE },
+    { "Dexterity", TERM_L_BLUE },
+    { "dexterity", TERM_L_BLUE },
+    { "Grace", TERM_L_BLUE },
+    { "grace", TERM_L_BLUE },
+    { "Strength", TERM_L_BLUE },
+    { "strength", TERM_L_BLUE },
+    { "Smithing", TERM_L_BLUE },
+    { "smithing", TERM_L_BLUE },
+    { "Song", TERM_L_BLUE },
+    { "song", TERM_L_BLUE },
+    { "Archery", TERM_L_BLUE },
+    { "archery", TERM_L_BLUE },
+    { "HP", TERM_L_BLUE },
+    { "XP", TERM_L_BLUE },
+    { "quiver", TERM_L_BLUE },
+    { "inventory", TERM_L_BLUE },
+    { "options", TERM_UMBER },
+    { "light", TERM_YELLOW },
+    { "fire", TERM_L_RED },
+    { "ice", TERM_BLUE },
+    { "cold", TERM_BLUE },
+    { "poison", TERM_L_GREEN },
+};
+
+static int tutorial_hint_match_length(const char* line, int offset, byte* out_attr)
+{
+    int best_len = 0;
+    byte best_attr = TERM_WHITE;
+
+    for (int i = 0; i < (int)N_ELEMENTS(tutorial_highlight_rules); ++i)
+    {
+        const tutorial_highlight_rule* rule = &tutorial_highlight_rules[i];
+        int len;
+
+        if (!hint_message_phrase_matches_ci(line, offset, rule->phrase))
+            continue;
+
+        len = (int)strlen(rule->phrase);
+        if (len > best_len)
+        {
+            best_len = len;
+            best_attr = rule->attr;
+        }
+    }
+
+    if (out_attr)
+        *out_attr = best_attr;
+
+    return best_len;
 }
 
 static int hint_message_match_length(const char* line, int offset,
@@ -11933,7 +12054,7 @@ static void hint_message_put_segment(int row, int col, byte attr, const char* te
 }
 
 static void hint_message_draw_colored_line(int row, int col, byte base_attr,
-    const char* line, const hint_message_meta* meta)
+    const char* line, const hint_message_meta* meta, bool highlight_tutorial)
 {
     int start = 0;
     int cursor = col;
@@ -11947,6 +12068,16 @@ static void hint_message_draw_colored_line(int row, int col, byte base_attr,
     {
         byte match_attr = base_attr;
         int match_len = hint_message_match_length(line, i, meta, &match_attr);
+        if (highlight_tutorial)
+        {
+            byte tutorial_attr = base_attr;
+            int tutorial_len = tutorial_hint_match_length(line, i, &tutorial_attr);
+            if (tutorial_len > match_len)
+            {
+                match_len = tutorial_len;
+                match_attr = tutorial_attr;
+            }
+        }
         if (match_len > 0)
         {
             if (i > start)
@@ -12081,6 +12212,222 @@ static void hint_message_draw_list_row(int row, int idx, bool selected, int wid)
         Term_putstr(col, row, -1, chrome_attr, "]");
 }
 
+static int skeleton_tip_template_count(void)
+{
+    int count = 0;
+
+    if (!skeleton_note_info || !skeleton_note_text || !z_info)
+        return 0;
+
+    for (int i = 0; i < z_info->skeleton_note_max; ++i)
+    {
+        const skeleton_note_template* tip = &skeleton_note_info[i];
+
+        if (tip->role != SKELETON_NOTE_ROLE_HINT || tip->hint != SKEL_HINT_TIP)
+            continue;
+        if (tip->weight == 0 || tip->text == 0)
+            continue;
+
+        count++;
+    }
+
+    return count;
+}
+
+static const skeleton_note_template* skeleton_tip_template_by_index(int index)
+{
+    int seen = 0;
+
+    if (index < 0 || !skeleton_note_info || !skeleton_note_text || !z_info)
+        return NULL;
+
+    for (int i = 0; i < z_info->skeleton_note_max; ++i)
+    {
+        const skeleton_note_template* tip = &skeleton_note_info[i];
+
+        if (tip->role != SKELETON_NOTE_ROLE_HINT || tip->hint != SKEL_HINT_TIP)
+            continue;
+        if (tip->weight == 0 || tip->text == 0)
+            continue;
+
+        if (seen == index)
+            return tip;
+
+        seen++;
+    }
+
+    return NULL;
+}
+
+static bool skeleton_tip_text_by_index(int index, char* buf, size_t buf_sz)
+{
+    const skeleton_note_template* tip = skeleton_tip_template_by_index(index);
+    const char* main_text;
+    const char* extra_text = NULL;
+
+    if (!buf || buf_sz == 0)
+        return false;
+
+    buf[0] = '\0';
+
+    if (!tip || !skeleton_note_text)
+        return false;
+
+    main_text = skeleton_note_text + tip->text;
+    if (tip->extra_text)
+        extra_text = skeleton_note_text + tip->extra_text;
+
+    if (extra_text && extra_text[0])
+    {
+        strnfmt(buf, buf_sz, "%s %s", main_text, extra_text);
+    }
+    else
+    {
+        strnfmt(buf, buf_sz, "%s", main_text);
+    }
+
+    return (buf[0] != '\0');
+}
+
+static int skeleton_tip_append_wrapped_text(const char* text, char lines[][100],
+    int idx, int limit, int wrap_cols)
+{
+    char expanded[512];
+    char* seg;
+
+    if (!text || !text[0] || limit <= idx)
+        return idx;
+
+    if (wrap_cols < 10)
+        wrap_cols = 10;
+    if (wrap_cols > 95)
+        wrap_cols = 95;
+
+    strnfmt(expanded, sizeof(expanded), "%s", text);
+    seg = expanded;
+
+    while (seg && *seg && idx < limit)
+    {
+        char* next = strchr(seg, '|');
+        if (next)
+        {
+            *next = '\0';
+            next++;
+        }
+
+        while (*seg == ' ')
+            seg++;
+
+        while (*seg && idx < limit)
+        {
+            int remaining = (int)strlen(seg);
+            int take = remaining;
+
+            if (take > wrap_cols)
+            {
+                int split = wrap_cols;
+                while (split > 0 && seg[split] != ' ')
+                    split--;
+                if (split > 0)
+                    take = split;
+                else
+                    take = wrap_cols;
+            }
+
+            while (take > 0 && seg[take - 1] == ' ')
+                take--;
+
+            if (take <= 0)
+                break;
+
+            strnfmt(lines[idx++], 100, "%.*s", take, seg);
+            seg += take;
+            while (*seg == ' ')
+                seg++;
+        }
+
+        seg = next;
+    }
+
+    return idx;
+}
+
+static void skeleton_tip_draw_list_row(int row, int idx, bool selected, int wid)
+{
+    char prefix[8];
+    char title_buf[96];
+    char tip_text[512];
+    byte prefix_attr = selected ? TERM_L_BLUE : TERM_WHITE;
+    byte title_attr = selected ? TERM_L_WHITE : TERM_WHITE;
+    int col = 0;
+    int title_room;
+
+    Term_erase(0, row, 255);
+
+    strnfmt(prefix, sizeof(prefix), "%2d) ", idx + 1);
+    Term_putstr(col, row, -1, prefix_attr, prefix);
+    col += (int)strlen(prefix);
+
+    if (!skeleton_tip_text_by_index(idx, tip_text, sizeof(tip_text)))
+        tip_text[0] = '\0';
+
+    title_room = MAX(8, wid - col - 1);
+    hint_message_build_title(title_buf, sizeof(title_buf), tip_text, title_room);
+    hint_message_draw_colored_line(row, col, title_attr, title_buf, NULL, true);
+}
+
+static bool skeleton_tip_show_internal(int index, bool manage_screen)
+{
+    int wid = 80;
+    int hgt = 24;
+    int row = 4;
+    int col = 8;
+    char lines[16][100];
+    char tip_text[512];
+    int line_count = 0;
+
+    if (!skeleton_tip_text_by_index(index, tip_text, sizeof(tip_text)))
+        return false;
+
+    strnfmt(lines[line_count++], sizeof(lines[0]), "Hint: Survival Tip");
+    Term_get_size(&wid, &hgt);
+    line_count = skeleton_tip_append_wrapped_text(
+        tip_text, lines, line_count, 15, MAX(10, wid - col - 1));
+    lines[line_count][0] = '\0';
+
+    if (manage_screen)
+        screen_save();
+
+    sdl_story_font_enable();
+
+    while (1)
+    {
+        Term_clear();
+        Term_get_size(&wid, &hgt);
+
+        for (int li = 0; li < line_count && row + li < hgt - 1; ++li)
+        {
+            byte base_attr = (li == 0) ? TERM_L_WHITE : TERM_WHITE;
+            hint_message_draw_colored_line(row + li, col, base_attr, lines[li], NULL,
+                (li > 0));
+        }
+
+        prt("[Press any key to continue]", hgt - 1, 0);
+        Term_fresh();
+
+        hide_cursor = true;
+        (void)inkey();
+        hide_cursor = false;
+        break;
+    }
+
+    sdl_story_font_disable();
+    if (manage_screen)
+        screen_load();
+
+    return false;
+}
+
 static bool hint_message_show_internal(int index, int* look_y, int* look_x,
     bool manage_screen)
 {
@@ -12092,6 +12439,7 @@ static bool hint_message_show_internal(int index, int* look_y, int* look_x,
     hint_message_meta meta;
     byte line_count;
     bool request_look = false;
+    bool highlight_tutorial = false;
 
     hint_messages_ensure_level_state();
     line_count = hint_messages_message_line_count(index);
@@ -12099,6 +12447,7 @@ static bool hint_message_show_internal(int index, int* look_y, int* look_x,
         return false;
 
     hint_messages_message_meta(index, &meta);
+    highlight_tutorial = (strstr(hint_messages_message_line(index, 0), "Survival Tip") != NULL);
 
     if (manage_screen)
         screen_save();
@@ -12115,7 +12464,7 @@ static bool hint_message_show_internal(int index, int* look_y, int* look_x,
             const char* line = hint_messages_message_line(index, li);
             byte base_attr = (li == 0) ? TERM_L_WHITE : TERM_WHITE;
             hint_message_draw_colored_line(row + li, col, base_attr, line,
-                (li == 0) ? NULL : &meta);
+                (li == 0) ? NULL : &meta, (highlight_tutorial && li > 0));
         }
 
         if (hint_message_has_source(&meta))
@@ -12175,6 +12524,7 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
     bool pending_look = false;
     int look_y = -1;
     int look_x = -1;
+    bool show_all_tips = false;
 
     /* Clear any active banner before opening hint messages */
     extern int g_banner_force_redraw_remaining;
@@ -12185,15 +12535,11 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
 
     hint_messages_ensure_level_state();
 
-    int n = (int)hint_messages_count_for_save();
-    if (n <= 0)
-    {
-        msg_print("You recall no hint messages on this level.");
-        return;
-    }
-
+    int level_n = (int)hint_messages_count_for_save();
+    int tip_n = skeleton_tip_template_count();
     int sel = 0;
     int top = 0;
+    show_all_tips = false;
 
     Term_get_size(&wid, &hgt);
 
@@ -12202,36 +12548,78 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
 
     while (1)
     {
+        int n = show_all_tips ? tip_n : level_n;
+
         Term_clear();
 
         int rows = hgt - 4;
         if (rows < 1)
             rows = 1;
 
-        if (sel < 0)
+        if (n > 0)
+        {
+            if (sel < 0)
+                sel = 0;
+            if (sel >= n)
+                sel = n - 1;
+
+            if (sel < top)
+                top = sel;
+            if (sel >= top + rows)
+                top = sel - rows + 1;
+            if (top < 0)
+                top = 0;
+            if (top > n - rows)
+                top = n - rows;
+            if (top < 0)
+                top = 0;
+        }
+        else
+        {
             sel = 0;
-        if (sel >= n)
-            sel = n - 1;
-
-        if (sel < top)
-            top = sel;
-        if (sel >= top + rows)
-            top = sel - rows + 1;
-        if (top < 0)
             top = 0;
-        if (top > n - rows)
-            top = n - rows;
-        if (top < 0)
-            top = 0;
+        }
 
-        prt(format("Hint Messages (%d)", n), 0, 0);
-        prt("[Press '8'/'2' to move, Enter to read, 'l' to look, or ESCAPE]",
-            hgt - 1, 0);
+        if (show_all_tips)
+        {
+            prt(format("All Tutorial Hints (%d)", tip_n), 0, 0);
+            prt("[Press '8'/'2' to move, Enter to read, 'h' for level hints, or ESCAPE]",
+                hgt - 1, 0);
+        }
+        else
+        {
+            prt(format("Hint Messages (%d)", level_n), 0, 0);
+            if (level_n > 0)
+            {
+                prt("[Press '8'/'2' to move, Enter to read, 'h' for all tips, 'l' to look, or ESCAPE]",
+                    hgt - 1, 0);
+            }
+            else if (tip_n > 0)
+            {
+                prt("[No level hint messages. Press 'h' for all tips, or ESCAPE]",
+                    hgt - 1, 0);
+            }
+            else
+            {
+                prt("[No level hint messages. Press ESCAPE]",
+                    hgt - 1, 0);
+            }
+        }
+
+        if (n <= 0)
+        {
+            Term_putstr(0, 2, -1, TERM_SLATE,
+                show_all_tips ? "No tutorial hints are available."
+                             : "You recall no hint messages on this level.");
+        }
 
         for (int row = 0; row < rows && top + row < n; ++row)
         {
             int idx = top + row;
-            hint_message_draw_list_row(2 + row, idx, idx == sel, wid);
+            if (show_all_tips)
+                skeleton_tip_draw_list_row(2 + row, idx, idx == sel, wid);
+            else
+                hint_message_draw_list_row(2 + row, idx, idx == sel, wid);
         }
 
         Term_fresh();
@@ -12239,6 +12627,26 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
 
         if (ch == ESCAPE)
             break;
+
+        if (ch == 'h' || ch == 'H')
+        {
+            if (tip_n <= 0)
+            {
+                bell(NULL);
+                continue;
+            }
+
+            show_all_tips = !show_all_tips;
+            sel = 0;
+            top = 0;
+            continue;
+        }
+
+        if (n <= 0)
+        {
+            bell(NULL);
+            continue;
+        }
 
         if (ch == '8')
         {
@@ -12257,7 +12665,11 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
             int selected_look_y = -1;
             int selected_look_x = -1;
 
-            if (hint_message_show_internal(sel, &selected_look_y, &selected_look_x, false))
+            if (show_all_tips)
+            {
+                (void)skeleton_tip_show_internal(sel, false);
+            }
+            else if (hint_message_show_internal(sel, &selected_look_y, &selected_look_x, false))
             {
                 pending_look = true;
                 look_y = selected_look_y;
@@ -12270,6 +12682,13 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
         if (ch == 'l' || ch == 'L')
         {
             hint_message_meta meta;
+
+            if (show_all_tips)
+            {
+                bell(NULL);
+                continue;
+            }
+
             hint_messages_message_meta(sel, &meta);
             if (hint_message_has_source(&meta))
             {

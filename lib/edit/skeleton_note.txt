@@ -519,41 +519,49 @@ M:ORC:QUEST:100:{DIST} {DIR} is {SITE}. Snaga don't belong there.
 
 # --- Tips ---
 
-# Elf
-M:ELF:TIP:100:In Angband, silence is a shield. Close doors, and let your footsteps be as snow.||Plainly: close doors behind you and move quietly so fewer enemies hear you.
-M:ELF:TIP:100:Do not squander your strength on every thrall of the Dark. Choose your hour, and pass unseen when you can.||Plainly: you do not need to fight everything; skip bad fights and take good ones.
-M:ELF:TIP:100:In these pits, pride is a swift slayer. Flee early, while the road is still yours.||Plainly: retreat early when a fight is going bad instead of waiting for a last-second escape.
-M:ELF:TIP:100:Keep your light, yet do not trust it: in deep places the dark has eyes of its own.||Plainly: carry spare light so darkness does not trap or blindside you.
-M:ELF:TIP:100:Mark your path in mind and memory; in twisting halls a moment's haste becomes an hour of loss.||Plainly: remember your route so you can retreat without getting lost.
-M:ELF:TIP:100:If you are hurt, break sight and be still. Let the Enemy search empty shadows.||Plainly: when you are hurt, break line of sight and recover somewhere safe.
-M:ELF:TIP:100:Herbs are a small mercy in great darkness. Spend them only when no other hope remains.||Plainly: save herbs for real emergencies instead of minor damage.
-M:ELF:TIP:100:Songs are fair, but they carry. Sing only when you mean to be heard.||Plainly: songs make noise, so use them only when you can handle the extra attention.
-M:ELF:TIP:100:The dungeons are vast, and the enemies are plenty. Let that not detract you from your ultimate goal.||Plainly: do not get distracted by every enemy or item; keep moving toward your main objective.
-M:ELF:TIP:100:Look twice at pits and broken stone. Many in Angband die without ever meeting a blade.||Plainly: check the ground before you step; pits and rubble kill careless players.
-M:ELF:TIP:100:A door left ajar is a throat laid bare. Seal what you pass through.||Plainly: close doors behind you and move quietly so fewer enemies hear you.
-
-# Human
-M:HUMAN:TIP:100:In Angband, noise draws death. Shut doors behind you and keep your steps light.||Plainly: close doors behind you and move quietly so fewer enemies hear you.
-M:HUMAN:TIP:100:Do not fight every foe. Choose when to strike, and let darkness hide you when you must pass.||Plainly: you do not need to fight everything; skip bad fights and take good ones.
-M:HUMAN:TIP:100:Beware sleeping foes: they fall easily, but waking them at the wrong time can doom you.||Plainly: sleeping enemies are easy kills, but do not wake them unless you can finish the fight.
-M:HUMAN:TIP:100:When you must flee, flee early. Pride kills quicker than blades.||Plainly: retreat early when a fight is going bad instead of waiting for a last-second escape.
-M:HUMAN:TIP:100:Keep a spare light. The dark is a weapon in the Enemy's hand.||Plainly: carry spare light so darkness does not trap or blindside you.
-M:HUMAN:TIP:100:Watch the floor for pits and broken stone. Many deaths here are silent.||Plainly: check the ground before you step; pits and rubble kill careless players.
-M:HUMAN:TIP:100:If you are wounded, break line of sight and wait in silence. Let your breath return.||Plainly: when you are hurt, break line of sight and recover somewhere safe.
-M:HUMAN:TIP:100:If you carry herbs, save them for the moments you cannot outrun.||Plainly: save herbs for real emergencies instead of minor damage.
-M:HUMAN:TIP:100:Songs hearten the spirit, but they also carry. Use them with care.||Plainly: songs make noise, so use them only when you can handle the extra attention.
-M:HUMAN:TIP:100:If you are unsure of a thing in the dark, look again before you step forward.||Plainly: check the ground before you step; pits and rubble kill careless players.
-M:HUMAN:TIP:100:I've seen strong men die fighting what they could have walked around.||Plainly: you do not need to fight everything; skip bad fights and take good ones.
-M:HUMAN:TIP:100:The dungeons are vast, and the enemies are plenty. Let that not detract you from your ultimate goal.||Plainly: do not get distracted by every enemy or item; keep moving toward your main objective.
-
-# Orc
-M:ORC:TIP:100:Noise gets you killed. Shut doors. Walk soft.||Plainly: close doors behind you and move quietly so fewer enemies hear you.
-M:ORC:TIP:100:Don't fight everything. Pick fights you win. Run from fights you don't.||Plainly: you do not need to fight everything; skip bad fights and take good ones.
-M:ORC:TIP:100:If you run, run early. Brave snaga die first.||Plainly: retreat early when a fight is going bad instead of waiting for a last-second escape.
-M:ORC:TIP:100:Keep extra light. Dark is hungry.||Plainly: carry spare light so darkness does not trap or blindside you.
-M:ORC:TIP:100:Watch for pits and broken stone. Floor eats snaga.||Plainly: check the ground before you step; pits and rubble kill careless players.
-M:ORC:TIP:100:If you get hurt, hide and wait. Let others look for you.||Plainly: when you are hurt, break line of sight and recover somewhere safe.
-M:ORC:TIP:100:Herbs save lives. Don't waste them on scratches.||Plainly: save herbs for real emergencies instead of minor damage.
-M:ORC:TIP:100:Songs? Ha. Noise is for fools.||Plainly: songs make noise, so use them only when you can handle the extra attention.
-M:ORC:TIP:100:Dungeons big. Enemies many. Don't forget why you came.||Plainly: do not get distracted by every enemy or item; keep moving toward your main objective.
-M:ORC:TIP:100:Look again before you step. In the dark, one wrong move is death.||Plainly: check the ground before you step; pits and rubble kill careless players.
+# Shared tutorial hints
+M:ANY:TIP:100:Evasion (+x) helps you avoid a hit. Protection [ydz] helps you absorb damage.
+M:ANY:TIP:100:Attack (+x) helps you land a hit. Damage [ydz] is what your actual hit will be.
+M:ANY:TIP:100:You do not need to kill all enemies; the game can be finished without killing anyone.
+M:ANY:TIP:100:Monsters can spawn on the stairs.
+M:ANY:TIP:100:You can tell item alignment by its description.
+M:ANY:TIP:100:If you get killed too soon, try the mightiest heroes with a 3 bright star rating.
+M:ANY:TIP:100:You can move more quietly using stealth mode with capital 'S'.
+M:ANY:TIP:100:Stealth is both sound-based and vision-based. Sound is determined by your Stealth skill.
+M:ANY:TIP:100:Your stealth score decreases if you are visible to a monster. For that to happen, your light radius has to be in its line of sight, based on its Perception.
+M:ANY:TIP:100:Sleeping monsters get Evasion set to [-5]. Sleeping monsters have a blue dot on top of their tile.
+M:ANY:TIP:100:Monsters that have noticed you have '!' on top of their tile.
+M:ANY:TIP:100:Your supply is limited by weight.
+M:ANY:TIP:100:Items in your inventory are limited by number in each category.
+M:ANY:TIP:100:Do not forget to use diagonal movement.
+M:ANY:TIP:100:You can reassign controls in the options.
+M:ANY:TIP:100:You can scale your game size by Alt+'+' or Alt+'-'.
+M:ANY:TIP:100:You can hide or unhide the right panel by Alt+'i'.
+M:ANY:TIP:100:You can hide or unhide the bottom panel by Alt+'l'.
+M:ANY:TIP:100:You can hide the left status panel by Alt+'p'.
+M:ANY:TIP:100:Monsters that surround you get a bonus to attack.
+M:ANY:TIP:100:Your character's special traits and curses descriptions can be seen by a Gem of Knowledge, if you are lucky.
+M:ANY:TIP:100:Removal of a curse or jinx via a Gem of Sanctity is roll-based.
+M:ANY:TIP:100:Identification benefits from Perception, Smithing, and abilities.
+M:ANY:TIP:100:It is harder to identify cursed items.
+M:ANY:TIP:100:You can turn off these tutorial hints via options.
+M:ANY:TIP:100:Monsters have elemental attacks. There are 2 types. Mixed elemental attacks give a monster an additional damage die. Pure elemental attacks ignore almost all protection.
+M:ANY:TIP:100:Protection that is not ignored by elemental attack is stated in the item's description.
+M:ANY:TIP:100:Weapon weight provides additional damage die sides, up to your Strength, but it decreases your ability to crit.
+M:ANY:TIP:100:You get a critical hit every time the difference between your attack and monster evasion is x = 7 + weight of your weapon. For every x, you get an additional damage die.
+M:ANY:TIP:100:Weapons can be one-handed, two-handed, or one-and-a-half-handed.
+M:ANY:TIP:100:If a one-and-a-half-handed weapon is used without a shield, it gets +2 damage sides.
+M:ANY:TIP:100:Some abilities only work explicitly with one-handed or two-handed weapons.
+M:ANY:TIP:100:You can equip arrows or throwing weapons in your quiver. Quiver 2 retains passive bonuses.
+M:ANY:TIP:100:You can stack elemental resistances and vulnerabilities.
+M:ANY:TIP:100:For each elemental resistance of that type, pure elemental damage is halved.
+M:ANY:TIP:100:For each elemental vulnerability of that type, pure elemental damage is doubled.
+M:ANY:TIP:100:If you or a monster is vulnerable to an element, the attacker gets an additional damage die.
+M:ANY:TIP:100:Different partitions of the map have different probabilities to spawn specific item types.
+M:ANY:TIP:100:Will helps you resist negative effects.
+M:ANY:TIP:100:Perception helps you notice invisible enemies and identify items.
+M:ANY:TIP:100:Constitution increases your HP.
+M:ANY:TIP:100:Dexterity increases your attack, evasion, archery, and stealth skills.
+M:ANY:TIP:100:Grace increases your song points and your Will, Perception, Smithing, and Song skills.
+M:ANY:TIP:100:Keep watch of your light reserves.
+M:ANY:TIP:100:XP is used to increase skills and buy abilities. The cost increases progressively, so try to plan your future build.
