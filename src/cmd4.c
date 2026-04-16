@@ -14931,7 +14931,7 @@ static const char* sdl_min_terminal_mode_label(int mode)
 void do_cmd_pane_settings(void)
 {
     int k = 0;
-    int n = 11; /* Total number of options */
+    int n = 12; /* Total number of options */
     bool done = false;
     bool settings_changed = false;
     int dir;
@@ -15041,8 +15041,19 @@ void do_cmd_pane_settings(void)
             row_width, 3);
         c_prt(a, buf, y0 + 7, 2);
 
-        /* Option 8: View Pane Configuration (supporting panes only) */
+        /* Option 8: White Pane Borders */
         a = (k == 8) ? TERM_L_BLUE : TERM_WHITE;
+        settings_ui_format_pair_line(buf, sizeof(buf),
+            settings_ui_pick_label(label_hint,
+                "White Pane Borders",
+                "White Pane Borders",
+                "White Borders"),
+            get_sdl_show_pane_borders() ? "white" : "black",
+            row_width, 5);
+        c_prt(a, buf, y0 + 8, 2);
+
+        /* Option 9: View Pane Configuration (supporting panes only) */
+        a = (k == 9) ? TERM_L_BLUE : TERM_WHITE;
         strnfmt(buf, sizeof(buf), "%s (%d)",
             settings_ui_pick_label(row_width,
                 "View Pane Configuration",
@@ -15054,25 +15065,25 @@ void do_cmd_pane_settings(void)
             settings_ui_fit_text(fitted_buf, sizeof(fitted_buf), buf, row_width);
             SDL_strlcpy(buf, fitted_buf, sizeof(buf));
         }
-        c_prt(a, buf, y0 + 8, 2);
+        c_prt(a, buf, y0 + 9, 2);
 
-        /* Option 9: Pane Font Sizes */
-        a = (k == 9) ? TERM_L_BLUE : TERM_WHITE;
+        /* Option 10: Pane Font Sizes */
+        a = (k == 10) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_fit_text(buf, sizeof(buf),
             settings_ui_pick_label(row_width,
                 "Pane Font Sizes",
                 "Pane Fonts",
                 "Pane Fonts"),
             row_width);
-        c_prt(a, buf, y0 + 9, 2);
+        c_prt(a, buf, y0 + 10, 2);
 
-        /* Option 10: Save/Return */
-        a = (k == 10) ? TERM_L_BLUE : TERM_WHITE;
+        /* Option 11: Save/Return */
+        a = (k == 11) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_fit_text(buf, sizeof(buf),
             settings_changed ? "Save Changes and Return"
                              : "Return to Options Menu",
             row_width);
-        c_prt(a, buf, y0 + 10, 2);
+        c_prt(a, buf, y0 + 11, 2);
 
         /* Display help */
         int y = Term->hgt - 3;
@@ -15126,12 +15137,12 @@ void do_cmd_pane_settings(void)
         case '\r':
         {
             /* Enter activates the current option for actions; otherwise accept/exit. */
-            if (k == 8) /* Supporting Pane Layout */
+            if (k == 9) /* Supporting Pane Layout */
             {
                 do_cmd_supporting_pane_layout_editor(&settings_changed);
                 break;
             }
-            if (k == 9) /* Pane Font Sizes */
+            if (k == 10) /* Pane Font Sizes */
             {
                 do_cmd_supporting_pane_font_editor(&settings_changed);
                 break;
@@ -15215,15 +15226,21 @@ void do_cmd_pane_settings(void)
                 settings_changed = true;
                 sdl_apply_config();
             }
-            else if (k == 8) /* Supporting Pane Layout */
+            else if (k == 8) /* White Pane Borders */
+            {
+                set_sdl_show_pane_borders(!get_sdl_show_pane_borders());
+                settings_changed = true;
+                sdl_apply_config();
+            }
+            else if (k == 9) /* Supporting Pane Layout */
             {
                 do_cmd_supporting_pane_layout_editor(&settings_changed);
             }
-            else if (k == 9) /* Pane Font Sizes */
+            else if (k == 10) /* Pane Font Sizes */
             {
                 do_cmd_supporting_pane_font_editor(&settings_changed);
             }
-            else if (k == 10) /* Save/Return */
+            else if (k == 11) /* Save/Return */
             {
                 if (settings_changed)
                 {
@@ -15311,6 +15328,12 @@ void do_cmd_pane_settings(void)
                 settings_changed = true;
                 sdl_apply_config();
             }
+            else if (k == 8) /* White Pane Borders */
+            {
+                set_sdl_show_pane_borders(true);
+                settings_changed = true;
+                sdl_apply_config();
+            }
             break;
         }
         
@@ -15384,6 +15407,12 @@ void do_cmd_pane_settings(void)
             else if (k == 7) /* Enable Bottom Panes */
             {
                 set_sdl_enable_bottom_panes(false);
+                settings_changed = true;
+                sdl_apply_config();
+            }
+            else if (k == 8) /* White Pane Borders */
+            {
+                set_sdl_show_pane_borders(false);
                 settings_changed = true;
                 sdl_apply_config();
             }
@@ -15610,6 +15639,7 @@ static const char* pane_where_short_name(enum pane_placement where)
     case PLACE_DOUBLE_RIGHT: return "DR";
     case PLACE_DOUBLE_LEFT: return "DL";
     case PLACE_BOTTOM: return "BOT";
+    case PLACE_DOUBLE_BOTTOM: return "DB";
     default: return "?";
     }
 }
@@ -15651,7 +15681,7 @@ static bool supporting_pane_rows_locked(const int* pane_indices, int pane_count,
     enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
     int master_idx = supporting_pane_master_idx(pane_indices, pane_count, where);
 
-    return (where == PLACE_BOTTOM && idx != master_idx);
+    return (pane_placement_is_bottom(where) && idx != master_idx);
 }
 
 static bool supporting_pane_cols_locked(const int* pane_indices, int pane_count, int idx)
@@ -15688,7 +15718,8 @@ static bool supporting_pane_normalize_shared_sizes(const int* pane_indices, int 
         enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
         int master_idx = supporting_pane_master_idx(pane_indices, pane_count, where);
 
-        if (where == PLACE_BOTTOM && idx != master_idx && get_sdl_pane_rows(idx) != 0)
+        if (pane_placement_is_bottom(where) && idx != master_idx
+            && get_sdl_pane_rows(idx) != 0)
         {
             set_sdl_pane_rows(idx, 0);
             changed = true;
@@ -15832,9 +15863,9 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
                     "4/6 cycle/set   0 auto"));
             settings_ui_put_fitted(y++, 2, TERM_SLATE,
                 settings_ui_pick_label(term_wid - 2,
-                    "Each side slot shares cols with its first pane; bottom panes share rows",
-                    "Side slots share cols; bottom panes share rows",
-                    "Side slots share cols; bottom shares rows"));
+                    "Each side slot shares cols with its first pane; each bottom slot shares rows",
+                    "Side slots share cols; each bottom slot shares rows",
+                    "Side share cols; bottom share rows"));
             settings_ui_put_fitted(y++, 2, TERM_SLATE,
                 settings_ui_pick_label(term_wid - 2,
                     "ESC/Enter: return (changes apply immediately)",
@@ -15888,7 +15919,7 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
             }
             if (field == 2 && supporting_pane_rows_locked(pane_indices, pane_count, idx))
             {
-                bell("Rows are shared for bottom panes");
+                bell("Rows are shared within each bottom slot");
                 break;
             }
             if (field == 3 && supporting_pane_cols_locked(pane_indices, pane_count, idx))
@@ -15934,7 +15965,7 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
 
                 if (supporting_pane_rows_locked(pane_indices, pane_count, idx))
                 {
-                    bell("Rows are shared for bottom panes");
+                    bell("Rows are shared within each bottom slot");
                     break;
                 }
                 if (rows == 0)

@@ -1,5 +1,7 @@
 #include "pane.h"
 
+#define BOTTOM_PLACEMENTS \
+    (PLACE_BOTTOM | PLACE_DOUBLE_BOTTOM)
 #define SIDE_PLACEMENTS \
     (PLACE_LEFT | PLACE_RIGHT | PLACE_DOUBLE_LEFT | PLACE_DOUBLE_RIGHT)
 
@@ -9,6 +11,7 @@ static const enum pane_placement pane_placement_order[] = {
     PLACE_DOUBLE_LEFT,
     PLACE_DOUBLE_RIGHT,
     PLACE_BOTTOM,
+    PLACE_DOUBLE_BOTTOM,
 };
 
 static const enum pane_placement pane_default_order[] = {
@@ -17,17 +20,18 @@ static const enum pane_placement pane_default_order[] = {
     PLACE_DOUBLE_RIGHT,
     PLACE_DOUBLE_LEFT,
     PLACE_BOTTOM,
+    PLACE_DOUBLE_BOTTOM,
 };
 
 static struct pane_specs pane_specs[PANE_MAX] = {
     [PANE_INVENTORY] = {.placement = SIDE_PLACEMENTS, .min_rect.rows = 22, .min_rect.cols = 40},
     [PANE_WORN] = {.placement = SIDE_PLACEMENTS, .min_rect.rows = 17, .min_rect.cols = 40},
-    [PANE_ROLLS] = {.placement = PLACE_BOTTOM, .min_rect.rows = 1, .min_rect.cols = 65},
-    [PANE_INFO] = {.placement = SIDE_PLACEMENTS | PLACE_BOTTOM, .min_rect.rows = 1, .min_rect.cols = 40},
-    [PANE_CHARACTER] = {.placement = PLACE_BOTTOM, .min_rect.cols = 60},
-    [PANE_LOG] = {.placement = SIDE_PLACEMENTS | PLACE_BOTTOM, .min_rect.rows = 1, .min_rect.cols = 40},
+    [PANE_ROLLS] = {.placement = BOTTOM_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 65},
+    [PANE_INFO] = {.placement = SIDE_PLACEMENTS | BOTTOM_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 40},
+    [PANE_CHARACTER] = {.placement = BOTTOM_PLACEMENTS, .min_rect.cols = 60},
+    [PANE_LOG] = {.placement = SIDE_PLACEMENTS | BOTTOM_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 40},
     [PANE_MONSTERS] = {.placement = SIDE_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 40},
-    [PANE_TOUCH] = {.placement = SIDE_PLACEMENTS | PLACE_BOTTOM, .min_rect.rows = 12, .min_rect.cols = 12},
+    [PANE_TOUCH] = {.placement = SIDE_PLACEMENTS | BOTTOM_PLACEMENTS, .min_rect.rows = 12, .min_rect.cols = 12},
 };
 
 static bool pane_placement_is_left(enum pane_placement where)
@@ -40,34 +44,39 @@ static bool pane_placement_is_right(enum pane_placement where)
     return (where == PLACE_RIGHT || where == PLACE_DOUBLE_RIGHT);
 }
 
+bool pane_placement_is_bottom(enum pane_placement where)
+{
+    return (where == PLACE_BOTTOM || where == PLACE_DOUBLE_BOTTOM);
+}
+
 static int pane_primary_cell_px(enum pane_type type, enum pane_placement where,
     const int* cell_widths, const int* cell_heights)
 {
-    return (where == PLACE_BOTTOM) ? cell_heights[type] : cell_widths[type];
+    return pane_placement_is_bottom(where) ? cell_heights[type] : cell_widths[type];
 }
 
 static int pane_secondary_cell_px(enum pane_type type, enum pane_placement where,
     const int* cell_widths, const int* cell_heights)
 {
-    return (where == PLACE_BOTTOM) ? cell_widths[type] : cell_heights[type];
+    return pane_placement_is_bottom(where) ? cell_widths[type] : cell_heights[type];
 }
 
 static int pane_primary_size_cells(const struct pane_config* config,
     enum pane_placement where)
 {
-    return (where == PLACE_BOTTOM) ? config->rect.rows : config->rect.cols;
+    return pane_placement_is_bottom(where) ? config->rect.rows : config->rect.cols;
 }
 
 int pane_primary_min_cells(enum pane_type type, enum pane_placement where)
 {
-    return (where == PLACE_BOTTOM)
+    return pane_placement_is_bottom(where)
         ? pane_specs[type].min_rect.rows
         : pane_specs[type].min_rect.cols;
 }
 
 int pane_secondary_min_cells(enum pane_type type, enum pane_placement where)
 {
-    return (where == PLACE_BOTTOM)
+    return pane_placement_is_bottom(where)
         ? pane_specs[type].min_rect.cols
         : pane_specs[type].min_rect.rows;
 }
@@ -113,11 +122,12 @@ static int pane_group_count(const struct pane_config* config, int count,
     return active;
 }
 
-static void layout_bottom_group(const struct pane_config* config, int count,
-    SDL_Rect* panes, SDL_Rect* area, const int* cell_widths,
-    const int* cell_heights, int margin_px)
+static void layout_bottom_group(enum pane_placement where,
+    const struct pane_config* config, int count, SDL_Rect* panes,
+    SDL_Rect* area, const int* cell_widths, const int* cell_heights,
+    int margin_px)
 {
-    int active_count = pane_group_count(config, count, PLACE_BOTTOM);
+    int active_count = pane_group_count(config, count, where);
     int actual_sizes[PANE_MAX] = { 0 };
     int split_px;
     int distr_px;
@@ -127,7 +137,7 @@ static void layout_bottom_group(const struct pane_config* config, int count,
     if (active_count <= 0)
         return;
 
-    split_px = pane_group_primary_pixels(config, count, PLACE_BOTTOM, cell_widths,
+    split_px = pane_group_primary_pixels(config, count, where, cell_widths,
         cell_heights, margin_px);
     distr_px = area->w;
 
@@ -137,11 +147,11 @@ static void layout_bottom_group(const struct pane_config* config, int count,
         int min_size;
         int cell_px;
 
-        if (!config[i].enabled || config[i].where != PLACE_BOTTOM)
+        if (!config[i].enabled || config[i].where != where)
             continue;
 
         if (config[i].rect.cols > 0) {
-            cell_px = pane_secondary_cell_px(config[i].pane, PLACE_BOTTOM,
+            cell_px = pane_secondary_cell_px(config[i].pane, where,
                 cell_widths, cell_heights);
             actual_sizes[i] = cell_px * config[i].rect.cols + margin_px;
             distr_px -= actual_sizes[i];
@@ -150,10 +160,10 @@ static void layout_bottom_group(const struct pane_config* config, int count,
 
         if (config[i].ratio > 0.0f) {
             pane_px = (int)(area->w * config[i].ratio);
-            cell_px = pane_secondary_cell_px(config[i].pane, PLACE_BOTTOM,
+            cell_px = pane_secondary_cell_px(config[i].pane, where,
                 cell_widths, cell_heights);
             cells = (pane_px - margin_px) / cell_px;
-            min_size = pane_secondary_min_cells(config[i].pane, PLACE_BOTTOM);
+            min_size = pane_secondary_min_cells(config[i].pane, where);
             if (cells < min_size)
                 pane_px = cell_px * min_size + margin_px;
             actual_sizes[i] = pane_px;
@@ -172,17 +182,17 @@ static void layout_bottom_group(const struct pane_config* config, int count,
         int min_size;
         int cell_px;
 
-        if (!config[i].enabled || config[i].where != PLACE_BOTTOM)
+        if (!config[i].enabled || config[i].where != where)
             continue;
 
         if (actual_sizes[i] > 0) {
             pane_px = actual_sizes[i];
         } else {
             pane_px = distr_px / distr_count;
-            cell_px = pane_secondary_cell_px(config[i].pane, PLACE_BOTTOM,
+            cell_px = pane_secondary_cell_px(config[i].pane, where,
                 cell_widths, cell_heights);
             cells = (pane_px - margin_px) / cell_px;
-            min_size = pane_secondary_min_cells(config[i].pane, PLACE_BOTTOM);
+            min_size = pane_secondary_min_cells(config[i].pane, where);
             if (cells < min_size)
                 pane_px = cell_px * min_size + margin_px;
             distr_px -= pane_px;
@@ -353,6 +363,8 @@ const char* pane_placement_name(enum pane_placement where)
     switch (where) {
     case PLACE_BOTTOM:
         return "BOTTOM";
+    case PLACE_DOUBLE_BOTTOM:
+        return "DOUBLE_BOTTOM";
     case PLACE_RIGHT:
         return "RIGHT";
     case PLACE_LEFT:
@@ -372,8 +384,10 @@ void place_panes(const struct pane_config* config, int count, SDL_Rect* panes,
 {
     SDL_Rect main = *window;
 
-    layout_bottom_group(config, count, panes, &main, cell_widths, cell_heights,
-        margin);
+    layout_bottom_group(PLACE_DOUBLE_BOTTOM, config, count, panes, &main,
+        cell_widths, cell_heights, margin);
+    layout_bottom_group(PLACE_BOTTOM, config, count, panes, &main,
+        cell_widths, cell_heights, margin);
     layout_side_group(PLACE_DOUBLE_LEFT, config, count, panes, &main,
         cell_widths, cell_heights, margin);
     layout_side_group(PLACE_LEFT, config, count, panes, &main, cell_widths,

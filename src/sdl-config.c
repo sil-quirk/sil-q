@@ -340,6 +340,8 @@ static enum pane_placement parse_pane_placement(const char* value)
     if (!value)
         return PLACE_RIGHT;
     if (strcmp(value, "BOTTOM") == 0) return PLACE_BOTTOM;
+    if (strcmp(value, "DOUBLE_BOTTOM") == 0 || strcmp(value, "DOUBLE BOTTOM") == 0)
+        return PLACE_DOUBLE_BOTTOM;
     if (strcmp(value, "RIGHT") == 0) return PLACE_RIGHT;
     if (strcmp(value, "LEFT") == 0) return PLACE_LEFT;
     if (strcmp(value, "DOUBLE_LEFT") == 0 || strcmp(value, "DOUBLE LEFT") == 0)
@@ -445,7 +447,7 @@ static bool option_list_contains(const byte* ids, int opt)
 bool option_is_app_persistent(int opt)
 {
     /* Multi-value non-bool options saved explicitly in the visual JSON block */
-    if (opt == OPT_intro_style)
+    if (opt == OPT_intro_style || opt == OPT_hide_left_panel)
         return true;
     return option_list_contains(app_interface_options, opt)
         || option_list_contains(app_text_options, opt)
@@ -774,6 +776,12 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
         if (cJSON_IsBool(item)) {
             config->enable_bottom_panes = cJSON_IsTrue(item);
             log_debug("Loaded enableBottomPanes: %s", config->enable_bottom_panes ? "true" : "false");
+        }
+
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "showPaneBorders");
+        if (cJSON_IsBool(item)) {
+            config->show_pane_borders = cJSON_IsTrue(item);
+            log_debug("Loaded showPaneBorders: %s", config->show_pane_borders ? "true" : "false");
         }
 
         item = cJSON_GetObjectItemCaseSensitive(sdl, "hideLeftPanel");
@@ -1223,6 +1231,7 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     cJSON_AddBoolToObject(sdl, "tiles", config->tiles);
     cJSON_AddBoolToObject(sdl, "enableRightPanes", config->enable_right_panes);
     cJSON_AddBoolToObject(sdl, "enableBottomPanes", config->enable_bottom_panes);
+    cJSON_AddBoolToObject(sdl, "showPaneBorders", config->show_pane_borders);
     cJSON_AddBoolToObject(sdl, "hideLeftPanel", config->hide_left_panel);
     cJSON_AddStringToObject(sdl, "minTerminalMode", min_terminal_mode_to_string(config->min_terminal_mode));
     
@@ -1543,6 +1552,7 @@ void sdl_config_set_defaults(struct sdl_config* config)
     config->tiles = true;
     config->enable_right_panes = true;
     config->enable_bottom_panes = true;
+    config->show_pane_borders = true;
     config->hide_left_panel = false;
 #if defined(__ANDROID__) || defined(SIL_IOS)
     config->min_terminal_mode = SDL_MIN_TERMINAL_COMPACT;

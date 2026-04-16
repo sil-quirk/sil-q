@@ -547,7 +547,7 @@ static int sdl_build_active_pane_config(struct pane_config* active, bool include
 
         if (pane_placement_is_side(where) && !include_side)
             continue;
-        if (where == PLACE_BOTTOM && !include_bottom)
+        if (pane_placement_is_bottom(where) && !include_bottom)
             continue;
 
         active[active_count++] = pane_config[i];
@@ -1838,6 +1838,7 @@ static bool sdl_handle_global_layout_shortcut(const SDL_KeyboardEvent* key_event
 
         set_sdl_hide_left_panel(!hidden);
         sdl_apply_config();
+        save_pane_config_to_json();
         if (character_dungeon)
             Term_keypress(KTRL('R'));
         return true;
@@ -3266,7 +3267,10 @@ static void sdl_touch_pane_render(void)
 
     SDL_SetRenderDrawColor(g_state.renderer, 12, 12, 12, 255);
     SDL_RenderFillRect(g_state.renderer, &pane_rect);
-    SDL_SetRenderDrawColor(g_state.renderer, frame.r, frame.g, frame.b, 180);
+    if (config.show_pane_borders)
+        SDL_SetRenderDrawColor(g_state.renderer, frame.r, frame.g, frame.b, 180);
+    else
+        SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
     SDL_RenderRect(g_state.renderer, &pane_rect);
 
     for (int i = 0; i < SDL_TOUCH_PANE_BUTTON_COUNT; i++) {
@@ -3370,7 +3374,10 @@ static void sdl_present_if_needed(sdl_view* d)
         });
 
         if (active_views > 1) {
-            SDL_SetRenderDrawColor(g_state.renderer, 255, 255, 255, 128);
+            if (config.show_pane_borders)
+                SDL_SetRenderDrawColor(g_state.renderer, 255, 255, 255, 128);
+            else
+                SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
             SDL_FRect frame = {
                 .x = view->rect.x,
                 .y = view->rect.y,
@@ -4836,6 +4843,8 @@ void get_sdl_config_info(char* buf, size_t size)
     offset += (size_t)strnfmt(buf + offset, size - offset, "Margin: %d\n", config.margin);
     offset += (size_t)strnfmt(buf + offset, size - offset, "Fullscreen: %s\n", config.fullscreen ? "Yes" : "No");
     offset += (size_t)strnfmt(buf + offset, size - offset, "Tiles: %s\n", config.tiles ? "Yes" : "No");
+    offset += (size_t)strnfmt(buf + offset, size - offset, "Pane Borders: %s\n",
+        config.show_pane_borders ? "White" : "Black");
     offset += (size_t)strnfmt(buf + offset, size - offset, "Hide Left Panel: %s\n\n",
         config.hide_left_panel ? "Yes" : "No");
     
@@ -5223,10 +5232,20 @@ void set_sdl_enable_bottom_panes(bool value)
      * what its label says. */
     if (value) {
         for (int i = 0; i < pane_config_count; i++) {
-            if (pane_config[i].where == PLACE_BOTTOM)
+            if (pane_placement_is_bottom(pane_config[i].where))
                 pane_config[i].enabled = true;
         }
     }
+}
+
+bool get_sdl_show_pane_borders(void)
+{
+    return config.show_pane_borders;
+}
+
+void set_sdl_show_pane_borders(bool value)
+{
+    config.show_pane_borders = value;
 }
 
 bool get_sdl_hide_left_panel(void)

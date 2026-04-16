@@ -1777,6 +1777,8 @@ extern bool get_sdl_enable_right_panes(void);
 extern void set_sdl_enable_right_panes(bool value);
 extern bool get_sdl_enable_bottom_panes(void);
 extern void set_sdl_enable_bottom_panes(bool value);
+extern bool get_sdl_show_pane_borders(void);
+extern void set_sdl_show_pane_borders(bool value);
 extern bool g_hide_left_panel;
 extern byte g_hidden_left_panel_overlay_rows;
 extern byte g_hidden_left_panel_overlay_widths[16];
