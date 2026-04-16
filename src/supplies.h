@@ -49,7 +49,10 @@ int supplies_limit_weight(void);
 bool supplies_is_supply_object(const struct object_type* o_ptr);
 bool supplies_is_herb_object(const struct object_type* o_ptr);
 bool supplies_is_food_object(const struct object_type* o_ptr);
+bool supplies_is_light_kind(int sval);
 bool supplies_is_light_object(const struct object_type* o_ptr);
+bool supplies_group_matches_kind(int group, int tval, int sval);
+bool supplies_group_matches_object(int group, const struct object_type* o_ptr);
 bool supplies_is_carried_object_pointer(const struct object_type* o_ptr);
 
 /* Returns true if object can be added without exceeding weight limit. */
@@ -94,6 +97,9 @@ bool player_prepare_lantern_drop(int lanterns_being_dropped,
     int* oil_to_transfer, int* oil_to_lose);
 int player_carried_torch_count(void);
 int player_carried_light_count_for_sval(int sval);
+int player_light_carry_group(const struct object_type* o_ptr);
+bool player_light_share_carry_group(const struct object_type* first,
+    const struct object_type* second);
 int player_light_carry_cap(const struct object_type* o_ptr);
 int player_light_available_capacity(const struct object_type* o_ptr);
 void player_light_reserve_incoming(const struct object_type* o_ptr, int amount);

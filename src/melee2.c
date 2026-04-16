@@ -5664,7 +5664,7 @@ void calc_morale(monster_type* m_ptr)
 
     // reduce morale for the Majesty ability
     difference = MAX(p_ptr->skill_use[S_WIL] - monster_skill(m_ptr, S_WIL), 0);
-    if (c_info[p_ptr->pcharacter].flags_u & UNQ_WIL_FIN) difference = MAX(2*p_ptr->skill_use[S_WIL] - monster_skill(m_ptr, S_WIL), 0);
+    if (c_info[p_ptr->pcharacter].flags_u & UNQ_WIL_FIN) difference = MAX((3 * p_ptr->skill_use[S_WIL]) / 2 - monster_skill(m_ptr, S_WIL), 0);
     if (p_ptr->active_ability[S_WIL][WIL_MAJESTY])
         morale -= difference / 2 * 10;
 

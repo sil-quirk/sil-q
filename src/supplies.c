@@ -37,11 +37,13 @@ static bool player_light_uses_permanent_cap_sval(int sval)
         || (sval == SV_LIGHT_FEANORIAN);
 }
 
-static bool ordinary_lesser_jewel_is_supply_light(const object_type* o_ptr)
+bool supplies_is_light_kind(int sval)
 {
-    return o_ptr && o_ptr->k_idx && o_ptr->tval == TV_LIGHT
-        && o_ptr->sval == SV_LIGHT_LESSER_JEWEL
-        && !object_has_ego_idx(o_ptr, EGO_GRACE);
+    return (sval == SV_LIGHT_TORCH)
+        || (sval == SV_LIGHT_MALLORN)
+        || (sval == SV_LIGHT_LANTERN)
+        || (sval == SV_LIGHT_LESSER_JEWEL)
+        || (sval == SV_LIGHT_FEANORIAN);
 }
 
 static bool supplies_weight_counts_to_limit(const object_type* o_ptr)
@@ -66,13 +68,41 @@ bool supplies_is_food_object(const object_type* o_ptr)
 
 bool supplies_is_light_object(const object_type* o_ptr)
 {
-    if (!o_ptr || !o_ptr->k_idx || o_ptr->tval != TV_LIGHT)
+    if (!o_ptr || !o_ptr->k_idx || o_ptr->tval != TV_LIGHT
+        || !supplies_is_light_kind(o_ptr->sval))
         return false;
 
-    return (o_ptr->sval == SV_LIGHT_TORCH)
-        || (o_ptr->sval == SV_LIGHT_MALLORN)
-        || (o_ptr->sval == SV_LIGHT_LANTERN)
-        || ordinary_lesser_jewel_is_supply_light(o_ptr);
+    return true;
+}
+
+bool supplies_group_matches_kind(int group, int tval, int sval)
+{
+    switch (group)
+    {
+    case SUPPLY_GROUP_HERBS:
+        return (tval == TV_FOOD) && (sval < SV_FOOD_MIN_FOOD);
+    case SUPPLY_GROUP_FOOD:
+        return (tval == TV_FOOD) && (sval >= SV_FOOD_MIN_FOOD);
+    case SUPPLY_GROUP_POTIONS:
+        return (tval == TV_POTION);
+    case SUPPLY_GROUP_GEMS:
+        return (tval == TV_GEM);
+    case SUPPLY_GROUP_LIGHTS:
+        return (tval == TV_LIGHT) && supplies_is_light_kind(sval);
+    default:
+        return false;
+    }
+}
+
+bool supplies_group_matches_object(int group, const object_type* o_ptr)
+{
+    if (!o_ptr)
+        return false;
+
+    if (group == SUPPLY_GROUP_LIGHTS)
+        return supplies_is_light_object(o_ptr);
+
+    return supplies_group_matches_kind(group, o_ptr->tval, o_ptr->sval);
 }
 
 bool supplies_is_carried_object_pointer(const object_type* o_ptr)
@@ -408,6 +438,35 @@ int player_carried_light_count_for_sval(int sval)
     }
 
     return count;
+}
+
+int player_light_carry_group(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx || o_ptr->tval != TV_LIGHT)
+        return 0;
+
+    switch (o_ptr->sval)
+    {
+    case SV_LIGHT_TORCH:
+    case SV_LIGHT_MALLORN:
+        return 1;
+    case SV_LIGHT_LANTERN:
+        return 2;
+    case SV_LIGHT_LESSER_JEWEL:
+    case SV_LIGHT_FEANORIAN:
+        return 3;
+    default:
+        return 0;
+    }
+}
+
+bool player_light_share_carry_group(const object_type* first,
+    const object_type* second)
+{
+    int first_group = player_light_carry_group(first);
+
+    return (first_group != 0)
+        && (first_group == player_light_carry_group(second));
 }
 
 static int player_carried_permanent_light_count(void)
@@ -989,32 +1048,8 @@ int supplies_first_entry_for_group(int group)
         object_type* entry = &g_supply_entries[i].obj;
         if (!entry->k_idx)
             continue;
-
-        switch (group)
-        {
-        case SUPPLY_GROUP_HERBS:
-            if (supplies_is_herb_object(entry))
-                return i;
-            break;
-        case SUPPLY_GROUP_FOOD:
-            if (supplies_is_food_object(entry))
-                return i;
-            break;
-        case SUPPLY_GROUP_POTIONS:
-            if (entry->tval == TV_POTION)
-                return i;
-            break;
-        case SUPPLY_GROUP_GEMS:
-            if (entry->tval == TV_GEM)
-                return i;
-            break;
-        case SUPPLY_GROUP_LIGHTS:
-            if (supplies_is_light_object(entry))
-                return i;
-            break;
-        default:
-            break;
-        }
+        if (supplies_group_matches_object(group, entry))
+            return i;
     }
     return -1;
 }

@@ -45,7 +45,7 @@
 # FREE #Beeing a seafarer means cheaper abilities 
 
 # SMT_FEANOR # Uses only 1 forge cast for custom artifacts # Jewelry is 40% and light and fire buffs is 25 % less difficult to craft
-# WIL_FIN # Majesty ability gets twice more base will of a character
+# WIL_FIN # Majesty ability gets 1.5x more base will of a character
 # SNG_FIN # Song of Staying is twice as effective
 # SNG_LUT # Song of Lorien is 1.5x more effective
 # WIL_TUOR # Horns are 2 times more affective

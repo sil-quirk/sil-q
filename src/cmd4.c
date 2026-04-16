@@ -1139,7 +1139,7 @@ static void ability_menu_render_song_bonus_block(const ability_type* b_ptr)
     {
         strnfmt(bonus_text, sizeof(bonus_text),
             "\n\nCurrent effect at Song %d: delving range %d squares.",
-            song_skill, song_skill + 10);
+            song_skill, song_skill + 8);
         break;
     }
     case SNG_FREEDOM:
@@ -1216,7 +1216,7 @@ static void ability_menu_render_song_bonus_block(const ability_type* b_ptr)
     {
         strnfmt(bonus_text, sizeof(bonus_text),
             "\n\nCurrent effect at Song %d: revealing range %d squares.",
-            song_skill, song_skill + 10);
+            song_skill, (song_skill / 2) + 8);
         break;
     }
     case SNG_ELVENESS:
@@ -20832,32 +20832,12 @@ static int collect_artefacts(int grp_cur, int object_idx[])
 
 static bool supply_kind_matches(int group, int tval, int sval)
 {
-    switch (group)
-    {
-    case SUPPLY_GROUP_HERBS:
-        return (tval == TV_FOOD) && (sval < SV_FOOD_MIN_FOOD);
-    case SUPPLY_GROUP_FOOD:
-        return (tval == TV_FOOD) && (sval >= SV_FOOD_MIN_FOOD);
-    case SUPPLY_GROUP_POTIONS:
-        return (tval == TV_POTION);
-    case SUPPLY_GROUP_GEMS:
-        return (tval == TV_GEM);
-    case SUPPLY_GROUP_LIGHTS:
-        return (tval == TV_LIGHT)
-            && (sval == SV_LIGHT_TORCH || sval == SV_LIGHT_MALLORN
-                || sval == SV_LIGHT_LANTERN
-                || sval == SV_LIGHT_LESSER_JEWEL);
-    default:
-        return false;
-    }
+    return supplies_group_matches_kind(group, tval, sval);
 }
 
 static bool supply_item_matches(int group, const object_type* o_ptr)
 {
-    if (!o_ptr)
-        return false;
-
-    return supply_kind_matches(group, o_ptr->tval, o_ptr->sval);
+    return supplies_group_matches_object(group, o_ptr);
 }
 
 static void append_supply_item_weight(char* buf, size_t len,

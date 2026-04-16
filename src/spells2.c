@@ -38,7 +38,7 @@ void identify_revealed_items(bool identify[]);
 flag_name info_flags_desc[] = { 
 {"Will Affinity is at 3, and never affected by curses", UNQ, UNQ_EARENDIL}, 
 { "Artifacts take only 1 charge of forge, easier to make fire and light items", UNQ, UNQ_SMT_FEANOR },
-{ "Majesty ability is twice effective", UNQ, UNQ_WIL_FIN }, 
+{ "Majesty ability is 1.5x effective", UNQ, UNQ_WIL_FIN },
 { "Song of Staying is twice effective", UNQ, UNQ_SNG_FIN },
 { "Song of Lorien is 1.5x effective", UNQ, UNQ_SNG_LUT }, 
 { "Horns are twice effective", UNQ, UNQ_WIL_TUOR },

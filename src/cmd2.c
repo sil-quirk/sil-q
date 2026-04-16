@@ -50,7 +50,7 @@ static int min_depth_timer_item_bonus_count(void)
             continue;
 
         if (f4 & TR4_DEEP_CALL)
-            count++;
+            count += 2;
         if (f3 & TR3_PERMA_CURSE)
             count += 3;
     }

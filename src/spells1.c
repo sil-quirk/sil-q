@@ -2100,7 +2100,7 @@ static int elemental_attack_probability_per_million(int attack_type, int raw_dam
     }
 
     percentile = elemental_clamp01(percentile);
-    q = elemental_clamp01((percentile - 0.75) / 0.25);
+    q = elemental_clamp01((percentile - 0.50) / 0.50);
     hurt = (hp * hp) / ((hp * hp) + (8.0 * 8.0));
     chance = base * q * q * hurt;
     threshold = (int)(chance * 1000000.0 + 0.5);
@@ -7421,7 +7421,7 @@ void sing_song_of_delvings(int score)
     int px = p_ptr->px;
     int py = p_ptr->py;
 
-    int range = score + 10;
+    int range = score + 8;
 
     min_y = MAX(1, py - range);
     max_y = MIN(MAX_DUNGEON_HGT, py + range + 1);
@@ -8264,7 +8264,7 @@ void sing_song_of_revealing(int score, bool primary_song)
     if (effective_skill <= 0)
         return;
 
-    int range = score + 10;
+    int range = (score / 2) + 8;
     if (range < 0)
         range = 0;
 

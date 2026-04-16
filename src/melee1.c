@@ -3020,7 +3020,7 @@ void update_combat_rolls1(const monster_type* m_ptr1,
                 combat_rolls[0][combat_number].is_attacker_player = false;
                 combat_rolls[0][combat_number].attacker_char = graphics_are_ascii() ? r_ptr1->d_char : r_ptr1->x_char;
 
-                if (p_ptr->rage)
+                if (p_ptr->rage && graphics_are_ascii())
                 {
                     combat_rolls[0][combat_number].attacker_attr = TERM_RED;
                 }
@@ -3069,7 +3069,7 @@ void update_combat_rolls1(const monster_type* m_ptr1,
                 combat_rolls[0][combat_number].is_defender_player = false;
                 combat_rolls[0][combat_number].defender_char = graphics_are_ascii() ? r_ptr2->d_char : r_ptr2->x_char;
 
-                if (p_ptr->rage)
+                if (p_ptr->rage && graphics_are_ascii())
                 {
                     combat_rolls[0][combat_number].defender_attr = TERM_RED;
                 }
@@ -3188,7 +3188,7 @@ void update_combat_rolls1b(
                 combat_rolls[0][combat_number].is_attacker_player = false;
                 combat_rolls[0][combat_number].attacker_char = graphics_are_ascii() ? r_ptr1->d_char : r_ptr1->x_char;
 
-                if (p_ptr->rage)
+                if (p_ptr->rage && graphics_are_ascii())
                 {
                     combat_rolls[0][combat_number].attacker_attr = TERM_RED;
                 }
@@ -3230,7 +3230,7 @@ void update_combat_rolls1b(
                 combat_rolls[0][combat_number].is_defender_player = false;
                 combat_rolls[0][combat_number].defender_char = graphics_are_ascii() ? r_ptr2->d_char : r_ptr2->x_char;
 
-                if (p_ptr->rage)
+                if (p_ptr->rage && graphics_are_ascii())
                 {
                     combat_rolls[0][combat_number].defender_attr = TERM_RED;
                 }
@@ -3857,8 +3857,7 @@ void do_cmd_combat_history(void)
             int a_att, a_evn, a_hit, a_dam_roll, a_prot_roll, a_net_dam;
             
             /* Determine if player attack or monster attack */
-            bool is_player_attack = (roll->attacker_char == r_info[0].d_char) &&
-                                   (roll->attacker_attr == r_info[0].d_attr);
+            bool is_player_attack = roll->is_attacker_player;
             
             if (is_player_attack) {
                 a_att = TERM_L_BLUE;
@@ -4198,8 +4197,7 @@ void display_combat_round_details(combat_history_round* round)
     /* Count player attacks first */
     int total_player_attacks = 0;
     for (i = 0; i < round->num_rolls; i++) {
-        if ((round->rolls[i].attacker_char == r_info[0].d_char) &&
-            (round->rolls[i].attacker_attr == r_info[0].d_attr)) {
+        if (round->rolls[i].is_attacker_player) {
             total_player_attacks++;
         }
     }
@@ -4212,8 +4210,7 @@ void display_combat_round_details(combat_history_round* round)
         if (roll->att_type == COMBAT_ROLL_NONE) continue;
         
         /* Determine line position based on attacker */
-        if ((roll->attacker_char == r_info[0].d_char) &&
-            (roll->attacker_attr == r_info[0].d_attr)) {
+        if (roll->is_attacker_player) {
             /* Player attack */
             player_attacks++;
             line = 1 + player_attacks;

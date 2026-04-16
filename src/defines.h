@@ -2069,7 +2069,7 @@
 #define TR4_WEIGHT          0x00004000L /* Increases item weight by 25% of base weight */
 #define TR4_NEG_WEIGHT      0x00008000L /* Decreases item weight by 25% of base weight */
 #define TR4_JINX           0x00010000L /* Ego is a jinx affix */
-#define TR4_DEEP_CALL      0x00020000L /* Speeds the min-depth timer by one extra depth step */
+#define TR4_DEEP_CALL      0x00020000L /* Speeds the min-depth timer by two extra depth steps */
 #define TR4_NO_PREFIX      0x00040000L /* Suffix ego cannot be combined with a prefix */
 #define TR4_PROT_FIRE      0x00080000L /* Item protection counts against fire attacks */
 #define TR4_PROT_COLD      0x00100000L /* Item protection counts against cold attacks */

@@ -7016,6 +7016,23 @@ s16b inven_takeoff(int item, int amt)
         return (-1);
     }
 
+    /*
+     * Light-slot supply items should go back into supplies directly when
+     * removed, even if the pack is full. This avoids swap flows depending on
+     * pack carry checks for an item class that is normally supply-backed.
+     */
+    if ((item == INVEN_LITE) && supplies_is_supply_object(i_ptr))
+    {
+        if (supplies_absorb_object(i_ptr))
+        {
+            char label = supplies_label_char();
+            if (!label)
+                label = 'a';
+            msg_format("%s %s (%c).", act, o_name, label);
+            return SUPPLIES_INDEX;
+        }
+    }
+
     /* Carry the object */
     log_debug("inven_takeoff: Calling inven_carry with k_idx=%d, prefix=%d, suffix=%d", 
               i_ptr->k_idx, (int)object_ego_prefix(i_ptr), (int)object_ego_suffix(i_ptr));

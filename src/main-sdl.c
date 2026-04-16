@@ -5199,6 +5199,13 @@ bool get_sdl_enable_right_panes(void)
 void set_sdl_enable_right_panes(bool value)
 {
     config.enable_right_panes = value;
+
+    if (value) {
+        for (int i = 0; i < pane_config_count; i++) {
+            if (pane_placement_is_side(pane_config[i].where))
+                pane_config[i].enabled = true;
+        }
+    }
 }
 
 bool get_sdl_enable_bottom_panes(void)
@@ -5209,6 +5216,17 @@ bool get_sdl_enable_bottom_panes(void)
 void set_sdl_enable_bottom_panes(bool value)
 {
     config.enable_bottom_panes = value;
+
+    /* On mobile, the default layout may keep the bottom-pane configs around
+     * but disabled until the user explicitly turns the split on. Re-enable any
+     * bottom-placed panes when the group is turned back on so the toggle does
+     * what its label says. */
+    if (value) {
+        for (int i = 0; i < pane_config_count; i++) {
+            if (pane_config[i].where == PLACE_BOTTOM)
+                pane_config[i].enabled = true;
+        }
+    }
 }
 
 bool get_sdl_hide_left_panel(void)

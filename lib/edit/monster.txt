@@ -2016,7 +2016,7 @@ F:UNIQUE | MALE | TERRITORIAL
 F:DROP_2D2 | DROP_GREAT | SMART
 F:BASH_DOOR | DRAGON
 S:SPELL_PCT_20 | POW_16
-S:CONF | SCARE | HOLD
+S:BRTH_COLD | CONF | SCARE | HOLD
 D:A young cold-drake, long and sinuous, coiling upon the stone floor.
 D: Scatha is cunning beyond his years, and has already begun to amass
 D: a hoard through theft and murder. His kind lack the fire of the

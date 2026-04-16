@@ -1593,9 +1593,17 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     /* Take off existing item */
     if (o_ptr->k_idx && !combine)
     {
-        /* Count the incoming light before takeoff so swaps cannot exceed caps. */
+        /*
+         * Same-group light swaps do not increase the carried count for that
+         * cap, so only reserve the incoming light when the swap crosses groups.
+         */
         if (slot == INVEN_LITE && player_light_carry_cap(i_ptr) > 0)
-            player_light_reserve_incoming(i_ptr, i_ptr->number);
+        {
+            if (!player_light_share_carry_group(i_ptr, o_ptr))
+                player_light_reserve_incoming(i_ptr, i_ptr->number);
+            else
+                player_light_clear_incoming_reservation();
+        }
 
         log_debug(
             "do_cmd_wield: Taking off existing item from slot %d - k_idx=%d, ego_pfx=%d, ego_sfx=%d",
