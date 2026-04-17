@@ -2991,22 +2991,30 @@ static void display_introduction_with_layout(
     int term_wid = 80;
     int term_hgt = 24;
     int top_pad = 1;
+    int quote_attr_offset = 20;
 
     if (layout)
         top_pad = layout->top_pad;
     if (top_pad < 0)
         top_pad = 0;
 
+    Term_get_size(&term_wid, &term_hgt);
+    if (term_wid < 1)
+        term_wid = 80;
+    if (term_hgt < 1)
+        term_hgt = 24;
+
+    if (term_wid < 80)
+        /* Compact screens need a tighter attribution column for the
+         * longest welcome-screen source lines. */
+        quote_attr_offset = 17;
+
     const int y = top_pad; /* legacy intro rows start at row 1 with one blank line above */
     const int intro_col = welcome_screen_base_col();
     const int subtitle_col = intro_col + 6;
     const int title_col = intro_col + 8;
-    const int quote_attr_col = intro_col + 20;
+    const int quote_attr_col = intro_col + quote_attr_offset;
     const int song_attr_col = intro_col + 14;
-
-    Term_get_size(&term_wid, &term_hgt);
-    if (term_hgt < 1)
-        term_hgt = 24;
 
 #define INTRO_ROW(_rel) (y + welcome_screen_intro_row((_rel), layout) - 1)
 

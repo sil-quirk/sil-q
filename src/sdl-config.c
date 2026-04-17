@@ -369,6 +369,57 @@ static int parse_min_terminal_mode(const char* value)
     return SDL_MIN_TERMINAL_NORMAL;
 }
 
+static const char* hidden_left_panel_mode_to_string(int mode)
+{
+    switch (mode) {
+        case HIDDEN_LEFT_PANEL_TOPLINE: return "SECOND_ROW";
+        case HIDDEN_LEFT_PANEL_TOP_LEFT:
+        default:
+            return "TOP_LEFT";
+    }
+}
+
+static int parse_hidden_left_panel_mode(const char* value)
+{
+    if (!value)
+        return HIDDEN_LEFT_PANEL_TOP_LEFT;
+    if (strcmp(value, "SECOND_ROW") == 0) return HIDDEN_LEFT_PANEL_TOPLINE;
+    if (strcmp(value, "TOP_STRING") == 0) return HIDDEN_LEFT_PANEL_TOPLINE;
+    if (strcmp(value, "TOP_LEFT") == 0) return HIDDEN_LEFT_PANEL_TOP_LEFT;
+    return HIDDEN_LEFT_PANEL_TOP_LEFT;
+}
+
+static int sdl_config_gamepad_action_binding_count(const struct sdl_config* config,
+    int binding)
+{
+    int count = 0;
+
+    if (!config)
+        return 0;
+
+    for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++) {
+        if (config->gamepad_button_bindings[i] == binding)
+            count++;
+    }
+
+    for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++) {
+        if (config->gamepad_trigger_bindings[i] == binding)
+            count++;
+    }
+
+    for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+        if (config->gamepad_left_stick_bindings[i] == binding)
+            count++;
+        if (config->gamepad_right_stick_bindings[i] == binding)
+            count++;
+    }
+
+    if (config->gamepad_shoulder_combo_binding == binding)
+        count++;
+
+    return count;
+}
+
 static char* read_file_contents(const char* filename)
 {
     FILE* f = fopen(filename, "rb");
@@ -447,7 +498,8 @@ static bool option_list_contains(const byte* ids, int opt)
 bool option_is_app_persistent(int opt)
 {
     /* Multi-value non-bool options saved explicitly in the visual JSON block */
-    if (opt == OPT_intro_style || opt == OPT_hide_left_panel)
+    if (opt == OPT_intro_style || opt == OPT_hide_left_panel
+        || opt == OPT_hidden_left_panel_mode)
         return true;
     return option_list_contains(app_interface_options, opt)
         || option_list_contains(app_text_options, opt)
@@ -790,6 +842,23 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
             log_debug("Loaded hideLeftPanel: %s", config->hide_left_panel ? "true" : "false");
         }
 
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "hiddenLeftPanelPlacement");
+        if (!item)
+            item = cJSON_GetObjectItemCaseSensitive(sdl, "hiddenLeftPanelLightMode");
+        if (cJSON_IsString(item)) {
+            config->hidden_left_panel_mode
+                = parse_hidden_left_panel_mode(item->valuestring);
+            log_debug("Loaded hiddenLeftPanelPlacement: %s",
+                hidden_left_panel_mode_to_string(config->hidden_left_panel_mode));
+        } else if (cJSON_IsNumber(item)) {
+            config->hidden_left_panel_mode
+                = (item->valueint == HIDDEN_LEFT_PANEL_TOPLINE)
+                ? HIDDEN_LEFT_PANEL_TOPLINE
+                : HIDDEN_LEFT_PANEL_TOP_LEFT;
+            log_debug("Loaded numeric hiddenLeftPanelPlacement: %s",
+                hidden_left_panel_mode_to_string(config->hidden_left_panel_mode));
+        }
+
         item = cJSON_GetObjectItemCaseSensitive(sdl, "minTerminalMode");
         if (cJSON_IsString(item)) {
             config->min_terminal_mode = parse_min_terminal_mode(item->valuestring);
@@ -1024,6 +1093,7 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
     cJSON* gamepad = cJSON_GetObjectItemCaseSensitive(root, "gamepad");
     if (cJSON_IsObject(gamepad)) {
         cJSON* item;
+        bool saw_shoulder_combo_binding = false;
 
         item = cJSON_GetObjectItemCaseSensitive(gamepad, "enabled");
         if (cJSON_IsBool(item)) {
@@ -1041,6 +1111,13 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
         if (cJSON_IsBool(item)) {
             config->steamdeck_mode = cJSON_IsTrue(item);
             log_debug("Loaded gamepad.steamdeckMode: %s", config->steamdeck_mode ? "true" : "false");
+        }
+
+        item = cJSON_GetObjectItemCaseSensitive(gamepad, "steamdeckInvEquipSameButtonCycle");
+        if (cJSON_IsBool(item)) {
+            config->steamdeck_inv_equip_same_button_cycle = cJSON_IsTrue(item);
+            log_debug("Loaded gamepad.steamdeckInvEquipSameButtonCycle: %s",
+                config->steamdeck_inv_equip_same_button_cycle ? "true" : "false");
         }
 
         item = cJSON_GetObjectItemCaseSensitive(gamepad, "useDpad");
@@ -1117,8 +1194,16 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
 
         item = cJSON_GetObjectItemCaseSensitive(gamepad, "shoulderComboBinding");
         if (cJSON_IsNumber(item)) {
+            saw_shoulder_combo_binding = true;
             config->gamepad_shoulder_combo_binding = item->valueint;
             log_debug("Loaded gamepad.shoulderComboBinding: %d", config->gamepad_shoulder_combo_binding);
+        }
+
+        if (!saw_shoulder_combo_binding
+            && config->gamepad_shoulder_combo_binding == 'l'
+            && sdl_config_gamepad_action_binding_count(config, 'l') > 1) {
+            log_info("Legacy gamepad config already binds 'l'; clearing inherited shoulder combo binding");
+            config->gamepad_shoulder_combo_binding = GAMEPAD_BIND_NONE;
         }
 
         if (config->gamepad_use_dpad) {
@@ -1233,6 +1318,8 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     cJSON_AddBoolToObject(sdl, "enableBottomPanes", config->enable_bottom_panes);
     cJSON_AddBoolToObject(sdl, "showPaneBorders", config->show_pane_borders);
     cJSON_AddBoolToObject(sdl, "hideLeftPanel", config->hide_left_panel);
+    cJSON_AddStringToObject(sdl, "hiddenLeftPanelPlacement",
+        hidden_left_panel_mode_to_string(config->hidden_left_panel_mode));
     cJSON_AddStringToObject(sdl, "minTerminalMode", min_terminal_mode_to_string(config->min_terminal_mode));
     
     // Save window position and size for windowed mode
@@ -1318,6 +1405,8 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
             cJSON_AddBoolToObject(gamepad, "enabled", config->gamepad_enabled);
             cJSON_AddBoolToObject(gamepad, "autoMode", config->gamepad_auto_mode);
             cJSON_AddBoolToObject(gamepad, "steamdeckMode", config->steamdeck_mode);
+            cJSON_AddBoolToObject(gamepad, "steamdeckInvEquipSameButtonCycle",
+                config->steamdeck_inv_equip_same_button_cycle);
             cJSON_AddBoolToObject(gamepad, "useDpad", config->gamepad_use_dpad);
             cJSON_AddBoolToObject(gamepad, "useLeftStick", config->gamepad_use_left_stick);
             cJSON_AddNumberToObject(gamepad, "deadzone", config->gamepad_deadzone);
@@ -1554,6 +1643,7 @@ void sdl_config_set_defaults(struct sdl_config* config)
     config->enable_bottom_panes = true;
     config->show_pane_borders = true;
     config->hide_left_panel = false;
+    config->hidden_left_panel_mode = HIDDEN_LEFT_PANEL_TOP_LEFT;
 #if defined(__ANDROID__) || defined(SIL_IOS)
     config->min_terminal_mode = SDL_MIN_TERMINAL_COMPACT;
 #else
@@ -1592,6 +1682,7 @@ void sdl_config_set_defaults(struct sdl_config* config)
     config->gamepad_enabled = true;
     config->gamepad_auto_mode = true;
     config->steamdeck_mode = false;
+    config->steamdeck_inv_equip_same_button_cycle = false;
     config->gamepad_use_dpad = true;
     config->gamepad_use_left_stick = true;
     config->gamepad_deadzone = 12000;

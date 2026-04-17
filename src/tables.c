@@ -922,8 +922,9 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
     { OPT_system_beep, OPT_quick_messages, OPT_auto_more, OPT_easy_main_menu,
         OPT_hjkl_movement, OPT_angband_keyset, OPT_space_acts_as_comma,
         OPT_look_objects_sort_by_difficulty, OPT_look_nearby_filter_default,
-        OPT_hide_left_panel, OPT_hitpoint_warning, OPT_show_level_generation_debug,
-        OPT_show_elemental_item_rolls, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_hide_left_panel, OPT_hidden_left_panel_mode,
+        OPT_hitpoint_warning, OPT_show_level_generation_debug,
+        OPT_show_elemental_item_rolls, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Text options ***/

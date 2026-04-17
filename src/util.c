@@ -2116,9 +2116,13 @@ static void msg_print_aux(u16b type, cptr msg)
     char buf[1024];
     byte color;
     int w, h;
+    int available_width;
 
     /* Obtain the size */
     (void)Term_get_size(&w, &h);
+    available_width = w - 8;
+    if (available_width < 1)
+        available_width = 1;
 
     /* Hack -- Reset */
     if (!msg_flag)
@@ -2128,7 +2132,7 @@ static void msg_print_aux(u16b type, cptr msg)
     n = (msg ? strlen(msg) : 0);
 
     /* Hack -- flush when requested or needed */
-    if (message_column && (!msg || ((message_column + n) > (w - 8))))
+    if (message_column && (!msg || ((message_column + n) > available_width)))
     {
         /* Flush */
         msg_flush(message_column);
@@ -2165,17 +2169,17 @@ static void msg_print_aux(u16b type, cptr msg)
     color = message_type_color(type);
 
     /* Split message */
-    while (n > (w - 8))
+    while (n > available_width)
     {
         char oops;
 
         int check, split;
 
         /* Default split */
-        split = (w - 8);
+        split = available_width;
 
         /* Find the "best" split point */
-        for (check = (w / 2); check < (w - 8); check++)
+        for (check = (w / 2); check < available_width; check++)
         {
             /* Found a valid split point */
             if (t[check] == ' ')
@@ -2482,7 +2486,6 @@ void c_prt(byte attr, cptr str, int row, int col)
 
     /* Dump the attr/text */
     Term_addstr(-1, attr, str);
-    
     /* Log buffer state after adding text */
     if (row == 0 && Term && Term->scr)
     {
@@ -2530,24 +2533,56 @@ int count_wrapped_lines(cptr str, int wrap_width, int indent)
 {
     int x = indent;
     int lines = 1;
+    bool have_space_on_line = false;
+    int chars_since_space = 0;
     cptr s;
 
-    for (s = str; *s; s++) {
-        if (*s == '\n') {
+    for (s = str; *s; s++)
+    {
+        char ch;
+
+        if (*s == '\n')
+        {
             x = indent;
             lines++;
+            have_space_on_line = false;
+            chars_since_space = 0;
             continue;
         }
-        /* Printable or space */
-        char ch = isprint((unsigned char)*s) ? *s : ' ';
-        /* If adding this char exceeds wrap, and it's not a space, wrap */
-        if (x >= wrap_width && ch != ' ') {
-            x = indent;
+
+        ch = isprint((unsigned char)*s) ? *s : ' ';
+
+        /*
+         * Mirror text_out_to_screen(): wrap on a non-space once we have
+         * reached the wrap boundary, and carry the current trailing word to
+         * the next line when there is a prior break space on this line.
+         */
+        if ((x >= wrap_width) && (ch != ' '))
+        {
+            int moved_chars = 0;
+
+            if (have_space_on_line && (chars_since_space > 0))
+                moved_chars = chars_since_space;
+
+            x = indent + moved_chars;
             lines++;
+            have_space_on_line = false;
+            chars_since_space = moved_chars;
         }
-        /* Advance column */
+
         x++;
+
+        if (ch == ' ')
+        {
+            have_space_on_line = true;
+            chars_since_space = 0;
+        }
+        else
+        {
+            chars_since_space++;
+        }
     }
+
     return lines;
 }
 

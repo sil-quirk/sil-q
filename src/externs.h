@@ -1784,6 +1784,9 @@ extern byte g_hidden_left_panel_overlay_rows;
 extern byte g_hidden_left_panel_overlay_widths[16];
 extern bool get_sdl_hide_left_panel(void);
 extern void set_sdl_hide_left_panel(bool value);
+extern int get_sdl_hidden_left_panel_mode(void);
+extern void set_sdl_hidden_left_panel_mode(int value);
+extern void redraw_hidden_left_panel_topline_suffix(void);
 extern int get_sdl_pane_type(int index);
 extern int get_sdl_pane_where(int index);
 extern void set_sdl_pane_where(int index, int where);
@@ -1814,6 +1817,8 @@ extern bool get_sdl_gamepad_auto_mode(void);
 extern void set_sdl_gamepad_auto_mode(bool value);
 extern bool get_sdl_steamdeck_mode(void);
 extern void set_sdl_steamdeck_mode(bool value);
+extern bool get_sdl_steamdeck_inv_equip_same_button_cycle(void);
+extern void set_sdl_steamdeck_inv_equip_same_button_cycle(bool value);
 extern bool get_sdl_gamepad_use_dpad(void);
 extern void set_sdl_gamepad_use_dpad(bool value);
 extern bool get_sdl_gamepad_use_left_stick(void);
@@ -1863,9 +1868,9 @@ extern int steamdeck_secondary_key(void); /* Y button (NORTH) - for secondary ac
 #define GAMEPAD_CAPTURE_LEFT_STICK 2
 #define GAMEPAD_CAPTURE_RIGHT_STICK 3
 #define GAMEPAD_CAPTURE_SHOULDER_COMBO 4
-extern bool sdl_gamepad_capture_begin(void);
+extern bool sdl_gamepad_capture_begin(bool allow_modifier_combo);
 extern void sdl_gamepad_capture_cancel(void);
-extern bool sdl_gamepad_capture_poll(int* out_type, int* out_id);
+extern bool sdl_gamepad_capture_poll(int* out_type, int* out_id, int* out_modifier);
 
 /* SDL story font control (main-sdl.c) */
 extern void sdl_story_font_enable(void);

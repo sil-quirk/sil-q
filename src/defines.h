@@ -2801,6 +2801,7 @@
 #define OPT_look_objects_sort_by_difficulty 102
 #define OPT_look_nearby_filter_default 103
 #define OPT_show_elemental_item_rolls 104
+#define OPT_hidden_left_panel_mode 105
 
 /* Intro screen style constants */
 #define INTRO_STYLE_FLAME       0   /* Flame Imperishable (Ainulindale) */
@@ -2812,6 +2813,9 @@
 #define INTRO_STYLE_NOLDOLANTE  6   /* Lament of the Noldor */
 #define INTRO_STYLE_RANDOM      7   /* Random each launch */
 #define INTRO_STYLE_MAX         7   /* Highest fixed variant index (6) + 1 for random */
+
+#define HIDDEN_LEFT_PANEL_TOP_LEFT 0
+#define HIDDEN_LEFT_PANEL_TOPLINE  1
 // xxx birth_point_based
 // xxx birth_auto_roller
 // xxx birth_maximize

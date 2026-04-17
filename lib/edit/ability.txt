@@ -184,7 +184,7 @@ T:19:0:99  # Bows
 N:21:Fletchery
 I:1:1:3
 D:Crafting arrows with the skill of the Green-elves of Ossiriand, who fashioned shafts from the woods of their forested realm. The Laiquendi were renowned for the quality of their arrows, each one shaped with patient care from the straight-grained wood of birch and ash, fletched with feathers gathered from the banks of Gelion.
-E:Use '-' to craft ordinary arrows to +3 (one turn each). Carve 3 arrows from torches, 6 from staves.
+E:Use '-' to craft arrows to +3 without changing their affixes (one turn each). Carve 3 arrows from torches, 6 from staves.
 T:31:1:1   # Gloves (leather gloves only)
 T:45:0:99  # Ring
 

@@ -5618,7 +5618,7 @@ static bool item_tester_hook_fletchery_source(const object_type* o_ptr)
 
     if (o_ptr->tval == TV_ARROW)
     {
-        if (o_ptr->name1 || object_has_ego(o_ptr) || o_ptr->att >= 3)
+        if (o_ptr->name1 || o_ptr->att >= 3)
             return false;
         return true;
     }

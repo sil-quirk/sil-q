@@ -1123,7 +1123,8 @@ static int choice_description_row(int visible_rows, bool allow_full_description_
     if (hgt > 20)
         return row;
 
-    min_row = TABLE_ROW + visible_rows + 1;
+    /* On short screens, use the first free row after the list. */
+    min_row = TABLE_ROW + visible_rows;
     row = min_row;
 
     if (row > birth_prompt_row() - 1)
@@ -1206,6 +1207,32 @@ static void birth_put_str_fit(byte attr, cptr text, int row, int col)
 static int choice_description_line_count(cptr text)
 {
     return birth_wrapped_line_count(text, 2);
+}
+
+static int choice_description_fit_row(int row, int visible_rows, cptr text)
+{
+    int min_row = TABLE_ROW + visible_rows + 1;
+    int max_row = birth_prompt_row() - 1;
+    int text_rows = choice_description_line_count(text);
+
+    if (text_rows > 0)
+    {
+        int fit_row = birth_prompt_row() - text_rows;
+
+        if (fit_row < max_row)
+            max_row = fit_row;
+    }
+
+    if (max_row < TABLE_ROW + 1)
+        max_row = TABLE_ROW + 1;
+    if (max_row < min_row)
+        max_row = min_row;
+    if (row > max_row)
+        row = max_row;
+    if (row < min_row)
+        row = min_row;
+
+    return row;
 }
 
 static int collect_character_starting_abilities(int character, cptr out[], int out_max)
@@ -1342,6 +1369,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
     int cur = (def) ? def : 0;
     bool steamdeck = steamdeck_controls_active();
     int clear_limit = birth_prompt_row() + 1;
+    int last_description_row = birth_prompt_row();
 
     /* Autoselect if able */
     // if (num == 1) done = true;
@@ -1431,10 +1459,18 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
         list_rows_drawn = i;
 
         if (!allow_full_description_screen)
+        {
             description_row = choice_description_row(list_rows_drawn, false);
+            description_row = choice_description_fit_row(description_row,
+                list_rows_drawn, choices[cur].text);
+        }
 
         {
             int clear_from_row = description_row;
+
+            if (last_description_row < clear_from_row)
+                clear_from_row = last_description_row;
+
             if (allow_full_description_screen)
             {
                 bool compact_flags = character_flags_need_compact_layout();
@@ -1452,6 +1488,9 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
                 if (compact_flags)
                 {
                     int race_description_row = choice_description_row(z_info->p_max, false);
+                    race_description_row = choice_description_fit_row(
+                        race_description_row, z_info->p_max,
+                        p_text + p_info[p_ptr->prace].text);
                     if (race_description_row < clear_from_row)
                         clear_from_row = race_description_row;
                 }
@@ -1473,18 +1512,11 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
 
         if (show_description && choices[cur].text != NULL)
         {
-            /* Indent output by 2 character, and wrap at column 79 */
-            text_out_wrap = 79;
-            text_out_indent = 2;
-
-            /* History */
-            Term_gotoxy(text_out_indent, description_row);
-            text_out_to_screen(TERM_WHITE, choices[cur].text);
-
-            /* Reset text_out() vars */
-            text_out_wrap = 0;
-            text_out_indent = 0;
+            birth_put_wrapped_text(TERM_WHITE, choices[cur].text,
+                description_row, 2);
         }
+
+        last_description_row = description_row;
 
         if (done)
             return (cur);

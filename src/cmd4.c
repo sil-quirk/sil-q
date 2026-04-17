@@ -13855,6 +13855,9 @@ static cptr option_menu_label(int opt)
     case OPT_hide_left_panel:
         return compact ? (narrow ? "Compact panel" : "Compact left panel")
                        : "Hide Left Panel [Alt+P]";
+    case OPT_hidden_left_panel_mode:
+        return compact ? (narrow ? "Panel place" : "Hidden panel")
+                       : "Hidden-panel placement";
     case OPT_show_level_entry_banner:
         return compact ? (narrow ? "Entry text" : "Entry narrative")
                        : "Level entry narrative";
@@ -14197,6 +14200,14 @@ extern void do_cmd_options_aux(int page, cptr info)
                 option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
                     get_sdl_hide_left_panel() ? "yes" : "no ");
             }
+            else if (opt[i] == OPT_hidden_left_panel_mode)
+            {
+                option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
+                    (get_sdl_hidden_left_panel_mode()
+                        == HIDDEN_LEFT_PANEL_TOPLINE)
+                    ? "Second row"
+                    : "Top left");
+            }
             else if (opt[i] == OPT_main_combat_rolls)
             {
                 char value_str[32];
@@ -14450,6 +14461,17 @@ extern void do_cmd_options_aux(int page, cptr info)
                     set_sdl_hide_left_panel(!get_sdl_hide_left_panel());
                     sdl_apply_config();
                 }
+                else if (opt[k] == OPT_hidden_left_panel_mode)
+                {
+                    set_sdl_hidden_left_panel_mode(
+                        (get_sdl_hidden_left_panel_mode()
+                            == HIDDEN_LEFT_PANEL_TOPLINE)
+                        ? HIDDEN_LEFT_PANEL_TOP_LEFT
+                        : HIDDEN_LEFT_PANEL_TOPLINE);
+                    if (p_ptr)
+                        p_ptr->redraw |= (PR_BASIC | PR_LIGHT | PR_EXTRA
+                            | PR_HEALTHBAR | PR_MAP);
+                }
                 else if (opt[k] == OPT_main_combat_rolls)
                 {
                     op_ptr->main_combat_rolls = (op_ptr->main_combat_rolls < 4)
@@ -14567,6 +14589,14 @@ extern void do_cmd_options_aux(int page, cptr info)
                     set_sdl_hide_left_panel(true);
                     sdl_apply_config();
                 }
+                else if (opt[k] == OPT_hidden_left_panel_mode)
+                {
+                    set_sdl_hidden_left_panel_mode(
+                        HIDDEN_LEFT_PANEL_TOPLINE);
+                    if (p_ptr)
+                        p_ptr->redraw |= (PR_BASIC | PR_LIGHT | PR_EXTRA
+                            | PR_HEALTHBAR | PR_MAP);
+                }
                 else if (opt[k] == OPT_main_combat_rolls)
                 {
                     op_ptr->main_combat_rolls = (op_ptr->main_combat_rolls < 4)
@@ -14683,6 +14713,14 @@ extern void do_cmd_options_aux(int page, cptr info)
                 {
                     set_sdl_hide_left_panel(false);
                     sdl_apply_config();
+                }
+                else if (opt[k] == OPT_hidden_left_panel_mode)
+                {
+                    set_sdl_hidden_left_panel_mode(
+                        HIDDEN_LEFT_PANEL_TOP_LEFT);
+                    if (p_ptr)
+                        p_ptr->redraw |= (PR_BASIC | PR_LIGHT | PR_EXTRA
+                            | PR_HEALTHBAR | PR_MAP);
                 }
                 else if (opt[k] == OPT_main_combat_rolls)
                 {
@@ -17483,6 +17521,7 @@ typedef enum controller_toggle_id {
     CONTROLLER_TOGGLE_ENABLED = 0,
     CONTROLLER_TOGGLE_AUTO_MODE,
     CONTROLLER_TOGGLE_STEAMDECK_MODE,
+    CONTROLLER_TOGGLE_STEAMDECK_INV_EQUIP_SAME_BUTTON_CYCLE,
     CONTROLLER_TOGGLE_DPAD,
     CONTROLLER_TOGGLE_LEFT_STICK,
 } controller_toggle_id;
@@ -17574,6 +17613,12 @@ static void controller_binding_label(int type, int id, char* buf, size_t buflen)
     }
 }
 
+static bool controller_action_is_modifier(int binding)
+{
+    return (binding == GAMEPAD_BIND_SHIFT || binding == GAMEPAD_BIND_CTRL
+        || binding == GAMEPAD_BIND_ALT);
+}
+
 static int controller_action_binding_count(int binding, int* out_type, int* out_id)
 {
     int count = 0;
@@ -17629,20 +17674,198 @@ static int controller_action_binding_count(int binding, int* out_type, int* out_
     return count;
 }
 
+static int controller_physical_binding_count(int binding, int* out_type, int* out_id)
+{
+    int count = 0;
+
+    for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++) {
+        if (get_sdl_gamepad_button_binding(i) == binding) {
+            if (count == 0 && out_type && out_id) {
+                *out_type = GAMEPAD_CAPTURE_BUTTON;
+                *out_id = i;
+            }
+            count++;
+        }
+    }
+
+    for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++) {
+        if (get_sdl_gamepad_trigger_binding(i) == binding) {
+            if (count == 0 && out_type && out_id) {
+                *out_type = GAMEPAD_CAPTURE_TRIGGER;
+                *out_id = i;
+            }
+            count++;
+        }
+    }
+
+    for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+        if (get_sdl_gamepad_left_stick_binding(i) == binding) {
+            if (count == 0 && out_type && out_id) {
+                *out_type = GAMEPAD_CAPTURE_LEFT_STICK;
+                *out_id = i;
+            }
+            count++;
+        }
+    }
+
+    for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+        if (get_sdl_gamepad_right_stick_binding(i) == binding) {
+            if (count == 0 && out_type && out_id) {
+                *out_type = GAMEPAD_CAPTURE_RIGHT_STICK;
+                *out_id = i;
+            }
+            count++;
+        }
+    }
+
+    return count;
+}
+
+static bool controller_combo_base_binding(int action_binding, int modifier_binding,
+    int* out_base_binding)
+{
+    if (!out_base_binding)
+        return false;
+
+    if (modifier_binding == GAMEPAD_BIND_CTRL) {
+        if (action_binding >= 1 && action_binding <= 26) {
+            *out_base_binding = 'a' + action_binding - 1;
+            return true;
+        }
+        return false;
+    }
+
+    if (modifier_binding != GAMEPAD_BIND_SHIFT)
+        return false;
+
+    if (action_binding >= 'A' && action_binding <= 'Z') {
+        *out_base_binding = action_binding - 'A' + 'a';
+        return true;
+    }
+
+    switch (action_binding) {
+    case '!': *out_base_binding = '1'; return true;
+    case '@': *out_base_binding = '2'; return true;
+    case '#': *out_base_binding = '3'; return true;
+    case '$': *out_base_binding = '4'; return true;
+    case '%': *out_base_binding = '5'; return true;
+    case '^': *out_base_binding = '6'; return true;
+    case '&': *out_base_binding = '7'; return true;
+    case '*': *out_base_binding = '8'; return true;
+    case '(': *out_base_binding = '9'; return true;
+    case ')': *out_base_binding = '0'; return true;
+    case '_': *out_base_binding = '-'; return true;
+    case '+': *out_base_binding = '='; return true;
+    case '<': *out_base_binding = ','; return true;
+    case '>': *out_base_binding = '.'; return true;
+    case '?': *out_base_binding = '/'; return true;
+    case '{': *out_base_binding = '['; return true;
+    case '}': *out_base_binding = ']'; return true;
+    case ':': *out_base_binding = ';'; return true;
+    case '"': *out_base_binding = '\''; return true;
+    case '|': *out_base_binding = '\\'; return true;
+    case '~': *out_base_binding = '`'; return true;
+    default:
+        return false;
+    }
+}
+
+static int controller_combo_action_binding_count(int binding, int* out_modifier,
+    int* out_mod_type, int* out_mod_id, int* out_base_binding, int* out_base_type,
+    int* out_base_id)
+{
+    static const int modifiers[] = {
+        GAMEPAD_BIND_CTRL,
+        GAMEPAD_BIND_SHIFT,
+        GAMEPAD_BIND_ALT,
+    };
+    int total = 0;
+
+    for (int i = 0; i < (int)N_ELEMENTS(modifiers); i++) {
+        int modifier = modifiers[i];
+        int base_binding = GAMEPAD_BIND_NONE;
+        int mod_type = 0;
+        int mod_id = 0;
+        int base_type = 0;
+        int base_id = 0;
+        int mod_count;
+        int base_count;
+
+        if (!controller_combo_base_binding(binding, modifier, &base_binding))
+            continue;
+
+        mod_count = controller_physical_binding_count(modifier, &mod_type, &mod_id);
+        base_count = controller_physical_binding_count(base_binding, &base_type, &base_id);
+        if (mod_count <= 0 || base_count <= 0)
+            continue;
+
+        if (total == 0) {
+            if (out_modifier)
+                *out_modifier = modifier;
+            if (out_mod_type)
+                *out_mod_type = mod_type;
+            if (out_mod_id)
+                *out_mod_id = mod_id;
+            if (out_base_binding)
+                *out_base_binding = base_binding;
+            if (out_base_type)
+                *out_base_type = base_type;
+            if (out_base_id)
+                *out_base_id = base_id;
+        }
+
+        total += mod_count * base_count;
+    }
+
+    return total;
+}
+
+static void controller_combo_binding_label(int mod_type, int mod_id, int base_type,
+    int base_id, char* buf, size_t buflen)
+{
+    char mod_buf[48];
+    char base_buf[48];
+
+    if (!buf || !buflen)
+        return;
+
+    controller_binding_label(mod_type, mod_id, mod_buf, sizeof(mod_buf));
+    controller_binding_label(base_type, base_id, base_buf, sizeof(base_buf));
+    strnfmt(buf, buflen, "%s + %s", mod_buf, base_buf);
+}
+
 static void controller_action_binding_label(int binding, char* buf, size_t buflen)
 {
     if (!buf || !buflen)
         return;
 
+    char binding_buf[48];
     int type = 0;
     int id = 0;
-    int count = controller_action_binding_count(binding, &type, &id);
-    if (count <= 0) {
+    int mod_type = 0;
+    int mod_id = 0;
+    int base_type = 0;
+    int base_id = 0;
+    int direct_count = controller_action_binding_count(binding, &type, &id);
+    int combo_count = controller_combo_action_binding_count(binding, NULL,
+        &mod_type, &mod_id, NULL, &base_type, &base_id);
+    int total_count = direct_count + combo_count;
+
+    if (total_count <= 0) {
         SDL_strlcpy(buf, "(unbound)", buflen);
-    } else if (count == 1) {
+    } else if (total_count == 1 && direct_count == 1) {
         controller_binding_label(type, id, buf, buflen);
+    } else if (total_count == 1) {
+        controller_combo_binding_label(mod_type, mod_id, base_type, base_id, buf,
+            buflen);
     } else {
-        SDL_strlcpy(buf, "Multiple", buflen);
+        if (direct_count > 0) {
+            controller_binding_label(type, id, binding_buf, sizeof(binding_buf));
+        } else {
+            controller_combo_binding_label(mod_type, mod_id, base_type, base_id,
+                binding_buf, sizeof(binding_buf));
+        }
+        strnfmt(buf, buflen, "%s +%d", binding_buf, total_count - 1);
     }
 }
 
@@ -17689,6 +17912,11 @@ static void controller_entry_value(const controller_entry* entry, char* buf, siz
         case CONTROLLER_TOGGLE_STEAMDECK_MODE:
             SDL_strlcpy(buf, get_sdl_steamdeck_mode() ? "On" : "Off", buflen);
             break;
+        case CONTROLLER_TOGGLE_STEAMDECK_INV_EQUIP_SAME_BUTTON_CYCLE:
+            SDL_strlcpy(buf,
+                get_sdl_steamdeck_inv_equip_same_button_cycle() ? "On" : "Off",
+                buflen);
+            break;
         case CONTROLLER_TOGGLE_DPAD:
             SDL_strlcpy(buf, get_sdl_gamepad_use_dpad() ? "On" : "Off", buflen);
             break;
@@ -17720,6 +17948,9 @@ static void controller_set_toggle(int toggle_id, bool value)
         break;
     case CONTROLLER_TOGGLE_STEAMDECK_MODE:
         set_sdl_steamdeck_mode(value);
+        break;
+    case CONTROLLER_TOGGLE_STEAMDECK_INV_EQUIP_SAME_BUTTON_CYCLE:
+        set_sdl_steamdeck_inv_equip_same_button_cycle(value);
         break;
     case CONTROLLER_TOGGLE_DPAD:
         set_sdl_gamepad_use_dpad(value);
@@ -17772,6 +18003,26 @@ static void controller_clear_action_bindings(int binding, int skip_type, int ski
     if (get_sdl_gamepad_shoulder_combo_binding() == binding) {
         if (!(skip_type == GAMEPAD_CAPTURE_SHOULDER_COMBO))
             set_sdl_gamepad_shoulder_combo_binding(GAMEPAD_BIND_NONE);
+    }
+}
+
+static void controller_clear_effective_action_bindings(int binding)
+{
+    static const int modifiers[] = {
+        GAMEPAD_BIND_CTRL,
+        GAMEPAD_BIND_SHIFT,
+        GAMEPAD_BIND_ALT,
+    };
+
+    controller_clear_action_bindings(binding, -1, -1);
+
+    for (int i = 0; i < (int)N_ELEMENTS(modifiers); i++) {
+        int base_binding = GAMEPAD_BIND_NONE;
+
+        if (!controller_combo_base_binding(binding, modifiers[i], &base_binding))
+            continue;
+
+        controller_clear_action_bindings(base_binding, -1, -1);
     }
 }
 
@@ -17857,11 +18108,15 @@ void do_cmd_controller_settings(void)
         { CONTROLLER_ENTRY_TOGGLE, CONTROLLER_TOGGLE_ENABLED, "Controller Input" },
         { CONTROLLER_ENTRY_TOGGLE, CONTROLLER_TOGGLE_AUTO_MODE, "Auto Controller Mode" },
         { CONTROLLER_ENTRY_TOGGLE, CONTROLLER_TOGGLE_STEAMDECK_MODE, "Steam Deck UI Mode" },
+        { CONTROLLER_ENTRY_TOGGLE, CONTROLLER_TOGGLE_STEAMDECK_INV_EQUIP_SAME_BUTTON_CYCLE, "Inv/Equip Same-Button Cycle" },
         { CONTROLLER_ENTRY_TOGGLE, CONTROLLER_TOGGLE_DPAD, "D-pad Movement" },
         { CONTROLLER_ENTRY_TOGGLE, CONTROLLER_TOGGLE_LEFT_STICK, "Left Stick Movement" },
         { CONTROLLER_ENTRY_ACTION, ' ', "Confirm (Space)" },
         { CONTROLLER_ENTRY_ACTION, '\r', "Enter" },
         { CONTROLLER_ENTRY_ACTION, ESCAPE, "Escape" },
+        { CONTROLLER_ENTRY_ACTION, GAMEPAD_BIND_SHIFT, "Shift modifier" },
+        { CONTROLLER_ENTRY_ACTION, GAMEPAD_BIND_CTRL, "Ctrl modifier" },
+        { CONTROLLER_ENTRY_ACTION, GAMEPAD_BIND_ALT, "Alt modifier" },
         { CONTROLLER_ENTRY_ACTION, '\t', "Abilities (Tab)" },
         { CONTROLLER_ENTRY_ACTION, 'i', "Inventory" },
         { CONTROLLER_ENTRY_ACTION, 'e', "Equipment" },
@@ -17908,9 +18163,6 @@ void do_cmd_controller_settings(void)
         { CONTROLLER_ENTRY_ACTION, '~', "Knowledge browser" },
         { CONTROLLER_ENTRY_ACTION, '[', "Monster list" },
         { CONTROLLER_ENTRY_ACTION, ']', "Object list" },
-        { CONTROLLER_ENTRY_ACTION, GAMEPAD_BIND_SHIFT, "Shift modifier" },
-        { CONTROLLER_ENTRY_ACTION, GAMEPAD_BIND_CTRL, "Ctrl modifier" },
-        { CONTROLLER_ENTRY_ACTION, GAMEPAD_BIND_ALT, "Alt modifier" },
     };
 
     int entry_count = (int)N_ELEMENTS(entries);
@@ -18021,11 +18273,11 @@ void do_cmd_controller_settings(void)
             if (entries[highlight].type == CONTROLLER_ENTRY_ACTION) {
                 int binding_type = 0;
                 int binding_id = 0;
+                controller_clear_effective_action_bindings(entries[highlight].id);
                 if (controller_action_default_binding(entries[highlight].id, &binding_type, &binding_id)) {
                     controller_assign_action_binding(entries[highlight].id, binding_type, binding_id);
                     msg_print("Binding reset to default.");
                 } else {
-                    controller_clear_action_bindings(entries[highlight].id, -1, -1);
                     msg_print("No default binding for action.");
                 }
                 message_flush();
@@ -18049,26 +18301,34 @@ void do_cmd_controller_settings(void)
                 char prompt_short[64];
                 int cap_type = 0;
                 int cap_id = 0;
+                int cap_modifier = GAMEPAD_BIND_NONE;
+                bool allow_modifier_combo = !controller_action_is_modifier(entry->id);
                 Term_erase(2, entry_row, 255);
                 if (steamdeck) {
                     char cancel_label[16];
                     controller_prompt_label(steamdeck_back_key(), "B", cancel_label, sizeof(cancel_label));
                     strnfmt(prompt_long, sizeof(prompt_long),
-                        "Press controller button for %s  (%s=cancel)",
+                        "Press button%s for %s  (%s=cancel)",
+                        allow_modifier_combo ? " or modifier+button" : "",
                         entry->label, cancel_label);
                     strnfmt(prompt_medium, sizeof(prompt_medium),
-                        "Press button for %s  (%s=cancel)",
+                        "Press%s for %s  (%s=cancel)",
+                        allow_modifier_combo ? " button/combo" : " button",
                         entry->label, cancel_label);
                     strnfmt(prompt_short, sizeof(prompt_short),
-                        "Bind %s  (%s cancel)", entry->label, cancel_label);
+                        "Bind %s%s  (%s cancel)", entry->label,
+                        allow_modifier_combo ? " combo" : "", cancel_label);
                 } else {
                     strnfmt(prompt_long, sizeof(prompt_long),
-                        "Press controller button for %s (Esc=cancel, Backspace=clear)",
+                        "Press controller button%s for %s (Esc=cancel, Backspace=clear)",
+                        allow_modifier_combo ? " or modifier+button" : "",
                         entry->label);
                     strnfmt(prompt_medium, sizeof(prompt_medium),
-                        "Bind %s (Esc=cancel, Bksp=clear)", entry->label);
+                        "Bind %s%s (Esc=cancel, Bksp=clear)", entry->label,
+                        allow_modifier_combo ? " with button/combo" : "");
                     strnfmt(prompt_short, sizeof(prompt_short),
-                        "%s (Esc cancel, Bksp clear)", entry->label);
+                        "%s%s (Esc cancel, Bksp clear)", entry->label,
+                        allow_modifier_combo ? " combo" : "");
                 }
                 strnfmt(prompt, sizeof(prompt), "%s",
                     settings_ui_pick_label(row_width, prompt_long, prompt_medium,
@@ -18077,7 +18337,7 @@ void do_cmd_controller_settings(void)
                 Term_fresh();
 
                 flush();
-                if (!sdl_gamepad_capture_begin()) {
+                if (!sdl_gamepad_capture_begin(allow_modifier_combo)) {
                     msg_print("No controller detected.");
                     message_flush();
                     continue;
@@ -18085,12 +18345,34 @@ void do_cmd_controller_settings(void)
 
                 bool waiting = true;
                 while (waiting) {
-                    if (sdl_gamepad_capture_poll(&cap_type, &cap_id)) {
-                        if (controller_binding_matches_action(ESCAPE, cap_type, cap_id)) {
+                    if (sdl_gamepad_capture_poll(&cap_type, &cap_id, &cap_modifier)) {
+                        if (cap_modifier == GAMEPAD_BIND_NONE
+                            && controller_binding_matches_action(ESCAPE, cap_type, cap_id)) {
                             sdl_gamepad_capture_cancel();
                             waiting = false;
                             break;
                         }
+
+                        if (cap_modifier != GAMEPAD_BIND_NONE) {
+                            int base_binding = GAMEPAD_BIND_NONE;
+
+                            if (controller_combo_base_binding(entry->id, cap_modifier,
+                                    &base_binding)) {
+                                controller_clear_effective_action_bindings(entry->id);
+                                controller_assign_action_binding(base_binding, cap_type,
+                                    cap_id);
+                                waiting = false;
+                                break;
+                            }
+
+                            msg_print("That modifier combo cannot be assigned to this action.");
+                            message_flush();
+                            if (!sdl_gamepad_capture_begin(allow_modifier_combo))
+                                waiting = false;
+                            continue;
+                        }
+
+                        controller_clear_effective_action_bindings(entry->id);
                         controller_assign_action_binding(entry->id, cap_type, cap_id);
                         waiting = false;
                         break;
@@ -18103,7 +18385,7 @@ void do_cmd_controller_settings(void)
                         waiting = false;
                     } else if (choice == '\b' || choice == 127) {
                         sdl_gamepad_capture_cancel();
-                        controller_clear_action_bindings(entry->id, -1, -1);
+                        controller_clear_effective_action_bindings(entry->id);
                         waiting = false;
                     } else if (choice == 0) {
                         Term_xtra(TERM_XTRA_DELAY, 10);

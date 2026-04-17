@@ -42,11 +42,18 @@ static bool ui_compact_status_line_handles_wounds(void)
 
 typedef struct hidden_overlay_line {
     char text[32];
+    char short_text[16];
     byte attr;
+    bool has_icon;
+    byte icon_attr;
+    char icon_char;
 } hidden_overlay_line;
 
 byte g_hidden_left_panel_overlay_rows = 0;
 byte g_hidden_left_panel_overlay_widths[16] = { 0 };
+static int g_hidden_left_panel_topline_col = -1;
+static byte g_hidden_left_panel_topline_width = 0;
+static byte g_hidden_left_panel_topline_chars[256] = { 0 };
 
 static void prt_status_line_compact(void);
 static void prt_cut_poisoned_compact(void);
@@ -54,8 +61,19 @@ static void prt_hidden_top_vitals(void);
 static bool status_state_text(char* out_long, size_t out_long_sz,
                               char* out_short, size_t out_short_sz,
                               byte* out_attr);
+static bool current_light_status(bool* infinite, long* fuel, byte* fuel_attr,
+                                 byte* icon_attr, char* icon);
+static bool hidden_left_panel_uses_top_left_layout(void);
+static bool hidden_left_panel_uses_topline_layout(void);
+static int hidden_left_panel_line_width(const hidden_overlay_line* line,
+    bool use_short_text);
+static int hidden_left_panel_draw_line(const hidden_overlay_line* line, int row,
+    int col, bool use_short_text, byte* out_chars, int out_chars_max);
 static void hidden_left_panel_add_line(hidden_overlay_line* lines, int* count,
                                        int max_lines, byte attr, cptr text);
+static void hidden_left_panel_add_icon_line(hidden_overlay_line* lines,
+    int* count, int max_lines, byte attr, cptr text, cptr short_text,
+    byte icon_attr, char icon_char);
 static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lines);
 static bool hidden_left_panel_sync_mask(const hidden_overlay_line* lines, int line_count);
 
@@ -865,20 +883,101 @@ static void prt_char_health_graphic(void)
     c_put_str(color, format("%12s", bar), ROW_NAME + 1, COL_NAME);
 }
 
-static void prt_light(void)
+static bool hidden_left_panel_uses_top_left_layout(void)
+{
+    return ui_hide_left_panel()
+        && (get_sdl_hidden_left_panel_mode() == HIDDEN_LEFT_PANEL_TOP_LEFT);
+}
+
+static bool hidden_left_panel_uses_topline_layout(void)
+{
+    return ui_hide_left_panel()
+        && (get_sdl_hidden_left_panel_mode() == HIDDEN_LEFT_PANEL_TOPLINE);
+}
+
+static int hidden_left_panel_horizontal_row(void)
+{
+    return ROW_NAME;
+}
+
+static bool current_light_status(bool* infinite, long* fuel, byte* fuel_attr,
+                                 byte* icon_attr, char* icon)
 {
     object_type* o_ptr = &inventory[INVEN_LITE];
+    bool light_is_infinite = false;
+    long light_fuel = 0;
+    byte attr = TERM_L_WHITE;
+
+    if (!o_ptr->k_idx)
+        return false;
+
+    if (icon_attr)
+        *icon_attr = object_attr(o_ptr);
+    if (icon)
+        *icon = object_char(o_ptr);
+
+    if (o_ptr->tval == TV_LIGHT)
+    {
+        switch (o_ptr->sval)
+        {
+        case SV_LIGHT_TORCH:
+        case SV_LIGHT_LANTERN:
+        case SV_LIGHT_MALLORN:
+            light_fuel = player_light_fuel(o_ptr);
+            break;
+        default:
+            light_is_infinite = true;
+            break;
+        }
+    }
+    else
+    {
+        u32b f1, f2, f3;
+        object_flags(o_ptr, &f1, &f2, &f3);
+        if (f2 & TR2_LIGHT)
+            light_is_infinite = true;
+    }
+
+    if (light_is_infinite)
+    {
+        attr = TERM_L_GREEN;
+    }
+    else
+    {
+        if (light_fuel < 0)
+            light_fuel = 0;
+
+        if (light_fuel == 0)
+            attr = TERM_RED;
+        else if (light_fuel <= 100)
+            attr = TERM_ORANGE;
+    }
+
+    if (infinite)
+        *infinite = light_is_infinite;
+    if (fuel)
+        *fuel = light_fuel;
+    if (fuel_attr)
+        *fuel_attr = attr;
+
+    return true;
+}
+
+static void prt_light(void)
+{
     int icon_col = COL_LIGHT;
+    bool infinite = false;
+    long fuel = 0;
+    byte fuel_attr = TERM_L_WHITE;
+    byte attr;
+    char icon;
 
     /* Clear the line */
     Term_erase(icon_col, ROW_LIGHT, 13);
 
     /* Nothing equipped */
-    if (!o_ptr->k_idx)
+    if (!current_light_status(&infinite, &fuel, &fuel_attr, &attr, &icon))
         return;
-
-    byte attr = object_attr(o_ptr);
-    char icon = object_char(o_ptr);
 
     /* Draw the icon (supporting bigtile visuals) */
     Term_putch(icon_col, ROW_LIGHT, attr, icon);
@@ -893,48 +992,14 @@ static void prt_light(void)
 
     Term_putch(icon_col + 2, ROW_LIGHT, TERM_WHITE, ' ');
 
-    bool infinite = false;
-    long fuel = 0;
-    byte fuel_attr = TERM_L_WHITE;
     char buf[16];
-
-    if (o_ptr->tval == TV_LIGHT)
-    {
-        switch (o_ptr->sval)
-        {
-        case SV_LIGHT_TORCH:
-        case SV_LIGHT_LANTERN:
-        case SV_LIGHT_MALLORN:
-            fuel = player_light_fuel(o_ptr);
-            break;
-        default:
-            infinite = true;
-            break;
-        }
-    }
-    else
-    {
-        u32b f1, f2, f3;
-        object_flags(o_ptr, &f1, &f2, &f3);
-        if (f2 & TR2_LIGHT)
-            infinite = true;
-    }
 
     if (infinite)
     {
         SDL_strlcpy(buf, "inf", sizeof(buf));
-        fuel_attr = TERM_L_GREEN;
     }
     else
     {
-        if (fuel < 0)
-            fuel = 0;
-
-        if (fuel == 0)
-            fuel_attr = TERM_RED;
-        else if (fuel <= 100)
-            fuel_attr = TERM_ORANGE;
-
         strnfmt(buf, sizeof(buf), "%ld", fuel);
     }
 
@@ -994,14 +1059,137 @@ static void hidden_left_panel_add_line(hidden_overlay_line* lines, int* count,
         return;
 
     SDL_strlcpy(lines[*count].text, text, sizeof(lines[*count].text));
+    SDL_strlcpy(lines[*count].short_text, text,
+        sizeof(lines[*count].short_text));
     lines[*count].attr = attr;
+    lines[*count].has_icon = false;
+    lines[*count].icon_attr = TERM_WHITE;
+    lines[*count].icon_char = ' ';
     (*count)++;
+}
+
+static void hidden_left_panel_add_icon_line(hidden_overlay_line* lines,
+    int* count, int max_lines, byte attr, cptr text, cptr short_text,
+    byte icon_attr, char icon_char)
+{
+    if (!lines || !count || !text || !text[0])
+        return;
+    if (*count >= max_lines)
+        return;
+
+    SDL_strlcpy(lines[*count].text, text, sizeof(lines[*count].text));
+    if (short_text && short_text[0])
+        SDL_strlcpy(lines[*count].short_text, short_text,
+            sizeof(lines[*count].short_text));
+    else
+        SDL_strlcpy(lines[*count].short_text, text,
+            sizeof(lines[*count].short_text));
+    lines[*count].attr = attr;
+    lines[*count].has_icon = true;
+    lines[*count].icon_attr = icon_attr;
+    lines[*count].icon_char = icon_char;
+    (*count)++;
+}
+
+static int hidden_left_panel_line_width(const hidden_overlay_line* line,
+    bool use_short_text)
+{
+    const char* text;
+    int width = 0;
+
+    if (!line)
+        return 0;
+
+    text = (use_short_text && line->short_text[0])
+        ? line->short_text
+        : line->text;
+    if (line->has_icon)
+        width += 3;
+    width += (int)strlen(text);
+
+    return width;
+}
+
+static int hidden_left_panel_draw_line(const hidden_overlay_line* line, int row,
+    int col, bool use_short_text, byte* out_chars, int out_chars_max)
+{
+    const char* text;
+    int written = 0;
+
+    if (!line || !Term)
+        return 0;
+    if (row < 0 || row >= Term->hgt || col >= Term->wid)
+        return 0;
+
+    text = (use_short_text && line->short_text[0])
+        ? line->short_text
+        : line->text;
+
+    if (line->has_icon)
+    {
+        if (col < Term->wid)
+        {
+            Term_putch(col, row, line->icon_attr, line->icon_char);
+            if (out_chars && written < out_chars_max)
+                out_chars[written] = (byte)line->icon_char;
+        }
+        written++;
+
+        if (use_bigtile)
+        {
+            if (col + 1 < Term->wid)
+            {
+                Term_putch(col + 1, row, 255, -1);
+                if (out_chars && written < out_chars_max)
+                    out_chars[written] = (byte)Term->scr->c[row][col + 1];
+            }
+        }
+        else
+        {
+            if (col + 1 < Term->wid)
+            {
+                Term_putch(col + 1, row, line->icon_attr, line->icon_char);
+                if (out_chars && written < out_chars_max)
+                    out_chars[written] = (byte)line->icon_char;
+            }
+        }
+        written++;
+
+        if (col + 2 < Term->wid)
+        {
+            Term_putch(col + 2, row, TERM_WHITE, ' ');
+            if (out_chars && written < out_chars_max)
+                out_chars[written] = (byte)' ';
+        }
+        written++;
+
+        col += 3;
+    }
+
+    if (text[0])
+    {
+        int text_len = (int)strlen(text);
+        if (col + text_len > Term->wid)
+            text_len = Term->wid - col;
+
+        if (text_len > 0)
+            Term_putstr(col, row, text_len, line->attr, text);
+        for (int i = 0; i < text_len; i++)
+        {
+            if (out_chars && written + i < out_chars_max)
+                out_chars[written + i] = (byte)text[i];
+        }
+        written += text_len;
+    }
+
+    return written;
 }
 
 static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lines)
 {
     int count = 0;
     char buf[32];
+    char short_buf[16];
     byte hp_color;
     byte voice_color;
 
@@ -1022,10 +1210,26 @@ static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lin
     strnfmt(buf, sizeof(buf), "VC %3d", MIN(p_ptr->csp, 999));
     hidden_left_panel_add_line(lines, &count, max_lines, voice_color, buf);
 
+    {
+        bool infinite = false;
+        long fuel = 0;
+        byte light_attr = TERM_L_WHITE;
+        byte light_icon_attr = TERM_WHITE;
+        char light_icon = ' ';
+
+        if (current_light_status(&infinite, &fuel, &light_attr, &light_icon_attr,
+            &light_icon)
+            && !infinite)
+        {
+            strnfmt(buf, sizeof(buf), "%ld", fuel);
+            hidden_left_panel_add_icon_line(lines, &count, max_lines, light_attr,
+                buf, buf, light_icon_attr, light_icon);
+        }
+    }
+
     if (p_ptr->cut > 100)
     {
-        hidden_left_panel_add_line(lines, &count, max_lines, TERM_RED,
-            "MW !!!");
+        hidden_left_panel_add_line(lines, &count, max_lines, TERM_RED, "MW !!!");
     }
     else if (p_ptr->cut > 20)
     {
@@ -1064,7 +1268,14 @@ static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lin
         else if (p_ptr->song2 != SNG_NOTHING)
             SDL_strlcpy(buf, song2_name + 8, sizeof(buf));
 
+        if ((int)strlen(buf) > 8)
+            strnfmt(short_buf, sizeof(short_buf), "S:%.*s", 6, buf);
+        else
+            SDL_strlcpy(short_buf, buf, sizeof(short_buf));
+
         hidden_left_panel_add_line(lines, &count, max_lines, TERM_L_BLUE, buf);
+        SDL_strlcpy(lines[count - 1].short_text, short_buf,
+            sizeof(lines[count - 1].short_text));
     }
 
     if (p_ptr->health_who
@@ -1108,7 +1319,7 @@ static bool hidden_left_panel_sync_mask(const hidden_overlay_line* lines, int li
 
         if (i < line_count && lines[i].text[0])
         {
-            int width = (int)strlen(lines[i].text);
+            int width = hidden_left_panel_line_width(&lines[i], false);
             if (Term && width > Term->wid)
                 width = Term->wid;
             new_width = (byte)width;
@@ -1136,7 +1347,7 @@ static void prt_hidden_top_vitals(void)
     hidden_overlay_line lines[16];
     int line_count;
 
-    if (!Term || !p_ptr)
+    if (!Term || !p_ptr || !hidden_left_panel_uses_top_left_layout())
         return;
 
     line_count = hidden_left_panel_build_lines(lines, 16);
@@ -1144,7 +1355,7 @@ static void prt_hidden_top_vitals(void)
     for (int i = 0; i < line_count && (ROW_NAME + i) < Term->hgt - 1; i++)
     {
         int row = ROW_NAME + i;
-        int width = (int)strlen(lines[i].text);
+        int width = hidden_left_panel_line_width(&lines[i], false);
 
         if (width <= 0)
             continue;
@@ -1152,8 +1363,100 @@ static void prt_hidden_top_vitals(void)
             width = Term->wid;
 
         Term_erase(0, row, width);
-        Term_putstr(0, row, width, lines[i].attr, lines[i].text);
+        hidden_left_panel_draw_line(&lines[i], row, 0, false, NULL, 0);
     }
+}
+
+void redraw_hidden_left_panel_topline_suffix(void)
+{
+    hidden_overlay_line lines[16];
+    int line_count = 0;
+    int row = hidden_left_panel_horizontal_row();
+    int col = 0;
+    int render_count = 0;
+    bool first_entry = true;
+
+    if (Term && g_hidden_left_panel_topline_col >= 0
+        && g_hidden_left_panel_topline_width > 0
+        && row >= 0 && row < Term->hgt)
+    {
+        int erase_width = g_hidden_left_panel_topline_width;
+        if (g_hidden_left_panel_topline_col + erase_width > Term->wid)
+            erase_width = Term->wid - g_hidden_left_panel_topline_col;
+        if (erase_width > 0)
+        {
+        Term_erase(g_hidden_left_panel_topline_col, row,
+                erase_width);
+        }
+    }
+
+    g_hidden_left_panel_topline_col = -1;
+    g_hidden_left_panel_topline_width = 0;
+    memset(g_hidden_left_panel_topline_chars, 0,
+        sizeof(g_hidden_left_panel_topline_chars));
+
+    if (!Term || !Term->scr || !ui_hide_left_panel())
+        return;
+    if (row < 0 || row >= Term->hgt)
+        return;
+    if (!hidden_left_panel_uses_topline_layout())
+        return;
+
+    line_count = hidden_left_panel_build_lines(lines, 16);
+    if (line_count <= 0)
+        return;
+
+    col = 0;
+
+    for (int i = 0; i < line_count; i++)
+    {
+        int sep = first_entry ? 0 : 1;
+        bool use_short_text = false;
+        int width = hidden_left_panel_line_width(&lines[i], false);
+
+        if (col + sep + width > Term->wid)
+        {
+            width = hidden_left_panel_line_width(&lines[i], true);
+            if (col + sep + width > Term->wid)
+                break;
+            use_short_text = true;
+        }
+
+        if (sep > 0)
+        {
+            Term_putch(col, row, TERM_WHITE, ' ');
+            if (render_count < (int)sizeof(g_hidden_left_panel_topline_chars))
+                g_hidden_left_panel_topline_chars[render_count] = (byte)' ';
+            render_count++;
+            col++;
+        }
+
+        render_count += hidden_left_panel_draw_line(&lines[i], row, col,
+            use_short_text,
+            (render_count < (int)sizeof(g_hidden_left_panel_topline_chars))
+                ? g_hidden_left_panel_topline_chars + render_count
+                : NULL,
+            (int)sizeof(g_hidden_left_panel_topline_chars) - render_count);
+        col += width;
+        first_entry = false;
+    }
+
+    if (render_count <= 0)
+        return;
+
+    g_hidden_left_panel_topline_col = 0;
+    if (g_hidden_left_panel_topline_col >= Term->wid)
+    {
+        g_hidden_left_panel_topline_col = -1;
+        g_hidden_left_panel_topline_width = 0;
+        return;
+    }
+    if (render_count > Term->wid - g_hidden_left_panel_topline_col)
+        render_count = Term->wid - g_hidden_left_panel_topline_col;
+    if (render_count > 255)
+        render_count = 255;
+
+    g_hidden_left_panel_topline_width = (byte)render_count;
 }
 
 /*
@@ -5645,7 +5948,9 @@ void redraw_stuff(void)
     if (ui_hide_left_panel())
     {
         hidden_overlay_line hidden_lines[16];
-        int hidden_line_count = hidden_left_panel_build_lines(hidden_lines, 16);
+        int hidden_line_count = hidden_left_panel_uses_top_left_layout()
+            ? hidden_left_panel_build_lines(hidden_lines, 16)
+            : 0;
 
         if (hidden_left_panel_sync_mask(hidden_lines, hidden_line_count))
         {
@@ -5885,6 +6190,8 @@ void redraw_stuff(void)
 
     if (ui_hide_left_panel() && hidden_overlay_needs_refresh)
         prt_hidden_top_vitals();
+
+    redraw_hidden_left_panel_topline_suffix();
 
     // log_trace("redraw_stuff: completed all redraws");
 }

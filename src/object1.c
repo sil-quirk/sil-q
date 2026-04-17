@@ -65,6 +65,17 @@ static void inventory_prompt_label(int binding, const char* fallback, char* buf,
         SDL_strlcpy(buf, fallback, buflen);
 }
 
+static bool inventory_menu_same_button_cycle_enabled(void)
+{
+    if (!portable_controls_active())
+        return false;
+
+    if (!steamdeck_controls_active())
+        return false;
+
+    return get_sdl_steamdeck_inv_equip_same_button_cycle();
+}
+
 static void story_print_equipment_prefix(int row, int col, byte attr, cptr prefix)
 {
     const int prefix_core_width = 12;
@@ -6620,6 +6631,7 @@ void show_inven_enhanced(void)
             char confirm_label[16];
             char desc_label[16];
             char cycle_label[16];
+            bool same_button_cycle = inventory_menu_same_button_cycle_enabled();
 
             inventory_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
             inventory_prompt_label('x', "RS Right", desc_label, sizeof(desc_label));
@@ -6633,6 +6645,11 @@ void show_inven_enhanced(void)
                 inventory_prompt_label('x', "RS Right", cycle_label, sizeof(cycle_label));
                 strnfmt(out_val, sizeof(out_val),
                     "%s-examine  %s-desc  <- drop  %s-cycle (Inventory)",
+                    confirm_label, desc_label, cycle_label);
+            } else if (same_button_cycle) {
+                inventory_prompt_label('i', "R1", cycle_label, sizeof(cycle_label));
+                strnfmt(out_val, sizeof(out_val),
+                    "%s-use  %s-desc  <- drop  %s-cycle (Inventory)",
                     confirm_label, desc_label, cycle_label);
             } else {
                 strnfmt(out_val, sizeof(out_val),
@@ -7128,6 +7145,13 @@ void show_inven_enhanced(void)
             break;
             
         case 'i':
+            if ((current_menu_command == 0) && inventory_menu_same_button_cycle_enabled()) {
+                enhanced_menu_action = ENHANCED_ACTION_SWITCH;
+                log_trace("show_inven_enhanced: Direct access I key - same-button cycle to equipment (action=1)");
+                done = true;
+                break;
+            }
+
             /* Already in inventory */
             break;
             
@@ -7570,6 +7594,7 @@ void show_equip_enhanced(void)
             char confirm_label[16];
             char desc_label[16];
             char cycle_label[16];
+            bool same_button_cycle = inventory_menu_same_button_cycle_enabled();
 
             inventory_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
             inventory_prompt_label('x', "RS Right", desc_label, sizeof(desc_label));
@@ -7581,6 +7606,11 @@ void show_equip_enhanced(void)
                     confirm_label, desc_label, cycle_label);
             } else if (current_menu_command == 'x') {
                 inventory_prompt_label('x', "RS Right", cycle_label, sizeof(cycle_label));
+                strnfmt(out_val, sizeof(out_val),
+                    "%s-remove  %s-desc  <- drop  %s-cycle (Equipment)",
+                    confirm_label, desc_label, cycle_label);
+            } else if (same_button_cycle) {
+                inventory_prompt_label('e', "L1", cycle_label, sizeof(cycle_label));
                 strnfmt(out_val, sizeof(out_val),
                     "%s-remove  %s-desc  <- drop  %s-cycle (Equipment)",
                     confirm_label, desc_label, cycle_label);
@@ -7696,6 +7726,13 @@ void show_equip_enhanced(void)
             break;
         
         case 'e':
+            if ((current_menu_command == 0) && inventory_menu_same_button_cycle_enabled()) {
+                enhanced_equip_action = ENHANCED_ACTION_SWITCH;
+                log_trace("show_equip_enhanced: Direct access E key - same-button cycle to inventory (action=1)");
+                done = true;
+                break;
+            }
+
             /* Already in equipment */
             break;
         

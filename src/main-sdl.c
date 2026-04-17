@@ -159,6 +159,7 @@ enum {
     MAX_GAMEPADS = 4,
     DPAD_DIAGONAL_WINDOW_MS = 100,
     SHOULDER_COMBO_WINDOW_MS = 150,
+    GAMEPAD_CAPTURE_ARM_DELAY_MS = 200,
 };
 
 typedef struct gamepad_entry {
@@ -230,6 +231,9 @@ static char g_default_touch_pane_panel_names[SDL_TOUCH_PANE_PANEL_COUNT][SDL_TOU
 static bool g_default_touch_pane_bindings_ready = false;
 static bool g_gamepad_capture_active = false;
 static bool g_gamepad_capture_ready = false;
+static Uint64 g_gamepad_capture_arm_time = 0;
+static bool g_gamepad_capture_allow_modifier_combo = false;
+static int g_gamepad_capture_modifier = GAMEPAD_BIND_NONE;
 static int g_gamepad_capture_type = GAMEPAD_CAPTURE_BUTTON;
 static int g_gamepad_capture_id = 0;
 static int g_touch_pane_flash_slot = -1;
@@ -283,6 +287,8 @@ static bool sdl_gamepad_flush_pending_left_stick(Uint64 now_ns, bool force);
 static void sdl_gamepad_clear_pending_shoulder(void);
 static void sdl_gamepad_set_pending_shoulder(int button);
 static bool sdl_gamepad_flush_pending_shoulder(Uint64 now_ns, bool force);
+static int sdl_gamepad_capture_binding_for_input(int type, int id);
+static bool sdl_gamepad_capture_queue_input(int type, int id);
 static int sdl_gamepad_pending_timeout_ms(Uint64 now_ns);
 static void sdl_apply_story_font_state(bool active);
 static void sdl_apply_story_grid_state(bool grid);
@@ -1864,6 +1870,11 @@ static void sdl_gamepad_send_key(int key, bool use_macro_mods)
             return;
         }
 
+        if (ctrl || alt) {
+            sdl_send_macro_key(key, shift, ctrl, alt);
+            return;
+        }
+
         if (shift) {
             if (SDL_isalpha(key)) {
                 key = SDL_toupper(key);
@@ -2376,6 +2387,50 @@ void sdl_gamepad_action_binding_short_label(int binding, char* buf, size_t bufle
     sdl_gamepad_action_binding_label_ex(binding, buf, buflen, true);
 }
 
+static int sdl_gamepad_capture_binding_for_input(int type, int id)
+{
+    switch (type) {
+    case GAMEPAD_CAPTURE_BUTTON:
+        if (id >= 0 && id < SDL_GAMEPAD_BUTTON_COUNT)
+            return config.gamepad_button_bindings[id];
+        break;
+    case GAMEPAD_CAPTURE_TRIGGER:
+        if (id >= 0 && id < GAMEPAD_TRIGGER_COUNT)
+            return config.gamepad_trigger_bindings[id];
+        break;
+    case GAMEPAD_CAPTURE_LEFT_STICK:
+        if (id >= 0 && id < GAMEPAD_STICK_DIR_COUNT)
+            return config.gamepad_left_stick_bindings[id];
+        break;
+    case GAMEPAD_CAPTURE_RIGHT_STICK:
+        if (id >= 0 && id < GAMEPAD_STICK_DIR_COUNT)
+            return config.gamepad_right_stick_bindings[id];
+        break;
+    default:
+        break;
+    }
+
+    return GAMEPAD_BIND_NONE;
+}
+
+static bool sdl_gamepad_capture_queue_input(int type, int id)
+{
+    int binding = sdl_gamepad_capture_binding_for_input(type, id);
+
+    if (g_gamepad_capture_allow_modifier_combo
+        && (binding == GAMEPAD_BIND_SHIFT || binding == GAMEPAD_BIND_CTRL
+            || binding == GAMEPAD_BIND_ALT)) {
+        g_gamepad_capture_modifier = binding;
+        return false;
+    }
+
+    g_gamepad_capture_type = type;
+    g_gamepad_capture_id = id;
+    g_gamepad_capture_ready = true;
+    g_gamepad_capture_active = false;
+    return true;
+}
+
 /* Steam Deck UI menu helpers - return key bindings for menu actions */
 int steamdeck_back_key(void)
 {
@@ -2422,9 +2477,31 @@ static void sdl_gamepad_handle_button(const SDL_GamepadButtonEvent* ev)
     }
 
     if (g_gamepad_capture_active) {
+        bool capture_armed = (SDL_GetTicksNS() >= g_gamepad_capture_arm_time);
         bool shoulder_button = (button == SDL_GAMEPAD_BUTTON_LEFT_SHOULDER
             || button == SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER);
         if (shoulder_button) {
+            if (!capture_armed)
+                return;
+
+            if (g_gamepad_capture_allow_modifier_combo && down) {
+                int binding = sdl_gamepad_capture_binding_for_input(
+                    GAMEPAD_CAPTURE_BUTTON, (int)button);
+                if (binding == GAMEPAD_BIND_SHIFT || binding == GAMEPAD_BIND_CTRL
+                    || binding == GAMEPAD_BIND_ALT) {
+                    (void)sdl_gamepad_capture_queue_input(GAMEPAD_CAPTURE_BUTTON,
+                        (int)button);
+                    return;
+                }
+            }
+
+            if (g_gamepad_capture_modifier != GAMEPAD_BIND_NONE) {
+                if (down)
+                    (void)sdl_gamepad_capture_queue_input(GAMEPAD_CAPTURE_BUTTON,
+                        (int)button);
+                return;
+            }
+
             if (down) {
                 if (g_gamepad_state.shoulder_pending &&
                     g_gamepad_state.shoulder_pending_button != (int)button) {
@@ -2441,23 +2518,22 @@ static void sdl_gamepad_handle_button(const SDL_GamepadButtonEvent* ev)
             } else if (g_gamepad_state.shoulder_pending &&
                        g_gamepad_state.shoulder_pending_button == (int)button) {
                 sdl_gamepad_clear_pending_shoulder();
-                g_gamepad_capture_type = GAMEPAD_CAPTURE_BUTTON;
-                g_gamepad_capture_id = (int)button;
-                g_gamepad_capture_ready = true;
-                g_gamepad_capture_active = false;
+                (void)sdl_gamepad_capture_queue_input(GAMEPAD_CAPTURE_BUTTON,
+                    (int)button);
             }
             return;
         }
+
+        if (!capture_armed)
+            return;
 
         if (down) {
             bool dpad_button = (button == SDL_GAMEPAD_BUTTON_DPAD_UP || button == SDL_GAMEPAD_BUTTON_DPAD_DOWN
                 || button == SDL_GAMEPAD_BUTTON_DPAD_LEFT || button == SDL_GAMEPAD_BUTTON_DPAD_RIGHT);
             if (!dpad_button || !config.gamepad_use_dpad) {
                 if (button >= 0 && button < SDL_GAMEPAD_BUTTON_COUNT) {
-                    g_gamepad_capture_type = GAMEPAD_CAPTURE_BUTTON;
-                    g_gamepad_capture_id = (int)button;
-                    g_gamepad_capture_ready = true;
-                    g_gamepad_capture_active = false;
+                    (void)sdl_gamepad_capture_queue_input(GAMEPAD_CAPTURE_BUTTON,
+                        (int)button);
                 }
             }
         }
@@ -2569,11 +2645,15 @@ static void sdl_gamepad_handle_axis(const SDL_GamepadAxisEvent* ev)
         return;
 
     if (g_gamepad_capture_active) {
+        bool capture_armed = (SDL_GetTicksNS() >= g_gamepad_capture_arm_time);
         if (ev->axis == SDL_GAMEPAD_AXIS_LEFTX || ev->axis == SDL_GAMEPAD_AXIS_LEFTY) {
             if (ev->axis == SDL_GAMEPAD_AXIS_LEFTX)
                 g_gamepad_state.left_x = ev->value;
             else
                 g_gamepad_state.left_y = ev->value;
+
+            if (!capture_armed)
+                return;
 
             if (!config.gamepad_use_left_stick) {
                 int deadzone = config.gamepad_deadzone;
@@ -2581,10 +2661,8 @@ static void sdl_gamepad_handle_axis(const SDL_GamepadAxisEvent* ev)
                     deadzone = 0;
                 int dir = sdl_gamepad_axis_to_cardinal_dir(g_gamepad_state.left_x, g_gamepad_state.left_y, deadzone);
                 if (dir >= 0) {
-                    g_gamepad_capture_type = GAMEPAD_CAPTURE_LEFT_STICK;
-                    g_gamepad_capture_id = dir;
-                    g_gamepad_capture_ready = true;
-                    g_gamepad_capture_active = false;
+                    (void)sdl_gamepad_capture_queue_input(
+                        GAMEPAD_CAPTURE_LEFT_STICK, dir);
                 }
             }
             return;
@@ -2596,15 +2674,16 @@ static void sdl_gamepad_handle_axis(const SDL_GamepadAxisEvent* ev)
             else
                 g_gamepad_state.right_y = ev->value;
 
+            if (!capture_armed)
+                return;
+
             int deadzone = config.gamepad_deadzone;
             if (deadzone < 0)
                 deadzone = 0;
             int dir = sdl_gamepad_axis_to_cardinal_dir(g_gamepad_state.right_x, g_gamepad_state.right_y, deadzone);
             if (dir >= 0) {
-                g_gamepad_capture_type = GAMEPAD_CAPTURE_RIGHT_STICK;
-                g_gamepad_capture_id = dir;
-                g_gamepad_capture_ready = true;
-                g_gamepad_capture_active = false;
+                (void)sdl_gamepad_capture_queue_input(
+                    GAMEPAD_CAPTURE_RIGHT_STICK, dir);
             }
             return;
         }
@@ -2618,20 +2697,16 @@ static void sdl_gamepad_handle_axis(const SDL_GamepadAxisEvent* ev)
             if (ev->axis == SDL_GAMEPAD_AXIS_LEFT_TRIGGER) {
                 bool was_down = g_gamepad_state.left_trigger_down;
                 g_gamepad_state.left_trigger_down = pressed;
-                if (pressed && !was_down) {
-                    g_gamepad_capture_type = GAMEPAD_CAPTURE_TRIGGER;
-                    g_gamepad_capture_id = 0;
-                    g_gamepad_capture_ready = true;
-                    g_gamepad_capture_active = false;
+                if (capture_armed && pressed && !was_down) {
+                    (void)sdl_gamepad_capture_queue_input(
+                        GAMEPAD_CAPTURE_TRIGGER, 0);
                 }
             } else {
                 bool was_down = g_gamepad_state.right_trigger_down;
                 g_gamepad_state.right_trigger_down = pressed;
-                if (pressed && !was_down) {
-                    g_gamepad_capture_type = GAMEPAD_CAPTURE_TRIGGER;
-                    g_gamepad_capture_id = 1;
-                    g_gamepad_capture_ready = true;
-                    g_gamepad_capture_active = false;
+                if (capture_armed && pressed && !was_down) {
+                    (void)sdl_gamepad_capture_queue_input(
+                        GAMEPAD_CAPTURE_TRIGGER, 1);
                 }
             }
         }
@@ -5259,6 +5334,19 @@ void set_sdl_hide_left_panel(bool value)
     config.hide_left_panel = value;
 }
 
+int get_sdl_hidden_left_panel_mode(void)
+{
+    return config.hidden_left_panel_mode;
+}
+
+void set_sdl_hidden_left_panel_mode(int value)
+{
+    if (value != HIDDEN_LEFT_PANEL_TOPLINE)
+        value = HIDDEN_LEFT_PANEL_TOP_LEFT;
+
+    config.hidden_left_panel_mode = value;
+}
+
 /* Intro style: -1 = random (INTRO_STYLE_RANDOM), 0-4 = fixed variant. */
 int get_sdl_intro_style(void)
 {
@@ -5383,6 +5471,16 @@ bool get_sdl_steamdeck_mode(void)
 void set_sdl_steamdeck_mode(bool value)
 {
     config.steamdeck_mode = value;
+}
+
+bool get_sdl_steamdeck_inv_equip_same_button_cycle(void)
+{
+    return config.steamdeck_inv_equip_same_button_cycle;
+}
+
+void set_sdl_steamdeck_inv_equip_same_button_cycle(bool value)
+{
+    config.steamdeck_inv_equip_same_button_cycle = value;
 }
 
 bool get_sdl_gamepad_use_dpad(void)
@@ -5706,10 +5804,15 @@ void set_sdl_touch_pane_panel_name(int panel, cptr name)
         sizeof(config.touch_pane_panel_names[panel]));
 }
 
-bool sdl_gamepad_capture_begin(void)
+bool sdl_gamepad_capture_begin(bool allow_modifier_combo)
 {
     g_gamepad_capture_ready = false;
     g_gamepad_capture_active = (g_gamepad_state.pad_count > 0);
+    g_gamepad_capture_allow_modifier_combo = allow_modifier_combo;
+    g_gamepad_capture_modifier = GAMEPAD_BIND_NONE;
+    g_gamepad_capture_arm_time = SDL_GetTicksNS()
+        + ((Uint64)GAMEPAD_CAPTURE_ARM_DELAY_MS * 1000000ULL);
+    sdl_gamepad_clear_pending_shoulder();
     return g_gamepad_capture_active;
 }
 
@@ -5717,10 +5820,13 @@ void sdl_gamepad_capture_cancel(void)
 {
     g_gamepad_capture_active = false;
     g_gamepad_capture_ready = false;
+    g_gamepad_capture_allow_modifier_combo = false;
+    g_gamepad_capture_modifier = GAMEPAD_BIND_NONE;
+    g_gamepad_capture_arm_time = 0;
     sdl_gamepad_clear_pending_shoulder();
 }
 
-bool sdl_gamepad_capture_poll(int* out_type, int* out_id)
+bool sdl_gamepad_capture_poll(int* out_type, int* out_id, int* out_modifier)
 {
     if (!g_gamepad_capture_ready)
         return false;
@@ -5729,9 +5835,14 @@ bool sdl_gamepad_capture_poll(int* out_type, int* out_id)
         *out_type = g_gamepad_capture_type;
     if (out_id)
         *out_id = g_gamepad_capture_id;
+    if (out_modifier)
+        *out_modifier = g_gamepad_capture_modifier;
 
     g_gamepad_capture_ready = false;
     g_gamepad_capture_active = false;
+    g_gamepad_capture_allow_modifier_combo = false;
+    g_gamepad_capture_modifier = GAMEPAD_BIND_NONE;
+    g_gamepad_capture_arm_time = 0;
     sdl_gamepad_clear_pending_shoulder();
     return true;
 }
