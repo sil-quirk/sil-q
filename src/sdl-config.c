@@ -414,6 +414,23 @@ static int sdl_config_gamepad_action_binding_count(const struct sdl_config* conf
             count++;
     }
 
+    for (int modifier = 0; modifier < GAMEPAD_MODIFIER_COUNT; modifier++) {
+        for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++) {
+            if (config->gamepad_button_combo_bindings[modifier][i] == binding)
+                count++;
+        }
+        for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++) {
+            if (config->gamepad_trigger_combo_bindings[modifier][i] == binding)
+                count++;
+        }
+        for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+            if (config->gamepad_left_stick_combo_bindings[modifier][i] == binding)
+                count++;
+            if (config->gamepad_right_stick_combo_bindings[modifier][i] == binding)
+                count++;
+        }
+    }
+
     if (config->gamepad_shoulder_combo_binding == binding)
         count++;
 
@@ -725,6 +742,47 @@ static cJSON* sdl_config_create_int_array(const int* src, int count)
 
     return array;
 }
+
+static void sdl_config_clear_gamepad_combo_bindings(struct sdl_config* config)
+{
+    if (!config)
+        return;
+
+    for (int modifier = 0; modifier < GAMEPAD_MODIFIER_COUNT; modifier++) {
+        for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++)
+            config->gamepad_button_combo_bindings[modifier][i] = GAMEPAD_BIND_NONE;
+        for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++)
+            config->gamepad_trigger_combo_bindings[modifier][i] = GAMEPAD_BIND_NONE;
+        for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+            config->gamepad_left_stick_combo_bindings[modifier][i] = GAMEPAD_BIND_NONE;
+            config->gamepad_right_stick_combo_bindings[modifier][i] = GAMEPAD_BIND_NONE;
+        }
+    }
+}
+
+static const char* sdl_config_gamepad_button_combo_names[GAMEPAD_MODIFIER_COUNT] = {
+    "shiftButtonBindings",
+    "ctrlButtonBindings",
+    "altButtonBindings",
+};
+
+static const char* sdl_config_gamepad_trigger_combo_names[GAMEPAD_MODIFIER_COUNT] = {
+    "shiftTriggerBindings",
+    "ctrlTriggerBindings",
+    "altTriggerBindings",
+};
+
+static const char* sdl_config_gamepad_left_stick_combo_names[GAMEPAD_MODIFIER_COUNT] = {
+    "shiftLeftStickBindings",
+    "ctrlLeftStickBindings",
+    "altLeftStickBindings",
+};
+
+static const char* sdl_config_gamepad_right_stick_combo_names[GAMEPAD_MODIFIER_COUNT] = {
+    "shiftRightStickBindings",
+    "ctrlRightStickBindings",
+    "altRightStickBindings",
+};
 
 static cJSON* sdl_config_create_string_array(const char src[][SDL_TOUCH_PANE_LABEL_LEN], int count)
 {
@@ -1192,6 +1250,40 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
             log_debug("Loaded gamepad.rightStickBindings (%d entries)", count);
         }
 
+        for (int modifier = 0; modifier < GAMEPAD_MODIFIER_COUNT; modifier++) {
+            item = cJSON_GetObjectItemCaseSensitive(gamepad,
+                sdl_config_gamepad_button_combo_names[modifier]);
+            if (cJSON_IsArray(item)) {
+                sdl_config_load_touch_binding_array(item,
+                    config->gamepad_button_combo_bindings[modifier],
+                    SDL_GAMEPAD_BUTTON_COUNT);
+            }
+
+            item = cJSON_GetObjectItemCaseSensitive(gamepad,
+                sdl_config_gamepad_trigger_combo_names[modifier]);
+            if (cJSON_IsArray(item)) {
+                sdl_config_load_touch_binding_array(item,
+                    config->gamepad_trigger_combo_bindings[modifier],
+                    GAMEPAD_TRIGGER_COUNT);
+            }
+
+            item = cJSON_GetObjectItemCaseSensitive(gamepad,
+                sdl_config_gamepad_left_stick_combo_names[modifier]);
+            if (cJSON_IsArray(item)) {
+                sdl_config_load_touch_binding_array(item,
+                    config->gamepad_left_stick_combo_bindings[modifier],
+                    GAMEPAD_STICK_DIR_COUNT);
+            }
+
+            item = cJSON_GetObjectItemCaseSensitive(gamepad,
+                sdl_config_gamepad_right_stick_combo_names[modifier]);
+            if (cJSON_IsArray(item)) {
+                sdl_config_load_touch_binding_array(item,
+                    config->gamepad_right_stick_combo_bindings[modifier],
+                    GAMEPAD_STICK_DIR_COUNT);
+            }
+        }
+
         item = cJSON_GetObjectItemCaseSensitive(gamepad, "shoulderComboBinding");
         if (cJSON_IsNumber(item)) {
             saw_shoulder_combo_binding = true;
@@ -1444,6 +1536,44 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
                 cJSON_AddItemToObject(gamepad, "rightStickBindings", right_stick);
             }
 
+            for (int modifier = 0; modifier < GAMEPAD_MODIFIER_COUNT; modifier++) {
+                cJSON* combo_array = sdl_config_create_int_array(
+                    config->gamepad_button_combo_bindings[modifier],
+                    SDL_GAMEPAD_BUTTON_COUNT);
+                if (combo_array) {
+                    cJSON_AddItemToObject(gamepad,
+                        sdl_config_gamepad_button_combo_names[modifier],
+                        combo_array);
+                }
+
+                combo_array = sdl_config_create_int_array(
+                    config->gamepad_trigger_combo_bindings[modifier],
+                    GAMEPAD_TRIGGER_COUNT);
+                if (combo_array) {
+                    cJSON_AddItemToObject(gamepad,
+                        sdl_config_gamepad_trigger_combo_names[modifier],
+                        combo_array);
+                }
+
+                combo_array = sdl_config_create_int_array(
+                    config->gamepad_left_stick_combo_bindings[modifier],
+                    GAMEPAD_STICK_DIR_COUNT);
+                if (combo_array) {
+                    cJSON_AddItemToObject(gamepad,
+                        sdl_config_gamepad_left_stick_combo_names[modifier],
+                        combo_array);
+                }
+
+                combo_array = sdl_config_create_int_array(
+                    config->gamepad_right_stick_combo_bindings[modifier],
+                    GAMEPAD_STICK_DIR_COUNT);
+                if (combo_array) {
+                    cJSON_AddItemToObject(gamepad,
+                        sdl_config_gamepad_right_stick_combo_names[modifier],
+                        combo_array);
+                }
+            }
+
             cJSON_AddNumberToObject(gamepad, "shoulderComboBinding", config->gamepad_shoulder_combo_binding);
 
             cJSON_AddItemToObject(root, "gamepad", gamepad);
@@ -1562,6 +1692,7 @@ void sdl_config_set_default_gamepad_bindings(struct sdl_config* config)
         config->gamepad_left_stick_bindings[i] = GAMEPAD_BIND_NONE;
         config->gamepad_right_stick_bindings[i] = GAMEPAD_BIND_NONE;
     }
+    sdl_config_clear_gamepad_combo_bindings(config);
 
     config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_SOUTH] = ' ';
     config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_EAST] = 'f';

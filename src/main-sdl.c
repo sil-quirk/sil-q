@@ -265,6 +265,7 @@ static int sdl_gamepad_axis_to_cardinal_dir(Sint16 x, Sint16 y, int deadzone);
 static void sdl_gamepad_send_direction(int dir);
 static void sdl_gamepad_send_direction_mods(int dir, bool shift, bool ctrl, bool alt);
 static void sdl_gamepad_send_key(int key, bool use_macro_mods);
+static void sdl_gamepad_send_key_raw(int key);
 static void sdl_send_macro_key(int key, bool shift, bool ctrl, bool alt);
 static int sdl_keymap_mode(void);
 static char sdl_direction_char_for_key(int key);
@@ -278,6 +279,9 @@ static void sdl_gamepad_apply_modifier(int binding, bool down);
 static bool sdl_gamepad_shift_active(void);
 static bool sdl_gamepad_ctrl_active(void);
 static bool sdl_gamepad_alt_active(void);
+static int sdl_gamepad_modifier_index(int binding);
+static int sdl_gamepad_single_active_modifier(void);
+static int sdl_gamepad_combo_binding_for_input(int modifier, int type, int id);
 static void sdl_gamepad_clear_pending_dpad(void);
 static void sdl_gamepad_set_pending_dpad(int dir);
 static bool sdl_gamepad_flush_pending_dpad(Uint64 now_ns, bool force);
@@ -1597,6 +1601,71 @@ static bool sdl_gamepad_alt_active(void)
     return g_gamepad_state.alt_held > 0;
 }
 
+static int sdl_gamepad_modifier_index(int binding)
+{
+    switch (binding) {
+    case GAMEPAD_BIND_SHIFT:
+        return GAMEPAD_MODIFIER_SHIFT;
+    case GAMEPAD_BIND_CTRL:
+        return GAMEPAD_MODIFIER_CTRL;
+    case GAMEPAD_BIND_ALT:
+        return GAMEPAD_MODIFIER_ALT;
+    default:
+        return -1;
+    }
+}
+
+static int sdl_gamepad_single_active_modifier(void)
+{
+    int active = GAMEPAD_BIND_NONE;
+
+    if (sdl_gamepad_shift_active())
+        active = GAMEPAD_BIND_SHIFT;
+    if (sdl_gamepad_ctrl_active()) {
+        if (active != GAMEPAD_BIND_NONE)
+            return GAMEPAD_BIND_NONE;
+        active = GAMEPAD_BIND_CTRL;
+    }
+    if (sdl_gamepad_alt_active()) {
+        if (active != GAMEPAD_BIND_NONE)
+            return GAMEPAD_BIND_NONE;
+        active = GAMEPAD_BIND_ALT;
+    }
+
+    return active;
+}
+
+static int sdl_gamepad_combo_binding_for_input(int modifier, int type, int id)
+{
+    int modifier_index = sdl_gamepad_modifier_index(modifier);
+
+    if (modifier_index < 0)
+        return GAMEPAD_BIND_NONE;
+
+    switch (type) {
+    case GAMEPAD_CAPTURE_BUTTON:
+        if (id >= 0 && id < SDL_GAMEPAD_BUTTON_COUNT)
+            return config.gamepad_button_combo_bindings[modifier_index][id];
+        break;
+    case GAMEPAD_CAPTURE_TRIGGER:
+        if (id >= 0 && id < GAMEPAD_TRIGGER_COUNT)
+            return config.gamepad_trigger_combo_bindings[modifier_index][id];
+        break;
+    case GAMEPAD_CAPTURE_LEFT_STICK:
+        if (id >= 0 && id < GAMEPAD_STICK_DIR_COUNT)
+            return config.gamepad_left_stick_combo_bindings[modifier_index][id];
+        break;
+    case GAMEPAD_CAPTURE_RIGHT_STICK:
+        if (id >= 0 && id < GAMEPAD_STICK_DIR_COUNT)
+            return config.gamepad_right_stick_combo_bindings[modifier_index][id];
+        break;
+    default:
+        break;
+    }
+
+    return GAMEPAD_BIND_NONE;
+}
+
 static void sdl_gamepad_mark_auto_ui(void)
 {
     if (config.gamepad_auto_mode)
@@ -1902,6 +1971,11 @@ static void sdl_gamepad_send_key(int key, bool use_macro_mods)
     } else {
         Term_keypress(key);
     }
+}
+
+static void sdl_gamepad_send_key_raw(int key)
+{
+    Term_keypress(key);
 }
 
 static void sdl_gamepad_send_shoulder_combo(void)
@@ -2305,12 +2379,25 @@ static void sdl_gamepad_binding_label_ex(int type, int id, char* buf, size_t buf
     }
 }
 
-static int sdl_gamepad_action_binding_count(int binding, int* out_type, int* out_id)
+static bool sdl_gamepad_action_is_confirm(int binding)
+{
+    return (binding == INPUT_BIND_CONFIRM || binding == ' ');
+}
+
+static bool sdl_gamepad_action_binding_equals(int lhs, int rhs)
+{
+    if (sdl_gamepad_action_is_confirm(lhs) && sdl_gamepad_action_is_confirm(rhs))
+        return true;
+
+    return lhs == rhs;
+}
+
+static int sdl_gamepad_direct_binding_count(int binding, int* out_type, int* out_id)
 {
     int count = 0;
 
     for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++) {
-        if (config.gamepad_button_bindings[i] == binding) {
+        if (sdl_gamepad_action_binding_equals(config.gamepad_button_bindings[i], binding)) {
             if (count == 0 && out_type && out_id) {
                 *out_type = GAMEPAD_CAPTURE_BUTTON;
                 *out_id = i;
@@ -2320,7 +2407,62 @@ static int sdl_gamepad_action_binding_count(int binding, int* out_type, int* out
     }
 
     for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++) {
-        if (config.gamepad_trigger_bindings[i] == binding) {
+        if (sdl_gamepad_action_binding_equals(config.gamepad_trigger_bindings[i], binding)) {
+            if (count == 0 && out_type && out_id) {
+                *out_type = GAMEPAD_CAPTURE_TRIGGER;
+                *out_id = i;
+            }
+            count++;
+        }
+    }
+
+    for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+        if (sdl_gamepad_action_binding_equals(config.gamepad_left_stick_bindings[i], binding)) {
+            if (count == 0 && out_type && out_id) {
+                *out_type = GAMEPAD_CAPTURE_LEFT_STICK;
+                *out_id = i;
+            }
+            count++;
+        }
+    }
+
+    for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+        if (sdl_gamepad_action_binding_equals(config.gamepad_right_stick_bindings[i], binding)) {
+            if (count == 0 && out_type && out_id) {
+                *out_type = GAMEPAD_CAPTURE_RIGHT_STICK;
+                *out_id = i;
+            }
+            count++;
+        }
+    }
+
+    if (sdl_gamepad_action_binding_equals(config.gamepad_shoulder_combo_binding, binding)) {
+        if (count == 0 && out_type && out_id) {
+            *out_type = GAMEPAD_CAPTURE_SHOULDER_COMBO;
+            *out_id = 0;
+        }
+        count++;
+    }
+
+    return count;
+}
+
+static int sdl_gamepad_physical_binding_count(int binding, int* out_type, int* out_id)
+{
+    int count = 0;
+
+    for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++) {
+        if (sdl_gamepad_action_binding_equals(config.gamepad_button_bindings[i], binding)) {
+            if (count == 0 && out_type && out_id) {
+                *out_type = GAMEPAD_CAPTURE_BUTTON;
+                *out_id = i;
+            }
+            count++;
+        }
+    }
+
+    for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++) {
+        if (sdl_gamepad_action_binding_equals(config.gamepad_trigger_bindings[i], binding)) {
             if (count == 0 && out_type && out_id) {
                 *out_type = GAMEPAD_CAPTURE_TRIGGER;
                 *out_id = i;
@@ -2337,9 +2479,6 @@ static int sdl_gamepad_action_binding_count(int binding, int* out_type, int* out
             }
             count++;
         }
-    }
-
-    for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
         if (config.gamepad_right_stick_bindings[i] == binding) {
             if (count == 0 && out_type && out_id) {
                 *out_type = GAMEPAD_CAPTURE_RIGHT_STICK;
@@ -2349,15 +2488,67 @@ static int sdl_gamepad_action_binding_count(int binding, int* out_type, int* out
         }
     }
 
-    if (config.gamepad_shoulder_combo_binding == binding) {
-        if (count == 0 && out_type && out_id) {
-            *out_type = GAMEPAD_CAPTURE_SHOULDER_COMBO;
-            *out_id = 0;
+    return count;
+}
+
+static int sdl_gamepad_combo_action_binding_count(int binding, int* out_modifier_type,
+    int* out_modifier_id, int* out_type, int* out_id)
+{
+    static const int modifiers[] = {
+        GAMEPAD_BIND_SHIFT,
+        GAMEPAD_BIND_CTRL,
+        GAMEPAD_BIND_ALT,
+    };
+    static const int types[] = {
+        GAMEPAD_CAPTURE_BUTTON,
+        GAMEPAD_CAPTURE_TRIGGER,
+        GAMEPAD_CAPTURE_LEFT_STICK,
+        GAMEPAD_CAPTURE_RIGHT_STICK,
+    };
+    int total = 0;
+
+    for (int mi = 0; mi < (int)N_ELEMENTS(modifiers); mi++) {
+        int mod_type = 0;
+        int mod_id = 0;
+        int mod_count = sdl_gamepad_physical_binding_count(modifiers[mi], &mod_type,
+            &mod_id);
+
+        if (mod_count <= 0)
+            continue;
+
+        for (int ti = 0; ti < (int)N_ELEMENTS(types); ti++) {
+            int count = 0;
+
+            if (types[ti] == GAMEPAD_CAPTURE_BUTTON)
+                count = SDL_GAMEPAD_BUTTON_COUNT;
+            else if (types[ti] == GAMEPAD_CAPTURE_TRIGGER)
+                count = GAMEPAD_TRIGGER_COUNT;
+            else
+                count = GAMEPAD_STICK_DIR_COUNT;
+
+            for (int id = 0; id < count; id++) {
+                if (!sdl_gamepad_action_binding_equals(
+                        sdl_gamepad_combo_binding_for_input(modifiers[mi], types[ti], id),
+                        binding))
+                    continue;
+
+                if (total == 0) {
+                    if (out_modifier_type)
+                        *out_modifier_type = mod_type;
+                    if (out_modifier_id)
+                        *out_modifier_id = mod_id;
+                    if (out_type)
+                        *out_type = types[ti];
+                    if (out_id)
+                        *out_id = id;
+                }
+
+                total += mod_count;
+            }
         }
-        count++;
     }
 
-    return count;
+    return total;
 }
 
 static void sdl_gamepad_action_binding_label_ex(int binding, char* buf, size_t buflen, bool short_label)
@@ -2367,11 +2558,25 @@ static void sdl_gamepad_action_binding_label_ex(int binding, char* buf, size_t b
 
     int type = 0;
     int id = 0;
-    int count = sdl_gamepad_action_binding_count(binding, &type, &id);
+    int mod_type = 0;
+    int mod_id = 0;
+    int direct_count = sdl_gamepad_direct_binding_count(binding, &type, &id);
+    int combo_count = sdl_gamepad_combo_action_binding_count(binding, &mod_type,
+        &mod_id, &type, &id);
+    int count = direct_count + combo_count;
+
     if (count <= 0) {
         SDL_strlcpy(buf, "(unbound)", buflen);
-    } else if (count == 1) {
+    } else if (count == 1 && direct_count == 1) {
         sdl_gamepad_binding_label_ex(type, id, buf, buflen, short_label);
+    } else if (count == 1) {
+        char mod_buf[32];
+        char base_buf[32];
+        sdl_gamepad_binding_label_ex(mod_type, mod_id, mod_buf, sizeof(mod_buf),
+            short_label);
+        sdl_gamepad_binding_label_ex(type, id, base_buf, sizeof(base_buf),
+            short_label);
+        strnfmt(buf, buflen, "%s+%s", mod_buf, base_buf);
     } else {
         SDL_strlcpy(buf, "Multiple", buflen);
     }
@@ -2420,6 +2625,8 @@ static bool sdl_gamepad_capture_queue_input(int type, int id)
     if (g_gamepad_capture_allow_modifier_combo
         && (binding == GAMEPAD_BIND_SHIFT || binding == GAMEPAD_BIND_CTRL
             || binding == GAMEPAD_BIND_ALT)) {
+        if (g_gamepad_capture_modifier != GAMEPAD_BIND_NONE)
+            return false;
         g_gamepad_capture_modifier = binding;
         return false;
     }
@@ -2600,6 +2807,18 @@ static void sdl_gamepad_handle_button(const SDL_GamepadButtonEvent* ev)
     if (steamdeck_controls_active() &&
         (button == SDL_GAMEPAD_BUTTON_LEFT_SHOULDER || button == SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER))
     {
+        int active_modifier = sdl_gamepad_single_active_modifier();
+        int combo_binding = GAMEPAD_BIND_NONE;
+
+        if (down && active_modifier != GAMEPAD_BIND_NONE) {
+            combo_binding = sdl_gamepad_combo_binding_for_input(active_modifier,
+                GAMEPAD_CAPTURE_BUTTON, (int)button);
+            if (combo_binding != GAMEPAD_BIND_NONE) {
+                sdl_gamepad_send_key_raw(combo_binding);
+                return;
+            }
+        }
+
         if (button >= 0 && button < SDL_GAMEPAD_BUTTON_COUNT) {
             int binding = config.gamepad_button_bindings[button];
             if (binding == GAMEPAD_BIND_SHIFT || binding == GAMEPAD_BIND_CTRL || binding == GAMEPAD_BIND_ALT) {
@@ -2625,6 +2844,20 @@ static void sdl_gamepad_handle_button(const SDL_GamepadButtonEvent* ev)
 
     if (button < 0 || button >= SDL_GAMEPAD_BUTTON_COUNT)
         return;
+
+    if (down) {
+        int active_modifier = sdl_gamepad_single_active_modifier();
+        int combo_binding = GAMEPAD_BIND_NONE;
+
+        if (active_modifier != GAMEPAD_BIND_NONE) {
+            combo_binding = sdl_gamepad_combo_binding_for_input(active_modifier,
+                GAMEPAD_CAPTURE_BUTTON, (int)button);
+            if (combo_binding != GAMEPAD_BIND_NONE) {
+                sdl_gamepad_send_key_raw(combo_binding);
+                return;
+            }
+        }
+    }
 
     int binding = config.gamepad_button_bindings[button];
     if (binding == GAMEPAD_BIND_NONE)
@@ -2762,8 +2995,18 @@ static void sdl_gamepad_handle_axis(const SDL_GamepadAxisEvent* ev)
                 g_gamepad_state.left_bind_dir = dir;
 
                 if (dir >= 0 && dir < GAMEPAD_STICK_DIR_COUNT) {
+                    int active_modifier = sdl_gamepad_single_active_modifier();
                     int binding = config.gamepad_left_stick_bindings[dir];
-                    if (binding == GAMEPAD_BIND_SHIFT || binding == GAMEPAD_BIND_CTRL || binding == GAMEPAD_BIND_ALT) {
+                    int combo_binding = GAMEPAD_BIND_NONE;
+
+                    if (active_modifier != GAMEPAD_BIND_NONE) {
+                        combo_binding = sdl_gamepad_combo_binding_for_input(
+                            active_modifier, GAMEPAD_CAPTURE_LEFT_STICK, dir);
+                    }
+
+                    if (combo_binding != GAMEPAD_BIND_NONE) {
+                        sdl_gamepad_send_key_raw(combo_binding);
+                    } else if (binding == GAMEPAD_BIND_SHIFT || binding == GAMEPAD_BIND_CTRL || binding == GAMEPAD_BIND_ALT) {
                         sdl_gamepad_apply_modifier(binding, true);
                     } else if (binding != GAMEPAD_BIND_NONE) {
                         sdl_gamepad_send_key(binding, false);
@@ -2796,8 +3039,18 @@ static void sdl_gamepad_handle_axis(const SDL_GamepadAxisEvent* ev)
             g_gamepad_state.right_dir = dir;
 
             if (dir >= 0 && dir < GAMEPAD_STICK_DIR_COUNT) {
+                int active_modifier = sdl_gamepad_single_active_modifier();
                 int binding = config.gamepad_right_stick_bindings[dir];
-                if (binding == GAMEPAD_BIND_SHIFT || binding == GAMEPAD_BIND_CTRL || binding == GAMEPAD_BIND_ALT) {
+                int combo_binding = GAMEPAD_BIND_NONE;
+
+                if (active_modifier != GAMEPAD_BIND_NONE) {
+                    combo_binding = sdl_gamepad_combo_binding_for_input(
+                        active_modifier, GAMEPAD_CAPTURE_RIGHT_STICK, dir);
+                }
+
+                if (combo_binding != GAMEPAD_BIND_NONE) {
+                    sdl_gamepad_send_key_raw(combo_binding);
+                } else if (binding == GAMEPAD_BIND_SHIFT || binding == GAMEPAD_BIND_CTRL || binding == GAMEPAD_BIND_ALT) {
                     sdl_gamepad_apply_modifier(binding, true);
                 } else if (binding != GAMEPAD_BIND_NONE) {
                     sdl_gamepad_send_key(binding, false);
@@ -2817,7 +3070,19 @@ static void sdl_gamepad_handle_axis(const SDL_GamepadAxisEvent* ev)
             if (pressed != g_gamepad_state.left_trigger_down) {
                 g_gamepad_state.left_trigger_down = pressed;
                 int binding = config.gamepad_trigger_bindings[0];
-                if (binding != GAMEPAD_BIND_NONE) {
+                int combo_binding = GAMEPAD_BIND_NONE;
+
+                if (pressed) {
+                    int active_modifier = sdl_gamepad_single_active_modifier();
+                    if (active_modifier != GAMEPAD_BIND_NONE) {
+                        combo_binding = sdl_gamepad_combo_binding_for_input(
+                            active_modifier, GAMEPAD_CAPTURE_TRIGGER, 0);
+                    }
+                }
+
+                if (combo_binding != GAMEPAD_BIND_NONE) {
+                    sdl_gamepad_send_key_raw(combo_binding);
+                } else if (binding != GAMEPAD_BIND_NONE) {
                     if (binding == GAMEPAD_BIND_SHIFT || binding == GAMEPAD_BIND_CTRL || binding == GAMEPAD_BIND_ALT) {
                         sdl_gamepad_apply_modifier(binding, pressed);
                     } else if (pressed) {
@@ -2829,7 +3094,19 @@ static void sdl_gamepad_handle_axis(const SDL_GamepadAxisEvent* ev)
             if (pressed != g_gamepad_state.right_trigger_down) {
                 g_gamepad_state.right_trigger_down = pressed;
                 int binding = config.gamepad_trigger_bindings[1];
-                if (binding != GAMEPAD_BIND_NONE) {
+                int combo_binding = GAMEPAD_BIND_NONE;
+
+                if (pressed) {
+                    int active_modifier = sdl_gamepad_single_active_modifier();
+                    if (active_modifier != GAMEPAD_BIND_NONE) {
+                        combo_binding = sdl_gamepad_combo_binding_for_input(
+                            active_modifier, GAMEPAD_CAPTURE_TRIGGER, 1);
+                    }
+                }
+
+                if (combo_binding != GAMEPAD_BIND_NONE) {
+                    sdl_gamepad_send_key_raw(combo_binding);
+                } else if (binding != GAMEPAD_BIND_NONE) {
                     if (binding == GAMEPAD_BIND_SHIFT || binding == GAMEPAD_BIND_CTRL || binding == GAMEPAD_BIND_ALT) {
                         sdl_gamepad_apply_modifier(binding, pressed);
                     } else if (pressed) {
@@ -5588,6 +5865,40 @@ void set_sdl_gamepad_right_stick_binding(int dir, int binding)
     if (dir < 0 || dir >= GAMEPAD_STICK_DIR_COUNT)
         return;
     config.gamepad_right_stick_bindings[dir] = binding;
+}
+
+int get_sdl_gamepad_combo_binding(int modifier, int type, int id)
+{
+    return sdl_gamepad_combo_binding_for_input(modifier, type, id);
+}
+
+void set_sdl_gamepad_combo_binding(int modifier, int type, int id, int binding)
+{
+    int modifier_index = sdl_gamepad_modifier_index(modifier);
+
+    if (modifier_index < 0)
+        return;
+
+    switch (type) {
+    case GAMEPAD_CAPTURE_BUTTON:
+        if (id >= 0 && id < SDL_GAMEPAD_BUTTON_COUNT)
+            config.gamepad_button_combo_bindings[modifier_index][id] = binding;
+        break;
+    case GAMEPAD_CAPTURE_TRIGGER:
+        if (id >= 0 && id < GAMEPAD_TRIGGER_COUNT)
+            config.gamepad_trigger_combo_bindings[modifier_index][id] = binding;
+        break;
+    case GAMEPAD_CAPTURE_LEFT_STICK:
+        if (id >= 0 && id < GAMEPAD_STICK_DIR_COUNT)
+            config.gamepad_left_stick_combo_bindings[modifier_index][id] = binding;
+        break;
+    case GAMEPAD_CAPTURE_RIGHT_STICK:
+        if (id >= 0 && id < GAMEPAD_STICK_DIR_COUNT)
+            config.gamepad_right_stick_combo_bindings[modifier_index][id] = binding;
+        break;
+    default:
+        break;
+    }
 }
 
 int get_sdl_gamepad_shoulder_combo_binding(void)

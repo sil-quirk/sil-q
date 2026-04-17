@@ -1831,6 +1831,8 @@ extern int get_sdl_gamepad_left_stick_binding(int dir);
 extern void set_sdl_gamepad_left_stick_binding(int dir, int binding);
 extern int get_sdl_gamepad_right_stick_binding(int dir);
 extern void set_sdl_gamepad_right_stick_binding(int dir, int binding);
+extern int get_sdl_gamepad_combo_binding(int modifier, int type, int id);
+extern void set_sdl_gamepad_combo_binding(int modifier, int type, int id, int binding);
 extern int get_sdl_gamepad_shoulder_combo_binding(void);
 extern void set_sdl_gamepad_shoulder_combo_binding(int binding);
 extern int get_sdl_gamepad_default_button_binding(int button);

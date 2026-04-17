@@ -6,6 +6,11 @@
 
 #define GAMEPAD_TRIGGER_COUNT 2
 #define GAMEPAD_STICK_DIR_COUNT 4
+#define GAMEPAD_MODIFIER_COUNT 3
+
+#define GAMEPAD_MODIFIER_SHIFT 0
+#define GAMEPAD_MODIFIER_CTRL 1
+#define GAMEPAD_MODIFIER_ALT 2
 
 #define GAMEPAD_STICK_DIR_UP 0
 #define GAMEPAD_STICK_DIR_DOWN 1
@@ -89,6 +94,10 @@ struct sdl_config {
     int gamepad_trigger_bindings[GAMEPAD_TRIGGER_COUNT];
     int gamepad_left_stick_bindings[GAMEPAD_STICK_DIR_COUNT];
     int gamepad_right_stick_bindings[GAMEPAD_STICK_DIR_COUNT];
+    int gamepad_button_combo_bindings[GAMEPAD_MODIFIER_COUNT][SDL_GAMEPAD_BUTTON_COUNT];
+    int gamepad_trigger_combo_bindings[GAMEPAD_MODIFIER_COUNT][GAMEPAD_TRIGGER_COUNT];
+    int gamepad_left_stick_combo_bindings[GAMEPAD_MODIFIER_COUNT][GAMEPAD_STICK_DIR_COUNT];
+    int gamepad_right_stick_combo_bindings[GAMEPAD_MODIFIER_COUNT][GAMEPAD_STICK_DIR_COUNT];
     int gamepad_shoulder_combo_binding;   // Binding for L1+R1 combo action
     int touch_pane_bindings[SDL_TOUCH_PANE_BUTTON_COUNT];
     char touch_pane_labels[SDL_TOUCH_PANE_BUTTON_COUNT][SDL_TOUCH_PANE_LABEL_LEN];
