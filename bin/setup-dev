@@ -140,4 +140,4 @@ echo "== Installing/updating mise packages =="
 mise install
 
 echo "== Installing Python packages =="
-uv sync --locked --all-extras --dev
+uv sync --locked --all-groups --all-extras
