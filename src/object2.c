@@ -822,6 +822,9 @@ int object_stack_limit(const object_type* o_ptr)
     if (!o_ptr)
         return MAX_STACK_SIZE - 1;
 
+    if (o_ptr->tval == TV_RING)
+        return 1;
+
     if (o_ptr->tval == TV_SWORD && o_ptr->sval == SV_DAGGER)
         return 7;
 

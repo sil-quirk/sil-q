@@ -2314,6 +2314,11 @@ int drop_loot(monster_type* m_ptr)
             s16b k_idx = lookup_kind(TV_ARROW, SV_NORMAL_ARROW);
             object_prep(i_ptr, k_idx);
         }
+        else if (i_ptr->tval != TV_ARROW)
+        {
+            s16b k_idx = lookup_kind(TV_ARROW, SV_NORMAL_ARROW);
+            object_prep(i_ptr, k_idx);
+        }
 
         i_ptr->number = damroll(2, 8);
 

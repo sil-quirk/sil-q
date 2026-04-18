@@ -2497,6 +2497,7 @@ static drop_supply_group_id supply_group_for_entry(const drop_entry* e)
     case TV_GEM:
         return DROP_SUPPLY_GEM;
     case TV_STAFF:
+    case TV_HORN:
         return DROP_SUPPLY_STAFF;
     case TV_LIGHT:
     case TV_FLASK:
