@@ -51,9 +51,6 @@ typedef struct hidden_overlay_line {
 
 byte g_hidden_left_panel_overlay_rows = 0;
 byte g_hidden_left_panel_overlay_widths[16] = { 0 };
-static int g_hidden_left_panel_topline_col = -1;
-static byte g_hidden_left_panel_topline_width = 0;
-static byte g_hidden_left_panel_topline_chars[256] = { 0 };
 
 static void prt_status_line_compact(void);
 static void prt_cut_poisoned_compact(void);
@@ -65,6 +62,8 @@ static bool current_light_status(bool* infinite, long* fuel, byte* fuel_attr,
                                  byte* icon_attr, char* icon);
 static bool hidden_left_panel_uses_top_left_layout(void);
 static bool hidden_left_panel_uses_topline_layout(void);
+static int hidden_left_panel_topline_render_width(
+    const hidden_overlay_line* lines, int line_count);
 static int hidden_left_panel_line_width(const hidden_overlay_line* line,
     bool use_short_text);
 static int hidden_left_panel_draw_line(const hidden_overlay_line* line, int row,
@@ -76,6 +75,8 @@ static void hidden_left_panel_add_icon_line(hidden_overlay_line* lines,
     byte icon_attr, char icon_char);
 static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lines);
 static bool hidden_left_panel_sync_mask(const hidden_overlay_line* lines, int line_count);
+static bool hidden_left_panel_sync_topline_mask(
+    const hidden_overlay_line* lines, int line_count);
 
 static bool heavy_armour_evasion_bonus_applies(const object_type* o_ptr)
 {
@@ -895,6 +896,34 @@ static bool hidden_left_panel_uses_topline_layout(void)
         && (get_sdl_hidden_left_panel_mode() == HIDDEN_LEFT_PANEL_TOPLINE);
 }
 
+static int hidden_left_panel_topline_render_width(
+    const hidden_overlay_line* lines, int line_count)
+{
+    int width = 0;
+    bool first_entry = true;
+
+    if (!Term || !lines || line_count <= 0)
+        return 0;
+
+    for (int i = 0; i < line_count; i++)
+    {
+        int sep = first_entry ? 0 : 1;
+        int entry_width = hidden_left_panel_line_width(&lines[i], false);
+
+        if (width + sep + entry_width > Term->wid)
+        {
+            entry_width = hidden_left_panel_line_width(&lines[i], true);
+            if (width + sep + entry_width > Term->wid)
+                break;
+        }
+
+        width += sep + entry_width;
+        first_entry = false;
+    }
+
+    return width;
+}
+
 static int hidden_left_panel_horizontal_row(void)
 {
     return ROW_NAME;
@@ -1342,6 +1371,34 @@ static bool hidden_left_panel_sync_mask(const hidden_overlay_line* lines, int li
     return changed;
 }
 
+static bool hidden_left_panel_sync_topline_mask(
+    const hidden_overlay_line* lines, int line_count)
+{
+    bool changed = false;
+    int width = hidden_left_panel_topline_render_width(lines, line_count);
+    byte new_rows = (width > 0) ? 1 : 0;
+
+    if (width > 255)
+        width = 255;
+
+    if (g_hidden_left_panel_overlay_rows != new_rows)
+        changed = true;
+    if (g_hidden_left_panel_overlay_widths[0] != (byte)width)
+        changed = true;
+
+    g_hidden_left_panel_overlay_rows = new_rows;
+    g_hidden_left_panel_overlay_widths[0] = (byte)width;
+
+    for (int i = 1; i < 16; i++)
+    {
+        if (g_hidden_left_panel_overlay_widths[i] != 0)
+            changed = true;
+        g_hidden_left_panel_overlay_widths[i] = 0;
+    }
+
+    return changed;
+}
+
 static void prt_hidden_top_vitals(void)
 {
     hidden_overlay_line lines[16];
@@ -1376,25 +1433,6 @@ void redraw_hidden_left_panel_topline_suffix(void)
     int render_count = 0;
     bool first_entry = true;
 
-    if (Term && g_hidden_left_panel_topline_col >= 0
-        && g_hidden_left_panel_topline_width > 0
-        && row >= 0 && row < Term->hgt)
-    {
-        int erase_width = g_hidden_left_panel_topline_width;
-        if (g_hidden_left_panel_topline_col + erase_width > Term->wid)
-            erase_width = Term->wid - g_hidden_left_panel_topline_col;
-        if (erase_width > 0)
-        {
-        Term_erase(g_hidden_left_panel_topline_col, row,
-                erase_width);
-        }
-    }
-
-    g_hidden_left_panel_topline_col = -1;
-    g_hidden_left_panel_topline_width = 0;
-    memset(g_hidden_left_panel_topline_chars, 0,
-        sizeof(g_hidden_left_panel_topline_chars));
-
     if (!Term || !Term->scr || !ui_hide_left_panel())
         return;
     if (row < 0 || row >= Term->hgt)
@@ -1425,38 +1463,19 @@ void redraw_hidden_left_panel_topline_suffix(void)
         if (sep > 0)
         {
             Term_putch(col, row, TERM_WHITE, ' ');
-            if (render_count < (int)sizeof(g_hidden_left_panel_topline_chars))
-                g_hidden_left_panel_topline_chars[render_count] = (byte)' ';
             render_count++;
             col++;
         }
 
         render_count += hidden_left_panel_draw_line(&lines[i], row, col,
             use_short_text,
-            (render_count < (int)sizeof(g_hidden_left_panel_topline_chars))
-                ? g_hidden_left_panel_topline_chars + render_count
-                : NULL,
-            (int)sizeof(g_hidden_left_panel_topline_chars) - render_count);
+            NULL, 0);
         col += width;
         first_entry = false;
     }
 
     if (render_count <= 0)
         return;
-
-    g_hidden_left_panel_topline_col = 0;
-    if (g_hidden_left_panel_topline_col >= Term->wid)
-    {
-        g_hidden_left_panel_topline_col = -1;
-        g_hidden_left_panel_topline_width = 0;
-        return;
-    }
-    if (render_count > Term->wid - g_hidden_left_panel_topline_col)
-        render_count = Term->wid - g_hidden_left_panel_topline_col;
-    if (render_count > 255)
-        render_count = 255;
-
-    g_hidden_left_panel_topline_width = (byte)render_count;
 }
 
 /*
@@ -5948,11 +5967,20 @@ void redraw_stuff(void)
     if (ui_hide_left_panel())
     {
         hidden_overlay_line hidden_lines[16];
-        int hidden_line_count = hidden_left_panel_uses_top_left_layout()
-            ? hidden_left_panel_build_lines(hidden_lines, 16)
-            : 0;
+        int hidden_line_count = hidden_left_panel_build_lines(hidden_lines, 16);
+        bool hidden_mask_changed = false;
 
-        if (hidden_left_panel_sync_mask(hidden_lines, hidden_line_count))
+        if (hidden_left_panel_uses_top_left_layout())
+            hidden_mask_changed
+                = hidden_left_panel_sync_mask(hidden_lines, hidden_line_count);
+        else if (hidden_left_panel_uses_topline_layout())
+            hidden_mask_changed
+                = hidden_left_panel_sync_topline_mask(hidden_lines,
+                    hidden_line_count);
+        else
+            hidden_mask_changed = hidden_left_panel_sync_mask(NULL, 0);
+
+        if (hidden_mask_changed)
         {
             p_ptr->redraw |= PR_MAP;
             hidden_overlay_needs_refresh = true;
