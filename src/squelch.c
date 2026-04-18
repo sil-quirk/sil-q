@@ -740,7 +740,7 @@ static void do_qual_squelch(void)
     /* - open chest TVAL in defines*/
 
     /* Intentionally no null terminator. */
-    char squelch_str[7] = {'N', 'C', 'V', 'G', 'W', 'A', 'O'};
+    char squelch_str[7] = { 'N', 'C', 'V', 'G', 'W', 'A', 'O' };
 
     int old_index = -1;
     int display_all = 1;

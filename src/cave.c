@@ -686,8 +686,8 @@ static void special_lighting_wall(byte* a, char* c, int feat, int info)
 /// `lib/pref/graf-tiles.prf`.
 static int player_tile_offset(void)
 {
-    object_type * main_wield_ptr = &inventory[INVEN_WIELD];
-    object_type * secondary_wield_ptr = &inventory[INVEN_ARM];
+    object_type* main_wield_ptr = &inventory[INVEN_WIELD];
+    object_type* secondary_wield_ptr = &inventory[INVEN_ARM];
 
     byte main_type = main_wield_ptr->tval;
     byte main_subtype = main_wield_ptr->sval;
@@ -701,33 +701,26 @@ static int player_tile_offset(void)
         secondary_type = 0;
     }
 
-    bool smallSwordMain =
-        (main_type == TV_SWORD && main_subtype == SV_DAGGER) ||
-        (main_type == TV_SWORD && main_subtype == SV_SHORT_SWORD);
-    bool curvedSwordMain =
-        (main_type == TV_SWORD && main_subtype == SV_CURVED_SWORD);
-    bool bigSwordMain =
-        (main_type == TV_SWORD && main_subtype > SV_CURVED_SWORD) ||
-        (main_type == TV_DIGGING && main_subtype == SV_SHOVEL);
-    bool spearMain =
-        (main_type == TV_POLEARM && main_subtype < SV_HAND_AXE);
-    bool smallAxeMain =
-        (main_type == TV_POLEARM && main_subtype == SV_HAND_AXE) ||
-        (main_type == TV_HAFTED && main_subtype == SV_WAR_HAMMER) ||
-        (main_type == TV_DIGGING && main_subtype == SV_MATTOCK);
-    bool bigAxeMain =
-        (main_type == TV_POLEARM && main_subtype > SV_HAND_AXE);
-    bool quarterstaffMain =
-        (main_type == TV_HAFTED && main_subtype == SV_QUARTERSTAFF);
-    bool shieldOffhand =
-        (secondary_type == TV_SHIELD);
-    bool axeOffhand =
-        (secondary_type == TV_POLEARM);
-    bool swordOffhand =
-        (secondary_type == TV_SWORD);
+    bool smallSwordMain = (main_type == TV_SWORD && main_subtype == SV_DAGGER)
+        || (main_type == TV_SWORD && main_subtype == SV_SHORT_SWORD);
+    bool curvedSwordMain
+        = (main_type == TV_SWORD && main_subtype == SV_CURVED_SWORD);
+    bool bigSwordMain
+        = (main_type == TV_SWORD && main_subtype > SV_CURVED_SWORD)
+        || (main_type == TV_DIGGING && main_subtype == SV_SHOVEL);
+    bool spearMain = (main_type == TV_POLEARM && main_subtype < SV_HAND_AXE);
+    bool smallAxeMain = (main_type == TV_POLEARM && main_subtype == SV_HAND_AXE)
+        || (main_type == TV_HAFTED && main_subtype == SV_WAR_HAMMER)
+        || (main_type == TV_DIGGING && main_subtype == SV_MATTOCK);
+    bool bigAxeMain = (main_type == TV_POLEARM && main_subtype > SV_HAND_AXE);
+    bool quarterstaffMain
+        = (main_type == TV_HAFTED && main_subtype == SV_QUARTERSTAFF);
+    bool shieldOffhand = (secondary_type == TV_SHIELD);
+    bool axeOffhand = (secondary_type == TV_POLEARM);
+    bool swordOffhand = (secondary_type == TV_SWORD);
 
-    if (inventory[INVEN_BOW].tval == TV_BOW &&
-        p_ptr->skill_use[S_ARC] > p_ptr->skill_use[S_MEL])
+    if (inventory[INVEN_BOW].tval == TV_BOW
+        && p_ptr->skill_use[S_ARC] > p_ptr->skill_use[S_MEL])
     {
         return 15;
     }
@@ -793,7 +786,6 @@ static int player_tile_offset(void)
 
     return 0;
 }
-
 
 /*
  * Extract the attr/char to display at the given (legal) map location
@@ -1085,7 +1077,7 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
     if (feat == FEAT_FLOOR || feat == FEAT_SUNLIGHT)
     {
         for (o_ptr = get_first_object(y, x); o_ptr;
-             o_ptr = get_next_object(o_ptr))
+            o_ptr = get_next_object(o_ptr))
         {
             /* Memorized objects */
             if (o_ptr->marked && !hide_square)
@@ -3062,10 +3054,12 @@ void update_view(void)
                             int x = GRID_X(g);
 
                             /* Hack -- move towards player */
-                            int yy
-                                = (y < py) ? (y + 1) : (y > py) ? (y - 1) : y;
-                            int xx
-                                = (x < px) ? (x + 1) : (x > px) ? (x - 1) : x;
+                            int yy = (y < py) ? (y + 1)
+                                : (y > py)    ? (y - 1)
+                                              : y;
+                            int xx = (x < px) ? (x + 1)
+                                : (x > px)    ? (x - 1)
+                                              : x;
 
                             /* Check for "complex" illumination */
                             if ((!(cave_info[yy][xx] & (CAVE_WALL))

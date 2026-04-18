@@ -923,10 +923,11 @@ static int inven_damage(inven_func typ, int perc, int resistance)
 
                 /* Message */
                 msg_format("%sour %s (%c) %s destroyed!",
-                    ((o_ptr->number > 1) ? ((amt == o_ptr->number)
-                             ? "All of y"
-                             : (amt > 1 ? "Some of y" : "One of y"))
-                                         : "Y"),
+                    ((o_ptr->number > 1)
+                            ? ((amt == o_ptr->number)
+                                      ? "All of y"
+                                      : (amt > 1 ? "Some of y" : "One of y"))
+                            : "Y"),
                     o_name, index_to_label(i), ((amt > 1) ? "were" : "was"));
 
                 /*hack, restore the proper number of charges after the messages

@@ -25,7 +25,7 @@ static int medicine_bonus(int original)
         object_flags(o_ptr, &t1, &t2, &t3);
         if (t3 & (TR3_MEDIC))
             bonus++;
-    } 
+    }
 
     return (original / 3) * bonus;
 }
@@ -1444,4 +1444,3 @@ bool use_object(object_type* o_ptr, bool* ident)
 
     return (used);
 }
-

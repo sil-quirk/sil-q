@@ -126,7 +126,8 @@ static void kind_info(
     object_desc_spoil(buf, 80, i_ptr, FALSE, 1);
 
     /* Weight */
-    strnfmt(wgt, sizeof(wgt), "%3d.%d lb", k_ptr->weight / 10, k_ptr->weight % 10);
+    strnfmt(
+        wgt, sizeof(wgt), "%3d.%d lb", k_ptr->weight / 10, k_ptr->weight % 10);
 }
 
 /*
@@ -547,7 +548,8 @@ static void spoil_mon_desc(cptr fname)
         /* Hitpoints */
         if ((r_ptr->flags1 & (RF1_UNIQUE)) || (r_ptr->hside == 1))
         {
-            strnfmt(hp, sizeof(hp), "%d", r_ptr->hdice * (1 + r_ptr->hside) / 2);
+            strnfmt(
+                hp, sizeof(hp), "%d", r_ptr->hdice * (1 + r_ptr->hside) / 2);
         }
         else
         {
@@ -576,13 +578,14 @@ static void spoil_mon_desc(cptr fname)
 
             if (r_ptr->blow[0].method == RBM_SPORE)
             {
-                strnfmt(att1, sizeof(att1), "(%dd%d)%c", r_ptr->blow[0].dd, r_ptr->blow[0].ds,
-                    special);
+                strnfmt(att1, sizeof(att1), "(%dd%d)%c", r_ptr->blow[0].dd,
+                    r_ptr->blow[0].ds, special);
             }
             else
             {
-                strnfmt(att1, sizeof(att1), "(%+2d, %dd%d)%c", r_ptr->blow[0].att,
-                    r_ptr->blow[0].dd, r_ptr->blow[0].ds, special);
+                strnfmt(att1, sizeof(att1), "(%+2d, %dd%d)%c",
+                    r_ptr->blow[0].att, r_ptr->blow[0].dd, r_ptr->blow[0].ds,
+                    special);
             }
         }
         else
@@ -601,13 +604,14 @@ static void spoil_mon_desc(cptr fname)
 
             if (r_ptr->blow[1].method == RBM_SPORE)
             {
-                strnfmt(att2, sizeof(att2), "(%dd%d)%c", r_ptr->blow[1].dd, r_ptr->blow[1].ds,
-                    special);
+                strnfmt(att2, sizeof(att2), "(%dd%d)%c", r_ptr->blow[1].dd,
+                    r_ptr->blow[1].ds, special);
             }
             else
             {
-                strnfmt(att2, sizeof(att2), "(%+2d, %dd%d)%c", r_ptr->blow[1].att,
-                    r_ptr->blow[1].dd, r_ptr->blow[1].ds, special);
+                strnfmt(att2, sizeof(att2), "(%+2d, %dd%d)%c",
+                    r_ptr->blow[1].att, r_ptr->blow[1].dd, r_ptr->blow[1].ds,
+                    special);
             }
         }
         else
@@ -755,8 +759,9 @@ static void spoil_mon_ss(cptr fname)
             }
             else
             {
-                strnfmt(att1, sizeof(att1), "%+d\t%d\t%d\t%c", r_ptr->blow[0].att,
-                    r_ptr->blow[0].dd, r_ptr->blow[0].ds, special);
+                strnfmt(att1, sizeof(att1), "%+d\t%d\t%d\t%c",
+                    r_ptr->blow[0].att, r_ptr->blow[0].dd, r_ptr->blow[0].ds,
+                    special);
             }
         }
         else
@@ -780,8 +785,9 @@ static void spoil_mon_ss(cptr fname)
             }
             else
             {
-                strnfmt(att2, sizeof(att2), "%+d\t%d\t%d\t%c", r_ptr->blow[1].att,
-                    r_ptr->blow[1].dd, r_ptr->blow[1].ds, special);
+                strnfmt(att2, sizeof(att2), "%+d\t%d\t%d\t%c",
+                    r_ptr->blow[1].att, r_ptr->blow[1].dd, r_ptr->blow[1].ds,
+                    special);
             }
         }
         else
@@ -929,7 +935,8 @@ static void spoil_mon_info(cptr fname)
         /* Hitpoints */
         if ((r_ptr->flags1 & RF1_UNIQUE) || (r_ptr->hside == 1))
         {
-            strnfmt(buf, sizeof(buf), "Hp:%d  ", r_ptr->hdice * (1 + r_ptr->hside) / 2);
+            strnfmt(buf, sizeof(buf), "Hp:%d  ",
+                r_ptr->hdice * (1 + r_ptr->hside) / 2);
         }
         else
         {

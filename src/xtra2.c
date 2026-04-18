@@ -38,7 +38,8 @@ extern bool saving_throw(monster_type* m_ptr, int resistance)
 }
 
 // Auxilliary function for the allow_player functions
-static bool allow_player_aux(monster_type* m_ptr, int player_flag, u32b ident_flag)
+static bool allow_player_aux(
+    monster_type* m_ptr, int player_flag, u32b ident_flag)
 {
     bool resistance = 0;
 
@@ -3292,7 +3293,7 @@ static bool determine_location_is_interesting(int y, int x)
     {
         /* Scan all objects in the grid */
         for (o_ptr = get_first_object(y, x); o_ptr;
-             o_ptr = get_next_object(o_ptr))
+            o_ptr = get_next_object(o_ptr))
         {
             /* Memorized object */
             if (o_ptr->marked)
@@ -3651,7 +3652,7 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
 
                 /* Scan all objects being carried */
                 for (this_o_idx = m_ptr->hold_o_idx; this_o_idx;
-                     this_o_idx = next_o_idx)
+                    this_o_idx = next_o_idx)
                 {
                     char o_name[80];
 

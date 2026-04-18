@@ -34,7 +34,7 @@ void excise_object_idx(int o_idx)
 
         /* Scan all objects in the grid */
         for (this_o_idx = m_ptr->hold_o_idx; this_o_idx;
-             this_o_idx = next_o_idx)
+            this_o_idx = next_o_idx)
         {
             object_type* o_ptr;
 
@@ -3891,7 +3891,7 @@ void drop_near(object_type* j_ptr, int chance, int y, int x)
 
             /* Scan objects in that grid */
             for (o_ptr = get_first_object(ty, tx); o_ptr;
-                 o_ptr = get_next_object(o_ptr))
+                o_ptr = get_next_object(o_ptr))
             {
                 /* Check for possible combination */
                 if (object_similar(o_ptr, j_ptr))

@@ -1930,7 +1930,9 @@ bool show_buffer(cptr main_buffer, cptr what, int line)
     int wid, hgt;
 
     // hack to soothe compiler warnings since 'what' is unused
-    if (what) { }
+    if (what)
+    {
+    }
 
     /* Get size */
     Term_get_size(&wid, &hgt);
@@ -3725,10 +3727,10 @@ extern void display_single_score(
 
     /* Hack -- extract the turns and such */
     for (user = the_score->uid; isspace((unsigned char)*user);
-         user++) /* loop */
+        user++) /* loop */
         ;
     for (when = the_score->day; isspace((unsigned char)*when);
-         when++) /* loop */
+        when++) /* loop */
         ;
 
     aged = atoi(the_score->turns);
@@ -3746,9 +3748,11 @@ extern void display_single_score(
         atomonth(atoi(month), month, sizeof(month));
 
         if (*(when + 7) == '0')
-            strnfmt(tmp_val, sizeof(tmp_val), "%.1s %.3s %.4s", when + 8, month, when + 1);
+            strnfmt(tmp_val, sizeof(tmp_val), "%.1s %.3s %.4s", when + 8, month,
+                when + 1);
         else
-            strnfmt(tmp_val, sizeof(tmp_val), "%.2s %.3s %.4s", when + 7, month, when + 1);
+            strnfmt(tmp_val, sizeof(tmp_val), "%.2s %.3s %.4s", when + 7, month,
+                when + 1);
 
         when = tmp_val;
     }
@@ -4505,7 +4509,8 @@ errr file_character(cptr name, bool full)
                 int wgt = o_ptr->weight * o_ptr->number;
                 char wgt_buf[80];
 
-                strnfmt(wgt_buf, sizeof(wgt_buf), " %d.%1d lb", wgt / 10, wgt % 10);
+                strnfmt(
+                    wgt_buf, sizeof(wgt_buf), " %d.%1d lb", wgt / 10, wgt % 10);
                 my_strcat(o_name, wgt_buf, sizeof(o_name));
             }
 
@@ -4698,8 +4703,8 @@ static int final_menu(int* highlight)
 
     // if (p_ptr->noscore & 0x0008)
     //{
-    //	strnfmt(buf, sizeof(buf), "Debugging info: %d forges generated", p_ptr->forge_count);
-    //	Term_putstr(15, 21, -1, TERM_WHITE, buf);
+    //	strnfmt(buf, sizeof(buf), "Debugging info: %d forges generated",
+    // p_ptr->forge_count); 	Term_putstr(15, 21, -1, TERM_WHITE, buf);
     //}
 
     Term_putstr(3, 10, -1, TERM_L_DARK,

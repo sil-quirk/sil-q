@@ -530,7 +530,8 @@ static errr Infowin_set_name(cptr name)
     char* bp = buf;
     my_strcpy(buf, name, sizeof(buf));
     st = XStringListToTextProperty(&bp, 1, &tp);
-    if (st) {
+    if (st)
+    {
         XSetWMName(Metadpy->dpy, Infowin->win, &tp);
         XFree(tp.value);
     }
@@ -2597,10 +2598,11 @@ static errr term_data_init(term_data* td, int i)
     return (0);
 }
 
-const char help_x11[] = "X11, subopts -d<display> -n<windows>"
+const char help_x11[]
+    = "X11, subopts -d<display> -n<windows>"
 #ifdef USE_GRAPHICS
-                        " -s(moothRescale)"
-                        "\n           -b(Bigtile) -g(Tiles graphics) -c(Classic ASCII graphics)"
+      " -s(moothRescale)"
+      "\n           -b(Bigtile) -g(Tiles graphics) -c(Classic ASCII graphics)"
 #endif
     ;
 

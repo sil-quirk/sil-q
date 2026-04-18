@@ -2299,8 +2299,8 @@ bool recharge(int num)
  * Bolts stop as soon as they hit a monster, whiz past missed targets, and
  * (almost) never affect items on the floor.
  */
-static bool project_bolt(int who, int rad, int y0, int x0, int y1, int x1, int dd,
-    int ds, int dif, int typ, u32b flg)
+static bool project_bolt(int who, int rad, int y0, int x0, int y1, int x1,
+    int dd, int ds, int dif, int typ, u32b flg)
 {
     /* Add the bolt bitflags */
     flg |= PROJECT_STOP | PROJECT_KILL | PROJECT_THRU;
@@ -2323,8 +2323,8 @@ static bool project_bolt(int who, int rad, int y0, int x0, int y1, int x1, int d
  * Beams affect every grid they touch, go right through monsters, and
  * (almost) never affect items on the floor.
  */
-static bool project_beam(int who, int rad, int y0, int x0, int y1, int x1, int dd,
-    int ds, int dif, int typ, u32b flg)
+static bool project_beam(int who, int rad, int y0, int x0, int y1, int x1,
+    int dd, int ds, int dif, int typ, u32b flg)
 {
     /* Add the beam bitflags */
     flg |= PROJECT_BEAM | PROJECT_KILL | PROJECT_THRU;
@@ -2352,8 +2352,8 @@ static bool project_beam(int who, int rad, int y0, int x0, int y1, int x1, int d
  * how quickly their damage falls off with distance from the center of the
  * explosion).
  */
-static bool project_ball(int who, int rad, int y0, int x0, int y1, int x1, int dd,
-    int ds, int dif, int typ, u32b flg, bool uniform)
+static bool project_ball(int who, int rad, int y0, int x0, int y1, int x1,
+    int dd, int ds, int dif, int typ, u32b flg, bool uniform)
 {
     /* Add the ball bitflags */
     flg |= PROJECT_BOOM | PROJECT_GRID | PROJECT_ITEM | PROJECT_KILL;
@@ -2688,12 +2688,18 @@ void spread_cave_temp(int y1, int x1, int range, bool room)
 /*
  * Slow monsters
  */
-bool slow_monsters(int power) { return (project_los(GF_SLOW, 0, 0, power, FALSE)); }
+bool slow_monsters(int power)
+{
+    return (project_los(GF_SLOW, 0, 0, power, FALSE));
+}
 
 /*
  * Sleep monsters
  */
-bool sleep_monsters(int power) { return (project_los(GF_SLEEP, 0, 0, power, FALSE)); }
+bool sleep_monsters(int power)
+{
+    return (project_los(GF_SLEEP, 0, 0, power, FALSE));
+}
 
 /*
  * Destroy traps

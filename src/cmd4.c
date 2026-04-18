@@ -981,7 +981,8 @@ static int bane_menu(int* highlight)
 
 #define OATH_TYPES 4
 
-static u32b oath_flag[] = { 0L, OATH_MERCY_FLAG, OATH_SILENCE_FLAG, OATH_IRON_FLAG };
+static u32b oath_flag[]
+    = { 0L, OATH_MERCY_FLAG, OATH_SILENCE_FLAG, OATH_IRON_FLAG };
 
 char* oath_name[] = {
     "Nothing",
@@ -1013,10 +1014,7 @@ char* oath_reward[] = {
 
 bool oath_invalid(int i) { return ((p_ptr->oaths_broken & oath_flag[i]) > 0); }
 
-bool chosen_oath(int oath)
-{
-    return p_ptr->oath_type == oath;
-}
+bool chosen_oath(int oath) { return p_ptr->oath_type == oath; }
 
 static int oath_menu(int* highlight)
 {
@@ -1062,14 +1060,12 @@ static int oath_menu(int* highlight)
 
             if (oath_invalid(i))
             {
-                strnfmt(buf, 120, "It is too late to vow %s.",
-                    oath_desc1[i]);
+                strnfmt(buf, 120, "It is too late to vow %s.", oath_desc1[i]);
                 text_out_to_screen(attr, buf);
             }
             else
             {
-                strnfmt(buf, 120, "You vow %s.\n\n",
-                    oath_desc1[i]);
+                strnfmt(buf, 120, "You vow %s.\n\n", oath_desc1[i]);
                 text_out_to_screen(attr, buf);
                 strnfmt(buf, 120, "You may not %s.\n", oath_desc2[i]);
                 text_out_to_screen(attr, buf);
@@ -1365,7 +1361,7 @@ static int abilities_menu2(int skilltype, int* highlight)
                                     + (&b_info[ability_index(
                                            b_ptr->prereq_skilltype[j],
                                            b_ptr->prereq_abilitynum[j])])
-                                          ->name);
+                                        ->name);
                         }
                         else
                         {
@@ -1374,7 +1370,7 @@ static int abilities_menu2(int skilltype, int* highlight)
                                     + (&b_info[ability_index(
                                            b_ptr->prereq_skilltype[j],
                                            b_ptr->prereq_abilitynum[j])])
-                                          ->name);
+                                        ->name);
                         }
                         Term_putstr(
                             COL_DESCRIPTION + 2, 13 + j, -1, TERM_L_DARK, buf);
@@ -1386,7 +1382,7 @@ static int abilities_menu2(int skilltype, int* highlight)
                                     + (&b_info[ability_index(
                                            b_ptr->prereq_skilltype[j],
                                            b_ptr->prereq_abilitynum[j])])
-                                          ->name);
+                                        ->name);
                             if (j == 0)
                             {
                                 Term_putstr(COL_DESCRIPTION + 2, 13 + j, -1,
@@ -1695,7 +1691,7 @@ void do_cmd_ability_screen(void)
                                                         + (&b_info[ability_index(
                                                                skilltype,
                                                                abilitynum)])
-                                                              ->name),
+                                                            ->name),
                                                 p_ptr->depth);
                                         }
                                         else if (oathchoice <= 0)
@@ -1711,7 +1707,7 @@ void do_cmd_ability_screen(void)
                                                         + (&b_info[ability_index(
                                                                skilltype,
                                                                abilitynum)])
-                                                              ->name),
+                                                            ->name),
                                                 p_ptr->depth);
                                         }
                                         else
@@ -1726,7 +1722,7 @@ void do_cmd_ability_screen(void)
                                                         + (&b_info[ability_index(
                                                                skilltype,
                                                                abilitynum)])
-                                                              ->name,
+                                                            ->name,
                                                     oath_name[oathchoice]),
                                                 p_ptr->depth);
                                         }
@@ -3657,8 +3653,8 @@ static void prt_object_difficulty(void)
             attr = TERM_L_DARK;
             affordable = FALSE;
         }
-        strnfmt(buf, sizeof(buf), "%d.%d lb Mithril", smithing_cost.mithril / 10,
-            smithing_cost.mithril % 10);
+        strnfmt(buf, sizeof(buf), "%d.%d lb Mithril",
+            smithing_cost.mithril / 10, smithing_cost.mithril % 10);
         Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
         costs++;
     }
@@ -4845,8 +4841,8 @@ static int artefact_flag_menu_aux(int category, int* highlight)
             attr = flag_present[num]
                 ? TERM_BLUE
                 : (flag_valid[num]
-                        ? (flag_affordable[num] ? TERM_WHITE : TERM_SLATE)
-                        : TERM_L_DARK);
+                          ? (flag_affordable[num] ? TERM_WHITE : TERM_SLATE)
+                          : TERM_L_DARK);
 
             /* Display the line */
             strnfmt(buf, 80, "%c) %s", (char)'a' + num,
@@ -5237,8 +5233,8 @@ static int artefact_ability_menu_aux(int skill, int* highlight)
         attr = ability_present[num]
             ? TERM_BLUE
             : (ability_valid[num]
-                    ? (ability_affordable[num] ? TERM_WHITE : TERM_SLATE)
-                    : TERM_L_DARK);
+                      ? (ability_affordable[num] ? TERM_WHITE : TERM_SLATE)
+                      : TERM_L_DARK);
 
         /* Display the line */
         strnfmt(buf, 80, "%c) %s", (char)'a' + num, b_name + b_ptr->name);
@@ -11712,7 +11708,8 @@ static void show_nearby_objects(bool line_of_sight_only)
             = distance(p_ptr->py, p_ptr->px, temp_y[i], temp_x[i]);
 
         if (strlen(lines[j].direction) == 0)
-            snprintf(lines[j].direction, sizeof(lines[j].direction), "%s", "underfoot");
+            snprintf(lines[j].direction, sizeof(lines[j].direction), "%s",
+                "underfoot");
 
         lines[j].object_character = object_char(o_ptr);
         lines[j].object_color = object_attr(o_ptr);

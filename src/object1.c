@@ -2021,7 +2021,8 @@ void display_equip(void)
         if (o_ptr->weight)
         {
             int wgt = o_ptr->weight * o_ptr->number;
-            strnfmt(tmp_val, sizeof(tmp_val), "%3d.%1d lb ", wgt / 10, wgt % 10);
+            strnfmt(
+                tmp_val, sizeof(tmp_val), "%3d.%1d lb ", wgt / 10, wgt % 10);
             if ((i >= INVEN_BODY) && (i <= INVEN_FEET))
             {
                 Term_putstr(col, i - INVEN_WIELD, -1, TERM_SLATE, tmp_val);
@@ -2045,8 +2046,8 @@ void display_equip(void)
 
     /* Put in the total weight */
     Term_putstr(col, INVEN_TOTAL - INVEN_WIELD, -1, TERM_L_DARK, "--------");
-    strnfmt(
-        tmp_val, sizeof(tmp_val), "armour: %3d.%1d lb", armour_weight / 10, armour_weight % 10);
+    strnfmt(tmp_val, sizeof(tmp_val), "armour: %3d.%1d lb", armour_weight / 10,
+        armour_weight % 10);
     Term_putstr(
         col - 8, INVEN_TOTAL - INVEN_WIELD + 1, -1, TERM_SLATE, tmp_val);
 }
@@ -2306,8 +2307,8 @@ void show_equip(void)
         /* Blank the line for the total */
         prt("", j + 2, col ? col - 2 : col);
         c_put_str(TERM_L_DARK, "--------", INVEN_TOTAL - INVEN_WIELD + 1, 71);
-        strnfmt(tmp_val, sizeof(tmp_val), "armour: %3d.%1d lb", armour_weight / 10,
-            armour_weight % 10);
+        strnfmt(tmp_val, sizeof(tmp_val), "armour: %3d.%1d lb",
+            armour_weight / 10, armour_weight % 10);
         c_put_str(TERM_SLATE, tmp_val, INVEN_TOTAL - INVEN_WIELD + 2, 71 - 8);
         /* Make a new "shadow" below the list (only if needed) */
         if (j && (j + 3 < 23))
@@ -2929,8 +2930,8 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             if (i1 <= i2)
             {
                 /* Build the prompt */
-                strnfmt(
-                    tmp_val, sizeof(tmp_val), " %c-%c,", index_to_label(i1), index_to_label(i2));
+                strnfmt(tmp_val, sizeof(tmp_val), " %c-%c,", index_to_label(i1),
+                    index_to_label(i2));
 
                 /* Append */
                 my_strcat(out_val, tmp_val, sizeof(out_val));
@@ -2963,8 +2964,8 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             if (e1 <= e2)
             {
                 /* Build the prompt */
-                strnfmt(
-                    tmp_val, sizeof(tmp_val), " %c-%c,", index_to_label(e1), index_to_label(e2));
+                strnfmt(tmp_val, sizeof(tmp_val), " %c-%c,", index_to_label(e1),
+                    index_to_label(e2));
 
                 /* Append */
                 my_strcat(out_val, tmp_val, sizeof(out_val));

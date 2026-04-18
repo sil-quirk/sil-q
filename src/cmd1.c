@@ -19,27 +19,19 @@ bool graphics_are_ascii(void)
 #define QUEST_HUMAN 0
 #define QUEST_ELF 1
 
-char* quest_text[] = {
-    "something to lighten the darkness",
-    "something to eat"
-};
+char* quest_text[]
+    = { "something to lighten the darkness", "something to eat" };
 
-char* quest_requirement[] = {
-    "You have no spare light.",
-    "You have no food."
-};
+char* quest_requirement[] = { "You have no spare light.", "You have no food." };
 
-char* quest_outcome[] = {
-    "hides it among their rags",
-    "begins eating it"
-};
+char* quest_outcome[] = { "hides it among their rags", "begins eating it" };
 
 /*
  * Puts an item in the player's inventory.
  * If the inventory would overflow, this is handled at the start of the next
  * player turn.
  */
-void give_player_item(object_type * o_ptr)
+void give_player_item(object_type* o_ptr)
 {
     char o_name[80];
     int slot = inven_carry(o_ptr, TRUE);
@@ -86,7 +78,7 @@ static void reward_player_for_quest(cptr m_name, unsigned int quest_index)
 
     selection = dieroll(3);
 
-    switch(selection)
+    switch (selection)
     {
     case 1:
         msg_format("%^s gives you a ragged herb.", m_name);
@@ -101,7 +93,8 @@ static void reward_player_for_quest(cptr m_name, unsigned int quest_index)
         p_ptr->thrall_quest = QUEST_COMPLETE;
         break;
     default:
-        msg_format("%^s tells you about some passages a little way off.", m_name);
+        msg_format(
+            "%^s tells you about some passages a little way off.", m_name);
         p_ptr->thrall_quest = QUEST_REWARD_MAP;
     }
 }
@@ -152,8 +145,8 @@ static void do_quest(monster_type* m_ptr)
         inven_item_describe(item);
         inven_item_optimize(item);
 
-        msg_format("%^s %s and thanks you.", m_name,
-            quest_outcome[quest_index]);
+        msg_format(
+            "%^s %s and thanks you.", m_name, quest_outcome[quest_index]);
 
         reward_player_for_quest(m_name, quest_index);
     }
@@ -375,8 +368,8 @@ void set_alertness(monster_type* m_ptr, int alertness)
     char m_name[80];
     monster_race* r_ptr = &r_info[m_ptr->r_idx];
     bool redisplay = FALSE;
-    bool is_non_alert_thrall =
-        m_ptr->r_idx == R_IDX_HUMAN_THRALL || m_ptr->r_idx == R_IDX_ELF_THRALL;
+    bool is_non_alert_thrall = m_ptr->r_idx == R_IDX_HUMAN_THRALL
+        || m_ptr->r_idx == R_IDX_ELF_THRALL;
 
     // Nothing to be done...
     if (m_ptr->alertness == alertness)
@@ -1157,7 +1150,8 @@ static void slay_desc(char* description, u32b flag, const monster_type* m_ptr)
         strnfmt(description, 160, "strikes truly");
         break;
     case TR1_BRAND_ELEC:
-        strnfmt(description, 160, "shocks %s with the force of lightning", m_name);
+        strnfmt(
+            description, 160, "shocks %s with the force of lightning", m_name);
         break;
     case TR1_BRAND_FIRE:
         strnfmt(description, 160, "burns %s with an inner fire", m_name);
@@ -1523,7 +1517,7 @@ extern void ident_on_wield(object_type* o_ptr)
             b_name
                 + (&b_info[ability_index(
                        k_ptr->skilltype[0], k_ptr->abilitynum[0])])
-                      ->name);
+                    ->name);
     }
 
     // identify the special item types that grant abilities
@@ -1538,7 +1532,7 @@ extern void ident_on_wield(object_type* o_ptr)
                 b_name
                     + (&b_info[ability_index(
                            e_ptr->skilltype[0], e_ptr->abilitynum[0])])
-                          ->name);
+                        ->name);
         }
     }
 
@@ -1554,7 +1548,7 @@ extern void ident_on_wield(object_type* o_ptr)
                 b_name
                     + (&b_info[ability_index(
                            a_ptr->skilltype[0], a_ptr->abilitynum[0])])
-                          ->name);
+                        ->name);
         }
     }
 
@@ -3998,8 +3992,8 @@ void py_attack_aux(int y, int x, int attack_type)
     {
         if (attack_type == ATT_MAIN)
         {
-            if (m_ptr->r_idx == R_IDX_ALERT_HUMAN_THRALL ||
-                m_ptr->r_idx == R_IDX_ALERT_ELF_THRALL)
+            if (m_ptr->r_idx == R_IDX_ALERT_HUMAN_THRALL
+                || m_ptr->r_idx == R_IDX_ALERT_ELF_THRALL)
             {
                 do_quest(m_ptr);
             }
@@ -4331,7 +4325,8 @@ void py_attack_aux(int y, int x, int attack_type)
                 int kill_threshold = ability_bonus(S_SNG, SNG_SLAYING);
                 if (m_ptr->hp <= kill_threshold)
                 {
-                    msg_format("Your song soars as %s falls before you.", m_name);
+                    msg_format(
+                        "Your song soars as %s falls before you.", m_name);
 
                     /* Sort out combat rolls window */
                     total_dice = 0;
@@ -4351,12 +4346,13 @@ void py_attack_aux(int y, int x, int attack_type)
 
                     /* Delete the monster */
                     delete_monster_idx(m_idx);
-                    
+
                     fatal_blow = TRUE;
                 }
             }
 
-            // Take hit only if monster has not been killed by an ability already
+            // Take hit only if monster has not been killed by an ability
+            // already
             if (!fatal_blow)
             {
                 // damage, check for death
@@ -4651,8 +4647,7 @@ void flanking_or_retreat(int y, int x)
         {
             m_ptr = &mon_list[cave_m_idx[fy][fx]];
 
-            if (!merciless_attack(m_ptr)
-                && m_ptr->ml
+            if (!merciless_attack(m_ptr) && m_ptr->ml
                 && (!forgo_attacking_unwary
                     || (m_ptr->alertness >= ALERTNESS_ALERT)))
             {
@@ -4693,8 +4688,7 @@ void flanking_or_retreat(int y, int x)
                 m_ptr = &mon_list[cave_m_idx[fy][fx]];
 
                 // base conditions for an attack
-                if (!merciless_attack(m_ptr)
-                    && m_ptr->ml
+                if (!merciless_attack(m_ptr) && m_ptr->ml
                     && (!forgo_attacking_unwary
                         || (m_ptr->alertness >= ALERTNESS_ALERT)))
                 {
@@ -5543,7 +5537,7 @@ static bool run_test(void)
 
         /* Visible objects abort running */
         for (o_ptr = get_first_object(row, col); o_ptr;
-             o_ptr = get_next_object(o_ptr))
+            o_ptr = get_next_object(o_ptr))
         {
             /* Visible object */
             if (o_ptr->marked)
@@ -5866,4 +5860,3 @@ void run_step(int dir)
     /* Move the player */
     move_player(p_ptr->run_cur_dir);
 }
-

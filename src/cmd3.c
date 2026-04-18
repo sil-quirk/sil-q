@@ -907,7 +907,9 @@ void do_cmd_drop(void)
  */
 static bool item_tester_hook_destroy(const object_type* o_ptr)
 {
-    if (o_ptr) { } // suppresses warnings about this function
+    if (o_ptr)
+    {
+    } // suppresses warnings about this function
 
     return (TRUE);
 }

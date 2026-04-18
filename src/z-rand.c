@@ -42,7 +42,7 @@
 /*
  * Random Number Generator -- Linear Congruent RNG
  */
-#define LCRNG(X) ((X)*1103515245 + 12345)
+#define LCRNG(X) ((X) * 1103515245 + 12345)
 
 /*
  * Use the "simple" LCRNG

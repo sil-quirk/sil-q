@@ -336,7 +336,8 @@ static bool get_ahw(void)
 
             while ((age < age_l) || (age > age_h))
             {
-                strnfmt(prompt, sizeof(prompt), "Enter age (%d-%d): ", age_l, age_h);
+                strnfmt(prompt, sizeof(prompt), "Enter age (%d-%d): ", age_l,
+                    age_h);
                 if (!term_get_string(prompt, line, sizeof(line)))
                     return (FALSE);
                 age = atoi(line);
@@ -352,8 +353,8 @@ static bool get_ahw(void)
 
             while ((height < height_l) || (height > height_h))
             {
-                strnfmt(prompt, sizeof(prompt), "Enter height in inches (%d-%d): ", height_l,
-                    height_h);
+                strnfmt(prompt, sizeof(prompt),
+                    "Enter height in inches (%d-%d): ", height_l, height_h);
                 if (!term_get_string(prompt, line, sizeof(line)))
                     return (FALSE);
                 height = atoi(line);
@@ -369,8 +370,8 @@ static bool get_ahw(void)
 
             while ((weight < weight_l) || (weight > weight_h))
             {
-                strnfmt(prompt, sizeof(prompt), "Enter weight in pounds (%d-%d): ", weight_l,
-                    weight_h);
+                strnfmt(prompt, sizeof(prompt),
+                    "Enter weight in pounds (%d-%d): ", weight_l, weight_h);
                 if (!term_get_string(prompt, line, sizeof(line)))
                     return (FALSE);
                 weight = atoi(line);
@@ -2011,9 +2012,11 @@ void player_birth(void)
     atomonth(atoi(month), month, sizeof(month));
 
     if (*(raw_date + 7) == '0')
-        strnfmt(clean_date, sizeof(clean_date), "%.1s %.3s %.4s", raw_date + 8, month, raw_date + 1);
+        strnfmt(clean_date, sizeof(clean_date), "%.1s %.3s %.4s", raw_date + 8,
+            month, raw_date + 1);
     else
-        strnfmt(clean_date, sizeof(clean_date), "%.2s %.3s %.4s", raw_date + 7, month, raw_date + 1);
+        strnfmt(clean_date, sizeof(clean_date), "%.2s %.3s %.4s", raw_date + 7,
+            month, raw_date + 1);
 
     /* Add in "character start" information */
     my_strcat(notes_buffer,
