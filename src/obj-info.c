@@ -1012,9 +1012,9 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3, u32b
     if (f2 & (TR2_HUNGER))
         bad[bc++] = "increases your hunger";
     if (f2 & (TR2_DARKNESS))
-        bad[bc++] = "shrouds you in darkness (but concentrates your light)";
+        bad[bc++] = "reduces your light radius by 1, but concentrates the light that remains";
     if (f4 & (TR4_UNLIGHT))
-        bad[bc++] = "dims your light";
+        bad[bc++] = "reduces your light radius by 1 without concentrating the light that remains";
     if (f2 & (TR2_SLOWNESS))
         bad[bc++] = "slows your movement";
     if (f2 & (TR2_AGGRAVATE))

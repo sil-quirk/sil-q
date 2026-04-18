@@ -6065,6 +6065,8 @@ void disturb(int stop_stealth, int unused_flag)
     {
         // Display a message
         msg_print("Your work is interrupted!");
+        log_debug("fletchery:interrupt turns_left=%d fletch_item=%d",
+            p_ptr->fletching, p_ptr->fletch_item);
 
         finish_fletching(p_ptr->fletching);
 

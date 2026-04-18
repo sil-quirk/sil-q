@@ -1748,8 +1748,7 @@ typedef struct elemental_item_debug_info
     int min_raw;
     int max_raw;
     int hp_dam;
-    double base_probability;
-    double raw_percentile;
+    double roll_cdf;
     double q_factor;
     double hurt_factor;
     int threshold;
@@ -1968,10 +1967,10 @@ static void elemental_debug_emit(const elemental_item_debug_info* debug)
 
     threshold_pct = (double)debug->threshold / 10000.0;
     strnfmt(buf, sizeof(buf),
-        "[Elem %s] raw=%d/%d..%d hp=%d base=%.2f%% rawpct=%.1f%% q=%.3f hurt=%.3f chance=%.4f%% %s cand=%d%s%s -> %s",
+        "[Elem %s] raw=%d/%d..%d hp=%d cdf=%.1f%% q=%.3f hurt=%.3f chance=%.4f%% %s cand=%d%s%s -> %s",
         elemental_attack_name(debug->attack_type), debug->raw_dam, debug->min_raw,
-        debug->max_raw, debug->hp_dam, debug->base_probability * 100.0,
-        debug->raw_percentile * 100.0, debug->q_factor, debug->hurt_factor,
+        debug->max_raw, debug->hp_dam, debug->roll_cdf * 100.0,
+        debug->q_factor, debug->hurt_factor,
         threshold_pct, gate_buf, debug->candidate_count, target_buf, acid_buf,
         debug->outcome);
     msg_print(buf);
@@ -2040,47 +2039,10 @@ static double elemental_clamp01(double value)
     return value;
 }
 
-static double elemental_attack_base_probability(int attack_type)
+static double elemental_linear_damage_percentile(int raw_dam, int min_raw,
+    int max_raw)
 {
-    switch (attack_type)
-    {
-    case GF_FIRE:
-        return 0.18;
-    case GF_COLD:
-        return 0.16;
-    case GF_ACID:
-        return 0.14;
-    case GF_ELEC:
-        return 0.10;
-    case GF_SOUND:
-        return 0.20;
-    default:
-        return 0.0;
-    }
-}
-
-static int elemental_attack_probability_per_million(int attack_type, int raw_dam,
-    int min_raw, int max_raw, int hp_dam, elemental_item_debug_info* debug)
-{
-    double base = elemental_attack_base_probability(attack_type);
     double percentile;
-    double q;
-    double hp = (double)hp_dam;
-    double hurt;
-    double chance;
-    int threshold;
-
-    if (debug)
-    {
-        debug->base_probability = base;
-        debug->raw_percentile = 0.0;
-        debug->q_factor = 0.0;
-        debug->hurt_factor = 0.0;
-        debug->threshold = 0;
-    }
-
-    if ((base <= 0.0) || (hp_dam <= 0))
-        return 0;
 
     if (max_raw < min_raw)
     {
@@ -2090,19 +2052,143 @@ static int elemental_attack_probability_per_million(int attack_type, int raw_dam
     }
 
     if (max_raw == min_raw)
+        return (raw_dam >= max_raw) ? 1.0 : 0.0;
+
+    percentile = ((double)raw_dam - (double)min_raw)
+        / ((double)max_raw - (double)min_raw);
+    return elemental_clamp01(percentile);
+}
+
+static bool elemental_damage_roll_shape(int min_raw, int max_raw, int* dice,
+    int* sides)
+{
+    if (!dice || !sides)
+        return false;
+
+    if ((min_raw <= 0) || (max_raw < min_raw))
+        return false;
+
+    if ((max_raw % min_raw) != 0)
+        return false;
+
+    *dice = min_raw;
+    *sides = max_raw / min_raw;
+    return (*sides >= 1);
+}
+
+/*
+ * Use the actual NdS distribution when min/max describe one; otherwise,
+ * fall back to the previous linear percentile.
+ */
+static double elemental_damage_cdf_percentile(int raw_dam, int min_raw,
+    int max_raw)
+{
+    int dice;
+    int sides;
+    int max_sum;
+    int capped_raw;
+    int prev_max = 0;
+    double cdf = 0.0;
+    double* prev;
+    double* next;
+
+    if (max_raw < min_raw)
     {
-        percentile = 1.0;
-    }
-    else
-    {
-        percentile = ((double)raw_dam - (double)min_raw)
-            / ((double)max_raw - (double)min_raw);
+        int tmp = max_raw;
+        max_raw = min_raw;
+        min_raw = tmp;
     }
 
-    percentile = elemental_clamp01(percentile);
+    if (raw_dam < min_raw)
+        return 0.0;
+
+    if (raw_dam >= max_raw)
+        return 1.0;
+
+    if (!elemental_damage_roll_shape(min_raw, max_raw, &dice, &sides))
+    {
+        return elemental_linear_damage_percentile(raw_dam, min_raw, max_raw);
+    }
+
+    if (sides == 1)
+        return (raw_dam >= dice) ? 1.0 : 0.0;
+
+    max_sum = dice * sides;
+    prev = mem_alloc_array(max_sum + 1, double);
+    next = mem_alloc_array(max_sum + 1, double);
+    if (!prev || !next)
+    {
+        prev = mem_free(prev);
+        next = mem_free(next);
+        return elemental_linear_damage_percentile(raw_dam, min_raw, max_raw);
+    }
+
+    prev[0] = 1.0;
+
+    for (int die = 0; die < dice; die++)
+    {
+        memset(next, 0, (size_t)(max_sum + 1) * sizeof(*next));
+
+        for (int sum = 0; sum <= prev_max; sum++)
+        {
+            double probability = prev[sum];
+
+            if (probability <= 0.0)
+                continue;
+
+            probability /= (double)sides;
+            for (int face = 1; face <= sides; face++)
+            {
+                next[sum + face] += probability;
+            }
+        }
+
+        {
+            double* tmp = prev;
+            prev = next;
+            next = tmp;
+        }
+
+        prev_max += sides;
+    }
+
+    capped_raw = MIN(raw_dam, max_sum);
+    for (int sum = min_raw; sum <= capped_raw; sum++)
+    {
+        cdf += prev[sum];
+    }
+
+    prev = mem_free(prev);
+    next = mem_free(next);
+    return elemental_clamp01(cdf);
+}
+
+static int elemental_attack_probability_per_million(int raw_dam, int min_raw,
+    int max_raw, int hp_dam, elemental_item_debug_info* debug)
+{
+    double percentile;
+    double q;
+    double hp = (double)hp_dam;
+    const double hurt_scale = 80.0 / 3.0;
+    double hurt;
+    double chance;
+    int threshold;
+
+    if (debug)
+    {
+        debug->roll_cdf = 0.0;
+        debug->q_factor = 0.0;
+        debug->hurt_factor = 0.0;
+        debug->threshold = 0;
+    }
+
+    if (hp_dam <= 0)
+        return 0;
+
+    percentile = elemental_damage_cdf_percentile(raw_dam, min_raw, max_raw);
     q = elemental_clamp01((percentile - 0.50) / 0.50);
-    hurt = (hp * hp) / ((hp * hp) + (8.0 * 8.0));
-    chance = base * q * q * hurt;
+    hurt = (hp * hp) / ((hp * hp) + (hurt_scale * hurt_scale));
+    chance = q * q * hurt;
     threshold = (int)(chance * 1000000.0 + 0.5);
 
     if (threshold < 0)
@@ -2112,7 +2198,7 @@ static int elemental_attack_probability_per_million(int attack_type, int raw_dam
 
     if (debug)
     {
-        debug->raw_percentile = percentile;
+        debug->roll_cdf = percentile;
         debug->q_factor = q;
         debug->hurt_factor = hurt;
         debug->threshold = threshold;
@@ -2225,6 +2311,28 @@ static double elemental_item_material_factor(int attack_type,
     }
 }
 
+static bool elemental_attack_allows_candidate_location(int attack_type,
+    elemental_item_candidate_location location, int index)
+{
+    switch (attack_type)
+    {
+    case GF_FIRE:
+    case GF_ACID:
+    case GF_ELEC:
+        return (location == ELEMENTAL_CANDIDATE_INVENTORY)
+            && (index >= INVEN_WIELD) && (index < INVEN_TOTAL);
+
+    case GF_COLD:
+        return location == ELEMENTAL_CANDIDATE_SUPPLY;
+
+    case GF_SOUND:
+        return true;
+
+    default:
+        return false;
+    }
+}
+
 static long elemental_item_weight(int attack_type,
     elemental_item_candidate_location location, int index,
     const object_type* o_ptr)
@@ -2235,6 +2343,9 @@ static long elemental_item_weight(int attack_type,
     long scaled;
 
     if (!elemental_attack_can_target_object(attack_type, o_ptr))
+        return 0;
+
+    if (!elemental_attack_allows_candidate_location(attack_type, location, index))
         return 0;
 
     slot_factor = elemental_item_slot_factor(index, location);
@@ -2614,8 +2725,8 @@ static void elemental_attack_affect_one_item(int attack_type, int raw_dam,
     int gate_roll;
 
     elemental_debug_init(&debug, attack_type, raw_dam, min_raw, max_raw, hp_dam);
-    int threshold = elemental_attack_probability_per_million(attack_type,
-        raw_dam, min_raw, max_raw, hp_dam, debug.enabled ? &debug : NULL);
+    int threshold = elemental_attack_probability_per_million(raw_dam, min_raw,
+        max_raw, hp_dam, debug.enabled ? &debug : NULL);
 
     if (threshold <= 0)
     {

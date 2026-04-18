@@ -8165,6 +8165,45 @@ static bool feature_is_any_door(int feat)
         || ((feat >= FEAT_DOOR_HEAD) && (feat <= FEAT_DOOR_TAIL));
 }
 
+static bool doorway_neighbor_open(int y, int x)
+{
+    if (!in_bounds_fully(y, x))
+        return false;
+
+    if (cave_impassable_bold(y, x))
+        return false;
+
+    return !feature_is_any_door(cave_feat[y][x]);
+}
+
+static bool doorway_neighbor_blocked(int y, int x)
+{
+    if (!in_bounds_fully(y, x))
+        return true;
+
+    return cave_impassable_bold(y, x);
+}
+
+/* Keep non-vault doors only when they still sit in a real doorway:
+ * open on one axis, blocked on the perpendicular axis. */
+static bool doorway_geometry_ok(int y, int x)
+{
+    bool north_open = doorway_neighbor_open(y - 1, x);
+    bool south_open = doorway_neighbor_open(y + 1, x);
+    bool west_open = doorway_neighbor_open(y, x - 1);
+    bool east_open = doorway_neighbor_open(y, x + 1);
+
+    bool vertical_open = north_open && south_open;
+    bool horizontal_open = west_open && east_open;
+    bool vertical_blocked = doorway_neighbor_blocked(y - 1, x)
+        && doorway_neighbor_blocked(y + 1, x);
+    bool horizontal_blocked = doorway_neighbor_blocked(y, x - 1)
+        && doorway_neighbor_blocked(y, x + 1);
+
+    return (vertical_open && horizontal_blocked)
+        || (horizontal_open && vertical_blocked);
+}
+
 /* Organic cave/blob anchors should meet corridors as open floor, not doors.
  * Chasm anchors reuse the same kind marker for shaping, so exclude them. */
 static bool room_prefers_floor_thresholds(int room_idx)
@@ -8231,6 +8270,27 @@ static int squash_double_doors(void)
         }
     }
     log_trace("squash_double_doors: converted %d adjacent doors to floor", removed);
+    return removed;
+}
+
+static int prune_invalid_nonvault_doors(void)
+{
+    int removed = 0;
+
+    for (int y = 1; y < p_ptr->cur_map_hgt - 1; ++y)
+    {
+        for (int x = 1; x < p_ptr->cur_map_wid - 1; ++x)
+        {
+            if (!feature_is_any_door(cave_feat[y][x])) continue;
+            if (cave_info[y][x] & (CAVE_ICKY)) continue;
+            if (doorway_geometry_ok(y, x)) continue;
+
+            cave_set_feat(y, x, FEAT_FLOOR);
+            removed++;
+        }
+    }
+
+    log_trace("prune_invalid_nonvault_doors: converted %d malformed doors to floor", removed);
     return removed;
 }
 
@@ -18354,6 +18414,7 @@ static bool cave_gen(void)
             }
         }
     squash_double_doors();
+    prune_invalid_nonvault_doors();
 
     if (morgoth_level_active)
     {
@@ -18402,6 +18463,8 @@ static bool cave_gen(void)
         gen_log_level_end(false, dun->cent_n, 1);
         return (false);
     }
+
+    prune_invalid_nonvault_doors();
 
     {
         partition_population_plan plans[PARTITION_META_MAX];

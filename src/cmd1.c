@@ -1444,12 +1444,12 @@ extern void ident_on_wield(object_type* o_ptr)
     if (f2 & (TR2_DARKNESS))
     {
         notice = true;
-        msg_print("It shrouds you in darkness.");
+        msg_print("It reduces your light radius, but concentrates the light that remains.");
     }
     else if (f4 & (TR4_UNLIGHT))
     {
         notice = true;
-        msg_print("It dims your light.");
+        msg_print("It reduces your light radius without concentrating the light that remains.");
     }
     else if (f2 & (TR2_LIGHT))
     {
