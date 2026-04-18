@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Format Markdown files
+# Format Markdown files and C source files
 #
 
 ###############################################################################
@@ -11,6 +11,16 @@
 readonly SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 # shellcheck disable=SC2155
 readonly PROJECT_DIR=$(cd "$SCRIPT_DIR/.." && pwd -P)
+
+###############################################################################
+# Format the C sources
+###############################################################################
+
+if command -v clang-format >/dev/null 2>&1; then
+    (cd "$PROJECT_DIR" && clang-format -i src/*.c src/*.h)
+else
+    echo "clang-format not found; skipping C source formatting" >&2
+fi
 
 ###############################################################################
 # Format the markdown files
