@@ -973,7 +973,7 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3, u32b
     if (f4 & (TR4_BREAKS_PERMA_CURSE))
         good[gc++] = "can break the Oath of Feanor on your equipped items";
     if (f4 & (TR4_DEEP_CALL))
-        good[gc++] = "bears a Deep Call, speeding the minimum depth timer as if you were two levels deeper even in your inventory";
+        good[gc++] = "bears a Deep Call, speeding the minimum depth timer as if you were three levels deeper even in your inventory";
     if ((f4 & (TR4_PROT_FIRE)) && (o_ptr->pd > 0))
         good[gc++] = "uses its protection against fire";
     if ((f4 & (TR4_PROT_COLD)) && (o_ptr->pd > 0))
@@ -1032,7 +1032,7 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3, u32b
     if (cursed_p(o_ptr))
     {
         if (f3 & (TR3_PERMA_CURSE))
-            bad[bc++] = "bound by the Oath of Feanor (broken by holy light); the Silmarils are calling you, speeding the minimum depth timer as if you were three levels deeper even in your inventory";
+            bad[bc++] = "bound by the Oath of Feanor (broken by holy light); the Silmarils are calling you, speeding the minimum depth timer as if you were five levels deeper even in your inventory";
         else if (f3 & (TR3_HEAVY_CURSE))
             bad[bc++] = "heavily cursed";
         else if (object_known_p(o_ptr))
@@ -1093,7 +1093,7 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3, u32b
                 {
                     p_text_out("is ");
                     p_text_out_c(TERM_VIOLET, "bound by the Oath of Feanor");
-                    p_text_out(" (broken by holy light); the Silmarils are calling you, speeding the minimum depth timer as if you were three levels deeper even in your inventory");
+                    p_text_out(" (broken by holy light); the Silmarils are calling you, speeding the minimum depth timer as if you were five levels deeper even in your inventory");
                 }
                 else if (strstr(bad[i], "cursed"))
                 {

@@ -15,10 +15,12 @@
 #include "player/killer.h"
 #include "metarun.h"
 
-#define MIN_DEPTH_COUNTER_STEP 180000
+#define MIN_DEPTH_COUNTER_STEP 150000
 #define MIN_DEPTH_BASE_INCREMENT_START 85
 #define MIN_DEPTH_BASE_INCREMENT_DIVISOR 850
-#define MIN_DEPTH_INCREMENT_PER_BONUS 3
+#define MIN_DEPTH_INCREMENT_PER_BONUS 5
+#define MIN_DEPTH_ITEM_BONUS_DEEP_CALL 3
+#define MIN_DEPTH_ITEM_BONUS_PERMA_CURSE 5
 
 #define THROW_PENDING_NONE -9999
 static int throw_pending_slot = THROW_PENDING_NONE;
@@ -50,9 +52,9 @@ static int min_depth_timer_item_bonus_count(void)
             continue;
 
         if (f4 & TR4_DEEP_CALL)
-            count += 2;
+            count += MIN_DEPTH_ITEM_BONUS_DEEP_CALL;
         if (f3 & TR3_PERMA_CURSE)
-            count += 3;
+            count += MIN_DEPTH_ITEM_BONUS_PERMA_CURSE;
     }
 
     return count;

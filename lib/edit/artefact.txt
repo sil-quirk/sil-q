@@ -1514,7 +1514,7 @@ I:22:1:-1
 W:12:20:25:50000
 P:1:1d11:1:0d0
 F:SLAY_RAUKO | SLAY_MAN_OR_ELF | SEE_INVIS | FREE_ACT | EVIL_ITEM | MIN_DEPTH_SPEED
-F:GRA | AGGRAVATE | THROWING | DARKNESS
+F:GRA | AGGRAVATE | THROWING | UNLIGHT
 M:DEX:1
 B:3/2
 D:A cruel spear, black-hafted with a head of dark bronze, forged by Gorthaur
