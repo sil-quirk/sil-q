@@ -2388,12 +2388,17 @@ void screen_save(void)
  */
 void screen_load(void)
 {
+    bool restored_screen = false;
+
     /* Hack -- Flush messages */
     message_flush();
 
     /* Load the screen (if legal) */
     if (--screen_depth == 0)
+    {
         Term_load();
+        restored_screen = true;
+    }
 
     /* Decrease "icky" depth */
     character_icky--;
@@ -2417,6 +2422,11 @@ void screen_load(void)
                   scr_story[0], scr_story[1], scr_story[2], scr_story[3], scr_story[4],
                   scr_story[5], scr_story[6], scr_story[7], scr_story[8], scr_story[9], scr_story[10]);
     }
+
+    /* Push the restored terminal contents immediately. Some overlay exits do
+     * not hit another global refresh pass before idling for input. */
+    if (restored_screen)
+        Term_fresh();
 }
 
 /*

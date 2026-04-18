@@ -1738,6 +1738,9 @@ typedef struct elemental_item_candidate
     int index;
     object_type* o_ptr;
     long weight;
+    int units;
+    int unit_size;
+    int quantity_per_unit;
 } elemental_item_candidate;
 
 typedef struct elemental_item_debug_info
@@ -1885,6 +1888,7 @@ static double elemental_item_slot_factor(int slot,
     elemental_item_candidate_location location);
 static double elemental_item_material_factor(int attack_type,
     const object_type* o_ptr);
+static void elemental_mark_inventory_item_changed(void);
 
 static void elemental_debug_record_candidate(
     elemental_item_debug_info* debug, int attack_type,
@@ -2205,6 +2209,688 @@ static int elemental_attack_probability_per_million(int raw_dam, int min_raw,
     }
 
     return threshold;
+}
+
+static void elemental_debug_emit_size_summary(int attack_type, int raw_dam,
+    int min_raw, int max_raw, int hp_dam, double cdf, double q_squared,
+    double hurt, double chance, int total, int remaining, cptr outcome)
+{
+    char buf1[192];
+    char buf2[192];
+
+    if (!show_elemental_item_rolls || !outcome)
+        return;
+
+    strnfmt(buf1, sizeof(buf1),
+        "[Elem %s] raw=%d/%d..%d hp=%d cdf=%.1f%% q2=%.3f hurt=%.3f chance=%.4f%%",
+        elemental_attack_name(attack_type), raw_dam, min_raw, max_raw, hp_dam,
+        cdf * 100.0, q_squared, hurt, chance * 100.0);
+    strnfmt(buf2, sizeof(buf2), "[Elem %s] total=%d remaining=%d -> %s",
+        elemental_attack_name(attack_type), total, remaining, outcome);
+    msg_print(buf1);
+    msg_print(buf2);
+}
+
+static bool elemental_attack_matches_object_material(int attack_type,
+    const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    switch (attack_type)
+    {
+    case GF_ACID:
+        return hates_acid(o_ptr);
+    case GF_ELEC:
+        return hates_elec(o_ptr);
+    case GF_FIRE:
+        return hates_fire(o_ptr);
+    case GF_COLD:
+        return hates_cold(o_ptr);
+    default:
+        return false;
+    }
+}
+
+static bool elemental_attack_allows_size_location(int attack_type,
+    elemental_item_candidate_location location, int index,
+    const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    switch (attack_type)
+    {
+    case GF_ACID:
+    case GF_ELEC:
+    case GF_FIRE:
+        return (location == ELEMENTAL_CANDIDATE_INVENTORY)
+            && (index >= INVEN_WIELD) && (index < INVEN_TOTAL);
+
+    case GF_COLD:
+        if (location == ELEMENTAL_CANDIDATE_SUPPLY)
+            return o_ptr->tval != TV_LIGHT;
+
+        return (location == ELEMENTAL_CANDIDATE_INVENTORY)
+            && (index == INVEN_LITE);
+
+    default:
+        return false;
+    }
+}
+
+static bool elemental_object_has_attack_resistance(const object_type* o_ptr,
+    int attack_type)
+{
+    u32b f1, f2, f3, f4;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
+    (void)f1;
+    (void)f4;
+
+    switch (attack_type)
+    {
+    case GF_ACID:
+        return (f3 & TR3_IGNORE_ACID) ? true : false;
+    case GF_ELEC:
+        return ((f2 & TR2_RES_ELEC) || (f3 & TR3_IGNORE_ELEC)) ? true : false;
+    case GF_FIRE:
+        return ((f2 & TR2_RES_FIRE) || (f3 & TR3_IGNORE_FIRE)) ? true : false;
+    case GF_COLD:
+        return ((f2 & TR2_RES_COLD) || (f3 & TR3_IGNORE_COLD)) ? true : false;
+    default:
+        return false;
+    }
+}
+
+static bool elemental_shield_has_attack_protection(const object_type* o_ptr,
+    int attack_type)
+{
+    u32b f1, f2, f3, f4;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
+    (void)f1;
+    (void)f2;
+
+    switch (attack_type)
+    {
+    case GF_ACID:
+        return (f3 & TR3_IGNORE_ACID) ? true : false;
+    case GF_ELEC:
+        return (f3 & TR3_IGNORE_ELEC) ? true : false;
+    case GF_FIRE:
+        return ((f4 & TR4_PROT_FIRE) || (f3 & TR3_IGNORE_FIRE)) ? true : false;
+    case GF_COLD:
+        return ((f4 & TR4_PROT_COLD) || (f3 & TR3_IGNORE_COLD)) ? true : false;
+    default:
+        return false;
+    }
+}
+
+static int elemental_shield_block_base(const object_type* o_ptr)
+{
+    int chance = 0;
+    byte ego_idx;
+
+    if (!o_ptr || !o_ptr->k_idx || (o_ptr->tval != TV_SHIELD))
+        return 0;
+
+    chance += k_info[o_ptr->k_idx].elemental_block;
+
+    if (o_ptr->name1)
+        chance += a_info[o_ptr->name1].elemental_block;
+
+    ego_idx = object_ego_prefix(o_ptr);
+    if (ego_idx)
+        chance += e_info[ego_idx].elemental_block;
+
+    ego_idx = object_ego_suffix(o_ptr);
+    if (ego_idx)
+        chance += e_info[ego_idx].elemental_block;
+
+    return chance;
+}
+
+static int elemental_shield_block_chance(const object_type* o_ptr,
+    int attack_type)
+{
+    int chance = elemental_shield_block_base(o_ptr);
+
+    if (!o_ptr || !o_ptr->k_idx || (o_ptr->tval != TV_SHIELD))
+        return 0;
+
+    if (elemental_object_has_attack_resistance(o_ptr, attack_type))
+        chance += 25;
+
+    if (blocking_bonus_active())
+        chance += 25;
+
+    if (chance < 0)
+        chance = 0;
+    if (chance > 100)
+        chance = 100;
+
+    return chance;
+}
+
+static object_type* elemental_equipped_shield(void)
+{
+    object_type* o_ptr = &inventory[INVEN_ARM];
+
+    if (!o_ptr->k_idx || (o_ptr->tval != TV_SHIELD))
+        return NULL;
+
+    return o_ptr;
+}
+
+static bool elemental_damage_blocking_shield(object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx || (o_ptr->ps <= 0))
+        return false;
+
+    o_ptr->ps--;
+    elemental_mark_inventory_item_changed();
+    return true;
+}
+
+static int elemental_item_unit_size(const object_type* o_ptr,
+    elemental_item_candidate_location location, int index)
+{
+    u32b f1, f2, f3, f4;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return 0;
+
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
+    (void)f1;
+    (void)f2;
+    (void)f4;
+
+    if ((location == ELEMENTAL_CANDIDATE_INVENTORY)
+        && (index >= INVEN_WIELD) && (index < INVEN_TOTAL)
+        && ((f3 & TR3_THROWING) || (index == INVEN_QUIVER1)
+            || (index == INVEN_QUIVER2)))
+    {
+        return 1;
+    }
+
+    switch (o_ptr->tval)
+    {
+    case TV_ARROW:
+        return 1;
+    case TV_SHIELD:
+        return 2;
+    case TV_SWORD:
+    case TV_HAFTED:
+    case TV_POLEARM:
+        return 2;
+    case TV_BOW:
+        return 2;
+    case TV_STAFF:
+        return 1;
+    case TV_BOOTS:
+    case TV_GLOVES:
+    case TV_CLOAK:
+        return 1;
+    case TV_SOFT_ARMOR:
+    case TV_MAIL:
+        return 2;
+    case TV_POTION:
+    case TV_GEM:
+        return 1;
+    case TV_LIGHT:
+        return ((o_ptr->sval == SV_LIGHT_TORCH)
+            || (o_ptr->sval == SV_LIGHT_MALLORN))
+            ? 1
+            : 2;
+    default:
+        return 1;
+    }
+}
+
+static int elemental_item_unit_count(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx || (o_ptr->number <= 0))
+        return 0;
+
+    if (o_ptr->tval == TV_ARROW)
+        return (o_ptr->number + 11) / 12;
+
+    return o_ptr->number;
+}
+
+static int elemental_item_quantity_per_unit(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx || (o_ptr->number <= 0))
+        return 0;
+
+    if (o_ptr->tval == TV_ARROW)
+        return MIN(o_ptr->number, 12);
+
+    return 1;
+}
+
+static void elemental_describe_quantity(char* buf, size_t buf_size,
+    const elemental_item_candidate* candidate, int amount)
+{
+    object_type desc_obj;
+
+    if (!buf || (buf_size == 0) || !candidate || !candidate->o_ptr)
+        return;
+
+    object_copy(&desc_obj, candidate->o_ptr);
+    desc_obj.number = (byte)amount;
+    object_desc(buf, buf_size, &desc_obj, false, 3);
+}
+
+static void elemental_message_amount(const elemental_item_candidate* candidate,
+    int original_number, int amount, cptr o_name, cptr singular_action,
+    cptr plural_action)
+{
+    cptr owner;
+    cptr action = (amount > 1) ? plural_action : singular_action;
+
+    if (original_number > 1)
+    {
+        if (amount >= original_number)
+            owner = "All of your";
+        else if (amount > 1)
+            owner = "Some of your";
+        else
+            owner = "One of your";
+    }
+    else
+    {
+        owner = "Your";
+    }
+
+    if (candidate->location == ELEMENTAL_CANDIDATE_SUPPLY)
+    {
+        msg_format("%s %s in your supplies %s", owner, o_name, action);
+    }
+    else if (candidate->index < INVEN_PACK)
+    {
+        msg_format("%s %s (%c) %s", owner, o_name,
+            index_to_label(candidate->index), action);
+    }
+    else
+    {
+        msg_format("%s %s %s", owner, o_name, action);
+    }
+}
+
+static void elemental_remove_quantity_from_candidate(
+    const elemental_item_candidate* candidate, int amount)
+{
+    object_type* o_ptr;
+    int total_before;
+    int charges_lost;
+
+    if (!candidate || !candidate->o_ptr || (amount <= 0))
+        return;
+
+    o_ptr = candidate->o_ptr;
+    amount = MIN(amount, o_ptr->number);
+
+    if (candidate->location == ELEMENTAL_CANDIDATE_SUPPLY)
+    {
+        (void)supplies_consume_quantity(candidate->index, amount);
+        return;
+    }
+
+    if (((o_ptr->tval == TV_STAFF) || (o_ptr->tval == TV_HORN))
+        && (o_ptr->number > amount))
+    {
+        total_before = o_ptr->number;
+        charges_lost = (o_ptr->pval * amount) / total_before;
+        if ((charges_lost <= 0) && (o_ptr->pval > 0))
+            charges_lost = 1;
+        if (charges_lost > o_ptr->pval)
+            charges_lost = o_ptr->pval;
+        o_ptr->pval -= charges_lost;
+    }
+
+    inven_item_increase(candidate->index, -amount);
+    inven_item_optimize(candidate->index);
+}
+
+static void elemental_destroy_candidate_quantity(
+    const elemental_item_candidate* candidate, int attack_type, int amount)
+{
+    char o_name[80];
+    int original_number;
+
+    if (!candidate || !candidate->o_ptr || (amount <= 0))
+        return;
+
+    original_number = candidate->o_ptr->number;
+    amount = MIN(amount, original_number);
+    elemental_describe_quantity(o_name, sizeof(o_name), candidate, amount);
+
+    if ((candidate->o_ptr->tval == TV_CHEST) && (amount > 0))
+    {
+        chest_release_contents(candidate->o_ptr, p_ptr->py, p_ptr->px,
+            attack_type);
+    }
+
+    elemental_remove_quantity_from_candidate(candidate, amount);
+    elemental_message_amount(candidate, original_number, amount, o_name,
+        "was destroyed!", "were destroyed!");
+}
+
+static int elemental_damage_quota_divisor(int attack_type)
+{
+    switch (attack_type)
+    {
+    case GF_ACID:
+        return 20;
+    case GF_ELEC:
+        return 10;
+    case GF_FIRE:
+        return 10;
+    case GF_COLD:
+        return 5;
+    default:
+        return 0;
+    }
+}
+
+static int elemental_damage_total(int attack_type, int hp_dam)
+{
+    int divisor = elemental_damage_quota_divisor(attack_type);
+    int groups;
+    int total = 1;
+
+    if ((hp_dam <= 0) || (divisor <= 0))
+        return 0;
+
+    groups = hp_dam / divisor;
+    if (groups < 1)
+        groups = 1;
+
+    for (int i = 2; i <= groups; i++)
+    {
+        if (one_in_(i))
+            total++;
+    }
+
+    return total;
+}
+
+static bool elemental_select_size_candidate(int attack_type, int total,
+    elemental_item_candidate* out, int* candidate_count, long* total_units,
+    int* selection_roll)
+{
+    int supply_count = supplies_entry_count();
+    int capacity = INVEN_TOTAL + supply_count;
+    elemental_item_candidate* candidates;
+    int count = 0;
+    long available_units = 0;
+    int pick;
+    int allowed_size = total;
+
+retry_with_size:
+
+    if (!out || (capacity <= 0) || (total <= 0))
+        return false;
+
+    candidates = mem_alloc_array(capacity, elemental_item_candidate);
+    if (!candidates)
+        return false;
+
+    for (int slot = 0; slot < INVEN_TOTAL; slot++)
+    {
+        object_type* o_ptr = &inventory[slot];
+        int unit_size;
+        int units;
+
+        if (!o_ptr->k_idx)
+            continue;
+
+        if (!elemental_attack_allows_size_location(attack_type,
+                ELEMENTAL_CANDIDATE_INVENTORY, slot, o_ptr))
+            continue;
+
+        if (!elemental_attack_matches_object_material(attack_type, o_ptr))
+            continue;
+
+        unit_size = elemental_item_unit_size(o_ptr,
+            ELEMENTAL_CANDIDATE_INVENTORY, slot);
+        if ((unit_size <= 0) || (unit_size > allowed_size))
+            continue;
+
+        units = elemental_item_unit_count(o_ptr);
+        if (units <= 0)
+            continue;
+
+        candidates[count].location = ELEMENTAL_CANDIDATE_INVENTORY;
+        candidates[count].index = slot;
+        candidates[count].o_ptr = o_ptr;
+        candidates[count].weight = units;
+        candidates[count].units = units;
+        candidates[count].unit_size = unit_size;
+        candidates[count].quantity_per_unit = elemental_item_quantity_per_unit(o_ptr);
+        available_units += units;
+        count++;
+    }
+
+    for (int idx = 0; idx < supply_count; idx++)
+    {
+        object_type* o_ptr = supplies_entry_at(idx);
+        int unit_size;
+        int units;
+
+        if (!o_ptr || !o_ptr->k_idx)
+            continue;
+
+        if (!elemental_attack_allows_size_location(attack_type,
+                ELEMENTAL_CANDIDATE_SUPPLY, idx, o_ptr))
+            continue;
+
+        if (!elemental_attack_matches_object_material(attack_type, o_ptr))
+            continue;
+
+        unit_size = elemental_item_unit_size(o_ptr,
+            ELEMENTAL_CANDIDATE_SUPPLY, idx);
+        if ((unit_size <= 0) || (unit_size > allowed_size))
+            continue;
+
+        units = elemental_item_unit_count(o_ptr);
+        if (units <= 0)
+            continue;
+
+        candidates[count].location = ELEMENTAL_CANDIDATE_SUPPLY;
+        candidates[count].index = idx;
+        candidates[count].o_ptr = o_ptr;
+        candidates[count].weight = units;
+        candidates[count].units = units;
+        candidates[count].unit_size = unit_size;
+        candidates[count].quantity_per_unit = elemental_item_quantity_per_unit(o_ptr);
+        available_units += units;
+        count++;
+    }
+
+    if (candidate_count)
+        *candidate_count = count;
+    if (total_units)
+        *total_units = available_units;
+
+    if ((count <= 0) || (available_units <= 0))
+    {
+        if ((allowed_size == total) && (total == 1))
+        {
+            allowed_size = total + 1;
+            goto retry_with_size;
+        }
+
+        mem_free(candidates);
+        return false;
+    }
+
+    pick = rand_int((int)available_units);
+    if (selection_roll)
+        *selection_roll = pick;
+
+    for (int i = 0; i < count; i++)
+    {
+        if (pick < candidates[i].units)
+        {
+            *out = candidates[i];
+            mem_free(candidates);
+            return true;
+        }
+
+        pick -= candidates[i].units;
+    }
+
+    *out = candidates[count - 1];
+    mem_free(candidates);
+    return true;
+}
+
+static void elemental_attack_affect_multiple_items(int attack_type,
+    int raw_dam, int min_raw, int max_raw, int hp_dam)
+{
+    double cdf;
+    double q;
+    double q_squared;
+    double hp = (double)hp_dam;
+    const double hurt_scale = 80.0 / 3.0;
+    double hurt;
+    double chance;
+    int threshold;
+    int total;
+    int total_budget;
+    int destroyed = 0;
+    int destroyed_size = 0;
+    int resisted = 0;
+    int resisted_size = 0;
+    char outcome[80];
+
+    if (hp_dam <= 0)
+        return;
+
+    cdf = elemental_damage_cdf_percentile(raw_dam, min_raw, max_raw);
+    if (cdf <= 0.50)
+    {
+        elemental_debug_emit_size_summary(attack_type, raw_dam, min_raw,
+            max_raw, hp_dam, cdf, 0.0, 0.0, 0.0, 0, 0, "cdf<=50%");
+        return;
+    }
+
+    q = elemental_clamp01((cdf - 0.50) / 0.50);
+    q_squared = q * q;
+
+    if (q_squared <= 0.50)
+        msg_print("The elemental assault was furious.");
+    else
+        msg_print("The elemental assault was devastating.");
+
+    hurt = (hp * hp) / ((hp * hp) + (hurt_scale * hurt_scale));
+    chance = q_squared * hurt;
+    threshold = (int)(chance * 1000000.0 + 0.5);
+
+    if (threshold <= 0)
+    {
+        elemental_debug_emit_size_summary(attack_type, raw_dam, min_raw,
+            max_raw, hp_dam, cdf, q_squared, hurt, chance, 0, 0,
+            "no trigger");
+        return;
+    }
+
+    if (rand_int(1000000) >= threshold)
+    {
+        msg_print("Luckily, nothing was damaged.");
+        elemental_debug_emit_size_summary(attack_type, raw_dam, min_raw,
+            max_raw, hp_dam, cdf, q_squared, hurt, chance, 0, 0,
+            "hurt roll failed");
+        return;
+    }
+
+    {
+        object_type* shield = elemental_equipped_shield();
+
+        if (shield)
+        {
+            int block_chance = elemental_shield_block_chance(shield,
+                attack_type);
+
+            if (block_chance > 0)
+            {
+                if (rand_int(100) < block_chance)
+                {
+                    msg_print("Your shield blocked the attack.");
+                    if (!elemental_shield_has_attack_protection(shield,
+                            attack_type)
+                        && elemental_damage_blocking_shield(shield))
+                    {
+                        msg_print("Your shield lost one side of protection.");
+                    }
+
+                    elemental_debug_emit_size_summary(attack_type, raw_dam,
+                        min_raw, max_raw, hp_dam, cdf, q_squared, hurt, chance,
+                        0, 0, "shield blocked");
+                    return;
+                }
+
+                msg_print("Your shield could not block the attack.");
+            }
+        }
+    }
+
+    total = elemental_damage_total(attack_type, hp_dam);
+    total_budget = total;
+    if (total <= 0)
+    {
+        elemental_debug_emit_size_summary(attack_type, raw_dam, min_raw,
+            max_raw, hp_dam, cdf, q_squared, hurt, chance, 0, 0, "no total");
+        return;
+    }
+
+    while (total > 0)
+    {
+        elemental_item_candidate candidate;
+        int amount;
+        char o_name[80];
+
+        if (!elemental_select_size_candidate(attack_type, total, &candidate,
+                NULL, NULL, NULL))
+        {
+            break;
+        }
+
+        total -= candidate.unit_size;
+        amount = candidate.quantity_per_unit;
+        if (candidate.o_ptr && (candidate.o_ptr->number > 0))
+            amount = MIN(amount, candidate.o_ptr->number);
+
+        elemental_describe_quantity(o_name, sizeof(o_name), &candidate, amount);
+
+        if (elemental_object_has_attack_resistance(candidate.o_ptr, attack_type))
+        {
+            elemental_message_amount(&candidate, candidate.o_ptr->number, amount,
+                o_name, "resisted the attack.", "resisted the attack.");
+            resisted++;
+            resisted_size += candidate.unit_size;
+            continue;
+        }
+
+        elemental_destroy_candidate_quantity(&candidate, attack_type, amount);
+        destroyed++;
+        destroyed_size += candidate.unit_size;
+    }
+
+    strnfmt(outcome, sizeof(outcome),
+        "destroyed=%d(size=%d) resisted=%d(size=%d)",
+        destroyed, destroyed_size, resisted, resisted_size);
+    elemental_debug_emit_size_summary(attack_type, raw_dam, min_raw, max_raw,
+        hp_dam, cdf, q_squared, hurt, chance, total_budget, total, outcome);
 }
 
 static bool elemental_slot_uses_pack_like_factor(int slot,
@@ -2811,7 +3497,7 @@ void acid_dam(int raw_dam, int min_raw, int max_raw, int hp_dam, cptr kb_str)
     take_hit(hp_dam, kb_str);
 
     /* Elemental item damage */
-    elemental_attack_affect_one_item(GF_ACID, raw_dam, min_raw, max_raw,
+    elemental_attack_affect_multiple_items(GF_ACID, raw_dam, min_raw, max_raw,
         hp_dam);
 }
 
@@ -2828,7 +3514,7 @@ void elec_dam(int raw_dam, int min_raw, int max_raw, int hp_dam, cptr kb_str)
     take_hit(hp_dam, kb_str);
 
     /* Elemental item damage */
-    elemental_attack_affect_one_item(GF_ELEC, raw_dam, min_raw, max_raw,
+    elemental_attack_affect_multiple_items(GF_ELEC, raw_dam, min_raw, max_raw,
         hp_dam);
 }
 
@@ -2935,7 +3621,7 @@ void fire_dam_mixed(int raw_dam, int min_raw, int max_raw, int hp_dam,
     take_hit(hp_dam, kb_str);
 
     /* Elemental item damage */
-    elemental_attack_affect_one_item(GF_FIRE, raw_dam, min_raw, max_raw,
+    elemental_attack_affect_multiple_items(GF_FIRE, raw_dam, min_raw, max_raw,
         hp_dam);
 
     // possibly identify relevant items
@@ -2975,7 +3661,8 @@ void fire_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str)
     take_hit(net_dam, kb_str);
 
     /* Elemental item damage */
-    elemental_attack_affect_one_item(GF_FIRE, dam, dd, dd * ds, net_dam);
+    elemental_attack_affect_multiple_items(GF_FIRE, dam, dd, dd * ds,
+        net_dam);
 
     // possibly identify relevant items
     ident_resist(TR2_RES_FIRE);
@@ -2995,7 +3682,7 @@ void cold_dam_mixed(int raw_dam, int min_raw, int max_raw, int hp_dam,
     take_hit(hp_dam, kb_str);
 
     /* Elemental item damage */
-    elemental_attack_affect_one_item(GF_COLD, raw_dam, min_raw, max_raw,
+    elemental_attack_affect_multiple_items(GF_COLD, raw_dam, min_raw, max_raw,
         hp_dam);
 
     // possibly identify relevant items
@@ -3035,7 +3722,8 @@ void cold_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str)
     take_hit(net_dam, kb_str);
 
     /* Elemental item damage */
-    elemental_attack_affect_one_item(GF_COLD, dam, dd, dd * ds, net_dam);
+    elemental_attack_affect_multiple_items(GF_COLD, dam, dd, dd * ds,
+        net_dam);
 
     // possibly identify relevant items
     ident_resist(TR2_RES_COLD);

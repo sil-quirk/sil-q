@@ -3057,6 +3057,23 @@ errr parse_k_info(char* buf, header* head)
             return (PARSE_ERROR_GENERIC);
     }
 
+    /* Process 'X' for elemental shield block chance */
+    else if (buf[0] == 'X')
+    {
+        int elemental_block;
+
+        if (!k_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        if (1 != sscanf(buf + 2, "%d", &elemental_block))
+            return (PARSE_ERROR_GENERIC);
+
+        if ((elemental_block < 0) || (elemental_block > 100))
+            return (PARSE_ERROR_GENERIC);
+
+        k_ptr->elemental_block = (byte)elemental_block;
+    }
+
     /* Hack -- Process 'F' for flags */
     else if (buf[0] == 'F')
     {
@@ -3881,6 +3898,23 @@ errr parse_a_info(char* buf, header* head)
         a_ptr->ps = ps;
     }
 
+    /* Process 'X' for elemental shield block chance */
+    else if (buf[0] == 'X')
+    {
+        int elemental_block;
+
+        if (!a_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        if (1 != sscanf(buf + 2, "%d", &elemental_block))
+            return (PARSE_ERROR_GENERIC);
+
+        if ((elemental_block < 0) || (elemental_block > 100))
+            return (PARSE_ERROR_GENERIC);
+
+        a_ptr->elemental_block = (byte)elemental_block;
+    }
+
     /* Process 'F' for flags */
     else if (buf[0] == 'F')
     {
@@ -4558,6 +4592,23 @@ errr parse_e_info(char* buf, header* head)
         {
             return (PARSE_ERROR_GENERIC);
         }
+    }
+
+    /* Process 'X' for elemental shield block chance */
+    else if (buf[0] == 'X')
+    {
+        int elemental_block;
+
+        if (!e_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        if (1 != sscanf(buf + 2, "%d", &elemental_block))
+            return (PARSE_ERROR_GENERIC);
+
+        if ((elemental_block < 0) || (elemental_block > 100))
+            return (PARSE_ERROR_GENERIC);
+
+        e_ptr->elemental_block = (byte)elemental_block;
     }
 
     /* Process 'B' for "aBilities" (one line only) */

@@ -235,6 +235,7 @@ struct object_kind
     u32b flags2; /* Flags, set 2 */
     u32b flags3; /* Flags, set 3 */
     u32b flags4; /* Flags, set 4 */
+    byte elemental_block; /* Shield chance to block elemental item attacks */
 
     byte locale[4]; /* Allocation level(s) */
     byte chance[4]; /* Allocation chance(s) */
@@ -329,6 +330,7 @@ struct artefact_type
     u32b flags2; /* Artefact Flags, set 2 */
     u32b flags3; /* Artefact Flags, set 3 */
     u32b flags4; /* Artefact Flags, set 4 */
+    byte elemental_block; /* Shield chance to block elemental item attacks */
 
     byte level; /* Artefact level */
     byte rarity; /* Artefact rarity */
@@ -365,6 +367,7 @@ struct ego_item_type
     u32b flags2; /* Ego-Item Flags, set 2 */
     u32b flags3; /* Ego-Item Flags, set 3 */
     u32b flags4; /* Ego-Item Flags, set 4 */
+    byte elemental_block; /* Shield chance to block elemental item attacks */
 
     byte level; /* Minimum level */
     byte max_level; /* Maximum level */

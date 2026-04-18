@@ -923,6 +923,7 @@ extern int p_min(int typ, bool melee);
 extern int p_max(int typ, bool melee);
 extern int get_sides(int attack);
 extern int dodging_bonus(void);
+extern bool blocking_bonus_active(void);
 extern bool make_attack_normal(monster_type* m_ptr);
 extern bool make_attack_ranged(monster_type* m_ptr, int attack);
 extern void mon_cloud(int m_idx, int typ, int dd, int ds, int dif, int rad);
