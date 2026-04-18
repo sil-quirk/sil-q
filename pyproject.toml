@@ -62,3 +62,8 @@ combine-as-imports = true # required for `force-wrap-aliases`
 [tool.ty.rules]
 division-by-zero = "error"
 unused-ignore-comment = "ignore"
+
+[tool.uv]
+# To lower the risk of supply chain attacks, only use package versions published
+# at least 7 days ago.
+exclude-newer = "P7D"
