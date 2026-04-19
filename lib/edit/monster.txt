@@ -1644,13 +1644,15 @@ F:DROP_1D2 | DROP_100 | DROP_GREAT
 F:HAS_WEAPON | HAS_ARMOUR
 F:NO_FEAR | BASH_DOOR
 F:RAUKO | RES_FIRE | HURT_COLD
+F:DWARFBANE
 S:SPELL_PCT_20
 S:SCARE
 D:Some have called the Balrogs 'Demons of Terror', but none inspires
 D: such dread as Delthaur. His very presence fills the heart with
 D: nameless fear, and the bravest warriors have fled screaming at his
-D: approach. Even other Balrogs give him wide berth, for his malice
-D: is ancient and his hatred of all living things burns cold and deep.
+D: approach. Yet his malice turns most keenly against those who delve
+D: in the deep places of the earth, and dark halls may one day remember
+D: him by another name.
 
 
 N:146:Nan, the Giant
@@ -2425,7 +2427,8 @@ D:Vallach was among the Balrogs who burst forth in the Dagor Bragollach,
 D: the Battle of Sudden Flame, when rivers of fire poured from Thangorodrim.
 D: He moves with terrifying speed, a huge shape cloaked in flame and shadow,
 D: his fiery axe cutting down all in his path before they can even raise
-D: their weapons in defense.
+D: their weapons in defense. There is something headlong in his wrath,
+D: as though it will one day bear him and a golden lord to a common doom.
 
 
 ##### 21 #####

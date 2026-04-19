@@ -2043,12 +2043,28 @@ int elf_bane_bonus(monster_type* m_ptr)
     else
         r_ptr = &r_info[m_ptr->r_idx];
 
-    // Sil-x: a bit of a hack. Noldor and Sindar are coded as races 0 and 1 in
-    // the races.txt file
-    if ((r_ptr->flags2 & (RF2_ELFBANE))
-        && ((p_ptr->prace == 0) || (p_ptr->prace == 1)))
+    /* race.txt serials 0-3 are the Elven lineages */
+    if ((r_ptr->flags2 & (RF2_ELFBANE)) && (p_ptr->prace <= 3))
     {
-        // Dagohir must have killed between 32 and 63 elves
+        /* Dagorhir must have killed between 32 and 63 elves */
+        return (5);
+    }
+
+    return (0);
+}
+
+int dwarf_bane_bonus(monster_type* m_ptr)
+{
+    monster_race* r_ptr;
+
+    if (m_ptr == NULL)
+        return (0);
+    else
+        r_ptr = &r_info[m_ptr->r_idx];
+
+    /* race.txt serial 4 is Naugrim */
+    if ((r_ptr->flags4 & (RF4_DWARFBANE)) && (p_ptr->prace == 4))
+    {
         return (5);
     }
 

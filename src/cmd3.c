@@ -3872,6 +3872,8 @@ void do_cmd_unified_look(void)
     char query;
     bool done = false;
     bool need_redraw = true;
+    bool overlay_saved = false;
+    bool selection_redraw = false;
     int original_wy, original_wx; /* Store original viewport */
     
     /* Clear entry level banner when using look command */
@@ -3963,18 +3965,31 @@ void do_cmd_unified_look(void)
     /* Main interaction loop */
     while (!done)
     {
-        bool screen_saved = false;
-        
         if (need_redraw)
         {
-            unified_look_sync_cursor_selection(&state);
+            if (selection_redraw && overlay_saved)
+            {
+                show_unified_sidebar(&state);
+            }
+            else
+            {
+                if (overlay_saved)
+                {
+                    screen_load();
+                    overlay_saved = false;
+                }
 
-            /* Save screen to preserve underlying display */
-            screen_save();
-            screen_saved = true;
-            
-            /* Show unified sidebar */
-            show_unified_sidebar(&state);
+                unified_look_sync_cursor_selection(&state);
+
+                /* Save screen to preserve underlying display */
+                screen_save();
+                overlay_saved = true;
+
+                /* Show unified sidebar */
+                show_unified_sidebar(&state);
+            }
+
+            selection_redraw = false;
             
             /* Track monster health at current cursor position for left sidebar display */
             /* This handles Tab cycling and any other cursor position updates */
@@ -4200,15 +4215,21 @@ void do_cmd_unified_look(void)
         log_trace("Unified look key input: '%c' (%d) [char: %c, isupper: %d]", 
                  query, (int)query, (query >= 32 && query <= 126) ? query : '?', 
                  (query >= 'A' && query <= 'Z') ? 1 : 0);
-        
-        /* Restore screen after input if we saved it */
-        if (screen_saved)
+
+        /* Keep the overlay live while cycling sidebar selection to avoid
+         * flashing back to the map between adjacent redraws. */
+        if (overlay_saved
+            && query != '\t'
+            && query != '`'
+            && query != 'q'
+            && !(portable_controls && (query == 'i' || query == 'e')))
         {
             screen_load();
+            overlay_saved = false;
+            
+            /* Update health bar display after screen restore */
+            handle_stuff();
         }
-        
-        /* Update health bar display after screen restore */
-        handle_stuff();
         
         /* Analyze input */
         log_trace("Processing key: '%c' (%d), backtick is %d", query, (int)query, (int)'`');
@@ -4779,6 +4800,7 @@ command_key:
                 }
                 
                 need_redraw = true;
+                selection_redraw = true;
                 break;
             }
             
@@ -4817,6 +4839,7 @@ command_key:
                 }
                 
                 need_redraw = true;
+                selection_redraw = true;
                 break;
             }
             
@@ -5295,6 +5318,12 @@ command_key:
         state.highlighted_y = -1;
         state.highlighted_x = -1;
         state.highlighted_entity_type = 0;
+    }
+
+    if (overlay_saved)
+    {
+        screen_load();
+        overlay_saved = false;
     }
     
     log_trace("=== UNIFIED LOOK ENDED ===");

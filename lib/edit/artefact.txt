@@ -1624,7 +1624,7 @@ W:20:8:80:100000
 P:2:1d16:1:0d0
 F:GRA | BRAND_POIS
 M:STR:2
-F:FREE_ACT | VUL_POIS | LIGHT_CURSE | DARKNESS | HUNGER | VAMPIRIC | ENCHANTABLE | EVIL_ITEM | MIN_DEPTH_SPEED
+F:FREE_ACT | VUL_POIS | LIGHT_CURSE | UNLIGHT | HUNGER | VAMPIRIC | ENCHANTABLE | EVIL_ITEM | MIN_DEPTH_SPEED
 B:0/11
 D:The black spear of Melkor Morgoth, mightiest of the Ainur who fell, wielded
 D: in the hour when he and the great spider Ungoliant came in darkness to the

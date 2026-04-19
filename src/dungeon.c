@@ -618,6 +618,21 @@ static cptr vault_entry_message_for_name(cptr vault_name)
     return NULL;
 }
 
+static void queue_message_recall_only(cptr text)
+{
+    if (!text || !text[0])
+        return;
+
+    if (character_generated && p_ptr && !p_ptr->is_dead)
+        message_add(text, MSG_GENERIC);
+
+    if (!p_ptr)
+        return;
+
+    p_ptr->window |= PW_MESSAGE;
+    window_stuff();
+}
+
 static void describe_greater_vault_entry(cptr vault_name)
 {
     int narrative_mode = op_ptr ? op_ptr->partition_narrative_mode
@@ -627,12 +642,17 @@ static void describe_greater_vault_entry(cptr vault_name)
     if (!text)
         return;
 
-    /* Great vault entries should always land in the message log too, even
-     * when the current setting also shows them as banners. */
-    msg_print(text);
-
     if (narrative_mode == PARTITION_NARRATIVE_BANNER)
+    {
+        /* Banner mode already shows the text on the main term, so push it
+         * directly into recall and refresh message windows immediately. */
+        queue_message_recall_only(text);
         display_narrative_text(text, PARTITION_NARRATIVE_BANNER, false);
+        return;
+    }
+
+    /* Great vault entries should always land in the message log too. */
+    msg_print(text);
 }
 
 static void handle_partition_entry(bool force_message, int narrative_mode)

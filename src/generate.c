@@ -19036,36 +19036,29 @@ static bool cave_gen(void)
             max_dist = min_dist + 2;
 
         /* Prefer spawning within a chase radius scaled by Silmarils. */
-        for (int pass = 0; pass < 2 && !placed; ++pass)
+        for (i = 0; i <= 180; i++)
         {
-            bool require_no_los = (pass == 0);
+            int dy = rand_range(-max_dist, max_dist);
+            int dx = rand_range(-max_dist, max_dist);
+            int dist = ABS(dy) + ABS(dx);
 
-            for (i = 0; i <= 180; i++)
+            if (dist < min_dist || dist > max_dist)
+                continue;
+
+            y = p_ptr->py + dy;
+            x = p_ptr->px + dx;
+
+            if (!in_bounds_fully(y, x))
+                continue;
+            if (!cave_empty_bold(y, x))
+                continue;
+            if (cave_info[y][x] & (CAVE_ICKY))
+                continue;
+
+            if (place_monster_one(y, x, R_IDX_MORGOTH, false, true, NULL))
             {
-                int dy = rand_range(-max_dist, max_dist);
-                int dx = rand_range(-max_dist, max_dist);
-                int dist = ABS(dy) + ABS(dx);
-
-                if (dist < min_dist || dist > max_dist)
-                    continue;
-
-                y = p_ptr->py + dy;
-                x = p_ptr->px + dx;
-
-                if (!in_bounds_fully(y, x))
-                    continue;
-                if (!cave_empty_bold(y, x))
-                    continue;
-                if (cave_info[y][x] & (CAVE_ICKY))
-                    continue;
-                if (require_no_los && los(p_ptr->py, p_ptr->px, y, x))
-                    continue;
-
-                if (place_monster_one(y, x, R_IDX_MORGOTH, false, true, NULL))
-                {
-                    placed = true;
-                    break;
-                }
+                placed = true;
+                break;
             }
         }
 

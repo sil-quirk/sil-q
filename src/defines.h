@@ -2547,7 +2547,8 @@
 #define RF4_SNG_BINDING 0x00040000 /* Sing a song of binding */
 #define RF4_SNG_PIERCING 0x00080000 /* Sing a song of piercing */
 #define RF4_SNG_OATHS 0x00100000 /* Sing a song of oaths */
-#define RF4_RF4XXX22 0x00200000 /*  */
+#define RF4_DWARFBANE 0x00200000 /* Has the Ability: Bane (Dwarves) */
+#define RF4_RF4XXX22 RF4_DWARFBANE /* Compatibility alias */
 #define RF4_RF4XXX23 0x00400000 /*  */
 #define RF4_THROW_WEB 0x00800000 /* Throw a web over the player */
 #define RF4_RALLY 0x01000000 /* Rally fleeing foes */

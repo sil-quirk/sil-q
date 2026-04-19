@@ -87,8 +87,6 @@ static bool sdl_sound_make_alternate_music_path(const char* path, char* alternat
     size_t alternate_len);
 static bool sdl_sound_resolve_music_path(const char* path, char* resolved,
     size_t resolved_len);
-static bool sdl_sound_path_matches_current(const char* configured_path,
-    const char* current_path);
 static bool sdl_sound_create_track_pool(void);
 static bool sdl_sound_ensure_mixer(void);
 static void sdl_sound_destroy_mixer(void);
@@ -499,26 +497,6 @@ static bool sdl_sound_resolve_music_path(const char* path, char* resolved,
     return false;
 }
 
-static bool sdl_sound_path_matches_current(const char* configured_path,
-    const char* current_path)
-{
-    if (!configured_path || !configured_path[0] || !current_path || !current_path[0]) {
-        return false;
-    }
-
-    if (streq(configured_path, current_path)) {
-        return true;
-    }
-
-    char alternate[1024];
-    if (sdl_sound_make_alternate_music_path(configured_path, alternate, sizeof(alternate)) &&
-        streq(alternate, current_path)) {
-        return true;
-    }
-
-    return false;
-}
-
 static bool sdl_sound_create_track_pool(void)
 {
     sound_state.music_main_track = MIX_CreateTrack(sound_state.mixer);
@@ -835,6 +813,10 @@ static bool sdl_music_play_title_track(const char* primary_path,
     const char* fallback_path, const char* label)
 {
     char resolved_path[1024];
+    char resolved_primary[1024];
+    char resolved_fallback[1024];
+    bool primary_available = false;
+    bool fallback_available = false;
 
     if (!sound_state.music_main_enabled) {
         sdl_music_stop_main();
@@ -849,14 +831,25 @@ static bool sdl_music_play_title_track(const char* primary_path,
     sdl_music_stop_ambient();
     sdl_music_stop_track(sound_state.music_menu_track);
 
+    primary_available = sdl_sound_resolve_music_path(primary_path, resolved_primary,
+        sizeof(resolved_primary));
+    fallback_available = sdl_sound_resolve_music_path(fallback_path, resolved_fallback,
+        sizeof(resolved_fallback));
+
     if ((MIX_TrackPlaying(sound_state.music_main_track) ||
             MIX_TrackPaused(sound_state.music_main_track)) &&
-        sound_state.music_main_current_path[0] &&
-        (sdl_sound_path_matches_current(primary_path, sound_state.music_main_current_path) ||
-            (fallback_path && fallback_path[0] &&
-                sdl_sound_path_matches_current(fallback_path,
-                    sound_state.music_main_current_path)))) {
-        return true;
+        sound_state.music_main_current_path[0]) {
+        if (primary_available &&
+            streq(resolved_primary, sound_state.music_main_current_path)) {
+            return true;
+        }
+
+        /* Only treat the fallback as equivalent when the primary track is
+         * unavailable; otherwise allow the upgrade to the preferred title cue. */
+        if (!primary_available && fallback_available &&
+            streq(resolved_fallback, sound_state.music_main_current_path)) {
+            return true;
+        }
     }
 
     if (!sdl_music_play_with_fallback(primary_path, fallback_path,

@@ -2683,13 +2683,16 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_
     else if (fast_forward)
         print_paragraph(summary, TERM_L_GREEN);
 
+    bool has_post_summary_scene = allow_kinslay && (kinslaying_victims > 0);
+
     Term_xtra(TERM_XTRA_DELAY, 3000);
-    Term_clear();
+    if (has_post_summary_scene)
+        Term_clear();
 
     /* ============================================================= */
     /* SCENE 8: Kinslaying Execution & Notifications               */
     /* ============================================================= */
-    if (allow_kinslay && kinslaying_victims > 0)
+    if (has_post_summary_scene)
     {
         /* Show kinslaying notifications BEFORE screen_load() */
         print_heading_fade("The Price of Blood", TERM_RED);
@@ -2710,7 +2713,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_
     /* ------------------------------------------------------------- */
     /*  SCENE 8-bis: actual executions with cinematic feedback       */
     /* ------------------------------------------------------------- */
-    if (allow_kinslay && kinslaying_victims > 0) {
+    if (has_post_summary_scene) {
         Term_clear();
         print_heading_fade("Blood Is Demanded", TERM_RED);
 
