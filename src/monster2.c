@@ -2016,6 +2016,7 @@ void describe_floor_object(void)
     object_type* o_ptr;
     char o_name[80];
     char smith_buf[20];
+    bool disturb_for_underfoot_notice = !p_ptr->resting;
 
     // generate the object's name
     o_ptr = &o_list[cave_o_idx[p_ptr->py][p_ptr->px]];
@@ -2064,8 +2065,9 @@ void describe_floor_object(void)
         else
             msg_format("Your feet strike against %s.", o_name);
 
-        /* Disturb */
-        disturb(0, 0);
+        /* Underfoot reminders should not cancel an active rest. */
+        if (disturb_for_underfoot_notice)
+            disturb(0, 0);
     }
 
     // other things just show description
@@ -2076,8 +2078,9 @@ void describe_floor_object(void)
         else
             msg_format("Your feet strike against %s.", o_name);
 
-        /* Disturb */
-        disturb(0, 0);
+        /* Underfoot reminders should not cancel an active rest. */
+        if (disturb_for_underfoot_notice)
+            disturb(0, 0);
     }
 
     // special explanation the first time you step over the crown

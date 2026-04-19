@@ -2930,17 +2930,19 @@ X:8:1:10
 M:Cold water and ancient stone keep an austere memory here, and the deep places seem to remember both grief and endurance; in pondering that silence, you gain 500 experience.
 F:SURFACE
 F:LIGHT
-D:#########
-D:####,0###
-D:###,,,,##
-D:##.77777#
-D:#..77777#
-D:$...7u77#
-D:#..77777#
-D:##.77777#
-D:###,,,,##
-D:####,0###
-D:#########
+D:           
+D: ######### 
+D: ####,0### 
+D: ###,,,,## 
+D: ##.77777# 
+D: #..77777# 
+D:$...7u77#  
+D: #..77777# 
+D: ##.77777# 
+D: ###,,,,## 
+D: ####,0### 
+D: ######### 
+D:           
 
 
 #Type7 more

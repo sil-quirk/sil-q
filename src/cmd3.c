@@ -670,7 +670,7 @@ void do_cmd_inven(void)
     /* Hack -- Start in "inventory" mode */
     p_ptr->command_wrk = (USE_INVEN);
 
-    enhanced_inventory_selected_item = -1;
+    enhanced_inventory_selected_item = ENHANCED_MENU_NO_SELECTION;
 
     /* Save screen */
     screen_save();
@@ -719,7 +719,7 @@ void do_cmd_inven(void)
         else
         {
             log_trace("do_cmd_inven: Using item %d", selected_index);
-            if (selected_index != -1)
+            if (selected_index != ENHANCED_MENU_NO_SELECTION)
                 do_cmd_use_item_by_index(selected_index);
         }
         break;
@@ -775,7 +775,7 @@ void do_cmd_inven(void)
 
     if (action != ENHANCED_ACTION_SWITCH)
         enhanced_menu_action = ENHANCED_ACTION_NONE;
-    enhanced_inventory_selected_item = -1;
+    enhanced_inventory_selected_item = ENHANCED_MENU_NO_SELECTION;
     
     log_debug("do_cmd_inven: Exiting");
 }
@@ -797,7 +797,7 @@ void do_cmd_equip(void)
     /* Hack -- Start in "equipment" mode */
     p_ptr->command_wrk = (USE_EQUIP);
 
-    enhanced_equipment_selected_item = -1;
+    enhanced_equipment_selected_item = ENHANCED_MENU_NO_SELECTION;
 
     /* Save screen */
     screen_save();
@@ -846,7 +846,7 @@ void do_cmd_equip(void)
         else
         {
             log_trace("do_cmd_equip: Using item %d", selected_index);
-            if (selected_index != -1)
+            if (selected_index != ENHANCED_MENU_NO_SELECTION)
                 do_cmd_use_item_by_index(selected_index);
         }
         break;
@@ -881,7 +881,7 @@ void do_cmd_equip(void)
 
     if (action != ENHANCED_ACTION_SWITCH)
         enhanced_equip_action = ENHANCED_ACTION_NONE;
-    enhanced_equipment_selected_item = -1;
+    enhanced_equipment_selected_item = ENHANCED_MENU_NO_SELECTION;
     
     log_debug("do_cmd_equip: Exiting");
 }
@@ -1594,12 +1594,14 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     if (o_ptr->k_idx && !combine)
     {
         /*
-         * Same-group light swaps do not increase the carried count for that
-         * cap, so only reserve the incoming light when the swap crosses groups.
+         * Lights coming from the floor are not counted yet, so reserve them
+         * during the takeoff even when swapping within the same carry group.
+         * Pack/supplies lights are already counted and only need reservation
+         * when the swap crosses carry groups.
          */
         if (slot == INVEN_LITE && player_light_carry_cap(i_ptr) > 0)
         {
-            if (!player_light_share_carry_group(i_ptr, o_ptr))
+            if ((item < 0) || !player_light_share_carry_group(i_ptr, o_ptr))
                 player_light_reserve_incoming(i_ptr, i_ptr->number);
             else
                 player_light_clear_incoming_reservation();

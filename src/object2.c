@@ -6958,10 +6958,7 @@ s16b inven_takeoff(int item, int amt)
     object_desc(o_name, sizeof(o_name), i_ptr, true, 3);
 
     const bool discard_spent_light = (item == INVEN_LITE)
-        && (i_ptr->tval == TV_LIGHT)
-        && ((i_ptr->sval == SV_LIGHT_TORCH)
-            || (i_ptr->sval == SV_LIGHT_MALLORN))
-        && (player_light_fuel(i_ptr) <= 0);
+        && player_light_destroyed_on_drop(i_ptr);
 
     /* Took off weapon */
     if ((item == INVEN_WIELD)

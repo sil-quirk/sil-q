@@ -1524,6 +1524,28 @@ static const char* object_desc_curse_inscription(const object_type* o_ptr,
     return "cursed";
 }
 
+static const char* object_desc_feeling_inscription(int discount)
+{
+    if (discount < INSCRIP_NULL)
+        return NULL;
+
+    switch (discount)
+    {
+    case INSCRIP_AVERAGE:
+    case INSCRIP_GOOD_STRONG:
+    case INSCRIP_EXCELLENT:
+    case INSCRIP_SPECIAL:
+        return NULL;
+
+    case INSCRIP_TERRIBLE:
+    case INSCRIP_WORTHLESS:
+        return "cursed";
+
+    default:
+        return inscrip_text[discount - INSCRIP_NULL];
+    }
+}
+
 static void object_desc_prepend_prefix(char* dst, size_t dst_size,
     const char* base, const char* prefix)
 {
@@ -2374,11 +2396,7 @@ void object_desc(
 
     if (o_ptr->discount >= INSCRIP_NULL)
     {
-        if ((o_ptr->discount != INSCRIP_AVERAGE)
-            && (o_ptr->discount != INSCRIP_GOOD_STRONG))
-        {
-            v = inscrip_text[o_ptr->discount - INSCRIP_NULL];
-        }
+        v = object_desc_feeling_inscription(o_ptr->discount);
     }
     else if ((v = object_desc_curse_inscription(o_ptr, known, f3)) != NULL)
     {
@@ -2516,11 +2534,7 @@ void object_desc_floor(
 
     if (o_ptr->discount >= INSCRIP_NULL)
     {
-        if ((o_ptr->discount != INSCRIP_AVERAGE)
-            && (o_ptr->discount != INSCRIP_GOOD_STRONG))
-        {
-            v = inscrip_text[o_ptr->discount - INSCRIP_NULL];
-        }
+        v = object_desc_feeling_inscription(o_ptr->discount);
     }
     else if ((v = object_desc_curse_inscription(o_ptr, known, f3)) != NULL)
     {
@@ -6335,7 +6349,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
 
 /* Global variables for menu switching */
 int enhanced_menu_action = ENHANCED_ACTION_NONE;
-int enhanced_inventory_selected_item = -1;
+int enhanced_inventory_selected_item = ENHANCED_MENU_NO_SELECTION;
 
 /* Global variables for command-specific menu cycling */
 char current_menu_command = 0;     /* 'u', 'x', etc. - which command opened the menu */
@@ -6372,7 +6386,7 @@ void describe_item_with_comparisons(int item_index, bool include_comparisons)
     object_type* base_obj;
     bool is_floor = (item_index < 0);
 
-    if (item_index == -1)
+    if (item_index == ENHANCED_MENU_NO_SELECTION)
         return;
 
     if (is_floor)
@@ -7397,7 +7411,7 @@ void show_inven_enhanced(void)
 
 /* Global variables for equipment menu switching */
 int enhanced_equip_action = ENHANCED_ACTION_NONE;
-int enhanced_equipment_selected_item = -1;
+int enhanced_equipment_selected_item = ENHANCED_MENU_NO_SELECTION;
 
 /*
  * Enhanced equipment display with scrolling and navigation

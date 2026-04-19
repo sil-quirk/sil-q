@@ -3524,6 +3524,8 @@ static bool queue_deferred_pickup_drop(const object_type* src, int amount,
 static bool queue_deferred_pickup_supply_drop(int supply_idx, int amount)
 {
     object_type* supply_obj = supplies_entry_at(supply_idx);
+    object_type deferred;
+    char o_name[80];
     int lantern_oil_to_drop = 0;
 
     if (!supply_obj || !supply_obj->k_idx || amount <= 0)
@@ -3537,6 +3539,23 @@ static bool queue_deferred_pickup_supply_drop(int supply_idx, int amount)
     {
         if (!player_prepare_lantern_drop(amount, &lantern_oil_to_drop, NULL))
             return false;
+    }
+
+    object_wipe(&deferred);
+    object_copy(&deferred, supply_obj);
+    deferred.number = amount;
+
+    object_desc(o_name, sizeof(o_name), &deferred, true, 3);
+
+    if (player_light_destroyed_on_drop(&deferred))
+    {
+        msg_format("You discard %s; %s too spent to keep.",
+            o_name, (deferred.number > 1) ? "they are" : "it is");
+        (void)supplies_consume_quantity(supply_idx, amount);
+        p_ptr->redraw |= (PR_MAP | PR_LIGHT);
+        p_ptr->window |= (PW_MESSAGE);
+        handle_stuff();
+        return true;
     }
 
     if (!queue_deferred_pickup_drop(supply_obj, amount, lantern_oil_to_drop))

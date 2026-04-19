@@ -1749,6 +1749,8 @@ extern void dbg_show_active_flags(void);
 #define ENHANCED_ACTION_USE 3
 #define ENHANCED_ACTION_DROP 4
 #define ENHANCED_ACTION_SUPPLIES 5
+/* Must not collide with real floor item indices such as -1. */
+#define ENHANCED_MENU_NO_SELECTION (-2147483647 - 1)
 
 extern int enhanced_menu_action;
 extern int enhanced_inventory_selected_item;
