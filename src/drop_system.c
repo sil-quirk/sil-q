@@ -2750,7 +2750,8 @@ static bool collect_candidate_entries(
             }
             
             artefact_type* a_ptr = &a_info[e.group_id];
-            /* Skip if already created OR already seen by player */
+            /* Skip if the artefact is already present this run, or if the
+             * player has already physically seen it and preserved it. */
             if (a_ptr->cur_num || (a_ptr->seen & ART_SEEN_PHYSICAL)) {
                 filter_artifact++;
                 continue;

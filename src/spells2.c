@@ -1351,6 +1351,12 @@ bool detect_objects_normal(int radius)
         /* Hack -- memorize it */
         o_ptr->marked = true;
 
+        if (o_ptr->name1)
+        {
+            a_info[o_ptr->name1].seen |= ART_SEEN_PHYSICAL;
+            o_ptr->ident |= IDENT_ARTIFACT_SEEN;
+        }
+
         /* Detection reveals easy smithing items (no distance penalty). */
         (void)player_auto_identify_smithing_object(o_ptr, true);
 

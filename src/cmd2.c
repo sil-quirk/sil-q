@@ -21,6 +21,8 @@
 #define MIN_DEPTH_INCREMENT_PER_BONUS 5
 #define MIN_DEPTH_ITEM_BONUS_DEEP_CALL 3
 #define MIN_DEPTH_ITEM_BONUS_PERMA_CURSE 5
+#define MIN_DEPTH_KILL_BONUS_STEP 500
+#define MIN_DEPTH_KILL_BONUS_AMOUNT 5
 
 #define THROW_PENDING_NONE -9999
 static int throw_pending_slot = THROW_PENDING_NONE;
@@ -60,6 +62,25 @@ static int min_depth_timer_item_bonus_count(void)
     return count;
 }
 
+static int min_depth_timer_kill_bonus(void)
+{
+    u32b total_kills = 0;
+
+    if (!l_list || !z_info)
+        return 0;
+
+    for (int i = 1; i < z_info->r_max; i++)
+    {
+        monster_lore* lore = &l_list[i];
+
+        if (lore->pkills > 0)
+            total_kills += (u32b)lore->pkills;
+    }
+
+    return MIN_DEPTH_KILL_BONUS_AMOUNT
+        * (int)(total_kills / MIN_DEPTH_KILL_BONUS_STEP);
+}
+
 static int min_depth_timer_base_increment(void)
 {
     return MIN_DEPTH_BASE_INCREMENT_START - (playerturn / MIN_DEPTH_BASE_INCREMENT_DIVISOR);
@@ -69,8 +90,9 @@ static int min_depth_timer_additional_increment(void)
 {
     int depth_bonus = MIN_DEPTH_INCREMENT_PER_BONUS * (p_ptr->depth - min_depth());
     int item_bonus = MIN_DEPTH_INCREMENT_PER_BONUS * min_depth_timer_item_bonus_count();
+    int kill_bonus = min_depth_timer_kill_bonus();
 
-    return depth_bonus + item_bonus;
+    return depth_bonus + item_bonus + kill_bonus;
 }
 
 void min_depth_timer_status(int* base_increment, int* additional_increment,

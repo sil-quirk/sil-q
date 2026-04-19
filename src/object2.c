@@ -1293,17 +1293,14 @@ void wipe_o_list(void)
         if (!o_ptr->k_idx)
             continue;
 
-        /* Mega-Hack -- preserve artefacts */
-        // Sil-y: no longer preserving artefacts
-        // if (!character_dungeon || (PRESERVE_MODE))
-        //{
-        //	/* Hack -- Preserve unknown artefacts */
-        //	if (artefact_p(o_ptr) && !object_known_p(o_ptr))
-        //	{
-        //		/* Mega-Hack -- Preserve the artefact */
-        //		a_info[o_ptr->name1].cur_num = 0;
-        //	}
-        //}
+        /* Unseen artefacts should be eligible to spawn again on a later level.
+         * Keep cur_num only for artefacts the player actually found or saw. */
+        if (o_ptr->name1)
+        {
+            artefact_type* a_ptr = &a_info[o_ptr->name1];
+            if (!(a_ptr->seen & ART_SEEN_PHYSICAL) && !a_ptr->found_num)
+                a_ptr->cur_num = 0;
+        }
 
         /* Monster */
         if (o_ptr->held_m_idx)

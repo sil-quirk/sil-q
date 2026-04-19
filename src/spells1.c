@@ -9020,6 +9020,12 @@ static void song_reveal_items(int range)
             marked_anything = true;
         }
 
+        if (o_ptr->name1)
+        {
+            a_info[o_ptr->name1].seen |= ART_SEEN_PHYSICAL;
+            o_ptr->ident |= IDENT_ARTIFACT_SEEN;
+        }
+
         /* Revelation reveals easy smithing items (no distance penalty). */
         (void)player_auto_identify_smithing_object(o_ptr, true);
 
