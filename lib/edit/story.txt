@@ -73,7 +73,7 @@ N:9:Chapter 9. Rest of Este
 T:0
 O:9
 R:*
-D:Soft words rise clearly within your mind: “Estel brillies teni mornie canta.” Hope shines brightest when darkness gathers. Calm spreads gently through you, easing pain and doubt-a comforting gift from gentle Este.
+D:Soft words rise clearly within your mind: "Estel brillies teni mornie canta." Hope shines brightest when darkness gathers. Calm spreads gently through you, easing pain and doubt-a comforting gift from gentle Este.
 
 N:10:Chapter 10. Horn of Orome
 T:0

@@ -420,7 +420,7 @@ void do_cmd_go_up(void)
             if (crown_art > 0)
             {
                 /* Player has the crown itself - this is a major theft! */
-                /* Crown with 0 silmarils still means you stole his crown → State 3 */
+                /* Crown with 0 silmarils still means you stole his crown -> State 3 */
                 target_state = 3;
                 log_debug("do_cmd_go_up: player has crown (art=%d), target_state=3", crown_art);
                 
@@ -434,7 +434,7 @@ void do_cmd_go_up(void)
             else if (sils > 0)
             {
                 /* Player has prised silmarils (not carrying crown) */
-                target_state = 1 + sils;  /* 1 sil → state 2, 2 sils → state 3, 3 sils → state 4 */
+                target_state = 1 + sils;  /* 1 sil -> state 2, 2 sils -> state 3, 3 sils -> state 4 */
                 log_debug("do_cmd_go_up: player has %d prised silmarils, target_state=%d", sils, target_state);
             }
             

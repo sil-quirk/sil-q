@@ -520,6 +520,7 @@ extern const char* styles_get_style_m2(int sidx);
 /* After showing the per-style banner on level entry, count down user inputs
  * and force a full screen redraw when it reaches zero. */
 extern int g_banner_force_redraw_remaining;
+extern int active_narrative_banner_rows(void);
 extern void clear_active_narrative_banner(void);
 extern void styles_reload_messages_from_text(void);
 extern void styles_clear_display_messages(void);
@@ -1813,6 +1814,7 @@ extern void sdl_config_mark_intro_seen(void);
 extern bool option_is_app_persistent(int opt);
 extern int get_sdl_max_scale(void);
 extern void sdl_apply_config(void);
+extern void sdl_request_redraw(void);
 extern bool steamdeck_controls_active(void);
 extern bool portable_controls_active(void);
 extern bool get_sdl_gamepad_enabled(void);

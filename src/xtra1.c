@@ -40,6 +40,11 @@ static bool ui_compact_status_line_handles_wounds(void)
     return ui_compact_width() && (ROW_CUT >= ROW_STATE);
 }
 
+static bool ui_top_status_line(void)
+{
+    return (op_ptr && op_ptr->opt[OPT_top_status_line]);
+}
+
 typedef struct hidden_overlay_line {
     char text[32];
     char short_text[16];
@@ -54,6 +59,7 @@ byte g_hidden_left_panel_overlay_widths[16] = { 0 };
 
 static void prt_status_line_compact(void);
 static void prt_cut_poisoned_compact(void);
+static void prt_status_line_top(void);
 static void prt_hidden_top_vitals(void);
 static bool status_state_text(char* out_long, size_t out_long_sz,
                               char* out_short, size_t out_short_sz,
@@ -685,7 +691,7 @@ static void prt_quiver(void)
     /* Calculate total width */
     if (same_type)
     {
-        /* Layout: "11/48[→][→]7/7" */
+        /* Layout: "11/48[->][->]7/7" */
         total_width = strlen(buf1) + (use_bigtile ? 2 : 2) + strlen(buf2);
     }
     else
@@ -2344,7 +2350,7 @@ static void prt_status_line_compact(void)
     if (!Term || !p_ptr)
         return;
 
-    const int row = Term->hgt - 1;
+    const int row = ROW_STATE;
     if (row < 0)
         return;
 
@@ -2584,6 +2590,35 @@ static void prt_status_line_compact(void)
         x += n;
         first = false;
     }
+}
+
+static void prt_status_line_top(void)
+{
+    if (!Term || !p_ptr || !ui_top_status_line())
+        return;
+
+    Term_erase(0, 0, 255);
+
+    if (ui_compact_width())
+    {
+        if (!ui_compact_status_line_handles_wounds())
+        {
+            prt_poisoned();
+            prt_cut();
+        }
+        prt_status_line_compact();
+        return;
+    }
+
+    prt_stun();
+    prt_hunger();
+    prt_blind();
+    prt_confused();
+    prt_afraid();
+    prt_terrain();
+    prt_state();
+    prt_speed();
+    prt_depth();
 }
 
 /*
@@ -3717,7 +3752,7 @@ int affinity_level(int skilltype)
     u32b affinity_flag = 0L;
     u32b penalty_flag  = 0L;
 
-    /* map skill → (affinity, penalty) pair */
+    /* map skill -> (affinity, penalty) pair */
     switch (skilltype)
     {
         case S_MEL: affinity_flag = RHF_MEL_AFFINITY; penalty_flag = RHF_MEL_PENALTY; break;
@@ -6218,6 +6253,9 @@ void redraw_stuff(void)
 
     if (ui_hide_left_panel() && hidden_overlay_needs_refresh)
         prt_hidden_top_vitals();
+
+    if (ui_top_status_line())
+        prt_status_line_top();
 
     redraw_hidden_left_panel_topline_suffix();
 

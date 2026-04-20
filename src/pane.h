@@ -10,9 +10,9 @@ enum pane_type {
     PANE_WORN = 2, // worn items
     PANE_ROLLS = 3,
     PANE_INFO = 4, // monster info window
-    PANE_CHARACTER = 5, // — character sheet
+    PANE_CHARACTER = 5, // - character sheet
     PANE_LOG = 6,
-    PANE_MONSTERS = 7, // — visible monsters window
+    PANE_MONSTERS = 7, // - visible monsters window
     PANE_TOUCH = 8, // touchscreen / mouse action pad
     PANE_MAX = 9,
 };
@@ -37,7 +37,7 @@ struct rect {
     };
 };
 
-// Specifications of a pane — where it can be placed and what is its minimum
+// Specifications of a pane - where it can be placed and what is its minimum
 // size.
 struct pane_specs {
     // Combination of `pane_placement` denoting allowed placement for this pane.

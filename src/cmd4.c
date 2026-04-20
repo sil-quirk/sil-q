@@ -1325,8 +1325,8 @@ static void ability_menu_render_song_bonus_block(const ability_type* b_ptr)
 
 /* ------------------------------------------------------------------
  * add_random_curse()
- *   � Marks the item cursed
- *   � Gives it random negative modifiers
+ *    Marks the item cursed
+ *    Gives it random negative modifiers
  *   Compatible with SIL-QH object_type (no flags1/2/3 fields)
  * ------------------------------------------------------------------ */
 void add_random_curse(object_type *o_ptr)
@@ -1336,7 +1336,7 @@ void add_random_curse(object_type *o_ptr)
 
     /* 2. negative pval / attack / evasion */
     int old_pval = o_ptr->pval;
-    if (o_ptr->pval > 0)  o_ptr->pval = -(rand_int(3) + 1); /* �1 � �3 */
+    if (o_ptr->pval > 0)  o_ptr->pval = -(rand_int(3) + 1); /* 1  3 */
     int pval_delta = o_ptr->pval - old_pval;
     if (pval_delta != 0)
         object_apply_pval_delta_with_mask(o_ptr, object_pval_flags1(o_ptr), pval_delta);
@@ -4521,7 +4521,7 @@ typedef struct
     int pval_bonus;
 } artifice_limits_t;
 
-/* Indexed by a small enum — looked up via artifice_bonus_for(). */
+/* Indexed by a small enum - looked up via artifice_bonus_for(). */
 enum {
     ARTIFICE_ARROW,
     ARTIFICE_MELEE,     /* sword, polearm, hafted */
@@ -5482,9 +5482,9 @@ int object_difficulty(object_type* o_ptr)
 
     /* ------------------------------------------------------------------
      *  GAMIL character bonus
-     *  � Craft mithril items without mithril material
-     *  � Costs 3 forge uses instead of 1
-     *  � Mark item with TR3_CANT_MELT so the melt-menu ignores it
+     *   Craft mithril items without mithril material
+     *   Costs 3 forge uses instead of 1
+     *   Mark item with TR3_CANT_MELT so the melt-menu ignores it
      * ------------------------------------------------------------------ */
 
 
@@ -5493,8 +5493,8 @@ int object_difficulty(object_type* o_ptr)
         dif_mult -= 25;
 
     /*  FEANOR character bonus
-     *  � 40% off on all lamps
-     *  � 25% off on any fire- or light-branded object */
+     *   40% off on all lamps
+     *   25% off on any fire- or light-branded object */
     if (feanor_bonus)
     {
         /* 40% off on all lamps */
@@ -6189,14 +6189,14 @@ int object_difficulty(object_type* o_ptr)
             smithing_cost.star_iron += alloy_weight;
     }
 
-   /* Gamil character bonus � override normal mithril cost */
-  if ((c_info[p_ptr->pcharacter].flags_u & UNQ_SMT_GAMIL)      /* you�re Gamil */
+   /* Gamil character bonus  override normal mithril cost */
+  if ((c_info[p_ptr->pcharacter].flags_u & UNQ_SMT_GAMIL)      /* youre Gamil */
       && (k_ptr->flags3 & TR3_MITHRIL)                     /* item is mithril */
       && (mithril_carried() < smithing_cost.mithril))      /* no mithril on hand */
   {
       smithing_cost.uses    = MAX(smithing_cost.uses, 3);  /* cost 3 forge uses */
       smithing_cost.mithril = 0;                           /* waive material */
-      o_ptr->ident         |= IDENT_CANT_MELT;             /* can�t melt later */
+      o_ptr->ident         |= IDENT_CANT_MELT;             /* cant melt later */
   }
 
     // Apply the difficulty multiplier
@@ -13874,6 +13874,9 @@ static cptr option_menu_label(int opt)
     case OPT_hidden_left_panel_mode:
         return compact ? (narrow ? "Panel place" : "Hidden panel")
                        : "Hidden-panel placement";
+    case OPT_top_status_line:
+        return compact ? (narrow ? "Top status" : "Top status line")
+                       : "Top Status Line (No Msg Row)";
     case OPT_show_level_entry_banner:
         return compact ? (narrow ? "Entry text" : "Entry narrative")
                        : "Level entry narrative";
@@ -14022,6 +14025,10 @@ static void option_apply_side_effects(int opt)
         redraw_inven_equip_subwindows();
     if (opt == OPT_story_monster_desc_pane)
         redraw_monster_subwindows();
+    if (opt == OPT_top_status_line && p_ptr) {
+        p_ptr->update |= (PU_PANEL);
+        p_ptr->redraw |= (PR_MAP | PR_EXTRA | PR_DEPTH);
+    }
     if (opt == OPT_stealth_vision || opt == OPT_visual_recognition
         || opt == OPT_sleep_icon)
         p_ptr->redraw |= (PR_MAP);
@@ -14475,7 +14482,7 @@ extern void do_cmd_options_aux(int page, cptr info)
                 else if (opt[k] == OPT_hide_left_panel)
                 {
                     set_sdl_hide_left_panel(!get_sdl_hide_left_panel());
-                    sdl_apply_config();
+                    sdl_request_redraw();
                 }
                 else if (opt[k] == OPT_hidden_left_panel_mode)
                 {
@@ -14603,7 +14610,7 @@ extern void do_cmd_options_aux(int page, cptr info)
                 else if (opt[k] == OPT_hide_left_panel)
                 {
                     set_sdl_hide_left_panel(true);
-                    sdl_apply_config();
+                    sdl_request_redraw();
                 }
                 else if (opt[k] == OPT_hidden_left_panel_mode)
                 {
@@ -14728,7 +14735,7 @@ extern void do_cmd_options_aux(int page, cptr info)
                 else if (opt[k] == OPT_hide_left_panel)
                 {
                     set_sdl_hide_left_panel(false);
-                    sdl_apply_config();
+                    sdl_request_redraw();
                 }
                 else if (opt[k] == OPT_hidden_left_panel_mode)
                 {
@@ -15284,7 +15291,7 @@ void do_cmd_pane_settings(void)
             {
                 set_sdl_show_pane_borders(!get_sdl_show_pane_borders());
                 settings_changed = true;
-                sdl_apply_config();
+                sdl_request_redraw();
             }
             else if (k == 9) /* Supporting Pane Layout */
             {
@@ -15386,7 +15393,7 @@ void do_cmd_pane_settings(void)
             {
                 set_sdl_show_pane_borders(true);
                 settings_changed = true;
-                sdl_apply_config();
+                sdl_request_redraw();
             }
             break;
         }
@@ -15468,7 +15475,7 @@ void do_cmd_pane_settings(void)
             {
                 set_sdl_show_pane_borders(false);
                 settings_changed = true;
-                sdl_apply_config();
+                sdl_request_redraw();
             }
             break;
         }
@@ -16123,6 +16130,42 @@ static int touch_pane_action_choice_index(int panel, int binding)
     return 0;
 }
 
+static bool touch_pane_binding_is_confirm(int binding)
+{
+    return (binding == INPUT_BIND_CONFIRM || binding == ' ' || binding == '\r');
+}
+
+static bool touch_pane_main_panel_has_other_confirm(int skip_index)
+{
+    for (int i = 0; i < SDL_TOUCH_PANE_BUTTON_COUNT; i++)
+    {
+        if (i == skip_index)
+            continue;
+
+        if (touch_pane_binding_is_confirm(
+                get_sdl_touch_pane_binding_for_panel(SDL_TOUCH_PANE_PANEL_MAIN, i)))
+            return true;
+    }
+
+    return false;
+}
+
+static bool touch_pane_main_confirm_change_allowed(int panel, int index, int new_binding)
+{
+    int current_binding;
+
+    if (panel != SDL_TOUCH_PANE_PANEL_MAIN)
+        return true;
+
+    current_binding = get_sdl_touch_pane_binding_for_panel(panel, index);
+    if (!touch_pane_binding_is_confirm(current_binding))
+        return true;
+    if (touch_pane_binding_is_confirm(new_binding))
+        return true;
+
+    return touch_pane_main_panel_has_other_confirm(index);
+}
+
 static void touch_pane_action_label_for_panel(int panel, int binding, char* buf, size_t buflen)
 {
     if (!buf || !buflen)
@@ -16143,7 +16186,12 @@ static void touch_pane_action_label_for_panel(int panel, int binding, char* buf,
         return;
     }
 
-    binding_action_label(binding, buf, buflen);
+    if (binding == INPUT_BIND_CONFIRM || binding == ' ') {
+        SDL_strlcpy(buf, "Pick/Confirm", buflen);
+        return;
+    }
+
+    binding_action_short(binding, buf, buflen);
 }
 
 static void do_cmd_touch_pane_button_editor(bool* settings_changed)
@@ -16223,19 +16271,19 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         }
         settings_ui_put_fitted(row++, 2, TERM_SLATE,
             settings_ui_pick_label(row_width,
-                "Up/Down: select button   4/6: previous/next action   l: rename slot",
-                "Up/Down select   4/6 action   l rename slot",
+                "Up/Down: select button   4/6: previous/next action   l/View: rename slot",
+                "Up/Down select   4/6 action   l/View rename",
                 "Up/Down select   4/6 action"));
         settings_ui_put_fitted(row++, 2, TERM_SLATE,
             settings_ui_pick_label(row_width,
-                "Tab: switch panel   p: rename panel   r: reset selected   R: reset all",
-                "Tab switch panel   p rename panel   r/R reset",
-                "Tab switch   p rename   r/R reset"));
+                "Tab/Ability: switch panel   p/Hero: rename panel   x/Desc: reset selected   M/Map: reset all",
+                "Tab switch   p/Hero rename   x reset   Map reset all",
+                "Tab switch   x reset   Map all"));
         settings_ui_put_fitted(row++, 2, TERM_SLATE,
             settings_ui_pick_label(row_width,
-                "ESC/Enter: return",
-                "Esc/Enter: return",
-                "Esc/Enter return"));
+                "ESC/Enter: return   Main panel must keep Pick/Confirm",
+                "Esc/Enter return   Keep main Pick/Confirm",
+                "Esc/Enter   Keep confirm"));
 
         Term_fresh();
 
@@ -16273,6 +16321,12 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             const int* choices = touch_pane_action_choices_for_panel(panel, &choice_count);
             int idx = touch_pane_action_choice_index(panel, get_sdl_touch_pane_binding_for_panel(panel, highlight));
             idx = (choice_count + idx - 1) % choice_count;
+
+            if (!touch_pane_main_confirm_change_allowed(panel, highlight, choices[idx])) {
+                bell("Bind Pick/Confirm to another main-panel button first.");
+                break;
+            }
+
             set_sdl_touch_pane_binding_for_panel(panel, highlight, choices[idx]);
             changed = true;
             break;
@@ -16288,6 +16342,12 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             const int* choices = touch_pane_action_choices_for_panel(panel, &choice_count);
             int idx = touch_pane_action_choice_index(panel, get_sdl_touch_pane_binding_for_panel(panel, highlight));
             idx = (idx + 1) % choice_count;
+
+            if (!touch_pane_main_confirm_change_allowed(panel, highlight, choices[idx])) {
+                bell("Bind Pick/Confirm to another main-panel button first.");
+                break;
+            }
+
             set_sdl_touch_pane_binding_for_panel(panel, highlight, choices[idx]);
             changed = true;
             break;
@@ -16335,6 +16395,8 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
 
         case 'p':
         case 'P':
+        case 'h':
+        case 'H':
         {
             char prompt[96];
             char current_name[SDL_TOUCH_PANE_LABEL_LEN];
@@ -16359,6 +16421,14 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         }
 
         case 'r':
+        case 'x':
+        case 'X':
+            if (!touch_pane_main_confirm_change_allowed(panel, highlight,
+                    get_sdl_touch_pane_default_binding_for_panel(panel, highlight))) {
+                bell("Bind Pick/Confirm to another main-panel button first.");
+                break;
+            }
+
             set_sdl_touch_pane_binding_for_panel(panel, highlight,
                 get_sdl_touch_pane_default_binding_for_panel(panel, highlight));
             clear_sdl_touch_pane_button_label_for_panel(panel, highlight);
@@ -16366,6 +16436,7 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             break;
 
         case 'R':
+        case 'M':
             sdl_touch_pane_reset_bindings_to_default();
             changed = true;
             break;
@@ -16913,6 +16984,10 @@ void do_cmd_options(void)
     screen_load();
     if (p_ptr && p_ptr->playing)
         sdl_music_stop_main();
+    if (p_ptr && op_ptr && op_ptr->opt[OPT_top_status_line] && Term)
+        Term_erase(0, 0, 255);
+    if (p_ptr)
+        handle_stuff();
 }
 
 #ifdef ALLOW_MACROS

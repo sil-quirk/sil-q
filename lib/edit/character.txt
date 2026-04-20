@@ -509,11 +509,11 @@ C:1:4  # Ambush
 P:2
 D:The twin of Amrod, keen-eyed tracker and hunter, sharing one heart and one fate with his brother; his loyalty bound not only to his twin but to the inescapable Oath sworn in pride and shadow. Foreshadowing a destiny mirrored in loss, his path tracks sorrow through the wilderness; his hunt ends not in glory, but in the tragic fulfillment of the curse, a life extinguished by the doom of the Noldor.
 
-# Maglor—singer of laments, still bound by Oath.
+# Maglor-singer of laments, still bound by Oath.
 N:40:Maglor
 Q:a72e9a509ff78ee6
 A:, the Minstrel
-B:You tune the harp—king's son whose songs mourn blood and burning shores.
+B:You tune the harp-king's son whose songs mourn blood and burning shores.
 F:SNG_AFFINITY | MEL_PENALTY | SMT_PENALTY | KINSLAYER | CURSE
 U:MINSTREL
 S:0:0:0:3
@@ -521,29 +521,29 @@ C:7:19  # Song of Lament
 P:2
 D:Melodious second son of Feanor, whose voice wove sorrow into song, bard-prince bound by oath, yet heart gentler than brothers proud. His harp whispered grief amid ruins, lamenting kin-slaying's shadow, foreshadowing lone wandering by restless shores beneath starlit waves. Hands destined to grasp Silmaril, burning guilt into weary heart, songs turning ever mournful, haunting waves until world's end; Maglor, tragic minstrel, forever bound to memory and bitter regret.
 
-# Caranthir—hard authority, commerce and wrath; melee leaning.
+# Caranthir-hard authority, commerce and wrath; melee leaning.
 N:41:Caranthir
 Q:30a2563965c31be6
 A:, the Dark
-B:You command harshly—stern prince whose temper sparks feuds and fear.
+B:You command harshly-stern prince whose temper sparks feuds and fear.
 F:SNG_PENALTY | KINSLAYER | CURSE | PER_PENALTY
 S:2:0:2:0
 C:5:3  # Zone of Control
 P:1
 D:Dark-tempered fourth son of Feanor, lord fierce of wide eastern lands, stern-hearted prince whose proud eyes burned beneath shadowed brows. Ruled wealth and trade, yet pride bred division with allies and kin, foreshadowing bitter conflict and wrathful deeds amid ruinous war. Destined to perish fiercely, falling bravely yet tragically, his spirit bound restlessly to father's oath, ever unfulfilled; Caranthir, proud lord whose wrath echoes beneath flame-shadowed skies. 
 
-# Nargothrond warrior—melee-forward, resilience tempered by captivity.
+# Nargothrond warrior-melee-forward, resilience tempered by captivity.
 N:42:Gwindor
 Q:c1b47f86876264a6
 A: of Nargothrond
-B:You return scarred—brave prince dimmed by Angband's shadow yet unbroken.
+B:You return scarred-brave prince dimmed by Angband's shadow yet unbroken.
 F:MEL_AFFINITY | CURSE
 S:1:0:1:0
 C:0:5 # Charge
 P:1
 D:Noble prince of Nargothrond, brave warrior shadowed by captivity and grief, whose courage shone brightly yet dimmed beneath darkness of Angband's halls. Bound by sorrow and loss, returning marred to city of hidden caves, foreshadowing tragic ruin, love overshadowed by quiet despair. Companion doomed yet steadfast, guiding Turin's fate unknowingly toward doom, remembered in lament, bravery bright amid shadows of defeat; Gwindor, noble spirit enduring darkness, remembered beyond ruinous fall. 
 
-# The White Lady—mobile, alert, stealth-capable elven noble.
+# The White Lady-mobile, alert, stealth-capable elven noble.
 N:43:Aredhel
 Q:8c41c2ea8a723f04
 A:, the White Lady of Gondolin
@@ -554,33 +554,33 @@ C:2:5  # Sprinting
 P:2
 D:Proud white lady, sister of Turgon, restless beneath Gondolin's towers, adventurous heart seeking freedom, riding paths through peril and shadow. Her fate entwined tragically, choosing paths leading into darkness unseen, foreshadowing doom bound with dark Elf-lord beneath twilight forest. Yet mother to hero fated to defy evil, destiny woven in sorrow, remembered with mourning in hidden city, warning of perilous pride; Aredhel, whose restless courage led toward grief and hidden heroism. 
 
-# Wise-woman of the Edain—lore, will, dialogue with Eldar.
+# Wise-woman of the Edain-lore, will, dialogue with Eldar.
 N:44:Andreth
 Q:468a22fae23f9e2f
 A:, the Wise
-B:You ponder deeply—mortal lorekeeper whose questions pierce the dark.
+B:You ponder deeply-mortal lorekeeper whose questions pierce the dark.
 F:PER_AFFINITY | WIL_AFFINITY | MEL_PENALTY | STL_PENALTY
 S:0:0:0:2
 C:4:7  # Listen / Counsel
 P:0
 D:Wise woman of Edain, keeper of lore and quiet wisdom deep and hidden, whose heart held love secret, bridging sorrow between Elf and mortal. Bearing hope dimmed by mortal fate, questioning destiny beyond grief, foreshadowing deeper mysteries of Men, mortality woven with hope. Her wisdom shapes quiet counsel, speaking truths gently to immortal ears, remembered softly in Eldar memory, her questions echoing unanswered; Andreth, mortal voice of sorrow and hope bound in tales unending. 
 
-# Morwen—unyielding pride; high will, cold perception.
+# Morwen-unyielding pride; high will, cold perception.
 N:45:Morwen
 Q:63f959989b6c5c5e
 A: Eledhwen
-B:You endure like granite—proud lady whose gaze does not bend to night.
+B:You endure like granite-proud lady whose gaze does not bend to night.
 F:WIL_AFFINITY | MOR_CURSE | STL_PENALTY
 S:0:0:2:2
 C:5:2  # Strength in Adversity
 P:0
 D:Proud lady of Dor-lomin, heart unbowed beneath shadows of despair, mother fierce yet silent, watching doom unfold upon kin and homeland. Strength hidden beneath grief, heart steadfast amid cruel darkness, foreshadowing tragic bravery, her line destined for shadow and flame. Her pride and sorrow shaping quietly fate of hero doomed by curse, remembered ever in tales of valor and grief entwined beyond mortal bounds; Morwen, proud heart enduring loss, courage veiled by sorrow unspoken. 
 
-# Feanor's grandson—craft genius but less tainted; smith/enchanter lean.
+# Feanor's grandson-craft genius but less tainted; smith/enchanter lean.
 N:46:Celebrimbor
 Q:92088065a83f4ad1
 A:, Heir of the Hammer
-B:You take up the tools—bright smith, deft of hand, wary of pride's shadow.
+B:You take up the tools-bright smith, deft of hand, wary of pride's shadow.
 F:SMT_AFFINITY | PER_AFFINITY | SNG_PENALTY | MEL_PENALTY | CURSE
 U:SMT_CELEBRIMBOR
 S:0:0:0:1
@@ -592,7 +592,7 @@ D:Grandson of Feanor, gifted smith with heart less marred by pride, whose hands 
 N:47:Aegnor
 Q:294fdef66e3077ae
 A:, the Flame-eyed
-B:You burn with fire—fierce prince whose gaze pierces northern shadow.
+B:You burn with fire-fierce prince whose gaze pierces northern shadow.
 F:MEL_AFFINITY | EVN_AFFINITY | SNG_PENALTY | CURSE
 S:2:1:1:1
 C:0:13  # Rapid Attack
@@ -603,7 +603,7 @@ D: Fierce-hearted fourth son of Finarfin, flame-eyed prince whose burning spirit
 N:48:Angrod
 Q:deec72d5226bc5be
 A:, Messenger of the North
-B:You scout the wilds—steadfast prince whose words bridged flame and stone.
+B:You scout the wilds-steadfast prince whose words bridged flame and stone.
 F:PER_AFFINITY | STL_AFFINITY | SNG_PENALTY | CURSE | MEL_AFFINITY
 S:1:1:1:1
 C:0:10  # Zone of Control
@@ -613,18 +613,18 @@ D: Steadfast third son of Finarfin, keen-eyed warden of the northern marches, wh
 N:49:Orodreth
 Q:7966bfcb4448d94f
 A:, King of Nargothrond
-B:You rule cautiously—prince whose wisdom tempers valor in hidden halls.
+B:You rule cautiously-prince whose wisdom tempers valor in hidden halls.
 F:CURSE
 S:0:1:1:1
 C:3:3  # Exchange places
 P:1
 D: Cautious lord of Finarfin's line, who bore the weight of Nargothrond's crown after noble Finrod perished in dark Sauron's pit, fulfilling oath to mortal friend. Wise yet hesitant, his prudent heart shrank from bold counsel, preferring hidden strength to open war, guarding the delved halls beneath the Narog's murmuring waters. Yet fate conspired against all caution; Turin's pride and Glaurung's cunning breached the veils of secrecy he had woven, drawing forth armies to ruin on Tumhalad's bloodied field. There Orodreth fell, kingdom crumbling, his daughter Finduilas seized by cruel foes, the river running red beneath a dragon's shadow. His reign foreshadows the peril of wisdom paralyzed by fear, strength hoarded until too late to wield; Orodreth, careful guardian whose sheltering walls could not withstand the doom that fire and treachery wrought upon Nargothrond's splendor.
 
-# Durin—Father of Dwarves; smith/will/perception, identification bonus.
+# Durin-Father of Dwarves; smith/will/perception, identification bonus.
 N:50:Durin
 Q:9597e1744dda4bbd
 A:, the Deathless
-B:You wake alone—Father of Dwarves, first to wake, builder of Khazad-dum.
+B:You wake alone-Father of Dwarves, first to wake, builder of Khazad-dum.
 F:SMT_AFFINITY | PER_AFFINITY | WIL_AFFINITY | MEL_AFFINITY | GIFTERU | KHELED_ZARAM | SNG_PENALTY | STL_PENALTY
 S:3:1:3:1
 C:0:11:6:2:6:4:6:5 # Smite Jeweller Expertise Artifice

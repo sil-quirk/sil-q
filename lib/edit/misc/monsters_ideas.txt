@@ -242,12 +242,12 @@ These suggestions maintain the file's structure and balance (e.g., no overpowere
 
 ### New Hallucinatory Monsters (Elf Thralls)
 
-Based on your preference to avoid betrayers and focus on pitiable, broken elf thralls (inspired by captured elves like those in Angband's mines or driven mad by torment, as described in *The Silmarillion* – e.g., elves enslaved after battles, suffering hallucinations from trauma or Morgoth's dark arts), I've suggested additions to the hallucinatory section (starting around N:301 in the file). These are visions or spectral apparitions of thralls, not active betrayers. They fit as non-combat or ethereal entities, similar to existing hallucinatory Valar/elves (peaceful, symbolic). Lore: Elves like Gwindor escaped but were haunted/mad; others perished in chains, their spirits lingering as hallucinations in the player's mind, perhaps from Silmaril-induced visions or dungeon fumes.
+Based on your preference to avoid betrayers and focus on pitiable, broken elf thralls (inspired by captured elves like those in Angband's mines or driven mad by torment, as described in *The Silmarillion* - e.g., elves enslaved after battles, suffering hallucinations from trauma or Morgoth's dark arts), I've suggested additions to the hallucinatory section (starting around N:301 in the file). These are visions or spectral apparitions of thralls, not active betrayers. They fit as non-combat or ethereal entities, similar to existing hallucinatory Valar/elves (peaceful, symbolic). Lore: Elves like Gwindor escaped but were haunted/mad; others perished in chains, their spirits lingering as hallucinations in the player's mind, perhaps from Silmaril-induced visions or dungeon fumes.
 
-I've suggested 3 hallucinatory commons and 1 unique. They use '@' for elf-like, with ghostly colors. No betrayal theme – emphasize suffering and madness.
+I've suggested 3 hallucinatory commons and 1 unique. They use '@' for elf-like, with ghostly colors. No betrayal theme - emphasize suffering and madness.
 
 #### 1. Hallucinatory Elf Thrall
-Lore: Generic broken elf slaves, echoing the thralls in Angband (*The Silmarillion*, Ch. 13 – many Sindar/Noldor enslaved, some driven insane).
+Lore: Generic broken elf slaves, echoing the thralls in Angband (*The Silmarillion*, Ch. 13 - many Sindar/Noldor enslaved, some driven insane).
 
 N:601:Hallucinatory elf thrall  
 W:30:5  
@@ -261,7 +261,7 @@ D:A flickering vision of a chained elf, eyes wide with madness from endless toil
 D:It reaches out weakly, as if pleading for release.
 
 #### 2. Hallucinatory Mad Sindar Miner
-Lore: Sindar elves mined for Morgoth, some hallucinating from darkness/fumes (*The Children of Húrin* implies tormented thralls).
+Lore: Sindar elves mined for Morgoth, some hallucinating from darkness/fumes (*The Children of Hurin* implies tormented thralls).
 
 N:602:Hallucinatory mad Sindar miner  
 W:30:5  
@@ -275,7 +275,7 @@ D:A spectral Sindar elf, pickaxe in hand, muttering incoherently in shadowed cha
 D:The vision shimmers, evoking the endless despair of Angband's depths.
 
 #### 3. Hallucinatory Tormented Noldo Slave
-Lore: Noldor captured post-Nirnaeth Arnoediad, broken in spirit (*The Silmarillion*, Ch. 20 – many enslaved, hallucinations from torment implied).
+Lore: Noldor captured post-Nirnaeth Arnoediad, broken in spirit (*The Silmarillion*, Ch. 20 - many enslaved, hallucinations from torment implied).
 
 N:603:Hallucinatory tormented Noldo slave  
 W:30:5  
@@ -289,7 +289,7 @@ D:A ghostly Noldo thrall, scarred and vacant-eyed, hallucinating freedom long lo
 D:It fades in and out, a reminder of Morgoth's cruel bonds.
 
 #### Unique Hallucinatory Elf Thrall
-Lore: Inspired by Gwindor (escaped thrall from Angband, mad/broken but loyal, not a betrayer – *The Silmarillion*, Ch. 21; he fought for good despite trauma). As a unique hallucination, perhaps a vision of his suffering self.
+Lore: Inspired by Gwindor (escaped thrall from Angband, mad/broken but loyal, not a betrayer - *The Silmarillion*, Ch. 21; he fought for good despite trauma). As a unique hallucination, perhaps a vision of his suffering self.
 
 N:604:Gwindor, the Broken Thrall  
 W:30:10  
@@ -300,17 +300,17 @@ P:[+0]
 F:UNIQUE | ELF | MALE | NEVER_MOVE | NEVER_BLOW | PEACEFUL | HURT_LITE  
 S:SPELL_PCT_20 | POW_15 | HOLD (hallucinatory chains) | SCARE  
 D:A haunting vision of Gwindor, once noble, now a mad thrall escaped from Angband's pits.  
-D:His eyes reflect endless suffering, but no treachery – only the weight of lost kin.
+D:His eyes reflect endless suffering, but no treachery - only the weight of lost kin.
 
 ### New Maiar-Inspired Monsters (Focus on Corrupted, Especially Frost)
 
-Deep lore inspection (via tools): Corrupted Maiar are primarily Balrogs (fire Maiar, e.g., Gothmog, Lungorthin – all fiery, no cold variants mentioned) and Sauron (shadow/deception). Other possibles: Werewolves/vampires like Draugluin/Thuringwethil may be embodied Maiar (speculated in HoMe/Myths Transformed); dragons like Glaurung possibly Maiar spirits in beast form. No direct "frost or ice Maiar corrupted" found – Morgoth's early phase was cold (Utumno's ice, blizzards in *The Silmarillion*, Ainulindalë), but he corrupted fire spirits later. Ossë (sea/storms, cold-adjacent) was tempted but repented. Early drafts (HoMe/Book of Lost Tales) mention "demons of cold" or ice-related horrors from Melkor's discord, but not named Maiar. No white/cold Balrogs.
+Deep lore inspection (via tools): Corrupted Maiar are primarily Balrogs (fire Maiar, e.g., Gothmog, Lungorthin - all fiery, no cold variants mentioned) and Sauron (shadow/deception). Other possibles: Werewolves/vampires like Draugluin/Thuringwethil may be embodied Maiar (speculated in HoMe/Myths Transformed); dragons like Glaurung possibly Maiar spirits in beast form. No direct "frost or ice Maiar corrupted" found - Morgoth's early phase was cold (Utumno's ice, blizzards in *The Silmarillion*, Ainulindale), but he corrupted fire spirits later. Osse (sea/storms, cold-adjacent) was tempted but repented. Early drafts (HoMe/Book of Lost Tales) mention "demons of cold" or ice-related horrors from Melkor's discord, but not named Maiar. No white/cold Balrogs.
 
 To fit: Expanded on Raukar (demonic Maiar in file, e.g., Ringrauko as cold variant with HIT:COLD). Suggested commons as lesser corrupted Maiar (shadow/cold themes), and uniques as frost-focused, lore-close creations (e.g., a cold Rauko from Utumno's icy era, or a tempted sea-spirit variant). All use 'R' symbol, like existing Raukar. Depth/rarity deeper for power.
 
 #### New Common Maiar-Inspired Monsters
 #### 1. Lesser Shadow Maia (Corrupted spirit, shadow element)
-Lore: Lesser Úmaiar (corrupted Maiar) as roaming spirits post-Morgoth (*Morgoth's Ring*, Myths Transformed – many weakened to ghosts).
+Lore: Lesser Umaiar (corrupted Maiar) as roaming spirits post-Morgoth (*Morgoth's Ring*, Myths Transformed - many weakened to ghosts).
 
 N:605:Lesser shadow Maia  
 W:18:2  
@@ -325,7 +325,7 @@ D:A weakened corrupted Maia, reduced to a shadowy wisp after Morgoth's fall.
 D:It drifts, seeking to ensnare the living.
 
 #### 2. Frost Wisp Maia (Corrupted cold spirit)
-Lore: Inspired by Melkor's early cold mists/discord (*Ainulindalë* – he created cold/ice in opposition; speculated lesser Maiar of chill corrupted in Utumno).
+Lore: Inspired by Melkor's early cold mists/discord (*Ainulindale* - he created cold/ice in opposition; speculated lesser Maiar of chill corrupted in Utumno).
 
 N:606:Frost wisp Maia  
 W:16:2  
@@ -340,10 +340,10 @@ D:A corrupted Maia of ancient chills, a wisp from Melkor's icy discords.
 D:It freezes the air, born of Utumno's frozen depths.
 
 #### New Unique Maiar Monsters (Frost Focus)
-#### 1. Ossë the Storm-Tempted (Tempted but not fully corrupted, as lore)
-Lore: Directly from *The Silmarillion* (Ch. 1) – Maia of Ulmo, tempted by Melkor to storms/cold seas, but repented; could appear as a hallucination or weakened servant.
+#### 1. Osse the Storm-Tempted (Tempted but not fully corrupted, as lore)
+Lore: Directly from *The Silmarillion* (Ch. 1) - Maia of Ulmo, tempted by Melkor to storms/cold seas, but repented; could appear as a hallucination or weakened servant.
 
-N:607:Ossë, the Storm-Tempted  
+N:607:Osse, the Storm-Tempted  
 W:20:15  
 G:R:B  
 I:2:20d4:0  
@@ -356,7 +356,7 @@ D:A mighty Maia of the seas, once tempted by Melkor's cold tempests.
 D:Though he repented, echoes of that darkness linger in his stormy form.
 
 #### 2. Ringorthin, Lord of Frost (Created frost Rauko unique)
-Lore: Close to lore – A cold variant of Balrogs/Raukar, inspired by Melkor's pre-fire cold phase (Utumno's ice, *Morgoth's Ring* – he corrupted spirits before fire; name echoes "Lungorthin" but "Ring-" for cold).
+Lore: Close to lore - A cold variant of Balrogs/Raukar, inspired by Melkor's pre-fire cold phase (Utumno's ice, *Morgoth's Ring* - he corrupted spirits before fire; name echoes "Lungorthin" but "Ring-" for cold).
 
 N:608:Ringorthin, Lord of Frost  
 W:22:20  
@@ -378,7 +378,7 @@ Based on a deep inspection of Tolkien's lore (primarily *The Silmarillion*, *The
 - **Utumno's Nature**: Located in the far north under the Iron Mountains (Ered Engrin), it was a vast, cold fortress with deep pits, vaults, and caverns. *The Silmarillion* (Ch. 1-3) describes it as a place of "cold and dim light" where Melkor's discord created extremes of heat and cold, but cold dominated (e.g., blizzards, frosts opposing the Valar's lamps). After its destruction in the War of Powers, remnants hid in the earth, influencing later evils.
 
 - **Creatures and Beings**:
-  - **Demons/Fallen Ainur (Úmaiar)**: Primary inhabitants were corrupted Maiar/Ainur spirits who allied with Melkor early (*The Silmarillion*, Ch. 3; *Morgoth's Ring*, Myths Transformed). These "demons" became like him in corruption, often shadowy or elemental. In *The Book of Lost Tales* (HoMe Vol. 1-2), early drafts mention "demons of cold" or ice-related horrors as part of Melkor's host, tied to his discord creating "unwholesome colds" and phantoms. No named cold demons, but they contrast later fire Balrogs.
+  - **Demons/Fallen Ainur (Umaiar)**: Primary inhabitants were corrupted Maiar/Ainur spirits who allied with Melkor early (*The Silmarillion*, Ch. 3; *Morgoth's Ring*, Myths Transformed). These "demons" became like him in corruption, often shadowy or elemental. In *The Book of Lost Tales* (HoMe Vol. 1-2), early drafts mention "demons of cold" or ice-related horrors as part of Melkor's host, tied to his discord creating "unwholesome colds" and phantoms. No named cold demons, but they contrast later fire Balrogs.
   - **Monsters of Corruption/Mockeries**: Melkor bred nameless beasts in mockery of Eru's creations (*The Silmarillion*, Ch. 2). These were primordial, not yet orcs/trolls/dragons (bred later). HoMe suggests twisted spirits, phantoms, and "ogres/goblins" (early orc-like). Cold themes: Ice-bound horrors, frozen mockeries (e.g., corrupted beasts adapted to northern desolation).
   - **Orcs' Origins**: First Elves captured and corrupted here (*The Silmarillion*, Ch. 3), implying early twisted humanoids in cold pits.
   - **Hidden Survivors**: Post-destruction, many creatures fled into earth's depths (*The Silmarillion*, Ch. 3), becoming "nameless things" or lurking evils.
@@ -440,7 +440,7 @@ D:It slithers through earth, exuding chilling vapors.
 
 #### Unique Monsters
 
-N:705:Kôsmot, Demon of the North  
+N:705:Kosmot, Demon of the North  
 W:21:20  
 G:R:B  
 I:2:42d4:-3  
@@ -488,7 +488,7 @@ Based on a thorough inspection of the provided vault.txt file (using tools to pa
 - **Depth/Rarity**: Shallower for simple (depth 1-5, rarity 4-20), deeper for complex (depth 8-18, rarity 1-5). Sizes: Small (4x4) to large (e.g., 38x34 for Cat Fortress).
 - **Themes**: Lore-focused (First Age): Orc/troll strongholds, spider lairs, dragon hoards, undead temples. Uniques integrated (e.g., Gothmog with r=raukar). Variety: Pillars, mazes, chambers, pits.
 - **Gaps/Opportunities**:
-  - Underrepresented: Cold/ice themes (no frozen vaults), Utumno-era (primordial dark/cold, phantoms, corrupted Maiar – fits previous requests).
+  - Underrepresented: Cold/ice themes (no frozen vaults), Utumno-era (primordial dark/cold, phantoms, corrupted Maiar - fits previous requests).
   - Balance: More lesser vaults with new monsters (e.g., ice demons, phantoms from suggestions). Few hallucinatory/elf thrall vaults (could add as type 6 with peaceful flags).
   - Variety: More chasms (7), sunlight (,), glyphs (;). Integrate proposed monsters (e.g., R for ice Raukar, w for phantoms).
   - Integration with .c Files: In generate.c, cave_gen() places vaults randomly if rand_int(100) < chance (based on depth/type). Vaults can fail if overlapping/poor fit. In cave.c, styles_init_for_level() handles S: weights; project_path() ensures connectivity. New vaults should ensure connectivity ($ borders), avoid over-crowding.
@@ -500,7 +500,7 @@ Based on a thorough inspection of the provided vault.txt file (using tools to pa
 
 ### Suggestions for New Vaults
 
-Drawing from Utumno-era lore (cold pits, phantoms, corrupted Maiar from Melkor's early discord – *The Silmarillion* Ch.1-3, HoMe/Book of Lost Tales: ice demons, shadowy spirits in northern wastes), I've suggested 8 new vaults. They fit First Age, use existing symbols where possible, and incorporate proposed monsters (e.g., from earlier: Ice demon of Utumno as r (raukar variant), Utumno phantom as W or w (wight-like), Frost-corrupted ogre as T (troll-like)). 
+Drawing from Utumno-era lore (cold pits, phantoms, corrupted Maiar from Melkor's early discord - *The Silmarillion* Ch.1-3, HoMe/Book of Lost Tales: ice demons, shadowy spirits in northern wastes), I've suggested 8 new vaults. They fit First Age, use existing symbols where possible, and incorporate proposed monsters (e.g., from earlier: Ice demon of Utumno as r (raukar variant), Utumno phantom as W or w (wight-like), Frost-corrupted ogre as T (troll-like)). 
 
 - **Balance**: 3 interesting rooms (type 6, small/simple), 3 lesser (type 7, medium/defensive), 2 greater (type 8, large/themed with uniques).
 - **Lore Fit**: Cold/ice (chasms as frozen pits, rubble as ice shards), dark phantoms, no betrayers. Hallucinatory elf thralls as peaceful '?' or S (skeletons).
@@ -508,7 +508,7 @@ Drawing from Utumno-era lore (cold pits, phantoms, corrupted Maiar from Melkor's
 - **Serial Numbers**: Start from 500+ to avoid conflicts.
 - **Integration Tips**: In generate.c, add to vault placement logic if needed (e.g., higher chance at depths 15+ for Utumno themes). Ensure $ for corridors.
 
-#### 1. Frozen Pit (Type 6: Interesting Room – Small ice chasm trap)
+#### 1. Frozen Pit (Type 6: Interesting Room - Small ice chasm trap)
 Lore: Utumno's frozen pits where cold horrors lurk (*Book of Lost Tales*).
 
 N:501:Frozen Pit  
@@ -523,8 +523,8 @@ D:$.7.7.$
 D:$:7:$$ 
 D: $$$$   
 
-#### 2. Shadow Wisp Chamber (Type 6: Interesting Room – Dark spirit haunt)
-Lore: Phantoms from Utumno's discords (*Ainulindalë*).
+#### 2. Shadow Wisp Chamber (Type 6: Interesting Room - Dark spirit haunt)
+Lore: Phantoms from Utumno's discords (*Ainulindale*).
 
 N:502:Shadow Wisp Chamber  
 X:6:16:8:5:9  
@@ -535,7 +535,7 @@ D: #.w?w.#
 D: ##w:w## 
 D:  #####  
 
-#### 3. Ice Demon Lair (Type 6: Interesting Room – Corrupted Maia hideout)
+#### 3. Ice Demon Lair (Type 6: Interesting Room - Corrupted Maia hideout)
 Lore: Ice demons from Melkor's cold era.
 
 N:503:Ice Demon Lair  
@@ -549,7 +549,7 @@ D:$..*..$
 D:$r.?.r$ 
 D:$$$$$$$ 
 
-#### 4. Utumno Phantom Crypt (Type 7: Lesser Vault – Undead cold spirits)
+#### 4. Utumno Phantom Crypt (Type 7: Lesser Vault - Undead cold spirits)
 Lore: Spectral remnants in Utumno ruins.
 
 N:504:Utumno Phantom Crypt  
@@ -566,7 +566,7 @@ D:#...w.7.w.#
 D:#..w..:..w#  
 D:###########  
 
-#### 5. Frozen Ogre Den (Type 7: Lesser Vault – Corrupted brutes in ice)
+#### 5. Frozen Ogre Den (Type 7: Lesser Vault - Corrupted brutes in ice)
 Lore: Frost-ogres from northern wastes.
 
 N:505:Frozen Ogre Den  
@@ -582,7 +582,7 @@ D:#..T.?T..#
 D:#.7...7..#  
 D:##########  
 
-#### 6. Hallucinatory Thrall Mine (Type 7: Lesser Vault – Broken elf visions)
+#### 6. Hallucinatory Thrall Mine (Type 7: Lesser Vault - Broken elf visions)
 Lore: Mad elf thralls in mines (hallucinatory, peaceful).
 
 N:506:Hallucinatory Thrall Mine  
@@ -597,8 +597,8 @@ D:#.?...?.#
 D:#S..?..S#  
 D:#########  
 
-#### 7. Kosmot's Frozen Hall (Type 8: Greater Vault – Unique ice demon lord)
-Lore: Kôsmot (proposed unique) guarding Utumno relic.
+#### 7. Kosmot's Frozen Hall (Type 8: Greater Vault - Unique ice demon lord)
+Lore: Kosmot (proposed unique) guarding Utumno relic.
 
 N:507:Kosmot's Frozen Hall  
 X:8:21:1:12:14  
@@ -616,7 +616,7 @@ D:#.7K...K7.#
 D:##r..7..r##  
 D:##############  
 
-#### 8. Palanvore's Icy Abyss (Type 8: Greater Vault – Unique phantom pit)
+#### 8. Palanvore's Icy Abyss (Type 8: Greater Vault - Unique phantom pit)
 Lore: Palanvore (proposed unique) in frozen chasm with phantoms.
 
 N:508:Palanvore's Icy Abyss  

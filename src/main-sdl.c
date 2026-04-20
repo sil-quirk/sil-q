@@ -22,7 +22,8 @@ static const char* const sdl_story_fallback_font = "lib/xtra/font/MarcellusSC-Re
 enum {
     TILE_SIZE = 16,
     MAX_TERM_DATA = ANGBAND_TERM_MAX,
-    MAX_STORY_FONT_CACHE = 16,
+    MAX_STORY_FONT_CACHE = 32,
+    MAX_MONO_FONT_CACHE = 48,
     MAX_PANE_CONFIGS = 8,
     TOUCH_PANE_LONG_PRESS_MS = 350,
 };
@@ -89,6 +90,20 @@ typedef struct story_font_entry {
     TTF_Font* font;
 } story_font_entry;
 
+typedef struct mono_font_atlas_entry {
+    bool valid;
+    char font_path[256];
+    int cell_height;
+    bool bold;
+    bool italic;
+    bool underline;
+    bool strikethrough;
+    int hinting;
+    bool kerning;
+    int outline;
+    SDL_Texture* atlas;
+} mono_font_atlas_entry;
+
 typedef struct sdl_state {
     SDL_Window* window;
     SDL_Renderer* renderer;
@@ -104,6 +119,16 @@ typedef struct sdl_state {
     int story_font_count;
     int story_font_depth;      // Nesting counter for story font enable/disable
     bool story_font_grid;      // Whether queued story text should snap to cell grid
+    bool story_font_cache_valid;
+    char story_font_cache_path[256];
+    bool story_font_cache_bold;
+    bool story_font_cache_italic;
+    bool story_font_cache_underline;
+    bool story_font_cache_strikethrough;
+    int story_font_cache_hinting;
+    bool story_font_cache_kerning;
+    int story_font_cache_outline;
+    mono_font_atlas_entry mono_font_atlases[MAX_MONO_FONT_CACHE];
     
 } sdl_state;
 
@@ -111,6 +136,7 @@ typedef struct sdl_view {
     SDL_Rect rect;
     SDL_Texture* canvas;
     SDL_Texture* font_atlas;
+    bool font_atlas_cached;
     int ttf_font_size;
     int cell_w;
     int cell_h;
@@ -142,7 +168,7 @@ static const touch_pane_slot_info g_touch_pane_slots[SDL_TOUCH_PANE_BUTTON_COUNT
     { "North", NULL, '8' },
     { "Northeast", NULL, '9' },
     { "West", NULL, '4' },
-    { "Center", "Space", INPUT_BIND_CONFIRM },
+    { "Center", "pick", INPUT_BIND_CONFIRM },
     { "East", NULL, '6' },
     { "Southwest", NULL, '1' },
     { "South", NULL, '2' },
@@ -156,10 +182,15 @@ static const touch_pane_slot_info g_touch_pane_slots[SDL_TOUCH_PANE_BUTTON_COUNT
 };
 
 enum {
+    SDL_TOUCH_PANE_CENTER_SLOT = 13,
+};
+
+enum {
     MAX_GAMEPADS = 4,
     DPAD_DIAGONAL_WINDOW_MS = 100,
     SHOULDER_COMBO_WINDOW_MS = 150,
-    GAMEPAD_CAPTURE_ARM_DELAY_MS = 200,
+    /* Rebinding should listen immediately instead of dropping quick inputs. */
+    GAMEPAD_CAPTURE_ARM_DELAY_MS = 0,
 };
 
 typedef struct gamepad_entry {
@@ -298,6 +329,11 @@ static void sdl_apply_story_font_state(bool active);
 static void sdl_apply_story_grid_state(bool grid);
 static void sdl_story_font_reset_state(void);
 static void sdl_story_font_cache_clear(void);
+static bool sdl_story_font_cache_matches_config(void);
+static void sdl_story_font_cache_mark_config(void);
+static void sdl_mono_font_cache_clear(void);
+static SDL_Texture* sdl_acquire_mono_font_atlas(const char* font_path,
+    int cell_height, bool* out_cached);
 static TTF_Font* sdl_story_font_for_height(int pixel_height);
 static TTF_Font* sdl_story_font_for_view(const sdl_view* d);
 #if defined(__ANDROID__) || defined(SIL_IOS)
@@ -314,6 +350,8 @@ static bool sdl_touch_pane_compute_layout(const SDL_Rect* pane_rect, SDL_FRect* 
 static bool sdl_touch_pane_binding_is_direction(int binding);
 static bool sdl_touch_pane_slot_uses_long_press(int slot, int binding);
 static bool sdl_touch_pane_confirm_binding(int binding);
+static bool sdl_touch_pane_main_panel_has_confirm_excluding(int skip_index);
+static void sdl_touch_pane_ensure_main_panel_confirm(void);
 static void sdl_touch_pane_begin_reset_confirm(void);
 static void sdl_touch_pane_finish_reset_confirm(bool confirmed);
 static void sdl_touch_pane_handle_reset_prompt_pointer(float x, float y);
@@ -391,6 +429,7 @@ static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, i
 static void sdl_load_story_fonts(void);
 static TTF_Font* sdl_load_font_with_fallback(const char* font_path, int font_size, const char* fallback_path);
 static void sdl_handle_renderer_reset(void);
+void sdl_request_redraw(void);
 
 static sdl_view* sdl_view_from_term(term* t)
 {
@@ -427,9 +466,11 @@ static void sdl_view_destroy(sdl_view* d)
         d->canvas = NULL;
     }
     if (d->font_atlas) {
-        SDL_DestroyTexture(d->font_atlas);
+        if (!d->font_atlas_cached)
+            SDL_DestroyTexture(d->font_atlas);
         d->font_atlas = NULL;
     }
+    d->font_atlas_cached = false;
 }
 
 #if defined(__ANDROID__) || defined(SIL_IOS)
@@ -834,6 +875,32 @@ static bool sdl_touch_pane_slot_uses_long_press(int slot, int binding)
 static bool sdl_touch_pane_confirm_binding(int binding)
 {
     return (binding == INPUT_BIND_CONFIRM || binding == ' ' || binding == '\r');
+}
+
+static bool sdl_touch_pane_main_panel_has_confirm_excluding(int skip_index)
+{
+    for (int i = 0; i < SDL_TOUCH_PANE_BUTTON_COUNT; i++) {
+        if (i == skip_index)
+            continue;
+
+        if (sdl_touch_pane_confirm_binding(config.touch_pane_bindings[i]))
+            return true;
+    }
+
+    return false;
+}
+
+static void sdl_touch_pane_ensure_main_panel_confirm(void)
+{
+    if (sdl_touch_pane_main_panel_has_confirm_excluding(-1))
+        return;
+
+    if (config.touch_pane_bindings[SDL_TOUCH_PANE_CENTER_SLOT] != INPUT_BIND_CONFIRM)
+        log_warn("Touch pane main panel had no Pick/Confirm binding; restoring center button");
+
+    config.touch_pane_bindings[SDL_TOUCH_PANE_CENTER_SLOT] = INPUT_BIND_CONFIRM;
+    clear_sdl_touch_pane_button_label_for_panel(SDL_TOUCH_PANE_PANEL_MAIN,
+        SDL_TOUCH_PANE_CENTER_SLOT);
 }
 
 static void sdl_touch_pane_begin_reset_confirm(void)
@@ -1254,7 +1321,7 @@ static void sdl_touch_pane_render_reset_prompt(void)
     SDL_SetRenderDrawColor(g_state.renderer, frame.r, frame.g, frame.b, 220);
     SDL_RenderRect(g_state.renderer, &rect);
     sdl_touch_pane_draw_button_text(&rect, "Reset touch controls to defaults?",
-        "Confirm: Space/Enter button. Cancel: Esc.", text);
+        "Confirm: Pick/Enter. Cancel: Esc.", text);
 }
 
 static void sdl_touch_pane_default_label_for_panel_slot(int panel, int index, char* buf, size_t buflen)
@@ -1295,16 +1362,16 @@ static void sdl_touch_pane_default_label_for_panel_slot(int panel, int index, ch
         return;
     }
 
-    if (binding == INPUT_BIND_CONFIRM) {
-        SDL_strlcpy(buf, "Space", buflen);
-        return;
-    }
-
     if (panel == SDL_TOUCH_PANE_PANEL_MAIN
         && binding == g_touch_pane_slots[index].default_binding
         && g_touch_pane_slots[index].default_label
         && g_touch_pane_slots[index].default_label[0]) {
         SDL_strlcpy(buf, g_touch_pane_slots[index].default_label, buflen);
+        return;
+    }
+
+    if (binding == INPUT_BIND_CONFIRM) {
+        SDL_strlcpy(buf, "Confirm", buflen);
         return;
     }
 
@@ -1912,7 +1979,7 @@ static bool sdl_handle_global_layout_shortcut(const SDL_KeyboardEvent* key_event
         bool hidden = get_sdl_hide_left_panel();
 
         set_sdl_hide_left_panel(!hidden);
-        sdl_apply_config();
+        sdl_request_redraw();
         save_pane_config_to_json();
         if (character_dungeon)
             Term_keypress(KTRL('R'));
@@ -3311,11 +3378,27 @@ void resize(const SDL_Rect* screen)
  */
 static void sdl_handle_renderer_reset(void)
 {
+    const char* font_path = config.monospace_font[0] != '\0'
+        ? config.monospace_font
+        : "lib/xtra/font/VictorMono-Medium.ttf";
+
+    sdl_mono_font_cache_clear();
+
     // Recreate all view canvases
     for (int i = 0; i < MAX_TERM_DATA; i++) {
         sdl_view* view = &g_views[i];
         if (!view->term_ready)
             continue;
+
+        if (view->font_atlas && !view->font_atlas_cached)
+            SDL_DestroyTexture(view->font_atlas);
+        view->font_atlas = sdl_acquire_mono_font_atlas(font_path, view->cell_h,
+            &view->font_atlas_cached);
+        if (view->font_atlas) {
+            SDL_SetTextureBlendMode(view->font_atlas, SDL_BLENDMODE_BLEND);
+            SDL_SetTextureColorMod(view->font_atlas, 255, 255, 255);
+            SDL_SetTextureAlphaMod(view->font_atlas, 255);
+        }
 
         // Destroy old canvas
         if (view->canvas) {
@@ -4293,6 +4376,7 @@ static void callback_sdl_nuke() {
     if (d->canvas)
         SDL_DestroyTexture(d->canvas);
     d->canvas = NULL;
+    d->font_atlas_cached = false;
     // if (d->renderer)
     //     SDL_DestroyRenderer(d->renderer);
     // if (d->window)
@@ -4372,6 +4456,91 @@ static void sdl_apply_font_settings(TTF_Font* font, bool is_story_font)
     }
 }
 
+static void sdl_mono_font_cache_clear(void)
+{
+    for (int i = 0; i < MAX_MONO_FONT_CACHE; i++) {
+        mono_font_atlas_entry* entry = &g_state.mono_font_atlases[i];
+
+        if (entry->atlas) {
+            SDL_DestroyTexture(entry->atlas);
+            entry->atlas = NULL;
+        }
+
+        entry->valid = false;
+        entry->font_path[0] = '\0';
+        entry->cell_height = 0;
+        entry->bold = false;
+        entry->italic = false;
+        entry->underline = false;
+        entry->strikethrough = false;
+        entry->hinting = 0;
+        entry->kerning = false;
+        entry->outline = 0;
+    }
+}
+
+static SDL_Texture* sdl_acquire_mono_font_atlas(const char* font_path, int cell_height,
+    bool* out_cached)
+{
+    mono_font_atlas_entry* free_entry = NULL;
+
+    if (out_cached)
+        *out_cached = false;
+
+    for (int i = 0; i < MAX_MONO_FONT_CACHE; i++) {
+        mono_font_atlas_entry* entry = &g_state.mono_font_atlases[i];
+
+        if (!entry->valid) {
+            if (!free_entry)
+                free_entry = entry;
+            continue;
+        }
+
+        if (entry->cell_height != cell_height)
+            continue;
+        if (entry->bold != config.mono_bold
+            || entry->italic != config.mono_italic
+            || entry->underline != config.mono_underline
+            || entry->strikethrough != config.mono_strikethrough
+            || entry->hinting != config.mono_hinting
+            || entry->kerning != config.mono_kerning
+            || entry->outline != config.mono_outline)
+            continue;
+        if (!streq(entry->font_path, font_path))
+            continue;
+
+        if (out_cached)
+            *out_cached = true;
+        return entry->atlas;
+    }
+
+    if (!free_entry) {
+        log_warn("Monospace font atlas cache full; creating uncached atlas for %s at cell height %d",
+            font_path, cell_height);
+        return sdl_load_ttf_font(font_path, cell_height, NULL);
+    }
+
+    free_entry->atlas = sdl_load_ttf_font(font_path, cell_height, NULL);
+    if (!free_entry->atlas)
+        return NULL;
+
+    free_entry->valid = true;
+    SDL_strlcpy(free_entry->font_path, font_path, sizeof(free_entry->font_path));
+    free_entry->cell_height = cell_height;
+    free_entry->bold = config.mono_bold;
+    free_entry->italic = config.mono_italic;
+    free_entry->underline = config.mono_underline;
+    free_entry->strikethrough = config.mono_strikethrough;
+    free_entry->hinting = config.mono_hinting;
+    free_entry->kerning = config.mono_kerning;
+    free_entry->outline = config.mono_outline;
+
+    if (out_cached)
+        *out_cached = true;
+
+    return free_entry->atlas;
+}
+
 static void sdl_story_font_cache_clear(void)
 {
     for (int i = 0; i < g_state.story_font_count; i++) {
@@ -4382,6 +4551,41 @@ static void sdl_story_font_cache_clear(void)
         g_state.story_fonts[i].pixel_height = 0;
     }
     g_state.story_font_count = 0;
+    g_state.story_font_cache_valid = false;
+    g_state.story_font_cache_path[0] = '\0';
+}
+
+static bool sdl_story_font_cache_matches_config(void)
+{
+    const char* font_path = (config.story_font[0] != '\0') ? config.story_font : "";
+
+    if (!g_state.story_font_cache_valid)
+        return false;
+
+    return streq(g_state.story_font_cache_path, font_path)
+        && g_state.story_font_cache_bold == config.story_bold
+        && g_state.story_font_cache_italic == config.story_italic
+        && g_state.story_font_cache_underline == config.story_underline
+        && g_state.story_font_cache_strikethrough == config.story_strikethrough
+        && g_state.story_font_cache_hinting == config.story_hinting
+        && g_state.story_font_cache_kerning == config.story_kerning
+        && g_state.story_font_cache_outline == config.story_outline;
+}
+
+static void sdl_story_font_cache_mark_config(void)
+{
+    const char* font_path = (config.story_font[0] != '\0') ? config.story_font : "";
+
+    g_state.story_font_cache_valid = true;
+    SDL_strlcpy(g_state.story_font_cache_path, font_path,
+        sizeof(g_state.story_font_cache_path));
+    g_state.story_font_cache_bold = config.story_bold;
+    g_state.story_font_cache_italic = config.story_italic;
+    g_state.story_font_cache_underline = config.story_underline;
+    g_state.story_font_cache_strikethrough = config.story_strikethrough;
+    g_state.story_font_cache_hinting = config.story_hinting;
+    g_state.story_font_cache_kerning = config.story_kerning;
+    g_state.story_font_cache_outline = config.story_outline;
 }
 
 static TTF_Font* sdl_story_font_for_height(int pixel_height)
@@ -4613,7 +4817,8 @@ static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, i
         quit("sdl_view_create: font_size and scale cannot both be zero");
     }
 
-    d->font_atlas = sdl_load_ttf_font(font_path, d->cell_h, NULL);
+    d->font_atlas = sdl_acquire_mono_font_atlas(font_path, d->cell_h,
+        &d->font_atlas_cached);
     SDL_SetTextureBlendMode(d->font_atlas, SDL_BLENDMODE_BLEND);
     SDL_SetTextureColorMod(d->font_atlas, 255, 255, 255);
     SDL_SetTextureAlphaMod(d->font_atlas, 255);
@@ -4710,7 +4915,11 @@ static void sdl_load_story_fonts(void)
     log_debug("Story font sizes: main=%d default-aux=%d", main_cell_h,
         (int)(g_state.system_scale * sdl_resolve_aux_view_font_size(config.aux_view_font_size)));
     
-    sdl_story_font_cache_clear();
+    if (!sdl_story_font_cache_matches_config()) {
+        sdl_story_font_cache_clear();
+        sdl_story_font_cache_mark_config();
+    }
+
     (void)sdl_story_font_for_height(main_cell_h);
     sdl_build_supporting_pane_metrics(pane_config, pane_config_count,
         pane_cell_widths, pane_cell_heights);
@@ -4843,6 +5052,7 @@ static void sdl_quit_hook(cptr str)
     
     // Clean up story fonts
     sdl_story_font_cache_clear();
+    sdl_mono_font_cache_clear();
     
     // Only save if we have a valid window and config file path
     if (g_state.window && config_file_path[0] != '\0') {
@@ -4900,12 +5110,12 @@ errr init_sdl(int argc, char **argv)
     // SDL_DisplayMode contains:
     // - w, h: logical resolution (points on macOS, pixels on Windows/Linux without scaling)
     // - pixel_density: scale factor (e.g., 2.0 on Retina displays, 1.0 otherwise)
-    // Physical resolution = logical × pixel_density
+    // Physical resolution = logical x pixel_density
     float pixel_density = desktop_mode->pixel_density;
     
     // Calculate physical pixel dimensions for resolution profile matching
-    // On macOS Retina: 1440×900 logical × 2.0 density = 2560×1600 physical
-    // On Windows/Linux (no scaling): 1920×1080 logical × 1.0 density = 1920×1080 physical
+    // On macOS Retina: 1440x900 logical x 2.0 density = 2560x1600 physical
+    // On Windows/Linux (no scaling): 1920x1080 logical x 1.0 density = 1920x1080 physical
     int screen_pixels_w = (int)(desktop_mode->w * pixel_density + 0.5f);
     int screen_pixels_h = (int)(desktop_mode->h * pixel_density + 0.5f);
     
@@ -5004,6 +5214,7 @@ errr init_sdl(int argc, char **argv)
 #endif
 
     sdl_ensure_touch_pane_config_present();
+    sdl_touch_pane_ensure_main_panel_confirm();
 
     g_hide_left_panel = config.hide_left_panel;
     
@@ -5379,8 +5590,7 @@ void set_sdl_fullscreen(bool value)
         sdl_update_cursor_visibility();
 
         // Redraw everything
-        g_state.need_present = true;
-        Term_redraw();
+        sdl_request_redraw();
     }
 }
 
@@ -5983,6 +6193,8 @@ void set_sdl_touch_pane_binding_for_panel(int panel, int index, int binding)
         config.touch_pane_second_bindings[index] = binding;
     else
         config.touch_pane_bindings[index] = binding;
+
+    sdl_touch_pane_ensure_main_panel_confirm();
 }
 
 int get_sdl_touch_pane_default_binding(int index)
@@ -6011,6 +6223,7 @@ void sdl_touch_pane_reset_bindings_to_default(void)
     sdl_touch_pane_cancel_press();
     sdl_config_set_default_touch_pane_bindings(&config);
     sdl_config_clear_touch_pane_labels(&config);
+    sdl_touch_pane_ensure_main_panel_confirm();
 }
 
 cptr get_sdl_touch_pane_slot_name(int index)
@@ -6215,6 +6428,17 @@ void sdl_apply_config(void)
     g_auto_aux_main_cell_h_override = 0;
     
     // Redraw the screen to prevent black empty spaces
+    sdl_request_redraw();
+}
+
+void sdl_request_redraw(void)
+{
+    if (!g_state.window) {
+        log_warn("sdl_request_redraw: no window, skipping");
+        return;
+    }
+
+    g_state.need_present = true;
     Term_redraw();
 }
 

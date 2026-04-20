@@ -40,10 +40,10 @@ struct resolution_profile {
 // 1. Minimum main terminal: 40x24 tiles (in tile mode with 16x16 base tile size)
 // 2. Try maximum scale (up to 4) that fits: scale 4 = 2560x1536, scale 3 = 1920x1152, scale 2 = 1280x768, scale 1 = 640x384
 // 3. Aux view font size: proportional to scale (scale 4 = 24px, scale 3 = 18px, scale 2 = 16px, scale 1 = 9px)
-// 4. Right pane: if we can fit ≥40 columns (using ~0.6*font_size char width), add right pane
+// 4. Right pane: if we can fit >=40 columns (using ~0.6*font_size char width), add right pane
 //    - Right pane contains: Inventory (22 rows), Worn (17 rows), Info (remaining, rows=0 means auto)
 //    - Right pane width: 40-50 columns depending on available space
-// 5. Bottom pane: if we can fit ≥1 row below main terminal, add bottom pane
+// 5. Bottom pane: if we can fit >=1 row below main terminal, add bottom pane
 //    - Bottom pane contains: Rolls (half) and Log (half), rows=0 on second pane means auto-split
 //    - Maximum 4 rows for bottom pane
 // 6. Main terminal expands to use all remaining space
@@ -469,7 +469,7 @@ static const byte app_interface_options[] = {
     OPT_system_beep, OPT_quick_messages, OPT_auto_more, OPT_easy_main_menu,
     OPT_hjkl_movement, OPT_angband_keyset, OPT_space_acts_as_comma,
     OPT_look_objects_sort_by_difficulty, OPT_show_level_generation_debug,
-    OPT_show_elemental_item_rolls,
+    OPT_show_elemental_item_rolls, OPT_top_status_line,
     OPT_NONE
 };
 

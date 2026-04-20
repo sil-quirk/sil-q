@@ -3227,6 +3227,7 @@ void verify_panel(void)
 {
     int py = p_ptr->py;
     int px = p_ptr->px;
+    int banner_rows = active_narrative_banner_rows();
 
     int wy = p_ptr->wy;
     int wx = p_ptr->wx;
@@ -3282,6 +3283,11 @@ void verify_panel(void)
         else
             wy = ((py - PANEL_HGT / 2) / PANEL_HGT) * PANEL_HGT;
     }
+
+    if (banner_rows >= SCREEN_HGT)
+        banner_rows = SCREEN_HGT - 1;
+    if ((banner_rows > 0) && (py < wy + banner_rows))
+        wy = py - banner_rows;
 
     /* Scroll screen horizontally when off-center */
     if (center_player && (!p_ptr->running || !run_avoid_center)
@@ -8115,8 +8121,10 @@ void tulkas_quest_interaction(void)
         p_ptr->tulkas_prize_a_idx = prize_a_idx;
         p_ptr->tulkas_quest = TULKAS_QUEST_ACTIVE;
         
-        /* Remove the quest giver now that quest is accepted */
-        remove_quest_giver(R_IDX_TULKAS);
+        /* Remove the quest giver now that quest is accepted without
+         * showing the generic reward/departure message before the quest text.
+         */
+        remove_quest_giver_silent(R_IDX_TULKAS);
         
         /* Reserve the artifact */
         valar_reserved_artifacts[prize_a_idx] = true;
@@ -8691,8 +8699,10 @@ void varda_quest_interaction(void)
         p_ptr->quest_reserved[0] = 1;
         p_ptr->varda_level = p_ptr->depth;
 
-        /* Remove quest giver for roulette quests */
-        remove_quest_giver(R_IDX_VARDA);
+        /* Remove quest giver for roulette quests without a generic
+         * completion-style departure message during quest acceptance.
+         */
+        remove_quest_giver_silent(R_IDX_VARDA);
 
         int text_count = 0;
         cptr* init_texts = extract_quest_init_texts(QUEST_ID_VARDA, &text_count);
@@ -8897,8 +8907,8 @@ void aule_quest_interaction(void)
         /* Only remove quest giver for roulette-based quests (Y:1) */
         quest_type* q_ptr = &quest_info[2]; /* Aule is quest index 2 */
         if (q_ptr->quest_type == 1) { /* Y:1 = roulette-based */
-            remove_quest_giver(R_IDX_AULE);
-            log_trace("Aule quest giver removed (roulette-based quest)");
+            remove_quest_giver_silent(R_IDX_AULE);
+            log_trace("Aule quest giver removed silently (roulette-based quest)");
         } else {
             log_trace("Aule quest giver NOT removed (vault-based quest)");
         }
@@ -8965,7 +8975,7 @@ void aule_quest_interaction(void)
         msg_print("Aule smiles with approval and returns to his eternal labors.");
         
         /* Remove the quest giver after giving reward */
-        remove_quest_giver(R_IDX_AULE);
+        remove_quest_giver_silent(R_IDX_AULE);
         
         return;
     }
@@ -9027,8 +9037,8 @@ void mandos_quest_interaction(void)
         /* Only remove quest giver for roulette-based quests (Y:1) */
         quest_type* q_ptr = &quest_info[3]; /* Mandos is quest index 3 */
         if (q_ptr->quest_type == 1) { /* Y:1 = roulette-based */
-            remove_quest_giver(R_IDX_MANDOS);
-            log_trace("Mandos quest giver removed (roulette-based quest)");
+            remove_quest_giver_silent(R_IDX_MANDOS);
+            log_trace("Mandos quest giver removed silently (roulette-based quest)");
         } else {
             log_trace("Mandos quest giver NOT removed (vault-based quest)");
         }
@@ -9128,7 +9138,7 @@ void mandos_quest_interaction(void)
         msg_print("Mandos bows deeply and fades into shadow, his task complete.");
         
         /* Remove the quest giver after giving reward */
-        remove_quest_giver(R_IDX_MANDOS);
+        remove_quest_giver_silent(R_IDX_MANDOS);
         
         log_trace("Mandos quest reward given");
     }
@@ -9320,8 +9330,10 @@ void niena_quest_interaction(void)
         p_ptr->niena_monsters_killed = 0;
         p_ptr->niena_level = p_ptr->depth; /* Track where quest was started */
         
-        /* Remove the quest giver now that quest is accepted */
-        remove_quest_giver(R_IDX_NIENA);
+        /* Remove the quest giver now that quest is accepted without
+         * showing the generic reward/departure message before the quest text.
+         */
+        remove_quest_giver_silent(R_IDX_NIENA);
         
         /* Make all stairs visible */
         int y, x;
@@ -9423,8 +9435,10 @@ void niena_quest_interaction(void)
         
         msg_print("Niena smiles sadly and fades away, leaving you with her blessing.");
         
-        /* Remove the quest giver after giving reward */
-        remove_quest_giver(R_IDX_NIENA);
+        /* Keep Niena's custom farewell message without appending the
+         * generic quest giver departure line.
+         */
+        remove_quest_giver_silent(R_IDX_NIENA);
         
         /* Recalculate bonuses to apply the new stealth bonus */
         p_ptr->update |= (PU_BONUS);
@@ -9601,8 +9615,10 @@ void orome_quest_interaction(void)
         p_ptr->orome_target_count = target_count;
         p_ptr->orome_killed_count = 0;
         
-        /* Remove the quest giver now that quest is accepted */
-        remove_quest_giver(R_IDX_OROME);
+        /* Remove the quest giver now that quest is accepted without
+         * showing the generic reward/departure message before the quest text.
+         */
+        remove_quest_giver_silent(R_IDX_OROME);
         
         msg_format("You must hunt and slay %d %s to prove your prowess.", target_count, target_name);
         msg_print("Return when the hunt is complete to claim your reward.");

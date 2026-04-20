@@ -66,7 +66,7 @@ if (SIL_BUILD_WITH_SDL_SOURCES)
   # When building SDL as static on iOS, SDL_image and SDL_ttf call
   # find_package(SDL3) internally, but the export files don't exist yet
   # (they're generated at install time).  Write a minimal shim that
-  # declares the package found — the actual targets are already visible
+  # declares the package found - the actual targets are already visible
   # from add_subdirectory above.
   if(SIL_IOS)
     set(_sdl3_shim_dir "${CMAKE_BINARY_DIR}/_sdl3_shim")

@@ -58,7 +58,7 @@ static bool build_user_root_path(char* buf, size_t len)
 #if !defined(SIL_IOS)
     /* On desktop, prefer the system saved-games / home folder.
      * On iOS the container root returned by SDL_GetUserFolder is not
-     * directly writable — skip straight to SDL_GetPrefPath which
+     * directly writable - skip straight to SDL_GetPrefPath which
      * returns the correct Library/Application Support/ sandbox path. */
     const char* base = SDL_GetUserFolder(SDL_FOLDER_SAVEDGAMES);
     char temp[1024];
@@ -1838,13 +1838,13 @@ static errr init_v_info(void)
 static errr init_rt_info(void)
 {
     errr err;
-    init_header(&rt_head, z_info->rt_max, sizeof(runtype_type));     /* ① */
+    init_header(&rt_head, z_info->rt_max, sizeof(runtype_type));     /* (1) */
 #ifdef ALLOW_TEMPLATES
-    rt_head.parse_info_txt = parse_rt_info;                          /* ② */
+    rt_head.parse_info_txt = parse_rt_info;                          /* (2) */
 #endif
-    err = init_info("runtypes", &rt_head);                           /* ③ */
+    err = init_info("runtypes", &rt_head);                           /* (3) */
 
-    runtype_info = rt_head.info_ptr;                                 /* ④ global */
+    runtype_info = rt_head.info_ptr;                                 /* (4) global */
     return err;
 }
 
@@ -3022,7 +3022,7 @@ static void display_introduction_with_layout(
     Term_clear();
 
     /* Hide the cursor for the intro screen while rendering. Do NOT
-        toggle the global hide_cursor here — callers (menus) should set
+        toggle the global hide_cursor here - callers (menus) should set
         hide_cursor around any following input waits. */
     bool _saved_cursor_state = false;
     (void)Term_get_cursor(&_saved_cursor_state);
@@ -3726,7 +3726,7 @@ extern NavResult initial_menu(bool *start_new)
      * small terminals (e.g. 20 rows).
      *
      * Fit rules (as requested):
-     *   1) Try to show all lines in order (starting from “string 0”).
+     *   1) Try to show all lines in order (starting from "string 0").
      *   2) If it doesn't fit, delete the empty line between separator and prompt.
      *   3) If it still doesn't fit, delete the separator and place the prompt there.
      *

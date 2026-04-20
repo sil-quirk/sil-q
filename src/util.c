@@ -2045,6 +2045,9 @@ void messages_free(void)
  */
 void move_cursor(int row, int col) { Term_gotoxy(col, row); }
 
+static bool ui_top_status_line_enabled(void);
+static void restore_top_status_line_after_clear(void);
+
 /*
  * Hack -- flush
  */
@@ -2080,6 +2083,27 @@ static void msg_flush(int x)
 
     /* Clear the line */
     Term_erase(0, 0, 255);
+}
+
+static bool ui_top_status_line_enabled(void)
+{
+    return (op_ptr && op_ptr->opt[OPT_top_status_line]);
+}
+
+static void restore_top_status_line_after_clear(void)
+{
+    if (!ui_top_status_line_enabled())
+        return;
+    if (!character_generated || !character_dungeon || !p_ptr)
+        return;
+    if (character_icky > 0)
+        return;
+
+    if (Term)
+        Term_erase(0, 0, 255);
+
+    p_ptr->redraw |= (PR_EXTRA | PR_DEPTH | PR_SONG);
+    handle_stuff();
 }
 
 static int message_column = 0;
@@ -2142,11 +2166,18 @@ static void msg_print_aux(u16b type, cptr msg)
 
         /* Reset */
         message_column = 0;
+
+        if (!msg)
+            restore_top_status_line_after_clear();
     }
 
     /* No message */
     if (!msg)
+    {
+        if (ui_top_status_line_enabled())
+            restore_top_status_line_after_clear();
         return;
+    }
 
     /* Paranoia */
     if (n > 1000)
@@ -2159,6 +2190,13 @@ static void msg_print_aux(u16b type, cptr msg)
     /* Window stuff */
     p_ptr->window |= (PW_MESSAGE);
 
+    if (ui_top_status_line_enabled())
+    {
+        msg_flag = false;
+        message_column = 0;
+        return;
+    }
+
     /* Copy it */
     SDL_strlcpy(buf, msg, sizeof(buf));
 
@@ -2167,6 +2205,13 @@ static void msg_print_aux(u16b type, cptr msg)
 
     /* Get the color of the message */
     color = message_type_color(type);
+
+    /* With auto-more enabled, intermediate chunks are never visible. */
+    if (auto_more && (n > available_width))
+    {
+        t += (n - available_width);
+        n = available_width;
+    }
 
     /* Split message */
     while (n > available_width)
@@ -2320,6 +2365,13 @@ void message_format(u16b message_type, s16b extra, cptr fmt, ...)
  */
 void message_flush(void)
 {
+    if (ui_top_status_line_enabled())
+    {
+        msg_flag = false;
+        message_column = 0;
+        return;
+    }
+
     /* Hack -- Reset */
     if (!msg_flag)
         message_column = 0;
@@ -3957,7 +4009,10 @@ void request_command(void)
     }
 
     /* Hack -- erase the message line. */
-    prt("", 0, 0);
+    if (ui_top_status_line_enabled())
+        restore_top_status_line_after_clear();
+    else
+        prt("", 0, 0);
 }
 
 /*

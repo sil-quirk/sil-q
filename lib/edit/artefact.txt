@@ -496,7 +496,7 @@ D:This armour bears the weight of sorrow and treachery alike. It was worn by
 D: Gorlim, called the Unhappy, one of Barahir's outlaws in Dorthonion after
 D: the Dagor Bragollach had laid that land waste. When his beloved Eithel was
 D: taken from him, Gorthaur's servants promised her return if he would betray
-D: his lord. Driven beyond endurance, Gorlim revealed Barahir's hiding place —
+D: his lord. Driven beyond endurance, Gorlim revealed Barahir's hiding place -
 D: only to learn Eithel was already dead and the promise but a lie. He was
 D: slain, and this armour has been black with shame ever since.
 
@@ -1284,7 +1284,7 @@ D:The black sword Anglachel, forged by Eol of Nan Elmoth from star-iron.
 D: It was brought to Thingol in Doriath, and later borne by Beleg
 D: Cuthalion. Its edge is dreadful keen, and a cold will seems to wake
 D: when it is drawn. Many have found that mischance follows where this
-D: blade passes — as though it remembers every death it has dealt.
+D: blade passes - as though it remembers every death it has dealt.
 
 # Gurthang (Black Sword of Turin)
 # Smithing difficulty: 60
@@ -1299,7 +1299,7 @@ B:4/5/8
 D:The sable sword reforged from Anglachel, wielded by Turin. Its blade can 
 D: slice iron like parchment, and it drinks deeply of blood. A fell curse 
 D: lies upon it: once unsheathed, it must taste blood. The sword's grim will 
-D: fills its master with fearless despair, drawing mighty foes nigh – and 
+D: fills its master with fearless despair, drawing mighty foes nigh - and 
 D: giving strength to slay them.
 
 # Smithing difficulty: 59
@@ -1628,8 +1628,8 @@ F:FREE_ACT | VUL_POIS | LIGHT_CURSE | UNLIGHT | HUNGER | VAMPIRIC | ENCHANTABLE 
 B:0/11
 D:The black spear of Melkor Morgoth, mightiest of the Ainur who fell, wielded
 D: in the hour when he and the great spider Ungoliant came in darkness to the
-D: heart of Valinor. With this weapon he struck the Two Trees of Yavanna —
-D: Telperion the White and Laurelin the Gold — and Ungoliant's venom poured
+D: heart of Valinor. With this weapon he struck the Two Trees of Yavanna -
+D: Telperion the White and Laurelin the Gold - and Ungoliant's venom poured
 D: into the wounds until all the light of the world was swallowed. The weapon
 D: still carries a sliver of that primal malice, and even to touch it is to
 D: feel the cold of the Unlight that once shrouded the land in darkness.
@@ -1706,7 +1706,7 @@ D: Angband by Morgoth Bauglir himself for the breaking of kin and the severing
 D: of hope. Many are the lives it has claimed, and each one it remembers: it
 D: is blood-warm to the touch and thirsting always for vitality, drinking
 D: deeply of those it wounds. Those who wield it are haunted by the cries of
-D: the slain — mothers weeping over fallen sons in the wars of Beleriand.
+D: the slain - mothers weeping over fallen sons in the wars of Beleriand.
 
 
 ## The Great Axe of Dolmed
@@ -2749,7 +2749,7 @@ W:1:20:1:10000
 P:0:0d0:0:0d0
 F:LIGHT | NOBLE_ITEM
 B:5/4
-D:A jewel once woven into the silver embroideries of Míriel Þerinde,
+D:A jewel once woven into the silver embroideries of Miriel Therinde,
 D: first wife of Finwe and mother of Feanor. Serinde, the Broideress,
 D: she was called, for none could match her skill with needle and thread.
 D: So greatly did she spend herself in bearing Feanor that her spirit
@@ -2794,7 +2794,7 @@ P:0:0d0:0:0d0:0
 F:INSTA_ART | EVIL_ITEM
 D:The Iron Crown of Morgoth Bauglir, forged in Angband to bear the three
 D: Silmarils, the stolen light of the Two Trees. Now all three jewels are
-D: gone, and the crown sits cold and empty — three dark sockets where stars
+D: gone, and the crown sits cold and empty - three dark sockets where stars
 D: once blazed, a monument to a glory stolen and a glory lost. Much of the
 D: Dark Lord's will was poured into its making.
 
@@ -2811,7 +2811,7 @@ P:0:0d0:0:0d0:0
 F:INSTA_ART | EVIL_ITEM
 D:The Iron Crown of Morgoth Bauglir, wrought in Angband to hold the stolen
 D: light of the world. Two sockets are empty and dark, but in the third burns
-D: still a Silmaril — a jewel of Feanor, containing the imperishable light of
+D: still a Silmaril - a jewel of Feanor, containing the imperishable light of
 D: the Two Trees of Valinor. It is the greatest treasure remaining in
 D: Middle-earth, and the Oath of Feanor binds his sons to claim it.
 
@@ -2828,7 +2828,7 @@ P:0:0d0:0:0d0:0
 F:INSTA_ART | EVIL_ITEM
 D:The Iron Crown of Morgoth Bauglir, wrought in Angband to hold the stolen
 D: light of the world. One socket gapes empty and dark, but in the other two
-D: burn still two Silmarils — jewels of Feanor, containing the imperishable
+D: burn still two Silmarils - jewels of Feanor, containing the imperishable
 D: light of the Two Trees. They are the greatest treasures remaining in
 D: Middle-earth, and war and ruin have followed in their wake.
 
@@ -2843,7 +2843,7 @@ I:33:50:6
 W:20:1:4000:10000000
 P:0:0d0:0:0d0:0
 F:INSTA_ART | EVIL_ITEM
-D:The Iron Crown of Morgoth Bauglir, in which burn the three Silmarils —
+D:The Iron Crown of Morgoth Bauglir, in which burn the three Silmarils -
 D: jewels of Feanor, stolen from Formenos and set here by the Dark Lord
 D: himself. In them burns the imperishable light of the Two Trees of Valinor,
 D: and the Oath of Feanor compels his sons to claim them, even unto the ruin

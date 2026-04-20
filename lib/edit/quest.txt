@@ -46,7 +46,7 @@ W:A mighty laugh rings out, shaking dust from the ceiling. Tulkas appears before
 W:
 W:"A glorious fight! I felt the earth shake with the fall of your foe!"
 W:"You have proven your might and shown courage worthy of the songs of old."
-W:"Take this prize—wrought ere the Sun and Moon first rose—and wield it well!"
+W:"Take this prize-wrought ere the Sun and Moon first rose-and wield it well!"
 
 # Quest of Aule the Smith
 Q:2:Aule the Smith
@@ -187,7 +187,7 @@ I:"Child of the darkened Halls, long have I watched your wandering beneath the w
 I:Know that even here, in the deepest pits of the Enemy, my light is not wholly quenched."
 I:
 I:"Yet a shard of that light now lies smothered below, stolen by a petty balrog named Duruin.
-I:He has raised a bastion of shadow at the turning of the deeps—where your journey is reckoned half complete.
+I:He has raised a bastion of shadow at the turning of the deeps-where your journey is reckoned half complete.
 I:There, the whispering shades of the dark flock to his flame, and his hold grows strong upon my stolen light."
 I:
 I:"Seek out that stronghold where the worlds grow dark and deep. Break his hold and cast down his foul servants.

@@ -1598,7 +1598,7 @@ D:An amulet of dull grey metal, stamped with a brand of
 D: thralldom from Angband's slave-pits, where countless
 D: Elves and Men were broken to labour in the sunless
 D: dark. Those who survived were hardened beyond reckoning,
-D: their bodies inured to every suffering — yet their
+D: their bodies inured to every suffering - yet their
 D: spirits were diminished, worn to shadow by years
 D: without hope or the memory of stars.
 
@@ -1614,7 +1614,7 @@ F:STEALTH | UNLIGHT | NO_SMITHING | EVIL_ITEM | MIN_DEPTH_SPEED
 D:An amulet of dull black stone, worn by the spies and
 D: scouts of Morgoth who crept through the passes of the
 D: Ered Gorgoroth under cover of night. The bearer moves
-D: as a shadow among shadows, silent and unseen — yet a
+D: as a shadow among shadows, silent and unseen - yet a
 D: faint dimming of the light clings ever to the wearer,
 D: as to all things that have dwelt too long in the
 D: service of the Enemy.
@@ -1849,7 +1849,7 @@ A:5/100
 F:FEAR | EASY_KNOW | LIGHT_CURSE | NO_SMITHING | EVIL_ITEM
 B:2/80
 D:A ring of tarnished iron. It inflicts a creeping dread
-D: upon its wearer, driving them to flee from danger —
+D: upon its wearer, driving them to flee from danger -
 D: though in their haste, they find themselves strangely
 D: nimble.
 
@@ -1927,7 +1927,7 @@ M:GRA:-1
 D:A ring of crude iron, stamped with the rune of Angband.
 D: Orc-captains wore such rings to master their companies
 D: by brute force alone. The strength it grants is real
-D: enough — yet the spirit withers under its influence,
+D: enough - yet the spirit withers under its influence,
 D: for it was made without art and without love.
 
 
@@ -1942,7 +1942,7 @@ F:PERCEPTION | HUNGER | LIGHT_CURSE | NO_SMITHING | FEAR | EVIL_ITEM | MIN_DEPTH
 D:A ring set with a dim red stone, given to the thralls
 D: who kept watch in the dark passages of Angband for
 D: spies and intruders. It sharpens the senses beyond
-D: their wont — yet the hunger of the pits gnaws
+D: their wont - yet the hunger of the pits gnaws
 D: ceaselessly at the wearer, as it gnawed at those who
 D: first bore it in the darkness beneath the mountains.
 
@@ -1973,7 +1973,7 @@ A:10/30
 F:WILL | AGGRAVATE | LIGHT_CURSE | NO_SMITHING | EVIL_ITEM | MIN_DEPTH_SPEED
 D:A ring of cold iron, graven with runes of command in the
 D: Black Speech of Angband. The will of the Dark Lord
-D: echoes faintly within it — the wearer's resolve grows
+D: echoes faintly within it - the wearer's resolve grows
 D: unyielding as stone, and fear itself recoils from them.
 D: Yet the ring's malice radiates outward like a burning
 D: brand, and all creatures nearby are roused to fury
@@ -1990,7 +1990,7 @@ A:12/20
 F:SONG | FEAR | HAUNTED | LIGHT_CURSE | NO_SMITHING | EVIL_ITEM | MIN_DEPTH_SPEED
 D:A ring of dark stone that hums with a low and ceaseless
 D: voice, as of fell chants sung in the deeps of Angband.
-D: The bearer's voice gains a strange and terrible power —
+D: The bearer's voice gains a strange and terrible power -
 D: yet the dead are drawn to the sound from the dark
 D: places, and a creeping dread follows wherever the ring
 D: is worn.
@@ -2761,7 +2761,7 @@ A:8/50
 F:EASY_KNOW
 D:An herb of strange and perilous power, whose leaves shimmer
 D: with faint iridescence. Those who eat of it are plunged into
-D: waking dreams, seeing things that are not there — yet
+D: waking dreams, seeing things that are not there - yet
 D: sometimes the veil of blindness is lifted thereby. It causes
 D: you to hallucinate for 80d4 turns, but cures blindness in
 D: the process. Herbs provide nourishment for about 250 turns

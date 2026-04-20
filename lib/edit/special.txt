@@ -1490,7 +1490,7 @@ D: quicker, more willing thing.
 ##### Amulet Prefixes #####
 
 
-# Good amulets only (object numbers 132–136, 139, 143–144)
+# Good amulets only (object numbers 132-136, 139, 143-144)
 # Excludes Morgoth-themed amulets (Haunted Dreams 6, Slave Pits 8, Shadow 9, Orc-captain 10)
 
 N:142:(Starlit)

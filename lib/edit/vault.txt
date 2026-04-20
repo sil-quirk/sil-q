@@ -3572,7 +3572,7 @@ D:##################
 #D:$$$$$$$$$$$$$$$$$$$$$
 #
 ## Vault: The Iron Council (Greater Vault)
-## Lore: A fortified council hall where Morgoth's captains plot war — outer yards, an inner shrine, and a guarded treasury.
+## Lore: A fortified council hall where Morgoth's captains plot war - outer yards, an inner shrine, and a guarded treasury.
 #N:490:The Iron Council
 #X:8:16:3
 #D:$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$

@@ -125,7 +125,7 @@ struct maxima
     u16b art_norm_max; /* Max number for normal artefacts (special - normal) */
     u16b art_rand_max; /* Max number of random artefacts */
     u16b art_self_made_max; /* Max number of self-made artefacts */
-    u16b rt_max;           /* ↑ total run-type records                         */
+    u16b rt_max;           /* ^ total run-type records                         */
     u16b style_max;        /* Max size for "style_info[]" */
     u16b skeleton_note_max; /* Max size for skeleton note templates */
 };
@@ -885,14 +885,14 @@ struct story_type
 
 // Curses
 
-/* Existing … */
+/* Existing ... */
 typedef struct curse_type              /* one entry in cu_info[]          */
 {
     s16b             name;             /* index in cu_name */ 
     s16b             blessing_name;    /* blessing name index */ 
     u32b             text;             /* offset in the big text pool  */
     u32b             blessing_text;    /* blessing description offset  */
-    u32b             power;            /* NEW – offset of P:-effect text       */
+    u32b             power;            /* NEW - offset of P:-effect text       */
     u32b             blessing_power;   /* offset of blessing effect text       */
     s16b             cu_adj[A_MAX];    /* stat adjustments  */
     u32b             flags;            /* RHF flags contributed by curse */
@@ -900,7 +900,7 @@ typedef struct curse_type              /* one entry in cu_info[]          */
     u32b             flags_u;          /* CUR flags contributed by curse */
     u32b             blessing_flags_u; /* CUR flags contributed by blessing */
     byte  weight;              /* selection weight   (default 1)  */
-    byte  max_stacks;          /* hard cap per meta-run (0 = ∞)   */    
+    byte  max_stacks;          /* hard cap per meta-run (0 = infinity)   */    
     byte  max_blessing_stacks; /* hard cap for blessing stacks (0 = use max_stacks) */
 }
 curse_type;
@@ -1454,7 +1454,7 @@ typedef struct score_file_header
  * sum of the declared field lengths (8+5+10+10+16+8+2+3+3+4+4+4+50+2+2+2=133).
  *
  * Portability: we need a packed representation without relying on
- * non‑standard attributes under non-GNU compilers (e.g. MSVC). We use
+ * non-standard attributes under non-GNU compilers (e.g. MSVC). We use
  * #pragma pack for MSVC and GCC/Clang attribute elsewhere. If neither
  * is available we accept potential padding (in which case add manual
  * serialization before shipping to that platform).
@@ -1601,8 +1601,8 @@ struct autoinscription
 
 typedef struct header        header;        /* <<< add this line */
 
-extern runtype_type *runtype_info;   /* NEW — allocated by init_info() */
-extern header        rt_head;        /* NEW — loader header            */
+extern runtype_type *runtype_info;   /* NEW - allocated by init_info() */
+extern header        rt_head;        /* NEW - loader header            */
 
 #ifndef UI_NAV_H
 #define UI_NAV_H

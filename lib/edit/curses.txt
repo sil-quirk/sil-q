@@ -273,7 +273,7 @@ U:LIGHTR
 Y:LIGHTR
 A:1/2
 D:A shadow settles around you, dimming the circle of hope. The darkness looms closer, daring you to step into deeper gloom.
-P:Light radius −1
+P:Light radius -1
 B:Blessing of Radiant Dawn
 E:Brightness swells around you; shadows flee from your presence.
 H:Light radius +1
@@ -455,7 +455,7 @@ U:CHEST_WOOD
 Y:CHEST_WOOD
 F:
 A:2/1
-D:The deep places grow barren and grey, their riches forfeit to the long defeat. Where once the Naugrim laid their proudest works in halls of living stone, only rude timbers now keep watch — the Shadow's tithe upon the dwindling wealth of Arda.
+D:The deep places grow barren and grey, their riches forfeit to the long defeat. Where once the Naugrim laid their proudest works in halls of living stone, only rude timbers now keep watch - the Shadow's tithe upon the dwindling wealth of Arda.
 P:Wooden chest probability +20%.
 B:Blessing of the Unfading Hoard
 E:The deep places remember their glory; proud craft returns to vault and coffer, and the Shadow's tithe is paid no more.

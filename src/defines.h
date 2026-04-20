@@ -111,13 +111,16 @@
 #define PANEL_WID_FIXED 33
 #define PANEL_WID (use_bigtile ? 16 : PANEL_WID_FIXED)
 
+#define SIL_UI_TOP_STATUS_LINE (op_ptr && op_ptr->opt[OPT_top_status_line])
+
 #define ROW_MAP 1
 #define COL_MAP (g_hide_left_panel ? 0 : 13)
+#define ROW_STATUS (SIL_UI_TOP_STATUS_LINE ? 0 : (Term->hgt - 1))
 
 /*
  * Number of grids in each screen (vertically)
  */
-#define SCREEN_HGT (Term->hgt - ROW_MAP - 1 - (op_ptr ? op_ptr->main_combat_rolls : 0))
+#define SCREEN_HGT (Term->hgt - ROW_MAP - (SIL_UI_TOP_STATUS_LINE ? 0 : 1) - (op_ptr ? op_ptr->main_combat_rolls : 0))
 
 /*
  * Number of grids in each screen (horizontally)
@@ -888,34 +891,34 @@
 #define ROW_STEALTH 24
 #define COL_STEALTH 0 /* <stealth> */
 
-#define ROW_HUNGRY (Term->hgt - 1)
+#define ROW_HUNGRY ROW_STATUS
 #define COL_HUNGRY 0 /* "Starving" "Weak" / "Hungry" / "Full" */
 
-#define ROW_BLIND (Term->hgt - 1)
+#define ROW_BLIND ROW_STATUS
 #define COL_BLIND 9 /* "Blind" */
 
-#define ROW_CONFUSED (Term->hgt - 1)
+#define ROW_CONFUSED ROW_STATUS
 #define COL_CONFUSED 15 /* "Confused" */
 
-#define ROW_STUN (Term->hgt - 1)
+#define ROW_STUN ROW_STATUS
 #define COL_STUN 24 /* <stun> */
 
-#define ROW_AFRAID (Term->hgt - 1)
+#define ROW_AFRAID ROW_STATUS
 #define COL_AFRAID 36 /* "Afraid" */
 
-#define ROW_STATE (Term->hgt - 1)
+#define ROW_STATE ROW_STATUS
 #define COL_STATE 43 /* <state> */
 
-#define ROW_SPEED (Term->hgt - 1)
+#define ROW_SPEED ROW_STATUS
 #define COL_SPEED 56 /* "Slow" or "Fast" */
 
-#define ROW_TERRAIN (Term->hgt - 1)
+#define ROW_TERRAIN ROW_STATUS
 #define COL_TERRAIN 61 /* "Web" or "Pit" or "Sun" */
 
-#define ROW_PARTITION (Term->hgt - 1)
+#define ROW_PARTITION ROW_STATUS
 #define COL_PARTITION 66 /* "Room"/"Ruin"/"Cave"/"BigCa"/"Labir"/"Chasm" */
 
-#define ROW_DEPTH (Term->hgt - 1)
+#define ROW_DEPTH ROW_STATUS
 #define COL_DEPTH 72 /* "Lev NNN" / "NNNN ft" */
 
 /*** General index values ***/
@@ -1859,7 +1862,7 @@
 #define IDENT_CURSED 0x00000040 /* Item is temporarily cursed */
 #define IDENT_BROKEN 0x00000080 /* Item is permanently worthless */
 #define IDENT_EXPERIENCED 0x00000100 /* Item effects experienced (ident bonus) */
-#define IDENT_CANT_MELT 0x00000200 /* Gamil-forged mithril – must never be melted */
+#define IDENT_CANT_MELT 0x00000200 /* Gamil-forged mithril - must never be melted */
 #define IDENT_HIDE_CARRY                                                       \
     0x00000400 /* Don't reveal the object is being carried by a creature*/
 #define IDENT_HANDLED                                                          \
@@ -2181,11 +2184,11 @@
 #define CUR_FINDCURSE 0x00000800L
 #define CUR_LIGHTR     0x00001000L  /* smaller light radius          */
 #define CUR_LIGHTP     0x00002000L  /* dimmer light power            */
-#define CUR_DEATH      0x00004000L  /* –3 allowed deaths per stack   */
+#define CUR_DEATH      0x00004000L  /* -3 allowed deaths per stack   */
 #define CUR_TRAPS      0x00008000L  /* extra traps on each level     */
 #define CUR_MON_NUM    0x00010000L  /* more monsters during gen      */
 #define CUR_HUNGER     0x00020000L  /* doubles digestion rate        */
-#define CUR_HALLU      0x00040000L  /* potion‐induced hallucination  */
+#define CUR_HALLU      0x00040000L  /* potion-induced hallucination  */
 #define CUR_RES_FEAR_SHIFT     0x00080000L
 #define CUR_RES_STUN_SHIFT     0x00100000L
 #define CUR_RES_CONFU_SHIFT    0x00200000L
@@ -2243,7 +2246,7 @@
 #define VLT_WEBS 0x00000008L /* Vault has spider webs */
 #define VLT_LIGHT 0x00000010L /* Vault is always generated with light */
 #define VLT_SURFACE 0x00000020L
-#define VLT_QUEST   0x00000040L /* Quest vault – only once per game, max one per level */
+#define VLT_QUEST   0x00000040L /* Quest vault - only once per game, max one per level */
 #define VLT_VLTXXXX8 0x00000080L
 #define VLT_VLTXXXX9 0x00000100L
 #define VLT_VLTXXX10 0x00000200L
@@ -2803,6 +2806,7 @@
 #define OPT_look_nearby_filter_default 103
 #define OPT_show_elemental_item_rolls 104
 #define OPT_hidden_left_panel_mode 105
+#define OPT_top_status_line 106
 
 /* Intro screen style constants */
 #define INTRO_STYLE_FLAME       0   /* Flame Imperishable (Ainulindale) */

@@ -4503,10 +4503,10 @@ void update_view(void)
     }
     /* ------------------------------------------------------------
      * Meta-run curse: CUR_LIGHTP
-     *   Each stack makes darkness 1 level “stronger”.
+     *   Each stack makes darkness 1 level "stronger".
      *   We post-process the finished cave_light[][] buffer so that
      *   every lit square is dimmed once per stack, down to a floor
-     *   of −5 (same as full darkness elsewhere in the engine).
+     *   of -5 (same as full darkness elsewhere in the engine).
      * ------------------------------------------------------------ */
     {
         int dark_delta = curse_flag_delta_cur(CUR_LIGHTP);

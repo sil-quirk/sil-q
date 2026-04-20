@@ -1,11 +1,11 @@
 /* --------------------------------------------------------------------
- *  src/metarun.c   (2025-07-06)   – final, crash-free, warning-free
+ *  src/metarun.c   (2025-07-06)   - final, crash-free, warning-free
  * --------------------------------------------------------------------
- *  Tracks a “meta-run” that ends after 15 Silmarils (win) or
+ *  Tracks a "meta-run" that ends after 15 Silmarils (win) or
  *  15 deaths (lose).  Finished runs are appended to meta.raw so
  *  the entire history is preserved.  Includes:
- *     • list_metaruns()  – compact history view
- *     • print_metarun_stats() – details for current run
+ *     - list_metaruns()  - compact history view
+ *     - print_metarun_stats() - details for current run
  * -------------------------------------------------------------------- */
 
 #ifndef WINDOWS
@@ -1236,7 +1236,7 @@ errr load_metaruns(bool create_if_missing)
 
 /* ------------------------------------------------------------------ *
  *  Safely write the meta-run array.  Bail out if the indices look     *
- *  wrong – avoids dereferencing a freed/reallocated block.           *
+ *  wrong - avoids dereferencing a freed/reallocated block.           *
  * ------------------------------------------------------------------ */
 static errr backup_file(const char *filepath)
 {
@@ -1648,18 +1648,18 @@ static int weighted_random_curse(void)
     bool tilt = (p_info[p_ptr->prace].flags  & RHF_CURSE) ||
                 (c_info[p_ptr->pcharacter].flags & RHF_CURSE);
 
-    /* Pass 1 – find the largest weight and (later) build the total */
+    /* Pass 1 - find the largest weight and (later) build the total */
     for (int i = 0; i < z_info->cu_max; i++)
     {
-        if (!cu_info[i].name) continue;          /* ← unused slot */
+        if (!cu_info[i].name) continue;          /* <- unused slot */
         byte w   = cu_info[i].weight ? cu_info[i].weight : 1;
         if (w > w_max) w_max = w;
     }
 
-    /* Pass 2 — sum effective weights */
+    /* Pass 2 - sum effective weights */
     for (int i = 0; i < z_info->cu_max; i++)
     {
-        if (!cu_info[i].name) continue;          /* ← unused slot */
+        if (!cu_info[i].name) continue;          /* <- unused slot */
         byte w   = cu_info[i].weight ? cu_info[i].weight : 1;
         int  cnt = CURSE_CURSE_STACK(i);
         byte cap = (byte)CURSE_CURSE_CAP(i);
@@ -1677,11 +1677,11 @@ static int weighted_random_curse(void)
 
     if (!total) return rand_int(z_info->cu_max);    /* safety net */
 
-    /* Pass 3 — roulette wheel */
+    /* Pass 3 - roulette wheel */
     long pick = rand_int(total), run = 0;
     for (int i = 0; i < z_info->cu_max; i++)
     {
-        if (!cu_info[i].name) continue;          /* ← unused slot */
+        if (!cu_info[i].name) continue;          /* <- unused slot */
         byte w   = cu_info[i].weight ? cu_info[i].weight : 1;
         int  cnt = CURSE_CURSE_STACK(i);
         byte cap = (byte)CURSE_CURSE_CAP(i);
@@ -1719,7 +1719,7 @@ void add_curse_stack(int idx)
 
 int menu_choose_one_curse(int n)
 {
-    /* if any active curse has the "no‐choice" flag, skip the menu */
+    /* if any active curse has the "no-choice" flag, skip the menu */
     if (any_curse_flag_active(CUR_NOCHOICE))
         return weighted_random_curse();
 
@@ -1747,7 +1747,7 @@ int menu_choose_one_curse(int n)
     strnfmt(str, sizeof(str), "Dark powers demand their price - choose %s curse:", seq[n]);
     print_heading_fade(str, TERM_YELLOW);
 
-    /* dynamic vertical layout – ask util.c to count wrapped lines   */
+    /* dynamic vertical layout - ask util.c to count wrapped lines   */
     int row = 4;                                     /* first free row */
     text_out_hook = text_out_to_screen;
     text_out_wrap = Term->wid - 2;                   /* full width     */
@@ -1917,7 +1917,7 @@ int menu_choose_one_curse(int n)
 
 
 /* ------------------------------------------------------------------ *
- *  Debug helper – wipe every active curse for the current meta-run.  *
+ *  Debug helper - wipe every active curse for the current meta-run.  *
  * ------------------------------------------------------------------ */
 void metarun_clear_all_curses(void)
 {
@@ -1939,25 +1939,25 @@ void metarun_clear_all_curses(void)
  *  Main entry point used by game exits, deaths, escapes, etc.        *
  * ------------------------------------------------------------------ */
 /*
- * Metarun narrative & exit logic - refactor **v4** (30 Jul 2025)
+ * Metarun narrative & exit logic - refactor **v4** (30 Jul 2025)
  * ------------------------------------------------------------------
- *  ✧ Re‑orders the sequence so NOTHING is overwritten:
- *      0. Escape‑curse chooser (UI)  → clears screen once finished.
- *      1. Chosen‑curse line(s).
- *      2. Victory banner & Silmaril count paragraph.
- *      3. Temptation of Treachery (escalating 1‑3 lines).
- *      4. Story Fragment (depends on Silmarils & Treachery flag).
- *      5. Echoes of Kinslaying (escalating 1‑3 lines)
- *      6. Final pause, then deferred side‑effects.
+ *  * Re-orders the sequence so NOTHING is overwritten:
+ *      0. Escape-curse chooser (UI)  -> clears screen once finished.
+ *      1. Chosen-curse line(s).
+ *      2. Victory banner & Silmaril count paragraph.
+ *      3. Temptation of Treachery (escalating 1-3 lines).
+ *      4. Story Fragment (depends on Silmarils & Treachery flag).
+ *      5. Echoes of Kinslaying (escalating 1-3 lines)
+ *      6. Final pause, then deferred side-effects.
  *
- *  ✧ `choose_escape_curses_ui()` now **returns** the indices chosen and
- *    does NOT leave the menu clutter on screen. We re‑render the
- *    “The curse of X binds your fate.” lines after a clean clear.
+ *  * `choose_escape_curses_ui()` now **returns** the indices chosen and
+ *    does NOT leave the menu clutter on screen. We re-render the
+ *    "The curse of X binds your fate." lines after a clean clear.
  *
- *  ✧ Adds `print_story_fragment()` – a short narrative bridge keyed off
- *    Silmaril count (1‑3) and whether treachery was overcome.
+ *  * Adds `print_story_fragment()` - a short narrative bridge keyed off
+ *    Silmaril count (1-3) and whether treachery was overcome.
  *
- *  ✧ Tested matrix: {treachery flag × kinslayer flag × silmarils (1‑3)}
+ *  * Tested matrix: {treachery flag x kinslayer flag x silmarils (1-3)}
  *    All show in the intended order with no garbled overlaps.
  */
 
@@ -2080,7 +2080,7 @@ static cptr blessing_display_name(int idx)
     return curse_display_name(idx);
 }
 
-/****************  Escape‑curse chooser (clean version) ************/
+/****************  Escape-curse chooser (clean version) ************/
 
 /*
  * Presents the menu *n* times (or once if CUR_NOCHOICE). Returns the
@@ -2117,7 +2117,7 @@ int choose_escape_curses_ui(int n, int out[4])
     {
         int idx = menu_choose_one_curse(i);   /* weighted picker, UI */
         log_debug("Player selected curse %d: %s", idx, cu_name + cu_info[idx].name);
-        add_curse_stack(idx);                /* gameplay side‑effect */
+        add_curse_stack(idx);                /* gameplay side-effect */
         if (taken < 4) out[taken++] = idx;
     }
 
@@ -2203,7 +2203,7 @@ int choose_oath_breaking_curse_ui(int oath_id)
 }
 
 /* ------------------------------------------------------------------ */
-/*  Standard “Press any key…” prompts – use enum, not raw strings     */
+/*  Standard "Press any key..." prompts - use enum, not raw strings     */
 /* ------------------------------------------------------------------ */
 typedef enum {
     PROMPT_CONTINUE_TALE,
@@ -2230,16 +2230,16 @@ static void wait_prompt(prompt_t id) {         /* tiny wrapper */
 }
 
 /* ------------------------------------------------------------------
- * metarun_update_on_exit() – v5, 30 Jul 2025
+ * metarun_update_on_exit() - v5, 30 Jul 2025
  * ------------------------------------------------------------------
  * Implements the finalised story/logic flow discussed in chat:
- *   0.  Escape check (silmarils? gift‑of‑Eru?)
- *   1.  Escape‑curse chooser UI
+ *   0.  Escape check (silmarils? gift-of-Eru?)
+ *   1.  Escape-curse chooser UI
  *   2.  Victory banner & Silmaril paragraph
- *   3.  Temptation of Treachery (3 rolls – stolen Silmarils don't count)
- *   4.  Story Fragment (pure vs tainted, 1‑3 jewels)
+ *   3.  Temptation of Treachery (3 rolls - stolen Silmarils don't count)
+ *   4.  Story Fragment (pure vs tainted, 1-3 jewels)
  *   5.  Echoes of Kinslaying / "Kill a Kin" (stop at first kill)
- *   6.  Final pause → apply deferred effects
+ *   6.  Final pause -> apply deferred effects
  *   7.  Persist silmaril/death counters, check run end, save
  *
  *  All narrative helpers (print_heading(), print_paragraph(),
@@ -2299,7 +2299,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_
 
     /* ------------------------------------------------------------- */
     /* 0. Branch: did we return with Silmarils?                      */
-    /*    – any path that reaches here counts as a "run end" event  */
+    /*    - any path that reaches here counts as a "run end" event  */
     /* ------------------------------------------------------------- */
     if (morgoth_victory)
     {
@@ -2368,14 +2368,14 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_
         for (int i = 0; i < z_info->st_max && pool; i++) {
             story_type *st = &st_info[i];
             if (!st->name)            continue;                /* unused slot   */
-            if (st->st_type != 1)     continue;                /* not “death”   */
+            if (st->st_type != 1)     continue;                /* not "death"   */
             if (st->order != target_order) continue;           /* wrong order   */
             if (st->runtypes &&
                !(st->runtypes & (1u << metar.type))) continue; /* wrong run-type*/
             pool[pool_sz++] = i;
         }
 
-        /* Fallback – allow any order-0 message if nothing matched.   */
+        /* Fallback - allow any order-0 message if nothing matched.   */
         if (!pool_sz && target_order) {
             for (int i = 0; i < z_info->st_max && pool; i++) {
                 story_type *st = &st_info[i];
@@ -2435,7 +2435,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_
     }
 
     /* ------------------------------------------------------------- */
-    /*        Enhanced Narrative Path – escaped with ≥1 Silmaril     */
+    /*        Enhanced Narrative Path - escaped with >=1 Silmaril     */
     /* ------------------------------------------------------------- */
     log_info("Player escaped with %d Silmarils - displaying victory narrative", sil_count);
     screen_save();
@@ -2618,7 +2618,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_
 
         for (int k = 0; k < sil_count; ++k)
         {
-            /* One roll only – use kin_pct[] here and *skip* the roll
+            /* One roll only - use kin_pct[] here and *skip* the roll
              * inside kinslayer_try_kill() later.                        */
             /* one-shot probability (keep a local alias for UI)        */
             bool fail = (rand_int(100) < kin_pct[k]);
@@ -2742,7 +2742,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_
 
         wait_prompt(PROMPT_RETURN_MIDDLE_EARTH);
     } else {
-        /* no kinslaying scene – still give one clean exit prompt   */
+        /* no kinslaying scene - still give one clean exit prompt   */
         wait_prompt(PROMPT_RETURN_MIDDLE_EARTH);
     }
 
@@ -2949,7 +2949,7 @@ static void start_new_metarun(void)
     apply_difficulty_curses(&metar);
 
     /* Persist and prepare */
-    save_metaruns();      /* safe now that metaruns≠NULL */ 
+    save_metaruns();      /* safe now that metaruns!=NULL */ 
     ensure_run_dir(&metar);
     log_info("New metarun %d created and initialized", metar.id);
 }

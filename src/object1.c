@@ -47,6 +47,8 @@ static bool item_prompt_is_replace(cptr pmt);
 static void log_inventory_selector_state(cptr stage, cptr pmt,
     const int vis_inven[], int vis_inven_cnt);
 static void format_supply_summary(char* buf, size_t len);
+static void equipment_weight_layout_rows(int first_row, int item_count,
+    int term_hgt, int* divider_row, int* text_row);
 
 bool inventory_menu_set_expand_supplies(bool enabled)
 {
@@ -3854,40 +3856,63 @@ void display_equip(void)
     /* Put in the total weight (if any armour equipped) */
     if (armour_weight)
     {
-        int total_row = INVEN_TOTAL - INVEN_WIELD;
-        int text_row = total_row + 1;
+        int divider_row;
+        int text_row;
+        int equip_rows = INVEN_TOTAL - INVEN_WIELD;
+
+        equipment_weight_layout_rows(0, equip_rows, Term->hgt, &divider_row,
+            &text_row);
+        if (equip_rows < Term->hgt)
+            Term_erase(0, equip_rows, 255);
+        if ((equip_rows + 1) < Term->hgt)
+            Term_erase(0, equip_rows + 1, 255);
         
         if (use_story_font)
         {
-            /* Clear the rows where we'll draw the weight total (from col, not from 0) */
-            Term_erase(col, total_row, 255);
-            Term_erase(col, text_row, 255);
-            
-            /* Render armour weight with story font using grid-aligned positioning */
-            story_print_text_grid(total_row, col, 8, TERM_L_DARK, "--------");
             strnfmt(tmp_val, sizeof(tmp_val), "armour: %3d.%1d lb",
                 armour_weight / 10, armour_weight % 10);
+            if (divider_row >= 0)
+                story_print_text_grid(divider_row, col, 8, TERM_L_DARK,
+                    "--------");
+            if (text_row >= 0)
             {
                 int armour_col = col - 8;
-                if (armour_col < 0) armour_col = 0;
-                story_print_text_grid(text_row, armour_col, 16, TERM_SLATE, tmp_val);
+                if (armour_col < 0)
+                    armour_col = 0;
+                story_print_text_grid(text_row, armour_col, 16, TERM_SLATE,
+                    tmp_val);
             }
         }
         else
         {
-            /* Mono font path */
-            Term_putstr(col, total_row, -1, TERM_L_DARK, "--------");
-            sprintf(tmp_val, "armour: %3d.%1d lb", armour_weight / 10, armour_weight % 10);
+            strnfmt(tmp_val, sizeof(tmp_val), "armour: %3d.%1d lb",
+                armour_weight / 10, armour_weight % 10);
+            if (divider_row >= 0)
+                Term_putstr(col, divider_row, -1, TERM_L_DARK, "--------");
+            if (text_row >= 0)
             {
                 int armour_col = col - 8;
-                if (armour_col < 0) armour_col = 0;
+                if (armour_col < 0)
+                    armour_col = 0;
                 Term_putstr(armour_col, text_row, -1, TERM_SLATE, tmp_val);
             }
         }
     }
 
     /* Erase the rest of the window (after the armour weight display) */
-    int erase_start = armour_weight ? (INVEN_TOTAL - INVEN_WIELD + 2) : (INVEN_TOTAL - INVEN_WIELD);
+    int erase_start = INVEN_TOTAL - INVEN_WIELD;
+    if (armour_weight)
+    {
+        int divider_row;
+        int text_row;
+
+        equipment_weight_layout_rows(0, erase_start, Term->hgt, &divider_row,
+            &text_row);
+        if (text_row >= 0)
+            erase_start = text_row + 1;
+        else if (divider_row >= 0)
+            erase_start = divider_row + 1;
+    }
     for (i = erase_start; i < Term->hgt; i++)
     {
         /* Clear that line */
@@ -4068,6 +4093,29 @@ static void story_render_equipment_entry(int row, int col, int slot, cptr prefix
     if (label_text && label_text[0])
         story_print_text_grid(row, label_col, label_width, label_attr,
             label_text);
+}
+
+static void equipment_weight_layout_rows(int first_row, int item_count,
+    int term_hgt, int* divider_row, int* text_row)
+{
+    int next_row = first_row + item_count;
+    int bottom_row = term_hgt - 1;
+
+    *divider_row = -1;
+    *text_row = -1;
+
+    if (term_hgt <= 0)
+        return;
+
+    if (next_row + 1 <= bottom_row)
+    {
+        *divider_row = next_row;
+        *text_row = next_row + 1;
+    }
+    else if (next_row <= bottom_row)
+    {
+        *text_row = next_row;
+    }
 }
 
 static void draw_equipment_story_rows(int col, int entry_count, int* out_index,
@@ -4646,46 +4694,44 @@ void show_equip(void)
     
     log_trace("show_equip: Finished rendering all %d entries", k);
 
-    /* Make a "shadow" below the list (only if needed) */
-    if (j && (j < term_hgt - 1))
-    {
-        if (use_story_font)
-            Term_erase(clear_col, j + 1, 255);
-        else
-            Term_erase(clear_col, j + 1, 255);
-    }
-
     /* Put in the total weight */
     if (armour_weight)
     {
-        int total_row = INVEN_TOTAL - INVEN_WIELD + 1;
-        int text_row = total_row + 1;
-        int col_total = 52;
+        int divider_row;
+        int text_row;
+
+        equipment_weight_layout_rows(1, k, term_hgt, &divider_row, &text_row);
+        if ((j + 1) < term_hgt)
+            Term_erase(clear_col, j + 1, 255);
+        if ((j + 2) < term_hgt)
+            Term_erase(clear_col, j + 2, 255);
+
         if (use_story_font)
         {
-            Term_erase(clear_col, text_row, 255);
-            Term_erase(clear_col, total_row, 255);
-            story_print_text_grid(total_row, weight_col, 8, TERM_L_DARK,
-                "--------");
             strnfmt(tmp_val, sizeof(tmp_val), "armour: %3d.%1d lb",
                 armour_weight / 10, armour_weight % 10);
-            story_print_text_grid(text_row, MAX(0, weight_col - 8), 16,
-                TERM_SLATE, tmp_val);
-            if (j && (j + 3 < term_hgt - 1))
-                Term_erase(clear_col, j + 3, 255);
+            if (divider_row >= 0)
+                story_print_text_grid(divider_row, weight_col, 8, TERM_L_DARK,
+                    "--------");
+            if (text_row >= 0)
+                story_print_text_grid(text_row, MAX(0, weight_col - 8), 16,
+                    TERM_SLATE, tmp_val);
         }
         else
         {
-            /* Blank the line for the total */
-            prt("", j + 2, col_total);
-            c_put_str(TERM_L_DARK, "--------", total_row, weight_col);
-            sprintf(tmp_val, "armour: %3d.%1d lb", armour_weight / 10,
+            strnfmt(tmp_val, sizeof(tmp_val), "armour: %3d.%1d lb",
+                armour_weight / 10,
                 armour_weight % 10);
-            c_put_str(TERM_SLATE, tmp_val, text_row, MAX(0, weight_col - 8));
-            /* Make a new "shadow" below the list (only if needed) */
-            if (j && (j + 3 < term_hgt - 1))
-                prt("", j + 3, col_total);
+            if (divider_row >= 0)
+                c_put_str(TERM_L_DARK, "--------", divider_row, weight_col);
+            if (text_row >= 0)
+                c_put_str(TERM_SLATE, tmp_val, text_row,
+                    MAX(0, weight_col - 8));
         }
+    }
+    else if (j && (j < term_hgt - 1))
+    {
+        Term_erase(clear_col, j + 1, 255);
     }
 
     story_font_term_pop(&story_state);
@@ -7566,32 +7612,38 @@ void show_equip_enhanced(void)
             log_debug("show_equip_enhanced: Checking armour weight display: armour_weight=%d", armour_weight);
             if (armour_weight)
             {
-                int total_row = INVEN_TOTAL - INVEN_WIELD + 1;
-                int text_row = total_row + 1;
-                
-                log_debug("show_equip_enhanced: Displaying armour weight at rows %d/%d (INVEN_TOTAL=%d, INVEN_WIELD=%d)", 
-                    total_row, text_row, INVEN_TOTAL, INVEN_WIELD);
-                
-                Term_erase(clear_col, total_row, 255);
-                Term_erase(clear_col, text_row, 255);
-                
-                log_trace("show_equip_enhanced: Rendering armour weight total at rows %d/%d", total_row, text_row);
-                story_print_text_grid(total_row, weight_col, 8, TERM_L_DARK, "--------");
+                int divider_row;
+                int text_row;
+
+                equipment_weight_layout_rows(1, k, term_hgt, &divider_row,
+                    &text_row);
+                if ((k + 1) < term_hgt)
+                    Term_erase(clear_col, k + 1, 255);
+                if ((k + 2) < term_hgt)
+                    Term_erase(clear_col, k + 2, 255);
+
+                log_debug("show_equip_enhanced: Displaying armour weight at rows %d/%d (k=%d)",
+                    divider_row, text_row, k);
+
+                if (divider_row >= 0)
+                {
+                    log_trace("show_equip_enhanced: Rendering armour divider at row %d",
+                        divider_row);
+                    story_print_text_grid(divider_row, weight_col, 8,
+                        TERM_L_DARK, "--------");
+                }
                 strnfmt(tmp_val, sizeof(tmp_val), "armour: %3d.%1d lb",
                     armour_weight / 10, armour_weight % 10);
                 log_debug("show_equip_enhanced: Armour weight text: '%s'", tmp_val);
-                story_print_text_grid(text_row, MAX(0, weight_col - 8), 16, TERM_SLATE, tmp_val);
-                
-                /* Erase the shadow line below */
-                if (k && (k + 3 < term_hgt - 1))
-                {
-                    log_trace("show_equip_enhanced: Erasing shadow at row %d", k + 3);
-                    Term_erase(clear_col, k + 3, 255);
-                }
+                if (text_row >= 0)
+                    story_print_text_grid(text_row, MAX(0, weight_col - 8), 16,
+                        TERM_SLATE, tmp_val);
             }
             else
             {
                 log_debug("show_equip_enhanced: NOT displaying armour weight (armour_weight=%d)", armour_weight);
+                if (k && (k < term_hgt - 1))
+                    Term_erase(clear_col, k + 1, 255);
             }
         }
         else

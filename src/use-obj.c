@@ -1036,7 +1036,7 @@ static bool use_staff_effects(object_type* o_ptr, bool* ident, bool is_gem)
     }
 
     /* --------------------------------------------------
-     * Meta‐run curse: CUR_HALLU
+     * Meta-run curse: CUR_HALLU
      *   Each stack gives +20% chance on any quaff
      *   to trigger hallucination (set_image).
      * -------------------------------------------------- */
@@ -1046,11 +1046,11 @@ static bool use_staff_effects(object_type* o_ptr, bool* ident, bool is_gem)
         {
             int chance = stacks * 20;
             if (chance > 100) chance = 100;
-            /* chance%: rand_int(100) gives 0–99, so < chance is true chance times */
+            /* chance%: rand_int(100) gives 0-99, so < chance is true chance times */
             if (rand_int(100) < chance)
             {
                 /* give a short hallucination burst */
-                int dur = rand_int(10) + 1 + 10; /* 1–10, then +10 */
+                int dur = rand_int(10) + 1 + 10; /* 1-10, then +10 */
                 (void)set_image(p_ptr->image + dur);
                 *ident = true;
                 msg_print("You suddenly see impossible colors!");

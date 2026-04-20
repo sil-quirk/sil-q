@@ -195,7 +195,7 @@ M:ELF:ROOMY:100:In the {PART} {DIST} {DIR} the Enemy's hand is plain; yet blades
 # Human
 M:HUMAN:ROOMY:100:Need weapons or armor? Head {DIST} {DIR} for the {PART}.
 M:HUMAN:ROOMY:100:The {PART} are {DIST} {DIR}. That's where I found most of my gear.
-M:HUMAN:ROOMY:100:If you want a better blade, try the {PART} {DIST} {DIR}—more steel there than in broken rooms.
+M:HUMAN:ROOMY:100:If you want a better blade, try the {PART} {DIST} {DIR}-more steel there than in broken rooms.
 
 # Orc
 M:ORC:ROOMY:100:Want sword or mail? Go {DIST} {DIR} to the {PART}.
@@ -211,8 +211,8 @@ M:ELF:RUINED:100:In the {PART} {DIST} {DIR}, the floor yields broken tools and s
 
 # Human
 M:HUMAN:RUINED:100:The {PART} are {DIST} {DIR}. Good place for odds and whatever people dropped running.
-M:HUMAN:RUINED:100:If you're short on supplies, check the {PART} {DIST} {DIR}—I've found scraps there.
-M:HUMAN:RUINED:100:Ruins {DIST} {DIR}. Expect junk… but sometimes useful junk.
+M:HUMAN:RUINED:100:If you're short on supplies, check the {PART} {DIST} {DIR}-I've found scraps there.
+M:HUMAN:RUINED:100:Ruins {DIST} {DIR}. Expect junk... but sometimes useful junk.
 
 # Orc
 M:ORC:RUINED:100:Ruined halls {DIST} {DIR}. Lots of junk. Some good.
@@ -227,7 +227,7 @@ M:ELF:CAVEY:100:The {PART} lie {DIST} {DIR}. Common spoils are few there, but yo
 M:ELF:CAVEY:100:In the {PART} {DIST} {DIR}, look to the stone itself; treasure comes not as gifts, but as veins.
 
 # Human
-M:HUMAN:CAVEY:100:The {PART} are {DIST} {DIR}. Don't expect much gear… but I've seen gems there.
+M:HUMAN:CAVEY:100:The {PART} are {DIST} {DIR}. Don't expect much gear... but I've seen gems there.
 M:HUMAN:CAVEY:100:If you want gems or mithril, try the {PART} {DIST} {DIR}. The rock sometimes gives up glittering things.
 M:HUMAN:CAVEY:100:Natural caves {DIST} {DIR}. Less stuff on the floor, more in the stone.
 

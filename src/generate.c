@@ -8615,7 +8615,7 @@ void place_item_randomly(int tval, int sval, bool close)
         int stacks = curse_flag_count_cur(CUR_FINDCURSE);
         if (stacks && wearable_p(i_ptr))
         {
-            int chance = 20 >> stacks;         /* base 1-in-20 Ã”Ã¥Ã† 1-in-10 Ã”Ã¥Ã† 1-in-5 */
+            int chance = 20 >> stacks;         /* base 1-in-20 -> 1-in-10 -> 1-in-5 */
             if (!chance || one_in_(chance))
                 add_random_curse(i_ptr);
         }
@@ -9587,7 +9587,7 @@ static partition_drop_profile partition_drop_profile_for_mode(quadrant_mode_t mo
     switch (mode)
     {
     case QUAD_MODE_ROOMY:
-        /* Default (ROOMY) a€” 40:30:10:20 */
+        /* Default (ROOMY) -- 40:30:10:20 */
         prof.profile.weight_weapon = 40;
         prof.profile.weight_armor = 30;
         prof.profile.weight_jewelry = 10;
@@ -11522,7 +11522,7 @@ static int trap_placement_chance(int y, int x)
     /* extra traps from CUR_TRAPS */
     int bonus_traps = curse_flag_count_cur(CUR_TRAPS);
     if (bonus_traps)
-        chance += 10 * bonus_traps;   /* +10/20/30 Ã”Ã‡aª on top of normal */
+        chance += 10 * bonus_traps;   /* +10/20/30% on top of normal */
 
     // extra chance of having a trap for certain squares inside rooms
     if (cave_clean_bold(y, x) && (cave_info[y][x] & (CAVE_ROOM)))
@@ -13015,7 +13015,7 @@ void place_monster_by_letter(
 }
 
 /*
- * Vault drop frequency gating — controls how many items spawn per vault symbol.
+ * Vault drop frequency gating - controls how many items spawn per vault symbol.
  * Driven by op_ptr->vault_drop_frequency (VDF_NORMAL..VDF_PLENTIFUL).
  */
 typedef enum vault_drop_gate_kind {

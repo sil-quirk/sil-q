@@ -540,7 +540,7 @@ int main(int argc, char* argv[])
                 if (mn == NAV_OK) {                      /* play or load     */
                     game_in_progress = true;
                 }
-                /* NAV_BACK ⇒ redraw + loop again */
+                /* NAV_BACK => redraw + loop again */
             }
         }
 

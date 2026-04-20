@@ -94,6 +94,140 @@ static bool banner_messages_use_stairs(void)
     return op_ptr->opt[OPT_banner_message_stairs];
 }
 
+static int narrative_banner_rows_for_text(cptr text)
+{
+    int wid, h;
+    const char* p = text;
+    int printed_lines = 0;
+    enum { MAX_LINES2 = 32, MAX_LEN2 = 255 };
+    bool stair_layout = banner_messages_use_stairs();
+
+    if (!text || !text[0])
+        return 0;
+    if (!Term || !angband_term[0] || (Term != angband_term[0]))
+        return 0;
+
+    Term_get_size(&wid, &h);
+    if (h <= 1)
+        return 0;
+
+    while (*p && printed_lines < MAX_LINES2 && (1 + printed_lines) < h)
+    {
+        int indent = 14 + (stair_layout ? (2 * printed_lines) : 0);
+        int avail;
+        int linelen = 0;
+
+        if (use_bigtile && (((indent - COL_MAP) & 1) != 0))
+            indent++;
+        if (indent >= wid - 1)
+            break;
+
+        avail = wid - indent - 1;
+        if (avail < 8)
+            avail = 8;
+
+        while (*p && (unsigned char)*p <= ' ')
+        {
+            if (*p == '\n')
+            {
+                p++;
+                break;
+            }
+            p++;
+        }
+
+        while (*p)
+        {
+            const char* w = p;
+            int wlen;
+            int need;
+
+            if (*p == '\n')
+            {
+                p++;
+                break;
+            }
+
+            while (*p && *p != '\n' && !isspace((unsigned char)*p))
+                p++;
+            wlen = (int)(p - w);
+
+            if ((wlen > avail) && (linelen == 0))
+            {
+                int take = (wlen > avail) ? avail : wlen;
+                if (take > MAX_LEN2)
+                    take = MAX_LEN2;
+                p = w + take;
+                linelen = take;
+                break;
+            }
+
+            need = (linelen ? 1 : 0) + wlen;
+            if ((linelen + need <= avail) && (linelen + need <= MAX_LEN2))
+            {
+                linelen += need;
+            }
+            else
+            {
+                p = w;
+                break;
+            }
+
+            while (*p && isspace((unsigned char)*p))
+            {
+                if (*p == '\n')
+                    break;
+                p++;
+            }
+            if (*p == '\n')
+            {
+                p++;
+                break;
+            }
+        }
+
+        if (linelen == 0)
+            break;
+
+        printed_lines++;
+    }
+
+    return printed_lines;
+}
+
+int active_narrative_banner_rows(void)
+{
+    if (!g_active_partition_banner_text[0]
+        || (g_banner_force_redraw_remaining <= 0))
+        return 0;
+
+    return narrative_banner_rows_for_text(g_active_partition_banner_text);
+}
+
+static void keep_player_visible_for_narrative_banner(cptr text)
+{
+    int banner_rows;
+
+    if (!p_ptr || !text || !text[0] || p_ptr->is_dead)
+        return;
+
+    banner_rows = narrative_banner_rows_for_text(text);
+    if (banner_rows <= 0)
+        return;
+
+    if (p_ptr->py >= p_ptr->wy + banner_rows)
+        return;
+
+    if (modify_panel(p_ptr->py - banner_rows, p_ptr->wx))
+    {
+        if (p_ptr->redraw)
+            redraw_stuff();
+        if (p_ptr->window)
+            window_stuff();
+        Term_fresh();
+    }
+}
+
 static void queue_active_partition_banner(void)
 {
     int wid, h;
@@ -348,6 +482,8 @@ static void display_narrative_text(cptr text, int narrative_mode,
 
     if (narrative_mode != PARTITION_NARRATIVE_BANNER)
         return;
+
+    keep_player_visible_for_narrative_banner(text);
 
     g_term_pre_fresh_hook = narrative_banner_pre_fresh_hook;
     g_active_partition_banner_text[0] = '\0';

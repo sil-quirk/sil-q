@@ -596,16 +596,19 @@ static void give_start_items(const start_item *list)
                 i_ptr->timeout = 100;
         }
 
+        bool auto_identify = player_auto_identifies_object(i_ptr);
         bool start_known = true;
-        if ((i_ptr->tval == TV_POTION)
-            || (i_ptr->tval == TV_FOOD && i_ptr->sval <= SV_FOOD_SICKNESS)
-            || (i_ptr->tval == TV_GEM))
+        if (!auto_identify
+            && ((i_ptr->tval == TV_POTION)
+                || (i_ptr->tval == TV_FOOD && i_ptr->sval <= SV_FOOD_SICKNESS)
+                || (i_ptr->tval == TV_GEM)))
         {
-            if (!player_auto_identifies_object(i_ptr))
-                start_known = false;
+            start_known = false;
         }
 
-        if (start_known)
+        if (auto_identify)
+            ident(i_ptr);
+        else if (start_known)
             object_known(i_ptr);
 
         /* inven_carry() may wipe supply items, so keep a copy for follow-up
@@ -840,7 +843,7 @@ static void player_outfit(void)
 
     log_debug("Starting player equipment setup");
 
-    /* skip all starting‐gear on load */
+    /* skip all starting-gear on load */
     if (character_loaded) return;
 
     /* ---------- escape-curse check ---------- */
@@ -1202,6 +1205,130 @@ static void birth_put_str_fit(byte attr, cptr text, int row, int col)
         buf[max_len] = '\0';
 
     Term_putstr(col, row, -1, attr, buf);
+}
+
+static cptr birth_wrap_line(cptr text, int width, char *buf, size_t buflen)
+{
+    cptr start;
+    cptr end;
+    cptr last_space = NULL;
+    cptr next;
+    size_t copy_len;
+
+    if (!buf || buflen == 0)
+        return text;
+
+    buf[0] = '\0';
+
+    if (!text)
+        return text;
+
+    while (*text == ' ')
+        text++;
+
+    if (!text[0])
+        return text;
+
+    if (width < 1)
+        width = 1;
+
+    start = text;
+    end = start;
+
+    while (*end && *end != '\n' && (end - start) < width)
+    {
+        if (*end == ' ')
+            last_space = end;
+        end++;
+    }
+
+    if (*end == '\n' || !*end)
+    {
+        next = end;
+    }
+    else if (last_space && last_space > start)
+    {
+        end = last_space;
+        next = last_space;
+    }
+    else
+    {
+        next = end;
+    }
+
+    while (end > start && end[-1] == ' ')
+        end--;
+
+    copy_len = (size_t)(end - start);
+    if (copy_len >= buflen)
+        copy_len = buflen - 1;
+
+    memcpy(buf, start, copy_len);
+    buf[copy_len] = '\0';
+
+    while (*next == ' ')
+        next++;
+
+    if (*next == '\n')
+        next++;
+
+    while (*next == ' ')
+        next++;
+
+    return next;
+}
+
+static int birth_wrapped_entry_lines(cptr entries[], int entry_n, int width,
+    int max_entries)
+{
+    int total = 0;
+    int limit = entry_n;
+    char line_buf[64];
+
+    if (max_entries >= 0 && max_entries < limit)
+        limit = max_entries;
+
+    for (int i = 0; i < limit; ++i)
+    {
+        cptr rest = entries[i];
+
+        while (rest && rest[0])
+        {
+            rest = birth_wrap_line(rest, width, line_buf, sizeof(line_buf));
+            total++;
+        }
+    }
+
+    return total;
+}
+
+static int birth_put_wrapped_entries(byte attr, cptr entries[], int entry_n,
+    int row, int col, int width, int max_rows, int max_entries)
+{
+    int used = 0;
+    int limit = entry_n;
+    char line_buf[64];
+
+    if (width < 1 || max_rows <= 0)
+        return 0;
+
+    if (max_entries >= 0 && max_entries < limit)
+        limit = max_entries;
+
+    for (int i = 0; i < limit && used < max_rows; ++i)
+    {
+        cptr rest = entries[i];
+
+        while (rest && rest[0] && used < max_rows)
+        {
+            rest = birth_wrap_line(rest, width, line_buf, sizeof(line_buf));
+            Term_erase(col, row + used, width);
+            Term_putstr(col, row + used, -1, attr, line_buf);
+            used++;
+        }
+    }
+
+    return used;
 }
 
 static int choice_description_line_count(cptr text)
@@ -1925,7 +2052,7 @@ static int collect_character_trait_lines(int race, int character, bool short_lab
 /*
  * Show race/character flags in priority order.
  * Masteries first, then single-side affinities, then penalties,
- * and finally any “headline / unique” flags.
+ * and finally any "headline / unique" flags.
  */
 static void print_rh_flags(int race, int character, int col, int row)
 {
@@ -1933,6 +2060,7 @@ static void print_rh_flags(int race, int character, int col, int row)
     int flags_right = 0;
     bool compact_layout = character_flags_need_compact_layout();
     int description_row = birth_description_base_row();
+    int term_wid = (Term && Term->wid > 0) ? Term->wid : 80;
     cptr ability_lines[CHARACTER_ABILITY_MAX];
     int ability_line_n = collect_character_starting_abilities(character,
         ability_lines, N_ELEMENTS(ability_lines));
@@ -1955,19 +2083,19 @@ static void print_rh_flags(int race, int character, int col, int row)
     int mastery_n = 0, affinity_n = 0, penalty_n = 0, unique_n = 0;
 
 /*
- * Show one skill line according to the new ±2 ↔ mastery / grand-penalty rule.
+ * Show one skill line according to the new +/-2<->mastery / grand-penalty rule.
  *
- *   +1 for every …_AFFINITY bit, −1 for every …_PENALTY bit.
+ *   +1 for every ..._AFFINITY bit, -1 for every ..._PENALTY bit.
  *
  *        score   meaning            colour / buffer
  *        =====   ===============    =========================
  *          +2    mastery            mastery_buf  / attr_mastery
  *          +1    affinity           affinity_buf / attr_affinity
- *           0    (omit line)        —
- *          −1    penalty            penalty_buf  / attr_penalty
- *          −2    grand penalty      penalty_buf  / attr_penalty
+ *           0    (omit line)        -
+ *          -1    penalty            penalty_buf  / attr_penalty
+ *          -2    grand penalty      penalty_buf  / attr_penalty
  */
-/* Show one skill line according to the new ±2 rule,
+/* Show one skill line according to the new +/-2 rule,
  * now counting curse affinities / penalties too.
  */
 #define HANDLE_SKILL_EX(label, AFF_FLAG, PEN_FLAG)                          \
@@ -2089,14 +2217,15 @@ static void print_rh_flags(int race, int character, int col, int row)
         if (tight_height)
         {
             const int target_traits = (short_trait_n < 9) ? short_trait_n : 9;
-            const int target_abilities = (ability_line_n < 3) ? ability_line_n : 3;
             const int min_upper_two_col_wid = 12;
             int upper_rows_total = description_row - row;
             int lower_rows_total = prompt_row - description_row;
             int upper_col = col;
-            int upper_width = Term->wid - upper_col;
+            int upper_width = term_wid - upper_col;
             int upper_col_gap = 2;
             int upper_col_wid = (upper_width - upper_col_gap) / 2;
+            int lower_width = term_wid - 2;
+            int target_ability_rows;
             bool show_trait_heading = true;
             bool show_ability_heading = true;
             bool use_upper_two_columns = false;
@@ -2109,18 +2238,23 @@ static void print_rh_flags(int race, int character, int col, int row)
                 lower_rows_total = 0;
             if (upper_col_wid < 0)
                 upper_col_wid = 0;
+            if (lower_width < 1)
+                lower_width = 1;
 
-            if (target_abilities == 0)
+            target_ability_rows = birth_wrapped_entry_lines(ability_lines,
+                ability_line_n, lower_width, 3);
+
+            if (target_ability_rows == 0)
             {
                 show_ability_heading = false;
                 abilities_fit = true;
             }
-            else if ((lower_rows_total - 1) >= target_abilities)
+            else if ((lower_rows_total - 1) >= target_ability_rows)
             {
                 show_ability_heading = true;
                 abilities_fit = true;
             }
-            else if (lower_rows_total >= target_abilities)
+            else if (lower_rows_total >= target_ability_rows)
             {
                 show_ability_heading = false;
                 abilities_fit = true;
@@ -2229,14 +2363,16 @@ static void print_rh_flags(int race, int character, int col, int row)
 
                 {
                     int rows = prompt_row - ability_row;
-                    int draw_lines;
+                    int ability_width = term_wid - 2;
 
                     if (rows < 0)
                         rows = 0;
-                    draw_lines = (ability_line_n < rows) ? ability_line_n : rows;
+                    if (ability_width < 1)
+                        ability_width = 1;
 
-                    for (int i = 0; i < draw_lines; ++i)
-                        Term_putstr(2, ability_row + i, -1, TERM_YELLOW, ability_lines[i]);
+                    birth_put_wrapped_entries(TERM_YELLOW, ability_lines,
+                        ability_line_n, ability_row, 2, ability_width, rows,
+                        ability_line_n);
                 }
             }
         }
@@ -2247,13 +2383,20 @@ static void print_rh_flags(int race, int character, int col, int row)
             int compact_col = 2;
             int col_gap = 2;
             int col_wid;
+            int ability_width = term_wid - col;
+            int ability_rows = description_row - row;
             bool use_two_columns = false;
             int right_offset = 0; /* 0=normal, -1=right column starts on title row, -2=one row above */
 
-            for (int i = 0; i < ability_line_n && (row + i) < description_row; ++i)
-                Term_putstr(col, row + i, -1, TERM_YELLOW, ability_lines[i]);
+            if (ability_width < 1)
+                ability_width = 1;
+            if (ability_rows < 0)
+                ability_rows = 0;
 
-            col_wid = (Term->wid - compact_col - col_gap) / 2;
+            birth_put_wrapped_entries(TERM_YELLOW, ability_lines, ability_line_n,
+                row, col, ability_width, ability_rows, ability_line_n);
+
+            col_wid = (term_wid - compact_col - col_gap) / 2;
             if (col_wid < 1)
                 col_wid = 1;
 
@@ -3190,7 +3333,7 @@ NavResult character_creation(void)
             /* Choose the player's race */
             if (!get_player_race())
             {
-                return NAV_TO_MAIN; /* Esc at first screen → back to main menu */
+                return NAV_TO_MAIN; /* Esc at first screen -> back to main menu */
             }
 
             /* Clean up */
@@ -3206,7 +3349,7 @@ NavResult character_creation(void)
             /* Choose the player's character template */
             if (!get_character_profile())
             {
-                phase = 1;          /* Esc here → go back to race */
+                phase = 1;          /* Esc here -> go back to race */
                 draw_character_selection_header(false);
                 /* Clear the character display area when going back to race selection */
                 for (i = HEADER_ROW; i <= TABLE_ROW + A_MAX + 10; i++)

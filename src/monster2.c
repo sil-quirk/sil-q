@@ -2822,7 +2822,7 @@ bool place_monster_one(
     {
         n_ptr->maxhp = r_ptr->hdice * (1 + r_ptr->hside) / 2;
 
-        /* Apply unique‐HP curses/blessings: +20% curse, -10% blessing per stack */
+        /* Apply unique-HP curses/blessings: +20% curse, -10% blessing per stack */
         {
             int stacks = curse_flag_delta_cur(CUR_U_MON_HP);
             if (stacks > 0) {
@@ -2839,7 +2839,7 @@ bool place_monster_one(
     {
         n_ptr->maxhp = damroll(r_ptr->hdice, r_ptr->hside);
 
-        /* Apply normal‐HP curses/blessings: +20% curse, -10% blessing per stack */
+        /* Apply normal-HP curses/blessings: +20% curse, -10% blessing per stack */
         {
             int stacks = curse_flag_delta_cur(CUR_MON_HP);
             if (stacks > 0) {
