@@ -486,6 +486,7 @@ int main(int argc, char* argv[])
 
     /* Install "quit" hook */
     log_register_quit_hook(quit_hook);
+    screen_set_startup_supporting_panes_hidden(true);
 
     /* Try the modules in the order specified by modules[] */
     for (i = 0; i < (int)N_ELEMENTS(modules); i++)
@@ -517,7 +518,10 @@ int main(int argc, char* argv[])
 
     /* Hack -- If requested, display scores and quit */
     if (show_score > 0)
+    {
+        screen_set_startup_supporting_panes_hidden(false);
         display_scores(0, show_score);
+    }
 
     /* Wait for response */
     // pause_line(Term->hgt - 1);

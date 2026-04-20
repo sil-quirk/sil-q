@@ -7258,11 +7258,12 @@ void do_cmd_quest_status(void)
     log_trace("QUEST STATUS: Player exists, quest states - Tulkas: %d, Aule: %d, Mandos: %d",
               p_ptr->tulkas_quest, p_ptr->aule_quest, p_ptr->mandos_quest);
 
-    /* Get terminal size for wrapping */
-    Term_get_size(&wid, &hgt);
-
     /* Save screen */
     screen_save();
+    screen_push_supporting_panes_hidden();
+
+    /* Get terminal size for wrapping */
+    Term_get_size(&wid, &hgt);
     Term_clear();
 
     /* Title */
@@ -7715,6 +7716,7 @@ void do_cmd_quest_status(void)
     Term_putstr(col, row, -1, TERM_L_WHITE, "Press any key to return.");
     inkey();
     
+    screen_pop_supporting_panes_hidden();
     screen_load();
 }
 

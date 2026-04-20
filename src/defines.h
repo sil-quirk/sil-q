@@ -2807,6 +2807,7 @@
 #define OPT_show_elemental_item_rolls 104
 #define OPT_hidden_left_panel_mode 105
 #define OPT_top_status_line 106
+#define OPT_hide_supporting_panes_fullscreen 107
 
 /* Intro screen style constants */
 #define INTRO_STYLE_FLAME       0   /* Flame Imperishable (Ainulindale) */

@@ -3810,11 +3810,12 @@ void do_cmd_combat_history(void)
     /* Start at leftmost edge */
     q = 0;
     
-    /* Get size */
-    Term_get_size(&wid, &hgt);
-    
     /* Save screen */
     screen_save();
+    screen_push_supporting_panes_hidden();
+
+    /* Get size after any hidden-pane layout change */
+    Term_get_size(&wid, &hgt);
     
     /* Process requests until done */
     while (1) {
@@ -4166,6 +4167,7 @@ void do_cmd_combat_history(void)
     }
     
     /* Restore screen */
+    screen_pop_supporting_panes_hidden();
     screen_load();
 }
 

@@ -13,6 +13,8 @@
 #include "log/log.h"
 #include "metarun.h"
 
+static void prise_silmaril(void);
+
 /*
  * Helper function to determine the equip sound based on item type
  */
@@ -178,6 +180,42 @@ bool open_supplies_menu_with_context(supply_menu_action default_action, int defa
 /* Flag indicating enhanced menus need to refresh the main display after closing */
 static bool enhanced_drop_refresh_pending = false;
 
+static bool handle_iron_crown_silmaril_action(object_type* o_ptr, int item)
+{
+    object_type* w_ptr;
+
+    if (!o_ptr)
+        return false;
+
+    if ((o_ptr->name1 < ART_MORGOTH_1) || (o_ptr->name1 > ART_MORGOTH_3))
+        return false;
+
+    if (item >= 0)
+    {
+        msg_print("You would have to put it down first.");
+        return true;
+    }
+
+    w_ptr = &inventory[INVEN_WIELD];
+    if (!w_ptr->k_idx)
+    {
+        msg_print(
+            "To prise a Silmaril from the crown, you would need to wield a "
+            "weapon.");
+        return true;
+    }
+
+    if (!get_check("Will you try to prise a Silmaril from the Iron Crown? "))
+        return true;
+
+    prise_silmaril();
+
+    p_ptr->energy_use = 100;
+    p_ptr->previous_action[0] = ACTION_MISC;
+
+    return true;
+}
+
 /*
  * Use an item by index, helper for enhanced menus
  */
@@ -204,6 +242,15 @@ void do_cmd_use_item_by_index(int item)
         o_ptr = &o_list[0 - item];
         log_debug("do_cmd_use_item_by_index: Using item from floor, index=%d, o_list index=%d", item, 0 - item);
     }
+
+    if (o_ptr->name1 == ART_MORGOTH_0)
+    {
+        msg_print("There are no Silmarils left in the Iron Crown.");
+        return;
+    }
+
+    if (handle_iron_crown_silmaril_action(o_ptr, item))
+        return;
 
     // determine the action based on the item type
     switch (o_ptr->tval)
@@ -2229,7 +2276,7 @@ void shatter_weapon(int silnum)
     }
 }
 
-void prise_silmaril(void)
+static void prise_silmaril(void)
 {
     object_type* o_ptr;
     object_type* w_ptr;
@@ -2623,37 +2670,8 @@ void do_cmd_destroy(void)
 
     // Special case for prising Silmarils from the Iron Crown of Morgoth
     o_ptr = &o_list[cave_o_idx[p_ptr->py][p_ptr->px]];
-    if ((o_ptr->name1 >= ART_MORGOTH_1) && (o_ptr->name1 <= ART_MORGOTH_3))
-    {
-        // Select the melee weapon
-        o_ptr = &inventory[INVEN_WIELD];
-
-        // No weapon
-        if (!o_ptr->k_idx)
-        {
-            msg_print(
-                "To prise a Silmaril from the crown, you would need to wield a "
-                "weapon.");
-        }
-
-        // Wielding a weapon
-        else
-        {
-            if (get_check(
-                    "Will you try to prise a Silmaril from the Iron Crown? "))
-            {
-                prise_silmaril();
-
-                /* Take a turn */
-                p_ptr->energy_use = 100;
-
-                // store the action type
-                p_ptr->previous_action[0] = ACTION_MISC;
-
-                return;
-            }
-        }
-    }
+    if (handle_iron_crown_silmaril_action(o_ptr, -1))
+        return;
 
     /* Get an item */
     q = "Destroy which item? ";
@@ -2673,39 +2691,8 @@ void do_cmd_destroy(void)
         o_ptr = &o_list[0 - item];
     }
 
-    // Special case for Iron Crown of Morgoth, if it has Silmarils left
-    if ((o_ptr->name1 >= ART_MORGOTH_1) && (o_ptr->name1 <= ART_MORGOTH_3))
-    {
-        if (item >= 0)
-        {
-            msg_print("You would have to put it down first.");
-        }
-        else
-        {
-            /* No weapon */
-            if (!o_ptr->k_idx)
-            {
-                msg_print("To prise a Silmaril from the crown, you would need "
-                          "to wield a "
-                          "weapon.");
-            }
-            else
-            {
-                msg_print(
-                    "You decide to try to prise out a Silmaril after all.");
-
-                prise_silmaril();
-
-                /* Take a turn */
-                p_ptr->energy_use = 100;
-
-                // store the action type
-                p_ptr->previous_action[0] = ACTION_MISC;
-
-                return;
-            }
-        }
-    }
+    if (handle_iron_crown_silmaril_action(o_ptr, item))
+        return;
 
     /* Get a quantity */
     amt = get_quantity(NULL, o_ptr->number);

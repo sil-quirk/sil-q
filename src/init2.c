@@ -2825,6 +2825,7 @@ extern void display_introduction(void)
     welcome_screen_compute_layout(term_hgt, arg_wizard, &layout,
         NULL, NULL, NULL);
     display_introduction_with_layout(&layout);
+    Term_fresh();
 }
 
 static void welcome_prompt_label(int binding, const char* fallback,
@@ -3265,9 +3266,6 @@ static void display_introduction_with_layout(
         break;
     }
 
-    /* Flush it */
-    Term_fresh();
-
     /* Restore cursor visibility */
     (void)Term_set_cursor(_saved_cursor_state);
 
@@ -3690,6 +3688,9 @@ void init_angband(void)
 extern NavResult initial_menu(bool *start_new)
 {
     log_info("initial_menu: ENTERED - showing main menu");
+    screen_push_supporting_panes_hidden();
+    screen_set_startup_supporting_panes_hidden(false);
+
     if (sdl_music_consume_welcome_main_once()
         || score_count_alive_entries() > 0)
         sdl_music_play_main();
@@ -3709,13 +3710,15 @@ extern NavResult initial_menu(bool *start_new)
     /* Build the welcome screen as a single layout block.
      * Default keeps the legacy top margin (intro starts at row 1).
      * If the terminal is too short for that, start at row 0. */
+    welcome_intro_layout layout;
     bool show_sep;
     bool show_blank;
     bool show_prompt;
     bool show_wizard_line = arg_wizard;
 
-    welcome_screen_compute_layout(hgt, show_wizard_line, NULL,
+    welcome_screen_compute_layout(hgt, show_wizard_line, &layout,
         &show_sep, &show_blank, &show_prompt);
+    display_introduction_with_layout(&layout);
     welcome_screen_draw_footer(show_wizard_line, show_sep, show_blank,
         show_prompt);
     if (false)
@@ -3777,6 +3780,7 @@ extern NavResult initial_menu(bool *start_new)
         || (steamdeck && ch == steamdeck_confirm_key()))
     {
         log_info("initial_menu: User pressed space/enter - starting game");
+        screen_set_startup_supporting_panes_hidden(true);
         run_mode_set_pending(RUN_MODE_STORY);
         *start_new = true;
         result = NAV_OK;   /* start new game */
@@ -3794,6 +3798,7 @@ extern NavResult initial_menu(bool *start_new)
 
 menu_done:
     log_info("initial_menu: EXITING with result=%d", result);
+    screen_pop_supporting_panes_hidden();
     if (sdl_config_should_force_intro_flame()) {
         sdl_config_mark_intro_seen();
         save_pane_config_to_json();

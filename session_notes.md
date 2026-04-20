@@ -1,5 +1,145 @@
 # Session notes
 
+## 2026-04-21: SDL supporting-pane hiding for full-screen screens
+- Goal: hide right/bottom supporting panes on full-screen style screens, but keep them on overlay-style UIs (in-game main menu, inventory, equipment, unified look, etc.), with touch treated separately.
+- Core detection model:
+  - Generic full-screen detection now tracks `screen_save()` + `Term_clear()` on the main term and treats that as a full-screen screen that may hide panes.
+  - Explicit hide scopes were added for screens that should hide panes even without relying on the generic path.
+  - If there are no non-touch supporting panes active to reclaim, the hide mode is skipped and the old normal refresh/layout path is used.
+
+### Main implementation points
+- `src/util.c`
+  - Added tracking for saved full-screen screens via `screen_cleared_mask`.
+  - Added explicit hide-depth helpers:
+    - `screen_push_supporting_panes_hidden()`
+    - `screen_pop_supporting_panes_hidden()`
+    - `screen_supporting_panes_hidden_active()`
+  - Added startup hide helpers:
+    - `screen_set_startup_supporting_panes_hidden()`
+    - `screen_startup_supporting_panes_hidden_active()`
+  - Layout refresh is now requested from pane-hide state changes and from the generic full-screen path.
+- `src/z-term.c`, `src/z-term.h`
+  - Added `g_term_clear_hook`.
+  - `Term_clear()` now calls the hook after the clear has been applied, so generic full-screen screens can switch layout using the cleared term dimensions rather than stretching the old canvas.
+- `src/main-sdl.c`
+  - Added `sdl_should_show_supporting_panes()`.
+  - Added `sdl_hide_supporting_panes_mode_effective()` to short-circuit the feature when no non-touch supporting panes are active.
+  - Added `sdl_compute_display_panes()` for temporary hidden-pane layout calculation.
+  - `resize()` now builds either:
+    - normal main + supporting panes layout, or
+    - temporary main + touch-only layout when panes are hidden.
+  - Added `sdl_refresh_supporting_panes_layout()` to rebuild term layout immediately when pane visibility mode changes.
+  - Added `g_suppress_layout_refresh_present` so those internal layout switches do not immediately `Term_redraw()` and flash stale screens.
+  - Touch hit-testing/rendering and cursor visibility now use the temporary layout when panes are hidden.
+- `src/main.c`
+  - Startup hide flag is enabled before SDL module init so the welcome screen does not first appear with panes and then drop them.
+- `src/init2.c`
+  - `initial_menu()` (welcome screen) explicitly hides panes and also clears the startup hide flag when it takes over.
+
+### Explicit full-screen hide scopes added
+- Welcome screen:
+  - `src/init2.c: initial_menu()`
+- Character sheet:
+  - `src/cmd4.c: do_cmd_character_sheet()`
+- Story intro:
+  - `src/dungeon.c: print_story_intro()`
+- Story pages:
+  - `src/files.c: print_story()`
+- Help:
+  - `src/files.c: do_cmd_help()`
+- Message log:
+  - `src/cmd4.c: do_cmd_messages()`
+- Options root menu:
+  - `src/cmd4.c: do_cmd_options()`
+- Knowledge browser:
+  - `src/cmd4.c: do_cmd_knowledge_browser_page()`
+
+### Efficiency option added
+- New option: `OPT_hide_supporting_panes_fullscreen`
+- Location: Efficiency Options page
+- Default: `true`
+- App-persistent
+- Files:
+  - `src/defines.h`
+  - `src/tables.c`
+  - `src/sdl-config.c`
+  - `src/cmd4.c`
+
+### Important behavior decisions from this session
+- Overlay-style screens should keep panes:
+  - in-game main menu
+  - inventory
+  - equipment
+  - unified look
+- Full-screen style screens should hide panes:
+  - welcome screen
+  - story intro / story pages
+  - character sheet
+  - help
+  - knowledge
+  - options
+  - log/messages
+- Touch pane is not treated as a supporting pane for the "no-op" optimization. If only touch is enabled, hidden-pane mode should do nothing and stay on the normal route.
+
+### Current known risks / follow-up areas
+- Android behavior was the main active issue in this session.
+- The latest direction was:
+  - stop stretching old canvases,
+  - rebuild the actual SDL term layout when pane-hide mode changes,
+  - suppress intermediate redraws during those internal layout switches,
+  - explicitly wrap the screens that measure terminal size too early.
+- Build is passing, but on-device verification is still needed for:
+  - Android full-screen screens using reclaimed height correctly
+  - no residual flashes when changing pages / returning to game
+  - touch-pane visibility when right panes are disabled
+- If another agent continues this work, they should first verify current Android behavior on:
+  - welcome screen
+  - help
+  - message log
+  - knowledge browser page changes
+  - options menu
+  - story stats / metarun stats
+
+### Validation performed
+- Repeated `./build-incremental.ps1` runs after each SDL/pane pass.
+- Final build status in this session: passing.
+
+## 2026-04-21: SDL supporting-pane hiding cleanup pass
+- Root issue: the hidden-pane path was suppressing redraws during layout rebuilds, while `resize()` was still destroying/recreating pane canvases. That could leave side panes black or stale after returning from full-screen screens.
+- `src/main-sdl.c`
+  - Changed the layout-refresh suppression to block `SDL_RenderPresent()` only, not `Term_redraw()`.
+  - `sdl_view_link_term()` now redraws resized terms into their offscreen canvases even during hidden-pane transitions.
+  - Result: pane canvases are repopulated before the final present, which should remove the black/garbled pane return path.
+- Screen-scope cleanup:
+  - Standardized explicit hidden-pane scopes on the affected full-screen style screens so they save first, then hide panes, and restore panes before loading the saved screen back.
+  - Touched entry points:
+    - `src/cmd4.c`: character sheet, hint messages
+    - `src/files.c`: story-so-far pages
+    - `src/cave.c`: world map
+    - `src/melee1.c`: combat history
+    - `src/xtra2.c`: quest status
+    - `src/score/score_ui.c`: Halls of Mandos scores, run history
+    - `src/metarun.c`: current story statistics
+- `src/score/score_ui.c`
+  - Reworked run history to keep one outer `screen_save()` / `screen_load()` for the whole browser instead of restoring the underlying game screen between page turns.
+  - This should remove page-change flashes and keep hidden-pane mode stable while browsing.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed after the cleanup.
+  - Runtime/UI verification is still needed for the specific regressions reported by the user (welcome/main-screen flashes, story stats transitions, character-sheet return path).
+
+## 2026-04-21: Welcome/menu transition cleanup
+- `src/init2.c`
+  - `initial_menu()` now redraws the full welcome intro block each time it runs instead of assuming the old intro background is still on the main term.
+  - This is intended to remove the flash of the previous gameplay/story-stats screen when returning to the welcome screen.
+  - Starting a new run now re-enables the startup hidden-pane flag before leaving the welcome screen so the handoff into story intro / story stats stays in no-pane mode.
+- `src/dungeon.c`
+  - The startup hidden-pane flag is now cleared immediately before the first real gameplay redraw (`do_cmd_redraw()`), so the normal pane layout returns only when entering the actual game view.
+- `src/main-sdl.c`
+  - `sdl_present_if_needed()` no longer presents a temporary stretched main-term canvas while the requested pane-visibility state and the actual SDL layout are out of sync.
+  - Pane borders are now drawn in a second pass after all pane textures, so shared edges are less likely to disappear behind later pane renders.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed after this pass.
+
 ## 2026-03-18: Deterministic guaranteed artefact monster drops
 - Updated `src/drop_system.c`, `src/object2.c`, and `src/externs.h` so the guaranteed artefact path now selects from eligible artefact catalog entries directly instead of repeatedly sampling the general drop pool and hoping one roll lands on an artefact.
 - Root issue: `make_guaranteed_artefact()` only retried normal weighted generation up to 1024 times, so `RF3_DROP_ARTEFACT` monsters could still fail to produce an artefact when the artefact share of the candidate pool was too small.

@@ -4573,6 +4573,7 @@ static bool story_intro_render_paragraph(cptr text, int indent, int wrap_width, 
 static void print_story_intro(void)
 {
     bool story_intro_story_font = true;
+    screen_push_supporting_panes_hidden();
     sdl_story_font_enable();
     sdl_music_play_main_full();
     int wid, h;
@@ -4689,6 +4690,7 @@ static void print_story_intro(void)
     Term_flush();
 
 cleanup_intro:
+    screen_pop_supporting_panes_hidden();
     if (story_intro_story_font)
         sdl_story_font_reset();
     
@@ -5138,6 +5140,7 @@ PlayResult play_game(void)
 
     /* Redraw everything */
     // Sil-y: added to get 'shades' right in extra inventory terms
+    screen_set_startup_supporting_panes_hidden(false);
     do_cmd_redraw();
 
     // update player noise

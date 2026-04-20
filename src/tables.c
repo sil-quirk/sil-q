@@ -254,6 +254,7 @@ cptr option_text[OPT_MAX] = {
     "show_elemental_item_rolls", /* OPT_show_elemental_item_rolls */
     NULL, /* OPT_hidden_left_panel_mode */
     "top_status_line", /* OPT_top_status_line */
+    "hide_supporting_panes_fullscreen", /* OPT_hide_supporting_panes_fullscreen */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -497,6 +498,7 @@ cptr option_desc[OPT_MAX] = {
     "Debug: Show elemental item break rolls and target probabilities", /* OPT_show_elemental_item_rolls */
     NULL, /* OPT_hidden_left_panel_mode */
     "Move the bottom status line to the top and hide the main message line", /* OPT_top_status_line */
+    "Hide supporting panes on full-screen menus when that frees space", /* OPT_hide_supporting_panes_fullscreen */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -760,7 +762,7 @@ const bool option_norm[OPT_MAX] = {
     false, /* OPT_show_elemental_item_rolls */
     false, /* OPT_hidden_left_panel_mode */
     false, /* OPT_top_status_line */
-    false, /* xxx */
+    true, /* OPT_hide_supporting_panes_fullscreen */
     false, /* xxx */
     false, /* xxx */
     false, /* xxx */
@@ -948,7 +950,8 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
     /*** Efficiency ***/
 
     { OPT_delay_factor, OPT_instant_run, OPT_center_player, OPT_run_avoid_center,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_hide_supporting_panes_fullscreen,
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE },
 

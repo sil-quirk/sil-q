@@ -7640,6 +7640,7 @@ void do_cmd_help(void)
 
     /* Save screen */
     screen_save();
+    screen_push_supporting_panes_hidden();
     if (p_ptr && p_ptr->playing)
         sdl_music_play_menu_theme();
 
@@ -7787,6 +7788,7 @@ void do_cmd_help(void)
     }
 
     /* Load screen */
+    screen_pop_supporting_panes_hidden();
     screen_load();
     if (p_ptr && p_ptr->playing)
         sdl_music_stop_main();
@@ -8939,8 +8941,9 @@ void print_story(int last_parts, bool fade_in)
     log_debug("Story range: start=%d, total=%d", start, total);
 
     /* Screen prep ------------------------------------------- */
-    Term_get_size(&wid, &h);
     screen_save();
+    screen_push_supporting_panes_hidden();
+    Term_get_size(&wid, &h);
     Term_clear();
     /* Hide the cursor during story display and restore it at the end */
     (void)Term_get_cursor(&_saved_cursor_state);
@@ -9111,6 +9114,7 @@ void print_story(int last_parts, bool fade_in)
     Term_flush();
     
     sdl_story_font_disable();  // Disable after story display
+    screen_pop_supporting_panes_hidden();
     screen_load();
     /* Restore previous cursor visibility and hide_cursor flag */
     (void)Term_set_cursor(_saved_cursor_state);

@@ -249,6 +249,10 @@ typedef struct touch_pane_press_state {
 sdl_state g_state;
 sdl_view g_views[MAX_TERM_DATA];
 static SDL_Rect g_pane_rects[PANE_MAX];
+static bool g_active_side_panes = true;
+static bool g_active_bottom_panes = true;
+static bool g_supporting_panes_layout_visible = true;
+static bool g_suppress_layout_refresh_present = false;
 static gamepad_input_state g_gamepad_state;
 static bool g_gamepad_auto_ui = false;
 static int g_default_gamepad_button_bindings[SDL_GAMEPAD_BUTTON_COUNT];
@@ -384,9 +388,12 @@ void clear_sdl_touch_pane_button_label_for_panel(int panel, int index);
 void get_sdl_touch_pane_panel_name(int panel, char* buf, size_t buflen);
 void set_sdl_touch_pane_panel_name(int panel, cptr name);
 static void sdl_update_cursor_visibility(void);
+static bool sdl_should_show_supporting_panes(void);
+static bool sdl_hide_supporting_panes_mode_effective(void);
+static bool sdl_layout_matches_supporting_pane_visibility(void);
 static void sdl_present_if_needed(sdl_view* d);
 static int sdl_build_active_pane_config(struct pane_config* active, bool include_side,
-    bool include_bottom);
+    bool include_bottom, bool touch_only);
 static int sdl_auto_aux_view_font_size(void);
 static int sdl_resolve_aux_view_font_size(int requested_size);
 static int sdl_effective_pane_font_size_for_config(const struct pane_config* pc);
@@ -394,8 +401,9 @@ static int sdl_effective_pane_font_size_for_type(enum pane_type type);
 static void sdl_build_supporting_pane_metrics(const struct pane_config* configs,
     int count, int* cell_widths, int* cell_heights);
 static void sdl_place_active_panes(const SDL_Rect* screen, SDL_Rect* panes,
-    bool include_side, bool include_bottom);
+    bool include_side, bool include_bottom, bool touch_only);
 static void sdl_compute_split_panes(const SDL_Rect* screen, SDL_Rect* panes);
+static void sdl_compute_display_panes(SDL_Rect* panes);
 static int sdl_max_scale_for_rect(const SDL_Rect* rect);
 static int sdl_touch_pane_target_width_px(int pane_height_px);
 static void sdl_apply_dynamic_auto_pane_sizes(struct pane_config* active,
@@ -578,9 +586,21 @@ static int sdl_touch_pane_effective_binding_for_panel(int panel, int index)
 static void sdl_update_cursor_visibility(void)
 {
     bool show_cursor = true;
+    bool show_supporting_panes = sdl_should_show_supporting_panes();
 
-    if (config.fullscreen)
-        show_cursor = (g_pane_rects[PANE_TOUCH].w > 0 && sdl_touch_pane_is_config_enabled());
+    if (config.fullscreen) {
+        SDL_Rect panes[PANE_MAX];
+        const SDL_Rect* touch_pane;
+
+        if (show_supporting_panes || sdl_layout_matches_supporting_pane_visibility()) {
+            touch_pane = &g_pane_rects[PANE_TOUCH];
+        } else {
+            sdl_compute_display_panes(panes);
+            touch_pane = &panes[PANE_TOUCH];
+        }
+
+        show_cursor = (touch_pane->w > 0 && sdl_touch_pane_is_config_enabled());
+    }
 
     if (show_cursor)
         SDL_ShowCursor();
@@ -589,13 +609,15 @@ static void sdl_update_cursor_visibility(void)
 }
 
 static int sdl_build_active_pane_config(struct pane_config* active, bool include_side,
-    bool include_bottom)
+    bool include_bottom, bool touch_only)
 {
     int active_count = 0;
 
     for (int i = 0; i < pane_config_count && active_count < MAX_PANE_CONFIGS; i++) {
         enum pane_placement where = pane_config[i].where;
 
+        if (touch_only && pane_config[i].pane != PANE_TOUCH)
+            continue;
         if (pane_placement_is_side(where) && !include_side)
             continue;
         if (pane_placement_is_bottom(where) && !include_bottom)
@@ -792,7 +814,7 @@ static void sdl_apply_dynamic_auto_pane_sizes(struct pane_config* active,
 }
 
 static void sdl_place_active_panes(const SDL_Rect* screen, SDL_Rect* panes,
-    bool include_side, bool include_bottom)
+    bool include_side, bool include_bottom, bool touch_only)
 {
     struct pane_config active[MAX_PANE_CONFIGS] = { 0 };
     int active_count;
@@ -806,7 +828,8 @@ static void sdl_place_active_panes(const SDL_Rect* screen, SDL_Rect* panes,
     memset(panes, 0, sizeof(SDL_Rect) * PANE_MAX);
 
     margin_px = (int)(g_state.system_scale * config.margin);
-    active_count = sdl_build_active_pane_config(active, include_side, include_bottom);
+    active_count = sdl_build_active_pane_config(active, include_side,
+        include_bottom, touch_only);
     sdl_build_supporting_pane_metrics(active, active_count, cell_widths,
         cell_heights);
     sdl_apply_dynamic_auto_pane_sizes(active, active_count, screen, cell_widths,
@@ -819,7 +842,68 @@ static void sdl_place_active_panes(const SDL_Rect* screen, SDL_Rect* panes,
 static void sdl_compute_split_panes(const SDL_Rect* screen, SDL_Rect* panes)
 {
     sdl_place_active_panes(screen, panes, config.enable_right_panes,
-        config.enable_bottom_panes);
+        config.enable_bottom_panes, false);
+}
+
+static bool sdl_hide_supporting_panes_mode_effective(void)
+{
+    if (op_ptr && !op_ptr->opt[OPT_hide_supporting_panes_fullscreen])
+        return false;
+
+    for (int i = 0; i < pane_config_count; i++) {
+        enum pane_placement where = pane_config[i].where;
+
+        if (!pane_config[i].enabled)
+            continue;
+        if (pane_config[i].pane == PANE_MAIN || pane_config[i].pane == PANE_TOUCH)
+            continue;
+        if (pane_placement_is_side(where) && !g_active_side_panes)
+            continue;
+        if (pane_placement_is_bottom(where) && !g_active_bottom_panes)
+            continue;
+
+        return true;
+    }
+
+    return false;
+}
+
+static bool sdl_should_show_supporting_panes(void)
+{
+    if (!sdl_hide_supporting_panes_mode_effective())
+        return true;
+    if (screen_startup_supporting_panes_hidden_active())
+        return false;
+    if (screen_supporting_panes_hidden_active())
+        return false;
+    if (screen_saved_fullscreen_active())
+        return false;
+
+    return true;
+}
+
+static bool sdl_layout_matches_supporting_pane_visibility(void)
+{
+    return (g_supporting_panes_layout_visible == sdl_should_show_supporting_panes());
+}
+
+static void sdl_compute_display_panes(SDL_Rect* panes)
+{
+    SDL_Rect screen;
+
+    if (!panes)
+        return;
+
+    if (!g_state.window || sdl_should_show_supporting_panes()) {
+        memcpy(panes, g_pane_rects, sizeof(g_pane_rects));
+        return;
+    }
+
+    SDL_GetWindowSizeInPixels(g_state.window, &screen.w, &screen.h);
+    screen.x = 0;
+    screen.y = 0;
+    sdl_place_active_panes(&screen, panes, g_active_side_panes,
+        g_active_bottom_panes, true);
 }
 
 static int sdl_max_scale_for_rect(const SDL_Rect* rect)
@@ -995,10 +1079,19 @@ static bool sdl_touch_pane_compute_layout(const SDL_Rect* pane_rect, SDL_FRect* 
 static bool sdl_touch_pane_point_to_slot(float x, float y, int* out_slot)
 {
     SDL_FRect slot_rects[SDL_TOUCH_PANE_BUTTON_COUNT];
-    const SDL_Rect* pane = &g_pane_rects[PANE_TOUCH];
+    SDL_Rect panes[PANE_MAX];
+    const SDL_Rect* pane;
+    bool show_supporting_panes = sdl_should_show_supporting_panes();
 
     if (out_slot)
         *out_slot = -1;
+
+    if (show_supporting_panes || sdl_layout_matches_supporting_pane_visibility()) {
+        pane = &g_pane_rects[PANE_TOUCH];
+    } else {
+        sdl_compute_display_panes(panes);
+        pane = &panes[PANE_TOUCH];
+    }
 
     if (pane->w <= 0 || pane->h <= 0)
         return false;
@@ -3273,13 +3366,21 @@ void resize(const SDL_Rect* screen)
 {
     log_warn("resize enter");
     SDL_Rect panes[PANE_MAX] = {0};
+    bool show_supporting_panes = sdl_should_show_supporting_panes();
     bool include_side = config.enable_right_panes;
     bool include_bottom = config.enable_bottom_panes;
+
+    if (!show_supporting_panes)
+    {
+        sdl_place_active_panes(screen, panes, g_active_side_panes,
+            g_active_bottom_panes, true);
+        g_supporting_panes_layout_visible = false;
+    }
 
     // Check whether after splitting the window the main view meets minimum size.
     // If it doesn't, remove panes along the corresponding axis (or axes).
     // Also remove panes if user has disabled them via settings.
-    {
+    if (show_supporting_panes) {
         int cell_w = config.main_view_scale * TILE_SIZE / 2;
         int cell_h = config.main_view_scale * TILE_SIZE;
         int min_main_cols = sdl_current_min_terminal_cols();
@@ -3293,7 +3394,8 @@ void resize(const SDL_Rect* screen)
         if (!include_bottom)
             log_info("bottom panes disabled by user setting");
 
-        sdl_place_active_panes(screen, panes, include_side, include_bottom);
+        sdl_place_active_panes(screen, panes, include_side, include_bottom,
+            false);
 
         for (;;) {
             cols = panes[PANE_MAIN].w / cell_w;
@@ -3309,7 +3411,8 @@ void resize(const SDL_Rect* screen)
                 log_warn("main view too small, %d cols < %d; removing side panes",
                     cols, min_main_cols);
                 include_side = false;
-                sdl_place_active_panes(screen, panes, include_side, include_bottom);
+                sdl_place_active_panes(screen, panes, include_side,
+                    include_bottom, false);
                 continue;
             }
 
@@ -3317,12 +3420,17 @@ void resize(const SDL_Rect* screen)
                 log_warn("main view too small, %d rows < %d; removing bottom panes",
                     rows, min_main_rows);
                 include_bottom = false;
-                sdl_place_active_panes(screen, panes, include_side, include_bottom);
+                sdl_place_active_panes(screen, panes, include_side,
+                    include_bottom, false);
                 continue;
             }
 
             break;
         }
+
+        g_active_side_panes = include_side;
+        g_active_bottom_panes = include_bottom;
+        g_supporting_panes_layout_visible = true;
     }
 
     for (int i = 0; i < PANE_MAX; i++) {
@@ -3684,8 +3792,17 @@ static void sdl_touch_pane_render(void)
     SDL_Color frame = g_state.palette[TERM_WHITE];
     SDL_Color accent = g_state.palette[TERM_L_BLUE];
     SDL_Color muted = g_state.palette[TERM_SLATE];
-    const SDL_Rect* pane = &g_pane_rects[PANE_TOUCH];
+    SDL_Rect panes[PANE_MAX];
+    const SDL_Rect* pane;
     int panel = sdl_touch_pane_active_panel();
+    bool show_supporting_panes = sdl_should_show_supporting_panes();
+
+    if (show_supporting_panes || sdl_layout_matches_supporting_pane_visibility()) {
+        pane = &g_pane_rects[PANE_TOUCH];
+    } else {
+        sdl_compute_display_panes(panes);
+        pane = &panes[PANE_TOUCH];
+    }
 
     if (pane->w <= 0 || pane->h <= 0)
         return;
@@ -3773,17 +3890,30 @@ static void sdl_touch_pane_render(void)
 
 static void sdl_present_if_needed(sdl_view* d)
 {
+    bool show_supporting_panes;
+    bool layout_matches;
+    int visible_views = 0;
+
     if (!g_state.need_present)
+        return;
+    if (g_suppress_layout_refresh_present)
+        return;
+
+    show_supporting_panes = sdl_should_show_supporting_panes();
+    layout_matches = sdl_layout_matches_supporting_pane_visibility();
+    if (!layout_matches)
         return;
 
     SDL_SetRenderTarget(g_state.renderer, NULL);
     SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
     SDL_RenderClear(g_state.renderer);
 
-    int active_views = 0;
     for (int i = 0; i < MAX_TERM_DATA; i++) {
-        if (g_views[i].canvas)
-            active_views++;
+        if (!g_views[i].canvas)
+            continue;
+        if (!show_supporting_panes && i != PANE_MAIN && i != PANE_TOUCH)
+            continue;
+        visible_views++;
     }
 
     for (int i = 0; i < MAX_TERM_DATA; i++) {
@@ -3795,6 +3925,8 @@ static void sdl_present_if_needed(sdl_view* d)
             continue;
         if (view->cols <= 0 || view->rows <= 0 || view->cell_w <= 0 || view->cell_h <= 0)
             continue;
+        if (!show_supporting_panes && i != PANE_MAIN)
+            continue;
 
         dst_w = (float)(view->cols * view->cell_w);
         dst_h = (float)(view->rows * view->cell_h);
@@ -3802,24 +3934,33 @@ static void sdl_present_if_needed(sdl_view* d)
             continue;
 
         SDL_RenderTexture(g_state.renderer, view->canvas, NULL, &(SDL_FRect){
-            .x = view->rect.x + view->margin_x,
-            .y = view->rect.y + view->margin_y,
+            .x = (float)(view->rect.x + view->margin_x),
+            .y = (float)(view->rect.y + view->margin_y),
             .w = dst_w,
             .h = dst_h,
         });
+    }
 
-        if (active_views > 1) {
-            if (config.show_pane_borders)
-                SDL_SetRenderDrawColor(g_state.renderer, 255, 255, 255, 128);
-            else
-                SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
-            SDL_FRect frame = {
-                .x = view->rect.x,
-                .y = view->rect.y,
-                .w = view->rect.w,
-                .h = view->rect.h,
-            };
-            SDL_RenderRect(g_state.renderer, &frame);
+    if (visible_views > 1) {
+        if (config.show_pane_borders)
+            SDL_SetRenderDrawColor(g_state.renderer, 255, 255, 255, 128);
+        else
+            SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+
+        for (int i = 0; i < MAX_TERM_DATA; i++) {
+            sdl_view* view = &g_views[i];
+
+            if (!view->canvas)
+                continue;
+            if (!show_supporting_panes && i != PANE_MAIN && i != PANE_TOUCH)
+                continue;
+
+            SDL_RenderRect(g_state.renderer, &(SDL_FRect){
+                .x = (float)view->rect.x,
+                .y = (float)view->rect.y,
+                .w = (float)view->rect.w,
+                .h = (float)view->rect.h,
+            });
         }
     }
 
@@ -5216,6 +5357,12 @@ errr init_sdl(int argc, char **argv)
     sdl_ensure_touch_pane_config_present();
     sdl_touch_pane_ensure_main_panel_confirm();
 
+    /* Seed hidden-screen fallback layout from the configured pane groups
+     * before the first resize/present, so startup screens do not briefly
+     * show touch/right panes when that axis is disabled. */
+    g_active_side_panes = config.enable_right_panes;
+    g_active_bottom_panes = config.enable_bottom_panes;
+
     g_hide_left_panel = config.hide_left_panel;
     
     // Apply command-line overrides
@@ -5627,9 +5774,57 @@ int get_sdl_pane_where(int index)
     return (int)pane_config[index].where;
 }
 
+static bool sdl_is_pane_group_enabled(enum pane_placement where)
+{
+    if (pane_placement_is_side(where))
+        return config.enable_right_panes;
+    if (pane_placement_is_bottom(where))
+        return config.enable_bottom_panes;
+
+    return false;
+}
+
+static bool sdl_is_log_pane_active(void)
+{
+    for (int i = 0; i < pane_config_count; i++) {
+        if (pane_config[i].pane != PANE_LOG)
+            continue;
+        if (!pane_config[i].enabled)
+            continue;
+        if (!sdl_is_pane_group_enabled(pane_config[i].where))
+            continue;
+
+        return true;
+    }
+
+    return false;
+}
+
+static void sdl_disable_main_combat_rolls_for_log_pane(void)
+{
+    if (!op_ptr || op_ptr->main_combat_rolls == 0)
+        return;
+
+    op_ptr->main_combat_rolls = 0;
+
+    if (Term)
+        clear_main_combat_rolls_area();
+    if (p_ptr)
+        p_ptr->redraw |= PR_MAP;
+}
+
+static void sdl_handle_log_pane_activation(bool was_active)
+{
+    if (was_active || !sdl_is_log_pane_active())
+        return;
+
+    sdl_disable_main_combat_rolls_for_log_pane();
+}
+
 void set_sdl_pane_where(int index, int where)
 {
     enum pane_placement placement = (enum pane_placement)where;
+    bool log_was_active = sdl_is_log_pane_active();
 
     if (index < 0 || index >= pane_config_count)
         return;
@@ -5637,6 +5832,7 @@ void set_sdl_pane_where(int index, int where)
         placement = pane_first_allowed_placement(pane_config[index].pane);
 
     pane_config[index].where = placement;
+    sdl_handle_log_pane_activation(log_was_active);
 }
 
 bool get_sdl_pane_enabled(int index)
@@ -5757,9 +5953,12 @@ void set_sdl_pane_font_size(int index, int font_size)
 
 void set_sdl_pane_enabled(int index, bool enabled)
 {
+    bool log_was_active = sdl_is_log_pane_active();
+
     if (index < 0 || index >= pane_config_count)
         return;
     pane_config[index].enabled = enabled;
+    sdl_handle_log_pane_activation(log_was_active);
 }
 
 bool get_sdl_enable_right_panes(void)
@@ -5769,6 +5968,8 @@ bool get_sdl_enable_right_panes(void)
 
 void set_sdl_enable_right_panes(bool value)
 {
+    bool log_was_active = sdl_is_log_pane_active();
+
     config.enable_right_panes = value;
 
     if (value) {
@@ -5777,6 +5978,8 @@ void set_sdl_enable_right_panes(bool value)
                 pane_config[i].enabled = true;
         }
     }
+
+    sdl_handle_log_pane_activation(log_was_active);
 }
 
 bool get_sdl_enable_bottom_panes(void)
@@ -5786,6 +5989,8 @@ bool get_sdl_enable_bottom_panes(void)
 
 void set_sdl_enable_bottom_panes(bool value)
 {
+    bool log_was_active = sdl_is_log_pane_active();
+
     config.enable_bottom_panes = value;
 
     /* On mobile, the default layout may keep the bottom-pane configs around
@@ -5798,6 +6003,8 @@ void set_sdl_enable_bottom_panes(bool value)
                 pane_config[i].enabled = true;
         }
     }
+
+    sdl_handle_log_pane_activation(log_was_active);
 }
 
 bool get_sdl_show_pane_borders(void)
@@ -6398,6 +6605,23 @@ int get_sdl_max_scale(void)
               sdl_min_terminal_mode_name(config.min_terminal_mode), max_scale);
     
     return max_scale;
+}
+
+void sdl_refresh_supporting_panes_layout(void)
+{
+    SDL_Rect screen;
+
+    if (!g_state.window)
+        return;
+    if (sdl_layout_matches_supporting_pane_visibility())
+        return;
+
+    SDL_GetWindowSizeInPixels(g_state.window, &screen.w, &screen.h);
+    screen.x = 0;
+    screen.y = 0;
+    g_suppress_layout_refresh_present = true;
+    resize(&screen);
+    g_suppress_layout_refresh_present = false;
 }
 
 /*

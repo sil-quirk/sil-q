@@ -482,6 +482,7 @@ static const byte app_text_options[] = {
 
 static const byte app_efficiency_options[] = {
     OPT_instant_run, OPT_center_player, OPT_run_avoid_center,
+    OPT_hide_supporting_panes_fullscreen,
     OPT_NONE
 };
 

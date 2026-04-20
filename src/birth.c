@@ -926,6 +926,8 @@ static void birth_prompt_label(int binding, const char* fallback, char* buf, siz
 }
 
 static bool birth_pending_compact_description_confirm = false;
+static int birth_prompt_row(void);
+static void birth_put_str_fit(byte attr, cptr text, int row, int col);
 
 static bool birth_confirm_input(int ch, bool steamdeck)
 {
@@ -936,6 +938,76 @@ static bool birth_confirm_input(int ch, bool steamdeck)
         return true;
 
     return false;
+}
+
+static bool birth_confirm_unspent_stat_points(int points_left, bool steamdeck)
+{
+    int wid = 80;
+    int hgt = 24;
+    int message_row;
+    int prompt_row;
+    char key;
+    char buf[160];
+
+    if (points_left <= 0)
+        return true;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1)
+        wid = 80;
+    if (hgt < 1)
+        hgt = 24;
+
+    prompt_row = birth_prompt_row();
+    message_row = prompt_row - 1;
+    if (message_row < 0)
+        message_row = 0;
+
+    Term_erase(0, message_row, 255);
+    Term_erase(0, prompt_row, 255);
+
+    strnfmt(buf, sizeof(buf), "Unused stat points: %d. Continue anyway?", points_left);
+    birth_put_str_fit(TERM_YELLOW, buf, message_row, 1);
+
+    if (steamdeck)
+    {
+        char confirm_label[16];
+        char back_label[16];
+
+        birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
+            sizeof(confirm_label));
+        birth_prompt_label(steamdeck_back_key(), "B", back_label,
+            sizeof(back_label));
+
+        strnfmt(buf, sizeof(buf), "%s continue  %s keep allocating",
+            confirm_label, back_label);
+    }
+    else
+    {
+        strnfmt(buf, sizeof(buf), "SPACE/y continue  n/ESC keep allocating");
+    }
+
+    birth_put_str_fit(TERM_SLATE, buf, prompt_row, 1);
+    Term_fresh();
+
+    while (1)
+    {
+        hide_cursor = true;
+        key = inkey();
+        hide_cursor = false;
+
+        if (birth_confirm_input(key, steamdeck))
+            return true;
+        if (steamdeck && key == steamdeck_back_key())
+            return false;
+
+        if (key == 'y' || key == 'Y')
+            return true;
+        if (key == 'n' || key == 'N' || key == ESCAPE)
+            return false;
+
+        bell("Confirm or cancel the stat warning.");
+    }
 }
 
 static bool birth_show_compact_description_after_assignment(bool steamdeck)
@@ -1336,6 +1408,60 @@ static int choice_description_line_count(cptr text)
     return birth_wrapped_line_count(text, 2);
 }
 
+static int choice_visible_capacity(int num, cptr text,
+    bool allow_full_description_screen)
+{
+    int wid = 80;
+    int term_hgt = 24;
+    int description_row = birth_description_base_row();
+    int hgt = birth_prompt_row() - TABLE_ROW - 1;
+
+    Term_get_size(&wid, &term_hgt);
+    (void)wid;
+    if (term_hgt < 1)
+        term_hgt = 24;
+    if (hgt < 0)
+        hgt = 0;
+
+    if (allow_full_description_screen)
+    {
+        bool compact_flags = character_flags_need_compact_layout();
+        bool very_short = (term_hgt <= 20);
+
+        if (compact_flags && very_short)
+        {
+            int max_hgt = (description_row - 2) - TABLE_ROW;
+
+            if (max_hgt < 0)
+                max_hgt = 0;
+            if (hgt > max_hgt)
+                hgt = max_hgt;
+        }
+    }
+    else if (term_hgt <= 20)
+    {
+        int min_description_rows = (term_hgt <= 18) ? 5 : 4;
+        int description_rows = choice_description_line_count(text);
+        int max_hgt;
+
+        if (description_rows > min_description_rows)
+            min_description_rows = description_rows;
+
+        max_hgt = birth_prompt_row() - TABLE_ROW - 2 - min_description_rows;
+        if (max_hgt < 0)
+            max_hgt = 0;
+        if (hgt > max_hgt)
+            hgt = max_hgt;
+    }
+
+    if (num < 1)
+        return 0;
+    if (num < hgt + 1)
+        return num;
+
+    return hgt + 1;
+}
+
 static int choice_description_fit_row(int row, int visible_rows, cptr text)
 {
     int min_row = TABLE_ROW + visible_rows + 1;
@@ -1496,6 +1622,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
     int cur = (def) ? def : 0;
     bool steamdeck = steamdeck_controls_active();
     int clear_limit = birth_prompt_row() + 1;
+    int last_list_rows_drawn = 0;
     int last_description_row = birth_prompt_row();
 
     /* Autoselect if able */
@@ -1515,40 +1642,12 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
     {
         int description_row = birth_description_base_row();
         int list_rows_drawn;
+        int visible_capacity = choice_visible_capacity(num, choices[cur].text,
+            allow_full_description_screen);
 
-        hgt = birth_prompt_row() - TABLE_ROW - 1;
-
-        /*
-         * If we're going to use a tighter, compact traits layout on very short
-         * screens, reserve one extra line above DESCRIPTION_ROW.
-         *
-         * This avoids the menu list occupying the same row we may use for
-         * compact trait output.
-         */
-        if (allow_full_description_screen)
-        {
-            bool compact_flags = character_flags_need_compact_layout();
-            bool very_short = (Term->hgt > 0) && (Term->hgt <= 20);
-            if (compact_flags && very_short)
-            {
-                int max_hgt = (description_row - 2) - TABLE_ROW;
-                if (max_hgt < 0) max_hgt = 0;
-                if (hgt > max_hgt) hgt = max_hgt;
-            }
-        }
-        else if ((Term->hgt > 0) && (Term->hgt <= 20))
-        {
-            int min_description_rows = (Term->hgt <= 18) ? 5 : 4;
-            int description_rows = choice_description_line_count(choices[cur].text);
-            int max_hgt;
-
-            if (description_rows > min_description_rows)
-                min_description_rows = description_rows;
-
-            max_hgt = birth_prompt_row() - TABLE_ROW - 2 - min_description_rows;
-            if (max_hgt < 0) max_hgt = 0;
-            if (hgt > max_hgt) hgt = max_hgt;
-        }
+        hgt = visible_capacity - 1;
+        if (hgt < 0)
+            hgt = 0;
 
         /* Redraw the list */
         for (i = 0; ((i + top < num) && (i <= hgt)); i++)
@@ -1585,6 +1684,15 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
 
         list_rows_drawn = i;
 
+        /*
+         * When a newly selected entry needs more description space on a short
+         * screen, the visible list can shrink by one or more rows. Clear any
+         * rows that belonged to the previous, taller list so stale entries do
+         * not remain between the list and the description text.
+         */
+        for (i = list_rows_drawn; i < last_list_rows_drawn; i++)
+            Term_erase(0, TABLE_ROW + i, 255);
+
         if (!allow_full_description_screen)
         {
             description_row = choice_description_row(list_rows_drawn, false);
@@ -1614,9 +1722,12 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
                  */
                 if (compact_flags)
                 {
-                    int race_description_row = choice_description_row(z_info->p_max, false);
+                    int race_visible_rows = choice_visible_capacity(
+                        z_info->p_max, p_text + p_info[p_ptr->prace].text, false);
+                    int race_description_row = choice_description_row(
+                        race_visible_rows, false);
                     race_description_row = choice_description_fit_row(
-                        race_description_row, z_info->p_max,
+                        race_description_row, race_visible_rows,
                         p_text + p_info[p_ptr->prace].text);
                     if (race_description_row < clear_from_row)
                         clear_from_row = race_description_row;
@@ -1643,6 +1754,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
                 description_row, 2);
         }
 
+        last_list_rows_drawn = list_rows_drawn;
         last_description_row = description_row;
 
         if (done)
@@ -5022,7 +5134,11 @@ static NavResult player_birth_aux_2(void)
 
         /* Done */
         if (birth_confirm_input(ch, steamdeck))
+        {
+            if (!birth_confirm_unspent_stat_points(MAX_COST - cost, steamdeck))
+                continue;
             return NAV_OK;
+        }
 
         /* Prev stat */
         if (ch == '8')

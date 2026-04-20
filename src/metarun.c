@@ -4591,6 +4591,7 @@ void print_metarun_stats(void)
     int available_points = earned_points - spent_points;
 
     screen_save();
+    screen_push_supporting_panes_hidden();
     Term_clear();
     Term_get_size(&term_width, &term_height);
     bool steamdeck = get_sdl_steamdeck_mode();
@@ -5080,10 +5081,12 @@ void print_metarun_stats(void)
         
         if (key == back_key) {
             /* B button = exit/back */
+            screen_pop_supporting_panes_hidden();
             screen_load();
             return;
         } else if (key == confirm_key || key == '\r' || key == '\n') {
             /* A button = continue (exit) */
+            screen_pop_supporting_panes_hidden();
             screen_load();
             return;
         } else if (key == alt_key) {
@@ -5104,38 +5107,45 @@ void print_metarun_stats(void)
         }
     }
     if (key == 'b' || key == 'B') {
+        screen_pop_supporting_panes_hidden();
         screen_load();
         open_blessing_exchange();
         print_metarun_stats();
         return;
     } else if (key == 'c' || key == 'C') {
+        screen_pop_supporting_panes_hidden();
         screen_load();
         choose_difficulty_menu();
         return;
     } else if (key == 'f' || key == 'F') {
+        screen_pop_supporting_panes_hidden();
         screen_load();
         adjust_blessing_threshold_menu();
         print_metarun_stats();
         return;
     } else if (key == 'u' || key == 'U') {
         /* Show the full list of active curses/blessings separately */
+        screen_pop_supporting_panes_hidden();
         screen_load();
         show_all_active_curses();
         print_metarun_stats();
         return;
     } else if (key == 's' || key == 'S') {
         /* Show history only */
+        screen_pop_supporting_panes_hidden();
         screen_load();
         list_metaruns();
         print_metarun_stats();
         return;
     } else if ((key == 'x' || key == 'X') && blitz_enabled) {
+        screen_pop_supporting_panes_hidden();
         screen_load();
         run_mode_set_pending(RUN_MODE_BLITZ);
         run_mode_set_current(RUN_MODE_BLITZ);
         return;
     }
 
+    screen_pop_supporting_panes_hidden();
     screen_load();
 }
 

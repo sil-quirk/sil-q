@@ -2941,6 +2941,7 @@ void do_cmd_view_map(void)
 
     /* Save screen */
     screen_save();
+    screen_push_supporting_panes_hidden();
 
     /* Note */
     prt("Please wait...", 0, 0);
@@ -2964,6 +2965,7 @@ void do_cmd_view_map(void)
     (void)inkey();
 
     /* Load screen */
+    screen_pop_supporting_panes_hidden();
     screen_load();
 }
 

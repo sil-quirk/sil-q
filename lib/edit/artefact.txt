@@ -2847,7 +2847,8 @@ D:The Iron Crown of Morgoth Bauglir, in which burn the three Silmarils -
 D: jewels of Feanor, stolen from Formenos and set here by the Dark Lord
 D: himself. In them burns the imperishable light of the Two Trees of Valinor,
 D: and the Oath of Feanor compels his sons to claim them, even unto the ruin
-D: of the world. To cut a Silmaril from the crown, stand over it and press (k).
+D: of the world. To cut a Silmaril from the crown, stand over it and use it (u),
+D: or press (k).
 
 
 ## The Mighty Hammer 'Grond'

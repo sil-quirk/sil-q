@@ -16,6 +16,7 @@
 #include "log/log.h"
 
 term_pre_fresh_hook_func g_term_pre_fresh_hook = NULL;
+term_clear_hook_func g_term_clear_hook = NULL;
 
 /*
  * This file provides a generic, efficient, terminal window package,
@@ -1836,6 +1837,9 @@ errr Term_clear(void)
 
     /* Force "total erase" */
     Term->total_erase = true;
+
+    if (g_term_clear_hook)
+        g_term_clear_hook(Term);
 
     /* Success */
     return (0);

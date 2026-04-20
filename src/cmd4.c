@@ -672,6 +672,7 @@ void do_cmd_character_sheet(void)
 
     /* Save screen */
     screen_save();
+    screen_push_supporting_panes_hidden();
 
     /* Forever */
     while (1)
@@ -891,6 +892,7 @@ void do_cmd_character_sheet(void)
     }
 
     /* Load screen */
+    screen_pop_supporting_panes_hidden();
     screen_load();
 
     /* Force redraw after screen restore if skills/abilities were changed */
@@ -12974,10 +12976,9 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
     int top = 0;
     show_all_tips = false;
 
-    Term_get_size(&wid, &hgt);
-
     /* Save screen */
     screen_save();
+    screen_push_supporting_panes_hidden();
 
     while (1)
     {
@@ -13165,6 +13166,7 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
     }
 
     /* Load screen */
+    screen_pop_supporting_panes_hidden();
     screen_load();
 
     if (out_pending_look)
@@ -13222,11 +13224,12 @@ void do_cmd_messages(void)
     /* Start at leftmost edge */
     q = 0;
 
-    /* Get size */
-    Term_get_size(&wid, &hgt);
-
     /* Save screen */
     screen_save();
+    screen_push_supporting_panes_hidden();
+
+    /* Get size after any hidden-pane layout change */
+    Term_get_size(&wid, &hgt);
 
     /* Process requests until done */
     while (1)
@@ -13401,6 +13404,7 @@ void do_cmd_messages(void)
     }
 
     /* Load screen */
+    screen_pop_supporting_panes_hidden();
     screen_load();
 }
 
@@ -13877,6 +13881,9 @@ static cptr option_menu_label(int opt)
     case OPT_top_status_line:
         return compact ? (narrow ? "Top status" : "Top status line")
                        : "Top Status Line (No Msg Row)";
+    case OPT_hide_supporting_panes_fullscreen:
+        return compact ? (narrow ? "Hide panes FS" : "Hide panes full-screen")
+                       : "Hide supporting panes on full-screen screens";
     case OPT_show_level_entry_banner:
         return compact ? (narrow ? "Entry text" : "Entry narrative")
                        : "Level entry narrative";
@@ -14029,6 +14036,8 @@ static void option_apply_side_effects(int opt)
         p_ptr->update |= (PU_PANEL);
         p_ptr->redraw |= (PR_MAP | PR_EXTRA | PR_DEPTH);
     }
+    if (opt == OPT_hide_supporting_panes_fullscreen)
+        sdl_refresh_supporting_panes_layout();
     if (opt == OPT_stealth_vision || opt == OPT_visual_recognition
         || opt == OPT_sleep_icon)
         p_ptr->redraw |= (PR_MAP);
@@ -16879,6 +16888,7 @@ void do_cmd_options(void)
 
     /* Save screen */
     screen_save();
+    screen_push_supporting_panes_hidden();
     if (p_ptr && p_ptr->playing)
         sdl_music_play_menu_theme();
 
@@ -16981,6 +16991,7 @@ void do_cmd_options(void)
     message_flush();
 
     /* Load screen */
+    screen_pop_supporting_panes_hidden();
     screen_load();
     if (p_ptr && p_ptr->playing)
         sdl_music_stop_main();
@@ -23734,6 +23745,7 @@ void do_cmd_knowledge_browser_page(int page)
     curse_cnt = knowledge_collect_curses(curse_idx);
 
     screen_save();
+    screen_push_supporting_panes_hidden();
     if (p_ptr && p_ptr->playing)
         sdl_music_play_menu_theme();
 
@@ -24175,6 +24187,7 @@ void do_cmd_knowledge_browser_page(int page)
     mem_free_null(object_idx);
     mem_free_null(artefact_idx);
 
+    screen_pop_supporting_panes_hidden();
     screen_load();
     if (p_ptr && p_ptr->playing)
         sdl_music_stop_main();
