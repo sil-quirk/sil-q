@@ -6193,10 +6193,22 @@ void pause_with_text(const char desc[][100], int row, int col,
     {
         int total_rows = banner_lines + main_rows;
 
-        if (row < 0)
-            row = 0;
-        if ((row + total_rows) > term_hgt)
-            row = term_hgt - total_rows;
+        if (extra)
+        {
+            row = (term_hgt - total_rows) / 2;
+        }
+        else
+        {
+            int slack = term_hgt - total_rows;
+
+            if (row < 0)
+                row = 0;
+            if (slack < 0)
+                slack = 0;
+            if (row > slack)
+                row = slack;
+        }
+
         if (row < 0)
             row = 0;
     }
