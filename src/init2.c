@@ -2825,7 +2825,6 @@ extern void display_introduction(void)
     welcome_screen_compute_layout(term_hgt, arg_wizard, &layout,
         NULL, NULL, NULL);
     display_introduction_with_layout(&layout);
-    Term_fresh();
 }
 
 static void welcome_prompt_label(int binding, const char* fallback,
@@ -3407,12 +3406,6 @@ void init_angband(void)
      * screen uses the configured style and first-launch state. */
     sdl_config_load_app_options(get_sdl_config_path());
     run_mode_reset();
-
-    /*** Display the introduction ***/
-
-    sdl_story_font_enable();
-    display_introduction();
-    sdl_story_font_reset();
 
     /*** Verify (or create) the "high score" file ***/
 

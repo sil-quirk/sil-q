@@ -253,6 +253,7 @@ static bool g_active_side_panes = true;
 static bool g_active_bottom_panes = true;
 static bool g_supporting_panes_layout_visible = true;
 static bool g_suppress_layout_refresh_present = false;
+static bool g_skip_main_redraw_on_layout_refresh = false;
 static gamepad_input_state g_gamepad_state;
 static bool g_gamepad_auto_ui = false;
 static int g_default_gamepad_button_bindings[SDL_GAMEPAD_BUTTON_COUNT];
@@ -388,6 +389,7 @@ void clear_sdl_touch_pane_button_label_for_panel(int panel, int index);
 void get_sdl_touch_pane_panel_name(int panel, char* buf, size_t buflen);
 void set_sdl_touch_pane_panel_name(int panel, cptr name);
 static void sdl_update_cursor_visibility(void);
+static void sdl_draw_rect_outline_inside(const SDL_Rect* rect);
 static bool sdl_should_show_supporting_panes(void);
 static bool sdl_hide_supporting_panes_mode_effective(void);
 static bool sdl_layout_matches_supporting_pane_visibility(void);
@@ -606,6 +608,32 @@ static void sdl_update_cursor_visibility(void)
         SDL_ShowCursor();
     else
         SDL_HideCursor();
+}
+
+static void sdl_draw_rect_outline_inside(const SDL_Rect* rect)
+{
+    int x1;
+    int y1;
+    int x2;
+    int y2;
+
+    if (!rect || rect->w <= 0 || rect->h <= 0)
+        return;
+
+    x1 = rect->x;
+    y1 = rect->y;
+    x2 = rect->x + rect->w - 1;
+    y2 = rect->y + rect->h - 1;
+
+    if (x2 < x1 || y2 < y1)
+        return;
+
+    SDL_RenderLine(g_state.renderer, (float)x1, (float)y1, (float)x2, (float)y1);
+    if (y2 > y1)
+        SDL_RenderLine(g_state.renderer, (float)x1, (float)y2, (float)x2, (float)y2);
+    SDL_RenderLine(g_state.renderer, (float)x1, (float)y1, (float)x1, (float)y2);
+    if (x2 > x1)
+        SDL_RenderLine(g_state.renderer, (float)x2, (float)y1, (float)x2, (float)y2);
 }
 
 static int sdl_build_active_pane_config(struct pane_config* active, bool include_side,
@@ -3955,12 +3983,7 @@ static void sdl_present_if_needed(sdl_view* d)
             if (!show_supporting_panes && i != PANE_MAIN && i != PANE_TOUCH)
                 continue;
 
-            SDL_RenderRect(g_state.renderer, &(SDL_FRect){
-                .x = (float)view->rect.x,
-                .y = (float)view->rect.y,
-                .w = (float)view->rect.w,
-                .h = (float)view->rect.h,
-            });
+            sdl_draw_rect_outline_inside(&view->rect);
         }
     }
 
@@ -4536,7 +4559,8 @@ static errr sdl_view_link_term(sdl_view* d, int term_index)
         term* old = Term;
         Term_activate(t);
         Term_resize(d->cols, d->rows);
-        Term_redraw();
+        if (!(g_skip_main_redraw_on_layout_refresh && term_index == PANE_MAIN))
+            Term_redraw();
         Term_activate(old);
         return 0;
     }
@@ -6610,18 +6634,25 @@ int get_sdl_max_scale(void)
 void sdl_refresh_supporting_panes_layout(void)
 {
     SDL_Rect screen;
+    bool target_show_supporting_panes;
 
     if (!g_state.window)
         return;
-    if (sdl_layout_matches_supporting_pane_visibility())
+    target_show_supporting_panes = sdl_should_show_supporting_panes();
+    if (g_supporting_panes_layout_visible == target_show_supporting_panes)
         return;
 
     SDL_GetWindowSizeInPixels(g_state.window, &screen.w, &screen.h);
     screen.x = 0;
     screen.y = 0;
+    g_skip_main_redraw_on_layout_refresh =
+        (!target_show_supporting_panes && g_supporting_panes_layout_visible);
     g_suppress_layout_refresh_present = true;
     resize(&screen);
     g_suppress_layout_refresh_present = false;
+    if (g_skip_main_redraw_on_layout_refresh)
+        g_state.need_present = false;
+    g_skip_main_redraw_on_layout_refresh = false;
 }
 
 /*

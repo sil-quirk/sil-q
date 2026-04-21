@@ -2394,28 +2394,12 @@ void message_flush(void)
  * Hack -- prevent "accidents" in "screen_save()" or "screen_load()"
  */
 static int screen_depth = 0;
-static u64b screen_cleared_mask = 0;
 static int supporting_panes_hidden_depth = 0;
 static bool startup_supporting_panes_hidden = false;
 
-static void screen_track_term_clear(term* t)
-{
-    if (!t || screen_depth <= 0)
-        return;
-    if (t != term_screen)
-        return;
-
-    if (screen_depth < 64)
-        screen_cleared_mask |= ((u64b)1 << screen_depth);
-    else
-        screen_cleared_mask = ~(u64b)0;
-
-    sdl_refresh_supporting_panes_layout();
-}
-
 bool screen_saved_fullscreen_active(void)
 {
-    return (screen_depth > 0 && screen_cleared_mask != 0);
+    return false;
 }
 
 void screen_push_supporting_panes_hidden(void)
@@ -2454,11 +2438,7 @@ bool screen_startup_supporting_panes_hidden_active(void)
  */
 void screen_save(void)
 {
-    int new_depth = screen_depth + 1;
-
-    g_term_clear_hook = screen_track_term_clear;
-    if (new_depth > 0 && new_depth < 64)
-        screen_cleared_mask &= ~((u64b)1 << new_depth);
+    g_term_clear_hook = NULL;
 
     /* Hack -- Flush messages */
     message_flush();
@@ -2500,9 +2480,6 @@ void screen_load(void)
 {
     bool restored_screen = false;
 
-    if (screen_depth > 0 && screen_depth < 64)
-        screen_cleared_mask &= ~((u64b)1 << screen_depth);
-
     /* Hack -- Flush messages */
     message_flush();
 
@@ -2511,7 +2488,6 @@ void screen_load(void)
     {
         Term_load();
         restored_screen = true;
-        screen_cleared_mask = 0;
     }
 
     /* Decrease "icky" depth */

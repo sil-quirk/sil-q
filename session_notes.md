@@ -140,6 +140,44 @@
 - Validation:
   - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed after this pass.
 
+## 2026-04-21: Hidden-pane transition frame suppression
+- `src/main-sdl.c`
+  - When switching from normal layout into hidden-pane mode, SDL now resizes the term layout without redrawing the old main-term contents into the new expanded main pane first.
+  - The automatic pending present from that resize is also dropped on hide-transitions, so SDL waits for the destination screen to actually draw before presenting.
+  - Intended effect:
+    - remove the brief "game screen shifted up/left" frame before full-screen menus,
+    - reduce welcome/story-stats flashes caused by presenting a transitional canvas,
+    - make all full-screen screens that use the shared layout-switch path behave consistently.
+- Pane borders:
+  - Replaced the pane-border pass in `sdl_present_if_needed()` with an explicit inside-the-rect outline instead of relying on `SDL_RenderRect()` edge behavior.
+  - Intended effect: avoid missing/cut separator lines on pane edges.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed after this pass.
+
+## 2026-04-21: Re-alignment with develop transition model
+- Compared the current SDL/full-screen transition path against `develop`.
+- `src/util.c`
+  - Removed the generic `screen_save()` + `Term_clear()` full-screen detector (`g_term_clear_hook` / `screen_cleared_mask`) from the hidden-pane system.
+  - Rationale: this was the only path that resized the SDL layout from inside `Term_clear()`, which does not exist on `develop` and was a likely source of transition flashes / shifted intermediate frames.
+- `src/init2.c`
+  - Removed the extra `Term_fresh()` that had been added to `display_introduction()`.
+  - Rationale: `develop` did not present the intro immediately there; the extra early present likely caused the “welcome first appears left, then recenters” behavior.
+- `src/main-sdl.c`
+  - Kept the hide-transition suppression that skips redrawing the old main-game canvas into the newly expanded hidden-pane layout.
+  - Kept suppression of the automatic intermediate present on hide-transitions.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed after this pass.
+
+## 2026-04-21: Welcome-first-draw removal and inside-edge pane borders
+- `src/init2.c`
+  - Removed the early `display_introduction()` call from `init_angband()`.
+  - Rationale: the welcome screen was still being drawn again by `initial_menu()`, so the startup path could visibly show an earlier differently-positioned intro render before the real menu draw.
+- `src/main-sdl.c`
+  - Restored the explicit inside-the-rect pane-outline helper for the main present pass.
+  - Rationale: drawing pane borders directly on the outermost pixel edge can hide the top/left lines at screen edge 0, which matches the reported “bottom visible, top/left missing” symptom.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed after this pass.
+
 ## 2026-03-18: Deterministic guaranteed artefact monster drops
 - Updated `src/drop_system.c`, `src/object2.c`, and `src/externs.h` so the guaranteed artefact path now selects from eligible artefact catalog entries directly instead of repeatedly sampling the general drop pool and hoping one roll lands on an artefact.
 - Root issue: `make_guaranteed_artefact()` only retried normal weighted generation up to 1024 times, so `RF3_DROP_ARTEFACT` monsters could still fail to produce an artefact when the artefact share of the candidate pool was too small.
