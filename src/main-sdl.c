@@ -48,7 +48,7 @@ static const struct pane_config default_pane_config[] = {
     {.pane = PANE_INVENTORY, .where = PLACE_RIGHT, .enabled = true},
     {.pane = PANE_WORN, .where = PLACE_RIGHT, .enabled = true},
     {.pane = PANE_INFO, .where = PLACE_RIGHT, .enabled = true, .rect.rows = 8},
-    {.pane = PANE_TOUCH, .where = PLACE_DOUBLE_RIGHT, .enabled = true},
+    {.pane = PANE_TOUCH, .where = PLACE_DOUBLE_RIGHT, .enabled = false},
     // In the bottom
     {.pane = PANE_ROLLS, .where = PLACE_BOTTOM, .enabled = true, .rect.rows = 4},
     {.pane = PANE_LOG, .where = PLACE_BOTTOM, .enabled = true},
@@ -1001,7 +1001,7 @@ static void sdl_ensure_touch_pane_config_present(void)
     pane_config[pane_config_count++] = (struct pane_config){
         .pane = PANE_TOUCH,
         .where = PLACE_DOUBLE_RIGHT,
-        .enabled = true,
+        .enabled = false,
         .rect = { .rows = 0, .cols = 0 },
         .ratio = 0.0f,
     };
