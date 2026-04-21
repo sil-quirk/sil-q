@@ -181,6 +181,7 @@ static void layout_bottom_group(enum pane_placement where,
         int cells;
         int min_size;
         int cell_px;
+        int remaining_px;
 
         if (!config[i].enabled || config[i].where != where)
             continue;
@@ -198,6 +199,12 @@ static void layout_bottom_group(enum pane_placement where,
             distr_px -= pane_px;
             distr_count--;
         }
+
+        remaining_px = area->x + area->w - coord;
+        if (remaining_px < 0)
+            remaining_px = 0;
+        if (pane_px > remaining_px)
+            pane_px = remaining_px;
 
         pane = &panes[config[i].pane];
         *pane = (SDL_Rect){
@@ -274,6 +281,7 @@ static void layout_side_group(enum pane_placement where,
         int cells;
         int min_size;
         int cell_px;
+        int remaining_px;
 
         if (!config[i].enabled || config[i].where != where)
             continue;
@@ -291,6 +299,12 @@ static void layout_side_group(enum pane_placement where,
             distr_px -= pane_px;
             distr_count--;
         }
+
+        remaining_px = area->y + area->h - coord;
+        if (remaining_px < 0)
+            remaining_px = 0;
+        if (pane_px > remaining_px)
+            pane_px = remaining_px;
 
         pane = &panes[config[i].pane];
         *pane = (SDL_Rect){

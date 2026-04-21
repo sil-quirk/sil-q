@@ -5035,13 +5035,6 @@ PlayResult play_game(void)
     /* Validate quest states after load (auto-complete if targets are dead) */
     validate_tulkas_quest_on_load();
 
-    /* Flash a message */
-    Term_clear();
-    prt("Please wait...", 0, 0);
-
-    /* Flush the message */
-    Term_fresh();
-
     /* Hack -- Enter wizard mode */
     if (arg_wizard && enter_wizard_mode())
     {

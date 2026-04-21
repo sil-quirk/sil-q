@@ -10,6 +10,20 @@
 - Validation:
   - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
 
+## 2026-04-21: Clamp pane-group overflow to stop side/bottom overlap
+- `src/pane.c`
+  - Added a final `remaining_px` clamp in both `layout_bottom_group()` and `layout_side_group()`.
+  - Rationale: current logs showed a right-side pane extending 10 px into the bottom-pane strip, which matches the visible “crossed” border shape. Even if upstream size math over-allocates by a few pixels because of rounding/margins, the final pane rects should never overlap the remaining layout area.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: Remove unconditional startup "Please wait..." screen
+- `src/dungeon.c`
+  - Removed the unconditional `Term_clear()` + `prt("Please wait...")` + `Term_fresh()` handoff after story/statistics and before the first real gameplay initialization work.
+  - Rationale: on fast machines this only produced a blink, and on slower Android hardware it could remain visible long enough to feel like a separate transient screen. The cleaner behavior is to keep the previous startup screen visible until gameplay is actually ready to draw.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
 ## 2026-04-21: Hidden-pane flash and border root-cause fix
 - `src/main-sdl.c`
   - Changed `sdl_refresh_supporting_panes_layout()` so every hidden-pane visibility switch skips redrawing the old main-term contents during the intermediate resize.
