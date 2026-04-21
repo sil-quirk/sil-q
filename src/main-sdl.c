@@ -389,7 +389,8 @@ void clear_sdl_touch_pane_button_label_for_panel(int panel, int index);
 void get_sdl_touch_pane_panel_name(int panel, char* buf, size_t buflen);
 void set_sdl_touch_pane_panel_name(int panel, cptr name);
 static void sdl_update_cursor_visibility(void);
-static void sdl_draw_rect_outline_inside(const SDL_Rect* rect);
+static void sdl_draw_pane_frame(const SDL_Rect* rect, bool draw_left,
+    bool draw_top, bool draw_right, bool draw_bottom);
 static bool sdl_should_show_supporting_panes(void);
 static bool sdl_hide_supporting_panes_mode_effective(void);
 static bool sdl_layout_matches_supporting_pane_visibility(void);
@@ -610,7 +611,8 @@ static void sdl_update_cursor_visibility(void)
         SDL_HideCursor();
 }
 
-static void sdl_draw_rect_outline_inside(const SDL_Rect* rect)
+static void sdl_draw_pane_frame(const SDL_Rect* rect, bool draw_left,
+    bool draw_top, bool draw_right, bool draw_bottom)
 {
     int x1;
     int y1;
@@ -628,11 +630,13 @@ static void sdl_draw_rect_outline_inside(const SDL_Rect* rect)
     if (x2 < x1 || y2 < y1)
         return;
 
-    SDL_RenderLine(g_state.renderer, (float)x1, (float)y1, (float)x2, (float)y1);
-    if (y2 > y1)
+    if (draw_top)
+        SDL_RenderLine(g_state.renderer, (float)x1, (float)y1, (float)x2, (float)y1);
+    if (draw_bottom)
         SDL_RenderLine(g_state.renderer, (float)x1, (float)y2, (float)x2, (float)y2);
-    SDL_RenderLine(g_state.renderer, (float)x1, (float)y1, (float)x1, (float)y2);
-    if (x2 > x1)
+    if (draw_left)
+        SDL_RenderLine(g_state.renderer, (float)x1, (float)y1, (float)x1, (float)y2);
+    if (draw_right)
         SDL_RenderLine(g_state.renderer, (float)x2, (float)y1, (float)x2, (float)y2);
 }
 
@@ -3921,6 +3925,8 @@ static void sdl_present_if_needed(sdl_view* d)
     bool show_supporting_panes;
     bool layout_matches;
     int visible_views = 0;
+    int screen_w = 0;
+    int screen_h = 0;
 
     if (!g_state.need_present)
         return;
@@ -3935,6 +3941,8 @@ static void sdl_present_if_needed(sdl_view* d)
     SDL_SetRenderTarget(g_state.renderer, NULL);
     SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
     SDL_RenderClear(g_state.renderer);
+    if (g_state.window)
+        SDL_GetWindowSizeInPixels(g_state.window, &screen_w, &screen_h);
 
     for (int i = 0; i < MAX_TERM_DATA; i++) {
         if (!g_views[i].canvas)
@@ -3983,7 +3991,14 @@ static void sdl_present_if_needed(sdl_view* d)
             if (!show_supporting_panes && i != PANE_MAIN && i != PANE_TOUCH)
                 continue;
 
-            sdl_draw_rect_outline_inside(&view->rect);
+            if (i == PANE_TOUCH)
+                continue;
+
+            sdl_draw_pane_frame(&view->rect,
+                true,
+                true,
+                (screen_w > 0 && view->rect.x + view->rect.w >= screen_w),
+                (screen_h > 0 && view->rect.y + view->rect.h >= screen_h));
         }
     }
 
@@ -6645,8 +6660,10 @@ void sdl_refresh_supporting_panes_layout(void)
     SDL_GetWindowSizeInPixels(g_state.window, &screen.w, &screen.h);
     screen.x = 0;
     screen.y = 0;
-    g_skip_main_redraw_on_layout_refresh =
-        (!target_show_supporting_panes && g_supporting_panes_layout_visible);
+    /* The caller will either redraw the destination scene or restore a saved
+     * main-term buffer immediately after the layout change. Redrawing the old
+     * outgoing main contents here is what produces the visible "flash" frame. */
+    g_skip_main_redraw_on_layout_refresh = true;
     g_suppress_layout_refresh_present = true;
     resize(&screen);
     g_suppress_layout_refresh_present = false;

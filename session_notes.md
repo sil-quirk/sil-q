@@ -1,5 +1,17 @@
 # Session notes
 
+## 2026-04-21: Hidden-pane flash and border root-cause fix
+- `src/main-sdl.c`
+  - Changed `sdl_refresh_supporting_panes_layout()` so every hidden-pane visibility switch skips redrawing the old main-term contents during the intermediate resize.
+  - Rationale: both hide and show transitions were still resizing the SDL layout immediately, and the resize path redraws the current main term unless explicitly suppressed. That was the stale-frame source behind welcome/game/story flashes during scene handoff.
+  - The intermediate layout refresh still rebuilds the supporting panes, but it no longer presents the outgoing main scene before the destination screen redraw or `screen_load()` restore happens.
+- Pane borders:
+  - Replaced the per-pane full-rectangle outline pass with selective edge drawing.
+  - New rule: draw top/left edges for each visible non-touch pane, and only draw right/bottom edges when that pane actually reaches the window edge.
+  - Rationale: full inside-rect outlines created double/shared-edge artifacts at the right/bottom junctions and could leave the bottom outer border effectively missing.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
 ## 2026-04-21: SDL supporting-pane hiding for full-screen screens
 - Goal: hide right/bottom supporting panes on full-screen style screens, but keep them on overlay-style UIs (in-game main menu, inventory, equipment, unified look, etc.), with touch treated separately.
 - Core detection model:
