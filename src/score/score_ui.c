@@ -1335,7 +1335,6 @@ void show_scores(bool longscore)
             ensure_entry_visible(ordered_by_time, &count_time, capacity, highlight_entry, false, &highlight_time);
     }
 
-    screen_save();
     screen_push_supporting_panes_hidden();
     while (true)
     {
@@ -1362,8 +1361,6 @@ void show_scores(bool longscore)
         break;
     }
     screen_pop_supporting_panes_hidden();
-    screen_load();
-    Term_fresh();
 
     forced_highlight_active = false;
     score_last_layout_short = !detailed;

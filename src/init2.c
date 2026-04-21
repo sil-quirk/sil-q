@@ -2208,6 +2208,7 @@ extern void re_init_some_things(void)
     int i;
 
     run_mode_reset();
+    screen_set_startup_supporting_panes_hidden(true);
 
     // wipe the whole player structure
     memset(p_ptr, 0, sizeof(player_type));
@@ -2243,9 +2244,6 @@ extern void re_init_some_things(void)
 
         /* Erase */
         Term_clear();
-
-        /* Refresh */
-        Term_fresh();
 
         /* Restore */
         Term_activate(old);
@@ -3265,6 +3263,9 @@ static void display_introduction_with_layout(
         break;
     }
 
+    /* Flush it */
+    Term_fresh();
+
     /* Restore cursor visibility */
     (void)Term_set_cursor(_saved_cursor_state);
 
@@ -3406,6 +3407,12 @@ void init_angband(void)
      * screen uses the configured style and first-launch state. */
     sdl_config_load_app_options(get_sdl_config_path());
     run_mode_reset();
+
+    /*** Display the introduction ***/
+
+    sdl_story_font_enable();
+    display_introduction();
+    sdl_story_font_reset();
 
     /*** Verify (or create) the "high score" file ***/
 
@@ -3681,9 +3688,6 @@ void init_angband(void)
 extern NavResult initial_menu(bool *start_new)
 {
     log_info("initial_menu: ENTERED - showing main menu");
-    screen_push_supporting_panes_hidden();
-    screen_set_startup_supporting_panes_hidden(false);
-
     if (sdl_music_consume_welcome_main_once()
         || score_count_alive_entries() > 0)
         sdl_music_play_main();
@@ -3703,15 +3707,13 @@ extern NavResult initial_menu(bool *start_new)
     /* Build the welcome screen as a single layout block.
      * Default keeps the legacy top margin (intro starts at row 1).
      * If the terminal is too short for that, start at row 0. */
-    welcome_intro_layout layout;
     bool show_sep;
     bool show_blank;
     bool show_prompt;
     bool show_wizard_line = arg_wizard;
 
-    welcome_screen_compute_layout(hgt, show_wizard_line, &layout,
+    welcome_screen_compute_layout(hgt, show_wizard_line, NULL,
         &show_sep, &show_blank, &show_prompt);
-    display_introduction_with_layout(&layout);
     welcome_screen_draw_footer(show_wizard_line, show_sep, show_blank,
         show_prompt);
     if (false)
@@ -3773,7 +3775,6 @@ extern NavResult initial_menu(bool *start_new)
         || (steamdeck && ch == steamdeck_confirm_key()))
     {
         log_info("initial_menu: User pressed space/enter - starting game");
-        screen_set_startup_supporting_panes_hidden(true);
         run_mode_set_pending(RUN_MODE_STORY);
         *start_new = true;
         result = NAV_OK;   /* start new game */
@@ -3791,7 +3792,6 @@ extern NavResult initial_menu(bool *start_new)
 
 menu_done:
     log_info("initial_menu: EXITING with result=%d", result);
-    screen_pop_supporting_panes_hidden();
     if (sdl_config_should_force_intro_flame()) {
         sdl_config_mark_intro_seen();
         save_pane_config_to_json();

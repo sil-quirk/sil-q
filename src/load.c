@@ -157,6 +157,7 @@ static byte color_rle_value_prefetch = 0;
 
 static u16b new_artefacts;
 static u16b art_norm_count;
+static bool load_note_screen_enabled = false;
 
 /*
  * Hack -- Show information on the screen, one line at a time.
@@ -166,6 +167,12 @@ static u16b art_norm_count;
 static void note(cptr msg)
 {
     static int y = 2;
+
+    if (msg && msg[0])
+        log_debug("load note: %s", msg);
+
+    if (!load_note_screen_enabled)
+        return;
 
     /* Draw the message */
     prt(msg, y, 0);
@@ -3887,6 +3894,7 @@ bool load_player(void)
     cptr what = "generic";
 
     log_debug("Loading savefile '%s'", savefile);
+    load_note_screen_enabled = arg_fiddle;
 
     /* Paranoia */
     turn = 0;
@@ -4264,9 +4272,17 @@ bool load_player(void)
 #endif /* VERIFY_SAVEFILE */
 
     /* Message */
-    msg_format("Error (%s) reading %d.%d.%d savefile.", what, sf_major,
-        sf_minor, sf_patch);
-    message_flush();
+    if (load_note_screen_enabled)
+    {
+        msg_format("Error (%s) reading %d.%d.%d savefile.", what, sf_major,
+            sf_minor, sf_patch);
+        message_flush();
+    }
+    else
+    {
+        log_warn("Error (%s) reading %d.%d.%d savefile.", what, sf_major,
+            sf_minor, sf_patch);
+    }
 
     /* Oops */
     return (false);

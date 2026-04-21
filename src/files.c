@@ -8941,7 +8941,6 @@ void print_story(int last_parts, bool fade_in)
     log_debug("Story range: start=%d, total=%d", start, total);
 
     /* Screen prep ------------------------------------------- */
-    screen_save();
     screen_push_supporting_panes_hidden();
     Term_get_size(&wid, &h);
     Term_clear();
@@ -9115,7 +9114,6 @@ void print_story(int last_parts, bool fade_in)
     
     sdl_story_font_disable();  // Disable after story display
     screen_pop_supporting_panes_hidden();
-    screen_load();
     /* Restore previous cursor visibility and hide_cursor flag */
     (void)Term_set_cursor(_saved_cursor_state);
     hide_cursor = _saved_hide_cursor;

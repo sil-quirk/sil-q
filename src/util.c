@@ -2390,6 +2390,19 @@ void message_flush(void)
     }
 }
 
+void message_discard_pending(void)
+{
+    msg_flag = false;
+    message_column = 0;
+
+    if (!Term)
+        return;
+
+    Term_erase(0, 0, 255);
+    if (ui_top_status_line_enabled())
+        restore_top_status_line_after_clear();
+}
+
 /*
  * Hack -- prevent "accidents" in "screen_save()" or "screen_load()"
  */
@@ -2429,6 +2442,22 @@ void screen_set_startup_supporting_panes_hidden(bool hidden)
 bool screen_startup_supporting_panes_hidden_active(void)
 {
     return startup_supporting_panes_hidden;
+}
+
+void screen_clear_all_terms_no_fresh(void)
+{
+    term* old = Term;
+
+    for (int i = 0; i < ANGBAND_TERM_MAX; i++)
+    {
+        if (!angband_term[i])
+            continue;
+
+        Term_activate(angband_term[i]);
+        Term_clear();
+    }
+
+    Term_activate(old);
 }
 
 /*

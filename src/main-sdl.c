@@ -389,7 +389,7 @@ void clear_sdl_touch_pane_button_label_for_panel(int panel, int index);
 void get_sdl_touch_pane_panel_name(int panel, char* buf, size_t buflen);
 void set_sdl_touch_pane_panel_name(int panel, cptr name);
 static void sdl_update_cursor_visibility(void);
-static void sdl_draw_pane_frame(const SDL_Rect* rect, bool draw_left,
+static void sdl_draw_pane_edges(const SDL_Rect* rect, bool draw_left,
     bool draw_top, bool draw_right, bool draw_bottom);
 static bool sdl_should_show_supporting_panes(void);
 static bool sdl_hide_supporting_panes_mode_effective(void);
@@ -609,35 +609,6 @@ static void sdl_update_cursor_visibility(void)
         SDL_ShowCursor();
     else
         SDL_HideCursor();
-}
-
-static void sdl_draw_pane_frame(const SDL_Rect* rect, bool draw_left,
-    bool draw_top, bool draw_right, bool draw_bottom)
-{
-    int x1;
-    int y1;
-    int x2;
-    int y2;
-
-    if (!rect || rect->w <= 0 || rect->h <= 0)
-        return;
-
-    x1 = rect->x;
-    y1 = rect->y;
-    x2 = rect->x + rect->w - 1;
-    y2 = rect->y + rect->h - 1;
-
-    if (x2 < x1 || y2 < y1)
-        return;
-
-    if (draw_top)
-        SDL_RenderLine(g_state.renderer, (float)x1, (float)y1, (float)x2, (float)y1);
-    if (draw_bottom)
-        SDL_RenderLine(g_state.renderer, (float)x1, (float)y2, (float)x2, (float)y2);
-    if (draw_left)
-        SDL_RenderLine(g_state.renderer, (float)x1, (float)y1, (float)x1, (float)y2);
-    if (draw_right)
-        SDL_RenderLine(g_state.renderer, (float)x2, (float)y1, (float)x2, (float)y2);
 }
 
 static int sdl_build_active_pane_config(struct pane_config* active, bool include_side,
@@ -879,7 +850,10 @@ static void sdl_compute_split_panes(const SDL_Rect* screen, SDL_Rect* panes)
 
 static bool sdl_hide_supporting_panes_mode_effective(void)
 {
-    if (op_ptr && !op_ptr->opt[OPT_hide_supporting_panes_fullscreen])
+    /* Startup hidden mode must be able to take effect before persistent
+     * options have been loaded into op_ptr. */
+    if (!screen_startup_supporting_panes_hidden_active()
+        && op_ptr && !op_ptr->opt[OPT_hide_supporting_panes_fullscreen])
         return false;
 
     for (int i = 0; i < pane_config_count; i++) {
@@ -898,6 +872,62 @@ static bool sdl_hide_supporting_panes_mode_effective(void)
     }
 
     return false;
+}
+
+static void sdl_draw_pane_edges(const SDL_Rect* rect, bool draw_left,
+    bool draw_top, bool draw_right, bool draw_bottom)
+{
+    int x1;
+    int y1;
+    int x2;
+    int y2;
+
+    if (!rect || rect->w <= 0 || rect->h <= 0)
+        return;
+
+    x1 = rect->x;
+    y1 = rect->y;
+    x2 = rect->x + rect->w - 1;
+    y2 = rect->y + rect->h - 1;
+
+    if (x2 < x1 || y2 < y1)
+        return;
+
+    if (draw_top)
+        SDL_RenderFillRect(g_state.renderer, &(SDL_FRect){
+            .x = (float)x1,
+            .y = (float)y1,
+            .w = (float)(x2 - x1 + 1),
+            .h = 1.0f,
+        });
+    if (draw_bottom)
+        SDL_RenderFillRect(g_state.renderer, &(SDL_FRect){
+            .x = (float)x1,
+            .y = (float)y2,
+            .w = (float)(x2 - x1 + 1),
+            .h = 1.0f,
+        });
+
+    {
+        int top_offset = draw_top ? 1 : 0;
+        int bottom_offset = draw_bottom ? 1 : 0;
+        int edge_height = y2 - y1 + 1 - top_offset - bottom_offset;
+
+        if (edge_height > 0 && draw_left)
+            SDL_RenderFillRect(g_state.renderer, &(SDL_FRect){
+                .x = (float)x1,
+                .y = (float)(y1 + top_offset),
+                .w = 1.0f,
+                .h = (float)edge_height,
+            });
+        if (edge_height > 0 && draw_right)
+            SDL_RenderFillRect(g_state.renderer, &(SDL_FRect){
+                .x = (float)x2,
+                .y = (float)(y1 + top_offset),
+                .w = 1.0f,
+                .h = (float)edge_height,
+            });
+    }
 }
 
 static bool sdl_should_show_supporting_panes(void)
@@ -3939,6 +3969,7 @@ static void sdl_present_if_needed(sdl_view* d)
         return;
 
     SDL_SetRenderTarget(g_state.renderer, NULL);
+    SDL_SetRenderClipRect(g_state.renderer, NULL);
     SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
     SDL_RenderClear(g_state.renderer);
     if (g_state.window)
@@ -3994,7 +4025,7 @@ static void sdl_present_if_needed(sdl_view* d)
             if (i == PANE_TOUCH)
                 continue;
 
-            sdl_draw_pane_frame(&view->rect,
+            sdl_draw_pane_edges(&view->rect,
                 true,
                 true,
                 (screen_w > 0 && view->rect.x + view->rect.w >= screen_w),

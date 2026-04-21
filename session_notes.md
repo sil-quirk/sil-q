@@ -1,5 +1,15 @@
 # Session notes
 
+## 2026-04-21: Welcome presentation restore + pane-owned border pass
+- `src/init2.c`
+  - Restored the `develop`-style intro flush inside `display_introduction_with_layout()`.
+  - Rationale: keep the intro visible immediately during loading without reintroducing the extra `initial_menu()` redraw that made the welcome screen worse.
+- `src/main-sdl.c`
+  - Switched the visible pane-border pass back from `SDL_RenderRect()` to explicit pane-owned edge drawing with 1-pixel filled rects.
+  - Rationale: the remaining right/bottom junction artifact matches SDL stroke/endpoint behavior more than pane placement, and the explicit edge pass gives deterministic ownership of the shared separator pixels.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
 ## 2026-04-21: Hidden-pane flash and border root-cause fix
 - `src/main-sdl.c`
   - Changed `sdl_refresh_supporting_panes_layout()` so every hidden-pane visibility switch skips redrawing the old main-term contents during the intermediate resize.
@@ -9,6 +19,108 @@
   - Replaced the per-pane full-rectangle outline pass with selective edge drawing.
   - New rule: draw top/left edges for each visible non-touch pane, and only draw right/bottom edges when that pane actually reaches the window edge.
   - Rationale: full inside-rect outlines created double/shared-edge artifacts at the right/bottom junctions and could leave the bottom outer border effectively missing.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: Remaining startup flash + clipped outer pane edges
+- `src/files.c`
+  - Removed the internal `screen_save()` / `screen_load()` pair from `print_story()`.
+  - Rationale: every real caller either already wraps it in an outer save/load or uses it as a true scene transition. The internal restore was therefore redundant at best and a stale-screen flash source at worst.
+- `src/metarun.c`
+  - `print_metarun_stats()` now only uses `screen_save()` / `screen_load()` in the true in-game overlay case.
+  - Rationale: keep normal in-game overlay behavior, but avoid restoring stale welcome/gameplay buffers during the startup story-stats handoff into character creation/difficulty/blessing/history screens.
+- `src/main-sdl.c`
+  - Pane borders are now split into:
+    - internal separators drawn once from pane rects,
+    - one explicit full-window outer frame drawn last.
+  - Rationale: the top/right outer edges were not reliable when inferred indirectly from individual pane rects, while a dedicated final window frame guarantees those borders stay visible.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: Scene-boundary blanking + clip-reset border pass
+- `src/util.c`, `src/externs.h`
+  - Added `screen_clear_all_terms_no_fresh()`.
+  - Rationale: if a stale `Term_fresh()` still happens during a scene handoff, it should present blank terms rather than the previous welcome/game screen.
+- `src/main.c`
+  - Clears all term buffers without presenting:
+    - immediately after leaving the welcome screen to start/load a run,
+    - immediately after `play_game()` returns to the outer loop (except hard quit).
+  - Rationale: this targets the exact welcome <-> gameplay scene boundaries rather than trying to infer every indirect redraw path.
+- `src/main-sdl.c`
+  - Reverted the doubled outer frame.
+  - `sdl_present_if_needed()` now resets the renderer clip rect before the screen pass and draws a single explicit outer window frame.
+  - Rationale: the previous doubled frame was the wrong fix; the more plausible issue is a stale clip state suppressing the outer top/right edges.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: Direct startup present cleanup + single-pass pane edges
+- `src/dungeon.c`
+  - `play_game()` now clears the main term before presenting the temporary `Please wait...` screen.
+  - Rationale: that `Term_fresh()` happens before the first real gameplay redraw, so if the previous full-screen scene was still in the term buffer it could be presented directly.
+- `src/main-sdl.c`
+  - Removed the explicit outer-window frame pass again.
+  - Pane borders now come only from the pane pass:
+    - left/top edges for every visible non-touch pane,
+    - right/bottom edges only for panes that actually touch the window edge.
+  - Rationale: the doubled/global frame experiment was the wrong direction; this keeps border ownership local to panes while still drawing the missing outer top/right segments.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: Remove Halls restore + blank startup handoff after story stats
+- `src/score/score_ui.c`
+  - Removed the outer `screen_save()` / `screen_load()` wrapper from `show_scores()`.
+  - Rationale: every caller either redraws its own next screen or exits immediately, so restoring the previous screen at Halls-of-Mandos exit was just a flash source.
+- `src/dungeon.c`
+  - Added `screen_clear_all_terms_no_fresh()` immediately after startup `print_story_intro()` / `print_metarun_stats()` and after startup `print_story()`.
+  - Rationale: the following startup screens own the redraw; blanking the term buffers prevents any incidental `Term_fresh()` from briefly showing the just-closed story/statistics scene.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: Discard pending startup messages + pixel-rect pane borders
+- `src/util.c`, `src/externs.h`
+  - Added `message_discard_pending()`.
+  - Rationale: queued top-line messages can survive a full-screen screen exit and then appear on the first unrelated refresh as a brief white-text flash.
+- `src/dungeon.c`
+  - After startup `print_story_intro()` / `print_metarun_stats()` and after startup `print_story()`, the code now:
+    - clears all term buffers without presenting,
+    - discards any pending message-line state.
+  - Rationale: the next startup screen owns the redraw; nothing from the previous scene should remain eligible for display.
+- `src/main-sdl.c`
+  - Changed pane-edge rendering from `SDL_RenderLine()` to 1-pixel `SDL_RenderFillRect()` strips.
+  - Rationale: the remaining right/bottom crossover looked like rasterization/endpoint behavior at line intersections rather than layout math.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: Suppress load-note screen output + corner-owned pane edges
+- `src/load.c`
+  - Loader `note()` messages now log but do not render/flush to the screen unless `arg_fiddle` is enabled.
+  - The final generic load error message is also log-only unless screen load notes are explicitly enabled.
+  - Rationale: startup/autoload load probes were visibly presenting `"Loading a X.Y.Z savefile..."`, which matches the recorded flash evidence.
+- `src/main-sdl.c`
+  - Vertical pane edges now start one pixel below their own top edge when that top edge is also drawn.
+  - Rationale: the remaining right/bottom crossover looked like both edges claiming the same junction pixel.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: Restore develop-style welcome flow + symmetric pane corner ownership
+- `src/init2.c`
+  - Restored the `develop` welcome flow:
+    - `display_introduction()` is again called during `init_angband()` and `re_init_some_things()`,
+    - `initial_menu()` no longer redraws its own introduction block and instead just draws the footer/prompt over the already-present intro.
+  - Rationale: this brings back the old startup feel where the welcome text is visible immediately during loading, with the footer appearing afterward.
+- `src/main-sdl.c`
+  - Vertical pane edges now also yield the bottom corner pixel when the pane draws its own bottom edge.
+  - Rationale: this matches the earlier top-corner ownership rule and should remove the remaining right/bottom junction crossover.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: Compare-to-develop pass for lingering init note + pane junction
+- `src/init2.c`
+  - `initial_menu()` now redraws the intro block again before drawing the footer.
+  - Rationale: with the hidden-pane startup path, the old init note could survive from an earlier terminal extent; redrawing the intro block is the safest way to clear it while keeping the intro visible during loading.
+- `src/main-sdl.c`
+  - Reverted the pane-border pass to the `develop` model: `SDL_RenderRect()` per visible non-touch pane.
+  - Rationale: the custom edge-ownership pass had become a source of junction artifacts; `develop`’s simpler rectangle outlines are the correct comparison baseline.
 - Validation:
   - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
 

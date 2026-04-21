@@ -4846,6 +4846,12 @@ PlayResult play_game(void)
             print_story_intro();
         else
             print_metarun_stats();
+
+        /* The next startup screen owns the full redraw. Blank any leftover
+         * term buffers so an incidental Term_fresh() cannot flash the just-
+         * closed intro/stats scene. */
+        screen_clear_all_terms_no_fresh();
+        message_discard_pending();
     }
 
     /* New startup behavior: try to auto-load any alive character
@@ -5014,6 +5020,8 @@ PlayResult play_game(void)
     {
         sdl_music_play_main_full();
         print_story(15,1);
+        screen_clear_all_terms_no_fresh();
+        message_discard_pending();
     }
 
     log_debug("Game initialization complete, starting main game loop");
@@ -5028,6 +5036,7 @@ PlayResult play_game(void)
     validate_tulkas_quest_on_load();
 
     /* Flash a message */
+    Term_clear();
     prt("Please wait...", 0, 0);
 
     /* Flush the message */
