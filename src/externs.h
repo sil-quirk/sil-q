@@ -1788,6 +1788,8 @@ extern bool get_sdl_fullscreen(void);
 extern void set_sdl_fullscreen(bool value);
 extern bool get_sdl_tiles(void);
 extern void set_sdl_tiles(bool value);
+extern bool get_sdl_use_unsafe_area(void);
+extern void set_sdl_use_unsafe_area(bool value);
 extern int get_pane_config_count(void);
 extern bool get_sdl_enable_right_panes(void);
 extern void set_sdl_enable_right_panes(bool value);
@@ -1856,6 +1858,7 @@ extern int get_sdl_gamepad_default_button_binding(int button);
 extern int get_sdl_gamepad_default_trigger_binding(int index);
 extern int get_sdl_gamepad_default_left_stick_binding(int dir);
 extern int get_sdl_gamepad_default_right_stick_binding(int dir);
+extern int get_sdl_gamepad_default_combo_binding(int modifier, int type, int id);
 extern int get_sdl_gamepad_default_shoulder_combo_binding(void);
 extern void sdl_gamepad_reset_bindings_to_default(void);
 extern void sdl_gamepad_action_binding_label(int binding, char* buf, size_t buflen);
@@ -1876,6 +1879,12 @@ extern void set_sdl_touch_pane_button_label_for_panel(int panel, int index, cptr
 extern void clear_sdl_touch_pane_button_label_for_panel(int panel, int index);
 extern void get_sdl_touch_pane_panel_name(int panel, char* buf, size_t buflen);
 extern void set_sdl_touch_pane_panel_name(int panel, cptr name);
+extern bool get_sdl_touch_swipe_enabled(void);
+extern void set_sdl_touch_swipe_enabled(bool value);
+extern int get_sdl_touch_swipe_binding(int dir);
+extern void set_sdl_touch_swipe_binding(int dir, int binding);
+extern bool get_sdl_touch_swipe_default_enabled(void);
+extern int get_sdl_touch_swipe_default_binding(int dir);
 /* Steam Deck UI menu helpers - get key bindings for menu actions */
 extern int steamdeck_back_key(void);      /* B button (EAST) - for back/quit */
 extern int steamdeck_confirm_key(void);   /* A button (SOUTH) - for confirm/ok */

@@ -56,6 +56,7 @@ struct sdl_config {
     int margin;
     bool fullscreen;
     bool tiles;
+    bool use_unsafe_area;
     bool enable_right_panes;
     bool enable_bottom_panes;
     bool show_pane_borders;
@@ -114,6 +115,8 @@ struct sdl_config {
     int touch_pane_second_bindings[SDL_TOUCH_PANE_BUTTON_COUNT];
     char touch_pane_second_labels[SDL_TOUCH_PANE_BUTTON_COUNT][SDL_TOUCH_PANE_LABEL_LEN];
     char touch_pane_panel_names[SDL_TOUCH_PANE_PANEL_COUNT][SDL_TOUCH_PANE_LABEL_LEN];
+    bool touch_swipe_enabled;
+    int touch_swipe_bindings[GAMEPAD_STICK_DIR_COUNT];
 };
 
 // Load SDL configuration from JSON file

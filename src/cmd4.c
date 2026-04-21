@@ -14974,6 +14974,7 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed);
 static void do_cmd_supporting_pane_font_editor(bool* settings_changed);
 static void do_cmd_touch_pane_button_editor(bool* settings_changed);
 static const char* pane_type_short_name(enum pane_type type);
+
 static void format_font_size_value(char* buf, size_t buflen, int raw, int effective,
     int max_chars)
 {
@@ -15013,6 +15014,7 @@ void do_cmd_pane_settings(void)
         PANE_SETTING_ENABLE_BOTTOM_PANES,
         PANE_SETTING_FULLSCREEN,
         PANE_SETTING_TILES,
+        PANE_SETTING_USE_UNSAFE_AREA,
         PANE_SETTING_WHITE_PANE_BORDERS,
         PANE_SETTING_HIDE_FULLSCREEN_PANES,
         PANE_SETTING_AUX_VIEW_FONT_SIZE,
@@ -15108,7 +15110,18 @@ void do_cmd_pane_settings(void)
             get_sdl_tiles() ? "yes" : "no", row_width, 3);
         c_prt(a, buf, y0 + 5, 2);
 
-        /* Option 6: White Pane Borders */
+        /* Option 6: Use Unsafe Area */
+        a = (k == PANE_SETTING_USE_UNSAFE_AREA) ? TERM_L_BLUE : TERM_WHITE;
+        settings_ui_format_pair_line(buf, sizeof(buf),
+            settings_ui_pick_label(label_hint,
+                "Use Unsafe Area (notch/cutout area)",
+                "Use Unsafe Area",
+                "Unsafe Area"),
+            get_sdl_use_unsafe_area() ? "yes" : "no",
+            row_width, 3);
+        c_prt(a, buf, y0 + 6, 2);
+
+        /* Option 7: White Pane Borders */
         a = (k == PANE_SETTING_WHITE_PANE_BORDERS) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_format_pair_line(buf, sizeof(buf),
             settings_ui_pick_label(label_hint,
@@ -15117,9 +15130,9 @@ void do_cmd_pane_settings(void)
                 "White Borders"),
             get_sdl_show_pane_borders() ? "white" : "black",
             row_width, 5);
-        c_prt(a, buf, y0 + 6, 2);
+        c_prt(a, buf, y0 + 7, 2);
 
-        /* Option 7: Hide supporting panes on full-screen screens */
+        /* Option 8: Hide supporting panes on full-screen screens */
         a = (k == PANE_SETTING_HIDE_FULLSCREEN_PANES) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_format_pair_line(buf, sizeof(buf),
             settings_ui_pick_label(label_hint,
@@ -15128,9 +15141,9 @@ void do_cmd_pane_settings(void)
                 "Hide panes on full-screen"),
             op_ptr->opt[OPT_hide_supporting_panes_fullscreen] ? "yes" : "no",
             row_width, 3);
-        c_prt(a, buf, y0 + 7, 2);
+        c_prt(a, buf, y0 + 8, 2);
 
-        /* Option 8: Aux View Font Size */
+        /* Option 9: Aux View Font Size */
         a = (k == PANE_SETTING_AUX_VIEW_FONT_SIZE) ? TERM_L_BLUE : TERM_WHITE;
         format_font_size_value(font_value, sizeof(font_value),
             get_sdl_aux_view_font_size(), get_sdl_effective_aux_view_font_size(),
@@ -15141,9 +15154,9 @@ void do_cmd_pane_settings(void)
                 "Default Aux Font (0=auto)",
                 "Aux Font"),
             font_value, row_width, 6);
-        c_prt(a, buf, y0 + 8, 2);
+        c_prt(a, buf, y0 + 9, 2);
 
-        /* Option 9: View Pane Configuration (supporting panes only) */
+        /* Option 10: View Pane Configuration (supporting panes only) */
         a = (k == PANE_SETTING_VIEW_PANE_CONFIGURATION) ? TERM_L_BLUE : TERM_WHITE;
         strnfmt(buf, sizeof(buf), "%s (%d)",
             settings_ui_pick_label(row_width,
@@ -15156,9 +15169,9 @@ void do_cmd_pane_settings(void)
             settings_ui_fit_text(fitted_buf, sizeof(fitted_buf), buf, row_width);
             SDL_strlcpy(buf, fitted_buf, sizeof(buf));
         }
-        c_prt(a, buf, y0 + 9, 2);
+        c_prt(a, buf, y0 + 10, 2);
 
-        /* Option 10: Pane Font Sizes */
+        /* Option 11: Pane Font Sizes */
         a = (k == PANE_SETTING_PANE_FONT_SIZES) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_fit_text(buf, sizeof(buf),
             settings_ui_pick_label(row_width,
@@ -15166,15 +15179,15 @@ void do_cmd_pane_settings(void)
                 "Pane Fonts",
                 "Pane Fonts"),
             row_width);
-        c_prt(a, buf, y0 + 10, 2);
+        c_prt(a, buf, y0 + 11, 2);
 
-        /* Option 11: Save/Return */
+        /* Option 12: Save/Return */
         a = (k == PANE_SETTING_SAVE_RETURN) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_fit_text(buf, sizeof(buf),
             settings_changed ? "Save Changes and Return"
                              : "Return to Options Menu",
             row_width);
-        c_prt(a, buf, y0 + 11, 2);
+        c_prt(a, buf, y0 + 12, 2);
 
         /* Display help */
         int y = Term->hgt - 3;
@@ -15311,6 +15324,11 @@ void do_cmd_pane_settings(void)
                 set_sdl_tiles(!get_sdl_tiles());
                 settings_changed = true;
             }
+            else if (k == PANE_SETTING_USE_UNSAFE_AREA)
+            {
+                set_sdl_use_unsafe_area(!get_sdl_use_unsafe_area());
+                settings_changed = true;
+            }
             else if (k == PANE_SETTING_WHITE_PANE_BORDERS)
             {
                 set_sdl_show_pane_borders(!get_sdl_show_pane_borders());
@@ -15391,6 +15409,11 @@ void do_cmd_pane_settings(void)
                 set_sdl_tiles(true);
                 settings_changed = true;
             }
+            else if (k == PANE_SETTING_USE_UNSAFE_AREA) /* Use Unsafe Area */
+            {
+                set_sdl_use_unsafe_area(true);
+                settings_changed = true;
+            }
             else if (k == PANE_SETTING_WHITE_PANE_BORDERS) /* White Pane Borders */
             {
                 set_sdl_show_pane_borders(true);
@@ -15467,6 +15490,11 @@ void do_cmd_pane_settings(void)
             else if (k == PANE_SETTING_TILES) /* Tiles */
             {
                 set_sdl_tiles(false);
+                settings_changed = true;
+            }
+            else if (k == PANE_SETTING_USE_UNSAFE_AREA) /* Use Unsafe Area */
+            {
+                set_sdl_use_unsafe_area(false);
                 settings_changed = true;
             }
             else if (k == PANE_SETTING_WHITE_PANE_BORDERS) /* White Pane Borders */
@@ -16146,17 +16174,30 @@ static const int* touch_pane_action_choices_for_panel(int panel, int* count)
         : touch_pane_main_action_choices;
 }
 
-static int touch_pane_action_choice_index(int panel, int binding)
+static const int* touch_swipe_action_choices(int* count)
 {
-    int count = 0;
-    const int* choices = touch_pane_action_choices_for_panel(panel, &count);
+    if (count)
+        *count = (int)N_ELEMENTS(touch_pane_main_action_choices);
 
+    return touch_pane_main_action_choices;
+}
+
+static int touch_action_choice_index(const int* choices, int count, int binding)
+{
     for (int i = 0; i < count; i++)
     {
         if (choices[i] == binding)
             return i;
     }
     return 0;
+}
+
+static int touch_pane_action_choice_index(int panel, int binding)
+{
+    int count = 0;
+    const int* choices = touch_pane_action_choices_for_panel(panel, &count);
+
+    return touch_action_choice_index(choices, count, binding);
 }
 
 static bool touch_pane_binding_is_confirm(int binding)
@@ -16223,6 +16264,64 @@ static void touch_pane_action_label_for_panel(int panel, int binding, char* buf,
     binding_action_short(binding, buf, buflen);
 }
 
+enum {
+    TOUCH_SETTING_SWIPE_ENABLED = 0,
+    TOUCH_SETTING_SWIPE_UP,
+    TOUCH_SETTING_SWIPE_DOWN,
+    TOUCH_SETTING_SWIPE_LEFT,
+    TOUCH_SETTING_SWIPE_RIGHT,
+    TOUCH_SETTING_SWIPE_COUNT
+};
+
+static bool touch_setting_is_swipe_row(int row)
+{
+    return (row >= 0 && row < TOUCH_SETTING_SWIPE_COUNT);
+}
+
+static int touch_setting_button_index(int row)
+{
+    return row - TOUCH_SETTING_SWIPE_COUNT;
+}
+
+static int touch_setting_total_rows(void)
+{
+    return TOUCH_SETTING_SWIPE_COUNT + SDL_TOUCH_PANE_BUTTON_COUNT;
+}
+
+static int touch_setting_swipe_dir_for_row(int row)
+{
+    switch (row) {
+    case TOUCH_SETTING_SWIPE_UP:
+        return GAMEPAD_STICK_DIR_UP;
+    case TOUCH_SETTING_SWIPE_DOWN:
+        return GAMEPAD_STICK_DIR_DOWN;
+    case TOUCH_SETTING_SWIPE_LEFT:
+        return GAMEPAD_STICK_DIR_LEFT;
+    case TOUCH_SETTING_SWIPE_RIGHT:
+        return GAMEPAD_STICK_DIR_RIGHT;
+    default:
+        return -1;
+    }
+}
+
+static const char* touch_setting_swipe_name(int row)
+{
+    switch (row) {
+    case TOUCH_SETTING_SWIPE_ENABLED:
+        return "Swipe Gestures";
+    case TOUCH_SETTING_SWIPE_UP:
+        return "Swipe Up";
+    case TOUCH_SETTING_SWIPE_DOWN:
+        return "Swipe Down";
+    case TOUCH_SETTING_SWIPE_LEFT:
+        return "Swipe Left";
+    case TOUCH_SETTING_SWIPE_RIGHT:
+        return "Swipe Right";
+    default:
+        return "";
+    }
+}
+
 static void do_cmd_touch_pane_button_editor(bool* settings_changed)
 {
     int highlight = 0;
@@ -16240,6 +16339,7 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         int row;
         int visible_rows;
         int row_width;
+        int total_rows = touch_setting_total_rows();
 
         Term_get_size(&term_w, &term_h);
         row_width = settings_ui_line_width(2);
@@ -16249,8 +16349,8 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
 
         if (highlight < 0)
             highlight = 0;
-        if (highlight >= SDL_TOUCH_PANE_BUTTON_COUNT)
-            highlight = SDL_TOUCH_PANE_BUTTON_COUNT - 1;
+        if (highlight >= total_rows)
+            highlight = total_rows - 1;
 
         if (top > highlight)
             top = highlight;
@@ -16264,7 +16364,7 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         settings_ui_put_fitted(2, 2, TERM_WHITE, "==============");
 
         row = list_start_row;
-        for (int i = top; i < SDL_TOUCH_PANE_BUTTON_COUNT && i < top + visible_rows; i++)
+        for (int i = top; i < total_rows && i < top + visible_rows; i++)
         {
             char action_buf[80];
             char label_buf[SDL_TOUCH_PANE_LABEL_LEN];
@@ -16272,16 +16372,37 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             char line_buf[128];
             byte a = (i == highlight) ? TERM_L_BLUE : TERM_WHITE;
 
-            get_sdl_touch_pane_button_label_for_panel(panel, i, label_buf, sizeof(label_buf));
-            touch_pane_action_label_for_panel(panel,
-                get_sdl_touch_pane_binding_for_panel(panel, i), action_buf, sizeof(action_buf));
+            if (touch_setting_is_swipe_row(i))
+            {
+                int swipe_dir = touch_setting_swipe_dir_for_row(i);
 
-            if (label_buf[0])
-                strnfmt(left_buf, sizeof(left_buf), "%s %s",
-                    get_sdl_touch_pane_slot_name(i), label_buf);
+                strnfmt(left_buf, sizeof(left_buf), "%s", touch_setting_swipe_name(i));
+                if (i == TOUCH_SETTING_SWIPE_ENABLED)
+                {
+                    SDL_strlcpy(action_buf, get_sdl_touch_swipe_enabled() ? "On" : "Off",
+                        sizeof(action_buf));
+                }
+                else
+                {
+                    touch_pane_action_label_for_panel(SDL_TOUCH_PANE_PANEL_MAIN,
+                        get_sdl_touch_swipe_binding(swipe_dir), action_buf, sizeof(action_buf));
+                }
+            }
             else
-                strnfmt(left_buf, sizeof(left_buf), "%s",
-                    get_sdl_touch_pane_slot_name(i));
+            {
+                int button_index = touch_setting_button_index(i);
+
+                get_sdl_touch_pane_button_label_for_panel(panel, button_index, label_buf, sizeof(label_buf));
+                touch_pane_action_label_for_panel(panel,
+                    get_sdl_touch_pane_binding_for_panel(panel, button_index), action_buf, sizeof(action_buf));
+
+                if (label_buf[0])
+                    strnfmt(left_buf, sizeof(left_buf), "%s %s",
+                        get_sdl_touch_pane_slot_name(button_index), label_buf);
+                else
+                    strnfmt(left_buf, sizeof(left_buf), "%s",
+                        get_sdl_touch_pane_slot_name(button_index));
+            }
 
             settings_ui_format_pair_line(line_buf, sizeof(line_buf), left_buf,
                 action_buf, row_width, 14);
@@ -16294,25 +16415,25 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             char info_buf[96];
 
             get_sdl_touch_pane_panel_name(panel, panel_name, sizeof(panel_name));
-            strnfmt(info_buf, sizeof(info_buf), "Editing %s panel%s",
+            strnfmt(info_buf, sizeof(info_buf), "Swipe settings are global. Editing %s panel%s",
                 panel_name, (panel == SDL_TOUCH_PANE_PANEL_SECOND) ? " (empty = main panel)" : "");
             settings_ui_put_fitted(3, 2, TERM_SLATE, info_buf);
         }
         settings_ui_put_fitted(row++, 2, TERM_SLATE,
             settings_ui_pick_label(row_width,
-                "Up/Down: select button   4/6: previous/next action   l/View: rename slot",
+                "Up/Down: select item   4/6: previous/next action   l/View: rename button label",
                 "Up/Down select   4/6 action   l/View rename",
                 "Up/Down select   4/6 action"));
         settings_ui_put_fitted(row++, 2, TERM_SLATE,
             settings_ui_pick_label(row_width,
-                "Tab/Ability: switch panel   p/Hero: rename panel   x/Desc: reset selected   M/Map: reset all",
-                "Tab switch   p/Hero rename   x reset   Map reset all",
-                "Tab switch   x reset   Map all"));
+                "Space on Swipe Gestures toggles on/off   Tab switches button panel   x resets selected",
+                "Space toggles swipes   Tab switch   x reset",
+                "Space toggles   Tab switch   x reset"));
         settings_ui_put_fitted(row++, 2, TERM_SLATE,
             settings_ui_pick_label(row_width,
-                "ESC/Enter: return   Main panel must keep Pick/Confirm",
-                "Esc/Enter return   Keep main Pick/Confirm",
-                "Esc/Enter   Keep confirm"));
+                "p/Hero: rename panel   M/Map: reset all   Main panel must keep Pick/Confirm",
+                "p rename panel   Map reset all   Keep main confirm",
+                "p rename   Map all   Keep confirm"));
 
         Term_fresh();
 
@@ -16336,27 +16457,52 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
 
         case '-':
         case '8':
-            highlight = (SDL_TOUCH_PANE_BUTTON_COUNT + highlight - 1) % SDL_TOUCH_PANE_BUTTON_COUNT;
+            highlight = (total_rows + highlight - 1) % total_rows;
             break;
 
         case '2':
-            highlight = (highlight + 1) % SDL_TOUCH_PANE_BUTTON_COUNT;
+            highlight = (highlight + 1) % total_rows;
             break;
 
         case 'n':
         case '4':
         {
-            int choice_count = 0;
-            const int* choices = touch_pane_action_choices_for_panel(panel, &choice_count);
-            int idx = touch_pane_action_choice_index(panel, get_sdl_touch_pane_binding_for_panel(panel, highlight));
-            idx = (choice_count + idx - 1) % choice_count;
+            if (touch_setting_is_swipe_row(highlight))
+            {
+                int swipe_dir = touch_setting_swipe_dir_for_row(highlight);
 
-            if (!touch_pane_main_confirm_change_allowed(panel, highlight, choices[idx])) {
-                bell("Bind Pick/Confirm to another main-panel button first.");
-                break;
+                if (highlight == TOUCH_SETTING_SWIPE_ENABLED)
+                {
+                    set_sdl_touch_swipe_enabled(false);
+                }
+                else
+                {
+                    int choice_count = 0;
+                    const int* choices = touch_swipe_action_choices(&choice_count);
+                    int idx = touch_action_choice_index(choices, choice_count,
+                        get_sdl_touch_swipe_binding(swipe_dir));
+
+                    idx = (choice_count + idx - 1) % choice_count;
+                    set_sdl_touch_swipe_binding(swipe_dir, choices[idx]);
+                }
             }
+            else
+            {
+                int button_index = touch_setting_button_index(highlight);
+                int choice_count = 0;
+                const int* choices = touch_pane_action_choices_for_panel(panel, &choice_count);
+                int idx = touch_pane_action_choice_index(panel,
+                    get_sdl_touch_pane_binding_for_panel(panel, button_index));
 
-            set_sdl_touch_pane_binding_for_panel(panel, highlight, choices[idx]);
+                idx = (choice_count + idx - 1) % choice_count;
+
+                if (!touch_pane_main_confirm_change_allowed(panel, button_index, choices[idx])) {
+                    bell("Bind Pick/Confirm to another main-panel button first.");
+                    break;
+                }
+
+                set_sdl_touch_pane_binding_for_panel(panel, button_index, choices[idx]);
+            }
             changed = true;
             break;
         }
@@ -16367,17 +16513,42 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         case 't':
         case '5':
         {
-            int choice_count = 0;
-            const int* choices = touch_pane_action_choices_for_panel(panel, &choice_count);
-            int idx = touch_pane_action_choice_index(panel, get_sdl_touch_pane_binding_for_panel(panel, highlight));
-            idx = (idx + 1) % choice_count;
+            if (touch_setting_is_swipe_row(highlight))
+            {
+                int swipe_dir = touch_setting_swipe_dir_for_row(highlight);
 
-            if (!touch_pane_main_confirm_change_allowed(panel, highlight, choices[idx])) {
-                bell("Bind Pick/Confirm to another main-panel button first.");
-                break;
+                if (highlight == TOUCH_SETTING_SWIPE_ENABLED)
+                {
+                    set_sdl_touch_swipe_enabled(!get_sdl_touch_swipe_enabled());
+                }
+                else
+                {
+                    int choice_count = 0;
+                    const int* choices = touch_swipe_action_choices(&choice_count);
+                    int idx = touch_action_choice_index(choices, choice_count,
+                        get_sdl_touch_swipe_binding(swipe_dir));
+
+                    idx = (idx + 1) % choice_count;
+                    set_sdl_touch_swipe_binding(swipe_dir, choices[idx]);
+                }
             }
+            else
+            {
+                int button_index = touch_setting_button_index(highlight);
+                int choice_count = 0;
+                const int* choices = touch_pane_action_choices_for_panel(panel, &choice_count);
+                int idx = touch_pane_action_choice_index(panel,
+                    get_sdl_touch_pane_binding_for_panel(panel, button_index));
 
-            set_sdl_touch_pane_binding_for_panel(panel, highlight, choices[idx]);
+                idx = (idx + 1) % choice_count;
+
+                if (!touch_pane_main_confirm_change_allowed(panel, button_index, choices[idx])) {
+                    bell("Bind Pick/Confirm to another main-panel button first.");
+                    break;
+                }
+
+                set_sdl_touch_pane_binding_for_panel(panel, button_index, choices[idx]);
+            }
             changed = true;
             break;
         }
@@ -16392,16 +16563,25 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             char current_label[SDL_TOUCH_PANE_LABEL_LEN];
             char new_label[SDL_TOUCH_PANE_LABEL_LEN];
             char current_buf[96];
+            int button_index;
 
-            get_sdl_touch_pane_button_label_for_panel(panel, highlight, current_label, sizeof(current_label));
+            if (touch_setting_is_swipe_row(highlight))
+            {
+                bell("Swipe labels are fixed.");
+                break;
+            }
+
+            button_index = touch_setting_button_index(highlight);
+
+            get_sdl_touch_pane_button_label_for_panel(panel, button_index, current_label, sizeof(current_label));
             strnfmt(prompt_long, sizeof(prompt_long),
                 "New label for %s (blank = use key label): ",
-                get_sdl_touch_pane_slot_name(highlight));
+                get_sdl_touch_pane_slot_name(button_index));
             strnfmt(prompt_medium, sizeof(prompt_medium),
                 "New label for %s (blank = default): ",
-                get_sdl_touch_pane_slot_name(highlight));
+                get_sdl_touch_pane_slot_name(button_index));
             strnfmt(prompt_short, sizeof(prompt_short), "Label for %s: ",
-                get_sdl_touch_pane_slot_name(highlight));
+                get_sdl_touch_pane_slot_name(button_index));
             strnfmt(prompt, sizeof(prompt), "%s",
                 settings_ui_pick_label(settings_ui_line_width(0),
                     prompt_long, prompt_medium, prompt_short));
@@ -16410,7 +16590,7 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             new_label[0] = '\0';
             if (term_get_string(prompt, new_label, sizeof(new_label)))
             {
-                set_sdl_touch_pane_button_label_for_panel(panel, highlight, new_label);
+                set_sdl_touch_pane_button_label_for_panel(panel, button_index, new_label);
                 changed = true;
             }
             break;
@@ -16452,15 +16632,30 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         case 'r':
         case 'x':
         case 'X':
-            if (!touch_pane_main_confirm_change_allowed(panel, highlight,
-                    get_sdl_touch_pane_default_binding_for_panel(panel, highlight))) {
-                bell("Bind Pick/Confirm to another main-panel button first.");
-                break;
-            }
+            if (touch_setting_is_swipe_row(highlight))
+            {
+                int swipe_dir = touch_setting_swipe_dir_for_row(highlight);
 
-            set_sdl_touch_pane_binding_for_panel(panel, highlight,
-                get_sdl_touch_pane_default_binding_for_panel(panel, highlight));
-            clear_sdl_touch_pane_button_label_for_panel(panel, highlight);
+                if (highlight == TOUCH_SETTING_SWIPE_ENABLED)
+                    set_sdl_touch_swipe_enabled(get_sdl_touch_swipe_default_enabled());
+                else
+                    set_sdl_touch_swipe_binding(swipe_dir,
+                        get_sdl_touch_swipe_default_binding(swipe_dir));
+            }
+            else
+            {
+                int button_index = touch_setting_button_index(highlight);
+
+                if (!touch_pane_main_confirm_change_allowed(panel, button_index,
+                        get_sdl_touch_pane_default_binding_for_panel(panel, button_index))) {
+                    bell("Bind Pick/Confirm to another main-panel button first.");
+                    break;
+                }
+
+                set_sdl_touch_pane_binding_for_panel(panel, button_index,
+                    get_sdl_touch_pane_default_binding_for_panel(panel, button_index));
+                clear_sdl_touch_pane_button_label_for_panel(panel, button_index);
+            }
             changed = true;
             break;
 
@@ -18271,7 +18466,6 @@ static void controller_clear_effective_action_bindings(int binding)
 static void controller_assign_action_binding(int binding, int type, int id)
 {
     binding = controller_store_action_binding(binding);
-    controller_clear_action_bindings(binding, type, id);
 
     if (type == GAMEPAD_CAPTURE_BUTTON) {
         set_sdl_gamepad_button_binding(id, binding);
@@ -18292,62 +18486,101 @@ static void controller_assign_combo_binding(int binding, int modifier, int type,
     set_sdl_gamepad_combo_binding(modifier, type, id, binding);
 }
 
-static bool controller_action_default_binding(int binding, int* out_type, int* out_id)
+static bool controller_restore_action_default_bindings(int binding)
 {
+    static const int modifiers[] = {
+        GAMEPAD_BIND_SHIFT,
+        GAMEPAD_BIND_CTRL,
+        GAMEPAD_BIND_ALT,
+    };
+    bool restored = false;
+
+    binding = controller_store_action_binding(binding);
+
     for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++) {
         if (controller_action_binding_equals(get_sdl_gamepad_default_button_binding(i),
                 binding)) {
-            if (out_type)
-                *out_type = GAMEPAD_CAPTURE_BUTTON;
-            if (out_id)
-                *out_id = i;
-            return true;
+            controller_assign_action_binding(binding, GAMEPAD_CAPTURE_BUTTON, i);
+            restored = true;
         }
     }
 
     for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++) {
         if (controller_action_binding_equals(get_sdl_gamepad_default_trigger_binding(i),
                 binding)) {
-            if (out_type)
-                *out_type = GAMEPAD_CAPTURE_TRIGGER;
-            if (out_id)
-                *out_id = i;
-            return true;
+            controller_assign_action_binding(binding, GAMEPAD_CAPTURE_TRIGGER, i);
+            restored = true;
         }
     }
 
     for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
         if (controller_action_binding_equals(get_sdl_gamepad_default_left_stick_binding(i),
                 binding)) {
-            if (out_type)
-                *out_type = GAMEPAD_CAPTURE_LEFT_STICK;
-            if (out_id)
-                *out_id = i;
-            return true;
+            controller_assign_action_binding(binding, GAMEPAD_CAPTURE_LEFT_STICK, i);
+            restored = true;
         }
     }
 
     for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
         if (controller_action_binding_equals(get_sdl_gamepad_default_right_stick_binding(i),
                 binding)) {
-            if (out_type)
-                *out_type = GAMEPAD_CAPTURE_RIGHT_STICK;
-            if (out_id)
-                *out_id = i;
-            return true;
+            controller_assign_action_binding(binding, GAMEPAD_CAPTURE_RIGHT_STICK, i);
+            restored = true;
         }
     }
 
     if (controller_action_binding_equals(get_sdl_gamepad_default_shoulder_combo_binding(),
             binding)) {
-        if (out_type)
-            *out_type = GAMEPAD_CAPTURE_SHOULDER_COMBO;
-        if (out_id)
-            *out_id = 0;
-        return true;
+        controller_assign_action_binding(binding, GAMEPAD_CAPTURE_SHOULDER_COMBO, 0);
+        restored = true;
     }
 
-    return false;
+    for (int mi = 0; mi < (int)N_ELEMENTS(modifiers); mi++) {
+        int modifier = modifiers[mi];
+
+        for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++) {
+            if (controller_action_binding_equals(
+                    get_sdl_gamepad_default_combo_binding(modifier,
+                        GAMEPAD_CAPTURE_BUTTON, i),
+                    binding)) {
+                controller_assign_combo_binding(binding, modifier,
+                    GAMEPAD_CAPTURE_BUTTON, i);
+                restored = true;
+            }
+        }
+
+        for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++) {
+            if (controller_action_binding_equals(
+                    get_sdl_gamepad_default_combo_binding(modifier,
+                        GAMEPAD_CAPTURE_TRIGGER, i),
+                    binding)) {
+                controller_assign_combo_binding(binding, modifier,
+                    GAMEPAD_CAPTURE_TRIGGER, i);
+                restored = true;
+            }
+        }
+
+        for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+            if (controller_action_binding_equals(
+                    get_sdl_gamepad_default_combo_binding(modifier,
+                        GAMEPAD_CAPTURE_LEFT_STICK, i),
+                    binding)) {
+                controller_assign_combo_binding(binding, modifier,
+                    GAMEPAD_CAPTURE_LEFT_STICK, i);
+                restored = true;
+            }
+            if (controller_action_binding_equals(
+                    get_sdl_gamepad_default_combo_binding(modifier,
+                        GAMEPAD_CAPTURE_RIGHT_STICK, i),
+                    binding)) {
+                controller_assign_combo_binding(binding, modifier,
+                    GAMEPAD_CAPTURE_RIGHT_STICK, i);
+                restored = true;
+            }
+        }
+    }
+
+    return restored;
 }
 
 void do_cmd_controller_settings(void)
@@ -18467,14 +18700,14 @@ void do_cmd_controller_settings(void)
             controller_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
             controller_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
             strnfmt(prompt_buf, sizeof(prompt_buf),
-                compact_width ? "D-pad %s bind  %s back"
-                              : "D-pad navigate  %s bind  %s back",
+                compact_width ? "D-pad %s add  %s back"
+                              : "D-pad navigate  %s add  %s back",
                 confirm_label, back_label);
             settings_ui_put_fitted(2, 0, TERM_WHITE, prompt_buf);
         } else {
             settings_ui_put_fitted(2, 0, TERM_WHITE,
-                compact_width ? "8/2 move  Enter bind  Esc return"
-                              : "Arrow to navigate, Enter to bind, Escape to return");
+                compact_width ? "8/2 move  Enter add  Esc return"
+                              : "Arrow to navigate, Enter to add, Escape to return");
         }
 
         for (int i = top; i < entry_count && i < top + visible_rows; i++) {
@@ -18525,12 +18758,9 @@ void do_cmd_controller_settings(void)
             highlight = (highlight + 1) % entry_count;
         } else if (ch == 'r' || (steamdeck && ch == steamdeck_alt_action_key())) {
             if (entries[highlight].type == CONTROLLER_ENTRY_ACTION) {
-                int binding_type = 0;
-                int binding_id = 0;
                 controller_clear_effective_action_bindings(entries[highlight].id);
-                if (controller_action_default_binding(entries[highlight].id, &binding_type, &binding_id)) {
-                    controller_assign_action_binding(entries[highlight].id, binding_type, binding_id);
-                    msg_print("Binding reset to default.");
+                if (controller_restore_action_default_bindings(entries[highlight].id)) {
+                    msg_print("Bindings reset to defaults.");
                 } else {
                     msg_print("No default binding for action.");
                 }
@@ -18562,26 +18792,26 @@ void do_cmd_controller_settings(void)
                     char cancel_label[16];
                     controller_prompt_label(steamdeck_back_key(), "B", cancel_label, sizeof(cancel_label));
                     strnfmt(prompt_long, sizeof(prompt_long),
-                        "Press control%s for %s  (%s=cancel)",
+                        "Press control%s to add %s  (%s=cancel)",
                         allow_modifier_combo ? " or modifier+control" : "",
                         entry->label, cancel_label);
                     strnfmt(prompt_medium, sizeof(prompt_medium),
-                        "Press%s for %s  (%s=cancel)",
+                        "Add%s to %s  (%s=cancel)",
                         allow_modifier_combo ? " control/combo" : " control",
                         entry->label, cancel_label);
                     strnfmt(prompt_short, sizeof(prompt_short),
-                        "Bind %s%s  (%s cancel)", entry->label,
+                        "Add %s%s  (%s cancel)", entry->label,
                         allow_modifier_combo ? " combo" : "", cancel_label);
                 } else {
                     strnfmt(prompt_long, sizeof(prompt_long),
-                        "Press controller control%s for %s (Esc=cancel, Backspace=clear)",
+                        "Press controller control%s to add %s (Esc=cancel, Backspace=clear)",
                         allow_modifier_combo ? " or modifier+control" : "",
                         entry->label);
                     strnfmt(prompt_medium, sizeof(prompt_medium),
-                        "Bind %s%s (Esc=cancel, Bksp=clear)", entry->label,
+                        "Add %s%s (Esc=cancel, Bksp=clear)", entry->label,
                         allow_modifier_combo ? " with control/combo" : "");
                     strnfmt(prompt_short, sizeof(prompt_short),
-                        "%s%s (Esc cancel, Bksp clear)", entry->label,
+                        "Add %s%s (Esc cancel, Bksp clear)", entry->label,
                         allow_modifier_combo ? " combo" : "");
                 }
                 strnfmt(prompt, sizeof(prompt), "%s",
@@ -18622,7 +18852,6 @@ void do_cmd_controller_settings(void)
                                 || cap_type == GAMEPAD_CAPTURE_TRIGGER
                                 || cap_type == GAMEPAD_CAPTURE_LEFT_STICK
                                 || cap_type == GAMEPAD_CAPTURE_RIGHT_STICK) {
-                                controller_clear_effective_action_bindings(entry->id);
                                 controller_assign_combo_binding(entry->id,
                                     cap_modifier, cap_type, cap_id);
                                 waiting = false;
@@ -18636,7 +18865,6 @@ void do_cmd_controller_settings(void)
                             continue;
                         }
 
-                        controller_clear_effective_action_bindings(entry->id);
                         controller_assign_action_binding(entry->id, cap_type, cap_id);
                         waiting = false;
                         break;

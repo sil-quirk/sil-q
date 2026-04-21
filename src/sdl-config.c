@@ -437,6 +437,77 @@ static int sdl_config_gamepad_action_binding_count(const struct sdl_config* conf
     return count;
 }
 
+static bool sdl_config_gamepad_combo_bindings_empty(const struct sdl_config* config)
+{
+    if (!config)
+        return true;
+
+    for (int modifier = 0; modifier < GAMEPAD_MODIFIER_COUNT; modifier++) {
+        for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++) {
+            if (config->gamepad_button_combo_bindings[modifier][i]
+                != GAMEPAD_BIND_NONE)
+                return false;
+        }
+        for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++) {
+            if (config->gamepad_trigger_combo_bindings[modifier][i]
+                != GAMEPAD_BIND_NONE)
+                return false;
+        }
+        for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+            if (config->gamepad_left_stick_combo_bindings[modifier][i]
+                != GAMEPAD_BIND_NONE)
+                return false;
+            if (config->gamepad_right_stick_combo_bindings[modifier][i]
+                != GAMEPAD_BIND_NONE)
+                return false;
+        }
+    }
+
+    return true;
+}
+
+static bool sdl_config_should_upgrade_legacy_gamepad_defaults(
+    const struct sdl_config* config)
+{
+    struct sdl_config defaults;
+
+    if (!config)
+        return false;
+
+    memset(&defaults, 0, sizeof(defaults));
+    sdl_config_set_default_gamepad_bindings(&defaults);
+
+    if (memcmp(config->gamepad_button_bindings, defaults.gamepad_button_bindings,
+            sizeof(defaults.gamepad_button_bindings)) != 0)
+        return false;
+
+    if (memcmp(config->gamepad_trigger_bindings, defaults.gamepad_trigger_bindings,
+            sizeof(defaults.gamepad_trigger_bindings)) != 0)
+        return false;
+
+    if (memcmp(config->gamepad_left_stick_bindings,
+            defaults.gamepad_left_stick_bindings,
+            sizeof(defaults.gamepad_left_stick_bindings)) != 0)
+        return false;
+
+    if (memcmp(config->gamepad_right_stick_bindings,
+            defaults.gamepad_right_stick_bindings,
+            sizeof(defaults.gamepad_right_stick_bindings)) != 0)
+        return false;
+
+    if (config->gamepad_shoulder_combo_binding
+        != defaults.gamepad_shoulder_combo_binding)
+        return false;
+
+    if (!sdl_config_gamepad_combo_bindings_empty(config))
+        return false;
+
+    if (config->steamdeck_inv_equip_same_button_cycle)
+        return false;
+
+    return true;
+}
+
 static char* read_file_contents(const char* filename)
 {
     FILE* f = fopen(filename, "rb");
@@ -525,6 +596,34 @@ bool option_is_app_persistent(int opt)
         || option_list_contains(app_visual_options, opt);
 }
 
+static bool sdl_config_should_default_top_status_line(void)
+{
+    int pane_count;
+
+    if (!get_sdl_enable_bottom_panes())
+        return false;
+
+    pane_count = get_pane_config_count();
+    for (int i = 0; i < pane_count; i++) {
+        enum pane_placement where;
+
+        if (get_sdl_pane_type(i) != PANE_LOG)
+            continue;
+        if (!get_sdl_pane_enabled(i))
+            continue;
+
+        where = (enum pane_placement)get_sdl_pane_where(i);
+        if (!pane_placement_is_bottom(where))
+            continue;
+        if (get_sdl_pane_current_rows(i) <= 0)
+            continue;
+
+        return true;
+    }
+
+    return false;
+}
+
 static void sdl_config_apply_app_option_defaults(void)
 {
     if (!op_ptr)
@@ -541,6 +640,7 @@ static void sdl_config_apply_app_option_defaults(void)
     op_ptr->intro_style = INTRO_STYLE_RANDOM;
     op_ptr->level_entry_narrative_mode = LEVEL_ENTRY_NARRATIVE_BANNER_DELAY;
     op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_BANNER;
+    op_ptr->opt[OPT_top_status_line] = sdl_config_should_default_top_status_line();
 }
 
 static void sdl_config_load_app_option_group(cJSON* app_options,
@@ -824,6 +924,20 @@ static void sdl_config_copy_pane_configs(struct pane_config* dest, int* dest_cou
     *dest_count = count;
 }
 
+static void sdl_config_copy_pane_profile(struct sdl_pane_profile* dest,
+    const struct sdl_pane_profile* src)
+{
+    if (!dest || !src)
+        return;
+
+    dest->main_view_scale = src->main_view_scale;
+    dest->aux_view_font_size = src->aux_view_font_size;
+    dest->enable_right_panes = src->enable_right_panes;
+    dest->enable_bottom_panes = src->enable_bottom_panes;
+    sdl_config_copy_pane_configs(dest->pane_configs, &dest->pane_count,
+        src->pane_configs, src->pane_count);
+}
+
 static void sdl_config_load_pane_array(cJSON* panes, struct pane_config* pane_configs,
     int* pane_count, int max_panes, const char* label)
 {
@@ -1096,6 +1210,13 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
             log_warn("tiles not found or not a boolean");
         }
 
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "useUnsafeArea");
+        if (cJSON_IsBool(item)) {
+            config->use_unsafe_area = cJSON_IsTrue(item);
+            log_debug("Loaded useUnsafeArea: %s",
+                config->use_unsafe_area ? "true" : "false");
+        }
+
         item = cJSON_GetObjectItemCaseSensitive(sdl, "enableRightPanes");
         if (cJSON_IsBool(item)) {
             config->enable_right_panes = cJSON_IsTrue(item);
@@ -1292,14 +1413,34 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
 
     {
         cJSON* pane_profiles_obj = cJSON_GetObjectItemCaseSensitive(root, "paneProfiles");
+        bool loaded_profiles[SDL_PANE_PROFILE_COUNT] = { false };
 
         if (cJSON_IsObject(pane_profiles_obj) && pane_profiles && profile_count > 0) {
             for (int mode = 0; mode < profile_count; mode++) {
                 const char* mode_name = min_terminal_mode_to_string(mode);
                 cJSON* profile_obj = cJSON_GetObjectItemCaseSensitive(pane_profiles_obj, mode_name);
 
-                if (cJSON_IsObject(profile_obj))
+                if (cJSON_IsObject(profile_obj)) {
                     sdl_config_load_pane_profile(profile_obj, &pane_profiles[mode], mode_name);
+                    if (mode >= 0 && mode < SDL_PANE_PROFILE_COUNT)
+                        loaded_profiles[mode] = true;
+                }
+            }
+
+            if (profile_count > SDL_MIN_TERMINAL_COMPACT
+                && loaded_profiles[SDL_MIN_TERMINAL_NORMAL]
+                && !loaded_profiles[SDL_MIN_TERMINAL_COMPACT]) {
+                sdl_config_copy_pane_profile(
+                    &pane_profiles[SDL_MIN_TERMINAL_COMPACT],
+                    &pane_profiles[SDL_MIN_TERMINAL_NORMAL]);
+                log_info("paneProfiles.COMPACT missing; copied NORMAL profile into COMPACT");
+            } else if (profile_count > SDL_MIN_TERMINAL_COMPACT
+                && loaded_profiles[SDL_MIN_TERMINAL_COMPACT]
+                && !loaded_profiles[SDL_MIN_TERMINAL_NORMAL]) {
+                sdl_config_copy_pane_profile(
+                    &pane_profiles[SDL_MIN_TERMINAL_NORMAL],
+                    &pane_profiles[SDL_MIN_TERMINAL_COMPACT]);
+                log_info("paneProfiles.NORMAL missing; copied COMPACT profile into NORMAL");
             }
         }
     }
@@ -1455,6 +1596,12 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
             config->gamepad_shoulder_combo_binding = GAMEPAD_BIND_NONE;
         }
 
+        if (sdl_config_should_upgrade_legacy_gamepad_defaults(config)) {
+            log_info("Upgrading legacy default gamepad config to current defaults");
+            sdl_config_set_default_gamepad_bindings(config);
+            config->steamdeck_inv_equip_same_button_cycle = true;
+        }
+
         if (config->gamepad_use_dpad) {
             config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_DPAD_UP] = GAMEPAD_BIND_NONE;
             config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_DPAD_DOWN] = GAMEPAD_BIND_NONE;
@@ -1479,6 +1626,8 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
             cJSON* second_bindings = cJSON_GetObjectItemCaseSensitive(touch_pane, "secondBindings");
             cJSON* second_labels = cJSON_GetObjectItemCaseSensitive(touch_pane, "secondLabels");
             cJSON* panel_names = cJSON_GetObjectItemCaseSensitive(touch_pane, "panelNames");
+            cJSON* swipe_enabled = cJSON_GetObjectItemCaseSensitive(touch_pane, "swipeEnabled");
+            cJSON* swipe_bindings = cJSON_GetObjectItemCaseSensitive(touch_pane, "swipeBindings");
             if (cJSON_IsArray(bindings)) {
                 int count = cJSON_GetArraySize(bindings);
                 if (count == 21) {
@@ -1532,6 +1681,19 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
                 }
                 log_debug("Loaded touchPane.panelNames (%d entries)", count);
             }
+
+            if (cJSON_IsBool(swipe_enabled)) {
+                config->touch_swipe_enabled = cJSON_IsTrue(swipe_enabled);
+                log_debug("Loaded touchPane.swipeEnabled: %s",
+                    config->touch_swipe_enabled ? "true" : "false");
+            }
+
+            if (cJSON_IsArray(swipe_bindings)) {
+                int count = cJSON_GetArraySize(swipe_bindings);
+                sdl_config_load_touch_binding_array(swipe_bindings, config->touch_swipe_bindings,
+                    GAMEPAD_STICK_DIR_COUNT);
+                log_debug("Loaded touchPane.swipeBindings (%d entries)", count);
+            }
         } else {
             log_warn("'touchPane' object not found in JSON");
         }
@@ -1565,6 +1727,7 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     cJSON_AddNumberToObject(sdl, "margin", config->margin);
     cJSON_AddBoolToObject(sdl, "fullscreen", config->fullscreen);
     cJSON_AddBoolToObject(sdl, "tiles", config->tiles);
+    cJSON_AddBoolToObject(sdl, "useUnsafeArea", config->use_unsafe_area);
     cJSON_AddBoolToObject(sdl, "enableRightPanes", config->enable_right_panes);
     cJSON_AddBoolToObject(sdl, "enableBottomPanes", config->enable_bottom_panes);
     cJSON_AddBoolToObject(sdl, "showPaneBorders", config->show_pane_borders);
@@ -1770,6 +1933,8 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
                 SDL_TOUCH_PANE_BUTTON_COUNT);
             cJSON* panel_names = sdl_config_create_string_array(config->touch_pane_panel_names,
                 SDL_TOUCH_PANE_PANEL_COUNT);
+            cJSON* swipe_bindings = sdl_config_create_int_array(config->touch_swipe_bindings,
+                GAMEPAD_STICK_DIR_COUNT);
             if (bindings) {
                 cJSON_AddItemToObject(touch_pane, "bindings", bindings);
             }
@@ -1784,6 +1949,10 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
             }
             if (panel_names) {
                 cJSON_AddItemToObject(touch_pane, "panelNames", panel_names);
+            }
+            cJSON_AddBoolToObject(touch_pane, "swipeEnabled", config->touch_swipe_enabled);
+            if (swipe_bindings) {
+                cJSON_AddItemToObject(touch_pane, "swipeBindings", swipe_bindings);
             }
             cJSON_AddItemToObject(root, "touchPane", touch_pane);
         }
@@ -1894,6 +2063,21 @@ void sdl_config_set_default_gamepad_bindings(struct sdl_config* config)
     config->gamepad_trigger_bindings[0] = GAMEPAD_BIND_SHIFT;
     config->gamepad_trigger_bindings[1] = GAMEPAD_BIND_CTRL;
 
+    config->gamepad_button_combo_bindings[GAMEPAD_MODIFIER_SHIFT][SDL_GAMEPAD_BUTTON_SOUTH] = 'Z';
+    config->gamepad_button_combo_bindings[GAMEPAD_MODIFIER_SHIFT][SDL_GAMEPAD_BUTTON_EAST] = 'F';
+    config->gamepad_button_combo_bindings[GAMEPAD_MODIFIER_SHIFT][SDL_GAMEPAD_BUTTON_WEST] = 'x';
+    config->gamepad_button_combo_bindings[GAMEPAD_MODIFIER_SHIFT][SDL_GAMEPAD_BUTTON_NORTH] = 'S';
+    config->gamepad_button_combo_bindings[GAMEPAD_MODIFIER_SHIFT][SDL_GAMEPAD_BUTTON_LEFT_SHOULDER] = 'M';
+    config->gamepad_button_combo_bindings[GAMEPAD_MODIFIER_SHIFT][SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER] = 'p';
+
+    config->gamepad_button_combo_bindings[GAMEPAD_MODIFIER_CTRL][SDL_GAMEPAD_BUTTON_SOUTH] = 'z';
+    config->gamepad_button_combo_bindings[GAMEPAD_MODIFIER_CTRL][SDL_GAMEPAD_BUTTON_EAST] = '-';
+    config->gamepad_button_combo_bindings[GAMEPAD_MODIFIER_CTRL][SDL_GAMEPAD_BUTTON_WEST] = 'X';
+    config->gamepad_button_combo_bindings[GAMEPAD_MODIFIER_CTRL][SDL_GAMEPAD_BUTTON_NORTH] = '0';
+    config->gamepad_button_combo_bindings[GAMEPAD_MODIFIER_CTRL][SDL_GAMEPAD_BUTTON_BACK] = '\t';
+    config->gamepad_button_combo_bindings[GAMEPAD_MODIFIER_CTRL][SDL_GAMEPAD_BUTTON_LEFT_SHOULDER] = 'a';
+    config->gamepad_button_combo_bindings[GAMEPAD_MODIFIER_CTRL][SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER] = 'j';
+
     config->gamepad_shoulder_combo_binding = 'l';
 }
 
@@ -1919,6 +2103,9 @@ void sdl_config_set_default_touch_pane_bindings(struct sdl_config* config)
         'L', 'X', 'p',
         'w', 'b', 'c',
     };
+    static const int swipe_defaults[GAMEPAD_STICK_DIR_COUNT] = {
+        '8', '2', '4', '6',
+    };
 
     if (!config)
         return;
@@ -1929,6 +2116,8 @@ void sdl_config_set_default_touch_pane_bindings(struct sdl_config* config)
         sizeof(config->touch_pane_panel_names[SDL_TOUCH_PANE_PANEL_MAIN]));
     SDL_strlcpy(config->touch_pane_panel_names[SDL_TOUCH_PANE_PANEL_SECOND], "Shift",
         sizeof(config->touch_pane_panel_names[SDL_TOUCH_PANE_PANEL_SECOND]));
+    config->touch_swipe_enabled = true;
+    memcpy(config->touch_swipe_bindings, swipe_defaults, sizeof(swipe_defaults));
 }
 
 void sdl_config_clear_touch_pane_labels(struct sdl_config* config)
@@ -1947,6 +2136,11 @@ void sdl_config_set_defaults(struct sdl_config* config)
     config->margin = 4;
     config->fullscreen = true;
     config->tiles = true;
+#if defined(__ANDROID__) || defined(SIL_IOS)
+    config->use_unsafe_area = false;
+#else
+    config->use_unsafe_area = false;
+#endif
     config->enable_right_panes = true;
     config->enable_bottom_panes = true;
     config->show_pane_borders = true;
@@ -1990,7 +2184,7 @@ void sdl_config_set_defaults(struct sdl_config* config)
     config->gamepad_enabled = true;
     config->gamepad_auto_mode = true;
     config->steamdeck_mode = false;
-    config->steamdeck_inv_equip_same_button_cycle = false;
+    config->steamdeck_inv_equip_same_button_cycle = true;
     config->gamepad_use_dpad = true;
     config->gamepad_use_left_stick = true;
     config->gamepad_deadzone = 12000;

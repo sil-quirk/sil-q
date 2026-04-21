@@ -1,5 +1,65 @@
 # Session notes
 
+## 2026-04-21: Android uses cutout-only; iPhone uses safeAreaInsets
+- `src/main-sdl.c`
+  - Split the mobile policy by platform instead of using one fallback for both.
+  - On Android, the app now queries `WindowInsets.getDisplayCutout()` through SDL's Android JNI hooks and uses the cutout safe insets directly instead of guessing from the aggregate safe area.
+  - On iPhone/iOS, the layout now uses SDL's safe-area rect directly, which maps to UIKit `safeAreaInsets`.
+  - The `Use Unsafe Area` override still exists; when enabled, layout uses the full window.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: Safe-area mobile layouts now anchor to the safe edge instead of centering
+- `src/main-sdl.c`
+  - When mobile layout is respecting SDL safe areas, pane contents now top-align within the available rect instead of vertically centering.
+  - The touch-pane button grid now also anchors to the safe top edge in that mode.
+  - Rationale: the previous centering wasted clearly usable top space and made the “safe area” issue look worse than it was on phones like Pixel in landscape.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: SDL safe-area layout can now be disabled per device
+- `src/main-sdl.c`, `src/sdl-config.c`, `src/sdl-config.h`, `src/cmd4.c`, `src/externs.h`
+  - Added a persisted SDL setting `Use Unsafe Area`, exposed in `SDL Pane Settings`.
+  - When enabled, layout uses the full window instead of SDL's safe-area rect; when disabled, layout continues to avoid cutout/notch/system-bar areas.
+  - Default is off on Android/iPhone builds, matching the request to keep the safe-area behavior unless the player opts into using the cutout zone.
+  - Added config save/load and startup logging for the new setting.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: SDL mobile layout now respects window safe areas
+- `src/main-sdl.c`
+  - Added SDL safe-area tracking based on `SDL_GetWindowSafeArea()`, with conversion from window units to drawable-pixel coordinates so iOS high-DPI layouts stay aligned with the renderer.
+  - Main pane layout, mobile first-start pane defaults, fullscreen relayout, config apply, and supporting-pane refresh now all use the safe-area rect instead of the raw window bounds.
+  - Added relayout handling for `SDL_EVENT_WINDOW_SAFE_AREA_CHANGED`.
+  - Touch reset confirmation overlay now anchors inside the effective layout rect, so it avoids cutouts/system bars along with the rest of the UI.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: Steam Deck defaults now include explicit modifier combos and additive action binds
+- `src/sdl-config.c`, `src/main-sdl.c`, `src/externs.h`, `src/cmd4.c`, `src/files.c`
+  - Added explicit default combos for Shift/Ctrl + face/shoulder buttons, including rest, second-quiver, stealth, examine, exchange, fletch, smithing, map, horn, activate, and supplies.
+  - Added `R2 + Back -> Abilities (Tab)` to the default combo map and help page.
+  - Switched `Inv/Equip Same-Button Cycle` on by default.
+  - Controller Settings now adds bindings to an action instead of replacing that action's other assignments, and reset-selected restores every default assignment for the chosen action.
+  - Help page combo notes were expanded to match the new defaults.
+  - Added load-time migration for legacy default-like `sil_sdl.json` gamepad configs so existing installs pick up the new combo defaults and cycle toggle automatically.
+
+## 2026-04-21: SDL touch swipes now map to 4-way directional input
+- `src/main-sdl.c`
+  - Added touch-swipe tracking for fingers that start outside the touch pane.
+  - Horizontal and vertical swipes now resolve to `4`, `6`, `8`, or `2` once movement clears a threshold derived from the current main-view cell size.
+  - Existing touch-pane taps and long-press behavior are unchanged, and swipe state is canceled on finger cancel, touch reset, and gamepad disable.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: Touch settings now own swipe on/off and swipe mapping
+- `src/cmd4.c`, `src/main-sdl.c`, `src/sdl-config.c`, `src/sdl-config.h`, `src/externs.h`
+  - Added global swipe rows to the existing `Touch Settings` editor: one on/off toggle plus separate bindings for swipe up/down/left/right.
+  - Swipe bindings now persist in the SDL config under the existing `touchPane` object and feed the runtime swipe handler directly.
+  - The earlier pane-settings shortcut for touch mapping was removed so touch/swipe configuration stays in one place.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
 ## 2026-04-21: Android first-start pane defaults now derive from available space
 - `src/main-sdl.c`
   - Added a mobile first-start default-layout helper that runs after SDL window creation, when the real window pixel size and display scale are known.

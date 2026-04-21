@@ -7593,15 +7593,48 @@ static void show_help_screen_legacy(int i, bool include_header)
         row += 1;
         {
             char shift_label[16];
-            char sing_label[16];
-            char fire_label[16];
             char note_buf[120];
             help_prompt_label(GAMEPAD_BIND_SHIFT, "L2", shift_label, sizeof(shift_label));
-            help_prompt_label('s', "Y", sing_label, sizeof(sing_label));
-            help_prompt_label('f', "B", fire_label, sizeof(fire_label));
             strnfmt(note_buf, sizeof(note_buf),
-                    "Shift: %s+%s=Stealth, %s+%s=Second quiver",
-                    shift_label, sing_label, shift_label, fire_label);
+                    "Shift: %s+A Rest, %s+B 2nd quiver, %s+X Examine, %s+Y Stealth",
+                    shift_label, shift_label, shift_label, shift_label);
+            put_role(ROLE_SUBTLE, note_buf, row, 1);
+        }
+
+        row += 1;
+        {
+            char ctrl_label[16];
+            char note_buf[120];
+            help_prompt_label(GAMEPAD_BIND_CTRL, "R2", ctrl_label, sizeof(ctrl_label));
+            strnfmt(note_buf, sizeof(note_buf),
+                    "Ctrl:  %s+A Wait, %s+B Fletch, %s+X Exchange, %s+Y Smith",
+                    ctrl_label, ctrl_label, ctrl_label, ctrl_label);
+            put_role(ROLE_SUBTLE, note_buf, row, 1);
+        }
+
+        row += 1;
+        {
+            char shift_label[16];
+            char ctrl_label[16];
+            char note_buf[120];
+            help_prompt_label(GAMEPAD_BIND_SHIFT, "L2", shift_label, sizeof(shift_label));
+            help_prompt_label(GAMEPAD_BIND_CTRL, "R2", ctrl_label, sizeof(ctrl_label));
+            strnfmt(note_buf, sizeof(note_buf),
+                    "Shoulders: %s+L1 Map, %s+R1 Horn, %s+L1 Activate, %s+R1 Supplies",
+                    shift_label, shift_label, ctrl_label, ctrl_label);
+            put_role(ROLE_SUBTLE, note_buf, row, 1);
+        }
+
+        row += 1;
+        {
+            char ctrl_label[16];
+            char back_label[16];
+            char note_buf[120];
+            help_prompt_label(GAMEPAD_BIND_CTRL, "R2", ctrl_label, sizeof(ctrl_label));
+            help_prompt_label('h', "Back", back_label, sizeof(back_label));
+            strnfmt(note_buf, sizeof(note_buf),
+                    "View:  %s Character, %s+%s Abilities",
+                    back_label, ctrl_label, back_label);
             put_role(ROLE_SUBTLE, note_buf, row, 1);
         }
 

@@ -14,6 +14,9 @@
 #include <SDL3/SDL_filesystem.h>
 #include <SDL3_image/SDL_image.h>
 #include <SDL3_ttf/SDL_ttf.h>
+#if defined(SDL_PLATFORM_ANDROID)
+#include <jni.h>
+#endif
 
 const char help_sdl[] = "SDL3";
 
@@ -25,6 +28,8 @@ enum {
     MAX_STORY_FONT_CACHE = 32,
     MAX_MONO_FONT_CACHE = 48,
     TOUCH_PANE_LONG_PRESS_MS = 350,
+    TOUCH_SWIPE_MIN_DISTANCE_PX = 24,
+    TOUCH_SWIPE_MAX_DISTANCE_PX = 72,
 };
 
 // SDL configuration (loaded from INI file)
@@ -167,6 +172,7 @@ typedef struct sdl_state {
     SDL_Renderer* renderer;
     SDL_Texture* tileset;
     SDL_Color palette[16];
+    SDL_Rect safe_area;
     float system_scale;
     int tileset_cols;
     bool need_present;
@@ -304,6 +310,16 @@ typedef struct touch_pane_press_state {
     Uint64 start_time;
 } touch_pane_press_state;
 
+typedef struct touch_swipe_state {
+    bool active;
+    bool triggered;
+    SDL_FingerID finger_id;
+    float start_x;
+    float start_y;
+    float last_x;
+    float last_y;
+} touch_swipe_state;
+
 sdl_state g_state;
 sdl_view g_views[MAX_TERM_DATA];
 static SDL_Rect g_pane_rects[PANE_MAX];
@@ -318,10 +334,16 @@ static int g_default_gamepad_button_bindings[SDL_GAMEPAD_BUTTON_COUNT];
 static int g_default_gamepad_trigger_bindings[GAMEPAD_TRIGGER_COUNT];
 static int g_default_gamepad_left_stick_bindings[GAMEPAD_STICK_DIR_COUNT];
 static int g_default_gamepad_right_stick_bindings[GAMEPAD_STICK_DIR_COUNT];
+static int g_default_gamepad_button_combo_bindings[GAMEPAD_MODIFIER_COUNT][SDL_GAMEPAD_BUTTON_COUNT];
+static int g_default_gamepad_trigger_combo_bindings[GAMEPAD_MODIFIER_COUNT][GAMEPAD_TRIGGER_COUNT];
+static int g_default_gamepad_left_stick_combo_bindings[GAMEPAD_MODIFIER_COUNT][GAMEPAD_STICK_DIR_COUNT];
+static int g_default_gamepad_right_stick_combo_bindings[GAMEPAD_MODIFIER_COUNT][GAMEPAD_STICK_DIR_COUNT];
 static int g_default_gamepad_shoulder_combo_binding = GAMEPAD_BIND_NONE;
 static bool g_default_gamepad_bindings_ready = false;
 static int g_default_touch_pane_bindings[SDL_TOUCH_PANE_PANEL_COUNT][SDL_TOUCH_PANE_BUTTON_COUNT];
 static char g_default_touch_pane_panel_names[SDL_TOUCH_PANE_PANEL_COUNT][SDL_TOUCH_PANE_LABEL_LEN];
+static bool g_default_touch_swipe_enabled = true;
+static int g_default_touch_swipe_bindings[GAMEPAD_STICK_DIR_COUNT];
 static bool g_default_touch_pane_bindings_ready = false;
 static bool g_gamepad_capture_active = false;
 static bool g_gamepad_capture_ready = false;
@@ -337,12 +359,24 @@ static bool g_touch_pane_second_panel = false;
 static bool g_touch_pane_ctrl_toggle = false;
 static bool g_touch_pane_reset_confirm_active = false;
 static touch_pane_press_state g_touch_pane_press;
+static touch_swipe_state g_touch_swipe;
 static int g_auto_aux_main_cell_h_override = 0;
 
 static sdl_view* sdl_view_from_term(term* t);
 static void sdl_view_destroy(sdl_view* d);
 void resize(const SDL_Rect* screen);
 bool steamdeck_controls_active(void);
+static bool sdl_rect_has_area(const SDL_Rect* rect);
+static SDL_Rect sdl_get_window_pixel_rect(void);
+static SDL_Rect sdl_window_rect_to_pixel_rect(const SDL_Rect* rect);
+#if defined(SDL_PLATFORM_ANDROID)
+static int sdl_android_sdk_int(JNIEnv* env);
+static SDL_Rect sdl_get_android_display_cutout_rect(void);
+#endif
+static void sdl_refresh_safe_area(void);
+static SDL_Rect sdl_get_layout_screen_rect(void);
+static bool sdl_mobile_prefer_safe_edge_alignment(void);
+static void sdl_resize_for_current_layout(void);
 static void sdl_handle_event(sdl_state* st, const SDL_Event* ev);
 static void sdl_quit_hook(cptr str);
 static errr callback_sdl_xtra(int n, int v);
@@ -440,6 +474,16 @@ static void sdl_touch_pane_send_slot(int panel, int index, bool long_press);
 static void sdl_touch_pane_send_binding(int binding, bool second_panel, bool long_press);
 static void sdl_touch_pane_load_default_bindings(void);
 static bool sdl_touch_pane_is_config_enabled(void);
+static bool sdl_is_log_pane_active(void);
+static bool sdl_is_bottom_log_pane_active(void);
+static void sdl_handle_log_pane_activation(bool log_was_active, bool bottom_log_was_active);
+static int sdl_touch_swipe_index_for_keypad_dir(int dir);
+static float sdl_touch_swipe_threshold_px(void);
+static int sdl_touch_swipe_direction_for_delta(float dx, float dy, float threshold);
+static void sdl_touch_swipe_cancel(void);
+static bool sdl_touch_swipe_handle_pointer_down(float x, float y, SDL_FingerID finger_id);
+static bool sdl_touch_swipe_handle_pointer_motion(float x, float y, SDL_FingerID finger_id);
+static void sdl_touch_swipe_handle_pointer_up(float x, float y, SDL_FingerID finger_id);
 int get_sdl_touch_pane_binding_for_panel(int panel, int index);
 void set_sdl_touch_pane_binding_for_panel(int panel, int index, int binding);
 int get_sdl_touch_pane_default_binding_for_panel(int panel, int index);
@@ -517,6 +561,369 @@ static sdl_view* sdl_view_from_term(term* t)
     }
 
     return &g_views[idx];
+}
+
+static bool sdl_rect_has_area(const SDL_Rect* rect)
+{
+    return (rect && rect->w > 0 && rect->h > 0);
+}
+
+static SDL_Rect sdl_get_window_pixel_rect(void)
+{
+    SDL_Rect rect = { 0 };
+
+    if (g_state.window)
+        SDL_GetWindowSizeInPixels(g_state.window, &rect.w, &rect.h);
+
+    return rect;
+}
+
+static SDL_Rect sdl_window_rect_to_pixel_rect(const SDL_Rect* rect)
+{
+    SDL_Rect pixel_rect = { 0 };
+    SDL_Rect pixel_window = sdl_get_window_pixel_rect();
+    int window_w = 0;
+    int window_h = 0;
+
+    if (!rect)
+        return pixel_rect;
+
+    pixel_rect = *rect;
+
+    if (!g_state.window || !sdl_rect_has_area(&pixel_window))
+        return pixel_rect;
+
+    SDL_GetWindowSize(g_state.window, &window_w, &window_h);
+    if (window_w <= 0 || window_h <= 0)
+        return pixel_rect;
+
+    if (window_w != pixel_window.w || window_h != pixel_window.h) {
+        float scale_x = (float)pixel_window.w / (float)window_w;
+        float scale_y = (float)pixel_window.h / (float)window_h;
+        int x1 = (int)SDL_ceilf((float)rect->x * scale_x);
+        int y1 = (int)SDL_ceilf((float)rect->y * scale_y);
+        int x2 = (int)SDL_floorf((float)(rect->x + rect->w) * scale_x);
+        int y2 = (int)SDL_floorf((float)(rect->y + rect->h) * scale_y);
+
+        pixel_rect.x = x1;
+        pixel_rect.y = y1;
+        pixel_rect.w = x2 - x1;
+        pixel_rect.h = y2 - y1;
+    }
+
+    if (pixel_rect.x < 0)
+        pixel_rect.x = 0;
+    if (pixel_rect.y < 0)
+        pixel_rect.y = 0;
+    if (pixel_rect.x > pixel_window.w)
+        pixel_rect.x = pixel_window.w;
+    if (pixel_rect.y > pixel_window.h)
+        pixel_rect.y = pixel_window.h;
+    if (pixel_rect.x + pixel_rect.w > pixel_window.w)
+        pixel_rect.w = pixel_window.w - pixel_rect.x;
+    if (pixel_rect.y + pixel_rect.h > pixel_window.h)
+        pixel_rect.h = pixel_window.h - pixel_rect.y;
+    if (pixel_rect.w < 0)
+        pixel_rect.w = 0;
+    if (pixel_rect.h < 0)
+        pixel_rect.h = 0;
+
+    return pixel_rect;
+}
+
+#if defined(SDL_PLATFORM_ANDROID)
+static int sdl_android_sdk_int(JNIEnv* env)
+{
+    int sdk = 0;
+    jclass version_class = NULL;
+    jfieldID sdk_field = NULL;
+
+    if (!env)
+        return 0;
+
+    version_class = (*env)->FindClass(env, "android/os/Build$VERSION");
+    if (!version_class)
+        return 0;
+
+    sdk_field = (*env)->GetStaticFieldID(env, version_class, "SDK_INT", "I");
+    if (sdk_field)
+        sdk = (*env)->GetStaticIntField(env, version_class, sdk_field);
+
+    (*env)->DeleteLocalRef(env, version_class);
+    return sdk;
+}
+
+static SDL_Rect sdl_get_android_display_cutout_rect(void)
+{
+    SDL_Rect rect = sdl_get_window_pixel_rect();
+    JNIEnv* env = (JNIEnv*)SDL_GetAndroidJNIEnv();
+    jobject activity = (jobject)SDL_GetAndroidActivity();
+    jclass activity_class = NULL;
+    jclass window_class = NULL;
+    jclass view_class = NULL;
+    jclass insets_class = NULL;
+    jclass cutout_class = NULL;
+    jobject window = NULL;
+    jobject decor_view = NULL;
+    jobject insets = NULL;
+    jobject cutout = NULL;
+
+    if (!env || !activity || !sdl_rect_has_area(&rect))
+        goto cleanup;
+
+    if (sdl_android_sdk_int(env) < 28)
+        goto cleanup;
+
+    activity_class = (*env)->GetObjectClass(env, activity);
+    if (!activity_class)
+        goto cleanup;
+
+    {
+        jmethodID get_window = (*env)->GetMethodID(env, activity_class, "getWindow",
+            "()Landroid/view/Window;");
+        if (!get_window)
+            goto cleanup;
+        window = (*env)->CallObjectMethod(env, activity, get_window);
+        if ((*env)->ExceptionCheck(env)) {
+            (*env)->ExceptionClear(env);
+            goto cleanup;
+        }
+        if (!window)
+            goto cleanup;
+    }
+
+    window_class = (*env)->GetObjectClass(env, window);
+    if (!window_class)
+        goto cleanup;
+
+    {
+        jmethodID get_decor_view = (*env)->GetMethodID(env, window_class,
+            "getDecorView", "()Landroid/view/View;");
+        if (!get_decor_view)
+            goto cleanup;
+        decor_view = (*env)->CallObjectMethod(env, window, get_decor_view);
+        if ((*env)->ExceptionCheck(env)) {
+            (*env)->ExceptionClear(env);
+            goto cleanup;
+        }
+        if (!decor_view)
+            goto cleanup;
+    }
+
+    view_class = (*env)->GetObjectClass(env, decor_view);
+    if (!view_class)
+        goto cleanup;
+
+    {
+        jmethodID get_root_window_insets = (*env)->GetMethodID(env, view_class,
+            "getRootWindowInsets", "()Landroid/view/WindowInsets;");
+        if (!get_root_window_insets)
+            goto cleanup;
+        insets = (*env)->CallObjectMethod(env, decor_view, get_root_window_insets);
+        if ((*env)->ExceptionCheck(env)) {
+            (*env)->ExceptionClear(env);
+            goto cleanup;
+        }
+        if (!insets)
+            goto cleanup;
+    }
+
+    insets_class = (*env)->GetObjectClass(env, insets);
+    if (!insets_class)
+        goto cleanup;
+
+    {
+        jmethodID get_display_cutout = (*env)->GetMethodID(env, insets_class,
+            "getDisplayCutout", "()Landroid/view/DisplayCutout;");
+        if (!get_display_cutout)
+            goto cleanup;
+        cutout = (*env)->CallObjectMethod(env, insets, get_display_cutout);
+        if ((*env)->ExceptionCheck(env)) {
+            (*env)->ExceptionClear(env);
+            goto cleanup;
+        }
+        if (!cutout)
+            goto cleanup;
+    }
+
+    cutout_class = (*env)->GetObjectClass(env, cutout);
+    if (!cutout_class)
+        goto cleanup;
+
+    {
+        jmethodID get_safe_inset_left = (*env)->GetMethodID(env, cutout_class,
+            "getSafeInsetLeft", "()I");
+        jmethodID get_safe_inset_top = (*env)->GetMethodID(env, cutout_class,
+            "getSafeInsetTop", "()I");
+        jmethodID get_safe_inset_right = (*env)->GetMethodID(env, cutout_class,
+            "getSafeInsetRight", "()I");
+        jmethodID get_safe_inset_bottom = (*env)->GetMethodID(env, cutout_class,
+            "getSafeInsetBottom", "()I");
+        int left = 0;
+        int top = 0;
+        int right = 0;
+        int bottom = 0;
+
+        if (!get_safe_inset_left || !get_safe_inset_top
+            || !get_safe_inset_right || !get_safe_inset_bottom)
+            goto cleanup;
+
+        left = (*env)->CallIntMethod(env, cutout, get_safe_inset_left);
+        top = (*env)->CallIntMethod(env, cutout, get_safe_inset_top);
+        right = (*env)->CallIntMethod(env, cutout, get_safe_inset_right);
+        bottom = (*env)->CallIntMethod(env, cutout, get_safe_inset_bottom);
+        if ((*env)->ExceptionCheck(env)) {
+            (*env)->ExceptionClear(env);
+            goto cleanup;
+        }
+
+        if (left < 0)
+            left = 0;
+        if (top < 0)
+            top = 0;
+        if (right < 0)
+            right = 0;
+        if (bottom < 0)
+            bottom = 0;
+        if (left + right >= rect.w || top + bottom >= rect.h)
+            goto cleanup;
+
+        rect.x = left;
+        rect.y = top;
+        rect.w -= left + right;
+        rect.h -= top + bottom;
+    }
+
+cleanup:
+    if (env) {
+        if (cutout_class)
+            (*env)->DeleteLocalRef(env, cutout_class);
+        if (cutout)
+            (*env)->DeleteLocalRef(env, cutout);
+        if (insets_class)
+            (*env)->DeleteLocalRef(env, insets_class);
+        if (insets)
+            (*env)->DeleteLocalRef(env, insets);
+        if (view_class)
+            (*env)->DeleteLocalRef(env, view_class);
+        if (decor_view)
+            (*env)->DeleteLocalRef(env, decor_view);
+        if (window_class)
+            (*env)->DeleteLocalRef(env, window_class);
+        if (window)
+            (*env)->DeleteLocalRef(env, window);
+        if (activity_class)
+            (*env)->DeleteLocalRef(env, activity_class);
+        if (activity)
+            (*env)->DeleteLocalRef(env, activity);
+    }
+
+    return rect;
+}
+#endif
+
+static void sdl_refresh_safe_area(void)
+{
+    SDL_Rect window_pixels = sdl_get_window_pixel_rect();
+    SDL_Rect safe_area = window_pixels;
+
+    if (!g_state.window || !sdl_rect_has_area(&window_pixels)) {
+        g_state.safe_area = window_pixels;
+        return;
+    }
+
+    {
+        SDL_Rect window_units = { 0 };
+        SDL_Rect safe_units = { 0 };
+
+        SDL_GetWindowSize(g_state.window, &window_units.w, &window_units.h);
+        if (window_units.w > 0 && window_units.h > 0
+            && SDL_GetWindowSafeArea(g_state.window, &safe_units)
+            && safe_units.x >= 0
+            && safe_units.y >= 0
+            && safe_units.w > 0
+            && safe_units.h > 0
+            && safe_units.x + safe_units.w <= window_units.w
+            && safe_units.y + safe_units.h <= window_units.h)
+        {
+            safe_area = sdl_window_rect_to_pixel_rect(&safe_units);
+            if (!sdl_rect_has_area(&safe_area))
+                safe_area = window_pixels;
+#if defined(SDL_PLATFORM_ANDROID)
+            else if (!config.use_unsafe_area)
+                safe_area = sdl_get_android_display_cutout_rect();
+#endif
+        }
+    }
+
+    if (SDL_memcmp(&g_state.safe_area, &safe_area, sizeof(safe_area)) != 0) {
+        log_info("SDL layout safe area updated to (%d,%d %dx%d)",
+            safe_area.x, safe_area.y, safe_area.w, safe_area.h);
+    }
+
+    g_state.safe_area = safe_area;
+}
+
+static SDL_Rect sdl_get_layout_screen_rect(void)
+{
+    SDL_Rect window_pixels = sdl_get_window_pixel_rect();
+
+    if (config.use_unsafe_area)
+        return window_pixels;
+
+    if (!sdl_rect_has_area(&g_state.safe_area))
+        sdl_refresh_safe_area();
+
+    if (sdl_rect_has_area(&g_state.safe_area)) {
+        SDL_Rect safe = g_state.safe_area;
+
+        if (safe.x < 0)
+            safe.x = 0;
+        if (safe.y < 0)
+            safe.y = 0;
+        if (safe.x > window_pixels.w)
+            safe.x = window_pixels.w;
+        if (safe.y > window_pixels.h)
+            safe.y = window_pixels.h;
+        if (safe.x + safe.w > window_pixels.w)
+            safe.w = window_pixels.w - safe.x;
+        if (safe.y + safe.h > window_pixels.h)
+            safe.h = window_pixels.h - safe.y;
+
+        if (sdl_rect_has_area(&safe))
+            return safe;
+    }
+
+    return window_pixels;
+}
+
+static bool sdl_mobile_prefer_safe_edge_alignment(void)
+{
+#if defined(__ANDROID__) || defined(SIL_IOS)
+    SDL_Rect window_pixels = sdl_get_window_pixel_rect();
+
+    if (config.use_unsafe_area)
+        return false;
+    if (!sdl_rect_has_area(&g_state.safe_area) || !sdl_rect_has_area(&window_pixels))
+        return false;
+
+    return (g_state.safe_area.x != 0
+        || g_state.safe_area.y != 0
+        || g_state.safe_area.w != window_pixels.w
+        || g_state.safe_area.h != window_pixels.h);
+#else
+    return false;
+#endif
+}
+
+static void sdl_resize_for_current_layout(void)
+{
+    SDL_Rect screen = sdl_get_layout_screen_rect();
+
+    if (!sdl_rect_has_area(&screen))
+        return;
+
+    resize(&screen);
 }
 
 /*
@@ -1179,13 +1586,16 @@ static int sdl_build_active_pane_config(struct pane_config* active, bool include
 
     for (int i = 0; i < pane_config_count && active_count < MAX_PANE_CONFIGS; i++) {
         enum pane_placement where = pane_config[i].where;
+        bool is_touch_pane = (pane_config[i].pane == PANE_TOUCH);
 
-        if (touch_only && pane_config[i].pane != PANE_TOUCH)
+        if (touch_only && !is_touch_pane)
             continue;
-        if (pane_placement_is_side(where) && !include_side)
-            continue;
-        if (pane_placement_is_bottom(where) && !include_bottom)
-            continue;
+        if (!is_touch_pane) {
+            if (pane_placement_is_side(where) && !include_side)
+                continue;
+            if (pane_placement_is_bottom(where) && !include_bottom)
+                continue;
+        }
 
         active[active_count++] = pane_config[i];
     }
@@ -1586,9 +1996,7 @@ static void sdl_compute_display_panes(SDL_Rect* panes)
         return;
     }
 
-    SDL_GetWindowSizeInPixels(g_state.window, &screen.w, &screen.h);
-    screen.x = 0;
-    screen.y = 0;
+    screen = sdl_get_layout_screen_rect();
     sdl_place_active_panes(&screen, panes, g_active_side_panes,
         g_active_bottom_panes, true);
 }
@@ -1746,7 +2154,9 @@ static bool sdl_touch_pane_compute_layout(const SDL_Rect* pane_rect, SDL_FRect* 
     grid_w = button_size * SDL_TOUCH_PANE_BUTTON_COLS + gap * (SDL_TOUCH_PANE_BUTTON_COLS - 1);
     grid_h = button_size * SDL_TOUCH_PANE_BUTTON_ROWS + gap * (SDL_TOUCH_PANE_BUTTON_ROWS - 1);
     start_x = (float)pane_rect->x + ((float)pane_rect->w - grid_w) * 0.5f;
-    start_y = (float)pane_rect->y + ((float)pane_rect->h - grid_h) * 0.5f;
+    start_y = sdl_mobile_prefer_safe_edge_alignment()
+        ? ((float)pane_rect->y + gap)
+        : ((float)pane_rect->y + ((float)pane_rect->h - grid_h) * 0.5f);
 
     for (int row = 0; row < SDL_TOUCH_PANE_BUTTON_ROWS; row++) {
         for (int col = 0; col < SDL_TOUCH_PANE_BUTTON_COLS; col++) {
@@ -2076,8 +2486,7 @@ static bool sdl_touch_pane_should_hide_symbol(const char* name, const char* symb
 
 static void sdl_touch_pane_render_reset_prompt(void)
 {
-    int window_w = 0;
-    int window_h = 0;
+    SDL_Rect screen;
     SDL_FRect rect;
     SDL_Color frame = g_state.palette[TERM_L_BLUE];
     SDL_Color text = g_state.palette[TERM_WHITE];
@@ -2085,15 +2494,15 @@ static void sdl_touch_pane_render_reset_prompt(void)
     if (!g_touch_pane_reset_confirm_active)
         return;
 
-    SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
-    if (window_w <= 0 || window_h <= 0)
+    screen = sdl_get_layout_screen_rect();
+    if (screen.w <= 0 || screen.h <= 0)
         return;
 
     rect = (SDL_FRect){
-        .x = window_w * 0.10f,
-        .y = window_h * 0.04f,
-        .w = window_w * 0.80f,
-        .h = (window_h < 600) ? 54.0f : 68.0f,
+        .x = screen.x + screen.w * 0.10f,
+        .y = screen.y + screen.h * 0.04f,
+        .w = screen.w * 0.80f,
+        .h = (screen.h < 600) ? 54.0f : 68.0f,
     };
 
     SDL_SetRenderDrawColor(g_state.renderer, 10, 10, 10, 235);
@@ -2320,6 +2729,122 @@ static void sdl_touch_pane_send_slot(int panel, int index, bool long_press)
     binding = sdl_touch_pane_effective_binding_for_panel(panel, index);
     sdl_touch_pane_send_binding(binding, panel == SDL_TOUCH_PANE_PANEL_SECOND,
         long_press);
+}
+
+static int sdl_touch_swipe_index_for_keypad_dir(int dir)
+{
+    switch (dir) {
+    case 8:
+        return GAMEPAD_STICK_DIR_UP;
+    case 2:
+        return GAMEPAD_STICK_DIR_DOWN;
+    case 4:
+        return GAMEPAD_STICK_DIR_LEFT;
+    case 6:
+        return GAMEPAD_STICK_DIR_RIGHT;
+    default:
+        return -1;
+    }
+}
+
+static float sdl_touch_swipe_threshold_px(void)
+{
+    int cell_px = (g_views[0].cell_w > g_views[0].cell_h) ? g_views[0].cell_w : g_views[0].cell_h;
+    float threshold = (float)cell_px * 0.75f;
+
+    if (threshold < TOUCH_SWIPE_MIN_DISTANCE_PX)
+        threshold = TOUCH_SWIPE_MIN_DISTANCE_PX;
+    if (threshold > TOUCH_SWIPE_MAX_DISTANCE_PX)
+        threshold = TOUCH_SWIPE_MAX_DISTANCE_PX;
+
+    return threshold;
+}
+
+static int sdl_touch_swipe_direction_for_delta(float dx, float dy, float threshold)
+{
+    float abs_x = (dx >= 0.0f) ? dx : -dx;
+    float abs_y = (dy >= 0.0f) ? dy : -dy;
+
+    if (abs_x < threshold && abs_y < threshold)
+        return 0;
+
+    if (abs_x >= abs_y)
+        return (dx >= 0.0f) ? 6 : 4;
+
+    return (dy >= 0.0f) ? 2 : 8;
+}
+
+static void sdl_touch_swipe_cancel(void)
+{
+    g_touch_swipe.active = false;
+    g_touch_swipe.triggered = false;
+    g_touch_swipe.finger_id = 0;
+    g_touch_swipe.start_x = 0.0f;
+    g_touch_swipe.start_y = 0.0f;
+    g_touch_swipe.last_x = 0.0f;
+    g_touch_swipe.last_y = 0.0f;
+}
+
+static bool sdl_touch_swipe_handle_pointer_down(float x, float y, SDL_FingerID finger_id)
+{
+    int slot = -1;
+
+    if (!config.touch_swipe_enabled)
+        return false;
+    if (sdl_touch_pane_is_config_enabled() && sdl_touch_pane_point_to_slot(x, y, &slot))
+        return false;
+
+    sdl_touch_swipe_cancel();
+    g_touch_swipe.active = true;
+    g_touch_swipe.triggered = false;
+    g_touch_swipe.finger_id = finger_id;
+    g_touch_swipe.start_x = x;
+    g_touch_swipe.start_y = y;
+    g_touch_swipe.last_x = x;
+    g_touch_swipe.last_y = y;
+    return true;
+}
+
+static bool sdl_touch_swipe_handle_pointer_motion(float x, float y, SDL_FingerID finger_id)
+{
+    int dir;
+    int binding;
+    int swipe_index;
+    float dx;
+    float dy;
+
+    if (!g_touch_swipe.active || g_touch_swipe.finger_id != finger_id)
+        return false;
+
+    g_touch_swipe.last_x = x;
+    g_touch_swipe.last_y = y;
+
+    if (g_touch_swipe.triggered)
+        return true;
+
+    dx = x - g_touch_swipe.start_x;
+    dy = y - g_touch_swipe.start_y;
+    dir = sdl_touch_swipe_direction_for_delta(dx, dy, sdl_touch_swipe_threshold_px());
+    if (!dir)
+        return true;
+
+    swipe_index = sdl_touch_swipe_index_for_keypad_dir(dir);
+    if (swipe_index < 0)
+        return true;
+
+    binding = config.touch_swipe_bindings[swipe_index];
+    if (binding != GAMEPAD_BIND_NONE)
+        sdl_touch_pane_send_binding(binding, false, false);
+    g_touch_swipe.triggered = true;
+    return true;
+}
+
+static void sdl_touch_swipe_handle_pointer_up(float x, float y, SDL_FingerID finger_id)
+{
+    if (!sdl_touch_swipe_handle_pointer_motion(x, y, finger_id))
+        return;
+
+    sdl_touch_swipe_cancel();
 }
 
 static void sdl_touch_pane_cancel_press(void)
@@ -4310,13 +4835,40 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         y = ev->tfinger.y * (float)window_h;
         if (sdl_touch_pane_handle_pointer_down(x, y, false, ev->tfinger.fingerID))
             return;
-    } else if (ev->type == SDL_EVENT_FINGER_UP) {
+        if (sdl_touch_swipe_handle_pointer_down(x, y, ev->tfinger.fingerID))
+            return;
+    } else if (ev->type == SDL_EVENT_FINGER_MOTION) {
+        int window_w = 0;
+        int window_h = 0;
+        float x;
+        float y;
+
         if (ev->tfinger.windowID != SDL_GetWindowID(g_state.window))
             return;
+
+        SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
+        x = ev->tfinger.x * (float)window_w;
+        y = ev->tfinger.y * (float)window_h;
+        if (sdl_touch_swipe_handle_pointer_motion(x, y, ev->tfinger.fingerID))
+            return;
+    } else if (ev->type == SDL_EVENT_FINGER_UP) {
+        int window_w = 0;
+        int window_h = 0;
+        float x;
+        float y;
+
+        if (ev->tfinger.windowID != SDL_GetWindowID(g_state.window))
+            return;
+        SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
+        x = ev->tfinger.x * (float)window_w;
+        y = ev->tfinger.y * (float)window_h;
+        sdl_touch_swipe_handle_pointer_up(x, y, ev->tfinger.fingerID);
         sdl_touch_pane_handle_pointer_up(false, ev->tfinger.fingerID);
     } else if (ev->type == SDL_EVENT_FINGER_CANCELED) {
         if (ev->tfinger.windowID != SDL_GetWindowID(g_state.window))
             return;
+        if (g_touch_swipe.active && g_touch_swipe.finger_id == ev->tfinger.fingerID)
+            sdl_touch_swipe_cancel();
         if (g_touch_pane_press.active && !g_touch_pane_press.mouse
             && g_touch_pane_press.finger_id == ev->tfinger.fingerID)
         {
@@ -4438,19 +4990,22 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
     } else if (ev->type == SDL_EVENT_GAMEPAD_ADDED || ev->type == SDL_EVENT_GAMEPAD_REMOVED
         || ev->type == SDL_EVENT_GAMEPAD_REMAPPED) {
         sdl_gamepad_handle_device(&ev->gdevice);
-    } else if (ev->type == SDL_EVENT_WINDOW_RESIZED) {
+    } else if (ev->type == SDL_EVENT_WINDOW_RESIZED
+        || ev->type == SDL_EVENT_WINDOW_SAFE_AREA_CHANGED) {
         log_debug("window resized to %dx%d", ev->window.data1, ev->window.data2);
-        SDL_Rect window = { 0 };
-        SDL_GetWindowSizeInPixels(g_state.window, &window.w, &window.h);
-        log_debug("new window size in pixels %dx%d", window.w, window.h);
-        // SDL_Rect window = {.w = ev->window.data1, .h = ev->window.data2};
-        resize(&window);
+        sdl_refresh_safe_area();
+        {
+            SDL_Rect screen = sdl_get_layout_screen_rect();
+
+            log_debug("new layout size %dx%d at (%d,%d)",
+                screen.w, screen.h, screen.x, screen.y);
+            resize(&screen);
+        }
     } else if (ev->type == SDL_EVENT_DISPLAY_CONTENT_SCALE_CHANGED ||
         ev->type == SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED ||
         ev->type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) {
 
         float scale = SDL_GetWindowDisplayScale(g_state.window);
-        SDL_Rect window = { 0 };
         bool scale_changed = (scale != g_state.system_scale);
 
         if (scale_changed) {
@@ -4459,10 +5014,14 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
             sdl_load_story_fonts();
         }
 
-        SDL_GetWindowSizeInPixels(g_state.window, &window.w, &window.h);
-        log_debug("window pixel/display update in pixels %dx%d (scale_changed=%d)",
-            window.w, window.h, scale_changed ? 1 : 0);
-        resize(&window);
+        sdl_refresh_safe_area();
+        {
+            SDL_Rect screen = sdl_get_layout_screen_rect();
+
+            log_debug("window pixel/display update layout=%dx%d at (%d,%d) (scale_changed=%d)",
+                screen.w, screen.h, screen.x, screen.y, scale_changed ? 1 : 0);
+            resize(&screen);
+        }
     }
     // Handle GPU reset events (commonly triggered by NVIDIA drivers on mode switches,
     // driver updates, or sleep/wake cycles)
@@ -4587,9 +5146,8 @@ static void sdl_present_if_needed(sdl_view* d)
 {
     bool show_supporting_panes;
     bool layout_matches;
+    SDL_Rect layout_screen;
     int visible_views = 0;
-    int screen_w = 0;
-    int screen_h = 0;
 
     if (!g_state.need_present)
         return;
@@ -4605,8 +5163,7 @@ static void sdl_present_if_needed(sdl_view* d)
     SDL_SetRenderClipRect(g_state.renderer, NULL);
     SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
     SDL_RenderClear(g_state.renderer);
-    if (g_state.window)
-        SDL_GetWindowSizeInPixels(g_state.window, &screen_w, &screen_h);
+    layout_screen = sdl_get_layout_screen_rect();
 
     for (int i = 0; i < MAX_TERM_DATA; i++) {
         if (!g_views[i].canvas)
@@ -4661,8 +5218,10 @@ static void sdl_present_if_needed(sdl_view* d)
             sdl_draw_pane_edges(&view->rect,
                 true,
                 true,
-                (screen_w > 0 && view->rect.x + view->rect.w >= screen_w),
-                (screen_h > 0 && view->rect.y + view->rect.h >= screen_h));
+                (layout_screen.w > 0
+                    && view->rect.x + view->rect.w >= layout_screen.x + layout_screen.w),
+                (layout_screen.h > 0
+                    && view->rect.y + view->rect.h >= layout_screen.y + layout_screen.h));
         }
     }
 
@@ -5585,6 +6144,7 @@ static void sdl_window_create(int window_width, int window_height, bool fullscre
 
     g_state.system_scale = SDL_GetWindowDisplayScale(g_state.window);
     log_debug("window scale is %g", g_state.system_scale);
+    sdl_refresh_safe_area();
 
     // Ensure predictable alpha blending (cursor/text)
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
@@ -5679,7 +6239,9 @@ static bool sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, i
     d->margin_x = (rect.w - d->cols * d->cell_w) / 2;
     if (d->margin_x < 0)
         d->margin_x = 0;
-    d->margin_y = (rect.h - d->rows * d->cell_h) / 2;
+    d->margin_y = sdl_mobile_prefer_safe_edge_alignment()
+        ? 0
+        : (rect.h - d->rows * d->cell_h) / 2;
     if (d->margin_y < 0)
         d->margin_y = 0;
     log_debug("view cols=%d rows=%d cell=(%d, %d) margin=(%d, %d)",
@@ -6160,6 +6722,7 @@ errr init_sdl(int argc, char **argv)
     log_info("  Margin: %d", config.margin);
     log_info("  Fullscreen: %s", config.fullscreen ? "true" : "false");
     log_info("  Tiles: %s", config.tiles ? "true" : "false");
+    log_info("  Use unsafe area: %s", config.use_unsafe_area ? "true" : "false");
     log_info("  Minimum terminal size: %s (%dx%d)",
              sdl_min_terminal_mode_name(config.min_terminal_mode),
              sdl_current_min_terminal_cols(), sdl_current_min_terminal_rows());
@@ -6201,10 +6764,10 @@ errr init_sdl(int argc, char **argv)
 
 #if defined(__ANDROID__) || defined(SIL_IOS)
     if (!config_exists) {
-        SDL_Rect mobile_screen = { 0 };
+        SDL_Rect mobile_screen;
 
-        SDL_GetWindowSizeInPixels(g_state.window, &mobile_screen.w,
-            &mobile_screen.h);
+        sdl_refresh_safe_area();
+        mobile_screen = sdl_get_layout_screen_rect();
         sdl_apply_mobile_default_pane_layout(&mobile_screen,
             g_gamepad_state.pad_count > 0);
         g_active_side_panes = config.enable_right_panes;
@@ -6227,10 +6790,14 @@ errr init_sdl(int argc, char **argv)
         use_graphics = GRAPHICS_PSEUDO;
     }
 
-    SDL_Rect window = { 0 };
-    SDL_GetWindowSizeInPixels(g_state.window, &window.w, &window.h);
-    log_debug("window pixel size %dx%d", window.w, window.h);
-    resize(&window);
+    sdl_refresh_safe_area();
+    {
+        SDL_Rect screen = sdl_get_layout_screen_rect();
+
+        log_debug("window layout size %dx%d at (%d,%d)",
+            screen.w, screen.h, screen.x, screen.y);
+        resize(&screen);
+    }
 
     log_debug("init_sdl: SDL term opened (tiles_mode=%d higher_pict=%d always_pict=%d)",
             config.tiles, Term->higher_pict, Term->always_pict);
@@ -6261,6 +6828,8 @@ void get_sdl_config_info(char* buf, size_t size)
     offset += (size_t)strnfmt(buf + offset, size - offset, "Margin: %d\n", config.margin);
     offset += (size_t)strnfmt(buf + offset, size - offset, "Fullscreen: %s\n", config.fullscreen ? "Yes" : "No");
     offset += (size_t)strnfmt(buf + offset, size - offset, "Tiles: %s\n", config.tiles ? "Yes" : "No");
+    offset += (size_t)strnfmt(buf + offset, size - offset, "Use Unsafe Area: %s\n",
+        config.use_unsafe_area ? "Yes" : "No");
     offset += (size_t)strnfmt(buf + offset, size - offset, "Pane Borders: %s\n",
         config.show_pane_borders ? "White" : "Black");
     offset += (size_t)strnfmt(buf + offset, size - offset, "Hide Left Panel: %s\n\n",
@@ -6348,6 +6917,9 @@ int get_sdl_min_terminal_mode(void)
 
 void set_sdl_min_terminal_mode(int value)
 {
+    bool log_was_active = sdl_is_log_pane_active();
+    bool bottom_log_was_active = sdl_is_bottom_log_pane_active();
+
     if (!sdl_min_terminal_mode_is_valid(value))
         return;
     if (config.min_terminal_mode == value)
@@ -6356,6 +6928,7 @@ void set_sdl_min_terminal_mode(int value)
     sdl_store_active_pane_profile(config.min_terminal_mode);
     config.min_terminal_mode = value;
     sdl_apply_stored_pane_profile(value);
+    sdl_handle_log_pane_activation(log_was_active, bottom_log_was_active);
 
     if (config.main_view_scale > get_sdl_max_scale())
         config.main_view_scale = get_sdl_max_scale();
@@ -6443,10 +7016,9 @@ void set_sdl_fullscreen(bool value)
         }
 
         // Force a resize event to recalculate layouts
-        SDL_Rect window = { 0 };
-        SDL_GetWindowSizeInPixels(g_state.window, &window.w, &window.h);
+        sdl_refresh_safe_area();
         sdl_load_story_fonts();
-        resize(&window);
+        sdl_resize_for_current_layout();
         sdl_update_cursor_visibility();
 
         // Redraw everything
@@ -6457,6 +7029,20 @@ void set_sdl_fullscreen(bool value)
 bool get_sdl_tiles(void)
 {
     return config.tiles;
+}
+
+bool get_sdl_use_unsafe_area(void)
+{
+    return config.use_unsafe_area;
+}
+
+void set_sdl_use_unsafe_area(bool value)
+{
+    if (config.use_unsafe_area == value)
+        return;
+
+    config.use_unsafe_area = value;
+    sdl_apply_config();
 }
 
 void set_sdl_tiles(bool value)
@@ -6513,6 +7099,24 @@ static bool sdl_is_log_pane_active(void)
     return false;
 }
 
+static bool sdl_is_bottom_log_pane_active(void)
+{
+    for (int i = 0; i < pane_config_count; i++) {
+        if (pane_config[i].pane != PANE_LOG)
+            continue;
+        if (!pane_config[i].enabled)
+            continue;
+        if (!pane_placement_is_bottom(pane_config[i].where))
+            continue;
+        if (!sdl_is_pane_group_enabled(pane_config[i].where))
+            continue;
+
+        return true;
+    }
+
+    return false;
+}
+
 static void sdl_disable_main_combat_rolls_for_log_pane(void)
 {
     if (!op_ptr || op_ptr->main_combat_rolls == 0)
@@ -6526,18 +7130,37 @@ static void sdl_disable_main_combat_rolls_for_log_pane(void)
         p_ptr->redraw |= PR_MAP;
 }
 
-static void sdl_handle_log_pane_activation(bool was_active)
+static void sdl_enable_top_status_line_for_bottom_log_pane(void)
 {
-    if (was_active || !sdl_is_log_pane_active())
+    if (!op_ptr || op_ptr->opt[OPT_top_status_line])
         return;
 
-    sdl_disable_main_combat_rolls_for_log_pane();
+    if (!sdl_is_bottom_log_pane_active())
+        return;
+
+    op_ptr->opt[OPT_top_status_line] = true;
+
+    if (p_ptr) {
+        p_ptr->update |= PU_PANEL;
+        p_ptr->redraw |= (PR_MAP | PR_EXTRA | PR_DEPTH);
+    }
+}
+
+static void sdl_handle_log_pane_activation(bool log_was_active,
+    bool bottom_log_was_active)
+{
+    if (!log_was_active && sdl_is_log_pane_active())
+        sdl_disable_main_combat_rolls_for_log_pane();
+
+    if (!bottom_log_was_active)
+        sdl_enable_top_status_line_for_bottom_log_pane();
 }
 
 void set_sdl_pane_where(int index, int where)
 {
     enum pane_placement placement = (enum pane_placement)where;
     bool log_was_active = sdl_is_log_pane_active();
+    bool bottom_log_was_active = sdl_is_bottom_log_pane_active();
 
     if (index < 0 || index >= pane_config_count)
         return;
@@ -6545,7 +7168,7 @@ void set_sdl_pane_where(int index, int where)
         placement = pane_first_allowed_placement(pane_config[index].pane);
 
     pane_config[index].where = placement;
-    sdl_handle_log_pane_activation(log_was_active);
+    sdl_handle_log_pane_activation(log_was_active, bottom_log_was_active);
 }
 
 bool get_sdl_pane_enabled(int index)
@@ -6667,11 +7290,12 @@ void set_sdl_pane_font_size(int index, int font_size)
 void set_sdl_pane_enabled(int index, bool enabled)
 {
     bool log_was_active = sdl_is_log_pane_active();
+    bool bottom_log_was_active = sdl_is_bottom_log_pane_active();
 
     if (index < 0 || index >= pane_config_count)
         return;
     pane_config[index].enabled = enabled;
-    sdl_handle_log_pane_activation(log_was_active);
+    sdl_handle_log_pane_activation(log_was_active, bottom_log_was_active);
 }
 
 bool get_sdl_enable_right_panes(void)
@@ -6682,6 +7306,7 @@ bool get_sdl_enable_right_panes(void)
 void set_sdl_enable_right_panes(bool value)
 {
     bool log_was_active = sdl_is_log_pane_active();
+    bool bottom_log_was_active = sdl_is_bottom_log_pane_active();
 
     config.enable_right_panes = value;
 
@@ -6692,7 +7317,7 @@ void set_sdl_enable_right_panes(bool value)
         }
     }
 
-    sdl_handle_log_pane_activation(log_was_active);
+    sdl_handle_log_pane_activation(log_was_active, bottom_log_was_active);
 }
 
 bool get_sdl_enable_bottom_panes(void)
@@ -6703,6 +7328,7 @@ bool get_sdl_enable_bottom_panes(void)
 void set_sdl_enable_bottom_panes(bool value)
 {
     bool log_was_active = sdl_is_log_pane_active();
+    bool bottom_log_was_active = sdl_is_bottom_log_pane_active();
 
     config.enable_bottom_panes = value;
 
@@ -6717,7 +7343,7 @@ void set_sdl_enable_bottom_panes(bool value)
         }
     }
 
-    sdl_handle_log_pane_activation(log_was_active);
+    sdl_handle_log_pane_activation(log_was_active, bottom_log_was_active);
 }
 
 bool get_sdl_show_pane_borders(void)
@@ -6786,6 +7412,14 @@ static void sdl_gamepad_load_default_bindings(void)
         sizeof(g_default_gamepad_left_stick_bindings));
     memcpy(g_default_gamepad_right_stick_bindings, defaults.gamepad_right_stick_bindings,
         sizeof(g_default_gamepad_right_stick_bindings));
+    memcpy(g_default_gamepad_button_combo_bindings, defaults.gamepad_button_combo_bindings,
+        sizeof(g_default_gamepad_button_combo_bindings));
+    memcpy(g_default_gamepad_trigger_combo_bindings, defaults.gamepad_trigger_combo_bindings,
+        sizeof(g_default_gamepad_trigger_combo_bindings));
+    memcpy(g_default_gamepad_left_stick_combo_bindings, defaults.gamepad_left_stick_combo_bindings,
+        sizeof(g_default_gamepad_left_stick_combo_bindings));
+    memcpy(g_default_gamepad_right_stick_combo_bindings, defaults.gamepad_right_stick_combo_bindings,
+        sizeof(g_default_gamepad_right_stick_combo_bindings));
     g_default_gamepad_shoulder_combo_binding = defaults.gamepad_shoulder_combo_binding;
     g_default_gamepad_bindings_ready = true;
 }
@@ -6803,6 +7437,9 @@ static void sdl_touch_pane_load_default_bindings(void)
         sizeof(defaults.touch_pane_second_bindings));
     memcpy(g_default_touch_pane_panel_names, defaults.touch_pane_panel_names,
         sizeof(g_default_touch_pane_panel_names));
+    g_default_touch_swipe_enabled = defaults.touch_swipe_enabled;
+    memcpy(g_default_touch_swipe_bindings, defaults.touch_swipe_bindings,
+        sizeof(g_default_touch_swipe_bindings));
     g_default_touch_pane_bindings_ready = true;
 }
 
@@ -6857,6 +7494,7 @@ void set_sdl_gamepad_enabled(bool value)
         g_touch_pane_second_panel = false;
         g_touch_pane_ctrl_toggle = false;
         sdl_touch_pane_cancel_press();
+        sdl_touch_swipe_cancel();
     }
 }
 
@@ -7073,6 +7711,39 @@ int get_sdl_gamepad_default_right_stick_binding(int dir)
     return g_default_gamepad_right_stick_bindings[dir];
 }
 
+int get_sdl_gamepad_default_combo_binding(int modifier, int type, int id)
+{
+    int modifier_index = sdl_gamepad_modifier_index(modifier);
+
+    if (modifier_index < 0)
+        return GAMEPAD_BIND_NONE;
+
+    sdl_gamepad_load_default_bindings();
+
+    switch (type) {
+    case GAMEPAD_CAPTURE_BUTTON:
+        if (id >= 0 && id < SDL_GAMEPAD_BUTTON_COUNT)
+            return g_default_gamepad_button_combo_bindings[modifier_index][id];
+        break;
+    case GAMEPAD_CAPTURE_TRIGGER:
+        if (id >= 0 && id < GAMEPAD_TRIGGER_COUNT)
+            return g_default_gamepad_trigger_combo_bindings[modifier_index][id];
+        break;
+    case GAMEPAD_CAPTURE_LEFT_STICK:
+        if (id >= 0 && id < GAMEPAD_STICK_DIR_COUNT)
+            return g_default_gamepad_left_stick_combo_bindings[modifier_index][id];
+        break;
+    case GAMEPAD_CAPTURE_RIGHT_STICK:
+        if (id >= 0 && id < GAMEPAD_STICK_DIR_COUNT)
+            return g_default_gamepad_right_stick_combo_bindings[modifier_index][id];
+        break;
+    default:
+        break;
+    }
+
+    return GAMEPAD_BIND_NONE;
+}
+
 int get_sdl_gamepad_default_shoulder_combo_binding(void)
 {
     sdl_gamepad_load_default_bindings();
@@ -7132,6 +7803,46 @@ int get_sdl_touch_pane_default_binding_for_panel(int panel, int index)
     return g_default_touch_pane_bindings[panel][index];
 }
 
+bool get_sdl_touch_swipe_enabled(void)
+{
+    return config.touch_swipe_enabled;
+}
+
+void set_sdl_touch_swipe_enabled(bool value)
+{
+    config.touch_swipe_enabled = value;
+    if (!value)
+        sdl_touch_swipe_cancel();
+}
+
+int get_sdl_touch_swipe_binding(int dir)
+{
+    if (dir < 0 || dir >= GAMEPAD_STICK_DIR_COUNT)
+        return GAMEPAD_BIND_NONE;
+    return config.touch_swipe_bindings[dir];
+}
+
+void set_sdl_touch_swipe_binding(int dir, int binding)
+{
+    if (dir < 0 || dir >= GAMEPAD_STICK_DIR_COUNT)
+        return;
+    config.touch_swipe_bindings[dir] = binding;
+}
+
+bool get_sdl_touch_swipe_default_enabled(void)
+{
+    sdl_touch_pane_load_default_bindings();
+    return g_default_touch_swipe_enabled;
+}
+
+int get_sdl_touch_swipe_default_binding(int dir)
+{
+    if (dir < 0 || dir >= GAMEPAD_STICK_DIR_COUNT)
+        return GAMEPAD_BIND_NONE;
+    sdl_touch_pane_load_default_bindings();
+    return g_default_touch_swipe_bindings[dir];
+}
+
 void sdl_touch_pane_reset_bindings_to_default(void)
 {
     if (g_touch_pane_ctrl_toggle) {
@@ -7141,6 +7852,7 @@ void sdl_touch_pane_reset_bindings_to_default(void)
 
     g_touch_pane_second_panel = false;
     sdl_touch_pane_cancel_press();
+    sdl_touch_swipe_cancel();
     sdl_config_set_default_touch_pane_bindings(&config);
     sdl_config_clear_touch_pane_labels(&config);
     sdl_touch_pane_ensure_main_panel_confirm();
@@ -7302,18 +8014,18 @@ int get_sdl_max_scale(void)
         return 10; // fallback if window not initialized
     }
     
-    int w, h;
     SDL_Rect screen;
     SDL_Rect panes[PANE_MAX];
     int max_scale;
 
-    SDL_GetWindowSizeInPixels(g_state.window, &w, &h);
-    screen = (SDL_Rect){ 0, 0, w, h };
+    sdl_refresh_safe_area();
+    screen = sdl_get_layout_screen_rect();
     sdl_compute_split_panes(&screen, panes);
     max_scale = sdl_max_scale_for_rect(&panes[PANE_MAIN]);
 
-    log_debug("get_sdl_max_scale: window=%dx%d main=%dx%d min=%dx%d (%s) max_scale=%d",
-              w, h, panes[PANE_MAIN].w, panes[PANE_MAIN].h,
+    log_debug("get_sdl_max_scale: layout=(%d,%d %dx%d) main=%dx%d min=%dx%d (%s) max_scale=%d",
+              screen.x, screen.y, screen.w, screen.h,
+              panes[PANE_MAIN].w, panes[PANE_MAIN].h,
               sdl_current_min_terminal_cols(), sdl_current_min_terminal_rows(),
               sdl_min_terminal_mode_name(config.min_terminal_mode), max_scale);
     
@@ -7331,9 +8043,8 @@ void sdl_refresh_supporting_panes_layout(void)
     if (g_supporting_panes_layout_visible == target_show_supporting_panes)
         return;
 
-    SDL_GetWindowSizeInPixels(g_state.window, &screen.w, &screen.h);
-    screen.x = 0;
-    screen.y = 0;
+    sdl_refresh_safe_area();
+    screen = sdl_get_layout_screen_rect();
     /* The caller will either redraw the destination scene or restore a saved
      * main-term buffer immediately after the layout change. Redrawing the old
      * outgoing main contents here is what produces the visible "flash" frame. */
@@ -7357,8 +8068,6 @@ void sdl_apply_config(void)
         return;
     }
     
-    int w, h;
-    SDL_GetWindowSizeInPixels(g_state.window, &w, &h);
     {
         int max_scale = get_sdl_max_scale();
         if (config.main_view_scale > max_scale) {
@@ -7367,10 +8076,10 @@ void sdl_apply_config(void)
             config.main_view_scale = max_scale;
         }
     }
-    SDL_Rect screen = { 0, 0, w, h };
+    sdl_refresh_safe_area();
     g_auto_aux_main_cell_h_override = config.main_view_scale * TILE_SIZE;
     sdl_load_story_fonts();
-    resize(&screen);
+    sdl_resize_for_current_layout();
     g_auto_aux_main_cell_h_override = 0;
     
     // Redraw the screen to prevent black empty spaces
