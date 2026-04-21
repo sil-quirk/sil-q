@@ -1,5 +1,15 @@
 # Session notes
 
+## 2026-04-22: Harden story-font inventory rendering for macOS pickup overlay
+- `src/ui/story_font.c`
+  - Added term bounds checks in `story_print_text_internal()` so story-font UI helpers return early instead of drawing through a stale cursor when a row/column falls outside the current term.
+  - Clamped story-font wrap width to the visible term width.
+- `src/main-sdl.c`
+  - Switched grid-aligned story-font rendering from `TTF_RenderText_Blended()` on one-character strings to `TTF_RenderGlyph_Blended()`.
+  - Rationale: the pickup-replacement inventory overlay was crashing on macOS immediately after story-font inventory rows rendered; the last log lines were in the grid-rendered weight/label path, and glyph rendering is the safer API for per-cell story text.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
 ## 2026-04-21: Android uses cutout-only; iPhone uses safeAreaInsets
 - `src/main-sdl.c`
   - Split the mobile policy by platform instead of using one fallback for both.

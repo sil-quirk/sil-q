@@ -8438,12 +8438,11 @@ static void sdl_render_story_text_grid(sdl_view* d, TTF_Font* font, int x, int y
     float cell_h_f = (float)d->cell_h;
 
     for (int i = 0; i < n; i++) {
-        unsigned char ch = (unsigned char)s[i];
+        Uint32 ch = (unsigned char)s[i];
         if (!ch || ch == ' ')
             continue;
 
-        char glyph_text[2] = { (char)ch, '\0' };
-        SDL_Surface* glyph_surface = TTF_RenderText_Blended(font, glyph_text, 0, col);
+        SDL_Surface* glyph_surface = TTF_RenderGlyph_Blended(font, ch, col);
         if (!glyph_surface)
             continue;
 
