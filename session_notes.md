@@ -47,6 +47,16 @@
 - Validation:
   - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
 
+## 2026-04-21: Re-layout after pruning unusable panes at scale 4
+- `src/main-sdl.c`
+  - `sdl_prune_unusable_panes()` now disables panes in the active layout set and the pane layout is recomputed until it stabilizes.
+  - Rationale: at SDL scale `4`, the runtime config could overcommit the right-column height (`INVENTORY` + `WORN` + `INFO` fixed rows). The old path pruned the pane that no longer fit, but left the original column geometry in place, which produced the broken white separator shape.
+- `src/pane.c`
+  - The last enabled pane in a side/bottom group now absorbs any leftover pixels in that group.
+  - Rationale: once a later pane is pruned, the remaining visible pane stack should fill the reserved group extent rather than leaving a dead gap that breaks the separators.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
 ## 2026-04-21: Hidden-pane flash and border root-cause fix
 - `src/main-sdl.c`
   - Changed `sdl_refresh_supporting_panes_layout()` so every hidden-pane visibility switch skips redrawing the old main-term contents during the intermediate resize.

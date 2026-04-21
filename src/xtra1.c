@@ -469,6 +469,77 @@ static void prt_field(cptr info, int row, int col)
     sdl_story_font_disable();
 }
 
+enum { PLAYER_PANEL_NAME_MAX = 12 };
+
+/*
+ * Choose the longest whole-word player name prefix that fits the sidebar.
+ * Falls back to a clipped first word if even the first word is too long.
+ */
+static void get_player_panel_name(char* buf, size_t buf_len)
+{
+    const char* name = op_ptr->full_name;
+    const char* cursor;
+    const char* fit_end = NULL;
+
+    if (!buf || (buf_len == 0))
+        return;
+
+    buf[0] = '\0';
+
+    if (!name)
+        return;
+
+    while (*name && isspace((unsigned char)*name))
+        name++;
+
+    if (!name[0])
+        return;
+
+    if (strlen(name) <= PLAYER_PANEL_NAME_MAX)
+    {
+        SDL_strlcpy(buf, name, buf_len);
+        return;
+    }
+
+    cursor = name;
+    while (*cursor)
+    {
+        while (*cursor && !isspace((unsigned char)*cursor))
+            cursor++;
+
+        if ((size_t)(cursor - name) <= PLAYER_PANEL_NAME_MAX)
+            fit_end = cursor;
+        else
+            break;
+
+        while (*cursor && isspace((unsigned char)*cursor))
+            cursor++;
+    }
+
+    if (fit_end)
+    {
+        size_t copy_len = (size_t)(fit_end - name);
+
+        if (copy_len >= buf_len)
+            copy_len = buf_len - 1;
+
+        memcpy(buf, name, copy_len);
+        buf[copy_len] = '\0';
+        return;
+    }
+
+    SDL_strlcpy(buf, name, buf_len);
+    buf[MIN(buf_len - 1, (size_t)PLAYER_PANEL_NAME_MAX)] = '\0';
+}
+
+static void prt_player_name(void)
+{
+    char panel_name[PLAYER_PANEL_NAME_MAX + 1];
+
+    get_player_panel_name(panel_name, sizeof(panel_name));
+    prt_field(panel_name, ROW_NAME, COL_NAME);
+}
+
 /*
  * Print character stat in given row, column
  */
@@ -2868,10 +2939,7 @@ static void prt_frame_basic(void)
     }
 
     /* Name */
-    if (strlen(op_ptr->full_name) <= 12)
-    {
-        prt_field(op_ptr->full_name, ROW_NAME, COL_NAME);
-    }
+    prt_player_name();
 
     /* Small monospace health graphic under the name */
     prt_char_health_graphic();
@@ -6051,11 +6119,7 @@ void redraw_stuff(void)
         if (!ui_hide_left_panel())
         {
             /* Name */
-            c_put_str(TERM_WHITE, "            ", ROW_NAME, COL_NAME);
-            if (strlen(op_ptr->full_name) <= 12)
-            {
-                prt_field(op_ptr->full_name, ROW_NAME, COL_NAME);
-            }
+            prt_player_name();
         }
     }
 

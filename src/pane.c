@@ -122,6 +122,17 @@ static int pane_group_count(const struct pane_config* config, int count,
     return active;
 }
 
+static bool pane_group_is_last_enabled(const struct pane_config* config, int count,
+    enum pane_placement where, int index)
+{
+    for (int i = index + 1; i < count; i++) {
+        if (config[i].enabled && config[i].where == where)
+            return false;
+    }
+
+    return true;
+}
+
 static void layout_bottom_group(enum pane_placement where,
     const struct pane_config* config, int count, SDL_Rect* panes,
     SDL_Rect* area, const int* cell_widths, const int* cell_heights,
@@ -203,6 +214,8 @@ static void layout_bottom_group(enum pane_placement where,
         remaining_px = area->x + area->w - coord;
         if (remaining_px < 0)
             remaining_px = 0;
+        if (pane_group_is_last_enabled(config, count, where, i))
+            pane_px = remaining_px;
         if (pane_px > remaining_px)
             pane_px = remaining_px;
 
@@ -303,6 +316,8 @@ static void layout_side_group(enum pane_placement where,
         remaining_px = area->y + area->h - coord;
         if (remaining_px < 0)
             remaining_px = 0;
+        if (pane_group_is_last_enabled(config, count, where, i))
+            pane_px = remaining_px;
         if (pane_px > remaining_px)
             pane_px = remaining_px;
 

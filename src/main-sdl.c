@@ -403,6 +403,9 @@ static int sdl_effective_pane_font_size_for_config(const struct pane_config* pc)
 static int sdl_effective_pane_font_size_for_type(enum pane_type type);
 static void sdl_build_supporting_pane_metrics(const struct pane_config* configs,
     int count, int* cell_widths, int* cell_heights);
+static bool sdl_prune_unusable_panes(struct pane_config* active,
+    int active_count, SDL_Rect* panes, const int* cell_widths,
+    const int* cell_heights);
 static void sdl_place_active_panes(const SDL_Rect* screen, SDL_Rect* panes,
     bool include_side, bool include_bottom, bool touch_only);
 static void sdl_compute_split_panes(const SDL_Rect* screen, SDL_Rect* panes);
@@ -436,7 +439,7 @@ static errr sdl_view_link_term(sdl_view* d, int term_index);
 static SDL_Texture* sdl_load_ttf_font(const char* font_path, int font_size, int* actual_font_size);
 static void sdl_window_create(int window_width, int window_height, bool fullscreen, bool use_tiles);
 static void sdl_window_set_position(int x, int y);
-static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, int font_size, int scale, int margin);
+static bool sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, int font_size, int scale, int margin);
 static void sdl_load_story_fonts(void);
 static TTF_Font* sdl_load_font_with_fallback(const char* font_path, int font_size, const char* fallback_path);
 static void sdl_handle_renderer_reset(void);
@@ -733,6 +736,64 @@ static void sdl_build_supporting_pane_metrics(const struct pane_config* configs,
     }
 }
 
+static bool sdl_prune_unusable_panes(struct pane_config* active,
+    int active_count, SDL_Rect* panes, const int* cell_widths,
+    const int* cell_heights)
+{
+    bool pruned = false;
+
+    for (int i = 0; i < active_count; i++) {
+        struct pane_config* pc = &active[i];
+        enum pane_type type = pc->pane;
+        SDL_Rect* rect;
+        int cell_w;
+        int cell_h;
+        int cols;
+        int rows;
+        int min_cols;
+        int min_rows;
+
+        if (!pc->enabled)
+            continue;
+        if (type <= PANE_MAIN || type >= PANE_MAX)
+            continue;
+
+        rect = &panes[type];
+        if (rect->w <= 0 || rect->h <= 0)
+            continue;
+
+        cell_w = cell_widths[type];
+        cell_h = cell_heights[type];
+        if (cell_w <= 0 || cell_h <= 0) {
+            pc->enabled = false;
+            *rect = (SDL_Rect){ 0 };
+            pruned = true;
+            continue;
+        }
+
+        cols = rect->w / cell_w;
+        rows = rect->h / cell_h;
+        if (pane_placement_is_side(pc->where)) {
+            min_cols = pane_primary_min_cells(type, pc->where);
+            min_rows = pane_secondary_min_cells(type, pc->where);
+        } else {
+            min_cols = pane_secondary_min_cells(type, pc->where);
+            min_rows = pane_primary_min_cells(type, pc->where);
+        }
+
+        if (cols >= min_cols && rows >= min_rows)
+            continue;
+
+        log_info("Skipping pane %d at (%d,%d) size %dx%d: fits %dx%d cells, needs %dx%d",
+            type, rect->x, rect->y, rect->w, rect->h, cols, rows, min_cols, min_rows);
+        pc->enabled = false;
+        *rect = (SDL_Rect){ 0 };
+        pruned = true;
+    }
+
+    return pruned;
+}
+
 static int sdl_touch_pane_target_width_px(int pane_height_px)
 {
     const int numerator = 40 * SDL_TOUCH_PANE_BUTTON_COLS;
@@ -838,8 +899,14 @@ static void sdl_place_active_panes(const SDL_Rect* screen, SDL_Rect* panes,
     sdl_apply_dynamic_auto_pane_sizes(active, active_count, screen, cell_widths,
         cell_heights, margin_px);
 
-    place_panes(active, active_count, panes, screen, cell_widths, cell_heights,
-        margin_px);
+    for (int attempt = 0; attempt <= active_count; attempt++) {
+        place_panes(active, active_count, panes, screen, cell_widths,
+            cell_heights, margin_px);
+        if (!sdl_prune_unusable_panes(active, active_count, panes, cell_widths,
+                cell_heights))
+            break;
+        memset(panes, 0, sizeof(SDL_Rect) * PANE_MAX);
+    }
 }
 
 static void sdl_compute_split_panes(const SDL_Rect* screen, SDL_Rect* panes)
@@ -3512,16 +3579,24 @@ void resize(const SDL_Rect* screen)
         // have removed one of the bars or both of them due to the size
         // restrictions.
         sdl_view_destroy(&g_views[i]);
-        if (panes[i].w) {
-            sdl_view_create(&g_views[i], panes[i], font_path,
-                sdl_effective_pane_font_size_for_type((enum pane_type)i), 0,
-                config.margin);
+        if (panes[i].w > 0 && panes[i].h > 0) {
+            if (!sdl_view_create(&g_views[i], panes[i], font_path,
+                    sdl_effective_pane_font_size_for_type((enum pane_type)i), 0,
+                    config.margin))
+            {
+                g_pane_rects[i] = (SDL_Rect){ 0 };
+                continue;
+            }
             sdl_view_link_term(&g_views[i], i);
         }
     }
 
     sdl_view_destroy(&g_views[0]);
-    sdl_view_create(&g_views[0], panes[PANE_MAIN], font_path, 0, config.main_view_scale, config.margin);
+    if (!sdl_view_create(&g_views[0], panes[PANE_MAIN], font_path, 0,
+            config.main_view_scale, config.margin))
+    {
+        quit("could not create main view");
+    }
     sdl_view_link_term(&g_views[0], 0);
 
     Term_activate(&g_views[0].t);
@@ -4982,7 +5057,7 @@ static void sdl_window_create(int window_width, int window_height, bool fullscre
     }
 }
 
-static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, int font_size, int scale, int margin)
+static bool sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, int font_size, int scale, int margin)
 {
     log_debug("view rect=(%d %d %d %d)", rect.x, rect.y, rect.w, rect.h);
 
@@ -5028,12 +5103,6 @@ static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, i
         quit("sdl_view_create: font_size and scale cannot both be zero");
     }
 
-    d->font_atlas = sdl_acquire_mono_font_atlas(font_path, d->cell_h,
-        &d->font_atlas_cached);
-    SDL_SetTextureBlendMode(d->font_atlas, SDL_BLENDMODE_BLEND);
-    SDL_SetTextureColorMod(d->font_atlas, 255, 255, 255);
-    SDL_SetTextureAlphaMod(d->font_atlas, 255);
-
     d->rect = rect;
     d->cols = rect.w / d->cell_w;
     d->rows = rect.h / d->cell_h;
@@ -5059,6 +5128,23 @@ static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, i
         d->cols, d->rows, d->cell_w, d->cell_h,
         d->margin_x, d->margin_y);
 
+    if (d->cols <= 0 || d->rows <= 0) {
+        log_warn("Skipping view creation for rect=(%d %d %d %d): fits %dx%d cells at (%d,%d)",
+            rect.x, rect.y, rect.w, rect.h, d->cols, d->rows, d->cell_w, d->cell_h);
+        return false;
+    }
+
+    d->font_atlas = sdl_acquire_mono_font_atlas(font_path, d->cell_h,
+        &d->font_atlas_cached);
+    if (!d->font_atlas) {
+        log_error("Failed to acquire font atlas for rect=(%d %d %d %d)", rect.x,
+            rect.y, rect.w, rect.h);
+        quit("could not create font atlas");
+    }
+    SDL_SetTextureBlendMode(d->font_atlas, SDL_BLENDMODE_BLEND);
+    SDL_SetTextureColorMod(d->font_atlas, 255, 255, 255);
+    SDL_SetTextureAlphaMod(d->font_atlas, 255);
+
     // Create a persistent offscreen canvas to render into.
     d->canvas = SDL_CreateTexture(g_state.renderer, SDL_PIXELFORMAT_RGBA8888,
                                   SDL_TEXTUREACCESS_TARGET,
@@ -5075,6 +5161,8 @@ static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, i
         log_error("Create canvas failed: %s", SDL_GetError());
         quit("could not create canvas");
     }
+
+    return true;
 }
 
 /*
