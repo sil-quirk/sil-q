@@ -5337,11 +5337,8 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         }
     }
 
-    /* Option to always show a list */
-    if (auto_display_lists)
-    {
-        p_ptr->command_see = true;
-    }
+    /* Item selectors always start with the list visible. */
+    p_ptr->command_see = true;
 
     /* Start out in "display" mode */
     if (p_ptr->command_see)

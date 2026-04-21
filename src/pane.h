@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include "SDL3/SDL_rect.h"
 
+#define MAX_PANE_CONFIGS 8
+
 // Available pane types in the game.
 enum pane_type {
     PANE_MAIN = 0,

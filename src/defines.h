@@ -2773,7 +2773,7 @@
 // xxx scroll_target
 #define OPT_auto_more 71
 #define OPT_know_monster_info 72
-#define OPT_auto_display_lists 73
+// xxx auto_display_lists
 #define OPT_artifact_unique_color 74
 #define OPT_easy_main_menu 75
 #define OPT_story_lists 76
@@ -2957,7 +2957,6 @@
 // xxx scroll_target
 #define auto_more op_ptr->opt[OPT_auto_more]
 #define know_monster_info op_ptr->opt[OPT_know_monster_info]
-#define auto_display_lists op_ptr->opt[OPT_auto_display_lists]
 #define artifact_unique_color op_ptr->opt[OPT_artifact_unique_color]
 #define unidentified_items_slate op_ptr->opt[OPT_unidentified_items_slate]
 #define easy_main_menu op_ptr->opt[OPT_easy_main_menu]

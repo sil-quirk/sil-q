@@ -24,7 +24,6 @@ enum {
     MAX_TERM_DATA = ANGBAND_TERM_MAX,
     MAX_STORY_FONT_CACHE = 32,
     MAX_MONO_FONT_CACHE = 48,
-    MAX_PANE_CONFIGS = 8,
     TOUCH_PANE_LONG_PRESS_MS = 350,
 };
 
@@ -54,10 +53,69 @@ const int default_pane_config_count = sizeof(default_pane_config) / sizeof(struc
 // Active pane configuration (may be loaded from INI)
 struct pane_config pane_config[MAX_PANE_CONFIGS];
 int pane_config_count = 0;
+static struct sdl_pane_profile g_pane_profiles[SDL_PANE_PROFILE_COUNT];
+
+static void sdl_copy_pane_configs(struct pane_config* dest, int* dest_count,
+    const struct pane_config* src, int src_count)
+{
+    int count = src_count;
+
+    if (!dest || !dest_count)
+        return;
+
+    if (count < 0)
+        count = 0;
+    if (count > MAX_PANE_CONFIGS)
+        count = MAX_PANE_CONFIGS;
+
+    if (count > 0 && src)
+        memcpy(dest, src, sizeof(struct pane_config) * count);
+
+    if (count < MAX_PANE_CONFIGS)
+        memset(dest + count, 0, sizeof(struct pane_config) * (MAX_PANE_CONFIGS - count));
+
+    *dest_count = count;
+}
 
 static bool sdl_min_terminal_mode_is_valid(int mode)
 {
     return (mode == SDL_MIN_TERMINAL_NORMAL || mode == SDL_MIN_TERMINAL_COMPACT);
+}
+
+static void sdl_store_active_pane_profile(int mode)
+{
+    if (!sdl_min_terminal_mode_is_valid(mode))
+        return;
+    if (mode >= SDL_PANE_PROFILE_COUNT)
+        return;
+
+    g_pane_profiles[mode].main_view_scale = config.main_view_scale;
+    g_pane_profiles[mode].aux_view_font_size = config.aux_view_font_size;
+    g_pane_profiles[mode].enable_right_panes = config.enable_right_panes;
+    g_pane_profiles[mode].enable_bottom_panes = config.enable_bottom_panes;
+    sdl_copy_pane_configs(g_pane_profiles[mode].pane_configs,
+        &g_pane_profiles[mode].pane_count, pane_config, pane_config_count);
+}
+
+static void sdl_apply_stored_pane_profile(int mode)
+{
+    if (!sdl_min_terminal_mode_is_valid(mode))
+        return;
+    if (mode >= SDL_PANE_PROFILE_COUNT)
+        return;
+
+    config.main_view_scale = g_pane_profiles[mode].main_view_scale;
+    config.aux_view_font_size = g_pane_profiles[mode].aux_view_font_size;
+    config.enable_right_panes = g_pane_profiles[mode].enable_right_panes;
+    config.enable_bottom_panes = g_pane_profiles[mode].enable_bottom_panes;
+    sdl_copy_pane_configs(pane_config, &pane_config_count,
+        g_pane_profiles[mode].pane_configs, g_pane_profiles[mode].pane_count);
+}
+
+static void sdl_seed_all_pane_profiles_from_active(void)
+{
+    for (int mode = 0; mode < SDL_PANE_PROFILE_COUNT; mode++)
+        sdl_store_active_pane_profile(mode);
 }
 
 static int sdl_min_terminal_cols_for_mode(int mode)
@@ -343,6 +401,8 @@ static TTF_Font* sdl_story_font_for_height(int pixel_height);
 static TTF_Font* sdl_story_font_for_view(const sdl_view* d);
 #if defined(__ANDROID__) || defined(SIL_IOS)
 static void sdl_ensure_default_pane_configs_present(bool enable_new_panes);
+static void sdl_apply_mobile_default_pane_layout(const SDL_Rect* screen,
+    bool has_controller);
 #endif
 static void sdl_ensure_touch_pane_config_present(void);
 static bool sdl_touch_pane_panel_is_valid(int panel);
@@ -539,6 +599,504 @@ static void sdl_ensure_touch_pane_config_present(void)
         .ratio = 0.0f,
     };
 }
+
+#if defined(__ANDROID__) || defined(SIL_IOS)
+static struct pane_config* sdl_find_pane_config_entry(struct pane_config* configs,
+    int count, enum pane_type pane)
+{
+    if (!configs)
+        return NULL;
+
+    for (int i = 0; i < count; i++) {
+        if (configs[i].pane == pane)
+            return &configs[i];
+    }
+
+    return NULL;
+}
+
+static void sdl_mobile_reset_default_pane_configs(struct pane_config* configs,
+    int count)
+{
+    struct pane_config* pc;
+
+    if (!configs)
+        return;
+
+    for (int i = 0; i < count; i++) {
+        switch (configs[i].pane) {
+        case PANE_INVENTORY:
+            configs[i].where = PLACE_RIGHT;
+            configs[i].enabled = false;
+            configs[i].rect.rows = 22;
+            configs[i].rect.cols = 40;
+            configs[i].font_size = 0;
+            configs[i].ratio = 0.0f;
+            break;
+
+        case PANE_WORN:
+            configs[i].where = PLACE_RIGHT;
+            configs[i].enabled = false;
+            configs[i].rect.rows = 17;
+            configs[i].rect.cols = 40;
+            configs[i].font_size = 0;
+            configs[i].ratio = 0.0f;
+            break;
+
+        case PANE_INFO:
+            configs[i].where = PLACE_RIGHT;
+            configs[i].enabled = false;
+            configs[i].rect.rows = 0;
+            configs[i].rect.cols = 0;
+            configs[i].font_size = 0;
+            configs[i].ratio = 0.0f;
+            break;
+
+        case PANE_TOUCH:
+            configs[i].where = PLACE_DOUBLE_RIGHT;
+            configs[i].enabled = false;
+            configs[i].rect.rows = 0;
+            configs[i].rect.cols = 0;
+            configs[i].font_size = 0;
+            configs[i].ratio = 0.0f;
+            break;
+
+        case PANE_ROLLS:
+        case PANE_LOG:
+            configs[i].where = PLACE_BOTTOM;
+            configs[i].enabled = false;
+            configs[i].rect.rows = 0;
+            configs[i].rect.cols = 0;
+            configs[i].font_size = 0;
+            configs[i].ratio = 0.0f;
+            break;
+
+        default:
+            break;
+        }
+    }
+
+    pc = sdl_find_pane_config_entry(configs, count, PANE_TOUCH);
+    if (pc)
+        pc->where = PLACE_DOUBLE_RIGHT;
+}
+
+static void sdl_mobile_set_touch_pane_enabled(struct pane_config* configs,
+    int count, bool enabled)
+{
+    struct pane_config* pc = sdl_find_pane_config_entry(configs, count,
+        PANE_TOUCH);
+
+    if (!pc)
+        return;
+
+    pc->where = PLACE_DOUBLE_RIGHT;
+    pc->enabled = enabled;
+    pc->rect.rows = 0;
+    pc->rect.cols = 0;
+    pc->font_size = 0;
+    pc->ratio = 0.0f;
+}
+
+static void sdl_mobile_disable_bottom_panes(struct pane_config* configs,
+    int count)
+{
+    struct pane_config* rolls = sdl_find_pane_config_entry(configs, count,
+        PANE_ROLLS);
+    struct pane_config* log = sdl_find_pane_config_entry(configs, count,
+        PANE_LOG);
+
+    if (rolls) {
+        rolls->enabled = false;
+        rolls->where = PLACE_BOTTOM;
+        rolls->rect.rows = 0;
+        rolls->rect.cols = 0;
+        rolls->font_size = 0;
+        rolls->ratio = 0.0f;
+    }
+
+    if (log) {
+        log->enabled = false;
+        log->where = PLACE_BOTTOM;
+        log->rect.rows = 0;
+        log->rect.cols = 0;
+        log->font_size = 0;
+        log->ratio = 0.0f;
+    }
+}
+
+static void sdl_mobile_configure_bottom_wide(struct pane_config* configs,
+    int count, int rows)
+{
+    struct pane_config* rolls;
+    struct pane_config* log;
+
+    sdl_mobile_disable_bottom_panes(configs, count);
+    if (rows <= 0)
+        return;
+
+    rolls = sdl_find_pane_config_entry(configs, count, PANE_ROLLS);
+    log = sdl_find_pane_config_entry(configs, count, PANE_LOG);
+
+    if (rolls) {
+        rolls->enabled = true;
+        rolls->where = PLACE_BOTTOM;
+        rolls->rect.rows = rows;
+        rolls->rect.cols = 65;
+    }
+
+    if (log) {
+        log->enabled = true;
+        log->where = PLACE_BOTTOM;
+        log->rect.rows = rows;
+        log->rect.cols = 0;
+    }
+}
+
+static void sdl_mobile_configure_bottom_narrow(struct pane_config* configs,
+    int count, int total_rows)
+{
+    struct pane_config* rolls;
+    struct pane_config* log;
+    int log_rows = 0;
+    int rolls_rows = 0;
+
+    sdl_mobile_disable_bottom_panes(configs, count);
+    if (total_rows <= 0)
+        return;
+
+    /* Narrow mobile layouts prioritize combat rolls until there is enough
+     * height to stack a message log strip above them. */
+    switch (total_rows) {
+    case 1:
+    case 2:
+    case 3:
+        rolls_rows = total_rows;
+        break;
+
+    case 4:
+        log_rows = 2;
+        rolls_rows = 2;
+        break;
+
+    case 5:
+        log_rows = 2;
+        rolls_rows = 3;
+        break;
+
+    case 6:
+        log_rows = 2;
+        rolls_rows = 4;
+        break;
+
+    default:
+        log_rows = 3;
+        rolls_rows = 4;
+        break;
+    }
+
+    rolls = sdl_find_pane_config_entry(configs, count, PANE_ROLLS);
+    log = sdl_find_pane_config_entry(configs, count, PANE_LOG);
+
+    if (log_rows > 0 && log) {
+        log->enabled = true;
+        log->where = PLACE_BOTTOM;
+        log->rect.rows = log_rows;
+        log->rect.cols = 0;
+    }
+
+    if (rolls_rows > 0 && rolls) {
+        rolls->enabled = true;
+        rolls->where = (log_rows > 0) ? PLACE_DOUBLE_BOTTOM : PLACE_BOTTOM;
+        rolls->rect.rows = rolls_rows;
+        rolls->rect.cols = 0;
+    }
+}
+
+static void sdl_mobile_set_right_panes(struct pane_config* configs, int count,
+    bool inventory_enabled, bool worn_enabled)
+{
+    struct pane_config* inventory = sdl_find_pane_config_entry(configs, count,
+        PANE_INVENTORY);
+    struct pane_config* worn = sdl_find_pane_config_entry(configs, count,
+        PANE_WORN);
+    struct pane_config* info = sdl_find_pane_config_entry(configs, count,
+        PANE_INFO);
+
+    if (inventory) {
+        inventory->where = PLACE_RIGHT;
+        inventory->enabled = inventory_enabled;
+        inventory->rect.rows = 22;
+        inventory->rect.cols = 40;
+        inventory->font_size = 0;
+        inventory->ratio = 0.0f;
+    }
+
+    if (worn) {
+        worn->where = PLACE_RIGHT;
+        worn->enabled = worn_enabled;
+        worn->rect.rows = 17;
+        worn->rect.cols = 40;
+        worn->font_size = 0;
+        worn->ratio = 0.0f;
+    }
+
+    if (info) {
+        info->where = PLACE_RIGHT;
+        info->enabled = false;
+        info->rect.rows = 0;
+        info->rect.cols = 0;
+        info->font_size = 0;
+        info->ratio = 0.0f;
+    }
+}
+
+static int sdl_mobile_pane_cols(const SDL_Rect* panes, const int* cell_widths,
+    enum pane_type type)
+{
+    if (!panes || !cell_widths || type < PANE_MAIN || type >= PANE_MAX)
+        return 0;
+    if (panes[type].w <= 0 || cell_widths[type] <= 0)
+        return 0;
+
+    return panes[type].w / cell_widths[type];
+}
+
+static int sdl_mobile_pane_rows(const SDL_Rect* panes, const int* cell_heights,
+    enum pane_type type)
+{
+    if (!panes || !cell_heights || type < PANE_MAIN || type >= PANE_MAX)
+        return 0;
+    if (panes[type].h <= 0 || cell_heights[type] <= 0)
+        return 0;
+
+    return panes[type].h / cell_heights[type];
+}
+
+static bool sdl_mobile_enabled_panes_fit(const struct pane_config* configs,
+    int count, const SDL_Rect* panes, const int* cell_widths,
+    const int* cell_heights)
+{
+    if (!configs || !panes || !cell_widths || !cell_heights)
+        return false;
+
+    for (int i = 0; i < count; i++) {
+        int cols;
+        int rows;
+        int min_cols;
+        int min_rows;
+
+        if (!configs[i].enabled)
+            continue;
+        if (configs[i].pane <= PANE_MAIN || configs[i].pane >= PANE_MAX)
+            continue;
+
+        cols = sdl_mobile_pane_cols(panes, cell_widths, configs[i].pane);
+        rows = sdl_mobile_pane_rows(panes, cell_heights, configs[i].pane);
+        if (pane_placement_is_side(configs[i].where)) {
+            min_cols = pane_primary_min_cells(configs[i].pane, configs[i].where);
+            min_rows = pane_secondary_min_cells(configs[i].pane, configs[i].where);
+        } else {
+            min_cols = pane_secondary_min_cells(configs[i].pane, configs[i].where);
+            min_rows = pane_primary_min_cells(configs[i].pane, configs[i].where);
+        }
+
+        if (cols < min_cols || rows < min_rows)
+            return false;
+    }
+
+    return true;
+}
+
+static bool sdl_mobile_layout_fits(const SDL_Rect* screen, int scale,
+    const struct pane_config* configs, int count, SDL_Rect* out_panes,
+    int* out_cell_widths, int* out_cell_heights, int* out_main_cols,
+    int* out_main_rows)
+{
+    struct pane_config active[MAX_PANE_CONFIGS] = { 0 };
+    SDL_Rect panes[PANE_MAX] = { 0 };
+    int cell_widths[PANE_MAX] = { 0 };
+    int cell_heights[PANE_MAX] = { 0 };
+    int margin_px;
+    int saved_scale;
+    int main_cols;
+    int main_rows;
+    bool fits;
+
+    if (!screen || !configs || count < 0)
+        return false;
+
+    if (count > MAX_PANE_CONFIGS)
+        count = MAX_PANE_CONFIGS;
+
+    memcpy(active, configs, sizeof(struct pane_config) * count);
+
+    saved_scale = config.main_view_scale;
+    config.main_view_scale = scale;
+
+    sdl_build_supporting_pane_metrics(active, count, cell_widths, cell_heights);
+    margin_px = (int)(g_state.system_scale * config.margin);
+    sdl_apply_dynamic_auto_pane_sizes(active, count, screen, cell_widths,
+        cell_heights, margin_px);
+    place_panes(active, count, panes, screen, cell_widths, cell_heights,
+        margin_px);
+
+    main_cols = sdl_mobile_pane_cols(panes, cell_widths, PANE_MAIN);
+    main_rows = sdl_mobile_pane_rows(panes, cell_heights, PANE_MAIN);
+    fits = (main_cols >= sdl_current_min_terminal_cols()
+        && main_rows >= sdl_current_min_terminal_rows()
+        && sdl_mobile_enabled_panes_fit(active, count, panes, cell_widths,
+            cell_heights));
+
+    config.main_view_scale = saved_scale;
+
+    if (out_panes)
+        memcpy(out_panes, panes, sizeof(panes));
+    if (out_cell_widths)
+        memcpy(out_cell_widths, cell_widths, sizeof(cell_widths));
+    if (out_cell_heights)
+        memcpy(out_cell_heights, cell_heights, sizeof(cell_heights));
+    if (out_main_cols)
+        *out_main_cols = main_cols;
+    if (out_main_rows)
+        *out_main_rows = main_rows;
+
+    return fits;
+}
+
+static int sdl_mobile_select_default_scale(const SDL_Rect* screen,
+    const struct pane_config* configs, int count)
+{
+    int max_scale;
+
+    if (!screen)
+        return 1;
+
+    max_scale = sdl_max_scale_for_rect(screen);
+    for (int scale = max_scale; scale >= 1; scale--) {
+        if (sdl_mobile_layout_fits(screen, scale, configs, count, NULL, NULL,
+                NULL, NULL, NULL))
+            return scale;
+    }
+
+    return 1;
+}
+
+static void sdl_apply_mobile_default_pane_layout(const SDL_Rect* screen,
+    bool has_controller)
+{
+    struct pane_config selected[MAX_PANE_CONFIGS] = { 0 };
+    struct pane_config candidate[MAX_PANE_CONFIGS] = { 0 };
+    SDL_Rect panes[PANE_MAX] = { 0 };
+    int cell_widths[PANE_MAX] = { 0 };
+    int cell_heights[PANE_MAX] = { 0 };
+    bool touch_enabled;
+    bool have_bottom = false;
+    bool wide_bottom = false;
+    bool inventory_enabled = false;
+    bool worn_enabled = false;
+    int bottom_rows = 0;
+    int final_main_cols = 0;
+    int final_main_rows = 0;
+
+    if (!screen)
+        return;
+
+    config.min_terminal_mode = SDL_MIN_TERMINAL_COMPACT;
+
+    memcpy(selected, pane_config, sizeof(selected));
+    sdl_mobile_reset_default_pane_configs(selected, pane_config_count);
+
+    touch_enabled = !has_controller;
+    sdl_mobile_set_touch_pane_enabled(selected, pane_config_count,
+        touch_enabled);
+
+    config.main_view_scale = sdl_mobile_select_default_scale(screen, selected,
+        pane_config_count);
+
+    for (int rows = 4; rows >= 1; rows--) {
+        memcpy(candidate, selected, sizeof(candidate));
+        sdl_mobile_configure_bottom_wide(candidate, pane_config_count, rows);
+
+        if (!sdl_mobile_layout_fits(screen, config.main_view_scale, candidate,
+                pane_config_count, panes, cell_widths, cell_heights, NULL,
+                NULL))
+            continue;
+        if (sdl_mobile_pane_cols(panes, cell_widths, PANE_ROLLS) < 65)
+            continue;
+        if (sdl_mobile_pane_cols(panes, cell_widths, PANE_LOG) < 50)
+            continue;
+
+        memcpy(selected, candidate, sizeof(selected));
+        have_bottom = true;
+        wide_bottom = true;
+        bottom_rows = rows;
+        break;
+    }
+
+    if (!have_bottom) {
+        for (int total_rows = 7; total_rows >= 1; total_rows--) {
+            memcpy(candidate, selected, sizeof(candidate));
+            sdl_mobile_configure_bottom_narrow(candidate, pane_config_count,
+                total_rows);
+
+            if (!sdl_mobile_layout_fits(screen, config.main_view_scale,
+                    candidate, pane_config_count, NULL, NULL, NULL, NULL,
+                    NULL))
+                continue;
+
+            memcpy(selected, candidate, sizeof(selected));
+            have_bottom = true;
+            bottom_rows = total_rows;
+            break;
+        }
+    }
+
+    memcpy(candidate, selected, sizeof(candidate));
+    sdl_mobile_set_right_panes(candidate, pane_config_count, true, false);
+    if (sdl_mobile_layout_fits(screen, config.main_view_scale, candidate,
+            pane_config_count, NULL, NULL, NULL, NULL, NULL))
+    {
+        memcpy(selected, candidate, sizeof(selected));
+        inventory_enabled = true;
+    }
+
+    if (inventory_enabled) {
+        memcpy(candidate, selected, sizeof(candidate));
+        sdl_mobile_set_right_panes(candidate, pane_config_count, true, true);
+        if (sdl_mobile_layout_fits(screen, config.main_view_scale, candidate,
+                pane_config_count, NULL, NULL, NULL, NULL, NULL))
+        {
+            memcpy(selected, candidate, sizeof(selected));
+            worn_enabled = true;
+        }
+    }
+
+    memcpy(pane_config, selected, sizeof(selected));
+    config.enable_bottom_panes = have_bottom;
+    config.enable_right_panes = (touch_enabled || inventory_enabled
+        || worn_enabled);
+
+    sdl_mobile_layout_fits(screen, config.main_view_scale, pane_config,
+        pane_config_count, panes, cell_widths, cell_heights, &final_main_cols,
+        &final_main_rows);
+
+    log_info("Mobile default pane layout: controller=%s touch=%s scale=%d main=%dx%d",
+        has_controller ? "yes" : "no",
+        touch_enabled ? "on" : "off",
+        config.main_view_scale, final_main_cols, final_main_rows);
+    if (have_bottom) {
+        log_info("Mobile default bottom panes: %s layout, %d row%s",
+            wide_bottom ? "split" : "stacked",
+            bottom_rows, (bottom_rows == 1) ? "" : "s");
+    } else {
+        log_info("Mobile default bottom panes: off");
+    }
+    log_info("Mobile default right panes: inventory=%s worn=%s",
+        inventory_enabled ? "on" : "off",
+        worn_enabled ? "on" : "off");
+}
+#endif
 
 static bool sdl_touch_pane_is_config_enabled(void)
 {
@@ -5364,7 +5922,8 @@ static void sdl_quit_hook(cptr str)
         }
         
         // Save configuration
-        sdl_config_save(config_file_path, &config, pane_config, pane_config_count);
+        sdl_store_active_pane_profile(config.min_terminal_mode);
+        sdl_config_save(config_file_path, &config, g_pane_profiles, SDL_PANE_PROFILE_COUNT);
     }
 }
 
@@ -5447,8 +6006,9 @@ errr init_sdl(int argc, char **argv)
         for (int i = 0; i < default_pane_config_count && i < MAX_PANE_CONFIGS; i++) {
             pane_config[i] = default_pane_config[i];
         }
-        
-        sdl_config_load(config_file_path, &config, pane_config, &pane_config_count, MAX_PANE_CONFIGS);
+        sdl_seed_all_pane_profiles_from_active();
+        sdl_config_load(config_file_path, &config, g_pane_profiles, SDL_PANE_PROFILE_COUNT);
+        sdl_apply_stored_pane_profile(config.min_terminal_mode);
         
         // Load sound configuration from sound.json
         // For local builds: read from lib/pref (ANGBAND_DIR_PREF)
@@ -5490,26 +6050,12 @@ errr init_sdl(int argc, char **argv)
         log_debug("After resolution defaults: scale=%d, default_aux_font=%d, margin=%d, fullscreen=%d, tiles=%d",
                   config.main_view_scale, config.aux_view_font_size, config.margin,
                   config.fullscreen, config.tiles);
+        sdl_seed_all_pane_profiles_from_active();
     }
 
 #if defined(__ANDROID__) || defined(SIL_IOS)
     sdl_ensure_default_pane_configs_present(false);
     sdl_ensure_touch_pane_config_present();
-
-    if (!config_exists) {
-        for (int i = 0; i < pane_config_count; i++) {
-            if (pane_config[i].pane == PANE_TOUCH) {
-                pane_config[i].enabled = true;
-                pane_config[i].where = PLACE_DOUBLE_RIGHT;
-            } else {
-                pane_config[i].enabled = false;
-            }
-        }
-
-        config.enable_right_panes = true;
-        config.enable_bottom_panes = false;
-        log_info("Mobile default pane layout: touch only enabled; other panes available in settings");
-    }
 #endif
 
     sdl_ensure_touch_pane_config_present();
@@ -5530,7 +6076,7 @@ errr init_sdl(int argc, char **argv)
               config.fullscreen, config.tiles);
 
 #if defined(__ANDROID__) || defined(SIL_IOS)
-    {
+    if (config_exists) {
         int mobile_min_cols = sdl_current_min_terminal_cols();
         int mobile_min_rows = sdl_current_min_terminal_rows();
         int mobile_max_scale_w = (screen_pixels_w / mobile_min_cols) * 2 / TILE_SIZE;
@@ -5542,16 +6088,7 @@ errr init_sdl(int argc, char **argv)
         if (mobile_max_scale < 1)
             mobile_max_scale = 1;
 
-        if (!config_exists) {
-            if (config.main_view_scale != mobile_max_scale) {
-                log_info("Mobile default main_view_scale set to %d for >=%dx%d (%s) at %dx%d",
-                         mobile_max_scale,
-                         mobile_min_cols, mobile_min_rows,
-                         sdl_min_terminal_mode_name(config.min_terminal_mode),
-                         screen_pixels_w, screen_pixels_h);
-            }
-            config.main_view_scale = mobile_max_scale;
-        } else if (config.main_view_scale > mobile_max_scale) {
+        if (config.main_view_scale > mobile_max_scale) {
             log_info("Mobile main_view_scale clamped from %d to %d to keep >=%dx%d (%s)",
                      config.main_view_scale, mobile_max_scale,
                      mobile_min_cols, mobile_min_rows,
@@ -5661,6 +6198,19 @@ errr init_sdl(int argc, char **argv)
     if (!config.fullscreen && config.window_x >= 0 && config.window_y >= 0) {
         sdl_window_set_position(config.window_x, config.window_y);
     }
+
+#if defined(__ANDROID__) || defined(SIL_IOS)
+    if (!config_exists) {
+        SDL_Rect mobile_screen = { 0 };
+
+        SDL_GetWindowSizeInPixels(g_state.window, &mobile_screen.w,
+            &mobile_screen.h);
+        sdl_apply_mobile_default_pane_layout(&mobile_screen,
+            g_gamepad_state.pad_count > 0);
+        g_active_side_panes = config.enable_right_panes;
+        g_active_bottom_panes = config.enable_bottom_panes;
+    }
+#endif
     
     // Load story and banner fonts
     sdl_load_story_fonts();
@@ -5771,7 +6321,8 @@ void get_sdl_config_info(char* buf, size_t size)
  */
 bool save_pane_config_to_json(void)
 {
-    sdl_config_save(config_file_path, &config, pane_config, pane_config_count);
+    sdl_store_active_pane_profile(config.min_terminal_mode);
+    sdl_config_save(config_file_path, &config, g_pane_profiles, SDL_PANE_PROFILE_COUNT);
     log_info("Pane configuration saved to: %s", config_file_path);
     return true;
 }
@@ -5799,8 +6350,12 @@ void set_sdl_min_terminal_mode(int value)
 {
     if (!sdl_min_terminal_mode_is_valid(value))
         return;
+    if (config.min_terminal_mode == value)
+        return;
 
+    sdl_store_active_pane_profile(config.min_terminal_mode);
     config.min_terminal_mode = value;
+    sdl_apply_stored_pane_profile(value);
 
     if (config.main_view_scale > get_sdl_max_scale())
         config.main_view_scale = get_sdl_max_scale();

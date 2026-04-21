@@ -31,10 +31,20 @@
 #define SDL_TOUCH_PANE_PANEL_COUNT 2
 #define SDL_TOUCH_PANE_PANEL_MAIN 0
 #define SDL_TOUCH_PANE_PANEL_SECOND 1
+#define SDL_PANE_PROFILE_COUNT 2
 
 enum sdl_min_terminal_mode {
     SDL_MIN_TERMINAL_NORMAL = 0,
     SDL_MIN_TERMINAL_COMPACT = 1,
+};
+
+struct sdl_pane_profile {
+    int main_view_scale;
+    int aux_view_font_size;
+    bool enable_right_panes;
+    bool enable_bottom_panes;
+    int pane_count;
+    struct pane_config pane_configs[MAX_PANE_CONFIGS];
 };
 
 // SDL-specific configuration structure
@@ -107,12 +117,12 @@ struct sdl_config {
 };
 
 // Load SDL configuration from JSON file
-void sdl_config_load(const char* filename, struct sdl_config* config, 
-                     struct pane_config* pane_configs, int* pane_count, int max_panes);
+void sdl_config_load(const char* filename, struct sdl_config* config,
+                     struct sdl_pane_profile* pane_profiles, int profile_count);
 
 // Save SDL configuration to JSON file
 void sdl_config_save(const char* filename, const struct sdl_config* config,
-                     const struct pane_config* pane_configs, int pane_count);
+                     const struct sdl_pane_profile* pane_profiles, int profile_count);
 
 // Set default configuration values
 void sdl_config_set_defaults(struct sdl_config* config);

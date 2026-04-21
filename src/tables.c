@@ -220,7 +220,7 @@ cptr option_text[OPT_MAX] = {
     NULL, /* xxx scroll_target */
     "auto_more", /* OPT_auto_more */
     "know_monster_info", /* OPT_know_monster_info */
-    "always_show_list", /* OPT_auto_display_lists */
+    NULL, /* xxx auto_display_lists */
     "artifact_unique_color", /* OPT_artifact_unique_color */
     "easy_main_menu", /* OPT_easy_main_menu */
     "story_lists", /* OPT_story_lists */
@@ -464,7 +464,7 @@ cptr option_desc[OPT_MAX] = {
     NULL, /* xxx scroll_target */
     "Automatically dismiss '-more-' messages", /* OPT_auto_more */
     "Know all monster info", /* OPT_know_monster_info */
-    "Automatically display drop-down lists", /* OPT_auto_display_lists */
+    NULL, /* xxx auto_display_lists */
     "Display artifacts in unique yellow color", /* OPT_artifact_unique_color */
     "Use the Escape key to access the main menu", /* OPT_easy_main_menu */
     "Render look/target lists with the story font", /* OPT_story_lists */
@@ -725,7 +725,7 @@ const bool option_norm[OPT_MAX] = {
     false, /* xxx scroll_target */
     false, /* OPT_auto_more */
     false, /* OPT_know_monster_info */
-    true, /* OPT_auto_display_lists */
+    false, /* xxx auto_display_lists */
     true, /* OPT_artifact_unique_color */
     true, /* OPT_easy_main_menu */
     false, /* OPT_story_lists */
@@ -921,12 +921,14 @@ const bool option_norm[OPT_MAX] = {
 const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
     /*** User-Interface ***/
 
-    { OPT_system_beep, OPT_quick_messages, OPT_auto_more, OPT_easy_main_menu,
-        OPT_hjkl_movement, OPT_angband_keyset, OPT_space_acts_as_comma,
+    { OPT_quick_messages, OPT_auto_more,
         OPT_look_objects_sort_by_difficulty, OPT_look_nearby_filter_default,
         OPT_hide_left_panel, OPT_hidden_left_panel_mode, OPT_top_status_line,
-        OPT_hitpoint_warning, OPT_show_level_generation_debug,
-        OPT_show_elemental_item_rolls, OPT_NONE, OPT_NONE,
+        OPT_hitpoint_warning,
+        OPT_easy_main_menu, OPT_hjkl_movement, OPT_angband_keyset,
+        OPT_space_acts_as_comma,
+        OPT_show_level_generation_debug, OPT_show_elemental_item_rolls,
+        OPT_system_beep, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Text options ***/
@@ -941,7 +943,7 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
 
     { OPT_valorous_oath_auto_attack_safety, OPT_forgo_attacking_unwary,
         OPT_assassination_over_charge, OPT_stop_singing_on_rest,
-        OPT_know_monster_info, OPT_visual_recognition,
+        OPT_visual_recognition, OPT_know_monster_info,
         OPT_disable_skeleton_note_tutorial, OPT_smaller_level_size, OPT_more_stairs,
         OPT_vault_drop_frequency, OPT_noble_item_spawn_mode, OPT_unlock_blitz_mode,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
@@ -950,19 +952,18 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
     /*** Efficiency ***/
 
     { OPT_delay_factor, OPT_instant_run, OPT_center_player, OPT_run_avoid_center,
-        OPT_hide_supporting_panes_fullscreen,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE },
 
     /*** Display ***/
 
-    { OPT_auto_display_lists, OPT_main_combat_rolls, OPT_ability_desc_mode,
-        OPT_artifact_unique_color, OPT_hilite_player, OPT_hilite_target,
-        OPT_hilite_unwary, OPT_solid_walls, OPT_hybrid_walls, OPT_unidentified_items_slate,
-        OPT_stealth_vision, OPT_sleep_icon,
+    { OPT_main_combat_rolls, OPT_ability_desc_mode, OPT_stealth_vision,
+        OPT_sleep_icon, OPT_artifact_unique_color, OPT_unidentified_items_slate,
         OPT_show_level_entry_banner, OPT_show_partition_narrative, OPT_intro_style,
-        OPT_banner_message_stairs, OPT_show_smithing_difficulty, OPT_show_smithing_difficulty_look,
+        OPT_banner_message_stairs, OPT_solid_walls, OPT_hybrid_walls,
+        OPT_hilite_player, OPT_hilite_target, OPT_hilite_unwary,
+        OPT_show_smithing_difficulty, OPT_show_smithing_difficulty_look,
         OPT_NONE, OPT_NONE },
 
     /*** Birth ***/

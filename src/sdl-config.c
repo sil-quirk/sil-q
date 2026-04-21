@@ -492,12 +492,11 @@ static const byte app_gameplay_options[] = {
 };
 
 static const byte app_visual_options[] = {
-    OPT_auto_display_lists, OPT_artifact_unique_color, OPT_hilite_player,
-    OPT_hilite_target, OPT_hilite_unwary, OPT_solid_walls, OPT_hybrid_walls,
+    OPT_artifact_unique_color, OPT_hilite_player, OPT_hilite_target,
+    OPT_hilite_unwary, OPT_solid_walls, OPT_hybrid_walls,
     OPT_unidentified_items_slate, OPT_stealth_vision, OPT_sleep_icon,
-    OPT_banner_message_stairs,
-    OPT_show_smithing_difficulty, OPT_show_smithing_difficulty_look,
-    OPT_NONE
+    OPT_banner_message_stairs, OPT_show_smithing_difficulty,
+    OPT_show_smithing_difficulty_look, OPT_NONE
 };
 
 static bool option_list_contains(const byte* ids, int opt)
@@ -533,7 +532,7 @@ static void sdl_config_apply_app_option_defaults(void)
 
     op_ptr->delay_factor = 5;
     op_ptr->hitpoint_warn = 3;
-    op_ptr->main_combat_rolls = get_sdl_steamdeck_mode() ? 2 : 0;
+    op_ptr->main_combat_rolls = 0;
 #if defined(__ANDROID__) || defined(SIL_IOS)
     op_ptr->ability_desc_mode = 1;
 #else
@@ -803,9 +802,229 @@ static cJSON* sdl_config_create_string_array(const char src[][SDL_TOUCH_PANE_LAB
     return array;
 }
 
-void sdl_config_load(const char* filename, struct sdl_config* config, 
-                     struct pane_config* pane_configs, int* pane_count, int max_panes)
+static void sdl_config_copy_pane_configs(struct pane_config* dest, int* dest_count,
+    const struct pane_config* src, int src_count)
 {
+    int count = src_count;
+
+    if (!dest || !dest_count)
+        return;
+
+    if (count < 0)
+        count = 0;
+    if (count > MAX_PANE_CONFIGS)
+        count = MAX_PANE_CONFIGS;
+
+    if (count > 0 && src)
+        memcpy(dest, src, sizeof(struct pane_config) * count);
+
+    if (count < MAX_PANE_CONFIGS)
+        memset(dest + count, 0, sizeof(struct pane_config) * (MAX_PANE_CONFIGS - count));
+
+    *dest_count = count;
+}
+
+static void sdl_config_load_pane_array(cJSON* panes, struct pane_config* pane_configs,
+    int* pane_count, int max_panes, const char* label)
+{
+    int count = 0;
+    cJSON* pane_item = NULL;
+    int array_size;
+
+    if (!pane_count)
+        return;
+
+    *pane_count = 0;
+
+    if (!cJSON_IsArray(panes)) {
+        if (label)
+            log_warn("'%s' array not found in JSON", label);
+        return;
+    }
+
+    array_size = cJSON_GetArraySize(panes);
+    if (label)
+        log_debug("Found '%s' array with %d items", label, array_size);
+
+    cJSON_ArrayForEach(pane_item, panes) {
+        struct pane_config* pc;
+        cJSON* type;
+        cJSON* where;
+        cJSON* enabled;
+        cJSON* rows;
+        cJSON* cols;
+        cJSON* ratio;
+        cJSON* font_size;
+
+        if (count >= max_panes) {
+            log_warn("Too many panes in config, maximum is %d", max_panes);
+            break;
+        }
+
+        pc = &pane_configs[count];
+        memset(pc, 0, sizeof(*pc));
+        pc->pane = PANE_MAIN;
+        pc->enabled = true;
+
+        type = cJSON_GetObjectItemCaseSensitive(pane_item, "type");
+        if (cJSON_IsString(type)) {
+            pc->pane = parse_pane_type(type->valuestring);
+            log_debug("Pane %d: type=%s", count, type->valuestring);
+        }
+
+        where = cJSON_GetObjectItemCaseSensitive(pane_item, "where");
+        if (cJSON_IsString(where)) {
+            pc->where = parse_pane_placement(where->valuestring);
+            log_debug("Pane %d: where=%s", count, where->valuestring);
+        }
+
+        enabled = cJSON_GetObjectItemCaseSensitive(pane_item, "enabled");
+        if (cJSON_IsBool(enabled)) {
+            pc->enabled = cJSON_IsTrue(enabled);
+            log_debug("Pane %d: enabled=%s", count, pc->enabled ? "true" : "false");
+        }
+
+        rows = cJSON_GetObjectItemCaseSensitive(pane_item, "rows");
+        if (cJSON_IsNumber(rows)) {
+            pc->rect.rows = rows->valueint;
+            log_debug("Pane %d: rows=%d", count, pc->rect.rows);
+        }
+
+        cols = cJSON_GetObjectItemCaseSensitive(pane_item, "cols");
+        if (cJSON_IsNumber(cols)) {
+            pc->rect.cols = cols->valueint;
+            log_debug("Pane %d: cols=%d", count, pc->rect.cols);
+        }
+
+        ratio = cJSON_GetObjectItemCaseSensitive(pane_item, "ratio");
+        if (cJSON_IsNumber(ratio)) {
+            pc->ratio = (float)ratio->valuedouble;
+            log_debug("Pane %d: ratio=%.2f", count, pc->ratio);
+        }
+
+        font_size = cJSON_GetObjectItemCaseSensitive(pane_item, "fontSize");
+        if (cJSON_IsNumber(font_size)) {
+            pc->font_size = font_size->valueint;
+            if (pc->font_size < 0)
+                pc->font_size = 0;
+            if (pc->font_size > 48)
+                pc->font_size = 48;
+            log_debug("Pane %d: fontSize=%d", count, pc->font_size);
+        }
+
+        if (!pane_type_allows_placement(pc->pane, pc->where)) {
+            enum pane_placement fallback = pane_first_allowed_placement(pc->pane);
+            log_warn("Pane %d placement %s is invalid for type %s, using %s",
+                count,
+                pane_placement_name(pc->where),
+                pane_type_to_string(pc->pane),
+                pane_placement_name(fallback));
+            pc->where = fallback;
+        }
+
+        count++;
+    }
+
+    *pane_count = count;
+    if (label)
+        log_debug("Parsed %d panes from %s", count, label);
+}
+
+static void sdl_config_init_pane_profiles_from_legacy(const struct sdl_config* config,
+    struct sdl_pane_profile* pane_profiles, int profile_count,
+    const struct pane_config* pane_configs, int pane_count)
+{
+    if (!pane_profiles || profile_count <= 0)
+        return;
+
+    for (int mode = 0; mode < profile_count; mode++) {
+        pane_profiles[mode].main_view_scale = config->main_view_scale;
+        pane_profiles[mode].aux_view_font_size = config->aux_view_font_size;
+        pane_profiles[mode].enable_right_panes = config->enable_right_panes;
+        pane_profiles[mode].enable_bottom_panes = config->enable_bottom_panes;
+        if (pane_count > 0) {
+            sdl_config_copy_pane_configs(pane_profiles[mode].pane_configs,
+                &pane_profiles[mode].pane_count, pane_configs, pane_count);
+        }
+    }
+}
+
+static void sdl_config_load_pane_profile(cJSON* profile_obj,
+    struct sdl_pane_profile* profile, const char* label)
+{
+    cJSON* item;
+    struct pane_config panes[MAX_PANE_CONFIGS] = { 0 };
+    int pane_count = 0;
+
+    if (!cJSON_IsObject(profile_obj) || !profile)
+        return;
+
+    item = cJSON_GetObjectItemCaseSensitive(profile_obj, "mainViewScale");
+    if (cJSON_IsNumber(item))
+        profile->main_view_scale = item->valueint;
+
+    item = cJSON_GetObjectItemCaseSensitive(profile_obj, "auxViewFontSize");
+    if (cJSON_IsNumber(item))
+        profile->aux_view_font_size = item->valueint;
+
+    item = cJSON_GetObjectItemCaseSensitive(profile_obj, "enableRightPanes");
+    if (cJSON_IsBool(item))
+        profile->enable_right_panes = cJSON_IsTrue(item);
+
+    item = cJSON_GetObjectItemCaseSensitive(profile_obj, "enableBottomPanes");
+    if (cJSON_IsBool(item))
+        profile->enable_bottom_panes = cJSON_IsTrue(item);
+
+    item = cJSON_GetObjectItemCaseSensitive(profile_obj, "panes");
+    if (cJSON_IsArray(item)) {
+        sdl_config_load_pane_array(item, panes, &pane_count, MAX_PANE_CONFIGS, label);
+        sdl_config_copy_pane_configs(profile->pane_configs, &profile->pane_count,
+            panes, pane_count);
+    }
+}
+
+static cJSON* sdl_config_create_panes_array(const struct pane_config* pane_configs, int pane_count)
+{
+    cJSON* panes = cJSON_CreateArray();
+
+    if (!panes)
+        return NULL;
+
+    for (int i = 0; i < pane_count; i++) {
+        const struct pane_config* pc = &pane_configs[i];
+        cJSON* pane = cJSON_CreateObject();
+
+        if (!pane)
+            continue;
+
+        cJSON_AddStringToObject(pane, "type", pane_type_to_string(pc->pane));
+        cJSON_AddStringToObject(pane, "where", pane_placement_to_string(pc->where));
+        cJSON_AddBoolToObject(pane, "enabled", pc->enabled);
+
+        if (pc->rect.rows > 0)
+            cJSON_AddNumberToObject(pane, "rows", pc->rect.rows);
+
+        if (pc->rect.cols > 0)
+            cJSON_AddNumberToObject(pane, "cols", pc->rect.cols);
+
+        if (pc->ratio > 0.0f)
+            cJSON_AddNumberToObject(pane, "ratio", pc->ratio);
+
+        if (pc->font_size > 0)
+            cJSON_AddNumberToObject(pane, "fontSize", pc->font_size);
+
+        cJSON_AddItemToArray(panes, pane);
+    }
+
+    return panes;
+}
+
+void sdl_config_load(const char* filename, struct sdl_config* config,
+                     struct sdl_pane_profile* pane_profiles, int profile_count)
+{
+    struct pane_config legacy_panes[MAX_PANE_CONFIGS] = { 0 };
+    int legacy_pane_count = 0;
+
     log_info("Loading SDL configuration from: %s", filename);
     
     char* content = read_file_contents(filename);
@@ -1064,88 +1283,25 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
         log_warn("'sdl' object not found in JSON");
     }
     
-    // Parse pane configurations
-    cJSON* panes = cJSON_GetObjectItemCaseSensitive(root, "panes");
-    if (cJSON_IsArray(panes)) {
-        int count = 0;
-        cJSON* pane_item = NULL;
-        int array_size = cJSON_GetArraySize(panes);
-        log_debug("Found 'panes' array with %d items", array_size);
-        
-        cJSON_ArrayForEach(pane_item, panes) {
-            if (count >= max_panes) {
-                log_warn("Too many panes in config, maximum is %d", max_panes);
-                break;
-            }
-            
-            struct pane_config* pc = &pane_configs[count];
-            memset(pc, 0, sizeof(*pc));
-            pc->pane = PANE_MAIN;
-            pc->enabled = true;
-            
-            cJSON* type = cJSON_GetObjectItemCaseSensitive(pane_item, "type");
-            if (cJSON_IsString(type)) {
-                pc->pane = parse_pane_type(type->valuestring);
-                log_debug("Pane %d: type=%s", count, type->valuestring);
-            }
-            
-            cJSON* where = cJSON_GetObjectItemCaseSensitive(pane_item, "where");
-            if (cJSON_IsString(where)) {
-                pc->where = parse_pane_placement(where->valuestring);
-                log_debug("Pane %d: where=%s", count, where->valuestring);
-            }
+    /* Parse legacy shared pane configuration first, then copy into all profiles.
+     * If paneProfiles exists below, it overrides each mode separately. */
+    sdl_config_load_pane_array(cJSON_GetObjectItemCaseSensitive(root, "panes"),
+        legacy_panes, &legacy_pane_count, MAX_PANE_CONFIGS, "panes");
+    sdl_config_init_pane_profiles_from_legacy(config, pane_profiles, profile_count,
+        legacy_panes, legacy_pane_count);
 
-            cJSON* enabled = cJSON_GetObjectItemCaseSensitive(pane_item, "enabled");
-            if (cJSON_IsBool(enabled)) {
-                pc->enabled = cJSON_IsTrue(enabled);
-                log_debug("Pane %d: enabled=%s", count, pc->enabled ? "true" : "false");
-            }
-            
-            cJSON* rows = cJSON_GetObjectItemCaseSensitive(pane_item, "rows");
-            if (cJSON_IsNumber(rows)) {
-                pc->rect.rows = rows->valueint;
-                log_debug("Pane %d: rows=%d", count, pc->rect.rows);
-            }
-            
-            cJSON* cols = cJSON_GetObjectItemCaseSensitive(pane_item, "cols");
-            if (cJSON_IsNumber(cols)) {
-                pc->rect.cols = cols->valueint;
-                log_debug("Pane %d: cols=%d", count, pc->rect.cols);
-            }
-            
-            cJSON* ratio = cJSON_GetObjectItemCaseSensitive(pane_item, "ratio");
-            if (cJSON_IsNumber(ratio)) {
-                pc->ratio = (float)ratio->valuedouble;
-                log_debug("Pane %d: ratio=%.2f", count, pc->ratio);
-            }
+    {
+        cJSON* pane_profiles_obj = cJSON_GetObjectItemCaseSensitive(root, "paneProfiles");
 
-            cJSON* font_size = cJSON_GetObjectItemCaseSensitive(pane_item, "fontSize");
-            if (cJSON_IsNumber(font_size)) {
-                pc->font_size = font_size->valueint;
-                if (pc->font_size < 0)
-                    pc->font_size = 0;
-                if (pc->font_size > 48)
-                    pc->font_size = 48;
-                log_debug("Pane %d: fontSize=%d", count, pc->font_size);
-            }
+        if (cJSON_IsObject(pane_profiles_obj) && pane_profiles && profile_count > 0) {
+            for (int mode = 0; mode < profile_count; mode++) {
+                const char* mode_name = min_terminal_mode_to_string(mode);
+                cJSON* profile_obj = cJSON_GetObjectItemCaseSensitive(pane_profiles_obj, mode_name);
 
-            if (!pane_type_allows_placement(pc->pane, pc->where)) {
-                enum pane_placement fallback = pane_first_allowed_placement(pc->pane);
-                log_warn("Pane %d placement %s is invalid for type %s, using %s",
-                    count,
-                    pane_placement_name(pc->where),
-                    pane_type_to_string(pc->pane),
-                    pane_placement_name(fallback));
-                pc->where = fallback;
+                if (cJSON_IsObject(profile_obj))
+                    sdl_config_load_pane_profile(profile_obj, &pane_profiles[mode], mode_name);
             }
-            
-            count++;
         }
-        
-        *pane_count = count;
-        log_debug("Parsed %d panes from JSON", count);
-    } else {
-        log_warn("'panes' array not found in JSON");
     }
 
     // Parse gamepad settings
@@ -1382,12 +1538,14 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
     }
     
     cJSON_Delete(root);
-    log_debug("Configuration loading complete. Total panes: %d", *pane_count);
+    log_debug("Configuration loading complete. Active mode=%s", min_terminal_mode_to_string(config->min_terminal_mode));
 }
 
 void sdl_config_save(const char* filename, const struct sdl_config* config,
-                     const struct pane_config* pane_configs, int pane_count)
+                     const struct sdl_pane_profile* pane_profiles, int profile_count)
 {
+    int active_mode = config->min_terminal_mode;
+    const struct sdl_pane_profile* active_profile = NULL;
     cJSON* root = cJSON_CreateObject();
     if (!root) {
         log_error("Failed to create JSON root object");
@@ -1444,47 +1602,65 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     cJSON_AddNumberToObject(sdl, "storyOutline", config->story_outline);
     
     cJSON_AddItemToObject(root, "sdl", sdl);
-    
-    // Create panes array
-    cJSON* panes = cJSON_CreateArray();
-    if (!panes) {
-        cJSON_Delete(root);
-        log_error("Failed to create panes array");
-        return;
-    }
-    
-    for (int i = 0; i < pane_count; i++) {
-        const struct pane_config* pc = &pane_configs[i];
-        
-        cJSON* pane = cJSON_CreateObject();
-        if (!pane) {
-            continue;
-        }
-        
-        cJSON_AddStringToObject(pane, "type", pane_type_to_string(pc->pane));
-        cJSON_AddStringToObject(pane, "where", pane_placement_to_string(pc->where));
-        cJSON_AddBoolToObject(pane, "enabled", pc->enabled);
-        
-        if (pc->rect.rows > 0) {
-            cJSON_AddNumberToObject(pane, "rows", pc->rect.rows);
-        }
-        
-        if (pc->rect.cols > 0) {
-            cJSON_AddNumberToObject(pane, "cols", pc->rect.cols);
-        }
-        
-        if (pc->ratio > 0.0f) {
-            cJSON_AddNumberToObject(pane, "ratio", pc->ratio);
+
+    if (active_mode < 0 || active_mode >= profile_count)
+        active_mode = SDL_MIN_TERMINAL_NORMAL;
+    if (pane_profiles && active_mode >= 0 && active_mode < profile_count)
+        active_profile = &pane_profiles[active_mode];
+
+    {
+        cJSON* panes = active_profile
+            ? sdl_config_create_panes_array(active_profile->pane_configs, active_profile->pane_count)
+            : cJSON_CreateArray();
+
+        if (!panes) {
+            cJSON_Delete(root);
+            log_error("Failed to create panes array");
+            return;
         }
 
-        if (pc->font_size > 0) {
-            cJSON_AddNumberToObject(pane, "fontSize", pc->font_size);
-        }
-        
-        cJSON_AddItemToArray(panes, pane);
+        cJSON_AddItemToObject(root, "panes", panes);
     }
-    
-    cJSON_AddItemToObject(root, "panes", panes);
+
+    {
+        cJSON* pane_profiles_obj = cJSON_CreateObject();
+
+        if (!pane_profiles_obj) {
+            cJSON_Delete(root);
+            log_error("Failed to create paneProfiles object");
+            return;
+        }
+
+        for (int mode = 0; mode < profile_count; mode++) {
+            cJSON* profile_obj = cJSON_CreateObject();
+            cJSON* panes = NULL;
+
+            if (!profile_obj)
+                continue;
+
+            cJSON_AddNumberToObject(profile_obj, "mainViewScale",
+                pane_profiles[mode].main_view_scale);
+            cJSON_AddNumberToObject(profile_obj, "auxViewFontSize",
+                pane_profiles[mode].aux_view_font_size);
+            cJSON_AddBoolToObject(profile_obj, "enableRightPanes",
+                pane_profiles[mode].enable_right_panes);
+            cJSON_AddBoolToObject(profile_obj, "enableBottomPanes",
+                pane_profiles[mode].enable_bottom_panes);
+
+            panes = sdl_config_create_panes_array(pane_profiles[mode].pane_configs,
+                pane_profiles[mode].pane_count);
+            if (!panes) {
+                cJSON_Delete(profile_obj);
+                continue;
+            }
+
+            cJSON_AddItemToObject(profile_obj, "panes", panes);
+            cJSON_AddItemToObject(pane_profiles_obj,
+                min_terminal_mode_to_string(mode), profile_obj);
+        }
+
+        cJSON_AddItemToObject(root, "paneProfiles", pane_profiles_obj);
+    }
 
     // Create gamepad settings object
     {

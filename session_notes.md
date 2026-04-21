@@ -1,5 +1,20 @@
 # Session notes
 
+## 2026-04-21: Android first-start pane defaults now derive from available space
+- `src/main-sdl.c`
+  - Added a mobile first-start default-layout helper that runs after SDL window creation, when the real window pixel size and display scale are known.
+  - New default algorithm:
+    - keeps the mobile minimum terminal size in compact mode,
+    - enables the touch pane only when no controller is detected,
+    - chooses the maximum main view scale that still fits the compact main terminal plus the touch pane when present,
+    - adds bottom panes only if they fit at that scale,
+    - uses a wide split `ROLLS` + `LOG` bottom layout only when the bottom width can give rolls `65` cols and log `50` cols,
+    - otherwise stacks narrow bottom layouts up to `7` rows total,
+    - enables right panes one-by-one (`INVENTORY`, then `WORN`) only if they still fit after the chosen bottom layout.
+  - `INFO` stays off in the new mobile defaults; it remains available in pane settings.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
 ## 2026-04-21: Welcome presentation restore + pane-owned border pass
 - `src/init2.c`
   - Restored the `develop`-style intro flush inside `display_introduction_with_layout()`.

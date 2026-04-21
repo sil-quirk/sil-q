@@ -1631,11 +1631,8 @@ void do_cmd_change_song()
     /* Flush the prompt */
     Term_fresh();
 
-    /* Option to always show a list */
-    if (auto_display_lists)
-    {
-        p_ptr->command_see = true;
-    }
+    /* Song selectors always start with the list visible. */
+    p_ptr->command_see = true;
 
     /* Start out in "display" mode */
     if (p_ptr->command_see)
@@ -13508,11 +13505,11 @@ struct option_group_marker
 
 static const struct option_group_marker interface_option_groups[] = {
     { 0, "Messages" },
-    { 3, "Input" },
-    { 7, "Look" },
-    { 8, "Layout" },
-    { 9, "Warnings" },
-    { 10, "Debug" },
+    { 2, "Look" },
+    { 4, "Panels" },
+    { 7, "Warnings" },
+    { 8, "Input" },
+    { 12, "Debug" },
     { -1, NULL }
 };
 
@@ -13525,8 +13522,9 @@ static const struct option_group_marker text_option_groups[] = {
 
 static const struct option_group_marker gameplay_option_groups[] = {
     { 0, "Combat Behavior" },
-    { 3, "Information" },
-    { 6, "World Generation" },
+    { 5, "Information" },
+    { 7, "World Generation" },
+    { 11, "Blitz" },
     { -1, NULL }
 };
 
@@ -13537,10 +13535,13 @@ static const struct option_group_marker efficiency_option_groups[] = {
 };
 
 static const struct option_group_marker visual_option_groups[] = {
-    { 0, "Lists and Overlays" },
-    { 3, "Map and Highlights" },
-    { 12, "Narrative" },
-    { 16, "Debug" },
+    { 0, "Lists" },
+    { 2, "Overlay" },
+    { 4, "Items" },
+    { 6, "Narrative" },
+    { 10, "ASCII" },
+    { 12, "Cursor" },
+    { 15, "Debug" },
     { -1, NULL }
 };
 
@@ -13953,7 +13954,6 @@ static cptr option_menu_label(int opt)
         case OPT_instant_run: return narrow ? "Fast running" : "Faster running";
         case OPT_center_player: return narrow ? "Center map" : "Center map";
         case OPT_run_avoid_center: return narrow ? "No center on run" : "Avoid centering on run";
-        case OPT_auto_display_lists: return narrow ? "Auto lists" : "Auto display lists";
         case OPT_artifact_unique_color: return narrow ? "Yellow artefacts" : "Yellow unique artefacts";
         case OPT_hilite_player: return narrow ? "Cursor on player" : "Highlight player";
         case OPT_hilite_target: return narrow ? "Cursor on target" : "Highlight target";
@@ -15006,8 +15006,23 @@ static const char* sdl_min_terminal_mode_label(int mode)
 
 void do_cmd_pane_settings(void)
 {
+    enum {
+        PANE_SETTING_MIN_TERMINAL_SIZE = 0,
+        PANE_SETTING_MAIN_VIEW_SCALE,
+        PANE_SETTING_ENABLE_SIDE_PANES,
+        PANE_SETTING_ENABLE_BOTTOM_PANES,
+        PANE_SETTING_FULLSCREEN,
+        PANE_SETTING_TILES,
+        PANE_SETTING_WHITE_PANE_BORDERS,
+        PANE_SETTING_HIDE_FULLSCREEN_PANES,
+        PANE_SETTING_AUX_VIEW_FONT_SIZE,
+        PANE_SETTING_VIEW_PANE_CONFIGURATION,
+        PANE_SETTING_PANE_FONT_SIZES,
+        PANE_SETTING_SAVE_RETURN,
+        PANE_SETTING_COUNT
+    };
     int k = 0;
-    int n = 12; /* Total number of options */
+    int n = PANE_SETTING_COUNT;
     bool done = false;
     bool settings_changed = false;
     int dir;
@@ -15037,19 +15052,8 @@ void do_cmd_pane_settings(void)
         row_width = settings_ui_line_width(2);
         label_hint = MAX(10, row_width - 12);
 
-        /* Option 0: Main View Scale */
-        a = (k == 0) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(value_buf, sizeof(value_buf), "%d", get_sdl_main_view_scale());
-        settings_ui_format_pair_line(buf, sizeof(buf),
-            settings_ui_pick_label(label_hint,
-                "Main View Scale (1-max) [Alt++/-]",
-                "Main View Scale [Alt++/-]",
-                "View Scale"),
-            value_buf, row_width, 3);
-        c_prt(a, buf, y0 + 0, 2);
-
-        /* Option 1: Minimum Terminal Size */
-        a = (k == 1) ? TERM_L_BLUE : TERM_WHITE;
+        /* Option 0: Minimum Terminal Size */
+        a = (k == PANE_SETTING_MIN_TERMINAL_SIZE) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_format_pair_line(buf, sizeof(buf),
             settings_ui_pick_label(label_hint,
                 "Minimum Terminal Size",
@@ -15057,10 +15061,77 @@ void do_cmd_pane_settings(void)
                 "Min Terminal"),
             sdl_min_terminal_mode_label(get_sdl_min_terminal_mode()),
             row_width, 10);
+        c_prt(a, buf, y0 + 0, 2);
+
+        /* Option 1: Main View Scale */
+        a = (k == PANE_SETTING_MAIN_VIEW_SCALE) ? TERM_L_BLUE : TERM_WHITE;
+        strnfmt(value_buf, sizeof(value_buf), "%d", get_sdl_main_view_scale());
+        settings_ui_format_pair_line(buf, sizeof(buf),
+            settings_ui_pick_label(label_hint,
+                "Main View Scale (1-max) [Alt++/-]",
+                "Main View Scale [Alt++/-]",
+                "View Scale"),
+            value_buf, row_width, 3);
         c_prt(a, buf, y0 + 1, 2);
 
-        /* Option 2: Aux View Font Size */
-        a = (k == 2) ? TERM_L_BLUE : TERM_WHITE;
+        /* Option 2: Enable Side Panes */
+        a = (k == PANE_SETTING_ENABLE_SIDE_PANES) ? TERM_L_BLUE : TERM_WHITE;
+        settings_ui_format_pair_line(buf, sizeof(buf),
+            settings_ui_pick_label(label_hint,
+                "Enable Side Panes [Alt+I]",
+                "Side Panes [Alt+I]",
+                "Side Panes"),
+            get_sdl_enable_right_panes() ? "yes" : "no",
+            row_width, 3);
+        c_prt(a, buf, y0 + 2, 2);
+
+        /* Option 3: Enable Bottom Panes */
+        a = (k == PANE_SETTING_ENABLE_BOTTOM_PANES) ? TERM_L_BLUE : TERM_WHITE;
+        settings_ui_format_pair_line(buf, sizeof(buf),
+            settings_ui_pick_label(label_hint,
+                "Enable Bottom Panes [Alt+L]",
+                "Bottom Panes [Alt+L]",
+                "Bottom Panes"),
+            get_sdl_enable_bottom_panes() ? "yes" : "no",
+            row_width, 3);
+        c_prt(a, buf, y0 + 3, 2);
+
+        /* Option 4: Fullscreen */
+        a = (k == PANE_SETTING_FULLSCREEN) ? TERM_L_BLUE : TERM_WHITE;
+        settings_ui_format_pair_line(buf, sizeof(buf), "Fullscreen",
+            get_sdl_fullscreen() ? "yes" : "no", row_width, 3);
+        c_prt(a, buf, y0 + 4, 2);
+
+        /* Option 5: Tiles */
+        a = (k == PANE_SETTING_TILES) ? TERM_L_BLUE : TERM_WHITE;
+        settings_ui_format_pair_line(buf, sizeof(buf), "Tiles",
+            get_sdl_tiles() ? "yes" : "no", row_width, 3);
+        c_prt(a, buf, y0 + 5, 2);
+
+        /* Option 6: White Pane Borders */
+        a = (k == PANE_SETTING_WHITE_PANE_BORDERS) ? TERM_L_BLUE : TERM_WHITE;
+        settings_ui_format_pair_line(buf, sizeof(buf),
+            settings_ui_pick_label(label_hint,
+                "White Pane Borders",
+                "White Pane Borders",
+                "White Borders"),
+            get_sdl_show_pane_borders() ? "white" : "black",
+            row_width, 5);
+        c_prt(a, buf, y0 + 6, 2);
+
+        /* Option 7: Hide supporting panes on full-screen screens */
+        a = (k == PANE_SETTING_HIDE_FULLSCREEN_PANES) ? TERM_L_BLUE : TERM_WHITE;
+        settings_ui_format_pair_line(buf, sizeof(buf),
+            settings_ui_pick_label(label_hint,
+                "Hide supporting panes on full-screen screens",
+                "Hide panes on full-screen screens",
+                "Hide panes on full-screen"),
+            op_ptr->opt[OPT_hide_supporting_panes_fullscreen] ? "yes" : "no",
+            row_width, 3);
+        c_prt(a, buf, y0 + 7, 2);
+
+        /* Option 8: Aux View Font Size */
+        a = (k == PANE_SETTING_AUX_VIEW_FONT_SIZE) ? TERM_L_BLUE : TERM_WHITE;
         format_font_size_value(font_value, sizeof(font_value),
             get_sdl_aux_view_font_size(), get_sdl_effective_aux_view_font_size(),
             MAX(6, MIN(14, row_width / 2)));
@@ -15070,66 +15141,10 @@ void do_cmd_pane_settings(void)
                 "Default Aux Font (0=auto)",
                 "Aux Font"),
             font_value, row_width, 6);
-        c_prt(a, buf, y0 + 2, 2);
-
-        /* Option 3: Margin */
-        a = (k == 3) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(value_buf, sizeof(value_buf), "%d", get_sdl_margin());
-        settings_ui_format_pair_line(buf, sizeof(buf),
-            settings_ui_pick_label(label_hint,
-                "Margin (0-20)",
-                "Margin",
-                "Margin"),
-            value_buf, row_width, 3);
-        c_prt(a, buf, y0 + 3, 2);
-
-        /* Option 4: Fullscreen */
-        a = (k == 4) ? TERM_L_BLUE : TERM_WHITE;
-        settings_ui_format_pair_line(buf, sizeof(buf), "Fullscreen",
-            get_sdl_fullscreen() ? "yes" : "no", row_width, 3);
-        c_prt(a, buf, y0 + 4, 2);
-
-        /* Option 5: Tiles */
-        a = (k == 5) ? TERM_L_BLUE : TERM_WHITE;
-        settings_ui_format_pair_line(buf, sizeof(buf), "Tiles",
-            get_sdl_tiles() ? "yes" : "no", row_width, 3);
-        c_prt(a, buf, y0 + 5, 2);
-
-        /* Option 6: Enable Side Panes */
-        a = (k == 6) ? TERM_L_BLUE : TERM_WHITE;
-        settings_ui_format_pair_line(buf, sizeof(buf),
-            settings_ui_pick_label(label_hint,
-                "Enable Side Panes [Alt+I]",
-                "Side Panes [Alt+I]",
-                "Side Panes"),
-            get_sdl_enable_right_panes() ? "yes" : "no",
-            row_width, 3);
-        c_prt(a, buf, y0 + 6, 2);
-
-        /* Option 7: Enable Bottom Panes */
-        a = (k == 7) ? TERM_L_BLUE : TERM_WHITE;
-        settings_ui_format_pair_line(buf, sizeof(buf),
-            settings_ui_pick_label(label_hint,
-                "Enable Bottom Panes [Alt+L]",
-                "Bottom Panes [Alt+L]",
-                "Bottom Panes"),
-            get_sdl_enable_bottom_panes() ? "yes" : "no",
-            row_width, 3);
-        c_prt(a, buf, y0 + 7, 2);
-
-        /* Option 8: White Pane Borders */
-        a = (k == 8) ? TERM_L_BLUE : TERM_WHITE;
-        settings_ui_format_pair_line(buf, sizeof(buf),
-            settings_ui_pick_label(label_hint,
-                "White Pane Borders",
-                "White Pane Borders",
-                "White Borders"),
-            get_sdl_show_pane_borders() ? "white" : "black",
-            row_width, 5);
         c_prt(a, buf, y0 + 8, 2);
 
         /* Option 9: View Pane Configuration (supporting panes only) */
-        a = (k == 9) ? TERM_L_BLUE : TERM_WHITE;
+        a = (k == PANE_SETTING_VIEW_PANE_CONFIGURATION) ? TERM_L_BLUE : TERM_WHITE;
         strnfmt(buf, sizeof(buf), "%s (%d)",
             settings_ui_pick_label(row_width,
                 "View Pane Configuration",
@@ -15144,7 +15159,7 @@ void do_cmd_pane_settings(void)
         c_prt(a, buf, y0 + 9, 2);
 
         /* Option 10: Pane Font Sizes */
-        a = (k == 10) ? TERM_L_BLUE : TERM_WHITE;
+        a = (k == PANE_SETTING_PANE_FONT_SIZES) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_fit_text(buf, sizeof(buf),
             settings_ui_pick_label(row_width,
                 "Pane Font Sizes",
@@ -15154,7 +15169,7 @@ void do_cmd_pane_settings(void)
         c_prt(a, buf, y0 + 10, 2);
 
         /* Option 11: Save/Return */
-        a = (k == 11) ? TERM_L_BLUE : TERM_WHITE;
+        a = (k == PANE_SETTING_SAVE_RETURN) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_fit_text(buf, sizeof(buf),
             settings_changed ? "Save Changes and Return"
                              : "Return to Options Menu",
@@ -15213,12 +15228,12 @@ void do_cmd_pane_settings(void)
         case '\r':
         {
             /* Enter activates the current option for actions; otherwise accept/exit. */
-            if (k == 9) /* Supporting Pane Layout */
+            if (k == PANE_SETTING_VIEW_PANE_CONFIGURATION) /* Supporting Pane Layout */
             {
                 do_cmd_supporting_pane_layout_editor(&settings_changed);
                 break;
             }
-            if (k == 10) /* Pane Font Sizes */
+            if (k == PANE_SETTING_PANE_FONT_SIZES) /* Pane Font Sizes */
             {
                 do_cmd_supporting_pane_font_editor(&settings_changed);
                 break;
@@ -15253,7 +15268,7 @@ void do_cmd_pane_settings(void)
 
         case '0':
         {
-            if (k == 2)
+            if (k == PANE_SETTING_AUX_VIEW_FONT_SIZE)
             {
                 if (get_sdl_aux_view_font_size() != 0)
                 {
@@ -15274,49 +15289,56 @@ void do_cmd_pane_settings(void)
         case ' ':
         {
             /* Toggle or activate current option */
-            if (k == 1) /* Minimum Terminal Size */
-            {
-                set_sdl_min_terminal_mode(get_sdl_min_terminal_mode() == 0 ? 1 : 0);
-                settings_changed = true;
-                sdl_apply_config();
-            }
-            else if (k == 4) /* Fullscreen */
-            {
-                set_sdl_fullscreen(!get_sdl_fullscreen());
-                settings_changed = true;
-            }
-            else if (k == 5) /* Tiles */
-            {
-                set_sdl_tiles(!get_sdl_tiles());
-                settings_changed = true;
-            }
-            else if (k == 6) /* Enable Side Panes */
+            if (k == PANE_SETTING_ENABLE_SIDE_PANES)
             {
                 set_sdl_enable_right_panes(!get_sdl_enable_right_panes());
                 settings_changed = true;
                 sdl_apply_config();
             }
-            else if (k == 7) /* Enable Bottom Panes */
+            else if (k == PANE_SETTING_ENABLE_BOTTOM_PANES)
             {
                 set_sdl_enable_bottom_panes(!get_sdl_enable_bottom_panes());
                 settings_changed = true;
                 sdl_apply_config();
             }
-            else if (k == 8) /* White Pane Borders */
+            else if (k == PANE_SETTING_FULLSCREEN)
+            {
+                set_sdl_fullscreen(!get_sdl_fullscreen());
+                settings_changed = true;
+            }
+            else if (k == PANE_SETTING_TILES)
+            {
+                set_sdl_tiles(!get_sdl_tiles());
+                settings_changed = true;
+            }
+            else if (k == PANE_SETTING_WHITE_PANE_BORDERS)
             {
                 set_sdl_show_pane_borders(!get_sdl_show_pane_borders());
                 settings_changed = true;
                 sdl_request_redraw();
             }
-            else if (k == 9) /* Supporting Pane Layout */
+            else if (k == PANE_SETTING_HIDE_FULLSCREEN_PANES)
+            {
+                op_ptr->opt[OPT_hide_supporting_panes_fullscreen]
+                    = !op_ptr->opt[OPT_hide_supporting_panes_fullscreen];
+                settings_changed = true;
+                sdl_refresh_supporting_panes_layout();
+            }
+            else if (k == PANE_SETTING_MIN_TERMINAL_SIZE) /* Minimum Terminal Size */
+            {
+                set_sdl_min_terminal_mode(get_sdl_min_terminal_mode() == 0 ? 1 : 0);
+                settings_changed = true;
+                sdl_apply_config();
+            }
+            else if (k == PANE_SETTING_VIEW_PANE_CONFIGURATION) /* Supporting Pane Layout */
             {
                 do_cmd_supporting_pane_layout_editor(&settings_changed);
             }
-            else if (k == 10) /* Pane Font Sizes */
+            else if (k == PANE_SETTING_PANE_FONT_SIZES) /* Pane Font Sizes */
             {
                 do_cmd_supporting_pane_font_editor(&settings_changed);
             }
-            else if (k == 11) /* Save/Return */
+            else if (k == PANE_SETTING_SAVE_RETURN) /* Save/Return */
             {
                 if (settings_changed)
                 {
@@ -15336,7 +15358,7 @@ void do_cmd_pane_settings(void)
             /* Increase value or set to yes */
             int val;
             
-            if (k == 0) /* Main View Scale */
+            if (k == PANE_SETTING_MAIN_VIEW_SCALE) /* Main View Scale */
             {
                 val = get_sdl_main_view_scale();
                 int max_scale = get_sdl_max_scale();
@@ -15347,7 +15369,41 @@ void do_cmd_pane_settings(void)
                     sdl_apply_config();
                 }
             }
-            else if (k == 1) /* Minimum Terminal Size */
+            else if (k == PANE_SETTING_ENABLE_SIDE_PANES) /* Enable Side Panes */
+            {
+                set_sdl_enable_right_panes(true);
+                settings_changed = true;
+                sdl_apply_config();
+            }
+            else if (k == PANE_SETTING_ENABLE_BOTTOM_PANES) /* Enable Bottom Panes */
+            {
+                set_sdl_enable_bottom_panes(true);
+                settings_changed = true;
+                sdl_apply_config();
+            }
+            else if (k == PANE_SETTING_FULLSCREEN) /* Fullscreen */
+            {
+                set_sdl_fullscreen(true);
+                settings_changed = true;
+            }
+            else if (k == PANE_SETTING_TILES) /* Tiles */
+            {
+                set_sdl_tiles(true);
+                settings_changed = true;
+            }
+            else if (k == PANE_SETTING_WHITE_PANE_BORDERS) /* White Pane Borders */
+            {
+                set_sdl_show_pane_borders(true);
+                settings_changed = true;
+                sdl_request_redraw();
+            }
+            else if (k == PANE_SETTING_HIDE_FULLSCREEN_PANES) /* Hide panes on full-screen screens */
+            {
+                op_ptr->opt[OPT_hide_supporting_panes_fullscreen] = true;
+                settings_changed = true;
+                sdl_refresh_supporting_panes_layout();
+            }
+            else if (k == PANE_SETTING_MIN_TERMINAL_SIZE) /* Minimum Terminal Size */
             {
                 if (get_sdl_min_terminal_mode() != 0)
                 {
@@ -15356,7 +15412,7 @@ void do_cmd_pane_settings(void)
                     sdl_apply_config();
                 }
             }
-            else if (k == 2) /* Aux View Font Size */
+            else if (k == PANE_SETTING_AUX_VIEW_FONT_SIZE) /* Aux View Font Size */
             {
                 val = get_sdl_aux_view_font_size();
                 if (val == 0)
@@ -15372,44 +15428,6 @@ void do_cmd_pane_settings(void)
                     sdl_apply_config();
                 }
             }
-            else if (k == 3) /* Margin */
-            {
-                val = get_sdl_margin();
-                if (val < 20)
-                {
-                    set_sdl_margin(val + 1);
-                    settings_changed = true;
-                    sdl_apply_config();
-                }
-            }
-            else if (k == 4) /* Fullscreen */
-            {
-                set_sdl_fullscreen(true);
-                settings_changed = true;
-            }
-            else if (k == 5) /* Tiles */
-            {
-                set_sdl_tiles(true);
-                settings_changed = true;
-            }
-            else if (k == 6) /* Enable Side Panes */
-            {
-                set_sdl_enable_right_panes(true);
-                settings_changed = true;
-                sdl_apply_config();
-            }
-            else if (k == 7) /* Enable Bottom Panes */
-            {
-                set_sdl_enable_bottom_panes(true);
-                settings_changed = true;
-                sdl_apply_config();
-            }
-            else if (k == 8) /* White Pane Borders */
-            {
-                set_sdl_show_pane_borders(true);
-                settings_changed = true;
-                sdl_request_redraw();
-            }
             break;
         }
         
@@ -15419,7 +15437,7 @@ void do_cmd_pane_settings(void)
             /* Decrease value or set to no */
             int val;
             
-            if (k == 0) /* Main View Scale */
+            if (k == PANE_SETTING_MAIN_VIEW_SCALE) /* Main View Scale */
             {
                 val = get_sdl_main_view_scale();
                 if (val > 1)
@@ -15429,7 +15447,41 @@ void do_cmd_pane_settings(void)
                     sdl_apply_config();
                 }
             }
-            else if (k == 1) /* Minimum Terminal Size */
+            else if (k == PANE_SETTING_ENABLE_SIDE_PANES) /* Enable Side Panes */
+            {
+                set_sdl_enable_right_panes(false);
+                settings_changed = true;
+                sdl_apply_config();
+            }
+            else if (k == PANE_SETTING_ENABLE_BOTTOM_PANES) /* Enable Bottom Panes */
+            {
+                set_sdl_enable_bottom_panes(false);
+                settings_changed = true;
+                sdl_apply_config();
+            }
+            else if (k == PANE_SETTING_FULLSCREEN) /* Fullscreen */
+            {
+                set_sdl_fullscreen(false);
+                settings_changed = true;
+            }
+            else if (k == PANE_SETTING_TILES) /* Tiles */
+            {
+                set_sdl_tiles(false);
+                settings_changed = true;
+            }
+            else if (k == PANE_SETTING_WHITE_PANE_BORDERS) /* White Pane Borders */
+            {
+                set_sdl_show_pane_borders(false);
+                settings_changed = true;
+                sdl_request_redraw();
+            }
+            else if (k == PANE_SETTING_HIDE_FULLSCREEN_PANES) /* Hide panes on full-screen screens */
+            {
+                op_ptr->opt[OPT_hide_supporting_panes_fullscreen] = false;
+                settings_changed = true;
+                sdl_refresh_supporting_panes_layout();
+            }
+            else if (k == PANE_SETTING_MIN_TERMINAL_SIZE) /* Minimum Terminal Size */
             {
                 if (get_sdl_min_terminal_mode() != 1)
                 {
@@ -15438,7 +15490,7 @@ void do_cmd_pane_settings(void)
                     sdl_apply_config();
                 }
             }
-            else if (k == 2) /* Aux View Font Size */
+            else if (k == PANE_SETTING_AUX_VIEW_FONT_SIZE) /* Aux View Font Size */
             {
                 val = get_sdl_aux_view_font_size();
                 if (val == 0)
@@ -15453,44 +15505,6 @@ void do_cmd_pane_settings(void)
                     settings_changed = true;
                     sdl_apply_config();
                 }
-            }
-            else if (k == 3) /* Margin */
-            {
-                val = get_sdl_margin();
-                if (val > 0)
-                {
-                    set_sdl_margin(val - 1);
-                    settings_changed = true;
-                    sdl_apply_config();
-                }
-            }
-            else if (k == 4) /* Fullscreen */
-            {
-                set_sdl_fullscreen(false);
-                settings_changed = true;
-            }
-            else if (k == 5) /* Tiles */
-            {
-                set_sdl_tiles(false);
-                settings_changed = true;
-            }
-            else if (k == 6) /* Enable Side Panes */
-            {
-                set_sdl_enable_right_panes(false);
-                settings_changed = true;
-                sdl_apply_config();
-            }
-            else if (k == 7) /* Enable Bottom Panes */
-            {
-                set_sdl_enable_bottom_panes(false);
-                settings_changed = true;
-                sdl_apply_config();
-            }
-            else if (k == 8) /* White Pane Borders */
-            {
-                set_sdl_show_pane_borders(false);
-                settings_changed = true;
-                sdl_request_redraw();
             }
             break;
         }
@@ -16698,7 +16712,7 @@ static void do_cmd_legacy_options(void)
 int options_menu(int* highlight)
 {
     int ch;
-    int options = 12;
+    int options = 10;
     int term_wid = 80;
     int term_hgt = 24;
     int title_row = 1;
@@ -16724,33 +16738,29 @@ int options_menu(int* highlight)
     Term_putstr(2, title_row, -1, TERM_WHITE, "Options and misc");
 
     Term_putstr(2, row++, -1, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
-        "a) Set Keybinds");
+        "a) Input Options");
     Term_putstr(2, row++, -1, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
-        "b) Controller Settings");
+        "b) Pane Settings");
     Term_putstr(2, row++, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
-        "c) Touch Settings");
+        "c) Interface Options");
     Term_putstr(2, row++, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
-        "d) Pane Settings");
+        "d) Visual Options");
     Term_putstr(2, row++, -1, (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
-        "e) Interface Options");
+        "e) Text Options");
     Term_putstr(2, row++, -1, (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
-        "f) Efficiency Options");
+        "f) Gameplay Options");
     Term_putstr(2, row++, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
-        "g) Visual Options");
+        "g) Sound Options");
     Term_putstr(2, row++, -1, (*highlight == 8) ? TERM_L_BLUE : TERM_WHITE,
-        "t) Text Options");
+        "h) Efficiency Options");
     Term_putstr(2, row++, -1, (*highlight == 9) ? TERM_L_BLUE : TERM_WHITE,
-        "h) Gameplay Options");
+        "i) Legacy Options");
     Term_putstr(2, row++, -1, (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
-        "i) Sound Options");
-    Term_putstr(2, row++, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
-        "j) Legacy Options");
-    Term_putstr(2, row++, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
         "o) Return to Game");
 
     if (allow_debug_menu && p_ptr->noscore)
     {
-        Term_putstr(2, row++, -1, (*highlight == 13) ? TERM_L_BLUE : TERM_WHITE,
+        Term_putstr(2, row++, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
             "p) Debugging Options");
     }
 
@@ -16815,40 +16825,28 @@ int options_menu(int* highlight)
         return (7);
     }
 
-    if ((ch == 't') || (ch == 'T'))
+    if ((ch == 'h') || (ch == 'H'))
     {
         *highlight = 8;
         return (8);
     }
 
-    if ((ch == 'h') || (ch == 'H'))
+    if ((ch == 'i') || (ch == 'I'))
     {
         *highlight = 9;
         return (9);
     }
 
-    if ((ch == 'i') || (ch == 'I'))
+    if ((ch == 'o') || (ch == 'O') || (ch == ESCAPE) || (ch == 'q'))
     {
         *highlight = 10;
         return (10);
     }
 
-    if ((ch == 'j') || (ch == 'J'))
+    if (allow_debug_menu && p_ptr->noscore && ((ch == 'p') || (ch == 'P')))
     {
         *highlight = 11;
         return (11);
-    }
-
-    if ((ch == 'o') || (ch == 'O') || (ch == ESCAPE) || (ch == 'q'))
-    {
-        *highlight = 12;
-        return (12);
-    }
-
-    if (allow_debug_menu && p_ptr->noscore && ((ch == 'p') || (ch == 'P')))
-    {
-        *highlight = 13;
-        return (13);
     }
 
     /* Choose current  */
@@ -16872,6 +16870,119 @@ int options_menu(int* highlight)
     return (0);
 }
 
+static int input_options_menu(int* highlight)
+{
+    int ch;
+    int options = 4;
+    int term_wid = 80;
+    int term_hgt = 24;
+    int title_row = 1;
+    int row;
+
+    Term_get_size(&term_wid, &term_hgt);
+    if (term_hgt < 20)
+        title_row = 0;
+
+    if (*highlight < 1)
+        *highlight = 1;
+    else if (*highlight > options)
+        *highlight = options;
+
+    row = title_row + 2;
+
+    Term_putstr(2, title_row, -1, TERM_WHITE, "Input Options");
+
+    Term_putstr(2, row++, -1, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
+        "a) Set Keybinds");
+    Term_putstr(2, row++, -1, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
+        "b) Controller Settings");
+    Term_putstr(2, row++, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
+        "c) Touch Settings");
+    Term_putstr(2, row++, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
+        "o) Return to Options");
+
+    Term_fresh();
+    Term_gotoxy(2, title_row + 1 + *highlight);
+
+    hide_cursor = true;
+    ch = inkey();
+    hide_cursor = false;
+
+    if ((ch == 'a') || (ch == 'A'))
+    {
+        *highlight = 1;
+        return (1);
+    }
+
+    if ((ch == 'b') || (ch == 'B'))
+    {
+        *highlight = 2;
+        return (2);
+    }
+
+    if ((ch == 'c') || (ch == 'C'))
+    {
+        *highlight = 3;
+        return (3);
+    }
+
+    if ((ch == 'o') || (ch == 'O') || (ch == ESCAPE) || (ch == 'q'))
+    {
+        *highlight = 4;
+        return (4);
+    }
+
+    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
+    {
+        return (*highlight);
+    }
+
+    if (ch == '8')
+    {
+        *highlight = (*highlight + (options - 2)) % options + 1;
+    }
+
+    if (ch == '2')
+    {
+        *highlight = *highlight % options + 1;
+    }
+
+    return (0);
+}
+
+static void do_cmd_input_options_submenu(int* highlight)
+{
+    int choice = 0;
+    bool return_to_options = false;
+
+    Term_clear();
+
+    while (!return_to_options)
+    {
+        choice = input_options_menu(highlight);
+
+        switch (choice)
+        {
+        case 1:
+            do_cmd_keybinds();
+            Term_clear();
+            break;
+        case 2:
+            do_cmd_controller_settings();
+            Term_clear();
+            break;
+        case 3:
+            do_cmd_touch_pane_button_editor(NULL);
+            Term_clear();
+            break;
+        case 4:
+            return_to_options = true;
+            Term_clear();
+            break;
+        }
+    }
+}
+
 /*
  * Set or unset various options.
  *
@@ -16882,6 +16993,7 @@ void do_cmd_options(void)
 {
     int choice = 0;
     int highlight = 1;
+    int input_highlight = 1;
 
     bool return_to_game = false;
 
@@ -16910,65 +17022,53 @@ void do_cmd_options(void)
         {
         case 1:
         {
-            do_cmd_keybinds();
+            do_cmd_input_options_submenu(&input_highlight);
             Term_clear();
             break;
         }
         case 2:
         {
-            do_cmd_controller_settings();
+            do_cmd_pane_settings();
             Term_clear();
             break;
         }
         case 3:
         {
-            do_cmd_touch_pane_button_editor(NULL);
+            do_cmd_options_aux(INTERFACE_PAGE, "Interface Options");
             Term_clear();
             break;
         }
         case 4:
         {
-            do_cmd_pane_settings();
+            do_cmd_options_aux(VISUAL_PAGE, "Visual Options");
             Term_clear();
             break;
         }
         case 5:
         {
-            do_cmd_options_aux(INTERFACE_PAGE, "Interface Options");
+            do_cmd_options_aux(TEXT_PAGE, "Text Options");
             Term_clear();
             break;
         }
         case 6:
         {
-            do_cmd_options_aux(EFFICIENCY_PAGE, "Efficiency Options");
+            do_cmd_options_aux(GAMEPLAY_PAGE, "Gameplay Options");
             Term_clear();
             break;
         }
         case 7:
         {
-            do_cmd_options_aux(VISUAL_PAGE, "Visual Options");
+            do_cmd_options_aux(SOUND_PAGE, "Sound Options");
             Term_clear();
             break;
         }
         case 8:
         {
-            do_cmd_options_aux(TEXT_PAGE, "Text Options");
+            do_cmd_options_aux(EFFICIENCY_PAGE, "Efficiency Options");
             Term_clear();
             break;
         }
         case 9:
-        {
-            do_cmd_options_aux(GAMEPLAY_PAGE, "Gameplay Options");
-            Term_clear();
-            break;
-        }
-        case 10:
-        {
-            do_cmd_options_aux(SOUND_PAGE, "Sound Options");
-            Term_clear();
-            break;
-        }
-        case 11:
         {
             do_cmd_legacy_options();
             if (p_ptr && (p_ptr->leaving || !p_ptr->playing))
@@ -16976,14 +17076,14 @@ void do_cmd_options(void)
             Term_clear();
             break;
         }
-        case 12:
+        case 10:
         {
             /* Return to Game */
             return_to_game = true;
             Term_clear();
             break;
         }
-        case 13:
+        case 11:
         {
             /* Debugging Options (only reachable when p_ptr->noscore) */
             do_cmd_options_aux(DEBUG_PAGE, "Debugging Options");
