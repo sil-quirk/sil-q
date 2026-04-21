@@ -24,6 +24,29 @@
 - Validation:
   - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
 
+## 2026-04-21: Delayed "Loading..." overlay on story-statistics autoload
+- `src/dungeon.c`
+  - The story-statistics startup screen now stays live through the immediate autoload attempt instead of being blanked first.
+  - If autoload does not transition into gameplay, the old cleanup path still clears pending buffers/messages before character creation continues.
+- `src/load.c`, `src/externs.h`
+  - Added a one-shot startup loading overlay hook for the save loader.
+  - On the autoload path, the loader now shows a generic `Loading...` label over the existing story-statistics screen after a short `150 ms` delay, instead of flashing a separate cleared `Please wait...` screen or the old detailed save-loading note.
+  - Rationale: fast machines should show nothing, while slower Android first-loads get feedback without a full-screen transition.
+- Follow-up:
+  - `load_player()` no longer does an unconditional `Term_clear()` while that startup overlay is armed.
+  - Rationale: the old clear erased the statistics screen before the delayed overlay had any chance to appear, which made the first implementation effectively invisible.
+- Follow-up:
+  - The delayed overlay check now also runs inside `rd_dungeon()` during the expensive restore loops, not just at sparse loader `note()` boundaries.
+  - Rationale: on the successful path, the delay can expire while the loader is already deep inside dungeon restore, with no further `note()` call to trigger the overlay.
+- Follow-up:
+  - On Android/iOS, the overlay delay is now `0` instead of `150 ms`.
+  - Rationale: the desktop delay avoided a blink, but on slower mobile startup the user explicitly wants visible feedback and the delayed version still missed the perceived wait window.
+- Follow-up:
+  - Removed the `150 ms` delay entirely; the startup `Loading...` overlay is now immediate on all platforms.
+  - Rationale: the delayed version was not useful in practice once the goal became guaranteed visible feedback rather than blink suppression.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
 ## 2026-04-21: Hidden-pane flash and border root-cause fix
 - `src/main-sdl.c`
   - Changed `sdl_refresh_supporting_panes_layout()` so every hidden-pane visibility switch skips redrawing the old main-term contents during the intermediate resize.

@@ -158,6 +158,42 @@ static byte color_rle_value_prefetch = 0;
 static u16b new_artefacts;
 static u16b art_norm_count;
 static bool load_note_screen_enabled = false;
+static bool startup_loading_overlay_armed = false;
+static bool startup_loading_overlay_shown = false;
+
+static void maybe_show_startup_loading_overlay(void)
+{
+    static const char msg[] = "Loading...";
+    int term_wid = 80;
+    int term_hgt = 24;
+    int row;
+    int col;
+
+    if (!startup_loading_overlay_armed || startup_loading_overlay_shown)
+        return;
+
+    Term_get_size(&term_wid, &term_hgt);
+    row = term_hgt - 1;
+    col = MAX(0, (term_wid - (int)strlen(msg)) / 2);
+
+    Term_erase(0, row, 255);
+    Term_putstr(col, row, term_wid - col, TERM_SLATE, msg);
+    Term_fresh();
+
+    startup_loading_overlay_shown = true;
+}
+
+void startup_loading_overlay_arm(void)
+{
+    startup_loading_overlay_armed = true;
+    startup_loading_overlay_shown = false;
+}
+
+void startup_loading_overlay_disarm(void)
+{
+    startup_loading_overlay_armed = false;
+    startup_loading_overlay_shown = false;
+}
 
 /*
  * Hack -- Show information on the screen, one line at a time.
@@ -170,6 +206,8 @@ static void note(cptr msg)
 
     if (msg && msg[0])
         log_debug("load note: %s", msg);
+
+    maybe_show_startup_loading_overlay();
 
     if (!load_note_screen_enabled)
         return;
@@ -2921,6 +2959,7 @@ static errr rd_dungeon(void)
 
     log_debug("rd_dungeon: ENTRY");
     log_trace("[load:%06u] === BEGIN DUNGEON ===", (unsigned)load_byte_offset);
+    maybe_show_startup_loading_overlay();
 
     /*** Basic info ***/
 
@@ -2996,6 +3035,7 @@ static errr rd_dungeon(void)
     /* Load the dungeon data */
     for (x = y = 0; y < p_ptr->cur_map_hgt;)
     {
+        maybe_show_startup_loading_overlay();
         /* Grab RLE info */
         rd_byte(&count);
         rd_byte(&tmp8u);
@@ -3038,6 +3078,7 @@ static errr rd_dungeon(void)
         log_trace("[load:%06u] === BEGIN CAVE_INFO_HI RLE ===", (unsigned)load_byte_offset);
         for (x = y = 0; y < p_ptr->cur_map_hgt;)
         {
+            maybe_show_startup_loading_overlay();
             rd_byte(&count);
             rd_byte(&tmp8u);
 
@@ -3082,6 +3123,7 @@ static errr rd_dungeon(void)
     /* Load the dungeon data */
     for (x = y = 0; y < p_ptr->cur_map_hgt;)
     {
+        maybe_show_startup_loading_overlay();
         /* Grab RLE info */
         rd_byte(&count);
         rd_byte(&tmp8u);
@@ -3135,6 +3177,7 @@ static errr rd_dungeon(void)
     /*** Run length decoding of cave_color (style encoding) ***/
     log_trace("[load:%06u] === BEGIN CAVE_COLOR RLE ===", (unsigned)load_byte_offset);
     for (x = y = 0; y < p_ptr->cur_map_hgt;) {
+        maybe_show_startup_loading_overlay();
         /* Grab RLE info, using prefetched pair if available first */
         if (color_rle_pair_prefetched) {
             count = color_rle_count_prefetch;
@@ -3242,6 +3285,8 @@ static errr rd_dungeon(void)
     /* Read the dungeon items */
     for (i = 1; i < limit; i++)
     {
+        if ((i & 31) == 0)
+            maybe_show_startup_loading_overlay();
         object_type* i_ptr;
         object_type object_type_body;
 
@@ -3324,6 +3369,8 @@ static errr rd_dungeon(void)
     /* Read the monsters */
     for (i = 1; i < limit; i++)
     {
+        if ((i & 31) == 0)
+            maybe_show_startup_loading_overlay();
         monster_type* n_ptr;
         monster_type monster_type_body;
 
@@ -3538,6 +3585,7 @@ static errr rd_dungeon(void)
     log_trace("[load:%06u] === BEGIN WANDERING MONSTERS ===", (unsigned)load_byte_offset);
     for (i = FLOW_WANDERING_HEAD; i <= FLOW_WANDERING_TAIL; i++)
     {
+        maybe_show_startup_loading_overlay();
         rd_byte(&flow_center_y[i]);
         rd_byte(&flow_center_x[i]);
         rd_s16b(&wandering_pause[i]);
@@ -4078,8 +4126,13 @@ bool load_player(void)
 
         load_byte_offset = 0; /* reset counter before decoding stream */
 
-        /* Clear screen */
-        Term_clear();
+        /* Keep the current startup stats screen visible until the delayed
+         * overlay is actually ready to show. Otherwise the unconditional clear
+         * erases the very frame we want to reuse. */
+        if (startup_loading_overlay_armed)
+            maybe_show_startup_loading_overlay();
+        else
+            Term_clear();
 
         if (!err)
         {

@@ -4841,17 +4841,24 @@ PlayResult play_game(void)
     run_mode_activate_pending();
     maybe_show_blitz_unlock_screen();
 
+    bool startup_stats_screen = false;
+
     if (!run_mode_is_blitz()) {
         if (metarun_created) /* show only the first time ever */
             print_story_intro();
-        else
+        else {
             print_metarun_stats();
+            startup_stats_screen = true;
+        }
 
-        /* The next startup screen owns the full redraw. Blank any leftover
-         * term buffers so an incidental Term_fresh() cannot flash the just-
-         * closed intro/stats scene. */
-        screen_clear_all_terms_no_fresh();
-        message_discard_pending();
+        /* Story-intro handoff still wants the next startup screen to own the
+         * full redraw. Story statistics may keep its frame alive a little
+         * longer so a delayed "Loading..." overlay can reuse it during
+         * autoload instead of flashing a separate screen. */
+        if (!startup_stats_screen) {
+            screen_clear_all_terms_no_fresh();
+            message_discard_pending();
+        }
     }
 
     /* New startup behavior: try to auto-load any alive character
@@ -4859,11 +4866,20 @@ PlayResult play_game(void)
      * selection and proceed directly. */
     character_loaded = false;
     character_loaded_dead = false;
+    if (startup_stats_screen)
+        startup_loading_overlay_arm();
     bool autoloaded = autoload_alive_from_scores();
+    if (startup_stats_screen)
+        startup_loading_overlay_disarm();
     if (autoloaded && character_loaded)
     {
         log_info("Auto-loaded alive character from scores; skipping selection");
         new_game = false;
+    }
+    else if (startup_stats_screen)
+    {
+        screen_clear_all_terms_no_fresh();
+        message_discard_pending();
     }
 
     log_info("Starting new game session");

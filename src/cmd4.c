@@ -768,14 +768,20 @@ void do_cmd_character_sheet(void)
                 sdl_story_font_disable();
         }
 
+        (void)Term_set_cursor(false);
         Term_fresh();  /* Render commands */
 
         if (story_character_enabled()) {
             sdl_story_font_disable();
         }
 
-        /* Query */
-        ch = inkey();
+        /* Keep the cursor hidden while the character sheet is active. */
+        {
+            bool saved_hide_cursor = hide_cursor;
+            hide_cursor = true;
+            ch = inkey();
+            hide_cursor = saved_hide_cursor;
+        }
 
         /* Exit - B button (back) or ESC */
         if (ch == ESCAPE || (steamdeck && ch == steamdeck_back_key()))
