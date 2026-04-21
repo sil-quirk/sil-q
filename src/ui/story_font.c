@@ -15,6 +15,8 @@ int count_wrapped_lines_story(cptr str, int wrap_cols, int indent)
         return 1;
 
     /* Convert column-based wrap to pixel width */
+    int term_wid = 80;
+    int term_hgt = 24;
     int cell_width = sdl_get_cell_width();
     int wrap_pixels = wrap_cols * cell_width;
     int indent_pixels = indent * cell_width;
@@ -22,7 +24,13 @@ int count_wrapped_lines_story(cptr str, int wrap_cols, int indent)
     if (space_pixels <= 0)
         space_pixels = cell_width;
 
+    Term_get_size(&term_wid, &term_hgt);
+    if (term_wid < 1)
+        term_wid = 80;
+    (void)term_hgt;
+
     int lines = 1;
+    int x = indent;
     int x_pixels = indent_pixels;
     cptr s = str;
 
@@ -31,6 +39,7 @@ int count_wrapped_lines_story(cptr str, int wrap_cols, int indent)
         /* Handle newlines */
         if (*s == '\n')
         {
+            x = indent;
             x_pixels = indent_pixels;
             lines++;
             s++;
@@ -40,12 +49,8 @@ int count_wrapped_lines_story(cptr str, int wrap_cols, int indent)
         /* Skip leading spaces */
         while (*s == ' ')
         {
+            x++;
             x_pixels += space_pixels;
-            if (x_pixels >= wrap_pixels)
-            {
-                x_pixels = indent_pixels;
-                lines++;
-            }
             s++;
         }
 
@@ -63,14 +68,18 @@ int count_wrapped_lines_story(cptr str, int wrap_cols, int indent)
 
         /* Measure the word in pixels */
         int word_pixels = sdl_story_font_text_width(word_start, word_chars);
-        /* Check if word fits on current line */
-        if (x_pixels > indent_pixels && (x_pixels + word_pixels) > wrap_pixels)
+        bool exceeds_pixels = (x > indent && (x_pixels + word_pixels) > wrap_pixels);
+        bool exceeds_columns = (x + word_chars >= term_wid);
+
+        if (exceeds_pixels || exceeds_columns)
         {
+            x = indent;
             x_pixels = indent_pixels;
             lines++;
         }
 
         /* Advance by the word's pixel width */
+        x += word_chars;
         x_pixels += word_pixels;
 
         /* Move past the word */

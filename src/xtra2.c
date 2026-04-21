@@ -6065,6 +6065,47 @@ static int pause_with_text_print_wrapped_segment(int row, int col, byte attr,
     return rows_used;
 }
 
+static int pause_with_text_count_wrapped_segment(int col, cptr text)
+{
+    int term_wid = 80;
+    int term_hgt = 24;
+    int max_cols;
+    int wrap_col;
+    int rows_used = 1;
+
+    if (!text)
+        text = "";
+
+    Term_get_size(&term_wid, &term_hgt);
+    if (term_wid < 1)
+        term_wid = 80;
+    (void)term_hgt;
+
+    if (col < 0)
+        col = 0;
+    if (col >= term_wid)
+        col = term_wid - 1;
+
+    max_cols = term_wid - col - 2;
+    if (max_cols < 1)
+        max_cols = 1;
+
+    wrap_col = col + max_cols;
+
+    if (*text)
+    {
+        if (sdl_is_story_font_enabled())
+            rows_used = count_wrapped_lines_story(text, wrap_col, col);
+        else
+            rows_used = count_wrapped_lines(text, wrap_col, col);
+
+        if (rows_used < 1)
+            rows_used = 1;
+    }
+
+    return rows_used;
+}
+
 /* pause_with_text: prints name+alt, explicit blank line, then wrapped start splits */
 void pause_with_text(const char desc[][100], int row, int col,
                      const char extra[][100], byte extra_attr)
@@ -6074,6 +6115,10 @@ void pause_with_text(const char desc[][100], int row, int col,
     int main_rows = 0;
     int term_wid = 80;
     int term_hgt = 24;
+    int banner_col;
+    int tail_col;
+    bool show_banner_gap = true;
+    bool show_stanza_gap = true;
 
     /* 0. save & clear screen */
     screen_save();
@@ -6083,38 +6128,113 @@ void pause_with_text(const char desc[][100], int row, int col,
         term_wid = 80;
     if (term_hgt < 1)
         term_hgt = 24;
-    (void)term_wid;
 
     sdl_story_font_enable();
     log_debug("Banner: story font enabled");
 
+    banner_col = col - 5;
+    if (banner_col < 0)
+        banner_col = 0;
+    tail_col = banner_col + 4;
+    if (tail_col < 0)
+        tail_col = 0;
+
+    if (extra)
+    {
+        int n_extra = 0;
+
+        banner_lines += pause_with_text_count_wrapped_segment(banner_col, extra[0]);
+        while (extra[n_extra][0])
+            n_extra++;
+
+        if (n_extra > 1)
+        {
+            for (int i = 1; i < n_extra; ++i)
+            {
+                int segment_col = (i == n_extra - 1) ? tail_col : banner_col;
+                banner_lines += pause_with_text_count_wrapped_segment(segment_col, extra[i]);
+            }
+        }
+        else
+        {
+            show_banner_gap = false;
+            show_stanza_gap = false;
+        }
+    }
+    else
+    {
+        show_banner_gap = false;
+        show_stanza_gap = false;
+    }
+
+    if (show_banner_gap)
+        banner_lines++;
+    if (show_stanza_gap)
+        banner_lines++;
+
+    while (desc && desc[i_main][0])
+    {
+        main_rows += pause_with_text_count_wrapped_segment(col, desc[i_main]);
+        ++i_main;
+    }
+
+    if ((banner_lines + main_rows) > term_hgt && show_stanza_gap)
+    {
+        banner_lines--;
+        show_stanza_gap = false;
+    }
+
+    if ((banner_lines + main_rows) > term_hgt && show_banner_gap)
+    {
+        banner_lines--;
+        show_banner_gap = false;
+    }
+
+    {
+        int total_rows = banner_lines + main_rows;
+
+        if (row < 0)
+            row = 0;
+        if ((row + total_rows) > term_hgt)
+            row = term_hgt - total_rows;
+        if (row < 0)
+            row = 0;
+    }
+
+    banner_lines = 0;
+    main_rows = 0;
+
     /* 1. optional banner */
     if (extra) {
+        int n_extra = 0;
+
+        while (extra[n_extra][0]) n_extra++;
+
         /* Line 1: name+alt */
         banner_lines += pause_with_text_print_wrapped_segment(
-            row + banner_lines, col - 5, extra_attr, extra[0], msec);
+            row + banner_lines, banner_col, extra_attr, extra[0], msec);
 
         /* Line 2: blank line */
-        banner_lines += pause_with_text_print_wrapped_segment(
-            row + banner_lines, col - 5, extra_attr, "", msec);
-
-        /* Determine how many extra entries */
-        int n_extra = 0;
-        while (extra[n_extra][0]) n_extra++;
+        if (show_banner_gap)
+        {
+            banner_lines += pause_with_text_print_wrapped_segment(
+                row + banner_lines, banner_col, extra_attr, "", msec);
+        }
 
         /* Lines 3+: start splits, last one shifted further right */
         for (int i = 1; i < n_extra; ++i) {
-            int shift = col - 5;
-            if (i == n_extra - 1) shift += 4;
+            int shift = (i == n_extra - 1) ? tail_col : banner_col;
             banner_lines += pause_with_text_print_wrapped_segment(
                 row + banner_lines, shift, extra_attr, extra[i], msec);
         }
 
         /* separator before stanza */
-        banner_lines++;
+        if (show_stanza_gap)
+            banner_lines++;
     }
 
     /* 2. main stanza */
+    i_main = 0;
     while (desc && desc[i_main][0]) {
         main_rows += pause_with_text_print_wrapped_segment(
             row + banner_lines + main_rows, col, TERM_WHITE, desc[i_main], msec);
