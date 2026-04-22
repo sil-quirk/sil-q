@@ -629,10 +629,30 @@ static bool sdl_config_should_default_top_status_line(void)
     return false;
 }
 
+static void sdl_config_apply_app_bool_defaults(const byte* option_ids)
+{
+    if (!op_ptr)
+        return;
+
+    /* Keep app-wide option defaults aligned with the canonical option table. */
+    for (int i = 0; option_ids[i] != OPT_NONE; i++) {
+        int opt = option_ids[i];
+
+        if (opt >= 0 && opt < OPT_MAX)
+            op_ptr->opt[opt] = option_norm[opt];
+    }
+}
+
 static void sdl_config_apply_app_option_defaults(void)
 {
     if (!op_ptr)
         return;
+
+    sdl_config_apply_app_bool_defaults(app_interface_options);
+    sdl_config_apply_app_bool_defaults(app_text_options);
+    sdl_config_apply_app_bool_defaults(app_efficiency_options);
+    sdl_config_apply_app_bool_defaults(app_gameplay_options);
+    sdl_config_apply_app_bool_defaults(app_visual_options);
 
     op_ptr->delay_factor = 5;
     op_ptr->hitpoint_warn = 3;

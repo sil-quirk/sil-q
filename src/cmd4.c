@@ -40,6 +40,7 @@ static void redraw_inven_equip_subwindows(void);
 static void redraw_monster_subwindows(void);
 static void smith_ui_reset_description_state(void);
 static void controller_prompt_label(int binding, const char* fallback, char* buf, size_t buflen);
+static void desc_obj_fake(int k_idx);
 
 static bool heavy_armour_desc_evasion_bonus_applies(const object_type* o_ptr)
 {
@@ -285,6 +286,56 @@ static bool supplies_menu_drop_entry(supply_list_entry* entry)
         handle_stuff();
 
     return dropped;
+}
+
+static bool supplies_menu_recall_entry(supply_list_entry* entry)
+{
+    if (!entry)
+        return false;
+
+    if (entry->equip_idx >= INVEN_WIELD && entry->equip_idx < INVEN_TOTAL)
+    {
+        (void)player_try_identify_smithing_object_on_examine(
+            &inventory[entry->equip_idx], true);
+        object_info_screen(&inventory[entry->equip_idx]);
+        return true;
+    }
+
+    if (entry->supply_idx >= 0)
+    {
+        object_type* o_ptr = supplies_entry_at(entry->supply_idx);
+        if (o_ptr)
+        {
+            object_info_screen(o_ptr);
+            return true;
+        }
+    }
+
+    if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
+    {
+        (void)player_try_identify_smithing_object_on_examine(
+            &inventory[entry->item_idx], false);
+        object_info_screen(&inventory[entry->item_idx]);
+        return true;
+    }
+
+    if (entry->k_idx >= 0)
+    {
+        object_kind* k_ptr = &k_info[entry->k_idx];
+        if (k_ptr->aware)
+        {
+            desc_obj_fake(entry->k_idx);
+            return true;
+        }
+
+        bell("You have not identified that yet.");
+        msg_print("You have not identified that yet.");
+        return false;
+    }
+
+    bell("Nothing to recall.");
+    msg_print("Nothing to recall.");
+    return false;
 }
 
 static cptr supply_group_text[SUPPLY_GROUP_MAX + 1] = {
@@ -26069,12 +26120,12 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             char back_label[16];
             char prompt_buf[160];
 
-            /* Steam Deck UI: RS Right=recall, X=use, A=confirm, d=drop, B=back */
+            /* Steam Deck UI: RS Right=recall, X=use, A=confirm, B=drop, Start=back */
             controller_prompt_label(steamdeck_info_key(), "RS Right", recall_label, sizeof(recall_label));
             controller_prompt_label(steamdeck_alt_action_key(), "X", use_label, sizeof(use_label));
             controller_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
-            controller_prompt_label('d', "d", drop_label, sizeof(drop_label));
-            controller_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
+            controller_prompt_label('f', "B", drop_label, sizeof(drop_label));
+            controller_prompt_label(ESCAPE, "Start", back_label, sizeof(back_label));
 
             strnfmt(prompt_buf, sizeof(prompt_buf),
                 "D-pad move  [%s] recall  [%s/%s] use  [%s] drop  [%s] back",
@@ -26083,7 +26134,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         } else {
             Term_putstr(0, draw_layout.prompt_row, draw_layout.term_wid,
                 TERM_SLATE,
-                "Dir move  r recall  u/Space use  d drop  Esc");
+                "Dir move  r/-> recall  u/Space use  d drop  Esc");
         }
 
         if (!column)
@@ -26097,8 +26148,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 draw_layout.list_row + (grp_cur - grp_top));
 
         char ch = inkey();
-        if (steamdeck_controls_active() && ch == steamdeck_back_key())
-            ch = ESCAPE;
+        if (steamdeck_controls_active() && ch == 'f')
+            ch = 'd';
 
         if ((ch == '\r' || ch == '\n' || (steamdeck_controls_active() && ch == steamdeck_confirm_key())) && column && entry_cnt)
         {
@@ -26118,50 +26169,18 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         case 'r':
         case 'X':
         case 'x':
+        case '6':
+#ifdef ARROW_RIGHT
+        case ARROW_RIGHT:
+#endif
             if (!column && entry_cnt)
             {
                 column = 1;
             }
             else if (column && entry_cnt)
             {
-                supply_list_entry* entry = &entries[entry_cur];
-                if (entry->equip_idx >= INVEN_WIELD && entry->equip_idx < INVEN_TOTAL)
-                {
-                    (void)player_try_identify_smithing_object_on_examine(
-                        &inventory[entry->equip_idx], true);
-                    object_info_screen(&inventory[entry->equip_idx]);
+                if (supplies_menu_recall_entry(&entries[entry_cur]))
                     redraw = true;
-                }
-                else if (entry->supply_idx >= 0)
-                {
-                    object_type* o_ptr = supplies_entry_at(entry->supply_idx);
-                    if (o_ptr)
-                    {
-                        object_info_screen(o_ptr);
-                        redraw = true;
-                    }
-                }
-                else if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
-                {
-                    (void)player_try_identify_smithing_object_on_examine(
-                        &inventory[entry->item_idx], false);
-                    object_info_screen(&inventory[entry->item_idx]);
-                    redraw = true;
-                }
-                else if (entry->k_idx >= 0)
-                {
-                    object_kind* k_ptr = &k_info[entry->k_idx];
-                    if (k_ptr->aware)
-                    {
-                        desc_obj_fake(entry->k_idx);
-                        redraw = true;
-                    }
-                    else
-                    {
-                        bell("You have not identified that yet.");
-                        msg_print("You have not identified that yet.");
-                    }
-                }
             }
             break;
 
