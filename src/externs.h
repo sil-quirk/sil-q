@@ -1483,6 +1483,7 @@ extern void flush_fail(void);
 extern char inkey(void);
 extern void bell(cptr reason);
 extern void sound(int val);
+extern void sound_delayed(int val, unsigned int delay_ms);
 extern s16b quark_add(cptr str);
 extern cptr quark_str(s16b i);
 extern bool parse_u64b_hex(const char* text, u64b* out);
