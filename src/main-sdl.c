@@ -4774,6 +4774,9 @@ static void sdl_handle_renderer_reset(void)
 static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
 {
     (void)st;
+    if (sdl_sound_try_handle_event(ev)) {
+        return;
+    }
     if (ev->type == SDL_EVENT_QUIT) {
         Term_keypress(27); // ESC or define a quit signal
     } else if (g_touch_pane_reset_confirm_active) {

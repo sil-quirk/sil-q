@@ -1112,6 +1112,67 @@ void sdl_sound_handle(int sound_idx)
     (void)sdl_sound_play_track_audio(track, audio, get_sound_volume(sound_idx), 0);
 }
 
+/* User event type used to defer sound playback from a timer thread back to
+ * the main thread. Lazily registered on first use. (Uint32)-1 means unset. */
+static Uint32 g_sound_deferred_event = (Uint32)-1;
+
+static Uint32 SDLCALL sdl_sound_deferred_timer_cb(void* userdata, SDL_TimerID id,
+    Uint32 interval)
+{
+    (void)id;
+    (void)interval;
+
+    if (g_sound_deferred_event == (Uint32)-1) {
+        return 0;
+    }
+
+    SDL_Event ev;
+    SDL_zero(ev);
+    ev.type = g_sound_deferred_event;
+    ev.user.code = (Sint32)(intptr_t)userdata;
+    SDL_PushEvent(&ev);
+    return 0; /* one-shot timer */
+}
+
+void sdl_sound_handle_delayed(int sound_idx, Uint32 delay_ms)
+{
+    if (sound_idx < 0 || sound_idx >= MSG_MAX) {
+        return;
+    }
+
+    if (delay_ms == 0) {
+        sdl_sound_handle(sound_idx);
+        return;
+    }
+
+    if (g_sound_deferred_event == (Uint32)-1) {
+        g_sound_deferred_event = SDL_RegisterEvents(1);
+    }
+    if (g_sound_deferred_event == (Uint32)-1) {
+        sdl_sound_handle(sound_idx); /* fall back to immediate playback */
+        return;
+    }
+
+    if (!SDL_AddTimer(delay_ms, sdl_sound_deferred_timer_cb,
+            (void*)(intptr_t)sound_idx))
+    {
+        log_warn("SDL_AddTimer failed: %s", SDL_GetError());
+        sdl_sound_handle(sound_idx);
+    }
+}
+
+bool sdl_sound_try_handle_event(const SDL_Event* ev)
+{
+    if (!ev || g_sound_deferred_event == (Uint32)-1) {
+        return false;
+    }
+    if (ev->type != g_sound_deferred_event) {
+        return false;
+    }
+    sdl_sound_handle((int)ev->user.code);
+    return true;
+}
+
 void sdl_init_sounds(void)
 {
     sdl_sound_reload();

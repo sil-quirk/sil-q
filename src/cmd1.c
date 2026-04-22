@@ -6038,18 +6038,11 @@ void py_attack_aux(int y, int x, int attack_type)
             u16b weapon_swing_type = weapon_sound_message_type(o_ptr, false);
             sound(weapon_swing_type);
 
-            // Delay before result sound (varies by weapon type)
-            SDL_Delay(weapon_animation_delay(weapon_swing_type));
-
-            // Determine result sound: armor blocked, hit, or nothing
-            u16b result_sound = MSG_ARMOR; // default to armor
-            if (net_dam > 0)
-            {
-                result_sound = MSG_HIT;
-            }
-
-            // Play result sound
-            sound(result_sound);
+            // Schedule the result sound (armor or hit) anchored to the swing
+            // onset, so weapon_animation_delay is "ms from swing start" rather
+            // than drifting with display_hit's internal pause.
+            u16b result_sound = (net_dam > 0) ? MSG_HIT : MSG_ARMOR;
+            sound_delayed(result_sound, weapon_animation_delay(weapon_swing_type));
 
             // determine the punctuation for the attack ("...", ".", "!" etc)
             attack_punctuation(punctuation, net_dam, crit_bonus_dice);
@@ -6257,12 +6250,10 @@ void py_attack_aux(int y, int x, int attack_type)
         /* Player misses */
         else
         {
-            // Play weapon swing sound first (layered sound system)
+            // Play weapon swing sound (no result sound for misses, so no
+            // scheduling needed)
             u16b weapon_swing_type = weapon_sound_message_type(o_ptr, false);
             sound(weapon_swing_type);
-
-            // Delay before message (shorter for misses, still weapon-aware)
-            SDL_Delay(weapon_animation_delay(weapon_swing_type) - 200);
 
             /* Message - no additional sound for miss */
             msg_format("You miss %s.", m_name);

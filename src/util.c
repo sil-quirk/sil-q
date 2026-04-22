@@ -1433,6 +1433,19 @@ void sound(int val)
 }
 
 /*
+ * Schedule a sound to play after delay_ms milliseconds without blocking.
+ * Use this when you want an audio gap between sounds (e.g. weapon swing
+ * then hit "thunk") without freezing the game loop.
+ */
+void sound_delayed(int val, unsigned int delay_ms)
+{
+    if (!use_sound)
+        return;
+
+    sdl_sound_handle_delayed(val, (Uint32)delay_ms);
+}
+
+/*
  * The "quark" package
  *
  * This package is used to reduce the memory usage of object inscriptions.
