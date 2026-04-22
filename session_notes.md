@@ -30,6 +30,14 @@
 - Validation:
   - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
 
+## 2026-04-22: Steam Deck shoulder-button race no longer misfires Ctrl+R1 as Abilities
+- `src/main-sdl.c`
+  - Fixed a timing race between the Steam Deck shoulder-combo pending window and modifier activation.
+  - If `R1` or `L1` is waiting in the shoulder pending queue and a modifier becomes active during that window, the pending shoulder press now resolves against the modifier combo immediately instead of later flushing the base shoulder binding through the live modifier state.
+  - This prevents `R2 + R1` from occasionally degrading into a delayed `Ctrl+i` (`Tab` / Abilities) when `R1` arrives just before `R2` is registered as Ctrl.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
 ## 2026-04-22: Harden story-font inventory rendering for macOS pickup overlay
 - `src/ui/story_font.c`
   - Added term bounds checks in `story_print_text_internal()` so story-font UI helpers return early instead of drawing through a stale cursor when a row/column falls outside the current term.
@@ -8939,3 +8947,14 @@ The script now fully matches the game's drop generation logic for all item types
 - Added `DROP_1D3` using the spare RF3 placeholder bit (`RF3_RF3XXX4` kept as a compatibility alias).
 - Wired parser support in `src/init1.c`, drop rolls in `src/xtra2.c`, and max-drop/lore heuristics in `src/monster1.c` and `src/melee2.c`.
 - Validation: `C:\\msys64\\mingw64\\bin\\cmake.exe --build build-standard --parallel` succeeded after seeding `C:\\msys64\\mingw64\\bin;C:\\msys64\\usr\\bin` onto `PATH`.
+
+## 2026-04-22: SDL oversized font startup recovery
+- `src/main-sdl.c`: clamp saved `mainViewScale` on startup, fullscreen changes, and resize/display-scale events so the main term stays at or above the configured minimum terminal size.
+- `src/main-sdl.c`: ensure initial windowed launches are at least large enough for the minimum terminal at scale 1 before creating the SDL window.
+- Local recovery: reset the current SDL user configs (`Saved Games` standard config and portable `lib/user/sil_sdl.json`) from `mainViewScale=4` fullscreen to safer windowed defaults so the game can launch back into settings.
+
+## 2026-04-22: SDL startup fallback + config-file access
+- `src/main-sdl.c`: startup recovery now prefers switching from normal to compact minimum-terminal mode when the current window cannot satisfy `80x24`, and only clamps `mainViewScale` if compact still does not fit.
+- `src/main-sdl.c`: startup records SDL config read/parse/validation recovery and, after the first safe resize, offers a message-box prompt to reset the SDL config to display defaults instead of trapping the user in a bad config.
+- `src/sdl-config.{h,c}`: `sdl_config_load()` now returns a load status so startup can distinguish parse/read failures from a clean load.
+- `src/cmd4.c`: SDL Pane Settings now includes an `Open SDL Config File` action and `o` shortcut that opens `sil_sdl.json` via the system handler.

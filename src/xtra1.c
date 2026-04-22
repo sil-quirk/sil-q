@@ -1200,6 +1200,20 @@ static void hidden_left_panel_add_icon_line(hidden_overlay_line* lines,
     (*count)++;
 }
 
+static void hidden_left_panel_add_quiver_line(hidden_overlay_line* lines,
+    int* count, int max_lines, const object_type* q_ptr)
+{
+    char buf[32];
+
+    if (!q_ptr || !q_ptr->k_idx || q_ptr->number <= 0)
+        return;
+
+    strnfmt(buf, sizeof(buf), "%d", q_ptr->number);
+
+    hidden_left_panel_add_icon_line(lines, count, max_lines, TERM_L_WHITE,
+        buf, buf, object_attr(q_ptr), object_char(q_ptr));
+}
+
 static int hidden_left_panel_line_width(const hidden_overlay_line* line,
     bool use_short_text)
 {
@@ -1335,6 +1349,11 @@ static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lin
                 buf, buf, light_icon_attr, light_icon);
         }
     }
+
+    hidden_left_panel_add_quiver_line(lines, &count, max_lines,
+        &inventory[INVEN_QUIVER1]);
+    hidden_left_panel_add_quiver_line(lines, &count, max_lines,
+        &inventory[INVEN_QUIVER2]);
 
     if (p_ptr->cut > 100)
     {
@@ -1564,6 +1583,7 @@ void redraw_hidden_left_panel_topline_suffix(void)
     int col = 0;
     int current_width = 0;
     int previous_width = g_hidden_left_panel_topline_rendered_width;
+    int restore_end = previous_width;
     bool first_entry = true;
 
     if (!Term || !Term->scr || !ui_hide_left_panel())
@@ -1573,19 +1593,30 @@ void redraw_hidden_left_panel_topline_suffix(void)
     if (!hidden_left_panel_uses_topline_layout())
         return;
 
+    if (use_bigtile && (restore_end & 1) && restore_end < Term->wid)
+        restore_end++;
+    if (use_bigtile && restore_end < Term->wid)
+        restore_end++;
+
     line_count = hidden_left_panel_build_lines(lines, 16);
     if (line_count <= 0)
     {
-        if (previous_width > 0)
-            hidden_left_panel_restore_topline_map_span(0, previous_width);
+        if (restore_end > 0)
+        {
+            Term_erase(0, row, restore_end);
+            hidden_left_panel_restore_topline_map_span(0, restore_end);
+        }
         g_hidden_left_panel_topline_rendered_width = 0;
         return;
     }
 
     current_width = hidden_left_panel_topline_render_width(lines, line_count);
-    if (previous_width > current_width)
+    if (restore_end > current_width)
+    {
+        Term_erase(current_width, row, restore_end - current_width);
         hidden_left_panel_restore_topline_map_span(current_width,
-            previous_width);
+            restore_end);
+    }
 
     col = 0;
 
@@ -6231,6 +6262,8 @@ void redraw_stuff(void)
         p_ptr->redraw &= ~(PR_QUIVER);
         if (!ui_hide_left_panel())
             prt_quiver();
+        else
+            hidden_overlay_needs_refresh = true;
     }
 
     if (p_ptr->redraw & (PR_ARMOR))

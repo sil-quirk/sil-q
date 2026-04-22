@@ -30,7 +30,17 @@ enum {
     TOUCH_PANE_LONG_PRESS_MS = 350,
     TOUCH_SWIPE_MIN_DISTANCE_PX = 24,
     TOUCH_SWIPE_MAX_DISTANCE_PX = 72,
+    SDL_STARTUP_ISSUE_MAX = 1024,
 };
+
+typedef struct sdl_layout_recovery_result {
+    bool mode_changed;
+    bool scale_changed;
+    int old_mode;
+    int new_mode;
+    int old_scale;
+    int new_scale;
+} sdl_layout_recovery_result;
 
 // SDL configuration (loaded from INI file)
 struct sdl_config config;
@@ -121,6 +131,24 @@ static void sdl_seed_all_pane_profiles_from_active(void)
 {
     for (int mode = 0; mode < SDL_PANE_PROFILE_COUNT; mode++)
         sdl_store_active_pane_profile(mode);
+}
+
+static void sdl_reset_config_to_resolution_defaults(int screen_width,
+    int screen_height)
+{
+    sdl_config_set_defaults_for_resolution(&config, pane_config,
+        &pane_config_count, MAX_PANE_CONFIGS, screen_width, screen_height);
+
+    if (pane_config_count == 0) {
+        pane_config_count = default_pane_config_count;
+        for (int i = 0; i < default_pane_config_count
+            && i < MAX_PANE_CONFIGS; i++)
+        {
+            pane_config[i] = default_pane_config[i];
+        }
+    }
+
+    sdl_seed_all_pane_profiles_from_active();
 }
 
 static int sdl_min_terminal_cols_for_mode(int mode)
@@ -419,6 +447,7 @@ static bool sdl_gamepad_flush_pending_left_stick(Uint64 now_ns, bool force);
 static void sdl_gamepad_clear_pending_shoulder(void);
 static void sdl_gamepad_set_pending_shoulder(int button);
 static bool sdl_gamepad_flush_pending_shoulder(Uint64 now_ns, bool force);
+static bool sdl_gamepad_resolve_pending_shoulder_with_modifier(int binding);
 static int sdl_gamepad_capture_binding_for_input(int type, int id);
 static bool sdl_gamepad_capture_queue_input(int type, int id);
 static int sdl_gamepad_pending_timeout_ms(Uint64 now_ns);
@@ -515,6 +544,21 @@ static void sdl_place_active_panes(const SDL_Rect* screen, SDL_Rect* panes,
 static void sdl_compute_split_panes(const SDL_Rect* screen, SDL_Rect* panes);
 static void sdl_compute_display_panes(SDL_Rect* panes);
 static int sdl_max_scale_for_rect(const SDL_Rect* rect);
+static int sdl_max_scale_for_rect_mode(const SDL_Rect* rect, int mode);
+static int sdl_max_scale_for_window_mode(int mode);
+static bool sdl_mode_scale_fits_window(const SDL_Rect* screen, int mode,
+    int scale, int* cols, int* rows);
+static void sdl_ensure_window_size_for_min_terminal(const SDL_Rect* screen,
+    int* window_width, int* window_height);
+static bool sdl_recover_layout_for_current_window(const char* reason,
+    bool notify_user, sdl_layout_recovery_result* recovery);
+static void sdl_format_layout_recovery_message(const char* reason,
+    const sdl_layout_recovery_result* recovery, char* buf, size_t buflen);
+static void sdl_append_issue_line(char* buf, size_t buflen, const char* line);
+static void sdl_reset_config_to_resolution_defaults(int screen_width,
+    int screen_height);
+static bool sdl_prompt_reset_sdl_defaults(const char* issue_summary,
+    int screen_width, int screen_height);
 static int sdl_touch_pane_target_width_px(int pane_height_px);
 static void sdl_apply_dynamic_auto_pane_sizes(struct pane_config* active,
     int active_count, const SDL_Rect* screen, const int* cell_widths,
@@ -2001,7 +2045,7 @@ static void sdl_compute_display_panes(SDL_Rect* panes)
         g_active_bottom_panes, true);
 }
 
-static int sdl_max_scale_for_rect(const SDL_Rect* rect)
+static int sdl_max_scale_for_rect_mode(const SDL_Rect* rect, int mode)
 {
     int min_cols;
     int min_rows;
@@ -2012,8 +2056,8 @@ static int sdl_max_scale_for_rect(const SDL_Rect* rect)
     if (!rect)
         return 1;
 
-    min_cols = sdl_current_min_terminal_cols();
-    min_rows = sdl_current_min_terminal_rows();
+    min_cols = sdl_min_terminal_cols_for_mode(mode);
+    min_rows = sdl_min_terminal_rows_for_mode(mode);
     max_scale_w = (rect->w / min_cols) * 2 / TILE_SIZE;
     max_scale_h = rect->h / min_rows / TILE_SIZE;
     max_scale = (max_scale_w < max_scale_h) ? max_scale_w : max_scale_h;
@@ -2024,6 +2068,289 @@ static int sdl_max_scale_for_rect(const SDL_Rect* rect)
         max_scale = 20;
 
     return max_scale;
+}
+
+static int sdl_max_scale_for_rect(const SDL_Rect* rect)
+{
+    return sdl_max_scale_for_rect_mode(rect, config.min_terminal_mode);
+}
+
+static int sdl_max_scale_for_window_mode(int mode)
+{
+    struct sdl_config saved_config = config;
+    struct pane_config saved_panes[MAX_PANE_CONFIGS];
+    SDL_Rect screen;
+    SDL_Rect panes[PANE_MAX];
+    int saved_pane_count = pane_config_count;
+    int max_scale = 1;
+
+    memcpy(saved_panes, pane_config, sizeof(saved_panes));
+
+    config.min_terminal_mode = mode;
+    sdl_apply_stored_pane_profile(mode);
+    config.min_terminal_mode = mode;
+
+    sdl_refresh_safe_area();
+    screen = sdl_get_layout_screen_rect();
+    if (sdl_rect_has_area(&screen)) {
+        sdl_compute_split_panes(&screen, panes);
+        max_scale = sdl_max_scale_for_rect_mode(&panes[PANE_MAIN], mode);
+    }
+
+    config = saved_config;
+    pane_config_count = saved_pane_count;
+    memcpy(pane_config, saved_panes, sizeof(saved_panes));
+
+    return max_scale;
+}
+
+static bool sdl_mode_scale_fits_window(const SDL_Rect* screen, int mode,
+    int scale, int* cols, int* rows)
+{
+    struct sdl_config saved_config = config;
+    struct pane_config saved_panes[MAX_PANE_CONFIGS];
+    SDL_Rect panes[PANE_MAX];
+    int saved_pane_count = pane_config_count;
+    int local_cols = 0;
+    int local_rows = 0;
+    bool fits = false;
+
+    if (!screen || !sdl_rect_has_area(screen) || scale <= 0)
+        return false;
+
+    memcpy(saved_panes, pane_config, sizeof(saved_panes));
+
+    config.min_terminal_mode = mode;
+    sdl_apply_stored_pane_profile(mode);
+    config.min_terminal_mode = mode;
+    config.main_view_scale = scale;
+    sdl_compute_split_panes(screen, panes);
+
+    local_cols = panes[PANE_MAIN].w / (scale * TILE_SIZE / 2);
+    local_rows = panes[PANE_MAIN].h / (scale * TILE_SIZE);
+    fits = (local_cols >= sdl_min_terminal_cols_for_mode(mode)
+        && local_rows >= sdl_min_terminal_rows_for_mode(mode));
+
+    config = saved_config;
+    pane_config_count = saved_pane_count;
+    memcpy(pane_config, saved_panes, sizeof(saved_panes));
+
+    if (cols)
+        *cols = local_cols;
+    if (rows)
+        *rows = local_rows;
+
+    return fits;
+}
+
+static void sdl_ensure_window_size_for_min_terminal(const SDL_Rect* screen,
+    int* window_width, int* window_height)
+{
+    int min_width;
+    int min_height;
+
+    if (!screen || !window_width || !window_height || config.fullscreen)
+        return;
+
+    min_width = sdl_current_min_terminal_cols() * (TILE_SIZE / 2);
+    min_height = sdl_current_min_terminal_rows() * TILE_SIZE;
+
+    if (min_width < 1)
+        min_width = 1;
+    if (min_height < 1)
+        min_height = 1;
+
+    if (screen->w > 0 && min_width > screen->w)
+        min_width = screen->w;
+    if (screen->h > 0 && min_height > screen->h)
+        min_height = screen->h;
+
+    if (*window_width < min_width) {
+        log_info("Increasing initial window width from %d to %d to fit minimum terminal %dx%d (%s)",
+            *window_width, min_width,
+            sdl_current_min_terminal_cols(), sdl_current_min_terminal_rows(),
+            sdl_min_terminal_mode_name(config.min_terminal_mode));
+        *window_width = min_width;
+    }
+
+    if (*window_height < min_height) {
+        log_info("Increasing initial window height from %d to %d to fit minimum terminal %dx%d (%s)",
+            *window_height, min_height,
+            sdl_current_min_terminal_cols(), sdl_current_min_terminal_rows(),
+            sdl_min_terminal_mode_name(config.min_terminal_mode));
+        *window_height = min_height;
+    }
+}
+
+static void sdl_format_layout_recovery_message(const char* reason,
+    const sdl_layout_recovery_result* recovery, char* buf, size_t buflen)
+{
+    const char* prefix = "Layout recovery";
+
+    if (!buf || !buflen)
+        return;
+
+    buf[0] = '\0';
+
+    if (!recovery)
+        return;
+
+    if (reason && reason[0]) {
+        if (streq(reason, "startup"))
+            prefix = "At startup";
+        else if (streq(reason, "window resize"))
+            prefix = "Window resize";
+        else if (streq(reason, "display scale change"))
+            prefix = "Display scale change";
+        else if (streq(reason, "fullscreen change"))
+            prefix = "Fullscreen change";
+        else if (streq(reason, "settings change"))
+            prefix = "Settings change";
+        else
+            prefix = reason;
+    }
+
+    if (recovery->mode_changed && recovery->scale_changed) {
+        strnfmt(buf, buflen,
+            "%s: switched to %s terminal layout and reduced main view scale from %d to %d to keep the window usable.",
+            prefix, sdl_min_terminal_mode_name(recovery->new_mode),
+            recovery->old_scale, recovery->new_scale);
+    } else if (recovery->mode_changed) {
+        strnfmt(buf, buflen,
+            "%s: switched from %s to %s terminal layout to fit the current window.",
+            prefix, sdl_min_terminal_mode_name(recovery->old_mode),
+            sdl_min_terminal_mode_name(recovery->new_mode));
+    } else if (recovery->scale_changed) {
+        strnfmt(buf, buflen,
+            "%s: reduced main view scale from %d to %d to keep the %s terminal visible.",
+            prefix, recovery->old_scale, recovery->new_scale,
+            sdl_min_terminal_mode_name(recovery->new_mode));
+    }
+}
+
+static void sdl_append_issue_line(char* buf, size_t buflen, const char* line)
+{
+    if (!buf || !buflen || !line || !line[0])
+        return;
+
+    if (buf[0])
+        SDL_strlcat(buf, "\n", buflen);
+    SDL_strlcat(buf, line, buflen);
+}
+
+static bool sdl_recover_layout_for_current_window(const char* reason,
+    bool notify_user, sdl_layout_recovery_result* recovery)
+{
+    SDL_Rect screen;
+    sdl_layout_recovery_result local = {
+        .mode_changed = false,
+        .scale_changed = false,
+        .old_mode = config.min_terminal_mode,
+        .new_mode = config.min_terminal_mode,
+        .old_scale = config.main_view_scale,
+        .new_scale = config.main_view_scale,
+    };
+    char notice[256];
+
+    if (!g_state.window)
+        return false;
+
+    sdl_refresh_safe_area();
+    screen = sdl_get_layout_screen_rect();
+    if (!sdl_rect_has_area(&screen))
+        return false;
+
+    if (config.min_terminal_mode == SDL_MIN_TERMINAL_NORMAL
+        && !sdl_mode_scale_fits_window(&screen, SDL_MIN_TERMINAL_NORMAL,
+            config.main_view_scale, NULL, NULL))
+    {
+        log_info("%s: normal minimum terminal no longer fits; activating compact layout",
+            reason ? reason : "layout change");
+        set_sdl_min_terminal_mode(SDL_MIN_TERMINAL_COMPACT);
+        local.mode_changed = true;
+        local.new_mode = config.min_terminal_mode;
+        local.new_scale = config.main_view_scale;
+    }
+
+    if (!sdl_mode_scale_fits_window(&screen, config.min_terminal_mode,
+            config.main_view_scale, NULL, NULL))
+    {
+        int max_scale = sdl_max_scale_for_window_mode(config.min_terminal_mode);
+
+        if (config.main_view_scale > max_scale) {
+            log_info("%s: clamping main_view_scale from %d to %d for %s minimum terminal",
+                reason ? reason : "layout change",
+                config.main_view_scale, max_scale,
+                sdl_min_terminal_mode_name(config.min_terminal_mode));
+            config.main_view_scale = max_scale;
+            local.scale_changed = true;
+            local.new_scale = config.main_view_scale;
+        }
+    }
+
+    if (recovery)
+        *recovery = local;
+
+    if (!(local.mode_changed || local.scale_changed))
+        return false;
+
+    if (notify_user && Term) {
+        sdl_format_layout_recovery_message(reason, &local, notice,
+            sizeof(notice));
+        if (notice[0])
+            msg_print(notice);
+    }
+
+    return true;
+}
+
+static bool sdl_prompt_reset_sdl_defaults(const char* issue_summary,
+    int screen_width, int screen_height)
+{
+    enum {
+        SDL_STARTUP_KEEP_RECOVERED = 0,
+        SDL_STARTUP_LOAD_DEFAULTS = 1,
+    };
+    SDL_MessageBoxButtonData buttons[] = {
+        { SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT,
+            SDL_STARTUP_KEEP_RECOVERED, "Keep Recovered Settings" },
+        { SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT,
+            SDL_STARTUP_LOAD_DEFAULTS, "Load Defaults" },
+    };
+    char message[SDL_STARTUP_ISSUE_MAX + 256];
+    SDL_MessageBoxData messagebox = {
+        .flags = SDL_MESSAGEBOX_WARNING | SDL_MESSAGEBOX_BUTTONS_LEFT_TO_RIGHT,
+        .window = g_state.window,
+        .title = "SDL Config Recovery",
+        .message = message,
+        .numbuttons = (int)(sizeof(buttons) / sizeof(buttons[0])),
+        .buttons = buttons,
+        .colorScheme = NULL,
+    };
+    int button_id = SDL_STARTUP_KEEP_RECOVERED;
+
+    if (!issue_summary || !issue_summary[0])
+        return false;
+
+    strnfmt(message, sizeof(message),
+        "Sil-more adjusted your SDL settings so the game can start:\n\n%s\n\nLoad default SDL settings now? You can keep the recovered settings and change them later from SDL Pane Settings.",
+        issue_summary);
+
+    if (!SDL_ShowMessageBox(&messagebox, &button_id)) {
+        log_warn("SDL_ShowMessageBox failed during startup recovery prompt: %s",
+            SDL_GetError());
+        return false;
+    }
+
+    if (button_id != SDL_STARTUP_LOAD_DEFAULTS)
+        return false;
+
+    sdl_reset_config_to_resolution_defaults(screen_width, screen_height);
+    sdl_config_save(config_file_path, &config, g_pane_profiles,
+        SDL_PANE_PROFILE_COUNT);
+    log_info("Startup recovery: reset SDL config to defaults at %s",
+        config_file_path);
+    return true;
 }
 
 static bool sdl_touch_pane_binding_is_direction(int binding)
@@ -3061,6 +3388,9 @@ static void sdl_gamepad_apply_modifier(int binding, bool down)
         if (g_gamepad_state.alt_held < 0)
             g_gamepad_state.alt_held = 0;
     }
+
+    if (down)
+        (void)sdl_gamepad_resolve_pending_shoulder_with_modifier(binding);
 }
 
 static void sdl_send_macro_key(int key, bool shift, bool ctrl, bool alt)
@@ -3557,6 +3887,35 @@ static bool sdl_gamepad_flush_pending_shoulder(Uint64 now_ns, bool force)
         sdl_gamepad_send_key(binding, false);
     }
 
+    return true;
+}
+
+static bool sdl_gamepad_resolve_pending_shoulder_with_modifier(int binding)
+{
+    int button;
+    int combo_binding;
+
+    if (!g_gamepad_state.shoulder_pending)
+        return false;
+    if (!config.gamepad_enabled || !steamdeck_controls_active())
+        return false;
+    if (g_gamepad_capture_active)
+        return false;
+    if (binding != GAMEPAD_BIND_SHIFT && binding != GAMEPAD_BIND_CTRL
+        && binding != GAMEPAD_BIND_ALT)
+        return false;
+
+    button = g_gamepad_state.shoulder_pending_button;
+    if (button < 0 || button >= SDL_GAMEPAD_BUTTON_COUNT)
+        return false;
+
+    combo_binding = sdl_gamepad_combo_binding_for_input(binding,
+        GAMEPAD_CAPTURE_BUTTON, button);
+    if (combo_binding == GAMEPAD_BIND_NONE)
+        return false;
+
+    sdl_gamepad_clear_pending_shoulder();
+    sdl_gamepad_send_key_raw(combo_binding);
     return true;
 }
 
@@ -4994,6 +5353,7 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         || ev->type == SDL_EVENT_WINDOW_SAFE_AREA_CHANGED) {
         log_debug("window resized to %dx%d", ev->window.data1, ev->window.data2);
         sdl_refresh_safe_area();
+        (void)sdl_recover_layout_for_current_window("window resize", true, NULL);
         {
             SDL_Rect screen = sdl_get_layout_screen_rect();
 
@@ -5015,6 +5375,8 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         }
 
         sdl_refresh_safe_area();
+        (void)sdl_recover_layout_for_current_window("display scale change",
+            true, NULL);
         {
             SDL_Rect screen = sdl_get_layout_screen_rect();
 
@@ -6557,6 +6919,10 @@ errr init_sdl(int argc, char **argv)
     
     // Check if config file exists
     bool config_exists = SDL_GetPathInfo(config_file_path, NULL);
+    enum sdl_config_load_status config_load_status = SDL_CONFIG_LOAD_OK;
+    char startup_issue_summary[SDL_STARTUP_ISSUE_MAX];
+
+    startup_issue_summary[0] = '\0';
 
     if (config_exists) {
         // Config file exists - use generic defaults first, then load from file
@@ -6569,8 +6935,19 @@ errr init_sdl(int argc, char **argv)
             pane_config[i] = default_pane_config[i];
         }
         sdl_seed_all_pane_profiles_from_active();
-        sdl_config_load(config_file_path, &config, g_pane_profiles, SDL_PANE_PROFILE_COUNT);
+        config_load_status = sdl_config_load(config_file_path, &config,
+            g_pane_profiles, SDL_PANE_PROFILE_COUNT);
         sdl_apply_stored_pane_profile(config.min_terminal_mode);
+
+        if (config_load_status == SDL_CONFIG_LOAD_READ_FAILED) {
+            sdl_append_issue_line(startup_issue_summary,
+                sizeof(startup_issue_summary),
+                "The SDL config file could not be read, so the game is using recovered settings.");
+        } else if (config_load_status == SDL_CONFIG_LOAD_PARSE_FAILED) {
+            sdl_append_issue_line(startup_issue_summary,
+                sizeof(startup_issue_summary),
+                "The SDL config file could not be parsed, so the game is using recovered settings.");
+        }
         
         // Load sound configuration from sound.json
         // For local builds: read from lib/pref (ANGBAND_DIR_PREF)
@@ -6598,21 +6975,11 @@ errr init_sdl(int argc, char **argv)
     } else {
         // Config file doesn't exist - use resolution-based defaults
         log_debug("Config file not found, using resolution-based defaults");
-        sdl_config_set_defaults_for_resolution(&config, pane_config, &pane_config_count,
-                                               MAX_PANE_CONFIGS, screen_pixels_w, screen_pixels_h);
-        
-        // If no resolution-specific config was found, use default pane config
-        if (pane_config_count == 0) {
-            pane_config_count = default_pane_config_count;
-            for (int i = 0; i < default_pane_config_count && i < MAX_PANE_CONFIGS; i++) {
-                pane_config[i] = default_pane_config[i];
-            }
-        }
+        sdl_reset_config_to_resolution_defaults(screen_pixels_w, screen_pixels_h);
         
         log_debug("After resolution defaults: scale=%d, default_aux_font=%d, margin=%d, fullscreen=%d, tiles=%d",
                   config.main_view_scale, config.aux_view_font_size, config.margin,
                   config.fullscreen, config.tiles);
-        sdl_seed_all_pane_profiles_from_active();
     }
 
 #if defined(__ANDROID__) || defined(SIL_IOS)
@@ -6655,6 +7022,9 @@ errr init_sdl(int argc, char **argv)
                      config.main_view_scale, mobile_max_scale,
                      mobile_min_cols, mobile_min_rows,
                      sdl_min_terminal_mode_name(config.min_terminal_mode));
+            sdl_append_issue_line(startup_issue_summary,
+                sizeof(startup_issue_summary),
+                "The saved main view scale was too large for the mobile display and was reduced.");
             config.main_view_scale = mobile_max_scale;
         }
     }
@@ -6663,17 +7033,37 @@ errr init_sdl(int argc, char **argv)
     // Validate configuration
     if (config.main_view_scale <= 0) {
         log_warn("Invalid main_view_scale %d, using 1", config.main_view_scale);
+        if (config_exists) {
+            sdl_append_issue_line(startup_issue_summary,
+                sizeof(startup_issue_summary),
+                "The saved main view scale was invalid and was reset to 1.");
+        }
         config.main_view_scale = 1;
     }
     if (config.aux_view_font_size < 0) {
         log_warn("Invalid aux_view_font_size %d, using auto", config.aux_view_font_size);
+        if (config_exists) {
+            sdl_append_issue_line(startup_issue_summary,
+                sizeof(startup_issue_summary),
+                "The saved auxiliary font size was invalid and was reset to auto.");
+        }
         config.aux_view_font_size = 0;
     } else if (config.aux_view_font_size > 48) {
         log_warn("Invalid aux_view_font_size %d, clamping to 48", config.aux_view_font_size);
+        if (config_exists) {
+            sdl_append_issue_line(startup_issue_summary,
+                sizeof(startup_issue_summary),
+                "The saved auxiliary font size was too large and was clamped.");
+        }
         config.aux_view_font_size = 48;
     }
     if (config.margin < 0) {
         log_warn("Invalid margin %d, using 0", config.margin);
+        if (config_exists) {
+            sdl_append_issue_line(startup_issue_summary,
+                sizeof(startup_issue_summary),
+                "The saved window margin was invalid and was reset.");
+        }
         config.margin = 0;
     }
     if (!sdl_min_terminal_mode_is_valid(config.min_terminal_mode)) {
@@ -6684,6 +7074,11 @@ errr init_sdl(int argc, char **argv)
         log_warn("Invalid min_terminal_mode %d, using normal", config.min_terminal_mode);
         config.min_terminal_mode = SDL_MIN_TERMINAL_NORMAL;
 #endif
+        if (config_exists) {
+            sdl_append_issue_line(startup_issue_summary,
+                sizeof(startup_issue_summary),
+                "The saved minimum terminal mode was invalid and was reset.");
+        }
     }
     if (config.gamepad_deadzone < 0) {
         log_warn("Invalid gamepad_deadzone %d, using 0", config.gamepad_deadzone);
@@ -6754,8 +7149,25 @@ errr init_sdl(int argc, char **argv)
             log_debug("Using default window size: %dx%d", window_width, window_height);
         }
     }
+
+    sdl_ensure_window_size_for_min_terminal(&screen, &window_width, &window_height);
     
     sdl_window_create(window_width, window_height, config.fullscreen, config.tiles);
+
+    sdl_refresh_safe_area();
+    if (config_exists) {
+        sdl_layout_recovery_result startup_recovery;
+        char recovery_note[256];
+
+        if (sdl_recover_layout_for_current_window("startup", false,
+                &startup_recovery))
+        {
+            sdl_format_layout_recovery_message("startup", &startup_recovery,
+                recovery_note, sizeof(recovery_note));
+            sdl_append_issue_line(startup_issue_summary,
+                sizeof(startup_issue_summary), recovery_note);
+        }
+    }
     
     // Set window position for windowed mode
     if (!config.fullscreen && config.window_x >= 0 && config.window_y >= 0) {
@@ -6797,6 +7209,19 @@ errr init_sdl(int argc, char **argv)
         log_debug("window layout size %dx%d at (%d,%d)",
             screen.w, screen.h, screen.x, screen.y);
         resize(&screen);
+    }
+
+    if (config_exists && startup_issue_summary[0]) {
+        bool old_fullscreen = config.fullscreen;
+
+        if (sdl_prompt_reset_sdl_defaults(startup_issue_summary, screen_pixels_w,
+                screen_pixels_h))
+        {
+            if (old_fullscreen != config.fullscreen)
+                set_sdl_fullscreen(config.fullscreen);
+            else
+                sdl_apply_config();
+        }
     }
 
     log_debug("init_sdl: SDL term opened (tiles_mode=%d higher_pict=%d always_pict=%d)",
@@ -7017,6 +7442,8 @@ void set_sdl_fullscreen(bool value)
 
         // Force a resize event to recalculate layouts
         sdl_refresh_safe_area();
+        (void)sdl_recover_layout_for_current_window("fullscreen change",
+            true, NULL);
         sdl_load_story_fonts();
         sdl_resize_for_current_layout();
         sdl_update_cursor_visibility();
@@ -8067,15 +8494,8 @@ void sdl_apply_config(void)
         log_warn("sdl_apply_config: no window, skipping");
         return;
     }
-    
-    {
-        int max_scale = get_sdl_max_scale();
-        if (config.main_view_scale > max_scale) {
-            log_info("Clamping main_view_scale from %d to %d for current pane layout",
-                     config.main_view_scale, max_scale);
-            config.main_view_scale = max_scale;
-        }
-    }
+
+    (void)sdl_recover_layout_for_current_window("settings change", true, NULL);
     sdl_refresh_safe_area();
     g_auto_aux_main_cell_h_override = config.main_view_scale * TILE_SIZE;
     sdl_load_story_fonts();

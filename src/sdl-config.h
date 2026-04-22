@@ -38,6 +38,12 @@ enum sdl_min_terminal_mode {
     SDL_MIN_TERMINAL_COMPACT = 1,
 };
 
+enum sdl_config_load_status {
+    SDL_CONFIG_LOAD_OK = 0,
+    SDL_CONFIG_LOAD_READ_FAILED,
+    SDL_CONFIG_LOAD_PARSE_FAILED,
+};
+
 struct sdl_pane_profile {
     int main_view_scale;
     int aux_view_font_size;
@@ -120,8 +126,9 @@ struct sdl_config {
 };
 
 // Load SDL configuration from JSON file
-void sdl_config_load(const char* filename, struct sdl_config* config,
-                     struct sdl_pane_profile* pane_profiles, int profile_count);
+enum sdl_config_load_status sdl_config_load(const char* filename,
+    struct sdl_config* config, struct sdl_pane_profile* pane_profiles,
+    int profile_count);
 
 // Save SDL configuration to JSON file
 void sdl_config_save(const char* filename, const struct sdl_config* config,

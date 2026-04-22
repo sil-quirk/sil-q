@@ -1141,8 +1141,9 @@ static cJSON* sdl_config_create_panes_array(const struct pane_config* pane_confi
     return panes;
 }
 
-void sdl_config_load(const char* filename, struct sdl_config* config,
-                     struct sdl_pane_profile* pane_profiles, int profile_count)
+enum sdl_config_load_status sdl_config_load(const char* filename,
+    struct sdl_config* config, struct sdl_pane_profile* pane_profiles,
+    int profile_count)
 {
     struct pane_config legacy_panes[MAX_PANE_CONFIGS] = { 0 };
     int legacy_pane_count = 0;
@@ -1152,7 +1153,7 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
     char* content = read_file_contents(filename);
     if (!content) {
         log_debug("Failed to read config file, using defaults");
-        return;
+        return SDL_CONFIG_LOAD_READ_FAILED;
     }
     
     log_debug("Config file content length: %zu bytes", strlen(content));
@@ -1167,7 +1168,7 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
         } else {
             log_error("JSON parse error (no error pointer available)");
         }
-        return;
+        return SDL_CONFIG_LOAD_PARSE_FAILED;
     }
     
     log_debug("JSON parsed successfully");
@@ -1709,6 +1710,7 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
     
     cJSON_Delete(root);
     log_debug("Configuration loading complete. Active mode=%s", min_terminal_mode_to_string(config->min_terminal_mode));
+    return SDL_CONFIG_LOAD_OK;
 }
 
 void sdl_config_save(const char* filename, const struct sdl_config* config,

@@ -15149,6 +15149,84 @@ static const char* sdl_min_terminal_mode_label(int mode)
     return (mode == 1) ? "compact (50x18)" : "normal (80x24)";
 }
 
+static const char* sdl_config_path_leaf(const char* path)
+{
+    const char* last_slash;
+    const char* last_backslash;
+    const char* leaf;
+
+    if (!path || !path[0])
+        return "sil_sdl.json";
+
+    last_slash = strrchr(path, '/');
+    last_backslash = strrchr(path, '\\');
+    leaf = last_slash;
+    if (!leaf || (last_backslash && last_backslash > leaf))
+        leaf = last_backslash;
+
+    return leaf ? (leaf + 1) : path;
+}
+
+static bool sdl_build_file_url(const char* path, char* buf, size_t buflen)
+{
+    size_t used;
+    const char* prefix;
+
+    if (!path || !path[0] || !buf || buflen < 16)
+        return false;
+
+    prefix = (path[0] == '/' || path[0] == '\\') ? "file://" : "file:///";
+    SDL_strlcpy(buf, prefix, buflen);
+    used = strlen(buf);
+
+    for (const unsigned char* src = (const unsigned char*)path; *src; src++) {
+        unsigned char ch = *src;
+        char normalized = (ch == '\\') ? '/' : (char)ch;
+
+        if (isalnum((unsigned char)normalized) || normalized == '-'
+            || normalized == '_' || normalized == '.' || normalized == '~'
+            || normalized == '/' || normalized == ':')
+        {
+            if (used + 1 >= buflen)
+                return false;
+            buf[used++] = normalized;
+            buf[used] = '\0';
+        } else {
+            if (used + 3 >= buflen)
+                return false;
+            strnfmt(buf + used, buflen - used, "%%%02X", ch);
+            used += 3;
+        }
+    }
+
+    return true;
+}
+
+static void sdl_open_config_file(void)
+{
+    const char* config_path = get_sdl_config_path();
+    char url[2048];
+
+    if (!config_path || !config_path[0]) {
+        bell("SDL config path is not available");
+        return;
+    }
+
+    if (!sdl_build_file_url(config_path, url, sizeof(url))) {
+        msg_format("Could not build file URL for %s",
+            sdl_config_path_leaf(config_path));
+        return;
+    }
+
+    if (!SDL_OpenURL(url)) {
+        msg_format("Could not open %s (%s)",
+            sdl_config_path_leaf(config_path), SDL_GetError());
+        return;
+    }
+
+    msg_format("Opened %s", sdl_config_path_leaf(config_path));
+}
+
 void do_cmd_pane_settings(void)
 {
     enum {
@@ -15164,6 +15242,7 @@ void do_cmd_pane_settings(void)
         PANE_SETTING_AUX_VIEW_FONT_SIZE,
         PANE_SETTING_VIEW_PANE_CONFIGURATION,
         PANE_SETTING_PANE_FONT_SIZES,
+        PANE_SETTING_OPEN_CONFIG_FILE,
         PANE_SETTING_SAVE_RETURN,
         PANE_SETTING_COUNT
     };
@@ -15325,13 +15404,23 @@ void do_cmd_pane_settings(void)
             row_width);
         c_prt(a, buf, y0 + 11, 2);
 
-        /* Option 12: Save/Return */
+        /* Option 12: Open SDL Config File */
+        a = (k == PANE_SETTING_OPEN_CONFIG_FILE) ? TERM_L_BLUE : TERM_WHITE;
+        settings_ui_format_pair_line(buf, sizeof(buf),
+            settings_ui_pick_label(label_hint,
+                "Open SDL Config File",
+                "Open SDL Config",
+                "Open Config"),
+            sdl_config_path_leaf(config_label), row_width, 12);
+        c_prt(a, buf, y0 + 12, 2);
+
+        /* Option 13: Save/Return */
         a = (k == PANE_SETTING_SAVE_RETURN) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_fit_text(buf, sizeof(buf),
             settings_changed ? "Save Changes and Return"
                              : "Return to Options Menu",
             row_width);
-        c_prt(a, buf, y0 + 12, 2);
+        c_prt(a, buf, y0 + 13, 2);
 
         /* Display help */
         int y = Term->hgt - 3;
@@ -15350,9 +15439,9 @@ void do_cmd_pane_settings(void)
         }
         settings_ui_put_fitted(y++, 2, TERM_SLATE,
             settings_ui_pick_label(settings_ui_line_width(2),
-                "(direction keys to set, 0 = auto font, Return/Escape to accept)",
-                "(arrows move, 4/6 or y/n set, 0 auto, Enter/Esc exit)",
-                "(arrows move, 4/6 set, 0 auto, Enter/Esc)"));
+                "(direction keys to set, 0 = auto font, o = open config, Return/Escape to accept)",
+                "(arrows move, 4/6 or y/n set, 0 auto, o open config, Enter/Esc)",
+                "(arrows move, 4/6 set, 0 auto, o config, Enter/Esc)"));
 
         /* Get key */
         hide_cursor = true;
@@ -15393,6 +15482,11 @@ void do_cmd_pane_settings(void)
             if (k == PANE_SETTING_PANE_FONT_SIZES) /* Pane Font Sizes */
             {
                 do_cmd_supporting_pane_font_editor(&settings_changed);
+                break;
+            }
+            if (k == PANE_SETTING_OPEN_CONFIG_FILE) /* Open SDL Config File */
+            {
+                sdl_open_config_file();
                 break;
             }
 
@@ -15499,6 +15593,10 @@ void do_cmd_pane_settings(void)
             else if (k == PANE_SETTING_PANE_FONT_SIZES) /* Pane Font Sizes */
             {
                 do_cmd_supporting_pane_font_editor(&settings_changed);
+            }
+            else if (k == PANE_SETTING_OPEN_CONFIG_FILE) /* Open SDL Config File */
+            {
+                sdl_open_config_file();
             }
             else if (k == PANE_SETTING_SAVE_RETURN) /* Save/Return */
             {
@@ -15678,6 +15776,13 @@ void do_cmd_pane_settings(void)
                     sdl_apply_config();
                 }
             }
+            break;
+        }
+
+        case 'o':
+        case 'O':
+        {
+            sdl_open_config_file();
             break;
         }
         
