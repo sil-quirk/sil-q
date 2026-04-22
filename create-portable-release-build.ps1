@@ -330,5 +330,5 @@ Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Yellow
 Write-Host "  1. Test: .\$OutputFolder\sil-more.exe"
 Write-Host "  2. Saves will be stored in: lib/save/"
-Write-Host "  3. Archive: .\create-distribution-archive.ps1 -ReleaseFolder $OutputFolder"
+Write-Host "  3. Archive: .\create-distribution-archive.ps1 -ReleaseFolder $OutputFolder -Version $Version"
 Write-Host ""

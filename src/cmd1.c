@@ -18,6 +18,25 @@
 static bool valorous_oath_blocks_auto_attack(monster_type* m_ptr);
 static bool queue_deferred_pickup_pack_drop(int item, int amount);
 
+static bool weapon_has_attack_confirmation_inscription(const object_type* o_ptr)
+{
+    cptr s;
+
+    if (!o_ptr || !o_ptr->obj_note)
+        return false;
+
+    s = strchr(quark_str(o_ptr->obj_note), '!');
+    while (s)
+    {
+        if (s[1] == 'a')
+            return true;
+
+        s = strchr(s + 1, '!');
+    }
+
+    return false;
+}
+
 static bool polearm_is_axe(const object_type* weapon)
 {
     if (!weapon)
@@ -5753,26 +5772,13 @@ void py_attack_aux(int y, int x, int attack_type)
         abort_attack = true;
     }
 
-    // inscribing an object with "!a" produces prompts to confirm that you with
-    // to attack with it idea and code from MarvinPA
-    if (o_ptr->obj_note && !p_ptr->truce && m_ptr->ml)
+    // "!a" on the weapon, or the gameplay option, prompts before attacking.
+    if ((pacifist_attack_warning
+            || weapon_has_attack_confirmation_inscription(o_ptr))
+        && !p_ptr->truce && m_ptr->ml)
     {
-        cptr s;
-        /* Find a '!' */
-        s = strchr(quark_str(o_ptr->obj_note), '!');
-
-        /* Process inscription */
-        while (s)
-        {
-            if ((s[1] == 'a')
-                && !get_check("Are you sure you wish to attack? "))
-            {
-                abort_attack = true;
-            }
-
-            /* Find another '!' */
-            s = strchr(s + 1, '!');
-        }
+        if (!get_check("Are you sure you wish to attack? "))
+            abort_attack = true;
     }
 
     // Warning about breaking the truce

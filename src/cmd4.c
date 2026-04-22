@@ -13593,8 +13593,8 @@ static const struct option_group_marker text_option_groups[] = {
 static const struct option_group_marker gameplay_option_groups[] = {
     { 0, "Combat Behavior" },
     { 5, "Information" },
-    { 7, "World Generation" },
-    { 12, "Blitz" },
+    { 8, "World Generation" },
+    { 13, "Blitz" },
     { -1, NULL }
 };
 
@@ -14107,6 +14107,7 @@ static cptr option_menu_label(int opt)
         case OPT_story_monster_desc: return narrow ? "Story mon desc" : "Story font: monster desc";
         case OPT_story_monster_desc_pane: return narrow ? "Story mon pane" : "Story font: monster pane";
         case OPT_valorous_oath_auto_attack_safety: return narrow ? "Valorous safety" : "Valorous oath safety";
+        case OPT_pacifist_attack_warning: return narrow ? "Pacifist warn" : "Warn before attacks";
         case OPT_forgo_attacking_unwary: return narrow ? "Skip unwary hits" : "Forgo unwary attacks";
         case OPT_assassination_over_charge: return narrow ? "Stealth over charge" : "Assassination over Charge";
         case OPT_stop_singing_on_rest: return narrow ? "Stop song on rest" : "Stop singing on rest";

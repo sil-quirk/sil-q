@@ -1675,6 +1675,8 @@ void redraw_hidden_left_panel_topline_suffix(void)
         Term_erase(col, row, 1);
     }
 
+    hidden_left_panel_restore_topline_map_span(col, Term->wid);
+
     g_hidden_left_panel_topline_rendered_width = (byte)MIN(col, 255);
 }
 

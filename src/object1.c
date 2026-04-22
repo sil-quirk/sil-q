@@ -7658,6 +7658,7 @@ void show_equip_enhanced(void)
             char desc_label[16];
             char cycle_label[16];
             bool same_button_cycle = inventory_menu_same_button_cycle_enabled();
+            const char* prompt_suffix = (term_hgt <= 18) ? "" : " (Equipment)";
 
             inventory_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
             inventory_prompt_label('x', "RS Right", desc_label, sizeof(desc_label));
@@ -7665,31 +7666,39 @@ void show_equip_enhanced(void)
             if (current_menu_command == 'u') {
                 inventory_prompt_label('u', "X", cycle_label, sizeof(cycle_label));
                 strnfmt(out_val, sizeof(out_val),
-                    "%s-remove  %s-desc  <- drop  %s-cycle (Equipment)",
-                    confirm_label, desc_label, cycle_label);
+                    "%s-remove  %s-desc  <- drop  %s-cycle%s",
+                    confirm_label, desc_label, cycle_label, prompt_suffix);
             } else if (current_menu_command == 'x') {
                 inventory_prompt_label('x', "RS Right", cycle_label, sizeof(cycle_label));
                 strnfmt(out_val, sizeof(out_val),
-                    "%s-remove  %s-desc  <- drop  %s-cycle (Equipment)",
-                    confirm_label, desc_label, cycle_label);
+                    "%s-remove  %s-desc  <- drop  %s-cycle%s",
+                    confirm_label, desc_label, cycle_label, prompt_suffix);
             } else if (same_button_cycle) {
                 inventory_prompt_label('e', "L1", cycle_label, sizeof(cycle_label));
                 strnfmt(out_val, sizeof(out_val),
-                    "%s-remove  %s-desc  <- drop  %s-cycle (Equipment)",
-                    confirm_label, desc_label, cycle_label);
+                    "%s-remove  %s-desc  <- drop  %s-cycle%s",
+                    confirm_label, desc_label, cycle_label, prompt_suffix);
             } else {
                 strnfmt(out_val, sizeof(out_val),
-                    "%s-remove  %s-desc  <- drop (Equipment)",
-                    confirm_label, desc_label);
+                    "%s-remove  %s-desc  <- drop%s",
+                    confirm_label, desc_label, prompt_suffix);
             }
         } else if (current_menu_command == 'u') {
-            sprintf(out_val, "Space-Remove, %c again - cycle  (Equipment)", current_menu_command);
+            sprintf(out_val, (term_hgt <= 18)
+                ? "Space-Remove, %c again - cycle"
+                : "Space-Remove, %c again - cycle  (Equipment)",
+                current_menu_command);
         }
         else if (current_menu_command == 'x') {
-            sprintf(out_val, "Space-Remove, %c again - cycle  (Equipment)", current_menu_command);
+            sprintf(out_val, (term_hgt <= 18)
+                ? "Space-Remove, %c again - cycle"
+                : "Space-Remove, %c again - cycle  (Equipment)",
+                current_menu_command);
         }
         else {
-            sprintf(out_val, "Space-Remove, -> description, <- drop  (Equipment)");
+            sprintf(out_val, (term_hgt <= 18)
+                ? "Space-Remove, -> description, <- drop"
+                : "Space-Remove, -> description, <- drop  (Equipment)");
         }
         if (use_story_font)
             story_print_text(0, 0, 0, TERM_WHITE, out_val);

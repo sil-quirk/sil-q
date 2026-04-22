@@ -33,6 +33,31 @@ function Remove-WavFilesRecursive {
     return $wavFiles.Count
 }
 
+$scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
+
+function Resolve-ScriptRelativePath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PathValue
+    )
+
+    if ([System.IO.Path]::IsPathRooted($PathValue)) {
+        return [System.IO.Path]::GetFullPath($PathValue)
+    }
+
+    return [System.IO.Path]::GetFullPath((Join-Path $scriptRoot $PathValue))
+}
+
+$buildScriptPath = Resolve-ScriptRelativePath "build-cmake.bat"
+$deploymentFolderPath = Resolve-ScriptRelativePath "sil-more-windows-sdl3"
+$deploymentFolder = Split-Path -Leaf $deploymentFolderPath
+$deploymentExePath = Join-Path $deploymentFolderPath "sil-more.exe"
+$outputFolderPath = Resolve-ScriptRelativePath $OutputFolder
+$libSourceRoot = Resolve-ScriptRelativePath "lib"
+$coverArtPath = Resolve-ScriptRelativePath "CoverArt"
+$legacyCoverArtPath = Resolve-ScriptRelativePath "sil-more_beta 0.9/CoverArt"
+$archiveScriptPath = Resolve-ScriptRelativePath "create-distribution-archive.ps1"
+
 # Define game data folders to copy (content only) - edit, pref, xtra, docs
 $libFoldersToCopy = @('edit', 'pref', 'xtra', 'docs')
 
@@ -65,23 +90,41 @@ $requiredDlls = @(
     'libiconv-2.dll'
 )
 
-# Create release folder
-if (Test-Path $OutputFolder) {
-    Write-Host "Removing existing $OutputFolder..." -ForegroundColor Yellow
-    Remove-Item -Recurse -Force $OutputFolder
+Write-Host ""
+Write-Host "Checking for standard Windows deployment..." -ForegroundColor Yellow
+if (-not (Test-Path $deploymentExePath)) {
+    Write-Host "Standard deployment not found. Building now..." -ForegroundColor Cyan
+    & $buildScriptPath
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Build failed!" -ForegroundColor Red
+        exit 1
+    }
 }
 
-New-Item -ItemType Directory -Path $OutputFolder | Out-Null
-Write-Host "Created release folder: $OutputFolder" -ForegroundColor Green
+if (-not (Test-Path $deploymentExePath)) {
+    Write-Host "  [ERROR] Standard deployment executable not found: $deploymentExePath" -ForegroundColor Red
+    exit 1
+}
+
+Write-Host "  [OK] Standard deployment found"
+
+# Create release folder
+if (Test-Path $outputFolderPath) {
+    Write-Host "Removing existing $outputFolderPath..." -ForegroundColor Yellow
+    Remove-Item -Recurse -Force $outputFolderPath
+}
+
+New-Item -ItemType Directory -Path $outputFolderPath | Out-Null
+Write-Host "Created release folder: $outputFolderPath" -ForegroundColor Green
 
 # Copy executable
 Write-Host ""
 Write-Host "Copying executable..." -ForegroundColor Yellow
-if (Test-Path "build-standard/sil-more.exe") {
-    Copy-Item "build-standard/sil-more.exe" "$OutputFolder/" -Force
+if (Test-Path $deploymentExePath) {
+    Copy-Item $deploymentExePath $outputFolderPath -Force
     Write-Host "  [OK] sil-more.exe"
 } else {
-    Write-Host "  [ERROR] sil-more.exe not found in build-standard/" -ForegroundColor Red
+    Write-Host "  [ERROR] sil-more.exe not found in $deploymentFolder/" -ForegroundColor Red
     exit 1
 }
 
@@ -92,15 +135,15 @@ $copiedDlls = 0
 $missingDlls = @()
 
 foreach ($dll in $requiredDlls) {
-    $srcPath = "sil-more-windows-sdl3/$dll"
+    $srcPath = Join-Path $deploymentFolderPath $dll
     if (Test-Path $srcPath) {
-        Copy-Item $srcPath "$OutputFolder/" -Force
+        Copy-Item $srcPath $outputFolderPath -Force
         $copiedDlls++
     } else {
         # Also check in lib folder as fallback
-        $libPath = "lib/$dll"
+        $libPath = Join-Path $libSourceRoot $dll
         if (Test-Path $libPath) {
-            Copy-Item $libPath "$OutputFolder/" -Force
+            Copy-Item $libPath $outputFolderPath -Force
             $copiedDlls++
         } else {
             $missingDlls += $dll
@@ -110,24 +153,25 @@ foreach ($dll in $requiredDlls) {
 
 Write-Host "  [OK] Copied $copiedDlls DLLs"
 if ($missingDlls.Count -gt 0) {
-    Write-Host "  [WARN] Missing DLLs:" -ForegroundColor Yellow
+    Write-Host "  [ERROR] Missing DLLs:" -ForegroundColor Red
     $missingDlls | ForEach-Object { Write-Host "    - $_" }
+    exit 1
 }
 
 # Create lib folder structure
 Write-Host ""
 Write-Host "Creating game data structure..." -ForegroundColor Yellow
-$libPath = "$OutputFolder/lib"
-if (-not (Test-Path $libPath)) {
-    New-Item -ItemType Directory -Path $libPath | Out-Null
+$releaseLibPath = Join-Path $outputFolderPath "lib"
+if (-not (Test-Path $releaseLibPath)) {
+    New-Item -ItemType Directory -Path $releaseLibPath | Out-Null
 }
 
 # Copy game data folders (with special handling for certain folders)
 $foldersCopied = 0
 $musicFilesCopied = 0
 foreach ($folder in $libFoldersToCopy) {
-    $srcFolder = "lib/$folder"
-    $dstFolder = "$libPath/$folder"
+    $srcFolder = Join-Path $libSourceRoot $folder
+    $dstFolder = Join-Path $releaseLibPath $folder
     
     if (Test-Path $srcFolder) {
         if ($folder -eq "edit") {
@@ -205,7 +249,7 @@ foreach ($folder in $libFoldersToCopy) {
 
 # Create empty folders for runtime use (data, apex, save, user)
 foreach ($folder in $emptyLibFolders) {
-    $emptyPath = "$libPath/$folder"
+    $emptyPath = Join-Path $releaseLibPath $folder
     if (-not (Test-Path $emptyPath)) {
         New-Item -ItemType Directory -Path $emptyPath | Out-Null
         Write-Host "  [CREATED] lib/$folder (empty)"
@@ -224,13 +268,14 @@ foreach ($folder in $emptyLibFolders) {
 if ($IncludeCoverArt) {
     Write-Host ""
     Write-Host "Copying CoverArt..." -ForegroundColor Yellow
-    if (Test-Path "CoverArt") {
-        Copy-Item -Recurse "CoverArt" "$OutputFolder/CoverArt" -Force
-        $artCount = (Get-ChildItem -Recurse "CoverArt" | Measure-Object).Count
+    $releaseCoverArtPath = Join-Path $outputFolderPath "CoverArt"
+    if (Test-Path $coverArtPath) {
+        Copy-Item -Recurse $coverArtPath $releaseCoverArtPath -Force
+        $artCount = (Get-ChildItem -Recurse $coverArtPath | Measure-Object).Count
         Write-Host "  [OK] CoverArt ($artCount items)"
-    } elseif (Test-Path "sil-more_beta 0.9/CoverArt") {
-        Copy-Item -Recurse "sil-more_beta 0.9/CoverArt" "$OutputFolder/CoverArt" -Force
-        $artCount = (Get-ChildItem -Recurse "$OutputFolder/CoverArt" | Measure-Object).Count
+    } elseif (Test-Path $legacyCoverArtPath) {
+        Copy-Item -Recurse $legacyCoverArtPath $releaseCoverArtPath -Force
+        $artCount = (Get-ChildItem -Recurse $releaseCoverArtPath | Measure-Object).Count
         Write-Host "  [OK] CoverArt ($artCount items)"
     } else {
         Write-Host "  [SKIP] CoverArt not found"
@@ -279,7 +324,7 @@ $manifestText += "=== CONFIGURATION ===" + "`n"
 $manifestText += "Edit lib/pref/pref.prf to customize game settings`n"
 $manifestText += "`n"
 
-$manifestText | Set-Content "$OutputFolder/MANIFEST.txt"
+$manifestText | Set-Content (Join-Path $outputFolderPath "MANIFEST.txt")
 Write-Host "  [OK] MANIFEST.txt"
 
 # Calculate and display final size
@@ -288,9 +333,9 @@ Write-Host "========================================" -ForegroundColor Green
 Write-Host "Release build complete!" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "Location: ./$OutputFolder" -ForegroundColor Cyan
+Write-Host "Location: $outputFolderPath" -ForegroundColor Cyan
 
-$folderSize = (Get-ChildItem -Recurse $OutputFolder | Measure-Object -Property Length -Sum).Sum / 1MB
+$folderSize = (Get-ChildItem -Recurse $outputFolderPath | Measure-Object -Property Length -Sum).Sum / 1MB
 $folderSizeGB = $folderSize / 1024
 if ($folderSize -gt 1024) {
     Write-Host "Size: $([math]::Round($folderSizeGB, 2)) GB"
@@ -310,6 +355,6 @@ if ($IncludeCoverArt) {
 
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Yellow
-Write-Host "  1. Test: .\$OutputFolder\sil-more.exe"
-Write-Host "  2. Archive: .\create-distribution-archive.ps1 -ReleaseFolder $OutputFolder"
+Write-Host "  1. Test: $(Join-Path $outputFolderPath 'sil-more.exe')"
+Write-Host "  2. Archive: $archiveScriptPath -ReleaseFolder $outputFolderPath -Version $Version"
 Write-Host ""

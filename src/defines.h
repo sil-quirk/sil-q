@@ -2692,39 +2692,39 @@
 #define OPT_hjkl_movement 0
 #define OPT_quick_messages 1
 #define OPT_angband_keyset 2
-// xxx carry_query
+// reserved legacy slot: carry_query
 #define OPT_stop_singing_on_rest 4
-// xxx always_pickup
+// reserved legacy slot: always_pickup
 #define OPT_forgo_attacking_unwary 6
 #define OPT_delay_factor 10
 #define OPT_hitpoint_warning 11
 #define OPT_main_combat_rolls 12
-// xxx always_repeat
-// xxx depth_in_feet
-// xxx stack_force_notes
-// xxx stack_force_costs
-// xxx show_labels
-// xxx show_weights
-// xxx show_choices
-// xxx show_details
+// reserved legacy slot: always_repeat
+// reserved legacy slot: depth_in_feet
+// reserved legacy slot: stack_force_notes
+// reserved legacy slot: stack_force_costs
+// reserved legacy slot: show_labels
+// reserved legacy slot: show_weights
+// reserved legacy slot: show_choices
+// reserved legacy slot: show_details
 #define OPT_system_beep 14
-// xxx show_flavors
+// reserved legacy slot: show_flavors
 #define OPT_run_ignore_stairs 16
 #define OPT_run_ignore_doors 17
-// xxx run_cut_corners
-// xxx run_use_corners
-// xxx disturb_move
-// xxx disturb_near
-// xxx disturb_panel
-// xxx disturb_state
-// xxx disturb_minor
-// xxx disturb_wakeup
-// xxx alert_hitpoint
-// xxx alert_failure
-// xxx verify_destroy
-// xxx verify_special
-// xxx allow_quantity
-// xxx
+// reserved legacy slot: run_cut_corners
+// reserved legacy slot: run_use_corners
+// reserved legacy slot: disturb_move
+// reserved legacy slot: disturb_near
+// reserved legacy slot: disturb_panel
+// reserved legacy slot: disturb_state
+// reserved legacy slot: disturb_minor
+// reserved legacy slot: disturb_wakeup
+// reserved legacy slot: alert_hitpoint
+// reserved legacy slot: alert_failure
+// reserved legacy slot: verify_destroy
+// reserved legacy slot: verify_special
+// reserved legacy slot: allow_quantity
+// reserved legacy slot
 /* Prevent automatic attacks from hitting fleeing enemies under Oath of Valor */
 #define OPT_valorous_oath_auto_attack_safety (OPT_GAME_PLAY + 0)
 /* Visual recognition: intelligent monsters need light to see player */
@@ -2735,45 +2735,47 @@
 #define OPT_sleep_icon (OPT_GAME_PLAY + 3)
 /* When both would apply, prefer Assassination over Charge on unaware targets */
 #define OPT_assassination_over_charge (OPT_GAME_PLAY + 4)
-// xxx auto_haggle
-// xxx auto_scum
-// xxx allow_themed_levels
-// xxx testing_carry
-// xxx expand_look
-// xxx expand_list
-// xxx view_perma_grids
-// xxx view_torch_grids
-// xxx dungeon_align
-// xxx dungeon_stair
-// xxx track_follow
-// xxx track_target
-// xxx smart_cheat
-// xxx view_reduce_lite
-// xxx hidden_player
-// xxx avoid_abort
-// xxx avoid_other
-// xxx flush_failure
-// xxx flush_disturb
-// xxx
-// xxx fresh_before
-// xxx fresh_after
-// xxx
-// xxx compress_savefile
+/* Confirm before making direct attacks; useful for pacifist runs */
+#define OPT_pacifist_attack_warning (OPT_GAME_PLAY + 5)
+// reserved legacy slot: auto_haggle
+// reserved legacy slot: auto_scum
+// reserved legacy slot: allow_themed_levels
+// reserved legacy slot: testing_carry
+// reserved legacy slot: expand_look
+// reserved legacy slot: expand_list
+// reserved legacy slot: view_perma_grids
+// reserved legacy slot: view_torch_grids
+// reserved legacy slot: dungeon_align
+// reserved legacy slot: dungeon_stair
+// reserved legacy slot: track_follow
+// reserved legacy slot: track_target
+// reserved legacy slot: smart_cheat
+// reserved legacy slot: view_reduce_lite
+// reserved legacy slot: hidden_player
+// reserved legacy slot: avoid_abort
+// reserved legacy slot: avoid_other
+// reserved legacy slot: flush_failure
+// reserved legacy slot: flush_disturb
+// reserved legacy slot
+// reserved legacy slot: fresh_before
+// reserved legacy slot: fresh_after
+// reserved legacy slot
+// reserved legacy slot: compress_savefile
 #define OPT_hilite_player 59
 #define OPT_hilite_target 60
 #define OPT_hilite_unwary 61
 #define OPT_solid_walls 62
 #define OPT_hybrid_walls 63
-// xxx easy_open
-// xxx easy_alter
-// xxx easy_floor
+// reserved legacy slot: easy_open
+// reserved legacy slot: easy_alter
+// reserved legacy slot: easy_floor
 #define OPT_instant_run 67
 #define OPT_center_player 68
 #define OPT_run_avoid_center 69
-// xxx scroll_target
+// reserved legacy slot: scroll_target
 #define OPT_auto_more 71
 #define OPT_know_monster_info 72
-// xxx auto_display_lists
+// reserved legacy slot: auto_display_lists
 #define OPT_artifact_unique_color 74
 #define OPT_easy_main_menu 75
 #define OPT_story_lists 76
@@ -2829,17 +2831,17 @@
 
 #define HIDDEN_LEFT_PANEL_TOP_LEFT 0
 #define HIDDEN_LEFT_PANEL_TOPLINE  1
-// xxx birth_point_based
-// xxx birth_auto_roller
-// xxx birth_maximize
-// xxx birth_preserve
+// reserved legacy slot: birth_point_based
+// reserved legacy slot: birth_auto_roller
+// reserved legacy slot: birth_maximize
+// reserved legacy slot: birth_preserve
 #define OPT_birth_discon_stair (OPT_BIRTH + 3)
 #define OPT_birth_ironman (OPT_BIRTH + 4)
-// xxx birth_no_stores
+// reserved legacy slot: birth_no_stores
 #define OPT_birth_no_artefacts (OPT_BIRTH + 6)
 #define OPT_birth_fixed_exp (OPT_BIRTH + 7)
 
-/* xxx xxx */
+/* Reserved legacy option slots */
 #define OPT_cheat_peek (OPT_CHEAT + 0)
 #define OPT_cheat_hear (OPT_CHEAT + 1)
 #define OPT_cheat_room (OPT_CHEAT + 2)
@@ -2852,32 +2854,32 @@
 #define OPT_cheat_light (OPT_CHEAT + 9)
 #define OPT_cheat_skill_rolls (OPT_CHEAT + 10)
 #define OPT_cheat_timestop (OPT_CHEAT + 11)
-/* xxx xxx */
-// xxx adult_point_based
-// xxx adult_auto_roller
-// xxx adult_maximize
-// xxx adult_preserve
+/* Reserved legacy option slots */
+// reserved legacy slot: adult_point_based
+// reserved legacy slot: adult_auto_roller
+// reserved legacy slot: adult_maximize
+// reserved legacy slot: adult_preserve
 #define OPT_adult_discon_stair (OPT_ADULT + 3)
 #define OPT_adult_ironman (OPT_ADULT + 4)
-// xxx adult_no_stores
+// reserved legacy slot: adult_no_stores
 #define OPT_adult_no_artefacts (OPT_ADULT + 6)
-// xxx adult_rand_artefacts
-// xxx adult_no_stacking
-// xxx adult_take_notes
-// xxx adult_force_small_lev
-// xxx adult_retain_squelch
-// xxx adult_no_quests
-// xxx OPT_adult_no_player_ghosts
-// xxx OPT_adult_no_store_services
-// xxx OPT_adult_no_xtra_artefacts
-/* xxx xxx */
+// reserved legacy slot: adult_rand_artefacts
+// reserved legacy slot: adult_no_stacking
+// reserved legacy slot: adult_take_notes
+// reserved legacy slot: adult_force_small_lev
+// reserved legacy slot: adult_retain_squelch
+// reserved legacy slot: adult_no_quests
+// reserved legacy slot: OPT_adult_no_player_ghosts
+// reserved legacy slot: OPT_adult_no_store_services
+// reserved legacy slot: OPT_adult_no_xtra_artefacts
+/* Reserved legacy option slots */
 #define OPT_score_peek (OPT_SCORE + 0)
 #define OPT_score_hear (OPT_SCORE + 1)
 #define OPT_score_room (OPT_SCORE + 2)
 #define OPT_score_xtra (OPT_SCORE + 3)
 #define OPT_score_know (OPT_SCORE + 4)
 #define OPT_score_live (OPT_SCORE + 5)
-/* xxx xxx */
+/* Reserved legacy option slots */
 
 /*
  * Hack -- Option symbols
@@ -2889,7 +2891,7 @@
 #define hjkl_movement op_ptr->opt[OPT_hjkl_movement]
 #define quick_messages op_ptr->opt[OPT_quick_messages]
 #define angband_keyset op_ptr->opt[OPT_angband_keyset]
-// xxx carry_query
+// reserved legacy slot: carry_query
 #define stop_singing_on_rest op_ptr->opt[OPT_stop_singing_on_rest]
 #define always_pickup false // Sil-x: removing this option for now
 #define forgo_attacking_unwary op_ptr->opt[OPT_forgo_attacking_unwary]
@@ -2899,69 +2901,70 @@
 #define stealth_vision op_ptr->opt[OPT_stealth_vision]
 #define sleep_icon op_ptr->opt[OPT_sleep_icon]
 #define assassination_over_charge op_ptr->opt[OPT_assassination_over_charge]
+#define pacifist_attack_warning op_ptr->opt[OPT_pacifist_attack_warning]
 #define depth_in_feet op_ptr->opt[OPT_depth_in_feet]
-// xxx stack_force_notes
-// xxx stack_force_costs
-// xxx show_labels
-// xxx show_choices
+// reserved legacy slot: stack_force_notes
+// reserved legacy slot: stack_force_costs
+// reserved legacy slot: show_labels
+// reserved legacy slot: show_choices
 #define show_details op_ptr->opt[OPT_show_details]
 #define system_beep op_ptr->opt[OPT_system_beep]
 #define show_flavors op_ptr->opt[OPT_show_flavors]
 #define run_ignore_stairs op_ptr->opt[OPT_run_ignore_stairs]
 #define run_ignore_doors op_ptr->opt[OPT_run_ignore_doors]
-// xxx run_cut_corners
-// xxx run_use_corners
-// xxx disturb_move
-// xxx disturb_near
-// xxx disturb_panel
-// xxx disturb_state
-// xxx disturb_minor
-// xxx disturb_wakeup
-// xxx
-// xxx alert_failure
-// xxx verify_destroy
-// xxx verify_special
-// xxx allow_quantity
-// xxx
-// xxx auto_haggle
-// xxx auto_scum
-// xxx allow_themed_levels
-// xxx testing_stack
-// xxx testing_carry
-// xxx expand_look
-// xxx expand_list
-// xxx view_perma_grids
-// xxx view_torch_grids
-// xxx dungeon_align
-// xxx dungeon_stair
-// xxx track_follow
-// xxx track_target
-// xxx smart_cheat
-// xxx view_reduce_lite
-// xxx hidden_player
-// xxx avoid_abort
-// xxx avoid_other
-// xxx flush_failure
-// xxx flush_disturb
-// xxx
-// xxx fresh_before
-// xxx fresh_after
+// reserved legacy slot: run_cut_corners
+// reserved legacy slot: run_use_corners
+// reserved legacy slot: disturb_move
+// reserved legacy slot: disturb_near
+// reserved legacy slot: disturb_panel
+// reserved legacy slot: disturb_state
+// reserved legacy slot: disturb_minor
+// reserved legacy slot: disturb_wakeup
+// reserved legacy slot
+// reserved legacy slot: alert_failure
+// reserved legacy slot: verify_destroy
+// reserved legacy slot: verify_special
+// reserved legacy slot: allow_quantity
+// reserved legacy slot
+// reserved legacy slot: auto_haggle
+// reserved legacy slot: auto_scum
+// reserved legacy slot: allow_themed_levels
+// reserved legacy slot: testing_stack
+// reserved legacy slot: testing_carry
+// reserved legacy slot: expand_look
+// reserved legacy slot: expand_list
+// reserved legacy slot: view_perma_grids
+// reserved legacy slot: view_torch_grids
+// reserved legacy slot: dungeon_align
+// reserved legacy slot: dungeon_stair
+// reserved legacy slot: track_follow
+// reserved legacy slot: track_target
+// reserved legacy slot: smart_cheat
+// reserved legacy slot: view_reduce_lite
+// reserved legacy slot: hidden_player
+// reserved legacy slot: avoid_abort
+// reserved legacy slot: avoid_other
+// reserved legacy slot: flush_failure
+// reserved legacy slot: flush_disturb
+// reserved legacy slot
+// reserved legacy slot: fresh_before
+// reserved legacy slot: fresh_after
 #define fresh_after                                                            \
     false // Sil: there is some chance I'll use this in the future
-// xxx
-// xxx compress_savefile
+// reserved legacy slot
+// reserved legacy slot: compress_savefile
 #define hilite_player op_ptr->opt[OPT_hilite_player]
 #define hilite_target op_ptr->opt[OPT_hilite_target]
 #define hilite_unwary op_ptr->opt[OPT_hilite_unwary]
 #define solid_walls op_ptr->opt[OPT_solid_walls]
 #define hybrid_walls op_ptr->opt[OPT_hybrid_walls]
-// xxx easy_open
-// xxx easy_alter
-// xxx easy_floor
+// reserved legacy slot: easy_open
+// reserved legacy slot: easy_alter
+// reserved legacy slot: easy_floor
 #define instant_run op_ptr->opt[OPT_instant_run]
 #define center_player op_ptr->opt[OPT_center_player]
 #define run_avoid_center op_ptr->opt[OPT_run_avoid_center]
-// xxx scroll_target
+// reserved legacy slot: scroll_target
 #define auto_more op_ptr->opt[OPT_auto_more]
 #define know_monster_info op_ptr->opt[OPT_know_monster_info]
 #define artifact_unique_color op_ptr->opt[OPT_artifact_unique_color]
@@ -3016,26 +3019,26 @@
 #define NOBLE_ITEM_SPAWN_RESTRICTED 0
 #define NOBLE_ITEM_SPAWN_INCLUDE_VAULTS 1
 
-// xxx
-// xxx birth_point_based
-// xxx birth_auto_roller
-// xxx birth_maximize
-// xxx birth_preserve
+// reserved legacy slot
+// reserved legacy slot: birth_point_based
+// reserved legacy slot: birth_auto_roller
+// reserved legacy slot: birth_maximize
+// reserved legacy slot: birth_preserve
 #define birth_discon_stair op_ptr->opt[OPT_birth_discon_stair]
 #define birth_ironman op_ptr->opt[OPT_birth_ironman]
-// xxx birth_no_stores
+// reserved legacy slot: birth_no_stores
 #define birth_no_artefacts op_ptr->opt[OPT_birth_no_artefacts]
 #define birth_fixed_exp op_ptr->opt[OPT_birth_fixed_exp]
-// xxx birth_retain_squelch
-// xxx birth_no_quests
-// xxx birth_no_player ghosts
-// xxx birth_no_store_services
+// reserved legacy slot: birth_retain_squelch
+// reserved legacy slot: birth_no_quests
+// reserved legacy slot: birth_no_player ghosts
+// reserved legacy slot: birth_no_store_services
 
 // Sil: set directly to true at the moment, as they are currently incompatible
 // with Sil
 #define birth_no_xtra_artefacts true
 
-// xxx
+// reserved legacy slot
 #define cheat_peek op_ptr->opt[OPT_cheat_peek]
 #define cheat_hear op_ptr->opt[OPT_cheat_hear]
 #define cheat_room op_ptr->opt[OPT_cheat_room]
@@ -3048,42 +3051,42 @@
 #define cheat_light op_ptr->opt[OPT_cheat_light]
 #define cheat_skill_rolls op_ptr->opt[OPT_cheat_skill_rolls]
 #define cheat_timestop op_ptr->opt[OPT_cheat_timestop]
-// xxx
-// xxx adult_point_based
-// xxx adult_auto_roller
-// xxx adult_maximize
-// xxx adult_preserve
+// reserved legacy slot
+// reserved legacy slot: adult_point_based
+// reserved legacy slot: adult_auto_roller
+// reserved legacy slot: adult_maximize
+// reserved legacy slot: adult_preserve
 #define adult_discon_stair op_ptr->opt[OPT_adult_discon_stair]
 #define adult_ironman op_ptr->opt[OPT_adult_ironman]
-// xxx adult_no_stores
+// reserved legacy slot: adult_no_stores
 #define adult_no_artefacts op_ptr->opt[OPT_adult_no_artefacts]
 
 // Sil: set directly to false at the moment, as they are currently incompatible
 // with Sil
 #define adult_rand_artefacts false
 
-// xxx adult_no_stacking
-// xxx adult_take_notes
-// xxx adult_force_small_lev
-// xxx adult_retain_squelch
-// xxx adult_no_quests
-// xxx adult_no_player_ghosts
-// xxx adult_no_store_services
+// reserved legacy slot: adult_no_stacking
+// reserved legacy slot: adult_take_notes
+// reserved legacy slot: adult_force_small_lev
+// reserved legacy slot: adult_retain_squelch
+// reserved legacy slot: adult_no_quests
+// reserved legacy slot: adult_no_player_ghosts
+// reserved legacy slot: adult_no_store_services
 
 // Sil: set directly to true at the moment, as they are currently incompatible
 // with Sil
 #define adult_no_xtra_artefacts true
 
-// xxx hp_changes_color
-// xxx verify_leave_quest
-// xxx mark_squelch_items
+// reserved legacy slot: hp_changes_color
+// reserved legacy slot: verify_leave_quest
+// reserved legacy slot: mark_squelch_items
 #define score_peek op_ptr->opt[OPT_score_peek]
 #define score_hear op_ptr->opt[OPT_score_hear]
 #define score_room op_ptr->opt[OPT_score_room]
 #define score_xtra op_ptr->opt[OPT_score_xtra]
 #define score_know op_ptr->opt[OPT_score_know]
 #define score_live op_ptr->opt[OPT_score_live]
-// xxx
+// reserved legacy slot
 
 // Sil: preserve mode is now the default, but I've put this here so that
 // if I switch back, I just need to change this to a 0
