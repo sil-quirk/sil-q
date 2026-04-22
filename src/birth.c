@@ -3353,6 +3353,8 @@ static void finalize_character_creation_selection(void)
         op_ptr->intro_style = INTRO_STYLE_RANDOM;
     if (op_ptr->noble_item_spawn_mode > NOBLE_ITEM_SPAWN_INCLUDE_VAULTS)
         op_ptr->noble_item_spawn_mode = NOBLE_ITEM_SPAWN_RESTRICTED;
+    if (op_ptr->min_depth_timer_mode > MIN_DEPTH_TIMER_MODE_MAX)
+        op_ptr->min_depth_timer_mode = MIN_DEPTH_TIMER_MODE_NORMAL;
 
     for (i = 0; i < z_info->k_max; i++)
         k_info[i].squelch = SQUELCH_NEVER;

@@ -646,6 +646,8 @@ static void sdl_config_apply_app_option_defaults(void)
     op_ptr->level_entry_narrative_mode = LEVEL_ENTRY_NARRATIVE_BANNER_DELAY;
     op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_BANNER;
     op_ptr->narrative_banner_turns = DEFAULT_NARRATIVE_BANNER_TURNS;
+    op_ptr->opt[OPT_stealth_vision] = true;
+    op_ptr->opt[OPT_sleep_icon] = true;
     op_ptr->opt[OPT_top_status_line] = sdl_config_should_default_top_status_line();
 }
 

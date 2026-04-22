@@ -12166,6 +12166,86 @@ static const char* hint_message_title(int index)
     return "";
 }
 
+static const char* hint_message_pick_prompt(int wid,
+    const char* const prompts[], int prompt_count)
+{
+    int avail = wid;
+
+    if (avail < 1)
+        avail = 1;
+
+    for (int i = 0; i < prompt_count; ++i)
+    {
+        if (!prompts[i])
+            continue;
+        if ((int)strlen(prompts[i]) <= avail)
+            return prompts[i];
+    }
+
+    return (prompt_count > 0 && prompts[prompt_count - 1])
+        ? prompts[prompt_count - 1]
+        : "";
+}
+
+static const char* hint_message_detail_prompt(bool has_source, int wid)
+{
+    static const char* const simple_prompts[] = {
+        "[Press any key to continue]",
+        "[Any key]"
+    };
+    static const char* const source_prompts[] = {
+        "[Press any key to continue, or 'l' to look at the skeleton]",
+        "[Any key continues; 'l' looks at skeleton]",
+        "[Any key; 'l' looks]"
+    };
+
+    if (has_source)
+        return hint_message_pick_prompt(wid, source_prompts,
+            N_ELEMENTS(source_prompts));
+
+    return hint_message_pick_prompt(wid, simple_prompts,
+        N_ELEMENTS(simple_prompts));
+}
+
+static const char* hint_message_list_prompt(bool show_all_tips,
+    int level_n, int tip_n, int wid)
+{
+    static const char* const tip_list_prompts[] = {
+        "[Press '8'/'2' to move, Enter to read, 'h' for level hints, or ESCAPE]",
+        "[8/2 move, Enter read, h=level hints, ESC]",
+        "[8/2 move, Enter, h, ESC]"
+    };
+    static const char* const level_list_prompts[] = {
+        "[Press '8'/'2' to move, Enter to read, 'h' for all tips, 'l' to look, or ESCAPE]",
+        "[8/2 move, Enter read, h tips, l look, ESC]",
+        "[8/2, Enter, h, l, ESC]"
+    };
+    static const char* const no_level_with_tips_prompts[] = {
+        "[No level hint messages. Press 'h' for all tips, or ESCAPE]",
+        "[No level hints. h=tips, ESC]",
+        "[No hints. h, ESC]"
+    };
+    static const char* const no_level_prompts[] = {
+        "[No level hint messages. Press ESCAPE]",
+        "[No level hints. ESC]"
+    };
+
+    if (show_all_tips)
+        return hint_message_pick_prompt(wid, tip_list_prompts,
+            N_ELEMENTS(tip_list_prompts));
+
+    if (level_n > 0)
+        return hint_message_pick_prompt(wid, level_list_prompts,
+            N_ELEMENTS(level_list_prompts));
+
+    if (tip_n > 0)
+        return hint_message_pick_prompt(wid, no_level_with_tips_prompts,
+            N_ELEMENTS(no_level_with_tips_prompts));
+
+    return hint_message_pick_prompt(wid, no_level_prompts,
+        N_ELEMENTS(no_level_prompts));
+}
+
 typedef struct hint_message_display_line {
     char text[256];
     byte source_line;
@@ -12853,7 +12933,7 @@ static bool skeleton_tip_show_internal(int index, bool manage_screen)
                 NULL, !title_line);
         }
 
-        prt("[Press any key to continue]", hgt - 1, 0);
+        prt(hint_message_detail_prompt(false, wid), hgt - 1, 0);
         Term_fresh();
 
         hide_cursor = true;
@@ -12920,15 +13000,8 @@ static bool hint_message_show_internal(int index, int* look_y, int* look_x,
                 (highlight_tutorial && !title_line));
         }
 
-        if (hint_message_has_source(&meta))
-        {
-            prt("[Press any key to continue, or 'l' to look at the skeleton]",
-                hgt - 1, 0);
-        }
-        else
-        {
-            prt("[Press any key to continue]", hgt - 1, 0);
-        }
+        prt(hint_message_detail_prompt(hint_message_has_source(&meta), wid),
+            hgt - 1, 0);
 
         Term_fresh();
 
@@ -13051,30 +13124,12 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
         }
 
         if (show_all_tips)
-        {
             prt(format("All Tutorial Hints (%d)", tip_n), 0, 0);
-            prt("[Press '8'/'2' to move, Enter to read, 'h' for level hints, or ESCAPE]",
-                hgt - 1, 0);
-        }
         else
-        {
             prt(format("Hint Messages (%d)", level_n), 0, 0);
-            if (level_n > 0)
-            {
-                prt("[Press '8'/'2' to move, Enter to read, 'h' for all tips, 'l' to look, or ESCAPE]",
-                    hgt - 1, 0);
-            }
-            else if (tip_n > 0)
-            {
-                prt("[No level hint messages. Press 'h' for all tips, or ESCAPE]",
-                    hgt - 1, 0);
-            }
-            else
-            {
-                prt("[No level hint messages. Press ESCAPE]",
-                    hgt - 1, 0);
-            }
-        }
+
+        prt(hint_message_list_prompt(show_all_tips, level_n, tip_n, wid),
+            hgt - 1, 0);
 
         if (n <= 0)
         {
@@ -13539,7 +13594,7 @@ static const struct option_group_marker gameplay_option_groups[] = {
     { 0, "Combat Behavior" },
     { 5, "Information" },
     { 7, "World Generation" },
-    { 11, "Blitz" },
+    { 12, "Blitz" },
     { -1, NULL }
 };
 
@@ -14006,6 +14061,9 @@ static cptr option_menu_label(int opt)
                        : "Ability descriptions (0=lore+effect, 1=effect+lore, 2=effect)";
     case OPT_vault_drop_frequency:
         return compact ? "Vault drops" : "Vault drop frequency";
+    case OPT_min_depth_timer_mode:
+        return compact ? (narrow ? "Depth pace" : "Min depth pace")
+                       : "Minimum depth pace";
     case OPT_noble_item_spawn_mode:
         return compact ? (narrow ? "Noble items" : "Noble item sources")
                        : "Noble item spawns";
@@ -14418,6 +14476,30 @@ extern void do_cmd_options_aux(int page, cptr info)
                 option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
                     value_str);
             }
+            else if (opt[i] == OPT_min_depth_timer_mode)
+            {
+                const char *mode_str;
+
+                switch (op_ptr->min_depth_timer_mode)
+                {
+                case MIN_DEPTH_TIMER_MODE_RELAXED:
+                    mode_str = option_menu_use_compact_layout()
+                        ? "+30000 relaxed"
+                        : "Relaxed (+30000)";
+                    break;
+                case MIN_DEPTH_TIMER_MODE_HARSH:
+                    mode_str = option_menu_use_compact_layout()
+                        ? "-30000 harsh"
+                        : "Harsh (-30000)";
+                    break;
+                default:
+                    mode_str = "Normal";
+                    break;
+                }
+
+                option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
+                    mode_str);
+            }
             else if (opt[i] == OPT_noble_item_spawn_mode)
             {
                 const char *mode_str
@@ -14678,6 +14760,13 @@ extern void do_cmd_options_aux(int page, cptr info)
                         ? op_ptr->vault_drop_frequency + 1
                         : VDF_NORMAL;
                 }
+                else if (opt[k] == OPT_min_depth_timer_mode)
+                {
+                    op_ptr->min_depth_timer_mode
+                        = (op_ptr->min_depth_timer_mode < MIN_DEPTH_TIMER_MODE_MAX)
+                        ? op_ptr->min_depth_timer_mode + 1
+                        : MIN_DEPTH_TIMER_MODE_NORMAL;
+                }
                 else if (opt[k] == OPT_noble_item_spawn_mode)
                 {
                     op_ptr->noble_item_spawn_mode
@@ -14802,6 +14891,13 @@ extern void do_cmd_options_aux(int page, cptr info)
                         = (op_ptr->vault_drop_frequency < VDF_PLENTIFUL)
                         ? op_ptr->vault_drop_frequency + 1
                         : VDF_PLENTIFUL;
+                }
+                else if (opt[k] == OPT_min_depth_timer_mode)
+                {
+                    op_ptr->min_depth_timer_mode
+                        = (op_ptr->min_depth_timer_mode < MIN_DEPTH_TIMER_MODE_MAX)
+                        ? op_ptr->min_depth_timer_mode + 1
+                        : MIN_DEPTH_TIMER_MODE_MAX;
                 }
                 else if (opt[k] == OPT_noble_item_spawn_mode)
                 {
@@ -14934,6 +15030,13 @@ extern void do_cmd_options_aux(int page, cptr info)
                         = (op_ptr->vault_drop_frequency > VDF_NORMAL)
                         ? op_ptr->vault_drop_frequency - 1
                         : VDF_NORMAL;
+                }
+                else if (opt[k] == OPT_min_depth_timer_mode)
+                {
+                    op_ptr->min_depth_timer_mode
+                        = (op_ptr->min_depth_timer_mode > MIN_DEPTH_TIMER_MODE_NORMAL)
+                        ? op_ptr->min_depth_timer_mode - 1
+                        : MIN_DEPTH_TIMER_MODE_NORMAL;
                 }
                 else if (opt[k] == OPT_noble_item_spawn_mode)
                 {

@@ -256,7 +256,7 @@ cptr option_text[OPT_MAX] = {
     "top_status_line", /* OPT_top_status_line */
     "hide_supporting_panes_fullscreen", /* OPT_hide_supporting_panes_fullscreen */
     "narrative_banner_turns", /* OPT_narrative_banner_turns */
-    NULL, /* xxx */
+    "min_depth_timer_mode", /* OPT_min_depth_timer_mode */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -500,7 +500,7 @@ cptr option_desc[OPT_MAX] = {
     "Move the bottom status line to the top and hide the main message line", /* OPT_top_status_line */
     "Hide supporting panes on full-screen menus when that frees space", /* OPT_hide_supporting_panes_fullscreen */
     "Narrative banner turns (0=dismiss banner on next input, 1-3=keep it visible for player turns)", /* OPT_narrative_banner_turns */
-    NULL, /* xxx */
+    "Minimum depth pace (0=normal, 1=relaxed [+30000], 2=harsh [-30000])", /* OPT_min_depth_timer_mode */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -764,7 +764,7 @@ const bool option_norm[OPT_MAX] = {
     false, /* OPT_top_status_line */
     true, /* OPT_hide_supporting_panes_fullscreen */
     false, /* OPT_narrative_banner_turns (default via byte field) */
-    false, /* xxx */
+    false, /* OPT_min_depth_timer_mode (default 0 via byte field) */
     false, /* xxx */
     false, /* xxx */
     false, /* xxx */
@@ -945,8 +945,9 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
         OPT_assassination_over_charge, OPT_stop_singing_on_rest,
         OPT_visual_recognition, OPT_know_monster_info,
         OPT_disable_skeleton_note_tutorial, OPT_smaller_level_size, OPT_more_stairs,
-        OPT_vault_drop_frequency, OPT_noble_item_spawn_mode, OPT_unlock_blitz_mode,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_vault_drop_frequency, OPT_noble_item_spawn_mode,
+        OPT_min_depth_timer_mode, OPT_unlock_blitz_mode,
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Efficiency ***/

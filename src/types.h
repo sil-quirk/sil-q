@@ -1059,6 +1059,7 @@ struct player_other
     byte partition_narrative_mode; /* Transition text between partitions */
     byte narrative_banner_turns; /* Banner visibility (0=dismiss on next input, 1-3=player turns) */
     byte noble_item_spawn_mode; /* Noble item sources (NOBLE_ITEM_SPAWN_*) */
+    byte min_depth_timer_mode; /* Minimum-depth timer pace (MIN_DEPTH_TIMER_MODE_*) */
 };
 
 /*

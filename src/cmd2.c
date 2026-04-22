@@ -15,7 +15,8 @@
 #include "player/killer.h"
 #include "metarun.h"
 
-#define MIN_DEPTH_COUNTER_STEP 150000
+#define MIN_DEPTH_COUNTER_STEP_BASE 150000
+#define MIN_DEPTH_COUNTER_STEP_SETTING_DELTA 30000
 #define MIN_DEPTH_BASE_INCREMENT_START 85
 #define MIN_DEPTH_BASE_INCREMENT_DIVISOR 850
 #define MIN_DEPTH_INCREMENT_PER_BONUS 5
@@ -26,6 +27,32 @@
 
 #define THROW_PENDING_NONE -9999
 static int throw_pending_slot = THROW_PENDING_NONE;
+
+static int min_depth_counter_step_adjustment(void)
+{
+    if (!op_ptr)
+        return 0;
+
+    switch (op_ptr->min_depth_timer_mode)
+    {
+    case MIN_DEPTH_TIMER_MODE_RELAXED:
+        return MIN_DEPTH_COUNTER_STEP_SETTING_DELTA;
+    case MIN_DEPTH_TIMER_MODE_HARSH:
+        return -MIN_DEPTH_COUNTER_STEP_SETTING_DELTA;
+    default:
+        return 0;
+    }
+}
+
+static int min_depth_counter_step(void)
+{
+    int step = MIN_DEPTH_COUNTER_STEP_BASE + min_depth_counter_step_adjustment();
+
+    if (step < 1)
+        step = 1;
+
+    return step;
+}
 
 static bool min_depth_timer_bonus_slot_active(const object_type* o_ptr)
 {
@@ -101,10 +128,11 @@ void min_depth_timer_status(int* base_increment, int* additional_increment,
     int base = min_depth_timer_base_increment();
     int additional = min_depth_timer_additional_increment();
     int total = base + additional;
-    int current_progress = min_depth_counter % MIN_DEPTH_COUNTER_STEP;
+    int step = min_depth_counter_step();
+    int current_progress = min_depth_counter % step;
 
     if (current_progress < 0)
-        current_progress += MIN_DEPTH_COUNTER_STEP;
+        current_progress += step;
 
     if (base_increment)
         *base_increment = base;
@@ -115,7 +143,7 @@ void min_depth_timer_status(int* base_increment, int* additional_increment,
     if (progress)
         *progress = current_progress;
     if (threshold)
-        *threshold = MIN_DEPTH_COUNTER_STEP;
+        *threshold = step;
 }
 
 /*
@@ -124,7 +152,7 @@ void min_depth_timer_status(int* base_increment, int* additional_increment,
  */
 int min_depth(void)
 {
-    int min_depth_value = min_depth_counter / MIN_DEPTH_COUNTER_STEP + 1;
+    int min_depth_value = min_depth_counter / min_depth_counter_step() + 1;
 
     // bounds on the base
     if (min_depth_value < 1)
@@ -4229,18 +4257,10 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
                 base_hint_state, skeleton_hint_bit(SKEL_HINT_TIP));
         }
 
-        if (hint2 == SKEL_HINT_NONE)
-            hint2 = SKEL_HINT_TIP;
     }
     else if (at_cap)
     {
-        /* Tutorial notes should not be limited by the per-level cap. */
-        if (!skeleton_hint_available(
-                SKEL_HINT_TIP, &layout, vault_present, artefact_present, sval))
-        {
-            return;
-        }
-        hint1 = SKEL_HINT_TIP;
+        return;
     }
     else
     {
@@ -4289,6 +4309,13 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
                 state_after_hint1, exclude_mask2);
         }
     }
+
+    /*
+     * When a tutorial tip drove the note, fill the second slot with another
+     * tip if no regular hint was rolled.
+     */
+    if (hint2 == SKEL_HINT_NONE && hint1 == SKEL_HINT_TIP)
+        hint2 = SKEL_HINT_TIP;
 
     /* Don't mark TIP hints as used - they can repeat. */
     if (hint1 != SKEL_HINT_TIP)

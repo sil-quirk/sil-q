@@ -1283,6 +1283,18 @@ static void rd_options(void)
             op_ptr->narrative_banner_turns = (byte)(b - 1);
         else
             op_ptr->narrative_banner_turns = DEFAULT_NARRATIVE_BANNER_TURNS;
+
+        if (savefile_version_at_least(0, 9, 6, 1))
+        {
+            rd_byte(&b);
+            op_ptr->min_depth_timer_mode = b;
+            if (op_ptr->min_depth_timer_mode > MIN_DEPTH_TIMER_MODE_MAX)
+                op_ptr->min_depth_timer_mode = MIN_DEPTH_TIMER_MODE_NORMAL;
+        }
+        else
+        {
+            op_ptr->min_depth_timer_mode = MIN_DEPTH_TIMER_MODE_NORMAL;
+        }
     }
     else
     {
@@ -1291,6 +1303,7 @@ static void rd_options(void)
         op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_BANNER;
         op_ptr->narrative_banner_turns = DEFAULT_NARRATIVE_BANNER_TURNS;
         op_ptr->noble_item_spawn_mode = NOBLE_ITEM_SPAWN_RESTRICTED;
+        op_ptr->min_depth_timer_mode = MIN_DEPTH_TIMER_MODE_NORMAL;
         strip_bytes(4);
     }
 
@@ -1343,6 +1356,7 @@ static void rd_options(void)
             : PARTITION_NARRATIVE_OFF;
         op_ptr->narrative_banner_turns = DEFAULT_NARRATIVE_BANNER_TURNS;
         op_ptr->noble_item_spawn_mode = NOBLE_ITEM_SPAWN_RESTRICTED;
+        op_ptr->min_depth_timer_mode = MIN_DEPTH_TIMER_MODE_NORMAL;
     }
 
     /*** Window Options ***/

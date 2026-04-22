@@ -52,15 +52,15 @@
 // #define STEAMDECK_SUPPORT
 
 /* Formalized new fork versioning (canonical source for all modules) */
-#define VERSION_STRING "0.9.6"
+#define VERSION_STRING "0.9.6.1"
 /*
- * Version components (0.9.6.0).  All on-disk formats (saves, scores, metaruns)
+ * Version components (0.9.6.1).  All on-disk formats (saves, scores, metaruns)
  * MUST match these values; never bump individual subsystems independently.
  */
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 9
 #define VERSION_PATCH 6
-#define VERSION_EXTRA 0   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
+#define VERSION_EXTRA 1   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
 /* Update MIN_VERSION_EXTRA whenever the savefile format changes. */
 #define MIN_VERSION_EXTRA 0  /* Accept earlier 0.9.x saves */
 
@@ -2809,6 +2809,7 @@
 #define OPT_top_status_line 106
 #define OPT_hide_supporting_panes_fullscreen 107
 #define OPT_narrative_banner_turns 108
+#define OPT_min_depth_timer_mode 109
 
 /* Intro screen style constants */
 #define INTRO_STYLE_FLAME       0   /* Flame Imperishable (Ainulindale) */
@@ -2820,6 +2821,11 @@
 #define INTRO_STYLE_NOLDOLANTE  6   /* Lament of the Noldor */
 #define INTRO_STYLE_RANDOM      7   /* Random each launch */
 #define INTRO_STYLE_MAX         7   /* Highest fixed variant index (6) + 1 for random */
+
+#define MIN_DEPTH_TIMER_MODE_NORMAL   0
+#define MIN_DEPTH_TIMER_MODE_RELAXED  1
+#define MIN_DEPTH_TIMER_MODE_HARSH    2
+#define MIN_DEPTH_TIMER_MODE_MAX      MIN_DEPTH_TIMER_MODE_HARSH
 
 #define HIDDEN_LEFT_PANEL_TOP_LEFT 0
 #define HIDDEN_LEFT_PANEL_TOPLINE  1

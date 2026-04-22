@@ -810,6 +810,9 @@ static void wr_options(void)
     wr_byte((byte)(MIN(op_ptr->narrative_banner_turns,
         NARRATIVE_BANNER_TURNS_MAX) + 1));
 
+    /* Write "min_depth_timer_mode" */
+    wr_byte((byte)MIN(op_ptr->min_depth_timer_mode, MIN_DEPTH_TIMER_MODE_MAX));
+
     /*** Normal options ***/
 
     /* Reset */

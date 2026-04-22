@@ -1514,6 +1514,17 @@ static void hidden_left_panel_restore_topline_map_span(int start_col,
         return;
     if (start_col < 0)
         start_col = 0;
+    if (use_bigtile && (start_col > COL_MAP)
+        && (((start_col - COL_MAP) & 1) != 0))
+    {
+        /*
+         * Bigtile map cells occupy two terminal columns.  If the exposed
+         * suffix starts on the trailing half of a tile, leave that column
+         * blank rather than redrawing the overlapped tile through the
+         * compact overlay boundary.
+         */
+        start_col++;
+    }
     if (end_col <= start_col)
         return;
 
@@ -1651,6 +1662,17 @@ void redraw_hidden_left_panel_topline_suffix(void)
     {
         g_hidden_left_panel_topline_rendered_width = 0;
         return;
+    }
+
+    if (use_bigtile && (col < Term->wid)
+        && (((col - COL_MAP) & 1) != 0))
+    {
+        /*
+         * When the compact overlay ends on the first half of a bigtile map
+         * cell, blank the exposed trailing half so stale tile fragments do
+         * not survive at the boundary.
+         */
+        Term_erase(col, row, 1);
     }
 
     g_hidden_left_panel_topline_rendered_width = (byte)MIN(col, 255);
