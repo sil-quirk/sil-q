@@ -1278,14 +1278,18 @@ static void rd_options(void)
         if (op_ptr->noble_item_spawn_mode > NOBLE_ITEM_SPAWN_INCLUDE_VAULTS)
             op_ptr->noble_item_spawn_mode = NOBLE_ITEM_SPAWN_RESTRICTED;
 
-        /* Skip 1 remaining spare byte */
-        strip_bytes(1);
+        rd_byte(&b);
+        if ((b >= 1) && (b <= (NARRATIVE_BANNER_TURNS_MAX + 1)))
+            op_ptr->narrative_banner_turns = (byte)(b - 1);
+        else
+            op_ptr->narrative_banner_turns = DEFAULT_NARRATIVE_BANNER_TURNS;
     }
     else
     {
         /* Old savefiles used the boolean show_level_entry_banner option. */
         op_ptr->level_entry_narrative_mode = LEVEL_ENTRY_NARRATIVE_BANNER_DELAY;
         op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_BANNER;
+        op_ptr->narrative_banner_turns = DEFAULT_NARRATIVE_BANNER_TURNS;
         op_ptr->noble_item_spawn_mode = NOBLE_ITEM_SPAWN_RESTRICTED;
         strip_bytes(4);
     }
@@ -1337,6 +1341,7 @@ static void rd_options(void)
         op_ptr->partition_narrative_mode = op_ptr->opt[OPT_show_partition_narrative]
             ? PARTITION_NARRATIVE_BANNER
             : PARTITION_NARRATIVE_OFF;
+        op_ptr->narrative_banner_turns = DEFAULT_NARRATIVE_BANNER_TURNS;
         op_ptr->noble_item_spawn_mode = NOBLE_ITEM_SPAWN_RESTRICTED;
     }
 

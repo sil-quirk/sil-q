@@ -121,6 +121,7 @@ struct object_list_entry
 };
 
 typedef struct supply_list_entry supply_list_entry;
+typedef struct supply_list_columns supply_list_columns;
 
 struct supply_list_entry
 {
@@ -131,6 +132,20 @@ struct supply_list_entry
     int equip_idx;  /* Matching equipped light slot (-1 if not equipped) */
     bool equipped;  /* This supply-kind is currently equipped */
     bool single_item_display; /* Display one item even if the source stack is larger */
+};
+
+struct supply_list_columns
+{
+    int name_w;
+    int weight_col;
+    int turns_col;
+    int qty_col;
+    int sym_hdr_col;
+    int sym_col;
+    bool show_weight;
+    bool show_turns;
+    bool show_qty;
+    bool show_sym;
 };
 
 struct knowledge_browser_layout
@@ -13745,6 +13760,95 @@ static void settings_ui_put_fitted(int row, int col, byte attr, cptr text)
     Term_putstr(col, row, width, attr, buf);
 }
 
+static cptr settings_ui_wrap_line(cptr text, int max_chars, char* buf,
+    size_t buflen)
+{
+    cptr start;
+    cptr end;
+    cptr split = NULL;
+    size_t copy_len;
+
+    if (!buf || !buflen)
+        return text;
+
+    buf[0] = '\0';
+
+    if (!text)
+        return text;
+
+    while (*text == ' ')
+        text++;
+
+    if (!*text || max_chars <= 0)
+        return text;
+
+    start = text;
+    end = text;
+
+    while (*end && *end != '\n' && (end - start) < max_chars)
+    {
+        if (*end == ' ')
+            split = end;
+        end++;
+    }
+
+    if (*end == '\n')
+    {
+        copy_len = (size_t)(end - start);
+        text = end + 1;
+    }
+    else if (*end && (end - start) >= max_chars)
+    {
+        if (split && split > start)
+        {
+            copy_len = (size_t)(split - start);
+            text = split + 1;
+        }
+        else
+        {
+            copy_len = (size_t)(end - start);
+            text = end;
+        }
+    }
+    else
+    {
+        copy_len = (size_t)(end - start);
+        text = end;
+    }
+
+    if (copy_len >= buflen)
+        copy_len = buflen - 1;
+
+    memcpy(buf, start, copy_len);
+    buf[copy_len] = '\0';
+
+    while (*text == ' ')
+        text++;
+
+    return text;
+}
+
+static void settings_ui_draw_wrapped_block(int row, int col, int max_width,
+    int max_rows, byte attr, cptr text)
+{
+    int i;
+    cptr rest = text;
+    char line_buf[160];
+
+    if (max_width < 1 || max_rows <= 0)
+        return;
+
+    for (i = 0; i < max_rows; i++)
+        Term_erase(col, row + i, max_width);
+
+    for (i = 0; i < max_rows && rest && *rest; i++)
+    {
+        rest = settings_ui_wrap_line(rest, max_width, line_buf,
+            sizeof(line_buf));
+        Term_putstr(col, row + i, max_width, attr, line_buf);
+    }
+}
+
 static void settings_ui_format_field(char* buf, size_t buflen, cptr text,
     bool selected)
 {
@@ -13916,6 +14020,8 @@ static cptr option_menu_label(int opt)
                        : "Welcome screen style";
     case OPT_banner_message_stairs:
         return compact ? "Banner layout" : "Banner message layout";
+    case OPT_narrative_banner_turns:
+        return compact ? "Banner turns" : "Narrative banner turns";
     case OPT_unlock_blitz_mode:
         return compact ? (narrow ? "Blitz unlocked" : "Unlock Blitz Mode")
                        : "Unlock Blitz Mode";
@@ -14339,6 +14445,23 @@ extern void do_cmd_options_aux(int page, cptr info)
                 option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
                     op_ptr->opt[opt[i]] ? "Stair" : "Straight");
             }
+            else if (opt[i] == OPT_narrative_banner_turns)
+            {
+                byte turns = op_ptr->narrative_banner_turns;
+                char value_str[32];
+
+                if (turns > NARRATIVE_BANNER_TURNS_MAX)
+                    turns = DEFAULT_NARRATIVE_BANNER_TURNS;
+
+                if (turns == 0)
+                    strnfmt(value_str, sizeof(value_str), "0 dismiss");
+                else
+                    strnfmt(value_str, sizeof(value_str), "%d turn%s",
+                        turns, (turns == 1) ? "" : "s");
+
+                option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
+                    value_str);
+            }
             else
             {
                 option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
@@ -14562,6 +14685,13 @@ extern void do_cmd_options_aux(int page, cptr info)
                         ? NOBLE_ITEM_SPAWN_INCLUDE_VAULTS
                         : NOBLE_ITEM_SPAWN_RESTRICTED;
                 }
+                else if (opt[k] == OPT_narrative_banner_turns)
+                {
+                    op_ptr->narrative_banner_turns =
+                        (op_ptr->narrative_banner_turns < NARRATIVE_BANNER_TURNS_MAX)
+                        ? op_ptr->narrative_banner_turns + 1
+                        : 0;
+                }
                 else
                 {
                     op_ptr->opt[opt[k]] = !op_ptr->opt[opt[k]];
@@ -14687,6 +14817,13 @@ extern void do_cmd_options_aux(int page, cptr info)
                         ? op_ptr->intro_style + 1
                         : INTRO_STYLE_RANDOM;
                 }
+                else if (opt[k] == OPT_narrative_banner_turns)
+                {
+                    op_ptr->narrative_banner_turns =
+                        (op_ptr->narrative_banner_turns < NARRATIVE_BANNER_TURNS_MAX)
+                        ? op_ptr->narrative_banner_turns + 1
+                        : NARRATIVE_BANNER_TURNS_MAX;
+                }
                 else
                 {
                     op_ptr->opt[opt[k]] = true;
@@ -14811,6 +14948,13 @@ extern void do_cmd_options_aux(int page, cptr info)
                         = (op_ptr->intro_style > INTRO_STYLE_FLAME)
                         ? op_ptr->intro_style - 1
                         : INTRO_STYLE_FLAME;
+                }
+                else if (opt[k] == OPT_narrative_banner_turns)
+                {
+                    op_ptr->narrative_banner_turns =
+                        (op_ptr->narrative_banner_turns > 0)
+                        ? op_ptr->narrative_banner_turns - 1
+                        : 0;
                 }
                 else
                 {
@@ -17388,6 +17532,63 @@ static bool entry_has_binding(int mode, const struct keybind_entry* entry)
     return false;
 }
 
+static int count_action_bindings(int mode, const struct keybind_entry* entry)
+{
+    int key;
+    int count = 0;
+
+    if (!entry || !entry->action)
+        return 0;
+
+    if (key_provides_action(mode, entry->key_code, entry->action,
+            entry->requires_keymap))
+        count++;
+
+    if (entry->extra_default_keys)
+    {
+        const char* extra = entry->extra_default_keys;
+        while (*extra)
+        {
+            if (key_provides_action(mode, (byte)*extra, entry->action, false))
+                count++;
+            extra++;
+        }
+    }
+
+    for (key = 0; key < 256; key++)
+    {
+        cptr current = keymap_act[mode][key];
+
+        if (!current || !streq(current, entry->action))
+            continue;
+
+        if (key_matches_default(entry, (byte)key))
+            continue;
+
+        count++;
+    }
+
+    return count;
+}
+
+static void summarize_action_bindings_compact(int mode,
+    const struct keybind_entry* entry, char* buf, size_t buflen)
+{
+    int count;
+
+    if (!buf || !buflen)
+        return;
+
+    count = count_action_bindings(mode, entry);
+
+    if (count <= 0)
+        SDL_strlcpy(buf, "none", buflen);
+    else if (count == 1)
+        SDL_strlcpy(buf, "1 key", buflen);
+    else
+        strnfmt(buf, buflen, "%d keys", count);
+}
+
 /*
  * Build a comma-separated list of keys that trigger the supplied action.
  */
@@ -17624,15 +17825,25 @@ void do_cmd_keybinds(void)
         int row;
         int i;
         bool compact_width;
+        bool detail_mode;
         char binding_buf[80];
+        char detail_binding_buf[512];
+        char detail_buf[560];
         char line_buf[128];
         int row_width;
+        int detail_rows;
+        int bottom_reserved;
+        int detail_row;
+        int info_row;
 
         Term_get_size(&term_w, &term_h);
-        visible_rows = term_h - list_start_row - 6;
+        compact_width = (term_w < 70);
+        detail_mode = compact_width;
+        detail_rows = detail_mode ? 3 : 0;
+        bottom_reserved = detail_rows + 3;
+        visible_rows = term_h - list_start_row - bottom_reserved;
         if (visible_rows < 5)
             visible_rows = 5;
-        compact_width = (term_w < 70);
         row_width = settings_ui_line_width(2);
         
         if (showing_primary)
@@ -17702,7 +17913,12 @@ void do_cmd_keybinds(void)
         for (i = *top_ptr; i < display_end; i++)
         {
             int entry_row = list_start_row + (i - *top_ptr);
-            describe_action_bindings(mode, &keybinds[i], binding_buf, sizeof(binding_buf));
+            if (detail_mode)
+                summarize_action_bindings_compact(mode, &keybinds[i],
+                    binding_buf, sizeof(binding_buf));
+            else
+                describe_action_bindings(mode, &keybinds[i], binding_buf,
+                    sizeof(binding_buf));
             settings_ui_format_pair_line(line_buf, sizeof(line_buf),
                 keybinds[i].key_name, binding_buf, row_width, 12);
 
@@ -17725,28 +17941,40 @@ void do_cmd_keybinds(void)
             row = list_start_row + (i - *top_ptr);
             Term_erase(2, row, term_w > 2 ? term_w - 2 : 0);
         }
+
+        detail_row = list_start_row + visible_rows;
+        info_row = detail_row + detail_rows;
+        if (detail_mode)
+        {
+            describe_action_bindings(mode, &keybinds[highlight],
+                detail_binding_buf, sizeof(detail_binding_buf));
+            strnfmt(detail_buf, sizeof(detail_buf), "Bindings: %s",
+                detail_binding_buf);
+            settings_ui_draw_wrapped_block(detail_row, 2, row_width,
+                detail_rows, TERM_SLATE, detail_buf);
+        }
         
         /* Instructions at bottom */
         if (compact_width)
         {
-            settings_ui_put_fitted(list_start_row + visible_rows + 1, 2, TERM_WHITE,
+            settings_ui_put_fitted(info_row, 2, TERM_WHITE,
                 "s: save keybinds");
-            settings_ui_put_fitted(list_start_row + visible_rows + 2, 2, TERM_WHITE,
+            settings_ui_put_fitted(info_row + 1, 2, TERM_WHITE,
                 "r: reset selected");
         }
         else
         {
             strnfmt(line_buf, sizeof(line_buf), "Press 's' to save keybinds to %s",
                 default_file);
-            settings_ui_put_fitted(list_start_row + visible_rows + 1, 2, TERM_WHITE,
+            settings_ui_put_fitted(info_row, 2, TERM_WHITE,
                 line_buf);
-            settings_ui_put_fitted(list_start_row + visible_rows + 2, 2, TERM_WHITE,
+            settings_ui_put_fitted(info_row + 1, 2, TERM_WHITE,
                 "Press 'r' to reset selected keybind to default");
         }
         if (dirty)
-            c_prt(TERM_YELLOW, "Unsaved changes", list_start_row + visible_rows + 3, 2);
+            c_prt(TERM_YELLOW, "Unsaved changes", info_row + 2, 2);
         else
-            Term_erase(2, list_start_row + visible_rows + 3,
+            Term_erase(2, info_row + 2,
                 term_w > 2 ? term_w - 2 : 0);
         
         /* Get input */
@@ -17864,8 +18092,8 @@ void do_cmd_keybinds(void)
             strnfmt(ftmp, sizeof(ftmp), "%s", default_file);
             
             /* Clear prompt area */
-            prt("                                                              ", list_start_row + visible_rows + 1, 2);
-            prt("File: ", list_start_row + visible_rows + 1, 2);
+            Term_erase(2, info_row, term_w > 2 ? term_w - 2 : 0);
+            prt("File: ", info_row, 2);
             
             /* Ask for a file */
             if (askfor_aux(ftmp, sizeof(ftmp)))
@@ -17935,6 +18163,21 @@ typedef struct controller_entry {
     const char* label;
 } controller_entry;
 
+typedef struct controller_physical_binding_ref {
+    int type;
+    int id;
+} controller_physical_binding_ref;
+
+static bool controller_action_binding_equals(int lhs, int rhs);
+static int controller_action_binding_count(int binding, int* out_type,
+    int* out_id);
+static int controller_combo_action_binding_count(int binding,
+    int* out_modifier_type, int* out_modifier_id, int* out_type, int* out_id);
+static void controller_combo_binding_label(int modifier_type, int modifier_id,
+    int type, int id, char* buf, size_t buflen);
+static void controller_combo_binding_short_label(int modifier_type,
+    int modifier_id, int type, int id, char* buf, size_t buflen);
+
 static const char* controller_gamepad_button_label(int button)
 {
     switch (button) {
@@ -17968,6 +18211,39 @@ static const char* controller_gamepad_button_label(int button)
     }
 }
 
+static const char* controller_gamepad_button_short_label(int button)
+{
+    switch (button) {
+    case SDL_GAMEPAD_BUTTON_SOUTH: return "A";
+    case SDL_GAMEPAD_BUTTON_EAST: return "B";
+    case SDL_GAMEPAD_BUTTON_WEST: return "X";
+    case SDL_GAMEPAD_BUTTON_NORTH: return "Y";
+    case SDL_GAMEPAD_BUTTON_LEFT_SHOULDER: return "L1";
+    case SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER: return "R1";
+    case SDL_GAMEPAD_BUTTON_LEFT_PADDLE1: return "L4";
+    case SDL_GAMEPAD_BUTTON_LEFT_PADDLE2: return "L5";
+    case SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1: return "R4";
+    case SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2: return "R5";
+    case SDL_GAMEPAD_BUTTON_START: return "Start";
+    case SDL_GAMEPAD_BUTTON_BACK: return "Back";
+    case SDL_GAMEPAD_BUTTON_LEFT_STICK: return "L3";
+    case SDL_GAMEPAD_BUTTON_RIGHT_STICK: return "R3";
+    case SDL_GAMEPAD_BUTTON_GUIDE: return "Guide";
+    case SDL_GAMEPAD_BUTTON_TOUCHPAD: return "Touchpad";
+    case SDL_GAMEPAD_BUTTON_DPAD_UP: return "D-Up";
+    case SDL_GAMEPAD_BUTTON_DPAD_DOWN: return "D-Down";
+    case SDL_GAMEPAD_BUTTON_DPAD_LEFT: return "D-Left";
+    case SDL_GAMEPAD_BUTTON_DPAD_RIGHT: return "D-Right";
+    case SDL_GAMEPAD_BUTTON_MISC1: return "Misc1";
+    case SDL_GAMEPAD_BUTTON_MISC2: return "Misc2";
+    case SDL_GAMEPAD_BUTTON_MISC3: return "Misc3";
+    case SDL_GAMEPAD_BUTTON_MISC4: return "Misc4";
+    case SDL_GAMEPAD_BUTTON_MISC5: return "Misc5";
+    case SDL_GAMEPAD_BUTTON_MISC6: return "Misc6";
+    default: return "?";
+    }
+}
+
 static const char* controller_gamepad_trigger_label(int index)
 {
     if (index == 0)
@@ -17977,17 +18253,29 @@ static const char* controller_gamepad_trigger_label(int index)
     return "Unknown Trigger";
 }
 
-static const char* controller_gamepad_stick_dir_label(int type, int dir)
+static const char* controller_gamepad_trigger_short_label(int index)
 {
-    const char* stick = (type == GAMEPAD_CAPTURE_RIGHT_STICK) ? "Right Stick" : "Left Stick";
+    if (index == 0)
+        return "L2";
+    if (index == 1)
+        return "R2";
+    return "?";
+}
+
+static const char* controller_gamepad_stick_dir_label(int type, int dir,
+    bool short_label)
+{
+    const char* stick = (type == GAMEPAD_CAPTURE_RIGHT_STICK)
+        ? (short_label ? "RS" : "Right Stick")
+        : (short_label ? "LS" : "Left Stick");
     const char* dir_label = NULL;
 
     switch (dir) {
-    case GAMEPAD_STICK_DIR_UP: dir_label = "Up"; break;
-    case GAMEPAD_STICK_DIR_DOWN: dir_label = "Down"; break;
-    case GAMEPAD_STICK_DIR_LEFT: dir_label = "Left"; break;
-    case GAMEPAD_STICK_DIR_RIGHT: dir_label = "Right"; break;
-    default: dir_label = "Unknown"; break;
+    case GAMEPAD_STICK_DIR_UP: dir_label = short_label ? "Up" : "Up"; break;
+    case GAMEPAD_STICK_DIR_DOWN: dir_label = short_label ? "Down" : "Down"; break;
+    case GAMEPAD_STICK_DIR_LEFT: dir_label = short_label ? "Left" : "Left"; break;
+    case GAMEPAD_STICK_DIR_RIGHT: dir_label = short_label ? "Right" : "Right"; break;
+    default: dir_label = short_label ? "?" : "Unknown"; break;
     }
 
     return format("%s %s", stick, dir_label);
@@ -17998,22 +18286,259 @@ static const char* controller_gamepad_combo_label(void)
     return "L1+R1 Combo";
 }
 
-static void controller_binding_label(int type, int id, char* buf, size_t buflen)
+static void controller_binding_label_ex(int type, int id, char* buf,
+    size_t buflen, bool short_label)
 {
     if (!buf || !buflen)
         return;
 
     if (type == GAMEPAD_CAPTURE_BUTTON) {
-        SDL_strlcpy(buf, controller_gamepad_button_label(id), buflen);
+        SDL_strlcpy(buf, short_label
+            ? controller_gamepad_button_short_label(id)
+            : controller_gamepad_button_label(id), buflen);
     } else if (type == GAMEPAD_CAPTURE_TRIGGER) {
-        SDL_strlcpy(buf, controller_gamepad_trigger_label(id), buflen);
+        SDL_strlcpy(buf, short_label
+            ? controller_gamepad_trigger_short_label(id)
+            : controller_gamepad_trigger_label(id), buflen);
     } else if (type == GAMEPAD_CAPTURE_LEFT_STICK || type == GAMEPAD_CAPTURE_RIGHT_STICK) {
-        SDL_strlcpy(buf, controller_gamepad_stick_dir_label(type, id), buflen);
+        SDL_strlcpy(buf, controller_gamepad_stick_dir_label(type, id,
+            short_label), buflen);
     } else if (type == GAMEPAD_CAPTURE_SHOULDER_COMBO) {
-        SDL_strlcpy(buf, controller_gamepad_combo_label(), buflen);
+        SDL_strlcpy(buf, short_label ? "L1+R1" : controller_gamepad_combo_label(),
+            buflen);
     } else {
         SDL_strlcpy(buf, "(unknown)", buflen);
     }
+}
+
+static void controller_binding_label(int type, int id, char* buf, size_t buflen)
+{
+    controller_binding_label_ex(type, id, buf, buflen, false);
+}
+
+static void controller_binding_short_label(int type, int id, char* buf,
+    size_t buflen)
+{
+    controller_binding_label_ex(type, id, buf, buflen, true);
+}
+
+static void controller_append_binding_text(char* buf, size_t buflen,
+    size_t* current_len, bool* found, cptr text)
+{
+    if (!buf || !buflen || !current_len || !found || !text || !text[0])
+        return;
+
+    if (*found)
+        strnfcat(buf, buflen, current_len, ", %s", text);
+    else
+    {
+        SDL_strlcpy(buf, text, buflen);
+        *current_len = strlen(buf);
+        *found = true;
+    }
+}
+
+static int controller_collect_physical_bindings(int binding,
+    controller_physical_binding_ref out[], int max_out)
+{
+    int count = 0;
+
+    for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++) {
+        if (!controller_action_binding_equals(get_sdl_gamepad_button_binding(i),
+                binding))
+            continue;
+
+        if (out && count < max_out) {
+            out[count].type = GAMEPAD_CAPTURE_BUTTON;
+            out[count].id = i;
+        }
+        count++;
+    }
+
+    for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++) {
+        if (!controller_action_binding_equals(get_sdl_gamepad_trigger_binding(i),
+                binding))
+            continue;
+
+        if (out && count < max_out) {
+            out[count].type = GAMEPAD_CAPTURE_TRIGGER;
+            out[count].id = i;
+        }
+        count++;
+    }
+
+    for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+        if (!controller_action_binding_equals(get_sdl_gamepad_left_stick_binding(i),
+                binding))
+            continue;
+
+        if (out && count < max_out) {
+            out[count].type = GAMEPAD_CAPTURE_LEFT_STICK;
+            out[count].id = i;
+        }
+        count++;
+    }
+
+    for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+        if (!controller_action_binding_equals(get_sdl_gamepad_right_stick_binding(i),
+                binding))
+            continue;
+
+        if (out && count < max_out) {
+            out[count].type = GAMEPAD_CAPTURE_RIGHT_STICK;
+            out[count].id = i;
+        }
+        count++;
+    }
+
+    return count;
+}
+
+static void controller_describe_action_bindings_ex(int binding, char* buf,
+    size_t buflen, bool short_label)
+{
+    static const int modifiers[] = {
+        GAMEPAD_BIND_SHIFT,
+        GAMEPAD_BIND_CTRL,
+        GAMEPAD_BIND_ALT,
+    };
+    static const int combo_types[] = {
+        GAMEPAD_CAPTURE_BUTTON,
+        GAMEPAD_CAPTURE_TRIGGER,
+        GAMEPAD_CAPTURE_LEFT_STICK,
+        GAMEPAD_CAPTURE_RIGHT_STICK,
+    };
+    controller_physical_binding_ref mod_refs[32];
+    bool found = false;
+    size_t current_len = 0;
+    char binding_buf[96];
+
+    if (!buf || !buflen)
+        return;
+
+    buf[0] = '\0';
+
+    for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++) {
+        if (!controller_action_binding_equals(get_sdl_gamepad_button_binding(i),
+                binding))
+            continue;
+
+        if (short_label)
+            controller_binding_short_label(GAMEPAD_CAPTURE_BUTTON, i,
+                binding_buf, sizeof(binding_buf));
+        else
+            controller_binding_label(GAMEPAD_CAPTURE_BUTTON, i, binding_buf,
+                sizeof(binding_buf));
+        controller_append_binding_text(buf, buflen, &current_len, &found,
+            binding_buf);
+    }
+
+    for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++) {
+        if (!controller_action_binding_equals(get_sdl_gamepad_trigger_binding(i),
+                binding))
+            continue;
+
+        if (short_label)
+            controller_binding_short_label(GAMEPAD_CAPTURE_TRIGGER, i,
+                binding_buf, sizeof(binding_buf));
+        else
+            controller_binding_label(GAMEPAD_CAPTURE_TRIGGER, i, binding_buf,
+                sizeof(binding_buf));
+        controller_append_binding_text(buf, buflen, &current_len, &found,
+            binding_buf);
+    }
+
+    for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+        if (!controller_action_binding_equals(get_sdl_gamepad_left_stick_binding(i),
+                binding))
+            continue;
+
+        if (short_label)
+            controller_binding_short_label(GAMEPAD_CAPTURE_LEFT_STICK, i,
+                binding_buf, sizeof(binding_buf));
+        else
+            controller_binding_label(GAMEPAD_CAPTURE_LEFT_STICK, i, binding_buf,
+                sizeof(binding_buf));
+        controller_append_binding_text(buf, buflen, &current_len, &found,
+            binding_buf);
+    }
+
+    for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+        if (!controller_action_binding_equals(get_sdl_gamepad_right_stick_binding(i),
+                binding))
+            continue;
+
+        if (short_label)
+            controller_binding_short_label(GAMEPAD_CAPTURE_RIGHT_STICK, i,
+                binding_buf, sizeof(binding_buf));
+        else
+            controller_binding_label(GAMEPAD_CAPTURE_RIGHT_STICK, i, binding_buf,
+                sizeof(binding_buf));
+        controller_append_binding_text(buf, buflen, &current_len, &found,
+            binding_buf);
+    }
+
+    if (controller_action_binding_equals(get_sdl_gamepad_shoulder_combo_binding(),
+            binding)) {
+        if (short_label)
+            controller_binding_short_label(GAMEPAD_CAPTURE_SHOULDER_COMBO, 0,
+                binding_buf, sizeof(binding_buf));
+        else
+            controller_binding_label(GAMEPAD_CAPTURE_SHOULDER_COMBO, 0,
+                binding_buf, sizeof(binding_buf));
+        controller_append_binding_text(buf, buflen, &current_len, &found,
+            binding_buf);
+    }
+
+    for (int i = 0; i < (int)N_ELEMENTS(modifiers); i++) {
+        int mod_count = controller_collect_physical_bindings(modifiers[i],
+            mod_refs, N_ELEMENTS(mod_refs));
+
+        if (mod_count <= 0)
+            continue;
+
+        for (int ti = 0; ti < (int)N_ELEMENTS(combo_types); ti++) {
+            int count = 0;
+
+            if (combo_types[ti] == GAMEPAD_CAPTURE_BUTTON)
+                count = SDL_GAMEPAD_BUTTON_COUNT;
+            else if (combo_types[ti] == GAMEPAD_CAPTURE_TRIGGER)
+                count = GAMEPAD_TRIGGER_COUNT;
+            else
+                count = GAMEPAD_STICK_DIR_COUNT;
+
+            for (int id = 0; id < count; id++) {
+                if (!controller_action_binding_equals(
+                        get_sdl_gamepad_combo_binding(modifiers[i],
+                            combo_types[ti], id),
+                        binding))
+                    continue;
+
+                for (int m = 0; m < mod_count && m < (int)N_ELEMENTS(mod_refs);
+                    m++) {
+                    if (short_label)
+                        controller_combo_binding_short_label(mod_refs[m].type,
+                            mod_refs[m].id, combo_types[ti], id, binding_buf,
+                            sizeof(binding_buf));
+                    else
+                        controller_combo_binding_label(mod_refs[m].type,
+                            mod_refs[m].id, combo_types[ti], id, binding_buf,
+                            sizeof(binding_buf));
+                    controller_append_binding_text(buf, buflen, &current_len,
+                        &found, binding_buf);
+                }
+            }
+        }
+    }
+
+    if (!found)
+        SDL_strlcpy(buf, "(unbound)", buflen);
+}
+
+static void controller_describe_action_bindings_compact(int binding, char* buf,
+    size_t buflen)
+{
+    controller_describe_action_bindings_ex(binding, buf, buflen, true);
 }
 
 static bool controller_action_is_modifier(int binding)
@@ -18226,6 +18751,45 @@ static void controller_combo_binding_label(int modifier_type, int modifier_id,
     controller_binding_label(modifier_type, modifier_id, mod_buf, sizeof(mod_buf));
     controller_binding_label(type, id, base_buf, sizeof(base_buf));
     strnfmt(buf, buflen, "%s + %s", mod_buf, base_buf);
+}
+
+static void controller_combo_binding_short_label(int modifier_type,
+    int modifier_id, int type, int id, char* buf, size_t buflen)
+{
+    char mod_buf[24];
+    char base_buf[24];
+
+    if (!buf || !buflen)
+        return;
+
+    controller_binding_short_label(modifier_type, modifier_id, mod_buf,
+        sizeof(mod_buf));
+    controller_binding_short_label(type, id, base_buf, sizeof(base_buf));
+    strnfmt(buf, buflen, "%s + %s", mod_buf, base_buf);
+}
+
+static int controller_action_total_binding_count(int binding)
+{
+    return controller_action_binding_count(binding, NULL, NULL)
+        + controller_combo_action_binding_count(binding, NULL, NULL, NULL, NULL);
+}
+
+static void controller_action_binding_summary(int binding, char* buf,
+    size_t buflen)
+{
+    int count;
+
+    if (!buf || !buflen)
+        return;
+
+    count = controller_action_total_binding_count(binding);
+
+    if (count <= 0)
+        SDL_strlcpy(buf, "none", buflen);
+    else if (count == 1)
+        SDL_strlcpy(buf, "1 bind", buflen);
+    else
+        strnfmt(buf, buflen, "%d binds", count);
 }
 
 static void controller_action_binding_label(int binding, char* buf, size_t buflen)
@@ -18658,18 +19222,28 @@ void do_cmd_controller_settings(void)
 
     while (!done) {
         char value_buf[64];
+        char detail_value_buf[512];
+        char detail_buf[560];
         char line_buf[128];
         int row;
         bool steamdeck = steamdeck_controls_active();
         bool compact_width;
+        bool detail_mode;
         int row_width;
+        int detail_rows;
+        int bottom_reserved;
+        int detail_row;
+        int info_row;
 
         Term_get_size(&term_w, &term_h);
+        compact_width = (term_w < 70);
+        detail_mode = compact_width;
+        detail_rows = detail_mode ? 4 : 0;
+        bottom_reserved = detail_rows + 2;
         row_width = settings_ui_line_width(2);
-        int visible_rows = term_h - list_start_row - 6;
+        int visible_rows = term_h - list_start_row - bottom_reserved;
         if (visible_rows < 5)
             visible_rows = 5;
-        compact_width = (term_w < 70);
 
         if (highlight < 0)
             highlight = 0;
@@ -18712,7 +19286,12 @@ void do_cmd_controller_settings(void)
 
         for (int i = top; i < entry_count && i < top + visible_rows; i++) {
             int entry_row = list_start_row + (i - top);
-            controller_entry_value(&entries[i], value_buf, sizeof(value_buf));
+            if (detail_mode && entries[i].type == CONTROLLER_ENTRY_ACTION)
+                controller_action_binding_summary(entries[i].id, value_buf,
+                    sizeof(value_buf));
+            else
+                controller_entry_value(&entries[i], value_buf,
+                    sizeof(value_buf));
             settings_ui_format_pair_line(line_buf, sizeof(line_buf), entries[i].label,
                 value_buf, row_width, 12);
 
@@ -18727,6 +19306,22 @@ void do_cmd_controller_settings(void)
             Term_erase(2, row, term_w > 2 ? term_w - 2 : 0);
         }
 
+        detail_row = list_start_row + visible_rows;
+        info_row = detail_row + detail_rows;
+        if (detail_mode) {
+            if (entries[highlight].type == CONTROLLER_ENTRY_ACTION) {
+                controller_describe_action_bindings_compact(entries[highlight].id,
+                    detail_value_buf, sizeof(detail_value_buf));
+                strnfmt(detail_buf, sizeof(detail_buf), "Bindings: %s",
+                    detail_value_buf);
+            } else {
+                strnfmt(detail_buf, sizeof(detail_buf),
+                    "Press Enter to toggle %s.", entries[highlight].label);
+            }
+            settings_ui_draw_wrapped_block(detail_row, 2, row_width, detail_rows,
+                TERM_SLATE, detail_buf);
+        }
+
         if (steamdeck) {
             char reset_label[16];
             char reset_all_label[16];
@@ -18738,14 +19333,14 @@ void do_cmd_controller_settings(void)
                 compact_width ? "[%s] reset  [%s] reset all"
                               : "Reset: [%s] selected, [%s] all",
                 reset_label, reset_all_label);
-            settings_ui_put_fitted(list_start_row + visible_rows + 1, 2, TERM_WHITE,
+            settings_ui_put_fitted(info_row, 2, TERM_WHITE,
                 prompt_buf);
         } else {
-            settings_ui_put_fitted(list_start_row + visible_rows + 1, 2, TERM_WHITE,
+            settings_ui_put_fitted(info_row, 2, TERM_WHITE,
                 compact_width ? "r: reset selected  R: reset all"
                               : "Press 'r' to reset selected binding, 'R' to reset all bindings");
         }
-        settings_ui_put_fitted(list_start_row + visible_rows + 2, 2, TERM_WHITE,
+        settings_ui_put_fitted(info_row + 1, 2, TERM_WHITE,
             compact_width ? "Saves on exit." : "Changes are saved on exit.");
 
         char ch = inkey();
@@ -21645,19 +22240,6 @@ static bool supply_item_matches(int group, const object_type* o_ptr)
     return supplies_group_matches_object(group, o_ptr);
 }
 
-static void append_supply_item_weight(char* buf, size_t len,
-    const object_type* o_ptr, bool each)
-{
-    char weight_buf[32];
-
-    if (!buf || len == 0 || !o_ptr || o_ptr->weight <= 0)
-        return;
-
-    strnfmt(weight_buf, sizeof(weight_buf), " [%d.%1d lb%s]",
-        o_ptr->weight / 10, o_ptr->weight % 10, each ? " each" : "");
-    SDL_strlcat(buf, weight_buf, len);
-}
-
 static int supply_group_uniform_weight(int group_idx)
 {
     int weight = -1;
@@ -21721,6 +22303,249 @@ static void describe_supply_group_status(int group_idx, char* buf, size_t len)
     default:
         break;
     }
+}
+
+static void build_supply_weight_summary(char* buf, size_t buflen, int term_wid,
+    int used_weight, int max_weight, int light_weight, int light_item_weight,
+    int light_oil_weight, int lamp_oil, int lamp_capacity)
+{
+    char temp[128];
+
+    if (!buf || buflen == 0)
+        return;
+
+    if (term_wid < 1)
+        term_wid = 80;
+
+    strnfmt(temp, sizeof(temp),
+        "Supply: %d.%1d/%d.%1d lb  Light: %d.%1d lb (%d.%1d items + %d.%1d oil)  Oil: %d/%d",
+        used_weight / 10, used_weight % 10,
+        max_weight / 10, max_weight % 10,
+        light_weight / 10, light_weight % 10,
+        light_item_weight / 10, light_item_weight % 10,
+        light_oil_weight / 10, light_oil_weight % 10,
+        lamp_oil, lamp_capacity);
+    if ((int)strlen(temp) <= term_wid)
+    {
+        SDL_strlcpy(buf, temp, buflen);
+        return;
+    }
+
+    strnfmt(temp, sizeof(temp),
+        "Sup %d.%1d/%d.%1d lb  Lgt %d.%1d lb (%d.%1d itm + %d.%1d oil)  Oil %d/%d",
+        used_weight / 10, used_weight % 10,
+        max_weight / 10, max_weight % 10,
+        light_weight / 10, light_weight % 10,
+        light_item_weight / 10, light_item_weight % 10,
+        light_oil_weight / 10, light_oil_weight % 10,
+        lamp_oil, lamp_capacity);
+    if ((int)strlen(temp) <= term_wid)
+    {
+        SDL_strlcpy(buf, temp, buflen);
+        return;
+    }
+
+    strnfmt(temp, sizeof(temp),
+        "Sup %d.%1d/%d.%1d  Lgt %d.%1d (%d.%1d+%d.%1d)  Oil %d/%d",
+        used_weight / 10, used_weight % 10,
+        max_weight / 10, max_weight % 10,
+        light_weight / 10, light_weight % 10,
+        light_item_weight / 10, light_item_weight % 10,
+        light_oil_weight / 10, light_oil_weight % 10,
+        lamp_oil, lamp_capacity);
+    if ((int)strlen(temp) <= term_wid)
+    {
+        SDL_strlcpy(buf, temp, buflen);
+        return;
+    }
+
+    strnfmt(temp, sizeof(temp), "Sup %d.%1d/%d.%1d  Lgt %d.%1d  Oil %d/%d",
+        used_weight / 10, used_weight % 10,
+        max_weight / 10, max_weight % 10,
+        light_weight / 10, light_weight % 10,
+        lamp_oil, lamp_capacity);
+    if ((int)strlen(temp) <= term_wid)
+    {
+        SDL_strlcpy(buf, temp, buflen);
+        return;
+    }
+
+    strnfmt(temp, sizeof(temp), "S %d.%1d/%d.%1d  L %d.%1d  O %d/%d",
+        used_weight / 10, used_weight % 10,
+        max_weight / 10, max_weight % 10,
+        light_weight / 10, light_weight % 10,
+        lamp_oil, lamp_capacity);
+    SDL_strlcpy(buf, temp, buflen);
+}
+
+static void strip_supply_light_turns_suffix(char* name)
+{
+    char* suffix;
+
+    if (!name)
+        return;
+
+    suffix = strstr(name, " (");
+    if (suffix && strstr(suffix, " turns)"))
+        *suffix = '\0';
+}
+
+static object_type* supply_entry_display_object(const supply_list_entry* entry,
+    bool aware, object_type* fake)
+{
+    object_type* o_ptr = NULL;
+
+    if (!entry)
+        return NULL;
+
+    if (entry->supply_idx >= 0)
+    {
+        o_ptr = supplies_entry_at(entry->supply_idx);
+    }
+    else if (entry->equip_idx >= INVEN_WIELD && entry->equip_idx < INVEN_TOTAL)
+    {
+        o_ptr = &inventory[entry->equip_idx];
+    }
+    else if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
+    {
+        o_ptr = &inventory[entry->item_idx];
+    }
+    else if (fake)
+    {
+        object_wipe(fake);
+        object_prep(fake, entry->k_idx);
+        if (aware)
+            fake->ident |= IDENT_KNOWN;
+        fake->number = (entry->total > 0) ? entry->total : 1;
+        o_ptr = fake;
+    }
+
+    if (entry->single_item_display && o_ptr && fake && o_ptr->k_idx
+        && o_ptr->number > 1)
+    {
+        object_copy(fake, o_ptr);
+        fake->number = 1;
+        o_ptr = fake;
+    }
+
+    return o_ptr;
+}
+
+static void supply_entry_display_name(char* buf, size_t buflen,
+    const supply_list_entry* entry, const object_type* o_ptr, int current_group)
+{
+    if (!buf || buflen == 0)
+        return;
+
+    buf[0] = '\0';
+
+    if (!entry || !o_ptr)
+        return;
+
+    object_desc(buf, buflen, o_ptr, false, 0);
+
+    if (current_group == SUPPLY_GROUP_LIGHTS)
+    {
+        strip_supply_light_turns_suffix(buf);
+        if (entry->equipped)
+            SDL_strlcat(buf, " [equipped]", buflen);
+    }
+}
+
+static int supply_entry_turns(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx || o_ptr->tval != TV_LIGHT)
+        return -1;
+
+    if (!fuelable_light_p(o_ptr))
+        return -1;
+
+    return player_light_fuel(o_ptr);
+}
+
+static void supply_init_columns(const knowledge_browser_layout* layout,
+    int current_group, supply_list_columns* cols)
+{
+    int col;
+
+    if (!layout || !cols)
+        return;
+
+    memset(cols, 0, sizeof(*cols));
+
+    cols->show_sym = true;
+    cols->show_qty = (current_group != SUPPLY_GROUP_LIGHTS);
+    cols->show_weight = (current_group == SUPPLY_GROUP_FOOD)
+        || (current_group == SUPPLY_GROUP_LIGHTS);
+    cols->show_turns = (current_group == SUPPLY_GROUP_LIGHTS);
+
+    col = layout->term_wid;
+
+    if (cols->show_sym)
+    {
+        col -= 3;
+        cols->sym_hdr_col = col;
+        cols->sym_col = layout->term_wid - (use_bigtile ? 2 : 1);
+        col -= 1;
+    }
+
+    if (cols->show_qty)
+    {
+        col -= 4;
+        cols->qty_col = col;
+        col -= 1;
+    }
+
+    if (cols->show_turns)
+    {
+        col -= 5;
+        cols->turns_col = col;
+        col -= 1;
+    }
+
+    if (cols->show_weight)
+    {
+        col -= 5;
+        cols->weight_col = col;
+        col -= 1;
+    }
+
+    cols->name_w = col - layout->list_col;
+    if (cols->name_w < 1)
+        cols->name_w = 1;
+}
+
+static int supply_max_name_len(int current_group, supply_list_entry entries[],
+    int entry_cnt)
+{
+    int max_len = 0;
+    int i;
+
+    for (i = 0; i < entry_cnt; i++)
+    {
+        supply_list_entry* entry = &entries[i];
+        object_kind* k_ptr;
+        object_type fake;
+        object_type* o_ptr;
+        char name[128];
+        int len;
+
+        if (entry->k_idx < 0 || entry->k_idx >= z_info->k_max)
+            continue;
+
+        k_ptr = &k_info[entry->k_idx];
+        o_ptr = supply_entry_display_object(entry, k_ptr->aware, &fake);
+        if (!o_ptr)
+            continue;
+
+        supply_entry_display_name(name, sizeof(name), entry, o_ptr,
+            current_group);
+        len = (int)strlen(name);
+        if (len > max_len)
+            max_len = len;
+    }
+
+    return max_len;
 }
 
 static void compute_supply_group_totals(int totals[SUPPLY_GROUP_MAX])
@@ -22155,12 +22980,18 @@ static void display_supply_group_list(int col, int row, int wid, int per_page,
     int i;
     int total_col = col + wid - 3;
 
-    for (i = 0; i < per_page && (grp_idx[i] >= 0); i++)
+    for (i = 0; i < per_page; i++)
     {
-        int grp = grp_idx[grp_top + i];
+        int grp_pos = grp_top + i;
+        int grp;
         byte base_color;
         byte attr;
         char buf[8];
+
+        if (grp_pos >= SUPPLY_GROUP_MAX || grp_idx[grp_pos] < 0)
+            break;
+
+        grp = grp_idx[grp_pos];
 
         /* Assign color based on group type */
         switch (grp)
@@ -22189,9 +23020,10 @@ static void display_supply_group_list(int col, int row, int wid, int per_page,
     }
 }
 
-static void display_supply_list(int col, int row, int per_page,
-    supply_list_entry entries[], int entry_cnt, int entry_cur, int entry_top,
-    int count_col, int sym_col, int current_group, int column)
+static void display_supply_list(const knowledge_browser_layout* layout, int row,
+    int per_page, supply_list_entry entries[], int entry_cnt, int entry_cur,
+    int entry_top, int current_group, int column,
+    const supply_list_columns* cols)
 {
     int i;
 
@@ -22200,21 +23032,21 @@ static void display_supply_list(int col, int row, int per_page,
         int idx = entry_top + i;
         int y = row + i;
 
-        Term_erase(col, y, 255);
+        Term_erase(layout->list_col, y, 255);
 
         if (idx >= entry_cnt)
             continue;
 
         supply_list_entry* entry = &entries[idx];
-        object_type* o_ptr;
         object_type fake;
         object_kind* k_ptr;
         bool aware;
+        object_type* o_ptr;
         byte base_attr, cursor_attr, attr;
         byte sym_attr;
         char sym_char;
         char name[128];
-        char count_buf[8];
+        char cell_buf[16];
 
         if (entry->k_idx < 0 || entry->k_idx >= z_info->k_max)
             continue;
@@ -22236,63 +23068,53 @@ static void display_supply_list(int col, int row, int per_page,
         /* Only highlight when right panel is active (column == 1) */
         attr = (column == 1 && idx == entry_cur) ? cursor_attr : base_attr;
 
-        if (entry->supply_idx >= 0)
+        o_ptr = supply_entry_display_object(entry, aware, &fake);
+        if (!o_ptr)
+            continue;
+
+        supply_entry_display_name(name, sizeof(name), entry, o_ptr,
+            current_group);
+        Term_putstr(layout->list_col, y, cols->name_w, attr, name);
+
+        if (cols->show_weight)
         {
-            o_ptr = supplies_entry_at(entry->supply_idx);
-        }
-        else if (entry->equip_idx >= INVEN_WIELD && entry->equip_idx < INVEN_TOTAL)
-        {
-            o_ptr = &inventory[entry->equip_idx];
-        }
-        else if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
-        {
-            o_ptr = &inventory[entry->item_idx];
-        }
-        else
-        {
-            object_wipe(&fake);
-            object_prep(&fake, entry->k_idx);
-            if (aware)
-                fake.ident |= IDENT_KNOWN;
-            fake.number = (entry->total > 0) ? entry->total : 1;
-            o_ptr = &fake;
+            strnfmt(cell_buf, sizeof(cell_buf), "%d.%1d",
+                o_ptr->weight / 10, o_ptr->weight % 10);
+            Term_putstr(cols->weight_col, y, 5, attr, cell_buf);
         }
 
-        if (entry->single_item_display && o_ptr->k_idx && o_ptr->number > 1)
+        if (cols->show_turns)
         {
-            object_copy(&fake, o_ptr);
-            fake.number = 1;
-            o_ptr = &fake;
+            int turns = supply_entry_turns(o_ptr);
+
+            if (turns >= 0)
+                strnfmt(cell_buf, sizeof(cell_buf), "%5d", turns);
+            else
+                strnfmt(cell_buf, sizeof(cell_buf), "%5s", "inf");
+            Term_putstr(cols->turns_col, y, 5, attr, cell_buf);
         }
 
-        object_desc(name, sizeof(name), o_ptr, true, 3);
-        if (current_group == SUPPLY_GROUP_FOOD)
-            append_supply_item_weight(name, sizeof(name), o_ptr,
-                (entry->total > 1));
-        else if (current_group == SUPPLY_GROUP_LIGHTS)
-            append_supply_item_weight(name, sizeof(name), o_ptr, false);
-        if (entry->equipped && current_group == SUPPLY_GROUP_LIGHTS)
-            SDL_strlcat(name, " [equipped]", sizeof(name));
-        c_prt(attr, name, y, col);
-
-        strnfmt(count_buf, sizeof(count_buf), "x%-3d", entry->total);
-        c_put_str(attr, count_buf, y, count_col);
+        if (cols->show_qty)
+        {
+            strnfmt(cell_buf, sizeof(cell_buf), "x%-3d", entry->total);
+            Term_putstr(cols->qty_col, y, 4, attr, cell_buf);
+        }
 
         sym_attr = object_attr(o_ptr);
         sym_char = object_char(o_ptr);
-        Term_putch(sym_col, y, sym_attr, sym_char);
+        Term_putch(cols->sym_col, y, sym_attr, sym_char);
         if (use_bigtile)
         {
             if (sym_attr & 0x80)
-                Term_putch(sym_col + 1, y, 255, -1);
+                Term_putch(cols->sym_col + 1, y, 255, -1);
             else
-                Term_putch(sym_col + 1, y, 0, ' ');
+                Term_putch(cols->sym_col + 1, y, 0, ' ');
         }
     }
 
     for (; i < per_page; i++)
     {
-        Term_erase(col, row + i, 255);
+        Term_erase(layout->list_col, row + i, 255);
     }
 }
 
@@ -23223,6 +24045,18 @@ static void knowledge_init_layout(knowledge_browser_layout* layout,
         layout->list_w = 1;
 }
 
+static void knowledge_expand_active_column(knowledge_browser_layout* layout)
+{
+    if (!layout)
+        return;
+
+    layout->group_col = 0;
+    layout->group_w = layout->term_wid;
+    layout->divider_col = -1;
+    layout->list_col = 0;
+    layout->list_w = layout->term_wid;
+}
+
 static void knowledge_draw_tabs(const knowledge_browser_layout* layout, int page,
     bool tabs_focus)
 {
@@ -23439,22 +24273,230 @@ static void knowledge_display_groups(const knowledge_browser_layout* layout,
     }
 }
 
+static int knowledge_artefact_name_width(const knowledge_browser_layout* layout,
+    bool* show_debug)
+{
+    bool debug = cheat_know && (layout->term_wid >= 78);
+    int name_w = layout->list_w;
+
+    if (debug)
+    {
+        int debug_name_w = (layout->term_wid - 12) - layout->list_col - 1;
+        if (debug_name_w >= 12)
+            name_w = debug_name_w;
+        else
+            debug = false;
+    }
+
+    if (show_debug)
+        *show_debug = debug;
+
+    return (name_w > 0) ? name_w : 1;
+}
+
+static void knowledge_object_display_name(char* buf, size_t buflen,
+    const object_list_entry* obj)
+{
+    if (!buf || buflen == 0)
+        return;
+
+    buf[0] = '\0';
+
+    if (!obj)
+        return;
+
+    switch (obj->type)
+    {
+    case OBJ_NORMAL:
+        strip_name(buf, obj->idx);
+        break;
+
+    case OBJ_SPECIAL:
+    {
+        ego_item_type* e_ptr = &e_info[obj->e_idx];
+
+        if (obj->sval == -1)
+        {
+            strnfmt(buf, buflen, "  %s", &e_name[e_ptr->name]);
+        }
+        else
+        {
+            int j;
+            char base_name[80];
+
+            base_name[0] = '\0';
+            for (j = 0; j < z_info->k_max; ++j)
+            {
+                if ((k_info[j].tval == obj->tval)
+                    && (k_info[j].sval == obj->sval))
+                {
+                    strip_name(base_name, j);
+                    break;
+                }
+            }
+
+            strnfmt(buf, buflen, "%s %s", base_name, &e_name[e_ptr->name]);
+        }
+        break;
+    }
+
+    case OBJ_NONE:
+    default:
+        break;
+    }
+}
+
+static int knowledge_object_name_width(const knowledge_browser_layout* layout,
+    bool* show_idx, bool* show_sym)
+{
+    bool idx = cheat_know && (layout->term_wid >= 70);
+    bool sym = (layout->term_wid >= 44);
+    int name_w = layout->list_w;
+
+    if (idx)
+    {
+        int idx_name_w = (layout->term_wid - 5) - layout->list_col - 1;
+        if (idx_name_w >= 12 && idx_name_w < name_w)
+            name_w = idx_name_w;
+        else if (idx_name_w < 12)
+            idx = false;
+    }
+
+    if (sym)
+    {
+        int sym_col = layout->term_wid - (use_bigtile ? 2 : 1);
+        int sym_name_w = sym_col - layout->list_col - 1;
+        if (sym_name_w >= 12 && sym_name_w < name_w)
+            name_w = sym_name_w;
+        else if (sym_name_w < 12)
+            sym = false;
+    }
+
+    if (show_idx)
+        *show_idx = idx;
+    if (show_sym)
+        *show_sym = sym;
+
+    return (name_w > 0) ? name_w : 1;
+}
+
+static int knowledge_monster_name_width(const knowledge_browser_layout* layout,
+    bool* show_sym, bool* show_kills)
+{
+    bool sym = (layout->term_wid >= 44);
+    bool kills = (layout->term_wid >= 56);
+    int name_w = layout->list_w;
+
+    if (kills)
+    {
+        int kills_name_w = (layout->term_wid - 5) - layout->list_col - 1;
+        if (kills_name_w >= 12 && kills_name_w < name_w)
+            name_w = kills_name_w;
+        else if (kills_name_w < 12)
+            kills = false;
+    }
+
+    if (sym)
+    {
+        int kills_col = layout->term_wid - 5;
+        int sym_col = kills ? (kills_col - 2)
+                            : (layout->term_wid - (use_bigtile ? 2 : 1));
+        int sym_name_w = sym_col - layout->list_col - 1;
+        if (sym_name_w >= 12 && sym_name_w < name_w)
+            name_w = sym_name_w;
+        else if (sym_name_w < 12)
+            sym = false;
+    }
+
+    if (show_sym)
+        *show_sym = sym;
+    if (show_kills)
+        *show_kills = kills;
+
+    return (name_w > 0) ? name_w : 1;
+}
+
+static int knowledge_max_artefact_name_len(int artefact_idx[], int artefact_cnt)
+{
+    int max_len = 0;
+    int i;
+
+    for (i = 0; i < artefact_cnt; i++)
+    {
+        object_type object_type_body;
+        object_type* i_ptr = &object_type_body;
+        char o_name[80];
+        int len;
+
+        object_wipe(i_ptr);
+        prepare_fake_artefact(i_ptr, artefact_idx[i]);
+        object_desc(o_name, sizeof(o_name), i_ptr, true, 0);
+        len = (int)strlen(o_name);
+        if (len > max_len)
+            max_len = len;
+    }
+
+    return max_len;
+}
+
+static int knowledge_max_object_name_len(object_list_entry object_idx[],
+    int object_cnt)
+{
+    int max_len = 0;
+    int i;
+
+    for (i = 0; i < object_cnt; i++)
+    {
+        char buf[80];
+        int len;
+
+        knowledge_object_display_name(buf, sizeof(buf), &object_idx[i]);
+        len = (int)strlen(buf);
+        if (len > max_len)
+            max_len = len;
+    }
+
+    return max_len;
+}
+
+static int knowledge_max_monster_name_len(monster_list_entry mon_idx[],
+    int mon_cnt)
+{
+    int max_len = 0;
+    int i;
+
+    for (i = 0; i < mon_cnt; i++)
+    {
+        char race_name[80];
+        int len;
+
+        monster_desc_race(race_name, sizeof(race_name), mon_idx[i].r_idx);
+        len = (int)strlen(race_name);
+        if (len > max_len)
+            max_len = len;
+    }
+
+    return max_len;
+}
+
+static bool knowledge_should_use_single_column_for_names(int split_name_w,
+    int full_name_w, int max_name_len)
+{
+    if (split_name_w < 12)
+        return full_name_w > split_name_w;
+
+    return (max_name_len > split_name_w) && (full_name_w > split_name_w);
+}
+
 static void knowledge_display_artefacts(const knowledge_browser_layout* layout,
     int artefact_idx[], int artefact_cnt, int artefact_cur, int artefact_top)
 {
-    bool show_debug = cheat_know && (layout->term_wid >= 78);
+    bool show_debug = false;
     int idx_col = layout->term_wid - 12;
     int dep_col = layout->term_wid - 8;
     int rar_col = layout->term_wid - 4;
-    int name_w = layout->list_w;
+    int name_w = knowledge_artefact_name_width(layout, &show_debug);
     int i;
-
-    if (show_debug)
-    {
-        name_w = idx_col - layout->list_col - 1;
-        if (name_w < 12)
-            show_debug = false;
-    }
 
     if (show_debug)
     {
@@ -23496,28 +24538,12 @@ static void knowledge_display_artefacts(const knowledge_browser_layout* layout,
 static void knowledge_display_objects(const knowledge_browser_layout* layout,
     object_list_entry object_idx[], int object_cnt, int object_cur, int object_top)
 {
-    bool show_idx = cheat_know && (layout->term_wid >= 70);
-    bool show_sym = (layout->term_wid >= 44);
+    bool show_idx = false;
+    bool show_sym = false;
     int idx_col = layout->term_wid - 5;
     int sym_col = layout->term_wid - (use_bigtile ? 2 : 1);
-    int name_w = layout->list_w;
+    int name_w = knowledge_object_name_width(layout, &show_idx, &show_sym);
     int i;
-
-    if (show_idx)
-    {
-        name_w = idx_col - layout->list_col - 1;
-        if (name_w < 12)
-            show_idx = false;
-    }
-
-    if (show_sym)
-    {
-        int sym_name_w = sym_col - layout->list_col - 1;
-        if (sym_name_w < name_w)
-            name_w = sym_name_w;
-        if (name_w < 12)
-            show_sym = false;
-    }
 
     if (show_idx)
         Term_putstr(idx_col, layout->header_row, 3, TERM_SLATE, "Idx");
@@ -23549,8 +24575,7 @@ static void knowledge_display_objects(const knowledge_browser_layout* layout,
             attr = k_ptr->aware ? TERM_WHITE : TERM_SLATE;
             cursor = k_ptr->aware ? TERM_L_BLUE : TERM_BLUE;
             attr = (oidx == object_cur) ? cursor : attr;
-
-            strip_name(buf, obj->idx);
+            knowledge_object_display_name(buf, sizeof(buf), obj);
             Term_putstr(layout->list_col, row, name_w, attr, buf);
 
             if (show_idx)
@@ -23576,30 +24601,7 @@ static void knowledge_display_objects(const knowledge_browser_layout* layout,
             attr = e_ptr->aware ? TERM_WHITE : TERM_SLATE;
             cursor = e_ptr->aware ? TERM_L_BLUE : TERM_BLUE;
             attr = (oidx == object_cur) ? cursor : attr;
-
-            if (obj->sval == -1)
-            {
-                strnfmt(buf, sizeof(buf), "  %s", &e_name[e_ptr->name]);
-            }
-            else
-            {
-                int j;
-                char buf2[80];
-
-                buf[0] = '\0';
-                buf2[0] = '\0';
-                for (j = 0; j < z_info->k_max; ++j)
-                {
-                    if ((k_info[j].tval == obj->tval) && (k_info[j].sval == obj->sval))
-                    {
-                        strip_name(buf2, j);
-                        break;
-                    }
-                }
-
-                strnfmt(buf, sizeof(buf), "%s %s", buf2, &e_name[e_ptr->name]);
-            }
-
+            knowledge_object_display_name(buf, sizeof(buf), obj);
             Term_putstr(layout->list_col, row, name_w, attr, buf);
             break;
 
@@ -23661,21 +24663,14 @@ static void knowledge_monster_summary(char* buf, size_t buflen, int grp_cur)
 static void knowledge_display_monsters(const knowledge_browser_layout* layout,
     monster_list_entry mon_idx[], int mon_cnt, int mon_cur, int mon_top)
 {
-    bool show_sym = (layout->term_wid >= 44);
-    bool show_kills = (layout->term_wid >= 56);
+    bool show_sym = false;
+    bool show_kills = false;
     int kills_col = layout->term_wid - 5;
-    int sym_col = show_kills ? (kills_col - 2) : (layout->term_wid - (use_bigtile ? 2 : 1));
-    int name_w = layout->list_w;
+    int sym_col;
+    int name_w = knowledge_monster_name_width(layout, &show_sym, &show_kills);
     int i;
-
-    if (show_sym)
-    {
-        int sym_name_w = sym_col - layout->list_col - 1;
-        if (sym_name_w < name_w)
-            name_w = sym_name_w;
-        if (name_w < 12)
-            show_sym = false;
-    }
+    sym_col = show_kills ? (kills_col - 2)
+                         : (layout->term_wid - (use_bigtile ? 2 : 1));
 
     if (show_sym)
         Term_putstr(sym_col, layout->header_row, 3, TERM_SLATE, "Sym");
@@ -24094,7 +25089,14 @@ void do_cmd_knowledge_browser_page(int page)
         {
             int artefact_cnt = 0;
             int selected_artefact = -1;
+            bool single_column;
+            knowledge_browser_layout draw_layout;
+            knowledge_browser_layout full_layout;
             char status[96];
+            cptr list_label = "Artefact";
+            int split_name_w;
+            int full_name_w;
+            int max_name_len;
 
             knowledge_init_layout(&layout, artefact_group_w, true);
             if (artefact_grp_cnt > 0)
@@ -24106,13 +25108,38 @@ void do_cmd_knowledge_browser_page(int page)
             if (artefact_grp_cnt > 0)
                 artefact_cnt = collect_artefacts(
                     artefact_grp_idx[state.group_cur[page]], artefact_idx);
+            full_layout = layout;
+            knowledge_expand_active_column(&full_layout);
+            split_name_w = knowledge_artefact_name_width(&layout, NULL);
+            full_name_w = knowledge_artefact_name_width(&full_layout, NULL);
+            max_name_len = knowledge_max_artefact_name_len(artefact_idx,
+                artefact_cnt);
+            single_column = knowledge_should_use_single_column_for_names(
+                split_name_w, full_name_w, max_name_len);
+            draw_layout = layout;
+            if (single_column)
+            {
+                knowledge_expand_active_column(&draw_layout);
+                if ((state.column[page] == 0) || (artefact_grp_cnt <= 0))
+                    list_label = "Group";
+                else
+                    list_label = object_group_text[
+                        artefact_grp_idx[state.group_cur[page]]];
+            }
 
-            knowledge_draw_frame(&layout, page, true, "Artefact",
+            knowledge_draw_frame(&draw_layout, page, !single_column, list_label,
                 state.tabs_focus);
-            knowledge_display_groups(&layout, artefact_grp_idx, object_group_text,
-                artefact_grp_cnt, state.group_cur[page], state.group_top[page]);
-            knowledge_display_artefacts(&layout, artefact_idx, artefact_cnt,
-                state.entry_cur[page], state.entry_top[page]);
+            if (!single_column || (state.column[page] == 0))
+            {
+                knowledge_display_groups(&draw_layout, artefact_grp_idx,
+                    object_group_text, artefact_grp_cnt, state.group_cur[page],
+                    state.group_top[page]);
+            }
+            if (!single_column || (state.column[page] == 1))
+            {
+                knowledge_display_artefacts(&draw_layout, artefact_idx,
+                    artefact_cnt, state.entry_cur[page], state.entry_top[page]);
+            }
 
             if (artefact_cnt > 0)
             {
@@ -24125,9 +25152,10 @@ void do_cmd_knowledge_browser_page(int page)
             {
                 SDL_strlcpy(status, "No known artefacts yet.", sizeof(status));
             }
-            if (layout.status_row != layout.prompt_row)
-                Term_putstr(0, layout.status_row, layout.term_wid, TERM_L_BLUE, status);
-            knowledge_draw_prompt(&layout);
+            if (draw_layout.status_row != draw_layout.prompt_row)
+                Term_putstr(0, draw_layout.status_row, draw_layout.term_wid,
+                    TERM_L_BLUE, status);
+            knowledge_draw_prompt(&draw_layout);
 
             if (selected_artefact != artefact_old)
             {
@@ -24137,15 +25165,15 @@ void do_cmd_knowledge_browser_page(int page)
 
             if (state.tabs_focus)
             {
-                Term_gotoxy(knowledge_tab_col(page), layout.tabs_row);
+                Term_gotoxy(knowledge_tab_col(page), draw_layout.tabs_row);
             }
             else if (artefact_grp_cnt > 0)
             {
                 if (state.column[page] == 0)
-                    Term_gotoxy(0, layout.list_row
+                    Term_gotoxy(draw_layout.group_col, draw_layout.list_row
                         + (state.group_cur[page] - state.group_top[page]));
                 else
-                    Term_gotoxy(layout.list_col, layout.list_row
+                    Term_gotoxy(draw_layout.list_col, draw_layout.list_row
                         + (state.entry_cur[page] - state.entry_top[page]));
             }
 
@@ -24194,7 +25222,14 @@ void do_cmd_knowledge_browser_page(int page)
         {
             int object_cnt = 0;
             int tracked_kind = 0;
+            bool single_column;
+            knowledge_browser_layout draw_layout;
+            knowledge_browser_layout full_layout;
             char status[112];
+            cptr list_label = "Object";
+            int split_name_w;
+            int full_name_w;
+            int max_name_len;
 
             knowledge_init_layout(&layout, object_group_w, true);
             if (object_grp_cnt > 0)
@@ -24206,13 +25241,37 @@ void do_cmd_knowledge_browser_page(int page)
             if (object_grp_cnt > 0)
                 object_cnt = collect_objects(
                     object_grp_idx[state.group_cur[page]], object_idx);
+            full_layout = layout;
+            knowledge_expand_active_column(&full_layout);
+            split_name_w = knowledge_object_name_width(&layout, NULL, NULL);
+            full_name_w = knowledge_object_name_width(&full_layout, NULL, NULL);
+            max_name_len = knowledge_max_object_name_len(object_idx, object_cnt);
+            single_column = knowledge_should_use_single_column_for_names(
+                split_name_w, full_name_w, max_name_len);
+            draw_layout = layout;
+            if (single_column)
+            {
+                knowledge_expand_active_column(&draw_layout);
+                if ((state.column[page] == 0) || (object_grp_cnt <= 0))
+                    list_label = "Group";
+                else
+                    list_label = object_group_text[
+                        object_grp_idx[state.group_cur[page]]];
+            }
 
-            knowledge_draw_frame(&layout, page, true, "Object",
+            knowledge_draw_frame(&draw_layout, page, !single_column, list_label,
                 state.tabs_focus);
-            knowledge_display_groups(&layout, object_grp_idx, object_group_text,
-                object_grp_cnt, state.group_cur[page], state.group_top[page]);
-            knowledge_display_objects(&layout, object_idx, object_cnt,
-                state.entry_cur[page], state.entry_top[page]);
+            if (!single_column || (state.column[page] == 0))
+            {
+                knowledge_display_groups(&draw_layout, object_grp_idx,
+                    object_group_text, object_grp_cnt, state.group_cur[page],
+                    state.group_top[page]);
+            }
+            if (!single_column || (state.column[page] == 1))
+            {
+                knowledge_display_objects(&draw_layout, object_idx, object_cnt,
+                    state.entry_cur[page], state.entry_top[page]);
+            }
 
             if ((object_cnt > 0)
                 && (object_idx[state.entry_cur[page]].type == OBJ_NORMAL))
@@ -24241,9 +25300,10 @@ void do_cmd_knowledge_browser_page(int page)
             {
                 SDL_strlcpy(status, "No known objects yet.", sizeof(status));
             }
-            if (layout.status_row != layout.prompt_row)
-                Term_putstr(0, layout.status_row, layout.term_wid, TERM_L_BLUE, status);
-            knowledge_draw_prompt(&layout);
+            if (draw_layout.status_row != draw_layout.prompt_row)
+                Term_putstr(0, draw_layout.status_row, draw_layout.term_wid,
+                    TERM_L_BLUE, status);
+            knowledge_draw_prompt(&draw_layout);
 
             if (tracked_kind != object_old)
             {
@@ -24254,15 +25314,15 @@ void do_cmd_knowledge_browser_page(int page)
 
             if (state.tabs_focus)
             {
-                Term_gotoxy(knowledge_tab_col(page), layout.tabs_row);
+                Term_gotoxy(knowledge_tab_col(page), draw_layout.tabs_row);
             }
             else if (object_grp_cnt > 0)
             {
                 if (state.column[page] == 0)
-                    Term_gotoxy(0, layout.list_row
+                    Term_gotoxy(draw_layout.group_col, draw_layout.list_row
                         + (state.group_cur[page] - state.group_top[page]));
                 else
-                    Term_gotoxy(layout.list_col, layout.list_row
+                    Term_gotoxy(draw_layout.list_col, draw_layout.list_row
                         + (state.entry_cur[page] - state.entry_top[page]));
             }
 
@@ -24317,7 +25377,14 @@ void do_cmd_knowledge_browser_page(int page)
         {
             int monster_cnt = 0;
             int selected_r_idx = 0;
+            bool single_column;
+            knowledge_browser_layout draw_layout;
+            knowledge_browser_layout full_layout;
             char status[96];
+            cptr list_label = "Monster";
+            int split_name_w;
+            int full_name_w;
+            int max_name_len;
 
             knowledge_init_layout(&layout, monster_group_w, true);
             if (monster_grp_cnt > 0)
@@ -24329,13 +25396,37 @@ void do_cmd_knowledge_browser_page(int page)
             if (monster_grp_cnt > 0)
                 monster_cnt = collect_monsters(
                     monster_grp_idx[state.group_cur[page]], mon_idx, 0x00);
+            full_layout = layout;
+            knowledge_expand_active_column(&full_layout);
+            split_name_w = knowledge_monster_name_width(&layout, NULL, NULL);
+            full_name_w = knowledge_monster_name_width(&full_layout, NULL, NULL);
+            max_name_len = knowledge_max_monster_name_len(mon_idx, monster_cnt);
+            single_column = knowledge_should_use_single_column_for_names(
+                split_name_w, full_name_w, max_name_len);
+            draw_layout = layout;
+            if (single_column)
+            {
+                knowledge_expand_active_column(&draw_layout);
+                if ((state.column[page] == 0) || (monster_grp_cnt <= 0))
+                    list_label = "Group";
+                else
+                    list_label = monster_group_text[
+                        monster_grp_idx[state.group_cur[page]]];
+            }
 
-            knowledge_draw_frame(&layout, page, true, "Monster",
+            knowledge_draw_frame(&draw_layout, page, !single_column, list_label,
                 state.tabs_focus);
-            knowledge_display_groups(&layout, monster_grp_idx, monster_group_text,
-                monster_grp_cnt, state.group_cur[page], state.group_top[page]);
-            knowledge_display_monsters(&layout, mon_idx, monster_cnt,
-                state.entry_cur[page], state.entry_top[page]);
+            if (!single_column || (state.column[page] == 0))
+            {
+                knowledge_display_groups(&draw_layout, monster_grp_idx,
+                    monster_group_text, monster_grp_cnt, state.group_cur[page],
+                    state.group_top[page]);
+            }
+            if (!single_column || (state.column[page] == 1))
+            {
+                knowledge_display_monsters(&draw_layout, mon_idx, monster_cnt,
+                    state.entry_cur[page], state.entry_top[page]);
+            }
 
             if (monster_cnt > 0)
             {
@@ -24348,9 +25439,10 @@ void do_cmd_knowledge_browser_page(int page)
                 SDL_strlcpy(status, "No known monsters in this group yet.",
                     sizeof(status));
             }
-            if (layout.status_row != layout.prompt_row)
-                Term_putstr(0, layout.status_row, layout.term_wid, TERM_L_BLUE, status);
-            knowledge_draw_prompt(&layout);
+            if (draw_layout.status_row != draw_layout.prompt_row)
+                Term_putstr(0, draw_layout.status_row, draw_layout.term_wid,
+                    TERM_L_BLUE, status);
+            knowledge_draw_prompt(&draw_layout);
 
             if (selected_r_idx != monster_old)
             {
@@ -24361,15 +25453,15 @@ void do_cmd_knowledge_browser_page(int page)
 
             if (state.tabs_focus)
             {
-                Term_gotoxy(knowledge_tab_col(page), layout.tabs_row);
+                Term_gotoxy(knowledge_tab_col(page), draw_layout.tabs_row);
             }
             else if (monster_grp_cnt > 0)
             {
                 if (state.column[page] == 0)
-                    Term_gotoxy(0, layout.list_row
+                    Term_gotoxy(draw_layout.group_col, draw_layout.list_row
                         + (state.group_cur[page] - state.group_top[page]));
                 else
-                    Term_gotoxy(layout.list_col, layout.list_row
+                    Term_gotoxy(draw_layout.list_col, draw_layout.list_row
                         + (state.entry_cur[page] - state.entry_top[page]));
             }
 
@@ -24549,6 +25641,12 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
     bool hotkey_mode = false;
     bool acted = false;
     bool refresh_after_close = false;
+    bool prev_single_column = false;
+    int prev_group = -1;
+    int prev_column = -1;
+    int prev_term_wid = -1;
+    int prev_term_hgt = -1;
+    int prev_divider_col = -2;
 
     if (request)
     {
@@ -24578,8 +25676,12 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
     {
         int entry_cnt;
         knowledge_browser_layout layout;
-        int count_col;
-        int sym_col;
+        knowledge_browser_layout draw_layout;
+        knowledge_browser_layout full_layout;
+        bool single_column;
+        supply_list_columns split_cols;
+        supply_list_columns full_cols;
+        supply_list_columns draw_cols;
         int used_weight;
         int light_item_weight;
         int light_oil_weight;
@@ -24588,34 +25690,18 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         int max_weight;
         char weight_buf[128];
         char status_buf[96];
+        int split_name_w;
+        int full_name_w;
+        int max_name_len;
 
         compute_supply_group_totals(group_totals);
         knowledge_init_layout(&layout, max, true);
-        count_col = layout.term_wid - 6;
-        sym_col = layout.term_wid - (use_bigtile ? 2 : 1);
         used_weight = supplies_limit_weight();
         light_item_weight = supplies_carried_light_item_weight();
         light_oil_weight = player_lamp_oil_weight();
         light_weight = light_item_weight + light_oil_weight;
         lamp_oil = player_lamp_oil();
         max_weight = supplies_current_weight_cap();
-        strnfmt(weight_buf, sizeof(weight_buf),
-            "Supply: %d.%1d/%d.%1d lb  Light: %d.%1d lb (%d.%1d items + %d.%1d oil)  Oil: %d/%d",
-            used_weight / 10, used_weight % 10,
-            max_weight / 10, max_weight % 10,
-            light_weight / 10, light_weight % 10,
-            light_item_weight / 10, light_item_weight % 10,
-            light_oil_weight / 10, light_oil_weight % 10,
-            lamp_oil, player_lamp_oil_capacity());
-
-        if (count_col <= layout.list_col + 8)
-            count_col = layout.list_col + 8;
-        if (sym_col <= count_col + 4)
-            sym_col = count_col + 4;
-        if (sym_col >= layout.term_wid)
-            sym_col = layout.term_wid - (use_bigtile ? 2 : 1);
-        if (count_col >= sym_col)
-            count_col = sym_col - 4;
 
         if (grp_cur >= grp_cnt)
             grp_cur = grp_cnt - 1;
@@ -24653,45 +25739,119 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         if (grp_top < 0)
             grp_top = 0;
 
-        if (redraw)
+        full_layout = layout;
+        knowledge_expand_active_column(&full_layout);
+        supply_init_columns(&layout, grp_idx[grp_cur], &split_cols);
+        supply_init_columns(&full_layout, grp_idx[grp_cur], &full_cols);
+        split_name_w = split_cols.name_w;
+        full_name_w = full_cols.name_w;
+        max_name_len = supply_max_name_len(grp_idx[grp_cur], entries, entry_cnt);
+        single_column = knowledge_should_use_single_column_for_names(
+            split_name_w, full_name_w, max_name_len);
+        draw_layout = single_column ? full_layout : layout;
+        draw_cols = single_column ? full_cols : split_cols;
+        build_supply_weight_summary(weight_buf, sizeof(weight_buf),
+            draw_layout.term_wid, used_weight, max_weight, light_weight,
+            light_item_weight, light_oil_weight, lamp_oil,
+            player_lamp_oil_capacity());
+
+        if (redraw || single_column
+            || (single_column != prev_single_column)
+            || (grp_idx[grp_cur] != prev_group)
+            || (column != prev_column)
+            || (draw_layout.term_wid != prev_term_wid)
+            || (draw_layout.term_hgt != prev_term_hgt)
+            || (draw_layout.divider_col != prev_divider_col))
         {
+            cptr list_label = (single_column && column)
+                ? supply_group_text[grp_idx[grp_cur]]
+                : "Name";
+
             Term_clear();
-            Term_putstr(0, layout.title_row, layout.term_wid, TERM_L_WHITE + TERM_SHADE,
+            Term_putstr(0, draw_layout.title_row, draw_layout.term_wid,
+                TERM_L_WHITE + TERM_SHADE,
                 "Supplies - Herbs, Food, Potions, Gems, Lights");
-            Term_putstr(0, layout.tabs_row, layout.term_wid, TERM_SLATE, weight_buf);
-            Term_putstr(0, layout.header_row, layout.group_w, TERM_SLATE, "Group");
-            Term_putstr(layout.list_col, layout.header_row, layout.list_w, TERM_SLATE,
-                "Name");
-            Term_putstr(count_col, layout.header_row, 3, TERM_SLATE, "Qty");
-            Term_putstr(sym_col, layout.header_row, 3, TERM_SLATE, "Sym");
+            Term_putstr(0, draw_layout.tabs_row, draw_layout.term_wid, TERM_SLATE,
+                weight_buf);
+            Term_erase(0, draw_layout.header_row, 255);
 
-            for (i = 0; i < layout.term_wid; i++)
-                Term_putch(i, layout.divider_row, TERM_L_DARK, '=');
+            if (single_column && !column)
+            {
+                Term_putstr(0, draw_layout.header_row, draw_layout.term_wid,
+                    TERM_SLATE, "Group");
+            }
+            else
+            {
+                if (!single_column)
+                    Term_putstr(0, draw_layout.header_row, draw_layout.group_w,
+                        TERM_SLATE, "Group");
+                Term_putstr(draw_layout.list_col, draw_layout.header_row,
+                    draw_layout.list_w, TERM_SLATE, list_label);
+                if (draw_cols.show_weight)
+                    Term_putstr(draw_cols.weight_col, draw_layout.header_row, 5,
+                        TERM_SLATE, "Wt");
+                if (draw_cols.show_turns)
+                    Term_putstr(draw_cols.turns_col, draw_layout.header_row, 5,
+                        TERM_SLATE, "Turns");
+                if (draw_cols.show_qty)
+                    Term_putstr(draw_cols.qty_col, draw_layout.header_row, 3,
+                        TERM_SLATE, "Qty");
+                if (draw_cols.show_sym)
+                    Term_putstr(draw_cols.sym_hdr_col, draw_layout.header_row, 3,
+                        TERM_SLATE, "Sym");
+            }
 
-            for (i = 0; i < layout.list_rows; i++)
-                Term_putch(layout.divider_col, layout.list_row + i, TERM_L_DARK, '|');
+            for (i = 0; i < draw_layout.term_wid; i++)
+                Term_putch(i, draw_layout.divider_row, TERM_L_DARK, '=');
+
+            if (!single_column)
+            {
+                for (i = 0; i < draw_layout.list_rows; i++)
+                {
+                    Term_putch(draw_layout.divider_col, draw_layout.list_row + i,
+                        TERM_L_DARK, '|');
+                }
+            }
 
             redraw = false;
         }
 
-        display_supply_group_list(0, layout.list_row, layout.group_w, layout.list_rows, grp_idx,
-            grp_cur, grp_top, group_totals);
-        display_supply_list(layout.list_col, layout.list_row, layout.list_rows,
-            entries, entry_cnt, entry_cur, entry_top, count_col, sym_col,
-            grp_idx[grp_cur], column);
+        prev_single_column = single_column;
+        prev_group = grp_idx[grp_cur];
+        prev_column = column;
+        prev_term_wid = draw_layout.term_wid;
+        prev_term_hgt = draw_layout.term_hgt;
+        prev_divider_col = draw_layout.divider_col;
 
-        if (layout.status_row != layout.prompt_row)
+        if (!single_column || !column)
+        {
+            int group_list_w = (!single_column) ? draw_layout.group_w
+                                                : layout.group_w;
+
+            display_supply_group_list(draw_layout.group_col, draw_layout.list_row,
+                group_list_w, draw_layout.list_rows, grp_idx, grp_cur,
+                grp_top, group_totals);
+        }
+        if (!single_column || column)
+        {
+            display_supply_list(&draw_layout, draw_layout.list_row,
+                draw_layout.list_rows, entries, entry_cnt, entry_cur, entry_top,
+                grp_idx[grp_cur], column, &draw_cols);
+        }
+
+        if (draw_layout.status_row != draw_layout.prompt_row)
         {
             describe_supply_group_status(grp_idx[grp_cur], status_buf,
                 sizeof(status_buf));
-            Term_erase(0, layout.status_row, 255);
+            Term_erase(0, draw_layout.status_row, 255);
             if (status_buf[0] != '\0')
-                Term_putstr(0, layout.status_row, layout.term_wid, TERM_L_BLUE,
+                Term_putstr(0, draw_layout.status_row, draw_layout.term_wid,
+                    TERM_L_BLUE,
                     status_buf);
         }
 
         /* Bottom bar: grey text with white first letters */
-        Term_erase(0, layout.prompt_row, 255);
+        Term_erase(0, draw_layout.prompt_row, 255);
         if (steamdeck_controls_active()) {
             char recall_label[16];
             char use_label[16];
@@ -24710,18 +25870,22 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             strnfmt(prompt_buf, sizeof(prompt_buf),
                 "D-pad move  [%s] recall  [%s/%s] use  [%s] drop  [%s] back",
                 recall_label, use_label, confirm_label, drop_label, back_label);
-            Term_putstr(1, layout.prompt_row, -1, TERM_L_DARK, prompt_buf);
+            Term_putstr(1, draw_layout.prompt_row, -1, TERM_L_DARK, prompt_buf);
         } else {
-            Term_putstr(0, layout.prompt_row, layout.term_wid, TERM_SLATE,
+            Term_putstr(0, draw_layout.prompt_row, draw_layout.term_wid,
+                TERM_SLATE,
                 "Dir move  r recall  u/Space use  d drop  Esc");
         }
 
         if (!column)
-            Term_gotoxy(0, layout.list_row + (grp_cur - grp_top));
+            Term_gotoxy(draw_layout.group_col,
+                draw_layout.list_row + (grp_cur - grp_top));
         else if (entry_cnt)
-            Term_gotoxy(layout.list_col, layout.list_row + (entry_cur - entry_top));
+            Term_gotoxy(draw_layout.list_col,
+                draw_layout.list_row + (entry_cur - entry_top));
         else
-            Term_gotoxy(0, layout.list_row + (grp_cur - grp_top));
+            Term_gotoxy(draw_layout.group_col,
+                draw_layout.list_row + (grp_cur - grp_top));
 
         char ch = inkey();
         if (steamdeck_controls_active() && ch == steamdeck_back_key())

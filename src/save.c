@@ -806,8 +806,9 @@ static void wr_options(void)
     /* Write "noble_item_spawn_mode" */
     wr_byte(op_ptr->noble_item_spawn_mode);
 
-    /* 1 remaining spare byte */
-    wr_byte(0);
+    /* Persist banner turns as value+1 so old saves' zero spare byte means "use default". */
+    wr_byte((byte)(MIN(op_ptr->narrative_banner_turns,
+        NARRATIVE_BANNER_TURNS_MAX) + 1));
 
     /*** Normal options ***/
 

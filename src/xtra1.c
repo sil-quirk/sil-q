@@ -56,6 +56,7 @@ typedef struct hidden_overlay_line {
 
 byte g_hidden_left_panel_overlay_rows = 0;
 byte g_hidden_left_panel_overlay_widths[16] = { 0 };
+static byte g_hidden_left_panel_topline_rendered_width = 0;
 
 static void prt_status_line_compact(void);
 static void prt_cut_poisoned_compact(void);
@@ -83,6 +84,8 @@ static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lin
 static bool hidden_left_panel_sync_mask(const hidden_overlay_line* lines, int line_count);
 static bool hidden_left_panel_sync_topline_mask(
     const hidden_overlay_line* lines, int line_count);
+static void hidden_left_panel_restore_topline_map_span(int start_col,
+    int end_col);
 
 static bool heavy_armour_evasion_bonus_applies(const object_type* o_ptr)
 {
@@ -1476,6 +1479,58 @@ static bool hidden_left_panel_sync_topline_mask(
     return changed;
 }
 
+static void hidden_left_panel_restore_topline_map_span(int start_col,
+    int end_col)
+{
+    int y, x;
+    int tx;
+    byte a;
+    char c;
+    byte ta;
+    char tc;
+
+    if (!Term || !p_ptr)
+        return;
+    if (!hidden_left_panel_uses_topline_layout())
+        return;
+    if (start_col < 0)
+        start_col = 0;
+    if (end_col <= start_col)
+        return;
+
+    y = p_ptr->wy;
+    tx = p_ptr->wx + SCREEN_WID;
+
+    for (x = p_ptr->wx; x < tx; x++)
+    {
+        int kx = x - p_ptr->wx;
+        int vx = kx + COL_MAP;
+        int cell_w = use_bigtile ? 2 : 1;
+
+        if (use_bigtile)
+            vx += kx;
+
+        if (vx >= end_col)
+            break;
+        if (vx + cell_w <= start_col)
+            continue;
+        if (!in_bounds(y, x))
+            continue;
+
+        map_info(y, x, &a, &c, &ta, &tc);
+        Term_queue_char(vx, ROW_MAP, a, c, ta, tc);
+
+        if (use_bigtile)
+        {
+            if (a & 0x80)
+                Term_queue_char(vx + 1, ROW_MAP, 255, -1, 0, 0);
+            else
+                Term_queue_char(vx + 1, ROW_MAP, TERM_WHITE, ' ',
+                    TERM_WHITE, ' ');
+        }
+    }
+}
+
 static void prt_hidden_top_vitals(void)
 {
     hidden_overlay_line lines[16];
@@ -1507,7 +1562,8 @@ void redraw_hidden_left_panel_topline_suffix(void)
     int line_count = 0;
     int row = hidden_left_panel_horizontal_row();
     int col = 0;
-    int render_count = 0;
+    int current_width = 0;
+    int previous_width = g_hidden_left_panel_topline_rendered_width;
     bool first_entry = true;
 
     if (!Term || !Term->scr || !ui_hide_left_panel())
@@ -1519,7 +1575,17 @@ void redraw_hidden_left_panel_topline_suffix(void)
 
     line_count = hidden_left_panel_build_lines(lines, 16);
     if (line_count <= 0)
+    {
+        if (previous_width > 0)
+            hidden_left_panel_restore_topline_map_span(0, previous_width);
+        g_hidden_left_panel_topline_rendered_width = 0;
         return;
+    }
+
+    current_width = hidden_left_panel_topline_render_width(lines, line_count);
+    if (previous_width > current_width)
+        hidden_left_panel_restore_topline_map_span(current_width,
+            previous_width);
 
     col = 0;
 
@@ -1540,19 +1606,23 @@ void redraw_hidden_left_panel_topline_suffix(void)
         if (sep > 0)
         {
             Term_putch(col, row, TERM_WHITE, ' ');
-            render_count++;
             col++;
         }
 
-        render_count += hidden_left_panel_draw_line(&lines[i], row, col,
+        hidden_left_panel_draw_line(&lines[i], row, col,
             use_short_text,
             NULL, 0);
         col += width;
         first_entry = false;
     }
 
-    if (render_count <= 0)
+    if (col <= 0)
+    {
+        g_hidden_left_panel_topline_rendered_width = 0;
         return;
+    }
+
+    g_hidden_left_panel_topline_rendered_width = (byte)MIN(col, 255);
 }
 
 /*

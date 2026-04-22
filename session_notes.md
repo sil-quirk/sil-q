@@ -1,5 +1,35 @@
 # Session notes
 
+## 2026-04-22: Supplies/knowledge menus switch to active-pane layout only when split view does not fit
+- `src/cmd4.c`
+  - Replaced the fixed `Term->wid <= 50` cutoff with fit-based checks for grouped knowledge browsers and the supplies menu.
+  - Knowledge pages now decide split vs active-pane mode from the actual rendered name width for the current group/page, instead of rough terminal-width guesses.
+  - Monster/object/artefact list column-width calculations were aligned with their actual optional columns so pages that genuinely fit no longer collapse to single-pane unnecessarily.
+  - Knowledge pages with group/list navigation now render only the active pane full-width when the split group/list layout is too cramped for that page:
+    - left/group pane shows the group list,
+    - right/list pane shows only the selected group's entries.
+  - Applied the same active-pane behavior to the supplies menu, based on the current group's actual rendered row width rather than a hard cutoff.
+  - Reworked supply rows into bounded columns so text no longer overruns the right-side data:
+    - names no longer include the duplicated count,
+    - food rows now show weight in a separate `Wt` column,
+    - light rows now show separate `Wt` and `Turns` columns.
+  - Added adaptive supply-summary formatting so the top supply/light/oil detail line shrinks through shorter variants until it fits the terminal width.
+  - Fixed `display_supply_group_list()` to index from `grp_top` when paging the group list.
+  - Fixed the supplies frame redraw path so switching back from single-pane to split-pane redraws the vertical divider and refreshed headers correctly.
+  - Kept the supplies group-total numbers anchored to the split-view column even while the group pane is shown as a single full-width pane, so values like `Gems 5` no longer jump horizontally.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-22: Binding menus now expose the full highlighted binding list on narrow screens
+- `src/cmd4.c`
+  - Reworked compact binding menus into a list/detail layout instead of showing the same binding information inline and again in the footer.
+  - Keybind Configuration now shows short per-row binding counts on compact screens (`1 key`, `2 keys`, `none`) and keeps the selected command's full key list in the footer.
+  - Controller Settings now shows short per-row action summaries on compact screens (`1 bind`, `3 binds`, `none`) and uses the footer for the selected action's compact physical-binding list.
+  - Wide screens keep the original inline binding table and no longer reserve footer space for duplicate binding detail.
+  - The keybind save prompt now uses the active footer/instruction row instead of writing through the detail pane.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
 ## 2026-04-22: Harden story-font inventory rendering for macOS pickup overlay
 - `src/ui/story_font.c`
   - Added term bounds checks in `story_print_text_internal()` so story-font UI helpers return early instead of drawing through a stale cursor when a row/column falls outside the current term.

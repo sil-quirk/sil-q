@@ -3866,6 +3866,17 @@ void request_command(void)
     /* Get command */
     while (1)
     {
+        if (active_narrative_banner_consumes_input())
+        {
+            msg_flag = false;
+            inkey_flag = true;
+            (void)inkey();
+            prt("", 0, 0);
+            clear_active_narrative_banner();
+            do_cmd_redraw();
+            continue;
+        }
+
         /* Hack -- auto-commands */
         if (p_ptr->command_new)
         {

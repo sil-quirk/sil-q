@@ -517,10 +517,11 @@ extern const char* styles_get_style_display(int sidx);
 extern const char* styles_get_style_short_desc(int sidx);
 extern const char* styles_get_style_m1(int sidx);
 extern const char* styles_get_style_m2(int sidx);
-/* After showing the per-style banner on level entry, count down user inputs
- * and force a full screen redraw when it reaches zero. */
+/* Narrative banner state. Positive values keep the banner visible across
+ * player turns; a 0-turn banner instead consumes the next command input. */
 extern int g_banner_force_redraw_remaining;
 extern int active_narrative_banner_rows(void);
+extern bool active_narrative_banner_consumes_input(void);
 extern void clear_active_narrative_banner(void);
 extern void styles_reload_messages_from_text(void);
 extern void styles_clear_display_messages(void);

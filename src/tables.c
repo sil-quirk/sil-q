@@ -255,7 +255,7 @@ cptr option_text[OPT_MAX] = {
     NULL, /* OPT_hidden_left_panel_mode */
     "top_status_line", /* OPT_top_status_line */
     "hide_supporting_panes_fullscreen", /* OPT_hide_supporting_panes_fullscreen */
-    NULL, /* xxx */
+    "narrative_banner_turns", /* OPT_narrative_banner_turns */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -499,7 +499,7 @@ cptr option_desc[OPT_MAX] = {
     NULL, /* OPT_hidden_left_panel_mode */
     "Move the bottom status line to the top and hide the main message line", /* OPT_top_status_line */
     "Hide supporting panes on full-screen menus when that frees space", /* OPT_hide_supporting_panes_fullscreen */
-    NULL, /* xxx */
+    "Narrative banner turns (0=dismiss banner on next input, 1-3=keep it visible for player turns)", /* OPT_narrative_banner_turns */
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -763,7 +763,7 @@ const bool option_norm[OPT_MAX] = {
     false, /* OPT_hidden_left_panel_mode */
     false, /* OPT_top_status_line */
     true, /* OPT_hide_supporting_panes_fullscreen */
-    false, /* xxx */
+    false, /* OPT_narrative_banner_turns (default via byte field) */
     false, /* xxx */
     false, /* xxx */
     false, /* xxx */
@@ -960,8 +960,9 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
 
     { OPT_main_combat_rolls, OPT_ability_desc_mode, OPT_stealth_vision,
         OPT_sleep_icon, OPT_artifact_unique_color, OPT_unidentified_items_slate,
-        OPT_show_level_entry_banner, OPT_show_partition_narrative, OPT_intro_style,
-        OPT_banner_message_stairs, OPT_solid_walls, OPT_hybrid_walls,
+        OPT_show_level_entry_banner, OPT_show_partition_narrative,
+        OPT_narrative_banner_turns, OPT_intro_style, OPT_banner_message_stairs,
+        OPT_solid_walls, OPT_hybrid_walls,
         OPT_hilite_player, OPT_hilite_target, OPT_hilite_unwary,
         OPT_show_smithing_difficulty, OPT_show_smithing_difficulty_look,
         OPT_NONE, OPT_NONE },

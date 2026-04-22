@@ -2808,6 +2808,7 @@
 #define OPT_hidden_left_panel_mode 105
 #define OPT_top_status_line 106
 #define OPT_hide_supporting_panes_fullscreen 107
+#define OPT_narrative_banner_turns 108
 
 /* Intro screen style constants */
 #define INTRO_STYLE_FLAME       0   /* Flame Imperishable (Ainulindale) */
@@ -2988,6 +2989,15 @@
 #define PARTITION_NARRATIVE_BANNER            0
 #define PARTITION_NARRATIVE_MESSAGE           1
 #define PARTITION_NARRATIVE_OFF               2
+
+/* Narrative banner visibility after it is shown.
+ * 0 means the next command input only dismisses the banner. */
+#define NARRATIVE_BANNER_TURNS_MAX            3
+#if defined(__ANDROID__) || defined(SIL_IOS)
+#define DEFAULT_NARRATIVE_BANNER_TURNS        1
+#else
+#define DEFAULT_NARRATIVE_BANNER_TURNS        3
+#endif
 
 /* Vault drop frequency modes */
 #define VDF_NORMAL 0

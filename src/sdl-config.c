@@ -586,7 +586,12 @@ static bool option_list_contains(const byte* ids, int opt)
 bool option_is_app_persistent(int opt)
 {
     /* Multi-value non-bool options saved explicitly in the visual JSON block */
-    if (opt == OPT_intro_style || opt == OPT_hide_left_panel
+    if (opt == OPT_delay_factor || opt == OPT_hitpoint_warning
+        || opt == OPT_main_combat_rolls || opt == OPT_ability_desc_mode
+        || opt == OPT_intro_style || opt == OPT_show_level_entry_banner
+        || opt == OPT_show_partition_narrative
+        || opt == OPT_narrative_banner_turns
+        || opt == OPT_hide_left_panel
         || opt == OPT_hidden_left_panel_mode)
         return true;
     return option_list_contains(app_interface_options, opt)
@@ -640,6 +645,7 @@ static void sdl_config_apply_app_option_defaults(void)
     op_ptr->intro_style = INTRO_STYLE_RANDOM;
     op_ptr->level_entry_narrative_mode = LEVEL_ENTRY_NARRATIVE_BANNER_DELAY;
     op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_BANNER;
+    op_ptr->narrative_banner_turns = DEFAULT_NARRATIVE_BANNER_TURNS;
     op_ptr->opt[OPT_top_status_line] = sdl_config_should_default_top_status_line();
 }
 
@@ -779,6 +785,8 @@ void sdl_config_load_app_options(const char* filename)
             &op_ptr->level_entry_narrative_mode, LEVEL_ENTRY_NARRATIVE_OFF);
         sdl_config_load_byte_value(item, "partitionNarrativeMode",
             &op_ptr->partition_narrative_mode, PARTITION_NARRATIVE_OFF);
+        sdl_config_load_byte_value(item, "narrativeBannerTurns",
+            &op_ptr->narrative_banner_turns, NARRATIVE_BANNER_TURNS_MAX);
     }
 
     cJSON_Delete(root);
@@ -1993,6 +2001,8 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
                     op_ptr->level_entry_narrative_mode);
                 cJSON_AddNumberToObject(visual, "partitionNarrativeMode",
                     op_ptr->partition_narrative_mode);
+                cJSON_AddNumberToObject(visual, "narrativeBannerTurns",
+                    op_ptr->narrative_banner_turns);
             }
 
             cJSON_AddItemToObject(root, "appOptions", app_options);

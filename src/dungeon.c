@@ -26,6 +26,7 @@
 /* Countdown for forcing a redraw after showing the per-style banner */
 int g_banner_force_redraw_remaining = 0;
 static char g_active_partition_banner_text[1024] = "";
+static bool g_active_partition_banner_consumes_input = false;
 
 /* Morgoth vault tracking variables - file scope for cross-function access */
 static int last_player_y = 0;
@@ -71,7 +72,9 @@ static void snapshot_run_history(const char* reason)
 static void reset_level_entry_tracking(void)
 {
     g_labyrinth_view_active = false;
+    g_banner_force_redraw_remaining = 0;
     g_active_partition_banner_text[0] = '\0';
+    g_active_partition_banner_consumes_input = false;
     greater_vault_xp_name[0] = '\0';
     greater_vault_xp_awarded = false;
     last_partition_pi = -1;
@@ -92,6 +95,17 @@ static bool banner_messages_use_stairs(void)
         return default_value;
 
     return op_ptr->opt[OPT_banner_message_stairs];
+}
+
+static byte narrative_banner_turn_setting(void)
+{
+    if (!op_ptr)
+        return DEFAULT_NARRATIVE_BANNER_TURNS;
+
+    if (op_ptr->narrative_banner_turns > NARRATIVE_BANNER_TURNS_MAX)
+        return DEFAULT_NARRATIVE_BANNER_TURNS;
+
+    return op_ptr->narrative_banner_turns;
 }
 
 static int narrative_banner_rows_for_text(cptr text)
@@ -352,10 +366,18 @@ static void narrative_banner_pre_fresh_hook(void)
     queue_active_partition_banner();
 }
 
+bool active_narrative_banner_consumes_input(void)
+{
+    return g_active_partition_banner_consumes_input
+        && g_active_partition_banner_text[0]
+        && (g_banner_force_redraw_remaining > 0);
+}
+
 void clear_active_narrative_banner(void)
 {
     g_banner_force_redraw_remaining = 0;
     g_active_partition_banner_text[0] = '\0';
+    g_active_partition_banner_consumes_input = false;
 }
 
 /*
@@ -490,7 +512,11 @@ static void display_narrative_text(cptr text, int narrative_mode,
     print_fade_centered_at_row(text, 1, false, line_delay);
     SDL_strlcpy(g_active_partition_banner_text, text,
         sizeof(g_active_partition_banner_text));
-    g_banner_force_redraw_remaining = 3;
+    g_active_partition_banner_consumes_input =
+        (narrative_banner_turn_setting() == 0);
+    g_banner_force_redraw_remaining = g_active_partition_banner_consumes_input
+        ? 1
+        : narrative_banner_turn_setting();
 }
 
 static void display_partition_narrative(int old_sidx, int new_sidx,
@@ -3777,13 +3803,14 @@ static void process_player(void)
 
     playerturn++;
 
-    /* If a banner was recently shown, count down per full player turn and force a full redraw when it expires.
-       This ensures the redraw happens after the third normal action without consuming input. */
+    /* Count down active narrative banners by full player turns.
+       0-turn banners are dismissed in request_command() before any action. */
     if (g_banner_force_redraw_remaining > 0)
     {
         g_banner_force_redraw_remaining--;
         if (g_banner_force_redraw_remaining == 0)
         {
+            g_active_partition_banner_consumes_input = false;
             g_active_partition_banner_text[0] = '\0';
             do_cmd_redraw();
         }
