@@ -52,6 +52,22 @@ static void p_text_out_c(byte attr, cptr str)
     text_out_c(attr, str);
 }
 
+static void object_info_capitalize_first(char* str)
+{
+    if (!str)
+        return;
+
+    for (char* p = str; *p; p++)
+    {
+        if (!isspace((unsigned char)*p))
+        {
+            if (islower((unsigned char)*p))
+                *p = (char)toupper((unsigned char)*p);
+            return;
+        }
+    }
+}
+
 static void text_out_to_object_info_buffer(byte attr, cptr str)
 {
     int wrap = (text_out_wrap ? text_out_wrap : 75);
@@ -2231,21 +2247,18 @@ static bool screen_out_ego_lore(const object_type* o_ptr)
  */
 static bool screen_out_head(const object_type* o_ptr)
 {
-    char* o_name;
+    char o_name[2048];
     char base_desc_buf[2048];
     cptr base_desc = NULL;
-    int name_size = Term->wid;
 
     bool has_description = false;
 
     log_trace("screen_out_head: Starting, Term->wid=%d, Term->hgt=%d", Term->wid, Term->hgt);
     log_trace("screen_out_head: Current cursor position: x=%d, y=%d", Term->scr->cx, Term->scr->cy);
 
-    /* Allocate memory to the size of the screen */
-    o_name = mem_alloc_array(name_size, char);
-
     /* Description */
-    object_desc(o_name, name_size, o_ptr, true, 3);
+    object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+    object_info_capitalize_first(o_name);
 
     log_trace("screen_out_head: About to print object name at current position");
     
@@ -2266,7 +2279,7 @@ static bool screen_out_head(const object_type* o_ptr)
     byte name_color = object_display_color(o_ptr, base_color);
     
     /* Print, in colour */
-    text_out_c(name_color, format("%^s", o_name));
+    text_out_c(name_color, o_name);
 
     /* Show weight information */
     {
@@ -2293,9 +2306,6 @@ static bool screen_out_head(const object_type* o_ptr)
     }
 
     log_trace("screen_out_head: After printing object name, cursor position: x=%d, y=%d", Term->scr->cx, Term->scr->cy);
-
-    /* Free up the memory */
-    mem_free_null(o_name);
 
     /* Display the known artefact description */
     if (!adult_rand_artefacts && o_ptr->name1 && object_known_p(o_ptr)
@@ -2370,66 +2380,10 @@ void note_info_screen(const object_type* o_ptr)
  */
 void object_info_screen(const object_type* o_ptr)
 {
-    bool has_description, has_info;
+    const object_type* objects[1];
 
-    log_trace("object_info_screen: Starting item description display");
-    log_trace("object_info_screen: BEFORE reset - text_out_indent=%d, text_out_wrap=%d", text_out_indent, text_out_wrap);
-
-    /* Redirect output to the screen */
-    text_out_hook = text_out_to_screen;
-    
-    /* Reset text output positioning to ensure proper layout */
-    text_out_wrap = 0;
-    text_out_indent = 0;
-
-    log_trace("object_info_screen: AFTER reset - text_out_indent=%d, text_out_wrap=%d", text_out_indent, text_out_wrap);
-
-    /* Save the screen */
-    screen_save();
-    log_trace("object_info_screen: Screen saved");
-
-    /* Ensure cursor starts at top-left for proper text layout */
-    Term_gotoxy(0, 0);
-    log_trace("object_info_screen: Reset cursor to (0,0), now at x=%d, y=%d", Term->scr->cx, Term->scr->cy);
-
-    has_description = screen_out_head(o_ptr);
-
-    object_info_out_flags = object_flags_known;
-
-    /* Dump the info */
-    new_paragraph = true;
-    has_info = object_info_out(o_ptr);
-    new_paragraph = false;
-
-    if (!object_known_p(o_ptr))
-    {
-        p_text_out("\n\n   This item has not been identified.");
-    }
-    else if ((!has_description) && (!has_info))
-    {
-        p_text_out(
-            "\n\n   This item does not seem to possess any special abilities.");
-    }
-
-    text_out_c(TERM_L_BLUE, "\n\n(press any key)\n");
-
-    log_trace("object_info_screen: About to wait for input");
-
-    /* Wait for input */
-    (void)inkey();
-
-    log_trace("object_info_screen: Input received, about to load screen");
-
-    /* Load the screen */
-    screen_load();
-    
-    /* Ensure text output variables are reset after use */
-    text_out_wrap = 0;
-    text_out_indent = 0;
-    
-    log_trace("object_info_screen: Screen loaded, exiting - text_out_indent=%d, text_out_wrap=%d", text_out_indent, text_out_wrap);
-
-    return;
+    objects[0] = o_ptr;
+    object_info_screen_multi(objects, NULL, 1);
 }
 
 static char* capture_object_info_screen_multi_text(const object_type** objects,
@@ -2829,6 +2783,8 @@ void object_info_screen_multi(const object_type** objects, const char** headings
 {
     char* overflow_text = NULL;
     object_info_screen_capture capture;
+    bool have_capture = false;
+    int body_row_limit;
     int term_hgt = 24;
 
     if (count <= 0 || objects == NULL)
@@ -2837,22 +2793,19 @@ void object_info_screen_multi(const object_type** objects, const char** headings
     if (Term && Term->hgt > 0)
         term_hgt = Term->hgt;
 
-    overflow_text = capture_object_info_screen_multi_text(objects, headings, count);
-    if (overflow_text && object_info_buffer_line_count(overflow_text) > term_hgt - 4)
+    body_row_limit = term_hgt - 4;
+    if (body_row_limit < 1)
+        body_row_limit = 1;
+
+    have_capture = object_info_screen_capture_build(objects, headings, count,
+        &capture);
+    if (have_capture && capture.height > body_row_limit)
     {
         screen_save();
-        if (object_info_screen_capture_build(objects, headings, count, &capture))
-        {
-            object_info_screen_capture_view(&capture);
-            object_info_screen_capture_free(&capture);
-        }
-        else
-        {
-            show_buffer(overflow_text, 0);
-        }
+        object_info_screen_capture_view(&capture);
         screen_load();
 
-        mem_free_null(overflow_text);
+        object_info_screen_capture_free(&capture);
         text_out_hook = text_out_to_screen;
         text_out_wrap = 0;
         text_out_indent = 0;
@@ -2860,7 +2813,31 @@ void object_info_screen_multi(const object_type** objects, const char** headings
         return;
     }
 
-    mem_free_null(overflow_text);
+    if (have_capture)
+    {
+        object_info_screen_capture_free(&capture);
+    }
+    else
+    {
+        overflow_text = capture_object_info_screen_multi_text(objects, headings,
+            count);
+        if (overflow_text
+            && object_info_buffer_line_count(overflow_text) > body_row_limit)
+        {
+            screen_save();
+            show_buffer(overflow_text, 0);
+            screen_load();
+
+            mem_free_null(overflow_text);
+            text_out_hook = text_out_to_screen;
+            text_out_wrap = 0;
+            text_out_indent = 0;
+            new_paragraph = false;
+            return;
+        }
+
+        mem_free_null(overflow_text);
+    }
 
     text_out_hook = text_out_to_screen;
     text_out_wrap = 0;
@@ -2877,6 +2854,7 @@ void object_info_screen_multi(const object_type** objects, const char** headings
 
     text_out_wrap = 0;
     text_out_indent = 0;
+    new_paragraph = false;
 }
 
 
