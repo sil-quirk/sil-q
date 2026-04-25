@@ -4846,7 +4846,10 @@ void show_floor(const int* floor_list, int floor_num)
         }
 
         /* Print the item letter at the end */
-        sprintf(tmp_val, " (%c)", index_to_label(out_index[j]));
+        if (steamdeck_controls_active())
+            SDL_strlcpy(tmp_val, "    ", sizeof(tmp_val));
+        else
+            sprintf(tmp_val, " (%c)", index_to_label(out_index[j]));
         put_str(tmp_val, j + 1, label_col);
     }
 
@@ -6247,6 +6250,12 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                     done=true; 
                     break; 
                 }
+            }
+
+            if (steamdeck_controls_active() && isalpha((unsigned char)which))
+            {
+                bell("Use D-pad and confirm to select items in this mode.");
+                break;
             }
 
             /* Note verify */

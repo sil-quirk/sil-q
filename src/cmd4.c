@@ -40,7 +40,57 @@ static void redraw_inven_equip_subwindows(void);
 static void redraw_monster_subwindows(void);
 static void smith_ui_reset_description_state(void);
 static void controller_prompt_label(int binding, const char* fallback, char* buf, size_t buflen);
+static void controller_prompt_label_no_sticks(int binding, const char* fallback, char* buf, size_t buflen);
 static void desc_obj_fake(int k_idx);
+
+static bool indexed_menu_letters_enabled(void)
+{
+    return !steamdeck_controls_active();
+}
+
+static void indexed_menu_entry_label(char* buf, size_t buflen, int index, cptr text)
+{
+    if (!buf || !buflen)
+        return;
+
+    if (indexed_menu_letters_enabled())
+        strnfmt(buf, buflen, "%c) %s", (char)'a' + index, text ? text : "");
+    else
+        strnfmt(buf, buflen, "   %s", text ? text : "");
+}
+
+static void keyed_menu_entry_label(char* buf, size_t buflen, char key, cptr text)
+{
+    if (!buf || !buflen)
+        return;
+
+    if (indexed_menu_letters_enabled())
+        strnfmt(buf, buflen, "%c) %s", key, text ? text : "");
+    else
+        strnfmt(buf, buflen, "   %s", text ? text : "");
+}
+
+static void indexed_menu_focus_prefix(char* buf, size_t buflen, int index)
+{
+    if (!buf || !buflen)
+        return;
+
+    if (indexed_menu_letters_enabled())
+        strnfmt(buf, buflen, "%c)", (char)'a' + index);
+    else
+        SDL_strlcpy(buf, "> ", buflen);
+}
+
+static void indexed_menu_normal_prefix(char* buf, size_t buflen, int index)
+{
+    if (!buf || !buflen)
+        return;
+
+    if (indexed_menu_letters_enabled())
+        strnfmt(buf, buflen, "%c)", (char)'a' + index);
+    else
+        SDL_strlcpy(buf, "  ", buflen);
+}
 
 static bool heavy_armour_desc_evasion_bonus_applies(const object_type* o_ptr)
 {
@@ -1056,6 +1106,83 @@ static void ability_menu_format_amount_line(char* buf, size_t buflen,
         strnfmt(buf, buflen, "%d %s (you have %d)", need, long_label, have);
 }
 
+static void ability_menu_append_text(char* out, size_t outsz, size_t* cur,
+    cptr text)
+{
+    if (!out || !outsz || !cur || !text)
+        return;
+
+    strnfcat(out, outsz, cur, "%s", text);
+}
+
+static cptr ability_menu_controller_text(cptr src, char* out, size_t outsz)
+{
+    char wait_label[32];
+    char fletch_label[32];
+    char exchange_label[32];
+    char wait_token[64];
+    char fletch_token[64];
+    char exchange_token[64];
+    struct replacement
+    {
+        cptr from;
+        cptr to;
+    } replacements[3];
+    size_t cur = 0;
+    const char* p;
+
+    if (!src || !out || outsz == 0)
+        return src;
+
+    if (!steamdeck_controls_active())
+        return src;
+
+    controller_prompt_label_no_sticks('z', "z", wait_label, sizeof(wait_label));
+    controller_prompt_label_no_sticks('-', "-", fletch_label, sizeof(fletch_label));
+    controller_prompt_label_no_sticks('X', "X", exchange_label, sizeof(exchange_label));
+
+    strnfmt(wait_token, sizeof(wait_token), "(%s/5)", wait_label);
+    strnfmt(fletch_token, sizeof(fletch_token), "Use %s to", fletch_label);
+    strnfmt(exchange_token, sizeof(exchange_token), "Use %s to", exchange_label);
+
+    replacements[0].from = "(z/5)";
+    replacements[0].to = wait_token;
+    replacements[1].from = "Use '-' to";
+    replacements[1].to = fletch_token;
+    replacements[2].from = "Use 'X' to";
+    replacements[2].to = exchange_token;
+
+    out[0] = '\0';
+    p = src;
+
+    while (*p)
+    {
+        bool replaced = false;
+
+        for (int i = 0; i < (int)N_ELEMENTS(replacements); i++)
+        {
+            size_t from_len = strlen(replacements[i].from);
+
+            if (!strncmp(p, replacements[i].from, from_len))
+            {
+                ability_menu_append_text(out, outsz, &cur, replacements[i].to);
+                p += from_len;
+                replaced = true;
+                break;
+            }
+        }
+
+        if (!replaced)
+        {
+            char tmp[2] = { *p, '\0' };
+            ability_menu_append_text(out, outsz, &cur, tmp);
+            p++;
+        }
+    }
+
+    return out;
+}
+
 static int ability_menu_next_row_after_text(int desc_col, int fallback_row)
 {
     int x = desc_col;
@@ -1548,6 +1675,7 @@ void show_songs_with_highlight(int highlight)
 {
     int i, j, k = 0;
     int current_line = 0;
+    bool steamdeck = steamdeck_controls_active();
 
     int col = 26;
 
@@ -1585,7 +1713,8 @@ void show_songs_with_highlight(int highlight)
     prt("", 1, col - 2);
 
     /* Clear the line with the (possibly indented) index */
-    put_str("s)", 1, col);
+    put_str(steamdeck ? ((highlight == current_line) ? "> " : "  ") : "s)",
+        1, col);
 
     /* Display the entry itself - highlight if selected */
     if (highlight == current_line)
@@ -1604,7 +1733,11 @@ void show_songs_with_highlight(int highlight)
         prt("", j + 2, col - 2);
 
         /* Prepare an index --(-- */
-        sprintf(tmp_val, "%c)", song_menu_letter(i));
+        if (steamdeck)
+            SDL_strlcpy(tmp_val, (highlight == current_line) ? "> " : "  ",
+                sizeof(tmp_val));
+        else
+            sprintf(tmp_val, "%c)", song_menu_letter(i));
 
         /* Clear the line with the (possibly indented) index */
         put_str(tmp_val, j + 2, col);
@@ -1624,7 +1757,8 @@ void show_songs_with_highlight(int highlight)
         prt("", j + 2, col - 2);
 
         /* Clear the line with the (possibly indented) index */
-        put_str("x)", j + 2, col);
+        put_str(steamdeck ? ((highlight == current_line) ? "> " : "  ") : "x)",
+            j + 2, col);
 
         /* Display the entry itself - highlight if selected */
         if (highlight == current_line)
@@ -1661,6 +1795,7 @@ void do_cmd_change_song()
     char tmp_val[80];
 
     char which;
+    bool steamdeck = steamdeck_controls_active();
 
     log_debug("Player opening song selection menu");
 
@@ -1718,7 +1853,10 @@ void do_cmd_change_song()
             show_songs_with_highlight(highlight);
 
         /* Begin the prompt */
-        sprintf(out_val, "Songs: s");
+        if (steamdeck)
+            sprintf(out_val, "D-pad choose");
+        else
+            sprintf(out_val, "Songs: s");
 
         // count the abilities
         for (i = 0; i < SNG_MAX; i++)
@@ -1730,11 +1868,14 @@ void do_cmd_change_song()
             // keep track of the number of options
             if (p_ptr->active_ability[S_SNG][i])
             {
-                SDL_strlcat(out_val, ",", sizeof(out_val));
-                sprintf(tmp_val, "%c", song_menu_letter(i));
+                if (!steamdeck)
+                {
+                    SDL_strlcat(out_val, ",", sizeof(out_val));
+                    sprintf(tmp_val, "%c", song_menu_letter(i));
 
-                /* Append */
-                SDL_strlcat(out_val, tmp_val, sizeof(out_val));
+                    /* Append */
+                    SDL_strlcat(out_val, tmp_val, sizeof(out_val));
+                }
             }
         }
 
@@ -1742,12 +1883,15 @@ void do_cmd_change_song()
         if (p_ptr->song2 != SNG_NOTHING)
         {
             /* Append */
-            SDL_strlcat(out_val, ",x", sizeof(out_val));
+            if (!steamdeck)
+                SDL_strlcat(out_val, ",x", sizeof(out_val));
         }
 
         /* Indicate ability to "view" */
         if (!p_ptr->command_see)
             SDL_strlcat(out_val, ", * to see", sizeof(out_val));
+        else if (steamdeck)
+            SDL_strlcat(out_val, ", A select, B back", sizeof(out_val));
 
         /* Build the prompt */
         strnfmt(tmp_val, sizeof(tmp_val), "(%s) Sing which song: ", out_val);
@@ -1758,16 +1902,21 @@ void do_cmd_change_song()
         /* Get a key */
         which = inkey();
 
-        /* Parse it */
-        switch (which)
-        {
-        case ESCAPE:
+        if (which == ESCAPE || (steamdeck && which == steamdeck_back_key()))
         {
             log_trace("Song selection cancelled by player");
             done = true;
-            break;
+            continue;
         }
 
+        if (steamdeck && which == steamdeck_confirm_key())
+        {
+            which = ' ';
+        }
+
+        /* Parse it */
+        switch (which)
+        {
         case '\r': // Enter - select highlighted item when menu is visible, otherwise exit
         {
             if (p_ptr->command_see)
@@ -1988,6 +2137,12 @@ void do_cmd_change_song()
 
         case 's':
         {
+            if (steamdeck)
+            {
+                log_trace("Illegal song choice attempted");
+                bell("Illegal song choice.");
+                break;
+            }
             log_debug("Player selected to stop singing");
             song_choice = SNG_NOTHING;
             done = true;
@@ -1996,6 +2151,12 @@ void do_cmd_change_song()
 
         case 'x':
         {
+            if (steamdeck)
+            {
+                log_trace("Illegal song choice attempted");
+                bell("Illegal song choice.");
+                break;
+            }
             if (p_ptr->song2 != SNG_NOTHING)
             {
                 log_debug("Player exchanging woven themes");
@@ -2013,6 +2174,13 @@ void do_cmd_change_song()
 
         default:
         {
+            if (steamdeck)
+            {
+                log_trace("Illegal song choice attempted");
+                bell("Illegal song choice.");
+                break;
+            }
+
             song_choice = song_index_from_menu_letter(which);
 
             if (song_choice >= 0 && song_choice < SNG_MAX)
@@ -2437,6 +2605,7 @@ int bane_menu(int* highlight)
 
     int ch;
     int options;
+    bool steamdeck = steamdeck_controls_active();
 
     char buf[80];
 
@@ -2463,13 +2632,13 @@ int bane_menu(int* highlight)
             attr = TERM_L_DARK;
         }
 
-        strnfmt(buf, 80, "%c) %s", (char)'a' + i - 1, bane_name[i]);
+        indexed_menu_entry_label(buf, sizeof(buf), i - 1, bane_name[i]);
         Term_putstr(COL_DESCRIPTION, i + 3, -1, attr, buf);
 
         if (*highlight == i)
         {
             // highlight the label
-            strnfmt(buf, 80, "%c)", (char)'a' + i - 1);
+            indexed_menu_focus_prefix(buf, sizeof(buf), i - 1);
             Term_putstr(COL_DESCRIPTION, i + 3, -1, TERM_L_BLUE, buf);
 
             /* Indent output by 2 character, and wrap at column 70 */
@@ -2513,7 +2682,7 @@ int bane_menu(int* highlight)
     ch = inkey();
     hide_cursor = false;
 
-    if ((ch >= 'a') && (ch <= (char)'a' + options - 1))
+    if (!steamdeck && (ch >= 'a') && (ch <= (char)'a' + options - 1))
     {
         *highlight = (int)ch - 'a' + 1;
 
@@ -2522,19 +2691,21 @@ int bane_menu(int* highlight)
         return (*highlight);
     }
 
-    if ((ch >= 'A') && (ch <= (char)'A' + options - 1))
+    if (!steamdeck && (ch >= 'A') && (ch <= (char)'A' + options - 1))
     {
         *highlight = (int)ch - 'A' + 1;
         return (*highlight);
     }
 
-    if ((ch == ESCAPE) || (ch == 'q') || (ch == '4'))
+    if ((ch == ESCAPE) || (ch == 'q') || (ch == '4')
+        || (steamdeck && ch == steamdeck_back_key()))
     {
         return (BANE_TYPES + 1);
     }
 
     /* Choose current  */
-    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
+    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6')
+        || (steamdeck && ch == steamdeck_confirm_key()))
     {
         return (*highlight);
     }
@@ -2730,6 +2901,7 @@ int oath_menu(int* highlight)
     int desc_col = ability_menu_description_col();
     int nav_row_1 = MAX(0, term_hgt - 2);
     int nav_row_2 = MAX(0, term_hgt - 1);
+    bool steamdeck = steamdeck_controls_active();
     /* Support up to 16 oaths without realloc. */
     int visible_oaths[16]; // Map display letters to oath indices
     char buf[80];
@@ -2771,7 +2943,8 @@ int oath_menu(int* highlight)
         }
         
         // Format oath name with status indicator
-        strnfmt(buf, 80, "%c) %s", (char)'a' + visible_count, oath_name_short(i));
+        indexed_menu_entry_label(buf, sizeof(buf), visible_count,
+            oath_name_short(i));
         
         // Display in abilities column with proper spacing
         Term_putstr(ability_col, 4 + visible_count, -1, attr, buf);
@@ -2863,28 +3036,30 @@ int oath_menu(int* highlight)
     hide_cursor = false;
 
     /* Handle letter selection (a-z) for immediate highlighting */
-    if ((ch >= 'a') && (ch < 'a' + visible_count))
+    if (!steamdeck && (ch >= 'a') && (ch < 'a' + visible_count))
     {
         *highlight = (int)ch - 'a' + 1;
         return oath_menu(highlight); // Recursive call to update display
     }
 
     /* Handle capital letter selection (A-Z) for immediate selection */
-    if ((ch >= 'A') && (ch < 'A' + visible_count))
+    if (!steamdeck && (ch >= 'A') && (ch < 'A' + visible_count))
     {
         *highlight = (int)ch - 'A' + 1;
         return visible_oaths[*highlight - 1]; // Return actual oath index
     }
 
     /* ESC or 'q' - exit menu */
-    if ((ch == ESCAPE) || (ch == 'q') || (ch == '4'))
+    if ((ch == ESCAPE) || (ch == 'q') || (ch == '4')
+        || (steamdeck && ch == steamdeck_back_key()))
     {
         /* Return a sentinel that's outside valid oath indices */
         return OATH_TYPES + 1;
     }
 
     /* Enter or Space - select current highlighted oath */
-    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
+    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6')
+        || (steamdeck && ch == steamdeck_confirm_key()))
     {
         if (visible_count <= 0) return OATH_TYPES + 1;
         return visible_oaths[*highlight - 1]; // Return actual oath index
@@ -2914,6 +3089,7 @@ int abilities_menu1(int* highlight)
     int ch;
     int options = S_MAX;
     bool show_special = false;
+    bool steamdeck = steamdeck_controls_active();
 
     // Determine if any special abilities are present (owned or active)
     for (i = 0; i < ABILITIES_MAX; i++) {
@@ -2944,7 +3120,7 @@ int abilities_menu1(int* highlight)
     // list the skills
     for (i = 0; i < options; i++)
     {
-        strnfmt(buf, 80, "%c) %s", (char)'a' + i, skill_names_full[i]);
+        indexed_menu_entry_label(buf, sizeof(buf), i, skill_names_full[i]);
 
         // Highlight the entire line if selected
         Term_putstr(COL_SKILL, i + 4, -1,
@@ -2962,14 +3138,14 @@ int abilities_menu1(int* highlight)
     ch = inkey();
     hide_cursor = false;
 
-    if ((ch >= 'a') && (ch <= (char)'a' + options - 1))
+    if (!steamdeck && (ch >= 'a') && (ch <= (char)'a' + options - 1))
     {
         *highlight = (int)ch - 'a' + 1;
 
         // relist the skills
     for (i = 0; i < options; i++)
         {
-            strnfmt(buf, 80, "%c) %s", (char)'a' + i, skill_names_full[i]);
+            indexed_menu_entry_label(buf, sizeof(buf), i, skill_names_full[i]);
 
             Term_putstr(COL_SKILL, i + 4, -1,
                 (*highlight == i + 1) ? TERM_L_BLUE : TERM_WHITE, buf);
@@ -2978,14 +3154,14 @@ int abilities_menu1(int* highlight)
         return (*highlight);
     }
 
-    if ((ch >= 'A') && (ch <= (char)'A' + options - 1))
+    if (!steamdeck && (ch >= 'A') && (ch <= (char)'A' + options - 1))
     {
         *highlight = (int)ch - 'A' + 1;
 
         // relist the skills
     for (i = 0; i < options; i++)
         {
-            strnfmt(buf, 80, "%c) %s", (char)'a' + i, skill_names_full[i]);
+            indexed_menu_entry_label(buf, sizeof(buf), i, skill_names_full[i]);
 
             Term_putstr(COL_SKILL, i + 4, -1,
                 (*highlight == i + 1) ? TERM_L_BLUE : TERM_WHITE, buf);
@@ -2994,7 +3170,8 @@ int abilities_menu1(int* highlight)
         return (*highlight);
     }
 
-    if ((ch == ESCAPE) || (ch == 'q') || (ch == '\t'))
+    if ((ch == ESCAPE) || (ch == 'q') || (ch == '\t')
+        || (steamdeck && ch == steamdeck_back_key()))
     {
         return (S_MAX + 1);  // Always return S_MAX + 1 to exit, regardless of options
     }
@@ -3005,7 +3182,8 @@ int abilities_menu1(int* highlight)
     }
 
     /* Choose current  */
-    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
+    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6')
+        || (steamdeck && ch == steamdeck_confirm_key()))
     {
         return (*highlight);
     }
@@ -3029,6 +3207,7 @@ int abilities_menu2(int skilltype, int* highlight)
 {
     int i;
     bool compact_layout = ability_menu_use_compact_layout();
+    bool steamdeck = steamdeck_controls_active();
     int ability_col = ability_menu_list_col();
     int desc_col = ability_menu_description_col();
     int list_first_row = 3;
@@ -3229,18 +3408,22 @@ int abilities_menu2(int skilltype, int* highlight)
         if ((skilltype == S_PER) && (b_ptr->abilitynum == PER_BANE)
             && (p_ptr->bane_type > 0))
         {
-            strnfmt(buf, 80, "%c) %s-%s", (char)'a' + i,
+            char name_buf[80];
+            strnfmt(name_buf, sizeof(name_buf), "%s-%s",
                 bane_name[p_ptr->bane_type], (b_name + b_ptr->name));
+            indexed_menu_entry_label(buf, sizeof(buf), i, name_buf);
         }
         else if ((skilltype == S_WIL) && (b_ptr->abilitynum == WIL_OATH)
             && (p_ptr->oath_type > 0))
         {
-            strnfmt(buf, 80, "%c) %s: %s", (char)'a' + i,
+            char name_buf[80];
+            strnfmt(name_buf, sizeof(name_buf), "%s: %s",
                 (b_name + b_ptr->name), oath_name_short(p_ptr->oath_type));
+            indexed_menu_entry_label(buf, sizeof(buf), i, name_buf);
         }
         else
         {
-            strnfmt(buf, 80, "%c) %s", (char)'a' + i, (b_name + b_ptr->name));
+            indexed_menu_entry_label(buf, sizeof(buf), i, (b_name + b_ptr->name));
         }
 
         Term_putstr(ability_col, display_row, -1, attr, buf);
@@ -3248,7 +3431,7 @@ int abilities_menu2(int skilltype, int* highlight)
         if (*highlight == b_ptr->abilitynum + 1)
         {
             /* Highlight the label with bright blue */
-            strnfmt(buf, 80, "%c)", (char)'a' + i);
+            indexed_menu_focus_prefix(buf, sizeof(buf), i);
             Term_putstr(ability_col, display_row, -1, TERM_L_BLUE, buf);
 
             /* Print the description of the highlighted ability. */
@@ -3309,8 +3492,16 @@ int abilities_menu2(int skilltype, int* highlight)
                 else
                 {
                     /* Display ability description based on ability_desc_mode */
-                    const char *desc_text = (b_ptr->text) ? b_text + b_ptr->text : NULL;
-                    const char *effect_text = (b_ptr->effect) ? b_text + b_ptr->effect : NULL;
+                    char desc_controller_text[2048];
+                    char effect_controller_text[2048];
+                    const char *desc_text = (b_ptr->text)
+                        ? ability_menu_controller_text(b_text + b_ptr->text,
+                              desc_controller_text, sizeof(desc_controller_text))
+                        : NULL;
+                    const char *effect_text = (b_ptr->effect)
+                        ? ability_menu_controller_text(b_text + b_ptr->effect,
+                              effect_controller_text, sizeof(effect_controller_text))
+                        : NULL;
                     bool has_desc = desc_text && desc_text[0];
                     bool has_effect = effect_text && effect_text[0];
 
@@ -3554,7 +3745,7 @@ int abilities_menu2(int skilltype, int* highlight)
     ch = inkey();
     hide_cursor = false;
 
-    if ((ch >= 'a') && (ch <= (char)'a' + visible_count - 1))
+    if (!steamdeck && (ch >= 'a') && (ch <= (char)'a' + visible_count - 1))
     {
         int selected_index = (int)ch - 'a';
         /* Bounds check for safety */
@@ -3564,7 +3755,7 @@ int abilities_menu2(int skilltype, int* highlight)
         }
     }
 
-    if ((ch >= 'A') && (ch <= (char)'A' + visible_count - 1))
+    if (!steamdeck && (ch >= 'A') && (ch <= (char)'A' + visible_count - 1))
     {
         int selected_index = (int)ch - 'A';
         /* Bounds check for safety */
@@ -3574,7 +3765,8 @@ int abilities_menu2(int skilltype, int* highlight)
         }
     }
 
-    if ((ch == ESCAPE) || (ch == 'q') || (ch == '4'))
+    if ((ch == ESCAPE) || (ch == 'q') || (ch == '4')
+        || (steamdeck && ch == steamdeck_back_key()))
     {
         return (ABILITIES_MAX + 1);
     }
@@ -3590,7 +3782,8 @@ int abilities_menu2(int skilltype, int* highlight)
     }
 
     /* Choose current  */
-    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
+    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6')
+        || (steamdeck && ch == steamdeck_confirm_key()))
     {
         return (*highlight);
     }
@@ -5212,11 +5405,11 @@ void move_displayed_highlight(
     char buf[80];
 
     // remove highlight from the old label
-    strnfmt(buf, 80, "%c)", (char)'a' + old_highlight - 1);
+    indexed_menu_normal_prefix(buf, sizeof(buf), old_highlight - 1);
     Term_putstr(col, old_highlight + 1, -1, old_attr, buf);
 
     // highlight the new label
-    strnfmt(buf, 80, "%c)", (char)'a' + new_highlight - 1);
+    indexed_menu_focus_prefix(buf, sizeof(buf), new_highlight - 1);
     Term_putstr(col, new_highlight + 1, -1, TERM_L_BLUE, buf);
 }
 
@@ -7388,7 +7581,7 @@ int create_sval_menu_aux(int tval, int* highlight)
                 valid[num] = false;
 
             /* Print it */
-            strnfmt(buf, 80, "%c) %s", (char)'a' + num, name);
+            indexed_menu_entry_label(buf, sizeof(buf), num, name);
             Term_putstr(list_col, smith_ui_dense_row(num), -1,
                 valid[num] ? TERM_WHITE : TERM_SLATE, buf);
 
@@ -7401,7 +7594,7 @@ int create_sval_menu_aux(int tval, int* highlight)
     }
 
     // highlight the label
-    strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
+    indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
     Term_putstr(list_col, smith_ui_dense_highlight_row(*highlight), -1,
         TERM_L_BLUE, buf);
 
@@ -7425,7 +7618,8 @@ int create_sval_menu_aux(int tval, int* highlight)
     ch = inkey();
     hide_cursor = false;
 
-    if ((ch >= 'a') && (ch <= (char)'a' + MAX_SMITHING_TVALS - 1))
+    if (!steamdeck_controls_active()
+        && (ch >= 'a') && (ch <= (char)'a' + MAX_SMITHING_TVALS - 1))
     {
         *highlight = (int)ch - 'a' + 1;
 
@@ -7532,7 +7726,7 @@ int create_tval_menu_aux(int* highlight)
 
     for (i = 0; i < MAX_SMITHING_TVALS; i++)
     {
-        strnfmt(buf, 80, "%c) %s", (char)'a' + i, smithing_tvals[i].desc);
+        indexed_menu_entry_label(buf, sizeof(buf), i, smithing_tvals[i].desc);
 
         if (smithing_tvals[i].category == CAT_WEAPON)
         {
@@ -7560,7 +7754,7 @@ int create_tval_menu_aux(int* highlight)
     }
 
     // highlight the label
-    strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
+    indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
     Term_putstr(COL_SMT2, smith_ui_dense_highlight_row(*highlight), -1,
         TERM_L_BLUE, buf);
 
@@ -7576,16 +7770,17 @@ int create_tval_menu_aux(int* highlight)
     hide_cursor = false;
 
     // choose an option by letter
-    if ((ch >= 'a') && (ch <= (char)'a' + MAX_SMITHING_TVALS - 1))
+    if (!steamdeck_controls_active()
+        && (ch >= 'a') && (ch <= (char)'a' + MAX_SMITHING_TVALS - 1))
     {
         int old_highlight = *highlight;
 
         *highlight = (int)ch - 'a' + 1;
 
-        strnfmt(buf, 80, "%c)", (char)'a' + old_highlight - 1);
+        indexed_menu_normal_prefix(buf, sizeof(buf), old_highlight - 1);
         Term_putstr(COL_SMT2, smith_ui_dense_highlight_row(old_highlight), -1,
             valid[old_highlight - 1] ? TERM_WHITE : TERM_L_DARK, buf);
-        strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
+        indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
         Term_putstr(COL_SMT2, smith_ui_dense_highlight_row(*highlight), -1,
             TERM_L_BLUE, buf);
 
@@ -7957,32 +8152,29 @@ int numbers_menu_aux(int* highlight)
                            : TERM_L_DARK;
     }
 
-    Term_putstr(COL_SMT2, 2, -1, attr[SMT_NUM_MENU_I_ATT - 1],
-        "a) increase attack bonus");
-    Term_putstr(COL_SMT2, 3, -1, attr[SMT_NUM_MENU_D_ATT - 1],
-        "b) decrease attack bonus");
-    Term_putstr(COL_SMT2, 4, -1, attr[SMT_NUM_MENU_I_DS - 1],
-        "c) increase damage sides");
-    Term_putstr(COL_SMT2, 5, -1, attr[SMT_NUM_MENU_D_DS - 1],
-        "d) decrease damage sides");
-    Term_putstr(COL_SMT2, 6, -1, attr[SMT_NUM_MENU_I_EVN - 1],
-        "e) increase evasion bonus");
-    Term_putstr(COL_SMT2, 7, -1, attr[SMT_NUM_MENU_D_EVN - 1],
-        "f) decrease evasion bonus");
-    Term_putstr(COL_SMT2, 8, -1, attr[SMT_NUM_MENU_I_PS - 1],
-        "g) increase protection");
-    Term_putstr(COL_SMT2, 9, -1, attr[SMT_NUM_MENU_D_PS - 1],
-        "h) decrease protection");
-    Term_putstr(
-        COL_SMT2, 10, -1, attr[SMT_NUM_MENU_I_WGT - 1], "i) increase weight");
-    Term_putstr(
-        COL_SMT2, 11, -1, attr[SMT_NUM_MENU_D_WGT - 1], "j) decrease weight");
-    Term_putstr(COL_SMT2, 12, -1, attr[SMT_NUM_MENU_ALLOY_CYCLE - 1],
-        "k) cycle alloy (none/mithril/star iron)");
-    Term_putstr(COL_SMT2, 13, -1, attr[SMT_NUM_MENU_ALLOY_CLEAR - 1],
-        "l) remove alloy bonus");
-    Term_putstr(COL_SMT2, 14, -1, attr[SMT_NUM_MENU_EDIT_BONUSES - 1],
-        "m) adjust special bonuses");
+    {
+        static cptr number_menu_labels[SMT_NUM_MENU_MAX] = {
+            "increase attack bonus",
+            "decrease attack bonus",
+            "increase damage sides",
+            "decrease damage sides",
+            "increase evasion bonus",
+            "decrease evasion bonus",
+            "increase protection",
+            "decrease protection",
+            "increase weight",
+            "decrease weight",
+            "cycle alloy (none/mithril/star iron)",
+            "remove alloy bonus",
+            "adjust special bonuses",
+        };
+
+        for (i = 0; i < SMT_NUM_MENU_MAX; i++)
+        {
+            indexed_menu_entry_label(buf, sizeof(buf), i, number_menu_labels[i]);
+            Term_putstr(COL_SMT2, i + 2, -1, attr[i], buf);
+        }
+    }
     if (alloy_applicable)
     {
         byte info_attr = has_alloy_mastery ? TERM_SLATE : TERM_L_DARK;
@@ -8011,7 +8203,7 @@ int numbers_menu_aux(int* highlight)
     }
 
     // highlight the label
-    strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
+    indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
     Term_putstr(COL_SMT2, *highlight + 1, -1, TERM_L_BLUE, buf);
 
     // display the object difficulty
@@ -8032,7 +8224,8 @@ int numbers_menu_aux(int* highlight)
     hide_cursor = false;
 
     // choose an option by letter
-    if ((ch >= 'a') && (ch <= (char)'a' + SMT_NUM_MENU_MAX - 1))
+    if (!steamdeck_controls_active()
+        && (ch >= 'a') && (ch <= (char)'a' + SMT_NUM_MENU_MAX - 1))
     {
         int old_highlight = *highlight;
 
@@ -8417,14 +8610,16 @@ static int smith_bonus_menu_aux(int* highlight)
         int row = first_row + (entry_idx - top);
         if (row >= first_row && row <= max_row)
         {
-            strnfmt(buf, sizeof(buf), "%c) %s %-12s (%+d)", (char)'a' + i, verb,
-                name, value);
+            char action_label[80];
+            strnfmt(action_label, sizeof(action_label), "%s %-12s (%+d)",
+                verb, name, value);
+            indexed_menu_entry_label(buf, sizeof(buf), i, action_label);
             Term_putstr(COL_SMT2, row, -1, attr[i], buf);
         }
     }
 
     int hl_row = first_row + (*highlight - top);
-    strnfmt(buf, sizeof(buf), "%c)", (char)'a' + *highlight - 1);
+    indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
     Term_putstr(COL_SMT2, hl_row, -1, TERM_L_BLUE, buf);
 
     prt_object_difficulty();
@@ -8440,7 +8635,8 @@ static int smith_bonus_menu_aux(int* highlight)
     if ((ch == '4') || (ch == ESCAPE))
         return -1;
 
-    if ((ch >= 'a') && (ch <= (char)'a' + num - 1))
+    if (!steamdeck_controls_active()
+        && (ch >= 'a') && (ch <= (char)'a' + num - 1))
     {
         int old_highlight = *highlight;
 
@@ -8730,7 +8926,7 @@ static int reforge_prefix_menu(const object_type* source)
             choice[entry_count] = i;
 
             ego_name_for_enchant_menu(i, ego_label, sizeof(ego_label));
-            strnfmt(buf, sizeof(buf), "%c) %s", (char)'a' + entry_count, ego_label);
+            indexed_menu_entry_label(buf, sizeof(buf), entry_count, ego_label);
             Term_putstr(COL_SMT2, entry_count + 2, -1,
                 valid[entry_count] ? TERM_WHITE : TERM_L_DARK, buf);
             entry_count++;
@@ -8751,7 +8947,7 @@ static int reforge_prefix_menu(const object_type* source)
         if (highlight < 1) highlight = 1;
         if (highlight > entry_count) highlight = entry_count;
 
-        strnfmt(buf, sizeof(buf), "%c)", (char)'a' + highlight - 1);
+        indexed_menu_focus_prefix(buf, sizeof(buf), highlight - 1);
         Term_putstr(COL_SMT2, highlight + 1, -1, TERM_L_BLUE, buf);
 
         (void)reforge_preview_build(source, choice[highlight - 1],
@@ -8766,7 +8962,8 @@ static int reforge_prefix_menu(const object_type* source)
         ch = inkey();
         hide_cursor = false;
 
-        if ((ch >= 'a') && (ch <= (char)'a' + entry_count - 1))
+        if (!steamdeck_controls_active()
+            && (ch >= 'a') && (ch <= (char)'a' + entry_count - 1))
         {
             highlight = (int)ch - 'a' + 1;
             if (!valid[highlight - 1])
@@ -8890,7 +9087,7 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix,
     /* Always allow selecting no affix */
     valid[entry_count] = true;
     choice[entry_count] = 0;
-    strnfmt(buf, sizeof(buf), "%c) %s", (char)'a' + entry_count, "(none)");
+    indexed_menu_entry_label(buf, sizeof(buf), entry_count, "(none)");
     Term_putstr(COL_SMT2, entry_count + 2, -1, TERM_WHITE, buf);
     entry_count++;
 
@@ -8926,7 +9123,7 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix,
             /* Print it */
             char ego_label[64];
             ego_name_for_enchant_menu(i, ego_label, sizeof(ego_label));
-            strnfmt(buf, sizeof(buf), "%c) %s", (char)'a' + entry_count, ego_label);
+            indexed_menu_entry_label(buf, sizeof(buf), entry_count, ego_label);
             Term_putstr(COL_SMT2, entry_count + 2, -1,
                 valid[entry_count] ? TERM_WHITE : TERM_SLATE, buf);
 
@@ -8942,7 +9139,7 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix,
     if (*highlight > entry_count) *highlight = entry_count;
 
     // highlight the label
-    strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
+    indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
     Term_putstr(COL_SMT2, *highlight + 1, -1, TERM_L_BLUE, buf);
 
     /* Make a preview 'special' version of the object */
@@ -8969,7 +9166,8 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix,
     hide_cursor = false;
 
     /* Choose by letter */
-    if ((ch >= 'a') && (ch <= (char)'a' + entry_count - 1))
+    if (!steamdeck_controls_active()
+        && (ch >= 'a') && (ch <= (char)'a' + entry_count - 1))
     {
         *highlight = (int)ch - 'a' + 1;
 
@@ -9425,7 +9623,7 @@ int artefact_flag_menu_aux(int category, int* highlight)
                         : TERM_L_DARK);
 
             /* Display the line */
-            strnfmt(buf, 80, "%c) %s", (char)'a' + num,
+            indexed_menu_entry_label(buf, sizeof(buf), num,
                 smithing_flag_types[i].desc);
             Term_putstr(COL_SMT3, num + 2, -1, attr, buf);
 
@@ -9434,7 +9632,7 @@ int artefact_flag_menu_aux(int category, int* highlight)
     }
 
     // highlight the label
-    strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
+    indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
     Term_putstr(COL_SMT3, *highlight + 1, -1, TERM_L_BLUE, buf);
 
     // add this flag to the dummy artefact under construction
@@ -9464,7 +9662,8 @@ int artefact_flag_menu_aux(int category, int* highlight)
     }
 
     /* Choose by letter */
-    if ((ch >= 'a') && (ch <= (char)'a' + num - 1))
+    if (!steamdeck_controls_active()
+        && (ch >= 'a') && (ch <= (char)'a' + num - 1))
     {
         int new_highlight = (int)ch - 'a' + 1;
 
@@ -9856,14 +10055,14 @@ int artefact_ability_menu_aux(int skill, int* highlight)
                     : TERM_L_DARK);
 
         /* Display the line */
-        strnfmt(buf, 80, "%c) %s", (char)'a' + num, b_name + b_ptr->name);
+        indexed_menu_entry_label(buf, sizeof(buf), num, b_name + b_ptr->name);
         Term_putstr(COL_SMT3, num + 2, -1, attr, buf);
 
         num++;
     }
 
     // highlight the label
-    strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
+    indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
     Term_putstr(COL_SMT3, *highlight + 1, -1, TERM_L_BLUE, buf);
 
     // add this ability to the dummy artefact under construction (use actual ability number)
@@ -9893,7 +10092,8 @@ int artefact_ability_menu_aux(int skill, int* highlight)
     }
 
     /* Choose by letter */
-    if ((ch >= 'a') && (ch <= (char)'a' + num - 1))
+    if (!steamdeck_controls_active()
+        && (ch >= 'a') && (ch <= (char)'a' + num - 1))
     {
         int new_highlight = (int)ch - 'a' + 1;
 
@@ -10111,7 +10311,7 @@ int artefact_menu_aux(int* highlight)
     // display the categories for flags
     for (i = 0; i < MAX_CATS; i++)
     {
-        strnfmt(buf, 80, "%c) %s", (char)'a' + i, smithing_flag_cats[i].desc);
+        indexed_menu_entry_label(buf, sizeof(buf), i, smithing_flag_cats[i].desc);
         Term_putstr(COL_SMT2, smith_ui_dense_row(i), -1, TERM_WHITE, buf);
     }
 
@@ -10122,8 +10322,8 @@ int artefact_menu_aux(int* highlight)
         /* Skip Special abilities - they cannot be smithed onto items */
         if (i == S_SPC) continue;
         
-        strnfmt(
-            buf, 80, "%c) %s", (char)'a' + MAX_CATS + display_idx, skill_names_full[i]);
+        indexed_menu_entry_label(buf, sizeof(buf), MAX_CATS + display_idx,
+            skill_names_full[i]);
         Term_putstr(COL_SMT2, smith_ui_dense_row(MAX_CATS + display_idx), -1,
             TERM_WHITE, buf);
         display_idx++;
@@ -10132,11 +10332,11 @@ int artefact_menu_aux(int* highlight)
     num = MAX_CATS + display_idx + 1;
 
     // Menu item for naming artefacts
-    strnfmt(buf, 80, "%c) %s", (char)'a' + num - 1, "Name Artefact");
+    indexed_menu_entry_label(buf, sizeof(buf), num - 1, "Name Artefact");
     Term_putstr(COL_SMT2, smith_ui_dense_row(num - 1), -1, TERM_WHITE, buf);
 
     // highlight the label
-    strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
+    indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
     Term_putstr(COL_SMT2, smith_ui_dense_highlight_row(*highlight), -1,
         TERM_L_BLUE, buf);
 
@@ -10158,16 +10358,17 @@ int artefact_menu_aux(int* highlight)
     hide_cursor = false;
 
     /* Choose by letter */
-    if ((ch >= 'a') && (ch <= (char)'a' + num - 1))
+    if (!steamdeck_controls_active()
+        && (ch >= 'a') && (ch <= (char)'a' + num - 1))
     {
         int old_highlight = *highlight;
 
         *highlight = (int)ch - 'a' + 1;
 
-        strnfmt(buf, 80, "%c)", (char)'a' + old_highlight - 1);
+        indexed_menu_normal_prefix(buf, sizeof(buf), old_highlight - 1);
         Term_putstr(COL_SMT2, smith_ui_dense_highlight_row(old_highlight), -1,
             TERM_WHITE, buf);
-        strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
+        indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
         Term_putstr(COL_SMT2, smith_ui_dense_highlight_row(*highlight), -1,
             TERM_L_BLUE, buf);
 
@@ -10323,7 +10524,7 @@ int melt_menu_aux(int* highlight)
         if ((f3 & (TR3_MITHRIL | TR3_STAR_IRON)) && !(o_ptr->ident & IDENT_CANT_MELT))
         {
             object_desc(desc, 80, o_ptr, false, 2);
-            strnfmt(buf, 80, "%c) %s", (char)'a' + num, desc);
+            indexed_menu_entry_label(buf, sizeof(buf), num, desc);
 
             Term_putstr(COL_SMT2, smith_ui_dense_row(num), -1, TERM_WHITE, buf);
 
@@ -10340,7 +10541,7 @@ int melt_menu_aux(int* highlight)
     }
 
     // highlight the label
-    strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
+    indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
     Term_putstr(COL_SMT2, smith_ui_dense_highlight_row(*highlight), -1,
         TERM_L_BLUE, buf);
 
@@ -10356,7 +10557,8 @@ int melt_menu_aux(int* highlight)
     hide_cursor = false;
 
     // choose an option by letter
-    if ((ch >= 'a') && (ch <= (char)'a' + num - 1))
+    if (!steamdeck_controls_active()
+        && (ch >= 'a') && (ch <= (char)'a' + num - 1))
     {
         int old_highlight = *highlight;
 
@@ -10624,33 +10826,41 @@ int smithing_menu_aux(int* highlight)
                      || p_ptr->active_ability[S_SMT][SMT_JEWELLER])
         ? TERM_WHITE
         : TERM_RED;
+    indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_CREATE - 1, "Base Item");
     Term_putstr(COL_SMT1, 2, -1,
-        valid[SMT_MENU_CREATE - 1] ? valid_attr : TERM_L_DARK, "a) Base Item");
+        valid[SMT_MENU_CREATE - 1] ? valid_attr : TERM_L_DARK, buf);
     valid_attr = (p_ptr->active_ability[S_SMT][SMT_ENCHANTMENT]) ? TERM_WHITE
                                                                  : TERM_RED;
+    indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_ENCHANT - 1, "Enchant");
     Term_putstr(COL_SMT1, 3, -1,
-        valid[SMT_MENU_ENCHANT - 1] ? valid_attr : TERM_L_DARK, "b) Enchant");
+        valid[SMT_MENU_ENCHANT - 1] ? valid_attr : TERM_L_DARK, buf);
     valid_attr
         = (p_ptr->active_ability[S_SMT][SMT_ARTEFACT]) ? TERM_WHITE : TERM_RED;
+    indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_ARTEFACT - 1, "Artifice");
     Term_putstr(COL_SMT1, 4, -1,
-        valid[SMT_MENU_ARTEFACT - 1] ? valid_attr : TERM_L_DARK, "c) Artifice");
+        valid[SMT_MENU_ARTEFACT - 1] ? valid_attr : TERM_L_DARK, buf);
+    indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_NUMBERS - 1, "Numbers");
     Term_putstr(COL_SMT1, 5, -1,
-        valid[SMT_MENU_NUMBERS - 1] ? TERM_WHITE : TERM_L_DARK, "d) Numbers");
+        valid[SMT_MENU_NUMBERS - 1] ? TERM_WHITE : TERM_L_DARK, buf);
+    indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_MELT - 1, "Melt");
     Term_putstr(COL_SMT1, 6, -1,
-        valid[SMT_MENU_MELT - 1] ? TERM_WHITE : TERM_L_DARK, "e) Melt");
+        valid[SMT_MENU_MELT - 1] ? TERM_WHITE : TERM_L_DARK, buf);
     valid_attr = p_ptr->active_ability[S_SMT][SMT_REPAIR] ? TERM_WHITE : TERM_RED;
+    indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_REPAIR - 1, "Reforge");
     Term_putstr(COL_SMT1, 7, -1,
-        valid[SMT_MENU_REPAIR - 1] ? valid_attr : TERM_L_DARK, "f) Reforge");
+        valid[SMT_MENU_REPAIR - 1] ? valid_attr : TERM_L_DARK, buf);
 
     if (p_ptr->smithing_leftover == 0)
     {
+        indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_ACCEPT - 1, "Accept");
         Term_putstr(COL_SMT1, 8, -1,
-            valid[SMT_MENU_ACCEPT - 1] ? TERM_WHITE : TERM_L_DARK, "g) Accept");
+            valid[SMT_MENU_ACCEPT - 1] ? TERM_WHITE : TERM_L_DARK, buf);
     }
     else
     {
+        indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_ACCEPT - 1, "Resume");
         Term_putstr(COL_SMT1, 8, -1,
-            valid[SMT_MENU_ACCEPT - 1] ? TERM_WHITE : TERM_L_DARK, "g) Resume");
+            valid[SMT_MENU_ACCEPT - 1] ? TERM_WHITE : TERM_L_DARK, buf);
     }
 
     // display information about the selected item
@@ -10746,7 +10956,7 @@ int smithing_menu_aux(int* highlight)
     }
 
     // highlight the label
-    strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
+    indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
     Term_putstr(COL_SMT1, *highlight + 1, -1, TERM_L_BLUE, buf);
 
     // display the object difficulty
@@ -10767,7 +10977,8 @@ int smithing_menu_aux(int* highlight)
     hide_cursor = false;
 
     // choose an option by letter
-    if ((ch >= 'a') && (ch <= (char)'a' + SMT_MENU_MAX - 1))
+    if (!steamdeck_controls_active()
+        && (ch >= 'a') && (ch <= (char)'a' + SMT_MENU_MAX - 1))
     {
         int old_highlight = *highlight;
 
@@ -11196,6 +11407,7 @@ void create_smithing_item(void)
 #define MAIN_MENU_RETURN_GAME 16
 
 #define MAIN_MENU_MAX 16
+#define MAIN_MENU_LABEL_WIDTH 21
 
 typedef struct main_menu_about_line
 {
@@ -11209,32 +11421,173 @@ typedef struct main_menu_about_span
     cptr text;
 } main_menu_about_span;
 
+static cptr main_menu_title(int choice)
+{
+    switch (choice)
+    {
+    case MAIN_MENU_CHARACTER: return "Character sheet";
+    case MAIN_MENU_KNOWLEDGE: return "Known lore";
+    case MAIN_MENU_QUEST_STATUS: return "Quest status";
+    case MAIN_MENU_HALLS_OF_MANDOS: return "Halls of Mandos";
+    case MAIN_MENU_RUN_HISTORY: return "Run history";
+    case MAIN_MENU_MAP: return "Map";
+    case MAIN_MENU_LOG: return "Log";
+    case MAIN_MENU_COMBAT_HISTORY: return "Combat history";
+    case MAIN_MENU_HINT_MESSAGES: return "Hint messages";
+    case MAIN_MENU_STORY: return "The story so far";
+    case MAIN_MENU_OPTIONS: return "Options and misc";
+    case MAIN_MENU_HELP: return "Help";
+    case MAIN_MENU_ABOUT: return "About";
+    case MAIN_MENU_SAVE: return "Save";
+    case MAIN_MENU_SAVE_QUIT: return "Quit with save";
+    case MAIN_MENU_RETURN_GAME: return "Return to game";
+    default: return "";
+    }
+}
+
+static int main_menu_keyboard_key(int choice)
+{
+    switch (choice)
+    {
+    case MAIN_MENU_CHARACTER: return 'c';
+    case MAIN_MENU_KNOWLEDGE: return 'a';
+    case MAIN_MENU_QUEST_STATUS: return 't';
+    case MAIN_MENU_HALLS_OF_MANDOS: return 'd';
+    case MAIN_MENU_RUN_HISTORY: return 'v';
+    case MAIN_MENU_MAP: return 'm';
+    case MAIN_MENU_LOG: return 'l';
+    case MAIN_MENU_COMBAT_HISTORY: return 'x';
+    case MAIN_MENU_HINT_MESSAGES: return 'i';
+    case MAIN_MENU_STORY: return 'y';
+    case MAIN_MENU_OPTIONS: return 'o';
+    case MAIN_MENU_HELP: return 'h';
+    case MAIN_MENU_ABOUT: return 'b';
+    case MAIN_MENU_SAVE: return 's';
+    case MAIN_MENU_SAVE_QUIT: return 'q';
+    case MAIN_MENU_RETURN_GAME: return 'r';
+    default: return 0;
+    }
+}
+
+static bool main_menu_controller_binding_for_choice(int choice, int* type,
+    int* id, const char** fallback)
+{
+    int out_type = GAMEPAD_CAPTURE_BUTTON;
+    int out_id = -1;
+    const char* out_fallback = "";
+
+    switch (choice)
+    {
+    case MAIN_MENU_HALLS_OF_MANDOS:
+        out_id = SDL_GAMEPAD_BUTTON_LEFT_SHOULDER; /* L1 */
+        out_fallback = "L1";
+        break;
+    case MAIN_MENU_LOG:
+        out_id = SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER; /* R1 */
+        out_fallback = "R1";
+        break;
+    case MAIN_MENU_HINT_MESSAGES:
+        out_id = SDL_GAMEPAD_BUTTON_NORTH;         /* Y */
+        out_fallback = "Y";
+        break;
+    case MAIN_MENU_SAVE:
+        out_id = SDL_GAMEPAD_BUTTON_WEST;          /* X */
+        out_fallback = "X";
+        break;
+    default:
+        return false;
+    }
+
+    if (type)
+        *type = out_type;
+    if (id)
+        *id = out_id;
+    if (fallback)
+        *fallback = out_fallback;
+
+    return true;
+}
+
+static int main_menu_controller_choice_from_key(int key)
+{
+    if (!steamdeck_controls_active())
+        return 0;
+
+    for (int choice = 1; choice <= MAIN_MENU_MAX; choice++)
+    {
+        int type = 0;
+        int id = 0;
+        int binding;
+
+        if (!main_menu_controller_binding_for_choice(choice, &type, &id, NULL))
+            continue;
+
+        binding = (type == GAMEPAD_CAPTURE_TRIGGER)
+            ? get_sdl_gamepad_trigger_binding(id)
+            : get_sdl_gamepad_button_binding(id);
+
+        if (key == binding)
+            return choice;
+    }
+
+    return 0;
+}
+
+static void main_menu_controller_label(int choice, char* buf, size_t buflen)
+{
+    int type = 0;
+    int id = 0;
+    int binding;
+    const char* fallback = "";
+
+    if (!buf || !buflen)
+        return;
+
+    buf[0] = '\0';
+
+    if (!main_menu_controller_binding_for_choice(choice, &type, &id, &fallback))
+        return;
+
+    binding = (type == GAMEPAD_CAPTURE_TRIGGER)
+        ? get_sdl_gamepad_trigger_binding(id)
+        : get_sdl_gamepad_button_binding(id);
+
+    controller_prompt_label(binding, fallback, buf, buflen);
+}
+
+static void main_menu_format_line(int choice, char* buf, size_t buflen)
+{
+    char label[24];
+
+    if (!buf || !buflen)
+        return;
+
+    if (steamdeck_controls_active())
+    {
+        main_menu_controller_label(choice, label, sizeof(label));
+        if (label[0])
+            strnfmt(buf, buflen, "%-*s [%s]", MAIN_MENU_LABEL_WIDTH,
+                main_menu_title(choice), label);
+        else
+            strnfmt(buf, buflen, "%s", main_menu_title(choice));
+    }
+    else
+    {
+        strnfmt(buf, buflen, "%-*s (%c)", MAIN_MENU_LABEL_WIDTH,
+            main_menu_title(choice), main_menu_keyboard_key(choice));
+    }
+}
+
 static int main_menu_calc_width(void)
 {
-    /* Keep in sync with the strings printed in main_menu_aux(). */
-    static const char* lines[] = {
-        "Character sheet      (c)",
-        "Known lore           (a)",
-        "Quest status         (t)",
-        "Halls of Mandos      (d)",
-        "Run history          (v)",
-        "Map                  (m)",
-        "Log                  (l)",
-        "Combat history       (x)",
-        "Hint messages        (i)",
-        "The story so far     (y)",
-        "Options and misc     (o)",
-        "Help                 (h)",
-        "About                (b)",
-        "Save                 (s)",
-        "Quit with save       (q)",
-        "Return to game       (r)",
-    };
-
     int max_w = 0;
-    for (int i = 0; i < (int)(sizeof(lines) / sizeof(lines[0])); i++)
+    for (int i = 1; i <= MAIN_MENU_MAX; i++)
     {
-        int w = (int)strlen(lines[i]);
+        char line[80];
+        int w;
+
+        main_menu_format_line(i, line, sizeof(line));
+        w = (int)strlen(line);
         if (w > max_w)
             max_w = w;
     }
@@ -11577,56 +11930,17 @@ int main_menu_aux(int* highlight)
             Term_erase(clear_x, y, clear_w);
     }
 
-    Term_putstr(col_main, row_top + row_first + 0, -1,
-        (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
-        "Character sheet      (c)");
-    Term_putstr(col_main, row_top + row_first + 1, -1,
-        (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
-        "Known lore           (a)");
-    Term_putstr(col_main, row_top + row_first + 2, -1,
-        (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
-        "Quest status         (t)");
-    Term_putstr(col_main, row_top + row_first + 3, -1,
-        (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
-        "Halls of Mandos      (d)");
-    Term_putstr(col_main, row_top + row_first + 4, -1,
-        (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
-        "Run history          (v)");
-    Term_putstr(col_main, row_top + row_first + 5, -1,
-        (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
-        "Map                  (m)");
-    Term_putstr(col_main, row_top + row_first + 6, -1,
-        (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
-        "Log                  (l)");
-    Term_putstr(col_main, row_top + row_first + 7, -1,
-        (*highlight == 8) ? TERM_L_BLUE : TERM_WHITE,
-        "Combat history       (x)");
-    Term_putstr(col_main, row_top + row_first + 8, -1,
-        (*highlight == 9) ? TERM_L_BLUE : TERM_WHITE,
-        "Hint messages        (i)");
-    Term_putstr(col_main, row_top + row_first + 9, -1,
-        (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
-        "The story so far     (y)");
-    Term_putstr(col_main, row_top + row_first + 10, -1,
-        (*highlight == MAIN_MENU_OPTIONS) ? TERM_L_BLUE : TERM_WHITE,
-        "Options and misc     (o)");
-    Term_putstr(col_main, row_top + row_first + 11, -1,
-        (*highlight == MAIN_MENU_HELP) ? TERM_L_BLUE : TERM_WHITE,
-        "Help                 (h)");
-    byte about_color = (*highlight == MAIN_MENU_ABOUT) ? TERM_L_BLUE : TERM_WHITE;
-    Term_putstr(col_main, row_top + row_first + 12, -1, about_color,
-        "About                (b)");
-    byte save_color = death_view ? TERM_L_DARK
-        : ((*highlight == MAIN_MENU_SAVE) ? TERM_L_BLUE : TERM_WHITE);
-    Term_putstr(col_main, row_top + row_first + 13, -1, save_color,
-        "Save                 (s)");
-    byte quit_color = death_view ? TERM_L_DARK
-        : ((*highlight == MAIN_MENU_SAVE_QUIT) ? TERM_L_BLUE : TERM_WHITE);
-    Term_putstr(col_main, row_top + row_first + 14, -1, quit_color,
-        "Quit with save       (q)");
-    Term_putstr(col_main, row_top + row_first + 15, -1,
-        (*highlight == MAIN_MENU_RETURN_GAME) ? TERM_L_BLUE : TERM_WHITE,
-        "Return to game       (r)");
+    for (i = 1; i <= MAIN_MENU_MAX; i++)
+    {
+        char line[80];
+        byte color = (*highlight == i) ? TERM_L_BLUE : TERM_WHITE;
+
+        if (death_view && main_menu_choice_is_disabled(i))
+            color = TERM_L_DARK;
+
+        main_menu_format_line(i, line, sizeof(line));
+        Term_putstr(col_main, row_top + row_first + i - 1, -1, color, line);
+    }
 
     if (steamdeck && Term)
     {
@@ -11672,65 +11986,79 @@ int main_menu_aux(int* highlight)
     ch = inkey();
     hide_cursor = false;
 
-    // choose an option by letter - alphabetical mapping (updated for new order)
-    switch (ch)
+    if (steamdeck)
     {
-    case 'c':
-        *highlight = 1;
-        return (*highlight);  // Character sheet
-    case 'a':
-        *highlight = 2;
-        return (*highlight);  // Known lore
-    case 't':
-        *highlight = 3;
-        return (*highlight);  // Quest status
-    case 'd':
-        *highlight = 4;
-        return (*highlight);  // Halls of Mandos
-    case 'v':
-        *highlight = 5;
-        return (*highlight);  // Run history
-    case 'm':
-        *highlight = 6;
-        return (*highlight);  // Map
-    case 'l':
-        *highlight = 7;
-        return (*highlight);  // Log
-    case 'x':
-        *highlight = 8;
-        return (*highlight); // Combat history
-    case 'i':
-        *highlight = 9;
-        return (*highlight); // Hint messages
-    case 'y':
-        *highlight = 10;
-        return (*highlight); // The story so far
-    case 'o':
-        *highlight = MAIN_MENU_OPTIONS;
-        return (*highlight); // Options and misc
-    case 'h':
-        *highlight = MAIN_MENU_HELP;
-        return (*highlight); // Help
-    case 'b':
-        *highlight = MAIN_MENU_ABOUT;
-        return (*highlight); // About
-    case 's':
-        if (death_view) {
-            msg_print("You can no longer take that action.");
-            break;
+        int controller_choice = main_menu_controller_choice_from_key(ch);
+
+        if (controller_choice > 0)
+        {
+            *highlight = controller_choice;
+            return (*highlight);
         }
-        *highlight = MAIN_MENU_SAVE;
-        return (*highlight); // Save
-    case 'q':
-        if (death_view) {
-            msg_print("You can no longer take that action.");
-            break;
+    }
+
+    // choose an option by letter - alphabetical mapping (updated for new order)
+    if (!steamdeck)
+    {
+        switch (ch)
+        {
+        case 'c':
+            *highlight = 1;
+            return (*highlight);  // Character sheet
+        case 'a':
+            *highlight = 2;
+            return (*highlight);  // Known lore
+        case 't':
+            *highlight = 3;
+            return (*highlight);  // Quest status
+        case 'd':
+            *highlight = 4;
+            return (*highlight);  // Halls of Mandos
+        case 'v':
+            *highlight = 5;
+            return (*highlight);  // Run history
+        case 'm':
+            *highlight = 6;
+            return (*highlight);  // Map
+        case 'l':
+            *highlight = 7;
+            return (*highlight);  // Log
+        case 'x':
+            *highlight = 8;
+            return (*highlight); // Combat history
+        case 'i':
+            *highlight = 9;
+            return (*highlight); // Hint messages
+        case 'y':
+            *highlight = 10;
+            return (*highlight); // The story so far
+        case 'o':
+            *highlight = MAIN_MENU_OPTIONS;
+            return (*highlight); // Options and misc
+        case 'h':
+            *highlight = MAIN_MENU_HELP;
+            return (*highlight); // Help
+        case 'b':
+            *highlight = MAIN_MENU_ABOUT;
+            return (*highlight); // About
+        case 's':
+            if (death_view) {
+                msg_print("You can no longer take that action.");
+                break;
+            }
+            *highlight = MAIN_MENU_SAVE;
+            return (*highlight); // Save
+        case 'q':
+            if (death_view) {
+                msg_print("You can no longer take that action.");
+                break;
+            }
+            *highlight = MAIN_MENU_SAVE_QUIT;
+            return (*highlight); // Quit with save
+        case 'r':
+            *highlight = MAIN_MENU_RETURN_GAME;
+            return (*highlight); // Return to game
         }
-        *highlight = MAIN_MENU_SAVE_QUIT;
-        return (*highlight); // Quit with save
-    case 'r':
-        *highlight = MAIN_MENU_RETURN_GAME;
-        return (*highlight); // Return to game
     }
 
     /* Choose current  */
@@ -17338,6 +17666,8 @@ int options_menu(int* highlight)
     int term_hgt = 24;
     int title_row = 1;
     int row;
+    char line_buf[80];
+    bool steamdeck = steamdeck_controls_active();
     bool allow_debug_menu = false;
 #ifdef SHOW_DEBUG_OPTIONS_MENU
     allow_debug_menu = true;
@@ -17358,31 +17688,43 @@ int options_menu(int* highlight)
 
     Term_putstr(2, title_row, -1, TERM_WHITE, "Options and misc");
 
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'a', "Input Options");
     Term_putstr(2, row++, -1, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
-        "a) Input Options");
+        line_buf);
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'b', "Pane Settings");
     Term_putstr(2, row++, -1, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
-        "b) Pane Settings");
+        line_buf);
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'c', "Interface Options");
     Term_putstr(2, row++, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
-        "c) Interface Options");
+        line_buf);
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'd', "Visual Options");
     Term_putstr(2, row++, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
-        "d) Visual Options");
+        line_buf);
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'e', "Text Options");
     Term_putstr(2, row++, -1, (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
-        "e) Text Options");
+        line_buf);
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'f', "Gameplay Options");
     Term_putstr(2, row++, -1, (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
-        "f) Gameplay Options");
+        line_buf);
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'g', "Sound Options");
     Term_putstr(2, row++, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
-        "g) Sound Options");
+        line_buf);
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'h', "Efficiency Options");
     Term_putstr(2, row++, -1, (*highlight == 8) ? TERM_L_BLUE : TERM_WHITE,
-        "h) Efficiency Options");
+        line_buf);
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'i', "Legacy Options");
     Term_putstr(2, row++, -1, (*highlight == 9) ? TERM_L_BLUE : TERM_WHITE,
-        "i) Legacy Options");
+        line_buf);
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'o', "Return to Game");
     Term_putstr(2, row++, -1, (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
-        "o) Return to Game");
+        line_buf);
 
     if (allow_debug_menu && p_ptr->noscore)
     {
+        keyed_menu_entry_label(line_buf, sizeof(line_buf), 'p',
+            "Debugging Options");
         Term_putstr(2, row++, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
-            "p) Debugging Options");
+            line_buf);
     }
 
     /* Show product name and version on the bottom of the menu */
@@ -17404,74 +17746,77 @@ int options_menu(int* highlight)
     ch = inkey();
     hide_cursor = false;
 
-    if ((ch == 'a') || (ch == 'A'))
+    if (!steamdeck && ((ch == 'a') || (ch == 'A')))
     {
         *highlight = 1;
         return (1);
     }
 
-    if ((ch == 'b') || (ch == 'B'))
+    if (!steamdeck && ((ch == 'b') || (ch == 'B')))
     {
         *highlight = 2;
         return (2);
     }
 
-    if ((ch == 'c') || (ch == 'C'))
+    if (!steamdeck && ((ch == 'c') || (ch == 'C')))
     {
         *highlight = 3;
         return (3);
     }
 
-    if ((ch == 'd') || (ch == 'D'))
+    if (!steamdeck && ((ch == 'd') || (ch == 'D')))
     {
         *highlight = 4;
         return (4);
     }
 
-    if ((ch == 'e') || (ch == 'E'))
+    if (!steamdeck && ((ch == 'e') || (ch == 'E')))
     {
         *highlight = 5;
         return (5);
     }
 
-    if ((ch == 'f') || (ch == 'F'))
+    if (!steamdeck && ((ch == 'f') || (ch == 'F')))
     {
         *highlight = 6;
         return (6);
     }
 
-    if ((ch == 'g') || (ch == 'G'))
+    if (!steamdeck && ((ch == 'g') || (ch == 'G')))
     {
         *highlight = 7;
         return (7);
     }
 
-    if ((ch == 'h') || (ch == 'H'))
+    if (!steamdeck && ((ch == 'h') || (ch == 'H')))
     {
         *highlight = 8;
         return (8);
     }
 
-    if ((ch == 'i') || (ch == 'I'))
+    if (!steamdeck && ((ch == 'i') || (ch == 'I')))
     {
         *highlight = 9;
         return (9);
     }
 
-    if ((ch == 'o') || (ch == 'O') || (ch == ESCAPE) || (ch == 'q'))
+    if ((!steamdeck && ((ch == 'o') || (ch == 'O') || (ch == 'q')))
+        || (ch == ESCAPE) || (steamdeck && ch == steamdeck_back_key()))
     {
         *highlight = 10;
         return (10);
     }
 
-    if (allow_debug_menu && p_ptr->noscore && ((ch == 'p') || (ch == 'P')))
+    if (!steamdeck && allow_debug_menu && p_ptr->noscore
+        && ((ch == 'p') || (ch == 'P')))
     {
         *highlight = 11;
         return (11);
     }
 
     /* Choose current  */
-    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
+    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6')
+        || (steamdeck && ch == steamdeck_confirm_key()))
     {
         return (*highlight);
     }
@@ -17499,6 +17844,8 @@ static int input_options_menu(int* highlight)
     int term_hgt = 24;
     int title_row = 1;
     int row;
+    char line_buf[80];
+    bool steamdeck = steamdeck_controls_active();
 
     Term_get_size(&term_wid, &term_hgt);
     if (term_hgt < 20)
@@ -17513,14 +17860,20 @@ static int input_options_menu(int* highlight)
 
     Term_putstr(2, title_row, -1, TERM_WHITE, "Input Options");
 
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'a', "Set Keybinds");
     Term_putstr(2, row++, -1, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
-        "a) Set Keybinds");
+        line_buf);
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'b',
+        "Controller Settings");
     Term_putstr(2, row++, -1, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
-        "b) Controller Settings");
+        line_buf);
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'c', "Touch Settings");
     Term_putstr(2, row++, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
-        "c) Touch Settings");
+        line_buf);
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'o',
+        "Return to Options");
     Term_putstr(2, row++, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
-        "o) Return to Options");
+        line_buf);
 
     Term_fresh();
     Term_gotoxy(2, title_row + 1 + *highlight);
@@ -17529,31 +17882,33 @@ static int input_options_menu(int* highlight)
     ch = inkey();
     hide_cursor = false;
 
-    if ((ch == 'a') || (ch == 'A'))
+    if (!steamdeck && ((ch == 'a') || (ch == 'A')))
     {
         *highlight = 1;
         return (1);
     }
 
-    if ((ch == 'b') || (ch == 'B'))
+    if (!steamdeck && ((ch == 'b') || (ch == 'B')))
     {
         *highlight = 2;
         return (2);
     }
 
-    if ((ch == 'c') || (ch == 'C'))
+    if (!steamdeck && ((ch == 'c') || (ch == 'C')))
     {
         *highlight = 3;
         return (3);
     }
 
-    if ((ch == 'o') || (ch == 'O') || (ch == ESCAPE) || (ch == 'q'))
+    if ((!steamdeck && ((ch == 'o') || (ch == 'O') || (ch == 'q')))
+        || (ch == ESCAPE) || (steamdeck && ch == steamdeck_back_key()))
     {
         *highlight = 4;
         return (4);
     }
 
-    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
+    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6')
+        || (steamdeck && ch == steamdeck_confirm_key()))
     {
         return (*highlight);
     }
@@ -19134,6 +19489,130 @@ static bool controller_capture_matches_action(int binding, int modifier, int typ
     }
 
     return controller_binding_matches_action(binding, type, id);
+}
+
+static bool controller_first_nonstick_physical_binding(int binding, int* out_type,
+    int* out_id)
+{
+    for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++) {
+        if (i == SDL_GAMEPAD_BUTTON_LEFT_STICK
+            || i == SDL_GAMEPAD_BUTTON_RIGHT_STICK)
+            continue;
+        if (!controller_action_binding_equals(get_sdl_gamepad_button_binding(i),
+                binding))
+            continue;
+
+        if (out_type)
+            *out_type = GAMEPAD_CAPTURE_BUTTON;
+        if (out_id)
+            *out_id = i;
+        return true;
+    }
+
+    for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++) {
+        if (!controller_action_binding_equals(get_sdl_gamepad_trigger_binding(i),
+                binding))
+            continue;
+
+        if (out_type)
+            *out_type = GAMEPAD_CAPTURE_TRIGGER;
+        if (out_id)
+            *out_id = i;
+        return true;
+    }
+
+    if (controller_action_binding_equals(get_sdl_gamepad_shoulder_combo_binding(),
+            binding)) {
+        if (out_type)
+            *out_type = GAMEPAD_CAPTURE_SHOULDER_COMBO;
+        if (out_id)
+            *out_id = 0;
+        return true;
+    }
+
+    return false;
+}
+
+static bool controller_first_nonstick_combo_binding(int binding, int* out_mod_type,
+    int* out_mod_id, int* out_type, int* out_id)
+{
+    static const int modifiers[] = {
+        GAMEPAD_BIND_SHIFT,
+        GAMEPAD_BIND_CTRL,
+        GAMEPAD_BIND_ALT,
+    };
+    static const int combo_types[] = {
+        GAMEPAD_CAPTURE_BUTTON,
+        GAMEPAD_CAPTURE_TRIGGER,
+    };
+
+    for (int i = 0; i < (int)N_ELEMENTS(modifiers); i++) {
+        int mod_type = 0;
+        int mod_id = 0;
+
+        if (!controller_first_nonstick_physical_binding(modifiers[i],
+                &mod_type, &mod_id))
+            continue;
+
+        for (int ti = 0; ti < (int)N_ELEMENTS(combo_types); ti++) {
+            int count = (combo_types[ti] == GAMEPAD_CAPTURE_BUTTON)
+                ? SDL_GAMEPAD_BUTTON_COUNT
+                : GAMEPAD_TRIGGER_COUNT;
+
+            for (int id = 0; id < count; id++) {
+                if (combo_types[ti] == GAMEPAD_CAPTURE_BUTTON
+                    && (id == SDL_GAMEPAD_BUTTON_LEFT_STICK
+                        || id == SDL_GAMEPAD_BUTTON_RIGHT_STICK))
+                    continue;
+
+                if (!controller_action_binding_equals(
+                        get_sdl_gamepad_combo_binding(modifiers[i],
+                            combo_types[ti], id),
+                        binding))
+                    continue;
+
+                if (out_mod_type)
+                    *out_mod_type = mod_type;
+                if (out_mod_id)
+                    *out_mod_id = mod_id;
+                if (out_type)
+                    *out_type = combo_types[ti];
+                if (out_id)
+                    *out_id = id;
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+static void controller_prompt_label_no_sticks(int binding, const char* fallback,
+    char* buf, size_t buflen)
+{
+    int type = 0;
+    int id = 0;
+    int mod_type = 0;
+    int mod_id = 0;
+
+    if (!buf || !buflen)
+        return;
+
+    if (controller_first_nonstick_physical_binding(binding, &type, &id))
+    {
+        controller_binding_short_label(type, id, buf, buflen);
+        return;
+    }
+
+    if (controller_first_nonstick_combo_binding(binding, &mod_type, &mod_id,
+            &type, &id))
+    {
+        controller_combo_binding_short_label(mod_type, mod_id, type, id, buf,
+            buflen);
+        return;
+    }
+
+    SDL_strlcpy(buf, fallback ? fallback : "", buflen);
 }
 
 static void controller_prompt_label(int binding, const char* fallback, char* buf, size_t buflen)

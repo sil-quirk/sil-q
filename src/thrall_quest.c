@@ -1446,6 +1446,7 @@ static int choose_thrall_reward(monster_type* m_ptr, bool pending_reward)
     int info_row;
     int prompt_row;
     char key;
+    bool steamdeck = steamdeck_controls_active();
 
     if (!m_ptr)
         return THRALL_REWARD_LATER;
@@ -1522,7 +1523,9 @@ static int choose_thrall_reward(monster_type* m_ptr, bool pending_reward)
                 (i == selected) ? "> " : "  ");
 
             Term_putstr(2, row, MAX(0, term_wid - 2), attr,
-                format("%c) %s", options[i].hotkey, options[i].label));
+                steamdeck ? format("   %s", options[i].label)
+                          : format("%c) %s", options[i].hotkey,
+                                options[i].label));
         }
 
         if (info_row > intro_row)
@@ -1533,8 +1536,11 @@ static int choose_thrall_reward(monster_type* m_ptr, bool pending_reward)
         }
 
         Term_putstr(0, prompt_row, term_wid, TERM_L_DARK,
-            compact ? "8/2 move  Enter choose  ESC later" :
-            "8/2 or arrows navigate  Enter accept  Letter select  ESC later");
+            steamdeck
+                ? (compact ? "D-pad move  A choose  B later"
+                           : "D-pad navigate  A accept  B later")
+                : (compact ? "8/2 move  Enter choose  ESC later"
+                           : "8/2 or arrows navigate  Enter accept  Letter select  ESC later"));
 
         Term_fresh();
 
@@ -1584,6 +1590,27 @@ static int choose_thrall_reward(monster_type* m_ptr, bool pending_reward)
             return options[selected].reward;
 
         default:
+            if (steamdeck && key == steamdeck_back_key())
+            {
+                screen_load();
+                return THRALL_REWARD_LATER;
+            }
+
+            if (steamdeck && key == steamdeck_confirm_key())
+            {
+                if (!options[selected].enabled)
+                {
+                    bell("That reward is not available.");
+                    break;
+                }
+
+                screen_load();
+                return options[selected].reward;
+            }
+
+            if (steamdeck)
+                break;
+
             key = (char)tolower((unsigned char)key);
 
             for (int i = 0; i < option_count; i++)

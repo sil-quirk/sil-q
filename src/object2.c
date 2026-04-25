@@ -572,6 +572,12 @@ bool inven_carry_limit_can_replace(const object_type* o_ptr)
     if (!o_ptr)
         return false;
 
+    if (carry_limit_last_group == INV_LIMIT_SUPPLY_WEIGHT)
+    {
+        return supplies_weight_counts_to_limit(o_ptr)
+            && (o_ptr->weight > 0) && (MAX(o_ptr->number, 1) > 0);
+    }
+
     if (o_ptr->k_idx
         && (o_ptr->tval == TV_LIGHT || o_ptr->tval == TV_FLASK))
     {
@@ -6455,7 +6461,9 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
             object_wipe(o_ptr);
             return SUPPLIES_INDEX;
         }
-        /* If absorption failed, treat as normal item. */
+        set_inventory_limit_failure(INV_LIMIT_SUPPLY_WEIGHT,
+            supplies_current_weight_cap() / 10, o_ptr);
+        return (-1);
     }
 
     int desired_slot = o_ptr->pickup_slot;
@@ -6913,6 +6921,12 @@ cptr inven_carry_limit_label(void)
 int inven_carry_limit_value(void)
 {
     return carry_limit_last_limit;
+}
+
+bool inven_carry_limit_is_supply_weight(void)
+{
+    return carry_limit_last_failed
+        && (carry_limit_last_group == INV_LIMIT_SUPPLY_WEIGHT);
 }
 
 /*

@@ -1870,7 +1870,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
         }
 
         /* Alphabetic choice */
-    else if (isalpha(c))
+    else if (!steamdeck && isalpha((unsigned char)c))
         {
             /* Options */
             if ((c == 'O') || (c == 'o'))
@@ -3984,7 +3984,10 @@ static NavResult select_oath(void)
                     else
                         attr = (highlight == oath_id) ? TERM_L_BLUE : TERM_WHITE;
 
-                    strnfmt(buf, sizeof(buf), "%c) %s", 'a' + i, oath_name_str(oath_id));
+                    if (steamdeck)
+                        strnfmt(buf, sizeof(buf), "   %s", oath_name_str(oath_id));
+                    else
+                        strnfmt(buf, sizeof(buf), "%c) %s", 'a' + i, oath_name_str(oath_id));
                     Term_putstr(2, list_row + i, -1, attr, buf);
                 }
 
@@ -4099,7 +4102,10 @@ static NavResult select_oath(void)
                 else
                     attr = (highlight == oath_id) ? TERM_L_BLUE : TERM_WHITE;
 
-                strnfmt(buf, sizeof(buf), "%c) %s", 'a' + i, oath_name_str(oath_id));
+                if (steamdeck)
+                    strnfmt(buf, sizeof(buf), "   %s", oath_name_str(oath_id));
+                else
+                    strnfmt(buf, sizeof(buf), "%c) %s", 'a' + i, oath_name_str(oath_id));
                 oath_putstr_fit(2, 4 + i, list_width, attr, buf);
             }
 
@@ -4172,7 +4178,7 @@ static NavResult select_oath(void)
             }
         }
 
-        if (key >= 'a' && key < 'a' + visible_count)
+        if (!steamdeck && key >= 'a' && key < 'a' + visible_count)
         {
             int display_pos = key - 'a';
 

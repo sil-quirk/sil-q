@@ -8776,6 +8776,7 @@ static int prompt_varda_reward_choice_menu(const int* choices, int choice_count,
     int wid, hgt;
     Term_get_size(&wid, &hgt);
     bool compact = (wid < 60) || (hgt < 20);
+    bool steamdeck = steamdeck_controls_active();
     
     int selection = 0;
     bool done = false;
@@ -8826,15 +8827,22 @@ static int prompt_varda_reward_choice_menu(const int* choices, int choice_count,
             char marker = (i == selection) ? '>' : ' ';
             
             char line_buf[140];
-            strnfmt(line_buf, sizeof(line_buf), "%c %c) %s", marker, 'a' + i, desc);
+            if (steamdeck)
+                strnfmt(line_buf, sizeof(line_buf), "%c   %s", marker, desc);
+            else
+                strnfmt(line_buf, sizeof(line_buf), "%c %c) %s", marker,
+                    'a' + i, desc);
             Term_putstr(2, row++, -1, attr, line_buf);
         }
         
         /* Display controls */
         row = hgt - 2;
         Term_putstr(2, row, -1, TERM_L_DARK,
-            compact ? "8/2 move  x inspect  Enter choose"
-                    : "Arrows navigate   'x' Inspect   Space/Enter accept   Letter select");
+            steamdeck
+                ? (compact ? "D-pad move  X inspect  A choose"
+                           : "D-pad navigate   X Inspect   A accept")
+                : (compact ? "8/2 move  x inspect  Enter choose"
+                           : "Arrows navigate   'x' Inspect   Space/Enter accept   Letter select"));
         
         /* Position cursor at selection */
         Term_gotoxy(2, MIN(choice_start_row + selection, hgt - 3));
@@ -8844,11 +8852,14 @@ static int prompt_varda_reward_choice_menu(const int* choices, int choice_count,
         char key = inkey();
         
         /* Handle input */
-        if (key == '\r' || key == '\n' || key == ' ' || key == '6') {
+        if (key == '\r' || key == '\n' || key == ' ' || key == '6'
+            || (steamdeck && key == steamdeck_confirm_key())) {
             /* Accept current selection */
             selected_artifact = choices[selection];
             done = true;
-        } else if (key == 'x' || key == 'X' || key == '?') {
+        } else if ((!steamdeck && (key == 'x' || key == 'X'))
+                   || key == '?'
+                   || (steamdeck && key == steamdeck_alt_action_key())) {
             /* Inspect selection */
             Term_clear();
             desc_art_fake(choices[selection]);
@@ -8858,11 +8869,11 @@ static int prompt_varda_reward_choice_menu(const int* choices, int choice_count,
         } else if (key == '2' || key == 'j' || key == '+') {
             /* Move down */
             selection = (selection + 1) % choice_count;
-        } else if (key >= 'a' && key < 'a' + choice_count) {
+        } else if (!steamdeck && key >= 'a' && key < 'a' + choice_count) {
             /* Letter selection */
             selected_artifact = choices[key - 'a'];
             done = true;
-        } else if (key >= 'A' && key < 'A' + choice_count) {
+        } else if (!steamdeck && key >= 'A' && key < 'A' + choice_count) {
             /* Capital letter selection */
             selected_artifact = choices[key - 'A'];
             done = true;

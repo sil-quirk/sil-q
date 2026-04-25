@@ -3725,21 +3725,38 @@ bool get_check_oath_multiline(cptr prompt)
 int get_menu_choice(s16b max, char* prompt)
 {
     int choice = -1;
-
-    char ch;
-
+    int highlight = 0;
+    int ch;
+    bool steamdeck = steamdeck_controls_active();
     bool done = false;
+    char prompt_buf[160];
 
-    prt(prompt, 0, 0);
+    if (steamdeck)
+        strnfmt(prompt_buf, sizeof(prompt_buf),
+            "%s D-pad choose, A/Enter select, B/ESC cancel", prompt);
+    else
+        SDL_strlcpy(prompt_buf, prompt, sizeof(prompt_buf));
+
+    prt(prompt_buf, 0, 0);
 
     while (!done)
     {
+        if (steamdeck && max > 0)
+        {
+            for (int i = 0; i < max; i++)
+                Term_putstr(0, i + 1, 1,
+                    (i == highlight) ? TERM_L_BLUE : TERM_SLATE,
+                    (i == highlight) ? ">" : " ");
+            Term_gotoxy(0, highlight + 1);
+            Term_fresh();
+        }
+
         ch = inkey();
 
         /* Letters are used for selection */
-        if (isalpha(ch))
+        if (!steamdeck && isalpha((unsigned char)ch))
         {
-            if (islower(ch))
+            if (islower((unsigned char)ch))
             {
                 choice = A2I(ch);
             }
@@ -3759,14 +3776,41 @@ int get_menu_choice(s16b max, char* prompt)
                 bell("Illegal response to question!");
             }
         }
+        else if (steamdeck && max > 0 && (ch == '8'
+#ifdef ARROW_UP
+            || ch == ARROW_UP
+#endif
+            ))
+        {
+            highlight = (highlight + max - 1) % max;
+        }
+        else if (steamdeck && max > 0 && (ch == '2'
+#ifdef ARROW_DOWN
+            || ch == ARROW_DOWN
+#endif
+            ))
+        {
+            highlight = (highlight + 1) % max;
+        }
+        else if (steamdeck && max > 0
+            && ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6')
+                || (ch == steamdeck_confirm_key())))
+        {
+            choice = highlight;
+            done = true;
+        }
 
         /* Allow user to exit the fuction */
-        else if (ch == ESCAPE)
+        else if ((ch == ESCAPE) || (steamdeck && ch == steamdeck_back_key()))
         {
             /* Mark as no choice made */
             choice = -1;
 
             done = true;
+        }
+        else if (steamdeck && isalpha((unsigned char)ch))
+        {
+            bell("Use D-pad and confirm to select in this mode.");
         }
 
         /* Invalid input */

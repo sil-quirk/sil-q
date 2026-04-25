@@ -4221,11 +4221,44 @@ static bool item_tester_limit_group(const object_type* o_ptr)
     if (!o_ptr || !o_ptr->k_idx)
         return false;
 
+    if (inven_carry_limit_is_supply_weight())
+        return inven_carry_limit_can_replace(o_ptr);
+
     if (replacement_filter_incoming
         && !pack_item_matches_replacement_type(replacement_filter_incoming, o_ptr))
         return false;
 
     return inven_carry_limit_can_replace(o_ptr);
+}
+
+static int supply_weight_replacement_amount(const object_type* incoming,
+                                            const object_type* candidate)
+{
+    int incoming_weight;
+    int over_limit;
+    int amount;
+
+    if (!incoming || !candidate || !candidate->k_idx)
+        return 0;
+
+    if (!supplies_weight_counts_to_limit(incoming)
+        || !supplies_weight_counts_to_limit(candidate))
+    {
+        return 0;
+    }
+
+    if (incoming->weight <= 0 || candidate->weight <= 0)
+        return 0;
+
+    incoming_weight = incoming->weight * MAX(incoming->number, 1);
+    over_limit = supplies_limit_weight() + incoming_weight
+        - supplies_current_weight_cap();
+
+    if (over_limit <= 0)
+        return 1;
+
+    amount = (over_limit + candidate->weight - 1) / candidate->weight;
+    return MIN(amount, MAX(candidate->number, 1));
 }
 
 static bool prompt_replace_pack_item_limit(const object_type* incoming,
@@ -4235,11 +4268,14 @@ static bool prompt_replace_pack_item_limit(const object_type* incoming,
     cptr label = inven_carry_limit_label();
     int limit = inven_carry_limit_value();
     bool replaced = false;
+    bool supply_weight_limit = inven_carry_limit_is_supply_weight();
 
     bool old_item_tester_full = item_tester_full;
     byte old_item_tester_tval = item_tester_tval;
     bool (*old_item_tester_hook)(const object_type*) = item_tester_hook;
     const object_type* old_filter = replacement_filter_incoming;
+    bool old_expand_supplies =
+        inventory_menu_set_expand_supplies(supply_weight_limit);
 
     /* Ensure story font is disabled before showing messages */
     extern bool sdl_is_story_font_enabled(void);
@@ -4265,22 +4301,37 @@ static bool prompt_replace_pack_item_limit(const object_type* incoming,
     while (true)
     {
         int item;
+        object_type* drop_ptr = NULL;
+        int remove_amt = 0;
 
         if (!get_item(&item, prompt, "You have nothing to replace.", USE_INVEN))
             break;
 
-        if ((item < 0) || (item >= INVEN_PACK))
+        if (item >= SUPPLIES_INDEX)
+        {
+            int supply_idx = item - SUPPLIES_INDEX;
+            drop_ptr = supplies_entry_at(supply_idx);
+
+            if (!drop_ptr || !drop_ptr->k_idx)
+            {
+                bell("That supply entry is empty.");
+                continue;
+            }
+        }
+        else if ((item < 0) || (item >= INVEN_PACK))
         {
             bell("Illegal object choice!");
             continue;
         }
-
-        object_type* drop_ptr = &inventory[item];
-
-        if (!drop_ptr->k_idx)
+        else
         {
-            bell("That slot is empty.");
-            continue;
+            drop_ptr = &inventory[item];
+
+            if (!drop_ptr->k_idx)
+            {
+                bell("That slot is empty.");
+                continue;
+            }
         }
 
         if (!inven_carry_limit_can_replace(drop_ptr))
@@ -4289,8 +4340,38 @@ static bool prompt_replace_pack_item_limit(const object_type* incoming,
             continue;
         }
 
-        if (!queue_deferred_pickup_pack_drop(item, drop_ptr->number))
-            continue;
+        if (supply_weight_limit)
+        {
+            if (item < SUPPLIES_INDEX)
+            {
+                msg_print("That will not make enough room.");
+                continue;
+            }
+
+            remove_amt = supply_weight_replacement_amount(incoming, drop_ptr);
+            if (remove_amt <= 0)
+            {
+                msg_print("That will not make enough room.");
+                continue;
+            }
+
+            if (!queue_deferred_pickup_supply_drop(item - SUPPLIES_INDEX,
+                    remove_amt))
+            {
+                continue;
+            }
+        }
+        else
+        {
+            if (item >= SUPPLIES_INDEX)
+            {
+                msg_print("That will not make enough room.");
+                continue;
+            }
+
+            if (!queue_deferred_pickup_pack_drop(item, drop_ptr->number))
+                continue;
+        }
 
         p_ptr->notice |= (PN_COMBINE | PN_REORDER);
         notice_stuff();
@@ -4303,6 +4384,7 @@ static bool prompt_replace_pack_item_limit(const object_type* incoming,
     item_tester_hook = old_item_tester_hook;
     item_tester_tval = old_item_tester_tval;
     item_tester_full = old_item_tester_full;
+    inventory_menu_set_expand_supplies(old_expand_supplies);
 
     return replaced;
 }

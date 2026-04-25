@@ -20,12 +20,6 @@
 #define MIN_DEPTH_BASE_INCREMENT_START 85
 #define MIN_DEPTH_BASE_INCREMENT_DIVISOR 850
 #define MIN_DEPTH_INCREMENT_PER_BONUS 5
-#define MIN_DEPTH_BONUS_UNITS_PER_DEPTH 2
-#define MIN_DEPTH_ITEM_BONUS_DEEP_CALL_EQUIPPED                              \
-    (3 * MIN_DEPTH_BONUS_UNITS_PER_DEPTH)
-#define MIN_DEPTH_ITEM_BONUS_DEEP_CALL_INVENTORY                             \
-    (MIN_DEPTH_ITEM_BONUS_DEEP_CALL_EQUIPPED / 2)
-#define MIN_DEPTH_ITEM_BONUS_PERMA_CURSE (5 * MIN_DEPTH_BONUS_UNITS_PER_DEPTH)
 #define MIN_DEPTH_KILL_BONUS_STEP 500
 #define MIN_DEPTH_KILL_BONUS_AMOUNT 5
 
@@ -88,6 +82,9 @@ static int min_depth_timer_item_bonus_units(void)
         if (f4 & TR4_DEEP_CALL)
             units += equipped ? MIN_DEPTH_ITEM_BONUS_DEEP_CALL_EQUIPPED
                               : MIN_DEPTH_ITEM_BONUS_DEEP_CALL_INVENTORY;
+        /* Count the item grant itself, even if the player disables the ability. */
+        if (equipped && object_grants_ability(o_ptr, S_STL, STL_CRUEL_BLOW))
+            units += MIN_DEPTH_ITEM_BONUS_CRUEL_BLOW_EQUIPPED;
         if (f3 & TR3_PERMA_CURSE)
             units += MIN_DEPTH_ITEM_BONUS_PERMA_CURSE;
     }

@@ -352,7 +352,7 @@ N:62:Cruel Blow
 I:3:2:5
 P:3/1
 D:Delivering a cruel blow that echoes the torments inflicted in the pits of Thangorodrim, where Morgoth's servants learned the darkest arts of pain. A well-placed strike to nerve or joint can leave a foe reeling and disoriented, their senses overwhelmed by agony.
-E:Critical hits may confuse monsters (critical level vs monster's Will).
+E:Critical hits may confuse monsters (critical level vs monster's Will). If granted by an equipped item, it also speeds the minimum depth timer as much as Deep Call, even when disabled.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords

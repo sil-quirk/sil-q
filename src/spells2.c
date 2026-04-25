@@ -1918,6 +1918,7 @@ static bool recharge_choose_target(const recharge_target_entry entries[],
     int help_row;
     int prompt_row;
     int page_size;
+    bool steamdeck = steamdeck_controls_active();
 
     if (!entries || count <= 0 || !out_item)
         return false;
@@ -1997,7 +1998,7 @@ static bool recharge_choose_target(const recharge_target_entry entries[],
                 : object_display_color(o_ptr,
                     tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
 
-            if (i < 26)
+            if (!steamdeck && i < 26)
                 strnfmt(label, sizeof(label), "%c)", I2A(i));
             else
                 SDL_strlcpy(label, "  ", sizeof(label));
@@ -2024,7 +2025,9 @@ static bool recharge_choose_target(const recharge_target_entry entries[],
             prt("", help_row, 0);
         }
 
-        prt("Letters/8/2/arrows choose, Enter select, ESC cancel",
+        prt(steamdeck
+                ? "D-pad choose, A/Enter select, B/ESC cancel"
+                : "Letters/8/2/arrows choose, Enter select, ESC cancel",
             prompt_row, 0);
         Term_fresh();
 
@@ -2067,6 +2070,22 @@ static bool recharge_choose_target(const recharge_target_entry entries[],
         default:
         {
             int pick;
+
+            if (steamdeck && key == steamdeck_back_key())
+            {
+                screen_load();
+                return false;
+            }
+
+            if (steamdeck && key == steamdeck_confirm_key())
+            {
+                *out_item = entries[current].item;
+                screen_load();
+                return true;
+            }
+
+            if (steamdeck)
+                break;
 
             if (!isalpha((unsigned char)key))
                 break;

@@ -932,6 +932,29 @@ static bool describe_sustains(const object_type* o_ptr, u32b f2)
     return (n ? true : false);
 }
 
+static void format_min_depth_bonus_depths(char* buf, size_t buflen, int units)
+{
+    int whole;
+    int rem;
+
+    if (!buf || buflen == 0)
+        return;
+
+    if (units < 0)
+        units = 0;
+
+    whole = units / MIN_DEPTH_BONUS_UNITS_PER_DEPTH;
+    rem = units % MIN_DEPTH_BONUS_UNITS_PER_DEPTH;
+
+    if (rem == 0)
+        strnfmt(buf, buflen, "%d", whole);
+    else if (MIN_DEPTH_BONUS_UNITS_PER_DEPTH == 2 && rem == 1)
+        strnfmt(buf, buflen, "%d.5", whole);
+    else
+        strnfmt(buf, buflen, "%d+%d/%d", whole, rem,
+            MIN_DEPTH_BONUS_UNITS_PER_DEPTH);
+}
+
 /*
  * Describe miscellaneous powers such as see invisible, free action,
  * permanent light, etc; also note curses and penalties.
@@ -939,6 +962,9 @@ static bool describe_sustains(const object_type* o_ptr, u32b f2)
 static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3, u32b f4)
 {
     cptr good[24], bad[14];
+    char deep_call_desc[120];
+    char deep_call_equipped_bonus[16];
+    char deep_call_inventory_bonus[16];
     int gc = 0, bc = 0;
     bool something = false;
 
@@ -989,7 +1015,18 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3, u32b
     if (f4 & (TR4_BREAKS_PERMA_CURSE))
         good[gc++] = "can break the Oath of Feanor on your equipped items";
     if (f4 & (TR4_DEEP_CALL))
-        good[gc++] = "bears a Deep Call, speeding min depth (+3 equipped, +1.5 in inventory)";
+    {
+        format_min_depth_bonus_depths(deep_call_equipped_bonus,
+            sizeof(deep_call_equipped_bonus),
+            MIN_DEPTH_ITEM_BONUS_DEEP_CALL_EQUIPPED);
+        format_min_depth_bonus_depths(deep_call_inventory_bonus,
+            sizeof(deep_call_inventory_bonus),
+            MIN_DEPTH_ITEM_BONUS_DEEP_CALL_INVENTORY);
+        strnfmt(deep_call_desc, sizeof(deep_call_desc),
+            "bears a Deep Call, speeding min depth (+%s equipped, +%s in inventory)",
+            deep_call_equipped_bonus, deep_call_inventory_bonus);
+        good[gc++] = deep_call_desc;
+    }
     if ((f4 & (TR4_PROT_FIRE)) && (o_ptr->pd > 0))
         good[gc++] = "uses its protection against fire";
     if ((f4 & (TR4_PROT_COLD)) && (o_ptr->pd > 0))
@@ -1299,9 +1336,12 @@ static bool describe_abilities(const object_type* o_ptr)
 {
     cptr ability[8];
     static char ability_buf[8][80]; /* Static buffer for modified ability names */
+    char cruel_blow_bonus[16];
+    char cruel_blow_desc[160];
     int ac = 0;
     ability_type* b_ptr;
     int i;
+    bool grants_cruel_blow = false;
 
     // only describe when identified
     if (!object_known_p(o_ptr) && !(o_ptr->ident & (IDENT_SPOIL)))
@@ -1312,6 +1352,11 @@ static bool describe_abilities(const object_type* o_ptr)
     {
         b_ptr
             = &b_info[ability_index(o_ptr->skilltype[i], o_ptr->abilitynum[i])];
+        if (o_ptr->skilltype[i] == S_STL
+            && o_ptr->abilitynum[i] == STL_CRUEL_BLOW)
+        {
+            grants_cruel_blow = true;
+        }
 
         /* Check if this is a Bane ability with a specific type */
         if (o_ptr->skilltype[i] == S_PER && o_ptr->abilitynum[i] == PER_BANE
@@ -1347,6 +1392,16 @@ static bool describe_abilities(const object_type* o_ptr)
 
         /* Output end (if needed) */
         p_text_out(".  ");
+        if (grants_cruel_blow)
+        {
+            format_min_depth_bonus_depths(cruel_blow_bonus,
+                sizeof(cruel_blow_bonus),
+                MIN_DEPTH_ITEM_BONUS_CRUEL_BLOW_EQUIPPED);
+            strnfmt(cruel_blow_desc, sizeof(cruel_blow_desc),
+                "When equipped, its Cruel Blow grant speeds min depth by the same amount as equipped Deep Call (+%s), even if disabled.  ",
+                cruel_blow_bonus);
+            p_text_out(cruel_blow_desc);
+        }
 
         /* It granted abilities */
         return (true);

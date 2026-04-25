@@ -100,9 +100,9 @@ void player_oil_container_set_fuel(object_type* o_ptr, int fuel)
         o_ptr->pval = fuel;
 }
 
-static bool supplies_weight_counts_to_limit(const object_type* o_ptr)
+bool supplies_weight_counts_to_limit(const object_type* o_ptr)
 {
-    return o_ptr && !supplies_is_light_object(o_ptr)
+    return supplies_is_supply_object(o_ptr) && !supplies_is_light_object(o_ptr)
         && !object_is_oil_flask_container(o_ptr);
 }
 

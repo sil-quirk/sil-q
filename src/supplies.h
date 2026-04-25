@@ -49,6 +49,7 @@ void supplies_set_allow_overflow(bool allow);
 void supplies_set_max_weight_cap(int weight_tenths);
 int supplies_current_weight_cap(void);
 int supplies_limit_weight(void);
+bool supplies_weight_counts_to_limit(const struct object_type* o_ptr);
 bool supplies_is_supply_object(const struct object_type* o_ptr);
 bool supplies_is_herb_object(const struct object_type* o_ptr);
 bool supplies_is_food_object(const struct object_type* o_ptr);

@@ -1265,6 +1265,7 @@ extern bool inven_carry_okay_after_removing(
 extern bool inven_carry_limit_failed(void);
 extern cptr inven_carry_limit_label(void);
 extern int inven_carry_limit_value(void);
+extern bool inven_carry_limit_is_supply_weight(void);
 extern bool inven_carry_limit_can_replace(const object_type* o_ptr);
 extern int object_stack_limit(const object_type* o_ptr);
 extern s16b inven_carry(object_type* o_ptr, bool combine_ammo);

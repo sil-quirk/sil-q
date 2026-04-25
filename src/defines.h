@@ -207,6 +207,19 @@
 #define MORGOTH_DEPTH 20
 
 /*
+ * Minimum-depth timer item bonus units.  Two units equal one dungeon depth, so
+ * inventory Deep Call can represent a half-depth value.
+ */
+#define MIN_DEPTH_BONUS_UNITS_PER_DEPTH 2
+#define MIN_DEPTH_ITEM_BONUS_DEEP_CALL_EQUIPPED                              \
+    (3 * MIN_DEPTH_BONUS_UNITS_PER_DEPTH)
+#define MIN_DEPTH_ITEM_BONUS_DEEP_CALL_INVENTORY                             \
+    (MIN_DEPTH_ITEM_BONUS_DEEP_CALL_EQUIPPED / 2)
+#define MIN_DEPTH_ITEM_BONUS_CRUEL_BLOW_EQUIPPED                             \
+    MIN_DEPTH_ITEM_BONUS_DEEP_CALL_EQUIPPED
+#define MIN_DEPTH_ITEM_BONUS_PERMA_CURSE (5 * MIN_DEPTH_BONUS_UNITS_PER_DEPTH)
+
+/*
  * Ego item indices for special handling
  */
 #define EGO_FLICKERING_SHADOW 135  /* Jinx ego: of Flickering Shadow */
