@@ -19,9 +19,12 @@ typedef enum supply_group
 
 #define SUPPLIES_INDEX 1000
 #define PLAYER_TORCH_CAP 5
+#define PLAYER_OIL_CONTAINER_SLOT_CAP 4
+#define PLAYER_BRASS_LAMP_SLOT_COST 2
+#define PLAYER_OIL_FLASK_SLOT_COST 1
 #define PLAYER_BRASS_LAMP_CAP 2
 #define PLAYER_PERMANENT_LIGHT_CAP 3
-#define PLAYER_LAMP_OIL_MAX 15000
+#define PLAYER_LAMP_OIL_MAX 10000
 
 typedef enum supply_menu_action
 {
@@ -88,6 +91,12 @@ int player_lamp_oil_capacity_with_bonus(int lantern_bonus);
 int player_lamp_oil(void);
 int player_lamp_oil_weight(void);
 void player_set_lamp_oil(int oil);
+bool player_oil_container_object(const struct object_type* o_ptr);
+int player_oil_container_slot_cost(const struct object_type* o_ptr);
+int player_oil_container_unit_capacity(const struct object_type* o_ptr);
+int player_oil_container_slots_used(void);
+int player_oil_container_slot_capacity(void);
+void player_oil_container_set_fuel(struct object_type* o_ptr, int fuel);
 bool player_lamp_oil_would_overflow(int addition);
 bool player_lamp_oil_would_overflow_with_bonus(int addition, int lantern_bonus);
 bool player_gain_lamp_oil(int addition, bool allow_overflow);
@@ -95,6 +104,8 @@ bool player_gain_lamp_oil_with_bonus(int addition, bool allow_overflow,
     int lantern_bonus);
 bool player_prepare_lantern_drop(int lanterns_being_dropped,
     int* oil_to_transfer, int* oil_to_lose);
+bool player_prepare_oil_container_drop(const struct object_type* o_ptr,
+    int amount, int* oil_to_transfer, int* oil_to_lose);
 int player_carried_torch_count(void);
 int player_carried_light_count_for_sval(int sval);
 int player_light_carry_group(const struct object_type* o_ptr);

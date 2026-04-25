@@ -3115,7 +3115,7 @@ static void format_supply_summary(char* buf, size_t len)
     {
         if (!first)
             SDL_strlcat(buf, ", ", len);
-        strnfmt(segment, sizeof(segment), "%d light%s", lights,
+        strnfmt(segment, sizeof(segment), "%d oil slot%s", lights,
             (lights == 1) ? "" : "s");
         SDL_strlcat(buf, segment, len);
     }
@@ -8132,8 +8132,8 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
             supply_prefix = "Supplies (gems): ";
         else if (o_ptr->tval == TV_FOOD)
             supply_prefix = "Supplies (food): ";
-        else if (supplies_is_light_object(o_ptr))
-            supply_prefix = "Supplies (lights): ";
+        else if (supplies_group_matches_object(SUPPLY_GROUP_LIGHTS, o_ptr))
+            supply_prefix = "Supplies (lights/oil): ";
 
         strnfmt(entry->prefix, sizeof(entry->prefix), "%s", supply_prefix);
 

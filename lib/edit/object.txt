@@ -1406,8 +1406,10 @@ D: in the hands of pit-wardens and black patrols. Its light seems less
 D: a comfort than an instrument of suspicion, made to search cracks,
 D: bars, and faces, and to keep lesser folk uneasy in the dark.
 D: You can equip it as a light source with a radius of 2 squares.
-D: While you carry brass lanterns, their oil is pooled together,
-D: up to 7,500 turns of light per lantern, to a total of 15,000.
+D: While you carry brass lanterns and oil flasks, their oil is
+D: pooled together. Oil containers use four supply slots: a brass
+D: lantern uses two slots and holds up to 5,000 turns, while a
+D: flask uses one slot and holds up to 2,500 turns.
 
 
 # Lesser Jewel is at index 21
@@ -2860,16 +2862,16 @@ D: conditions.
 N:402:& Flask~ of oil
 G:!:y1
 T:5:8
-I:77:0:3000
+I:77:0:2500
 W:7:0:10:3
 P:0:0d0:0:0d0
 A:7/80
 F:EASY_KNOW
 D:A small flask of lamp oil, carried by those who venture into
 D: the lightless halls beneath Angband, where even Elven eyes
-D: find no gleam to guide them. When picked up, its oil is poured
-D: into your carried brass lantern stores, adding 3,000 turns of
-D: light up to a maximum of 7,500 per lantern, or 15,000 in all.
+D: find no gleam to guide them. It goes into your supplies as an
+D: oil container, using one of four oil slots and holding up to
+D: 2,500 turns of light.
 
 
 N:410:& Piece~ of Mithril

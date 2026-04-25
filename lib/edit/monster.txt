@@ -926,6 +926,7 @@ F:NO_FEAR
 F:OPEN_DOOR | BASH_DOOR | UNLOCK_DOOR | ORC | SMART
 F:DROP_1D2 | DROP_GOOD | DROP_CHOSEN
 F:HURT_LITE
+S:SINDARBANE
 S:SPELL_PCT_15 | POW_11
 S:ARROW2
 D:One of the mightiest orc-captains to serve Morgoth, Boldog was sent
@@ -1652,7 +1653,7 @@ D: such dread as Delthaur. His very presence fills the heart with
 D: nameless fear, and the bravest warriors have fled screaming at his
 D: approach. Yet his malice turns most keenly against those who delve
 D: in the deep places of the earth, and dark halls may one day remember
-D: him by another name.
+D: him by a darker title: the Bane of Durin.
 
 
 N:146:Nan, the Giant
@@ -2145,6 +2146,7 @@ B:CLAW:WOUND:(+26,1d13)
 F:UNIQUE | MALE | OPEN_DOOR | BASH_DOOR | SMART
 F:UNLOCK_DOOR | UNIQUE_FRIEND | DROP_1D2 | DROP_GREAT
 F:CRUEL_BLOW | EXCHANGE_PLACES | CAT
+S:SINDARBANE
 D:Tevildo is a mighty fay in the service of Melko, lord and master of
 D: all the cats. In his fortress he keeps many thralls in torment, and
 D: his hatred of the Hound of Valinor is legendary. His strength lies
@@ -2268,6 +2270,7 @@ B:BITE:FIRE:(+19,2d21)
 F:UNIQUE | MALE
 F:DROP_2D2 | DROP_SUPERB | SMART | FLYING | TERRITORIAL
 F:BASH_DOOR | DRAGON
+S:DWARFBANE
 F:RES_FIRE | HURT_COLD
 S:SPELL_PCT_20 | POW_22
 S:BRTH_FIRE | CONF | HOLD
@@ -2500,7 +2503,8 @@ P:[+17,6d4]
 B:HIT:BATTER:(+17,4d10)
 F:UNIQUE | ESCORT | DROP_1D2 | DROP_GREAT | REGENERATE | NO_FEAR
 F:OPEN_DOOR | BASH_DOOR | TROLL | MALE | HURT_LITE | SMART | HAS_ARMOUR | HAS_WEAPON
-F:ELFBANE | KNOCK_BACK
+F:KNOCK_BACK
+S:NOLDORBANE
 D:Dagorhir towers above even the mightiest of trolls, clad in iron plates
 D: forged in the smithies of Angband. He earned the name Elfbane in the
 D: Nirnaeth Arnoediad, where his great hammer crushed countless sons of
@@ -2742,6 +2746,7 @@ F:DROP_1D2 | DROP_100 | DROP_ARTEFACT | DROP_CHOSEN
 F:HAS_WEAPON | HAS_ARMOUR
 F:NO_FEAR | BASH_DOOR
 F:RAUKO | RES_FIRE | HURT_COLD | SPECIAL_VAULT_ONLY
+S:NOLDORBANE
 D:Gothmog is the High Captain of Angband and Morgoth's personal guard.  He is
 D: renowned for slaying Feanor and Fingon, two of the High Kings of the
 D: Noldor Elves, and has never been defeated in combat.  With his whip
@@ -2788,6 +2793,8 @@ F:UNIQUE | MALE
 F:DROP_3D2 | DROP_ARTEFACT
 F:SMART | BASH_DOOR | TERRITORIAL
 F:DRAGON | RES_FIRE | HURT_COLD | SPECIAL_VAULT_ONLY
+S:NOLDORBANE
+S:EDAINBANE
 S:SPELL_PCT_45 | POW_28
 S:BRTH_FIRE | SCARE | HOLD | CONF
 D:Lo! the golden dragon of the God of Hell, Father of Dragons, first
@@ -2816,6 +2823,7 @@ F:DROP_2D2
 F:DROP_ARTEFACT | SMART
 F:OPEN_DOOR | UNLOCK_DOOR | BASH_DOOR
 F:WOLF | ESCORT | SPECIAL_VAULT_ONLY
+S:EDAINBANE
 S:SPELL_PCT_25
 S:HOLD | SNG_OATHS
 D:Greatest of Morgoth's servants, Gorthaur the Cruel was once a Maia of
@@ -2926,6 +2934,7 @@ B:BITE:POISON:(+31,2d17)
 F:UNIQUE | MALE | FORCE_DEPTH
 F:SMART
 F:WOLF
+S:SINDARBANE
 #D:The first guard of Angband, Carcharoth, also known as 'The Red Maw',
 #D: is the greatest wolf to ever walk the earth.  He is highly
 #D: intelligent and a deadly opponent in combat.

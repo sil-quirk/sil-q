@@ -18,21 +18,28 @@
 #include <math.h>
 #include <stddef.h>
 
-static bool hidden_left_panel_masked_cell(int vy, int vx)
+static int hidden_left_panel_mask_width_at(int vy)
 {
     int row_index;
 
     if (!g_hide_left_panel)
-        return false;
+        return 0;
 
     row_index = vy - ROW_NAME;
     if (row_index < 0 || row_index >= g_hidden_left_panel_overlay_rows)
+        return 0;
+
+    return g_hidden_left_panel_overlay_widths[row_index];
+}
+
+static bool hidden_left_panel_masked_span(int vy, int vx, int width)
+{
+    int mask_width = hidden_left_panel_mask_width_at(vy);
+
+    if (width <= 0 || mask_width <= 0)
         return false;
 
-    if (vx < 0 || vx >= g_hidden_left_panel_overlay_widths[row_index])
-        return false;
-
-    return true;
+    return (vx < mask_width) && (vx + width > 0);
 }
 
 /* Encoded color range that indicates an absolute style index per cell.
@@ -2381,6 +2388,7 @@ void move_cursor_relative(int y, int x)
 {
     int ky, kx;
     int vy, vx;
+    int cell_w;
 
     /* Location relative to panel */
     ky = y - p_ptr->wy;
@@ -2405,7 +2413,8 @@ void move_cursor_relative(int y, int x)
     if (use_bigtile)
         vx += kx;
 
-    if (hidden_left_panel_masked_cell(vy, vx))
+    cell_w = use_bigtile ? 2 : 1;
+    if (hidden_left_panel_masked_span(vy, vx, cell_w))
         return;
 
     /* Go there */
@@ -2425,6 +2434,7 @@ void print_rel(char c, byte a, int y, int x)
 {
     int ky, kx;
     int vy, vx;
+    int cell_w;
 
     /* Location relative to panel */
     ky = y - p_ptr->wy;
@@ -2449,7 +2459,8 @@ void print_rel(char c, byte a, int y, int x)
     if (use_bigtile)
         vx += kx;
 
-    if (hidden_left_panel_masked_cell(vy, vx))
+    cell_w = use_bigtile ? 2 : 1;
+    if (hidden_left_panel_masked_span(vy, vx, cell_w))
         return;
 
     /* Hack -- Queue it */
@@ -2555,6 +2566,7 @@ void lite_spot(int y, int x)
 
     int ky, kx;
     int vy, vx;
+    int cell_w;
 
     /* Location relative to panel */
     ky = y - p_ptr->wy;
@@ -2579,7 +2591,8 @@ void lite_spot(int y, int x)
     if (use_bigtile)
         vx += kx;
 
-    if (hidden_left_panel_masked_cell(vy, vx))
+    cell_w = use_bigtile ? 2 : 1;
+    if (hidden_left_panel_masked_span(vy, vx, cell_w))
         return;
 
     /* Hack -- redraw the grid */
@@ -2617,6 +2630,7 @@ void prt_map(void)
     int y, x;
     int vy, vx;
     int ty, tx;
+    int cell_w = use_bigtile ? 2 : 1;
 
     /* Assume screen */
     ty = p_ptr->wy + SCREEN_HGT;
@@ -2625,13 +2639,13 @@ void prt_map(void)
     /* Dump the map */
     for (y = p_ptr->wy, vy = ROW_MAP; y < ty; vy++, y++)
     {
-        for (x = p_ptr->wx, vx = COL_MAP; x < tx; vx++, x++)
+        for (x = p_ptr->wx, vx = COL_MAP; x < tx; vx += cell_w, x++)
         {
             /* Check bounds */
             if (!in_bounds(y, x))
                 continue;
 
-            if (hidden_left_panel_masked_cell(vy, vx))
+            if (hidden_left_panel_masked_span(vy, vx, cell_w))
                 continue;
 
             /* Determine what is there */
@@ -2642,13 +2656,12 @@ void prt_map(void)
 
             if (use_bigtile)
             {
-                vx++;
-
                 /* Mega-Hack : Queue dummy char */
                 if (a & 0x80)
-                    Term_queue_char(vx, vy, 255, -1, 0, 0);
+                    Term_queue_char(vx + 1, vy, 255, -1, 0, 0);
                 else
-                    Term_queue_char(vx, vy, TERM_WHITE, ' ', TERM_WHITE, ' ');
+                    Term_queue_char(vx + 1, vy, TERM_WHITE, ' ', TERM_WHITE,
+                        ' ');
             }
         }
     }

@@ -286,15 +286,8 @@ void do_cmd_use_item_by_index(int item)
             {
                 if (l_ptr->sval == SV_LIGHT_LANTERN)
                 {
-                    if ((o_ptr->timeout + player_light_fuel(l_ptr)
-                            <= player_light_max_fuel(l_ptr))
-                        || get_check(
-                            "Refueling this lamp will waste some oil. "
-                            "Proceed? "))
-                    {
-                        do_cmd_refuel_lamp(o_ptr, item);
-                        try_to_wield = false;
-                    }
+                    do_cmd_refuel_lamp(o_ptr, item);
+                    try_to_wield = false;
                 }
             }
 
@@ -1044,6 +1037,22 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
             object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
         msg_format("You cannot wear or wield %s.", o_name);
         return;
+    }
+
+    if ((item < 0) && player_light_carry_cap(o_ptr) > 0)
+    {
+        object_type* equipped_ptr = &inventory[slot];
+        bool replacing_same_group = equipped_ptr->k_idx
+            && player_light_share_carry_group(o_ptr, equipped_ptr);
+
+        if (!replacing_same_group && player_light_available_capacity(o_ptr) <= 0)
+        {
+            if (player_oil_container_object(o_ptr))
+                msg_print("You have no free lamp/flask slots.");
+            else
+                msg_print("You cannot carry any more of those.");
+            return;
+        }
     }
 
     if (!from_supplies
@@ -3103,8 +3112,11 @@ void do_cmd_refuel_lamp(object_type* default_o_ptr, int default_item)
 {
     int item;
 
-    object_type* o_ptr;
+    object_type* o_ptr = NULL;
     object_type* j_ptr;
+    int supply_index = supplies_current_action();
+    bool from_supplies = false;
+    int source_oil = 0;
 
     cptr q, s;
 
@@ -3113,6 +3125,7 @@ void do_cmd_refuel_lamp(object_type* default_o_ptr, int default_item)
     {
         o_ptr = default_o_ptr;
         item = default_item;
+        from_supplies = (item == SUPPLIES_INDEX) && (supply_index >= 0);
     }
     /* Get an item */
     else
@@ -3123,11 +3136,32 @@ void do_cmd_refuel_lamp(object_type* default_o_ptr, int default_item)
         /* Get an item */
         q = "Refill with which source of oil? ";
         s = "You have no sources of oil.";
+        supplies_set_pending_action(SUPPLY_MENU_ACTION_USE,
+            SUPPLY_GROUP_LIGHTS, true);
         if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
+        {
+            supplies_clear_pending_action();
             return;
+        }
+
+        if (item == SUPPLIES_INDEX)
+        {
+            supplies_clear_pending_action();
+            open_supplies_menu_with_context(SUPPLY_MENU_ACTION_USE,
+                SUPPLY_GROUP_LIGHTS, true, true);
+            return;
+        }
+
+        supplies_clear_pending_action();
 
         /* Get the item (in the pack) */
-        if (item >= 0)
+        if (item >= SUPPLIES_INDEX)
+        {
+            supply_index = item - SUPPLIES_INDEX;
+            o_ptr = supplies_entry_at(supply_index);
+            from_supplies = true;
+        }
+        else if (item >= 0)
         {
             o_ptr = &inventory[item];
         }
@@ -3139,24 +3173,66 @@ void do_cmd_refuel_lamp(object_type* default_o_ptr, int default_item)
         }
     }
 
+    if (!o_ptr)
+        return;
+
+    source_oil = (o_ptr->tval == TV_FLASK) ? o_ptr->pval : o_ptr->timeout;
+
+    if (from_supplies)
+    {
+        if (source_oil > 0)
+        {
+            player_gain_lamp_oil(source_oil, true);
+            player_oil_container_set_fuel(o_ptr, 0);
+            supplies_refresh_entry(supply_index);
+            msg_print("You add the oil to your lamp stores.");
+        }
+        else
+        {
+            msg_print("That oil is already in your lamp stores.");
+        }
+
+        p_ptr->redraw |= (PR_LIGHT);
+        handle_stuff();
+        return;
+    }
+
+    /* Get the lantern */
+    j_ptr = &inventory[INVEN_LITE];
+
+    if ((j_ptr->tval != TV_LIGHT) || (j_ptr->sval != SV_LIGHT_LANTERN))
+    {
+        msg_print("You are not wielding a lantern.");
+        return;
+    }
+
+    if (source_oil <= 0)
+    {
+        msg_print("There is no oil left in that.");
+        return;
+    }
+
+    if (source_oil + player_light_fuel(j_ptr) > player_light_max_fuel(j_ptr)
+        && !get_check("Refueling this lamp will waste some oil. Proceed? "))
+    {
+        return;
+    }
+
     /* Take a turn */
     p_ptr->energy_use = 100;
 
     // store the action type
     p_ptr->previous_action[0] = ACTION_MISC;
 
-    /* Get the lantern */
-    j_ptr = &inventory[INVEN_LITE];
-
     /* Refuel from a latern */
     if (o_ptr->sval == SV_LIGHT_LANTERN)
     {
-        player_light_add_fuel(j_ptr, o_ptr->timeout);
+        player_light_add_fuel(j_ptr, source_oil);
     }
     /* Refuel from a flask */
     else
     {
-        player_light_add_fuel(j_ptr, o_ptr->pval);
+        player_light_add_fuel(j_ptr, source_oil);
     }
 
     /* Message */

@@ -1336,6 +1336,21 @@ int display_player_compact_get_max_scroll(void)
     return display_player_compact_max_scroll;
 }
 
+static cptr display_player_song_name(byte song)
+{
+    cptr name;
+
+    if (song == SNG_NOTHING)
+        return "";
+
+    name = b_name + (&b_info[ability_index(S_SNG, song)])->name;
+
+    if (prefix(name, "Song of "))
+        name += 8;
+
+    return name;
+}
+
 static void put_label_fit(int x, int y, const char* label, int start)
 {
     int maxw = start - x;
@@ -1777,14 +1792,12 @@ void display_player_xtra_info(int mode)
 
     /* Songs (optional) */
     if (p_ptr->song1 != SNG_NOTHING) {
-        strnfmt(val, sizeof(val), "%s",
-                b_name + (&b_info[ability_index(S_SNG, p_ptr->song1)])->name);
+        strnfmt(val, sizeof(val), "%s", display_player_song_name(p_ptr->song1));
         put_single20_right(col_stats, row_stats++,
                            "Song", val, 14, TERM_L_BLUE);
     }
     if (p_ptr->song2 != SNG_NOTHING) {
-        strnfmt(val, sizeof(val), "%s",
-                b_name + (&b_info[ability_index(S_SNG, p_ptr->song2)])->name);
+        strnfmt(val, sizeof(val), "%s", display_player_song_name(p_ptr->song2));
         put_single20_right(col_stats, row_stats++,
                            "Song", val, 14, TERM_L_BLUE);
     }
@@ -3533,14 +3546,12 @@ static int display_player_compact_summary_block(int row_start)
 
         /* Songs */
         if (p_ptr->song1 != SNG_NOTHING) {
-            strnfmt(val, sizeof(val), "%s",
-                b_name + (&b_info[ability_index(S_SNG, p_ptr->song1)])->name);
+            strnfmt(val, sizeof(val), "%s", display_player_song_name(p_ptr->song1));
             put_single20_right(col, row++,
                        "Song", val, 14, TERM_L_BLUE);
         }
         if (p_ptr->song2 != SNG_NOTHING) {
-            strnfmt(val, sizeof(val), "%s",
-                b_name + (&b_info[ability_index(S_SNG, p_ptr->song2)])->name);
+            strnfmt(val, sizeof(val), "%s", display_player_song_name(p_ptr->song2));
             put_single20_right(col, row++,
                        "Song", val, 14, TERM_L_BLUE);
         }
@@ -3661,14 +3672,12 @@ static int display_player_compact_summary_block(int row_start)
         int row_song = (row_l > row_r) ? row_l : row_r;
 
         if (p_ptr->song1 != SNG_NOTHING) {
-            strnfmt(val, sizeof(val), "%s",
-                    b_name + (&b_info[ability_index(S_SNG, p_ptr->song1)])->name);
+            strnfmt(val, sizeof(val), "%s", display_player_song_name(p_ptr->song1));
             put_single20_right(col_l, row_song++,
                                "Song", val, 14, TERM_L_BLUE);
         }
         if (p_ptr->song2 != SNG_NOTHING) {
-            strnfmt(val, sizeof(val), "%s",
-                    b_name + (&b_info[ability_index(S_SNG, p_ptr->song2)])->name);
+            strnfmt(val, sizeof(val), "%s", display_player_song_name(p_ptr->song2));
             put_single20_right(col_l, row_song++,
                                "Song", val, 14, TERM_L_BLUE);
         }

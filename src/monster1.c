@@ -697,8 +697,14 @@ static void describe_monster_abilities(int r_idx, const monster_lore* l_ptr)
     vn = 0;
     if (r_ptr->flags2 & (RF2_ELFBANE))
         vp[vn++] = "elf-bane"; // elf-bane is obvious
+    if (r_ptr->flags4 & (RF4_NOLDORBANE))
+        vp[vn++] = "noldor-bane"; // noldor-bane is obvious
+    if (r_ptr->flags4 & (RF4_SINDARBANE))
+        vp[vn++] = "sindar-bane"; // sindar-bane is obvious
     if (r_ptr->flags4 & (RF4_DWARFBANE))
         vp[vn++] = "dwarf-bane"; // dwarf-bane is obvious
+    if (r_ptr->flags4 & (RF4_EDAINBANE))
+        vp[vn++] = "edain-bane"; // edain-bane is obvious
     if (l_ptr->flags2 & (RF2_CHARGE))
         vp[vn++] = "charge";
     if (l_ptr->flags2 & (RF2_KNOCK_BACK))

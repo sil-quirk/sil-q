@@ -52,15 +52,15 @@
 // #define STEAMDECK_SUPPORT
 
 /* Formalized new fork versioning (canonical source for all modules) */
-#define VERSION_STRING "0.9.6.1"
+#define VERSION_STRING "0.9.6.2"
 /*
- * Version components (0.9.6.1).  All on-disk formats (saves, scores, metaruns)
+ * Version components (0.9.6.2).  All on-disk formats (saves, scores, metaruns)
  * MUST match these values; never bump individual subsystems independently.
  */
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 9
 #define VERSION_PATCH 6
-#define VERSION_EXTRA 1   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
+#define VERSION_EXTRA 2   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
 /* Update MIN_VERSION_EXTRA whenever the savefile format changes. */
 #define MIN_VERSION_EXTRA 0  /* Accept earlier 0.9.x saves */
 
@@ -482,7 +482,8 @@
  * Refueling constants
  */
 #define FUEL_TORCH 3000 /* Maximum amount of fuel in a torch */
-#define FUEL_LAMP 7500 /* Maximum amount of fuel in a lantern */
+#define FUEL_LAMP 5000 /* Maximum amount of fuel in a lantern */
+#define FUEL_FLASK 2500 /* Maximum amount of fuel in a flask of oil */
 #define FUEL_MALLORN 200 /* Maximum amount of fuel in a mallorn torch */
 
 /*
@@ -2072,7 +2073,7 @@
 #define TR4_WEIGHT          0x00004000L /* Increases item weight by 25% of base weight */
 #define TR4_NEG_WEIGHT      0x00008000L /* Decreases item weight by 25% of base weight */
 #define TR4_JINX           0x00010000L /* Ego is a jinx affix */
-#define TR4_DEEP_CALL      0x00020000L /* Speeds the min-depth timer by three extra depth steps */
+#define TR4_DEEP_CALL      0x00020000L /* Speeds min-depth timer: 3 depths equipped, 1.5 in inventory */
 #define TR4_NO_PREFIX      0x00040000L /* Suffix ego cannot be combined with a prefix */
 #define TR4_PROT_FIRE      0x00080000L /* Item protection counts against fire attacks */
 #define TR4_PROT_COLD      0x00100000L /* Item protection counts against cold attacks */
@@ -2552,11 +2553,14 @@
 #define RF4_SNG_OATHS 0x00100000 /* Sing a song of oaths */
 #define RF4_DWARFBANE 0x00200000 /* Has the Ability: Bane (Dwarves) */
 #define RF4_RF4XXX22 RF4_DWARFBANE /* Compatibility alias */
-#define RF4_RF4XXX23 0x00400000 /*  */
+#define RF4_EDAINBANE 0x00400000 /* Has the Ability: Bane (Edain) */
+#define RF4_RF4XXX23 RF4_EDAINBANE /* Compatibility alias */
 #define RF4_THROW_WEB 0x00800000 /* Throw a web over the player */
 #define RF4_RALLY 0x01000000 /* Rally fleeing foes */
-#define RF4_RF4XXX26 0x02000000 /*  */
-#define RF4_RF4XXX27 0x04000000 /*  */
+#define RF4_NOLDORBANE 0x02000000 /* Has the Ability: Bane (Noldor) */
+#define RF4_RF4XXX26 RF4_NOLDORBANE /* Compatibility alias */
+#define RF4_SINDARBANE 0x04000000 /* Has the Ability: Bane (Sindar) */
+#define RF4_RF4XXX27 RF4_SINDARBANE /* Compatibility alias */
 #define RF4_RF4XXX28 0x08000000 /*  */
 #define RF4_RF4XXX29 0x10000000 /*  */
 #define RF4_RF4XXX30 0x20000000 /*  */
@@ -3003,7 +3007,7 @@
  * 0 means the next command input only dismisses the banner. */
 #define NARRATIVE_BANNER_TURNS_MAX            3
 #if defined(__ANDROID__) || defined(SIL_IOS)
-#define DEFAULT_NARRATIVE_BANNER_TURNS        1
+#define DEFAULT_NARRATIVE_BANNER_TURNS        0
 #else
 #define DEFAULT_NARRATIVE_BANNER_TURNS        3
 #endif

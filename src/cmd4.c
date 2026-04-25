@@ -238,6 +238,9 @@ static bool supplies_menu_use_entry(supply_list_entry* entry)
     case TV_GEM:
         do_cmd_use_gem(o_ptr, SUPPLIES_INDEX);
         break;
+    case TV_FLASK:
+        do_cmd_refuel_lamp(o_ptr, SUPPLIES_INDEX);
+        break;
     case TV_LIGHT:
         do_cmd_wield(o_ptr, SUPPLIES_INDEX);
         break;
@@ -343,7 +346,7 @@ static cptr supply_group_text[SUPPLY_GROUP_MAX + 1] = {
     "Food",
     "Potions",
     "Gems",
-    "Lights",
+    "Lights/Oil",
     NULL
 };
 
@@ -2114,10 +2117,11 @@ int elf_bane_bonus(monster_type* m_ptr)
     else
         r_ptr = &r_info[m_ptr->r_idx];
 
-    /* race.txt serials 0-3 are the Elven lineages */
-    if ((r_ptr->flags2 & (RF2_ELFBANE)) && (p_ptr->prace <= 3))
+    /* race.txt serials 0-2 are Noldor; serial 3 is Sindar */
+    if (((r_ptr->flags2 & (RF2_ELFBANE)) && (p_ptr->prace <= 3))
+        || ((r_ptr->flags4 & (RF4_NOLDORBANE)) && (p_ptr->prace <= 2))
+        || ((r_ptr->flags4 & (RF4_SINDARBANE)) && (p_ptr->prace == 3)))
     {
-        /* Dagorhir must have killed between 32 and 63 elves */
         return (5);
     }
 
@@ -2135,6 +2139,24 @@ int dwarf_bane_bonus(monster_type* m_ptr)
 
     /* race.txt serial 4 is Naugrim */
     if ((r_ptr->flags4 & (RF4_DWARFBANE)) && (p_ptr->prace == 4))
+    {
+        return (5);
+    }
+
+    return (0);
+}
+
+int edain_bane_bonus(monster_type* m_ptr)
+{
+    monster_race* r_ptr;
+
+    if (m_ptr == NULL)
+        return (0);
+    else
+        r_ptr = &r_info[m_ptr->r_idx];
+
+    /* race.txt serial 5 is Edain */
+    if ((r_ptr->flags4 & (RF4_EDAINBANE)) && (p_ptr->prace == 5))
     {
         return (5);
     }
@@ -22557,7 +22579,7 @@ static void describe_supply_group_status(int group_idx, char* buf, size_t len)
         break;
     case SUPPLY_GROUP_LIGHTS:
         SDL_strlcpy(buf,
-            "Each light row shows item weight; light total above includes oil.",
+            "Oil slots: lamp 2, flask 1 (max 4).",
             len);
         break;
     default:
@@ -22567,7 +22589,8 @@ static void describe_supply_group_status(int group_idx, char* buf, size_t len)
 
 static void build_supply_weight_summary(char* buf, size_t buflen, int term_wid,
     int used_weight, int max_weight, int light_weight, int light_item_weight,
-    int light_oil_weight, int lamp_oil, int lamp_capacity)
+    int light_oil_weight, int lamp_oil, int lamp_capacity, int oil_slots,
+    int oil_slot_capacity)
 {
     char temp[128];
 
@@ -22578,13 +22601,13 @@ static void build_supply_weight_summary(char* buf, size_t buflen, int term_wid,
         term_wid = 80;
 
     strnfmt(temp, sizeof(temp),
-        "Supply: %d.%1d/%d.%1d lb  Light: %d.%1d lb (%d.%1d items + %d.%1d oil)  Oil: %d/%d",
+        "Supply: %d.%1d/%d.%1d lb  Light: %d.%1d lb (%d.%1d items + %d.%1d oil)  Oil: %d/%d  Slots: %d/%d",
         used_weight / 10, used_weight % 10,
         max_weight / 10, max_weight % 10,
         light_weight / 10, light_weight % 10,
         light_item_weight / 10, light_item_weight % 10,
         light_oil_weight / 10, light_oil_weight % 10,
-        lamp_oil, lamp_capacity);
+        lamp_oil, lamp_capacity, oil_slots, oil_slot_capacity);
     if ((int)strlen(temp) <= term_wid)
     {
         SDL_strlcpy(buf, temp, buflen);
@@ -22592,13 +22615,13 @@ static void build_supply_weight_summary(char* buf, size_t buflen, int term_wid,
     }
 
     strnfmt(temp, sizeof(temp),
-        "Sup %d.%1d/%d.%1d lb  Lgt %d.%1d lb (%d.%1d itm + %d.%1d oil)  Oil %d/%d",
+        "Sup %d.%1d/%d.%1d lb  Lgt %d.%1d lb (%d.%1d itm + %d.%1d oil)  Oil %d/%d  Slots %d/%d",
         used_weight / 10, used_weight % 10,
         max_weight / 10, max_weight % 10,
         light_weight / 10, light_weight % 10,
         light_item_weight / 10, light_item_weight % 10,
         light_oil_weight / 10, light_oil_weight % 10,
-        lamp_oil, lamp_capacity);
+        lamp_oil, lamp_capacity, oil_slots, oil_slot_capacity);
     if ((int)strlen(temp) <= term_wid)
     {
         SDL_strlcpy(buf, temp, buflen);
@@ -22606,13 +22629,13 @@ static void build_supply_weight_summary(char* buf, size_t buflen, int term_wid,
     }
 
     strnfmt(temp, sizeof(temp),
-        "Sup %d.%1d/%d.%1d  Lgt %d.%1d (%d.%1d+%d.%1d)  Oil %d/%d",
+        "Sup %d.%1d/%d.%1d  Lgt %d.%1d (%d.%1d+%d.%1d)  Oil %d/%d  Sl %d/%d",
         used_weight / 10, used_weight % 10,
         max_weight / 10, max_weight % 10,
         light_weight / 10, light_weight % 10,
         light_item_weight / 10, light_item_weight % 10,
         light_oil_weight / 10, light_oil_weight % 10,
-        lamp_oil, lamp_capacity);
+        lamp_oil, lamp_capacity, oil_slots, oil_slot_capacity);
     if ((int)strlen(temp) <= term_wid)
     {
         SDL_strlcpy(buf, temp, buflen);
@@ -22714,7 +22737,13 @@ static void supply_entry_display_name(char* buf, size_t buflen,
 
 static int supply_entry_turns(const object_type* o_ptr)
 {
-    if (!o_ptr || !o_ptr->k_idx || o_ptr->tval != TV_LIGHT)
+    if (!o_ptr || !o_ptr->k_idx)
+        return -1;
+
+    if (o_ptr->tval == TV_FLASK)
+        return -2;
+
+    if (o_ptr->tval != TV_LIGHT)
         return -1;
 
     if (!fuelable_light_p(o_ptr))
@@ -22734,7 +22763,7 @@ static void supply_init_columns(const knowledge_browser_layout* layout,
     memset(cols, 0, sizeof(*cols));
 
     cols->show_sym = true;
-    cols->show_qty = (current_group != SUPPLY_GROUP_LIGHTS);
+    cols->show_qty = true;
     cols->show_weight = (current_group == SUPPLY_GROUP_FOOD)
         || (current_group == SUPPLY_GROUP_LIGHTS);
     cols->show_turns = (current_group == SUPPLY_GROUP_LIGHTS);
@@ -22830,6 +22859,10 @@ static void compute_supply_group_totals(int totals[SUPPLY_GROUP_MAX])
             totals[SUPPLY_GROUP_POTIONS] += o_ptr->number;
         else if (o_ptr->tval == TV_GEM)
             totals[SUPPLY_GROUP_GEMS] += o_ptr->number;
+        else if (supply_item_matches(SUPPLY_GROUP_LIGHTS, o_ptr))
+            totals[SUPPLY_GROUP_LIGHTS] += player_oil_container_slot_cost(o_ptr) > 0
+                ? player_oil_container_slot_cost(o_ptr) * o_ptr->number
+                : o_ptr->number;
     }
 
     for (i = 0; i < supplies_entry_count(); i++)
@@ -22846,14 +22879,18 @@ static void compute_supply_group_totals(int totals[SUPPLY_GROUP_MAX])
             totals[SUPPLY_GROUP_POTIONS] += s_ptr->number;
         else if (s_ptr->tval == TV_GEM)
             totals[SUPPLY_GROUP_GEMS] += s_ptr->number;
-        else if (supplies_is_light_object(s_ptr))
-            totals[SUPPLY_GROUP_LIGHTS] += s_ptr->number;
+        else if (supply_item_matches(SUPPLY_GROUP_LIGHTS, s_ptr))
+            totals[SUPPLY_GROUP_LIGHTS] += player_oil_container_slot_cost(s_ptr) > 0
+                ? player_oil_container_slot_cost(s_ptr) * s_ptr->number
+                : s_ptr->number;
     }
 
     object_type* light_ptr = &inventory[INVEN_LITE];
-    if (supplies_is_light_object(light_ptr))
+    if (supply_item_matches(SUPPLY_GROUP_LIGHTS, light_ptr))
     {
-        totals[SUPPLY_GROUP_LIGHTS] += MAX(light_ptr->number, 1);
+        totals[SUPPLY_GROUP_LIGHTS] += player_oil_container_slot_cost(light_ptr) > 0
+            ? player_oil_container_slot_cost(light_ptr) * MAX(light_ptr->number, 1)
+            : MAX(light_ptr->number, 1);
     }
 }
 
@@ -22899,6 +22936,22 @@ static int collect_supply_entries(int group_idx, supply_list_entry entries[])
                 continue;
 
             value = MAX(o_ptr->number, 1);
+            if (o_ptr->tval == TV_FLASK)
+            {
+                if (count >= capacity)
+                    break;
+
+                entries[count].k_idx = o_ptr->k_idx;
+                entries[count].item_idx = i;
+                entries[count].total = value;
+                entries[count].supply_idx = -1;
+                entries[count].equip_idx = -1;
+                entries[count].equipped = false;
+                entries[count].single_item_display = false;
+                count++;
+                continue;
+            }
+
             for (unit = 0; unit < value && count < capacity; unit++)
             {
                 entries[count].k_idx = o_ptr->k_idx;
@@ -22922,6 +22975,22 @@ static int collect_supply_entries(int group_idx, supply_list_entry entries[])
                 continue;
 
             value = MAX(s_ptr->number, 1);
+            if (s_ptr->tval == TV_FLASK)
+            {
+                if (count >= capacity)
+                    break;
+
+                entries[count].k_idx = s_ptr->k_idx;
+                entries[count].item_idx = SUPPLIES_INDEX;
+                entries[count].total = value;
+                entries[count].supply_idx = i;
+                entries[count].equip_idx = -1;
+                entries[count].equipped = false;
+                entries[count].single_item_display = false;
+                count++;
+                continue;
+            }
+
             for (unit = 0; unit < value && count < capacity; unit++)
             {
                 entries[count].k_idx = s_ptr->k_idx;
@@ -23218,6 +23287,9 @@ static byte get_supply_item_color(int k_idx, bool aware)
                 default:                     return TERM_WHITE;
             }
 
+        case TV_FLASK:
+            return TERM_YELLOW;
+
         case TV_LIGHT:
             switch (k_ptr->sval)
             {
@@ -23349,6 +23421,8 @@ static void display_supply_list(const knowledge_browser_layout* layout, int row,
 
             if (turns >= 0)
                 strnfmt(cell_buf, sizeof(cell_buf), "%5d", turns);
+            else if (turns == -2)
+                strnfmt(cell_buf, sizeof(cell_buf), "%5s", "");
             else
                 strnfmt(cell_buf, sizeof(cell_buf), "%5s", "inf");
             Term_putstr(cols->turns_col, y, 5, attr, cell_buf);
@@ -25947,6 +26021,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         int light_oil_weight;
         int light_weight;
         int lamp_oil;
+        int oil_slots;
+        int oil_slot_capacity;
         int max_weight;
         char weight_buf[128];
         char status_buf[96];
@@ -25961,6 +26037,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         light_oil_weight = player_lamp_oil_weight();
         light_weight = light_item_weight + light_oil_weight;
         lamp_oil = player_lamp_oil();
+        oil_slots = player_oil_container_slots_used();
+        oil_slot_capacity = player_oil_container_slot_capacity();
         max_weight = supplies_current_weight_cap();
 
         if (grp_cur >= grp_cnt)
@@ -26013,7 +26091,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         build_supply_weight_summary(weight_buf, sizeof(weight_buf),
             draw_layout.term_wid, used_weight, max_weight, light_weight,
             light_item_weight, light_oil_weight, lamp_oil,
-            player_lamp_oil_capacity());
+            player_lamp_oil_capacity(), oil_slots, oil_slot_capacity);
 
         if (redraw || single_column
             || (single_column != prev_single_column)
@@ -26026,11 +26104,13 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             cptr list_label = (single_column && column)
                 ? supply_group_text[grp_idx[grp_cur]]
                 : "Name";
+            cptr title_label = (draw_layout.term_wid <= 50)
+                ? "Supplies - H/F/P/G/Oil"
+                : "Supplies - Herbs, Food, Potions, Gems, Lights/Oil";
 
             Term_clear();
             Term_putstr(0, draw_layout.title_row, draw_layout.term_wid,
-                TERM_L_WHITE + TERM_SHADE,
-                "Supplies - Herbs, Food, Potions, Gems, Lights");
+                TERM_L_WHITE + TERM_SHADE, title_label);
             Term_putstr(0, draw_layout.tabs_row, draw_layout.term_wid, TERM_SLATE,
                 weight_buf);
             Term_erase(0, draw_layout.header_row, 255);
@@ -26127,14 +26207,26 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             controller_prompt_label('f', "B", drop_label, sizeof(drop_label));
             controller_prompt_label(ESCAPE, "Start", back_label, sizeof(back_label));
 
-            strnfmt(prompt_buf, sizeof(prompt_buf),
-                "D-pad move  [%s] recall  [%s/%s] use  [%s] drop  [%s] back",
-                recall_label, use_label, confirm_label, drop_label, back_label);
-            Term_putstr(1, draw_layout.prompt_row, -1, TERM_L_DARK, prompt_buf);
-        } else {
+            if (draw_layout.term_wid <= 50)
+            {
+                strnfmt(prompt_buf, sizeof(prompt_buf),
+                    "D-pad move  [%s/%s] use  [%s] drop  [%s] back",
+                    use_label, confirm_label, drop_label, back_label);
+            }
+            else
+            {
+                strnfmt(prompt_buf, sizeof(prompt_buf),
+                    "D-pad move  [%s] recall  [%s/%s] use  [%s] drop  [%s] back",
+                    recall_label, use_label, confirm_label, drop_label, back_label);
+            }
             Term_putstr(0, draw_layout.prompt_row, draw_layout.term_wid,
-                TERM_SLATE,
-                "Dir move  r/-> recall  u/Space use  d drop  Esc");
+                TERM_L_DARK, prompt_buf);
+        } else {
+            cptr prompt = (draw_layout.term_wid <= 50)
+                ? "Dir move  u/Space use  d drop  Esc"
+                : "Dir move  r/-> recall  u/Space use  d drop  Esc";
+            Term_putstr(0, draw_layout.prompt_row, draw_layout.term_wid,
+                TERM_SLATE, prompt);
         }
 
         if (!column)
@@ -26230,6 +26322,10 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                         break;
                     case TV_GEM:
                         do_cmd_use_gem(o_ptr, entry->item_idx);
+                        handled = true;
+                        break;
+                    case TV_FLASK:
+                        do_cmd_refuel_lamp(o_ptr, entry->item_idx);
                         handled = true;
                         break;
                     case TV_LIGHT:

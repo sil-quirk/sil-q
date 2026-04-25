@@ -25,6 +25,16 @@ static bool ui_hide_left_panel(void)
     return get_sdl_hide_left_panel();
 }
 
+static bool ui_status_system_compact(void)
+{
+    return ui_compact_width() || ui_hide_left_panel();
+}
+
+static bool ui_status_bar_nominal_compact(void)
+{
+    return ui_compact_width();
+}
+
 static bool ui_compact_height(void)
 {
     return SIL_UI_COMPACT_HEIGHT;
@@ -32,12 +42,26 @@ static bool ui_compact_height(void)
 
 static bool ui_compact_status_line_handles_song(void)
 {
-    return ui_compact_width() && (ROW_SONG >= ROW_STATE);
+    /*
+     * When only the left panel is compact, keep song out of the overlay and
+     * let the packed status line carry it.  On genuinely compact status bars,
+     * song belongs to the panel when the panel is compact, and to the classic
+     * left panel otherwise.
+     */
+    return ui_hide_left_panel() && !ui_status_bar_nominal_compact();
 }
 
 static bool ui_compact_status_line_handles_wounds(void)
 {
-    return ui_compact_width() && (ROW_CUT >= ROW_STATE);
+    /* Poison and bleeding move to the packed status line only when the left
+     * panel is compact.  The full left panel owns them in all other layouts.
+     */
+    return ui_hide_left_panel();
+}
+
+static bool ui_wound_rows_overlap_status_line(void)
+{
+    return (ROW_CUT == ROW_STATE) || (ROW_POISONED == ROW_STATE);
 }
 
 static bool ui_top_status_line(void)
@@ -1233,6 +1257,28 @@ static int hidden_left_panel_line_width(const hidden_overlay_line* line,
     return width;
 }
 
+static int hidden_left_panel_mask_width(int width)
+{
+    if (width < 0)
+        width = 0;
+
+    if (Term && width > Term->wid)
+        width = Term->wid;
+
+    if (Term && use_bigtile && width > COL_MAP && width < Term->wid
+        && (((width - COL_MAP) & 1) != 0))
+    {
+        /*
+         * Compact left-panel overlays sit over the map. If the text ends on
+         * the first half of a bigtile cell, cover the trailing half too;
+         * otherwise map redraws can expose stale half-tiles at the edge.
+         */
+        width++;
+    }
+
+    return width;
+}
+
 static int hidden_left_panel_draw_line(const hidden_overlay_line* line, int row,
     int col, bool use_short_text, byte* out_chars, int out_chars_max)
 {
@@ -1355,33 +1401,37 @@ static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lin
     hidden_left_panel_add_quiver_line(lines, &count, max_lines,
         &inventory[INVEN_QUIVER2]);
 
-    if (p_ptr->cut > 100)
+    if (!ui_compact_status_line_handles_wounds())
     {
-        hidden_left_panel_add_line(lines, &count, max_lines, TERM_RED, "MW !!!");
-    }
-    else if (p_ptr->cut > 20)
-    {
-        strnfmt(buf, sizeof(buf), "BL %3d", MIN(p_ptr->cut, 999));
-        hidden_left_panel_add_line(lines, &count, max_lines, TERM_RED, buf);
-    }
-    else if (p_ptr->cut > 0)
-    {
-        strnfmt(buf, sizeof(buf), "BL %3d", MIN(p_ptr->cut, 999));
-        hidden_left_panel_add_line(lines, &count, max_lines, TERM_L_RED, buf);
+        if (p_ptr->cut > 100)
+        {
+            hidden_left_panel_add_line(lines, &count, max_lines, TERM_RED, "MW !!!");
+        }
+        else if (p_ptr->cut > 20)
+        {
+            strnfmt(buf, sizeof(buf), "BL %3d", MIN(p_ptr->cut, 999));
+            hidden_left_panel_add_line(lines, &count, max_lines, TERM_RED, buf);
+        }
+        else if (p_ptr->cut > 0)
+        {
+            strnfmt(buf, sizeof(buf), "BL %3d", MIN(p_ptr->cut, 999));
+            hidden_left_panel_add_line(lines, &count, max_lines, TERM_L_RED, buf);
+        }
+
+        if (p_ptr->poisoned > 20)
+        {
+            strnfmt(buf, sizeof(buf), "PS %3d", MIN(p_ptr->poisoned, 999));
+            hidden_left_panel_add_line(lines, &count, max_lines, TERM_L_GREEN, buf);
+        }
+        else if (p_ptr->poisoned > 0)
+        {
+            strnfmt(buf, sizeof(buf), "PS %3d", MIN(p_ptr->poisoned, 999));
+            hidden_left_panel_add_line(lines, &count, max_lines, TERM_GREEN, buf);
+        }
     }
 
-    if (p_ptr->poisoned > 20)
-    {
-        strnfmt(buf, sizeof(buf), "PS %3d", MIN(p_ptr->poisoned, 999));
-        hidden_left_panel_add_line(lines, &count, max_lines, TERM_L_GREEN, buf);
-    }
-    else if (p_ptr->poisoned > 0)
-    {
-        strnfmt(buf, sizeof(buf), "PS %3d", MIN(p_ptr->poisoned, 999));
-        hidden_left_panel_add_line(lines, &count, max_lines, TERM_GREEN, buf);
-    }
-
-    if (p_ptr->song1 != SNG_NOTHING || p_ptr->song2 != SNG_NOTHING)
+    if (!ui_compact_status_line_handles_song()
+        && (p_ptr->song1 != SNG_NOTHING || p_ptr->song2 != SNG_NOTHING))
     {
         char* song1_name
             = b_name + (&b_info[ability_index(S_SNG, p_ptr->song1)])->name;
@@ -1448,8 +1498,7 @@ static bool hidden_left_panel_sync_mask(const hidden_overlay_line* lines, int li
         if (i < line_count && lines[i].text[0])
         {
             int width = hidden_left_panel_line_width(&lines[i], false);
-            if (Term && width > Term->wid)
-                width = Term->wid;
+            width = hidden_left_panel_mask_width(width);
             new_width = (byte)width;
         }
 
@@ -1474,19 +1523,20 @@ static bool hidden_left_panel_sync_topline_mask(
     const hidden_overlay_line* lines, int line_count)
 {
     bool changed = false;
-    int width = hidden_left_panel_topline_render_width(lines, line_count);
-    byte new_rows = (width > 0) ? 1 : 0;
+    int render_width = hidden_left_panel_topline_render_width(lines, line_count);
+    int mask_width = hidden_left_panel_mask_width(render_width);
+    byte new_rows = (render_width > 0) ? 1 : 0;
 
-    if (width > 255)
-        width = 255;
+    if (mask_width > 255)
+        mask_width = 255;
 
     if (g_hidden_left_panel_overlay_rows != new_rows)
         changed = true;
-    if (g_hidden_left_panel_overlay_widths[0] != (byte)width)
+    if (g_hidden_left_panel_overlay_widths[0] != (byte)mask_width)
         changed = true;
 
     g_hidden_left_panel_overlay_rows = new_rows;
-    g_hidden_left_panel_overlay_widths[0] = (byte)width;
+    g_hidden_left_panel_overlay_widths[0] = (byte)mask_width;
 
     for (int i = 1; i < 16; i++)
     {
@@ -1535,14 +1585,13 @@ static void hidden_left_panel_restore_topline_map_span(int start_col,
     {
         int kx = x - p_ptr->wx;
         int vx = kx + COL_MAP;
-        int cell_w = use_bigtile ? 2 : 1;
 
         if (use_bigtile)
             vx += kx;
 
         if (vx >= end_col)
             break;
-        if (vx + cell_w <= start_col)
+        if (vx < start_col)
             continue;
         if (!in_bounds(y, x))
             continue;
@@ -1575,13 +1624,12 @@ static void prt_hidden_top_vitals(void)
     {
         int row = ROW_NAME + i;
         int width = hidden_left_panel_line_width(&lines[i], false);
+        int erase_width = hidden_left_panel_mask_width(width);
 
-        if (width <= 0)
+        if (erase_width <= 0)
             continue;
-        if (width > Term->wid)
-            width = Term->wid;
 
-        Term_erase(0, row, width);
+        Term_erase(0, row, erase_width);
         hidden_left_panel_draw_line(&lines[i], row, 0, false, NULL, 0);
     }
 }
@@ -1593,8 +1641,9 @@ void redraw_hidden_left_panel_topline_suffix(void)
     int row = hidden_left_panel_horizontal_row();
     int col = 0;
     int current_width = 0;
+    int current_mask_width = 0;
     int previous_width = g_hidden_left_panel_topline_rendered_width;
-    int restore_end = previous_width;
+    int previous_mask_width = hidden_left_panel_mask_width(previous_width);
     bool first_entry = true;
 
     if (!Term || !Term->scr || !ui_hide_left_panel())
@@ -1604,29 +1653,26 @@ void redraw_hidden_left_panel_topline_suffix(void)
     if (!hidden_left_panel_uses_topline_layout())
         return;
 
-    if (use_bigtile && (restore_end & 1) && restore_end < Term->wid)
-        restore_end++;
-    if (use_bigtile && restore_end < Term->wid)
-        restore_end++;
-
     line_count = hidden_left_panel_build_lines(lines, 16);
     if (line_count <= 0)
     {
-        if (restore_end > 0)
+        if (previous_mask_width > 0)
         {
-            Term_erase(0, row, restore_end);
-            hidden_left_panel_restore_topline_map_span(0, restore_end);
+            Term_erase(0, row, previous_mask_width);
+            hidden_left_panel_restore_topline_map_span(0, previous_mask_width);
         }
         g_hidden_left_panel_topline_rendered_width = 0;
         return;
     }
 
     current_width = hidden_left_panel_topline_render_width(lines, line_count);
-    if (restore_end > current_width)
+    current_mask_width = hidden_left_panel_mask_width(current_width);
+
+    if (previous_mask_width > current_width)
     {
-        Term_erase(current_width, row, restore_end - current_width);
-        hidden_left_panel_restore_topline_map_span(current_width,
-            restore_end);
+        Term_erase(current_width, row, previous_mask_width - current_width);
+        hidden_left_panel_restore_topline_map_span(current_mask_width,
+            previous_mask_width);
     }
 
     col = 0;
@@ -1664,18 +1710,16 @@ void redraw_hidden_left_panel_topline_suffix(void)
         return;
     }
 
-    if (use_bigtile && (col < Term->wid)
-        && (((col - COL_MAP) & 1) != 0))
+    if (current_mask_width > col)
     {
         /*
-         * When the compact overlay ends on the first half of a bigtile map
-         * cell, blank the exposed trailing half so stale tile fragments do
-         * not survive at the boundary.
+         * Keep the rendered text packed, but blank any covered trailing
+         * bigtile half-cell so the next map redraw cannot show through it.
          */
-        Term_erase(col, row, 1);
+        Term_erase(col, row, current_mask_width - col);
     }
 
-    hidden_left_panel_restore_topline_map_span(col, Term->wid);
+    hidden_left_panel_restore_topline_map_span(current_mask_width, Term->wid);
 
     g_hidden_left_panel_topline_rendered_width = (byte)MIN(col, 255);
 }
@@ -1740,7 +1784,7 @@ static void prt_song(void)
  */
 static void prt_depth(void)
 {
-    if (ui_compact_width())
+    if (ui_status_system_compact())
     {
         prt_status_line_compact();
         return;
@@ -1798,7 +1842,7 @@ static void prt_depth(void)
  */
 static void prt_hunger(void)
 {
-    if (ui_compact_width())
+    if (ui_status_system_compact())
     {
         prt_status_line_compact();
         return;
@@ -1849,7 +1893,7 @@ static void prt_hunger(void)
  */
 static void prt_blind(void)
 {
-    if (ui_compact_width())
+    if (ui_status_system_compact())
     {
         prt_status_line_compact();
         return;
@@ -1874,7 +1918,7 @@ static void prt_blind(void)
  */
 static void prt_confused(void)
 {
-    if (ui_compact_width())
+    if (ui_status_system_compact())
     {
         prt_status_line_compact();
         return;
@@ -1896,7 +1940,7 @@ static void prt_confused(void)
  */
 static void prt_afraid(void)
 {
-    if (ui_compact_width())
+    if (ui_status_system_compact())
     {
         prt_status_line_compact();
         return;
@@ -1921,14 +1965,17 @@ static void prt_afraid(void)
 
 static void prt_cut(void)
 {
-    if (ui_hide_left_panel())
-        return;
-
     if (ui_compact_status_line_handles_wounds())
     {
         prt_status_line_compact();
         return;
     }
+
+    if (ui_hide_left_panel())
+        return;
+
+    if (ui_status_system_compact() && ui_wound_rows_overlap_status_line())
+        return;
 
     if (ui_compact_height())
     {
@@ -1978,14 +2025,17 @@ static void prt_cut(void)
  */
 static void prt_poisoned(void)
 {
-    if (ui_hide_left_panel())
-        return;
-
     if (ui_compact_status_line_handles_wounds())
     {
         prt_status_line_compact();
         return;
     }
+
+    if (ui_hide_left_panel())
+        return;
+
+    if (ui_status_system_compact() && ui_wound_rows_overlap_status_line())
+        return;
 
     if (ui_compact_height())
     {
@@ -2026,7 +2076,7 @@ static void prt_poisoned(void)
  */
 static void prt_state(void)
 {
-    if (ui_compact_width())
+    if (ui_status_system_compact())
     {
         prt_status_line_compact();
         return;
@@ -2167,7 +2217,7 @@ static void prt_state(void)
  */
 static void prt_speed(void)
 {
-    if (ui_compact_width())
+    if (ui_status_system_compact())
     {
         prt_status_line_compact();
         return;
@@ -2227,7 +2277,7 @@ static const char* partition_abbrev_for_point(int y, int x)
 
 static void prt_partition(void)
 {
-    if (ui_compact_width())
+    if (ui_status_system_compact())
     {
         prt_status_line_compact();
         return;
@@ -2253,7 +2303,7 @@ static void prt_partition(void)
  */
 static void prt_terrain(void)
 {
-    if (ui_compact_width())
+    if (ui_status_system_compact())
     {
         prt_status_line_compact();
         return;
@@ -2344,7 +2394,7 @@ static void prt_cut_poisoned_compact(void)
 
 static void prt_stun(void)
 {
-    if (ui_compact_width())
+    if (ui_status_system_compact())
     {
         prt_status_line_compact();
         return;
@@ -2522,6 +2572,14 @@ static bool status_state_text(char* out_long, size_t out_long_sz,
     return false;
 }
 
+static bool status_state_is_critical(cptr state)
+{
+    if (!state || !state[0])
+        return false;
+
+    return streq(state, "Entranced") || streq(state, "Stealth");
+}
+
 static const char* status_partition_short(const char* long_label)
 {
     if (!long_label || !long_label[0])
@@ -2560,19 +2618,23 @@ static void prt_status_line_compact(void)
     char hunger_long[16] = "";
     char hunger_short[8] = "";
     byte hunger_attr = TERM_WHITE;
+    bool hunger_required = false;
 
     if (p_ptr->food < PY_FOOD_STARVE) {
         SDL_strlcpy(hunger_long, "Starving", sizeof(hunger_long));
         SDL_strlcpy(hunger_short, "St", sizeof(hunger_short));
         hunger_attr = TERM_RED;
+        hunger_required = true;
     } else if (p_ptr->food < PY_FOOD_WEAK) {
         SDL_strlcpy(hunger_long, "Weak", sizeof(hunger_long));
         SDL_strlcpy(hunger_short, "Wk", sizeof(hunger_short));
         hunger_attr = TERM_ORANGE;
+        hunger_required = true;
     } else if (p_ptr->food < PY_FOOD_ALERT) {
         SDL_strlcpy(hunger_long, "Hungry", sizeof(hunger_long));
         SDL_strlcpy(hunger_short, "Hu", sizeof(hunger_short));
         hunger_attr = TERM_YELLOW;
+        hunger_required = true;
     } else if (p_ptr->food >= PY_FOOD_FULL) {
         SDL_strlcpy(hunger_long, "Full", sizeof(hunger_long));
         SDL_strlcpy(hunger_short, "Fu", sizeof(hunger_short));
@@ -2601,6 +2663,7 @@ static void prt_status_line_compact(void)
     byte state_attr = TERM_WHITE;
     (void)status_state_text(state_long, sizeof(state_long), state_short,
         sizeof(state_short), &state_attr);
+    bool state_required = status_state_is_critical(state_long);
 
     char cut_long[16] = "";
     char cut_short[8] = "";
@@ -2713,7 +2776,7 @@ static void prt_status_line_compact(void)
             } \
         } while (0)
 
-    ADD_SEG(hunger_long, hunger_short, hunger_attr, true);
+    ADD_SEG(hunger_long, hunger_short, hunger_attr, hunger_required);
     ADD_SEG(p_ptr->blind ? "Blind" : "", "Bl", TERM_ORANGE, true);
     ADD_SEG(p_ptr->confused ? "Confused" : "", "Cn", TERM_ORANGE, true);
     ADD_SEG(cut_long, cut_short, cut_attr, true);
@@ -2721,11 +2784,11 @@ static void prt_status_line_compact(void)
     ADD_SEG(stun_long, stun_short, stun_attr, true);
     ADD_SEG(p_ptr->afraid ? "Afraid" : "", "Af", TERM_ORANGE, true);
     ADD_SEG(song_long, song_short, TERM_L_BLUE, false);
-    ADD_SEG(state_long, state_short, state_attr, false);
-    ADD_SEG(speed_long, speed_short, speed_attr, false);
-    ADD_SEG(terrain_long, terrain_short, terrain_attr, false);
+    ADD_SEG(state_long, state_short, state_attr, state_required);
+    ADD_SEG(speed_long, speed_short, speed_attr, true);
+    ADD_SEG(terrain_long, terrain_short, terrain_attr, true);
     ADD_SEG(part_long, part_short, TERM_WHITE, false);
-    ADD_SEG(depth_long, depth_short, depth_attr, true);
+    ADD_SEG(depth_long, depth_short, depth_attr, false);
 
     #undef ADD_SEG
 
@@ -2795,7 +2858,7 @@ static void prt_status_line_top(void)
 
     Term_erase(0, 0, 255);
 
-    if (ui_compact_width())
+    if (ui_status_system_compact())
     {
         if (!ui_compact_status_line_handles_wounds())
         {
@@ -3112,9 +3175,9 @@ static void prt_frame_basic(void)
  */
 static void prt_frame_extra(void)
 {
-    if (ui_compact_width())
+    if (ui_status_system_compact())
     {
-        /* Compact width: bottom status is rendered as a single packed line. */
+        /* Compact status mode: render a single packed line. */
         if (!ui_compact_status_line_handles_wounds())
         {
             prt_poisoned();
@@ -6195,16 +6258,22 @@ void redraw_stuff(void)
     if (ui_hide_left_panel())
     {
         hidden_overlay_line hidden_lines[16];
-        int hidden_line_count = hidden_left_panel_build_lines(hidden_lines, 16);
+        int hidden_line_count = 0;
         bool hidden_mask_changed = false;
 
         if (hidden_left_panel_uses_top_left_layout())
+        {
+            hidden_line_count = hidden_left_panel_build_lines(hidden_lines, 16);
             hidden_mask_changed
                 = hidden_left_panel_sync_mask(hidden_lines, hidden_line_count);
+        }
         else if (hidden_left_panel_uses_topline_layout())
+        {
+            hidden_line_count = hidden_left_panel_build_lines(hidden_lines, 16);
             hidden_mask_changed
                 = hidden_left_panel_sync_topline_mask(hidden_lines,
                     hidden_line_count);
+        }
         else
             hidden_mask_changed = hidden_left_panel_sync_mask(NULL, 0);
 
@@ -6335,6 +6404,8 @@ void redraw_stuff(void)
         p_ptr->redraw &= ~(PR_LIGHT);
         if (!ui_hide_left_panel())
             prt_light();
+        else
+            hidden_overlay_needs_refresh = true;
     }
 
     /* Sil - Hack: always redraw song (really should invent redraw flag for it
@@ -6345,7 +6416,11 @@ void redraw_stuff(void)
         if (!ui_hide_left_panel())
             prt_song();
         else
+        {
+            if (ui_compact_status_line_handles_song())
+                prt_song();
             hidden_overlay_needs_refresh = true;
+        }
     }
 
     if (p_ptr->redraw & (PR_DEPTH))
@@ -6379,9 +6454,9 @@ void redraw_stuff(void)
     if (p_ptr->redraw & (PR_CUT))
     {
         p_ptr->redraw &= ~(PR_CUT);
-        if (!ui_hide_left_panel())
+        if (!ui_hide_left_panel() || ui_compact_status_line_handles_wounds())
             prt_cut();
-        else
+        if (ui_hide_left_panel())
             hidden_overlay_needs_refresh = true;
     }
 
@@ -6418,9 +6493,9 @@ void redraw_stuff(void)
     if (p_ptr->redraw & (PR_POISONED))
     {
         p_ptr->redraw &= ~(PR_POISONED);
-        if (!ui_hide_left_panel())
+        if (!ui_hide_left_panel() || ui_compact_status_line_handles_wounds())
             prt_poisoned();
-        else
+        if (ui_hide_left_panel())
             hidden_overlay_needs_refresh = true;
     }
 

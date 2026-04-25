@@ -506,7 +506,11 @@ static void drop_apply_spawn_quantities(object_type* o_ptr)
             }
             else if (o_ptr->sval == SV_LIGHT_LANTERN)
             {
-                o_ptr->timeout = one_in_(3) ? rand_range(500, 3000) : 3000;
+                int spawn_fuel = (FUEL_LAMP * 2) / 5;
+                int min_fuel = FUEL_LAMP / 15;
+                o_ptr->timeout = one_in_(3)
+                    ? rand_range(min_fuel, spawn_fuel)
+                    : spawn_fuel;
             }
             else if (o_ptr->sval == SV_LIGHT_MALLORN)
             {

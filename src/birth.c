@@ -591,7 +591,7 @@ static void give_start_items(const start_item *list)
             if (i_ptr->sval == SV_LIGHT_TORCH)
                 i_ptr->timeout = 1000;
             else if (i_ptr->sval == SV_LIGHT_LANTERN)
-                i_ptr->timeout = 3000;
+                i_ptr->timeout = (FUEL_LAMP * 2) / 5;
             else if (i_ptr->sval == SV_LIGHT_MALLORN)
                 i_ptr->timeout = 100;
         }
@@ -660,11 +660,19 @@ static void equip_starting_light_from_supply(void)
     if (inventory[INVEN_LITE].tval != 0)
         return;
 
-    supply_idx = supplies_first_entry_for_group(SUPPLY_GROUP_LIGHTS);
-    if (supply_idx < 0)
-        return;
+    supply_idx = -1;
+    for (int i = 0; i < supplies_entry_count(); i++)
+    {
+        object_type* o_ptr = supplies_entry_at(i);
+        if (!supplies_is_light_object(o_ptr))
+            continue;
+        if (wield_slot(o_ptr) != INVEN_LITE)
+            continue;
+        supply_idx = i;
+        break;
+    }
 
-    if (!supplies_take_one(supply_idx, &equip_light))
+    if (supply_idx < 0 || !supplies_take_one(supply_idx, &equip_light))
         return;
 
     object_copy(&inventory[INVEN_LITE], &equip_light);

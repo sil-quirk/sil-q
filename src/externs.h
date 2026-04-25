@@ -723,6 +723,7 @@ extern void ability_log_record_gain(int skilltype, int abilitynum);
 extern void ability_log_sync_missing(void);
 extern int elf_bane_bonus(monster_type* m_ptr);
 extern int dwarf_bane_bonus(monster_type* m_ptr);
+extern int edain_bane_bonus(monster_type* m_ptr);
 extern char* bane_name[];
 extern int bane_bonus(monster_type* m_ptr);
 extern int bane_bonus_for_type(int bane_type_idx);

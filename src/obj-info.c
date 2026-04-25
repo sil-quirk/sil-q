@@ -989,7 +989,7 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3, u32b
     if (f4 & (TR4_BREAKS_PERMA_CURSE))
         good[gc++] = "can break the Oath of Feanor on your equipped items";
     if (f4 & (TR4_DEEP_CALL))
-        good[gc++] = "bears a Deep Call, speeding the minimum depth timer as if you were three levels deeper even in your inventory";
+        good[gc++] = "bears a Deep Call, speeding min depth (+3 equipped, +1.5 in inventory)";
     if ((f4 & (TR4_PROT_FIRE)) && (o_ptr->pd > 0))
         good[gc++] = "uses its protection against fire";
     if ((f4 & (TR4_PROT_COLD)) && (o_ptr->pd > 0))

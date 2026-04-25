@@ -20,8 +20,12 @@
 #define MIN_DEPTH_BASE_INCREMENT_START 85
 #define MIN_DEPTH_BASE_INCREMENT_DIVISOR 850
 #define MIN_DEPTH_INCREMENT_PER_BONUS 5
-#define MIN_DEPTH_ITEM_BONUS_DEEP_CALL 3
-#define MIN_DEPTH_ITEM_BONUS_PERMA_CURSE 5
+#define MIN_DEPTH_BONUS_UNITS_PER_DEPTH 2
+#define MIN_DEPTH_ITEM_BONUS_DEEP_CALL_EQUIPPED                              \
+    (3 * MIN_DEPTH_BONUS_UNITS_PER_DEPTH)
+#define MIN_DEPTH_ITEM_BONUS_DEEP_CALL_INVENTORY                             \
+    (MIN_DEPTH_ITEM_BONUS_DEEP_CALL_EQUIPPED / 2)
+#define MIN_DEPTH_ITEM_BONUS_PERMA_CURSE (5 * MIN_DEPTH_BONUS_UNITS_PER_DEPTH)
 #define MIN_DEPTH_KILL_BONUS_STEP 500
 #define MIN_DEPTH_KILL_BONUS_AMOUNT 5
 
@@ -62,14 +66,15 @@ static bool min_depth_timer_bonus_slot_active(const object_type* o_ptr)
     return true;
 }
 
-static int min_depth_timer_item_bonus_count(void)
+static int min_depth_timer_item_bonus_units(void)
 {
-    int count = 0;
+    int units = 0;
 
     for (int i = 0; i < INVEN_TOTAL; i++)
     {
         object_type* o_ptr = &inventory[i];
         u32b f1, f2, f3, f4;
+        bool equipped = (i >= INVEN_WIELD);
 
         if (!o_ptr->k_idx)
             continue;
@@ -81,12 +86,13 @@ static int min_depth_timer_item_bonus_count(void)
             continue;
 
         if (f4 & TR4_DEEP_CALL)
-            count += MIN_DEPTH_ITEM_BONUS_DEEP_CALL;
+            units += equipped ? MIN_DEPTH_ITEM_BONUS_DEEP_CALL_EQUIPPED
+                              : MIN_DEPTH_ITEM_BONUS_DEEP_CALL_INVENTORY;
         if (f3 & TR3_PERMA_CURSE)
-            count += MIN_DEPTH_ITEM_BONUS_PERMA_CURSE;
+            units += MIN_DEPTH_ITEM_BONUS_PERMA_CURSE;
     }
 
-    return count;
+    return units;
 }
 
 static int min_depth_timer_kill_bonus(void)
@@ -116,7 +122,11 @@ static int min_depth_timer_base_increment(void)
 static int min_depth_timer_additional_increment(void)
 {
     int depth_bonus = MIN_DEPTH_INCREMENT_PER_BONUS * (p_ptr->depth - min_depth());
-    int item_bonus = MIN_DEPTH_INCREMENT_PER_BONUS * min_depth_timer_item_bonus_count();
+    int item_bonus_units = min_depth_timer_item_bonus_units();
+    /* Use half-depth units so carried Deep Call items can be worth 1.5 depths. */
+    int item_bonus = (MIN_DEPTH_INCREMENT_PER_BONUS * item_bonus_units
+        + (MIN_DEPTH_BONUS_UNITS_PER_DEPTH / 2))
+        / MIN_DEPTH_BONUS_UNITS_PER_DEPTH;
     int kill_bonus = min_depth_timer_kill_bonus();
 
     return depth_bonus + item_bonus + kill_bonus;

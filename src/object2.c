@@ -477,7 +477,7 @@ static void fill_inventory_limit_label(enum inventory_limit_group group,
                       sizeof(carry_limit_last_label));
             break;
         case INV_LIMIT_BRASS_LAMPS:
-            SDL_strlcpy(carry_limit_last_label, "brass lamps",
+            SDL_strlcpy(carry_limit_last_label, "oil container slots",
                       sizeof(carry_limit_last_label));
             break;
         case INV_LIMIT_LESSER_JEWEL:
@@ -499,7 +499,13 @@ static void set_inventory_limit_failure(enum inventory_limit_group group,
 
 static enum inventory_limit_group light_limit_group(const object_type* o_ptr)
 {
-    if (!o_ptr || !o_ptr->k_idx || o_ptr->tval != TV_LIGHT)
+    if (!o_ptr || !o_ptr->k_idx)
+        return INV_LIMIT_NONE;
+
+    if (player_oil_container_object(o_ptr))
+        return INV_LIMIT_BRASS_LAMPS;
+
+    if (o_ptr->tval != TV_LIGHT)
         return INV_LIMIT_NONE;
 
     switch (o_ptr->sval)
@@ -507,8 +513,6 @@ static enum inventory_limit_group light_limit_group(const object_type* o_ptr)
     case SV_LIGHT_TORCH:
     case SV_LIGHT_MALLORN:
         return INV_LIMIT_TORCHES;
-    case SV_LIGHT_LANTERN:
-        return INV_LIMIT_BRASS_LAMPS;
     case SV_LIGHT_LESSER_JEWEL:
     case SV_LIGHT_FEANORIAN:
         return INV_LIMIT_LESSER_JEWEL;
@@ -568,7 +572,8 @@ bool inven_carry_limit_can_replace(const object_type* o_ptr)
     if (!o_ptr)
         return false;
 
-    if (o_ptr->k_idx && o_ptr->tval == TV_LIGHT)
+    if (o_ptr->k_idx
+        && (o_ptr->tval == TV_LIGHT || o_ptr->tval == TV_FLASK))
     {
         group = light_limit_group(o_ptr);
         if (group == INV_LIMIT_NONE)
@@ -3275,13 +3280,16 @@ static void a_m_aux_4(object_type* o_ptr, int level, bool fine, bool special)
         /* Hack -- Lanterns -- random fuel */
         else if (o_ptr->sval == SV_LIGHT_LANTERN)
         {
+            int spawn_fuel = (FUEL_LAMP * 2) / 5;
+            int min_fuel = FUEL_LAMP / 15;
+
             if (one_in_(3))
             {
-                o_ptr->timeout = rand_range(500, 3000);
+                o_ptr->timeout = rand_range(min_fuel, spawn_fuel);
             }
             else
             {
-                o_ptr->timeout = 3000;
+                o_ptr->timeout = spawn_fuel;
             }
         }
 
@@ -7134,7 +7142,7 @@ void inven_drop(int item, int amt)
 {
     int py = p_ptr->py;
     int px = p_ptr->px;
-    int lantern_oil_to_drop = 0;
+    int oil_to_drop = 0;
 
     object_type* o_ptr;
 
@@ -7176,9 +7184,10 @@ void inven_drop(int item, int amt)
     /* Modify quantity */
     i_ptr->number = amt;
 
-    if (i_ptr->tval == TV_LIGHT && i_ptr->sval == SV_LIGHT_LANTERN)
+    if (player_oil_container_object(i_ptr))
     {
-        if (!player_prepare_lantern_drop(amt, &lantern_oil_to_drop, NULL))
+        if (!player_prepare_oil_container_drop(i_ptr, amt, &oil_to_drop,
+                NULL))
             return;
     }
 
@@ -7203,18 +7212,19 @@ void inven_drop(int item, int amt)
     msg_format("You drop %s (%c).", o_name, index_to_label(item));
 
     /* Drop it near the player */
-    if (i_ptr->tval == TV_LIGHT && i_ptr->sval == SV_LIGHT_LANTERN
-        && lantern_oil_to_drop > 0)
+    if (player_oil_container_object(i_ptr) && oil_to_drop > 0)
     {
-        int oil_remaining = lantern_oil_to_drop;
+        int oil_remaining = oil_to_drop;
+        int unit_capacity = player_oil_container_unit_capacity(i_ptr);
         for (int n = 0; n < amt; n++)
         {
             object_type single_drop;
             object_wipe(&single_drop);
             object_copy(&single_drop, i_ptr);
             single_drop.number = 1;
-            single_drop.timeout = MIN(oil_remaining, FUEL_LAMP);
-            oil_remaining -= single_drop.timeout;
+            player_oil_container_set_fuel(&single_drop,
+                MIN(oil_remaining, unit_capacity));
+            oil_remaining -= MIN(oil_remaining, unit_capacity);
             drop_near(&single_drop, 0, py, px);
         }
     }
